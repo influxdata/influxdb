@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"sync"
 )
 
 //------------------------------------------------------------------------------
@@ -21,6 +22,7 @@ type Log struct {
 	entries      []*LogEntry
 	commitIndex  uint64
 	commandTypes map[string]Command
+	mutex sync.Mutex
 }
 
 //------------------------------------------------------------------------------
@@ -83,6 +85,9 @@ func (l *Log) AddCommandType(command Command) {
 // Opens the log file and reads existing entries. The log can remain open and
 // continue to append entries to the end of the log.
 func (l *Log) Open(path string) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	
 	// Read all the entries from the log if one exists.
 	var lastIndex int = 0
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -112,6 +117,7 @@ func (l *Log) Open(path string) error {
 				}
 				break
 			}
+			l.commitIndex = entry.index
 			lastIndex += n
 
 			// Append entry.
@@ -133,6 +139,9 @@ func (l *Log) Open(path string) error {
 
 // Closes the log file.
 func (l *Log) Close() {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
 	if l.file != nil {
 		l.file.Close()
 		l.file = nil
@@ -144,8 +153,42 @@ func (l *Log) Close() {
 // Append
 //--------------------------------------
 
+// Updates the commit index and writes entries after that index to the stable
+// storage.
+func (l *Log) SetCommitIndex(index uint64) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	// Do not allow previous indices to be committed again.
+	if index < l.commitIndex {
+		return fmt.Errorf("raft.Log: Commit index (%d) ahead of requested commit index (%d)", l.commitIndex, index)
+	}
+
+	// Find all entries whose index is between the previous index and the current index.
+	for _, entry := range l.entries {
+		if entry.index > l.commitIndex && entry.index <= index {
+			// Write to storage.
+			if err := entry.Encode(l.file); err != nil {
+				return err
+			}
+			
+			// Update commit index.
+			l.commitIndex = entry.index
+		}
+	}
+	
+	return nil
+}
+
+//--------------------------------------
+// Append
+//--------------------------------------
+
 // Writes a single log entry to the end of the log.
 func (l *Log) Append(entry *LogEntry) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
 	if l.file == nil {
 		return errors.New("raft.Log: Log is not open")
 	}
@@ -160,11 +203,6 @@ func (l *Log) Append(entry *LogEntry) error {
 		}
 	}
 	
-	// Write to storage.
-	if err := entry.Encode(l.file); err != nil {
-		return err
-	}
-
 	// Append to entries list if stored on disk.
 	l.entries = append(l.entries, entry)
 
