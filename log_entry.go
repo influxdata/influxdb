@@ -75,60 +75,77 @@ func (e *LogEntry) Encode(w io.Writer) error {
 	return err
 }
 
-// Decodes the log entry from a buffer.
-func (e *LogEntry) Decode(r io.Reader) error {
+// Decodes the log entry from a buffer. Returns the number of bytes read.
+func (e *LogEntry) Decode(r io.Reader) (pos int, err error) {
+	pos = 0
+	
 	if r == nil {
-		return errors.New("raft.LogEntry: Reader required to decode")
+		err = errors.New("raft.LogEntry: Reader required to decode")
+		return
 	}
 	
 	// Read the expected checksum first.
 	var checksum uint32
-	if _, err := fmt.Fscanf(r, "%08x", &checksum); err != nil {
-		return fmt.Errorf("raft.LogEntry: Unable to read checksum: %v", err)
+	if _, err = fmt.Fscanf(r, "%08x", &checksum); err != nil {
+		err = fmt.Errorf("raft.LogEntry: Unable to read checksum: %v", err)
+		return
 	}
+	pos += 8
 
 	// Read the rest of the line.
 	bufr := bufio.NewReader(r)
 	if c, _ := bufr.ReadByte(); c != ' ' {
-		return fmt.Errorf("raft.LogEntry: Expected space, received %02x", c)
+		err = fmt.Errorf("raft.LogEntry: Expected space, received %02x", c)
+		return
 	}
+	pos += 1
 
 	line, err := bufr.ReadString('\n')
+	pos += len(line)
 	if err == io.EOF {
-		return fmt.Errorf("raft.LogEntry: Unexpected EOF")
+		err = fmt.Errorf("raft.LogEntry: Unexpected EOF")
+		return
 	} else if err != nil {
-		return fmt.Errorf("raft.LogEntry: Unable to read line: %v", err)
+		err = fmt.Errorf("raft.LogEntry: Unable to read line: %v", err)
+		return
 	}
 	b := bytes.NewBufferString(line)
 
 	// Verify checksum.
 	bchecksum := crc32.ChecksumIEEE(b.Bytes())
 	if checksum != bchecksum {
-		return fmt.Errorf("raft.LogEntry: Invalid checksum: Expected %08x, calculated %08x", checksum, bchecksum)
+		err = fmt.Errorf("raft.LogEntry: Invalid checksum: Expected %08x, calculated %08x", checksum, bchecksum)
+		return
 	}
 
 	// Read term, index and command name.
 	var commandName string
-	if _, err := fmt.Fscanf(b, "%016x %016x %s ", &e.index, &e.term, &commandName); err != nil {
-		return fmt.Errorf("raft.LogEntry: Unable to scan: %v", err)
+	if _, err = fmt.Fscanf(b, "%016x %016x %s ", &e.index, &e.term, &commandName); err != nil {
+		err = fmt.Errorf("raft.LogEntry: Unable to scan: %v", err)
+		return
 	}
 
 	// Instantiate command by name.
 	command, err := e.log.NewCommand(commandName)
 	if err != nil {
-		return fmt.Errorf("raft.LogEntry: Unable to instantiate command (%s): %v", commandName, err)
+		err = fmt.Errorf("raft.LogEntry: Unable to instantiate command (%s): %v", commandName, err)
+		return
 	}
 
 	// Deserialize command.
 	if err = json.NewDecoder(b).Decode(&command); err != nil {
-		return fmt.Errorf("raft.LogEntry: Unable to decode: %v", err)
+		err = fmt.Errorf("raft.LogEntry: Unable to decode: %v", err)
+		return
 	}
 	e.command = command
 	
 	// Make sure there's only an EOF remaining.
-	if c, err := b.ReadByte(); err != io.EOF {
-		return fmt.Errorf("raft.LogEntry: Expected EOL, received %02x", c)
+	c, err := b.ReadByte()
+	if err != io.EOF {
+		err = fmt.Errorf("raft.LogEntry: Expected EOL, received %02x", c)
+		return
 	}
 
-	return nil
+	err = nil
+	return
 }

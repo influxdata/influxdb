@@ -84,6 +84,7 @@ func (l *Log) AddCommandType(command Command) {
 // continue to append entries to the end of the log.
 func (l *Log) Open(path string) error {
 	// Read all the entries from the log if one exists.
+	var lastIndex int = 0
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		// Open the log file.
 		file, err := os.Open(path)
@@ -101,10 +102,17 @@ func (l *Log) Open(path string) error {
 
 			// Instantiate log entry and decode into it.
 			entry := NewLogEntry(l, 0, 0, nil)
-			err := entry.Decode(reader)
+			n, err := entry.Decode(reader)
 			if err != nil {
-				return err
+				warn("raft.Log: %v", err)
+				warn("raft.Log: Recovering (%d)", lastIndex)
+				file.Close()
+				if err = os.Truncate(path, int64(lastIndex)); err != nil {
+					return fmt.Errorf("raft.Log: Unable to recover: %v", err)
+				}
+				break
 			}
+			lastIndex += n
 
 			// Append entry.
 			l.entries = append(l.entries, entry)
