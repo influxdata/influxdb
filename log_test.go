@@ -4,6 +4,7 @@ import (
 	"testing"
 	"io/ioutil"
 	"os"
+	"reflect"
 )
 
 //------------------------------------------------------------------------------
@@ -12,10 +13,17 @@ import (
 //
 //------------------------------------------------------------------------------
 
-func setupLogFile() string {
+func getLogPath() string {
 	f, _ := ioutil.TempFile("", "raft-log-")
 	f.Close()
 	os.Remove(f.Name())
+	return f.Name()
+}
+
+func setupLog(content string) string {
+	f, _ := ioutil.TempFile("", "raft-log-")
+	f.Write([]byte(content))
+	f.Close()
 	return f.Name()
 }
 
@@ -28,31 +36,78 @@ func (c TestCommand1) Name() string {
 	return "cmd_1"
 }
 
+type TestCommand2 struct {
+	X int `json:"x"`
+}
+
+func (c TestCommand2) Name() string {
+	return "cmd_2"
+}
+
 //------------------------------------------------------------------------------
 //
 // Tests
 //
 //------------------------------------------------------------------------------
 
-// Ensure that we can encode log entries.
+// Ensure that we can append to a new log.
 func TestLogNewLog(t *testing.T) {
-	path := setupLogFile()
+	path := getLogPath()
 	log := NewLog()
 	log.AddCommandType(&TestCommand1{})
+	log.AddCommandType(&TestCommand2{})
 	if err := log.Open(path); err != nil {
 		t.Fatalf("Unable to open log: %v", err)
 	}
 	defer log.Close()
 	defer os.Remove(path)
 	
-	err := log.Append(NewLogEntry(log, 1, 2, &TestCommand1{"foo", 20}))
-	if err != nil {
+	if err := log.Append(NewLogEntry(log, 1, 1, &TestCommand1{"foo", 20})); err != nil {
+		t.Fatalf("Unable to append: %v", err)
+	}
+	if err := log.Append(NewLogEntry(log, 2, 1, &TestCommand2{100})); err != nil {
+		t.Fatalf("Unable to append: %v", err)
+	}
+	if err := log.Append(NewLogEntry(log, 3, 2, &TestCommand1{"bar", 0})); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
 	
-	expected := `a9f602d5 00000001 00000002 cmd_1 {"val":"foo","i":20}`+"\n"
+	expected := 
+		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}`+"\n" +
+		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}`+"\n" +
+		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}`+"\n"
 	actual, _ := ioutil.ReadFile(path)
 	if string(actual) != expected {
-		t.Fatalf("Unexpected buffer:\nexp: %s\ngot: %s", expected, string(actual))
+		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
+	}
+}
+
+// Ensure that we can decode and encode to an existing log.
+func TestLogExistingLog(t *testing.T) {
+	path := setupLog(
+		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}`+"\n" +
+		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}`+"\n" +
+		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}`+"\n")
+	log := NewLog()
+	log.AddCommandType(&TestCommand1{})
+	log.AddCommandType(&TestCommand2{})
+	if err := log.Open(path); err != nil {
+		t.Fatalf("Unable to open log: %v", err)
+	}
+	defer log.Close()
+	defer os.Remove(path)
+
+	// Validate existing log entries.
+	if len(log.entries) != 3 {
+		t.Fatalf("Expected 3 entries, got %d", len(log.entries))
+	}
+	if !reflect.DeepEqual(log.entries[0], NewLogEntry(log, 1, 1, &TestCommand1{"foo", 20})) {
+		t.Fatalf("Unexpected entry[0]: %v", log.entries[0])
+	}
+	if !reflect.DeepEqual(log.entries[1], NewLogEntry(log, 2, 1, &TestCommand2{100})) {
+		t.Fatalf("Unexpected entry[1]: %v", log.entries[1])
+	}
+	if !reflect.DeepEqual(log.entries[2], NewLogEntry(log, 3, 2, &TestCommand1{"bar", 0})) {
+		t.Fatalf("Unexpected entry[2]: %v", log.entries[2])
 	}
 }

@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -55,9 +56,10 @@ func (l *Log) NewCommand(name string) (Command, error) {
 	}
 
 	// Make a copy of the command.
-	copy, ok := reflect.New(reflect.ValueOf(command).Type()).Interface().(Command)
+	v := reflect.New(reflect.Indirect(reflect.ValueOf(command)).Type()).Interface()
+	copy, ok := v.(Command)
 	if !ok {
-		panic(fmt.Sprintf("raft.Log: Command type already exists: %s", command.Name()))
+		panic(fmt.Sprintf("raft.Log: Unable to copy command: %s (%v)", command.Name(), reflect.ValueOf(v).Kind().String()))
 	}
 	return copy, nil
 }
@@ -89,22 +91,26 @@ func (l *Log) Open(path string) error {
 			return err
 		}
 		defer file.Close()
+		reader := bufio.NewReader(file)
 		
 		// Read the file and decode entries.
-		eof := false
-		for !eof {
+		for {
+			if _, err := reader.Peek(1); err == io.EOF {
+				break
+			}
+
 			// Instantiate log entry and decode into it.
 			entry := NewLogEntry(l, 0, 0, nil)
-			err := entry.Decode(l.file)
-			if err == io.EOF {
-				eof = true
-			} else if err != nil {
+			err := entry.Decode(reader)
+			if err != nil {
 				return err
 			}
 
 			// Append entry.
 			l.entries = append(l.entries, entry)
 		}
+
+		file.Close()
 	}
 
 	// Open the file for appending.
