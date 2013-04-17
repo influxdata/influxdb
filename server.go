@@ -13,10 +13,14 @@ import (
 //------------------------------------------------------------------------------
 
 const (
-	Stopped   = iota
-	Follower  = iota
-	Candidate = iota
-	Leader    = iota
+	Stopped   = "stopped"
+	Follower  = "follower"
+	Candidate = "candidate"
+	Leader    = "leader"
+)
+
+const (
+	DefaultElectionTimeout = 150
 )
 
 //------------------------------------------------------------------------------
@@ -30,12 +34,13 @@ const (
 type Server struct {
 	name        string
 	path        string
+	state       string
 	currentTerm int
-	state       int
 	votedFor    int
 	log         *Log
 	replicas    []*Replica
 	mutex       sync.Mutex
+	ElectionTimeout    int
 }
 
 //--------------------------------------
@@ -132,7 +137,7 @@ func (s *Server) LogPath() string {
 }
 
 // Retrieves the current state of the server.
-func (s *Server) State() int {
+func (s *Server) State() string {
 	return s.state
 }
 
@@ -162,7 +167,8 @@ func (s *Server) Start() error {
 		return fmt.Errorf("raft.Server: %v", err) 
 	}
 
-	
+	// Update the state.
+	s.state = Follower
 
 	return nil
 }
@@ -180,6 +186,8 @@ func (s *Server) unload() {
 		s.log.Close()
 		s.log = nil
 	}
+
+	s.state = Stopped
 }
 
 // Checks if the server is currently running.
@@ -198,4 +206,29 @@ func (s *Server) AddCommandType(command Command) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.log.AddCommandType(command)
+}
+
+//--------------------------------------
+// Membership
+//--------------------------------------
+
+// Connects to a given server and attempts to gain membership.
+func (s *Server) Join(name string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Exit if the server is not running.
+	if !s.Running() {
+		return errors.New("raft.Server: Cannot join while stopped")
+	} else if len(s.replicas) > 0 {
+		return errors.New("raft.Server: Cannot join; already in membership")
+	}
+	
+	// If joining self then promote to leader.
+	if s.name == name {
+		s.state = Leader
+		return nil
+	}
+	
+	return nil
 }
