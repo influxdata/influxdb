@@ -1,5 +1,11 @@
 package raft
 
+import (
+	"errors"
+	"fmt"
+	"sync"
+)
+
 //------------------------------------------------------------------------------
 //
 // Constants
@@ -7,6 +13,7 @@ package raft
 //------------------------------------------------------------------------------
 
 const (
+	Stopped   = iota
 	Follower  = iota
 	Candidate = iota
 	Leader    = iota
@@ -21,10 +28,14 @@ const (
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
-	replicas    []*Replica
+	name        string
+	path        string
 	currentTerm int
 	state       int
 	votedFor    int
+	log         *Log
+	replicas    []*Replica
+	mutex       sync.Mutex
 }
 
 //--------------------------------------
@@ -33,7 +44,7 @@ type Server struct {
 
 // A replica is a reference to another server involved in the consensus protocol.
 type Replica struct {
-	hostname       string
+	name           string
 	voteResponded  bool
 	voteGranted    bool
 	nextIndex      int
@@ -84,11 +95,45 @@ type AppendEntriesResponse struct {
 //
 //------------------------------------------------------------------------------
 
-// Creates a new server.
-func NewServer() *Server {
-	return &Server{
-		state: Follower,
+// Creates a new server with a log at the given path.
+func NewServer(name string, path string) (*Server, error) {
+	if name == "" {
+		return nil, errors.New("raft.Server: Name cannot be blank")
 	}
+	
+	s := &Server{
+		name: name,
+		path: path,
+		state: Stopped,
+		log: NewLog(),
+	}
+	return s, nil
+}
+
+//------------------------------------------------------------------------------
+//
+// Accessors
+//
+//------------------------------------------------------------------------------
+
+// Retrieves the name of the server.
+func (s *Server) Name() string {
+	return s.name
+}
+
+// Retrieves the storage path for the server.
+func (s *Server) Path() string {
+	return s.path
+}
+
+// Retrieves the log path for the server.
+func (s *Server) LogPath() string {
+	return fmt.Sprintf("%s/log", s.path)
+}
+
+// Retrieves the current state of the server.
+func (s *Server) State() int {
+	return s.state
 }
 
 //------------------------------------------------------------------------------
@@ -96,3 +141,61 @@ func NewServer() *Server {
 // Methods
 //
 //------------------------------------------------------------------------------
+
+//--------------------------------------
+// State
+//--------------------------------------
+
+// Starts the server with a log at the given path.
+func (s *Server) Start() error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Exit if the server is already running.
+	if s.Running() {
+		return errors.New("raft.Server: Server already running")
+	}
+	
+	// Initialize the log and load it up.
+	if err := s.log.Open(s.LogPath()); err != nil {
+		s.unload()
+		return fmt.Errorf("raft.Server: %v", err) 
+	}
+
+	
+
+	return nil
+}
+
+// Shuts down the server.
+func (s *Server) Stop() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.unload()
+}
+
+// Unloads the server.
+func (s *Server) unload() {
+	if s.log != nil {
+		s.log.Close()
+		s.log = nil
+	}
+}
+
+// Checks if the server is currently running.
+func (s *Server) Running() bool {
+	return s.state != Stopped
+}
+
+//--------------------------------------
+// Commands
+//--------------------------------------
+
+// Adds a command type to the log. The instance passed in will be copied and
+// deserialized each time a new log entry is read. This function will panic
+// if a command type with the same name already exists.
+func (s *Server) AddCommandType(command Command) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.log.AddCommandType(command)
+}

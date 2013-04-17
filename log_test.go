@@ -9,43 +9,6 @@ import (
 
 //------------------------------------------------------------------------------
 //
-// Setup
-//
-//------------------------------------------------------------------------------
-
-func getLogPath() string {
-	f, _ := ioutil.TempFile("", "raft-log-")
-	f.Close()
-	os.Remove(f.Name())
-	return f.Name()
-}
-
-func setupLog(content string) string {
-	f, _ := ioutil.TempFile("", "raft-log-")
-	f.Write([]byte(content))
-	f.Close()
-	return f.Name()
-}
-
-type TestCommand1 struct {
-	Val string `json:"val"`
-	I int `json:"i"`
-}
-
-func (c TestCommand1) Name() string {
-	return "cmd_1"
-}
-
-type TestCommand2 struct {
-	X int `json:"x"`
-}
-
-func (c TestCommand2) Name() string {
-	return "cmd_2"
-}
-
-//------------------------------------------------------------------------------
-//
 // Tests
 //
 //------------------------------------------------------------------------------
