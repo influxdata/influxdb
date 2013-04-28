@@ -34,4 +34,3 @@ func NewPeer(name string) *Peer {
 func (p *Peer) Name() string {
 	return p.name
 }
-

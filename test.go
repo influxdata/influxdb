@@ -47,7 +47,7 @@ func newTestServer(name string) *Server {
 
 type TestCommand1 struct {
 	Val string `json:"val"`
-	I int `json:"i"`
+	I   int    `json:"i"`
 }
 
 func (c TestCommand1) CommandName() string {
@@ -65,4 +65,3 @@ type TestCommand2 struct {
 func (c TestCommand2) CommandName() string {
 	return "cmd_2"
 }
-

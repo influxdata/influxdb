@@ -22,7 +22,7 @@ const (
 
 const (
 	DefaultHeartbeatTimeout = 50 * time.Millisecond
-	DefaultElectionTimeout = 150 * time.Millisecond
+	DefaultElectionTimeout  = 150 * time.Millisecond
 )
 
 //------------------------------------------------------------------------------
@@ -34,18 +34,18 @@ const (
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
-	name        string
-	path        string
-	state       string
-	currentTerm uint64
-	votedFor    string
-	log         *Log
-	leader      *Peer
-	peers       map[string]*Peer
-	mutex       sync.Mutex
-	ElectionTimeout    int
-	DoHandler    func(*Server, *Peer, Command) error
-	AppendEntriesHandler    func(*Server, *AppendEntriesRequest) (*AppendEntriesResponse, error)
+	name                 string
+	path                 string
+	state                string
+	currentTerm          uint64
+	votedFor             string
+	log                  *Log
+	leader               *Peer
+	peers                map[string]*Peer
+	mutex                sync.Mutex
+	ElectionTimeout      int
+	DoHandler            func(*Server, *Peer, Command) error
+	AppendEntriesHandler func(*Server, *AppendEntriesRequest) (*AppendEntriesResponse, error)
 }
 
 //------------------------------------------------------------------------------
@@ -59,12 +59,12 @@ func NewServer(name string, path string) (*Server, error) {
 	if name == "" {
 		return nil, errors.New("raft.Server: Name cannot be blank")
 	}
-	
+
 	s := &Server{
-		name: name,
-		path: path,
+		name:  name,
+		path:  path,
 		state: Stopped,
-		log: NewLog(),
+		log:   NewLog(),
 	}
 	return s, nil
 }
@@ -98,7 +98,7 @@ func (s *Server) State() string {
 // Retrieves the number of member servers in the consensus.
 func (s *Server) MemberCount() uint64 {
 	var count uint64 = 1
-	for _,_ = range s.peers {
+	for _, _ = range s.peers {
 		count++
 	}
 	return count
@@ -128,11 +128,11 @@ func (s *Server) Start() error {
 	if s.Running() {
 		return errors.New("raft.Server: Server already running")
 	}
-	
+
 	// Initialize the log and load it up.
 	if err := s.log.Open(s.LogPath()); err != nil {
 		s.unload()
-		return fmt.Errorf("raft.Server: %v", err) 
+		return fmt.Errorf("raft.Server: %v", err)
 	}
 
 	// Update the state.
@@ -174,7 +174,7 @@ func (s *Server) executeDoHandler(peer *Peer, command Command) error {
 	} else if peer == nil {
 		return errors.New("raft.Server: Peer required")
 	}
-	
+
 	return s.DoHandler(s, peer, command)
 }
 
@@ -203,13 +203,13 @@ func (s *Server) Do(command Command) error {
 // does not obtain a lock so one must be obtained before executing.
 func (s *Server) do(command Command) error {
 	warn("[%s] do.1 (%s) %v", s.name, command.CommandName(), command)
-	
+
 	// Send the request to the leader if we're not the leader.
 	if s.state != Leader {
 		// TODO: If we don't have a leader then elect one.
 		return s.executeDoHandler(s.leader, command)
 	}
-	
+
 	warn("[%s] do.2", s.name)
 
 	// If we are the leader then create a new log entry.
@@ -224,13 +224,13 @@ func (s *Server) do(command Command) error {
 		go func() {
 			// Generate request.
 			request := &AppendEntriesRequest{
-				peer: peer,
-				Term: s.currentTerm,
-				LeaderName: s.name,
+				peer:         peer,
+				Term:         s.currentTerm,
+				LeaderName:   s.name,
 				PrevLogIndex: prevLogIndex,
-				PrevLogTerm: prevLogTerm,
-				CommitIndex: commitIndex,
-				Entries: []*LogEntry{entry},
+				PrevLogTerm:  prevLogTerm,
+				CommitIndex:  commitIndex,
+				Entries:      []*LogEntry{entry},
 			}
 
 			// Send response through the channel that gets collected below.
@@ -242,7 +242,7 @@ func (s *Server) do(command Command) error {
 			}
 		}()
 	}
-	
+
 	// Collect all the responses until consensus or timeout.
 	votes := map[*Peer]bool{}
 	timeoutChannel, success := time.After(DefaultElectionTimeout), false
@@ -259,21 +259,21 @@ func (s *Server) do(command Command) error {
 
 		// Attempt to retrieve 'Append Entries' responses or timeout.
 		select {
-			case ret := <-c:
-				if resp, ok := ret.(AppendEntriesResponse); ok {
-					// If we're in the same term then save the vote.
-					if resp.Term == s.currentTerm {
-						votes[resp.peer] = resp.Success
-					} else if resp.Term > s.currentTerm {
-						// TODO: Reset to follower and elect leader.
-					}
+		case ret := <-c:
+			if resp, ok := ret.(AppendEntriesResponse); ok {
+				// If we're in the same term then save the vote.
+				if resp.Term == s.currentTerm {
+					votes[resp.peer] = resp.Success
+				} else if resp.Term > s.currentTerm {
+					// TODO: Reset to follower and elect leader.
 				}
-			case <-timeoutChannel:
-				success = false
-				break
+			}
+		case <-timeoutChannel:
+			success = false
+			break
 		}
 	}
-	
+
 	// If we succeeded then commit the entry.
 	if success {
 		// TODO: Update commit index.
@@ -281,7 +281,7 @@ func (s *Server) do(command Command) error {
 		// TODO: Otherwise restart.
 		panic("raft.Server: 'DO' did not succeed. (NOT YET IMPLEMENTED)")
 	}
-	
+
 	return nil
 }
 
@@ -289,9 +289,56 @@ func (s *Server) do(command Command) error {
 func (s *Server) AppendEntry(req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	warn("raft.Sever: AppendEntry not implemented yet.")
 	return nil, nil
+}
+
+//--------------------------------------
+// Elections
+//--------------------------------------
+
+// Requests a vote from a server. A vote can be obtained if the vote's term is
+// at the server's current term and the server has not made a vote yet. A vote
+// can also be obtained if the term is greater than the server's current term.
+func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// If the request is coming from an old term then reject it.
+	if req.Term < s.currentTerm {
+		return NewRequestVoteResponse(s.currentTerm, false)
+	}
+
+	// If the term is after our current term then update our term and demote
+	// ourselves if we're a candidate or leader.
+	if req.Term > s.currentTerm {
+		s.currentTerm = req.Term
+		s.votedFor = ""
+		s.resign()
+	}
+
+	// If we've already voted for a different candidate then don't vote for this candidate.
+	if s.votedFor != "" && s.votedFor != req.CandidateName {
+		return NewRequestVoteResponse(s.currentTerm, false)
+	}
+
+	// If the candidate's log is not at least as up-to-date as our committed log then don't vote.
+	/*
+		if s.log.CommitIndex() > req.LastLogIndex || s.log.CommitTerm() > req.LastLogTerm {
+			return NewRequestVoteResponse(s.currentTerm, false)
+		}
+
+		// If we made it this far then cast a vote and reset our election time out.
+		s.votedFor = req.CandidateName
+		s.electionTimer.Reset()
+	*/
+	return NewRequestVoteResponse(s.currentTerm, true)
+}
+
+// Resign the server to a follower if the server is a candidate or leader.
+func (s *Server) resign() {
+	s.state = Follower
 }
 
 //--------------------------------------
@@ -303,23 +350,20 @@ func (s *Server) Join(name string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	warn("[%s] join.1", s.name)
-
 	// Exit if the server is not running.
 	if !s.Running() {
 		return errors.New("raft.Server: Cannot join while stopped")
 	} else if s.MemberCount() > 1 {
 		return errors.New("raft.Server: Cannot join; already in membership")
 	}
-	
+
 	// If joining self then promote to leader.
 	if s.name == name {
 		s.state = Leader
 		return nil
 	}
-	
+
 	// Request membership.
-	command := &JoinCommand{Name:s.name}
+	command := &JoinCommand{Name: s.name}
 	return s.executeDoHandler(NewPeer(name), command)
 }
-

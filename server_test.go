@@ -44,7 +44,7 @@ func TestServerSingleNode(t *testing.T) {
 /*
 func TestServerMultiNode(t *testing.T) {
 	warn("== begin multi-node ==")
-	
+
 	// Initialize the servers.
 	names := []string{"1", "2", "3"}
 	servers := map[string]*Server{}

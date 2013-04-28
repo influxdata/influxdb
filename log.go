@@ -18,11 +18,11 @@ import (
 
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
-	file *os.File
+	file         *os.File
 	entries      []*LogEntry
 	commitIndex  uint64
 	commandTypes map[string]Command
-	mutex sync.Mutex
+	mutex        sync.Mutex
 }
 
 //------------------------------------------------------------------------------
@@ -52,7 +52,7 @@ func NewLog() *Log {
 func (l *Log) CurrentIndex() uint64 {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	
+
 	if len(l.entries) == 0 {
 		return 0
 	}
@@ -77,13 +77,12 @@ func (l *Log) CommitIndex() uint64 {
 func (l *Log) CurrentTerm() uint64 {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	
+
 	if len(l.entries) == 0 {
 		return 0
 	}
 	return l.entries[len(l.entries)-1].term
 }
-
 
 //------------------------------------------------------------------------------
 //
@@ -134,7 +133,7 @@ func (l *Log) AddCommandType(command Command) {
 func (l *Log) Open(path string) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	
+
 	// Read all the entries from the log if one exists.
 	var lastIndex int = 0
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -145,7 +144,7 @@ func (l *Log) Open(path string) error {
 		}
 		defer file.Close()
 		reader := bufio.NewReader(file)
-		
+
 		// Read the file and decode entries.
 		for {
 			if _, err := reader.Peek(1); err == io.EOF {
@@ -176,7 +175,7 @@ func (l *Log) Open(path string) error {
 
 	// Open the file for appending.
 	var err error
-	l.file, err = os.OpenFile(path, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0600)
+	l.file, err = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -201,7 +200,7 @@ func (l *Log) Close() {
 //--------------------------------------
 
 // Creates a log entry associated with this log.
-func (l *Log) CreateEntry(term uint64, command Command) (*LogEntry) {
+func (l *Log) CreateEntry(term uint64, command Command) *LogEntry {
 	return NewLogEntry(l, l.NextIndex(), term, command)
 }
 
@@ -223,12 +222,12 @@ func (l *Log) SetCommitIndex(index uint64) error {
 			if err := entry.Encode(l.file); err != nil {
 				return err
 			}
-			
+
 			// Update commit index.
 			l.commitIndex = entry.index
 		}
 	}
-	
+
 	return nil
 }
 
@@ -254,7 +253,7 @@ func (l *Log) Append(entry *LogEntry) error {
 			return fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x < %x:%x)", entry.term, entry.index, lastEntry.term, lastEntry.index)
 		}
 	}
-	
+
 	// Append to entries list if stored on disk.
 	l.entries = append(l.entries, entry)
 

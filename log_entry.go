@@ -3,11 +3,11 @@ package raft
 import (
 	"bufio"
 	"bytes"
-	"errors"
-	"hash/crc32"
-	"fmt"
-	"io"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"hash/crc32"
+	"io"
 )
 
 //------------------------------------------------------------------------------
@@ -33,9 +33,9 @@ type LogEntry struct {
 // Creates a new log entry associated with a log.
 func NewLogEntry(log *Log, index uint64, term uint64, command Command) *LogEntry {
 	return &LogEntry{
-		log: log,
-		index: index,
-		term: term,
+		log:     log,
+		index:   index,
+		term:    term,
 		command: command,
 	}
 }
@@ -78,12 +78,12 @@ func (e *LogEntry) Encode(w io.Writer) error {
 // Decodes the log entry from a buffer. Returns the number of bytes read.
 func (e *LogEntry) Decode(r io.Reader) (pos int, err error) {
 	pos = 0
-	
+
 	if r == nil {
 		err = errors.New("raft.LogEntry: Reader required to decode")
 		return
 	}
-	
+
 	// Read the expected checksum first.
 	var checksum uint32
 	if _, err = fmt.Fscanf(r, "%08x", &checksum); err != nil {
@@ -138,7 +138,7 @@ func (e *LogEntry) Decode(r io.Reader) (pos int, err error) {
 		return
 	}
 	e.command = command
-	
+
 	// Make sure there's only an EOF remaining.
 	c, err := b.ReadByte()
 	if err != io.EOF {
