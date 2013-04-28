@@ -50,7 +50,7 @@ type TestCommand1 struct {
 	I int `json:"i"`
 }
 
-func (c TestCommand1) Name() string {
+func (c TestCommand1) CommandName() string {
 	return "cmd_1"
 }
 
@@ -62,7 +62,7 @@ type TestCommand2 struct {
 	X int `json:"x"`
 }
 
-func (c TestCommand2) Name() string {
+func (c TestCommand2) CommandName() string {
 	return "cmd_2"
 }
 

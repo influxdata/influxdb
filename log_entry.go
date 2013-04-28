@@ -63,7 +63,7 @@ func (e *LogEntry) Encode(w io.Writer) error {
 
 	// Write log line to temporary buffer.
 	var b bytes.Buffer
-	if _, err = fmt.Fprintf(&b, "%016x %016x %s %s\n", e.index, e.term, e.command.Name(), encodedCommand); err != nil {
+	if _, err = fmt.Fprintf(&b, "%016x %016x %s %s\n", e.index, e.term, e.command.CommandName(), encodedCommand); err != nil {
 		return err
 	}
 

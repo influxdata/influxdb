@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 //------------------------------------------------------------------------------
@@ -20,7 +21,8 @@ const (
 )
 
 const (
-	DefaultElectionTimeout = 150
+	DefaultHeartbeatTimeout = 50 * time.Millisecond
+	DefaultElectionTimeout = 150 * time.Millisecond
 )
 
 //------------------------------------------------------------------------------
@@ -35,63 +37,15 @@ type Server struct {
 	name        string
 	path        string
 	state       string
-	currentTerm int
-	votedFor    int
+	currentTerm uint64
+	votedFor    string
 	log         *Log
-	replicas    []*Replica
+	leader      *Peer
+	peers       map[string]*Peer
 	mutex       sync.Mutex
 	ElectionTimeout    int
-}
-
-//--------------------------------------
-// Replicas
-//--------------------------------------
-
-// A replica is a reference to another server involved in the consensus protocol.
-type Replica struct {
-	name           string
-	voteResponded  bool
-	voteGranted    bool
-	nextIndex      int
-	lastAgreeIndex int
-}
-
-//--------------------------------------
-// Request Vote RPC
-//--------------------------------------
-
-// The request sent to a server to vote for a candidate to become a leader.
-type RequestVoteRequest struct {
-	Term         int `json:"term"`
-	CandidateId  int `json:"candidateId"`
-	LastLogIndex int `json:"lastLogIndex"`
-	LastLogTerm  int `json:"lastLogTerm"`
-}
-
-// The response returned from a server after a vote for a candidate to become a leader.
-type RequestVoteResponse struct {
-	Term        int  `json:"term"`
-	VoteGranted bool `json:"voteGranted"`
-}
-
-//--------------------------------------
-// Append Entries RPC
-//--------------------------------------
-
-// The request sent to a server to append entries to the log.
-type AppendEntriesRequest struct {
-	Term         int         `json:"term"`
-	LeaderId     int         `json:"leaderId"`
-	PrevLogIndex int         `json:"prevLogIndex"`
-	PrevLogTerm  int         `json:"prevLogTerm"`
-	Entries      []*LogEntry `json:"entries"`
-	CommitIndex  int         `json:"commitIndex"`
-}
-
-// The response returned from a server appending entries to the log.
-type AppendEntriesResponse struct {
-	Term    int  `json:"term"`
-	Success bool `json:"success"`
+	DoHandler    func(*Server, *Peer, Command) error
+	AppendEntriesHandler    func(*Server, *AppendEntriesRequest) (*AppendEntriesResponse, error)
 }
 
 //------------------------------------------------------------------------------
@@ -139,6 +93,20 @@ func (s *Server) LogPath() string {
 // Retrieves the current state of the server.
 func (s *Server) State() string {
 	return s.state
+}
+
+// Retrieves the number of member servers in the consensus.
+func (s *Server) MemberCount() uint64 {
+	var count uint64 = 1
+	for _,_ = range s.peers {
+		count++
+	}
+	return count
+}
+
+// Retrieves the number of servers required to make a quorum.
+func (s *Server) QuorumSize() uint64 {
+	return (s.MemberCount() / 2) + 1
 }
 
 //------------------------------------------------------------------------------
@@ -196,6 +164,21 @@ func (s *Server) Running() bool {
 }
 
 //--------------------------------------
+// Handlers
+//--------------------------------------
+
+// Executes the handler for executing a command.
+func (s *Server) executeDoHandler(peer *Peer, command Command) error {
+	if s.DoHandler == nil {
+		return errors.New("raft.Server: DoHandler not registered")
+	} else if peer == nil {
+		return errors.New("raft.Server: Peer required")
+	}
+	
+	return s.DoHandler(s, peer, command)
+}
+
+//--------------------------------------
 // Commands
 //--------------------------------------
 
@@ -208,6 +191,109 @@ func (s *Server) AddCommandType(command Command) {
 	s.log.AddCommandType(command)
 }
 
+// Attempts to execute a command and replicate it. The function will return
+// when the command has been successfully committed or an error has occurred.
+func (s *Server) Do(command Command) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return s.do(command)
+}
+
+// This function is the low-level interface to execute commands. This function
+// does not obtain a lock so one must be obtained before executing.
+func (s *Server) do(command Command) error {
+	warn("[%s] do.1 (%s) %v", s.name, command.CommandName(), command)
+	
+	// Send the request to the leader if we're not the leader.
+	if s.state != Leader {
+		// TODO: If we don't have a leader then elect one.
+		return s.executeDoHandler(s.leader, command)
+	}
+	
+	warn("[%s] do.2", s.name)
+
+	// If we are the leader then create a new log entry.
+	commitIndex := s.log.CommitIndex()
+	prevLogIndex, prevLogTerm := s.log.CurrentIndex(), s.log.CurrentTerm()
+	entry := s.log.CreateEntry(s.currentTerm, command)
+	s.log.Append(entry)
+
+	// Send the entry to all the peers.
+	c := make(chan interface{})
+	for _, peer := range s.peers {
+		go func() {
+			// Generate request.
+			request := &AppendEntriesRequest{
+				peer: peer,
+				Term: s.currentTerm,
+				LeaderName: s.name,
+				PrevLogIndex: prevLogIndex,
+				PrevLogTerm: prevLogTerm,
+				CommitIndex: commitIndex,
+				Entries: []*LogEntry{entry},
+			}
+
+			// Send response through the channel that gets collected below.
+			if resp, err := s.AppendEntriesHandler(s, request); err != nil {
+				resp.peer = peer
+				warn("raft.Server: Error in AppendEntriesHandler: %v", err)
+			} else {
+				c <- resp
+			}
+		}()
+	}
+	
+	// Collect all the responses until consensus or timeout.
+	votes := map[*Peer]bool{}
+	timeoutChannel, success := time.After(DefaultElectionTimeout), false
+	for {
+		// If we have reached a quorum then exit.
+		var voteCount uint64 = 1
+		for _, _ = range votes {
+			voteCount++
+		}
+		if voteCount >= s.QuorumSize() {
+			success = true
+			break
+		}
+
+		// Attempt to retrieve 'Append Entries' responses or timeout.
+		select {
+			case ret := <-c:
+				if resp, ok := ret.(AppendEntriesResponse); ok {
+					// If we're in the same term then save the vote.
+					if resp.Term == s.currentTerm {
+						votes[resp.peer] = resp.Success
+					} else if resp.Term > s.currentTerm {
+						// TODO: Reset to follower and elect leader.
+					}
+				}
+			case <-timeoutChannel:
+				success = false
+				break
+		}
+	}
+	
+	// If we succeeded then commit the entry.
+	if success {
+		// TODO: Update commit index.
+	} else {
+		// TODO: Otherwise restart.
+		panic("raft.Server: 'DO' did not succeed. (NOT YET IMPLEMENTED)")
+	}
+	
+	return nil
+}
+
+// Appends a log entry from the leader to this server.
+func (s *Server) AppendEntry(req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	
+	warn("raft.Sever: AppendEntry not implemented yet.")
+	return nil, nil
+}
+
 //--------------------------------------
 // Membership
 //--------------------------------------
@@ -217,10 +303,12 @@ func (s *Server) Join(name string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	warn("[%s] join.1", s.name)
+
 	// Exit if the server is not running.
 	if !s.Running() {
 		return errors.New("raft.Server: Cannot join while stopped")
-	} else if len(s.replicas) > 0 {
+	} else if s.MemberCount() > 1 {
 		return errors.New("raft.Server: Cannot join; already in membership")
 	}
 	
@@ -230,5 +318,8 @@ func (s *Server) Join(name string) error {
 		return nil
 	}
 	
-	return nil
+	// Request membership.
+	command := &JoinCommand{Name:s.name}
+	return s.executeDoHandler(NewPeer(name), command)
 }
+

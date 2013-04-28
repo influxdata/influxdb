@@ -40,6 +40,53 @@ func NewLog() *Log {
 
 //------------------------------------------------------------------------------
 //
+// Accessors
+//
+//------------------------------------------------------------------------------
+
+//--------------------------------------
+// Log Indices
+//--------------------------------------
+
+// The current index in the log.
+func (l *Log) CurrentIndex() uint64 {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	
+	if len(l.entries) == 0 {
+		return 0
+	}
+	return l.entries[len(l.entries)-1].index
+}
+
+// The next index in the log.
+func (l *Log) NextIndex() uint64 {
+	return l.CurrentIndex() + 1
+}
+
+// The last committed index in the log.
+func (l *Log) CommitIndex() uint64 {
+	return l.commitIndex
+}
+
+//--------------------------------------
+// Log Terms
+//--------------------------------------
+
+// The current term in the log.
+func (l *Log) CurrentTerm() uint64 {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	
+	if len(l.entries) == 0 {
+		return 0
+	}
+	return l.entries[len(l.entries)-1].term
+}
+
+
+//------------------------------------------------------------------------------
+//
 // Methods
 //
 //------------------------------------------------------------------------------
@@ -61,7 +108,7 @@ func (l *Log) NewCommand(name string) (Command, error) {
 	v := reflect.New(reflect.Indirect(reflect.ValueOf(command)).Type()).Interface()
 	copy, ok := v.(Command)
 	if !ok {
-		panic(fmt.Sprintf("raft.Log: Unable to copy command: %s (%v)", command.Name(), reflect.ValueOf(v).Kind().String()))
+		panic(fmt.Sprintf("raft.Log: Unable to copy command: %s (%v)", command.CommandName(), reflect.ValueOf(v).Kind().String()))
 	}
 	return copy, nil
 }
@@ -72,10 +119,10 @@ func (l *Log) NewCommand(name string) (Command, error) {
 func (l *Log) AddCommandType(command Command) {
 	if command == nil {
 		panic(fmt.Sprintf("raft.Log: Command type cannot be nil"))
-	} else if l.commandTypes[command.Name()] != nil {
-		panic(fmt.Sprintf("raft.Log: Command type already exists: %s", command.Name()))
+	} else if l.commandTypes[command.CommandName()] != nil {
+		panic(fmt.Sprintf("raft.Log: Command type already exists: %s", command.CommandName()))
 	}
-	l.commandTypes[command.Name()] = command
+	l.commandTypes[command.CommandName()] = command
 }
 
 //--------------------------------------
@@ -150,8 +197,13 @@ func (l *Log) Close() {
 }
 
 //--------------------------------------
-// Append
+// Entries
 //--------------------------------------
+
+// Creates a log entry associated with this log.
+func (l *Log) CreateEntry(term uint64, command Command) (*LogEntry) {
+	return NewLogEntry(l, l.NextIndex(), term, command)
+}
 
 // Updates the commit index and writes entries after that index to the stable
 // storage.
