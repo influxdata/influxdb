@@ -65,6 +65,7 @@ func NewServer(name string, path string) (*Server, error) {
 		path:  path,
 		state: Stopped,
 		log:   NewLog(),
+		electionTimer: NewElectionTimer(DefaultElectionTimeout),
 	}
 	return s, nil
 }
@@ -324,16 +325,14 @@ func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
 	}
 
 	// If the candidate's log is not at least as up-to-date as our committed log then don't vote.
-	/*
-		lastCommitIndex, lastCommitTerm := s.log.LastCommitInfo()
-		if lastCommitIndex > req.LastLogIndex || lastCommitTerm > req.LastLogTerm {
-			return NewRequestVoteResponse(s.currentTerm, false)
-		}
+	lastCommitIndex, lastCommitTerm := s.log.CommitInfo()
+	if lastCommitIndex > req.LastLogIndex || lastCommitTerm > req.LastLogTerm {
+		return NewRequestVoteResponse(s.currentTerm, false)
+	}
 
-		// If we made it this far then cast a vote and reset our election time out.
-		s.votedFor = req.CandidateName
-		s.electionTimer.Reset()
-	*/
+	// If we made it this far then cast a vote and reset our election time out.
+	s.votedFor = req.CandidateName
+	s.electionTimer.Reset()
 	return NewRequestVoteResponse(s.currentTerm, true)
 }
 

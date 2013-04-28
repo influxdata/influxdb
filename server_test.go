@@ -10,6 +10,23 @@ import (
 //
 //------------------------------------------------------------------------------
 
+//--------------------------------------
+// Request Vote
+//--------------------------------------
+
+// Ensure that we can request a vote from a server that has not voted.
+func TestServerRequestVote(t *testing.T) {
+	server := newTestServer("1")
+	resp := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
+	if !(resp.Term == 1 && resp.VoteGranted) {
+		t.Fatalf("Invalid request vote response: %v/%v", resp.Term, resp.VoteGranted)
+	}
+}
+
+//--------------------------------------
+// Membership
+//--------------------------------------
+
 // Ensure that we can start a single server and append to its log.
 func TestServerSingleNode(t *testing.T) {
 	server := newTestServer("1")
