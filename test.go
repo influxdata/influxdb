@@ -54,6 +54,13 @@ func (c TestCommand1) CommandName() string {
 	return "cmd_1"
 }
 
+func (c TestCommand1) Validate(server *Server) error {
+	return nil
+}
+
+func (c TestCommand1) Apply(server *Server) {
+}
+
 //--------------------------------------
 // Command2
 //--------------------------------------
@@ -64,4 +71,11 @@ type TestCommand2 struct {
 
 func (c TestCommand2) CommandName() string {
 	return "cmd_2"
+}
+
+func (c TestCommand2) Validate(server *Server) error {
+	return nil
+}
+
+func (c TestCommand2) Apply(server *Server) {
 }

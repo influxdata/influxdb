@@ -18,6 +18,7 @@ import (
 
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
+	ApplyFunc    func(Command)
 	file         *os.File
 	entries      []*LogEntry
 	commitIndex  uint64
@@ -204,28 +205,57 @@ func (l *Log) CreateEntry(term uint64, command Command) *LogEntry {
 	return NewLogEntry(l, l.NextIndex(), term, command)
 }
 
-// Updates the commit index and writes entries after that index to the stable
-// storage.
+//--------------------------------------
+// Commit
+//--------------------------------------
+
+// Retrieves the last index and term that has been committed to the log.
+func (l *Log) CommitInfo() (index uint64, term uint64) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	// If we don't have any entries then just return zeros.
+	if l.commitIndex == 0 {
+		return 0, 0
+	}
+
+	// Return the last index & term from the last committed entry.
+	lastCommitEntry := l.entries[l.commitIndex-1]
+	return lastCommitEntry.index, lastCommitEntry.term
+}
+
+// Updates the commit index and writes entries after that index to the stable storage.
 func (l *Log) SetCommitIndex(index uint64) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
+
+	// Panic if we don't have any way to apply commands.
+	if l.ApplyFunc == nil {
+		panic("raft.Log: Apply function not set")
+	}
 
 	// Do not allow previous indices to be committed again.
 	if index < l.commitIndex {
 		return fmt.Errorf("raft.Log: Commit index (%d) ahead of requested commit index (%d)", l.commitIndex, index)
 	}
+	if index > uint64(len(l.entries)) {
+		return fmt.Errorf("raft.Log: Commit index (%d) out of range (%d)", index, len(l.entries))
+	}
 
 	// Find all entries whose index is between the previous index and the current index.
-	for _, entry := range l.entries {
-		if entry.index > l.commitIndex && entry.index <= index {
-			// Write to storage.
-			if err := entry.Encode(l.file); err != nil {
-				return err
-			}
+	for i := l.commitIndex + 1; i <= index; i++ {
+		entry := l.entries[i-1]
 
-			// Update commit index.
-			l.commitIndex = entry.index
+		// Write to storage.
+		if err := entry.Encode(l.file); err != nil {
+			return err
 		}
+
+		// Apply the changes to the state machine.
+		l.ApplyFunc(entry.command)
+
+		// Update commit index.
+		l.commitIndex = entry.index
 	}
 
 	return nil

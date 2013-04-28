@@ -43,7 +43,7 @@ type Server struct {
 	leader               *Peer
 	peers                map[string]*Peer
 	mutex                sync.Mutex
-	ElectionTimeout      int
+	electionTimer        *ElectionTimer
 	DoHandler            func(*Server, *Peer, Command) error
 	AppendEntriesHandler func(*Server, *AppendEntriesRequest) (*AppendEntriesResponse, error)
 }
@@ -315,7 +315,7 @@ func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
 	if req.Term > s.currentTerm {
 		s.currentTerm = req.Term
 		s.votedFor = ""
-		s.resign()
+		s.state = Follower
 	}
 
 	// If we've already voted for a different candidate then don't vote for this candidate.
@@ -325,7 +325,8 @@ func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
 
 	// If the candidate's log is not at least as up-to-date as our committed log then don't vote.
 	/*
-		if s.log.CommitIndex() > req.LastLogIndex || s.log.CommitTerm() > req.LastLogTerm {
+		lastCommitIndex, lastCommitTerm := s.log.LastCommitInfo()
+		if lastCommitIndex > req.LastLogIndex || lastCommitTerm > req.LastLogTerm {
 			return NewRequestVoteResponse(s.currentTerm, false)
 		}
 
@@ -334,11 +335,6 @@ func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
 		s.electionTimer.Reset()
 	*/
 	return NewRequestVoteResponse(s.currentTerm, true)
-}
-
-// Resign the server to a follower if the server is a candidate or leader.
-func (s *Server) resign() {
-	s.state = Follower
 }
 
 //--------------------------------------

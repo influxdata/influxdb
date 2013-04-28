@@ -17,6 +17,7 @@ import (
 func TestLogNewLog(t *testing.T) {
 	path := getLogPath()
 	log := NewLog()
+	log.ApplyFunc = func(c Command) {}
 	log.AddCommandType(&TestCommand1{})
 	log.AddCommandType(&TestCommand2{})
 	if err := log.Open(path); err != nil {
@@ -46,6 +47,9 @@ func TestLogNewLog(t *testing.T) {
 	if string(actual) != expected {
 		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
 	}
+	if index, term := log.CommitInfo(); index != 2 || term != 1 {
+		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
+	}
 
 	// Full commit.
 	if err := log.SetCommitIndex(3); err != nil {
@@ -58,6 +62,9 @@ func TestLogNewLog(t *testing.T) {
 	actual, _ = ioutil.ReadFile(path)
 	if string(actual) != expected {
 		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
+	}
+	if index, term := log.CommitInfo(); index != 3 || term != 2 {
+		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
 	}
 }
 
@@ -100,6 +107,7 @@ func TestLogRecovery(t *testing.T) {
 			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
 			`6ac5807c 0000000000000003 00000000000`)
 	log := NewLog()
+	log.ApplyFunc = func(c Command) {}
 	log.AddCommandType(&TestCommand1{})
 	log.AddCommandType(&TestCommand2{})
 	if err := log.Open(path); err != nil {
