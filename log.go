@@ -205,6 +205,17 @@ func (l *Log) CreateEntry(term uint64, command Command) *LogEntry {
 	return NewLogEntry(l, l.NextIndex(), term, command)
 }
 
+// Checks if the log contains a given index/term combination.
+func (l *Log) ContainsEntry(index uint64, term uint64) bool {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	if index == 0 || index > uint64(len(l.entries)) {
+		return false
+	}
+	return (l.entries[index-1].term == term)
+}
+
 //--------------------------------------
 // Commit
 //--------------------------------------
@@ -265,11 +276,33 @@ func (l *Log) SetCommitIndex(index uint64) error {
 // Append
 //--------------------------------------
 
-// Writes a single log entry to the end of the log.
-func (l *Log) Append(entry *LogEntry) error {
+// Appends a series of entries to the log. These entries are not written to
+// disk until SetCommitIndex() is called.
+func (l *Log) AppendEntries(entries []*LogEntry) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
+	// Append each entry but exit if we hit an error.
+	for _, entry := range entries {
+		if err := l.appendEntry(entry); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Appends a single entry to the log.
+func (l *Log) AppendEntry(entry *LogEntry) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	return l.appendEntry(entry)
+}
+
+// Writes a single log entry to the end of the log. This function does not
+// obtain a lock and should only be used internally. Use AppendEntries() and
+// AppendEntry() to use it externally.
+func (l *Log) appendEntry(entry *LogEntry) error {
 	if l.file == nil {
 		return errors.New("raft.Log: Log is not open")
 	}

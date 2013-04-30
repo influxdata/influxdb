@@ -34,6 +34,7 @@ const (
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
+	ApplyFunc            func(*Server, Command)
 	name                 string
 	path                 string
 	state                string
@@ -59,7 +60,6 @@ func NewServer(name string, path string) (*Server, error) {
 	if name == "" {
 		return nil, errors.New("raft.Server: Name cannot be blank")
 	}
-
 	s := &Server{
 		name:          name,
 		path:          path,
@@ -67,6 +67,15 @@ func NewServer(name string, path string) (*Server, error) {
 		log:           NewLog(),
 		electionTimer: NewElectionTimer(DefaultElectionTimeout),
 	}
+
+	// Setup apply function.
+	s.log.ApplyFunc = func(c Command) {
+		if s.ApplyFunc == nil {
+			panic("raft.Server: Apply function not set")
+		}
+		s.ApplyFunc(s, c)
+	}
+
 	return s, nil
 }
 
@@ -216,8 +225,8 @@ func (s *Server) do(command Command) error {
 	// If we are the leader then create a new log entry.
 	commitIndex := s.log.CommitIndex()
 	prevLogIndex, prevLogTerm := s.log.CurrentIndex(), s.log.CurrentTerm()
-	entry := s.log.CreateEntry(s.currentTerm, command)
-	s.log.Append(entry)
+	entries := []*LogEntry{s.log.CreateEntry(s.currentTerm, command)}
+	s.log.AppendEntries(entries)
 
 	// Send the entry to all the peers.
 	c := make(chan interface{})
@@ -231,7 +240,7 @@ func (s *Server) do(command Command) error {
 				PrevLogIndex: prevLogIndex,
 				PrevLogTerm:  prevLogTerm,
 				CommitIndex:  commitIndex,
-				Entries:      []*LogEntry{entry},
+				Entries:      entries,
 			}
 
 			// Send response through the channel that gets collected below.
@@ -287,12 +296,40 @@ func (s *Server) do(command Command) error {
 }
 
 // Appends a log entry from the leader to this server.
-func (s *Server) AppendEntry(req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	warn("raft.Sever: AppendEntry not implemented yet.")
-	return nil, nil
+	// If the request is coming from an old term then reject it.
+	if req.Term < s.currentTerm {
+		return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Stale request term")
+	}
+	s.setCurrentTerm(req.Term)
+	s.state = Follower
+
+	// Reset election timeout.
+	s.electionTimer.Reset()
+
+	// Reject if log doesn't contain a matching previous entry.
+	if req.PrevLogIndex == 0 && req.PrevLogTerm == 0 {
+		if s.log.CurrentIndex() > 0 {
+			return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Log contains previous entries: (IDX=%v, TERM=%v)", req.PrevLogIndex, req.PrevLogTerm)
+		}
+	} else if !s.log.ContainsEntry(req.PrevLogIndex, req.PrevLogTerm) {
+		return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Log does not contain commit: (IDX=%v, TERM=%v)", req.PrevLogIndex, req.PrevLogTerm)
+	}
+
+	// Append entries to the log.
+	if err := s.log.AppendEntries(req.Entries); err != nil {
+		return NewAppendEntriesResponse(s.currentTerm, false), err
+	}
+
+	// Commit up to the commit index.
+	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
+		return NewAppendEntriesResponse(s.currentTerm, false), err
+	}
+
+	return NewAppendEntriesResponse(s.currentTerm, true), nil
 }
 
 //--------------------------------------
@@ -310,14 +347,7 @@ func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
 	if req.Term < s.currentTerm {
 		return NewRequestVoteResponse(s.currentTerm, false)
 	}
-
-	// If the term is after our current term then update our term and demote
-	// ourselves if we're a candidate or leader.
-	if req.Term > s.currentTerm {
-		s.currentTerm = req.Term
-		s.votedFor = ""
-		s.state = Follower
-	}
+	s.setCurrentTerm(req.Term)
 
 	// If we've already voted for a different candidate then don't vote for this candidate.
 	if s.votedFor != "" && s.votedFor != req.CandidateName {
@@ -334,6 +364,17 @@ func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
 	s.votedFor = req.CandidateName
 	s.electionTimer.Reset()
 	return NewRequestVoteResponse(s.currentTerm, true)
+}
+
+// Updates the current term on the server if the term is greater than the 
+// server's current term. When the term is changed then the server's vote is
+// cleared and its state is changed to be a follower.
+func (s *Server) setCurrentTerm(term uint64) {
+	if term > s.currentTerm {
+		s.currentTerm = term
+		s.votedFor = ""
+		s.state = Follower
+	}
 }
 
 //--------------------------------------

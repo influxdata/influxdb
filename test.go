@@ -22,11 +22,22 @@ func getLogPath() string {
 	return f.Name()
 }
 
-func setupLog(content string) string {
+func setupLogFile(content string) string {
 	f, _ := ioutil.TempFile("", "raft-log-")
 	f.Write([]byte(content))
 	f.Close()
 	return f.Name()
+}
+
+func setupLog(content string) (*Log, string) {
+	path := setupLogFile(content)
+	log := NewLog()
+	log.AddCommandType(&TestCommand1{})
+	log.AddCommandType(&TestCommand2{})
+	if err := log.Open(path); err != nil {
+		panic("Unable to open log")
+	}
+	return log, path
 }
 
 //--------------------------------------

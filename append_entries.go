@@ -23,3 +23,29 @@ type AppendEntriesResponse struct {
 	Term    uint64 `json:"term"`
 	Success bool   `json:"success"`
 }
+
+//------------------------------------------------------------------------------
+//
+// Constructors
+//
+//------------------------------------------------------------------------------
+
+// Creates a new AppendEntries request.
+func NewAppendEntriesRequest(term uint64, leaderName string, prevLogIndex uint64, prevLogTerm uint64, entries []*LogEntry, commitIndex uint64) *AppendEntriesRequest {
+	return &AppendEntriesRequest{
+		Term:         term,
+		LeaderName:   leaderName,
+		PrevLogIndex: prevLogIndex,
+		PrevLogTerm:  prevLogTerm,
+		Entries:      entries,
+		CommitIndex:  commitIndex,
+	}
+}
+
+// Creates a new AppendEntries response.
+func NewAppendEntriesResponse(term uint64, success bool) *AppendEntriesResponse {
+	return &AppendEntriesResponse{
+		Term:    term,
+		Success: success,
+	}
+}

@@ -68,9 +68,9 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 // Ensure that a vote request is denied if the log is out of date.
 func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 	server := newTestServerWithLog("1",
-		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n")
+		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}`+"\n"+
+			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}`+"\n"+
+			`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}`+"\n")
 	server.Start()
 
 	resp := server.RequestVote(NewRequestVoteRequest(1, "foo", 2, 2))
@@ -90,6 +90,31 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 		t.Fatalf("Ahead-of-log vote should have been granted")
 	}
 }
+
+//--------------------------------------
+// Append Entries
+//--------------------------------------
+
+// Ensure we can append entries to a server.
+func TestServerAppendEntries(t *testing.T) {
+	server := newTestServer("1")
+	server.Start()
+	entries := []*LogEntry{}
+	resp, err := server.AppendEntries(NewAppendEntriesRequest(1, "ldr", 0, 0, entries, 0))
+	if !(resp.Term == 1 && resp.Success && err == nil) {
+		t.Fatalf("AppendEntries failed: %v/%v : %v", resp.Term, resp.Success, err)
+	}
+
+	// TODO: Test multiple appends (at a time and across calls).
+	// TODO: Test commit.
+
+	server.Stop()
+}
+
+// TODO: Reject entries from old terms.
+// TODO: Reject new entries to log if entries already exist.
+// TODO: Reject entries from earlier index or term.
+// TODO: Test rollback of uncommitted entries.
 
 //--------------------------------------
 // Membership

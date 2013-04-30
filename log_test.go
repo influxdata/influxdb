@@ -26,13 +26,13 @@ func TestLogNewLog(t *testing.T) {
 	defer log.Close()
 	defer os.Remove(path)
 
-	if err := log.Append(NewLogEntry(log, 1, 1, &TestCommand1{"foo", 20})); err != nil {
+	if err := log.AppendEntry(NewLogEntry(log, 1, 1, &TestCommand1{"foo", 20})); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
-	if err := log.Append(NewLogEntry(log, 2, 1, &TestCommand2{100})); err != nil {
+	if err := log.AppendEntry(NewLogEntry(log, 2, 1, &TestCommand2{100})); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
-	if err := log.Append(NewLogEntry(log, 3, 2, &TestCommand1{"bar", 0})); err != nil {
+	if err := log.AppendEntry(NewLogEntry(log, 3, 2, &TestCommand1{"bar", 0})); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
 
@@ -68,15 +68,9 @@ func TestLogNewLog(t *testing.T) {
 
 // Ensure that we can decode and encode to an existing log.
 func TestLogExistingLog(t *testing.T) {
-	path := setupLog(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
+	log, path := setupLog(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
 		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
 		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n")
-	log := NewLog()
-	log.AddCommandType(&TestCommand1{})
-	log.AddCommandType(&TestCommand2{})
-	if err := log.Open(path); err != nil {
-		t.Fatalf("Unable to open log: %v", err)
-	}
 	defer log.Close()
 	defer os.Remove(path)
 
@@ -95,11 +89,36 @@ func TestLogExistingLog(t *testing.T) {
 	}
 }
 
+// Ensure that we can check the contents of the log by index/term.
+func TestLogContainsEntries(t *testing.T) {
+	log, path := setupLog(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
+		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
+		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n")
+	defer log.Close()
+	defer os.Remove(path)
+
+	if log.ContainsEntry(0, 0) {
+		t.Fatalf("Zero-index entry should not exist in log.")
+	}
+	if log.ContainsEntry(1, 0) {
+		t.Fatalf("Entry with mismatched term should not exist")
+	}
+	if log.ContainsEntry(4, 0) {
+		t.Fatalf("Out-of-range entry should not exist")
+	}
+	if !log.ContainsEntry(2, 1) {
+		t.Fatalf("Entry 2/1 should exist")
+	}
+	if !log.ContainsEntry(3, 2) {
+		t.Fatalf("Entry 2/1 should exist")
+	}
+}
+
 // Ensure that we can recover from an incomplete/corrupt log and continue logging.
 func TestLogRecovery(t *testing.T) {
 	warn("")
 	warn("--- BEGIN RECOVERY TEST")
-	path := setupLog(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
+	path := setupLogFile(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
 		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
 		`6ac5807c 0000000000000003 00000000000`)
 	log := NewLog()
@@ -112,7 +131,7 @@ func TestLogRecovery(t *testing.T) {
 	defer log.Close()
 	defer os.Remove(path)
 
-	if err := log.Append(NewLogEntry(log, 3, 2, &TestCommand1{"bat", -5})); err != nil {
+	if err := log.AppendEntry(NewLogEntry(log, 3, 2, &TestCommand1{"bat", -5})); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
 
