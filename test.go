@@ -41,6 +41,12 @@ func newTestServer(name string) *Server {
 	return server
 }
 
+func newTestServerWithLog(name string, content string) *Server {
+	server := newTestServer(name)
+	ioutil.WriteFile(server.LogPath(), []byte(content), 0644)
+	return server
+}
+
 //--------------------------------------
 // Command1
 //--------------------------------------

@@ -61,10 +61,10 @@ func NewServer(name string, path string) (*Server, error) {
 	}
 
 	s := &Server{
-		name:  name,
-		path:  path,
-		state: Stopped,
-		log:   NewLog(),
+		name:          name,
+		path:          path,
+		state:         Stopped,
+		log:           NewLog(),
 		electionTimer: NewElectionTimer(DefaultElectionTimeout),
 	}
 	return s, nil

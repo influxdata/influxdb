@@ -40,9 +40,8 @@ func TestLogNewLog(t *testing.T) {
 	if err := log.SetCommitIndex(2); err != nil {
 		t.Fatalf("Unable to partially commit: %v", err)
 	}
-	expected :=
-		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n"
+	expected := `cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
+		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n"
 	actual, _ := ioutil.ReadFile(path)
 	if string(actual) != expected {
 		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
@@ -55,10 +54,9 @@ func TestLogNewLog(t *testing.T) {
 	if err := log.SetCommitIndex(3); err != nil {
 		t.Fatalf("Unable to commit: %v", err)
 	}
-	expected =
-		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-			`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n"
+	expected = `cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
+		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
+		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n"
 	actual, _ = ioutil.ReadFile(path)
 	if string(actual) != expected {
 		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
@@ -70,10 +68,9 @@ func TestLogNewLog(t *testing.T) {
 
 // Ensure that we can decode and encode to an existing log.
 func TestLogExistingLog(t *testing.T) {
-	path := setupLog(
-		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-			`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n")
+	path := setupLog(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
+		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
+		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n")
 	log := NewLog()
 	log.AddCommandType(&TestCommand1{})
 	log.AddCommandType(&TestCommand2{})
@@ -102,10 +99,9 @@ func TestLogExistingLog(t *testing.T) {
 func TestLogRecovery(t *testing.T) {
 	warn("")
 	warn("--- BEGIN RECOVERY TEST")
-	path := setupLog(
-		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-			`6ac5807c 0000000000000003 00000000000`)
+	path := setupLog(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
+		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
+		`6ac5807c 0000000000000003 00000000000`)
 	log := NewLog()
 	log.ApplyFunc = func(c Command) {}
 	log.AddCommandType(&TestCommand1{})
@@ -135,9 +131,8 @@ func TestLogRecovery(t *testing.T) {
 	}
 
 	// Validate precommit log contents.
-	expected :=
-		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n"
+	expected := `cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
+		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n"
 	actual, _ := ioutil.ReadFile(path)
 	if string(actual) != expected {
 		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
@@ -147,10 +142,9 @@ func TestLogRecovery(t *testing.T) {
 	if err := log.SetCommitIndex(3); err != nil {
 		t.Fatalf("Unable to partially commit: %v", err)
 	}
-	expected =
-		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-			`3f3f884c 0000000000000003 0000000000000002 cmd_1 {"val":"bat","i":-5}` + "\n"
+	expected = `cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
+		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
+		`3f3f884c 0000000000000003 0000000000000002 cmd_1 {"val":"bat","i":-5}` + "\n"
 	actual, _ = ioutil.ReadFile(path)
 	if string(actual) != expected {
 		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
