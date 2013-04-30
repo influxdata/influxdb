@@ -51,6 +51,20 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 	}
 }
 
+// Ensure that a vote request is approved if vote occurs in a new term.
+func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
+	server := newTestServer("1")
+	server.currentTerm = 2
+	resp := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
+	if !(resp.Term == 2 && resp.VoteGranted && server.votedFor == "foo") {
+		t.Fatalf("First vote should not have been denied")
+	}
+	resp = server.RequestVote(NewRequestVoteRequest(3, "bar", 0, 0))
+	if !(resp.Term == 3 && resp.VoteGranted && server.votedFor == "bar") {
+		t.Fatalf("Second vote should have been approved")
+	}
+}
+
 // TODO: Test out of date log.
 // TODO: Test success with longer log.
 
