@@ -37,8 +37,20 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	}
 }
 
-// TODO: Test demotion.
-// TODO: Test voted for different candidate.
+// Ensure that a vote request is denied if we've already voted for a different candidate.
+func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
+	server := newTestServer("1")
+	server.currentTerm = 2
+	resp := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
+	if !(resp.Term == 2 && resp.VoteGranted) {
+		t.Fatalf("First vote should not have been denied")
+	}
+	resp = server.RequestVote(NewRequestVoteRequest(2, "bar", 0, 0))
+	if !(resp.Term == 2 && !resp.VoteGranted) {
+		t.Fatalf("Second vote should have been denied")
+	}
+}
+
 // TODO: Test out of date log.
 // TODO: Test success with longer log.
 
