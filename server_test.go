@@ -23,6 +23,25 @@ func TestServerRequestVote(t *testing.T) {
 	}
 }
 
+// Ensure that a vote request is denied if it comes from an old term.
+func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
+	server := newTestServer("1")
+	server.currentTerm = 2
+	resp := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
+	if !(resp.Term == 2 && !resp.VoteGranted) {
+		t.Fatalf("Invalid request vote response: %v/%v", resp.Term, resp.VoteGranted)
+	}
+	if server.currentTerm != 2 {
+		t.Fatalf("Server did not update term: %v", server.currentTerm)
+	}
+}
+
+// TODO: Test demotion.
+// TODO: Test voted for different candidate.
+// TODO: Test out of date log.
+// TODO: Test success with longer log.
+
+
 //--------------------------------------
 // Membership
 //--------------------------------------
