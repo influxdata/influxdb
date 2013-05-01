@@ -273,6 +273,45 @@ func (l *Log) SetCommitIndex(index uint64) error {
 }
 
 //--------------------------------------
+// Truncation
+//--------------------------------------
+
+// Truncates the log to the given index and term. This only works if the log
+// at the index has not been committed.
+func (l *Log) Truncate(index uint64, term uint64) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	
+	// Do not allow committed entries to be truncated.
+	if index < l.CommitIndex() {
+		return fmt.Errorf("raft.Log: Index is already committed (%v): (IDX=%v, TERM=%v)", l.CommitIndex(), index, term)
+	}
+
+	// Do not truncate past end of entries.
+	if index > uint64(len(l.entries)) {
+		return fmt.Errorf("raft.Log: Entry index does not exist (MAX=%v): (IDX=%v, TERM=%v)", len(l.entries), index, term)
+	}
+
+	// If we're truncating everything then just clear the entries.
+	if index == 0 {
+		l.entries = []*LogEntry{}
+	} else {
+		// Do not truncate if the entry at index does not have the matching term.
+		entry := l.entries[index-1]
+		if len(l.entries) > 0 && entry.term != term {
+			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.term, index, term)
+		}
+
+		// Otherwise truncate up to the desired entry.
+		if index < uint64(len(l.entries)) {
+			l.entries = l.entries[0:index]
+		}
+	}
+	
+	return nil
+}
+
+//--------------------------------------
 // Append
 //--------------------------------------
 

@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -99,6 +100,7 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 func TestServerAppendEntries(t *testing.T) {
 	server := newTestServer("1")
 	server.Start()
+	defer server.Stop()
 
 	// Append single entry.
 	entries := []*LogEntry{NewLogEntry(nil, 1, 1, &TestCommand1{"foo", 10})}
@@ -136,6 +138,7 @@ func TestServerAppendEntries(t *testing.T) {
 func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 	server := newTestServer("1")
 	server.Start()
+	defer server.Stop()
 	server.currentTerm = 2
 
 	// Append single entry.
@@ -153,6 +156,7 @@ func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 	server := newTestServer("1")
 	server.Start()
+	defer server.Stop()
 
 	// Append single entry + commit.
 	entries := []*LogEntry{
@@ -172,8 +176,30 @@ func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 	}
 }
 
-// TODO: Reject entries from earlier index or term.
-// TODO: Test rollback of uncommitted entries.
+// Ensure that we uncommitted entries are rolled back if new entries overwrite them.
+func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
+	server := newTestServer("1")
+	server.Start()
+	defer server.Stop()
+
+	entry1 := NewLogEntry(nil, 1, 1, &TestCommand1{"foo", 10})
+	entry2 := NewLogEntry(nil, 2, 1, &TestCommand1{"foo", 15})
+	entry3 := NewLogEntry(nil, 2, 2, &TestCommand1{"bar", 20})
+
+	// Append single entry + commit.
+	entries := []*LogEntry{entry1, entry2}
+	resp, err := server.AppendEntries(NewAppendEntriesRequest(1, "ldr", 0, 0, entries, 1))
+	if !(resp.Term == 1 && resp.Success && err == nil && server.log.CommitIndex() == 1 && reflect.DeepEqual(server.log.entries, []*LogEntry{entry1, entry2})) {
+		t.Fatalf("AppendEntries failed: %v/%v : %v", resp.Term, resp.Success, err)
+	}
+
+	// Append entry that overwrites the second (uncommitted) entry.
+	entries = []*LogEntry{entry3}
+	resp, err = server.AppendEntries(NewAppendEntriesRequest(2, "ldr", 1, 1, entries, 2))
+	if !(resp.Term == 2 && resp.Success && err == nil && server.log.CommitIndex() == 2 && reflect.DeepEqual(server.log.entries, []*LogEntry{entry1, entry3})) {
+		t.Fatalf("AppendEntries should have succeeded: %v/%v : %v", resp.Term, resp.Success, err)
+	}
+}
 
 //--------------------------------------
 // Membership

@@ -13,6 +13,10 @@ import (
 //
 //------------------------------------------------------------------------------
 
+//--------------------------------------
+// Append
+//--------------------------------------
+
 // Ensure that we can append to a new log.
 func TestLogNewLog(t *testing.T) {
 	path := getLogPath()
@@ -169,4 +173,56 @@ func TestLogRecovery(t *testing.T) {
 		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
 	}
 	warn("--- END RECOVERY TEST\n")
+}
+
+//--------------------------------------
+// Append
+//--------------------------------------
+
+// Ensure that we can truncate uncommitted entries in the log.
+func TestLogTruncate(t *testing.T) {
+	log, path := setupLog("")
+	if err := log.Open(path); err != nil {
+		t.Fatalf("Unable to open log: %v", err)
+	}
+	defer log.Close()
+	defer os.Remove(path)
+
+	entry1 := NewLogEntry(log, 1, 1, &TestCommand1{"foo", 20})
+	if err := log.AppendEntry(entry1); err != nil {
+		t.Fatalf("Unable to append: %v", err)
+	}
+	entry2 := NewLogEntry(log, 2, 1, &TestCommand2{100})
+	if err := log.AppendEntry(entry2); err != nil {
+		t.Fatalf("Unable to append: %v", err)
+	}
+	entry3 := NewLogEntry(log, 3, 2, &TestCommand1{"bar", 0})
+	if err := log.AppendEntry(entry3); err != nil {
+		t.Fatalf("Unable to append: %v", err)
+	}
+	if err := log.SetCommitIndex(2); err != nil {
+		t.Fatalf("Unable to partially commit: %v", err)
+	}
+
+	// Truncate committed entry.
+	if err := log.Truncate(1, 1); err == nil || err.Error() != "raft.Log: Index is already committed (2): (IDX=1, TERM=1)" {
+		t.Fatalf("Truncating committed entries shouldn't work: %v", err)
+	}
+	// Truncate past end of log.
+	if err := log.Truncate(4, 2); err == nil || err.Error() != "raft.Log: Entry index does not exist (MAX=3): (IDX=4, TERM=2)" {
+		t.Fatalf("Truncating past end-of-log shouldn't work: %v", err)
+	}
+	// Truncate entry with mismatched term.
+	if err := log.Truncate(2, 2); err == nil || err.Error() != "raft.Log: Entry at index does not have matching term (1): (IDX=2, TERM=2)" {
+		t.Fatalf("Truncating mismatched entries shouldn't work: %v", err)
+	}
+	// Truncate end of log.
+	if err := log.Truncate(3, 2); !(err == nil && reflect.DeepEqual(log.entries, []*LogEntry{entry1,entry2,entry3})) {
+		t.Fatalf("Truncating end of log should work: %v\n\nEntries:\nActual: %v\nExpected: %v", err, log.entries, []*LogEntry{entry1,entry2,entry3})
+	}
+	// Truncate at last commit.
+	if err := log.Truncate(2, 1); !(err == nil && reflect.DeepEqual(log.entries, []*LogEntry{entry1,entry2})) {
+		t.Fatalf("Truncating at last commit should work: %v\n\nEntries:\nActual: %v\nExpected: %v", err, log.entries, []*LogEntry{entry1,entry2})
+	}
+
 }

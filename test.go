@@ -32,6 +32,7 @@ func setupLogFile(content string) string {
 func setupLog(content string) (*Log, string) {
 	path := setupLogFile(content)
 	log := NewLog()
+	log.ApplyFunc = func(c Command) {}
 	log.AddCommandType(&TestCommand1{})
 	log.AddCommandType(&TestCommand2{})
 	if err := log.Open(path); err != nil {
