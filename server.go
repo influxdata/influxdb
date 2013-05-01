@@ -312,8 +312,8 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 
 	// Reject if log doesn't contain a matching previous entry.
 	if req.PrevLogIndex == 0 && req.PrevLogTerm == 0 {
-		if s.log.CurrentIndex() > 0 {
-			return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Log contains previous entries: (IDX=%v, TERM=%v)", req.PrevLogIndex, req.PrevLogTerm)
+		if index, _ := s.log.CommitInfo(); index > 0 {
+			return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Log contains previously committed entries: (IDX=%v, TERM=%v)", req.PrevLogIndex, req.PrevLogTerm)
 		}
 	} else if !s.log.ContainsEntry(req.PrevLogIndex, req.PrevLogTerm) {
 		return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Log does not contain commit: (IDX=%v, TERM=%v)", req.PrevLogIndex, req.PrevLogTerm)

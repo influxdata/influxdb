@@ -99,14 +99,35 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 func TestServerAppendEntries(t *testing.T) {
 	server := newTestServer("1")
 	server.Start()
-	entries := []*LogEntry{}
+
+	// Append single entry.
+	entries := []*LogEntry{NewLogEntry(nil, 1, 1, &TestCommand1{"foo", 10})}
 	resp, err := server.AppendEntries(NewAppendEntriesRequest(1, "ldr", 0, 0, entries, 0))
 	if !(resp.Term == 1 && resp.Success && err == nil) {
 		t.Fatalf("AppendEntries failed: %v/%v : %v", resp.Term, resp.Success, err)
 	}
+	if index, term := server.log.CommitInfo(); !(index == 0 && term == 0) {
+		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
+	}
 
-	// TODO: Test multiple appends (at a time and across calls).
-	// TODO: Test commit.
+	// Append multiple entries + commit the last one.
+	entries = []*LogEntry{NewLogEntry(nil, 2, 1, &TestCommand1{"bar", 20}), NewLogEntry(nil, 3, 1, &TestCommand1{"baz", 30})}
+	resp, err = server.AppendEntries(NewAppendEntriesRequest(1, "ldr", 1, 1, entries, 1))
+	if !(resp.Term == 1 && resp.Success && err == nil) {
+		t.Fatalf("AppendEntries failed: %v/%v : %v", resp.Term, resp.Success, err)
+	}
+	if index, term := server.log.CommitInfo(); !(index == 1 && term == 1) {
+		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
+	}
+
+	// Send zero entries and commit everything.
+	resp, err = server.AppendEntries(NewAppendEntriesRequest(2, "ldr", 3, 1, []*LogEntry{}, 3))
+	if !(resp.Term == 2 && resp.Success && err == nil) {
+		t.Fatalf("AppendEntries failed: %v/%v : %v", resp.Term, resp.Success, err)
+	}
+	if index, term := server.log.CommitInfo(); !(index == 3 && term == 1) {
+		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
+	}
 
 	server.Stop()
 }
