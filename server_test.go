@@ -132,7 +132,23 @@ func TestServerAppendEntries(t *testing.T) {
 	server.Stop()
 }
 
-// TODO: Reject entries from old terms.
+// Ensure that entries with stale terms are rejected.
+func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
+	server := newTestServer("1")
+	server.Start()
+	server.currentTerm = 2
+
+	// Append single entry.
+	entries := []*LogEntry{NewLogEntry(nil, 1, 1, &TestCommand1{"foo", 10})}
+	resp, err := server.AppendEntries(NewAppendEntriesRequest(1, "ldr", 0, 0, entries, 0))
+	if !(resp.Term == 2 && !resp.Success && err != nil && err.Error() == "raft.Server: Stale request term") {
+		t.Fatalf("AppendEntries should have failed: %v/%v : %v", resp.Term, resp.Success, err)
+	}
+	if index, term := server.log.CommitInfo(); !(index == 0 && term == 0) {
+		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
+	}
+}
+
 // TODO: Reject new entries to log if entries already exist.
 // TODO: Reject entries from earlier index or term.
 // TODO: Test rollback of uncommitted entries.
