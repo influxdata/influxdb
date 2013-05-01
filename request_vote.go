@@ -8,6 +8,7 @@ package raft
 
 // The request sent to a server to vote for a candidate to become a leader.
 type RequestVoteRequest struct {
+	peer *Peer
 	Term          uint64 `json:"term"`
 	CandidateName string `json:"candidateName"`
 	LastLogIndex  uint64 `json:"lastLogIndex"`
@@ -16,6 +17,7 @@ type RequestVoteRequest struct {
 
 // The response returned from a server after a vote for a candidate to become a leader.
 type RequestVoteResponse struct {
+	peer *Peer
 	Term        uint64 `json:"term"`
 	VoteGranted bool   `json:"voteGranted"`
 }

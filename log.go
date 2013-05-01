@@ -117,6 +117,9 @@ func (l *Log) NewCommand(name string) (Command, error) {
 // deserialized each time a new log entry is read. This function will panic
 // if a command type with the same name already exists.
 func (l *Log) AddCommandType(command Command) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
 	if command == nil {
 		panic(fmt.Sprintf("raft.Log: Command type cannot be nil"))
 	} else if l.commandTypes[command.CommandName()] != nil {
@@ -281,7 +284,7 @@ func (l *Log) SetCommitIndex(index uint64) error {
 func (l *Log) Truncate(index uint64, term uint64) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	
+
 	// Do not allow committed entries to be truncated.
 	if index < l.CommitIndex() {
 		return fmt.Errorf("raft.Log: Index is already committed (%v): (IDX=%v, TERM=%v)", l.CommitIndex(), index, term)
@@ -307,7 +310,7 @@ func (l *Log) Truncate(index uint64, term uint64) error {
 			l.entries = l.entries[0:index]
 		}
 	}
-	
+
 	return nil
 }
 

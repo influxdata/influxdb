@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 )
@@ -58,6 +59,28 @@ func newTestServerWithLog(name string, content string) *Server {
 	server := newTestServer(name)
 	ioutil.WriteFile(server.LogPath(), []byte(content), 0644)
 	return server
+}
+
+func newTestCluster(names []string) (Servers, map[string]*Server) {
+	servers := make(Servers, 0)
+	lookup := make(map[string]*Server, 0)
+	for _, name := range names {
+		if lookup[name] != nil {
+			panic(fmt.Sprintf("Duplicate server in test cluster! %v", name))
+		}
+		server := newTestServer(name)
+		servers = append(servers, server)
+		lookup[name] = server
+	}
+	for _, server := range servers {
+		for _, peer := range servers {
+			if server != peer {
+				server.peers[peer.Name()] = NewPeer(peer.Name())
+			}
+		}
+		server.Start()
+	}
+	return servers, lookup
 }
 
 //--------------------------------------

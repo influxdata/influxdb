@@ -93,6 +93,31 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 }
 
 //--------------------------------------
+// Promotion
+//--------------------------------------
+
+// Ensure that we can self-promote a server to candidate, obtain votes and become a fearless leader.
+func TestServerPromoteSelf(t *testing.T) {
+	server := newTestServer("1")
+	server.Start()
+	if success := server.promote(); !(success && server.state == Leader)  {
+		t.Fatalf("Server self-promotion failed: %v", server.state)
+	}
+}
+
+// Ensure that we can promote a server within a cluster to a leader.
+func TestServerPromote(t *testing.T) {
+	servers, lookup := newTestCluster([]string{"1", "2", "3"})
+	servers.SetRequestVoteHandler(func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+		return lookup[peer.Name()].RequestVote(req), nil
+	})
+	leader := servers[0]
+	if success := leader.promote(); !(success && leader.state == Leader)  {
+		t.Fatalf("Server promotion in cluster failed: %v", leader.state)
+	}
+}
+
+//--------------------------------------
 // Append Entries
 //--------------------------------------
 
