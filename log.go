@@ -311,9 +311,9 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 	if len(l.entries) > 0 {
 		lastEntry := l.entries[len(l.entries)-1]
 		if entry.term < lastEntry.term {
-			return fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x < %x:%x)", entry.term, entry.index, lastEntry.term, lastEntry.index)
+			return fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x <= %x:%x)", entry.term, entry.index, lastEntry.term, lastEntry.index)
 		} else if entry.index == lastEntry.index && entry.index <= lastEntry.index {
-			return fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x < %x:%x)", entry.term, entry.index, lastEntry.term, lastEntry.index)
+			return fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.term, entry.index, lastEntry.term, lastEntry.index)
 		}
 	}
 

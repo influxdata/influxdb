@@ -149,7 +149,29 @@ func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 	}
 }
 
-// TODO: Reject new entries to log if entries already exist.
+// Ensure that we reject entries if the commit log is different.
+func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
+	server := newTestServer("1")
+	server.Start()
+
+	// Append single entry + commit.
+	entries := []*LogEntry{
+		NewLogEntry(nil, 1, 1, &TestCommand1{"foo", 10}),
+		NewLogEntry(nil, 2, 1, &TestCommand1{"foo", 15}),
+	}
+	resp, err := server.AppendEntries(NewAppendEntriesRequest(1, "ldr", 0, 0, entries, 2))
+	if !(resp.Term == 1 && resp.Success && err == nil) {
+		t.Fatalf("AppendEntries failed: %v/%v : %v", resp.Term, resp.Success, err)
+	}
+
+	// Append entry again (post-commit).
+	entries = []*LogEntry{NewLogEntry(nil, 2, 1, &TestCommand1{"bar", 20})}
+	resp, err = server.AppendEntries(NewAppendEntriesRequest(1, "ldr", 2, 1, entries, 1))
+	if !(resp.Term == 1 && !resp.Success && err != nil && err.Error() == "raft.Log: Cannot append entry with earlier index in the same term (1:2 <= 1:2)") {
+		t.Fatalf("AppendEntries should have failed: %v/%v : %v", resp.Term, resp.Success, err)
+	}
+}
+
 // TODO: Reject entries from earlier index or term.
 // TODO: Test rollback of uncommitted entries.
 
