@@ -87,6 +87,10 @@ func NewServer(name string, path string) (*Server, error) {
 //
 //------------------------------------------------------------------------------
 
+//--------------------------------------
+// General
+//--------------------------------------
+
 // Retrieves the name of the server.
 func (s *Server) Name() string {
 	return s.name
@@ -107,6 +111,10 @@ func (s *Server) State() string {
 	return s.state
 }
 
+//--------------------------------------
+// Membership
+//--------------------------------------
+
 // Retrieves the number of member servers in the consensus.
 func (s *Server) MemberCount() int {
 	count := 1
@@ -119,6 +127,20 @@ func (s *Server) MemberCount() int {
 // Retrieves the number of servers required to make a quorum.
 func (s *Server) QuorumSize() int {
 	return (s.MemberCount() / 2) + 1
+}
+
+//--------------------------------------
+// Election timeout
+//--------------------------------------
+
+// Retrieves the election timeout.
+func (s *Server) ElectionTimeout() time.Duration {
+	return s.electionTimer.Duration()
+}
+
+// Sets the election timeout.
+func (s *Server) SetElectionTimeout(duration time.Duration) {
+	s.electionTimer.SetDuration(duration)
 }
 
 //------------------------------------------------------------------------------
@@ -197,82 +219,6 @@ func (s *Server) Do(command Command) error {
 // This function is the low-level interface to execute commands. This function
 // does not obtain a lock so one must be obtained before executing.
 func (s *Server) do(command Command) error {
-	// Send the request to the leader if we're not the leader.
-	if s.state != Leader {
-		// TODO: If we don't have a leader then elect one.
-		return s.executeDoHandler(s.leader, command)
-	}
-
-	// If we are the leader then create a new log entry.
-	commitIndex := s.log.CommitIndex()
-	prevLogIndex, prevLogTerm := s.log.CurrentIndex(), s.log.CurrentTerm()
-	entries := []*LogEntry{s.log.CreateEntry(s.currentTerm, command)}
-	s.log.AppendEntries(entries)
-
-	// Send the entry to all the peers.
-	c := make(chan interface{})
-	for _, peer := range s.peers {
-		go func() {
-			// Generate request.
-			request := &AppendEntriesRequest{
-				peer:         peer,
-				Term:         s.currentTerm,
-				LeaderName:   s.name,
-				PrevLogIndex: prevLogIndex,
-				PrevLogTerm:  prevLogTerm,
-				CommitIndex:  commitIndex,
-				Entries:      entries,
-			}
-
-			// Send response through the channel that gets collected below.
-			if resp, err := s.AppendEntriesHandler(s, peer, request); err != nil {
-				resp.peer = peer
-				warn("raft.Server: Error in AppendEntriesHandler: %v", err)
-			} else {
-				c <- resp
-			}
-		}()
-	}
-
-	// Collect all the responses until consensus or timeout.
-	votes := map[*Peer]bool{}
-	timeoutChannel, success := time.After(DefaultElectionTimeout), false
-	for {
-		// If we have reached a quorum then exit.
-		voteCount := 1
-		for _, _ = range votes {
-			voteCount++
-		}
-		if voteCount >= s.QuorumSize() {
-			success = true
-			break
-		}
-
-		// Attempt to retrieve 'Append Entries' responses or timeout.
-		select {
-		case ret := <-c:
-			if resp, ok := ret.(AppendEntriesResponse); ok {
-				// If we're in the same term then save the vote.
-				if resp.Term == s.currentTerm {
-					votes[resp.peer] = resp.Success
-				} else if resp.Term > s.currentTerm {
-					// TODO: Reset to follower and elect leader.
-				}
-			}
-		case <-timeoutChannel:
-			success = false
-			break
-		}
-	}
-
-	// If we succeeded then commit the entry.
-	if success {
-		// TODO: Update commit index.
-	} else {
-		// TODO: Otherwise restart.
-		panic("raft.Server: 'DO' did not succeed. (NOT YET IMPLEMENTED)")
-	}
-
 	return nil
 }
 
@@ -325,7 +271,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 // enough votes are received then the server becomes the leader. If this
 // server is elected then true is returned. If another server is elected then
 // false is returned.
-func (s *Server) promote() bool {
+func (s *Server) promote() (bool, error) {
 	for {
 		// Start a new election.
 		term, lastLogIndex, lastLogTerm := s.promoteToCandidate()
@@ -346,7 +292,7 @@ func (s *Server) promote() bool {
 		// Collect votes until we have a quorum.
 		votes := map[string]bool{}
 		elected := false
-		timeout := time.After(DefaultElectionTimeout)
+	loop:
 		for {
 			// Add up all our votes.
 			votesGranted := 1
@@ -364,11 +310,17 @@ func (s *Server) promote() bool {
 			// Collect votes from peers.
 			select {
 			case resp := <-c:
-				if resp != nil && resp.peer != nil {
+				if resp != nil {
+					// Step down if we discover a higher term.
+					if resp.Term > term {
+						s.setCurrentTerm(term)
+						s.electionTimer.Reset()
+						return false, fmt.Errorf("raft.Server: Higher term discovered, stepping down: (%v > %v)", resp.Term, term)
+					}
 					votes[resp.peer.Name()] = resp.VoteGranted
 				}
-			case <-timeout:
-				break
+			case <-time.After(s.ElectionTimeout()):
+				break loop
 			}
 		}
 
@@ -379,11 +331,11 @@ func (s *Server) promote() bool {
 
 		// If we are no longer in the same term then another server must have been elected.
 		if s.currentTerm != term {
-			return false
+			return false, fmt.Errorf("raft.Server: Term changed during election, stepping down: (%v > %v)", s.currentTerm, term)
 		}
 	}
 
-	return true
+	return true, nil
 }
 
 // Promotes the server to a candidate and increases the election term. The
@@ -392,14 +344,10 @@ func (s *Server) promoteToCandidate() (term uint64, lastLogIndex uint64, lastLog
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Ignore promotions if we're already the leader or trying to become the leader.
-	if s.state != Follower {
-		return
-	}
-
-	// Move server to become a candidate and increase our term.
+	// Move server to become a candidate, increase our term & vote for ourself.
 	s.state = Candidate
 	s.currentTerm++
+	s.votedFor = s.name
 
 	// Pause the election timer while we're a candidate.
 	s.electionTimer.Pause()
@@ -431,7 +379,7 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 	// Move server to become a leader.
 	s.state = Leader
 	// TODO: Begin heartbeat to peers.
-	
+
 	return true
 }
 

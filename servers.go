@@ -9,7 +9,6 @@ package raft
 // A collection of servers.
 type Servers []*Server
 
-
 //------------------------------------------------------------------------------
 //
 // Methods

@@ -100,8 +100,8 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 func TestServerPromoteSelf(t *testing.T) {
 	server := newTestServer("1")
 	server.Start()
-	if success := server.promote(); !(success && server.state == Leader)  {
-		t.Fatalf("Server self-promotion failed: %v", server.state)
+	if success, err := server.promote(); !(success && err == nil && server.state == Leader) {
+		t.Fatalf("Server self-promotion failed: %v (%v)", server.state, err)
 	}
 }
 
@@ -112,8 +112,28 @@ func TestServerPromote(t *testing.T) {
 		return lookup[peer.Name()].RequestVote(req), nil
 	})
 	leader := servers[0]
-	if success := leader.promote(); !(success && leader.state == Leader)  {
-		t.Fatalf("Server promotion in cluster failed: %v", leader.state)
+	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
+		t.Fatalf("Server promotion in cluster failed: %v (%v)", leader.state, err)
+	}
+}
+
+// Ensure that a server will restart election if not enough votes are obtained before timeout.
+func TestServerPromoteDoubleElection(t *testing.T) {
+	servers, lookup := newTestCluster([]string{"1", "2", "3"})
+	lookup["2"].currentTerm, lookup["2"].votedFor = 1, "2"
+	lookup["3"].currentTerm, lookup["3"].votedFor = 1, "3"
+	servers.SetRequestVoteHandler(func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+		return lookup[peer.Name()].RequestVote(req), nil
+	})
+	leader := servers[0]
+	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader && leader.currentTerm == 2) {
+		t.Fatalf("Server promotion in cluster failed: %v (%v)", leader.state, err)
+	}
+	if lookup["2"].votedFor != "1" {
+		t.Fatalf("Unexpected vote for server 2: %v", lookup["2"].votedFor)
+	}
+	if lookup["3"].votedFor != "1" {
+		t.Fatalf("Unexpected vote for server 3: %v", lookup["3"].votedFor)
 	}
 }
 

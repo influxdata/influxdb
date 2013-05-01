@@ -44,6 +44,23 @@ func NewElectionTimer(duration time.Duration) *ElectionTimer {
 
 //------------------------------------------------------------------------------
 //
+// Accessors
+//
+//------------------------------------------------------------------------------
+
+// Retrieves the duration of the timer.
+func (t *ElectionTimer) Duration() time.Duration {
+	return t.duration
+}
+
+// Sets the duration of the timer.
+func (t *ElectionTimer) SetDuration(duration time.Duration) {
+	t.duration = duration
+	t.Reset()
+}
+
+//------------------------------------------------------------------------------
+//
 // Methods
 //
 //------------------------------------------------------------------------------

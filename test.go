@@ -4,6 +4,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"time"
+)
+
+const (
+	TestHeartbeatTimeout = 20 * time.Millisecond
+	TestElectionTimeout  = 60 * time.Millisecond
 )
 
 //------------------------------------------------------------------------------
@@ -69,6 +75,7 @@ func newTestCluster(names []string) (Servers, map[string]*Server) {
 			panic(fmt.Sprintf("Duplicate server in test cluster! %v", name))
 		}
 		server := newTestServer(name)
+		server.SetElectionTimeout(TestElectionTimeout)
 		servers = append(servers, server)
 		lookup[name] = server
 	}
