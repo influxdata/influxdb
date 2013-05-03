@@ -111,6 +111,13 @@ func (s *Server) State() string {
 	return s.state
 }
 
+// Retrieves the name of the candidate this server voted for in this term.
+func (s *Server) VotedFor() string {
+	s.mutex.Lock()
+	s.mutex.Unlock()
+	return s.votedFor
+}
+
 //--------------------------------------
 // Membership
 //--------------------------------------

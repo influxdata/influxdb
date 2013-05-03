@@ -57,11 +57,11 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 	server := newTestServer("1")
 	server.currentTerm = 2
 	resp := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
-	if !(resp.Term == 2 && resp.VoteGranted && server.votedFor == "foo") {
+	if !(resp.Term == 2 && resp.VoteGranted && server.VotedFor() == "foo") {
 		t.Fatalf("First vote should not have been denied")
 	}
 	resp = server.RequestVote(NewRequestVoteRequest(3, "bar", 0, 0))
-	if !(resp.Term == 3 && resp.VoteGranted && server.votedFor == "bar") {
+	if !(resp.Term == 3 && resp.VoteGranted && server.VotedFor() == "bar") {
 		t.Fatalf("Second vote should have been approved")
 	}
 }
@@ -129,11 +129,11 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader && leader.currentTerm == 2) {
 		t.Fatalf("Server promotion in cluster failed: %v (%v)", leader.state, err)
 	}
-	if lookup["2"].votedFor != "1" {
-		t.Fatalf("Unexpected vote for server 2: %v", lookup["2"].votedFor)
+	if lookup["2"].VotedFor() != "1" {
+		t.Fatalf("Unexpected vote for server 2: %v", lookup["2"].VotedFor())
 	}
-	if lookup["3"].votedFor != "1" {
-		t.Fatalf("Unexpected vote for server 3: %v", lookup["3"].votedFor)
+	if lookup["3"].VotedFor() != "1" {
+		t.Fatalf("Unexpected vote for server 3: %v", lookup["3"].VotedFor())
 	}
 }
 

@@ -82,7 +82,6 @@ func (t *ElectionTimer) Stop() {
 
 	if t.C != nil {
 		close(t.C)
-		t.C = nil
 	}
 }
 
@@ -111,7 +110,9 @@ func (t *ElectionTimer) Reset() {
 	d := t.duration + time.Duration(t.rand.Int63n(int64(t.duration)))
 	t.internalTimer = time.NewTimer(d)
 	go func() {
+		t.mutex.Lock()
 		internalTimer := t.internalTimer
+		t.mutex.Unlock()
 		if internalTimer != nil {
 			if v, ok := <-t.internalTimer.C; ok {
 				t.C <- v
