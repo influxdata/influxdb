@@ -47,7 +47,7 @@ type Server struct {
 	leader               *Peer
 	peers                map[string]*Peer
 	mutex                sync.Mutex
-	electionTimer        *ElectionTimer
+	electionTimer        *Timer
 }
 
 //------------------------------------------------------------------------------
@@ -67,7 +67,7 @@ func NewServer(name string, path string) (*Server, error) {
 		state:         Stopped,
 		peers:         make(map[string]*Peer),
 		log:           NewLog(),
-		electionTimer: NewElectionTimer(DefaultElectionTimeout),
+		electionTimer: NewTimer(DefaultElectionTimeout, DefaultElectionTimeout * 2),
 	}
 
 	// Setup apply function.
@@ -148,12 +148,13 @@ func (s *Server) QuorumSize() int {
 
 // Retrieves the election timeout.
 func (s *Server) ElectionTimeout() time.Duration {
-	return s.electionTimer.Duration()
+	return s.electionTimer.MinDuration()
 }
 
 // Sets the election timeout.
 func (s *Server) SetElectionTimeout(duration time.Duration) {
-	s.electionTimer.SetDuration(duration)
+	s.electionTimer.SetMinDuration(duration)
+	s.electionTimer.SetMaxDuration(duration * 2)
 }
 
 //------------------------------------------------------------------------------

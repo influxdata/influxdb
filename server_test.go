@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 )
 
 //------------------------------------------------------------------------------
@@ -283,8 +284,6 @@ func TestServerSingleNode(t *testing.T) {
 
 // Ensure that we can start multiple servers and determine a leader.
 func TestServerMultiNode(t *testing.T) {
-	warn("== begin multi-node ==")
-
 	// Initialize the servers.
 	var mutex sync.Mutex
 	names := []string{"1", "2", "3"}
@@ -314,6 +313,7 @@ func TestServerMultiNode(t *testing.T) {
 		servers[name] = server
 		mutex.Unlock()
 	}
+	time.Sleep(100 * time.Millisecond)
 
 	// Check that two peers exist on leader.
 	mutex.Lock()
@@ -327,5 +327,4 @@ func TestServerMultiNode(t *testing.T) {
 	for _, server := range servers {
 		server.Stop()
 	}
-	warn("== end multi-node ==")
 }

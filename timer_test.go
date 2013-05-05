@@ -13,10 +13,10 @@ import (
 //------------------------------------------------------------------------------
 
 // Ensure that we can start an election timer and it will go off in the specified duration.
-func TestElectionTimerReset(t *testing.T) {
+func TestTimerReset(t *testing.T) {
 	var mutex sync.Mutex
 	count, finished := 0, false
-	timer := NewElectionTimer(5 * time.Millisecond)
+	timer := NewTimer(5 * time.Millisecond, 10 * time.Millisecond)
 	go func() {
 		for {
 			if _, ok := <-timer.C; ok {
@@ -28,7 +28,9 @@ func TestElectionTimerReset(t *testing.T) {
 				break
 			}
 		}
+		mutex.Lock()
 		finished = true
+		mutex.Unlock()
 	}()
 	timer.Reset()
 	time.Sleep(25 * time.Millisecond)
@@ -46,6 +48,8 @@ func TestElectionTimerReset(t *testing.T) {
 	// Uncomment below to test timer stops. Golang channel closing is unpredictable though so it slows down our test.
 	/**
 	time.Sleep(500 * time.Millisecond)
+	mutex.Lock()
+	defer mutex.Unlock()
 	if !finished {
 		t.Fatalf("Timer did not finish")
 	}
@@ -53,10 +57,10 @@ func TestElectionTimerReset(t *testing.T) {
 }
 
 // Ensure that we can pause an election timer.
-func TestElectionTimerPause(t *testing.T) {
+func TestTimerPause(t *testing.T) {
 	var mutex sync.Mutex
 	count := 0
-	timer := NewElectionTimer(10 * time.Millisecond)
+	timer := NewTimer(10 * time.Millisecond, 20 * time.Millisecond)
 	go func() {
 		<-timer.C
 		mutex.Lock()
