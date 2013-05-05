@@ -110,13 +110,20 @@ func (t *ElectionTimer) Reset() {
 	d := t.duration + time.Duration(t.rand.Int63n(int64(t.duration)))
 	t.internalTimer = time.NewTimer(d)
 	go func() {
+		// Retrieve the current internal timer.
 		t.mutex.Lock()
 		internalTimer := t.internalTimer
 		t.mutex.Unlock()
+
+		// If the timer exists then grab the value from the channel and pass it
+		// through to the election timer's external channel.
 		if internalTimer != nil {
-			if v, ok := <-t.internalTimer.C; ok {
+			v, ok := <-internalTimer.C
+			t.mutex.Lock()
+			if ok && t.Running() {
 				t.C <- v
 			}
+			t.mutex.Unlock()
 		}
 	}()
 }

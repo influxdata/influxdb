@@ -281,7 +281,6 @@ func TestServerSingleNode(t *testing.T) {
 }
 
 // Ensure that we can start multiple servers and determine a leader.
-/*
 func TestServerMultiNode(t *testing.T) {
 	warn("== begin multi-node ==")
 
@@ -314,4 +313,3 @@ func TestServerMultiNode(t *testing.T) {
 	}
 	warn("== end multi-node ==")
 }
-*/

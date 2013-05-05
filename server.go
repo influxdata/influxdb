@@ -100,7 +100,7 @@ func (s *Server) Name() string {
 func (s *Server) Path() string {
 	return s.path
 }
-
+	
 // Retrieves the log path for the server.
 func (s *Server) LogPath() string {
 	return fmt.Sprintf("%s/log", s.path)
