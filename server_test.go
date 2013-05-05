@@ -292,6 +292,9 @@ func TestServerMultiNode(t *testing.T) {
 		server.DoHandler = func(server *Server, peer *Peer, command Command) error {
 			return servers[peer.name].Do(command)
 		}
+		server.AppendEntriesHandler = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+			return servers[peer.name].AppendEntries(req)
+		}
 		if err := server.Start(); err != nil {
 			t.Fatalf("Unable to start server[%s]: %v", name, err)
 		}
@@ -304,7 +307,7 @@ func TestServerMultiNode(t *testing.T) {
 	// Check that two peers exist on leader.
 	leader := servers["1"]
 	if leader.MemberCount() != 3 {
-		t.Fatalf("Expected member count to be 2, got %v", leader.MemberCount())
+		t.Fatalf("Expected member count to be 3, got %v", leader.MemberCount())
 	}
 
 	// Stop the servers.

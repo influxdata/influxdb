@@ -12,3 +12,9 @@ type Command interface {
 	Validate(server *Server) error
 	Apply(server *Server)
 }
+
+// This is a marker interface to filter out commands that are processed
+// internally by the protocol such as the "Join" command.
+type InternalCommand interface {
+	InternalCommand() bool
+}

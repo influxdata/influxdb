@@ -22,6 +22,11 @@ type JoinCommand struct {
 //
 //------------------------------------------------------------------------------
 
+// This function marks the command as internal.
+func (c *JoinCommand) InternalCommand() bool {
+	return true
+}
+
 // The name of the command in the log.
 func (c *JoinCommand) CommandName() string {
 	return "raft:join"
@@ -47,7 +52,7 @@ func (c *JoinCommand) Validate(server *Server) error {
 // Updates the state machine to join the server to the cluster.
 func (c *JoinCommand) Apply(server *Server) {
 	if server.name != c.Name {
-		peer := &Peer{name: c.Name}
+		peer := NewPeer(server, c.Name)
 		server.peers[peer.name] = peer
 	}
 }

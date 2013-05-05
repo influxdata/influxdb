@@ -219,6 +219,27 @@ func (l *Log) ContainsEntry(index uint64, term uint64) bool {
 	return (l.entries[index-1].term == term)
 }
 
+// Retrieves a list of entries after a given index. This function also returns
+// the term of the index provided.
+func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	// Return an error if the index doesn't exist.
+	if index > uint64(len(l.entries)) {
+		panic(fmt.Sprintf("raft.Log: Index is beyond end of log: %v", index))
+	}
+
+	// If we're going from the beginning of the log then return the whole log.
+	if index == 0 {
+		return l.entries, 0
+	}
+	
+	// Determine the term at the given entry and return a subslice.
+	term := l.entries[index-1].term
+	return l.entries[index:], term
+}
+
 //--------------------------------------
 // Commit
 //--------------------------------------

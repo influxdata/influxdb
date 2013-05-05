@@ -75,7 +75,13 @@ func NewServer(name string, path string) (*Server, error) {
 		if s.ApplyFunc == nil {
 			panic("raft.Server: Apply function not set")
 		}
-		s.ApplyFunc(s, c)
+		
+		// Apply Raft commands internally. External commands get delegated.
+		if _, ok := c.(InternalCommand); ok {
+			c.Apply(s)
+		} else {
+			s.ApplyFunc(s, c)
+		}
 	}
 
 	return s, nil
@@ -100,7 +106,7 @@ func (s *Server) Name() string {
 func (s *Server) Path() string {
 	return s.path
 }
-	
+
 // Retrieves the log path for the server.
 func (s *Server) LogPath() string {
 	return fmt.Sprintf("%s/log", s.path)
@@ -226,6 +232,76 @@ func (s *Server) Do(command Command) error {
 // This function is the low-level interface to execute commands. This function
 // does not obtain a lock so one must be obtained before executing.
 func (s *Server) do(command Command) error {
+	// Capture the term that this command is executing within.
+	currentTerm := s.currentTerm
+
+	// Add a new entry to the log.
+	entry := s.log.CreateEntry(s.currentTerm, command)
+	if err := s.log.AppendEntry(entry); err != nil {
+		return err
+	}
+	
+	// Flush the entries to the peers.
+	c := make(chan bool, len(s.peers))
+	for _, _peer := range s.peers {
+		peer := _peer
+		go func() {
+			term, success, err := peer.internalFlush()
+
+			// Demote if we encounter a higher term.
+			if err != nil {
+				return
+			} else if term > currentTerm {
+				s.setCurrentTerm(term)
+				s.electionTimer.Reset()
+				return
+			}
+			
+			// If we successfully replicated the log then send a success to the channel.
+			if success {
+				c <- true
+			}
+		}()
+	}
+
+	// Wait for a quorum to confirm and commit entry.
+	responseCount := 1
+	committed := false
+loop:
+	for {
+		// If we received enough votes then stop waiting for more votes.
+		if responseCount >= s.QuorumSize() {
+			committed = true
+			break
+		}
+
+		// Collect votes from peers.
+		select {
+		case <-c:
+			// Exit if our term has changed.
+			if s.currentTerm > currentTerm {
+				return fmt.Errorf("raft.Server: Higher term discovered, stepping down: (%v > %v)", s.currentTerm, currentTerm)
+			}
+			responseCount++
+		case <-time.After(s.ElectionTimeout()):
+			break loop
+		}
+	}
+	
+	// Commit to log and flush to peers again.
+	if committed {
+		if err := s.log.SetCommitIndex(entry.index); err != nil {
+			warn("raft.Server: %v", err)
+		} else {
+			for _, _peer := range s.peers {
+				peer := _peer
+				go func() {
+					peer.internalFlush()
+				}()
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -268,6 +344,23 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	}
 
 	return NewAppendEntriesResponse(s.currentTerm, true), nil
+}
+
+// Creates an AppendEntries request.
+func (s *Server) createAppendEntriesRequest(prevLogIndex uint64) (*AppendEntriesRequest, func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return s.createInternalAppendEntriesRequest(prevLogIndex)
+}
+
+// Creates an AppendEntries request without a lock.
+func (s *Server) createInternalAppendEntriesRequest(prevLogIndex uint64) (*AppendEntriesRequest, func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)) {
+	if s.log == nil {
+		return nil, nil
+	}
+	entries, prevLogTerm := s.log.GetEntriesAfter(prevLogIndex)
+	req := NewAppendEntriesRequest(s.currentTerm, s.name, prevLogIndex, prevLogTerm, entries, s.log.CommitIndex())
+	return req, s.AppendEntriesHandler
 }
 
 //--------------------------------------
@@ -462,10 +555,11 @@ func (s *Server) Join(name string) error {
 	// If joining self then promote to leader.
 	if s.name == name {
 		s.state = Leader
+		// TODO: Begin heartbeat to peers.
 		return nil
 	}
 
 	// Request membership.
 	command := &JoinCommand{Name: s.name}
-	return s.executeDoHandler(NewPeer(name), command)
+	return s.executeDoHandler(NewPeer(s, name), command)
 }

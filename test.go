@@ -82,7 +82,7 @@ func newTestCluster(names []string) (Servers, map[string]*Server) {
 	for _, server := range servers {
 		for _, peer := range servers {
 			if server != peer {
-				server.peers[peer.Name()] = NewPeer(peer.Name())
+				server.peers[peer.Name()] = NewPeer(server, peer.Name())
 			}
 		}
 		server.Start()

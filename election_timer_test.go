@@ -1,8 +1,8 @@
 package raft
 
 import (
-	"testing"
 	"sync"
+	"testing"
 	"time"
 )
 
