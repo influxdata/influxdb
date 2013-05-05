@@ -48,6 +48,7 @@ type Server struct {
 	peers                map[string]*Peer
 	mutex                sync.Mutex
 	electionTimer        *Timer
+	heartbeatTimeout     time.Duration
 }
 
 //------------------------------------------------------------------------------
@@ -67,7 +68,8 @@ func NewServer(name string, path string) (*Server, error) {
 		state:         Stopped,
 		peers:         make(map[string]*Peer),
 		log:           NewLog(),
-		electionTimer: NewTimer(DefaultElectionTimeout, DefaultElectionTimeout * 2),
+		electionTimer: NewTimer(DefaultElectionTimeout, DefaultElectionTimeout*2),
+		heartbeatTimeout: DefaultHeartbeatTimeout,
 	}
 
 	// Setup apply function.
@@ -75,7 +77,7 @@ func NewServer(name string, path string) (*Server, error) {
 		if s.ApplyFunc == nil {
 			panic("raft.Server: Apply function not set")
 		}
-		
+
 		// Apply Raft commands internally. External commands get delegated.
 		if _, ok := c.(InternalCommand); ok {
 			c.Apply(s)
@@ -241,7 +243,7 @@ func (s *Server) do(command Command) error {
 	if err := s.log.AppendEntry(entry); err != nil {
 		return err
 	}
-	
+
 	// Flush the entries to the peers.
 	c := make(chan bool, len(s.peers))
 	for _, _peer := range s.peers {
@@ -257,7 +259,7 @@ func (s *Server) do(command Command) error {
 				s.electionTimer.Reset()
 				return
 			}
-			
+
 			// If we successfully replicated the log then send a success to the channel.
 			if success {
 				c <- true
@@ -288,7 +290,7 @@ loop:
 			break loop
 		}
 	}
-	
+
 	// Commit to log and flush to peers again.
 	if committed {
 		if err := s.log.SetCommitIndex(entry.index); err != nil {
@@ -562,5 +564,5 @@ func (s *Server) Join(name string) error {
 
 	// Request membership.
 	command := &JoinCommand{Name: s.name}
-	return s.executeDoHandler(NewPeer(s, name), command)
+	return s.executeDoHandler(NewPeer(s, name, s.heartbeatTimeout), command)
 }

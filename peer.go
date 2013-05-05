@@ -3,6 +3,7 @@ package raft
 import (
 	"errors"
 	"sync"
+	"time"
 )
 
 //------------------------------------------------------------------------------
@@ -17,6 +18,7 @@ type Peer struct {
 	name           string
 	prevLogIndex   uint64
 	mutex          sync.Mutex
+	heartbeatTimer *Timer
 }
 
 //------------------------------------------------------------------------------
@@ -26,10 +28,11 @@ type Peer struct {
 //------------------------------------------------------------------------------
 
 // Creates a new peer.
-func NewPeer(server *Server, name string) *Peer {
+func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer {
 	return &Peer{
-		server: server,
-		name:   name,
+		server:         server,
+		name:           name,
+		heartbeatTimer: NewTimer(heartbeatTimeout, heartbeatTimeout),
 	}
 }
 
@@ -42,6 +45,16 @@ func NewPeer(server *Server, name string) *Peer {
 // Retrieves the name of the peer.
 func (p *Peer) Name() string {
 	return p.name
+}
+
+// Retrieves the heartbeat timeout.
+func (p *Peer) HeartbeatTimeout() time.Duration {
+	return p.heartbeatTimer.MinDuration()
+}
+
+// Sets the heartbeat timeout.
+func (p *Peer) SetHeartbeatTimeout(duration time.Duration) {
+	p.heartbeatTimer.SetDuration(duration)
 }
 
 //------------------------------------------------------------------------------
@@ -84,7 +97,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest, handler func(*Server,
 	if resp == nil {
 		return 0, false, err
 	}
-	
+
 	// If successful then update the previous log index. If it was
 	// unsuccessful then decrement the previous log index and we'll try again
 	// next time.

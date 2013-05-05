@@ -42,8 +42,8 @@ func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
 		panic("raft.Timer: Minimum duration cannot be greater than maximum duration")
 	}
 	return &Timer{
-		C:        make(chan time.Time, 1),
-		rand:     rand.New(rand.NewSource(time.Now().UnixNano())),
+		C:           make(chan time.Time, 1),
+		rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
 		minDuration: minDuration,
 		maxDuration: maxDuration,
 	}
@@ -73,6 +73,13 @@ func (t *Timer) MaxDuration() time.Duration {
 
 // Sets the maximum duration of the timer.
 func (t *Timer) SetMaxDuration(duration time.Duration) {
+	t.maxDuration = duration
+	t.Reset()
+}
+
+// Sets the minimum and maximum duration of the timer.
+func (t *Timer) SetDuration(duration time.Duration) {
+	t.minDuration = duration
 	t.maxDuration = duration
 	t.Reset()
 }

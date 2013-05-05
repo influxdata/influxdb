@@ -234,7 +234,7 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	if index == 0 {
 		return l.entries, 0
 	}
-	
+
 	// Determine the term at the given entry and return a subslice.
 	term := l.entries[index-1].term
 	return l.entries[index:], term

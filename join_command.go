@@ -52,7 +52,7 @@ func (c *JoinCommand) Validate(server *Server) error {
 // Updates the state machine to join the server to the cluster.
 func (c *JoinCommand) Apply(server *Server) {
 	if server.name != c.Name {
-		peer := NewPeer(server, c.Name)
+		peer := NewPeer(server, c.Name, server.heartbeatTimeout)
 		server.peers[peer.name] = peer
 	}
 }
