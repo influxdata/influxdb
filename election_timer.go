@@ -123,7 +123,9 @@ func (t *ElectionTimer) Reset() {
 		// through to the election timer's external channel.
 		if internalTimer != nil {
 			if v, ok := <-internalTimer.C; ok {
+				t.mutex.Lock()
 				t.C <- v
+				t.mutex.Unlock()
 			}
 		}
 	}()

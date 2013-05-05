@@ -2,6 +2,7 @@ package raft
 
 import (
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -285,15 +286,22 @@ func TestServerMultiNode(t *testing.T) {
 	warn("== begin multi-node ==")
 
 	// Initialize the servers.
+	var mutex sync.Mutex
 	names := []string{"1", "2", "3"}
 	servers := map[string]*Server{}
 	for _, name := range names {
 		server := newTestServer(name)
 		server.DoHandler = func(server *Server, peer *Peer, command Command) error {
-			return servers[peer.name].Do(command)
+			mutex.Lock()
+			s := servers[peer.name]
+			mutex.Unlock()
+			return s.Do(command)
 		}
 		server.AppendEntriesHandler = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
-			return servers[peer.name].AppendEntries(req)
+			mutex.Lock()
+			s := servers[peer.name]
+			mutex.Unlock()
+			return s.AppendEntries(req)
 		}
 		if err := server.Start(); err != nil {
 			t.Fatalf("Unable to start server[%s]: %v", name, err)
@@ -301,10 +309,15 @@ func TestServerMultiNode(t *testing.T) {
 		if err := server.Join("1"); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
 		}
+
+		mutex.Lock()
 		servers[name] = server
+		mutex.Unlock()
 	}
 
 	// Check that two peers exist on leader.
+	mutex.Lock()
+	defer mutex.Unlock()
 	leader := servers["1"]
 	if leader.MemberCount() != 3 {
 		t.Fatalf("Expected member count to be 3, got %v", leader.MemberCount())

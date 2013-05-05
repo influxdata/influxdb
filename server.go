@@ -296,7 +296,7 @@ loop:
 			for _, _peer := range s.peers {
 				peer := _peer
 				go func() {
-					peer.internalFlush()
+					peer.flush()
 				}()
 			}
 		}
