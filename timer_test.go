@@ -19,7 +19,7 @@ func TestTimerReset(t *testing.T) {
 	timer := NewTimer(5*time.Millisecond, 10*time.Millisecond)
 	go func() {
 		for {
-			if _, ok := <-timer.C; ok {
+			if _, ok := <-timer.C(); ok {
 				mutex.Lock()
 				count++
 				timer.Reset()
@@ -62,7 +62,7 @@ func TestTimerPause(t *testing.T) {
 	count := 0
 	timer := NewTimer(10*time.Millisecond, 20*time.Millisecond)
 	go func() {
-		<-timer.C
+		<-timer.C()
 		mutex.Lock()
 		count++
 		mutex.Unlock()

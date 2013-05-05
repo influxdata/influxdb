@@ -29,11 +29,16 @@ type Peer struct {
 
 // Creates a new peer.
 func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer {
-	return &Peer{
+	p := &Peer{
 		server:         server,
 		name:           name,
 		heartbeatTimer: NewTimer(heartbeatTimeout, heartbeatTimeout),
 	}
+	
+	// Start the heartbeat timeout.
+	go p.heartbeatTimeoutFunc()
+
+	return p
 }
 
 //------------------------------------------------------------------------------
@@ -62,6 +67,35 @@ func (p *Peer) SetHeartbeatTimeout(duration time.Duration) {
 // Methods
 //
 //------------------------------------------------------------------------------
+
+//--------------------------------------
+// State
+//--------------------------------------
+
+// Resumes the peer heartbeating.
+func (p *Peer) resume() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	p.heartbeatTimer.Reset()
+}
+
+// Pauses the peer to prevent heartbeating.
+func (p *Peer) pause() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	p.heartbeatTimer.Pause()
+}
+
+// Stops the peer entirely.
+func (p *Peer) stop() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	p.heartbeatTimer.Stop()
+}
+
+//--------------------------------------
+// Flush
+//--------------------------------------
 
 // Generates and sends an AppendEntries RPC from the server for the peer.
 // This serves to replicate the log and to provide a heartbeat mechanism. It
@@ -94,6 +128,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest, handler func(*Server,
 	// log. Send the request through the user-provided handler and process the
 	// result.
 	resp, err := handler(p.server, p, req)
+	p.heartbeatTimer.Reset()
 	if resp == nil {
 		return 0, false, err
 	}
@@ -112,4 +147,34 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest, handler func(*Server,
 	}
 
 	return resp.Term, resp.Success, err
+}
+
+//--------------------------------------
+// Heartbeat
+//--------------------------------------
+
+// Listens to the heartbeat timeout and flushes an AppendEntries RPC.
+func (p *Peer) heartbeatTimeoutFunc() {
+	for {
+		// Grab the current timer channel.
+		p.mutex.Lock()
+		var c chan time.Time
+		if p.heartbeatTimer != nil {
+			c = p.heartbeatTimer.C()
+		}
+		p.mutex.Unlock()
+
+		// If the channel or timer are gone then exit.
+		if c == nil {
+			break
+		}
+
+		// Flush the peer when we get a heartbeat timeout. If the channel is
+		// closed then the peer is getting cleaned up and we should exit.
+		if _, ok := <- c; ok {
+			p.flush()
+		} else {
+			break
+		}
+	}
 }

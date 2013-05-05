@@ -20,9 +20,9 @@ import (
 // Ensure that we can request a vote from a server that has not voted.
 func TestServerRequestVote(t *testing.T) {
 	server := newTestServer("1")
-	resp := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
-	if !(resp.Term == 1 && resp.VoteGranted) {
-		t.Fatalf("Invalid request vote response: %v/%v", resp.Term, resp.VoteGranted)
+	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
+	if !(resp.Term == 1 && resp.VoteGranted && err == nil) {
+		t.Fatalf("Invalid request vote response: %v/%v (%v)", resp.Term, resp.VoteGranted, err)
 	}
 }
 
@@ -31,9 +31,9 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	server := newTestServer("1")
 	server.state = Leader
 	server.currentTerm = 2
-	resp := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
-	if !(resp.Term == 2 && !resp.VoteGranted) {
-		t.Fatalf("Invalid request vote response: %v/%v", resp.Term, resp.VoteGranted)
+	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
+	if !(resp.Term == 2 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Stale term: 1 < 2") {
+		t.Fatalf("Invalid request vote response: %v/%v (%v)", resp.Term, resp.VoteGranted, err)
 	}
 	if server.currentTerm != 2 && server.state != Follower {
 		t.Fatalf("Server did not update term and demote: %v / %v", server.currentTerm, server.state)
@@ -44,13 +44,13 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 	server := newTestServer("1")
 	server.currentTerm = 2
-	resp := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
-	if !(resp.Term == 2 && resp.VoteGranted) {
-		t.Fatalf("First vote should not have been denied")
+	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
+	if !(resp.Term == 2 && resp.VoteGranted && err == nil) {
+		t.Fatalf("First vote should not have been denied (%v)", err)
 	}
-	resp = server.RequestVote(NewRequestVoteRequest(2, "bar", 0, 0))
-	if !(resp.Term == 2 && !resp.VoteGranted) {
-		t.Fatalf("Second vote should have been denied")
+	resp, err = server.RequestVote(NewRequestVoteRequest(2, "bar", 0, 0))
+	if !(resp.Term == 2 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Already voted for foo") {
+		t.Fatalf("Second vote should have been denied (%v)", err)
 	}
 }
 
@@ -58,13 +58,13 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 	server := newTestServer("1")
 	server.currentTerm = 2
-	resp := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
-	if !(resp.Term == 2 && resp.VoteGranted && server.VotedFor() == "foo") {
-		t.Fatalf("First vote should not have been denied")
+	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
+	if !(resp.Term == 2 && resp.VoteGranted && server.VotedFor() == "foo" && err == nil) {
+		t.Fatalf("First vote should not have been denied (%v)", err)
 	}
-	resp = server.RequestVote(NewRequestVoteRequest(3, "bar", 0, 0))
-	if !(resp.Term == 3 && resp.VoteGranted && server.VotedFor() == "bar") {
-		t.Fatalf("Second vote should have been approved")
+	resp, err = server.RequestVote(NewRequestVoteRequest(3, "bar", 0, 0))
+	if !(resp.Term == 3 && resp.VoteGranted && server.VotedFor() == "bar" && err == nil) {
+		t.Fatalf("Second vote should have been approved (%v)", err)
 	}
 }
 
@@ -76,21 +76,21 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 			`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}`+"\n")
 	server.Start()
 
-	resp := server.RequestVote(NewRequestVoteRequest(1, "foo", 2, 2))
-	if !(resp.Term == 1 && !resp.VoteGranted) {
-		t.Fatalf("Stale index vote should have been denied")
+	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 2, 2))
+	if !(resp.Term == 1 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Out-of-date log: [3/2] > [2/2]") {
+		t.Fatalf("Stale index vote should have been denied (%v)", err)
 	}
-	resp = server.RequestVote(NewRequestVoteRequest(1, "foo", 3, 1))
-	if !(resp.Term == 1 && !resp.VoteGranted) {
-		t.Fatalf("Stale term vote should have been denied")
+	resp, err = server.RequestVote(NewRequestVoteRequest(1, "foo", 3, 1))
+	if !(resp.Term == 1 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Out-of-date log: [3/2] > [3/1]") {
+		t.Fatalf("Stale term vote should have been denied (%v)", err)
 	}
-	resp = server.RequestVote(NewRequestVoteRequest(1, "foo", 3, 2))
-	if !(resp.Term == 1 && resp.VoteGranted) {
-		t.Fatalf("Matching log vote should have been granted")
+	resp, err = server.RequestVote(NewRequestVoteRequest(1, "foo", 3, 2))
+	if !(resp.Term == 1 && resp.VoteGranted && err == nil) {
+		t.Fatalf("Matching log vote should have been granted (%v)", err)
 	}
-	resp = server.RequestVote(NewRequestVoteRequest(1, "foo", 4, 3))
-	if !(resp.Term == 1 && resp.VoteGranted) {
-		t.Fatalf("Ahead-of-log vote should have been granted")
+	resp, err = server.RequestVote(NewRequestVoteRequest(1, "foo", 4, 3))
+	if !(resp.Term == 1 && resp.VoteGranted && err == nil) {
+		t.Fatalf("Ahead-of-log vote should have been granted (%v)", err)
 	}
 }
 
@@ -111,7 +111,7 @@ func TestServerPromoteSelf(t *testing.T) {
 func TestServerPromote(t *testing.T) {
 	servers, lookup := newTestCluster([]string{"1", "2", "3"})
 	servers.SetRequestVoteHandler(func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-		return lookup[peer.Name()].RequestVote(req), nil
+		return lookup[peer.Name()].RequestVote(req)
 	})
 	leader := servers[0]
 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
@@ -125,7 +125,7 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 	lookup["2"].currentTerm, lookup["2"].votedFor = 1, "2"
 	lookup["3"].currentTerm, lookup["3"].votedFor = 1, "3"
 	servers.SetRequestVoteHandler(func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-		return lookup[peer.Name()].RequestVote(req), nil
+		return lookup[peer.Name()].RequestVote(req)
 	})
 	leader := servers[0]
 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader && leader.currentTerm == 2) {
@@ -290,11 +290,19 @@ func TestServerMultiNode(t *testing.T) {
 	servers := map[string]*Server{}
 	for _, name := range names {
 		server := newTestServer(name)
+		server.SetElectionTimeout(TestElectionTimeout)
+		server.SetHeartbeatTimeout(TestHeartbeatTimeout)
 		server.DoHandler = func(server *Server, peer *Peer, command Command) error {
 			mutex.Lock()
 			s := servers[peer.name]
 			mutex.Unlock()
 			return s.Do(command)
+		}
+		server.RequestVoteHandler = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+			mutex.Lock()
+			s := servers[peer.name]
+			mutex.Unlock()
+			return s.RequestVote(req)
 		}
 		server.AppendEntriesHandler = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 			mutex.Lock()
@@ -317,11 +325,23 @@ func TestServerMultiNode(t *testing.T) {
 
 	// Check that two peers exist on leader.
 	mutex.Lock()
-	defer mutex.Unlock()
 	leader := servers["1"]
 	if leader.MemberCount() != 3 {
 		t.Fatalf("Expected member count to be 3, got %v", leader.MemberCount())
 	}
+	mutex.Unlock()
+
+	// Stop the first server and wait for a re-election.
+	time.Sleep(500 * time.Millisecond)
+	leader.Stop()
+	time.Sleep(500 * time.Millisecond)
+
+	// Check that either server 2 or 3 is the leader now.
+	mutex.Lock()
+	if servers["2"].state != Leader && servers["3"].state != Leader {
+		t.Fatalf("Expected leader re-election: 2=%v, 3=%v", servers["2"].state, servers["3"].state)
+	}
+	mutex.Unlock()
 
 	// Stop the servers.
 	for _, server := range servers {

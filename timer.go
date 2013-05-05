@@ -16,7 +16,7 @@ import (
 // reset and stop. It also allows for the duration of the timer to be a random
 // number between a min and max duration.
 type Timer struct {
-	C             chan time.Time
+	c             chan time.Time
 	rand          *rand.Rand
 	minDuration   time.Duration
 	maxDuration   time.Duration
@@ -42,7 +42,7 @@ func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
 		panic("raft.Timer: Minimum duration cannot be greater than maximum duration")
 	}
 	return &Timer{
-		C:           make(chan time.Time, 1),
+		c:           make(chan time.Time, 1),
 		rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
 		minDuration: minDuration,
 		maxDuration: maxDuration,
@@ -54,6 +54,13 @@ func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
 // Accessors
 //
 //------------------------------------------------------------------------------
+
+// Retrieves the timer's channel.
+func (t *Timer) C() chan time.Time {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	return t.c
+}
 
 // Retrieves the minimum duration of the timer.
 func (t *Timer) MinDuration() time.Duration {
@@ -105,8 +112,9 @@ func (t *Timer) Stop() {
 		t.internalTimer = nil
 	}
 
-	if t.C != nil {
-		close(t.C)
+	if t.c != nil {
+		close(t.c)
+		t.c = nil
 	}
 }
 
@@ -132,7 +140,10 @@ func (t *Timer) Reset() {
 	}
 
 	// Start a timer that will go off between the min and max duration.
-	d := t.minDuration + time.Duration(t.rand.Int63n(int64(t.maxDuration-t.minDuration)))
+	d := t.minDuration
+	if t.maxDuration > t.minDuration {
+		d += time.Duration(t.rand.Int63n(int64(t.maxDuration-t.minDuration)))
+	}
 	t.internalTimer = time.NewTimer(d)
 	go func() {
 		defer func() {
@@ -149,7 +160,7 @@ func (t *Timer) Reset() {
 		if internalTimer != nil {
 			if v, ok := <-internalTimer.C; ok {
 				t.mutex.Lock()
-				t.C <- v
+				t.c <- v
 				t.mutex.Unlock()
 			}
 		}

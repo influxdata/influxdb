@@ -159,6 +159,26 @@ func (s *Server) SetElectionTimeout(duration time.Duration) {
 	s.electionTimer.SetMaxDuration(duration * 2)
 }
 
+//--------------------------------------
+// Heartbeat timeout
+//--------------------------------------
+
+// Retrieves the heartbeat timeout.
+func (s *Server) HeartbeatTimeout() time.Duration {
+	return s.heartbeatTimeout
+}
+
+// Sets the heartbeat timeout.
+func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.heartbeatTimeout = duration
+	for _, peer := range s.peers {
+		peer.SetHeartbeatTimeout(duration)
+	}
+}
+
 //------------------------------------------------------------------------------
 //
 // Methods
@@ -187,6 +207,12 @@ func (s *Server) Start() error {
 
 	// Update the state.
 	s.state = Follower
+	for _, peer := range s.peers {
+		peer.pause()
+	}
+
+	// Start the election timeout.
+	go s.electionTimeoutFunc()
 
 	return nil
 }
@@ -200,6 +226,8 @@ func (s *Server) Stop() {
 
 // Unloads the server.
 func (s *Server) unload() {
+	s.electionTimer.Stop()
+	
 	if s.log != nil {
 		s.log.Close()
 		s.log = nil
@@ -321,12 +349,20 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// If the server is stopped then reject it.
+	if !s.Running() {
+		return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Server stopped")
+	}
+
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.currentTerm {
 		return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Stale request term")
 	}
 	s.setCurrentTerm(req.Term)
 	s.state = Follower
+	for _, peer := range s.peers {
+		peer.pause()
+	}
 
 	// Reset election timeout.
 	s.electionTimer.Reset()
@@ -479,9 +515,11 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 		return false
 	}
 
-	// Move server to become a leader.
+	// Move server to become a leader and begin peer heartbeats.
 	s.state = Leader
-	// TODO: Begin heartbeat to peers.
+	for _, peer := range s.peers {
+		peer.resume()
+	}
 
 	return true
 }
@@ -493,31 +531,31 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 // Requests a vote from a server. A vote can be obtained if the vote's term is
 // at the server's current term and the server has not made a vote yet. A vote
 // can also be obtained if the term is greater than the server's current term.
-func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
+func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.currentTerm {
-		return NewRequestVoteResponse(s.currentTerm, false)
+		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Stale term: %v < %v", req.Term, s.currentTerm)
 	}
 	s.setCurrentTerm(req.Term)
 
 	// If we've already voted for a different candidate then don't vote for this candidate.
 	if s.votedFor != "" && s.votedFor != req.CandidateName {
-		return NewRequestVoteResponse(s.currentTerm, false)
+		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Already voted for %v", s.votedFor)
 	}
 
 	// If the candidate's log is not at least as up-to-date as our committed log then don't vote.
 	lastCommitIndex, lastCommitTerm := s.log.CommitInfo()
 	if lastCommitIndex > req.LastLogIndex || lastCommitTerm > req.LastLogTerm {
-		return NewRequestVoteResponse(s.currentTerm, false)
+		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Out-of-date log: [%v/%v] > [%v/%v]", lastCommitIndex, lastCommitTerm, req.LastLogIndex, req.LastLogTerm)
 	}
 
 	// If we made it this far then cast a vote and reset our election time out.
 	s.votedFor = req.CandidateName
 	s.electionTimer.Reset()
-	return NewRequestVoteResponse(s.currentTerm, true)
+	return NewRequestVoteResponse(s.currentTerm, true), nil
 }
 
 // Executes the handler for sending a RequestVote RPC.
@@ -536,6 +574,35 @@ func (s *Server) setCurrentTerm(term uint64) {
 		s.currentTerm = term
 		s.votedFor = ""
 		s.state = Follower
+		for _, peer := range s.peers {
+			peer.pause()
+		}
+	}
+}
+
+// Listens to the election timeout and kicks off a new election.
+func (s *Server) electionTimeoutFunc() {
+	for {
+		// Grab the current timer channel.
+		s.mutex.Lock()
+		var c chan time.Time
+		if s.electionTimer != nil {
+			c = s.electionTimer.C()
+		}
+		s.mutex.Unlock()
+
+		// If the channel or timer are gone then exit.
+		if c == nil {
+			break
+		}
+
+		// If an election times out then promote this server. If the channel
+		// closes then that means the server has stopped so kill the function.
+		if _, ok := <- c; ok {
+			s.promote()
+		} else {
+			break
+		}
 	}
 }
 
@@ -557,8 +624,9 @@ func (s *Server) Join(name string) error {
 
 	// If joining self then promote to leader.
 	if s.name == name {
+		s.currentTerm++
 		s.state = Leader
-		// TODO: Begin heartbeat to peers.
+		s.electionTimer.Pause()
 		return nil
 	}
 
