@@ -20,6 +20,7 @@ import (
 // Ensure that we can request a vote from a server that has not voted.
 func TestServerRequestVote(t *testing.T) {
 	server := newTestServer("1")
+	server.Start()
 	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
 	if !(resp.Term == 1 && resp.VoteGranted && err == nil) {
 		t.Fatalf("Invalid request vote response: %v/%v (%v)", resp.Term, resp.VoteGranted, err)
@@ -31,6 +32,7 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	server := newTestServer("1")
 	server.state = Leader
 	server.currentTerm = 2
+	server.Start()
 	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
 	if !(resp.Term == 2 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Stale term: 1 < 2") {
 		t.Fatalf("Invalid request vote response: %v/%v (%v)", resp.Term, resp.VoteGranted, err)
@@ -44,6 +46,7 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 	server := newTestServer("1")
 	server.currentTerm = 2
+	server.Start()
 	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
 	if !(resp.Term == 2 && resp.VoteGranted && err == nil) {
 		t.Fatalf("First vote should not have been denied (%v)", err)
@@ -58,6 +61,7 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 	server := newTestServer("1")
 	server.currentTerm = 2
+	server.Start()
 	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
 	if !(resp.Term == 2 && resp.VoteGranted && server.VotedFor() == "foo" && err == nil) {
 		t.Fatalf("First vote should not have been denied (%v)", err)
@@ -338,7 +342,7 @@ func TestServerMultiNode(t *testing.T) {
 
 	// Check that either server 2 or 3 is the leader now.
 	mutex.Lock()
-	if servers["2"].state != Leader && servers["3"].state != Leader {
+	if servers["2"].State() != Leader && servers["3"].State() != Leader {
 		t.Fatalf("Expected leader re-election: 2=%v, 3=%v", servers["2"].state, servers["3"].state)
 	}
 	mutex.Unlock()

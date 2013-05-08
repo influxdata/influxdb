@@ -34,9 +34,9 @@ type Log struct {
 
 // Creates a new log.
 func NewLog() *Log {
-	return &Log{
-		commandTypes: make(map[string]Command),
-	}
+	l := &Log{commandTypes: make(map[string]Command)}
+	l.AddCommandType(&JoinCommand{})
+	return l
 }
 
 //------------------------------------------------------------------------------
@@ -68,6 +68,13 @@ func (l *Log) NextIndex() uint64 {
 // The last committed index in the log.
 func (l *Log) CommitIndex() uint64 {
 	return l.commitIndex
+}
+
+// Determines if the log contains zero entries.
+func (l *Log) IsEmpty() bool {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	return (len(l.entries) == 0)
 }
 
 //--------------------------------------

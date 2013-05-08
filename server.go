@@ -74,14 +74,13 @@ func NewServer(name string, path string) (*Server, error) {
 
 	// Setup apply function.
 	s.log.ApplyFunc = func(c Command) {
-		if s.ApplyFunc == nil {
-			panic("raft.Server: Apply function not set")
-		}
-
 		// Apply Raft commands internally. External commands get delegated.
 		if _, ok := c.(InternalCommand); ok {
 			c.Apply(s)
 		} else {
+			if s.ApplyFunc == nil {
+				panic("raft.Server: Apply function not set")
+			}
 			s.ApplyFunc(s, c)
 		}
 	}
@@ -116,6 +115,8 @@ func (s *Server) LogPath() string {
 
 // Retrieves the current state of the server.
 func (s *Server) State() string {
+	s.mutex.Lock()
+	s.mutex.Unlock()
 	return s.state
 }
 
@@ -124,6 +125,11 @@ func (s *Server) VotedFor() string {
 	s.mutex.Lock()
 	s.mutex.Unlock()
 	return s.votedFor
+}
+
+// Retrieves whether the server's log has no entries.
+func (s *Server) IsLogEmpty() bool {
+	return s.log.IsEmpty()
 }
 
 //--------------------------------------
@@ -469,9 +475,12 @@ func (s *Server) promote() (bool, error) {
 		}
 
 		// If we are no longer in the same term then another server must have been elected.
+		s.mutex.Lock()
 		if s.currentTerm != term {
+			s.mutex.Unlock()
 			return false, fmt.Errorf("raft.Server: Term changed during election, stepping down: (%v > %v)", s.currentTerm, term)
 		}
+		s.mutex.Unlock()
 	}
 
 	return true, nil
@@ -534,6 +543,11 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	// Fail if the server is not running.
+	if !s.Running() {
+		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Server is stopped")
+	}
 
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.currentTerm {
@@ -622,15 +636,18 @@ func (s *Server) Join(name string) error {
 		return errors.New("raft.Server: Cannot join; already in membership")
 	}
 
+	// The join command keeps track of the membership.
+	command := &JoinCommand{Name: s.name}
+
 	// If joining self then promote to leader.
 	if s.name == name {
 		s.currentTerm++
 		s.state = Leader
 		s.electionTimer.Pause()
+		s.do(command)
 		return nil
 	}
 
-	// Request membership.
-	command := &JoinCommand{Name: s.name}
+	// Request membership if we are joining to another server.
 	return s.executeDoHandler(NewPeer(s, name, s.heartbeatTimeout), command)
 }
