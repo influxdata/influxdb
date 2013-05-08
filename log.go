@@ -77,6 +77,11 @@ func (l *Log) IsEmpty() bool {
 	return (len(l.entries) == 0)
 }
 
+// A list of all the log entries. This should only be used for debugging purposes.
+func (l *Log) Entries() []*LogEntry {
+	return l.entries
+}
+
 //--------------------------------------
 // Log Terms
 //--------------------------------------
