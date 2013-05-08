@@ -19,9 +19,9 @@ import (
 // A log entry stores a single item in the log.
 type LogEntry struct {
 	log     *Log
-	index   uint64
-	term    uint64
-	command Command
+	Index   uint64 `json:"index"`
+	Term    uint64 `json:"term"`
+	Command Command `json:"command"`
 }
 
 //------------------------------------------------------------------------------
@@ -34,9 +34,9 @@ type LogEntry struct {
 func NewLogEntry(log *Log, index uint64, term uint64, command Command) *LogEntry {
 	return &LogEntry{
 		log:     log,
-		index:   index,
-		term:    term,
-		command: command,
+		Index:   index,
+		Term:    term,
+		Command: command,
 	}
 }
 
@@ -56,14 +56,14 @@ func (e *LogEntry) Encode(w io.Writer) error {
 		return errors.New("raft.LogEntry: Writer required to encode")
 	}
 
-	encodedCommand, err := json.Marshal(e.command)
+	encodedCommand, err := json.Marshal(e.Command)
 	if err != nil {
 		return err
 	}
 
 	// Write log line to temporary buffer.
 	var b bytes.Buffer
-	if _, err = fmt.Fprintf(&b, "%016x %016x %s %s\n", e.index, e.term, e.command.CommandName(), encodedCommand); err != nil {
+	if _, err = fmt.Fprintf(&b, "%016x %016x %s %s\n", e.Index, e.Term, e.Command.CommandName(), encodedCommand); err != nil {
 		return err
 	}
 
@@ -120,7 +120,7 @@ func (e *LogEntry) Decode(r io.Reader) (pos int, err error) {
 
 	// Read term, index and command name.
 	var commandName string
-	if _, err = fmt.Fscanf(b, "%016x %016x %s ", &e.index, &e.term, &commandName); err != nil {
+	if _, err = fmt.Fscanf(b, "%016x %016x %s ", &e.Index, &e.Term, &commandName); err != nil {
 		err = fmt.Errorf("raft.LogEntry: Unable to scan: %v", err)
 		return
 	}
@@ -137,7 +137,7 @@ func (e *LogEntry) Decode(r io.Reader) (pos int, err error) {
 		err = fmt.Errorf("raft.LogEntry: Unable to decode: %v", err)
 		return
 	}
-	e.command = command
+	e.Command = command
 
 	// Make sure there's only an EOF remaining.
 	c, err := b.ReadByte()

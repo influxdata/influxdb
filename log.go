@@ -57,7 +57,7 @@ func (l *Log) CurrentIndex() uint64 {
 	if len(l.entries) == 0 {
 		return 0
 	}
-	return l.entries[len(l.entries)-1].index
+	return l.entries[len(l.entries)-1].Index
 }
 
 // The next index in the log.
@@ -77,10 +77,6 @@ func (l *Log) IsEmpty() bool {
 	return (len(l.entries) == 0)
 }
 
-// A list of all the log entries. This should only be used for debugging purposes.
-func (l *Log) Entries() []*LogEntry {
-	return l.entries
-}
 
 //--------------------------------------
 // Log Terms
@@ -94,7 +90,7 @@ func (l *Log) CurrentTerm() uint64 {
 	if len(l.entries) == 0 {
 		return 0
 	}
-	return l.entries[len(l.entries)-1].term
+	return l.entries[len(l.entries)-1].Term
 }
 
 //------------------------------------------------------------------------------
@@ -179,7 +175,7 @@ func (l *Log) Open(path string) error {
 				}
 				break
 			}
-			l.commitIndex = entry.index
+			l.commitIndex = entry.Index
 			lastIndex += n
 
 			// Append entry.
@@ -228,7 +224,7 @@ func (l *Log) ContainsEntry(index uint64, term uint64) bool {
 	if index == 0 || index > uint64(len(l.entries)) {
 		return false
 	}
-	return (l.entries[index-1].term == term)
+	return (l.entries[index-1].Term == term)
 }
 
 // Retrieves a list of entries after a given index. This function also returns
@@ -248,7 +244,7 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	}
 
 	// Determine the term at the given entry and return a subslice.
-	term := l.entries[index-1].term
+	term := l.entries[index-1].Term
 	return l.entries[index:], term
 }
 
@@ -268,7 +264,7 @@ func (l *Log) CommitInfo() (index uint64, term uint64) {
 
 	// Return the last index & term from the last committed entry.
 	lastCommitEntry := l.entries[l.commitIndex-1]
-	return lastCommitEntry.index, lastCommitEntry.term
+	return lastCommitEntry.Index, lastCommitEntry.Term
 }
 
 // Updates the commit index and writes entries after that index to the stable storage.
@@ -299,10 +295,10 @@ func (l *Log) SetCommitIndex(index uint64) error {
 		}
 
 		// Apply the changes to the state machine.
-		l.ApplyFunc(entry.command)
+		l.ApplyFunc(entry.Command)
 
 		// Update commit index.
-		l.commitIndex = entry.index
+		l.commitIndex = entry.Index
 	}
 
 	return nil
@@ -334,8 +330,8 @@ func (l *Log) Truncate(index uint64, term uint64) error {
 	} else {
 		// Do not truncate if the entry at index does not have the matching term.
 		entry := l.entries[index-1]
-		if len(l.entries) > 0 && entry.term != term {
-			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.term, index, term)
+		if len(l.entries) > 0 && entry.Term != term {
+			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term, index, term)
 		}
 
 		// Otherwise truncate up to the desired entry.
@@ -385,10 +381,10 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 	// Make sure the term and index are greater than the previous.
 	if len(l.entries) > 0 {
 		lastEntry := l.entries[len(l.entries)-1]
-		if entry.term < lastEntry.term {
-			return fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x <= %x:%x)", entry.term, entry.index, lastEntry.term, lastEntry.index)
-		} else if entry.index == lastEntry.index && entry.index <= lastEntry.index {
-			return fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.term, entry.index, lastEntry.term, lastEntry.index)
+		if entry.Term < lastEntry.Term {
+			return fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
+		} else if entry.Index == lastEntry.Index && entry.Index <= lastEntry.Index {
+			return fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
 		}
 	}
 

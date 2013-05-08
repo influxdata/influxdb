@@ -138,7 +138,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest, handler func(*Server,
 	// next time.
 	if resp.Success {
 		if len(req.Entries) > 0 {
-			p.prevLogIndex = req.Entries[len(req.Entries)-1].index
+			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
 		}
 	} else {
 		if p.prevLogIndex > 0 {

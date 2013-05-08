@@ -132,6 +132,14 @@ func (s *Server) IsLogEmpty() bool {
 	return s.log.IsEmpty()
 }
 
+// A list of all the log entries. This should only be used for debugging purposes.
+func (s *Server) LogEntries() []*LogEntry {
+	if s.log != nil {
+		return s.log.entries
+	}
+	return nil
+}
+
 //--------------------------------------
 // Membership
 //--------------------------------------
@@ -327,7 +335,7 @@ loop:
 
 	// Commit to log and flush to peers again.
 	if committed {
-		if err := s.log.SetCommitIndex(entry.index); err != nil {
+		if err := s.log.SetCommitIndex(entry.Index); err != nil {
 			warn("raft.Server: %v", err)
 		} else {
 			for _, _peer := range s.peers {
