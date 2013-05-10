@@ -13,7 +13,7 @@ import (
 
 // The join command allows a server to gain membership into a cluster.
 type JoinCommand struct {
-	Name string `join:"name"`
+	Name string `json:"name"`
 }
 
 //------------------------------------------------------------------------------

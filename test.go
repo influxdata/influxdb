@@ -12,6 +12,11 @@ const (
 	TestElectionTimeout  = 60 * time.Millisecond
 )
 
+func init() {
+	RegisterCommand(&TestCommand1{})
+	RegisterCommand(&TestCommand2{})
+}
+
 //------------------------------------------------------------------------------
 //
 // Helpers
@@ -40,8 +45,6 @@ func setupLog(content string) (*Log, string) {
 	path := setupLogFile(content)
 	log := NewLog()
 	log.ApplyFunc = func(c Command) {}
-	log.AddCommandType(&TestCommand1{})
-	log.AddCommandType(&TestCommand2{})
 	if err := log.Open(path); err != nil {
 		panic("Unable to open log")
 	}
@@ -56,8 +59,6 @@ func newTestServer(name string) *Server {
 	path, _ := ioutil.TempDir("", "raft-server-")
 	server, _ := NewServer(name, path)
 	server.ApplyFunc = func(s *Server, c Command) {}
-	server.AddCommandType(&TestCommand1{})
-	server.AddCommandType(&TestCommand2{})
 	return server
 }
 

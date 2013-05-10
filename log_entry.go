@@ -24,6 +24,14 @@ type LogEntry struct {
 	Command Command `json:"command"`
 }
 
+// A temporary interface used for unmarshaling log entries.
+type logEntryRawMessage struct {
+	Index   uint64 `json:"index"`
+	Term    uint64 `json:"term"`
+	Name    string `json:"name"`
+	Command json.RawMessage `json:"command"`
+}
+
 //------------------------------------------------------------------------------
 //
 // Constructor
@@ -126,7 +134,7 @@ func (e *LogEntry) Decode(r io.Reader) (pos int, err error) {
 	}
 
 	// Instantiate command by name.
-	command, err := e.log.NewCommand(commandName)
+	command, err := NewCommand(commandName)
 	if err != nil {
 		err = fmt.Errorf("raft.LogEntry: Unable to instantiate command (%s): %v", commandName, err)
 		return
@@ -148,4 +156,38 @@ func (e *LogEntry) Decode(r io.Reader) (pos int, err error) {
 
 	err = nil
 	return
+}
+
+//--------------------------------------
+// Encoding
+//--------------------------------------
+
+// Encodes a log entry into JSON.
+func (e *LogEntry) MarshalJSON() ([]byte, error) {
+	obj := map[string]interface{}{
+		"index":e.Index,
+		"term":e.Term,
+	}
+	if e.Command != nil {
+		obj["name"] = e.Command.CommandName()
+		obj["command"] = e.Command
+	}
+	return json.Marshal(obj)
+}
+
+// Decodes a log entry from a JSON byte array.
+func (e *LogEntry) UnmarshalJSON(data []byte) (error) {
+	// Extract base log entry info.
+	obj := &logEntryRawMessage{}
+	json.Unmarshal(data, obj)
+	e.Index, e.Term = obj.Index, obj.Term
+	
+	// Create a command based on the name.
+	var err error
+	if e.Command, err = NewCommand(obj.Name); err != nil {
+		return err
+	}
+	json.Unmarshal(obj.Command, e.Command)
+	
+	return nil
 }

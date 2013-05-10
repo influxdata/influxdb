@@ -219,6 +219,9 @@ func (s *Server) Start() error {
 		return fmt.Errorf("raft.Server: %v", err)
 	}
 
+	// Update the term to the last term in the log.
+	s.currentTerm = s.log.CurrentTerm()
+
 	// Update the state.
 	s.state = Follower
 	for _, peer := range s.peers {
@@ -227,6 +230,7 @@ func (s *Server) Start() error {
 
 	// Start the election timeout.
 	go s.electionTimeoutFunc()
+	s.electionTimer.Reset()
 
 	return nil
 }
@@ -258,13 +262,6 @@ func (s *Server) Running() bool {
 //--------------------------------------
 // Commands
 //--------------------------------------
-
-// Adds a command type to the log. The instance passed in will be copied and
-// deserialized each time a new log entry is read. This function will panic
-// if a command type with the same name already exists.
-func (s *Server) AddCommandType(command Command) {
-	s.log.AddCommandType(command)
-}
 
 // Attempts to execute a command and replicate it. The function will return
 // when the command has been successfully committed or an error has occurred.
@@ -436,9 +433,10 @@ func (s *Server) promote() (bool, error) {
 			go func() {
 				req := NewRequestVoteRequest(term, s.name, lastLogIndex, lastLogTerm)
 				req.peer = peer
-				resp, _ := s.executeRequestVoteHandler(peer, req)
-				resp.peer = peer
-				c <- resp
+				if resp, _ := s.executeRequestVoteHandler(peer, req); resp != nil {
+					resp.peer = peer
+					c <- resp
+				}
 			}()
 		}
 

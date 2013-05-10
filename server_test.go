@@ -78,22 +78,24 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}`+"\n"+
 			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}`+"\n"+
 			`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}`+"\n")
-	server.Start()
+	if err := server.Start(); err != nil {
+		t.Fatalf("Unable to start server: %v", err)
+	}
 
-	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 2, 2))
-	if !(resp.Term == 1 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Out-of-date log: [3/2] > [2/2]") {
-		t.Fatalf("Stale index vote should have been denied (%v)", err)
+	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 2, 2))
+	if !(resp.Term == 2 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Out-of-date log: [3/2] > [2/2]") {
+		t.Fatalf("Stale index vote should have been denied [%v/%v] (%v)", resp.Term, resp.VoteGranted, err)
 	}
-	resp, err = server.RequestVote(NewRequestVoteRequest(1, "foo", 3, 1))
-	if !(resp.Term == 1 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Out-of-date log: [3/2] > [3/1]") {
-		t.Fatalf("Stale term vote should have been denied (%v)", err)
+	resp, err = server.RequestVote(NewRequestVoteRequest(2, "foo", 3, 1))
+	if !(resp.Term == 2 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Out-of-date log: [3/2] > [3/1]") {
+		t.Fatalf("Stale term vote should have been denied [%v/%v] (%v)", resp.Term, resp.VoteGranted, err)
 	}
-	resp, err = server.RequestVote(NewRequestVoteRequest(1, "foo", 3, 2))
-	if !(resp.Term == 1 && resp.VoteGranted && err == nil) {
+	resp, err = server.RequestVote(NewRequestVoteRequest(2, "foo", 3, 2))
+	if !(resp.Term == 2 && resp.VoteGranted && err == nil) {
 		t.Fatalf("Matching log vote should have been granted (%v)", err)
 	}
-	resp, err = server.RequestVote(NewRequestVoteRequest(1, "foo", 4, 3))
-	if !(resp.Term == 1 && resp.VoteGranted && err == nil) {
+	resp, err = server.RequestVote(NewRequestVoteRequest(2, "foo", 4, 3))
+	if !(resp.Term == 2 && resp.VoteGranted && err == nil) {
 		t.Fatalf("Ahead-of-log vote should have been granted (%v)", err)
 	}
 }

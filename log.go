@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"sync"
 )
 
@@ -22,7 +21,6 @@ type Log struct {
 	file         *os.File
 	entries      []*LogEntry
 	commitIndex  uint64
-	commandTypes map[string]Command
 	mutex        sync.Mutex
 }
 
@@ -34,9 +32,7 @@ type Log struct {
 
 // Creates a new log.
 func NewLog() *Log {
-	l := &Log{commandTypes: make(map[string]Command)}
-	l.AddCommandType(&JoinCommand{})
-	return l
+	return &Log{}
 }
 
 //------------------------------------------------------------------------------
@@ -100,43 +96,6 @@ func (l *Log) CurrentTerm() uint64 {
 //------------------------------------------------------------------------------
 
 //--------------------------------------
-// Commands
-//--------------------------------------
-
-// Instantiates a new command by type name. Returns an error if the command type
-// has not been registered already.
-func (l *Log) NewCommand(name string) (Command, error) {
-	// Find the registered command.
-	command := l.commandTypes[name]
-	if command == nil {
-		return nil, fmt.Errorf("raft.Log: Unregistered command type: %s", name)
-	}
-
-	// Make a copy of the command.
-	v := reflect.New(reflect.Indirect(reflect.ValueOf(command)).Type()).Interface()
-	copy, ok := v.(Command)
-	if !ok {
-		panic(fmt.Sprintf("raft.Log: Unable to copy command: %s (%v)", command.CommandName(), reflect.ValueOf(v).Kind().String()))
-	}
-	return copy, nil
-}
-
-// Adds a command type to the log. The instance passed in will be copied and
-// deserialized each time a new log entry is read. This function will panic
-// if a command type with the same name already exists.
-func (l *Log) AddCommandType(command Command) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	if command == nil {
-		panic(fmt.Sprintf("raft.Log: Command type cannot be nil"))
-	} else if l.commandTypes[command.CommandName()] != nil {
-		panic(fmt.Sprintf("raft.Log: Command type already exists: %s", command.CommandName()))
-	}
-	l.commandTypes[command.CommandName()] = command
-}
-
-//--------------------------------------
 // State
 //--------------------------------------
 
@@ -180,6 +139,9 @@ func (l *Log) Open(path string) error {
 
 			// Append entry.
 			l.entries = append(l.entries, entry)
+
+			// Apply the command.
+			l.ApplyFunc(entry.Command)
 		}
 
 		file.Close()
