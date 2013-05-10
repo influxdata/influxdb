@@ -63,12 +63,12 @@ func NewServer(name string, path string) (*Server, error) {
 		return nil, errors.New("raft.Server: Name cannot be blank")
 	}
 	s := &Server{
-		name:          name,
-		path:          path,
-		state:         Stopped,
-		peers:         make(map[string]*Peer),
-		log:           NewLog(),
-		electionTimer: NewTimer(DefaultElectionTimeout, DefaultElectionTimeout*2),
+		name:             name,
+		path:             path,
+		state:            Stopped,
+		peers:            make(map[string]*Peer),
+		log:              NewLog(),
+		electionTimer:    NewTimer(DefaultElectionTimeout, DefaultElectionTimeout*2),
 		heartbeatTimeout: DefaultHeartbeatTimeout,
 	}
 
@@ -245,7 +245,7 @@ func (s *Server) Stop() {
 // Unloads the server.
 func (s *Server) unload() {
 	s.electionTimer.Stop()
-	
+
 	if s.log != nil {
 		s.log.Close()
 		s.log = nil
@@ -362,12 +362,12 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 
 	// If the server is stopped then reject it.
 	if !s.Running() {
-		return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Server stopped")
+		return NewAppendEntriesResponse(s.currentTerm, false, 0), fmt.Errorf("raft.Server: Server stopped")
 	}
 
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.currentTerm {
-		return NewAppendEntriesResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Stale request term")
+		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), fmt.Errorf("raft.Server: Stale request term")
 	}
 	s.setCurrentTerm(req.Term)
 	s.state = Follower
@@ -380,20 +380,20 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.Truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
-		return NewAppendEntriesResponse(s.currentTerm, false), err
+		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
 
 	// Append entries to the log.
 	if err := s.log.AppendEntries(req.Entries); err != nil {
-		return NewAppendEntriesResponse(s.currentTerm, false), err
+		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
 
 	// Commit up to the commit index.
 	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
-		return NewAppendEntriesResponse(s.currentTerm, false), err
+		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
 
-	return NewAppendEntriesResponse(s.currentTerm, true), nil
+	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
 }
 
 // Creates an AppendEntries request.
@@ -618,7 +618,7 @@ func (s *Server) electionTimeoutFunc() {
 
 		// If an election times out then promote this server. If the channel
 		// closes then that means the server has stopped so kill the function.
-		if _, ok := <- c; ok {
+		if _, ok := <-c; ok {
 			s.promote()
 		} else {
 			break

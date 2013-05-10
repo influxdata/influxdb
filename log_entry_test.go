@@ -18,7 +18,7 @@ import (
 
 // Ensure that we can encode a log entry to JSON.
 func TestLogEntryMarshal(t *testing.T) {
-	e := NewLogEntry(nil, 1, 2, &JoinCommand{Name:"localhost:1000"})
+	e := NewLogEntry(nil, 1, 2, &JoinCommand{Name: "localhost:1000"})
 	if b, err := json.Marshal(e); !(string(b) == `{"command":{"name":"localhost:1000"},"index":1,"name":"raft:join","term":2}` && err == nil) {
 		t.Fatalf("Unexpected log entry marshalling: %v (%v)", string(b), err)
 	}
@@ -31,7 +31,7 @@ func TestLogEntryUnmarshal(t *testing.T) {
 	if err := json.Unmarshal(b, e); err != nil {
 		t.Fatalf("Log entry unmarshalling error: %v", err)
 	}
-	if !reflect.DeepEqual(e, NewLogEntry(nil, 1, 2, &JoinCommand{Name:"localhost:1000"})) {
+	if !reflect.DeepEqual(e, NewLogEntry(nil, 1, 2, &JoinCommand{Name: "localhost:1000"})) {
 		t.Fatalf("Log entry unmarshaled incorrectly: %v", e)
 	}
 }

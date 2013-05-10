@@ -17,11 +17,11 @@ import (
 
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
-	ApplyFunc    func(Command)
-	file         *os.File
-	entries      []*LogEntry
-	commitIndex  uint64
-	mutex        sync.Mutex
+	ApplyFunc   func(Command)
+	file        *os.File
+	entries     []*LogEntry
+	commitIndex uint64
+	mutex       sync.Mutex
 }
 
 //------------------------------------------------------------------------------
@@ -72,7 +72,6 @@ func (l *Log) IsEmpty() bool {
 	defer l.mutex.Unlock()
 	return (len(l.entries) == 0)
 }
-
 
 //--------------------------------------
 // Log Terms
@@ -345,7 +344,7 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 		lastEntry := l.entries[len(l.entries)-1]
 		if entry.Term < lastEntry.Term {
 			return fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
-		} else if entry.Index == lastEntry.Index && entry.Index <= lastEntry.Index {
+		} else if entry.Term == lastEntry.Term && entry.Index <= lastEntry.Index {
 			return fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
 		}
 	}

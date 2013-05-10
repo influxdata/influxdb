@@ -34,7 +34,7 @@ func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer 
 		name:           name,
 		heartbeatTimer: NewTimer(heartbeatTimeout, heartbeatTimeout),
 	}
-	
+
 	// Start the heartbeat timeout.
 	go p.heartbeatTimeoutFunc()
 
@@ -141,8 +141,14 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest, handler func(*Server,
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
 		}
 	} else {
+		// Decrement the previous log index down until we find a match. Don't
+		// let it go below where the peer's commit index is though. That's a
+		// problem.
 		if p.prevLogIndex > 0 {
 			p.prevLogIndex--
+			if resp.CommitIndex > p.prevLogIndex {
+				p.prevLogIndex = resp.CommitIndex
+			}
 		}
 	}
 
@@ -171,7 +177,7 @@ func (p *Peer) heartbeatTimeoutFunc() {
 
 		// Flush the peer when we get a heartbeat timeout. If the channel is
 		// closed then the peer is getting cleaned up and we should exit.
-		if _, ok := <- c; ok {
+		if _, ok := <-c; ok {
 			p.flush()
 		} else {
 			break

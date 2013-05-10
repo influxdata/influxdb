@@ -142,7 +142,7 @@ func (t *Timer) Reset() {
 	// Start a timer that will go off between the min and max duration.
 	d := t.minDuration
 	if t.maxDuration > t.minDuration {
-		d += time.Duration(t.rand.Int63n(int64(t.maxDuration-t.minDuration)))
+		d += time.Duration(t.rand.Int63n(int64(t.maxDuration - t.minDuration)))
 	}
 	t.internalTimer = time.NewTimer(d)
 	go func() {
