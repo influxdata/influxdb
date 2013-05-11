@@ -146,9 +146,9 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest, handler func(*Server,
 		// problem.
 		if p.prevLogIndex > 0 {
 			p.prevLogIndex--
-			if resp.CommitIndex > p.prevLogIndex {
-				p.prevLogIndex = resp.CommitIndex
-			}
+		}
+		if resp.CommitIndex > p.prevLogIndex {
+			p.prevLogIndex = resp.CommitIndex
 		}
 	}
 

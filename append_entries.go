@@ -48,6 +48,6 @@ func NewAppendEntriesResponse(term uint64, success bool, commitIndex uint64) *Ap
 	return &AppendEntriesResponse{
 		Term:           term,
 		Success:        success,
-		CommitIndex: commitIndex,
+		CommitIndex:    commitIndex,
 	}
 }
