@@ -34,7 +34,6 @@ const (
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
-	ApplyFunc            func(*Server, Command)
 	DoHandler            func(*Server, *Peer, Command) error
 	RequestVoteHandler   func(*Server, *Peer, *RequestVoteRequest) (*RequestVoteResponse, error)
 	AppendEntriesHandler func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)
@@ -74,15 +73,7 @@ func NewServer(name string, path string) (*Server, error) {
 
 	// Setup apply function.
 	s.log.ApplyFunc = func(c Command) {
-		// Apply Raft commands internally. External commands get delegated.
-		if _, ok := c.(InternalCommand); ok {
-			c.Apply(s)
-		} else {
-			if s.ApplyFunc == nil {
-				panic("raft.Server: Apply function not set")
-			}
-			s.ApplyFunc(s, c)
-		}
+		c.Apply(s)
 	}
 
 	return s, nil

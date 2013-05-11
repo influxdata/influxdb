@@ -58,7 +58,6 @@ func setupLog(content string) (*Log, string) {
 func newTestServer(name string) *Server {
 	path, _ := ioutil.TempDir("", "raft-server-")
 	server, _ := NewServer(name, path)
-	server.ApplyFunc = func(s *Server, c Command) {}
 	return server
 }
 
