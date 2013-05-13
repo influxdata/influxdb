@@ -32,7 +32,6 @@ Raft is a protocol built with understandability as a primary tenant and it cente
 
 With these two constructs, you can build a system that can maintain state across multiple servers -- even in the event of multiple failures.
 
-
 ### Leader Election
 
 The Raft protocol effectively works as a master-slave system whereby state changes are written to a single server in the cluster and are distributed out to the rest of the servers in the cluster.
@@ -42,7 +41,6 @@ Raft ensures that there is only one leader at a time.
 It does this by performing elections among the nodes in the cluster and requiring that a node must receive a majority of the votes in order to become leader.
 For example, if you have 3 nodes in your cluster then a single node would need 2 votes in order to become the leader.
 For a 5 node cluster, a server would need 3 votes to become leader.
-
 
 ### Replicated Log
 
@@ -54,6 +52,7 @@ Replicating the log under normal conditions is done by sending an `AppendEntries
 Each peer will append the entries from the leader through a 2-phase commit process which ensure that a majority of servers in the cluster have entries written to log.
 
 For a more detailed explanation on the failover process and election terms please see the full paper describing the protocol: [In Search of an Understandable Consensus Algorithm](https://ramcloud.stanford.edu/wiki/download/attachments/11370504/raft.pdf)
+
 
 ## Project Status
 
