@@ -107,14 +107,14 @@ func (s *Server) LogPath() string {
 // Retrieves the current state of the server.
 func (s *Server) State() string {
 	s.mutex.Lock()
-	s.mutex.Unlock()
+	defer s.mutex.Unlock()
 	return s.state
 }
 
 // Retrieves the name of the candidate this server voted for in this term.
 func (s *Server) VotedFor() string {
 	s.mutex.Lock()
-	s.mutex.Unlock()
+	defer s.mutex.Unlock()
 	return s.votedFor
 }
 
