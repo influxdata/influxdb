@@ -316,7 +316,7 @@ loop:
 				return fmt.Errorf("raft.Server: Higher term discovered, stepping down: (%v > %v)", s.currentTerm, currentTerm)
 			}
 			responseCount++
-		case <-time.After(s.ElectionTimeout()):
+		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout() * 2):
 			break loop
 		}
 	}
@@ -461,7 +461,7 @@ func (s *Server) promote() (bool, error) {
 					}
 					votes[resp.peer.Name()] = resp.VoteGranted
 				}
-			case <-time.After(s.ElectionTimeout()):
+			case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout() * 2):
 				break loop
 			}
 		}
