@@ -17,6 +17,10 @@ import (
 // number between a min and max duration.
 type Timer struct {
 	c             chan time.Time
+	
+	// Used to break the goroutine listening for the internalTimer since the
+	// Timer struct won't close its channel automatically.
+	resetChannel  chan bool
 	rand          *rand.Rand
 	minDuration   time.Duration
 	maxDuration   time.Duration
@@ -42,10 +46,10 @@ func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
 		panic("raft.Timer: Minimum duration cannot be greater than maximum duration")
 	}
 	return &Timer{
-		c:           make(chan time.Time, 1),
-		rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
-		minDuration: minDuration,
-		maxDuration: maxDuration,
+		c:            make(chan time.Time, 1),
+		rand:         rand.New(rand.NewSource(time.Now().UnixNano())),
+		minDuration:  minDuration,
+		maxDuration:  maxDuration,
 	}
 }
 
@@ -107,10 +111,7 @@ func (t *Timer) Stop() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	if t.internalTimer != nil {
-		t.internalTimer.Stop()
-		t.internalTimer = nil
-	}
+	t.stopInternalTimer()
 
 	if t.c != nil {
 		close(t.c)
@@ -123,9 +124,16 @@ func (t *Timer) Pause() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
+	t.stopInternalTimer()
+}
+
+// Stops the timer and closes the channel.
+func (t *Timer) stopInternalTimer() {
 	if t.internalTimer != nil {
 		t.internalTimer.Stop()
 		t.internalTimer = nil
+		close(t.resetChannel)
+		t.resetChannel = nil
 	}
 }
 
@@ -136,7 +144,7 @@ func (t *Timer) Reset() {
 
 	// Stop the timer if it's already running.
 	if t.internalTimer != nil {
-		t.internalTimer.Stop()
+		t.stopInternalTimer()
 	}
 
 	// Start a timer that will go off between the min and max duration.
@@ -145,24 +153,19 @@ func (t *Timer) Reset() {
 		d += time.Duration(t.rand.Int63n(int64(t.maxDuration - t.minDuration)))
 	}
 	t.internalTimer = time.NewTimer(d)
+	t.resetChannel = make(chan bool, 1)
+	internalTimer, resetChannel := t.internalTimer, t.resetChannel
 	go func() {
-		defer func() {
-			recover()
-		}()
-
-		// Retrieve the current internal timer.
-		t.mutex.Lock()
-		internalTimer := t.internalTimer
-		t.mutex.Unlock()
-
 		// If the timer exists then grab the value from the channel and pass
 		// it through to the timer's external channel.
-		if internalTimer != nil {
-			if v, ok := <-internalTimer.C; ok {
+		select {
+		case v, ok := <-internalTimer.C:
+			if ok {
 				t.mutex.Lock()
 				t.c <- v
 				t.mutex.Unlock()
 			}
+		case <-resetChannel:
 		}
 	}()
 }

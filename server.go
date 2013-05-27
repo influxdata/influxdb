@@ -235,8 +235,16 @@ func (s *Server) Stop() {
 
 // Unloads the server.
 func (s *Server) unload() {
+	// Kill the election timer.
 	s.electionTimer.Stop()
 
+	// Remove peers.
+	for _, peer := range s.peers {
+		peer.stop()
+	}
+	s.peers = make(map[string]*Peer)
+
+	// Close the log.
 	if s.log != nil {
 		s.log.Close()
 		s.log = nil
@@ -316,7 +324,7 @@ loop:
 				return fmt.Errorf("raft.Server: Higher term discovered, stepping down: (%v > %v)", s.currentTerm, currentTerm)
 			}
 			responseCount++
-		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout() * 2):
+		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
 			break loop
 		}
 	}
@@ -461,7 +469,7 @@ func (s *Server) promote() (bool, error) {
 					}
 					votes[resp.peer.Name()] = resp.VoteGranted
 				}
-			case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout() * 2):
+			case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
 				break loop
 			}
 		}
@@ -646,5 +654,7 @@ func (s *Server) Join(name string) error {
 	}
 
 	// Request membership if we are joining to another server.
-	return s.executeDoHandler(NewPeer(s, name, s.heartbeatTimeout), command)
+	peer := NewPeer(s, name, s.heartbeatTimeout)
+	defer peer.stop()
+	return s.executeDoHandler(peer, command)
 }

@@ -21,6 +21,7 @@ import (
 func TestServerRequestVote(t *testing.T) {
 	server := newTestServer("1")
 	server.Start()
+	defer server.Stop()
 	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
 	if !(resp.Term == 1 && resp.VoteGranted && err == nil) {
 		t.Fatalf("Invalid request vote response: %v/%v (%v)", resp.Term, resp.VoteGranted, err)
@@ -33,6 +34,7 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	server.state = Leader
 	server.currentTerm = 2
 	server.Start()
+	defer server.Stop()
 	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
 	if !(resp.Term == 2 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Stale term: 1 < 2") {
 		t.Fatalf("Invalid request vote response: %v/%v (%v)", resp.Term, resp.VoteGranted, err)
@@ -47,6 +49,7 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 	server := newTestServer("1")
 	server.currentTerm = 2
 	server.Start()
+	defer server.Stop()
 	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
 	if !(resp.Term == 2 && resp.VoteGranted && err == nil) {
 		t.Fatalf("First vote should not have been denied (%v)", err)
@@ -62,6 +65,7 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 	server := newTestServer("1")
 	server.currentTerm = 2
 	server.Start()
+	defer server.Stop()
 	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
 	if !(resp.Term == 2 && resp.VoteGranted && server.VotedFor() == "foo" && err == nil) {
 		t.Fatalf("First vote should not have been denied (%v)", err)
@@ -81,6 +85,7 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 	if err := server.Start(); err != nil {
 		t.Fatalf("Unable to start server: %v", err)
 	}
+	defer server.Stop()
 
 	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 2, 2))
 	if !(resp.Term == 2 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Out-of-date log: [3/2] > [2/2]") {
@@ -108,6 +113,7 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 func TestServerPromoteSelf(t *testing.T) {
 	server := newTestServer("1")
 	server.Start()
+	defer server.Stop()
 	if success, err := server.promote(); !(success && err == nil && server.state == Leader) {
 		t.Fatalf("Server self-promotion failed: %v (%v)", server.state, err)
 	}
@@ -119,6 +125,9 @@ func TestServerPromote(t *testing.T) {
 	servers.SetRequestVoteHandler(func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
 		return lookup[peer.Name()].RequestVote(req)
 	})
+	for _, server := range servers {
+		defer server.Stop()
+	}
 	leader := servers[0]
 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
 		t.Fatalf("Server promotion in cluster failed: %v (%v)", leader.state, err)
@@ -133,6 +142,9 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 	servers.SetRequestVoteHandler(func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
 		return lookup[peer.Name()].RequestVote(req)
 	})
+	for _, server := range servers {
+		defer server.Stop()
+	}
 	leader := servers[0]
 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader && leader.currentTerm == 2) {
 		t.Fatalf("Server promotion in cluster failed: %v (%v)", leader.state, err)
@@ -183,8 +195,6 @@ func TestServerAppendEntries(t *testing.T) {
 	if index, term := server.log.CommitInfo(); !(index == 3 && term == 1) {
 		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
 	}
-
-	server.Stop()
 }
 
 // Ensure that entries with stale terms are rejected.
@@ -269,6 +279,7 @@ func TestServerSingleNode(t *testing.T) {
 	if err := server.Start(); err != nil {
 		t.Fatalf("Unable to start server: %v", err)
 	}
+	defer server.Stop()
 	if server.state != Follower {
 		t.Fatalf("Unexpected server state: %v", server.state)
 	}
@@ -294,6 +305,9 @@ func TestServerMultiNode(t *testing.T) {
 	var mutex sync.Mutex
 	names := []string{"1", "2", "3"}
 	servers := map[string]*Server{}
+	for _, server := range servers {
+		defer server.Stop()
+	}
 	for _, name := range names {
 		server := newTestServer(name)
 		server.SetElectionTimeout(TestElectionTimeout)

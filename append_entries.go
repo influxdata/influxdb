@@ -19,10 +19,10 @@ type AppendEntriesRequest struct {
 
 // The response returned from a server appending entries to the log.
 type AppendEntriesResponse struct {
-	peer           *Peer
-	Term           uint64 `json:"term"`
-	Success        bool   `json:"success"`
-	CommitIndex    uint64 `json:"commitIndex"`
+	peer        *Peer
+	Term        uint64 `json:"term"`
+	Success     bool   `json:"success"`
+	CommitIndex uint64 `json:"commitIndex"`
 }
 
 //------------------------------------------------------------------------------
@@ -46,8 +46,8 @@ func NewAppendEntriesRequest(term uint64, leaderName string, prevLogIndex uint64
 // Creates a new AppendEntries response.
 func NewAppendEntriesResponse(term uint64, success bool, commitIndex uint64) *AppendEntriesResponse {
 	return &AppendEntriesResponse{
-		Term:           term,
-		Success:        success,
-		CommitIndex:    commitIndex,
+		Term:        term,
+		Success:     success,
+		CommitIndex: commitIndex,
 	}
 }
