@@ -278,7 +278,7 @@ func (s *Server) do(command Command) error {
 	if s.state != Leader {
 		return NotLeaderError
 	}
-	
+
 	// Capture the term that this command is executing within.
 	currentTerm := s.currentTerm
 

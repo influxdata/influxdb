@@ -16,8 +16,8 @@ import (
 // reset and stop. It also allows for the duration of the timer to be a random
 // number between a min and max duration.
 type Timer struct {
-	c             chan time.Time
-	
+	c chan time.Time
+
 	// Used to break the goroutine listening for the internalTimer since the
 	// Timer struct won't close its channel automatically.
 	resetChannel  chan bool
@@ -46,10 +46,10 @@ func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
 		panic("raft.Timer: Minimum duration cannot be greater than maximum duration")
 	}
 	return &Timer{
-		c:            make(chan time.Time, 1),
-		rand:         rand.New(rand.NewSource(time.Now().UnixNano())),
-		minDuration:  minDuration,
-		maxDuration:  maxDuration,
+		c:           make(chan time.Time, 1),
+		rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
+		minDuration: minDuration,
+		maxDuration: maxDuration,
 	}
 }
 
