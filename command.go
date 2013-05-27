@@ -31,12 +31,6 @@ type Command interface {
 	Apply(server *Server)
 }
 
-// This is a marker interface to filter out commands that are processed
-// internally by the protocol such as the "Join" command.
-type InternalCommand interface {
-	InternalCommand() bool
-}
-
 //------------------------------------------------------------------------------
 //
 // Functions
@@ -48,7 +42,7 @@ type InternalCommand interface {
 //--------------------------------------
 
 // Creates a new instance of a command by name.
-func NewCommand(name string) (Command, error) {
+func newCommand(name string) (Command, error) {
 	// Find the registered command.
 	command := commandTypes[name]
 	if command == nil {

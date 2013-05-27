@@ -324,9 +324,9 @@ func TestServerMultiNode(t *testing.T) {
 	}
 	for _, name := range names {
 		server := newTestServer(name)
-		server.SetElectionTimeout(TestElectionTimeout)
-		server.SetHeartbeatTimeout(TestHeartbeatTimeout)
-		server.JoinHandler = func(server *Server, peer *Peer, command Command) error {
+		server.SetElectionTimeout(testElectionTimeout)
+		server.SetHeartbeatTimeout(testHeartbeatTimeout)
+		server.JoinHandler = func(server *Server, peer *Peer, command *JoinCommand) error {
 			mutex.Lock()
 			s := servers[peer.name]
 			mutex.Unlock()

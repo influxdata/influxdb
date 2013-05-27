@@ -22,11 +22,6 @@ type JoinCommand struct {
 //
 //------------------------------------------------------------------------------
 
-// This function marks the command as internal.
-func (c *JoinCommand) InternalCommand() bool {
-	return true
-}
-
 // The name of the command in the log.
 func (c *JoinCommand) CommandName() string {
 	return "raft:join"

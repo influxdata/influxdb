@@ -134,7 +134,7 @@ func (e *LogEntry) Decode(r io.Reader) (pos int, err error) {
 	}
 
 	// Instantiate command by name.
-	command, err := NewCommand(commandName)
+	command, err := newCommand(commandName)
 	if err != nil {
 		err = fmt.Errorf("raft.LogEntry: Unable to instantiate command (%s): %v", commandName, err)
 		return
@@ -184,7 +184,7 @@ func (e *LogEntry) UnmarshalJSON(data []byte) error {
 
 	// Create a command based on the name.
 	var err error
-	if e.Command, err = NewCommand(obj.Name); err != nil {
+	if e.Command, err = newCommand(obj.Name); err != nil {
 		return err
 	}
 	json.Unmarshal(obj.Command, e.Command)

@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	TestHeartbeatTimeout = 20 * time.Millisecond
-	TestElectionTimeout  = 60 * time.Millisecond
+	testHeartbeatTimeout = 20 * time.Millisecond
+	testElectionTimeout  = 60 * time.Millisecond
 )
 
 func init() {
@@ -75,14 +75,14 @@ func newTestCluster(names []string) (Servers, map[string]*Server) {
 			panic(fmt.Sprintf("Duplicate server in test cluster! %v", name))
 		}
 		server := newTestServer(name)
-		server.SetElectionTimeout(TestElectionTimeout)
+		server.SetElectionTimeout(testElectionTimeout)
 		servers = append(servers, server)
 		lookup[name] = server
 	}
 	for _, server := range servers {
 		for _, peer := range servers {
 			if server != peer {
-				server.peers[peer.Name()] = NewPeer(server, peer.Name(), TestHeartbeatTimeout)
+				server.peers[peer.Name()] = NewPeer(server, peer.Name(), testHeartbeatTimeout)
 			}
 		}
 		server.Start()

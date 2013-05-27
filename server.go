@@ -36,7 +36,7 @@ var NotLeaderError = errors.New("Not current leader")
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
-	JoinHandler          func(*Server, *Peer, Command) error
+	JoinHandler          func(*Server, *Peer, *JoinCommand) error
 	RequestVoteHandler   func(*Server, *Peer, *RequestVoteRequest) (*RequestVoteResponse, error)
 	AppendEntriesHandler func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)
 	name                 string
@@ -353,7 +353,7 @@ loop:
 }
 
 // Executes the handler for doing a command on a particular peer.
-func (s *Server) executeJoinHandler(peer *Peer, command Command) error {
+func (s *Server) executeJoinHandler(peer *Peer, command *JoinCommand) error {
 	if s.JoinHandler == nil {
 		panic("raft.Server: JoinHandler not registered")
 	}
