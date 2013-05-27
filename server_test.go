@@ -265,6 +265,20 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 }
 
 //--------------------------------------
+// Command Execution
+//--------------------------------------
+
+// Ensure that a follower cannot execute a command.
+func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
+	server := newTestServer("1")
+	server.Start()
+	defer server.Stop()
+	if err := server.Do(&TestCommand1{"foo", 10}); err != NotLeaderError {
+		t.Fatalf("Expected error: %v, got: %v", NotLeaderError, err)
+	}
+}
+
+//--------------------------------------
 // Membership
 //--------------------------------------
 
@@ -312,7 +326,7 @@ func TestServerMultiNode(t *testing.T) {
 		server := newTestServer(name)
 		server.SetElectionTimeout(TestElectionTimeout)
 		server.SetHeartbeatTimeout(TestHeartbeatTimeout)
-		server.DoHandler = func(server *Server, peer *Peer, command Command) error {
+		server.JoinHandler = func(server *Server, peer *Peer, command Command) error {
 			mutex.Lock()
 			s := servers[peer.name]
 			mutex.Unlock()

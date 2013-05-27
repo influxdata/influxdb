@@ -1,5 +1,6 @@
 package raft
 
+/*
 import (
 	"testing"
 	"time"
@@ -7,5 +8,6 @@ import (
 
 func TestGC(t *testing.T) {
 	<-time.After(500 * time.Millisecond)
-	// panic("Oh god no!")
+	panic("Oh god no!")
 }
+*/

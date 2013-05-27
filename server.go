@@ -25,6 +25,8 @@ const (
 	DefaultElectionTimeout  = 150 * time.Millisecond
 )
 
+var NotLeaderError = errors.New("Not current leader")
+
 //------------------------------------------------------------------------------
 //
 // Typedefs
@@ -34,7 +36,7 @@ const (
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
-	DoHandler            func(*Server, *Peer, Command) error
+	JoinHandler          func(*Server, *Peer, Command) error
 	RequestVoteHandler   func(*Server, *Peer, *RequestVoteRequest) (*RequestVoteResponse, error)
 	AppendEntriesHandler func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)
 	name                 string
@@ -273,6 +275,10 @@ func (s *Server) Do(command Command) error {
 // This function is the low-level interface to execute commands. This function
 // does not obtain a lock so one must be obtained before executing.
 func (s *Server) do(command Command) error {
+	if s.state != Leader {
+		return NotLeaderError
+	}
+	
 	// Capture the term that this command is executing within.
 	currentTerm := s.currentTerm
 
@@ -347,11 +353,11 @@ loop:
 }
 
 // Executes the handler for doing a command on a particular peer.
-func (s *Server) executeDoHandler(peer *Peer, command Command) error {
-	if s.DoHandler == nil {
-		panic("raft.Server: DoHandler not registered")
+func (s *Server) executeJoinHandler(peer *Peer, command Command) error {
+	if s.JoinHandler == nil {
+		panic("raft.Server: JoinHandler not registered")
 	}
-	return s.DoHandler(s, peer, command)
+	return s.JoinHandler(s, peer, command)
 }
 
 // Appends a log entry from the leader to this server.
@@ -656,5 +662,5 @@ func (s *Server) Join(name string) error {
 	// Request membership if we are joining to another server.
 	peer := NewPeer(s, name, s.heartbeatTimeout)
 	defer peer.stop()
-	return s.executeDoHandler(peer, command)
+	return s.executeJoinHandler(peer, command)
 }
