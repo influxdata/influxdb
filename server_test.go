@@ -19,7 +19,7 @@ import (
 
 // Ensure that we can request a vote from a server that has not voted.
 func TestServerRequestVote(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.Start()
 	defer server.Stop()
 	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
@@ -30,7 +30,7 @@ func TestServerRequestVote(t *testing.T) {
 
 // Ensure that a vote request is denied if it comes from an old term.
 func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.state = Leader
 	server.currentTerm = 2
 	server.Start()
@@ -46,7 +46,7 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 
 // Ensure that a vote request is denied if we've already voted for a different candidate.
 func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.currentTerm = 2
 	server.Start()
 	defer server.Stop()
@@ -62,7 +62,7 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 
 // Ensure that a vote request is approved if vote occurs in a new term.
 func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.currentTerm = 2
 	server.Start()
 	defer server.Stop()
@@ -78,7 +78,7 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 
 // Ensure that a vote request is denied if the log is out of date.
 func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
-	server := newTestServerWithLog("1",
+	server := newTestServerWithLog("1", &testTransporter{},
 		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}`+"\n"+
 			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}`+"\n"+
 			`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}`+"\n")
@@ -111,7 +111,7 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 
 // Ensure that we can self-promote a server to candidate, obtain votes and become a fearless leader.
 func TestServerPromoteSelf(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.Start()
 	defer server.Stop()
 	if success, err := server.promote(); !(success && err == nil && server.state == Leader) {
@@ -121,10 +121,12 @@ func TestServerPromoteSelf(t *testing.T) {
 
 // Ensure that we can promote a server within a cluster to a leader.
 func TestServerPromote(t *testing.T) {
-	servers, lookup := newTestCluster([]string{"1", "2", "3"})
-	servers.SetRequestVoteHandler(func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+	lookup := map[string]*Server{}
+	transporter := &testTransporter{}
+	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
 		return lookup[peer.Name()].RequestVote(req)
-	})
+	}
+	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
 	for _, server := range servers {
 		defer server.Stop()
 	}
@@ -136,14 +138,16 @@ func TestServerPromote(t *testing.T) {
 
 // Ensure that a server will restart election if not enough votes are obtained before timeout.
 func TestServerPromoteDoubleElection(t *testing.T) {
-	servers, lookup := newTestCluster([]string{"1", "2", "3"})
+	lookup := map[string]*Server{}
+	transporter := &testTransporter{}
+	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+		return lookup[peer.Name()].RequestVote(req)
+	}
+	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
 	lookup["2"].currentTerm, lookup["2"].votedFor = 1, "2"
 	lookup["3"].currentTerm, lookup["3"].votedFor = 1, "3"
 	lookup["2"].electionTimer.Stop()
 	lookup["3"].electionTimer.Stop()
-	servers.SetRequestVoteHandler(func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-		return lookup[peer.Name()].RequestVote(req)
-	})
 	for _, server := range servers {
 		defer server.Stop()
 	}
@@ -165,7 +169,7 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 
 // Ensure we can append entries to a server.
 func TestServerAppendEntries(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.Start()
 	defer server.Stop()
 
@@ -201,7 +205,7 @@ func TestServerAppendEntries(t *testing.T) {
 
 // Ensure that entries with stale terms are rejected.
 func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.Start()
 	defer server.Stop()
 	server.currentTerm = 2
@@ -219,7 +223,7 @@ func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 
 // Ensure that we reject entries if the commit log is different.
 func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.Start()
 	defer server.Stop()
 
@@ -243,7 +247,7 @@ func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 
 // Ensure that we uncommitted entries are rolled back if new entries overwrite them.
 func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.Start()
 	defer server.Stop()
 
@@ -272,7 +276,7 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 
 // Ensure that a follower cannot execute a command.
 func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	server.Start()
 	defer server.Stop()
 	if err := server.Do(&TestCommand1{"foo", 10}); err != NotLeaderError {
@@ -286,7 +290,7 @@ func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 
 // Ensure that we can start a single server and append to its log.
 func TestServerSingleNode(t *testing.T) {
-	server := newTestServer("1")
+	server := newTestServer("1", &testTransporter{})
 	if server.state != Stopped {
 		t.Fatalf("Unexpected server state: %v", server.state)
 	}
@@ -325,24 +329,26 @@ func TestServerMultiNode(t *testing.T) {
 	for _, server := range servers {
 		defer server.Stop()
 	}
+	transporter := &testTransporter{}
+	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+		mutex.Lock()
+		s := servers[peer.name]
+		mutex.Unlock()
+		return s.RequestVote(req)
+	}
+	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+		mutex.Lock()
+		s := servers[peer.name]
+		mutex.Unlock()
+		resp, err := s.AppendEntries(req)
+		return resp, err
+	}
+
 	var leader *Server
 	for _, name := range names {
-		server := newTestServer(name)
+		server := newTestServer(name, transporter)
 		server.SetElectionTimeout(testElectionTimeout)
 		server.SetHeartbeatTimeout(testHeartbeatTimeout)
-		server.RequestVoteHandler = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-			mutex.Lock()
-			s := servers[peer.name]
-			mutex.Unlock()
-			return s.RequestVote(req)
-		}
-		server.AppendEntriesHandler = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
-			mutex.Lock()
-			s := servers[peer.name]
-			mutex.Unlock()
-			resp, err := s.AppendEntries(req)
-			return resp, err
-		}
 		if err := server.Start(); err != nil {
 			t.Fatalf("Unable to start server[%s]: %v", name, err)
 		}

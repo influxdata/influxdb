@@ -43,8 +43,7 @@ var DuplicatePeerError = errors.New("raft.Server: Duplicate peer")
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
-	RequestVoteHandler   func(*Server, *Peer, *RequestVoteRequest) (*RequestVoteResponse, error)
-	AppendEntriesHandler func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)
+	transporter          Transporter
 	name                 string
 	path                 string
 	state                string
@@ -65,13 +64,18 @@ type Server struct {
 //------------------------------------------------------------------------------
 
 // Creates a new server with a log at the given path.
-func NewServer(name string, path string) (*Server, error) {
+func NewServer(name string, path string, transporter Transporter) (*Server, error) {
 	if name == "" {
 		return nil, errors.New("raft.Server: Name cannot be blank")
 	}
+	if transporter == nil {
+		panic("raft.Server: Transporter required")
+	}
+
 	s := &Server{
 		name:             name,
 		path:             path,
+		transporter:      transporter,
 		state:            Stopped,
 		peers:            make(map[string]*Peer),
 		log:              NewLog(),
@@ -106,6 +110,11 @@ func (s *Server) Name() string {
 // Retrieves the storage path for the server.
 func (s *Server) Path() string {
 	return s.path
+}
+
+// Retrieves the object that transports requests.
+func (s *Server) Transporter() Transporter {
+	return s.transporter
 }
 
 // Retrieves the log path for the server.
@@ -419,20 +428,20 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 }
 
 // Creates an AppendEntries request.
-func (s *Server) createAppendEntriesRequest(prevLogIndex uint64) (*AppendEntriesRequest, func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)) {
+func (s *Server) createAppendEntriesRequest(prevLogIndex uint64) *AppendEntriesRequest {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	return s.createInternalAppendEntriesRequest(prevLogIndex)
 }
 
 // Creates an AppendEntries request without a lock.
-func (s *Server) createInternalAppendEntriesRequest(prevLogIndex uint64) (*AppendEntriesRequest, func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)) {
+func (s *Server) createInternalAppendEntriesRequest(prevLogIndex uint64) *AppendEntriesRequest {
 	if s.log == nil {
-		return nil, nil
+		return nil
 	}
 	entries, prevLogTerm := s.log.GetEntriesAfter(prevLogIndex)
 	req := NewAppendEntriesRequest(s.currentTerm, s.name, prevLogIndex, prevLogTerm, entries, s.log.CommitIndex())
-	return req, s.AppendEntriesHandler
+	return req
 }
 
 //--------------------------------------
@@ -455,7 +464,7 @@ func (s *Server) promote() (bool, error) {
 			go func() {
 				req := NewRequestVoteRequest(term, s.name, lastLogIndex, lastLogTerm)
 				req.peer = peer
-				if resp, _ := s.executeRequestVoteHandler(peer, req); resp != nil {
+				if resp, _ := s.transporter.SendVoteRequest(s, peer, req); resp != nil {
 					resp.peer = peer
 					c <- resp
 				}
@@ -598,14 +607,6 @@ func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, err
 	s.votedFor = req.CandidateName
 	s.electionTimer.Reset()
 	return NewRequestVoteResponse(s.currentTerm, true), nil
-}
-
-// Executes the handler for sending a RequestVote RPC.
-func (s *Server) executeRequestVoteHandler(peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-	if s.RequestVoteHandler == nil {
-		panic("raft.Server: RequestVoteHandler not registered")
-	}
-	return s.RequestVoteHandler(s, peer, req)
 }
 
 // Updates the current term on the server if the term is greater than the 

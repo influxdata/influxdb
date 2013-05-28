@@ -102,21 +102,21 @@ func (p *Peer) stop() {
 func (p *Peer) internalFlush() (uint64, bool, error) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	req, handler := p.server.createInternalAppendEntriesRequest(p.prevLogIndex)
-	return p.sendFlushRequest(req, handler)
+	req := p.server.createInternalAppendEntriesRequest(p.prevLogIndex)
+	return p.sendFlushRequest(req)
 }
 
-// Flushes a request through a handler.
-func (p *Peer) sendFlushRequest(req *AppendEntriesRequest, handler func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)) (uint64, bool, error) {
-	// Ignore any null requests/handlers.
-	if req == nil || handler == nil {
-		return 0, false, errors.New("raft.Peer: Request or handler required")
+// Flushes a request through the server's transport.
+func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error) {
+	// Ignore any null requests.
+	if req == nil {
+		return 0, false, errors.New("raft.Peer: Request required")
 	}
 
 	// Generate an AppendEntries request based on the state of the server and
 	// log. Send the request through the user-provided handler and process the
 	// result.
-	resp, err := handler(p.server, p, req)
+	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
 	p.heartbeatTimer.Reset()
 	if resp == nil {
 		return 0, false, err
@@ -175,10 +175,10 @@ func (p *Peer) heartbeatTimeoutFunc() {
 			p.mutex.Unlock()
 
 			// Lock the server to create a request.
-			req, handler := server.createAppendEntriesRequest(prevLogIndex)
+			req := server.createAppendEntriesRequest(prevLogIndex)
 
 			p.mutex.Lock()
-			p.sendFlushRequest(req, handler)
+			p.sendFlushRequest(req)
 			p.mutex.Unlock()
 		} else {
 			break

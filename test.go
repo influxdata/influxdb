@@ -58,26 +58,25 @@ func setupLog(content string) (*Log, string) {
 // Servers
 //--------------------------------------
 
-func newTestServer(name string) *Server {
+func newTestServer(name string, transporter Transporter) *Server {
 	path, _ := ioutil.TempDir("", "raft-server-")
-	server, _ := NewServer(name, path)
+	server, _ := NewServer(name, path, transporter)
 	return server
 }
 
-func newTestServerWithLog(name string, content string) *Server {
-	server := newTestServer(name)
+func newTestServerWithLog(name string, transporter Transporter, content string) *Server {
+	server := newTestServer(name, transporter)
 	ioutil.WriteFile(server.LogPath(), []byte(content), 0644)
 	return server
 }
 
-func newTestCluster(names []string) (Servers, map[string]*Server) {
-	servers := make(Servers, 0)
-	lookup := make(map[string]*Server, 0)
+func newTestCluster(names []string, transporter Transporter, lookup map[string]*Server) []*Server {
+	servers := []*Server{}
 	for _, name := range names {
 		if lookup[name] != nil {
 			panic(fmt.Sprintf("Duplicate server in test cluster! %v", name))
 		}
-		server := newTestServer(name)
+		server := newTestServer(name, transporter)
 		server.SetElectionTimeout(testElectionTimeout)
 		servers = append(servers, server)
 		lookup[name] = server
@@ -89,8 +88,26 @@ func newTestCluster(names []string) (Servers, map[string]*Server) {
 		}
 		server.Start()
 	}
-	return servers, lookup
+	return servers
 }
+
+//--------------------------------------
+// Transporter
+//--------------------------------------
+
+type testTransporter struct {
+    sendVoteRequestFunc func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error)
+    sendAppendEntriesRequestFunc func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error)
+}
+
+func (t *testTransporter) SendVoteRequest(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+	return t.sendVoteRequestFunc(server, peer, req)
+}
+
+func (t *testTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+	return t.sendAppendEntriesRequestFunc(server, peer, req)
+}
+
 
 //--------------------------------------
 // Join Command
