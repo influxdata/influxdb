@@ -18,8 +18,8 @@ import (
 
 // Ensure that we can encode a log entry to JSON.
 func TestLogEntryMarshal(t *testing.T) {
-	e := NewLogEntry(nil, 1, 2, &JoinCommand{Name: "localhost:1000"})
-	if b, err := json.Marshal(e); !(string(b) == `{"command":{"name":"localhost:1000"},"index":1,"name":"raft:join","term":2}` && err == nil) {
+	e := NewLogEntry(nil, 1, 2, &joinCommand{Name: "localhost:1000"})
+	if b, err := json.Marshal(e); !(string(b) == `{"command":{"name":"localhost:1000"},"index":1,"name":"test:join","term":2}` && err == nil) {
 		t.Fatalf("Unexpected log entry marshalling: %v (%v)", string(b), err)
 	}
 }
@@ -27,11 +27,11 @@ func TestLogEntryMarshal(t *testing.T) {
 // Ensure that we can decode a log entry from JSON.
 func TestLogEntryUnmarshal(t *testing.T) {
 	e := &LogEntry{}
-	b := []byte(`{"command":{"name":"localhost:1000"},"index":1,"name":"raft:join","term":2}`)
+	b := []byte(`{"command":{"name":"localhost:1000"},"index":1,"name":"test:join","term":2}`)
 	if err := json.Unmarshal(b, e); err != nil {
 		t.Fatalf("Log entry unmarshalling error: %v", err)
 	}
-	if !reflect.DeepEqual(e, NewLogEntry(nil, 1, 2, &JoinCommand{Name: "localhost:1000"})) {
+	if !reflect.DeepEqual(e, NewLogEntry(nil, 1, 2, &joinCommand{Name: "localhost:1000"})) {
 		t.Fatalf("Log entry unmarshaled incorrectly: %v", e)
 	}
 }

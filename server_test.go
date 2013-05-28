@@ -139,6 +139,8 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 	servers, lookup := newTestCluster([]string{"1", "2", "3"})
 	lookup["2"].currentTerm, lookup["2"].votedFor = 1, "2"
 	lookup["3"].currentTerm, lookup["3"].votedFor = 1, "3"
+	lookup["2"].electionTimer.Stop()
+	lookup["3"].electionTimer.Stop()
 	servers.SetRequestVoteHandler(func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
 		return lookup[peer.Name()].RequestVote(req)
 	})
@@ -299,7 +301,8 @@ func TestServerSingleNode(t *testing.T) {
 	}
 
 	// Join the server to itself.
-	if err := server.Join("1"); err != nil {
+	server.Initialize()
+	if err := server.Do(&joinCommand{Name:"1"}); err != nil {
 		t.Fatalf("Unable to join: %v", err)
 	}
 	if server.state != Leader {
@@ -322,16 +325,11 @@ func TestServerMultiNode(t *testing.T) {
 	for _, server := range servers {
 		defer server.Stop()
 	}
+	var leader *Server
 	for _, name := range names {
 		server := newTestServer(name)
 		server.SetElectionTimeout(testElectionTimeout)
 		server.SetHeartbeatTimeout(testHeartbeatTimeout)
-		server.JoinHandler = func(server *Server, peer *Peer, command *JoinCommand) error {
-			mutex.Lock()
-			s := servers[peer.name]
-			mutex.Unlock()
-			return s.Do(command)
-		}
 		server.RequestVoteHandler = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
 			mutex.Lock()
 			s := servers[peer.name]
@@ -342,12 +340,19 @@ func TestServerMultiNode(t *testing.T) {
 			mutex.Lock()
 			s := servers[peer.name]
 			mutex.Unlock()
-			return s.AppendEntries(req)
+			resp, err := s.AppendEntries(req)
+			return resp, err
 		}
 		if err := server.Start(); err != nil {
 			t.Fatalf("Unable to start server[%s]: %v", name, err)
 		}
-		if err := server.Join("1"); err != nil {
+		if name == "1" {
+			leader = server
+			if err := server.Initialize(); err != nil {
+				t.Fatalf("Unable to initialize server[%s]: %v", name, err)
+			}
+		}
+		if err := leader.Do(&joinCommand{Name:name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
 		}
 
@@ -355,11 +360,10 @@ func TestServerMultiNode(t *testing.T) {
 		servers[name] = server
 		mutex.Unlock()
 	}
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// Check that two peers exist on leader.
 	mutex.Lock()
-	leader := servers["1"]
 	if leader.MemberCount() != 3 {
 		t.Fatalf("Expected member count to be 3, got %v", leader.MemberCount())
 	}

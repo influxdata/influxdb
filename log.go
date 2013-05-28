@@ -17,7 +17,7 @@ import (
 
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
-	ApplyFunc   func(Command)
+	ApplyFunc   func(Command) error
 	file        *os.File
 	entries     []*LogEntry
 	commitIndex uint64
@@ -133,14 +133,18 @@ func (l *Log) Open(path string) error {
 				}
 				break
 			}
-			l.commitIndex = entry.Index
-			lastIndex += n
+
+			// Apply the command.
+			if err = l.ApplyFunc(entry.Command); err != nil {
+				file.Close()
+				return err
+			}
 
 			// Append entry.
 			l.entries = append(l.entries, entry)
 
-			// Apply the command.
-			l.ApplyFunc(entry.Command)
+			l.commitIndex = entry.Index
+			lastIndex += n
 		}
 
 		file.Close()
@@ -250,13 +254,15 @@ func (l *Log) SetCommitIndex(index uint64) error {
 	for i := l.commitIndex + 1; i <= index; i++ {
 		entry := l.entries[i-1]
 
+		// Apply the changes to the state machine.
+		if err := l.ApplyFunc(entry.Command); err != nil {
+			return err
+		}
+
 		// Write to storage.
 		if err := entry.Encode(l.file); err != nil {
 			return err
 		}
-
-		// Apply the changes to the state machine.
-		l.ApplyFunc(entry.Command)
 
 		// Update commit index.
 		l.commitIndex = entry.Index

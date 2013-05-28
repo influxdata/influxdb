@@ -97,17 +97,6 @@ func (p *Peer) stop() {
 // Flush
 //--------------------------------------
 
-// Generates and sends an AppendEntries RPC from the server for the peer.
-// This serves to replicate the log and to provide a heartbeat mechanism. It
-// returns the current term from the peer, whether the flush was successful
-// and any associated error message.
-func (p *Peer) flush() (uint64, bool, error) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-	req, handler := p.server.createAppendEntriesRequest(p.prevLogIndex)
-	return p.sendFlushRequest(req, handler)
-}
-
 // Sends an AppendEntries RPC but does not obtain a lock on the server. This
 // method should only be called from the server.
 func (p *Peer) internalFlush() (uint64, bool, error) {
@@ -178,7 +167,19 @@ func (p *Peer) heartbeatTimeoutFunc() {
 		// Flush the peer when we get a heartbeat timeout. If the channel is
 		// closed then the peer is getting cleaned up and we should exit.
 		if _, ok := <-c; ok {
-			p.flush()
+			// Retrieve the peer data within a lock that is separate from the
+			// server lock when creating the request. Otherwise a deadlock can
+			// occur.
+			p.mutex.Lock()
+			server, prevLogIndex := p.server, p.prevLogIndex
+			p.mutex.Unlock()
+
+			// Lock the server to create a request.
+			req, handler := server.createAppendEntriesRequest(prevLogIndex)
+
+			p.mutex.Lock()
+			p.sendFlushRequest(req, handler)
+			p.mutex.Unlock()
 		} else {
 			break
 		}

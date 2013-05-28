@@ -21,7 +21,9 @@ import (
 func TestLogNewLog(t *testing.T) {
 	path := getLogPath()
 	log := NewLog()
-	log.ApplyFunc = func(c Command) {}
+	log.ApplyFunc = func(c Command) error {
+		return nil
+	}
 	if err := log.Open(path); err != nil {
 		t.Fatalf("Unable to open log: %v", err)
 	}
@@ -124,7 +126,9 @@ func TestLogRecovery(t *testing.T) {
 		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
 		`6ac5807c 0000000000000003 00000000000`)
 	log := NewLog()
-	log.ApplyFunc = func(c Command) {}
+	log.ApplyFunc = func(c Command) error {
+		return nil
+	}
 	if err := log.Open(path); err != nil {
 		t.Fatalf("Unable to open log: %v", err)
 	}

@@ -13,6 +13,7 @@ const (
 )
 
 func init() {
+	RegisterCommand(&joinCommand{})
 	RegisterCommand(&TestCommand1{})
 	RegisterCommand(&TestCommand2{})
 }
@@ -44,7 +45,9 @@ func setupLogFile(content string) string {
 func setupLog(content string) (*Log, string) {
 	path := setupLogFile(content)
 	log := NewLog()
-	log.ApplyFunc = func(c Command) {}
+	log.ApplyFunc = func(c Command) error {
+		return nil
+	}
 	if err := log.Open(path); err != nil {
 		panic("Unable to open log")
 	}
@@ -80,14 +83,30 @@ func newTestCluster(names []string) (Servers, map[string]*Server) {
 		lookup[name] = server
 	}
 	for _, server := range servers {
+		server.SetHeartbeatTimeout(testHeartbeatTimeout)
 		for _, peer := range servers {
-			if server != peer {
-				server.peers[peer.Name()] = NewPeer(server, peer.Name(), testHeartbeatTimeout)
-			}
+			server.AddPeer(peer.Name())
 		}
 		server.Start()
 	}
 	return servers, lookup
+}
+
+//--------------------------------------
+// Join Command
+//--------------------------------------
+
+type joinCommand struct {
+	Name string `json:"name"`
+}
+
+func (c *joinCommand) CommandName() string {
+	return "test:join"
+}
+
+func (c *joinCommand) Apply(server *Server) error {
+	err := server.AddPeer(c.Name)
+	return err
 }
 
 //--------------------------------------
@@ -103,11 +122,8 @@ func (c TestCommand1) CommandName() string {
 	return "cmd_1"
 }
 
-func (c TestCommand1) Validate(server *Server) error {
+func (c TestCommand1) Apply(server *Server) error {
 	return nil
-}
-
-func (c TestCommand1) Apply(server *Server) {
 }
 
 //--------------------------------------
@@ -122,9 +138,6 @@ func (c TestCommand2) CommandName() string {
 	return "cmd_2"
 }
 
-func (c TestCommand2) Validate(server *Server) error {
+func (c TestCommand2) Apply(server *Server) error {
 	return nil
-}
-
-func (c TestCommand2) Apply(server *Server) {
 }

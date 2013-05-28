@@ -25,7 +25,14 @@ const (
 	DefaultElectionTimeout  = 150 * time.Millisecond
 )
 
-var NotLeaderError = errors.New("Not current leader")
+//------------------------------------------------------------------------------
+//
+// Errors
+//
+//------------------------------------------------------------------------------
+
+var NotLeaderError = errors.New("raft.Server: Not current leader")
+var DuplicatePeerError = errors.New("raft.Server: Duplicate peer")
 
 //------------------------------------------------------------------------------
 //
@@ -36,7 +43,6 @@ var NotLeaderError = errors.New("Not current leader")
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
-	JoinHandler          func(*Server, *Peer, *JoinCommand) error
 	RequestVoteHandler   func(*Server, *Peer, *RequestVoteRequest) (*RequestVoteResponse, error)
 	AppendEntriesHandler func(*Server, *Peer, *AppendEntriesRequest) (*AppendEntriesResponse, error)
 	name                 string
@@ -74,8 +80,9 @@ func NewServer(name string, path string) (*Server, error) {
 	}
 
 	// Setup apply function.
-	s.log.ApplyFunc = func(c Command) {
-		c.Apply(s)
+	s.log.ApplyFunc = func(c Command) error {
+		err := c.Apply(s)
+		return err
 	}
 
 	return s, nil
@@ -261,6 +268,32 @@ func (s *Server) Running() bool {
 }
 
 //--------------------------------------
+// Initialization
+//--------------------------------------
+
+// Initializes the server to become leader of a new cluster. This function
+// will fail if there is an existing log or the server is already a member in
+// an existing cluster.
+func (s *Server) Initialize() error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Exit if the server is not running.
+	if !s.Running() {
+		return errors.New("raft.Server: Cannot join while stopped")
+	} else if s.MemberCount() > 1 {
+		return errors.New("raft.Server: Cannot join; already in membership")
+	}
+
+	// Promote to leader.
+	s.currentTerm++
+	s.state = Leader
+	s.electionTimer.Pause()
+
+	return nil
+}
+
+//--------------------------------------
 // Commands
 //--------------------------------------
 
@@ -269,7 +302,8 @@ func (s *Server) Running() bool {
 func (s *Server) Do(command Command) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	return s.do(command)
+	err := s.do(command)
+	return err
 }
 
 // This function is the low-level interface to execute commands. This function
@@ -337,27 +371,10 @@ loop:
 
 	// Commit to log and flush to peers again.
 	if committed {
-		if err := s.log.SetCommitIndex(entry.Index); err != nil {
-			warn("raft.Server: %v", err)
-		} else {
-			for _, _peer := range s.peers {
-				peer := _peer
-				go func() {
-					peer.flush()
-				}()
-			}
-		}
+		return s.log.SetCommitIndex(entry.Index)
 	}
 
 	return nil
-}
-
-// Executes the handler for doing a command on a particular peer.
-func (s *Server) executeJoinHandler(peer *Peer, command *JoinCommand) error {
-	if s.JoinHandler == nil {
-		panic("raft.Server: JoinHandler not registered")
-	}
-	return s.JoinHandler(s, peer, command)
 }
 
 // Appends a log entry from the leader to this server.
@@ -635,32 +652,19 @@ func (s *Server) electionTimeoutFunc() {
 // Membership
 //--------------------------------------
 
-// Connects to a given server and attempts to gain membership.
-func (s *Server) Join(name string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	// Exit if the server is not running.
-	if !s.Running() {
-		return errors.New("raft.Server: Cannot join while stopped")
-	} else if s.MemberCount() > 1 {
-		return errors.New("raft.Server: Cannot join; already in membership")
+// Adds a peer to the server. This should be called by a system's join command
+// within the context so that it is within the context of the server lock.
+func (s *Server) AddPeer(name string) error {
+	// Do not allow peers to be added twice.
+	if s.peers[name] != nil {
+		return DuplicatePeerError
 	}
 
-	// The join command keeps track of the membership.
-	command := &JoinCommand{Name: s.name}
-
-	// If joining self then promote to leader.
-	if s.name == name {
-		s.currentTerm++
-		s.state = Leader
-		s.electionTimer.Pause()
-		s.do(command)
-		return nil
+	// Only add the peer if it doesn't have the same name.
+	if s.name != name {
+		peer := NewPeer(s, name, s.heartbeatTimeout)
+		s.peers[peer.name] = peer
 	}
 
-	// Request membership if we are joining to another server.
-	peer := NewPeer(s, name, s.heartbeatTimeout)
-	defer peer.stop()
-	return s.executeJoinHandler(peer, command)
+	return nil
 }
