@@ -50,7 +50,7 @@ type Server struct {
 	currentTerm          uint64
 	votedFor             string
 	log                  *Log
-	leader               *Peer
+	leader               string
 	peers                map[string]*Peer
 	mutex                sync.Mutex
 	electionTimer        *Timer
@@ -112,6 +112,11 @@ func (s *Server) Path() string {
 	return s.path
 }
 
+func (s *Server) GetLeader() string {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return s.leader
+} 
 // Retrieves the object that transports requests.
 func (s *Server) Transporter() Transporter {
 	return s.transporter
@@ -297,6 +302,7 @@ func (s *Server) Initialize() error {
 	// Promote to leader.
 	s.currentTerm++
 	s.state = Leader
+	s.leader = s.name
 	s.electionTimer.Pause()
 
 	return nil
@@ -401,10 +407,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), fmt.Errorf("raft.Server: Stale request term")
 	}
 	s.setCurrentTerm(req.Term)
-	s.state = Follower
-	for _, peer := range s.peers {
-		peer.pause()
-	}
+	
 
 	// Reset election timeout.
 	s.electionTimer.Reset()
@@ -533,7 +536,7 @@ func (s *Server) promoteToCandidate() (term uint64, lastLogIndex uint64, lastLog
 	s.state = Candidate
 	s.currentTerm++
 	s.votedFor = s.name
-
+	s.leader = ""
 	// Pause the election timer while we're a candidate.
 	s.electionTimer.Pause()
 
@@ -563,6 +566,7 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 
 	// Move server to become a leader and begin peer heartbeats.
 	s.state = Leader
+	s.leader = s.name
 	for _, peer := range s.peers {
 		peer.resume()
 	}
