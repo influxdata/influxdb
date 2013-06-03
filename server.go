@@ -150,15 +150,29 @@ func (s *Server) VotedFor() string {
 
 // Retrieves whether the server's log has no entries.
 func (s *Server) IsLogEmpty() bool {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	return s.log.IsEmpty()
 }
 
 // A list of all the log entries. This should only be used for debugging purposes.
 func (s *Server) LogEntries() []*LogEntry {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	if s.log != nil {
 		return s.log.entries
 	}
 	return nil
+}
+
+// A reference to the command name of the last entry.
+func (s *Server) LastCommandName() string {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if s.log != nil {
+		return s.log.LastCommandName()
+	}
+	return ""
 }
 
 //--------------------------------------

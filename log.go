@@ -73,6 +73,18 @@ func (l *Log) IsEmpty() bool {
 	return (len(l.entries) == 0)
 }
 
+// The name of the last command in the log.
+func (l *Log) LastCommandName() string {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if len(l.entries) > 0 {
+		if command := l.entries[len(l.entries)-1].Command; command != nil {
+			return command.CommandName()
+		}
+	}
+	return ""
+}
+
 //--------------------------------------
 // Log Terms
 //--------------------------------------
