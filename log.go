@@ -125,8 +125,6 @@ func (l *Log) Open(path string) error {
 			entry := NewLogEntry(l, 0, 0, nil)
 			n, err := entry.Decode(reader)
 			if err != nil {
-				warn("raft.Log: %v", err)
-				warn("raft.Log: Recovering (%d)", lastIndex)
 				file.Close()
 				if err = os.Truncate(path, int64(lastIndex)); err != nil {
 					return fmt.Errorf("raft.Log: Unable to recover: %v", err)

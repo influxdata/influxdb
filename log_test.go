@@ -120,8 +120,6 @@ func TestLogContainsEntries(t *testing.T) {
 
 // Ensure that we can recover from an incomplete/corrupt log and continue logging.
 func TestLogRecovery(t *testing.T) {
-	warn("")
-	warn("--- BEGIN RECOVERY TEST")
 	path := setupLogFile(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
 		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
 		`6ac5807c 0000000000000003 00000000000`)
@@ -172,7 +170,6 @@ func TestLogRecovery(t *testing.T) {
 	if string(actual) != expected {
 		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
 	}
-	warn("--- END RECOVERY TEST\n")
 }
 
 //--------------------------------------

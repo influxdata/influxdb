@@ -43,10 +43,11 @@ var DuplicatePeerError = errors.New("raft.Server: Duplicate peer")
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
-	transporter          Transporter
 	name                 string
 	path                 string
 	state                string
+	transporter          Transporter
+	context              interface{}
 	currentTerm          uint64
 	votedFor             string
 	log                  *Log
@@ -64,7 +65,7 @@ type Server struct {
 //------------------------------------------------------------------------------
 
 // Creates a new server with a log at the given path.
-func NewServer(name string, path string, transporter Transporter) (*Server, error) {
+func NewServer(name string, path string, transporter Transporter, context interface{}) (*Server, error) {
 	if name == "" {
 		return nil, errors.New("raft.Server: Name cannot be blank")
 	}
@@ -76,6 +77,7 @@ func NewServer(name string, path string, transporter Transporter) (*Server, erro
 		name:             name,
 		path:             path,
 		transporter:      transporter,
+		context:          context,
 		state:            Stopped,
 		peers:            make(map[string]*Peer),
 		log:              NewLog(),
@@ -115,6 +117,11 @@ func (s *Server) Path() string {
 // Retrieves the object that transports requests.
 func (s *Server) Transporter() Transporter {
 	return s.transporter
+}
+
+// Retrieves the context passed into the constructor.
+func (s *Server) Context() interface{} {
+	return s.context
 }
 
 // Retrieves the log path for the server.
@@ -289,9 +296,9 @@ func (s *Server) Initialize() error {
 
 	// Exit if the server is not running.
 	if !s.Running() {
-		return errors.New("raft.Server: Cannot join while stopped")
+		return errors.New("raft.Server: Cannot initialize while stopped")
 	} else if s.MemberCount() > 1 {
-		return errors.New("raft.Server: Cannot join; already in membership")
+		return errors.New("raft.Server: Cannot initialize; already in membership")
 	}
 
 	// Promote to leader.
