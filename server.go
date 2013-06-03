@@ -407,11 +407,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), fmt.Errorf("raft.Server: Stale request term")
 	}
 	s.setCurrentTerm(req.Term)
-	s.state = Follower
-	s.leader = req.LeaderName
-	for _, peer := range s.peers {
-		peer.pause()
-	}
+	
 
 	// Reset election timeout.
 	s.electionTimer.Reset()
