@@ -114,7 +114,7 @@ func (s *Server) Path() string {
 	return s.path
 }
 
-func (s *Server) GetLeader() string {
+func (s *Server) Leader() string {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	return s.leader
@@ -415,6 +415,8 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	}
 	s.setCurrentTerm(req.Term)
 	
+	// Update the current leader.
+	s.leader = req.LeaderName
 
 	// Reset election timeout.
 	s.electionTimer.Reset()
