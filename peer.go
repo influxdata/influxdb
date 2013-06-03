@@ -150,6 +150,10 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 
 // Listens to the heartbeat timeout and flushes an AppendEntries RPC.
 func (p *Peer) heartbeatTimeoutFunc() {
+	// Initialize the timer here since there can be a delay before this
+	// goroutine actually starts.
+	p.heartbeatTimer.Reset()
+	
 	for {
 		// Grab the current timer channel.
 		p.mutex.Lock()
