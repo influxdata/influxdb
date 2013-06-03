@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"os"
+	"sort"
+	"bufio"
 )
 
 //------------------------------------------------------------------------------
@@ -50,11 +53,13 @@ type Server struct {
 	currentTerm          uint64
 	votedFor             string
 	log                  *Log
-	leader               *Peer
+	leader               string
 	peers                map[string]*Peer
 	mutex                sync.Mutex
 	electionTimer        *Timer
 	heartbeatTimeout     time.Duration
+	currentSnapshot      *Snapshot
+	lastSnapshot         *Snapshot
 }
 
 //------------------------------------------------------------------------------
@@ -112,6 +117,11 @@ func (s *Server) Path() string {
 	return s.path
 }
 
+func (s *Server) GetLeader() string {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return s.leader
+} 
 // Retrieves the object that transports requests.
 func (s *Server) Transporter() Transporter {
 	return s.transporter
@@ -222,6 +232,9 @@ func (s *Server) Start() error {
 		return errors.New("raft.Server: Server already running")
 	}
 
+	// recovery from the newest snapShot
+
+
 	// Initialize the log and load it up.
 	if err := s.log.Open(s.LogPath()); err != nil {
 		s.unload()
@@ -297,6 +310,7 @@ func (s *Server) Initialize() error {
 	// Promote to leader.
 	s.currentTerm++
 	s.state = Leader
+	s.leader = s.name
 	s.electionTimer.Pause()
 
 	return nil
@@ -402,6 +416,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	}
 	s.setCurrentTerm(req.Term)
 	s.state = Follower
+	s.leader = req.LeaderName
 	for _, peer := range s.peers {
 		peer.pause()
 	}
@@ -533,7 +548,7 @@ func (s *Server) promoteToCandidate() (term uint64, lastLogIndex uint64, lastLog
 	s.state = Candidate
 	s.currentTerm++
 	s.votedFor = s.name
-
+	s.leader = ""
 	// Pause the election timer while we're a candidate.
 	s.electionTimer.Pause()
 
@@ -563,6 +578,7 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 
 	// Move server to become a leader and begin peer heartbeats.
 	s.state = Leader
+	s.leader = s.name
 	for _, peer := range s.peers {
 		peer.resume()
 	}
@@ -669,3 +685,132 @@ func (s *Server) AddPeer(name string) error {
 
 	return nil
 }
+
+
+//--------------------------------------
+// Log compaction
+//--------------------------------------
+
+func (s *Server) SnapshotRequest(req *SnapshotRequest) (*SnapshotResponse, error) {
+	return nil, nil
+}
+
+// Creates a snapshot request.
+func (s *Server) createSnapshotRequest() *SnapshotRequest {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return NewSnapshotRequest(s.name, s.lastSnapshot)
+}
+
+
+func (s *Server) CreateSnapshot() error {
+
+	//TODO put a snapshot mutex
+	if s.currentSnapshot != nil {
+		return errors.New("handling snapshot")
+	}
+
+
+	lastIndex, lastTerm := s.log.CommitInfo()
+
+	if lastIndex == 0 || lastTerm == 0 {
+		return errors.New("No logs")
+	}
+
+	path := s.SnapshotPath(lastIndex, lastTerm)
+
+	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, 1, path}
+
+	return nil
+}
+
+
+// Retrieves the log path for the server.
+func (s *Server) SnapshotPath(lastIndex uint64, lastTerm uint64) string {
+	return fmt.Sprintf("%s/snapshot/%v_%v.ss", s.path, lastTerm, lastIndex)
+}
+
+// Retrieves the log path for the server.
+func (s *Server) SaveSnapshot() error {
+	if s.currentSnapshot == nil {
+		return errors.New("no snapshot to save")
+	}
+
+	err := s.currentSnapshot.Save()
+
+	if err != nil {
+		return err
+	}
+ 	
+	tmp := s.lastSnapshot
+	s.lastSnapshot = s.currentSnapshot
+	tmp.Remove()
+	s.currentSnapshot = nil
+	return nil
+}
+
+func (s *Server) Recovery(ss *Snapshot) {
+	//
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	//recovery machine state
+
+	//update term and index
+	s.currentTerm = ss.lastTerm
+	s.log.Compaction(ss.lastIndex)
+
+}
+
+func (s *Server) LoadSnapshot() error {
+	dir, err := os.OpenFile(s.path + "/snapshot", os.O_RDONLY, 0)
+	if err != nil {
+		dir.Close()
+		panic(err)
+	}
+
+	filenames, err := dir.Readdirnames(-1)
+
+	if err != nil {
+		dir.Close()
+		panic(err)
+	}
+
+	dir.Close()
+	if len(filenames) == 0 {
+		return errors.New("no snapshot")
+	}
+
+	// not sure how many snapshot we should keep
+	sort.Strings(filenames)
+	snapshotPath := s.path + "/snapshot/" + filenames[len(filenames) - 1] 
+
+	// should not file
+	file, err := os.OpenFile(snapshotPath, os.O_RDONLY, 0)
+	defer file.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	// TODO check checksum first 
+	// TODO recovery state machine
+	var content string
+	var checksum, lastIndex, lastTerm uint64
+	reader := bufio.NewReader(file)
+	n , err := fmt.Fscanf(reader, "%08x\n%s\n%v\n%v", &checksum, &content, 
+		&lastIndex, &lastTerm)
+
+	if err != nil {
+		panic(err)
+	}
+
+	if n != 4 {
+		panic(n)
+	}
+
+	s.log.SetStartTerm(lastTerm)
+	s.log.SetStartIndex(lastIndex)
+
+	return err
+}
+

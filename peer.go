@@ -102,8 +102,41 @@ func (p *Peer) stop() {
 func (p *Peer) internalFlush() (uint64, bool, error) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
+
+	if p.prevLogIndex < p.server.log.StartIndex() {
+		req := p.server.createSnapshotRequest()
+		p.sendSnapshotRequest(req)
+	}
 	req := p.server.createInternalAppendEntriesRequest(p.prevLogIndex)
 	return p.sendFlushRequest(req)
+}
+
+// TODO add this function
+func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error){
+	// Ignore any null requests.
+	if req == nil {
+		return 0, false, errors.New("raft.Peer: Request required")
+	}
+
+	// Generate an snapshot request based on the state of the server and
+	// log. Send the request through the user-provided handler and process the
+	// result.
+	resp, err := p.server.transporter.SendSnapshotRequest(p.server, p, req)
+	p.heartbeatTimer.Reset()
+	if resp == nil {
+		return 0, false, err
+	}
+
+	// If successful then update the previous log index. If it was
+	// unsuccessful then decrement the previous log index and we'll try again
+	// next time.
+	if resp.Success {
+		p.prevLogIndex = req.Snapshot.lastIndex
+	} else {
+		panic(resp)
+	}
+
+	return resp.Term, resp.Success, err	
 }
 
 // Flushes a request through the server's transport.
