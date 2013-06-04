@@ -264,7 +264,9 @@ func (s *Server) Start() error {
 	}
 
 	// Start the election timeout.
-	go s.electionTimeoutFunc()
+	c := make(chan bool)
+	go s.electionTimeoutFunc(c)
+	<- c
 
 	return nil
 }
@@ -673,15 +675,8 @@ func (s *Server) setCurrentTerm(term uint64) {
 }
 
 // Listens to the election timeout and kicks off a new election.
-func (s *Server) electionTimeoutFunc() {
-	// Initialize the timer here since there can be a delay before this
-	// goroutine actually starts.
-	s.mutex.Lock()
-	if s.electionTimer != nil {
-		s.electionTimer.Reset()
-	}
-	s.mutex.Unlock()
-	
+func (s *Server) electionTimeoutFunc(startChannel chan bool) {
+	startChannel <- true
 	for {
 		// Grab the current timer channel.
 		s.mutex.Lock()
