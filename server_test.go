@@ -343,7 +343,8 @@ func TestServerMultiNode(t *testing.T) {
 		mutex.Lock()
 		s := servers[peer.name]
 		mutex.Unlock()
-		return s.RequestVote(req)
+		resp, err := s.RequestVote(req)
+		return resp, err
 	}
 	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 		mutex.Lock()
@@ -375,7 +376,7 @@ func TestServerMultiNode(t *testing.T) {
 		servers[name] = server
 		mutex.Unlock()
 	}
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Check that two peers exist on leader.
 	mutex.Lock()
@@ -385,9 +386,9 @@ func TestServerMultiNode(t *testing.T) {
 	mutex.Unlock()
 
 	// Stop the first server and wait for a re-election.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	leader.Stop()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Check that either server 2 or 3 is the leader now.
 	mutex.Lock()

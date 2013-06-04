@@ -721,6 +721,9 @@ func (s *Server) AddPeer(name string) error {
 	// Only add the peer if it doesn't have the same name.
 	if s.name != name {
 		peer := NewPeer(s, name, s.heartbeatTimeout)
+		if s.state == Leader {
+			peer.resume()
+		}
 		s.peers[peer.name] = peer
 	}
 
