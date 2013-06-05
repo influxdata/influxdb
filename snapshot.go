@@ -25,14 +25,14 @@ type Snapshot struct {
 
 // The request sent to a server to start from the snapshot.
 type SnapshotRequest struct {
-	peer          *Peer
 	LeaderName   string      `json:"leaderName"`
-	Snapshot     *Snapshot    `json:"snapShot"`
+	LastIndex    uint64 	 `json:"lastTerm"`
+	LastTerm	 uint64		 `json:"lastIndex"`
+	MachineState int 		 `json:"machineState"`
 }
 
 // The response returned from a server appending entries to the log.
 type SnapshotResponse struct {
-	peer          *Peer
 	Term        uint64 `json:"term"`
 	Success     bool   `json:"success"`
 	CommitIndex uint64 `json:"commitIndex"`
@@ -48,7 +48,9 @@ type SnapshotResponse struct {
 func NewSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest {
 	return &SnapshotRequest{
 		LeaderName:   leaderName,
-		Snapshot:     snapshot,
+		LastIndex:    snapshot.lastIndex,
+		LastTerm:	  snapshot.lastTerm,
+		MachineState: snapshot.machineState,
 	}
 }
 
@@ -66,21 +68,26 @@ func (ss *Snapshot) Save() error {
 	// Write machine state to temporary buffer.
 	var b bytes.Buffer
 
-	if _, err := fmt.Fprintf(&b, "%v", ss.machineState); err != nil {
+	if _, err := fmt.Fprintf(&b, "%v", 2); err != nil {
 		return err
 	}
 
 	// Generate checksum.
 	checksum := crc32.ChecksumIEEE(b.Bytes())
 
+	fmt.Println(ss.path)
 	// open file
 	file, err := os.OpenFile(ss.path, os.O_CREATE|os.O_WRONLY, 0600)
+	
 	if err != nil {
 		return err
 	}
 
+	defer file.Close()
+
+
 	// Write log entry with checksum.
-	if _, err = fmt.Fprintf(file, "%08x\n%s\n%s\n%s", checksum, b.String(), 
+	if _, err = fmt.Fprintf(file, "%08x\n%s\n%v\n%v\n", checksum, b.String(), 
 		ss.lastIndex, ss.lastTerm); err != nil {
 		return err
 	}

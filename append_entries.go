@@ -8,7 +8,6 @@ package raft
 
 // The request sent to a server to append entries to the log.
 type AppendEntriesRequest struct {
-	peer         *Peer
 	Term         uint64      `json:"term"`
 	LeaderName   string      `json:"leaderName"`
 	PrevLogIndex uint64      `json:"prevLogIndex"`
@@ -19,7 +18,6 @@ type AppendEntriesRequest struct {
 
 // The response returned from a server appending entries to the log.
 type AppendEntriesResponse struct {
-	peer        *Peer
 	Term        uint64 `json:"term"`
 	Success     bool   `json:"success"`
 	CommitIndex uint64 `json:"commitIndex"`
