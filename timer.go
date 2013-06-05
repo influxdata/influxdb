@@ -162,7 +162,9 @@ func (t *Timer) Reset() {
 		case v, ok := <-internalTimer.C:
 			if ok {
 				t.mutex.Lock()
-				t.c <- v
+				if t.c != nil {
+					t.c <- v
+				}
 				t.mutex.Unlock()
 			}
 		case <-resetChannel:

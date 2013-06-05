@@ -127,6 +127,9 @@ func TestServerPromote(t *testing.T) {
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
 		return lookup[peer.Name()].RequestVote(req)
 	}
+	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+		return lookup[peer.Name()].AppendEntries(req)
+	}
 	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
 	for _, server := range servers {
 		defer server.Stop()
@@ -142,7 +145,12 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 	lookup := map[string]*Server{}
 	transporter := &testTransporter{}
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-		return lookup[peer.Name()].RequestVote(req)
+		resp, err := lookup[peer.Name()].RequestVote(req)
+		return resp, err
+	}
+	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+		resp, err := lookup[peer.Name()].AppendEntries(req)
+		return resp, err
 	}
 	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
 	lookup["2"].currentTerm, lookup["2"].votedFor = 1, "2"
@@ -156,11 +164,12 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader && leader.currentTerm == 2) {
 		t.Fatalf("Server promotion in cluster failed: %v (%v)", leader.state, err)
 	}
-	if lookup["2"].VotedFor() != "1" {
-		t.Fatalf("Unexpected vote for server 2: %v", lookup["2"].VotedFor())
+	time.Sleep(50 * time.Millisecond)
+	if lookup["2"].votedFor != "1" {
+		t.Fatalf("Unexpected vote for server 2: %v", lookup["2"].votedFor)
 	}
-	if lookup["3"].VotedFor() != "1" {
-		t.Fatalf("Unexpected vote for server 3: %v", lookup["3"].VotedFor())
+	if lookup["3"].votedFor != "1" {
+		t.Fatalf("Unexpected vote for server 3: %v", lookup["3"].votedFor)
 	}
 }
 
@@ -335,7 +344,8 @@ func TestServerMultiNode(t *testing.T) {
 		mutex.Lock()
 		s := servers[peer.name]
 		mutex.Unlock()
-		return s.RequestVote(req)
+		resp, err := s.RequestVote(req)
+		return resp, err
 	}
 	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 		mutex.Lock()
@@ -367,7 +377,7 @@ func TestServerMultiNode(t *testing.T) {
 		servers[name] = server
 		mutex.Unlock()
 	}
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Check that two peers exist on leader.
 	mutex.Lock()
@@ -377,9 +387,9 @@ func TestServerMultiNode(t *testing.T) {
 	mutex.Unlock()
 
 	// Stop the first server and wait for a re-election.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	leader.Stop()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Check that either server 2 or 3 is the leader now.
 	mutex.Lock()

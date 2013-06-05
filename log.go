@@ -94,6 +94,18 @@ func (l *Log) IsEmpty() bool {
 	return (len(l.entries) == 0)
 }
 
+// The name of the last command in the log.
+func (l *Log) LastCommandName() string {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if len(l.entries) > 0 {
+		if command := l.entries[len(l.entries)-1].Command; command != nil {
+			return command.CommandName()
+		}
+	}
+	return ""
+}
+
 //--------------------------------------
 // Log Terms
 //--------------------------------------
@@ -146,8 +158,6 @@ func (l *Log) Open(path string) error {
 			entry := NewLogEntry(l, 0, 0, nil)
 			n, err := entry.Decode(reader)
 			if err != nil {
-				warn("raft.Log: %v", err)
-				warn("raft.Log: Recovering (%d)", lastIndex)
 				file.Close()
 				if err = os.Truncate(path, int64(lastIndex)); err != nil {
 					return fmt.Errorf("raft.Log: Unable to recover: %v", err)

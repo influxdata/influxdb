@@ -60,7 +60,7 @@ func setupLog(content string) (*Log, string) {
 
 func newTestServer(name string, transporter Transporter) *Server {
 	path, _ := ioutil.TempDir("", "raft-server-")
-	server, _ := NewServer(name, path, transporter)
+	server, _ := NewServer(name, path, transporter, nil)
 	return server
 }
 

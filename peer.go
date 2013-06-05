@@ -36,9 +36,11 @@ func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer 
 		heartbeatTimer: NewTimer(heartbeatTimeout, heartbeatTimeout),
 	}
 
-	// Start the heartbeat timeout.
-	go p.heartbeatTimeoutFunc()
-
+	// Start the heartbeat timeout and wait for the goroutine to start.
+	c := make(chan bool)
+	go p.heartbeatTimeoutFunc(c)
+	<-c
+	
 	return p
 }
 
@@ -188,8 +190,9 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 //--------------------------------------
 
 // Listens to the heartbeat timeout and flushes an AppendEntries RPC.
-func (p *Peer) heartbeatTimeoutFunc() {
-	fmt.Println("heart beat")
+func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
+	startChannel <- true
+
 	for {
 		// Grab the current timer channel.
 		p.mutex.Lock()
