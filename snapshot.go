@@ -24,46 +24,6 @@ type Snapshot struct {
 	path string
 }
 
-// The request sent to a server to start from the snapshot.
-type SnapshotRequest struct {
-	LeaderName   string      `json:"leaderName"`
-	LastIndex    uint64 	 `json:"lastTerm"`
-	LastTerm	 uint64		 `json:"lastIndex"`
-	MachineState int 		 `json:"machineState"`
-}
-
-// The response returned from a server appending entries to the log.
-type SnapshotResponse struct {
-	Term        uint64 `json:"term"`
-	Success     bool   `json:"success"`
-	CommitIndex uint64 `json:"commitIndex"`
-}
-
-//------------------------------------------------------------------------------
-//
-// Constructors
-//
-//------------------------------------------------------------------------------
-
-// Creates a new Snapshot request.
-func NewSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest {
-	return &SnapshotRequest{
-		LeaderName:   leaderName,
-		LastIndex:    snapshot.lastIndex,
-		LastTerm:	  snapshot.lastTerm,
-		MachineState: snapshot.machineState,
-	}
-}
-
-// Creates a new Snapshot response.
-func NewSnapshotResponse(term uint64, success bool, commitIndex uint64) *SnapshotResponse {
-	return &SnapshotResponse{
-		Term:        term,
-		Success:     success,
-		CommitIndex: commitIndex,
-	}
-}
-
 // Save the snapshot to a file
 func (ss *Snapshot) Save() error {
 	// Write machine state to temporary buffer.

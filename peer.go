@@ -213,27 +213,30 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 			p.mutex.Lock()
 			server, prevLogIndex := p.server, p.prevLogIndex
 			p.mutex.Unlock()
-			
+	
+			var req *AppendEntriesRequest
+			snapShotNeeded := false
+
+			// we need to hold the log lock to create AppendEntriesRequest
+			// avoid snapshot to delete the desired entries before AEQ()
 			server.log.mutex.Lock()
-			if prevLogIndex < server.log.StartIndex() {
-
-				// request the log before the latest snapshot
-				// send out the snapshot
-				server.log.mutex.Unlock()
-				req := server.createSnapshotRequest()
-
-				p.mutex.Lock()
-				p.sendSnapshotRequest(req)
-				p.mutex.Unlock()
+			if prevLogIndex >= server.log.StartIndex() {
+				req = server.createAppendEntriesRequest(prevLogIndex)
 			} else {
-
-				// Lock the server to create a request.
-				req := server.createAppendEntriesRequest(prevLogIndex)
-				server.log.mutex.Unlock()
-				p.mutex.Lock()
-				p.sendFlushRequest(req)
-				p.mutex.Unlock()
+				snapShotNeeded = true
 			}
+			server.log.mutex.Unlock()
+
+			p.mutex.Lock()
+			if snapShotNeeded {
+				req := server.createSnapshotRequest()
+				p.sendSnapshotRequest(req)
+			} else {
+				p.sendFlushRequest(req)
+			}
+			p.mutex.Unlock()
+
+
 		} else {
 			break
 		}

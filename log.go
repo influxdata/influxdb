@@ -19,7 +19,7 @@ import (
 type Log struct {
 	ApplyFunc   func(Command) error
 	file        *os.File
-	path		string
+	path        string
 	entries     []*LogEntry
 	commitIndex uint64
 	mutex       sync.Mutex
@@ -412,7 +412,7 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 //--------------------------------------
 
 // compaction the log before index
-func (l *Log) Compaction(index uint64, term uint64) error {
+func (l *Log) Compact(index uint64, term uint64) error {
 	var entries []*LogEntry
 
 	l.mutex.Lock()
@@ -444,9 +444,16 @@ func (l *Log) Compaction(index uint64, term uint64) error {
 	l.file.Close()
 
 	// remove the current log file to .bak
-	os.Remove(l.path)
+	err = os.Remove(l.path)
+	if err != nil {
+		return err
+	}
+
 	// rename the new log file
-	os.Rename(l.path + ".new", l.path)
+	err = os.Rename(l.path + ".new", l.path)
+	if err != nil {
+		return err
+	}
 	l.file = file
 
 	// compaction the in memory log

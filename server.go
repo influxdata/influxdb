@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"bufio"
+	"path"
 )
 
 //------------------------------------------------------------------------------
@@ -791,7 +792,7 @@ func (s *Server) takeSnapshot() error {
 
 	s.saveSnapshot()
 
-	s.log.Compaction(lastIndex, lastTerm)
+	s.log.Compact(lastIndex, lastTerm)
 
 	return nil
 }
@@ -822,7 +823,7 @@ func (s *Server) saveSnapshot() error {
 
 // Retrieves the log path for the server.
 func (s *Server) SnapshotPath(lastIndex uint64, lastTerm uint64) string {
-	return fmt.Sprintf("%s/snapshot/%v_%v.ss", s.path, lastTerm, lastIndex)
+	return path.Join(s.path, "snapshot", fmt.Sprintf("%v_%v.ss", lastTerm, lastIndex))
 }
 
 
@@ -840,7 +841,7 @@ func (s *Server) SnapshotRecovery(index uint64, term uint64, machineState int) (
 	snapshotPath := s.SnapshotPath(index, term)
 	s.currentSnapshot = &Snapshot{index, term, machineState, snapshotPath}
 	s.saveSnapshot() 
-	s.log.Compaction(index, term)
+	s.log.Compact(index, term)
 
 
 	return NewSnapshotResponse(term, true, index), nil
@@ -849,7 +850,7 @@ func (s *Server) SnapshotRecovery(index uint64, term uint64, machineState int) (
 
 // Load a snapshot at restart
 func (s *Server) LoadSnapshot() error {
-	dir, err := os.OpenFile(s.path + "/snapshot", os.O_RDONLY, 0)
+	dir, err := os.OpenFile(path.Join(s.path, "snapshot"), os.O_RDONLY, 0)
 	if err != nil {
 		dir.Close()
 		panic(err)
@@ -869,7 +870,7 @@ func (s *Server) LoadSnapshot() error {
 
 	// not sure how many snapshot we should keep
 	sort.Strings(filenames)
-	snapshotPath := s.path + "/snapshot/" + filenames[len(filenames) - 1] 
+	snapshotPath := path.Join(s.path, "snapshot", filenames[len(filenames) - 1])
 
 	// should not file
 	file, err := os.OpenFile(snapshotPath, os.O_RDONLY, 0)
