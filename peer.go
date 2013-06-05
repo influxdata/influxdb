@@ -4,7 +4,6 @@ import (
 	"errors"
 	"sync"
 	"time"
-	"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -106,7 +105,6 @@ func (p *Peer) internalFlush() (uint64, bool, error) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	fmt.Println("internal flush!")
 	if p.prevLogIndex < p.server.log.StartIndex() {
 		req := p.server.createSnapshotRequest()
 		return p.sendSnapshotRequest(req)
@@ -115,7 +113,7 @@ func (p *Peer) internalFlush() (uint64, bool, error) {
 	return p.sendFlushRequest(req)
 }
 
-// TODO add this function
+// send Snapshot Request
 func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error){
 	// Ignore any null requests.
 	if req == nil {
@@ -136,7 +134,7 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error){
 	// next time.
 	if resp.Success {
 		p.prevLogIndex = req.LastIndex
-		fmt.Println("update peer preindex to ", p.prevLogIndex)
+
 	} else {
 		panic(resp)
 	}
@@ -150,15 +148,14 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	if req == nil {
 		return 0, false, errors.New("raft.Peer: Request required")
 	}
-	fmt.Println("FLUSH: before trans!")
+
 	// Generate an AppendEntries request based on the state of the server and
 	// log. Send the request through the user-provided handler and process the
 	// result.
 	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
-	fmt.Println("FLUSH: trans finished")
+
 	p.heartbeatTimer.Reset()
 	if resp == nil {
-		fmt.Println("trans error")
 		return 0, false, err
 	}
 
@@ -166,7 +163,6 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	// unsuccessful then decrement the previous log index and we'll try again
 	// next time.
 	if resp.Success {
-		fmt.Println("FLUSH: trans success")
 		if len(req.Entries) > 0 {
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
 		}
@@ -196,16 +192,15 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 	for {
 		// Grab the current timer channel.
 		p.mutex.Lock()
-		fmt.Println("heart beat: got lock")
+	
 		var c chan time.Time
 		if p.heartbeatTimer != nil {
 			c = p.heartbeatTimer.C()
 		}
 		p.mutex.Unlock()
-		fmt.Println("heart beat: after lock")
+
 		// If the channel or timer are gone then exit.
 		if c == nil {
-			fmt.Println("heart beat: break")
 			break
 		}
 
@@ -219,10 +214,11 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 			server, prevLogIndex := p.server, p.prevLogIndex
 			p.mutex.Unlock()
 			
-			fmt.Println("heart beat, preIndex: ", prevLogIndex, " startIndex:", server.log.StartIndex())
-			
 			server.log.mutex.Lock()
 			if prevLogIndex < server.log.StartIndex() {
+
+				// request the log before the latest snapshot
+				// send out the snapshot
 				server.log.mutex.Unlock()
 				req := server.createSnapshotRequest()
 

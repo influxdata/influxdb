@@ -15,6 +15,7 @@ import (
 //------------------------------------------------------------------------------
 
 // the in memory SnapShot struct 
+// TODO add cluster configuration
 type Snapshot struct {
 	lastIndex uint64
 	lastTerm uint64
@@ -63,7 +64,7 @@ func NewSnapshotResponse(term uint64, success bool, commitIndex uint64) *Snapsho
 	}
 }
 
-
+// Save the snapshot to a file
 func (ss *Snapshot) Save() error {
 	// Write machine state to temporary buffer.
 	var b bytes.Buffer
@@ -75,7 +76,6 @@ func (ss *Snapshot) Save() error {
 	// Generate checksum.
 	checksum := crc32.ChecksumIEEE(b.Bytes())
 
-	fmt.Println(ss.path)
 	// open file
 	file, err := os.OpenFile(ss.path, os.O_CREATE|os.O_WRONLY, 0600)
 	
@@ -97,6 +97,7 @@ func (ss *Snapshot) Save() error {
 	return err
 }
 
+// remove the file of the snapshot
 func (ss *Snapshot) Remove() error {
 	err := os.Remove(ss.path)
 	return err

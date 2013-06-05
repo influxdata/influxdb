@@ -61,8 +61,7 @@ type Server struct {
 	heartbeatTimeout     time.Duration
 	currentSnapshot      *Snapshot
 	lastSnapshot         *Snapshot
-	//testing 
-	machinState			 int
+	machineState		 int 	//TODO CHANGE THIS TO INTERFACE: recovery and store
 }
 
 //------------------------------------------------------------------------------
@@ -258,8 +257,8 @@ func (s *Server) Start() error {
 	// create snapshot dir if not exist
 	os.Mkdir(s.path + "/snapshot", 0700) 
 
-	// recovery from the newest snapShot
-	s.LoadSnapshot()
+	// ## open recovery from the newest snapShot
+	//s.LoadSnapshot()
 
 	// Initialize the log and load it up.
 	if err := s.log.Open(s.LogPath()); err != nil {
@@ -369,6 +368,7 @@ func (s *Server) do(command Command) error {
 	// Capture the term that this command is executing within.
 	currentTerm := s.currentTerm
 
+	// TEMP to solve the issue 18
 	for _, peer := range s.peers {
 		peer.pause()
 	}
@@ -384,12 +384,12 @@ func (s *Server) do(command Command) error {
 	for _, _peer := range s.peers {
 		peer := _peer
 		go func() {
-			fmt.Println("DO: before")
+
 			term, success, err := peer.internalFlush()
-			fmt.Println("DO: after flush")
+			
 			// Demote if we encounter a higher term.
 			if err != nil {
-				fmt.Println("DO: error")
+			
 				return
 			} else if term > currentTerm {
 				s.mutex.Lock()
@@ -398,7 +398,6 @@ func (s *Server) do(command Command) error {
 				if s.electionTimer != nil {
 					s.electionTimer.Reset()
 				}
-				fmt.Println("DO: term")
 				s.mutex.Unlock()
 
 				return
@@ -406,10 +405,8 @@ func (s *Server) do(command Command) error {
 
 			// If we successfully replicated the log then send a success to the channel.
 			if success {
-				fmt.Println("do succ")
 				c <- true
 			}
-			fmt.Println("do error", term, success, err)
 		}()
 	}
 
@@ -436,7 +433,6 @@ loop:
 			}
 			responseCount++
 		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
-			fmt.Println("do timeout")
 			for _, peer := range s.peers {
 				peer.resume()
 			}
@@ -446,10 +442,8 @@ loop:
 
 	// Commit to log and flush to peers again.
 	if committed {
-		fmt.Println("commited: ", entry.Index)
 		return s.log.SetCommitIndex(entry.Index)
 	}
-	fmt.Println("uncommited: ", entry.Index)
 	return nil
 }
 
@@ -457,7 +451,6 @@ loop:
 func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	fmt.Println("1")
 	// If the server is stopped then reject it.
 	if !s.Running() {
 		return NewAppendEntriesResponse(s.currentTerm, false, 0), fmt.Errorf("raft.Server: Server stopped")
@@ -476,23 +469,22 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	if s.electionTimer != nil {
 		s.electionTimer.Reset()
 	}
-
+	
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.Truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
-	fmt.Println("4")
+
 	// Append entries to the log.
 	if err := s.log.AppendEntries(req.Entries); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
-	fmt.Println("5")
+
 	// Commit up to the commit index.
 	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}	
-	fmt.Println("commited ", req.CommitIndex)
-	fmt.Println("6")
+
 	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
 }
 
@@ -509,7 +501,6 @@ func (s *Server) createInternalAppendEntriesRequest(prevLogIndex uint64) *Append
 		return nil
 	}
 	entries, prevLogTerm := s.log.GetEntriesAfter(prevLogIndex)
-	fmt.Println("createInternalAe, ", entries, " ", len(entries))
 	req := NewAppendEntriesRequest(s.currentTerm, s.name, prevLogIndex, prevLogTerm, entries, s.log.CommitIndex())
 	return req
 }
@@ -742,7 +733,6 @@ func (s *Server) electionTimeoutFunc(startChannel chan bool) {
 // Adds a peer to the server. This should be called by a system's join command
 // within the context so that it is within the context of the server lock.
 func (s *Server) AddPeer(name string) error {
-	fmt.Println("Going to Add peer")
 	// Do not allow peers to be added twice.
 	if s.peers[name] != nil {
 		return DuplicatePeerError
@@ -756,10 +746,6 @@ func (s *Server) AddPeer(name string) error {
 		}
 		s.peers[peer.name] = peer
 		peer.resume()
-		if peer.heartbeatTimer.Running() {
-			fmt.Println("good")
-		}
-		fmt.Printf("Add peer %s\n", peer.name)
 
 	}
 	return nil
@@ -777,23 +763,22 @@ func (s *Server) createSnapshotRequest() *SnapshotRequest {
 	return NewSnapshotRequest(s.name, s.lastSnapshot)
 }
 
+// The background snapshot function
 func (s *Server) Snapshot() {
 	for {
 		s.takeSnapshot()
 
-		// TODO: change this...
-		time.Sleep(500 * time.Millisecond)
+		// TODO: change this... to something reasonable
+		time.Sleep(5000 * time.Millisecond)
 	}
 }
 
 func (s *Server) takeSnapshot() error {
-	fmt.Println("taking....")
 	//TODO put a snapshot mutex
 	if s.currentSnapshot != nil {
-		//fmt.Println("handling....")
 		return errors.New("handling snapshot")
 	}
-	fmt.Println("ta2king....")
+
 	lastIndex, lastTerm := s.log.CommitInfo()
 
 	if lastIndex == 0 || lastTerm == 0 {
@@ -802,18 +787,19 @@ func (s *Server) takeSnapshot() error {
 
 	path := s.SnapshotPath(lastIndex, lastTerm)
 
-	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, 1, path}
+	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, s.machineState , path}
 
 	s.saveSnapshot()
+
 	s.log.Compaction(lastIndex, lastTerm)
-	fmt.Printf("took a snapshot with index: %v, term: %v\n", lastIndex, lastTerm)
+
 	return nil
 }
 
 // Retrieves the log path for the server.
 func (s *Server) saveSnapshot() error {
+
 	if s.currentSnapshot == nil {
-		//fmt.Println("no curr snapshot")
 		return errors.New("no snapshot to save")
 	}
 
@@ -825,6 +811,8 @@ func (s *Server) saveSnapshot() error {
  	
 	tmp := s.lastSnapshot
 	s.lastSnapshot = s.currentSnapshot
+
+	// delete the previous snapshot if there is any change
 	if tmp != nil && !(tmp.lastIndex == s.lastSnapshot.lastIndex && tmp.lastTerm == s.lastSnapshot.lastTerm) {
 		tmp.Remove()
 	}
@@ -838,17 +826,19 @@ func (s *Server) SnapshotPath(lastIndex uint64, lastTerm uint64) string {
 }
 
 
-func (s *Server) SnapshotRecovery(index uint64, term uint64, machinState int) (*SnapshotResponse, error){
+func (s *Server) SnapshotRecovery(index uint64, term uint64, machineState int) (*SnapshotResponse, error){
 	//
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
 	//recovery machine state
+	s.machineState = machineState
 
 	//update term and index
 	s.currentTerm = term
 	s.log.UpdateCommitIndex(index)
 	snapshotPath := s.SnapshotPath(index, term)
-	s.currentSnapshot = &Snapshot{index, term, machinState, snapshotPath}
+	s.currentSnapshot = &Snapshot{index, term, machineState, snapshotPath}
 	s.saveSnapshot() 
 	s.log.Compaction(index, term)
 
@@ -857,6 +847,7 @@ func (s *Server) SnapshotRecovery(index uint64, term uint64, machinState int) (*
 
 }
 
+// Load a snapshot at restart
 func (s *Server) LoadSnapshot() error {
 	dir, err := os.OpenFile(s.path + "/snapshot", os.O_RDONLY, 0)
 	if err != nil {
@@ -889,10 +880,11 @@ func (s *Server) LoadSnapshot() error {
 
 	// TODO check checksum first 
 	// TODO recovery state machine
-	var content string
+
+	var machineState int
 	var checksum, lastIndex, lastTerm uint64
 	reader := bufio.NewReader(file)
-	n , err := fmt.Fscanf(reader, "%08x\n%s\n%v\n%v", &checksum, &content, 
+	n , err := fmt.Fscanf(reader, "%08x\n%v\n%v\n%v", &checksum, &machineState, 
 		&lastIndex, &lastTerm)
 
 	if err != nil {
@@ -904,11 +896,10 @@ func (s *Server) LoadSnapshot() error {
 	}
 
 	s.lastSnapshot = &Snapshot{lastIndex, lastTerm, 1, snapshotPath}
+	s.machineState = machineState
 	s.log.SetStartTerm(lastTerm)
 	s.log.SetStartIndex(lastIndex)
 	s.log.UpdateCommitIndex(lastIndex)
-
-	fmt.Printf("Start from snapshot index: %v, term: %v\n", lastIndex, lastTerm)
 
 	return err
 }

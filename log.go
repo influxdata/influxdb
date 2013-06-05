@@ -70,6 +70,7 @@ func (l *Log) CurrentIndex() uint64 {
 	return l.entries[len(l.entries)-1].Index
 }
 
+// The current index in the log without locking
 func (l *Log) internalCurrentIndex() uint64 {
 	if len(l.entries) == 0 {
 		return l.startIndex
@@ -233,13 +234,9 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	if index > (uint64(len(l.entries)) + l.startIndex) {
 		panic(fmt.Sprintf("raft.Log: Index is beyond end of log: %v", index))
 	}
-	fmt.Println("getEA", index, l.startIndex)
+
 	// If we're going from the beginning of the log then return the whole log.
 	if index == l.startIndex {
-		fmt.Println(len(l.entries))
-		if len(l.entries) > 0 {
-			fmt.Println(l.entries[0].Index)
-		}
 		return l.entries, l.startTerm
 	}
 	// Determine the term at the given entry and return a subslice.
@@ -258,23 +255,20 @@ func (l *Log) CommitInfo() (index uint64, term uint64) {
 
 	// If we don't have any entries then just return zeros.
 	if l.commitIndex == 0 {
-		fmt.Println("commitinfo: zero")
 		return 0, 0
 	}
 
-	// just after snapshot
+	// no new commit log after snapshot
 	if l.commitIndex == l.startIndex {
-		fmt.Println("commitinfo: ", l.startIndex, " ", l.startTerm)
 		return l.startIndex, l.startTerm
 	}
-	fmt.Println(l.entries)
-	fmt.Println(l.commitIndex, " ", l.startIndex)
+
 	// Return the last index & term from the last committed entry.
 	lastCommitEntry := l.entries[l.commitIndex - 1 - l.startIndex]
 	return lastCommitEntry.Index, lastCommitEntry.Term
 }
 
-
+// Updates the commit index 
 func (l *Log) UpdateCommitIndex(index uint64) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
@@ -333,13 +327,11 @@ func (l *Log) Truncate(index uint64, term uint64) error {
 
 	// Do not allow committed entries to be truncated.
 	if index < l.CommitIndex() {
-		fmt.Printf("raft.Log: Index is already committed (%v): (IDX=%v, TERM=%v)\n", l.CommitIndex(), index, term)
 		return fmt.Errorf("raft.Log: Index is already committed (%v): (IDX=%v, TERM=%v)", l.CommitIndex(), index, term)
 	}
 
 	// Do not truncate past end of entries.
 	if index > l.startIndex + uint64(len(l.entries)) {
-		fmt.Printf("raft.Log: Entry index does not exist (MAX=%v): (IDX=%v, TERM=%v)\n", len(l.entries), index, term)
 		return fmt.Errorf("raft.Log: Entry index does not exist (MAX=%v): (IDX=%v, TERM=%v)", len(l.entries), index, term)
 	}
 
@@ -350,7 +342,6 @@ func (l *Log) Truncate(index uint64, term uint64) error {
 		// Do not truncate if the entry at index does not have the matching term.
 		entry := l.entries[index - l.startIndex - 1]
 		if len(l.entries) > 0 && entry.Term != term {
-			fmt.Printf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)\n", entry.Term, index, term)
 			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term, index, term)
 		}
 
@@ -404,7 +395,6 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 		if entry.Term < lastEntry.Term {
 			return fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
 		} else if entry.Term == lastEntry.Term && entry.Index <= lastEntry.Index {
-			fmt.Printf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
 			return fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
 		}
 	}
@@ -421,13 +411,16 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 // Log compaction
 //--------------------------------------
 
+// compaction the log before index
 func (l *Log) Compaction(index uint64, term uint64) error {
 	var entries []*LogEntry
 
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	fmt.Println("Compaction: ", index, " ", l.internalCurrentIndex(), " ", l.startIndex)
-	// recovery from a newer snapshot
+
+	// nothing to compaction
+	// the index may be greater than the current index if 
+	// we just recovery from on snapshot
 	if index >= l.internalCurrentIndex() {
 		entries = make([]*LogEntry, 0)
 	} else {
@@ -435,6 +428,7 @@ func (l *Log) Compaction(index uint64, term uint64) error {
 		// get all log entries after index
 		entries = l.entries[index - l.startIndex:]
 	}
+
 	// create a new log file and add all the entries
 	file, err := os.OpenFile(l.path + ".new", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
@@ -450,7 +444,7 @@ func (l *Log) Compaction(index uint64, term uint64) error {
 	l.file.Close()
 
 	// remove the current log file to .bak
-	os.Rename(l.path, l.path + "." + string(l.commitIndex))
+	os.Remove(l.path)
 	// rename the new log file
 	os.Rename(l.path + ".new", l.path)
 	l.file = file
@@ -459,6 +453,5 @@ func (l *Log) Compaction(index uint64, term uint64) error {
 	l.entries = entries
 	l.startIndex = index
 	l.startTerm = term
-	fmt.Println("Compaction: ", len(l.entries))
 	return nil
 }
