@@ -443,6 +443,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 		peer.pause()
 	}
 	fmt.Println("2")
+
 	// Reset election timeout.
 	s.electionTimer.Reset()
 	fmt.Println("3")
