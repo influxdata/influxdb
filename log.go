@@ -20,6 +20,7 @@ type Log struct {
 	ApplyFunc   func(Command) error
 	file        *os.File
 	entries     []*LogEntry
+	errors      []error
 	commitIndex uint64
 	mutex       sync.Mutex
 }
@@ -144,16 +145,14 @@ func (l *Log) Open(path string) error {
 				break
 			}
 
-			// Apply the command.
-			if err = l.ApplyFunc(entry.Command); err != nil {
-				file.Close()
-				return err
-			}
-
 			// Append entry.
 			l.entries = append(l.entries, entry)
-
 			l.commitIndex = entry.Index
+
+			// Apply the command.
+			err = l.ApplyFunc(entry.Command)
+			l.errors = append(l.errors, err)
+
 			lastIndex += n
 		}
 
@@ -180,6 +179,7 @@ func (l *Log) Close() {
 		l.file = nil
 	}
 	l.entries = make([]*LogEntry, 0)
+	l.errors = make([]error, 0)
 }
 
 //--------------------------------------
@@ -223,6 +223,22 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	return l.entries[index:], term
 }
 
+// Retrieves the error returned from an entry. The error can only exist after
+// the entry has been committed.
+func (l *Log) GetEntryError(entry *LogEntry) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	
+	if entry == nil {
+		panic("raft: Log entry required for error retrieval")
+	}
+	
+	if entry.Index > 0 && entry.Index <= uint64(len(l.errors)) {
+		return l.errors[entry.Index-1]
+	}
+	return nil
+}
+
 //--------------------------------------
 // Commit
 //--------------------------------------
@@ -247,11 +263,6 @@ func (l *Log) SetCommitIndex(index uint64) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	// Panic if we don't have any way to apply commands.
-	if l.ApplyFunc == nil {
-		panic("raft.Log: Apply function not set")
-	}
-
 	// Do not allow previous indices to be committed again.
 	if index < l.commitIndex {
 		return fmt.Errorf("raft.Log: Commit index (%d) ahead of requested commit index (%d)", l.commitIndex, index)
@@ -262,12 +273,8 @@ func (l *Log) SetCommitIndex(index uint64) error {
 
 	// Find all entries whose index is between the previous index and the current index.
 	for i := l.commitIndex + 1; i <= index; i++ {
-		entry := l.entries[i-1]
-
-		// Apply the changes to the state machine.
-		if err := l.ApplyFunc(entry.Command); err != nil {
-			return err
-		}
+		entryIndex := i-1
+		entry := l.entries[entryIndex]
 
 		// Write to storage.
 		if err := entry.Encode(l.file); err != nil {
@@ -276,6 +283,9 @@ func (l *Log) SetCommitIndex(index uint64) error {
 
 		// Update commit index.
 		l.commitIndex = entry.Index
+
+		// Apply the changes to the state machine and store the error code.
+		l.errors[entryIndex] = l.ApplyFunc(entry.Command)
 	}
 
 	return nil
@@ -367,6 +377,7 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 
 	// Append to entries list if stored on disk.
 	l.entries = append(l.entries, entry)
+	l.errors = append(l.errors, nil)
 
 	return nil
 }
