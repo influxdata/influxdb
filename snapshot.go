@@ -20,7 +20,7 @@ type Snapshot struct {
 	lastIndex uint64
 	lastTerm uint64
 	// cluster configuration. 
-	machineState int
+	state []byte
 	path string
 }
 
@@ -46,9 +46,13 @@ func (ss *Snapshot) Save() error {
 	defer file.Close()
 
 
-	// Write log entry with checksum.
-	if _, err = fmt.Fprintf(file, "%08x\n%s\n%v\n%v\n", checksum, b.String(), 
-		ss.lastIndex, ss.lastTerm); err != nil {
+	// Write snapshot with checksum.
+	if _, err = fmt.Fprintf(file, "%08x\n%v\n%v\n", checksum, ss.lastIndex, 
+		ss.lastTerm); err != nil {
+		return err
+	}
+
+	if 	_, err = file.Write(ss.state); err != nil {
 		return err
 	}
 

@@ -5,7 +5,7 @@ type SnapshotRequest struct {
 	LeaderName   string      `json:"leaderName"`
 	LastIndex    uint64 	 `json:"lastTerm"`
 	LastTerm	 uint64		 `json:"lastIndex"`
-	MachineState int 		 `json:"machineState"`
+	State        []byte      `json:"state"`
 }
 
 // The response returned from a server appending entries to the log.
@@ -27,7 +27,7 @@ func NewSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest 
 		LeaderName:   leaderName,
 		LastIndex:    snapshot.lastIndex,
 		LastTerm:	  snapshot.lastTerm,
-		MachineState: snapshot.machineState,
+		State:        snapshot.state,
 	}
 }
 

@@ -62,7 +62,7 @@ type Server struct {
 	heartbeatTimeout     time.Duration
 	currentSnapshot      *Snapshot
 	lastSnapshot         *Snapshot
-	machineState		 int 	//TODO CHANGE THIS TO INTERFACE: recovery and store
+	stateMachine         StateMachine
 }
 
 //------------------------------------------------------------------------------
@@ -812,7 +812,13 @@ func (s *Server) takeSnapshot() error {
 
 	path := s.SnapshotPath(lastIndex, lastTerm)
 
-	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, s.machineState , path}
+	state, err := s.stateMachine.Save()	
+
+	if err !=nil {
+		return err
+	}
+
+	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, state, path}
 
 	s.saveSnapshot()
 
@@ -857,13 +863,13 @@ func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, erro
 	defer s.mutex.Unlock()
 
 	//recovery machine state
-	s.machineState = req.MachineState
+	s.stateMachine.Recovery(req.State)
 
 	//update term and index
 	s.currentTerm = req.LastTerm
 	s.log.UpdateCommitIndex(req.LastIndex)
 	snapshotPath := s.SnapshotPath(req.LastIndex, req.LastTerm)
-	s.currentSnapshot = &Snapshot{req.LastIndex, req.LastTerm, req.MachineState, snapshotPath}
+	s.currentSnapshot = &Snapshot{req.LastIndex, req.LastTerm, req.State, snapshotPath}
 	s.saveSnapshot() 
 	s.log.Compact(req.LastIndex, req.LastTerm)
 
@@ -913,15 +919,21 @@ func (s *Server) LoadSnapshot() error {
 		&lastIndex, &lastTerm)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	if n != 4 {
-		panic(n)
+		return errors.New("Bad snapshot file")
 	}
 
-	s.lastSnapshot = &Snapshot{lastIndex, lastTerm, 1, snapshotPath}
-	s.machineState = machineState
+	state, err := s.stateMachine.Save()
+	if err != nil {
+		return err
+	}
+
+	s.lastSnapshot = &Snapshot{lastIndex, lastTerm, state, snapshotPath}
+	err = s.stateMachine.Recovery(state)
+
 	s.log.SetStartTerm(lastTerm)
 	s.log.SetStartIndex(lastIndex)
 	s.log.UpdateCommitIndex(lastIndex)
