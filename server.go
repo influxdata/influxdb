@@ -369,10 +369,10 @@ func (s *Server) do(command Command) error {
 	// Capture the term that this command is executing within.
 	currentTerm := s.currentTerm
 
-	// TEMP to solve the issue 18
-	for _, peer := range s.peers {
-		peer.pause()
-	}
+	// // TEMP to solve the issue 18
+	// for _, peer := range s.peers {
+	// 	peer.pause()
+	// }
 
 	// Add a new entry to the log.
 	entry := s.log.CreateEntry(s.currentTerm, command)
@@ -386,7 +386,7 @@ func (s *Server) do(command Command) error {
 		peer := _peer
 		go func() {
 
-			term, success, err := peer.internalFlush()
+			term, success, err := peer.flush(true)
 			
 			// Demote if we encounter a higher term.
 			if err != nil {
@@ -419,9 +419,9 @@ loop:
 		// If we received enough votes then stop waiting for more votes.
 		if responseCount >= s.QuorumSize() {
 			committed = true
-			for _, peer := range s.peers {
-				peer.resume()
-			}
+			// for _, peer := range s.peers {
+			// 	peer.resume()
+			// }
 			break
 		}
 
@@ -434,9 +434,9 @@ loop:
 			}
 			responseCount++
 		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
-			for _, peer := range s.peers {
-				peer.resume()
-			}
+			// for _, peer := range s.peers {
+			// 	peer.resume()
+			// }
 			break loop
 		}
 	}
@@ -515,6 +515,7 @@ func (s *Server) createInternalAppendEntriesRequest(prevLogIndex uint64) *Append
 // server is elected then true is returned. If another server is elected then
 // false is returned.
 func (s *Server) promote() (bool, error) {
+
 	for {
 		// Start a new election.
 		term, lastLogIndex, lastLogTerm, err := s.promoteToCandidate()
@@ -610,7 +611,6 @@ func (s *Server) promoteToCandidate() (uint64, uint64, uint64, error) {
 	s.leader = ""
 	// Pause the election timer while we're a candidate.
 	s.electionTimer.Pause()
-
 	// Return server state so we can check for it during leader promotion.
 	lastLogIndex, lastLogTerm := s.log.CommitInfo()
 	return s.currentTerm, lastLogIndex, lastLogTerm, nil
@@ -655,7 +655,6 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	// Fail if the server is not running.
 	if !s.Running() {
 		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Server is stopped")
@@ -746,7 +745,6 @@ func (s *Server) AddPeer(name string) error {
 			peer.resume()
 		}
 		s.peers[peer.name] = peer
-		peer.resume()
 
 	}
 	return nil
@@ -827,24 +825,24 @@ func (s *Server) SnapshotPath(lastIndex uint64, lastTerm uint64) string {
 }
 
 
-func (s *Server) SnapshotRecovery(index uint64, term uint64, machineState int) (*SnapshotResponse, error){
+func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, error){
 	//
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	//recovery machine state
-	s.machineState = machineState
+	s.machineState = req.MachineState
 
 	//update term and index
-	s.currentTerm = term
-	s.log.UpdateCommitIndex(index)
-	snapshotPath := s.SnapshotPath(index, term)
-	s.currentSnapshot = &Snapshot{index, term, machineState, snapshotPath}
+	s.currentTerm = req.LastTerm
+	s.log.UpdateCommitIndex(req.LastIndex)
+	snapshotPath := s.SnapshotPath(req.LastIndex, req.LastTerm)
+	s.currentSnapshot = &Snapshot{req.LastIndex, req.LastTerm, req.MachineState, snapshotPath}
 	s.saveSnapshot() 
-	s.log.Compact(index, term)
+	s.log.Compact(req.LastIndex, req.LastTerm)
 
 
-	return NewSnapshotResponse(term, true, index), nil
+	return NewSnapshotResponse(req.LastTerm, true, req.LastIndex), nil
 
 }
 

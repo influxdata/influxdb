@@ -38,7 +38,7 @@ func (ss *Snapshot) Save() error {
 
 	// open file
 	file, err := os.OpenFile(ss.path, os.O_CREATE|os.O_WRONLY, 0600)
-	
+
 	if err != nil {
 		return err
 	}

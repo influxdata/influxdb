@@ -99,18 +99,42 @@ func (p *Peer) stop() {
 // Flush
 //--------------------------------------
 
-// Sends an AppendEntries RPC but does not obtain a lock on the server. This
-// method should only be called from the server.
-func (p *Peer) internalFlush() (uint64, bool, error) {
+// if internal is set true, sends an AppendEntries RPC but does not obtain a lock 
+// on the server. 
+func (p *Peer) flush(internal bool) (uint64, bool, error) {
+	// Retrieve the peer data within a lock that is separate from the
+	// server lock when creating the request. Otherwise a deadlock can
+	// occur.
+	p.mutex.Lock()
+	server, prevLogIndex := p.server, p.prevLogIndex
+	p.mutex.Unlock()
+	
+	var req *AppendEntriesRequest
+	snapShotNeeded := false
+
+	// we need to hold the log lock to create AppendEntriesRequest
+	// avoid snapshot to delete the desired entries before AEQ()
+	server.log.mutex.Lock()
+	if prevLogIndex >= server.log.StartIndex() {
+		if internal {
+			req = server.createInternalAppendEntriesRequest(prevLogIndex)
+		} else {
+			req = server.createAppendEntriesRequest(prevLogIndex)
+		}
+	} else {
+		snapShotNeeded = true
+	}
+	server.log.mutex.Unlock()
+
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-
-	if p.prevLogIndex < p.server.log.StartIndex() {
-		req := p.server.createSnapshotRequest()
+	if snapShotNeeded {
+		req := server.createSnapshotRequest()
 		return p.sendSnapshotRequest(req)
+	} else {
+		return p.sendFlushRequest(req)
 	}
-	req := p.server.createInternalAppendEntriesRequest(p.prevLogIndex)
-	return p.sendFlushRequest(req)
+	
 }
 
 // send Snapshot Request
@@ -207,35 +231,7 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 		// Flush the peer when we get a heartbeat timeout. If the channel is
 		// closed then the peer is getting cleaned up and we should exit.
 		if _, ok := <-c; ok {
-			// Retrieve the peer data within a lock that is separate from the
-			// server lock when creating the request. Otherwise a deadlock can
-			// occur.
-			p.mutex.Lock()
-			server, prevLogIndex := p.server, p.prevLogIndex
-			p.mutex.Unlock()
-	
-			var req *AppendEntriesRequest
-			snapShotNeeded := false
-
-			// we need to hold the log lock to create AppendEntriesRequest
-			// avoid snapshot to delete the desired entries before AEQ()
-			server.log.mutex.Lock()
-			if prevLogIndex >= server.log.StartIndex() {
-				req = server.createAppendEntriesRequest(prevLogIndex)
-			} else {
-				snapShotNeeded = true
-			}
-			server.log.mutex.Unlock()
-
-			p.mutex.Lock()
-			if snapShotNeeded {
-				req := server.createSnapshotRequest()
-				p.sendSnapshotRequest(req)
-			} else {
-				p.sendFlushRequest(req)
-			}
-			p.mutex.Unlock()
-
+			p.flush(false) 
 
 		} else {
 			break
