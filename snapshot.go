@@ -52,7 +52,7 @@ func (ss *Snapshot) Save() error {
 		return err
 	}
 
-	if 	_, err = file.Write(ss.state); err != nil {
+	if  _, err = file.Write(ss.state); err != nil {
 		return err
 	}
 

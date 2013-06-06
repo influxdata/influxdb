@@ -113,6 +113,21 @@ func (t *testTransporter) SendSnapshotRequest(server *Server, peer *Peer, req *S
 	return t.sendSnapshotRequestFunc(server, peer, req)
 } 
 
+
+type testStateMachine struct {
+	saveFunc func() ([]byte, error)
+	recoveryFunc func([]byte) error
+}
+
+func (sm *testStateMachine) Save() ([]byte, error) {
+	return sm.saveFunc()
+}
+
+func (sm *testStateMachine) Recovery(state []byte) error {
+	return sm.recoveryFunc(state)
+}
+
+
 //--------------------------------------
 // Join Command
 //--------------------------------------

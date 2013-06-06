@@ -7,8 +7,8 @@ import (
 	"time"
 	"os"
 	"sort"
-	"bufio"
 	"path"
+	"io/ioutil"
 )
 
 //------------------------------------------------------------------------------
@@ -862,7 +862,6 @@ func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, erro
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	//recovery machine state
 	s.stateMachine.Recovery(req.State)
 
 	//update term and index
@@ -912,21 +911,21 @@ func (s *Server) LoadSnapshot() error {
 	// TODO check checksum first 
 	// TODO recovery state machine
 
-	var machineState int
+	var state []byte
 	var checksum, lastIndex, lastTerm uint64
-	reader := bufio.NewReader(file)
-	n , err := fmt.Fscanf(reader, "%08x\n%v\n%v\n%v", &checksum, &machineState, 
-		&lastIndex, &lastTerm)
+
+	n , err := fmt.Fscanf(file, "%08x\n%v\n%v", &checksum, &lastIndex, &lastTerm)
 
 	if err != nil {
 		return err
 	}
 
-	if n != 4 {
+	if n != 3 {
 		return errors.New("Bad snapshot file")
 	}
 
-	state, err := s.stateMachine.Save()
+	state, _ = ioutil.ReadAll(file)
+
 	if err != nil {
 		return err
 	}

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-	//"fmt"
+	"bytes"
 )
 
 // test take and send snapshot
@@ -41,9 +41,20 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 		return resp, err
 	}
 
+	stateMachine := &testStateMachine{}
+
+	stateMachine.saveFunc = func() ([]byte,error) {
+		return []byte{0x8},nil
+	}
+
+	stateMachine.recoveryFunc = func(state []byte) error {
+		return nil
+	}
+
 	var leader *Server
 	for _, name := range names {
 		server := newTestServer(name, transporter)
+		server.stateMachine = stateMachine
 		server.SetElectionTimeout(testElectionTimeout)
 		server.SetHeartbeatTimeout(testHeartbeatTimeout)
 		if err := server.Start(); err != nil {
@@ -102,6 +113,7 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 	// test send snapshot to a new node
 	// send from heartbeat
 	newServer := newTestServer("4", transporter)
+	newServer.stateMachine = stateMachine
 	if err := newServer.Start(); err != nil {
 		t.Fatalf("Unable to start server[4]: %v", err)
 	}
@@ -128,6 +140,20 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 
 func TestStartFormSnapshot(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
+
+	stateMachine := &testStateMachine{}
+	stateMachine.saveFunc = func() ([]byte,error) {
+		return []byte{0x60,0x61,0x62,0x63,0x64,0x65},nil
+	}
+
+	stateMachine.recoveryFunc = func(state []byte) error {
+		expect := []byte{0x60,0x61,0x62,0x63,0x64,0x65}
+		if !(bytes.Equal(state, expect)) {
+			t.Fatalf("Invalid State [Expcet=%v, Actual=%v]", expect, state)
+		}
+		return nil
+	}
+	server.stateMachine = stateMachine
 	oldPath := server.path
 	server.Start()
 	
@@ -156,6 +182,7 @@ func TestStartFormSnapshot(t *testing.T) {
 	server.Stop()
 
 	server = newTestServer("1", &testTransporter{})
+	server.stateMachine = stateMachine
 	// reset the oldPath
 	server.path = oldPath
 
