@@ -443,9 +443,15 @@ loop:
 
 	// Commit to log and flush to peers again.
 	if committed {
-		return s.log.SetCommitIndex(entry.Index)
+		if err := s.log.SetCommitIndex(entry.Index); err != nil {
+			return err
+		}
+		return s.log.GetEntryError(entry)
 	}
-	return nil
+
+	// TODO: This will be removed after the timeout above is changed to a
+	// demotion callback.
+	return fmt.Errorf("raft: Unable to commit entry: %d", entry.Index)
 }
 
 // Appends a log entry from the leader to this server.
@@ -747,6 +753,26 @@ func (s *Server) AddPeer(name string) error {
 		s.peers[peer.name] = peer
 
 	}
+	return nil
+}
+
+// Removes a peer from the server. This should be called by a system's join command
+// within the context so that it is within the context of the server lock.
+func (s *Server) RemovePeer(name string) error {
+	// Ignore removal of the server itself.
+	if s.name == name {
+		return nil
+	}
+	// Return error if peer doesn't exist.
+	peer := s.peers[name]
+	if peer != nil {
+		return fmt.Errorf("raft: Peer not found: %s", name)
+	}
+
+	// Stop peer and remove it.
+	peer.stop()
+	delete(s.peers, name)
+
 	return nil
 }
 
