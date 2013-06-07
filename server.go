@@ -739,8 +739,15 @@ func (s *Server) RemovePeer(name string) error {
 	}
 	// Return error if peer doesn't exist.
 	peer := s.peers[name]
-	if peer != nil {
+	if peer == nil {
 		return fmt.Errorf("raft: Peer not found: %s", name)
+	}
+
+	// Flush entries to the peer first.
+	if s.state == Leader {
+		if _, _, err := peer.internalFlush(); err != nil {
+			warn("raft: Unable to notify peer of removal: %v", err)
+		}
 	}
 
 	// Stop peer and remove it.
