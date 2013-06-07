@@ -389,16 +389,12 @@ func TestServerMultiNode(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	leader.Stop()
 	time.Sleep(100 * time.Millisecond)
-
 	// Check that either server 2 or 3 is the leader now.
 	mutex.Lock()
 	if servers["2"].State() != Leader && servers["3"].State() != Leader {
-		t.Fatalf("Expected leader re-election: 2=%v, 3=%v", servers["2"].state, servers["3"].state)
+		t.Fatalf("Expected leader re-election: 2=%v, 3=%v\n", servers["2"].state, servers["3"].state)
 	}
 	mutex.Unlock()
-
-	// Stop the servers.
-	for _, server := range servers {
-		server.Stop()
-	}
 }
+
+

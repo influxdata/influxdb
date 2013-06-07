@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"os"
+	"sort"
+	"path"
+	"io/ioutil"
 )
 
 //------------------------------------------------------------------------------
@@ -56,6 +60,9 @@ type Server struct {
 	mutex                sync.Mutex
 	electionTimer        *Timer
 	heartbeatTimeout     time.Duration
+	currentSnapshot      *Snapshot
+	lastSnapshot         *Snapshot
+	stateMachine         StateMachine
 }
 
 //------------------------------------------------------------------------------
@@ -248,6 +255,12 @@ func (s *Server) Start() error {
 		return errors.New("raft.Server: Server already running")
 	}
 
+	// create snapshot dir if not exist
+	os.Mkdir(s.path + "/snapshot", 0700) 
+
+	// ## open recovery from the newest snapShot
+	//s.LoadSnapshot()
+
 	// Initialize the log and load it up.
 	if err := s.log.Open(s.LogPath()); err != nil {
 		s.unload()
@@ -356,6 +369,11 @@ func (s *Server) do(command Command) error {
 	// Capture the term that this command is executing within.
 	currentTerm := s.currentTerm
 
+	// // TEMP to solve the issue 18
+	// for _, peer := range s.peers {
+	// 	peer.pause()
+	// }
+
 	// Add a new entry to the log.
 	entry := s.log.CreateEntry(s.currentTerm, command)
 	if err := s.log.AppendEntry(entry); err != nil {
@@ -367,18 +385,22 @@ func (s *Server) do(command Command) error {
 	for _, _peer := range s.peers {
 		peer := _peer
 		go func() {
-			term, success, err := peer.internalFlush()
 
+			term, success, err := peer.flush(true)
+			
 			// Demote if we encounter a higher term.
 			if err != nil {
+			
 				return
 			} else if term > currentTerm {
 				s.mutex.Lock()
 				s.setCurrentTerm(term)
+
 				if s.electionTimer != nil {
 					s.electionTimer.Reset()
 				}
 				s.mutex.Unlock()
+
 				return
 			}
 
@@ -397,6 +419,9 @@ loop:
 		// If we received enough votes then stop waiting for more votes.
 		if responseCount >= s.QuorumSize() {
 			committed = true
+			// for _, peer := range s.peers {
+			// 	peer.resume()
+			// }
 			break
 		}
 
@@ -409,6 +434,9 @@ loop:
 			}
 			responseCount++
 		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
+			// for _, peer := range s.peers {
+			// 	peer.resume()
+			// }
 			break loop
 		}
 	}
@@ -430,7 +458,6 @@ loop:
 func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	// If the server is stopped then reject it.
 	if !s.Running() {
 		return NewAppendEntriesResponse(s.currentTerm, false, 0), fmt.Errorf("raft.Server: Server stopped")
@@ -449,7 +476,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	if s.electionTimer != nil {
 		s.electionTimer.Reset()
 	}
-
+	
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.Truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
@@ -463,7 +490,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	// Commit up to the commit index.
 	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
-	}
+	}	
 
 	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
 }
@@ -494,6 +521,7 @@ func (s *Server) createInternalAppendEntriesRequest(prevLogIndex uint64) *Append
 // server is elected then true is returned. If another server is elected then
 // false is returned.
 func (s *Server) promote() (bool, error) {
+
 	for {
 		// Start a new election.
 		term, lastLogIndex, lastLogTerm, err := s.promoteToCandidate()
@@ -589,7 +617,6 @@ func (s *Server) promoteToCandidate() (uint64, uint64, uint64, error) {
 	s.leader = ""
 	// Pause the election timer while we're a candidate.
 	s.electionTimer.Pause()
-
 	// Return server state so we can check for it during leader promotion.
 	lastLogIndex, lastLogTerm := s.log.CommitInfo()
 	return s.currentTerm, lastLogIndex, lastLogTerm, nil
@@ -634,7 +661,6 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	// Fail if the server is not running.
 	if !s.Running() {
 		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Server is stopped")
@@ -725,8 +751,8 @@ func (s *Server) AddPeer(name string) error {
 			peer.resume()
 		}
 		s.peers[peer.name] = peer
-	}
 
+	}
 	return nil
 }
 
@@ -756,3 +782,168 @@ func (s *Server) RemovePeer(name string) error {
 
 	return nil
 }
+
+
+//--------------------------------------
+// Log compaction
+//--------------------------------------
+
+// Creates a snapshot request.
+func (s *Server) createSnapshotRequest() *SnapshotRequest {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return NewSnapshotRequest(s.name, s.lastSnapshot)
+}
+
+// The background snapshot function
+func (s *Server) Snapshot() {
+	for {
+		s.takeSnapshot()
+
+		// TODO: change this... to something reasonable
+		time.Sleep(5000 * time.Millisecond)
+	}
+}
+
+func (s *Server) takeSnapshot() error {
+	//TODO put a snapshot mutex
+	if s.currentSnapshot != nil {
+		return errors.New("handling snapshot")
+	}
+
+	lastIndex, lastTerm := s.log.CommitInfo()
+
+	if lastIndex == 0 || lastTerm == 0 {
+		return errors.New("No logs")
+	}
+
+	path := s.SnapshotPath(lastIndex, lastTerm)
+
+	state, err := s.stateMachine.Save()	
+
+	if err !=nil {
+		return err
+	}
+
+	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, state, path}
+
+	s.saveSnapshot()
+
+	s.log.Compact(lastIndex, lastTerm)
+
+	return nil
+}
+
+// Retrieves the log path for the server.
+func (s *Server) saveSnapshot() error {
+
+	if s.currentSnapshot == nil {
+		return errors.New("no snapshot to save")
+	}
+
+	err := s.currentSnapshot.Save()
+
+	if err != nil {
+		return err
+	}
+ 	
+	tmp := s.lastSnapshot
+	s.lastSnapshot = s.currentSnapshot
+
+	// delete the previous snapshot if there is any change
+	if tmp != nil && !(tmp.lastIndex == s.lastSnapshot.lastIndex && tmp.lastTerm == s.lastSnapshot.lastTerm) {
+		tmp.Remove()
+	}
+	s.currentSnapshot = nil
+	return nil
+}
+
+// Retrieves the log path for the server.
+func (s *Server) SnapshotPath(lastIndex uint64, lastTerm uint64) string {
+	return path.Join(s.path, "snapshot", fmt.Sprintf("%v_%v.ss", lastTerm, lastIndex))
+}
+
+
+func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, error){
+	//
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.stateMachine.Recovery(req.State)
+
+	//update term and index
+	s.currentTerm = req.LastTerm
+	s.log.UpdateCommitIndex(req.LastIndex)
+	snapshotPath := s.SnapshotPath(req.LastIndex, req.LastTerm)
+	s.currentSnapshot = &Snapshot{req.LastIndex, req.LastTerm, req.State, snapshotPath}
+	s.saveSnapshot() 
+	s.log.Compact(req.LastIndex, req.LastTerm)
+
+
+	return NewSnapshotResponse(req.LastTerm, true, req.LastIndex), nil
+
+}
+
+// Load a snapshot at restart
+func (s *Server) LoadSnapshot() error {
+	dir, err := os.OpenFile(path.Join(s.path, "snapshot"), os.O_RDONLY, 0)
+	if err != nil {
+		dir.Close()
+		panic(err)
+	}
+
+	filenames, err := dir.Readdirnames(-1)
+
+	if err != nil {
+		dir.Close()
+		panic(err)
+	}
+
+	dir.Close()
+	if len(filenames) == 0 {
+		return errors.New("no snapshot")
+	}
+
+	// not sure how many snapshot we should keep
+	sort.Strings(filenames)
+	snapshotPath := path.Join(s.path, "snapshot", filenames[len(filenames) - 1])
+
+	// should not file
+	file, err := os.OpenFile(snapshotPath, os.O_RDONLY, 0)
+	defer file.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	// TODO check checksum first 
+	// TODO recovery state machine
+
+	var state []byte
+	var checksum, lastIndex, lastTerm uint64
+
+	n , err := fmt.Fscanf(file, "%08x\n%v\n%v", &checksum, &lastIndex, &lastTerm)
+
+	if err != nil {
+		return err
+	}
+
+	if n != 3 {
+		return errors.New("Bad snapshot file")
+	}
+
+	state, _ = ioutil.ReadAll(file)
+
+	if err != nil {
+		return err
+	}
+
+	s.lastSnapshot = &Snapshot{lastIndex, lastTerm, state, snapshotPath}
+	err = s.stateMachine.Recovery(state)
+
+	s.log.SetStartTerm(lastTerm)
+	s.log.SetStartIndex(lastIndex)
+	s.log.UpdateCommitIndex(lastIndex)
+
+	return err
+}
+

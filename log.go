@@ -19,10 +19,13 @@ import (
 type Log struct {
 	ApplyFunc   func(Command) error
 	file        *os.File
+	path        string
 	entries     []*LogEntry
 	errors      []error
 	commitIndex uint64
 	mutex       sync.Mutex
+	startIndex  uint64 // the index before the first entry in the Log entries
+	startTerm	uint64
 }
 
 //------------------------------------------------------------------------------
@@ -42,6 +45,17 @@ func NewLog() *Log {
 //
 //------------------------------------------------------------------------------
 
+func (l *Log) SetStartIndex(i uint64) {
+	l.startIndex = i
+}
+
+func (l *Log) StartIndex() uint64 {
+	return l.startIndex
+}
+
+func (l *Log) SetStartTerm(t uint64) {
+	l.startTerm = t
+}
 //--------------------------------------
 // Log Indices
 //--------------------------------------
@@ -52,7 +66,15 @@ func (l *Log) CurrentIndex() uint64 {
 	defer l.mutex.Unlock()
 
 	if len(l.entries) == 0 {
-		return 0
+		return l.startIndex
+	}
+	return l.entries[len(l.entries)-1].Index
+}
+
+// The current index in the log without locking
+func (l *Log) internalCurrentIndex() uint64 {
+	if len(l.entries) == 0 {
+		return l.startIndex
 	}
 	return l.entries[len(l.entries)-1].Index
 }
@@ -96,7 +118,7 @@ func (l *Log) CurrentTerm() uint64 {
 	defer l.mutex.Unlock()
 
 	if len(l.entries) == 0 {
-		return 0
+		return l.startTerm
 	}
 	return l.entries[len(l.entries)-1].Term
 }
@@ -165,7 +187,7 @@ func (l *Log) Open(path string) error {
 	if err != nil {
 		return err
 	}
-
+	l.path = path
 	return nil
 }
 
@@ -196,7 +218,7 @@ func (l *Log) ContainsEntry(index uint64, term uint64) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	if index == 0 || index > uint64(len(l.entries)) {
+	if index <= l.startIndex || index > (l.startIndex + uint64(len(l.entries))) {
 		return false
 	}
 	return (l.entries[index-1].Term == term)
@@ -206,18 +228,17 @@ func (l *Log) ContainsEntry(index uint64, term uint64) bool {
 // the term of the index provided.
 func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	// Return an error if the index doesn't exist.
-	if index > uint64(len(l.entries)) {
+	if index > (uint64(len(l.entries)) + l.startIndex) {
 		panic(fmt.Sprintf("raft.Log: Index is beyond end of log: %v", index))
 	}
 
 	// If we're going from the beginning of the log then return the whole log.
-	if index == 0 {
-		return l.entries, 0
+	if index == l.startIndex {
+		return l.entries, l.startTerm
 	}
-
 	// Determine the term at the given entry and return a subslice.
-	term := l.entries[index-1].Term
-	return l.entries[index:], term
+	term := l.entries[index - 1 - l.startIndex].Term
+	return l.entries[index - l.startIndex:], term
 }
 
 // Retrieves the error returned from an entry. The error can only exist after
@@ -250,9 +271,22 @@ func (l *Log) CommitInfo() (index uint64, term uint64) {
 		return 0, 0
 	}
 
+	// no new commit log after snapshot
+	if l.commitIndex == l.startIndex {
+		return l.startIndex, l.startTerm
+	}
+
 	// Return the last index & term from the last committed entry.
-	lastCommitEntry := l.entries[l.commitIndex-1]
+	lastCommitEntry := l.entries[l.commitIndex - 1 - l.startIndex]
 	return lastCommitEntry.Index, lastCommitEntry.Term
+}
+
+// Updates the commit index 
+func (l *Log) UpdateCommitIndex(index uint64) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	l.commitIndex = index
+
 }
 
 // Updates the commit index and writes entries after that index to the stable storage.
@@ -264,13 +298,13 @@ func (l *Log) SetCommitIndex(index uint64) error {
 	if index < l.commitIndex {
 		return fmt.Errorf("raft.Log: Commit index (%d) ahead of requested commit index (%d)", l.commitIndex, index)
 	}
-	if index > uint64(len(l.entries)) {
+	if index > l.startIndex + uint64(len(l.entries)) {
 		return fmt.Errorf("raft.Log: Commit index (%d) out of range (%d)", index, len(l.entries))
 	}
 
 	// Find all entries whose index is between the previous index and the current index.
 	for i := l.commitIndex + 1; i <= index; i++ {
-		entryIndex := i-1
+		entryIndex := i - 1 - l.startIndex
 		entry := l.entries[entryIndex]
 
 		// Write to storage.
@@ -304,23 +338,23 @@ func (l *Log) Truncate(index uint64, term uint64) error {
 	}
 
 	// Do not truncate past end of entries.
-	if index > uint64(len(l.entries)) {
+	if index > l.startIndex + uint64(len(l.entries)) {
 		return fmt.Errorf("raft.Log: Entry index does not exist (MAX=%v): (IDX=%v, TERM=%v)", len(l.entries), index, term)
 	}
 
 	// If we're truncating everything then just clear the entries.
-	if index == 0 {
+	if index == l.startIndex {
 		l.entries = []*LogEntry{}
 	} else {
 		// Do not truncate if the entry at index does not have the matching term.
-		entry := l.entries[index-1]
+		entry := l.entries[index - l.startIndex - 1]
 		if len(l.entries) > 0 && entry.Term != term {
 			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term, index, term)
 		}
 
 		// Otherwise truncate up to the desired entry.
-		if index < uint64(len(l.entries)) {
-			l.entries = l.entries[0:index]
+		if index < l.startIndex + uint64(len(l.entries)) {
+			l.entries = l.entries[0:index - l.startIndex]
 		}
 	}
 
@@ -376,5 +410,63 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 	l.entries = append(l.entries, entry)
 	l.errors = append(l.errors, nil)
 
+	return nil
+}
+
+
+
+//--------------------------------------
+// Log compaction
+//--------------------------------------
+
+// compaction the log before index
+func (l *Log) Compact(index uint64, term uint64) error {
+	var entries []*LogEntry
+
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	// nothing to compaction
+	// the index may be greater than the current index if 
+	// we just recovery from on snapshot
+	if index >= l.internalCurrentIndex() {
+		entries = make([]*LogEntry, 0)
+	} else {
+
+		// get all log entries after index
+		entries = l.entries[index - l.startIndex:]
+	}
+
+	// create a new log file and add all the entries
+	file, err := os.OpenFile(l.path + ".new", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+        err = entry.Encode(file)
+        if err != nil {
+        	return err
+        }
+    }
+	// close the current log file
+	l.file.Close()
+
+	// remove the current log file to .bak
+	err = os.Remove(l.path)
+	if err != nil {
+		return err
+	}
+
+	// rename the new log file
+	err = os.Rename(l.path + ".new", l.path)
+	if err != nil {
+		return err
+	}
+	l.file = file
+
+	// compaction the in memory log
+	l.entries = entries
+	l.startIndex = index
+	l.startTerm = term
 	return nil
 }

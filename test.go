@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"time"
+		"time"
 )
 
 const (
@@ -98,6 +98,7 @@ func newTestCluster(names []string, transporter Transporter, lookup map[string]*
 type testTransporter struct {
     sendVoteRequestFunc func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error)
     sendAppendEntriesRequestFunc func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error)
+    sendSnapshotRequestFunc func(server *Server, peer *Peer, req *SnapshotRequest) (*SnapshotResponse, error)
 }
 
 func (t *testTransporter) SendVoteRequest(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
@@ -106,6 +107,24 @@ func (t *testTransporter) SendVoteRequest(server *Server, peer *Peer, req *Reque
 
 func (t *testTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 	return t.sendAppendEntriesRequestFunc(server, peer, req)
+}
+
+func (t *testTransporter) SendSnapshotRequest(server *Server, peer *Peer, req *SnapshotRequest) (*SnapshotResponse, error) {
+	return t.sendSnapshotRequestFunc(server, peer, req)
+} 
+
+
+type testStateMachine struct {
+	saveFunc func() ([]byte, error)
+	recoveryFunc func([]byte) error
+}
+
+func (sm *testStateMachine) Save() ([]byte, error) {
+	return sm.saveFunc()
+}
+
+func (sm *testStateMachine) Recovery(state []byte) error {
+	return sm.recoveryFunc(state)
 }
 
 
