@@ -37,13 +37,13 @@ type Timer struct {
 // Creates a new timer. Panics if a non-positive duration is used.
 func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
 	if minDuration <= 0 {
-		panic("raft.Timer: Non-positive minimum duration not allowed")
+		panic("raft: Non-positive minimum duration not allowed")
 	}
 	if maxDuration <= 0 {
-		panic("raft.Timer: Non-positive maximum duration not allowed")
+		panic("raft: Non-positive maximum duration not allowed")
 	}
 	if minDuration > maxDuration {
-		panic("raft.Timer: Minimum duration cannot be greater than maximum duration")
+		panic("raft: Minimum duration cannot be greater than maximum duration")
 	}
 	return &Timer{
 		c:           make(chan time.Time, 1),

@@ -51,7 +51,7 @@ func NewCommand(name string) (Command, error) {
 	v := reflect.New(reflect.Indirect(reflect.ValueOf(command)).Type()).Interface()
 	copy, ok := v.(Command)
 	if !ok {
-		panic(fmt.Sprintf("raft.Command: Unable to copy command: %s (%v)", command.CommandName(), reflect.ValueOf(v).Kind().String()))
+		panic(fmt.Sprintf("raft: Unable to copy command: %s (%v)", command.CommandName(), reflect.ValueOf(v).Kind().String()))
 	}
 	return copy, nil
 }
@@ -63,9 +63,9 @@ func NewCommand(name string) (Command, error) {
 // Registers a command by storing a reference to an instance of it.
 func RegisterCommand(command Command) {
 	if command == nil {
-		panic(fmt.Sprintf("raft.Command: Cannot register nil"))
+		panic(fmt.Sprintf("raft: Cannot register nil"))
 	} else if commandTypes[command.CommandName()] != nil {
-		panic(fmt.Sprintf("raft.Command: Duplicate registration: %s", command.CommandName()))
+		panic(fmt.Sprintf("raft: Duplicate registration: %s", command.CommandName()))
 	}
 	commandTypes[command.CommandName()] = command
 }

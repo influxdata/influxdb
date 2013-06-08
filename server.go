@@ -77,7 +77,7 @@ func NewServer(name string, path string, transporter Transporter, context interf
 		return nil, errors.New("raft.Server: Name cannot be blank")
 	}
 	if transporter == nil {
-		panic("raft.Server: Transporter required")
+		panic("raft: Transporter required")
 	}
 
 	s := &Server{

@@ -74,7 +74,7 @@ func newTestCluster(names []string, transporter Transporter, lookup map[string]*
 	servers := []*Server{}
 	for _, name := range names {
 		if lookup[name] != nil {
-			panic(fmt.Sprintf("Duplicate server in test cluster! %v", name))
+			panic(fmt.Sprintf("raft: Duplicate server in test cluster! %v", name))
 		}
 		server := newTestServer(name, transporter)
 		server.SetElectionTimeout(testElectionTimeout)

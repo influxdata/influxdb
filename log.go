@@ -230,7 +230,7 @@ func (l *Log) ContainsEntry(index uint64, term uint64) bool {
 func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	// Return an error if the index doesn't exist.
 	if index > (uint64(len(l.entries)) + l.startIndex) {
-		panic(fmt.Sprintf("raft.Log: Index is beyond end of log: %v", index))
+		panic(fmt.Sprintf("raft: Index is beyond end of log: %v", index))
 	}
 
 	// If we're going from the beginning of the log then return the whole log.
