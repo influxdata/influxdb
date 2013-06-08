@@ -1,12 +1,12 @@
 package raft
 
 import (
-	"hash/crc32"
-	"fmt"
-	"syscall"
 	"bytes"
+	"fmt"
+	"hash/crc32"
 	"os"
-	)
+	"syscall"
+)
 
 //------------------------------------------------------------------------------
 //
@@ -18,10 +18,10 @@ import (
 // TODO add cluster configuration
 type Snapshot struct {
 	lastIndex uint64
-	lastTerm uint64
+	lastTerm  uint64
 	// cluster configuration. 
 	state []byte
-	path string
+	path  string
 }
 
 // Save the snapshot to a file
@@ -45,14 +45,13 @@ func (ss *Snapshot) Save() error {
 
 	defer file.Close()
 
-
 	// Write snapshot with checksum.
-	if _, err = fmt.Fprintf(file, "%08x\n%v\n%v\n", checksum, ss.lastIndex, 
+	if _, err = fmt.Fprintf(file, "%08x\n%v\n%v\n", checksum, ss.lastIndex,
 		ss.lastTerm); err != nil {
 		return err
 	}
 
-	if  _, err = file.Write(ss.state); err != nil {
+	if _, err = file.Write(ss.state); err != nil {
 		return err
 	}
 

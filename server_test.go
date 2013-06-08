@@ -315,7 +315,7 @@ func TestServerSingleNode(t *testing.T) {
 
 	// Join the server to itself.
 	server.Initialize()
-	if err := server.Do(&joinCommand{Name:"1"}); err != nil {
+	if err := server.Do(&joinCommand{Name: "1"}); err != nil {
 		t.Fatalf("Unable to join: %v", err)
 	}
 	if server.state != Leader {
@@ -368,7 +368,7 @@ func TestServerMultiNode(t *testing.T) {
 				t.Fatalf("Unable to initialize server[%s]: %v", name, err)
 			}
 		}
-		if err := leader.Do(&joinCommand{Name:name}); err != nil {
+		if err := leader.Do(&joinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
 		}
 
@@ -396,5 +396,3 @@ func TestServerMultiNode(t *testing.T) {
 	}
 	mutex.Unlock()
 }
-
-

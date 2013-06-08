@@ -1,10 +1,10 @@
 package raft
 
 import (
+	"bytes"
 	"sync"
 	"testing"
 	"time"
-	"bytes"
 )
 
 // test take and send snapshot
@@ -43,8 +43,8 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 
 	stateMachine := &testStateMachine{}
 
-	stateMachine.saveFunc = func() ([]byte,error) {
-		return []byte{0x8},nil
+	stateMachine.saveFunc = func() ([]byte, error) {
+		return []byte{0x8}, nil
 	}
 
 	stateMachine.recoveryFunc = func(state []byte) error {
@@ -66,7 +66,7 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 				t.Fatalf("Unable to initialize server[%s]: %v", name, err)
 			}
 		}
-		if err := leader.Do(&joinCommand{Name:name}); err != nil {
+		if err := leader.Do(&joinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
 		}
 
@@ -106,7 +106,7 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 	}
 
 	if leader.log.startIndex != 4 || leader.log.startTerm != 1 {
-		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]", 
+		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]",
 			leader.log.startIndex, leader.log.startTerm)
 	}
 
@@ -118,7 +118,7 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 		t.Fatalf("Unable to start server[4]: %v", err)
 	}
 
-	if err := leader.Do(&joinCommand{Name:"4"}); err != nil {
+	if err := leader.Do(&joinCommand{Name: "4"}); err != nil {
 		t.Fatalf("Unable to join server[4]: %v", err)
 	}
 
@@ -130,24 +130,23 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	if leader.log.startIndex != 4 || leader.log.startTerm != 1 {
-		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]", 
+		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]",
 			leader.log.startIndex, leader.log.startTerm)
 	}
 	time.Sleep(100 * time.Millisecond)
 
 }
 
-
 func TestStartFormSnapshot(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 
 	stateMachine := &testStateMachine{}
-	stateMachine.saveFunc = func() ([]byte,error) {
-		return []byte{0x60,0x61,0x62,0x63,0x64,0x65},nil
+	stateMachine.saveFunc = func() ([]byte, error) {
+		return []byte{0x60, 0x61, 0x62, 0x63, 0x64, 0x65}, nil
 	}
 
 	stateMachine.recoveryFunc = func(state []byte) error {
-		expect := []byte{0x60,0x61,0x62,0x63,0x64,0x65}
+		expect := []byte{0x60, 0x61, 0x62, 0x63, 0x64, 0x65}
 		if !(bytes.Equal(state, expect)) {
 			t.Fatalf("Invalid State [Expcet=%v, Actual=%v]", expect, state)
 		}
@@ -156,7 +155,7 @@ func TestStartFormSnapshot(t *testing.T) {
 	server.stateMachine = stateMachine
 	oldPath := server.path
 	server.Start()
-	
+
 	server.Initialize()
 
 	// commit single entry.
@@ -175,7 +174,7 @@ func TestStartFormSnapshot(t *testing.T) {
 	}
 
 	if server.log.startIndex != 1 || server.log.startTerm != 1 {
-		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]", 
+		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]",
 			server.log.startIndex, server.log.startTerm)
 	}
 
@@ -199,13 +198,13 @@ func TestStartFormSnapshot(t *testing.T) {
 	}
 
 	if server.log.startIndex != 0 || server.log.startTerm != 0 {
-		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]", 
+		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]",
 			server.log.startIndex, server.log.startTerm)
 	}
 
 	server.LoadSnapshot()
 	if server.log.startIndex != 1 || server.log.startTerm != 1 {
-		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]", 
+		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]",
 			server.log.startIndex, server.log.startTerm)
 	}
 

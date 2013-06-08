@@ -39,7 +39,7 @@ func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer 
 	c := make(chan bool)
 	go p.heartbeatTimeoutFunc(c)
 	<-c
-	
+
 	return p
 }
 
@@ -108,7 +108,7 @@ func (p *Peer) flush(internal bool) (uint64, bool, error) {
 	p.mutex.Lock()
 	server, prevLogIndex := p.server, p.prevLogIndex
 	p.mutex.Unlock()
-	
+
 	var req *AppendEntriesRequest
 	snapShotNeeded := false
 
@@ -134,11 +134,11 @@ func (p *Peer) flush(internal bool) (uint64, bool, error) {
 	} else {
 		return p.sendFlushRequest(req)
 	}
-	
+
 }
 
 // send Snapshot Request
-func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error){
+func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error) {
 	// Ignore any null requests.
 	if req == nil {
 		return 0, false, errors.New("raft.Peer: Request required")
@@ -163,7 +163,7 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error){
 		panic(resp)
 	}
 
-	return resp.Term, resp.Success, err	
+	return resp.Term, resp.Success, err
 }
 
 // Flushes a request through the server's transport.
@@ -216,7 +216,7 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 	for {
 		// Grab the current timer channel.
 		p.mutex.Lock()
-	
+
 		var c chan time.Time
 		if p.heartbeatTimer != nil {
 			c = p.heartbeatTimer.C()
@@ -231,7 +231,7 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 		// Flush the peer when we get a heartbeat timeout. If the channel is
 		// closed then the peer is getting cleaned up and we should exit.
 		if _, ok := <-c; ok {
-			p.flush(false) 
+			p.flush(false)
 
 		} else {
 			break

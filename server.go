@@ -3,12 +3,12 @@ package raft
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"sort"
 	"sync"
 	"time"
-	"os"
-	"sort"
-	"path"
-	"io/ioutil"
 )
 
 //------------------------------------------------------------------------------
@@ -47,22 +47,22 @@ var DuplicatePeerError = errors.New("raft.Server: Duplicate peer")
 // A server is involved in the consensus protocol and can act as a follower,
 // candidate or a leader.
 type Server struct {
-	name                 string
-	path                 string
-	state                string
-	transporter          Transporter
-	context              interface{}
-	currentTerm          uint64
-	votedFor             string
-	log                  *Log
-	leader               string
-	peers                map[string]*Peer
-	mutex                sync.Mutex
-	electionTimer        *Timer
-	heartbeatTimeout     time.Duration
-	currentSnapshot      *Snapshot
-	lastSnapshot         *Snapshot
-	stateMachine         StateMachine
+	name             string
+	path             string
+	state            string
+	transporter      Transporter
+	context          interface{}
+	currentTerm      uint64
+	votedFor         string
+	log              *Log
+	leader           string
+	peers            map[string]*Peer
+	mutex            sync.Mutex
+	electionTimer    *Timer
+	heartbeatTimeout time.Duration
+	currentSnapshot  *Snapshot
+	lastSnapshot     *Snapshot
+	stateMachine     StateMachine
 }
 
 //------------------------------------------------------------------------------
@@ -125,7 +125,8 @@ func (s *Server) Leader() string {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	return s.leader
-} 
+}
+
 // Retrieves the object that transports requests.
 func (s *Server) Transporter() Transporter {
 	return s.transporter
@@ -256,7 +257,7 @@ func (s *Server) Start() error {
 	}
 
 	// create snapshot dir if not exist
-	os.Mkdir(s.path + "/snapshot", 0700) 
+	os.Mkdir(s.path+"/snapshot", 0700)
 
 	// ## open recovery from the newest snapShot
 	//s.LoadSnapshot()
@@ -279,7 +280,7 @@ func (s *Server) Start() error {
 	// Start the election timeout.
 	c := make(chan bool)
 	go s.electionTimeoutFunc(c)
-	<- c
+	<-c
 
 	return nil
 }
@@ -387,10 +388,10 @@ func (s *Server) do(command Command) error {
 		go func() {
 
 			term, success, err := peer.flush(true)
-			
+
 			// Demote if we encounter a higher term.
 			if err != nil {
-			
+
 				return
 			} else if term > currentTerm {
 				s.mutex.Lock()
@@ -468,7 +469,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), fmt.Errorf("raft.Server: Stale request term")
 	}
 	s.setCurrentTerm(req.Term)
-	
+
 	// Update the current leader.
 	s.leader = req.LeaderName
 
@@ -476,7 +477,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	if s.electionTimer != nil {
 		s.electionTimer.Reset()
 	}
-	
+
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.Truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
@@ -490,7 +491,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	// Commit up to the commit index.
 	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
-	}	
+	}
 
 	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
 }
@@ -783,7 +784,6 @@ func (s *Server) RemovePeer(name string) error {
 	return nil
 }
 
-
 //--------------------------------------
 // Log compaction
 //--------------------------------------
@@ -819,9 +819,9 @@ func (s *Server) takeSnapshot() error {
 
 	path := s.SnapshotPath(lastIndex, lastTerm)
 
-	state, err := s.stateMachine.Save()	
+	state, err := s.stateMachine.Save()
 
-	if err !=nil {
+	if err != nil {
 		return err
 	}
 
@@ -846,7 +846,7 @@ func (s *Server) saveSnapshot() error {
 	if err != nil {
 		return err
 	}
- 	
+
 	tmp := s.lastSnapshot
 	s.lastSnapshot = s.currentSnapshot
 
@@ -863,8 +863,7 @@ func (s *Server) SnapshotPath(lastIndex uint64, lastTerm uint64) string {
 	return path.Join(s.path, "snapshot", fmt.Sprintf("%v_%v.ss", lastTerm, lastIndex))
 }
 
-
-func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, error){
+func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, error) {
 	//
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -876,9 +875,8 @@ func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, erro
 	s.log.UpdateCommitIndex(req.LastIndex)
 	snapshotPath := s.SnapshotPath(req.LastIndex, req.LastTerm)
 	s.currentSnapshot = &Snapshot{req.LastIndex, req.LastTerm, req.State, snapshotPath}
-	s.saveSnapshot() 
+	s.saveSnapshot()
 	s.log.Compact(req.LastIndex, req.LastTerm)
-
 
 	return NewSnapshotResponse(req.LastTerm, true, req.LastIndex), nil
 
@@ -906,7 +904,7 @@ func (s *Server) LoadSnapshot() error {
 
 	// not sure how many snapshot we should keep
 	sort.Strings(filenames)
-	snapshotPath := path.Join(s.path, "snapshot", filenames[len(filenames) - 1])
+	snapshotPath := path.Join(s.path, "snapshot", filenames[len(filenames)-1])
 
 	// should not file
 	file, err := os.OpenFile(snapshotPath, os.O_RDONLY, 0)
@@ -921,7 +919,7 @@ func (s *Server) LoadSnapshot() error {
 	var state []byte
 	var checksum, lastIndex, lastTerm uint64
 
-	n , err := fmt.Fscanf(file, "%08x\n%v\n%v", &checksum, &lastIndex, &lastTerm)
+	n, err := fmt.Fscanf(file, "%08x\n%v\n%v", &checksum, &lastIndex, &lastTerm)
 
 	if err != nil {
 		return err
@@ -946,4 +944,3 @@ func (s *Server) LoadSnapshot() error {
 
 	return err
 }
-

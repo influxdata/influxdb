@@ -2,10 +2,10 @@ package raft
 
 // The request sent to a server to start from the snapshot.
 type SnapshotRequest struct {
-	LeaderName   string      `json:"leaderName"`
-	LastIndex    uint64 	 `json:"lastTerm"`
-	LastTerm	 uint64		 `json:"lastIndex"`
-	State        []byte      `json:"state"`
+	LeaderName string `json:"leaderName"`
+	LastIndex  uint64 `json:"lastTerm"`
+	LastTerm   uint64 `json:"lastIndex"`
+	State      []byte `json:"state"`
 }
 
 // The response returned from a server appending entries to the log.
@@ -24,10 +24,10 @@ type SnapshotResponse struct {
 // Creates a new Snapshot request.
 func NewSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest {
 	return &SnapshotRequest{
-		LeaderName:   leaderName,
-		LastIndex:    snapshot.lastIndex,
-		LastTerm:	  snapshot.lastTerm,
-		State:        snapshot.state,
+		LeaderName: leaderName,
+		LastIndex:  snapshot.lastIndex,
+		LastTerm:   snapshot.lastTerm,
+		State:      snapshot.state,
 	}
 }
 

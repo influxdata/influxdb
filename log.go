@@ -25,7 +25,7 @@ type Log struct {
 	commitIndex uint64
 	mutex       sync.Mutex
 	startIndex  uint64 // the index before the first entry in the Log entries
-	startTerm	uint64
+	startTerm   uint64
 }
 
 //------------------------------------------------------------------------------
@@ -56,6 +56,7 @@ func (l *Log) StartIndex() uint64 {
 func (l *Log) SetStartTerm(t uint64) {
 	l.startTerm = t
 }
+
 //--------------------------------------
 // Log Indices
 //--------------------------------------
@@ -218,7 +219,7 @@ func (l *Log) ContainsEntry(index uint64, term uint64) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	if index <= l.startIndex || index > (l.startIndex + uint64(len(l.entries))) {
+	if index <= l.startIndex || index > (l.startIndex+uint64(len(l.entries))) {
 		return false
 	}
 	return (l.entries[index-1].Term == term)
@@ -237,8 +238,8 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 		return l.entries, l.startTerm
 	}
 	// Determine the term at the given entry and return a subslice.
-	term := l.entries[index - 1 - l.startIndex].Term
-	return l.entries[index - l.startIndex:], term
+	term := l.entries[index-1-l.startIndex].Term
+	return l.entries[index-l.startIndex:], term
 }
 
 // Retrieves the error returned from an entry. The error can only exist after
@@ -246,11 +247,11 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 func (l *Log) GetEntryError(entry *LogEntry) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	
+
 	if entry == nil {
 		panic("raft: Log entry required for error retrieval")
 	}
-	
+
 	if entry.Index > 0 && entry.Index <= uint64(len(l.errors)) {
 		return l.errors[entry.Index-1]
 	}
@@ -277,7 +278,7 @@ func (l *Log) CommitInfo() (index uint64, term uint64) {
 	}
 
 	// Return the last index & term from the last committed entry.
-	lastCommitEntry := l.entries[l.commitIndex - 1 - l.startIndex]
+	lastCommitEntry := l.entries[l.commitIndex-1-l.startIndex]
 	return lastCommitEntry.Index, lastCommitEntry.Term
 }
 
@@ -298,7 +299,7 @@ func (l *Log) SetCommitIndex(index uint64) error {
 	if index < l.commitIndex {
 		return fmt.Errorf("raft.Log: Commit index (%d) ahead of requested commit index (%d)", l.commitIndex, index)
 	}
-	if index > l.startIndex + uint64(len(l.entries)) {
+	if index > l.startIndex+uint64(len(l.entries)) {
 		return fmt.Errorf("raft.Log: Commit index (%d) out of range (%d)", index, len(l.entries))
 	}
 
@@ -338,7 +339,7 @@ func (l *Log) Truncate(index uint64, term uint64) error {
 	}
 
 	// Do not truncate past end of entries.
-	if index > l.startIndex + uint64(len(l.entries)) {
+	if index > l.startIndex+uint64(len(l.entries)) {
 		return fmt.Errorf("raft.Log: Entry index does not exist (MAX=%v): (IDX=%v, TERM=%v)", len(l.entries), index, term)
 	}
 
@@ -347,14 +348,14 @@ func (l *Log) Truncate(index uint64, term uint64) error {
 		l.entries = []*LogEntry{}
 	} else {
 		// Do not truncate if the entry at index does not have the matching term.
-		entry := l.entries[index - l.startIndex - 1]
+		entry := l.entries[index-l.startIndex-1]
 		if len(l.entries) > 0 && entry.Term != term {
 			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term, index, term)
 		}
 
 		// Otherwise truncate up to the desired entry.
-		if index < l.startIndex + uint64(len(l.entries)) {
-			l.entries = l.entries[0:index - l.startIndex]
+		if index < l.startIndex+uint64(len(l.entries)) {
+			l.entries = l.entries[0 : index-l.startIndex]
 		}
 	}
 
@@ -413,8 +414,6 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 	return nil
 }
 
-
-
 //--------------------------------------
 // Log compaction
 //--------------------------------------
@@ -434,20 +433,20 @@ func (l *Log) Compact(index uint64, term uint64) error {
 	} else {
 
 		// get all log entries after index
-		entries = l.entries[index - l.startIndex:]
+		entries = l.entries[index-l.startIndex:]
 	}
 
 	// create a new log file and add all the entries
-	file, err := os.OpenFile(l.path + ".new", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	file, err := os.OpenFile(l.path+".new", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
 	for _, entry := range entries {
-        err = entry.Encode(file)
-        if err != nil {
-        	return err
-        }
-    }
+		err = entry.Encode(file)
+		if err != nil {
+			return err
+		}
+	}
 	// close the current log file
 	l.file.Close()
 
@@ -458,7 +457,7 @@ func (l *Log) Compact(index uint64, term uint64) error {
 	}
 
 	// rename the new log file
-	err = os.Rename(l.path + ".new", l.path)
+	err = os.Rename(l.path+".new", l.path)
 	if err != nil {
 		return err
 	}
