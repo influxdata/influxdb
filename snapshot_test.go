@@ -9,14 +9,9 @@ import (
 
 // test take and send snapshot
 func TestTakeAndSendSnapshot(t *testing.T) {
-	// Initialize the servers.
 	var mutex sync.Mutex
-	//fmt.Println("---Snapshot Test---")
 	names := []string{"1", "2", "3"}
 	servers := map[string]*Server{}
-	for _, server := range servers {
-		defer server.Stop()
-	}
 	transporter := &testTransporter{}
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
 		mutex.Lock()
@@ -60,6 +55,7 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 		if err := server.Start(); err != nil {
 			t.Fatalf("Unable to start server[%s]: %v", name, err)
 		}
+		defer server.Stop()
 		if name == "1" {
 			leader = server
 			if err := server.Initialize(); err != nil {
@@ -76,52 +72,31 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 
-	// Check that two peers exist on leader.
-	mutex.Lock()
-	if leader.MemberCount() != 3 {
-		t.Fatalf("Expected member count to be 3, got %v", leader.MemberCount())
-	}
-	mutex.Unlock()
-
-	// commit single entry.
-	err := leader.Do(&TestCommand1{"foo", 10})
-
-	if err != nil {
+	// Commit single entry.
+	if err := leader.Do(&TestCommand1{"foo", 10}); err != nil {
 		t.Fatal(err)
 	}
 
-	index, term := leader.log.CommitInfo()
-
-	// three join and one test Command
-	if !(index == 4 && term == 1) {
-		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
-	}
-
+	// Take a snapshot.
 	leader.takeSnapshot()
 
-	logLen := len(leader.log.entries)
-
-	if logLen != 0 {
-		t.Fatalf("Invalid logLen [Len=%v]", logLen)
+	if count := len(leader.log.entries); count != 0 {
+		t.Fatalf("Invalid logLen [Len=%v]", count)
 	}
-
 	if leader.log.startIndex != 4 || leader.log.startTerm != 1 {
-		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]",
-			leader.log.startIndex, leader.log.startTerm)
+		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]", leader.log.startIndex, leader.log.startTerm)
 	}
 
-	// test send snapshot to a new node
-	// send from heartbeat
+	// Send snapshot to a new node
 	newServer := newTestServer("4", transporter)
 	newServer.stateMachine = stateMachine
 	if err := newServer.Start(); err != nil {
 		t.Fatalf("Unable to start server[4]: %v", err)
 	}
-
+	defer newServer.Stop()
 	if err := leader.Do(&joinCommand{Name: "4"}); err != nil {
 		t.Fatalf("Unable to join server[4]: %v", err)
 	}
-
 	mutex.Lock()
 	servers["4"] = newServer
 	mutex.Unlock()
@@ -130,11 +105,9 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	if leader.log.startIndex != 4 || leader.log.startTerm != 1 {
-		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]",
-			leader.log.startIndex, leader.log.startTerm)
+		t.Fatalf("Invalid log info [StartIndex=%v, StartTERM=%v]", leader.log.startIndex, leader.log.startTerm)
 	}
 	time.Sleep(100 * time.Millisecond)
-
 }
 
 func TestStartFormSnapshot(t *testing.T) {

@@ -287,7 +287,6 @@ func (l *Log) UpdateCommitIndex(index uint64) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	l.commitIndex = index
-
 }
 
 // Updates the commit index and writes entries after that index to the stable storage.

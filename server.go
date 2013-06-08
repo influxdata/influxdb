@@ -772,7 +772,7 @@ func (s *Server) RemovePeer(name string) error {
 
 	// Flush entries to the peer first.
 	if s.state == Leader {
-		if _, _, err := peer.internalFlush(); err != nil {
+		if _, _, err := peer.flush(true); err != nil {
 			warn("raft: Unable to notify peer of removal: %v", err)
 		}
 	}
