@@ -62,7 +62,7 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 				t.Fatalf("Unable to initialize server[%s]: %v", name, err)
 			}
 		}
-		if err := leader.Do(&joinCommand{Name: name}); err != nil {
+		if _, err := leader.Do(&joinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
 		}
 
@@ -73,7 +73,7 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Commit single entry.
-	if err := leader.Do(&TestCommand1{"foo", 10}); err != nil {
+	if _, err := leader.Do(&TestCommand1{"foo", 10}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -94,7 +94,7 @@ func TestTakeAndSendSnapshot(t *testing.T) {
 		t.Fatalf("Unable to start server[4]: %v", err)
 	}
 	defer newServer.Stop()
-	if err := leader.Do(&joinCommand{Name: "4"}); err != nil {
+	if _, err := leader.Do(&joinCommand{Name: "4"}); err != nil {
 		t.Fatalf("Unable to join server[4]: %v", err)
 	}
 	mutex.Lock()
@@ -132,7 +132,7 @@ func TestStartFormSnapshot(t *testing.T) {
 	server.Initialize()
 
 	// commit single entry.
-	err := server.Do(&TestCommand1{"foo", 10})
+	_, err := server.Do(&TestCommand1{"foo", 10})
 
 	if err != nil {
 		t.Fatal(err)

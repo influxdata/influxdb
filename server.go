@@ -63,6 +63,7 @@ type Server struct {
 	currentSnapshot  *Snapshot
 	lastSnapshot     *Snapshot
 	stateMachine     StateMachine
+	response         chan FlushResponse          
 }
 
 //------------------------------------------------------------------------------
@@ -93,9 +94,9 @@ func NewServer(name string, path string, transporter Transporter, context interf
 	}
 
 	// Setup apply function.
-	s.log.ApplyFunc = func(c Command) error {
-		err := c.Apply(s)
-		return err
+	s.log.ApplyFunc = func(c Command) ([]byte, error) {
+		result, err := c.Apply(s)
+		return result, err
 	}
 
 	return s, nil
@@ -353,106 +354,70 @@ func (s *Server) Initialize() error {
 
 // Attempts to execute a command and replicate it. The function will return
 // when the command has been successfully committed or an error has occurred.
-func (s *Server) Do(command Command) error {
+func (s *Server) Do(command Command) ([]byte, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	err := s.do(command)
-	return err
+	result, err := s.do(command)
+	return result, err
 }
 
 // This function is the low-level interface to execute commands. This function
 // does not obtain a lock so one must be obtained before executing.
-func (s *Server) do(command Command) error {
+func (s *Server) do(command Command) ([]byte, error) {
 	if s.state != Leader {
-		return NotLeaderError
+		return nil, NotLeaderError
 	}
 
 	// Capture the term that this command is executing within.
-	currentTerm := s.currentTerm
+	//currentTerm := s.currentTerm
 
-	// // TEMP to solve the issue 18
-	// for _, peer := range s.peers {
-	// 	peer.pause()
-	// }
+	for _, peer := range s.peers {
+		peer.pause()
+	}
 
 	// Add a new entry to the log.
 	entry := s.log.CreateEntry(s.currentTerm, command)
 	if err := s.log.AppendEntry(entry); err != nil {
-		return err
+		return nil, err
 	}
 
-	// Flush the entries to the peers.
-	c := make(chan bool, len(s.peers))
-	for _, _peer := range s.peers {
-		peer := _peer
-		go func() {
+	// begin to collecting data
+	s.response = make(chan FlushResponse, len(s.peers))
 
-			term, success, err := peer.flush(true)
-
-			// Demote if we encounter a higher term.
-			if err != nil {
-
-				return
-			} else if term > currentTerm {
-				s.mutex.Lock()
-				s.setCurrentTerm(term)
-
-				if s.electionTimer != nil {
-					s.electionTimer.Reset()
-				}
-				s.mutex.Unlock()
-
-				return
-			}
-
-			// If we successfully replicated the log then send a success to the channel.
-			if success {
-				c <- true
-			}
-		}()
+	for _, peer := range s.peers {
+		peer.collecting = true
 	}
 
-	// Wait for a quorum to confirm and commit entry.
-	responseCount := 1
+	for _, peer := range s.peers {
+		peer.resume()
+	}
+
 	committed := false
-loop:
+	responseCount := 1
+
 	for {
-		// If we received enough votes then stop waiting for more votes.
-		if responseCount >= s.QuorumSize() {
+		if responseCount == s.QuorumSize() {
 			committed = true
-			// for _, peer := range s.peers {
-			// 	peer.resume()
-			// }
+			close(s.response)
 			break
 		}
-
-		// Collect votes from peers.
-		select {
-		case <-c:
-			// Exit if our term has changed.
-			if s.currentTerm > currentTerm {
-				return fmt.Errorf("raft.Server: Higher term discovered, stepping down: (%v > %v)", s.currentTerm, currentTerm)
-			}
+		response := <-s.response
+		if response.success {
 			responseCount++
-		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
-			// for _, peer := range s.peers {
-			// 	peer.resume()
-			// }
-			break loop
 		}
-	}
 
+	}
+	
 	// Commit to log and flush to peers again.
 	if committed {
 		if err := s.log.SetCommitIndex(entry.Index); err != nil {
-			return err
+			return nil, err
 		}
-		return s.log.GetEntryError(entry)
+		return entry.result, s.log.GetEntryError(entry)
 	}
-
 	// TODO: This will be removed after the timeout above is changed to a
 	// demotion callback.
-	return fmt.Errorf("raft: Unable to commit entry: %d", entry.Index)
+	return nil, fmt.Errorf("raft: Unable to commit entry: %d", entry.Index)
 }
 
 // Appends a log entry from the leader to this server.

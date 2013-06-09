@@ -288,7 +288,8 @@ func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 	server.Start()
 	defer server.Stop()
-	if err := server.Do(&TestCommand1{"foo", 10}); err != NotLeaderError {
+	var err error
+	if _, err = server.Do(&TestCommand1{"foo", 10}); err != NotLeaderError {
 		t.Fatalf("Expected error: %v, got: %v", NotLeaderError, err)
 	}
 }
@@ -315,9 +316,10 @@ func TestServerSingleNode(t *testing.T) {
 
 	// Join the server to itself.
 	server.Initialize()
-	if err := server.Do(&joinCommand{Name: "1"}); err != nil {
+	if _, err := server.Do(&joinCommand{Name: "1"}); err != nil {
 		t.Fatalf("Unable to join: %v", err)
 	}
+
 	if server.state != Leader {
 		t.Fatalf("Unexpected server state: %v", server.state)
 	}
@@ -368,7 +370,7 @@ func TestServerMultiNode(t *testing.T) {
 				t.Fatalf("Unable to initialize server[%s]: %v", name, err)
 			}
 		}
-		if err := leader.Do(&joinCommand{Name: name}); err != nil {
+		if _, err := leader.Do(&joinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
 		}
 
@@ -386,9 +388,9 @@ func TestServerMultiNode(t *testing.T) {
 	mutex.Unlock()
 
 	// Stop the first server and wait for a re-election.
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	leader.Stop()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	// Check that either server 2 or 3 is the leader now.
 	mutex.Lock()
 	if servers["2"].State() != Leader && servers["3"].State() != Leader {

@@ -22,6 +22,7 @@ type LogEntry struct {
 	Index   uint64  `json:"index"`
 	Term    uint64  `json:"term"`
 	Command Command `json:"command"`
+	result	[]byte  `json:-`
 }
 
 // A temporary interface used for unmarshaling log entries.
