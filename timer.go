@@ -137,6 +137,10 @@ func (t *Timer) stopInternalTimer() {
 	}
 }
 
+func (t *Timer) fire() {
+	t.c <-time.Now()
+}
+
 // Stops the timer if it is running and restarts it.
 func (t *Timer) Reset() {
 	t.mutex.Lock()

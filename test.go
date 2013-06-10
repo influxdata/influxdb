@@ -86,7 +86,7 @@ func newTestCluster(names []string, transporter Transporter, lookup map[string]*
 		for _, peer := range servers {
 			server.AddPeer(peer.Name())
 		}
-		server.Start()
+		server.Initialize()
 	}
 	return servers
 }

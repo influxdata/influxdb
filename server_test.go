@@ -385,6 +385,9 @@ func TestServerMultiNode(t *testing.T) {
 	if leader.MemberCount() != 3 {
 		t.Fatalf("Expected member count to be 3, got %v", leader.MemberCount())
 	}
+	if servers["2"].State() == Leader || servers["3"].State() == Leader {
+		t.Fatalf("Expected leader should be 1: 2=%v, 3=%v\n", servers["2"].state, servers["3"].state)
+	}
 	mutex.Unlock()
 
 	// Stop the first server and wait for a re-election.
