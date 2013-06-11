@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"fmt"
+	"strconv"
 )
 
 //------------------------------------------------------------------------------
@@ -20,7 +22,8 @@ import (
 // Ensure that we can request a vote from a server that has not voted.
 func TestServerRequestVote(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Start()
+	server.Initialize()
+	server.StartLeader()
 	defer server.Stop()
 	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
 	if !(resp.Term == 1 && resp.VoteGranted && err == nil) {
@@ -31,9 +34,10 @@ func TestServerRequestVote(t *testing.T) {
 // Ensure that a vote request is denied if it comes from an old term.
 func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
+	server.Initialize()
+	server.StartLeader()
 	server.state = Leader
 	server.currentTerm = 2
-	server.Start()
 	defer server.Stop()
 	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
 	if !(resp.Term == 2 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Stale term: 1 < 2") {
@@ -47,8 +51,9 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 // Ensure that a vote request is denied if we've already voted for a different candidate.
 func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
+	server.Initialize()
+	server.StartLeader()
 	server.currentTerm = 2
-	server.Start()
 	defer server.Stop()
 	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
 	if !(resp.Term == 2 && resp.VoteGranted && err == nil) {
@@ -63,8 +68,9 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 // Ensure that a vote request is approved if vote occurs in a new term.
 func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
+	server.Initialize()
+	server.StartLeader()
 	server.currentTerm = 2
-	server.Start()
 	defer server.Stop()
 	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 0, 0))
 	if !(resp.Term == 2 && resp.VoteGranted && server.VotedFor() == "foo" && err == nil) {
@@ -82,9 +88,11 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}`+"\n"+
 			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}`+"\n"+
 			`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}`+"\n")
-	if err := server.Start(); err != nil {
-		t.Fatalf("Unable to start server: %v", err)
-	}
+	server.Initialize()
+	// server.StartLeader()
+	// if err := server.Start(); err != nil {
+	// 	t.Fatalf("Unable to start server: %v", err)
+	// }
 	defer server.Stop()
 
 	resp, err := server.RequestVote(NewRequestVoteRequest(2, "foo", 2, 2))
@@ -112,7 +120,8 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 // Ensure that we can self-promote a server to candidate, obtain votes and become a fearless leader.
 func TestServerPromoteSelf(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Start()
+	server.Initialize()
+	server.StartFollower()
 	defer server.Stop()
 	if success, err := server.promote(); !(success && err == nil && server.state == Leader) {
 		t.Fatalf("Server self-promotion failed: %v (%v)", server.state, err)
@@ -179,7 +188,8 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 // Ensure we can append entries to a server.
 func TestServerAppendEntries(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Start()
+	server.Initialize()
+	server.StartLeader()
 	defer server.Stop()
 
 	// Append single entry.
@@ -215,7 +225,8 @@ func TestServerAppendEntries(t *testing.T) {
 // Ensure that entries with stale terms are rejected.
 func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Start()
+	server.Initialize()
+	server.StartLeader()
 	defer server.Stop()
 	server.currentTerm = 2
 
@@ -233,7 +244,8 @@ func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 // Ensure that we reject entries if the commit log is different.
 func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Start()
+	server.Initialize()
+	server.StartLeader()
 	defer server.Stop()
 
 	// Append single entry + commit.
@@ -257,7 +269,8 @@ func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 // Ensure that we uncommitted entries are rolled back if new entries overwrite them.
 func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Start()
+	server.Initialize()
+	server.StartLeader()
 	defer server.Stop()
 
 	entry1 := NewLogEntry(nil, 1, 1, &TestCommand1{"foo", 10})
@@ -286,7 +299,8 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 // Ensure that a follower cannot execute a command.
 func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Start()
+	server.Initialize()
+	server.StartFollower()
 	defer server.Stop()
 	var err error
 	if _, err = server.Do(&TestCommand1{"foo", 10}); err != NotLeaderError {
@@ -305,17 +319,19 @@ func TestServerSingleNode(t *testing.T) {
 		t.Fatalf("Unexpected server state: %v", server.state)
 	}
 
+	server.Initialize()
+
 	// Get the server running.
-	if err := server.Start(); err != nil {
-		t.Fatalf("Unable to start server: %v", err)
-	}
+	// if err := server.Start(); err != nil {
+	// 	t.Fatalf("Unable to start server: %v", err)
+	// }
 	defer server.Stop()
 	if server.state != Follower {
 		t.Fatalf("Unexpected server state: %v", server.state)
 	}
 
+	server.StartLeader()
 	// Join the server to itself.
-	server.Initialize()
 	if _, err := server.Do(&joinCommand{Name: "1"}); err != nil {
 		t.Fatalf("Unable to join: %v", err)
 	}
@@ -333,13 +349,13 @@ func TestServerSingleNode(t *testing.T) {
 
 // Ensure that we can start multiple servers and determine a leader.
 func TestServerMultiNode(t *testing.T) {
+	fmt.Println("MultiTest......... ")
+
 	// Initialize the servers.
 	var mutex sync.Mutex
-	names := []string{"1", "2", "3"}
 	servers := map[string]*Server{}
-	for _, server := range servers {
-		defer server.Stop()
-	}
+
+
 	transporter := &testTransporter{}
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
 		mutex.Lock()
@@ -356,19 +372,43 @@ func TestServerMultiNode(t *testing.T) {
 		return resp, err
 	}
 
+	disTransporter := &testTransporter{}
+	disTransporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+		return nil, nil
+	}
+	disTransporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+		return nil, nil
+	}
+
+
+	var names []string
+
+	n := 20
+
+	// add n servers
+	for i := 1; i <= n; i++ {
+		names = append(names, strconv.Itoa(i))
+	}
+
 	var leader *Server
 	for _, name := range names {
 		server := newTestServer(name, transporter)
-		server.SetElectionTimeout(testElectionTimeout)
-		server.SetHeartbeatTimeout(testHeartbeatTimeout)
-		if err := server.Start(); err != nil {
-			t.Fatalf("Unable to start server[%s]: %v", name, err)
-		}
+		// if err := server.Start(); err != nil {
+		// 	t.Fatalf("Unable to start server[%s]: %v", name, err)
+		// }
+		server.Initialize()
+
 		if name == "1" {
 			leader = server
-			if err := server.Initialize(); err != nil {
-				t.Fatalf("Unable to initialize server[%s]: %v", name, err)
-			}
+			// if err := server.Initialize(); err != nil {
+			// 	t.Fatalf("Unable to initialize server[%s]: %v", name, err)
+			// }
+			server.SetHeartbeatTimeout(testHeartbeatTimeout)
+			server.StartLeader()
+		} else {
+			server.SetElectionTimeout(testElectionTimeout)
+			server.SetHeartbeatTimeout(testHeartbeatTimeout)
+			server.StartFollower()
 		}
 		if _, err := leader.Do(&joinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
@@ -382,22 +422,48 @@ func TestServerMultiNode(t *testing.T) {
 
 	// Check that two peers exist on leader.
 	mutex.Lock()
-	if leader.MemberCount() != 3 {
-		t.Fatalf("Expected member count to be 3, got %v", leader.MemberCount())
+	if leader.MemberCount() != n {
+		t.Fatalf("Expected member count to be %v, got %v", n, leader.MemberCount())
 	}
 	if servers["2"].State() == Leader || servers["3"].State() == Leader {
 		t.Fatalf("Expected leader should be 1: 2=%v, 3=%v\n", servers["2"].state, servers["3"].state)
 	}
 	mutex.Unlock()
 
-	// Stop the first server and wait for a re-election.
-	time.Sleep(200 * time.Millisecond)
-	leader.Stop()
-	time.Sleep(200 * time.Millisecond)
-	// Check that either server 2 or 3 is the leader now.
-	mutex.Lock()
-	if servers["2"].State() != Leader && servers["3"].State() != Leader {
-		t.Fatalf("Expected leader re-election: 2=%v, 3=%v\n", servers["2"].state, servers["3"].state)
+	i := 0
+	for {
+		i++
+		fmt.Println("Round ", i)
+
+		num:= strconv.Itoa(i % (len(servers)) + 1)
+		toStop := servers[num]
+
+		// Stop the first server and wait for a re-election.
+		time.Sleep(200 * time.Millisecond)
+		fmt.Println("Disconnect ", toStop.Name())
+		toStop.SetTransporter(disTransporter)
+		time.Sleep(140 * time.Millisecond)
+		// Check that either server 2 or 3 is the leader now.
+		mutex.Lock()
+
+		leader := 0
+
+		for key, value := range servers {
+			if key != num {
+				if value.State() == Leader {
+					leader ++
+					fmt.Println("Leader is ", value.Name())
+				}
+			}
+		}
+
+		if leader != 1 {
+			t.Fatalf("wrong leader number %v", leader)
+		}
+
+		mutex.Unlock()
+
+		toStop.SetTransporter(transporter)
 	}
-	mutex.Unlock()
+	
 }

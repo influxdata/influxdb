@@ -133,6 +133,10 @@ func (s *Server) Transporter() Transporter {
 	return s.transporter
 }
 
+func (s *Server) SetTransporter(t Transporter) {
+	s.transporter = t
+}
+
 // Retrieves the context passed into the constructor.
 func (s *Server) Context() interface{} {
 	return s.context
@@ -277,10 +281,10 @@ func (s *Server) Initialize() error {
 	}
 
 
-	fmt.Println("curr ", s.currentTerm)
+	//fmt.Println("curr ", s.currentTerm)
 	// Update the term to the last term in the log.
 	s.currentTerm = s.log.CurrentTerm()
-	fmt.Println("curr ", s.currentTerm)
+	//fmt.Println("curr ", s.currentTerm)
 
 	// Update the state.
 	s.state = Follower
@@ -305,6 +309,7 @@ func (s *Server) Stop() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.unload()
+	//fmt.Println("stop")
 }
 
 // Unloads the server.
@@ -319,6 +324,9 @@ func (s *Server) unload() {
 	for _, peer := range s.peers {
 		peer.stop()
 	}
+	// wait for all previous flush ends
+	time.Sleep(100 * time.Millisecond)
+
 	s.peers = make(map[string]*Peer)
 
 	// Close the log.
@@ -381,14 +389,14 @@ func (s *Server) do(command Command) ([]byte, error) {
 	if s.state != Leader {
 		return nil, NotLeaderError
 	}
-
+	fmt.Println("do")
 	// Capture the term that this command is executing within.
 	//currentTerm := s.currentTerm
 
 	for _, peer := range s.peers {
 		peer.pause()
 	}
-	fmt.Println("curr term", s.currentTerm)
+	//fmt.Println("curr term", s.currentTerm)
 	// Add a new entry to the log.
 	entry := s.log.CreateEntry(s.currentTerm, command)
 	if err := s.log.AppendEntry(entry); err != nil {
@@ -413,7 +421,6 @@ func (s *Server) do(command Command) ([]byte, error) {
 	for {
 		if responseCount == s.QuorumSize() {
 			committed = true
-			close(s.response)
 			break
 		}
 		response := <-s.response
@@ -439,43 +446,52 @@ func (s *Server) do(command Command) ([]byte, error) {
 func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	fmt.Println("[AppendEntries] got lock")
+
 	// If the server is stopped then reject it.
 	if !s.Running() {
 		return NewAppendEntriesResponse(s.currentTerm, false, 0), fmt.Errorf("raft.Server: Server stopped")
 	}
 
+	fmt.Println("[AppendEntries] server is running")
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.currentTerm {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), fmt.Errorf("raft.Server: Stale request term")
 	}
-	fmt.Println("my term ", s.currentTerm, " req ", req.Term)
+	//fmt.Println("my term ", s.currentTerm, " req ", req.Term)
+	fmt.Println("[AppendEntries] term is good")
 
 	s.setCurrentTerm(req.Term)
 
+
+	fmt.Println("[AppendEntries] set current term is good")
 	// Update the current leader.
 	s.leader = req.LeaderName
 
-	fmt.Println("leader is ", req.LeaderName)
+	//fmt.Println("leader is ", req.LeaderName)
 	// Reset election timeout.
 	if s.electionTimer != nil {
 		s.electionTimer.Reset()
 	}
 
+	fmt.Println("[AppendEntries] reset the timer is good")
+
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.Truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
-
+	fmt.Println("[AppendEntries] truncate is good")
 	// Append entries to the log.
 	if err := s.log.AppendEntries(req.Entries); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
-
+	fmt.Println("[AppendEntries] append is good")
 	// Commit up to the commit index.
 	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
-
+	fmt.Println("[AppendEntries] commit is good")
 	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
 }
 
@@ -629,6 +645,8 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 	s.state = Leader
 	s.leader = s.name
 	for _, peer := range s.peers {
+		// start from lastLogIndex
+		peer.prevLogIndex = lastLogIndex
 		peer.resume()
 	}
 
@@ -682,7 +700,7 @@ func (s *Server) setCurrentTerm(term uint64) {
 	if term > s.currentTerm {
 		s.currentTerm = term
 		s.votedFor = ""
-		fmt.Println("go to be follower")
+		//fmt.Println("go to be follower")
 		s.state = Follower
 		for _, peer := range s.peers {
 			peer.pause()
@@ -735,7 +753,7 @@ func (s *Server) AddPeer(name string) error {
 
 	// Only add the peer if it doesn't have the same name.
 	if s.name != name {
-		fmt.Println("Add peer ", name)
+		//fmt.Println("Add peer ", name)
 		peer := NewPeer(s, name, s.heartbeatTimeout)
 		if s.state == Leader {
 			peer.resume()
