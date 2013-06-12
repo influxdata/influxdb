@@ -94,7 +94,7 @@ func (l *Log) CommitIndex() uint64 {
 func (l *Log) IsEmpty() bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	return (len(l.entries) == 0)
+	return (len(l.entries) == 0) && (l.startIndex == 0)
 }
 
 // The name of the last command in the log.

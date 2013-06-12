@@ -75,7 +75,7 @@ func (t *Timer) MinDuration() time.Duration {
 // Sets the minimum duration of the timer.
 func (t *Timer) SetMinDuration(duration time.Duration) {
 	t.minDuration = duration
-	t.Reset()
+	//t.Reset()
 }
 
 // Retrieves the maximum duration of the timer.
@@ -86,14 +86,14 @@ func (t *Timer) MaxDuration() time.Duration {
 // Sets the maximum duration of the timer.
 func (t *Timer) SetMaxDuration(duration time.Duration) {
 	t.maxDuration = duration
-	t.Reset()
+	//t.Reset()
 }
 
 // Sets the minimum and maximum duration of the timer.
 func (t *Timer) SetDuration(duration time.Duration) {
 	t.minDuration = duration
 	t.maxDuration = duration
-	t.Reset()
+	//t.Reset()
 }
 
 //------------------------------------------------------------------------------

@@ -75,6 +75,10 @@ func (p *Peer) SetHeartbeatTimeout(duration time.Duration) {
 	p.heartbeatTimer.SetDuration(duration)
 }
 
+func (p *Peer) StartHeartbeatTimeout() {
+	p.heartbeatTimer.Reset()
+}
+
 //------------------------------------------------------------------------------
 //
 // Methods

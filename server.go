@@ -9,6 +9,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"encoding/json"
 )
 
 //------------------------------------------------------------------------------
@@ -73,7 +74,7 @@ type Server struct {
 //------------------------------------------------------------------------------
 
 // Creates a new server with a log at the given path.
-func NewServer(name string, path string, transporter Transporter, context interface{}) (*Server, error) {
+func NewServer(name string, path string, transporter Transporter, stateMachine StateMachine, context interface{}) (*Server, error) {
 	if name == "" {
 		return nil, errors.New("raft.Server: Name cannot be blank")
 	}
@@ -85,6 +86,7 @@ func NewServer(name string, path string, transporter Transporter, context interf
 		name:             name,
 		path:             path,
 		transporter:      transporter,
+		stateMachine:     stateMachine,
 		context:          context,
 		state:            Stopped,
 		peers:            make(map[string]*Peer),
@@ -228,6 +230,16 @@ func (s *Server) SetElectionTimeout(duration time.Duration) {
 	s.electionTimer.SetMaxDuration(duration * 2)
 }
 
+func (s *Server) StartElectionTimeout() {
+	s.electionTimer.Reset()
+}
+
+func (s *Server) StartHeartbeatTimeout() {
+	for _, peer := range s.peers {
+		peer.StartHeartbeatTimeout()
+	}
+}
+
 //--------------------------------------
 // Heartbeat timeout
 //--------------------------------------
@@ -268,6 +280,9 @@ func (s *Server) Initialize() error {
 		return errors.New("raft.Server: Server already running")
 	}
 
+	// Update the state.
+	s.state = Follower
+
 	// create snapshot dir if not exist
 	os.Mkdir(s.path+"/snapshot", 0700)
 
@@ -286,8 +301,7 @@ func (s *Server) Initialize() error {
 	s.currentTerm = s.log.CurrentTerm()
 	//fmt.Println("curr ", s.currentTerm)
 
-	// Update the state.
-	s.state = Follower
+
 
 	for _, peer := range s.peers {
 		peer.pause()
@@ -808,12 +822,13 @@ func (s *Server) Snapshot() {
 		s.takeSnapshot()
 
 		// TODO: change this... to something reasonable
-		time.Sleep(5000 * time.Millisecond)
+		time.Sleep(60 * time.Second)
 	}
 }
 
 func (s *Server) takeSnapshot() error {
 	//TODO put a snapshot mutex
+	fmt.Println("take Snapshot")
 	if s.currentSnapshot != nil {
 		return errors.New("handling snapshot")
 	}
@@ -826,13 +841,29 @@ func (s *Server) takeSnapshot() error {
 
 	path := s.SnapshotPath(lastIndex, lastTerm)
 
-	state, err := s.stateMachine.Save()
+	var state []byte
+	var err error
 
-	if err != nil {
-		return err
+	if s.stateMachine != nil {
+		state, err = s.stateMachine.Save()
+
+		if err != nil {
+			return err
+		}
+
+	} else {
+		state = []byte{0}
 	}
 
-	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, state, path}
+	var peerNames []string
+
+
+	for _, peer := range s.peers {
+		peerNames = append(peerNames, peer.Name())
+	}
+	peerNames = append(peerNames, s.Name())
+
+	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, peerNames, state,  path}
 
 	s.saveSnapshot()
 
@@ -847,7 +878,7 @@ func (s *Server) saveSnapshot() error {
 	if s.currentSnapshot == nil {
 		return errors.New("no snapshot to save")
 	}
-
+	fmt.Println("saveSnapshot")
 	err := s.currentSnapshot.Save()
 
 	if err != nil {
@@ -858,7 +889,7 @@ func (s *Server) saveSnapshot() error {
 	s.lastSnapshot = s.currentSnapshot
 
 	// delete the previous snapshot if there is any change
-	if tmp != nil && !(tmp.lastIndex == s.lastSnapshot.lastIndex && tmp.lastTerm == s.lastSnapshot.lastTerm) {
+	if tmp != nil && !(tmp.LastIndex == s.lastSnapshot.LastIndex && tmp.LastTerm == s.lastSnapshot.LastTerm) {
 		tmp.Remove()
 	}
 	s.currentSnapshot = nil
@@ -877,12 +908,22 @@ func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, erro
 
 	s.stateMachine.Recovery(req.State)
 
+	//recovery the cluster configuration
+	for _, peerName := range req.Peers {
+		s.AddPeer(peerName)
+	}
+
 	//update term and index
 	s.currentTerm = req.LastTerm
+
 	s.log.UpdateCommitIndex(req.LastIndex)
+
 	snapshotPath := s.SnapshotPath(req.LastIndex, req.LastTerm)
-	s.currentSnapshot = &Snapshot{req.LastIndex, req.LastTerm, req.State, snapshotPath}
+
+	s.currentSnapshot = &Snapshot{req.LastIndex, req.LastTerm, req.Peers, req.State, snapshotPath}
+	
 	s.saveSnapshot()
+	
 	s.log.Compact(req.LastIndex, req.LastTerm)
 
 	return NewSnapshotResponse(req.LastTerm, true, req.LastIndex), nil
@@ -893,8 +934,8 @@ func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, erro
 func (s *Server) LoadSnapshot() error {
 	dir, err := os.OpenFile(path.Join(s.path, "snapshot"), os.O_RDONLY, 0)
 	if err != nil {
-		dir.Close()
-		panic(err)
+		fmt.Println("snapshot dir not exist")
+		return err
 	}
 
 	filenames, err := dir.Readdirnames(-1)
@@ -919,35 +960,40 @@ func (s *Server) LoadSnapshot() error {
 	if err != nil {
 		panic(err)
 	}
-
+	fmt.Println("snapshot opened")
 	// TODO check checksum first 
-	// TODO recovery state machine
 
-	var state []byte
-	var checksum, lastIndex, lastTerm uint64
+	var snapshotBytes []byte
+	var checksum []byte
 
-	n, err := fmt.Fscanf(file, "%08x\n%v\n%v", &checksum, &lastIndex, &lastTerm)
+	n, err := fmt.Fscanf(file, "%08x\n", &checksum)
 
 	if err != nil {
 		return err
 	}
 
-	if n != 3 {
+	if n != 1 {
 		return errors.New("Bad snapshot file")
 	}
 
-	state, _ = ioutil.ReadAll(file)
+	snapshotBytes, _ = ioutil.ReadAll(file)
+	fmt.Println(string(snapshotBytes))
+
+	err = json.Unmarshal(snapshotBytes, &s.lastSnapshot)
 
 	if err != nil {
 		return err
 	}
 
-	s.lastSnapshot = &Snapshot{lastIndex, lastTerm, state, snapshotPath}
-	err = s.stateMachine.Recovery(state)
+	err = s.stateMachine.Recovery(s.lastSnapshot.State)
 
-	s.log.SetStartTerm(lastTerm)
-	s.log.SetStartIndex(lastIndex)
-	s.log.UpdateCommitIndex(lastIndex)
+	for _, peerName := range s.lastSnapshot.Peers {
+		s.AddPeer(peerName)
+	}
+
+	s.log.SetStartTerm(s.lastSnapshot.LastTerm)
+	s.log.SetStartIndex(s.lastSnapshot.LastIndex)
+	s.log.UpdateCommitIndex(s.lastSnapshot.LastIndex)
 
 	return err
 }

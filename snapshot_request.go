@@ -5,6 +5,7 @@ type SnapshotRequest struct {
 	LeaderName string `json:"leaderName"`
 	LastIndex  uint64 `json:"lastTerm"`
 	LastTerm   uint64 `json:"lastIndex"`
+	Peers	   []string `json:peers`
 	State      []byte `json:"state"`
 }
 
@@ -25,9 +26,10 @@ type SnapshotResponse struct {
 func NewSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest {
 	return &SnapshotRequest{
 		LeaderName: leaderName,
-		LastIndex:  snapshot.lastIndex,
-		LastTerm:   snapshot.lastTerm,
-		State:      snapshot.state,
+		LastIndex:  snapshot.LastIndex,
+		LastTerm:   snapshot.LastTerm,
+		Peers:      snapshot.Peers,
+		State:      snapshot.State,
 	}
 }
 
