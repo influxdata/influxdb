@@ -4,7 +4,6 @@ import (
 	"math/rand"
 	"sync"
 	"time"
-	"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -148,8 +147,6 @@ func (t *Timer) Reset() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	fmt.Println("[TimerReset] got the lock")
-
 	// Stop the timer if it's already running.
 	if t.internalTimer != nil {
 		t.stopInternalTimer()
@@ -170,15 +167,12 @@ func (t *Timer) Reset() {
 		case v, ok := <-internalTimer.C:
 			if ok {
 				t.mutex.Lock()
-				fmt.Println("[TimerReset Go Func] got the lock")
 				if t.c != nil {
 					t.c <- v
 				}
 				t.mutex.Unlock()
-				fmt.Println("[TimerReset Go Func] release the lock")
 			}
 		case <-resetChannel:
 		}
 	}()
-	fmt.Println("[TimerReset] release the lock")
 }

@@ -59,12 +59,14 @@ type Server struct {
 	leader           string
 	peers            map[string]*Peer
 	mutex            sync.Mutex
+
 	electionTimer    *Timer
 	heartbeatTimeout time.Duration
+	response         chan FlushResponse
+
 	currentSnapshot  *Snapshot
 	lastSnapshot     *Snapshot
-	stateMachine     StateMachine
-	response         chan FlushResponse          
+	stateMachine     StateMachine         
 }
 
 //------------------------------------------------------------------------------
@@ -295,13 +297,8 @@ func (s *Server) Initialize() error {
 		return fmt.Errorf("raft.Server: %v", err)
 	}
 
-
-	//fmt.Println("curr ", s.currentTerm)
 	// Update the term to the last term in the log.
 	s.currentTerm = s.log.CurrentTerm()
-	//fmt.Println("curr ", s.currentTerm)
-
-
 
 	for _, peer := range s.peers {
 		peer.pause()
@@ -323,7 +320,6 @@ func (s *Server) Stop() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.unload()
-	//fmt.Println("stop")
 }
 
 // Unloads the server.
@@ -403,14 +399,14 @@ func (s *Server) do(command Command) ([]byte, error) {
 	if s.state != Leader {
 		return nil, NotLeaderError
 	}
-	fmt.Println("do")
-	// Capture the term that this command is executing within.
-	//currentTerm := s.currentTerm
+
+	// Pause the heart beat before we begin to collect
+	// the response
 
 	for _, peer := range s.peers {
 		peer.pause()
 	}
-	//fmt.Println("curr term", s.currentTerm)
+
 	// Add a new entry to the log.
 	entry := s.log.CreateEntry(s.currentTerm, command)
 	if err := s.log.AppendEntry(entry); err != nil {
@@ -418,12 +414,13 @@ func (s *Server) do(command Command) ([]byte, error) {
 	}
 
 	// begin to collecting data
-	s.response = make(chan FlushResponse, len(s.peers))
+	s.response = make(chan FlushResponse, 2 * len(s.peers))
 
 	for _, peer := range s.peers {
 		peer.collecting = true
 	}
 
+	// resume the peer heartbeat and fire at it
 	for _, peer := range s.peers {
 		peer.resume()
 		peer.heartbeatTimer.fire()
@@ -440,6 +437,10 @@ func (s *Server) do(command Command) ([]byte, error) {
 		response := <-s.response
 		if response.success {
 			responseCount++
+		} else {
+			// step down
+			s.setCurrentTerm(response.term)
+			return nil, fmt.Errorf("raft: Unable to flush the entry: %d", entry.Index)
 		}
 
 	}
@@ -461,51 +462,41 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	fmt.Println("[AppendEntries] got lock")
-
 	// If the server is stopped then reject it.
 	if !s.Running() {
 		return NewAppendEntriesResponse(s.currentTerm, false, 0), fmt.Errorf("raft.Server: Server stopped")
 	}
 
-	fmt.Println("[AppendEntries] server is running")
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.currentTerm {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), fmt.Errorf("raft.Server: Stale request term")
 	}
-	//fmt.Println("my term ", s.currentTerm, " req ", req.Term)
-	fmt.Println("[AppendEntries] term is good")
 
 	s.setCurrentTerm(req.Term)
 
-
-	fmt.Println("[AppendEntries] set current term is good")
 	// Update the current leader.
 	s.leader = req.LeaderName
 
-	//fmt.Println("leader is ", req.LeaderName)
 	// Reset election timeout.
 	if s.electionTimer != nil {
 		s.electionTimer.Reset()
 	}
 
-	fmt.Println("[AppendEntries] reset the timer is good")
-
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.Truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
-	fmt.Println("[AppendEntries] truncate is good")
+
 	// Append entries to the log.
 	if err := s.log.AppendEntries(req.Entries); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
-	fmt.Println("[AppendEntries] append is good")
+
 	// Commit up to the commit index.
 	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
-	fmt.Println("[AppendEntries] commit is good")
+
 	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
 }
 
@@ -742,7 +733,6 @@ func (s *Server) electionTimeoutFunc(startChannel chan bool) {
 		// If an election times out then promote this server. If the channel
 		// closes then that means the server has stopped so kill the function.
 		if _, ok := <-c; ok {
-			fmt.Println("timeout")
 			s.promote()
 		} else {
 			break
@@ -878,7 +868,7 @@ func (s *Server) saveSnapshot() error {
 	if s.currentSnapshot == nil {
 		return errors.New("no snapshot to save")
 	}
-	fmt.Println("saveSnapshot")
+	
 	err := s.currentSnapshot.Save()
 
 	if err != nil {
@@ -934,7 +924,7 @@ func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, erro
 func (s *Server) LoadSnapshot() error {
 	dir, err := os.OpenFile(path.Join(s.path, "snapshot"), os.O_RDONLY, 0)
 	if err != nil {
-		fmt.Println("snapshot dir not exist")
+		
 		return err
 	}
 
@@ -960,7 +950,7 @@ func (s *Server) LoadSnapshot() error {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("snapshot opened")
+	
 	// TODO check checksum first 
 
 	var snapshotBytes []byte

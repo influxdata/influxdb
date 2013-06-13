@@ -180,7 +180,6 @@ func (l *Log) Open(path string) error {
 		}
 
 		file.Close()
-		fmt.Println("do recovery")
 	}
 
 	// Open the file for appending.
@@ -229,7 +228,6 @@ func (l *Log) ContainsEntry(index uint64, term uint64) bool {
 // Retrieves a list of entries after a given index. This function also returns
 // the term of the index provided.
 func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
-	fmt.Println("[GET Entries After] ", index)
 	// Return an error if the index doesn't exist.
 	if index > (uint64(len(l.entries)) + l.startIndex) {
 		panic(fmt.Sprintf("raft: Index is beyond end of log: %v", index))
@@ -237,7 +235,6 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 
 	// If we're going from the beginning of the log then return the whole log.
 	if index == l.startIndex {
-		fmt.Println("[GET Entries 0] ")
 		return l.entries, l.startTerm
 	}
 	// Determine the term at the given entry and return a subslice.
@@ -334,8 +331,6 @@ func (l *Log) SetCommitIndex(index uint64) error {
 func (l *Log) Truncate(index uint64, term uint64) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	fmt.Println("[Truncate] got log lock")
-	fmt.Println("[Truncate] index ", index, " term ", term)
 	// Do not allow committed entries to be truncated.
 	if index < l.CommitIndex() {
 		return fmt.Errorf("raft.Log: Index is already committed (%v): (IDX=%v, TERM=%v)", l.CommitIndex(), index, term)

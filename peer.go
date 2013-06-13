@@ -186,7 +186,6 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error) {
 func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error) {
 	// Ignore any null requests.
 	if req == nil {
-		fmt.Println("send nil...")
 		return 0, false, errors.New("raft.Peer: Request required")
 	}
 
@@ -213,7 +212,6 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 		// problem.
 		if p.prevLogIndex > 0 {
 			p.prevLogIndex--
-			fmt.Println("decrease the previous index of peer ", p.Name(), " to ", p.prevLogIndex)
 		}
 		if resp.CommitIndex > p.prevLogIndex {
 			p.prevLogIndex = resp.CommitIndex
@@ -249,29 +247,30 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 		// Flush the peer when we get a heartbeat timeout. If the channel is
 		// closed then the peer is getting cleaned up and we should exit.
 
-
-		// defer func() {
-		// 	if r := recover(); r != nil {
-		// 		fmt.Println("Recovered in f", r)
-		// 		go heartbeatTimeoutFunc(startChannel)
-		// 	}
-		// }()
-
 		if _, ok := <-c; ok {
 			collecting := p.collecting
+
 			if collecting == false {
-				fmt.Println("begin flush to peer ", p.Name())
 				p.flush(false) 
-				fmt.Println("finish flush to peer ", p.Name())
+
 			} else {
 				var f FlushResponse 
 				// already holding lock
 				f.peer = p
-				fmt.Println("Do begin flush to peer ", p.Name())
 				f.term, f.success, f.err = p.flush(true)
-				fmt.Println("Do finish flush to peer ", p.Name())
 				if f.success {
 					p.server.response <- f
+					p.collecting = false
+				} else {
+					// when we doing collecting, we will not receive 
+					// appendentries request since we lock the server
+					// we need to check here
+
+					// if we receive a response with higher term
+					// then step down
+					if f.term > p.server.currentTerm {
+						p.server.response <- f
+					}
 					p.collecting = false
 				}
 			}
