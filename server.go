@@ -189,6 +189,8 @@ func (s *Server) LastCommandName() string {
 
 // Retrieves the number of member servers in the consensus.
 func (s *Server) MemberCount() int {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	return len(s.peers) + 1
 }
 
