@@ -189,11 +189,9 @@ func (s *Server) LastCommandName() string {
 
 // Retrieves the number of member servers in the consensus.
 func (s *Server) MemberCount() int {
-	count := 1
-	for _, _ = range s.peers {
-		count++
-	}
-	return count
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return len(s.peers) + 1
 }
 
 // Retrieves the number of servers required to make a quorum.
