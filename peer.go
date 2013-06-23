@@ -21,7 +21,7 @@ type Peer struct {
 	mutex          sync.Mutex
 	heartbeatTimer *Timer
 	// Collecting Info
-	collecting       bool
+	collecting       int
 }
 
 type FlushResponse struct {
@@ -43,7 +43,7 @@ func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer 
 		server:         server,
 		name:           name,
 		heartbeatTimer: NewTimer(heartbeatTimeout, heartbeatTimeout),
-		collecting:	false,
+		collecting:	-1,
 	}
 
 	// Start the heartbeat timeout and wait for the goroutine to start.
@@ -98,9 +98,12 @@ func (p *Peer) resume() {
 
 // Pauses the peer to prevent heartbeating.
 func (p *Peer) pause() {
+	fmt.Println( p.server.Name() ," Pause try lock ", p.Name())
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
+	fmt.Println( p.server.Name() ," Pause timer of ", p.Name())
 	p.heartbeatTimer.Pause()
+	fmt.Println( p.server.Name() ," Finish Pause timer of ", p.Name())
 }
 
 // Stops the peer entirely.
@@ -120,10 +123,9 @@ func (p *Peer) flush(internal bool) (uint64, bool, error) {
 	// Retrieve the peer data within a lock that is separate from the
 	// server lock when creating the request. Otherwise a deadlock can
 	// occur.
-
-	p.mutex.Lock()
+	//p.mutex.Lock()
 	server, prevLogIndex := p.server, p.prevLogIndex
-	p.mutex.Unlock()
+	//p.mutex.Unlock()
 
 	var req *AppendEntriesRequest
 	snapShotNeeded := false
@@ -142,8 +144,8 @@ func (p *Peer) flush(internal bool) (uint64, bool, error) {
 	}
 	server.log.mutex.Unlock()
 
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	// p.mutex.Lock()
+	// defer p.mutex.Unlock()
 	if snapShotNeeded {
 		req := server.createSnapshotRequest()
 		return p.sendSnapshotRequest(req)
@@ -192,7 +194,12 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	// Generate an AppendEntries request based on the state of the server and
 	// log. Send the request through the user-provided handler and process the
 	// result.
+	//fmt.Println("flush to ", p.Name())
+	fmt.Println("[HeartBeat] Leader ", p.server.Name(), " to ", 
+		p.Name(), " ",len(req.Entries)," ", time.Now())
 	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
+
+	//fmt.Println("receive flush response from ", p.Name())
 
 	p.heartbeatTimer.Reset()
 	if resp == nil {
@@ -205,6 +212,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	if resp.Success {
 		if len(req.Entries) > 0 {
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
+			fmt.Println("Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 		}
 	} else {
 		// Decrement the previous log index down until we find a match. Don't
@@ -243,37 +251,33 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 		if c == nil {
 			break
 		}
-
-		// Flush the peer when we get a heartbeat timeout. If the channel is
-		// closed then the peer is getting cleaned up and we should exit.
-
+		
 		if _, ok := <-c; ok {
-			collecting := p.collecting
 
-			if collecting == false {
-				p.flush(false) 
+			var f FlushResponse 
+			
+			f.peer = p
 
-			} else {
-				var f FlushResponse 
-				// already holding lock
-				f.peer = p
-				f.term, f.success, f.err = p.flush(true)
-				if f.success {
+			f.term, f.success, f.err = p.flush(true)
+
+			if f.success {
+				if p.prevLogIndex > p.server.log.CommitIndex() {
+					fmt.Println("[Heartbeat] Peer", p.Name(), "send to commit center")
 					p.server.response <- f
-					p.collecting = false
-				} else {
-					// when we doing collecting, we will not receive 
-					// appendentries request since we lock the server
-					// we need to check here
-
-					// if we receive a response with higher term
-					// then step down
-					if f.term > p.server.currentTerm {
-						p.server.response <- f
+					fmt.Println("[Heartbeat] Peer", p.Name(), "back from commit center")
+				}
+			} else {
+				if f.term > p.server.currentTerm {
+					fmt.Println("[Heartbeat] SetpDown!")
+					select {
+						case p.server.stepDown <- f.term:
+							p.pause()
+						default:
+							p.pause()
 					}
-					p.collecting = false
 				}
 			}
+
 		} else {
 			break
 		}

@@ -5,11 +5,12 @@ import (
 	"io/ioutil"
 	"os"
 	"time"
+	"errors"
 )
 
 const (
-	testHeartbeatTimeout = 20 * time.Millisecond
-	testElectionTimeout  = 60 * time.Millisecond
+	testHeartbeatTimeout = 30 * time.Millisecond
+	testElectionTimeout  = 80 * time.Millisecond
 )
 
 func init() {
@@ -132,6 +133,7 @@ func (sm *testStateMachine) Recovery(state []byte) error {
 
 type joinCommand struct {
 	Name string `json:"name"`
+	finish chan bool
 }
 
 func (c *joinCommand) CommandName() string {
@@ -143,6 +145,20 @@ func (c *joinCommand) Apply(server *Server) ([]byte, error) {
 	return nil, err
 }
 
+
+func (c *joinCommand) Init() {
+	c.finish = make(chan bool)
+}
+
+func (c *joinCommand) Join() ([]byte, error) {
+	<-c.finish
+	return nil, nil
+}
+
+func (c *joinCommand) Finish() {
+	c.finish <- true
+}
+
 //--------------------------------------
 // Command1
 //--------------------------------------
@@ -150,14 +166,29 @@ func (c *joinCommand) Apply(server *Server) ([]byte, error) {
 type TestCommand1 struct {
 	Val string `json:"val"`
 	I   int    `json:"i"`
+	finish chan bool
 }
 
-func (c TestCommand1) CommandName() string {
+func (c *TestCommand1) CommandName() string {
 	return "cmd_1"
 }
 
-func (c TestCommand1) Apply(server *Server) ([]byte, error) {
+func (c *TestCommand1) Apply(server *Server) ([]byte, error) {
+	c.finish = make(chan bool)
 	return nil, nil
+}
+
+func (c *TestCommand1) Init() {
+	c.finish = make(chan bool)
+}
+
+func (c *TestCommand1) Join() ([]byte, error) {
+	<-c.finish
+	return nil, nil
+}
+
+func (c *TestCommand1) Finish() {
+	c.finish <- true
 }
 
 //--------------------------------------
@@ -166,12 +197,32 @@ func (c TestCommand1) Apply(server *Server) ([]byte, error) {
 
 type TestCommand2 struct {
 	X int `json:"x"`
+	finish chan bool
 }
 
-func (c TestCommand2) CommandName() string {
+func (c *TestCommand2) CommandName() string {
 	return "cmd_2"
 }
 
-func (c TestCommand2) Apply(server *Server) ([]byte, error) {
+func (c *TestCommand2) Apply(server *Server) ([]byte, error) {
+	
 	return nil, nil
 }
+
+func (c *TestCommand2) Init() {
+	c.finish = make(chan bool)
+}
+
+func (c *TestCommand2) Join() ([]byte, error) {
+	select {
+	case <-c.finish:
+		return nil, nil
+	case <-afterBetween(time.Second, time.Second*2):
+		return nil, errors.New("timeout")
+	}
+}
+
+func (c *TestCommand2) Finish() {
+	c.finish <- true
+}
+

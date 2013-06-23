@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+	"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -110,7 +111,7 @@ func (t *Timer) Running() bool {
 func (t *Timer) Stop() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-
+	fmt.Println("[STOP] stop timer!")
 	t.stopInternalTimer()
 
 	if t.c != nil {
@@ -121,9 +122,10 @@ func (t *Timer) Stop() {
 
 // Stops the timer.
 func (t *Timer) Pause() {
+	fmt.Println("[Pause] try lock to stop timer!")
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-
+	fmt.Println("[Pause] stop timer!")
 	t.stopInternalTimer()
 }
 
@@ -139,7 +141,12 @@ func (t *Timer) stopInternalTimer() {
 }
 
 func (t *Timer) fire() {
-	t.c <-time.Now()
+	select {
+	case t.c <-time.Now():
+		return
+	default :
+		return
+	}
 }
 
 // Stops the timer if it is running and restarts it.
@@ -165,12 +172,12 @@ func (t *Timer) Reset() {
 		// it through to the timer's external channel.
 		select {
 		case v, ok := <-internalTimer.C:
-			if ok {
-				t.mutex.Lock()
-				if t.c != nil {
-					t.c <- v
+			if ok {	
+					// send to the outer channel if we could
+					select {
+					case t.c <- v:
+					default:
 				}
-				t.mutex.Unlock()
 			}
 		case <-resetChannel:
 		}

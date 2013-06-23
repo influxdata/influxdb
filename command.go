@@ -27,6 +27,9 @@ func init() {
 type Command interface {
 	CommandName() string
 	Apply(server *Server) ([]byte, error)
+	Join() ([]byte, error)
+	Init()
+	Finish() 
 }
 
 //------------------------------------------------------------------------------
