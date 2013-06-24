@@ -55,8 +55,6 @@ type Server struct {
 	context          interface{}
 	currentTerm      uint64
 
-	startIndex       uint64
-
 	votedFor         string
 	log              *Log
 	leader           string
@@ -312,7 +310,7 @@ func (s *Server) Initialize() error {
 	s.currentTerm = s.log.CurrentTerm()
 
 	// update the startIndex
-	s.startIndex = uint64(len(s.log.entries)) + s.log.startIndex
+	s.log.callBackFrom = uint64(len(s.log.entries)) + s.log.startIndex
 
 	for _, peer := range s.peers {
 		peer.pause()
@@ -340,9 +338,22 @@ func (s *Server) commitCenter() {
 
 		if s.QuorumSize() < 2 {
 			fmt.Println("[CommitCenter] Commit ", s.log.CurrentIndex())
-			s.log.SetCommitIndex(s.log.CurrentIndex())
-			entry := s.log.entries[int(s.log.CurrentIndex()) - 1- int(s.log.startIndex)]
-			entry.Command.Finish()
+
+			commited := int(s.log.CommitIndex())
+			commit := int(s.log.CurrentIndex())
+
+			s.log.SetCommitIndex(uint64(commit))
+
+			for i := commited; i < commit; i++ {
+				select {
+				case s.log.entries[i - int(s.log.startIndex)].commit <- true:
+					fmt.Println("notify")
+					continue
+				default:
+					continue
+				}
+			}
+
 			continue
 		}
 
@@ -356,14 +367,25 @@ func (s *Server) commitCenter() {
 		sort.Ints(data)
 		commit := data[s.QuorumSize() - 1]
 
-		if commit > int(s.log.CommitIndex()) {
+		commited := int(s.log.CommitIndex())
+
+		if commit > commited {
 			fmt.Println("[CommitCenter] Going to Commit ", commit)
 			s.log.SetCommitIndex(uint64(commit))
-			entry := s.log.entries[commit - 1- int(s.log.startIndex)]
+			// entry := s.log.entries[commit - 1- int(s.log.startIndex)]
 
-			if (commit > int(s.startIndex)) {
-				fmt.Println("[CommitCenter] Wait join Commit ", entry.Index)
-				entry.Command.Finish() 
+			// if (commit > int(s.startIndex)) {
+			// 	fmt.Println("[CommitCenter] Wait join Commit ", entry.Index)
+			// }
+
+			for i := commited; i < commit; i++ {
+				select {
+				case s.log.entries[i - int(s.log.startIndex)].commit <- true:
+					fmt.Println("notify")
+					continue
+				default:
+					continue
+				}
 			}
 
 			fmt.Println("[CommitCenter] Commit ", commit)
@@ -455,21 +477,11 @@ func (s *Server) StartLeader() error {
 
 // Attempts to execute a command and replicate it. The function will return
 // when the command has been successfully committed or an error has occurred.
-// func (s *Server) Do(command Command) ([]byte, error) {
-// 	s.mutex.Lock()
-// 	defer s.mutex.Unlock()
-// 	result, err := s.do(command)
-// 	return result, err
-// }
 
-// This function is the low-level interface to execute commands. This function
-// does not obtain a lock so one must be obtained before executing.
 func (s *Server) Do(command Command) ([]byte, error) {
 	if s.state != Leader {
 		return nil, NotLeaderError
 	}
-
-	command.Init()
 
 	entry := s.log.CreateEntry(s.currentTerm, command)
 	if err := s.log.AppendEntry(entry); err != nil {
@@ -477,12 +489,22 @@ func (s *Server) Do(command Command) ([]byte, error) {
 	}
 
 	s.response <- FlushResponse{s.currentTerm, true, nil, nil}
-	fmt.Println("[Do] fire!")
+
+	// to speed up the response time
 	for _, peer := range s.peers {
 		peer.heartbeatTimer.fire()
 	}
 	fmt.Println("[Do] join!")
-	return command.Join()
+
+	// timeout here
+	select {
+		case <-entry.commit:
+			fmt.Println("[Do] finish!")
+			return entry.result, nil
+		case <-time.After(time.Second):
+			fmt.Println("[Do] fail!")
+			return nil, errors.New("Command commit fails")
+	}
 }
 
 // Appends a log entry from the leader to this server.
@@ -518,16 +540,23 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
 
+	fmt.Println("Peer ", s.Name(), "after truncate ")
+
 	// Append entries to the log.
 	if err := s.log.AppendEntries(req.Entries); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}	
 
+	fmt.Println("Peer ", s.Name(), "after append ")
 	// Commit up to the commit index.
 	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
 
+	fmt.Println("Peer ", s.Name(), "after commit ")
+
+	fmt.Println("Peer ", s.Name(), "reply heartbeat from ", req.LeaderName, 
+		" ",req.Term," ", s.currentTerm, " ",time.Now())
 	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
 }
 
@@ -582,9 +611,16 @@ func (s *Server) promote() (bool, error) {
 
 		// Collect votes until we have a quorum.
 		votes := map[string]bool{}
+
 		elected := false
-	loop:
+		timeout := false
+
 		for {
+			// if timeout happened, restart the promotion 
+			if timeout {
+				break
+			}
+
 			// Add up all our votes.
 			votesGranted := 1
 			for _, value := range votes {
@@ -592,6 +628,7 @@ func (s *Server) promote() (bool, error) {
 					votesGranted++
 				}
 			}
+
 			// If we received enough votes then stop waiting for more votes.
 			if votesGranted >= s.QuorumSize() {
 				elected = true
@@ -615,7 +652,7 @@ func (s *Server) promote() (bool, error) {
 					votes[resp.peer.Name()] = resp.VoteGranted
 				}
 			case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
-				break loop
+				timeout = true
 			}
 		}
 
@@ -652,8 +689,10 @@ func (s *Server) promoteToCandidate() (uint64, uint64, uint64, error) {
 	s.currentTerm++
 	s.votedFor = s.name
 	s.leader = ""
+
 	// Pause the election timer while we're a candidate.
 	s.electionTimer.Pause()
+
 	// Return server state so we can check for it during leader promotion.
 	lastLogIndex, lastLogTerm := s.log.LastInfo()
 
@@ -686,7 +725,7 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 	// Move server to become a leader and begin peer heartbeats.
 	s.state = Leader
 	s.leader = s.name
-	s.startIndex = lastLogIndex
+	s.log.callBackFrom = lastLogIndex
 
 	for _, peer := range s.peers {
 		// start from lastLogIndex

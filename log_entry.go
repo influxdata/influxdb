@@ -22,7 +22,8 @@ type LogEntry struct {
 	Index   uint64  `json:"index"`
 	Term    uint64  `json:"term"`
 	Command Command `json:"command"`
-	result	[]byte  `json:-`
+	result	[]byte  `json:"-"`
+	commit  chan bool `json:"-"`
 }
 
 // A temporary interface used for unmarshaling log entries.
@@ -46,6 +47,7 @@ func NewLogEntry(log *Log, index uint64, term uint64, command Command) *LogEntry
 		Index:   index,
 		Term:    term,
 		Command: command,
+		commit: make(chan bool, 3),
 	}
 }
 

@@ -20,8 +20,6 @@ type Peer struct {
 	prevLogIndex   uint64
 	mutex          sync.Mutex
 	heartbeatTimer *Timer
-	// Collecting Info
-	collecting       int
 }
 
 type FlushResponse struct {
@@ -43,7 +41,6 @@ func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer 
 		server:         server,
 		name:           name,
 		heartbeatTimer: NewTimer(heartbeatTimeout, heartbeatTimeout),
-		collecting:	-1,
 	}
 
 	// Start the heartbeat timeout and wait for the goroutine to start.

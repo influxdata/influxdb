@@ -18,6 +18,7 @@ import (
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
 	ApplyFunc   func(Command) ([]byte, error)
+	callBackFrom uint64
 	file        *os.File
 	path        string
 	entries     []*LogEntry
@@ -339,7 +340,7 @@ func (l *Log) SetCommitIndex(index uint64) error {
 
 		// Apply the changes to the state machine and store the error code.
 		entry.result, l.errors[entryIndex] = l.ApplyFunc(entry.Command)
-		
+
 	}
 	return nil
 }
