@@ -18,7 +18,6 @@ import (
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
 	ApplyFunc   func(Command) ([]byte, error)
-	callBackFrom uint64
 	file        *os.File
 	path        string
 	entries     []*LogEntry
@@ -140,7 +139,7 @@ func (l *Log) CurrentTerm() uint64 {
 func (l *Log) Open(path string) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	
+
 	// Read all the entries from the log if one exists.
 	var lastIndex int = 0
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -168,11 +167,11 @@ func (l *Log) Open(path string) error {
 				}
 				break
 			}
-			
+
 			// Append entry.
 			l.entries = append(l.entries, entry)
 			l.commitIndex = entry.Index
-		
+
 			// Apply the command.
 			entry.result, err = l.ApplyFunc(entry.Command)
 
@@ -183,7 +182,7 @@ func (l *Log) Open(path string) error {
 
 		file.Close()
 	}
-	
+
 	// Open the file for appending.
 	var err error
 	l.file, err = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
@@ -240,7 +239,7 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 		return l.entries, l.startTerm
 	}
 
-	fmt.Println("[GetEntries] index ", index, "lastIndex", l.entries[len(l.entries) - 1].Index)
+	fmt.Println("[GetEntries] index ", index, "lastIndex", l.entries[len(l.entries)-1].Index)
 
 	// Determine the term at the given entry and return a subslice.
 	term := l.entries[index-1-l.startIndex].Term
@@ -263,7 +262,6 @@ func (l *Log) GetEntryError(entry *LogEntry) error {
 	}
 	return nil
 }
-
 
 //--------------------------------------
 // Commit
@@ -299,13 +297,12 @@ func (l *Log) LastInfo() (index uint64, term uint64) {
 		return l.startIndex, l.startTerm
 	}
 
-	// Return the last index & term 
-	lastEntry := l.entries[len(l.entries) - 1]
+	// Return the last index & term
+	lastEntry := l.entries[len(l.entries)-1]
 	return lastEntry.Index, lastEntry.Term
 }
 
-
-// Updates the commit index 
+// Updates the commit index
 func (l *Log) UpdateCommitIndex(index uint64) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
@@ -452,7 +449,7 @@ func (l *Log) Compact(index uint64, term uint64) error {
 	defer l.mutex.Unlock()
 
 	// nothing to compaction
-	// the index may be greater than the current index if 
+	// the index may be greater than the current index if
 	// we just recovery from on snapshot
 	if index >= l.internalCurrentIndex() {
 		entries = make([]*LogEntry, 0)

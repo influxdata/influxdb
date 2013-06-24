@@ -2,9 +2,9 @@ package raft
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
-	"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -23,10 +23,10 @@ type Peer struct {
 }
 
 type FlushResponse struct {
-	term uint64
+	term    uint64
 	success bool
-	err error
-	peer *Peer
+	err     error
+	peer    *Peer
 }
 
 //------------------------------------------------------------------------------
@@ -95,12 +95,10 @@ func (p *Peer) resume() {
 
 // Pauses the peer to prevent heartbeating.
 func (p *Peer) pause() {
-	fmt.Println( p.server.Name() ," Pause try lock ", p.Name())
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	fmt.Println( p.server.Name() ," Pause timer of ", p.Name())
+
 	p.heartbeatTimer.Pause()
-	fmt.Println( p.server.Name() ," Finish Pause timer of ", p.Name())
 }
 
 // Stops the peer entirely.
@@ -114,35 +112,26 @@ func (p *Peer) stop() {
 // Flush
 //--------------------------------------
 
-// if internal is set true, sends an AppendEntries RPC but does not obtain a lock 
-// on the server. 
-func (p *Peer) flush(internal bool) (uint64, bool, error) {
-	// Retrieve the peer data within a lock that is separate from the
-	// server lock when creating the request. Otherwise a deadlock can
-	// occur.
-	//p.mutex.Lock()
+// Sends an AppendEntries RPC but does not obtain a lock
+// on the server.
+func (p *Peer) flush() (uint64, bool, error) {
+
 	server, prevLogIndex := p.server, p.prevLogIndex
-	//p.mutex.Unlock()
 
 	var req *AppendEntriesRequest
 	snapShotNeeded := false
 
 	// we need to hold the log lock to create AppendEntriesRequest
 	// avoid snapshot to delete the desired entries before AEQ()
+
 	server.log.mutex.Lock()
 	if prevLogIndex >= server.log.StartIndex() {
-		if internal {
-			req = server.createInternalAppendEntriesRequest(prevLogIndex)
-		} else {
-			req = server.createAppendEntriesRequest(prevLogIndex)
-		}
+		req = server.createInternalAppendEntriesRequest(prevLogIndex)
 	} else {
 		snapShotNeeded = true
 	}
 	server.log.mutex.Unlock()
 
-	// p.mutex.Lock()
-	// defer p.mutex.Unlock()
 	if snapShotNeeded {
 		req := server.createSnapshotRequest()
 		return p.sendSnapshotRequest(req)
@@ -192,8 +181,8 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	// log. Send the request through the user-provided handler and process the
 	// result.
 	//fmt.Println("flush to ", p.Name())
-	fmt.Println("[HeartBeat] Leader ", p.server.Name(), " to ", 
-		p.Name(), " ",len(req.Entries)," ", time.Now())
+	fmt.Println("[HeartBeat] Leader ", p.server.Name(), " to ",
+		p.Name(), " ", len(req.Entries), " ", time.Now())
 	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
 
 	//fmt.Println("receive flush response from ", p.Name())
@@ -248,29 +237,32 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 		if c == nil {
 			break
 		}
-		
+
 		if _, ok := <-c; ok {
 
-			var f FlushResponse 
-			
+			var f FlushResponse
+
 			f.peer = p
 
-			f.term, f.success, f.err = p.flush(true)
+			f.term, f.success, f.err = p.flush()
 
+			// if the peer successfully appended the log entry
+			// we will tell the commit center
 			if f.success {
 				if p.prevLogIndex > p.server.log.CommitIndex() {
 					fmt.Println("[Heartbeat] Peer", p.Name(), "send to commit center")
 					p.server.response <- f
 					fmt.Println("[Heartbeat] Peer", p.Name(), "back from commit center")
 				}
+
 			} else {
 				if f.term > p.server.currentTerm {
 					fmt.Println("[Heartbeat] SetpDown!")
 					select {
-						case p.server.stepDown <- f.term:
-							p.pause()
-						default:
-							p.pause()
+					case p.server.stepDown <- f.term:
+						p.pause()
+					default:
+						p.pause()
 					}
 				}
 			}

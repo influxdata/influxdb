@@ -1,10 +1,10 @@
 package raft
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
-	"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -142,9 +142,9 @@ func (t *Timer) stopInternalTimer() {
 
 func (t *Timer) fire() {
 	select {
-	case t.c <-time.Now():
+	case t.c <- time.Now():
 		return
-	default :
+	default:
 		return
 	}
 }
@@ -172,11 +172,11 @@ func (t *Timer) Reset() {
 		// it through to the timer's external channel.
 		select {
 		case v, ok := <-internalTimer.C:
-			if ok {	
-					// send to the outer channel if we could
-					select {
-					case t.c <- v:
-					default:
+			if ok {
+				// send to the outer channel if we could
+				select {
+				case t.c <- v:
+				default:
 				}
 			}
 		case <-resetChannel:

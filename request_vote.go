@@ -13,7 +13,6 @@ type RequestVoteRequest struct {
 	CandidateName string `json:"candidateName"`
 	LastLogIndex  uint64 `json:"lastLogIndex"`
 	LastLogTerm   uint64 `json:"lastLogTerm"`
-	CommitIndex  uint64 `json:"commitIndex"`
 }
 
 // The response returned from a server after a vote for a candidate to become a leader.
@@ -30,13 +29,12 @@ type RequestVoteResponse struct {
 //------------------------------------------------------------------------------
 
 // Creates a new RequestVote request.
-func NewRequestVoteRequest(term uint64, candidateName string, lastLogIndex uint64, lastLogTerm uint64, commitIndex uint64) *RequestVoteRequest {
+func NewRequestVoteRequest(term uint64, candidateName string, lastLogIndex uint64, lastLogTerm uint64) *RequestVoteRequest {
 	return &RequestVoteRequest{
 		Term:          term,
 		CandidateName: candidateName,
 		LastLogIndex:  lastLogIndex,
 		LastLogTerm:   lastLogTerm,
-		CommitIndex:   commitIndex,
 	}
 }
 

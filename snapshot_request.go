@@ -2,11 +2,11 @@ package raft
 
 // The request sent to a server to start from the snapshot.
 type SnapshotRequest struct {
-	LeaderName string `json:"leaderName"`
-	LastIndex  uint64 `json:"lastTerm"`
-	LastTerm   uint64 `json:"lastIndex"`
-	Peers	   []string `json:peers`
-	State      []byte `json:"state"`
+	LeaderName string   `json:"leaderName"`
+	LastIndex  uint64   `json:"lastTerm"`
+	LastTerm   uint64   `json:"lastIndex"`
+	Peers      []string `json:peers`
+	State      []byte   `json:"state"`
 }
 
 // The response returned from a server appending entries to the log.

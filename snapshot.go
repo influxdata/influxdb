@@ -2,11 +2,11 @@ package raft
 
 import (
 	//"bytes"
+	"encoding/json"
 	"fmt"
 	"hash/crc32"
 	"os"
 	"syscall"
-	"encoding/json"
 )
 
 //------------------------------------------------------------------------------
@@ -15,15 +15,15 @@ import (
 //
 //------------------------------------------------------------------------------
 
-// the in memory SnapShot struct 
+// the in memory SnapShot struct
 // TODO add cluster configuration
 type Snapshot struct {
 	LastIndex uint64 `json:"lastIndex"`
 	LastTerm  uint64 `json:"lastTerm"`
-	// cluster configuration. 
-	Peers []string	`json: "peers"`
-	State []byte `json: "state"`
-	Path  string `json: "path"`
+	// cluster configuration.
+	Peers []string `json: "peers"`
+	State []byte   `json: "state"`
+	Path  string   `json: "path"`
 }
 
 // Save the snapshot to a file
@@ -38,7 +38,6 @@ func (ss *Snapshot) Save() error {
 	}
 
 	defer file.Close()
-
 
 	b, err := json.Marshal(ss)
 
