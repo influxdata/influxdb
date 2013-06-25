@@ -17,7 +17,7 @@ import (
 
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
-	ApplyFunc   func(Command) error
+	ApplyFunc   func(Command) ([]byte, error)
 	file        *os.File
 	path        string
 	entries     []*LogEntry
@@ -94,7 +94,7 @@ func (l *Log) CommitIndex() uint64 {
 func (l *Log) IsEmpty() bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	return (len(l.entries) == 0)
+	return (len(l.entries) == 0) && (l.startIndex == 0)
 }
 
 // The name of the last command in the log.
@@ -173,7 +173,8 @@ func (l *Log) Open(path string) error {
 			l.commitIndex = entry.Index
 
 			// Apply the command.
-			err = l.ApplyFunc(entry.Command)
+			entry.result, err = l.ApplyFunc(entry.Command)
+
 			l.errors = append(l.errors, err)
 
 			lastIndex += n
@@ -230,15 +231,19 @@ func (l *Log) ContainsEntry(index uint64, term uint64) bool {
 func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	// Return an error if the index doesn't exist.
 	if index > (uint64(len(l.entries)) + l.startIndex) {
-		panic(fmt.Sprintf("raft: Index is beyond end of log: %v", index))
+		panic(fmt.Sprintf("raft: Index is beyond end of log: % v%v", len(l.entries), index))
 	}
 
 	// If we're going from the beginning of the log then return the whole log.
 	if index == l.startIndex {
 		return l.entries, l.startTerm
 	}
+
+	fmt.Println("[GetEntries] index ", index, "lastIndex", l.entries[len(l.entries)-1].Index)
+
 	// Determine the term at the given entry and return a subslice.
 	term := l.entries[index-1-l.startIndex].Term
+
 	return l.entries[index-l.startIndex:], term
 }
 
@@ -282,7 +287,22 @@ func (l *Log) CommitInfo() (index uint64, term uint64) {
 	return lastCommitEntry.Index, lastCommitEntry.Term
 }
 
-// Updates the commit index 
+// Retrieves the last index and term that has been committed to the log.
+func (l *Log) LastInfo() (index uint64, term uint64) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	// If we don't have any entries then just return zeros.
+	if len(l.entries) == 0 {
+		return l.startIndex, l.startTerm
+	}
+
+	// Return the last index & term
+	lastEntry := l.entries[len(l.entries)-1]
+	return lastEntry.Index, lastEntry.Term
+}
+
+// Updates the commit index
 func (l *Log) UpdateCommitIndex(index uint64) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
@@ -316,9 +336,9 @@ func (l *Log) SetCommitIndex(index uint64) error {
 		l.commitIndex = entry.Index
 
 		// Apply the changes to the state machine and store the error code.
-		l.errors[entryIndex] = l.ApplyFunc(entry.Command)
-	}
+		entry.result, l.errors[entryIndex] = l.ApplyFunc(entry.Command)
 
+	}
 	return nil
 }
 
@@ -331,14 +351,16 @@ func (l *Log) SetCommitIndex(index uint64) error {
 func (l *Log) Truncate(index uint64, term uint64) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-
+	fmt.Println("[Truncate] truncate to ", index)
 	// Do not allow committed entries to be truncated.
 	if index < l.CommitIndex() {
+		fmt.Println("[Truncate] error 1")
 		return fmt.Errorf("raft.Log: Index is already committed (%v): (IDX=%v, TERM=%v)", l.CommitIndex(), index, term)
 	}
 
 	// Do not truncate past end of entries.
 	if index > l.startIndex+uint64(len(l.entries)) {
+		fmt.Println("[Truncate] error 2")
 		return fmt.Errorf("raft.Log: Entry index does not exist (MAX=%v): (IDX=%v, TERM=%v)", len(l.entries), index, term)
 	}
 
@@ -349,11 +371,13 @@ func (l *Log) Truncate(index uint64, term uint64) error {
 		// Do not truncate if the entry at index does not have the matching term.
 		entry := l.entries[index-l.startIndex-1]
 		if len(l.entries) > 0 && entry.Term != term {
+			fmt.Println("[Truncate] error 3")
 			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term, index, term)
 		}
 
 		// Otherwise truncate up to the desired entry.
 		if index < l.startIndex+uint64(len(l.entries)) {
+			fmt.Println("[Truncate] truncate to ", index)
 			l.entries = l.entries[0 : index-l.startIndex]
 		}
 	}
@@ -425,7 +449,7 @@ func (l *Log) Compact(index uint64, term uint64) error {
 	defer l.mutex.Unlock()
 
 	// nothing to compaction
-	// the index may be greater than the current index if 
+	// the index may be greater than the current index if
 	// we just recovery from on snapshot
 	if index >= l.internalCurrentIndex() {
 		entries = make([]*LogEntry, 0)

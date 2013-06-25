@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -74,7 +75,7 @@ func (t *Timer) MinDuration() time.Duration {
 // Sets the minimum duration of the timer.
 func (t *Timer) SetMinDuration(duration time.Duration) {
 	t.minDuration = duration
-	t.Reset()
+	//t.Reset()
 }
 
 // Retrieves the maximum duration of the timer.
@@ -85,14 +86,14 @@ func (t *Timer) MaxDuration() time.Duration {
 // Sets the maximum duration of the timer.
 func (t *Timer) SetMaxDuration(duration time.Duration) {
 	t.maxDuration = duration
-	t.Reset()
+	//t.Reset()
 }
 
 // Sets the minimum and maximum duration of the timer.
 func (t *Timer) SetDuration(duration time.Duration) {
 	t.minDuration = duration
 	t.maxDuration = duration
-	t.Reset()
+	//t.Reset()
 }
 
 //------------------------------------------------------------------------------
@@ -110,7 +111,7 @@ func (t *Timer) Running() bool {
 func (t *Timer) Stop() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-
+	fmt.Println("[STOP] stop timer!")
 	t.stopInternalTimer()
 
 	if t.c != nil {
@@ -121,9 +122,10 @@ func (t *Timer) Stop() {
 
 // Stops the timer.
 func (t *Timer) Pause() {
+	fmt.Println("[Pause] try lock to stop timer!")
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-
+	fmt.Println("[Pause] stop timer!")
 	t.stopInternalTimer()
 }
 
@@ -131,9 +133,19 @@ func (t *Timer) Pause() {
 func (t *Timer) stopInternalTimer() {
 	if t.internalTimer != nil {
 		t.internalTimer.Stop()
+
 		t.internalTimer = nil
 		close(t.resetChannel)
 		t.resetChannel = nil
+	}
+}
+
+func (t *Timer) fire() {
+	select {
+	case t.c <- time.Now():
+		return
+	default:
+		return
 	}
 }
 
@@ -161,11 +173,11 @@ func (t *Timer) Reset() {
 		select {
 		case v, ok := <-internalTimer.C:
 			if ok {
-				t.mutex.Lock()
-				if t.c != nil {
-					t.c <- v
+				// send to the outer channel if we could
+				select {
+				case t.c <- v:
+				default:
 				}
-				t.mutex.Unlock()
 			}
 		case <-resetChannel:
 		}

@@ -2,6 +2,7 @@ package raft
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -19,6 +20,13 @@ type Peer struct {
 	prevLogIndex   uint64
 	mutex          sync.Mutex
 	heartbeatTimer *Timer
+}
+
+type FlushResponse struct {
+	term    uint64
+	success bool
+	err     error
+	peer    *Peer
 }
 
 //------------------------------------------------------------------------------
@@ -64,6 +72,10 @@ func (p *Peer) SetHeartbeatTimeout(duration time.Duration) {
 	p.heartbeatTimer.SetDuration(duration)
 }
 
+func (p *Peer) StartHeartbeatTimeout() {
+	p.heartbeatTimer.Reset()
+}
+
 //------------------------------------------------------------------------------
 //
 // Methods
@@ -85,6 +97,7 @@ func (p *Peer) resume() {
 func (p *Peer) pause() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
+
 	p.heartbeatTimer.Pause()
 }
 
@@ -99,35 +112,26 @@ func (p *Peer) stop() {
 // Flush
 //--------------------------------------
 
-// if internal is set true, sends an AppendEntries RPC but does not obtain a lock 
-// on the server. 
-func (p *Peer) flush(internal bool) (uint64, bool, error) {
-	// Retrieve the peer data within a lock that is separate from the
-	// server lock when creating the request. Otherwise a deadlock can
-	// occur.
-	p.mutex.Lock()
+// Sends an AppendEntries RPC but does not obtain a lock
+// on the server.
+func (p *Peer) flush() (uint64, bool, error) {
+
 	server, prevLogIndex := p.server, p.prevLogIndex
-	p.mutex.Unlock()
 
 	var req *AppendEntriesRequest
 	snapShotNeeded := false
 
 	// we need to hold the log lock to create AppendEntriesRequest
 	// avoid snapshot to delete the desired entries before AEQ()
+
 	server.log.mutex.Lock()
 	if prevLogIndex >= server.log.StartIndex() {
-		if internal {
-			req = server.createInternalAppendEntriesRequest(prevLogIndex)
-		} else {
-			req = server.createAppendEntriesRequest(prevLogIndex)
-		}
+		req = server.createInternalAppendEntriesRequest(prevLogIndex)
 	} else {
 		snapShotNeeded = true
 	}
 	server.log.mutex.Unlock()
 
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	if snapShotNeeded {
 		req := server.createSnapshotRequest()
 		return p.sendSnapshotRequest(req)
@@ -176,7 +180,12 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	// Generate an AppendEntries request based on the state of the server and
 	// log. Send the request through the user-provided handler and process the
 	// result.
+	//fmt.Println("flush to ", p.Name())
+	fmt.Println("[HeartBeat] Leader ", p.server.Name(), " to ",
+		p.Name(), " ", len(req.Entries), " ", time.Now())
 	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
+
+	//fmt.Println("receive flush response from ", p.Name())
 
 	p.heartbeatTimer.Reset()
 	if resp == nil {
@@ -189,6 +198,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	if resp.Success {
 		if len(req.Entries) > 0 {
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
+			fmt.Println("Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 		}
 	} else {
 		// Decrement the previous log index down until we find a match. Don't
@@ -228,10 +238,34 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 			break
 		}
 
-		// Flush the peer when we get a heartbeat timeout. If the channel is
-		// closed then the peer is getting cleaned up and we should exit.
 		if _, ok := <-c; ok {
-			p.flush(false)
+
+			var f FlushResponse
+
+			f.peer = p
+
+			f.term, f.success, f.err = p.flush()
+
+			// if the peer successfully appended the log entry
+			// we will tell the commit center
+			if f.success {
+				if p.prevLogIndex > p.server.log.CommitIndex() {
+					fmt.Println("[Heartbeat] Peer", p.Name(), "send to commit center")
+					p.server.response <- f
+					fmt.Println("[Heartbeat] Peer", p.Name(), "back from commit center")
+				}
+
+			} else {
+				if f.term > p.server.currentTerm {
+					fmt.Println("[Heartbeat] SetpDown!")
+					select {
+					case p.server.stepDown <- f.term:
+						p.pause()
+					default:
+						p.pause()
+					}
+				}
+			}
 
 		} else {
 			break

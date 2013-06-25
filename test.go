@@ -5,11 +5,12 @@ import (
 	"io/ioutil"
 	"os"
 	"time"
+	//"errors"
 )
 
 const (
-	testHeartbeatTimeout = 20 * time.Millisecond
-	testElectionTimeout  = 60 * time.Millisecond
+	testHeartbeatTimeout = 10 * time.Millisecond
+	testElectionTimeout  = 50 * time.Millisecond
 )
 
 func init() {
@@ -45,8 +46,8 @@ func setupLogFile(content string) string {
 func setupLog(content string) (*Log, string) {
 	path := setupLogFile(content)
 	log := NewLog()
-	log.ApplyFunc = func(c Command) error {
-		return nil
+	log.ApplyFunc = func(c Command) ([]byte, error) {
+		return nil, nil
 	}
 	if err := log.Open(path); err != nil {
 		panic("Unable to open log")
@@ -60,7 +61,7 @@ func setupLog(content string) (*Log, string) {
 
 func newTestServer(name string, transporter Transporter) *Server {
 	path, _ := ioutil.TempDir("", "raft-server-")
-	server, _ := NewServer(name, path, transporter, nil)
+	server, _ := NewServer(name, path, transporter, nil, nil)
 	return server
 }
 
@@ -86,7 +87,7 @@ func newTestCluster(names []string, transporter Transporter, lookup map[string]*
 		for _, peer := range servers {
 			server.AddPeer(peer.Name())
 		}
-		server.Start()
+		server.Initialize()
 	}
 	return servers
 }
@@ -138,9 +139,9 @@ func (c *joinCommand) CommandName() string {
 	return "test:join"
 }
 
-func (c *joinCommand) Apply(server *Server) error {
+func (c *joinCommand) Apply(server *Server) ([]byte, error) {
 	err := server.AddPeer(c.Name)
-	return err
+	return nil, err
 }
 
 //--------------------------------------
@@ -152,12 +153,12 @@ type TestCommand1 struct {
 	I   int    `json:"i"`
 }
 
-func (c TestCommand1) CommandName() string {
+func (c *TestCommand1) CommandName() string {
 	return "cmd_1"
 }
 
-func (c TestCommand1) Apply(server *Server) error {
-	return nil
+func (c *TestCommand1) Apply(server *Server) ([]byte, error) {
+	return nil, nil
 }
 
 //--------------------------------------
@@ -168,10 +169,11 @@ type TestCommand2 struct {
 	X int `json:"x"`
 }
 
-func (c TestCommand2) CommandName() string {
+func (c *TestCommand2) CommandName() string {
 	return "cmd_2"
 }
 
-func (c TestCommand2) Apply(server *Server) error {
-	return nil
+func (c *TestCommand2) Apply(server *Server) ([]byte, error) {
+
+	return nil, nil
 }

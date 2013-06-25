@@ -1,7 +1,8 @@
 package raft
 
 import (
-	"bytes"
+	//"bytes"
+	"encoding/json"
 	"fmt"
 	"hash/crc32"
 	"os"
@@ -14,30 +15,23 @@ import (
 //
 //------------------------------------------------------------------------------
 
-// the in memory SnapShot struct 
+// the in memory SnapShot struct
 // TODO add cluster configuration
 type Snapshot struct {
-	lastIndex uint64
-	lastTerm  uint64
-	// cluster configuration. 
-	state []byte
-	path  string
+	LastIndex uint64 `json:"lastIndex"`
+	LastTerm  uint64 `json:"lastTerm"`
+	// cluster configuration.
+	Peers []string `json: "peers"`
+	State []byte   `json: "state"`
+	Path  string   `json: "path"`
 }
 
 // Save the snapshot to a file
 func (ss *Snapshot) Save() error {
 	// Write machine state to temporary buffer.
-	var b bytes.Buffer
-
-	if _, err := fmt.Fprintf(&b, "%v", 2); err != nil {
-		return err
-	}
-
-	// Generate checksum.
-	checksum := crc32.ChecksumIEEE(b.Bytes())
 
 	// open file
-	file, err := os.OpenFile(ss.path, os.O_CREATE|os.O_WRONLY, 0600)
+	file, err := os.OpenFile(ss.Path, os.O_CREATE|os.O_WRONLY, 0600)
 
 	if err != nil {
 		return err
@@ -45,13 +39,17 @@ func (ss *Snapshot) Save() error {
 
 	defer file.Close()
 
+	b, err := json.Marshal(ss)
+
+	// Generate checksum.
+	checksum := crc32.ChecksumIEEE(b)
+
 	// Write snapshot with checksum.
-	if _, err = fmt.Fprintf(file, "%08x\n%v\n%v\n", checksum, ss.lastIndex,
-		ss.lastTerm); err != nil {
+	if _, err = fmt.Fprintf(file, "%08x\n", checksum); err != nil {
 		return err
 	}
 
-	if _, err = file.Write(ss.state); err != nil {
+	if _, err = file.Write(b); err != nil {
 		return err
 	}
 
@@ -62,6 +60,6 @@ func (ss *Snapshot) Save() error {
 
 // remove the file of the snapshot
 func (ss *Snapshot) Remove() error {
-	err := os.Remove(ss.path)
+	err := os.Remove(ss.Path)
 	return err
 }
