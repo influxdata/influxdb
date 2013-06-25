@@ -495,7 +495,9 @@ func (s *Server) Do(command Command) (interface{}, error) {
 	select {
 	case <-entry.commit:
 		debugln("[Do] finish!")
-		return entry.result, nil
+		result := entry.result
+		entry.result = nil
+		return result, nil
 	case <-time.After(time.Second):
 		debugln("[Do] fail!")
 		return nil, errors.New("Command commit fails")
