@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"fmt"
 	"reflect"
 	"strconv"
 	"sync"
@@ -315,7 +314,7 @@ func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 
 // Ensure that we can start a single server and append to its log.
 func TestServerSingleNode(t *testing.T) {
-	fmt.Println("-----SignalNodeTest-------")
+	debugln("-----SignalNodeTest-------")
 	server := newTestServer("1", &testTransporter{})
 	if server.state != Stopped {
 		t.Fatalf("Unexpected server state: %v", server.state)
@@ -335,7 +334,7 @@ func TestServerSingleNode(t *testing.T) {
 	if _, err := server.Do(&joinCommand{Name: "1"}); err != nil {
 		t.Fatalf("Unable to join: %v", err)
 	}
-	fmt.Println("finish command")
+	debugln("finish command")
 
 	if server.state != Leader {
 		t.Fatalf("Unexpected server state: %v", server.state)
@@ -350,7 +349,7 @@ func TestServerSingleNode(t *testing.T) {
 
 // Ensure that we can start multiple servers and determine a leader.
 func TestServerMultiNode(t *testing.T) {
-	fmt.Println("------------MultiTest------------")
+	debugln("------------MultiTest------------")
 
 	// Initialize the servers.
 	var mutex sync.Mutex
@@ -422,14 +421,14 @@ func TestServerMultiNode(t *testing.T) {
 
 	for i := 0; i < 15; i++ {
 		i++
-		fmt.Println("Round ", i)
+		debugln("Round ", i)
 
 		num := strconv.Itoa(i%(len(servers)) + 1)
 		toStop := servers[num]
 
 		// Stop the first server and wait for a re-election.
 		time.Sleep(100 * time.Millisecond)
-		fmt.Println("Disconnect ", toStop.Name())
+		debugln("Disconnect ", toStop.Name())
 		toStop.SetTransporter(disTransporter)
 		time.Sleep(200 * time.Millisecond)
 		// Check that either server 2 or 3 is the leader now.
@@ -438,22 +437,22 @@ func TestServerMultiNode(t *testing.T) {
 		leader := 0
 
 		for key, value := range servers {
-			fmt.Println("Play begin")
+			debugln("Play begin")
 			if key != num {
 				if value.State() == Leader {
-					fmt.Println("Found leader")
+					debugln("Found leader")
 					for i := 0; i < 10; i++ {
-						fmt.Println("[Test] do ", value.Name())
+						debugln("[Test] do ", value.Name())
 						if _, err := value.Do(&TestCommand2{X: 1}); err != nil {
 							t.Fatalf("Unable to do command")
 						}
-						fmt.Println("[Test] Done")
+						debugln("[Test] Done")
 					}
 
 					leader++
-					fmt.Println("Leader is ", value.Name(), " Index ", value.log.commitIndex)
+					debugln("Leader is ", value.Name(), " Index ", value.log.commitIndex)
 				}
-				fmt.Println("Not Found leader")
+				debugln("Not Found leader")
 			}
 		}
 

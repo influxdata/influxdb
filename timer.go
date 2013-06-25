@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -111,7 +110,7 @@ func (t *Timer) Running() bool {
 func (t *Timer) Stop() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	fmt.Println("[STOP] stop timer!")
+	debugln("[STOP] stop timer!")
 	t.stopInternalTimer()
 
 	if t.c != nil {
@@ -122,10 +121,10 @@ func (t *Timer) Stop() {
 
 // Stops the timer.
 func (t *Timer) Pause() {
-	fmt.Println("[Pause] try lock to stop timer!")
+	debugln("[Pause] try lock to stop timer!")
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	fmt.Println("[Pause] stop timer!")
+	debugln("[Pause] stop timer!")
 	t.stopInternalTimer()
 }
 

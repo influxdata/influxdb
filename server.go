@@ -297,7 +297,7 @@ func (s *Server) Initialize() error {
 
 	// Initialize the log and load it up.
 	if err := s.log.Open(s.LogPath()); err != nil {
-		fmt.Println("log error")
+		debugln("log error")
 		s.unload()
 		return fmt.Errorf("raft.Server: %v", err)
 	}
@@ -341,7 +341,7 @@ func (s *Server) StartLeader() error {
 // majority of the followers append a log entry, the
 // leader will commit the log entry
 func (s *Server) commitCenter() {
-	fmt.Println("collecting data")
+	debugln("collecting data")
 	for {
 		var response FlushResponse
 
@@ -354,7 +354,7 @@ func (s *Server) commitCenter() {
 		}
 
 		if response.peer != nil {
-			fmt.Println("[CommitCenter] Receive respone from ", response.peer.Name(), response.success)
+			debugln("[CommitCenter] Receive respone from ", response.peer.Name(), response.success)
 		}
 
 		// TODO: UINT64 SORTING
@@ -364,7 +364,7 @@ func (s *Server) commitCenter() {
 		// when the leader is the only member in the cluster, it can commit
 		// the log immediately
 		if s.QuorumSize() < 2 {
-			fmt.Println("[CommitCenter] Commit ", s.log.CurrentIndex())
+			debugln("[CommitCenter] Commit ", s.log.CurrentIndex())
 
 			commited := int(s.log.CommitIndex())
 			commit := int(s.log.CurrentIndex())
@@ -374,7 +374,7 @@ func (s *Server) commitCenter() {
 			for i := commited; i < commit; i++ {
 				select {
 				case s.log.entries[i-int(s.log.startIndex)].commit <- true:
-					fmt.Println("notify")
+					debugln("notify")
 					continue
 				// we have a buffered commit channel, it should return immediately
 				default:
@@ -404,20 +404,20 @@ func (s *Server) commitCenter() {
 		commited := int(s.log.CommitIndex())
 
 		if commit > commited {
-			fmt.Println("[CommitCenter] Going to Commit ", commit)
+			debugln("[CommitCenter] Going to Commit ", commit)
 			s.log.SetCommitIndex(uint64(commit))
 
 			for i := commited; i < commit; i++ {
 				select {
 				case s.log.entries[i-int(s.log.startIndex)].commit <- true:
-					fmt.Println("notify")
+					debugln("notify")
 					continue
 				default:
 					continue
 				}
 			}
 
-			fmt.Println("[CommitCenter] Commit ", commit)
+			debugln("[CommitCenter] Commit ", commit)
 		}
 
 	}
@@ -489,15 +489,15 @@ func (s *Server) Do(command Command) ([]byte, error) {
 	for _, peer := range s.peers {
 		peer.heartbeatTimer.fire()
 	}
-	fmt.Println("[Do] join!")
+	debugln("[Do] join!")
 
 	// timeout here
 	select {
 	case <-entry.commit:
-		fmt.Println("[Do] finish!")
+		debugln("[Do] finish!")
 		return entry.result, nil
 	case <-time.After(time.Second):
-		fmt.Println("[Do] fail!")
+		debugln("[Do] fail!")
 		return nil, errors.New("Command commit fails")
 	}
 }
@@ -517,7 +517,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), fmt.Errorf("raft.Server: Stale request term")
 	}
 
-	fmt.Println("Peer ", s.Name(), "received heartbeat from ", req.LeaderName,
+	debugln("Peer ", s.Name(), "received heartbeat from ", req.LeaderName,
 		" ", req.Term, " ", s.currentTerm, " ", time.Now())
 
 	s.setCurrentTerm(req.Term)
@@ -535,22 +535,22 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
 
-	fmt.Println("Peer ", s.Name(), "after truncate ")
+	debugln("Peer ", s.Name(), "after truncate ")
 
 	// Append entries to the log.
 	if err := s.log.AppendEntries(req.Entries); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
 
-	fmt.Println("Peer ", s.Name(), "after append ")
+	debugln("Peer ", s.Name(), "after append ")
 	// Commit up to the commit index.
 	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
 		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
 	}
 
-	fmt.Println("Peer ", s.Name(), "after commit ")
+	debugln("Peer ", s.Name(), "after commit ")
 
-	fmt.Println("Peer ", s.Name(), "reply heartbeat from ", req.LeaderName,
+	debugln("Peer ", s.Name(), "reply heartbeat from ", req.LeaderName,
 		" ", req.Term, " ", s.currentTerm, " ", time.Now())
 	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
 }
@@ -596,7 +596,7 @@ func (s *Server) promote() (bool, error) {
 			go func() {
 				req := NewRequestVoteRequest(term, s.name, lastLogIndex, lastLogTerm)
 				req.peer = peer
-				fmt.Println(s.Name(), "Send Vote Request to ", peer.Name())
+				debugln(s.Name(), "Send Vote Request to ", peer.Name())
 				if resp, _ := s.transporter.SendVoteRequest(s, peer, req); resp != nil {
 					resp.peer = peer
 					c <- resp
@@ -691,7 +691,7 @@ func (s *Server) promoteToCandidate() (uint64, uint64, uint64, error) {
 	// Return server state so we can check for it during leader promotion.
 	lastLogIndex, lastLogTerm := s.log.LastInfo()
 
-	fmt.Println("[PromoteToCandidate] Follower ", s.Name(),
+	debugln("[PromoteToCandidate] Follower ", s.Name(),
 		"promote to candidate[", lastLogIndex, ",", lastLogTerm, "]")
 
 	return s.currentTerm, lastLogIndex, lastLogTerm, nil
@@ -729,7 +729,7 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 	// Start heartbeat
 	for _, peer := range s.peers {
 
-		fmt.Println("[Leader] Set ", peer.Name(), "Prev to", lastLogIndex)
+		debugln("[Leader] Set ", peer.Name(), "Prev to", lastLogIndex)
 
 		peer.prevLogIndex = lastLogIndex
 		peer.resume()
@@ -749,8 +749,8 @@ func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, err
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	fmt.Println("Peer ", s.Name(), "receive vote request from ", req.CandidateName)
-	//fmt.Println("[RequestVote] got the lock")
+	debugln("Peer ", s.Name(), "receive vote request from ", req.CandidateName)
+	//debugln("[RequestVote] got the lock")
 	// Fail if the server is not running.
 	if !s.Running() {
 		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Server is stopped")
@@ -777,7 +777,7 @@ func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, err
 	// If we made it this far then cast a vote and reset our election time out.
 	s.votedFor = req.CandidateName
 
-	fmt.Println(s.Name(), "Vote for ", req.CandidateName)
+	debugln(s.Name(), "Vote for ", req.CandidateName)
 
 	if s.electionTimer != nil {
 		s.electionTimer.Reset()
@@ -794,7 +794,7 @@ func (s *Server) setCurrentTerm(term uint64) {
 		s.votedFor = ""
 
 		if s.state == Leader {
-			fmt.Println(s.Name(), " step down to a follower")
+			debugln(s.Name(), " step down to a follower")
 
 			// stop heartbeats
 			for _, peer := range s.peers {
@@ -837,7 +837,7 @@ func (s *Server) electionTimeoutFunc(startChannel chan bool) {
 		// If an election times out then promote this server. If the channel
 		// closes then that means the server has stopped so kill the function.
 		if _, ok := <-c; ok {
-			fmt.Println("[ElectionTimeout] ", s.Name(), " ", time.Now())
+			debugln("[ElectionTimeout] ", s.Name(), " ", time.Now())
 			s.promote()
 		} else {
 			break
@@ -860,7 +860,7 @@ func (s *Server) AddPeer(name string) error {
 
 	// Only add the peer if it doesn't have the same name.
 	if s.name != name {
-		//fmt.Println("Add peer ", name)
+		//debugln("Add peer ", name)
 		peer := NewPeer(s, name, s.heartbeatTimeout)
 		if s.state == Leader {
 			peer.resume()
@@ -921,7 +921,7 @@ func (s *Server) Snapshot() {
 
 func (s *Server) takeSnapshot() error {
 	//TODO put a snapshot mutex
-	fmt.Println("take Snapshot")
+	debugln("take Snapshot")
 	if s.currentSnapshot != nil {
 		return errors.New("handling snapshot")
 	}
@@ -1069,7 +1069,7 @@ func (s *Server) LoadSnapshot() error {
 	}
 
 	snapshotBytes, _ = ioutil.ReadAll(file)
-	fmt.Println(string(snapshotBytes))
+	debugln(string(snapshotBytes))
 
 	err = json.Unmarshal(snapshotBytes, &s.lastSnapshot)
 

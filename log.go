@@ -239,7 +239,7 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 		return l.entries, l.startTerm
 	}
 
-	fmt.Println("[GetEntries] index ", index, "lastIndex", l.entries[len(l.entries)-1].Index)
+	debugln("[GetEntries] index ", index, "lastIndex", l.entries[len(l.entries)-1].Index)
 
 	// Determine the term at the given entry and return a subslice.
 	term := l.entries[index-1-l.startIndex].Term
@@ -351,16 +351,16 @@ func (l *Log) SetCommitIndex(index uint64) error {
 func (l *Log) Truncate(index uint64, term uint64) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	fmt.Println("[Truncate] truncate to ", index)
+	debugln("[Truncate] truncate to ", index)
 	// Do not allow committed entries to be truncated.
 	if index < l.CommitIndex() {
-		fmt.Println("[Truncate] error 1")
+		debugln("[Truncate] error 1")
 		return fmt.Errorf("raft.Log: Index is already committed (%v): (IDX=%v, TERM=%v)", l.CommitIndex(), index, term)
 	}
 
 	// Do not truncate past end of entries.
 	if index > l.startIndex+uint64(len(l.entries)) {
-		fmt.Println("[Truncate] error 2")
+		debugln("[Truncate] error 2")
 		return fmt.Errorf("raft.Log: Entry index does not exist (MAX=%v): (IDX=%v, TERM=%v)", len(l.entries), index, term)
 	}
 
@@ -371,13 +371,13 @@ func (l *Log) Truncate(index uint64, term uint64) error {
 		// Do not truncate if the entry at index does not have the matching term.
 		entry := l.entries[index-l.startIndex-1]
 		if len(l.entries) > 0 && entry.Term != term {
-			fmt.Println("[Truncate] error 3")
+			debugln("[Truncate] error 3")
 			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term, index, term)
 		}
 
 		// Otherwise truncate up to the desired entry.
 		if index < l.startIndex+uint64(len(l.entries)) {
-			fmt.Println("[Truncate] truncate to ", index)
+			debugln("[Truncate] truncate to ", index)
 			l.entries = l.entries[0 : index-l.startIndex]
 		}
 	}

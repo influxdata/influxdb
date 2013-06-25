@@ -2,7 +2,6 @@ package raft
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -180,12 +179,12 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	// Generate an AppendEntries request based on the state of the server and
 	// log. Send the request through the user-provided handler and process the
 	// result.
-	//fmt.Println("flush to ", p.Name())
-	fmt.Println("[HeartBeat] Leader ", p.server.Name(), " to ",
+	//debugln("flush to ", p.Name())
+	debugln("[HeartBeat] Leader ", p.server.Name(), " to ",
 		p.Name(), " ", len(req.Entries), " ", time.Now())
 	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
 
-	//fmt.Println("receive flush response from ", p.Name())
+	//debugln("receive flush response from ", p.Name())
 
 	p.heartbeatTimer.Reset()
 	if resp == nil {
@@ -198,7 +197,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	if resp.Success {
 		if len(req.Entries) > 0 {
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
-			fmt.Println("Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
+			debugln("Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 		}
 	} else {
 		// Decrement the previous log index down until we find a match. Don't
@@ -250,14 +249,14 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 			// we will tell the commit center
 			if f.success {
 				if p.prevLogIndex > p.server.log.CommitIndex() {
-					fmt.Println("[Heartbeat] Peer", p.Name(), "send to commit center")
+					debugln("[Heartbeat] Peer", p.Name(), "send to commit center")
 					p.server.response <- f
-					fmt.Println("[Heartbeat] Peer", p.Name(), "back from commit center")
+					debugln("[Heartbeat] Peer", p.Name(), "back from commit center")
 				}
 
 			} else {
 				if f.term > p.server.currentTerm {
-					fmt.Println("[Heartbeat] SetpDown!")
+					debugln("[Heartbeat] SetpDown!")
 					select {
 					case p.server.stepDown <- f.term:
 						p.pause()
