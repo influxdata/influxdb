@@ -114,28 +114,15 @@ func (p *Peer) stop() {
 // Sends an AppendEntries RPC but does not obtain a lock
 // on the server.
 func (p *Peer) flush() (uint64, bool, error) {
-
-	server, prevLogIndex := p.server, p.prevLogIndex
-
-	var req *AppendEntriesRequest
-	snapShotNeeded := false
-
-	// we need to hold the log lock to create AppendEntriesRequest
+	// We need to hold the log lock to create AppendEntriesRequest
 	// avoid snapshot to delete the desired entries before AEQ()
+	req := p.server.createAppendEntriesRequest(p.prevLogIndex)
 
-	server.log.mutex.Lock()
-	if prevLogIndex >= server.log.StartIndex() {
-		req = server.createInternalAppendEntriesRequest(prevLogIndex)
-	} else {
-		snapShotNeeded = true
-	}
-	server.log.mutex.Unlock()
-
-	if snapShotNeeded {
-		req := server.createSnapshotRequest()
-		return p.sendSnapshotRequest(req)
-	} else {
+	if req != nil {
 		return p.sendFlushRequest(req)
+	} else {
+		req := p.server.createSnapshotRequest()
+		return p.sendSnapshotRequest(req)
 	}
 
 }

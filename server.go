@@ -557,21 +557,18 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
 }
 
-// Creates an AppendEntries request.
+// Creates an AppendEntries request. Can return a nil request object if the
+// index doesn't exist because of a snapshot.
 func (s *Server) createAppendEntriesRequest(prevLogIndex uint64) *AppendEntriesRequest {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	return s.createInternalAppendEntriesRequest(prevLogIndex)
-}
-
-// Creates an AppendEntries request without a lock.
-func (s *Server) createInternalAppendEntriesRequest(prevLogIndex uint64) *AppendEntriesRequest {
 	if s.log == nil {
 		return nil
 	}
 	entries, prevLogTerm := s.log.GetEntriesAfter(prevLogIndex)
-	req := NewAppendEntriesRequest(s.currentTerm, s.name, prevLogIndex, prevLogTerm, entries, s.log.CommitIndex())
-	return req
+	if entries != nil {
+		return NewAppendEntriesRequest(s.currentTerm, s.name, prevLogIndex, prevLogTerm, entries, s.log.CommitIndex())
+	} else {
+		return nil
+	}
 }
 
 //--------------------------------------

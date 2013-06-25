@@ -217,18 +217,24 @@ func (l *Log) CreateEntry(term uint64, command Command) *LogEntry {
 
 // Checks if the log contains a given index/term combination.
 func (l *Log) ContainsEntry(index uint64, term uint64) bool {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
 	if index <= l.startIndex || index > (l.startIndex+uint64(len(l.entries))) {
 		return false
 	}
 	return (l.entries[index-1].Term == term)
 }
 
-// Retrieves a list of entries after a given index. This function also returns
-// the term of the index provided.
+// Retrieves a list of entries after a given index as well as the term of the
+// index provided. A nil list of entries is returned if the index no longer
+// exists because a snapshot was made.
 func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	// Return nil if index is before the start of the log.
+	if index < l.startIndex {
+		return nil, 0
+	}
+
 	// Return an error if the index doesn't exist.
 	if index > (uint64(len(l.entries)) + l.startIndex) {
 		panic(fmt.Sprintf("raft: Index is beyond end of log: % v%v", len(l.entries), index))
