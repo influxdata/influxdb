@@ -9,4 +9,3 @@ import (
 func warn(msg string, v ...interface{}) {
 	fmt.Fprintf(os.Stderr, msg+"\n", v...)
 }
-

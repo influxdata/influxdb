@@ -100,7 +100,7 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 	}
 
 	// Setup apply function.
-	s.log.ApplyFunc = func(c Command) ([]byte, error) {
+	s.log.ApplyFunc = func(c Command) (interface{}, error) {
 		result, err := c.Apply(s)
 		return result, err
 	}
@@ -473,7 +473,7 @@ func (s *Server) Running() bool {
 // Attempts to execute a command and replicate it. The function will return
 // when the command has been successfully committed or an error has occurred.
 
-func (s *Server) Do(command Command) ([]byte, error) {
+func (s *Server) Do(command Command) (interface{}, error) {
 	if s.state != Leader {
 		return nil, NotLeaderError
 	}

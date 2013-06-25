@@ -19,11 +19,11 @@ import (
 // A log entry stores a single item in the log.
 type LogEntry struct {
 	log     *Log
-	Index   uint64    `json:"index"`
-	Term    uint64    `json:"term"`
-	Command Command   `json:"command"`
-	result  []byte    `json:"-"`
-	commit  chan bool `json:"-"`
+	Index   uint64      `json:"index"`
+	Term    uint64      `json:"term"`
+	Command Command     `json:"command"`
+	result  interface{} `json:"-"`
+	commit  chan bool   `json:"-"`
 }
 
 // A temporary interface used for unmarshaling log entries.

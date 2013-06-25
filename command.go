@@ -26,7 +26,7 @@ func init() {
 // A command represents an action to be taken on the replicated state machine.
 type Command interface {
 	CommandName() string
-	Apply(server *Server) ([]byte, error)
+	Apply(server *Server) (interface{}, error)
 }
 
 //------------------------------------------------------------------------------

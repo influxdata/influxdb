@@ -17,7 +17,7 @@ import (
 
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
-	ApplyFunc   func(Command) ([]byte, error)
+	ApplyFunc   func(Command) (interface{}, error)
 	file        *os.File
 	path        string
 	entries     []*LogEntry

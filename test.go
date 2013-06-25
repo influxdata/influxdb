@@ -46,7 +46,7 @@ func setupLogFile(content string) string {
 func setupLog(content string) (*Log, string) {
 	path := setupLogFile(content)
 	log := NewLog()
-	log.ApplyFunc = func(c Command) ([]byte, error) {
+	log.ApplyFunc = func(c Command) (interface{}, error) {
 		return nil, nil
 	}
 	if err := log.Open(path); err != nil {
@@ -139,7 +139,7 @@ func (c *joinCommand) CommandName() string {
 	return "test:join"
 }
 
-func (c *joinCommand) Apply(server *Server) ([]byte, error) {
+func (c *joinCommand) Apply(server *Server) (interface{}, error) {
 	err := server.AddPeer(c.Name)
 	return nil, err
 }
@@ -157,7 +157,7 @@ func (c *TestCommand1) CommandName() string {
 	return "cmd_1"
 }
 
-func (c *TestCommand1) Apply(server *Server) ([]byte, error) {
+func (c *TestCommand1) Apply(server *Server) (interface{}, error) {
 	return nil, nil
 }
 
@@ -173,7 +173,6 @@ func (c *TestCommand2) CommandName() string {
 	return "cmd_2"
 }
 
-func (c *TestCommand2) Apply(server *Server) ([]byte, error) {
-
+func (c *TestCommand2) Apply(server *Server) (interface{}, error) {
 	return nil, nil
 }

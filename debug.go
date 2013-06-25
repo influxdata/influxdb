@@ -13,7 +13,6 @@ import (
 // A flag stating if debug statements should be evaluated.
 var Debug bool = false
 
-
 //------------------------------------------------------------------------------
 //
 // Functions
@@ -43,4 +42,3 @@ func debugln(v ...interface{}) {
 		log.Println(v...)
 	}
 }
-
