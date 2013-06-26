@@ -134,13 +134,6 @@ func (s *Server) Leader() string {
 	return s.leader
 }
 
-// Retrieves the peers of the server
-func (s *Server) Peers() map[string]*Peer {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	return s.peers
-}
-
 // Retrieves the object that transports requests.
 func (s *Server) Transporter() Transporter {
 	return s.transporter
