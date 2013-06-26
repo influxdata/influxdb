@@ -167,8 +167,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	// log. Send the request through the user-provided handler and process the
 	// result.
 	//debugln("flush to ", p.Name())
-	debugln("[HeartBeat] Leader ", p.server.Name(), " to ",
-		p.Name(), " ", len(req.Entries), " ", time.Now())
+	debugln("[HeartBeat] Leader ", p.server.Name(), " to ", p.Name(), " ", len(req.Entries), " ", time.Now())
 	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
 
 	//debugln("receive flush response from ", p.Name())
