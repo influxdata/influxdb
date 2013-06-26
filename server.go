@@ -378,10 +378,6 @@ func (s *Server) commitCenter() {
 
 }
 
-func (s *Server) commitNotify() {
-
-}
-
 // Shuts down the server.
 func (s *Server) Stop() {
 	s.mutex.Lock()
