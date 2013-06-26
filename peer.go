@@ -108,6 +108,21 @@ func (p *Peer) stop() {
 }
 
 //--------------------------------------
+// Copying
+//--------------------------------------
+
+// Clones the state of the peer. The clone is not attached to a server and
+// the heartbeat timer will not exist.
+func (p *Peer) clone() *Peer {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	return &Peer{
+		name: p.name,
+		prevLogIndex: p.prevLogIndex,
+	}
+}
+
+//--------------------------------------
 // Flush
 //--------------------------------------
 

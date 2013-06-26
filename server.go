@@ -134,6 +134,18 @@ func (s *Server) Leader() string {
 	return s.leader
 }
 
+// Retrieves a copy of the peer data.
+func (s *Server) Peers() map[string]*Peer {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	peers := make(map[string]*Peer)
+	for name, peer := range s.peers {
+		peers[name] = peer.clone()
+	}
+	return peers
+}
+
 // Retrieves the object that transports requests.
 func (s *Server) Transporter() Transporter {
 	return s.transporter
