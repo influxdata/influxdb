@@ -11,7 +11,7 @@ import (
 //------------------------------------------------------------------------------
 
 // A flag stating if debug statements should be evaluated.
-var Debug bool = false
+var Debug bool = true
 
 //------------------------------------------------------------------------------
 //

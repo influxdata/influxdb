@@ -1,9 +1,10 @@
 package raft
 
 import (
-	"sync"
+	//"sync"
 	"testing"
 	"time"
+	//"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -13,84 +14,89 @@ import (
 //------------------------------------------------------------------------------
 
 // Ensure that we can start an election timer and it will go off in the specified duration.
-func TestTimerReset(t *testing.T) {
-	var mutex sync.Mutex
-	count, finished := 0, false
+func TestTimer(t *testing.T) {
+
 	timer := NewTimer(5*time.Millisecond, 10*time.Millisecond)
-	go func() {
-		for {
-			if _, ok := <-timer.C(); ok {
-				mutex.Lock()
-				count++
-				timer.Reset()
-				mutex.Unlock()
-			} else {
-				break
-			}
+
+	// test timer start
+	for i := 0; i < 10; i++ {
+
+		start := time.Now()
+
+		timer.Start()
+
+		duration := time.Now().Sub(start)
+		if duration > 12*time.Millisecond || duration < 5*time.Millisecond {
+			t.Fatal("Duration Error! ", duration)
 		}
-		mutex.Lock()
-		finished = true
-		mutex.Unlock()
-	}()
-	timer.Reset()
-	time.Sleep(25 * time.Millisecond)
-	mutex.Lock()
-	if count < 2 {
-		t.Fatalf("Timer should have executed at least twice (%d)", count)
-	}
-	if finished {
-		t.Fatalf("Timer finished too early")
-	}
-	mutex.Unlock()
 
-	timer.Stop()
-
-	// Uncomment below to test timer stops. Golang channel closing is unpredictable though so it slows down our test.
-	/**
-	time.Sleep(500 * time.Millisecond)
-	mutex.Lock()
-	defer mutex.Unlock()
-	if !finished {
-		t.Fatalf("Timer did not finish")
 	}
-	*/
+
+	// test timer stop
+	for i := 0; i < 100; i++ {
+
+		start := time.Now()
+
+		go stop(timer)
+
+		timer.Start()
+
+		duration := time.Now().Sub(start)
+		if duration > 2*time.Millisecond {
+			t.Fatal("Duration Error! ", duration)
+		}
+
+		// ready the timer after stop it
+		timer.Ready()
+
+	}
+
+	// test timer fire
+	for i := 0; i < 100; i++ {
+
+		start := time.Now()
+
+		go fire(timer)
+
+		timer.Start()
+
+		duration := time.Now().Sub(start)
+		if duration > 2*time.Millisecond {
+			t.Fatal("Fire Duration Error! ", duration)
+		}
+
+	}
+
+	resp := make(chan bool)
+	// play with start and stop
+	// make sure we can stop timer 
+	// in all the possible seq of start and stop
+	for i := 0; i < 100; i++ {
+		go stop(timer)
+		go start(timer, resp)
+		ret := <-resp
+		if ret != false {
+			t.Fatal("cannot stop timer!")
+		}
+		timer.Ready()
+	}
+
 }
 
-// Ensure that we can pause an election timer.
-func TestTimerPause(t *testing.T) {
-	var mutex sync.Mutex
-	count := 0
-	timer := NewTimer(10*time.Millisecond, 20*time.Millisecond)
-	go func() {
-		<-timer.C()
-		mutex.Lock()
-		count++
-		mutex.Unlock()
-	}()
-	timer.Reset()
+func stop(t *Timer) {
+	// sync
+	time.Sleep(time.Millisecond)
+	t.Stop()
+}
 
-	time.Sleep(5 * time.Millisecond)
-	mutex.Lock()
-	if count != 0 {
-		t.Fatalf("Timer executed when it should not have (%d)", count)
-	}
-	mutex.Unlock()
-	timer.Pause()
+func start(t *Timer, resp chan bool) {
+	// sync
+	time.Sleep(time.Millisecond)
+	resp <- t.Start()
+}
 
-	time.Sleep(20 * time.Millisecond)
-	mutex.Lock()
-	if count != 0 {
-		t.Fatalf("Timer executed when it should not have (%d)", count)
-	}
-	mutex.Unlock()
-
-	timer.Reset()
-	time.Sleep(50 * time.Millisecond)
-	mutex.Lock()
-	if count != 1 {
-		t.Fatalf("Timer did not execute when it should have (%d)", count)
-	}
-	mutex.Unlock()
-
-	timer.Stop()
+func fire(t *Timer) {
+	// sync
+	time.Sleep(time.Millisecond)
+	t.Fire()
 }

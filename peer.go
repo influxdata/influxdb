@@ -42,11 +42,6 @@ func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer 
 		heartbeatTimer: NewTimer(heartbeatTimeout, heartbeatTimeout),
 	}
 
-	// Start the heartbeat timeout and wait for the goroutine to start.
-	c := make(chan bool)
-	go p.heartbeatTimeoutFunc(c)
-	<-c
-
 	return p
 }
 
@@ -71,8 +66,8 @@ func (p *Peer) SetHeartbeatTimeout(duration time.Duration) {
 	p.heartbeatTimer.SetDuration(duration)
 }
 
-func (p *Peer) StartHeartbeatTimeout() {
-	p.heartbeatTimer.Reset()
+func (p *Peer) StartHeartbeat() {
+	go p.heartbeat()
 }
 
 //------------------------------------------------------------------------------
@@ -86,19 +81,19 @@ func (p *Peer) StartHeartbeatTimeout() {
 //--------------------------------------
 
 // Resumes the peer heartbeating.
-func (p *Peer) resume() {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-	p.heartbeatTimer.Reset()
-}
+// func (p *Peer) resume() {
+// 	p.mutex.Lock()
+// 	defer p.mutex.Unlock()
+// 	p.heartbeatTimer.Reset()
+// }
 
-// Pauses the peer to prevent heartbeating.
-func (p *Peer) pause() {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+// // Pauses the peer to prevent heartbeating.
+// func (p *Peer) pause() {
+// 	p.mutex.Lock()
+// 	defer p.mutex.Unlock()
 
-	p.heartbeatTimer.Pause()
-}
+// 	p.heartbeatTimer.Pause()
+// }
 
 // Stops the peer entirely.
 func (p *Peer) stop() {
@@ -153,7 +148,10 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error) {
 	// log. Send the request through the user-provided handler and process the
 	// result.
 	resp, err := p.server.transporter.SendSnapshotRequest(p.server, p, req)
-	p.heartbeatTimer.Reset()
+	
+
+	//p.heartbeatTimer.Reset()
+	
 	if resp == nil {
 		return 0, false, err
 	}
@@ -187,7 +185,8 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 
 	//debugln("receive flush response from ", p.Name())
 
-	p.heartbeatTimer.Reset()
+	//p.heartbeatTimer.Reset()
+	
 	if resp == nil {
 		return 0, false, err
 	}
@@ -220,25 +219,13 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 //--------------------------------------
 
 // Listens to the heartbeat timeout and flushes an AppendEntries RPC.
-func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
-	startChannel <- true
-
+func (p *Peer) heartbeat() {
 	for {
-		// Grab the current timer channel.
-		p.mutex.Lock()
 
-		var c chan time.Time
-		if p.heartbeatTimer != nil {
-			c = p.heartbeatTimer.C()
-		}
-		p.mutex.Unlock()
+		// (1) timeout/fire happens, flush the peer
+		// (2) stopped, return
 
-		// If the channel or timer are gone then exit.
-		if c == nil {
-			break
-		}
-
-		if _, ok := <-c; ok {
+		if p.heartbeatTimer.Start() {
 
 			var f FlushResponse
 
@@ -256,19 +243,21 @@ func (p *Peer) heartbeatTimeoutFunc(startChannel chan bool) {
 				}
 
 			} else {
+				// shutdown the heartbeat
 				if f.term > p.server.currentTerm {
 					debugln("[Heartbeat] SetpDown!")
 					select {
 					case p.server.stepDown <- f.term:
-						p.pause()
+						return
 					default:
-						p.pause()
+						return
 					}
 				}
 			}
 
 		} else {
-			break
+			// shutdown
+			return
 		}
 	}
 }

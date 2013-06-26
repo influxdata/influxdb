@@ -239,12 +239,12 @@ func (s *Server) SetElectionTimeout(duration time.Duration) {
 }
 
 func (s *Server) StartElectionTimeout() {
-	s.electionTimer.Reset()
+	go s.electionTimeout()
 }
 
 func (s *Server) StartHeartbeatTimeout() {
 	for _, peer := range s.peers {
-		peer.StartHeartbeatTimeout()
+		peer.StartHeartbeat()
 	}
 }
 
@@ -313,10 +313,8 @@ func (s *Server) StartFollower() {
 	s.state = Follower
 
 	// Start the election timeout.
-	c := make(chan bool)
-	s.electionTimer.Reset()
-	go s.electionTimeoutFunc(c)
-	<-c
+	s.StartElectionTimeout()
+	
 }
 
 // Start the sever as a leader
@@ -328,7 +326,6 @@ func (s *Server) StartLeader() error {
 	s.currentTerm++
 	s.state = Leader
 	s.leader = s.name
-	s.electionTimer.Pause()
 
 	// Leader need to collect appendLog response
 	go s.commitCenter()
@@ -369,9 +366,24 @@ func (s *Server) commitCenter() {
 		committedIndex := s.log.CommitIndex()
 
 		if commitIndex > committedIndex {
+
 			debugln("[CommitCenter] Going to Commit ", commitIndex)
 			s.log.SetCommitIndex(commitIndex)
 			debugln("[CommitCenter] Commit ", commitIndex)
+
+
+			for i := committedIndex; i < commitIndex; i++ {
+				select {
+				case s.log.entries[i-s.log.startIndex].commit <- true:
+					debugln("notify")
+					continue
+					
+        		// we have a buffered commit channel, it should return immediately
+				default:
+					panic("Cannot send commit nofication")
+				}
+			}
+
 		}
 
 	}
@@ -388,9 +400,10 @@ func (s *Server) Stop() {
 // Unloads the server.
 func (s *Server) unload() {
 	// Kill the election timer.
+	s.state = Stopped
+
 	if s.electionTimer != nil {
 		s.electionTimer.Stop()
-		s.electionTimer = nil
 	}
 
 	// Remove peers.
@@ -408,7 +421,7 @@ func (s *Server) unload() {
 		s.log = nil
 	}
 
-	s.state = Stopped
+	
 }
 
 // Checks if the server is currently running.
@@ -437,7 +450,7 @@ func (s *Server) Do(command Command) (interface{}, error) {
 
 	// to speed up the response time
 	for _, peer := range s.peers {
-		peer.heartbeatTimer.fire()
+		peer.heartbeatTimer.Fire()
 	}
 	debugln("[Do] join!")
 
@@ -479,7 +492,7 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 
 	// Reset election timeout.
 	if s.electionTimer != nil {
-		s.electionTimer.Reset()
+		s.electionTimer.Stop()
 	}
 
 	// Reject if log doesn't contain a matching previous entry.
@@ -586,10 +599,9 @@ func (s *Server) promote() (bool, error) {
 					// Step down if we discover a higher term.
 					if resp.Term > term {
 						s.mutex.Lock()
+
 						s.setCurrentTerm(term)
-						if s.electionTimer != nil {
-							s.electionTimer.Reset()
-						}
+
 						s.mutex.Unlock()
 						return false, fmt.Errorf("raft.Server: Higher term discovered, stepping down: (%v > %v)", resp.Term, term)
 					}
@@ -635,7 +647,7 @@ func (s *Server) promoteToCandidate() (uint64, uint64, uint64, error) {
 	s.leader = ""
 
 	// Pause the election timer while we're a candidate.
-	s.electionTimer.Pause()
+	// s.electionTimer.Pause()
 
 	// Return server state so we can check for it during leader promotion.
 	lastLogIndex, lastLogTerm := s.log.LastInfo()
@@ -681,7 +693,8 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 		debugln("[Leader] Set ", peer.Name(), "Prev to", lastLogIndex)
 
 		peer.prevLogIndex = lastLogIndex
-		peer.resume()
+		peer.heartbeatTimer.Ready() 
+		peer.StartHeartbeat()
 	}
 
 	return true
@@ -729,7 +742,7 @@ func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, err
 	debugln(s.Name(), "Vote for ", req.CandidateName)
 
 	if s.electionTimer != nil {
-		s.electionTimer.Reset()
+		s.electionTimer.Stop()
 	}
 
 	return NewRequestVoteResponse(s.currentTerm, true), nil
@@ -747,7 +760,7 @@ func (s *Server) setCurrentTerm(term uint64) {
 
 			// stop heartbeats
 			for _, peer := range s.peers {
-				peer.pause()
+				peer.stop()
 			}
 
 			select {
@@ -756,7 +769,7 @@ func (s *Server) setCurrentTerm(term uint64) {
 			default:
 
 			}
-
+			s.StartElectionTimeout()
 		}
 
 		s.state = Follower
@@ -767,29 +780,24 @@ func (s *Server) setCurrentTerm(term uint64) {
 }
 
 // Listens to the election timeout and kicks off a new election.
-func (s *Server) electionTimeoutFunc(startChannel chan bool) {
-	startChannel <- true
+func (s *Server) electionTimeout() {
+
+	// (1) Timeout: promote and return 
+	// (2) Stopped: due to receive heartbeat, continue
 	for {
-		// Grab the current timer channel.
-		s.mutex.Lock()
-		var c chan time.Time
-		if s.electionTimer != nil {
-			c = s.electionTimer.C()
-		}
-		s.mutex.Unlock()
-
-		// If the channel or timer are gone then exit.
-		if c == nil {
-			break
+		if s.State() == Stopped {
+			return
 		}
 
-		// If an election times out then promote this server. If the channel
-		// closes then that means the server has stopped so kill the function.
-		if _, ok := <-c; ok {
-			debugln("[ElectionTimeout] ", s.Name(), " ", time.Now())
+		// TODO race condition with unload
+		if s.electionTimer.Start() {
+
 			s.promote()
+			return
+
 		} else {
-			break
+			s.electionTimer.Ready()
+			continue
 		}
 	}
 }
@@ -812,7 +820,7 @@ func (s *Server) AddPeer(name string) error {
 		//debugln("Add peer ", name)
 		peer := NewPeer(s, name, s.heartbeatTimeout)
 		if s.state == Leader {
-			peer.resume()
+			peer.StartHeartbeat()
 		}
 		s.peers[peer.name] = peer
 

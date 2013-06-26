@@ -345,7 +345,7 @@ func (l *Log) SetCommitIndex(index uint64) error {
 		entry.result, l.errors[entryIndex] = l.ApplyFunc(entry.Command)
 
 		// Notify do() command that the entry has been committed.
-		entry.commit <- true
+		//entry.commit <- true
 	}
 	return nil
 }
