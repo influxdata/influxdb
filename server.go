@@ -346,77 +346,32 @@ func (s *Server) commitCenter() {
 
 		select {
 		case response = <-s.response:
-
 		case term := <-s.stepDown:
 			s.setCurrentTerm(term)
 			return
 		}
 
 		if response.peer != nil {
-			debugln("[CommitCenter] Receive respone from ", response.peer.Name(), response.success)
+			debugln("[CommitCenter] Receive response from ", response.peer.Name(), response.success)
 		}
 
-		// TODO: UINT64 SORTING
-		// Convert uint64 to int, since go does not have a built in
-		// func to sort uint64
-
-		// when the leader is the only member in the cluster, it can commit
-		// the log immediately
-		if s.QuorumSize() < 2 {
-			debugln("[CommitCenter] Commit ", s.log.CurrentIndex())
-
-			commited := int(s.log.CommitIndex())
-			commit := int(s.log.CurrentIndex())
-
-			s.log.SetCommitIndex(uint64(commit))
-
-			for i := commited; i < commit; i++ {
-				select {
-				case s.log.entries[i-int(s.log.startIndex)].commit <- true:
-					debugln("notify")
-					continue
-				// we have a buffered commit channel, it should return immediately
-				default:
-					panic("Cannot send commit nofication")
-				}
-			}
-			continue
-		}
-
-		// TODO: Current we use sort which is O(NlogN).
-		// we should record the previous infomation and
-		// find the index to commit in O(1)
-
-		var data []int
-		data = append(data, int(s.log.CurrentIndex()))
-
+		// Determine the committed index that a majority has.
+		var indices []uint64
+		indices = append(indices, s.log.CurrentIndex())
 		for _, peer := range s.peers {
-			data = append(data, int(peer.prevLogIndex))
+			indices = append(indices, peer.prevLogIndex)
 		}
-
-		sort.Ints(data)
+		sort.Sort(Uint64Slice(indices))
 
 		// We can commit upto the index which the mojarity
 		// of the members have appended.
-		commit := data[s.QuorumSize()-1]
+		commitIndex := indices[s.QuorumSize()-1]
+		committedIndex := s.log.CommitIndex()
 
-		commited := int(s.log.CommitIndex())
-
-		if commit > commited {
-			debugln("[CommitCenter] Going to Commit ", commit)
-			s.log.SetCommitIndex(uint64(commit))
-
-			for i := commited; i < commit; i++ {
-				select {
-				case s.log.entries[i-int(s.log.startIndex)].commit <- true:
-					debugln("notify")
-					continue
-				default:
-					continue
-				}
-			}
-
-			debugln("[CommitCenter] Commit ", commit)
+		if commitIndex > committedIndex {
+			debugln("[CommitCenter] Going to Commit ", commitIndex)
+			s.log.SetCommitIndex(commitIndex)
+			debugln("[CommitCenter] Commit ", commitIndex)
 		}
 
 	}

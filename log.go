@@ -344,6 +344,8 @@ func (l *Log) SetCommitIndex(index uint64) error {
 		// Apply the changes to the state machine and store the error code.
 		entry.result, l.errors[entryIndex] = l.ApplyFunc(entry.Command)
 
+		// Notify do() command that the entry has been committed.
+		entry.commit <- true
 	}
 	return nil
 }
