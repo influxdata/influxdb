@@ -116,70 +116,84 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 // //--------------------------------------
 
 // // Ensure that we can self-promote a server to candidate, obtain votes and become a fearless leader.
-// func TestServerPromoteSelf(t *testing.T) {
-// 	server := newTestServer("1", &testTransporter{})
-// 	server.Initialize()
-// 	server.StartFollower()
-// 	defer server.Stop()
-// 	if success, err := server.promote(); !(success && err == nil && server.state == Leader) {
-// 		t.Fatalf("Server self-promotion failed: %v (%v)", server.state, err)
-// 	}
-// }
+func TestServerPromoteSelf(t *testing.T) {
+	server := newTestServer("1", &testTransporter{})
+	server.Initialize()
+	server.StartFollower()
+	defer server.Stop()
 
-// // Ensure that we can promote a server within a cluster to a leader.
-// func TestServerPromote(t *testing.T) {
-// 	lookup := map[string]*Server{}
-// 	transporter := &testTransporter{}
-// 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-// 		return lookup[peer.Name()].RequestVote(req)
-// 	}
-// 	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
-// 		return lookup[peer.Name()].AppendEntries(req)
-// 	}
-// 	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
-// 	for _, server := range servers {
-// 		defer server.Stop()
-// 	}
-// 	leader := servers[0]
-// 	leader.StartFollower()
-// 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
-// 		t.Fatalf("Server promotion in cluster failed: %v (%v)", leader.state, err)
-// 	}
-// }
+	if success, err := server.promote(); !(success && err == nil && server.state == Leader) {
+		t.Fatalf("Server self-promotion failed: %v (%v)", server.state, err)
+	}
+}
+
+//Ensure that we can promote a server within a cluster to a leader.
+func TestServerPromote(t *testing.T) {
+	debugln("---TestServerPromote---")
+	lookup := map[string]*Server{}
+	transporter := &testTransporter{}
+	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+		return lookup[peer.Name()].RequestVote(req)
+	}
+	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+		return lookup[peer.Name()].AppendEntries(req)
+	}
+	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
+
+	lookup["1"].state = Follower
+	lookup["2"].state = Follower
+	lookup["3"].state = Follower
+
+	leader := servers[0]
+
+
+	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
+		t.Fatalf("Server self-promotion failed: %v (%v)", leader.state, err)
+	}
+
+	for _, server := range servers {
+		server.Stop()
+	}
+}
 
 // Ensure that a server will restart election if not enough votes are obtained before timeout.
-// func TestServerPromoteDoubleElection(t *testing.T) {
-// 	lookup := map[string]*Server{}
-// 	transporter := &testTransporter{}
-// 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
-// 		resp, err := lookup[peer.Name()].RequestVote(req)
-// 		return resp, err
-// 	}
-// 	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
-// 		resp, err := lookup[peer.Name()].AppendEntries(req)
-// 		return resp, err
-// 	}
-// 	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
-// 	lookup["2"].currentTerm, lookup["2"].votedFor = 1, "2"
-// 	lookup["3"].currentTerm, lookup["3"].votedFor = 1, "3"
-// 	lookup["2"].electionTimer.Stop()
-// 	lookup["3"].electionTimer.Stop()
-// 	for _, server := range servers {
-// 		defer server.Stop()
-// 	}
-// 	leader := servers[0]
-// 	leader.StartFollower()
-// 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader && leader.currentTerm == 2) {
-// 		t.Fatalf("Server promotion in cluster failed: %v (%v)", leader.state, err)
-// 	}
-// 	time.Sleep(50 * time.Millisecond)
-// 	if lookup["2"].votedFor != "1" {
-// 		t.Fatalf("Unexpected vote for server 2: %v", lookup["2"].votedFor)
-// 	}
-// 	if lookup["3"].votedFor != "1" {
-// 		t.Fatalf("Unexpected vote for server 3: %v", lookup["3"].votedFor)
-// 	}
-// }
+func TestServerPromoteDoubleElection(t *testing.T) {
+	debugln("---TestServerPromoteDoubleElection---")
+	lookup := map[string]*Server{}
+	transporter := &testTransporter{}
+	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+		resp, err := lookup[peer.Name()].RequestVote(req)
+		return resp, err
+	}
+	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+		resp, err := lookup[peer.Name()].AppendEntries(req)
+		return resp, err
+	}
+	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
+	lookup["2"].currentTerm, lookup["2"].votedFor = 1, "2"
+	lookup["3"].currentTerm, lookup["3"].votedFor = 1, "3"
+
+	lookup["1"].state = Follower
+	lookup["2"].state = Follower
+	lookup["3"].state = Follower
+
+	leader := servers[0]
+
+	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
+		t.Fatalf("Server self-promotion failed: %v (%v)", leader.state, err)
+	}
+	
+	if lookup["2"].votedFor != "1" {
+		t.Fatalf("Unexpected vote for server 2: %v", lookup["2"].votedFor)
+	}
+	if lookup["3"].votedFor != "1" {
+		t.Fatalf("Unexpected vote for server 3: %v", lookup["3"].votedFor)
+	}
+
+	for _, server := range servers {
+		server.Stop()
+	}
+}
 
 //--------------------------------------
 // Append Entries

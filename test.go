@@ -9,7 +9,7 @@ import (
 
 const (
 	testHeartbeatTimeout = 10 * time.Millisecond
-	testElectionTimeout  = 50 * time.Millisecond
+	testElectionTimeout  = 100 * time.Millisecond
 )
 
 func init() {
