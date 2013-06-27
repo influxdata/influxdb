@@ -339,7 +339,7 @@ func (s *Server) StartLeader() error {
 func (s *Server) commitCenter() {
 	debugln("collecting data")
 
-	count := 0
+	count := 1
 
 	for {
 		var response FlushResponse
@@ -367,7 +367,7 @@ func (s *Server) commitCenter() {
 
 		// At least one entry from the leader's current term must also be stored on
 		// a majority of servers
-		if count >= (s.QuorumSize() - 1) {
+		if count >= s.QuorumSize() {
 			// Determine the committed index that a majority has.
 			var indices []uint64
 			indices = append(indices, s.log.CurrentIndex())
@@ -675,7 +675,8 @@ func (s *Server) promoteToCandidate() (uint64, uint64, uint64, error) {
 	lastLogIndex, lastLogTerm := s.log.LastInfo()
 
 	debugln("[PromoteToCandidate] Follower ", s.Name(),
-		"promote to candidate[", lastLogIndex, ",", lastLogTerm, "]")
+		"promote to candidate[", lastLogIndex, ",", lastLogTerm, "]",
+		"currentTerm ", s.currentTerm)
 
 	return s.currentTerm, lastLogIndex, lastLogTerm, nil
 }
@@ -690,7 +691,7 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 
 	// Ignore promotion if we are not a candidate.
 	if s.state != Candidate {
-		panic("promote to leader but not candidate")
+		panic(s.Name() + " promote to leader but not candidate " + s.state)
 	}
 
 	// TODO: should panic or just a false?
