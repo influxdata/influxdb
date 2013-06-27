@@ -465,9 +465,14 @@ func (s *Server) Do(command Command) (interface{}, error) {
 	s.response <- FlushResponse{s.currentTerm, true, nil, nil}
 
 	// to speed up the response time
+	// TODO: think about this carefully
+	// fire will speed up response time
+	// but will reduce through output
+
 	// for _, peer := range s.peers {
 	// 	peer.heartbeatTimer.Fire()
 	// }
+	
 	debugln("[Do] join!")
 
 	// timeout here
