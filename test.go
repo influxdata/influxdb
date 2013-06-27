@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"time"
-	//"errors"
 )
 
 const (

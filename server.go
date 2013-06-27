@@ -645,7 +645,6 @@ func (s *Server) promoteToCandidate() (uint64, uint64, uint64, error) {
 	s.leader = ""
 
 	// Pause the election timer while we're a candidate.
-	// s.electionTimer.Pause()
 
 	// Return server state so we can check for it during leader promotion.
 	lastLogIndex, lastLogTerm := s.log.LastInfo()

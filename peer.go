@@ -134,8 +134,6 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error) {
 	// result.
 	resp, err := p.server.transporter.SendSnapshotRequest(p.server, p, req)
 
-	//p.heartbeatTimer.Reset()
-
 	if resp == nil {
 		return 0, false, err
 	}
@@ -168,8 +166,6 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
 
 	//debugln("receive flush response from ", p.Name())
-
-	//p.heartbeatTimer.Reset()
 
 	if resp == nil {
 		return 0, false, err
