@@ -788,7 +788,6 @@ func (s *Server) electionTimeout() {
 
 		// TODO race condition with unload
 		if s.electionTimer.Start() {
-
 			s.promote()
 			return
 

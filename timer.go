@@ -26,7 +26,7 @@ type Timer struct {
 }
 
 const (
-	STOP = iota
+	STOPPED = iota
 	READY
 	RUNNING
 )
@@ -39,16 +39,11 @@ const (
 
 // Creates a new timer. Panics if a non-positive duration is used.
 func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
-
 	if minDuration <= 0 {
 		panic("raft: Non-positive minimum duration not allowed")
-	}
-
-	if maxDuration <= 0 {
+	} else if maxDuration <= 0 {
 		panic("raft: Non-positive maximum duration not allowed")
-	}
-
-	if minDuration > maxDuration {
+	} else if minDuration > maxDuration {
 		panic("raft: Minimum duration cannot be greater than maximum duration")
 	}
 
@@ -107,33 +102,32 @@ func (t *Timer) Running() bool {
 
 // Stops the timer and closes the channel.
 func (t *Timer) Stop() {
-
 	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	if t.internalTimer != nil {
 		t.internalTimer.Stop()
 	}
 
-	if t.state != STOP {
-		t.state = STOP
+	if t.state != STOPPED {
+		t.state = STOPPED
 
 		// non-blocking buffer
-
 		t.stop <- true
 	}
-
-	t.mutex.Unlock()
 }
 
 // Change the state of timer to ready
 func (t *Timer) Ready() {
 	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	if t.state == RUNNING {
-		panic("Timer state is Running")
+		panic("Timer is already running")
 	}
 	t.state = READY
 	t.stop = make(chan bool, 1)
 	t.fire = make(chan time.Time)
-	t.mutex.Unlock()
 }
 
 // Fire at the timer
@@ -146,15 +140,13 @@ func (t *Timer) Fire() {
 	}
 }
 
-// start the timer, this func will be blocked
-// until (1) the timer is timeout
-//       (2) stopped
-//       (3) fired
-// reutrn false if stopped
-// make sure the start func will not restart the
-// stopped timer
+// Start the timer, this func will be blocked until the timer:
+//   (1) times out
+//   (2) stopped
+//   (3) fired
+// Return false if stopped.
+// Make sure the start func will not restart the stopped timer.
 func (t *Timer) Start() bool {
-
 	t.mutex.Lock()
 
 	if t.state != READY {
@@ -170,40 +162,29 @@ func (t *Timer) Start() bool {
 	}
 
 	t.internalTimer = time.NewTimer(d)
+	internalTimer := t.internalTimer
 
 	t.mutex.Unlock()
 
-	internalTimer := t.internalTimer
-
+	// Wait for the timer channel, stop channel or fire channel.
+	stopped := false
 	select {
 	case <-internalTimer.C:
-	
-		t.internalTimer = nil
-		t.mutex.Lock()
-		if t.state == RUNNING {
-			t.state = READY
-		}
-		t.mutex.Unlock()
-		return true
-
 	case <-t.fire:
-
-		t.internalTimer.Stop()
-		t.internalTimer = nil
-		t.mutex.Lock()
-		if t.state == RUNNING {
-			t.state = READY
-		}
-		t.mutex.Unlock()
-		return true
-
 	case <-t.stop:
-	
-		t.internalTimer = nil
-		t.mutex.Lock()
-		t.state = STOP
-		t.mutex.Unlock()
-		return false
+		stopped = true
 	}
 
+	// Clean up timer and state.
+	t.mutex.Lock()
+	t.internalTimer.Stop()
+	t.internalTimer = nil
+	if stopped {
+		t.state = STOPPED
+	} else if t.state == RUNNING {
+		t.state = READY
+	}
+	t.mutex.Unlock()
+
+	return !stopped
 }
