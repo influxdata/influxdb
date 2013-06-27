@@ -351,7 +351,6 @@ func (l *Log) SetCommitIndex(index uint64) error {
 
 		// Write to storage.
 		if err := entry.Encode(l.file); err != nil {
-			panic(err)
 			return err
 		}
 
