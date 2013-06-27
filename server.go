@@ -348,8 +348,8 @@ func (s *Server) commitCenter() {
 		case response = <-s.response:
 
 			// count for success response from peers
-			if response.success && response.peer != nil{
-				count ++
+			if response.success && response.peer != nil {
+				count++
 			}
 
 		case term := <-s.stepDown:
@@ -365,7 +365,7 @@ func (s *Server) commitCenter() {
 			debugln("[CommitCenter] Receive response from ", response.peer.Name(), response.success)
 		}
 
-		// At least one entry from the leader's current term must also be stored on 
+		// At least one entry from the leader's current term must also be stored on
 		// a majority of servers
 		if count >= (s.QuorumSize() - 1) {
 			// Determine the committed index that a majority has.
@@ -472,7 +472,7 @@ func (s *Server) Do(command Command) (interface{}, error) {
 	// for _, peer := range s.peers {
 	// 	peer.heartbeatTimer.Fire()
 	// }
-	
+
 	debugln("[Do] join!")
 
 	// timeout here
@@ -795,7 +795,7 @@ func (s *Server) setCurrentTerm(term uint64) {
 
 			s.StartElectionTimeout()
 
-		// candidate should also start timeout
+			// candidate should also start timeout
 		} else if s.state == Candidate {
 			s.StartElectionTimeout()
 		}
