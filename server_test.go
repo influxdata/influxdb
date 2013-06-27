@@ -419,9 +419,9 @@ func TestServerMultiNode(t *testing.T) {
 	}
 	mutex.Unlock()
 
-	i := 0
 
-	for {
+
+	for i := 0; i < 20; i++{
 		i++
 		debugln("Round ", i)
 

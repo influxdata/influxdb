@@ -42,7 +42,7 @@ func TestTimer(t *testing.T) {
 		timer.Start()
 
 		duration := time.Now().Sub(start)
-		if duration > 2*time.Millisecond {
+		if duration > 3*time.Millisecond {
 			t.Fatal("Duration Error! ", duration)
 		}
 
@@ -61,7 +61,7 @@ func TestTimer(t *testing.T) {
 		timer.Start()
 
 		duration := time.Now().Sub(start)
-		if duration > 2*time.Millisecond {
+		if duration > 3*time.Millisecond {
 			t.Fatal("Fire Duration Error! ", duration)
 		}
 

@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -110,7 +109,6 @@ func (t *Timer) Running() bool {
 func (t *Timer) Stop() {
 
 	t.mutex.Lock()
-	fmt.Println("stop timer")
 	if t.internalTimer != nil {
 		t.internalTimer.Stop()
 	}
@@ -177,11 +175,9 @@ func (t *Timer) Start() bool {
 
 	internalTimer := t.internalTimer
 
-	//fmt.Println("start timer ", t.mutex)
-
 	select {
 	case <-internalTimer.C:
-		//fmt.Println("timer timeout ", t.mutex)
+	
 		t.internalTimer = nil
 		t.mutex.Lock()
 		if t.state == RUNNING {
@@ -191,7 +187,7 @@ func (t *Timer) Start() bool {
 		return true
 
 	case <-t.fire:
-		//fmt.Println("timer fired ", t.mutex)
+
 		t.internalTimer.Stop()
 		t.internalTimer = nil
 		t.mutex.Lock()
@@ -202,7 +198,7 @@ func (t *Timer) Start() bool {
 		return true
 
 	case <-t.stop:
-		//fmt.Println("timer stopped ", t.mutex)
+	
 		t.internalTimer = nil
 		t.mutex.Lock()
 		t.state = STOP
