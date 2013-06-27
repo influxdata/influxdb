@@ -125,7 +125,7 @@ func TestLogRecovery(t *testing.T) {
 		`6ac5807c 0000000000000003 00000000000`)
 	log := NewLog()
 	log.ApplyFunc = func(c Command) (interface{}, error) {
-		return nil,nil
+		return nil, nil
 	}
 	if err := log.Open(path); err != nil {
 		t.Fatalf("Unable to open log: %v", err)

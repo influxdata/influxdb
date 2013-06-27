@@ -80,21 +80,6 @@ func (p *Peer) StartHeartbeat() {
 // State
 //--------------------------------------
 
-// Resumes the peer heartbeating.
-// func (p *Peer) resume() {
-// 	p.mutex.Lock()
-// 	defer p.mutex.Unlock()
-// 	p.heartbeatTimer.Reset()
-// }
-
-// // Pauses the peer to prevent heartbeating.
-// func (p *Peer) pause() {
-// 	p.mutex.Lock()
-// 	defer p.mutex.Unlock()
-
-// 	p.heartbeatTimer.Pause()
-// }
-
 // Stops the peer entirely.
 func (p *Peer) stop() {
 	p.mutex.Lock()
@@ -112,7 +97,7 @@ func (p *Peer) clone() *Peer {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	return &Peer{
-		name: p.name,
+		name:         p.name,
 		prevLogIndex: p.prevLogIndex,
 	}
 }
@@ -148,10 +133,9 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error) {
 	// log. Send the request through the user-provided handler and process the
 	// result.
 	resp, err := p.server.transporter.SendSnapshotRequest(p.server, p, req)
-	
 
 	//p.heartbeatTimer.Reset()
-	
+
 	if resp == nil {
 		return 0, false, err
 	}
@@ -186,7 +170,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	//debugln("receive flush response from ", p.Name())
 
 	//p.heartbeatTimer.Reset()
-	
+
 	if resp == nil {
 		return 0, false, err
 	}

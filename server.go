@@ -314,7 +314,7 @@ func (s *Server) StartFollower() {
 
 	// Start the election timeout.
 	s.StartElectionTimeout()
-	
+
 }
 
 // Start the sever as a leader
@@ -371,14 +371,13 @@ func (s *Server) commitCenter() {
 			s.log.SetCommitIndex(commitIndex)
 			debugln("[CommitCenter] Commit ", commitIndex)
 
-
 			for i := committedIndex; i < commitIndex; i++ {
 				select {
 				case s.log.entries[i-s.log.startIndex].commit <- true:
 					debugln("notify")
 					continue
-					
-        		// we have a buffered commit channel, it should return immediately
+
+					// we have a buffered commit channel, it should return immediately
 				default:
 					panic("Cannot send commit nofication")
 				}
@@ -421,7 +420,6 @@ func (s *Server) unload() {
 		s.log = nil
 	}
 
-	
 }
 
 // Checks if the server is currently running.
@@ -693,7 +691,7 @@ func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm u
 		debugln("[Leader] Set ", peer.Name(), "Prev to", lastLogIndex)
 
 		peer.prevLogIndex = lastLogIndex
-		peer.heartbeatTimer.Ready() 
+		peer.heartbeatTimer.Ready()
 		peer.StartHeartbeat()
 	}
 
@@ -782,7 +780,7 @@ func (s *Server) setCurrentTerm(term uint64) {
 // Listens to the election timeout and kicks off a new election.
 func (s *Server) electionTimeout() {
 
-	// (1) Timeout: promote and return 
+	// (1) Timeout: promote and return
 	// (2) Stopped: due to receive heartbeat, continue
 	for {
 		if s.State() == Stopped {

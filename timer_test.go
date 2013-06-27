@@ -69,7 +69,7 @@ func TestTimer(t *testing.T) {
 
 	resp := make(chan bool)
 	// play with start and stop
-	// make sure we can stop timer 
+	// make sure we can stop timer
 	// in all the possible seq of start and stop
 	for i := 0; i < 100; i++ {
 		go stop(timer)
