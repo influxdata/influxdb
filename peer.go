@@ -4,7 +4,6 @@ import (
 	"errors"
 	"sync"
 	"time"
-	"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -187,7 +186,6 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 		}
 	} else {
 
-
 		if p.server.State() != Leader {
 			return 0, false, errors.New("Not leader anymore")
 		}
@@ -202,11 +200,9 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 			p.prevLogIndex--
 		}
 		if resp.CommitIndex > p.prevLogIndex {
-			fmt.Println(err)
-			fmt.Printf("%v %v %v %v", resp.CommitIndex, p.prevLogIndex, 
+			debugln("%v %v %v %v", resp.CommitIndex, p.prevLogIndex,
 				p.server.currentTerm, resp.Term)
-			panic("ai")
-			p.prevLogIndex = resp.CommitIndex
+			panic("commitedIndex is greater than prevLogIndex")
 		}
 	}
 
