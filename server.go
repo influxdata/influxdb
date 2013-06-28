@@ -175,6 +175,13 @@ func (s *Server) Term() uint64 {
 	return s.currentTerm
 }
 
+// Retrieves the current committed index of the server.
+func (s *Server) CommittedIndex() uint64 {
+
+	return s.log.CommitIndex()
+
+}
+
 // Retrieves the name of the candidate this server voted for in this term.
 func (s *Server) VotedFor() string {
 	return s.votedFor
@@ -452,14 +459,14 @@ func (s *Server) Running() bool {
 // Attempts to execute a command and replicate it. The function will return
 // when the command has been successfully committed or an error has occurred.
 
-func (s *Server) Do(command Command) (interface{}, error) {
+func (s *Server) Do(command Command) (interface{}, uint64, error) {
 	if s.state != Leader {
-		return nil, NotLeaderError
+		return nil, 0, NotLeaderError
 	}
 
 	entry := s.log.CreateEntry(s.currentTerm, command)
 	if err := s.log.AppendEntry(entry); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	s.response <- FlushResponse{s.currentTerm, true, nil, nil}
@@ -481,10 +488,10 @@ func (s *Server) Do(command Command) (interface{}, error) {
 		debugln("[Do] finish!")
 		result := entry.result
 		entry.result = nil
-		return result, nil
+		return result, entry.Index, nil
 	case <-time.After(time.Second):
 		debugln("[Do] fail!")
-		return nil, errors.New("Command commit fails")
+		return nil, 0, errors.New("Command commit fails")
 	}
 }
 

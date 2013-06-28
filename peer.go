@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 	"time"
+	"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -163,6 +164,11 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	// result.
 	//debugln("flush to ", p.Name())
 	debugln("[HeartBeat] Leader ", p.server.Name(), " to ", p.Name(), " ", len(req.Entries), " ", time.Now())
+
+	if p.server.State() != Leader {
+		return 0, false, errors.New("Not leader anymore")
+	}
+
 	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
 
 	//debugln("receive flush response from ", p.Name())
@@ -180,6 +186,15 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 			debugln("Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 		}
 	} else {
+
+
+		if p.server.State() != Leader {
+			return 0, false, errors.New("Not leader anymore")
+		}
+
+		if resp.Term > p.server.currentTerm {
+			return resp.Term, false, errors.New("Step down")
+		}
 		// Decrement the previous log index down until we find a match. Don't
 		// let it go below where the peer's commit index is though. That's a
 		// problem.
@@ -187,6 +202,10 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 			p.prevLogIndex--
 		}
 		if resp.CommitIndex > p.prevLogIndex {
+			fmt.Println(err)
+			fmt.Printf("%v %v %v %v", resp.CommitIndex, p.prevLogIndex, 
+				p.server.currentTerm, resp.Term)
+			panic("ai")
 			p.prevLogIndex = resp.CommitIndex
 		}
 	}
