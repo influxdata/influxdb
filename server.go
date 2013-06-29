@@ -459,14 +459,14 @@ func (s *Server) Running() bool {
 // Attempts to execute a command and replicate it. The function will return
 // when the command has been successfully committed or an error has occurred.
 
-func (s *Server) Do(command Command) (interface{}, uint64, error) {
+func (s *Server) Do(command Command) (interface{}, error) {
 	if s.state != Leader {
-		return nil, 0, NotLeaderError
+		return nil, NotLeaderError
 	}
 
 	entry := s.log.CreateEntry(s.currentTerm, command)
 	if err := s.log.AppendEntry(entry); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	s.response <- FlushResponse{s.currentTerm, true, nil, nil}
@@ -488,10 +488,10 @@ func (s *Server) Do(command Command) (interface{}, uint64, error) {
 		debugln("[Do] finish!")
 		result := entry.result
 		entry.result = nil
-		return result, entry.Index, nil
+		return result, nil
 	case <-time.After(time.Second):
 		debugln("[Do] fail!")
-		return nil, 0, errors.New("Command commit fails")
+		return nil, errors.New("Command commit fails")
 	}
 }
 
