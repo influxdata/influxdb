@@ -326,7 +326,7 @@ func (l *Log) SetCommitIndex(index uint64) error {
 
 	// Do not allow previous indices to be committed again.
 
-	// This could happens, since the guarantee is that the new leader has up-to-dated 
+	// This could happens, since the guarantee is that the new leader has up-to-dated
 	// log entires rather than has most up-to-dated committed index
 
 	// For example, Leader 1 send log 80 to follower 2 and follower 3
@@ -335,10 +335,9 @@ func (l *Log) SetCommitIndex(index uint64) error {
 	// follower 2 receive the new committed index and update committed index to 80
 	// leader 1 fail to send the committed index to follower 3
 	// follower 3 promote to leader (server 1 and server 2 will vote, since leader 3
-	// has up-to-dated the entries) 
+	// has up-to-dated the entries)
 	// when new leader 3 send heartbeat with committed index = 0 to follower 2,
 	// follower 2 should reply success and let leader 3 update the committed index to 80
-
 
 	if index < l.commitIndex {
 		return nil

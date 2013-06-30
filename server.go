@@ -175,6 +175,13 @@ func (s *Server) Term() uint64 {
 	return s.currentTerm
 }
 
+// Retrieves the current committed index of the server.
+func (s *Server) CommittedIndex() uint64 {
+
+	return s.log.CommitIndex()
+
+}
+
 // Retrieves the name of the candidate this server voted for in this term.
 func (s *Server) VotedFor() string {
 	return s.votedFor

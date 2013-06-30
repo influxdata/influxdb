@@ -146,7 +146,6 @@ func TestServerPromote(t *testing.T) {
 
 	leader := servers[0]
 
-
 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
 		t.Fatalf("Server self-promotion failed: %v (%v)", leader.state, err)
 	}
@@ -182,7 +181,7 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
 		t.Fatalf("Server self-promotion failed: %v (%v)", leader.state, err)
 	}
-	
+
 	if lookup["2"].votedFor != "1" {
 		t.Fatalf("Unexpected vote for server 2: %v", lookup["2"].votedFor)
 	}
