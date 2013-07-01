@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -1050,9 +1049,9 @@ func (s *Server) LoadSnapshot() error {
 	// TODO check checksum first
 
 	var snapshotBytes []byte
-	var checksumByte []byte
+	var checksum uint32
 
-	n, err := fmt.Fscanf(file, "%v\n", &checksumByte)
+	n, err := fmt.Fscanf(file, "%v\n", &checksum)
 
 	if err != nil {
 		return err
@@ -1062,12 +1061,6 @@ func (s *Server) LoadSnapshot() error {
 		return errors.New("Bad snapshot file")
 	}
 
-	checksum, err := strconv.ParseUint(string(checksumByte), 10, 32)
-
-	if err != nil {
-		return err
-	}
-
 	snapshotBytes, _ = ioutil.ReadAll(file)
 	debugln(string(snapshotBytes))
 
@@ -1075,21 +1068,22 @@ func (s *Server) LoadSnapshot() error {
 	byteChecksum := crc32.ChecksumIEEE(snapshotBytes)
 
 	if uint32(checksum) != byteChecksum {
-		fmt.Println(checksum, " ", byteChecksum)
+		debugln(checksum, " ", byteChecksum)
 		return errors.New("bad snapshot file")
 	}
 
 	err = json.Unmarshal(snapshotBytes, &s.lastSnapshot)
 
 	if err != nil {
-		fmt.Println("unmarshal error")
+		debugln("unmarshal error")
 		return err
 	}
 
 	err = s.stateMachine.Recovery(s.lastSnapshot.State)
 
 	if err != nil {
-		fmt.Println("recovery error")
+		debugln("recovery error")
+		return err
 	}
 
 	for _, peerName := range s.lastSnapshot.Peers {
