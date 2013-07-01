@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io/ioutil"
 	"os"
 	"path"
@@ -1038,7 +1039,7 @@ func (s *Server) LoadSnapshot() error {
 	sort.Strings(filenames)
 	snapshotPath := path.Join(s.path, "snapshot", filenames[len(filenames)-1])
 
-	// should not file
+	// should not fail
 	file, err := os.OpenFile(snapshotPath, os.O_RDONLY, 0)
 	defer file.Close()
 	if err != nil {
@@ -1048,7 +1049,7 @@ func (s *Server) LoadSnapshot() error {
 	// TODO check checksum first
 
 	var snapshotBytes []byte
-	var checksum []byte
+	var checksum uint32
 
 	n, err := fmt.Fscanf(file, "%08x\n", &checksum)
 
@@ -1063,13 +1064,27 @@ func (s *Server) LoadSnapshot() error {
 	snapshotBytes, _ = ioutil.ReadAll(file)
 	debugln(string(snapshotBytes))
 
+	// Generate checksum.
+	byteChecksum := crc32.ChecksumIEEE(snapshotBytes)
+
+	if uint32(checksum) != byteChecksum {
+		debugln(checksum, " ", byteChecksum)
+		return errors.New("bad snapshot file")
+	}
+
 	err = json.Unmarshal(snapshotBytes, &s.lastSnapshot)
 
 	if err != nil {
+		debugln("unmarshal error: ", err)
 		return err
 	}
 
 	err = s.stateMachine.Recovery(s.lastSnapshot.State)
+
+	if err != nil {
+		debugln("recovery error: ", err)
+		return err
+	}
 
 	for _, peerName := range s.lastSnapshot.Peers {
 		s.AddPeer(peerName)
