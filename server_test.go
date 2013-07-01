@@ -117,6 +117,7 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 
 // // Ensure that we can self-promote a server to candidate, obtain votes and become a fearless leader.
 func TestServerPromoteSelf(t *testing.T) {
+	debugln("---TestServerPromoteSelf---")
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
 	server.StartFollower()
@@ -129,7 +130,6 @@ func TestServerPromoteSelf(t *testing.T) {
 
 //Ensure that we can promote a server within a cluster to a leader.
 func TestServerPromote(t *testing.T) {
-	debugln("---TestServerPromote---")
 	lookup := map[string]*Server{}
 	transporter := &testTransporter{}
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
@@ -157,7 +157,6 @@ func TestServerPromote(t *testing.T) {
 
 // Ensure that a server will restart election if not enough votes are obtained before timeout.
 func TestServerPromoteDoubleElection(t *testing.T) {
-	debugln("---TestServerPromoteDoubleElection---")
 	lookup := map[string]*Server{}
 	transporter := &testTransporter{}
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
@@ -327,7 +326,6 @@ func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 
 // Ensure that we can start a single server and append to its log.
 func TestServerSingleNode(t *testing.T) {
-	debugln("-----SignalNodeTest-------")
 	server := newTestServer("1", &testTransporter{})
 	if server.state != Stopped {
 		t.Fatalf("Unexpected server state: %v", server.state)
@@ -362,8 +360,6 @@ func TestServerSingleNode(t *testing.T) {
 
 // Ensure that we can start multiple servers and determine a leader.
 func TestServerMultiNode(t *testing.T) {
-	debugln("------------MultiTest------------")
-
 	// Initialize the servers.
 	var mutex sync.Mutex
 	servers := map[string]*Server{}

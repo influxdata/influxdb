@@ -341,6 +341,45 @@ func (s *Server) StartLeader() error {
 	return nil
 }
 
+
+func (s *Server) collectVotes(c chan *RequestVoteResponse) (bool, bool) {
+
+	// Collect votes until we have a quorum.
+	votesGranted := 1
+
+	for {
+
+		// If we received enough votes then stop waiting for more votes.
+		if votesGranted >= s.QuorumSize() {
+			return true, false
+		}
+
+		// Collect votes from peers.
+		select {
+		case resp := <-c:
+			if resp != nil {
+				if resp.VoteGranted == true {
+					votesGranted++
+				} else if resp.Term > s.currentTerm {
+					// Step down if we discover a higher term.
+					s.mutex.Lock()
+
+					s.setCurrentTerm(resp.Term)
+
+					s.mutex.Unlock()
+					return false, false
+				}
+			}
+
+		// TODO: do we calculate the overall timeout? or timeout for each vote?
+		// Some issue here	
+		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
+			return false, true
+		}
+
+	}
+}
+
 // Collect response from followers. If more than the
 // majority of the followers append a log entry, the
 // leader will commit the log entry
@@ -583,70 +622,32 @@ func (s *Server) promote() (bool, error) {
 
 		// Request votes from each of our peers.
 		c := make(chan *RequestVoteResponse, len(s.peers))
-		for _, _peer := range s.peers {
-			peer := _peer
-			go func() {
-				req := NewRequestVoteRequest(term, s.name, lastLogIndex, lastLogTerm)
-				req.peer = peer
-				debugln(s.Name(), "Send Vote Request to ", peer.Name())
-				if resp, _ := s.transporter.SendVoteRequest(s, peer, req); resp != nil {
-					resp.peer = peer
-					c <- resp
-				}
-			}()
+		req := NewRequestVoteRequest(term, s.name, lastLogIndex, lastLogTerm)
+
+		for _, peer := range s.peers {
+			go peer.sendVoteRequest(req, c)
 		}
 
-		// Collect votes until we have a quorum.
-		votes := map[string]bool{}
-
-		elected := false
-		timeout := false
-
-		for {
-			// if timeout happened, restart the promotion
-			if timeout {
-				break
-			}
-
-			// Add up all our votes.
-			votesGranted := 1
-			for _, value := range votes {
-				if value {
-					votesGranted++
-				}
-			}
-
-			// If we received enough votes then stop waiting for more votes.
-			if votesGranted >= s.QuorumSize() {
-				elected = true
-				break
-			}
-
-			// Collect votes from peers.
-			select {
-			case resp := <-c:
-				if resp != nil {
-					// Step down if we discover a higher term.
-					if resp.Term > term {
-						s.mutex.Lock()
-
-						s.setCurrentTerm(term)
-
-						s.mutex.Unlock()
-						return false, fmt.Errorf("raft.Server: Higher term discovered, stepping down: (%v > %v)", resp.Term, term)
-					}
-					votes[resp.peer.Name()] = resp.VoteGranted
-				}
-			case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
-				timeout = true
-			}
-		}
+		elected, timeout := s.collectVotes(c)
 
 		// If we received enough votes then promote to leader and stop this election.
-		if elected && s.promoteToLeader(term, lastLogIndex, lastLogTerm) {
-			break
+		if elected {
+			if s.promoteToLeader(term, lastLogIndex, lastLogTerm) {
+				debugln(s.Name(), " became leader")
+				return true, nil
+			}
 		}
 
+		if timeout {
+			debugln(s.Name(), " election timeout")
+			// restart promotion
+			continue
+		}
+
+		// must be stepdown
+		return false, fmt.Errorf("raft.Server: Term changed during election, stepping down: (%v > %v)", s.currentTerm, term)
+
+		// TODO: is this still needed? 
 		// If we are no longer in the same term then another server must have been elected.
 		s.mutex.Lock()
 		if s.currentTerm != term {
@@ -656,6 +657,7 @@ func (s *Server) promote() (bool, error) {
 		s.mutex.Unlock()
 	}
 
+	// for complier
 	return true, nil
 }
 
