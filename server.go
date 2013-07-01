@@ -625,7 +625,7 @@ func (s *Server) promote() (bool, error) {
 		req := NewRequestVoteRequest(term, s.name, lastLogIndex, lastLogTerm)
 
 		for _, peer := range s.peers {
-			peer.sendVoteRequest(req, c)
+			go peer.sendVoteRequest(req, c)
 		}
 
 		elected, timeout := s.collectVotes(c)
