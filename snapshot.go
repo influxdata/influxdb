@@ -45,7 +45,7 @@ func (ss *Snapshot) Save() error {
 	checksum := crc32.ChecksumIEEE(b)
 
 	// Write snapshot with checksum.
-	if _, err = fmt.Fprintf(file, "%08x\n", checksum); err != nil {
+	if _, err = fmt.Fprintf(file, "%v\n", checksum); err != nil {
 		return err
 	}
 
