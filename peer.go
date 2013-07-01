@@ -122,6 +122,16 @@ func (p *Peer) flush() (uint64, bool, error) {
 
 }
 
+// send VoteRequest Request
+func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteResponse){
+	req.peer = p
+	debugln(p.server.Name(), "Send Vote Request to ", p.Name())
+	if resp, _ := p.server.transporter.SendVoteRequest(p.server, p, req); resp != nil {
+		resp.peer = p
+		c <- resp
+	}
+}
+
 // send Snapshot Request
 func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error) {
 	// Ignore any null requests.

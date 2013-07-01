@@ -20,6 +20,7 @@ import (
 
 // Ensure that we can request a vote from a server that has not voted.
 func TestServerRequestVote(t *testing.T) {
+	debugln("---TestServerRequestVote---")
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
 	server.StartLeader()
@@ -32,6 +33,7 @@ func TestServerRequestVote(t *testing.T) {
 
 // // Ensure that a vote request is denied if it comes from an old term.
 func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
+	debugln("---TestServerRequestVoteDeniedForStaleTerm---")
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
 	server.StartLeader()
@@ -49,6 +51,7 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 
 // // Ensure that a vote request is denied if we've already voted for a different candidate.
 func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
+	debugln("---TestServerRequestVoteDeniedIfAlreadyVoted---")
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
 	server.StartLeader()
@@ -66,6 +69,7 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 
 // // Ensure that a vote request is approved if vote occurs in a new term.
 func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
+	debugln("---TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm---")
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
 	server.StartLeader()
@@ -83,6 +87,7 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 
 // // Ensure that a vote request is denied if the log is out of date.
 func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
+	debugln("---TestServerRequestVoteDenyIfCandidateLogIsBehind---")
 	server := newTestServerWithLog("1", &testTransporter{},
 		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}`+"\n"+
 			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}`+"\n"+
@@ -117,6 +122,7 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 
 // // Ensure that we can self-promote a server to candidate, obtain votes and become a fearless leader.
 func TestServerPromoteSelf(t *testing.T) {
+	debugln("---TestServerPromoteSelf---")
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
 	server.StartFollower()
