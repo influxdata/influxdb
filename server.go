@@ -1039,7 +1039,7 @@ func (s *Server) LoadSnapshot() error {
 	sort.Strings(filenames)
 	snapshotPath := path.Join(s.path, "snapshot", filenames[len(filenames)-1])
 
-	// should not file
+	// should not fail
 	file, err := os.OpenFile(snapshotPath, os.O_RDONLY, 0)
 	defer file.Close()
 	if err != nil {
@@ -1075,14 +1075,14 @@ func (s *Server) LoadSnapshot() error {
 	err = json.Unmarshal(snapshotBytes, &s.lastSnapshot)
 
 	if err != nil {
-		debugln("unmarshal error")
+		debugln("unmarshal error: ", err)
 		return err
 	}
 
 	err = s.stateMachine.Recovery(s.lastSnapshot.State)
 
 	if err != nil {
-		debugln("recovery error")
+		debugln("recovery error: ", err)
 		return err
 	}
 
