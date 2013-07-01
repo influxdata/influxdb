@@ -1051,7 +1051,7 @@ func (s *Server) LoadSnapshot() error {
 	var snapshotBytes []byte
 	var checksum uint32
 
-	n, err := fmt.Fscanf(file, "%v\n", &checksum)
+	n, err := fmt.Fscanf(file, "%08x\n", &checksum)
 
 	if err != nil {
 		return err
