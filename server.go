@@ -96,6 +96,7 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 		state:            Stopped,
 		peers:            make(map[string]*Peer),
 		log:              NewLog(),
+		stepDown:         make(chan uint64),
 		electionTimer:    NewTimer(DefaultElectionTimeout, DefaultElectionTimeout*2),
 		heartbeatTimeout: DefaultHeartbeatTimeout,
 	}
@@ -644,7 +645,6 @@ func (s *Server) promote() (bool, error) {
 			continue
 		}
 
-		// must be stepdown
 		return false, fmt.Errorf("raft.Server: Term changed during election, stepping down: (%v > %v)", s.currentTerm, term)
 
 		// TODO: is this still needed? 
@@ -830,7 +830,7 @@ func (s *Server) electionTimeout() {
 
 		// TODO race condition with unload
 		if s.electionTimer.Start() {
-			s.promote()
+			go s.promote()
 			return
 
 		} else {
