@@ -2,6 +2,7 @@ package raft
 
 import (
 	"log"
+	"os"
 )
 
 //------------------------------------------------------------------------------
@@ -12,6 +13,11 @@ import (
 
 // A flag stating if debug statements should be evaluated.
 var Debug bool = false
+var logger *log.Logger
+
+func init() {
+	logger = log.New(os.Stdout, "", log.Lmicroseconds)
+}
 
 //------------------------------------------------------------------------------
 //
@@ -23,7 +29,7 @@ var Debug bool = false
 // are handled in the manner of fmt.Print.
 func debug(v ...interface{}) {
 	if Debug {
-		log.Print(v...)
+		logger.Print(v...)
 	}
 }
 
@@ -31,7 +37,8 @@ func debug(v ...interface{}) {
 // are handled in the manner of fmt.Printf.
 func debugf(format string, v ...interface{}) {
 	if Debug {
-		log.Printf(format, v...)
+
+		logger.Printf(format, v...)
 	}
 }
 
@@ -39,6 +46,6 @@ func debugf(format string, v ...interface{}) {
 // are handled in the manner of debugln.
 func debugln(v ...interface{}) {
 	if Debug {
-		log.Println(v...)
+		logger.Println(v...)
 	}
 }

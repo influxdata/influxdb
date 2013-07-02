@@ -216,6 +216,11 @@ func (s *Server) LastCommandName() string {
 	return ""
 }
 
+// Get the state of the server for debugging
+func (s *Server) GetState() string {
+	return fmt.Sprintf("State: %s, Term: %v, Index: %v ", s.state, s.currentTerm, s.CommittedIndex())
+}
+
 //--------------------------------------
 // Membership
 //--------------------------------------
@@ -431,7 +436,7 @@ func (s *Server) commitCenter() {
 
 			if commitIndex > committedIndex {
 				debugln(indices)
-				debugln("[CommitCenter] Going to Commit ", commitIndex)
+				debugln(s.GetState(), "[CommitCenter] Going to Commit ", commitIndex)
 				s.log.SetCommitIndex(commitIndex)
 				debugln("[CommitCenter] Commit ", commitIndex)
 
