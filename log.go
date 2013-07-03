@@ -36,7 +36,9 @@ type Log struct {
 
 // Creates a new log.
 func NewLog() *Log {
-	return &Log{}
+	return &Log{
+		entries: make([]*LogEntry, 0),
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -232,6 +234,7 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 
 	// Return nil if index is before the start of the log.
 	if index < l.startIndex {
+		debugln("[GetEntries] index < startIndex ", index, " ", l.startIndex)
 		return nil, 0
 	}
 
@@ -242,6 +245,7 @@ func (l *Log) GetEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 
 	// If we're going from the beginning of the log then return the whole log.
 	if index == l.startIndex {
+		debugln("[GetEntries] index = startIndex ", index, " ", l.startIndex)
 		return l.entries, l.startTerm
 	}
 
