@@ -37,7 +37,6 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	server.StartLeader()
 	server.currentTerm = 2
 	defer server.Stop()
-
 	resp, err := server.RequestVote(NewRequestVoteRequest(1, "foo", 0, 0))
 	if !(resp.Term == 2 && !resp.VoteGranted && err != nil && err.Error() == "raft.Server: Stale term: 1 < 2") {
 		t.Fatalf("Invalid request vote response: %v/%v (%v)", resp.Term, resp.VoteGranted, err)
@@ -123,8 +122,10 @@ func TestServerPromoteSelf(t *testing.T) {
 	server.StartFollower()
 	defer server.Stop()
 
-	if success, err := server.promote(); !(success && err == nil && server.state == Leader) {
-		t.Fatalf("Server self-promotion failed: %v (%v)", server.state, err)
+	time.Sleep(300 * time.Millisecond)
+
+	if server.state != Leader {
+		t.Fatalf("Server self-promotion failed: %v", server.state)
 	}
 }
 
@@ -146,10 +147,13 @@ func TestServerPromote(t *testing.T) {
 
 	leader := servers[0]
 
-	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
-		t.Fatalf("Server self-promotion failed: %v (%v)", leader.state, err)
-	}
+	leader.StartFollower()
 
+	time.Sleep(200 * time.Millisecond)
+
+	if leader.state != Leader {
+		t.Fatalf("Server promotion failed: %v", leader.state)
+	}
 	for _, server := range servers {
 		server.Stop()
 	}
@@ -177,9 +181,8 @@ func TestServerPromoteDoubleElection(t *testing.T) {
 
 	leader := servers[0]
 
-	if success, err := leader.promote(); !(success && err == nil && leader.state == Leader) {
-		t.Fatalf("Server self-promotion failed: %v (%v)", leader.state, err)
-	}
+	leader.StartFollower()
+	time.Sleep(400 * time.Millisecond)
 
 	if lookup["2"].votedFor != "1" {
 		t.Fatalf("Unexpected vote for server 2: %v", lookup["2"].votedFor)
@@ -332,14 +335,13 @@ func TestServerSingleNode(t *testing.T) {
 	}
 
 	server.Initialize()
-	defer server.Stop()
 
 	if server.state != Stopped {
 		t.Fatalf("Unexpected server state: %v", server.state)
 	}
 
 	server.StartLeader()
-	time.Sleep(time.Second)
+	time.Sleep(200 * time.Millisecond)
 
 	// Join the server to itself.
 	if _, err := server.Do(&joinCommand{Name: "1"}); err != nil {
@@ -351,8 +353,8 @@ func TestServerSingleNode(t *testing.T) {
 		t.Fatalf("Unexpected server state: %v", server.state)
 	}
 
-	// Stop the server.
 	server.Stop()
+
 	if server.state != Stopped {
 		t.Fatalf("Unexpected server state: %v", server.state)
 	}
@@ -406,6 +408,7 @@ func TestServerMultiNode(t *testing.T) {
 			leader = server
 			server.SetHeartbeatTimeout(testHeartbeatTimeout)
 			server.StartLeader()
+			time.Sleep(100 * time.Millisecond)
 		} else {
 			server.SetElectionTimeout(testElectionTimeout)
 			server.SetHeartbeatTimeout(testHeartbeatTimeout)
@@ -464,14 +467,14 @@ func TestServerMultiNode(t *testing.T) {
 		}
 		for {
 			for key, value := range servers {
-				if key != num { 
+				if key != num {
 					if value.State() == Leader {
 						leader++
 					}
 				}
 			}
 
-			if leader  > 1 {
+			if leader > 1 {
 
 				t.Fatalf("wrong leader number %v", leader)
 			}

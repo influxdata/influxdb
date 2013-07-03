@@ -66,6 +66,7 @@ type Server struct {
 	heartbeatTimeout time.Duration
 	response         chan FlushResponse
 	stepDown         chan uint64
+	stop             chan bool
 
 	currentSnapshot *Snapshot
 	lastSnapshot    *Snapshot
@@ -97,6 +98,7 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 		peers:            make(map[string]*Peer),
 		log:              NewLog(),
 		stepDown:         make(chan uint64),
+		stop:             make(chan bool),
 		electionTimer:    NewTimer(DefaultElectionTimeout, DefaultElectionTimeout*2),
 		heartbeatTimeout: DefaultHeartbeatTimeout,
 	}
@@ -252,10 +254,7 @@ func (s *Server) SetElectionTimeout(duration time.Duration) {
 	s.electionTimer.SetMaxDuration(duration * 2)
 }
 
-func (s *Server) StartElectionTimeout() {
-	go s.electionTimeout()
-}
-
+// Start heartbeat when the server promote to leader
 func (s *Server) StartHeartbeatTimeout() {
 	for _, peer := range s.peers {
 		peer.StartHeartbeat()
@@ -321,34 +320,248 @@ func (s *Server) Initialize() error {
 	return nil
 }
 
+//                          timeout
+//                          ______
+//                         |      |
+//                         |      |
+//                         v      |     recv majority votes
+//  --------    timeout    -----------                        -----------
+// |Follower| ----------> | Candidate |--------------------> |  Leader   |
+//  --------               -----------                        -----------
+//     ^              stepDown |                       stepDown      |
+//     |_______________________|____________________________________ |
+//
+// The main Loop for the server
+func (s *Server) StartServerLoop(role string) {
+	stop := false
+	leader := false
+
+	defer debugln("server stopped!")
+
+	for {
+		switch role {
+
+		case Follower:
+			stop = s.startFollowerLoop()
+
+			if stop {
+				return
+			}
+
+			role = Candidate
+
+		case Candidate:
+			stop, leader = s.startCandidateLoop()
+
+			s.votedFor = ""
+
+			if stop {
+				return
+			}
+
+			if leader {
+				role = Leader
+
+			} else {
+
+				role = Follower
+			}
+
+		case Leader:
+			stop = s.startLeaderLoop()
+			if stop {
+				return
+			}
+
+			role = Follower
+		}
+	}
+}
+
 // Start the sever as a follower
 func (s *Server) StartFollower() {
-	// Update the state.
-	s.state = Follower
-
-	// Start the election timeout.
-	s.StartElectionTimeout()
+	go s.StartServerLoop(Follower)
 
 }
 
 // Start the sever as a leader
-func (s *Server) StartLeader() error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+func (s *Server) StartLeader() {
+	s.state = Candidate
+	go s.StartServerLoop(Leader)
+}
 
-	// Start as leader.
-	s.currentTerm++
+// Shuts down the server.
+func (s *Server) Stop() {
+	s.mutex.Lock()
+	
+	if s.state == Follower {
+		s.electionTimer.Stop()
+	} else {
+		s.mutex.Unlock()
+		s.stop <- true
+	}
+	s.unload()
+}
+
+// Unloads the server.
+func (s *Server) unload() {
+	// Kill the election timer.
+	s.state = Stopped
+
+	// wait for all previous flush ends
+	time.Sleep(100 * time.Millisecond)
+
+	// Close the log.
+	if s.log != nil {
+		s.log.Close()
+		s.log = nil
+	}
+
+}
+
+// Checks if the server is currently running.
+func (s *Server) Running() bool {
+	return s.state != Stopped
+}
+
+// Respond to RPCs from candidates and leaders.
+// Convert to candidate if election timeout elapses without
+// either:
+// 	1.Receiving valid AppendEntries RPC, or
+//	2.Granting vote to candidate
+func (s *Server) startFollowerLoop() (stop bool) {
+	s.state = Follower
+
+	// (1) Timeout: promote and return
+	// (2) Stopped: due to receive heartbeat, continue
+	for {
+		if s.State() == Stopped {
+			return true
+		}
+
+		if s.electionTimer.Start() {
+			return false
+
+		} else {
+			s.electionTimer.Ready()
+			continue
+		}
+	}
+}
+
+// Increment currentTerm, vote for self
+// Reset election timeout
+// Send RequestVote RPCs to all other servers, wait for either:
+// Votes received from majority of servers: become leader
+// AppendEntries RPC received from new leader: step
+// down
+// Election timeout elapses without election resolution:
+// increment term, start new election
+// Discover higher term: step down
+
+func (s *Server) startCandidateLoop() (stop bool, leader bool) {
+
+	if s.state != Follower && s.state != Stopped {
+		panic("startCandidateLoop")
+	}
+
+	s.state = Candidate
+	s.leader = ""
+	s.votedFor = s.Name()
+
+	lastLogIndex, lastLogTerm := s.log.LastInfo()
+
+	for {
+
+		// increase term
+		s.currentTerm++
+
+		// Request votes from each of our peers.
+		c := make(chan *RequestVoteResponse, len(s.peers))
+		req := NewRequestVoteRequest(s.currentTerm, s.name, lastLogIndex, lastLogTerm)
+
+		for _, peer := range s.peers {
+			go peer.sendVoteRequest(req, c)
+		}
+
+		// collectVotes
+		elected, timeout, stop := s.startCandidateSelect(c)
+
+		// If we received enough votes then promote to leader and stop this election.
+		if elected {
+			return false, true
+		}
+
+		if timeout {
+			debugln(s.Name(), " election timeout, restart")
+			// restart promotion
+			continue
+		}
+
+		if stop {
+			return true, false
+		}
+
+		return false, false
+	}
+}
+
+// Initialize nextIndex for each to last log index + 1
+// Send initial empty AppendEntries RPCs (heartbeat) to each
+// follower; repeat during idle periods to prevent election
+// timeouts (§5.2)
+// Accept commands from clients, append new entries to local
+// log (§5.3)
+// Whenever last log index ! nextIndex for a follower, send
+// AppendEntries RPC with log entries starting at nextIndex,
+// update nextIndex if successful (§5.3)
+// If AppendEntries fails because of log inconsistency,
+// decrement nextIndex and retry (§5.3)
+// Mark entries committed if stored on a majority of servers
+// and some entry from current term is stored on a majority of
+// servers. Apply newly committed entries to state machine.
+// Step down if currentTerm changes (§5.5)
+func (s *Server) startLeaderLoop() bool {
+
+	if s.state != Candidate && s.state != Stopped {
+		panic(s.Name() + " promote to leader but not candidate " + s.state)
+	}
+
+	s.state = Leader
+
+	logIndex, _ := s.log.LastInfo()
+
+	// Move server to become a leader and begin peer heartbeats.
 	s.state = Leader
 	s.leader = s.name
 
-	// Leader need to collect appendLog response
-	go s.commitCenter()
+	// Update the peers prevLogIndex to leader's lastLogIndex
+	// Start heartbeat
+	for _, peer := range s.peers {
 
-	return nil
+		debugln("[Leader] Set ", peer.Name(), "Prev to", logIndex)
+
+		peer.prevLogIndex = logIndex
+		peer.heartbeatTimer.Ready()
+		peer.StartHeartbeat()
+	}
+
+	// Begin to collect response from followers
+	stop := s.startLeaderSelect()
+
+	{
+		for _, peer := range s.peers {
+			peer.stop()
+		}
+	}
+
+	return stop
 }
 
-
-func (s *Server) collectVotes(c chan *RequestVoteResponse) (bool, bool) {
+// Votes received from majority of servers: become leader
+// Election timeout elapses without election resolution:
+// Discover higher term: step down
+func (s *Server) startCandidateSelect(c chan *RequestVoteResponse) (bool, bool, bool) {
 
 	// Collect votes until we have a quorum.
 	votesGranted := 1
@@ -357,7 +570,7 @@ func (s *Server) collectVotes(c chan *RequestVoteResponse) (bool, bool) {
 
 		// If we received enough votes then stop waiting for more votes.
 		if votesGranted >= s.QuorumSize() {
-			return true, false
+			return true, false, false
 		}
 
 		// Collect votes from peers.
@@ -366,25 +579,24 @@ func (s *Server) collectVotes(c chan *RequestVoteResponse) (bool, bool) {
 			if resp != nil {
 				if resp.VoteGranted == true {
 					votesGranted++
+
 				} else if resp.Term > s.currentTerm {
-					// Step down if we discover a higher term.
-					s.mutex.Lock()
-
-					s.state = Follower
 					s.currentTerm = resp.Term
-
-					s.mutex.Unlock()
-					return false, false
+					return false, false, false
 				}
 			}
-		case term := <- s.stepDown:
-			s.state = Follower
+
+		case term := <-s.stepDown:
 			s.currentTerm = term
-			return false, false
+			return false, false, false
+
 		// TODO: do we calculate the overall timeout? or timeout for each vote?
-		// Some issue here	
+		// Some issue here
 		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
-			return false, true
+			return false, true, false
+
+		case <-s.stop:
+			return false, false, true
 		}
 
 	}
@@ -393,9 +605,7 @@ func (s *Server) collectVotes(c chan *RequestVoteResponse) (bool, bool) {
 // Collect response from followers. If more than the
 // majority of the followers append a log entry, the
 // leader will commit the log entry
-func (s *Server) commitCenter() {
-	debugln("collecting data")
-
+func (s *Server) startLeaderSelect() bool {
 	count := 1
 
 	for {
@@ -411,17 +621,11 @@ func (s *Server) commitCenter() {
 
 		case term := <-s.stepDown:
 			// stepdown to follower
-
-			// stop heartbeats
-			for _, peer := range s.peers {
-				peer.stop()
-			}
-
-			s.state = Follower
 			s.currentTerm = term
+			return false
 
-			s.StartElectionTimeout()
-			return
+		case <-s.stop:
+			return true
 		}
 
 		if response.peer != nil {
@@ -468,44 +672,6 @@ func (s *Server) commitCenter() {
 
 	}
 
-}
-
-// Shuts down the server.
-func (s *Server) Stop() {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	s.unload()
-}
-
-// Unloads the server.
-func (s *Server) unload() {
-	// Kill the election timer.
-	s.state = Stopped
-
-	if s.electionTimer != nil {
-		s.electionTimer.Stop()
-	}
-
-	// Remove peers.
-	for _, peer := range s.peers {
-		peer.stop()
-	}
-	// wait for all previous flush ends
-	time.Sleep(100 * time.Millisecond)
-
-	s.peers = make(map[string]*Peer)
-
-	// Close the log.
-	if s.log != nil {
-		s.log.Close()
-		s.log = nil
-	}
-
-}
-
-// Checks if the server is currently running.
-func (s *Server) Running() bool {
-	return s.state != Stopped
 }
 
 //--------------------------------------
@@ -620,137 +786,6 @@ func (s *Server) createAppendEntriesRequest(prevLogIndex uint64) *AppendEntriesR
 }
 
 //--------------------------------------
-// Promotion
-//--------------------------------------
-
-// Promotes the server to a candidate and then requests votes from peers. If
-// enough votes are received then the server becomes the leader. If this
-// server is elected then true is returned. If another server is elected then
-// false is returned.
-func (s *Server) promote() (bool, error) {
-
-	for {
-		// Start a new election.
-		term, lastLogIndex, lastLogTerm, err := s.promoteToCandidate()
-		if err != nil {
-			return false, err
-		}
-
-		// Request votes from each of our peers.
-		c := make(chan *RequestVoteResponse, len(s.peers))
-		req := NewRequestVoteRequest(term, s.name, lastLogIndex, lastLogTerm)
-
-		for _, peer := range s.peers {
-			go peer.sendVoteRequest(req, c)
-		}
-
-		elected, timeout := s.collectVotes(c)
-
-		// If we received enough votes then promote to leader and stop this election.
-		if elected {
-			if s.promoteToLeader(term, lastLogIndex, lastLogTerm) {
-				debugln(s.Name(), " became leader")
-				return true, nil
-			}
-		}
-
-		if timeout {
-			debugln(s.Name(), " election timeout")
-			// restart promotion
-			continue
-		}
-
-
-		s.StartElectionTimeout()
-		return false, fmt.Errorf("raft.Server: Term changed during election, stepping down: (%v > %v)", s.currentTerm, term)
-
-		// TODO: is this still needed? 
-		// If we are no longer in the same term then another server must have been elected.
-		s.mutex.Lock()
-		if s.currentTerm != term {
-			s.mutex.Unlock()
-			return false, fmt.Errorf("raft.Server: Term changed during election, stepping down: (%v > %v)", s.currentTerm, term)
-		}
-		s.mutex.Unlock()
-	}
-
-	// for complier
-	return true, nil
-}
-
-// Promotes the server to a candidate and increases the election term. The
-// term and log state are returned for use in the RPCs.
-func (s *Server) promoteToCandidate() (uint64, uint64, uint64, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	// Ignore promotion if the server is not a follower.
-	if s.state != Follower && s.state != Candidate {
-		panic("promote but not a follower")
-		return 0, 0, 0, fmt.Errorf("raft: Invalid promotion state: %s", s.state)
-	}
-
-	// Move server to become a candidate, increase our term & vote for ourself.
-	s.state = Candidate
-	s.currentTerm++
-	s.votedFor = s.name
-	s.leader = ""
-
-	// Pause the election timer while we're a candidate.
-
-	// Return server state so we can check for it during leader promotion.
-	lastLogIndex, lastLogTerm := s.log.LastInfo()
-
-	debugln("[PromoteToCandidate] Follower ", s.Name(),
-		"promote to candidate[", lastLogIndex, ",", lastLogTerm, "]",
-		"currentTerm ", s.currentTerm)
-
-	return s.currentTerm, lastLogIndex, lastLogTerm, nil
-}
-
-// Promotes the server from a candidate to a leader. This can only occur if
-// the server is in the state that it assumed when the candidate election
-// began. This is because another server may have won the election and caused
-// the state to change.
-func (s *Server) promoteToLeader(term uint64, lastLogIndex uint64, lastLogTerm uint64) bool {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	// Ignore promotion if we are not a candidate.
-	if s.state != Candidate {
-		panic(s.Name() + " promote to leader but not candidate " + s.state)
-	}
-
-	// TODO: should panic or just a false?
-
-	// Disallow promotion if the term or log does not match what we currently have.
-	logIndex, logTerm := s.log.LastInfo()
-	if s.currentTerm != term || logIndex != lastLogIndex || logTerm != lastLogTerm {
-		return false
-	}
-
-	// Move server to become a leader and begin peer heartbeats.
-	s.state = Leader
-	s.leader = s.name
-
-	// Begin to collect response from followers
-	go s.commitCenter()
-
-	// Update the peers prevLogIndex to leader's lastLogIndex
-	// Start heartbeat
-	for _, peer := range s.peers {
-
-		debugln("[Leader] Set ", peer.Name(), "Prev to", lastLogIndex)
-
-		peer.prevLogIndex = lastLogIndex
-		peer.heartbeatTimer.Ready()
-		peer.StartHeartbeat()
-	}
-
-	return true
-}
-
-//--------------------------------------
 // Request Vote
 //--------------------------------------
 
@@ -785,6 +820,7 @@ func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, err
 	// our last log then don't vote.
 	lastIndex, lastTerm := s.log.LastInfo()
 	if lastIndex > req.LastLogIndex || lastTerm > req.LastLogTerm {
+		debugln("my log is more up-to-date")
 		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Out-of-date log: [%v/%v] > [%v/%v]", lastIndex, lastTerm, req.LastLogIndex, req.LastLogTerm)
 	}
 
@@ -807,38 +843,16 @@ func (s *Server) setCurrentTerm(term uint64) {
 	if term > s.currentTerm {
 		s.votedFor = ""
 
-		if s.state == Leader || s.state == Candidate{
+		if s.state == Leader || s.state == Candidate {
 			debugln(s.Name(), " should step down to a follower from ", s.state)
 
 			s.stepDown <- term
-
+			s.state = Follower
 			debugln(s.Name(), " step down to a follower from ", s.state)
 			return
 		}
 		// update term after stop all the peer
 		s.currentTerm = term
-	}
-}
-
-// Listens to the election timeout and kicks off a new election.
-func (s *Server) electionTimeout() {
-
-	// (1) Timeout: promote and return
-	// (2) Stopped: due to receive heartbeat, continue
-	for {
-		if s.State() == Stopped {
-			return
-		}
-
-		// TODO race condition with unload
-		if s.electionTimer.Start() {
-			go s.promote()
-			return
-
-		} else {
-			s.electionTimer.Ready()
-			continue
-		}
 	}
 }
 
