@@ -428,7 +428,7 @@ func TestServerMultiNode(t *testing.T) {
 	}
 	mutex.Unlock()
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 200000; i++ {
 		i++
 		debugln("Round ", i)
 
@@ -453,20 +453,36 @@ func TestServerMultiNode(t *testing.T) {
 					for i := 0; i < 10; i++ {
 						debugln("[Test] do ", value.Name())
 						if _, err := value.Do(&TestCommand2{X: 1}); err != nil {
-							t.Fatalf("Unable to do command")
+							break
 						}
 						debugln("[Test] Done")
 					}
-
-					leader++
 					debugln("Leader is ", value.Name(), " Index ", value.log.commitIndex)
 				}
 				debugln("Not Found leader")
 			}
 		}
+		for {
+			for key, value := range servers {
+				if key != num { 
+					if value.State() == Leader {
+						leader++
+					}
+				}
+			}
 
-		if leader != 1 {
-			t.Fatalf("wrong leader number %v", leader)
+			if leader  > 1 {
+
+				t.Fatalf("wrong leader number %v", leader)
+			}
+			if leader == 0 {
+				leader = 0
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			if leader == 1 {
+				break
+			}
 		}
 
 		//mutex.Unlock()

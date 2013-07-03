@@ -370,12 +370,16 @@ func (s *Server) collectVotes(c chan *RequestVoteResponse) (bool, bool) {
 					// Step down if we discover a higher term.
 					s.mutex.Lock()
 
-					s.setCurrentTerm(resp.Term)
+					s.state = Follower
+					s.currentTerm = resp.Term
 
 					s.mutex.Unlock()
 					return false, false
 				}
 			}
+		case term := <- s.stepDown:
+			s.state = Follower
+			s.currentTerm = term
 
 		// TODO: do we calculate the overall timeout? or timeout for each vote?
 		// Some issue here	
@@ -406,11 +410,17 @@ func (s *Server) commitCenter() {
 			}
 
 		case term := <-s.stepDown:
-			s.mutex.Lock()
+			// stepdown to follower
 
-			s.setCurrentTerm(term)
+			// stop heartbeats
+			for _, peer := range s.peers {
+				peer.stop()
+			}
 
-			s.mutex.Unlock()
+			s.state = Follower
+			s.currentTerm = term
+
+			s.StartElectionTimeout()
 			return
 		}
 
@@ -760,6 +770,7 @@ func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, err
 	if req.Term < s.currentTerm {
 		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Stale term: %v < %v", req.Term, s.currentTerm)
 	}
+
 	s.setCurrentTerm(req.Term)
 
 	// If we've already voted for a different candidate then don't vote for this candidate.
@@ -794,30 +805,14 @@ func (s *Server) setCurrentTerm(term uint64) {
 	if term > s.currentTerm {
 		s.votedFor = ""
 
-		if s.state == Leader {
-			debugln(s.Name(), " step down to a follower")
+		if s.state == Leader || s.state == Candidate{
+			debugln(s.Name(), " should step down to a follower from ", s.state)
 
-			// stop heartbeats
-			for _, peer := range s.peers {
-				peer.stop()
-			}
+			s.stepDown <- term
 
-			select {
-			case s.stepDown <- term:
-
-			default:
-
-			}
-
-			s.StartElectionTimeout()
-
-			// candidate should also start timeout
-		} else if s.state == Candidate {
-			s.StartElectionTimeout()
+			debugln(s.Name(), " step down to a follower from ", s.state)
+			return
 		}
-
-		s.state = Follower
-
 		// update term after stop all the peer
 		s.currentTerm = term
 	}
