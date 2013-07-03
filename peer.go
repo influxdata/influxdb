@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 	"time"
+	"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -181,17 +182,20 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 		respChan <- tranResp
 	}()
 
-	go func() {
-		<-time.After(p.server.heartbeatTimeout)
-		respChan <- nil
-	}()
+	var resp *AppendEntriesResponse
 
-	resp := <-respChan
+	select {
+	case <-time.After(p.server.heartbeatTimeout):
+		resp = nil
+
+	case resp = <-respChan:
+
+	}
 
 	debugln("receive flush response from ", p.Name())
 
 	if resp == nil {
-		return 0, false, errors.New("Network problem")
+		return 0, false, fmt.Errorf("AppendEntries timeout: %s", p.Name())
 	}
 
 	// If successful then update the previous log index. If it was
