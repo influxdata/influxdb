@@ -312,16 +312,16 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 //--------------------------------------
 
 // Ensure that a follower cannot execute a command.
-// func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
-// 	server := newTestServer("1", &testTransporter{})
-// 	server.Initialize()
-// 	server.StartFollower()
-// 	defer server.Stop()
-// 	var err error
-// 	if _, err = server.Do(&TestCommand1{"foo", 10}); err != NotLeaderError {
-// 		t.Fatalf("Expected error: %v, got: %v", NotLeaderError, err)
-// 	}
-// }
+func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
+	server := newTestServer("1", &testTransporter{})
+	server.Initialize()
+	server.StartFollower()
+	defer server.Stop()
+	var err error
+	if _, err = server.Do(&TestCommand1{"foo", 10}); err != NotLeaderError {
+		t.Fatalf("Expected error: %v, got: %v", NotLeaderError, err)
+	}
+}
 
 //--------------------------------------
 // Membership

@@ -393,10 +393,11 @@ func (s *Server) StartLeader() {
 // Shuts down the server.
 func (s *Server) Stop() {
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	
 	if s.state == Follower {
 		s.electionTimer.Stop()
 	} else {
+		s.mutex.Unlock()
 		s.stop <- true
 	}
 	s.unload()
