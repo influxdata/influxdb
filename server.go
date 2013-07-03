@@ -380,7 +380,7 @@ func (s *Server) collectVotes(c chan *RequestVoteResponse) (bool, bool) {
 		case term := <- s.stepDown:
 			s.state = Follower
 			s.currentTerm = term
-
+			return false, false
 		// TODO: do we calculate the overall timeout? or timeout for each vote?
 		// Some issue here	
 		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
@@ -660,6 +660,8 @@ func (s *Server) promote() (bool, error) {
 			continue
 		}
 
+
+		s.StartElectionTimeout()
 		return false, fmt.Errorf("raft.Server: Term changed during election, stepping down: (%v > %v)", s.currentTerm, term)
 
 		// TODO: is this still needed? 
