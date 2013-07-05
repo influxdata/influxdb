@@ -48,10 +48,10 @@ func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
 	}
 
 	return &Timer{
-		rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
 		minDuration: minDuration,
 		maxDuration: maxDuration,
 		state:       READY,
+		rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
 		stop:        make(chan bool, 1),
 		fire:        make(chan time.Time),
 	}
