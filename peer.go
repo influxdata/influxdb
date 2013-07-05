@@ -214,7 +214,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 		}
 
 		// we may miss a response from peer
-		if resp.CommitIndex > p.prevLogIndex {
+		if resp.CommitIndex >= p.prevLogIndex {
 			debugln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 			p.prevLogIndex = resp.CommitIndex
 		} else if p.prevLogIndex > 0 {

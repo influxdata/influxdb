@@ -396,7 +396,7 @@ func TestServerMultiNode(t *testing.T) {
 
 	var names []string
 
-	n := 9
+	n := 5
 
 	// add n servers
 	for i := 1; i <= n; i++ {
