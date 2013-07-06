@@ -27,7 +27,7 @@ type Snapshot struct {
 }
 
 // Save the snapshot to a file
-func (ss *Snapshot) Save() error {
+func (ss *Snapshot) save() error {
 	// Write machine state to temporary buffer.
 
 	// open file
@@ -59,7 +59,7 @@ func (ss *Snapshot) Save() error {
 }
 
 // remove the file of the snapshot
-func (ss *Snapshot) Remove() error {
+func (ss *Snapshot) remove() error {
 	err := os.Remove(ss.Path)
 	return err
 }

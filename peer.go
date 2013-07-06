@@ -19,10 +19,10 @@ type Peer struct {
 	name           string
 	prevLogIndex   uint64
 	mutex          sync.Mutex
-	heartbeatTimer *Timer
+	heartbeatTimer *timer
 }
 
-type FlushResponse struct {
+type flushResponse struct {
 	term    uint64
 	success bool
 	err     error
@@ -36,11 +36,11 @@ type FlushResponse struct {
 //------------------------------------------------------------------------------
 
 // Creates a new peer.
-func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer {
+func newPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer {
 	p := &Peer{
 		server:         server,
 		name:           name,
-		heartbeatTimer: NewTimer(heartbeatTimeout, heartbeatTimeout),
+		heartbeatTimer: newTimer(heartbeatTimeout, heartbeatTimeout),
 	}
 
 	return p
@@ -57,17 +57,12 @@ func (p *Peer) Name() string {
 	return p.name
 }
 
-// Retrieves the heartbeat timeout.
-func (p *Peer) HeartbeatTimeout() time.Duration {
-	return p.heartbeatTimer.MinDuration()
-}
-
 // Sets the heartbeat timeout.
-func (p *Peer) SetHeartbeatTimeout(duration time.Duration) {
-	p.heartbeatTimer.SetDuration(duration)
+func (p *Peer) setHeartbeatTimeout(duration time.Duration) {
+	p.heartbeatTimer.setDuration(duration)
 }
 
-func (p *Peer) StartHeartbeat() {
+func (p *Peer) startHeartbeat() {
 	go p.heartbeat()
 }
 
@@ -85,7 +80,7 @@ func (p *Peer) StartHeartbeat() {
 func (p *Peer) stop() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	p.heartbeatTimer.Stop()
+	p.heartbeatTimer.stop()
 }
 
 //--------------------------------------
@@ -240,9 +235,9 @@ func (p *Peer) heartbeat() {
 		// (1) timeout/fire happens, flush the peer
 		// (2) stopped, return
 
-		if p.heartbeatTimer.Start() {
+		if p.heartbeatTimer.start() {
 
-			var f FlushResponse
+			var f flushResponse
 
 			f.peer = p
 
@@ -251,7 +246,7 @@ func (p *Peer) heartbeat() {
 			// if the peer successfully appended the log entry
 			// we will tell the commit center
 			if f.success {
-				if p.prevLogIndex > p.server.log.CommitIndex() {
+				if p.prevLogIndex > p.server.log.commitIndex {
 					debugln("[Heartbeat] Peer", p.Name(), "send to commit center")
 					p.server.response <- f
 					debugln("[Heartbeat] Peer", p.Name(), "back from commit center")

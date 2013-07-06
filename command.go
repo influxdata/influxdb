@@ -40,7 +40,7 @@ type Command interface {
 //--------------------------------------
 
 // Creates a new instance of a command by name.
-func NewCommand(name string) (Command, error) {
+func newCommand(name string) (Command, error) {
 	// Find the registered command.
 	command := commandTypes[name]
 	if command == nil {
