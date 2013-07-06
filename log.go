@@ -200,12 +200,22 @@ func (l *Log) createEntry(term uint64, command Command) *LogEntry {
 	return newLogEntry(l, l.nextIndex(), term, command)
 }
 
+// Retrieves an entry from the log. If the entry has been eliminated because
+// of a snapshot then nil is returned.
+func (l *Log) getEntry(index uint64) *LogEntry {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	
+	if index <= l.startIndex || index > (l.startIndex+uint64(len(l.entries))) {
+		return nil
+	}
+	return l.entries[index-1]
+}
+
 // Checks if the log contains a given index/term combination.
 func (l *Log) containsEntry(index uint64, term uint64) bool {
-	if index <= l.startIndex || index > (l.startIndex+uint64(len(l.entries))) {
-		return false
-	}
-	return (l.entries[index-1].Term == term)
+	entry := l.getEntry(index)
+	return (entry != nil && entry.Term == term)
 }
 
 // Retrieves a list of entries after a given index as well as the term of the
@@ -217,7 +227,7 @@ func (l *Log) getEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 
 	// Return nil if index is before the start of the log.
 	if index < l.startIndex {
-		debugln("[GetEntries] index < startIndex ", index, " ", l.startIndex)
+		traceln("log.entriesAfter.before: ", index, " ", l.startIndex)
 		return nil, 0
 	}
 
@@ -228,16 +238,14 @@ func (l *Log) getEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 
 	// If we're going from the beginning of the log then return the whole log.
 	if index == l.startIndex {
-		debugln("[GetEntries] index = startIndex ", index, " ", l.startIndex)
+		traceln("log.entriesAfter.beginning: ", index, " ", l.startIndex)
 		return l.entries, l.startTerm
 	}
 
-	debugln("[GetEntries] index ", index, "lastIndex", l.entries[len(l.entries)-1].Index)
+	traceln("log.entriesAfter.partial: ", index, " ", l.entries[len(l.entries)-1].Index)
 
 	// Determine the term at the given entry and return a subslice.
-	term := l.entries[index-1-l.startIndex].Term
-
-	return l.entries[index-l.startIndex:], term
+	return l.entries[index-l.startIndex:], l.entries[index-1-l.startIndex].Term
 }
 
 // Retrieves the error returned from an entry. The error can only exist after
@@ -359,16 +367,17 @@ func (l *Log) setCommitIndex(index uint64) error {
 func (l *Log) truncate(index uint64, term uint64) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	debugln("[Truncate] truncate to ", index)
+	debugln("log.truncate: ", index)
+
 	// Do not allow committed entries to be truncated.
 	if index < l.commitIndex {
-		debugln("[Truncate] error 1")
+		debugln("log.truncate.before")
 		return fmt.Errorf("raft.Log: Index is already committed (%v): (IDX=%v, TERM=%v)", l.commitIndex, index, term)
 	}
 
 	// Do not truncate past end of entries.
 	if index > l.startIndex+uint64(len(l.entries)) {
-		debugln("[Truncate] error 2")
+		debugln("log.truncate.after")
 		return fmt.Errorf("raft.Log: Entry index does not exist (MAX=%v): (IDX=%v, TERM=%v)", len(l.entries), index, term)
 	}
 
@@ -379,13 +388,13 @@ func (l *Log) truncate(index uint64, term uint64) error {
 		// Do not truncate if the entry at index does not have the matching term.
 		entry := l.entries[index-l.startIndex-1]
 		if len(l.entries) > 0 && entry.Term != term {
-			debugln("[Truncate] error 3")
+			debugln("log.truncate.termMismatch")
 			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term, index, term)
 		}
 
 		// Otherwise truncate up to the desired entry.
 		if index < l.startIndex+uint64(len(l.entries)) {
-			debugln("[Truncate] truncate to ", index)
+			debugln("log.truncate.finish")
 			l.entries = l.entries[0 : index-l.startIndex]
 		}
 	}

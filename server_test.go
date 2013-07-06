@@ -413,12 +413,12 @@ func TestServerMultiNode(t *testing.T) {
 
 		if name == "1" {
 			leader = server
-			server.setHeartbeatTimeout(testHeartbeatTimeout)
+			server.SetHeartbeatTimeout(testHeartbeatTimeout)
 			server.StartLeader()
 			time.Sleep(100 * time.Millisecond)
 		} else {
 			server.SetElectionTimeout(testElectionTimeout)
-			server.setHeartbeatTimeout(testHeartbeatTimeout)
+			server.SetHeartbeatTimeout(testHeartbeatTimeout)
 			server.StartFollower()
 			time.Sleep(10 * time.Millisecond)
 		}

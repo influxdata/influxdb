@@ -26,7 +26,7 @@ type flushResponse struct {
 	term    uint64
 	success bool
 	err     error
-	peer    *Peer
+	name    string
 }
 
 //------------------------------------------------------------------------------
@@ -167,8 +167,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	// Generate an AppendEntries request based on the state of the server and
 	// log. Send the request through the user-provided handler and process the
 	// result.
-	//debugln("flush to ", p.Name())
-	debugln("[HeartBeat] Leader ", p.server.Name(), " to ", p.Name(), " ", len(req.Entries), " ", time.Now())
+	traceln("peer.flush.send: ", p.server.Name(), "->", p.Name(), " ", len(req.Entries))
 
 	respChan := make(chan *AppendEntriesResponse, 2)
 
@@ -189,10 +188,10 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	}
 
 	if resp == nil {
-		debugln("receive flush timeout from ", p.Name())
+		traceln("receive flush timeout from ", p.Name())
 		return 0, false, fmt.Errorf("AppendEntries timeout: %s", p.Name())
 	}
-	debugln("receive flush response from ", p.Name())
+	traceln("peer.flush.recv: ", p.Name())
 
 	// If successful then update the previous log index. If it was
 	// unsuccessful then decrement the previous log index and we'll try again
@@ -201,7 +200,7 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 		if len(req.Entries) > 0 {
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
 		}
-		debugln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
+		traceln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 	} else {
 
 		if resp.Term > p.server.currentTerm {
@@ -210,10 +209,10 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 
 		// we may miss a response from peer
 		if resp.CommitIndex >= p.prevLogIndex {
-			debugln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
+			traceln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 			p.prevLogIndex = resp.CommitIndex
 		} else if p.prevLogIndex > 0 {
-			debugln("Peer ", p.Name(), "'s' step back to ", p.prevLogIndex)
+			traceln("Peer ", p.Name(), "'s' step back to ", p.prevLogIndex)
 			// Decrement the previous log index down until we find a match. Don't
 			// let it go below where the peer's commit index is though. That's a
 			// problem.
@@ -238,18 +237,16 @@ func (p *Peer) heartbeat() {
 		if p.heartbeatTimer.start() {
 
 			var f flushResponse
-
-			f.peer = p
-
+			f.name = p.name
 			f.term, f.success, f.err = p.flush()
 
 			// if the peer successfully appended the log entry
 			// we will tell the commit center
 			if f.success {
 				if p.prevLogIndex > p.server.log.commitIndex {
-					debugln("[Heartbeat] Peer", p.Name(), "send to commit center")
+					traceln("[Heartbeat] Peer", p.Name(), "send to commit center")
 					p.server.response <- f
-					debugln("[Heartbeat] Peer", p.Name(), "back from commit center")
+					traceln("[Heartbeat] Peer", p.Name(), "back from commit center")
 				}
 
 			} else {

@@ -82,7 +82,7 @@ func newTestCluster(names []string, transporter Transporter, lookup map[string]*
 		lookup[name] = server
 	}
 	for _, server := range servers {
-		server.setHeartbeatTimeout(testHeartbeatTimeout)
+		server.SetHeartbeatTimeout(testHeartbeatTimeout)
 		for _, peer := range servers {
 			server.AddPeer(peer.Name())
 		}
