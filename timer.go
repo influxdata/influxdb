@@ -12,9 +12,9 @@ import (
 //
 //------------------------------------------------------------------------------
 
-type Timer struct {
-	fire  chan time.Time
-	stop  chan bool
+type timer struct {
+	fireChan  chan time.Time
+	stopChan  chan bool
 	state int
 
 	rand          *rand.Rand
@@ -38,7 +38,7 @@ const (
 //------------------------------------------------------------------------------
 
 // Creates a new timer. Panics if a non-positive duration is used.
-func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
+func newTimer(minDuration time.Duration, maxDuration time.Duration) *timer {
 	if minDuration <= 0 {
 		panic("raft: Non-positive minimum duration not allowed")
 	} else if maxDuration <= 0 {
@@ -47,13 +47,13 @@ func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
 		panic("raft: Minimum duration cannot be greater than maximum duration")
 	}
 
-	return &Timer{
+	return &timer{
 		minDuration: minDuration,
 		maxDuration: maxDuration,
 		state:       READY,
 		rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
-		stop:        make(chan bool, 1),
-		fire:        make(chan time.Time),
+		stopChan:        make(chan bool, 1),
+		fireChan:        make(chan time.Time),
 	}
 }
 
@@ -63,28 +63,8 @@ func NewTimer(minDuration time.Duration, maxDuration time.Duration) *Timer {
 //
 //------------------------------------------------------------------------------
 
-// Retrieves the minimum duration of the timer.
-func (t *Timer) MinDuration() time.Duration {
-	return t.minDuration
-}
-
-// Sets the minimum duration of the timer.
-func (t *Timer) SetMinDuration(duration time.Duration) {
-	t.minDuration = duration
-}
-
-// Retrieves the maximum duration of the timer.
-func (t *Timer) MaxDuration() time.Duration {
-	return t.maxDuration
-}
-
-// Sets the maximum duration of the timer.
-func (t *Timer) SetMaxDuration(duration time.Duration) {
-	t.maxDuration = duration
-}
-
 // Sets the minimum and maximum duration of the timer.
-func (t *Timer) SetDuration(duration time.Duration) {
+func (t *timer) setDuration(duration time.Duration) {
 	t.minDuration = duration
 	t.maxDuration = duration
 }
@@ -96,12 +76,12 @@ func (t *Timer) SetDuration(duration time.Duration) {
 //------------------------------------------------------------------------------
 
 // Checks if the timer is currently running.
-func (t *Timer) Running() bool {
+func (t *timer) running() bool {
 	return t.state == RUNNING
 }
 
 // Stops the timer and closes the channel.
-func (t *Timer) Stop() {
+func (t *timer) stop() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
@@ -113,12 +93,12 @@ func (t *Timer) Stop() {
 		t.state = STOPPED
 
 		// non-blocking buffer
-		t.stop <- true
+		t.stopChan <- true
 	}
 }
 
 // Change the state of timer to ready
-func (t *Timer) Ready() {
+func (t *timer) ready() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
@@ -126,14 +106,14 @@ func (t *Timer) Ready() {
 		panic("Timer is already running")
 	}
 	t.state = READY
-	t.stop = make(chan bool, 1)
-	t.fire = make(chan time.Time)
+	t.stopChan = make(chan bool, 1)
+	t.fireChan = make(chan time.Time)
 }
 
 // Fire at the timer
-func (t *Timer) Fire() {
+func (t *timer) fire() {
 	select {
-	case t.fire <- time.Now():
+	case t.fireChan <- time.Now():
 		return
 	default:
 		return
@@ -146,7 +126,7 @@ func (t *Timer) Fire() {
 //   (3) fired
 // Return false if stopped.
 // Make sure the start func will not restart the stopped timer.
-func (t *Timer) Start() bool {
+func (t *timer) start() bool {
 	t.mutex.Lock()
 
 	if t.state != READY {
@@ -170,8 +150,8 @@ func (t *Timer) Start() bool {
 	stopped := false
 	select {
 	case <-internalTimer.C:
-	case <-t.fire:
-	case <-t.stop:
+	case <-t.fireChan:
+	case <-t.stopChan:
 		stopped = true
 	}
 

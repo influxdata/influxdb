@@ -30,7 +30,7 @@ type AppendEntriesResponse struct {
 //------------------------------------------------------------------------------
 
 // Creates a new AppendEntries request.
-func NewAppendEntriesRequest(term uint64, leaderName string, prevLogIndex uint64, prevLogTerm uint64, entries []*LogEntry, commitIndex uint64) *AppendEntriesRequest {
+func newAppendEntriesRequest(term uint64, leaderName string, prevLogIndex uint64, prevLogTerm uint64, entries []*LogEntry, commitIndex uint64) *AppendEntriesRequest {
 	return &AppendEntriesRequest{
 		Term:         term,
 		LeaderName:   leaderName,
@@ -42,7 +42,7 @@ func NewAppendEntriesRequest(term uint64, leaderName string, prevLogIndex uint64
 }
 
 // Creates a new AppendEntries response.
-func NewAppendEntriesResponse(term uint64, success bool, commitIndex uint64) *AppendEntriesResponse {
+func newAppendEntriesResponse(term uint64, success bool, commitIndex uint64) *AppendEntriesResponse {
 	return &AppendEntriesResponse{
 		Term:        term,
 		Success:     success,

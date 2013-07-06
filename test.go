@@ -14,8 +14,8 @@ const (
 
 func init() {
 	RegisterCommand(&joinCommand{})
-	RegisterCommand(&TestCommand1{})
-	RegisterCommand(&TestCommand2{})
+	RegisterCommand(&testCommand1{})
+	RegisterCommand(&testCommand2{})
 }
 
 //------------------------------------------------------------------------------
@@ -44,11 +44,11 @@ func setupLogFile(content string) string {
 
 func setupLog(content string) (*Log, string) {
 	path := setupLogFile(content)
-	log := NewLog()
+	log := newLog()
 	log.ApplyFunc = func(c Command) (interface{}, error) {
 		return nil, nil
 	}
-	if err := log.Open(path); err != nil {
+	if err := log.open(path); err != nil {
 		panic("Unable to open log")
 	}
 	return log, path
@@ -82,7 +82,7 @@ func newTestCluster(names []string, transporter Transporter, lookup map[string]*
 		lookup[name] = server
 	}
 	for _, server := range servers {
-		server.SetHeartbeatTimeout(testHeartbeatTimeout)
+		server.setHeartbeatTimeout(testHeartbeatTimeout)
 		for _, peer := range servers {
 			server.AddPeer(peer.Name())
 		}
@@ -147,16 +147,16 @@ func (c *joinCommand) Apply(server *Server) (interface{}, error) {
 // Command1
 //--------------------------------------
 
-type TestCommand1 struct {
+type testCommand1 struct {
 	Val string `json:"val"`
 	I   int    `json:"i"`
 }
 
-func (c *TestCommand1) CommandName() string {
+func (c *testCommand1) CommandName() string {
 	return "cmd_1"
 }
 
-func (c *TestCommand1) Apply(server *Server) (interface{}, error) {
+func (c *testCommand1) Apply(server *Server) (interface{}, error) {
 	return nil, nil
 }
 
@@ -164,14 +164,14 @@ func (c *TestCommand1) Apply(server *Server) (interface{}, error) {
 // Command2
 //--------------------------------------
 
-type TestCommand2 struct {
+type testCommand2 struct {
 	X int `json:"x"`
 }
 
-func (c *TestCommand2) CommandName() string {
+func (c *testCommand2) CommandName() string {
 	return "cmd_2"
 }
 
-func (c *TestCommand2) Apply(server *Server) (interface{}, error) {
+func (c *testCommand2) Apply(server *Server) (interface{}, error) {
 	return nil, nil
 }

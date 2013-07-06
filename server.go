@@ -63,9 +63,9 @@ type Server struct {
 	mutex      sync.Mutex
 	stateMutex sync.Mutex
 
-	electionTimer    *Timer
+	electionTimer    *timer
 	heartbeatTimeout time.Duration
-	response         chan FlushResponse
+	response         chan flushResponse
 	stepDown         chan uint64
 	stop             chan bool
 
@@ -97,10 +97,10 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 		context:          context,
 		state:            Stopped,
 		peers:            make(map[string]*Peer),
-		log:              NewLog(),
+		log:              newLog(),
 		stepDown:         make(chan uint64, 1),
 		stop:             make(chan bool),
-		electionTimer:    NewTimer(DefaultElectionTimeout, DefaultElectionTimeout*2),
+		electionTimer:    newTimer(DefaultElectionTimeout, DefaultElectionTimeout*2),
 		heartbeatTimeout: DefaultHeartbeatTimeout,
 	}
 
@@ -182,9 +182,7 @@ func (s *Server) Term() uint64 {
 
 // Retrieves the current committed index of the server.
 func (s *Server) CommittedIndex() uint64 {
-
-	return s.log.CommitIndex()
-
+	return s.log.commitIndex
 }
 
 // Retrieves the name of the candidate this server voted for in this term.
@@ -196,7 +194,7 @@ func (s *Server) VotedFor() string {
 func (s *Server) IsLogEmpty() bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	return s.log.IsEmpty()
+	return s.log.isEmpty()
 }
 
 // A list of all the log entries. This should only be used for debugging purposes.
@@ -210,11 +208,11 @@ func (s *Server) LogEntries() []*LogEntry {
 }
 
 // A reference to the command name of the last entry.
-func (s *Server) LastCommandName() string {
+func (s *Server) lastCommandName() string {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if s.log != nil {
-		return s.log.LastCommandName()
+		return s.log.lastCommandName()
 	}
 	return ""
 }
@@ -246,19 +244,19 @@ func (s *Server) QuorumSize() int {
 
 // Retrieves the election timeout.
 func (s *Server) ElectionTimeout() time.Duration {
-	return s.electionTimer.MinDuration()
+	return s.electionTimer.minDuration
 }
 
 // Sets the election timeout.
 func (s *Server) SetElectionTimeout(duration time.Duration) {
-	s.electionTimer.SetMinDuration(duration)
-	s.electionTimer.SetMaxDuration(duration * 2)
+	s.electionTimer.minDuration = duration
+	s.electionTimer.maxDuration = duration * 2
 }
 
 // Start heartbeat when the server promote to leader
-func (s *Server) StartHeartbeatTimeout() {
+func (s *Server) startHeartbeatTimeout() {
 	for _, peer := range s.peers {
-		peer.StartHeartbeat()
+		peer.startHeartbeat()
 	}
 }
 
@@ -272,13 +270,13 @@ func (s *Server) HeartbeatTimeout() time.Duration {
 }
 
 // Sets the heartbeat timeout.
-func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
+func (s *Server) setHeartbeatTimeout(duration time.Duration) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	s.heartbeatTimeout = duration
 	for _, peer := range s.peers {
-		peer.SetHeartbeatTimeout(duration)
+		peer.setHeartbeatTimeout(duration)
 	}
 }
 
@@ -303,20 +301,20 @@ func (s *Server) Initialize() error {
 	}
 
 	// Initialize response channel
-	s.response = make(chan FlushResponse, 128)
+	s.response = make(chan flushResponse, 128)
 
 	// Create snapshot directory if not exist
 	os.Mkdir(s.path+"/snapshot", 0700)
 
 	// Initialize the log and load it up.
-	if err := s.log.Open(s.LogPath()); err != nil {
+	if err := s.log.open(s.LogPath()); err != nil {
 		debugln("log error")
 		s.unload()
 		return fmt.Errorf("raft.Server: %v", err)
 	}
 
 	// Update the term to the last term in the log.
-	s.currentTerm = s.log.CurrentTerm()
+	s.currentTerm = s.log.currentTerm()
 
 	return nil
 }
@@ -400,7 +398,7 @@ func (s *Server) StartLeader() {
 func (s *Server) Stop() {
 	s.mutex.Lock()
 	if s.state == Follower {
-		s.electionTimer.Stop()
+		s.electionTimer.stop()
 	} else {
 		s.mutex.Unlock()
 		s.stop <- true
@@ -420,7 +418,7 @@ func (s *Server) unload() {
 	if s.log != nil {
 		// still some concurrency issue with stop
 		// need lock
-		s.log.Close()
+		s.log.close()
 	}
 
 }
@@ -445,11 +443,11 @@ func (s *Server) startFollowerLoop() (stop bool) {
 			return true
 		}
 
-		if s.electionTimer.Start() {
+		if s.electionTimer.start() {
 			return false
 
 		} else {
-			s.electionTimer.Ready()
+			s.electionTimer.ready()
 			continue
 		}
 	}
@@ -476,7 +474,7 @@ func (s *Server) startCandidateLoop() (stop bool, leader bool) {
 	s.leader = ""
 	s.votedFor = s.Name()
 
-	lastLogIndex, lastLogTerm := s.log.LastInfo()
+	lastLogIndex, lastLogTerm := s.log.lastInfo()
 
 	for {
 
@@ -485,7 +483,7 @@ func (s *Server) startCandidateLoop() (stop bool, leader bool) {
 
 		// Request votes from each of our peers.
 		c := make(chan *RequestVoteResponse, len(s.peers))
-		req := NewRequestVoteRequest(s.currentTerm, s.name, lastLogIndex, lastLogTerm)
+		req := newRequestVoteRequest(s.currentTerm, s.name, lastLogIndex, lastLogTerm)
 
 		for _, peer := range s.peers {
 			go peer.sendVoteRequest(req, c)
@@ -558,7 +556,7 @@ func (s *Server) startLeaderLoop() bool {
 
 	s.stateMutex.Unlock()
 
-	logIndex, _ := s.log.LastInfo()
+	logIndex, _ := s.log.lastInfo()
 
 	// after here we let the leader stepdown in the startLeaderSelect loop
 
@@ -569,8 +567,8 @@ func (s *Server) startLeaderLoop() bool {
 		debugln("[Leader] Set ", peer.Name(), "Prev to", logIndex)
 
 		peer.prevLogIndex = logIndex
-		peer.heartbeatTimer.Ready()
-		peer.StartHeartbeat()
+		peer.heartbeatTimer.ready()
+		peer.startHeartbeat()
 	}
 
 	// Begin to collect response from followers
@@ -656,7 +654,7 @@ func (s *Server) startLeaderSelect() bool {
 	count := 1
 
 	for {
-		var response FlushResponse
+		var response flushResponse
 
 		select {
 		case response = <-s.response:
@@ -684,21 +682,21 @@ func (s *Server) startLeaderSelect() bool {
 		if count >= s.QuorumSize() {
 			// Determine the committed index that a majority has.
 			var indices []uint64
-			indices = append(indices, s.log.CurrentIndex())
+			indices = append(indices, s.log.currentIndex())
 			for _, peer := range s.peers {
 				indices = append(indices, peer.prevLogIndex)
 			}
-			sort.Sort(Uint64Slice(indices))
+			sort.Sort(uint64Slice(indices))
 
 			// We can commit upto the index which the mojarity
 			// of the members have appended.
 			commitIndex := indices[s.QuorumSize()-1]
-			committedIndex := s.log.CommitIndex()
+			committedIndex := s.log.commitIndex
 
 			if commitIndex > committedIndex {
 				debugln(indices)
 				debugln(s.GetState(), "[CommitCenter] Going to Commit ", commitIndex)
-				s.log.SetCommitIndex(commitIndex)
+				s.log.setCommitIndex(commitIndex)
 				debugln("[CommitCenter] Commit ", commitIndex)
 
 				for i := committedIndex; i < commitIndex; i++ {
@@ -750,13 +748,13 @@ func (s *Server) Do(command Command) (interface{}, error) {
 
 	s.stateMutex.Unlock()
 
-	entry := s.log.CreateEntry(term, command)
+	entry := s.log.createEntry(term, command)
 
-	if err := s.log.AppendEntry(entry); err != nil {
+	if err := s.log.appendEntry(entry); err != nil {
 		return nil, err
 	}
 
-	s.response <- FlushResponse{term, true, nil, nil}
+	s.response <- flushResponse{term, true, nil, nil}
 
 	// to speed up the response time
 	// TODO: think about this carefully
@@ -764,7 +762,7 @@ func (s *Server) Do(command Command) (interface{}, error) {
 	// but will reduce through output
 
 	// for _, peer := range s.peers {
-	// 	peer.heartbeatTimer.Fire()
+	// 	peer.heartbeatTimer.fire()
 	// }
 
 	debugln("[Do] join!")
@@ -788,13 +786,13 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 	defer s.mutex.Unlock()
 	// If the server is stopped then reject it.
 	if !s.Running() {
-		return NewAppendEntriesResponse(s.currentTerm, false, 0), fmt.Errorf("raft.Server: Server stopped")
+		return newAppendEntriesResponse(s.currentTerm, false, 0), fmt.Errorf("raft.Server: Server stopped")
 	}
 
 	// If the request is coming from an old term then reject it.
 
 	if req.Term < s.currentTerm {
-		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), fmt.Errorf("raft.Server: Stale request term")
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.commitIndex), fmt.Errorf("raft.Server: Stale request term")
 	}
 
 	debugln("Peer ", s.Name(), "received heartbeat from ", req.LeaderName,
@@ -807,33 +805,33 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesRespons
 
 	// Reset election timeout.
 	if s.electionTimer != nil {
-		s.electionTimer.Stop()
+		s.electionTimer.stop()
 	}
 
 	// Reject if log doesn't contain a matching previous entry.
-	if err := s.log.Truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
-		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
+	if err := s.log.truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.commitIndex), err
 	}
 
 	debugln("Peer ", s.Name(), "after truncate ")
 
 	// Append entries to the log.
-	if err := s.log.AppendEntries(req.Entries); err != nil {
-		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
+	if err := s.log.appendEntries(req.Entries); err != nil {
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.commitIndex), err
 	}
 
 	debugln("Peer ", s.Name(), "commit index ", req.CommitIndex, " from ",
 		req.LeaderName)
 	// Commit up to the commit index.
-	if err := s.log.SetCommitIndex(req.CommitIndex); err != nil {
-		return NewAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), err
+	if err := s.log.setCommitIndex(req.CommitIndex); err != nil {
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.commitIndex), err
 	}
 
 	debugln("Peer ", s.Name(), "after commit ")
 
 	debugln("Peer ", s.Name(), "reply heartbeat from ", req.LeaderName,
 		" ", req.Term, " ", s.currentTerm, " ", time.Now())
-	return NewAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), nil
+	return newAppendEntriesResponse(s.currentTerm, true, s.log.commitIndex), nil
 }
 
 // Creates an AppendEntries request. Can return a nil request object if the
@@ -842,9 +840,9 @@ func (s *Server) createAppendEntriesRequest(prevLogIndex uint64) *AppendEntriesR
 	if s.log == nil {
 		return nil
 	}
-	entries, prevLogTerm := s.log.GetEntriesAfter(prevLogIndex)
+	entries, prevLogTerm := s.log.getEntriesAfter(prevLogIndex)
 	if entries != nil {
-		return NewAppendEntriesRequest(s.currentTerm, s.name, prevLogIndex, prevLogTerm, entries, s.log.CommitIndex())
+		return newAppendEntriesRequest(s.currentTerm, s.name, prevLogIndex, prevLogTerm, entries, s.log.commitIndex)
 	} else {
 		return nil
 	}
@@ -865,12 +863,12 @@ func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, err
 	//debugln("[RequestVote] got the lock")
 	// Fail if the server is not running.
 	if !s.Running() {
-		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Server is stopped")
+		return newRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Server is stopped")
 	}
 
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.currentTerm {
-		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Stale term: %v < %v", req.Term, s.currentTerm)
+		return newRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Stale term: %v < %v", req.Term, s.currentTerm)
 	}
 
 	s.setCurrentTerm(req.Term)
@@ -878,15 +876,15 @@ func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, err
 	// If we've already voted for a different candidate then don't vote for this candidate.
 	if s.votedFor != "" && s.votedFor != req.CandidateName {
 		debugln("already vote for ", s.votedFor, " false to ", req.CandidateName)
-		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Already voted for %v", s.votedFor)
+		return newRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Already voted for %v", s.votedFor)
 	}
 
 	// If the candidate's log is not at least as up-to-date as
 	// our last log then don't vote.
-	lastIndex, lastTerm := s.log.LastInfo()
+	lastIndex, lastTerm := s.log.lastInfo()
 	if lastIndex > req.LastLogIndex || lastTerm > req.LastLogTerm {
 		debugln("my log is more up-to-date")
-		return NewRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Out-of-date log: [%v/%v] > [%v/%v]", lastIndex, lastTerm, req.LastLogIndex, req.LastLogTerm)
+		return newRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Out-of-date log: [%v/%v] > [%v/%v]", lastIndex, lastTerm, req.LastLogIndex, req.LastLogTerm)
 	}
 
 	// If we made it this far then cast a vote and reset our election time out.
@@ -895,10 +893,10 @@ func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, err
 	debugln(s.Name(), "Vote for ", req.CandidateName, "at term", req.Term)
 
 	if s.electionTimer != nil {
-		s.electionTimer.Stop()
+		s.electionTimer.stop()
 	}
 
-	return NewRequestVoteResponse(s.currentTerm, true), nil
+	return newRequestVoteResponse(s.currentTerm, true), nil
 }
 
 // Updates the current term on the server if the term is greater than the
@@ -948,9 +946,9 @@ func (s *Server) AddPeer(name string) error {
 	// Only add the peer if it doesn't have the same name.
 	if s.name != name {
 		//debugln("Add peer ", name)
-		peer := NewPeer(s, name, s.heartbeatTimeout)
+		peer := newPeer(s, name, s.heartbeatTimeout)
 		if s.state == Leader {
-			peer.StartHeartbeat()
+			peer.startHeartbeat()
 		}
 		s.peers[peer.name] = peer
 
@@ -994,7 +992,7 @@ func (s *Server) RemovePeer(name string) error {
 func (s *Server) createSnapshotRequest() *SnapshotRequest {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	return NewSnapshotRequest(s.name, s.lastSnapshot)
+	return newSnapshotRequest(s.name, s.lastSnapshot)
 }
 
 // The background snapshot function
@@ -1014,7 +1012,7 @@ func (s *Server) takeSnapshot() error {
 		return errors.New("handling snapshot")
 	}
 
-	lastIndex, lastTerm := s.log.CommitInfo()
+	lastIndex, lastTerm := s.log.commitInfo()
 
 	if lastIndex == 0 || lastTerm == 0 {
 		return errors.New("No logs")
@@ -1047,7 +1045,7 @@ func (s *Server) takeSnapshot() error {
 
 	s.saveSnapshot()
 
-	s.log.Compact(lastIndex, lastTerm)
+	s.log.compact(lastIndex, lastTerm)
 
 	return nil
 }
@@ -1059,7 +1057,7 @@ func (s *Server) saveSnapshot() error {
 		return errors.New("no snapshot to save")
 	}
 
-	err := s.currentSnapshot.Save()
+	err := s.currentSnapshot.save()
 
 	if err != nil {
 		return err
@@ -1070,7 +1068,7 @@ func (s *Server) saveSnapshot() error {
 
 	// delete the previous snapshot if there is any change
 	if tmp != nil && !(tmp.LastIndex == s.lastSnapshot.LastIndex && tmp.LastTerm == s.lastSnapshot.LastTerm) {
-		tmp.Remove()
+		tmp.remove()
 	}
 	s.currentSnapshot = nil
 	return nil
@@ -1096,7 +1094,7 @@ func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, erro
 	//update term and index
 	s.currentTerm = req.LastTerm
 
-	s.log.UpdateCommitIndex(req.LastIndex)
+	s.log.updateCommitIndex(req.LastIndex)
 
 	snapshotPath := s.SnapshotPath(req.LastIndex, req.LastTerm)
 
@@ -1104,9 +1102,9 @@ func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, erro
 
 	s.saveSnapshot()
 
-	s.log.Compact(req.LastIndex, req.LastTerm)
+	s.log.compact(req.LastIndex, req.LastTerm)
 
-	return NewSnapshotResponse(req.LastTerm, true, req.LastIndex), nil
+	return newSnapshotResponse(req.LastTerm, true, req.LastIndex), nil
 
 }
 
@@ -1185,9 +1183,9 @@ func (s *Server) LoadSnapshot() error {
 		s.AddPeer(peerName)
 	}
 
-	s.log.SetStartTerm(s.lastSnapshot.LastTerm)
-	s.log.SetStartIndex(s.lastSnapshot.LastIndex)
-	s.log.UpdateCommitIndex(s.lastSnapshot.LastIndex)
+	s.log.startTerm = s.lastSnapshot.LastTerm
+	s.log.startIndex = s.lastSnapshot.LastIndex
+	s.log.updateCommitIndex(s.lastSnapshot.LastIndex)
 
 	return err
 }
