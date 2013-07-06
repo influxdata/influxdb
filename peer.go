@@ -2,9 +2,9 @@ package raft
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
-	"fmt"
 )
 
 //------------------------------------------------------------------------------
@@ -185,18 +185,19 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	var resp *AppendEntriesResponse
 
 	select {
-	case <-time.After(p.server.heartbeatTimeout):
+	// how to decide?
+	case <-time.After(p.server.heartbeatTimeout * 2):
 		resp = nil
 
 	case resp = <-respChan:
 
 	}
 
-	debugln("receive flush response from ", p.Name())
-
 	if resp == nil {
+		debugln("receive flush timeout from ", p.Name())
 		return 0, false, fmt.Errorf("AppendEntries timeout: %s", p.Name())
 	}
+	debugln("receive flush response from ", p.Name())
 
 	// If successful then update the previous log index. If it was
 	// unsuccessful then decrement the previous log index and we'll try again
@@ -204,8 +205,8 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	if resp.Success {
 		if len(req.Entries) > 0 {
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
-			debugln("Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 		}
+		debugln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 	} else {
 
 		if resp.Term > p.server.currentTerm {
@@ -213,9 +214,11 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 		}
 
 		// we may miss a response from peer
-		if resp.CommitIndex > p.prevLogIndex {
+		if resp.CommitIndex >= p.prevLogIndex {
+			debugln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 			p.prevLogIndex = resp.CommitIndex
 		} else if p.prevLogIndex > 0 {
+			debugln("Peer ", p.Name(), "'s' step back to ", p.prevLogIndex)
 			// Decrement the previous log index down until we find a match. Don't
 			// let it go below where the peer's commit index is though. That's a
 			// problem.
@@ -257,13 +260,20 @@ func (p *Peer) heartbeat() {
 			} else {
 				// shutdown the heartbeat
 				if f.term > p.server.currentTerm {
-					debugln("[Heartbeat] SetpDown!")
-					select {
-					case p.server.stepDown <- f.term:
-						return
-					default:
-						return
+					p.server.stateMutex.Lock()
+
+					if p.server.state == Leader {
+						p.server.state = Follower
+						select {
+						case p.server.stepDown <- f.term:
+							p.server.currentTerm = f.term
+						default:
+							panic("heartbeat cannot step down")
+						}
 					}
+
+					p.server.stateMutex.Unlock()
+					return
 				}
 			}
 

@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	testHeartbeatTimeout = 10 * time.Millisecond
-	testElectionTimeout  = 100 * time.Millisecond
+	testHeartbeatTimeout = 5 * time.Millisecond
+	testElectionTimeout  = 20 * time.Millisecond
 )
 
 func init() {

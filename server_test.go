@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"sync"
@@ -75,6 +76,10 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 		t.Fatalf("First vote should not have been denied (%v)", err)
 	}
 	resp, err = server.RequestVote(NewRequestVoteRequest(3, "bar", 0, 0))
+
+	// now stepdown is done by channel, need time
+	time.Sleep(5 * time.Millisecond)
+
 	if !(resp.Term == 3 && resp.VoteGranted && server.VotedFor() == "bar" && err == nil) {
 		t.Fatalf("Second vote should have been approved (%v)", err)
 	}
@@ -229,6 +234,7 @@ func TestServerAppendEntries(t *testing.T) {
 
 	// Send zero entries and commit everything.
 	resp, err = server.AppendEntries(NewAppendEntriesRequest(2, "ldr", 3, 1, []*LogEntry{}, 3))
+
 	if !(resp.Term == 2 && resp.Success && err == nil) {
 		t.Fatalf("AppendEntries failed: %v/%v : %v", resp.Term, resp.Success, err)
 	}
@@ -242,6 +248,7 @@ func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
 	server.StartLeader()
+
 	defer server.Stop()
 	server.currentTerm = 2
 
@@ -261,6 +268,7 @@ func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
 	server.StartLeader()
+
 	defer server.Stop()
 
 	// Append single entry + commit.
@@ -413,6 +421,7 @@ func TestServerMultiNode(t *testing.T) {
 			server.SetElectionTimeout(testElectionTimeout)
 			server.SetHeartbeatTimeout(testHeartbeatTimeout)
 			server.StartFollower()
+			time.Sleep(10 * time.Millisecond)
 		}
 		if _, err := leader.Do(&joinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
@@ -431,17 +440,21 @@ func TestServerMultiNode(t *testing.T) {
 	}
 	mutex.Unlock()
 
-	for i := 0; i < 200000; i++ {
-		i++
-		debugln("Round ", i)
+	for i := 0; i < 20000000; i++ {
+		retry := 0
+		fmt.Println("Round ", i)
 
 		num := strconv.Itoa(i%(len(servers)) + 1)
+		num_1 := strconv.Itoa((i+3)%(len(servers)) + 1)
 		toStop := servers[num]
+		toStop_1 := servers[num_1]
 
 		// Stop the first server and wait for a re-election.
 		time.Sleep(100 * time.Millisecond)
 		debugln("Disconnect ", toStop.Name())
+		debugln("disconnect ", num, " ", num_1)
 		toStop.SetTransporter(disTransporter)
+		toStop_1.SetTransporter(disTransporter)
 		time.Sleep(200 * time.Millisecond)
 		// Check that either server 2 or 3 is the leader now.
 		//mutex.Lock()
@@ -450,7 +463,7 @@ func TestServerMultiNode(t *testing.T) {
 
 		for key, value := range servers {
 			debugln("Play begin")
-			if key != num {
+			if key != num && key != num_1 {
 				if value.State() == Leader {
 					debugln("Found leader")
 					for i := 0; i < 10; i++ {
@@ -467,23 +480,37 @@ func TestServerMultiNode(t *testing.T) {
 		}
 		for {
 			for key, value := range servers {
-				if key != num {
+				if key != num && key != num_1 {
 					if value.State() == Leader {
 						leader++
 					}
+					debugln(value.Name(), " ", value.currentTerm, " ", value.state)
 				}
 			}
 
 			if leader > 1 {
-
+				if retry < 300 {
+					debugln("retry")
+					retry++
+					leader = 0
+					Debug = true
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
 				t.Fatalf("wrong leader number %v", leader)
 			}
 			if leader == 0 {
-				leader = 0
-				time.Sleep(100 * time.Millisecond)
-				continue
+				if retry < 300 {
+					retry++
+					fmt.Println("retry 0")
+					leader = 0
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
+				t.Fatalf("wrong leader number %v", leader)
 			}
 			if leader == 1 {
+				Debug = false
 				break
 			}
 		}
@@ -491,6 +518,7 @@ func TestServerMultiNode(t *testing.T) {
 		//mutex.Unlock()
 
 		toStop.SetTransporter(transporter)
+		toStop_1.SetTransporter(transporter)
 	}
 
 }
