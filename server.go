@@ -350,15 +350,23 @@ func (s *Server) Running() bool {
 
 // Sets the current term for the server. This is only used when an external
 // current term is found.
-func (s *Server) setCurrentTerm(term uint64, leaderName string) {
+func (s *Server) setCurrentTerm(term uint64, leaderName string, append bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// update the term and clear vote for
 	if term > s.currentTerm {
 		s.state = Follower
 		s.currentTerm = term
 		s.leader = leaderName
 		s.votedFor = ""
+		return
+	} 
+
+	// discover new leader
+	if term == s.currentTerm && s.state == Candidate && append {
+		s.state = Follower
+		s.leader = leaderName
 	}
 }
 
@@ -374,7 +382,8 @@ func (s *Server) setCurrentTerm(term uint64, leaderName string) {
 //  --------    timeout    -----------                        -----------
 // |Follower| ----------> | Candidate |--------------------> |  Leader   |
 //  --------               -----------                        -----------
-//     ^             step down |                       step down     |
+//     ^          higher term/ |                         higher term |
+//     |            new leader |                                     |
 //     |_______________________|____________________________________ |
 
 // The main event loop for the server
@@ -491,7 +500,7 @@ func (s *Server) candidateLoop() {
 					votesGranted++
 				} else if resp.Term > s.currentTerm {
 					s.debugln("server.candidate.vote.failed")
-					s.setCurrentTerm(resp.Term, "")
+					s.setCurrentTerm(resp.Term, "", false)
 					break
 				}
 
@@ -502,8 +511,8 @@ func (s *Server) candidateLoop() {
 					break
 				} else if _, ok := e.target.(Command); ok {
 					err = NotLeaderError
-				} else if _, ok := e.target.(*AppendEntriesRequest); ok {
-					err = NotLeaderError
+				} else if req, ok := e.target.(*AppendEntriesRequest); ok {
+					e.returnValue = s.processAppendEntriesRequest(req)
 				} else if req, ok := e.target.(*RequestVoteRequest); ok {
 					e.returnValue = s.processRequestVoteRequest(req)
 				}
@@ -632,7 +641,7 @@ func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) *AppendE
 	}
 
 	// Update term and leader.
-	s.setCurrentTerm(req.Term, req.LeaderName)
+	s.setCurrentTerm(req.Term, req.LeaderName, true)
 
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
@@ -661,7 +670,7 @@ func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) *AppendE
 func (s *Server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 	// If we find a higher term then change to a follower and exit.
 	if resp.Term > s.currentTerm {
-		s.setCurrentTerm(resp.Term, "")
+		s.setCurrentTerm(resp.Term, "", false)
 		return
 	}
 
@@ -719,7 +728,7 @@ func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) *RequestVote
 		return newRequestVoteResponse(s.currentTerm, false)
 	}
 
-	s.setCurrentTerm(req.Term, "")
+	s.setCurrentTerm(req.Term, "", false)
 
 	// If we've already voted for a different candidate then don't vote for this candidate.
 	if s.votedFor != "" && s.votedFor != req.CandidateName {
