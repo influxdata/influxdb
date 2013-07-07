@@ -780,10 +780,7 @@ func (s *Server) RemovePeer(name string) error {
 		return fmt.Errorf("raft: Peer not found: %s", name)
 	}
 
-	// Flush entries to the peer first.
-	if s.State() == Leader {
-		peer.flush()
-	}
+	// TODO: Flush entries to the peer first.
 
 	// Stop peer and remove it.
 	peer.stopHeartbeat()

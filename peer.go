@@ -122,10 +122,18 @@ func (p *Peer) heartbeat(c chan bool) {
 			return
 
 		case <-time.After(p.heartbeatTimeout):
+			prevLogIndex := p.getPrevLogIndex()
+			entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex)
+
 			if p.server.State() != Leader {
 				return
 			}
-			p.flush()
+
+			if entries != nil {
+				p.sendAppendEntriesRequest(newAppendEntriesRequest(p.server.currentTerm, p.server.name, prevLogIndex, prevLogTerm, entries, p.server.log.CommitIndex()))
+			} else {
+				p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.lastSnapshot))
+			}
 		}
 	}
 }
@@ -133,17 +141,6 @@ func (p *Peer) heartbeat(c chan bool) {
 //--------------------------------------
 // Append Entries
 //--------------------------------------
-
-// Sends an AppendEntries RPC.
-func (p *Peer) flush() {
-	prevLogIndex := p.getPrevLogIndex()
-	entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex)
-	if entries != nil {
-		p.sendAppendEntriesRequest(newAppendEntriesRequest(p.server.currentTerm, p.server.name, prevLogIndex, prevLogTerm, entries, p.server.log.CommitIndex()))
-	} else {
-		p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.lastSnapshot))
-	}
-}
 
 // Sends an AppendEntries request to the peer through the transport.
 func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
