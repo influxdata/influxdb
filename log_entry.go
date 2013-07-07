@@ -22,7 +22,6 @@ type LogEntry struct {
 	Index   uint64      `json:"index"`
 	Term    uint64      `json:"term"`
 	Command Command     `json:"command"`
-	result  interface{} `json:"-"`
 	commit  chan bool   `json:"-"`
 }
 

@@ -82,7 +82,7 @@ func newTestCluster(names []string, transporter Transporter, lookup map[string]*
 		lookup[name] = server
 	}
 	for _, server := range servers {
-		server.setHeartbeatTimeout(testHeartbeatTimeout)
+		server.SetHeartbeatTimeout(testHeartbeatTimeout)
 		for _, peer := range servers {
 			server.AddPeer(peer.Name())
 		}
@@ -96,20 +96,20 @@ func newTestCluster(names []string, transporter Transporter, lookup map[string]*
 //--------------------------------------
 
 type testTransporter struct {
-	sendVoteRequestFunc          func(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error)
-	sendAppendEntriesRequestFunc func(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error)
-	sendSnapshotRequestFunc      func(server *Server, peer *Peer, req *SnapshotRequest) (*SnapshotResponse, error)
+	sendVoteRequestFunc          func(server *Server, peer *Peer, req *RequestVoteRequest) *RequestVoteResponse
+	sendAppendEntriesRequestFunc func(server *Server, peer *Peer, req *AppendEntriesRequest) *AppendEntriesResponse
+	sendSnapshotRequestFunc      func(server *Server, peer *Peer, req *SnapshotRequest) *SnapshotResponse
 }
 
-func (t *testTransporter) SendVoteRequest(server *Server, peer *Peer, req *RequestVoteRequest) (*RequestVoteResponse, error) {
+func (t *testTransporter) SendVoteRequest(server *Server, peer *Peer, req *RequestVoteRequest) *RequestVoteResponse {
 	return t.sendVoteRequestFunc(server, peer, req)
 }
 
-func (t *testTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
+func (t *testTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, req *AppendEntriesRequest) *AppendEntriesResponse {
 	return t.sendAppendEntriesRequestFunc(server, peer, req)
 }
 
-func (t *testTransporter) SendSnapshotRequest(server *Server, peer *Peer, req *SnapshotRequest) (*SnapshotResponse, error) {
+func (t *testTransporter) SendSnapshotRequest(server *Server, peer *Peer, req *SnapshotRequest) *SnapshotResponse {
 	return t.sendSnapshotRequestFunc(server, peer, req)
 }
 

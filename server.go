@@ -31,6 +31,8 @@ const (
 	DefaultElectionTimeout  = 150 * time.Millisecond
 )
 
+var stopValue interface{}
+
 //------------------------------------------------------------------------------
 //
 // Errors
@@ -39,6 +41,7 @@ const (
 
 var NotLeaderError = errors.New("raft.Server: Not current leader")
 var DuplicatePeerError = errors.New("raft.Server: Duplicate peer")
+var CommandTimeoutError = errors.New("raft: Command timeout")
 
 //------------------------------------------------------------------------------
 //
@@ -56,22 +59,27 @@ type Server struct {
 	context     interface{}
 	currentTerm uint64
 
-	votedFor   string
-	log        *Log
-	leader     string
-	peers      map[string]*Peer
-	mutex      sync.Mutex
-	stateMutex sync.Mutex
+	votedFor    string
+	log         *Log
+	leader      string
+	peers       map[string]*Peer
+	mutex       sync.RWMutex
+	commitCount int
 
-	electionTimer    *timer
+	c                chan *event
+	electionTimeout  time.Duration
 	heartbeatTimeout time.Duration
-	response         chan flushResponse
-	stepDown         chan uint64
-	stop             chan bool
 
 	currentSnapshot *Snapshot
 	lastSnapshot    *Snapshot
 	stateMachine    StateMachine
+}
+
+// An event to be processed by the server's event loop.
+type event struct {
+	target      interface{}
+	returnValue interface{}
+	c           chan error
 }
 
 //------------------------------------------------------------------------------
@@ -98,9 +106,8 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 		state:            Stopped,
 		peers:            make(map[string]*Peer),
 		log:              newLog(),
-		stepDown:         make(chan uint64, 1),
-		stop:             make(chan bool),
-		electionTimer:    newTimer(DefaultElectionTimeout, DefaultElectionTimeout*2),
+		c:                make(chan *event, 256),
+		electionTimeout:  DefaultElectionTimeout,
 		heartbeatTimeout: DefaultHeartbeatTimeout,
 	}
 
@@ -133,9 +140,8 @@ func (s *Server) Path() string {
 	return s.path
 }
 
+// The name of the current leader.
 func (s *Server) Leader() string {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	return s.leader
 }
 
@@ -153,10 +159,14 @@ func (s *Server) Peers() map[string]*Peer {
 
 // Retrieves the object that transports requests.
 func (s *Server) Transporter() Transporter {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	return s.transporter
 }
 
 func (s *Server) SetTransporter(t Transporter) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	s.transporter = t
 }
 
@@ -172,7 +182,16 @@ func (s *Server) LogPath() string {
 
 // Retrieves the current state of the server.
 func (s *Server) State() string {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	return s.state
+}
+
+// Sets the state of the server.
+func (s *Server) setState(state string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.state = state
 }
 
 // Retrieves the current term of the server.
@@ -180,8 +199,8 @@ func (s *Server) Term() uint64 {
 	return s.currentTerm
 }
 
-// Retrieves the current committed index of the server.
-func (s *Server) CommittedIndex() uint64 {
+// Retrieves the current commit index of the server.
+func (s *Server) CommitIndex() uint64 {
 	return s.log.commitIndex
 }
 
@@ -192,34 +211,24 @@ func (s *Server) VotedFor() string {
 
 // Retrieves whether the server's log has no entries.
 func (s *Server) IsLogEmpty() bool {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	return s.log.isEmpty()
 }
 
 // A list of all the log entries. This should only be used for debugging purposes.
 func (s *Server) LogEntries() []*LogEntry {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	if s.log != nil {
-		return s.log.entries
-	}
-	return nil
+	return s.log.entries
 }
 
 // A reference to the command name of the last entry.
-func (s *Server) lastCommandName() string {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	if s.log != nil {
-		return s.log.lastCommandName()
-	}
-	return ""
+func (s *Server) LastCommandName() string {
+	return s.log.lastCommandName()
 }
 
 // Get the state of the server for debugging
 func (s *Server) GetState() string {
-	return fmt.Sprintf("Name: %s, State: %s, Term: %v, Index: %v ", s.name, s.state, s.currentTerm, s.CommittedIndex())
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return fmt.Sprintf("Name: %s, State: %s, Term: %v, Index: %v ", s.name, s.state, s.currentTerm, s.log.commitIndex)
 }
 
 //--------------------------------------
@@ -244,20 +253,12 @@ func (s *Server) QuorumSize() int {
 
 // Retrieves the election timeout.
 func (s *Server) ElectionTimeout() time.Duration {
-	return s.electionTimer.minDuration
+	return s.electionTimeout
 }
 
 // Sets the election timeout.
 func (s *Server) SetElectionTimeout(duration time.Duration) {
-	s.electionTimer.minDuration = duration
-	s.electionTimer.maxDuration = duration * 2
-}
-
-// Start heartbeat when the server promote to leader
-func (s *Server) startHeartbeatTimeout() {
-	for _, peer := range s.peers {
-		peer.startHeartbeat()
-	}
+	s.electionTimeout = duration
 }
 
 //--------------------------------------
@@ -270,7 +271,7 @@ func (s *Server) HeartbeatTimeout() time.Duration {
 }
 
 // Sets the heartbeat timeout.
-func (s *Server) setHeartbeatTimeout(duration time.Duration) {
+func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -296,21 +297,17 @@ func (s *Server) Initialize() error {
 	defer s.mutex.Unlock()
 
 	// Exit if the server is already running.
-	if s.Running() {
+	if s.state != Stopped {
 		return errors.New("raft.Server: Server already running")
 	}
-
-	// Initialize response channel
-	s.response = make(chan flushResponse, 128)
 
 	// Create snapshot directory if not exist
 	os.Mkdir(s.path+"/snapshot", 0700)
 
 	// Initialize the log and load it up.
 	if err := s.log.open(s.LogPath()); err != nil {
-		debugln("log error")
-		s.unload()
-		return fmt.Errorf("raft.Server: %v", err)
+		s.debugln("raft: Log error: %s", err)
+		return fmt.Errorf("raft: Initialization error: %s", err)
 	}
 
 	// Update the term to the last term in the log.
@@ -318,6 +315,56 @@ func (s *Server) Initialize() error {
 
 	return nil
 }
+
+// Start the sever as a follower
+func (s *Server) StartFollower() {
+	s.setState(Follower)
+	go s.loop()
+}
+
+// Start the sever as a leader
+func (s *Server) StartLeader() {
+	s.setState(Leader)
+	s.currentTerm++
+	go s.loop()
+}
+
+// Shuts down the server.
+func (s *Server) Stop() {
+	s.send(&stopValue)
+	s.mutex.Lock()
+	s.log.close()
+	s.mutex.Unlock()
+}
+
+// Checks if the server is currently running.
+func (s *Server) Running() bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return s.state != Stopped
+}
+
+//--------------------------------------
+// Term
+//--------------------------------------
+
+// Sets the current term for the server. This is only used when an external
+// current term is found.
+func (s *Server) setCurrentTerm(term uint64, leaderName string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if term > s.currentTerm {
+		s.state = Follower
+		s.currentTerm = term
+		s.leader = leaderName
+		s.votedFor = ""
+	}
+}
+
+//--------------------------------------
+// Event Loop
+//--------------------------------------
 
 //                          timeout
 //                          ______
@@ -327,396 +374,201 @@ func (s *Server) Initialize() error {
 //  --------    timeout    -----------                        -----------
 // |Follower| ----------> | Candidate |--------------------> |  Leader   |
 //  --------               -----------                        -----------
-//     ^              stepDown |                       stepDown      |
+//     ^             step down |                       step down     |
 //     |_______________________|____________________________________ |
-//
-// The main Loop for the server
-func (s *Server) StartServerLoop(role string) {
-	stop := false
-	leader := false
 
-	defer debugln("server stopped!")
+// The main event loop for the server
+func (s *Server) loop() {
+	defer s.debugln("server.loop.end")
 
 	for {
-		switch role {
-
+		state := s.State()
+		
+		s.debugln("server.loop.run ", state)
+		switch state {
 		case Follower:
-			stop = s.startFollowerLoop()
-
-			if stop {
-				return
-			}
-
-			role = Candidate
+			s.followerLoop()
 
 		case Candidate:
-			debugln(s.GetState() + "start Candiate")
-			stop, leader = s.startCandidateLoop()
-
-			s.votedFor = ""
-
-			if stop {
-				return
-			}
-
-			if leader {
-				role = Leader
-
-			} else {
-
-				role = Follower
-			}
-			debugln(s.GetState() + "stop Candiate")
+			s.candidateLoop()
 
 		case Leader:
-			debugln(s.GetState() + "start Leader")
-			stop = s.startLeaderLoop()
-			if stop {
-				return
+			s.leaderLoop()
+
+		case Stopped:
+			return
+		}
+	}
+}
+
+// Sends an event to the event loop to be processed. The function will wait
+// until the event is actually processed before returning.
+func (s *Server) send(value interface{}) (interface{}, error) {
+	event := s.sendAsync(value)
+	err := <-event.c
+	return event.returnValue, err
+}
+
+func (s *Server) sendAsync(value interface{}) *event {
+	event := &event{target: value, c: make(chan error, 1)}
+	s.c <- event
+	return event
+}
+
+// The event loop that is run when the server is in a Follower state.
+// Responds to RPCs from candidates and leaders.
+// Converts to candidate if election timeout elapses without either:
+//   1.Receiving valid AppendEntries RPC, or
+//   2.Granting vote to candidate
+func (s *Server) followerLoop() {
+	s.setState(Follower)
+
+	for {
+		var err error
+		select {
+		case e := <-s.c:
+			if e.target == &stopValue {
+				s.setState(Stopped)
+			} else if _, ok := e.target.(Command); ok {
+				err = NotLeaderError
+			} else if req, ok := e.target.(*AppendEntriesRequest); ok {
+				e.returnValue = s.processAppendEntriesRequest(req)
+			} else if req, ok := e.target.(*RequestVoteRequest); ok {
+				e.returnValue = s.processRequestVoteRequest(req)
 			}
 
-			role = Follower
-			debugln(s.GetState() + "stop Leader")
+			// Callback to event.
+			e.c <- err
+
+		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
+			s.setState(Candidate)
+		}
+
+		// Exit loop on state change.
+		if s.State() != Follower {
+			break
 		}
 	}
 }
 
-// Start the sever as a follower
-func (s *Server) StartFollower() {
-	go s.StartServerLoop(Follower)
-
-}
-
-// Start the sever as a leader
-func (s *Server) StartLeader() {
-	s.state = Candidate
-	s.currentTerm++
-	go s.StartServerLoop(Leader)
-}
-
-// Shuts down the server.
-func (s *Server) Stop() {
-	s.mutex.Lock()
-	if s.state == Follower {
-		s.electionTimer.stop()
-	} else {
-		s.mutex.Unlock()
-		s.stop <- true
-	}
-	s.unload()
-}
-
-// Unloads the server.
-func (s *Server) unload() {
-	// Kill the election timer.
-	s.state = Stopped
-
-	// wait for all previous flush ends
-	time.Sleep(100 * time.Millisecond)
-
-	// Close the log.
-	if s.log != nil {
-		// still some concurrency issue with stop
-		// need lock
-		s.log.close()
-	}
-
-}
-
-// Checks if the server is currently running.
-func (s *Server) Running() bool {
-	return s.state != Stopped
-}
-
-// Respond to RPCs from candidates and leaders.
-// Convert to candidate if election timeout elapses without
-// either:
-// 	1.Receiving valid AppendEntries RPC, or
-//	2.Granting vote to candidate
-func (s *Server) startFollowerLoop() (stop bool) {
-	s.state = Follower
-
-	// (1) Timeout: promote and return
-	// (2) Stopped: due to receive heartbeat, continue
-	for {
-		if s.State() == Stopped {
-			return true
-		}
-
-		if s.electionTimer.start() {
-			return false
-
-		} else {
-			s.electionTimer.ready()
-			continue
-		}
-	}
-}
-
-// Increment currentTerm, vote for self
-// Reset election timeout
-// Send RequestVote RPCs to all other servers, wait for either:
-// Votes received from majority of servers: become leader
-// AppendEntries RPC received from new leader: step
-// down
-// Election timeout elapses without election resolution:
-// increment term, start new election
-// Discover higher term: step down
-
-func (s *Server) startCandidateLoop() (stop bool, leader bool) {
-
-	// the server must be a follower
-	if s.state != Follower && s.state != Stopped {
-		panic("startCandidateLoop")
-	}
-
-	s.state = Candidate
-	s.leader = ""
-	s.votedFor = s.Name()
-
+// The event loop that is run when the server is in a Candidate state.
+func (s *Server) candidateLoop() {
 	lastLogIndex, lastLogTerm := s.log.lastInfo()
+	s.leader = ""
 
 	for {
-
-		// increase term
+		// Increment current term, vote for self.
 		s.currentTerm++
+		s.votedFor = s.name
 
-		// Request votes from each of our peers.
-		c := make(chan *RequestVoteResponse, len(s.peers))
-		req := newRequestVoteRequest(s.currentTerm, s.name, lastLogIndex, lastLogTerm)
-
+		// Send RequestVote RPCs to all other servers.
+		respChan := make(chan *RequestVoteResponse, len(s.peers))
 		for _, peer := range s.peers {
-			go peer.sendVoteRequest(req, c)
+			go peer.sendVoteRequest(newRequestVoteRequest(s.currentTerm, s.name, lastLogIndex, lastLogTerm), respChan)
 		}
 
-		// collectVotes
-		elected, timeout, stop := s.startCandidateSelect(c)
+		// Wait for either:
+		//   * Votes received from majority of servers: become leader
+		//   * AppendEntries RPC received from new leader: step down.
+		//   * Election timeout elapses without election resolution: increment term, start new election
+		//   * Discover higher term: step down (§5.1)
+		votesGranted := 1
+		timeoutChan := afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2)
 
-		// If we received enough votes then promote to leader and stop this election.
-		if elected {
-			return false, true
+		for {
+			// If we received enough votes then stop waiting for more votes.
+			s.debugln("server.candidate.votes: ", votesGranted, " quorum:", s.QuorumSize())
+			if votesGranted >= s.QuorumSize() {
+				s.setState(Leader)
+				break
+			}
+
+			// Collect votes from peers.
+			select {
+			case resp := <-respChan:
+				if resp.VoteGranted {
+					s.debugln("server.candidate.vote.granted: ", votesGranted)
+					votesGranted++
+				} else if resp.Term > s.currentTerm {
+					s.debugln("server.candidate.vote.failed")
+					s.setCurrentTerm(resp.Term, "")
+					break
+				}
+
+			case e := <-s.c:
+				var err error
+				if e.target == &stopValue {
+					s.setState(Stopped)
+					break
+				} else if _, ok := e.target.(Command); ok {
+					err = NotLeaderError
+				} else if _, ok := e.target.(*AppendEntriesRequest); ok {
+					err = NotLeaderError
+				} else if req, ok := e.target.(*RequestVoteRequest); ok {
+					e.returnValue = s.processRequestVoteRequest(req)
+				}
+
+				// Callback to event.
+				e.c <- err
+
+			case <-timeoutChan:
+				break
+			}
 		}
 
-		if timeout {
-			debugln(s.Name(), " election timeout, restart")
-			// restart promotion
-			continue
+		if s.State() != Candidate {
+			break
 		}
-
-		if stop {
-
-			return true, false
-		}
-
-		return false, false
 	}
 }
 
-// Initialize nextIndex for each to last log index + 1
-// Send initial empty AppendEntries RPCs (heartbeat) to each
-// follower; repeat during idle periods to prevent election
-// timeouts (§5.2)
-// Accept commands from clients, append new entries to local
-// log (§5.3)
-// Whenever last log index ! nextIndex for a follower, send
-// AppendEntries RPC with log entries starting at nextIndex,
-// update nextIndex if successful (§5.3)
-// If AppendEntries fails because of log inconsistency,
-// decrement nextIndex and retry (§5.3)
-// Mark entries committed if stored on a majority of servers
-// and some entry from current term is stored on a majority of
-// servers. Apply newly committed entries to state machine.
-// Step down if currentTerm changes (§5.5)
-func (s *Server) startLeaderLoop() bool {
-
-	// when the server goes into this loop,
-	// the leader may have been stepped down to follower!
-
-	// we cannot assume the the server is a candidate when
-	// get into this func
-
-	// The request vote func may let it step down
-
-	// That happens when we receive the majority votes, but
-	// another candidate start a new term and has not vote for us
-	// after it send vote request, the leader will stepdown before
-	// it enter this func
-
-	// Move server to become a leader and begin peer heartbeats.
-	s.stateMutex.Lock()
-
-	if s.state == Candidate {
-		s.state = Leader
-		s.leader = s.name
-	} else {
-
-		s.stateMutex.Unlock()
-		return false
-	}
-
-	s.stateMutex.Unlock()
-
+// The event loop that is run when the server is in a Candidate state.
+func (s *Server) leaderLoop() {
+	s.setState(Leader)
+	s.leader = s.name
+	s.commitCount = 0
 	logIndex, _ := s.log.lastInfo()
 
-	// after here we let the leader stepdown in the startLeaderSelect loop
-
-	// Update the peers prevLogIndex to leader's lastLogIndex
-	// Start heartbeat
+	// Update the peers prevLogIndex to leader's lastLogIndex and start heartbeat.
 	for _, peer := range s.peers {
-
-		debugln("[Leader] Set ", peer.Name(), "Prev to", logIndex)
-
-		peer.prevLogIndex = logIndex
-		peer.heartbeatTimer.ready()
+		peer.setPrevLogIndex(logIndex)
 		peer.startHeartbeat()
 	}
 
 	// Begin to collect response from followers
-	stop := s.startLeaderSelect()
-
-	{
-		for _, peer := range s.peers {
-			peer.stop()
-		}
-	}
-
-	return stop
-}
-
-// Votes received from majority of servers: become leader
-// Election timeout elapses without election resolution:
-// Discover higher term: step down
-func (s *Server) startCandidateSelect(c chan *RequestVoteResponse) (bool, bool, bool) {
-
-	// Collect votes until we have a quorum.
-	votesGranted := 1
-
-	debugln(s.GetState() + "start Select")
-	defer debugln(s.GetState() + "end Select")
-
 	for {
-
-		// If we received enough votes then stop waiting for more votes.
-		if votesGranted >= s.QuorumSize() {
-			return true, false, false
-		}
-
-		// Collect votes from peers.
+		var err error
 		select {
-		case resp := <-c:
-			debugln(s.GetState() + "select recv vote")
-			if resp != nil {
-				if resp.VoteGranted == true {
-					votesGranted++
+		case e := <-s.c:
+			s.debugln("server.leader.select")
 
-				} else if resp.Term > s.currentTerm {
-					s.stateMutex.Lock()
-
-					// go from internal path
-					// we may need to eat the stepdown
-					select {
-					case <-s.stepDown:
-
-					default:
-
-					}
-
-					s.state = Follower
-					s.currentTerm = resp.Term
-					debugln(s.GetState() + "select step down")
-					s.stateMutex.Unlock()
-					return false, false, false
-				}
+			if e.target == &stopValue {
+				s.setState(Stopped)
+			} else if command, ok := e.target.(Command); ok {
+				s.processCommand(command, e)
+				continue
+			} else if req, ok := e.target.(*AppendEntriesRequest); ok {
+				e.returnValue = s.processAppendEntriesRequest(req)
+			} else if resp, ok := e.target.(*AppendEntriesResponse); ok {
+				s.processAppendEntriesResponse(resp)
+			} else if req, ok := e.target.(*RequestVoteRequest); ok {
+				e.returnValue = s.processRequestVoteRequest(req)
 			}
 
-		case <-s.stepDown:
-			debugln(s.GetState() + "select step down")
-			return false, false, false
-
-		// TODO: do we calculate the overall timeout? or timeout for each vote?
-		// Some issue here
-		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
-			debugln(s.GetState() + "select timeout")
-			return false, true, false
-
-		case <-s.stop:
-			debugln(s.GetState() + "select stop")
-			return false, false, true
+			// Callback to event.
+			e.c <- err
 		}
 
-	}
-}
-
-// Collect response from followers. If more than the
-// majority of the followers append a log entry, the
-// leader will commit the log entry
-func (s *Server) startLeaderSelect() bool {
-	count := 1
-
-	for {
-		var response flushResponse
-
-		select {
-		case response = <-s.response:
-
-			// count for success response from peers
-			if response.success && response.peer != nil {
-				count++
-			}
-
-		case <-s.stepDown:
-			// stepdown to follower
-
-			return false
-
-		case <-s.stop:
-			return true
+		// Exit loop on state change.
+		if s.State() != Leader {
+			break
 		}
-
-		if response.peer != nil {
-			debugln("[CommitCenter] Receive response from ", response.peer.Name(), response.success)
-		}
-
-		// At least one entry from the leader's current term must also be stored on
-		// a majority of servers
-		if count >= s.QuorumSize() {
-			// Determine the committed index that a majority has.
-			var indices []uint64
-			indices = append(indices, s.log.currentIndex())
-			for _, peer := range s.peers {
-				indices = append(indices, peer.prevLogIndex)
-			}
-			sort.Sort(uint64Slice(indices))
-
-			// We can commit upto the index which the mojarity
-			// of the members have appended.
-			commitIndex := indices[s.QuorumSize()-1]
-			committedIndex := s.log.commitIndex
-
-			if commitIndex > committedIndex {
-				debugln(indices)
-				debugln(s.GetState(), "[CommitCenter] Going to Commit ", commitIndex)
-				s.log.setCommitIndex(commitIndex)
-				debugln("[CommitCenter] Commit ", commitIndex)
-
-				for i := committedIndex; i < commitIndex; i++ {
-					select {
-					case s.log.entries[i-s.log.startIndex].commit <- true:
-						debugln("notify")
-						continue
-
-					// we have a buffered commit channel, it should return immediately
-					// if we are the leader when the log received
-					default:
-						debugln("Cannot send commit nofication, log from previous leader")
-					}
-				}
-
-			}
-		}
-
 	}
 
+	// Stop all peers.
+	for _, peer := range s.peers {
+		peer.stopHeartbeat()
+	}
 }
 
 //--------------------------------------
@@ -727,124 +579,122 @@ func (s *Server) startLeaderSelect() bool {
 // when the command has been successfully committed or an error has occurred.
 
 func (s *Server) Do(command Command) (interface{}, error) {
-	// race here
-	// chance to append entry when we are not leader
-	// after the check, the leader may stepdown
-	// but log appended with the newest term
-	// which means the command from this follower can be commited
-	// which will cause a panic
-
-	s.stateMutex.Lock()
-	if s.state != Leader {
-
-		s.stateMutex.Unlock()
-
-		return nil, NotLeaderError
-	}
-
-	// we get the term of the server
-	// when we are sure the server is leader
-	term := s.currentTerm
-
-	s.stateMutex.Unlock()
-
-	entry := s.log.createEntry(term, command)
-
-	if err := s.log.appendEntry(entry); err != nil {
-		return nil, err
-	}
-
-	s.response <- flushResponse{term, true, nil, nil}
-
-	// to speed up the response time
-	// TODO: think about this carefully
-	// fire will speed up response time
-	// but will reduce through output
-
-	// for _, peer := range s.peers {
-	// 	peer.heartbeatTimer.fire()
-	// }
-
-	debugln("[Do] join!")
-
-	// timeout here
-	select {
-	case <-entry.commit:
-		debugln("[Do] finish!")
-		result := entry.result
-		entry.result = nil
-		return result, nil
-	case <-time.After(time.Second):
-		debugln("[Do] fail!")
-		return nil, errors.New("Command commit fails")
-	}
+	return s.send(command)
 }
 
-// Appends a log entry from the leader to this server.
-func (s *Server) AppendEntries(req *AppendEntriesRequest) (*AppendEntriesResponse, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	// If the server is stopped then reject it.
-	if !s.Running() {
-		return newAppendEntriesResponse(s.currentTerm, false, 0), fmt.Errorf("raft.Server: Server stopped")
+// Processes a command.
+func (s *Server) processCommand(command Command, e *event) {
+	s.debugln("server.command.process")
+
+	// Create an entry for the command in the log.
+	entry := s.log.createEntry(s.currentTerm, command)
+	if err := s.log.appendEntry(entry); err != nil {
+		s.debugln("server.command.log.error:", err)
+		e.c <- err
+		return
 	}
 
-	// If the request is coming from an old term then reject it.
+	// Issue a callback for the entry once it's committed.
+	go func() {
+		// Wait for the entry to be committed.
+		select {
+		case <-entry.commit:
+			var err error
+			s.debugln("server.command.commit")
+			e.returnValue, err = s.log.getEntryResult(entry, true)
+			e.c <- err
+		case <-time.After(time.Second):
+			s.debugln("server.command.timeout")
+			e.c <- CommandTimeoutError
+		}
+	}()
 
+	// Issue an append entries response for the server.
+	s.sendAsync(newAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()))
+}
+
+//--------------------------------------
+// Append Entries
+//--------------------------------------
+
+// Appends zero or more log entry from the leader to this server.
+func (s *Server) AppendEntries(req *AppendEntriesRequest) *AppendEntriesResponse {
+	ret, _ := s.send(req)
+	resp, _ := ret.(*AppendEntriesResponse)
+	return resp
+}
+
+// Processes the "append entries" request.
+func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) *AppendEntriesResponse {
 	if req.Term < s.currentTerm {
-		return newAppendEntriesResponse(s.currentTerm, false, s.log.commitIndex), fmt.Errorf("raft.Server: Stale request term")
+		s.debugln("server.ae.error: stale term")
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex())
 	}
 
-	debugln("Peer ", s.Name(), "received heartbeat from ", req.LeaderName,
-		" ", req.Term, " ", s.currentTerm, " ", time.Now())
-
-	s.setCurrentTerm(req.Term)
-
-	// Update the current leader.
-	s.leader = req.LeaderName
-
-	// Reset election timeout.
-	if s.electionTimer != nil {
-		s.electionTimer.stop()
-	}
+	// Update term and leader.
+	s.setCurrentTerm(req.Term, req.LeaderName)
 
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
-		return newAppendEntriesResponse(s.currentTerm, false, s.log.commitIndex), err
+		s.debugln("server.ae.truncate.error: ", err)
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex())
 	}
-
-	debugln("Peer ", s.Name(), "after truncate ")
 
 	// Append entries to the log.
 	if err := s.log.appendEntries(req.Entries); err != nil {
-		return newAppendEntriesResponse(s.currentTerm, false, s.log.commitIndex), err
+		s.debugln("server.ae.append.error: ", err)
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex())
 	}
 
-	debugln("Peer ", s.Name(), "commit index ", req.CommitIndex, " from ",
-		req.LeaderName)
 	// Commit up to the commit index.
 	if err := s.log.setCommitIndex(req.CommitIndex); err != nil {
-		return newAppendEntriesResponse(s.currentTerm, false, s.log.commitIndex), err
+		s.debugln("server.ae.commit.error: ", err)
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex())
 	}
 
-	debugln("Peer ", s.Name(), "after commit ")
-
-	debugln("Peer ", s.Name(), "reply heartbeat from ", req.LeaderName,
-		" ", req.Term, " ", s.currentTerm, " ", time.Now())
-	return newAppendEntriesResponse(s.currentTerm, true, s.log.commitIndex), nil
+	return newAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex())
 }
 
-// Creates an AppendEntries request. Can return a nil request object if the
-// index doesn't exist because of a snapshot.
-func (s *Server) createAppendEntriesRequest(prevLogIndex uint64) *AppendEntriesRequest {
-	if s.log == nil {
-		return nil
+// Processes the "append entries" response from the peer. This is only
+// processed when the server is a leader. Responses received during other
+// states are dropped.
+func (s *Server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
+	// If we find a higher term then change to a follower and exit.
+	if resp.Term > s.currentTerm {
+		s.setCurrentTerm(resp.Term, "")
+		return
 	}
-	entries, prevLogTerm := s.log.getEntriesAfter(prevLogIndex)
-	if entries != nil {
-		return newAppendEntriesRequest(s.currentTerm, s.name, prevLogIndex, prevLogTerm, entries, s.log.commitIndex)
-	} else {
-		return nil
+
+	// Ignore response if it's not successful.
+	if !resp.Success {
+		return
+	}
+
+	// Increment the commit count to make sure we have a quorum before committing.
+	s.commitCount++
+	if s.commitCount < s.QuorumSize() {
+		return
+	}
+
+	// Determine the committed index that a majority has.
+	var indices []uint64
+	indices = append(indices, s.log.currentIndex())
+	for _, peer := range s.peers {
+		indices = append(indices, peer.getPrevLogIndex())
+	}
+	sort.Sort(uint64Slice(indices))
+
+	// We can commit up to the index which the majority of the members have appended.
+	commitIndex := indices[s.QuorumSize()-1]
+	committedIndex := s.log.commitIndex
+
+	if commitIndex > committedIndex {
+		s.log.setCommitIndex(commitIndex)
+		for i := committedIndex; i < commitIndex; i++ {
+			if entry := s.log.getEntry(i + 1); entry != nil {
+				entry.commit <- true
+			}
+		}
 	}
 }
 
@@ -855,79 +705,40 @@ func (s *Server) createAppendEntriesRequest(prevLogIndex uint64) *AppendEntriesR
 // Requests a vote from a server. A vote can be obtained if the vote's term is
 // at the server's current term and the server has not made a vote yet. A vote
 // can also be obtained if the term is greater than the server's current term.
-func (s *Server) RequestVote(req *RequestVoteRequest) (*RequestVoteResponse, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
+	ret, _ := s.send(req)
+	resp, _ := ret.(*RequestVoteResponse)
+	return resp
+}
 
-	debugln("Peer ", s.Name(), "receive vote request from ", req.CandidateName)
-	//debugln("[RequestVote] got the lock")
-	// Fail if the server is not running.
-	if !s.Running() {
-		return newRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Server is stopped")
-	}
-
+// Processes a "request vote" request.
+func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) *RequestVoteResponse {
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.currentTerm {
-		return newRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Stale term: %v < %v", req.Term, s.currentTerm)
+		s.debugln("server.rv.error: stale term")
+		return newRequestVoteResponse(s.currentTerm, false)
 	}
 
-	s.setCurrentTerm(req.Term)
+	s.setCurrentTerm(req.Term, "")
 
 	// If we've already voted for a different candidate then don't vote for this candidate.
 	if s.votedFor != "" && s.votedFor != req.CandidateName {
-		debugln("already vote for ", s.votedFor, " false to ", req.CandidateName)
-		return newRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Already voted for %v", s.votedFor)
+		s.debugln("server.rv.error: duplicate vote: ", req.CandidateName)
+		return newRequestVoteResponse(s.currentTerm, false)
 	}
 
-	// If the candidate's log is not at least as up-to-date as
-	// our last log then don't vote.
+	// If the candidate's log is not at least as up-to-date as our last log then don't vote.
 	lastIndex, lastTerm := s.log.lastInfo()
 	if lastIndex > req.LastLogIndex || lastTerm > req.LastLogTerm {
-		debugln("my log is more up-to-date")
-		return newRequestVoteResponse(s.currentTerm, false), fmt.Errorf("raft.Server: Out-of-date log: [%v/%v] > [%v/%v]", lastIndex, lastTerm, req.LastLogIndex, req.LastLogTerm)
+		s.debugln("server.rv.error: out of date log: ", req.CandidateName)
+		return newRequestVoteResponse(s.currentTerm, false)
 	}
 
 	// If we made it this far then cast a vote and reset our election time out.
+	s.debugln("server.rv.vote: ", s.name, " votes for", req.CandidateName, "at term", req.Term)
 	s.votedFor = req.CandidateName
 
-	debugln(s.Name(), "Vote for ", req.CandidateName, "at term", req.Term)
-
-	if s.electionTimer != nil {
-		s.electionTimer.stop()
-	}
-
-	return newRequestVoteResponse(s.currentTerm, true), nil
-}
-
-// Updates the current term on the server if the term is greater than the
-// server's current term. When the term is changed then the server's vote is
-// cleared and its state is changed to be a follower.
-func (s *Server) setCurrentTerm(term uint64) {
-	if term > s.currentTerm {
-		s.votedFor = ""
-
-		s.stateMutex.Lock()
-		if s.state == Leader || s.state == Candidate {
-			debugln(s.Name(), " should step down to a follower from ", s.state)
-
-			s.state = Follower
-
-			select {
-			case s.stepDown <- term:
-
-			default:
-				panic("cannot stepdown")
-			}
-			debugln(s.Name(), " step down to a follower from ", s.state)
-			s.currentTerm = term
-			s.stateMutex.Unlock()
-			return
-		}
-
-		s.stateMutex.Unlock()
-		// update term after stop all the peer
-		s.currentTerm = term
-	}
+	return newRequestVoteResponse(s.currentTerm, true)
 }
 
 //--------------------------------------
@@ -945,13 +756,12 @@ func (s *Server) AddPeer(name string) error {
 
 	// Only add the peer if it doesn't have the same name.
 	if s.name != name {
-		//debugln("Add peer ", name)
+		//s.debugln("Add peer ", name)
 		peer := newPeer(s, name, s.heartbeatTimeout)
-		if s.state == Leader {
+		if s.State() == Leader {
 			peer.startHeartbeat()
 		}
 		s.peers[peer.name] = peer
-
 	}
 
 	return nil
@@ -970,15 +780,10 @@ func (s *Server) RemovePeer(name string) error {
 		return fmt.Errorf("raft: Peer not found: %s", name)
 	}
 
-	// Flush entries to the peer first.
-	if s.state == Leader {
-		if _, _, err := peer.flush(); err != nil {
-			warn("raft: Unable to notify peer of removal: %v", err)
-		}
-	}
+	// TODO: Flush entries to the peer first.
 
 	// Stop peer and remove it.
-	peer.stop()
+	peer.stopHeartbeat()
 	delete(s.peers, name)
 
 	return nil
@@ -987,13 +792,6 @@ func (s *Server) RemovePeer(name string) error {
 //--------------------------------------
 // Log compaction
 //--------------------------------------
-
-// Creates a snapshot request.
-func (s *Server) createSnapshotRequest() *SnapshotRequest {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	return newSnapshotRequest(s.name, s.lastSnapshot)
-}
 
 // The background snapshot function
 func (s *Server) Snapshot() {
@@ -1007,7 +805,7 @@ func (s *Server) Snapshot() {
 
 func (s *Server) takeSnapshot() error {
 	//TODO put a snapshot mutex
-	debugln("take Snapshot")
+	s.debugln("take Snapshot")
 	if s.currentSnapshot != nil {
 		return errors.New("handling snapshot")
 	}
@@ -1155,27 +953,27 @@ func (s *Server) LoadSnapshot() error {
 	}
 
 	snapshotBytes, _ = ioutil.ReadAll(file)
-	debugln(string(snapshotBytes))
+	s.debugln(string(snapshotBytes))
 
 	// Generate checksum.
 	byteChecksum := crc32.ChecksumIEEE(snapshotBytes)
 
 	if uint32(checksum) != byteChecksum {
-		debugln(checksum, " ", byteChecksum)
+		s.debugln(checksum, " ", byteChecksum)
 		return errors.New("bad snapshot file")
 	}
 
 	err = json.Unmarshal(snapshotBytes, &s.lastSnapshot)
 
 	if err != nil {
-		debugln("unmarshal error: ", err)
+		s.debugln("unmarshal error: ", err)
 		return err
 	}
 
 	err = s.stateMachine.Recovery(s.lastSnapshot.State)
 
 	if err != nil {
-		debugln("recovery error: ", err)
+		s.debugln("recovery error: ", err)
 		return err
 	}
 
@@ -1188,4 +986,16 @@ func (s *Server) LoadSnapshot() error {
 	s.log.updateCommitIndex(s.lastSnapshot.LastIndex)
 
 	return err
+}
+
+//--------------------------------------
+// Debugging
+//--------------------------------------
+
+func (s *Server) debugln(v ...interface{}) {
+	debugf("[%s] %s", s.name, fmt.Sprintln(v...))
+}
+
+func (s *Server) traceln(v ...interface{}) {
+	tracef("[%s] %s", s.name, fmt.Sprintln(v...))
 }

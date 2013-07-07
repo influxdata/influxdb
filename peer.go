@@ -1,8 +1,6 @@
 package raft
 
 import (
-	"errors"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -15,18 +13,12 @@ import (
 
 // A peer is a reference to another server involved in the consensus protocol.
 type Peer struct {
-	server         *Server
-	name           string
-	prevLogIndex   uint64
-	mutex          sync.Mutex
-	heartbeatTimer *timer
-}
-
-type flushResponse struct {
-	term    uint64
-	success bool
-	err     error
-	peer    *Peer
+	server           *Server
+	name             string
+	prevLogIndex     uint64
+	mutex            sync.RWMutex
+	stopChan         chan bool
+	heartbeatTimeout time.Duration
 }
 
 //------------------------------------------------------------------------------
@@ -37,13 +29,12 @@ type flushResponse struct {
 
 // Creates a new peer.
 func newPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer {
-	p := &Peer{
-		server:         server,
-		name:           name,
-		heartbeatTimer: newTimer(heartbeatTimeout, heartbeatTimeout),
+	return &Peer{
+		server:           server,
+		name:             name,
+		stopChan:         make(chan bool),
+		heartbeatTimeout: heartbeatTimeout,
 	}
-
-	return p
 }
 
 //------------------------------------------------------------------------------
@@ -59,11 +50,25 @@ func (p *Peer) Name() string {
 
 // Sets the heartbeat timeout.
 func (p *Peer) setHeartbeatTimeout(duration time.Duration) {
-	p.heartbeatTimer.setDuration(duration)
+	p.heartbeatTimeout = duration
 }
 
-func (p *Peer) startHeartbeat() {
-	go p.heartbeat()
+//--------------------------------------
+// Prev log index
+//--------------------------------------
+
+// Retrieves the previous log index.
+func (p *Peer) getPrevLogIndex() uint64 {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	return p.prevLogIndex
+}
+
+// Sets the previous log index.
+func (p *Peer) setPrevLogIndex(value uint64) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	p.prevLogIndex = value
 }
 
 //------------------------------------------------------------------------------
@@ -73,14 +78,19 @@ func (p *Peer) startHeartbeat() {
 //------------------------------------------------------------------------------
 
 //--------------------------------------
-// State
+// Heartbeat
 //--------------------------------------
 
-// Stops the peer entirely.
-func (p *Peer) stop() {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-	p.heartbeatTimer.stop()
+// Starts the peer heartbeat.
+func (p *Peer) startHeartbeat() {
+	c := make(chan bool)
+	go p.heartbeat(c)
+	<-c
+}
+
+// Stops the peer heartbeat.
+func (p *Peer) stopHeartbeat() {
+	p.stopChan <- true
 }
 
 //--------------------------------------
@@ -99,182 +109,112 @@ func (p *Peer) clone() *Peer {
 }
 
 //--------------------------------------
-// Flush
-//--------------------------------------
-
-// Sends an AppendEntries RPC but does not obtain a lock
-// on the server.
-func (p *Peer) flush() (uint64, bool, error) {
-	// We need to hold the log lock to create AppendEntriesRequest
-	// avoid snapshot to delete the desired entries before AEQ()
-	req := p.server.createAppendEntriesRequest(p.prevLogIndex)
-
-	if req != nil {
-		return p.sendFlushRequest(req)
-	} else {
-		req := p.server.createSnapshotRequest()
-		return p.sendSnapshotRequest(req)
-	}
-
-}
-
-// send VoteRequest Request
-func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteResponse) {
-	req.peer = p
-	debugln(p.server.Name(), "Send Vote Request to ", p.Name())
-	if resp, _ := p.server.transporter.SendVoteRequest(p.server, p, req); resp != nil {
-		resp.peer = p
-		c <- resp
-	}
-}
-
-// send Snapshot Request
-func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) (uint64, bool, error) {
-	// Ignore any null requests.
-	if req == nil {
-		return 0, false, errors.New("raft.Peer: Request required")
-	}
-
-	// Generate an snapshot request based on the state of the server and
-	// log. Send the request through the user-provided handler and process the
-	// result.
-	resp, err := p.server.transporter.SendSnapshotRequest(p.server, p, req)
-
-	if resp == nil {
-		return 0, false, err
-	}
-
-	// If successful then update the previous log index. If it was
-	// unsuccessful then decrement the previous log index and we'll try again
-	// next time.
-	if resp.Success {
-		p.prevLogIndex = req.LastIndex
-
-	} else {
-		panic(resp)
-	}
-
-	return resp.Term, resp.Success, err
-}
-
-// Flushes a request through the server's transport.
-func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error) {
-	// Ignore any null requests.
-	if req == nil {
-		return 0, false, errors.New("raft.Peer: Request required")
-	}
-
-	// Generate an AppendEntries request based on the state of the server and
-	// log. Send the request through the user-provided handler and process the
-	// result.
-	//debugln("flush to ", p.Name())
-	debugln("[HeartBeat] Leader ", p.server.Name(), " to ", p.Name(), " ", len(req.Entries), " ", time.Now())
-
-	respChan := make(chan *AppendEntriesResponse, 2)
-
-	go func() {
-		tranResp, _ := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
-		respChan <- tranResp
-	}()
-
-	var resp *AppendEntriesResponse
-
-	select {
-	// how to decide?
-	case <-time.After(p.server.heartbeatTimeout * 2):
-		resp = nil
-
-	case resp = <-respChan:
-
-	}
-
-	if resp == nil {
-		debugln("receive flush timeout from ", p.Name())
-		return 0, false, fmt.Errorf("AppendEntries timeout: %s", p.Name())
-	}
-	debugln("receive flush response from ", p.Name())
-
-	// If successful then update the previous log index. If it was
-	// unsuccessful then decrement the previous log index and we'll try again
-	// next time.
-	if resp.Success {
-		if len(req.Entries) > 0 {
-			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
-		}
-		debugln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
-	} else {
-
-		if resp.Term > p.server.currentTerm {
-			return resp.Term, false, errors.New("Step down")
-		}
-
-		// we may miss a response from peer
-		if resp.CommitIndex >= p.prevLogIndex {
-			debugln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
-			p.prevLogIndex = resp.CommitIndex
-		} else if p.prevLogIndex > 0 {
-			debugln("Peer ", p.Name(), "'s' step back to ", p.prevLogIndex)
-			// Decrement the previous log index down until we find a match. Don't
-			// let it go below where the peer's commit index is though. That's a
-			// problem.
-			p.prevLogIndex--
-		}
-
-	}
-	return resp.Term, resp.Success, nil
-}
-
-//--------------------------------------
 // Heartbeat
 //--------------------------------------
 
 // Listens to the heartbeat timeout and flushes an AppendEntries RPC.
-func (p *Peer) heartbeat() {
+func (p *Peer) heartbeat(c chan bool) {
+	c <- true
+
 	for {
+		select {
+		case <-p.stopChan:
+			return
 
-		// (1) timeout/fire happens, flush the peer
-		// (2) stopped, return
+		case <-time.After(p.heartbeatTimeout):
+			prevLogIndex := p.getPrevLogIndex()
+			entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex)
 
-		if p.heartbeatTimer.start() {
-
-			var f flushResponse
-
-			f.peer = p
-
-			f.term, f.success, f.err = p.flush()
-
-			// if the peer successfully appended the log entry
-			// we will tell the commit center
-			if f.success {
-				if p.prevLogIndex > p.server.log.commitIndex {
-					debugln("[Heartbeat] Peer", p.Name(), "send to commit center")
-					p.server.response <- f
-					debugln("[Heartbeat] Peer", p.Name(), "back from commit center")
-				}
-
-			} else {
-				// shutdown the heartbeat
-				if f.term > p.server.currentTerm {
-					p.server.stateMutex.Lock()
-
-					if p.server.state == Leader {
-						p.server.state = Follower
-						select {
-						case p.server.stepDown <- f.term:
-							p.server.currentTerm = f.term
-						default:
-							panic("heartbeat cannot step down")
-						}
-					}
-
-					p.server.stateMutex.Unlock()
-					return
-				}
+			if p.server.State() != Leader {
+				return
 			}
 
-		} else {
-			// shutdown
-			return
+			if entries != nil {
+				p.sendAppendEntriesRequest(newAppendEntriesRequest(p.server.currentTerm, p.server.name, prevLogIndex, prevLogTerm, entries, p.server.log.CommitIndex()))
+			} else {
+				p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.lastSnapshot))
+			}
 		}
+	}
+}
+
+//--------------------------------------
+// Append Entries
+//--------------------------------------
+
+// Sends an AppendEntries request to the peer through the transport.
+func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
+	traceln("peer.flush.send: ", p.server.Name(), "->", p.Name(), " ", len(req.Entries))
+
+	resp := p.server.Transporter().SendAppendEntriesRequest(p.server, p, req)
+	if resp == nil {
+		debugln("peer.flush.timeout: ", p.server.Name(), "->", p.Name())
+		return
+	}
+	traceln("peer.flush.recv: ", p.Name())
+
+	// If successful then update the previous log index.
+	p.mutex.Lock()
+	if resp.Success {
+		if len(req.Entries) > 0 {
+			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
+		}
+		traceln("peer.flush.success: ", p.server.Name(), "->", p.Name(), "; idx =", p.prevLogIndex)
+
+		// If it was unsuccessful then decrement the previous log index and
+		// we'll try again next time.
+	} else {
+		// we may miss a response from peer
+		if resp.CommitIndex >= p.prevLogIndex {
+			p.prevLogIndex = resp.CommitIndex
+			debugln("peer.flush.commitIndex: ", p.server.Name(), "->", p.Name(), " idx =", p.prevLogIndex)
+		} else if p.prevLogIndex > 0 {
+			// Decrement the previous log index down until we find a match. Don't
+			// let it go below where the peer's commit index is though. That's a
+			// problem.
+			p.prevLogIndex--
+			debugln("peer.flush.decrement: ", p.server.Name(), "->", p.Name(), " idx =", p.prevLogIndex)
+		}
+	}
+	p.mutex.Unlock()
+
+	// Send response to server for processing.
+	p.server.send(resp)
+}
+
+// Sends an Snapshot request to the peer through the transport.
+func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) {
+	debugln("peer.snap.send: ", p.name)
+
+	resp := p.server.Transporter().SendSnapshotRequest(p.server, p, req)
+	if resp == nil {
+		debugln("peer.snap.timeout: ", p.name)
+		return
+	}
+
+	debugln("peer.snap.recv: ", p.name)
+
+	// If successful then update the previous log index.
+	if resp.Success {
+		p.setPrevLogIndex(req.LastIndex)
+	} else {
+		debugln("peer.snap.failed: ", p.name)
+	}
+
+	// Send response to server for processing.
+	p.server.send(resp)
+}
+
+//--------------------------------------
+// Vote Requests
+//--------------------------------------
+
+// send VoteRequest Request
+func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteResponse) {
+	debugln("peer.vote: ", p.server.Name(), "->", p.Name())
+	req.peer = p
+	if resp := p.server.Transporter().SendVoteRequest(p.server, p, req); resp != nil {
+		resp.peer = p
+		c <- resp
 	}
 }
