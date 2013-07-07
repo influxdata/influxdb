@@ -59,12 +59,12 @@ type Server struct {
 	context     interface{}
 	currentTerm uint64
 
-	votedFor   string
-	log        *Log
-	leader     string
-	peers      map[string]*Peer
-	mutex      sync.Mutex
-	stateMutex sync.Mutex
+	votedFor    string
+	log         *Log
+	leader      string
+	peers       map[string]*Peer
+	mutex       sync.Mutex
+	stateMutex  sync.Mutex
 	commitCount int
 
 	electionTimer    *timer
@@ -347,7 +347,6 @@ func (s *Server) setCurrentTerm(term uint64, leaderName string) {
 	}
 }
 
-
 //--------------------------------------
 // Event Loop
 //--------------------------------------
@@ -423,11 +422,11 @@ func (s *Server) followerLoop() {
 
 			// Callback to event.
 			e.c <- err
-		
+
 		case <-afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2):
 			s.state = Candidate
 		}
-		
+
 		// Exit loop on state change.
 		if s.state != Follower {
 			break
@@ -480,7 +479,7 @@ func (s *Server) candidateLoop() {
 					break
 				}
 
-			case e := <- s.c:
+			case e := <-s.c:
 				var err error
 				if e.target == &stopValue {
 					s.state = Stopped
@@ -500,7 +499,7 @@ func (s *Server) candidateLoop() {
 				break
 			}
 		}
-		
+
 		if s.state != Candidate {
 			break
 		}
@@ -543,7 +542,7 @@ func (s *Server) leaderLoop() {
 			// Callback to event.
 			e.c <- err
 		}
-		
+
 		// Exit loop on state change.
 		if s.state != Leader {
 			break
@@ -649,12 +648,12 @@ func (s *Server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 		s.setCurrentTerm(resp.Term, "")
 		return
 	}
-	
+
 	// Ignore response if it's not successful.
 	if !resp.Success {
 		return
 	}
-	
+
 	// Increment the commit count to make sure we have a quorum before committing.
 	s.commitCount++
 	if s.commitCount < s.QuorumSize() {
@@ -977,7 +976,6 @@ func (s *Server) LoadSnapshot() error {
 	return err
 }
 
-
 //--------------------------------------
 // Debugging
 //--------------------------------------
@@ -989,4 +987,3 @@ func (s *Server) debugln(v ...interface{}) {
 func (s *Server) traceln(v ...interface{}) {
 	tracef("[%s] %s", s.name, fmt.Sprintln(v...))
 }
-

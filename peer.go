@@ -13,11 +13,11 @@ import (
 
 // A peer is a reference to another server involved in the consensus protocol.
 type Peer struct {
-	server         *Server
-	name           string
-	prevLogIndex   uint64
-	mutex          sync.Mutex
-	stopChan       chan bool
+	server           *Server
+	name             string
+	prevLogIndex     uint64
+	mutex            sync.Mutex
+	stopChan         chan bool
 	heartbeatTimeout time.Duration
 }
 
@@ -30,9 +30,9 @@ type Peer struct {
 // Creates a new peer.
 func newPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer {
 	return &Peer{
-		server:         server,
-		name:           name,
-		stopChan:       make(chan bool),
+		server:           server,
+		name:             name,
+		stopChan:         make(chan bool),
 		heartbeatTimeout: heartbeatTimeout,
 	}
 }
@@ -53,7 +53,6 @@ func (p *Peer) setHeartbeatTimeout(duration time.Duration) {
 	p.heartbeatTimeout = duration
 }
 
-
 //------------------------------------------------------------------------------
 //
 // Methods
@@ -68,7 +67,7 @@ func (p *Peer) setHeartbeatTimeout(duration time.Duration) {
 func (p *Peer) startHeartbeat() {
 	c := make(chan bool)
 	go p.heartbeat(c)
-	<- c
+	<-c
 }
 
 // Stops the peer heartbeat.
@@ -103,7 +102,7 @@ func (p *Peer) heartbeat(c chan bool) {
 		select {
 		case <-p.stopChan:
 			return
-			
+
 		case <-time.After(p.heartbeatTimeout):
 			p.flush()
 		}
@@ -142,8 +141,8 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 		}
 		traceln("peer.flush.success: ", p.server.Name(), "->", p.Name(), "; idx =", p.prevLogIndex)
 
-	// If it was unsuccessful then decrement the previous log index and
-	// we'll try again next time.
+		// If it was unsuccessful then decrement the previous log index and
+		// we'll try again next time.
 	} else {
 		// we may miss a response from peer
 		if resp.CommitIndex >= p.prevLogIndex {
@@ -180,7 +179,7 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) {
 	} else {
 		debugln("peer.snap.failed: ", p.name)
 	}
-	
+
 	// Send response to server for processing.
 	p.server.send(resp)
 }
@@ -198,4 +197,3 @@ func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteRespo
 		c <- resp
 	}
 }
-
