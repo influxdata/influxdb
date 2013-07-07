@@ -6,7 +6,7 @@ package raft
 //
 //------------------------------------------------------------------------------
 
-type Uint64Slice []uint64
+type uint64Slice []uint64
 
 //------------------------------------------------------------------------------
 //
@@ -18,6 +18,6 @@ type Uint64Slice []uint64
 // uint64
 //--------------------------------------
 
-func (p Uint64Slice) Len() int           { return len(p) }
-func (p Uint64Slice) Less(i, j int) bool { return p[i] < p[j] }
-func (p Uint64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p uint64Slice) Len() int           { return len(p) }
+func (p uint64Slice) Less(i, j int) bool { return p[i] < p[j] }
+func (p uint64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }

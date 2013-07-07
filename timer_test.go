@@ -13,12 +13,12 @@ import (
 
 // Ensure that we can start an election timer and it will go off in the specified duration.
 func TestTimer(t *testing.T) {
-	timer := NewTimer(5*time.Millisecond, 10*time.Millisecond)
+	timer := newTimer(5*time.Millisecond, 10*time.Millisecond)
 
 	// test timer start
 	for i := 0; i < 10; i++ {
 		start := time.Now()
-		timer.Start()
+		timer.start()
 
 		duration := time.Now().Sub(start)
 		if duration > 12*time.Millisecond || duration < 5*time.Millisecond {
@@ -30,7 +30,7 @@ func TestTimer(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		start := time.Now()
 		go stop(timer)
-		timer.Start()
+		timer.start()
 
 		duration := time.Now().Sub(start)
 		if duration > 3*time.Millisecond {
@@ -38,14 +38,14 @@ func TestTimer(t *testing.T) {
 		}
 
 		// ready the timer after stop it
-		timer.Ready()
+		timer.ready()
 	}
 
 	// test timer fire
 	for i := 0; i < 100; i++ {
 		start := time.Now()
 		go fire(timer)
-		timer.Start()
+		timer.start()
 
 		duration := time.Now().Sub(start)
 		if duration > 3*time.Millisecond {
@@ -65,22 +65,22 @@ func TestTimer(t *testing.T) {
 		if ret != false {
 			t.Fatal("cannot stop timer!")
 		}
-		timer.Ready()
+		timer.ready()
 	}
 
 }
 
-func stop(t *Timer) {
+func stop(t *timer) {
 	time.Sleep(time.Millisecond)
-	t.Stop()
+	t.stop()
 }
 
-func start(t *Timer, resp chan bool) {
+func start(t *timer, resp chan bool) {
 	time.Sleep(time.Millisecond)
-	resp <- t.Start()
+	resp <- t.start()
 }
 
-func fire(t *Timer) {
+func fire(t *timer) {
 	time.Sleep(time.Millisecond)
-	t.Fire()
+	t.fire()
 }

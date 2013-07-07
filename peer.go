@@ -2,6 +2,7 @@ package raft
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -18,10 +19,10 @@ type Peer struct {
 	name           string
 	prevLogIndex   uint64
 	mutex          sync.Mutex
-	heartbeatTimer *Timer
+	heartbeatTimer *timer
 }
 
-type FlushResponse struct {
+type flushResponse struct {
 	term    uint64
 	success bool
 	err     error
@@ -35,11 +36,11 @@ type FlushResponse struct {
 //------------------------------------------------------------------------------
 
 // Creates a new peer.
-func NewPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer {
+func newPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer {
 	p := &Peer{
 		server:         server,
 		name:           name,
-		heartbeatTimer: NewTimer(heartbeatTimeout, heartbeatTimeout),
+		heartbeatTimer: newTimer(heartbeatTimeout, heartbeatTimeout),
 	}
 
 	return p
@@ -56,17 +57,12 @@ func (p *Peer) Name() string {
 	return p.name
 }
 
-// Retrieves the heartbeat timeout.
-func (p *Peer) HeartbeatTimeout() time.Duration {
-	return p.heartbeatTimer.MinDuration()
-}
-
 // Sets the heartbeat timeout.
-func (p *Peer) SetHeartbeatTimeout(duration time.Duration) {
-	p.heartbeatTimer.SetDuration(duration)
+func (p *Peer) setHeartbeatTimeout(duration time.Duration) {
+	p.heartbeatTimer.setDuration(duration)
 }
 
-func (p *Peer) StartHeartbeat() {
+func (p *Peer) startHeartbeat() {
 	go p.heartbeat()
 }
 
@@ -84,7 +80,7 @@ func (p *Peer) StartHeartbeat() {
 func (p *Peer) stop() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	p.heartbeatTimer.Stop()
+	p.heartbeatTimer.stop()
 }
 
 //--------------------------------------
@@ -123,7 +119,7 @@ func (p *Peer) flush() (uint64, bool, error) {
 }
 
 // send VoteRequest Request
-func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteResponse){
+func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteResponse) {
 	req.peer = p
 	debugln(p.server.Name(), "Send Vote Request to ", p.Name())
 	if resp, _ := p.server.transporter.SendVoteRequest(p.server, p, req); resp != nil {
@@ -174,17 +170,29 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	//debugln("flush to ", p.Name())
 	debugln("[HeartBeat] Leader ", p.server.Name(), " to ", p.Name(), " ", len(req.Entries), " ", time.Now())
 
-	if p.server.State() != Leader {
-		return 0, false, errors.New("Not leader anymore")
+	respChan := make(chan *AppendEntriesResponse, 2)
+
+	go func() {
+		tranResp, _ := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
+		respChan <- tranResp
+	}()
+
+	var resp *AppendEntriesResponse
+
+	select {
+	// how to decide?
+	case <-time.After(p.server.heartbeatTimeout * 2):
+		resp = nil
+
+	case resp = <-respChan:
+
 	}
-
-	resp, err := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
-
-	//debugln("receive flush response from ", p.Name())
 
 	if resp == nil {
-		return 0, false, err
+		debugln("receive flush timeout from ", p.Name())
+		return 0, false, fmt.Errorf("AppendEntries timeout: %s", p.Name())
 	}
+	debugln("receive flush response from ", p.Name())
 
 	// If successful then update the previous log index. If it was
 	// unsuccessful then decrement the previous log index and we'll try again
@@ -192,31 +200,28 @@ func (p *Peer) sendFlushRequest(req *AppendEntriesRequest) (uint64, bool, error)
 	if resp.Success {
 		if len(req.Entries) > 0 {
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
-			debugln("Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 		}
+		debugln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
 	} else {
-
-		if p.server.State() != Leader {
-			return 0, false, errors.New("Not leader anymore")
-		}
 
 		if resp.Term > p.server.currentTerm {
 			return resp.Term, false, errors.New("Step down")
 		}
-		// Decrement the previous log index down until we find a match. Don't
-		// let it go below where the peer's commit index is though. That's a
-		// problem.
-		if p.prevLogIndex > 0 {
+
+		// we may miss a response from peer
+		if resp.CommitIndex >= p.prevLogIndex {
+			debugln(p.server.GetState()+": Peer ", p.Name(), "'s' log update to ", p.prevLogIndex)
+			p.prevLogIndex = resp.CommitIndex
+		} else if p.prevLogIndex > 0 {
+			debugln("Peer ", p.Name(), "'s' step back to ", p.prevLogIndex)
+			// Decrement the previous log index down until we find a match. Don't
+			// let it go below where the peer's commit index is though. That's a
+			// problem.
 			p.prevLogIndex--
 		}
-		if resp.CommitIndex > p.prevLogIndex {
-			debugln("%v %v %v %v", resp.CommitIndex, p.prevLogIndex,
-				p.server.currentTerm, resp.Term)
-			panic("commitedIndex is greater than prevLogIndex")
-		}
-	}
 
-	return resp.Term, resp.Success, err
+	}
+	return resp.Term, resp.Success, nil
 }
 
 //--------------------------------------
@@ -230,9 +235,9 @@ func (p *Peer) heartbeat() {
 		// (1) timeout/fire happens, flush the peer
 		// (2) stopped, return
 
-		if p.heartbeatTimer.Start() {
+		if p.heartbeatTimer.start() {
 
-			var f FlushResponse
+			var f flushResponse
 
 			f.peer = p
 
@@ -241,7 +246,7 @@ func (p *Peer) heartbeat() {
 			// if the peer successfully appended the log entry
 			// we will tell the commit center
 			if f.success {
-				if p.prevLogIndex > p.server.log.CommitIndex() {
+				if p.prevLogIndex > p.server.log.commitIndex {
 					debugln("[Heartbeat] Peer", p.Name(), "send to commit center")
 					p.server.response <- f
 					debugln("[Heartbeat] Peer", p.Name(), "back from commit center")
@@ -250,13 +255,20 @@ func (p *Peer) heartbeat() {
 			} else {
 				// shutdown the heartbeat
 				if f.term > p.server.currentTerm {
-					debugln("[Heartbeat] SetpDown!")
-					select {
-					case p.server.stepDown <- f.term:
-						return
-					default:
-						return
+					p.server.stateMutex.Lock()
+
+					if p.server.state == Leader {
+						p.server.state = Follower
+						select {
+						case p.server.stepDown <- f.term:
+							p.server.currentTerm = f.term
+						default:
+							panic("heartbeat cannot step down")
+						}
 					}
+
+					p.server.stateMutex.Unlock()
+					return
 				}
 			}
 

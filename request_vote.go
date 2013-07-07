@@ -29,7 +29,7 @@ type RequestVoteResponse struct {
 //------------------------------------------------------------------------------
 
 // Creates a new RequestVote request.
-func NewRequestVoteRequest(term uint64, candidateName string, lastLogIndex uint64, lastLogTerm uint64) *RequestVoteRequest {
+func newRequestVoteRequest(term uint64, candidateName string, lastLogIndex uint64, lastLogTerm uint64) *RequestVoteRequest {
 	return &RequestVoteRequest{
 		Term:          term,
 		CandidateName: candidateName,
@@ -39,7 +39,7 @@ func NewRequestVoteRequest(term uint64, candidateName string, lastLogIndex uint6
 }
 
 // Creates a new RequestVote response.
-func NewRequestVoteResponse(term uint64, voteGranted bool) *RequestVoteResponse {
+func newRequestVoteResponse(term uint64, voteGranted bool) *RequestVoteResponse {
 	return &RequestVoteResponse{
 		Term:        term,
 		VoteGranted: voteGranted,
