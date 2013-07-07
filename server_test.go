@@ -42,8 +42,8 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	if resp.Term != 2 || resp.VoteGranted {
 		t.Fatalf("Invalid request vote response: %v/%v", resp.Term, resp.VoteGranted)
 	}
-	if server.currentTerm != 2 && server.state != Follower {
-		t.Fatalf("Server did not update term and demote: %v / %v", server.currentTerm, server.state)
+	if server.currentTerm != 2 && server.State() != Follower {
+		t.Fatalf("Server did not update term and demote: %v / %v", server.currentTerm, server.State())
 	}
 }
 
@@ -125,8 +125,8 @@ func TestServerPromoteSelf(t *testing.T) {
 
 	time.Sleep(300 * time.Millisecond)
 
-	if server.state != Leader {
-		t.Fatalf("Server self-promotion failed: %v", server.state)
+	if server.State() != Leader {
+		t.Fatalf("Server self-promotion failed: %v", server.State())
 	}
 }
 
@@ -148,8 +148,8 @@ func TestServerPromote(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	if servers[0].state != Leader && servers[1].state != Leader && servers[2].state != Leader {
-		t.Fatalf("No leader elected: (%s, %s, %s)", servers[0].state, servers[1].state, servers[2].state)
+	if servers[0].State() != Leader && servers[1].State() != Leader && servers[2].State() != Leader {
+		t.Fatalf("No leader elected: (%s, %s, %s)", servers[0].State(), servers[1].State(), servers[2].State())
 	}
 	for _, server := range servers {
 		server.Stop()
@@ -292,14 +292,14 @@ func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 // Ensure that we can start a single server and append to its log.
 func TestServerSingleNode(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	if server.state != Stopped {
-		t.Fatalf("Unexpected server state: %v", server.state)
+	if server.State() != Stopped {
+		t.Fatalf("Unexpected server state: %v", server.State())
 	}
 
 	server.Initialize()
 
-	if server.state != Stopped {
-		t.Fatalf("Unexpected server state: %v", server.state)
+	if server.State() != Stopped {
+		t.Fatalf("Unexpected server state: %v", server.State())
 	}
 
 	server.StartLeader()
@@ -311,29 +311,35 @@ func TestServerSingleNode(t *testing.T) {
 	}
 	debugln("finish command")
 
-	if server.state != Leader {
-		t.Fatalf("Unexpected server state: %v", server.state)
+	if server.State() != Leader {
+		t.Fatalf("Unexpected server state: %v", server.State())
 	}
 
 	server.Stop()
 
-	if server.state != Stopped {
-		t.Fatalf("Unexpected server state: %v", server.state)
+	if server.State() != Stopped {
+		t.Fatalf("Unexpected server state: %v", server.State())
 	}
 }
 
 // Ensure that we can start multiple servers and determine a leader.
 func TestServerMultiNode(t *testing.T) {
 	// Initialize the servers.
-	var mutex sync.Mutex
+	var mutex sync.RWMutex
 	servers := map[string]*Server{}
 
 	transporter := &testTransporter{}
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) *RequestVoteResponse {
-		return servers[peer.name].RequestVote(req)
+		mutex.RLock()
+		s := servers[peer.name]
+		mutex.RUnlock()
+		return s.RequestVote(req)
 	}
 	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) *AppendEntriesResponse {
-		return servers[peer.name].AppendEntries(req)
+		mutex.RLock()
+		s := servers[peer.name]
+		mutex.RUnlock()
+		return s.AppendEntries(req)
 	}
 
 	disTransporter := &testTransporter{}
@@ -381,16 +387,16 @@ func TestServerMultiNode(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Check that two peers exist on leader.
-	mutex.Lock()
+	mutex.RLock()
 	if leader.MemberCount() != n {
 		t.Fatalf("Expected member count to be %v, got %v", n, leader.MemberCount())
 	}
 	if servers["2"].State() == Leader || servers["3"].State() == Leader {
 		t.Fatalf("Expected leader should be 1: 2=%v, 3=%v\n", servers["2"].state, servers["3"].state)
 	}
-	mutex.Unlock()
+	mutex.RUnlock()
 
-	for i := 0; i < 20000000; i++ {
+	for i := 0; i < 20; i++ {
 		retry := 0
 		fmt.Println("Round ", i)
 
@@ -443,7 +449,6 @@ func TestServerMultiNode(t *testing.T) {
 					debugln("retry")
 					retry++
 					leader = 0
-					LogLevel = Debug
 					time.Sleep(100 * time.Millisecond)
 					continue
 				}
@@ -460,7 +465,6 @@ func TestServerMultiNode(t *testing.T) {
 				t.Fatalf("wrong leader number %v", leader)
 			}
 			if leader == 1 {
-				LogLevel = 0
 				break
 			}
 		}

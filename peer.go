@@ -16,7 +16,7 @@ type Peer struct {
 	server           *Server
 	name             string
 	prevLogIndex     uint64
-	mutex            sync.Mutex
+	mutex            sync.RWMutex
 	stopChan         chan bool
 	heartbeatTimeout time.Duration
 }
@@ -51,6 +51,24 @@ func (p *Peer) Name() string {
 // Sets the heartbeat timeout.
 func (p *Peer) setHeartbeatTimeout(duration time.Duration) {
 	p.heartbeatTimeout = duration
+}
+
+//--------------------------------------
+// Prev log index
+//--------------------------------------
+
+// Retrieves the previous log index.
+func (p *Peer) getPrevLogIndex() uint64 {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	return p.prevLogIndex
+}
+
+// Sets the previous log index.
+func (p *Peer) setPrevLogIndex(value uint64) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	p.prevLogIndex = value
 }
 
 //------------------------------------------------------------------------------
@@ -104,6 +122,9 @@ func (p *Peer) heartbeat(c chan bool) {
 			return
 
 		case <-time.After(p.heartbeatTimeout):
+			if p.server.State() != Leader {
+				return
+			}
 			p.flush()
 		}
 	}
@@ -115,9 +136,10 @@ func (p *Peer) heartbeat(c chan bool) {
 
 // Sends an AppendEntries RPC.
 func (p *Peer) flush() {
-	entries, prevLogTerm := p.server.log.getEntriesAfter(p.prevLogIndex)
+	prevLogIndex := p.getPrevLogIndex()
+	entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex)
 	if entries != nil {
-		p.sendAppendEntriesRequest(newAppendEntriesRequest(p.server.currentTerm, p.server.name, p.prevLogIndex, prevLogTerm, entries, p.server.log.commitIndex))
+		p.sendAppendEntriesRequest(newAppendEntriesRequest(p.server.currentTerm, p.server.name, prevLogIndex, prevLogTerm, entries, p.server.log.CommitIndex()))
 	} else {
 		p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.lastSnapshot))
 	}
@@ -127,7 +149,7 @@ func (p *Peer) flush() {
 func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 	traceln("peer.flush.send: ", p.server.Name(), "->", p.Name(), " ", len(req.Entries))
 
-	resp := p.server.transporter.SendAppendEntriesRequest(p.server, p, req)
+	resp := p.server.Transporter().SendAppendEntriesRequest(p.server, p, req)
 	if resp == nil {
 		debugln("peer.flush.timeout: ", p.server.Name(), "->", p.Name())
 		return
@@ -135,6 +157,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 	traceln("peer.flush.recv: ", p.Name())
 
 	// If successful then update the previous log index.
+	p.mutex.Lock()
 	if resp.Success {
 		if len(req.Entries) > 0 {
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
@@ -156,6 +179,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 			debugln("peer.flush.decrement: ", p.server.Name(), "->", p.Name(), " idx =", p.prevLogIndex)
 		}
 	}
+	p.mutex.Unlock()
 
 	// Send response to server for processing.
 	p.server.send(resp)
@@ -165,7 +189,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) {
 	debugln("peer.snap.send: ", p.name)
 
-	resp := p.server.transporter.SendSnapshotRequest(p.server, p, req)
+	resp := p.server.Transporter().SendSnapshotRequest(p.server, p, req)
 	if resp == nil {
 		debugln("peer.snap.timeout: ", p.name)
 		return
@@ -175,7 +199,7 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) {
 
 	// If successful then update the previous log index.
 	if resp.Success {
-		p.prevLogIndex = req.LastIndex
+		p.setPrevLogIndex(req.LastIndex)
 	} else {
 		debugln("peer.snap.failed: ", p.name)
 	}
@@ -192,7 +216,7 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) {
 func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteResponse) {
 	debugln("peer.vote: ", p.server.Name(), "->", p.Name())
 	req.peer = p
-	if resp := p.server.transporter.SendVoteRequest(p.server, p, req); resp != nil {
+	if resp := p.server.Transporter().SendVoteRequest(p.server, p, req); resp != nil {
 		resp.peer = p
 		c <- resp
 	}

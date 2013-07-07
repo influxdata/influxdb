@@ -21,11 +21,17 @@ type Log struct {
 	file        *os.File
 	path        string
 	entries     []*LogEntry
-	errors      []error
+	results     []*logResult
 	commitIndex uint64
-	mutex       sync.Mutex
+	mutex       sync.RWMutex
 	startIndex  uint64 // the index before the first entry in the Log entries
 	startTerm   uint64
+}
+
+// The results of the applying a log entry.
+type logResult struct {
+	returnValue interface{}
+	err error
 }
 
 //------------------------------------------------------------------------------
@@ -51,10 +57,17 @@ func newLog() *Log {
 // Log Indices
 //--------------------------------------
 
+// The last committed index in the log.
+func (l *Log) CommitIndex() uint64 {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+	return l.commitIndex
+}
+
 // The current index in the log.
 func (l *Log) currentIndex() uint64 {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	if len(l.entries) == 0 {
 		return l.startIndex
@@ -77,15 +90,15 @@ func (l *Log) nextIndex() uint64 {
 
 // Determines if the log contains zero entries.
 func (l *Log) isEmpty() bool {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 	return (len(l.entries) == 0) && (l.startIndex == 0)
 }
 
 // The name of the last command in the log.
 func (l *Log) lastCommandName() string {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 	if len(l.entries) > 0 {
 		if command := l.entries[len(l.entries)-1].Command; command != nil {
 			return command.CommandName()
@@ -100,8 +113,8 @@ func (l *Log) lastCommandName() string {
 
 // The current term in the log.
 func (l *Log) currentTerm() uint64 {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	if len(l.entries) == 0 {
 		return l.startTerm
@@ -158,9 +171,8 @@ func (l *Log) open(path string) error {
 			l.commitIndex = entry.Index
 
 			// Apply the command.
-			entry.result, err = l.ApplyFunc(entry.Command)
-
-			l.errors = append(l.errors, err)
+			returnValue, err := l.ApplyFunc(entry.Command)
+			l.results = append(l.results, &logResult{returnValue:returnValue, err:err})
 
 			lastIndex += n
 		}
@@ -188,7 +200,7 @@ func (l *Log) close() {
 		l.file = nil
 	}
 	l.entries = make([]*LogEntry, 0)
-	l.errors = make([]error, 0)
+	l.results = make([]*logResult, 0)
 }
 
 //--------------------------------------
@@ -248,20 +260,29 @@ func (l *Log) getEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	return l.entries[index-l.startIndex:], l.entries[index-1-l.startIndex].Term
 }
 
-// Retrieves the error returned from an entry. The error can only exist after
-// the entry has been committed.
-func (l *Log) getEntryError(entry *LogEntry) error {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+// Retrieves the return value and error for an entry. The result can only exist
+// after the entry has been committed.
+func (l *Log) getEntryResult(entry *LogEntry, clear bool) (interface{}, error) {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	if entry == nil {
 		panic("raft: Log entry required for error retrieval")
 	}
 
-	if entry.Index > 0 && entry.Index <= uint64(len(l.errors)) {
-		return l.errors[entry.Index-1]
+	// If a result exists for the entry then return it with its error.
+	if entry.Index > 0 && entry.Index <= uint64(len(l.results)) {
+		if result := l.results[entry.Index-1]; result != nil {
+			// Remove reference to result if it's being cleared after retrieval.
+			if clear {
+				result.returnValue = nil
+			}
+		
+			return result.returnValue, result.err
+		}
 	}
-	return nil
+
+	return nil, nil
 }
 
 //--------------------------------------
@@ -270,28 +291,28 @@ func (l *Log) getEntryError(entry *LogEntry) error {
 
 // Retrieves the last index and term that has been committed to the log.
 func (l *Log) commitInfo() (index uint64, term uint64) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	// If we don't have any entries then just return zeros.
 	if l.commitIndex == 0 {
 		return 0, 0
 	}
 
-	// no new commit log after snapshot
+	// No new commit log after snapshot
 	if l.commitIndex == l.startIndex {
 		return l.startIndex, l.startTerm
 	}
 
 	// Return the last index & term from the last committed entry.
-	lastCommitEntry := l.entries[l.commitIndex-1-l.startIndex]
-	return lastCommitEntry.Index, lastCommitEntry.Term
+	entry := l.entries[l.commitIndex-1-l.startIndex]
+	return entry.Index, entry.Term
 }
 
 // Retrieves the last index and term that has been committed to the log.
 func (l *Log) lastInfo() (index uint64, term uint64) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	// If we don't have any entries then just return zeros.
 	if len(l.entries) == 0 {
@@ -299,8 +320,8 @@ func (l *Log) lastInfo() (index uint64, term uint64) {
 	}
 
 	// Return the last index & term
-	lastEntry := l.entries[len(l.entries)-1]
-	return lastEntry.Index, lastEntry.Term
+	entry := l.entries[len(l.entries)-1]
+	return entry.Index, entry.Term
 }
 
 // Updates the commit index
@@ -352,8 +373,8 @@ func (l *Log) setCommitIndex(index uint64) error {
 		l.commitIndex = entry.Index
 
 		// Apply the changes to the state machine and store the error code.
-		entry.result, l.errors[entryIndex] = l.ApplyFunc(entry.Command)
-
+		returnValue, err := l.ApplyFunc(entry.Command)
+		l.results[entryIndex] = &logResult{returnValue:returnValue, err:err}
 	}
 	return nil
 }
@@ -442,7 +463,7 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 
 	// Append to entries list if stored on disk.
 	l.entries = append(l.entries, entry)
-	l.errors = append(l.errors, nil)
+	l.results = append(l.results, nil)
 
 	return nil
 }
