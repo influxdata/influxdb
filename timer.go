@@ -13,9 +13,9 @@ import (
 //------------------------------------------------------------------------------
 
 type timer struct {
-	fireChan  chan time.Time
-	stopChan  chan bool
-	state int
+	fireChan chan time.Time
+	stopChan chan bool
+	state    int
 
 	rand          *rand.Rand
 	minDuration   time.Duration
@@ -52,8 +52,8 @@ func newTimer(minDuration time.Duration, maxDuration time.Duration) *timer {
 		maxDuration: maxDuration,
 		state:       READY,
 		rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
-		stopChan:        make(chan bool, 1),
-		fireChan:        make(chan time.Time),
+		stopChan:    make(chan bool, 1),
+		fireChan:    make(chan time.Time),
 	}
 }
 
