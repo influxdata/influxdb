@@ -31,7 +31,7 @@ type Log struct {
 // The results of the applying a log entry.
 type logResult struct {
 	returnValue interface{}
-	err error
+	err         error
 }
 
 //------------------------------------------------------------------------------
@@ -172,7 +172,7 @@ func (l *Log) open(path string) error {
 
 			// Apply the command.
 			returnValue, err := l.ApplyFunc(entry.Command)
-			l.results = append(l.results, &logResult{returnValue:returnValue, err:err})
+			l.results = append(l.results, &logResult{returnValue: returnValue, err: err})
 
 			lastIndex += n
 		}
@@ -277,7 +277,7 @@ func (l *Log) getEntryResult(entry *LogEntry, clear bool) (interface{}, error) {
 			if clear {
 				result.returnValue = nil
 			}
-		
+
 			return result.returnValue, result.err
 		}
 	}
@@ -374,7 +374,7 @@ func (l *Log) setCommitIndex(index uint64) error {
 
 		// Apply the changes to the state machine and store the error code.
 		returnValue, err := l.ApplyFunc(entry.Command)
-		l.results[entryIndex] = &logResult{returnValue:returnValue, err:err}
+		l.results[entryIndex] = &logResult{returnValue: returnValue, err: err}
 	}
 	return nil
 }

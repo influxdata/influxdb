@@ -361,7 +361,7 @@ func (s *Server) setCurrentTerm(term uint64, leaderName string, append bool) {
 		s.leader = leaderName
 		s.votedFor = ""
 		return
-	} 
+	}
 
 	// discover new leader
 	if term == s.currentTerm && s.state == Candidate && append {
@@ -392,7 +392,7 @@ func (s *Server) loop() {
 
 	for {
 		state := s.State()
-		
+
 		s.debugln("server.loop.run ", state)
 		switch state {
 		case Follower:
@@ -519,6 +519,11 @@ func (s *Server) candidateLoop() {
 
 				// Callback to event.
 				e.c <- err
+
+				// both process AER and RVR can make the server to follower
+				if s.State() == Follower {
+					break
+				}
 
 			case <-timeoutChan:
 				break
