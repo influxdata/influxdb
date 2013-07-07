@@ -205,7 +205,7 @@ func (l *Log) createEntry(term uint64, command Command) *LogEntry {
 func (l *Log) getEntry(index uint64) *LogEntry {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	
+
 	if index <= l.startIndex || index > (l.startIndex+uint64(len(l.entries))) {
 		return nil
 	}
