@@ -273,12 +273,16 @@ func (l *Log) getEntryResult(entry *LogEntry, clear bool) (interface{}, error) {
 	// If a result exists for the entry then return it with its error.
 	if entry.Index > 0 && entry.Index <= uint64(len(l.results)) {
 		if result := l.results[entry.Index-1]; result != nil {
+
+			// keep the records before remove it
+			returnValue, err := result.returnValue, result.err
+
 			// Remove reference to result if it's being cleared after retrieval.
 			if clear {
 				result.returnValue = nil
 			}
 
-			return result.returnValue, result.err
+			return returnValue, err
 		}
 	}
 
