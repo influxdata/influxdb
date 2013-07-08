@@ -32,7 +32,7 @@ func newPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer 
 	return &Peer{
 		server:           server,
 		name:             name,
-		stopChan:         make(chan bool),
+		stopChan:         make(chan bool, 1),
 		heartbeatTimeout: heartbeatTimeout,
 	}
 }
@@ -90,7 +90,17 @@ func (p *Peer) startHeartbeat() {
 
 // Stops the peer heartbeat.
 func (p *Peer) stopHeartbeat() {
-	p.stopChan <- true
+	// here is a problem
+	// the previous stop is no buffer leader may get blocked 
+	// when heartbeat returns at line 132 
+	// I make the channel with 1 buffer
+	// and try to panic here
+	select {
+		case p.stopChan <- true:
+
+		default:
+			panic("[" +  p.server.Name() + "] cannot stop [" + p.Name() + "] heartbeat")
+	}
 }
 
 //--------------------------------------
