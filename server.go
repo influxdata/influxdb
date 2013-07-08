@@ -720,6 +720,7 @@ func (s *Server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 
 	if commitIndex > committedIndex {
 		s.log.setCommitIndex(commitIndex)
+		s.debugln("commit index ", commitIndex)
 		for i := committedIndex; i < commitIndex; i++ {
 			if entry := s.log.getEntry(i + 1); entry != nil {
 				entry.commit <- true

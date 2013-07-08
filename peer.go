@@ -32,7 +32,6 @@ func newPeer(server *Server, name string, heartbeatTimeout time.Duration) *Peer 
 	return &Peer{
 		server:           server,
 		name:             name,
-		stopChan:         make(chan bool, 1),
 		heartbeatTimeout: heartbeatTimeout,
 	}
 }
@@ -83,6 +82,7 @@ func (p *Peer) setPrevLogIndex(value uint64) {
 
 // Starts the peer heartbeat.
 func (p *Peer) startHeartbeat() {
+	p.stopChan = make(chan bool, 1)
 	c := make(chan bool)
 	go p.heartbeat(c)
 	<-c
@@ -124,11 +124,13 @@ func (p *Peer) clone() *Peer {
 
 // Listens to the heartbeat timeout and flushes an AppendEntries RPC.
 func (p *Peer) heartbeat(c chan bool) {
+	stopChan := p.stopChan
+
 	c <- true
 
 	for {
 		select {
-		case <-p.stopChan:
+		case <-stopChan:
 			return
 
 		case <-time.After(p.heartbeatTimeout):
