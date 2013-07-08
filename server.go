@@ -723,7 +723,17 @@ func (s *Server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 		s.debugln("commit index ", commitIndex)
 		for i := committedIndex; i < commitIndex; i++ {
 			if entry := s.log.getEntry(i + 1); entry != nil {
-				entry.commit <- true
+				// if the leader is a new one and the entry came from the 
+				// old leader, the commit channel will be nil and no go routine
+				// is waiting from this channel
+				// if we try to send to it, the new leader will get stuck
+				if entry.commit != nil {
+					select {
+					case entry.commit <- true:
+					default:
+						panic("server unable to send signal to commit channel")
+					}
+				}
 			}
 		}
 	}
