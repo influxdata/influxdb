@@ -192,6 +192,9 @@ func (s *Server) setState(state string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.state = state
+	if state == Leader {
+		s.leader = s.Name()
+	}
 }
 
 // Retrieves the current term of the server.
@@ -483,6 +486,7 @@ func (s *Server) candidateLoop() {
 		//   * Discover higher term: step down (§5.1)
 		votesGranted := 1
 		timeoutChan := afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2)
+		timeout := false
 
 		for {
 			// If we received enough votes then stop waiting for more votes.
@@ -501,7 +505,6 @@ func (s *Server) candidateLoop() {
 				} else if resp.Term > s.currentTerm {
 					s.debugln("server.candidate.vote.failed")
 					s.setCurrentTerm(resp.Term, "", false)
-					break
 				}
 
 			case e := <-s.c:
@@ -520,26 +523,29 @@ func (s *Server) candidateLoop() {
 				// Callback to event.
 				e.c <- err
 
-				// both process AER and RVR can make the server to follower
-				if s.State() == Follower {
-					break
-				}
-
 			case <-timeoutChan:
+				timeout = true
+			}
+
+			// both process AER and RVR can make the server to follower
+			// also break when timeout happens
+			if s.State() == Follower || timeout {
 				break
 			}
 		}
 
+		// break when we are not candidate
 		if s.State() != Candidate {
 			break
 		}
+
+		// continue when timeout happened
 	}
 }
 
 // The event loop that is run when the server is in a Candidate state.
 func (s *Server) leaderLoop() {
 	s.setState(Leader)
-	s.leader = s.name
 	s.commitCount = 0
 	logIndex, _ := s.log.lastInfo()
 
