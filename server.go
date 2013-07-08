@@ -296,8 +296,6 @@ func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
 
 // Starts the server with a log at the given path.
 func (s *Server) Initialize() error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 
 	// Exit if the server is already running.
 	if s.state != Stopped {
