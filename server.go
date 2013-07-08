@@ -192,6 +192,9 @@ func (s *Server) setState(state string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.state = state
+	if state == Leader {
+		s.leader = s.Name()
+	}
 }
 
 // Retrieves the current term of the server.
@@ -543,7 +546,6 @@ func (s *Server) candidateLoop() {
 // The event loop that is run when the server is in a Candidate state.
 func (s *Server) leaderLoop() {
 	s.setState(Leader)
-	s.leader = s.name
 	s.commitCount = 0
 	logIndex, _ := s.log.lastInfo()
 
