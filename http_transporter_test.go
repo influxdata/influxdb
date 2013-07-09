@@ -33,6 +33,7 @@ func TestHTTPTransporter(t *testing.T) {
 		if servers[1].State() != Leader && servers[2].State() != Leader {
 			t.Fatal("Expected re-election:", servers[1].State(), servers[2].State())
 		}
+		server.Initialize()
 		server.StartFollower()
 	}
 	f1 := func(server *Server, httpServer *http.Server) {

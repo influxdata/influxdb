@@ -91,16 +91,11 @@ func (t *HTTPTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, r
 	var b bytes.Buffer
 	json.NewEncoder(&b).Encode(req)
 
-	traceln("REQ:", b.String())
-
 	url := fmt.Sprintf("http://%s%s", peer.Name(), t.AppendEntriesPath())
 	traceln(server.Name(), "POST", url)
 
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: t.DisableKeepAlives}}
-	httpReq, _ := http.NewRequest("POST", url, &b)
-	httpReq.Header.Add("Content-Type", "application/json")
-
-	httpResp, err := client.Do(httpReq)
+	httpResp, err := client.Post(url, "application/json", &b)
 	if httpResp == nil || err != nil {
 		return nil
 	}
@@ -123,10 +118,7 @@ func (t *HTTPTransporter) SendVoteRequest(server *Server, peer *Peer, req *Reque
 	traceln(server.Name(), "POST", url)
 
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: t.DisableKeepAlives}}
-	httpReq, _ := http.NewRequest("POST", url, &b)
-	httpReq.Header.Add("Content-Type", "application/json")
-
-	httpResp, err := client.Do(httpReq)
+	httpResp, err := client.Post(url, "application/json", &b)
 	if httpResp == nil || err != nil {
 		return nil
 	}
