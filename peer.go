@@ -96,10 +96,10 @@ func (p *Peer) stopHeartbeat() {
 	// I make the channel with 1 buffer
 	// and try to panic here
 	select {
-		case p.stopChan <- true:
+	case p.stopChan <- true:
 
-		default:
-			panic("[" +  p.server.Name() + "] cannot stop [" + p.Name() + "] heartbeat")
+	default:
+		panic("[" + p.server.Name() + "] cannot stop [" + p.Name() + "] heartbeat")
 	}
 }
 
@@ -128,12 +128,16 @@ func (p *Peer) heartbeat(c chan bool) {
 
 	c <- true
 
+	debugln("peer.heartbeat: ", p.Name(), p.heartbeatTimeout)
+
 	for {
 		select {
 		case <-stopChan:
+			debugln("peer.heartbeat.stop: ", p.Name())
 			return
 
 		case <-time.After(p.heartbeatTimeout):
+			debugln("peer.heartbeat.run: ", p.Name())
 			prevLogIndex := p.getPrevLogIndex()
 			entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex)
 

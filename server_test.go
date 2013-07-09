@@ -396,7 +396,7 @@ func TestServerMultiNode(t *testing.T) {
 	}
 	mutex.RUnlock()
 
-	for i := 0; i < 200000; i++ {
+	for i := 0; i < 20; i++ {
 		retry := 0
 		fmt.Println("Round ", i)
 
