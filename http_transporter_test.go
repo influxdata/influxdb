@@ -5,8 +5,8 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"time"
 	"testing"
+	"time"
 )
 
 //------------------------------------------------------------------------------
@@ -30,7 +30,6 @@ func TestHTTPTransporter(t *testing.T) {
 		server.Stop()
 		time.Sleep(testElectionTimeout * 2)
 
-		debugln("STATES: ", servers[1].State(), servers[2].State())
 		if servers[1].State() != Leader && servers[2].State() != Leader {
 			t.Fatal("Expected re-election:", servers[1].State(), servers[2].State())
 		}
@@ -42,7 +41,6 @@ func TestHTTPTransporter(t *testing.T) {
 	}
 	runTestHttpServers(t, &servers, transporter, f0, f1, f2)
 }
-
 
 //------------------------------------------------------------------------------
 //
@@ -57,7 +55,7 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 	listeners := []net.Listener{}
 	for i, _ := range callbacks {
 		wg.Add(1)
-		port := 9000+i
+		port := 9000 + i
 
 		// Create raft server.
 		server := newTestServer(fmt.Sprintf("localhost:%d", port), transporter)
@@ -81,16 +79,16 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 		listeners = append(listeners, listener)
 
 		// Create wrapping HTTP server.
-	    mux := http.NewServeMux()
+		mux := http.NewServeMux()
 		transporter.Install(server, mux)
-		httpServer := &http.Server{Addr:fmt.Sprintf(":%d", port), Handler: mux}
+		httpServer := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
 		httpServers = append(httpServers, httpServer)
 		go func() { httpServer.Serve(listener) }()
 	}
-	
+
 	// Setup configuration.
 	for _, server := range *servers {
-		if _, err := (*servers)[0].Do(&joinCommand{Name:server.Name()}); err != nil {
+		if _, err := (*servers)[0].Do(&joinCommand{Name: server.Name()}); err != nil {
 			t.Fatal("Server unable to join: %v", err)
 		}
 	}

@@ -461,7 +461,7 @@ func (s *Server) followerLoop() {
 		//   1.Receiving valid AppendEntries RPC, or
 		//   2.Granting vote to candidate
 		if update {
-    		timeoutChan = afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2)
+			timeoutChan = afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2)
 		}
 
 		// Exit loop on state change.
