@@ -560,8 +560,6 @@ func (s *Server) leaderLoop() {
 		var err error
 		select {
 		case e := <-s.c:
-			s.debugln("server.leader.select")
-
 			if e.target == &stopValue {
 				s.setState(Stopped)
 			} else if command, ok := e.target.(Command); ok {
@@ -646,6 +644,8 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) *AppendEntriesResponse
 
 // Processes the "append entries" request.
 func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) *AppendEntriesResponse {
+	s.traceln("server.ae.process")
+
 	if req.Term < s.currentTerm {
 		s.debugln("server.ae.error: stale term")
 		return newAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex())
@@ -765,18 +765,17 @@ func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) *RequestVote
 // Membership
 //--------------------------------------
 
-// Adds a peer to the server. This should be called by a system's join command
-// within the context so that it is within the context of the server lock.
+// Adds a peer to the server.
 func (s *Server) AddPeer(name string) error {
-	// Do not allow peers to be added twice.
+	s.debugln("server.peer.add: ", name, len(s.peers))
 
+	// Do not allow peers to be added twice.
 	if s.peers[name] != nil {
 		return DuplicatePeerError
 	}
 
 	// Only add the peer if it doesn't have the same name.
 	if s.name != name {
-		//s.debugln("Add peer ", name)
 		peer := newPeer(s, name, s.heartbeatTimeout)
 		if s.State() == Leader {
 			peer.startHeartbeat()
@@ -787,9 +786,10 @@ func (s *Server) AddPeer(name string) error {
 	return nil
 }
 
-// Removes a peer from the server. This should be called by a system's join command
-// within the context so that it is within the context of the server lock.
+// Removes a peer from the server.
 func (s *Server) RemovePeer(name string) error {
+	s.debugln("server.peer.remove: ", name, len(s.peers))
+
 	// Ignore removal of the server itself.
 	if s.name == name {
 		return nil
