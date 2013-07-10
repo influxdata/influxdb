@@ -1,3 +1,4 @@
+[![Stories in Ready](http://badge.waffle.io/benbjohnson/go-raft.png)](http://waffle.io/benbjohnson/go-raft)  
 go-raft
 =======
 

@@ -522,7 +522,6 @@ func (s *Server) candidateLoop() {
 				var err error
 				if e.target == &stopValue {
 					s.setState(Stopped)
-					break
 				} else if _, ok := e.target.(Command); ok {
 					err = NotLeaderError
 				} else if req, ok := e.target.(*AppendEntriesRequest); ok {
@@ -540,7 +539,7 @@ func (s *Server) candidateLoop() {
 
 			// both process AER and RVR can make the server to follower
 			// also break when timeout happens
-			if s.State() == Follower || timeout {
+			if s.State() != Candidate || timeout {
 				break
 			}
 		}
