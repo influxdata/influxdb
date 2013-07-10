@@ -19,6 +19,7 @@ type AppendEntriesRequest struct {
 // The response returned from a server appending entries to the log.
 type AppendEntriesResponse struct {
 	Term        uint64 `json:"term"`
+	Index       uint64 `json:"index"`
 	Success     bool   `json:"success"`
 	CommitIndex uint64 `json:"commitIndex"`
 }

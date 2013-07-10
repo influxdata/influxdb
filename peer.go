@@ -91,8 +91,8 @@ func (p *Peer) startHeartbeat() {
 // Stops the peer heartbeat.
 func (p *Peer) stopHeartbeat() {
 	// here is a problem
-	// the previous stop is no buffer leader may get blocked 
-	// when heartbeat returns at line 132 
+	// the previous stop is no buffer leader may get blocked
+	// when heartbeat returns at line 132
 	// I make the channel with 1 buffer
 	// and try to panic here
 	select {
