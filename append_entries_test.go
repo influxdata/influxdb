@@ -8,6 +8,7 @@ import (
 
 func BenchmarkAppendEntriesEncoding(b *testing.B) {
 	req, tmp := createTestAppendEntriesRequest(2000)
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var buf bytes.Buffer
 		json.NewEncoder(&buf).Encode(req)
@@ -17,6 +18,7 @@ func BenchmarkAppendEntriesEncoding(b *testing.B) {
 
 func BenchmarkAppendEntriesDecoding(b *testing.B) {
 	req, buf := createTestAppendEntriesRequest(2000)
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		json.NewDecoder(bytes.NewReader(buf)).Decode(req)
 	}
