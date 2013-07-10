@@ -8,18 +8,18 @@ import (
 
 func BenchmarkAppendEntriesEncoding(b *testing.B) {
 	req, tmp := createTestAppendEntriesRequest(2000)
-    for i := 0; i < b.N; i++ {
+	for i := 0; i < b.N; i++ {
 		var buf bytes.Buffer
-        json.NewEncoder(&buf).Encode(req)
-    }
+		json.NewEncoder(&buf).Encode(req)
+	}
 	b.SetBytes(int64(len(tmp)))
 }
 
 func BenchmarkAppendEntriesDecoding(b *testing.B) {
 	req, buf := createTestAppendEntriesRequest(2000)
-    for i := 0; i < b.N; i++ {
-        json.NewDecoder(bytes.NewReader(buf)).Decode(req)
-    }
+	for i := 0; i < b.N; i++ {
+		json.NewDecoder(bytes.NewReader(buf)).Decode(req)
+	}
 	b.SetBytes(int64(len(buf)))
 }
 
@@ -30,7 +30,6 @@ func createTestAppendEntriesRequest(entryCount int) (*AppendEntriesRequest, []by
 	}
 	req := newAppendEntriesRequest(1, "leader", 1, 1, entries, 1)
 	buf, _ := json.Marshal(req)
-	
+
 	return req, buf
 }
-
