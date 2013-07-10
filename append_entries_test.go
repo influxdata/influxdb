@@ -7,11 +7,12 @@ import (
 )
 
 func BenchmarkAppendEntriesEncoding(b *testing.B) {
-	req, _ := createTestAppendEntriesRequest(2000)
+	req, tmp := createTestAppendEntriesRequest(2000)
     for i := 0; i < b.N; i++ {
 		var buf bytes.Buffer
         json.NewEncoder(&buf).Encode(req)
     }
+	b.SetBytes(int64(len(tmp)))
 }
 
 func BenchmarkAppendEntriesDecoding(b *testing.B) {
@@ -19,6 +20,7 @@ func BenchmarkAppendEntriesDecoding(b *testing.B) {
     for i := 0; i < b.N; i++ {
         json.NewDecoder(bytes.NewReader(buf)).Decode(req)
     }
+	b.SetBytes(int64(len(buf)))
 }
 
 func createTestAppendEntriesRequest(entryCount int) (*AppendEntriesRequest, []byte) {
