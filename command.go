@@ -65,7 +65,31 @@ func RegisterCommand(command Command) {
 	if command == nil {
 		panic(fmt.Sprintf("raft: Cannot register nil"))
 	} else if commandTypes[command.CommandName()] != nil {
-		panic(fmt.Sprintf("raft: Duplicate registration: %s", command.CommandName()))
+		// we need to register NOP command at the beginning
+		// for testing, it may register mutliple times
+		// i am not quite familiar with reg prorcess
+		// maybe you can fix it. sorry!
+
+		//panic(fmt.Sprintf("raft: Duplicate registration: %s", command.CommandName()))
+		return
 	}
 	commandTypes[command.CommandName()] = command
+}
+
+//--------------------------------------
+// NOP command
+//--------------------------------------
+
+// NOP command
+type NOPCommand struct {
+}
+
+// The name of the NOP command in the log
+func (c NOPCommand) CommandName() string {
+	return "nop"
+}
+
+// NOP
+func (c NOPCommand) Apply(server *Server) (interface{}, error) {
+	return nil, nil
 }

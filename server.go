@@ -59,12 +59,12 @@ type Server struct {
 	context     interface{}
 	currentTerm uint64
 
-	votedFor    string
-	log         *Log
-	leader      string
-	peers       map[string]*Peer
-	mutex       sync.RWMutex
-	commitCount int
+	votedFor   string
+	log        *Log
+	leader     string
+	peers      map[string]*Peer
+	mutex      sync.RWMutex
+	syncedPeer map[string]bool
 
 	c                chan *event
 	electionTimeout  time.Duration
@@ -116,6 +116,8 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 		result, err := c.Apply(s)
 		return result, err
 	}
+
+	RegisterCommand(&NOPCommand{})
 
 	return s, nil
 }
@@ -327,6 +329,7 @@ func (s *Server) StartFollower() {
 func (s *Server) StartLeader() {
 	s.setState(Leader)
 	s.currentTerm++
+	s.debugln("leader start at term: ", s.currentTerm, " index: ", s.log.currentIndex())
 	go s.loop()
 }
 
@@ -554,14 +557,17 @@ func (s *Server) candidateLoop() {
 // The event loop that is run when the server is in a Candidate state.
 func (s *Server) leaderLoop() {
 	s.setState(Leader)
-	s.commitCount = 0
+	s.syncedPeer = make(map[string]bool)
 	logIndex, _ := s.log.lastInfo()
 
 	// Update the peers prevLogIndex to leader's lastLogIndex and start heartbeat.
 	for _, peer := range s.peers {
+		peer.synced = false
 		peer.setPrevLogIndex(logIndex)
 		peer.startHeartbeat()
 	}
+
+	go s.Do(NOPCommand{})
 
 	// Begin to collect response from followers
 	for {
@@ -595,6 +601,7 @@ func (s *Server) leaderLoop() {
 	for _, peer := range s.peers {
 		peer.stopHeartbeat()
 	}
+	s.syncedPeer = nil
 }
 
 //--------------------------------------
@@ -636,7 +643,11 @@ func (s *Server) processCommand(command Command, e *event) {
 	}()
 
 	// Issue an append entries response for the server.
-	s.sendAsync(newAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()))
+	resp := newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex())
+	resp.append = true
+	resp.peer = s.Name()
+
+	s.sendAsync(resp)
 }
 
 //--------------------------------------
@@ -656,7 +667,7 @@ func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 
 	if req.Term < s.currentTerm {
 		s.debugln("server.ae.error: stale term")
-		return newAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), false
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.currentIndex(), s.log.CommitIndex()), false
 	}
 
 	// Update term and leader.
@@ -665,22 +676,22 @@ func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
 		s.debugln("server.ae.truncate.error: ", err)
-		return newAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), true
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.currentIndex(), s.log.CommitIndex()), true
 	}
 
 	// Append entries to the log.
 	if err := s.log.appendEntries(req.Entries); err != nil {
 		s.debugln("server.ae.append.error: ", err)
-		return newAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), true
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.currentIndex(), s.log.CommitIndex()), true
 	}
 
 	// Commit up to the commit index.
 	if err := s.log.setCommitIndex(req.CommitIndex); err != nil {
 		s.debugln("server.ae.commit.error: ", err)
-		return newAppendEntriesResponse(s.currentTerm, false, s.log.CommitIndex()), true
+		return newAppendEntriesResponse(s.currentTerm, false, s.log.currentIndex(), s.log.CommitIndex()), true
 	}
 
-	return newAppendEntriesResponse(s.currentTerm, true, s.log.CommitIndex()), true
+	return newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex()), true
 }
 
 // Processes the "append entries" response from the peer. This is only
@@ -693,14 +704,19 @@ func (s *Server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 		return
 	}
 
-	// Ignore response if it's not successful.
+	// panic response if it's not successful.
 	if !resp.Success {
 		return
 	}
 
+	// if one peer successfully append a log from the leader term,
+	// we add it to the synced list
+	if resp.append == true {
+		s.syncedPeer[resp.peer] = true
+	}
+
 	// Increment the commit count to make sure we have a quorum before committing.
-	s.commitCount++
-	if s.commitCount < s.QuorumSize() {
+	if len(s.syncedPeer) < s.QuorumSize() {
 		return
 	}
 
@@ -771,7 +787,8 @@ func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 	lastIndex, lastTerm := s.log.lastInfo()
 	if lastIndex > req.LastLogIndex || lastTerm > req.LastLogTerm {
 		s.debugln("server.rv.error: out of date log: ", req.CandidateName,
-			"[", lastIndex, "]", " [", req.LastLogIndex, "]")
+			"Index :[", lastIndex, "]", " [", req.LastLogIndex, "]",
+			"Term :[", lastTerm, "]", " [", req.LastLogTerm, "]")
 		return newRequestVoteResponse(s.currentTerm, false), false
 	}
 

@@ -16,6 +16,7 @@ type Peer struct {
 	server           *Server
 	name             string
 	prevLogIndex     uint64
+	synced           bool
 	mutex            sync.RWMutex
 	stopChan         chan bool
 	heartbeatTimeout time.Duration
@@ -174,26 +175,45 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 	if resp.Success {
 		if len(req.Entries) > 0 {
 			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
+
+			// if peer append a log entry from the current term
+			// we set append to true
+			if req.Entries[len(req.Entries)-1].Term == p.server.currentTerm {
+				resp.append = true
+			}
 		}
 		traceln("peer.flush.success: ", p.server.Name(), "->", p.Name(), "; idx =", p.prevLogIndex)
 
 		// If it was unsuccessful then decrement the previous log index and
 		// we'll try again next time.
 	} else {
-		// we may miss a response from peer
 		if resp.CommitIndex >= p.prevLogIndex {
+
+			// we may miss a response from peer
+			// so maybe the peer has commited the logs we sent
+			// but we did not receive the success reply and did not increase
+			// the prevLogIndex
+
 			p.prevLogIndex = resp.CommitIndex
+
 			debugln("peer.flush.commitIndex: ", p.server.Name(), "->", p.Name(), " idx =", p.prevLogIndex)
 		} else if p.prevLogIndex > 0 {
 			// Decrement the previous log index down until we find a match. Don't
 			// let it go below where the peer's commit index is though. That's a
 			// problem.
 			p.prevLogIndex--
+			// if it not enough, we directly decrease to the index of the
+			if p.prevLogIndex > resp.Index {
+				p.prevLogIndex = resp.Index
+			}
+
 			debugln("peer.flush.decrement: ", p.server.Name(), "->", p.Name(), " idx =", p.prevLogIndex)
 		}
 	}
 	p.mutex.Unlock()
 
+	// Attach the peer to resp, thus server can know where it comes from
+	resp.peer = p.Name()
 	// Send response to server for processing.
 	p.server.send(resp)
 }
