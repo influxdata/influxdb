@@ -16,7 +16,6 @@ type Peer struct {
 	server           *Server
 	name             string
 	prevLogIndex     uint64
-	synced           bool
 	mutex            sync.RWMutex
 	stopChan         chan bool
 	heartbeatTimeout time.Duration

@@ -117,8 +117,6 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 		return result, err
 	}
 
-	RegisterCommand(&NOPCommand{})
-
 	return s, nil
 }
 
@@ -295,6 +293,11 @@ func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
 //--------------------------------------
 // Initialization
 //--------------------------------------
+
+// Reg the NOPCommand
+func init() {
+	RegisterCommand(&NOPCommand{})
+}
 
 // Starts the server with a log at the given path.
 func (s *Server) Initialize() error {
@@ -563,7 +566,6 @@ func (s *Server) leaderLoop() {
 
 	// Update the peers prevLogIndex to leader's lastLogIndex and start heartbeat.
 	for _, peer := range s.peers {
-		peer.synced = false
 		peer.setPrevLogIndex(logIndex)
 		peer.startHeartbeat()
 	}
