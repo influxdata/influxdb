@@ -250,6 +250,7 @@ func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteRespo
 	debugln("peer.vote: ", p.server.Name(), "->", p.Name())
 	req.peer = p
 	if resp := p.server.Transporter().SendVoteRequest(p.server, p, req); resp != nil {
+		debugln("peer.vote: recv", p.server.Name(), "<-", p.Name())
 		resp.peer = p
 		c <- resp
 	}

@@ -516,6 +516,8 @@ func (s *Server) candidateLoop() {
 				} else if resp.Term > s.currentTerm {
 					s.debugln("server.candidate.vote.failed")
 					s.setCurrentTerm(resp.Term, "", false)
+				} else {
+					s.debugln("server.candidate.vote: denied")
 				}
 
 			case e := <-s.c:
@@ -808,7 +810,7 @@ func (s *Server) AddPeer(name string) error {
 
 	// Do not allow peers to be added twice.
 	if s.peers[name] != nil {
-		return DuplicatePeerError
+		return nil
 	}
 
 	// Only add the peer if it doesn't have the same name.
