@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"github.com/spf13/nitro"
 	"log"
 	"os"
 )
@@ -20,6 +21,7 @@ var LogLevel int = 0
 var logger *log.Logger
 
 func init() {
+	(*nitro.AnalysisOn) = false
 	logger = log.New(os.Stdout, "", log.Lmicroseconds)
 }
 
