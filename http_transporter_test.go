@@ -90,7 +90,7 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 	// Setup configuration.
 	for _, server := range *servers {
 		if _, err := (*servers)[0].Do(&joinCommand{Name: server.Name()}); err != nil {
-			t.Fatal("Server unable to join: %v", err)
+			t.Fatalf("Server %s unable to join: %v", server.Name(), err)
 		}
 	}
 

@@ -69,13 +69,16 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
 	server.StartLeader()
+
+	time.Sleep(time.Millisecond * 100)
+
 	server.currentTerm = 2
 	defer server.Stop()
-	resp := server.RequestVote(newRequestVoteRequest(2, "foo", 0, 0))
+	resp := server.RequestVote(newRequestVoteRequest(2, "foo", 1, 1))
 	if resp.Term != 2 || !resp.VoteGranted || server.VotedFor() != "foo" {
 		t.Fatalf("First vote should not have been denied")
 	}
-	resp = server.RequestVote(newRequestVoteRequest(3, "bar", 0, 0))
+	resp = server.RequestVote(newRequestVoteRequest(3, "bar", 1, 1))
 
 	if resp.Term != 3 || !resp.VoteGranted || server.VotedFor() != "bar" {
 		t.Fatalf("Second vote should have been approved")
@@ -90,24 +93,25 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 			`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}`+"\n")
 	server.Initialize()
 	server.StartLeader()
-	server.currentTerm = 2
+
+	time.Sleep(time.Millisecond * 100)
 
 	defer server.Stop()
 
-	resp := server.RequestVote(newRequestVoteRequest(2, "foo", 2, 2))
-	if resp.Term != 2 || resp.VoteGranted {
+	resp := server.RequestVote(newRequestVoteRequest(3, "foo", 3, 3))
+	if resp.Term != 3 || resp.VoteGranted {
 		t.Fatalf("Stale index vote should have been denied [%v/%v]", resp.Term, resp.VoteGranted)
 	}
-	resp = server.RequestVote(newRequestVoteRequest(2, "foo", 3, 1))
-	if resp.Term != 2 || resp.VoteGranted {
+	resp = server.RequestVote(newRequestVoteRequest(3, "foo", 4, 2))
+	if resp.Term != 3 || resp.VoteGranted {
 		t.Fatalf("Stale term vote should have been denied [%v/%v]", resp.Term, resp.VoteGranted)
 	}
-	resp = server.RequestVote(newRequestVoteRequest(2, "foo", 3, 2))
-	if resp.Term != 2 || !resp.VoteGranted {
+	resp = server.RequestVote(newRequestVoteRequest(3, "foo", 4, 3))
+	if resp.Term != 3 || !resp.VoteGranted {
 		t.Fatalf("Matching log vote should have been granted")
 	}
-	resp = server.RequestVote(newRequestVoteRequest(2, "foo", 4, 3))
-	if resp.Term != 2 || !resp.VoteGranted {
+	resp = server.RequestVote(newRequestVoteRequest(3, "foo", 5, 4))
+	if resp.Term != 3 || !resp.VoteGranted {
 		t.Fatalf("Ahead-of-log vote should have been granted")
 	}
 }
@@ -164,7 +168,10 @@ func TestServerPromote(t *testing.T) {
 func TestServerAppendEntries(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
-	server.StartLeader()
+	// this test should assume that the server is a follower
+	// the leader will commit itself
+	server.SetHeartbeatTimeout(time.Second * 10)
+	server.StartFollower()
 	defer server.Stop()
 
 	// Append single entry.
@@ -396,7 +403,7 @@ func TestServerMultiNode(t *testing.T) {
 	}
 	mutex.RUnlock()
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 200000; i++ {
 		retry := 0
 		fmt.Println("Round ", i)
 
