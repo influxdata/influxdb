@@ -58,6 +58,7 @@ type Server struct {
 	transporter Transporter
 	context     interface{}
 	currentTerm uint64
+	synced      bool   
 
 	votedFor   string
 	log        *Log
@@ -323,13 +324,17 @@ func (s *Server) Initialize() error {
 }
 
 // Start the sever as a follower
-func (s *Server) StartFollower() {
+// If we set synced to false, the follower will not promote itseft
+// until it get synced with the cluster once
+func (s *Server) StartFollower(synced bool) {
+	s.synced = synced
 	s.setState(Follower)
 	go s.loop()
 }
 
 // Start the sever as a leader
 func (s *Server) StartLeader() {
+	s.synced = true
 	s.setState(Leader)
 	s.currentTerm++
 	s.debugln("leader start at term: ", s.currentTerm, " index: ", s.log.currentIndex())
@@ -443,7 +448,7 @@ func (s *Server) followerLoop() {
 
 	for {
 		var err error
-		var update bool
+		update := false
 		select {
 		case e := <-s.c:
 			if e.target == &stopValue {
@@ -460,7 +465,13 @@ func (s *Server) followerLoop() {
 			e.c <- err
 
 		case <-timeoutChan:
-			s.setState(Candidate)
+
+			// only allow synced follower to promote to candidate
+			if s.synced {
+				s.setState(Candidate)
+			} else {
+				update = true
+			}
 		}
 
 		// Converts to candidate if election timeout elapses without either:
@@ -693,6 +704,11 @@ func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 		s.debugln("server.ae.commit.error: ", err)
 		return newAppendEntriesResponse(s.currentTerm, false, s.log.currentIndex(), s.log.CommitIndex()), true
 	}
+
+	// once the server appended and commited all the log entries from the leader
+	// it is synced with the cluster
+	// the follower can promote to candidate if needed
+	s.synced = true
 
 	return newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex()), true
 }
