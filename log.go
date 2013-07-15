@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	MTU = 200
+	MaxLogEntriesPerRequest = 200
 )
 
 //------------------------------------------------------------------------------
@@ -21,16 +21,16 @@ const (
 
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
-	ApplyFunc   func(Command) (interface{}, error)
-	file        *os.File
-	path        string
-	entries     []*LogEntry
-	results     []*logResult
-	commitIndex uint64
-	mutex       sync.RWMutex
-	startIndex  uint64 // the index before the first entry in the Log entries
-	startTerm   uint64
-	mtu         uint64
+	ApplyFunc               func(Command) (interface{}, error)
+	file                    *os.File
+	path                    string
+	entries                 []*LogEntry
+	results                 []*logResult
+	commitIndex             uint64
+	mutex                   sync.RWMutex
+	startIndex              uint64 // the index before the first entry in the Log entries
+	startTerm               uint64
+	maxLogEntriesPerRequest uint64
 }
 
 // The results of the applying a log entry.
@@ -48,8 +48,8 @@ type logResult struct {
 // Creates a new log.
 func newLog() *Log {
 	return &Log{
-		entries: make([]*LogEntry, 0),
-		mtu:     MTU,
+		entries:                 make([]*LogEntry, 0),
+		maxLogEntriesPerRequest: MaxLogEntriesPerRequest,
 	}
 }
 
@@ -265,11 +265,11 @@ func (l *Log) getEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	entries := l.entries[index-l.startIndex:]
 	length := len(entries)
 
-	if uint64(length) < l.mtu {
+	if uint64(length) < l.maxLogEntriesPerRequest {
 		// Determine the term at the given entry and return a subslice.
 		return entries, l.entries[index-1-l.startIndex].Term
 	} else {
-		return entries[:l.mtu], l.entries[index-1-l.startIndex].Term
+		return entries[:l.maxLogEntriesPerRequest], l.entries[index-1-l.startIndex].Term
 	}
 }
 
