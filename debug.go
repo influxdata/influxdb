@@ -16,7 +16,7 @@ const (
 	Trace = 2
 )
 
-var LogLevel int = Trace
+var LogLevel int = 0
 var logger *log.Logger
 
 func init() {
