@@ -9,6 +9,10 @@ import (
 	"sync"
 )
 
+const (
+	MTU = 200
+)
+
 //------------------------------------------------------------------------------
 //
 // Typedefs
@@ -26,6 +30,7 @@ type Log struct {
 	mutex       sync.RWMutex
 	startIndex  uint64 // the index before the first entry in the Log entries
 	startTerm   uint64
+	mtu         uint64
 }
 
 // The results of the applying a log entry.
@@ -44,6 +49,7 @@ type logResult struct {
 func newLog() *Log {
 	return &Log{
 		entries: make([]*LogEntry, 0),
+		mtu:     MTU,
 	}
 }
 
@@ -256,8 +262,15 @@ func (l *Log) getEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 
 	traceln("log.entriesAfter.partial: ", index, " ", l.entries[len(l.entries)-1].Index)
 
-	// Determine the term at the given entry and return a subslice.
-	return l.entries[index-l.startIndex:], l.entries[index-1-l.startIndex].Term
+	entries := l.entries[index-l.startIndex:]
+	length := len(entries)
+
+	if uint64(length) < l.mtu {
+		// Determine the term at the given entry and return a subslice.
+		return entries, l.entries[index-1-l.startIndex].Term
+	} else {
+		return entries[:l.mtu], l.entries[index-1-l.startIndex].Term
+	}
 }
 
 // Retrieves the return value and error for an entry. The result can only exist
@@ -340,8 +353,11 @@ func (l *Log) setCommitIndex(index uint64) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
+	// this is not error any more after limited the number of sending entries
+	// commit up to what we already have
 	if index > l.startIndex+uint64(len(l.entries)) {
-		return fmt.Errorf("raft.Log: Commit index (%d) out of range (%d)", index, len(l.entries))
+		debugln("raft.Log: Commit index", index, "set back to ", len(l.entries))
+		index = l.startIndex + uint64(len(l.entries))
 	}
 
 	// Do not allow previous indices to be committed again.
