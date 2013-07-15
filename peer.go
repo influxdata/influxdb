@@ -139,7 +139,7 @@ func (p *Peer) heartbeat(c chan bool) {
 		case <-time.After(p.heartbeatTimeout):
 			debugln("peer.heartbeat.run: ", p.Name())
 			prevLogIndex := p.getPrevLogIndex()
-			entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex)
+			entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex, p.server.maxLogEntriesPerRequest)
 
 			if p.server.State() != Leader {
 				return
