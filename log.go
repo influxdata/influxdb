@@ -9,10 +9,6 @@ import (
 	"sync"
 )
 
-const (
-	MaxLogEntriesPerRequest = 200
-)
-
 //------------------------------------------------------------------------------
 //
 // Typedefs
@@ -21,16 +17,15 @@ const (
 
 // A log is a collection of log entries that are persisted to durable storage.
 type Log struct {
-	ApplyFunc               func(Command) (interface{}, error)
-	file                    *os.File
-	path                    string
-	entries                 []*LogEntry
-	results                 []*logResult
-	commitIndex             uint64
-	mutex                   sync.RWMutex
-	startIndex              uint64 // the index before the first entry in the Log entries
-	startTerm               uint64
-	maxLogEntriesPerRequest uint64
+	ApplyFunc   func(Command) (interface{}, error)
+	file        *os.File
+	path        string
+	entries     []*LogEntry
+	results     []*logResult
+	commitIndex uint64
+	mutex       sync.RWMutex
+	startIndex  uint64 // the index before the first entry in the Log entries
+	startTerm   uint64
 }
 
 // The results of the applying a log entry.
@@ -48,8 +43,7 @@ type logResult struct {
 // Creates a new log.
 func newLog() *Log {
 	return &Log{
-		entries:                 make([]*LogEntry, 0),
-		maxLogEntriesPerRequest: MaxLogEntriesPerRequest,
+		entries: make([]*LogEntry, 0),
 	}
 }
 
@@ -239,7 +233,7 @@ func (l *Log) containsEntry(index uint64, term uint64) bool {
 // Retrieves a list of entries after a given index as well as the term of the
 // index provided. A nil list of entries is returned if the index no longer
 // exists because a snapshot was made.
-func (l *Log) getEntriesAfter(index uint64) ([]*LogEntry, uint64) {
+func (l *Log) getEntriesAfter(index uint64, maxLogEntriesPerRequest uint64) ([]*LogEntry, uint64) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
@@ -265,11 +259,11 @@ func (l *Log) getEntriesAfter(index uint64) ([]*LogEntry, uint64) {
 	entries := l.entries[index-l.startIndex:]
 	length := len(entries)
 
-	if uint64(length) < l.maxLogEntriesPerRequest {
+	if uint64(length) < maxLogEntriesPerRequest {
 		// Determine the term at the given entry and return a subslice.
 		return entries, l.entries[index-1-l.startIndex].Term
 	} else {
-		return entries[:l.maxLogEntriesPerRequest], l.entries[index-1-l.startIndex].Term
+		return entries[:maxLogEntriesPerRequest], l.entries[index-1-l.startIndex].Term
 	}
 }
 
