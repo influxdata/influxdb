@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/spf13/nitro"
 	"hash/crc32"
 	"io/ioutil"
 	"os"
@@ -38,7 +37,6 @@ const (
 )
 
 var stopValue interface{}
-var nitroTimer *nitro.B
 
 //------------------------------------------------------------------------------
 //
@@ -327,8 +325,6 @@ func (s *Server) Initialize() error {
 
 	// Update the term to the last term in the log.
 	s.currentTerm = s.log.currentTerm()
-
-	nitroTimer = nitro.Initalize()
 
 	return nil
 }
@@ -678,8 +674,6 @@ func (s *Server) AppendEntries(req *AppendEntriesRequest) *AppendEntriesResponse
 // Processes the "append entries" request.
 func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) (*AppendEntriesResponse, bool) {
 
-	nitroTimer.Step("Process AppendEntriesRequest")
-
 	s.traceln("server.ae.process")
 
 	if req.Term < s.currentTerm {
@@ -715,8 +709,6 @@ func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 // processed when the server is a leader. Responses received during other
 // states are dropped.
 func (s *Server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
-
-	nitroTimer.Step("Process processAppendEntriesResponse")
 
 	// If we find a higher term then change to a follower and exit.
 	if resp.Term > s.currentTerm {
@@ -788,7 +780,6 @@ func (s *Server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
 
 // Processes a "request vote" request.
 func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVoteResponse, bool) {
-	nitroTimer.Step("Process RequestVoteRequest")
 
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.currentTerm {
