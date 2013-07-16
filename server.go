@@ -28,6 +28,10 @@ const (
 )
 
 const (
+	MaxLogEntriesPerRequest = 200
+)
+
+const (
 	DefaultHeartbeatTimeout = 50 * time.Millisecond
 	DefaultElectionTimeout  = 150 * time.Millisecond
 )
@@ -72,9 +76,10 @@ type Server struct {
 	electionTimeout  time.Duration
 	heartbeatTimeout time.Duration
 
-	currentSnapshot *Snapshot
-	lastSnapshot    *Snapshot
-	stateMachine    StateMachine
+	currentSnapshot         *Snapshot
+	lastSnapshot            *Snapshot
+	stateMachine            StateMachine
+	maxLogEntriesPerRequest uint64
 }
 
 // An event to be processed by the server's event loop.
@@ -100,17 +105,18 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 	}
 
 	s := &Server{
-		name:             name,
-		path:             path,
-		transporter:      transporter,
-		stateMachine:     stateMachine,
-		context:          context,
-		state:            Stopped,
-		peers:            make(map[string]*Peer),
-		log:              newLog(),
-		c:                make(chan *event, 256),
-		electionTimeout:  DefaultElectionTimeout,
-		heartbeatTimeout: DefaultHeartbeatTimeout,
+		name:                    name,
+		path:                    path,
+		transporter:             transporter,
+		stateMachine:            stateMachine,
+		context:                 context,
+		state:                   Stopped,
+		peers:                   make(map[string]*Peer),
+		log:                     newLog(),
+		c:                       make(chan *event, 256),
+		electionTimeout:         DefaultElectionTimeout,
+		heartbeatTimeout:        DefaultHeartbeatTimeout,
+		maxLogEntriesPerRequest: MaxLogEntriesPerRequest,
 	}
 
 	// Setup apply function.
