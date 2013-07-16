@@ -107,6 +107,25 @@ func (l *Log) lastCommandName() string {
 	return ""
 }
 
+// Get the log entry by index
+func (l *Log) getLogEntry(index uint64) *LogEntry {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+
+	if index <= l.startIndex {
+		return nil
+	}
+
+	index = index - l.startIndex - 1
+
+	// copy the useful information of the log entry
+	return &LogEntry{
+		Index:   l.entries[index].Index,
+		Term:    l.entries[index].Term,
+		Command: l.entries[index].Command,
+	}
+}
+
 //--------------------------------------
 // Log Terms
 //--------------------------------------

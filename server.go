@@ -28,7 +28,8 @@ const (
 )
 
 const (
-	MaxLogEntriesPerRequest = 200
+	MaxLogEntriesPerRequest         = 200
+	NumberOfLogEntreisAfterSnapshot = 200
 )
 
 const (
@@ -922,7 +923,14 @@ func (s *Server) takeSnapshot() error {
 
 	s.saveSnapshot()
 
-	s.log.compact(lastIndex, lastTerm)
+	// We keep some log entries after the snapshot
+	// We do not want to send the whole snapshot
+	// to the slightly slow machines
+	if lastIndex > NumberOfLogEntreisAfterSnapshot {
+		compactIndex := lastIndex - NumberOfLogEntreisAfterSnapshot
+		compactTerm := s.log.getLogEntry(compactIndex).Term
+		s.log.compact(compactIndex, compactTerm)
+	}
 
 	return nil
 }
