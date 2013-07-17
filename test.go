@@ -35,23 +35,21 @@ func getLogPath() string {
 	return f.Name()
 }
 
-func setupLogFile(content string) string {
+func setupLog(entries []*LogEntry) (*Log, string) {
 	f, _ := ioutil.TempFile("", "raft-log-")
-	f.Write([]byte(content))
+	for _, entry := range entries {
+		entry.encode(f)
+	}
 	f.Close()
-	return f.Name()
-}
-
-func setupLog(content string) (*Log, string) {
-	path := setupLogFile(content)
+	
 	log := newLog()
 	log.ApplyFunc = func(c Command) (interface{}, error) {
 		return nil, nil
 	}
-	if err := log.open(path); err != nil {
+	if err := log.open(f.Name()); err != nil {
 		panic("Unable to open log")
 	}
-	return log, path
+	return log, f.Name()
 }
 
 //--------------------------------------
@@ -59,14 +57,24 @@ func setupLog(content string) (*Log, string) {
 //--------------------------------------
 
 func newTestServer(name string, transporter Transporter) *Server {
-	path, _ := ioutil.TempDir("", "raft-server-")
-	server, _ := NewServer(name, path, transporter, nil, nil)
+	p, _ := ioutil.TempDir("", "raft-server-")
+	if err := os.MkdirAll(p, 0644); err != nil {
+		panic(err.Error())
+	}
+	server, _ := NewServer(name, p, transporter, nil, nil)
 	return server
 }
 
-func newTestServerWithLog(name string, transporter Transporter, content string) *Server {
+func newTestServerWithLog(name string, transporter Transporter, entries []*LogEntry) *Server {
 	server := newTestServer(name, transporter)
-	ioutil.WriteFile(server.LogPath(), []byte(content), 0644)
+	f, err := os.Create(server.LogPath())
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		entry.encode(f)
+	}
+	f.Close()
 	return server
 }
 
@@ -142,6 +150,7 @@ func (c *joinCommand) Apply(server *Server) (interface{}, error) {
 	err := server.AddPeer(c.Name)
 	return nil, err
 }
+
 
 //--------------------------------------
 // Command1

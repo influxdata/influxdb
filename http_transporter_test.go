@@ -9,16 +9,6 @@ import (
 	"time"
 )
 
-//------------------------------------------------------------------------------
-//
-// Tests
-//
-//------------------------------------------------------------------------------
-
-//--------------------------------------
-// Membership
-//--------------------------------------
-
 // Ensure that we can start several servers and have them communicate.
 func TestHTTPTransporter(t *testing.T) {
 	transporter := NewHTTPTransporter("/raft")
@@ -42,12 +32,6 @@ func TestHTTPTransporter(t *testing.T) {
 	}
 	runTestHttpServers(t, &servers, transporter, f0, f1, f2)
 }
-
-//------------------------------------------------------------------------------
-//
-// Helper Functions
-//
-//------------------------------------------------------------------------------
 
 // Starts multiple independent Raft servers wrapped with HTTP servers.
 func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTransporter, callbacks ...func(*Server, *http.Server)) {

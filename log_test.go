@@ -30,25 +30,22 @@ func TestLogNewLog(t *testing.T) {
 	defer log.close()
 	defer os.Remove(path)
 
-	if err := log.appendEntry(newLogEntry(log, 1, 1, &testCommand1{"foo", 20})); err != nil {
+	e, _ := newLogEntry(log, 1, 1, &testCommand1{Val:"foo", I:20})
+	if err := log.appendEntry(e); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
-	if err := log.appendEntry(newLogEntry(log, 2, 1, &testCommand2{100})); err != nil {
+	e, _ = newLogEntry(log, 2, 1, &testCommand2{X:100})
+	if err := log.appendEntry(e); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
-	if err := log.appendEntry(newLogEntry(log, 3, 2, &testCommand1{"bar", 0})); err != nil {
+	e, _ = newLogEntry(log, 3, 2, &testCommand1{Val:"bar", I:0})
+	if err := log.appendEntry(e); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
 
 	// Partial commit.
 	if err := log.setCommitIndex(2); err != nil {
 		t.Fatalf("Unable to partially commit: %v", err)
-	}
-	expected := `cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n"
-	actual, _ := ioutil.ReadFile(path)
-	if string(actual) != expected {
-		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
 	}
 	if index, term := log.commitInfo(); index != 2 || term != 1 {
 		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
@@ -58,13 +55,6 @@ func TestLogNewLog(t *testing.T) {
 	if err := log.setCommitIndex(3); err != nil {
 		t.Fatalf("Unable to commit: %v", err)
 	}
-	expected = `cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n"
-	actual, _ = ioutil.ReadFile(path)
-	if string(actual) != expected {
-		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
-	}
 	if index, term := log.commitInfo(); index != 3 || term != 2 {
 		t.Fatalf("Invalid commit info [IDX=%v, TERM=%v]", index, term)
 	}
@@ -72,9 +62,10 @@ func TestLogNewLog(t *testing.T) {
 
 // Ensure that we can decode and encode to an existing log.
 func TestLogExistingLog(t *testing.T) {
-	log, path := setupLog(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n")
+	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:20})
+	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X:100})
+	e2, _ := newLogEntry(nil, 3, 2, &testCommand1{Val:"bar", I:0})
+	log, path := setupLog([]*LogEntry{e0, e1, e2})
 	defer log.close()
 	defer os.Remove(path)
 
@@ -82,22 +73,23 @@ func TestLogExistingLog(t *testing.T) {
 	if len(log.entries) != 3 {
 		t.Fatalf("Expected 3 entries, got %d", len(log.entries))
 	}
-	if log.entries[0].Index != 1 || log.entries[0].Term != 1 || !reflect.DeepEqual(log.entries[0].Command, &testCommand1{"foo", 20}) {
+	if log.entries[0].Index != 1 || log.entries[0].Term != 1 {
 		t.Fatalf("Unexpected entry[0]: %v", log.entries[0])
 	}
-	if log.entries[1].Index != 2 || log.entries[1].Term != 1 || !reflect.DeepEqual(log.entries[1].Command, &testCommand2{100}) {
+	if log.entries[1].Index != 2 || log.entries[1].Term != 1 {
 		t.Fatalf("Unexpected entry[1]: %v", log.entries[1])
 	}
-	if log.entries[2].Index != 3 || log.entries[2].Term != 2 || !reflect.DeepEqual(log.entries[2].Command, &testCommand1{"bar", 0}) {
+	if log.entries[2].Index != 3 || log.entries[2].Term != 2 {
 		t.Fatalf("Unexpected entry[2]: %v", log.entries[2])
 	}
 }
 
 // Ensure that we can check the contents of the log by index/term.
 func TestLogContainsEntries(t *testing.T) {
-	log, path := setupLog(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-		`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}` + "\n")
+	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:20})
+	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X:100})
+	e2, _ := newLogEntry(nil, 3, 2, &testCommand1{Val:"bar", I:0})
+	log, path := setupLog([]*LogEntry{e0, e1, e2})
 	defer log.close()
 	defer os.Remove(path)
 
@@ -120,20 +112,26 @@ func TestLogContainsEntries(t *testing.T) {
 
 // Ensure that we can recover from an incomplete/corrupt log and continue logging.
 func TestLogRecovery(t *testing.T) {
-	path := setupLogFile(`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-		`6ac5807c 0000000000000003 00000000000`)
+	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:20})
+	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X:100})
+	f, _ := ioutil.TempFile("", "raft-log-")
+	e0.encode(f)
+	e1.encode(f)
+	f.WriteString("CORRUPT!")
+	f.Close()
+
 	log := newLog()
 	log.ApplyFunc = func(c Command) (interface{}, error) {
 		return nil, nil
 	}
-	if err := log.open(path); err != nil {
+	if err := log.open(f.Name()); err != nil {
 		t.Fatalf("Unable to open log: %v", err)
 	}
 	defer log.close()
-	defer os.Remove(path)
+	defer os.Remove(f.Name())
 
-	if err := log.appendEntry(newLogEntry(log, 3, 2, &testCommand1{"bat", -5})); err != nil {
+	e, _ := newLogEntry(log, 3, 2, &testCommand1{Val:"bat", I:-5})
+	if err := log.appendEntry(e); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
 
@@ -141,34 +139,14 @@ func TestLogRecovery(t *testing.T) {
 	if len(log.entries) != 3 {
 		t.Fatalf("Expected 2 entries, got %d", len(log.entries))
 	}
-	if log.entries[0].Index != 1 || log.entries[0].Term != 1 || !reflect.DeepEqual(log.entries[0].Command, &testCommand1{"foo", 20}) {
+	if log.entries[0].Index != 1 || log.entries[0].Term != 1 {
 		t.Fatalf("Unexpected entry[0]: %v", log.entries[0])
 	}
-	if log.entries[1].Index != 2 || log.entries[1].Term != 1 || !reflect.DeepEqual(log.entries[1].Command, &testCommand2{100}) {
+	if log.entries[1].Index != 2 || log.entries[1].Term != 1 {
 		t.Fatalf("Unexpected entry[1]: %v", log.entries[1])
 	}
-	if log.entries[2].Index != 3 || log.entries[2].Term != 2 || !reflect.DeepEqual(log.entries[2].Command, &testCommand1{"bat", -5}) {
+	if log.entries[2].Index != 3 || log.entries[2].Term != 2 {
 		t.Fatalf("Unexpected entry[2]: %v", log.entries[2])
-	}
-
-	// Validate precommit log contents.
-	expected := `cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n"
-	actual, _ := ioutil.ReadFile(path)
-	if string(actual) != expected {
-		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
-	}
-
-	// Validate committed log contents.
-	if err := log.setCommitIndex(3); err != nil {
-		t.Fatalf("Unable to partially commit: %v", err)
-	}
-	expected = `cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}` + "\n" +
-		`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}` + "\n" +
-		`3f3f884c 0000000000000003 0000000000000002 cmd_1 {"val":"bat","i":-5}` + "\n"
-	actual, _ = ioutil.ReadFile(path)
-	if string(actual) != expected {
-		t.Fatalf("Unexpected buffer:\nexp:\n%s\ngot:\n%s", expected, string(actual))
 	}
 }
 
@@ -178,22 +156,22 @@ func TestLogRecovery(t *testing.T) {
 
 // Ensure that we can truncate uncommitted entries in the log.
 func TestLogTruncate(t *testing.T) {
-	log, path := setupLog("")
+	log, path := setupLog(nil)
 	if err := log.open(path); err != nil {
 		t.Fatalf("Unable to open log: %v", err)
 	}
 	defer log.close()
 	defer os.Remove(path)
 
-	entry1 := newLogEntry(log, 1, 1, &testCommand1{"foo", 20})
+	entry1, _ := newLogEntry(log, 1, 1, &testCommand1{Val:"foo", I:20})
 	if err := log.appendEntry(entry1); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
-	entry2 := newLogEntry(log, 2, 1, &testCommand2{100})
+	entry2, _ := newLogEntry(log, 2, 1, &testCommand2{X:100})
 	if err := log.appendEntry(entry2); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}
-	entry3 := newLogEntry(log, 3, 2, &testCommand1{"bar", 0})
+	entry3, _ := newLogEntry(log, 3, 2, &testCommand1{Val:"bar", I:0})
 	if err := log.appendEntry(entry3); err != nil {
 		t.Fatalf("Unable to append: %v", err)
 	}

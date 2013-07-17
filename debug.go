@@ -30,6 +30,28 @@ func init() {
 //------------------------------------------------------------------------------
 
 //--------------------------------------
+// Warnings
+//--------------------------------------
+
+// Prints to the standard logger. Arguments are handled in the manner of
+// fmt.Print.
+func warn(v ...interface{}) {
+	logger.Print(v...)
+}
+
+// Prints to the standard logger. Arguments are handled in the manner of
+// fmt.Printf.
+func warnf(format string, v ...interface{}) {
+	logger.Printf(format, v...)
+}
+
+// Prints to the standard logger. Arguments are handled in the manner of
+// fmt.Println.
+func warnln(v ...interface{}) {
+	logger.Println(v...)
+}
+
+//--------------------------------------
 // Basic debugging
 //--------------------------------------
 
@@ -50,7 +72,7 @@ func debugf(format string, v ...interface{}) {
 }
 
 // Prints to the standard logger if debug mode is enabled. Arguments
-// are handled in the manner of debugln.
+// are handled in the manner of fmt.Println.
 func debugln(v ...interface{}) {
 	if LogLevel >= Debug {
 		logger.Println(v...)

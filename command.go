@@ -1,7 +1,10 @@
 package raft
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 )
 
@@ -29,6 +32,11 @@ type Command interface {
 	Apply(server *Server) (interface{}, error)
 }
 
+type CommandEncoder interface {
+	Encode(w io.Writer) error
+	Decode(r io.Reader) error
+}
+
 //------------------------------------------------------------------------------
 //
 // Functions
@@ -40,7 +48,7 @@ type Command interface {
 //--------------------------------------
 
 // Creates a new instance of a command by name.
-func newCommand(name string) (Command, error) {
+func newCommand(name string, data []byte) (Command, error) {
 	// Find the registered command.
 	command := commandTypes[name]
 	if command == nil {
@@ -53,6 +61,18 @@ func newCommand(name string) (Command, error) {
 	if !ok {
 		panic(fmt.Sprintf("raft: Unable to copy command: %s (%v)", command.CommandName(), reflect.ValueOf(v).Kind().String()))
 	}
+
+	// If data for the command was passed in the decode it.
+	if data != nil {
+		if encoder, ok := copy.(CommandEncoder); ok {
+			if err := encoder.Decode(bytes.NewReader(data)); err != nil {
+				return nil, err
+			}
+		} else {
+			json.NewDecoder(bytes.NewReader(data)).Decode(copy)
+		}
+	}
+
 	return copy, nil
 }
 

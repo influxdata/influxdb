@@ -87,10 +87,10 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 
 // Ensure that a vote request is denied if the log is out of date.
 func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
-	server := newTestServerWithLog("1", &testTransporter{},
-		`cf4aab23 0000000000000001 0000000000000001 cmd_1 {"val":"foo","i":20}`+"\n"+
-			`4c08d91f 0000000000000002 0000000000000001 cmd_2 {"x":100}`+"\n"+
-			`6ac5807c 0000000000000003 0000000000000002 cmd_1 {"val":"bar","i":0}`+"\n")
+	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:20})
+	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X:100})
+	e2, _ := newLogEntry(nil, 3, 2, &testCommand1{Val:"bar", I:0})
+	server := newTestServerWithLog("1", &testTransporter{}, []*LogEntry{e0, e1, e2})
 	server.Initialize()
 	server.StartLeader()
 
@@ -175,8 +175,9 @@ func TestServerAppendEntries(t *testing.T) {
 	defer server.Stop()
 
 	// Append single entry.
-	entries := []*LogEntry{newLogEntry(nil, 1, 1, &testCommand1{"foo", 10})}
-	resp := server.AppendEntries(newAppendEntriesRequest(1, "ldr", 0, 0, entries, 0))
+	e, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:10})
+	entries := []*LogEntry{e}
+	resp := server.AppendEntries(newAppendEntriesRequest(1, 0, 0, 0, "ldr", entries))
 	if resp.Term != 1 || !resp.Success {
 		t.Fatalf("AppendEntries failed: %v/%v", resp.Term, resp.Success)
 	}
@@ -185,8 +186,10 @@ func TestServerAppendEntries(t *testing.T) {
 	}
 
 	// Append multiple entries + commit the last one.
-	entries = []*LogEntry{newLogEntry(nil, 2, 1, &testCommand1{"bar", 20}), newLogEntry(nil, 3, 1, &testCommand1{"baz", 30})}
-	resp = server.AppendEntries(newAppendEntriesRequest(1, "ldr", 1, 1, entries, 1))
+	e1, _ := newLogEntry(nil, 2, 1, &testCommand1{Val:"bar", I:20})
+	e2, _ := newLogEntry(nil, 3, 1, &testCommand1{Val:"baz", I:30})
+	entries = []*LogEntry{e1, e2}
+	resp = server.AppendEntries(newAppendEntriesRequest(1, 1, 1, 1, "ldr", entries))
 	if resp.Term != 1 || !resp.Success {
 		t.Fatalf("AppendEntries failed: %v/%v", resp.Term, resp.Success)
 	}
@@ -195,7 +198,7 @@ func TestServerAppendEntries(t *testing.T) {
 	}
 
 	// Send zero entries and commit everything.
-	resp = server.AppendEntries(newAppendEntriesRequest(2, "ldr", 3, 1, []*LogEntry{}, 3))
+	resp = server.AppendEntries(newAppendEntriesRequest(2, 3, 1, 3, "ldr", []*LogEntry{}))
 	if resp.Term != 2 || !resp.Success {
 		t.Fatalf("AppendEntries failed: %v/%v", resp.Term, resp.Success)
 	}
@@ -214,8 +217,9 @@ func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 	server.currentTerm = 2
 
 	// Append single entry.
-	entries := []*LogEntry{newLogEntry(nil, 1, 1, &testCommand1{"foo", 10})}
-	resp := server.AppendEntries(newAppendEntriesRequest(1, "ldr", 0, 0, entries, 0))
+	e, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:10})
+	entries := []*LogEntry{e}
+	resp := server.AppendEntries(newAppendEntriesRequest(1, 0, 0, 0, "ldr", entries))
 	if resp.Term != 2 || resp.Success {
 		t.Fatalf("AppendEntries should have failed: %v/%v", resp.Term, resp.Success)
 	}
@@ -233,18 +237,18 @@ func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 	defer server.Stop()
 
 	// Append single entry + commit.
-	entries := []*LogEntry{
-		newLogEntry(nil, 1, 1, &testCommand1{"foo", 10}),
-		newLogEntry(nil, 2, 1, &testCommand1{"foo", 15}),
-	}
-	resp := server.AppendEntries(newAppendEntriesRequest(1, "ldr", 0, 0, entries, 2))
+	e1, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:10})
+	e2, _ := newLogEntry(nil, 2, 1, &testCommand1{Val:"foo", I:15})
+	entries := []*LogEntry{e1, e2}
+	resp := server.AppendEntries(newAppendEntriesRequest(1, 0, 0, 2, "ldr", entries))
 	if resp.Term != 1 || !resp.Success {
 		t.Fatalf("AppendEntries failed: %v/%v", resp.Term, resp.Success)
 	}
 
 	// Append entry again (post-commit).
-	entries = []*LogEntry{newLogEntry(nil, 2, 1, &testCommand1{"bar", 20})}
-	resp = server.AppendEntries(newAppendEntriesRequest(1, "ldr", 2, 1, entries, 1))
+	e, _ := newLogEntry(nil, 2, 1, &testCommand1{Val:"bar", I:20})
+	entries = []*LogEntry{e}
+	resp = server.AppendEntries(newAppendEntriesRequest(1, 2, 1, 1, "ldr", entries))
 	if resp.Term != 1 || resp.Success {
 		t.Fatalf("AppendEntries should have failed: %v/%v", resp.Term, resp.Success)
 	}
@@ -257,20 +261,20 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 	server.StartLeader()
 	defer server.Stop()
 
-	entry1 := newLogEntry(nil, 1, 1, &testCommand1{"foo", 10})
-	entry2 := newLogEntry(nil, 2, 1, &testCommand1{"foo", 15})
-	entry3 := newLogEntry(nil, 2, 2, &testCommand1{"bar", 20})
+	entry1, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:10})
+	entry2, _ := newLogEntry(nil, 2, 1, &testCommand1{Val:"foo", I:15})
+	entry3, _ := newLogEntry(nil, 2, 2, &testCommand1{Val:"bar", I:20})
 
 	// Append single entry + commit.
 	entries := []*LogEntry{entry1, entry2}
-	resp := server.AppendEntries(newAppendEntriesRequest(1, "ldr", 0, 0, entries, 1))
+	resp := server.AppendEntries(newAppendEntriesRequest(1, 0, 0, 1, "ldr", entries))
 	if resp.Term != 1 || !resp.Success || server.log.commitIndex != 1 || !reflect.DeepEqual(server.log.entries, []*LogEntry{entry1, entry2}) {
 		t.Fatalf("AppendEntries failed: %v/%v", resp.Term, resp.Success)
 	}
 
 	// Append entry that overwrites the second (uncommitted) entry.
 	entries = []*LogEntry{entry3}
-	resp = server.AppendEntries(newAppendEntriesRequest(2, "ldr", 1, 1, entries, 2))
+	resp = server.AppendEntries(newAppendEntriesRequest(2, 1, 1, 2, "ldr", entries))
 	if resp.Term != 2 || !resp.Success || server.log.commitIndex != 2 || !reflect.DeepEqual(server.log.entries, []*LogEntry{entry1, entry3}) {
 		t.Fatalf("AppendEntries should have succeeded: %v/%v", resp.Term, resp.Success)
 	}
@@ -287,7 +291,7 @@ func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 	server.StartFollower()
 	defer server.Stop()
 	var err error
-	if _, err = server.Do(&testCommand1{"foo", 10}); err != NotLeaderError {
+	if _, err = server.Do(&testCommand1{Val:"foo", I:10}); err != NotLeaderError {
 		t.Fatalf("Expected error: %v, got: %v", NotLeaderError, err)
 	}
 }
@@ -403,7 +407,7 @@ func TestServerMultiNode(t *testing.T) {
 	}
 	mutex.RUnlock()
 
-	for i := 0; i < 200000; i++ {
+	for i := 0; i < 20; i++ {
 		retry := 0
 		fmt.Println("Round ", i)
 

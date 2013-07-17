@@ -1,8 +1,8 @@
 package raft
 
-//--------------------------------------
-// NOP command
-//--------------------------------------
+import (
+	"io"
+)
 
 // NOP command
 type NOPCommand struct {
@@ -13,7 +13,14 @@ func (c NOPCommand) CommandName() string {
 	return "nop"
 }
 
-// NOP
 func (c NOPCommand) Apply(server *Server) (interface{}, error) {
 	return nil, nil
+}
+
+func (c NOPCommand) Encode(w io.Writer) error {
+	return nil
+}
+
+func (c NOPCommand) Decode(r io.Reader) error {
+	return nil
 }
