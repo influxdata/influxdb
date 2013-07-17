@@ -20,10 +20,11 @@ import (
 //------------------------------------------------------------------------------
 
 const (
-	Stopped   = "stopped"
-	Follower  = "follower"
-	Candidate = "candidate"
-	Leader    = "leader"
+	Stopped      = "stopped"
+	Follower     = "follower"
+	Candidate    = "candidate"
+	Leader       = "leader"
+	Snapshotting = "snapshotting"
 )
 
 const (
@@ -388,18 +389,18 @@ func (s *Server) setCurrentTerm(term uint64, leaderName string, append bool) {
 // Event Loop
 //--------------------------------------
 
-//                          timeout
-//                          ______
-//                         |      |
-//                         |      |
-//                         v      |     recv majority votes
-//  --------    timeout    -----------                        -----------
-// |Follower| ----------> | Candidate |--------------------> |  Leader   |
-//  --------               -----------                        -----------
-//     ^          higher term/ |                         higher term |
-//     |            new leader |                                     |
-//     |_______________________|____________________________________ |
-
+//               ________
+//            --|Snapshot|                 timeout
+//            |  --------                  ______
+// recover    |       ^                   |      |
+// snapshot / |       |snapshot           |      |
+// higher     |       |                   v      |     recv majority votes
+// term       |    --------    timeout    -----------                        -----------
+//            |-> |Follower| ----------> | Candidate |--------------------> |  Leader   |
+//                 --------               -----------                        -----------
+//                    ^          higher term/ |                         higher term |
+//                    |            new leader |                                     |
+//                    |_______________________|____________________________________ |
 // The main event loop for the server
 func (s *Server) loop() {
 	defer s.debugln("server.loop.end")
@@ -417,6 +418,9 @@ func (s *Server) loop() {
 
 		case Leader:
 			s.leaderLoop()
+
+		case Snapshotting:
+			s.snapshotLoop()
 
 		case Stopped:
 			return
@@ -461,6 +465,8 @@ func (s *Server) followerLoop() {
 				e.returnValue, update = s.processAppendEntriesRequest(req)
 			} else if req, ok := e.target.(*RequestVoteRequest); ok {
 				e.returnValue, update = s.processRequestVoteRequest(req)
+			} else if req, ok := e.target.(*SnapshotRequest); ok {
+				e.returnValue = s.processSnapshotRequest(req)
 			}
 
 			// Callback to event.
@@ -614,6 +620,36 @@ func (s *Server) leaderLoop() {
 	s.syncedPeer = nil
 }
 
+func (s *Server) snapshotLoop() {
+	s.setState(Snapshotting)
+
+	for {
+		var err error
+
+		e := <-s.c
+
+		if e.target == &stopValue {
+			s.setState(Stopped)
+		} else if _, ok := e.target.(Command); ok {
+			err = NotLeaderError
+		} else if req, ok := e.target.(*AppendEntriesRequest); ok {
+			e.returnValue, _ = s.processAppendEntriesRequest(req)
+		} else if req, ok := e.target.(*RequestVoteRequest); ok {
+			e.returnValue, _ = s.processRequestVoteRequest(req)
+		} else if req, ok := e.target.(*SnapshotRecoveryRequest); ok {
+			e.returnValue = s.processSnapshotRecoveryRequest(req)
+		}
+
+		// Callback to event.
+		e.c <- err
+
+		// Exit loop on state change.
+		if s.State() != Snapshotting {
+			break
+		}
+	}
+}
+
 //--------------------------------------
 // Commands
 //--------------------------------------
@@ -748,7 +784,7 @@ func (s *Server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 		s.log.setCommitIndex(commitIndex)
 		s.debugln("commit index ", commitIndex)
 		for i := committedIndex; i < commitIndex; i++ {
-			if entry := s.log.getEntry(i + 1); entry != nil {
+			if entry := s.log.getLogEntry(i + 1); entry != nil {
 				// if the leader is a new one and the entry came from the
 				// old leader, the commit channel will be nil and no go routine
 				// is waiting from this channel
@@ -868,7 +904,7 @@ func (s *Server) RemovePeer(name string) error {
 func (s *Server) Snapshot() {
 	for {
 		// TODO: change this... to something reasonable
-		time.Sleep(60 * time.Second)
+		time.Sleep(100 * time.Second)
 
 		s.takeSnapshot()
 	}
@@ -917,7 +953,7 @@ func (s *Server) takeSnapshot() error {
 	// We keep some log entries after the snapshot
 	// We do not want to send the whole snapshot
 	// to the slightly slow machines
-	if lastIndex > NumberOfLogEntreisAfterSnapshot {
+	if lastIndex-s.log.startIndex > NumberOfLogEntreisAfterSnapshot {
 		compactIndex := lastIndex - NumberOfLogEntreisAfterSnapshot
 		compactTerm := s.log.getLogEntry(compactIndex).Term
 		s.log.compact(compactIndex, compactTerm)
@@ -955,14 +991,44 @@ func (s *Server) SnapshotPath(lastIndex uint64, lastTerm uint64) string {
 	return path.Join(s.path, "snapshot", fmt.Sprintf("%v_%v.ss", lastTerm, lastIndex))
 }
 
-func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, error) {
-	//
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+func (s *Server) SnapshotRequest(req *SnapshotRequest) *SnapshotResponse {
+	ret, _ := s.send(req)
+	resp, _ := ret.(*SnapshotResponse)
+	return resp
+}
+
+func (s *Server) processSnapshotRequest(req *SnapshotRequest) *SnapshotResponse {
+
+	// If the follower’s log contains an entry at the snapshot’s last index with a term
+	// that matches the snapshot’s last term
+	// Then the follower already has all the information found in the snapshot
+	// and can reply false
+
+	entry := s.log.getLogEntry(req.LastIndex)
+
+	if entry != nil && entry.Term == req.LastTerm {
+		return newSnapshotResponse(false)
+	}
+
+	s.setState(Snapshotting)
+
+	return newSnapshotResponse(true)
+}
+
+func (s *Server) SnapshotRecoveryRequest(req *SnapshotRecoveryRequest) *SnapshotRecoveryResponse {
+	ret, _ := s.send(req)
+	resp, _ := ret.(*SnapshotRecoveryResponse)
+	return resp
+}
+
+func (s *Server) processSnapshotRecoveryRequest(req *SnapshotRecoveryRequest) *SnapshotRecoveryResponse {
 
 	s.stateMachine.Recovery(req.State)
 
-	//recovery the cluster configuration
+	// clear the peer map
+	s.peers = make(map[string]*Peer)
+
+	// recovery the cluster configuration
 	for _, peerName := range req.Peers {
 		s.AddPeer(peerName)
 	}
@@ -978,9 +1044,10 @@ func (s *Server) SnapshotRecovery(req *SnapshotRequest) (*SnapshotResponse, erro
 
 	s.saveSnapshot()
 
+	// clear the previous log entries
 	s.log.compact(req.LastIndex, req.LastTerm)
 
-	return newSnapshotResponse(req.LastTerm, true, req.LastIndex), nil
+	return newSnapshotRecoveryResponse(req.LastTerm, true, req.LastIndex)
 
 }
 
