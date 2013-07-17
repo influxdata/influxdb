@@ -146,7 +146,7 @@ func (p *Peer) heartbeat(c chan bool) {
 			}
 
 			if entries != nil {
-				p.sendAppendEntriesRequest(newAppendEntriesRequest(p.server.currentTerm, p.server.name, prevLogIndex, prevLogTerm, entries, p.server.log.CommitIndex()))
+				p.sendAppendEntriesRequest(newAppendEntriesRequest(p.server.currentTerm, prevLogIndex, prevLogTerm, p.server.log.CommitIndex(), p.server.name, entries))
 			} else {
 				p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.lastSnapshot))
 			}

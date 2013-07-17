@@ -1,8 +1,7 @@
 package raft
 
 import (
-	"encoding/json"
-	"reflect"
+	"bytes"
 	"testing"
 )
 
@@ -16,22 +15,29 @@ import (
 // Encoding
 //--------------------------------------
 
-// Ensure that we can encode a log entry to JSON.
-func TestLogEntryMarshal(t *testing.T) {
-	e := newLogEntry(nil, 1, 2, &joinCommand{Name: "localhost:1000"})
-	if b, err := json.Marshal(e); !(string(b) == `{"command":{"name":"localhost:1000"},"index":1,"name":"test:join","term":2}` && err == nil) {
-		t.Fatalf("Unexpected log entry marshalling: %v (%v)", string(b), err)
+// Ensure that we can encode and decode a log entry.
+func TestLogEntryEncodeDecode(t *testing.T) {
+	// Create entry.
+	e1, err := newLogEntry(nil, 1, 2, &joinCommand{Name: "localhost:1000"})
+	if err != nil {
+		t.Fatal("Unable to create entry: ", err)
 	}
-}
 
-// Ensure that we can decode a log entry from JSON.
-func TestLogEntryUnmarshal(t *testing.T) {
-	e := &LogEntry{}
-	b := []byte(`{"command":{"name":"localhost:1000"},"index":1,"name":"test:join","term":2}`)
-	if err := json.Unmarshal(b, e); err != nil {
-		t.Fatalf("Log entry unmarshalling error: %v", err)
+	// Encode the entry to a buffer.
+	var buf bytes.Buffer
+	if n, err := e1.encode(&buf); n == 0 || err != nil {
+		t.Fatal("Unable to encode entry: ", n, err)
 	}
-	if !(e.Index == 1 && e.Term == 2 && reflect.DeepEqual(e.Command, &joinCommand{Name: "localhost:1000"})) {
-		t.Fatalf("Log entry unmarshaled incorrectly: %v | %v", e, newLogEntry(nil, 1, 2, &joinCommand{Name: "localhost:1000"}))
+
+	// Decode into a new entry.
+	e2 := &LogEntry{}
+	if n, err := e2.decode(&buf); n == 0 || err != nil {
+		t.Fatal("Unable to decode entry: ", n, err)
+	}
+	if e2.Index != 1 || e2.Term != 2 {
+		t.Fatal("Unexpected log entry encoding:", e2.Index, e2.Term)
+	}
+	if e2.CommandName != "test:join" || !bytes.Equal(e1.Command, e2.Command) {
+		t.Fatal("Unexpected log entry command encoding:", e2.CommandName, len(e1.Command), len(e2.Command))
 	}
 }

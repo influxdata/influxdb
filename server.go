@@ -629,7 +629,12 @@ func (s *Server) processCommand(command Command, e *event) {
 	s.debugln("server.command.process")
 
 	// Create an entry for the command in the log.
-	entry := s.log.createEntry(s.currentTerm, command)
+	entry, err := s.log.createEntry(s.currentTerm, command)
+	if err != nil {
+		s.debugln("server.command.log.entry.error:", err)
+		e.c <- err
+		return
+	}
 	if err := s.log.appendEntry(entry); err != nil {
 		s.debugln("server.command.log.error:", err)
 		e.c <- err

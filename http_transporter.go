@@ -2,7 +2,6 @@ package raft
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -89,20 +88,22 @@ func (t *HTTPTransporter) Install(server *Server, mux HTTPMuxer) {
 // Sends an AppendEntries RPC to a peer.
 func (t *HTTPTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, req *AppendEntriesRequest) *AppendEntriesResponse {
 	var b bytes.Buffer
-	json.NewEncoder(&b).Encode(req)
+	if _, err := req.encode(&b); err != nil {
+		return nil
+	}
 
 	url := fmt.Sprintf("http://%s%s", peer.Name(), t.AppendEntriesPath())
 	traceln(server.Name(), "POST", url)
 
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: t.DisableKeepAlives}}
-	httpResp, err := client.Post(url, "application/json", &b)
+	httpResp, err := client.Post(url, "application/octet-stream", &b)
 	if httpResp == nil || err != nil {
 		return nil
 	}
 	defer httpResp.Body.Close()
 
 	resp := &AppendEntriesResponse{}
-	if err = json.NewDecoder(httpResp.Body).Decode(&resp); err != nil && err != io.EOF {
+	if _, err = resp.decode(httpResp.Body); err != nil && err != io.EOF {
 		return nil
 	}
 
@@ -112,20 +113,22 @@ func (t *HTTPTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, r
 // Sends a RequestVote RPC to a peer.
 func (t *HTTPTransporter) SendVoteRequest(server *Server, peer *Peer, req *RequestVoteRequest) *RequestVoteResponse {
 	var b bytes.Buffer
-	json.NewEncoder(&b).Encode(req)
+	if _, err := req.encode(&b); err != nil {
+		return nil
+	}
 
 	url := fmt.Sprintf("http://%s%s", peer.Name(), t.RequestVotePath())
 	traceln(server.Name(), "POST", url)
 
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: t.DisableKeepAlives}}
-	httpResp, err := client.Post(url, "application/json", &b)
+	httpResp, err := client.Post(url, "application/octet-stream", &b)
 	if httpResp == nil || err != nil {
 		return nil
 	}
 	defer httpResp.Body.Close()
 
 	resp := &RequestVoteResponse{}
-	if err = json.NewDecoder(httpResp.Body).Decode(&resp); err != nil && err != io.EOF {
+	if _, err = resp.decode(httpResp.Body); err != nil && err != io.EOF {
 		return nil
 	}
 
@@ -149,13 +152,13 @@ func (t *HTTPTransporter) appendEntriesHandler(server *Server) http.HandlerFunc 
 
 		defer r.Body.Close()
 		req := &AppendEntriesRequest{}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if _, err := req.decode(r.Body); err != nil {
 			http.Error(w, "", http.StatusBadRequest)
 			return
 		}
 
 		resp := server.AppendEntries(req)
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
+		if _, err := resp.encode(w); err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
@@ -169,13 +172,13 @@ func (t *HTTPTransporter) requestVoteHandler(server *Server) http.HandlerFunc {
 
 		defer r.Body.Close()
 		req := &RequestVoteRequest{}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if _, err := req.decode(r.Body); err != nil {
 			http.Error(w, "", http.StatusBadRequest)
 			return
 		}
 
 		resp := server.RequestVote(req)
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
+		if _, err := resp.encode(w); err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}

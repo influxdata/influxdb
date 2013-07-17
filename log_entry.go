@@ -1,195 +1,117 @@
 package raft
 
 import (
-	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"hash/crc32"
 	"io"
 )
 
-//------------------------------------------------------------------------------
-//
-// Typedefs
-//
-//------------------------------------------------------------------------------
+const logEntryHeaderSize int = 4 + 4 + 8 + 8 + 4 + 4
+
+var errInvalidChecksum = errors.New("Invalid checksum")
 
 // A log entry stores a single item in the log.
 type LogEntry struct {
 	log     *Log
-	Index   uint64    `json:"index"`
-	Term    uint64    `json:"term"`
-	Command Command   `json:"command"`
-	commit  chan bool `json:"-"`
+	Index   uint64
+	Term    uint64
+	CommandName string
+	Command []byte
+	commit  chan bool
 }
-
-// A temporary interface used for unmarshaling log entries.
-type logEntryRawMessage struct {
-	Index   uint64          `json:"index"`
-	Term    uint64          `json:"term"`
-	Name    string          `json:"name"`
-	Command json.RawMessage `json:"command"`
-}
-
-//------------------------------------------------------------------------------
-//
-// Constructor
-//
-//------------------------------------------------------------------------------
 
 // Creates a new log entry associated with a log.
-func newLogEntry(log *Log, index uint64, term uint64, command Command) *LogEntry {
-	return &LogEntry{
+func newLogEntry(log *Log, index uint64, term uint64, command Command) (*LogEntry, error) {
+	var buf bytes.Buffer
+	var commandName string
+	if command != nil {
+		commandName = command.CommandName()
+		if encoder, ok := command.(CommandEncoder); ok {
+			if err := encoder.Encode(&buf); err != nil {
+				return nil, err
+			}
+		} else {
+			json.NewEncoder(&buf).Encode(command)
+		}
+	}
+
+	e := &LogEntry{
 		log:     log,
 		Index:   index,
 		Term:    term,
-		Command: command,
+		CommandName: commandName,
+		Command: buf.Bytes(),
 		commit:  make(chan bool, 5),
 	}
+
+	return e, nil
 }
 
-//------------------------------------------------------------------------------
-//
-// Methods
-//
-//------------------------------------------------------------------------------
+// Encodes the log entry to a buffer. Returns the number of bytes
+// written and any error that may have occurred.
+func (e *LogEntry) encode(w io.Writer) (int, error) {
+	commandNameSize, commandSize := len([]byte(e.CommandName)), len(e.Command)
+	b := make([]byte, logEntryHeaderSize + commandNameSize + commandSize)
 
-//--------------------------------------
-// Encoding
-//--------------------------------------
+	// Write log entry.
+	binary.BigEndian.PutUint32(b[4:8], protocolVersion)
+	binary.BigEndian.PutUint64(b[8:16], e.Term)
+	binary.BigEndian.PutUint64(b[16:24], e.Index)
+	binary.BigEndian.PutUint32(b[24:28], uint32(commandNameSize))
+	binary.BigEndian.PutUint32(b[28:32], uint32(commandSize))
+	copy(b[32:32+commandNameSize], []byte(e.CommandName))
+	copy(b[32+commandNameSize:], e.Command)
 
-// Encodes the log entry to a buffer.
-func (e *LogEntry) encode(w io.Writer) error {
-	if w == nil {
-		return errors.New("raft.LogEntry: Writer required to encode")
-	}
+	// Write checksum.
+	binary.BigEndian.PutUint32(b[0:4], crc32.ChecksumIEEE(b[4:]))
 
-	encodedCommand, err := json.Marshal(e.Command)
-	if err != nil {
-		return err
-	}
-
-	// Write log line to temporary buffer.
-	var b bytes.Buffer
-	if _, err = fmt.Fprintf(&b, "%016x %016x %s %s\n", e.Index, e.Term, e.Command.CommandName(), encodedCommand); err != nil {
-		return err
-	}
-
-	// Generate checksum.
-	checksum := crc32.ChecksumIEEE(b.Bytes())
-
-	// Write log entry with checksum.
-	_, err = fmt.Fprintf(w, "%08x %s", checksum, b.String())
-	return err
+	return w.Write(b)
 }
 
-// Decodes the log entry from a buffer. Returns the number of bytes read.
-func (e *LogEntry) decode(r io.Reader) (pos int, err error) {
-	pos = 0
-
-	if r == nil {
-		err = errors.New("raft.LogEntry: Reader required to decode")
-		return
+// Decodes the log entry from a buffer. Returns the number of bytes read and
+// any error that occurs.
+func (e *LogEntry) decode(r io.Reader) (int, error) {
+	// Read the header.
+	header := make([]byte, logEntryHeaderSize)
+	if n, err := r.Read(header); err != nil {
+		return n, err
 	}
 
-	// Read the expected checksum first.
-	var checksum uint32
-	if _, err = fmt.Fscanf(r, "%08x", &checksum); err != nil {
-		err = fmt.Errorf("raft.LogEntry: Unable to read checksum: %v", err)
-		return
+	// Read command name.
+	commandName := make([]byte, binary.BigEndian.Uint32(header[24:28]))
+	if n, err := r.Read(commandName); err != nil {
+		return logEntryHeaderSize+n, err
 	}
-	pos += 8
 
-	// Read the rest of the line.
-	bufr := bufio.NewReader(r)
-	if c, _ := bufr.ReadByte(); c != ' ' {
-		err = fmt.Errorf("raft.LogEntry: Expected space, received %02x", c)
-		return
+	// Read command data.
+	command := make([]byte, binary.BigEndian.Uint32(header[28:32]))
+	if n, err := r.Read(command); err != nil {
+		return logEntryHeaderSize+len(commandName)+n, err
 	}
-	pos += 1
-
-	line, err := bufr.ReadString('\n')
-	pos += len(line)
-	if err == io.EOF {
-		err = fmt.Errorf("raft.LogEntry: Unexpected EOF")
-		return
-	} else if err != nil {
-		err = fmt.Errorf("raft.LogEntry: Unable to read line: %v", err)
-		return
-	}
-	b := bytes.NewBufferString(line)
+	totalBytes := logEntryHeaderSize + len(commandName) + len(command)
 
 	// Verify checksum.
-	bchecksum := crc32.ChecksumIEEE(b.Bytes())
-	if checksum != bchecksum {
-		err = fmt.Errorf("raft.LogEntry: Invalid checksum: Expected %08x, calculated %08x", checksum, bchecksum)
-		return
+	checksum := binary.BigEndian.Uint32(header[0:4])
+	crc := crc32.NewIEEE()
+	crc.Write(header[4:])
+	crc.Write(commandName)
+	crc.Write(command)
+	if checksum != crc.Sum32() {
+		return totalBytes, errInvalidChecksum
 	}
 
-	// Read term, index and command name.
-	var commandName string
-	if _, err = fmt.Fscanf(b, "%016x %016x %s ", &e.Index, &e.Term, &commandName); err != nil {
-		err = fmt.Errorf("raft.LogEntry: Unable to scan: %v", err)
-		return
+	// Verify that the encoding format can be read.
+	if version := binary.BigEndian.Uint32(header[4:8]); version != protocolVersion {
+		return totalBytes, errUnsupportedLogVersion
 	}
-
-	// Instantiate command by name.
-	command, err := newCommand(commandName)
-	if err != nil {
-		err = fmt.Errorf("raft.LogEntry: Unable to instantiate command (%s): %v", commandName, err)
-		return
-	}
-
-	// Deserialize command.
-	if err = json.NewDecoder(b).Decode(&command); err != nil {
-		err = fmt.Errorf("raft.LogEntry: Unable to decode: %v", err)
-		return
-	}
+	
+	e.Term = binary.BigEndian.Uint64(header[8:16])
+	e.Index = binary.BigEndian.Uint64(header[16:24])
+	e.CommandName = string(commandName)
 	e.Command = command
 
-	// Make sure there's only an EOF remaining.
-	c, err := b.ReadByte()
-	if err != io.EOF {
-		err = fmt.Errorf("raft.LogEntry: Expected EOL, received %02x", c)
-		return
-	}
-
-	err = nil
-	return
-}
-
-//--------------------------------------
-// Encoding
-//--------------------------------------
-
-// Encodes a log entry into JSON.
-func (e *LogEntry) MarshalJSON() ([]byte, error) {
-	obj := map[string]interface{}{
-		"index": e.Index,
-		"term":  e.Term,
-	}
-	if e.Command != nil {
-		obj["name"] = e.Command.CommandName()
-		obj["command"] = e.Command
-	}
-	return json.Marshal(obj)
-}
-
-// Decodes a log entry from a JSON byte array.
-func (e *LogEntry) UnmarshalJSON(data []byte) error {
-	// Extract base log entry info.
-	obj := &logEntryRawMessage{}
-	json.Unmarshal(data, obj)
-	e.Index, e.Term = obj.Index, obj.Term
-
-	// Create a command based on the name.
-	var err error
-	if e.Command, err = newCommand(obj.Name); err != nil {
-		return err
-	}
-	json.Unmarshal(obj.Command, e.Command)
-
-	return nil
+	return totalBytes, nil
 }

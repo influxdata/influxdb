@@ -100,8 +100,8 @@ func (l *Log) lastCommandName() string {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	if len(l.entries) > 0 {
-		if command := l.entries[len(l.entries)-1].Command; command != nil {
-			return command.CommandName()
+		if entry := l.entries[len(l.entries)-1]; entry != nil {
+			return entry.CommandName
 		}
 	}
 	return ""
@@ -156,7 +156,7 @@ func (l *Log) open(path string) error {
 			}
 
 			// Instantiate log entry and decode into it.
-			entry := newLogEntry(l, 0, 0, nil)
+			entry, _ := newLogEntry(l, 0, 0, nil)
 			n, err := entry.decode(reader)
 			if err != nil {
 				file.Close()
@@ -170,8 +170,15 @@ func (l *Log) open(path string) error {
 			l.entries = append(l.entries, entry)
 			l.commitIndex = entry.Index
 
+			// Lookup and decode command.
+			command, err := newCommand(entry.CommandName, entry.Command)
+			if err != nil {
+				file.Close()
+				return err
+			}
+
 			// Apply the command.
-			returnValue, err := l.ApplyFunc(entry.Command)
+			returnValue, err := l.ApplyFunc(command)
 			l.results = append(l.results, &logResult{returnValue: returnValue, err: err})
 
 			lastIndex += n
@@ -208,7 +215,7 @@ func (l *Log) close() {
 //--------------------------------------
 
 // Creates a log entry associated with this log.
-func (l *Log) createEntry(term uint64, command Command) *LogEntry {
+func (l *Log) createEntry(term uint64, command Command) (*LogEntry, error) {
 	return newLogEntry(l, l.nextIndex(), term, command)
 }
 
@@ -379,15 +386,21 @@ func (l *Log) setCommitIndex(index uint64) error {
 		entry := l.entries[entryIndex]
 
 		// Write to storage.
-		if err := entry.encode(l.file); err != nil {
+		if _, err := entry.encode(l.file); err != nil {
 			return err
 		}
 
 		// Update commit index.
 		l.commitIndex = entry.Index
 
+		// Decode the command.
+		command, err := newCommand(entry.CommandName, entry.Command)
+		if err != nil {
+			return err
+		}
+
 		// Apply the changes to the state machine and store the error code.
-		returnValue, err := l.ApplyFunc(entry.Command)
+		returnValue, err := l.ApplyFunc(command)
 		l.results[entryIndex] = &logResult{returnValue: returnValue, err: err}
 	}
 	return nil
@@ -510,8 +523,7 @@ func (l *Log) compact(index uint64, term uint64) error {
 		return err
 	}
 	for _, entry := range entries {
-		err = entry.encode(file)
-		if err != nil {
+		if _, err = entry.encode(file); err != nil {
 			return err
 		}
 	}
