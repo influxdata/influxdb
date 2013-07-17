@@ -107,17 +107,6 @@ func (l *Log) lastCommandName() string {
 	return ""
 }
 
-// Get the log entry by index
-func (l *Log) getLogEntry(index uint64) *LogEntry {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-
-	if index <= l.startIndex || index > (l.startIndex+uint64(len(l.entries))) {
-		return nil
-	}
-	return l.entries[index-l.startIndex-1]
-}
-
 //--------------------------------------
 // Log Terms
 //--------------------------------------
@@ -225,15 +214,15 @@ func (l *Log) createEntry(term uint64, command Command) *LogEntry {
 
 // Retrieves an entry from the log. If the entry has been eliminated because
 // of a snapshot then nil is returned.
-// func (l *Log) getEntry(index uint64) *LogEntry {
-// 	l.mutex.Lock()
-// 	defer l.mutex.Unlock()
+func (l *Log) getLogEntry(index uint64) *LogEntry {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
-// 	if index <= l.startIndex || index > (l.startIndex+uint64(len(l.entries))) {
-// 		return nil
-// 	}
-// 	return l.entries[index - l.startIndex - 1]
-// }
+	if index <= l.startIndex || index > (l.startIndex+uint64(len(l.entries))) {
+		return nil
+	}
+	return l.entries[index-l.startIndex-1]
+}
 
 // Checks if the log contains a given index/term combination.
 func (l *Log) containsEntry(index uint64, term uint64) bool {
