@@ -2,18 +2,14 @@ package raft
 
 // The request sent to a server to start from the snapshot.
 type SnapshotRequest struct {
-	LeaderName string   `json:"leaderName"`
-	LastIndex  uint64   `json:"lastTerm"`
-	LastTerm   uint64   `json:"lastIndex"`
-	Peers      []string `json:peers`
-	State      []byte   `json:"state"`
+	LeaderName string `json:"leaderName"`
+	LastIndex  uint64 `json:"lastTerm"`
+	LastTerm   uint64 `json:"lastIndex"`
 }
 
-// The response returned from a server appending entries to the log.
+// The response returned if the follower entered snapshot state
 type SnapshotResponse struct {
-	Term        uint64 `json:"term"`
-	Success     bool   `json:"success"`
-	CommitIndex uint64 `json:"commitIndex"`
+	Success bool `json:"success"`
 }
 
 //------------------------------------------------------------------------------
@@ -28,16 +24,12 @@ func newSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest 
 		LeaderName: leaderName,
 		LastIndex:  snapshot.LastIndex,
 		LastTerm:   snapshot.LastTerm,
-		Peers:      snapshot.Peers,
-		State:      snapshot.State,
 	}
 }
 
 // Creates a new Snapshot response.
-func newSnapshotResponse(term uint64, success bool, commitIndex uint64) *SnapshotResponse {
+func newSnapshotResponse(success bool) *SnapshotResponse {
 	return &SnapshotResponse{
-		Term:        term,
-		Success:     success,
-		CommitIndex: commitIndex,
+		Success: success,
 	}
 }

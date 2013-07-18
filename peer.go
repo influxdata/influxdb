@@ -229,15 +229,28 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) {
 
 	debugln("peer.snap.recv: ", p.name)
 
-	// If successful then update the previous log index.
+	var SRResp *SnapshotRecoveryResponse
+	// If successful, the peer should have been to snapshot state
+	// Send it the snapshot!
 	if resp.Success {
-		p.setPrevLogIndex(req.LastIndex)
+		req := newSnapshotRecoveryRequest(p.server.name, p.server.lastSnapshot)
+		debugln("peer.snap.recovery.send: ", p.name)
+		SRResp = p.server.Transporter().SendSnapshotRecoveryRequest(p.server, p, req)
+		if SRResp.Success {
+			p.prevLogIndex = req.LastIndex
+		} else {
+			debugln("peer.snap.recovery.failed: ", p.name)
+			return
+		}
 	} else {
 		debugln("peer.snap.failed: ", p.name)
+		return
 	}
 
+	AEResp := p.convertSRRespToAEResp(SRResp)
+
 	// Send response to server for processing.
-	p.server.send(resp)
+	p.server.send(AEResp)
 }
 
 //--------------------------------------
@@ -252,5 +265,22 @@ func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteRespo
 		debugln("peer.vote: recv", p.server.Name(), "<-", p.Name())
 		resp.peer = p
 		c <- resp
+	}
+}
+
+//--------------------------------------
+// Util
+//--------------------------------------
+func (p *Peer) convertSRRespToAEResp(resp *SnapshotRecoveryResponse) *AppendEntriesResponse {
+	append := false
+	if resp.Term == p.server.currentTerm {
+		append = true
+	}
+
+	// return the useful fields
+	return &AppendEntriesResponse{
+		Term:    resp.Term,
+		append:  append,
+		Success: resp.Success,
 	}
 }
