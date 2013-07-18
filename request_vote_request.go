@@ -1,11 +1,11 @@
 package raft
 
 import (
-	"encoding/binary"
+	"code.google.com/p/goprotobuf/proto"
+	"github.com/coreos/go-raft/protobuf"
 	"io"
+	"io/ioutil"
 )
-
-const requestVoteRequestHeaderSize = 4 + 8 + 8 + 8 + 4
 
 // The request sent to a server to vote for a candidate to become a leader.
 type RequestVoteRequest struct {
@@ -26,52 +26,50 @@ func newRequestVoteRequest(term uint64, candidateName string, lastLogIndex uint6
 	}
 }
 
+// Encodes the RequestVoteRequest to a buffer. Returns the number of bytes
+// written and any error that may have occurred.
 func (req *RequestVoteRequest) encode(w io.Writer) (int, error) {
-	candidateNameSize := len(req.CandidateName)
-	b := make([]byte, requestVoteRequestHeaderSize + candidateNameSize)
 
-	// Write request.
-	binary.BigEndian.PutUint32(b[0:4], protocolVersion)
-	binary.BigEndian.PutUint64(b[4:12], req.Term)
-	binary.BigEndian.PutUint64(b[12:20], req.LastLogIndex)
-	binary.BigEndian.PutUint64(b[20:28], req.LastLogTerm)
-	binary.BigEndian.PutUint32(b[28:32], uint32(candidateNameSize))
-	copy(b[32:], []byte(req.CandidateName))
+	p := proto.NewBuffer(nil)
 
-	return w.Write(b)
+	pb := &protobuf.ProtoRequestVoteRequest{
+		Term:          proto.Uint64(req.Term),
+		LastLogIndex:  proto.Uint64(req.LastLogIndex),
+		LastLogTerm:   proto.Uint64(req.LastLogTerm),
+		CandidateName: proto.String(req.CandidateName),
+	}
+	err := p.Marshal(pb)
+
+	if err != nil {
+		return -1, err
+	}
+
+	return w.Write(p.Bytes())
 }
 
+// Decodes the RequestVoteRequest from a buffer. Returns the number of bytes read and
+// any error that occurs.
 func (req *RequestVoteRequest) decode(r io.Reader) (int, error) {
-	var eof error
-	header := make([]byte, requestVoteRequestHeaderSize)
-	if n, err := r.Read(header); err == io.EOF {
-		return n, io.ErrUnexpectedEOF
-	} else if err != nil {
-		return n, err
+	data, err := ioutil.ReadAll(r)
+
+	if err != nil {
+		return -1, err
 	}
 
-	// Read candidate name.
-	candidateName := make([]byte, binary.BigEndian.Uint32(header[28:32]))
-	if n, err := r.Read(candidateName); err == io.EOF {
-		if err == io.EOF && n != len(candidateName) {
-			return requestVoteRequestHeaderSize+n, io.ErrUnexpectedEOF
-		} else {
-			eof = io.EOF
-		}
-	} else if err != nil {
-		return requestVoteRequestHeaderSize+n, err
-	}
-	totalBytes := requestVoteRequestHeaderSize + len(candidateName)
+	totalBytes := len(data)
 
-	// Verify that the encoding format can be read.
-	if version := binary.BigEndian.Uint32(header[0:4]); version != protocolVersion {
-		return totalBytes, errUnsupportedLogVersion
+	pb := &protobuf.ProtoRequestVoteRequest{}
+	p := proto.NewBuffer(data)
+
+	err = p.Unmarshal(pb)
+	if err != nil {
+		return -1, err
 	}
 
-	req.Term = binary.BigEndian.Uint64(header[4:12])
-	req.LastLogIndex = binary.BigEndian.Uint64(header[12:20])
-	req.LastLogTerm = binary.BigEndian.Uint64(header[20:28])
-	req.CandidateName = string(candidateName)
+	req.Term = pb.GetTerm()
+	req.LastLogIndex = pb.GetLastLogIndex()
+	req.LastLogTerm = pb.GetLastLogTerm()
+	req.CandidateName = pb.GetCandidateName()
 
-	return totalBytes, eof
+	return totalBytes, nil
 }

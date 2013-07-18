@@ -87,9 +87,9 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 
 // Ensure that a vote request is denied if the log is out of date.
 func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
-	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:20})
-	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X:100})
-	e2, _ := newLogEntry(nil, 3, 2, &testCommand1{Val:"bar", I:0})
+	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
+	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X: 100})
+	e2, _ := newLogEntry(nil, 3, 2, &testCommand1{Val: "bar", I: 0})
 	server := newTestServerWithLog("1", &testTransporter{}, []*LogEntry{e0, e1, e2})
 	server.Initialize()
 	server.StartLeader()
@@ -175,7 +175,7 @@ func TestServerAppendEntries(t *testing.T) {
 	defer server.Stop()
 
 	// Append single entry.
-	e, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:10})
+	e, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 10})
 	entries := []*LogEntry{e}
 	resp := server.AppendEntries(newAppendEntriesRequest(1, 0, 0, 0, "ldr", entries))
 	if resp.Term != 1 || !resp.Success {
@@ -186,8 +186,8 @@ func TestServerAppendEntries(t *testing.T) {
 	}
 
 	// Append multiple entries + commit the last one.
-	e1, _ := newLogEntry(nil, 2, 1, &testCommand1{Val:"bar", I:20})
-	e2, _ := newLogEntry(nil, 3, 1, &testCommand1{Val:"baz", I:30})
+	e1, _ := newLogEntry(nil, 2, 1, &testCommand1{Val: "bar", I: 20})
+	e2, _ := newLogEntry(nil, 3, 1, &testCommand1{Val: "baz", I: 30})
 	entries = []*LogEntry{e1, e2}
 	resp = server.AppendEntries(newAppendEntriesRequest(1, 1, 1, 1, "ldr", entries))
 	if resp.Term != 1 || !resp.Success {
@@ -217,7 +217,7 @@ func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 	server.currentTerm = 2
 
 	// Append single entry.
-	e, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:10})
+	e, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 10})
 	entries := []*LogEntry{e}
 	resp := server.AppendEntries(newAppendEntriesRequest(1, 0, 0, 0, "ldr", entries))
 	if resp.Term != 2 || resp.Success {
@@ -237,8 +237,8 @@ func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 	defer server.Stop()
 
 	// Append single entry + commit.
-	e1, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:10})
-	e2, _ := newLogEntry(nil, 2, 1, &testCommand1{Val:"foo", I:15})
+	e1, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 10})
+	e2, _ := newLogEntry(nil, 2, 1, &testCommand1{Val: "foo", I: 15})
 	entries := []*LogEntry{e1, e2}
 	resp := server.AppendEntries(newAppendEntriesRequest(1, 0, 0, 2, "ldr", entries))
 	if resp.Term != 1 || !resp.Success {
@@ -246,7 +246,7 @@ func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 	}
 
 	// Append entry again (post-commit).
-	e, _ := newLogEntry(nil, 2, 1, &testCommand1{Val:"bar", I:20})
+	e, _ := newLogEntry(nil, 2, 1, &testCommand1{Val: "bar", I: 20})
 	entries = []*LogEntry{e}
 	resp = server.AppendEntries(newAppendEntriesRequest(1, 2, 1, 1, "ldr", entries))
 	if resp.Term != 1 || resp.Success {
@@ -261,9 +261,9 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 	server.StartLeader()
 	defer server.Stop()
 
-	entry1, _ := newLogEntry(nil, 1, 1, &testCommand1{Val:"foo", I:10})
-	entry2, _ := newLogEntry(nil, 2, 1, &testCommand1{Val:"foo", I:15})
-	entry3, _ := newLogEntry(nil, 2, 2, &testCommand1{Val:"bar", I:20})
+	entry1, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 10})
+	entry2, _ := newLogEntry(nil, 2, 1, &testCommand1{Val: "foo", I: 15})
+	entry3, _ := newLogEntry(nil, 2, 2, &testCommand1{Val: "bar", I: 20})
 
 	// Append single entry + commit.
 	entries := []*LogEntry{entry1, entry2}
@@ -291,7 +291,7 @@ func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 	server.StartFollower()
 	defer server.Stop()
 	var err error
-	if _, err = server.Do(&testCommand1{Val:"foo", I:10}); err != NotLeaderError {
+	if _, err = server.Do(&testCommand1{Val: "foo", I: 10}); err != NotLeaderError {
 		t.Fatalf("Expected error: %v, got: %v", NotLeaderError, err)
 	}
 }

@@ -40,14 +40,18 @@ func setupLog(entries []*LogEntry) (*Log, string) {
 	for _, entry := range entries {
 		entry.encode(f)
 	}
-	f.Close()
-	
+	err := f.Close()
+
+	if err != nil {
+		panic(err)
+	}
+
 	log := newLog()
 	log.ApplyFunc = func(c Command) (interface{}, error) {
 		return nil, nil
 	}
 	if err := log.open(f.Name()); err != nil {
-		panic("Unable to open log")
+		panic(err)
 	}
 	return log, f.Name()
 }
@@ -150,7 +154,6 @@ func (c *joinCommand) Apply(server *Server) (interface{}, error) {
 	err := server.AddPeer(c.Name)
 	return nil, err
 }
-
 
 //--------------------------------------
 // Command1

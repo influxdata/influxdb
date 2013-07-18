@@ -1,12 +1,11 @@
 package raft
 
 import (
-	"bytes"
-	"encoding/binary"
+	"code.google.com/p/goprotobuf/proto"
+	"github.com/coreos/go-raft/protobuf"
 	"io"
+	"io/ioutil"
 )
-
-const appendEntriesRequestHeaderSize = 4 + 8 + 8 + 8 + 8 + 4 + 4
 
 // The request sent to a server to append entries to the log.
 type AppendEntriesRequest struct {
@@ -30,84 +29,75 @@ func newAppendEntriesRequest(term uint64, prevLogIndex uint64, prevLogTerm uint6
 	}
 }
 
+// Encodes the AppendEntriesRequest to a buffer. Returns the number of bytes
+// written and any error that may have occurred.
 func (req *AppendEntriesRequest) encode(w io.Writer) (int, error) {
-	leaderNameSize := len(req.LeaderName)
-	b := make([]byte, appendEntriesRequestHeaderSize + leaderNameSize)
 
-	// Write request.
-	binary.BigEndian.PutUint32(b[0:4], protocolVersion)
-	binary.BigEndian.PutUint64(b[4:12], req.Term)
-	binary.BigEndian.PutUint64(b[12:20], req.PrevLogIndex)
-	binary.BigEndian.PutUint64(b[20:28], req.PrevLogTerm)
-	binary.BigEndian.PutUint64(b[28:36], req.CommitIndex)
-	binary.BigEndian.PutUint32(b[36:40], uint32(leaderNameSize))
-	binary.BigEndian.PutUint32(b[40:44], uint32(len(req.Entries)))
-	copy(b[44:44+leaderNameSize], []byte(req.LeaderName))
+	protoEntries := make([]*protobuf.ProtoAppendEntriesRequest_ProtoLogEntry, len(req.Entries))
 
-	// Append entries.
-	buf := bytes.NewBuffer(b)
-	for _, entry := range req.Entries {
-		if _, err := entry.encode(buf); err != nil {
-			return 0, err
+	for i, entry := range req.Entries {
+		protoEntries[i] = &protobuf.ProtoAppendEntriesRequest_ProtoLogEntry{
+			Index:       proto.Uint64(entry.Index),
+			Term:        proto.Uint64(entry.Term),
+			CommandName: proto.String(entry.CommandName),
+			Command:     entry.Command,
 		}
 	}
 
-	return w.Write(buf.Bytes())
+	p := proto.NewBuffer(nil)
+
+	pb := &protobuf.ProtoAppendEntriesRequest{
+		Term:         proto.Uint64(req.Term),
+		PrevLogIndex: proto.Uint64(req.PrevLogIndex),
+		PrevLogTerm:  proto.Uint64(req.PrevLogTerm),
+		CommitIndex:  proto.Uint64(req.CommitIndex),
+		LeaderName:   proto.String(req.LeaderName),
+		Entries:      protoEntries,
+	}
+	err := p.Marshal(pb)
+
+	if err != nil {
+		return -1, err
+	}
+
+	return w.Write(p.Bytes())
 }
 
+// Decodes the AppendEntriesRequest from a buffer. Returns the number of bytes read and
+// any error that occurs.
 func (req *AppendEntriesRequest) decode(r io.Reader) (int, error) {
-	var eof error
-	header := make([]byte, appendEntriesRequestHeaderSize)
-	if n, err := r.Read(header); err == io.EOF {
-		return n, io.ErrUnexpectedEOF
-	} else if err != nil {
-		return n, err
-	}
-	entryCount := int(binary.BigEndian.Uint32(header[40:44]))
+	data, err := ioutil.ReadAll(r)
 
-	// Read leader name.
-	leaderName := make([]byte, binary.BigEndian.Uint32(header[36:40]))
-	if n, err := r.Read(leaderName); err == io.EOF {
-		if err == io.EOF && n != len(leaderName) {
-			return appendEntriesRequestHeaderSize+n, io.ErrUnexpectedEOF
-		} else {
-			eof = io.EOF
-		}
-	} else if err != nil {
-		return appendEntriesRequestHeaderSize+n, err
+	if err != nil {
+		return -1, err
 	}
-	totalBytes := appendEntriesRequestHeaderSize + len(leaderName)
 
-	// Read entries.
-	entries := []*LogEntry{}
-	for i:=0; i<entryCount; i++ {
-		entry := &LogEntry{}
-		n, err := entry.decode(r)
-		entries = append(entries, entry)
-		totalBytes += n
-		
-		if err == io.EOF {
-			if len(entries) == entryCount {
-				err = io.EOF
-			} else {
-				return totalBytes, io.ErrUnexpectedEOF
-			}
-		} else if err != nil {
-			return totalBytes, err
+	totalBytes := len(data)
+
+	pb := &protobuf.ProtoAppendEntriesRequest{}
+	p := proto.NewBuffer(data)
+
+	err = p.Unmarshal(pb)
+	if err != nil {
+		return -1, err
+	}
+
+	req.Term = pb.GetTerm()
+	req.PrevLogIndex = pb.GetPrevLogIndex()
+	req.PrevLogTerm = pb.GetPrevLogTerm()
+	req.CommitIndex = pb.GetCommitIndex()
+	req.LeaderName = pb.GetLeaderName()
+
+	req.Entries = make([]*LogEntry, len(pb.Entries))
+
+	for i, entry := range pb.Entries {
+		req.Entries[i] = &LogEntry{
+			Index:       entry.GetIndex(),
+			Term:        entry.GetTerm(),
+			CommandName: entry.GetCommandName(),
+			Command:     entry.Command,
 		}
 	}
 
-	// Verify that the encoding format can be read.
-	if version := binary.BigEndian.Uint32(header[0:4]); version != protocolVersion {
-		return totalBytes, errUnsupportedLogVersion
-	}
-
-	req.Term = binary.BigEndian.Uint64(header[4:12])
-	req.PrevLogIndex = binary.BigEndian.Uint64(header[12:20])
-	req.PrevLogTerm = binary.BigEndian.Uint64(header[20:28])
-	req.CommitIndex = binary.BigEndian.Uint64(header[28:36])
-	req.LeaderName = string(leaderName)
-	req.Entries = entries
-
-	return totalBytes, eof
+	return totalBytes, nil
 }

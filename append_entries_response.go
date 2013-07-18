@@ -1,11 +1,11 @@
 package raft
 
 import (
-	"encoding/binary"
+	"code.google.com/p/goprotobuf/proto"
+	"github.com/coreos/go-raft/protobuf"
 	"io"
+	"io/ioutil"
 )
-
-const appendEntriesResponseHeaderSize = 4 + 8 + 1 + 8 + 8
 
 // The response returned from a server appending entries to the log.
 type AppendEntriesResponse struct {
@@ -28,41 +28,50 @@ func newAppendEntriesResponse(term uint64, success bool, index uint64, commitInd
 	}
 }
 
-
+// Encodes the AppendEntriesResponse to a buffer. Returns the number of bytes
+// written and any error that may have occurred.
 func (resp *AppendEntriesResponse) encode(w io.Writer) (int, error) {
-	b := make([]byte, appendEntriesResponseHeaderSize)
 
-	binary.BigEndian.PutUint32(b[0:4], protocolVersion)
-	binary.BigEndian.PutUint64(b[4:12], resp.Term)
-	bigEndianPutBool(b[12:13], resp.Success)
-	binary.BigEndian.PutUint64(b[13:21], resp.Index)
-	binary.BigEndian.PutUint64(b[21:29], resp.CommitIndex)
+	p := proto.NewBuffer(nil)
 
-	return w.Write(b)
+	pb := &protobuf.ProtoAppendEntriesResponse{
+		Term:        proto.Uint64(resp.Term),
+		Index:       proto.Uint64(resp.Index),
+		CommitIndex: proto.Uint64(resp.CommitIndex),
+		Success:     proto.Bool(resp.Success),
+	}
+
+	err := p.Marshal(pb)
+	if err != nil {
+		return -1, err
+	}
+
+	return w.Write(p.Bytes())
 }
 
+// Decodes the AppendEntriesResponse from a buffer. Returns the number of bytes read and
+// any error that occurs.
 func (resp *AppendEntriesResponse) decode(r io.Reader) (int, error) {
-	var eof error
-	header := make([]byte, appendEntriesResponseHeaderSize)
-	if n, err := r.Read(header); err == io.EOF {
-		if n == len(header) {
-			eof = io.EOF
-		} else {
-			return n, io.ErrUnexpectedEOF
-		}
-	} else if err != nil {
-		return n, err
+	data, err := ioutil.ReadAll(r)
+
+	if err != nil {
+		return -1, err
 	}
 
-	// Verify that the encoding format can be read.
-	if version := binary.BigEndian.Uint32(header[0:4]); version != protocolVersion {
-		return appendEntriesResponseHeaderSize, errUnsupportedLogVersion
+	totalBytes := len(data)
+
+	pb := &protobuf.ProtoAppendEntriesResponse{}
+	p := proto.NewBuffer(data)
+
+	err = p.Unmarshal(pb)
+	if err != nil {
+		return -1, err
 	}
 
-	resp.Term = binary.BigEndian.Uint64(header[4:12])
-	resp.Success = bigEndianBool(header[12:13])
-	resp.Index = binary.BigEndian.Uint64(header[13:21])
-	resp.CommitIndex = binary.BigEndian.Uint64(header[21:29])
+	resp.Term = pb.GetTerm()
+	resp.Index = pb.GetIndex()
+	resp.CommitIndex = pb.GetCommitIndex()
+	resp.Success = pb.GetSuccess()
 
-	return appendEntriesResponseHeaderSize, eof
+	return totalBytes, nil
 }

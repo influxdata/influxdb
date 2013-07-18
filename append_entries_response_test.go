@@ -5,23 +5,6 @@ import (
 	"testing"
 )
 
-// Ensure that we can encode and decode append entries responses.
-func TestAppendEntriesResponseEncodeDecode(t *testing.T) {
-	var b bytes.Buffer
-	r0 := newAppendEntriesResponse(1, true, 2, 3)
-	if _, err := r0.encode(&b); err != nil {
-		t.Fatal("AE response encoding error:", err)
-	}
-
-	r1 := &AppendEntriesResponse{}
-	if _, err := r1.decode(&b); err != nil {
-		t.Fatal("AE response decoding error:", err)
-	}
-	if r1.Term != 1 || r1.Success != true || r1.Index != 2 || r1.CommitIndex != 3 {
-		t.Fatal("Invalid AE response data:", r1.Term, r1.Success, r1.Index, r1.CommitIndex)
-	}
-}
-
 func BenchmarkAppendEntriesResponseEncoding(b *testing.B) {
 	req, tmp := createTestAppendEntriesResponse(2000)
 	b.ResetTimer()

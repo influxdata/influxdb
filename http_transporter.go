@@ -96,7 +96,7 @@ func (t *HTTPTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, r
 	traceln(server.Name(), "POST", url)
 
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: t.DisableKeepAlives}}
-	httpResp, err := client.Post(url, "application/octet-stream", &b)
+	httpResp, err := client.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
 		return nil
 	}
@@ -121,7 +121,7 @@ func (t *HTTPTransporter) SendVoteRequest(server *Server, peer *Peer, req *Reque
 	traceln(server.Name(), "POST", url)
 
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: t.DisableKeepAlives}}
-	httpResp, err := client.Post(url, "application/octet-stream", &b)
+	httpResp, err := client.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
 		return nil
 	}
