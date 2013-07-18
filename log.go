@@ -221,7 +221,7 @@ func (l *Log) createEntry(term uint64, command Command) (*LogEntry, error) {
 
 // Retrieves an entry from the log. If the entry has been eliminated because
 // of a snapshot then nil is returned.
-func (l *Log) getLogEntry(index uint64) *LogEntry {
+func (l *Log) getEntry(index uint64) *LogEntry {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 
@@ -233,7 +233,7 @@ func (l *Log) getLogEntry(index uint64) *LogEntry {
 
 // Checks if the log contains a given index/term combination.
 func (l *Log) containsEntry(index uint64, term uint64) bool {
-	entry := l.getLogEntry(index)
+	entry := l.getEntry(index)
 	return (entry != nil && entry.Term == term)
 }
 

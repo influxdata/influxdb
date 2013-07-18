@@ -789,7 +789,7 @@ func (s *Server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 		s.log.setCommitIndex(commitIndex)
 		s.debugln("commit index ", commitIndex)
 		for i := committedIndex; i < commitIndex; i++ {
-			if entry := s.log.getLogEntry(i + 1); entry != nil {
+			if entry := s.log.getEntry(i + 1); entry != nil {
 				// if the leader is a new one and the entry came from the
 				// old leader, the commit channel will be nil and no go routine
 				// is waiting from this channel
@@ -960,7 +960,7 @@ func (s *Server) takeSnapshot() error {
 	// to the slightly slow machines
 	if lastIndex-s.log.startIndex > NumberOfLogEntreisAfterSnapshot {
 		compactIndex := lastIndex - NumberOfLogEntreisAfterSnapshot
-		compactTerm := s.log.getLogEntry(compactIndex).Term
+		compactTerm := s.log.getEntry(compactIndex).Term
 		s.log.compact(compactIndex, compactTerm)
 	}
 
@@ -1009,7 +1009,7 @@ func (s *Server) processSnapshotRequest(req *SnapshotRequest) *SnapshotResponse 
 	// Then the follower already has all the information found in the snapshot
 	// and can reply false
 
-	entry := s.log.getLogEntry(req.LastIndex)
+	entry := s.log.getEntry(req.LastIndex)
 
 	if entry != nil && entry.Term == req.LastTerm {
 		return newSnapshotResponse(false)
