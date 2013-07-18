@@ -909,7 +909,7 @@ func (s *Server) RemovePeer(name string) error {
 func (s *Server) Snapshot() {
 	for {
 		// TODO: change this... to something reasonable
-		time.Sleep(100 * time.Second)
+		time.Sleep(1 * time.Second)
 
 		s.takeSnapshot()
 	}

@@ -1,15 +1,17 @@
 package raft
 
+import (
+	"code.google.com/p/goprotobuf/proto"
+	"github.com/coreos/go-raft/protobuf"
+	"io"
+	"io/ioutil"
+)
+
 // The request sent to a server to start from the snapshot.
 type SnapshotRequest struct {
-	LeaderName string `json:"leaderName"`
-	LastIndex  uint64 `json:"lastTerm"`
-	LastTerm   uint64 `json:"lastIndex"`
-}
-
-// The response returned if the follower entered snapshot state
-type SnapshotResponse struct {
-	Success bool `json:"success"`
+	LeaderName string
+	LastIndex  uint64
+	LastTerm   uint64
 }
 
 //------------------------------------------------------------------------------
@@ -27,9 +29,48 @@ func newSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest 
 	}
 }
 
-// Creates a new Snapshot response.
-func newSnapshotResponse(success bool) *SnapshotResponse {
-	return &SnapshotResponse{
-		Success: success,
+// Encodes the SnapshotRequest to a buffer. Returns the number of bytes
+// written and any error that may have occurred.
+func (req *SnapshotRequest) encode(w io.Writer) (int, error) {
+
+	p := proto.NewBuffer(nil)
+
+	pb := &protobuf.ProtoSnapshotRequest{
+		LeaderName: proto.String(req.LeaderName),
+		LastIndex:  proto.Uint64(req.LastIndex),
+		LastTerm:   proto.Uint64(req.LastTerm),
 	}
+	err := p.Marshal(pb)
+
+	if err != nil {
+		return -1, err
+	}
+
+	return w.Write(p.Bytes())
+}
+
+// Decodes the SnapshotRequest from a buffer. Returns the number of bytes read and
+// any error that occurs.
+func (req *SnapshotRequest) decode(r io.Reader) (int, error) {
+	data, err := ioutil.ReadAll(r)
+
+	if err != nil {
+		return 0, err
+	}
+
+	totalBytes := len(data)
+
+	pb := &protobuf.ProtoSnapshotRequest{}
+	p := proto.NewBuffer(data)
+
+	err = p.Unmarshal(pb)
+	if err != nil {
+		return -1, err
+	}
+
+	req.LeaderName = pb.GetLeaderName()
+	req.LastIndex = pb.GetLastIndex()
+	req.LastTerm = pb.GetLastTerm()
+
+	return totalBytes, nil
 }

@@ -1,19 +1,19 @@
 package raft
 
+import (
+	"code.google.com/p/goprotobuf/proto"
+	"github.com/coreos/go-raft/protobuf"
+	"io"
+	"io/ioutil"
+)
+
 // The request sent to a server to start from the snapshot.
 type SnapshotRecoveryRequest struct {
-	LeaderName string   `json:"leaderName"`
-	LastIndex  uint64   `json:"lastTerm"`
-	LastTerm   uint64   `json:"lastIndex"`
-	Peers      []string `json:peers`
-	State      []byte   `json:"state"`
-}
-
-// The response returned from a server appending entries to the log.
-type SnapshotRecoveryResponse struct {
-	Term        uint64 `json:"term"`
-	Success     bool   `json:"success"`
-	CommitIndex uint64 `json:"commitIndex"`
+	LeaderName string
+	LastIndex  uint64
+	LastTerm   uint64
+	Peers      []string
+	State      []byte
 }
 
 //------------------------------------------------------------------------------
@@ -33,11 +33,52 @@ func newSnapshotRecoveryRequest(leaderName string, snapshot *Snapshot) *Snapshot
 	}
 }
 
-// Creates a new Snapshot response.
-func newSnapshotRecoveryResponse(term uint64, success bool, commitIndex uint64) *SnapshotRecoveryResponse {
-	return &SnapshotRecoveryResponse{
-		Term:        term,
-		Success:     success,
-		CommitIndex: commitIndex,
+// Encodes the SnapshotRecoveryRequest to a buffer. Returns the number of bytes
+// written and any error that may have occurred.
+func (req *SnapshotRecoveryRequest) encode(w io.Writer) (int, error) {
+
+	p := proto.NewBuffer(nil)
+
+	pb := &protobuf.ProtoSnapshotRecoveryRequest{
+		LeaderName: proto.String(req.LeaderName),
+		LastIndex:  proto.Uint64(req.LastIndex),
+		LastTerm:   proto.Uint64(req.LastTerm),
+		Peers:      req.Peers,
+		State:      req.State,
 	}
+	err := p.Marshal(pb)
+
+	if err != nil {
+		return -1, err
+	}
+
+	return w.Write(p.Bytes())
+}
+
+// Decodes the SnapshotRecoveryRequest from a buffer. Returns the number of bytes read and
+// any error that occurs.
+func (req *SnapshotRecoveryRequest) decode(r io.Reader) (int, error) {
+	data, err := ioutil.ReadAll(r)
+
+	if err != nil {
+		return 0, err
+	}
+
+	totalBytes := len(data)
+
+	pb := &protobuf.ProtoSnapshotRequest{}
+	p := proto.NewBuffer(data)
+
+	err = p.Unmarshal(pb)
+	if err != nil {
+		return -1, err
+	}
+
+	req.LeaderName = pb.GetLeaderName()
+	req.LastIndex = pb.GetLastIndex()
+	req.LastTerm = pb.GetLastTerm()
+	req.Peers = req.Peers
+	req.State = req.State
+
+	return totalBytes, nil
 }
