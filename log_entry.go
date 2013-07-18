@@ -5,7 +5,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
-	"github.com/coreos/go-raft/protobuf"
+	"github.com/benbjohnson/go-raft/protobuf"
 	"io"
 )
 
