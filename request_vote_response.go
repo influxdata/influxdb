@@ -1,11 +1,11 @@
 package raft
 
 import (
-	"encoding/binary"
+	"code.google.com/p/goprotobuf/proto"
+	"github.com/coreos/go-raft/protobuf"
 	"io"
+	"io/ioutil"
 )
-
-const requestVoteResponseHeaderSize = 4 + 8 + 1
 
 // The response returned from a server after a vote for a candidate to become a leader.
 type RequestVoteResponse struct {
@@ -22,36 +22,47 @@ func newRequestVoteResponse(term uint64, voteGranted bool) *RequestVoteResponse 
 	}
 }
 
+// Encodes the RequestVoteResponse to a buffer. Returns the number of bytes
+// written and any error that may have occurred.
 func (resp *RequestVoteResponse) encode(w io.Writer) (int, error) {
-	b := make([]byte, requestVoteResponseHeaderSize)
 
-	binary.BigEndian.PutUint32(b[0:4], protocolVersion)
-	binary.BigEndian.PutUint64(b[4:12], resp.Term)
-	bigEndianPutBool(b[12:13], resp.VoteGranted)
+	p := proto.NewBuffer(nil)
 
-	return w.Write(b)
+	pb := &protobuf.ProtoRequestVoteResponse{
+		Term:        proto.Uint64(resp.Term),
+		VoteGranted: proto.Bool(resp.VoteGranted),
+	}
+
+	err := p.Marshal(pb)
+
+	if err != nil {
+		return -1, err
+	}
+
+	return w.Write(p.Bytes())
 }
 
+// Decodes the RequestVoteResponse from a buffer. Returns the number of bytes read and
+// any error that occurs.
 func (resp *RequestVoteResponse) decode(r io.Reader) (int, error) {
-	var eof error
-	header := make([]byte, requestVoteResponseHeaderSize)
-	if n, err := r.Read(header); err == io.EOF {
-		if n == len(header) {
-			eof = io.EOF
-		} else {
-			return n, io.ErrUnexpectedEOF
-		}
-	} else if err != nil {
-		return n, err
+	data, err := ioutil.ReadAll(r)
+
+	if err != nil {
+		return 0, err
 	}
 
-	// Verify that the encoding format can be read.
-	if version := binary.BigEndian.Uint32(header[0:4]); version != protocolVersion {
-		return requestVoteResponseHeaderSize, errUnsupportedLogVersion
+	totalBytes := len(data)
+
+	pb := &protobuf.ProtoRequestVoteResponse{}
+	p := proto.NewBuffer(data)
+
+	err = p.Unmarshal(pb)
+	if err != nil {
+		return -1, err
 	}
 
-	resp.Term = binary.BigEndian.Uint64(header[4:12])
-	resp.VoteGranted = bigEndianBool(header[12:13])
+	resp.Term = pb.GetTerm()
+	resp.VoteGranted = pb.GetVoteGranted()
 
-	return requestVoteResponseHeaderSize, eof
+	return totalBytes, nil
 }
