@@ -89,6 +89,7 @@ func (t *HTTPTransporter) Install(server *Server, mux HTTPMuxer) {
 func (t *HTTPTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, req *AppendEntriesRequest) *AppendEntriesResponse {
 	var b bytes.Buffer
 	if _, err := req.encode(&b); err != nil {
+		traceln("transporter.ae.encoding.error:", err)
 		return nil
 	}
 
@@ -98,12 +99,14 @@ func (t *HTTPTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, r
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: t.DisableKeepAlives}}
 	httpResp, err := client.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
+		traceln("transporter.ae.response.error:", err)
 		return nil
 	}
 	defer httpResp.Body.Close()
 
 	resp := &AppendEntriesResponse{}
 	if _, err = resp.decode(httpResp.Body); err != nil && err != io.EOF {
+		traceln("transporter.ae.decoding.error:", err)
 		return nil
 	}
 
@@ -114,6 +117,7 @@ func (t *HTTPTransporter) SendAppendEntriesRequest(server *Server, peer *Peer, r
 func (t *HTTPTransporter) SendVoteRequest(server *Server, peer *Peer, req *RequestVoteRequest) *RequestVoteResponse {
 	var b bytes.Buffer
 	if _, err := req.encode(&b); err != nil {
+		traceln("transporter.rv.encoding.error:", err)
 		return nil
 	}
 
@@ -123,12 +127,14 @@ func (t *HTTPTransporter) SendVoteRequest(server *Server, peer *Peer, req *Reque
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: t.DisableKeepAlives}}
 	httpResp, err := client.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
+		traceln("transporter.rv.response.error:", err)
 		return nil
 	}
 	defer httpResp.Body.Close()
 
 	resp := &RequestVoteResponse{}
 	if _, err = resp.decode(httpResp.Body); err != nil && err != io.EOF {
+		traceln("transporter.rv.decoding.error:", err)
 		return nil
 	}
 

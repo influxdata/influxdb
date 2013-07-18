@@ -11,7 +11,7 @@ message ProtoAppendEntriesRequest {
 		required uint64 Index=1;
 		required uint64 Term=2;
 		required string CommandName=3;
-		required bytes Command=4;
+		optional bytes Command=4;
 	}
 
 	repeated ProtoLogEntry Entries=6;

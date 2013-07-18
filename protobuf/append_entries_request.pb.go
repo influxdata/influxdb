@@ -73,7 +73,7 @@ type ProtoAppendEntriesRequest_ProtoLogEntry struct {
 	Index            *uint64 `protobuf:"varint,1,req" json:"Index,omitempty"`
 	Term             *uint64 `protobuf:"varint,2,req" json:"Term,omitempty"`
 	CommandName      *string `protobuf:"bytes,3,req" json:"CommandName,omitempty"`
-	Command          []byte  `protobuf:"bytes,4,req" json:"Command,omitempty"`
+	Command          []byte  `protobuf:"bytes,4,opt" json:"Command,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
