@@ -29,7 +29,7 @@ const (
 
 const (
 	MaxLogEntriesPerRequest         = 200
-	NumberOfLogEntreisAfterSnapshot = 200
+	NumberOfLogEntriesAfterSnapshot = 200
 )
 
 const (
@@ -958,8 +958,8 @@ func (s *Server) takeSnapshot() error {
 	// We keep some log entries after the snapshot
 	// We do not want to send the whole snapshot
 	// to the slightly slow machines
-	if lastIndex-s.log.startIndex > NumberOfLogEntreisAfterSnapshot {
-		compactIndex := lastIndex - NumberOfLogEntreisAfterSnapshot
+	if lastIndex-s.log.startIndex > NumberOfLogEntriesAfterSnapshot {
+		compactIndex := lastIndex - NumberOfLogEntriesAfterSnapshot
 		compactTerm := s.log.getEntry(compactIndex).Term
 		s.log.compact(compactIndex, compactTerm)
 	}
@@ -996,7 +996,7 @@ func (s *Server) SnapshotPath(lastIndex uint64, lastTerm uint64) string {
 	return path.Join(s.path, "snapshot", fmt.Sprintf("%v_%v.ss", lastTerm, lastIndex))
 }
 
-func (s *Server) SnapshotRequest(req *SnapshotRequest) *SnapshotResponse {
+func (s *Server) RequestSnapshot(req *SnapshotRequest) *SnapshotResponse {
 	ret, _ := s.send(req)
 	resp, _ := ret.(*SnapshotResponse)
 	return resp

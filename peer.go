@@ -247,10 +247,8 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) {
 		return
 	}
 
-	AEResp := p.convertSRRespToAEResp(SRResp)
-
 	// Send response to server for processing.
-	p.server.send(AEResp)
+	p.server.send(&AppendEntriesResponse{Term: SRResp.Term, Success: SRResp.Success, append: (SRResp.Term == p.server.currentTerm)})
 }
 
 //--------------------------------------
@@ -265,22 +263,5 @@ func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteRespo
 		debugln("peer.vote: recv", p.server.Name(), "<-", p.Name())
 		resp.peer = p
 		c <- resp
-	}
-}
-
-//--------------------------------------
-// Util
-//--------------------------------------
-func (p *Peer) convertSRRespToAEResp(resp *SnapshotRecoveryResponse) *AppendEntriesResponse {
-	append := false
-	if resp.Term == p.server.currentTerm {
-		append = true
-	}
-
-	// return the useful fields
-	return &AppendEntriesResponse{
-		Term:    resp.Term,
-		append:  append,
-		Success: resp.Success,
 	}
 }
