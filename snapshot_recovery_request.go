@@ -8,10 +8,12 @@ import (
 )
 
 // The request sent to a server to start from the snapshot.
-type SnapshotRequest struct {
+type SnapshotRecoveryRequest struct {
 	LeaderName string
 	LastIndex  uint64
 	LastTerm   uint64
+	Peers      []string
+	State      []byte
 }
 
 //------------------------------------------------------------------------------
@@ -21,24 +23,28 @@ type SnapshotRequest struct {
 //------------------------------------------------------------------------------
 
 // Creates a new Snapshot request.
-func newSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest {
-	return &SnapshotRequest{
+func newSnapshotRecoveryRequest(leaderName string, snapshot *Snapshot) *SnapshotRecoveryRequest {
+	return &SnapshotRecoveryRequest{
 		LeaderName: leaderName,
 		LastIndex:  snapshot.LastIndex,
 		LastTerm:   snapshot.LastTerm,
+		Peers:      snapshot.Peers,
+		State:      snapshot.State,
 	}
 }
 
-// Encodes the SnapshotRequest to a buffer. Returns the number of bytes
+// Encodes the SnapshotRecoveryRequest to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
-func (req *SnapshotRequest) encode(w io.Writer) (int, error) {
+func (req *SnapshotRecoveryRequest) encode(w io.Writer) (int, error) {
 
 	p := proto.NewBuffer(nil)
 
-	pb := &protobuf.ProtoSnapshotRequest{
+	pb := &protobuf.ProtoSnapshotRecoveryRequest{
 		LeaderName: proto.String(req.LeaderName),
 		LastIndex:  proto.Uint64(req.LastIndex),
 		LastTerm:   proto.Uint64(req.LastTerm),
+		Peers:      req.Peers,
+		State:      req.State,
 	}
 	err := p.Marshal(pb)
 
@@ -49,9 +55,9 @@ func (req *SnapshotRequest) encode(w io.Writer) (int, error) {
 	return w.Write(p.Bytes())
 }
 
-// Decodes the SnapshotRequest from a buffer. Returns the number of bytes read and
+// Decodes the SnapshotRecoveryRequest from a buffer. Returns the number of bytes read and
 // any error that occurs.
-func (req *SnapshotRequest) decode(r io.Reader) (int, error) {
+func (req *SnapshotRecoveryRequest) decode(r io.Reader) (int, error) {
 	data, err := ioutil.ReadAll(r)
 
 	if err != nil {
@@ -71,6 +77,8 @@ func (req *SnapshotRequest) decode(r io.Reader) (int, error) {
 	req.LeaderName = pb.GetLeaderName()
 	req.LastIndex = pb.GetLastIndex()
 	req.LastTerm = pb.GetLastTerm()
+	req.Peers = req.Peers
+	req.State = req.State
 
 	return totalBytes, nil
 }

@@ -229,15 +229,30 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) {
 
 	debugln("peer.snap.recv: ", p.name)
 
-	// If successful then update the previous log index.
+	// If successful, the peer should have been to snapshot state
+	// Send it the snapshot!
 	if resp.Success {
-		p.setPrevLogIndex(req.LastIndex)
+		p.sendSnapshotRecoveryRequest()
 	} else {
 		debugln("peer.snap.failed: ", p.name)
+		return
 	}
 
+}
+
+// Sends an Snapshot Recovery request to the peer through the transport.
+func (p *Peer) sendSnapshotRecoveryRequest() {
+	req := newSnapshotRecoveryRequest(p.server.name, p.server.lastSnapshot)
+	debugln("peer.snap.recovery.send: ", p.name)
+	resp := p.server.Transporter().SendSnapshotRecoveryRequest(p.server, p, req)
+	if resp.Success {
+		p.prevLogIndex = req.LastIndex
+	} else {
+		debugln("peer.snap.recovery.failed: ", p.name)
+		return
+	}
 	// Send response to server for processing.
-	p.server.send(resp)
+	p.server.send(&AppendEntriesResponse{Term: resp.Term, Success: resp.Success, append: (resp.Term == p.server.currentTerm)})	
 }
 
 //--------------------------------------
