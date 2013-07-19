@@ -142,10 +142,14 @@ func (t *HTTPTransporter) SendVoteRequest(server *Server, peer *Peer, req *Reque
 }
 
 // Sends a SnapshotRequest RPC to a peer.
-// func (t *HTTPTransporter) SendSnapshotRequest(server *Server, peer *Peer, req *SnapshotRequest) *SnapshotResponse {
-// 	// TODO
-// 	return nil
-// }
+func (t *HTTPTransporter) SendSnapshotRequest(server *Server, peer *Peer, req *SnapshotRequest) *SnapshotResponse {
+	return nil
+}
+
+// Sends a SnapshotRequest RPC to a peer.
+func (t *HTTPTransporter) SendSnapshotRecoveryRequest(server *Server, peer *Peer, req *SnapshotRecoveryRequest) *SnapshotRecoveryResponse {
+	return nil
+}
 
 //--------------------------------------
 // Incoming

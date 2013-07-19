@@ -125,6 +125,11 @@ func (t *testTransporter) SendSnapshotRequest(server *Server, peer *Peer, req *S
 	return t.sendSnapshotRequestFunc(server, peer, req)
 }
 
+func (t *testTransporter) SendSnapshotRecoveryRequest(server *Server, peer *Peer, req *SnapshotRecoveryRequest) *SnapshotRecoveryResponse {
+	return t.SendSnapshotRecoveryRequest(server, peer, req)
+}
+
+
 type testStateMachine struct {
 	saveFunc     func() ([]byte, error)
 	recoveryFunc func([]byte) error
