@@ -139,61 +139,95 @@ func (l *Log) open(path string) error {
 	defer l.mutex.Unlock()
 
 	// Read all the entries from the log if one exists.
-	var lastIndex int = 0
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		// Open the log file.
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		reader := bufio.NewReader(file)
+	var readBytes int64 = 0
 
-		// Read the file and decode entries.
-		for {
-			if _, err := reader.Peek(1); err == io.EOF {
-				break
-			}
+	var err error
+	debugln("log.open.open ", path)
+	// open log file
+	l.file, err = os.OpenFile(path, os.O_RDWR, 0600)
+	l.path = path
 
-			// Instantiate log entry and decode into it.
-			entry, _ := newLogEntry(l, 0, 0, nil)
-			n, err := entry.decode(reader)
+	if err != nil {
+		// if the log file does not exist before
+		// we create the log file and set commitIndex to 0
+		if os.IsNotExist(err) {
+			l.file, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0600)
+			debugln("log.open.create ", path)
 			if err != nil {
-				file.Close()
-				if err = os.Truncate(path, int64(lastIndex)); err != nil {
-					return fmt.Errorf("raft.Log: Unable to recover: %v", err)
-				}
-				break
+				panic(err)
+			}
+			// set commitIndex to 0
+			_, err = fmt.Fprintf(l.file, "%8x\n", 0)
+
+			if err != nil {
+				l.file.Close()
+				panic(err)
+				return err
 			}
 
-			// Append entry.
-			l.entries = append(l.entries, entry)
+		}
+		return err
+	}
+	debugln("log.open.exist ", path)
+	// if the log file exists
+	// we read out the commitIndex and apply all the commands
+	// seek to the end of log file
+	var commitIndex uint64
+	_, err = fmt.Fscanf(l.file, "%8x\n", &commitIndex)
+	debugln("log.open.commitIndex is ", commitIndex)
+	if err != nil {
+		panic(err)
+		return err
+	}
+
+	reader := bufio.NewReader(l.file)
+
+	// Read the file and decode entries.
+	for {
+		if _, err := reader.Peek(1); err == io.EOF {
+			break
+		}
+
+		// Instantiate log entry and decode into it.
+		entry, _ := newLogEntry(l, 0, 0, nil)
+		n, err := entry.decode(reader)
+		if err != nil {
+			//panic(err)
+			//l.file.Close()
+			if err = os.Truncate(path, readBytes); err != nil {
+				return fmt.Errorf("raft.Log: Unable to recover: %v", err)
+			}
+			break
+		}
+
+		// Append entry.
+		l.entries = append(l.entries, entry)
+		debugln("open.log.append log index ", entry.Index)
+		// if the entry index less than the known commitIndex
+		// commit it
+		if entry.Index < commitIndex {
+
 			l.commitIndex = entry.Index
 
 			// Lookup and decode command.
 			command, err := newCommand(entry.CommandName, entry.Command)
 			if err != nil {
-				file.Close()
+				panic(err)
+				l.file.Close()
 				return err
 			}
 
 			// Apply the command.
-			returnValue, err := l.ApplyFunc(command)
-			l.results = append(l.results, &logResult{returnValue: returnValue, err: err})
+			_, err = l.ApplyFunc(command)
 
-			lastIndex += n
+			// Do we really want the result?
+			// l.results = append(l.results, &logResult{returnValue: returnValue, err: err})
+
 		}
-
-		file.Close()
+		readBytes += int64(n)
 	}
-
-	// Open the file for appending.
-	var err error
-	l.file, err = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	l.path = path
+	l.results = make([]*logResult, len(l.entries))
+	debugln("open.log.recovery number of log ", len(l.entries))
 	return nil
 }
 
@@ -385,11 +419,6 @@ func (l *Log) setCommitIndex(index uint64) error {
 		entryIndex := i - 1 - l.startIndex
 		entry := l.entries[entryIndex]
 
-		// Write to storage.
-		if _, err := entry.encode(l.file); err != nil {
-			return err
-		}
-
 		// Update commit index.
 		l.commitIndex = entry.Index
 
@@ -404,6 +433,12 @@ func (l *Log) setCommitIndex(index uint64) error {
 		l.results[entryIndex] = &logResult{returnValue: returnValue, err: err}
 	}
 	return nil
+}
+
+func (l *Log) flushCommitIndex() {
+	l.file.Seek(0, os.SEEK_SET)
+	fmt.Fprintf(l.file, "%8x\n", l.commitIndex)
+	l.file.Seek(0, os.SEEK_END)
 }
 
 //--------------------------------------
@@ -431,6 +466,10 @@ func (l *Log) truncate(index uint64, term uint64) error {
 
 	// If we're truncating everything then just clear the entries.
 	if index == l.startIndex {
+		debugln("log.truncate.clear")
+		// 9 = %8x + '\n'
+		l.file.Truncate(9)
+		l.file.Seek(9, os.SEEK_SET)
 		l.entries = []*LogEntry{}
 	} else {
 		// Do not truncate if the entry at index does not have the matching term.
@@ -443,6 +482,9 @@ func (l *Log) truncate(index uint64, term uint64) error {
 		// Otherwise truncate up to the desired entry.
 		if index < l.startIndex+uint64(len(l.entries)) {
 			debugln("log.truncate.finish")
+			position := l.entries[index-l.startIndex].Position
+			l.file.Truncate(position)
+			l.file.Seek(position, os.SEEK_SET)
 			l.entries = l.entries[0 : index-l.startIndex]
 		}
 	}
@@ -488,6 +530,15 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 		}
 	}
 
+	position, _ := l.file.Seek(0, os.SEEK_CUR)
+
+	entry.Position = position
+
+	// Write to storage.
+	if _, err := entry.encode(l.file); err != nil {
+		return err
+	}
+
 	// Append to entries list if stored on disk.
 	l.entries = append(l.entries, entry)
 	l.results = append(l.results, nil)
@@ -523,6 +574,9 @@ func (l *Log) compact(index uint64, term uint64) error {
 		return err
 	}
 	for _, entry := range entries {
+		position, _ := l.file.Seek(0, os.SEEK_CUR)
+		entry.Position = position
+
 		if _, err = entry.encode(file); err != nil {
 			return err
 		}

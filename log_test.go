@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -115,6 +116,13 @@ func TestLogRecovery(t *testing.T) {
 	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
 	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X: 100})
 	f, _ := ioutil.TempFile("", "raft-log-")
+	_, err := fmt.Fprintf(f, "%8x\n", 0)
+
+	if err != nil {
+		f.Close()
+		panic(err)
+	}
+
 	e0.encode(f)
 	e1.encode(f)
 	f.WriteString("CORRUPT!")

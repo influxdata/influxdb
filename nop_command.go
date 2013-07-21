@@ -10,7 +10,7 @@ type NOPCommand struct {
 
 // The name of the NOP command in the log
 func (c NOPCommand) CommandName() string {
-	return "nop"
+	return "nop\n"
 }
 
 func (c NOPCommand) Apply(server *Server) (interface{}, error) {

@@ -320,12 +320,12 @@ func (s *Server) Initialize() error {
 
 	// Initialize the log and load it up.
 	if err := s.log.open(s.LogPath()); err != nil {
-		s.debugln("raft: Log error: %s", err)
+		s.debugln("raft: Log error: ", err)
 		return fmt.Errorf("raft: Initialization error: %s", err)
 	}
 
 	// Update the term to the last term in the log.
-	s.currentTerm = s.log.currentTerm()
+	_, s.currentTerm = s.log.lastInfo()
 
 	return nil
 }
@@ -333,6 +333,7 @@ func (s *Server) Initialize() error {
 // Start the sever as a follower
 func (s *Server) StartFollower() {
 	s.setState(Follower)
+	s.debugln("follower starts at term: ", s.currentTerm, " index: ", s.log.currentIndex(), " commitIndex: ", s.log.commitIndex)
 	go s.loop()
 }
 
@@ -340,7 +341,7 @@ func (s *Server) StartFollower() {
 func (s *Server) StartLeader() {
 	s.setState(Leader)
 	s.currentTerm++
-	s.debugln("leader start at term: ", s.currentTerm, " index: ", s.log.currentIndex())
+	s.debugln("leader starts at term: ", s.currentTerm, " index: ", s.log.currentIndex(), " commitIndex: ", s.log.commitIndex)
 	go s.loop()
 }
 
@@ -578,6 +579,7 @@ func (s *Server) leaderLoop() {
 	logIndex, _ := s.log.lastInfo()
 
 	// Update the peers prevLogIndex to leader's lastLogIndex and start heartbeat.
+	s.debugln("leaderLoop.set.PrevIndex to ", logIndex)
 	for _, peer := range s.peers {
 		peer.setPrevLogIndex(logIndex)
 		peer.startHeartbeat()
@@ -667,6 +669,7 @@ func (s *Server) processCommand(command Command, e *event) {
 
 	// Create an entry for the command in the log.
 	entry, err := s.log.createEntry(s.currentTerm, command)
+
 	if err != nil {
 		s.debugln("server.command.log.entry.error:", err)
 		e.c <- err
@@ -860,6 +863,9 @@ func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 // Adds a peer to the server.
 func (s *Server) AddPeer(name string) error {
 	s.debugln("server.peer.add: ", name, len(s.peers))
+
+	// Save the configuration of the cluster
+	s.log.flushCommitIndex()
 
 	// Do not allow peers to be added twice.
 	if s.peers[name] != nil {

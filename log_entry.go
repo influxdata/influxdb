@@ -16,6 +16,7 @@ type LogEntry struct {
 	Term        uint64
 	CommandName string
 	Command     []byte
+	Position    int64 // position in the log file
 	commit      chan bool
 }
 
@@ -62,11 +63,10 @@ func (e *LogEntry) encode(w io.Writer) (int, error) {
 	err := p.Marshal(pb)
 
 	if err != nil {
-		panic(err)
 		return -1, err
 	}
 
-	_, err = fmt.Fprintf(w, "%x", len(p.Bytes()))
+	_, err = fmt.Fprintf(w, "%x\n", len(p.Bytes()))
 
 	if err != nil {
 		return -1, err
@@ -80,10 +80,9 @@ func (e *LogEntry) encode(w io.Writer) (int, error) {
 func (e *LogEntry) decode(r io.Reader) (int, error) {
 
 	var length int
-	_, err := fmt.Fscanf(r, "%x", &length)
+	_, err := fmt.Fscanf(r, "%x\n", &length)
 
 	if err != nil {
-		panic(err)
 		return -1, err
 	}
 
@@ -100,7 +99,7 @@ func (e *LogEntry) decode(r io.Reader) (int, error) {
 	err = p.Unmarshal(pb)
 
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 
 	e.Term = pb.GetTerm()

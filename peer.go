@@ -252,7 +252,7 @@ func (p *Peer) sendSnapshotRecoveryRequest() {
 		return
 	}
 	// Send response to server for processing.
-	p.server.send(&AppendEntriesResponse{Term: resp.Term, Success: resp.Success, append: (resp.Term == p.server.currentTerm)})	
+	p.server.send(&AppendEntriesResponse{Term: resp.Term, Success: resp.Success, append: (resp.Term == p.server.currentTerm)})
 }
 
 //--------------------------------------
