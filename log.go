@@ -175,7 +175,6 @@ func (l *Log) open(path string) error {
 	_, err = fmt.Fscanf(l.file, "%8x\n", &commitIndex)
 	debugln("log.open.commitIndex is ", commitIndex)
 	if err != nil {
-		panic(err)
 		return err
 	}
 
@@ -210,7 +209,6 @@ func (l *Log) open(path string) error {
 			// Lookup and decode command.
 			command, err := newCommand(entry.CommandName, entry.Command)
 			if err != nil {
-				panic(err)
 				l.file.Close()
 				return err
 			}
