@@ -139,7 +139,7 @@ func (l *Log) open(path string) error {
 	defer l.mutex.Unlock()
 
 	// Read all the entries from the log if one exists.
-	var readBytes int64 = 0
+	var readBytes int64
 
 	var err error
 	debugln("log.open.open ", path)
