@@ -154,21 +154,20 @@ func (l *Log) open(path string) error {
 			l.file, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0600)
 			debugln("log.open.create ", path)
 			if err != nil {
-				panic(err)
+				return err
 			}
 			// set commitIndex to 0
 			_, err = fmt.Fprintf(l.file, "%8x\n", 0)
 
 			if err != nil {
 				l.file.Close()
-				panic(err)
-				return err
 			}
-
+			return err
 		}
 		return err
 	}
 	debugln("log.open.exist ", path)
+
 	// if the log file exists
 	// we read out the commitIndex and apply all the commands
 	// seek to the end of log file
@@ -192,8 +191,6 @@ func (l *Log) open(path string) error {
 		entry, _ := newLogEntry(l, 0, 0, nil)
 		n, err := entry.decode(reader)
 		if err != nil {
-			//panic(err)
-			//l.file.Close()
 			if err = os.Truncate(path, readBytes); err != nil {
 				return fmt.Errorf("raft.Log: Unable to recover: %v", err)
 			}
@@ -203,6 +200,7 @@ func (l *Log) open(path string) error {
 		// Append entry.
 		l.entries = append(l.entries, entry)
 		debugln("open.log.append log index ", entry.Index)
+
 		// if the entry index less than the known commitIndex
 		// commit it
 		if entry.Index < commitIndex {

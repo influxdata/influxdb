@@ -18,6 +18,7 @@ type ProtoLogEntry struct {
 	Term             *uint64 `protobuf:"varint,2,req" json:"Term,omitempty"`
 	CommandName      *string `protobuf:"bytes,3,req" json:"CommandName,omitempty"`
 	Command          []byte  `protobuf:"bytes,4,opt" json:"Command,omitempty"`
+	Position         *int64  `protobuf:"varint,5,req" json:"Position,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -51,6 +52,13 @@ func (m *ProtoLogEntry) GetCommand() []byte {
 		return m.Command
 	}
 	return nil
+}
+
+func (m *ProtoLogEntry) GetPosition() int64 {
+	if m != nil && m.Position != nil {
+		return *m.Position
+	}
+	return 0
 }
 
 func init() {
