@@ -100,7 +100,7 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 
 	resp := server.RequestVote(newRequestVoteRequest(3, "foo", 3, 3))
 	if resp.Term != 3 || resp.VoteGranted {
-		t.Fatalf("Stale index vote should have been denied [%v/%v]", resp.Term, resp.VoteGranted)
+		t.Fatalf("Stale index vote should have been denied [%v/%v/%v]", resp.Term, resp.VoteGranted)
 	}
 	resp = server.RequestVote(newRequestVoteRequest(3, "foo", 4, 2))
 	if resp.Term != 3 || resp.VoteGranted {

@@ -37,6 +37,7 @@ func getLogPath() string {
 
 func setupLog(entries []*LogEntry) (*Log, string) {
 	f, _ := ioutil.TempFile("", "raft-log-")
+
 	for _, entry := range entries {
 		entry.encode(f)
 	}
@@ -75,6 +76,7 @@ func newTestServerWithLog(name string, transporter Transporter, entries []*LogEn
 	if err != nil {
 		panic(err)
 	}
+
 	for _, entry := range entries {
 		entry.encode(f)
 	}
@@ -95,10 +97,10 @@ func newTestCluster(names []string, transporter Transporter, lookup map[string]*
 	}
 	for _, server := range servers {
 		server.SetHeartbeatTimeout(testHeartbeatTimeout)
+		server.Initialize()
 		for _, peer := range servers {
 			server.AddPeer(peer.Name())
 		}
-		server.Initialize()
 	}
 	return servers
 }
@@ -128,7 +130,6 @@ func (t *testTransporter) SendSnapshotRequest(server *Server, peer *Peer, req *S
 func (t *testTransporter) SendSnapshotRecoveryRequest(server *Server, peer *Peer, req *SnapshotRecoveryRequest) *SnapshotRecoveryResponse {
 	return t.SendSnapshotRecoveryRequest(server, peer, req)
 }
-
 
 type testStateMachine struct {
 	saveFunc     func() ([]byte, error)

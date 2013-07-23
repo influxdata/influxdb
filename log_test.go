@@ -115,6 +115,7 @@ func TestLogRecovery(t *testing.T) {
 	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
 	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X: 100})
 	f, _ := ioutil.TempFile("", "raft-log-")
+
 	e0.encode(f)
 	e1.encode(f)
 	f.WriteString("CORRUPT!")
@@ -160,7 +161,7 @@ func TestLogTruncate(t *testing.T) {
 	if err := log.open(path); err != nil {
 		t.Fatalf("Unable to open log: %v", err)
 	}
-	defer log.close()
+
 	defer os.Remove(path)
 
 	entry1, _ := newLogEntry(log, 1, 1, &testCommand1{Val: "foo", I: 20})
@@ -200,4 +201,29 @@ func TestLogTruncate(t *testing.T) {
 		t.Fatalf("Truncating at last commit should work: %v\n\nEntries:\nActual: %v\nExpected: %v", err, log.entries, []*LogEntry{entry1, entry2})
 	}
 
+	// Append after truncate
+	if err := log.appendEntry(entry3); err != nil {
+		t.Fatalf("Unable to append after truncate: %v", err)
+	}
+
+	log.close()
+
+	// Recovery the truncated log
+	log = newLog()
+	if err := log.open(path); err != nil {
+		t.Fatalf("Unable to open log: %v", err)
+	}
+	// Validate existing log entries.
+	if len(log.entries) != 3 {
+		t.Fatalf("Expected 3 entries, got %d", len(log.entries))
+	}
+	if log.entries[0].Index != 1 || log.entries[0].Term != 1 {
+		t.Fatalf("Unexpected entry[0]: %v", log.entries[0])
+	}
+	if log.entries[1].Index != 2 || log.entries[1].Term != 1 {
+		t.Fatalf("Unexpected entry[1]: %v", log.entries[1])
+	}
+	if log.entries[2].Index != 3 || log.entries[2].Term != 2 {
+		t.Fatalf("Unexpected entry[2]: %v", log.entries[2])
+	}
 }
