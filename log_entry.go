@@ -58,7 +58,6 @@ func (e *LogEntry) encode(w io.Writer) (int, error) {
 		Term:        proto.Uint64(e.Term),
 		CommandName: proto.String(e.CommandName),
 		Command:     e.Command,
-		Position:    proto.Int64(e.Position),
 	}
 
 	err := p.Marshal(pb)
@@ -107,7 +106,6 @@ func (e *LogEntry) decode(r io.Reader) (int, error) {
 	e.Index = pb.GetIndex()
 	e.CommandName = pb.GetCommandName()
 	e.Command = pb.Command
-	e.Position = pb.GetPosition()
 
 	return length, nil
 }

@@ -38,18 +38,10 @@ func getLogPath() string {
 func setupLog(entries []*LogEntry) (*Log, string) {
 	f, _ := ioutil.TempFile("", "raft-log-")
 
-	// commit Index
-	_, err := fmt.Fprintf(f, "%8x\n", 0)
-
-	if err != nil {
-		f.Close()
-		panic(err)
-	}
-
 	for _, entry := range entries {
 		entry.encode(f)
 	}
-	err = f.Close()
+	err := f.Close()
 
 	if err != nil {
 		panic(err)
@@ -82,12 +74,6 @@ func newTestServerWithLog(name string, transporter Transporter, entries []*LogEn
 	server := newTestServer(name, transporter)
 	f, err := os.Create(server.LogPath())
 	if err != nil {
-		panic(err)
-	}
-	_, err = fmt.Fprintf(f, "%x\n", len(entries))
-
-	if err != nil {
-		f.Close()
 		panic(err)
 	}
 

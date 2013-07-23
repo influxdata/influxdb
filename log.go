@@ -153,41 +153,26 @@ func (l *Log) open(path string) error {
 		if os.IsNotExist(err) {
 			l.file, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0600)
 			debugln("log.open.create ", path)
-			if err != nil {
-				return err
-			}
-			// set commitIndex to 0
-			_, err = fmt.Fprintf(l.file, "%8x\n", 0)
 
-			if err != nil {
-				l.file.Close()
-			}
 			return err
 		}
 		return err
 	}
 	debugln("log.open.exist ", path)
 
-	// if the log file exists
-	// we read out the commitIndex and apply all the commands
-	// seek to the end of log file
-	var commitIndex uint64
-	_, err = fmt.Fscanf(l.file, "%8x\n", &commitIndex)
-	debugln("log.open.commitIndex is ", commitIndex)
-	if err != nil {
-		return err
-	}
-
 	reader := bufio.NewReader(l.file)
 
 	// Read the file and decode entries.
 	for {
 		if _, err := reader.Peek(1); err == io.EOF {
+			debugln("open.log.append: finish ")
 			break
 		}
 
 		// Instantiate log entry and decode into it.
 		entry, _ := newLogEntry(l, 0, 0, nil)
+		entry.Position, _ = l.file.Seek(0, os.SEEK_CUR)
+
 		n, err := entry.decode(reader)
 		if err != nil {
 			if err = os.Truncate(path, readBytes); err != nil {
@@ -200,26 +185,6 @@ func (l *Log) open(path string) error {
 		l.entries = append(l.entries, entry)
 		debugln("open.log.append log index ", entry.Index)
 
-		// if the entry index less than the known commitIndex
-		// commit it
-		if entry.Index < commitIndex {
-
-			l.commitIndex = entry.Index
-
-			// Lookup and decode command.
-			command, err := newCommand(entry.CommandName, entry.Command)
-			if err != nil {
-				l.file.Close()
-				return err
-			}
-
-			// Apply the command.
-			_, err = l.ApplyFunc(command)
-
-			// Do we really want the result?
-			// l.results = append(l.results, &logResult{returnValue: returnValue, err: err})
-
-		}
 		readBytes += int64(n)
 	}
 	l.results = make([]*logResult, len(l.entries))
@@ -465,9 +430,8 @@ func (l *Log) truncate(index uint64, term uint64) error {
 	// If we're truncating everything then just clear the entries.
 	if index == l.startIndex {
 		debugln("log.truncate.clear")
-		// 9 = %8x + '\n'
-		l.file.Truncate(9)
-		l.file.Seek(9, os.SEEK_SET)
+		l.file.Truncate(0)
+		l.file.Seek(0, os.SEEK_SET)
 		l.entries = []*LogEntry{}
 	} else {
 		// Do not truncate if the entry at index does not have the matching term.

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -80,6 +81,8 @@ type Server struct {
 	lastSnapshot            *Snapshot
 	stateMachine            StateMachine
 	maxLogEntriesPerRequest uint64
+
+	confFile *os.File
 }
 
 // An event to be processed by the server's event loop.
@@ -185,7 +188,7 @@ func (s *Server) Context() interface{} {
 
 // Retrieves the log path for the server.
 func (s *Server) LogPath() string {
-	return fmt.Sprintf("%s/log", s.path)
+	return path.Join(s.path, "log")
 }
 
 // Retrieves the current state of the server.
@@ -316,7 +319,7 @@ func (s *Server) Initialize() error {
 	}
 
 	// Create snapshot directory if not exist
-	os.Mkdir(s.path+"/snapshot", 0700)
+	os.Mkdir(path.Join(s.path, "snapshot"), 0700)
 
 	// Initialize the log and load it up.
 	if err := s.log.open(s.LogPath()); err != nil {
@@ -324,8 +327,54 @@ func (s *Server) Initialize() error {
 		return fmt.Errorf("raft: Initialization error: %s", err)
 	}
 
+	if err := s.readConf(); err != nil {
+		s.debugln("raft: Conf file error: ", err)
+		return fmt.Errorf("raft: Initialization error: %s", err)
+	}
+
 	// Update the term to the last term in the log.
 	_, s.currentTerm = s.log.lastInfo()
+
+	return nil
+}
+
+// Read the configuration for the server.
+func (s *Server) readConf() error {
+	var err error
+	confPath := path.Join(s.path, "conf")
+	s.debugln("readConf.open ", confPath)
+	// open conf file
+	s.confFile, err = os.OpenFile(confPath, os.O_RDWR, 0600)
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			s.confFile, err = os.OpenFile(confPath, os.O_WRONLY|os.O_CREATE, 0600)
+			debugln("readConf.create ", confPath)
+			if err != nil {
+				return err
+			}
+		}
+		return err
+	}
+
+	for {
+		var peerName string
+		_, err = fmt.Fscanf(s.confFile, "%s\n", &peerName)
+
+		if err != nil {
+			if err == io.EOF {
+				s.debugln("server.peer.conf: finish")
+				return nil
+			}
+			return err
+		}
+		s.debugln("server.peer.conf.read: ", peerName)
+
+		peer := newPeer(s, peerName, s.heartbeatTimeout)
+
+		s.peers[peer.name] = peer
+
+	}
 
 	return nil
 }
@@ -864,9 +913,6 @@ func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 func (s *Server) AddPeer(name string) error {
 	s.debugln("server.peer.add: ", name, len(s.peers))
 
-	// Save the configuration of the cluster
-	s.log.flushCommitIndex()
-
 	// Do not allow peers to be added twice.
 	if s.peers[name] != nil {
 		return nil
@@ -874,6 +920,11 @@ func (s *Server) AddPeer(name string) error {
 
 	// Only add the peer if it doesn't have the same name.
 	if s.name != name {
+		_, err := fmt.Fprintln(s.confFile, name)
+		s.debugln("server.peer.conf.write: ", name)
+		if err != nil {
+			return err
+		}
 		peer := newPeer(s, name, s.heartbeatTimeout)
 		if s.State() == Leader {
 			peer.startHeartbeat()
@@ -902,7 +953,18 @@ func (s *Server) RemovePeer(name string) error {
 
 	// Stop peer and remove it.
 	peer.stopHeartbeat()
+
 	delete(s.peers, name)
+
+	s.confFile.Truncate(0)
+	s.confFile.Seek(0, os.SEEK_SET)
+
+	for peer := range s.peers {
+		_, err := fmt.Fprintln(s.confFile, peer)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
