@@ -472,9 +472,10 @@ func (l *Log) appendEntries(entries []*LogEntry) error {
 	var err error
 	// Append each entry but exit if we hit an error.
 	for _, entry := range entries {
-		if size, err = l.appendEntryWithBuffer(entry, w, startPosition); err != nil {
+		if size, err = l.writeEntry(entry, w); err != nil {
 			return err
 		}
+		entry.Position = startPosition
 		startPosition += size
 	}
 	w.Flush()
@@ -517,7 +518,7 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 }
 
 // appendEntry with Buffered io
-func (l *Log) appendEntryWithBuffer(entry *LogEntry, w io.Writer, startPosition int64) (int64, error) {
+func (l *Log) writeEntry(entry *LogEntry, w io.Writer) (int64, error) {
 	if l.file == nil {
 		return -1, errors.New("raft.Log: Log is not open")
 	}
@@ -532,12 +533,9 @@ func (l *Log) appendEntryWithBuffer(entry *LogEntry, w io.Writer, startPosition 
 		}
 	}
 
-	entry.Position = startPosition
-
-	var size int
-	var err error
 	// Write to storage.
-	if size, err = entry.encode(w); err != nil {
+	size, err := entry.encode(w)
+	if err != nil {
 		return -1, err
 	}
 
