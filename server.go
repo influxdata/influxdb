@@ -724,6 +724,7 @@ func (s *Server) processCommand(command Command, e *event) {
 		e.c <- err
 		return
 	}
+
 	if err := s.log.appendEntry(entry); err != nil {
 		s.debugln("server.command.log.error:", err)
 		e.c <- err
