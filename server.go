@@ -65,7 +65,6 @@ type Server struct {
 	transporter Transporter
 	context     interface{}
 	currentTerm uint64
-	promotable  bool
 
 	votedFor   string
 	log        *Log
@@ -246,6 +245,11 @@ func (s *Server) GetState() string {
 	return fmt.Sprintf("Name: %s, State: %s, Term: %v, Index: %v ", s.name, s.state, s.currentTerm, s.log.commitIndex)
 }
 
+// Check if the server is promotable
+func (s *Server) promotable() bool {
+	return s.log.currentIndex() > 0
+}
+
 //--------------------------------------
 // Membership
 //--------------------------------------
@@ -348,15 +352,13 @@ func (s *Server) Start() error {
 	// 1. wait for AEs from another node
 	// 2. wait for self-join command
 	// to set itself promotable
-	if s.log.currentIndex() == 0 {
+	if !s.promotable() {
 		s.debugln("start as a new raft server")
-		s.promotable = false
 
 		// If log entries exist then allow promotion to candidate
 		// if no AEs received.
 	} else {
 		s.debugln("start from previous saved state")
-		s.promotable = true
 	}
 
 	go s.loop()
@@ -528,7 +530,6 @@ func (s *Server) followerLoop() {
 					//then immediately become leader and commit entry.
 					if s.log.currentIndex() == 0 && command.Name == s.Name() {
 						s.debugln("selfjoin and promote to leader")
-						s.promotable = true
 						s.setState(Leader)
 						s.processCommand(command, e)
 					} else {
@@ -551,7 +552,7 @@ func (s *Server) followerLoop() {
 		case <-timeoutChan:
 
 			// only allow synced follower to promote to candidate
-			if s.promotable {
+			if s.promotable() {
 				s.setState(Candidate)
 			} else {
 				update = true
@@ -829,9 +830,6 @@ func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 	}
 
 	// once the server appended and commited all the log entries from the leader
-	// it is synced with the cluster
-	// the follower can promote to candidate if needed
-	s.promotable = true
 
 	return newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex()), true
 }
