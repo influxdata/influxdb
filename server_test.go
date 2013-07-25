@@ -22,8 +22,10 @@ import (
 // Ensure that we can request a vote from a server that has not voted.
 func TestServerRequestVote(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartLeader()
+	server.Start()
+	if _, err := server.Do(&JoinCommand{Name: server.Name()}); err != nil {
+		t.Fatalf("Server %s unable to join: %v", server.Name(), err)
+	}
 	defer server.Stop()
 	resp := server.RequestVote(newRequestVoteRequest(1, "foo", 0, 0))
 	if resp.Term != 1 || !resp.VoteGranted {
@@ -288,7 +290,7 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
-	server.StartFollower(true)
+	server.StartFollower(false)
 	defer server.Stop()
 	var err error
 	if _, err = server.Do(&testCommand1{Val: "foo", I: 10}); err != NotLeaderError {
