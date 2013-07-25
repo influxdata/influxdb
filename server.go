@@ -310,7 +310,14 @@ func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
 func init() {
 	RegisterCommand(&NOPCommand{})
 	RegisterCommand(&JoinCommand{})
+	RegisterCommand(&LeaveCommand{})
 }
+
+// Start as follow
+// If log entries exist then allow promotion to candidate if no AEs received.
+// If no log entries exist then wait for AEs from another node.
+// If no log entries exist and a self-join command is issued then
+// immediately become leader and commit entry.
 
 func (s *Server) Start() error {
 	// Exit if the server is already running.
@@ -520,7 +527,7 @@ func (s *Server) followerLoop() {
 					//If no log entries exist and a self-join command is issued
 					//then immediately become leader and commit entry.
 					if s.log.currentIndex() == 0 && command.Name == s.Name() {
-						fmt.Println("selfjoin!")
+						s.debugln("selfjoin and promote to leader")
 						s.promotable = true
 						s.setState(Leader)
 						s.processCommand(command, e)
