@@ -12,7 +12,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-	"reflect"
 )
 
 //------------------------------------------------------------------------------
@@ -66,7 +65,7 @@ type Server struct {
 	transporter Transporter
 	context     interface{}
 	currentTerm uint64
-	promotable  bool   
+	promotable  bool
 
 	votedFor   string
 	log        *Log
@@ -338,51 +337,22 @@ func (s *Server) Start() error {
 
 	s.setState(Follower)
 
-	// If no log entries exist then 
-	// 1. wait for AEs from another node 
-	// 2. wait for self-join command 
-	// to set itself promotable 
-	if (s.log.currentIndex() == 0) {
+	// If no log entries exist then
+	// 1. wait for AEs from another node
+	// 2. wait for self-join command
+	// to set itself promotable
+	if s.log.currentIndex() == 0 {
 		s.debugln("start as a new raft server")
 		s.promotable = false
 
-	// If log entries exist then allow promotion to candidate 
-	// if no AEs received.
+		// If log entries exist then allow promotion to candidate
+		// if no AEs received.
 	} else {
 		s.debugln("start from previous saved state")
 		s.promotable = true
 	}
 
 	go s.loop()
-
-	return nil
-}
-
-
-// Starts the server with a log at the given path.
-func (s *Server) Initialize() error {
-
-	// Exit if the server is already running.
-	if s.state != Stopped {
-		return errors.New("raft.Server: Server already running")
-	}
-
-	// Create snapshot directory if not exist
-	os.Mkdir(path.Join(s.path, "snapshot"), 0700)
-
-	// Initialize the log and load it up.
-	if err := s.log.open(s.LogPath()); err != nil {
-		s.debugln("raft: Log error: ", err)
-		return fmt.Errorf("raft: Initialization error: %s", err)
-	}
-
-	if err := s.readConf(); err != nil {
-		s.debugln("raft: Conf file error: ", err)
-		return fmt.Errorf("raft: Initialization error: %s", err)
-	}
-
-	// Update the term to the last term in the log.
-	_, s.currentTerm = s.log.lastInfo()
 
 	return nil
 }
@@ -426,25 +396,6 @@ func (s *Server) readConf() error {
 	}
 
 	return nil
-}
-
-// Start the sever as a follower
-// If we set synced to false, the follower will not promote itseft
-// until it get synced with the cluster once
-func (s *Server) StartFollower(promotable bool) {
-	s.promotable = promotable
-	s.setState(Follower)
-	s.debugln("follower starts at term: ", s.currentTerm, " index: ", s.log.currentIndex(), " commitIndex: ", s.log.commitIndex)
-	go s.loop()
-}
-
-// Start the sever as a leader
-func (s *Server) StartLeader() {
-	s.promotable = true
-	s.setState(Leader)
-	s.currentTerm++
-	s.debugln("leader starts at term: ", s.currentTerm, " index: ", s.log.currentIndex(), " commitIndex: ", s.log.commitIndex)
-	go s.loop()
 }
 
 // Shuts down the server.
@@ -563,9 +514,10 @@ func (s *Server) followerLoop() {
 			if e.target == &stopValue {
 				s.setState(Stopped)
 			} else if command, ok := e.target.(Command); ok {
-				
-				if reflect.Typeof(command) ==  {
-					//If no log entries exist and a self-join command is issued 
+
+				if command, ok := command.(*JoinCommand); ok {
+
+					//If no log entries exist and a self-join command is issued
 					//then immediately become leader and commit entry.
 					if s.log.currentIndex() == 0 && command.Name == s.Name() {
 						fmt.Println("selfjoin!")
@@ -1290,7 +1242,7 @@ func (s *Server) LoadSnapshot() error {
 //--------------------------------------
 
 func (s *Server) debugln(v ...interface{}) {
-	debugf("[%s] %s", s.name, fmt.Sprintln(v...))
+	debugf("[%s Term:%d] %s", s.name, s.currentTerm, fmt.Sprintln(v...))
 }
 
 func (s *Server) traceln(v ...interface{}) {

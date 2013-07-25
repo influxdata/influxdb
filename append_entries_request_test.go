@@ -27,7 +27,7 @@ func BenchmarkAppendEntriesRequestDecoding(b *testing.B) {
 func createTestAppendEntriesRequest(entryCount int) (*AppendEntriesRequest, []byte) {
 	entries := make([]*LogEntry, 0)
 	for i := 0; i < entryCount; i++ {
-		command := &joinCommand{Name: "localhost:1000"}
+		command := &JoinCommand{Name: "localhost:1000"}
 		entry, _ := newLogEntry(nil, 1, 2, command)
 		entries = append(entries, entry)
 	}

@@ -6,11 +6,11 @@ type LeaveCommand struct {
 }
 
 // The name of the Leave command in the log
-func (c LeaveCommand) CommandName() string {
+func (c *LeaveCommand) CommandName() string {
 	return "raft:leave"
 }
 
-func (c LeaveCommand) Apply(server *Server) (interface{}, error) {
+func (c *LeaveCommand) Apply(server *Server) (interface{}, error) {
 	err := server.RemovePeer(c.Name)
 
 	return []byte("leave"), err
