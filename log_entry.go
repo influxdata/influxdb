@@ -86,7 +86,7 @@ func (e *LogEntry) decode(r io.Reader) (int, error) {
 	}
 
 	data := make([]byte, length)
-	num, err := r.Read(data)
+	_, err = r.Read(data)
 
 	if err != nil {
 		panic(err)

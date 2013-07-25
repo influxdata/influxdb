@@ -171,12 +171,12 @@ func (l *Log) open(path string) error {
 		if err != nil {
 			if err == io.EOF {
 				debugln("open.log.append: finish ")
-				break
+			} else {
+				if err = os.Truncate(path, readBytes); err != nil {
+					return fmt.Errorf("raft.Log: Unable to recover: %v", err)
+				}
 			}
-
-			if err = os.Truncate(path, readBytes); err != nil {
-				return fmt.Errorf("raft.Log: Unable to recover: %v", err)
-			}
+			break
 		}
 
 		// Append entry.
