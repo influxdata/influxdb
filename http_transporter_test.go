@@ -24,7 +24,7 @@ func TestHTTPTransporter(t *testing.T) {
 			t.Fatal("Expected re-election:", servers[1].State(), servers[2].State())
 		}
 		server.Initialize()
-		server.StartFollower()
+		server.StartFollower(true)
 	}
 	f1 := func(server *Server, httpServer *http.Server) {
 	}
@@ -50,7 +50,7 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 		if i == 0 {
 			server.StartLeader()
 		} else {
-			server.StartFollower()
+			server.StartFollower(true)
 		}
 		defer server.Stop()
 		*servers = append(*servers, server)

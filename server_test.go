@@ -124,7 +124,7 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 func TestServerPromoteSelf(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
-	server.StartFollower()
+	server.StartFollower(true)
 	defer server.Stop()
 
 	time.Sleep(300 * time.Millisecond)
@@ -146,9 +146,9 @@ func TestServerPromote(t *testing.T) {
 	}
 	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
 
-	servers[0].StartFollower()
-	servers[1].StartFollower()
-	servers[2].StartFollower()
+	servers[0].StartFollower(true)
+	servers[1].StartFollower(true)
+	servers[2].StartFollower(true)
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -171,7 +171,7 @@ func TestServerAppendEntries(t *testing.T) {
 	// this test should assume that the server is a follower
 	// the leader will commit itself
 	server.SetHeartbeatTimeout(time.Second * 10)
-	server.StartFollower()
+	server.StartFollower(true)
 	defer server.Stop()
 
 	// Append single entry.
@@ -288,7 +288,7 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 	server.Initialize()
-	server.StartFollower()
+	server.StartFollower(true)
 	defer server.Stop()
 	var err error
 	if _, err = server.Do(&testCommand1{Val: "foo", I: 10}); err != NotLeaderError {
@@ -387,7 +387,7 @@ func TestServerMultiNode(t *testing.T) {
 		} else {
 			server.SetElectionTimeout(testElectionTimeout)
 			server.SetHeartbeatTimeout(testHeartbeatTimeout)
-			server.StartFollower()
+			server.StartFollower(true)
 			time.Sleep(10 * time.Millisecond)
 		}
 		if _, err := leader.Do(&joinCommand{Name: name}); err != nil {
