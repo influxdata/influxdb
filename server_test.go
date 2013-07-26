@@ -22,10 +22,14 @@ import (
 // Ensure that we can request a vote from a server that has not voted.
 func TestServerRequestVote(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartLeader()
+
+	server.Start()
+	if _, err := server.Do(&JoinCommand{Name: server.Name()}); err != nil {
+		t.Fatalf("Server %s unable to join: %v", server.Name(), err)
+	}
+
 	defer server.Stop()
-	resp := server.RequestVote(newRequestVoteRequest(1, "foo", 0, 0))
+	resp := server.RequestVote(newRequestVoteRequest(1, "foo", 1, 0))
 	if resp.Term != 1 || !resp.VoteGranted {
 		t.Fatalf("Invalid request vote response: %v/%v", resp.Term, resp.VoteGranted)
 	}
@@ -34,11 +38,15 @@ func TestServerRequestVote(t *testing.T) {
 // // Ensure that a vote request is denied if it comes from an old term.
 func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartLeader()
+
+	server.Start()
+	if _, err := server.Do(&JoinCommand{Name: server.Name()}); err != nil {
+		t.Fatalf("Server %s unable to join: %v", server.Name(), err)
+	}
+
 	server.currentTerm = 2
 	defer server.Stop()
-	resp := server.RequestVote(newRequestVoteRequest(1, "foo", 0, 0))
+	resp := server.RequestVote(newRequestVoteRequest(1, "foo", 1, 0))
 	if resp.Term != 2 || resp.VoteGranted {
 		t.Fatalf("Invalid request vote response: %v/%v", resp.Term, resp.VoteGranted)
 	}
@@ -47,18 +55,22 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	}
 }
 
-// // Ensure that a vote request is denied if we've already voted for a different candidate.
+// Ensure that a vote request is denied if we've already voted for a different candidate.
 func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartLeader()
+
+	server.Start()
+	if _, err := server.Do(&JoinCommand{Name: server.Name()}); err != nil {
+		t.Fatalf("Server %s unable to join: %v", server.Name(), err)
+	}
+
 	server.currentTerm = 2
 	defer server.Stop()
-	resp := server.RequestVote(newRequestVoteRequest(2, "foo", 0, 0))
+	resp := server.RequestVote(newRequestVoteRequest(2, "foo", 1, 0))
 	if resp.Term != 2 || !resp.VoteGranted {
 		t.Fatalf("First vote should not have been denied")
 	}
-	resp = server.RequestVote(newRequestVoteRequest(2, "bar", 0, 0))
+	resp = server.RequestVote(newRequestVoteRequest(2, "bar", 1, 0))
 	if resp.Term != 2 || resp.VoteGranted {
 		t.Fatalf("Second vote should have been denied")
 	}
@@ -67,18 +79,21 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 // Ensure that a vote request is approved if vote occurs in a new term.
 func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartLeader()
+
+	server.Start()
+	if _, err := server.Do(&JoinCommand{Name: server.Name()}); err != nil {
+		t.Fatalf("Server %s unable to join: %v", server.Name(), err)
+	}
 
 	time.Sleep(time.Millisecond * 100)
 
 	server.currentTerm = 2
 	defer server.Stop()
-	resp := server.RequestVote(newRequestVoteRequest(2, "foo", 1, 1))
+	resp := server.RequestVote(newRequestVoteRequest(2, "foo", 2, 1))
 	if resp.Term != 2 || !resp.VoteGranted || server.VotedFor() != "foo" {
 		t.Fatalf("First vote should not have been denied")
 	}
-	resp = server.RequestVote(newRequestVoteRequest(3, "bar", 1, 1))
+	resp = server.RequestVote(newRequestVoteRequest(3, "bar", 2, 1))
 
 	if resp.Term != 3 || !resp.VoteGranted || server.VotedFor() != "bar" {
 		t.Fatalf("Second vote should have been approved")
@@ -91,26 +106,32 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X: 100})
 	e2, _ := newLogEntry(nil, 3, 2, &testCommand1{Val: "bar", I: 0})
 	server := newTestServerWithLog("1", &testTransporter{}, []*LogEntry{e0, e1, e2})
-	server.Initialize()
-	server.StartLeader()
 
-	time.Sleep(time.Millisecond * 100)
+	// start as a follower with term 2 and index 3
+	server.Start()
 
 	defer server.Stop()
 
-	resp := server.RequestVote(newRequestVoteRequest(3, "foo", 3, 3))
+	// request vote from term 3 with last log entry 2, 2
+	resp := server.RequestVote(newRequestVoteRequest(3, "foo", 2, 2))
 	if resp.Term != 3 || resp.VoteGranted {
-		t.Fatalf("Stale index vote should have been denied [%v/%v/%v]", resp.Term, resp.VoteGranted)
+		t.Fatalf("Stale index vote should have been denied [%v/%v]", resp.Term, resp.VoteGranted)
 	}
-	resp = server.RequestVote(newRequestVoteRequest(3, "foo", 4, 2))
+
+	// request vote from term 2 with last log entry 2, 3
+	resp = server.RequestVote(newRequestVoteRequest(2, "foo", 3, 2))
 	if resp.Term != 3 || resp.VoteGranted {
 		t.Fatalf("Stale term vote should have been denied [%v/%v]", resp.Term, resp.VoteGranted)
 	}
-	resp = server.RequestVote(newRequestVoteRequest(3, "foo", 4, 3))
+
+	// request vote from term 3 with last log entry 2, 3
+	resp = server.RequestVote(newRequestVoteRequest(3, "foo", 3, 2))
 	if resp.Term != 3 || !resp.VoteGranted {
 		t.Fatalf("Matching log vote should have been granted")
 	}
-	resp = server.RequestVote(newRequestVoteRequest(3, "foo", 5, 4))
+
+	// request vote from term 3 with last log entry 2, 4
+	resp = server.RequestVote(newRequestVoteRequest(3, "foo", 4, 2))
 	if resp.Term != 3 || !resp.VoteGranted {
 		t.Fatalf("Ahead-of-log vote should have been granted")
 	}
@@ -122,9 +143,12 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 
 // // Ensure that we can self-promote a server to candidate, obtain votes and become a fearless leader.
 func TestServerPromoteSelf(t *testing.T) {
-	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartFollower()
+	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
+	server := newTestServerWithLog("1", &testTransporter{}, []*LogEntry{e0})
+
+	// start as a follower
+	server.Start()
+
 	defer server.Stop()
 
 	time.Sleep(300 * time.Millisecond)
@@ -146,11 +170,11 @@ func TestServerPromote(t *testing.T) {
 	}
 	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
 
-	servers[0].StartFollower()
-	servers[1].StartFollower()
-	servers[2].StartFollower()
+	servers[0].Start()
+	servers[1].Start()
+	servers[2].Start()
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 
 	if servers[0].State() != Leader && servers[1].State() != Leader && servers[2].State() != Leader {
 		t.Fatalf("No leader elected: (%s, %s, %s)", servers[0].State(), servers[1].State(), servers[2].State())
@@ -167,11 +191,9 @@ func TestServerPromote(t *testing.T) {
 // Ensure we can append entries to a server.
 func TestServerAppendEntries(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	// this test should assume that the server is a follower
-	// the leader will commit itself
+
 	server.SetHeartbeatTimeout(time.Second * 10)
-	server.StartFollower()
+	server.Start()
 	defer server.Stop()
 
 	// Append single entry.
@@ -210,8 +232,8 @@ func TestServerAppendEntries(t *testing.T) {
 //Ensure that entries with stale terms are rejected.
 func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartLeader()
+
+	server.Start()
 
 	defer server.Stop()
 	server.currentTerm = 2
@@ -231,8 +253,7 @@ func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 // Ensure that we reject entries if the commit log is different.
 func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartLeader()
+	server.Start()
 
 	defer server.Stop()
 
@@ -257,8 +278,7 @@ func TestServerAppendEntriesRejectedIfAlreadyCommitted(t *testing.T) {
 // Ensure that we uncommitted entries are rolled back if new entries overwrite them.
 func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartLeader()
+	server.Start()
 	defer server.Stop()
 
 	entry1, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 10})
@@ -287,8 +307,7 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 // Ensure that a follower cannot execute a command.
 func TestServerDenyCommandExecutionWhenFollower(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
-	server.Initialize()
-	server.StartFollower()
+	server.Start()
 	defer server.Stop()
 	var err error
 	if _, err = server.Do(&testCommand1{Val: "foo", I: 10}); err != NotLeaderError {
@@ -307,17 +326,12 @@ func TestServerSingleNode(t *testing.T) {
 		t.Fatalf("Unexpected server state: %v", server.State())
 	}
 
-	server.Initialize()
+	server.Start()
 
-	if server.State() != Stopped {
-		t.Fatalf("Unexpected server state: %v", server.State())
-	}
-
-	server.StartLeader()
 	time.Sleep(50 * time.Millisecond)
 
 	// Join the server to itself.
-	if _, err := server.Do(&joinCommand{Name: "1"}); err != nil {
+	if _, err := server.Do(&JoinCommand{Name: "1"}); err != nil {
 		t.Fatalf("Unable to join: %v", err)
 	}
 	debugln("finish command")
@@ -373,7 +387,6 @@ func TestServerMultiNode(t *testing.T) {
 	var leader *Server
 	for _, name := range names {
 		server := newTestServer(name, transporter)
-		server.Initialize()
 
 		mutex.Lock()
 		servers[name] = server
@@ -382,15 +395,15 @@ func TestServerMultiNode(t *testing.T) {
 		if name == "1" {
 			leader = server
 			server.SetHeartbeatTimeout(testHeartbeatTimeout)
-			server.StartLeader()
+			server.Start()
 			time.Sleep(100 * time.Millisecond)
 		} else {
 			server.SetElectionTimeout(testElectionTimeout)
 			server.SetHeartbeatTimeout(testHeartbeatTimeout)
-			server.StartFollower()
+			server.Start()
 			time.Sleep(10 * time.Millisecond)
 		}
-		if _, err := leader.Do(&joinCommand{Name: name}); err != nil {
+		if _, err := leader.Do(&JoinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
 		}
 

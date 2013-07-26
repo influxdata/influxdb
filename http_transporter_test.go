@@ -23,8 +23,7 @@ func TestHTTPTransporter(t *testing.T) {
 		if servers[1].State() != Leader && servers[2].State() != Leader {
 			t.Fatal("Expected re-election:", servers[1].State(), servers[2].State())
 		}
-		server.Initialize()
-		server.StartFollower()
+		server.Start()
 	}
 	f1 := func(server *Server, httpServer *http.Server) {
 	}
@@ -46,12 +45,8 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 		server := newTestServer(fmt.Sprintf("localhost:%d", port), transporter)
 		server.SetHeartbeatTimeout(testHeartbeatTimeout)
 		server.SetElectionTimeout(testElectionTimeout)
-		server.Initialize()
-		if i == 0 {
-			server.StartLeader()
-		} else {
-			server.StartFollower()
-		}
+		server.Start()
+
 		defer server.Stop()
 		*servers = append(*servers, server)
 
@@ -73,7 +68,7 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 
 	// Setup configuration.
 	for _, server := range *servers {
-		if _, err := (*servers)[0].Do(&joinCommand{Name: server.Name()}); err != nil {
+		if _, err := (*servers)[0].Do(&JoinCommand{Name: server.Name()}); err != nil {
 			t.Fatalf("Server %s unable to join: %v", server.Name(), err)
 		}
 	}

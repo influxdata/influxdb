@@ -66,7 +66,7 @@ func (e *LogEntry) encode(w io.Writer) (int, error) {
 		return -1, err
 	}
 
-	_, err = fmt.Fprintf(w, "%x\n", len(p.Bytes()))
+	_, err = fmt.Fprintf(w, "%8x\n", len(p.Bytes()))
 
 	if err != nil {
 		return -1, err
@@ -80,14 +80,12 @@ func (e *LogEntry) encode(w io.Writer) (int, error) {
 func (e *LogEntry) decode(r io.Reader) (int, error) {
 
 	var length int
-	_, err := fmt.Fscanf(r, "%x\n", &length)
-
+	_, err := fmt.Fscanf(r, "%8x\n", &length)
 	if err != nil {
 		return -1, err
 	}
 
 	data := make([]byte, length)
-
 	_, err = r.Read(data)
 
 	if err != nil {

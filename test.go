@@ -13,7 +13,6 @@ const (
 )
 
 func init() {
-	RegisterCommand(&joinCommand{})
 	RegisterCommand(&testCommand1{})
 	RegisterCommand(&testCommand2{})
 }
@@ -86,18 +85,20 @@ func newTestServerWithLog(name string, transporter Transporter, entries []*LogEn
 
 func newTestCluster(names []string, transporter Transporter, lookup map[string]*Server) []*Server {
 	servers := []*Server{}
+	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
+
 	for _, name := range names {
 		if lookup[name] != nil {
 			panic(fmt.Sprintf("raft: Duplicate server in test cluster! %v", name))
 		}
-		server := newTestServer(name, transporter)
+		server := newTestServerWithLog("1", transporter, []*LogEntry{e0})
 		server.SetElectionTimeout(testElectionTimeout)
 		servers = append(servers, server)
 		lookup[name] = server
 	}
 	for _, server := range servers {
 		server.SetHeartbeatTimeout(testHeartbeatTimeout)
-		server.Initialize()
+		server.Start()
 		for _, peer := range servers {
 			server.AddPeer(peer.Name())
 		}
@@ -142,23 +143,6 @@ func (sm *testStateMachine) Save() ([]byte, error) {
 
 func (sm *testStateMachine) Recovery(state []byte) error {
 	return sm.recoveryFunc(state)
-}
-
-//--------------------------------------
-// Join Command
-//--------------------------------------
-
-type joinCommand struct {
-	Name string `json:"name"`
-}
-
-func (c *joinCommand) CommandName() string {
-	return "test:join"
-}
-
-func (c *joinCommand) Apply(server *Server) (interface{}, error) {
-	err := server.AddPeer(c.Name)
-	return nil, err
 }
 
 //--------------------------------------

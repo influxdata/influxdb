@@ -245,6 +245,11 @@ func (s *Server) GetState() string {
 	return fmt.Sprintf("Name: %s, State: %s, Term: %v, Index: %v ", s.name, s.state, s.currentTerm, s.log.commitIndex)
 }
 
+// Check if the server is promotable
+func (s *Server) promotable() bool {
+	return s.log.currentIndex() > 0
+}
+
 //--------------------------------------
 // Membership
 //--------------------------------------
@@ -308,11 +313,17 @@ func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
 // Reg the NOPCommand
 func init() {
 	RegisterCommand(&NOPCommand{})
+	RegisterCommand(&JoinCommand{})
+	RegisterCommand(&LeaveCommand{})
 }
 
-// Starts the server with a log at the given path.
-func (s *Server) Initialize() error {
+// Start as follow
+// If log entries exist then allow promotion to candidate if no AEs received.
+// If no log entries exist then wait for AEs from another node.
+// If no log entries exist and a self-join command is issued then
+// immediately become leader and commit entry.
 
+func (s *Server) Start() error {
 	// Exit if the server is already running.
 	if s.state != Stopped {
 		return errors.New("raft.Server: Server already running")
@@ -334,6 +345,23 @@ func (s *Server) Initialize() error {
 
 	// Update the term to the last term in the log.
 	_, s.currentTerm = s.log.lastInfo()
+
+	s.setState(Follower)
+
+	// If no log entries exist then
+	// 1. wait for AEs from another node
+	// 2. wait for self-join command
+	// to set itself promotable
+	if !s.promotable() {
+		s.debugln("start as a new raft server")
+
+		// If log entries exist then allow promotion to candidate
+		// if no AEs received.
+	} else {
+		s.debugln("start from previous saved state")
+	}
+
+	go s.loop()
 
 	return nil
 }
@@ -377,21 +405,6 @@ func (s *Server) readConf() error {
 	}
 
 	return nil
-}
-
-// Start the sever as a follower
-func (s *Server) StartFollower() {
-	s.setState(Follower)
-	s.debugln("follower starts at term: ", s.currentTerm, " index: ", s.log.currentIndex(), " commitIndex: ", s.log.commitIndex)
-	go s.loop()
-}
-
-// Start the sever as a leader
-func (s *Server) StartLeader() {
-	s.setState(Leader)
-	s.currentTerm++
-	s.debugln("leader starts at term: ", s.currentTerm, " index: ", s.log.currentIndex(), " commitIndex: ", s.log.commitIndex)
-	go s.loop()
 }
 
 // Shuts down the server.
@@ -504,13 +517,27 @@ func (s *Server) followerLoop() {
 
 	for {
 		var err error
-		var update bool
+		update := false
 		select {
 		case e := <-s.c:
 			if e.target == &stopValue {
 				s.setState(Stopped)
-			} else if _, ok := e.target.(Command); ok {
-				err = NotLeaderError
+			} else if command, ok := e.target.(Command); ok {
+
+				if command, ok := command.(*JoinCommand); ok {
+
+					//If no log entries exist and a self-join command is issued
+					//then immediately become leader and commit entry.
+					if s.log.currentIndex() == 0 && command.Name == s.Name() {
+						s.debugln("selfjoin and promote to leader")
+						s.setState(Leader)
+						s.processCommand(command, e)
+					} else {
+						err = NotLeaderError
+					}
+				} else {
+					err = NotLeaderError
+				}
 			} else if req, ok := e.target.(*AppendEntriesRequest); ok {
 				e.returnValue, update = s.processAppendEntriesRequest(req)
 			} else if req, ok := e.target.(*RequestVoteRequest); ok {
@@ -523,7 +550,13 @@ func (s *Server) followerLoop() {
 			e.c <- err
 
 		case <-timeoutChan:
-			s.setState(Candidate)
+
+			// only allow synced follower to promote to candidate
+			if s.promotable() {
+				s.setState(Candidate)
+			} else {
+				update = true
+			}
 		}
 
 		// Converts to candidate if election timeout elapses without either:
@@ -795,6 +828,8 @@ func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 		s.debugln("server.ae.commit.error: ", err)
 		return newAppendEntriesResponse(s.currentTerm, false, s.log.currentIndex(), s.log.CommitIndex()), true
 	}
+
+	// once the server appended and commited all the log entries from the leader
 
 	return newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex()), true
 }
@@ -1212,7 +1247,7 @@ func (s *Server) LoadSnapshot() error {
 //--------------------------------------
 
 func (s *Server) debugln(v ...interface{}) {
-	debugf("[%s] %s", s.name, fmt.Sprintln(v...))
+	debugf("[%s Term:%d] %s", s.name, s.currentTerm, fmt.Sprintln(v...))
 }
 
 func (s *Server) traceln(v ...interface{}) {

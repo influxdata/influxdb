@@ -160,23 +160,21 @@ func (l *Log) open(path string) error {
 	}
 	debugln("log.open.exist ", path)
 
-	reader := bufio.NewReader(l.file)
-
 	// Read the file and decode entries.
 	for {
-		if _, err := reader.Peek(1); err == io.EOF {
-			debugln("open.log.append: finish ")
-			break
-		}
 
 		// Instantiate log entry and decode into it.
 		entry, _ := newLogEntry(l, 0, 0, nil)
 		entry.Position, _ = l.file.Seek(0, os.SEEK_CUR)
 
-		n, err := entry.decode(reader)
+		n, err := entry.decode(l.file)
 		if err != nil {
-			if err = os.Truncate(path, readBytes); err != nil {
-				return fmt.Errorf("raft.Log: Unable to recover: %v", err)
+			if err == io.EOF {
+				debugln("open.log.append: finish ")
+			} else {
+				if err = os.Truncate(path, readBytes); err != nil {
+					return fmt.Errorf("raft.Log: Unable to recover: %v", err)
+				}
 			}
 			break
 		}
