@@ -24,7 +24,7 @@ func TestServerRequestVote(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 
 	server.Start()
-	if _, err := server.Do(&JoinCommand{Name: server.Name()}); err != nil {
+	if _, err := server.Do(&DefaultJoinCommand{Name: server.Name()}); err != nil {
 		t.Fatalf("Server %s unable to join: %v", server.Name(), err)
 	}
 
@@ -40,7 +40,7 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 
 	server.Start()
-	if _, err := server.Do(&JoinCommand{Name: server.Name()}); err != nil {
+	if _, err := server.Do(&DefaultJoinCommand{Name: server.Name()}); err != nil {
 		t.Fatalf("Server %s unable to join: %v", server.Name(), err)
 	}
 
@@ -60,7 +60,7 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 
 	server.Start()
-	if _, err := server.Do(&JoinCommand{Name: server.Name()}); err != nil {
+	if _, err := server.Do(&DefaultJoinCommand{Name: server.Name()}); err != nil {
 		t.Fatalf("Server %s unable to join: %v", server.Name(), err)
 	}
 
@@ -81,7 +81,7 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 	server := newTestServer("1", &testTransporter{})
 
 	server.Start()
-	if _, err := server.Do(&JoinCommand{Name: server.Name()}); err != nil {
+	if _, err := server.Do(&DefaultJoinCommand{Name: server.Name()}); err != nil {
 		t.Fatalf("Server %s unable to join: %v", server.Name(), err)
 	}
 
@@ -331,7 +331,7 @@ func TestServerSingleNode(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Join the server to itself.
-	if _, err := server.Do(&JoinCommand{Name: "1"}); err != nil {
+	if _, err := server.Do(&DefaultJoinCommand{Name: "1"}); err != nil {
 		t.Fatalf("Unable to join: %v", err)
 	}
 	debugln("finish command")
@@ -403,7 +403,7 @@ func TestServerMultiNode(t *testing.T) {
 			server.Start()
 			time.Sleep(10 * time.Millisecond)
 		}
-		if _, err := leader.Do(&JoinCommand{Name: name}); err != nil {
+		if _, err := leader.Do(&DefaultJoinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
 		}
 
