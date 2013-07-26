@@ -65,7 +65,6 @@ type Server struct {
 	transporter Transporter
 	context     interface{}
 	currentTerm uint64
-	synced      bool   
 
 	votedFor   string
 	log        *Log
@@ -246,6 +245,11 @@ func (s *Server) GetState() string {
 	return fmt.Sprintf("Name: %s, State: %s, Term: %v, Index: %v ", s.name, s.state, s.currentTerm, s.log.commitIndex)
 }
 
+// Check if the server is promotable
+func (s *Server) promotable() bool {
+	return s.log.currentIndex() > 0
+}
+
 //--------------------------------------
 // Membership
 //--------------------------------------
@@ -309,11 +313,17 @@ func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
 // Reg the NOPCommand
 func init() {
 	RegisterCommand(&NOPCommand{})
+	RegisterCommand(&DefaultJoinCommand{})
+	RegisterCommand(&DefaultLeaveCommand{})
 }
 
-// Starts the server with a log at the given path.
-func (s *Server) Initialize() error {
+// Start as follow
+// If log entries exist then allow promotion to candidate if no AEs received.
+// If no log entries exist then wait for AEs from another node.
+// If no log entries exist and a self-join command is issued then
+// immediately become leader and commit entry.
 
+func (s *Server) Start() error {
 	// Exit if the server is already running.
 	if s.state != Stopped {
 		return errors.New("raft.Server: Server already running")
@@ -335,6 +345,23 @@ func (s *Server) Initialize() error {
 
 	// Update the term to the last term in the log.
 	_, s.currentTerm = s.log.lastInfo()
+
+	s.setState(Follower)
+
+	// If no log entries exist then
+	// 1. wait for AEs from another node
+	// 2. wait for self-join command
+	// to set itself promotable
+	if !s.promotable() {
+		s.debugln("start as a new raft server")
+
+		// If log entries exist then allow promotion to candidate
+		// if no AEs received.
+	} else {
+		s.debugln("start from previous saved state")
+	}
+
+	go s.loop()
 
 	return nil
 }
@@ -380,25 +407,6 @@ func (s *Server) readConf() error {
 	return nil
 }
 
-// Start the sever as a follower
-// If we set synced to false, the follower will not promote itseft
-// until it get synced with the cluster once
-func (s *Server) StartFollower(synced bool) {
-	s.synced = synced
-	s.setState(Follower)
-	s.debugln("follower starts at term: ", s.currentTerm, " index: ", s.log.currentIndex(), " commitIndex: ", s.log.commitIndex)
-	go s.loop()
-}
-
-// Start the sever as a leader
-func (s *Server) StartLeader() {
-	s.synced = true
-	s.setState(Leader)
-	s.currentTerm++
-	s.debugln("leader starts at term: ", s.currentTerm, " index: ", s.log.currentIndex(), " commitIndex: ", s.log.commitIndex)
-	go s.loop()
-}
-
 // Shuts down the server.
 func (s *Server) Stop() {
 	s.send(&stopValue)
@@ -433,7 +441,8 @@ func (s *Server) setCurrentTerm(term uint64, leaderName string, append bool) {
 		return
 	}
 
-	// discover new leader
+	// discover new leader when candidate
+	// save leader name when follower
 	if term == s.currentTerm && s.state != Leader && append {
 		s.state = Follower
 		s.leader = leaderName
@@ -515,14 +524,24 @@ func (s *Server) followerLoop() {
 		case e := <-s.c:
 			if e.target == &stopValue {
 				s.setState(Stopped)
-			} else if _, ok := e.target.(Command); ok {
-				err = NotLeaderError
+			} else if command, ok := e.target.(JoinCommand); ok {
+				//If no log entries exist and a self-join command is issued
+				//then immediately become leader and commit entry.
+				if s.log.currentIndex() == 0 && command.NodeName() == s.Name() {
+					s.debugln("selfjoin and promote to leader")
+					s.setState(Leader)
+					s.processCommand(command, e)
+				} else {
+					err = NotLeaderError
+				}
 			} else if req, ok := e.target.(*AppendEntriesRequest); ok {
 				e.returnValue, update = s.processAppendEntriesRequest(req)
 			} else if req, ok := e.target.(*RequestVoteRequest); ok {
 				e.returnValue, update = s.processRequestVoteRequest(req)
 			} else if req, ok := e.target.(*SnapshotRequest); ok {
 				e.returnValue = s.processSnapshotRequest(req)
+			} else {
+				err = NotLeaderError
 			}
 
 			// Callback to event.
@@ -531,7 +550,7 @@ func (s *Server) followerLoop() {
 		case <-timeoutChan:
 
 			// only allow synced follower to promote to candidate
-			if s.synced {
+			if s.promotable() {
 				s.setState(Candidate)
 			} else {
 				update = true
@@ -809,9 +828,6 @@ func (s *Server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 	}
 
 	// once the server appended and commited all the log entries from the leader
-	// it is synced with the cluster
-	// the follower can promote to candidate if needed
-	s.synced = true
 
 	return newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex()), true
 }
@@ -1229,7 +1245,7 @@ func (s *Server) LoadSnapshot() error {
 //--------------------------------------
 
 func (s *Server) debugln(v ...interface{}) {
-	debugf("[%s] %s", s.name, fmt.Sprintln(v...))
+	debugf("[%s Term:%d] %s", s.name, s.currentTerm, fmt.Sprintln(v...))
 }
 
 func (s *Server) traceln(v ...interface{}) {

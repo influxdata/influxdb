@@ -89,7 +89,6 @@ func (e *LogEntry) decode(r io.Reader) (int, error) {
 	_, err = r.Read(data)
 
 	if err != nil {
-		panic(err)
 		return -1, err
 	}
 
@@ -98,7 +97,6 @@ func (e *LogEntry) decode(r io.Reader) (int, error) {
 	err = p.Unmarshal(pb)
 
 	if err != nil {
-		panic(err)
 		return -1, err
 	}
 
