@@ -314,7 +314,7 @@ func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
 func init() {
 	RegisterCommand(&NOPCommand{})
 	RegisterCommand(&DefaultJoinCommand{})
-	RegisterCommand(&LeaveCommand{})
+	RegisterCommand(&DefaultLeaveCommand{})
 }
 
 // Start as follow
