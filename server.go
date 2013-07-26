@@ -438,6 +438,10 @@ func (s *Server) setCurrentTerm(term uint64, leaderName string, append bool) {
 		s.state = Follower
 		s.leader = leaderName
 	}
+
+	if s.state == Follower {
+		s.leader = leaderName
+	}
 }
 
 //--------------------------------------
