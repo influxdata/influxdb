@@ -441,11 +441,13 @@ func (s *Server) setCurrentTerm(term uint64, leaderName string, append bool) {
 		return
 	}
 
-	// discover new leader
-	if term == s.currentTerm && s.state == Candidate && append {
+	// discover new leader when candidate 
+	// save leader name when follower
+	if term == s.currentTerm && s.state != Leader && append {
 		s.state = Follower
 		s.leader = leaderName
 	}
+
 }
 
 //--------------------------------------
