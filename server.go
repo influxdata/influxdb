@@ -313,8 +313,8 @@ func (s *Server) SetHeartbeatTimeout(duration time.Duration) {
 // Reg the NOPCommand
 func init() {
 	RegisterCommand(&NOPCommand{})
-	RegisterCommand(&JoinCommand{})
-	RegisterCommand(&LeaveCommand{})
+	RegisterCommand(&DefaultJoinCommand{})
+	RegisterCommand(&DefaultLeaveCommand{})
 }
 
 // Start as follow
@@ -441,7 +441,7 @@ func (s *Server) setCurrentTerm(term uint64, leaderName string, append bool) {
 		return
 	}
 
-	// discover new leader when candidate 
+	// discover new leader when candidate
 	// save leader name when follower
 	if term == s.currentTerm && s.state != Leader && append {
 		s.state = Follower
@@ -524,19 +524,13 @@ func (s *Server) followerLoop() {
 		case e := <-s.c:
 			if e.target == &stopValue {
 				s.setState(Stopped)
-			} else if command, ok := e.target.(Command); ok {
-
-				if command, ok := command.(*JoinCommand); ok {
-
-					//If no log entries exist and a self-join command is issued
-					//then immediately become leader and commit entry.
-					if s.log.currentIndex() == 0 && command.Name == s.Name() {
-						s.debugln("selfjoin and promote to leader")
-						s.setState(Leader)
-						s.processCommand(command, e)
-					} else {
-						err = NotLeaderError
-					}
+			} else if command, ok := e.target.(JoinCommand); ok {
+				//If no log entries exist and a self-join command is issued
+				//then immediately become leader and commit entry.
+				if s.log.currentIndex() == 0 && command.NodeName() == s.Name() {
+					s.debugln("selfjoin and promote to leader")
+					s.setState(Leader)
+					s.processCommand(command, e)
 				} else {
 					err = NotLeaderError
 				}
@@ -546,6 +540,8 @@ func (s *Server) followerLoop() {
 				e.returnValue, update = s.processRequestVoteRequest(req)
 			} else if req, ok := e.target.(*SnapshotRequest); ok {
 				e.returnValue = s.processSnapshotRequest(req)
+			} else {
+				err = NotLeaderError
 			}
 
 			// Callback to event.
