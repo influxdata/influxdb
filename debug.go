@@ -16,11 +16,11 @@ const (
 	Trace = 2
 )
 
-var LogLevel int = 0
+var logLevel int = 0
 var logger *log.Logger
 
 func init() {
-	logger = log.New(os.Stdout, "", log.Lmicroseconds)
+	logger = log.New(os.Stdout, "raft", log.Lmicroseconds)
 }
 
 //------------------------------------------------------------------------------
@@ -28,6 +28,14 @@ func init() {
 // Functions
 //
 //------------------------------------------------------------------------------
+
+func LogLevel() int {
+	return logLevel
+}
+
+func SetLogLevel(level int) {
+	logLevel = level
+}
 
 //--------------------------------------
 // Warnings
@@ -58,7 +66,7 @@ func warnln(v ...interface{}) {
 // Prints to the standard logger if debug mode is enabled. Arguments
 // are handled in the manner of fmt.Print.
 func debug(v ...interface{}) {
-	if LogLevel >= Debug {
+	if logLevel >= Debug {
 		logger.Print(v...)
 	}
 }
@@ -66,7 +74,7 @@ func debug(v ...interface{}) {
 // Prints to the standard logger if debug mode is enabled. Arguments
 // are handled in the manner of fmt.Printf.
 func debugf(format string, v ...interface{}) {
-	if LogLevel >= Debug {
+	if logLevel >= Debug {
 		logger.Printf(format, v...)
 	}
 }
@@ -74,7 +82,7 @@ func debugf(format string, v ...interface{}) {
 // Prints to the standard logger if debug mode is enabled. Arguments
 // are handled in the manner of fmt.Println.
 func debugln(v ...interface{}) {
-	if LogLevel >= Debug {
+	if logLevel >= Debug {
 		logger.Println(v...)
 	}
 }
@@ -86,7 +94,7 @@ func debugln(v ...interface{}) {
 // Prints to the standard logger if trace debugging is enabled. Arguments
 // are handled in the manner of fmt.Print.
 func trace(v ...interface{}) {
-	if LogLevel >= Trace {
+	if logLevel >= Trace {
 		logger.Print(v...)
 	}
 }
@@ -94,7 +102,7 @@ func trace(v ...interface{}) {
 // Prints to the standard logger if trace debugging is enabled. Arguments
 // are handled in the manner of fmt.Printf.
 func tracef(format string, v ...interface{}) {
-	if LogLevel >= Trace {
+	if logLevel >= Trace {
 		logger.Printf(format, v...)
 	}
 }
@@ -102,7 +110,7 @@ func tracef(format string, v ...interface{}) {
 // Prints to the standard logger if trace debugging is enabled. Arguments
 // are handled in the manner of debugln.
 func traceln(v ...interface{}) {
-	if LogLevel >= Trace {
+	if logLevel >= Trace {
 		logger.Println(v...)
 	}
 }
