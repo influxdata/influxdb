@@ -34,7 +34,7 @@ func LogLevel() int {
 }
 
 func SetLogLevel(level int) {
-	logLevel = logLevel
+	logLevel = level
 }
 
 //--------------------------------------
