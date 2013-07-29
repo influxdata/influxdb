@@ -20,7 +20,7 @@ var logLevel int = 0
 var logger *log.Logger
 
 func init() {
-	logger = log.New(os.Stdout, "raft", log.Lmicroseconds)
+	logger = log.New(os.Stdout, "[raft]", log.Lmicroseconds)
 }
 
 //------------------------------------------------------------------------------
