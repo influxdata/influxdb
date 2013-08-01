@@ -9,6 +9,9 @@ import (
 	"io"
 )
 
+var p = proto.NewBuffer(nil)
+var pb = &protobuf.ProtoLogEntry{}
+
 // A log entry stores a single item in the log.
 type LogEntry struct {
 	log         *Log
@@ -50,15 +53,12 @@ func newLogEntry(log *Log, index uint64, term uint64, command Command) (*LogEntr
 // Encodes the log entry to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (e *LogEntry) encode(w io.Writer) (int, error) {
+	defer p.Reset() 
 
-	p := proto.NewBuffer(nil)
-
-	pb := &protobuf.ProtoLogEntry{
-		Index:       proto.Uint64(e.Index),
-		Term:        proto.Uint64(e.Term),
-		CommandName: proto.String(e.CommandName),
-		Command:     e.Command,
-	}
+	pb.Index = proto.Uint64(e.Index)
+	pb.Term = proto.Uint64(e.Term)
+	pb.CommandName = proto.String(e.CommandName)
+	pb.Command = e.Command
 
 	err := p.Marshal(pb)
 
