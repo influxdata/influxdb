@@ -32,21 +32,17 @@ func newSnapshotRecoveryResponse(term uint64, success bool, commitIndex uint64) 
 // Encodes the SnapshotRecoveryResponse to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (req *SnapshotRecoveryResponse) encode(w io.Writer) (int, error) {
-
-	p := proto.NewBuffer(nil)
-
 	pb := &protobuf.ProtoSnapshotRecoveryResponse{
 		Term:        proto.Uint64(req.Term),
 		Success:     proto.Bool(req.Success),
 		CommitIndex: proto.Uint64(req.CommitIndex),
 	}
-	err := p.Marshal(pb)
-
+	p, err := proto.Marshal(pb)
 	if err != nil {
 		return -1, err
 	}
 
-	return w.Write(p.Bytes())
+	return w.Write(p)
 }
 
 // Decodes the SnapshotRecoveryResponse from a buffer. Returns the number of bytes read and
@@ -61,10 +57,7 @@ func (req *SnapshotRecoveryResponse) decode(r io.Reader) (int, error) {
 	totalBytes := len(data)
 
 	pb := &protobuf.ProtoSnapshotRecoveryResponse{}
-	p := proto.NewBuffer(data)
-
-	err = p.Unmarshal(pb)
-	if err != nil {
+	if err := proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}
 

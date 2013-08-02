@@ -44,8 +44,6 @@ func (req *AppendEntriesRequest) encode(w io.Writer) (int, error) {
 		}
 	}
 
-	p := proto.NewBuffer(nil)
-
 	pb := &protobuf.ProtoAppendEntriesRequest{
 		Term:         proto.Uint64(req.Term),
 		PrevLogIndex: proto.Uint64(req.PrevLogIndex),
@@ -54,13 +52,13 @@ func (req *AppendEntriesRequest) encode(w io.Writer) (int, error) {
 		LeaderName:   proto.String(req.LeaderName),
 		Entries:      protoEntries,
 	}
-	err := p.Marshal(pb)
 
+	p, err := proto.Marshal(pb)
 	if err != nil {
 		return -1, err
 	}
 
-	return w.Write(p.Bytes())
+	return w.Write(p)
 }
 
 // Decodes the AppendEntriesRequest from a buffer. Returns the number of bytes read and
@@ -75,10 +73,7 @@ func (req *AppendEntriesRequest) decode(r io.Reader) (int, error) {
 	totalBytes := len(data)
 
 	pb := &protobuf.ProtoAppendEntriesRequest{}
-	p := proto.NewBuffer(data)
-
-	err = p.Unmarshal(pb)
-	if err != nil {
+	if err := proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}
 
