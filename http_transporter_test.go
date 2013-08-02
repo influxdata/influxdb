@@ -131,7 +131,7 @@ func BenchmarkSpeed(b *testing.B) {
 	c := make(chan bool)
 
 	// Wait for configuration to propagate.
-	time.Sleep(2 * time.Second)
+	time.Sleep(testHeartbeatTimeout * 2)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
