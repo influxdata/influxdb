@@ -50,29 +50,26 @@ func newLogEntry(log *Log, index uint64, term uint64, command Command) (*LogEntr
 // Encodes the log entry to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (e *LogEntry) encode(w io.Writer) (int, error) {
+	defer e.log.pBuffer.Reset()
 
-	p := proto.NewBuffer(nil)
+	e.log.pLogEntry.Index = proto.Uint64(e.Index)
+	e.log.pLogEntry.Term = proto.Uint64(e.Term)
+	e.log.pLogEntry.CommandName = proto.String(e.CommandName)
+	e.log.pLogEntry.Command = e.Command
 
-	pb := &protobuf.ProtoLogEntry{
-		Index:       proto.Uint64(e.Index),
-		Term:        proto.Uint64(e.Term),
-		CommandName: proto.String(e.CommandName),
-		Command:     e.Command,
-	}
-
-	err := p.Marshal(pb)
+	err := e.log.pBuffer.Marshal(e.log.pLogEntry)
 
 	if err != nil {
 		return -1, err
 	}
 
-	_, err = fmt.Fprintf(w, "%8x\n", len(p.Bytes()))
+	_, err = fmt.Fprintf(w, "%8x\n", len(e.log.pBuffer.Bytes()))
 
 	if err != nil {
 		return -1, err
 	}
 
-	return w.Write(p.Bytes())
+	return w.Write(e.log.pBuffer.Bytes())
 }
 
 // Decodes the log entry from a buffer. Returns the number of bytes read and

@@ -102,9 +102,10 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 
 // Ensure that a vote request is denied if the log is out of date.
 func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
-	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
-	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X: 100})
-	e2, _ := newLogEntry(nil, 3, 2, &testCommand1{Val: "bar", I: 0})
+	tmpLog := newLog()
+	e0, _ := newLogEntry(tmpLog, 1, 1, &testCommand1{Val: "foo", I: 20})
+	e1, _ := newLogEntry(tmpLog, 2, 1, &testCommand2{X: 100})
+	e2, _ := newLogEntry(tmpLog, 3, 2, &testCommand1{Val: "bar", I: 0})
 	server := newTestServerWithLog("1", &testTransporter{}, []*LogEntry{e0, e1, e2})
 
 	// start as a follower with term 2 and index 3
@@ -143,7 +144,7 @@ func TestServerRequestVoteDenyIfCandidateLogIsBehind(t *testing.T) {
 
 // // Ensure that we can self-promote a server to candidate, obtain votes and become a fearless leader.
 func TestServerPromoteSelf(t *testing.T) {
-	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
+	e0, _ := newLogEntry(newLog(), 1, 1, &testCommand1{Val: "foo", I: 20})
 	server := newTestServerWithLog("1", &testTransporter{}, []*LogEntry{e0})
 
 	// start as a follower

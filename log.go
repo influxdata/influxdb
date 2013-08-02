@@ -2,8 +2,10 @@ package raft
 
 import (
 	"bufio"
+	"code.google.com/p/goprotobuf/proto"
 	"errors"
 	"fmt"
+	"github.com/benbjohnson/go-raft/protobuf"
 	"io"
 	"os"
 	"sync"
@@ -26,6 +28,8 @@ type Log struct {
 	mutex       sync.RWMutex
 	startIndex  uint64 // the index before the first entry in the Log entries
 	startTerm   uint64
+	pBuffer     *proto.Buffer
+	pLogEntry   *protobuf.ProtoLogEntry
 }
 
 // The results of the applying a log entry.
@@ -43,7 +47,9 @@ type logResult struct {
 // Creates a new log.
 func newLog() *Log {
 	return &Log{
-		entries: make([]*LogEntry, 0),
+		entries:   make([]*LogEntry, 0),
+		pBuffer:   proto.NewBuffer(nil),
+		pLogEntry: &protobuf.ProtoLogEntry{},
 	}
 }
 
@@ -470,6 +476,7 @@ func (l *Log) appendEntries(entries []*LogEntry) error {
 	var err error
 	// Append each entry but exit if we hit an error.
 	for _, entry := range entries {
+		entry.log = l
 		if size, err = l.writeEntry(entry, w); err != nil {
 			return err
 		}

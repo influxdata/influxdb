@@ -38,6 +38,7 @@ type HTTPMuxer interface {
 // Creates a new HTTP transporter with the given path prefix.
 func NewHTTPTransporter(prefix string) *HTTPTransporter {
 	return &HTTPTransporter{
+		DisableKeepAlives: false,
 		prefix:            prefix,
 		appendEntriesPath: fmt.Sprintf("%s%s", prefix, "/appendEntries"),
 		requestVotePath:   fmt.Sprintf("%s%s", prefix, "/requestVote"),
