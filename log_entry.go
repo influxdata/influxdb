@@ -9,9 +9,6 @@ import (
 	"io"
 )
 
-var p = proto.NewBuffer(nil)
-var pb = &protobuf.ProtoLogEntry{}
-
 // A log entry stores a single item in the log.
 type LogEntry struct {
 	log         *Log
@@ -53,26 +50,26 @@ func newLogEntry(log *Log, index uint64, term uint64, command Command) (*LogEntr
 // Encodes the log entry to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (e *LogEntry) encode(w io.Writer) (int, error) {
-	defer p.Reset() 
+	defer e.log.pBuffer.Reset()
 
-	pb.Index = proto.Uint64(e.Index)
-	pb.Term = proto.Uint64(e.Term)
-	pb.CommandName = proto.String(e.CommandName)
-	pb.Command = e.Command
+	e.log.pLogEntry.Index = proto.Uint64(e.Index)
+	e.log.pLogEntry.Term = proto.Uint64(e.Term)
+	e.log.pLogEntry.CommandName = proto.String(e.CommandName)
+	e.log.pLogEntry.Command = e.Command
 
-	err := p.Marshal(pb)
-
-	if err != nil {
-		return -1, err
-	}
-
-	_, err = fmt.Fprintf(w, "%8x\n", len(p.Bytes()))
+	err := e.log.pBuffer.Marshal(e.log.pLogEntry)
 
 	if err != nil {
 		return -1, err
 	}
 
-	return w.Write(p.Bytes())
+	_, err = fmt.Fprintf(w, "%8x\n", len(e.log.pBuffer.Bytes()))
+
+	if err != nil {
+		return -1, err
+	}
+
+	return w.Write(e.log.pBuffer.Bytes())
 }
 
 // Decodes the log entry from a buffer. Returns the number of bytes read and

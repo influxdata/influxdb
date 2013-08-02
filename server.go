@@ -29,7 +29,7 @@ const (
 )
 
 const (
-	MaxLogEntriesPerRequest         = 200
+	MaxLogEntriesPerRequest         = 2000
 	NumberOfLogEntriesAfterSnapshot = 200
 )
 

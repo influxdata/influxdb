@@ -7,6 +7,8 @@ import (
 	"net/http"
 )
 
+import _ "net/http/pprof"
+
 // Parts from this transporter were heavily influenced by Peter Bougon's
 // raft implementation: https://github.com/peterbourgon/raft
 
@@ -38,6 +40,7 @@ type HTTPMuxer interface {
 // Creates a new HTTP transporter with the given path prefix.
 func NewHTTPTransporter(prefix string) *HTTPTransporter {
 	return &HTTPTransporter{
+		DisableKeepAlives: false,
 		prefix:            prefix,
 		appendEntriesPath: fmt.Sprintf("%s%s", prefix, "/appendEntries"),
 		requestVotePath:   fmt.Sprintf("%s%s", prefix, "/requestVote"),

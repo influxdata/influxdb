@@ -62,9 +62,10 @@ func TestLogNewLog(t *testing.T) {
 
 // Ensure that we can decode and encode to an existing log.
 func TestLogExistingLog(t *testing.T) {
-	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
-	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X: 100})
-	e2, _ := newLogEntry(nil, 3, 2, &testCommand1{Val: "bar", I: 0})
+	tmpLog := newLog()
+	e0, _ := newLogEntry(tmpLog, 1, 1, &testCommand1{Val: "foo", I: 20})
+	e1, _ := newLogEntry(tmpLog, 2, 1, &testCommand2{X: 100})
+	e2, _ := newLogEntry(tmpLog, 3, 2, &testCommand1{Val: "bar", I: 0})
 	log, path := setupLog([]*LogEntry{e0, e1, e2})
 	defer log.close()
 	defer os.Remove(path)
@@ -86,9 +87,10 @@ func TestLogExistingLog(t *testing.T) {
 
 // Ensure that we can check the contents of the log by index/term.
 func TestLogContainsEntries(t *testing.T) {
-	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
-	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X: 100})
-	e2, _ := newLogEntry(nil, 3, 2, &testCommand1{Val: "bar", I: 0})
+	tmpLog := newLog()
+	e0, _ := newLogEntry(tmpLog, 1, 1, &testCommand1{Val: "foo", I: 20})
+	e1, _ := newLogEntry(tmpLog, 2, 1, &testCommand2{X: 100})
+	e2, _ := newLogEntry(tmpLog, 3, 2, &testCommand1{Val: "bar", I: 0})
 	log, path := setupLog([]*LogEntry{e0, e1, e2})
 	defer log.close()
 	defer os.Remove(path)
@@ -112,8 +114,9 @@ func TestLogContainsEntries(t *testing.T) {
 
 // Ensure that we can recover from an incomplete/corrupt log and continue logging.
 func TestLogRecovery(t *testing.T) {
-	e0, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 20})
-	e1, _ := newLogEntry(nil, 2, 1, &testCommand2{X: 100})
+	tmpLog := newLog()
+	e0, _ := newLogEntry(tmpLog, 1, 1, &testCommand1{Val: "foo", I: 20})
+	e1, _ := newLogEntry(tmpLog, 2, 1, &testCommand2{X: 100})
 	f, _ := ioutil.TempFile("", "raft-log-")
 
 	e0.encode(f)
