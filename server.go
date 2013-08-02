@@ -782,7 +782,14 @@ func (s *Server) processCommand(command Command, e *event) {
 	resp.append = true
 	resp.peer = s.Name()
 
-	s.sendAsync(resp)
+	// this must be async
+	// sendAsync is not really async every time
+	// when the sending speed of the user is larger than
+	// the processing speed of the server, the buffered channel
+	// will be full. Then sendAsync will become sync, which will
+	// cause deadlock here.
+	// so we use a goroutine to avoid the deadlock
+	go s.sendAsync(resp)
 }
 
 //--------------------------------------
