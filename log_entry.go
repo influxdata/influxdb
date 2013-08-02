@@ -51,21 +51,18 @@ func newLogEntry(log *Log, index uint64, term uint64, command Command) (*LogEntr
 // written and any error that may have occurred.
 func (e *LogEntry) encode(w io.Writer) (int, error) {
 	defer e.log.pBuffer.Reset()
-
 	e.log.pLogEntry.Index = proto.Uint64(e.Index)
 	e.log.pLogEntry.Term = proto.Uint64(e.Term)
 	e.log.pLogEntry.CommandName = proto.String(e.CommandName)
 	e.log.pLogEntry.Command = e.Command
-
+	p, err := proto.Marshal(pb)
 	err := e.log.pBuffer.Marshal(e.log.pLogEntry)
-
 	if err != nil {
 		return -1, err
 	}
 
 	_, err = fmt.Fprintf(w, "%8x\n", len(e.log.pBuffer.Bytes()))
-
-	if err != nil {
+	if _, err = fmt.Fprintf(w, "%8x\n", len(p)); err != nil {
 		return -1, err
 	}
 
@@ -90,10 +87,7 @@ func (e *LogEntry) decode(r io.Reader) (int, error) {
 	}
 
 	pb := &protobuf.ProtoLogEntry{}
-	p := proto.NewBuffer(data)
-	err = p.Unmarshal(pb)
-
-	if err != nil {
+	if err = proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}
 

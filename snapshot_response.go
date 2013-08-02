@@ -28,19 +28,15 @@ func newSnapshotResponse(success bool) *SnapshotResponse {
 // Encodes the SnapshotResponse to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (resp *SnapshotResponse) encode(w io.Writer) (int, error) {
-
-	p := proto.NewBuffer(nil)
-
 	pb := &protobuf.ProtoSnapshotResponse{
 		Success: proto.Bool(resp.Success),
 	}
-	err := p.Marshal(pb)
-
+	p, err := proto.Marshal(pb)
 	if err != nil {
 		return -1, err
 	}
 
-	return w.Write(p.Bytes())
+	return w.Write(p)
 }
 
 // Decodes the SnapshotResponse from a buffer. Returns the number of bytes read and
@@ -55,10 +51,7 @@ func (resp *SnapshotResponse) decode(r io.Reader) (int, error) {
 	totalBytes := len(data)
 
 	pb := &protobuf.ProtoSnapshotResponse{}
-	p := proto.NewBuffer(data)
-
-	err = p.Unmarshal(pb)
-	if err != nil {
+	if err := proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}
 

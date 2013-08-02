@@ -25,21 +25,17 @@ func newRequestVoteResponse(term uint64, voteGranted bool) *RequestVoteResponse 
 // Encodes the RequestVoteResponse to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (resp *RequestVoteResponse) encode(w io.Writer) (int, error) {
-
-	p := proto.NewBuffer(nil)
-
 	pb := &protobuf.ProtoRequestVoteResponse{
 		Term:        proto.Uint64(resp.Term),
 		VoteGranted: proto.Bool(resp.VoteGranted),
 	}
 
-	err := p.Marshal(pb)
-
+	p, err := proto.Marshal(pb)
 	if err != nil {
 		return -1, err
 	}
 
-	return w.Write(p.Bytes())
+	return w.Write(p)
 }
 
 // Decodes the RequestVoteResponse from a buffer. Returns the number of bytes read and
@@ -54,10 +50,7 @@ func (resp *RequestVoteResponse) decode(r io.Reader) (int, error) {
 	totalBytes := len(data)
 
 	pb := &protobuf.ProtoRequestVoteResponse{}
-	p := proto.NewBuffer(data)
-
-	err = p.Unmarshal(pb)
-	if err != nil {
+	if err = proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}
 

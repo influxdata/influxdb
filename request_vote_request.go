@@ -29,22 +29,18 @@ func newRequestVoteRequest(term uint64, candidateName string, lastLogIndex uint6
 // Encodes the RequestVoteRequest to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (req *RequestVoteRequest) encode(w io.Writer) (int, error) {
-
-	p := proto.NewBuffer(nil)
-
 	pb := &protobuf.ProtoRequestVoteRequest{
 		Term:          proto.Uint64(req.Term),
 		LastLogIndex:  proto.Uint64(req.LastLogIndex),
 		LastLogTerm:   proto.Uint64(req.LastLogTerm),
 		CandidateName: proto.String(req.CandidateName),
 	}
-	err := p.Marshal(pb)
-
+	p, err := proto.Marshal(pb)
 	if err != nil {
 		return -1, err
 	}
 
-	return w.Write(p.Bytes())
+	return w.Write(p)
 }
 
 // Decodes the RequestVoteRequest from a buffer. Returns the number of bytes read and
@@ -59,10 +55,7 @@ func (req *RequestVoteRequest) decode(r io.Reader) (int, error) {
 	totalBytes := len(data)
 
 	pb := &protobuf.ProtoRequestVoteRequest{}
-	p := proto.NewBuffer(data)
-
-	err = p.Unmarshal(pb)
-	if err != nil {
+	if err = proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}
 
