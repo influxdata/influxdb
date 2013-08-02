@@ -161,7 +161,6 @@ func (t *HTTPTransporter) appendEntriesHandler(server *Server) http.HandlerFunc 
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceln(server.Name(), "RECV /appendEntries")
 
-		defer r.Body.Close()
 		req := &AppendEntriesRequest{}
 		if _, err := req.decode(r.Body); err != nil {
 			http.Error(w, "", http.StatusBadRequest)
@@ -181,7 +180,6 @@ func (t *HTTPTransporter) requestVoteHandler(server *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceln(server.Name(), "RECV /requestVote")
 
-		defer r.Body.Close()
 		req := &RequestVoteRequest{}
 		if _, err := req.decode(r.Body); err != nil {
 			http.Error(w, "", http.StatusBadRequest)
