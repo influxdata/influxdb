@@ -55,14 +55,13 @@ func (e *LogEntry) encode(w io.Writer) (int, error) {
 	e.log.pLogEntry.Term = proto.Uint64(e.Term)
 	e.log.pLogEntry.CommandName = proto.String(e.CommandName)
 	e.log.pLogEntry.Command = e.Command
-	p, err := proto.Marshal(pb)
+
 	err := e.log.pBuffer.Marshal(e.log.pLogEntry)
 	if err != nil {
 		return -1, err
 	}
 
-	_, err = fmt.Fprintf(w, "%8x\n", len(e.log.pBuffer.Bytes()))
-	if _, err = fmt.Fprintf(w, "%8x\n", len(p)); err != nil {
+	if _, err = fmt.Fprintf(w, "%8x\n", len(e.log.pBuffer.Bytes())); err != nil {
 		return -1, err
 	}
 
