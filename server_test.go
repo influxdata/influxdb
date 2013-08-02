@@ -388,7 +388,8 @@ func TestServerMultiNode(t *testing.T) {
 	var leader *Server
 	for _, name := range names {
 		server := newTestServer(name, transporter)
-
+		defer server.Stop()
+		
 		mutex.Lock()
 		servers[name] = server
 		mutex.Unlock()
