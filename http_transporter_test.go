@@ -76,22 +76,6 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 	// Wait for configuration to propagate.
 	time.Sleep(testHeartbeatTimeout * 2)
 
-	c := make(chan bool)
-	start := time.Now()
-
-	for i := 0; i < 1000; i++ {
-		go send(c, (*servers)[0])
-	}
-
-	for i := 0; i < 1000; i++ {
-		<-c
-	}
-	end := time.Now()
-	fmt.Println(end.Sub(start), "commands ", 1000*20)
-
-	// Wait for configuration to propagate.
-	time.Sleep(testHeartbeatTimeout * 2)
-
 	// Execute all the callbacks at the same time.
 	for _i, _f := range callbacks {
 		i, f := _i, _f
@@ -105,9 +89,66 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 	wg.Wait()
 }
 
-func send(c chan bool, s *Server) {
-	for i := 0; i < 20; i++ {
-		s.Do(&NOPCommand{})
+func BenchmarkSpeed(b *testing.B) {
+
+	transporter := NewHTTPTransporter("/raft")
+	transporter.DisableKeepAlives = true
+
+	servers := []*Server{}
+
+	for i:= 0; i < 3; i++ {
+		port := 9000 + i
+
+		// Create raft server.
+		server := newTestServer(fmt.Sprintf("localhost:%d", port), transporter)
+		server.SetHeartbeatTimeout(testHeartbeatTimeout)
+		server.SetElectionTimeout(testElectionTimeout)
+		server.Start()
+
+		defer server.Stop()
+		servers = append(servers, server)
+
+		// Create listener for HTTP server and start it.
+		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err != nil {
+			panic(err)
+		}
+		defer listener.Close()
+
+		// Create wrapping HTTP server.
+		mux := http.NewServeMux()
+		transporter.Install(server, mux)
+		httpServer := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
+
+		go func() { httpServer.Serve(listener) }()
 	}
-	c <- true
+
+	// Setup configuration.
+	for _, server := range servers {
+		(servers)[0].Do(&DefaultJoinCommand{Name: server.Name()})
+	}
+
+	c := make(chan bool)
+
+	// Wait for configuration to propagate.
+	time.Sleep(2 * time.Second)
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for i := 0; i < 1000; i++ {
+			go send(c, servers[0])
+		}
+
+		for i := 0; i < 1000; i++ {
+			<-c
+		} 
+	}
 }
+
+func send(c chan bool, s *Server) {
+  for i := 0; i < 20; i++ {
+    s.Do(&NOPCommand{})
+  }
+  c <- true
+}
+
