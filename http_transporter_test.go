@@ -37,7 +37,7 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 	var wg sync.WaitGroup
 	httpServers := []*http.Server{}
 	listeners := []net.Listener{}
-	for i, _ := range callbacks {
+	for i := range callbacks {
 		wg.Add(1)
 		port := 9000 + i
 
@@ -96,7 +96,7 @@ func BenchmarkSpeed(b *testing.B) {
 
 	servers := []*Server{}
 
-	for i:= 0; i < 3; i++ {
+	for i := 0; i < 3; i++ {
 		port := 9000 + i
 
 		// Create raft server.
@@ -141,14 +141,13 @@ func BenchmarkSpeed(b *testing.B) {
 
 		for i := 0; i < 1000; i++ {
 			<-c
-		} 
+		}
 	}
 }
 
 func send(c chan bool, s *Server) {
-  for i := 0; i < 20; i++ {
-    s.Do(&NOPCommand{})
-  }
-  c <- true
+	for i := 0; i < 20; i++ {
+		s.Do(&NOPCommand{})
+	}
+	c <- true
 }
-
