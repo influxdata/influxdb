@@ -7,8 +7,6 @@ import (
 	"net/http"
 )
 
-import _ "net/http/pprof"
-
 // Parts from this transporter were heavily influenced by Peter Bougon's
 // raft implementation: https://github.com/peterbourgon/raft
 

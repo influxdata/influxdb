@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"runtime/pprof"
 	"sync"
 	"testing"
 	"time"
@@ -78,10 +76,6 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 	// Wait for configuration to propagate.
 	time.Sleep(testHeartbeatTimeout * 2)
 
-	f, _ := os.Create("raftprof")
-
-	pprof.StartCPUProfile(f)
-
 	c := make(chan bool)
 	start := time.Now()
 
@@ -94,7 +88,6 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 	}
 	end := time.Now()
 	fmt.Println(end.Sub(start), "commands ", 1000*20)
-	pprof.StopCPUProfile()
 
 	// Wait for configuration to propagate.
 	time.Sleep(testHeartbeatTimeout * 2)
