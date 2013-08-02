@@ -152,7 +152,7 @@ func TestServerPromoteSelf(t *testing.T) {
 
 	defer server.Stop()
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(2 * testElectionTimeout)
 
 	if server.State() != Leader {
 		t.Fatalf("Server self-promotion failed: %v", server.State())
@@ -175,7 +175,7 @@ func TestServerPromote(t *testing.T) {
 	servers[1].Start()
 	servers[2].Start()
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(2 * testElectionTimeout)
 
 	if servers[0].State() != Leader && servers[1].State() != Leader && servers[2].State() != Leader {
 		t.Fatalf("No leader elected: (%s, %s, %s)", servers[0].State(), servers[1].State(), servers[2].State())
@@ -329,7 +329,7 @@ func TestServerSingleNode(t *testing.T) {
 
 	server.Start()
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(testHeartbeatTimeout)
 
 	// Join the server to itself.
 	if _, err := server.Do(&DefaultJoinCommand{Name: "1"}); err != nil {
@@ -397,19 +397,19 @@ func TestServerMultiNode(t *testing.T) {
 			leader = server
 			server.SetHeartbeatTimeout(testHeartbeatTimeout)
 			server.Start()
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(testHeartbeatTimeout)
 		} else {
 			server.SetElectionTimeout(testElectionTimeout)
 			server.SetHeartbeatTimeout(testHeartbeatTimeout)
 			server.Start()
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(testHeartbeatTimeout)
 		}
 		if _, err := leader.Do(&DefaultJoinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
 		}
 
 	}
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(2 * testElectionTimeout)
 
 	// Check that two peers exist on leader.
 	mutex.RLock()
@@ -431,12 +431,12 @@ func TestServerMultiNode(t *testing.T) {
 		toStop_1 := servers[num_1]
 
 		// Stop the first server and wait for a re-election.
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(2 * testElectionTimeout)
 		debugln("Disconnect ", toStop.Name())
 		debugln("disconnect ", num, " ", num_1)
 		toStop.SetTransporter(disTransporter)
 		toStop_1.SetTransporter(disTransporter)
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(2 * testElectionTimeout)
 		// Check that either server 2 or 3 is the leader now.
 		//mutex.Lock()
 
@@ -474,7 +474,7 @@ func TestServerMultiNode(t *testing.T) {
 					debugln("retry")
 					retry++
 					leader = 0
-					time.Sleep(100 * time.Millisecond)
+					time.Sleep(2 * testElectionTimeout)
 					continue
 				}
 				t.Fatalf("wrong leader number %v", leader)
@@ -484,7 +484,7 @@ func TestServerMultiNode(t *testing.T) {
 					retry++
 					fmt.Println("retry 0")
 					leader = 0
-					time.Sleep(100 * time.Millisecond)
+					time.Sleep(2 * testElectionTimeout)
 					continue
 				}
 				t.Fatalf("wrong leader number %v", leader)
