@@ -396,7 +396,7 @@ func (s *Server) readConf() error {
 		if err != nil {
 			if err == io.EOF {
 				s.debugln("server.peer.conf: finish")
-				return nil
+				break
 			}
 			return err
 		}

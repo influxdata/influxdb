@@ -141,9 +141,6 @@ func (l *Log) currentTerm() uint64 {
 // Opens the log file and reads existing entries. The log can remain open and
 // continue to append entries to the end of the log.
 func (l *Log) open(path string) error {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
 	// Read all the entries from the log if one exists.
 	var readBytes int64
 
@@ -166,10 +163,8 @@ func (l *Log) open(path string) error {
 	}
 	debugln("log.open.exist ", path)
 
-	firstLog := true
 	// Read the file and decode entries.
 	for {
-
 		// Instantiate log entry and decode into it.
 		entry, _ := newLogEntry(l, 0, 0, nil)
 		entry.Position, _ = l.file.Seek(0, os.SEEK_CUR)
@@ -190,15 +185,12 @@ func (l *Log) open(path string) error {
 		l.entries = append(l.entries, entry)
 		debugln("open.log.append log index ", entry.Index)
 
-		if firstLog {
-			l.startTerm = entry.Term
-			l.startIndex = entry.Index - 1
-			firstLog = false
-		}
-
 		readBytes += int64(n)
 	}
 	l.results = make([]*logResult, len(l.entries))
+
+	l.compact(l.startIndex, l.startTerm)
+
 	debugln("open.log.recovery number of log ", len(l.entries))
 	return nil
 }
@@ -563,7 +555,7 @@ func (l *Log) writeEntry(entry *LogEntry, w io.Writer) (int64, error) {
 // Log compaction
 //--------------------------------------
 
-// compaction the log before index
+// compact the log before index (including index)
 func (l *Log) compact(index uint64, term uint64) error {
 	var entries []*LogEntry
 	var results []*logResult
@@ -571,6 +563,9 @@ func (l *Log) compact(index uint64, term uint64) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
+	if index == 0 {
+		return nil
+	}
 	// nothing to compaction
 	// the index may be greater than the current index if
 	// we just recovery from on snapshot
@@ -578,7 +573,6 @@ func (l *Log) compact(index uint64, term uint64) error {
 		entries = make([]*LogEntry, 0)
 		results = make([]*logResult, 0)
 	} else {
-
 		// get all log entries after index
 		entries = l.entries[index-l.startIndex:]
 		results = l.results[index-l.startIndex:]
