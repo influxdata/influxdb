@@ -442,8 +442,6 @@ func (l *Log) truncate(index uint64, term uint64) error {
 		entry := l.entries[index-l.startIndex-1]
 		if len(l.entries) > 0 && entry.Term != term {
 			debugln("log.truncate.termMismatch")
-			fmt.Println(string(entry.Command))
-
 			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term, index, term)
 		}
 
