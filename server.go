@@ -425,8 +425,8 @@ func (s *Server) readConf() error {
 func (s *Server) Stop() {
 	s.send(&stopValue)
 	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	s.log.close()
-	s.mutex.Unlock()
 }
 
 // Checks if the server is currently running.
