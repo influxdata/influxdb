@@ -538,24 +538,27 @@ func (s *Server) followerLoop() {
 		case e := <-s.c:
 			if e.target == &stopValue {
 				s.setState(Stopped)
-			} else if command, ok := e.target.(JoinCommand); ok {
-				//If no log entries exist and a self-join command is issued
-				//then immediately become leader and commit entry.
-				if s.log.currentIndex() == 0 && command.NodeName() == s.Name() {
-					s.debugln("selfjoin and promote to leader")
-					s.setState(Leader)
-					s.processCommand(command, e)
-				} else {
+			} else {
+				switch req := e.target.(type) {
+				case JoinCommand:
+					//If no log entries exist and a self-join command is issued
+					//then immediately become leader and commit entry.
+					if s.log.currentIndex() == 0 && req.NodeName() == s.Name() {
+						s.debugln("selfjoin and promote to leader")
+						s.setState(Leader)
+						s.processCommand(req, e)
+					} else {
+						err = NotLeaderError
+					}
+				case *AppendEntriesRequest:
+					e.returnValue, update = s.processAppendEntriesRequest(req)
+				case *RequestVoteRequest:
+					e.returnValue, update = s.processRequestVoteRequest(req)
+				case *SnapshotRequest:
+					e.returnValue = s.processSnapshotRequest(req)
+				default:
 					err = NotLeaderError
 				}
-			} else if req, ok := e.target.(*AppendEntriesRequest); ok {
-				e.returnValue, update = s.processAppendEntriesRequest(req)
-			} else if req, ok := e.target.(*RequestVoteRequest); ok {
-				e.returnValue, update = s.processRequestVoteRequest(req)
-			} else if req, ok := e.target.(*SnapshotRequest); ok {
-				e.returnValue = s.processSnapshotRequest(req)
-			} else {
-				err = NotLeaderError
 			}
 
 			// Callback to event.
