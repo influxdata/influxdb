@@ -693,15 +693,18 @@ func (s *Server) leaderLoop() {
 		case e := <-s.c:
 			if e.target == &stopValue {
 				s.setState(Stopped)
-			} else if command, ok := e.target.(Command); ok {
-				s.processCommand(command, e)
-				continue
-			} else if req, ok := e.target.(*AppendEntriesRequest); ok {
-				e.returnValue, _ = s.processAppendEntriesRequest(req)
-			} else if resp, ok := e.target.(*AppendEntriesResponse); ok {
-				s.processAppendEntriesResponse(resp)
-			} else if req, ok := e.target.(*RequestVoteRequest); ok {
-				e.returnValue, _ = s.processRequestVoteRequest(req)
+			} else {
+				switch req := e.target.(type) {
+				case Command:
+					s.processCommand(req, e)
+					continue
+				case *AppendEntriesRequest:
+					e.returnValue, _ = s.processAppendEntriesRequest(req)
+				case *AppendEntriesResponse:
+					s.processAppendEntriesResponse(req)
+				case *RequestVoteRequest:
+					e.returnValue, _ = s.processRequestVoteRequest(req)
+				}
 			}
 
 			// Callback to event.
