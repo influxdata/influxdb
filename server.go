@@ -272,11 +272,15 @@ func (s *Server) QuorumSize() int {
 
 // Retrieves the election timeout.
 func (s *Server) ElectionTimeout() time.Duration {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	return s.electionTimeout
 }
 
 // Sets the election timeout.
 func (s *Server) SetElectionTimeout(duration time.Duration) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	s.electionTimeout = duration
 }
 
@@ -286,6 +290,8 @@ func (s *Server) SetElectionTimeout(duration time.Duration) {
 
 // Retrieves the heartbeat timeout.
 func (s *Server) HeartbeatTimeout() time.Duration {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	return s.heartbeatTimeout
 }
 
@@ -419,8 +425,8 @@ func (s *Server) readConf() error {
 func (s *Server) Stop() {
 	s.send(&stopValue)
 	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	s.log.close()
-	s.mutex.Unlock()
 }
 
 // Checks if the server is currently running.
