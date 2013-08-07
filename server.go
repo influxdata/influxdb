@@ -671,7 +671,7 @@ func (s *Server) candidateLoop() {
 	}
 }
 
-// The event loop that is run when the server is in a Candidate state.
+// The event loop that is run when the server is in a Leader state.
 func (s *Server) leaderLoop() {
 	s.setState(Leader)
 	s.syncedPeer = make(map[string]bool)
