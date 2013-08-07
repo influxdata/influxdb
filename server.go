@@ -638,14 +638,16 @@ func (s *Server) candidateLoop() {
 				var err error
 				if e.target == &stopValue {
 					s.setState(Stopped)
-				} else if _, ok := e.target.(Command); ok {
-					err = NotLeaderError
-				} else if req, ok := e.target.(*AppendEntriesRequest); ok {
-					e.returnValue, _ = s.processAppendEntriesRequest(req)
-				} else if req, ok := e.target.(*RequestVoteRequest); ok {
-					e.returnValue, _ = s.processRequestVoteRequest(req)
+				} else {
+					switch req := e.target.(type) {
+					case Command:
+						err = NotLeaderError
+					case *AppendEntriesRequest:
+						e.returnValue, _ = s.processAppendEntriesRequest(req)
+					case *RequestVoteRequest:
+						e.returnValue, _ = s.processRequestVoteRequest(req)
+					}
 				}
-
 				// Callback to event.
 				e.c <- err
 
