@@ -734,16 +734,18 @@ func (s *Server) snapshotLoop() {
 
 		if e.target == &stopValue {
 			s.setState(Stopped)
-		} else if _, ok := e.target.(Command); ok {
-			err = NotLeaderError
-		} else if req, ok := e.target.(*AppendEntriesRequest); ok {
-			e.returnValue, _ = s.processAppendEntriesRequest(req)
-		} else if req, ok := e.target.(*RequestVoteRequest); ok {
-			e.returnValue, _ = s.processRequestVoteRequest(req)
-		} else if req, ok := e.target.(*SnapshotRecoveryRequest); ok {
-			e.returnValue = s.processSnapshotRecoveryRequest(req)
+		} else {
+			switch req := e.target.(type) {
+			case Command:
+				err = NotLeaderError
+			case *AppendEntriesRequest:
+				e.returnValue, _ = s.processAppendEntriesRequest(req)
+			case *RequestVoteRequest:
+				e.returnValue, _ = s.processRequestVoteRequest(req)
+			case *SnapshotRecoveryRequest:
+				e.returnValue = s.processSnapshotRecoveryRequest(req)
+			}
 		}
-
 		// Callback to event.
 		e.c <- err
 
