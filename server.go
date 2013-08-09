@@ -983,22 +983,24 @@ func (s *Server) AddPeer(name string) error {
 		return nil
 	}
 
-	// Only add the peer if it doesn't have the same name.
-	if s.name != name {
-		// when loading snapshot s.confFile should be nil
-		if s.confFile != nil {
-			_, err := fmt.Fprintln(s.confFile, name)
-			s.debugln("server.peer.conf.write: ", name)
-			if err != nil {
-				return err
-			}
-		}
-		peer := newPeer(s, name, s.heartbeatTimeout)
-		if s.State() == Leader {
-			peer.startHeartbeat()
-		}
-		s.peers[peer.name] = peer
+	// Skip the Peer if it has the same name as the Server
+	if s.name == name {
+		return nil
 	}
+
+	// when loading snapshot s.confFile should be nil
+	if s.confFile != nil {
+		_, err := fmt.Fprintln(s.confFile, name)
+		s.debugln("server.peer.conf.write: ", name)
+		if err != nil {
+			return err
+		}
+	}
+	peer := newPeer(s, name, s.heartbeatTimeout)
+	if s.State() == Leader {
+		peer.startHeartbeat()
+	}
+	s.peers[peer.name] = peer
 
 	return nil
 }
