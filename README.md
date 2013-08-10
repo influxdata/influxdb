@@ -5,7 +5,7 @@ go-raft
 
 ## Overview
 
-This is an Go implementation of the Raft distributed consensus protocol.
+This is a Go implementation of the Raft distributed consensus protocol.
 Raft is a protocol by which a cluster of nodes can maintain a replicated state machine.
 The state machine is kept in sync through the use of a replicated log.
 
@@ -32,7 +32,7 @@ go-raft is under the MIT license.
 
 ### Projects
 
-These projects are use go-raft:
+These projects are built on go-raft:
 
 - [coreos/etcd](https://github.com/coreos/etcd) - A highly-available key value store for shared configuration and service discovery
 - [benbjohnson/raftd](https://github.com/benbjohnson/raftd) - A reference implementation for using the go-raft library for distributed consensus.
@@ -41,7 +41,7 @@ If you have a project that you're using go-raft in, please add it to this README
 
 ## The Raft Protocol
 
-This section provides a short simple summary of the Raft protocol from a high level.
+This section provides a summary of the Raft protocol from a high level.
 For a more detailed explanation on the failover process and election terms please see the full paper describing the protocol: [In Search of an Understandable Consensus Algorithm][raft-paper].
 
 ### Overview
