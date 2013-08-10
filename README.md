@@ -1,7 +1,7 @@
 go-raft
 =======
 
-[![Build Status](https://travis-ci.org/benbjohnson/go-raft.png?branch=master)](https://travis-ci.org/benbjohnson/go-raft)
+[![Build Status](https://travis-ci.org/goraft/raft.png?branch=master)](https://travis-ci.org/goraft/raft)
 
 ## Overview
 
@@ -18,7 +18,7 @@ If you have any questions on implementing go-raft in your project please file an
 There is an [active community][community] of developers who can help.
 go-raft is under the MIT license.
 
-[community]: https://github.com/benbjohnson/go-raft/contributors
+[community]: https://github.com/goraft/raft/contributors
 
 ### Features
 
