@@ -14,6 +14,9 @@ For more details on Raft, you can read [In Search of an Understandable Consensus
 
 ## The Raft Protocol
 
+This section provides a short simple summary of the Raft protocol from a high level.
+For a more detailed explanation on the failover process and election terms please see the full paper describing the protocol: [In Search of an Understandable Consensus Algorithm][raft-paper].
+
 ### Overview
 
 Maintaining state in a single process on a single server is easy.
@@ -26,7 +29,7 @@ Servers can crash or the network between two machines can become unavailable or 
 A distributed consensus protocol is used for maintaining a consistent state across multiple servers in a cluster.
 Many distributed systems are built upon the Paxos protocol but Paxos can be difficult to understand and there are many gaps between Paxos and real world implementation.
 
-An alternative is the [Raft distributed consensus protocol](https://ramcloud.stanford.edu/wiki/download/attachments/11370504/raft.pdf) by Diego Ongaro and John Ousterhout.
+An alternative is the [Raft distributed consensus protocol][raft-paper] by Diego Ongaro and John Ousterhout.
 Raft is a protocol built with understandability as a primary tenant and it centers around two things:
 
 1. Leader Election
@@ -53,9 +56,6 @@ By ensuring that this log is replicated identically between all the nodes in the
 Replicating the log under normal conditions is done by sending an `AppendEntries` RPC from the leader to each of the other servers in the cluster (called Peers).
 Each peer will append the entries from the leader through a 2-phase commit process which ensure that a majority of servers in the cluster have entries written to log.
 
-For a more detailed explanation on the failover process and election terms please see the full paper describing the protocol: [In Search of an Understandable Consensus Algorithm](https://ramcloud.stanford.edu/wiki/download/attachments/11370504/raft.pdf)
-
-
 ## Project Status
 
 The go-raft library is feature complete but in alpha.
@@ -67,3 +67,4 @@ However, I hope other projects can benefit from having a distributed consensus p
 
 If you have a project that you're using go-raft in, please add it to this README and send a pull request so others can see implementation examples.
 If you have any questions on implementing go-raft in your project, feel free to contact me on [GitHub](https://github.com/benbjohnson), [Twitter](https://twitter.com/benbjohnson) or by e-mail at [ben@skylandlabs.com](mailto:ben@skylandlabs.com).
+[raft-paper]: https://ramcloud.stanford.edu/wiki/download/attachments/11370504/raft.pdf
