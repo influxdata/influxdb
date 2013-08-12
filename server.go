@@ -719,7 +719,7 @@ func (s *Server) leaderLoop() {
 
 	// Stop all peers.
 	for _, peer := range s.peers {
-		peer.stopHeartbeat()
+		peer.stopHeartbeat(false)
 	}
 	s.syncedPeer = nil
 }
@@ -1009,10 +1009,6 @@ func (s *Server) AddPeer(name string) error {
 func (s *Server) RemovePeer(name string) error {
 	s.debugln("server.peer.remove: ", name, len(s.peers))
 
-	// Ignore removal of the server itself.
-	if s.name == name {
-		return nil
-	}
 	// Return error if peer doesn't exist.
 	peer := s.peers[name]
 	if peer == nil {
@@ -1022,7 +1018,9 @@ func (s *Server) RemovePeer(name string) error {
 	// TODO: Flush entries to the peer first.
 
 	// Stop peer and remove it.
-	peer.stopHeartbeat()
+	if s.State() == Leader {
+		peer.stopHeartbeat(true)
+	}
 
 	delete(s.peers, name)
 
