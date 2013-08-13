@@ -92,7 +92,7 @@ func (p *Peer) startHeartbeat() {
 func (p *Peer) stopHeartbeat(flush bool) {
 	// here is a problem
 	// the previous stop is no buffer leader may get blocked
-	// when heartbeat returns at line 132
+	// when heartbeat returns
 	// I make the channel with 1 buffer
 	// and try to panic here
 	select {
@@ -139,18 +139,18 @@ func (p *Peer) heartbeat(c chan bool) {
 			} else {
 				// before we can safely remove a node
 				// we must flush the remove command to the node first
-				p.flushPeer()
+				p.flush()
 				debugln("peer.heartbeat.stop: ", p.Name())
 				return
 			}
 
 		case <-time.After(p.heartbeatTimeout):
-			p.flushPeer()
+			p.flush()
 		}
 	}
 }
 
-func (p *Peer) flushPeer() {
+func (p *Peer) flush() {
 	debugln("peer.heartbeat.run: ", p.Name())
 	prevLogIndex := p.getPrevLogIndex()
 	entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex, p.server.maxLogEntriesPerRequest)

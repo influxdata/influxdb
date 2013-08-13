@@ -963,7 +963,6 @@ func (s *Server) RemovePeer(name string) error {
 		s.writeConf()
 		return nil
 	}
-
 	// Return error if peer doesn't exist.
 	peer := s.peers[name]
 	if peer == nil {
