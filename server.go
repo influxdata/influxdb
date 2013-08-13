@@ -719,7 +719,7 @@ func (s *Server) leaderLoop() {
 
 	// Stop all peers.
 	for _, peer := range s.peers {
-		peer.stopHeartbeat()
+		peer.stopHeartbeat(false)
 	}
 	s.syncedPeer = nil
 }
@@ -1009,10 +1009,6 @@ func (s *Server) AddPeer(name string) error {
 func (s *Server) RemovePeer(name string) error {
 	s.debugln("server.peer.remove: ", name, len(s.peers))
 
-	// Ignore removal of the server itself.
-	if s.name == name {
-		return nil
-	}
 	// Return error if peer doesn't exist.
 	peer := s.peers[name]
 	if peer == nil {
@@ -1022,7 +1018,9 @@ func (s *Server) RemovePeer(name string) error {
 	// TODO: Flush entries to the peer first.
 
 	// Stop peer and remove it.
-	peer.stopHeartbeat()
+	if s.State() == Leader {
+		peer.stopHeartbeat(true)
+	}
 
 	delete(s.peers, name)
 
@@ -1043,16 +1041,7 @@ func (s *Server) RemovePeer(name string) error {
 // Log compaction
 //--------------------------------------
 
-// The background snapshot function
-func (s *Server) Snapshot() {
-	for {
-		// TODO: change this... to something reasonable
-		time.Sleep(1 * time.Second)
-		s.takeSnapshot()
-	}
-}
-
-func (s *Server) takeSnapshot() error {
+func (s *Server) TakeSnapshot() error {
 	//TODO put a snapshot mutex
 	s.debugln("take Snapshot")
 	if s.currentSnapshot != nil {

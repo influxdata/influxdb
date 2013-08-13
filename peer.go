@@ -89,14 +89,14 @@ func (p *Peer) startHeartbeat() {
 }
 
 // Stops the peer heartbeat.
-func (p *Peer) stopHeartbeat() {
+func (p *Peer) stopHeartbeat(flush bool) {
 	// here is a problem
 	// the previous stop is no buffer leader may get blocked
-	// when heartbeat returns at line 132
+	// when heartbeat returns
 	// I make the channel with 1 buffer
 	// and try to panic here
 	select {
-	case p.stopChan <- true:
+	case p.stopChan <- flush:
 
 	default:
 		panic("[" + p.server.Name() + "] cannot stop [" + p.Name() + "] heartbeat")
@@ -132,25 +132,37 @@ func (p *Peer) heartbeat(c chan bool) {
 
 	for {
 		select {
-		case <-stopChan:
-			debugln("peer.heartbeat.stop: ", p.Name())
-			return
-
-		case <-time.After(p.heartbeatTimeout):
-			debugln("peer.heartbeat.run: ", p.Name())
-			prevLogIndex := p.getPrevLogIndex()
-			entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex, p.server.maxLogEntriesPerRequest)
-
-			if p.server.State() != Leader {
+		case flush := <-stopChan:
+			if !flush {
+				debugln("peer.heartbeat.stop: ", p.Name())
+				return
+			} else {
+				// before we can safely remove a node
+				// we must flush the remove command to the node first
+				p.flush()
+				debugln("peer.heartbeat.stop: ", p.Name())
 				return
 			}
 
-			if entries != nil {
-				p.sendAppendEntriesRequest(newAppendEntriesRequest(p.server.currentTerm, prevLogIndex, prevLogTerm, p.server.log.CommitIndex(), p.server.name, entries))
-			} else {
-				p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.lastSnapshot))
-			}
+		case <-time.After(p.heartbeatTimeout):
+			p.flush()
 		}
+	}
+}
+
+func (p *Peer) flush() {
+	debugln("peer.heartbeat.run: ", p.Name())
+	prevLogIndex := p.getPrevLogIndex()
+	entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex, p.server.maxLogEntriesPerRequest)
+
+	if p.server.State() != Leader {
+		return
+	}
+
+	if entries != nil {
+		p.sendAppendEntriesRequest(newAppendEntriesRequest(p.server.currentTerm, prevLogIndex, prevLogTerm, p.server.log.CommitIndex(), p.server.name, entries))
+	} else {
+		p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.lastSnapshot))
 	}
 }
 
