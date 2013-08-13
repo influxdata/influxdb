@@ -8,8 +8,9 @@ import (
 )
 
 type RaftConfig struct {
-	KnownCommitIndex uint64   `json:"KnownCommitIndex"`
-	Peers            []string `json:"Peers"`
+	KnownCommitIndex uint64 `json:"KnownCommitIndex"`
+	// TODO decide what we need to store in peer struct
+	Peers []string `json:"Peers"`
 }
 
 func (s *Server) writeConf() {
