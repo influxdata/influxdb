@@ -69,6 +69,11 @@ func newTestServer(name string, transporter Transporter) *Server {
 	return server
 }
 
+func newTestServerWithPath(name string, transporter Transporter, p string) *Server {
+	server, _ := NewServer(name, p, transporter, nil, nil)
+	return server
+}
+
 func newTestServerWithLog(name string, transporter Transporter, entries []*LogEntry) *Server {
 	server := newTestServer(name, transporter)
 	f, err := os.Create(server.LogPath())

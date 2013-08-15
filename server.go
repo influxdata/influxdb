@@ -927,7 +927,7 @@ func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 // Adds a peer to the server.
 func (s *Server) AddPeer(name string) error {
 	s.debugln("server.peer.add: ", name, len(s.peers))
-
+	defer s.writeConf()
 	// Do not allow peers to be added twice.
 	if s.peers[name] != nil {
 		return nil
@@ -946,7 +946,6 @@ func (s *Server) AddPeer(name string) error {
 
 	s.peers[peer.name] = peer
 
-	s.writeConf()
 	s.debugln("server.peer.conf.write: ", name)
 
 	return nil
@@ -956,11 +955,12 @@ func (s *Server) AddPeer(name string) error {
 func (s *Server) RemovePeer(name string) error {
 	s.debugln("server.peer.remove: ", name, len(s.peers))
 
+	defer s.writeConf()
+
 	if name == s.Name() {
 		// when the removed node restart, it should be able
 		// to know it has been removed before. So we need
 		// to update knownCommitIndex
-		s.writeConf()
 		return nil
 	}
 	// Return error if peer doesn't exist.
@@ -975,8 +975,6 @@ func (s *Server) RemovePeer(name string) error {
 	}
 
 	delete(s.peers, name)
-
-	s.writeConf()
 
 	return nil
 }
@@ -1206,6 +1204,62 @@ func (s *Server) LoadSnapshot() error {
 	s.log.updateCommitIndex(s.lastSnapshot.LastIndex)
 
 	return err
+}
+
+//--------------------------------------
+// Config File
+//--------------------------------------
+
+func (s *Server) writeConf() {
+
+	peers := make([]string, len(s.peers))
+
+	i := 0
+	for peer, _ := range s.peers {
+		peers[i] = peer
+		i++
+	}
+
+	r := &Config{
+		CommitIndex: s.log.commitIndex,
+		Peers:       peers,
+	}
+
+	b, _ := json.Marshal(r)
+
+	confPath := path.Join(s.path, "conf")
+	tmpConfPath := path.Join(s.path, "conf.tmp")
+
+	err := ioutil.WriteFile(tmpConfPath, b, 0600)
+
+	if err != nil {
+		panic(err)
+	}
+
+	os.Rename(tmpConfPath, confPath)
+}
+
+// Read the configuration for the server.
+func (s *Server) readConf() error {
+	confPath := path.Join(s.path, "conf")
+	s.debugln("readConf.open ", confPath)
+
+	// open conf file
+	b, err := ioutil.ReadFile(confPath)
+
+	if err != nil {
+		return nil
+	}
+
+	conf := &Config{}
+
+	if err = json.Unmarshal(b, conf); err != nil {
+		return err
+	}
+
+	s.log.commitIndex = conf.CommitIndex
+
+	return nil
 }
 
 //--------------------------------------
