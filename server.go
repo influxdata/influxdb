@@ -925,7 +925,7 @@ func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 //--------------------------------------
 
 // Adds a peer to the server.
-func (s *Server) AddPeer(name string) error {
+func (s *Server) AddPeer(name string, connectiongString string) error {
 	s.debugln("server.peer.add: ", name, len(s.peers))
 	defer s.writeConf()
 	// Do not allow peers to be added twice.
@@ -938,13 +938,13 @@ func (s *Server) AddPeer(name string) error {
 		return nil
 	}
 
-	peer := newPeer(s, name, s.heartbeatTimeout)
+	peer := newPeer(s, name, connectiongString, s.heartbeatTimeout)
 
 	if s.State() == Leader {
 		peer.startHeartbeat()
 	}
 
-	s.peers[peer.name] = peer
+	s.peers[peer.Name] = peer
 
 	s.debugln("server.peer.conf.write: ", name)
 
@@ -1012,14 +1012,13 @@ func (s *Server) TakeSnapshot() error {
 		state = []byte{0}
 	}
 
-	var peerNames []string
+	var peers []*Peer
 
 	for _, peer := range s.peers {
-		peerNames = append(peerNames, peer.Name())
+		peers = append(peers, peer.clone())
 	}
-	peerNames = append(peerNames, s.Name())
 
-	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, peerNames, state, path}
+	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, peers, state, path}
 
 	s.saveSnapshot()
 
@@ -1102,8 +1101,8 @@ func (s *Server) processSnapshotRecoveryRequest(req *SnapshotRecoveryRequest) *S
 	s.peers = make(map[string]*Peer)
 
 	// recovery the cluster configuration
-	for _, peerName := range req.Peers {
-		s.AddPeer(peerName)
+	for _, peer := range req.Peers {
+		s.AddPeer(peer.Name, peer.ConnectionString)
 	}
 
 	//update term and index
@@ -1195,8 +1194,8 @@ func (s *Server) LoadSnapshot() error {
 		return err
 	}
 
-	for _, peerName := range s.lastSnapshot.Peers {
-		s.AddPeer(peerName)
+	for _, peer := range s.lastSnapshot.Peers {
+		s.AddPeer(peer.Name, peer.ConnectionString)
 	}
 
 	s.log.startTerm = s.lastSnapshot.LastTerm
@@ -1212,11 +1211,11 @@ func (s *Server) LoadSnapshot() error {
 
 func (s *Server) writeConf() {
 
-	peers := make([]string, len(s.peers))
+	peers := make([]*Peer, len(s.peers))
 
 	i := 0
-	for peer, _ := range s.peers {
-		peers[i] = peer
+	for _, peer := range s.peers {
+		peers[i] = peer.clone()
 		i++
 	}
 

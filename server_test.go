@@ -164,10 +164,10 @@ func TestServerPromote(t *testing.T) {
 	lookup := map[string]*Server{}
 	transporter := &testTransporter{}
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) *RequestVoteResponse {
-		return lookup[peer.Name()].RequestVote(req)
+		return lookup[peer.Name].RequestVote(req)
 	}
 	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) *AppendEntriesResponse {
-		return lookup[peer.Name()].AppendEntries(req)
+		return lookup[peer.Name].AppendEntries(req)
 	}
 	servers := newTestCluster([]string{"1", "2", "3"}, transporter, lookup)
 
@@ -329,13 +329,13 @@ func TestServerRecoverFromPreviousLogAndConf(t *testing.T) {
 	transporter := &testTransporter{}
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) *RequestVoteResponse {
 		mutex.RLock()
-		s := servers[peer.name]
+		s := servers[peer.Name]
 		mutex.RUnlock()
 		return s.RequestVote(req)
 	}
 	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) *AppendEntriesResponse {
 		mutex.RLock()
-		s := servers[peer.name]
+		s := servers[peer.Name]
 		mutex.RUnlock()
 		return s.AppendEntries(req)
 	}
@@ -475,13 +475,13 @@ func TestServerMultiNode(t *testing.T) {
 	transporter := &testTransporter{}
 	transporter.sendVoteRequestFunc = func(server *Server, peer *Peer, req *RequestVoteRequest) *RequestVoteResponse {
 		mutex.RLock()
-		s := servers[peer.name]
+		s := servers[peer.Name]
 		mutex.RUnlock()
 		return s.RequestVote(req)
 	}
 	transporter.sendAppendEntriesRequestFunc = func(server *Server, peer *Peer, req *AppendEntriesRequest) *AppendEntriesResponse {
 		mutex.RLock()
-		s := servers[peer.name]
+		s := servers[peer.Name]
 		mutex.RUnlock()
 		return s.AppendEntries(req)
 	}
