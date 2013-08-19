@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -81,8 +80,6 @@ type Server struct {
 	lastSnapshot            *Snapshot
 	stateMachine            StateMachine
 	maxLogEntriesPerRequest uint64
-
-	confFile *os.File
 }
 
 // An event to be processed by the server's event loop.
@@ -338,14 +335,14 @@ func (s *Server) Start() error {
 	// Create snapshot directory if not exist
 	os.Mkdir(path.Join(s.path, "snapshot"), 0700)
 
-	// Initialize the log and load it up.
-	if err := s.log.open(s.LogPath()); err != nil {
-		s.debugln("raft: Log error: ", err)
+	if err := s.readConf(); err != nil {
+		s.debugln("raft: Conf file error: ", err)
 		return fmt.Errorf("raft: Initialization error: %s", err)
 	}
 
-	if err := s.readConf(); err != nil {
-		s.debugln("raft: Conf file error: ", err)
+	// Initialize the log and load it up.
+	if err := s.log.open(s.LogPath()); err != nil {
+		s.debugln("raft: Log error: ", err)
 		return fmt.Errorf("raft: Initialization error: %s", err)
 	}
 
@@ -370,53 +367,6 @@ func (s *Server) Start() error {
 	debugln(s.GetState())
 
 	go s.loop()
-
-	return nil
-}
-
-// Read the configuration for the server.
-func (s *Server) readConf() error {
-	var err error
-	confPath := path.Join(s.path, "conf")
-	s.debugln("readConf.open ", confPath)
-	// open conf file
-	s.confFile, err = os.OpenFile(confPath, os.O_RDWR, 0600)
-
-	if err != nil {
-		if os.IsNotExist(err) {
-			s.confFile, err = os.OpenFile(confPath, os.O_WRONLY|os.O_CREATE, 0600)
-			debugln("readConf.create ", confPath)
-			if err != nil {
-				return err
-			}
-		}
-		return err
-	}
-
-	peerNames := make([]string, 0)
-
-	for {
-		var peerName string
-		_, err = fmt.Fscanf(s.confFile, "%s\n", &peerName)
-
-		if err != nil {
-			if err == io.EOF {
-				s.debugln("server.peer.conf: finish")
-				break
-			}
-			return err
-		}
-		s.debugln("server.peer.conf.read: ", peerName)
-
-		peerNames = append(peerNames, peerName)
-	}
-
-	s.confFile.Truncate(0)
-	s.confFile.Seek(0, os.SEEK_SET)
-
-	for _, peerName := range peerNames {
-		s.AddPeer(peerName)
-	}
 
 	return nil
 }
@@ -975,9 +925,9 @@ func (s *Server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 //--------------------------------------
 
 // Adds a peer to the server.
-func (s *Server) AddPeer(name string) error {
+func (s *Server) AddPeer(name string, connectiongString string) error {
 	s.debugln("server.peer.add: ", name, len(s.peers))
-
+	defer s.writeConf()
 	// Do not allow peers to be added twice.
 	if s.peers[name] != nil {
 		return nil
@@ -988,19 +938,15 @@ func (s *Server) AddPeer(name string) error {
 		return nil
 	}
 
-	// when loading snapshot s.confFile should be nil
-	if s.confFile != nil {
-		_, err := fmt.Fprintln(s.confFile, name)
-		s.debugln("server.peer.conf.write: ", name)
-		if err != nil {
-			return err
-		}
-	}
-	peer := newPeer(s, name, s.heartbeatTimeout)
+	peer := newPeer(s, name, connectiongString, s.heartbeatTimeout)
+
 	if s.State() == Leader {
 		peer.startHeartbeat()
 	}
-	s.peers[peer.name] = peer
+
+	s.peers[peer.Name] = peer
+
+	s.debugln("server.peer.conf.write: ", name)
 
 	return nil
 }
@@ -1009,13 +955,19 @@ func (s *Server) AddPeer(name string) error {
 func (s *Server) RemovePeer(name string) error {
 	s.debugln("server.peer.remove: ", name, len(s.peers))
 
+	defer s.writeConf()
+
+	if name == s.Name() {
+		// when the removed node restart, it should be able
+		// to know it has been removed before. So we need
+		// to update knownCommitIndex
+		return nil
+	}
 	// Return error if peer doesn't exist.
 	peer := s.peers[name]
 	if peer == nil {
 		return fmt.Errorf("raft: Peer not found: %s", name)
 	}
-
-	// TODO: Flush entries to the peer first.
 
 	// Stop peer and remove it.
 	if s.State() == Leader {
@@ -1023,16 +975,6 @@ func (s *Server) RemovePeer(name string) error {
 	}
 
 	delete(s.peers, name)
-
-	s.confFile.Truncate(0)
-	s.confFile.Seek(0, os.SEEK_SET)
-
-	for peer := range s.peers {
-		_, err := fmt.Fprintln(s.confFile, peer)
-		if err != nil {
-			return err
-		}
-	}
 
 	return nil
 }
@@ -1070,14 +1012,13 @@ func (s *Server) TakeSnapshot() error {
 		state = []byte{0}
 	}
 
-	var peerNames []string
+	var peers []*Peer
 
 	for _, peer := range s.peers {
-		peerNames = append(peerNames, peer.Name())
+		peers = append(peers, peer.clone())
 	}
-	peerNames = append(peerNames, s.Name())
 
-	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, peerNames, state, path}
+	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, peers, state, path}
 
 	s.saveSnapshot()
 
@@ -1160,8 +1101,8 @@ func (s *Server) processSnapshotRecoveryRequest(req *SnapshotRecoveryRequest) *S
 	s.peers = make(map[string]*Peer)
 
 	// recovery the cluster configuration
-	for _, peerName := range req.Peers {
-		s.AddPeer(peerName)
+	for _, peer := range req.Peers {
+		s.AddPeer(peer.Name, peer.ConnectionString)
 	}
 
 	//update term and index
@@ -1253,8 +1194,8 @@ func (s *Server) LoadSnapshot() error {
 		return err
 	}
 
-	for _, peerName := range s.lastSnapshot.Peers {
-		s.AddPeer(peerName)
+	for _, peer := range s.lastSnapshot.Peers {
+		s.AddPeer(peer.Name, peer.ConnectionString)
 	}
 
 	s.log.startTerm = s.lastSnapshot.LastTerm
@@ -1262,6 +1203,62 @@ func (s *Server) LoadSnapshot() error {
 	s.log.updateCommitIndex(s.lastSnapshot.LastIndex)
 
 	return err
+}
+
+//--------------------------------------
+// Config File
+//--------------------------------------
+
+func (s *Server) writeConf() {
+
+	peers := make([]*Peer, len(s.peers))
+
+	i := 0
+	for _, peer := range s.peers {
+		peers[i] = peer.clone()
+		i++
+	}
+
+	r := &Config{
+		CommitIndex: s.log.commitIndex,
+		Peers:       peers,
+	}
+
+	b, _ := json.Marshal(r)
+
+	confPath := path.Join(s.path, "conf")
+	tmpConfPath := path.Join(s.path, "conf.tmp")
+
+	err := ioutil.WriteFile(tmpConfPath, b, 0600)
+
+	if err != nil {
+		panic(err)
+	}
+
+	os.Rename(tmpConfPath, confPath)
+}
+
+// Read the configuration for the server.
+func (s *Server) readConf() error {
+	confPath := path.Join(s.path, "conf")
+	s.debugln("readConf.open ", confPath)
+
+	// open conf file
+	b, err := ioutil.ReadFile(confPath)
+
+	if err != nil {
+		return nil
+	}
+
+	conf := &Config{}
+
+	if err = json.Unmarshal(b, conf); err != nil {
+		return err
+	}
+
+	s.log.commitIndex = conf.CommitIndex
+
+	return nil
 }
 
 //--------------------------------------
