@@ -1020,6 +1020,7 @@ func (s *Server) TakeSnapshot() error {
 	i := 0
 	for _, peer := range s.peers {
 		peers[i] = peer.clone()
+		i++
 	}
 
 	peers[i] = &Peer{
