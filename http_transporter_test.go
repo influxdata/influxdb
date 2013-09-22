@@ -68,7 +68,7 @@ func runTestHttpServers(t *testing.T, servers *[]*Server, transporter *HTTPTrans
 
 	// Setup configuration.
 	for _, server := range *servers {
-		if _, err := (*servers)[0].Do(&DefaultJoinCommand{Name: server.Name()}); err != nil {
+		if _, err := (*servers)[0].Do(&DefaultJoinCommand{Name: server.Name(), ConnectionString: fmt.Sprintf("http://%s", server.Name())}); err != nil {
 			t.Fatalf("Server %s unable to join: %v", server.Name(), err)
 		}
 	}
@@ -125,7 +125,7 @@ func BenchmarkSpeed(b *testing.B) {
 
 	// Setup configuration.
 	for _, server := range servers {
-		(servers)[0].Do(&DefaultJoinCommand{Name: server.Name()})
+		(servers)[0].Do(&DefaultJoinCommand{Name: server.Name(), ConnectionString: fmt.Sprintf("http://%s", server.Name())})
 	}
 
 	c := make(chan bool)
