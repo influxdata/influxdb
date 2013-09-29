@@ -1,0 +1,10 @@
+*~
+
+/test
+/bin/
+
+/pkg/
+/src/code.google.com/p/goplan9/
+/src/code.google.com/p/goprotobuf/
+/src/code.google.com/p/rog-go/
+/src/github.com/nsf/gocode/
