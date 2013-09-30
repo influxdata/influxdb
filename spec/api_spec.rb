@@ -9,6 +9,10 @@ describe "administration" do
 end
 
 describe "POSTing" do
+  before :all do
+    @db = "some_db"
+  end
+
   it "posts points to a series" do
     t = Time.now.to_i
     response = post("/db/#{@db}/points", [
@@ -50,6 +54,24 @@ describe "GETing" do
 
   it "returns multiple time series with a start and end time" do
     response = get("/db/#{@db}/series?q=select value from cpu.* where time>now()-7d and time<now()-6d")
+    response_body_without_ids(response).should == [
+      {
+        "series" => "cpu.idle",
+        "columns" => ["value", "time"],
+        "datapoints" => [
+          [2.0, 1311836009],
+          [1.0, 1311836008]
+        ]
+      },
+      {
+        "series" => "cpu.sys",
+        "columns" => ["value", "time"],
+        "datapoints" => [
+          [2.0, 1311836009],
+          [1.0, 1311836008]
+        ]
+      }
+    ]
   end
 
   it "splits unique column values into multiple time series" do
@@ -82,7 +104,7 @@ describe "GETing" do
     response_body_without_ids(response).should == [
       {
         "series" => "users.events",
-        "columns" => ["value", "time", "email"],
+        "columns" => ["value", "time"],
         "datapoints" => [
           [1, 1311836012]
         ]
@@ -110,7 +132,6 @@ describe "GETing" do
 
   it "returns a time series with the function applied to a time series and a scalar"
 
-
   it "returns a time series with counted unique values" do
     response = get("/db/#{@db}/series?q=select count(distinct(email)) from user.events where time>now()-1d group_by time(15m)")
   end
@@ -128,11 +149,11 @@ describe "GETing" do
   it "runs a continuous query with server sent events"
 
   it "can redirect a continuous query into a new time series" do
-    response = get("/db/#{@db}/series?q=select count(*) from user.events where time<forever group_by time(1d) into=user.events.count.per_day")
+    response = get("/db/#{@db}/series?q=insert into user.events.count.per_day select count(*) from user.events where time<forever group_by time(1d)")
   end
 
   it "can redirect a continuous query of multiple series into a many new time series" do
-    response = get("/db/#{@db}/series?q=select percentile(95,value) from stats.* where time<forever group_by time(1d) into :series_name.percentiles.95")
+    response = get("/db/#{@db}/series?q=insert into :series_name.percentiles.95 select percentile(95,value) from stats.* where time<forever group_by time(1d)")
   end
 
   it "has an index of the running continuous queries"
