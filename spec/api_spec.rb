@@ -13,9 +13,9 @@ describe "POSTing" do
     t = Time.now.to_i
     response = post("/db/#{@db}/points", [
       {
-        "series": "users.events",
-        "extra_columns": ["email", "type"]
-        "points": [
+        "series" => "users.events",
+        "extra_columns" => ["email", "type"],
+        "points" => [
           [t, "paul@errplane.com", "click"],
           [t, "todd@errplane.com", "click"]
         ]
@@ -35,9 +35,9 @@ describe "GETing" do
     response = get("/db/#{@db}/series?q=select value from=cpu.idle where time>now()-1d")
     response_body_without_ids(response).should == [
       {
-        "series": "cpu.idle",
-        "columns": ["value", "time"],
-        "datapoints": [
+        "series" => "cpu.idle",
+        "columns" => ["value", "time"],
+        "datapoints" => [
           [6.0, 1311836012],
           [5.0, 1311836011],
           [3.0, 1311836010],
@@ -61,15 +61,15 @@ describe "GETing" do
     response = get("/db/#{@db}/series?q=select count(*) from users.events group_by user_email,time(1h) where time>now()-7d")
     response_body_without_ids(response).should == [
       {
-        "series": "users.events",
-        "columns": ["count", "time", "email"],
-        "datapoints": [
+        "series" => "users.events",
+        "columns" => ["count", "time", "email"],
+        "datapoints" => [
           [1, 1311836012, "paul@errplane.com"],
           [1, 1311836012, "todd@errplane.com"],
           [1, 1311836008, "paul@errplane.com"]
         ]
       }
-    ]    
+    ]
   end
 
   it "returns the top n time series by a given function" do
@@ -81,20 +81,20 @@ describe "GETing" do
     response = get("/db/#{@db}/series?q=select last(value) from .* limit=1")
     response_body_without_ids(response).should == [
       {
-        "series": "users.events",
-        "columns": ["value", "time", "email"],
-        "datapoints": [
+        "series" => "users.events",
+        "columns" => ["value", "time", "email"],
+        "datapoints" => [
           [1, 1311836012]
         ]
       },
       {
-        "series": "cpu.idle",
-        "columns": ["value", "time"]
-        "datapoints": [
+        "series" => "cpu.idle",
+        "columns" => ["value", "time"],
+        "datapoints" => [
           [6.0, 1311836012]
         ]
       }
-    ]    
+    ]
   end
 
   it "has a default where of time=now()-1h"
