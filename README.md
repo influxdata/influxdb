@@ -24,6 +24,13 @@ Requirements
 * Delete ranges of points from any number of timeseries (that should reflect in disk space usage)
 * querying should support one or more timeseries (possibly with regex to match on)
 
+New Requirements
+----------------
+* Easy to backup and restore
+* Large time range queries with one column ?
+* Optimize for HDD access ?
+* What are the common use cases that we should optimize for ?
+
 Modules
 -------
 
