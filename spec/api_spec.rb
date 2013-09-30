@@ -100,7 +100,7 @@ describe "GETing" do
   end
 
   it "returns multiple time series by taking a regex in the from clause with a limit on the number of points with newest first (last point from every series)" do
-    response = get("/db/#{@db}/series?q=select last(value) from .* limit=1")
+    response = get("/db/#{@db}/series?q=select value from .* last 1")
     response_body_without_ids(response).should == [
       {
         "series" => "users.events",
@@ -119,7 +119,7 @@ describe "GETing" do
     ]
   end
 
-  it "has a default where of time=now()-1h"
+  it "has a default where of time>now()-1h"
   it "has a default limit of 1000"
 
   it "can merge two time series into one" do
@@ -158,6 +158,20 @@ describe "GETing" do
 
   it "has an index of the running continuous queries"
   it "can stop a continuous query"
+end
+
+describe "Indexes" do
+  before :all do
+    @db = "test_index_db"
+  end
+
+  it "can index a single column" do
+    response = post("/db/#{@db}/indexes", {series: "cpu.idle", index_columns: ["host"], store_columns: ["value"]}.to_json)
+  end
+
+  it "can index on multiple columns" do
+    response = post("/db/#{@db}/indexes", {series: "events", index_columns: ["type", "region"], store_columns: ["email"]}.to_json)
+  end
 end
 
 describe "DELETEing" do
