@@ -23,3 +23,40 @@ Requirements
 * continuous queries (keep connection open and return new points as they arrive)
 * Delete ranges of points from any number of timeseries (that should reflect in disk space usage)
 * querying should support one or more timeseries (possibly with regex to match on)
+
+Modules
+-------
+
+
+
+
+       +--------------------+   +--------------------+  +--------------------+
+       |                    |   |                    |  |                    |
+       |  WebConsole/docs   |   |      Http API      |  |  Lang. Bindings    |
+       |                    |   |                    |  |                    |
+       +------------------+-+   +-+------------------+  +----+---------------+
+                          |       |                          |
+                          |       |                          |
+                        +-+-------+-------+                  |
+                        |                 +------------------+
+                        |   Query Engine  |
+                        |                 |
+                        +-----------------+---+
+                        |                     |
+                   +----+  Processing Engine  +---------+
+                   |    |                     |         |
+                   |    +---------------------+         |
+                   |                                    |
+                   |                                    |
+          +--------+-----------+                +-------+------------+
+          |                    |                |                    |
+          |   Storage Engine   |                |   Storage Engine   |
+          |                    |                |                    |
+          +--------+-----------+                +-------+------------+
+                   |                                    |
+                   |                                    |
+                   |    +---------------------+         |
+                   |    |                     |         |
+                   +----+  Consensus Engine   +---------+
+                        |                     |
+                        +---------------------+
