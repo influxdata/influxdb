@@ -13,21 +13,39 @@ describe "POSTing" do
     @db = "some_db"
   end
 
-  it "posts points to a series" do
+  it "posts points with given timestamps to a series" do
     t = Time.now.to_i
     response = post("/db/#{@db}/points", [
       {
         "series" => "users.events",
-        "extra_columns" => ["email", "type"],
+        "columns" => ["timestamp", "email", "type"],
         "points" => [
           [t, "paul@errplane.com", "click"],
           [t, "todd@errplane.com", "click"]
+        ]
+      },
+      {
+        "series" => "cpu.idle",
+        "columns" => ["timestamp", "value"],
+        "points" => [
+          [t, 97.3]
         ]
       }
     ])
   end
 
-  it "can post points to a series without the extra column names"
+  it "posts points to a series and assigns a timestamp of now on the server" do
+    response = post("/db/#{@db}/points", [
+      {
+        "series" => "users.events",
+        "columns" => ["email", "type"],
+        "points" => [
+          ["paul@errplane.com", "click"],
+          ["todd@errplane.com", "click"]
+        ]
+      }
+    ])
+  end
 end
 
 describe "GETing" do
@@ -74,7 +92,7 @@ describe "GETing" do
     ]
   end
 
-  it "splits unique column values into multiple time series" do
+  it "splits unique column values into multiple points for each group by period" do
     write_points(@db, "users.events", [
       {email: "paul@errplane.com", type: "click", target: "/foo/bar/something"},
       {email: "todd@errplane.com", type: "click", target: "/asdf"},
@@ -96,7 +114,7 @@ describe "GETing" do
 
   it "returns the top n time series by a given function" do
     response = get("/db/#{@db}/series?q=select top(10, count(*)) from=users.events group_by user_email,time(1h) where time>now()-7d")
-    # response has 10 time series in it
+    # response has 10 points per grouped by time interval
   end
 
   it "returns multiple time series by taking a regex in the from clause with a limit on the number of points with newest first (last point from every series)" do
@@ -148,6 +166,7 @@ describe "GETing" do
 
   it "runs a continuous query with server sent events"
 
+  # continuous queries redirected into a time series run forever
   it "can redirect a continuous query into a new time series" do
     response = get("/db/#{@db}/series?q=insert into user.events.count.per_day select count(*) from user.events where time<forever group_by time(1d)")
   end
@@ -165,7 +184,7 @@ describe "Indexes" do
     @db = "test_index_db"
   end
 
-  it "can index a single column" do
+  it "can index a single column and store a specific column in the index for quick retrieval" do
     response = post("/db/#{@db}/indexes", {series: "cpu.idle", index_columns: ["host"], store_columns: ["value"]}.to_json)
   end
 
