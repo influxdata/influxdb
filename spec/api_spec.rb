@@ -1,6 +1,3 @@
-describe "precomputing rollups" do
-end
-
 describe "administration" do
   it "creates a database"
   it "adds a write key to a database"
