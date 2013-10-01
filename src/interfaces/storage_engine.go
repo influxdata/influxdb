@@ -4,27 +4,6 @@ import (
 	"time"
 )
 
-type FieldType int
-
-const (
-	StringType FieldType = iota
-	IntType
-	FloatType
-)
-
-type Values []interface{}
-
-type Point struct {
-	Fields []string
-	Types  []FieldType
-	Values []Values
-}
-
-type Timeseries struct {
-	Name   string
-	Points []*Point
-}
-
 type WriteRequest struct {
 	Timeseries []*Timeseries
 }
