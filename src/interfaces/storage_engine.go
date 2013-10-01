@@ -12,14 +12,12 @@ const (
 	FloatType
 )
 
-type Field struct {
-	Name  string
-	Value interface{}
-	Type  FieldType
-}
+type Values []interface{}
 
 type Point struct {
-	Fields []*Field
+	Fields []string
+	Types  []FieldType
+	Values []Values
 }
 
 type Timeseries struct {
