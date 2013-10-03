@@ -7,6 +7,7 @@
 /src/code.google.com/p/goplan9/
 /src/code.google.com/p/goprotobuf/
 /src/code.google.com/p/rog-go/
+src/launchpad.net/gocheck/
 /src/github.com/nsf/gocode/
 
 TAGS
@@ -15,3 +16,5 @@ exports.sh
 flymake.sh
 refresh_tags.sh
 a.out
+
+*.test
