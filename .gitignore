@@ -12,7 +12,6 @@ src/launchpad.net/gocheck/
 
 TAGS
 
-exports.sh
 flymake.sh
 refresh_tags.sh
 a.out
