@@ -6,3 +6,4 @@ cd `dirname $0`
 go get launchpad.net/gocheck
 
 go test -v query
+go test -v protocol

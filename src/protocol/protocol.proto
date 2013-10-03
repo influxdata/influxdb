@@ -1,0 +1,31 @@
+package protocol;
+
+message FieldValue {
+  optional string string_value = 1;
+  optional int32 int_value = 2;
+  optional double double_value = 3;
+  optional bool bool_value = 4;
+}
+
+message FieldDefinition {
+  enum Type {
+    STRING = 1;
+    INT32 = 2;
+    DOUBLE = 3;
+    BOOL = 4;
+  }
+  required Type type = 1;
+  required string name = 2;
+}
+
+message Point {
+  repeated FieldValue values = 1;
+  required int64 timestamp = 2;
+  required uint32 sequence_number = 3;
+}
+
+message Series {
+  repeated Point points = 1;
+  required string name = 2;
+  repeated FieldDefinition fields = 3;
+}
