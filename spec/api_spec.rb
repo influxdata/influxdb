@@ -51,7 +51,7 @@ describe "GETing" do
   end
 
   it "returns a time series with a start and end time with a default order of newest first" do
-    response = get("/db/#{@db}/series?q=select value from=cpu.idle where time>now()-1d")
+    response = get("/db/#{@db}/series?q=select value from cpu.idle where time>now()-1d")
     response_body_without_ids(response).should == [
       {
         "series" => "cpu.idle",
@@ -110,7 +110,7 @@ describe "GETing" do
   end
 
   it "returns the top n time series by a given function" do
-    response = get("/db/#{@db}/series?q=select top(10, count(*)) from=users.events group_by user_email,time(1h) where time>now()-7d")
+    response = get("/db/#{@db}/series?q=select top(10, count(*)) from users.events group_by user_email,time(1h) where time>now()-7d")
     # response has 10 points per grouped by time interval
   end
 
