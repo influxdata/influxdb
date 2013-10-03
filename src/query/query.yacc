@@ -91,6 +91,7 @@ query
 parse_query(char *const query_s)
 {
   query q;
+  q.error = NULL;
   /* yydebug = 1; */
   void *scanner;
   yylex_init(&scanner);

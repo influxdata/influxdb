@@ -6,8 +6,8 @@ typedef enum {
   OP_EQUAL
 } operation_t;
 
-typedef union {
-  int ivalue;
+typedef struct {
+  int  ivalue;
   char *svalue;
 } value;
 
@@ -24,3 +24,4 @@ typedef struct {
 } query;
 
 query parse_query(char *const query_s);
+void  close_query (query *q);
