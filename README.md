@@ -66,3 +66,11 @@ Modules
           |   Storage Engine   |                |   Storage Engine   |
           |                    |                |                    |
           +--------+-----------+                +-------+------------+
+
+Concensus Notes
+---------------
+
+Two state machines:
+* 1 for the entire cluster of which machines are taking which portions of the ring
+* 1 for each portion of the ring to replicate the operations
+sequence number per ring location? that's the concensus, if they don't agree then request a replay from the last known sequence number

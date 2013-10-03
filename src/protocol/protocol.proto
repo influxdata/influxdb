@@ -29,3 +29,24 @@ message Series {
   required string name = 2;
   repeated FieldDefinition fields = 3;
 }
+
+message Request {
+  enum Type {
+    QUERY = 1;
+    WRITE = 2;
+    GET_SERVERS = 3;
+  }
+  required int32 id = 1;
+  required Type type = 2;
+}
+
+message Response {
+  enum Type {
+    QUERY = 1;
+    WRITE_OK = 2;
+    END_STREAM = 3;
+  }
+  required int32 id = 1;
+  optional Series series = 2;
+  repeated string servers = 3;
+}
