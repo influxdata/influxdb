@@ -75,7 +75,8 @@ void *yy_scan_string(char *, void *);
 void yy_delete_buffer(void *, void *);
 
 void
-close_query (query *q) {
+close_query (query *q)
+{
   free(q->w->column_name);
   free(q->w->v->svalue);
   free(q->w->v);
@@ -85,18 +86,26 @@ close_query (query *q) {
   free(q->f);
 }
 
-int
-main(int argc, char **argv) {
+query
+parse_query(char *const query_s)
+{
+  query q;
   /* yydebug = 1; */
   void *scanner;
   yylex_init(&scanner);
-  query q;
-  void *buffer = yy_scan_string("select from t where foo = '5' ;", scanner);
+  void *buffer = yy_scan_string(query_s, scanner);
   yyparse (&q, scanner);
   yy_delete_buffer(buffer, scanner);
+  yylex_destroy(scanner);
+  return q;
+}
+
+int
+main(int argc, char **argv)
+{
+  query q = parse_query("select from t where foo = '5' ;");
   printf("table name: %s\n", q.f->table);
   printf("where column: %s, value: %s\n", q.w->column_name, q.w->v->svalue);
-  yylex_destroy(scanner);
   close_query(&q);
   return 0;
 }
