@@ -8,3 +8,10 @@
 /src/code.google.com/p/goprotobuf/
 /src/code.google.com/p/rog-go/
 /src/github.com/nsf/gocode/
+
+TAGS
+
+exports.sh
+flymake.sh
+refresh_tags.sh
+a.out
