@@ -175,7 +175,7 @@ describe "GETing" do
   it "has an index of the running continuous queries"
   it "can stop a continuous query"
 
-  it "can match against a regex" do
+  it "can match against a regex in the where clause" do
     response = get("/db/#{@db}/series?q=select email from users.events where email ~= /gmail\.com/i and time>now()-2d group_by time(10m)")
   end
 end
