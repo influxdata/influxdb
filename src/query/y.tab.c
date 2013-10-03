@@ -69,11 +69,12 @@
 #line 1 "query.yacc"
 
 #include <stdio.h>
+#include <string.h>
 #include "query_types.h"
 
 
 /* Line 268 of yacc.c  */
-#line 77 "y.tab.c"
+#line 78 "y.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -126,7 +127,7 @@ typedef union YYSTYPE
 {
 
 /* Line 293 of yacc.c  */
-#line 6 "query.yacc"
+#line 7 "query.yacc"
 
   char *string;
   int i;
@@ -137,7 +138,7 @@ typedef union YYSTYPE
 
 
 /* Line 293 of yacc.c  */
-#line 141 "y.tab.c"
+#line 142 "y.tab.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -149,7 +150,7 @@ typedef union YYSTYPE
 
 
 /* Line 343 of yacc.c  */
-#line 153 "y.tab.c"
+#line 154 "y.tab.c"
 
 #ifdef short
 # undef short
@@ -437,7 +438,7 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    35,    35,    41,    47,    55,    56,    61,    67
+       0,    36,    36,    42,    48,    56,    57,    62,    68
 };
 #endif
 
@@ -1380,7 +1381,7 @@ yyreduce:
         case 2:
 
 /* Line 1806 of yacc.c  */
-#line 36 "query.yacc"
+#line 37 "query.yacc"
     {
   q->f = (yyvsp[(2) - (4)].f);
   q->w = (yyvsp[(3) - (4)].w);
@@ -1390,7 +1391,7 @@ yyreduce:
   case 3:
 
 /* Line 1806 of yacc.c  */
-#line 42 "query.yacc"
+#line 43 "query.yacc"
     {
   (yyval.f) = malloc(sizeof(from));
   (yyval.f)->table = (yyvsp[(2) - (2)].string);
@@ -1400,7 +1401,7 @@ yyreduce:
   case 4:
 
 /* Line 1806 of yacc.c  */
-#line 48 "query.yacc"
+#line 49 "query.yacc"
     {
   (yyval.w) = malloc(sizeof(where));
   (yyval.w)->column_name = (yyvsp[(2) - (4)].string);
@@ -1412,7 +1413,7 @@ yyreduce:
   case 6:
 
 /* Line 1806 of yacc.c  */
-#line 57 "query.yacc"
+#line 58 "query.yacc"
     {
   (yyval.string) = (yyvsp[(1) - (1)].string);
 }
@@ -1421,7 +1422,7 @@ yyreduce:
   case 7:
 
 /* Line 1806 of yacc.c  */
-#line 62 "query.yacc"
+#line 63 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->svalue = (yyvsp[(1) - (1)].string);
@@ -1431,7 +1432,7 @@ yyreduce:
   case 8:
 
 /* Line 1806 of yacc.c  */
-#line 68 "query.yacc"
+#line 69 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->ivalue = (yyvsp[(1) - (1)].i);
@@ -1441,7 +1442,7 @@ yyreduce:
 
 
 /* Line 1806 of yacc.c  */
-#line 1445 "y.tab.c"
+#line 1446 "y.tab.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -1672,7 +1673,7 @@ yyreturn:
 
 
 /* Line 2067 of yacc.c  */
-#line 73 "query.yacc"
+#line 74 "query.yacc"
 
 void *yy_scan_string(char *, void *);
 void yy_delete_buffer(void *, void *);
@@ -1703,17 +1704,7 @@ parse_query(char *const query_s)
   return q;
 }
 
-int
-main(int argc, char **argv)
-{
-  query q = parse_query("select from t where foo = '5' ;");
-  printf("table name: %s\n", q.f->table);
-  printf("where column: %s, value: %s\n", q.w->column_name, q.w->v->svalue);
-  close_query(&q);
-  return 0;
-}
-
 int yyerror(query *q, void *s, char *err) {
-  fprintf(stderr, "error: %s\n", err);
+  q->error = strdup(err);
 }
 

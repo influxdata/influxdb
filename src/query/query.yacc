@@ -1,5 +1,6 @@
 %{
 #include <stdio.h>
+#include <string.h>
 #include "query_types.h"
 %}
 
@@ -100,16 +101,6 @@ parse_query(char *const query_s)
   return q;
 }
 
-int
-main(int argc, char **argv)
-{
-  query q = parse_query("select from t where foo = '5' ;");
-  printf("table name: %s\n", q.f->table);
-  printf("where column: %s, value: %s\n", q.w->column_name, q.w->v->svalue);
-  close_query(&q);
-  return 0;
-}
-
 int yyerror(query *q, void *s, char *err) {
-  fprintf(stderr, "error: %s\n", err);
+  q->error = strdup(err);
 }

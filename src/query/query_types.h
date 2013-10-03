@@ -22,3 +22,5 @@ typedef struct {
   where *w;
   char *error;
 } query;
+
+query parse_query(char *const query_s);
