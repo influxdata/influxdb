@@ -16,7 +16,12 @@ type From struct {
 type Operation int
 
 const (
-	EQUAL Operation = C.OP_EQUAL
+	EQUAL               Operation = C.OP_EQ
+	NOT_EQUAL                     = C.OP_NE
+	GREATER_THAN                  = C.OP_GT
+	LESS_THAN                     = C.OP_LT
+	GREATHER_THAN_OR_EQ           = C.OP_GE
+	LESS_THAN_OR_EQ               = C.OP_LE
 )
 
 type WhereClause struct {
@@ -26,7 +31,25 @@ type WhereClause struct {
 }
 
 type Query struct {
-	q C.query
+	q           C.query
+	ColumnNames []string
+}
+
+func (self *Query) GetColumnNames() []string {
+	if self.ColumnNames != nil {
+		return self.ColumnNames
+	}
+
+	arr := uintptr(unsafe.Pointer(self.q.c.elems))
+	elemSize := unsafe.Sizeof(*self.q.c.elems)
+	size := uintptr(self.q.c.size)
+
+	var i uintptr
+	for i = 0; i < size; i++ {
+		str := (**C.char)(unsafe.Pointer(arr + elemSize*i))
+		self.ColumnNames = append(self.ColumnNames, C.GoString(*str))
+	}
+	return self.ColumnNames
 }
 
 func (self *Query) GetFromClause() *From {
@@ -53,5 +76,5 @@ func ParseQuery(query string) (*Query, error) {
 	if q.error != nil {
 		err = errors.New(C.GoString(q.error))
 	}
-	return &Query{q}, err
+	return &Query{q, nil}, err
 }

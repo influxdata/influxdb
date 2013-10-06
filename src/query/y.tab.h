@@ -43,7 +43,13 @@
      EQUAL = 261,
      NAME = 262,
      STRING_VALUE = 263,
-     INT_VALUE = 264
+     INT_VALUE = 264,
+     OPERATION_EQUAL = 265,
+     OPERATION_NE = 266,
+     OPERATION_GT = 267,
+     OPERATION_LT = 268,
+     OPERATION_LE = 269,
+     OPERATION_GE = 270
    };
 #endif
 /* Tokens.  */
@@ -54,6 +60,12 @@
 #define NAME 262
 #define STRING_VALUE 263
 #define INT_VALUE 264
+#define OPERATION_EQUAL 265
+#define OPERATION_NE 266
+#define OPERATION_GT 267
+#define OPERATION_LT 268
+#define OPERATION_LE 269
+#define OPERATION_GE 270
 
 
 
@@ -63,9 +75,10 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 7 "query.yacc"
+#line 9 "query.yacc"
 
   char *string;
+  array *arr;
   int i;
   from *f;
   where *w;
@@ -74,7 +87,7 @@ typedef union YYSTYPE
 
 
 /* Line 2068 of yacc.c  */
-#line 78 "y.tab.h"
+#line 91 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

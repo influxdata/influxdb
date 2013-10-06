@@ -5,5 +5,7 @@ cd `dirname $0`
 
 go get launchpad.net/gocheck
 
+./build.sh
+
 go test -v query
 go test -v protocol

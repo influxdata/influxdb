@@ -1,10 +1,22 @@
+#include <stddef.h>
+
 typedef struct {
   char *table;
 } from;
 
 typedef enum {
-  OP_EQUAL
+  OP_EQ,
+  OP_NE,
+  OP_GT,
+  OP_LT,
+  OP_GE,
+  OP_LE
 } operation_t;
+
+typedef struct {
+  size_t size;
+  char **elems;
+} array;
 
 typedef struct {
   int  ivalue;
@@ -18,6 +30,7 @@ typedef struct {
 } where;
 
 typedef struct {
+  array *c;
   from *f;
   where *w;
   char *error;
