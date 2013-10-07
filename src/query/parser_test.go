@@ -29,7 +29,7 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	w := q.GetWhereCondition()
 	c.Assert(q.GetFromClause().TableName, Equals, "t")
 
-	boolExpression := w.Left
+	boolExpression := w.Left.(*BoolExpression)
 	leftExpression := boolExpression.Left
 	rightExpression := boolExpression.Right
 	leftValue := leftExpression.Left.Name
@@ -57,7 +57,7 @@ func (self *QueryParserSuite) TestParseSelectWithUpperCase(c *C) {
 	w := q.GetWhereCondition()
 	c.Assert(q.GetFromClause().TableName, Equals, "t")
 
-	boolExpression := w.Left
+	boolExpression := w.Left.(*BoolExpression)
 	leftExpression := boolExpression.Left
 	rightExpression := boolExpression.Right
 	leftValue := leftExpression.Left.Name
@@ -81,7 +81,7 @@ func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
 	w := q.GetWhereCondition()
 	c.Assert(q.GetFromClause().TableName, Equals, "t")
 
-	boolExpression := w.Left
+	boolExpression := w.Left.(*BoolExpression)
 	leftExpression := boolExpression.Left
 	rightExpression := boolExpression.Right
 	leftValue := leftExpression.Left.Name
@@ -98,7 +98,7 @@ func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 	c.Assert(err, IsNil)
 	w := q.GetWhereCondition()
 
-	boolExpression := w.Left
+	boolExpression := w.Left.(*BoolExpression)
 	leftExpression := boolExpression.Left
 	rightExpression := boolExpression.Right
 	leftValue := leftExpression.Left.Name
@@ -123,9 +123,9 @@ func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 
 	c.Assert(q.GetFromClause().TableName, Equals, "cpu.idle")
 
-	leftBoolExpression := w.Left
+	leftBoolExpression := w.Left.(*WhereCondition).Left.(*BoolExpression)
 	c.Assert(w.Operation, Equals, "AND")
-	rightBoolExpression := w.Right
+	rightBoolExpression := w.Right.Left.(*BoolExpression)
 
 	c.Assert(leftBoolExpression.Left.Left.Name, Equals, "time")
 	c.Assert(leftBoolExpression.Left.Left.IsFunctionCall(), Equals, false)
@@ -184,6 +184,50 @@ func (self *QueryParserSuite) TestParseFromWithNestedFunctions(c *C) {
 	c.Assert(column.Elems[1].Elems, HasLen, 1)
 	c.Assert(column.Elems[1].Elems[0].IsFunctionCall(), Equals, false)
 	c.Assert(column.Elems[1].Elems[0].Name, Equals, "*")
+}
+
+func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
+	q, err := ParseQuery("select value from cpu.idle where value > 90 and time > now() - 1d or value > 80 and time > now() - 1w;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+
+	c.Assert(q.GetFromClause().TableName, Equals, "cpu.idle")
+
+	whereCondition := q.GetWhereCondition()
+
+	c.Assert(whereCondition.Operation, Equals, "OR")
+	leftCondition, ok := whereCondition.Left.(*WhereCondition)
+	c.Assert(ok, Equals, true)
+	c.Assert(leftCondition.Operation, Equals, "AND")
+
+	leftExpression := leftCondition.Left.(*WhereCondition).Left.(*BoolExpression)
+	c.Assert(leftExpression.Operation, Equals, ">")
+	c.Assert(leftExpression.Left.Left.Name, Equals, "value")
+	c.Assert(leftExpression.Right.Left.Name, Equals, "90")
+
+	rightExpression := leftCondition.Right.Left.(*BoolExpression)
+	c.Assert(rightExpression.Operation, Equals, ">")
+	c.Assert(rightExpression.Left.Left.Name, Equals, "time")
+	c.Assert(rightExpression.Right.Left.Name, Equals, "now")
+	c.Assert(rightExpression.Right.Right.Name, Equals, "1d")
+}
+
+func (self *QueryParserSuite) TestParseWhereClauseParantheses(c *C) {
+	q, err := ParseQuery("select value from cpu.idle where value > 90 and (time > now() - 1d or value > 80) and time < now() - 1w;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+
+	c.Assert(q.GetFromClause().TableName, Equals, "cpu.idle")
+
+	whereCondition := q.GetWhereCondition()
+
+	first := whereCondition.Left.(*WhereCondition).Left.(*WhereCondition).Left.(*BoolExpression)
+	second := whereCondition.Left.(*WhereCondition).Right
+	third := whereCondition.Right.Left.(*BoolExpression)
+
+	c.Assert(first.Operation, Equals, ">")
+	c.Assert(second.Operation, Equals, "OR")
+	c.Assert(third.Operation, Equals, "<")
 }
 
 // write specs for the following queries

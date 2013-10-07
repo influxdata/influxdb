@@ -1,5 +1,8 @@
 #include <stddef.h>
 
+#define FALSE 0
+#define TRUE !FALSE
+
 typedef struct {
   char *table;
 } from;
@@ -33,10 +36,11 @@ typedef struct {
   expression *right;
 } bool_expression;
 
-typedef struct {
-  bool_expression *left;
+typedef struct condition_t {
+  char is_bool_expression;
+  void *left;
   char* op;                             /* AND, OR or NULL if there's no right operand */
-  bool_expression *right;
+  struct condition_t *right;
 } condition;
 
 typedef struct {

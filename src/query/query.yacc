@@ -238,28 +238,36 @@ BOOL_EXPRESSION:
         }
 
 CONDITION:
-        BOOL_EXPRESSION AND BOOL_EXPRESSION
+        BOOL_EXPRESSION
         {
           $$ = malloc(sizeof(condition));
+          $$->is_bool_expression = TRUE;
+          $$->left = $1;
+          $$->op = NULL;
+          $$->right = NULL;
+        }
+        |
+        '(' CONDITION ')'
+        {
+          $$ = $2;
+        }
+        |
+        CONDITION AND CONDITION
+        {
+          $$ = malloc(sizeof(condition));
+          $$->is_bool_expression = FALSE;
           $$->left = $1;
           $$->op = "AND";
           $$->right = $3;
         }
         |
-        BOOL_EXPRESSION OR  BOOL_EXPRESSION
+        CONDITION OR CONDITION
         {
           $$ = malloc(sizeof(condition));
+          $$->is_bool_expression = FALSE;
           $$->left = $1;
           $$->op = "OR";
           $$->right = $3;
-        }
-        |
-        BOOL_EXPRESSION
-        {
-          $$ = malloc(sizeof(condition));
-          $$->left = $1;
-          $$->op = NULL;
-          $$->right = NULL;
         }
 
 BOOL_OPERATION:
@@ -329,8 +337,12 @@ free_bool_expression(bool_expression *expr)
 void
 free_condition(condition *condition)
 {
-  free_bool_expression(condition->left);
-  if (condition->right) free_bool_expression(condition->right);
+  if (condition->is_bool_expression) {
+    free_bool_expression((bool_expression*) condition->left);
+  } else {
+    free_condition(condition->left);
+    free_condition(condition->right);
+  }
   free(condition);
 }
 

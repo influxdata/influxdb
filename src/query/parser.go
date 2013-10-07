@@ -39,9 +39,10 @@ type BoolExpression struct {
 type GroupByClause []*Value
 
 type WhereCondition struct {
-	Left      *BoolExpression
-	Operation string
-	Right     *BoolExpression
+	isBooleanExpression bool
+	Left                interface{}
+	Operation           string
+	Right               *WhereCondition
 }
 
 type Query struct {
@@ -133,19 +134,31 @@ func GetBoolExpression(expr *C.bool_expression) *BoolExpression {
 	return boolExpression
 }
 
+func GetWhereCondition(condition *C.condition) *WhereCondition {
+	if condition.is_bool_expression != 0 {
+		return &WhereCondition{
+			isBooleanExpression: true,
+			Left:                GetBoolExpression((*C.bool_expression)(condition.left)),
+			Operation:           "",
+			Right:               nil,
+		}
+	}
+
+	c := &WhereCondition{}
+	c.Left = GetWhereCondition((*C.condition)(condition.left))
+	c.Operation = C.GoString(condition.op)
+	c.Right = GetWhereCondition((*C.condition)(unsafe.Pointer(condition.right)))
+
+	return c
+}
+
 func (self *Query) GetWhereCondition() *WhereCondition {
 	if self.q.where_condition == nil {
 		return nil
 	}
 
-	condition := &WhereCondition{}
-	condition.Left = GetBoolExpression(self.q.where_condition.left)
-	if self.q.where_condition.op != nil {
-		condition.Operation = C.GoString(self.q.where_condition.op)
-		condition.Right = GetBoolExpression(self.q.where_condition.right)
-	}
-
-	return condition
+	self.Condition = GetWhereCondition(self.q.where_condition)
+	return self.Condition
 }
 
 func (self *Query) GetGroupByClause() GroupByClause {
