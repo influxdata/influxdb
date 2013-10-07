@@ -42,16 +42,19 @@
      WHERE = 260,
      EQUAL = 261,
      GROUP_BY = 262,
-     STRING_VALUE = 263,
-     NAME = 264,
-     OR = 265,
-     AND = 266,
-     OPERATION_GE = 267,
-     OPERATION_LE = 268,
-     OPERATION_LT = 269,
-     OPERATION_GT = 270,
-     OPERATION_NE = 271,
-     OPERATION_EQUAL = 272
+     FIRST = 263,
+     LAST = 264,
+     STRING_VALUE = 265,
+     INT_VALUE = 266,
+     NAME = 267,
+     OR = 268,
+     AND = 269,
+     OPERATION_GE = 270,
+     OPERATION_LE = 271,
+     OPERATION_LT = 272,
+     OPERATION_GT = 273,
+     OPERATION_NE = 274,
+     OPERATION_EQUAL = 275
    };
 #endif
 /* Tokens.  */
@@ -60,16 +63,19 @@
 #define WHERE 260
 #define EQUAL 261
 #define GROUP_BY 262
-#define STRING_VALUE 263
-#define NAME 264
-#define OR 265
-#define AND 266
-#define OPERATION_GE 267
-#define OPERATION_LE 268
-#define OPERATION_LT 269
-#define OPERATION_GT 270
-#define OPERATION_NE 271
-#define OPERATION_EQUAL 272
+#define FIRST 263
+#define LAST 264
+#define STRING_VALUE 265
+#define INT_VALUE 266
+#define NAME 267
+#define OR 268
+#define AND 269
+#define OPERATION_GE 270
+#define OPERATION_LE 271
+#define OPERATION_LT 272
+#define OPERATION_GT 273
+#define OPERATION_NE 274
+#define OPERATION_EQUAL 275
 
 
 
@@ -84,7 +90,7 @@ typedef union YYSTYPE
   char character;
   char *string;
   array *arr;
-  int i;
+  int integer;
   from *f;
   condition *condition;
   bool_expression *bool_expression;
@@ -95,7 +101,7 @@ typedef union YYSTYPE
 
 
 /* Line 2068 of yacc.c  */
-#line 99 "y.tab.h"
+#line 105 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

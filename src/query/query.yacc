@@ -21,7 +21,7 @@ void free_error (error *error);
   char character;
   char *string;
   array *arr;
-  int i;
+  int integer;
   from *f;
   condition *condition;
   bool_expression *bool_expression;
@@ -41,8 +41,8 @@ void free_error (error *error);
 %parse-param {void *scanner}
 %lex-param   {void *scanner}
 
-%token          SELECT FROM WHERE EQUAL GROUP_BY
-%token <string> STRING_VALUE NAME
+%token          SELECT FROM WHERE EQUAL GROUP_BY FIRST LAST
+%token <string> STRING_VALUE INT_VALUE NAME
 
 // define the precendence of these operators
 %left  OR
@@ -64,56 +64,52 @@ void free_error (error *error);
 %type <v>               FUNCTION_CALL
 %type <expression>      EXPRESSION
 %type <value_array>     GROUP_BY_CLAUSE
+%type <integer>         LIMIT
 %start                  QUERY
 
 %destructor { free_value($$); } <v>
-%destructor { free_condition($$); } <condition>
+%destructor { if ($$) free_condition($$); } <condition>
 %destructor { free_array($$); } <arr>
 %destructor { free_from_clause($$); } <f>
 %destructor { free($$); } <string>
 %destructor { free_expression($$); } <expression>
-%destructor { free_value_array($$); } <value_array>
+%destructor { if ($$) free_value_array($$); } <value_array>
 
 %%
 QUERY:
-        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE ';'
+        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT ';'
         {
           q->c = $2;
           q->f = $3;
           q->group_by = $4;
           q->where_condition = $5;
+          q->limit = $6;
         }
         |
-        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE ';'
+        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT ';'
         {
           q->c = $2;
           q->f = $3;
           q->where_condition = $4;
           q->group_by = $5;
+          q->limit = $6;
+        }
+
+LIMIT:
+        FIRST INT_VALUE
+        {
+          $$ = atoi($2);
+          free($2);
         }
         |
-        SELECT COLUMN_NAMES FROM_CLAUSE ';'
+        LAST INT_VALUE
         {
-          q->c = $2;
-          q->f = $3;
-          q->group_by = NULL;
-          q->where_condition = NULL;
+          $$ = -atoi($2);
+          free($2);
         }
         |
-        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE ';'
         {
-          q->c = $2;
-          q->f = $3;
-          q->group_by = NULL;
-          q->where_condition = $4;
-        }
-        |
-        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE ';'
-        {
-          q->c = $2;
-          q->f = $3;
-          q->group_by = $4;
-          q->where_condition = NULL;
+          $$ = 0;
         }
 
 VALUES:
@@ -139,6 +135,10 @@ GROUP_BY_CLAUSE:
         {
           $$ = $2;
         }
+        |
+        {
+          $$ = NULL;
+        }
 
 COLUMN_NAMES: VALUES
 
@@ -148,10 +148,15 @@ FROM_CLAUSE: FROM TABLE_NAME
   $$->table = $2;
 }
 
-WHERE_CLAUSE: WHERE CONDITION
-{
-  $$ = $2;
-}
+WHERE_CLAUSE:
+        WHERE CONDITION
+        {
+          $$ = $2;
+        }
+        |
+        {
+          $$ = NULL;
+        }
 
 FUNCTION_CALL:
         NAME '(' ')'
@@ -172,6 +177,13 @@ FUNCTION_CALL:
 
 VALUE:
         STRING_VALUE
+        {
+          $$ = malloc(sizeof(value));
+          $$->name = $1;
+          $$->args = NULL;
+        }
+        |
+        INT_VALUE
         {
           $$ = malloc(sizeof(value));
           $$->name = $1;

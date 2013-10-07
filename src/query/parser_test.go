@@ -25,6 +25,9 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	q, err := ParseQuery("select value from t where c == '5';")
 	defer q.Close()
 	c.Assert(err, IsNil)
+
+	c.Assert(q.Limit, Equals, 0)
+
 	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value"))
 	w := q.GetWhereCondition()
 	c.Assert(q.GetFromClause().TableName, Equals, "t")
@@ -228,6 +231,18 @@ func (self *QueryParserSuite) TestParseWhereClauseParantheses(c *C) {
 	c.Assert(first.Operation, Equals, ">")
 	c.Assert(second.Operation, Equals, "OR")
 	c.Assert(third.Operation, Equals, "<")
+}
+
+func (self *QueryParserSuite) TestParseSelectWithLast(c *C) {
+	q, err := ParseQuery("select value from t last 10;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	c.Assert(q.Limit, Equals, -10)
+
+	q, err = ParseQuery("select value from t first 10;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	c.Assert(q.Limit, Equals, 10)
 }
 
 // write specs for the following queries

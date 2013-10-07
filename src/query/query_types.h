@@ -55,6 +55,7 @@ typedef struct {
   value_array *group_by;
   condition *where_condition;
   error *error;
+  int limit;
 } query;
 
 query parse_query(char *const query_s);

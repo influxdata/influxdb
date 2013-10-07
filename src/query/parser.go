@@ -51,6 +51,7 @@ type Query struct {
 	ColumnNames   []*Value
 	Condition     *WhereCondition
 	groupByClause GroupByClause
+	Limit         int
 }
 
 func (self *Query) GetColumnNames() []*Value {
@@ -195,5 +196,5 @@ func ParseQuery(query string) (*Query, error) {
 		C.close_query(&q)
 		return nil, err
 	}
-	return &Query{q, false, nil, nil, nil}, err
+	return &Query{q, false, nil, nil, nil, int(q.limit)}, err
 }

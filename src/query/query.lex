@@ -22,6 +22,8 @@ static int yycolumn = 1;
 
 ;                         { return *yytext; }
 ,                         { return *yytext; }
+first                     { return FIRST; }
+last                      { return LAST; }
 from                      { return FROM; }
 where                     { return WHERE; }
 select                    { return SELECT; }
@@ -40,6 +42,7 @@ group_by                  { return GROUP_BY; }
 ">"                       { yylval->string = strdup(yytext); return OPERATION_GT; }
 "<="                      { yylval->string = strdup(yytext); return OPERATION_LE; }
 ">="                      { yylval->string = strdup(yytext); return OPERATION_GE; }
+[0-9]+                    { yylval->string = strdup(yytext); return INT_VALUE; }
 [a-zA-Z*.][a-zA-Z0-9*.]*  { yylval->string = strdup(yytext); return NAME; }
 \'.*\'                    {
   yytext[yyleng-1] = '\0';
