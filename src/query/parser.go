@@ -63,8 +63,8 @@ func (self *Query) GetColumnNames() []*Value {
 	return self.ColumnNames
 }
 
-func (self *Query) GetFromClause() *From {
-	return &From{C.GoString(self.q.f.table)}
+func (self *Query) GetFromClause() *Value {
+	return GetValue(self.q.f)
 }
 
 func GetValueArray(array *C.value_array) []*Value {

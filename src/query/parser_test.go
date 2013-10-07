@@ -30,7 +30,7 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 
 	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value"))
 	w := q.GetWhereCondition()
-	c.Assert(q.GetFromClause().TableName, Equals, "t")
+	c.Assert(q.GetFromClause().Name, Equals, "t")
 
 	boolExpression := w.Left.(*BoolExpression)
 	leftExpression := boolExpression.Left
@@ -48,7 +48,7 @@ func (self *QueryParserSuite) TestParseSelectWithoutWhereClause(c *C) {
 	defer q.Close()
 	c.Assert(err, IsNil)
 	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value", "time"))
-	c.Assert(q.GetFromClause().TableName, Equals, "t")
+	c.Assert(q.GetFromClause().Name, Equals, "t")
 	c.Assert(q.GetWhereCondition(), IsNil)
 }
 
@@ -58,7 +58,7 @@ func (self *QueryParserSuite) TestParseSelectWithUpperCase(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("VALUE", "TIME"))
 	w := q.GetWhereCondition()
-	c.Assert(q.GetFromClause().TableName, Equals, "t")
+	c.Assert(q.GetFromClause().Name, Equals, "t")
 
 	boolExpression := w.Left.(*BoolExpression)
 	leftExpression := boolExpression.Left
@@ -74,7 +74,7 @@ func (self *QueryParserSuite) TestParseSelectWithMultipleColumns(c *C) {
 	q, err := ParseQuery("select value, time from t;")
 	defer q.Close()
 	c.Assert(err, IsNil)
-	c.Assert(q.GetFromClause().TableName, Equals, "t")
+	c.Assert(q.GetFromClause().Name, Equals, "t")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
@@ -82,7 +82,7 @@ func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
 	defer q.Close()
 	c.Assert(err, IsNil)
 	w := q.GetWhereCondition()
-	c.Assert(q.GetFromClause().TableName, Equals, "t")
+	c.Assert(q.GetFromClause().Name, Equals, "t")
 
 	boolExpression := w.Left.(*BoolExpression)
 	leftExpression := boolExpression.Left
@@ -109,7 +109,7 @@ func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 	funCall := rightExpression.Left
 	oneDay := rightExpression.Right
 
-	c.Assert(q.GetFromClause().TableName, Equals, "t")
+	c.Assert(q.GetFromClause().Name, Equals, "t")
 	c.Assert(leftValue, Equals, "time")
 	c.Assert(funCall.IsFunctionCall(), Equals, true)
 	c.Assert(funCall.Name, Equals, "now")
@@ -124,7 +124,7 @@ func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 	c.Assert(err, IsNil)
 	w := q.GetWhereCondition()
 
-	c.Assert(q.GetFromClause().TableName, Equals, "cpu.idle")
+	c.Assert(q.GetFromClause().Name, Equals, "cpu.idle")
 
 	leftBoolExpression := w.Left.(*WhereCondition).Left.(*BoolExpression)
 	c.Assert(w.Operation, Equals, "AND")
@@ -168,7 +168,7 @@ func (self *QueryParserSuite) TestParseSelectWithGroupBy(c *C) {
 	c.Assert(groupBy[1].Elems, HasLen, 1)
 	c.Assert(groupBy[1].Elems[0].Name, Equals, "1h")
 
-	c.Assert(q.GetFromClause().TableName, Equals, "users.events")
+	c.Assert(q.GetFromClause().Name, Equals, "users.events")
 }
 
 func (self *QueryParserSuite) TestParseFromWithNestedFunctions(c *C) {
@@ -194,7 +194,7 @@ func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
 	defer q.Close()
 	c.Assert(err, IsNil)
 
-	c.Assert(q.GetFromClause().TableName, Equals, "cpu.idle")
+	c.Assert(q.GetFromClause().Name, Equals, "cpu.idle")
 
 	whereCondition := q.GetWhereCondition()
 
@@ -220,7 +220,7 @@ func (self *QueryParserSuite) TestParseWhereClauseParantheses(c *C) {
 	defer q.Close()
 	c.Assert(err, IsNil)
 
-	c.Assert(q.GetFromClause().TableName, Equals, "cpu.idle")
+	c.Assert(q.GetFromClause().Name, Equals, "cpu.idle")
 
 	whereCondition := q.GetWhereCondition()
 
@@ -266,9 +266,31 @@ func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {
 	})
 }
 
-// TODO: merge and inner joins
-// select count(*) from merge(newsletter.signups,user.signups) group_by time(1h) where time>now()-1d
-// select diff(t1.value, t2.value) from inner_join(memory.total, t1, memory.used, t2) group_by time(1m) where time>now()-6h
+func (self *QueryParserSuite) TestParseFromWithMergedTable(c *C) {
+	q, err := ParseQuery("select count(*) from merge(newsletter.signups,user.signups) where time>now()-1d;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	c.Assert(q.GetFromClause().IsFunctionCall(), Equals, true)
+	c.Assert(q.GetFromClause().Name, Equals, "merge")
+	c.Assert(q.GetFromClause().Elems, HasLen, 2)
+	c.Assert(q.GetFromClause().Elems[0].Name, Equals, "newsletter.signups")
+	c.Assert(q.GetFromClause().Elems[1].Name, Equals, "user.signups")
+}
+
+func (self *QueryParserSuite) TestParseFromWithJoinedTable(c *C) {
+	q, err := ParseQuery("select max(t1.value, t2.value) from inner_join(newsletter.signups, t1, user.signups, t2) where time>now()-1d;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	c.Assert(q.GetFromClause().IsFunctionCall(), Equals, true)
+	c.Assert(q.GetFromClause().Name, Equals, "inner_join")
+	c.Assert(q.GetFromClause().Elems, HasLen, 4)
+	c.Assert(q.GetFromClause().Elems[0].Name, Equals, "newsletter.signups")
+	c.Assert(q.GetFromClause().Elems[1].Name, Equals, "t1")
+	c.Assert(q.GetFromClause().Elems[2].Name, Equals, "user.signups")
+	c.Assert(q.GetFromClause().Elems[3].Name, Equals, "t2")
+}
+
+// TODO: regex tables
 
 // TODO: regexp matching
 // select email from users.events where email ~= /gmail\.com/i and time>now()-2d group_by time(10m)

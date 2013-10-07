@@ -43,7 +43,7 @@ group_by                  { return GROUP_BY; }
 "<="                      { yylval->string = strdup(yytext); return OPERATION_LE; }
 ">="                      { yylval->string = strdup(yytext); return OPERATION_GE; }
 [0-9]+                    { yylval->string = strdup(yytext); return INT_VALUE; }
-[a-zA-Z*.][a-zA-Z0-9*.]*  { yylval->string = strdup(yytext); return NAME; }
+[a-zA-Z*._][a-zA-Z0-9*._]*  { yylval->string = strdup(yytext); return NAME; }
 \'.*\'                    {
   yytext[yyleng-1] = '\0';
   yylval->string = strdup(yytext+1);

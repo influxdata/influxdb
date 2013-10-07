@@ -12,7 +12,6 @@ void free_value(value *value);
 void free_expression(expression *expr);
 void free_bool_expression(bool_expression *expr);
 void free_condition(condition *condition);
-void free_from_clause(from *from);
 void free_error (error *error);
 
 %}
@@ -22,7 +21,6 @@ void free_error (error *error);
   char *string;
   array *arr;
   int integer;
-  from *f;
   condition *condition;
   bool_expression *bool_expression;
   expression *expression;
@@ -51,8 +49,7 @@ void free_error (error *error);
 %left  <character> '+' '-'
 %left  <character> '*' '/'
 
-%type <f>               FROM_CLAUSE
-%type <string>          TABLE_NAME
+%type <v>               FROM_CLAUSE
 %type <condition>       WHERE_CLAUSE
 %type <value_array>     COLUMN_NAMES
 %type <string>          BOOL_OPERATION
@@ -70,7 +67,6 @@ void free_error (error *error);
 %destructor { free_value($$); } <v>
 %destructor { if ($$) free_condition($$); } <condition>
 %destructor { free_array($$); } <arr>
-%destructor { free_from_clause($$); } <f>
 %destructor { free($$); } <string>
 %destructor { free_expression($$); } <expression>
 %destructor { if ($$) free_value_array($$); } <value_array>
@@ -142,10 +138,9 @@ GROUP_BY_CLAUSE:
 
 COLUMN_NAMES: VALUES
 
-FROM_CLAUSE: FROM TABLE_NAME
+FROM_CLAUSE: FROM VALUE
 {
-  $$ = malloc(sizeof(from));
-  $$->table = $2;
+  $$ = $2;
 }
 
 WHERE_CLAUSE:
@@ -295,8 +290,6 @@ BOOL_OPERATION:
         |
         OPERATION_LE
 
-TABLE_NAME: NAME
-
 %%
 void *yy_scan_string(char *, void *);
 void yy_delete_buffer(void *, void *);
@@ -359,13 +352,6 @@ free_condition(condition *condition)
 }
 
 void
-free_from_clause(from *from)
-{
-  free(from->table);
-  free(from);
-}
-
-void
 free_error (error *error)
 {
   free(error->err);
@@ -392,7 +378,7 @@ close_query (query *q)
   }
 
   // free the from clause
-  free_from_clause(q->f);
+  free_value(q->f);
 }
 
 query

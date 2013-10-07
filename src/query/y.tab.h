@@ -85,13 +85,12 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 20 "query.yacc"
+#line 19 "query.yacc"
 
   char character;
   char *string;
   array *arr;
   int integer;
-  from *f;
   condition *condition;
   bool_expression *bool_expression;
   expression *expression;
@@ -101,7 +100,7 @@ typedef union YYSTYPE
 
 
 /* Line 2068 of yacc.c  */
-#line 105 "y.tab.h"
+#line 104 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

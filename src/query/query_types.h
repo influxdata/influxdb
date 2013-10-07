@@ -4,10 +4,6 @@
 #define TRUE !FALSE
 
 typedef struct {
-  char *table;
-} from;
-
-typedef struct {
   size_t size;
   char **elems;
 } array;
@@ -51,7 +47,7 @@ typedef struct {
 
 typedef struct {
   value_array *c;
-  from *f;
+  value *f;
   value_array *group_by;
   condition *where_condition;
   error *error;
