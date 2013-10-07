@@ -46,6 +46,7 @@ type WhereCondition struct {
 
 type Query struct {
 	q             C.query
+	closed        bool
 	ColumnNames   []*Value
 	Condition     *WhereCondition
 	groupByClause GroupByClause
@@ -162,7 +163,12 @@ func (self *Query) GetGroupByClause() GroupByClause {
 }
 
 func (self *Query) Close() {
+	if self.closed {
+		return
+	}
+
 	C.close_query(&self.q)
+	self.closed = true
 }
 
 func ParseQuery(query string) (*Query, error) {
@@ -173,6 +179,8 @@ func ParseQuery(query string) (*Query, error) {
 	if q.error != nil {
 		str := C.GoString(q.error.err)
 		err = fmt.Errorf("Error at %d:%d. %s", q.error.line, q.error.column, str)
+		C.close_query(&q)
+		return nil, err
 	}
-	return &Query{q, nil, nil, nil}, err
+	return &Query{q, false, nil, nil, nil}, err
 }
