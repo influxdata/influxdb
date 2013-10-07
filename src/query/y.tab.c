@@ -59,7 +59,7 @@
 #define YYPULL 1
 
 /* Using locations.  */
-#define YYLSP_NEEDED 0
+#define YYLSP_NEEDED 1
 
 
 
@@ -89,7 +89,7 @@
 # undef YYERROR_VERBOSE
 # define YYERROR_VERBOSE 1
 #else
-# define YYERROR_VERBOSE 0
+# define YYERROR_VERBOSE 1
 #endif
 
 /* Enabling the token table.  */
@@ -166,12 +166,25 @@ typedef union YYSTYPE
 # define YYSTYPE_IS_DECLARED 1
 #endif
 
+#if ! defined YYLTYPE && ! defined YYLTYPE_IS_DECLARED
+typedef struct YYLTYPE
+{
+  int first_line;
+  int first_column;
+  int last_line;
+  int last_column;
+} YYLTYPE;
+# define yyltype YYLTYPE /* obsolescent; will be withdrawn */
+# define YYLTYPE_IS_DECLARED 1
+# define YYLTYPE_IS_TRIVIAL 1
+#endif
+
 
 /* Copy the second part of user declarations.  */
 
 
 /* Line 343 of yacc.c  */
-#line 175 "y.tab.c"
+#line 188 "y.tab.c"
 
 #ifdef short
 # undef short
@@ -329,13 +342,15 @@ void free (void *); /* INFRINGES ON USER NAME SPACE */
 
 #if (! defined yyoverflow \
      && (! defined __cplusplus \
-	 || (defined YYSTYPE_IS_TRIVIAL && YYSTYPE_IS_TRIVIAL)))
+	 || (defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL \
+	     && defined YYSTYPE_IS_TRIVIAL && YYSTYPE_IS_TRIVIAL)))
 
 /* A type that is properly aligned for any stack member.  */
 union yyalloc
 {
   yytype_int16 yyss_alloc;
   YYSTYPE yyvs_alloc;
+  YYLTYPE yyls_alloc;
 };
 
 /* The size of the maximum gap between one aligned stack and the next.  */
@@ -344,8 +359,8 @@ union yyalloc
 /* The size of an array large to enough to hold all stacks, each with
    N elements.  */
 # define YYSTACK_BYTES(N) \
-     ((N) * (sizeof (yytype_int16) + sizeof (YYSTYPE)) \
-      + YYSTACK_GAP_MAXIMUM)
+     ((N) * (sizeof (yytype_int16) + sizeof (YYSTYPE) + sizeof (YYLTYPE)) \
+      + 2 * YYSTACK_GAP_MAXIMUM)
 
 # define YYCOPY_NEEDED 1
 
@@ -470,10 +485,10 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    57,    57,    64,    72,    83,    92,    98,   104,   112,
-     122,   131,   139,   146,   153,   156,   164,   173,   175,   177,
-     179,   182,   190,   199,   207,   215,   224,   226,   228,   230,
-     232,   234,   236
+       0,    59,    59,    66,    74,    85,    94,   100,   106,   114,
+     124,   133,   141,   148,   155,   158,   166,   175,   177,   179,
+     181,   184,   192,   201,   209,   217,   226,   228,   230,   232,
+     234,   236,   238
 };
 #endif
 
@@ -634,7 +649,7 @@ do								\
     }								\
   else								\
     {								\
-      yyerror (q, scanner, YY_("syntax error: cannot back up")); \
+      yyerror (&yylloc, q, scanner, YY_("syntax error: cannot back up")); \
       YYERROR;							\
     }								\
 while (YYID (0))
@@ -670,19 +685,28 @@ while (YYID (0))
 #endif
 
 
-/* This macro is provided for backward compatibility. */
+/* YY_LOCATION_PRINT -- Print the location on the stream.
+   This macro was not mandated originally: define only if we know
+   we won't break user code: when these are the locations we know.  */
 
 #ifndef YY_LOCATION_PRINT
-# define YY_LOCATION_PRINT(File, Loc) ((void) 0)
+# if defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL
+#  define YY_LOCATION_PRINT(File, Loc)			\
+     fprintf (File, "%d.%d-%d.%d",			\
+	      (Loc).first_line, (Loc).first_column,	\
+	      (Loc).last_line,  (Loc).last_column)
+# else
+#  define YY_LOCATION_PRINT(File, Loc) ((void) 0)
+# endif
 #endif
 
 
 /* YYLEX -- calling `yylex' with the right arguments.  */
 
 #ifdef YYLEX_PARAM
-# define YYLEX yylex (&yylval, YYLEX_PARAM)
+# define YYLEX yylex (&yylval, &yylloc, YYLEX_PARAM)
 #else
-# define YYLEX yylex (&yylval, scanner)
+# define YYLEX yylex (&yylval, &yylloc, scanner)
 #endif
 
 /* Enable debugging if requested.  */
@@ -705,7 +729,7 @@ do {									  \
     {									  \
       YYFPRINTF (stderr, "%s ", Title);					  \
       yy_symbol_print (stderr,						  \
-		  Type, Value, q, scanner); \
+		  Type, Value, Location, q, scanner); \
       YYFPRINTF (stderr, "\n");						  \
     }									  \
 } while (YYID (0))
@@ -719,19 +743,21 @@ do {									  \
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, query *q, void *scanner)
+yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp, query *q, void *scanner)
 #else
 static void
-yy_symbol_value_print (yyoutput, yytype, yyvaluep, q, scanner)
+yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp, q, scanner)
     FILE *yyoutput;
     int yytype;
     YYSTYPE const * const yyvaluep;
+    YYLTYPE const * const yylocationp;
     query *q;
     void *scanner;
 #endif
 {
   if (!yyvaluep)
     return;
+  YYUSE (yylocationp);
   YYUSE (q);
   YYUSE (scanner);
 # ifdef YYPRINT
@@ -755,13 +781,14 @@ yy_symbol_value_print (yyoutput, yytype, yyvaluep, q, scanner)
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, query *q, void *scanner)
+yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp, query *q, void *scanner)
 #else
 static void
-yy_symbol_print (yyoutput, yytype, yyvaluep, q, scanner)
+yy_symbol_print (yyoutput, yytype, yyvaluep, yylocationp, q, scanner)
     FILE *yyoutput;
     int yytype;
     YYSTYPE const * const yyvaluep;
+    YYLTYPE const * const yylocationp;
     query *q;
     void *scanner;
 #endif
@@ -771,7 +798,9 @@ yy_symbol_print (yyoutput, yytype, yyvaluep, q, scanner)
   else
     YYFPRINTF (yyoutput, "nterm %s (", yytname[yytype]);
 
-  yy_symbol_value_print (yyoutput, yytype, yyvaluep, q, scanner);
+  YY_LOCATION_PRINT (yyoutput, *yylocationp);
+  YYFPRINTF (yyoutput, ": ");
+  yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp, q, scanner);
   YYFPRINTF (yyoutput, ")");
 }
 
@@ -814,11 +843,12 @@ do {								\
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_reduce_print (YYSTYPE *yyvsp, int yyrule, query *q, void *scanner)
+yy_reduce_print (YYSTYPE *yyvsp, YYLTYPE *yylsp, int yyrule, query *q, void *scanner)
 #else
 static void
-yy_reduce_print (yyvsp, yyrule, q, scanner)
+yy_reduce_print (yyvsp, yylsp, yyrule, q, scanner)
     YYSTYPE *yyvsp;
+    YYLTYPE *yylsp;
     int yyrule;
     query *q;
     void *scanner;
@@ -835,7 +865,7 @@ yy_reduce_print (yyvsp, yyrule, q, scanner)
       YYFPRINTF (stderr, "   $%d = ", yyi + 1);
       yy_symbol_print (stderr, yyrhs[yyprhs[yyrule] + yyi],
 		       &(yyvsp[(yyi + 1) - (yynrhs)])
-		       		       , q, scanner);
+		       , &(yylsp[(yyi + 1) - (yynrhs)])		       , q, scanner);
       YYFPRINTF (stderr, "\n");
     }
 }
@@ -843,7 +873,7 @@ yy_reduce_print (yyvsp, yyrule, q, scanner)
 # define YY_REDUCE_PRINT(Rule)		\
 do {					\
   if (yydebug)				\
-    yy_reduce_print (yyvsp, Rule, q, scanner); \
+    yy_reduce_print (yyvsp, yylsp, Rule, q, scanner); \
 } while (YYID (0))
 
 /* Nonzero means print parse trace.  It is left uninitialized so that
@@ -1120,18 +1150,20 @@ yysyntax_error (YYSIZE_T *yymsg_alloc, char **yymsg,
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, query *q, void *scanner)
+yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, YYLTYPE *yylocationp, query *q, void *scanner)
 #else
 static void
-yydestruct (yymsg, yytype, yyvaluep, q, scanner)
+yydestruct (yymsg, yytype, yyvaluep, yylocationp, q, scanner)
     const char *yymsg;
     int yytype;
     YYSTYPE *yyvaluep;
+    YYLTYPE *yylocationp;
     query *q;
     void *scanner;
 #endif
 {
   YYUSE (yyvaluep);
+  YYUSE (yylocationp);
   YYUSE (q);
   YYUSE (scanner);
 
@@ -1197,6 +1229,9 @@ int yychar;
 /* The semantic value of the lookahead symbol.  */
 YYSTYPE yylval;
 
+/* Location data for the lookahead symbol.  */
+YYLTYPE yylloc;
+
     /* Number of syntax errors so far.  */
     int yynerrs;
 
@@ -1207,6 +1242,7 @@ YYSTYPE yylval;
     /* The stacks and their tools:
        `yyss': related to states.
        `yyvs': related to semantic values.
+       `yyls': related to locations.
 
        Refer to the stacks thru separate pointers, to allow yyoverflow
        to reallocate them elsewhere.  */
@@ -1221,6 +1257,14 @@ YYSTYPE yylval;
     YYSTYPE *yyvs;
     YYSTYPE *yyvsp;
 
+    /* The location stack.  */
+    YYLTYPE yylsa[YYINITDEPTH];
+    YYLTYPE *yyls;
+    YYLTYPE *yylsp;
+
+    /* The locations where the error started and ended.  */
+    YYLTYPE yyerror_range[3];
+
     YYSIZE_T yystacksize;
 
   int yyn;
@@ -1230,6 +1274,7 @@ YYSTYPE yylval;
   /* The variables used to return semantic value and location from the
      action routines.  */
   YYSTYPE yyval;
+  YYLTYPE yyloc;
 
 #if YYERROR_VERBOSE
   /* Buffer for error messages, and its allocated size.  */
@@ -1238,7 +1283,7 @@ YYSTYPE yylval;
   YYSIZE_T yymsg_alloc = sizeof yymsgbuf;
 #endif
 
-#define YYPOPSTACK(N)   (yyvsp -= (N), yyssp -= (N))
+#define YYPOPSTACK(N)   (yyvsp -= (N), yyssp -= (N), yylsp -= (N))
 
   /* The number of symbols on the RHS of the reduced rule.
      Keep to zero when no symbol should be popped.  */
@@ -1247,6 +1292,7 @@ YYSTYPE yylval;
   yytoken = 0;
   yyss = yyssa;
   yyvs = yyvsa;
+  yyls = yylsa;
   yystacksize = YYINITDEPTH;
 
   YYDPRINTF ((stderr, "Starting parse\n"));
@@ -1262,6 +1308,13 @@ YYSTYPE yylval;
      The wasted elements are never initialized.  */
   yyssp = yyss;
   yyvsp = yyvs;
+  yylsp = yyls;
+
+#if defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL
+  /* Initialize the default location before parsing starts.  */
+  yylloc.first_line   = yylloc.last_line   = 1;
+  yylloc.first_column = yylloc.last_column = 1;
+#endif
 
   goto yysetstate;
 
@@ -1288,6 +1341,7 @@ YYSTYPE yylval;
 	   memory.  */
 	YYSTYPE *yyvs1 = yyvs;
 	yytype_int16 *yyss1 = yyss;
+	YYLTYPE *yyls1 = yyls;
 
 	/* Each stack pointer address is followed by the size of the
 	   data in use in that stack, in bytes.  This used to be a
@@ -1296,8 +1350,10 @@ YYSTYPE yylval;
 	yyoverflow (YY_("memory exhausted"),
 		    &yyss1, yysize * sizeof (*yyssp),
 		    &yyvs1, yysize * sizeof (*yyvsp),
+		    &yyls1, yysize * sizeof (*yylsp),
 		    &yystacksize);
 
+	yyls = yyls1;
 	yyss = yyss1;
 	yyvs = yyvs1;
       }
@@ -1320,6 +1376,7 @@ YYSTYPE yylval;
 	  goto yyexhaustedlab;
 	YYSTACK_RELOCATE (yyss_alloc, yyss);
 	YYSTACK_RELOCATE (yyvs_alloc, yyvs);
+	YYSTACK_RELOCATE (yyls_alloc, yyls);
 #  undef YYSTACK_RELOCATE
 	if (yyss1 != yyssa)
 	  YYSTACK_FREE (yyss1);
@@ -1329,6 +1386,7 @@ YYSTYPE yylval;
 
       yyssp = yyss + yysize - 1;
       yyvsp = yyvs + yysize - 1;
+      yylsp = yyls + yysize - 1;
 
       YYDPRINTF ((stderr, "Stack size increased to %lu\n",
 		  (unsigned long int) yystacksize));
@@ -1404,7 +1462,7 @@ yybackup:
 
   yystate = yyn;
   *++yyvsp = yylval;
-
+  *++yylsp = yylloc;
   goto yynewstate;
 
 
@@ -1435,14 +1493,15 @@ yyreduce:
      GCC warning that YYVAL may be used uninitialized.  */
   yyval = yyvsp[1-yylen];
 
-
+  /* Default location.  */
+  YYLLOC_DEFAULT (yyloc, (yylsp - yylen), yylen);
   YY_REDUCE_PRINT (yyn);
   switch (yyn)
     {
         case 2:
 
 /* Line 1806 of yacc.c  */
-#line 58 "query.yacc"
+#line 60 "query.yacc"
     {
           q->c = (yyvsp[(2) - (5)].arr);
           q->f = (yyvsp[(3) - (5)].f);
@@ -1453,7 +1512,7 @@ yyreduce:
   case 3:
 
 /* Line 1806 of yacc.c  */
-#line 65 "query.yacc"
+#line 67 "query.yacc"
     {
           q->c = (yyvsp[(2) - (4)].arr);
           q->f = (yyvsp[(3) - (4)].f);
@@ -1464,7 +1523,7 @@ yyreduce:
   case 4:
 
 /* Line 1806 of yacc.c  */
-#line 73 "query.yacc"
+#line 75 "query.yacc"
     {
           (yyval.arr) = malloc(sizeof(array));
           (yyval.arr)->elems = NULL;
@@ -1479,7 +1538,7 @@ yyreduce:
   case 5:
 
 /* Line 1806 of yacc.c  */
-#line 84 "query.yacc"
+#line 86 "query.yacc"
     {
           size_t new_size = (yyvsp[(1) - (3)].arr)->size+1;
           (yyvsp[(1) - (3)].arr)->elems = realloc((yyvsp[(1) - (3)].arr)->elems, new_size);
@@ -1492,7 +1551,7 @@ yyreduce:
   case 6:
 
 /* Line 1806 of yacc.c  */
-#line 93 "query.yacc"
+#line 95 "query.yacc"
     {
   (yyval.f) = malloc(sizeof(from));
   (yyval.f)->table = (yyvsp[(2) - (2)].string);
@@ -1502,7 +1561,7 @@ yyreduce:
   case 7:
 
 /* Line 1806 of yacc.c  */
-#line 99 "query.yacc"
+#line 101 "query.yacc"
     {
   (yyval.condition) = (yyvsp[(2) - (2)].condition);
 }
@@ -1511,7 +1570,7 @@ yyreduce:
   case 8:
 
 /* Line 1806 of yacc.c  */
-#line 105 "query.yacc"
+#line 107 "query.yacc"
     {
           (yyval.arr) = malloc(sizeof(array));
           (yyval.arr)->elems = realloc((yyval.arr)->elems, sizeof(char*) * 1);
@@ -1523,7 +1582,7 @@ yyreduce:
   case 9:
 
 /* Line 1806 of yacc.c  */
-#line 113 "query.yacc"
+#line 115 "query.yacc"
     {
           size_t new_size = (yyvsp[(1) - (3)].arr)->size + 1;
           (yyvsp[(1) - (3)].arr)->elems = realloc((yyvsp[(1) - (3)].arr)->elems, sizeof(char*) * new_size);
@@ -1536,7 +1595,7 @@ yyreduce:
   case 10:
 
 /* Line 1806 of yacc.c  */
-#line 123 "query.yacc"
+#line 125 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->name = (yyvsp[(1) - (3)].string);
@@ -1549,7 +1608,7 @@ yyreduce:
   case 11:
 
 /* Line 1806 of yacc.c  */
-#line 132 "query.yacc"
+#line 134 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->name = (yyvsp[(1) - (4)].string);
@@ -1560,7 +1619,7 @@ yyreduce:
   case 12:
 
 /* Line 1806 of yacc.c  */
-#line 140 "query.yacc"
+#line 142 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->name = (yyvsp[(1) - (1)].string);
@@ -1571,7 +1630,7 @@ yyreduce:
   case 13:
 
 /* Line 1806 of yacc.c  */
-#line 147 "query.yacc"
+#line 149 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->name = (yyvsp[(1) - (1)].string);
@@ -1582,7 +1641,7 @@ yyreduce:
   case 15:
 
 /* Line 1806 of yacc.c  */
-#line 157 "query.yacc"
+#line 159 "query.yacc"
     {
           (yyval.expression) = malloc(sizeof(expression));
           (yyval.expression)->left = (yyvsp[(1) - (1)].v);
@@ -1594,7 +1653,7 @@ yyreduce:
   case 16:
 
 /* Line 1806 of yacc.c  */
-#line 165 "query.yacc"
+#line 167 "query.yacc"
     {
           (yyval.expression) = malloc(sizeof(expression));
           (yyval.expression)->left = (yyvsp[(1) - (3)].v);
@@ -1606,7 +1665,7 @@ yyreduce:
   case 21:
 
 /* Line 1806 of yacc.c  */
-#line 183 "query.yacc"
+#line 185 "query.yacc"
     {
           (yyval.bool_expression) = malloc(sizeof(bool_expression));
           (yyval.bool_expression)->left = (yyvsp[(1) - (1)].expression);
@@ -1618,7 +1677,7 @@ yyreduce:
   case 22:
 
 /* Line 1806 of yacc.c  */
-#line 191 "query.yacc"
+#line 193 "query.yacc"
     {
           (yyval.bool_expression) = malloc(sizeof(bool_expression));
           (yyval.bool_expression)->left = (yyvsp[(1) - (3)].expression);
@@ -1630,7 +1689,7 @@ yyreduce:
   case 23:
 
 /* Line 1806 of yacc.c  */
-#line 200 "query.yacc"
+#line 202 "query.yacc"
     {
           (yyval.condition) = malloc(sizeof(condition));
           (yyval.condition)->left = (yyvsp[(1) - (3)].bool_expression);
@@ -1642,7 +1701,7 @@ yyreduce:
   case 24:
 
 /* Line 1806 of yacc.c  */
-#line 208 "query.yacc"
+#line 210 "query.yacc"
     {
           (yyval.condition) = malloc(sizeof(condition));
           (yyval.condition)->left = (yyvsp[(1) - (3)].bool_expression);
@@ -1654,7 +1713,7 @@ yyreduce:
   case 25:
 
 /* Line 1806 of yacc.c  */
-#line 216 "query.yacc"
+#line 218 "query.yacc"
     {
           (yyval.condition) = malloc(sizeof(condition));
           (yyval.condition)->left = (yyvsp[(1) - (1)].bool_expression);
@@ -1666,7 +1725,7 @@ yyreduce:
 
 
 /* Line 1806 of yacc.c  */
-#line 1670 "y.tab.c"
+#line 1729 "y.tab.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -1687,6 +1746,7 @@ yyreduce:
   YY_STACK_PRINT (yyss, yyssp);
 
   *++yyvsp = yyval;
+  *++yylsp = yyloc;
 
   /* Now `shift' the result of the reduction.  Determine what state
      that goes to, based on the state we popped back to and the rule
@@ -1716,7 +1776,7 @@ yyerrlab:
     {
       ++yynerrs;
 #if ! YYERROR_VERBOSE
-      yyerror (q, scanner, YY_("syntax error"));
+      yyerror (&yylloc, q, scanner, YY_("syntax error"));
 #else
 # define YYSYNTAX_ERROR yysyntax_error (&yymsg_alloc, &yymsg, \
                                         yyssp, yytoken)
@@ -1743,7 +1803,7 @@ yyerrlab:
                 yymsgp = yymsg;
               }
           }
-        yyerror (q, scanner, yymsgp);
+        yyerror (&yylloc, q, scanner, yymsgp);
         if (yysyntax_error_status == 2)
           goto yyexhaustedlab;
       }
@@ -1751,7 +1811,7 @@ yyerrlab:
 #endif
     }
 
-
+  yyerror_range[1] = yylloc;
 
   if (yyerrstatus == 3)
     {
@@ -1767,7 +1827,7 @@ yyerrlab:
       else
 	{
 	  yydestruct ("Error: discarding",
-		      yytoken, &yylval, q, scanner);
+		      yytoken, &yylval, &yylloc, q, scanner);
 	  yychar = YYEMPTY;
 	}
     }
@@ -1788,6 +1848,7 @@ yyerrorlab:
   if (/*CONSTCOND*/ 0)
      goto yyerrorlab;
 
+  yyerror_range[1] = yylsp[1-yylen];
   /* Do not reclaim the symbols of the rule which action triggered
      this YYERROR.  */
   YYPOPSTACK (yylen);
@@ -1821,9 +1882,9 @@ yyerrlab1:
       if (yyssp == yyss)
 	YYABORT;
 
-
+      yyerror_range[1] = *yylsp;
       yydestruct ("Error: popping",
-		  yystos[yystate], yyvsp, q, scanner);
+		  yystos[yystate], yyvsp, yylsp, q, scanner);
       YYPOPSTACK (1);
       yystate = *yyssp;
       YY_STACK_PRINT (yyss, yyssp);
@@ -1831,6 +1892,11 @@ yyerrlab1:
 
   *++yyvsp = yylval;
 
+  yyerror_range[2] = yylloc;
+  /* Using YYLLOC is tempting, but would change the location of
+     the lookahead.  YYLOC is available though.  */
+  YYLLOC_DEFAULT (yyloc, yyerror_range, 2);
+  *++yylsp = yyloc;
 
   /* Shift the error token.  */
   YY_SYMBOL_PRINT ("Shifting", yystos[yyn], yyvsp, yylsp);
@@ -1858,7 +1924,7 @@ yyabortlab:
 | yyexhaustedlab -- memory exhaustion comes here.  |
 `-------------------------------------------------*/
 yyexhaustedlab:
-  yyerror (q, scanner, YY_("memory exhausted"));
+  yyerror (&yylloc, q, scanner, YY_("memory exhausted"));
   yyresult = 2;
   /* Fall through.  */
 #endif
@@ -1870,7 +1936,7 @@ yyreturn:
          user semantic actions for why this is necessary.  */
       yytoken = YYTRANSLATE (yychar);
       yydestruct ("Cleanup: discarding lookahead",
-                  yytoken, &yylval, q, scanner);
+                  yytoken, &yylval, &yylloc, q, scanner);
     }
   /* Do not reclaim the symbols of the rule which action triggered
      this YYABORT or YYACCEPT.  */
@@ -1879,7 +1945,7 @@ yyreturn:
   while (yyssp != yyss)
     {
       yydestruct ("Cleanup: popping",
-		  yystos[*yyssp], yyvsp, q, scanner);
+		  yystos[*yyssp], yyvsp, yylsp, q, scanner);
       YYPOPSTACK (1);
     }
 #ifndef yyoverflow
@@ -1897,7 +1963,7 @@ yyreturn:
 
 
 /* Line 2067 of yacc.c  */
-#line 238 "query.yacc"
+#line 240 "query.yacc"
 
 void *yy_scan_string(char *, void *);
 void yy_delete_buffer(void *, void *);
@@ -1976,7 +2042,10 @@ parse_query(char *const query_s)
   return q;
 }
 
-int yyerror(query *q, void *s, char *err) {
-  q->error = strdup(err);
+int yyerror(YYLTYPE *locp, query *q, void *s, char *err) {
+  q->error = malloc(sizeof(error));
+  q->error->err = strdup(err);
+  q->error->line = locp->last_line;
+  q->error->column = locp->last_column;
 }
 

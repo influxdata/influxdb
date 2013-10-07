@@ -5,7 +5,7 @@ package query
 import "C"
 
 import (
-	"errors"
+	"fmt"
 	"unsafe"
 )
 
@@ -135,7 +135,8 @@ func ParseQuery(query string) (*Query, error) {
 	q := C.parse_query(queryString)
 	var err error
 	if q.error != nil {
-		err = errors.New(C.GoString(q.error))
+		str := C.GoString(q.error.err)
+		err = fmt.Errorf("Error at %d:%d. %s", q.error.line, q.error.column, str)
 	}
 	return &Query{q, nil, nil}, err
 }

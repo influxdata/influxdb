@@ -24,6 +24,8 @@
 
 // declare that we want a reentrant parser
 %define      api.pure
+%error-verbose
+%locations
 %parse-param {query *q}
 %parse-param {void *scanner}
 %lex-param   {void *scanner}
@@ -313,6 +315,9 @@ parse_query(char *const query_s)
   return q;
 }
 
-int yyerror(query *q, void *s, char *err) {
-  q->error = strdup(err);
+int yyerror(YYLTYPE *locp, query *q, void *s, char *err) {
+  q->error = malloc(sizeof(error));
+  q->error->err = strdup(err);
+  q->error->line = locp->last_line;
+  q->error->column = locp->last_column;
 }

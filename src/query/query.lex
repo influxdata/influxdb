@@ -3,10 +3,20 @@
 #include <string.h>
 #include "query_types.h"
 #include "y.tab.h"
+
+#define YY_USER_ACTION \
+  do { \
+    yylloc->last_line = yylineno;                \
+    yylloc_param->last_column = yycolumn+yyleng-1; \
+    yycolumn += yyleng; \
+  } while(0);
 %}
+
+static int yycolumn = 1;
 
 %option reentrant
 %option bison-bridge
+%option bison-locations
 %option noyywrap
 %%
 
@@ -39,3 +49,4 @@ select                    { return SELECT; }
   yylval->string = strdup(yytext);
   return STRING_VALUE;
 }
+

@@ -511,7 +511,14 @@ static yyconst flex_int16_t yy_chk[253] =
 #include <string.h>
 #include "query_types.h"
 #include "y.tab.h"
-#line 515 "lex.yy.c"
+
+#define YY_USER_ACTION \
+  do { \
+    yylloc_param->first_line = yylloc->last_line = yylineno;                \
+    yylloc_param->first_column = yycolumn; yylloc_param->last_column = yycolumn+yyleng-1; \
+    yycolumn += yyleng; \
+  } while(0);
+#line 522 "lex.yy.c"
 
 #define INITIAL 0
 
@@ -561,6 +568,8 @@ struct yyguts_t
 
     YYSTYPE * yylval_r;
 
+    YYLTYPE * yylloc_r;
+
     }; /* end struct yyguts_t */
 
 static int yy_init_globals (yyscan_t yyscanner );
@@ -568,6 +577,8 @@ static int yy_init_globals (yyscan_t yyscanner );
     /* This must go here because YYSTYPE and YYLTYPE are included
      * from bison output in section 1.*/
     #    define yylval yyg->yylval_r
+    
+    #    define yylloc yyg->yylloc_r
     
 int yylex_init (yyscan_t* scanner);
 
@@ -606,6 +617,10 @@ YYSTYPE * yyget_lval (yyscan_t yyscanner );
 
 void yyset_lval (YYSTYPE * yylval_param ,yyscan_t yyscanner );
 
+       YYLTYPE *yyget_lloc (yyscan_t yyscanner );
+    
+        void yyset_lloc (YYLTYPE * yylloc_param ,yyscan_t yyscanner );
+    
 /* Macros after this point can all be overridden by user definitions in
  * section 1.
  */
@@ -719,10 +734,10 @@ static int input (yyscan_t yyscanner );
 #define YY_DECL_IS_OURS 1
 
 extern int yylex \
-               (YYSTYPE * yylval_param ,yyscan_t yyscanner);
+               (YYSTYPE * yylval_param,YYLTYPE * yylloc_param ,yyscan_t yyscanner);
 
 #define YY_DECL int yylex \
-               (YYSTYPE * yylval_param , yyscan_t yyscanner)
+               (YYSTYPE * yylval_param, YYLTYPE * yylloc_param , yyscan_t yyscanner)
 #endif /* !YY_DECL */
 
 /* Code executed at the beginning of each rule, after yytext and yyleng
@@ -749,12 +764,14 @@ YY_DECL
 	register int yy_act;
     struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-#line 11 "query.lex"
+#line 21 "query.lex"
 
 
-#line 756 "lex.yy.c"
+#line 771 "lex.yy.c"
 
     yylval = yylval_param;
+
+    yylloc = yylloc_param;
 
 	if ( !yyg->yy_init )
 		{
@@ -839,107 +856,107 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 13 "query.lex"
+#line 23 "query.lex"
 { return *yytext; }
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 14 "query.lex"
+#line 24 "query.lex"
 { return *yytext; }
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 15 "query.lex"
+#line 25 "query.lex"
 { return FROM; }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 16 "query.lex"
+#line 26 "query.lex"
 { return WHERE; }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 17 "query.lex"
+#line 27 "query.lex"
 { return SELECT; }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 18 "query.lex"
+#line 28 "query.lex"
 { yylval->character = *yytext; return *yytext; }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 19 "query.lex"
+#line 29 "query.lex"
 { yylval->character = *yytext; return *yytext; }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 20 "query.lex"
+#line 30 "query.lex"
 { yylval->character = *yytext; return *yytext; }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 21 "query.lex"
+#line 31 "query.lex"
 { yylval->character = *yytext; return *yytext; }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 22 "query.lex"
+#line 32 "query.lex"
 { yylval->character = *yytext; return *yytext; }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 23 "query.lex"
+#line 33 "query.lex"
 { yylval->character = *yytext; return *yytext; }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 24 "query.lex"
+#line 34 "query.lex"
 { yylval->string = strdup(yytext); return AND; }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 25 "query.lex"
+#line 35 "query.lex"
 { yylval->string = strdup(yytext); return OR; }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 26 "query.lex"
+#line 36 "query.lex"
 { yylval->string = strdup(yytext); return OPERATION_EQUAL; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 27 "query.lex"
+#line 37 "query.lex"
 { yylval->string = strdup(yytext); return OPERATION_NE; }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 28 "query.lex"
+#line 38 "query.lex"
 { yylval->string = strdup(yytext); return OPERATION_LT; }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 29 "query.lex"
+#line 39 "query.lex"
 { yylval->string = strdup(yytext); return OPERATION_GT; }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 30 "query.lex"
+#line 40 "query.lex"
 { yylval->string = strdup(yytext); return OPERATION_LE; }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 31 "query.lex"
+#line 41 "query.lex"
 { yylval->string = strdup(yytext); return OPERATION_GE; }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 32 "query.lex"
+#line 42 "query.lex"
 { yylval->string = strdup(yytext); return NAME; }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 33 "query.lex"
+#line 43 "query.lex"
 {
   yytext[yyleng-1] = '\0';
   yylval->string = strdup(yytext+1);
@@ -949,7 +966,7 @@ YY_RULE_SETUP
 case 22:
 /* rule 22 can match eol */
 YY_RULE_SETUP
-#line 38 "query.lex"
+#line 48 "query.lex"
 {
   yylval->string = strdup(yytext);
   return STRING_VALUE;
@@ -957,10 +974,10 @@ YY_RULE_SETUP
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 42 "query.lex"
+#line 53 "query.lex"
 ECHO;
 	YY_BREAK
-#line 964 "lex.yy.c"
+#line 981 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1952,6 +1969,18 @@ void yyset_lval (YYSTYPE *  yylval_param , yyscan_t yyscanner)
     yylval = yylval_param;
 }
 
+YYLTYPE *yyget_lloc  (yyscan_t yyscanner)
+{
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+    return yylloc;
+}
+    
+void yyset_lloc (YYLTYPE *  yylloc_param , yyscan_t yyscanner)
+{
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+    yylloc = yylloc_param;
+}
+    
 /* User-visible API */
 
 /* yylex_init is special because it creates the scanner itself, so it is
@@ -2127,4 +2156,4 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 42 "query.lex"
+#line 53 "query.lex"

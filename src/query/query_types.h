@@ -33,10 +33,16 @@ typedef struct {
 } condition;
 
 typedef struct {
+  int line;
+  int column;
+  char *err;
+} error;
+
+typedef struct {
   array *c;
   from *f;
   condition *where_condition;
-  char *error;
+  error *error;
 } query;
 
 query parse_query(char *const query_s);
