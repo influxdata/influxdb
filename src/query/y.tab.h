@@ -41,16 +41,16 @@
      FROM = 259,
      WHERE = 260,
      EQUAL = 261,
-     OPERATION_EQUAL = 262,
-     OPERATION_NE = 263,
-     OPERATION_GT = 264,
-     OPERATION_LT = 265,
-     OPERATION_LE = 266,
-     OPERATION_GE = 267,
-     STRING_VALUE = 268,
-     NAME = 269,
-     OR = 270,
-     AND = 271
+     STRING_VALUE = 262,
+     NAME = 263,
+     OR = 264,
+     AND = 265,
+     OPERATION_GE = 266,
+     OPERATION_LE = 267,
+     OPERATION_LT = 268,
+     OPERATION_GT = 269,
+     OPERATION_NE = 270,
+     OPERATION_EQUAL = 271
    };
 #endif
 /* Tokens.  */
@@ -58,16 +58,16 @@
 #define FROM 259
 #define WHERE 260
 #define EQUAL 261
-#define OPERATION_EQUAL 262
-#define OPERATION_NE 263
-#define OPERATION_GT 264
-#define OPERATION_LT 265
-#define OPERATION_LE 266
-#define OPERATION_GE 267
-#define STRING_VALUE 268
-#define NAME 269
-#define OR 270
-#define AND 271
+#define STRING_VALUE 262
+#define NAME 263
+#define OR 264
+#define AND 265
+#define OPERATION_GE 266
+#define OPERATION_LE 267
+#define OPERATION_LT 268
+#define OPERATION_GT 269
+#define OPERATION_NE 270
+#define OPERATION_EQUAL 271
 
 
 

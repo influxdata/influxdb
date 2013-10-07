@@ -28,6 +28,7 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	rightValue := rightExpression.Left.Name
 
 	c.Assert(leftValue, Equals, "c")
+	c.Assert(boolExpression.Operation, Equals, "==")
 	c.Assert(rightValue, Equals, "5")
 }
 
@@ -39,51 +40,102 @@ func (self *QueryParserSuite) TestParseSelectWithoutWhereClause(c *C) {
 	c.Assert(q.GetWhereCondition(), IsNil)
 }
 
-// func (self *QueryParserSuite) TestParseSelectWithUpperCase(c *C) {
-// 	q, err := ParseQuery("SELECT VALUE, TIME FROM t WHERE C = '5';")
-// 	c.Assert(err, IsNil)
-// 	c.Assert(q.GetColumnNames(), DeepEquals, []string{"VALUE", "TIME"})
-// 	w := q.GetWhereClause()
-// 	c.Assert(q.GetFromClause().TableName, Equals, "t")
-// 	c.Assert(w.ColumnName, Equals, "C")
-// 	c.Assert(w.Value, Equals, "5")
-// }
+func (self *QueryParserSuite) TestParseSelectWithUpperCase(c *C) {
+	q, err := ParseQuery("SELECT VALUE, TIME FROM t WHERE C == '5';")
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), DeepEquals, []string{"VALUE", "TIME"})
+	w := q.GetWhereCondition()
+	c.Assert(q.GetFromClause().TableName, Equals, "t")
 
-// func (self *QueryParserSuite) TestParseSelectWithMultipleColumns(c *C) {
-// 	q, err := ParseQuery("select value, time from t where c = '5';")
-// 	c.Assert(err, IsNil)
-// 	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
-// 	w := q.GetWhereClause()
-// 	c.Assert(q.GetFromClause().TableName, Equals, "t")
-// 	c.Assert(w.ColumnName, Equals, "c")
-// 	c.Assert(w.Value, Equals, "5")
-// }
+	boolExpression := w.Left
+	leftExpression := boolExpression.Left
+	rightExpression := boolExpression.Right
+	leftValue := leftExpression.Left.Name
+	rightValue := rightExpression.Left.Name
 
-// func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
-// 	q, err := ParseQuery("select value, time from t where c < 5;")
-// 	c.Assert(err, IsNil)
-// 	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
-// 	w := q.GetWhereClause()
-// 	c.Assert(q.GetFromClause().TableName, Equals, "t")
-// 	c.Assert(w.ColumnName, Equals, "c")
-// 	c.Assert(int(w.Op), Equals, LESS_THAN)
-// 	// TODO: fix this
-// 	c.Assert(w.Value, Equals, 5)
-// }
+	c.Assert(leftValue, Equals, "C")
+	c.Assert(rightValue, Equals, "5")
+}
 
-// func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
-// 	q, err := ParseQuery("select value, time from t where time > now() - 1d;")
-// 	c.Assert(err, IsNil)
-// 	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
-// 	w := q.GetWhereClause()
-// 	c.Assert(q.GetFromClause().TableName, Equals, "t")
-// 	c.Assert(w.ColumnName, Equals, "c")
-// 	c.Assert(w.Value, Equals, "5")
-// }
+func (self *QueryParserSuite) TestParseSelectWithMultipleColumns(c *C) {
+	q, err := ParseQuery("select value, time from t;")
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
+	c.Assert(q.GetFromClause().TableName, Equals, "t")
+}
+
+func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
+	q, err := ParseQuery("select value, time from t where c < 5;")
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
+	w := q.GetWhereCondition()
+	c.Assert(q.GetFromClause().TableName, Equals, "t")
+
+	boolExpression := w.Left
+	leftExpression := boolExpression.Left
+	rightExpression := boolExpression.Right
+	leftValue := leftExpression.Left.Name
+	rightValue := rightExpression.Left.Name
+
+	c.Assert(leftValue, Equals, "c")
+	c.Assert(boolExpression.Operation, Equals, "<")
+	c.Assert(rightValue, Equals, "5")
+}
+
+func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
+	q, err := ParseQuery("select value, time from t where time > now() - 1d;")
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
+	w := q.GetWhereCondition()
+
+	boolExpression := w.Left
+	leftExpression := boolExpression.Left
+	rightExpression := boolExpression.Right
+	leftValue := leftExpression.Left.Name
+
+	funCall := rightExpression.Left
+	oneDay := rightExpression.Right
+
+	c.Assert(q.GetFromClause().TableName, Equals, "t")
+	c.Assert(leftValue, Equals, "time")
+	c.Assert(funCall.IsFunctionCall(), Equals, true)
+	c.Assert(funCall.Name, Equals, "now")
+	c.Assert(oneDay.IsFunctionCall(), Equals, false)
+	c.Assert(oneDay.Name, Equals, "1d")
+	c.Assert(rightExpression.Operation, Equals, byte('-'))
+}
+
+func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
+	q, err := ParseQuery("select value from cpu.idle where time>now()-7d and time<now()-6d;")
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value"})
+	w := q.GetWhereCondition()
+
+	c.Assert(q.GetFromClause().TableName, Equals, "cpu.idle")
+
+	leftBoolExpression := w.Left
+	c.Assert(w.Operation, Equals, "AND")
+	rightBoolExpression := w.Right
+
+	c.Assert(leftBoolExpression.Left.Left.Name, Equals, "time")
+	c.Assert(leftBoolExpression.Left.Left.IsFunctionCall(), Equals, false)
+	c.Assert(leftBoolExpression.Right.Left.Name, Equals, "now")
+	c.Assert(leftBoolExpression.Right.Left.IsFunctionCall(), Equals, true)
+	c.Assert(leftBoolExpression.Right.Right.Name, Equals, "7d")
+	c.Assert(leftBoolExpression.Right.Right.IsFunctionCall(), Equals, false)
+	c.Assert(leftBoolExpression.Operation, Equals, ">")
+
+	c.Assert(rightBoolExpression.Left.Left.Name, Equals, "time")
+	c.Assert(rightBoolExpression.Left.Left.IsFunctionCall(), Equals, false)
+	c.Assert(rightBoolExpression.Right.Left.Name, Equals, "now")
+	c.Assert(rightBoolExpression.Right.Left.IsFunctionCall(), Equals, true)
+	c.Assert(rightBoolExpression.Right.Right.Name, Equals, "6d")
+	c.Assert(rightBoolExpression.Right.Right.IsFunctionCall(), Equals, false)
+	c.Assert(rightBoolExpression.Operation, Equals, "<")
+}
 
 // write specs for the following queries
 
-// select value from cpu.* where time>now()-7d and time<now()-6d
 // select count(*) from users.events group_by user_email,time(1h) where time>now()-7d
 // select top(10, count(*)) from=users.events group_by user_email,time(1h) where time>now()-7d
 // select value from .* last 1

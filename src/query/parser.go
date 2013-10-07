@@ -20,6 +20,10 @@ type Value struct {
 	Elems []string
 }
 
+func (self *Value) IsFunctionCall() bool {
+	return self.Elems != nil
+}
+
 type Expression struct {
 	Left      *Value
 	Operation byte

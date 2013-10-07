@@ -29,11 +29,14 @@
 %lex-param   {void *scanner}
 
 %token          SELECT FROM WHERE EQUAL
-%token <string> OPERATION_EQUAL OPERATION_NE OPERATION_GT OPERATION_LT OPERATION_LE OPERATION_GE STRING_VALUE NAME
-%left  <character> '+' '-'
-%left  <character> '*' '/'
+%token <string> STRING_VALUE NAME
+
+// define the precendence of these operators
 %left  <string> OR
 %left  <string> AND
+%nonassoc <string> OPERATION_EQUAL OPERATION_NE OPERATION_GT OPERATION_LT OPERATION_LE OPERATION_GE
+%left  <character> '+' '-'
+%left  <character> '*' '/'
 
 %type <f>               FROM_CLAUSE
 %type <string>          TABLE_NAME
@@ -165,6 +168,7 @@ EXPRESSION:
           $$->op = $2;
           $$->right = $3;
         }
+
 ARITHMETIC_OPERATION:
         '+'
         |
