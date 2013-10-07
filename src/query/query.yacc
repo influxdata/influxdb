@@ -1,5 +1,6 @@
 %{
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,11 +8,14 @@
 %}
 
 %union {
+  char character;
   char *string;
   array *arr;
   int i;
   from *f;
-  where *w;
+  condition *condition;
+  bool_expression *bool_expression;
+  expression *expression;
   value *v;
 }
 
@@ -25,31 +29,48 @@
 %lex-param   {void *scanner}
 
 %token          SELECT FROM WHERE EQUAL
-%token <string> NAME STRING_VALUE
-%token <i>      INT_VALUE
-%token          OPERATION_EQUAL OPERATION_NE OPERATION_GT OPERATION_LT OPERATION_LE OPERATION_GE
+%token <string> OPERATION_EQUAL OPERATION_NE OPERATION_GT OPERATION_LT OPERATION_LE OPERATION_GE STRING_VALUE NAME
+%left  <character> '+' '-'
+%left  <character> '*' '/'
+%left  <string> OR
+%left  <string> AND
 
-%type <f>       FROM_CLAUSE
-%type <string>  TABLE_NAME
-%type <string>  FIELD_NAME
-%type <w>       WHERE_CLAUSE
-%type <v>       FIELD_VALUE
-%type <arr>     COLUMN_NAMES
-%type <i>       OPERATION
-%start          QUERY
+%type <f>               FROM_CLAUSE
+%type <string>          TABLE_NAME
+%type <condition>       WHERE_CLAUSE
+%type <arr>             COLUMN_NAMES
+%type <string>          BOOL_OPERATION
+%type <character>       ARITHMETIC_OPERATION
+%type <condition>       CONDITION
+%type <bool_expression> BOOL_EXPRESSION
+%type <arr>             STRING_VALUES
+%type <v>               VALUE
+%type <v>               FUNCTION_CALL
+%type <expression>      EXPRESSION
+%start                  QUERY
 
 %%
-QUERY: SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE ';'
-{
-  q->c = $2;
-  q->f = $3;
-  q->w = $4;
-}
+QUERY:
+        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE ';'
+        {
+          q->c = $2;
+          q->f = $3;
+          q->where_condition = $4;
+        }
+        |
+        SELECT COLUMN_NAMES FROM_CLAUSE ';'
+        {
+          q->c = $2;
+          q->f = $3;
+          q->where_condition = NULL;
+        }
 
 COLUMN_NAMES:
         NAME
         {
           $$ = malloc(sizeof(array));
+          $$->elems = NULL;
+          $$->size = 0;
           size_t new_size = $$->size+1;
           $$->elems = realloc($$->elems, new_size*sizeof(char*));
           $$->elems[$$->size] = $1;
@@ -71,75 +92,204 @@ FROM_CLAUSE: FROM TABLE_NAME
   $$->table = $2;
 }
 
-WHERE_CLAUSE: WHERE FIELD_NAME OPERATION FIELD_VALUE
+WHERE_CLAUSE: WHERE CONDITION
 {
-  $$ = malloc(sizeof(where));
-  $$->column_name = $2;
-  $$->op = $3;
-  $$->v = $4;
+  $$ = $2;
 }
 
-OPERATION:
-        OPERATION_EQUAL
+STRING_VALUES:
+        STRING_VALUE
         {
-          $$ = OP_EQ;
+          $$ = malloc(sizeof(array));
+          $$->elems = realloc($$->elems, sizeof(char*) * 1);
+          $$->elems[0] = $1;
+          $$->size = 1;
         }
         |
-        OPERATION_NE
+        STRING_VALUES ',' STRING_VALUE
         {
-          $$ = OP_NE;
-        }
-        |
-        OPERATION_GT
-        {
-          $$ = OP_GT;
-        }
-        |
-        OPERATION_LT
-        {
-          $$ = OP_LT;
-        }
-        |
-        OPERATION_GE
-        {
-          $$ = OP_GE;
-        }
-        |
-        OPERATION_LE
-        {
-          $$ = OP_LE;
+          size_t new_size = $1->size + 1;
+          $1->elems = realloc($1->elems, sizeof(char*) * new_size);
+          $1->elems[$1->size] = $3;
+          $1->size = new_size;
+          $$ = $1;
         }
 
-TABLE_NAME: NAME
-FIELD_NAME: NAME
-{
-  $$ = $1;
-}
-FIELD_VALUE:
+FUNCTION_CALL:
+        NAME '(' ')'
+        {
+          $$ = malloc(sizeof(value));
+          $$->name = $1;
+          $$->args = malloc(sizeof(array));
+          $$->args->size = 0;
+          $$->args->elems = NULL;
+        }
+        |
+        NAME '(' STRING_VALUES ')'
+        {
+          $$ = malloc(sizeof(value));
+          $$->name = $1;
+          $$->args = $3;
+        }
+
+VALUE:
         STRING_VALUE
         {
           $$ = malloc(sizeof(value));
-          $$->svalue = $1;
+          $$->name = $1;
+          $$->args = NULL;
         }
         |
-        INT_VALUE
+        NAME
         {
           $$ = malloc(sizeof(value));
-          $$->ivalue = $1;
+          $$->name = $1;
+          $$->args = NULL;
         }
+        |
+        FUNCTION_CALL
+
+EXPRESSION:
+        VALUE
+        {
+          $$ = malloc(sizeof(expression));
+          $$->left = $1;
+          $$->op = '\0';
+          $$->right = NULL;
+        }
+        |
+        VALUE ARITHMETIC_OPERATION VALUE
+        {
+          $$ = malloc(sizeof(expression));
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = $3;
+        }
+ARITHMETIC_OPERATION:
+        '+'
+        |
+        '-'
+        |
+        '*'
+        |
+        '/'
+
+BOOL_EXPRESSION:
+        EXPRESSION
+        {
+          $$ = malloc(sizeof(bool_expression));
+          $$->left = $1;
+          $$->op = NULL;
+          $$->right = NULL;
+        }
+        |
+        EXPRESSION BOOL_OPERATION EXPRESSION
+        {
+          $$ = malloc(sizeof(bool_expression));
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = $3;
+        }
+
+CONDITION:
+        BOOL_EXPRESSION AND BOOL_EXPRESSION
+        {
+          $$ = malloc(sizeof(condition));
+          $$->left = $1;
+          $$->op = "AND";
+          $$->right = $3;
+        }
+        |
+        BOOL_EXPRESSION OR  BOOL_EXPRESSION
+        {
+          $$ = malloc(sizeof(condition));
+          $$->left = $1;
+          $$->op = "OR";
+          $$->right = $3;
+        }
+        |
+        BOOL_EXPRESSION
+        {
+          $$ = malloc(sizeof(condition));
+          $$->left = $1;
+          $$->op = NULL;
+          $$->right = NULL;
+        }
+
+BOOL_OPERATION:
+        OPERATION_EQUAL
+        |
+        OPERATION_NE
+        |
+        OPERATION_GT
+        |
+        OPERATION_LT
+        |
+        OPERATION_GE
+        |
+        OPERATION_LE
+
+TABLE_NAME: NAME
 
 %%
 void *yy_scan_string(char *, void *);
 void yy_delete_buffer(void *, void *);
 
 void
+free_array(array *array)
+{
+  int i;
+  for (i = 0; i < array->size; i++)
+    free(array->elems[i]);
+  free(array->elems);
+  free(array);
+}
+
+void
+free_value(value *value)
+{
+  free(value->name);
+  if (value->args) free_array(value->args);
+  free(value);
+}
+
+void
+free_expression(expression *expr)
+{
+  free_value(expr->left);
+  if (expr->right) free_value(expr->right);
+  free(expr);
+}
+
+void
+free_bool_expression(bool_expression *expr)
+{
+  free_expression(expr->left);
+  if (expr->op) free(expr->op);
+  if (expr->right) free_expression(expr->right);
+  free(expr);
+}
+
+void
 close_query (query *q)
 {
-  free(q->w->column_name);
-  free(q->w->v->svalue);
-  free(q->w->v);
-  free(q->w);
+  // free the columns
+  int i;
+  for (i = 0; i < q->c->size; i++) {
+    free(q->c->elems[i]);
+  }
+  free(q->c->elems);
+  free(q->c);
 
+  // TODO: free the where conditions
+  if (q->where_condition) {
+    free_bool_expression(q->where_condition->left);
+    if (q->where_condition->op) free(q->where_condition->op);
+    if (q->where_condition->right) free_bool_expression(q->where_condition->right);
+    free(q->where_condition);
+  }
+
+  // free the from clause
   free(q->f->table);
   free(q->f);
 }

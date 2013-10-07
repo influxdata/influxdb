@@ -41,15 +41,16 @@
      FROM = 259,
      WHERE = 260,
      EQUAL = 261,
-     NAME = 262,
-     STRING_VALUE = 263,
-     INT_VALUE = 264,
-     OPERATION_EQUAL = 265,
-     OPERATION_NE = 266,
-     OPERATION_GT = 267,
-     OPERATION_LT = 268,
-     OPERATION_LE = 269,
-     OPERATION_GE = 270
+     OPERATION_EQUAL = 262,
+     OPERATION_NE = 263,
+     OPERATION_GT = 264,
+     OPERATION_LT = 265,
+     OPERATION_LE = 266,
+     OPERATION_GE = 267,
+     STRING_VALUE = 268,
+     NAME = 269,
+     OR = 270,
+     AND = 271
    };
 #endif
 /* Tokens.  */
@@ -57,15 +58,16 @@
 #define FROM 259
 #define WHERE 260
 #define EQUAL 261
-#define NAME 262
-#define STRING_VALUE 263
-#define INT_VALUE 264
-#define OPERATION_EQUAL 265
-#define OPERATION_NE 266
-#define OPERATION_GT 267
-#define OPERATION_LT 268
-#define OPERATION_LE 269
-#define OPERATION_GE 270
+#define OPERATION_EQUAL 262
+#define OPERATION_NE 263
+#define OPERATION_GT 264
+#define OPERATION_LT 265
+#define OPERATION_LE 266
+#define OPERATION_GE 267
+#define STRING_VALUE 268
+#define NAME 269
+#define OR 270
+#define AND 271
 
 
 
@@ -75,19 +77,22 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 9 "query.yacc"
+#line 10 "query.yacc"
 
+  char character;
   char *string;
   array *arr;
   int i;
   from *f;
-  where *w;
+  condition *condition;
+  bool_expression *bool_expression;
+  expression *expression;
   value *v;
 
 
 
 /* Line 2068 of yacc.c  */
-#line 91 "y.tab.h"
+#line 96 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

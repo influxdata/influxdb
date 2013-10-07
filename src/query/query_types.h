@@ -4,35 +4,38 @@ typedef struct {
   char *table;
 } from;
 
-typedef enum {
-  OP_EQ,
-  OP_NE,
-  OP_GT,
-  OP_LT,
-  OP_GE,
-  OP_LE
-} operation_t;
-
 typedef struct {
   size_t size;
   char **elems;
 } array;
 
 typedef struct {
-  int  ivalue;
-  char *svalue;
+  char *name;
+  array *args;
 } value;
 
 typedef struct {
-  char *column_name;
-  operation_t op;
-  value *v;
-} where;
+  value *left;
+  char op;                              /* +, -, *, / or \0 if there's no right operand */
+  value *right;
+} expression;
+
+typedef struct {
+  expression *left;
+  char *op;                             /* ==, !=, <, >, <=, >= or NULL if there is no right operand */
+  expression *right;
+} bool_expression;
+
+typedef struct {
+  bool_expression *left;
+  char* op;                             /* AND, OR or NULL if there's no right operand */
+  bool_expression *right;
+} condition;
 
 typedef struct {
   array *c;
   from *f;
-  where *w;
+  condition *where_condition;
   char *error;
 } query;
 
