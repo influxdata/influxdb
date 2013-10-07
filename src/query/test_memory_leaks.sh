@@ -27,6 +27,9 @@ int main(int argc, char **argv) {
   q = parse_query("select value from cpu.idle where value > 90 and (time > now() - 1d or value > 80) and time < now() - 1w;");
   close_query(&q);
 
+  q = parse_query("select value from cpu.idle where value > 90 and (time > now() - 1d or value > 80) and time < now() - 1w last 10;");
+  close_query(&q);
+
   return 0;
 }
 EOF

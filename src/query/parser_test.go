@@ -245,14 +245,34 @@ func (self *QueryParserSuite) TestParseSelectWithLast(c *C) {
 	c.Assert(q.Limit, Equals, 10)
 }
 
-// write specs for the following queries
+func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {
+	q, err := ParseQuery("select count(distinct(email)) from user.events where time>now()-1d group_by time(15m);")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), HasLen, 1)
+	column := q.GetColumnNames()[0]
+	c.Assert(column.IsFunctionCall(), Equals, true)
+	c.Assert(column.Name, Equals, "count")
+	c.Assert(column.Elems, HasLen, 1)
+	c.Assert(column.Elems[0].IsFunctionCall(), Equals, true)
+	c.Assert(column.Elems[0].Name, Equals, "distinct")
+	c.Assert(column.Elems[0].Elems, HasLen, 1)
+	c.Assert(column.Elems[0].Elems[0].Name, Equals, "email")
 
-// select value from .* last 1
+	c.Assert(q.GetGroupByClause(), HasLen, 1)
+	c.Assert(q.GetGroupByClause()[0], DeepEquals, &Value{
+		Name:  "time",
+		Elems: []*Value{&Value{"15m", nil}},
+	})
+}
+
+// TODO: merge and inner joins
 // select count(*) from merge(newsletter.signups,user.signups) group_by time(1h) where time>now()-1d
 // select diff(t1.value, t2.value) from inner_join(memory.total, t1, memory.used, t2) group_by time(1m) where time>now()-6h
-// select count(distinct(email)) from user.events where time>now()-1d group_by time(15m)
-// select percentile(95, value) from response_times group_by time(10m) where time>now()-6h
-// select count(*) from events where type='login'
+
+// TODO: regexp matching
+// select email from users.events where email ~= /gmail\.com/i and time>now()-2d group_by time(10m)
+
+// TODO:
 // insert into user.events.count.per_day select count(*) from user.events where time<forever group_by time(1d)
 // insert into :series_name.percentiles.95 select percentile(95,value) from stats.* where time<forever group_by time(1d)
-// select email from users.events where email ~= /gmail\.com/i and time>now()-2d group_by time(10m)
