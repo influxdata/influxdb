@@ -25,6 +25,7 @@ static int yycolumn = 1;
 from                      { return FROM; }
 where                     { return WHERE; }
 select                    { return SELECT; }
+group_by                  { return GROUP_BY; }
 "("                       { yylval->character = *yytext; return *yytext; }
 ")"                       { yylval->character = *yytext; return *yytext; }
 "+"                       { yylval->character = *yytext; return *yytext; }

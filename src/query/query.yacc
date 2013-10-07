@@ -7,6 +7,7 @@
 #include "query_types.h"
 
 void free_array(array *array);
+void free_value_array(value_array *array);
 void free_value(value *value);
 void free_expression(expression *expr);
 void free_bool_expression(bool_expression *expr);
@@ -25,6 +26,7 @@ void free_error (error *error);
   condition *condition;
   bool_expression *bool_expression;
   expression *expression;
+  value_array *value_array;
   value *v;
 }
 
@@ -39,7 +41,7 @@ void free_error (error *error);
 %parse-param {void *scanner}
 %lex-param   {void *scanner}
 
-%token          SELECT FROM WHERE EQUAL
+%token          SELECT FROM WHERE EQUAL GROUP_BY
 %token <string> STRING_VALUE NAME
 
 // define the precendence of these operators
@@ -52,15 +54,16 @@ void free_error (error *error);
 %type <f>               FROM_CLAUSE
 %type <string>          TABLE_NAME
 %type <condition>       WHERE_CLAUSE
-%type <arr>             COLUMN_NAMES
+%type <value_array>     COLUMN_NAMES
 %type <string>          BOOL_OPERATION
 %type <character>       ARITHMETIC_OPERATION
 %type <condition>       CONDITION
 %type <bool_expression> BOOL_EXPRESSION
-%type <arr>             STRING_VALUES
+%type <value_array>     VALUES
 %type <v>               VALUE
 %type <v>               FUNCTION_CALL
 %type <expression>      EXPRESSION
+%type <value_array>     GROUP_BY_CLAUSE
 %start                  QUERY
 
 %destructor { free_value($$); } <v>
@@ -68,43 +71,76 @@ void free_error (error *error);
 %destructor { free_array($$); } <arr>
 %destructor { free_from_clause($$); } <f>
 %destructor { free($$); } <string>
+%destructor { free_expression($$); } <expression>
+%destructor { free_value_array($$); } <value_array>
 
 %%
 QUERY:
-        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE ';'
+        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE ';'
+        {
+          q->c = $2;
+          q->f = $3;
+          q->group_by = $4;
+          q->where_condition = $5;
+        }
+        |
+        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE ';'
         {
           q->c = $2;
           q->f = $3;
           q->where_condition = $4;
+          q->group_by = $5;
         }
         |
         SELECT COLUMN_NAMES FROM_CLAUSE ';'
         {
           q->c = $2;
           q->f = $3;
+          q->group_by = NULL;
+          q->where_condition = NULL;
+        }
+        |
+        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE ';'
+        {
+          q->c = $2;
+          q->f = $3;
+          q->group_by = NULL;
+          q->where_condition = $4;
+        }
+        |
+        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE ';'
+        {
+          q->c = $2;
+          q->f = $3;
+          q->group_by = $4;
           q->where_condition = NULL;
         }
 
-COLUMN_NAMES:
-        NAME
+VALUES:
+        VALUE
         {
-          $$ = malloc(sizeof(array));
-          $$->elems = NULL;
-          $$->size = 0;
-          size_t new_size = $$->size+1;
-          $$->elems = realloc($$->elems, new_size*sizeof(char*));
-          $$->elems[$$->size] = $1;
-          $$->size = new_size;
+          $$ = malloc(sizeof(value_array));
+          $$->size = 1;
+          $$->elems = malloc(sizeof(value*));
+          $$->elems[0] = $1;
         }
         |
-        COLUMN_NAMES ',' NAME
+        VALUES ',' VALUE
         {
-          size_t new_size = $1->size+1;
-          $1->elems = realloc($1->elems, new_size);
+          size_t new_size = $1->size + 1;
+          $1->elems = realloc($$->elems, sizeof(value*) * new_size);
           $1->elems[$1->size] = $3;
           $1->size = new_size;
           $$ = $1;
         }
+
+GROUP_BY_CLAUSE:
+        GROUP_BY VALUES
+        {
+          $$ = $2;
+        }
+
+COLUMN_NAMES: VALUES
 
 FROM_CLAUSE: FROM TABLE_NAME
 {
@@ -117,24 +153,6 @@ WHERE_CLAUSE: WHERE CONDITION
   $$ = $2;
 }
 
-STRING_VALUES:
-        STRING_VALUE
-        {
-          $$ = malloc(sizeof(array));
-          $$->elems = realloc($$->elems, sizeof(char*) * 1);
-          $$->elems[0] = $1;
-          $$->size = 1;
-        }
-        |
-        STRING_VALUES ',' STRING_VALUE
-        {
-          size_t new_size = $1->size + 1;
-          $1->elems = realloc($1->elems, sizeof(char*) * new_size);
-          $1->elems[$1->size] = $3;
-          $1->size = new_size;
-          $$ = $1;
-        }
-
 FUNCTION_CALL:
         NAME '(' ')'
         {
@@ -145,7 +163,7 @@ FUNCTION_CALL:
           $$->args->elems = NULL;
         }
         |
-        NAME '(' STRING_VALUES ')'
+        NAME '(' VALUES ')'
         {
           $$ = malloc(sizeof(value));
           $$->name = $1;
@@ -157,6 +175,13 @@ VALUE:
         {
           $$ = malloc(sizeof(value));
           $$->name = $1;
+          $$->args = NULL;
+        }
+        |
+        '*'
+        {
+          $$ = malloc(sizeof(value));
+          $$->name = strdup("*");
           $$->args = NULL;
         }
         |
@@ -267,10 +292,20 @@ free_array(array *array)
 }
 
 void
+free_value_array(value_array *array)
+{
+  int i;
+  for (i = 0; i < array->size; i++)
+    free_value(array->elems[i]);
+  free(array->elems);
+  free(array);
+}
+
+void
 free_value(value *value)
 {
   free(value->name);
-  if (value->args) free_array(value->args);
+  if (value->args) free_value_array(value->args);
   free(value);
 }
 
@@ -322,11 +357,14 @@ close_query (query *q)
   }
 
   // free the columns
-  free_array(q->c);
+  free_value_array(q->c);
 
-  // TODO: free the where conditions
   if (q->where_condition) {
     free_condition(q->where_condition);
+  }
+
+  if (q->group_by) {
+    free_value_array(q->group_by);
   }
 
   // free the from clause

@@ -17,7 +17,7 @@ type Operation int
 
 type Value struct {
 	Name  string
-	Elems []string
+	Elems []*Value
 }
 
 func (self *Value) IsFunctionCall() bool {
@@ -36,6 +36,8 @@ type BoolExpression struct {
 	Right     *Expression
 }
 
+type GroupByClause []*Value
+
 type WhereCondition struct {
 	Left      *BoolExpression
 	Operation string
@@ -43,22 +45,42 @@ type WhereCondition struct {
 }
 
 type Query struct {
-	q           C.query
-	ColumnNames []string
-	Condition   *WhereCondition
+	q             C.query
+	ColumnNames   []*Value
+	Condition     *WhereCondition
+	groupByClause GroupByClause
 }
 
-func (self *Query) GetColumnNames() []string {
+func (self *Query) GetColumnNames() []*Value {
 	if self.ColumnNames != nil {
 		return self.ColumnNames
 	}
 
-	self.ColumnNames = GetStringArray(self.q.c)
+	self.ColumnNames = GetValueArray(self.q.c)
 	return self.ColumnNames
 }
 
 func (self *Query) GetFromClause() *From {
 	return &From{C.GoString(self.q.f.table)}
+}
+
+func GetValueArray(array *C.value_array) []*Value {
+	if array == nil {
+		return nil
+	}
+
+	arr := uintptr(unsafe.Pointer(array.elems))
+	elemSize := unsafe.Sizeof(*array.elems)
+	size := uintptr(array.size)
+
+	stringSlice := make([]*Value, 0, size)
+
+	var i uintptr
+	for i = 0; i < size; i++ {
+		str := (**C.value)(unsafe.Pointer(arr + elemSize*i))
+		stringSlice = append(stringSlice, GetValue(*str))
+	}
+	return stringSlice
 }
 
 func GetStringArray(array *C.array) []string {
@@ -83,7 +105,7 @@ func GetStringArray(array *C.array) []string {
 func GetValue(value *C.value) *Value {
 	v := &Value{}
 	v.Name = C.GoString(value.name)
-	v.Elems = GetStringArray(value.args)
+	v.Elems = GetValueArray(value.args)
 
 	return v
 }
@@ -125,6 +147,20 @@ func (self *Query) GetWhereCondition() *WhereCondition {
 	return condition
 }
 
+func (self *Query) GetGroupByClause() GroupByClause {
+	if self.groupByClause != nil {
+		return self.groupByClause
+	}
+
+	if self.q.group_by == nil {
+		self.groupByClause = GroupByClause{}
+		return self.groupByClause
+	}
+
+	self.groupByClause = GetValueArray(self.q.group_by)
+	return self.groupByClause
+}
+
 func (self *Query) Close() {
 	C.close_query(&self.q)
 }
@@ -138,5 +174,5 @@ func ParseQuery(query string) (*Query, error) {
 		str := C.GoString(q.error.err)
 		err = fmt.Errorf("Error at %d:%d. %s", q.error.line, q.error.column, str)
 	}
-	return &Query{q, nil, nil}, err
+	return &Query{q, nil, nil, nil}, err
 }

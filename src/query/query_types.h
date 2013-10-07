@@ -9,9 +9,16 @@ typedef struct {
   char **elems;
 } array;
 
+struct value_t;
+
 typedef struct {
+  size_t size;
+  struct value_t **elems;
+} value_array;
+
+typedef struct value_t {
   char *name;
-  array *args;
+  value_array *args;
 } value;
 
 typedef struct {
@@ -39,8 +46,9 @@ typedef struct {
 } error;
 
 typedef struct {
-  array *c;
+  value_array *c;
   from *f;
+  value_array *group_by;
   condition *where_condition;
   error *error;
 } query;

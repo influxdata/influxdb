@@ -4,13 +4,24 @@ cat > test_memory.c <<EOF
 #include "query_types.h"
 
 int main(int argc, char **argv) {
-  query q = parse_query("select value from t where c == '5';");
+  // test freeing on close
+  query q = parse_query("select count(*) from users.events group_by user_email,time(1h) where time>now()-1d;");
   close_query(&q);
 
-  q = parse_query("select value from t where c = '5';");
+  // test freeing on error
+  q = parse_query("select count(*) from users.events group_by user_email,time(1h) where time >> now()-1d;");
   close_query(&q);
 
+  // test freeing where conditions
   q = parse_query("select value from t where c == 5 and b == 6;");
+  close_query(&q);
+
+  // test freeing simple query
+  q = parse_query("select value from t where c == '5';");
+  close_query(&q);
+
+  // test freeing on error
+  q = parse_query("select value from t where c = '5';");
   close_query(&q);
 
   return 0;

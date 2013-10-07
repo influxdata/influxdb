@@ -14,10 +14,18 @@ type QueryParserSuite struct{}
 
 var _ = Suite(&QueryParserSuite{})
 
+func ToValueArray(strings ...string) (values []*Value) {
+	for _, str := range strings {
+		values = append(values, &Value{str, nil})
+	}
+	return
+}
+
 func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	q, err := ParseQuery("select value from t where c == '5';")
+	defer q.Close()
 	c.Assert(err, IsNil)
-	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value"})
+	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value"))
 	w := q.GetWhereCondition()
 	c.Assert(q.GetFromClause().TableName, Equals, "t")
 
@@ -34,16 +42,18 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 
 func (self *QueryParserSuite) TestParseSelectWithoutWhereClause(c *C) {
 	q, err := ParseQuery("select value, time from t;")
+	defer q.Close()
 	c.Assert(err, IsNil)
-	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
+	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value", "time"))
 	c.Assert(q.GetFromClause().TableName, Equals, "t")
 	c.Assert(q.GetWhereCondition(), IsNil)
 }
 
 func (self *QueryParserSuite) TestParseSelectWithUpperCase(c *C) {
 	q, err := ParseQuery("SELECT VALUE, TIME FROM t WHERE C == '5';")
+	defer q.Close()
 	c.Assert(err, IsNil)
-	c.Assert(q.GetColumnNames(), DeepEquals, []string{"VALUE", "TIME"})
+	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("VALUE", "TIME"))
 	w := q.GetWhereCondition()
 	c.Assert(q.GetFromClause().TableName, Equals, "t")
 
@@ -59,15 +69,15 @@ func (self *QueryParserSuite) TestParseSelectWithUpperCase(c *C) {
 
 func (self *QueryParserSuite) TestParseSelectWithMultipleColumns(c *C) {
 	q, err := ParseQuery("select value, time from t;")
+	defer q.Close()
 	c.Assert(err, IsNil)
-	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
 	c.Assert(q.GetFromClause().TableName, Equals, "t")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
 	q, err := ParseQuery("select value, time from t where c < 5;")
+	defer q.Close()
 	c.Assert(err, IsNil)
-	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
 	w := q.GetWhereCondition()
 	c.Assert(q.GetFromClause().TableName, Equals, "t")
 
@@ -84,8 +94,8 @@ func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
 
 func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 	q, err := ParseQuery("select value, time from t where time > now() - 1d;")
+	defer q.Close()
 	c.Assert(err, IsNil)
-	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value", "time"})
 	w := q.GetWhereCondition()
 
 	boolExpression := w.Left
@@ -107,8 +117,8 @@ func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 
 func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 	q, err := ParseQuery("select value from cpu.idle where time>now()-7d and time<now()-6d;")
+	defer q.Close()
 	c.Assert(err, IsNil)
-	c.Assert(q.GetColumnNames(), DeepEquals, []string{"value"})
 	w := q.GetWhereCondition()
 
 	c.Assert(q.GetFromClause().TableName, Equals, "cpu.idle")
@@ -134,10 +144,50 @@ func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 	c.Assert(rightBoolExpression.Operation, Equals, "<")
 }
 
+func (self *QueryParserSuite) TestParseSelectWithGroupBy(c *C) {
+	q, err := ParseQuery("select count(*) from users.events group_by user_email,time(1h) where time>now()-1d;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), HasLen, 1)
+	column := q.GetColumnNames()[0]
+	c.Assert(column.IsFunctionCall(), Equals, true)
+	c.Assert(column.Name, Equals, "count")
+	c.Assert(column.Elems, HasLen, 1)
+	c.Assert(column.Elems[0].IsFunctionCall(), Equals, false)
+	c.Assert(column.Elems[0].Name, Equals, "*")
+
+	groupBy := q.GetGroupByClause()
+	c.Assert(groupBy, HasLen, 2)
+	c.Assert(groupBy[0].IsFunctionCall(), Equals, false)
+	c.Assert(groupBy[0].Name, Equals, "user_email")
+	c.Assert(groupBy[1].IsFunctionCall(), Equals, true)
+	c.Assert(groupBy[1].Name, Equals, "time")
+	c.Assert(groupBy[1].Elems, HasLen, 1)
+	c.Assert(groupBy[1].Elems[0].Name, Equals, "1h")
+
+	c.Assert(q.GetFromClause().TableName, Equals, "users.events")
+}
+
+func (self *QueryParserSuite) TestParseFromWithNestedFunctions(c *C) {
+	q, err := ParseQuery("select top(10, count(*)) from users.events;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), HasLen, 1)
+	column := q.GetColumnNames()[0]
+	c.Assert(column.IsFunctionCall(), Equals, true)
+	c.Assert(column.Name, Equals, "top")
+	c.Assert(column.Elems, HasLen, 2)
+	c.Assert(column.Elems[0].IsFunctionCall(), Equals, false)
+	c.Assert(column.Elems[0].Name, Equals, "10")
+	c.Assert(column.Elems[1].IsFunctionCall(), Equals, true)
+	c.Assert(column.Elems[1].Name, Equals, "count")
+	c.Assert(column.Elems[1].Elems, HasLen, 1)
+	c.Assert(column.Elems[1].Elems[0].IsFunctionCall(), Equals, false)
+	c.Assert(column.Elems[1].Elems[0].Name, Equals, "*")
+}
+
 // write specs for the following queries
 
-// select count(*) from users.events group_by user_email,time(1h) where time>now()-7d
-// select top(10, count(*)) from=users.events group_by user_email,time(1h) where time>now()-7d
 // select value from .* last 1
 // select count(*) from merge(newsletter.signups,user.signups) group_by time(1h) where time>now()-1d
 // select diff(t1.value, t2.value) from inner_join(memory.total, t1, memory.used, t2) group_by time(1m) where time>now()-6h
