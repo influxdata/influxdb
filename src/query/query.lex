@@ -31,8 +31,8 @@ select                    { return SELECT; }
 "-"                       { yylval->character = *yytext; return *yytext; }
 "*"                       { yylval->character = *yytext; return *yytext; }
 "/"                       { yylval->character = *yytext; return *yytext; }
-"and"                     { yylval->string = strdup(yytext); return AND; }
-"or"                      { yylval->string = strdup(yytext); return OR; }
+"and"                     { return AND; }
+"or"                      { return OR; }
 ==                        { yylval->string = strdup(yytext); return OPERATION_EQUAL; }
 !=                        { yylval->string = strdup(yytext); return OPERATION_NE; }
 "<"                       { yylval->string = strdup(yytext); return OPERATION_LT; }

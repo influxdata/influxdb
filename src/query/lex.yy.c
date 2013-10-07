@@ -514,8 +514,8 @@ static yyconst flex_int16_t yy_chk[253] =
 
 #define YY_USER_ACTION \
   do { \
-    yylloc_param->first_line = yylloc->last_line = yylineno;                \
-    yylloc_param->first_column = yycolumn; yylloc_param->last_column = yycolumn+yyleng-1; \
+    yylloc->last_line = yylineno;                \
+    yylloc_param->last_column = yycolumn+yyleng-1; \
     yycolumn += yyleng; \
   } while(0);
 #line 522 "lex.yy.c"
@@ -912,12 +912,12 @@ YY_RULE_SETUP
 case 12:
 YY_RULE_SETUP
 #line 34 "query.lex"
-{ yylval->string = strdup(yytext); return AND; }
+{ return AND; }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
 #line 35 "query.lex"
-{ yylval->string = strdup(yytext); return OR; }
+{ return OR; }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP

@@ -77,7 +77,7 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 10 "query.yacc"
+#line 19 "query.yacc"
 
   char character;
   char *string;

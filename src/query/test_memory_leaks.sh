@@ -6,6 +6,13 @@ cat > test_memory.c <<EOF
 int main(int argc, char **argv) {
   query q = parse_query("select value from t where c == '5';");
   close_query(&q);
+
+  q = parse_query("select value from t where c = '5';");
+  close_query(&q);
+
+  q = parse_query("select value from t where c == 5 and b == 6;");
+  close_query(&q);
+
   return 0;
 }
 EOF

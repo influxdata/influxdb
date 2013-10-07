@@ -5,6 +5,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include "query_types.h"
+
+void free_array(array *array);
+void free_value(value *value);
+void free_expression(expression *expr);
+void free_bool_expression(bool_expression *expr);
+void free_condition(condition *condition);
+void free_from_clause(from *from);
+void free_error (error *error);
+
 %}
 
 %union {
@@ -34,8 +43,8 @@
 %token <string> STRING_VALUE NAME
 
 // define the precendence of these operators
-%left  <string> OR
-%left  <string> AND
+%left  OR
+%left  AND
 %nonassoc <string> OPERATION_EQUAL OPERATION_NE OPERATION_GT OPERATION_LT OPERATION_LE OPERATION_GE
 %left  <character> '+' '-'
 %left  <character> '*' '/'
@@ -53,6 +62,12 @@
 %type <v>               FUNCTION_CALL
 %type <expression>      EXPRESSION
 %start                  QUERY
+
+%destructor { free_value($$); } <v>
+%destructor { free_condition($$); } <condition>
+%destructor { free_array($$); } <arr>
+%destructor { free_from_clause($$); } <f>
+%destructor { free($$); } <string>
 
 %%
 QUERY:
@@ -277,27 +292,45 @@ free_bool_expression(bool_expression *expr)
 }
 
 void
+free_condition(condition *condition)
+{
+  free_bool_expression(condition->left);
+  if (condition->right) free_bool_expression(condition->right);
+  free(condition);
+}
+
+void
+free_from_clause(from *from)
+{
+  free(from->table);
+  free(from);
+}
+
+void
+free_error (error *error)
+{
+  free(error->err);
+  free(error);
+}
+
+void
 close_query (query *q)
 {
-  // free the columns
-  int i;
-  for (i = 0; i < q->c->size; i++) {
-    free(q->c->elems[i]);
+  if (q->error) {
+    free_error(q->error);
+    return;
   }
-  free(q->c->elems);
-  free(q->c);
+
+  // free the columns
+  free_array(q->c);
 
   // TODO: free the where conditions
   if (q->where_condition) {
-    free_bool_expression(q->where_condition->left);
-    if (q->where_condition->op) free(q->where_condition->op);
-    if (q->where_condition->right) free_bool_expression(q->where_condition->right);
-    free(q->where_condition);
+    free_condition(q->where_condition);
   }
 
   // free the from clause
-  free(q->f->table);
-  free(q->f);
+  free_from_clause(q->f);
 }
 
 query

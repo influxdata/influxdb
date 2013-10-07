@@ -75,9 +75,18 @@
 #include <string.h>
 #include "query_types.h"
 
+void free_array(array *array);
+void free_value(value *value);
+void free_expression(expression *expr);
+void free_bool_expression(bool_expression *expr);
+void free_condition(condition *condition);
+void free_from_clause(from *from);
+void free_error (error *error);
+
+
 
 /* Line 268 of yacc.c  */
-#line 81 "y.tab.c"
+#line 90 "y.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -144,7 +153,7 @@ typedef union YYSTYPE
 {
 
 /* Line 293 of yacc.c  */
-#line 10 "query.yacc"
+#line 19 "query.yacc"
 
   char character;
   char *string;
@@ -159,7 +168,7 @@ typedef union YYSTYPE
 
 
 /* Line 293 of yacc.c  */
-#line 163 "y.tab.c"
+#line 172 "y.tab.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -184,7 +193,7 @@ typedef struct YYLTYPE
 
 
 /* Line 343 of yacc.c  */
-#line 188 "y.tab.c"
+#line 197 "y.tab.c"
 
 #ifdef short
 # undef short
@@ -485,10 +494,10 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    59,    59,    66,    74,    85,    94,   100,   106,   114,
-     124,   133,   141,   148,   155,   158,   166,   175,   177,   179,
-     181,   184,   192,   201,   209,   217,   226,   228,   230,   232,
-     234,   236,   238
+       0,    74,    74,    81,    89,   100,   109,   115,   121,   129,
+     139,   148,   156,   163,   170,   173,   181,   190,   192,   194,
+     196,   199,   207,   216,   224,   232,   241,   243,   245,   247,
+     249,   251,   253
 };
 #endif
 
@@ -1173,6 +1182,159 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, q, scanner)
 
   switch (yytype)
     {
+      case 7: /* "STRING_VALUE" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1193 "y.tab.c"
+	break;
+      case 8: /* "NAME" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1202 "y.tab.c"
+	break;
+      case 11: /* "OPERATION_GE" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1211 "y.tab.c"
+	break;
+      case 12: /* "OPERATION_LE" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1220 "y.tab.c"
+	break;
+      case 13: /* "OPERATION_LT" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1229 "y.tab.c"
+	break;
+      case 14: /* "OPERATION_GT" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1238 "y.tab.c"
+	break;
+      case 15: /* "OPERATION_NE" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1247 "y.tab.c"
+	break;
+      case 16: /* "OPERATION_EQUAL" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1256 "y.tab.c"
+	break;
+      case 27: /* "COLUMN_NAMES" */
+
+/* Line 1391 of yacc.c  */
+#line 68 "query.yacc"
+	{ free_array((yyvaluep->arr)); };
+
+/* Line 1391 of yacc.c  */
+#line 1265 "y.tab.c"
+	break;
+      case 28: /* "FROM_CLAUSE" */
+
+/* Line 1391 of yacc.c  */
+#line 69 "query.yacc"
+	{ free_from_clause((yyvaluep->f)); };
+
+/* Line 1391 of yacc.c  */
+#line 1274 "y.tab.c"
+	break;
+      case 29: /* "WHERE_CLAUSE" */
+
+/* Line 1391 of yacc.c  */
+#line 67 "query.yacc"
+	{ free_condition((yyvaluep->condition)); };
+
+/* Line 1391 of yacc.c  */
+#line 1283 "y.tab.c"
+	break;
+      case 30: /* "STRING_VALUES" */
+
+/* Line 1391 of yacc.c  */
+#line 68 "query.yacc"
+	{ free_array((yyvaluep->arr)); };
+
+/* Line 1391 of yacc.c  */
+#line 1292 "y.tab.c"
+	break;
+      case 31: /* "FUNCTION_CALL" */
+
+/* Line 1391 of yacc.c  */
+#line 66 "query.yacc"
+	{ free_value((yyvaluep->v)); };
+
+/* Line 1391 of yacc.c  */
+#line 1301 "y.tab.c"
+	break;
+      case 32: /* "VALUE" */
+
+/* Line 1391 of yacc.c  */
+#line 66 "query.yacc"
+	{ free_value((yyvaluep->v)); };
+
+/* Line 1391 of yacc.c  */
+#line 1310 "y.tab.c"
+	break;
+      case 36: /* "CONDITION" */
+
+/* Line 1391 of yacc.c  */
+#line 67 "query.yacc"
+	{ free_condition((yyvaluep->condition)); };
+
+/* Line 1391 of yacc.c  */
+#line 1319 "y.tab.c"
+	break;
+      case 37: /* "BOOL_OPERATION" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1328 "y.tab.c"
+	break;
+      case 38: /* "TABLE_NAME" */
+
+/* Line 1391 of yacc.c  */
+#line 70 "query.yacc"
+	{ free((yyvaluep->string)); };
+
+/* Line 1391 of yacc.c  */
+#line 1337 "y.tab.c"
+	break;
 
       default:
 	break;
@@ -1501,7 +1663,7 @@ yyreduce:
         case 2:
 
 /* Line 1806 of yacc.c  */
-#line 60 "query.yacc"
+#line 75 "query.yacc"
     {
           q->c = (yyvsp[(2) - (5)].arr);
           q->f = (yyvsp[(3) - (5)].f);
@@ -1512,7 +1674,7 @@ yyreduce:
   case 3:
 
 /* Line 1806 of yacc.c  */
-#line 67 "query.yacc"
+#line 82 "query.yacc"
     {
           q->c = (yyvsp[(2) - (4)].arr);
           q->f = (yyvsp[(3) - (4)].f);
@@ -1523,7 +1685,7 @@ yyreduce:
   case 4:
 
 /* Line 1806 of yacc.c  */
-#line 75 "query.yacc"
+#line 90 "query.yacc"
     {
           (yyval.arr) = malloc(sizeof(array));
           (yyval.arr)->elems = NULL;
@@ -1538,7 +1700,7 @@ yyreduce:
   case 5:
 
 /* Line 1806 of yacc.c  */
-#line 86 "query.yacc"
+#line 101 "query.yacc"
     {
           size_t new_size = (yyvsp[(1) - (3)].arr)->size+1;
           (yyvsp[(1) - (3)].arr)->elems = realloc((yyvsp[(1) - (3)].arr)->elems, new_size);
@@ -1551,7 +1713,7 @@ yyreduce:
   case 6:
 
 /* Line 1806 of yacc.c  */
-#line 95 "query.yacc"
+#line 110 "query.yacc"
     {
   (yyval.f) = malloc(sizeof(from));
   (yyval.f)->table = (yyvsp[(2) - (2)].string);
@@ -1561,7 +1723,7 @@ yyreduce:
   case 7:
 
 /* Line 1806 of yacc.c  */
-#line 101 "query.yacc"
+#line 116 "query.yacc"
     {
   (yyval.condition) = (yyvsp[(2) - (2)].condition);
 }
@@ -1570,7 +1732,7 @@ yyreduce:
   case 8:
 
 /* Line 1806 of yacc.c  */
-#line 107 "query.yacc"
+#line 122 "query.yacc"
     {
           (yyval.arr) = malloc(sizeof(array));
           (yyval.arr)->elems = realloc((yyval.arr)->elems, sizeof(char*) * 1);
@@ -1582,7 +1744,7 @@ yyreduce:
   case 9:
 
 /* Line 1806 of yacc.c  */
-#line 115 "query.yacc"
+#line 130 "query.yacc"
     {
           size_t new_size = (yyvsp[(1) - (3)].arr)->size + 1;
           (yyvsp[(1) - (3)].arr)->elems = realloc((yyvsp[(1) - (3)].arr)->elems, sizeof(char*) * new_size);
@@ -1595,7 +1757,7 @@ yyreduce:
   case 10:
 
 /* Line 1806 of yacc.c  */
-#line 125 "query.yacc"
+#line 140 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->name = (yyvsp[(1) - (3)].string);
@@ -1608,7 +1770,7 @@ yyreduce:
   case 11:
 
 /* Line 1806 of yacc.c  */
-#line 134 "query.yacc"
+#line 149 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->name = (yyvsp[(1) - (4)].string);
@@ -1619,7 +1781,7 @@ yyreduce:
   case 12:
 
 /* Line 1806 of yacc.c  */
-#line 142 "query.yacc"
+#line 157 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->name = (yyvsp[(1) - (1)].string);
@@ -1630,7 +1792,7 @@ yyreduce:
   case 13:
 
 /* Line 1806 of yacc.c  */
-#line 149 "query.yacc"
+#line 164 "query.yacc"
     {
           (yyval.v) = malloc(sizeof(value));
           (yyval.v)->name = (yyvsp[(1) - (1)].string);
@@ -1641,7 +1803,7 @@ yyreduce:
   case 15:
 
 /* Line 1806 of yacc.c  */
-#line 159 "query.yacc"
+#line 174 "query.yacc"
     {
           (yyval.expression) = malloc(sizeof(expression));
           (yyval.expression)->left = (yyvsp[(1) - (1)].v);
@@ -1653,7 +1815,7 @@ yyreduce:
   case 16:
 
 /* Line 1806 of yacc.c  */
-#line 167 "query.yacc"
+#line 182 "query.yacc"
     {
           (yyval.expression) = malloc(sizeof(expression));
           (yyval.expression)->left = (yyvsp[(1) - (3)].v);
@@ -1665,7 +1827,7 @@ yyreduce:
   case 21:
 
 /* Line 1806 of yacc.c  */
-#line 185 "query.yacc"
+#line 200 "query.yacc"
     {
           (yyval.bool_expression) = malloc(sizeof(bool_expression));
           (yyval.bool_expression)->left = (yyvsp[(1) - (1)].expression);
@@ -1677,7 +1839,7 @@ yyreduce:
   case 22:
 
 /* Line 1806 of yacc.c  */
-#line 193 "query.yacc"
+#line 208 "query.yacc"
     {
           (yyval.bool_expression) = malloc(sizeof(bool_expression));
           (yyval.bool_expression)->left = (yyvsp[(1) - (3)].expression);
@@ -1689,7 +1851,7 @@ yyreduce:
   case 23:
 
 /* Line 1806 of yacc.c  */
-#line 202 "query.yacc"
+#line 217 "query.yacc"
     {
           (yyval.condition) = malloc(sizeof(condition));
           (yyval.condition)->left = (yyvsp[(1) - (3)].bool_expression);
@@ -1701,7 +1863,7 @@ yyreduce:
   case 24:
 
 /* Line 1806 of yacc.c  */
-#line 210 "query.yacc"
+#line 225 "query.yacc"
     {
           (yyval.condition) = malloc(sizeof(condition));
           (yyval.condition)->left = (yyvsp[(1) - (3)].bool_expression);
@@ -1713,7 +1875,7 @@ yyreduce:
   case 25:
 
 /* Line 1806 of yacc.c  */
-#line 218 "query.yacc"
+#line 233 "query.yacc"
     {
           (yyval.condition) = malloc(sizeof(condition));
           (yyval.condition)->left = (yyvsp[(1) - (1)].bool_expression);
@@ -1725,7 +1887,7 @@ yyreduce:
 
 
 /* Line 1806 of yacc.c  */
-#line 1729 "y.tab.c"
+#line 1891 "y.tab.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -1963,7 +2125,7 @@ yyreturn:
 
 
 /* Line 2067 of yacc.c  */
-#line 240 "query.yacc"
+#line 255 "query.yacc"
 
 void *yy_scan_string(char *, void *);
 void yy_delete_buffer(void *, void *);
@@ -2004,27 +2166,46 @@ free_bool_expression(bool_expression *expr)
 }
 
 void
+free_condition(condition *condition)
+{
+  free_bool_expression(condition->left);
+  if (condition->op) free(condition->op);
+  if (condition->right) free_bool_expression(condition->right);
+  free(condition);
+}
+
+void
+free_from_clause(from *from)
+{
+  free(from->table);
+  free(from);
+}
+
+void
+free_error (error *error)
+{
+  free(error->err);
+  free(error);
+}
+
+void
 close_query (query *q)
 {
-  // free the columns
-  int i;
-  for (i = 0; i < q->c->size; i++) {
-    free(q->c->elems[i]);
+  if (q->error) {
+    free_error(q->error);
+    return;
   }
-  free(q->c->elems);
-  free(q->c);
+
+  // free the columns
+  free_array(q->c);
 
   // TODO: free the where conditions
   if (q->where_condition) {
-    free_bool_expression(q->where_condition->left);
-    if (q->where_condition->op) free(q->where_condition->op);
-    if (q->where_condition->right) free_bool_expression(q->where_condition->right);
-    free(q->where_condition);
+    free_condition(q->where_condition);
   }
 
   // free the from clause
-  free(q->f->table);
-  free(q->f);
+  free_from_clause(q->f);
 }
 
 query
