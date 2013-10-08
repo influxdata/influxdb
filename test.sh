@@ -21,4 +21,6 @@ go fmt $packages
 
 ./build.sh
 
-go test -v $packages -gocheck.v
+echo "Running tests for packages: $packages"
+
+go test $packages -v -gocheck.v
