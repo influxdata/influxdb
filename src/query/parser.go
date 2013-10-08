@@ -53,6 +53,12 @@ type Query struct {
 	groupByClause GroupByClause
 	Limit         int
 }
+func (self *WhereCondition) GetBoolExpression() (*BoolExpression, bool) {
+	if self.isBooleanExpression {
+		return self.Left.(*BoolExpression), true
+	}
+	return nil, false
+}
 
 func (self *Query) GetColumnNames() []*Value {
 	if self.ColumnNames != nil {
@@ -65,6 +71,13 @@ func (self *Query) GetColumnNames() []*Value {
 
 func (self *Query) GetFromClause() *Value {
 	return GetValue(self.q.f)
+}
+
+func (self *Expression) GetSimpleValue() (*Value, bool) {
+	if self.Operation == '\000' {
+		return self.Left, true
+	}
+	return nil, false
 }
 
 func GetValueArray(array *C.value_array) []*Value {

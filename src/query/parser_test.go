@@ -32,15 +32,18 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	w := q.GetWhereCondition()
 	c.Assert(q.GetFromClause().Name, Equals, "t")
 
-	boolExpression := w.Left.(*BoolExpression)
+	boolExpression, ok := w.GetBoolExpression()
+	c.Assert(ok, Equals, true)
+
 	leftExpression := boolExpression.Left
 	rightExpression := boolExpression.Right
-	leftValue := leftExpression.Left.Name
-	rightValue := rightExpression.Left.Name
 
-	c.Assert(leftValue, Equals, "c")
+	leftValue, ok := leftExpression.GetSimpleValue() // simple value is an expression with one value, e.g. it doesn't combine value using arithmetic operations
+	rightValue, ok := rightExpression.GetSimpleValue()
+
+	c.Assert(leftValue.Name, Equals, "c")
 	c.Assert(boolExpression.Operation, Equals, "==")
-	c.Assert(rightValue, Equals, "5")
+	c.Assert(rightValue.Name, Equals, "5")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithoutWhereClause(c *C) {
