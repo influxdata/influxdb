@@ -48,7 +48,6 @@
 %type <condition>       WHERE_CLAUSE
 %type <value_array>     COLUMN_NAMES
 %type <string>          BOOL_OPERATION
-%type <character>       ARITHMETIC_OPERATION
 %type <condition>       CONDITION
 %type <bool_expression> BOOL_EXPRESSION
 %type <value_array>     VALUES
@@ -213,7 +212,34 @@ EXPRESSION:
           $$ = $2;
         }
         |
-        EXPRESSION ARITHMETIC_OPERATION EXPRESSION
+        EXPRESSION '+' EXPRESSION
+        {
+          $$ = malloc(sizeof(expression));
+          printf("operation: %c\n", $2);
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = $3;
+        }
+        |
+        EXPRESSION '-' EXPRESSION
+        {
+          $$ = malloc(sizeof(expression));
+          printf("operation: %c\n", $2);
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = $3;
+        }
+        |
+        EXPRESSION '*' EXPRESSION
+        {
+          $$ = malloc(sizeof(expression));
+          printf("operation: %c\n", $2);
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = $3;
+        }
+        |
+        EXPRESSION '/' EXPRESSION
         {
           $$ = malloc(sizeof(expression));
           printf("operation: %c\n", $2);
@@ -222,14 +248,6 @@ EXPRESSION:
           $$->right = $3;
         }
 
-ARITHMETIC_OPERATION:
-        '+'
-        |
-        '-'
-        |
-        '*'
-        |
-        '/'
 
 BOOL_EXPRESSION:
         EXPRESSION
