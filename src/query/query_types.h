@@ -54,5 +54,16 @@ typedef struct {
   int limit;
 } query;
 
+// some funcs for freeing our types
+void free_array(array *array);
+void free_value_array(value_array *array);
+void free_value(value *value);
+void free_expression(expression *expr);
+void free_bool_expression(bool_expression *expr);
+void free_condition(condition *condition);
+void free_error (error *error);
+
+// this is the api that is used in GO
 query parse_query(char *const query_s);
 void  close_query (query *q);
+

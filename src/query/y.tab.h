@@ -85,17 +85,17 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 19 "query.yacc"
+#line 11 "query.yacc"
 
-  char character;
-  char *string;
-  array *arr;
-  int integer;
-  condition *condition;
-  bool_expression *bool_expression;
-  expression *expression;
-  value_array *value_array;
-  value *v;
+  char                  character;
+  char*                 string;
+  array*                arr;
+  int                   integer;
+  condition*            condition;
+  bool_expression*      bool_expression;
+  expression*           expression;
+  value_array*          value_array;
+  value*                v;
 
 
 

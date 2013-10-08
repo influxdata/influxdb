@@ -6,39 +6,34 @@
 #include <string.h>
 #include "query_types.h"
 
-void free_array(array *array);
-void free_value_array(value_array *array);
-void free_value(value *value);
-void free_expression(expression *expr);
-void free_bool_expression(bool_expression *expr);
-void free_condition(condition *condition);
-void free_error (error *error);
-
 %}
 
 %union {
-  char character;
-  char *string;
-  array *arr;
-  int integer;
-  condition *condition;
-  bool_expression *bool_expression;
-  expression *expression;
-  value_array *value_array;
-  value *v;
+  char                  character;
+  char*                 string;
+  array*                arr;
+  int                   integer;
+  condition*            condition;
+  bool_expression*      bool_expression;
+  expression*           expression;
+  value_array*          value_array;
+  value*                v;
 }
 
 // debugging
 %debug
 
+// better error/location reporting
+%locations
+%error-verbose
+
 // declare that we want a reentrant parser
 %define      api.pure
-%error-verbose
-%locations
 %parse-param {query *q}
 %parse-param {void *scanner}
 %lex-param   {void *scanner}
 
+// define types of tokens (terminals)
 %token          SELECT FROM WHERE EQUAL GROUP_BY FIRST LAST
 %token <string> STRING_VALUE INT_VALUE NAME
 
@@ -49,6 +44,7 @@ void free_error (error *error);
 %left  <character> '+' '-'
 %left  <character> '*' '/'
 
+// define the types of the non-terminals
 %type <v>               FROM_CLAUSE
 %type <condition>       WHERE_CLAUSE
 %type <value_array>     COLUMN_NAMES
@@ -62,8 +58,11 @@ void free_error (error *error);
 %type <expression>      EXPRESSION
 %type <value_array>     GROUP_BY_CLAUSE
 %type <integer>         LIMIT
+
+// the initial token
 %start                  QUERY
 
+// destructors are used to free up memory in case of an error
 %destructor { free_value($$); } <v>
 %destructor { if ($$) free_condition($$); } <condition>
 %destructor { free_array($$); } <arr>
@@ -71,6 +70,7 @@ void free_error (error *error);
 %destructor { free_expression($$); } <expression>
 %destructor { if ($$) free_value_array($$); } <value_array>
 
+// grammar
 %%
 QUERY:
         SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT ';'
@@ -293,93 +293,6 @@ BOOL_OPERATION:
 %%
 void *yy_scan_string(char *, void *);
 void yy_delete_buffer(void *, void *);
-
-void
-free_array(array *array)
-{
-  int i;
-  for (i = 0; i < array->size; i++)
-    free(array->elems[i]);
-  free(array->elems);
-  free(array);
-}
-
-void
-free_value_array(value_array *array)
-{
-  int i;
-  for (i = 0; i < array->size; i++)
-    free_value(array->elems[i]);
-  free(array->elems);
-  free(array);
-}
-
-void
-free_value(value *value)
-{
-  free(value->name);
-  if (value->args) free_value_array(value->args);
-  free(value);
-}
-
-void
-free_expression(expression *expr)
-{
-  free_value(expr->left);
-  if (expr->right) free_value(expr->right);
-  free(expr);
-}
-
-void
-free_bool_expression(bool_expression *expr)
-{
-  free_expression(expr->left);
-  if (expr->op) free(expr->op);
-  if (expr->right) free_expression(expr->right);
-  free(expr);
-}
-
-void
-free_condition(condition *condition)
-{
-  if (condition->is_bool_expression) {
-    free_bool_expression((bool_expression*) condition->left);
-  } else {
-    free_condition(condition->left);
-    free_condition(condition->right);
-  }
-  free(condition);
-}
-
-void
-free_error (error *error)
-{
-  free(error->err);
-  free(error);
-}
-
-void
-close_query (query *q)
-{
-  if (q->error) {
-    free_error(q->error);
-    return;
-  }
-
-  // free the columns
-  free_value_array(q->c);
-
-  if (q->where_condition) {
-    free_condition(q->where_condition);
-  }
-
-  if (q->group_by) {
-    free_value_array(q->group_by);
-  }
-
-  // free the from clause
-  free_value(q->f);
-}
 
 query
 parse_query(char *const query_s)
