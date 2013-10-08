@@ -17,3 +17,4 @@ refresh_tags.sh
 a.out
 
 *.test
+/src/query/a.out*
