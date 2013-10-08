@@ -11,7 +11,6 @@
 %union {
   char                  character;
   char*                 string;
-  array*                arr;
   int                   integer;
   condition*            condition;
   bool_expression*      bool_expression;
@@ -65,7 +64,6 @@
 // destructors are used to free up memory in case of an error
 %destructor { free_value($$); } <v>
 %destructor { if ($$) free_condition($$); } <condition>
-%destructor { free_array($$); } <arr>
 %destructor { free($$); } <string>
 %destructor { free_expression($$); } <expression>
 %destructor { if ($$) free_value_array($$); } <value_array>
@@ -210,9 +208,15 @@ EXPRESSION:
           $$->right = NULL;
         }
         |
-        VALUE ARITHMETIC_OPERATION VALUE
+        '(' EXPRESSION ')'
+        {
+          $$ = $2;
+        }
+        |
+        EXPRESSION ARITHMETIC_OPERATION EXPRESSION
         {
           $$ = malloc(sizeof(expression));
+          printf("operation: %c\n", $2);
           $$->left = $1;
           $$->op = $2;
           $$->right = $3;
@@ -313,7 +317,7 @@ parse_query(char *const query_s)
 {
   query q;
   q.error = NULL;
-  /* yydebug = 1; */
+  yydebug = 1;
   void *scanner;
   yylex_init(&scanner);
   void *buffer = yy_scan_string(query_s, scanner);

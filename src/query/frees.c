@@ -32,8 +32,12 @@ free_value(value *value)
 void
 free_expression(expression *expr)
 {
-  free_value(expr->left);
-  if (expr->right) free_value(expr->right);
+  if (expr->op == 0) {
+    free_value((value*)expr->left);
+  } else {
+    free_expression((expression*) expr->left);
+    free_expression(expr->right);
+  }
   free(expr);
 }
 

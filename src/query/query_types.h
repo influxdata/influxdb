@@ -20,10 +20,10 @@ typedef struct value_t {
   value_array *args;
 } value;
 
-typedef struct {
-  value *left;
+typedef struct expression_t {
+  void *left;                           /* this can be a *value or *expression */
   char op;                              /* +, -, *, / or \0 if there's no right operand */
-  value *right;
+  struct expression_t *right;
 } expression;
 
 typedef struct {

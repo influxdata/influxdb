@@ -25,9 +25,9 @@ func (self *Value) IsFunctionCall() bool {
 }
 
 type Expression struct {
-	Left      *Value
+	Left      interface{}
 	Operation byte
-	Right     *Value
+	Right     *Expression
 }
 
 type BoolExpression struct {
@@ -45,6 +45,20 @@ type WhereCondition struct {
 	Right               *WhereCondition
 }
 
+func (self *WhereCondition) GetBoolExpression() (*BoolExpression, bool) {
+	if self.isBooleanExpression {
+		return self.Left.(*BoolExpression), true
+	}
+	return nil, false
+}
+
+func (self *WhereCondition) GetLeftWhereCondition() (*WhereCondition, bool) {
+	if !self.isBooleanExpression {
+		return self.Left.(*WhereCondition), true
+	}
+	return nil, false
+}
+
 type Query struct {
 	q             C.query
 	closed        bool
@@ -52,12 +66,6 @@ type Query struct {
 	Condition     *WhereCondition
 	groupByClause GroupByClause
 	Limit         int
-}
-func (self *WhereCondition) GetBoolExpression() (*BoolExpression, bool) {
-	if self.isBooleanExpression {
-		return self.Left.(*BoolExpression), true
-	}
-	return nil, false
 }
 
 func (self *Query) GetColumnNames() []*Value {
@@ -73,9 +81,16 @@ func (self *Query) GetFromClause() *Value {
 	return GetValue(self.q.f)
 }
 
-func (self *Expression) GetSimpleValue() (*Value, bool) {
-	if self.Operation == '\000' {
-		return self.Left, true
+func (self *Expression) GetLeftValue() (*Value, bool) {
+	if self.Operation == 0 {
+		return self.Left.(*Value), true
+	}
+	return nil, false
+}
+
+func (self *Expression) GetLeftExpression() (*Expression, bool) {
+	if self.Operation != 0 {
+		return self.Left.(*Expression), true
 	}
 	return nil, false
 }
@@ -128,10 +143,14 @@ func GetValue(value *C.value) *Value {
 
 func GetExpression(expr *C.expression) *Expression {
 	expression := &Expression{}
-	expression.Left = GetValue(expr.left)
-	if expr.op != '\000' {
+	if expr.op == 0 {
+		expression.Left = GetValue((*C.value)(expr.left))
 		expression.Operation = byte(expr.op)
-		expression.Right = GetValue(expr.right)
+		expression.Right = nil
+	} else {
+		expression.Left = GetExpression((*C.expression)(expr.left))
+		expression.Operation = byte(expr.op)
+		expression.Right = GetExpression((*C.expression)(unsafe.Pointer(expr.right)))
 	}
 
 	return expression
