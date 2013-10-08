@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-yacc -t -d query.yacc && lex -i query.lex
+[ "x`uname`" == "xLinux" ] && yacc -t -d query.yacc && lex -i query.lex
