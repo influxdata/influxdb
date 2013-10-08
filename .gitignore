@@ -18,3 +18,4 @@ a.out
 
 *.test
 /src/query/a.out*
+.DS_Store
