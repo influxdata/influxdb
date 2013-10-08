@@ -6,6 +6,14 @@
 #include <string.h>
 #include "query_types.h"
 
+expression *create_expression(expression *left, char op, expression *right) {
+  expression *expr = malloc(sizeof(expression));
+  expr->left = left;
+  expr->op = op;
+  expr->right = right;
+  return expr;
+}
+
 %}
 
 %union {
@@ -212,37 +220,13 @@ EXPRESSION:
           $$ = $2;
         }
         |
-        EXPRESSION '*' EXPRESSION
-        {
-          $$ = malloc(sizeof(expression));
-          $$->left = $1;
-          $$->op = $2;
-          $$->right = $3;
-        }
+        EXPRESSION '*' EXPRESSION { $$ = create_expression($1, $2, $3); }
         |
-        EXPRESSION '/' EXPRESSION
-        {
-          $$ = malloc(sizeof(expression));
-          $$->left = $1;
-          $$->op = $2;
-          $$->right = $3;
-        }
+        EXPRESSION '/' EXPRESSION { $$ = create_expression($1, $2, $3); }
         |
-        EXPRESSION '+' EXPRESSION
-        {
-          $$ = malloc(sizeof(expression));
-          $$->left = $1;
-          $$->op = $2;
-          $$->right = $3;
-        }
+        EXPRESSION '+' EXPRESSION { $$ = create_expression($1, $2, $3); }
         |
-        EXPRESSION '-' EXPRESSION
-        {
-          $$ = malloc(sizeof(expression));
-          $$->left = $1;
-          $$->op = $2;
-          $$->right = $3;
-        }
+        EXPRESSION '-' EXPRESSION { $$ = create_expression($1, $2, $3); }
 
 BOOL_EXPRESSION:
         EXPRESSION
