@@ -50,6 +50,7 @@
 %type <string>          BOOL_OPERATION
 %type <condition>       CONDITION
 %type <bool_expression> BOOL_EXPRESSION
+%type <character>       ARITHMETIC_OPERATOR
 %type <value_array>     VALUES
 %type <v>               VALUE
 %type <v>               FUNCTION_CALL
@@ -212,42 +213,22 @@ EXPRESSION:
           $$ = $2;
         }
         |
-        EXPRESSION '+' EXPRESSION
+        EXPRESSION ARITHMETIC_OPERATOR EXPRESSION
         {
           $$ = malloc(sizeof(expression));
-          printf("operation: %c\n", $2);
-          $$->left = $1;
-          $$->op = $2;
-          $$->right = $3;
-        }
-        |
-        EXPRESSION '-' EXPRESSION
-        {
-          $$ = malloc(sizeof(expression));
-          printf("operation: %c\n", $2);
-          $$->left = $1;
-          $$->op = $2;
-          $$->right = $3;
-        }
-        |
-        EXPRESSION '*' EXPRESSION
-        {
-          $$ = malloc(sizeof(expression));
-          printf("operation: %c\n", $2);
-          $$->left = $1;
-          $$->op = $2;
-          $$->right = $3;
-        }
-        |
-        EXPRESSION '/' EXPRESSION
-        {
-          $$ = malloc(sizeof(expression));
-          printf("operation: %c\n", $2);
           $$->left = $1;
           $$->op = $2;
           $$->right = $3;
         }
 
+ARITHMETIC_OPERATOR:
+        '+'
+        |
+        '-'
+        |
+        '*'
+        |
+        '/'
 
 BOOL_EXPRESSION:
         EXPRESSION
@@ -335,7 +316,7 @@ parse_query(char *const query_s)
 {
   query q;
   q.error = NULL;
-  yydebug = 1;
+  /* yydebug = 1; */
   void *scanner;
   yylex_init(&scanner);
   void *buffer = yy_scan_string(query_s, scanner);
