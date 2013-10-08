@@ -35,7 +35,7 @@
 
 // define types of tokens (terminals)
 %token          SELECT FROM WHERE EQUAL GROUP_BY FIRST LAST
-%token <string> STRING_VALUE INT_VALUE NAME
+%token <string> STRING_VALUE INT_VALUE NAME REGEX_OP REGEX_STRING
 
 // define the precendence of these operators
 %left  OR
@@ -242,6 +242,20 @@ BOOL_EXPRESSION:
           $$->left = $1;
           $$->op = $2;
           $$->right = $3;
+        }
+        |
+        EXPRESSION REGEX_OP REGEX_STRING
+        {
+          $$ = malloc(sizeof(bool_expression));
+          $$->left = $1;
+          $$->op = $2;
+          value *v = malloc(sizeof(value));
+          v->name = $3;
+          v->args = NULL;
+          $$->right = malloc(sizeof(expression));
+          $$->right->left = v;
+          $$->right->op = '\0';
+          $$->right->right = NULL;
         }
 
 CONDITION:

@@ -290,10 +290,25 @@ func (self *QueryParserSuite) TestParseFromWithJoinedTable(c *C) {
 	c.Assert(q.GetFromClause().Elems[3].Name, Equals, "t2")
 }
 
-// TODO: regex tables
+func (self *QueryParserSuite) TestParseSelectWithRegexCondition(c *C) {
+	q, err := ParseQuery("select email from users.events where email ~= /gmail\\.com/i and time>now()-2d;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	w := q.GetWhereCondition()
 
-// TODO: regexp matching
-// select email from users.events where email ~= /gmail\.com/i and time>now()-2d group_by time(10m)
+	regexExpression := w.Left.(*WhereCondition).Left.(*BoolExpression)
+	c.Assert(regexExpression.Left.Left.Name, Equals, "email")
+	c.Assert(regexExpression.Operation, Equals, "~=")
+	c.Assert(regexExpression.Right.Left.Name, Equals, "/gmail\\.com/i")
+}
+
+func (self *QueryParserSuite) TestParseSelectWithRegexTables(c *C) {
+	q, err := ParseQuery("select email from users.* where time>now()-2d;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+
+	c.Assert(q.GetFromClause().Name, Equals, "users.*")
+}
 
 // TODO:
 // insert into user.events.count.per_day select count(*) from user.events where time<forever group_by time(1d)

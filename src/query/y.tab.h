@@ -47,14 +47,16 @@
      STRING_VALUE = 265,
      INT_VALUE = 266,
      NAME = 267,
-     OR = 268,
-     AND = 269,
-     OPERATION_GE = 270,
-     OPERATION_LE = 271,
-     OPERATION_LT = 272,
-     OPERATION_GT = 273,
-     OPERATION_NE = 274,
-     OPERATION_EQUAL = 275
+     REGEX_OP = 268,
+     REGEX_STRING = 269,
+     OR = 270,
+     AND = 271,
+     OPERATION_GE = 272,
+     OPERATION_LE = 273,
+     OPERATION_LT = 274,
+     OPERATION_GT = 275,
+     OPERATION_NE = 276,
+     OPERATION_EQUAL = 277
    };
 #endif
 /* Tokens.  */
@@ -68,14 +70,16 @@
 #define STRING_VALUE 265
 #define INT_VALUE 266
 #define NAME 267
-#define OR 268
-#define AND 269
-#define OPERATION_GE 270
-#define OPERATION_LE 271
-#define OPERATION_LT 272
-#define OPERATION_GT 273
-#define OPERATION_NE 274
-#define OPERATION_EQUAL 275
+#define REGEX_OP 268
+#define REGEX_STRING 269
+#define OR 270
+#define AND 271
+#define OPERATION_GE 272
+#define OPERATION_LE 273
+#define OPERATION_LT 274
+#define OPERATION_GT 275
+#define OPERATION_NE 276
+#define OPERATION_EQUAL 277
 
 
 
@@ -100,7 +104,7 @@ typedef union YYSTYPE
 
 
 /* Line 2068 of yacc.c  */
-#line 104 "y.tab.h"
+#line 108 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

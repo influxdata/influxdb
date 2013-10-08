@@ -37,12 +37,16 @@ group_by                  { return GROUP_BY; }
 "and"                     { return AND; }
 "or"                      { return OR; }
 ==                        { yylval->string = strdup(yytext); return OPERATION_EQUAL; }
+~=                        { yylval->string = strdup(yytext); return REGEX_OP; }
 !=                        { yylval->string = strdup(yytext); return OPERATION_NE; }
 "<"                       { yylval->string = strdup(yytext); return OPERATION_LT; }
 ">"                       { yylval->string = strdup(yytext); return OPERATION_GT; }
 "<="                      { yylval->string = strdup(yytext); return OPERATION_LE; }
 ">="                      { yylval->string = strdup(yytext); return OPERATION_GE; }
 [0-9]+                    { yylval->string = strdup(yytext); return INT_VALUE; }
+
+\/.*\/i?                    { yylval->string = strdup(yytext); return REGEX_STRING; }
+
 [a-zA-Z*._][a-zA-Z0-9*._]*  { yylval->string = strdup(yytext); return NAME; }
 \'.*\'                    {
   yytext[yyleng-1] = '\0';
