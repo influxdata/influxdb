@@ -82,13 +82,13 @@ func (s *RaftServer) leaderConnectString() (string, bool) {
 	// return l, ok
 }
 
-func (s *RaftServer) proxyCommand(command raft.Command, path string) error {
+func (s *RaftServer) proxyCommand(command raft.Command, commandType string) error {
 	if leader, ok := s.leaderConnectString(); !ok {
 		return errors.New("Couldn't connect to the cluster leader...")
 	} else {
 		var b bytes.Buffer
 		json.NewEncoder(&b).Encode(command)
-		resp, err := http.Post(leader+path, "application/json", &b)
+		resp, err := http.Post(leader+"/process_command/"+commandType, "application/json", &b)
 		if err != nil {
 			return err
 		}
@@ -103,18 +103,28 @@ func (s *RaftServer) AddReadApiKey(db, key string) error {
 		return err
 	} else {
 		command := NewAddApikeyCommand(db, key, ReadKey)
-		return s.proxyCommand(command, "/api_keys")
+		return s.proxyCommand(command, "add_api_key")
 	}
 }
 
 func (s *RaftServer) AddWriteApiKey(db, key string) error {
-	_, err := s.raftServer.Do(NewAddApikeyCommand(db, key, WriteKey))
-	return err
+	if s.raftServer.State() == raft.Leader {
+		_, err := s.raftServer.Do(NewAddApikeyCommand(db, key, WriteKey))
+		return err
+	} else {
+		command := NewAddApikeyCommand(db, key, WriteKey)
+		return s.proxyCommand(command, "add_api_key")
+	}
 }
 
 func (s *RaftServer) RemoveApiKey(db, key string) error {
-	_, err := s.raftServer.Do(NewRemoveApiKeyCommand(db, key))
-	return err
+	if s.raftServer.State() == raft.Leader {
+		_, err := s.raftServer.Do(NewRemoveApiKeyCommand(db, key))
+		return err
+	} else {
+		command := NewRemoveApiKeyCommand(db, key)
+		return s.proxyCommand(command, "remove_api_key")
+	}
 }
 
 func (s *RaftServer) connectionString() string {
@@ -184,10 +194,7 @@ func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bo
 
 	s.router.HandleFunc("/cluster_config", s.configHandler).Methods("GET")
 	s.router.HandleFunc("/join", s.joinHandler).Methods("POST")
-	s.router.HandleFunc("/api_keys", s.addApiKeyHandler).Methods("POST")
-	s.router.HandleFunc("/api_keys", s.removeApiKeyHandler).Methods("DELETE")
-	s.router.HandleFunc("/server_ring_locations", s.addServerToLocationHandler).Methods("POST")
-	s.router.HandleFunc("/server_ring_locations", s.removeServerFromLocationHandler).Methods("DELETE")
+	s.router.HandleFunc("/process_command/{command_type}", s.processCommandHandler).Methods("POST")
 
 	log.Println("Listening at:", s.connectionString())
 
@@ -272,30 +279,19 @@ func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http
 	return nil
 }
 
-func (s *RaftServer) addApiKeyHandler(w http.ResponseWriter, req *http.Request) {
-	command := &AddApiKeyCommand{}
-	log.Println("ADD API KEY!")
-	if err := s.marshalAndDoCommandFromBody(command, req); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	value := vars["command_type"]
+	var command raft.Command
+	if value == "add_api_key" {
+		command = &AddApiKeyCommand{}
+	} else if value == "remove_api_key" {
+		command = &RemoveApiKeyCommand{}
+	} else if value == "add_server" {
+		command = &AddServerToLocationCommand{}
+	} else if value == "remove_server" {
+		command = &RemoveServerFromLocationCommand{}
 	}
-}
-
-func (s *RaftServer) removeApiKeyHandler(w http.ResponseWriter, req *http.Request) {
-	command := &RemoveApiKeyCommand{}
-	if err := s.marshalAndDoCommandFromBody(command, req); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func (s *RaftServer) addServerToLocationHandler(w http.ResponseWriter, req *http.Request) {
-	command := &AddServerToLocationCommand{}
-	if err := s.marshalAndDoCommandFromBody(command, req); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func (s *RaftServer) removeServerFromLocationHandler(w http.ResponseWriter, req *http.Request) {
-	command := &RemoveServerFromLocationCommand{}
 	if err := s.marshalAndDoCommandFromBody(command, req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
