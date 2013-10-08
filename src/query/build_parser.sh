@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 
-[ "x`uname`" == "xLinux" ] && yacc -t -d query.yacc && lex -i query.lex
+if [ "x`uname`" == "xLinux" ]; then
+    yacc -t -d query.yacc && lex -i query.lex
+fi
