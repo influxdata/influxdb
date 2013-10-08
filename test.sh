@@ -19,5 +19,4 @@ go get launchpad.net/gocheck
 
 ./build.sh
 
-go test -v query
-go test -v protocol
+go test -v $packages
