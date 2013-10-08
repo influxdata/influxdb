@@ -21,4 +21,4 @@ go fmt $packages
 
 ./build.sh
 
-go test -v $packages
+go test -v $packages -gocheck.v
