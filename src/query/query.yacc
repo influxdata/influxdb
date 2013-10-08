@@ -50,7 +50,6 @@
 %type <string>          BOOL_OPERATION
 %type <condition>       CONDITION
 %type <bool_expression> BOOL_EXPRESSION
-%type <character>       ARITHMETIC_OPERATOR
 %type <value_array>     VALUES
 %type <v>               VALUE
 %type <v>               FUNCTION_CALL
@@ -213,22 +212,37 @@ EXPRESSION:
           $$ = $2;
         }
         |
-        EXPRESSION ARITHMETIC_OPERATOR EXPRESSION
+        EXPRESSION '*' EXPRESSION
         {
           $$ = malloc(sizeof(expression));
           $$->left = $1;
           $$->op = $2;
           $$->right = $3;
         }
-
-ARITHMETIC_OPERATOR:
-        '+'
         |
-        '-'
+        EXPRESSION '/' EXPRESSION
+        {
+          $$ = malloc(sizeof(expression));
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = $3;
+        }
         |
-        '*'
+        EXPRESSION '+' EXPRESSION
+        {
+          $$ = malloc(sizeof(expression));
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = $3;
+        }
         |
-        '/'
+        EXPRESSION '-' EXPRESSION
+        {
+          $$ = malloc(sizeof(expression));
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = $3;
+        }
 
 BOOL_EXPRESSION:
         EXPRESSION
