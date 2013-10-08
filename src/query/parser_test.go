@@ -127,7 +127,7 @@ func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 	funCall, ok := funCallExpr.GetLeftValue()
 	c.Assert(ok, Equals, true)
 	oneDay, ok := rightExpression.Right.GetLeftValue()
-  c.Assert(ok, Equals, true)
+	c.Assert(ok, Equals, true)
 
 	c.Assert(funCall.IsFunctionCall(), Equals, true)
 	c.Assert(funCall.Name, Equals, "now")
@@ -362,7 +362,6 @@ func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *
 	c.Assert(ok, Equals, true)
 
 	c.Assert(boolExpression.Left.Left, DeepEquals, &Value{"30", nil})
-
 
 	// value * 1 / 3
 	rightExpression := boolExpression.Right

@@ -17,6 +17,8 @@ popd
 
 go get launchpad.net/gocheck
 
+go fmt $packages
+
 ./build.sh
 
 go test -v $packages
