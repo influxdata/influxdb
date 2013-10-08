@@ -20,3 +20,8 @@ a.out
 *.test
 /src/query/a.out*
 .DS_Store
+
+# ignore generated files.
+src/query/lex.yy.c
+src/query/y.tab.h
+src/query/y.tab.c
