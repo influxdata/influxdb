@@ -1,11 +1,12 @@
 package interfaces
 
 import (
+	"protocol"
 	"time"
 )
 
 type WriteRequest struct {
-	Timeseries []*Timeseries
+	Timeseries []*protocol.Series
 }
 
 type Operation int
@@ -56,7 +57,7 @@ type ReadRequest struct {
 
 type StorageEngineProcessingI interface {
 	WritePoints(request *WriteRequest) error
-	ReadPoints(request *ReadRequest, yield func(pts []*Point) error) error
+	ReadPoints(request *ReadRequest, yield func(pts []*protocol.Point) error) error
 }
 
 type StorageEngineConsensusI interface {
