@@ -185,3 +185,96 @@ func (self *EngineSuite) TestCountQuery(c *C) {
 `)
 
 }
+
+func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
+	// make the mock coordinator return some data
+	engine := createEngine(c, `
+[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo.bar",
+    "fields": [
+      {
+        "type": "STRING",
+        "name": "column_one"
+      }
+    ]
+  },
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo.baz",
+    "fields": [
+      {
+        "type": "STRING",
+        "name": "column_one"
+      }
+    ]
+  }
+]
+`)
+
+	runQuery(engine, "select count(*) from foo.*;", c, `[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int_value": 1
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo.bar",
+    "fields": [
+      {
+        "type": "INT32",
+        "name": "count"
+      }
+    ]
+  },
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int_value": 1
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo.baz",
+    "fields": [
+      {
+        "type": "INT32",
+        "name": "count"
+      }
+    ]
+  }
+]
+`)
+
+}

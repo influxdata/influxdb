@@ -34,10 +34,13 @@ func isCountQuery(query *parser.Query) bool {
 }
 
 func (self *QueryEngine) executeCountQuery(query *parser.Query, yield func(*protocol.Series) error) error {
-	var count int32 = 0
+	count := make(map[string]int32)
 	var timestamp int64 = 0
+
 	self.coordinator.DistributeQuery(query, func(series *protocol.Series) error {
-		count += int32(len(series.Points))
+		c := count[*series.Name]
+		c += int32(len(series.Points))
+		count[*series.Name] = c
 		if len(series.Points) > 0 {
 			timestamp = series.Points[0].GetTimestamp()
 		}
@@ -48,23 +51,28 @@ func (self *QueryEngine) executeCountQuery(query *parser.Query, yield func(*prot
 	expectedName := "count"
 	var sequenceNumber uint32 = 1
 
-	expectedData := &protocol.Series{
-		Name: &query.GetFromClause().Name,
-		Fields: []*protocol.FieldDefinition{
-			&protocol.FieldDefinition{Name: &expectedName, Type: &expectedFieldType},
-		},
-		Points: []*protocol.Point{
-			&protocol.Point{
-				Timestamp:      &timestamp,
-				SequenceNumber: &sequenceNumber,
-				Values: []*protocol.FieldValue{
-					&protocol.FieldValue{
-						IntValue: &count,
+	for name, value := range count {
+		tempValue := value
+		tempName := name
+
+		expectedData := &protocol.Series{
+			Name: &tempName,
+			Fields: []*protocol.FieldDefinition{
+				&protocol.FieldDefinition{Name: &expectedName, Type: &expectedFieldType},
+			},
+			Points: []*protocol.Point{
+				&protocol.Point{
+					Timestamp:      &timestamp,
+					SequenceNumber: &sequenceNumber,
+					Values: []*protocol.FieldValue{
+						&protocol.FieldValue{
+							IntValue: &tempValue,
+						},
 					},
 				},
 			},
-		},
+		}
+		yield(expectedData)
 	}
-
-	return yield(expectedData)
+	return nil
 }
