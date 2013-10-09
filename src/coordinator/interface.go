@@ -1,11 +1,11 @@
 package coordinator
 
 import (
+	"parser"
 	"protocol"
-	"query"
 )
 
 type Coordinator interface {
-	DistributeQuery(query *query.Query, yield func(*protocol.Series) error) error
+	DistributeQuery(query *parser.Query, yield func(*protocol.Series) error) error
 	WriteSeriesData(series *protocol.Series) error
 }

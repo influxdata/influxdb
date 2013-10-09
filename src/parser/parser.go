@@ -1,4 +1,4 @@
-package query
+package parser
 
 // #include "query_types.h"
 // #include <stdlib.h>

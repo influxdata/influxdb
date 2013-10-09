@@ -48,11 +48,11 @@ Modules
                         |                         |
                         +-----------------+       |
                         |                 |       |
-                        |   Query Engine  |       |
+                        |   Query Parser  |       |
                         |                 |       |
                         +-----------------+-------+
                         |                         |
-                        |  Processing Engine      |
+                        |      Query Engine       |
                         |                         |
                         +-------------------------+
                         |                         |

@@ -5,7 +5,7 @@ set -e
 cd `dirname $0`
 . exports.sh
 
-pushd src/query
+pushd src/parser
 ./build_parser.sh
 if [ "x`uname`" == "xLinux" ]; then
     if ! ./test_memory_leaks.sh; then

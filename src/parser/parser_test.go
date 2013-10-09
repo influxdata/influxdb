@@ -1,4 +1,4 @@
-package query
+package parser
 
 import (
 	. "launchpad.net/gocheck"
