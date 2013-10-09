@@ -27,7 +27,8 @@ last                      { return LAST; }
 from                      { return FROM; }
 where                     { return WHERE; }
 select                    { return SELECT; }
-group_by                  { return GROUP_BY; }
+group                     { return GROUP; }
+by                        { return BY; }
 "("                       { yylval->character = *yytext; return *yytext; }
 ")"                       { yylval->character = *yytext; return *yytext; }
 "+"                       { yylval->character = *yytext; return *yytext; }

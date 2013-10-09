@@ -179,7 +179,7 @@ func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseSelectWithGroupBy(c *C) {
-	q, err := ParseQuery("select count(*) from users.events group_by user_email,time(1h) where time>now()-1d;")
+	q, err := ParseQuery("select count(*) from users.events group by user_email,time(1h) where time>now()-1d;")
 	defer q.Close()
 	c.Assert(err, IsNil)
 
@@ -287,7 +287,7 @@ func (self *QueryParserSuite) TestParseSelectWithLast(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {
-	q, err := ParseQuery("select count(distinct(email)) from user.events where time>now()-1d group_by time(15m);")
+	q, err := ParseQuery("select count(distinct(email)) from user.events where time>now()-1d group by time(15m);")
 	defer q.Close()
 	c.Assert(err, IsNil)
 	c.Assert(q.GetColumnNames(), HasLen, 1)
@@ -384,5 +384,5 @@ func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *
 }
 
 // TODO:
-// insert into user.events.count.per_day select count(*) from user.events where time<forever group_by time(1d)
-// insert into :series_name.percentiles.95 select percentile(95,value) from stats.* where time<forever group_by time(1d)
+// insert into user.events.count.per_day select count(*) from user.events where time<forever group by time(1d)
+// insert into :series_name.percentiles.95 select percentile(95,value) from stats.* where time<forever group by time(1d)

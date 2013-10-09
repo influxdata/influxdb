@@ -41,7 +41,7 @@ expression *create_expression(expression *left, char op, expression *right) {
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT FROM WHERE EQUAL GROUP_BY FIRST LAST
+%token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST
 %token <string> STRING_VALUE INT_VALUE NAME REGEX_OP REGEX_STRING
 
 // define the precendence of these operators
@@ -132,9 +132,9 @@ VALUES:
         }
 
 GROUP_BY_CLAUSE:
-        GROUP_BY VALUES
+        GROUP BY VALUES
         {
-          $$ = $2;
+          $$ = $3;
         }
         |
         {
