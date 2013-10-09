@@ -278,3 +278,84 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
 `)
 
 }
+
+func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
+	// make the mock coordinator return some data
+	engine := createEngine(c, `
+[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "string_value": "another_value"
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": [
+      {
+        "type": "STRING",
+        "name": "column_one"
+      }
+    ]
+  }
+]
+`)
+
+	runQuery(engine, "select count(*), column_one from foo.* group by column_one;", c, `[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int_value": 1
+          },
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      },
+			{
+        "values": [
+          {
+            "int_value": 1
+          },
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": [
+      {
+        "type": "INT32",
+        "name": "count"
+      },
+      {
+        "type": "STRING",
+        "name": "column_one"
+      }
+    ]
+  }
+]
+`)
+
+}
