@@ -1,12 +1,11 @@
 package engine
 
 import (
-	"coordinator"
+	"encoding/json"
 	. "launchpad.net/gocheck"
 	"parser"
 	"protocol"
 	"testing"
-	"time"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -33,10 +32,44 @@ func (self *MockCoordinator) WriteSeriesData(series *protocol.Series) error {
 	return nil
 }
 
-func createMockCoordinator(series ...*protocol.Series) coordinator.Coordinator {
-	return &MockCoordinator{
+func stringToSeriesArray(seriesString string, c *C) []*protocol.Series {
+	series := []*protocol.Series{}
+	err := json.Unmarshal([]byte(seriesString), &series)
+	c.Assert(err, IsNil)
+	return series
+}
+
+func createEngine(c *C, seriesString string) EngineI {
+	series := stringToSeriesArray(seriesString, c)
+
+	engine, err := NewQueryEngine(&MockCoordinator{
 		series: series,
-	}
+	})
+	c.Assert(err, IsNil)
+	return engine
+}
+
+// runQuery() will run the given query on the engine and assert that
+// the engine yields the expected time series given by expectedSeries
+// in the order specified.
+//
+// expectedSeries must be a json array, e.g. time series must by
+// inclosed in '[' and ']'
+func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
+	q, err := parser.ParseQuery(query)
+	c.Assert(err, IsNil)
+
+	result := []*protocol.Series{}
+	err = engine.RunQuery(q, func(series *protocol.Series) error {
+		result = append(result, series)
+		return nil
+	})
+
+	c.Assert(err, IsNil)
+
+	series := stringToSeriesArray(expectedSeries, c)
+
+	c.Assert(result, DeepEquals, series)
 }
 
 // 1. initialize an engine
@@ -45,114 +78,86 @@ func createMockCoordinator(series ...*protocol.Series) coordinator.Coordinator {
 // 4. mock coordinator
 // 5. verify that data is returned
 func (self *EngineSuite) TestBasicQuery(c *C) {
-	seriesName := "foo"
-	c1 := "column_one"
-	timestamp := time.Now().Unix()
-	value := "some_value"
-	var sequenceNumber uint32 = 1
-	fieldType := protocol.FieldDefinition_STRING
+	mockData := `
+[
+ {
+   "points": [
+     {
+       "values": [
+         {
+           "string_value": "some_value"
+         }
+       ],
+       "timestamp": 1381346631,
+       "sequence_number": 1
+     }
+   ],
+   "name": "foo",
+   "fields": [
+     {
+       "type": "STRING",
+       "name": "column_one"
+     }
+   ]
+ }
+]
+`
 
-	mockData := &protocol.Series{
-		Name: &seriesName,
-		Fields: []*protocol.FieldDefinition{
-			&protocol.FieldDefinition{Name: &c1, Type: &fieldType},
-		},
-		Points: []*protocol.Point{
-			&protocol.Point{
-				Timestamp:      &timestamp,
-				SequenceNumber: &sequenceNumber,
-				Values: []*protocol.FieldValue{
-					&protocol.FieldValue{
-						StringValue: &value,
-					},
-				},
-			},
-		},
-	}
-
-	// make the mock coordinator return some data
-	engine, err := NewQueryEngine(createMockCoordinator(mockData))
-	c.Assert(err, IsNil)
-
-	query, err := parser.ParseQuery("select * from foo;")
-	c.Assert(err, IsNil)
-
-	result := []*protocol.Series{}
-	err = engine.RunQuery(query, func(series *protocol.Series) error {
-		result = append(result, series)
-		return nil
-	})
-	c.Assert(err, IsNil)
-
-	c.Assert(result, DeepEquals, []*protocol.Series{mockData})
+	// create an engine and assert the engine works as a passthrough if
+	// the query only returns the raw data
+	engine := createEngine(c, mockData)
+	runQuery(engine, "select * from foo;", c, mockData)
 }
 
 func (self *EngineSuite) TestCountQuery(c *C) {
-	seriesName := "foo"
-	c1 := "column_one"
-	timestamp := time.Now().Unix()
-	value := "some_value"
-	var sequenceNumber uint32 = 1
-	fieldType := protocol.FieldDefinition_STRING
-
-	mockData := &protocol.Series{
-		Name: &seriesName,
-		Fields: []*protocol.FieldDefinition{
-			&protocol.FieldDefinition{Name: &c1, Type: &fieldType},
-		},
-		Points: []*protocol.Point{
-			&protocol.Point{
-				Timestamp:      &timestamp,
-				SequenceNumber: &sequenceNumber,
-				Values: []*protocol.FieldValue{
-					&protocol.FieldValue{
-						StringValue: &value,
-					},
-				},
-			},
-		},
-	}
-
 	// make the mock coordinator return some data
-	engine, err := NewQueryEngine(createMockCoordinator(mockData))
-	c.Assert(err, IsNil)
+	engine := createEngine(c, `
+[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": [
+      {
+        "type": "STRING",
+        "name": "column_one"
+      }
+    ]
+  }
+]
+`)
 
-	query, err := parser.ParseQuery("select count(*) from foo;")
-	c.Assert(err, IsNil)
+	runQuery(engine, "select count(*) from foo;", c, `[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int_value": 1
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": [
+      {
+        "type": "INT32",
+        "name": "count"
+      }
+    ]
+  }
+]
+`)
 
-	result := []*protocol.Series{}
-	err = engine.RunQuery(query, func(series *protocol.Series) error {
-		result = append(result, series)
-		return nil
-	})
-
-	c.Assert(err, IsNil)
-
-	c.Assert(result, HasLen, 1)
-
-	c.Assert(result[0].Points, HasLen, 1)
-
-	expectedFieldType := protocol.FieldDefinition_INT32
-	expectedName := "count"
-	var expectedValue int32 = 1
-
-	expectedData := &protocol.Series{
-		Name: &seriesName,
-		Fields: []*protocol.FieldDefinition{
-			&protocol.FieldDefinition{Name: &expectedName, Type: &expectedFieldType},
-		},
-		Points: []*protocol.Point{
-			&protocol.Point{
-				Timestamp:      &timestamp,
-				SequenceNumber: &sequenceNumber,
-				Values: []*protocol.FieldValue{
-					&protocol.FieldValue{
-						IntValue: &expectedValue,
-					},
-				},
-			},
-		},
-	}
-
-	c.Assert(result, DeepEquals, []*protocol.Series{expectedData})
 }
