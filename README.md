@@ -67,10 +67,16 @@ Modules
           |                    |                |                    |
           +--------+-----------+                +-------+------------+
 
-Concensus Notes
----------------
+Replication & Concensus Notes
+-----------------------------
 
-Two state machines:
-* 1 for the entire cluster of which machines are taking which portions of the ring
-* 1 for each portion of the ring to replicate the operations
-sequence number per ring location? that's the concensus, if they don't agree then request a replay from the last known sequence number
+Single raft cluster for which machines are in cluster and who owns which locations.
+1. When a write comes into a server, figure out which machine owns the data, proxy out to that.
+2. The machine proxies to the server, which assigns a sequence number
+3. Each machine in the cluster asks the other machines that own hash ring locations what their latest sequence number is every 10 seconds (this is read repair)
+
+For example, take machines A, B, and C. Say B and C own ring location #2. If a write comes into A it will look up the configuration and pick B or C at random to proxy the write to. Say it goes to B. B assigns a sequence number of 1. It keeps a log for B2 of the writes. It will also keep a log for C2's writes. It then tries to write #1 to C.
+
+If the write is marked as a quorum write, then B won't return a success to A until the data has been written to both B and C. Every so often both B and C will ask each other what their latest writes are.
+
+Taking the example further, if we had server D that also owned ring location 2. B would ask C for writes to C2. If C is down it will ask D for writes to C2. This will ensure that if C fails no data will be lost.
