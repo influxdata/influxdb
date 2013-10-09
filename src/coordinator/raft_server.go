@@ -82,49 +82,49 @@ func (s *RaftServer) leaderConnectString() (string, bool) {
 	// return l, ok
 }
 
-func (s *RaftServer) proxyCommand(command raft.Command, commandType string) error {
-	if leader, ok := s.leaderConnectString(); !ok {
-		return errors.New("Couldn't connect to the cluster leader...")
+func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) error {
+	if s.raftServer.State() == raft.Leader {
+		_, err := s.raftServer.Do(command)
+		return err
 	} else {
-		var b bytes.Buffer
-		json.NewEncoder(&b).Encode(command)
-		resp, err := http.Post(leader+"/process_command/"+commandType, "application/json", &b)
-		if err != nil {
-			return err
+		if leader, ok := s.leaderConnectString(); !ok {
+			return errors.New("Couldn't connect to the cluster leader...")
+		} else {
+			var b bytes.Buffer
+			json.NewEncoder(&b).Encode(command)
+			resp, err := http.Post(leader+"/process_command/"+commandType, "application/json", &b)
+			if err != nil {
+				return err
+			}
+			resp.Body.Close()
 		}
-		resp.Body.Close()
 	}
 	return nil
 }
 
 func (s *RaftServer) AddReadApiKey(db, key string) error {
-	if s.raftServer.State() == raft.Leader {
-		_, err := s.raftServer.Do(NewAddApikeyCommand(db, key, ReadKey))
-		return err
-	} else {
-		command := NewAddApikeyCommand(db, key, ReadKey)
-		return s.proxyCommand(command, "add_api_key")
-	}
+	command := NewAddApikeyCommand(db, key, ReadKey)
+	return s.doOrProxyCommand(command, "add_api_key")
 }
 
 func (s *RaftServer) AddWriteApiKey(db, key string) error {
-	if s.raftServer.State() == raft.Leader {
-		_, err := s.raftServer.Do(NewAddApikeyCommand(db, key, WriteKey))
-		return err
-	} else {
-		command := NewAddApikeyCommand(db, key, WriteKey)
-		return s.proxyCommand(command, "add_api_key")
-	}
+	command := NewAddApikeyCommand(db, key, WriteKey)
+	return s.doOrProxyCommand(command, "add_api_key")
 }
 
 func (s *RaftServer) RemoveApiKey(db, key string) error {
-	if s.raftServer.State() == raft.Leader {
-		_, err := s.raftServer.Do(NewRemoveApiKeyCommand(db, key))
-		return err
-	} else {
-		command := NewRemoveApiKeyCommand(db, key)
-		return s.proxyCommand(command, "remove_api_key")
-	}
+	command := NewRemoveApiKeyCommand(db, key)
+	return s.doOrProxyCommand(command, "remove_api_key")
+}
+
+func (s *RaftServer) AddServerToLocation(host string, location int64) error {
+	command := NewAddServerToLocationCommand(host, location)
+	return s.doOrProxyCommand(command, "add_server")
+}
+
+func (s *RaftServer) RemoveServerFromLocation(host string, location int64) error {
+	command := NewRemoveServerFromLocationCommand(host, location)
+	return s.doOrProxyCommand(command, "remove_server")
 }
 
 func (s *RaftServer) connectionString() string {
@@ -261,6 +261,13 @@ func (s *RaftServer) configHandler(w http.ResponseWriter, req *http.Request) {
 		writeKeys = append(writeKeys, k)
 	}
 	jsonObject["write_keys"] = writeKeys
+	locations := make([]map[string]interface{}, 0)
+	for location, servers := range s.clusterConfig.RingLocationToServers {
+		s := servers
+		locations = append(locations, map[string]interface{}{"location": location, "servers": s})
+	}
+	jsonObject["locations"] = locations
+
 	js, err := json.Marshal(jsonObject)
 	if err != nil {
 		log.Println("ERROR marshalling config: ", err)

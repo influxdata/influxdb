@@ -127,7 +127,7 @@ func (self *CoordinatorSuite) TestCanCreateCoordinatorsAndReplicate(c *C) {
 	time.Sleep(time.Second)
 	_, server2 := newConfigAndServer(logDir2, port2)
 	defer server2.Close()
-	defer clearPath("test6")
+	defer clearPath(logDir2)
 
 	var err2 error
 	go func() {
@@ -144,7 +144,7 @@ func (self *CoordinatorSuite) TestCanCreateCoordinatorsAndReplicate(c *C) {
 	assertConfigContains(port2, "key1", true, c)
 }
 
-func (self *CoordinatorSuite) TestCanAddKeyFromNonLeaderServer(c *C) {
+func (self *CoordinatorSuite) TestDoWriteOperationsFromNonLeaderServer(c *C) {
 	logDir1 := nextDir()
 	port1 := nextPort()
 	logDir2 := nextDir()
@@ -152,7 +152,7 @@ func (self *CoordinatorSuite) TestCanAddKeyFromNonLeaderServer(c *C) {
 
 	_, server := newConfigAndServer(logDir1, port1)
 	defer server.Close()
-	defer clearPath("test3")
+	defer clearPath(logDir1)
 
 	var err error
 	go func() {
@@ -161,7 +161,7 @@ func (self *CoordinatorSuite) TestCanAddKeyFromNonLeaderServer(c *C) {
 
 	_, server2 := newConfigAndServer(logDir2, port2)
 	defer server2.Close()
-	defer clearPath("test4")
+	defer clearPath(logDir2)
 
 	var err2 error
 	go func() {
@@ -170,9 +170,25 @@ func (self *CoordinatorSuite) TestCanAddKeyFromNonLeaderServer(c *C) {
 	time.Sleep(time.Second)
 	c.Assert(err, Equals, nil)
 	c.Assert(err2, Equals, nil)
-	err3 := server2.AddReadApiKey("db", "key1")
-	c.Assert(err3, Equals, nil)
+	err = server2.AddReadApiKey("db", "key1")
+	c.Assert(err, Equals, nil)
+	err = server2.AddWriteApiKey("db", "key2")
+	c.Assert(err, Equals, nil)
+	err = server2.AddServerToLocation("somehost", int64(-1))
+	c.Assert(err, Equals, nil)
 	time.Sleep(time.Millisecond * 200)
 	assertConfigContains(port1, "key1", true, c)
 	assertConfigContains(port2, "key1", true, c)
+	assertConfigContains(port1, "key2", true, c)
+	assertConfigContains(port2, "key2", true, c)
+	assertConfigContains(port1, "somehost", true, c)
+	assertConfigContains(port2, "somehost", true, c)
+
+	err = server2.RemoveApiKey("db", "key2")
+	c.Assert(err, Equals, nil)
+	err = server2.RemoveServerFromLocation("somehost", int64(-1))
+	c.Assert(err, Equals, nil)
+	time.Sleep(time.Millisecond * 200)
+	assertConfigContains(port2, "key2", false, c)
+	assertConfigContains(port1, "somehost", false, c)
 }
