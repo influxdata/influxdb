@@ -138,6 +138,15 @@ func (self *EngineSuite) TestCountQuery(c *C) {
         ],
         "timestamp": 1381346631,
         "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 2
       }
     ],
     "name": "foo",
@@ -157,7 +166,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
       {
         "values": [
           {
-            "int_value": 1
+            "int_value": 2
           }
         ],
         "timestamp": 1381346631,
