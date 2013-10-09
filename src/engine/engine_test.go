@@ -2,9 +2,12 @@ package engine
 
 import (
 	"encoding/json"
+	"fmt"
 	. "launchpad.net/gocheck"
+	"os"
 	"parser"
 	"protocol"
+	"reflect"
 	"testing"
 )
 
@@ -68,6 +71,15 @@ func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
 	c.Assert(err, IsNil)
 
 	series := stringToSeriesArray(expectedSeries, c)
+
+	if !reflect.DeepEqual(result, series) {
+		resultData, _ := json.MarshalIndent(result, "", "  ")
+		seriesData, _ := json.MarshalIndent(series, "", "  ")
+
+		fmt.Fprintf(os.Stderr,
+			"===============\nThe two series aren't equal.\nExpected: %s\nActual: %s\n===============\n",
+			seriesData, resultData)
+	}
 
 	c.Assert(result, DeepEquals, series)
 }
