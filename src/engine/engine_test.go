@@ -84,11 +84,14 @@ func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
 	c.Assert(result, DeepEquals, series)
 }
 
+// All tests do more or less the following steps
+//
 // 1. initialize an engine
 // 2. generate a query
 // 3. issue query to engine
 // 4. mock coordinator
 // 5. verify that data is returned
+
 func (self *EngineSuite) TestBasicQuery(c *C) {
 	mockData := `
 [
