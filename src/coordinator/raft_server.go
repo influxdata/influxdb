@@ -20,18 +20,16 @@ import (
 // The raftd server is a combination of the Raft server and an HTTP
 // server which acts as the transport.
 type RaftServer struct {
-	name                        string
-	host                        string
-	port                        int
-	path                        string
-	router                      *mux.Router
-	raftServer                  *raft.Server
-	httpServer                  *http.Server
-	clusterConfig               *ClusterConfiguration
-	mutex                       sync.RWMutex
-	listener                    net.Listener
-	nameToConnectionStrings     map[string]string
-	nameToConnectionStringsLock sync.RWMutex
+	name          string
+	host          string
+	port          int
+	path          string
+	router        *mux.Router
+	raftServer    *raft.Server
+	httpServer    *http.Server
+	clusterConfig *ClusterConfiguration
+	mutex         sync.RWMutex
+	listener      net.Listener
 }
 
 var registeredCommands bool
@@ -47,12 +45,11 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 		raft.RegisterCommand(&RemoveServerFromLocationCommand{})
 	}
 	s := &RaftServer{
-		host:                    host,
-		port:                    port,
-		path:                    path,
-		clusterConfig:           clusterConfig,
-		router:                  mux.NewRouter(),
-		nameToConnectionStrings: make(map[string]string),
+		host:          host,
+		port:          port,
+		path:          path,
+		clusterConfig: clusterConfig,
+		router:        mux.NewRouter(),
 	}
 
 	// Read existing name or generate a new one.
@@ -76,10 +73,6 @@ func (s *RaftServer) leaderConnectString() (string, bool) {
 	} else {
 		return peer.ConnectionString, true
 	}
-	// s.nameToConnectionStringsLock.RLock()
-	// defer s.nameToConnectionStringsLock.RUnlock()
-	// l, ok := s.nameToConnectionStrings[leader]
-	// return l, ok
 }
 
 func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) error {
@@ -241,11 +234,6 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 	if _, err := s.raftServer.Do(command); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	} else {
-		s.nameToConnectionStringsLock.Lock()
-		defer s.nameToConnectionStringsLock.Unlock()
-		log.Println("Adding: ", command.Name, command.ConnectionString)
-		s.nameToConnectionStrings[command.Name] = command.ConnectionString
 	}
 }
 
