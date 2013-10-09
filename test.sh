@@ -6,21 +6,13 @@ cd `dirname $0`
 . exports.sh
 
 function print_usage {
-    echo "$0 [-o] [-p]"
+    echo "$0 [-o regex] [-p package_name]"
     echo "  -o|--only:     Run the test that matches the given regex"
     echo "  -p|--packages: Run the test in the given packages only"
     echo "  -h|--help:     Prints this help message"
 }
 
-TEMP=`getopt -o hp:o: --long help,only:,packages: \
-     -n $0 -- "$@"`
-
-if [ $? != 0 ] ; then print_usage ; exit 1 ; fi
-
-# Note the quotes around `$TEMP': they are essential!
-eval set -- "$TEMP"
-
-while true ; do
+while [ $# -ne 0 ]; do
     case "$1" in
         -h|--help) print_usage; exit 1; shift;;
         -o|--only) regex=$2; shift 2;;
