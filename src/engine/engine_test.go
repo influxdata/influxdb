@@ -315,7 +315,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(*), column_one from foo.* group by column_one;", c, `[
+	runQuery(engine, "select count(*), column_one from foo group by column_one;", c, `[
   {
     "points": [
       {
@@ -336,7 +336,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
             "int_value": 1
           },
           {
-            "string_value": "some_value"
+            "string_value": "another_value"
           }
         ],
         "timestamp": 1381346631,
