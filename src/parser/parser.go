@@ -6,6 +6,7 @@ import "C"
 
 import (
 	"fmt"
+	"time"
 	"unsafe"
 )
 
@@ -37,6 +38,19 @@ type BoolExpression struct {
 }
 
 type GroupByClause []*Value
+
+func (self GroupByClause) GetGroupByTime() (time.Duration, bool) {
+	for _, groupBy := range self {
+		if groupBy.IsFunctionCall() {
+			// TODO: check the number of arguments and return an error
+			// TODO: check the function name
+			// TODO: error checking
+			duration, _ := time.ParseDuration(groupBy.Elems[0].Name)
+			return duration, true
+		}
+	}
+	return 0, false
+}
 
 type WhereCondition struct {
 	isBooleanExpression bool
