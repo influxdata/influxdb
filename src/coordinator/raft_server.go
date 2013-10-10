@@ -264,7 +264,6 @@ func (s *RaftServer) configHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http.Request) error {
-	log.Println("marshalAndDoCommand")
 	if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
 		return err
 	}
