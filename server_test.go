@@ -385,7 +385,7 @@ func TestServerRecoverFromPreviousLogAndConf(t *testing.T) {
 	// commit some commands
 	for i := 0; i < 10; i++ {
 		if _, err := leader.Do(&testCommand2{X: 1}); err != nil {
-			t.Fatalf("cannot commit command:", err.Error())
+			t.Fatalf("cannot commit command: %s", err.Error())
 		}
 	}
 
