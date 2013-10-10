@@ -36,7 +36,7 @@ popd
 
 go get launchpad.net/gocheck
 
-go fmt $packages
+go fmt $packages || echo "Cannot format code"
 
 ./build.sh
 
