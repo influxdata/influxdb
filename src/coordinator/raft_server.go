@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -212,28 +213,50 @@ func (s *RaftServer) Join(leader string) error {
 		Name:             s.raftServer.Name(),
 		ConnectionString: s.connectionString(),
 	}
+	connectUrl := leader
+	if !strings.HasPrefix(connectUrl, "http://") {
+		connectUrl = "http://" + connectUrl
+	}
+	if !strings.HasSuffix(connectUrl, "/join") {
+		connectUrl = connectUrl + "/join"
+	}
 
 	var b bytes.Buffer
 	json.NewEncoder(&b).Encode(command)
-	resp, err := http.Post(fmt.Sprintf("http://%s/join", leader), "application/json", &b)
+	resp, err := http.Post(connectUrl, "application/json", &b)
 	if err != nil {
+		log.Println("ERROR: ", err)
 		return err
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTemporaryRedirect {
+		address := resp.Header.Get("Location")
+		log.Printf("Redirected to %s to join leader\n", address)
+		return s.Join(address)
+	}
 
 	return nil
 }
 
 func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
-	command := &raft.DefaultJoinCommand{}
+	if s.raftServer.State() == raft.Leader {
+		command := &raft.DefaultJoinCommand{}
 
-	if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if _, err := s.raftServer.Do(command); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if _, err := s.raftServer.Do(command); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		if leader, ok := s.leaderConnectString(); ok {
+			log.Println("redirecting to leader to join...")
+			http.Redirect(w, req, leader+"/join", http.StatusTemporaryRedirect)
+		} else {
+			http.Error(w, errors.New("Couldn't find leader of the cluster to join").Error(), http.StatusInternalServerError)
+		}
 	}
 }
 

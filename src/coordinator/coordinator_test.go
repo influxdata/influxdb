@@ -304,3 +304,52 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	assertConfigContains(port2, "sdf", true, c)
 	assertConfigContains(port3, "sdf", true, c)
 }
+
+func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader(c *C) {
+	logDir1 := nextDir()
+	port1 := nextPort()
+	logDir2 := nextDir()
+	port2 := nextPort()
+	logDir3 := nextDir()
+	port3 := nextPort()
+	defer clearPath(logDir1)
+	defer clearPath(logDir2)
+	defer clearPath(logDir3)
+
+	_, server := newConfigAndServer(logDir1, port1)
+
+	var err error
+	go func() {
+		err = server.ListenAndServe([]string{fmt.Sprintf("localhost:%d", port2)}, false)
+	}()
+
+	_, server2 := newConfigAndServer(logDir2, port2)
+	defer server2.Close()
+
+	var err2 error
+	go func() {
+		err2 = server2.ListenAndServe([]string{fmt.Sprintf("localhost:%d", port1), fmt.Sprintf("localhost:%d", port3)}, true)
+	}()
+
+	_, server3 := newConfigAndServer(logDir3, port3)
+	defer server3.Close()
+
+	var err3 error
+	go func() {
+		err3 = server3.ListenAndServe([]string{fmt.Sprintf("localhost:%d", port2)}, true)
+	}()
+	time.Sleep(time.Second)
+
+	c.Assert(err, Equals, nil)
+	c.Assert(err2, Equals, nil)
+	c.Assert(err3, Equals, nil)
+	leader, _ := server2.leaderConnectString()
+	c.Assert(leader, Equals, fmt.Sprintf("http://localhost:%d", port1))
+
+	err = server.AddReadApiKey("db", "key1")
+	c.Assert(err, Equals, nil)
+	time.Sleep(time.Millisecond * 200)
+	assertConfigContains(port1, "key1", true, c)
+	assertConfigContains(port2, "key1", true, c)
+	assertConfigContains(port3, "key1", true, c)
+}
