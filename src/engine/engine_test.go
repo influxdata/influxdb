@@ -324,6 +324,18 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
             "int_value": 1
           },
           {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int_value": 1
+          },
+          {
             "string_value": "another_value"
           }
         ],
@@ -346,6 +358,26 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
 ]
 `)
 
+}
+
+func (self *EngineSuite) BenchmarkFoo(c *C) {
+	counts := map[interface{}]int{}
+	for i := 0; i < c.N; i++ {
+		foo := [4]interface{}{i % 10, i % 100, i % 20, i % 50}
+		counts[foo]++
+	}
+
+	fmt.Printf("count: %d\n", counts[[4]interface{}{0, 0, 0, 0}])
+}
+
+func (self *EngineSuite) BenchmarkStringFoo(c *C) {
+	counts := map[string]int{}
+	for i := 0; i < c.N; i++ {
+		foo := fmt.Sprintf("%d|%d|%d|%d", i%10, i%100, i%20, i%50)
+		counts[foo]++
+	}
+
+	fmt.Printf("count: %d\n", counts["0|0|0|0"])
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C) {
@@ -450,18 +482,6 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
           },
           {
             "int_value": 1
-          }
-        ],
-        "timestamp": 1381346631,
-        "sequence_number": 1
-      },
-			{
-        "values": [
-          {
-            "int_value": 1
-          },
-          {
-            "string_value": "another_value"
           }
         ],
         "timestamp": 1381346631,

@@ -81,37 +81,99 @@ func (self *QueryEngine) executeCountQuery(query *parser.Query, yield func(*prot
 	return nil
 }
 
-func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield func(*protocol.Series) error) error {
-	counts := make(map[interface{}]int32)
-	var timestamp int64 = 0
-	groupBy := query.GetGroupByClause()[0]
-	var columnType protocol.FieldDefinition_Type
+func getValueFromPoint(value *protocol.FieldValue, fType protocol.FieldDefinition_Type) interface{} {
+	switch fType {
+	case protocol.FieldDefinition_STRING:
+		return *value.StringValue
+	case protocol.FieldDefinition_INT32:
+		return *value.IntValue
+	case protocol.FieldDefinition_BOOL:
+		return *value.BoolValue
+	case protocol.FieldDefinition_DOUBLE:
+		return *value.DoubleValue
+	default:
+		panic("WTF")
+	}
+}
 
-	self.coordinator.DistributeQuery(query, func(series *protocol.Series) error {
-		var columnIndex int
+type Mapper func(*protocol.Point) interface{}
+type InverseMapper func(interface{}, int) interface{}
 
-		for index, value := range series.Fields {
-			if *value.Name == groupBy.Name {
-				columnIndex = index
-				columnType = *value.Type
+func createValuesToInterface(names []string, definitions []*protocol.FieldDefinition) (Mapper, InverseMapper) {
+	switch len(names) {
+	case 1:
+		idx := 0
+		var fType protocol.FieldDefinition_Type
+
+		for index, definition := range definitions {
+			if *definition.Name == names[0] {
+				idx = index
+				fType = *definition.Type
 				break
 			}
 		}
 
-		for _, point := range series.Points {
-			var value interface{}
-
-			switch columnType {
-			case protocol.FieldDefinition_STRING:
-				value = *point.Values[columnIndex].StringValue
-			case protocol.FieldDefinition_INT32:
-				value = *point.Values[columnIndex].IntValue
-			case protocol.FieldDefinition_DOUBLE:
-				value = *point.Values[columnIndex].DoubleValue
-			case protocol.FieldDefinition_BOOL:
-				value = *point.Values[columnIndex].BoolValue
+		return func(p *protocol.Point) interface{} {
+				return getValueFromPoint(p.Values[idx], fType)
+			}, func(i interface{}, idx int) interface{} {
+				return i
 			}
 
+	case 2:
+		idx1, idx2 := -1, -1
+		var fType1, fType2 protocol.FieldDefinition_Type
+
+		for index, definition := range definitions {
+			if *definition.Name == names[0] {
+				idx1 = index
+				fType1 = *definition.Type
+			} else if *definition.Name == names[1] {
+				idx2 = index
+				fType2 = *definition.Type
+			}
+			if idx1 > 0 && idx2 > 0 {
+				break
+			}
+		}
+
+		return func(p *protocol.Point) interface{} {
+				return [2]interface{}{
+					getValueFromPoint(p.Values[idx1], fType1),
+					getValueFromPoint(p.Values[idx2], fType2),
+				}
+			}, func(i interface{}, idx int) interface{} {
+				return i.([2]interface{})[idx]
+			}
+
+	default:
+		// TODO: return an error instead of killing the entire process
+		panic("Group by with more than n columns aren't supported")
+	}
+}
+
+func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield func(*protocol.Series) error) error {
+	counts := make(map[interface{}]int32)
+	var timestamp int64 = 0
+	groupBy := query.GetGroupByClause()
+
+	names := []string{}
+	for _, groupByElem := range groupBy {
+		names = append(names, groupByElem.Name)
+	}
+
+	fieldTypes := map[string]*protocol.FieldDefinition_Type{}
+	var inverse InverseMapper
+
+	self.coordinator.DistributeQuery(query, func(series *protocol.Series) error {
+		var mapper Mapper
+		mapper, inverse = createValuesToInterface(names, series.Fields)
+
+		for _, field := range series.Fields {
+			fieldTypes[*field.Name] = field.Type
+		}
+
+		for _, point := range series.Points {
+			value := mapper(point)
 			c := counts[value]
 			counts[value] = c + 1
 		}
@@ -131,25 +193,43 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield
 
 	fields := []*protocol.FieldDefinition{
 		&protocol.FieldDefinition{Name: &expectedName, Type: &expectedFieldType},
-		&protocol.FieldDefinition{Name: &groupBy.Name, Type: &columnType},
+	}
+
+	for _, name := range names {
+		tempName := name
+		fields = append(fields, &protocol.FieldDefinition{Name: &tempName, Type: fieldTypes[name]})
 	}
 
 	for key, count := range counts {
-		tempKey := key.(string)
+		tempKey := key
 		tempCount := count
 
-		points = append(points, &protocol.Point{
+		point := &protocol.Point{
 			Timestamp:      &timestamp,
 			SequenceNumber: &sequenceNumber,
 			Values: []*protocol.FieldValue{
 				&protocol.FieldValue{
 					IntValue: &tempCount,
 				},
-				&protocol.FieldValue{
-					StringValue: &tempKey,
-				},
 			},
-		})
+		}
+
+		for idx, _ := range names {
+			value := inverse(tempKey, idx)
+
+			switch x := value.(type) {
+			case string:
+				point.Values = append(point.Values, &protocol.FieldValue{StringValue: &x})
+			case int32:
+				point.Values = append(point.Values, &protocol.FieldValue{IntValue: &x})
+			case bool:
+				point.Values = append(point.Values, &protocol.FieldValue{BoolValue: &x})
+			case float64:
+				point.Values = append(point.Values, &protocol.FieldValue{DoubleValue: &x})
+			}
+		}
+
+		points = append(points, point)
 	}
 
 	expectedData := &protocol.Series{
