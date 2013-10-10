@@ -1,11 +1,14 @@
 package coordinator
 
 import (
+	"fmt"
 	"sync"
 )
 
 type ClusterConfiguration struct {
 	MaxRingLocation           int64
+	nextDatabaseId            int
+	nextDatabaseIdLock        sync.Mutex
 	RingLocationToServers     map[int64][]string
 	ringLocationToServersLock sync.RWMutex
 	ReadApiKeys               map[string]bool
@@ -81,4 +84,18 @@ func (self *ClusterConfiguration) IsValidWriteKey(database, key string) bool {
 	self.writeApiKeysLock.RLock()
 	defer self.writeApiKeysLock.RUnlock()
 	return self.WriteApiKeys[database+key]
+}
+
+func (self *ClusterConfiguration) NextDatabaseId() string {
+	self.nextDatabaseIdLock.Lock()
+	self.nextDatabaseId += 1
+	id := self.nextDatabaseId
+	self.nextDatabaseIdLock.Unlock()
+	return fmt.Sprintf("%d", id)
+}
+
+func (self *ClusterConfiguration) CurrentDatabaseId() string {
+	self.nextDatabaseIdLock.Lock()
+	defer self.nextDatabaseIdLock.Unlock()
+	return fmt.Sprintf("%d", self.nextDatabaseId)
 }

@@ -38,12 +38,13 @@ var registeredCommands bool
 // Creates a new server.
 func NewRaftServer(path string, host string, port int, clusterConfig *ClusterConfiguration) *RaftServer {
 	if !registeredCommands {
-		//		raft.SetLogLevel(raft.Trace)
+		// raft.SetLogLevel(raft.Trace)
 		registeredCommands = true
 		raft.RegisterCommand(&AddApiKeyCommand{})
 		raft.RegisterCommand(&RemoveApiKeyCommand{})
 		raft.RegisterCommand(&AddServerToLocationCommand{})
 		raft.RegisterCommand(&RemoveServerFromLocationCommand{})
+		raft.RegisterCommand(&NextDatabaseIdCommand{})
 	}
 	s := &RaftServer{
 		host:          host,
@@ -76,49 +77,64 @@ func (s *RaftServer) leaderConnectString() (string, bool) {
 	}
 }
 
-func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) error {
+func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) (interface{}, error) {
 	if s.raftServer.State() == raft.Leader {
-		_, err := s.raftServer.Do(command)
-		return err
+		ret, err := s.raftServer.Do(command)
+		return ret, err
 	} else {
 		if leader, ok := s.leaderConnectString(); !ok {
-			return errors.New("Couldn't connect to the cluster leader...")
+			return nil, errors.New("Couldn't connect to the cluster leader...")
 		} else {
 			var b bytes.Buffer
 			json.NewEncoder(&b).Encode(command)
 			resp, err := http.Post(leader+"/process_command/"+commandType, "application/json", &b)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			resp.Body.Close()
+			defer resp.Body.Close()
+			body, err2 := ioutil.ReadAll(resp.Body)
+			var js interface{}
+			json.Unmarshal(body, &js)
+			return js, err2
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func (s *RaftServer) AddReadApiKey(db, key string) error {
 	command := NewAddApikeyCommand(db, key, ReadKey)
-	return s.doOrProxyCommand(command, "add_api_key")
+	_, err := s.doOrProxyCommand(command, "add_api_key")
+	return err
 }
 
 func (s *RaftServer) AddWriteApiKey(db, key string) error {
 	command := NewAddApikeyCommand(db, key, WriteKey)
-	return s.doOrProxyCommand(command, "add_api_key")
+	_, err := s.doOrProxyCommand(command, "add_api_key")
+	return err
 }
 
 func (s *RaftServer) RemoveApiKey(db, key string) error {
 	command := NewRemoveApiKeyCommand(db, key)
-	return s.doOrProxyCommand(command, "remove_api_key")
+	_, err := s.doOrProxyCommand(command, "remove_api_key")
+	return err
 }
 
 func (s *RaftServer) AddServerToLocation(host string, location int64) error {
 	command := NewAddServerToLocationCommand(host, location)
-	return s.doOrProxyCommand(command, "add_server")
+	_, err := s.doOrProxyCommand(command, "add_server")
+	return err
 }
 
 func (s *RaftServer) RemoveServerFromLocation(host string, location int64) error {
 	command := NewRemoveServerFromLocationCommand(host, location)
-	return s.doOrProxyCommand(command, "remove_server")
+	_, err := s.doOrProxyCommand(command, "remove_server")
+	return err
+}
+
+func (s *RaftServer) GetNextDatabaseId() (string, error) {
+	command := NewNextDatabaseIdCommand(s.clusterConfig.nextDatabaseId)
+	id, err := s.doOrProxyCommand(command, "next_db")
+	return id.(string), err
 }
 
 func (s *RaftServer) connectionString() string {
@@ -286,14 +302,15 @@ func (s *RaftServer) configHandler(w http.ResponseWriter, req *http.Request) {
 	w.Write(js)
 }
 
-func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http.Request) error {
+func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http.Request) (interface{}, error) {
 	if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
-		return err
+		return nil, err
 	}
-	if _, err := s.raftServer.Do(command); err != nil {
-		return err
+	if result, err := s.raftServer.Do(command); err != nil {
+		return nil, err
+	} else {
+		return result, nil
 	}
-	return nil
 }
 
 func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Request) {
@@ -308,8 +325,16 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		command = &AddServerToLocationCommand{}
 	} else if value == "remove_server" {
 		command = &RemoveServerFromLocationCommand{}
+	} else if value == "next_db" {
+		command = &NextDatabaseIdCommand{}
 	}
-	if err := s.marshalAndDoCommandFromBody(command, req); err != nil {
+	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
+		log.Println("ERROR processCommandHanlder", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	} else {
+		if result != nil {
+			js, _ := json.Marshal(result)
+			w.Write(js)
+		}
 	}
 }

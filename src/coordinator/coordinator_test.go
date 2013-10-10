@@ -32,6 +32,42 @@ func nextDir() string {
 	return fmt.Sprintf("test_%d", nextDirNum)
 }
 
+func startAndVerifyCluster(count int, c *C) []*RaftServer {
+	servers := make([]*RaftServer, count, count)
+	errs := make([]error, count, count)
+	for i := 0; i < count; i++ {
+		path := nextDir()
+		port := nextPort()
+		_, server := newConfigAndServer(path, port)
+		servers[i] = server
+
+		var err error
+		if i == 0 {
+			go func() {
+				err = server.ListenAndServe([]string{}, false)
+			}()
+		} else {
+			go func() {
+				err = server.ListenAndServe([]string{fmt.Sprintf("http://localhost:%d", servers[0].port)}, true)
+			}()
+		}
+		errs[i] = err
+	}
+	time.Sleep(time.Second)
+	for _, err := range errs {
+		c.Assert(err, Equals, nil)
+	}
+	return servers
+}
+
+func clean(servers []*RaftServer) {
+	for _, server := range servers {
+		server.Close()
+	}
+	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
+	clearPath("")
+}
+
 func newConfigAndServer(path string, port int) (*ClusterConfiguration, *RaftServer) {
 	fullPath := "/tmp/chronos_coordinator_test/" + path
 	os.MkdirAll(fullPath, 0744)
@@ -55,6 +91,7 @@ func assertConfigContains(port int, contains string, isContained bool, c *C) {
 }
 
 func (self *CoordinatorSuite) TestCanCreateCoordinatorWithNoSeed(c *C) {
+	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	logDir := nextDir()
 	port := nextPort()
 	_, server := newConfigAndServer(logDir, port)
@@ -69,6 +106,7 @@ func (self *CoordinatorSuite) TestCanCreateCoordinatorWithNoSeed(c *C) {
 }
 
 func (self *CoordinatorSuite) TestCanCreateCoordinatorWithSeedThatIsNotRunning(c *C) {
+	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	logDir := nextDir()
 	port := nextPort()
 	_, server := newConfigAndServer(logDir, port)
@@ -83,6 +121,7 @@ func (self *CoordinatorSuite) TestCanCreateCoordinatorWithSeedThatIsNotRunning(c
 }
 
 func (self *CoordinatorSuite) TestCanRecoverCoordinatorWithData(c *C) {
+	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	logDir := nextDir()
 	port := nextPort()
 	_, server := newConfigAndServer(logDir, port)
@@ -112,6 +151,7 @@ func (self *CoordinatorSuite) TestCanRecoverCoordinatorWithData(c *C) {
 }
 
 func (self *CoordinatorSuite) TestCanCreateCoordinatorsAndReplicate(c *C) {
+	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	logDir1 := nextDir()
 	port1 := nextPort()
 	logDir2 := nextDir()
@@ -146,6 +186,7 @@ func (self *CoordinatorSuite) TestCanCreateCoordinatorsAndReplicate(c *C) {
 }
 
 func (self *CoordinatorSuite) TestDoWriteOperationsFromNonLeaderServer(c *C) {
+	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	logDir1 := nextDir()
 	port1 := nextPort()
 	logDir2 := nextDir()
@@ -195,6 +236,7 @@ func (self *CoordinatorSuite) TestDoWriteOperationsFromNonLeaderServer(c *C) {
 }
 
 func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
+	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	logDir := nextDir()
 	port := nextPort()
 	logDir2 := nextDir()
@@ -225,6 +267,7 @@ func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
 }
 
 func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
+	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	logDir1 := nextDir()
 	port1 := nextPort()
 	logDir2 := nextDir()
@@ -306,6 +349,7 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 }
 
 func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader(c *C) {
+	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	logDir1 := nextDir()
 	port1 := nextPort()
 	logDir2 := nextDir()
@@ -352,4 +396,24 @@ func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader
 	assertConfigContains(port1, "key1", true, c)
 	assertConfigContains(port2, "key1", true, c)
 	assertConfigContains(port3, "key1", true, c)
+}
+
+func (self *CoordinatorSuite) TestCanCreateDatabase(c *C) {
+	servers := startAndVerifyCluster(3, c)
+	defer clean(servers)
+	id, _ := servers[0].GetNextDatabaseId()
+	time.Sleep(time.Second)
+	c.Assert(id, Equals, "1")
+	time.Sleep(time.Millisecond * 100)
+	c.Assert(id, Equals, servers[1].clusterConfig.CurrentDatabaseId())
+	c.Assert(id, Equals, servers[2].clusterConfig.CurrentDatabaseId())
+	id2, _ := servers[1].GetNextDatabaseId()
+	id3, _ := servers[2].GetNextDatabaseId()
+	id4, _ := servers[0].GetNextDatabaseId()
+	c.Assert(id2, Equals, "2")
+	c.Assert(id3, Equals, "3")
+	c.Assert(id4, Equals, "4")
+	time.Sleep(time.Millisecond * 100)
+	c.Assert(id4, Equals, servers[1].clusterConfig.CurrentDatabaseId())
+	c.Assert(id4, Equals, servers[2].clusterConfig.CurrentDatabaseId())
 }

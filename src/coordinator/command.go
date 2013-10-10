@@ -93,3 +93,21 @@ func (c *RemoveApiKeyCommand) Apply(server *raft.Server) (interface{}, error) {
 	config.DeleteApiKey(c.Database, c.ApiKey)
 	return nil, nil
 }
+
+type NextDatabaseIdCommand struct {
+	LastId int `json:"last_id"`
+}
+
+func NewNextDatabaseIdCommand(lastId int) *NextDatabaseIdCommand {
+	return &NextDatabaseIdCommand{lastId}
+}
+
+func (c *NextDatabaseIdCommand) CommandName() string {
+	return "next_db"
+}
+
+func (c *NextDatabaseIdCommand) Apply(server *raft.Server) (interface{}, error) {
+	config := server.Context().(*ClusterConfiguration)
+	id := config.NextDatabaseId()
+	return id, nil
+}
