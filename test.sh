@@ -43,4 +43,6 @@ echo "Running tests for packages: $test_packages"
 
 [ "x$regex" != "x" ] && gocheck_args="-gocheck.f $regex"
 
+ulimit -n 2048 || echo could not change ulimit
+
 go test $test_packages -v -gocheck.v $gocheck_args
