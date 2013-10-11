@@ -27,7 +27,9 @@ type MockCoordinator struct {
 
 func (self *MockCoordinator) DistributeQuery(query *parser.Query, yield func(*protocol.Series) error) error {
 	for _, series := range self.series {
-		yield(series)
+		if err := yield(series); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -591,6 +593,108 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
       {
         "type": "INT32",
         "name": "count"
+      }
+    ]
+  }
+]
+`)
+
+}
+
+func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
+	// make the mock coordinator return some data
+	engine := createEngine(c, `
+[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346641,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "string_value": "another_value"
+          }
+        ],
+        "timestamp": 1381346701,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346721,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": [
+      {
+        "type": "STRING",
+        "name": "column_one"
+      }
+    ]
+  }
+]
+`)
+
+	runQuery(engine, "select count(*), column_one from foo group by time(1m), column_one;", c, `[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int_value": 1
+          },
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346640,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int_value": 1
+          },
+          {
+            "string_value": "another_value"
+          }
+        ],
+        "timestamp": 1381346700,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int_value": 1
+          },
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346700,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": [
+      {
+        "type": "INT32",
+        "name": "count"
+      },
+      {
+        "type": "STRING",
+        "name": "column_one"
       }
     ]
   }

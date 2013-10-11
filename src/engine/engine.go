@@ -119,19 +119,36 @@ func getTimestampFromPoint(window time.Duration, point *protocol.Point) int64 {
 type Mapper func(*protocol.Point) interface{}
 type InverseMapper func(interface{}, int) interface{}
 
-func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protocol.FieldDefinition) (Mapper, InverseMapper) {
+// Returns a mapper and inverse mapper. A mapper is a function to map
+// a point to a group and return an identifier of the group that can
+// be used in a map (i.e. the returned interface must be hashable).
+// An inverse mapper, takes a result of the mapper identifier and
+// return the column values and/or timestamp bucket that defines the
+// given group.
+func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protocol.FieldDefinition) (Mapper, InverseMapper, error) {
 	// we shouldn't get an error, this is checked earlier in the executeCountQueryWithGroupBy
 	window, _ := groupBy.GetGroupByTime()
 	names := []string{}
 	for _, value := range groupBy {
+		if value.IsFunctionCall() {
+			continue
+		}
 		names = append(names, value.Name)
 	}
 
-	switch len(groupBy) {
-	case 1:
-		idx := 0
-		var fType protocol.FieldDefinition_Type
+	switch len(names) {
+	case 0:
+		// this must be group by time
+		return func(p *protocol.Point) interface{} {
+				return getTimestampFromPoint(*window, p)
+			}, func(i interface{}, idx int) interface{} {
+				return i
+			}, nil
 
+	case 1:
+		// otherwise, find the type of the column and create a mapper
+		idx := -1
+		var fType protocol.FieldDefinition_Type
 		for index, definition := range definitions {
 			if *definition.Name == names[0] {
 				idx = index
@@ -140,17 +157,32 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 			}
 		}
 
+		if idx == -1 {
+			return nil, nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Invalid column name %s", groupBy[0].Name))
+		}
+
+		if window != nil {
+			return func(p *protocol.Point) interface{} {
+					return [2]interface{}{
+						getTimestampFromPoint(*window, p),
+						getValueFromPoint(p.Values[idx], fType),
+					}
+				}, func(i interface{}, idx int) interface{} {
+					return i.([2]interface{})[idx]
+				}, nil
+		}
 		return func(p *protocol.Point) interface{} {
-				if window != nil {
-					return getTimestampFromPoint(*window, p)
-				} else {
-					return getValueFromPoint(p.Values[idx], fType)
-				}
+				return getValueFromPoint(p.Values[idx], fType)
 			}, func(i interface{}, idx int) interface{} {
 				return i
-			}
+			}, nil
 
 	case 2:
+		names := []string{}
+		for _, value := range groupBy {
+			names = append(names, value.Name)
+		}
+
 		idx1, idx2 := -1, -1
 		var fType1, fType2 protocol.FieldDefinition_Type
 
@@ -167,6 +199,18 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 			}
 		}
 
+		if window != nil {
+			return func(p *protocol.Point) interface{} {
+					return [3]interface{}{
+						getTimestampFromPoint(*window, p),
+						getValueFromPoint(p.Values[idx1], fType1),
+						getValueFromPoint(p.Values[idx2], fType2),
+					}
+				}, func(i interface{}, idx int) interface{} {
+					return i.([3]interface{})[idx]
+				}, nil
+		}
+
 		return func(p *protocol.Point) interface{} {
 				return [2]interface{}{
 					getValueFromPoint(p.Values[idx1], fType1),
@@ -174,11 +218,11 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 				}
 			}, func(i interface{}, idx int) interface{} {
 				return i.([2]interface{})[idx]
-			}
+			}, nil
 
 	default:
 		// TODO: return an error instead of killing the entire process
-		panic("Group by with more than n columns aren't supported")
+		return nil, nil, common.NewQueryError(common.InvalidArgument, "Group by currently support up to two columns and an optional group by time")
 	}
 }
 
@@ -196,9 +240,12 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield
 		return err
 	}
 
-	self.coordinator.DistributeQuery(query, func(series *protocol.Series) error {
+	err = self.coordinator.DistributeQuery(query, func(series *protocol.Series) error {
 		var mapper Mapper
-		mapper, inverse = createValuesToInterface(groupBy, series.Fields)
+		mapper, inverse, err = createValuesToInterface(groupBy, series.Fields)
+		if err != nil {
+			return err
+		}
 
 		for _, field := range series.Fields {
 			fieldTypes[*field.Name] = field.Type
@@ -218,6 +265,10 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield
 
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
 
 	expectedFieldType := protocol.FieldDefinition_INT32
 	expectedName := "count"
