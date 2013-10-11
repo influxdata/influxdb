@@ -31,6 +31,7 @@ type RaftServer struct {
 	clusterConfig *ClusterConfiguration
 	mutex         sync.RWMutex
 	listener      net.Listener
+	closing       bool
 }
 
 var registeredCommands bool
@@ -213,8 +214,11 @@ func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bo
 }
 
 func (self *RaftServer) Close() {
-	self.raftServer.Stop()
-	self.listener.Close()
+	if !self.closing {
+		self.closing = true
+		self.raftServer.Stop()
+		self.listener.Close()
+	}
 }
 
 // This is a hack around Gorilla mux not providing the correct net/http

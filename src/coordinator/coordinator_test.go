@@ -283,6 +283,7 @@ func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
 
 func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	servers := startAndVerifyCluster(3, c)
+	defer clean(servers)
 
 	err := servers[0].AddReadApiKey("db", "key1")
 	c.Assert(err, Equals, nil)
@@ -298,7 +299,7 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	servers[0].Close()
 	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	err = nil
-	time.Sleep(REPLICATION_LAG)
+	time.Sleep(SERVER_STARTUP_TIME)
 	leader, _ = servers[1].leaderConnectString()
 	c.Assert(leader, Not(Equals), fmt.Sprintf("http://localhost:%d", servers[0].port))
 	err = servers[1].AddReadApiKey("db", "key2")
@@ -396,4 +397,7 @@ func (self *CoordinatorSuite) TestCanCreateDatabase(c *C) {
 	time.Sleep(REPLICATION_LAG)
 	c.Assert(id4, Equals, servers[1].clusterConfig.CurrentDatabaseId())
 	c.Assert(id4, Equals, servers[2].clusterConfig.CurrentDatabaseId())
+}
+
+func (self *CoordinatorSuite) TestDistributesRingLocationsToNewServer(c *C) {
 }
