@@ -3,6 +3,7 @@ package common
 const (
 	WrongNumberOfArguments = iota
 	InvalidArgument
+	InternalError
 )
 
 type QueryError struct {

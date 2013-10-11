@@ -1,9 +1,13 @@
 package engine
 
 import (
+	"common"
 	"coordinator"
+	"fmt"
+	"os"
 	"parser"
 	"protocol"
+	"runtime"
 	"time"
 )
 
@@ -11,7 +15,18 @@ type QueryEngine struct {
 	coordinator coordinator.Coordinator
 }
 
-func (self *QueryEngine) RunQuery(query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *QueryEngine) RunQuery(query *parser.Query, yield func(*protocol.Series) error) (err error) {
+	// don't let a panic pass beyond RunQuery
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Fprintf(os.Stderr, "********************************BUG********************************\n")
+			buf := make([]byte, 1024)
+			n := runtime.Stack(buf, false)
+			fmt.Fprintf(os.Stderr, "Stacktrace: %s\n", string(buf[:n]))
+			err = common.NewQueryError(common.InternalError, "Internal Error")
+		}
+	}()
+
 	if isCountQuery(query) {
 		if groupBy := query.GetGroupByClause(); len(groupBy) > 0 {
 			return self.executeCountQueryWithGroupBy(query, yield)
