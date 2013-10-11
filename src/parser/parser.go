@@ -5,6 +5,7 @@ package parser
 import "C"
 
 import (
+	"common"
 	"fmt"
 	"time"
 	"unsafe"
@@ -39,17 +40,24 @@ type BoolExpression struct {
 
 type GroupByClause []*Value
 
-func (self GroupByClause) GetGroupByTime() (time.Duration, bool) {
+func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
 	for _, groupBy := range self {
 		if groupBy.IsFunctionCall() {
 			// TODO: check the number of arguments and return an error
+			if len(groupBy.Elems) != 1 {
+				return nil, common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
+			}
 			// TODO: check the function name
 			// TODO: error checking
-			duration, _ := time.ParseDuration(groupBy.Elems[0].Name)
-			return duration, true
+			arg := groupBy.Elems[0].Name
+			duration, err := time.ParseDuration(arg)
+			if err != nil {
+				return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("invalid argument %s to the time function", arg))
+			}
+			return &duration, nil
 		}
 	}
-	return 0, false
+	return nil, nil
 }
 
 type WhereCondition struct {

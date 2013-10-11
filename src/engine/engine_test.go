@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"common"
 	"encoding/json"
 	"fmt"
 	. "launchpad.net/gocheck"
@@ -58,6 +59,15 @@ func createEngine(c *C, seriesString string) EngineI {
 //
 // expectedSeries must be a json array, e.g. time series must by
 // inclosed in '[' and ']'
+func runQueryRunError(engine EngineI, query string, c *C, expectedErr error) {
+	q, err := parser.ParseQuery(query)
+	c.Assert(err, IsNil)
+
+	err = engine.RunQuery(q, func(series *protocol.Series) error { return nil })
+
+	c.Assert(err, DeepEquals, expectedErr)
+}
+
 func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
 	q, err := parser.ParseQuery(query)
 	c.Assert(err, IsNil)
@@ -508,6 +518,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
 `)
 
 }
+
 func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
 	// make the mock coordinator return some data
 	engine := createEngine(c, `
@@ -586,4 +597,16 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
 ]
 `)
 
+}
+
+func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidNumberOfArguments(c *C) {
+	err := common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
+	engine := createEngine(c, `[]`)
+	runQueryRunError(engine, "select count(*) from foo group by time(1h, 1m);", c, err)
+}
+
+func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidArgument(c *C) {
+	err := common.NewQueryError(common.InvalidArgument, "invalid argument foobar to the time function")
+	engine := createEngine(c, `[]`)
+	runQueryRunError(engine, "select count(*) from foo group by time(foobar);", c, err)
 }

@@ -105,7 +105,8 @@ type Mapper func(*protocol.Point) interface{}
 type InverseMapper func(interface{}, int) interface{}
 
 func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protocol.FieldDefinition) (Mapper, InverseMapper) {
-	window, ok := groupBy.GetGroupByTime()
+	// we shouldn't get an error, this is checked earlier in the executeCountQueryWithGroupBy
+	window, _ := groupBy.GetGroupByTime()
 	names := []string{}
 	for _, value := range groupBy {
 		names = append(names, value.Name)
@@ -125,8 +126,8 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 		}
 
 		return func(p *protocol.Point) interface{} {
-				if ok {
-					return getTimestampFromPoint(window, p)
+				if window != nil {
+					return getTimestampFromPoint(*window, p)
 				} else {
 					return getValueFromPoint(p.Values[idx], fType)
 				}
@@ -175,7 +176,10 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield
 	fieldTypes := map[string]*protocol.FieldDefinition_Type{}
 	var inverse InverseMapper
 
-	duration, ok := groupBy.GetGroupByTime()
+	duration, err := groupBy.GetGroupByTime()
+	if err != nil {
+		return err
+	}
 
 	self.coordinator.DistributeQuery(query, func(series *protocol.Series) error {
 		var mapper Mapper
@@ -190,8 +194,8 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield
 			c := counts[value]
 			counts[value] = c + 1
 
-			if ok {
-				timestamps[value] = getTimestampFromPoint(duration, point)
+			if duration != nil {
+				timestamps[value] = getTimestampFromPoint(*duration, point)
 			} else {
 				timestamps[value] = point.GetTimestamp()
 			}
