@@ -5,6 +5,7 @@ message FieldValue {
   optional int32 int_value = 2;
   optional double double_value = 3;
   optional bool bool_value = 4;
+  optional int64 int64_value = 5;
 }
 
 message FieldDefinition {
@@ -13,6 +14,7 @@ message FieldDefinition {
     INT32 = 2;
     DOUBLE = 3;
     BOOL = 4;
+    INT64 = 5;
   }
   required Type type = 1;
   required string name = 2;

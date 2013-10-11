@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 . ./exports.sh
 
 go get code.google.com/p/goprotobuf/proto
@@ -41,5 +43,7 @@ find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS:
 popd
 
 echo "packages: go build $packages"
+
+./compile_protobuf.sh
 
 go build $packages
