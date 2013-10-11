@@ -33,9 +33,9 @@ func (self *QueryEngine) RunQuery(query *parser.Query, yield func(*protocol.Seri
 		} else {
 			return self.executeCountQuery(query, yield)
 		}
-	} else if isMinQuery(query) {
+	} else if isFunctionQuery(query) {
 		if groupBy := query.GetGroupByClause(); len(groupBy) > 0 {
-			return self.executeMinQueryWithGroupBy(query, yield)
+			return self.executeFunctionQueryWithGroupBy(query, yield)
 		} else {
 			// return self.executeMinQuery(query, yield)
 		}
@@ -59,9 +59,9 @@ func isCountQuery(query *parser.Query) bool {
 	return false
 }
 
-func isMinQuery(query *parser.Query) bool {
+func isFunctionQuery(query *parser.Query) bool {
 	for _, column := range query.GetColumnNames() {
-		if column.IsFunctionCall() && column.Name == "min" {
+		if column.IsFunctionCall() && (column.Name == "min" || column.Name == "max") {
 			return true
 		}
 	}
@@ -349,17 +349,19 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield
 	return nil
 }
 
-func (self *QueryEngine) executeMinQueryWithGroupBy(query *parser.Query, yield func(*protocol.Series) error) error {
-	mins := make(map[interface{}]int32)
+func (self *QueryEngine) executeFunctionQueryWithGroupBy(query *parser.Query, yield func(*protocol.Series) error) error {
+	results := make(map[interface{}]int32)
 	timestamps := make(map[interface{}]int64)
-	var minField string
+	var functionType string
+	var functionField string
 	var inverse InverseMapper
 
 	groupBy := query.GetGroupByClause()
 
 	for _, column := range query.GetColumnNames() {
-		if column.IsFunctionCall() && column.Name == "min" {
-			minField = column.Elems[0].Name
+		if column.IsFunctionCall() && (column.Name == "min" || column.Name == "max") {
+			functionType = column.Name
+			functionField = column.Elems[0].Name
 		}
 	}
 
@@ -377,27 +379,42 @@ func (self *QueryEngine) executeMinQueryWithGroupBy(query *parser.Query, yield f
 
 		for idx, field := range series.Fields {
 			fieldTypes[*field.Name] = field.Type
-			if *field.Name == minField {
+			if *field.Name == functionField {
 				fieldIndex = idx
 			}
 		}
 
 		for _, point := range series.Points {
-			min := *point.Values[fieldIndex].IntValue
-			value := mapper(point)
+			key := mapper(point)
 
-			if oldMin, exists := mins[value]; exists {
-				if min < oldMin {
-					mins[value] = min
+			if functionType == "min" {
+				min := *point.Values[fieldIndex].IntValue
+
+				if oldMin, exists := results[key]; exists {
+					if min < oldMin {
+						results[key] = min
+					}
+				} else {
+					results[key] = min
 				}
-			} else {
-				mins[value] = min
+			}
+
+			if functionType == "max" {
+				max := *point.Values[fieldIndex].IntValue
+
+				if oldMax, exists := results[key]; exists {
+					if max > oldMax {
+						results[key] = max
+					}
+				} else {
+					results[key] = max
+				}
 			}
 
 			if duration != nil {
-				timestamps[value] = getTimestampFromPoint(*duration, point)
+				timestamps[key] = getTimestampFromPoint(*duration, point)
 			} else {
-				timestamps[value] = point.GetTimestamp()
+				timestamps[key] = point.GetTimestamp()
 			}
 		}
 
@@ -405,10 +422,9 @@ func (self *QueryEngine) executeMinQueryWithGroupBy(query *parser.Query, yield f
 	})
 
 	expectedFieldType := protocol.FieldDefinition_INT32
-	expectedName := "min"
+	expectedName := functionType
 	var sequenceNumber uint32 = 1
 
-	/* fields := []*protocol.FieldDefinition{} */
 	points := []*protocol.Point{}
 
 	fields := []*protocol.FieldDefinition{
@@ -424,9 +440,9 @@ func (self *QueryEngine) executeMinQueryWithGroupBy(query *parser.Query, yield f
 		fields = append(fields, &protocol.FieldDefinition{Name: &tempName, Type: fieldTypes[tempName]})
 	}
 
-	for key, count := range mins {
+	for key, result := range results {
 		tempKey := key
-		tempCount := count
+		tempValue := result
 
 		timestamp := timestamps[tempKey]
 
@@ -435,7 +451,7 @@ func (self *QueryEngine) executeMinQueryWithGroupBy(query *parser.Query, yield f
 			SequenceNumber: &sequenceNumber,
 			Values: []*protocol.FieldValue{
 				&protocol.FieldValue{
-					IntValue: &tempCount,
+					IntValue: &tempValue,
 				},
 			},
 		}
