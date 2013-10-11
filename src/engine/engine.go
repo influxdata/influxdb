@@ -364,11 +364,15 @@ func (self *QueryEngine) executeMinQueryWithGroupBy(query *parser.Query, yield f
 	}
 
 	fieldTypes := map[string]*protocol.FieldDefinition_Type{}
-	duration, ok := groupBy.GetGroupByTime()
+
+	duration, err := groupBy.GetGroupByTime()
+	if err != nil {
+		return err
+	}
 
 	self.coordinator.DistributeQuery(query, func(series *protocol.Series) error {
 		var mapper Mapper
-		mapper, inverse = createValuesToInterface(groupBy, series.Fields)
+		mapper, inverse, err = createValuesToInterface(groupBy, series.Fields)
 		var fieldIndex int
 
 		for idx, field := range series.Fields {
@@ -390,8 +394,8 @@ func (self *QueryEngine) executeMinQueryWithGroupBy(query *parser.Query, yield f
 				mins[value] = min
 			}
 
-			if ok {
-				timestamps[value] = getTimestampFromPoint(duration, point)
+			if duration != nil {
+				timestamps[value] = getTimestampFromPoint(*duration, point)
 			} else {
 				timestamps[value] = point.GetTimestamp()
 			}
