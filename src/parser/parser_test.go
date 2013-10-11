@@ -274,16 +274,25 @@ func (self *QueryParserSuite) TestParseWhereClauseParantheses(c *C) {
 	c.Assert(third.Operation, Equals, "<")
 }
 
-func (self *QueryParserSuite) TestParseSelectWithLast(c *C) {
-	q, err := ParseQuery("select value from t last 10;")
-	defer q.Close()
-	c.Assert(err, IsNil)
-	c.Assert(q.Limit, Equals, -10)
-
-	q, err = ParseQuery("select value from t first 10;")
+func (self *QueryParserSuite) TestParseSelectWithOrderByAndLimit(c *C) {
+	q, err := ParseQuery("select value from t order asc limit 10;")
 	defer q.Close()
 	c.Assert(err, IsNil)
 	c.Assert(q.Limit, Equals, 10)
+	c.Assert(q.Ascending, Equals, true)
+
+	q, err = ParseQuery("select value from t order desc;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	c.Assert(q.Limit, Equals, 0)
+	c.Assert(q.Ascending, Equals, false)
+
+	q, err = ParseQuery("select value from t limit 20;")
+	defer q.Close()
+	c.Assert(err, IsNil)
+	c.Assert(q.Limit, Equals, 20)
+	// ascending is the default
+	c.Assert(q.Ascending, Equals, true)
 }
 
 func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {

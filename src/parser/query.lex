@@ -27,6 +27,10 @@ last                      { return LAST; }
 from                      { return FROM; }
 where                     { return WHERE; }
 select                    { return SELECT; }
+limit                     { return LIMIT; }
+order                     { return ORDER; }
+asc                       { return ASC; }
+desc                      { return DESC; }
 group                     { return GROUP; }
 by                        { return BY; }
 "("                       { yylval->character = *yytext; return *yytext; }

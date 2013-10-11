@@ -52,6 +52,7 @@ typedef struct {
   condition *where_condition;
   error *error;
   int limit;
+  char ascending;
 } query;
 
 // some funcs for freeing our types

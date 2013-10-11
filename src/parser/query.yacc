@@ -25,6 +25,10 @@ expression *create_expression(expression *left, char op, expression *right) {
   expression*           expression;
   value_array*          value_array;
   value*                v;
+  struct {
+    int limit;
+    char ascending;
+  } limit_and_order;
 }
 
 // debugging
@@ -41,7 +45,7 @@ expression *create_expression(expression *left, char op, expression *right) {
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST
+%token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST LIMIT ORDER ASC DESC
 %token <string> STRING_VALUE INT_VALUE NAME REGEX_OP REGEX_STRING
 
 // define the precendence of these operators
@@ -63,7 +67,9 @@ expression *create_expression(expression *left, char op, expression *right) {
 %type <v>               FUNCTION_CALL
 %type <expression>      EXPRESSION
 %type <value_array>     GROUP_BY_CLAUSE
-%type <integer>         LIMIT
+%type <integer>         LIMIT_CLAUSE
+%type <character>       ORDER_CLAUSE
+%type <limit_and_order> LIMIT_AND_ORDER_CLAUSES
 
 // the initial token
 %start                  QUERY
@@ -78,34 +84,58 @@ expression *create_expression(expression *left, char op, expression *right) {
 // grammar
 %%
 QUERY:
-        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT ';'
+        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES ';'
         {
           q->c = $2;
           q->f = $3;
           q->group_by = $4;
           q->where_condition = $5;
-          q->limit = $6;
+          q->limit = $6.limit;
+          q->ascending = $6.ascending;
         }
         |
-        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT ';'
+        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT_AND_ORDER_CLAUSES ';'
         {
           q->c = $2;
           q->f = $3;
           q->where_condition = $4;
           q->group_by = $5;
-          q->limit = $6;
+          q->limit = $6.limit;
+          q->ascending = $6.ascending;
         }
 
-LIMIT:
-        FIRST INT_VALUE
+LIMIT_AND_ORDER_CLAUSES:
+        ORDER_CLAUSE LIMIT_CLAUSE
         {
-          $$ = atoi($2);
-          free($2);
+          $$.limit = $2;
+          $$.ascending = $1;
         }
         |
-        LAST INT_VALUE
+        LIMIT_CLAUSE ORDER_CLAUSE
         {
-          $$ = -atoi($2);
+          $$.limit = $1;
+          $$.ascending = $2;
+        }
+
+ORDER_CLAUSE:
+        ORDER ASC
+        {
+          $$ = TRUE;
+        }
+        |
+        ORDER DESC
+        {
+          $$ = FALSE;
+        }
+        |
+        {
+          $$ = TRUE;
+        }
+
+LIMIT_CLAUSE:
+        LIMIT INT_VALUE
+        {
+          $$ = atoi($2);
           free($2);
         }
         |
