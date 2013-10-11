@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"common"
+	"fmt"
 	"parser"
 	"protocol"
 	"time"
@@ -8,17 +10,20 @@ import (
 
 type Aggregator interface {
 	AggregatePoint(series string, group interface{}, p *protocol.Point) error
+	InitializeFieldsMetadata(series *protocol.Series) error
 	GetValue(series string, group interface{}) *protocol.FieldValue
 	ColumnName() string
 	ColumnType() protocol.FieldDefinition_Type
 }
 
-type AggregatorIniitializer func(*parser.Query) (Aggregator, error)
+type AggregatorIniitializer func(*parser.Query, *parser.Value) (Aggregator, error)
 
 var registeredAggregators = make(map[string]AggregatorIniitializer)
 
 func init() {
 	registeredAggregators["count"] = NewCountAggregator
+	registeredAggregators["max"] = NewMaxAggregator
+	registeredAggregators["min"] = NewMinAggregator
 	registeredAggregators["__timestamp_aggregator"] = NewTimestampAggregator
 }
 
@@ -49,7 +54,9 @@ func (self *CountAggregator) GetValue(series string, group interface{}) *protoco
 	return &protocol.FieldValue{IntValue: &value}
 }
 
-func NewCountAggregator(query *parser.Query) (Aggregator, error) {
+func (self *CountAggregator) InitializeFieldsMetadata(series *protocol.Series) error { return nil }
+
+func NewCountAggregator(*parser.Query, *parser.Value) (Aggregator, error) {
 	return &CountAggregator{make(map[string]map[interface{}]int32)}, nil
 }
 
@@ -85,7 +92,9 @@ func (self *TimestampAggregator) GetValue(series string, group interface{}) *pro
 	return &protocol.FieldValue{Int64Value: &value}
 }
 
-func NewTimestampAggregator(query *parser.Query) (Aggregator, error) {
+func (self *TimestampAggregator) InitializeFieldsMetadata(series *protocol.Series) error { return nil }
+
+func NewTimestampAggregator(query *parser.Query, _ *parser.Value) (Aggregator, error) {
 	duration, err := query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return nil, err
@@ -94,5 +103,167 @@ func NewTimestampAggregator(query *parser.Query) (Aggregator, error) {
 	return &TimestampAggregator{
 		timestamps: make(map[string]map[interface{}]int64),
 		duration:   duration,
+	}, nil
+}
+
+type MaxAggregator struct {
+	fieldName  string
+	fieldIndex int
+	fieldType  protocol.FieldDefinition_Type
+	values     map[string]map[interface{}]protocol.FieldValue
+}
+
+func (self *MaxAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+	values := self.values[series]
+	if values == nil {
+		values = make(map[interface{}]protocol.FieldValue)
+		self.values[series] = values
+	}
+
+	currentValue := values[group]
+
+	switch self.fieldType {
+	case protocol.FieldDefinition_INT64:
+		if value := *p.Values[self.fieldIndex].Int64Value; currentValue.Int64Value == nil || *currentValue.Int64Value < value {
+			currentValue.Int64Value = &value
+		}
+	case protocol.FieldDefinition_INT32:
+		if value := *p.Values[self.fieldIndex].IntValue; currentValue.IntValue == nil || *currentValue.IntValue < value {
+			currentValue.IntValue = &value
+		}
+	case protocol.FieldDefinition_DOUBLE:
+		if value := *p.Values[self.fieldIndex].DoubleValue; currentValue.DoubleValue == nil || *currentValue.DoubleValue < value {
+			currentValue.DoubleValue = &value
+		}
+	}
+
+	values[group] = currentValue
+	return nil
+}
+
+func (self *MaxAggregator) ColumnName() string {
+	return "max"
+}
+
+func (self *MaxAggregator) ColumnType() protocol.FieldDefinition_Type {
+	return self.fieldType
+}
+
+func (self *MaxAggregator) GetValue(series string, group interface{}) *protocol.FieldValue {
+	value := self.values[series][group]
+	return &value
+}
+
+func (self *MaxAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+	for idx, field := range series.Fields {
+		if *field.Name == self.fieldName {
+			self.fieldIndex = idx
+			self.fieldType = *field.Type
+
+			switch self.fieldType {
+			case protocol.FieldDefinition_INT32,
+				protocol.FieldDefinition_INT64,
+				protocol.FieldDefinition_DOUBLE:
+				// that's fine
+			default:
+				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
+			}
+
+			return nil
+		}
+	}
+
+	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
+}
+
+func NewMaxAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+	if len(value.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "max take one argument only")
+	}
+
+	return &MaxAggregator{
+		fieldName: value.Elems[0].Name,
+		values:    make(map[string]map[interface{}]protocol.FieldValue),
+	}, nil
+}
+
+type MinAggregator struct {
+	fieldName  string
+	fieldIndex int
+	fieldType  protocol.FieldDefinition_Type
+	values     map[string]map[interface{}]protocol.FieldValue
+}
+
+func (self *MinAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+	values := self.values[series]
+	if values == nil {
+		values = make(map[interface{}]protocol.FieldValue)
+		self.values[series] = values
+	}
+
+	currentValue := values[group]
+
+	switch self.fieldType {
+	case protocol.FieldDefinition_INT64:
+		if value := *p.Values[self.fieldIndex].Int64Value; currentValue.Int64Value == nil || *currentValue.Int64Value > value {
+			currentValue.Int64Value = &value
+		}
+	case protocol.FieldDefinition_INT32:
+		if value := *p.Values[self.fieldIndex].IntValue; currentValue.IntValue == nil || *currentValue.IntValue > value {
+			currentValue.IntValue = &value
+		}
+	case protocol.FieldDefinition_DOUBLE:
+		if value := *p.Values[self.fieldIndex].DoubleValue; currentValue.DoubleValue == nil || *currentValue.DoubleValue > value {
+			currentValue.DoubleValue = &value
+		}
+	}
+
+	values[group] = currentValue
+	return nil
+}
+
+func (self *MinAggregator) ColumnName() string {
+	return "min"
+}
+
+func (self *MinAggregator) ColumnType() protocol.FieldDefinition_Type {
+	return self.fieldType
+}
+
+func (self *MinAggregator) GetValue(series string, group interface{}) *protocol.FieldValue {
+	value := self.values[series][group]
+	return &value
+}
+
+func (self *MinAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+	for idx, field := range series.Fields {
+		if *field.Name == self.fieldName {
+			self.fieldIndex = idx
+			self.fieldType = *field.Type
+
+			switch self.fieldType {
+			case protocol.FieldDefinition_INT32,
+				protocol.FieldDefinition_INT64,
+				protocol.FieldDefinition_DOUBLE:
+				// that's fine
+			default:
+				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
+			}
+
+			return nil
+		}
+	}
+
+	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
+}
+
+func NewMinAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+	if len(value.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "max take one argument only")
+	}
+
+	return &MinAggregator{
+		fieldName: value.Elems[0].Name,
+		values:    make(map[string]map[interface{}]protocol.FieldValue),
 	}, nil
 }

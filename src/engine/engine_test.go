@@ -740,7 +740,7 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
     "name": "foo",
     "fields": [
       {
-        "type": "STRING",
+        "type": "INT32",
         "name": "column_one"
       }
     ]
@@ -820,7 +820,7 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
     "name": "foo",
     "fields": [
       {
-        "type": "STRING",
+        "type": "INT32",
         "name": "column_one"
       }
     ]

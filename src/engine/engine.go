@@ -56,6 +56,8 @@ func getValueFromPoint(value *protocol.FieldValue, fType protocol.FieldDefinitio
 		return *value.StringValue
 	case protocol.FieldDefinition_INT32:
 		return *value.IntValue
+	case protocol.FieldDefinition_INT64:
+		return *value.Int64Value
 	case protocol.FieldDefinition_BOOL:
 		return *value.BoolValue
 	case protocol.FieldDefinition_DOUBLE:
@@ -189,15 +191,24 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 }
 
 func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield func(*protocol.Series) error) error {
-	countAggregator, err := registeredAggregators["count"](query)
+	aggregators := []Aggregator{}
+	for _, value := range query.GetColumnNames() {
+		if value.IsFunctionCall() {
+			initializer := registeredAggregators[value.Name]
+			if initializer == nil {
+				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", value.Name))
+			}
+			aggregator, err := initializer(query, value)
+			if err != nil {
+				return err
+			}
+			aggregators = append(aggregators, aggregator)
+		}
+	}
+	timestampAggregator, err := registeredAggregators["__timestamp_aggregator"](query, nil)
 	if err != nil {
 		return err
 	}
-	timestampAggregator, err := registeredAggregators["__timestamp_aggregator"](query)
-	if err != nil {
-		return err
-	}
-	aggregators := []Aggregator{countAggregator}
 
 	groups := make(map[string]map[interface{}]bool)
 	groupBy := query.GetGroupByClause()
@@ -214,6 +225,12 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield
 
 		for _, field := range series.Fields {
 			fieldTypes[*field.Name] = field.Type
+		}
+
+		for _, aggregator := range aggregators {
+			if err := aggregator.InitializeFieldsMetadata(series); err != nil {
+				return err
+			}
 		}
 
 		for _, point := range series.Points {
