@@ -10,6 +10,7 @@ import (
 	"github.com/jmhodges/levigo"
 	"math/rand"
 	"os"
+	"os/exec"
 	"time"
 )
 
@@ -18,9 +19,10 @@ func main() {
 		"some_host_2342.stats.cpu.idle", "actions", "host_another_2.stats.cpu.idle",
 		"some_long_name.with-other_stuff.in.it.and_whatnot"}
 	pointsWritten := 0
+
 	dbDir := "/tmp/chronos_db_test"
 	os.RemoveAll(dbDir)
-	pointsToWritePerSeries := 3000000
+	pointsToWritePerSeries := 2000000
 	pointsToDeletePerSeries := pointsToWritePerSeries / 2
 
 	opts := levigo.NewOptions()
@@ -51,14 +53,16 @@ func main() {
 				fmt.Println("COUNT: ", pointsWritten)
 			}
 		}
+		out, _ := exec.Command("du", "-h", dbDir).Output()
+		fmt.Println("SIZE: ", string(out))
 	}
 	diff := time.Now().Sub(start)
 	fmt.Printf("DONE. %d points written in %s\n", pointsWritten, diff.String())
-	fmt.Printf("hit enter after checking size of dir and ready to continue...")
-	var s string
-	fmt.Scanf("%s", &s)
+	out, _ := exec.Command("du", "-h", dbDir).Output()
+	fmt.Println("SIZE: ", string(out))
 	deleteCount := 0
 	start = time.Now()
+	ranges := make([]*levigo.Range, 0)
 	for _, seriesName := range seriesNames {
 		fmt.Println("Deleting: ", seriesName)
 		count := 0
@@ -76,8 +80,44 @@ func main() {
 		it.Close()
 		ro.Close()
 		rangeToCompact := &levigo.Range{[]byte(key), lastKey}
-		db.CompactRange(*rangeToCompact)
+		ranges = append(ranges, rangeToCompact)
+		out, _ := exec.Command("du", "-h", dbDir).Output()
+		fmt.Println("SIZE: ", string(out))
+	}
+	fmt.Printf("DONE. %d points deleted in %s\n", deleteCount, diff.String())
+
+	fmt.Println("Starting compaction in background...")
+	compactionDone := make(chan int)
+	for _, r := range ranges {
+		go func(r *levigo.Range) {
+			db.CompactRange(*r)
+			compactionDone <- 1
+		}(r)
+	}
+
+	start = time.Now()
+	fmt.Println("Writing new points...")
+	pointsWritten = 0
+	for _, seriesName := range seriesNames {
+		fmt.Println("Writing Series: ", seriesName)
+		for i := pointsToWritePerSeries; i < pointsToWritePerSeries*2; i++ {
+			key := fmt.Sprintf("c~%s~1381456156%012d~%d", seriesName, i, rand.Int())
+			db.Put(writeOptions, []byte(key), []byte(fmt.Sprintf("%f", rand.Float64())))
+			pointsWritten += 1
+			if pointsWritten%500000 == 0 {
+				fmt.Println("COUNT: ", pointsWritten)
+			}
+		}
+		out, _ := exec.Command("du", "-h", dbDir).Output()
+		fmt.Println("SIZE: ", string(out))
+	}
+
+	fmt.Println("waiting for compaction to finish...")
+	for i := 0; i < len(ranges); i++ {
+		<-compactionDone
 	}
 	diff = time.Now().Sub(start)
-	fmt.Printf("DONE. %d points deleted in %s\n", deleteCount, diff.String())
+	out, _ = exec.Command("du", "-h", dbDir).Output()
+	fmt.Printf("DONE. %d points written during compaction in %s\n", deleteCount, diff.String())
+	fmt.Println("SIZE: ", string(out))
 }
