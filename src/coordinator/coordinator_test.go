@@ -24,8 +24,8 @@ var nextDirNum int
 
 const (
 	MAX_RING_LOCATIONS  = 10
-	SERVER_STARTUP_TIME = time.Millisecond * 300
-	REPLICATION_LAG     = time.Millisecond * 200
+	SERVER_STARTUP_TIME = time.Millisecond * 500
+	REPLICATION_LAG     = time.Millisecond * 500
 )
 
 func nextPort() int {
