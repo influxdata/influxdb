@@ -24,6 +24,11 @@ var nextDirNum int
 
 func nextPort() int {
 	nextPortNum += 1
+	// this is a hack for OSX boxes running spotify. It binds to 127.0.0.1:8099. net.Listen doesn't return an
+	// error when listening to :8099. ugh.
+	if 8090+nextPortNum == 8099 {
+		nextPortNum += 1
+	}
 	return 8090 + nextPortNum
 }
 
