@@ -72,6 +72,9 @@ type Server interface {
 	MemberCount() int
 	QuorumSize() int
 	IsLogEmpty() bool
+	LogEntries() []*LogEntry
+	LastCommandName() string
+	GetState() string
 	ElectionTimeout() time.Duration
 	SetElectionTimeout(duration time.Duration)
 	HeartbeatTimeout() time.Duration
