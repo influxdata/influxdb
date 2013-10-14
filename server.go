@@ -65,6 +65,7 @@ type Server interface {
 	State() string
 	Path() string
 	LogPath() string
+	SnapshotPath(lastIndex uint64, lastTerm uint64) string
 	Term() uint64
 	CommitIndex() uint64
 	VotedFor() string
@@ -79,6 +80,8 @@ type Server interface {
 	SetTransporter(t Transporter)
 	AppendEntries(req *AppendEntriesRequest) *AppendEntriesResponse
 	RequestVote(req *RequestVoteRequest) *RequestVoteResponse
+	RequestSnapshot(req *SnapshotRequest) *SnapshotResponse
+	SnapshotRecoveryRequest(req *SnapshotRecoveryRequest) *SnapshotRecoveryResponse
 	AddPeer(name string, connectiongString string) error
 	RemovePeer(name string) error
 	Peers() map[string]*Peer
@@ -86,6 +89,8 @@ type Server interface {
 	Stop()
 	Running() bool
 	Do(command Command) (interface{}, error)
+	TakeSnapshot() error
+	LoadSnapshot() error
 }
 
 type server struct {
