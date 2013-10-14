@@ -16,9 +16,9 @@ type Aggregator interface {
 	ColumnType() protocol.FieldDefinition_Type
 }
 
-type AggregatorIniitializer func(*parser.Query, *parser.Value) (Aggregator, error)
+type AggregatorInitializer func(*parser.Query, *parser.Value) (Aggregator, error)
 
-var registeredAggregators = make(map[string]AggregatorIniitializer)
+var registeredAggregators = make(map[string]AggregatorInitializer)
 
 func init() {
 	registeredAggregators["count"] = NewCountAggregator
