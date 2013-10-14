@@ -518,7 +518,6 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
   }
 ]
 `)
-
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
@@ -598,7 +597,6 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
   }
 ]
 `)
-
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
@@ -700,7 +698,6 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
   }
 ]
 `)
-
 }
 
 func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
@@ -709,40 +706,13 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
 [
   {
     "points": [
-      {
-        "values": [
-          {
-            "int_value": 3
-          }
-        ],
-        "timestamp": 1381346641,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 8
-          }
-        ],
-        "timestamp": 1381346701,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 4
-          }
-        ],
-        "timestamp": 1381346721,
-        "sequence_number": 1
-      }
+      { "values": [{ "int_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
+      { "values": [{ "int_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
     ],
     "name": "foo",
     "fields": [
-      {
-        "type": "INT32",
-        "name": "column_one"
-      }
+      { "type": "INT32", "name": "column_one" }
     ]
   }
 ]
@@ -751,36 +721,16 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select min(column_one) from foo group by time(1m);", c, `[
   {
     "points": [
-      {
-        "values": [
-          {
-            "int_value": 3
-          }
-        ],
-        "timestamp": 1381346640,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 4
-          }
-        ],
-        "timestamp": 1381346700,
-        "sequence_number": 1
-      }
+      { "values": [{ "int_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
+      { "values": [{ "int_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 }
     ],
     "name": "foo",
     "fields": [
-      {
-        "type": "INT32",
-        "name": "min"
-      }
+      { "type": "INT32", "name": "min" }
     ]
   }
 ]
 `)
-
 }
 
 func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
@@ -789,40 +739,13 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
 [
   {
     "points": [
-      {
-        "values": [
-          {
-            "int_value": 3
-          }
-        ],
-        "timestamp": 1381346641,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 8
-          }
-        ],
-        "timestamp": 1381346701,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 4
-          }
-        ],
-        "timestamp": 1381346721,
-        "sequence_number": 1
-      }
+      { "values": [{ "int_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
+      { "values": [{ "int_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
     ],
     "name": "foo",
     "fields": [
-      {
-        "type": "INT32",
-        "name": "column_one"
-      }
+      { "type": "INT32", "name": "column_one" }
     ]
   }
 ]
@@ -831,36 +754,16 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select max(column_one) from foo group by time(1m);", c, `[
   {
     "points": [
-      {
-        "values": [
-          {
-            "int_value": 3
-          }
-        ],
-        "timestamp": 1381346640,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 8
-          }
-        ],
-        "timestamp": 1381346700,
-        "sequence_number": 1
-      }
+      { "values": [{ "int_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
+      { "values": [{ "int_value": 8 }], "timestamp": 1381346700, "sequence_number": 1 }
     ],
     "name": "foo",
     "fields": [
-      {
-        "type": "INT32",
-        "name": "max"
-      }
+      { "type": "INT32", "name": "max" }
     ]
   }
 ]
 `)
-
 }
 
 func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
@@ -869,40 +772,13 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 [
   {
     "points": [
-      {
-        "values": [
-          {
-            "int_value": 3
-          }
-        ],
-        "timestamp": 1381346641,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 8
-          }
-        ],
-        "timestamp": 1381346701,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 4
-          }
-        ],
-        "timestamp": 1381346721,
-        "sequence_number": 1
-      }
+      { "values": [{ "int_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
+      { "values": [{ "int_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
     ],
     "name": "foo",
     "fields": [
-      {
-        "type": "INT32",
-        "name": "column_one"
-      }
+      { "type": "INT32", "name": "column_one" }
     ]
   }
 ]
@@ -911,46 +787,17 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select max(column_one), min(column_one) from foo group by time(1m);", c, `[
   {
     "points": [
-      {
-        "values": [
-          {
-            "int_value": 3
-          },
-          {
-            "int_value": 3
-          }
-        ],
-        "timestamp": 1381346640,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 8
-          },
-          {
-            "int_value": 4
-          }
-        ],
-        "timestamp": 1381346700,
-        "sequence_number": 1
-      }
+      { "values": [{ "int_value": 3 }, { "int_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
+      { "values": [{ "int_value": 8 }, { "int_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 }
     ],
     "name": "foo",
     "fields": [
-      {
-        "type": "INT32",
-        "name": "max"
-      },
-      {
-        "type": "INT32",
-        "name": "min"
-      }
+      { "type": "INT32", "name": "max" },
+      { "type": "INT32", "name": "min" }
     ]
   }
 ]
 `)
-
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidNumberOfArguments(c *C) {
