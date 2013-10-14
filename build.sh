@@ -38,9 +38,9 @@ if [ `uname` == "Linux" ]; then
 fi
 
 
-pushd src/github.com/jmhodges/levigo/
-find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'
-popd
+#pushd src/github.com/jmhodges/levigo/
+#find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'
+#popd
 
 echo "packages: go build $packages"
 
