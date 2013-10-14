@@ -24,6 +24,7 @@ func init() {
 	registeredAggregators["count"] = NewCountAggregator
 	registeredAggregators["max"] = NewMaxAggregator
 	registeredAggregators["min"] = NewMinAggregator
+	registeredAggregators["percentile"] = NewPercentileAggregator
 	registeredAggregators["__timestamp_aggregator"] = NewTimestampAggregator
 }
 
@@ -58,6 +59,44 @@ func (self *CountAggregator) InitializeFieldsMetadata(series *protocol.Series) e
 
 func NewCountAggregator(*parser.Query, *parser.Value) (Aggregator, error) {
 	return &CountAggregator{make(map[string]map[interface{}]int32)}, nil
+}
+
+type PercentileAggregator struct {
+	percentiles map[string]map[interface{}]int32
+}
+
+func (self *PercentileAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+	percentiles := self.percentiles[series]
+	if percentiles == nil {
+		percentiles = make(map[interface{}]int32)
+		self.percentiles[series] = percentiles
+	}
+	percentiles[group]++
+	return nil
+}
+
+func (self *PercentileAggregator) ColumnName() string {
+	return "percentile"
+}
+
+func (self *PercentileAggregator) ColumnType() protocol.FieldDefinition_Type {
+	return protocol.FieldDefinition_DOUBLE
+}
+
+func (self *PercentileAggregator) GetValue(series string, group interface{}) *protocol.FieldValue {
+	value := self.percentiles[series][group]
+	return &protocol.FieldValue{IntValue: &value}
+}
+
+func (self *PercentileAggregator) InitializeFieldsMetadata(series *protocol.Series) error { return nil }
+
+func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+	if len(value.Elems) != 2 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function percentile(...) requires exactly two arguments")
+	}
+
+	fmt.Printf("CREATING NEW PercentileAggregator")
+	return &PercentileAggregator{make(map[string]map[interface{}]int32)}, nil
 }
 
 type TimestampAggregator struct {

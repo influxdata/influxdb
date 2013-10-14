@@ -964,3 +964,9 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidArgument(c *C) {
 	engine := createEngine(c, `[]`)
 	runQueryRunError(engine, "select count(*) from foo group by time(foobar);", c, err)
 }
+
+func (self *EngineSuite) TestPercentileQueryWithInvalidNumberOfArguments(c *C) {
+	err := common.NewQueryError(common.WrongNumberOfArguments, "function percentile(...) requires exactly two arguments")
+	engine := createEngine(c, `[]`)
+	runQueryRunError(engine, "select percentile(95) from foo group by time(1m);", c, err)
+}
