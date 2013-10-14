@@ -7,6 +7,7 @@ import "C"
 import (
 	"common"
 	"fmt"
+	"reflect"
 	"time"
 	"unsafe"
 )
@@ -118,23 +119,26 @@ func (self *Expression) GetLeftExpression() (*Expression, bool) {
 	return nil, false
 }
 
+func setupSlice(hdr *reflect.SliceHeader, ptr unsafe.Pointer, size C.size_t) {
+	hdr.Cap = int(size)
+	hdr.Len = int(size)
+	hdr.Data = uintptr(ptr)
+}
+
 func GetValueArray(array *C.value_array) []*Value {
 	if array == nil {
 		return nil
 	}
 
-	arr := uintptr(unsafe.Pointer(array.elems))
-	elemSize := unsafe.Sizeof(*array.elems)
-	size := uintptr(array.size)
+	var values []*C.value
+	setupSlice((*reflect.SliceHeader)((unsafe.Pointer(&values))), unsafe.Pointer(array.elems), array.size)
 
-	stringSlice := make([]*Value, 0, size)
+	valuesSlice := make([]*Value, 0, array.size)
 
-	var i uintptr
-	for i = 0; i < size; i++ {
-		str := (**C.value)(unsafe.Pointer(arr + elemSize*i))
-		stringSlice = append(stringSlice, GetValue(*str))
+	for _, value := range values {
+		valuesSlice = append(valuesSlice, GetValue(value))
 	}
-	return stringSlice
+	return valuesSlice
 }
 
 func GetStringArray(array *C.array) []string {
@@ -142,16 +146,13 @@ func GetStringArray(array *C.array) []string {
 		return nil
 	}
 
-	arr := uintptr(unsafe.Pointer(array.elems))
-	elemSize := unsafe.Sizeof(*array.elems)
-	size := uintptr(array.size)
+	var values []*C.char
+	setupSlice((*reflect.SliceHeader)((unsafe.Pointer(&values))), unsafe.Pointer(array.elems), array.size)
 
-	stringSlice := make([]string, 0, size)
+	stringSlice := make([]string, 0, array.size)
 
-	var i uintptr
-	for i = 0; i < size; i++ {
-		str := (**C.char)(unsafe.Pointer(arr + elemSize*i))
-		stringSlice = append(stringSlice, C.GoString(*str))
+	for _, value := range values {
+		stringSlice = append(stringSlice, C.GoString(value))
 	}
 	return stringSlice
 }
