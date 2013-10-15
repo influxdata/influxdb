@@ -6,9 +6,12 @@ import (
 	"math"
 	"parser"
 	"protocol"
+	"sort"
 	"strconv"
 	"time"
 )
+
+type PointSlice []protocol.Point
 
 type Aggregator interface {
 	AggregatePoint(series string, group interface{}, p *protocol.Point) error
@@ -122,29 +125,62 @@ func NewTimestampAggregator(query *parser.Query, _ *parser.Value) (Aggregator, e
 //
 
 type PercentileAggregator struct {
-	fieldName  string
-	fieldIndex int
-	fieldType  protocol.FieldDefinition_Type
-	percentile int
-	values     map[string]map[interface{}][]protocol.Point
+	fieldName    string
+	fieldIndex   int
+	fieldType    protocol.FieldDefinition_Type
+	percentile   float64
+	int_values   map[string]map[interface{}][]int
+	float_values map[string]map[interface{}][]float64
 }
 
 func (self *PercentileAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	values := self.values[series]
-	if values == nil {
-		values = make(map[interface{}][]protocol.Point)
-		self.values[series] = values
+	switch self.fieldType {
+	case protocol.FieldDefinition_INT32:
+		int_values := self.int_values[series]
+		if int_values == nil {
+			int_values = make(map[interface{}][]int)
+			self.int_values[series] = int_values
+		}
+
+		points := int_values[group]
+		if points == nil {
+			points = make([]int, 0)
+		}
+
+		points = append(points, int(*p.Values[self.fieldIndex].IntValue))
+		int_values[group] = points
+	case protocol.FieldDefinition_INT64:
+		int_values := self.int_values[series]
+		if int_values == nil {
+			int_values = make(map[interface{}][]int)
+			self.int_values[series] = int_values
+		}
+
+		points := int_values[group]
+		if points == nil {
+			points = make([]int, 0)
+		}
+
+		points = append(points, int(*p.Values[self.fieldIndex].Int64Value))
+		int_values[group] = points
+	case protocol.FieldDefinition_DOUBLE:
+		float_values := self.float_values[series]
+		if float_values == nil {
+			float_values = make(map[interface{}][]float64)
+			self.float_values[series] = float_values
+		}
+
+		points := float_values[group]
+		if points == nil {
+			points = make([]float64, 0)
+		}
+
+		points = append(points, *p.Values[self.fieldIndex].DoubleValue)
+		float_values[group] = points
+	default:
+		return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
 	}
 
-	points := values[group]
-	if points == nil {
-		points = make([]protocol.Point, 0)
-	}
-
-	points = append(points, *p)
-	values[group] = points
-
-	fmt.Println(values[group])
 	return nil
 }
 
@@ -157,11 +193,27 @@ func (self *PercentileAggregator) ColumnType() protocol.FieldDefinition_Type {
 }
 
 func (self *PercentileAggregator) GetValue(series string, group interface{}) *protocol.FieldValue {
-	length := len(self.values[series][group])
-	index := int(math.Floor(float64(length)*float64(self.percentile)/100.0+0.5)) - 1
-
-	point := self.values[series][group][index]
-	return point.Values[0]
+	switch self.fieldType {
+	case protocol.FieldDefinition_INT32:
+		sort.Ints(self.int_values[series][group])
+		length := len(self.int_values[series][group])
+		index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
+		point := int32(self.int_values[series][group][index])
+		return &protocol.FieldValue{IntValue: &point}
+	case protocol.FieldDefinition_INT64:
+		sort.Ints(self.int_values[series][group])
+		length := len(self.int_values[series][group])
+		index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
+		point := int64(self.int_values[series][group][index])
+		return &protocol.FieldValue{Int64Value: &point}
+	case protocol.FieldDefinition_DOUBLE:
+		sort.Float64s(self.float_values[series][group])
+		length := len(self.float_values[series][group])
+		index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
+		point := self.float_values[series][group][index]
+		return &protocol.FieldValue{DoubleValue: &point}
+	}
+	return &protocol.FieldValue{}
 }
 
 func (self *PercentileAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
@@ -190,17 +242,17 @@ func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, 
 	if len(value.Elems) != 2 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function percentile(...) requires exactly two arguments")
 	}
-
-	percentile, err := strconv.Atoi(value.Elems[1].Name)
+	percentile, err := strconv.ParseFloat(value.Elems[1].Name, 64)
 
 	if err != nil {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "not an integer")
+		return nil, common.NewQueryError(common.InvalidArgument, "not a valid number")
 	}
 
 	return &PercentileAggregator{
-		fieldName:  value.Elems[0].Name,
-		percentile: percentile,
-		values:     make(map[string]map[interface{}][]protocol.Point),
+		fieldName:    value.Elems[0].Name,
+		percentile:   percentile,
+		int_values:   make(map[string]map[interface{}][]int),
+		float_values: make(map[string]map[interface{}][]float64),
 	}, nil
 }
 

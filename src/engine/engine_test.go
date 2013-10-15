@@ -807,12 +807,12 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
   {
     "points": [
       { "values": [{ "int_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
-      { "values": [{ "int_value": 2 }], "timestamp": 1381346701, "sequence_number": 1 },
       { "values": [{ "int_value": 3 }], "timestamp": 1381346701, "sequence_number": 1 },
-      { "values": [{ "int_value": 4 }], "timestamp": 1381346701, "sequence_number": 1 },
       { "values": [{ "int_value": 5 }], "timestamp": 1381346701, "sequence_number": 1 },
-      { "values": [{ "int_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 },
-      { "values": [{ "int_value": 7 }], "timestamp": 1381346701, "sequence_number": 1 }
+      { "values": [{ "int_value": 7 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 4 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 2 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 }
     ],
     "name": "foo",
     "fields": [
