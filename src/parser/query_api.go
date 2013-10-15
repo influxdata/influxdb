@@ -69,6 +69,10 @@ func parseTime(expr *Expression) (int64, error) {
 }
 
 func GetTime(condition *WhereCondition, isParsingStartTime bool) (time.Time, error) {
+	if condition == nil {
+		return ZERO_TIME, nil
+	}
+
 	if expr, ok := condition.GetBoolExpression(); ok {
 		leftValue, isLeftValue := expr.Left.GetLeftValue()
 		rightValue, isRightValue := expr.Right.GetLeftValue()
