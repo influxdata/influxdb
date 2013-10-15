@@ -600,204 +600,123 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
-	// make the mock coordinator return some data
-	engine := createEngine(c, `
-[
-  {
-    "points": [
-      {
-        "values": [
-          {
-            "string_value": "some_value"
-          }
-        ],
-        "timestamp": 1381346641,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "string_value": "another_value"
-          }
-        ],
-        "timestamp": 1381346701,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "string_value": "some_value"
-          }
-        ],
-        "timestamp": 1381346721,
-        "sequence_number": 1
-      }
-    ],
-    "name": "foo",
-    "fields": [
-      {
-        "type": "STRING",
-        "name": "column_one"
-      }
-    ]
-  }
-]
-`)
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346641, "sequence_number": 1 },
+        { "values": [{ "string_value": "another_value" }], "timestamp": 1381346701, "sequence_number": 1 },
+        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346721, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "STRING", "name": "column_one" }
+      ]
+    }
+  ]`)
 
 	runQuery(engine, "select count(*), column_one from foo group by time(1m), column_one;", c, `[
-  {
-    "points": [
-      {
-        "values": [
-          {
-            "int_value": 1
-          },
-          {
-            "string_value": "some_value"
-          }
-        ],
-        "timestamp": 1381346640,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 1
-          },
-          {
-            "string_value": "another_value"
-          }
-        ],
-        "timestamp": 1381346700,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-          {
-            "int_value": 1
-          },
-          {
-            "string_value": "some_value"
-          }
-        ],
-        "timestamp": 1381346700,
-        "sequence_number": 1
-      }
-    ],
-    "name": "foo",
-    "fields": [
-      {
-        "type": "INT32",
-        "name": "count"
-      },
-      {
-        "type": "STRING",
-        "name": "column_one"
-      }
-    ]
-  }
-]
-`)
+    {
+      "points": [
+        { "values": [{ "int_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346640, "sequence_number": 1 },
+        { "values": [{ "int_value": 1 }, { "string_value": "another_value" }], "timestamp": 1381346700, "sequence_number": 1 },
+        { "values": [{ "int_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346700, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "count" },
+        { "type": "STRING", "name": "column_one" }
+      ]
+    }
+  ]`)
 }
 
 func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
-	// make the mock coordinator return some data
-	engine := createEngine(c, `
-[
-  {
-    "points": [
-      { "values": [{ "int_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
-      { "values": [{ "int_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
-      { "values": [{ "int_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
-    ],
-    "name": "foo",
-    "fields": [
-      { "type": "INT32", "name": "column_one" }
-    ]
-  }
-]
-`)
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
+        { "values": [{ "int_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
+        { "values": [{ "int_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "column_one" }
+      ]
+    }
+  ]`)
 
 	runQuery(engine, "select min(column_one) from foo group by time(1m);", c, `[
-  {
-    "points": [
-      { "values": [{ "int_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
-      { "values": [{ "int_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 }
-    ],
-    "name": "foo",
-    "fields": [
-      { "type": "INT32", "name": "min" }
-    ]
-  }
-]
-`)
+    {
+      "points": [
+        { "values": [{ "int_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
+        { "values": [{ "int_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "min" }
+      ]
+    }
+  ]`)
 }
 
 func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
-	// make the mock coordinator return some data
-	engine := createEngine(c, `
-[
-  {
-    "points": [
-      { "values": [{ "int_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
-      { "values": [{ "int_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
-      { "values": [{ "int_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
-    ],
-    "name": "foo",
-    "fields": [
-      { "type": "INT32", "name": "column_one" }
-    ]
-  }
-]
-`)
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
+        { "values": [{ "int_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
+        { "values": [{ "int_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "column_one" }
+      ]
+    }
+  ]`)
 
 	runQuery(engine, "select max(column_one) from foo group by time(1m);", c, `[
-  {
-    "points": [
-      { "values": [{ "int_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
-      { "values": [{ "int_value": 8 }], "timestamp": 1381346700, "sequence_number": 1 }
-    ],
-    "name": "foo",
-    "fields": [
-      { "type": "INT32", "name": "max" }
-    ]
-  }
-]
-`)
+    {
+      "points": [
+        { "values": [{ "int_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
+        { "values": [{ "int_value": 8 }], "timestamp": 1381346700, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "max" }
+      ]
+    }
+  ]`)
 }
 
 func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
-[
-  {
-    "points": [
-      { "values": [{ "int_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
-      { "values": [{ "int_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
-      { "values": [{ "int_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
-    ],
-    "name": "foo",
-    "fields": [
-      { "type": "INT32", "name": "column_one" }
-    ]
-  }
-]
-`)
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
+        { "values": [{ "int_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
+        { "values": [{ "int_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "column_one" }
+      ]
+    }
+  ]`)
 
 	runQuery(engine, "select max(column_one), min(column_one) from foo group by time(1m);", c, `[
-  {
-    "points": [
-      { "values": [{ "int_value": 3 }, { "int_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
-      { "values": [{ "int_value": 8 }, { "int_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 }
-    ],
-    "name": "foo",
-    "fields": [
-      { "type": "INT32", "name": "max" },
-      { "type": "INT32", "name": "min" }
-    ]
-  }
-]
-`)
+    {
+      "points": [
+        { "values": [{ "int_value": 3 }, { "int_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
+        { "values": [{ "int_value": 8 }, { "int_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "max" },
+        { "type": "INT32", "name": "min" }
+      ]
+    }
+  ]`)
 }
 
 func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
@@ -828,18 +747,17 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
   ]`)
 
 	runQuery(engine, "select percentile(column_one, 80) from foo group by time(1m);", c, `[
-  {
-    "points": [
-      { "values": [{ "int_value": 6 }], "timestamp": 1381346700, "sequence_number": 1 },
-      { "values": [{ "int_value": 8 }], "timestamp": 1381346760, "sequence_number": 1 }
-    ],
-    "name": "foo",
-    "fields": [
-      { "type": "INT32", "name": "percentile" }
-    ]
-  }
-]
-`)
+    {
+      "points": [
+        { "values": [{ "int_value": 6 }], "timestamp": 1381346700, "sequence_number": 1 },
+        { "values": [{ "int_value": 8 }], "timestamp": 1381346760, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "percentile" }
+      ]
+    }
+  ]`)
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidNumberOfArguments(c *C) {
