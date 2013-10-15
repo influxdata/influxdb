@@ -90,6 +90,8 @@ type Query struct {
 	groupByClause GroupByClause
 	Limit         int
 	Ascending     bool
+	startTime     time.Time
+	endTime       time.Time
 }
 
 func (self *Query) GetColumnNames() []*Value {
@@ -245,12 +247,33 @@ func ParseQuery(query string) (*Query, error) {
 	queryString := C.CString(query)
 	defer C.free(unsafe.Pointer(queryString))
 	q := C.parse_query(queryString)
-	var err error
 	if q.error != nil {
 		str := C.GoString(q.error.err)
-		err = fmt.Errorf("Error at %d:%d. %s", q.error.line, q.error.column, str)
+		err := fmt.Errorf("Error at %d:%d. %s", q.error.line, q.error.column, str)
 		C.close_query(&q)
 		return nil, err
 	}
-	return &Query{q, false, nil, nil, nil, int(q.limit), q.ascending != 0}, err
+
+	goQuery := &Query{q, false, nil, nil, nil, int(q.limit), q.ascending != 0, time.Unix(0, 0), time.Now()}
+
+	startTime, err := GetTime(goQuery.GetWhereCondition(), true)
+	if err != nil {
+		goQuery.Close()
+		return nil, err
+	}
+
+	if startTime.Unix() > 0 {
+		goQuery.startTime = startTime
+	}
+
+	endTime, err := GetTime(goQuery.GetWhereCondition(), false)
+	if err != nil {
+		goQuery.Close()
+		return nil, err
+	}
+
+	if endTime.Unix() > 0 {
+		goQuery.endTime = endTime
+	}
+	return goQuery, nil
 }
