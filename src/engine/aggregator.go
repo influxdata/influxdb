@@ -240,12 +240,12 @@ func (self *PercentileAggregator) InitializeFieldsMetadata(series *protocol.Seri
 
 func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 2 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function percentile(...) requires exactly two arguments")
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function percentile() requires exactly two arguments")
 	}
 	percentile, err := strconv.ParseFloat(value.Elems[1].Name, 64)
 
-	if err != nil {
-		return nil, common.NewQueryError(common.InvalidArgument, "not a valid number")
+	if err != nil || percentile <= 0 || percentile >= 100 {
+		return nil, common.NewQueryError(common.InvalidArgument, "function percentile() requires a numeric second argument between 0 and 100")
 	}
 
 	return &PercentileAggregator{

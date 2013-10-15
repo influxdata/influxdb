@@ -855,7 +855,20 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidArgument(c *C) {
 }
 
 func (self *EngineSuite) TestPercentileQueryWithInvalidNumberOfArguments(c *C) {
-	err := common.NewQueryError(common.WrongNumberOfArguments, "function percentile(...) requires exactly two arguments")
+	err := common.NewQueryError(common.WrongNumberOfArguments, "function percentile() requires exactly two arguments")
 	engine := createEngine(c, `[]`)
 	runQueryRunError(engine, "select percentile(95) from foo group by time(1m);", c, err)
+}
+
+func (self *EngineSuite) TestPercentileQueryWithNonNumericArguments(c *C) {
+	err := common.NewQueryError(common.InvalidArgument, "function percentile() requires a numeric second argument between 0 and 100")
+	engine := createEngine(c, `[]`)
+	runQueryRunError(engine, "select percentile(column_one, a95) from foo group by time(1m);", c, err)
+}
+
+func (self *EngineSuite) TestPercentileQueryWithOutOfBoundNumericArguments(c *C) {
+	err := common.NewQueryError(common.InvalidArgument, "function percentile() requires a numeric second argument between 0 and 100")
+	engine := createEngine(c, `[]`)
+	runQueryRunError(engine, "select percentile(column_one, 0) from foo group by time(1m);", c, err)
+	runQueryRunError(engine, "select percentile(column_one, 105) from foo group by time(1m);", c, err)
 }
