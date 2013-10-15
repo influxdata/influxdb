@@ -380,6 +380,29 @@ func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader
 	assertConfigContains(port3, "key1", true, c)
 }
 
+func (self *CoordinatorSuite) TestCanCreateDatabaseWithName(c *C) {
+	servers := startAndVerifyCluster(3, c)
+	defer clean(servers)
+	err := servers[0].CreateDatabase("db1")
+	c.Assert(err, IsNil)
+	err = servers[1].CreateDatabase("db2")
+	c.Assert(err, IsNil)
+	err = servers[2].CreateDatabase("db3")
+	c.Assert(err, IsNil)
+
+	time.Sleep(REPLICATION_LAG)
+
+	for i := 0; i < 3; i++ {
+		databases := servers[i].clusterConfig.GetDatabases()
+		c.Assert(databases, DeepEquals, map[string]bool{"db1": true, "db2": true, "db3": true})
+	}
+
+	err = servers[0].CreateDatabase("db3")
+	c.Assert(err, ErrorMatches, ".*db3 exists.*")
+	err = servers[2].CreateDatabase("db3")
+	c.Assert(err, ErrorMatches, ".*db3 exists.*")
+}
+
 func (self *CoordinatorSuite) TestCanCreateDatabase(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers)

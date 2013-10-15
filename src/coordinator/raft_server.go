@@ -46,6 +46,7 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 		raft.RegisterCommand(&AddServerToLocationCommand{})
 		raft.RegisterCommand(&RemoveServerFromLocationCommand{})
 		raft.RegisterCommand(&NextDatabaseIdCommand{})
+		raft.RegisterCommand(&CreateDatabaseCommand{})
 	}
 	s := &RaftServer{
 		host:          host,
@@ -94,6 +95,11 @@ func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) 
 			}
 			defer resp.Body.Close()
 			body, err2 := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != 200 {
+				return nil, errors.New(strings.TrimSpace(string(body)))
+			}
+
 			var js interface{}
 			json.Unmarshal(body, &js)
 			return js, err2
@@ -129,6 +135,12 @@ func (s *RaftServer) AddServerToLocation(host string, location int64) error {
 func (s *RaftServer) RemoveServerFromLocation(host string, location int64) error {
 	command := NewRemoveServerFromLocationCommand(host, location)
 	_, err := s.doOrProxyCommand(command, "remove_server")
+	return err
+}
+
+func (s *RaftServer) CreateDatabase(name string) error {
+	command := NewCreateDatabaseCommand(name)
+	_, err := s.doOrProxyCommand(command, "create_db")
 	return err
 }
 
@@ -331,6 +343,8 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		command = &RemoveServerFromLocationCommand{}
 	} else if value == "next_db" {
 		command = &NextDatabaseIdCommand{}
+	} else if value == "create_db" {
+		command = &CreateDatabaseCommand{}
 	}
 	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
 		log.Println("ERROR processCommandHanlder", err)

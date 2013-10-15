@@ -8,6 +8,8 @@ import (
 type ClusterConfiguration struct {
 	MaxRingLocation           int64
 	nextDatabaseId            int
+	createDatabaseLock        sync.RWMutex
+	databaseNames             map[string]bool
 	nextDatabaseIdLock        sync.Mutex
 	RingLocationToServers     map[int64][]string
 	ringLocationToServersLock sync.RWMutex
@@ -27,6 +29,7 @@ const (
 func NewClusterConfiguration(maxRingLocation int64) *ClusterConfiguration {
 	return &ClusterConfiguration{
 		MaxRingLocation:       maxRingLocation,
+		databaseNames:         make(map[string]bool),
 		RingLocationToServers: make(map[int64][]string),
 		ReadApiKeys:           make(map[string]bool),
 		WriteApiKeys:          make(map[string]bool),
@@ -84,6 +87,28 @@ func (self *ClusterConfiguration) IsValidWriteKey(database, key string) bool {
 	self.writeApiKeysLock.RLock()
 	defer self.writeApiKeysLock.RUnlock()
 	return self.WriteApiKeys[database+key]
+}
+
+func (self *ClusterConfiguration) GetDatabases() map[string]bool {
+	self.createDatabaseLock.RLock()
+	defer self.createDatabaseLock.RUnlock()
+
+	names := make(map[string]bool)
+	for name, _ := range self.databaseNames {
+		names[name] = true
+	}
+	return names
+}
+
+func (self *ClusterConfiguration) CreateDatabase(name string) error {
+	self.createDatabaseLock.Lock()
+	defer self.createDatabaseLock.Unlock()
+
+	if _, ok := self.databaseNames[name]; ok {
+		return fmt.Errorf("database %s exists", name)
+	}
+	self.databaseNames[name] = true
+	return nil
 }
 
 func (self *ClusterConfiguration) NextDatabaseId() string {

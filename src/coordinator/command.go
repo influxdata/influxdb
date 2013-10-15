@@ -111,3 +111,21 @@ func (c *NextDatabaseIdCommand) Apply(server *raft.Server) (interface{}, error) 
 	id := config.NextDatabaseId()
 	return id, nil
 }
+
+type CreateDatabaseCommand struct {
+	Name string `json:"name"`
+}
+
+func NewCreateDatabaseCommand(name string) *CreateDatabaseCommand {
+	return &CreateDatabaseCommand{name}
+}
+
+func (c *CreateDatabaseCommand) CommandName() string {
+	return "create_db"
+}
+
+func (c *CreateDatabaseCommand) Apply(server *raft.Server) (interface{}, error) {
+	config := server.Context().(*ClusterConfiguration)
+	err := config.CreateDatabase(c.Name)
+	return nil, err
+}
