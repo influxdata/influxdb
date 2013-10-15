@@ -35,12 +35,12 @@ if [ `uname` == "Linux" ]; then
         CXXFLAGS="-I$snappy_dir" LDFLAGS="-L$snappy_dir/.libs" make
         popd
     fi
+
+    pushd src/github.com/jmhodges/levigo/
+    find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'
+    popd
 fi
 
-
-#pushd src/github.com/jmhodges/levigo/
-#find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'
-#popd
 
 echo "packages: go build $packages"
 
