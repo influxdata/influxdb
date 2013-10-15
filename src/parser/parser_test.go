@@ -222,7 +222,7 @@ func (self *QueryParserSuite) TestParseFromWithNestedFunctions(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
-	q, err := ParseQuery("select value from cpu.idle where value > 90 and time > now() - 1d or value > 80 and time > now() - 1w;")
+	q, err := ParseQuery("select value from cpu.idle where value > 90 and other_value > 10 or value > 80 and other_value > 20;")
 	defer q.Close()
 	c.Assert(err, IsNil)
 
@@ -246,18 +246,12 @@ func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
 	rightExpression, ok := leftCondition.Right.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 	c.Assert(rightExpression.Operation, Equals, ">")
-	c.Assert(rightExpression.Left.Left, DeepEquals, &Value{"time", nil})
-	expr, ok := rightExpression.Right.GetLeftExpression()
-	value, ok := expr.GetLeftValue()
-	c.Assert(ok, Equals, true)
-	c.Assert(value, DeepEquals, &Value{"now", []*Value{}})
-	value, ok = rightExpression.Right.Right.GetLeftValue()
-	c.Assert(ok, Equals, true)
-	c.Assert(value, DeepEquals, &Value{"1d", nil})
+	c.Assert(rightExpression.Left.Left, DeepEquals, &Value{"other_value", nil})
+	c.Assert(rightExpression.Right.Left, DeepEquals, &Value{"10", nil})
 }
 
 func (self *QueryParserSuite) TestParseWhereClauseParantheses(c *C) {
-	q, err := ParseQuery("select value from cpu.idle where value > 90 and (time > now() - 1d or value > 80) and time < now() - 1w;")
+	q, err := ParseQuery("select value from cpu.idle where value > 90 and (other_value > 10 or value > 80) and other_value > 20;")
 	defer q.Close()
 	c.Assert(err, IsNil)
 
@@ -271,7 +265,7 @@ func (self *QueryParserSuite) TestParseWhereClauseParantheses(c *C) {
 
 	c.Assert(first.Operation, Equals, ">")
 	c.Assert(second.Operation, Equals, "OR")
-	c.Assert(third.Operation, Equals, "<")
+	c.Assert(third.Operation, Equals, ">")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithOrderByAndLimit(c *C) {

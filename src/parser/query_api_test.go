@@ -37,6 +37,19 @@ func (self *QueryApiSuite) TestGetEndTime(c *C) {
 	}
 }
 
+func (self *QueryApiSuite) TestGetStartTimeWithOr(c *C) {
+	for _, queryStr := range []string{
+		"select * from t where time > now() - 1d and (value > 90 or value < 10);",
+	} {
+		query, err := ParseQuery(queryStr)
+		c.Assert(err, IsNil)
+		startTime := query.GetStartTime()
+		roundedStartTime := startTime.Round(time.Minute).Unix()
+		yesterday := time.Now().Add(-24 * time.Hour).Round(time.Minute).Unix()
+		c.Assert(roundedStartTime, Equals, yesterday)
+	}
+}
+
 func (self *QueryApiSuite) TestErrorInStartTime(c *C) {
 	queriesAndErrors := map[string]string{
 		"select * from t where time > now() * 1d and time < now() - 1h;":  ".*'\\*'.*",

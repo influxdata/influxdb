@@ -16,6 +16,7 @@ var (
 		'm': int64(time.Minute / time.Second),
 		'h': int64(time.Hour / time.Second),
 		'd': int64(24 * time.Hour / time.Second),
+		'w': int64(7 * 24 * time.Hour / time.Second),
 	}
 )
 
@@ -35,18 +36,16 @@ func parseTime(expr *Expression) (int64, error) {
 		}
 
 		name := value.Name
-		switch c := name[len(name)-1]; c {
-		case 's', 'm', 'h', 'd':
-			name := name[0 : len(name)-1]
-			parsedInt, err := strconv.Atoi(name)
+		if period, ok := charToPeriod[name[len(name)-1]]; ok {
+			parsedInt, err := strconv.Atoi(name[:len(name)-1])
 			if err != nil {
 				return 0, err
 			}
-			return int64(parsedInt) * charToPeriod[c], nil
-		default:
-			parsedInt, err := strconv.Atoi(name)
-			return int64(parsedInt), err
+			return int64(parsedInt) * period, nil
 		}
+
+		parsedInt, err := strconv.Atoi(name)
+		return int64(parsedInt), err
 	}
 
 	leftExpression, _ := expr.GetLeftExpression()
@@ -127,7 +126,7 @@ func GetTime(condition *WhereCondition, isParsingStartTime bool) (time.Time, err
 		return ZERO_TIME, err
 	}
 
-	if condition.Operation == "OR" {
+	if condition.Operation == "OR" && (startTimeLeft != ZERO_TIME || startTimeRight != ZERO_TIME) {
 		// we can't have two start times or'd together
 		return ZERO_TIME, fmt.Errorf("Invalid where clause, time must appear twice to specify start and end time")
 	}
