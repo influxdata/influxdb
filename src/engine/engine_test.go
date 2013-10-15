@@ -800,6 +800,42 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 `)
 }
 
+func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
+	// make the mock coordinator return some data
+	engine := createEngine(c, `
+[
+  {
+    "points": [
+      { "values": [{ "int_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 2 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 3 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 4 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 5 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 },
+      { "values": [{ "int_value": 7 }], "timestamp": 1381346701, "sequence_number": 1 }
+    ],
+    "name": "foo",
+    "fields": [
+      { "type": "INT32", "name": "column_one" }
+    ]
+  }
+]
+`)
+
+	runQuery(engine, "select percentile(column_one, 80) from foo group by time(1m);", c, `[
+  {
+    "points": [
+      { "values": [{ "int_value": 6 }], "timestamp": 1381346700, "sequence_number": 1 }
+    ],
+    "name": "foo",
+    "fields": [
+      { "type": "INT32", "name": "percentile" }
+    ]
+  }
+]
+`)
+}
+
 func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidNumberOfArguments(c *C) {
 	err := common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
 	engine := createEngine(c, `[]`)
