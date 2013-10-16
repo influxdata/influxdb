@@ -8,6 +8,7 @@ cd `dirname $0`
 function print_usage {
     echo "$0 [-o regex] [-p package_name]"
     echo "  -o|--only:     Run the test that matches the given regex"
+    echo "  --no-valgrind: Skip the valgrind memory leak test"
     echo "  -p|--packages: Run the test in the given packages only"
     echo "  -b|--benchmarks: Run benchmarks"
     echo "  -h|--help:     Prints this help message"
@@ -17,6 +18,7 @@ while [ $# -ne 0 ]; do
     case "$1" in
         -h|--help) print_usage; exit 1; shift;;
         -o|--only) regex=$2; shift 2;;
+        --no-valgrind) valgrind=no; shift;;
         -p|--packages) test_packages="$test_packages $2"; shift 2;;
         -b|--benchmarks) gocheck_args="$gocheck_args -gocheck.b"; shift;;
         --) shift ; break ;;
@@ -26,7 +28,7 @@ done
 
 pushd src/parser
 ./build_parser.sh
-if [ "x`uname`" == "xLinux" ]; then
+if [ "x`uname`" == "xLinux" -a "x$valgrind" != "xno" ]; then
     if ! ./test_memory_leaks.sh; then
         echo "ERROR: memory leak detected"
         exit 1
