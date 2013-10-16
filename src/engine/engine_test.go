@@ -245,7 +245,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(*) from foo.*;", c, `[
+	runQuery(engine, "select count(*) from /foo.*/;", c, `[
   {
     "points": [
       {
