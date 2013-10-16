@@ -155,3 +155,77 @@ func (self *DatastoreSuite) TestCanPersistDataAndWriteNewData(c *C) {
 	results = executeQuery("asdf", "select value from foo;", db, c)
 	c.Assert(results, DeepEquals, series)
 }
+
+func (self *DatastoreSuite) TestCanWriteDataWithDifferentTimesAndSeries(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+	mock := `{
+    "points":[{"values":[{"double_value":23.2}],"sequence_number":3}],
+    "name": "events",
+    "fields": [{"type": "DOUBLE", "name": "blah"}]}`
+	secondAgo := time.Now().Add(-time.Second).Unix()
+	eventsSeries := stringToSeries(mock, secondAgo, c)
+	err := db.WriteSeriesData("db1", eventsSeries)
+	c.Assert(err, IsNil)
+	mock = `{
+    "points":[{"values":[{"int_value":4}],"sequence_number":3}],
+    "name": "foo",
+    "fields": [{"type": "INT32", "name": "val"}]}`
+	fooSeries := stringToSeries(mock, secondAgo, c)
+	err = db.WriteSeriesData("db1", fooSeries)
+	c.Assert(err, IsNil)
+
+	results := executeQuery("db1", "select blah from events;", db, c)
+	c.Assert(results, DeepEquals, eventsSeries)
+	results = executeQuery("db1", "select val from foo;", db, c)
+	c.Assert(results, DeepEquals, fooSeries)
+
+	now := time.Now().Unix()
+	mock = `{
+    "points":[{"values":[{"double_value": 0.1}],"sequence_number":1}],
+    "name":"events",
+    "fields": [{"type": "DOUBLE", "name": "blah"}]}`
+
+	newEvents := stringToSeries(mock, now, c)
+	err = db.WriteSeriesData("db1", newEvents)
+	c.Assert(err, IsNil)
+
+	results = executeQuery("db1", "select blah from events;", db, c)
+	c.Assert(len(results.Points), Equals, 2)
+	c.Assert(len(results.Fields), Equals, 1)
+	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(1))
+	c.Assert(*results.Points[1].SequenceNumber, Equals, uint32(3))
+	c.Assert(*results.Points[0].Timestamp, Equals, now)
+	c.Assert(*results.Points[1].Timestamp, Equals, secondAgo)
+	c.Assert(*results.Points[0].Values[0].DoubleValue, Equals, float64(0.1))
+	c.Assert(*results.Points[1].Values[0].DoubleValue, Equals, float64(23.2))
+	results = executeQuery("db1", "select val from foo;", db, c)
+	c.Assert(results, DeepEquals, fooSeries)
+}
+
+func (self *DatastoreSuite) TestCanWriteDataToDifferentDatabases(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+	mock := `{
+    "points":[{"values":[{"double_value":23.2}],"sequence_number":3}],
+    "name": "events",
+    "fields": [{"type": "DOUBLE", "name": "blah"}]}`
+	secondAgo := time.Now().Add(-time.Second).Unix()
+	db1Series := stringToSeries(mock, secondAgo, c)
+	err := db.WriteSeriesData("db1", db1Series)
+	c.Assert(err, IsNil)
+	mock = `{
+    "points":[{"values":[{"double_value":3.2}],"sequence_number":2}],
+    "name": "events",
+    "fields": [{"type": "DOUBLE", "name": "blah"}]}`
+	otherDbSeries := stringToSeries(mock, secondAgo, c)
+	err = db.WriteSeriesData("other_db", otherDbSeries)
+	c.Assert(err, IsNil)
+
+	results := executeQuery("db1", "select blah from events;", db, c)
+	c.Assert(results, DeepEquals, db1Series)
+	results = executeQuery("other_db", "select blah from events;", db, c)
+	c.Assert(results, DeepEquals, otherDbSeries)
+}
