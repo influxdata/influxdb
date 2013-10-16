@@ -38,15 +38,9 @@ func (self *MockCoordinator) WriteSeriesData(database string, series *protocol.S
 	return nil
 }
 
-func stringToSeriesArray(seriesString string, c *C) []*protocol.Series {
-	series := []*protocol.Series{}
-	err := json.Unmarshal([]byte(seriesString), &series)
-	c.Assert(err, IsNil)
-	return series
-}
-
 func createEngine(c *C, seriesString string) EngineI {
-	series := stringToSeriesArray(seriesString, c)
+	series, err := common.StringToSeriesArray(seriesString)
+	c.Assert(err, IsNil)
 
 	engine, err := NewQueryEngine(&MockCoordinator{
 		series: series,
@@ -82,7 +76,8 @@ func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
 
 	c.Assert(err, IsNil)
 
-	series := stringToSeriesArray(expectedSeries, c)
+	series, err := common.StringToSeriesArray(expectedSeries)
+	c.Assert(err, IsNil)
 
 	if !reflect.DeepEqual(result, series) {
 		resultData, _ := json.MarshalIndent(result, "", "  ")
@@ -909,4 +904,62 @@ func (self *EngineSuite) TestPercentileQueryWithOutOfBoundNumericArguments(c *C)
 	engine := createEngine(c, `[]`)
 	runQueryRunError(engine, "select percentile(column_one, 0) from foo group by time(1m);", c, err)
 	runQueryRunError(engine, "select percentile(column_one, 105) from foo group by time(1m);", c, err)
+}
+
+func (self *EngineSuite) TestEqualityFiltering(c *C) {
+	queryStr := "select * from t where column_one == 100 and column_two != 6;"
+	query, err := parser.ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	series, err := common.StringToSeriesArray(`
+[
+ {
+   "points": [
+     {"values": [{"int_value": 100},{"int_value": 5 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int_value": 100},{"int_value": 6 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int_value": 90 },{"int_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
+   ],
+   "name": "t",
+   "fields": [
+     {"type": "INT32", "name": "column_one"},
+     {"type": "INT32", "name": "column_two"}
+   ]
+ }
+]
+`)
+	c.Assert(err, IsNil)
+	result, err := Filter(query, series[0])
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Assert(result.Points, HasLen, 1)
+	c.Assert(*result.Points[0].Values[0].IntValue, Equals, int32(100))
+	c.Assert(*result.Points[0].Values[1].IntValue, Equals, int32(5))
+}
+
+func (self *EngineSuite) TestInequalityFiltering(c *C) {
+	queryStr := "select * from t where column_one >= 100 and column_two > 6;"
+	query, err := parser.ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	series, err := common.StringToSeriesArray(`
+[
+ {
+   "points": [
+     {"values": [{"int_value": 100},{"int_value": 7 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int_value": 100},{"int_value": 6 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int_value": 90 },{"int_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
+   ],
+   "name": "t",
+   "fields": [
+     {"type": "INT32", "name": "column_one"},
+     {"type": "INT32", "name": "column_two"}
+   ]
+ }
+]
+`)
+	c.Assert(err, IsNil)
+	result, err := Filter(query, series[0])
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Assert(result.Points, HasLen, 1)
+	c.Assert(*result.Points[0].Values[0].IntValue, Equals, int32(100))
+	c.Assert(*result.Points[0].Values[1].IntValue, Equals, int32(6))
 }

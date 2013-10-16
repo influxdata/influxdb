@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"protocol"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,10 +20,6 @@ var (
 		'w': int64(7 * 24 * time.Hour / time.Second),
 	}
 )
-
-func (self *Query) Filter(series *protocol.Series) *protocol.Series {
-	return nil
-}
 
 // parse time expressions, e.g. now() - 1d
 func parseTime(expr *Expression) (int64, error) {
