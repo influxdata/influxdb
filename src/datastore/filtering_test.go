@@ -40,7 +40,7 @@ func (self *FilteringSuite) TestEqualityFiltering(c *C) {
 }
 
 func (self *FilteringSuite) TestInequalityFiltering(c *C) {
-	queryStr := "select * from t where column_one >= 100 and column_two > 6;"
+	queryStr := "select * from t where column_one >= 100 and column_two > 6 and time > now() - 1d;"
 	query, err := parser.ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	series, err := common.StringToSeriesArray(`
