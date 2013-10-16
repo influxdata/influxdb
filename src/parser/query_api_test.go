@@ -37,6 +37,14 @@ func (self *QueryApiSuite) TestGetEndTime(c *C) {
 	}
 }
 
+func (self *QueryApiSuite) TestGetReferencedColumns(c *C) {
+	queryStr := "select value1, sum(value2) from t where value > 90.0 and value2 < 10.0 group by value3;"
+	query, err := ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	columns := query.GetReferencedColumns()
+	c.Assert(columns, DeepEquals, map[string][]string{"t": []string{"value", "value1", "value2", "value3"}})
+}
+
 func (self *QueryApiSuite) TestGetStartTimeWithOr(c *C) {
 	for _, queryStr := range []string{
 		"select * from t where time > now() - 1d and (value > 90 or value < 10);",

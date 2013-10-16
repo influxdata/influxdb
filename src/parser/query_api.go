@@ -3,7 +3,9 @@ package parser
 import (
 	"fmt"
 	"protocol"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -65,6 +67,87 @@ func parseTime(expr *Expression) (int64, error) {
 	default:
 		return 0, fmt.Errorf("Cannot use '%c' in a time expression", expr.Operation)
 	}
+}
+
+func GetReferencedColumnsFromValue(v *Value, mapping map[string][]string) (notAssigned []string) {
+	switch v.Type {
+	case ValueSimpleName:
+		if idx := strings.LastIndex(v.Name, "."); idx != -1 {
+			tableName := v.Name[:idx]
+			columnName := v.Name[idx+1:]
+			mapping[tableName] = append(mapping[tableName], columnName)
+			return
+		}
+		notAssigned = append(notAssigned, v.Name)
+	case ValueFunctionCall:
+		for _, value := range v.Elems {
+			notAssigned = append(notAssigned, GetReferencedColumnsFromValue(value, mapping)...)
+		}
+	}
+	return
+}
+
+func GetReferencedColumnsFromExpression(expr *Expression, mapping map[string][]string) (notAssigned []string) {
+	if left, ok := expr.GetLeftExpression(); ok {
+		notAssigned = append(notAssigned, GetReferencedColumnsFromExpression(left, mapping)...)
+		notAssigned = append(notAssigned, GetReferencedColumnsFromExpression(expr.Right, mapping)...)
+		return
+	}
+
+	value, _ := expr.GetLeftValue()
+	notAssigned = append(notAssigned, GetReferencedColumnsFromValue(value, mapping)...)
+	return
+}
+
+func GetReferencedColumnsFromBool(expr *BoolExpression, mapping map[string][]string) (notAssigned []string) {
+	notAssigned = append(notAssigned, GetReferencedColumnsFromExpression(expr.Right, mapping)...)
+	notAssigned = append(notAssigned, GetReferencedColumnsFromExpression(expr.Left, mapping)...)
+	return
+}
+
+func GetReferencedColumnsFromCondition(condition *WhereCondition, mapping map[string][]string) (notPrefixed []string) {
+	if left, ok := condition.GetLeftWhereCondition(); ok {
+		notPrefixed = append(notPrefixed, GetReferencedColumnsFromCondition(left, mapping)...)
+		notPrefixed = append(notPrefixed, GetReferencedColumnsFromCondition(condition.Right, mapping)...)
+		return
+	}
+
+	expr, _ := condition.GetBoolExpression()
+	notPrefixed = append(notPrefixed, GetReferencedColumnsFromBool(expr, mapping)...)
+	return
+}
+
+func (self *Query) GetReferencedColumns() (mapping map[string][]string) {
+	mapping = make(map[string][]string)
+	mapping[self.GetFromClause().Name] = []string{}
+
+	notPrefixedColumns := []string{}
+	for _, value := range self.GetColumnNames() {
+		notPrefixedColumns = append(notPrefixedColumns, GetReferencedColumnsFromValue(value, mapping)...)
+	}
+
+	if condition := self.GetWhereCondition(); condition != nil {
+		notPrefixedColumns = append(notPrefixedColumns, GetReferencedColumnsFromCondition(condition, mapping)...)
+	}
+
+	for _, groupBy := range self.GetGroupByClause() {
+		notPrefixedColumns = append(notPrefixedColumns, GetReferencedColumnsFromValue(groupBy, mapping)...)
+	}
+
+	for name, _ := range mapping {
+		mapping[name] = append(mapping[name], notPrefixedColumns...)
+		allNames := map[string]bool{}
+		for _, column := range mapping[name] {
+			allNames[column] = true
+		}
+		mapping[name] = nil
+		for column, _ := range allNames {
+			mapping[name] = append(mapping[name], column)
+		}
+		sort.Strings(mapping[name])
+	}
+
+	return
 }
 
 func GetTime(condition *WhereCondition, isParsingStartTime bool) (time.Time, error) {
