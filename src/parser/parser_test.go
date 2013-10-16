@@ -222,7 +222,7 @@ func (self *QueryParserSuite) TestParseFromWithNestedFunctions(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
-	q, err := ParseQuery("select value from cpu.idle where value > 90 and other_value > 10 or value > 80 and other_value > 20;")
+	q, err := ParseQuery("select value from cpu.idle where value > 90 and other_value > 10.0 or value > 80 and other_value > 20;")
 	defer q.Close()
 	c.Assert(err, IsNil)
 
@@ -247,7 +247,7 @@ func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Assert(rightExpression.Operation, Equals, ">")
 	c.Assert(rightExpression.Left.Left, DeepEquals, &Value{"other_value", ValueSimpleName, false, nil})
-	c.Assert(rightExpression.Right.Left, DeepEquals, &Value{"10", ValueInt, false, nil})
+	c.Assert(rightExpression.Right.Left, DeepEquals, &Value{"10.0", ValueFloat, false, nil})
 }
 
 func (self *QueryParserSuite) TestParseWhereClauseParantheses(c *C) {
@@ -368,7 +368,7 @@ func (self *QueryParserSuite) TestParseSelectWithRegexTables(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *C) {
-	q, err := ParseQuery("select value from cpu.idle where 30 < value * 1 / 3 ;")
+	q, err := ParseQuery("select value from cpu.idle where .30 < value * 1 / 3 ;")
 	defer q.Close()
 	c.Assert(err, IsNil)
 
@@ -377,7 +377,7 @@ func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *
 	boolExpression, ok := q.GetWhereCondition().GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	c.Assert(boolExpression.Left.Left, DeepEquals, &Value{"30", ValueInt, false, nil})
+	c.Assert(boolExpression.Left.Left, DeepEquals, &Value{".30", ValueFloat, false, nil})
 
 	// value * 1 / 3
 	rightExpression := boolExpression.Right

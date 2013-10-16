@@ -51,6 +51,8 @@ static int yycolumn = 1;
 
 [0-9]+                    { yylval->string = strdup(yytext); return INT_VALUE; }
 
+[0-9]*\.[0-9]+|[0-9]+\.[0-9]* { yylval->string = strdup(yytext); return FLOAT_VALUE; }
+
 [0-9]+[smhdw]             { yylval->string = strdup(yytext); return DURATION; }
 
 \/.+\/                    { yytext[strlen(yytext)-1]='\0';yylval->string=strdup(yytext+1);return REGEX_STRING; }

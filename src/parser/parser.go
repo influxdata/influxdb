@@ -23,6 +23,7 @@ type ValueType int
 const (
 	ValueRegex        ValueType = C.VALUE_REGEX
 	ValueInt          ValueType = C.VALUE_INT
+	ValueFloat        ValueType = C.VALUE_FLOAT
 	ValueString       ValueType = C.VALUE_STRING
 	ValueTableName    ValueType = C.VALUE_TABLE_NAME
 	ValueSimpleName   ValueType = C.VALUE_SIMPLE_NAME

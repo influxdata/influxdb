@@ -20,6 +20,7 @@ typedef struct value_t {
   enum {
     VALUE_REGEX,
     VALUE_INT,
+    VALUE_FLOAT,
     VALUE_STRING,
     VALUE_TABLE_NAME,
     VALUE_SIMPLE_NAME,

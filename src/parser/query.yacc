@@ -55,7 +55,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 
 // define types of tokens (terminals)
 %token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST LIMIT ORDER ASC DESC
-%token <string> STRING_VALUE INT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
+%token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
 // define the precendence of these operators
 %left  OR
@@ -218,6 +218,11 @@ VALUE:
         INT_VALUE
         {
           $$ = create_value($1, VALUE_INT, FALSE, NULL);
+        }
+        |
+        FLOAT_VALUE
+        {
+          $$ = create_value($1, VALUE_FLOAT, FALSE, NULL);
         }
         |
         DURATION_VALUE
