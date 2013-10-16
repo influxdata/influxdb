@@ -6,6 +6,7 @@ import (
 )
 
 type Datastore interface {
-	ExecuteQuery(ringLocation int64, query *parser.Query, yield func(*protocol.Series) error) error
-	WriteSeriesData(ringLocation int64, series *protocol.Series) error
+	ExecuteQuery(database string, query *parser.Query, yield func(*protocol.Series) error) error
+	WriteSeriesData(database string, series *protocol.Series) error
+	Close()
 }

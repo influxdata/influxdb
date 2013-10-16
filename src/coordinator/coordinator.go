@@ -16,10 +16,10 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer *RaftServer, c
 	return &CoordinatorImpl{clusterConfiguration, raftServer, datastore}
 }
 
-func (self *CoordinatorImpl) DistributeQuery(query *parser.Query, yield func(*protocol.Series) error) error {
-	return self.datastore.ExecuteQuery(0, query, yield)
+func (self *CoordinatorImpl) DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error {
+	return self.datastore.ExecuteQuery(db, query, yield)
 }
 
-func (self *CoordinatorImpl) WriteSeriesData(series *protocol.Series) error {
-	return self.datastore.WriteSeriesData(0, series)
+func (self *CoordinatorImpl) WriteSeriesData(db string, series *protocol.Series) error {
+	return self.datastore.WriteSeriesData(db, series)
 }

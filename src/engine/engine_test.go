@@ -25,7 +25,7 @@ type MockCoordinator struct {
 	series []*protocol.Series
 }
 
-func (self *MockCoordinator) DistributeQuery(query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) DistributeQuery(database string, query *parser.Query, yield func(*protocol.Series) error) error {
 	for _, series := range self.series {
 		if err := yield(series); err != nil {
 			return err
@@ -34,7 +34,7 @@ func (self *MockCoordinator) DistributeQuery(query *parser.Query, yield func(*pr
 	return nil
 }
 
-func (self *MockCoordinator) WriteSeriesData(series *protocol.Series) error {
+func (self *MockCoordinator) WriteSeriesData(database string, series *protocol.Series) error {
 	return nil
 }
 
@@ -65,7 +65,7 @@ func runQueryRunError(engine EngineI, query string, c *C, expectedErr error) {
 	q, err := parser.ParseQuery(query)
 	c.Assert(err, IsNil)
 
-	err = engine.RunQuery(q, func(series *protocol.Series) error { return nil })
+	err = engine.RunQuery("", q, func(series *protocol.Series) error { return nil })
 
 	c.Assert(err, DeepEquals, expectedErr)
 }
@@ -75,7 +75,7 @@ func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
 	c.Assert(err, IsNil)
 
 	result := []*protocol.Series{}
-	err = engine.RunQuery(q, func(series *protocol.Series) error {
+	err = engine.RunQuery("", q, func(series *protocol.Series) error {
 		result = append(result, series)
 		return nil
 	})

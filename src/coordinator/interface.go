@@ -14,6 +14,6 @@ type Coordinator interface {
 	//      for all the data points that are returned
 	//   4. The end of a time series is signaled by returning a series with no data points
 	//   5. TODO: Aggregation on the nodes
-	DistributeQuery(query *parser.Query, yield func(*protocol.Series) error) error
-	WriteSeriesData(series *protocol.Series) error
+	DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error
+	WriteSeriesData(db string, series *protocol.Series) error
 }

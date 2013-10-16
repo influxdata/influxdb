@@ -17,7 +17,7 @@ type QueryEngine struct {
 	coordinator coordinator.Coordinator
 }
 
-func (self *QueryEngine) RunQuery(query *parser.Query, yield func(*protocol.Series) error) (err error) {
+func (self *QueryEngine) RunQuery(database string, query *parser.Query, yield func(*protocol.Series) error) (err error) {
 	// don't let a panic pass beyond RunQuery
 	defer func() {
 		if err := recover(); err != nil {
@@ -30,9 +30,9 @@ func (self *QueryEngine) RunQuery(query *parser.Query, yield func(*protocol.Seri
 	}()
 
 	if isAggregateQuery(query) {
-		return self.executeCountQueryWithGroupBy(query, yield)
+		return self.executeCountQueryWithGroupBy(database, query, yield)
 	} else {
-		self.coordinator.DistributeQuery(query, yield)
+		self.coordinator.DistributeQuery(database, query, yield)
 	}
 	return nil
 }
@@ -190,7 +190,7 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 	}
 }
 
-func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *parser.Query, yield func(*protocol.Series) error) error {
 	aggregators := []Aggregator{}
 	for _, value := range query.GetColumnNames() {
 		if value.IsFunctionCall() {
@@ -216,7 +216,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield
 	fieldTypes := map[string]*protocol.FieldDefinition_Type{}
 	var inverse InverseMapper
 
-	err = self.coordinator.DistributeQuery(query, func(series *protocol.Series) error {
+	err = self.coordinator.DistributeQuery(database, query, func(series *protocol.Series) error {
 		var mapper Mapper
 		mapper, inverse, err = createValuesToInterface(groupBy, series.Fields)
 		if err != nil {
@@ -318,7 +318,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.Query, yield
 	return nil
 }
 
-func (self *QueryEngine) executeFunctionQueryWithGroupBy(query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *QueryEngine) executeFunctionQueryWithGroupBy(database string, query *parser.Query, yield func(*protocol.Series) error) error {
 	results := make(map[interface{}]int32)
 	timestamps := make(map[interface{}]int64)
 	var functionType string
@@ -341,7 +341,7 @@ func (self *QueryEngine) executeFunctionQueryWithGroupBy(query *parser.Query, yi
 		return err
 	}
 
-	self.coordinator.DistributeQuery(query, func(series *protocol.Series) error {
+	self.coordinator.DistributeQuery(database, query, func(series *protocol.Series) error {
 		var mapper Mapper
 		mapper, inverse, err = createValuesToInterface(groupBy, series.Fields)
 		var fieldIndex int

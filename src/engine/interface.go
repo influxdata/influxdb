@@ -6,5 +6,5 @@ import (
 )
 
 type EngineI interface {
-	RunQuery(query *parser.Query, yield func(*protocol.Series) error) error
+	RunQuery(database string, query *parser.Query, yield func(*protocol.Series) error) error
 }
