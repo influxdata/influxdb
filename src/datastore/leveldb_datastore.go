@@ -200,7 +200,8 @@ func (self *LevelDbDatastore) ExecuteQuery(database string, query *parser.Query,
 			result.Points = append(result.Points, point)
 		}
 	}
-	yield(result)
+	filteredResult, _ := Filter(query, result)
+	yield(filteredResult)
 	return nil
 }
 

@@ -268,3 +268,26 @@ func (self *DatastoreSuite) TestCanQueryBasedOnTime(c *C) {
 	c.Assert(*results.Points[0].Values[0].IntValue, Equals, int32(3))
 	c.Assert(*results.Points[1].Values[0].IntValue, Equals, int32(4))
 }
+
+func (self *DatastoreSuite) TestCanDoWhereQueryEquals(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	mock := `{
+    "points":[{"values":[{"string_value":"paul"}],"sequence_number":2},{"values":[{"string_value":"todd"}],"sequence_number":1}],
+    "name":"events",
+    "fields":[{"type":"STRING","name":"name"}]
+    }`
+	allData := stringToSeries(mock, time.Now().Unix(), c)
+	err := db.WriteSeriesData("db1", allData)
+	c.Assert(err, IsNil)
+
+	results := executeQuery("db1", "select name from events;", db, c)
+	c.Assert(results, DeepEquals, allData)
+	results = executeQuery("db1", "select name from events where name == 'paul';", db, c)
+	c.Assert(len(results.Points), Equals, 1)
+	c.Assert(len(results.Fields), Equals, 1)
+	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(2))
+	c.Assert(*results.Points[0].Values[0].StringValue, Equals, "paul")
+}
