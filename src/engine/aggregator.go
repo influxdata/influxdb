@@ -30,6 +30,7 @@ func init() {
 	registeredAggregators["max"] = NewMaxAggregator
 	registeredAggregators["min"] = NewMinAggregator
 	registeredAggregators["percentile"] = NewPercentileAggregator
+	registeredAggregators["mean"] = NewMeanAggregator
 	registeredAggregators["__timestamp_aggregator"] = NewTimestampAggregator
 }
 
@@ -117,6 +118,97 @@ func NewTimestampAggregator(query *parser.Query, _ *parser.Value) (Aggregator, e
 	return &TimestampAggregator{
 		timestamps: make(map[string]map[interface{}]int64),
 		duration:   duration,
+	}, nil
+}
+
+//
+// Mean Aggregator
+//
+
+type MeanAggregator struct {
+	fieldName  string
+	fieldIndex int
+	fieldType  protocol.FieldDefinition_Type
+	means      map[string]map[interface{}]float64
+	counts     map[string]map[interface{}]int
+}
+
+func (self *MeanAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+	means := self.means[series]
+	counts := self.counts[series]
+
+	if means == nil && counts == nil {
+		means = make(map[interface{}]float64)
+		self.means[series] = means
+
+		counts = make(map[interface{}]int)
+		self.counts[series] = counts
+	}
+
+	currentMean := means[group]
+	currentCount := counts[group] + 1
+
+	var value float64
+	switch self.fieldType {
+	case protocol.FieldDefinition_INT64:
+		value = float64(*p.Values[self.fieldIndex].Int64Value)
+	case protocol.FieldDefinition_INT32:
+		value = float64(*p.Values[self.fieldIndex].IntValue)
+	case protocol.FieldDefinition_DOUBLE:
+		value = *p.Values[self.fieldIndex].DoubleValue
+	}
+
+	currentMean = currentMean*float64(currentCount-1)/float64(currentCount) + value/float64(currentCount)
+
+	means[group] = currentMean
+	counts[group] = currentCount
+	return nil
+}
+
+func (self *MeanAggregator) ColumnName() string {
+	return "mean"
+}
+
+func (self *MeanAggregator) ColumnType() protocol.FieldDefinition_Type {
+	return protocol.FieldDefinition_DOUBLE
+}
+
+func (self *MeanAggregator) GetValue(series string, group interface{}) *protocol.FieldValue {
+	mean := self.means[series][group]
+	return &protocol.FieldValue{DoubleValue: &mean}
+}
+
+func (self *MeanAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+	for idx, field := range series.Fields {
+		if *field.Name == self.fieldName {
+			self.fieldIndex = idx
+			self.fieldType = *field.Type
+
+			switch self.fieldType {
+			case protocol.FieldDefinition_INT32,
+				protocol.FieldDefinition_INT64,
+				protocol.FieldDefinition_DOUBLE:
+				// that's fine
+			default:
+				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
+			}
+
+			return nil
+		}
+	}
+
+	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
+}
+
+func NewMeanAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+	if len(value.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mean() requires exactly one argument")
+	}
+
+	return &MeanAggregator{
+		fieldName: value.Elems[0].Name,
+		means:     make(map[string]map[interface{}]float64),
+		counts:    make(map[string]map[interface{}]int),
 	}, nil
 }
 
@@ -332,7 +424,7 @@ func (self *MaxAggregator) InitializeFieldsMetadata(series *protocol.Series) err
 
 func NewMaxAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "max take one argument only")
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
 	}
 
 	return &MaxAggregator{
@@ -417,7 +509,7 @@ func (self *MinAggregator) InitializeFieldsMetadata(series *protocol.Series) err
 
 func NewMinAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "max take one argument only")
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function min() requires only one argument")
 	}
 
 	return &MinAggregator{
