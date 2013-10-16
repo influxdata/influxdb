@@ -961,5 +961,5 @@ func (self *EngineSuite) TestInequalityFiltering(c *C) {
 	c.Assert(result, NotNil)
 	c.Assert(result.Points, HasLen, 1)
 	c.Assert(*result.Points[0].Values[0].IntValue, Equals, int32(100))
-	c.Assert(*result.Points[0].Values[1].IntValue, Equals, int32(6))
+	c.Assert(*result.Points[0].Values[1].IntValue, Equals, int32(7))
 }

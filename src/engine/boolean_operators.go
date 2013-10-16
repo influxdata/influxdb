@@ -18,7 +18,7 @@ func init() {
 	registeredOperators[">="] = GreaterThanOrEqualOperator
 	registeredOperators[">"] = GreaterThanOperator
 	registeredOperators["<"] = not(GreaterThanOrEqualOperator)
-	registeredOperators[">"] = not(GreaterThanOperator)
+	registeredOperators["<="] = not(GreaterThanOperator)
 	registeredOperators["~="] = RegexMatcherOperator
 }
 
@@ -166,6 +166,6 @@ func GreaterThanOperator(leftType, rightType protocol.FieldDefinition_Type, left
 	case protocol.FieldDefinition_DOUBLE:
 		return *leftValue.DoubleValue > *rightValue.DoubleValue, nil
 	default:
-		return false, fmt.Errorf("Cannot use >= with type %v", cType)
+		return false, fmt.Errorf("Cannot use > with type %v", cType)
 	}
 }
