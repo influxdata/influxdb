@@ -99,15 +99,16 @@ func (self *WhereCondition) GetLeftWhereCondition() (*WhereCondition, bool) {
 }
 
 type Query struct {
-	q             C.query
-	closed        bool
-	ColumnNames   []*Value
-	Condition     *WhereCondition
-	groupByClause GroupByClause
-	Limit         int
-	Ascending     bool
-	startTime     time.Time
-	endTime       time.Time
+	q               C.query
+	closed          bool
+	ColumnNames     []*Value
+	Condition       *WhereCondition
+	groupByClause   GroupByClause
+	Limit           int
+	Ascending       bool
+	startTime       time.Time
+	endTime         time.Time
+	parsedCondition bool
 }
 
 func (self *Query) GetColumnNames() []*Value {
@@ -233,6 +234,11 @@ func (self *Query) GetWhereCondition() *WhereCondition {
 		return nil
 	}
 
+	if self.parsedCondition {
+		return self.Condition
+	}
+
+	self.parsedCondition = true
 	self.Condition = GetWhereCondition(self.q.where_condition)
 	return self.Condition
 }
@@ -275,9 +281,11 @@ func ParseQuery(query string) (*Query, error) {
 		return nil, err
 	}
 
-	goQuery := &Query{q, false, nil, nil, nil, int(q.limit), q.ascending != 0, time.Unix(0, 0), time.Now()}
+	goQuery := &Query{q, false, nil, nil, nil, int(q.limit), q.ascending != 0, time.Unix(0, 0), time.Now(), false}
 
-	startTime, err := GetTime(goQuery.GetWhereCondition(), true)
+	var startTime, endTime time.Time
+	var err error
+	goQuery.Condition, startTime, err = GetTime(goQuery.GetWhereCondition(), true)
 	if err != nil {
 		goQuery.Close()
 		return nil, err
@@ -287,7 +295,7 @@ func ParseQuery(query string) (*Query, error) {
 		goQuery.startTime = startTime
 	}
 
-	endTime, err := GetTime(goQuery.GetWhereCondition(), false)
+	goQuery.Condition, endTime, err = GetTime(goQuery.GetWhereCondition(), false)
 	if err != nil {
 		goQuery.Close()
 		return nil, err

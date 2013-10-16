@@ -20,6 +20,7 @@ func (self *QueryApiSuite) TestGetStartTime(c *C) {
 		roundedStartTime := startTime.Round(time.Minute).Unix()
 		yesterday := time.Now().Add(-24 * time.Hour).Round(time.Minute).Unix()
 		c.Assert(roundedStartTime, Equals, yesterday)
+		c.Assert(query.GetWhereCondition(), IsNil)
 	}
 }
 
@@ -34,6 +35,7 @@ func (self *QueryApiSuite) TestGetEndTime(c *C) {
 		roundedEndTime := endTime.Round(time.Minute).Unix()
 		anHourAgo := time.Now().Add(-1 * time.Hour).Round(time.Minute).Unix()
 		c.Assert(roundedEndTime, Equals, anHourAgo)
+		c.Assert(query.GetWhereCondition(), IsNil)
 	}
 }
 

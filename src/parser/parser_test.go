@@ -3,6 +3,7 @@ package parser
 import (
 	. "launchpad.net/gocheck"
 	"testing"
+	"time"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -109,35 +110,17 @@ func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 	q, err := ParseQuery("select value, time from t where time > now() - 1d;")
 	defer q.Close()
 	c.Assert(err, IsNil)
-	w := q.GetWhereCondition()
+
+	// note: the time condition will be removed
+	c.Assert(q.GetWhereCondition(), IsNil)
 
 	c.Assert(q.GetFromClause().Name, Equals, "t")
 
-	boolExpression, ok := w.GetBoolExpression()
-	c.Assert(ok, Equals, true)
-
-	leftExpression := boolExpression.Left
-	leftValue, ok := leftExpression.GetLeftValue()
-	c.Assert(ok, Equals, true)
-	c.Assert(leftValue.Name, Equals, "time")
-
-	rightExpression := boolExpression.Right
-	funCallExpr, ok := rightExpression.GetLeftExpression()
-	c.Assert(ok, Equals, true)
-	funCall, ok := funCallExpr.GetLeftValue()
-	c.Assert(ok, Equals, true)
-	oneDay, ok := rightExpression.Right.GetLeftValue()
-	c.Assert(ok, Equals, true)
-
-	c.Assert(funCall.IsFunctionCall(), Equals, true)
-	c.Assert(funCall.Name, Equals, "now")
-	c.Assert(oneDay.IsFunctionCall(), Equals, false)
-	c.Assert(oneDay.Name, Equals, "1d")
-	c.Assert(rightExpression.Operation, Equals, byte('-'))
+	c.Assert(q.GetStartTime().Round(time.Minute), Equals, time.Now().Add(-24*time.Hour).Round(time.Minute))
 }
 
 func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
-	q, err := ParseQuery("select value from cpu.idle where time>now()-7d and time<now()-6d;")
+	q, err := ParseQuery("select value from cpu.idle where value > exp() * 2 and value < exp() * 3;")
 	defer q.Close()
 	c.Assert(err, IsNil)
 
@@ -146,35 +129,35 @@ func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 	w := q.GetWhereCondition()
 	c.Assert(w.Operation, Equals, "AND")
 
-	// leftBoolExpression = 'time > now() - 7d'
+	// leftBoolExpression = 'value > exp() * 2'
 	leftWhereCondition, ok := w.GetLeftWhereCondition()
 	c.Assert(ok, Equals, true)
 	leftBoolExpression, ok := leftWhereCondition.GetBoolExpression()
 	c.Assert(ok, Equals, true)
-	// rightBoolExpression = 'time < now() - 6d'
+	// rightBoolExpression = 'value > exp() * 3'
 	rightBoolExpression, ok := w.Right.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	c.Assert(leftBoolExpression.Left.Left, DeepEquals, &Value{"time", ValueSimpleName, false, nil})
+	c.Assert(leftBoolExpression.Left.Left, DeepEquals, &Value{"value", ValueSimpleName, false, nil})
 	expr, ok := leftBoolExpression.Right.GetLeftExpression()
 	c.Assert(ok, Equals, true)
 	value, ok := expr.GetLeftValue()
 	c.Assert(ok, Equals, true)
-	c.Assert(value, DeepEquals, &Value{"now", ValueFunctionCall, false, nil})
+	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, false, nil})
 	value, ok = leftBoolExpression.Right.Right.GetLeftValue()
 	c.Assert(ok, Equals, true)
-	c.Assert(value, DeepEquals, &Value{"7d", ValueDuration, false, nil})
+	c.Assert(value, DeepEquals, &Value{"2", ValueInt, false, nil})
 	c.Assert(leftBoolExpression.Operation, Equals, ">")
 
-	c.Assert(rightBoolExpression.Left.Left, DeepEquals, &Value{"time", ValueSimpleName, false, nil})
+	c.Assert(rightBoolExpression.Left.Left, DeepEquals, &Value{"value", ValueSimpleName, false, nil})
 	expr, ok = rightBoolExpression.Right.GetLeftExpression()
 	c.Assert(ok, Equals, true)
 	value, ok = expr.GetLeftValue()
 	c.Assert(ok, Equals, true)
-	c.Assert(value, DeepEquals, &Value{"now", ValueFunctionCall, false, nil})
+	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, false, nil})
 	value, ok = rightBoolExpression.Right.Right.GetLeftValue()
 	c.Assert(ok, Equals, true)
-	c.Assert(value, DeepEquals, &Value{"6d", ValueDuration, false, nil})
+	c.Assert(value, DeepEquals, &Value{"3", ValueInt, false, nil})
 	c.Assert(rightBoolExpression.Operation, Equals, "<")
 }
 
@@ -342,7 +325,8 @@ func (self *QueryParserSuite) TestParseSelectWithRegexCondition(c *C) {
 	c.Assert(err, IsNil)
 	w := q.GetWhereCondition()
 
-	regexExpression := w.Left.(*WhereCondition).Left.(*BoolExpression)
+	// note: conditions that involve time are removed after the query is parsed
+	regexExpression, _ := w.GetBoolExpression()
 	c.Assert(regexExpression.Left.Left, DeepEquals, &Value{"email", ValueSimpleName, false, nil})
 	c.Assert(regexExpression.Operation, Equals, "~=")
 	c.Assert(regexExpression.Right.Left, DeepEquals, &Value{"gmail\\.com", ValueRegex, true, nil})
