@@ -229,3 +229,42 @@ func (self *DatastoreSuite) TestCanWriteDataToDifferentDatabases(c *C) {
 	results = executeQuery("other_db", "select blah from events;", db, c)
 	c.Assert(results, DeepEquals, otherDbSeries)
 }
+
+func (self *DatastoreSuite) TestCanQueryBasedOnTime(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	minutesAgo := time.Now().Add(-10 * time.Minute).Unix()
+	now := time.Now().Unix()
+	mock := `{
+    "points":[{"values":[{"int_value":4}],"sequence_number":3}],
+    "name": "foo",
+    "fields": [{"type": "INT32", "name": "val"}]}`
+	oldData := stringToSeries(mock, minutesAgo, c)
+	err := db.WriteSeriesData("db1", oldData)
+	c.Assert(err, IsNil)
+
+	mock = `{
+    "points":[{"values":[{"int_value":3}],"sequence_number":3}],
+    "name": "foo",
+    "fields": [{"type": "INT32", "name": "val"}]}`
+	newData := stringToSeries(mock, now, c)
+	err = db.WriteSeriesData("db1", newData)
+	c.Assert(err, IsNil)
+
+	results := executeQuery("db1", "select val from foo where time>now()-1m;", db, c)
+	c.Assert(results, DeepEquals, newData)
+	results = executeQuery("db1", "select val from foo where time>now()-1h and time<now()-1m;", db, c)
+	c.Assert(results, DeepEquals, oldData)
+
+	results = executeQuery("db1", "select val from foo;", db, c)
+	c.Assert(len(results.Points), Equals, 2)
+	c.Assert(len(results.Fields), Equals, 1)
+	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(3))
+	c.Assert(*results.Points[1].SequenceNumber, Equals, uint32(3))
+	c.Assert(*results.Points[0].Timestamp, Equals, now)
+	c.Assert(*results.Points[1].Timestamp, Equals, minutesAgo)
+	c.Assert(*results.Points[0].Values[0].IntValue, Equals, int32(3))
+	c.Assert(*results.Points[1].Values[0].IntValue, Equals, int32(4))
+}
