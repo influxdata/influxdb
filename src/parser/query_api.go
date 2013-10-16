@@ -117,33 +117,33 @@ func GetTime(condition *WhereCondition, isParsingStartTime bool) (time.Time, err
 	}
 
 	leftCondition, _ := condition.GetLeftWhereCondition()
-	startTimeLeft, err := GetTime(leftCondition, isParsingStartTime)
+	timeLeft, err := GetTime(leftCondition, isParsingStartTime)
 	if err != nil {
 		return ZERO_TIME, err
 	}
-	startTimeRight, err := GetTime(condition.Right, isParsingStartTime)
+	timeRight, err := GetTime(condition.Right, isParsingStartTime)
 	if err != nil {
 		return ZERO_TIME, err
 	}
 
-	if condition.Operation == "OR" && (startTimeLeft != ZERO_TIME || startTimeRight != ZERO_TIME) {
+	if condition.Operation == "OR" && (timeLeft != ZERO_TIME || timeRight != ZERO_TIME) {
 		// we can't have two start times or'd together
 		return ZERO_TIME, fmt.Errorf("Invalid where clause, time must appear twice to specify start and end time")
 	}
 
-	if startTimeLeft == ZERO_TIME {
-		return startTimeRight, nil
+	if timeLeft == ZERO_TIME {
+		return timeRight, nil
 	}
-	if startTimeRight == ZERO_TIME {
-		return startTimeLeft, nil
+	if timeRight == ZERO_TIME {
+		return timeLeft, nil
 	}
-	if isParsingStartTime && startTimeLeft.Unix() < startTimeRight.Unix() {
-		return startTimeLeft, nil
+	if isParsingStartTime && timeLeft.Unix() < timeRight.Unix() {
+		return timeLeft, nil
 	}
-	if !isParsingStartTime && startTimeLeft.Unix() > startTimeRight.Unix() {
-		return startTimeLeft, nil
+	if !isParsingStartTime && timeLeft.Unix() > timeRight.Unix() {
+		return timeLeft, nil
 	}
-	return startTimeRight, nil
+	return timeRight, nil
 }
 
 // Returns the start time of the query. Queries can only have
