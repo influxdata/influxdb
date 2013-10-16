@@ -26,7 +26,7 @@ func (self *QueryApiSuite) TestGetStartTime(c *C) {
 func (self *QueryApiSuite) TestGetEndTime(c *C) {
 	for _, queryStr := range []string{
 		"select * from t where time > now() - 1d and time < now() - 1h;",
-		"select * from t where now() - 1d < time and time < now() - 1h;",
+		"select * from t where now() - 1d < time and now() - 1h > time;",
 	} {
 		query, err := ParseQuery(queryStr)
 		c.Assert(err, IsNil)
