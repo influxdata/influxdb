@@ -29,7 +29,9 @@ func newDatastore(c *C) Datastore {
 }
 
 func cleanup(db Datastore) {
-	db.Close()
+	if db != nil {
+		db.Close()
+	}
 	os.RemoveAll(DB_DIR)
 }
 
@@ -43,7 +45,24 @@ func stringToSeries(seriesString string, timestamp int64, c *C) *protocol.Series
 	return series
 }
 
+func executeQuery(database, query string, db Datastore, c *C) *protocol.Series {
+	q, errQ := parser.ParseQuery(query)
+	c.Assert(errQ, IsNil)
+	done := make(chan int, 1)
+	resultSeries := &protocol.Series{}
+	yield := func(series *protocol.Series) error {
+		resultSeries = series
+		done <- 1
+		return nil
+	}
+	err := db.ExecuteQuery(database, q, yield)
+	c.Assert(err, IsNil)
+	<-done
+	return resultSeries
+}
+
 func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
+	cleanup(nil)
 	db := newDatastore(c)
 	defer cleanup(db)
 	mock := `
@@ -52,18 +71,18 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
       {
         "values": [
           {
-            "int_value": 2
-          }
-        ],
-        "sequence_number": 2
-      },
-      {
-        "values": [
-          {
             "int_value": 3
           }
         ],
         "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int_value": 2
+          }
+        ],
+        "sequence_number": 2
       }
     ],
     "name": "foo",
@@ -99,4 +118,40 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	c.Assert(*resultSeries.Points[1].Timestamp, Equals, pointTime)
 	c.Assert(*resultSeries.Points[0].Values[0].IntValue, Equals, int32(2))
 	c.Assert(*resultSeries.Points[1].Values[0].IntValue, Equals, int32(3))
+	c.Assert(resultSeries, Not(DeepEquals), series)
+}
+
+func (self *DatastoreSuite) TestCanPersistDataAndWriteNewData(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	mock := `
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int_value": 3
+          }
+        ],
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": [
+      {
+        "type": "INT32",
+        "name": "value"
+      }
+    ]
+  }`
+	series := stringToSeries(mock, time.Now().Unix(), c)
+	err := db.WriteSeriesData("asdf", series)
+	c.Assert(err, IsNil)
+	results := executeQuery("asdf", "select value from foo;", db, c)
+	c.Assert(results, DeepEquals, series)
+	db.Close()
+	db = newDatastore(c)
+	defer cleanup(db)
+	results = executeQuery("asdf", "select value from foo;", db, c)
+	c.Assert(results, DeepEquals, series)
 }
