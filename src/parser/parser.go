@@ -18,13 +18,28 @@ type From struct {
 
 type Operation int
 
+type ValueType int
+
+const (
+	ValueRegex        ValueType = C.VALUE_REGEX
+	ValueInt          ValueType = C.VALUE_INT
+	ValueString       ValueType = C.VALUE_STRING
+	ValueTableName    ValueType = C.VALUE_TABLE_NAME
+	ValueSimpleName   ValueType = C.VALUE_SIMPLE_NAME
+	ValueDuration     ValueType = C.VALUE_DURATION
+	ValueWildcard     ValueType = C.VALUE_WILDCARD
+	ValueFunctionCall ValueType = C.VALUE_FUNCTION_CALL
+)
+
 type Value struct {
-	Name  string
-	Elems []*Value
+	Name              string
+	Type              ValueType
+	IsCaseInsensitive bool
+	Elems             []*Value
 }
 
 func (self *Value) IsFunctionCall() bool {
-	return self.Elems != nil
+	return self.Type == ValueFunctionCall
 }
 
 type Expression struct {
@@ -163,7 +178,8 @@ func GetValue(value *C.value) *Value {
 	v := &Value{}
 	v.Name = C.GoString(value.name)
 	v.Elems = GetValueArray(value.args)
-
+	v.Type = ValueType(value.value_type)
+	v.IsCaseInsensitive = value.is_case_insensitive != 0
 	return v
 }
 
@@ -235,6 +251,10 @@ func (self *Query) GetGroupByClause() GroupByClause {
 }
 
 func (self *Query) Close() {
+	if self == nil {
+		return
+	}
+
 	if self.closed {
 		return
 	}

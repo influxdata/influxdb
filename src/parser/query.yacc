@@ -14,6 +14,15 @@ expression *create_expression(expression *left, char op, expression *right) {
   return expr;
 }
 
+value *create_value(char *name, int type, char is_case_insensitive, value_array *args) {
+  value *v = malloc(sizeof(value));
+  v->name = name;
+  v->value_type = type;
+  v->is_case_insensitive = is_case_insensitive;
+  v->args = args;
+  return v;
+}
+
 %}
 
 %union {
@@ -46,7 +55,7 @@ expression *create_expression(expression *left, char op, expression *right) {
 
 // define types of tokens (terminals)
 %token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST LIMIT ORDER ASC DESC
-%token <string> STRING_VALUE INT_VALUE NAME REGEX_OP REGEX_STRING
+%token <string> STRING_VALUE INT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
 // define the precendence of these operators
 %left  OR
@@ -63,8 +72,8 @@ expression *create_expression(expression *left, char op, expression *right) {
 %type <condition>       CONDITION
 %type <bool_expression> BOOL_EXPRESSION
 %type <value_array>     VALUES
-%type <v>               VALUE
-%type <v>               FUNCTION_CALL
+%type <v>               VALUE TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE
+%type <v>               WILDCARD REGEX_VALUE DURATION_VALUE FUNCTION_CALL
 %type <expression>      EXPRESSION
 %type <value_array>     GROUP_BY_CLAUSE
 %type <integer>         LIMIT_CLAUSE
@@ -171,9 +180,10 @@ GROUP_BY_CLAUSE:
           $$ = NULL;
         }
 
-COLUMN_NAMES: VALUES
+COLUMN_NAMES:
+        VALUES
 
-FROM_CLAUSE: FROM VALUE
+FROM_CLAUSE: FROM TABLE_VALUE
 {
   $$ = $2;
 }
@@ -189,52 +199,75 @@ WHERE_CLAUSE:
         }
 
 FUNCTION_CALL:
-        NAME '(' ')'
+        SIMPLE_NAME '(' ')'
         {
-          $$ = malloc(sizeof(value));
-          $$->name = $1;
-          $$->args = malloc(sizeof(array));
-          $$->args->size = 0;
-          $$->args->elems = NULL;
+          $$ = create_value($1, VALUE_FUNCTION_CALL, FALSE, NULL);
         }
         |
-        NAME '(' VALUES ')'
+        SIMPLE_NAME '(' VALUES ')'
         {
-          $$ = malloc(sizeof(value));
-          $$->name = $1;
-          $$->args = $3;
+          $$ = create_value($1, VALUE_FUNCTION_CALL, FALSE, $3);
         }
 
 VALUE:
         STRING_VALUE
         {
-          $$ = malloc(sizeof(value));
-          $$->name = $1;
-          $$->args = NULL;
+          $$ = create_value($1, VALUE_STRING, FALSE, NULL);
         }
         |
         INT_VALUE
         {
-          $$ = malloc(sizeof(value));
-          $$->name = $1;
-          $$->args = NULL;
+          $$ = create_value($1, VALUE_INT, FALSE, NULL);
         }
         |
-        '*'
-        {
-          $$ = malloc(sizeof(value));
-          $$->name = strdup("*");
-          $$->args = NULL;
-        }
+        DURATION_VALUE
         |
-        NAME
-        {
-          $$ = malloc(sizeof(value));
-          $$->name = $1;
-          $$->args = NULL;
-        }
+        SIMPLE_NAME_VALUE
+        |
+        WILDCARD
+        |
+        TABLE_NAME_VALUE
         |
         FUNCTION_CALL
+
+TABLE_VALUE:
+        SIMPLE_NAME_VALUE | TABLE_NAME_VALUE | REGEX_VALUE | FUNCTION_CALL
+
+DURATION_VALUE:
+        DURATION
+        {
+          $$ = create_value($1, VALUE_DURATION, FALSE, NULL);
+        }
+
+SIMPLE_NAME_VALUE:
+        SIMPLE_NAME
+        {
+          $$ = create_value($1, VALUE_SIMPLE_NAME, FALSE, NULL);
+        }
+
+WILDCARD:
+        '*'
+        {
+          char *name = strdup("*");
+          $$ = create_value(name, VALUE_WILDCARD, FALSE, NULL);
+        }
+
+TABLE_NAME_VALUE:
+        TABLE_NAME
+        {
+          $$ = create_value($1, VALUE_TABLE_NAME, FALSE, NULL);
+        }
+
+REGEX_VALUE:
+        REGEX_STRING
+        {
+          $$ = create_value($1, VALUE_REGEX, FALSE, NULL);
+        }
+        |
+        INSENSITIVE_REGEX_STRING
+        {
+          $$ = create_value($1, VALUE_REGEX, TRUE, NULL);
+        }
 
 EXPRESSION:
         VALUE
@@ -275,16 +308,13 @@ BOOL_EXPRESSION:
           $$->right = $3;
         }
         |
-        EXPRESSION REGEX_OP REGEX_STRING
+        EXPRESSION REGEX_OP REGEX_VALUE
         {
           $$ = malloc(sizeof(bool_expression));
           $$->left = $1;
           $$->op = $2;
-          value *v = malloc(sizeof(value));
-          v->name = $3;
-          v->args = NULL;
           $$->right = malloc(sizeof(expression));
-          $$->right->left = v;
+          $$->right->left = $3;
           $$->right->op = '\0';
           $$->right->right = NULL;
         }

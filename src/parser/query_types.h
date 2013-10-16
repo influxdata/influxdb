@@ -17,6 +17,17 @@ typedef struct {
 
 typedef struct value_t {
   char *name;
+  enum {
+    VALUE_REGEX,
+    VALUE_INT,
+    VALUE_STRING,
+    VALUE_TABLE_NAME,
+    VALUE_SIMPLE_NAME,
+    VALUE_DURATION,
+    VALUE_WILDCARD,
+    VALUE_FUNCTION_CALL
+  } value_type;
+  char is_case_insensitive;
   value_array *args;
 } value;
 
