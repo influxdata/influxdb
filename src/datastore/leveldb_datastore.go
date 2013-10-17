@@ -116,9 +116,13 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 func (self *LevelDbDatastore) ExecuteQuery(database string, query *parser.Query, yield func(*protocol.Series) error) error {
 	seriesAndColumns := query.GetReferencedColumns()
 	for series, columns := range seriesAndColumns {
-		err := self.executeQueryForSeries(database, series, columns, query, yield)
-		if err != nil {
-			return err
+		if _, ok := series.GetCompiledRegex(); ok {
+			// TODO: handle regex table names
+		} else {
+			err := self.executeQueryForSeries(database, series.Name, columns, query, yield)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
