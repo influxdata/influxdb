@@ -334,3 +334,25 @@ func (self *DatastoreSuite) TestCanDoCountStarQueries(c *C) {
 	c.Assert(*results.Points[1].SequenceNumber, Equals, uint32(1))
 	c.Assert(*results.Points[1].Values[0].IntValue, Equals, int32(1))
 }
+
+func (self *DatastoreSuite) TestLimitsPointsReturnedBasedOnQuery(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	mock := `{
+    "points":[
+      {"values":[{"int_value":3},{"string_value":"paul"}],"sequence_number":2},
+      {"values":[{"int_value":1},{"string_value":"todd"}],"sequence_number":1}],
+      "name":"user_things",
+      "fields":[{"type":"INT32","name":"count"},{"type":"STRING","name":"name"}]
+    }`
+	series := stringToSeries(mock, time.Now().Unix(), c)
+	err := db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	results := executeQuery("foobar", "select name from user_things limit 1;", db, c)
+	c.Assert(len(results.Points), Equals, 1)
+	c.Assert(len(results.Fields), Equals, 1)
+	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(2))
+	c.Assert(*results.Points[0].Values[0].StringValue, Equals, "paul")
+}

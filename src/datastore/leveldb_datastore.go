@@ -36,6 +36,7 @@ const (
 	ONE_GIGABYTE              = 1024 * 1024 * 1024
 	TWO_FIFTY_SIX_KILOBYTES   = 256 * 1024
 	BLOOM_FILTER_BITS_PER_KEY = 64
+	MAX_POINTS_TO_SCAN        = 100000
 )
 
 var (
@@ -160,6 +161,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	rawColumnValues := make([]*rawColumnValue, fieldCount, fieldCount)
 	isValid := true
 
+	limit := query.Limit
+	if limit == 0 {
+		limit = MAX_POINTS_TO_SCAN
+	}
+
 	// TODO: clean up, this is super gnarly
 	// optimize for the case where we're pulling back only a single column or aggregate
 	for isValid {
@@ -212,7 +218,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			}
 		}
 		if isValid {
+			limit -= 1
 			result.Points = append(result.Points, point)
+		}
+		if limit < 1 {
+			break
 		}
 	}
 	filteredResult, _ := Filter(query, result)
