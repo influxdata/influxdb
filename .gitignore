@@ -4,12 +4,6 @@
 /bin/
 
 /pkg/
-/src/code.google.com/p/goplan9/
-/src/code.google.com/p/goprotobuf/
-/src/code.google.com/p/rog-go/
-src/launchpad.net/gocheck/
-/src/github.com/nsf/gocode/
-/src/github.com/*
 
 TAGS
 
@@ -25,3 +19,12 @@ a.out
 src/parser/lex.yy.c
 src/parser/y.tab.h
 src/parser/y.tab.c
+
+# dependencies
+src/code.google.com/p/log4go
+/src/code.google.com/p/goplan9/
+/src/code.google.com/p/goprotobuf/
+/src/code.google.com/p/rog-go/
+src/launchpad.net/gocheck/
+/src/github.com/nsf/gocode/
+/src/github.com/*

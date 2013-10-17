@@ -40,6 +40,10 @@ go get code.google.com/p/goprotobuf/proto
 go get github.com/goraft/raft
 go get github.com/gorilla/mux
 go get github.com/jmhodges/levigo
+go get github.com/bmizerany/pat
+go get github.com/fitstar/falcore
+go get github.com/fitstar/falcore/filter
+go get code.google.com/p/log4go
 
 echo "packages: go build $packages"
 
