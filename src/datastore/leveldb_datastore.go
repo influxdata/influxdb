@@ -10,8 +10,10 @@ import (
 	"math"
 	"parser"
 	"protocol"
+	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 type LevelDbDatastore struct {
@@ -132,15 +134,73 @@ func (self *LevelDbDatastore) Close() {
 	self.db.Close()
 }
 
-func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string, query *parser.Query, yield func(*protocol.Series) error) error {
-	startTime := query.GetStartTime().Unix()
+func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
+	columns := self.getColumnNamesForSeries(database, series)
+	fields, err := self.getFieldsForSeries(database, series, columns)
+	if err != nil {
+		return err
+	}
+	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(startTime.Unix(), endTime.Unix())
+	ro := levigo.NewReadOptions()
+	defer ro.Close()
+	rangesToCompact := make([]*levigo.Range, 0)
+	for _, field := range fields {
+		it := self.db.NewIterator(ro)
+		defer it.Close()
+		wo := levigo.NewWriteOptions()
+		defer wo.Close()
+		wb := levigo.NewWriteBatch()
+
+		startKey := append(field.Id, startTimeBytes...)
+		endKey := startKey
+		it.Seek(startKey)
+		if it.Valid() {
+			if !bytes.Equal(it.Key()[:8], field.Id) {
+				it.Next()
+				if it.Valid() {
+					startKey = it.Key()
+				}
+			}
+		}
+		for it = it; it.Valid(); it.Next() {
+			k := it.Key()
+			if len(k) < 16 || !bytes.Equal(k[:8], field.Id) || bytes.Compare(k[8:16], endTimeBytes) == 1 {
+				break
+			}
+			wb.Delete(k)
+			endKey = k
+		}
+		err = self.db.Write(wo, wb)
+		if err != nil {
+			return err
+		}
+		rangesToCompact = append(rangesToCompact, &levigo.Range{startKey, endKey})
+	}
+	for _, r := range rangesToCompact {
+		go func(r *levigo.Range) {
+			self.db.CompactRange(*r)
+		}(r)
+	}
+	return nil
+}
+
+func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex regexp.Regexp, startTime, endTime time.Time) error {
+	return errors.New("Not implemented yet!")
+}
+
+func (self *LevelDbDatastore) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
 	startTimeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	binary.Write(startTimeBuffer, binary.BigEndian, self.convertTimestampToUint(&startTime))
 	startTimeBytes := startTimeBuffer.Bytes()
-	endTime := query.GetEndTime().Unix()
 	endTimeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	binary.Write(endTimeBuffer, binary.BigEndian, self.convertTimestampToUint(&endTime))
 	endTimeBytes := endTimeBuffer.Bytes()
+	return startTimeBytes, endTimeBytes
+}
+
+func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string, query *parser.Query, yield func(*protocol.Series) error) error {
+	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(query.GetStartTime().Unix(), query.GetEndTime().Unix())
+
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
 		return err

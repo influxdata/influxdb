@@ -391,3 +391,41 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
 	c.Assert(*results.Points[1].Values[0].StringValue, Equals, "todd")
 	c.Assert(*results.Points[2].Values[0].StringValue, Equals, "john")
 }
+
+func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	minutesAgo := time.Now().Add(-5 * time.Minute).Unix()
+	mock := `{
+    "points":[
+      {"values":[{"int_value":3},{"string_value":"paul"}],"sequence_number":2},
+      {"values":[{"int_value":1},{"string_value":"todd"}],"sequence_number":1}],
+      "name":"user_things",
+      "fields":[{"type":"INT32","name":"count"},{"type":"STRING","name":"name"}]
+    }`
+	series := stringToSeries(mock, minutesAgo, c)
+	err := db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	results := executeQuery("foobar", "select count, name from user_things;", db, c)
+	c.Assert(results, DeepEquals, series)
+
+	mock = `{
+    "points":[
+      {"values":[{"int_value":3},{"string_value":"john"}],"sequence_number":1}],
+    "name":"user_things",
+    "fields":[{"type":"INT32","name":"count"},{"type":"STRING","name":"name"}]
+    }`
+	series = stringToSeries(mock, time.Now().Unix(), c)
+	err = db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	results = executeQuery("foobar", "select count, name from user_things;", db, c)
+	c.Assert(len(results.Points), Equals, 3)
+
+	err = db.DeleteRangeOfSeries("foobar", "user_things", time.Now().Add(-time.Hour), time.Now().Add(-time.Minute))
+	c.Assert(err, IsNil)
+	results = executeQuery("foobar", "select count, name from user_things;", db, c)
+	c.Assert(len(results.Points), Equals, 1)
+	c.Assert(results, DeepEquals, series)
+}
