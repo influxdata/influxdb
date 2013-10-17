@@ -291,3 +291,22 @@ func (self *DatastoreSuite) TestCanDoWhereQueryEquals(c *C) {
 	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(2))
 	c.Assert(*results.Points[0].Values[0].StringValue, Equals, "paul")
 }
+
+func (self *DatastoreSuite) TestCanDoSelectStarQueries(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	mock := `{
+    "points":[
+      {"values":[{"int_value":3},{"string_value":"paul"}],"sequence_number":2},
+      {"values":[{"int_value":1},{"string_value":"todd"}],"sequence_number":1}],
+      "name":"user_things",
+      "fields":[{"type":"INT32","name":"count"},{"type":"STRING","name":"name"}]
+    }`
+	series := stringToSeries(mock, time.Now().Unix(), c)
+	err := db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	results := executeQuery("foobar", "select * from user_things;", db, c)
+	c.Assert(results, DeepEquals, series)
+}

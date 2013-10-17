@@ -10,6 +10,7 @@ import (
 	"math"
 	"parser"
 	"protocol"
+	"strings"
 	"sync"
 )
 
@@ -112,6 +113,21 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 }
 
 func (self *LevelDbDatastore) ExecuteQuery(database string, query *parser.Query, yield func(*protocol.Series) error) error {
+	seriesAndColumns := query.GetReferencedColumns()
+	for series, columns := range seriesAndColumns {
+		err := self.executeQueryForSeries(database, series, columns, query, yield)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (self *LevelDbDatastore) Close() {
+	self.db.Close()
+}
+
+func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string, query *parser.Query, yield func(*protocol.Series) error) error {
 	startTime := query.GetStartTime().Unix()
 	startTimeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	binary.Write(startTimeBuffer, binary.BigEndian, self.convertTimestampToUint(&startTime))
@@ -120,8 +136,7 @@ func (self *LevelDbDatastore) ExecuteQuery(database string, query *parser.Query,
 	endTimeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	binary.Write(endTimeBuffer, binary.BigEndian, self.convertTimestampToUint(&endTime))
 	endTimeBytes := endTimeBuffer.Bytes()
-	series := query.GetFromClause().Name
-	fields, err := self.getFieldsForQuery(&database, query)
+	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
 		return err
 	}
@@ -205,21 +220,45 @@ func (self *LevelDbDatastore) ExecuteQuery(database string, query *parser.Query,
 	return nil
 }
 
-func (self *LevelDbDatastore) Close() {
-	self.db.Close()
+func (self *LevelDbDatastore) getColumnNamesForSeries(db, series string) []string {
+	ro := levigo.NewReadOptions()
+	defer ro.Close()
+	it := self.db.NewIterator(ro)
+	defer it.Close()
+
+	seekKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(db+"~"+series+"~")...)
+	it.Seek(seekKey)
+	names := make([]string, 0)
+	dbNameStart := len(SERIES_COLUMN_INDEX_PREFIX)
+	for it = it; it.Valid(); it.Next() {
+		key := it.Key()
+		if len(key) < dbNameStart || !bytes.Equal(key[:dbNameStart], SERIES_COLUMN_INDEX_PREFIX) {
+			break
+		}
+		dbSeriesColumn := string(key[dbNameStart:])
+		parts := strings.Split(dbSeriesColumn, "~")
+		if len(parts) > 2 {
+			if parts[0] != db || parts[1] != series {
+				break
+			}
+			names = append(names, parts[2])
+		}
+	}
+	return names
 }
 
-func (self *LevelDbDatastore) getFieldsForQuery(db *string, query *parser.Query) ([]*Field, error) {
+func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []string) ([]*Field, error) {
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
 
-	columnNames := query.GetColumnNames()
-	series := query.GetFromClause().Name
-	fields := make([]*Field, len(columnNames), len(columnNames))
+	if len(columns) > 0 && columns[0] == "*" {
+		columns = self.getColumnNamesForSeries(db, series)
+	}
 
-	for i, column := range columnNames {
-		name := column.Name
-		id, alreadyPresent, errId := self.getIdForDbSeriesColumn(db, &series, &name)
+	fields := make([]*Field, len(columns), len(columns))
+
+	for i, name := range columns {
+		id, alreadyPresent, errId := self.getIdForDbSeriesColumn(&db, &series, &name)
 		if errId != nil {
 			return nil, errId
 		}
