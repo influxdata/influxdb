@@ -260,8 +260,6 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 	}
 
 	var sequenceNumber uint32 = 1
-
-	/* fields := []*protocol.FieldDefinition{} */
 	fields := []*protocol.FieldDefinition{}
 
 	for _, aggregator := range aggregators {
@@ -283,7 +281,8 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 		tempTable := table
 		points := []*protocol.Point{}
 		for groupId, _ := range tableGroups {
-			timestamp := *timestampAggregator.GetValue(table, groupId).Int64Value
+			timestamp := *timestampAggregator.GetValue(table, groupId)[0].Int64Value
+			/* groupPoints := []*protocol.Point{} */
 			point := &protocol.Point{
 				Timestamp:      &timestamp,
 				SequenceNumber: &sequenceNumber,
@@ -291,7 +290,16 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 			}
 
 			for _, aggregator := range aggregators {
-				point.Values = append(point.Values, aggregator.GetValue(table, groupId))
+				// point.Values = append(point.Values, aggregator.GetValue(table, groupId)[0])
+				returnValues := aggregator.GetValue(table, groupId)
+				returnDepth := len(returnValues)
+				for _, value := range returnValues {
+					if returnDepth > 1 {
+						// do some crazy shit
+					} else {
+						point.Values = append(point.Values, value)
+					}
+				}
 			}
 
 			for idx, _ := range groupBy {
