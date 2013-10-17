@@ -56,20 +56,14 @@ func createEngine(c *C, seriesString string) EngineI {
 // expectedSeries must be a json array, e.g. time series must by
 // inclosed in '[' and ']'
 func runQueryRunError(engine EngineI, query string, c *C, expectedErr error) {
-	q, err := parser.ParseQuery(query)
-	c.Assert(err, IsNil)
-
-	err = engine.RunQuery("", q, func(series *protocol.Series) error { return nil })
+	err := engine.RunQuery("", query, func(series *protocol.Series) error { return nil })
 
 	c.Assert(err, DeepEquals, expectedErr)
 }
 
 func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
-	q, err := parser.ParseQuery(query)
-	c.Assert(err, IsNil)
-
 	result := []*protocol.Series{}
-	err = engine.RunQuery("", q, func(series *protocol.Series) error {
+	err := engine.RunQuery("", query, func(series *protocol.Series) error {
 		result = append(result, series)
 		return nil
 	})

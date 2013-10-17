@@ -17,7 +17,7 @@ type QueryEngine struct {
 	coordinator coordinator.Coordinator
 }
 
-func (self *QueryEngine) RunQuery(database string, query *parser.Query, yield func(*protocol.Series) error) (err error) {
+func (self *QueryEngine) RunQuery(database string, query string, yield func(*protocol.Series) error) (err error) {
 	// don't let a panic pass beyond RunQuery
 	defer func() {
 		if err := recover(); err != nil {
@@ -29,10 +29,15 @@ func (self *QueryEngine) RunQuery(database string, query *parser.Query, yield fu
 		}
 	}()
 
-	if isAggregateQuery(query) {
-		return self.executeCountQueryWithGroupBy(database, query, yield)
+	q, err := parser.ParseQuery(query)
+	if err != nil {
+		return err
+	}
+	defer q.Close()
+	if isAggregateQuery(q) {
+		return self.executeCountQueryWithGroupBy(database, q, yield)
 	} else {
-		self.coordinator.DistributeQuery(database, query, yield)
+		self.coordinator.DistributeQuery(database, q, yield)
 	}
 	return nil
 }
