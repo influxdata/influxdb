@@ -20,7 +20,8 @@ func getExpressionValue(expr *parser.Expression, fields []*protocol.FieldDefinit
 		case parser.ValueInt:
 			value, _ := strconv.ParseInt(value.Name, 10, 64)
 			return protocol.FieldDefinition_INT64, &protocol.FieldValue{Int64Value: &value}, nil
-		case parser.ValueString:
+		case parser.ValueString, parser.ValueRegex:
+			return protocol.FieldDefinition_STRING, &protocol.FieldValue{StringValue: &value.Name}, nil
 			return protocol.FieldDefinition_STRING, &protocol.FieldValue{StringValue: &value.Name}, nil
 		case parser.ValueSimpleName:
 			// TODO: optimize this so we don't have to lookup the column everytime
