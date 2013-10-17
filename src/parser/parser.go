@@ -285,7 +285,7 @@ func ParseQuery(query string) (*Query, error) {
 
 	var startTime, endTime time.Time
 	var err error
-	goQuery.Condition, startTime, err = GetTime(goQuery.GetWhereCondition(), true)
+	goQuery.Condition, startTime, err = getTime(goQuery.GetWhereCondition(), true)
 	if err != nil {
 		goQuery.Close()
 		return nil, err
@@ -295,7 +295,7 @@ func ParseQuery(query string) (*Query, error) {
 		goQuery.startTime = startTime
 	}
 
-	goQuery.Condition, endTime, err = GetTime(goQuery.GetWhereCondition(), false)
+	goQuery.Condition, endTime, err = getTime(goQuery.GetWhereCondition(), false)
 	if err != nil {
 		goQuery.Close()
 		return nil, err

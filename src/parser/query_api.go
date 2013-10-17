@@ -21,6 +21,53 @@ var (
 	}
 )
 
+// Returns a mapping from the time series names (or regex) to the
+// column names that are references
+func (self *Query) GetReferencedColumns() (mapping map[string][]string) {
+	mapping = make(map[string][]string)
+	mapping[self.GetFromClause().Name] = []string{}
+
+	notPrefixedColumns := []string{}
+	for _, value := range self.GetColumnNames() {
+		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromValue(value, mapping)...)
+	}
+
+	if condition := self.GetWhereCondition(); condition != nil {
+		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromCondition(condition, mapping)...)
+	}
+
+	for _, groupBy := range self.GetGroupByClause() {
+		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromValue(groupBy, mapping)...)
+	}
+
+	for name, _ := range mapping {
+		mapping[name] = append(mapping[name], notPrefixedColumns...)
+		allNames := map[string]bool{}
+		for _, column := range mapping[name] {
+			allNames[column] = true
+		}
+		mapping[name] = nil
+		for column, _ := range allNames {
+			mapping[name] = append(mapping[name], column)
+		}
+		sort.Strings(mapping[name])
+	}
+
+	return
+}
+
+// Returns the start time of the query. Queries can only have
+// one condition of the form time > start_time
+func (self *Query) GetStartTime() time.Time {
+	return self.startTime
+}
+
+// Returns the start time of the query. Queries can only have
+// one condition of the form time > start_time
+func (self *Query) GetEndTime() time.Time {
+	return self.endTime
+}
+
 // parse time expressions, e.g. now() - 1d
 func parseTime(expr *Expression) (int64, error) {
 	if value, ok := expr.GetLeftValue(); ok {
@@ -64,7 +111,7 @@ func parseTime(expr *Expression) (int64, error) {
 	}
 }
 
-func GetReferencedColumnsFromValue(v *Value, mapping map[string][]string) (notAssigned []string) {
+func getReferencedColumnsFromValue(v *Value, mapping map[string][]string) (notAssigned []string) {
 	switch v.Type {
 	case ValueSimpleName:
 		if idx := strings.LastIndex(v.Name, "."); idx != -1 {
@@ -76,78 +123,45 @@ func GetReferencedColumnsFromValue(v *Value, mapping map[string][]string) (notAs
 		notAssigned = append(notAssigned, v.Name)
 	case ValueFunctionCall:
 		for _, value := range v.Elems {
-			notAssigned = append(notAssigned, GetReferencedColumnsFromValue(value, mapping)...)
+			notAssigned = append(notAssigned, getReferencedColumnsFromValue(value, mapping)...)
 		}
 	}
 	return
 }
 
-func GetReferencedColumnsFromExpression(expr *Expression, mapping map[string][]string) (notAssigned []string) {
+func getReferencedColumnsFromExpression(expr *Expression, mapping map[string][]string) (notAssigned []string) {
 	if left, ok := expr.GetLeftExpression(); ok {
-		notAssigned = append(notAssigned, GetReferencedColumnsFromExpression(left, mapping)...)
-		notAssigned = append(notAssigned, GetReferencedColumnsFromExpression(expr.Right, mapping)...)
+		notAssigned = append(notAssigned, getReferencedColumnsFromExpression(left, mapping)...)
+		notAssigned = append(notAssigned, getReferencedColumnsFromExpression(expr.Right, mapping)...)
 		return
 	}
 
 	value, _ := expr.GetLeftValue()
-	notAssigned = append(notAssigned, GetReferencedColumnsFromValue(value, mapping)...)
+	notAssigned = append(notAssigned, getReferencedColumnsFromValue(value, mapping)...)
 	return
 }
 
-func GetReferencedColumnsFromBool(expr *BoolExpression, mapping map[string][]string) (notAssigned []string) {
-	notAssigned = append(notAssigned, GetReferencedColumnsFromExpression(expr.Right, mapping)...)
-	notAssigned = append(notAssigned, GetReferencedColumnsFromExpression(expr.Left, mapping)...)
+func getReferencedColumnsFromBool(expr *BoolExpression, mapping map[string][]string) (notAssigned []string) {
+	notAssigned = append(notAssigned, getReferencedColumnsFromExpression(expr.Right, mapping)...)
+	notAssigned = append(notAssigned, getReferencedColumnsFromExpression(expr.Left, mapping)...)
 	return
 }
 
-func GetReferencedColumnsFromCondition(condition *WhereCondition, mapping map[string][]string) (notPrefixed []string) {
+func getReferencedColumnsFromCondition(condition *WhereCondition, mapping map[string][]string) (notPrefixed []string) {
 	if left, ok := condition.GetLeftWhereCondition(); ok {
-		notPrefixed = append(notPrefixed, GetReferencedColumnsFromCondition(left, mapping)...)
-		notPrefixed = append(notPrefixed, GetReferencedColumnsFromCondition(condition.Right, mapping)...)
+		notPrefixed = append(notPrefixed, getReferencedColumnsFromCondition(left, mapping)...)
+		notPrefixed = append(notPrefixed, getReferencedColumnsFromCondition(condition.Right, mapping)...)
 		return
 	}
 
 	expr, _ := condition.GetBoolExpression()
-	notPrefixed = append(notPrefixed, GetReferencedColumnsFromBool(expr, mapping)...)
-	return
-}
-
-func (self *Query) GetReferencedColumns() (mapping map[string][]string) {
-	mapping = make(map[string][]string)
-	mapping[self.GetFromClause().Name] = []string{}
-
-	notPrefixedColumns := []string{}
-	for _, value := range self.GetColumnNames() {
-		notPrefixedColumns = append(notPrefixedColumns, GetReferencedColumnsFromValue(value, mapping)...)
-	}
-
-	if condition := self.GetWhereCondition(); condition != nil {
-		notPrefixedColumns = append(notPrefixedColumns, GetReferencedColumnsFromCondition(condition, mapping)...)
-	}
-
-	for _, groupBy := range self.GetGroupByClause() {
-		notPrefixedColumns = append(notPrefixedColumns, GetReferencedColumnsFromValue(groupBy, mapping)...)
-	}
-
-	for name, _ := range mapping {
-		mapping[name] = append(mapping[name], notPrefixedColumns...)
-		allNames := map[string]bool{}
-		for _, column := range mapping[name] {
-			allNames[column] = true
-		}
-		mapping[name] = nil
-		for column, _ := range allNames {
-			mapping[name] = append(mapping[name], column)
-		}
-		sort.Strings(mapping[name])
-	}
-
+	notPrefixed = append(notPrefixed, getReferencedColumnsFromBool(expr, mapping)...)
 	return
 }
 
 // parse the start time or end time from the where conditions and return the new condition
 // without the time clauses, or nil if there are no where conditions left
-func GetTime(condition *WhereCondition, isParsingStartTime bool) (*WhereCondition, time.Time, error) {
+func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereCondition, time.Time, error) {
 	if condition == nil {
 		return nil, ZERO_TIME, nil
 	}
@@ -197,11 +211,11 @@ func GetTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 	}
 
 	leftCondition, _ := condition.GetLeftWhereCondition()
-	newLeftCondition, timeLeft, err := GetTime(leftCondition, isParsingStartTime)
+	newLeftCondition, timeLeft, err := getTime(leftCondition, isParsingStartTime)
 	if err != nil {
 		return nil, ZERO_TIME, err
 	}
-	newRightCondition, timeRight, err := GetTime(condition.Right, isParsingStartTime)
+	newRightCondition, timeRight, err := getTime(condition.Right, isParsingStartTime)
 	if err != nil {
 		return nil, ZERO_TIME, err
 	}
@@ -234,22 +248,4 @@ func GetTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 		return newCondition, timeLeft, nil
 	}
 	return newCondition, timeRight, nil
-}
-
-// Returns the start time of the query. Queries can only have
-// one condition of the form time > start_time
-func (self *Query) GetStartTime() time.Time {
-	return self.startTime
-}
-
-// Returns the start time of the query. Queries can only have
-// one condition of the form time > start_time
-func (self *Query) GetEndTime() time.Time {
-	return self.endTime
-}
-
-// Returns a mapping from the time series names (or regex) to the
-// column names that are references
-func (self *Query) GetReferencedColumnNames() map[string]string {
-	return nil
 }
