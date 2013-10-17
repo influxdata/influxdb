@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"engine"
 	"github.com/bmizerany/pat"
-	"github.com/fitstar/falcore"
-	"github.com/fitstar/falcore/filter"
 	"net"
 	"net/http"
 	"protocol"
@@ -15,7 +13,6 @@ import (
 
 type HttpServer struct {
 	conn     net.Listener
-	Server   *falcore.Server
 	config   *Configuration
 	engine   engine.EngineI
 	shutdown chan bool
@@ -43,23 +40,12 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// Run the given query and return an array of series or a chunked response
 	// with each batch of points we get back
-	p.Get("/api/db/:db/series", CorsAndCompressionHeaderHandler(self.query))
+	p.Get("/api/db/:db/series", http.HandlerFunc(self.query))
 
 	// Write points to the given database
 	p.Post("/api/db/:db/series", CorsHeaderHandler(self.writePoints))
 
-	pipeline := falcore.NewPipeline()
-	pipeline.Upstream.PushBack(filter.NewHandlerFilter(p))
-	self.Server = falcore.NewServer(-1, pipeline)
-	file, err := listener.(*net.TCPListener).File()
-	if err != nil {
-		panic(err)
-	}
-	if err := self.Server.FdListen(int(file.Fd())); err != nil {
-		panic(err)
-	}
-
-	if err := self.Server.ListenAndServe(); err != nil && !strings.Contains(err.Error(), "closed network") {
+	if err := http.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
 	}
 	self.shutdown <- true
@@ -67,45 +53,87 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 func (self *HttpServer) Close() {
 	log.Info("Closing http server")
-	self.Server.StopAccepting()
+	self.conn.Close()
 	log.Info("Waiting for all requests to finish before killing the process")
 	<-self.shutdown
 }
 
-func allPointsYield(w http.ResponseWriter) (map[string]*protocol.Series, func(*protocol.Series) error) {
-	memSeries := map[string]*protocol.Series{}
+type Writer interface {
+	yield(*protocol.Series) error
+	done()
+}
 
-	return memSeries, func(series *protocol.Series) error {
-		oldSeries := memSeries[*series.Name]
-		if oldSeries == nil {
-			memSeries[*series.Name] = series
-			return nil
-		}
+type AllPointsWriter struct {
+	memSeries map[string]*protocol.Series
+	w         http.ResponseWriter
+}
 
-		oldSeries.Points = append(oldSeries.Points, series.Points...)
+func (self *AllPointsWriter) yield(series *protocol.Series) error {
+	oldSeries := self.memSeries[*series.Name]
+	if oldSeries == nil {
+		self.memSeries[*series.Name] = series
 		return nil
 	}
+
+	oldSeries.Points = append(oldSeries.Points, series.Points...)
+	return nil
+}
+
+func (self *AllPointsWriter) done() {
+	data, err := serializeMultipleSeries(self.memSeries)
+	if err != nil {
+		self.w.Write([]byte(err.Error()))
+		self.w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	self.w.Write(data)
+	self.w.WriteHeader(http.StatusOK)
+}
+
+type ChunkWriter struct {
+	w http.ResponseWriter
+}
+
+func (self *ChunkWriter) yield(series *protocol.Series) error {
+	data, err := serializeSingleSeries(series)
+	if err != nil {
+		return err
+	}
+	self.w.Write(data)
+	self.w.WriteHeader(http.StatusOK)
+	self.w.(http.Flusher).Flush()
+	return nil
+}
+
+func (self *ChunkWriter) done() {
 }
 
 func (self *HttpServer) query(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	db := r.URL.Query().Get(":db")
-	memSeeries, yield := allPointsYield(w)
-	err := self.engine.RunQuery(db, query, yield)
+	var writer Writer
+	if r.URL.Query().Get("chunked") == "true" {
+		writer = &ChunkWriter{w}
+	} else {
+		writer = &AllPointsWriter{map[string]*protocol.Series{}, w}
+	}
+	err := self.engine.RunQuery(db, query, writer.yield)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
-	data, err := serializeSeries(memSeeries)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-	}
-	w.Write(data)
-	w.WriteHeader(http.StatusOK)
+	writer.done()
 }
 
+// [
+//   {"name": "seriesname", "columns": ["count", "type"], "points": [[3, "asdf"], [1, "foo"]]},
+//   {}
+// ]
+
+// [
+//   {"name": "seriesname", "columns": ["time", "email"], "points": [[], []]}
+// ]
 func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 }
 
@@ -121,7 +149,16 @@ type SerializedSeries struct {
 	Points  [][]interface{} `json:"points"`
 }
 
-func serializeSeries(memSeries map[string]*protocol.Series) ([]byte, error) {
+func serializeSingleSeries(series *protocol.Series) ([]byte, error) {
+	arg := map[string]*protocol.Series{"": series}
+	return json.Marshal(serializeSeries(arg)[0])
+}
+
+func serializeMultipleSeries(series map[string]*protocol.Series) ([]byte, error) {
+	return json.Marshal(serializeSeries(series))
+}
+
+func serializeSeries(memSeries map[string]*protocol.Series) []*SerializedSeries {
 	serializedSeries := []*SerializedSeries{}
 
 	for _, series := range memSeries {
@@ -156,6 +193,5 @@ func serializeSeries(memSeries map[string]*protocol.Series) ([]byte, error) {
 			Points:  points,
 		})
 	}
-
-	return json.Marshal(serializedSeries)
+	return serializedSeries
 }

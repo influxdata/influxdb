@@ -35,48 +35,51 @@ func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Se
     "points": [
       {
         "values": [
-          {
-            "string_value": "some_value"
-          },
-          {
-            "int_value": 1
-          }
+				  { "string_value": "some_value"},{"int_value": 1}
         ],
         "timestamp": 1381346631,
         "sequence_number": 1
       },
       {
         "values": [
-          {
-            "string_value": "some_value"
-          },
-          {
-            "int_value": 2
-          }
-
-        ],
-        "timestamp": 1381346631,
+				  {"string_value": "some_value"},{"int_value": 2}
+				],
+        "timestamp": 1381346632,
         "sequence_number": 2
       }
     ],
     "name": "foo",
-    "fields": [
+    "fields": [{"type": "STRING","name": "column_one"},{"type": "INT32","name": "column_two"}]
+  },
+  {
+    "points": [
       {
-        "type": "STRING",
-        "name": "column_one"
+        "values": [
+				  { "string_value": "some_value"},{"int_value": 3}
+        ],
+        "timestamp": 1381346633,
+        "sequence_number": 1
       },
       {
-        "type": "INT32",
-        "name": "column_two"
+        "values": [
+				  {"string_value": "some_value"},{"int_value": 4}
+				],
+        "timestamp": 1381346634,
+        "sequence_number": 2
       }
-    ]
+    ],
+    "name": "foo",
+    "fields": [{"type": "STRING","name": "column_one"},{"type": "INT32","name": "column_two"}]
   }
 ]
 `)
 	if err != nil {
 		return err
 	}
-	return yield(series[0])
+	if err := yield(series[0]); err != nil {
+		return err
+	}
+	return yield(series[1])
 }
 
 func (self *ApiSuite) SetUpSuite(c *C) {
@@ -94,7 +97,7 @@ func (self *ApiSuite) TearDownSuite(c *C) {
 	self.server.Close()
 }
 
-func (self *ApiSuite) TestQuerying(c *C) {
+func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	port := self.listener.Addr().(*net.TCPAddr).Port
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
@@ -111,5 +114,30 @@ func (self *ApiSuite) TestQuerying(c *C) {
 	c.Assert(series[0].Name, Equals, "foo")
 	// time, seq, column_one, column_two
 	c.Assert(series[0].Columns, HasLen, 4)
-	c.Assert(series[0].Points, HasLen, 2)
+	c.Assert(series[0].Points, HasLen, 4)
+}
+
+func (self *ApiSuite) TestChunkedQuery(c *C) {
+	port := self.listener.Addr().(*net.TCPAddr).Port
+	query := "select * from foo where column_one == 'some_value';"
+	query = url.QueryEscape(query)
+	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series?q=%s&chunked=true", port, query)
+	resp, err := http.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	for i := 0; i < 2; i++ {
+		chunk := make([]byte, 2048, 2048)
+		n, err := resp.Body.Read(chunk)
+		c.Assert(err, IsNil)
+
+		series := SerializedSeries{}
+		err = json.Unmarshal(chunk[0:n], &series)
+		c.Assert(err, IsNil)
+		c.Assert(series.Name, Equals, "foo")
+		// time, seq, column_one, column_two
+		c.Assert(series.Columns, HasLen, 4)
+		// each chunk should have 2 points
+		c.Assert(series.Points, HasLen, 2)
+	}
 }
