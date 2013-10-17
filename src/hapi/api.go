@@ -2,9 +2,11 @@ package hapi
 
 import (
 	log "code.google.com/p/log4go"
+	"coordinator"
 	"encoding/json"
 	"engine"
 	"github.com/bmizerany/pat"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"protocol"
@@ -12,16 +14,18 @@ import (
 )
 
 type HttpServer struct {
-	conn     net.Listener
-	config   *Configuration
-	engine   engine.EngineI
-	shutdown chan bool
+	conn        net.Listener
+	config      *Configuration
+	engine      engine.EngineI
+	coordinator coordinator.Coordinator
+	shutdown    chan bool
 }
 
-func NewHttpServer(config *Configuration, theEngine engine.EngineI) *HttpServer {
+func NewHttpServer(config *Configuration, theEngine engine.EngineI, theCoordinator coordinator.Coordinator) *HttpServer {
 	self := &HttpServer{}
 	self.config = config
 	self.engine = theEngine
+	self.coordinator = theCoordinator
 	self.shutdown = make(chan bool)
 	return self
 }
@@ -121,6 +125,7 @@ func (self *HttpServer) query(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	writer.done()
@@ -135,6 +140,100 @@ func (self *HttpServer) query(w http.ResponseWriter, r *http.Request) {
 //   {"name": "seriesname", "columns": ["time", "email"], "points": [[], []]}
 // ]
 func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
+	db := r.URL.Query().Get(":db")
+
+	series, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	serializedSeries := []*SerializedSeries{}
+	err = json.Unmarshal(series, &serializedSeries)
+	if err != nil {
+		w.Write([]byte(err.Error()))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// convert the wire format to the internal representation of the time series
+	for _, s := range serializedSeries {
+		if len(s.Points) == 0 {
+			continue
+		}
+
+		fields := []*protocol.FieldDefinition{}
+		for idx, column := range s.Columns {
+			var fieldType protocol.FieldDefinition_Type
+			switch s.Points[0][idx].(type) {
+			case int:
+				fieldType = protocol.FieldDefinition_INT64
+			case float64:
+				fieldType = protocol.FieldDefinition_DOUBLE
+			case string:
+				fieldType = protocol.FieldDefinition_STRING
+			case bool:
+				fieldType = protocol.FieldDefinition_BOOL
+			}
+
+			_column := column
+			fields = append(fields, &protocol.FieldDefinition{
+				Name: &_column,
+				Type: &fieldType,
+			})
+		}
+
+		points := []*protocol.Point{}
+		for _, point := range s.Points {
+			values := []*protocol.FieldValue{}
+			var timestamp *int64
+			for idx, field := range fields {
+				if s.Columns[idx] == "time" {
+					_timestamp := point[idx].(int64)
+					timestamp = &_timestamp
+				}
+
+				switch *field.Type {
+				case protocol.FieldDefinition_STRING:
+					if str, ok := point[idx].(string); ok {
+						values = append(values, &protocol.FieldValue{StringValue: &str})
+						continue
+					}
+				case protocol.FieldDefinition_INT64:
+					if integer, ok := point[idx].(int); ok {
+						temp := int64(integer)
+						values = append(values, &protocol.FieldValue{Int64Value: &temp})
+						continue
+					}
+				case protocol.FieldDefinition_DOUBLE:
+					if double, ok := point[idx].(float64); ok {
+						values = append(values, &protocol.FieldValue{DoubleValue: &double})
+						continue
+					}
+				case protocol.FieldDefinition_BOOL:
+					if boolean, ok := point[idx].(bool); ok {
+						values = append(values, &protocol.FieldValue{BoolValue: &boolean})
+						continue
+					}
+				}
+
+				// if we reached this line then the dynamic type didn't match
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			points = append(points, &protocol.Point{
+				Values:    values,
+				Timestamp: timestamp,
+			})
+		}
+
+		series := &protocol.Series{
+			Name:   &s.Name,
+			Fields: fields,
+			Points: points,
+		}
+
+		self.coordinator.WriteSeriesData(db, series)
+	}
 }
 
 type Point struct {
