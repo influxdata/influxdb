@@ -48,13 +48,9 @@ Modules
                         |                         |
                         +-----------------+       |
                         |                 |       |
-                        |   Query Parser  |       |
+                        |   Query Engine  |       |
                         |                 |       |
                         +-----------------+-------+
-                        |                         |
-                        |      Query Engine       |
-                        |                         |
-                        +-------------------------+
                         |                         |
                    +----+ Coordinator (consensus) +-----+
                    |    |                         |     |
@@ -80,3 +76,8 @@ For example, take machines A, B, and C. Say B and C own ring location #2. If a w
 If the write is marked as a quorum write, then B won't return a success to A until the data has been written to both B and C. Every so often both B and C will ask each other what their latest writes are.
 
 Taking the example further, if we had server D that also owned ring location 2. B would ask C for writes to C2. If C is down it will ask D for writes to C2. This will ensure that if C fails no data will be lost.
+
+Coding Style
+------------
+
+1. Public functions should be at the top of the file, followed by a comment `// private functions` and all private functions.
