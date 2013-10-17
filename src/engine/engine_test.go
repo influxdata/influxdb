@@ -829,6 +829,38 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
   ]`)
 }
 
+func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
+        { "values": [{ "int_value": 4 }], "timestamp": 1381346701, "sequence_number": 1 },
+        { "values": [{ "int_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 },
+        { "values": [{ "int_value": 8 }], "timestamp": 1381346741, "sequence_number": 1 },
+        { "values": [{ "int_value": 5 }], "timestamp": 1381346741, "sequence_number": 1 },
+        { "values": [{ "int_value": 3 }], "timestamp": 1381346741, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "column_one" }
+      ]
+    }
+  ]`)
+
+	runQuery(engine, "select sum(column_one) from foo group by time(1m);", c, `[
+    {
+      "points": [
+        { "values": [{ "int_value": 11 }], "timestamp": 1381346700, "sequence_number": 1 },
+        { "values": [{ "int_value": 16 }], "timestamp": 1381346760, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": [
+        { "type": "INT32", "name": "sum" }
+      ]
+    }
+  ]`)
+}
+
 func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
@@ -846,6 +878,7 @@ func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
         { "values": [{ "int_value": 6 }], "timestamp": 1381346741, "sequence_number": 1 },
         { "values": [{ "int_value": 5 }], "timestamp": 1381346741, "sequence_number": 1 },
         { "values": [{ "int_value": 4 }], "timestamp": 1381346741, "sequence_number": 1 },
+        { "values": [{ "int_value": 3 }], "timestamp": 1381346741, "sequence_number": 1 },
         { "values": [{ "int_value": 3 }], "timestamp": 1381346741, "sequence_number": 1 }
       ],
       "name": "foo",
