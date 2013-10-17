@@ -45,8 +45,8 @@ func (self *Value) IsFunctionCall() bool {
 	return self.Type == ValueFunctionCall
 }
 
-func (self *Value) GetCompiledRegex() *regexp.Regexp {
-	return self.compiledRegex
+func (self *Value) GetCompiledRegex() (*regexp.Regexp, bool) {
+	return self.compiledRegex, self.Type == ValueRegex
 }
 
 type Expression struct {

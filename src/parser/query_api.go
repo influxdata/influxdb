@@ -21,11 +21,24 @@ var (
 	}
 )
 
+func uniq(slice []string) []string {
+	// TODO: optimize this, maybe ?
+	uniqueMap := map[string]bool{}
+	for _, name := range slice {
+		uniqueMap[name] = true
+	}
+	slice = []string{}
+	for name, _ := range uniqueMap {
+		slice = append(slice, name)
+	}
+	sort.Strings(slice)
+	return slice
+}
+
 // Returns a mapping from the time series names (or regex) to the
 // column names that are references
-func (self *Query) GetReferencedColumns() (mapping map[string][]string) {
-	mapping = make(map[string][]string)
-	mapping[self.GetFromClause().Name] = []string{}
+func (self *Query) GetReferencedColumns() map[*Value][]string {
+	mapping := make(map[string][]string)
 
 	notPrefixedColumns := []string{}
 	for _, value := range self.GetColumnNames() {
@@ -40,23 +53,27 @@ func (self *Query) GetReferencedColumns() (mapping map[string][]string) {
 		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromValue(groupBy, mapping)...)
 	}
 
-	for name, _ := range mapping {
-		mapping[name] = append(mapping[name], notPrefixedColumns...)
-		allNames := map[string]bool{}
-		for _, column := range mapping[name] {
-			allNames[column] = true
+	notPrefixedColumns = uniq(notPrefixedColumns)
+
+	returnedMapping := make(map[*Value][]string)
+	for _, value := range []*Value{self.GetFromClause()} {
+		if _, ok := value.GetCompiledRegex(); ok {
+			// this is a regex table, cannot be referenced, only unreferenced
+			// columns will be attached to regex table names
+			returnedMapping[value] = notPrefixedColumns
+			continue
 		}
-		mapping[name] = []string{}
-		for column, _ := range allNames {
-			mapping[name] = append(mapping[name], column)
+
+		name := value.Name
+		returnedMapping[value] = uniq(append(mapping[name], notPrefixedColumns...))
+		if len(returnedMapping[value]) > 1 && returnedMapping[value][0] == "*" {
+			returnedMapping[value] = returnedMapping[value][1:]
 		}
-		sort.Strings(mapping[name])
-		if len(mapping[name]) > 1 && mapping[name][0] == "*" {
-			mapping[name] = mapping[name][1:]
-		}
+
+		delete(mapping, name)
 	}
 
-	return
+	return returnedMapping
 }
 
 // Returns the start time of the query. Queries can only have

@@ -44,7 +44,11 @@ func (self *QueryApiSuite) TestGetReferencedColumns(c *C) {
 	query, err := ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
-	c.Assert(columns, DeepEquals, map[string][]string{"t": []string{"value", "value1", "value2", "value3"}})
+	c.Assert(columns, HasLen, 1)
+	for v, columns := range columns {
+		c.Assert(columns, DeepEquals, []string{"value", "value1", "value2", "value3"})
+		c.Assert(v.Name, Equals, "t")
+	}
 }
 
 func (self *QueryApiSuite) TestGetReferencedColumnsReturnsTheStarAsAColumn(c *C) {
@@ -52,7 +56,11 @@ func (self *QueryApiSuite) TestGetReferencedColumnsReturnsTheStarAsAColumn(c *C)
 	query, err := ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
-	c.Assert(columns, DeepEquals, map[string][]string{"events": []string{"*"}})
+	c.Assert(columns, HasLen, 1)
+	for v, columns := range columns {
+		c.Assert(v.Name, Equals, "events")
+		c.Assert(columns, DeepEquals, []string{"*"})
+	}
 }
 
 func (self *QueryApiSuite) TestGetReferencedColumnsReturnsEmptyArrayIfQueryIsAggregateStar(c *C) {
@@ -60,7 +68,24 @@ func (self *QueryApiSuite) TestGetReferencedColumnsReturnsEmptyArrayIfQueryIsAgg
 	query, err := ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
-	c.Assert(columns, DeepEquals, map[string][]string{"events": []string{}})
+	c.Assert(columns, HasLen, 1)
+	for v, columns := range columns {
+		c.Assert(v.Name, Equals, "events")
+		c.Assert(columns, DeepEquals, []string{})
+	}
+}
+
+func (self *QueryApiSuite) TestGetReferencedColumnsWithARegexTable(c *C) {
+	queryStr := "select count(*), region from /events.*/ group by time(1h), region;"
+	query, err := ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	columns := query.GetReferencedColumns()
+	c.Assert(columns, HasLen, 1)
+	for v, columns := range columns {
+		c.Assert(v.compiledRegex, NotNil)
+		c.Assert(v.Name, Equals, "events.*")
+		c.Assert(columns, DeepEquals, []string{"region"})
+	}
 }
 
 func (self *QueryApiSuite) TestGetReferencedColumnsReturnsGroupByColumn(c *C) {
@@ -68,7 +93,11 @@ func (self *QueryApiSuite) TestGetReferencedColumnsReturnsGroupByColumn(c *C) {
 	query, err := ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
-	c.Assert(columns, DeepEquals, map[string][]string{"events": []string{"region"}})
+	c.Assert(columns, HasLen, 1)
+	for v, columns := range columns {
+		c.Assert(v.Name, Equals, "events")
+		c.Assert(columns, DeepEquals, []string{"region"})
+	}
 }
 
 func (self *QueryApiSuite) TestGetStartTimeWithOr(c *C) {
