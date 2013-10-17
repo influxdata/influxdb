@@ -47,6 +47,22 @@ func (self *QueryApiSuite) TestGetReferencedColumns(c *C) {
 	c.Assert(columns, DeepEquals, map[string][]string{"t": []string{"value", "value1", "value2", "value3"}})
 }
 
+func (self *QueryApiSuite) TestGetReferencedColumnsReturnsTheStarAsAColumn(c *C) {
+	queryStr := "select * from events;"
+	query, err := ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	columns := query.GetReferencedColumns()
+	c.Assert(columns, DeepEquals, map[string][]string{"events": []string{"*"}})
+}
+
+func (self *QueryApiSuite) TestGetReferencedColumnsReturnsEmptyArrayIfQueryIsAggregateStar(c *C) {
+	queryStr := "select count(*) from events;"
+	query, err := ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	columns := query.GetReferencedColumns()
+	c.Assert(columns, DeepEquals, map[string][]string{"events": []string{}})
+}
+
 func (self *QueryApiSuite) TestGetStartTimeWithOr(c *C) {
 	for _, queryStr := range []string{
 		"select * from t where time > now() - 1d and (value > 90 or value < 10);",
