@@ -251,8 +251,15 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
 
+	isCountQuery := false
 	if len(columns) > 0 && columns[0] == "*" {
 		columns = self.getColumnNamesForSeries(db, series)
+	} else if len(columns) == 0 {
+		isCountQuery = true
+		columns = self.getColumnNamesForSeries(db, series)
+	}
+	if len(columns) == 0 {
+		return nil, errors.New("Coulnd't look up columns for series: " + series)
 	}
 
 	fields := make([]*Field, len(columns), len(columns))
@@ -276,6 +283,25 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 			return nil, err
 		}
 		fields[i] = &Field{Name: name, Definition: fd, Id: id}
+	}
+
+	// if it's a count query we just want the column that will be the most efficient to
+	// scan through. So find that and return it.
+	if isCountQuery {
+		bestField := fields[0]
+		for _, f := range fields {
+			if *f.Definition.Type == protocol.FieldDefinition_BOOL {
+				bestField = f
+				break
+			} else if *f.Definition.Type == protocol.FieldDefinition_INT32 {
+				bestField = f
+			} else if *f.Definition.Type == protocol.FieldDefinition_INT64 && *bestField.Definition.Type != protocol.FieldDefinition_INT32 {
+				bestField = f
+			} else if *f.Definition.Type == protocol.FieldDefinition_DOUBLE && *bestField.Definition.Type != protocol.FieldDefinition_INT32 && *bestField.Definition.Type != protocol.FieldDefinition_INT64 {
+				bestField = f
+			}
+		}
+		return []*Field{bestField}, nil
 	}
 	return fields, nil
 }
