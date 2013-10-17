@@ -8,6 +8,7 @@ import (
 	"common"
 	"fmt"
 	"reflect"
+	"regexp"
 	"time"
 	"unsafe"
 )
@@ -37,10 +38,15 @@ type Value struct {
 	Type              ValueType
 	IsCaseInsensitive bool
 	Elems             []*Value
+	compiledRegex     *regexp.Regexp
 }
 
 func (self *Value) IsFunctionCall() bool {
 	return self.Type == ValueFunctionCall
+}
+
+func (self *Value) GetCompiledRegex() *regexp.Regexp {
+	return self.compiledRegex
 }
 
 type Expression struct {
@@ -99,29 +105,22 @@ func (self *WhereCondition) GetLeftWhereCondition() (*WhereCondition, bool) {
 }
 
 type Query struct {
-	q               C.query
-	closed          bool
-	ColumnNames     []*Value
-	Condition       *WhereCondition
-	groupByClause   GroupByClause
-	Limit           int
-	Ascending       bool
-	startTime       time.Time
-	endTime         time.Time
-	parsedCondition bool
+	ColumnNames   []*Value
+	FromClause    *Value
+	Condition     *WhereCondition
+	groupByClause GroupByClause
+	Limit         int
+	Ascending     bool
+	startTime     time.Time
+	endTime       time.Time
 }
 
 func (self *Query) GetColumnNames() []*Value {
-	if self.ColumnNames != nil {
-		return self.ColumnNames
-	}
-
-	self.ColumnNames = GetValueArray(self.q.c)
 	return self.ColumnNames
 }
 
 func (self *Query) GetFromClause() *Value {
-	return GetValue(self.q.f)
+	return self.FromClause
 }
 
 func (self *Expression) GetLeftValue() (*Value, bool) {
@@ -144,9 +143,9 @@ func setupSlice(hdr *reflect.SliceHeader, ptr unsafe.Pointer, size C.size_t) {
 	hdr.Data = uintptr(ptr)
 }
 
-func GetValueArray(array *C.value_array) []*Value {
+func GetValueArray(array *C.value_array) ([]*Value, error) {
 	if array == nil {
-		return nil
+		return nil, nil
 	}
 
 	var values []*C.value
@@ -155,9 +154,13 @@ func GetValueArray(array *C.value_array) []*Value {
 	valuesSlice := make([]*Value, 0, array.size)
 
 	for _, value := range values {
-		valuesSlice = append(valuesSlice, GetValue(value))
+		value, err := GetValue(value)
+		if err != nil {
+			return nil, err
+		}
+		valuesSlice = append(valuesSlice, value)
 	}
-	return valuesSlice
+	return valuesSlice, nil
 }
 
 func GetStringArray(array *C.array) []string {
@@ -176,70 +179,90 @@ func GetStringArray(array *C.array) []string {
 	return stringSlice
 }
 
-func GetValue(value *C.value) *Value {
+func GetValue(value *C.value) (*Value, error) {
 	v := &Value{}
 	v.Name = C.GoString(value.name)
-	v.Elems = GetValueArray(value.args)
+	var err error
+	v.Elems, err = GetValueArray(value.args)
+	if err != nil {
+		return nil, err
+	}
 	v.Type = ValueType(value.value_type)
 	v.IsCaseInsensitive = value.is_case_insensitive != 0
-	return v
+	if v.Type == ValueRegex {
+		v.compiledRegex, err = regexp.Compile(v.Name)
+	}
+	return v, err
 }
 
-func GetExpression(expr *C.expression) *Expression {
+func GetExpression(expr *C.expression) (*Expression, error) {
 	expression := &Expression{}
 	if expr.op == 0 {
-		expression.Left = GetValue((*C.value)(expr.left))
+		value, err := GetValue((*C.value)(expr.left))
+		if err != nil {
+			return nil, err
+		}
+		expression.Left = value
 		expression.Operation = byte(expr.op)
 		expression.Right = nil
 	} else {
-		expression.Left = GetExpression((*C.expression)(expr.left))
+		var err error
+		expression.Left, err = GetExpression((*C.expression)(expr.left))
+		if err != nil {
+			return nil, err
+		}
 		expression.Operation = byte(expr.op)
-		expression.Right = GetExpression((*C.expression)(unsafe.Pointer(expr.right)))
-	}
-
-	return expression
-}
-
-func GetBoolExpression(expr *C.bool_expression) *BoolExpression {
-	boolExpression := &BoolExpression{}
-	boolExpression.Left = GetExpression(expr.left)
-	if expr.op != nil {
-		boolExpression.Operation = C.GoString(expr.op)
-		boolExpression.Right = GetExpression(expr.right)
-	}
-
-	return boolExpression
-}
-
-func GetWhereCondition(condition *C.condition) *WhereCondition {
-	if condition.is_bool_expression != 0 {
-		return &WhereCondition{
-			isBooleanExpression: true,
-			Left:                GetBoolExpression((*C.bool_expression)(condition.left)),
-			Operation:           "",
-			Right:               nil,
+		expression.Right, err = GetExpression((*C.expression)(unsafe.Pointer(expr.right)))
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	c := &WhereCondition{}
-	c.Left = GetWhereCondition((*C.condition)(condition.left))
-	c.Operation = C.GoString(condition.op)
-	c.Right = GetWhereCondition((*C.condition)(unsafe.Pointer(condition.right)))
+	return expression, nil
+}
 
-	return c
+func GetBoolExpression(expr *C.bool_expression) (*BoolExpression, error) {
+	boolExpression := &BoolExpression{}
+	var err error
+	boolExpression.Left, err = GetExpression(expr.left)
+	if err != nil {
+		return nil, err
+	}
+	if expr.op != nil {
+		boolExpression.Operation = C.GoString(expr.op)
+		boolExpression.Right, err = GetExpression(expr.right)
+	}
+
+	return boolExpression, err
+}
+
+func GetWhereCondition(condition *C.condition) (*WhereCondition, error) {
+	if condition.is_bool_expression != 0 {
+		expr, err := GetBoolExpression((*C.bool_expression)(condition.left))
+		if err != nil {
+			return nil, err
+		}
+		return &WhereCondition{
+			isBooleanExpression: true,
+			Left:                expr,
+			Operation:           "",
+			Right:               nil,
+		}, nil
+	}
+
+	c := &WhereCondition{}
+	var err error
+	c.Left, err = GetWhereCondition((*C.condition)(condition.left))
+	if err != nil {
+		return nil, err
+	}
+	c.Operation = C.GoString(condition.op)
+	c.Right, err = GetWhereCondition((*C.condition)(unsafe.Pointer(condition.right)))
+
+	return c, err
 }
 
 func (self *Query) GetWhereCondition() *WhereCondition {
-	if self.q.where_condition == nil {
-		return nil
-	}
-
-	if self.parsedCondition {
-		return self.Condition
-	}
-
-	self.parsedCondition = true
-	self.Condition = GetWhereCondition(self.q.where_condition)
 	return self.Condition
 }
 
@@ -248,46 +271,58 @@ func (self *Query) GetGroupByClause() GroupByClause {
 		return self.groupByClause
 	}
 
-	if self.q.group_by == nil {
-		self.groupByClause = GroupByClause{}
-		return self.groupByClause
-	}
-
-	self.groupByClause = GetValueArray(self.q.group_by)
 	return self.groupByClause
-}
-
-func (self *Query) Close() {
-	if self == nil {
-		return
-	}
-
-	if self.closed {
-		return
-	}
-
-	C.close_query(&self.q)
-	self.closed = true
 }
 
 func ParseQuery(query string) (*Query, error) {
 	queryString := C.CString(query)
 	defer C.free(unsafe.Pointer(queryString))
 	q := C.parse_query(queryString)
+	defer C.close_query(&q)
+
 	if q.error != nil {
 		str := C.GoString(q.error.err)
 		err := fmt.Errorf("Error at %d:%d. %s", q.error.line, q.error.column, str)
-		C.close_query(&q)
 		return nil, err
 	}
 
-	goQuery := &Query{q, false, nil, nil, nil, int(q.limit), q.ascending != 0, time.Unix(0, 0), time.Now(), false}
+	goQuery := &Query{nil, nil, nil, nil, int(q.limit), q.ascending != 0, time.Unix(0, 0), time.Now()}
+
+	var err error
+
+	// get the column names
+	goQuery.ColumnNames, err = GetValueArray(q.c)
+	if err != nil {
+		return nil, err
+	}
+
+	// get the from clause
+	goQuery.FromClause, err = GetValue(q.f)
+	if err != nil {
+		return nil, err
+	}
+
+	// get the where condition
+	if q.where_condition != nil {
+		goQuery.Condition, err = GetWhereCondition(q.where_condition)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// get the group by clause
+	if q.group_by == nil {
+		goQuery.groupByClause = GroupByClause{}
+	} else {
+		goQuery.groupByClause, err = GetValueArray(q.group_by)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	var startTime, endTime time.Time
-	var err error
 	goQuery.Condition, startTime, err = getTime(goQuery.GetWhereCondition(), true)
 	if err != nil {
-		goQuery.Close()
 		return nil, err
 	}
 
@@ -297,7 +332,6 @@ func ParseQuery(query string) (*Query, error) {
 
 	goQuery.Condition, endTime, err = getTime(goQuery.GetWhereCondition(), false)
 	if err != nil {
-		goQuery.Close()
 		return nil, err
 	}
 

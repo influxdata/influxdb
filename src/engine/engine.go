@@ -33,7 +33,6 @@ func (self *QueryEngine) RunQuery(database string, query string, yield func(*pro
 	if err != nil {
 		return err
 	}
-	defer q.Close()
 	if isAggregateQuery(q) {
 		return self.executeCountQueryWithGroupBy(database, q, yield)
 	} else {
