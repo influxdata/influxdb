@@ -153,8 +153,14 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		ro := levigo.NewReadOptions()
 		defer ro.Close()
 		iterators[i] = self.db.NewIterator(ro)
-		iterators[i].Seek(append(append(field.Id, endTimeBytes...), MAX_SEQUENCE...))
-		iterators[i].Prev()
+		if query.Ascending {
+			iterators[i].Seek(append(field.Id, startTimeBytes...))
+		} else {
+			iterators[i].Seek(append(append(field.Id, endTimeBytes...), MAX_SEQUENCE...))
+			if iterators[i].Valid() {
+				iterators[i].Prev()
+			}
+		}
 	}
 
 	result := &protocol.Series{Name: &series, Fields: fieldDefinitions, Points: make([]*protocol.Point, 0)}
@@ -199,7 +205,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		for i, iterator := range iterators {
 			if rawColumnValues[i] != nil && bytes.Equal(rawColumnValues[i].time, latestTimeRaw) && bytes.Equal(rawColumnValues[i].sequence, latestSequenceRaw) {
 				isValid = true
-				iterator.Prev()
+				if query.Ascending {
+					iterator.Next()
+				} else {
+					iterator.Prev()
+				}
 				fv := &protocol.FieldValue{}
 				err := proto.Unmarshal(rawColumnValues[i].value, fv)
 				if err != nil {

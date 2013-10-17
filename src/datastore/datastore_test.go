@@ -356,3 +356,38 @@ func (self *DatastoreSuite) TestLimitsPointsReturnedBasedOnQuery(c *C) {
 	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(2))
 	c.Assert(*results.Points[0].Values[0].StringValue, Equals, "paul")
 }
+
+func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	minuteAgo := time.Now().Add(-time.Minute).Unix()
+	mock := `{
+    "points":[
+      {"values":[{"string_value":"paul"}],"sequence_number":1},
+      {"values":[{"string_value":"todd"}],"sequence_number":2}],
+      "name":"user_things",
+      "fields":[{"type":"STRING","name":"name"}]
+    }`
+	series := stringToSeries(mock, minuteAgo, c)
+	err := db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	results := executeQuery("foobar", "select name from user_things order asc;", db, c)
+	c.Assert(results, DeepEquals, series)
+
+	mock = `{
+    "points":[
+      {"values":[{"string_value":"john"}],"sequence_number":1}],
+      "name":"user_things",
+      "fields":[{"type":"STRING","name":"name"}]
+    }`
+	newSeries := stringToSeries(mock, time.Now().Unix(), c)
+	err = db.WriteSeriesData("foobar", newSeries)
+	c.Assert(err, IsNil)
+	results = executeQuery("foobar", "select name from user_things order asc;", db, c)
+	c.Assert(len(results.Points), Equals, 3)
+	c.Assert(*results.Points[0].Values[0].StringValue, Equals, "paul")
+	c.Assert(*results.Points[1].Values[0].StringValue, Equals, "todd")
+	c.Assert(*results.Points[2].Values[0].StringValue, Equals, "john")
+}

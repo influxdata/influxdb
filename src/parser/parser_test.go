@@ -268,8 +268,8 @@ func (self *QueryParserSuite) TestParseSelectWithOrderByAndLimit(c *C) {
 	defer q.Close()
 	c.Assert(err, IsNil)
 	c.Assert(q.Limit, Equals, 20)
-	// ascending is the default
-	c.Assert(q.Ascending, Equals, true)
+	// descending is the default
+	c.Assert(q.Ascending, Equals, false)
 }
 
 func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {

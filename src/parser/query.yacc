@@ -138,7 +138,7 @@ ORDER_CLAUSE:
         }
         |
         {
-          $$ = TRUE;
+          $$ = FALSE;
         }
 
 LIMIT_CLAUSE:
