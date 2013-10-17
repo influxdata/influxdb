@@ -46,11 +46,14 @@ func (self *Query) GetReferencedColumns() (mapping map[string][]string) {
 		for _, column := range mapping[name] {
 			allNames[column] = true
 		}
-		mapping[name] = nil
+		mapping[name] = []string{}
 		for column, _ := range allNames {
 			mapping[name] = append(mapping[name], column)
 		}
 		sort.Strings(mapping[name])
+		if len(mapping[name]) > 1 && mapping[name][0] == "*" {
+			mapping[name] = mapping[name][1:]
+		}
 	}
 
 	return
@@ -121,9 +124,16 @@ func getReferencedColumnsFromValue(v *Value, mapping map[string][]string) (notAs
 			return
 		}
 		notAssigned = append(notAssigned, v.Name)
+	case ValueWildcard:
+		notAssigned = append(notAssigned, "*")
 	case ValueFunctionCall:
 		for _, value := range v.Elems {
-			notAssigned = append(notAssigned, getReferencedColumnsFromValue(value, mapping)...)
+			newNotAssignedColumns := getReferencedColumnsFromValue(value, mapping)
+			if len(newNotAssignedColumns) > 0 && newNotAssignedColumns[0] == "*" {
+				newNotAssignedColumns = newNotAssignedColumns[1:]
+			}
+
+			notAssigned = append(notAssigned, newNotAssignedColumns...)
 		}
 	}
 	return
