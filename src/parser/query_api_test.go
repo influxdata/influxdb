@@ -63,6 +63,14 @@ func (self *QueryApiSuite) TestGetReferencedColumnsReturnsEmptyArrayIfQueryIsAgg
 	c.Assert(columns, DeepEquals, map[string][]string{"events": []string{}})
 }
 
+func (self *QueryApiSuite) TestGetReferencedColumnsReturnsGroupByColumn(c *C) {
+	queryStr := "select count(*), region from events group by time(1h), region;"
+	query, err := ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	columns := query.GetReferencedColumns()
+	c.Assert(columns, DeepEquals, map[string][]string{"events": []string{"region"}})
+}
+
 func (self *QueryApiSuite) TestGetStartTimeWithOr(c *C) {
 	for _, queryStr := range []string{
 		"select * from t where time > now() - 1d and (value > 90 or value < 10);",
