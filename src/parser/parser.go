@@ -338,8 +338,8 @@ func ParseQuery(query string) (*Query, error) {
 
 	if startTime.Unix() > 0 {
 		goQuery.startTime = startTime
-	} else if endTime.Unix() > 0 {
-		goQuery.startTime = endTime.Add(-1 * time.Hour)
+	} else if goQuery.endTime.Unix() > 0 {
+		goQuery.startTime = goQuery.endTime.Add(-1 * time.Hour)
 	}
 
 	return goQuery, nil
