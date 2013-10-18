@@ -150,8 +150,8 @@ func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 	serializedSeries := []*SerializedSeries{}
 	err = json.Unmarshal(series, &serializedSeries)
 	if err != nil {
-		w.Write([]byte(err.Error()))
 		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
 		return
 	}
 
