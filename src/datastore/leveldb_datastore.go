@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 )
 
 type LevelDbDatastore struct {
@@ -145,13 +144,13 @@ func (self *LevelDbDatastore) Close() {
 	self.db.Close()
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
+func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime int64) error {
 	columns := self.getColumnNamesForSeries(database, series)
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
 		return err
 	}
-	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(startTime.Unix(), endTime.Unix())
+	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(startTime, endTime)
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
 	rangesToCompact := make([]*levigo.Range, 0)
@@ -193,7 +192,7 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 	return nil
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
+func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime int64) error {
 	series := self.getSeriesForDbAndRegex(database, regex)
 	for _, name := range series {
 		err := self.DeleteRangeOfSeries(database, name, startTime, endTime)

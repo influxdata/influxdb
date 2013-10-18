@@ -430,7 +430,7 @@ func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
 	results = executeQuery("foobar", "select count, name from user_things;", db, c)
 	c.Assert(len(results.Points), Equals, 3)
 
-	err = db.DeleteRangeOfSeries("foobar", "user_things", time.Now().Add(-time.Hour), time.Now().Add(-time.Minute))
+	err = db.DeleteRangeOfSeries("foobar", "user_things", time.Now().Add(-time.Hour).Unix(), time.Now().Add(-time.Minute).Unix())
 	c.Assert(err, IsNil)
 	results = executeQuery("foobar", "select count, name from user_things;", db, c)
 	c.Assert(len(results.Points), Equals, 1)
@@ -476,7 +476,7 @@ func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
 	c.Assert(results, DeepEquals, otherSeries)
 
 	regex, _ := regexp.Compile(".*time.*")
-	db.DeleteRangeOfRegex("foobar", regex, time.Now().Add(-time.Hour), time.Now())
+	db.DeleteRangeOfRegex("foobar", regex, time.Now().Add(-time.Hour).Unix(), time.Now().Unix())
 
 	results = executeQuery("foobar", "select * from events;", db, c)
 	c.Assert(results, DeepEquals, series)
