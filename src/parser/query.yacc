@@ -96,7 +96,7 @@ QUERY:
         SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES ';'
         {
           q->c = $2;
-          q->f = $3;
+          q->from_clause = $3;
           q->group_by = $4;
           q->where_condition = $5;
           q->limit = $6.limit;
@@ -106,7 +106,7 @@ QUERY:
         SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT_AND_ORDER_CLAUSES ';'
         {
           q->c = $2;
-          q->f = $3;
+          q->from_clause = $3;
           q->where_condition = $4;
           q->group_by = $5;
           q->limit = $6.limit;

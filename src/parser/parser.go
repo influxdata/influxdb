@@ -297,7 +297,7 @@ func ParseQuery(query string) (*Query, error) {
 	}
 
 	// get the from clause
-	goQuery.FromClause, err = GetValue(q.f)
+	goQuery.FromClause, err = GetValue(q.from_clause)
 	if err != nil {
 		return nil, err
 	}

@@ -59,7 +59,7 @@ typedef struct {
 
 typedef struct {
   value_array *c;
-  value *f;
+  value *from_clause;
   value_array *group_by;
   condition *where_condition;
   error *error;

@@ -89,5 +89,5 @@ close_query (query *q)
   }
 
   // free the from clause
-  free_value(q->f);
+  free_value(q->from_clause);
 }
