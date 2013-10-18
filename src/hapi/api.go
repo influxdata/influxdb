@@ -5,6 +5,7 @@ import (
 	"coordinator"
 	"encoding/json"
 	"engine"
+	"fmt"
 	"github.com/bmizerany/pat"
 	"io/ioutil"
 	"net"
@@ -70,6 +71,7 @@ type Writer interface {
 type AllPointsWriter struct {
 	memSeries map[string]*protocol.Series
 	w         http.ResponseWriter
+	precision TimePrecision
 }
 
 func (self *AllPointsWriter) yield(series *protocol.Series) error {
@@ -84,7 +86,7 @@ func (self *AllPointsWriter) yield(series *protocol.Series) error {
 }
 
 func (self *AllPointsWriter) done() {
-	data, err := serializeMultipleSeries(self.memSeries)
+	data, err := serializeMultipleSeries(self.memSeries, self.precision)
 	if err != nil {
 		self.w.Write([]byte(err.Error()))
 		self.w.WriteHeader(http.StatusInternalServerError)
@@ -95,11 +97,12 @@ func (self *AllPointsWriter) done() {
 }
 
 type ChunkWriter struct {
-	w http.ResponseWriter
+	w         http.ResponseWriter
+	precision TimePrecision
 }
 
 func (self *ChunkWriter) yield(series *protocol.Series) error {
-	data, err := serializeSingleSeries(series)
+	data, err := serializeSingleSeries(series, self.precision)
 	if err != nil {
 		return err
 	}
@@ -112,16 +115,46 @@ func (self *ChunkWriter) yield(series *protocol.Series) error {
 func (self *ChunkWriter) done() {
 }
 
+type TimePrecision int
+
+const (
+	MicrosecondPrecision TimePrecision = iota
+	MillisecondPrecision
+	SecondPrecision
+)
+
+func TimePrecisionFromString(s string) (TimePrecision, error) {
+	switch s {
+	case "u":
+		return MicrosecondPrecision, nil
+	case "m":
+		return MillisecondPrecision, nil
+	case "s":
+		return SecondPrecision, nil
+	case "":
+		return MillisecondPrecision, nil
+	}
+
+	return 0, fmt.Errorf("Unknown time precision %s", s)
+}
+
 func (self *HttpServer) query(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	db := r.URL.Query().Get(":db")
+
+	precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+	}
+
 	var writer Writer
 	if r.URL.Query().Get("chunked") == "true" {
-		writer = &ChunkWriter{w}
+		writer = &ChunkWriter{w, precision}
 	} else {
-		writer = &AllPointsWriter{map[string]*protocol.Series{}, w}
+		writer = &AllPointsWriter{map[string]*protocol.Series{}, w, precision}
 	}
-	err := self.engine.RunQuery(db, query, writer.yield)
+	err = self.engine.RunQuery(db, query, writer.yield)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -158,6 +191,11 @@ func removeTimestampFieldDefinition(fields []*protocol.FieldDefinition) []*proto
 
 func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 	db := r.URL.Query().Get(":db")
+	precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+	}
 
 	series, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -213,8 +251,15 @@ func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 
 			for idx, field := range fields {
 				if *field.Name == "time" {
-					// by default the timestamp is in milliseconds
-					_timestamp := int64(point[idx].(float64)) * 1000
+					_timestamp := int64(point[idx].(float64))
+					switch precision {
+					case SecondPrecision:
+						_timestamp *= 1000
+						fallthrough
+					case MillisecondPrecision:
+						_timestamp *= 1000
+					}
+
 					timestamp = &_timestamp
 					continue
 				}
@@ -278,16 +323,16 @@ type SerializedSeries struct {
 	Points         [][]interface{} `json:"points"`
 }
 
-func serializeSingleSeries(series *protocol.Series) ([]byte, error) {
+func serializeSingleSeries(series *protocol.Series, precision TimePrecision) ([]byte, error) {
 	arg := map[string]*protocol.Series{"": series}
-	return json.Marshal(serializeSeries(arg)[0])
+	return json.Marshal(serializeSeries(arg, precision)[0])
 }
 
-func serializeMultipleSeries(series map[string]*protocol.Series) ([]byte, error) {
-	return json.Marshal(serializeSeries(series))
+func serializeMultipleSeries(series map[string]*protocol.Series, precision TimePrecision) ([]byte, error) {
+	return json.Marshal(serializeSeries(series, precision))
 }
 
-func serializeSeries(memSeries map[string]*protocol.Series) []*SerializedSeries {
+func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecision) []*SerializedSeries {
 	serializedSeries := []*SerializedSeries{}
 
 	for _, series := range memSeries {
@@ -298,7 +343,16 @@ func serializeSeries(memSeries map[string]*protocol.Series) []*SerializedSeries 
 
 		points := [][]interface{}{}
 		for _, row := range series.Points {
-			rowValues := []interface{}{*row.Timestamp, *row.SequenceNumber}
+			timestamp := *row.GetTimestampInMicroseconds()
+			switch precision {
+			case SecondPrecision:
+				timestamp /= 1000
+				fallthrough
+			case MillisecondPrecision:
+				timestamp /= 1000
+			}
+
+			rowValues := []interface{}{timestamp, *row.SequenceNumber}
 			for idx, value := range row.Values {
 				switch *series.Fields[idx].Type {
 				case protocol.FieldDefinition_STRING:

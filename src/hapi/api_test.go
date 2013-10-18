@@ -40,14 +40,14 @@ func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Se
         "values": [
 				  { "string_value": "some_value"},{"int64_value": 1}
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       },
       {
         "values": [
 				  {"string_value": "some_value"},{"int64_value": 2}
 				],
-        "timestamp": 1381346632,
+        "timestamp": 1381346632000000,
         "sequence_number": 2
       }
     ],
@@ -60,14 +60,14 @@ func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Se
         "values": [
 				  { "string_value": "some_value"},{"int64_value": 3}
         ],
-        "timestamp": 1381346633,
+        "timestamp": 1381346633000000,
         "sequence_number": 1
       },
       {
         "values": [
 				  {"string_value": "some_value"},{"int64_value": 4}
 				],
-        "timestamp": 1381346634,
+        "timestamp": 1381346634000000,
         "sequence_number": 2
       }
     ],
@@ -117,6 +117,28 @@ func (self *ApiSuite) SetUpTest(c *C) {
 	self.coordinator.series = nil
 }
 
+func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
+	port := self.listener.Addr().(*net.TCPAddr).Port
+	query := "select * from foo where column_one == 'some_value';"
+	query = url.QueryEscape(query)
+	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series?q=%s&time_precision=s", port, query)
+	resp, err := http.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	series := []SerializedSeries{}
+	err = json.Unmarshal(data, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "foo")
+	// time, seq, column_one, column_two
+	c.Assert(series[0].Columns, HasLen, 4)
+	c.Assert(series[0].Points, HasLen, 4)
+	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631)
+}
+
 func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	port := self.listener.Addr().(*net.TCPAddr).Port
 	query := "select * from foo where column_one == 'some_value';"
@@ -136,6 +158,8 @@ func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	// time, seq, column_one, column_two
 	c.Assert(series[0].Columns, HasLen, 4)
 	c.Assert(series[0].Points, HasLen, 4)
+	// timestamp precision is milliseconds by default
+	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631000)
 }
 
 func (self *ApiSuite) TestChunkedQuery(c *C) {
@@ -161,6 +185,41 @@ func (self *ApiSuite) TestChunkedQuery(c *C) {
 		// each chunk should have 2 points
 		c.Assert(series.Points, HasLen, 2)
 	}
+}
+
+func (self *ApiSuite) TestWriteDataWithTimeInSeconds(c *C) {
+	data := `
+[
+  {
+    "points": [
+				[1382131686, "1"]
+    ],
+    "name": "foo",
+    "columns": ["time", "column_one"]
+  }
+]
+`
+
+	port := self.listener.Addr().(*net.TCPAddr).Port
+	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series?time_precision=s", port)
+	resp, err := http.Post(addr, "application/json", bytes.NewBufferString(data))
+	c.Assert(err, IsNil)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	fmt.Printf("body: %s\n", string(body))
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	c.Assert(self.coordinator.series, HasLen, 1)
+	series := self.coordinator.series[0]
+
+	// check the types
+	c.Assert(series.Fields, HasLen, 1)
+	c.Assert(*series.Fields[0].Name, Equals, "column_one")
+	c.Assert(*series.Fields[0].Type, Equals, protocol.FieldDefinition_STRING)
+
+	// check the values
+	c.Assert(series.Points, HasLen, 1)
+	c.Assert(*series.Points[0].Values[0].StringValue, Equals, "1")
+	c.Assert(*series.Points[0].GetTimestampInMicroseconds(), Equals, int64(1382131686000000))
 }
 
 func (self *ApiSuite) TestWriteDataWithTime(c *C) {
