@@ -321,14 +321,6 @@ func ParseQuery(query string) (*Query, error) {
 	}
 
 	var startTime, endTime time.Time
-	goQuery.Condition, startTime, err = getTime(goQuery.GetWhereCondition(), true)
-	if err != nil {
-		return nil, err
-	}
-
-	if startTime.Unix() > 0 {
-		goQuery.startTime = startTime
-	}
 
 	goQuery.Condition, endTime, err = getTime(goQuery.GetWhereCondition(), false)
 	if err != nil {
@@ -338,5 +330,17 @@ func ParseQuery(query string) (*Query, error) {
 	if endTime.Unix() > 0 {
 		goQuery.endTime = endTime
 	}
+
+	goQuery.Condition, startTime, err = getTime(goQuery.GetWhereCondition(), true)
+	if err != nil {
+		return nil, err
+	}
+
+	if startTime.Unix() > 0 {
+		goQuery.startTime = startTime
+	} else if endTime.Unix() > 0 {
+		goQuery.startTime = endTime.Add(-1 * time.Hour)
+	}
+
 	return goQuery, nil
 }

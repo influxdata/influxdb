@@ -100,6 +100,32 @@ func (self *QueryApiSuite) TestGetReferencedColumnsReturnsGroupByColumn(c *C) {
 	}
 }
 
+func (self *QueryApiSuite) TestDefaultStartTime(c *C) {
+	for queryStr, t := range map[string]time.Time{
+		"select * from t where time < now() - 1d;": time.Now().Add(-24 * time.Hour).Add(-1 * time.Hour).Round(time.Minute),
+		"select * from t;":                         time.Now().Add(-1 * time.Hour).Round(time.Minute),
+	} {
+		query, err := ParseQuery(queryStr)
+		c.Assert(err, IsNil)
+		startTime := query.GetStartTime()
+		roundedStartTime := startTime.Round(time.Minute)
+		c.Assert(roundedStartTime, Equals, t)
+	}
+}
+
+func (self *QueryApiSuite) TestDefaultEndTime(c *C) {
+	for queryStr, t := range map[string]time.Time{
+		"select * from t where time > now() - 1d;": time.Now().Round(time.Minute),
+		"select * from t;":                         time.Now().Round(time.Minute),
+	} {
+		query, err := ParseQuery(queryStr)
+		c.Assert(err, IsNil)
+		endTime := query.GetEndTime()
+		roundedEndTime := endTime.Round(time.Minute)
+		c.Assert(roundedEndTime, Equals, t)
+	}
+}
+
 func (self *QueryApiSuite) TestGetStartTimeWithOr(c *C) {
 	for _, queryStr := range []string{
 		"select * from t where time > now() - 1d and (value > 90 or value < 10);",
