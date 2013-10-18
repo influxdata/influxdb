@@ -50,16 +50,13 @@ func stringToSeries(seriesString string, timestamp int64, c *C) *protocol.Series
 func executeQuery(database, query string, db Datastore, c *C) *protocol.Series {
 	q, errQ := parser.ParseQuery(query)
 	c.Assert(errQ, IsNil)
-	done := make(chan int, 1)
 	resultSeries := &protocol.Series{}
 	yield := func(series *protocol.Series) error {
 		resultSeries = series
-		done <- 1
 		return nil
 	}
 	err := db.ExecuteQuery(database, q, yield)
 	c.Assert(err, IsNil)
-	<-done
 	return resultSeries
 }
 
@@ -101,22 +98,13 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	c.Assert(err, IsNil)
 	q, errQ := parser.ParseQuery("select value from foo;")
 	c.Assert(errQ, IsNil)
-	done := make(chan int, 1)
 	resultSeries := &protocol.Series{}
 	yield := func(series *protocol.Series) error {
 		resultSeries = series
-		done <- 1
 		return nil
 	}
 	err = db.ExecuteQuery("test", q, yield)
 	c.Assert(err, IsNil)
-	t := time.NewTimer(time.Second)
-	select {
-	case <-t.C:
-		c.Error("query timed out...")
-	case <-done:
-		// do nothing
-	}
 	c.Assert(resultSeries, Not(IsNil))
 	c.Assert(len(resultSeries.Points), Equals, 2)
 	c.Assert(len(resultSeries.Fields), Equals, 1)
@@ -530,27 +518,13 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 
 	q, errQ := parser.ParseQuery("select * from /.*things/;")
 	c.Assert(errQ, IsNil)
-	done := make(chan int, 1)
 	resultSeries := make([]*protocol.Series, 0)
-	count := 0
 	yield := func(series *protocol.Series) error {
 		resultSeries = append(resultSeries, series)
-		if count == 0 {
-			count += 1
-		} else {
-			done <- 1
-		}
 		return nil
 	}
 	err = db.ExecuteQuery("foobar", q, yield)
 	c.Assert(err, IsNil)
-	t := time.NewTimer(time.Second)
-	select {
-	case <-t.C:
-		c.Error("query timed out...")
-	case <-done:
-		// do nothing
-	}
 	c.Assert(len(resultSeries), Equals, 2)
 	c.Assert(resultSeries[0], DeepEquals, otherSeries)
 	c.Assert(resultSeries[1], DeepEquals, series)
