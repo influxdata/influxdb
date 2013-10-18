@@ -397,6 +397,9 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
 	c.Assert(*results.Points[0].Values[0].StringValue, Equals, "paul")
 	c.Assert(*results.Points[1].Values[0].StringValue, Equals, "todd")
 	c.Assert(*results.Points[2].Values[0].StringValue, Equals, "john")
+
+	results = executeQuery("foobar", "select name from user_things where time < now() - 30s order asc;", db, c)
+	c.Assert(results, DeepEquals, series)
 }
 
 func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {

@@ -263,7 +263,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 				k := it.Key()
 				if len(k) >= 16 {
 					t := k[8:16]
-					if bytes.Equal(k[:8], fields[i].Id) && bytes.Compare(t, startTimeBytes) == 1 {
+					if bytes.Equal(k[:8], fields[i].Id) && bytes.Compare(t, startTimeBytes) > -1 && bytes.Compare(t, endTimeBytes) < 1 {
 						v := it.Value()
 						s := k[16:]
 						rawColumnValues[i] = &rawColumnValue{time: t, sequence: s, value: v}
