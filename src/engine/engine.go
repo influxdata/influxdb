@@ -58,8 +58,6 @@ func getValueFromPoint(value *protocol.FieldValue, fType protocol.FieldDefinitio
 	switch fType {
 	case protocol.FieldDefinition_STRING:
 		return *value.StringValue
-	case protocol.FieldDefinition_INT32:
-		return *value.IntValue
 	case protocol.FieldDefinition_INT64:
 		return *value.Int64Value
 	case protocol.FieldDefinition_BOOL:
@@ -195,6 +193,11 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 }
 
 func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *parser.Query, yield func(*protocol.Series) error) error {
+	duration, err := query.GetGroupByClause().GetGroupByTime()
+	if err != nil {
+		return err
+	}
+
 	aggregators := []Aggregator{}
 	for _, value := range query.GetColumnNames() {
 		if value.IsFunctionCall() {
@@ -302,18 +305,24 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 				}
 			}
 
+			// FIXME: this should be looking at the fields slice not the group by clause
+			// FIXME: we should check whether the selected columns are in the group by clause
 			for idx, _ := range groupBy {
+				if duration != nil && idx == 0 {
+					continue
+				}
+
 				value := inverse(groupId, idx)
 
 				switch x := value.(type) {
 				case string:
 					point.Values = append(point.Values, &protocol.FieldValue{StringValue: &x})
-				case int32:
-					point.Values = append(point.Values, &protocol.FieldValue{IntValue: &x})
 				case bool:
 					point.Values = append(point.Values, &protocol.FieldValue{BoolValue: &x})
 				case float64:
 					point.Values = append(point.Values, &protocol.FieldValue{DoubleValue: &x})
+				case int64:
+					point.Values = append(point.Values, &protocol.FieldValue{Int64Value: &x})
 				}
 			}
 

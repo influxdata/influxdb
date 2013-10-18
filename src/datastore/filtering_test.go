@@ -18,14 +18,14 @@ func (self *FilteringSuite) TestEqualityFiltering(c *C) {
 [
  {
    "points": [
-     {"values": [{"int_value": 100},{"int_value": 5 }], "timestamp": 1381346631, "sequence_number": 1},
-     {"values": [{"int_value": 100},{"int_value": 6 }], "timestamp": 1381346631, "sequence_number": 1},
-     {"values": [{"int_value": 90 },{"int_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
+     {"values": [{"int64_value": 100},{"int64_value": 5 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int64_value": 100},{"int64_value": 6 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int64_value": 90 },{"int64_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
    ],
    "name": "t",
    "fields": [
-     {"type": "INT32", "name": "column_one"},
-     {"type": "INT32", "name": "column_two"}
+     {"type": "INT64", "name": "column_one"},
+     {"type": "INT64", "name": "column_two"}
    ]
  }
 ]
@@ -35,8 +35,8 @@ func (self *FilteringSuite) TestEqualityFiltering(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Assert(result.Points, HasLen, 1)
-	c.Assert(*result.Points[0].Values[0].IntValue, Equals, int32(100))
-	c.Assert(*result.Points[0].Values[1].IntValue, Equals, int32(5))
+	c.Assert(*result.Points[0].Values[0].Int64Value, Equals, int64(100))
+	c.Assert(*result.Points[0].Values[1].Int64Value, Equals, int64(5))
 }
 
 func (self *FilteringSuite) TestRegexFiltering(c *C) {
@@ -73,14 +73,14 @@ func (self *FilteringSuite) TestInequalityFiltering(c *C) {
 [
  {
    "points": [
-     {"values": [{"int_value": 100},{"int_value": 7 }], "timestamp": 1381346631, "sequence_number": 1},
-     {"values": [{"int_value": 100},{"int_value": 6 }], "timestamp": 1381346631, "sequence_number": 1},
-     {"values": [{"int_value": 90 },{"int_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
+     {"values": [{"int64_value": 100},{"int64_value": 7 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int64_value": 100},{"int64_value": 6 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int64_value": 90 },{"int64_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
    ],
    "name": "t",
    "fields": [
-     {"type": "INT32", "name": "column_one"},
-     {"type": "INT32", "name": "column_two"}
+     {"type": "INT64", "name": "column_one"},
+     {"type": "INT64", "name": "column_two"}
    ]
  }
 ]
@@ -90,6 +90,6 @@ func (self *FilteringSuite) TestInequalityFiltering(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Assert(result.Points, HasLen, 1)
-	c.Assert(*result.Points[0].Values[0].IntValue, Equals, int32(100))
-	c.Assert(*result.Points[0].Values[1].IntValue, Equals, int32(7))
+	c.Assert(*result.Points[0].Values[0].Int64Value, Equals, int64(100))
+	c.Assert(*result.Points[0].Values[1].Int64Value, Equals, int64(7))
 }

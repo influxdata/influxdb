@@ -273,8 +273,6 @@ func serializeSeries(memSeries map[string]*protocol.Series) []*SerializedSeries 
 				switch *series.Fields[idx].Type {
 				case protocol.FieldDefinition_STRING:
 					rowValues = append(rowValues, *value.StringValue)
-				case protocol.FieldDefinition_INT32:
-					rowValues = append(rowValues, *value.IntValue)
 				case protocol.FieldDefinition_INT64:
 					rowValues = append(rowValues, *value.Int64Value)
 				case protocol.FieldDefinition_DOUBLE:

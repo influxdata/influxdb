@@ -31,9 +31,9 @@ func not(op BooleanOperation) BooleanOperation {
 
 func commonType(leftType, rightType protocol.FieldDefinition_Type) (protocol.FieldDefinition_Type, error) {
 	switch leftType {
-	case protocol.FieldDefinition_INT64, protocol.FieldDefinition_INT32:
+	case protocol.FieldDefinition_INT64:
 		switch rightType {
-		case protocol.FieldDefinition_INT32, protocol.FieldDefinition_INT64:
+		case protocol.FieldDefinition_INT64:
 			return protocol.FieldDefinition_INT64, nil
 		case protocol.FieldDefinition_DOUBLE:
 			return protocol.FieldDefinition_DOUBLE, nil
@@ -41,7 +41,7 @@ func commonType(leftType, rightType protocol.FieldDefinition_Type) (protocol.Fie
 
 	case protocol.FieldDefinition_DOUBLE:
 		switch rightType {
-		case protocol.FieldDefinition_INT64, protocol.FieldDefinition_INT32, protocol.FieldDefinition_DOUBLE:
+		case protocol.FieldDefinition_INT64, protocol.FieldDefinition_DOUBLE:
 			return protocol.FieldDefinition_DOUBLE, nil
 		}
 
@@ -65,9 +65,6 @@ func coerceValue(value *protocol.FieldValue, fromType, toType protocol.FieldDefi
 		switch fromType {
 		case protocol.FieldDefinition_INT64:
 			return value
-		case protocol.FieldDefinition_INT32:
-			temp := int64(*value.IntValue)
-			return &protocol.FieldValue{Int64Value: &temp}
 		}
 
 	case protocol.FieldDefinition_DOUBLE:
@@ -76,9 +73,6 @@ func coerceValue(value *protocol.FieldValue, fromType, toType protocol.FieldDefi
 			return value
 		case protocol.FieldDefinition_INT64:
 			temp := float64(*value.Int64Value)
-			return &protocol.FieldValue{DoubleValue: &temp}
-		case protocol.FieldDefinition_INT32:
-			temp := float64(*value.IntValue)
 			return &protocol.FieldValue{DoubleValue: &temp}
 		}
 

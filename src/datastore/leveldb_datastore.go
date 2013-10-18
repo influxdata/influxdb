@@ -423,11 +423,9 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 			if *f.Definition.Type == protocol.FieldDefinition_BOOL {
 				bestField = f
 				break
-			} else if *f.Definition.Type == protocol.FieldDefinition_INT32 {
+			} else if *f.Definition.Type == protocol.FieldDefinition_INT64 {
 				bestField = f
-			} else if *f.Definition.Type == protocol.FieldDefinition_INT64 && *bestField.Definition.Type != protocol.FieldDefinition_INT32 {
-				bestField = f
-			} else if *f.Definition.Type == protocol.FieldDefinition_DOUBLE && *bestField.Definition.Type != protocol.FieldDefinition_INT32 && *bestField.Definition.Type != protocol.FieldDefinition_INT64 {
+			} else if *f.Definition.Type == protocol.FieldDefinition_DOUBLE && *bestField.Definition.Type != protocol.FieldDefinition_INT64 {
 				bestField = f
 			}
 		}

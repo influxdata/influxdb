@@ -2,7 +2,6 @@ package protocol;
 
 message FieldValue {
   optional string string_value = 1;
-  optional int32 int_value = 2;
   optional double double_value = 3;
   optional bool bool_value = 4;
   optional int64 int64_value = 5;
@@ -11,7 +10,6 @@ message FieldValue {
 message FieldDefinition {
   enum Type {
     STRING = 1;
-    INT32 = 2;
     DOUBLE = 3;
     BOOL = 4;
     INT64 = 5;

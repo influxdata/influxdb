@@ -17,7 +17,6 @@ type FieldDefinition_Type int32
 
 const (
 	FieldDefinition_STRING FieldDefinition_Type = 1
-	FieldDefinition_INT32  FieldDefinition_Type = 2
 	FieldDefinition_DOUBLE FieldDefinition_Type = 3
 	FieldDefinition_BOOL   FieldDefinition_Type = 4
 	FieldDefinition_INT64  FieldDefinition_Type = 5
@@ -25,14 +24,12 @@ const (
 
 var FieldDefinition_Type_name = map[int32]string{
 	1: "STRING",
-	2: "INT32",
 	3: "DOUBLE",
 	4: "BOOL",
 	5: "INT64",
 }
 var FieldDefinition_Type_value = map[string]int32{
 	"STRING": 1,
-	"INT32":  2,
 	"DOUBLE": 3,
 	"BOOL":   4,
 	"INT64":  5,
@@ -138,7 +135,6 @@ func (x *Response_Type) UnmarshalJSON(data []byte) error {
 
 type FieldValue struct {
 	StringValue      *string  `protobuf:"bytes,1,opt,name=string_value" json:"string_value,omitempty"`
-	IntValue         *int32   `protobuf:"varint,2,opt,name=int_value" json:"int_value,omitempty"`
 	DoubleValue      *float64 `protobuf:"fixed64,3,opt,name=double_value" json:"double_value,omitempty"`
 	BoolValue        *bool    `protobuf:"varint,4,opt,name=bool_value" json:"bool_value,omitempty"`
 	Int64Value       *int64   `protobuf:"varint,5,opt,name=int64_value" json:"int64_value,omitempty"`
@@ -154,13 +150,6 @@ func (m *FieldValue) GetStringValue() string {
 		return *m.StringValue
 	}
 	return ""
-}
-
-func (m *FieldValue) GetIntValue() int32 {
-	if m != nil && m.IntValue != nil {
-		return *m.IntValue
-	}
-	return 0
 }
 
 func (m *FieldValue) GetDoubleValue() float64 {

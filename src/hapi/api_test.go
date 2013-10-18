@@ -38,41 +38,41 @@ func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Se
     "points": [
       {
         "values": [
-				  { "string_value": "some_value"},{"int_value": 1}
+				  { "string_value": "some_value"},{"int64_value": 1}
         ],
         "timestamp": 1381346631,
         "sequence_number": 1
       },
       {
         "values": [
-				  {"string_value": "some_value"},{"int_value": 2}
+				  {"string_value": "some_value"},{"int64_value": 2}
 				],
         "timestamp": 1381346632,
         "sequence_number": 2
       }
     ],
     "name": "foo",
-    "fields": [{"type": "STRING","name": "column_one"},{"type": "INT32","name": "column_two"}]
+    "fields": [{"type": "STRING","name": "column_one"},{"type": "INT64","name": "column_two"}]
   },
   {
     "points": [
       {
         "values": [
-				  { "string_value": "some_value"},{"int_value": 3}
+				  { "string_value": "some_value"},{"int64_value": 3}
         ],
         "timestamp": 1381346633,
         "sequence_number": 1
       },
       {
         "values": [
-				  {"string_value": "some_value"},{"int_value": 4}
+				  {"string_value": "some_value"},{"int64_value": 4}
 				],
         "timestamp": 1381346634,
         "sequence_number": 2
       }
     ],
     "name": "foo",
-    "fields": [{"type": "STRING","name": "column_one"},{"type": "INT32","name": "column_two"}]
+    "fields": [{"type": "STRING","name": "column_one"},{"type": "INT64","name": "column_two"}]
   }
 ]
 `)
@@ -121,6 +121,7 @@ func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	resp, err := http.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	data, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	series := []SerializedSeries{}

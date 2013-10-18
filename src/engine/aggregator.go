@@ -61,13 +61,13 @@ func (self *CountAggregator) ColumnName() string {
 }
 
 func (self *CountAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return protocol.FieldDefinition_INT32
+	return protocol.FieldDefinition_INT64
 }
 
 func (self *CountAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
 	returnValues := []*protocol.FieldValue{}
-	value := self.counts[series][group]
-	returnValues = append(returnValues, &protocol.FieldValue{IntValue: &value})
+	value := int64(self.counts[series][group])
+	returnValues = append(returnValues, &protocol.FieldValue{Int64Value: &value})
 
 	return returnValues
 }
@@ -106,7 +106,7 @@ func (self *TimestampAggregator) ColumnName() string {
 }
 
 func (self *TimestampAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return protocol.FieldDefinition_INT32
+	return protocol.FieldDefinition_INT64
 }
 
 func (self *TimestampAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
@@ -162,8 +162,6 @@ func (self *MeanAggregator) AggregatePoint(series string, group interface{}, p *
 	switch self.fieldType {
 	case protocol.FieldDefinition_INT64:
 		value = float64(*p.Values[self.fieldIndex].Int64Value)
-	case protocol.FieldDefinition_INT32:
-		value = float64(*p.Values[self.fieldIndex].IntValue)
 	case protocol.FieldDefinition_DOUBLE:
 		value = *p.Values[self.fieldIndex].DoubleValue
 	}
@@ -198,8 +196,7 @@ func (self *MeanAggregator) InitializeFieldsMetadata(series *protocol.Series) er
 			self.fieldType = *field.Type
 
 			switch self.fieldType {
-			case protocol.FieldDefinition_INT32,
-				protocol.FieldDefinition_INT64,
+			case protocol.FieldDefinition_INT64,
 				protocol.FieldDefinition_DOUBLE:
 				// that's fine
 			default:
@@ -233,39 +230,25 @@ type MedianAggregator struct {
 	fieldName    string
 	fieldIndex   int
 	fieldType    protocol.FieldDefinition_Type
-	int_values   map[string]map[interface{}][]int
+	int_values   map[string]map[interface{}][]int64
 	float_values map[string]map[interface{}][]float64
 }
 
 func (self *MedianAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
 	switch self.fieldType {
-	case protocol.FieldDefinition_INT32:
-		int_values := self.int_values[series]
-		if int_values == nil {
-			int_values = make(map[interface{}][]int)
-			self.int_values[series] = int_values
-		}
-
-		points := int_values[group]
-		if points == nil {
-			points = make([]int, 0)
-		}
-
-		points = append(points, int(*p.Values[self.fieldIndex].IntValue))
-		int_values[group] = points
 	case protocol.FieldDefinition_INT64:
 		int_values := self.int_values[series]
 		if int_values == nil {
-			int_values = make(map[interface{}][]int)
+			int_values = make(map[interface{}][]int64)
 			self.int_values[series] = int_values
 		}
 
 		points := int_values[group]
 		if points == nil {
-			points = make([]int, 0)
+			points = []int64{}
 		}
 
-		points = append(points, int(*p.Values[self.fieldIndex].Int64Value))
+		points = append(points, *p.Values[self.fieldIndex].Int64Value)
 		int_values[group] = points
 	case protocol.FieldDefinition_DOUBLE:
 		float_values := self.float_values[series]
@@ -300,14 +283,8 @@ func (self *MedianAggregator) GetValue(series string, group interface{}) []*prot
 	returnValues := []*protocol.FieldValue{}
 
 	switch self.fieldType {
-	case protocol.FieldDefinition_INT32:
-		sort.Ints(self.int_values[series][group])
-		length := len(self.int_values[series][group])
-		index := int(math.Floor(float64(length)*0.5+0.5)) - 1
-		point := int32(self.int_values[series][group][index])
-		returnValues = append(returnValues, &protocol.FieldValue{IntValue: &point})
 	case protocol.FieldDefinition_INT64:
-		sort.Ints(self.int_values[series][group])
+		SortInt64(self.int_values[series][group])
 		length := len(self.int_values[series][group])
 		index := int(math.Floor(float64(length)*0.5+0.5)) - 1
 		point := int64(self.int_values[series][group][index])
@@ -329,8 +306,7 @@ func (self *MedianAggregator) InitializeFieldsMetadata(series *protocol.Series) 
 			self.fieldType = *field.Type
 
 			switch self.fieldType {
-			case protocol.FieldDefinition_INT32,
-				protocol.FieldDefinition_INT64,
+			case protocol.FieldDefinition_INT64,
 				protocol.FieldDefinition_DOUBLE:
 				// that's fine
 			default:
@@ -351,7 +327,7 @@ func NewMedianAggregator(_ *parser.Query, value *parser.Value) (Aggregator, erro
 
 	return &MedianAggregator{
 		fieldName:    value.Elems[0].Name,
-		int_values:   make(map[string]map[interface{}][]int),
+		int_values:   make(map[string]map[interface{}][]int64),
 		float_values: make(map[string]map[interface{}][]float64),
 	}, nil
 }
@@ -365,39 +341,25 @@ type PercentileAggregator struct {
 	fieldIndex   int
 	fieldType    protocol.FieldDefinition_Type
 	percentile   float64
-	int_values   map[string]map[interface{}][]int
+	int_values   map[string]map[interface{}][]int64
 	float_values map[string]map[interface{}][]float64
 }
 
 func (self *PercentileAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
 	switch self.fieldType {
-	case protocol.FieldDefinition_INT32:
-		int_values := self.int_values[series]
-		if int_values == nil {
-			int_values = make(map[interface{}][]int)
-			self.int_values[series] = int_values
-		}
-
-		points := int_values[group]
-		if points == nil {
-			points = make([]int, 0)
-		}
-
-		points = append(points, int(*p.Values[self.fieldIndex].IntValue))
-		int_values[group] = points
 	case protocol.FieldDefinition_INT64:
 		int_values := self.int_values[series]
 		if int_values == nil {
-			int_values = make(map[interface{}][]int)
+			int_values = make(map[interface{}][]int64)
 			self.int_values[series] = int_values
 		}
 
 		points := int_values[group]
 		if points == nil {
-			points = make([]int, 0)
+			points = []int64{}
 		}
 
-		points = append(points, int(*p.Values[self.fieldIndex].Int64Value))
+		points = append(points, *p.Values[self.fieldIndex].Int64Value)
 		int_values[group] = points
 	case protocol.FieldDefinition_DOUBLE:
 		float_values := self.float_values[series]
@@ -432,14 +394,8 @@ func (self *PercentileAggregator) GetValue(series string, group interface{}) []*
 	returnValues := []*protocol.FieldValue{}
 
 	switch self.fieldType {
-	case protocol.FieldDefinition_INT32:
-		sort.Ints(self.int_values[series][group])
-		length := len(self.int_values[series][group])
-		index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
-		point := int32(self.int_values[series][group][index])
-		returnValues = append(returnValues, &protocol.FieldValue{IntValue: &point})
 	case protocol.FieldDefinition_INT64:
-		sort.Ints(self.int_values[series][group])
+		SortInt64(self.int_values[series][group])
 		length := len(self.int_values[series][group])
 		index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
 		point := int64(self.int_values[series][group][index])
@@ -462,8 +418,7 @@ func (self *PercentileAggregator) InitializeFieldsMetadata(series *protocol.Seri
 			self.fieldType = *field.Type
 
 			switch self.fieldType {
-			case protocol.FieldDefinition_INT32,
-				protocol.FieldDefinition_INT64,
+			case protocol.FieldDefinition_INT64,
 				protocol.FieldDefinition_DOUBLE:
 				// that's fine
 			default:
@@ -490,7 +445,7 @@ func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, 
 	return &PercentileAggregator{
 		fieldName:    value.Elems[0].Name,
 		percentile:   percentile,
-		int_values:   make(map[string]map[interface{}][]int),
+		int_values:   make(map[string]map[interface{}][]int64),
 		float_values: make(map[string]map[interface{}][]float64),
 	}, nil
 }
@@ -520,8 +475,6 @@ func (self *ModeAggregator) AggregatePoint(series string, group interface{}, p *
 
 	var value interface{}
 	switch self.fieldType {
-	case protocol.FieldDefinition_INT32:
-		value = *p.Values[self.fieldIndex].IntValue
 	case protocol.FieldDefinition_INT64:
 		value = *p.Values[self.fieldIndex].Int64Value
 	case protocol.FieldDefinition_DOUBLE:
@@ -562,9 +515,6 @@ func (self *ModeAggregator) GetValue(series string, group interface{}) []*protoc
 
 	for _, value := range values {
 		switch self.fieldType {
-		case protocol.FieldDefinition_INT32:
-			v := value.(int32)
-			returnValues = append(returnValues, &protocol.FieldValue{IntValue: &v})
 		case protocol.FieldDefinition_INT64:
 			v := value.(int64)
 			returnValues = append(returnValues, &protocol.FieldValue{Int64Value: &v})
@@ -584,8 +534,7 @@ func (self *ModeAggregator) InitializeFieldsMetadata(series *protocol.Series) er
 			self.fieldType = *field.Type
 
 			switch self.fieldType {
-			case protocol.FieldDefinition_INT32,
-				protocol.FieldDefinition_INT64,
+			case protocol.FieldDefinition_INT64,
 				protocol.FieldDefinition_DOUBLE:
 				// that's fine
 			default:
@@ -635,8 +584,6 @@ func (self *DistinctAggregator) AggregatePoint(series string, group interface{},
 
 	var value interface{}
 	switch self.fieldType {
-	case protocol.FieldDefinition_INT32:
-		value = *p.Values[self.fieldIndex].IntValue
 	case protocol.FieldDefinition_INT64:
 		value = *p.Values[self.fieldIndex].Int64Value
 	case protocol.FieldDefinition_DOUBLE:
@@ -664,9 +611,6 @@ func (self *DistinctAggregator) GetValue(series string, group interface{}) []*pr
 
 	for value, _ := range self.counts[series][group] {
 		switch self.fieldType {
-		case protocol.FieldDefinition_INT32:
-			v := value.(int32)
-			returnValues = append(returnValues, &protocol.FieldValue{IntValue: &v})
 		case protocol.FieldDefinition_INT64:
 			v := value.(int64)
 			returnValues = append(returnValues, &protocol.FieldValue{Int64Value: &v})
@@ -686,8 +630,7 @@ func (self *DistinctAggregator) InitializeFieldsMetadata(series *protocol.Series
 			self.fieldType = *field.Type
 
 			switch self.fieldType {
-			case protocol.FieldDefinition_INT32,
-				protocol.FieldDefinition_INT64,
+			case protocol.FieldDefinition_INT64,
 				protocol.FieldDefinition_DOUBLE:
 				// that's fine
 			default:
@@ -733,10 +676,6 @@ func (self *MaxAggregator) AggregatePoint(series string, group interface{}, p *p
 		if value := *p.Values[self.fieldIndex].Int64Value; currentValue.Int64Value == nil || *currentValue.Int64Value < value {
 			currentValue.Int64Value = &value
 		}
-	case protocol.FieldDefinition_INT32:
-		if value := *p.Values[self.fieldIndex].IntValue; currentValue.IntValue == nil || *currentValue.IntValue < value {
-			currentValue.IntValue = &value
-		}
 	case protocol.FieldDefinition_DOUBLE:
 		if value := *p.Values[self.fieldIndex].DoubleValue; currentValue.DoubleValue == nil || *currentValue.DoubleValue < value {
 			currentValue.DoubleValue = &value
@@ -769,8 +708,7 @@ func (self *MaxAggregator) InitializeFieldsMetadata(series *protocol.Series) err
 			self.fieldType = *field.Type
 
 			switch self.fieldType {
-			case protocol.FieldDefinition_INT32,
-				protocol.FieldDefinition_INT64,
+			case protocol.FieldDefinition_INT64,
 				protocol.FieldDefinition_DOUBLE:
 				// that's fine
 			default:
@@ -820,10 +758,6 @@ func (self *MinAggregator) AggregatePoint(series string, group interface{}, p *p
 		if value := *p.Values[self.fieldIndex].Int64Value; currentValue.Int64Value == nil || *currentValue.Int64Value > value {
 			currentValue.Int64Value = &value
 		}
-	case protocol.FieldDefinition_INT32:
-		if value := *p.Values[self.fieldIndex].IntValue; currentValue.IntValue == nil || *currentValue.IntValue > value {
-			currentValue.IntValue = &value
-		}
 	case protocol.FieldDefinition_DOUBLE:
 		if value := *p.Values[self.fieldIndex].DoubleValue; currentValue.DoubleValue == nil || *currentValue.DoubleValue > value {
 			currentValue.DoubleValue = &value
@@ -856,8 +790,7 @@ func (self *MinAggregator) InitializeFieldsMetadata(series *protocol.Series) err
 			self.fieldType = *field.Type
 
 			switch self.fieldType {
-			case protocol.FieldDefinition_INT32,
-				protocol.FieldDefinition_INT64,
+			case protocol.FieldDefinition_INT64,
 				protocol.FieldDefinition_DOUBLE:
 				// that's fine
 			default:
@@ -905,8 +838,6 @@ func (self *SumAggregator) AggregatePoint(series string, group interface{}, p *p
 	switch self.fieldType {
 	case protocol.FieldDefinition_INT64:
 		currentValue += float64(*p.Values[self.fieldIndex].Int64Value)
-	case protocol.FieldDefinition_INT32:
-		currentValue += float64(*p.Values[self.fieldIndex].IntValue)
 	case protocol.FieldDefinition_DOUBLE:
 		currentValue += *p.Values[self.fieldIndex].DoubleValue
 	}
@@ -927,9 +858,6 @@ func (self *SumAggregator) GetValue(series string, group interface{}) []*protoco
 	returnValues := []*protocol.FieldValue{}
 
 	switch self.fieldType {
-	case protocol.FieldDefinition_INT32:
-		value := int32(self.sums[series][group])
-		returnValues = append(returnValues, &protocol.FieldValue{IntValue: &value})
 	case protocol.FieldDefinition_INT64:
 		value := int64(self.sums[series][group])
 		returnValues = append(returnValues, &protocol.FieldValue{Int64Value: &value})
@@ -948,8 +876,7 @@ func (self *SumAggregator) InitializeFieldsMetadata(series *protocol.Series) err
 			self.fieldType = *field.Type
 
 			switch self.fieldType {
-			case protocol.FieldDefinition_INT32,
-				protocol.FieldDefinition_INT64,
+			case protocol.FieldDefinition_INT64,
 				protocol.FieldDefinition_DOUBLE:
 				// that's fine
 			default:
