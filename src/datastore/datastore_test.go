@@ -6,6 +6,7 @@ import (
 	"os"
 	"parser"
 	"protocol"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -434,6 +435,55 @@ func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
 	results = executeQuery("foobar", "select count, name from user_things;", db, c)
 	c.Assert(len(results.Points), Equals, 1)
 	c.Assert(results, DeepEquals, series)
+}
+
+func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	mock := `{
+    "points":[
+      {"values":[{"int_value":3},{"string_value":"paul"}],"sequence_number":2},
+      {"values":[{"int_value":1},{"string_value":"todd"}],"sequence_number":1}],
+      "name":"events",
+      "fields":[{"type":"INT32","name":"count"},{"type":"STRING","name":"name"}]
+    }`
+	series := stringToSeries(mock, time.Now().Unix(), c)
+	err := db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	results := executeQuery("foobar", "select count, name from events;", db, c)
+	c.Assert(results, DeepEquals, series)
+
+	mock = `{
+    "points":[{"values":[{"double_value":10.1}],"sequence_number":23}],
+    "name":"response_times",
+    "fields":[{"type":"DOUBLE","name":"ms"}]}`
+	responseSeries := stringToSeries(mock, time.Now().Unix(), c)
+	err = db.WriteSeriesData("foobar", responseSeries)
+	c.Assert(err, IsNil)
+	results = executeQuery("foobar", "select ms from response_times;", db, c)
+	c.Assert(results, DeepEquals, responseSeries)
+
+	mock = `{
+    "points":[{"values":[{"double_value":232.1}],"sequence_number":23}, {"values":[{"double_value":10.1}],"sequence_number":20}],
+    "name":"queue_time",
+    "fields":[{"type":"DOUBLE","name":"processed_time"}]}`
+	otherSeries := stringToSeries(mock, time.Now().Unix(), c)
+	err = db.WriteSeriesData("foobar", otherSeries)
+	c.Assert(err, IsNil)
+	results = executeQuery("foobar", "select processed_time from queue_time;", db, c)
+	c.Assert(results, DeepEquals, otherSeries)
+
+	regex, _ := regexp.Compile(".*time.*")
+	db.DeleteRangeOfRegex("foobar", regex, time.Now().Add(-time.Hour), time.Now())
+
+	results = executeQuery("foobar", "select * from events;", db, c)
+	c.Assert(results, DeepEquals, series)
+	results = executeQuery("foobar", "select * from response_times;", db, c)
+	c.Assert(len(results.Points), Equals, 0)
+	results = executeQuery("foobar", "select * from queue_time;", db, c)
+	c.Assert(len(results.Points), Equals, 0)
 }
 
 func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {

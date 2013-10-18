@@ -193,8 +193,15 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 	return nil
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex regexp.Regexp, startTime, endTime time.Time) error {
-	return errors.New("Not implemented yet!")
+func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
+	series := self.getSeriesForDbAndRegex(database, regex)
+	for _, name := range series {
+		err := self.DeleteRangeOfSeries(database, name, startTime, endTime)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (self *LevelDbDatastore) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
