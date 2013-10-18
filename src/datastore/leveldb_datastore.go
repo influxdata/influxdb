@@ -177,9 +177,7 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 		rangesToCompact = append(rangesToCompact, &levigo.Range{startKey, endKey})
 	}
 	for _, r := range rangesToCompact {
-		go func(r *levigo.Range) {
-			self.db.CompactRange(*r)
-		}(r)
+		self.db.CompactRange(*r)
 	}
 	return nil
 }
