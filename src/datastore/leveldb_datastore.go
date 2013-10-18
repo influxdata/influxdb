@@ -3,6 +3,7 @@ package datastore
 import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
+	"common"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -108,7 +109,7 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 		for _, point := range series.Points {
 			timestampBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 			sequenceNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-			binary.Write(timestampBuffer, binary.BigEndian, self.convertTimestampToUint(point.Timestamp))
+			binary.Write(timestampBuffer, binary.BigEndian, self.convertTimestampToUint(point.GetTimestampInMicroseconds()))
 			binary.Write(sequenceNumberBuffer, binary.BigEndian, uint64(*point.SequenceNumber))
 			pointKey := append(append(id, timestampBuffer.Bytes()...), sequenceNumberBuffer.Bytes()...)
 			data, err2 := proto.Marshal(point.Values[fieldIndex])
@@ -152,7 +153,7 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 	if err != nil {
 		return err
 	}
-	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(startTime, endTime)
+	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
 	rangesToCompact := make([]*levigo.Range, 0)
@@ -206,6 +207,10 @@ func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.
 }
 
 func (self *LevelDbDatastore) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
+	if startTime < 1382361894000 {
+		panic("wtf")
+	}
+
 	startTimeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	binary.Write(startTimeBuffer, binary.BigEndian, self.convertTimestampToUint(&startTime))
 	startTimeBytes := startTimeBuffer.Bytes()
@@ -216,7 +221,7 @@ func (self *LevelDbDatastore) byteArraysForStartAndEndTimes(startTime, endTime i
 }
 
 func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string, query *parser.Query, yield func(*protocol.Series) error) error {
-	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(query.GetStartTime().Unix(), query.GetEndTime().Unix())
+	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(query.GetStartTime()), common.TimeToMicroseconds(query.GetEndTime()))
 
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
@@ -306,7 +311,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 				var sequence uint64
 				binary.Read(bytes.NewBuffer(rawColumnValues[i].sequence), binary.BigEndian, &sequence)
 				seq32 := uint32(sequence)
-				point.Timestamp = &time
+				point.SetTimestampInMicroseconds(time)
 				point.SequenceNumber = &seq32
 				rawColumnValues[i] = nil
 			}

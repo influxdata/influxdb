@@ -104,7 +104,7 @@ func (self *EngineSuite) TestBasicQuery(c *C) {
            "string_value": "some_value"
          }
        ],
-       "timestamp": 1381346631,
+       "timestamp": 1381346631000000,
        "sequence_number": 1
      }
    ],
@@ -137,7 +137,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       },
       {
@@ -146,7 +146,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 2
       }
     ],
@@ -170,7 +170,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       }
     ],
@@ -199,7 +199,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       }
     ],
@@ -219,7 +219,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       }
     ],
@@ -243,7 +243,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       }
     ],
@@ -263,7 +263,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       }
     ],
@@ -292,7 +292,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       },
       {
@@ -301,7 +301,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
             "string_value": "another_value"
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       }
     ],
@@ -328,7 +328,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       },
       {
@@ -340,7 +340,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
             "string_value": "another_value"
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       }
     ],
@@ -396,7 +396,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       },
       {
@@ -408,7 +408,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       },
       {
@@ -420,7 +420,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       }
     ],
@@ -455,7 +455,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       },
       {
@@ -470,7 +470,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       },
 			{
@@ -485,7 +485,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631,
+        "timestamp": 1381346631000000,
         "sequence_number": 1
       }
     ],
@@ -521,7 +521,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346641,
+        "timestamp": 1381346641000000,
         "sequence_number": 1
       },
       {
@@ -530,7 +530,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
             "string_value": "another_value"
           }
         ],
-        "timestamp": 1381346701,
+        "timestamp": 1381346701000000,
         "sequence_number": 1
       },
       {
@@ -539,7 +539,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346721,
+        "timestamp": 1381346721000000,
         "sequence_number": 1
       }
     ],
@@ -563,7 +563,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346640,
+        "timestamp": 1381346640000000,
         "sequence_number": 1
       },
       {
@@ -572,7 +572,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346700,
+        "timestamp": 1381346700000000,
         "sequence_number": 1
       }
     ],
@@ -592,9 +592,9 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346641, "sequence_number": 1 },
-        { "values": [{ "string_value": "another_value" }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346721, "sequence_number": 1 }
+        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346641000000, "sequence_number": 1 },
+        { "values": [{ "string_value": "another_value" }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346721000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -606,9 +606,9 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
 	runQuery(engine, "select count(*), column_one from foo group by time(1m), column_one;", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346640, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "string_value": "another_value" }], "timestamp": 1381346700, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346700, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346640000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }, { "string_value": "another_value" }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346700000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -623,9 +623,9 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -637,8 +637,8 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select min(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -652,9 +652,9 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -666,8 +666,8 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select max(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346700, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346700000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -682,9 +682,9 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -696,8 +696,8 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select max(column_one), min(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346640, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }, { "int64_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }, { "int64_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -713,20 +713,20 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 9 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346741, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -738,8 +738,8 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select percentile(column_one, 80) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346700, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346760, "sequence_number": 1 }
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -753,20 +753,20 @@ func (self *EngineSuite) TestMedianQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 9 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346741, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -778,8 +778,8 @@ func (self *EngineSuite) TestMedianQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select median(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346760, "sequence_number": 1 }
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -793,20 +793,20 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 9 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346741, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -818,8 +818,8 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select mean(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 4 }], "timestamp": 1381346700, "sequence_number": 1 },
-        { "values": [{ "double_value": 6 }], "timestamp": 1381346760, "sequence_number": 1 }
+        { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 6 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -833,12 +833,12 @@ func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346741, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -850,8 +850,8 @@ func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select sum(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 11 }], "timestamp": 1381346700, "sequence_number": 1 },
-        { "values": [{ "int64_value": 16 }], "timestamp": 1381346760, "sequence_number": 1 }
+        { "values": [{ "int64_value": 11 }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 16 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -865,21 +865,21 @@ func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346741, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346741, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [
@@ -891,8 +891,8 @@ func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select mode(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346700, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346760, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": [

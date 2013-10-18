@@ -13,3 +13,11 @@ func UnmarshalPoint(data []byte) (point *Point, err error) {
 func MarshalPoint(point *Point) (data []byte, err error) {
 	return proto.Marshal(point)
 }
+
+func (self *Point) GetTimestampInMicroseconds() *int64 {
+	return self.Timestamp
+}
+
+func (self *Point) SetTimestampInMicroseconds(t int64) {
+	self.Timestamp = &t
+}

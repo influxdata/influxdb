@@ -41,6 +41,7 @@ func stringToSeries(seriesString string, timestamp int64, c *C) *protocol.Series
 	series := &protocol.Series{}
 	err := json.Unmarshal([]byte(seriesString), &series)
 	c.Assert(err, IsNil)
+	timestamp *= 1000000
 	for _, point := range series.Points {
 		point.Timestamp = &timestamp
 	}
@@ -110,8 +111,8 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	c.Assert(len(resultSeries.Fields), Equals, 1)
 	c.Assert(*resultSeries.Points[0].SequenceNumber, Equals, uint32(2))
 	c.Assert(*resultSeries.Points[1].SequenceNumber, Equals, uint32(1))
-	c.Assert(*resultSeries.Points[0].Timestamp, Equals, pointTime)
-	c.Assert(*resultSeries.Points[1].Timestamp, Equals, pointTime)
+	c.Assert(*resultSeries.Points[0].GetTimestampInMicroseconds(), Equals, pointTime*1000000)
+	c.Assert(*resultSeries.Points[1].GetTimestampInMicroseconds(), Equals, pointTime*1000000)
 	c.Assert(*resultSeries.Points[0].Values[0].Int64Value, Equals, int64(2))
 	c.Assert(*resultSeries.Points[1].Values[0].Int64Value, Equals, int64(3))
 	c.Assert(resultSeries, Not(DeepEquals), series)
@@ -192,8 +193,8 @@ func (self *DatastoreSuite) TestCanWriteDataWithDifferentTimesAndSeries(c *C) {
 	c.Assert(len(results.Fields), Equals, 1)
 	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(1))
 	c.Assert(*results.Points[1].SequenceNumber, Equals, uint32(3))
-	c.Assert(*results.Points[0].Timestamp, Equals, now)
-	c.Assert(*results.Points[1].Timestamp, Equals, secondAgo)
+	c.Assert(*results.Points[0].GetTimestampInMicroseconds(), Equals, now*1000000)
+	c.Assert(*results.Points[1].GetTimestampInMicroseconds(), Equals, secondAgo*1000000)
 	c.Assert(*results.Points[0].Values[0].DoubleValue, Equals, float64(0.1))
 	c.Assert(*results.Points[1].Values[0].DoubleValue, Equals, float64(23.2))
 	results = executeQuery("db1", "select val from foo;", db, c)
@@ -259,8 +260,8 @@ func (self *DatastoreSuite) TestCanQueryBasedOnTime(c *C) {
 	c.Assert(len(results.Fields), Equals, 1)
 	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(3))
 	c.Assert(*results.Points[1].SequenceNumber, Equals, uint32(3))
-	c.Assert(*results.Points[0].Timestamp, Equals, now)
-	c.Assert(*results.Points[1].Timestamp, Equals, minutesAgo)
+	c.Assert(*results.Points[0].GetTimestampInMicroseconds(), Equals, now*1000000)
+	c.Assert(*results.Points[1].GetTimestampInMicroseconds(), Equals, minutesAgo*1000000)
 	c.Assert(*results.Points[0].Values[0].Int64Value, Equals, int64(3))
 	c.Assert(*results.Points[1].Values[0].Int64Value, Equals, int64(4))
 }

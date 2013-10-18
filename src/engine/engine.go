@@ -70,7 +70,8 @@ func getValueFromPoint(value *protocol.FieldValue, fType protocol.FieldDefinitio
 }
 
 func getTimestampFromPoint(window time.Duration, point *protocol.Point) int64 {
-	return time.Unix(*point.Timestamp, 0).Round(window).Unix()
+	multiplier := int64(window / time.Microsecond)
+	return *point.GetTimestampInMicroseconds() / int64(multiplier) * int64(multiplier)
 }
 
 type Mapper func(*protocol.Point) interface{}
@@ -287,10 +288,10 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 			timestamp := *timestampAggregator.GetValue(table, groupId)[0].Int64Value
 			/* groupPoints := []*protocol.Point{} */
 			point := &protocol.Point{
-				Timestamp:      &timestamp,
 				SequenceNumber: &sequenceNumber,
 				Values:         []*protocol.FieldValue{},
 			}
+			point.SetTimestampInMicroseconds(timestamp)
 
 			for _, aggregator := range aggregators {
 				// point.Values = append(point.Values, aggregator.GetValue(table, groupId)[0])

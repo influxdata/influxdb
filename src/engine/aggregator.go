@@ -83,7 +83,7 @@ func NewCountAggregator(*parser.Query, *parser.Value) (Aggregator, error) {
 //
 
 type TimestampAggregator struct {
-	duration   *time.Duration
+	duration   *int64
 	timestamps map[string]map[interface{}]int64
 }
 
@@ -94,9 +94,9 @@ func (self *TimestampAggregator) AggregatePoint(series string, group interface{}
 		self.timestamps[series] = timestamps
 	}
 	if self.duration != nil {
-		timestamps[group] = time.Unix(*p.Timestamp, 0).Round(*self.duration).Unix()
+		timestamps[group] = *p.GetTimestampInMicroseconds() / *self.duration * *self.duration
 	} else {
-		timestamps[group] = *p.Timestamp
+		timestamps[group] = *p.GetTimestampInMicroseconds()
 	}
 	return nil
 }
@@ -125,9 +125,16 @@ func NewTimestampAggregator(query *parser.Query, _ *parser.Value) (Aggregator, e
 		return nil, err
 	}
 
+	var durationPtr *int64
+
+	if duration != nil {
+		newDuration := int64(*duration / time.Microsecond)
+		durationPtr = &newDuration
+	}
+
 	return &TimestampAggregator{
 		timestamps: make(map[string]map[interface{}]int64),
-		duration:   duration,
+		duration:   durationPtr,
 	}, nil
 }
 

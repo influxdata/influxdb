@@ -6,19 +6,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // this file provides the high level api of the query object
 
 var (
-	ZERO_TIME    = time.Unix(0, 0)
-	charToPeriod = map[byte]int64{
-		's': int64(1),
-		'm': int64(time.Minute / time.Second),
-		'h': int64(time.Hour / time.Second),
-		'd': int64(24 * time.Hour / time.Second),
-		'w': int64(7 * 24 * time.Hour / time.Second),
-	}
+	ZERO_TIME = time.Unix(0, 0)
 )
 
 func uniq(slice []string) []string {
@@ -92,7 +86,7 @@ func (self *Query) GetEndTime() time.Time {
 func parseTime(expr *Expression) (int64, error) {
 	if value, ok := expr.GetLeftValue(); ok {
 		if value.IsFunctionCall() && value.Name == "now" {
-			return time.Now().Unix(), nil
+			return time.Now().UnixNano(), nil
 		}
 
 		if value.IsFunctionCall() {
@@ -100,15 +94,34 @@ func parseTime(expr *Expression) (int64, error) {
 		}
 
 		name := value.Name
-		if period, ok := charToPeriod[name[len(name)-1]]; ok {
-			parsedInt, err := strconv.Atoi(name[:len(name)-1])
-			if err != nil {
-				return 0, err
-			}
-			return int64(parsedInt) * period, nil
+
+		parsedInt, err := strconv.ParseInt(name[:len(name)-1], 10, 64)
+		if err != nil {
+			return 0, err
 		}
 
-		parsedInt, err := strconv.Atoi(name)
+		switch name[len(name)-1] {
+		case 'u':
+			return parsedInt * int64(time.Microsecond), nil
+		case 's':
+			return parsedInt * int64(time.Second), nil
+		case 'm':
+			return parsedInt * int64(time.Minute), nil
+		case 'h':
+			return parsedInt * int64(time.Hour), nil
+		case 'd':
+			return parsedInt * 24 * int64(time.Hour), nil
+		case 'w':
+			return parsedInt * 7 * 24 * int64(time.Hour), nil
+		}
+
+		lastChar := name[len(name)-1]
+		if !unicode.IsDigit(rune(lastChar)) {
+			return 0, fmt.Errorf("Invalid character '%c'", lastChar)
+		}
+
+		extraDigit := int64(lastChar - '0')
+		parsedInt = parsedInt*10 + extraDigit
 		return int64(parsedInt), err
 	}
 
@@ -230,11 +243,11 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 			return nil, ZERO_TIME, fmt.Errorf("Cannot use time with '%s'", expr.Operation)
 		}
 
-		seconds, err := parseTime(timeExpression)
+		nanoseconds, err := parseTime(timeExpression)
 		if err != nil {
 			return nil, ZERO_TIME, err
 		}
-		return nil, time.Unix(seconds, 0), nil
+		return nil, time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)), nil
 	}
 
 	leftCondition, _ := condition.GetLeftWhereCondition()
