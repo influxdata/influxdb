@@ -181,10 +181,17 @@ func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 		fields := []*protocol.FieldDefinition{}
 		for idx, column := range s.Columns {
 			var fieldType protocol.FieldDefinition_Type
+		outer:
 			switch s.Points[0][idx].(type) {
 			case int:
 				fieldType = protocol.FieldDefinition_INT64
 			case float64:
+				for _, intIdx := range s.IntegerColumns {
+					if intIdx == idx {
+						fieldType = protocol.FieldDefinition_INT64
+						break outer
+					}
+				}
 				fieldType = protocol.FieldDefinition_DOUBLE
 			case string:
 				fieldType = protocol.FieldDefinition_STRING
@@ -218,15 +225,15 @@ func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 						values = append(values, &protocol.FieldValue{StringValue: &str})
 						continue
 					}
-				case protocol.FieldDefinition_INT64:
-					if integer, ok := point[idx].(int); ok {
-						temp := int64(integer)
-						values = append(values, &protocol.FieldValue{Int64Value: &temp})
-						continue
-					}
 				case protocol.FieldDefinition_DOUBLE:
 					if double, ok := point[idx].(float64); ok {
 						values = append(values, &protocol.FieldValue{DoubleValue: &double})
+						continue
+					}
+				case protocol.FieldDefinition_INT64:
+					if double, ok := point[idx].(float64); ok {
+						integer := int64(double)
+						values = append(values, &protocol.FieldValue{Int64Value: &integer})
 						continue
 					}
 				case protocol.FieldDefinition_BOOL:
@@ -265,9 +272,10 @@ type Point struct {
 }
 
 type SerializedSeries struct {
-	Name    string          `json:"name"`
-	Columns []string        `json:"columns"`
-	Points  [][]interface{} `json:"points"`
+	Name           string          `json:"name"`
+	Columns        []string        `json:"columns"`
+	IntegerColumns []int           `json:"integer_columns"`
+	Points         [][]interface{} `json:"points"`
 }
 
 func serializeSingleSeries(series *protocol.Series) ([]byte, error) {

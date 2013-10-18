@@ -113,6 +113,10 @@ func (self *ApiSuite) TearDownSuite(c *C) {
 	self.server.Close()
 }
 
+func (self *ApiSuite) SetUpTest(c *C) {
+	self.coordinator.series = nil
+}
+
 func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	port := self.listener.Addr().(*net.TCPAddr).Port
 	query := "select * from foo where column_one == 'some_value';"
@@ -204,6 +208,7 @@ func (self *ApiSuite) TestWriteData(c *C) {
 				["3", 3, 3.0, true]
     ],
     "name": "foo",
+    "integer_columns": [1],
     "columns": ["column_one", "column_two", "column_three", "column_four"]
   }
 ]
@@ -224,9 +229,8 @@ func (self *ApiSuite) TestWriteData(c *C) {
 	// check the types
 	c.Assert(*series.Fields[0].Name, Equals, "column_one")
 	c.Assert(*series.Fields[0].Type, Equals, protocol.FieldDefinition_STRING)
-	// TODO: cannot get an int64 from a json object
 	c.Assert(*series.Fields[1].Name, Equals, "column_two")
-	c.Assert(*series.Fields[1].Type, Equals, protocol.FieldDefinition_DOUBLE)
+	c.Assert(*series.Fields[1].Type, Equals, protocol.FieldDefinition_INT64)
 	c.Assert(*series.Fields[2].Name, Equals, "column_three")
 	c.Assert(*series.Fields[2].Type, Equals, protocol.FieldDefinition_DOUBLE)
 	c.Assert(*series.Fields[3].Name, Equals, "column_four")
@@ -235,7 +239,7 @@ func (self *ApiSuite) TestWriteData(c *C) {
 	// check the values
 	c.Assert(series.Points, HasLen, 3)
 	c.Assert(*series.Points[0].Values[0].StringValue, Equals, "1")
-	c.Assert(*series.Points[0].Values[1].DoubleValue, Equals, 1.0)
+	c.Assert(*series.Points[0].Values[1].Int64Value, Equals, int64(1))
 	c.Assert(*series.Points[0].Values[2].DoubleValue, Equals, 1.0)
 	c.Assert(*series.Points[0].Values[3].BoolValue, Equals, true)
 }
