@@ -139,6 +139,23 @@ func (self *HttpServer) query(w http.ResponseWriter, r *http.Request) {
 // [
 //   {"name": "seriesname", "columns": ["time", "email"], "points": [[], []]}
 // ]
+func removeTimestampFieldDefinition(fields []*protocol.FieldDefinition) []*protocol.FieldDefinition {
+	timestampIdx := -1
+	for idx, field := range fields {
+		if *field.Name == "time" {
+			timestampIdx = idx
+			break
+		}
+	}
+
+	if timestampIdx == -1 {
+		return fields
+	}
+
+	fields[len(fields)-1], fields[timestampIdx] = fields[timestampIdx], fields[len(fields)-1]
+	return fields[:len(fields)-1]
+}
+
 func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 	db := r.URL.Query().Get(":db")
 
@@ -186,10 +203,13 @@ func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 		for _, point := range s.Points {
 			values := []*protocol.FieldValue{}
 			var timestamp *int64
+
 			for idx, field := range fields {
-				if s.Columns[idx] == "time" {
-					_timestamp := point[idx].(int64)
+				if *field.Name == "time" {
+					// by default the timestamp is in milliseconds
+					_timestamp := int64(point[idx].(float64)) * 1000
 					timestamp = &_timestamp
+					continue
 				}
 
 				switch *field.Type {
@@ -225,6 +245,8 @@ func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 				Timestamp: timestamp,
 			})
 		}
+
+		fields = removeTimestampFieldDefinition(fields)
 
 		series := &protocol.Series{
 			Name:   &s.Name,

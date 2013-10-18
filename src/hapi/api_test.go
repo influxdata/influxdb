@@ -159,6 +159,41 @@ func (self *ApiSuite) TestChunkedQuery(c *C) {
 	}
 }
 
+func (self *ApiSuite) TestWriteDataWithTime(c *C) {
+	data := `
+[
+  {
+    "points": [
+				[1382131686000, "1"]
+    ],
+    "name": "foo",
+    "columns": ["time", "column_one"]
+  }
+]
+`
+
+	port := self.listener.Addr().(*net.TCPAddr).Port
+	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series", port)
+	resp, err := http.Post(addr, "application/json", bytes.NewBufferString(data))
+	c.Assert(err, IsNil)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	fmt.Printf("body: %s\n", string(body))
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	c.Assert(self.coordinator.series, HasLen, 1)
+	series := self.coordinator.series[0]
+
+	// check the types
+	c.Assert(series.Fields, HasLen, 1)
+	c.Assert(*series.Fields[0].Name, Equals, "column_one")
+	c.Assert(*series.Fields[0].Type, Equals, protocol.FieldDefinition_STRING)
+
+	// check the values
+	c.Assert(series.Points, HasLen, 1)
+	c.Assert(*series.Points[0].Values[0].StringValue, Equals, "1")
+	c.Assert(*series.Points[0].GetTimestampInMicroseconds(), Equals, int64(1382131686000000))
+}
+
 func (self *ApiSuite) TestWriteData(c *C) {
 	data := `
 [
