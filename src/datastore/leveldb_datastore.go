@@ -49,6 +49,7 @@ var (
 	MAX_TIMESTAMP_AND_SEQUENCE       = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 	MIN_TIMESTAMP_AND_SEQUENCE       = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	MAX_SEQUENCE                     = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	END_KEYSPACE_MARKER              = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 )
 
 func NewLevelDbDatastore(dbDir string) (Datastore, error) {
@@ -78,6 +79,10 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 			return nil, err2
 		}
 	}
+
+	// w := levigo.NewWriteOptions()
+	// defer w.Close()
+	// db.Put(w, END_KEYSPACE_MARKER, []byte{})
 
 	return &LevelDbDatastore{db: db, lastIdUsed: lastId}, nil
 }
@@ -118,8 +123,14 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 func (self *LevelDbDatastore) ExecuteQuery(database string, query *parser.Query, yield func(*protocol.Series) error) error {
 	seriesAndColumns := query.GetReferencedColumns()
 	for series, columns := range seriesAndColumns {
-		if _, ok := series.GetCompiledRegex(); ok {
-			// TODO: handle regex table names
+		if regex, ok := series.GetCompiledRegex(); ok {
+			seriesNames := self.getSeriesForDbAndRegex(database, regex)
+			for _, name := range seriesNames {
+				err := self.executeQueryForSeries(database, name, columns, query, yield)
+				if err != nil {
+					return err
+				}
+			}
 		} else {
 			err := self.executeQueryForSeries(database, series.Name, columns, query, yield)
 			if err != nil {
@@ -302,6 +313,36 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	return nil
 }
 
+func (self *LevelDbDatastore) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
+	ro := levigo.NewReadOptions()
+	defer ro.Close()
+	it := self.db.NewIterator(ro)
+	defer it.Close()
+
+	seekKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~")...)
+	it.Seek(seekKey)
+	names := make([]string, 0)
+	dbNameStart := len(DATABASE_SERIES_INDEX_PREFIX)
+	for it = it; it.Valid(); it.Next() {
+		key := it.Key()
+		if len(key) < dbNameStart || !bytes.Equal(key[:dbNameStart], DATABASE_SERIES_INDEX_PREFIX) {
+			break
+		}
+		dbSeries := string(key[dbNameStart:])
+		parts := strings.Split(dbSeries, "~")
+		if len(parts) > 1 {
+			if parts[0] != database {
+				break
+			}
+			name := parts[1]
+			if regex.MatchString(name) {
+				names = append(names, parts[1])
+			}
+		}
+	}
+	return names
+}
+
 func (self *LevelDbDatastore) getColumnNamesForSeries(db, series string) []string {
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
@@ -420,7 +461,7 @@ func (self *LevelDbDatastore) getNextIdForColumn(db, series, column *string) (re
 	wb := levigo.NewWriteBatch()
 	wb.Put(NEXT_ID_KEY, idBytes)
 	databaseSeriesIndexKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(*db+"~"+*series)...)
-	wb.Put(databaseSeriesIndexKey, idBytes)
+	wb.Put(databaseSeriesIndexKey, []byte{})
 	seriesColumnIndexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(*db+"~"+*series+"~"+*column)...)
 	wb.Put(seriesColumnIndexKey, idBytes)
 	if err = self.db.Write(wo, wb); err != nil {

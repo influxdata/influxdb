@@ -108,7 +108,13 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	}
 	err = db.ExecuteQuery("test", q, yield)
 	c.Assert(err, IsNil)
-	<-done
+	t := time.NewTimer(time.Second)
+	select {
+	case <-t.C:
+		c.Error("query timed out...")
+	case <-done:
+		// do nothing
+	}
 	c.Assert(resultSeries, Not(IsNil))
 	c.Assert(len(resultSeries.Points), Equals, 2)
 	c.Assert(len(resultSeries.Fields), Equals, 1)
@@ -428,4 +434,70 @@ func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
 	results = executeQuery("foobar", "select count, name from user_things;", db, c)
 	c.Assert(len(results.Points), Equals, 1)
 	c.Assert(results, DeepEquals, series)
+}
+
+func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	mock := `{
+    "points":[
+      {"values":[{"int_value":3},{"string_value":"paul"}],"sequence_number":2},
+      {"values":[{"int_value":1},{"string_value":"todd"}],"sequence_number":1}],
+      "name":"user_things",
+      "fields":[{"type":"INT32","name":"count"},{"type":"STRING","name":"name"}]
+    }`
+	series := stringToSeries(mock, time.Now().Unix(), c)
+	err := db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	results := executeQuery("foobar", "select count, name from user_things;", db, c)
+	c.Assert(results, DeepEquals, series)
+
+	mock = `{
+    "points":[{"values":[{"double_value":10.1}],"sequence_number":23}],
+    "name":"response_times",
+    "fields":[{"type":"DOUBLE","name":"ms"}]}`
+	responseSeries := stringToSeries(mock, time.Now().Unix(), c)
+	err = db.WriteSeriesData("foobar", responseSeries)
+	c.Assert(err, IsNil)
+	results = executeQuery("foobar", "select ms from response_times;", db, c)
+	c.Assert(results, DeepEquals, responseSeries)
+
+	mock = `{
+    "points":[{"values":[{"string_value":"NY"}],"sequence_number":23}, {"values":[{"string_value":"CO"}],"sequence_number":20}],
+    "name":"other_things",
+    "fields":[{"type":"STRING","name":"state"}]}`
+	otherSeries := stringToSeries(mock, time.Now().Unix(), c)
+	err = db.WriteSeriesData("foobar", otherSeries)
+	c.Assert(err, IsNil)
+	results = executeQuery("foobar", "select state from other_things;", db, c)
+	c.Assert(results, DeepEquals, otherSeries)
+
+	q, errQ := parser.ParseQuery("select * from /.*things/;")
+	c.Assert(errQ, IsNil)
+	done := make(chan int, 1)
+	resultSeries := make([]*protocol.Series, 0)
+	count := 0
+	yield := func(series *protocol.Series) error {
+		resultSeries = append(resultSeries, series)
+		if count == 0 {
+			count += 1
+		} else {
+			done <- 1
+		}
+		return nil
+	}
+	err = db.ExecuteQuery("foobar", q, yield)
+	c.Assert(err, IsNil)
+	t := time.NewTimer(time.Second)
+	select {
+	case <-t.C:
+		c.Error("query timed out...")
+	case <-done:
+		// do nothing
+	}
+	c.Assert(len(resultSeries), Equals, 2)
+	c.Assert(resultSeries[0], DeepEquals, otherSeries)
+	c.Assert(resultSeries[1], DeepEquals, series)
 }
