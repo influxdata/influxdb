@@ -1,19 +1,23 @@
 package coordinator
 
 import (
+	"common"
 	"datastore"
 	"parser"
 	"protocol"
+	"sync"
 )
 
 type CoordinatorImpl struct {
-	clusterConfiguration *ClusterConfiguration
-	raftServer           *RaftServer
-	datastore            datastore.Datastore
+	clusterConfiguration  *ClusterConfiguration
+	raftServer            *RaftServer
+	datastore             datastore.Datastore
+	currentSequenceNumber uint32
+	sequenceNumberLock    sync.Mutex
 }
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer *RaftServer, clusterConfiguration *ClusterConfiguration) Coordinator {
-	return &CoordinatorImpl{clusterConfiguration, raftServer, datastore}
+	return &CoordinatorImpl{clusterConfiguration: clusterConfiguration, raftServer: raftServer, datastore: datastore}
 }
 
 func (self *CoordinatorImpl) DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error {
@@ -21,5 +25,22 @@ func (self *CoordinatorImpl) DistributeQuery(db string, query *parser.Query, yie
 }
 
 func (self *CoordinatorImpl) WriteSeriesData(db string, series *protocol.Series) error {
+	now := common.CurrentTime()
+	for _, p := range series.Points {
+		if p.Timestamp == nil {
+			p.Timestamp = &now
+			self.sequenceNumberLock.Lock()
+			self.currentSequenceNumber += 1
+			n := self.currentSequenceNumber
+			self.sequenceNumberLock.Unlock()
+			p.SequenceNumber = &n
+		} else if p.SequenceNumber == nil {
+			self.sequenceNumberLock.Lock()
+			self.currentSequenceNumber += 1
+			n := self.currentSequenceNumber
+			self.sequenceNumberLock.Unlock()
+			p.SequenceNumber = &n
+		}
+	}
 	return self.datastore.WriteSeriesData(db, series)
 }

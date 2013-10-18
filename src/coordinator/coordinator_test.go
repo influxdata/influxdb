@@ -1,11 +1,15 @@
 package coordinator
 
 import (
+	. "common"
+	"datastore"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"net/http"
 	"os"
+	"protocol"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +31,23 @@ const (
 	SERVER_STARTUP_TIME = time.Millisecond * 500
 	REPLICATION_LAG     = time.Millisecond * 500
 )
+
+type DatastoreMock struct {
+	datastore.Datastore
+	Series *protocol.Series
+}
+
+func (self *DatastoreMock) WriteSeriesData(database string, series *protocol.Series) error {
+	self.Series = series
+	return nil
+}
+
+func stringToSeries(seriesString string, c *C) *protocol.Series {
+	series := &protocol.Series{}
+	err := json.Unmarshal([]byte(seriesString), &series)
+	c.Assert(err, IsNil)
+	return series
+}
 
 func nextPort() int {
 	nextPortNum += 1
@@ -423,4 +444,46 @@ func (self *CoordinatorSuite) TestCanCreateDatabase(c *C) {
 }
 
 func (self *CoordinatorSuite) TestDistributesRingLocationsToNewServer(c *C) {
+}
+
+func (self *CoordinatorSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWithout(c *C) {
+	datastoreMock := &DatastoreMock{}
+	coordinator := NewCoordinatorImpl(datastoreMock, nil, nil)
+	mock := `
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 3
+          }
+        ],
+        "sequence_number": 1,
+        "timestamp": 23423
+      }
+    ],
+    "name": "foo",
+    "fields": [
+      {
+        "type": "INT64",
+        "name": "value"
+      }
+    ]
+  }`
+	series := stringToSeries(mock, c)
+	coordinator.WriteSeriesData("foo", series)
+	c.Assert(datastoreMock.Series, DeepEquals, series)
+	mock = `{
+    "points": [{"values": [{"int64_value": 3}]}],
+    "name": "foo",
+    "fields": [{"type": "INT64","name": "value"}]
+  }`
+	series = stringToSeries(mock, c)
+	beforeTime := CurrentTime()
+	coordinator.WriteSeriesData("foo", series)
+	afterTime := CurrentTime()
+	c.Assert(datastoreMock.Series, Not(DeepEquals), stringToSeries(mock, c))
+	c.Assert(*datastoreMock.Series.Points[0].SequenceNumber, Equals, uint32(1))
+	t := *datastoreMock.Series.Points[0].Timestamp
+	c.Assert(t, InRange, beforeTime, afterTime)
 }
