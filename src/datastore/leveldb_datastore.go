@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 type LevelDbDatastore struct {
@@ -147,7 +148,7 @@ func (self *LevelDbDatastore) Close() {
 	self.db.Close()
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime int64) error {
+func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
 	columns := self.getColumnNamesForSeries(database, series)
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
@@ -195,7 +196,7 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 	return nil
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime int64) error {
+func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
 	series := self.getSeriesForDbAndRegex(database, regex)
 	for _, name := range series {
 		err := self.DeleteRangeOfSeries(database, name, startTime, endTime)
