@@ -23,6 +23,16 @@ func (checker *inRangeChecker) Check(params []interface{}, names []string) (resu
 	switch params[0].(type) {
 	default:
 		return false, "can't compare range for type"
+	case int:
+		p1 := params[0].(int)
+		p2 := params[1].(int)
+		p3 := params[2].(int)
+		if p2 > p1 {
+			return false, ""
+		}
+		if p3 < p1 {
+			return false, ""
+		}
 	case int64:
 		p1 := params[0].(int64)
 		p2 := params[1].(int64)

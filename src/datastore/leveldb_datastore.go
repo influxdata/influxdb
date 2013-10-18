@@ -34,10 +34,12 @@ type rawColumnValue struct {
 }
 
 const (
-	ONE_GIGABYTE              = 1024 * 1024 * 1024
+	ONE_MEGABYTE              = 1024 * 1024
+	ONE_GIGABYTE              = ONE_MEGABYTE * 1024
 	TWO_FIFTY_SIX_KILOBYTES   = 256 * 1024
 	BLOOM_FILTER_BITS_PER_KEY = 64
-	MAX_POINTS_TO_SCAN        = 100000
+	MAX_POINTS_TO_SCAN        = 1000000
+	MAX_SERIES_SIZE           = ONE_MEGABYTE
 )
 
 var (
@@ -251,6 +253,8 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		limit = MAX_POINTS_TO_SCAN
 	}
 
+	resultByteCount := 0
+
 	// TODO: clean up, this is super gnarly
 	// optimize for the case where we're pulling back only a single column or aggregate
 	for isValid {
@@ -294,6 +298,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 				if err != nil {
 					return err
 				}
+				resultByteCount += len(rawColumnValues[i].value)
 				point.Values[i] = fv
 				var t uint64
 				binary.Read(bytes.NewBuffer(rawColumnValues[i].time), binary.BigEndian, &t)
@@ -309,6 +314,17 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		if isValid {
 			limit -= 1
 			result.Points = append(result.Points, point)
+
+			// add byte count for the timestamp and the sequence
+			resultByteCount += 16
+
+			// check if we should send the batch along
+			if resultByteCount > MAX_SERIES_SIZE {
+				filteredResult, _ := Filter(query, result)
+				yield(filteredResult)
+				resultByteCount = 0
+				result = &protocol.Series{Name: &series, Fields: fieldDefinitions, Points: make([]*protocol.Point, 0)}
+			}
 		}
 		if limit < 1 {
 			break

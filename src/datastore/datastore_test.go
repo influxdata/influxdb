@@ -1,6 +1,7 @@
 package datastore
 
 import (
+	. "common"
 	"encoding/json"
 	. "launchpad.net/gocheck"
 	"os"
@@ -553,4 +554,47 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 	c.Assert(len(resultSeries), Equals, 2)
 	c.Assert(resultSeries[0], DeepEquals, otherSeries)
 	c.Assert(resultSeries[1], DeepEquals, series)
+}
+
+func (self *DatastoreSuite) TestBreaksLargeResultsIntoMultipleBatches(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	mock := `{
+    "points":[
+      {"values":[{"double_value":23.1},{"string_value":"paul"}],"sequence_number":2},
+      {"values":[{"double_value":56.8},{"string_value":"todd"}],"sequence_number":1}],
+      "name":"user_things",
+      "fields":[{"type":"DOUBLE","name":"response_time"},{"type":"STRING","name":"name"}]
+    }`
+	series := stringToSeries(mock, time.Now().Unix(), c)
+	sequence := 0
+	writtenPoints := 0
+	for i := 0; i < 50000; i++ {
+		for _, p := range series.Points {
+			sequence += 1
+			s := uint32(sequence)
+			p.SequenceNumber = &s
+		}
+		writtenPoints += 2
+		err := db.WriteSeriesData("foobar", series)
+		c.Assert(err, IsNil)
+	}
+
+	q, errQ := parser.ParseQuery("select * from user_things;")
+	c.Assert(errQ, IsNil)
+	resultSeries := make([]*protocol.Series, 0)
+	yield := func(series *protocol.Series) error {
+		resultSeries = append(resultSeries, series)
+		return nil
+	}
+	err := db.ExecuteQuery("foobar", q, yield)
+	c.Assert(err, IsNil)
+	c.Assert(len(resultSeries), InRange, 2, 20)
+	pointCount := 0
+	for _, s := range resultSeries {
+		pointCount += len(s.Points)
+	}
+	c.Assert(pointCount, Equals, writtenPoints)
 }
