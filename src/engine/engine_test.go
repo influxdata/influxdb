@@ -38,6 +38,10 @@ func (self *MockCoordinator) WriteSeriesData(database string, series *protocol.S
 	return nil
 }
 
+func (self *MockCoordinator) CreateDatabase(db, initialApiKey, requestingApiKey string) error {
+	return nil
+}
+
 func createEngine(c *C, seriesString string) EngineI {
 	series, err := common.StringToSeriesArray(seriesString)
 	c.Assert(err, IsNil)

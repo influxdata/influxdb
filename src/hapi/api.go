@@ -49,6 +49,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// Write points to the given database
 	p.Post("/api/db/:db/series", CorsHeaderHandler(self.writePoints))
+	p.Post("/api/db", CorsHeaderHandler(self.createDatabase))
 
 	if err := http.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
@@ -308,6 +309,34 @@ func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 
 		self.coordinator.WriteSeriesData(db, series)
 	}
+}
+
+type createDatabaseRequest struct {
+	Name   string `json:"name"`
+	ApiKey string `json:apiKey"`
+}
+
+func (self *HttpServer) createDatabase(w http.ResponseWriter, r *http.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	createRequest := &createDatabaseRequest{}
+	err = json.Unmarshal(body, createRequest)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	apiKey := r.URL.Query().Get("api_key")
+	err = self.coordinator.CreateDatabase(createRequest.Name, createRequest.ApiKey, apiKey)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
 }
 
 type Point struct {

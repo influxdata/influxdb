@@ -16,4 +16,5 @@ type Coordinator interface {
 	//   5. TODO: Aggregation on the nodes
 	DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error
 	WriteSeriesData(db string, series *protocol.Series) error
+	CreateDatabase(db, initialApiKey, requestingApiKey string) error
 }

@@ -86,7 +86,10 @@ func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Se
 }
 
 type MockCoordinator struct {
-	series []*protocol.Series
+	series           []*protocol.Series
+	db               string
+	initialApiKey    string
+	requestingApiKey string
 }
 
 func (self *MockCoordinator) DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error {
@@ -96,12 +99,18 @@ func (self *MockCoordinator) WriteSeriesData(db string, series *protocol.Series)
 	self.series = append(self.series, series)
 	return nil
 }
+func (self *MockCoordinator) CreateDatabase(db, initialApiKey, requestingApiKey string) error {
+	self.db = db
+	self.initialApiKey = initialApiKey
+	self.requestingApiKey = requestingApiKey
+	return nil
+}
 
 func (self *ApiSuite) SetUpSuite(c *C) {
 	self.coordinator = &MockCoordinator{}
 	self.server = NewHttpServer(nil, &MockEngine{}, self.coordinator)
 	var err error
-	self.listener, err = net.Listen("tcp4", ":")
+	self.listener, err = net.Listen("tcp4", ":8081")
 	c.Assert(err, IsNil)
 	go func() {
 		self.server.Serve(self.listener)
@@ -301,4 +310,18 @@ func (self *ApiSuite) TestWriteData(c *C) {
 	c.Assert(*series.Points[0].Values[1].Int64Value, Equals, int64(1))
 	c.Assert(*series.Points[0].Values[2].DoubleValue, Equals, 1.0)
 	c.Assert(*series.Points[0].Values[3].BoolValue, Equals, true)
+}
+
+func (self *ApiSuite) TestCreateDatabase(c *C) {
+	data := `{"name": "foo", "apiKey": "bar"}`
+	port := self.listener.Addr().(*net.TCPAddr).Port
+	addr := fmt.Sprintf("http://localhost:%d/api/db?api_key=asdf", port)
+	resp, err := http.Post(addr, "application/json", bytes.NewBufferString(data))
+	c.Assert(err, IsNil)
+	_, err = ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
+	c.Assert(self.coordinator.db, Equals, "foo")
+	c.Assert(self.coordinator.initialApiKey, Equals, "bar")
+	c.Assert(self.coordinator.requestingApiKey, Equals, "asdf")
 }
