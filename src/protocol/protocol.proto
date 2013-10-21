@@ -51,11 +51,20 @@ message Response {
   repeated string servers = 3;
 }
 
+message Matcher {
+  required bool is_regex = 1;
+  required string name = 2;
+}
+
 message User {
 	required string name = 1;
 	required string hash = 2;
 	required bool clusterAdmin = 3;
 	// the list of dbs that the user is admin for
 	repeated string admin_for = 4;
+  // the list of dbs that the user can read from
+  repeated Matcher read_from = 5;
+  // the list of dbs that the user can write to
+  repeated Matcher write_to = 6;
 }
 

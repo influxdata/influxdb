@@ -54,6 +54,14 @@ func (self *UserSuite) TestClusterAdminUser(c *C) {
 	c.Assert(u.IsDbAdmin("db2"), Equals, false)
 	c.Assert(root.RemoveDbAdmin(u, "db1"), IsNil)
 	c.Assert(u.IsDbAdmin("db1"), Equals, false)
+
+	// can add read and write keys that are regex
+	c.Assert(root.AddReadMatcher(u, protocol.NewMatcher(false, "db1")), IsNil)
+	c.Assert(root.AddReadMatcher(u, protocol.NewMatcher(true, "db2.*")), IsNil)
+	c.Assert(u.HasReadAccess("db1"), Equals, true)
+	c.Assert(u.HasReadAccess("db2.foobar"), Equals, true)
+	c.Assert(root.RemoveReadMatcher(u, protocol.NewMatcher(false, "db1")), IsNil)
+	c.Assert(u.HasReadAccess("db1"), Equals, false)
 }
 
 func (self *UserSuite) TestDbAdminUser(c *C) {
@@ -89,6 +97,14 @@ func (self *UserSuite) TestDbAdminUser(c *C) {
 	c.Assert(dbAdmin.RemoveDbAdmin(u, "db1"), IsNil)
 	c.Assert(u.IsDbAdmin("db1"), Equals, false)
 	c.Assert(u.IsDbAdmin("db2"), Equals, false)
+
+	// can add read access to the db that he's administering only
+	c.Assert(dbAdmin.AddReadMatcher(u, protocol.NewMatcher(false, "db1")), IsNil)
+	c.Assert(dbAdmin.AddReadMatcher(u, protocol.NewMatcher(false, "db2")), NotNil)
+	c.Assert(dbAdmin.AddReadMatcher(u, protocol.NewMatcher(true, "db2.*")), NotNil)
+	c.Assert(u.HasReadAccess("db1"), Equals, true)
+	c.Assert(u.HasReadAccess("db2"), Equals, false)
+	c.Assert(u.HasReadAccess("db2.foobar"), Equals, false)
 }
 
 func (self *UserSuite) BenchmarkHashing(c *C) {

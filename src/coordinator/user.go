@@ -100,10 +100,98 @@ func (self *User) RemoveDbAdmin(u *User, db string) error {
 	return nil
 }
 
+func (self *User) AddReadMatcher(u *User, m *protocol.Matcher) error {
+	var err error
+	u.u.ReadFrom, err = self.addMatcher(u, m, u.u.ReadFrom)
+	return err
+}
+
+func (self *User) RemoveReadMatcher(u *User, m *protocol.Matcher) error {
+	var err error
+	u.u.ReadFrom, err = self.removeMatcher(u, m, u.u.ReadFrom)
+	return err
+}
+
+func (self *User) AddWriteMatcher(u *User, m *protocol.Matcher) error {
+	var err error
+	u.u.WriteTo, err = self.addMatcher(u, m, u.u.WriteTo)
+	return err
+}
+
+func (self *User) RemoveWriteMatcher(u *User, m *protocol.Matcher) error {
+	var err error
+	u.u.WriteTo, err = self.removeMatcher(u, m, u.u.WriteTo)
+	return err
+}
+
+func (self *User) HasWriteAccess(name string) bool {
+	for _, matcher := range self.u.WriteTo {
+		if matcher.Matches(name) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (self *User) HasReadAccess(name string) bool {
+	for _, matcher := range self.u.ReadFrom {
+		if matcher.Matches(name) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // private funcs
+
+func (self *User) addMatcher(u *User, m *protocol.Matcher, matchers []*protocol.Matcher) ([]*protocol.Matcher, error) {
+	if err := self.getMatcherPermission(m); err != nil {
+		return matchers, err
+	}
+
+	idx := u.findMatcher(m, matchers)
+	if idx == -1 {
+		matchers = append(matchers, m)
+	}
+	return matchers, nil
+}
+
+func (self *User) removeMatcher(u *User, m *protocol.Matcher, matchers []*protocol.Matcher) ([]*protocol.Matcher, error) {
+	if err := self.getMatcherPermission(m); err != nil {
+		return matchers, err
+	}
+
+	idx := u.findMatcher(m, matchers)
+	if idx != -1 {
+		matchers = append(matchers[:idx], matchers[idx+1:]...)
+	}
+	return matchers, nil
+}
+
+func (self *User) getMatcherPermission(m *protocol.Matcher) error {
+	if !self.IsClusterAdmin() && m.GetIsRegex() {
+		return fmt.Errorf("Only a cluster admin can add access to a regex")
+	}
+
+	if !self.IsClusterAdmin() && !self.IsDbAdmin(m.GetName()) {
+		return fmt.Errorf("Cannot add permission to a db your not an admin of")
+	}
+	return nil
+}
 
 func (self *User) isValidPwd(password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(self.u.GetHash()), []byte(password)) == nil
+}
+
+func (self *User) findMatcher(matcher *protocol.Matcher, matchers []*protocol.Matcher) int {
+	for idx, m := range matchers {
+		if m.GetIsRegex() == matcher.GetIsRegex() && m.GetName() == matcher.GetName() {
+			return idx
+		}
+	}
+	return -1
 }
 
 func hashPassword(password string) ([]byte, error) {

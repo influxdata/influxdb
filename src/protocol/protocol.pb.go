@@ -317,12 +317,38 @@ func (m *Response) GetServers() []string {
 	return nil
 }
 
+type Matcher struct {
+	IsRegex          *bool   `protobuf:"varint,1,req,name=is_regex" json:"is_regex,omitempty"`
+	Name             *string `protobuf:"bytes,2,req,name=name" json:"name,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *Matcher) Reset()         { *m = Matcher{} }
+func (m *Matcher) String() string { return proto.CompactTextString(m) }
+func (*Matcher) ProtoMessage()    {}
+
+func (m *Matcher) GetIsRegex() bool {
+	if m != nil && m.IsRegex != nil {
+		return *m.IsRegex
+	}
+	return false
+}
+
+func (m *Matcher) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
+	}
+	return ""
+}
+
 type User struct {
-	Name             *string  `protobuf:"bytes,1,req,name=name" json:"name,omitempty"`
-	Hash             *string  `protobuf:"bytes,2,req,name=hash" json:"hash,omitempty"`
-	ClusterAdmin     *bool    `protobuf:"varint,3,req,name=clusterAdmin" json:"clusterAdmin,omitempty"`
-	AdminFor         []string `protobuf:"bytes,4,rep,name=admin_for" json:"admin_for,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Name             *string    `protobuf:"bytes,1,req,name=name" json:"name,omitempty"`
+	Hash             *string    `protobuf:"bytes,2,req,name=hash" json:"hash,omitempty"`
+	ClusterAdmin     *bool      `protobuf:"varint,3,req,name=clusterAdmin" json:"clusterAdmin,omitempty"`
+	AdminFor         []string   `protobuf:"bytes,4,rep,name=admin_for" json:"admin_for,omitempty"`
+	ReadFrom         []*Matcher `protobuf:"bytes,5,rep,name=read_from" json:"read_from,omitempty"`
+	WriteTo          []*Matcher `protobuf:"bytes,6,rep,name=write_to" json:"write_to,omitempty"`
+	XXX_unrecognized []byte     `json:"-"`
 }
 
 func (m *User) Reset()         { *m = User{} }
@@ -353,6 +379,20 @@ func (m *User) GetClusterAdmin() bool {
 func (m *User) GetAdminFor() []string {
 	if m != nil {
 		return m.AdminFor
+	}
+	return nil
+}
+
+func (m *User) GetReadFrom() []*Matcher {
+	if m != nil {
+		return m.ReadFrom
+	}
+	return nil
+}
+
+func (m *User) GetWriteTo() []*Matcher {
+	if m != nil {
+		return m.WriteTo
 	}
 	return nil
 }
