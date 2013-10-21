@@ -220,9 +220,6 @@ func (self *ApiSuite) TestWriteDataWithTimeInSeconds(c *C) {
 	addr := fmt.Sprintf("http://localhost:%d/db/foo/series?time_precision=s", port)
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	fmt.Printf("body: %s\n", string(body))
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.coordinator.series, HasLen, 1)
 	series := self.coordinator.series[0]
