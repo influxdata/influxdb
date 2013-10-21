@@ -50,3 +50,12 @@ message Response {
   optional Series series = 2;
   repeated string servers = 3;
 }
+
+message User {
+	required string name = 1;
+	required string hash = 2;
+	required bool clusterAdmin = 3;
+	// the list of dbs that the user is admin for
+	repeated string admin_for = 4;
+}
+

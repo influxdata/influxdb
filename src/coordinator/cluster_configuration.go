@@ -17,6 +17,8 @@ type ClusterConfiguration struct {
 	readApiKeysLock           sync.RWMutex
 	WriteApiKeys              map[string]bool
 	writeApiKeysLock          sync.RWMutex
+	usersLock                 sync.RWMutex
+	users                     map[string]*User
 }
 
 type ApiKeyType int
@@ -33,6 +35,7 @@ func NewClusterConfiguration(maxRingLocation int64) *ClusterConfiguration {
 		RingLocationToServers: make(map[int64][]string),
 		ReadApiKeys:           make(map[string]bool),
 		WriteApiKeys:          make(map[string]bool),
+		users:                 make(map[string]*User),
 	}
 }
 
@@ -123,4 +126,10 @@ func (self *ClusterConfiguration) CurrentDatabaseId() string {
 	self.nextDatabaseIdLock.Lock()
 	defer self.nextDatabaseIdLock.Unlock()
 	return fmt.Sprintf("%d", self.nextDatabaseId)
+}
+
+func (self *ClusterConfiguration) SaveUser(u *User) {
+	self.usersLock.Lock()
+	defer self.usersLock.Unlock()
+	self.users[u.GetName()] = u
 }

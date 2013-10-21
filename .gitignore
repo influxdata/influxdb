@@ -23,6 +23,7 @@ src/parser/y.tab.c
 
 # dependencies
 src/code.google.com/p/log4go
+src/code.google.com/p/go.crypto/
 /src/code.google.com/p/goplan9/
 /src/code.google.com/p/goprotobuf/
 /src/code.google.com/p/rog-go/

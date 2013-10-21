@@ -3,6 +3,7 @@ package coordinator
 import (
 	"common"
 	"datastore"
+	"fmt"
 	"parser"
 	"protocol"
 	"sync"
@@ -17,7 +18,11 @@ type CoordinatorImpl struct {
 }
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer *RaftServer, clusterConfiguration *ClusterConfiguration) Coordinator {
-	return &CoordinatorImpl{clusterConfiguration: clusterConfiguration, raftServer: raftServer, datastore: datastore}
+	return &CoordinatorImpl{
+		clusterConfiguration: clusterConfiguration,
+		raftServer:           raftServer,
+		datastore:            datastore,
+	}
 }
 
 func (self *CoordinatorImpl) DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error {
@@ -56,4 +61,24 @@ func (self *CoordinatorImpl) CreateDatabase(db, initialApiKey, requestingApiKey 
 	}
 	err = self.raftServer.AddWriteApiKey(db, initialApiKey)
 	return err
+}
+
+func (self *CoordinatorImpl) GetUser(username, password string) (*User, error) {
+	u := self.raftServer.GetUserWithoutPassword(username)
+	if u == nil {
+		return nil, nil
+	}
+
+	if !u.isValidPwd(password) {
+		return nil, fmt.Errorf("Invalid password")
+	}
+	return u, nil
+}
+
+func (self *CoordinatorImpl) GetUserWithoutPassword(username string) *User {
+	return self.raftServer.GetUserWithoutPassword(username)
+}
+
+func (self *CoordinatorImpl) SaveUser(u *User) error {
+	return self.raftServer.SaveUser(u)
 }

@@ -317,6 +317,46 @@ func (m *Response) GetServers() []string {
 	return nil
 }
 
+type User struct {
+	Name             *string  `protobuf:"bytes,1,req,name=name" json:"name,omitempty"`
+	Hash             *string  `protobuf:"bytes,2,req,name=hash" json:"hash,omitempty"`
+	ClusterAdmin     *bool    `protobuf:"varint,3,req,name=clusterAdmin" json:"clusterAdmin,omitempty"`
+	AdminFor         []string `protobuf:"bytes,4,rep,name=admin_for" json:"admin_for,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *User) Reset()         { *m = User{} }
+func (m *User) String() string { return proto.CompactTextString(m) }
+func (*User) ProtoMessage()    {}
+
+func (m *User) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
+	}
+	return ""
+}
+
+func (m *User) GetHash() string {
+	if m != nil && m.Hash != nil {
+		return *m.Hash
+	}
+	return ""
+}
+
+func (m *User) GetClusterAdmin() bool {
+	if m != nil && m.ClusterAdmin != nil {
+		return *m.ClusterAdmin
+	}
+	return false
+}
+
+func (m *User) GetAdminFor() []string {
+	if m != nil {
+		return m.AdminFor
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterEnum("protocol.FieldDefinition_Type", FieldDefinition_Type_name, FieldDefinition_Type_value)
 	proto.RegisterEnum("protocol.Request_Type", Request_Type_name, Request_Type_value)

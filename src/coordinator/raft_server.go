@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"protocol"
 	"strings"
 	"sync"
 	"time"
@@ -47,6 +48,7 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 		raft.RegisterCommand(&RemoveServerFromLocationCommand{})
 		raft.RegisterCommand(&NextDatabaseIdCommand{})
 		raft.RegisterCommand(&CreateDatabaseCommand{})
+		raft.RegisterCommand(&SaveUserCommand{})
 	}
 	s := &RaftServer{
 		host:          host,
@@ -150,6 +152,33 @@ func (s *RaftServer) GetNextDatabaseId() (string, error) {
 	return id.(string), err
 }
 
+func (s *RaftServer) SaveUser(u *User) error {
+	command := NewSaveUserCommand(u)
+	_, err := s.doOrProxyCommand(command, "save_user")
+	return err
+}
+
+func (self *RaftServer) GetUserWithoutPassword(username string) *User {
+	self.clusterConfig.usersLock.RLock()
+	defer self.clusterConfig.usersLock.RUnlock()
+	return self.clusterConfig.users[username]
+}
+
+func (s *RaftServer) CreateRootUser() error {
+	name := "root"
+	isClusterAdmin := true
+	u := &User{
+		u: &protocol.User{
+			Name:         &name,
+			ClusterAdmin: &isClusterAdmin,
+		},
+	}
+	u.ChangePassword(u, "root")
+	command := NewSaveUserCommand(u)
+	_, err := s.doOrProxyCommand(command, "save_user")
+	return err
+}
+
 func (s *RaftServer) connectionString() string {
 	return fmt.Sprintf("http://%s:%d", s.host, s.port)
 }
@@ -193,6 +222,8 @@ func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bo
 				if err != nil {
 					log.Fatal(err)
 				}
+
+				s.CreateRootUser()
 				break
 			} else {
 				// sleep for a little bit and retry it
@@ -345,6 +376,8 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		command = &NextDatabaseIdCommand{}
 	} else if value == "create_db" {
 		command = &CreateDatabaseCommand{}
+	} else if value == "save_user" {
+		command = &SaveUserCommand{}
 	}
 	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
 		log.Println("ERROR processCommandHanlder", err)

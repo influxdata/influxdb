@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"github.com/goraft/raft"
+	"protocol"
 )
 
 type AddServerToLocationCommand struct {
@@ -128,4 +129,24 @@ func (c *CreateDatabaseCommand) Apply(server *raft.Server) (interface{}, error) 
 	config := server.Context().(*ClusterConfiguration)
 	err := config.CreateDatabase(c.Name)
 	return nil, err
+}
+
+type SaveUserCommand struct {
+	User *protocol.User `json:"user"`
+}
+
+func NewSaveUserCommand(u *User) *SaveUserCommand {
+	return &SaveUserCommand{
+		User: u.u,
+	}
+}
+
+func (c *SaveUserCommand) CommandName() string {
+	return "save_user"
+}
+
+func (c *SaveUserCommand) Apply(server *raft.Server) (interface{}, error) {
+	config := server.Context().(*ClusterConfiguration)
+	config.SaveUser(&User{c.User})
+	return nil, nil
 }

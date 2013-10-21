@@ -17,4 +17,7 @@ type Coordinator interface {
 	DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error
 	WriteSeriesData(db string, series *protocol.Series) error
 	CreateDatabase(db, initialApiKey, requestingApiKey string) error
+	GetUser(username, password string) (*User, error)
+	GetUserWithoutPassword(username string) *User
+	SaveUser(user *User) error
 }

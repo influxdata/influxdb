@@ -28,7 +28,7 @@ var nextDirNum int
 
 const (
 	MAX_RING_LOCATIONS  = 10
-	SERVER_STARTUP_TIME = time.Millisecond * 500
+	SERVER_STARTUP_TIME = time.Second * 2 // new cluster will have to create the root user and encrypt the password which takes little over a sec
 	REPLICATION_LAG     = time.Millisecond * 500
 )
 
@@ -399,6 +399,37 @@ func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader
 	assertConfigContains(port1, "key1", true, c)
 	assertConfigContains(port2, "key1", true, c)
 	assertConfigContains(port3, "key1", true, c)
+}
+
+func (self *CoordinatorSuite) TestUserDataReplication(c *C) {
+	servers := startAndVerifyCluster(3, c)
+	defer clean(servers)
+
+	var root *User
+	// we should have the root user
+	for i := 0; i < 3; i++ {
+		root = servers[i].GetUserWithoutPassword("root")
+		c.Assert(root, NotNil)
+		c.Assert(root.isValidPwd("root"), Equals, true)
+		c.Assert(root.IsClusterAdmin(), Equals, true)
+	}
+
+	u, err := root.CreateUser("new_admin")
+	c.Assert(err, IsNil)
+	root.ChangePassword(u, "password")
+	root.SetClusterAdmin(u, true)
+	servers[0].SaveUser(u)
+
+	time.Sleep(REPLICATION_LAG * 2)
+
+	for i := 0; i < 3; i++ {
+		fmt.Printf("Testing server %d\n", i)
+		u := servers[i].GetUserWithoutPassword("new_admin")
+		c.Assert(u, NotNil)
+		c.Assert(u.isValidPwd("password"), Equals, true)
+		c.Assert(u.isValidPwd("password1"), Equals, false)
+		c.Assert(u.IsClusterAdmin(), Equals, true)
+	}
 }
 
 func (self *CoordinatorSuite) TestCanCreateDatabaseWithName(c *C) {
