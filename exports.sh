@@ -9,7 +9,7 @@ if [ -d $HOME/go ]; then
 fi
 
 pushd src
-export packages="api/http common coordinator datastore engine interfaces main parser protocol"
+export packages="admin api/http common coordinator datastore engine interfaces main parser protocol"
 popd
 
 snappy_dir=/tmp/snappychronosdb
