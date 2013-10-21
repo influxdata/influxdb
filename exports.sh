@@ -9,7 +9,7 @@ if [ -d $HOME/go ]; then
 fi
 
 pushd src
-export packages=$(ls -d * | egrep -v 'google|launchpad|github' | tr '\n' ' ')
+export packages="api/http common coordinator datastore engine interfaces main parser protocol"
 popd
 
 snappy_dir=/tmp/snappychronosdb

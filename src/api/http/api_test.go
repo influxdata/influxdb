@@ -1,4 +1,4 @@
-package hapi
+package api
 
 import (
 	"bytes"
