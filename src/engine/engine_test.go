@@ -2,6 +2,7 @@ package engine
 
 import (
 	"common"
+	"coordinator"
 	"encoding/json"
 	"fmt"
 	. "launchpad.net/gocheck"
@@ -33,6 +34,12 @@ func (self *MockCoordinator) DistributeQuery(database string, query *parser.Quer
 	}
 	return nil
 }
+
+func (self *MockCoordinator) GetUser(username, password string) (*coordinator.User, error) {
+	return nil, nil
+}
+func (self *MockCoordinator) GetUserWithoutPassword(username string) *coordinator.User { return nil }
+func (self *MockCoordinator) SaveUser(user *coordinator.User) error                    { return nil }
 
 func (self *MockCoordinator) WriteSeriesData(database string, series *protocol.Series) error {
 	return nil
