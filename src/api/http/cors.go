@@ -1,11 +1,11 @@
-package api
+package http
 
 import (
-	"net/http"
+	libhttp "net/http"
 )
 
-func CorsHeaderHandler(handler http.HandlerFunc) http.HandlerFunc {
-	return func(rw http.ResponseWriter, req *http.Request) {
+func CorsHeaderHandler(handler libhttp.HandlerFunc) libhttp.HandlerFunc {
+	return func(rw libhttp.ResponseWriter, req *libhttp.Request) {
 		rw.Header().Add("Access-Control-Allow-Origin", "*")
 		rw.Header().Add("Access-Control-Max-Age", "2592000")
 		rw.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
@@ -14,6 +14,6 @@ func CorsHeaderHandler(handler http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func CorsAndCompressionHeaderHandler(handler http.HandlerFunc) http.HandlerFunc {
+func CorsAndCompressionHeaderHandler(handler libhttp.HandlerFunc) libhttp.HandlerFunc {
 	return CorsHeaderHandler(CompressionHandler(true, handler))
 }

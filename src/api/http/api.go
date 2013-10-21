@@ -1,4 +1,4 @@
-package api
+package http
 
 import (
 	log "code.google.com/p/log4go"
@@ -9,22 +9,22 @@ import (
 	"github.com/bmizerany/pat"
 	"io/ioutil"
 	"net"
-	"net/http"
+	libhttp "net/http"
 	"protocol"
 	"strings"
 )
 
 type HttpServer struct {
 	conn        net.Listener
-	config      *Configuration
+	httpAddr    string
 	engine      engine.EngineI
 	coordinator coordinator.Coordinator
 	shutdown    chan bool
 }
 
-func NewHttpServer(config *Configuration, theEngine engine.EngineI, theCoordinator coordinator.Coordinator) *HttpServer {
+func NewHttpServer(httpAddr string, theEngine engine.EngineI, theCoordinator coordinator.Coordinator) *HttpServer {
 	self := &HttpServer{}
-	self.config = config
+	self.httpAddr = httpAddr
 	self.engine = theEngine
 	self.coordinator = theCoordinator
 	self.shutdown = make(chan bool)
@@ -32,7 +32,7 @@ func NewHttpServer(config *Configuration, theEngine engine.EngineI, theCoordinat
 }
 
 func (self *HttpServer) ListenAndServe() {
-	conn, err := net.Listen("tcp", self.config.HttpAddr)
+	conn, err := net.Listen("tcp", self.httpAddr)
 	if err != nil {
 		log.Error("Listen: ", err)
 	}
@@ -45,13 +45,13 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// Run the given query and return an array of series or a chunked response
 	// with each batch of points we get back
-	p.Get("/api/db/:db/series", http.HandlerFunc(self.query))
+	p.Get("/db/:db/series", libhttp.HandlerFunc(self.query))
 
 	// Write points to the given database
-	p.Post("/api/db/:db/series", CorsHeaderHandler(self.writePoints))
-	p.Post("/api/db", CorsHeaderHandler(self.createDatabase))
+	p.Post("/db/:db/series", CorsHeaderHandler(self.writePoints))
+	p.Post("/db", CorsHeaderHandler(self.createDatabase))
 
-	if err := http.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
+	if err := libhttp.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
 	}
 	self.shutdown <- true
@@ -71,7 +71,7 @@ type Writer interface {
 
 type AllPointsWriter struct {
 	memSeries map[string]*protocol.Series
-	w         http.ResponseWriter
+	w         libhttp.ResponseWriter
 	precision TimePrecision
 }
 
@@ -90,15 +90,15 @@ func (self *AllPointsWriter) done() {
 	data, err := serializeMultipleSeries(self.memSeries, self.precision)
 	if err != nil {
 		self.w.Write([]byte(err.Error()))
-		self.w.WriteHeader(http.StatusInternalServerError)
+		self.w.WriteHeader(libhttp.StatusInternalServerError)
 		return
 	}
 	self.w.Write(data)
-	self.w.WriteHeader(http.StatusOK)
+	self.w.WriteHeader(libhttp.StatusOK)
 }
 
 type ChunkWriter struct {
-	w         http.ResponseWriter
+	w         libhttp.ResponseWriter
 	precision TimePrecision
 }
 
@@ -108,8 +108,8 @@ func (self *ChunkWriter) yield(series *protocol.Series) error {
 		return err
 	}
 	self.w.Write(data)
-	self.w.WriteHeader(http.StatusOK)
-	self.w.(http.Flusher).Flush()
+	self.w.WriteHeader(libhttp.StatusOK)
+	self.w.(libhttp.Flusher).Flush()
 	return nil
 }
 
@@ -139,13 +139,13 @@ func TimePrecisionFromString(s string) (TimePrecision, error) {
 	return 0, fmt.Errorf("Unknown time precision %s", s)
 }
 
-func (self *HttpServer) query(w http.ResponseWriter, r *http.Request) {
+func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	query := r.URL.Query().Get("q")
 	db := r.URL.Query().Get(":db")
 
 	precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 	}
 
@@ -158,7 +158,7 @@ func (self *HttpServer) query(w http.ResponseWriter, r *http.Request) {
 	err = self.engine.RunQuery(db, query, writer.yield)
 	if err != nil {
 		w.Write([]byte(err.Error()))
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(libhttp.StatusInternalServerError)
 		return
 	}
 
@@ -190,23 +190,23 @@ func removeTimestampFieldDefinition(fields []*protocol.FieldDefinition) []*proto
 	return fields[:len(fields)-1]
 }
 
-func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
+func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request) {
 	db := r.URL.Query().Get(":db")
 	precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 	}
 
 	series, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(libhttp.StatusInternalServerError)
 		return
 	}
 	serializedSeries := []*SerializedSeries{}
 	err = json.Unmarshal(series, &serializedSeries)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 		return
 	}
@@ -290,7 +290,7 @@ func (self *HttpServer) writePoints(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// if we reached this line then the dynamic type didn't match
-				w.WriteHeader(http.StatusBadRequest)
+				w.WriteHeader(libhttp.StatusBadRequest)
 				return
 			}
 			points = append(points, &protocol.Point{
@@ -316,27 +316,27 @@ type createDatabaseRequest struct {
 	ApiKey string `json:apiKey"`
 }
 
-func (self *HttpServer) createDatabase(w http.ResponseWriter, r *http.Request) {
+func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(libhttp.StatusInternalServerError)
 		return
 	}
 	createRequest := &createDatabaseRequest{}
 	err = json.Unmarshal(body, createRequest)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 		return
 	}
 	apiKey := r.URL.Query().Get("api_key")
 	err = self.coordinator.CreateDatabase(createRequest.Name, createRequest.ApiKey, apiKey)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(libhttp.StatusCreated)
 }
 
 type Point struct {
@@ -348,7 +348,7 @@ type Point struct {
 type SerializedSeries struct {
 	Name           string          `json:"name"`
 	Columns        []string        `json:"columns"`
-	IntegerColumns []int           `json:"integer_columns"`
+	IntegerColumns []int           `json:"integer_columns,omitempty"`
 	Points         [][]interface{} `json:"points"`
 }
 

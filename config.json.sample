@@ -1,0 +1,9 @@
+{
+  "AdminHttpPort":  ":8083",
+  "AdminAssetsDir": "./src/admin/site/",
+  "ApiHttpPort":    ":8086",
+  "RaftServerPort": 8090,
+  "SeedServers":    [],
+  "DataDir":        "/tmp/influxdb/development/db",
+  "RaftDir":        "/tmp/influxdb/development/raft"
+}

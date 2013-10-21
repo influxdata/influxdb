@@ -1,19 +1,19 @@
-package api
+package http
 
 import (
 	"compress/gzip"
 	"compress/zlib"
 	"io"
-	"net/http"
+	libhttp "net/http"
 	"strings"
 )
 
 type CompressedResponseWriter struct {
-	responseWriter http.ResponseWriter
+	responseWriter libhttp.ResponseWriter
 	writer         io.Writer
 }
 
-func NewCompressionResponseWriter(useCompression bool, rw http.ResponseWriter, req *http.Request) *CompressedResponseWriter {
+func NewCompressionResponseWriter(useCompression bool, rw libhttp.ResponseWriter, req *libhttp.Request) *CompressedResponseWriter {
 	var writer io.Writer = rw
 
 	if req.Header.Get("Accept-Encoding") != "" {
@@ -34,7 +34,7 @@ func NewCompressionResponseWriter(useCompression bool, rw http.ResponseWriter, r
 	return &CompressedResponseWriter{rw, writer}
 }
 
-func (self *CompressedResponseWriter) Header() http.Header {
+func (self *CompressedResponseWriter) Header() libhttp.Header {
 	return self.responseWriter.Header()
 }
 
@@ -46,12 +46,12 @@ func (self *CompressedResponseWriter) WriteHeader(responseCode int) {
 	self.responseWriter.WriteHeader(responseCode)
 }
 
-func CompressionHandler(enableCompression bool, handler http.HandlerFunc) http.HandlerFunc {
+func CompressionHandler(enableCompression bool, handler libhttp.HandlerFunc) libhttp.HandlerFunc {
 	if !enableCompression {
 		return handler
 	}
 
-	return func(rw http.ResponseWriter, req *http.Request) {
+	return func(rw libhttp.ResponseWriter, req *libhttp.Request) {
 		crw := NewCompressionResponseWriter(true, rw, req)
 		handler(crw, req)
 		switch x := crw.writer.(type) {

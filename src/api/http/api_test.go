@@ -1,4 +1,4 @@
-package api
+package http
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"net"
-	"net/http"
+	libhttp "net/http"
 	"net/url"
 	"parser"
 	"protocol"
@@ -108,7 +108,7 @@ func (self *MockCoordinator) CreateDatabase(db, initialApiKey, requestingApiKey 
 
 func (self *ApiSuite) SetUpSuite(c *C) {
 	self.coordinator = &MockCoordinator{}
-	self.server = NewHttpServer(nil, &MockEngine{}, self.coordinator)
+	self.server = NewHttpServer("", &MockEngine{}, self.coordinator)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
 	c.Assert(err, IsNil)
@@ -130,11 +130,11 @@ func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
 	port := self.listener.Addr().(*net.TCPAddr).Port
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
-	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series?q=%s&time_precision=s", port, query)
-	resp, err := http.Get(addr)
+	addr := fmt.Sprintf("http://localhost:%d/db/foo/series?q=%s&time_precision=s", port, query)
+	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	data, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	series := []SerializedSeries{}
@@ -152,11 +152,11 @@ func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	port := self.listener.Addr().(*net.TCPAddr).Port
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
-	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series?q=%s", port, query)
-	resp, err := http.Get(addr)
+	addr := fmt.Sprintf("http://localhost:%d/db/foo/series?q=%s", port, query)
+	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	data, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	series := []SerializedSeries{}
@@ -175,8 +175,8 @@ func (self *ApiSuite) TestChunkedQuery(c *C) {
 	port := self.listener.Addr().(*net.TCPAddr).Port
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
-	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series?q=%s&chunked=true", port, query)
-	resp, err := http.Get(addr)
+	addr := fmt.Sprintf("http://localhost:%d/db/foo/series?q=%s&chunked=true", port, query)
+	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -210,13 +210,13 @@ func (self *ApiSuite) TestWriteDataWithTimeInSeconds(c *C) {
 `
 
 	port := self.listener.Addr().(*net.TCPAddr).Port
-	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series?time_precision=s", port)
-	resp, err := http.Post(addr, "application/json", bytes.NewBufferString(data))
+	addr := fmt.Sprintf("http://localhost:%d/db/foo/series?time_precision=s", port)
+	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	fmt.Printf("body: %s\n", string(body))
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.coordinator.series, HasLen, 1)
 	series := self.coordinator.series[0]
 
@@ -245,13 +245,13 @@ func (self *ApiSuite) TestWriteDataWithTime(c *C) {
 `
 
 	port := self.listener.Addr().(*net.TCPAddr).Port
-	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series", port)
-	resp, err := http.Post(addr, "application/json", bytes.NewBufferString(data))
+	addr := fmt.Sprintf("http://localhost:%d/db/foo/series", port)
+	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	fmt.Printf("body: %s\n", string(body))
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.coordinator.series, HasLen, 1)
 	series := self.coordinator.series[0]
 
@@ -283,13 +283,13 @@ func (self *ApiSuite) TestWriteData(c *C) {
 `
 
 	port := self.listener.Addr().(*net.TCPAddr).Port
-	addr := fmt.Sprintf("http://localhost:%d/api/db/foo/series", port)
-	resp, err := http.Post(addr, "application/json", bytes.NewBufferString(data))
+	addr := fmt.Sprintf("http://localhost:%d/db/foo/series", port)
+	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	fmt.Printf("body: %s\n", string(body))
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.coordinator.series, HasLen, 1)
 	series := self.coordinator.series[0]
 	c.Assert(series.Fields, HasLen, 4)
@@ -315,12 +315,12 @@ func (self *ApiSuite) TestWriteData(c *C) {
 func (self *ApiSuite) TestCreateDatabase(c *C) {
 	data := `{"name": "foo", "apiKey": "bar"}`
 	port := self.listener.Addr().(*net.TCPAddr).Port
-	addr := fmt.Sprintf("http://localhost:%d/api/db?api_key=asdf", port)
-	resp, err := http.Post(addr, "application/json", bytes.NewBufferString(data))
+	addr := fmt.Sprintf("http://localhost:%d/db?api_key=asdf", port)
+	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	_, err = ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusCreated)
 	c.Assert(self.coordinator.db, Equals, "foo")
 	c.Assert(self.coordinator.initialApiKey, Equals, "bar")
 	c.Assert(self.coordinator.requestingApiKey, Equals, "asdf")
