@@ -11,12 +11,14 @@ function print_usage {
     echo "  --no-valgrind: Skip the valgrind memory leak test"
     echo "  -p|--packages: Run the test in the given packages only"
     echo "  -b|--benchmarks: Run benchmarks"
-    echo "  -h|--help:     Prints this help message"
+    echo "  -v|--verbose:    Prints verbose output"
+    echo "  -h|--help:       Prints this help message"
 }
 
 while [ $# -ne 0 ]; do
     case "$1" in
         -h|--help) print_usage; exit 1; shift;;
+        -v|--verbose) verbose=on; shift;;
         -o|--only) regex=$2; shift 2;;
         --no-valgrind) valgrind=no; shift;;
         -p|--packages) test_packages="$test_packages $2"; shift 2;;
@@ -46,7 +48,8 @@ go fmt $packages || echo "Cannot format code"
 echo "Running tests for packages: $test_packages"
 
 [ "x$regex" != "x" ] && gocheck_args="$gocheck_args -gocheck.f $regex"
+[ "x$verbose" == "xon" ] && gocheck_args="$gocheck_args -v -gocheck.v"
 
 ulimit -n 2048 || echo could not change ulimit
 
-go test $test_packages -v -gocheck.v $gocheck_args
+go test $test_packages $gocheck_args
