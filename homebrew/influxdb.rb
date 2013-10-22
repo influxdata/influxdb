@@ -1,9 +1,9 @@
-require 'formula'
+require "formula"
 
 class Influxdb < Formula
-  homepage 'http://influxdb.org'
-  url 'https://s3.amazonaws.com/influxdb/influxdb-0.0.1.tar.gz'
-  sha1 'de1b84ea9d671692c11f02ad64d3f9e0a8626b66'
+  homepage "http://influxdb.org"
+  url "https://s3.amazonaws.com/influxdb/influxdb-0.0.1.tar.gz"
+  sha1 "f288afc0f57470b23594a8df92e7515eefdac40f"
   depends_on "leveldb"
 
   def install
