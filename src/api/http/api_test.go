@@ -26,6 +26,7 @@ type ApiSuite struct {
 	listener    net.Listener
 	server      *HttpServer
 	coordinator *MockCoordinator
+	manager     *MockUserManager
 }
 
 var _ = Suite(&ApiSuite{})
@@ -108,35 +109,6 @@ func (self *MockCoordinator) CreateDatabase(db, initialApiKey, requestingApiKey 
 	return nil
 }
 
-func (self *MockCoordinator) GetUser(username, password string) (*coordinator.User, error) {
-	user := self.users[username]
-	if user != nil {
-		// assume that username and password are the same
-		if username != password {
-			return nil, fmt.Errorf("invlaid password")
-		}
-
-		return user, nil
-	}
-
-	if username == "root" {
-		user = coordinator.CreateTestUser("root", true)
-	}
-	user = coordinator.CreateTestUser(username, false)
-	self.users[username] = user
-	return user, nil
-}
-
-func (self *MockCoordinator) GetUserWithoutPassword(username string) *coordinator.User {
-	user, _ := self.GetUser(username, username)
-	return user
-}
-
-func (self *MockCoordinator) SaveUser(user *coordinator.User) error {
-	self.users[user.GetName()] = user
-	return nil
-}
-
 func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
 	path = fmt.Sprintf(path, args...)
 	port := self.listener.Addr().(*net.TCPAddr).Port
@@ -147,7 +119,8 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 	self.coordinator = &MockCoordinator{
 		users: map[string]*coordinator.User{},
 	}
-	self.server = NewHttpServer("", &MockEngine{}, self.coordinator)
+	self.manager = &MockUserManager{}
+	self.server = NewHttpServer("", &MockEngine{}, self.coordinator, self.manager)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
 	c.Assert(err, IsNil)
@@ -163,6 +136,9 @@ func (self *ApiSuite) TearDownSuite(c *C) {
 
 func (self *ApiSuite) SetUpTest(c *C) {
 	self.coordinator.series = nil
+	self.manager.operation = ""
+	self.manager.username = ""
+	self.manager.password = ""
 }
 
 func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
@@ -355,10 +331,58 @@ func (self *ApiSuite) TestCreateDatabase(c *C) {
 	c.Assert(self.coordinator.requestingApiKey, Equals, "asdf")
 }
 
-// func (self *ApiSuite) TestClusterAdminOperations(c *C) {
-// 	url := self.formatUrl("/admin/users/new_user?username=root&password=root")
-// 	resp, err := http.Post(url, "", nil)
-// 	c.Assert(err, IsNil)
-// 	defer resp.Body.Close()
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// }
+func (self *ApiSuite) TestClusterAdminOperations(c *C) {
+	url := self.formatUrl("/cluster_admins/new_user?username=root&password=root")
+	resp, err := libhttp.Post(url, "", nil)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.operation, Equals, "cluster_admin_add")
+	c.Assert(self.manager.username, Equals, "new_user")
+
+	url = self.formatUrl("/cluster_admins/new_user/password/new_pass?username=root&password=root")
+	resp, err = libhttp.Post(url, "", nil)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.operation, Equals, "cluster_admin_passwd")
+	c.Assert(self.manager.username, Equals, "new_user")
+	c.Assert(self.manager.password, Equals, "new_pass")
+
+	url = self.formatUrl("/cluster_admins/new_user?username=root&password=root")
+	req, _ := libhttp.NewRequest("DELETE", url, nil)
+	resp, err = libhttp.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.operation, Equals, "cluster_admin_del")
+	c.Assert(self.manager.username, Equals, "new_user")
+}
+
+func (self *ApiSuite) TestDbUSerOperations(c *C) {
+	url := self.formatUrl("/db/db1/users/new_user?username=root&password=root")
+	resp, err := libhttp.Post(url, "", nil)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.operation, Equals, "db_user_add")
+	c.Assert(self.manager.username, Equals, "new_user")
+
+	url = self.formatUrl("/db/db1/users/new_user/password/new_pass?username=root&password=root")
+	resp, err = libhttp.Post(url, "", nil)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.operation, Equals, "db_user_passwd")
+	c.Assert(self.manager.username, Equals, "new_user")
+	c.Assert(self.manager.password, Equals, "new_pass")
+
+	url = self.formatUrl("/db/db1/users/new_user?username=root&password=root")
+	req, _ := libhttp.NewRequest("DELETE", url, nil)
+	resp, err = libhttp.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.operation, Equals, "db_user_del")
+	c.Assert(self.manager.username, Equals, "new_user")
+}
