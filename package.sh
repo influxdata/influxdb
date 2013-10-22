@@ -12,10 +12,10 @@ export GOPATH=`pwd`
 go build src/server/server.go
 sed -i.bak "s/var version = \"$INFLUXDB_VERSION\"/var version = \"dev\"/" src/server/server.go
 rm src/server/server.go.bak
-# mv server build/influxdb
+mv server build/influxdb
 
-# cp config.json.sample build/config.json
+cp config.json.sample build/config.json
 
-# cp -R src/admin/site/ build/admin/
+cp -R src/admin/site/ build/admin/
 
-# tar -czf influxdb-`cat VERSION`.tar.gz build/*
+tar -czf influxdb-`cat VERSION`.tar.gz build/*
