@@ -1,0 +1,49 @@
+require 'formula'
+
+class Influxdb < Formula
+  homepage 'http://influxdb.org'
+  url 'https://s3.amazonaws.com/influxdb/influxdb-0.0.1.tar.gz'
+  sha1 'de1b84ea9d671692c11f02ad64d3f9e0a8626b66'
+  depends_on "leveldb"
+
+  def install
+    bin.install "influxdb"
+    etc.install "config.json" => "influxdb.conf"
+  end
+
+  plist_options :manual => "influxdb -config=#{HOMEBREW_PREFIX}/etc/influxdb.conf"
+
+  def plist; <<-EOS.undent
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+      <dict>
+        <key>KeepAlive</key>
+        <dict>
+          <key>SuccessfulExit</key>
+          <false/>
+        </dict>
+        <key>Label</key>
+        <string>#{plist_name}</string>
+        <key>ProgramArguments</key>
+        <array>
+          <string>#{opt_prefix}/bin/influxdb</string>
+          <string>-config=#{etc}/influxdb.conf</string>
+        </array>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>WorkingDirectory</key>
+        <string>#{var}</string>
+        <key>StandardErrorPath</key>
+        <string>#{var}/log/influxdb.log</string>
+        <key>StandardOutPath</key>
+        <string>#{var}/log/influxdb.log</string>
+      </dict>
+    </plist>
+    EOS
+  end
+
+  test do
+    system "false"
+  end
+end
