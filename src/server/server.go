@@ -8,17 +8,23 @@ import (
 	"datastore"
 	"engine"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
 )
 
 var fileName = flag.String("config", "config.json.sample", "Config file")
+var wantsVersion = flag.Bool("version", false, "Get version number")
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
+	if wantsVersion != nil && *wantsVersion {
+		fmt.Println("InfluxDB v0.0.1")
+		return
+	}
 	config := configuration.LoadConfiguration(*fileName)
 
 	log.Println("Starting Influx Server...")
