@@ -7,8 +7,18 @@ class Influxdb < Formula
   depends_on "leveldb"
 
   def install
+    inreplace "config.json" do |s|
+      s.gsub! "/tmp/influxdb/development/db", "#{var}/influxdb/data"
+      s.gsub! "/tmp/influxdb/development/raft", "#{var}/influxdb/raft"
+      s.gsub! "./src/admin/site/", "#{share}/admin/"
+    end
+
     bin.install "influxdb"
     etc.install "config.json" => "influxdb.conf"
+    share.install "admin"
+
+    %w[influxdb infludxb/data influxdb/raft].each { |p| (var+p).mkpath }
+
   end
 
   plist_options :manual => "influxdb -config=#{HOMEBREW_PREFIX}/etc/influxdb.conf"
