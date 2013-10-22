@@ -11,7 +11,6 @@ mv server build/influxdb
 
 cp config.json.sample build/config.json
 
-mkdir build/admin
-touch build/admin/index.html
+cp -R src/admin/site/ build/admin/
 
 tar -czf influxdb-`cat VERSION`.tar.gz build/*
