@@ -42,12 +42,12 @@ func main() {
 		panic(err)
 	}
 	log.Println()
-	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPort)
-	log.Println("Starting admin interface on port ", config.AdminHttpPort)
+	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
+	log.Println("Starting admin interface on port", config.AdminHttpPort)
 	go func() {
 		adminServer.ListenAndServe()
 	}()
-	log.Println("Starting Http Api server on port ", config.ApiHttpPort)
-	server := http.NewHttpServer(config.ApiHttpPort, eng, coord)
+	log.Println("Starting Http Api server on port", config.ApiHttpPort)
+	server := http.NewHttpServer(config.ApiHttpPortString(), eng, coord)
 	server.ListenAndServe()
 }

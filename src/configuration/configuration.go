@@ -2,14 +2,15 @@ package configuration
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 )
 
 type Configuration struct {
-	AdminHttpPort  string
+	AdminHttpPort  int
 	AdminAssetsDir string
-	ApiHttpPort    string
+	ApiHttpPort    int
 	RaftServerPort int
 	SeedServers    []string
 	DataDir        string
@@ -33,4 +34,12 @@ func LoadConfiguration(fileName string) *Configuration {
 	}
 
 	return config
+}
+
+func (self *Configuration) AdminHttpPortString() string {
+	return fmt.Sprintf(":%d", self.AdminHttpPort)
+}
+
+func (self *Configuration) ApiHttpPortString() string {
+	return fmt.Sprintf(":%d", self.ApiHttpPort)
 }
