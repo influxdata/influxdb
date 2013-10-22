@@ -17,12 +17,14 @@ import (
 var fileName = flag.String("config", "config.json.sample", "Config file")
 var wantsVersion = flag.Bool("version", false, "Get version number")
 
+var version = "dev"
+
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
 	if wantsVersion != nil && *wantsVersion {
-		fmt.Println("InfluxDB v0.0.1")
+		fmt.Printf("InfluxDB v%s\n", version)
 		return
 	}
 	config := configuration.LoadConfiguration(*fileName)
