@@ -91,6 +91,7 @@ type MockCoordinator struct {
 	db               string
 	initialApiKey    string
 	requestingApiKey string
+	users            map[string]*coordinator.User
 }
 
 func (self *MockCoordinator) DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error {
@@ -108,13 +109,44 @@ func (self *MockCoordinator) CreateDatabase(db, initialApiKey, requestingApiKey 
 }
 
 func (self *MockCoordinator) GetUser(username, password string) (*coordinator.User, error) {
-	return nil, nil
+	user := self.users[username]
+	if user != nil {
+		// assume that username and password are the same
+		if username != password {
+			return nil, fmt.Errorf("invlaid password")
+		}
+
+		return user, nil
+	}
+
+	if username == "root" {
+		user = coordinator.CreateTestUser("root", true)
+	}
+	user = coordinator.CreateTestUser(username, false)
+	self.users[username] = user
+	return user, nil
 }
-func (self *MockCoordinator) GetUserWithoutPassword(username string) *coordinator.User { return nil }
-func (self *MockCoordinator) SaveUser(user *coordinator.User) error                    { return nil }
+
+func (self *MockCoordinator) GetUserWithoutPassword(username string) *coordinator.User {
+	user, _ := self.GetUser(username, username)
+	return user
+}
+
+func (self *MockCoordinator) SaveUser(user *coordinator.User) error {
+	self.users[user.GetName()] = user
+	return nil
+}
+
+func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
+	path = fmt.Sprintf(path, args...)
+	port := self.listener.Addr().(*net.TCPAddr).Port
+	return fmt.Sprintf("http://localhost:%d%s", port, path)
+}
 
 func (self *ApiSuite) SetUpSuite(c *C) {
-	self.coordinator = &MockCoordinator{}
+	self.coordinator = &MockCoordinator{
+		users: map[string]*coordinator.User{},
+	}
 	self.server = NewHttpServer("", &MockEngine{}, self.coordinator)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
@@ -134,10 +166,9 @@ func (self *ApiSuite) SetUpTest(c *C) {
 }
 
 func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
-	port := self.listener.Addr().(*net.TCPAddr).Port
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
-	addr := fmt.Sprintf("http://localhost:%d/db/foo/series?q=%s&time_precision=s", port, query)
+	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=s", query)
 	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -156,10 +187,9 @@ func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
 }
 
 func (self *ApiSuite) TestNotChunkedQuery(c *C) {
-	port := self.listener.Addr().(*net.TCPAddr).Port
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
-	addr := fmt.Sprintf("http://localhost:%d/db/foo/series?q=%s", port, query)
+	addr := self.formatUrl("/db/foo/series?q=%s", query)
 	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -179,10 +209,9 @@ func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 }
 
 func (self *ApiSuite) TestChunkedQuery(c *C) {
-	port := self.listener.Addr().(*net.TCPAddr).Port
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
-	addr := fmt.Sprintf("http://localhost:%d/db/foo/series?q=%s&chunked=true", port, query)
+	addr := self.formatUrl("/db/foo/series?q=%s&chunked=true", query)
 	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -216,8 +245,7 @@ func (self *ApiSuite) TestWriteDataWithTimeInSeconds(c *C) {
 ]
 `
 
-	port := self.listener.Addr().(*net.TCPAddr).Port
-	addr := fmt.Sprintf("http://localhost:%d/db/foo/series?time_precision=s", port)
+	addr := self.formatUrl("/db/foo/series?time_precision=s")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
@@ -248,8 +276,7 @@ func (self *ApiSuite) TestWriteDataWithTime(c *C) {
 ]
 `
 
-	port := self.listener.Addr().(*net.TCPAddr).Port
-	addr := fmt.Sprintf("http://localhost:%d/db/foo/series", port)
+	addr := self.formatUrl("/db/foo/series")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(resp.Body)
@@ -286,8 +313,7 @@ func (self *ApiSuite) TestWriteData(c *C) {
 ]
 `
 
-	port := self.listener.Addr().(*net.TCPAddr).Port
-	addr := fmt.Sprintf("http://localhost:%d/db/foo/series", port)
+	addr := self.formatUrl("/db/foo/series")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(resp.Body)
@@ -318,8 +344,7 @@ func (self *ApiSuite) TestWriteData(c *C) {
 
 func (self *ApiSuite) TestCreateDatabase(c *C) {
 	data := `{"name": "foo", "apiKey": "bar"}`
-	port := self.listener.Addr().(*net.TCPAddr).Port
-	addr := fmt.Sprintf("http://localhost:%d/db?api_key=asdf", port)
+	addr := self.formatUrl("/db?api_key=asdf")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	_, err = ioutil.ReadAll(resp.Body)
@@ -329,3 +354,11 @@ func (self *ApiSuite) TestCreateDatabase(c *C) {
 	c.Assert(self.coordinator.initialApiKey, Equals, "bar")
 	c.Assert(self.coordinator.requestingApiKey, Equals, "asdf")
 }
+
+// func (self *ApiSuite) TestClusterAdminOperations(c *C) {
+// 	url := self.formatUrl("/admin/users/new_user?username=root&password=root")
+// 	resp, err := http.Post(url, "", nil)
+// 	c.Assert(err, IsNil)
+// 	defer resp.Body.Close()
+// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+// }

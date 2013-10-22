@@ -22,6 +22,17 @@ func (self *User) CreateUser(name string) (*User, error) {
 	return &User{u: &protocol.User{Name: &name}}, nil
 }
 
+func CreateTestUser(username string, isClusterAdmin bool) *User {
+	return &User{
+		u: &protocol.User{
+			Name:         &username,
+			Hash:         nil,
+			ClusterAdmin: &isClusterAdmin,
+			AdminFor:     nil,
+		},
+	}
+}
+
 func (self *User) DeleteUser(user *User) error {
 	if !self.IsClusterAdmin() {
 		return fmt.Errorf("You don't have permissions to create new users")

@@ -13,18 +13,7 @@ var _ = Suite(&UserSuite{})
 var root *User
 
 func (self *UserSuite) SetUpSuite(c *C) {
-	username := "root"
-	isAdmin := true
-
-	root = &User{
-		u: &protocol.User{
-			Name:         &username,
-			Hash:         nil,
-			ClusterAdmin: &isAdmin,
-			AdminFor:     nil,
-		},
-	}
-
+	root = CreateTestUser("root", true)
 	c.Assert(root.ChangePassword(root, "password"), IsNil)
 }
 

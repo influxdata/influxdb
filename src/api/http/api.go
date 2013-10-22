@@ -51,6 +51,19 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	p.Post("/db/:db/series", CorsHeaderHandler(self.writePoints))
 	p.Post("/db", CorsHeaderHandler(self.createDatabase))
 
+	// user management interface
+
+	p.Post("/admin/users/:user", CorsHeaderHandler(self.createUser))
+	p.Del("/admin/users/:user", CorsHeaderHandler(self.removeUser))
+	// {"password": "password"}
+	p.Post("/admin/users/:user/password", CorsHeaderHandler(self.changePassword))
+	// no body, adds/remove the given user to the cluster admins
+	p.Post("/admin/cluster_admins/:user", CorsHeaderHandler(self.addToClusterAdmins))
+	p.Del("/admin/clutser_admins/:user", CorsHeaderHandler(self.deleteFromClusterAdmins))
+	// no body, adss/remove the given user as a db admin
+	p.Post("/admin/db/:db/admins/:user", CorsHeaderHandler(self.addToDbAdmins))
+	p.Del("/admin/db/:db/admins/:user", CorsHeaderHandler(self.deleteFromDbAdmins))
+
 	if err := libhttp.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
 	}
@@ -165,14 +178,6 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	writer.done()
 }
 
-// [
-//   {"name": "seriesname", "columns": ["count", "type"], "points": [[3, "asdf"], [1, "foo"]]},
-//   {}
-// ]
-
-// [
-//   {"name": "seriesname", "columns": ["time", "email"], "points": [[], []]}
-// ]
 func removeTimestampFieldDefinition(fields []*protocol.FieldDefinition) []*protocol.FieldDefinition {
 	timestampIdx := -1
 	for idx, field := range fields {
@@ -405,3 +410,167 @@ func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 	}
 	return serializedSeries
 }
+
+// user management
+
+func (self *HttpServer) getUserRequestingOperation(r *libhttp.Request) (*coordinator.User, error) {
+	username := r.URL.Query().Get("username")
+	password := r.URL.Query().Get("password")
+
+	if username == "" {
+		return nil, fmt.Errorf("Empty username")
+	}
+
+	return self.coordinator.GetUser(username, password)
+}
+
+func (self *HttpServer) createUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+	user, err := self.getUserRequestingOperation(r)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		return
+	}
+
+	username := r.URL.Query().Get(":user")
+	newUser, err := user.CreateUser(username)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		return
+	}
+
+	err = self.coordinator.SaveUser(newUser)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(libhttp.StatusOK)
+}
+
+func (self *HttpServer) removeUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+	user, err := self.getUserRequestingOperation(r)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		return
+	}
+
+	username := r.URL.Query().Get(":user")
+	newUser := self.coordinator.GetUserWithoutPassword(username)
+	if newUser == nil {
+		w.WriteHeader(libhttp.StatusNotFound)
+		return
+	}
+
+	err = user.DeleteUser(newUser)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusInternalServerError)
+		return
+	}
+
+	err = self.coordinator.SaveUser(newUser)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(libhttp.StatusOK)
+}
+
+func (self *HttpServer) changePassword(w libhttp.ResponseWriter, r *libhttp.Request) {
+	user, err := self.getUserRequestingOperation(r)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		return
+	}
+
+	username := r.URL.Query().Get(":user")
+	password := r.URL.Query().Get(":password")
+
+	newUser := self.coordinator.GetUserWithoutPassword(username)
+	if newUser == nil {
+		w.WriteHeader(libhttp.StatusNotFound)
+		return
+	}
+
+	err = user.ChangePassword(newUser, password)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		return
+	}
+	w.WriteHeader(libhttp.StatusOK)
+}
+
+func (self *HttpServer) deleteFromClusterAdmins(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.addDeleteToClusterAdmins(w, r, false)
+}
+
+func (self *HttpServer) addToClusterAdmins(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.addDeleteToClusterAdmins(w, r, true)
+}
+
+func (self *HttpServer) addDeleteToClusterAdmins(w libhttp.ResponseWriter, r *libhttp.Request, add bool) {
+	user, err := self.getUserRequestingOperation(r)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		return
+	}
+
+	username := r.URL.Query().Get(":user")
+	otherUser := self.coordinator.GetUserWithoutPassword(username)
+	if otherUser == nil {
+		w.WriteHeader(libhttp.StatusNotFound)
+		return
+	}
+	err = user.SetClusterAdmin(otherUser, add)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		return
+	}
+	err = self.coordinator.SaveUser(user)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(libhttp.StatusOK)
+}
+
+func (self *HttpServer) deleteFromDbAdmins(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.addDeleteToDbAdmins(w, r, false)
+}
+
+func (self *HttpServer) addToDbAdmins(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.addDeleteToDbAdmins(w, r, true)
+}
+
+func (self *HttpServer) addDeleteToDbAdmins(w libhttp.ResponseWriter, r *libhttp.Request, add bool) {
+	user, err := self.getUserRequestingOperation(r)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		return
+	}
+
+	username := r.URL.Query().Get(":user")
+	db := r.URL.Query().Get(":db")
+	otherUser := self.coordinator.GetUserWithoutPassword(username)
+	if otherUser == nil {
+		w.WriteHeader(libhttp.StatusNotFound)
+		return
+	}
+	if add {
+		err = user.SetDbAdmin(otherUser, db)
+	} else {
+		err = user.RemoveDbAdmin(otherUser, db)
+	}
+	if err != nil {
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		return
+	}
+	err = self.coordinator.SaveUser(user)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(libhttp.StatusOK)
+}
+
+// // no body, adss/remove the given user as a db admin
+// p.Post("/users/:user/db_admin/:db", CorsHeaderHandler(self.deleteToDbAdmins))
+// p.Del("/users/:user/db_admin/:db", CorsHeaderHandler(self.deleteFromDbAdmins))
