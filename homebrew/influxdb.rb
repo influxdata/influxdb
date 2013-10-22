@@ -18,7 +18,6 @@ class Influxdb < Formula
     share.install "admin"
 
     %w[influxdb infludxb/data influxdb/raft].each { |p| (var+p).mkpath }
-
   end
 
   plist_options :manual => "influxdb -config=#{HOMEBREW_PREFIX}/etc/influxdb.conf"
@@ -54,6 +53,6 @@ class Influxdb < Formula
   end
 
   test do
-    system "false"
+    system "curl --silent http://localhost:8086/"
   end
 end
