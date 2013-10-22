@@ -3,7 +3,7 @@ require "formula"
 class Influxdb < Formula
   homepage "http://influxdb.org"
   url "https://s3.amazonaws.com/influxdb/influxdb-0.0.1.tar.gz"
-  sha1 "f288afc0f57470b23594a8df92e7515eefdac40f"
+  sha1 "f2faabc714d621da460573163eaffa6ee02f9b6e"
   depends_on "leveldb"
 
   def install
