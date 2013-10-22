@@ -60,11 +60,12 @@ message User {
 	required string name = 1;
 	required string hash = 2;
 	required bool clusterAdmin = 3;
+  required bool deleted = 4;
 	// the list of dbs that the user is admin for
-	repeated string admin_for = 4;
+	repeated string admin_for = 5;
   // the list of dbs that the user can read from
-  repeated Matcher read_from = 5;
+  repeated Matcher read_from = 6;
   // the list of dbs that the user can write to
-  repeated Matcher write_to = 6;
+  repeated Matcher write_to = 7;
 }
 

@@ -131,5 +131,9 @@ func (self *ClusterConfiguration) CurrentDatabaseId() string {
 func (self *ClusterConfiguration) SaveUser(u *User) {
 	self.usersLock.Lock()
 	defer self.usersLock.Unlock()
+	if u.IsDeleted() {
+		delete(self.users, u.GetName())
+		return
+	}
 	self.users[u.GetName()] = u
 }

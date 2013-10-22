@@ -22,6 +22,20 @@ func (self *User) CreateUser(name string) (*User, error) {
 	return &User{u: &protocol.User{Name: &name}}, nil
 }
 
+func (self *User) DeleteUser(user *User) error {
+	if !self.IsClusterAdmin() {
+		return fmt.Errorf("You don't have permissions to create new users")
+	}
+
+	deleted := true
+	user.u.Deleted = &deleted
+	return nil
+}
+
+func (self *User) IsDeleted() bool {
+	return self.u.GetDeleted()
+}
+
 func (self *User) ChangePassword(u *User, newPwd string) error {
 	if !self.IsClusterAdmin() && u.u.GetName() != self.u.GetName() {
 		return fmt.Errorf("You don't have permissions to change someone else's password")

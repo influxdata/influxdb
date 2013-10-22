@@ -345,9 +345,10 @@ type User struct {
 	Name             *string    `protobuf:"bytes,1,req,name=name" json:"name,omitempty"`
 	Hash             *string    `protobuf:"bytes,2,req,name=hash" json:"hash,omitempty"`
 	ClusterAdmin     *bool      `protobuf:"varint,3,req,name=clusterAdmin" json:"clusterAdmin,omitempty"`
-	AdminFor         []string   `protobuf:"bytes,4,rep,name=admin_for" json:"admin_for,omitempty"`
-	ReadFrom         []*Matcher `protobuf:"bytes,5,rep,name=read_from" json:"read_from,omitempty"`
-	WriteTo          []*Matcher `protobuf:"bytes,6,rep,name=write_to" json:"write_to,omitempty"`
+	Deleted          *bool      `protobuf:"varint,4,req,name=deleted" json:"deleted,omitempty"`
+	AdminFor         []string   `protobuf:"bytes,5,rep,name=admin_for" json:"admin_for,omitempty"`
+	ReadFrom         []*Matcher `protobuf:"bytes,6,rep,name=read_from" json:"read_from,omitempty"`
+	WriteTo          []*Matcher `protobuf:"bytes,7,rep,name=write_to" json:"write_to,omitempty"`
 	XXX_unrecognized []byte     `json:"-"`
 }
 
@@ -372,6 +373,13 @@ func (m *User) GetHash() string {
 func (m *User) GetClusterAdmin() bool {
 	if m != nil && m.ClusterAdmin != nil {
 		return *m.ClusterAdmin
+	}
+	return false
+}
+
+func (m *User) GetDeleted() bool {
+	if m != nil && m.Deleted != nil {
+		return *m.Deleted
 	}
 	return false
 }

@@ -420,7 +420,7 @@ func (self *CoordinatorSuite) TestUserDataReplication(c *C) {
 	root.SetClusterAdmin(u, true)
 	servers[0].SaveUser(u)
 
-	time.Sleep(REPLICATION_LAG * 2)
+	time.Sleep(REPLICATION_LAG * 4)
 
 	for i := 0; i < 3; i++ {
 		fmt.Printf("Testing server %d\n", i)
@@ -429,6 +429,20 @@ func (self *CoordinatorSuite) TestUserDataReplication(c *C) {
 		c.Assert(u.isValidPwd("password"), Equals, true)
 		c.Assert(u.isValidPwd("password1"), Equals, false)
 		c.Assert(u.IsClusterAdmin(), Equals, true)
+	}
+
+	// make sure we can delete users
+	err = root.DeleteUser(u)
+	c.Assert(err, IsNil)
+	err = servers[1].SaveUser(u)
+	c.Assert(err, IsNil)
+
+	time.Sleep(REPLICATION_LAG * 4)
+
+	for i := 0; i < 3; i++ {
+		fmt.Printf("Testing server %d\n", i)
+		u := servers[i].GetUserWithoutPassword("new_admin")
+		c.Assert(u, IsNil)
 	}
 }
 
