@@ -18,7 +18,8 @@ type ClusterConfiguration struct {
 	WriteApiKeys              map[string]bool
 	writeApiKeysLock          sync.RWMutex
 	usersLock                 sync.RWMutex
-	users                     map[string]*User
+	clusterAdmins             map[string]*clusterAdmin
+	dbUsers                   map[string]map[string]*dbUser
 }
 
 type ApiKeyType int
@@ -35,7 +36,8 @@ func NewClusterConfiguration(maxRingLocation int64) *ClusterConfiguration {
 		RingLocationToServers: make(map[int64][]string),
 		ReadApiKeys:           make(map[string]bool),
 		WriteApiKeys:          make(map[string]bool),
-		users:                 make(map[string]*User),
+		clusterAdmins:         make(map[string]*clusterAdmin),
+		dbUsers:               make(map[string]map[string]*dbUser),
 	}
 }
 
@@ -128,12 +130,31 @@ func (self *ClusterConfiguration) CurrentDatabaseId() string {
 	return fmt.Sprintf("%d", self.nextDatabaseId)
 }
 
-func (self *ClusterConfiguration) SaveUser(u *User) {
+func (self *ClusterConfiguration) SaveDbUser(u *dbUser) {
+	self.usersLock.Lock()
+	defer self.usersLock.Unlock()
+	db := u.GetDb()
+	dbUsers := self.dbUsers[db]
+	if u.IsDeleted() {
+		if dbUsers == nil {
+			return
+		}
+		delete(dbUsers, u.GetName())
+		return
+	}
+	if dbUsers == nil {
+		dbUsers = map[string]*dbUser{}
+		self.dbUsers[db] = dbUsers
+	}
+	dbUsers[u.GetName()] = u
+}
+
+func (self *ClusterConfiguration) SaveClusterAdmin(u *clusterAdmin) {
 	self.usersLock.Lock()
 	defer self.usersLock.Unlock()
 	if u.IsDeleted() {
-		delete(self.users, u.GetName())
+		delete(self.clusterAdmins, u.GetName())
 		return
 	}
-	self.users[u.GetName()] = u
+	self.clusterAdmins[u.GetName()] = u
 }

@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"github.com/goraft/raft"
-	"protocol"
 )
 
 type AddServerToLocationCommand struct {
@@ -131,22 +130,42 @@ func (c *CreateDatabaseCommand) Apply(server *raft.Server) (interface{}, error) 
 	return nil, err
 }
 
-type SaveUserCommand struct {
-	User *protocol.User `json:"user"`
+type SaveDbUserCommand struct {
+	User *dbUser `json:"user"`
 }
 
-func NewSaveUserCommand(u *User) *SaveUserCommand {
-	return &SaveUserCommand{
-		User: u.u,
+func NewSaveDbUserCommand(u *dbUser) *SaveDbUserCommand {
+	return &SaveDbUserCommand{
+		User: u,
 	}
 }
 
-func (c *SaveUserCommand) CommandName() string {
-	return "save_user"
+func (c *SaveDbUserCommand) CommandName() string {
+	return "save_db_user"
 }
 
-func (c *SaveUserCommand) Apply(server *raft.Server) (interface{}, error) {
+func (c *SaveDbUserCommand) Apply(server *raft.Server) (interface{}, error) {
 	config := server.Context().(*ClusterConfiguration)
-	config.SaveUser(&User{c.User})
+	config.SaveDbUser(c.User)
+	return nil, nil
+}
+
+type SaveClusterAdminCommand struct {
+	User *clusterAdmin `json:"user"`
+}
+
+func NewSaveClusterAdminCommand(u *clusterAdmin) *SaveClusterAdminCommand {
+	return &SaveClusterAdminCommand{
+		User: u,
+	}
+}
+
+func (c *SaveClusterAdminCommand) CommandName() string {
+	return "save_cluster_admin_user"
+}
+
+func (c *SaveClusterAdminCommand) Apply(server *raft.Server) (interface{}, error) {
+	config := server.Context().(*ClusterConfiguration)
+	config.SaveClusterAdmin(c.User)
 	return nil, nil
 }

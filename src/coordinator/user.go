@@ -2,155 +2,103 @@ package coordinator
 
 import (
 	"code.google.com/p/go.crypto/bcrypt"
-	"fmt"
-	"protocol"
+	"regexp"
 )
 
-type User struct {
-	u *protocol.User
+type Matcher struct {
+	isRegex bool
+	name    string
 }
 
-func (self *User) GetName() string {
-	return *self.u.Name
-}
-
-func (self *User) CreateUser(name string) (*User, error) {
-	if !self.IsClusterAdmin() {
-		return nil, fmt.Errorf("You don't have permissions to create new users")
+func (self *Matcher) Matches(name string) bool {
+	if self.isRegex {
+		matches, _ := regexp.MatchString(self.name, name)
+		return matches
 	}
-
-	return &User{u: &protocol.User{Name: &name}}, nil
+	return self.name == name
 }
 
-func CreateTestUser(username string, isClusterAdmin bool) *User {
-	return &User{
-		u: &protocol.User{
-			Name:         &username,
-			Hash:         nil,
-			ClusterAdmin: &isClusterAdmin,
-			AdminFor:     nil,
-		},
-	}
+type User interface {
+	GetName() string
+	IsDeleted() bool
+	changePassword(password string) error
+	isValidPwd(password string) bool
+	IsClusterAdmin() bool
+	IsDbAdmin(db string) bool
+	GetDb() string
+	HasWriteAccess(name string) bool
+	HasReadAccess(name string) bool
 }
 
-func (self *User) DeleteUser(user *User) error {
-	if !self.IsClusterAdmin() {
-		return fmt.Errorf("You don't have permissions to create new users")
-	}
-
-	deleted := true
-	user.u.Deleted = &deleted
-	return nil
+type CommonUser struct {
+	Name          string `json:"name"`
+	Hash          string `json:"hash"`
+	IsUserDeleted bool   `json:"is_deleted"`
 }
 
-func (self *User) IsDeleted() bool {
-	return self.u.GetDeleted()
+func (self *CommonUser) GetName() string {
+	return self.Name
 }
 
-func (self *User) ChangePassword(u *User, newPwd string) error {
-	if !self.IsClusterAdmin() && u.u.GetName() != self.u.GetName() {
-		return fmt.Errorf("You don't have permissions to change someone else's password")
-	}
+func (self *CommonUser) IsDeleted() bool {
+	return self.IsUserDeleted
+}
 
-	hash, err := hashPassword(newPwd)
+func (self *CommonUser) changePassword(password string) error {
+	hash, err := hashPassword(password)
 	if err != nil {
 		return err
 	}
-	hashStr := string(hash)
-	u.u.Hash = &hashStr
+	self.Hash = string(hash)
 	return nil
 }
 
-func (self *User) IsClusterAdmin() bool {
-	return self.u.GetClusterAdmin()
+func (self *CommonUser) isValidPwd(password string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(self.Hash), []byte(password)) == nil
 }
 
-func (self *User) SetClusterAdmin(u *User, isAdmin bool) error {
-	if !self.IsClusterAdmin() {
-		return fmt.Errorf("User %s doesn't have enough permissions to make %s a cluster admin", self.GetName(), u.GetName())
-	}
-
-	if u.GetName() == self.GetName() {
-		return fmt.Errorf("Cannot remove admin access from yourself. Use a different account")
-	}
-
-	u.u.ClusterAdmin = &isAdmin
-	return nil
-}
-
-func (self *User) IsDbAdmin(db string) bool {
-	for _, dbName := range self.u.AdminFor {
-		if db == dbName {
-			return true
-		}
-	}
-
+func (self *CommonUser) IsClusterAdmin() bool {
 	return false
 }
 
-func (self *User) SetDbAdmin(u *User, db string) error {
-	if u.IsDbAdmin(db) {
-		return nil
-	}
-
-	if !self.IsClusterAdmin() && !self.IsDbAdmin(db) {
-		return fmt.Errorf("User %s doesn't have enough permissions to make %s a db admin", self.GetName(), u.GetName())
-	}
-
-	u.u.AdminFor = append(u.u.AdminFor, db)
-	return nil
+func (self *CommonUser) IsDbAdmin(db string) bool {
+	return false
 }
 
-func (self *User) RemoveDbAdmin(u *User, db string) error {
-	if !self.IsClusterAdmin() && !self.IsDbAdmin(db) {
-		return fmt.Errorf("User %s doesn't have enough permissions to make %s a db admin", self.GetName(), u.GetName())
-	}
-
-	if self.GetName() == u.GetName() {
-		return fmt.Errorf("Cannot db admin access from yourself. Use a different account")
-	}
-
-	dbIndex := -1
-	for idx, dbName := range u.u.AdminFor {
-		if dbName == db {
-			dbIndex = idx
-			break
-		}
-	}
-
-	if dbIndex > -1 {
-		u.u.AdminFor = append(u.u.AdminFor[:dbIndex], u.u.AdminFor[dbIndex+1:]...)
-	}
-
-	return nil
+func (self *CommonUser) GetDb() string {
+	return ""
 }
 
-func (self *User) AddReadMatcher(u *User, m *protocol.Matcher) error {
-	var err error
-	u.u.ReadFrom, err = self.addMatcher(u, m, u.u.ReadFrom)
-	return err
+func (self *CommonUser) HasWriteAccess(name string) bool {
+	return false
 }
 
-func (self *User) RemoveReadMatcher(u *User, m *protocol.Matcher) error {
-	var err error
-	u.u.ReadFrom, err = self.removeMatcher(u, m, u.u.ReadFrom)
-	return err
+func (self *CommonUser) HasReadAccess(name string) bool {
+	return false
 }
 
-func (self *User) AddWriteMatcher(u *User, m *protocol.Matcher) error {
-	var err error
-	u.u.WriteTo, err = self.addMatcher(u, m, u.u.WriteTo)
-	return err
+type clusterAdmin struct {
+	CommonUser `josn:"common"`
 }
 
-func (self *User) RemoveWriteMatcher(u *User, m *protocol.Matcher) error {
-	var err error
-	u.u.WriteTo, err = self.removeMatcher(u, m, u.u.WriteTo)
-	return err
+func (self *clusterAdmin) IsClusterAdmin() bool {
+	return true
 }
 
-func (self *User) HasWriteAccess(name string) bool {
-	for _, matcher := range self.u.WriteTo {
+type dbUser struct {
+	CommonUser `json:"common"`
+	Db         string     `json:"db"`
+	WriteTo    []*Matcher `json:"write_matchers"`
+	ReadFrom   []*Matcher `json:"read_matchers"`
+	IsAdmin    bool       `json:"is_admin"`
+}
+
+func (self *dbUser) IsDbAdmin(db string) bool {
+	return self.IsAdmin && self.Db == db
+}
+
+func (self *dbUser) HasWriteAccess(name string) bool {
+	for _, matcher := range self.WriteTo {
 		if matcher.Matches(name) {
 			return true
 		}
@@ -159,68 +107,24 @@ func (self *User) HasWriteAccess(name string) bool {
 	return false
 }
 
-func (self *User) HasReadAccess(name string) bool {
-	for _, matcher := range self.u.ReadFrom {
+func (self *dbUser) HasReadAccess(name string) bool {
+	for _, matcher := range self.ReadFrom {
 		if matcher.Matches(name) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func (self *dbUser) GetDb() string {
+	return self.Db
 }
 
 // private funcs
 
-func (self *User) addMatcher(u *User, m *protocol.Matcher, matchers []*protocol.Matcher) ([]*protocol.Matcher, error) {
-	if err := self.getMatcherPermission(m); err != nil {
-		return matchers, err
-	}
-
-	idx := u.findMatcher(m, matchers)
-	if idx == -1 {
-		matchers = append(matchers, m)
-	}
-	return matchers, nil
-}
-
-func (self *User) removeMatcher(u *User, m *protocol.Matcher, matchers []*protocol.Matcher) ([]*protocol.Matcher, error) {
-	if err := self.getMatcherPermission(m); err != nil {
-		return matchers, err
-	}
-
-	idx := u.findMatcher(m, matchers)
-	if idx != -1 {
-		matchers = append(matchers[:idx], matchers[idx+1:]...)
-	}
-	return matchers, nil
-}
-
-func (self *User) getMatcherPermission(m *protocol.Matcher) error {
-	if !self.IsClusterAdmin() && m.GetIsRegex() {
-		return fmt.Errorf("Only a cluster admin can add access to a regex")
-	}
-
-	if !self.IsClusterAdmin() && !self.IsDbAdmin(m.GetName()) {
-		return fmt.Errorf("Cannot add permission to a db your not an admin of")
-	}
-	return nil
-}
-
-func (self *User) isValidPwd(password string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(self.u.GetHash()), []byte(password)) == nil
-}
-
-func (self *User) findMatcher(matcher *protocol.Matcher, matchers []*protocol.Matcher) int {
-	for idx, m := range matchers {
-		if m.GetIsRegex() == matcher.GetIsRegex() && m.GetName() == matcher.GetName() {
-			return idx
-		}
-	}
-	return -1
-}
-
 func hashPassword(password string) ([]byte, error) {
 	// The second arg is the cost of the hashing, higher is slower but makes it harder
 	// to brute force, since it will be really slow and impractical
-	return bcrypt.GenerateFromPassword([]byte(password), 13)
+	return bcrypt.GenerateFromPassword([]byte(password), 10)
 }

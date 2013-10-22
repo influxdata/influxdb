@@ -401,48 +401,167 @@ func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader
 	assertConfigContains(port3, "key1", true, c)
 }
 
+func (self *UserSuite) BenchmarkHashing(c *C) {
+	for i := 0; i < c.N; i++ {
+		pwd := fmt.Sprintf("password%d", i)
+		_, err := hashPassword(pwd)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (self *CoordinatorSuite) TestAdminOperations(c *C) {
+	servers := startAndVerifyCluster(1, c)
+	defer clean(servers)
+
+	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+
+	time.Sleep(REPLICATION_LAG)
+
+	// Root user is created
+	var root User
+	var err error
+	// we should have the root user
+	root, err = coordinator.AuthenticateClusterAdmin("root", "root")
+	c.Assert(err, IsNil)
+	c.Assert(root.IsClusterAdmin(), Equals, true)
+
+	// Can change it's own password
+	c.Assert(coordinator.ChangeClusterAdminPassword(root, "root", "password"), Equals, nil)
+	root, err = coordinator.AuthenticateClusterAdmin("root", "password")
+	c.Assert(err, IsNil)
+	c.Assert(root.IsClusterAdmin(), Equals, true)
+
+	// Can create other cluster admin
+	c.Assert(coordinator.CreateClusterAdminUser(root, "another_cluster_admin"), IsNil)
+	c.Assert(coordinator.ChangeClusterAdminPassword(root, "another_cluster_admin", "pass"), IsNil)
+	u, err := coordinator.AuthenticateClusterAdmin("another_cluster_admin", "pass")
+	c.Assert(err, IsNil)
+	c.Assert(u.IsClusterAdmin(), Equals, true)
+
+	// can create db users
+	c.Assert(coordinator.CreateDbUser(root, "db1", "db_user"), IsNil)
+	c.Assert(coordinator.ChangeDbUserPassword(root, "db1", "db_user", "db_pass"), IsNil)
+	u, err = coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
+	c.Assert(err, IsNil)
+	c.Assert(u.IsClusterAdmin(), Equals, false)
+	c.Assert(u.IsDbAdmin("db1"), Equals, false)
+
+	// can make db users db admins
+	c.Assert(coordinator.SetDbAdmin(root, "db1", "db_user"), IsNil)
+	u, err = coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
+	c.Assert(err, IsNil)
+	c.Assert(u.IsDbAdmin("db1"), Equals, true)
+
+	// can delete cluster admins and db users
+	c.Assert(coordinator.DeleteDbUser(root, "db1", "db_user"), IsNil)
+	c.Assert(coordinator.DeleteClusterAdminUser(root, "another_cluster_admin"), IsNil)
+}
+
+func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
+	servers := startAndVerifyCluster(1, c)
+	defer clean(servers)
+
+	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+
+	time.Sleep(REPLICATION_LAG)
+
+	// create a db user
+	root, err := coordinator.AuthenticateClusterAdmin("root", "root")
+	c.Assert(err, IsNil)
+	c.Assert(root.IsClusterAdmin(), Equals, true)
+	c.Assert(coordinator.CreateDbUser(root, "db1", "db_user"), IsNil)
+	c.Assert(coordinator.ChangeDbUserPassword(root, "db1", "db_user", "db_pass"), IsNil)
+	c.Assert(coordinator.SetDbAdmin(root, "db1", "db_user"), IsNil)
+	dbUser, err := coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
+	c.Assert(err, IsNil)
+
+	// Cannot create or delete other cluster admin
+	c.Assert(coordinator.CreateClusterAdminUser(dbUser, "another_cluster_admin"), NotNil)
+	c.Assert(coordinator.DeleteClusterAdminUser(dbUser, "root"), NotNil)
+
+	// can create db users
+	c.Assert(coordinator.CreateDbUser(dbUser, "db1", "db_user2"), IsNil)
+	c.Assert(coordinator.ChangeDbUserPassword(dbUser, "db1", "db_user2", "db_pass"), IsNil)
+	u, err := coordinator.AuthenticateDbUser("db1", "db_user2", "db_pass")
+	c.Assert(err, IsNil)
+	c.Assert(u.IsClusterAdmin(), Equals, false)
+	c.Assert(u.IsDbAdmin("db1"), Equals, false)
+
+	// cannot create db users for a different db
+	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)
+
+	// can make db users db admins
+	c.Assert(coordinator.SetDbAdmin(dbUser, "db1", "db_user2"), IsNil)
+	u, err = coordinator.AuthenticateDbUser("db1", "db_user2", "db_pass")
+	c.Assert(err, IsNil)
+	c.Assert(u.IsDbAdmin("db1"), Equals, true)
+
+	// can delete db users
+	c.Assert(coordinator.DeleteDbUser(dbUser, "db1", "db_user2"), IsNil)
+}
+
+func (self *CoordinatorSuite) TestDbUserOperations(c *C) {
+	servers := startAndVerifyCluster(1, c)
+	defer clean(servers)
+
+	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+
+	time.Sleep(REPLICATION_LAG)
+
+	// create a db user
+	root, err := coordinator.AuthenticateClusterAdmin("root", "root")
+	c.Assert(err, IsNil)
+	c.Assert(root.IsClusterAdmin(), Equals, true)
+	c.Assert(coordinator.CreateDbUser(root, "db1", "db_user"), IsNil)
+	c.Assert(coordinator.ChangeDbUserPassword(root, "db1", "db_user", "db_pass"), IsNil)
+	dbUser, err := coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
+	c.Assert(err, IsNil)
+
+	// Cannot create other cluster admin
+	c.Assert(coordinator.CreateClusterAdminUser(dbUser, "another_cluster_admin"), NotNil)
+
+	// can create db users
+	c.Assert(coordinator.CreateDbUser(dbUser, "db1", "db_user2"), NotNil)
+
+	// cannot make itself an admin
+	c.Assert(coordinator.SetDbAdmin(dbUser, "db1", "db_user"), NotNil)
+
+	// cannot create db users for a different db
+	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)
+
+	// can change its own password
+	c.Assert(coordinator.ChangeDbUserPassword(dbUser, "db1", "db_user", "new_password"), IsNil)
+	dbUser, err = coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
+	c.Assert(err, NotNil)
+	dbUser, err = coordinator.AuthenticateDbUser("db1", "db_user", "new_password")
+	c.Assert(err, IsNil)
+}
+
 func (self *CoordinatorSuite) TestUserDataReplication(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers)
 
-	var root *User
-	// we should have the root user
-	for i := 0; i < 3; i++ {
-		root = servers[i].GetUserWithoutPassword("root")
-		c.Assert(root, NotNil)
-		c.Assert(root.isValidPwd("root"), Equals, true)
+	coordinators := make([]*CoordinatorImpl, 0, len(servers))
+	for _, server := range servers {
+		coordinators = append(coordinators, NewCoordinatorImpl(nil, server, server.clusterConfig))
+	}
+
+	// root must exist on all three nodes
+	var root User
+	var err error
+	for _, coordinator := range coordinators {
+		root, err = coordinator.AuthenticateClusterAdmin("root", "root")
+		c.Assert(err, IsNil)
 		c.Assert(root.IsClusterAdmin(), Equals, true)
 	}
 
-	u, err := root.CreateUser("new_admin")
-	c.Assert(err, IsNil)
-	root.ChangePassword(u, "password")
-	root.SetClusterAdmin(u, true)
-	servers[0].SaveUser(u)
-
-	time.Sleep(REPLICATION_LAG * 4)
-
-	for i := 0; i < 3; i++ {
-		fmt.Printf("Testing server %d\n", i)
-		u := servers[i].GetUserWithoutPassword("new_admin")
-		c.Assert(u, NotNil)
-		c.Assert(u.isValidPwd("password"), Equals, true)
-		c.Assert(u.isValidPwd("password1"), Equals, false)
+	c.Assert(coordinators[0].CreateClusterAdminUser(root, "admin"), IsNil)
+	c.Assert(coordinators[0].ChangeClusterAdminPassword(root, "admin", "admin"), IsNil)
+	time.Sleep(REPLICATION_LAG)
+	for _, coordinator := range coordinators {
+		u, err := coordinator.AuthenticateClusterAdmin("admin", "admin")
+		c.Assert(err, IsNil)
 		c.Assert(u.IsClusterAdmin(), Equals, true)
-	}
-
-	// make sure we can delete users
-	err = root.DeleteUser(u)
-	c.Assert(err, IsNil)
-	err = servers[1].SaveUser(u)
-	c.Assert(err, IsNil)
-
-	time.Sleep(REPLICATION_LAG * 4)
-
-	for i := 0; i < 3; i++ {
-		fmt.Printf("Testing server %d\n", i)
-		u := servers[i].GetUserWithoutPassword("new_admin")
-		c.Assert(u, IsNil)
 	}
 }
 

@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
-	"protocol"
 	"strings"
 	"sync"
 	"time"
@@ -48,7 +47,8 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 		raft.RegisterCommand(&RemoveServerFromLocationCommand{})
 		raft.RegisterCommand(&NextDatabaseIdCommand{})
 		raft.RegisterCommand(&CreateDatabaseCommand{})
-		raft.RegisterCommand(&SaveUserCommand{})
+		raft.RegisterCommand(&SaveDbUserCommand{})
+		raft.RegisterCommand(&SaveClusterAdminCommand{})
 	}
 	s := &RaftServer{
 		host:          host,
@@ -152,31 +152,22 @@ func (s *RaftServer) GetNextDatabaseId() (string, error) {
 	return id.(string), err
 }
 
-func (s *RaftServer) SaveUser(u *User) error {
-	command := NewSaveUserCommand(u)
-	_, err := s.doOrProxyCommand(command, "save_user")
+func (s *RaftServer) SaveDbUser(u *dbUser) error {
+	command := NewSaveDbUserCommand(u)
+	_, err := s.doOrProxyCommand(command, "save_db_user")
 	return err
 }
 
-func (self *RaftServer) GetUserWithoutPassword(username string) *User {
-	self.clusterConfig.usersLock.RLock()
-	defer self.clusterConfig.usersLock.RUnlock()
-	return self.clusterConfig.users[username]
+func (s *RaftServer) SaveClusterAdminUser(u *clusterAdmin) error {
+	command := NewSaveClusterAdminCommand(u)
+	_, err := s.doOrProxyCommand(command, "save_cluster_admin_user")
+	return err
 }
 
 func (s *RaftServer) CreateRootUser() error {
-	name := "root"
-	isClusterAdmin := true
-	u := &User{
-		u: &protocol.User{
-			Name:         &name,
-			ClusterAdmin: &isClusterAdmin,
-		},
-	}
-	u.ChangePassword(u, "root")
-	command := NewSaveUserCommand(u)
-	_, err := s.doOrProxyCommand(command, "save_user")
-	return err
+	u := &clusterAdmin{CommonUser{"root", "", false}}
+	u.changePassword("root")
+	return s.SaveClusterAdminUser(u)
 }
 
 func (s *RaftServer) connectionString() string {
@@ -376,8 +367,10 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		command = &NextDatabaseIdCommand{}
 	} else if value == "create_db" {
 		command = &CreateDatabaseCommand{}
-	} else if value == "save_user" {
-		command = &SaveUserCommand{}
+	} else if value == "save_db_user" {
+		command = &SaveDbUserCommand{}
+	} else if value == "save_cluster_admin_user" {
+		command = &SaveClusterAdminCommand{}
 	}
 	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
 		log.Println("ERROR processCommandHanlder", err)
