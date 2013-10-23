@@ -24,9 +24,8 @@ type LevelDbDatastore struct {
 }
 
 type Field struct {
-	Id         []byte
-	Name       string
-	Definition *protocol.FieldDefinition
+	Id   []byte
+	Name string
 }
 
 type rawColumnValue struct {
@@ -96,16 +95,10 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 	defer wo.Close()
 	defer wb.Close()
 	for fieldIndex, field := range series.Fields {
-		id, alreadyPresent, err := self.getIdForDbSeriesColumn(&database, series.Name, field.Name)
+		temp := field
+		id, _, err := self.getIdForDbSeriesColumn(&database, series.Name, &temp)
 		if err != nil {
 			return err
-		}
-		if !alreadyPresent {
-			d, e := proto.Marshal(field)
-			if e != nil {
-				return e
-			}
-			wb.Put(append(SERIES_COLUMN_DEFINITIONS_PREFIX, id...), d)
 		}
 		for _, point := range series.Points {
 			timestampBuffer := bytes.NewBuffer(make([]byte, 0, 8))
@@ -231,11 +224,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	fieldCount := len(fields)
 	prefixes := make([][]byte, fieldCount, fieldCount)
 	iterators := make([]*levigo.Iterator, fieldCount, fieldCount)
-	fieldDefinitions := make([]*protocol.FieldDefinition, fieldCount, fieldCount)
+	fieldNames := make([]string, len(fields))
 
 	// start the iterators to go through the series data
 	for i, field := range fields {
-		fieldDefinitions[i] = field.Definition
+		fieldNames[i] = field.Name
 		prefixes[i] = field.Id
 		ro := levigo.NewReadOptions()
 		defer ro.Close()
@@ -250,7 +243,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		}
 	}
 
-	result := &protocol.Series{Name: &series, Fields: fieldDefinitions, Points: make([]*protocol.Point, 0)}
+	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 	rawColumnValues := make([]*rawColumnValue, fieldCount, fieldCount)
 	isValid := true
 
@@ -329,7 +322,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 				filteredResult, _ := Filter(query, result)
 				yield(filteredResult)
 				resultByteCount = 0
-				result = &protocol.Series{Name: &series, Fields: fieldDefinitions, Points: make([]*protocol.Point, 0)}
+				result = &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 			}
 		}
 		if limit < 1 {
@@ -423,33 +416,13 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 		if !alreadyPresent {
 			return nil, errors.New("Field " + name + " doesn't exist in series " + series)
 		}
-		key := append(SERIES_COLUMN_DEFINITIONS_PREFIX, id...)
-		data, err := self.db.Get(ro, key)
-		if err != nil {
-			return nil, err
-		}
-		fd := &protocol.FieldDefinition{}
-		err = proto.Unmarshal(data, fd)
-		if err != nil {
-			return nil, err
-		}
-		fields[i] = &Field{Name: name, Definition: fd, Id: id}
+		fields[i] = &Field{Name: name, Id: id}
 	}
 
 	// if it's a count query we just want the column that will be the most efficient to
 	// scan through. So find that and return it.
 	if isCountQuery {
 		bestField := fields[0]
-		for _, f := range fields {
-			if *f.Definition.Type == protocol.FieldDefinition_BOOL {
-				bestField = f
-				break
-			} else if *f.Definition.Type == protocol.FieldDefinition_INT64 {
-				bestField = f
-			} else if *f.Definition.Type == protocol.FieldDefinition_DOUBLE && *bestField.Definition.Type != protocol.FieldDefinition_INT64 {
-				bestField = f
-			}
-		}
 		return []*Field{bestField}, nil
 	}
 	return fields, nil

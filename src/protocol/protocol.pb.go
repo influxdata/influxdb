@@ -13,48 +13,6 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type FieldDefinition_Type int32
-
-const (
-	FieldDefinition_STRING FieldDefinition_Type = 1
-	FieldDefinition_DOUBLE FieldDefinition_Type = 3
-	FieldDefinition_BOOL   FieldDefinition_Type = 4
-	FieldDefinition_INT64  FieldDefinition_Type = 5
-)
-
-var FieldDefinition_Type_name = map[int32]string{
-	1: "STRING",
-	3: "DOUBLE",
-	4: "BOOL",
-	5: "INT64",
-}
-var FieldDefinition_Type_value = map[string]int32{
-	"STRING": 1,
-	"DOUBLE": 3,
-	"BOOL":   4,
-	"INT64":  5,
-}
-
-func (x FieldDefinition_Type) Enum() *FieldDefinition_Type {
-	p := new(FieldDefinition_Type)
-	*p = x
-	return p
-}
-func (x FieldDefinition_Type) String() string {
-	return proto.EnumName(FieldDefinition_Type_name, int32(x))
-}
-func (x FieldDefinition_Type) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
-}
-func (x *FieldDefinition_Type) UnmarshalJSON(data []byte) error {
-	value, err := proto.UnmarshalJSONEnum(FieldDefinition_Type_value, data, "FieldDefinition_Type")
-	if err != nil {
-		return err
-	}
-	*x = FieldDefinition_Type(value)
-	return nil
-}
-
 type Request_Type int32
 
 const (
@@ -173,30 +131,6 @@ func (m *FieldValue) GetInt64Value() int64 {
 	return 0
 }
 
-type FieldDefinition struct {
-	Type             *FieldDefinition_Type `protobuf:"varint,1,req,name=type,enum=protocol.FieldDefinition_Type" json:"type,omitempty"`
-	Name             *string               `protobuf:"bytes,2,req,name=name" json:"name,omitempty"`
-	XXX_unrecognized []byte                `json:"-"`
-}
-
-func (m *FieldDefinition) Reset()         { *m = FieldDefinition{} }
-func (m *FieldDefinition) String() string { return proto.CompactTextString(m) }
-func (*FieldDefinition) ProtoMessage()    {}
-
-func (m *FieldDefinition) GetType() FieldDefinition_Type {
-	if m != nil && m.Type != nil {
-		return *m.Type
-	}
-	return FieldDefinition_STRING
-}
-
-func (m *FieldDefinition) GetName() string {
-	if m != nil && m.Name != nil {
-		return *m.Name
-	}
-	return ""
-}
-
 type Point struct {
 	Values           []*FieldValue `protobuf:"bytes,1,rep,name=values" json:"values,omitempty"`
 	Timestamp        *int64        `protobuf:"varint,2,req,name=timestamp" json:"timestamp,omitempty"`
@@ -230,10 +164,10 @@ func (m *Point) GetSequenceNumber() uint32 {
 }
 
 type Series struct {
-	Points           []*Point           `protobuf:"bytes,1,rep,name=points" json:"points,omitempty"`
-	Name             *string            `protobuf:"bytes,2,req,name=name" json:"name,omitempty"`
-	Fields           []*FieldDefinition `protobuf:"bytes,3,rep,name=fields" json:"fields,omitempty"`
-	XXX_unrecognized []byte             `json:"-"`
+	Points           []*Point `protobuf:"bytes,1,rep,name=points" json:"points,omitempty"`
+	Name             *string  `protobuf:"bytes,2,req,name=name" json:"name,omitempty"`
+	Fields           []string `protobuf:"bytes,3,rep,name=fields" json:"fields,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
 }
 
 func (m *Series) Reset()         { *m = Series{} }
@@ -254,7 +188,7 @@ func (m *Series) GetName() string {
 	return ""
 }
 
-func (m *Series) GetFields() []*FieldDefinition {
+func (m *Series) GetFields() []string {
 	if m != nil {
 		return m.Fields
 	}
@@ -318,7 +252,6 @@ func (m *Response) GetServers() []string {
 }
 
 func init() {
-	proto.RegisterEnum("protocol.FieldDefinition_Type", FieldDefinition_Type_name, FieldDefinition_Type_value)
 	proto.RegisterEnum("protocol.Request_Type", Request_Type_name, Request_Type_value)
 	proto.RegisterEnum("protocol.Response_Type", Response_Type_name, Response_Type_value)
 }

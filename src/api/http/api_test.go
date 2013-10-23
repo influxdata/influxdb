@@ -54,7 +54,7 @@ func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Se
       }
     ],
     "name": "foo",
-    "fields": [{"type": "STRING","name": "column_one"},{"type": "INT64","name": "column_two"}]
+    "fields": ["column_one", "column_two"]
   },
   {
     "points": [
@@ -74,7 +74,7 @@ func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Se
       }
     ],
     "name": "foo",
-    "fields": [{"type": "STRING","name": "column_one"},{"type": "INT64","name": "column_two"}]
+    "fields": ["column_one", "column_two"]
   }
 ]
 `)
@@ -228,8 +228,7 @@ func (self *ApiSuite) TestWriteDataWithTimeInSeconds(c *C) {
 
 	// check the types
 	c.Assert(series.Fields, HasLen, 1)
-	c.Assert(*series.Fields[0].Name, Equals, "column_one")
-	c.Assert(*series.Fields[0].Type, Equals, protocol.FieldDefinition_STRING)
+	c.Assert(series.Fields[0], Equals, "column_one")
 
 	// check the values
 	c.Assert(series.Points, HasLen, 1)
@@ -253,17 +252,13 @@ func (self *ApiSuite) TestWriteDataWithTime(c *C) {
 	addr := self.formatUrl("/db/foo/series")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	fmt.Printf("body: %s\n", string(body))
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.coordinator.series, HasLen, 1)
 	series := self.coordinator.series[0]
 
 	// check the types
 	c.Assert(series.Fields, HasLen, 1)
-	c.Assert(*series.Fields[0].Name, Equals, "column_one")
-	c.Assert(*series.Fields[0].Type, Equals, protocol.FieldDefinition_STRING)
+	c.Assert(series.Fields[0], Equals, "column_one")
 
 	// check the values
 	c.Assert(series.Points, HasLen, 1)
@@ -281,7 +276,6 @@ func (self *ApiSuite) TestWriteData(c *C) {
 				["3", 3, 3.0, true]
     ],
     "name": "foo",
-    "integer_columns": [1],
     "columns": ["column_one", "column_two", "column_three", "column_four"]
   }
 ]
@@ -290,29 +284,22 @@ func (self *ApiSuite) TestWriteData(c *C) {
 	addr := self.formatUrl("/db/foo/series")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	fmt.Printf("body: %s\n", string(body))
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.coordinator.series, HasLen, 1)
 	series := self.coordinator.series[0]
 	c.Assert(series.Fields, HasLen, 4)
 
 	// check the types
-	c.Assert(*series.Fields[0].Name, Equals, "column_one")
-	c.Assert(*series.Fields[0].Type, Equals, protocol.FieldDefinition_STRING)
-	c.Assert(*series.Fields[1].Name, Equals, "column_two")
-	c.Assert(*series.Fields[1].Type, Equals, protocol.FieldDefinition_INT64)
-	c.Assert(*series.Fields[2].Name, Equals, "column_three")
-	c.Assert(*series.Fields[2].Type, Equals, protocol.FieldDefinition_DOUBLE)
-	c.Assert(*series.Fields[3].Name, Equals, "column_four")
-	c.Assert(*series.Fields[3].Type, Equals, protocol.FieldDefinition_BOOL)
+	c.Assert(series.Fields[0], Equals, "column_one")
+	c.Assert(series.Fields[1], Equals, "column_two")
+	c.Assert(series.Fields[2], Equals, "column_three")
+	c.Assert(series.Fields[3], Equals, "column_four")
 
 	// check the values
 	c.Assert(series.Points, HasLen, 3)
 	c.Assert(*series.Points[0].Values[0].StringValue, Equals, "1")
 	c.Assert(*series.Points[0].Values[1].Int64Value, Equals, int64(1))
-	c.Assert(*series.Points[0].Values[2].DoubleValue, Equals, 1.0)
+	c.Assert(*series.Points[0].Values[2].Int64Value, Equals, int64(1))
 	c.Assert(*series.Points[0].Values[3].BoolValue, Equals, true)
 }
 

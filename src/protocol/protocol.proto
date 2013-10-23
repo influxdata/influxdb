@@ -7,17 +7,6 @@ message FieldValue {
   optional int64 int64_value = 5;
 }
 
-message FieldDefinition {
-  enum Type {
-    STRING = 1;
-    DOUBLE = 3;
-    BOOL = 4;
-    INT64 = 5;
-  }
-  required Type type = 1;
-  required string name = 2;
-}
-
 message Point {
   repeated FieldValue values = 1;
   required int64 timestamp = 2;
@@ -27,7 +16,7 @@ message Point {
 message Series {
   repeated Point points = 1;
   required string name = 2;
-  repeated FieldDefinition fields = 3;
+  repeated string fields = 3;
 }
 
 message Request {

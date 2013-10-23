@@ -86,12 +86,7 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "INT64",
-        "name": "value"
-      }
-    ]
+    "fields": ["value"]
   }`
 	pointTime := time.Now().Unix()
 	series := stringToSeries(mock, pointTime, c)
@@ -134,12 +129,7 @@ func (self *DatastoreSuite) TestCanPersistDataAndWriteNewData(c *C) {
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "INT64",
-        "name": "value"
-      }
-    ]
+    "fields": ["value"]
   }`
 	series := stringToSeries(mock, time.Now().Unix(), c)
 	err := db.WriteSeriesData("asdf", series)
@@ -160,7 +150,8 @@ func (self *DatastoreSuite) TestCanWriteDataWithDifferentTimesAndSeries(c *C) {
 	mock := `{
     "points":[{"values":[{"double_value":23.2}],"sequence_number":3}],
     "name": "events",
-    "fields": [{"type": "DOUBLE", "name": "blah"}]}`
+    "fields": ["blah"]
+  }`
 	secondAgo := time.Now().Add(-time.Second).Unix()
 	eventsSeries := stringToSeries(mock, secondAgo, c)
 	err := db.WriteSeriesData("db1", eventsSeries)
@@ -168,7 +159,8 @@ func (self *DatastoreSuite) TestCanWriteDataWithDifferentTimesAndSeries(c *C) {
 	mock = `{
     "points":[{"values":[{"int64_value":4}],"sequence_number":3}],
     "name": "foo",
-    "fields": [{"type": "INT64", "name": "val"}]}`
+    "fields": ["val"]
+  }`
 	fooSeries := stringToSeries(mock, secondAgo, c)
 	err = db.WriteSeriesData("db1", fooSeries)
 	c.Assert(err, IsNil)
@@ -182,7 +174,8 @@ func (self *DatastoreSuite) TestCanWriteDataWithDifferentTimesAndSeries(c *C) {
 	mock = `{
     "points":[{"values":[{"double_value": 0.1}],"sequence_number":1}],
     "name":"events",
-    "fields": [{"type": "DOUBLE", "name": "blah"}]}`
+    "fields": ["blah"]
+  }`
 
 	newEvents := stringToSeries(mock, now, c)
 	err = db.WriteSeriesData("db1", newEvents)
@@ -208,7 +201,8 @@ func (self *DatastoreSuite) TestCanWriteDataToDifferentDatabases(c *C) {
 	mock := `{
     "points":[{"values":[{"double_value":23.2}],"sequence_number":3}],
     "name": "events",
-    "fields": [{"type": "DOUBLE", "name": "blah"}]}`
+    "fields": ["blah"]
+  }`
 	secondAgo := time.Now().Add(-time.Second).Unix()
 	db1Series := stringToSeries(mock, secondAgo, c)
 	err := db.WriteSeriesData("db1", db1Series)
@@ -216,7 +210,8 @@ func (self *DatastoreSuite) TestCanWriteDataToDifferentDatabases(c *C) {
 	mock = `{
     "points":[{"values":[{"double_value":3.2}],"sequence_number":2}],
     "name": "events",
-    "fields": [{"type": "DOUBLE", "name": "blah"}]}`
+    "fields": ["blah"]
+  }`
 	otherDbSeries := stringToSeries(mock, secondAgo, c)
 	err = db.WriteSeriesData("other_db", otherDbSeries)
 	c.Assert(err, IsNil)
@@ -237,7 +232,8 @@ func (self *DatastoreSuite) TestCanQueryBasedOnTime(c *C) {
 	mock := `{
     "points":[{"values":[{"int64_value":4}],"sequence_number":3}],
     "name": "foo",
-    "fields": [{"type": "INT64", "name": "val"}]}`
+    "fields": ["val"]
+  }`
 	oldData := stringToSeries(mock, minutesAgo, c)
 	err := db.WriteSeriesData("db1", oldData)
 	c.Assert(err, IsNil)
@@ -245,7 +241,8 @@ func (self *DatastoreSuite) TestCanQueryBasedOnTime(c *C) {
 	mock = `{
     "points":[{"values":[{"int64_value":3}],"sequence_number":3}],
     "name": "foo",
-    "fields": [{"type": "INT64", "name": "val"}]}`
+    "fields": ["val"]
+  }`
 	newData := stringToSeries(mock, now, c)
 	err = db.WriteSeriesData("db1", newData)
 	c.Assert(err, IsNil)
@@ -274,7 +271,7 @@ func (self *DatastoreSuite) TestCanDoWhereQueryEquals(c *C) {
 	mock := `{
     "points":[{"values":[{"string_value":"paul"}],"sequence_number":2},{"values":[{"string_value":"todd"}],"sequence_number":1}],
     "name":"events",
-    "fields":[{"type":"STRING","name":"name"}]
+    "fields":["name"]
     }`
 	allData := stringToSeries(mock, time.Now().Unix(), c)
 	err := db.WriteSeriesData("db1", allData)
@@ -299,7 +296,7 @@ func (self *DatastoreSuite) TestCanDoSelectStarQueries(c *C) {
       {"values":[{"int64_value":3},{"string_value":"paul"}],"sequence_number":2},
       {"values":[{"int64_value":1},{"string_value":"todd"}],"sequence_number":1}],
       "name":"user_things",
-      "fields":[{"type":"INT64","name":"count"},{"type":"STRING","name":"name"}]
+      "fields":["count","name"]
     }`
 	series := stringToSeries(mock, time.Now().Unix(), c)
 	err := db.WriteSeriesData("foobar", series)
@@ -318,7 +315,7 @@ func (self *DatastoreSuite) TestCanDoCountStarQueries(c *C) {
       {"values":[{"int64_value":3},{"string_value":"paul"}],"sequence_number":2},
       {"values":[{"int64_value":1},{"string_value":"todd"}],"sequence_number":1}],
       "name":"user_things",
-      "fields":[{"type":"INT64","name":"count"},{"type":"STRING","name":"name"}]
+      "fields":["count","name"]
     }`
 	series := stringToSeries(mock, time.Now().Unix(), c)
 	err := db.WriteSeriesData("foobar", series)
@@ -342,7 +339,7 @@ func (self *DatastoreSuite) TestLimitsPointsReturnedBasedOnQuery(c *C) {
       {"values":[{"int64_value":3},{"string_value":"paul"}],"sequence_number":2},
       {"values":[{"int64_value":1},{"string_value":"todd"}],"sequence_number":1}],
       "name":"user_things",
-      "fields":[{"type":"INT64","name":"count"},{"type":"STRING","name":"name"}]
+      "fields":["count","name"]
     }`
 	series := stringToSeries(mock, time.Now().Unix(), c)
 	err := db.WriteSeriesData("foobar", series)
@@ -365,7 +362,7 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
       {"values":[{"string_value":"paul"}],"sequence_number":1},
       {"values":[{"string_value":"todd"}],"sequence_number":2}],
       "name":"user_things",
-      "fields":[{"type":"STRING","name":"name"}]
+      "fields":["name"]
     }`
 	series := stringToSeries(mock, minuteAgo, c)
 	err := db.WriteSeriesData("foobar", series)
@@ -377,7 +374,7 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
     "points":[
       {"values":[{"string_value":"john"}],"sequence_number":1}],
       "name":"user_things",
-      "fields":[{"type":"STRING","name":"name"}]
+      "fields":["name"]
     }`
 	newSeries := stringToSeries(mock, time.Now().Unix(), c)
 	err = db.WriteSeriesData("foobar", newSeries)
@@ -403,7 +400,7 @@ func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
       {"values":[{"int64_value":3},{"string_value":"paul"}],"sequence_number":2},
       {"values":[{"int64_value":1},{"string_value":"todd"}],"sequence_number":1}],
       "name":"user_things",
-      "fields":[{"type":"INT64","name":"count"},{"type":"STRING","name":"name"}]
+      "fields":["count","name"]
     }`
 	series := stringToSeries(mock, minutesAgo, c)
 	err := db.WriteSeriesData("foobar", series)
@@ -415,7 +412,7 @@ func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
     "points":[
       {"values":[{"int64_value":3},{"string_value":"john"}],"sequence_number":1}],
     "name":"user_things",
-    "fields":[{"type":"INT64","name":"count"},{"type":"STRING","name":"name"}]
+    "fields":["count","name"]
     }`
 	series = stringToSeries(mock, time.Now().Unix(), c)
 	err = db.WriteSeriesData("foobar", series)
@@ -438,10 +435,11 @@ func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
 	mock := `{
     "points":[
       {"values":[{"int64_value":3},{"string_value":"paul"}],"sequence_number":2},
-      {"values":[{"int64_value":1},{"string_value":"todd"}],"sequence_number":1}],
-      "name":"events",
-      "fields":[{"type":"INT64","name":"count"},{"type":"STRING","name":"name"}]
-    }`
+      {"values":[{"int64_value":1},{"string_value":"todd"}],"sequence_number":1}
+    ],
+    "name":"events",
+    "fields":["count","name"]
+  }`
 	series := stringToSeries(mock, time.Now().Unix(), c)
 	err := db.WriteSeriesData("foobar", series)
 	c.Assert(err, IsNil)
@@ -451,7 +449,8 @@ func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
 	mock = `{
     "points":[{"values":[{"double_value":10.1}],"sequence_number":23}],
     "name":"response_times",
-    "fields":[{"type":"DOUBLE","name":"ms"}]}`
+    "fields":["ms"]
+  }`
 	responseSeries := stringToSeries(mock, time.Now().Unix(), c)
 	err = db.WriteSeriesData("foobar", responseSeries)
 	c.Assert(err, IsNil)
@@ -461,7 +460,8 @@ func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
 	mock = `{
     "points":[{"values":[{"double_value":232.1}],"sequence_number":23}, {"values":[{"double_value":10.1}],"sequence_number":20}],
     "name":"queue_time",
-    "fields":[{"type":"DOUBLE","name":"processed_time"}]}`
+    "fields":["processed_time"]
+  }`
 	otherSeries := stringToSeries(mock, time.Now().Unix(), c)
 	err = db.WriteSeriesData("foobar", otherSeries)
 	c.Assert(err, IsNil)
@@ -489,7 +489,7 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
       {"values":[{"int64_value":3},{"string_value":"paul"}],"sequence_number":2},
       {"values":[{"int64_value":1},{"string_value":"todd"}],"sequence_number":1}],
       "name":"user_things",
-      "fields":[{"type":"INT64","name":"count"},{"type":"STRING","name":"name"}]
+      "fields":["count", "name"]
     }`
 	series := stringToSeries(mock, time.Now().Unix(), c)
 	err := db.WriteSeriesData("foobar", series)
@@ -500,7 +500,8 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 	mock = `{
     "points":[{"values":[{"double_value":10.1}],"sequence_number":23}],
     "name":"response_times",
-    "fields":[{"type":"DOUBLE","name":"ms"}]}`
+    "fields":["ms"]
+  }`
 	responseSeries := stringToSeries(mock, time.Now().Unix(), c)
 	err = db.WriteSeriesData("foobar", responseSeries)
 	c.Assert(err, IsNil)
@@ -510,7 +511,8 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 	mock = `{
     "points":[{"values":[{"string_value":"NY"}],"sequence_number":23}, {"values":[{"string_value":"CO"}],"sequence_number":20}],
     "name":"other_things",
-    "fields":[{"type":"STRING","name":"state"}]}`
+    "fields":["state"]
+  }`
 	otherSeries := stringToSeries(mock, time.Now().Unix(), c)
 	err = db.WriteSeriesData("foobar", otherSeries)
 	c.Assert(err, IsNil)
@@ -541,8 +543,8 @@ func (self *DatastoreSuite) TestBreaksLargeResultsIntoMultipleBatches(c *C) {
       {"values":[{"double_value":23.1},{"string_value":"paul"}],"sequence_number":2},
       {"values":[{"double_value":56.8},{"string_value":"todd"}],"sequence_number":1}],
       "name":"user_things",
-      "fields":[{"type":"DOUBLE","name":"response_time"},{"type":"STRING","name":"name"}]
-    }`
+      "fields":["response_time","name"]
+  }`
 	series := stringToSeries(mock, time.Now().Unix(), c)
 	sequence := 0
 	writtenPoints := 0

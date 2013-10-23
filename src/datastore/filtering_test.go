@@ -23,10 +23,7 @@ func (self *FilteringSuite) TestEqualityFiltering(c *C) {
      {"values": [{"int64_value": 90 },{"int64_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
    ],
    "name": "t",
-   "fields": [
-     {"type": "INT64", "name": "column_one"},
-     {"type": "INT64", "name": "column_two"}
-   ]
+   "fields": ["column_one", "column_two"]
  }
 ]
 `)
@@ -51,9 +48,7 @@ func (self *FilteringSuite) TestRegexFiltering(c *C) {
      {"values": [{"string_value": "foobar"}], "timestamp": 1381346631, "sequence_number": 1}
    ],
    "name": "t",
-   "fields": [
-     {"type": "STRING", "name": "column_one"}
-   ]
+   "fields": ["column_one"]
  }
 ]
 `)
@@ -78,10 +73,7 @@ func (self *FilteringSuite) TestInequalityFiltering(c *C) {
      {"values": [{"int64_value": 90 },{"int64_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
    ],
    "name": "t",
-   "fields": [
-     {"type": "INT64", "name": "column_one"},
-     {"type": "INT64", "name": "column_two"}
-   ]
+   "fields": ["column_one", "column_two"]
  }
 ]
 `)

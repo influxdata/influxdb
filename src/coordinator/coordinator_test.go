@@ -447,7 +447,7 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	c.Assert(u.IsDbAdmin("db1"), Equals, false)
 
 	// can make db users db admins
-	c.Assert(coordinator.SetDbAdmin(root, "db1", "db_user"), IsNil)
+	c.Assert(coordinator.SetDbAdmin(root, "db1", "db_user", true), IsNil)
 	u, err = coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
 	c.Assert(err, IsNil)
 	c.Assert(u.IsDbAdmin("db1"), Equals, true)
@@ -471,7 +471,7 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	c.Assert(root.IsClusterAdmin(), Equals, true)
 	c.Assert(coordinator.CreateDbUser(root, "db1", "db_user"), IsNil)
 	c.Assert(coordinator.ChangeDbUserPassword(root, "db1", "db_user", "db_pass"), IsNil)
-	c.Assert(coordinator.SetDbAdmin(root, "db1", "db_user"), IsNil)
+	c.Assert(coordinator.SetDbAdmin(root, "db1", "db_user", true), IsNil)
 	dbUser, err := coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
 	c.Assert(err, IsNil)
 
@@ -491,7 +491,7 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)
 
 	// can make db users db admins
-	c.Assert(coordinator.SetDbAdmin(dbUser, "db1", "db_user2"), IsNil)
+	c.Assert(coordinator.SetDbAdmin(dbUser, "db1", "db_user2", true), IsNil)
 	u, err = coordinator.AuthenticateDbUser("db1", "db_user2", "db_pass")
 	c.Assert(err, IsNil)
 	c.Assert(u.IsDbAdmin("db1"), Equals, true)
@@ -524,7 +524,7 @@ func (self *CoordinatorSuite) TestDbUserOperations(c *C) {
 	c.Assert(coordinator.CreateDbUser(dbUser, "db1", "db_user2"), NotNil)
 
 	// cannot make itself an admin
-	c.Assert(coordinator.SetDbAdmin(dbUser, "db1", "db_user"), NotNil)
+	c.Assert(coordinator.SetDbAdmin(dbUser, "db1", "db_user", true), NotNil)
 
 	// cannot create db users for a different db
 	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)
@@ -627,12 +627,7 @@ func (self *CoordinatorSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWi
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "INT64",
-        "name": "value"
-      }
-    ]
+    "fields": ["value"]
   }`
 	series := stringToSeries(mock, c)
 	coordinator.WriteSeriesData("foo", series)
@@ -640,7 +635,7 @@ func (self *CoordinatorSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWi
 	mock = `{
     "points": [{"values": [{"int64_value": 3}]}],
     "name": "foo",
-    "fields": [{"type": "INT64","name": "value"}]
+    "fields": ["value"]
   }`
 	series = stringToSeries(mock, c)
 	beforeTime := CurrentTime()

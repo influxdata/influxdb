@@ -54,21 +54,6 @@ func isAggregateQuery(query *parser.Query) bool {
 	return false
 }
 
-func getValueFromPoint(value *protocol.FieldValue, fType protocol.FieldDefinition_Type) interface{} {
-	switch fType {
-	case protocol.FieldDefinition_STRING:
-		return *value.StringValue
-	case protocol.FieldDefinition_INT64:
-		return *value.Int64Value
-	case protocol.FieldDefinition_BOOL:
-		return *value.BoolValue
-	case protocol.FieldDefinition_DOUBLE:
-		return *value.DoubleValue
-	default:
-		panic("WTF")
-	}
-}
-
 func getTimestampFromPoint(window time.Duration, point *protocol.Point) int64 {
 	multiplier := int64(window / time.Microsecond)
 	return *point.GetTimestampInMicroseconds() / int64(multiplier) * int64(multiplier)
@@ -83,7 +68,7 @@ type InverseMapper func(interface{}, int) interface{}
 // An inverse mapper, takes a result of the mapper identifier and
 // return the column values and/or timestamp bucket that defines the
 // given group.
-func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protocol.FieldDefinition) (Mapper, InverseMapper, error) {
+func createValuesToInterface(groupBy parser.GroupByClause, fields []string) (Mapper, InverseMapper, error) {
 	// we shouldn't get an error, this is checked earlier in the executeCountQueryWithGroupBy
 	window, _ := groupBy.GetGroupByTime()
 	names := []string{}
@@ -115,11 +100,9 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 	case 1:
 		// otherwise, find the type of the column and create a mapper
 		idx := -1
-		var fType protocol.FieldDefinition_Type
-		for index, definition := range definitions {
-			if *definition.Name == names[0] {
+		for index, fieldName := range fields {
+			if fieldName == names[0] {
 				idx = index
-				fType = *definition.Type
 				break
 			}
 		}
@@ -132,14 +115,14 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 			return func(p *protocol.Point) interface{} {
 					return [2]interface{}{
 						getTimestampFromPoint(*window, p),
-						getValueFromPoint(p.Values[idx], fType),
+						p.GetFieldValue(idx),
 					}
 				}, func(i interface{}, idx int) interface{} {
 					return i.([2]interface{})[idx]
 				}, nil
 		}
 		return func(p *protocol.Point) interface{} {
-				return getValueFromPoint(p.Values[idx], fType)
+				return p.GetFieldValue(idx)
 			}, func(i interface{}, idx int) interface{} {
 				return i
 			}, nil
@@ -151,15 +134,11 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 		}
 
 		idx1, idx2 := -1, -1
-		var fType1, fType2 protocol.FieldDefinition_Type
-
-		for index, definition := range definitions {
-			if *definition.Name == names[0] {
+		for index, fieldName := range fields {
+			if fieldName == names[0] {
 				idx1 = index
-				fType1 = *definition.Type
-			} else if *definition.Name == names[1] {
+			} else if fieldName == names[1] {
 				idx2 = index
-				fType2 = *definition.Type
 			}
 			if idx1 > 0 && idx2 > 0 {
 				break
@@ -170,8 +149,8 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 			return func(p *protocol.Point) interface{} {
 					return [3]interface{}{
 						getTimestampFromPoint(*window, p),
-						getValueFromPoint(p.Values[idx1], fType1),
-						getValueFromPoint(p.Values[idx2], fType2),
+						p.GetFieldValue(idx1),
+						p.GetFieldValue(idx2),
 					}
 				}, func(i interface{}, idx int) interface{} {
 					return i.([3]interface{})[idx]
@@ -180,8 +159,8 @@ func createValuesToInterface(groupBy parser.GroupByClause, definitions []*protoc
 
 		return func(p *protocol.Point) interface{} {
 				return [2]interface{}{
-					getValueFromPoint(p.Values[idx1], fType1),
-					getValueFromPoint(p.Values[idx2], fType2),
+					p.GetFieldValue(idx1),
+					p.GetFieldValue(idx2),
 				}
 			}, func(i interface{}, idx int) interface{} {
 				return i.([2]interface{})[idx]
@@ -221,7 +200,6 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 	groups := make(map[string]map[interface{}]bool)
 	groupBy := query.GetGroupByClause()
 
-	fieldTypes := map[string]*protocol.FieldDefinition_Type{}
 	var inverse InverseMapper
 
 	err = self.coordinator.DistributeQuery(database, query, func(series *protocol.Series) error {
@@ -229,10 +207,6 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 		mapper, inverse, err = createValuesToInterface(groupBy, series.Fields)
 		if err != nil {
 			return err
-		}
-
-		for _, field := range series.Fields {
-			fieldTypes[*field.Name] = field.Type
 		}
 
 		for _, aggregator := range aggregators {
@@ -264,12 +238,11 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 	}
 
 	var sequenceNumber uint32 = 1
-	fields := []*protocol.FieldDefinition{}
+	fields := []string{}
 
 	for _, aggregator := range aggregators {
 		columnName := aggregator.ColumnName()
-		columnType := aggregator.ColumnType()
-		fields = append(fields, &protocol.FieldDefinition{Name: &columnName, Type: &columnType})
+		fields = append(fields, columnName)
 	}
 
 	for _, value := range groupBy {
@@ -278,7 +251,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 		}
 
 		tempName := value.Name
-		fields = append(fields, &protocol.FieldDefinition{Name: &tempName, Type: fieldTypes[tempName]})
+		fields = append(fields, tempName)
 	}
 
 	for table, tableGroups := range groups {

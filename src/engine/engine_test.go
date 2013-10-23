@@ -120,12 +120,7 @@ func (self *EngineSuite) TestBasicQuery(c *C) {
      }
    ],
    "name": "foo",
-   "fields": [
-     {
-       "type": "STRING",
-       "name": "column_one"
-     }
-   ]
+   "fields": ["column_one"]
  }
 ]
 `
@@ -162,12 +157,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "STRING",
-        "name": "column_one"
-      }
-    ]
+    "fields": ["column_one"]
   }
 ]
 `)
@@ -186,12 +176,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "INT64",
-        "name": "count"
-      }
-    ]
+    "fields": ["count"]
   }
 ]
 `)
@@ -215,12 +200,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
       }
     ],
     "name": "foo.bar",
-    "fields": [
-      {
-        "type": "STRING",
-        "name": "column_one"
-      }
-    ]
+    "fields": ["column_one"]
   },
   {
     "points": [
@@ -235,12 +215,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
       }
     ],
     "name": "foo.baz",
-    "fields": [
-      {
-        "type": "STRING",
-        "name": "column_one"
-      }
-    ]
+    "fields": ["column_one"]
   }
 ]
 `)
@@ -259,12 +234,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
       }
     ],
     "name": "foo.bar",
-    "fields": [
-      {
-        "type": "INT64",
-        "name": "count"
-      }
-    ]
+    "fields": ["count"]
   },
   {
     "points": [
@@ -279,12 +249,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
       }
     ],
     "name": "foo.baz",
-    "fields": [
-      {
-        "type": "INT64",
-        "name": "count"
-      }
-    ]
+    "fields": ["count"]
   }
 ]
 `)
@@ -317,12 +282,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "STRING",
-        "name": "column_one"
-      }
-    ]
+    "fields": ["column_one"]
   }
 ]
 `)
@@ -356,16 +316,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "INT64",
-        "name": "count"
-      },
-      {
-        "type": "STRING",
-        "name": "column_one"
-      }
-    ]
+    "fields": ["count", "column_one"]
   }
 ]
 `)
@@ -436,17 +387,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "STRING",
-        "name": "column_one"
-      },
-      {
-        "type": "INT64",
-        "name": "column_two"
-      }
-
-    ]
+    "fields": ["column_one", "column_two"]
   }
 ]
 `)
@@ -501,20 +442,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "INT64",
-        "name": "count"
-      },
-      {
-        "type": "STRING",
-        "name": "column_one"
-      },
-      {
-        "type": "INT64",
-        "name": "column_two"
-      }
-    ]
+    "fields": ["count", "column_one", "column_two"]
   }
 ]
 `)
@@ -555,12 +483,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "STRING",
-        "name": "column_one"
-      }
-    ]
+    "fields": ["column_one"]
   }
 ]
 `)
@@ -588,12 +511,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
       }
     ],
     "name": "foo",
-    "fields": [
-      {
-        "type": "INT64",
-        "name": "count"
-      }
-    ]
+    "fields": ["count"]
   }
 ]
 `)
@@ -608,9 +526,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
         { "values": [{ "string_value": "some_value" }], "timestamp": 1381346721000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "STRING", "name": "column_one" }
-      ]
+      "fields": ["column_one"]
     }
   ]`)
 
@@ -622,10 +538,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
         { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346700000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "count" },
-        { "type": "STRING", "name": "column_one" }
-      ]
+      "fields": ["count" , "column_one"]
     }
   ]`)
 }
@@ -639,22 +552,18 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
         { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "column_one" }
-      ]
+      "fields": ["column_one"]
     }
   ]`)
 
 	runQuery(engine, "select min(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "min" }
-      ]
+      "fields": ["min"]
     }
   ]`)
 }
@@ -668,22 +577,18 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
         { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "column_one" }
-      ]
+      "fields": ["column_one"]
     }
   ]`)
 
 	runQuery(engine, "select max(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346700000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 8 }], "timestamp": 1381346700000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "max" }
-      ]
+      "fields": ["max"]
     }
   ]`)
 }
@@ -698,23 +603,18 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
         { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "column_one" }
-      ]
+      "fields": ["column_one"]
     }
   ]`)
 
 	runQuery(engine, "select max(column_one), min(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }, { "int64_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 3 }, { "double_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 8 }, { "double_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "max" },
-        { "type": "INT64", "name": "min" }
-      ]
+      "fields": ["max", "min"]
     }
   ]`)
 }
@@ -740,22 +640,18 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
         { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "column_one" }
-      ]
+      "fields": ["column_one"]
     }
   ]`)
 
 	runQuery(engine, "select percentile(column_one, 80) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346760000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 6 }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 8 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "percentile" }
-      ]
+      "fields": ["percentile"]
     }
   ]`)
 }
@@ -780,22 +676,18 @@ func (self *EngineSuite) TestMedianQueryWithGroupByTime(c *C) {
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "column_one" }
-      ]
+      "fields": ["column_one"]
     }
   ]`)
 
 	runQuery(engine, "select median(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346760000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 6 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "median" }
-      ]
+      "fields": ["median"]
     }
   ]`)
 }
@@ -820,9 +712,7 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
         { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "column_one" }
-      ]
+      "fields": ["column_one"]
     }
   ]`)
 
@@ -833,9 +723,7 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
         { "values": [{ "double_value": 6 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "DOUBLE", "name": "mean" }
-      ]
+      "fields": ["mean"]
     }
   ]`)
 }
@@ -852,22 +740,18 @@ func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
         { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "column_one" }
-      ]
+      "fields": ["column_one"]
     }
   ]`)
 
 	runQuery(engine, "select sum(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 11 }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 16 }], "timestamp": 1381346760000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 11 }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 16 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "sum" }
-      ]
+      "fields": ["sum"]
     }
   ]`)
 }
@@ -893,22 +777,18 @@ func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
         { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "column_one" }
-      ]
+      "fields": ["column_one"]
     }
   ]`)
 
 	runQuery(engine, "select mode(column_one) from foo group by time(1m);", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346760000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 1 }], "timestamp": 1381346700000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 3 }], "timestamp": 1381346760000000, "sequence_number": 1 }
       ],
       "name": "foo",
-      "fields": [
-        { "type": "INT64", "name": "mode" }
-      ]
+      "fields": ["mode"]
     }
   ]`)
 }

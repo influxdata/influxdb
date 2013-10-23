@@ -181,10 +181,10 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	writer.done()
 }
 
-func removeTimestampFieldDefinition(fields []*protocol.FieldDefinition) []*protocol.FieldDefinition {
+func removeTimestampFieldDefinition(fields []string) []string {
 	timestampIdx := -1
 	for idx, field := range fields {
-		if *field.Name == "time" {
+		if field == "time" {
 			timestampIdx = idx
 			break
 		}
@@ -225,42 +225,15 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 			continue
 		}
 
-		fields := []*protocol.FieldDefinition{}
-		for idx, column := range s.Columns {
-			var fieldType protocol.FieldDefinition_Type
-		outer:
-			switch s.Points[0][idx].(type) {
-			case int:
-				fieldType = protocol.FieldDefinition_INT64
-			case float64:
-				for _, intIdx := range s.IntegerColumns {
-					if intIdx == idx {
-						fieldType = protocol.FieldDefinition_INT64
-						break outer
-					}
-				}
-				fieldType = protocol.FieldDefinition_DOUBLE
-			case string:
-				fieldType = protocol.FieldDefinition_STRING
-			case bool:
-				fieldType = protocol.FieldDefinition_BOOL
-			}
-
-			_column := column
-			fields = append(fields, &protocol.FieldDefinition{
-				Name: &_column,
-				Type: &fieldType,
-			})
-		}
-
 		points := []*protocol.Point{}
 		for _, point := range s.Points {
 			values := []*protocol.FieldValue{}
 			var timestamp *int64
 
-			for idx, field := range fields {
-				if *field.Name == "time" {
-					_timestamp := int64(point[idx].(float64))
+			for idx, field := range s.Columns {
+				value := point[idx]
+				if field == "time" {
+					_timestamp := int64(value.(float64))
 					switch precision {
 					case SecondPrecision:
 						_timestamp *= 1000
@@ -273,33 +246,25 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 					continue
 				}
 
-				switch *field.Type {
-				case protocol.FieldDefinition_STRING:
-					if str, ok := point[idx].(string); ok {
-						values = append(values, &protocol.FieldValue{StringValue: &str})
-						continue
-					}
-				case protocol.FieldDefinition_DOUBLE:
-					if double, ok := point[idx].(float64); ok {
-						values = append(values, &protocol.FieldValue{DoubleValue: &double})
-						continue
-					}
-				case protocol.FieldDefinition_INT64:
-					if double, ok := point[idx].(float64); ok {
-						integer := int64(double)
-						values = append(values, &protocol.FieldValue{Int64Value: &integer})
-						continue
-					}
-				case protocol.FieldDefinition_BOOL:
-					if boolean, ok := point[idx].(bool); ok {
-						values = append(values, &protocol.FieldValue{BoolValue: &boolean})
-						continue
-					}
-				}
+				switch v := value.(type) {
+				case string:
+					values = append(values, &protocol.FieldValue{StringValue: &v})
 
-				// if we reached this line then the dynamic type didn't match
-				w.WriteHeader(libhttp.StatusBadRequest)
-				return
+				case float64:
+					if i := int64(v); float64(i) == v {
+						values = append(values, &protocol.FieldValue{Int64Value: &i})
+					} else {
+						values = append(values, &protocol.FieldValue{DoubleValue: &v})
+					}
+					continue
+				case bool:
+					values = append(values, &protocol.FieldValue{BoolValue: &v})
+					continue
+				default:
+					// if we reached this line then the dynamic type didn't match
+					w.WriteHeader(libhttp.StatusBadRequest)
+					return
+				}
 			}
 			points = append(points, &protocol.Point{
 				Values:    values,
@@ -307,7 +272,7 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 			})
 		}
 
-		fields = removeTimestampFieldDefinition(fields)
+		fields := removeTimestampFieldDefinition(s.Columns)
 
 		series := &protocol.Series{
 			Name:   &s.Name,
@@ -375,7 +340,7 @@ func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 	for _, series := range memSeries {
 		columns := []string{"time", "sequence_number"}
 		for _, field := range series.Fields {
-			columns = append(columns, *field.Name)
+			columns = append(columns, field)
 		}
 
 		points := [][]interface{}{}
@@ -390,17 +355,8 @@ func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 			}
 
 			rowValues := []interface{}{timestamp, *row.SequenceNumber}
-			for idx, value := range row.Values {
-				switch *series.Fields[idx].Type {
-				case protocol.FieldDefinition_STRING:
-					rowValues = append(rowValues, *value.StringValue)
-				case protocol.FieldDefinition_INT64:
-					rowValues = append(rowValues, *value.Int64Value)
-				case protocol.FieldDefinition_DOUBLE:
-					rowValues = append(rowValues, *value.DoubleValue)
-				case protocol.FieldDefinition_BOOL:
-					rowValues = append(rowValues, *value.BoolValue)
-				}
+			for _, value := range row.Values {
+				rowValues = append(rowValues, value.GetValue())
 			}
 			points = append(points, rowValues)
 		}

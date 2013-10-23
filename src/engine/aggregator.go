@@ -18,7 +18,6 @@ type Aggregator interface {
 	InitializeFieldsMetadata(series *protocol.Series) error
 	GetValue(series string, group interface{}) []*protocol.FieldValue
 	ColumnName() string
-	ColumnType() protocol.FieldDefinition_Type
 }
 
 type AggregatorInitializer func(*parser.Query, *parser.Value) (Aggregator, error)
@@ -58,10 +57,6 @@ func (self *CountAggregator) AggregatePoint(series string, group interface{}, p 
 
 func (self *CountAggregator) ColumnName() string {
 	return "count"
-}
-
-func (self *CountAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return protocol.FieldDefinition_INT64
 }
 
 func (self *CountAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
@@ -105,10 +100,6 @@ func (self *TimestampAggregator) ColumnName() string {
 	return "count"
 }
 
-func (self *TimestampAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return protocol.FieldDefinition_INT64
-}
-
 func (self *TimestampAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
 	returnValues := []*protocol.FieldValue{}
 	value := self.timestamps[series][group]
@@ -145,7 +136,6 @@ func NewTimestampAggregator(query *parser.Query, _ *parser.Value) (Aggregator, e
 type MeanAggregator struct {
 	fieldName  string
 	fieldIndex int
-	fieldType  protocol.FieldDefinition_Type
 	means      map[string]map[interface{}]float64
 	counts     map[string]map[interface{}]int
 }
@@ -166,11 +156,10 @@ func (self *MeanAggregator) AggregatePoint(series string, group interface{}, p *
 	currentCount := counts[group] + 1
 
 	var value float64
-	switch self.fieldType {
-	case protocol.FieldDefinition_INT64:
-		value = float64(*p.Values[self.fieldIndex].Int64Value)
-	case protocol.FieldDefinition_DOUBLE:
-		value = *p.Values[self.fieldIndex].DoubleValue
+	if ptr := p.Values[self.fieldIndex].Int64Value; ptr != nil {
+		value = float64(*ptr)
+	} else if ptr := p.Values[self.fieldIndex].DoubleValue; ptr != nil {
+		value = *ptr
 	}
 
 	currentMean = currentMean*float64(currentCount-1)/float64(currentCount) + value/float64(currentCount)
@@ -184,10 +173,6 @@ func (self *MeanAggregator) ColumnName() string {
 	return "mean"
 }
 
-func (self *MeanAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return protocol.FieldDefinition_DOUBLE
-}
-
 func (self *MeanAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
 	returnValues := []*protocol.FieldValue{}
 	mean := self.means[series][group]
@@ -198,18 +183,8 @@ func (self *MeanAggregator) GetValue(series string, group interface{}) []*protoc
 
 func (self *MeanAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	for idx, field := range series.Fields {
-		if *field.Name == self.fieldName {
+		if field == self.fieldName {
 			self.fieldIndex = idx
-			self.fieldType = *field.Type
-
-			switch self.fieldType {
-			case protocol.FieldDefinition_INT64,
-				protocol.FieldDefinition_DOUBLE:
-				// that's fine
-			default:
-				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
-			}
-
 			return nil
 		}
 	}
@@ -228,6 +203,7 @@ func NewMeanAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error)
 		counts:    make(map[string]map[interface{}]int),
 	}, nil
 }
+
 func NewMedianAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function median() requires exactly one argument")
@@ -237,7 +213,6 @@ func NewMedianAggregator(_ *parser.Query, value *parser.Value) (Aggregator, erro
 		functionName: "median",
 		fieldName:    value.Elems[0].Name,
 		percentile:   50.0,
-		int_values:   make(map[string]map[interface{}][]int64),
 		float_values: make(map[string]map[interface{}][]float64),
 	}, nil
 }
@@ -250,45 +225,28 @@ type PercentileAggregator struct {
 	functionName string
 	fieldName    string
 	fieldIndex   int
-	fieldType    protocol.FieldDefinition_Type
 	percentile   float64
-	int_values   map[string]map[interface{}][]int64
 	float_values map[string]map[interface{}][]float64
 }
 
 func (self *PercentileAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	switch self.fieldType {
-	case protocol.FieldDefinition_INT64:
-		int_values := self.int_values[series]
-		if int_values == nil {
-			int_values = make(map[interface{}][]int64)
-			self.int_values[series] = int_values
-		}
-
-		points := int_values[group]
-		if points == nil {
-			points = []int64{}
-		}
-
-		points = append(points, *p.Values[self.fieldIndex].Int64Value)
-		int_values[group] = points
-	case protocol.FieldDefinition_DOUBLE:
-		float_values := self.float_values[series]
-		if float_values == nil {
-			float_values = make(map[interface{}][]float64)
-			self.float_values[series] = float_values
-		}
-
-		points := float_values[group]
-		if points == nil {
-			points = make([]float64, 0)
-		}
-
-		points = append(points, *p.Values[self.fieldIndex].DoubleValue)
-		float_values[group] = points
-	default:
-		return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
+	value := 0.0
+	v := p.Values[self.fieldIndex]
+	if v.Int64Value != nil {
+		value = float64(*v.Int64Value)
+	} else if v.DoubleValue != nil {
+		value = *v.DoubleValue
+	} else {
+		return nil
 	}
+
+	values := self.float_values[series]
+	if values == nil {
+		values = map[interface{}][]float64{}
+		self.float_values[series] = values
+	}
+
+	values[group] = append(values[group], value)
 
 	return nil
 }
@@ -297,45 +255,22 @@ func (self *PercentileAggregator) ColumnName() string {
 	return self.functionName
 }
 
-func (self *PercentileAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return self.fieldType
-}
-
 func (self *PercentileAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
 	returnValues := []*protocol.FieldValue{}
 
-	switch self.fieldType {
-	case protocol.FieldDefinition_INT64:
-		SortInt64(self.int_values[series][group])
-		length := len(self.int_values[series][group])
-		index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
-		point := int64(self.int_values[series][group][index])
-		returnValues = append(returnValues, &protocol.FieldValue{Int64Value: &point})
-	case protocol.FieldDefinition_DOUBLE:
-		sort.Float64s(self.float_values[series][group])
-		length := len(self.float_values[series][group])
-		index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
-		point := self.float_values[series][group][index]
-		returnValues = append(returnValues, &protocol.FieldValue{DoubleValue: &point})
-	}
+	sort.Float64s(self.float_values[series][group])
+	length := len(self.float_values[series][group])
+	index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
+	point := self.float_values[series][group][index]
+	returnValues = append(returnValues, &protocol.FieldValue{DoubleValue: &point})
 
 	return returnValues
 }
 
 func (self *PercentileAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	for idx, field := range series.Fields {
-		if *field.Name == self.fieldName {
+		if field == self.fieldName {
 			self.fieldIndex = idx
-			self.fieldType = *field.Type
-
-			switch self.fieldType {
-			case protocol.FieldDefinition_INT64,
-				protocol.FieldDefinition_DOUBLE:
-				// that's fine
-			default:
-				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
-			}
-
 			return nil
 		}
 	}
@@ -357,7 +292,6 @@ func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, 
 		functionName: "percentile",
 		fieldName:    value.Elems[0].Name,
 		percentile:   percentile,
-		int_values:   make(map[string]map[interface{}][]int64),
 		float_values: make(map[string]map[interface{}][]float64),
 	}, nil
 }
@@ -369,28 +303,29 @@ func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, 
 type ModeAggregator struct {
 	fieldName  string
 	fieldIndex int
-	fieldType  protocol.FieldDefinition_Type
-	counts     map[string]map[interface{}]map[interface{}]int
+	counts     map[string]map[interface{}]map[float64]int
 }
 
 func (self *ModeAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
 	seriesCounts := self.counts[series]
 	if seriesCounts == nil {
-		seriesCounts = make(map[interface{}]map[interface{}]int)
+		seriesCounts = make(map[interface{}]map[float64]int)
 		self.counts[series] = seriesCounts
 	}
 
 	groupCounts := seriesCounts[group]
 	if groupCounts == nil {
-		groupCounts = make(map[interface{}]int)
+		groupCounts = make(map[float64]int)
 	}
 
-	var value interface{}
-	switch self.fieldType {
-	case protocol.FieldDefinition_INT64:
-		value = *p.Values[self.fieldIndex].Int64Value
-	case protocol.FieldDefinition_DOUBLE:
-		value = *p.Values[self.fieldIndex].DoubleValue
+	var value float64
+	point := p.Values[self.fieldIndex]
+	if point.Int64Value != nil {
+		value = float64(*point.Int64Value)
+	} else if point.DoubleValue != nil {
+		value = *point.DoubleValue
+	} else {
+		return nil
 	}
 
 	count := groupCounts[value]
@@ -405,35 +340,27 @@ func (self *ModeAggregator) ColumnName() string {
 	return "mode"
 }
 
-func (self *ModeAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return self.fieldType
-}
-
 func (self *ModeAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
 	returnValues := []*protocol.FieldValue{}
 
-	values := make([]interface{}, 0)
+	values := []float64{}
 	currentCount := 1
 
 	for value, count := range self.counts[series][group] {
 		if count == currentCount {
 			values = append(values, value)
 		} else if count > currentCount {
-			values = make([]interface{}, 0)
+			values = nil
 			values = append(values, value)
 			currentCount = count
 		}
 	}
 
 	for _, value := range values {
-		switch self.fieldType {
-		case protocol.FieldDefinition_INT64:
-			v := value.(int64)
-			returnValues = append(returnValues, &protocol.FieldValue{Int64Value: &v})
-		case protocol.FieldDefinition_DOUBLE:
-			v := value.(float64)
-			returnValues = append(returnValues, &protocol.FieldValue{DoubleValue: &v})
-		}
+		// we can't use value since we need a pointer to a variable that won't change,
+		// while value will change the next iteration
+		v := value
+		returnValues = append(returnValues, &protocol.FieldValue{DoubleValue: &v})
 	}
 
 	return returnValues
@@ -441,17 +368,8 @@ func (self *ModeAggregator) GetValue(series string, group interface{}) []*protoc
 
 func (self *ModeAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	for idx, field := range series.Fields {
-		if *field.Name == self.fieldName {
+		if field == self.fieldName {
 			self.fieldIndex = idx
-			self.fieldType = *field.Type
-
-			switch self.fieldType {
-			case protocol.FieldDefinition_INT64,
-				protocol.FieldDefinition_DOUBLE:
-				// that's fine
-			default:
-				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
-			}
 
 			return nil
 		}
@@ -467,7 +385,7 @@ func NewModeAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error)
 
 	return &ModeAggregator{
 		fieldName: value.Elems[0].Name,
-		counts:    make(map[string]map[interface{}]map[interface{}]int),
+		counts:    make(map[string]map[interface{}]map[float64]int),
 	}, nil
 }
 
@@ -478,7 +396,6 @@ func NewModeAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error)
 type DistinctAggregator struct {
 	fieldName  string
 	fieldIndex int
-	fieldType  protocol.FieldDefinition_Type
 	counts     map[string]map[interface{}]map[interface{}]int
 }
 
@@ -495,11 +412,17 @@ func (self *DistinctAggregator) AggregatePoint(series string, group interface{},
 	}
 
 	var value interface{}
-	switch self.fieldType {
-	case protocol.FieldDefinition_INT64:
-		value = *p.Values[self.fieldIndex].Int64Value
-	case protocol.FieldDefinition_DOUBLE:
-		value = *p.Values[self.fieldIndex].DoubleValue
+	point := p.Values[self.fieldIndex]
+	if point.Int64Value != nil {
+		value = float64(*point.Int64Value)
+	} else if point.DoubleValue != nil {
+		value = *point.DoubleValue
+	} else if point.BoolValue != nil {
+		value = *point.BoolValue
+	} else if point.StringValue != nil {
+		value = *point.StringValue
+	} else {
+		return nil
 	}
 
 	count := groupCounts[value]
@@ -514,20 +437,19 @@ func (self *DistinctAggregator) ColumnName() string {
 	return "distinct"
 }
 
-func (self *DistinctAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return self.fieldType
-}
-
 func (self *DistinctAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
 	returnValues := []*protocol.FieldValue{}
 
 	for value, _ := range self.counts[series][group] {
-		switch self.fieldType {
-		case protocol.FieldDefinition_INT64:
-			v := value.(int64)
-			returnValues = append(returnValues, &protocol.FieldValue{Int64Value: &v})
-		case protocol.FieldDefinition_DOUBLE:
-			v := value.(float64)
+		switch v := value.(type) {
+		case int:
+			i := int64(v)
+			returnValues = append(returnValues, &protocol.FieldValue{Int64Value: &i})
+		case string:
+			returnValues = append(returnValues, &protocol.FieldValue{StringValue: &v})
+		case bool:
+			returnValues = append(returnValues, &protocol.FieldValue{BoolValue: &v})
+		case float64:
 			returnValues = append(returnValues, &protocol.FieldValue{DoubleValue: &v})
 		}
 	}
@@ -537,18 +459,8 @@ func (self *DistinctAggregator) GetValue(series string, group interface{}) []*pr
 
 func (self *DistinctAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	for idx, field := range series.Fields {
-		if *field.Name == self.fieldName {
+		if field == self.fieldName {
 			self.fieldIndex = idx
-			self.fieldType = *field.Type
-
-			switch self.fieldType {
-			case protocol.FieldDefinition_INT64,
-				protocol.FieldDefinition_DOUBLE:
-				// that's fine
-			default:
-				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
-			}
-
 			return nil
 		}
 	}
@@ -564,251 +476,108 @@ func NewDistinctAggregator(_ *parser.Query, value *parser.Value) (Aggregator, er
 }
 
 //
-// Max Aggregator
+// Max, Min and Sum Aggregators
 //
 
-type MaxAggregator struct {
-	fieldName  string
-	fieldIndex int
-	fieldType  protocol.FieldDefinition_Type
-	values     map[string]map[interface{}]protocol.FieldValue
+type Operation func(currentValue float64, newValue *protocol.FieldValue) float64
+
+type CumulativeArithmeticAggregator struct {
+	name         string
+	fieldName    string
+	fieldIndex   int
+	values       map[string]map[interface{}]float64
+	operation    Operation
+	initialValue float64
 }
 
-func (self *MaxAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+func (self *CumulativeArithmeticAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
 	values := self.values[series]
 	if values == nil {
-		values = make(map[interface{}]protocol.FieldValue)
+		values = make(map[interface{}]float64)
 		self.values[series] = values
 	}
-
-	currentValue := values[group]
-
-	switch self.fieldType {
-	case protocol.FieldDefinition_INT64:
-		if value := *p.Values[self.fieldIndex].Int64Value; currentValue.Int64Value == nil || *currentValue.Int64Value < value {
-			currentValue.Int64Value = &value
-		}
-	case protocol.FieldDefinition_DOUBLE:
-		if value := *p.Values[self.fieldIndex].DoubleValue; currentValue.DoubleValue == nil || *currentValue.DoubleValue < value {
-			currentValue.DoubleValue = &value
-		}
+	currentValue, ok := values[group]
+	if !ok {
+		currentValue = self.initialValue
 	}
-
-	values[group] = currentValue
+	values[group] = self.operation(currentValue, p.Values[self.fieldIndex])
 	return nil
 }
 
-func (self *MaxAggregator) ColumnName() string {
-	return "max"
+func (self *CumulativeArithmeticAggregator) ColumnName() string {
+	return self.name
 }
 
-func (self *MaxAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return self.fieldType
-}
-
-func (self *MaxAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
+func (self *CumulativeArithmeticAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
 	returnValues := []*protocol.FieldValue{}
 	value := self.values[series][group]
-	returnValues = append(returnValues, &value)
+	returnValues = append(returnValues, &protocol.FieldValue{DoubleValue: &value})
 	return returnValues
 }
 
-func (self *MaxAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+func (self *CumulativeArithmeticAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	for idx, field := range series.Fields {
-		if *field.Name == self.fieldName {
+		if field == self.fieldName {
 			self.fieldIndex = idx
-			self.fieldType = *field.Type
-
-			switch self.fieldType {
-			case protocol.FieldDefinition_INT64,
-				protocol.FieldDefinition_DOUBLE:
-				// that's fine
-			default:
-				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
-			}
-
 			return nil
 		}
 	}
 
 	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
+}
+
+func NewCumulativeArithmeticAggregator(name string, value *parser.Value, initialValue float64, operation Operation) (Aggregator, error) {
+	if len(value.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
+	}
+
+	return &CumulativeArithmeticAggregator{
+		name:         name,
+		fieldName:    value.Elems[0].Name,
+		values:       make(map[string]map[interface{}]float64),
+		operation:    operation,
+		initialValue: initialValue,
+	}, nil
 }
 
 func NewMaxAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
-	if len(value.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
-	}
-
-	return &MaxAggregator{
-		fieldName: value.Elems[0].Name,
-		values:    make(map[string]map[interface{}]protocol.FieldValue),
-	}, nil
-}
-
-//
-// Min Aggregator
-//
-
-type MinAggregator struct {
-	fieldName  string
-	fieldIndex int
-	fieldType  protocol.FieldDefinition_Type
-	values     map[string]map[interface{}]protocol.FieldValue
-}
-
-func (self *MinAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	values := self.values[series]
-	if values == nil {
-		values = make(map[interface{}]protocol.FieldValue)
-		self.values[series] = values
-	}
-
-	currentValue := values[group]
-
-	switch self.fieldType {
-	case protocol.FieldDefinition_INT64:
-		if value := *p.Values[self.fieldIndex].Int64Value; currentValue.Int64Value == nil || *currentValue.Int64Value > value {
-			currentValue.Int64Value = &value
-		}
-	case protocol.FieldDefinition_DOUBLE:
-		if value := *p.Values[self.fieldIndex].DoubleValue; currentValue.DoubleValue == nil || *currentValue.DoubleValue > value {
-			currentValue.DoubleValue = &value
-		}
-	}
-
-	values[group] = currentValue
-	return nil
-}
-
-func (self *MinAggregator) ColumnName() string {
-	return "min"
-}
-
-func (self *MinAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return self.fieldType
-}
-
-func (self *MinAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
-	returnValues := []*protocol.FieldValue{}
-	value := self.values[series][group]
-	returnValues = append(returnValues, &value)
-	return returnValues
-}
-
-func (self *MinAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	for idx, field := range series.Fields {
-		if *field.Name == self.fieldName {
-			self.fieldIndex = idx
-			self.fieldType = *field.Type
-
-			switch self.fieldType {
-			case protocol.FieldDefinition_INT64,
-				protocol.FieldDefinition_DOUBLE:
-				// that's fine
-			default:
-				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
+	return NewCumulativeArithmeticAggregator("max", value, -math.MaxFloat64, func(currentValue float64, p *protocol.FieldValue) float64 {
+		if p.Int64Value != nil {
+			if fv := float64(*p.Int64Value); fv > currentValue {
+				return fv
 			}
-
-			return nil
+		} else if p.DoubleValue != nil {
+			if fv := *p.DoubleValue; fv > currentValue {
+				return fv
+			}
 		}
-	}
-
-	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
+		return currentValue
+	})
 }
 
 func NewMinAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
-	if len(value.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function min() requires only one argument")
-	}
-
-	return &MinAggregator{
-		fieldName: value.Elems[0].Name,
-		values:    make(map[string]map[interface{}]protocol.FieldValue),
-	}, nil
-}
-
-//
-// Sum Aggregator
-//
-
-type SumAggregator struct {
-	fieldName  string
-	fieldIndex int
-	fieldType  protocol.FieldDefinition_Type
-	sums       map[string]map[interface{}]float64
-}
-
-func (self *SumAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	sums := self.sums[series]
-	if sums == nil {
-		sums = make(map[interface{}]float64)
-		self.sums[series] = sums
-	}
-
-	currentValue := sums[group]
-
-	switch self.fieldType {
-	case protocol.FieldDefinition_INT64:
-		currentValue += float64(*p.Values[self.fieldIndex].Int64Value)
-	case protocol.FieldDefinition_DOUBLE:
-		currentValue += *p.Values[self.fieldIndex].DoubleValue
-	}
-
-	sums[group] = currentValue
-	return nil
-}
-
-func (self *SumAggregator) ColumnName() string {
-	return "sum"
-}
-
-func (self *SumAggregator) ColumnType() protocol.FieldDefinition_Type {
-	return self.fieldType
-}
-
-func (self *SumAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
-	returnValues := []*protocol.FieldValue{}
-
-	switch self.fieldType {
-	case protocol.FieldDefinition_INT64:
-		value := int64(self.sums[series][group])
-		returnValues = append(returnValues, &protocol.FieldValue{Int64Value: &value})
-	case protocol.FieldDefinition_DOUBLE:
-		value := float64(self.sums[series][group])
-		returnValues = append(returnValues, &protocol.FieldValue{DoubleValue: &value})
-	}
-
-	return returnValues
-}
-
-func (self *SumAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	for idx, field := range series.Fields {
-		if *field.Name == self.fieldName {
-			self.fieldIndex = idx
-			self.fieldType = *field.Type
-
-			switch self.fieldType {
-			case protocol.FieldDefinition_INT64,
-				protocol.FieldDefinition_DOUBLE:
-				// that's fine
-			default:
-				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Field %s has invalid type %v", self.fieldName, self.fieldType))
+	return NewCumulativeArithmeticAggregator("min", value, math.MaxFloat64, func(currentValue float64, p *protocol.FieldValue) float64 {
+		if p.Int64Value != nil {
+			if fv := float64(*p.Int64Value); fv < currentValue {
+				return fv
 			}
-
-			return nil
+		} else if p.DoubleValue != nil {
+			if fv := *p.DoubleValue; fv < currentValue {
+				return fv
+			}
 		}
-	}
-
-	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
+		return currentValue
+	})
 }
 
 func NewSumAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
-	if len(value.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
-	}
-
-	return &SumAggregator{
-		fieldName: value.Elems[0].Name,
-		sums:      make(map[string]map[interface{}]float64),
-	}, nil
+	return NewCumulativeArithmeticAggregator("sum", value, 0, func(currentValue float64, p *protocol.FieldValue) float64 {
+		var fv float64
+		if p.Int64Value != nil {
+			fv = float64(*p.Int64Value)
+		} else if p.DoubleValue != nil {
+			fv = *p.DoubleValue
+		}
+		return currentValue + fv
+	})
 }

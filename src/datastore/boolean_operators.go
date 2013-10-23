@@ -1,12 +1,11 @@
 package datastore
 
 import (
-	"fmt"
 	"protocol"
 	"regexp"
 )
 
-type BooleanOperation func(leftType, rightType protocol.FieldDefinition_Type, leftValue, rightValue *protocol.FieldValue) (bool, error)
+type BooleanOperation func(leftValue, rightValue *protocol.FieldValue) (bool, error)
 
 var (
 	registeredOperators = map[string]BooleanOperation{}
@@ -23,143 +22,115 @@ func init() {
 }
 
 func not(op BooleanOperation) BooleanOperation {
-	return func(leftType, rightType protocol.FieldDefinition_Type, leftValue, rightValue *protocol.FieldValue) (bool, error) {
-		ok, err := op(leftType, rightType, leftValue, rightValue)
+	return func(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+		ok, err := op(leftValue, rightValue)
 		return !ok, err
 	}
 }
 
-func commonType(leftType, rightType protocol.FieldDefinition_Type) (protocol.FieldDefinition_Type, error) {
-	switch leftType {
-	case protocol.FieldDefinition_INT64:
-		switch rightType {
-		case protocol.FieldDefinition_INT64:
-			return protocol.FieldDefinition_INT64, nil
-		case protocol.FieldDefinition_DOUBLE:
-			return protocol.FieldDefinition_DOUBLE, nil
-		}
+type Type int
 
-	case protocol.FieldDefinition_DOUBLE:
-		switch rightType {
-		case protocol.FieldDefinition_INT64, protocol.FieldDefinition_DOUBLE:
-			return protocol.FieldDefinition_DOUBLE, nil
-		}
+const (
+	TYPE_INT = iota
+	TYPE_STRING
+	TYPE_BOOL
+	TYPE_DOUBLE
+	TYPE_UNKNOWN
+)
 
-	case protocol.FieldDefinition_BOOL:
-		if rightType == protocol.FieldDefinition_BOOL {
-			return protocol.FieldDefinition_BOOL, nil
+func coerceValues(leftValue, rightValue *protocol.FieldValue) (interface{}, interface{}, Type) {
+	if leftValue.Int64Value != nil {
+		if rightValue.Int64Value != nil {
+			return *leftValue.Int64Value, *rightValue.Int64Value, TYPE_INT
+		} else if rightValue.DoubleValue != nil {
+			return float64(*leftValue.Int64Value), *rightValue.DoubleValue, TYPE_DOUBLE
 		}
-
-	case protocol.FieldDefinition_STRING:
-		if rightType == protocol.FieldDefinition_STRING {
-			return protocol.FieldDefinition_STRING, nil
-		}
+		return nil, nil, TYPE_UNKNOWN
 	}
 
-	return 0, fmt.Errorf("%v and %v cannot be coerced to a common type", leftType, rightType)
+	if leftValue.DoubleValue != nil {
+		if rightValue.Int64Value != nil {
+			return *leftValue.DoubleValue, float64(*rightValue.Int64Value), TYPE_DOUBLE
+		} else if rightValue.DoubleValue != nil {
+			return *leftValue.DoubleValue, *rightValue.DoubleValue, TYPE_DOUBLE
+		}
+		return nil, nil, TYPE_UNKNOWN
+	}
+
+	if leftValue.StringValue != nil {
+		if rightValue.StringValue == nil {
+			return nil, nil, TYPE_UNKNOWN
+		}
+		return *leftValue.StringValue, *rightValue.StringValue, TYPE_STRING
+	}
+
+	if leftValue.BoolValue != nil {
+		if rightValue.BoolValue == nil {
+			return nil, nil, TYPE_BOOL
+		}
+
+		return *leftValue.BoolValue, *rightValue.BoolValue, TYPE_BOOL
+	}
+
+	return nil, nil, TYPE_UNKNOWN
 }
 
-func coerceValue(value *protocol.FieldValue, fromType, toType protocol.FieldDefinition_Type) *protocol.FieldValue {
-	switch toType {
-	case protocol.FieldDefinition_INT64:
-		switch fromType {
-		case protocol.FieldDefinition_INT64:
-			return value
-		}
-
-	case protocol.FieldDefinition_DOUBLE:
-		switch fromType {
-		case protocol.FieldDefinition_DOUBLE:
-			return value
-		case protocol.FieldDefinition_INT64:
-			temp := float64(*value.Int64Value)
-			return &protocol.FieldValue{DoubleValue: &temp}
-		}
-
-	}
-
-	return value
-}
-
-func EqualityOperator(leftType, rightType protocol.FieldDefinition_Type, leftValue, rightValue *protocol.FieldValue) (bool, error) {
-	cType, err := commonType(leftType, rightType)
-	if err != nil {
-		return false, err
-	}
-
-	leftValue = coerceValue(leftValue, leftType, cType)
-	rightValue = coerceValue(rightValue, rightType, cType)
+func EqualityOperator(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
-	case protocol.FieldDefinition_STRING:
-		return *leftValue.StringValue == *rightValue.StringValue, nil
-	case protocol.FieldDefinition_INT64:
-		return *leftValue.Int64Value == *rightValue.Int64Value, nil
-	case protocol.FieldDefinition_DOUBLE:
-		return *leftValue.DoubleValue == *rightValue.DoubleValue, nil
-	case protocol.FieldDefinition_BOOL:
-		return *leftValue.BoolValue == *rightValue.BoolValue, nil
+	case TYPE_STRING:
+		return v1.(string) == v2.(string), nil
+	case TYPE_INT:
+		return v1.(int64) == v2.(int64), nil
+	case TYPE_DOUBLE:
+		return v1.(float64) == v2.(float64), nil
+	case TYPE_BOOL:
+		return v1.(bool) == v2.(bool), nil
 	default:
-		return false, fmt.Errorf("Unknown type %v", cType)
+		return false, nil
 	}
 }
 
-func RegexMatcherOperator(leftType, rightType protocol.FieldDefinition_Type, leftValue, rightValue *protocol.FieldValue) (bool, error) {
-	cType, err := commonType(leftType, rightType)
-	if err != nil {
-		return false, err
-	}
-
-	leftValue = coerceValue(leftValue, leftType, cType)
-	rightValue = coerceValue(rightValue, rightType, cType)
+func RegexMatcherOperator(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
-	case protocol.FieldDefinition_STRING:
-		// TODO: do case insensitive matching
-		return regexp.MatchString(*rightValue.StringValue, *leftValue.StringValue)
+	case TYPE_STRING:
+		// TODO: assume that the regex is valid
+		matches, _ := regexp.MatchString(v2.(string), v1.(string))
+		return matches, nil
 	default:
-		return false, fmt.Errorf("Cannot use regex matcher with type %v", cType)
+		return false, nil
 	}
 }
 
-func GreaterThanOrEqualOperator(leftType, rightType protocol.FieldDefinition_Type, leftValue, rightValue *protocol.FieldValue) (bool, error) {
-	cType, err := commonType(leftType, rightType)
-	if err != nil {
-		return false, err
-	}
-
-	leftValue = coerceValue(leftValue, leftType, cType)
-	rightValue = coerceValue(rightValue, rightType, cType)
+func GreaterThanOrEqualOperator(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
-	case protocol.FieldDefinition_STRING:
-		return *leftValue.StringValue >= *rightValue.StringValue, nil
-	case protocol.FieldDefinition_INT64:
-		return *leftValue.Int64Value >= *rightValue.Int64Value, nil
-	case protocol.FieldDefinition_DOUBLE:
-		return *leftValue.DoubleValue >= *rightValue.DoubleValue, nil
+	case TYPE_STRING:
+		return v1.(string) >= v2.(string), nil
+	case TYPE_INT:
+		return v1.(int64) >= v2.(int64), nil
+	case TYPE_DOUBLE:
+		return v1.(float64) >= v2.(float64), nil
 	default:
-		return false, fmt.Errorf("Cannot use >= with type %v", cType)
+		return false, nil
 	}
 }
 
-func GreaterThanOperator(leftType, rightType protocol.FieldDefinition_Type, leftValue, rightValue *protocol.FieldValue) (bool, error) {
-	cType, err := commonType(leftType, rightType)
-	if err != nil {
-		return false, err
-	}
-
-	leftValue = coerceValue(leftValue, leftType, cType)
-	rightValue = coerceValue(rightValue, rightType, cType)
+func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
-	case protocol.FieldDefinition_STRING:
-		return *leftValue.StringValue > *rightValue.StringValue, nil
-	case protocol.FieldDefinition_INT64:
-		return *leftValue.Int64Value > *rightValue.Int64Value, nil
-	case protocol.FieldDefinition_DOUBLE:
-		return *leftValue.DoubleValue > *rightValue.DoubleValue, nil
+	case TYPE_STRING:
+		return v1.(string) > v2.(string), nil
+	case TYPE_INT:
+		return v1.(int64) > v2.(int64), nil
+	case TYPE_DOUBLE:
+		return v1.(float64) > v2.(float64), nil
 	default:
-		return false, fmt.Errorf("Cannot use > with type %v", cType)
+		return false, nil
 	}
 }
