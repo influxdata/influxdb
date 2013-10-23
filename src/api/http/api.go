@@ -47,7 +47,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// Run the given query and return an array of series or a chunked response
 	// with each batch of points we get back
-	p.Get("/db/:db/series", libhttp.HandlerFunc(self.query))
+	p.Get("/db/:db/series", CorsHeaderHandler(self.query))
 
 	// Write points to the given database
 	p.Post("/db/:db/series", CorsHeaderHandler(self.writePoints))
