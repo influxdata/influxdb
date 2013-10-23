@@ -14,8 +14,8 @@ Requirements
 * perform functions quickly (count, unique, sum, etc.)
 * group by time intervals (e.g. count ticks every 5 minutes)
 * joining multiple time series to generate new timeseries
-* dynamic schema
-* filter/query language (sql subset) with where clauses
+* schema-less
+* sql-like query language
 * support multiple databases with read/write api key
 * single time series should scale horizontally (no hot spots)
 * dynamic cluster changes and data balancing
