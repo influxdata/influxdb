@@ -9,7 +9,16 @@ if [ -d $HOME/go ]; then
 fi
 
 pushd src
-export packages="admin api/http common configuration coordinator datastore engine interfaces main parser protocol server"
+all_packages=$(find . -type d | egrep -v 'google|launchpad|github' | tr '\n' ' ' | sed 's/\.\///g')
+packages=""
+for i in $all_packages; do
+    if [ $i == "." ]; then
+        continue
+    fi
+    if [ `ls $i/*.go 2>/dev/null | wc -l` -ne 0 ]; then
+        packages="$packages $i"
+    fi
+done
 popd
 
 snappy_dir=/tmp/snappychronosdb
