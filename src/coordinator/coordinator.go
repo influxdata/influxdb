@@ -173,7 +173,7 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester User, db, username, 
 	return self.raftServer.SaveDbUser(dbUsers[username])
 }
 
-func (self *CoordinatorImpl) SetDbAdmin(requester User, db, username string) error {
+func (self *CoordinatorImpl) SetDbAdmin(requester User, db, username string, isAdmin bool) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return fmt.Errorf("Insufficient permissions")
 	}
@@ -184,7 +184,7 @@ func (self *CoordinatorImpl) SetDbAdmin(requester User, db, username string) err
 	}
 
 	user := dbUsers[username]
-	user.IsAdmin = true
+	user.IsAdmin = isAdmin
 	self.raftServer.SaveDbUser(user)
 	return nil
 }

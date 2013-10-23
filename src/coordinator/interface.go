@@ -40,5 +40,5 @@ type UserManager interface {
 	// make user a db admin for 'db'. It's an error if the requester
 	// isn't a db admin or cluster admin or if user isn't a db user
 	// for the given db
-	SetDbAdmin(requester User, db, username string) error
+	SetDbAdmin(requester User, db, username string, isAdmin bool) error
 }

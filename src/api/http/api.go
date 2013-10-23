@@ -55,16 +55,17 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// cluster admins management interface
 
-	p.Post("/cluster_admins/:user", CorsHeaderHandler(self.createClusterAdmin))
-	p.Post("/cluster_admins/:user/password/:password", CorsHeaderHandler(self.changeClusterAdminPassword))
+	p.Post("/cluster_admins", CorsHeaderHandler(self.createClusterAdmin))
+	p.Post("/cluster_admins/:user", CorsHeaderHandler(self.updateClusterAdmin))
 	p.Del("/cluster_admins/:user", CorsHeaderHandler(self.deleteClusterAdmin))
 
-	// // db users management interface
+	// db users management interface
 
-	p.Post("/db/:db/users/:user", CorsHeaderHandler(self.createDbUser))
+	p.Post("/db/:db/users", CorsHeaderHandler(self.createDbUser))
 	p.Del("/db/:db/users/:user", CorsHeaderHandler(self.deleteDbUser))
-	p.Post("/db/:db/users/:user/password/:password", CorsHeaderHandler(self.changeDbUserPassword))
+	p.Post("/db/:db/users/:user", CorsHeaderHandler(self.updateDbUser))
 	p.Post("/db/:db/admins/:user", CorsHeaderHandler(self.setDbAdmin))
+	p.Del("/db/:db/admins/:user", CorsHeaderHandler(self.unsetDbAdmin))
 
 	if err := libhttp.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
@@ -437,12 +438,36 @@ func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 	}
 }
 
+type NewUser struct {
+	Name     string `json:"username"`
+	Password string `json:"password"`
+}
+
+type UpdateUser struct {
+	Password string `json:"password"`
+}
+
 func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
-	newUser := r.URL.Query().Get(":user")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	newUser := &NewUser{}
+	err = json.Unmarshal(body, newUser)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
 
 	self.tryAsClusterAdmin(w, r, func(u coordinator.User) (int, string) {
-		if err := self.userManager.CreateClusterAdminUser(u, newUser); err != nil {
+		if err := self.userManager.CreateClusterAdminUser(u, newUser.Name); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
+		}
+		if err := self.userManager.ChangeClusterAdminPassword(u, newUser.Name, newUser.Password); err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
 		}
 		return libhttp.StatusOK, ""
 	})
@@ -459,12 +484,21 @@ func (self *HttpServer) deleteClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 	})
 }
 
-func (self *HttpServer) changeClusterAdminPassword(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HttpServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	updateUser := &UpdateUser{}
+	json.Unmarshal(body, updateUser)
+
 	newUser := r.URL.Query().Get(":user")
-	newPassword := r.URL.Query().Get(":password")
 
 	self.tryAsClusterAdmin(w, r, func(u coordinator.User) (int, string) {
-		if err := self.userManager.ChangeClusterAdminPassword(u, newUser, newPassword); err != nil {
+		if err := self.userManager.ChangeClusterAdminPassword(u, newUser, updateUser.Password); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
 		return libhttp.StatusOK, ""
@@ -499,11 +533,28 @@ func (self *HttpServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *
 }
 
 func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
-	newUser := r.URL.Query().Get(":user")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	newUser := &NewUser{}
+	err = json.Unmarshal(body, newUser)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u coordinator.User) (int, string) {
-		if err := self.userManager.CreateDbUser(u, db, newUser); err != nil {
+		if err := self.userManager.CreateDbUser(u, db, newUser.Name); err != nil {
+			return libhttp.StatusUnauthorized, err.Error()
+		}
+		if err := self.userManager.ChangeDbUserPassword(u, db, newUser.Name, newUser.Password); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
 		return libhttp.StatusOK, ""
@@ -522,13 +573,27 @@ func (self *HttpServer) deleteDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	})
 }
 
-func (self *HttpServer) changeDbUserPassword(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	updateUser := &UpdateUser{}
+	err = json.Unmarshal(body, updateUser)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
 	newUser := r.URL.Query().Get(":user")
-	newPassword := r.URL.Query().Get(":password")
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u coordinator.User) (int, string) {
-		if err := self.userManager.ChangeDbUserPassword(u, db, newUser, newPassword); err != nil {
+		if err := self.userManager.ChangeDbUserPassword(u, db, newUser, updateUser.Password); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
 		return libhttp.StatusOK, ""
@@ -536,11 +601,19 @@ func (self *HttpServer) changeDbUserPassword(w libhttp.ResponseWriter, r *libhtt
 }
 
 func (self *HttpServer) setDbAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.commonSetDbAdmin(w, r, true)
+}
+
+func (self *HttpServer) unsetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.commonSetDbAdmin(w, r, false)
+}
+
+func (self *HttpServer) commonSetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Request, isAdmin bool) {
 	newUser := r.URL.Query().Get(":user")
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u coordinator.User) (int, string) {
-		if err := self.userManager.SetDbAdmin(u, db, newUser); err != nil {
+		if err := self.userManager.SetDbAdmin(u, db, newUser, isAdmin); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
 		return libhttp.StatusOK, ""

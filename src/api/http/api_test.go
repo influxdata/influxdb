@@ -136,9 +136,7 @@ func (self *ApiSuite) TearDownSuite(c *C) {
 
 func (self *ApiSuite) SetUpTest(c *C) {
 	self.coordinator.series = nil
-	self.manager.operation = ""
-	self.manager.username = ""
-	self.manager.password = ""
+	self.manager.ops = nil
 }
 
 func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
@@ -332,22 +330,29 @@ func (self *ApiSuite) TestCreateDatabase(c *C) {
 }
 
 func (self *ApiSuite) TestClusterAdminOperations(c *C) {
-	url := self.formatUrl("/cluster_admins/new_user?username=root&password=root")
-	resp, err := libhttp.Post(url, "", nil)
+	url := self.formatUrl("/cluster_admins?username=root&password=root")
+	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"new_user", "password": "new_pass"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.operation, Equals, "cluster_admin_add")
-	c.Assert(self.manager.username, Equals, "new_user")
+	c.Assert(self.manager.ops, HasLen, 2)
+	c.Assert(self.manager.ops[0].operation, Equals, "cluster_admin_add")
+	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[1].operation, Equals, "cluster_admin_passwd")
+	c.Assert(self.manager.ops[1].username, Equals, "new_user")
+	c.Assert(self.manager.ops[1].password, Equals, "new_pass")
+	self.manager.ops = nil
 
-	url = self.formatUrl("/cluster_admins/new_user/password/new_pass?username=root&password=root")
-	resp, err = libhttp.Post(url, "", nil)
+	url = self.formatUrl("/cluster_admins/new_user?username=root&password=root")
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"password":"new_password"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.operation, Equals, "cluster_admin_passwd")
-	c.Assert(self.manager.username, Equals, "new_user")
-	c.Assert(self.manager.password, Equals, "new_pass")
+	c.Assert(self.manager.ops, HasLen, 1)
+	c.Assert(self.manager.ops[0].operation, Equals, "cluster_admin_passwd")
+	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[0].password, Equals, "new_password")
+	self.manager.ops = nil
 
 	url = self.formatUrl("/cluster_admins/new_user?username=root&password=root")
 	req, _ := libhttp.NewRequest("DELETE", url, nil)
@@ -355,34 +360,67 @@ func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.operation, Equals, "cluster_admin_del")
-	c.Assert(self.manager.username, Equals, "new_user")
+	c.Assert(self.manager.ops, HasLen, 1)
+	c.Assert(self.manager.ops[0].operation, Equals, "cluster_admin_del")
+	c.Assert(self.manager.ops[0].username, Equals, "new_user")
 }
 
 func (self *ApiSuite) TestDbUSerOperations(c *C) {
-	url := self.formatUrl("/db/db1/users/new_user?username=root&password=root")
-	resp, err := libhttp.Post(url, "", nil)
+	url := self.formatUrl("/db/db1/users?username=root&password=root")
+	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"new_user", "password": "new_pass"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.operation, Equals, "db_user_add")
-	c.Assert(self.manager.username, Equals, "new_user")
+	c.Assert(self.manager.ops, HasLen, 2)
+	c.Assert(self.manager.ops[0].operation, Equals, "db_user_add")
+	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[1].operation, Equals, "db_user_passwd")
+	c.Assert(self.manager.ops[1].username, Equals, "new_user")
+	c.Assert(self.manager.ops[1].password, Equals, "new_pass")
+	self.manager.ops = nil
 
-	url = self.formatUrl("/db/db1/users/new_user/password/new_pass?username=root&password=root")
+	url = self.formatUrl("/db/db1/users/new_user?username=root&password=root")
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"password":"new_password"}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.ops, HasLen, 1)
+	c.Assert(self.manager.ops[0].operation, Equals, "db_user_passwd")
+	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[0].password, Equals, "new_password")
+	self.manager.ops = nil
+
+	// set and unset the db admin flag
+	url = self.formatUrl("/db/db1/admins/new_user?username=root&password=root")
 	resp, err = libhttp.Post(url, "", nil)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.operation, Equals, "db_user_passwd")
-	c.Assert(self.manager.username, Equals, "new_user")
-	c.Assert(self.manager.password, Equals, "new_pass")
+	c.Assert(self.manager.ops, HasLen, 1)
+	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
+	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[0].isAdmin, Equals, true)
+	self.manager.ops = nil
 
-	url = self.formatUrl("/db/db1/users/new_user?username=root&password=root")
+	url = self.formatUrl("/db/db1/admins/new_user?username=root&password=root")
 	req, _ := libhttp.NewRequest("DELETE", url, nil)
 	resp, err = libhttp.DefaultClient.Do(req)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.operation, Equals, "db_user_del")
-	c.Assert(self.manager.username, Equals, "new_user")
+	c.Assert(self.manager.ops, HasLen, 1)
+	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
+	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[0].isAdmin, Equals, false)
+	self.manager.ops = nil
+
+	url = self.formatUrl("/db/db1/users/new_user?username=root&password=root")
+	req, _ = libhttp.NewRequest("DELETE", url, nil)
+	resp, err = libhttp.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.ops, HasLen, 1)
+	c.Assert(self.manager.ops[0].operation, Equals, "db_user_del")
+	c.Assert(self.manager.ops[0].username, Equals, "new_user")
 }
