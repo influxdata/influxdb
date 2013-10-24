@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. ./exports.sh
+
 if [ -e build ]; then
   rm -rf build/*
 else
