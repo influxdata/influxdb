@@ -45,6 +45,7 @@ go get github.com/fitstar/falcore
 go get github.com/fitstar/falcore/filter
 go get code.google.com/p/log4go
 go get code.google.com/p/go.crypto/bcrypt
+go get launchpad.net/gocheck
 
 echo "packages: go build $packages"
 

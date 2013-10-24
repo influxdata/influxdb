@@ -38,8 +38,6 @@ if [ "x`uname`" == "xLinux" -a "x$valgrind" != "xno" ]; then
 fi
 popd
 
-go get launchpad.net/gocheck
-
 go fmt $packages || echo "Cannot format code"
 
 ./build.sh
