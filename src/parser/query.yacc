@@ -6,6 +6,8 @@
 #include <string.h>
 #include "query_types.h"
 
+__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
+
 expression *create_expression(expression *left, char op, expression *right) {
   expression *expr = malloc(sizeof(expression));
   expr->left = left;
