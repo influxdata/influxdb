@@ -4,5 +4,8 @@ go:
   - 1.1
   - tip
 
+before_install:
+  - sudo apt-get install libleveldb-dev libsnappy-dev protobuf-compiler
+
 install: ./build.sh
 script: ./test.sh

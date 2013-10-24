@@ -21,7 +21,6 @@ for i in $all_packages; do
 done
 popd
 
-protobuf_dir=/tmp/protochronosdb
 snappy_dir=/tmp/snappychronosdb
 leveldb_dir=/tmp/leveldbchronosdb
 export LD_LIBRARY_PATH=/usr/local/lib

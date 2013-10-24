@@ -16,7 +16,7 @@ go get code.google.com/p/go.crypto/bcrypt
 go get launchpad.net/gocheck
 
 # build snappy and leveldb
-if [ `uname` == "Linux" ]; then
+if [ `uname` == "Linux" -a "x$TRAVIS" != "xtrue" ]; then
     snappy_version=1.1.0
     snappy_file=snappy-$snappy_version.tar.gz
     if [ ! -d $snappy_dir -o ! -e $snappy_dir/$snappy_file -o ! -e $snappy_dir/.libs/libsnappy.a ]; then
@@ -42,22 +42,14 @@ if [ `uname` == "Linux" ]; then
         popd
     fi
 
-    protobuf_version=2.5.0
-    protobuf_file=protobuf-$protobuf_version.tar.gz
-    if [ ! -d $protobuf_dir -o ! -e $protobuf_dir/$protobuf_file -o ! -e $protobuf_dir/installation/bin/protoc ]; then
-        rm -rf $protobuf_dir
-        mkdir -p $protobuf_dir/installation
-        pushd $protobuf_dir
-        wget https://protobuf.googlecode.com/files/$protobuf_file
-        tar --strip-components=1 -xvzf $protobuf_file
-        ./configure --prefix=$PWD/installation
-        make && make install
-        popd
-    fi
-
     pushd src/github.com/jmhodges/levigo/
     find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'
     popd
+fi
+
+if ! which protoc 2>/dev/null; then
+    echo "Please install protobuf (protobuf-compiler on ubuntu) and try to run this script again"
+    exit 1
 fi
 
 echo "packages: go build $packages"
