@@ -28,19 +28,18 @@ while [ $# -ne 0 ]; do
     esac
 done
 
-pushd src/parser
-./build_parser.sh
+go fmt $packages || echo "Cannot format code"
+
+./build.sh
+
 if [ "x`uname`" == "xLinux" -a "x$valgrind" != "xno" ]; then
+    pushd src/parser
     if ! ./test_memory_leaks.sh; then
         echo "ERROR: memory leak detected"
         exit 1
     fi
+    popd
 fi
-popd
-
-go fmt $packages || echo "Cannot format code"
-
-./build.sh
 
 [ "x$test_packages" == "x" ] && test_packages="$packages"
 echo "Running tests for packages: $test_packages"

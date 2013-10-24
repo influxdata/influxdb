@@ -51,4 +51,8 @@ echo "packages: go build $packages"
 
 ./compile_protobuf.sh
 
+pushd src/parser
+./build_parser.sh
+popd
+
 go build $packages
