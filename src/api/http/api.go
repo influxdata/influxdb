@@ -41,31 +41,43 @@ func (self *HttpServer) ListenAndServe() {
 	self.Serve(conn)
 }
 
+func (self *HttpServer) registerEndpoint(p *pat.PatternServeMux, method string, pattern string, f libhttp.HandlerFunc) {
+	switch method {
+	case "get":
+		p.Get(pattern, CorsHeaderHandler(f))
+	case "post":
+		p.Post(pattern, CorsHeaderHandler(f))
+	case "del":
+		p.Del(pattern, CorsHeaderHandler(f))
+	}
+	p.Options(pattern, CorsHeaderHandler(self.sendCrossOriginHeader))
+}
+
 func (self *HttpServer) Serve(listener net.Listener) {
 	self.conn = listener
 	p := pat.New()
 
 	// Run the given query and return an array of series or a chunked response
 	// with each batch of points we get back
-	p.Get("/db/:db/series", CorsHeaderHandler(self.query))
+	self.registerEndpoint(p, "get", "/db/:db/series", self.query)
 
 	// Write points to the given database
-	p.Post("/db/:db/series", CorsHeaderHandler(self.writePoints))
-	p.Post("/db", CorsHeaderHandler(self.createDatabase))
+	self.registerEndpoint(p, "post", "/db/:db/series", self.writePoints)
+	self.registerEndpoint(p, "post", "/db", self.createDatabase)
 
 	// cluster admins management interface
 
-	p.Post("/cluster_admins", CorsHeaderHandler(self.createClusterAdmin))
-	p.Post("/cluster_admins/:user", CorsHeaderHandler(self.updateClusterAdmin))
-	p.Del("/cluster_admins/:user", CorsHeaderHandler(self.deleteClusterAdmin))
+	self.registerEndpoint(p, "post", "/cluster_admins", self.createClusterAdmin)
+	self.registerEndpoint(p, "post", "/cluster_admins/:user", self.updateClusterAdmin)
+	self.registerEndpoint(p, "del", "/cluster_admins/:user", self.deleteClusterAdmin)
 
 	// db users management interface
 
-	p.Post("/db/:db/users", CorsHeaderHandler(self.createDbUser))
-	p.Del("/db/:db/users/:user", CorsHeaderHandler(self.deleteDbUser))
-	p.Post("/db/:db/users/:user", CorsHeaderHandler(self.updateDbUser))
-	p.Post("/db/:db/admins/:user", CorsHeaderHandler(self.setDbAdmin))
-	p.Del("/db/:db/admins/:user", CorsHeaderHandler(self.unsetDbAdmin))
+	self.registerEndpoint(p, "post", "/db/:db/users", self.createDbUser)
+	self.registerEndpoint(p, "del", "/db/:db/users/:user", self.deleteDbUser)
+	self.registerEndpoint(p, "post", "/db/:db/users/:user", self.updateDbUser)
+	self.registerEndpoint(p, "post", "/db/:db/admins/:user", self.setDbAdmin)
+	self.registerEndpoint(p, "del", "/db/:db/admins/:user", self.unsetDbAdmin)
 
 	if err := libhttp.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
@@ -153,6 +165,10 @@ func TimePrecisionFromString(s string) (TimePrecision, error) {
 	}
 
 	return 0, fmt.Errorf("Unknown time precision %s", s)
+}
+
+func (self *HttpServer) sendCrossOriginHeader(w libhttp.ResponseWriter, r *libhttp.Request) {
+	w.WriteHeader(libhttp.StatusOK)
 }
 
 func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
