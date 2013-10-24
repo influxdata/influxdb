@@ -373,8 +373,8 @@ func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 // // cluster admins management interface
 
 func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(coordinator.User) (int, string)) {
-	username := r.URL.Query().Get("username")
-	password := r.URL.Query().Get("password")
+	username := r.URL.Query().Get("u")
+	password := r.URL.Query().Get("p")
 
 	if username == "" {
 		w.WriteHeader(libhttp.StatusUnauthorized)
@@ -464,8 +464,8 @@ func (self *HttpServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 // // db users management interface
 
 func (self *HttpServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(coordinator.User) (int, string)) {
-	username := r.URL.Query().Get("username")
-	password := r.URL.Query().Get("password")
+	username := r.URL.Query().Get("u")
+	password := r.URL.Query().Get("p")
 	db := r.URL.Query().Get(":db")
 
 	if username == "" {

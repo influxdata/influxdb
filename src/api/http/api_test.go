@@ -317,7 +317,7 @@ func (self *ApiSuite) TestCreateDatabase(c *C) {
 }
 
 func (self *ApiSuite) TestClusterAdminOperations(c *C) {
-	url := self.formatUrl("/cluster_admins?username=root&password=root")
+	url := self.formatUrl("/cluster_admins?u=root&p=root")
 	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"new_user", "password": "new_pass"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -330,7 +330,7 @@ func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 	c.Assert(self.manager.ops[1].password, Equals, "new_pass")
 	self.manager.ops = nil
 
-	url = self.formatUrl("/cluster_admins/new_user?username=root&password=root")
+	url = self.formatUrl("/cluster_admins/new_user?u=root&p=root")
 	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"password":"new_password"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -341,7 +341,7 @@ func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 	c.Assert(self.manager.ops[0].password, Equals, "new_password")
 	self.manager.ops = nil
 
-	url = self.formatUrl("/cluster_admins/new_user?username=root&password=root")
+	url = self.formatUrl("/cluster_admins/new_user?u=root&p=root")
 	req, _ := libhttp.NewRequest("DELETE", url, nil)
 	resp, err = libhttp.DefaultClient.Do(req)
 	c.Assert(err, IsNil)
@@ -353,7 +353,7 @@ func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 }
 
 func (self *ApiSuite) TestDbUSerOperations(c *C) {
-	url := self.formatUrl("/db/db1/users?username=root&password=root")
+	url := self.formatUrl("/db/db1/users?u=root&p=root")
 	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"new_user", "password": "new_pass"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -366,7 +366,7 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	c.Assert(self.manager.ops[1].password, Equals, "new_pass")
 	self.manager.ops = nil
 
-	url = self.formatUrl("/db/db1/users/new_user?username=root&password=root")
+	url = self.formatUrl("/db/db1/users/new_user?u=root&p=root")
 	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"password":"new_password"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -378,7 +378,7 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	self.manager.ops = nil
 
 	// set and unset the db admin flag
-	url = self.formatUrl("/db/db1/admins/new_user?username=root&password=root")
+	url = self.formatUrl("/db/db1/admins/new_user?u=root&p=root")
 	resp, err = libhttp.Post(url, "", nil)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -389,7 +389,7 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	c.Assert(self.manager.ops[0].isAdmin, Equals, true)
 	self.manager.ops = nil
 
-	url = self.formatUrl("/db/db1/admins/new_user?username=root&password=root")
+	url = self.formatUrl("/db/db1/admins/new_user?u=root&p=root")
 	req, _ := libhttp.NewRequest("DELETE", url, nil)
 	resp, err = libhttp.DefaultClient.Do(req)
 	c.Assert(err, IsNil)
@@ -401,7 +401,7 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	c.Assert(self.manager.ops[0].isAdmin, Equals, false)
 	self.manager.ops = nil
 
-	url = self.formatUrl("/db/db1/users/new_user?username=root&password=root")
+	url = self.formatUrl("/db/db1/users/new_user?u=root&p=root")
 	req, _ = libhttp.NewRequest("DELETE", url, nil)
 	resp, err = libhttp.DefaultClient.Do(req)
 	c.Assert(err, IsNil)
