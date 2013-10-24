@@ -162,7 +162,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(*) from foo;", c, `[
+	runQuery(engine, "select count(column_one) from foo;", c, `[
   {
     "points": [
       {
@@ -220,7 +220,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(*) from /foo.*/;", c, `[
+	runQuery(engine, "select count(column_one) from /foo.*/;", c, `[
   {
     "points": [
       {
@@ -287,7 +287,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(*), column_one from foo group by column_one;", c, `[
+	runQuery(engine, "select count(column_one), column_one from foo group by column_one;", c, `[
   {
     "points": [
       {
@@ -392,7 +392,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
 ]
 `)
 
-	runQuery(engine, "select count(*), column_one, column_two from foo group by column_one, column_two;", c, `[
+	runQuery(engine, "select count(column_one), column_one, column_two from foo group by column_one, column_two;", c, `[
   {
     "points": [
       {
@@ -488,7 +488,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(*) from foo group by time(1m);", c, `[
+	runQuery(engine, "select count(column_one) from foo group by time(1m);", c, `[
   {
     "points": [
       {
@@ -530,7 +530,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select count(*), column_one from foo group by time(1m), column_one;", c, `[
+	runQuery(engine, "select count(column_one), column_one from foo group by time(1m), column_one;", c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346640000000, "sequence_number": 1 },
@@ -797,6 +797,12 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidNumberOfArguments(c
 	err := common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
 	engine := createEngine(c, `[]`)
 	runQueryRunError(engine, "select count(*) from foo group by time(1h, 1m);", c, err)
+}
+
+func (self *EngineSuite) TestCountQueryWithInvalidWildcardArgument(c *C) {
+	err := common.NewQueryError(common.InvalidArgument, "function count() doesn't work with wildcards")
+	engine := createEngine(c, `[]`)
+	runQueryRunError(engine, "select count(*) from foo;", c, err)
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidArgument(c *C) {

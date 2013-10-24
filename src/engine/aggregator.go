@@ -69,7 +69,19 @@ func (self *CountAggregator) GetValue(series string, group interface{}) []*proto
 
 func (self *CountAggregator) InitializeFieldsMetadata(series *protocol.Series) error { return nil }
 
-func NewCountAggregator(*parser.Query, *parser.Value) (Aggregator, error) {
+func NewCountAggregator(_ *parser.Query, v *parser.Value) (Aggregator, error) {
+	if len(v.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function count() requires exactly one argument")
+	}
+
+	if v.Elems[0].Type == parser.ValueWildcard {
+		return nil, common.NewQueryError(common.InvalidArgument, "function count() doesn't work with wildcards")
+	}
+
+	if v.Elems[0].Type != parser.ValueSimpleName {
+		return nil, common.NewQueryError(common.InvalidArgument, "%s isn't a valid argument to count")
+	}
+
 	return &CountAggregator{make(map[string]map[interface{}]int32)}, nil
 }
 

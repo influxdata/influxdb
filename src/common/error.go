@@ -1,5 +1,9 @@
 package common
 
+import (
+	"fmt"
+)
+
 const (
 	WrongNumberOfArguments = iota
 	InvalidArgument
@@ -15,6 +19,6 @@ func (self *QueryError) Error() string {
 	return self.ErrorMsg
 }
 
-func NewQueryError(code int, msg string) *QueryError {
-	return &QueryError{code, msg}
+func NewQueryError(code int, msg string, args ...interface{}) *QueryError {
+	return &QueryError{code, fmt.Sprintf(msg, args...)}
 }
