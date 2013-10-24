@@ -16,7 +16,7 @@ go get code.google.com/p/go.crypto/bcrypt
 go get launchpad.net/gocheck
 
 # build snappy and leveldb
-if [ `uname` == "Linux" -a "x$TRAVIS" != "xtrue" ]; then
+if [ `uname` == "Linux" ]; then
     snappy_version=1.1.0
     snappy_file=snappy-$snappy_version.tar.gz
     if [ ! -d $snappy_dir -o ! -e $snappy_dir/$snappy_file -o ! -e $snappy_dir/.libs/libsnappy.a ]; then
