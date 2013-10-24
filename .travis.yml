@@ -4,4 +4,5 @@ go:
   - 1.1
   - tip
 
+install: ./build.sh
 script: ./test.sh
