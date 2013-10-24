@@ -42,6 +42,19 @@ if [ `uname` == "Linux" ]; then
         popd
     fi
 
+    protobuf_version=2.5.0
+    protobuf_file=protobuf-$protobuf_version.tar.gz
+    if [ ! -d $protobuf_dir -o ! -e $protobuf_dir/$protobuf_file -o ! -e $protobuf_dir/installation/bin/protoc ]; then
+        rm -rf $protobuf_dir
+        mkdir -p $protobuf_dir/installation
+        pushd $protobuf_dir
+        wget https://protobuf.googlecode.com/files/$protobuf_file
+        tar --strip-components=1 -xvzf $protobuf_file
+        ./configure --prefix=$PWD/installation
+        make && make install
+        popd
+    fi
+
     pushd src/github.com/jmhodges/levigo/
     find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'
     popd

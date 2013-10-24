@@ -6,4 +6,4 @@ go get code.google.com/p/goprotobuf/proto \
     code.google.com/p/goprotobuf/protoc-gen-go
 
 rm src/protocol/*.pb.go
-PATH=bin:$PATH protoc --go_out=. src/protocol/*.proto
+PATH=$protobuf_dir/installation/bin:bin:$PATH protoc --go_out=. src/protocol/*.proto
