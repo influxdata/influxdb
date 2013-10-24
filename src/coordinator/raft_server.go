@@ -26,7 +26,7 @@ type RaftServer struct {
 	port          int
 	path          string
 	router        *mux.Router
-	raftServer    *raft.Server
+	raftServer    raft.Server
 	httpServer    *http.Server
 	clusterConfig *ClusterConfiguration
 	mutex         sync.RWMutex
