@@ -1,0 +1,165 @@
+From 22404ea79ea9e76ea9a72366af8f2d7d920df07c Mon Sep 17 00:00:00 2001
+From: John Shahid <jvshahid@gmail.com>
+Date: Wed, 25 Sep 2013 11:08:42 -0400
+Subject: [PATCH] use the old glibc memcpy
+
+---
+ db/c.cc                  | 2 ++
+ db/c_test.c              | 2 ++
+ db/dbformat.cc           | 2 ++
+ db/memtable.cc           | 2 ++
+ helpers/memenv/memenv.cc | 2 ++
+ table/table_test.cc      | 2 ++
+ util/cache.cc            | 2 ++
+ util/coding.cc           | 2 ++
+ util/coding.h            | 2 ++
+ util/env_posix.cc        | 2 ++
+ util/status.cc           | 2 ++
+ 11 files changed, 22 insertions(+)
+
+diff --git a/db/c.cc b/db/c.cc
+index 08ff0ad..f622c62 100644
+--- a/db/c.cc
++++ b/db/c.cc
+@@ -57,6 +57,8 @@ struct leveldb_writablefile_t { WritableFile*     rep; };
+ struct leveldb_logger_t       { Logger*           rep; };
+ struct leveldb_filelock_t     { FileLock*         rep; };
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ struct leveldb_comparator_t : public Comparator {
+   void* state_;
+   void (*destructor_)(void*);
+diff --git a/db/c_test.c b/db/c_test.c
+index 7cd5ee0..4037152 100644
+--- a/db/c_test.c
++++ b/db/c_test.c
+@@ -11,6 +11,8 @@
+ #include <sys/types.h>
+ #include <unistd.h>
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ const char* phase = "";
+ static char dbname[200];
+ 
+diff --git a/db/dbformat.cc b/db/dbformat.cc
+index 20a7ca4..38bb88e 100644
+--- a/db/dbformat.cc
++++ b/db/dbformat.cc
+@@ -7,6 +7,8 @@
+ #include "port/port.h"
+ #include "util/coding.h"
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ namespace leveldb {
+ 
+ static uint64_t PackSequenceAndType(uint64_t seq, ValueType t) {
+diff --git a/db/memtable.cc b/db/memtable.cc
+index bfec0a7..6ae47a4 100644
+--- a/db/memtable.cc
++++ b/db/memtable.cc
+@@ -9,6 +9,8 @@
+ #include "leveldb/iterator.h"
+ #include "util/coding.h"
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ namespace leveldb {
+ 
+ static Slice GetLengthPrefixedSlice(const char* data) {
+diff --git a/helpers/memenv/memenv.cc b/helpers/memenv/memenv.cc
+index 5879de1..df572a9 100644
+--- a/helpers/memenv/memenv.cc
++++ b/helpers/memenv/memenv.cc
+@@ -15,6 +15,8 @@
+ 
+ namespace leveldb {
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ namespace {
+ 
+ class FileState {
+diff --git a/table/table_test.cc b/table/table_test.cc
+index c723bf8..686a36e 100644
+--- a/table/table_test.cc
++++ b/table/table_test.cc
+@@ -20,6 +20,8 @@
+ #include "util/testharness.h"
+ #include "util/testutil.h"
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ namespace leveldb {
+ 
+ // Return reverse of "key".
+diff --git a/util/cache.cc b/util/cache.cc
+index 8b197bc..aa2bcb0 100644
+--- a/util/cache.cc
++++ b/util/cache.cc
+@@ -11,6 +11,8 @@
+ #include "util/hash.h"
+ #include "util/mutexlock.h"
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ namespace leveldb {
+ 
+ Cache::~Cache() {
+diff --git a/util/coding.cc b/util/coding.cc
+index 21e3186..dafce66 100644
+--- a/util/coding.cc
++++ b/util/coding.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "util/coding.h"
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ namespace leveldb {
+ 
+ void EncodeFixed32(char* buf, uint32_t value) {
+diff --git a/util/coding.h b/util/coding.h
+index 3993c4a..56e7302 100644
+--- a/util/coding.h
++++ b/util/coding.h
+@@ -16,6 +16,8 @@
+ #include "leveldb/slice.h"
+ #include "port/port.h"
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ namespace leveldb {
+ 
+ // Standard Put... routines append to a string
+diff --git a/util/env_posix.cc b/util/env_posix.cc
+index 3e2925d..99e31fb 100644
+--- a/util/env_posix.cc
++++ b/util/env_posix.cc
+@@ -29,6 +29,8 @@
+ 
+ namespace leveldb {
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ namespace {
+ 
+ static Status IOError(const std::string& context, int err_number) {
+diff --git a/util/status.cc b/util/status.cc
+index a44f35b..17120da 100644
+--- a/util/status.cc
++++ b/util/status.cc
+@@ -6,6 +6,8 @@
+ #include "port/port.h"
+ #include "leveldb/status.h"
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
++
+ namespace leveldb {
+ 
+ const char* Status::CopyState(const char* state) {
+-- 
+1.8.3.2
+

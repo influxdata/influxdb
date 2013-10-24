@@ -24,7 +24,11 @@ popd
 snappy_dir=/tmp/snappychronosdb
 leveldb_dir=/tmp/leveldbchronosdb
 export LD_LIBRARY_PATH=/usr/local/lib
+on_linux="no"
 if [ `uname` == "Linux" ]; then
+    on_linux=yes
+fi
+if [ $on_linux == yes ]; then
     export CGO_CFLAGS="-I$leveldb_dir/include"
     export CGO_LDFLAGS="$leveldb_dir/libleveldb.a $snappy_dir/.libs/libsnappy.a -lstdc++"
 else

@@ -31,3 +31,5 @@ src/code.google.com/p/go.crypto/
 src/launchpad.net/gocheck/
 /src/github.com/nsf/gocode/
 /src/github.com/*
+out_rpm/
+packages/

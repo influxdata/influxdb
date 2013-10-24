@@ -1,0 +1,63 @@
+From 1d27e8ef967cefb504f9d471621f16e888001042 Mon Sep 17 00:00:00 2001
+From: John Shahid <jvshahid@gmail.com>
+Date: Wed, 25 Sep 2013 11:01:31 -0400
+Subject: [PATCH] use the old memcpy
+
+---
+ snappy-sinksource.cc    | 1 +
+ snappy-stubs-internal.h | 1 +
+ snappy.cc               | 1 +
+ snappy_unittest.cc      | 1 +
+ 4 files changed, 4 insertions(+)
+
+diff --git a/snappy-sinksource.cc b/snappy-sinksource.cc
+index 5844552..a469155 100644
+--- a/snappy-sinksource.cc
++++ b/snappy-sinksource.cc
+@@ -30,6 +30,7 @@
+ 
+ #include "snappy-sinksource.h"
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
+ namespace snappy {
+ 
+ Source::~Source() { }
+diff --git a/snappy-stubs-internal.h b/snappy-stubs-internal.h
+index 12393b6..3353649 100644
+--- a/snappy-stubs-internal.h
++++ b/snappy-stubs-internal.h
+@@ -89,6 +89,7 @@ using namespace std;
+ #define DECLARE_bool(flag_name) \
+   extern bool FLAGS_ ## flag_name
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
+ namespace snappy {
+ 
+ static const uint32 kuint32max = static_cast<uint32>(0xFFFFFFFF);
+diff --git a/snappy.cc b/snappy.cc
+index 1230321..e32ce5a 100644
+--- a/snappy.cc
++++ b/snappy.cc
+@@ -37,6 +37,7 @@
+ #include <vector>
+ 
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
+ namespace snappy {
+ 
+ // Any hash function will produce a valid compressed bitstream, but a good
+diff --git a/snappy_unittest.cc b/snappy_unittest.cc
+index f345dc3..cbd96fd 100644
+--- a/snappy_unittest.cc
++++ b/snappy_unittest.cc
+@@ -65,6 +65,7 @@ DEFINE_bool(write_compressed, false,
+ DEFINE_bool(write_uncompressed, false,
+             "Write uncompressed versions of each file to <file>.uncomp");
+ 
++__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
+ namespace snappy {
+ 
+ 
+-- 
+1.8.3.2
+
