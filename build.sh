@@ -4,6 +4,17 @@ set -e
 
 . ./exports.sh
 
+go get code.google.com/p/goprotobuf/proto
+go get github.com/goraft/raft
+go get github.com/gorilla/mux
+go get github.com/jmhodges/levigo
+go get github.com/bmizerany/pat
+go get github.com/fitstar/falcore
+go get github.com/fitstar/falcore/filter
+go get code.google.com/p/log4go
+go get code.google.com/p/go.crypto/bcrypt
+go get launchpad.net/gocheck
+
 # build snappy and leveldb
 if [ `uname` == "Linux" ]; then
     snappy_version=1.1.0
@@ -35,17 +46,6 @@ if [ `uname` == "Linux" ]; then
     find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'
     popd
 fi
-
-go get code.google.com/p/goprotobuf/proto
-go get github.com/goraft/raft
-go get github.com/gorilla/mux
-go get github.com/jmhodges/levigo
-go get github.com/bmizerany/pat
-go get github.com/fitstar/falcore
-go get github.com/fitstar/falcore/filter
-go get code.google.com/p/log4go
-go get code.google.com/p/go.crypto/bcrypt
-go get launchpad.net/gocheck
 
 echo "packages: go build $packages"
 
