@@ -2,7 +2,6 @@ package engine
 
 import (
 	"common"
-	"coordinator"
 	"encoding/json"
 	"fmt"
 	. "launchpad.net/gocheck"
@@ -26,7 +25,7 @@ type MockCoordinator struct {
 	series []*protocol.Series
 }
 
-func (self *MockCoordinator) DistributeQuery(database string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error {
 	for _, series := range self.series {
 		if err := yield(series); err != nil {
 			return err
@@ -35,22 +34,20 @@ func (self *MockCoordinator) DistributeQuery(database string, query *parser.Quer
 	return nil
 }
 
-func (self *MockCoordinator) GetUser(username, password string) (*coordinator.User, error) {
+func (self *MockCoordinator) WriteSeriesData(user common.User, database string, series *protocol.Series) error {
+	return nil
+}
+
+func (self *MockCoordinator) CreateDatabase(user common.User, db string) error {
+	return nil
+}
+
+func (self *MockCoordinator) DropDatabase(user common.User, db string) error {
+	return nil
+}
+
+func (self *MockCoordinator) ListDatabases(user common.User) ([]string, error) {
 	return nil, nil
-}
-func (self *MockCoordinator) GetUserWithoutPassword(username string) *coordinator.User { return nil }
-func (self *MockCoordinator) SaveUser(user *coordinator.User) error                    { return nil }
-
-func (self *MockCoordinator) WriteSeriesData(database string, series *protocol.Series) error {
-	return nil
-}
-
-func (self *MockCoordinator) CreateDatabase(db string) error {
-	return nil
-}
-
-func (self *MockCoordinator) DropDatabase(db string) error {
-	return nil
 }
 
 func createEngine(c *C, seriesString string) EngineI {
@@ -71,14 +68,15 @@ func createEngine(c *C, seriesString string) EngineI {
 // expectedSeries must be a json array, e.g. time series must by
 // inclosed in '[' and ']'
 func runQueryRunError(engine EngineI, query string, c *C, expectedErr error) {
-	err := engine.RunQuery("", query, func(series *protocol.Series) error { return nil })
+	err := engine.RunQuery(nil, "", query, func(series *protocol.Series) error { return nil })
 
 	c.Assert(err, DeepEquals, expectedErr)
 }
 
 func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
+
 	result := []*protocol.Series{}
-	err := engine.RunQuery("", query, func(series *protocol.Series) error {
+	err := engine.RunQuery(nil, "", query, func(series *protocol.Series) error {
 		result = append(result, series)
 		return nil
 	})

@@ -2,6 +2,7 @@ package http
 
 import (
 	log "code.google.com/p/log4go"
+	"common"
 	"coordinator"
 	"encoding/json"
 	"engine"
@@ -179,26 +180,32 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	query := r.URL.Query().Get("q")
 	db := r.URL.Query().Get(":db")
 
-	precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
-	if err != nil {
-		w.WriteHeader(libhttp.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-	}
+	statusCode, body := self.tryAsDbUser(w, r, func(user common.User) (int, interface{}) {
 
-	var writer Writer
-	if r.URL.Query().Get("chunked") == "true" {
-		writer = &ChunkWriter{w, precision}
-	} else {
-		writer = &AllPointsWriter{map[string]*protocol.Series{}, w, precision}
-	}
-	err = self.engine.RunQuery(db, query, writer.yield)
-	if err != nil {
-		w.Write([]byte(err.Error()))
-		w.WriteHeader(libhttp.StatusInternalServerError)
-		return
-	}
+		precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
+		if err != nil {
+			w.WriteHeader(libhttp.StatusBadRequest)
+			w.Write([]byte(err.Error()))
+		}
 
-	writer.done()
+		var writer Writer
+		if r.URL.Query().Get("chunked") == "true" {
+			writer = &ChunkWriter{w, precision}
+		} else {
+			writer = &AllPointsWriter{map[string]*protocol.Series{}, w, precision}
+		}
+		err = self.engine.RunQuery(user, db, query, writer.yield)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+
+		writer.done()
+		return libhttp.StatusOK, nil
+	})
+	w.WriteHeader(statusCode)
+	if len(body) > 0 {
+		w.Write(body)
+	}
 }
 
 func removeTimestampFieldDefinition(fields []string) []string {
@@ -218,6 +225,63 @@ func removeTimestampFieldDefinition(fields []string) []string {
 	return fields[:len(fields)-1]
 }
 
+func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*protocol.Series, error) {
+	points := []*protocol.Point{}
+	for _, point := range s.Points {
+		values := []*protocol.FieldValue{}
+		var timestamp *int64
+
+		for idx, field := range s.Columns {
+			value := point[idx]
+			if field == "time" {
+				_timestamp := int64(value.(float64))
+				switch precision {
+				case SecondPrecision:
+					_timestamp *= 1000
+					fallthrough
+				case MillisecondPrecision:
+					_timestamp *= 1000
+				}
+
+				timestamp = &_timestamp
+				continue
+			}
+
+			switch v := value.(type) {
+			case string:
+				values = append(values, &protocol.FieldValue{StringValue: &v})
+
+			case float64:
+				if i := int64(v); float64(i) == v {
+					values = append(values, &protocol.FieldValue{Int64Value: &i})
+				} else {
+					values = append(values, &protocol.FieldValue{DoubleValue: &v})
+				}
+				continue
+			case bool:
+				values = append(values, &protocol.FieldValue{BoolValue: &v})
+				continue
+			default:
+				// if we reached this line then the dynamic type didn't match
+				return nil, fmt.Errorf("Unknown type %T", value)
+			}
+		}
+		points = append(points, &protocol.Point{
+			Values:    values,
+			Timestamp: timestamp,
+		})
+	}
+
+	fields := removeTimestampFieldDefinition(s.Columns)
+
+	series := &protocol.Series{
+		Name:   &s.Name,
+		Fields: fields,
+		Points: points,
+	}
+	return series, nil
+}
+
 func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request) {
 	db := r.URL.Query().Get(":db")
 	precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
@@ -226,81 +290,39 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 		w.Write([]byte(err.Error()))
 	}
 
-	series, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusInternalServerError)
-		return
-	}
-	serializedSeries := []*SerializedSeries{}
-	err = json.Unmarshal(series, &serializedSeries)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-		return
-	}
-
-	// convert the wire format to the internal representation of the time series
-	for _, s := range serializedSeries {
-		if len(s.Points) == 0 {
-			continue
+	statusCode, body := self.tryAsDbUser(w, r, func(user common.User) (int, interface{}) {
+		series, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		serializedSeries := []*SerializedSeries{}
+		err = json.Unmarshal(series, &serializedSeries)
+		if err != nil {
+			return libhttp.StatusBadRequest, err.Error()
 		}
 
-		points := []*protocol.Point{}
-		for _, point := range s.Points {
-			values := []*protocol.FieldValue{}
-			var timestamp *int64
-
-			for idx, field := range s.Columns {
-				value := point[idx]
-				if field == "time" {
-					_timestamp := int64(value.(float64))
-					switch precision {
-					case SecondPrecision:
-						_timestamp *= 1000
-						fallthrough
-					case MillisecondPrecision:
-						_timestamp *= 1000
-					}
-
-					timestamp = &_timestamp
-					continue
-				}
-
-				switch v := value.(type) {
-				case string:
-					values = append(values, &protocol.FieldValue{StringValue: &v})
-
-				case float64:
-					if i := int64(v); float64(i) == v {
-						values = append(values, &protocol.FieldValue{Int64Value: &i})
-					} else {
-						values = append(values, &protocol.FieldValue{DoubleValue: &v})
-					}
-					continue
-				case bool:
-					values = append(values, &protocol.FieldValue{BoolValue: &v})
-					continue
-				default:
-					// if we reached this line then the dynamic type didn't match
-					w.WriteHeader(libhttp.StatusBadRequest)
-					return
-				}
+		// convert the wire format to the internal representation of the time series
+		for _, s := range serializedSeries {
+			if len(s.Points) == 0 {
+				continue
 			}
-			points = append(points, &protocol.Point{
-				Values:    values,
-				Timestamp: timestamp,
-			})
+
+			series, err := convertToDataStoreSeries(s, precision)
+			if err != nil {
+				return libhttp.StatusBadRequest, err.Error()
+			}
+
+			err = self.coordinator.WriteSeriesData(user, db, series)
+			if err != nil {
+				return libhttp.StatusUnauthorized, err.Error()
+			}
 		}
+		return libhttp.StatusOK, nil
+	})
 
-		fields := removeTimestampFieldDefinition(s.Columns)
-
-		series := &protocol.Series{
-			Name:   &s.Name,
-			Fields: fields,
-			Points: points,
-		}
-
-		self.coordinator.WriteSeriesData(db, series)
+	w.WriteHeader(statusCode)
+	if len(body) > 0 {
+		w.Write(body)
 	}
 }
 
@@ -314,10 +336,10 @@ type Database struct {
 }
 
 func (self *HttpServer) listDatabases(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
-		dbNames, err := self.coordinator.ListDatabases()
+	self.tryAsClusterAdmin(w, r, func(u common.User) (int, interface{}) {
+		dbNames, err := self.coordinator.ListDatabases(u)
 		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
+			return libhttp.StatusUnauthorized, err.Error()
 		}
 		databases := make([]*Database, 0, len(dbNames))
 		for _, db := range dbNames {
@@ -332,31 +354,28 @@ func (self *HttpServer) listDatabases(w libhttp.ResponseWriter, r *libhttp.Reque
 }
 
 func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusInternalServerError)
-		return
-	}
-	createRequest := &createDatabaseRequest{}
-	err = json.Unmarshal(body, createRequest)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-		return
-	}
-	err = self.coordinator.CreateDatabase(createRequest.Name)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-		return
-	}
-	w.WriteHeader(libhttp.StatusCreated)
+	self.tryAsClusterAdmin(w, r, func(user common.User) (int, interface{}) {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		createRequest := &createDatabaseRequest{}
+		err = json.Unmarshal(body, createRequest)
+		if err != nil {
+			return libhttp.StatusBadRequest, err.Error()
+		}
+		err = self.coordinator.CreateDatabase(user, createRequest.Name)
+		if err != nil {
+			return libhttp.StatusUnauthorized, err.Error()
+		}
+		return libhttp.StatusCreated, nil
+	})
 }
 
 func (self *HttpServer) dropDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(user coordinator.User) (int, interface{}) {
+	self.tryAsClusterAdmin(w, r, func(user common.User) (int, interface{}) {
 		name := r.URL.Query().Get(":name")
-		err := self.coordinator.DropDatabase(name)
+		err := self.coordinator.DropDatabase(user, name)
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
@@ -438,7 +457,17 @@ func toBytes(body interface{}) ([]byte, error) {
 	}
 }
 
-func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(coordinator.User) (int, interface{})) {
+func yieldUser(user common.User, yield func(common.User) (int, interface{})) (int, []byte) {
+	statusCode, body := yield(user)
+	bodyContent, err := toBytes(body)
+	if err != nil {
+		return libhttp.StatusInternalServerError, []byte(err.Error())
+	}
+
+	return statusCode, bodyContent
+}
+
+func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(common.User) (int, interface{})) {
 	username := r.URL.Query().Get("u")
 	password := r.URL.Query().Get("p")
 
@@ -452,18 +481,10 @@ func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 		w.WriteHeader(libhttp.StatusUnauthorized)
 		w.Write([]byte(err.Error()))
 	}
-
-	statusCode, body := yield(user)
-	bodyContent, err := toBytes(body)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
-	}
-
+	statusCode, body := yieldUser(user, yield)
 	w.WriteHeader(statusCode)
-	if len(bodyContent) > 0 {
-		w.Write(bodyContent)
+	if len(body) > 0 {
+		w.Write(body)
 	}
 }
 
@@ -481,7 +502,7 @@ type User struct {
 }
 
 func (self *HttpServer) listClusterAdmins(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
+	self.tryAsClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		names, err := self.userManager.ListClusterAdmins(u)
 		if err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
@@ -509,7 +530,7 @@ func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 		return
 	}
 
-	self.tryAsClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
+	self.tryAsClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		if err := self.userManager.CreateClusterAdminUser(u, newUser.Name); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
@@ -523,7 +544,7 @@ func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 func (self *HttpServer) deleteClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
 	newUser := r.URL.Query().Get(":user")
 
-	self.tryAsClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
+	self.tryAsClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		if err := self.userManager.DeleteClusterAdminUser(u, newUser); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
@@ -544,7 +565,7 @@ func (self *HttpServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 
 	newUser := r.URL.Query().Get(":user")
 
-	self.tryAsClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
+	self.tryAsClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		if err := self.userManager.ChangeClusterAdminPassword(u, newUser, updateUser.Password); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
@@ -554,46 +575,41 @@ func (self *HttpServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 
 // // db users management interface
 
-func (self *HttpServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(coordinator.User) (int, interface{})) {
+func (self *HttpServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request, yield func(common.User) (int, interface{})) (int, []byte) {
 	username := r.URL.Query().Get("u")
 	password := r.URL.Query().Get("p")
 	db := r.URL.Query().Get(":db")
 
 	if username == "" {
-		w.WriteHeader(libhttp.StatusUnauthorized)
-		w.Write([]byte("Invalid username/password"))
-		return
+		return libhttp.StatusUnauthorized, []byte("Invalid username/password")
 	}
 
 	user, err := self.userManager.AuthenticateDbUser(db, username, password)
 	if err != nil {
-		self.tryAsClusterAdmin(w, r, yield)
-		return
+		return libhttp.StatusUnauthorized, []byte(err.Error())
 	}
 
-	statusCode, body := yield(user)
-	if statusCode != libhttp.StatusOK {
-		self.tryAsClusterAdmin(w, r, yield)
-		return
-	}
+	return yieldUser(user, yield)
+}
 
-	bodyContent, err := toBytes(body)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
+func (self *HttpServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(common.User) (int, interface{})) {
+	statusCode, body := self.tryAsDbUser(w, r, yield)
+	if statusCode == libhttp.StatusUnauthorized {
+		self.tryAsClusterAdmin(w, r, yield)
 		return
 	}
 
 	w.WriteHeader(statusCode)
-	if len(bodyContent) > 0 {
-		w.Write(bodyContent)
+	if len(body) > 0 {
+		w.Write(body)
 	}
+	return
 }
 
 func (self *HttpServer) listDbUsers(w libhttp.ResponseWriter, r *libhttp.Request) {
 	db := r.URL.Query().Get(":db")
 
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
+	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		names, err := self.userManager.ListDbUsers(u, db)
 		if err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
@@ -624,7 +640,7 @@ func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 
 	db := r.URL.Query().Get(":db")
 
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
+	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		if err := self.userManager.CreateDbUser(u, db, newUser.Name); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
@@ -639,7 +655,7 @@ func (self *HttpServer) deleteDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	newUser := r.URL.Query().Get(":user")
 	db := r.URL.Query().Get(":db")
 
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
+	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		if err := self.userManager.DeleteDbUser(u, db, newUser); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
@@ -666,7 +682,7 @@ func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	newUser := r.URL.Query().Get(":user")
 	db := r.URL.Query().Get(":db")
 
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
+	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		if err := self.userManager.ChangeDbUserPassword(u, db, newUser, updateUser.Password); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}
@@ -686,7 +702,7 @@ func (self *HttpServer) commonSetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Re
 	newUser := r.URL.Query().Get(":user")
 	db := r.URL.Query().Get(":db")
 
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u coordinator.User) (int, interface{}) {
+	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		if err := self.userManager.SetDbAdmin(u, db, newUser, isAdmin); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
 		}

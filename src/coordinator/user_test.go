@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"common"
 	. "launchpad.net/gocheck"
 )
 
@@ -8,11 +9,12 @@ type UserSuite struct{}
 
 var _ = Suite(&UserSuite{})
 
-var root User
+var root common.User
 
 func (self *UserSuite) SetUpSuite(c *C) {
-	root = &clusterAdmin{CommonUser{"root", "", false}}
-	c.Assert(root.changePassword("password"), IsNil)
+	user := &clusterAdmin{CommonUser{"root", "", false}}
+	c.Assert(user.changePassword("password"), IsNil)
+	root = user
 }
 
 func (self *UserSuite) TestProperties(c *C) {

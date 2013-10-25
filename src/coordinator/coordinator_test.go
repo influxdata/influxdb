@@ -646,7 +646,8 @@ func (self *CoordinatorSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWi
     "fields": ["value"]
   }`
 	series := stringToSeries(mock, c)
-	coordinator.WriteSeriesData("foo", series)
+	user := &MockUser{}
+	coordinator.WriteSeriesData(user, "foo", series)
 	c.Assert(datastoreMock.Series, DeepEquals, series)
 	mock = `{
     "points": [{"values": [{"int64_value": 3}]}],
@@ -655,10 +656,37 @@ func (self *CoordinatorSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWi
   }`
 	series = stringToSeries(mock, c)
 	beforeTime := CurrentTime()
-	coordinator.WriteSeriesData("foo", series)
+	coordinator.WriteSeriesData(user, "foo", series)
 	afterTime := CurrentTime()
 	c.Assert(datastoreMock.Series, Not(DeepEquals), stringToSeries(mock, c))
 	c.Assert(*datastoreMock.Series.Points[0].SequenceNumber, Equals, uint32(1))
 	t := *datastoreMock.Series.Points[0].Timestamp
 	c.Assert(t, InRange, beforeTime, afterTime)
+}
+
+func (self *CoordinatorSuite) TestCheckReadAccess(c *C) {
+	datastoreMock := &DatastoreMock{}
+	coordinator := NewCoordinatorImpl(datastoreMock, nil, nil)
+	mock := `{
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 3
+          }
+        ],
+        "sequence_number": 1,
+        "timestamp": 23423
+      }
+    ],
+    "name": "foo",
+    "fields": ["value"]
+  }`
+	series := stringToSeries(mock, c)
+	user := &MockUser{
+		dbCannotWrite: map[string]bool{"foo": true},
+	}
+	err := coordinator.WriteSeriesData(user, "foo", series)
+	c.Assert(err, ErrorMatches, ".*Insufficient permission.*")
+	c.Assert(datastoreMock.Series, IsNil)
 }

@@ -12,7 +12,7 @@ pushd src
 all_packages=$(find . -type d | egrep -v 'google|launchpad|github' | tr '\n' ' ' | sed 's/\.\///g')
 packages=""
 for i in $all_packages; do
-    if [ $i == "." ]; then
+    if [ $i = "." ]; then
         continue
     fi
     if [ `ls $i/*.go 2>/dev/null | wc -l` -ne 0 ]; then
@@ -25,14 +25,14 @@ snappy_dir=/tmp/snappychronosdb
 leveldb_dir=/tmp/leveldbchronosdb
 export LD_LIBRARY_PATH=/usr/local/lib
 on_linux="no"
-if [ `uname` == "Linux" ]; then
+if [ `uname` = "Linux" ]; then
     on_linux=yes
 
-elif [ `uname -v | cut -d' ' -f4` == "13.0.0:" ]; then
+elif [ `uname -v | cut -d' ' -f4` = "13.0.0:" ]; then
     # for mavericks use gcc instead of llvm
     export CC=gcc-4.2
 fi
-if [ $on_linux == yes ]; then
+if [ $on_linux = yes ]; then
     export CGO_CFLAGS="-I$leveldb_dir/include"
     export CGO_LDFLAGS="$leveldb_dir/libleveldb.a $snappy_dir/.libs/libsnappy.a -lstdc++"
 else

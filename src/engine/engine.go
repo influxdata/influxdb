@@ -17,7 +17,7 @@ type QueryEngine struct {
 	coordinator coordinator.Coordinator
 }
 
-func (self *QueryEngine) RunQuery(database string, query string, yield func(*protocol.Series) error) (err error) {
+func (self *QueryEngine) RunQuery(user common.User, database string, query string, yield func(*protocol.Series) error) (err error) {
 	// don't let a panic pass beyond RunQuery
 	defer func() {
 		if err := recover(); err != nil {
@@ -34,9 +34,9 @@ func (self *QueryEngine) RunQuery(database string, query string, yield func(*pro
 		return err
 	}
 	if isAggregateQuery(q) {
-		return self.executeCountQueryWithGroupBy(database, q, yield)
+		return self.executeCountQueryWithGroupBy(user, database, q, yield)
 	} else {
-		self.coordinator.DistributeQuery(database, q, yield)
+		self.coordinator.DistributeQuery(user, database, q, yield)
 	}
 	return nil
 }
@@ -172,7 +172,8 @@ func createValuesToInterface(groupBy parser.GroupByClause, fields []string) (Map
 	}
 }
 
-func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database string, query *parser.Query,
+	yield func(*protocol.Series) error) error {
 	duration, err := query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return err
@@ -202,7 +203,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(database string, query *pa
 
 	var inverse InverseMapper
 
-	err = self.coordinator.DistributeQuery(database, query, func(series *protocol.Series) error {
+	err = self.coordinator.DistributeQuery(user, database, query, func(series *protocol.Series) error {
 		var mapper Mapper
 		mapper, inverse, err = createValuesToInterface(groupBy, series.Fields)
 		if err != nil {

@@ -3,7 +3,6 @@ package http
 import (
 	"bytes"
 	"common"
-	"coordinator"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -33,7 +32,7 @@ var _ = Suite(&ApiSuite{})
 
 type MockEngine struct{}
 
-func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Series) error) error {
+func (self *MockEngine) RunQuery(_ common.User, _ string, query string, yield func(*protocol.Series) error) error {
 	series, err := common.StringToSeriesArray(`
 [
   {
@@ -91,28 +90,27 @@ type MockCoordinator struct {
 	series    []*protocol.Series
 	db        string
 	droppedDb string
-	users     map[string]*coordinator.User
 }
 
-func (self *MockCoordinator) DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) DistributeQuery(_ common.User, db string, query *parser.Query, yield func(*protocol.Series) error) error {
 	return nil
 }
 
-func (self *MockCoordinator) WriteSeriesData(db string, series *protocol.Series) error {
+func (self *MockCoordinator) WriteSeriesData(_ common.User, db string, series *protocol.Series) error {
 	self.series = append(self.series, series)
 	return nil
 }
 
-func (self *MockCoordinator) CreateDatabase(db string) error {
+func (self *MockCoordinator) CreateDatabase(_ common.User, db string) error {
 	self.db = db
 	return nil
 }
 
-func (self *MockCoordinator) ListDatabases() ([]string, error) {
+func (self *MockCoordinator) ListDatabases(_ common.User) ([]string, error) {
 	return []string{"db1", "db2"}, nil
 }
 
-func (self *MockCoordinator) DropDatabase(db string) error {
+func (self *MockCoordinator) DropDatabase(_ common.User, db string) error {
 	self.droppedDb = db
 	return nil
 }
@@ -124,9 +122,7 @@ func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
 }
 
 func (self *ApiSuite) SetUpSuite(c *C) {
-	self.coordinator = &MockCoordinator{
-		users: map[string]*coordinator.User{},
-	}
+	self.coordinator = &MockCoordinator{}
 	self.manager = &MockUserManager{
 		clusterAdmins: []string{"root"},
 		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
@@ -153,7 +149,7 @@ func (self *ApiSuite) SetUpTest(c *C) {
 func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=s", query)
+	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=s&u=dbuser&p=password", query)
 	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -174,7 +170,7 @@ func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
 func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s", query)
+	addr := self.formatUrl("/db/foo/series?q=%s&u=dbuser&p=password", query)
 	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -196,7 +192,7 @@ func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 func (self *ApiSuite) TestChunkedQuery(c *C) {
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&chunked=true", query)
+	addr := self.formatUrl("/db/foo/series?q=%s&chunked=true&u=dbuser&p=password", query)
 	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -230,7 +226,7 @@ func (self *ApiSuite) TestWriteDataWithTimeInSeconds(c *C) {
 ]
 `
 
-	addr := self.formatUrl("/db/foo/series?time_precision=s")
+	addr := self.formatUrl("/db/foo/series?time_precision=s&u=dbuser&p=password")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
@@ -260,7 +256,7 @@ func (self *ApiSuite) TestWriteDataWithTime(c *C) {
 ]
 `
 
-	addr := self.formatUrl("/db/foo/series")
+	addr := self.formatUrl("/db/foo/series?u=dbuser&p=password")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
@@ -292,7 +288,7 @@ func (self *ApiSuite) TestWriteData(c *C) {
 ]
 `
 
-	addr := self.formatUrl("/db/foo/series")
+	addr := self.formatUrl("/db/foo/series?u=dbuser&p=password")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
@@ -316,7 +312,7 @@ func (self *ApiSuite) TestWriteData(c *C) {
 
 func (self *ApiSuite) TestCreateDatabase(c *C) {
 	data := `{"name": "foo", "apiKey": "bar"}`
-	addr := self.formatUrl("/db?api_key=asdf")
+	addr := self.formatUrl("/db?api_key=asdf&u=dbuser&p=password")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	_, err = ioutil.ReadAll(resp.Body)

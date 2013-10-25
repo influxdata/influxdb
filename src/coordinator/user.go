@@ -18,18 +18,6 @@ func (self *Matcher) Matches(name string) bool {
 	return self.name == name
 }
 
-type User interface {
-	GetName() string
-	IsDeleted() bool
-	changePassword(password string) error
-	isValidPwd(password string) bool
-	IsClusterAdmin() bool
-	IsDbAdmin(db string) bool
-	GetDb() string
-	HasWriteAccess(name string) bool
-	HasReadAccess(name string) bool
-}
-
 type CommonUser struct {
 	Name          string `json:"name"`
 	Hash          string `json:"hash"`

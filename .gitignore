@@ -22,6 +22,11 @@ src/parser/y.tab.h
 src/parser/y.tab.c
 build/
 
+# executables
+server
+main
+godef
+
 # dependencies
 src/code.google.com/p/log4go
 src/code.google.com/p/go.crypto/

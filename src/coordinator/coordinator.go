@@ -25,11 +25,15 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer *RaftServer, c
 	}
 }
 
-func (self *CoordinatorImpl) DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error {
-	return self.datastore.ExecuteQuery(db, query, yield)
+func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query *parser.Query, yield func(*protocol.Series) error) error {
+	return self.datastore.ExecuteQuery(user, db, query, yield)
 }
 
-func (self *CoordinatorImpl) WriteSeriesData(db string, series *protocol.Series) error {
+func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series *protocol.Series) error {
+	if !user.HasWriteAccess(db) {
+		return fmt.Errorf("Insufficient permission to write to %s", db)
+	}
+
 	now := common.CurrentTime()
 	for _, p := range series.Points {
 		if p.Timestamp == nil {
@@ -50,7 +54,11 @@ func (self *CoordinatorImpl) WriteSeriesData(db string, series *protocol.Series)
 	return self.datastore.WriteSeriesData(db, series)
 }
 
-func (self *CoordinatorImpl) CreateDatabase(db string) error {
+func (self *CoordinatorImpl) CreateDatabase(user common.User, db string) error {
+	if !user.IsClusterAdmin() {
+		return fmt.Errorf("Insufficient permission to create database")
+	}
+
 	err := self.raftServer.CreateDatabase(db)
 	if err != nil {
 		return err
@@ -58,16 +66,24 @@ func (self *CoordinatorImpl) CreateDatabase(db string) error {
 	return nil
 }
 
-func (self *CoordinatorImpl) ListDatabases() ([]string, error) {
+func (self *CoordinatorImpl) ListDatabases(user common.User) ([]string, error) {
+	if !user.IsClusterAdmin() {
+		return nil, fmt.Errorf("Insufficient permission to list databases")
+	}
+
 	dbs := self.clusterConfiguration.GetDatabases()
 	return dbs, nil
 }
 
-func (self *CoordinatorImpl) DropDatabase(db string) error {
+func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
+	if !user.IsClusterAdmin() {
+		return fmt.Errorf("Insufficient permission to drop database")
+	}
+
 	return self.raftServer.DropDatabase(db)
 }
 
-func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (User, error) {
+func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {
 	dbUsers := self.clusterConfiguration.dbUsers[db]
 	if dbUsers == nil || dbUsers[username] == nil {
 		return self.AuthenticateClusterAdmin(username, password)
@@ -79,7 +95,7 @@ func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (
 	return nil, fmt.Errorf("Invalid username/password")
 }
 
-func (self *CoordinatorImpl) AuthenticateClusterAdmin(username, password string) (User, error) {
+func (self *CoordinatorImpl) AuthenticateClusterAdmin(username, password string) (common.User, error) {
 	user := self.clusterConfiguration.clusterAdmins[username]
 	if user == nil {
 		return nil, fmt.Errorf("Invalid username/password")
@@ -90,7 +106,7 @@ func (self *CoordinatorImpl) AuthenticateClusterAdmin(username, password string)
 	return nil, fmt.Errorf("Invalid username/password")
 }
 
-func (self *CoordinatorImpl) ListClusterAdmins(requester User) ([]string, error) {
+func (self *CoordinatorImpl) ListClusterAdmins(requester common.User) ([]string, error) {
 	if !requester.IsClusterAdmin() {
 		return nil, fmt.Errorf("Insufficient permissions")
 	}
@@ -98,7 +114,7 @@ func (self *CoordinatorImpl) ListClusterAdmins(requester User) ([]string, error)
 	return self.clusterConfiguration.GetClusterAdmins(), nil
 }
 
-func (self *CoordinatorImpl) CreateClusterAdminUser(requester User, username string) error {
+func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, username string) error {
 	if !requester.IsClusterAdmin() {
 		return fmt.Errorf("Insufficient permissions")
 	}
@@ -110,7 +126,7 @@ func (self *CoordinatorImpl) CreateClusterAdminUser(requester User, username str
 	return self.raftServer.SaveClusterAdminUser(&clusterAdmin{CommonUser{Name: username}})
 }
 
-func (self *CoordinatorImpl) DeleteClusterAdminUser(requester User, username string) error {
+func (self *CoordinatorImpl) DeleteClusterAdminUser(requester common.User, username string) error {
 	if !requester.IsClusterAdmin() {
 		return fmt.Errorf("Insufficient permissions")
 	}
@@ -124,7 +140,7 @@ func (self *CoordinatorImpl) DeleteClusterAdminUser(requester User, username str
 	return self.raftServer.SaveClusterAdminUser(user)
 }
 
-func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester User, username, password string) error {
+func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, username, password string) error {
 	if !requester.IsClusterAdmin() {
 		return fmt.Errorf("Insufficient permissions")
 	}
@@ -138,7 +154,7 @@ func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester User, username
 	return self.raftServer.SaveClusterAdminUser(user)
 }
 
-func (self *CoordinatorImpl) CreateDbUser(requester User, db, username string) error {
+func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return fmt.Errorf("Insufficient permissions")
 	}
@@ -156,7 +172,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester User, db, username string) e
 	return self.raftServer.SaveDbUser(&dbUser{CommonUser{Name: username}, db, nil, nil, false})
 }
 
-func (self *CoordinatorImpl) DeleteDbUser(requester User, db, username string) error {
+func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return fmt.Errorf("Insufficient permissions")
 	}
@@ -171,7 +187,7 @@ func (self *CoordinatorImpl) DeleteDbUser(requester User, db, username string) e
 	return self.raftServer.SaveDbUser(user)
 }
 
-func (self *CoordinatorImpl) ListDbUsers(requester User, db string) ([]string, error) {
+func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]string, error) {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return nil, fmt.Errorf("Insufficient permissions")
 	}
@@ -179,7 +195,7 @@ func (self *CoordinatorImpl) ListDbUsers(requester User, db string) ([]string, e
 	return self.clusterConfiguration.GetDbUsers(db), nil
 }
 
-func (self *CoordinatorImpl) ChangeDbUserPassword(requester User, db, username, password string) error {
+func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, username, password string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) && !(requester.GetDb() == db && requester.GetName() == username) {
 		return fmt.Errorf("Insufficient permissions")
 	}
@@ -193,7 +209,7 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester User, db, username, 
 	return self.raftServer.SaveDbUser(dbUsers[username])
 }
 
-func (self *CoordinatorImpl) SetDbAdmin(requester User, db, username string, isAdmin bool) error {
+func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username string, isAdmin bool) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return fmt.Errorf("Insufficient permissions")
 	}

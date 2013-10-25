@@ -116,23 +116,35 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 	return self.db.Write(wo, wb)
 }
 
-func (self *LevelDbDatastore) ExecuteQuery(database string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error {
 	seriesAndColumns := query.GetReferencedColumns()
+	hasAccess := true
 	for series, columns := range seriesAndColumns {
 		if regex, ok := series.GetCompiledRegex(); ok {
 			seriesNames := self.getSeriesForDbAndRegex(database, regex)
 			for _, name := range seriesNames {
+				if !user.HasReadAccess(name) {
+					hasAccess = false
+					continue
+				}
 				err := self.executeQueryForSeries(database, name, columns, query, yield)
 				if err != nil {
 					return err
 				}
 			}
 		} else {
+			if !user.HasReadAccess(series.Name) {
+				hasAccess = false
+				continue
+			}
 			err := self.executeQueryForSeries(database, series.Name, columns, query, yield)
 			if err != nil {
 				return err
 			}
 		}
+	}
+	if !hasAccess {
+		return fmt.Errorf("You don't have permission to access one or more time series")
 	}
 	return nil
 }
@@ -189,13 +201,22 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 	return nil
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
+func (self *LevelDbDatastore) DeleteRangeOfRegex(user common.User, database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
 	series := self.getSeriesForDbAndRegex(database, regex)
+	hasAccess := true
 	for _, name := range series {
+		if !user.HasWriteAccess(name) {
+			hasAccess = false
+			continue
+		}
+
 		err := self.DeleteRangeOfSeries(database, name, startTime, endTime)
 		if err != nil {
 			return err
 		}
+	}
+	if !hasAccess {
+		return fmt.Errorf("You don't have access to delete from one or more time series")
 	}
 	return nil
 }
