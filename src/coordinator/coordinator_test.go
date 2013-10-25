@@ -422,6 +422,11 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(u.IsClusterAdmin(), Equals, true)
 
+	// can get other cluster admin
+	admins, err := coordinator.ListClusterAdmins(root)
+	c.Assert(err, IsNil)
+	c.Assert(admins, DeepEquals, []string{"root", "another_cluster_admin"})
+
 	// can create db users
 	c.Assert(coordinator.CreateDbUser(root, "db1", "db_user"), IsNil)
 	c.Assert(coordinator.ChangeDbUserPassword(root, "db1", "db_user", "db_pass"), IsNil)
@@ -435,6 +440,11 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	u, err = coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
 	c.Assert(err, IsNil)
 	c.Assert(u.IsDbAdmin("db1"), Equals, true)
+
+	// can list db users
+	dbUsers, err := coordinator.ListDbUsers(root, "db1")
+	c.Assert(err, IsNil)
+	c.Assert(dbUsers, DeepEquals, []string{"db_user"})
 
 	// can delete cluster admins and db users
 	c.Assert(coordinator.DeleteDbUser(root, "db1", "db_user"), IsNil)
@@ -463,6 +473,10 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	c.Assert(coordinator.CreateClusterAdminUser(dbUser, "another_cluster_admin"), NotNil)
 	c.Assert(coordinator.DeleteClusterAdminUser(dbUser, "root"), NotNil)
 
+	// cannot get cluster admin
+	_, err = coordinator.ListClusterAdmins(dbUser)
+	c.Assert(err, NotNil)
+
 	// can create db users
 	c.Assert(coordinator.CreateDbUser(dbUser, "db1", "db_user2"), IsNil)
 	c.Assert(coordinator.ChangeDbUserPassword(dbUser, "db1", "db_user2", "db_pass"), IsNil)
@@ -471,8 +485,17 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	c.Assert(u.IsClusterAdmin(), Equals, false)
 	c.Assert(u.IsDbAdmin("db1"), Equals, false)
 
+	// can get db users
+	admins, err := coordinator.ListDbUsers(dbUser, "db1")
+	c.Assert(err, IsNil)
+	c.Assert(admins, DeepEquals, []string{"db_user", "db_user2"})
+
 	// cannot create db users for a different db
 	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)
+
+	// cannot get db users for a different db
+	_, err = coordinator.ListDbUsers(dbUser, "db2")
+	c.Assert(err, NotNil)
 
 	// can make db users db admins
 	c.Assert(coordinator.SetDbAdmin(dbUser, "db1", "db_user2", true), IsNil)

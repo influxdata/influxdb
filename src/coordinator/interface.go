@@ -32,12 +32,16 @@ type UserManager interface {
 	DeleteClusterAdminUser(requester User, username string) error
 	// Change cluster admin's password. It's an error if requester isn't a cluster admin
 	ChangeClusterAdminPassword(requester User, username, password string) error
+	// list cluster admins. only a cluster admin can list the other cluster admins
+	ListClusterAdmins(requester User) ([]string, error)
 	// Create a db user, it's an error if requester isn't a db admin or cluster admin
 	CreateDbUser(request User, db, username string) error
 	// Delete a db user. Same restrictions apply as in CreateDbUser
 	DeleteDbUser(requester User, db, username string) error
 	// Change db user's password. It's an error if requester isn't a cluster admin or db admin
 	ChangeDbUserPassword(requester User, db, username, password string) error
+	// list cluster admins. only a cluster admin or the db admin can list the db users
+	ListDbUsers(requester User, db string) ([]string, error)
 	// make user a db admin for 'db'. It's an error if the requester
 	// isn't a db admin or cluster admin or if user isn't a db user
 	// for the given db

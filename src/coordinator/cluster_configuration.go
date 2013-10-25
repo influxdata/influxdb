@@ -79,6 +79,28 @@ func (self *ClusterConfiguration) DropDatabase(name string) error {
 	return nil
 }
 
+func (self *ClusterConfiguration) GetDbUsers(db string) (names []string) {
+	self.usersLock.RLock()
+	defer self.usersLock.RUnlock()
+
+	dbUsers := self.dbUsers[db]
+	for name, _ := range dbUsers {
+		names = append(names, name)
+	}
+	return
+}
+
+func (self *ClusterConfiguration) GetDbUser(db, username string) *dbUser {
+	self.usersLock.RLock()
+	defer self.usersLock.RUnlock()
+
+	dbUsers := self.dbUsers[db]
+	if dbUsers == nil {
+		return nil
+	}
+	return dbUsers[username]
+}
+
 func (self *ClusterConfiguration) SaveDbUser(u *dbUser) {
 	self.usersLock.Lock()
 	defer self.usersLock.Unlock()
@@ -96,6 +118,24 @@ func (self *ClusterConfiguration) SaveDbUser(u *dbUser) {
 		self.dbUsers[db] = dbUsers
 	}
 	dbUsers[u.GetName()] = u
+}
+
+func (self *ClusterConfiguration) GetClusterAdmins() (names []string) {
+	self.usersLock.RLock()
+	defer self.usersLock.RUnlock()
+
+	clusterAdmins := self.clusterAdmins
+	for name, _ := range clusterAdmins {
+		names = append(names, name)
+	}
+	return
+}
+
+func (self *ClusterConfiguration) GetClusterAdmin(username string) *clusterAdmin {
+	self.usersLock.RLock()
+	defer self.usersLock.RUnlock()
+
+	return self.clusterAdmins[username]
 }
 
 func (self *ClusterConfiguration) SaveClusterAdmin(u *clusterAdmin) {

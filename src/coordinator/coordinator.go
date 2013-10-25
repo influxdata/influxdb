@@ -85,6 +85,14 @@ func (self *CoordinatorImpl) AuthenticateClusterAdmin(username, password string)
 	return nil, fmt.Errorf("Invalid username/password")
 }
 
+func (self *CoordinatorImpl) ListClusterAdmins(requester User) ([]string, error) {
+	if !requester.IsClusterAdmin() {
+		return nil, fmt.Errorf("Insufficient permissions")
+	}
+
+	return self.clusterConfiguration.GetClusterAdmins(), nil
+}
+
 func (self *CoordinatorImpl) CreateClusterAdminUser(requester User, username string) error {
 	if !requester.IsClusterAdmin() {
 		return fmt.Errorf("Insufficient permissions")
@@ -156,6 +164,14 @@ func (self *CoordinatorImpl) DeleteDbUser(requester User, db, username string) e
 	user := dbUsers[username]
 	user.CommonUser.IsUserDeleted = true
 	return self.raftServer.SaveDbUser(user)
+}
+
+func (self *CoordinatorImpl) ListDbUsers(requester User, db string) ([]string, error) {
+	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
+		return nil, fmt.Errorf("Insufficient permissions")
+	}
+
+	return self.clusterConfiguration.GetDbUsers(db), nil
 }
 
 func (self *CoordinatorImpl) ChangeDbUserPassword(requester User, db, username, password string) error {
