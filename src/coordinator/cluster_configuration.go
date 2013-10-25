@@ -1,48 +1,69 @@
 package coordinator
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 )
 
 type ClusterConfiguration struct {
-	createDatabaseLock      sync.RWMutex
-	databaseNames           map[string]bool
-	usersLock               sync.RWMutex
-	clusterAdmins           map[string]*clusterAdmin
-	dbUsers                 map[string]map[string]*dbUser
-	activeServerConfig      []*ClusterServer
-	potentialServerConfig   []*ClusterServer
-	rebalancingServerConfig []*ClusterServer
+	createDatabaseLock sync.RWMutex
+	databaseNames      map[string]bool
+	usersLock          sync.RWMutex
+	clusterAdmins      map[string]*clusterAdmin
+	dbUsers            map[string]map[string]*dbUser
+	servers            []*ClusterServer
+	serversLock        sync.RWMutex
+	hasRunningServers  bool
+	currentServerId    uint32
 }
 
 const NUMBER_OF_RING_LOCATIONS = 10000
 
 func NewClusterConfiguration() *ClusterConfiguration {
 	return &ClusterConfiguration{
-		databaseNames:           make(map[string]bool),
-		clusterAdmins:           make(map[string]*clusterAdmin),
-		dbUsers:                 make(map[string]map[string]*dbUser),
-		activeServerConfig:      make([]*ClusterServer, 0),
-		potentialServerConfig:   make([]*ClusterServer, 0),
-		rebalancingServerConfig: make([]*ClusterServer, 0),
+		databaseNames: make(map[string]bool),
+		clusterAdmins: make(map[string]*clusterAdmin),
+		dbUsers:       make(map[string]map[string]*dbUser),
+		servers:       make([]*ClusterServer, 0),
 	}
 }
 
+func (self *ClusterConfiguration) IsActive() bool {
+	return self.hasRunningServers
+}
+
+func (self *ClusterConfiguration) GetServerByRaftName(name string) *ClusterServer {
+	for _, server := range self.servers {
+		if server.RaftName == name {
+			return server
+		}
+	}
+	return nil
+}
+
+func (self *ClusterConfiguration) UpdateServerState(serverId uint32, state ServerState) error {
+	self.serversLock.Lock()
+	defer self.serversLock.Unlock()
+	for _, server := range self.servers {
+		if server.Id == serverId {
+			if state == Running {
+				self.hasRunningServers = true
+			}
+			server.State = state
+			return nil
+		}
+	}
+	return errors.New(fmt.Sprintf("No server with id %d", serverId))
+}
+
 func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
-	self.potentialServerConfig = append(self.potentialServerConfig, server)
-}
-
-func (self *ClusterConfiguration) RebalanceBasedOnPotentialConfig() {
-}
-
-func (self *ClusterConfiguration) UpdatePotentialServerOrder(serverIds []uint32) {
-}
-
-func (self *ClusterConfiguration) MoveRebalancingToActive() {
-	self.activeServerConfig = self.rebalancingServerConfig
-	self.rebalancingServerConfig = make([]*ClusterServer, 0)
-	self.potentialServerConfig = self.activeServerConfig
+	self.serversLock.Lock()
+	self.serversLock.Unlock()
+	server.State = Potential
+	server.Id = self.currentServerId + 1
+	self.currentServerId += 1
+	self.servers = append(self.servers, server)
 }
 
 func (self *ClusterConfiguration) GetDatabases() []string {

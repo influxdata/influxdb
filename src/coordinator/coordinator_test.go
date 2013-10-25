@@ -722,3 +722,23 @@ func (self *CoordinatorSuite) TestCheckReadAccess(c *C) {
 	c.Assert(err, ErrorMatches, ".*Insufficient permission.*")
 	c.Assert(datastoreMock.Series, IsNil)
 }
+
+func (self *CoordinatorSuite) TestServersGetUniqueIdsAndCanActivateCluster(c *C) {
+	servers := startAndVerifyCluster(3, c)
+	defer clean(servers)
+	time.Sleep(time.Second)
+
+	// ensure they're all in the same order across the cluster
+	for i, clusterServer := range servers[0].clusterConfig.servers {
+		for _, server := range servers {
+			c.Assert(server.clusterConfig.servers[i].Id, Equals, clusterServer.Id)
+		}
+	}
+	// ensure cluster server ids are unique
+	idMap := make(map[uint32]bool)
+	for _, clusterServer := range servers[0].clusterConfig.servers {
+		_, ok := idMap[clusterServer.Id]
+		c.Assert(ok, Equals, false)
+		idMap[clusterServer.Id] = true
+	}
+}

@@ -79,3 +79,40 @@ func (c *SaveClusterAdminCommand) Apply(server raft.Server) (interface{}, error)
 	config.SaveClusterAdmin(c.User)
 	return nil, nil
 }
+
+type AddPotentialServerCommand struct {
+	Server *ClusterServer
+}
+
+func NewAddPotentialServerCommand(s *ClusterServer) *AddPotentialServerCommand {
+	return &AddPotentialServerCommand{Server: s}
+}
+
+func (c *AddPotentialServerCommand) CommandName() string {
+	return "add_server"
+}
+
+func (c *AddPotentialServerCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*ClusterConfiguration)
+	config.AddPotentialServer(c.Server)
+	return nil, nil
+}
+
+type UpdateServerStateCommand struct {
+	ServerId uint32
+	State    ServerState
+}
+
+func NewUpdateServerStateCommand(serverId uint32, state ServerState) *UpdateServerStateCommand {
+	return &UpdateServerStateCommand{ServerId: serverId, State: state}
+}
+
+func (c *UpdateServerStateCommand) CommandName() string {
+	return "update_state"
+}
+
+func (c *UpdateServerStateCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*ClusterConfiguration)
+	err := config.UpdateServerState(c.ServerId, c.State)
+	return nil, err
+}

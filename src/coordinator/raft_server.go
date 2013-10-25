@@ -29,10 +29,16 @@ type RaftServer struct {
 	raftServer    raft.Server
 	httpServer    *http.Server
 	clusterConfig *ClusterConfiguration
+	clusterServer *ClusterServer
 	mutex         sync.RWMutex
 	listener      net.Listener
 	closing       bool
 }
+
+// const (
+// 	ElectionTimeout  = 200 * time.Millisecond
+// 	HeartbeatTimeout = 50 * time.Millisecond
+// )
 
 var registeredCommands bool
 
@@ -41,6 +47,8 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 	if !registeredCommands {
 		// raft.SetLogLevel(raft.Trace)
 		registeredCommands = true
+		raft.RegisterCommand(&AddPotentialServerCommand{})
+		raft.RegisterCommand(&UpdateServerStateCommand{})
 		raft.RegisterCommand(&CreateDatabaseCommand{})
 		raft.RegisterCommand(&DropDatabaseCommand{})
 		raft.RegisterCommand(&SaveDbUserCommand{})
@@ -67,6 +75,14 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 	return s
 }
 
+func (s *RaftServer) ClusterServer() *ClusterServer {
+	if s.clusterServer != nil {
+		return s.clusterServer
+	}
+	s.clusterServer = s.clusterConfig.GetServerByRaftName(s.name)
+	return s.clusterServer
+}
+
 func (s *RaftServer) leaderConnectString() (string, bool) {
 	leader := s.raftServer.Leader()
 	peers := s.raftServer.Peers()
@@ -79,8 +95,7 @@ func (s *RaftServer) leaderConnectString() (string, bool) {
 
 func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) (interface{}, error) {
 	if s.raftServer.State() == raft.Leader {
-		ret, err := s.raftServer.Do(command)
-		return ret, err
+		return s.retryCommand(command, 3)
 	} else {
 		if leader, ok := s.leaderConnectString(); !ok {
 			return nil, errors.New("Couldn't connect to the cluster leader...")
@@ -136,6 +151,20 @@ func (s *RaftServer) CreateRootUser() error {
 	return s.SaveClusterAdminUser(u)
 }
 
+/*
+	when a cluster is started up for the first time, all servers are listed in Potential state.
+	When this call is made they're all switched over to Running state so they can accept reads and writes.
+*/
+func (s *RaftServer) ActivateCluster() error {
+	for _, server := range s.clusterConfig.servers {
+		command := NewUpdateServerStateCommand(server.Id, Running)
+		if _, err := s.doOrProxyCommand(command, "update_state"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *RaftServer) connectionString() string {
 	return fmt.Sprintf("http://%s:%d", s.host, s.port)
 }
@@ -151,6 +180,9 @@ func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bo
 	if err != nil {
 		log.Fatal(err)
 	}
+	// s.raftServer.SetElectionTimeout(ElectionTimeout)
+	// s.raftServer.SetHeartbeatTimeout(HeartbeatTimeout)
+
 	transporter.Install(s.raftServer, s)
 	s.raftServer.Start()
 
@@ -172,14 +204,18 @@ func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bo
 			} else if !joined && !retryUntilJoin {
 				log.Println("Couldn't contact a leader so initializing new cluster for server on port: ", s.port)
 
+				name := s.raftServer.Name()
+				connectionString := s.connectionString()
 				_, err := s.raftServer.Do(&raft.DefaultJoinCommand{
-					Name:             s.raftServer.Name(),
-					ConnectionString: s.connectionString(),
+					Name:             name,
+					ConnectionString: connectionString,
 				})
 				if err != nil {
 					log.Fatal(err)
 				}
 
+				command := NewAddPotentialServerCommand(&ClusterServer{RaftName: name, RaftConnectionString: connectionString})
+				s.doOrProxyCommand(command, "add_server")
 				s.CreateRootUser()
 				break
 			} else {
@@ -258,17 +294,38 @@ func (s *RaftServer) Join(leader string) error {
 	return nil
 }
 
+func (s *RaftServer) retryCommand(command raft.Command, retries int) (ret interface{}, err error) {
+	for retries = retries; retries > 0; retries-- {
+		ret, err = s.raftServer.Do(command)
+		if err == nil {
+			return ret, nil
+		}
+		time.Sleep(50 * time.Millisecond)
+		fmt.Println("Retrying RAFT command...")
+	}
+	return
+}
+
 func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 	if s.raftServer.State() == raft.Leader {
 		command := &raft.DefaultJoinCommand{}
-
 		if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if _, err := s.raftServer.Do(command); err != nil {
+		// during the test suite the join command will sometimes time out.. just retry a few times
+		if _, err := s.retryCommand(command, 3); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		server := s.clusterConfig.GetServerByRaftName(command.Name)
+		// it's a new server the cluster has never seen, make it a potential
+		if server == nil {
+			addServer := NewAddPotentialServerCommand(&ClusterServer{RaftName: command.Name, RaftConnectionString: command.ConnectionString})
+			if _, err := s.raftServer.Do(addServer); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 	} else {
 		if leader, ok := s.leaderConnectString(); ok {
@@ -319,6 +376,11 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		command = &SaveDbUserCommand{}
 	} else if value == "save_cluster_admin_user" {
 		command = &SaveClusterAdminCommand{}
+	} else if value == "update_state" {
+		command = &UpdateServerStateCommand{}
+	} else if value == "add_server" {
+		fmt.Println("add_server: ", s.name)
+		command = &AddPotentialServerCommand{}
 	}
 	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
 		log.Println("ERROR processCommandHanlder", err)
