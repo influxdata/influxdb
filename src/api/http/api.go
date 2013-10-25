@@ -319,8 +319,7 @@ func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Requ
 		w.Write([]byte(err.Error()))
 		return
 	}
-	apiKey := r.URL.Query().Get("api_key")
-	err = self.coordinator.CreateDatabase(createRequest.Name, createRequest.ApiKey, apiKey)
+	err = self.coordinator.CreateDatabase(createRequest.Name)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))

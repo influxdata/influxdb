@@ -30,8 +30,7 @@ func main() {
 	config := configuration.LoadConfiguration(*fileName)
 
 	log.Println("Starting Influx Server...")
-	ringSize := int64(1000)
-	clusterConfig := coordinator.NewClusterConfiguration(ringSize)
+	clusterConfig := coordinator.NewClusterConfiguration()
 	os.MkdirAll(config.RaftDir, 0744)
 
 	raftServer := coordinator.NewRaftServer(config.RaftDir, "localhost", config.RaftServerPort, clusterConfig)

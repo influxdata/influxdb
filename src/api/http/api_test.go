@@ -88,12 +88,10 @@ func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Se
 }
 
 type MockCoordinator struct {
-	series           []*protocol.Series
-	db               string
-	droppedDb        string
-	initialApiKey    string
-	requestingApiKey string
-	users            map[string]*coordinator.User
+	series    []*protocol.Series
+	db        string
+	droppedDb string
+	users     map[string]*coordinator.User
 }
 
 func (self *MockCoordinator) DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error {
@@ -105,10 +103,8 @@ func (self *MockCoordinator) WriteSeriesData(db string, series *protocol.Series)
 	return nil
 }
 
-func (self *MockCoordinator) CreateDatabase(db, initialApiKey, requestingApiKey string) error {
+func (self *MockCoordinator) CreateDatabase(db string) error {
 	self.db = db
-	self.initialApiKey = initialApiKey
-	self.requestingApiKey = requestingApiKey
 	return nil
 }
 
@@ -320,8 +316,6 @@ func (self *ApiSuite) TestCreateDatabase(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusCreated)
 	c.Assert(self.coordinator.db, Equals, "foo")
-	c.Assert(self.coordinator.initialApiKey, Equals, "bar")
-	c.Assert(self.coordinator.requestingApiKey, Equals, "asdf")
 }
 
 func (self *ApiSuite) TestDropDatabase(c *C) {

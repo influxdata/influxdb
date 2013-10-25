@@ -41,11 +41,6 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 	if !registeredCommands {
 		// raft.SetLogLevel(raft.Trace)
 		registeredCommands = true
-		raft.RegisterCommand(&AddApiKeyCommand{})
-		raft.RegisterCommand(&RemoveApiKeyCommand{})
-		raft.RegisterCommand(&AddServerToLocationCommand{})
-		raft.RegisterCommand(&RemoveServerFromLocationCommand{})
-		raft.RegisterCommand(&NextDatabaseIdCommand{})
 		raft.RegisterCommand(&CreateDatabaseCommand{})
 		raft.RegisterCommand(&DropDatabaseCommand{})
 		raft.RegisterCommand(&SaveDbUserCommand{})
@@ -111,36 +106,6 @@ func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) 
 	return nil, nil
 }
 
-func (s *RaftServer) AddReadApiKey(db, key string) error {
-	command := NewAddApikeyCommand(db, key, ReadKey)
-	_, err := s.doOrProxyCommand(command, "add_api_key")
-	return err
-}
-
-func (s *RaftServer) AddWriteApiKey(db, key string) error {
-	command := NewAddApikeyCommand(db, key, WriteKey)
-	_, err := s.doOrProxyCommand(command, "add_api_key")
-	return err
-}
-
-func (s *RaftServer) RemoveApiKey(db, key string) error {
-	command := NewRemoveApiKeyCommand(db, key)
-	_, err := s.doOrProxyCommand(command, "remove_api_key")
-	return err
-}
-
-func (s *RaftServer) AddServerToLocation(host string, location int64) error {
-	command := NewAddServerToLocationCommand(host, location)
-	_, err := s.doOrProxyCommand(command, "add_server")
-	return err
-}
-
-func (s *RaftServer) RemoveServerFromLocation(host string, location int64) error {
-	command := NewRemoveServerFromLocationCommand(host, location)
-	_, err := s.doOrProxyCommand(command, "remove_server")
-	return err
-}
-
 func (s *RaftServer) CreateDatabase(name string) error {
 	command := NewCreateDatabaseCommand(name)
 	_, err := s.doOrProxyCommand(command, "create_db")
@@ -151,12 +116,6 @@ func (s *RaftServer) DropDatabase(name string) error {
 	command := NewDropDatabaseCommand(name)
 	_, err := s.doOrProxyCommand(command, "drop_db")
 	return err
-}
-
-func (s *RaftServer) GetNextDatabaseId() (string, error) {
-	command := NewNextDatabaseIdCommand(s.clusterConfig.nextDatabaseId)
-	id, err := s.doOrProxyCommand(command, "next_db")
-	return id.(string), err
 }
 
 func (s *RaftServer) SaveDbUser(u *dbUser) error {
@@ -323,23 +282,13 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 
 func (s *RaftServer) configHandler(w http.ResponseWriter, req *http.Request) {
 	jsonObject := make(map[string]interface{})
-	readKeys := make([]string, 0)
-	for k, _ := range s.clusterConfig.ReadApiKeys {
-		readKeys = append(readKeys, k)
+	dbs := make([]string, 0)
+	for db, _ := range s.clusterConfig.databaseNames {
+		dbs = append(dbs, db)
 	}
-	jsonObject["read_keys"] = readKeys
-	writeKeys := make([]string, 0)
-	for k, _ := range s.clusterConfig.WriteApiKeys {
-		writeKeys = append(writeKeys, k)
-	}
-	jsonObject["write_keys"] = writeKeys
-	locations := make([]map[string]interface{}, 0)
-	for location, servers := range s.clusterConfig.RingLocationToServers {
-		s := servers
-		locations = append(locations, map[string]interface{}{"location": location, "servers": s})
-	}
-	jsonObject["locations"] = locations
-
+	jsonObject["databases"] = dbs
+	jsonObject["cluster_admins"] = s.clusterConfig.clusterAdmins
+	jsonObject["database_users"] = s.clusterConfig.dbUsers
 	js, err := json.Marshal(jsonObject)
 	if err != nil {
 		log.Println("ERROR marshalling config: ", err)
@@ -362,17 +311,7 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 	vars := mux.Vars(req)
 	value := vars["command_type"]
 	var command raft.Command
-	if value == "add_api_key" {
-		command = &AddApiKeyCommand{}
-	} else if value == "remove_api_key" {
-		command = &RemoveApiKeyCommand{}
-	} else if value == "add_server" {
-		command = &AddServerToLocationCommand{}
-	} else if value == "remove_server" {
-		command = &RemoveServerFromLocationCommand{}
-	} else if value == "next_db" {
-		command = &NextDatabaseIdCommand{}
-	} else if value == "create_db" {
+	if value == "create_db" {
 		command = &CreateDatabaseCommand{}
 	} else if value == "drop_db" {
 		command = &DropDatabaseCommand{}

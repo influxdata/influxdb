@@ -6,92 +6,43 @@ import (
 )
 
 type ClusterConfiguration struct {
-	MaxRingLocation           int64
-	nextDatabaseId            int
-	createDatabaseLock        sync.RWMutex
-	databaseNames             map[string]bool
-	nextDatabaseIdLock        sync.Mutex
-	RingLocationToServers     map[int64][]string
-	ringLocationToServersLock sync.RWMutex
-	ReadApiKeys               map[string]bool
-	readApiKeysLock           sync.RWMutex
-	WriteApiKeys              map[string]bool
-	writeApiKeysLock          sync.RWMutex
-	usersLock                 sync.RWMutex
-	clusterAdmins             map[string]*clusterAdmin
-	dbUsers                   map[string]map[string]*dbUser
+	createDatabaseLock      sync.RWMutex
+	databaseNames           map[string]bool
+	usersLock               sync.RWMutex
+	clusterAdmins           map[string]*clusterAdmin
+	dbUsers                 map[string]map[string]*dbUser
+	activeServerConfig      []*ClusterServer
+	potentialServerConfig   []*ClusterServer
+	rebalancingServerConfig []*ClusterServer
 }
 
-type ApiKeyType int
+const NUMBER_OF_RING_LOCATIONS = 10000
 
-const (
-	ReadKey ApiKeyType = iota
-	WriteKey
-)
-
-func NewClusterConfiguration(maxRingLocation int64) *ClusterConfiguration {
+func NewClusterConfiguration() *ClusterConfiguration {
 	return &ClusterConfiguration{
-		MaxRingLocation:       maxRingLocation,
-		databaseNames:         make(map[string]bool),
-		RingLocationToServers: make(map[int64][]string),
-		ReadApiKeys:           make(map[string]bool),
-		WriteApiKeys:          make(map[string]bool),
-		clusterAdmins:         make(map[string]*clusterAdmin),
-		dbUsers:               make(map[string]map[string]*dbUser),
+		databaseNames:           make(map[string]bool),
+		clusterAdmins:           make(map[string]*clusterAdmin),
+		dbUsers:                 make(map[string]map[string]*dbUser),
+		activeServerConfig:      make([]*ClusterServer, 0),
+		potentialServerConfig:   make([]*ClusterServer, 0),
+		rebalancingServerConfig: make([]*ClusterServer, 0),
 	}
 }
 
-func (self *ClusterConfiguration) AddRingLocationToServer(hostnameAndPort string, ringLocation int64) {
-	self.ringLocationToServersLock.Lock()
-	defer self.ringLocationToServersLock.Unlock()
-	self.RingLocationToServers[ringLocation] = append(self.RingLocationToServers[ringLocation], hostnameAndPort)
+func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
+	self.potentialServerConfig = append(self.potentialServerConfig, server)
 }
 
-func (self *ClusterConfiguration) RemoveRingLocationFromServer(hostnameAndPort string, ringLocation int64) {
-	self.ringLocationToServersLock.Lock()
-	defer self.ringLocationToServersLock.Unlock()
-	oldLocations := self.RingLocationToServers[ringLocation]
-	newLocations := make([]string, 0, len(oldLocations))
-	for _, l := range oldLocations {
-		if l != hostnameAndPort {
-			newLocations = append(newLocations, l)
-		}
-	}
-	self.RingLocationToServers[ringLocation] = newLocations
+func (self *ClusterConfiguration) RebalanceBasedOnPotentialConfig() {
 }
 
-func (self *ClusterConfiguration) AddApiKey(database, key string, apiKeyType ApiKeyType) {
-	if apiKeyType == ReadKey {
-		self.readApiKeysLock.Lock()
-		defer self.readApiKeysLock.Unlock()
-		self.ReadApiKeys[database+key] = true
-	} else {
-		self.writeApiKeysLock.Lock()
-		defer self.writeApiKeysLock.Unlock()
-		self.WriteApiKeys[database+key] = true
-	}
+func (self *ClusterConfiguration) UpdatePotentialServerOrder(serverIds []uint32) {
 }
 
-func (self *ClusterConfiguration) DeleteApiKey(database, key string) {
-	self.readApiKeysLock.Lock()
-	self.writeApiKeysLock.Lock()
-	defer self.readApiKeysLock.Unlock()
-	defer self.writeApiKeysLock.Unlock()
-	fullKey := database + key
-	delete(self.ReadApiKeys, fullKey)
-	delete(self.WriteApiKeys, fullKey)
-}
-
-func (self *ClusterConfiguration) IsValidReadKey(database, key string) bool {
-	self.readApiKeysLock.RLock()
-	defer self.readApiKeysLock.RUnlock()
-	return self.ReadApiKeys[database+key]
-}
-
-func (self *ClusterConfiguration) IsValidWriteKey(database, key string) bool {
-	self.writeApiKeysLock.RLock()
-	defer self.writeApiKeysLock.RUnlock()
-	return self.WriteApiKeys[database+key]
+func (self *ClusterConfiguration) MoveRebalancingToActive() {
+	self.activeServerConfig = self.rebalancingServerConfig
+	self.rebalancingServerConfig = make([]*ClusterServer, 0)
+	self.potentialServerConfig = self.activeServerConfig
 }
 
 func (self *ClusterConfiguration) GetDatabases() map[string]bool {
@@ -126,20 +77,6 @@ func (self *ClusterConfiguration) DropDatabase(name string) error {
 
 	delete(self.databaseNames, name)
 	return nil
-}
-
-func (self *ClusterConfiguration) NextDatabaseId() string {
-	self.nextDatabaseIdLock.Lock()
-	self.nextDatabaseId += 1
-	id := self.nextDatabaseId
-	self.nextDatabaseIdLock.Unlock()
-	return fmt.Sprintf("%d", id)
-}
-
-func (self *ClusterConfiguration) CurrentDatabaseId() string {
-	self.nextDatabaseIdLock.Lock()
-	defer self.nextDatabaseIdLock.Unlock()
-	return fmt.Sprintf("%d", self.nextDatabaseId)
 }
 
 func (self *ClusterConfiguration) SaveDbUser(u *dbUser) {

@@ -45,7 +45,7 @@ func (self *MockCoordinator) WriteSeriesData(database string, series *protocol.S
 	return nil
 }
 
-func (self *MockCoordinator) CreateDatabase(db, initialApiKey, requestingApiKey string) error {
+func (self *MockCoordinator) CreateDatabase(db string) error {
 	return nil
 }
 

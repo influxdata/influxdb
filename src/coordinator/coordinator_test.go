@@ -27,7 +27,6 @@ var nextPortNum int
 var nextDirNum int
 
 const (
-	MAX_RING_LOCATIONS  = 10
 	SERVER_STARTUP_TIME = time.Second * 2 // new cluster will have to create the root user and encrypt the password which takes little over a sec
 	REPLICATION_LAG     = time.Millisecond * 500
 )
@@ -54,7 +53,7 @@ func nextPort() int {
 	// this is a hack for OSX boxes running spotify. It binds to 127.0.0.1:8099. net.Listen doesn't return an
 	// error when listening to :8099. ugh.
 	if 8090+nextPortNum == 8099 {
-		nextPortNum += 1
+		nextPortNum += 2
 	}
 	return 8090 + nextPortNum
 }
@@ -107,7 +106,7 @@ func newConfigAndServer(path string, port int) (*ClusterConfiguration, *RaftServ
 		fullPath = "/tmp/chronos_coordinator_test/" + path
 	}
 	os.MkdirAll(fullPath, 0744)
-	config := NewClusterConfiguration(MAX_RING_LOCATIONS)
+	config := NewClusterConfiguration()
 	server := NewRaftServer(fullPath, "localhost", port, config)
 	return config, server
 }
@@ -168,9 +167,9 @@ func (self *CoordinatorSuite) TestCanRecoverCoordinatorWithData(c *C) {
 	}()
 	time.Sleep(SERVER_STARTUP_TIME)
 	c.Assert(err, Equals, nil)
-	server.AddReadApiKey("db", "key1")
+	server.CreateDatabase("db1")
 
-	assertConfigContains(port, "key1", true, c)
+	assertConfigContains(port, "db1", true, c)
 
 	server.Close()
 	time.Sleep(SERVER_STARTUP_TIME)
@@ -183,7 +182,7 @@ func (self *CoordinatorSuite) TestCanRecoverCoordinatorWithData(c *C) {
 	}()
 	time.Sleep(SERVER_STARTUP_TIME)
 	c.Assert(err, Equals, nil)
-	assertConfigContains(port, "key1", true, c)
+	assertConfigContains(port, "db1", true, c)
 }
 
 func (self *CoordinatorSuite) TestCanCreateCoordinatorsAndReplicate(c *C) {
@@ -215,10 +214,10 @@ func (self *CoordinatorSuite) TestCanCreateCoordinatorsAndReplicate(c *C) {
 	c.Assert(err2, Equals, nil)
 	c.Assert(err, Equals, nil)
 
-	server.AddReadApiKey("db", "key1")
+	server.CreateDatabase("db2")
 	time.Sleep(REPLICATION_LAG)
-	assertConfigContains(port1, "key1", true, c)
-	assertConfigContains(port2, "key1", true, c)
+	assertConfigContains(port1, "db2", true, c)
+	assertConfigContains(port2, "db2", true, c)
 }
 
 func (self *CoordinatorSuite) TestDoWriteOperationsFromNonLeaderServer(c *C) {
@@ -248,35 +247,20 @@ func (self *CoordinatorSuite) TestDoWriteOperationsFromNonLeaderServer(c *C) {
 	time.Sleep(SERVER_STARTUP_TIME)
 	c.Assert(err, Equals, nil)
 	c.Assert(err2, Equals, nil)
-	err = server2.AddReadApiKey("db", "key1")
-	c.Assert(err, Equals, nil)
-	err = server2.AddWriteApiKey("db", "key2")
-	c.Assert(err, Equals, nil)
-	err = server2.AddServerToLocation("somehost", int64(-1))
+	err = server2.CreateDatabase("db3")
 	c.Assert(err, Equals, nil)
 	time.Sleep(REPLICATION_LAG)
-	assertConfigContains(port1, "key1", true, c)
-	assertConfigContains(port2, "key1", true, c)
-	assertConfigContains(port1, "key2", true, c)
-	assertConfigContains(port2, "key2", true, c)
-	assertConfigContains(port1, "somehost", true, c)
-	assertConfigContains(port2, "somehost", true, c)
-
-	err = server2.RemoveApiKey("db", "key2")
-	c.Assert(err, Equals, nil)
-	err = server2.RemoveServerFromLocation("somehost", int64(-1))
-	c.Assert(err, Equals, nil)
-	time.Sleep(REPLICATION_LAG)
-	assertConfigContains(port2, "key2", false, c)
-	assertConfigContains(port1, "somehost", false, c)
+	assertConfigContains(port1, "db3", true, c)
+	assertConfigContains(port2, "db3", true, c)
 }
 
 func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
 	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	logDir := nextDir()
-	port := nextPort()
+	// TODO: make the next port method actually check that the port is open. Skipping some here to make it actually work. ugh.
+	port := nextPort() + 3
 	logDir2 := nextDir()
-	port2 := nextPort()
+	port2 := nextPort() + 3
 	defer clearPath(logDir)
 	defer clearPath(logDir2)
 
@@ -288,9 +272,9 @@ func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
 	defer server.Close()
 	time.Sleep(SERVER_STARTUP_TIME)
 	c.Assert(err, Equals, nil)
-	server.AddReadApiKey("db", "key1")
+	server.CreateDatabase("db4")
 
-	assertConfigContains(port, "key1", true, c)
+	assertConfigContains(port, "db4", true, c)
 
 	_, server2 := newConfigAndServer(logDir2, port2)
 	go func() {
@@ -299,19 +283,19 @@ func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
 	defer server2.Close()
 	time.Sleep(SERVER_STARTUP_TIME)
 	c.Assert(err, Equals, nil)
-	assertConfigContains(port2, "key1", true, c)
+	assertConfigContains(port2, "db4", true, c)
 }
 
 func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers)
 
-	err := servers[0].AddReadApiKey("db", "key1")
+	err := servers[0].CreateDatabase("db5")
 	c.Assert(err, Equals, nil)
 	time.Sleep(REPLICATION_LAG)
-	assertConfigContains(servers[0].port, "key1", true, c)
-	assertConfigContains(servers[1].port, "key1", true, c)
-	assertConfigContains(servers[2].port, "key1", true, c)
+	assertConfigContains(servers[0].port, "db5", true, c)
+	assertConfigContains(servers[1].port, "db5", true, c)
+	assertConfigContains(servers[2].port, "db5", true, c)
 
 	leader, _ := servers[1].leaderConnectString()
 	c.Assert(leader, Equals, fmt.Sprintf("http://localhost:%d", servers[0].port))
@@ -323,11 +307,11 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	time.Sleep(SERVER_STARTUP_TIME)
 	leader, _ = servers[1].leaderConnectString()
 	c.Assert(leader, Not(Equals), fmt.Sprintf("http://localhost:%d", servers[0].port))
-	err = servers[1].AddReadApiKey("db", "key2")
+	err = servers[1].CreateDatabase("db6")
 	c.Assert(err, Equals, nil)
 	time.Sleep(REPLICATION_LAG)
-	assertConfigContains(servers[1].port, "key2", true, c)
-	assertConfigContains(servers[2].port, "key2", true, c)
+	assertConfigContains(servers[1].port, "db6", true, c)
+	assertConfigContains(servers[2].port, "db6", true, c)
 
 	_, server := newConfigAndServer(servers[0].path, servers[0].port)
 	defer server.Close()
@@ -338,17 +322,17 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	time.Sleep(SERVER_STARTUP_TIME)
 	c.Assert(err, Equals, nil)
 
-	c.Assert(server.clusterConfig.ReadApiKeys["dbkey1"], Equals, true)
-	c.Assert(server.clusterConfig.ReadApiKeys["dbkey2"], Equals, true)
-	assertConfigContains(server.port, "key1", true, c)
-	assertConfigContains(server.port, "key2", true, c)
+	c.Assert(server.clusterConfig.databaseNames["db5"], Equals, true)
+	c.Assert(server.clusterConfig.databaseNames["db6"], Equals, true)
+	assertConfigContains(server.port, "db5", true, c)
+	assertConfigContains(server.port, "db6", true, c)
 
-	err = server.AddReadApiKey("blah", "sdf")
+	err = server.CreateDatabase("db7")
 	c.Assert(err, Equals, nil)
 	time.Sleep(REPLICATION_LAG)
-	assertConfigContains(servers[0].port, "sdf", true, c)
-	assertConfigContains(servers[1].port, "sdf", true, c)
-	assertConfigContains(servers[2].port, "sdf", true, c)
+	assertConfigContains(servers[0].port, "db7", true, c)
+	assertConfigContains(servers[1].port, "db7", true, c)
+	assertConfigContains(servers[2].port, "db7", true, c)
 }
 
 func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader(c *C) {
@@ -393,12 +377,12 @@ func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader
 	leader, _ := server2.leaderConnectString()
 	c.Assert(leader, Equals, fmt.Sprintf("http://localhost:%d", port1))
 
-	err = server.AddReadApiKey("db", "key1")
+	err = server.CreateDatabase("db8")
 	c.Assert(err, Equals, nil)
 	time.Sleep(REPLICATION_LAG)
-	assertConfigContains(port1, "key1", true, c)
-	assertConfigContains(port2, "key1", true, c)
-	assertConfigContains(port3, "key1", true, c)
+	assertConfigContains(port1, "db8", true, c)
+	assertConfigContains(port2, "db8", true, c)
+	assertConfigContains(port3, "db8", true, c)
 }
 
 func (self *UserSuite) BenchmarkHashing(c *C) {
@@ -617,28 +601,6 @@ func (self *CoordinatorSuite) TestCanDropDatabaseWithName(c *C) {
 	c.Assert(err, ErrorMatches, ".*db3 doesn't exist.*")
 	err = servers[2].DropDatabase("db3")
 	c.Assert(err, ErrorMatches, ".*db3 doesn't exist.*")
-}
-
-func (self *CoordinatorSuite) TestCanCreateDatabase(c *C) {
-	servers := startAndVerifyCluster(3, c)
-	defer clean(servers)
-	id, _ := servers[0].GetNextDatabaseId()
-	c.Assert(id, Equals, "1")
-	time.Sleep(REPLICATION_LAG)
-	c.Assert(id, Equals, servers[1].clusterConfig.CurrentDatabaseId())
-	c.Assert(id, Equals, servers[2].clusterConfig.CurrentDatabaseId())
-	id2, _ := servers[1].GetNextDatabaseId()
-	id3, _ := servers[2].GetNextDatabaseId()
-	id4, _ := servers[0].GetNextDatabaseId()
-	c.Assert(id2, Equals, "2")
-	c.Assert(id3, Equals, "3")
-	c.Assert(id4, Equals, "4")
-	time.Sleep(REPLICATION_LAG)
-	c.Assert(id4, Equals, servers[1].clusterConfig.CurrentDatabaseId())
-	c.Assert(id4, Equals, servers[2].clusterConfig.CurrentDatabaseId())
-}
-
-func (self *CoordinatorSuite) TestDistributesRingLocationsToNewServer(c *C) {
 }
 
 func (self *CoordinatorSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWithout(c *C) {

@@ -50,17 +50,12 @@ func (self *CoordinatorImpl) WriteSeriesData(db string, series *protocol.Series)
 	return self.datastore.WriteSeriesData(db, series)
 }
 
-func (self *CoordinatorImpl) CreateDatabase(db, initialApiKey, requestingApiKey string) error {
+func (self *CoordinatorImpl) CreateDatabase(db string) error {
 	err := self.raftServer.CreateDatabase(db)
 	if err != nil {
 		return err
 	}
-	err = self.raftServer.AddReadApiKey(db, initialApiKey)
-	if err != nil {
-		return err
-	}
-	err = self.raftServer.AddWriteApiKey(db, initialApiKey)
-	return err
+	return nil
 }
 
 func (self *CoordinatorImpl) DropDatabase(db string) error {
