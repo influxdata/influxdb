@@ -88,7 +88,9 @@ for i in $packages; do
 done
 
 # make sure that the server doesn't use a new version of glibc
-if readelf -a ./server | grep GLIBC_2.14 >/dev/null 2>&1; then
-    echo "./server has some references to GLIBC_2.14. Aborting."
-    exit 1
+if [ $on_linux == yes ]; then
+    if readelf -a ./server | grep GLIBC_2.14 >/dev/null 2>&1; then
+	echo "./server has some references to GLIBC_2.14. Aborting."
+	exit 1
+    fi
 fi
