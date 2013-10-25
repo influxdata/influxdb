@@ -112,6 +112,24 @@ func (c *NextDatabaseIdCommand) Apply(server raft.Server) (interface{}, error) {
 	return id, nil
 }
 
+type DropDatabaseCommand struct {
+	Name string `json:"name"`
+}
+
+func NewDropDatabaseCommand(name string) *DropDatabaseCommand {
+	return &DropDatabaseCommand{name}
+}
+
+func (c *DropDatabaseCommand) CommandName() string {
+	return "drop_db"
+}
+
+func (c *DropDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*ClusterConfiguration)
+	err := config.DropDatabase(c.Name)
+	return nil, err
+}
+
 type CreateDatabaseCommand struct {
 	Name string `json:"name"`
 }

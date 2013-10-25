@@ -63,6 +63,10 @@ func (self *CoordinatorImpl) CreateDatabase(db, initialApiKey, requestingApiKey 
 	return err
 }
 
+func (self *CoordinatorImpl) DropDatabase(db string) error {
+	return self.raftServer.DropDatabase(db)
+}
+
 func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (User, error) {
 	dbUsers := self.clusterConfiguration.dbUsers[db]
 	if dbUsers == nil || dbUsers[username] == nil {

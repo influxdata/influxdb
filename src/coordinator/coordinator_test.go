@@ -565,15 +565,20 @@ func (self *CoordinatorSuite) TestUserDataReplication(c *C) {
 	}
 }
 
-func (self *CoordinatorSuite) TestCanCreateDatabaseWithName(c *C) {
-	servers := startAndVerifyCluster(3, c)
-	defer clean(servers)
+func (self *CoordinatorSuite) createDatabases(servers []*RaftServer, c *C) {
 	err := servers[0].CreateDatabase("db1")
 	c.Assert(err, IsNil)
 	err = servers[1].CreateDatabase("db2")
 	c.Assert(err, IsNil)
 	err = servers[2].CreateDatabase("db3")
 	c.Assert(err, IsNil)
+}
+
+func (self *CoordinatorSuite) TestCanCreateDatabaseWithName(c *C) {
+	servers := startAndVerifyCluster(3, c)
+	defer clean(servers)
+
+	self.createDatabases(servers, c)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -582,10 +587,36 @@ func (self *CoordinatorSuite) TestCanCreateDatabaseWithName(c *C) {
 		c.Assert(databases, DeepEquals, map[string]bool{"db1": true, "db2": true, "db3": true})
 	}
 
-	err = servers[0].CreateDatabase("db3")
+	err := servers[0].CreateDatabase("db3")
 	c.Assert(err, ErrorMatches, ".*db3 exists.*")
 	err = servers[2].CreateDatabase("db3")
 	c.Assert(err, ErrorMatches, ".*db3 exists.*")
+}
+
+func (self *CoordinatorSuite) TestCanDropDatabaseWithName(c *C) {
+	servers := startAndVerifyCluster(3, c)
+	defer clean(servers)
+
+	self.createDatabases(servers, c)
+
+	err := servers[0].DropDatabase("db1")
+	c.Assert(err, IsNil)
+	err = servers[1].DropDatabase("db2")
+	c.Assert(err, IsNil)
+	err = servers[2].DropDatabase("db3")
+	c.Assert(err, IsNil)
+
+	time.Sleep(REPLICATION_LAG)
+
+	for i := 0; i < 3; i++ {
+		databases := servers[i].clusterConfig.GetDatabases()
+		c.Assert(databases, HasLen, 0)
+	}
+
+	err = servers[0].DropDatabase("db3")
+	c.Assert(err, ErrorMatches, ".*db3 doesn't exist.*")
+	err = servers[2].DropDatabase("db3")
+	c.Assert(err, ErrorMatches, ".*db3 doesn't exist.*")
 }
 
 func (self *CoordinatorSuite) TestCanCreateDatabase(c *C) {

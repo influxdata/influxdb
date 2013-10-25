@@ -116,6 +116,18 @@ func (self *ClusterConfiguration) CreateDatabase(name string) error {
 	return nil
 }
 
+func (self *ClusterConfiguration) DropDatabase(name string) error {
+	self.createDatabaseLock.Lock()
+	defer self.createDatabaseLock.Unlock()
+
+	if _, ok := self.databaseNames[name]; !ok {
+		return fmt.Errorf("Database %s doesn't exist", name)
+	}
+
+	delete(self.databaseNames, name)
+	return nil
+}
+
 func (self *ClusterConfiguration) NextDatabaseId() string {
 	self.nextDatabaseIdLock.Lock()
 	self.nextDatabaseId += 1

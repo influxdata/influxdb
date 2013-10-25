@@ -47,6 +47,7 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 		raft.RegisterCommand(&RemoveServerFromLocationCommand{})
 		raft.RegisterCommand(&NextDatabaseIdCommand{})
 		raft.RegisterCommand(&CreateDatabaseCommand{})
+		raft.RegisterCommand(&DropDatabaseCommand{})
 		raft.RegisterCommand(&SaveDbUserCommand{})
 		raft.RegisterCommand(&SaveClusterAdminCommand{})
 	}
@@ -143,6 +144,12 @@ func (s *RaftServer) RemoveServerFromLocation(host string, location int64) error
 func (s *RaftServer) CreateDatabase(name string) error {
 	command := NewCreateDatabaseCommand(name)
 	_, err := s.doOrProxyCommand(command, "create_db")
+	return err
+}
+
+func (s *RaftServer) DropDatabase(name string) error {
+	command := NewDropDatabaseCommand(name)
+	_, err := s.doOrProxyCommand(command, "drop_db")
 	return err
 }
 
@@ -367,6 +374,8 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		command = &NextDatabaseIdCommand{}
 	} else if value == "create_db" {
 		command = &CreateDatabaseCommand{}
+	} else if value == "drop_db" {
+		command = &DropDatabaseCommand{}
 	} else if value == "save_db_user" {
 		command = &SaveDbUserCommand{}
 	} else if value == "save_cluster_admin_user" {
