@@ -108,6 +108,10 @@ func (self *MockCoordinator) CreateDatabase(db string) error {
 	return nil
 }
 
+func (self *MockCoordinator) ListDatabases() ([]string, error) {
+	return []string{"db1", "db2"}, nil
+}
+
 func (self *MockCoordinator) DropDatabase(db string) error {
 	self.droppedDb = db
 	return nil
@@ -123,7 +127,10 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 	self.coordinator = &MockCoordinator{
 		users: map[string]*coordinator.User{},
 	}
-	self.manager = &MockUserManager{}
+	self.manager = &MockUserManager{
+		clusterAdmins: []string{"root"},
+		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
+	}
 	self.server = NewHttpServer("", &MockEngine{}, self.coordinator, self.manager)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
@@ -424,4 +431,43 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	c.Assert(self.manager.ops, HasLen, 1)
 	c.Assert(self.manager.ops[0].operation, Equals, "db_user_del")
 	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+}
+
+func (self *ApiSuite) TestClusterAdminsIndex(c *C) {
+	url := self.formatUrl("/cluster_admins?u=root&p=root")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	users := []*User{}
+	err = json.Unmarshal(body, &users)
+	c.Assert(err, IsNil)
+	c.Assert(users, DeepEquals, []*User{&User{"root"}})
+}
+
+func (self *ApiSuite) TestDbUsersIndex(c *C) {
+	url := self.formatUrl("/db/db1/users?u=root&p=root")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	users := []*User{}
+	err = json.Unmarshal(body, &users)
+	c.Assert(err, IsNil)
+	c.Assert(users, DeepEquals, []*User{&User{"db_user1"}})
+}
+
+func (self *ApiSuite) TestDatabasesIndex(c *C) {
+	url := self.formatUrl("/dbs?u=root&p=root")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	users := []*Database{}
+	err = json.Unmarshal(body, &users)
+	c.Assert(err, IsNil)
+	c.Assert(users, DeepEquals, []*Database{&Database{"db1"}, &Database{"db2"}})
 }

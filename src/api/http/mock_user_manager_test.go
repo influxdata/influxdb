@@ -12,7 +12,9 @@ type Operation struct {
 }
 
 type MockUserManager struct {
-	ops []*Operation
+	dbUsers       map[string][]string
+	clusterAdmins []string
+	ops           []*Operation
 }
 
 func (self *MockUserManager) AuthenticateDbUser(db, username, password string) (coordinator.User, error) {
@@ -48,4 +50,10 @@ func (self *MockUserManager) ChangeDbUserPassword(requester coordinator.User, db
 func (self *MockUserManager) SetDbAdmin(requester coordinator.User, db, username string, isAdmin bool) error {
 	self.ops = append(self.ops, &Operation{"db_user_admin", username, "", isAdmin})
 	return nil
+}
+func (self *MockUserManager) ListClusterAdmins(requester coordinator.User) ([]string, error) {
+	return self.clusterAdmins, nil
+}
+func (self *MockUserManager) ListDbUsers(requester coordinator.User, db string) ([]string, error) {
+	return self.dbUsers[db], nil
 }
