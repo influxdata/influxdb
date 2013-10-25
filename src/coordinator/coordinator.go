@@ -58,6 +58,11 @@ func (self *CoordinatorImpl) CreateDatabase(db string) error {
 	return nil
 }
 
+func (self *CoordinatorImpl) ListDatabases() ([]string, error) {
+	dbs := self.clusterConfiguration.GetDatabases()
+	return dbs, nil
+}
+
 func (self *CoordinatorImpl) DropDatabase(db string) error {
 	return self.raftServer.DropDatabase(db)
 }

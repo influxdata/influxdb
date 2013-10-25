@@ -591,7 +591,7 @@ func (self *CoordinatorSuite) TestCanCreateDatabaseWithName(c *C) {
 
 	for i := 0; i < 3; i++ {
 		databases := servers[i].clusterConfig.GetDatabases()
-		c.Assert(databases, DeepEquals, map[string]bool{"db1": true, "db2": true, "db3": true})
+		c.Assert(databases, DeepEquals, []string{"db1", "db2", "db3"})
 	}
 
 	err := servers[0].CreateDatabase("db3")

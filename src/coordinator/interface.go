@@ -18,6 +18,7 @@ type Coordinator interface {
 	WriteSeriesData(db string, series *protocol.Series) error
 	DropDatabase(db string) error
 	CreateDatabase(db string) error
+	ListDatabases() ([]string, error)
 }
 
 type UserManager interface {

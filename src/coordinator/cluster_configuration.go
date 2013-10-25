@@ -45,13 +45,13 @@ func (self *ClusterConfiguration) MoveRebalancingToActive() {
 	self.potentialServerConfig = self.activeServerConfig
 }
 
-func (self *ClusterConfiguration) GetDatabases() map[string]bool {
+func (self *ClusterConfiguration) GetDatabases() []string {
 	self.createDatabaseLock.RLock()
 	defer self.createDatabaseLock.RUnlock()
 
-	names := make(map[string]bool)
+	names := make([]string, 0, len(self.databaseNames))
 	for name, _ := range self.databaseNames {
-		names[name] = true
+		names = append(names, name)
 	}
 	return names
 }
