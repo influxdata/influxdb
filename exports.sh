@@ -27,6 +27,8 @@ export LD_LIBRARY_PATH=/usr/local/lib
 on_linux="no"
 if [ `uname` == "Linux" ]; then
     on_linux=yes
+elif [ `uname -v | cut -d' ' -f4` == "13.0.0:" ]; then
+    export CC=gcc-4.2
 fi
 if [ $on_linux == yes ]; then
     export CGO_CFLAGS="-I$leveldb_dir/include"
