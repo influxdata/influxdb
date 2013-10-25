@@ -64,6 +64,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	// Write points to the given database
 	self.registerEndpoint(p, "post", "/db/:db/series", self.writePoints)
 	self.registerEndpoint(p, "post", "/db", self.createDatabase)
+	self.registerEndpoint(p, "del", "/db/:name", self.dropDatabase)
 
 	// cluster admins management interface
 
@@ -326,6 +327,17 @@ func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Requ
 		return
 	}
 	w.WriteHeader(libhttp.StatusCreated)
+}
+
+func (self *HttpServer) dropDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(user coordinator.User) (int, string) {
+		name := r.URL.Query().Get(":name")
+		err := self.coordinator.DropDatabase(name)
+		if err != nil {
+			return libhttp.StatusBadRequest, err.Error()
+		}
+		return libhttp.StatusNoContent, ""
+	})
 }
 
 type Point struct {

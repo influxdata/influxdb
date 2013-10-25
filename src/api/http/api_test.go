@@ -90,6 +90,7 @@ func (self *MockEngine) RunQuery(_ string, query string, yield func(*protocol.Se
 type MockCoordinator struct {
 	series           []*protocol.Series
 	db               string
+	droppedDb        string
 	initialApiKey    string
 	requestingApiKey string
 	users            map[string]*coordinator.User
@@ -98,14 +99,21 @@ type MockCoordinator struct {
 func (self *MockCoordinator) DistributeQuery(db string, query *parser.Query, yield func(*protocol.Series) error) error {
 	return nil
 }
+
 func (self *MockCoordinator) WriteSeriesData(db string, series *protocol.Series) error {
 	self.series = append(self.series, series)
 	return nil
 }
+
 func (self *MockCoordinator) CreateDatabase(db, initialApiKey, requestingApiKey string) error {
 	self.db = db
 	self.initialApiKey = initialApiKey
 	self.requestingApiKey = requestingApiKey
+	return nil
+}
+
+func (self *MockCoordinator) DropDatabase(db string) error {
+	self.droppedDb = db
 	return nil
 }
 
@@ -314,6 +322,18 @@ func (self *ApiSuite) TestCreateDatabase(c *C) {
 	c.Assert(self.coordinator.db, Equals, "foo")
 	c.Assert(self.coordinator.initialApiKey, Equals, "bar")
 	c.Assert(self.coordinator.requestingApiKey, Equals, "asdf")
+}
+
+func (self *ApiSuite) TestDropDatabase(c *C) {
+	addr := self.formatUrl("/db/foo?u=root&p=root")
+	req, err := libhttp.NewRequest("DELETE", addr, nil)
+	c.Assert(err, IsNil)
+	resp, err := libhttp.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
+	_, err = ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusNoContent)
+	c.Assert(self.coordinator.droppedDb, Equals, "foo")
 }
 
 func (self *ApiSuite) TestClusterAdminOperations(c *C) {
