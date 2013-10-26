@@ -185,6 +185,58 @@ func (self *EngineSuite) TestCountQuery(c *C) {
 
 }
 
+func (self *EngineSuite) TestUpperCaseQuery(c *C) {
+	// make the mock coordinator return some data
+	engine := createEngine(c, `
+[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631000000,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": 1381346631000000,
+        "sequence_number": 2
+      }
+    ],
+    "name": "foo",
+    "fields": ["column_one"]
+  }
+]
+`)
+
+	runQuery(engine, "select COUNT(column_one) from foo;", c, `[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 2
+          }
+        ],
+        "timestamp": 1381346631000000,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": ["count"]
+  }
+]
+`)
+
+}
+
 func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
 	// make the mock coordinator return some data
 	engine := createEngine(c, `

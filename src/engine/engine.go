@@ -8,6 +8,7 @@ import (
 	"parser"
 	"protocol"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -182,7 +183,8 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 	aggregators := []Aggregator{}
 	for _, value := range query.GetColumnNames() {
 		if value.IsFunctionCall() {
-			initializer := registeredAggregators[value.Name]
+			lowerCaseName := strings.ToLower(value.Name)
+			initializer := registeredAggregators[lowerCaseName]
 			if initializer == nil {
 				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", value.Name))
 			}
