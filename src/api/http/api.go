@@ -427,7 +427,11 @@ func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 
 			rowValues := []interface{}{timestamp, *row.SequenceNumber}
 			for _, value := range row.Values {
-				rowValues = append(rowValues, value.GetValue())
+				if value != nil {
+					rowValues = append(rowValues, value.GetValue())
+				} else {
+					rowValues = append(rowValues, nil)
+				}
 			}
 			points = append(points, rowValues)
 		}

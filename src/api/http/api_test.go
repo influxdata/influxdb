@@ -39,7 +39,7 @@ func (self *MockEngine) RunQuery(_ common.User, _ string, query string, yield fu
     "points": [
       {
         "values": [
-				  { "string_value": "some_value"},{"int64_value": 1}
+				  { "string_value": "some_value"},null
         ],
         "timestamp": 1381346631000000,
         "sequence_number": 1
@@ -144,6 +144,28 @@ func (self *ApiSuite) TearDownSuite(c *C) {
 func (self *ApiSuite) SetUpTest(c *C) {
 	self.coordinator.series = nil
 	self.manager.ops = nil
+}
+
+func (self *ApiSuite) TestQueryWithNullColumns(c *C) {
+	query := "select * from foo;"
+	query = url.QueryEscape(query)
+	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=s&u=dbuser&p=password", query)
+	resp, err := libhttp.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	series := []SerializedSeries{}
+	err = json.Unmarshal(data, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "foo")
+	// time, seq, column_one, column_two
+	c.Assert(series[0].Columns, HasLen, 4)
+	c.Assert(series[0].Points, HasLen, 4)
+	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631)
+	c.Assert(series[0].Points[0][3], Equals, nil)
 }
 
 func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
