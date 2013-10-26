@@ -87,7 +87,7 @@ case $1 in
         # Log the message appropriately
         cd /
         if which start-stop-daemon > /dev/null 2>&1; then
-            nohup start-stop-daemon -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -config /opt/$name/shared/config.json > /dev/null 2>> /opt/$name/shared/log.txt &
+            nohup start-stop-daemon -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config /opt/$name/shared/config.json > /dev/null 2>> /opt/$name/shared/log.txt &
         elif set | egrep '^start_daemon' > /dev/null 2>&1; then
             start_daemon ${daemon}-daemon
         else

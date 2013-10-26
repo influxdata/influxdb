@@ -18,7 +18,7 @@ import (
 
 var fileName = flag.String("config", "config.json.sample", "Config file")
 var wantsVersion = flag.Bool("version", false, "Get version number")
-var pidFile = flag.String("pidfile", "/opt/influxdb/shared/influxdb.pid", "the pid file")
+var pidFile = flag.String("pidfile", "", "the pid file")
 
 var version = "dev"
 var gitSha = ""
