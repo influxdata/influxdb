@@ -6,16 +6,16 @@ import (
 )
 
 type Matcher struct {
-	isRegex bool
-	name    string
+	IsRegex bool
+	Name    string
 }
 
 func (self *Matcher) Matches(name string) bool {
-	if self.isRegex {
-		matches, _ := regexp.MatchString(self.name, name)
+	if self.IsRegex {
+		matches, _ := regexp.MatchString(self.Name, name)
 		return matches
 	}
-	return self.name == name
+	return self.Name == name
 }
 
 type CommonUser struct {
