@@ -69,7 +69,8 @@ function build_packages {
 
 function setup_version {
     echo "Changing version from dev to $influxdb_version"
-    sed -i.bak "s/var version = \"dev\"/var version = \"$influxdb_version\"/" src/server/server.go
+    sha1=`git rev-list --max-count=1 HEAD`
+    sed -i.bak -e "s/var version = \"dev\"/var version = \"$influxdb_version\"/" -e "s/var gitSha = \"\"/var gitSha = \"$sha1\"/" src/server/server.go
 }
 
 function revert_version {

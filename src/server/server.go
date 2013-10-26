@@ -18,13 +18,14 @@ var fileName = flag.String("config", "config.json.sample", "Config file")
 var wantsVersion = flag.Bool("version", false, "Get version number")
 
 var version = "dev"
+var gitSha = ""
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
 	if wantsVersion != nil && *wantsVersion {
-		fmt.Printf("InfluxDB v%s\n", version)
+		fmt.Printf("InfluxDB v%s (git: %s)\n", version, gitSha)
 		return
 	}
 	config := configuration.LoadConfiguration(*fileName)
