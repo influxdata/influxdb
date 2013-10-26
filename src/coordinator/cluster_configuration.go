@@ -76,6 +76,11 @@ func (self *ClusterConfiguration) DropDatabase(name string) error {
 	}
 
 	delete(self.databaseNames, name)
+
+	self.usersLock.Lock()
+	defer self.usersLock.Unlock()
+
+	delete(self.dbUsers, name)
 	return nil
 }
 

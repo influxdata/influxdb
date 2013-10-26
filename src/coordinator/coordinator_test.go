@@ -394,6 +394,37 @@ func (self *UserSuite) BenchmarkHashing(c *C) {
 	}
 }
 
+func (self *CoordinatorSuite) TestAutomaitcDbCreations(c *C) {
+	servers := startAndVerifyCluster(1, c)
+	defer clean(servers)
+
+	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+
+	time.Sleep(REPLICATION_LAG)
+
+	// Root user is created
+	var root User
+	var err error
+	// we should have the root user
+	root, err = coordinator.AuthenticateClusterAdmin("root", "root")
+	c.Assert(err, IsNil)
+	c.Assert(root.IsClusterAdmin(), Equals, true)
+
+	// can create db users
+	c.Assert(coordinator.CreateDbUser(root, "db1", "db_user"), IsNil)
+	c.Assert(coordinator.ChangeDbUserPassword(root, "db1", "db_user", "pass"), Equals, nil)
+
+	// the db should be in the index now
+	dbs, err := coordinator.ListDatabases(root)
+	c.Assert(err, IsNil)
+	c.Assert(dbs, DeepEquals, []string{"db1"})
+
+	// if the db is dropped it should remove the users as well
+	c.Assert(coordinator.DropDatabase(root, "db1"), IsNil)
+	_, err = coordinator.AuthenticateDbUser("db1", "db_user", "pass")
+	c.Assert(err, ErrorMatches, ".*Invalid.*")
+}
+
 func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	servers := startAndVerifyCluster(1, c)
 	defer clean(servers)

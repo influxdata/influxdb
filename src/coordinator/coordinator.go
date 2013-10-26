@@ -159,6 +159,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 		return fmt.Errorf("Insufficient permissions")
 	}
 
+	self.clusterConfiguration.CreateDatabase(db) // ignore the error since the db may exist
 	dbUsers := self.clusterConfiguration.dbUsers[db]
 	if dbUsers != nil && dbUsers[username] != nil {
 		return fmt.Errorf("User %s already exists", username)
