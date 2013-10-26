@@ -478,6 +478,7 @@ func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 	if username == "" {
 		w.WriteHeader(libhttp.StatusUnauthorized)
 		w.Write([]byte("Invalid username/password"))
+		return
 	}
 
 	user, err := self.userManager.AuthenticateClusterAdmin(username, password)
