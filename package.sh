@@ -38,6 +38,8 @@ function package_files {
 
     cp -R src/admin/site/ build/admin/
 
+    cp -R scripts/ build/
+
     tar_file=influxdb-$influxdb_version.$1.tar.gz
 
     tar -czf $tar_file build/*
@@ -60,9 +62,9 @@ function build_packages {
     mkdir -p out_rpm/opt/influxdb/versions/$influxdb_version
     cp -r build/* out_rpm/opt/influxdb/versions/$influxdb_version
     pushd out_rpm
-    $rpm_args fpm  -s dir -t rpm -n influxdb -v $influxdb_version . || exit $?
+    $rpm_args fpm  -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $influxdb_version . || exit $?
     mv *.rpm ../packages/
-    fpm  -s dir -t deb $deb_args -n influxdb -v $influxdb_version . || exit $?
+    fpm  -s dir -t deb $deb_args --after-install ../scripts/post_install.sh -n influxdb -v $influxdb_version . || exit $?
     mv *.deb ../packages/
     popd
 }
@@ -71,15 +73,20 @@ function setup_version {
     echo "Changing version from dev to $influxdb_version"
     sha1=`git rev-list --max-count=1 HEAD`
     sed -i.bak -e "s/var version = \"dev\"/var version = \"$influxdb_version\"/" -e "s/var gitSha = \"\"/var gitSha = \"$sha1\"/" src/server/server.go
+    sed -i.bak -e "s/REPLACE_VERSION/$influxdb_version/" scripts/post_install.sh
 }
 
 function revert_version {
-    if [ ! -e src/server/server.go.bak ]; then
-        return
+    if [ -e src/server/server.go.bak ]; then
+        rm src/server/server.go
+        mv src/server/server.go.bak src/server/server.go
     fi
 
-    rm src/server/server.go
-    mv src/server/server.go.bak src/server/server.go
+    if [ -e scripts/post_install.sh ]; then
+        rm scripts/post_install.sh
+        mv scripts/post_install.sh.bak scripts/post_install.sh
+    fi
+
     echo "Changed version back to dev"
 }
 

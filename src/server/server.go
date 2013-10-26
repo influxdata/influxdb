@@ -9,13 +9,16 @@ import (
 	"engine"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"runtime"
+	"strconv"
 )
 
 var fileName = flag.String("config", "config.json.sample", "Config file")
 var wantsVersion = flag.Bool("version", false, "Get version number")
+var pidFile = flag.String("pidfile", "/opt/influxdb/shared/influxdb.pid", "the pid file")
 
 var version = "dev"
 var gitSha = ""
@@ -29,6 +32,13 @@ func main() {
 		return
 	}
 	config := configuration.LoadConfiguration(*fileName)
+
+	if pidFile != nil && *pidFile != "" {
+		pid := strconv.Itoa(os.Getpid())
+		if err := ioutil.WriteFile(*pidFile, []byte(pid), 0644); err != nil {
+			panic(err)
+		}
+	}
 
 	log.Println("Starting Influx Server...")
 	clusterConfig := coordinator.NewClusterConfiguration()
