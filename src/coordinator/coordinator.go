@@ -169,7 +169,8 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 		self.clusterConfiguration.dbUsers[db] = dbUsers
 	}
 
-	return self.raftServer.SaveDbUser(&dbUser{CommonUser{Name: username}, db, nil, nil, false})
+	matchers := []*Matcher{&Matcher{true, ".*"}}
+	return self.raftServer.SaveDbUser(&dbUser{CommonUser{Name: username}, db, matchers, matchers, false})
 }
 
 func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username string) error {
