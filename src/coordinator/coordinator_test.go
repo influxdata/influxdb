@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	. "checkers"
 	. "common"
 	"datastore"
 	"encoding/json"

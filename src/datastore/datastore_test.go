@@ -1,8 +1,8 @@
 package datastore
 
 import (
+	. "checkers"
 	"common"
-	. "common"
 	"encoding/json"
 	. "launchpad.net/gocheck"
 	"os"
