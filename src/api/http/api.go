@@ -485,6 +485,7 @@ func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 	if err != nil {
 		w.WriteHeader(libhttp.StatusUnauthorized)
 		w.Write([]byte(err.Error()))
+		return
 	}
 	statusCode, body := yieldUser(user, yield)
 	w.WriteHeader(statusCode)
