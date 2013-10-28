@@ -847,6 +847,80 @@ func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
   ]`)
 }
 
+func (self *EngineSuite) TestQueryWithMergedTables(c *C) {
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["value"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346705000000, "sequence_number": 1 }
+      ],
+      "name": "bar",
+      "fields": ["value"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346707000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["value"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346706000000, "sequence_number": 1 }
+      ],
+      "name": "bar",
+      "fields": ["value"]
+    },
+    {
+      "points": [],
+      "name": "foo",
+      "fields": ["value"]
+    },
+    {
+      "points": [],
+      "name": "bar",
+      "fields": ["value"]
+    }
+  ]`)
+
+	runQuery(engine, "select * from foo merge bar;", c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }, null], "timestamp": 1381346701000000, "sequence_number": 1 }
+      ],
+      "name": "foo_merge_bar",
+      "fields": ["foo.value", "bar.value"]
+    },
+    {
+      "points": [
+        { "values": [null, { "int64_value": 2 }], "timestamp": 1381346705000000, "sequence_number": 1 }
+      ],
+      "name": "foo_merge_bar",
+      "fields": ["foo.value", "bar.value"]
+    },
+    {
+      "points": [
+        { "values": [null, { "int64_value": 4 }], "timestamp": 1381346706000000, "sequence_number": 1 }
+      ],
+      "name": "foo_merge_bar",
+      "fields": ["foo.value", "bar.value"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 3 }, null], "timestamp": 1381346707000000, "sequence_number": 1 }
+      ],
+      "name": "foo_merge_bar",
+      "fields": ["foo.value", "bar.value"]
+    }
+  ]`)
+}
+
 func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidNumberOfArguments(c *C) {
 	err := common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
 	engine := createEngine(c, `[]`)

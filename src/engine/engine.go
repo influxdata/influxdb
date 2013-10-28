@@ -34,12 +34,25 @@ func (self *QueryEngine) RunQuery(user common.User, database string, query strin
 	if err != nil {
 		return err
 	}
+
 	if isAggregateQuery(q) {
 		return self.executeCountQueryWithGroupBy(user, database, q, yield)
 	} else {
-		self.coordinator.DistributeQuery(user, database, q, yield)
+		self.distributeQuery(user, database, q, yield)
 	}
 	return nil
+}
+
+// distribute query and possibly do the merge/join before yielding the points
+func (self *QueryEngine) distributeQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) (err error) {
+	// see if this is a merge query
+	fromClause := query.GetFromClause()
+	if fromClause.Type == parser.FromClauseMerge {
+		yield = getMergeYield(fromClause.Names[0].Name, fromClause.Names[1].Name, yield)
+	}
+
+	return self.coordinator.DistributeQuery(user, database, query, yield)
+
 }
 
 func NewQueryEngine(c coordinator.Coordinator) (EngineI, error) {
@@ -205,7 +218,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 
 	var inverse InverseMapper
 
-	err = self.coordinator.DistributeQuery(user, database, query, func(series *protocol.Series) error {
+	err = self.distributeQuery(user, database, query, func(series *protocol.Series) error {
 		var mapper Mapper
 		mapper, inverse, err = createValuesToInterface(groupBy, series.Fields)
 		if err != nil {
