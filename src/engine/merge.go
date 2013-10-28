@@ -92,7 +92,7 @@ func getMergeYield(table1, table2 string, yield func(*protocol.Series) error) fu
 
 			if *s1[0].Points[0].Timestamp > *s2[0].Points[0].Timestamp {
 				// s1 fields = null, s2 fields = some values
-				points = s2[0].Points[:1]
+				points = []*protocol.Point{s2[0].Points[0]}
 				for _, p := range points {
 					p.Values = append(nullValues1, p.Values...)
 				}
@@ -102,7 +102,7 @@ func getMergeYield(table1, table2 string, yield func(*protocol.Series) error) fu
 				}
 			} else {
 				// s1 fields = null, s2 fields = some values
-				points = s1[0].Points[:1]
+				points = []*protocol.Point{s1[0].Points[0]}
 				for _, p := range points {
 					p.Values = append(p.Values, nullValues2...)
 				}

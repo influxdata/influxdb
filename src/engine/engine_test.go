@@ -74,10 +74,18 @@ func runQueryRunError(engine EngineI, query string, c *C, expectedErr error) {
 }
 
 func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
+	runQueryExtended(engine, query, c, false, expectedSeries)
+}
 
-	result := []*protocol.Series{}
+func runQueryExtended(engine EngineI, query string, c *C, appendPoints bool, expectedSeries string) {
+
+	var result []*protocol.Series
 	err := engine.RunQuery(nil, "", query, func(series *protocol.Series) error {
-		result = append(result, series)
+		if appendPoints && result != nil {
+			result[0].Points = append(result[0].Points, series.Points...)
+		} else {
+			result = append(result, series)
+		}
 		return nil
 	})
 
@@ -917,6 +925,50 @@ func (self *EngineSuite) TestQueryWithMergedTables(c *C) {
       ],
       "name": "foo_merge_bar",
       "fields": ["foo.value", "bar.value"]
+    }
+  ]`)
+}
+
+func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }], "timestamp": 1381346707000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["a", "b"]
+    },
+    {
+      "points": [],
+      "name": "foo",
+      "fields": ["a", "b"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 3 }], "timestamp": 1381346706000000, "sequence_number": 1 }
+      ],
+      "name": "bar",
+      "fields": ["a", "b"]
+    },
+    {
+      "points": [],
+      "name": "bar",
+      "fields": ["a", "b"]
+    }
+  ]`)
+
+	runQueryExtended(engine, "select * from foo merge bar;", c, true, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }, null, null], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [null, null, { "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000000, "sequence_number": 1 },
+        { "values": [null, null, { "int64_value": 1 }, { "int64_value": 3 }], "timestamp": 1381346706000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }, null, null], "timestamp": 1381346707000000, "sequence_number": 1 }
+      ],
+      "name": "foo_merge_bar",
+      "fields": ["foo.a", "foo.b", "bar.a", "bar.b"]
     }
   ]`)
 }
