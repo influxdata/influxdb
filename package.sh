@@ -4,8 +4,13 @@ set -e
 
 . ./exports.sh
 
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <version>"
+    exit 1
+fi
+
 admin_dir=/tmp/influx_admin_interface
-influxdb_version=`cat VERSION`
+influxdb_version=$1
 rm -rf packages
 mkdir packages
 
