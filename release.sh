@@ -46,8 +46,9 @@ for filepath in `ls packages/*.{tar.gz,deb,rpm}`; do
     echo "Uploading $filepath to S3"
     filename=`basename $filepath`
     latest_filename=`echo ${filename} | sed "s/${version}/latest/g"`
-    AWS_CONFIG_FILE=~/aws.conf aws s3 put-object --bucket influxdb --key $filename --body $filepath --acl public-read
-    AWS_CONFIG_FILE=~/aws.conf aws s3 put-object --bucket influxdb --key ${latest_filename} --body $filepath --acl public-read
+    bucket=influxdb
+    AWS_CONFIG_FILE=~/aws.conf aws s3 put-object --bucket $bucket --key $filename --body $filepath --acl public-read
+    AWS_CONFIG_FILE=~/aws.conf aws s3 put-object --bucket $bucket --key ${latest_filename} --body $filepath --acl public-read
 done
 
 branch=`git rev-parse --abbrev-ref HEAD`
