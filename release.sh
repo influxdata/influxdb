@@ -41,7 +41,7 @@ if ! ./package.sh $version; then
     exit 1
 fi
 
-for filepath in `ls package/*.{tar.gz,deb,rpm}`; do
+for filepath in `ls packages/*.{tar.gz,deb,rpm}`; do
     [ -e "$filepath" ] || continue
     echo "Uploading $filepath to S3"
     filename=`basename $filepath`
