@@ -4,6 +4,7 @@ set -e
 
 . ./exports.sh
 
+admin_dir=/tmp/influx_admin_interface
 influxdb_version=`cat VERSION`
 rm -rf packages
 mkdir packages
@@ -19,8 +20,21 @@ function setup_rvm {
     else
         printf "ERROR: An RVM installation was not found.\n"
     fi
-    rvm use --create 1.9.3@errplane-agent
+    rvm use --create 1.9.3@influxdb
+    gem install bundler
     gem install fpm
+}
+
+function package_admin_interface {
+    [ -d $admin_dir ] || git clone https://github.com/influxdb/influxdb-js.git $admin_dir
+    rvm rvmrc trust /tmp/influx_admin_interface/.rvmrc
+    pushd $admin_dir
+    git checkout .
+    git pull --rebase
+
+    bundle install
+    bundle exec middleman build
+    popd
 }
 
 function package_files {
@@ -32,11 +46,15 @@ function package_files {
     rm -rf build
     mkdir build
 
+    package_admin_interface
+
     mv server build/influxdb
 
     cp config.json.sample build/config.json
 
-    cp -R src/admin/site/ build/admin/
+    # cp -R src/admin/site/ build/admin/
+    mkdir build/admin
+    cp -R $admin_dir/build/* build/admin/
 
     cp -R scripts/ build/
 
