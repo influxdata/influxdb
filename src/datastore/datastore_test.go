@@ -49,12 +49,16 @@ func stringToSeries(seriesString string, timestamp int64, c *C) *protocol.Series
 	return series
 }
 
-func executeQuery(user common.User, database, query string, db Datastore, c *C) *protocol.Series {
+func executeQuery(user common.User, database, query string, db Datastore, c *C) []*protocol.Series {
 	q, errQ := parser.ParseQuery(query)
 	c.Assert(errQ, IsNil)
-	resultSeries := &protocol.Series{}
+	resultSeries := []*protocol.Series{}
 	yield := func(series *protocol.Series) error {
-		resultSeries = series
+		// ignore time series which have no data, this includes
+		// end of series indicator
+		if len(series.Points) > 0 {
+			resultSeries = append(resultSeries, series)
+		}
 		return nil
 	}
 	err := db.ExecuteQuery(user, database, q, yield)
@@ -95,23 +99,26 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	c.Assert(err, IsNil)
 	q, errQ := parser.ParseQuery("select value from foo;")
 	c.Assert(errQ, IsNil)
-	resultSeries := &protocol.Series{}
+	resultSeries := []*protocol.Series{}
 	yield := func(series *protocol.Series) error {
-		resultSeries = series
+		resultSeries = append(resultSeries, series)
 		return nil
 	}
 	user := &MockUser{}
 	err = db.ExecuteQuery(user, "test", q, yield)
 	c.Assert(err, IsNil)
-	c.Assert(resultSeries, Not(IsNil))
-	c.Assert(len(resultSeries.Points), Equals, 2)
-	c.Assert(len(resultSeries.Fields), Equals, 1)
-	c.Assert(*resultSeries.Points[0].SequenceNumber, Equals, uint32(2))
-	c.Assert(*resultSeries.Points[1].SequenceNumber, Equals, uint32(1))
-	c.Assert(*resultSeries.Points[0].GetTimestampInMicroseconds(), Equals, pointTime*1000000)
-	c.Assert(*resultSeries.Points[1].GetTimestampInMicroseconds(), Equals, pointTime*1000000)
-	c.Assert(*resultSeries.Points[0].Values[0].Int64Value, Equals, int64(2))
-	c.Assert(*resultSeries.Points[1].Values[0].Int64Value, Equals, int64(3))
+	// we should get the actual data and the end of series data
+	// indicator , i.e. a series with no points
+	c.Assert(resultSeries, HasLen, 2)
+	c.Assert(resultSeries[0].Points, HasLen, 2)
+	c.Assert(resultSeries[0].Fields, HasLen, 1)
+	c.Assert(*resultSeries[0].Points[0].SequenceNumber, Equals, uint32(2))
+	c.Assert(*resultSeries[0].Points[1].SequenceNumber, Equals, uint32(1))
+	c.Assert(*resultSeries[0].Points[0].GetTimestampInMicroseconds(), Equals, pointTime*1000000)
+	c.Assert(*resultSeries[0].Points[1].GetTimestampInMicroseconds(), Equals, pointTime*1000000)
+	c.Assert(*resultSeries[0].Points[0].Values[0].Int64Value, Equals, int64(2))
+	c.Assert(*resultSeries[0].Points[1].Values[0].Int64Value, Equals, int64(3))
+	c.Assert(resultSeries[1].Points, HasLen, 0)
 	c.Assert(resultSeries, Not(DeepEquals), series)
 }
 
@@ -138,12 +145,12 @@ func (self *DatastoreSuite) TestCanPersistDataAndWriteNewData(c *C) {
 	c.Assert(err, IsNil)
 	user := &MockUser{}
 	results := executeQuery(user, "asdf", "select value from foo;", db, c)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0], DeepEquals, series)
 	db.Close()
 	db = newDatastore(c)
 	defer cleanup(db)
 	results = executeQuery(user, "asdf", "select value from foo;", db, c)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0], DeepEquals, series)
 }
 
 func (self *DatastoreSuite) TestCanWriteDataWithDifferentTimesAndSeries(c *C) {
@@ -170,9 +177,9 @@ func (self *DatastoreSuite) TestCanWriteDataWithDifferentTimesAndSeries(c *C) {
 
 	user := &MockUser{}
 	results := executeQuery(user, "db1", "select blah from events;", db, c)
-	c.Assert(results, DeepEquals, eventsSeries)
+	c.Assert(results[0], DeepEquals, eventsSeries)
 	results = executeQuery(user, "db1", "select val from foo;", db, c)
-	c.Assert(results, DeepEquals, fooSeries)
+	c.Assert(results[0], DeepEquals, fooSeries)
 
 	now := time.Now().Unix()
 	mock = `{
@@ -186,16 +193,16 @@ func (self *DatastoreSuite) TestCanWriteDataWithDifferentTimesAndSeries(c *C) {
 	c.Assert(err, IsNil)
 
 	results = executeQuery(user, "db1", "select blah from events;", db, c)
-	c.Assert(len(results.Points), Equals, 2)
-	c.Assert(len(results.Fields), Equals, 1)
-	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(1))
-	c.Assert(*results.Points[1].SequenceNumber, Equals, uint32(3))
-	c.Assert(*results.Points[0].GetTimestampInMicroseconds(), Equals, now*1000000)
-	c.Assert(*results.Points[1].GetTimestampInMicroseconds(), Equals, secondAgo*1000000)
-	c.Assert(*results.Points[0].Values[0].DoubleValue, Equals, float64(0.1))
-	c.Assert(*results.Points[1].Values[0].DoubleValue, Equals, float64(23.2))
+	c.Assert(results[0].Points, HasLen, 2)
+	c.Assert(results[0].Fields, HasLen, 1)
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(1))
+	c.Assert(*results[0].Points[1].SequenceNumber, Equals, uint32(3))
+	c.Assert(*results[0].Points[0].GetTimestampInMicroseconds(), Equals, now*1000000)
+	c.Assert(*results[0].Points[1].GetTimestampInMicroseconds(), Equals, secondAgo*1000000)
+	c.Assert(*results[0].Points[0].Values[0].DoubleValue, Equals, float64(0.1))
+	c.Assert(*results[0].Points[1].Values[0].DoubleValue, Equals, float64(23.2))
 	results = executeQuery(user, "db1", "select val from foo;", db, c)
-	c.Assert(results, DeepEquals, fooSeries)
+	c.Assert(results[0], DeepEquals, fooSeries)
 }
 
 func (self *DatastoreSuite) TestCanWriteDataToDifferentDatabases(c *C) {
@@ -222,9 +229,9 @@ func (self *DatastoreSuite) TestCanWriteDataToDifferentDatabases(c *C) {
 
 	user := &MockUser{}
 	results := executeQuery(user, "db1", "select blah from events;", db, c)
-	c.Assert(results, DeepEquals, db1Series)
+	c.Assert(results[0], DeepEquals, db1Series)
 	results = executeQuery(user, "other_db", "select blah from events;", db, c)
-	c.Assert(results, DeepEquals, otherDbSeries)
+	c.Assert(results[0], DeepEquals, otherDbSeries)
 }
 
 func (self *DatastoreSuite) TestCanQueryBasedOnTime(c *C) {
@@ -254,19 +261,19 @@ func (self *DatastoreSuite) TestCanQueryBasedOnTime(c *C) {
 
 	user := &MockUser{}
 	results := executeQuery(user, "db1", "select val from foo where time>now()-1m;", db, c)
-	c.Assert(results, DeepEquals, newData)
+	c.Assert(results[0], DeepEquals, newData)
 	results = executeQuery(user, "db1", "select val from foo where time>now()-1h and time<now()-1m;", db, c)
-	c.Assert(results, DeepEquals, oldData)
+	c.Assert(results[0], DeepEquals, oldData)
 
 	results = executeQuery(user, "db1", "select val from foo;", db, c)
-	c.Assert(len(results.Points), Equals, 2)
-	c.Assert(len(results.Fields), Equals, 1)
-	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(3))
-	c.Assert(*results.Points[1].SequenceNumber, Equals, uint32(3))
-	c.Assert(*results.Points[0].GetTimestampInMicroseconds(), Equals, now*1000000)
-	c.Assert(*results.Points[1].GetTimestampInMicroseconds(), Equals, minutesAgo*1000000)
-	c.Assert(*results.Points[0].Values[0].Int64Value, Equals, int64(3))
-	c.Assert(*results.Points[1].Values[0].Int64Value, Equals, int64(4))
+	c.Assert(results[0].Points, HasLen, 2)
+	c.Assert(results[0].Fields, HasLen, 1)
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(3))
+	c.Assert(*results[0].Points[1].SequenceNumber, Equals, uint32(3))
+	c.Assert(*results[0].Points[0].GetTimestampInMicroseconds(), Equals, now*1000000)
+	c.Assert(*results[0].Points[1].GetTimestampInMicroseconds(), Equals, minutesAgo*1000000)
+	c.Assert(*results[0].Points[0].Values[0].Int64Value, Equals, int64(3))
+	c.Assert(*results[0].Points[1].Values[0].Int64Value, Equals, int64(4))
 }
 
 func (self *DatastoreSuite) TestCanDoWhereQueryEquals(c *C) {
@@ -285,12 +292,12 @@ func (self *DatastoreSuite) TestCanDoWhereQueryEquals(c *C) {
 
 	user := &MockUser{}
 	results := executeQuery(user, "db1", "select name from events;", db, c)
-	c.Assert(results, DeepEquals, allData)
+	c.Assert(results[0], DeepEquals, allData)
 	results = executeQuery(user, "db1", "select name from events where name == 'paul';", db, c)
-	c.Assert(len(results.Points), Equals, 1)
-	c.Assert(len(results.Fields), Equals, 1)
-	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(2))
-	c.Assert(*results.Points[0].Values[0].StringValue, Equals, "paul")
+	c.Assert(results[0].Points, HasLen, 1)
+	c.Assert(results[0].Fields, HasLen, 1)
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(2))
+	c.Assert(*results[0].Points[0].Values[0].StringValue, Equals, "paul")
 }
 
 func (self *DatastoreSuite) TestCanDoSelectStarQueries(c *C) {
@@ -310,7 +317,7 @@ func (self *DatastoreSuite) TestCanDoSelectStarQueries(c *C) {
 	c.Assert(err, IsNil)
 	user := &MockUser{}
 	results := executeQuery(user, "foobar", "select * from user_things;", db, c)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0], DeepEquals, series)
 }
 
 func (self *DatastoreSuite) TestCanDoCountStarQueries(c *C) {
@@ -330,12 +337,12 @@ func (self *DatastoreSuite) TestCanDoCountStarQueries(c *C) {
 	c.Assert(err, IsNil)
 	user := &MockUser{}
 	results := executeQuery(user, "foobar", "select count(*) from user_things;", db, c)
-	c.Assert(len(results.Points), Equals, 2)
-	c.Assert(len(results.Fields), Equals, 1)
-	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(2))
-	c.Assert(*results.Points[0].Values[0].Int64Value, Equals, int64(3))
-	c.Assert(*results.Points[1].SequenceNumber, Equals, uint32(1))
-	c.Assert(*results.Points[1].Values[0].Int64Value, Equals, int64(1))
+	c.Assert(results[0].Points, HasLen, 2)
+	c.Assert(results[0].Fields, HasLen, 1)
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(2))
+	c.Assert(*results[0].Points[0].Values[0].Int64Value, Equals, int64(3))
+	c.Assert(*results[0].Points[1].SequenceNumber, Equals, uint32(1))
+	c.Assert(*results[0].Points[1].Values[0].Int64Value, Equals, int64(1))
 }
 
 func (self *DatastoreSuite) TestLimitsPointsReturnedBasedOnQuery(c *C) {
@@ -355,10 +362,10 @@ func (self *DatastoreSuite) TestLimitsPointsReturnedBasedOnQuery(c *C) {
 	c.Assert(err, IsNil)
 	user := &MockUser{}
 	results := executeQuery(user, "foobar", "select name from user_things limit 1;", db, c)
-	c.Assert(len(results.Points), Equals, 1)
-	c.Assert(len(results.Fields), Equals, 1)
-	c.Assert(*results.Points[0].SequenceNumber, Equals, uint32(2))
-	c.Assert(*results.Points[0].Values[0].StringValue, Equals, "paul")
+	c.Assert(results[0].Points, HasLen, 1)
+	c.Assert(results[0].Fields, HasLen, 1)
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(2))
+	c.Assert(*results[0].Points[0].Values[0].StringValue, Equals, "paul")
 }
 
 func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
@@ -379,7 +386,7 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
 	c.Assert(err, IsNil)
 	user := &MockUser{}
 	results := executeQuery(user, "foobar", "select name from user_things order asc;", db, c)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0], DeepEquals, series)
 
 	mock = `{
     "points":[
@@ -391,13 +398,13 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
 	err = db.WriteSeriesData("foobar", newSeries)
 	c.Assert(err, IsNil)
 	results = executeQuery(user, "foobar", "select name from user_things order asc;", db, c)
-	c.Assert(len(results.Points), Equals, 3)
-	c.Assert(*results.Points[0].Values[0].StringValue, Equals, "paul")
-	c.Assert(*results.Points[1].Values[0].StringValue, Equals, "todd")
-	c.Assert(*results.Points[2].Values[0].StringValue, Equals, "john")
+	c.Assert(results[0].Points, HasLen, 3)
+	c.Assert(*results[0].Points[0].Values[0].StringValue, Equals, "paul")
+	c.Assert(*results[0].Points[1].Values[0].StringValue, Equals, "todd")
+	c.Assert(*results[0].Points[2].Values[0].StringValue, Equals, "john")
 
 	results = executeQuery(user, "foobar", "select name from user_things where time < now() - 30s order asc;", db, c)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0], DeepEquals, series)
 }
 
 func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
@@ -418,7 +425,7 @@ func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
 	c.Assert(err, IsNil)
 	user := &MockUser{}
 	results := executeQuery(user, "foobar", "select count, name from user_things;", db, c)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0], DeepEquals, series)
 
 	mock = `{
     "points":[
@@ -430,13 +437,13 @@ func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
 	err = db.WriteSeriesData("foobar", series)
 	c.Assert(err, IsNil)
 	results = executeQuery(user, "foobar", "select count, name from user_things;", db, c)
-	c.Assert(len(results.Points), Equals, 3)
+	c.Assert(results[0].Points, HasLen, 3)
 
 	err = db.DeleteRangeOfSeries("foobar", "user_things", time.Now().Add(-time.Hour), time.Now().Add(-time.Minute))
 	c.Assert(err, IsNil)
 	results = executeQuery(user, "foobar", "select count, name from user_things;", db, c)
-	c.Assert(len(results.Points), Equals, 1)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0].Points, HasLen, 1)
+	c.Assert(results[0], DeepEquals, series)
 }
 
 func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
@@ -457,7 +464,7 @@ func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
 	c.Assert(err, IsNil)
 	user := &MockUser{}
 	results := executeQuery(user, "foobar", "select count, name from events;", db, c)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0], DeepEquals, series)
 
 	mock = `{
     "points":[{"values":[{"double_value":10.1}],"sequence_number":23}],
@@ -468,7 +475,7 @@ func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
 	err = db.WriteSeriesData("foobar", responseSeries)
 	c.Assert(err, IsNil)
 	results = executeQuery(user, "foobar", "select ms from response_times;", db, c)
-	c.Assert(results, DeepEquals, responseSeries)
+	c.Assert(results[0], DeepEquals, responseSeries)
 
 	mock = `{
     "points":[{"values":[{"double_value":232.1}],"sequence_number":23}, {"values":[{"double_value":10.1}],"sequence_number":20}],
@@ -479,17 +486,17 @@ func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
 	err = db.WriteSeriesData("foobar", otherSeries)
 	c.Assert(err, IsNil)
 	results = executeQuery(user, "foobar", "select processed_time from queue_time;", db, c)
-	c.Assert(results, DeepEquals, otherSeries)
+	c.Assert(results[0], DeepEquals, otherSeries)
 
 	regex, _ := regexp.Compile(".*time.*")
 	db.DeleteRangeOfRegex(user, "foobar", regex, time.Now().Add(-time.Hour), time.Now())
 
 	results = executeQuery(user, "foobar", "select * from events;", db, c)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0], DeepEquals, series)
 	results = executeQuery(user, "foobar", "select * from response_times;", db, c)
-	c.Assert(len(results.Points), Equals, 0)
+	c.Assert(results, HasLen, 0)
 	results = executeQuery(user, "foobar", "select * from queue_time;", db, c)
-	c.Assert(len(results.Points), Equals, 0)
+	c.Assert(results, HasLen, 0)
 }
 
 func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
@@ -509,7 +516,7 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 	c.Assert(err, IsNil)
 	user := &MockUser{}
 	results := executeQuery(user, "foobar", "select count, name from user_things;", db, c)
-	c.Assert(results, DeepEquals, series)
+	c.Assert(results[0], DeepEquals, series)
 
 	mock = `{
     "points":[{"values":[{"double_value":10.1}],"sequence_number":23}],
@@ -520,7 +527,7 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 	err = db.WriteSeriesData("foobar", responseSeries)
 	c.Assert(err, IsNil)
 	results = executeQuery(user, "foobar", "select ms from response_times;", db, c)
-	c.Assert(results, DeepEquals, responseSeries)
+	c.Assert(results[0], DeepEquals, responseSeries)
 
 	mock = `{
     "points":[{"values":[{"string_value":"NY"}],"sequence_number":23}, {"values":[{"string_value":"CO"}],"sequence_number":20}],
@@ -531,18 +538,20 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 	err = db.WriteSeriesData("foobar", otherSeries)
 	c.Assert(err, IsNil)
 	results = executeQuery(user, "foobar", "select state from other_things;", db, c)
-	c.Assert(results, DeepEquals, otherSeries)
+	c.Assert(results[0], DeepEquals, otherSeries)
 
 	q, errQ := parser.ParseQuery("select * from /.*things/;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
-		resultSeries = append(resultSeries, series)
+		if len(series.Points) > 0 {
+			resultSeries = append(resultSeries, series)
+		}
 		return nil
 	}
 	err = db.ExecuteQuery(user, "foobar", q, yield)
 	c.Assert(err, IsNil)
-	c.Assert(len(resultSeries), Equals, 2)
+	c.Assert(resultSeries, HasLen, 2)
 	c.Assert(resultSeries[0], DeepEquals, otherSeries)
 	c.Assert(resultSeries[1], DeepEquals, series)
 }
@@ -622,7 +631,9 @@ func (self *DatastoreSuite) TestCheckReadAccess(c *C) {
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
-		resultSeries = append(resultSeries, series)
+		if len(series.Points) > 0 {
+			resultSeries = append(resultSeries, series)
+		}
 		return nil
 	}
 	err = db.ExecuteQuery(user, "foobar", q, yield)
@@ -668,13 +679,13 @@ func (self *DatastoreSuite) TestCheckWriteAccess(c *C) {
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
-		resultSeries = append(resultSeries, series)
+		if len(series.Points) > 0 {
+			resultSeries = append(resultSeries, series)
+		}
 		return nil
 	}
 	err = db.ExecuteQuery(user, "foobar", q, yield)
 	c.Assert(err, IsNil)
-	c.Assert(len(resultSeries), Equals, 2)
+	c.Assert(resultSeries, HasLen, 1)
 	c.Assert(resultSeries[0], DeepEquals, otherSeries)
-	c.Assert(*resultSeries[1].Name, Equals, "user_things")
-	c.Assert(resultSeries[1].Points, HasLen, 0)
 }

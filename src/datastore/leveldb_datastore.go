@@ -352,6 +352,8 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	}
 	filteredResult, _ := Filter(query, result)
 	yield(filteredResult)
+	emptyResult := &protocol.Series{Name: &series, Points: nil}
+	yield(emptyResult)
 	return nil
 }
 
