@@ -38,6 +38,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
   expression*           expression;
   value_array*          value_array;
   value*                v;
+  from_clause*          from_clause;
   struct {
     int limit;
     char ascending;
@@ -58,7 +59,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST LIMIT ORDER ASC DESC
+%token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST LIMIT ORDER ASC DESC MERGE INNER JOIN
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
 // define the precendence of these operators
@@ -69,14 +70,14 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 %left  <character> '*' '/'
 
 // define the types of the non-terminals
-%type <v>               FROM_CLAUSE
+%type <from_clause>     FROM_CLAUSE
 %type <condition>       WHERE_CLAUSE
 %type <value_array>     COLUMN_NAMES
 %type <string>          BOOL_OPERATION
 %type <condition>       CONDITION
 %type <bool_expression> BOOL_EXPRESSION
 %type <value_array>     VALUES
-%type <v>               VALUE TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE
+%type <v>               VALUE TABLE_VALUE SIMPLE_TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE
 %type <v>               WILDCARD REGEX_VALUE DURATION_VALUE FUNCTION_CALL
 %type <expression>      EXPRESSION
 %type <value_array>     GROUP_BY_CLAUSE
@@ -89,6 +90,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 
 // destructors are used to free up memory in case of an error
 %destructor { free_value($$); } <v>
+%destructor { free_from_clause($$); } <from_clause>
 %destructor { if ($$) free_condition($$); } <condition>
 %destructor { free($$); } <string>
 %destructor { free_expression($$); } <expression>
@@ -187,10 +189,39 @@ GROUP_BY_CLAUSE:
 COLUMN_NAMES:
         VALUES
 
-FROM_CLAUSE: FROM TABLE_VALUE
-{
-  $$ = $2;
-}
+FROM_CLAUSE:
+        FROM TABLE_VALUE
+        {
+          $$ = malloc(sizeof(from_clause));
+          $$->names = malloc(sizeof(value_array));
+          $$->names->elems = malloc(sizeof(value*));
+          $$->names->size = 1;
+          $$->names->elems[0] = $2;
+          $$->from_clause_type = FROM_ARRAY;
+        }
+        |
+        FROM SIMPLE_TABLE_VALUE MERGE SIMPLE_TABLE_VALUE
+        {
+          $$ = malloc(sizeof(from_clause));
+          $$->names = malloc(sizeof(value_array));
+          $$->names->elems = malloc(2 * sizeof(value*));
+          $$->names->size = 2;
+          $$->names->elems[0] = $2;
+          $$->names->elems[1] = $4;
+          $$->from_clause_type = FROM_MERGE;
+        }
+        |
+        FROM SIMPLE_TABLE_VALUE INNER JOIN SIMPLE_TABLE_VALUE
+        {
+          $$ = malloc(sizeof(from_clause));
+          $$->names = malloc(sizeof(value_array));
+          $$->names->elems = malloc(2 * sizeof(value*));
+          $$->names->size = 2;
+          $$->names->elems[0] = $2;
+          $$->names->elems[1] = $5;
+          $$->from_clause_type = FROM_INNER_JOIN;
+        }
+
 
 WHERE_CLAUSE:
         WHERE CONDITION
@@ -240,7 +271,10 @@ VALUE:
         FUNCTION_CALL
 
 TABLE_VALUE:
-        SIMPLE_NAME_VALUE | TABLE_NAME_VALUE | REGEX_VALUE | FUNCTION_CALL
+        SIMPLE_NAME_VALUE | TABLE_NAME_VALUE | REGEX_VALUE
+
+SIMPLE_TABLE_VALUE:
+        SIMPLE_NAME_VALUE | TABLE_NAME_VALUE
 
 DURATION_VALUE:
         DURATION

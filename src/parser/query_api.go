@@ -50,7 +50,7 @@ func (self *Query) GetReferencedColumns() map[*Value][]string {
 	notPrefixedColumns = uniq(notPrefixedColumns)
 
 	returnedMapping := make(map[*Value][]string)
-	for _, value := range []*Value{self.GetFromClause()} {
+	for _, value := range self.GetFromClause().Names {
 		if _, ok := value.GetCompiledRegex(); ok {
 			// this is a regex table, cannot be referenced, only unreferenced
 			// columns will be attached to regex table names

@@ -49,6 +49,19 @@ func (self *Value) GetCompiledRegex() (*regexp.Regexp, bool) {
 	return self.compiledRegex, self.Type == ValueRegex
 }
 
+type FromClauseType int
+
+const (
+	FromClauseArray     FromClauseType = C.FROM_ARRAY
+	FromClauseMerge     FromClauseType = C.FROM_MERGE
+	FromClauseInnerJoin FromClauseType = C.FROM_INNER_JOIN
+)
+
+type FromClause struct {
+	Type  FromClauseType
+	Names []*Value
+}
+
 type Expression struct {
 	Left      interface{}
 	Operation byte
@@ -106,7 +119,7 @@ func (self *WhereCondition) GetLeftWhereCondition() (*WhereCondition, bool) {
 
 type Query struct {
 	ColumnNames   []*Value
-	FromClause    *Value
+	FromClause    *FromClause
 	Condition     *WhereCondition
 	groupByClause GroupByClause
 	Limit         int
@@ -119,7 +132,7 @@ func (self *Query) GetColumnNames() []*Value {
 	return self.ColumnNames
 }
 
-func (self *Query) GetFromClause() *Value {
+func (self *Query) GetFromClause() *FromClause {
 	return self.FromClause
 }
 
@@ -193,6 +206,14 @@ func GetValue(value *C.value) (*Value, error) {
 		v.compiledRegex, err = regexp.Compile(v.Name)
 	}
 	return v, err
+}
+
+func GetFromClause(fromClause *C.from_clause) (*FromClause, error) {
+	arr, err := GetValueArray(fromClause.names)
+	if err != nil {
+		return nil, err
+	}
+	return &FromClause{FromClauseType(fromClause.from_clause_type), arr}, nil
 }
 
 func GetExpression(expr *C.expression) (*Expression, error) {
@@ -297,7 +318,7 @@ func ParseQuery(query string) (*Query, error) {
 	}
 
 	// get the from clause
-	goQuery.FromClause, err = GetValue(q.from_clause)
+	goQuery.FromClause, err = GetFromClause(q.from_clause)
 	if err != nil {
 		return nil, err
 	}

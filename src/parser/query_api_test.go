@@ -75,6 +75,21 @@ func (self *QueryApiSuite) TestGetReferencedColumnsReturnsEmptyArrayIfQueryIsAgg
 	}
 }
 
+func (self *QueryApiSuite) TestGetReferencedColumnsWithTablesMerge(c *C) {
+	queryStr := "select * from events merge other_events;"
+	query, err := ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	columns := query.GetReferencedColumns()
+	c.Assert(columns, HasLen, 2)
+	expectedNames := []string{"events", "other_events"}
+	index := 0
+	for v, columns := range columns {
+		c.Assert(v.Name, Equals, expectedNames[index])
+		index++
+		c.Assert(columns, DeepEquals, []string{"*"})
+	}
+}
+
 func (self *QueryApiSuite) TestGetReferencedColumnsWithARegexTable(c *C) {
 	queryStr := "select count(*), region from /events.*/ group by time(1h), region;"
 	query, err := ParseQuery(queryStr)

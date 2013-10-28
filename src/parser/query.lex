@@ -22,6 +22,9 @@ static int yycolumn = 1;
 
 ;                         { return *yytext; }
 ,                         { return *yytext; }
+"merge"                   { return MERGE; }
+"inner"                   { return INNER; }
+"join"                    { return JOIN; }
 "first"                   { return FIRST; }
 "last"                    { return LAST; }
 "from"                    { return FROM; }

@@ -10,6 +10,12 @@ free_array(array *array)
   free(array->elems);
   free(array);
 }
+void
+free_from_clause(from_clause *f)
+{
+  free_value_array(f->names);
+  free(f);
+}
 
 void
 free_value_array(value_array *array)
@@ -89,5 +95,5 @@ close_query (query *q)
   }
 
   // free the from clause
-  free_value(q->from_clause);
+  free_from_clause(q->from_clause);
 }
