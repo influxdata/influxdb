@@ -6,7 +6,7 @@
 #include <string.h>
 #include "query_types.h"
 
-#ifndef __APPLE_CC__
+#if !defined(__APPLE_CC__) && defined(__x86_64__)
 __asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
 #endif
 
