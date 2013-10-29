@@ -28,7 +28,7 @@ var nextPortNum int
 var nextDirNum int
 
 const (
-	SERVER_STARTUP_TIME = time.Second * 2 // new cluster will have to create the root user and encrypt the password which takes little over a sec
+	SERVER_STARTUP_TIME = time.Millisecond * 500 // new cluster will have to create the root user and encrypt the password which takes little over a sec
 	REPLICATION_LAG     = time.Millisecond * 500
 )
 
@@ -85,8 +85,8 @@ func startAndVerifyCluster(count int, c *C) []*RaftServer {
 			}()
 		}
 		errs[i] = err
+		time.Sleep(SERVER_STARTUP_TIME)
 	}
-	time.Sleep(SERVER_STARTUP_TIME)
 	for _, err := range errs {
 		c.Assert(err, Equals, nil)
 	}
@@ -236,6 +236,7 @@ func (self *CoordinatorSuite) TestDoWriteOperationsFromNonLeaderServer(c *C) {
 	go func() {
 		err = server.ListenAndServe([]string{fmt.Sprintf("localhost:%d", port2)}, false)
 	}()
+	time.Sleep(SERVER_STARTUP_TIME)
 
 	_, server2 := newConfigAndServer(logDir2, port2)
 	defer server2.Close()
@@ -305,7 +306,7 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	servers[0].Close()
 	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	err = nil
-	time.Sleep(SERVER_STARTUP_TIME)
+	time.Sleep(3 * time.Second)
 	leader, _ = servers[1].leaderConnectString()
 	c.Assert(leader, Not(Equals), fmt.Sprintf("http://localhost:%d", servers[0].port))
 	err = servers[1].CreateDatabase("db6")
@@ -354,6 +355,7 @@ func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader
 	go func() {
 		err = server.ListenAndServe([]string{fmt.Sprintf("localhost:%d", port2)}, false)
 	}()
+	time.Sleep(SERVER_STARTUP_TIME)
 
 	_, server2 := newConfigAndServer(logDir2, port2)
 	defer server2.Close()
@@ -362,6 +364,7 @@ func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader
 	go func() {
 		err2 = server2.ListenAndServe([]string{fmt.Sprintf("localhost:%d", port1), fmt.Sprintf("localhost:%d", port3)}, true)
 	}()
+	time.Sleep(SERVER_STARTUP_TIME)
 
 	_, server3 := newConfigAndServer(logDir3, port3)
 	defer server3.Close()

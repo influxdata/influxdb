@@ -45,7 +45,6 @@ var registeredCommands bool
 // Creates a new server.
 func NewRaftServer(path string, host string, port int, clusterConfig *ClusterConfiguration) *RaftServer {
 	if !registeredCommands {
-		// raft.SetLogLevel(raft.Trace)
 		registeredCommands = true
 		raft.RegisterCommand(&AddPotentialServerCommand{})
 		raft.RegisterCommand(&UpdateServerStateCommand{})
@@ -95,7 +94,7 @@ func (s *RaftServer) leaderConnectString() (string, bool) {
 
 func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) (interface{}, error) {
 	if s.raftServer.State() == raft.Leader {
-		return s.retryCommand(command, 3)
+		return s.raftServer.Do(command)
 	} else {
 		if leader, ok := s.leaderConnectString(); !ok {
 			return nil, errors.New("Couldn't connect to the cluster leader...")
@@ -169,20 +168,19 @@ func (s *RaftServer) connectionString() string {
 	return fmt.Sprintf("http://%s:%d", s.host, s.port)
 }
 
-func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bool) error {
-	var err error
-
+func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 	log.Printf("Initializing Raft Server: %s %d", s.path, s.port)
 
 	// Initialize and start Raft server.
 	transporter := raft.NewHTTPTransporter("/raft")
+	var err error
 	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, nil, s.clusterConfig, "")
 	if err != nil {
 		log.Fatal(err)
 	}
-	// s.raftServer.SetElectionTimeout(ElectionTimeout)
-	// s.raftServer.SetHeartbeatTimeout(HeartbeatTimeout)
 
+	s.raftServer.SetElectionTimeout(500 * time.Millisecond)
+	// s.raftServer.SetHeartbeatTimeout()
 	transporter.Install(s.raftServer, s)
 	s.raftServer.Start()
 
@@ -227,12 +225,16 @@ func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bo
 	} else {
 		log.Println("Recovered from log")
 	}
+}
+
+func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bool) error {
+	go s.startRaft(potentialLeaders, retryUntilJoin)
 
 	log.Println("Initializing Raft HTTP server")
 
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
-		return err
+		panic(err)
 	}
 	// Initialize and start HTTP server.
 	s.httpServer = &http.Server{
@@ -314,7 +316,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		// during the test suite the join command will sometimes time out.. just retry a few times
-		if _, err := s.retryCommand(command, 3); err != nil {
+		if _, err := s.raftServer.Do(command); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
