@@ -51,6 +51,10 @@ func (self *QueryEngine) distributeQuery(user common.User, database string, quer
 		yield = getMergeYield(fromClause.Names[0].Name, fromClause.Names[1].Name, yield)
 	}
 
+	if fromClause.Type == parser.FromClauseInnerJoin {
+		yield = getJoinYield(fromClause.Names[0].Name, fromClause.Names[1].Name, yield)
+	}
+
 	return self.coordinator.DistributeQuery(user, database, query, yield)
 
 }
