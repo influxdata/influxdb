@@ -10,3 +10,7 @@ before_install:
 
 install: ./build.sh
 script: ./test.sh
+
+notifications:
+  irc: "chat.freenode.net#influxdb"
+  use_notice: true
