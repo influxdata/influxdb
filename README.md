@@ -36,6 +36,7 @@ These projects are built on go-raft:
 
 - [coreos/etcd](https://github.com/coreos/etcd) - A highly-available key value store for shared configuration and service discovery
 - [benbjohnson/raftd](https://github.com/benbjohnson/raftd) - A reference implementation for using the go-raft library for distributed consensus.
+- [skynetservices/skydns](https://github.com/skynetservices/skydns) - DNS for skynet or any other service discovery
 
 If you have a project that you're using go-raft in, please add it to this README so others can see implementation examples.
 
