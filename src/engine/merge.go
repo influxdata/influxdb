@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"protocol"
 )
 
@@ -13,12 +12,10 @@ func getJoinYield(table1, table2 string, yield func(*protocol.Series) error) fun
 	return mergeYield(table1, table2, func(s *protocol.Series) error {
 		if *s.Name == table1 {
 			lastPoint1 = s.Points[len(s.Points)-1]
-			fmt.Printf("values 1: %#v\n", lastPoint1.Values)
 		}
 
 		if *s.Name == table2 {
 			lastPoint2 = s.Points[len(s.Points)-1]
-			fmt.Printf("values 2: %#v\n", lastPoint2.Values)
 		}
 
 		if lastPoint1 == nil || lastPoint2 == nil {
