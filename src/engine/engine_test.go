@@ -900,31 +900,31 @@ func (self *EngineSuite) TestQueryWithMergedTables(c *C) {
 	runQuery(engine, "select * from foo merge bar;", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, null], "timestamp": 1381346701000000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000000, "sequence_number": 1 }
       ],
       "name": "foo_merge_bar",
-      "fields": ["foo.value", "bar.value"]
+      "fields": ["value", "_orig_series"]
     },
     {
       "points": [
-        { "values": [null, { "int64_value": 2 }], "timestamp": 1381346705000000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 2 }, {"string_value": "bar"}], "timestamp": 1381346705000000, "sequence_number": 1 }
       ],
       "name": "foo_merge_bar",
-      "fields": ["foo.value", "bar.value"]
+      "fields": ["value", "_orig_series"]
     },
     {
       "points": [
-        { "values": [null, { "int64_value": 4 }], "timestamp": 1381346706000000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 4 }, {"string_value": "bar"}], "timestamp": 1381346706000000, "sequence_number": 1 }
       ],
       "name": "foo_merge_bar",
-      "fields": ["foo.value", "bar.value"]
+      "fields": ["value", "_orig_series"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 3 }, null], "timestamp": 1381346707000000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }, {"string_value": "foo"}], "timestamp": 1381346707000000, "sequence_number": 1 }
       ],
       "name": "foo_merge_bar",
-      "fields": ["foo.value", "bar.value"]
+      "fields": ["value", "_orig_series"]
     }
   ]`)
 }
@@ -1022,13 +1022,13 @@ func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
 	runQueryExtended(engine, "select * from foo merge bar;", c, true, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }, null, null], "timestamp": 1381346701000000, "sequence_number": 1 },
-        { "values": [null, null, { "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000000, "sequence_number": 1 },
-        { "values": [null, null, { "int64_value": 1 }, { "int64_value": 3 }], "timestamp": 1381346706000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }, null, null], "timestamp": 1381346707000000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }, {"string_value": "bar"}], "timestamp": 1381346705000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 3 }, {"string_value": "bar"}], "timestamp": 1381346706000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }, {"string_value": "foo"}], "timestamp": 1381346707000000, "sequence_number": 1 }
       ],
       "name": "foo_merge_bar",
-      "fields": ["foo.a", "foo.b", "bar.a", "bar.b"]
+      "fields": ["a", "b", "_orig_series"]
     }
   ]`)
 }
