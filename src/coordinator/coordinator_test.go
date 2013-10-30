@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"protocol"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,10 @@ type CoordinatorSuite struct{}
 var _ = Suite(&CoordinatorSuite{})
 var nextPortNum int
 var nextDirNum int
+
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU() * 2)
+}
 
 const (
 	SERVER_STARTUP_TIME = time.Millisecond * 500 // new cluster will have to create the root user and encrypt the password which takes little over a sec

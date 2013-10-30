@@ -179,8 +179,6 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 		log.Fatal(err)
 	}
 
-	s.raftServer.SetElectionTimeout(500 * time.Millisecond)
-	// s.raftServer.SetHeartbeatTimeout()
 	transporter.Install(s.raftServer, s)
 	s.raftServer.Start()
 
