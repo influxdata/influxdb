@@ -49,3 +49,29 @@ type UserManager interface {
 	// for the given db
 	SetDbAdmin(requester common.User, db, username string, isAdmin bool) error
 }
+
+type ClusterConsensus interface {
+	CreateDatabase(name string) error
+	DropDatabase(name string) error
+	SaveClusterAdminUser(u *clusterAdmin) error
+	SaveDbUser(user *dbUser) error
+
+	// an insert index of -1 will append to the end of the ring
+	AddServer(server *ClusterServer, insertIndex int) error
+	// only servers that are in a Potential state can be moved around in the ring
+	MovePotentialServer(server *ClusterServer, insertIndex int) error
+	/*
+		Activate tells the cluster to start sending writes to this node.
+		The node will also make requests to the other servers to backfill any
+		  data they should have
+		Once the new node updates it state to "Running" the other servers will
+		  delete all of the data that they no longer have to keep from the ring
+	*/
+	ActivateServer(server *ClusterServer) error
+	// Efficient method to have a potential server take the place of a running (or downed)
+	// server. The replacement must have a state of "Potential" for this to work.
+	ReplaceServer(oldServer *ClusterServer, replacement *ClusterServer) error
+
+	// When a cluster is turned on for the first time.
+	CreateRootUser() error
+}

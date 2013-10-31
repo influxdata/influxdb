@@ -11,13 +11,13 @@ import (
 
 type CoordinatorImpl struct {
 	clusterConfiguration  *ClusterConfiguration
-	raftServer            *RaftServer
+	raftServer            ClusterConsensus
 	datastore             datastore.Datastore
 	currentSequenceNumber uint32
 	sequenceNumberLock    sync.Mutex
 }
 
-func NewCoordinatorImpl(datastore datastore.Datastore, raftServer *RaftServer, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
+func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
 	return &CoordinatorImpl{
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,

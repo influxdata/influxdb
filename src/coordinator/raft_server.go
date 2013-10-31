@@ -148,18 +148,20 @@ func (s *RaftServer) CreateRootUser() error {
 	return s.SaveClusterAdminUser(u)
 }
 
-/*
-	when a cluster is started up for the first time, all servers are listed in Potential state.
-	When this call is made they're all switched over to Running state so they can accept reads and writes.
-*/
-func (s *RaftServer) ActivateCluster() error {
-	for _, server := range s.clusterConfig.servers {
-		command := NewUpdateServerStateCommand(server.Id, Running)
-		if _, err := s.doOrProxyCommand(command, "update_state"); err != nil {
-			return err
-		}
-	}
-	return nil
+func (s *RaftServer) ActivateServer(server *ClusterServer) error {
+	return errors.New("not implemented")
+}
+
+func (s *RaftServer) AddServer(server *ClusterServer, insertIndex int) error {
+	return errors.New("not implemented")
+}
+
+func (s *RaftServer) MovePotentialServer(server *ClusterServer, insertIndex int) error {
+	return errors.New("not implemented")
+}
+
+func (s *RaftServer) ReplaceServer(oldServer *ClusterServer, replacement *ClusterServer) error {
+	return errors.New("not implemented")
 }
 
 func (s *RaftServer) connectionString() string {
