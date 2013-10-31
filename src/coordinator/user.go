@@ -82,7 +82,7 @@ func (self *CommonUser) HasReadAccess(name string) bool {
 }
 
 type clusterAdmin struct {
-	CommonUser `josn:"common"`
+	CommonUser `json:"common"`
 }
 
 func (self *clusterAdmin) IsClusterAdmin() bool {
