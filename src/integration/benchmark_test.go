@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -111,7 +112,7 @@ func (self *Server) stop() {
 		return
 	}
 
-	self.p.Kill()
+	self.p.Signal(syscall.SIGTERM)
 	self.p.Wait()
 }
 

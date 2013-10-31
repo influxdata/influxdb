@@ -23,15 +23,15 @@ const (
 	gitSha  = ""
 )
 
-func waitForSignals(shouldStop chan<- bool, stopped <-chan bool) {
+func waitForSignals(stopped <-chan bool) {
 	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	for {
 		sig := <-ch
-		fmt.Printf("Received signal: %s", sig.String())
+		fmt.Printf("Received signal: %s\n", sig.String())
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
-			shouldStop <- true
+			runtime.SetCPUProfileRate(0)
 			<-stopped
 			os.Exit(0)
 		}
@@ -48,21 +48,18 @@ func startProfiler(filename *string) error {
 		return err
 	}
 	runtime.SetCPUProfileRate(500)
-	shouldStop := make(chan bool)
 	stopped := make(chan bool)
 
-	go waitForSignals(shouldStop, stopped)
+	go waitForSignals(stopped)
 
 	go func() {
 		for {
 			select {
-			case <-shouldStop:
-				cpuProfileFile.Close()
-				stopped <- true
-				break
 			default:
 				data := runtime.CPUProfile()
 				if data == nil {
+					cpuProfileFile.Close()
+					stopped <- true
 					break
 				}
 				cpuProfileFile.Write(data)
