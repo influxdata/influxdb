@@ -163,17 +163,16 @@ func (self *IntegrationSuite) createPoints(name string, numOfColumns, numOfPoint
 }
 
 func (self *IntegrationSuite) TestWriting(c *C) {
-	// for _, numberOfColumns := range []int{1, 5, 10, 20} {
-	for _, numberOfColumns := range []int{1} {
+	for _, numberOfColumns := range []int{1, 5, 10} {
 		startTime := time.Now()
 		seriesName := fmt.Sprintf("foo%d", numberOfColumns)
 
 		for batch := 0; batch < NUMBER_OF_POINTS/BATCH_SIZE; batch++ {
 			err := self.server.WriteData(self.createPoints(seriesName, numberOfColumns, BATCH_SIZE))
 			c.Assert(err, IsNil)
-			fmt.Printf("Finished batch %d\n", batch)
+			fmt.Print(".")
 		}
-
+		fmt.Println()
 		fmt.Printf("Writing %d points (containgin %d columns) in %d batches took %s\n", NUMBER_OF_POINTS, numberOfColumns, BATCH_SIZE,
 			time.Now().Sub(startTime))
 	}
