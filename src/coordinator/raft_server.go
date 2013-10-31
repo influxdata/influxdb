@@ -35,17 +35,11 @@ type RaftServer struct {
 	closing       bool
 }
 
-// const (
-// 	ElectionTimeout  = 200 * time.Millisecond
-// 	HeartbeatTimeout = 50 * time.Millisecond
-// )
-
 var registeredCommands bool
 
 // Creates a new server.
 func NewRaftServer(path string, host string, port int, clusterConfig *ClusterConfiguration) *RaftServer {
 	if !registeredCommands {
-		raft.SetLogLevel(raft.Trace)
 		registeredCommands = true
 		raft.RegisterCommand(&AddPotentialServerCommand{})
 		raft.RegisterCommand(&UpdateServerStateCommand{})
@@ -230,14 +224,21 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 }
 
 func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bool) error {
-	go s.startRaft(potentialLeaders, retryUntilJoin)
-
-	log.Println("Initializing Raft HTTP server")
-
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
 		panic(err)
 	}
+	return s.Serve(l, potentialLeaders, retryUntilJoin)
+}
+
+func (s *RaftServer) Serve(l net.Listener, potentialLeaders []string, retryUntilJoin bool) error {
+	go s.startRaft(potentialLeaders, retryUntilJoin)
+
+	s.port = l.Addr().(*net.TCPAddr).Port
+	s.listener = l
+
+	log.Println("Initializing Raft HTTP server")
+
 	// Initialize and start HTTP server.
 	s.httpServer = &http.Server{
 		Handler: s.router,
@@ -249,7 +250,6 @@ func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bo
 
 	log.Println("Listening at:", s.connectionString())
 
-	s.listener = l
 	return s.httpServer.Serve(l)
 }
 
