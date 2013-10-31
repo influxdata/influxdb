@@ -10,7 +10,7 @@ import (
 var userCache *cache.Cache
 
 func init() {
-	userCache = cache.New(time.Minute, time.Second)
+	userCache = cache.New(0, 0)
 }
 
 type Matcher struct {
