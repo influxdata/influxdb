@@ -29,7 +29,7 @@ var nextPortNum int
 var nextDirNum int
 
 func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU() * 2)
+	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
 const (

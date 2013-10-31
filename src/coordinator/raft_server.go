@@ -60,7 +60,6 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 		clusterConfig: clusterConfig,
 		router:        mux.NewRouter(),
 	}
-
 	// Read existing name or generate a new one.
 	if b, err := ioutil.ReadFile(filepath.Join(path, "name")); err == nil {
 		s.name = string(b)
@@ -178,6 +177,8 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	s.raftServer.SetElectionTimeout(300 * time.Millisecond)
 
 	transporter.Install(s.raftServer, s)
 	s.raftServer.Start()
