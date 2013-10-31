@@ -3,6 +3,7 @@ package integration
 import (
 	h "api/http"
 	"bytes"
+	"checkers"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -68,21 +69,21 @@ func (self *Server) WriteData(data interface{}) error {
 	}
 	return nil
 }
-func (self *Server) RunQuery(query string) (string, error) {
+func (self *Server) RunQuery(query string) ([]byte, error) {
 	encodedQuery := url.QueryEscape(query)
 	resp, err := http.Get(fmt.Sprintf("http://localhost:8086/db/db1/series?u=user&p=pass&q=%s", encodedQuery))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Status code = %d. Body = %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("Status code = %d. Body = %s", resp.StatusCode, string(body))
 	}
-	return string(body), nil
+	return body, nil
 }
 
 func (self *Server) start() error {
@@ -132,15 +133,25 @@ func (self *IntegrationSuite) createUser() error {
 	return nil
 }
 
+var cleanData = flag.Bool("clean-data", false, "Clean data before running the benchmark tests")
+var wroteData = true
+
 func (self *IntegrationSuite) SetUpSuite(c *C) {
-	err := os.RemoveAll("/tmp/influxdb")
-	c.Assert(err, IsNil)
+
+	if *cleanData {
+		wroteData = false
+		err := os.RemoveAll("/tmp/influxdb")
+		c.Assert(err, IsNil)
+	}
 
 	self.server = &Server{}
-	err = self.server.start()
+	err := self.server.start()
 	c.Assert(err, IsNil)
-	err = self.createUser()
-	c.Assert(err, IsNil)
+
+	if *cleanData {
+		err = self.createUser()
+		c.Assert(err, IsNil)
+	}
 }
 
 func (self *IntegrationSuite) TearDownSuite(c *C) {
@@ -166,9 +177,9 @@ func (self *IntegrationSuite) createPoints(name string, numOfColumns, numOfPoint
 	return []*h.SerializedSeries{series}
 }
 
-func (self *IntegrationSuite) TestWriting(c *C) {
-	if !*benchmark {
-		c.Skip("Benchmarks are disabled")
+func (self *IntegrationSuite) writeData(c *C) {
+	if wroteData {
+		return
 	}
 
 	for _, numberOfColumns := range []int{1, 5, 10} {
@@ -186,5 +197,44 @@ func (self *IntegrationSuite) TestWriting(c *C) {
 		fmt.Println()
 		fmt.Printf("Writing %d points (containgin %d columns) in %d batches took %s\n", NUMBER_OF_POINTS, numberOfColumns, BATCH_SIZE,
 			time.Now().Sub(startTime))
+	}
+	wroteData = true
+}
+
+func (self *IntegrationSuite) TestWriting(c *C) {
+	if !*benchmark {
+		c.Skip("Benchmarks are disabled")
+	}
+
+	self.writeData(c)
+}
+
+func (self *IntegrationSuite) TestReading(c *C) {
+	if !*benchmark {
+		c.Skip("Benchmark are disabled")
+	}
+
+	queries := map[string][]int{
+		"select column0 from foo1 where column0 > 0.5 and column0 < 0.6;": []int{80000, 120000},
+		"select column0 from foo1;":                                       []int{1000000 - 1, 1000000 + 1},
+	}
+
+	for q, r := range queries {
+		self.writeData(c)
+
+		startTime := time.Now()
+		bs, err := self.server.RunQuery(q)
+		c.Assert(err, IsNil)
+		elapsedTime := time.Now().Sub(startTime)
+
+		data := []*h.SerializedSeries{}
+		err = json.Unmarshal(bs, &data)
+		c.Assert(err, IsNil)
+
+		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Columns, HasLen, 3)                        // time, sequence nuber and value
+		c.Assert(len(data[0].Points), checkers.InRange, r[0], r[1]) // values between 0.5 and 0.65 should be about 100,000
+
+		fmt.Printf("Took %s to read %d points\n", elapsedTime, len(data[0].Points))
 	}
 }
