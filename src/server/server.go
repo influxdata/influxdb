@@ -12,8 +12,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
 	"runtime"
 	"strconv"
+	"syscall"
 )
 
 const (
@@ -21,13 +23,65 @@ const (
 	gitSha  = ""
 )
 
+func waitForSignals(shouldStop chan<- bool, stopped <-chan bool) {
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
+	for {
+		sig := <-ch
+		fmt.Printf("Received signal: %s", sig.String())
+		switch sig {
+		case syscall.SIGINT, syscall.SIGTERM:
+			shouldStop <- true
+			<-stopped
+			os.Exit(0)
+		}
+	}
+}
+
+func startProfiler(filename *string) error {
+	if filename == nil || *filename == "" {
+		return nil
+	}
+
+	cpuProfileFile, err := os.Create(*filename)
+	if err != nil {
+		return err
+	}
+	runtime.SetCPUProfileRate(500)
+	shouldStop := make(chan bool)
+	stopped := make(chan bool)
+
+	go waitForSignals(shouldStop, stopped)
+
+	go func() {
+		for {
+			select {
+			case <-shouldStop:
+				cpuProfileFile.Close()
+				stopped <- true
+				break
+			default:
+				data := runtime.CPUProfile()
+				if data == nil {
+					break
+				}
+				cpuProfileFile.Write(data)
+			}
+		}
+	}()
+	return nil
+}
+
 func main() {
 	fileName := flag.String("config", "config.json.sample", "Config file")
 	wantsVersion := flag.Bool("v", false, "Get version number")
 	pidFile := flag.String("pidfile", "", "the pid file")
+	cpuProfiler := flag.String("cpuprofile", "", "filename where cpu profile data will be written")
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
+
+	startProfiler(cpuProfiler)
 
 	if wantsVersion != nil && *wantsVersion {
 		fmt.Printf("InfluxDB v%s (git: %s)\n", version, gitSha)
