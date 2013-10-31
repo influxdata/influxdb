@@ -390,10 +390,9 @@ type Point struct {
 }
 
 type SerializedSeries struct {
-	Name           string          `json:"name"`
-	Columns        []string        `json:"columns"`
-	IntegerColumns []int           `json:"integer_columns,omitempty"`
-	Points         [][]interface{} `json:"points"`
+	Name    string          `json:"name"`
+	Columns []string        `json:"columns"`
+	Points  [][]interface{} `json:"points"`
 }
 
 func serializeSingleSeries(series *protocol.Series, precision TimePrecision) ([]byte, error) {
