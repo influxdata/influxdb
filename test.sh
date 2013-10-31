@@ -6,7 +6,7 @@ cd `dirname $0`
 . exports.sh
 
 function print_usage {
-    echo "$0 [-o regex] [-p package_name]"
+    echo "$0 [-o regex] [-p package_name] -- <test arguments>"
     echo "  -o|--only:     Run the test that matches the given regex"
     echo "  --no-valgrind: Skip the valgrind memory leak test"
     echo "  -p|--packages: Run the test in the given packages only"
@@ -49,4 +49,4 @@ echo "Running tests for packages: $test_packages"
 
 ulimit -n 2048 || echo could not change ulimit
 
-go test $test_packages $gocheck_args
+go test $test_packages $gocheck_args $@
