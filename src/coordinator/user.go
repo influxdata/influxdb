@@ -4,7 +4,6 @@ import (
 	"code.google.com/p/go.crypto/bcrypt"
 	"github.com/pmylund/go-cache"
 	"regexp"
-	"time"
 )
 
 var userCache *cache.Cache
@@ -57,7 +56,7 @@ func (self *CommonUser) isValidPwd(password string) bool {
 
 	isValid := bcrypt.CompareHashAndPassword([]byte(self.Hash), []byte(password)) == nil
 	if isValid {
-		userCache.Set(self.Name, password, -1)
+		userCache.Set(self.Name, password, 0)
 	}
 	return isValid
 }
