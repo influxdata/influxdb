@@ -1,4 +1,4 @@
-chronosdb
+chronosdb  [![Build Status](https://travis-ci.org/influxdb/influxdb.png?branch=master)](https://travis-ci.org/influxdb/influxdb)
 =========
 
 Scalable datastore for metrics, events, and real-time analytics
