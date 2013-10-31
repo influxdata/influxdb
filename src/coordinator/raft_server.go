@@ -45,6 +45,7 @@ var registeredCommands bool
 // Creates a new server.
 func NewRaftServer(path string, host string, port int, clusterConfig *ClusterConfiguration) *RaftServer {
 	if !registeredCommands {
+		raft.SetLogLevel(raft.Trace)
 		registeredCommands = true
 		raft.RegisterCommand(&AddPotentialServerCommand{})
 		raft.RegisterCommand(&UpdateServerStateCommand{})
@@ -93,7 +94,11 @@ func (s *RaftServer) leaderConnectString() (string, bool) {
 
 func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) (interface{}, error) {
 	if s.raftServer.State() == raft.Leader {
-		return s.raftServer.Do(command)
+		value, err := s.raftServer.Do(command)
+		if err != nil {
+			fmt.Printf("Error: Cannot run command %#v. %s", command, err)
+		}
+		return value, err
 	} else {
 		if leader, ok := s.leaderConnectString(); !ok {
 			return nil, errors.New("Couldn't connect to the cluster leader...")
@@ -177,8 +182,6 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	s.raftServer.SetElectionTimeout(300 * time.Millisecond)
 
 	transporter.Install(s.raftServer, s)
 	s.raftServer.Start()
