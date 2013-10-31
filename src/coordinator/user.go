@@ -2,8 +2,16 @@ package coordinator
 
 import (
 	"code.google.com/p/go.crypto/bcrypt"
+	"github.com/pmylund/go-cache"
 	"regexp"
+	"time"
 )
+
+var userCache *cache.Cache
+
+func init() {
+	userCache = cache.New(time.Minute, time.Second)
+}
 
 type Matcher struct {
 	IsRegex bool
@@ -38,11 +46,20 @@ func (self *CommonUser) changePassword(password string) error {
 		return err
 	}
 	self.Hash = string(hash)
+	userCache.Delete(self.Name)
 	return nil
 }
 
 func (self *CommonUser) isValidPwd(password string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(self.Hash), []byte(password)) == nil
+	if pwd, ok := userCache.Get(self.Name); ok {
+		return password == pwd.(string)
+	}
+
+	isValid := bcrypt.CompareHashAndPassword([]byte(self.Hash), []byte(password)) == nil
+	if isValid {
+		userCache.Set(self.Name, password, -1)
+	}
+	return isValid
 }
 
 func (self *CommonUser) IsClusterAdmin() bool {
