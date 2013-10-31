@@ -4,6 +4,7 @@ import (
 	h "api/http"
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
@@ -18,14 +19,17 @@ import (
 )
 
 const (
-	BATCH_SIZE       = 1000
-	NUMBER_OF_POINTS = BATCH_SIZE * 1000
+	BATCH_SIZE       = 1
+	NUMBER_OF_POINTS = 1000000
 )
 
 // Hook up gocheck into the gotest runner.
 func Test(t *testing.T) {
 	TestingT(t)
 }
+
+var benchmark = flag.Bool("benchmark", false, "Run the benchmarks")
+var batchSize = flag.Int("batch-size", BATCH_SIZE, "The batch size per write")
 
 type IntegrationSuite struct {
 	server *Server
@@ -163,14 +167,21 @@ func (self *IntegrationSuite) createPoints(name string, numOfColumns, numOfPoint
 }
 
 func (self *IntegrationSuite) TestWriting(c *C) {
+	if !*benchmark {
+		c.Skip("Benchmarks are disabled")
+	}
+
 	for _, numberOfColumns := range []int{1, 5, 10} {
 		startTime := time.Now()
 		seriesName := fmt.Sprintf("foo%d", numberOfColumns)
 
-		for batch := 0; batch < NUMBER_OF_POINTS/BATCH_SIZE; batch++ {
-			err := self.server.WriteData(self.createPoints(seriesName, numberOfColumns, BATCH_SIZE))
+		bSize := *batchSize
+		for batch := 0; batch < NUMBER_OF_POINTS/bSize; batch++ {
+			err := self.server.WriteData(self.createPoints(seriesName, numberOfColumns, bSize))
 			c.Assert(err, IsNil)
-			fmt.Print(".")
+			if (batch*bSize+bSize)%1000 == 0 {
+				fmt.Print(".")
+			}
 		}
 		fmt.Println()
 		fmt.Printf("Writing %d points (containgin %d columns) in %d batches took %s\n", NUMBER_OF_POINTS, numberOfColumns, BATCH_SIZE,
