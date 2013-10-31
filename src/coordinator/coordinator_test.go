@@ -29,6 +29,7 @@ var nextPortNum int
 var nextDirNum int
 
 func init() {
+	fmt.Printf("Setting number of cpus to %d\n", runtime.NumCPU())
 	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
