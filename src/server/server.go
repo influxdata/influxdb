@@ -23,7 +23,7 @@ const (
 
 func main() {
 	fileName := flag.String("config", "config.json.sample", "Config file")
-	wantsVersion := flag.Bool("version", false, "Get version number")
+	wantsVersion := flag.Bool("v", false, "Get version number")
 	pidFile := flag.String("pidfile", "", "the pid file")
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
