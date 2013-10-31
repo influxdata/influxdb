@@ -16,14 +16,16 @@ import (
 	"strconv"
 )
 
-var fileName = flag.String("config", "config.json.sample", "Config file")
-var wantsVersion = flag.Bool("version", false, "Get version number")
-var pidFile = flag.String("pidfile", "", "the pid file")
-
-var version = "dev"
-var gitSha = ""
+const (
+	version = "dev"
+	gitSha  = ""
+)
 
 func main() {
+	fileName := flag.String("config", "config.json.sample", "Config file")
+	wantsVersion := flag.Bool("version", false, "Get version number")
+	pidFile := flag.String("pidfile", "", "the pid file")
+
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
