@@ -34,7 +34,40 @@ func init() {
 	registeredAggregators["mean"] = NewMeanAggregator
 	registeredAggregators["mode"] = NewModeAggregator
 	registeredAggregators["distinct"] = NewDistinctAggregator
-	registeredAggregators["__timestamp_aggregator"] = NewTimestampAggregator
+}
+
+//
+// Composite Aggregator
+//
+
+type CompositeAggregator struct {
+	left  Aggregator
+	right Aggregator
+}
+
+func (self *CompositeAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+	return self.right.AggregatePoint(series, group, p)
+}
+
+func (self *CompositeAggregator) ColumnName() string {
+	return self.left.ColumnName()
+}
+
+func (self *CompositeAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
+	values := self.right.GetValue(series, group)
+	for _, v := range values {
+		point := &protocol.Point{Values: []*protocol.FieldValue{v}}
+		self.left.AggregatePoint(series, group, point)
+	}
+	return self.left.GetValue(series, group)
+}
+
+func (self *CompositeAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+	return self.right.InitializeFieldsMetadata(series)
+}
+
+func NewCompositeAggregator(left, right Aggregator) (Aggregator, error) {
+	return &CompositeAggregator{left, right}, nil
 }
 
 //
@@ -69,7 +102,7 @@ func (self *CountAggregator) GetValue(series string, group interface{}) []*proto
 
 func (self *CountAggregator) InitializeFieldsMetadata(series *protocol.Series) error { return nil }
 
-func NewCountAggregator(_ *parser.Query, v *parser.Value) (Aggregator, error) {
+func NewCountAggregator(q *parser.Query, v *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function count() requires exactly one argument")
 	}
@@ -79,7 +112,16 @@ func NewCountAggregator(_ *parser.Query, v *parser.Value) (Aggregator, error) {
 	}
 
 	if v.Elems[0].Type != parser.ValueSimpleName {
-		return nil, common.NewQueryError(common.InvalidArgument, "%s isn't a valid argument to count")
+		innerName := v.Elems[0].Name
+		init := registeredAggregators[innerName]
+		if init == nil {
+			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", innerName))
+		}
+		inner, err := init(q, v.Elems[0])
+		if err != nil {
+			return nil, err
+		}
+		return NewCompositeAggregator(&CountAggregator{make(map[string]map[interface{}]int32)}, inner)
 	}
 
 	return &CountAggregator{make(map[string]map[interface{}]int32)}, nil

@@ -718,6 +718,42 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
   ]`)
 }
 
+func (self *EngineSuite) TestCountDistinct(c *C) {
+	// make the mock coordinator return some data
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["column_one"]
+    }
+  ]`)
+
+	runQuery(engine, "select count(distinct(column_one)) from foo;", c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["count"]
+    }
+  ]`)
+}
+
 func (self *EngineSuite) TestMedianQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {

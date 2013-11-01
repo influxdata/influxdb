@@ -212,7 +212,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 			aggregators = append(aggregators, aggregator)
 		}
 	}
-	timestampAggregator, err := registeredAggregators["__timestamp_aggregator"](query, nil)
+	timestampAggregator, err := NewTimestampAggregator(query, nil)
 	if err != nil {
 		return err
 	}
