@@ -81,6 +81,7 @@ func getColumns(values []*parser.Value, columns map[string]bool) {
 		case parser.ValueSimpleName:
 			columns[v.Name] = true
 		case parser.ValueWildcard:
+			columns["*"] = true
 			return
 		case parser.ValueFunctionCall:
 			getColumns(v.Elems, columns)
@@ -89,6 +90,10 @@ func getColumns(values []*parser.Value, columns map[string]bool) {
 }
 
 func filterColumns(columns map[string]bool, fields []string, point *protocol.Point) {
+	if columns["*"] {
+		return
+	}
+
 	newValues := []*protocol.FieldValue{}
 	newFields := []string{}
 	for idx, f := range fields {
@@ -125,14 +130,16 @@ func Filter(query *parser.Query, series *protocol.Series) (*protocol.Series, err
 		}
 	}
 
-	newFields := []string{}
-	for _, f := range series.Fields {
-		if _, ok := columns[f]; !ok {
-			continue
-		}
+	if !columns["*"] {
+		newFields := []string{}
+		for _, f := range series.Fields {
+			if _, ok := columns[f]; !ok {
+				continue
+			}
 
-		newFields = append(newFields, f)
+			newFields = append(newFields, f)
+		}
+		series.Fields = newFields
 	}
-	series.Fields = newFields
 	return series, nil
 }
