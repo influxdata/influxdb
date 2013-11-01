@@ -232,10 +232,10 @@ func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bo
 }
 
 func (s *RaftServer) Serve(l net.Listener, potentialLeaders []string, retryUntilJoin bool) error {
-	go s.startRaft(potentialLeaders, retryUntilJoin)
-
 	s.port = l.Addr().(*net.TCPAddr).Port
 	s.listener = l
+
+	go s.startRaft(potentialLeaders, retryUntilJoin)
 
 	log.Println("Initializing Raft HTTP server")
 

@@ -28,7 +28,7 @@ type CoordinatorSuite struct{}
 var _ = Suite(&CoordinatorSuite{})
 
 func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.GOMAXPROCS(runtime.NumCPU() * 2)
 }
 
 const (
