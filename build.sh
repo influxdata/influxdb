@@ -5,7 +5,7 @@ set -e
 . ./exports.sh
 
 go get code.google.com/p/goprotobuf/proto
-go get github.com/goraft/raft
+go get github.com/influxdb/raft
 go get github.com/gorilla/mux
 go get github.com/jmhodges/levigo >/dev/null 2>&1 || echo "levigo build will probably fail since we don't have leveldb or snappy"
 go get github.com/bmizerany/pat

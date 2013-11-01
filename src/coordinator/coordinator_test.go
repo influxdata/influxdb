@@ -556,7 +556,6 @@ func (self *CoordinatorSuite) TestCheckReadAccess(c *C) {
 func (self *CoordinatorSuite) TestServersGetUniqueIdsAndCanActivateCluster(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
-	time.Sleep(time.Second)
 
 	// ensure they're all in the same order across the cluster
 	expectedServers := servers[0].clusterConfig.servers
