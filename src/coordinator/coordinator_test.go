@@ -13,6 +13,7 @@ import (
 	"os"
 	"protocol"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -59,7 +60,7 @@ func startAndVerifyCluster(count int, c *C) []*RaftServer {
 	for i := 0; i < count; i++ {
 		l, err := net.Listen("tcp4", ":0")
 		c.Assert(err, IsNil)
-		_, server := newConfigAndServer(c)
+		server := newConfigAndServer(c)
 		servers[i] = server
 
 		if i == 0 {
@@ -87,12 +88,12 @@ func clean(servers ...*RaftServer) {
 	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 }
 
-func newConfigAndServer(c *C) (*ClusterConfiguration, *RaftServer) {
+func newConfigAndServer(c *C) *RaftServer {
 	path, err := ioutil.TempDir(os.TempDir(), "influxdb")
 	c.Assert(err, IsNil)
 	config := NewClusterConfiguration()
 	server := NewRaftServer(path, "localhost", 0, config)
-	return config, server
+	return server
 }
 
 func getConfig(port int, c *C) string {
@@ -116,7 +117,7 @@ func (self *CoordinatorSuite) TestCanCreateCoordinatorWithNoSeed(c *C) {
 }
 
 func (self *CoordinatorSuite) TestCanCreateCoordinatorWithSeedThatIsNotRunning(c *C) {
-	_, server := newConfigAndServer(c)
+	server := newConfigAndServer(c)
 	defer clean(server)
 	l, err := net.Listen("tcp4", ":0")
 	c.Assert(err, IsNil)
@@ -137,7 +138,7 @@ func (self *CoordinatorSuite) TestCanRecover(c *C) {
 	assertConfigContains(server.port, "db1", true, c)
 	server.Close()
 	time.Sleep(SERVER_STARTUP_TIME)
-	_, server = newConfigAndServer(c)
+	server = newConfigAndServer(c)
 	// reset the path and port to the previous server
 	os.RemoveAll(server.path)
 	server.path = path
@@ -177,7 +178,7 @@ func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
 	server.CreateDatabase("db4")
 	assertConfigContains(server.port, "db4", true, c)
 
-	_, server2 := newConfigAndServer(c)
+	server2 := newConfigAndServer(c)
 	defer clean(server2)
 	l, err := net.Listen("tcp4", ":0")
 	c.Assert(err, IsNil)
@@ -574,54 +575,26 @@ func (self *CoordinatorSuite) TestServersGetUniqueIdsAndCanActivateCluster(c *C)
 	}
 }
 
-// func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader(c *C) {
-// 	defer http.DefaultTransport.(*http.Transport).CloseIdleConnections()
-// 	logDir1 := nextDir()
-// 	port1 := nextPort()
-// 	logDir2 := nextDir()
-// 	port2 := nextPort()
-// 	logDir3 := nextDir()
-// 	port3 := nextPort()
-// 	defer clearPath(logDir1)
-// 	defer clearPath(logDir2)
-// 	defer clearPath(logDir3)
+func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader(c *C) {
+	servers := startAndVerifyCluster(2, c)
+	newServer := newConfigAndServer(c)
+	defer clean(newServer)
+	l, err := net.Listen("tcp4", ":0")
+	c.Assert(err, IsNil)
+	go func() {
+		leaderAddr, ok := servers[1].leaderConnectString()
+		c.Assert(ok, Equals, true)
+		leaderPort, _ := strconv.Atoi(strings.Split(leaderAddr, ":")[2])
+		followerPort := servers[1].port
+		if leaderPort == servers[1].port {
+			followerPort = servers[0].port
+		}
+		newServer.Serve(l, []string{fmt.Sprintf("http://localhost:%d", followerPort)}, true)
+	}()
+	time.Sleep(SERVER_STARTUP_TIME)
 
-// 	_, server := newConfigAndServer(logDir1, port1)
-
-// 	var err error
-// 	go func() {
-// 		err = server.ListenAndServe([]string{fmt.Sprintf("localhost:%d", port2)}, false)
-// 	}()
-// 	time.Sleep(SERVER_STARTUP_TIME)
-
-// 	_, server2 := newConfigAndServer(logDir2, port2)
-// 	defer server2.Close()
-
-// 	var err2 error
-// 	go func() {
-// 		err2 = server2.ListenAndServe([]string{fmt.Sprintf("localhost:%d", port1), fmt.Sprintf("localhost:%d", port3)}, true)
-// 	}()
-// 	time.Sleep(SERVER_STARTUP_TIME)
-
-// 	_, server3 := newConfigAndServer(logDir3, port3)
-// 	defer server3.Close()
-
-// 	var err3 error
-// 	go func() {
-// 		err3 = server3.ListenAndServe([]string{fmt.Sprintf("localhost:%d", port2)}, true)
-// 	}()
-// 	time.Sleep(SERVER_STARTUP_TIME)
-
-// 	c.Assert(err, Equals, nil)
-// 	c.Assert(err2, Equals, nil)
-// 	c.Assert(err3, Equals, nil)
-// 	leader, _ := server2.leaderConnectString()
-// 	c.Assert(leader, Equals, fmt.Sprintf("http://localhost:%d", port1))
-
-// 	err = server.CreateDatabase("db8")
-// 	c.Assert(err, Equals, nil)
-// 	time.Sleep(REPLICATION_LAG)
-// 	assertConfigContains(port1, "db8", true, c)
-// 	assertConfigContains(port2, "db8", true, c)
-// 	assertConfigContains(port3, "db8", true, c)
-// }
+	err = servers[0].CreateDatabase("db8")
+	c.Assert(err, Equals, nil)
+	time.Sleep(REPLICATION_LAG)
+	assertConfigContains(newServer.port, "db8", true, c)
+}
