@@ -167,6 +167,14 @@ func (s *RaftServer) connectionString() string {
 }
 
 func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
+	// there's a race condition in goraft that will cause the server to panic
+	// while shutting down
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("Raft paniced: %v\n", err)
+		}
+	}()
+
 	log.Printf("Initializing Raft Server: %s %d", s.path, s.port)
 
 	// Initialize and start Raft server.
