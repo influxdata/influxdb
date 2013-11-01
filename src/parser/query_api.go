@@ -61,7 +61,7 @@ func (self *Query) GetReferencedColumns() map[*Value][]string {
 		name := value.Name
 		returnedMapping[value] = uniq(append(mapping[name], notPrefixedColumns...))
 		if len(returnedMapping[value]) > 1 && returnedMapping[value][0] == "*" {
-			returnedMapping[value] = returnedMapping[value][1:]
+			returnedMapping[value] = returnedMapping[value][:1]
 		}
 
 		delete(mapping, name)

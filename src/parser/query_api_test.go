@@ -103,15 +103,15 @@ func (self *QueryApiSuite) TestGetReferencedColumnsWithARegexTable(c *C) {
 	}
 }
 
-func (self *QueryApiSuite) TestGetReferencedColumnsReturnsGroupByColumn(c *C) {
-	queryStr := "select count(*), region from events group by time(1h), region;"
+func (self *QueryApiSuite) TestGetReferencedColumnsWithWhereClause(c *C) {
+	queryStr := "select * from foo where a == 5;"
 	query, err := ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 1)
 	for v, columns := range columns {
-		c.Assert(v.Name, Equals, "events")
-		c.Assert(columns, DeepEquals, []string{"region"})
+		c.Assert(v.Name, Equals, "foo")
+		c.Assert(columns, DeepEquals, []string{"*"})
 	}
 }
 
