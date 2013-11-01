@@ -195,7 +195,7 @@ func (self *IntegrationSuite) writeData(c *C) {
 			}
 		}
 		fmt.Println()
-		fmt.Printf("Writing %d points (containgin %d columns) in %d batches took %s\n", NUMBER_OF_POINTS, numberOfColumns, BATCH_SIZE,
+		fmt.Printf("Writing %d points (containing %d columns) in %d batches took %s\n", NUMBER_OF_POINTS, numberOfColumns, BATCH_SIZE,
 			time.Now().Sub(startTime))
 	}
 	wroteData = true
