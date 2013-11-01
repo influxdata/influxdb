@@ -75,10 +75,40 @@ func matches(condition *parser.WhereCondition, fields []string, point *protocol.
 	return matches(condition.Right, fields, point)
 }
 
+func getColumns(values []*parser.Value, columns map[string]bool) {
+	for _, v := range values {
+		switch v.Type {
+		case parser.ValueSimpleName:
+			columns[v.Name] = true
+		case parser.ValueWildcard:
+			return
+		case parser.ValueFunctionCall:
+			getColumns(v.Elems, columns)
+		}
+	}
+}
+
+func filterColumns(columns map[string]bool, fields []string, point *protocol.Point) {
+	newValues := []*protocol.FieldValue{}
+	newFields := []string{}
+	for idx, f := range fields {
+		if _, ok := columns[f]; !ok {
+			continue
+		}
+
+		newValues = append(newValues, point.Values[idx])
+		newFields = append(newFields, f)
+	}
+	point.Values = newValues
+}
+
 func Filter(query *parser.Query, series *protocol.Series) (*protocol.Series, error) {
 	if query.GetWhereCondition() == nil {
 		return series, nil
 	}
+
+	columns := map[string]bool{}
+	getColumns(query.GetColumnNames(), columns)
 
 	points := series.Points
 	series.Points = nil
@@ -90,8 +120,19 @@ func Filter(query *parser.Query, series *protocol.Series) (*protocol.Series, err
 		}
 
 		if ok {
+			filterColumns(columns, series.Fields, point)
 			series.Points = append(series.Points, point)
 		}
 	}
+
+	newFields := []string{}
+	for _, f := range series.Fields {
+		if _, ok := columns[f]; !ok {
+			continue
+		}
+
+		newFields = append(newFields, f)
+	}
+	series.Fields = newFields
 	return series, nil
 }
