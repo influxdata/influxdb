@@ -40,7 +40,6 @@ var registeredCommands bool
 // Creates a new server.
 func NewRaftServer(path string, host string, port int, clusterConfig *ClusterConfiguration) *RaftServer {
 	if !registeredCommands {
-		raft.SetLogLevel(raft.Trace)
 		registeredCommands = true
 		raft.RegisterCommand(&AddPotentialServerCommand{})
 		raft.RegisterCommand(&UpdateServerStateCommand{})
