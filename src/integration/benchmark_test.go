@@ -211,12 +211,14 @@ func (self *IntegrationSuite) TestWriting(c *C) {
 
 func (self *IntegrationSuite) TestReading(c *C) {
 	if !*benchmark {
-		c.Skip("Benchmark are disabled")
+		c.Skip("Benchmarking is disabled")
 	}
 
 	queries := map[string][]int{
-		"select column0 from foo1 where column0 > 0.5 and column0 < 0.6;": []int{80000, 120000},
-		"select column0 from foo1;":                                       []int{1000000 - 1, 1000000 + 1},
+		"select column0 from foo1 where column0 > 0.5 and column0 < 0.6;":                                     []int{1, 80000, 120000},
+		"select column0 from foo1;":                                                                           []int{1, 1000000 - 1, 1000000 + 1},
+		"select column0 from foo5 where column0 > 0.5 and column0 < 0.6 and column1 > 0.5 and column1 < 0.6;": []int{1, 8000, 12000},
+		"select column0, column1, column2, column3, column4 from foo5;":                                       []int{5, 1000000 - 1, 1000000 + 1},
 	}
 
 	for q, r := range queries {
@@ -232,9 +234,9 @@ func (self *IntegrationSuite) TestReading(c *C) {
 		c.Assert(err, IsNil)
 
 		c.Assert(data, HasLen, 1)
-		c.Assert(data[0].Columns, HasLen, 3)                        // time, sequence nuber and value
-		c.Assert(len(data[0].Points), checkers.InRange, r[0], r[1]) // values between 0.5 and 0.65 should be about 100,000
+		c.Assert(data[0].Columns, HasLen, r[0]+2)                   // time, sequence nuber and the requested columns
+		c.Assert(len(data[0].Points), checkers.InRange, r[1], r[2]) // values between 0.5 and 0.65 should be about 100,000
 
-		fmt.Printf("Took %s to read %d points\n", elapsedTime, len(data[0].Points))
+		fmt.Printf("Took %s to execute %s\n", elapsedTime, q)
 	}
 }
