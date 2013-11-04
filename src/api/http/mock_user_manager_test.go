@@ -2,6 +2,7 @@ package http
 
 import (
 	"common"
+	"fmt"
 )
 
 type Operation struct {
@@ -18,9 +19,15 @@ type MockUserManager struct {
 }
 
 func (self *MockUserManager) AuthenticateDbUser(db, username, password string) (common.User, error) {
+	if username == "fail_auth" {
+		return nil, fmt.Errorf("Invalid username/password")
+	}
 	return nil, nil
 }
 func (self *MockUserManager) AuthenticateClusterAdmin(username, password string) (common.User, error) {
+	if username == "fail_auth" {
+		return nil, fmt.Errorf("Invalid username/password")
+	}
 	return nil, nil
 }
 func (self *MockUserManager) CreateClusterAdminUser(request common.User, username string) error {

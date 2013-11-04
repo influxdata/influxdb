@@ -146,6 +146,33 @@ func (self *ApiSuite) SetUpTest(c *C) {
 	self.manager.ops = nil
 }
 
+func (self *ApiSuite) TestClusterAdminAuthentication(c *C) {
+	url := self.formatUrl("/cluster_admins/authenticate?u=root&p=root")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	resp.Body.Close()
+
+	url = self.formatUrl("/cluster_admins/authenticate?u=fail_auth&p=anypass")
+	resp, err = libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusUnauthorized)
+}
+
+func (self *ApiSuite) TestDbUserAuthentication(c *C) {
+	url := self.formatUrl("/db/foo/authenticate?u=user&p=password")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	resp.Body.Close()
+
+	url = self.formatUrl("/db/foo/authenticate?u=fail_auth&p=anypass")
+	resp, err = libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusUnauthorized)
+	resp.Body.Close()
+}
+
 func (self *ApiSuite) TestQueryWithNullColumns(c *C) {
 	query := "select * from foo;"
 	query = url.QueryEscape(query)

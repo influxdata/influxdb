@@ -71,12 +71,13 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	// cluster admins management interface
 
 	self.registerEndpoint(p, "get", "/cluster_admins", self.listClusterAdmins)
+	self.registerEndpoint(p, "get", "/cluster_admins/authenticate", self.authenticateClusterAdmin)
 	self.registerEndpoint(p, "post", "/cluster_admins", self.createClusterAdmin)
 	self.registerEndpoint(p, "post", "/cluster_admins/:user", self.updateClusterAdmin)
 	self.registerEndpoint(p, "del", "/cluster_admins/:user", self.deleteClusterAdmin)
 
 	// db users management interface
-
+	self.registerEndpoint(p, "get", "/db/:db/authenticate", self.authenticateDbUser)
 	self.registerEndpoint(p, "get", "/db/:db/users", self.listDbUsers)
 	self.registerEndpoint(p, "post", "/db/:db/users", self.createDbUser)
 	self.registerEndpoint(p, "del", "/db/:db/users/:user", self.deleteDbUser)
@@ -520,6 +521,12 @@ func (self *HttpServer) listClusterAdmins(w libhttp.ResponseWriter, r *libhttp.R
 	})
 }
 
+func (self *HttpServer) authenticateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u common.User) (int, interface{}) {
+		return libhttp.StatusOK, nil
+	})
+}
+
 func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -579,6 +586,16 @@ func (self *HttpServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 }
 
 // // db users management interface
+
+func (self *HttpServer) authenticateDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+	code, body := self.tryAsDbUser(w, r, func(u common.User) (int, interface{}) {
+		return libhttp.StatusOK, nil
+	})
+	w.WriteHeader(code)
+	if len(body) > 0 {
+		w.Write(body)
+	}
+}
 
 func (self *HttpServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request, yield func(common.User) (int, interface{})) (int, []byte) {
 	username := r.URL.Query().Get("u")
