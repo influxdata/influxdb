@@ -14,22 +14,6 @@ influxdb_version=$1
 rm -rf packages
 mkdir packages
 
-function setup_rvm {
-    # Load RVM into a shell session *as a function*
-    if [ -s "$HOME/.rvm/scripts/rvm" ]; then
-        # First try to load from a user install
-        source "$HOME/.rvm/scripts/rvm"
-    elif [ -s "/usr/local/rvm/scripts/rvm" ]; then
-        # Then try to load from a root install
-        source "/usr/local/rvm/scripts/rvm"
-    else
-        printf "ERROR: An RVM installation was not found.\n"
-    fi
-    rvm use --create 1.9.3@influxdb
-    gem install bundler
-    gem install fpm
-}
-
 function package_admin_interface {
     [ -d $admin_dir ] || git clone https://github.com/influxdb/influxdb-js.git $admin_dir
     rvm rvmrc trust /tmp/influx_admin_interface/.rvmrc
@@ -113,7 +97,6 @@ function revert_version {
     echo "Changed version back to dev"
 }
 
-setup_rvm
 setup_version
 UPDATE=on ./build.sh && package_files amd64 && build_packages amd64
 revert_version

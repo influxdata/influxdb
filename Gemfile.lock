@@ -1,0 +1,33 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    addressable (2.3.5)
+    arr-pm (0.0.8)
+      cabin (> 0)
+    backports (3.3.5)
+    cabin (0.6.1)
+    childprocess (0.3.9)
+      ffi (~> 1.0, >= 1.0.11)
+    clamp (0.6.1)
+    ffi (1.9.3)
+    fpm (0.4.42)
+      arr-pm (~> 0.0.8)
+      backports (>= 2.6.2)
+      cabin (>= 0.6.0)
+      childprocess
+      clamp (~> 0.6)
+      ftw (~> 0.0.30)
+      json (>= 1.7.7)
+    ftw (0.0.36)
+      addressable
+      backports (>= 2.6.2)
+      cabin (> 0)
+      http_parser.rb (= 0.5.3)
+    http_parser.rb (0.5.3)
+    json (1.7.7)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  fpm
