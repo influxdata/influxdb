@@ -826,6 +826,60 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
   ]`)
 }
 
+func (self *EngineSuite) TestDerivativeQuery(c *C) {
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381347702000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381347703000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381347704000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["column_one"]
+    }
+  ]`)
+
+	runQuery(engine, "select derivative(column_one) from foo;", c, `[
+    {
+      "points": [
+        { "values": [{ "double_value": 1 } ], "timestamp": 1381347704000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 4 } ], "timestamp": 1381347704000000, "sequence_number": 1 },
+        { "values": [{ "double_value": -2 }], "timestamp": 1381347704000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["derivative"]
+    }
+  ]`)
+}
+
+func (self *EngineSuite) TestDistinctQuery(c *C) {
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381347702000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381347703000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381347704000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["column_one"]
+    }
+  ]`)
+
+	runQuery(engine, "select distinct(column_one) from foo;", c, `[
+    {
+      "points": [
+        { "values": [{ "double_value": 1 }], "timestamp": 1381347704000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 2 }], "timestamp": 1381347704000000, "sequence_number": 1 },
+        { "values": [{ "double_value": 6 }], "timestamp": 1381347704000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["distinct"]
+    }
+  ]`)
+}
+
 func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
 	engine := createEngine(c, `[
     {
