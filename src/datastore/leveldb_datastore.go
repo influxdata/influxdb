@@ -69,7 +69,6 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 	}
 
 	ro := levigo.NewReadOptions()
-	defer ro.Close()
 
 	lastIdBytes, err2 := db.Get(ro, NEXT_ID_KEY)
 	if err2 != nil {
@@ -149,6 +148,11 @@ func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, qu
 
 func (self *LevelDbDatastore) Close() {
 	self.db.Close()
+	self.db = nil
+	self.readOptions.Close()
+	self.readOptions = nil
+	self.writeOptions.Close()
+	self.writeOptions = nil
 }
 
 func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
@@ -159,8 +163,8 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 	}
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
 	ro := levigo.NewReadOptions()
-	ro.SetFillCache(false)
 	defer ro.Close()
+	ro.SetFillCache(false)
 	rangesToCompact := make([]*levigo.Range, 0)
 	for _, field := range fields {
 		it := self.db.NewIterator(ro)
