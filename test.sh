@@ -50,7 +50,7 @@ echo "Running tests for packages: $test_packages"
 ulimit -n 2048 || echo could not change ulimit
 
 for i in $test_packages; do
-    if go version | grep go1.2 > /dev/null 2>&1; then
+    if go version | egrep 'go1.2|devel' > /dev/null 2>&1; then
         go test -coverprofile /tmp/influxdb.${i/\//.}.coverage $i $gocheck_args $@
     else
         go test $i $gocheck_args $@
