@@ -1,6 +1,6 @@
 {
   "AdminHttpPort":  8083,
-  "AdminAssetsDir": "./src/admin/site/",
+  "AdminAssetsDir": "./admin/",
   "ApiHttpPort":    8086,
   "RaftServerPort": 8090,
   "SeedServers":    [],
