@@ -190,6 +190,21 @@ func createValuesToInterface(groupBy parser.GroupByClause, fields []string) (Map
 	}
 }
 
+func crossProduct(values [][]*protocol.FieldValue) [][]*protocol.FieldValue {
+	if len(values) == 0 {
+		return [][]*protocol.FieldValue{[]*protocol.FieldValue{}}
+	}
+
+	_returnedValues := crossProduct(values[:len(values)-1])
+	returnValues := [][]*protocol.FieldValue{}
+	for _, v := range values[len(values)-1] {
+		for _, values := range _returnedValues {
+			returnValues = append(returnValues, append(values, v))
+		}
+	}
+	return returnValues
+}
+
 func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database string, query *parser.Query,
 	yield func(*protocol.Series) error) error {
 	duration, err := query.GetGroupByClause().GetGroupByTime()
@@ -279,48 +294,46 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 		points := []*protocol.Point{}
 		for groupId, _ := range tableGroups {
 			timestamp := *timestampAggregator.GetValue(table, groupId)[0].Int64Value
-			/* groupPoints := []*protocol.Point{} */
-			point := &protocol.Point{
-				SequenceNumber: &sequenceNumber,
-				Values:         []*protocol.FieldValue{},
-			}
-			point.SetTimestampInMicroseconds(timestamp)
+			values := [][]*protocol.FieldValue{}
 
 			for _, aggregator := range aggregators {
-				// point.Values = append(point.Values, aggregator.GetValue(table, groupId)[0])
-				returnValues := aggregator.GetValue(table, groupId)
-				returnDepth := len(returnValues)
-				for _, value := range returnValues {
-					if returnDepth > 1 {
-						// do some crazy shit
-					} else {
-						point.Values = append(point.Values, value)
+				values = append(values, aggregator.GetValue(table, groupId))
+			}
+
+			// do cross product of all the values
+			values = crossProduct(values)
+
+			for _, v := range values {
+				/* groupPoints := []*protocol.Point{} */
+				point := &protocol.Point{
+					SequenceNumber: &sequenceNumber,
+					Values:         v,
+				}
+				point.SetTimestampInMicroseconds(timestamp)
+
+				// FIXME: this should be looking at the fields slice not the group by clause
+				// FIXME: we should check whether the selected columns are in the group by clause
+				for idx, _ := range groupBy {
+					if duration != nil && idx == 0 {
+						continue
+					}
+
+					value := inverse(groupId, idx)
+
+					switch x := value.(type) {
+					case string:
+						point.Values = append(point.Values, &protocol.FieldValue{StringValue: &x})
+					case bool:
+						point.Values = append(point.Values, &protocol.FieldValue{BoolValue: &x})
+					case float64:
+						point.Values = append(point.Values, &protocol.FieldValue{DoubleValue: &x})
+					case int64:
+						point.Values = append(point.Values, &protocol.FieldValue{Int64Value: &x})
 					}
 				}
+
+				points = append(points, point)
 			}
-
-			// FIXME: this should be looking at the fields slice not the group by clause
-			// FIXME: we should check whether the selected columns are in the group by clause
-			for idx, _ := range groupBy {
-				if duration != nil && idx == 0 {
-					continue
-				}
-
-				value := inverse(groupId, idx)
-
-				switch x := value.(type) {
-				case string:
-					point.Values = append(point.Values, &protocol.FieldValue{StringValue: &x})
-				case bool:
-					point.Values = append(point.Values, &protocol.FieldValue{BoolValue: &x})
-				case float64:
-					point.Values = append(point.Values, &protocol.FieldValue{DoubleValue: &x})
-				case int64:
-					point.Values = append(point.Values, &protocol.FieldValue{Int64Value: &x})
-				}
-			}
-
-			points = append(points, point)
 		}
 		expectedData := &protocol.Series{
 			Name:   &tempTable,

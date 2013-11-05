@@ -26,6 +26,7 @@ var registeredAggregators = make(map[string]AggregatorInitializer)
 
 func init() {
 	registeredAggregators["count"] = NewCountAggregator
+	registeredAggregators["derivative"] = NewDerivativeAggregator
 	registeredAggregators["max"] = NewMaxAggregator
 	registeredAggregators["min"] = NewMinAggregator
 	registeredAggregators["sum"] = NewSumAggregator
@@ -68,6 +69,94 @@ func (self *CompositeAggregator) InitializeFieldsMetadata(series *protocol.Serie
 
 func NewCompositeAggregator(left, right Aggregator) (Aggregator, error) {
 	return &CompositeAggregator{left, right}, nil
+}
+
+//
+// Derivative Aggregator
+//
+
+type DerivativeAggregator struct {
+	fieldIndex int
+	fieldName  string
+	lastValues map[string]map[interface{}]*protocol.Point
+	points     map[string]map[interface{}][]*protocol.FieldValue
+}
+
+func (self *DerivativeAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+	lastValues := self.lastValues[series]
+	if lastValues == nil {
+		lastValues = make(map[interface{}]*protocol.Point)
+		self.lastValues[series] = lastValues
+	}
+
+	var value float64
+	if ptr := p.Values[self.fieldIndex].Int64Value; ptr != nil {
+		value = float64(*ptr)
+	} else if ptr := p.Values[self.fieldIndex].DoubleValue; ptr != nil {
+		value = *ptr
+	} else {
+		// else ignore this point
+		return nil
+	}
+
+	newValue := &protocol.Point{
+		Timestamp:      p.Timestamp,
+		SequenceNumber: p.SequenceNumber,
+		Values:         []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &value}},
+	}
+
+	var oldValue *protocol.Point
+	oldValue, lastValues[group] = lastValues[group], newValue
+	if oldValue == nil {
+		return nil
+	}
+
+	// if an old value exist, then compute the derivative and insert it in the points slice
+	deltaT := float64(*newValue.Timestamp-*oldValue.Timestamp) / float64(time.Second/time.Microsecond)
+	deltaV := *newValue.Values[self.fieldIndex].DoubleValue - *oldValue.Values[self.fieldIndex].DoubleValue
+	derivative := deltaV / deltaT
+	points := self.points[series]
+	if points == nil {
+		points = make(map[interface{}][]*protocol.FieldValue)
+		self.points[series] = points
+	}
+	points[group] = append(points[group], &protocol.FieldValue{DoubleValue: &derivative})
+	return nil
+}
+
+func (self *DerivativeAggregator) ColumnName() string {
+	return "derivative"
+}
+
+func (self *DerivativeAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
+	return self.points[series][group]
+}
+
+func (self *DerivativeAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+	for idx, field := range series.Fields {
+		if field == self.fieldName {
+			self.fieldIndex = idx
+			return nil
+		}
+	}
+
+	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
+}
+
+func NewDerivativeAggregator(q *parser.Query, v *parser.Value) (Aggregator, error) {
+	if len(v.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function derivative() requires exactly one argument")
+	}
+
+	if v.Elems[0].Type == parser.ValueWildcard {
+		return nil, common.NewQueryError(common.InvalidArgument, "function derivative() doesn't work with wildcards")
+	}
+
+	return &DerivativeAggregator{
+		fieldName:  v.Elems[0].Name,
+		lastValues: make(map[string]map[interface{}]*protocol.Point),
+		points:     make(map[string]map[interface{}][]*protocol.FieldValue),
+	}, nil
 }
 
 //
