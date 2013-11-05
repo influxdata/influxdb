@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-var noSkipReplicationTests = flag.Bool("-no-skip-replication", false, "Do not skip replication tests")
+var noSkipReplicationTests = flag.Bool("no-skip-replication", false, "Do not skip replication tests")
 
 // Hook up gocheck into the gotest runner.
 func Test(t *testing.T) {
