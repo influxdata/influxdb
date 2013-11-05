@@ -21,6 +21,8 @@ type LevelDbDatastore struct {
 	db            *levigo.DB
 	lastIdUsed    uint64
 	columnIdMutex sync.Mutex
+	readOptions   *levigo.ReadOptions
+	writeOptions  *levigo.WriteOptions
 }
 
 type Field struct {
@@ -82,17 +84,13 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 		}
 	}
 
-	// w := levigo.NewWriteOptions()
-	// defer w.Close()
-	// db.Put(w, END_KEYSPACE_MARKER, []byte{})
+	wo := levigo.NewWriteOptions()
 
-	return &LevelDbDatastore{db: db, lastIdUsed: lastId}, nil
+	return &LevelDbDatastore{db: db, lastIdUsed: lastId, readOptions: ro, writeOptions: wo}, nil
 }
 
 func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.Series) error {
-	wo := levigo.NewWriteOptions()
 	wb := levigo.NewWriteBatch()
-	defer wo.Close()
 	defer wb.Close()
 	for fieldIndex, field := range series.Fields {
 		temp := field
@@ -113,7 +111,7 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 			wb.Put(pointKey, data)
 		}
 	}
-	return self.db.Write(wo, wb)
+	return self.db.Write(self.writeOptions, wb)
 }
 
 func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error {
@@ -161,13 +159,12 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 	}
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
 	ro := levigo.NewReadOptions()
+	ro.SetFillCache(false)
 	defer ro.Close()
 	rangesToCompact := make([]*levigo.Range, 0)
 	for _, field := range fields {
 		it := self.db.NewIterator(ro)
 		defer it.Close()
-		wo := levigo.NewWriteOptions()
-		defer wo.Close()
 		wb := levigo.NewWriteBatch()
 
 		startKey := append(field.Id, startTimeBytes...)
@@ -189,7 +186,7 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 			wb.Delete(k)
 			endKey = k
 		}
-		err = self.db.Write(wo, wb)
+		err = self.db.Write(self.writeOptions, wb)
 		if err != nil {
 			return err
 		}
@@ -251,9 +248,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	for i, field := range fields {
 		fieldNames[i] = field.Name
 		prefixes[i] = field.Id
-		ro := levigo.NewReadOptions()
-		defer ro.Close()
-		iterators[i] = self.db.NewIterator(ro)
+		iterators[i] = self.db.NewIterator(self.readOptions)
 		if query.Ascending {
 			iterators[i].Seek(append(field.Id, startTimeBytes...))
 		} else {
@@ -358,9 +353,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 }
 
 func (self *LevelDbDatastore) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
-	ro := levigo.NewReadOptions()
-	defer ro.Close()
-	it := self.db.NewIterator(ro)
+	it := self.db.NewIterator(self.readOptions)
 	defer it.Close()
 
 	seekKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~")...)
@@ -388,9 +381,7 @@ func (self *LevelDbDatastore) getSeriesForDbAndRegex(database string, regex *reg
 }
 
 func (self *LevelDbDatastore) getColumnNamesForSeries(db, series string) []string {
-	ro := levigo.NewReadOptions()
-	defer ro.Close()
-	it := self.db.NewIterator(ro)
+	it := self.db.NewIterator(self.readOptions)
 	defer it.Close()
 
 	seekKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(db+"~"+series+"~")...)
@@ -415,9 +406,6 @@ func (self *LevelDbDatastore) getColumnNamesForSeries(db, series string) []strin
 }
 
 func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []string) ([]*Field, error) {
-	ro := levigo.NewReadOptions()
-	defer ro.Close()
-
 	isCountQuery := false
 	if len(columns) > 0 && columns[0] == "*" {
 		columns = self.getColumnNamesForSeries(db, series)
@@ -455,16 +443,12 @@ func (self *LevelDbDatastore) getIdForDbSeriesColumn(db, series, column *string)
 	s := fmt.Sprintf("%s~%s~%s", *db, *series, *column)
 	b := []byte(s)
 	key := append(SERIES_COLUMN_INDEX_PREFIX, b...)
-	ro := levigo.NewReadOptions()
-	defer ro.Close()
-	if ret, err = self.db.Get(ro, key); err != nil {
+	if ret, err = self.db.Get(self.readOptions, key); err != nil {
 		return nil, false, err
 	}
 	if ret == nil {
 		ret, err = self.getNextIdForColumn(db, series, column)
-		wo := levigo.NewWriteOptions()
-		defer wo.Close()
-		if err = self.db.Put(wo, key, ret); err != nil {
+		if err = self.db.Put(self.writeOptions, key, ret); err != nil {
 			return nil, false, err
 		}
 		return ret, false, nil
@@ -477,7 +461,6 @@ func (self *LevelDbDatastore) getNextIdForColumn(db, series, column *string) (re
 	defer self.columnIdMutex.Unlock()
 	id := self.lastIdUsed + 1
 	self.lastIdUsed += 1
-	wo := levigo.NewWriteOptions()
 	idBytes := make([]byte, 8, 8)
 	binary.PutUvarint(idBytes, id)
 	wb := levigo.NewWriteBatch()
@@ -486,7 +469,7 @@ func (self *LevelDbDatastore) getNextIdForColumn(db, series, column *string) (re
 	wb.Put(databaseSeriesIndexKey, []byte{})
 	seriesColumnIndexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(*db+"~"+*series+"~"+*column)...)
 	wb.Put(seriesColumnIndexKey, idBytes)
-	if err = self.db.Write(wo, wb); err != nil {
+	if err = self.db.Write(self.writeOptions, wb); err != nil {
 		return nil, err
 	}
 	return idBytes, nil
