@@ -18,6 +18,10 @@ import (
 	"time"
 )
 
+const (
+	DEFAULT_ROOT_PWD = "root"
+)
+
 // The raftd server is a combination of the Raft server and an HTTP
 // server which acts as the transport.
 type RaftServer struct {
@@ -144,7 +148,7 @@ func (s *RaftServer) SaveClusterAdminUser(u *clusterAdmin) error {
 
 func (s *RaftServer) CreateRootUser() error {
 	u := &clusterAdmin{CommonUser{"root", "", false}}
-	u.changePassword("root")
+	u.changePassword(DEFAULT_ROOT_PWD)
 	return s.SaveClusterAdminUser(u)
 }
 

@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 const (
@@ -72,6 +73,7 @@ func startProfiler(filename *string) error {
 func main() {
 	fileName := flag.String("config", "config.json.sample", "Config file")
 	wantsVersion := flag.Bool("v", false, "Get version number")
+	resetRootPassword := flag.Bool("reset-root", false, fmt.Sprintf("Reset root password to %s", coordinator.DEFAULT_ROOT_PWD))
 	pidFile := flag.String("pidfile", "", "the pid file")
 	cpuProfiler := flag.String("cpuprofile", "", "filename where cpu profile data will be written")
 
@@ -101,6 +103,14 @@ func main() {
 	go func() {
 		raftServer.ListenAndServe(config.SeedServers, false)
 	}()
+
+	if *resetRootPassword {
+		time.Sleep(2 * time.Second) // wait for the raft server to join the cluster
+
+		if err := raftServer.CreateRootUser(); err != nil {
+			panic(err)
+		}
+	}
 	os.MkdirAll(config.DataDir, 0744)
 	log.Println("Opening database at ", config.DataDir)
 	db, err := datastore.NewLevelDbDatastore(config.DataDir)
