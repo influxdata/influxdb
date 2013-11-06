@@ -45,7 +45,10 @@ func TestServerRequestVoteDeniedForStaleTerm(t *testing.T) {
 		t.Fatalf("Server %s unable to join: %v", s.Name(), err)
 	}
 
-	s.(*server).setTerm(2)
+	s.(*server).mutex.Lock()
+	s.(*server).currentTerm = 2
+	s.(*server).mutex.Unlock()
+
 	defer s.Stop()
 	resp := s.RequestVote(newRequestVoteRequest(1, "foo", 1, 0))
 	if resp.Term != 2 || resp.VoteGranted {
@@ -65,7 +68,9 @@ func TestServerRequestVoteDeniedIfAlreadyVoted(t *testing.T) {
 		t.Fatalf("Server %s unable to join: %v", s.Name(), err)
 	}
 
-	s.(*server).setTerm(2)
+	s.(*server).mutex.Lock()
+	s.(*server).currentTerm = 2
+	s.(*server).mutex.Unlock()
 	defer s.Stop()
 	resp := s.RequestVote(newRequestVoteRequest(2, "foo", 1, 0))
 	if resp.Term != 2 || !resp.VoteGranted {
@@ -88,7 +93,9 @@ func TestServerRequestVoteApprovedIfAlreadyVotedInOlderTerm(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 100)
 
-	s.(*server).setTerm(2)
+	s.(*server).mutex.Lock()
+	s.(*server).currentTerm = 2
+	s.(*server).mutex.Unlock()
 	defer s.Stop()
 	resp := s.RequestVote(newRequestVoteRequest(2, "foo", 2, 1))
 	if resp.Term != 2 || !resp.VoteGranted || s.VotedFor() != "foo" {
@@ -236,7 +243,9 @@ func TestServerAppendEntriesWithStaleTermsAreRejected(t *testing.T) {
 	s.Start()
 
 	defer s.Stop()
-	s.(*server).setTerm(2)
+	s.(*server).mutex.Lock()
+	s.(*server).currentTerm = 2
+	s.(*server).mutex.Unlock()
 
 	// Append single entry.
 	e, _ := newLogEntry(nil, 1, 1, &testCommand1{Val: "foo", I: 10})

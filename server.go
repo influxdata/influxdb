@@ -67,7 +67,6 @@ type Server interface {
 	LogPath() string
 	SnapshotPath(lastIndex uint64, lastTerm uint64) string
 	Term() uint64
-	setTerm(term uint64)
 	CommitIndex() uint64
 	VotedFor() string
 	MemberCount() int
@@ -258,13 +257,6 @@ func (s *server) Term() uint64 {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return s.currentTerm
-}
-
-// Set the current term of the server, for testing purpose.
-func (s *server) setTerm(term uint64) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	s.currentTerm = term
 }
 
 // Retrieves the current commit index of the server.
