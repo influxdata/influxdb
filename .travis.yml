@@ -13,4 +13,4 @@ script: ./test.sh
 
 notifications:
   irc: "chat.freenode.net#influxdb"
-  use_notice: true
+  use_notice: false
