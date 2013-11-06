@@ -23,8 +23,8 @@ src/parser/y.tab.c
 build/
 
 # executables
-server
-main
+/server
+/main
 godef
 
 # dependencies
