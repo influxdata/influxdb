@@ -28,10 +28,15 @@ on_linux="no"
 if [ `uname` = "Linux" ]; then
     on_linux=yes
 
-elif [ `uname -v | cut -d' ' -f4` = "13.0.0:" ]; then
+elif [ "x$CC" == "x" -a `uname -v | cut -d' ' -f4` = "13.0.0:" ]; then
     # for mavericks use gcc instead of llvm
     export CC=gcc-4.2
 fi
+
+if [ "x$PYTHONPATH" == x -a $on_linux != yes ]; then
+    PYTHONPATH=/usr/local/lib/python2.7/site-packages/:$PYTHONPATH
+fi
+
 if [ $on_linux = yes ]; then
     export CGO_CFLAGS="-I$leveldb_dir/include"
     export CGO_LDFLAGS="$leveldb_dir/libleveldb.a $snappy_dir/.libs/libsnappy.a -lstdc++"
