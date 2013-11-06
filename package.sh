@@ -40,6 +40,8 @@ function package_files {
     mv server build/influxdb
 
     cp config.json.sample build/config.json
+    sed -i.bak -e 's/"AdminAssetsDir.*/"AdminAssetsDir": "\/opt\/influxdb\/current\/admin\/",/' build/config.json
+    rm build/config.json.bak
 
     # cp -R src/admin/site/ build/admin/
     mkdir build/admin
@@ -100,4 +102,4 @@ function revert_version {
 setup_version
 UPDATE=on ./build.sh && package_files amd64 && build_packages amd64
 revert_version
-[ $on_linux == yes ] && CGO_ENABLED=1 GOARCH=386 UPDATE=on ./build.sh && package_files 386 && build_packages 386
+# [ $on_linux == yes ] && CGO_ENABLED=1 GOARCH=386 UPDATE=on ./build.sh && package_files 386 && build_packages 386
