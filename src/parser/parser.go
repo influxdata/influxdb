@@ -118,6 +118,7 @@ func (self *WhereCondition) GetLeftWhereCondition() (*WhereCondition, bool) {
 }
 
 type Query struct {
+	queryString   string
 	ColumnNames   []*Value
 	FromClause    *FromClause
 	Condition     *WhereCondition
@@ -126,6 +127,10 @@ type Query struct {
 	Ascending     bool
 	startTime     time.Time
 	endTime       time.Time
+}
+
+func (self *Query) GetQueryString() string {
+	return self.queryString
 }
 
 func (self *Query) GetColumnNames() []*Value {
@@ -307,7 +312,7 @@ func ParseQuery(query string) (*Query, error) {
 		return nil, err
 	}
 
-	goQuery := &Query{nil, nil, nil, nil, int(q.limit), q.ascending != 0, time.Unix(0, 0), time.Now()}
+	goQuery := &Query{query, nil, nil, nil, nil, int(q.limit), q.ascending != 0, time.Unix(0, 0), time.Now()}
 
 	var err error
 

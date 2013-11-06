@@ -23,8 +23,11 @@ func ToValueArray(strings ...string) (values []*Value) {
 }
 
 func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
-	q, err := ParseQuery("select value from t where c == '5';")
+	query := "select value from t where c == '5';"
+	q, err := ParseQuery(query)
 	c.Assert(err, IsNil)
+
+	c.Assert(q.GetQueryString(), Equals, query)
 
 	c.Assert(q.Limit, Equals, 0)
 
