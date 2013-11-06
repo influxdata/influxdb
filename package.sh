@@ -26,6 +26,24 @@ function package_admin_interface {
     popd
 }
 
+function packae_source {
+    rm -f server
+    git ls-files --others  | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
+    echo "pkg/*" >> /tmp/influxdb.ignored
+    echo "packages/*" >> /tmp/influxdb.ignored
+    echo "build/*" >> /tmp/influxdb.ignored
+    echo "out_rpm/*" >> /tmp/influxdb.ignored
+    tar_file=influxdb-$influxdb_version.src.tar.gz
+    tar -cvzf packages/$tar_file --exclude-vcs -X /tmp/influxdb.ignored *
+    pushd packages
+    # put all files in influxdb
+    mkdir influxdb
+    tar -xvzf $tar_file -C influxdb
+    rm $tar_file
+    tar -cvzf $tar_file influxdb
+    popd
+}
+
 function package_files {
     if [ $# -ne 1 ]; then
         echo "Usage: $0 architecture"
@@ -103,6 +121,7 @@ function revert_version {
 }
 
 setup_version
+packae_source
 UPDATE=on ./build.sh && package_files amd64 && build_packages amd64
 revert_version
 [ $on_linux == yes ] && CGO_ENABLED=1 GOARCH=386 UPDATE=on ./build.sh && package_files 386 && build_packages 386
