@@ -73,7 +73,7 @@ func startProfiler(filename *string) error {
 func main() {
 	fileName := flag.String("config", "config.json.sample", "Config file")
 	wantsVersion := flag.Bool("v", false, "Get version number")
-	resetRootPassword := flag.Bool("reset-root", false, fmt.Sprintf("Reset root password to %s", coordinator.DEFAULT_ROOT_PWD))
+	resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
 	pidFile := flag.String("pidfile", "", "the pid file")
 	cpuProfiler := flag.String("cpuprofile", "", "filename where cpu profile data will be written")
 
@@ -107,6 +107,7 @@ func main() {
 	if *resetRootPassword {
 		time.Sleep(2 * time.Second) // wait for the raft server to join the cluster
 
+		fmt.Printf("Resetting root's password to %s", coordinator.DEFAULT_ROOT_PWD)
 		if err := raftServer.CreateRootUser(); err != nil {
 			panic(err)
 		}
