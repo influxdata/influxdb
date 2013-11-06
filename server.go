@@ -254,11 +254,15 @@ func (s *server) setState(state string) {
 
 // Retrieves the current term of the server.
 func (s *server) Term() uint64 {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	return s.currentTerm
 }
 
 // Retrieves the current commit index of the server.
 func (s *server) CommitIndex() uint64 {
+	s.log.mutex.RLock()
+	defer s.log.mutex.RUnlock()
 	return s.log.commitIndex
 }
 
@@ -375,7 +379,7 @@ func init() {
 
 func (s *server) Start() error {
 	// Exit if the server is already running.
-	if s.state != Stopped {
+	if s.State() != Stopped {
 		return errors.New("raft.Server: Server already running")
 	}
 
@@ -866,7 +870,7 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 
 	// If we find a higher term then change to a follower and exit.
-	if resp.Term > s.currentTerm {
+	if resp.Term > s.Term() {
 		s.setCurrentTerm(resp.Term, "", false)
 		return
 	}
@@ -937,7 +941,7 @@ func (s *server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
 func (s *server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVoteResponse, bool) {
 
 	// If the request is coming from an old term then reject it.
-	if req.Term < s.currentTerm {
+	if req.Term < s.Term() {
 		s.debugln("server.rv.error: stale term")
 		return newRequestVoteResponse(s.currentTerm, false), false
 	}
@@ -1317,7 +1321,7 @@ func (s *server) readConf() error {
 //--------------------------------------
 
 func (s *server) debugln(v ...interface{}) {
-	debugf("[%s Term:%d] %s", s.name, s.currentTerm, fmt.Sprintln(v...))
+	debugf("[%s Term:%d] %s", s.name, s.Term(), fmt.Sprintln(v...))
 }
 
 func (s *server) traceln(v ...interface{}) {

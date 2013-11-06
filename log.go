@@ -473,8 +473,7 @@ func (l *Log) truncate(index uint64, term uint64) error {
 // Append
 //--------------------------------------
 
-// Appends a series of entries to the log. These entries are not written to
-// disk until setCommitIndex() is called.
+// Appends a series of entries to the log.
 func (l *Log) appendEntries(entries []*LogEntry) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
@@ -495,14 +494,20 @@ func (l *Log) appendEntries(entries []*LogEntry) error {
 		startPosition += size
 	}
 	w.Flush()
+	err = l.file.Sync()
+
+	if err != nil {
+		panic(err)
+	}
 
 	return nil
 }
 
-// Writes a single log entry to the end of the log. This function does not
-// obtain a lock and should only be used internally. Use AppendEntries() and
-// AppendEntry() to use it externally.
+// Writes a single log entry to the end of the log.
 func (l *Log) appendEntry(entry *LogEntry) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
 	if l.file == nil {
 		return errors.New("raft.Log: Log is not open")
 	}
