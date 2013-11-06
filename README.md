@@ -18,7 +18,7 @@ See the [list of libraries for different langauges](http://influxdb.org/docs/lib
 
 The second step should build the server and run the tests.
 
-Note: if you're on Mac OS Maverick, you might want to try to install go using `brew install go --devel`
+Note: if you're on Mac OS Mavericks, you might want to try to install go using `brew install go --devel`
 
 ### Linux
 
