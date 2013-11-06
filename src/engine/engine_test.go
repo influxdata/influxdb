@@ -1,6 +1,7 @@
 package engine
 
 import (
+	. "checkers"
 	"common"
 	"encoding/json"
 	"fmt"
@@ -78,21 +79,10 @@ func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
 }
 
 func runQueryExtended(engine EngineI, query string, c *C, appendPoints bool, expectedSeries string) {
-
-	var result []*protocol.Series
-	err := engine.RunQuery(nil, "", query, func(series *protocol.Series) error {
-		if appendPoints && result != nil {
-			result[0].Points = append(result[0].Points, series.Points...)
-		} else {
-			result = append(result, series)
-		}
-		return nil
-	})
-
-	c.Assert(err, IsNil)
-
 	series, err := common.StringToSeriesArray(expectedSeries)
 	c.Assert(err, IsNil)
+
+	result := runQueryWithoutChecking(engine, query, c, appendPoints)
 
 	if !reflect.DeepEqual(result, series) {
 		resultData, _ := json.MarshalIndent(result, "", "  ")
@@ -104,6 +94,21 @@ func runQueryExtended(engine EngineI, query string, c *C, appendPoints bool, exp
 	}
 
 	c.Assert(result, DeepEquals, series)
+}
+
+func runQueryWithoutChecking(engine EngineI, query string, c *C, appendPoints bool) []*protocol.Series {
+	var result []*protocol.Series
+	err := engine.RunQuery(nil, "", query, func(series *protocol.Series) error {
+		if appendPoints && result != nil {
+			result[0].Points = append(result[0].Points, series.Points...)
+		} else {
+			result = append(result, series)
+		}
+		return nil
+	})
+
+	c.Assert(err, IsNil)
+	return result
 }
 
 // All tests do more or less the following steps
@@ -826,26 +831,50 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
   ]`)
 }
 
-func (self *EngineSuite) TestDerivativeQuery(c *C) {
+func (self *EngineSuite) TestStddevQuery(c *C) {
 	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381347701000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381347702000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381347703000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381347704000000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700500000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381347701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381347702000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381347703000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": ["column_one"]
     }
   ]`)
 
-	runQuery(engine, "select derivative(column_one) from foo;", c, `[
+	result := runQueryWithoutChecking(engine, "select stddev(column_one) from foo group by time(2s);", c, false)
+	c.Assert(result, HasLen, 1)
+	c.Assert(*result[0].Name, Equals, "foo")
+	c.Assert(result[0].Fields, DeepEquals, []string{"stddev"})
+	c.Assert(result[0].Points, HasLen, 2)
+	c.Assert(*result[0].Points[0].Values[0].DoubleValue, InRange, 0.4714, 0.4715)
+	c.Assert(*result[0].Points[1].Values[0].DoubleValue, InRange, 0.9999, 1.0001)
+}
+
+func (self *EngineSuite) TestDerivativeQuery(c *C) {
+	engine := createEngine(c, `[
     {
       "points": [
-        { "values": [{ "double_value": 1 } ], "timestamp": 1381347704000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 4 } ], "timestamp": 1381347704000000, "sequence_number": 1 },
-        { "values": [{ "double_value": -2 }], "timestamp": 1381347704000000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700500000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381347701000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381347702000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381347703000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["column_one"]
+    }
+  ]`)
+
+	runQuery(engine, "select derivative(column_one) from foo group by time(2s);", c, `[
+    {
+      "points": [
+        { "values": [{ "double_value": 1 } ], "timestamp": 1381347700000000, "sequence_number": 1 },
+        { "values": [{ "double_value": -2 }], "timestamp": 1381347702000000, "sequence_number": 1 }
       ],
       "name": "foo",
       "fields": ["derivative"]
