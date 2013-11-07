@@ -34,13 +34,13 @@ function packae_source {
     echo "build/*" >> /tmp/influxdb.ignored
     echo "out_rpm/*" >> /tmp/influxdb.ignored
     tar_file=influxdb-$influxdb_version.src.tar.gz
-    tar -cvzf packages/$tar_file --exclude-vcs -X /tmp/influxdb.ignored *
+    tar -czf packages/$tar_file --exclude-vcs -X /tmp/influxdb.ignored *
     pushd packages
     # put all files in influxdb
     mkdir influxdb
-    tar -xvzf $tar_file -C influxdb
+    tar -xzf $tar_file -C influxdb
     rm $tar_file
-    tar -cvzf $tar_file influxdb
+    tar -czf $tar_file influxdb
     popd
 }
 
