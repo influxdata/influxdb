@@ -4,7 +4,7 @@ cd `dirname $0`
 
 export GOPATH=`pwd`
 
-if [ "x$GOROOT" == 'x' -a -d $HOME/go ]; then
+if [ "x$GOROOT" = 'x' -a -d $HOME/go ]; then
     export GOROOT=$HOME/go
 fi
 
@@ -33,7 +33,7 @@ elif [ "x$CC" == "x" -a `uname -v | cut -d' ' -f4` = "13.0.0:" ]; then
     export CC=gcc-4.2
 fi
 
-if [ "x$PYTHONPATH" == x -a $on_linux != yes ]; then
+if [ "x$PYTHONPATH" = x -a $on_linux != yes ]; then
     PYTHONPATH=/usr/local/lib/python2.7/site-packages/:$PYTHONPATH
 fi
 

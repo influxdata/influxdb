@@ -119,6 +119,10 @@ func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, usern
 		return fmt.Errorf("Insufficient permissions")
 	}
 
+	if username == "" {
+		return fmt.Errorf("Username cannot be empty")
+	}
+
 	if self.clusterConfiguration.clusterAdmins[username] != nil {
 		return fmt.Errorf("User %s already exists", username)
 	}
@@ -157,6 +161,10 @@ func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, u
 func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return fmt.Errorf("Insufficient permissions")
+	}
+
+	if username == "" {
+		return fmt.Errorf("Username cannot be empty")
 	}
 
 	self.clusterConfiguration.CreateDatabase(db) // ignore the error since the db may exist

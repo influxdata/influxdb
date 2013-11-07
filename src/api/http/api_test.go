@@ -384,7 +384,13 @@ func (self *ApiSuite) TestDropDatabase(c *C) {
 
 func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 	url := self.formatUrl("/cluster_admins?u=root&p=root")
-	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"new_user", "password": "new_pass"}`))
+	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"", "password": "new_pass"}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
+
+	url = self.formatUrl("/cluster_admins?u=root&p=root")
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"username":"new_user", "password": "new_pass"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
@@ -407,7 +413,6 @@ func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 	c.Assert(self.manager.ops[0].password, Equals, "new_password")
 	self.manager.ops = nil
 
-	url = self.formatUrl("/cluster_admins/new_user?u=root&p=root")
 	req, _ := libhttp.NewRequest("DELETE", url, nil)
 	resp, err = libhttp.DefaultClient.Do(req)
 	c.Assert(err, IsNil)
@@ -442,6 +447,12 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	c.Assert(self.manager.ops[0].username, Equals, "new_user")
 	c.Assert(self.manager.ops[0].password, Equals, "new_password")
 	self.manager.ops = nil
+
+	url = self.formatUrl("/db/db1/users?u=root&p=root")
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"username":"", "password": "new_pass"}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
 
 	// set and unset the db admin flag
 	url = self.formatUrl("/db/db1/admins/new_user?u=root&p=root")

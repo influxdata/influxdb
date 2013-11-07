@@ -295,6 +295,7 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 
 	// Can create other cluster admin
 	c.Assert(coordinator.CreateClusterAdminUser(root, "another_cluster_admin"), IsNil)
+	c.Assert(coordinator.CreateClusterAdminUser(root, ""), NotNil)
 	c.Assert(coordinator.ChangeClusterAdminPassword(root, "another_cluster_admin", "pass"), IsNil)
 	u, err := coordinator.AuthenticateClusterAdmin("another_cluster_admin", "pass")
 	c.Assert(err, IsNil)
@@ -307,6 +308,7 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 
 	// can create db users
 	c.Assert(coordinator.CreateDbUser(root, "db1", "db_user"), IsNil)
+	c.Assert(coordinator.CreateDbUser(root, "db1", ""), NotNil)
 	c.Assert(coordinator.ChangeDbUserPassword(root, "db1", "db_user", "db_pass"), IsNil)
 	u, err = coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
 	c.Assert(err, IsNil)

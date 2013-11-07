@@ -544,6 +544,11 @@ func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 
 	self.tryAsClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		if err := self.userManager.CreateClusterAdminUser(u, newUser.Name); err != nil {
+			errorStr := err.Error()
+			if strings.Contains(errorStr, "empty") {
+				return libhttp.StatusBadRequest, errorStr
+			}
+
 			return libhttp.StatusUnauthorized, err.Error()
 		}
 		if err := self.userManager.ChangeClusterAdminPassword(u, newUser.Name, newUser.Password); err != nil {
@@ -664,7 +669,12 @@ func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		if err := self.userManager.CreateDbUser(u, db, newUser.Name); err != nil {
-			return libhttp.StatusUnauthorized, err.Error()
+			errorStr := err.Error()
+			if strings.Contains(errorStr, "empty") {
+				return libhttp.StatusBadRequest, errorStr
+			}
+
+			return libhttp.StatusUnauthorized, errorStr
 		}
 		if err := self.userManager.ChangeDbUserPassword(u, db, newUser.Name, newUser.Password); err != nil {
 			return libhttp.StatusUnauthorized, err.Error()
