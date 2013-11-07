@@ -26,6 +26,7 @@ Note: if you're on Mac OS Mavericks, you might want to try to install go using `
 - Make sure go is on your PATH
 - If you're on a redhat based distro `sudo yum install hg bzr protobuf-compiler flex bison`
 - If you're on a debian based distro `sudo apt-get install hg bzr protobuf-compiler flex bison`
+- If you're on ubuntu `sudo apt-get install mercurial bzr protobuf-compiler flex bison valgrind libleveldb-dev`
 - Run `./test.sh`
 
 The last step should build the server and run the tests.
