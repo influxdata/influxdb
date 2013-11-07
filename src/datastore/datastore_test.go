@@ -761,3 +761,38 @@ func (self *DatastoreSuite) TestCheckWriteAccess(c *C) {
 	c.Assert(resultSeries, HasLen, 1)
 	c.Assert(resultSeries[0], DeepEquals, otherSeries)
 }
+
+func (self *DatastoreSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWithout(c *C) {
+	mock := `
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 3
+          }
+        ]
+      }
+    ],
+    "name": "foo",
+    "fields": ["value"]
+  }`
+	series := &protocol.Series{}
+	err := json.Unmarshal([]byte(mock), &series)
+	c.Assert(err, IsNil)
+
+	cleanup(nil)
+	db := newDatastore(c)
+
+	beforeTime := common.CurrentTime()
+	db.WriteSeriesData("foo", series)
+	afterTime := common.CurrentTime()
+	c.Assert(*series.Points[0].SequenceNumber, Equals, uint32(1))
+	t := *series.Points[0].Timestamp
+	c.Assert(t, InRange, beforeTime, afterTime)
+
+	db.Close()
+	db = newDatastore(c)
+	defer cleanup(db)
+	c.Assert(db.CurrentSequenceNumber(), Equals, uint32(1))
+}

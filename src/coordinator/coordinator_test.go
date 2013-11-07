@@ -1,7 +1,6 @@
 package coordinator
 
 import (
-	. "checkers"
 	. "common"
 	"datastore"
 	"encoding/json"
@@ -54,6 +53,10 @@ func (self *DatastoreMock) WriteSeriesData(database string, series *protocol.Ser
 func (self *DatastoreMock) DropDatabase(database string) error {
 	self.DroppedDatabase = database
 	return nil
+}
+
+func (self *DatastoreMock) CurrentSequenceNumber() uint32 {
+	return uint32(1)
 }
 
 func stringToSeries(seriesString string, c *C) *protocol.Series {
@@ -523,44 +526,6 @@ func (self *CoordinatorSuite) TestCanDropDatabaseWithName(c *C) {
 	c.Assert(err, ErrorMatches, ".*db3 doesn't exist.*")
 	err = servers[2].DropDatabase("db3")
 	c.Assert(err, ErrorMatches, ".*db3 doesn't exist.*")
-}
-
-func (self *CoordinatorSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWithout(c *C) {
-	datastoreMock := &DatastoreMock{}
-	coordinator := NewCoordinatorImpl(datastoreMock, nil, nil)
-	mock := `
-  {
-    "points": [
-      {
-        "values": [
-          {
-            "int64_value": 3
-          }
-        ],
-        "sequence_number": 1,
-        "timestamp": 23423
-      }
-    ],
-    "name": "foo",
-    "fields": ["value"]
-  }`
-	series := stringToSeries(mock, c)
-	user := &MockUser{}
-	coordinator.WriteSeriesData(user, "foo", series)
-	c.Assert(datastoreMock.Series, DeepEquals, series)
-	mock = `{
-    "points": [{"values": [{"int64_value": 3}]}],
-    "name": "foo",
-    "fields": ["value"]
-  }`
-	series = stringToSeries(mock, c)
-	beforeTime := CurrentTime()
-	coordinator.WriteSeriesData(user, "foo", series)
-	afterTime := CurrentTime()
-	c.Assert(datastoreMock.Series, Not(DeepEquals), stringToSeries(mock, c))
-	c.Assert(*datastoreMock.Series.Points[0].SequenceNumber, Equals, uint32(1))
-	t := *datastoreMock.Series.Points[0].Timestamp
-	c.Assert(t, InRange, beforeTime, afterTime)
 }
 
 func (self *CoordinatorSuite) TestCheckReadAccess(c *C) {

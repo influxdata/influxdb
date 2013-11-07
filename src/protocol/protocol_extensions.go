@@ -1,16 +1,17 @@
 package protocol
 
 import (
+	"bytes"
 	"code.google.com/p/goprotobuf/proto"
 )
 
-func UnmarshalPoint(data []byte) (point *Point, err error) {
+func DecodePoint(buff *bytes.Buffer) (point *Point, err error) {
 	point = &Point{}
-	err = proto.Unmarshal(data, point)
+	err = proto.Unmarshal(buff.Bytes(), point)
 	return
 }
 
-func MarshalPoint(point *Point) (data []byte, err error) {
+func (point *Point) Encode() (data []byte, err error) {
 	return proto.Marshal(point)
 }
 
@@ -50,4 +51,24 @@ func (self *Point) GetFieldValue(idx int) interface{} {
 		return nil
 	}
 	return v.GetValue()
+}
+
+func DecodeRequest(buff *bytes.Buffer) (request *Request, err error) {
+	request = &Request{}
+	err = proto.Unmarshal(buff.Bytes(), request)
+	return
+}
+
+func (self *Request) Encode() (data []byte, err error) {
+	return proto.Marshal(self)
+}
+
+func DecodeResponse(buff *bytes.Buffer) (response *Response, err error) {
+	response = &Response{}
+	err = proto.Unmarshal(buff.Bytes(), response)
+	return
+}
+
+func (self *Response) Encode() (data []byte, err error) {
+	return proto.Marshal(self)
 }

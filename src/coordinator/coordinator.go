@@ -6,15 +6,12 @@ import (
 	"fmt"
 	"parser"
 	"protocol"
-	"sync"
 )
 
 type CoordinatorImpl struct {
-	clusterConfiguration  *ClusterConfiguration
-	raftServer            ClusterConsensus
-	datastore             datastore.Datastore
-	currentSequenceNumber uint32
-	sequenceNumberLock    sync.Mutex
+	clusterConfiguration *ClusterConfiguration
+	raftServer           ClusterConsensus
+	datastore            datastore.Datastore
 }
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
@@ -34,23 +31,6 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
 
-	now := common.CurrentTime()
-	for _, p := range series.Points {
-		if p.Timestamp == nil {
-			p.Timestamp = &now
-			self.sequenceNumberLock.Lock()
-			self.currentSequenceNumber += 1
-			n := self.currentSequenceNumber
-			self.sequenceNumberLock.Unlock()
-			p.SequenceNumber = &n
-		} else if p.SequenceNumber == nil {
-			self.sequenceNumberLock.Lock()
-			self.currentSequenceNumber += 1
-			n := self.currentSequenceNumber
-			self.sequenceNumberLock.Unlock()
-			p.SequenceNumber = &n
-		}
-	}
 	return self.datastore.WriteSeriesData(db, series)
 }
 

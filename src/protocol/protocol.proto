@@ -9,8 +9,8 @@ message FieldValue {
 
 message Point {
   repeated FieldValue values = 1;
-  required int64 timestamp = 2;
-  required uint32 sequence_number = 3;
+  optional int64 timestamp = 2;
+  optional uint32 sequence_number = 3;
 }
 
 message Series {
@@ -22,11 +22,16 @@ message Series {
 message Request {
   enum Type {
     QUERY = 1;
-    WRITE = 2;
-    GET_SERVERS = 3;
+    REPLICATION_WRITE = 2;
+    PROXY_WRITE = 3;
+    REPLICATION_DELETE = 4;
+    PROXY_DELETE = 5;
   }
-  required int32 id = 1;
+  required uint32 id = 1;
   required Type type = 2;
+  required string database = 3;
+  optional Series series = 4;
+  optional string query = 5;
 }
 
 message Response {
@@ -35,7 +40,12 @@ message Response {
     WRITE_OK = 2;
     END_STREAM = 3;
   }
-  required int32 id = 1;
-  optional Series series = 2;
-  repeated string servers = 3;
+  enum ErrorCode {
+    REQUEST_TOO_LARGE = 1;
+  }
+  required Type type = 1;
+  required uint32 request_id = 2;
+  optional Series series = 3;
+  optional ErrorCode error_code = 4;
+  optional string error_message = 5;
 }

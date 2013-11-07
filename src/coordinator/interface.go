@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"common"
+	"net"
 	"parser"
 	"protocol"
 )
@@ -72,6 +73,12 @@ type ClusterConsensus interface {
 	// server. The replacement must have a state of "Potential" for this to work.
 	ReplaceServer(oldServer *ClusterServer, replacement *ClusterServer) error
 
+	ReplicateWrite(request *protocol.Request) error
+
 	// When a cluster is turned on for the first time.
 	CreateRootUser() error
+}
+
+type RequestHandler interface {
+	HandleRequest(request *protocol.Request, conn net.Conn) error
 }

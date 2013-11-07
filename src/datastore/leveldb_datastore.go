@@ -18,11 +18,13 @@ import (
 )
 
 type LevelDbDatastore struct {
-	db            *levigo.DB
-	lastIdUsed    uint64
-	columnIdMutex sync.Mutex
-	readOptions   *levigo.ReadOptions
-	writeOptions  *levigo.WriteOptions
+	db                    *levigo.DB
+	lastIdUsed            uint64
+	columnIdMutex         sync.Mutex
+	readOptions           *levigo.ReadOptions
+	writeOptions          *levigo.WriteOptions
+	sequenceNumberLock    sync.Mutex
+	currentSequenceNumber uint32
 }
 
 type Field struct {
@@ -47,6 +49,7 @@ const (
 
 var (
 	NEXT_ID_KEY                  = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	SEQUENCE_NUMBER_KEY          = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD}
 	SERIES_COLUMN_INDEX_PREFIX   = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE}
 	DATABASE_SERIES_INDEX_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 	MAX_TIMESTAMP_AND_SEQUENCE   = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
@@ -82,14 +85,29 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 		}
 	}
 
+	// read whatever the current sequence number for points is on this server
+	currentSequencceNumber := uint32(0)
+	currentSequenceNumberBytes, err := db.Get(ro, SEQUENCE_NUMBER_KEY)
+	if err != nil {
+		return nil, err
+	}
+	if currentSequenceNumberBytes != nil {
+		binary.Read(bytes.NewBuffer(currentSequenceNumberBytes), binary.BigEndian, &currentSequencceNumber)
+	}
+
 	wo := levigo.NewWriteOptions()
 
-	return &LevelDbDatastore{db: db, lastIdUsed: lastId, readOptions: ro, writeOptions: wo}, nil
+	return &LevelDbDatastore{db: db, lastIdUsed: lastId, readOptions: ro, writeOptions: wo, currentSequenceNumber: currentSequencceNumber}, nil
 }
 
 func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.Series) error {
 	wb := levigo.NewWriteBatch()
 	defer wb.Close()
+	now := common.CurrentTime()
+	if series == nil || len(series.Points) == 0 {
+		return errors.New("Unable to write no data. Series was nil or had no points.")
+	}
+	startingSequenceNumber := self.currentSequenceNumber
 	for fieldIndex, field := range series.Fields {
 		temp := field
 		id, _, err := self.getIdForDbSeriesColumn(&database, series.Name, &temp)
@@ -97,6 +115,16 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 			return err
 		}
 		for _, point := range series.Points {
+			if point.Timestamp == nil {
+				point.Timestamp = &now
+			}
+			if point.SequenceNumber == nil {
+				self.sequenceNumberLock.Lock()
+				nextNumber := self.currentSequenceNumber + 1
+				self.currentSequenceNumber = self.currentSequenceNumber + 1
+				self.sequenceNumberLock.Unlock()
+				point.SequenceNumber = &nextNumber
+			}
 			timestampBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 			sequenceNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 			binary.Write(timestampBuffer, binary.BigEndian, self.convertTimestampToUint(point.GetTimestampInMicroseconds()))
@@ -108,6 +136,13 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 			}
 			wb.Put(pointKey, data)
 		}
+	}
+	if startingSequenceNumber != self.currentSequenceNumber {
+		self.sequenceNumberLock.Lock()
+		defer self.sequenceNumberLock.Unlock()
+		currentSequenceNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+		binary.Write(currentSequenceNumberBuffer, binary.BigEndian, uint32(self.currentSequenceNumber))
+		wb.Put(SEQUENCE_NUMBER_KEY, currentSequenceNumberBuffer.Bytes())
 	}
 	return self.db.Write(self.writeOptions, wb)
 }
@@ -193,6 +228,10 @@ func (self *LevelDbDatastore) Close() {
 	self.readOptions = nil
 	self.writeOptions.Close()
 	self.writeOptions = nil
+}
+
+func (self *LevelDbDatastore) CurrentSequenceNumber() uint32 {
+	return self.currentSequenceNumber
 }
 
 func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, startTimeBytes, endTimeBytes []byte) error {

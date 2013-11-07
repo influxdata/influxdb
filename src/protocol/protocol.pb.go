@@ -16,20 +16,26 @@ var _ = math.Inf
 type Request_Type int32
 
 const (
-	Request_QUERY       Request_Type = 1
-	Request_WRITE       Request_Type = 2
-	Request_GET_SERVERS Request_Type = 3
+	Request_QUERY              Request_Type = 1
+	Request_REPLICATION_WRITE  Request_Type = 2
+	Request_PROXY_WRITE        Request_Type = 3
+	Request_REPLICATION_DELETE Request_Type = 4
+	Request_PROXY_DELETE       Request_Type = 5
 )
 
 var Request_Type_name = map[int32]string{
 	1: "QUERY",
-	2: "WRITE",
-	3: "GET_SERVERS",
+	2: "REPLICATION_WRITE",
+	3: "PROXY_WRITE",
+	4: "REPLICATION_DELETE",
+	5: "PROXY_DELETE",
 }
 var Request_Type_value = map[string]int32{
-	"QUERY":       1,
-	"WRITE":       2,
-	"GET_SERVERS": 3,
+	"QUERY":              1,
+	"REPLICATION_WRITE":  2,
+	"PROXY_WRITE":        3,
+	"REPLICATION_DELETE": 4,
+	"PROXY_DELETE":       5,
 }
 
 func (x Request_Type) Enum() *Request_Type {
@@ -39,6 +45,9 @@ func (x Request_Type) Enum() *Request_Type {
 }
 func (x Request_Type) String() string {
 	return proto.EnumName(Request_Type_name, int32(x))
+}
+func (x Request_Type) MarshalJSON() ([]byte, error) {
+	return json.Marshal(x.String())
 }
 func (x *Request_Type) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Request_Type_value, data, "Request_Type")
@@ -76,12 +85,48 @@ func (x Response_Type) Enum() *Response_Type {
 func (x Response_Type) String() string {
 	return proto.EnumName(Response_Type_name, int32(x))
 }
+func (x Response_Type) MarshalJSON() ([]byte, error) {
+	return json.Marshal(x.String())
+}
 func (x *Response_Type) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Response_Type_value, data, "Response_Type")
 	if err != nil {
 		return err
 	}
 	*x = Response_Type(value)
+	return nil
+}
+
+type Response_ErrorCode int32
+
+const (
+	Response_REQUEST_TOO_LARGE Response_ErrorCode = 1
+)
+
+var Response_ErrorCode_name = map[int32]string{
+	1: "REQUEST_TOO_LARGE",
+}
+var Response_ErrorCode_value = map[string]int32{
+	"REQUEST_TOO_LARGE": 1,
+}
+
+func (x Response_ErrorCode) Enum() *Response_ErrorCode {
+	p := new(Response_ErrorCode)
+	*p = x
+	return p
+}
+func (x Response_ErrorCode) String() string {
+	return proto.EnumName(Response_ErrorCode_name, int32(x))
+}
+func (x Response_ErrorCode) MarshalJSON() ([]byte, error) {
+	return json.Marshal(x.String())
+}
+func (x *Response_ErrorCode) UnmarshalJSON(data []byte) error {
+	value, err := proto.UnmarshalJSONEnum(Response_ErrorCode_value, data, "Response_ErrorCode")
+	if err != nil {
+		return err
+	}
+	*x = Response_ErrorCode(value)
 	return nil
 }
 
@@ -127,8 +172,8 @@ func (m *FieldValue) GetInt64Value() int64 {
 
 type Point struct {
 	Values           []*FieldValue `protobuf:"bytes,1,rep,name=values" json:"values,omitempty"`
-	Timestamp        *int64        `protobuf:"varint,2,req,name=timestamp" json:"timestamp,omitempty"`
-	SequenceNumber   *uint32       `protobuf:"varint,3,req,name=sequence_number" json:"sequence_number,omitempty"`
+	Timestamp        *int64        `protobuf:"varint,2,opt,name=timestamp" json:"timestamp,omitempty"`
+	SequenceNumber   *uint32       `protobuf:"varint,3,opt,name=sequence_number" json:"sequence_number,omitempty"`
 	XXX_unrecognized []byte        `json:"-"`
 }
 
@@ -190,8 +235,11 @@ func (m *Series) GetFields() []string {
 }
 
 type Request struct {
-	Id               *int32        `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
+	Id               *uint32       `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
 	Type             *Request_Type `protobuf:"varint,2,req,name=type,enum=protocol.Request_Type" json:"type,omitempty"`
+	Database         *string       `protobuf:"bytes,3,req,name=database" json:"database,omitempty"`
+	Series           *Series       `protobuf:"bytes,4,opt,name=series" json:"series,omitempty"`
+	Query            *string       `protobuf:"bytes,5,opt,name=query" json:"query,omitempty"`
 	XXX_unrecognized []byte        `json:"-"`
 }
 
@@ -199,7 +247,7 @@ func (m *Request) Reset()         { *m = Request{} }
 func (m *Request) String() string { return proto.CompactTextString(m) }
 func (*Request) ProtoMessage()    {}
 
-func (m *Request) GetId() int32 {
+func (m *Request) GetId() uint32 {
 	if m != nil && m.Id != nil {
 		return *m.Id
 	}
@@ -213,20 +261,50 @@ func (m *Request) GetType() Request_Type {
 	return Request_QUERY
 }
 
+func (m *Request) GetDatabase() string {
+	if m != nil && m.Database != nil {
+		return *m.Database
+	}
+	return ""
+}
+
+func (m *Request) GetSeries() *Series {
+	if m != nil {
+		return m.Series
+	}
+	return nil
+}
+
+func (m *Request) GetQuery() string {
+	if m != nil && m.Query != nil {
+		return *m.Query
+	}
+	return ""
+}
+
 type Response struct {
-	Id               *int32   `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
-	Series           *Series  `protobuf:"bytes,2,opt,name=series" json:"series,omitempty"`
-	Servers          []string `protobuf:"bytes,3,rep,name=servers" json:"servers,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Type             *Response_Type      `protobuf:"varint,1,req,name=type,enum=protocol.Response_Type" json:"type,omitempty"`
+	RequestId        *uint32             `protobuf:"varint,2,req,name=request_id" json:"request_id,omitempty"`
+	Series           *Series             `protobuf:"bytes,3,opt,name=series" json:"series,omitempty"`
+	ErrorCode        *Response_ErrorCode `protobuf:"varint,4,opt,name=error_code,enum=protocol.Response_ErrorCode" json:"error_code,omitempty"`
+	ErrorMessage     *string             `protobuf:"bytes,5,opt,name=error_message" json:"error_message,omitempty"`
+	XXX_unrecognized []byte              `json:"-"`
 }
 
 func (m *Response) Reset()         { *m = Response{} }
 func (m *Response) String() string { return proto.CompactTextString(m) }
 func (*Response) ProtoMessage()    {}
 
-func (m *Response) GetId() int32 {
-	if m != nil && m.Id != nil {
-		return *m.Id
+func (m *Response) GetType() Response_Type {
+	if m != nil && m.Type != nil {
+		return *m.Type
+	}
+	return Response_QUERY
+}
+
+func (m *Response) GetRequestId() uint32 {
+	if m != nil && m.RequestId != nil {
+		return *m.RequestId
 	}
 	return 0
 }
@@ -238,14 +316,22 @@ func (m *Response) GetSeries() *Series {
 	return nil
 }
 
-func (m *Response) GetServers() []string {
-	if m != nil {
-		return m.Servers
+func (m *Response) GetErrorCode() Response_ErrorCode {
+	if m != nil && m.ErrorCode != nil {
+		return *m.ErrorCode
 	}
-	return nil
+	return Response_REQUEST_TOO_LARGE
+}
+
+func (m *Response) GetErrorMessage() string {
+	if m != nil && m.ErrorMessage != nil {
+		return *m.ErrorMessage
+	}
+	return ""
 }
 
 func init() {
 	proto.RegisterEnum("protocol.Request_Type", Request_Type_name, Request_Type_value)
 	proto.RegisterEnum("protocol.Response_Type", Response_Type_name, Response_Type_value)
+	proto.RegisterEnum("protocol.Response_ErrorCode", Response_ErrorCode_name, Response_ErrorCode_value)
 }

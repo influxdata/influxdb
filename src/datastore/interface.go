@@ -15,4 +15,5 @@ type Datastore interface {
 	DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error
 	DeleteRangeOfRegex(user common.User, database string, regex *regexp.Regexp, startTime, endTime time.Time) error
 	Close()
+	CurrentSequenceNumber() uint32
 }

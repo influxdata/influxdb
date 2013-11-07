@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"protocol"
 	"strings"
 	"sync"
 	"time"
@@ -144,6 +145,21 @@ func (s *RaftServer) SaveClusterAdminUser(u *clusterAdmin) error {
 	command := NewSaveClusterAdminCommand(u)
 	_, err := s.doOrProxyCommand(command, "save_cluster_admin_user")
 	return err
+}
+
+func (s *RaftServer) ReplicateWrite(request *protocol.Request) error {
+	// requests for replication should already have their times and sequence numbers set
+	if request.Series == nil {
+		return errors.New("Only requests with a series get write replicated")
+	}
+	for _, point := range request.Series.Points {
+		if point.Timestamp == nil || point.SequenceNumber == nil {
+			return errors.New("Points must have times and sequence numbers to be replicated")
+		}
+	}
+
+	// TODO: implement this
+	return nil
 }
 
 func (s *RaftServer) CreateRootUser() error {
