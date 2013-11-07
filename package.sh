@@ -74,7 +74,8 @@ function package_files {
     # the tar file should use "./assets" but the deb and rpm packages should use "/opt/influxdb/current/admin"
     mv build/config.json.sample build/config.json
     sed -i.bak -e 's/"AdminAssetsDir.*/"AdminAssetsDir": "\/opt\/influxdb\/current\/admin\/",/' build/config.json
-    rm build/config.json.bak
+    rm build/*.bak
+    rm build/scripts/*.bak
 }
 
 function build_packages {

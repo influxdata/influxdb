@@ -89,9 +89,9 @@ case $1 in
         if which start-stop-daemon > /dev/null 2>&1; then
             nohup start-stop-daemon -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config /opt/$name/shared/config.json > /dev/null 2>> /opt/$name/shared/log.txt &
         elif set | egrep '^start_daemon' > /dev/null 2>&1; then
-            start_daemon ${daemon}-daemon
+            start_daemon ${daemon}-daemon -pidfile $pidfile -config /opt/$name/shared/config.json
         else
-            sudo ${daemon}-daemon
+            sudo ${daemon}-daemon -pidfile $pidfile -config /opt/$name/shared/config.json
         fi
         log_success_msg "Anomalous agent started"
         ;;
