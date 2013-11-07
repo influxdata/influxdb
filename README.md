@@ -36,7 +36,7 @@ Note: If you are on Mac OS X Mavericks, you might want to try to install go usin
 - If you're on a Red Hat-based distro: 
 
 ``` bash
-sudo yum install hg bzr protobuf-compiler flex bison
+sudo yum install hg bzr protobuf-compiler flex bison valgrind
 ```
 
 - If you're on a Debian-based distro:
