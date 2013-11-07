@@ -4,7 +4,7 @@ cd `dirname $0`
 
 export GOPATH=`pwd`
 
-if [ -d $HOME/go ]; then
+if [ "x$GOROOT" == 'x' -a -d $HOME/go ]; then
     export GOROOT=$HOME/go
 fi
 
