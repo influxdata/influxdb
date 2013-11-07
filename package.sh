@@ -123,5 +123,5 @@ function revert_version {
 setup_version
 packae_source
 UPDATE=on ./build.sh && package_files amd64 && build_packages amd64
-revert_version
 [ $on_linux == yes ] && CGO_ENABLED=1 GOARCH=386 UPDATE=on ./build.sh && package_files 386 && build_packages 386
+revert_version
