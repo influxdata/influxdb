@@ -69,6 +69,7 @@ func (self *Server) WriteData(data interface{}) error {
 	}
 	return nil
 }
+
 func (self *Server) RunQuery(query string) ([]byte, error) {
 	encodedQuery := url.QueryEscape(query)
 	resp, err := http.Get(fmt.Sprintf("http://localhost:8086/db/db1/series?u=user&p=pass&q=%s", encodedQuery))
@@ -207,6 +208,25 @@ func (self *IntegrationSuite) TestWriting(c *C) {
 	}
 
 	self.writeData(c)
+}
+
+func (self *IntegrationSuite) TestMedians(c *C) {
+	for i := 0; i < 3; i++ {
+		err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_medians",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10))
+		c.Assert(err, IsNil)
+		time.Sleep(1 * time.Second)
+	}
+	bs, err := self.server.RunQuery("select median(cpu) from test_medians group by host;")
+	c.Assert(err, IsNil)
+	fmt.Printf(string(bs))
 }
 
 func (self *IntegrationSuite) TestReading(c *C) {
