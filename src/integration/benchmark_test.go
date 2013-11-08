@@ -134,12 +134,12 @@ func (self *IntegrationSuite) createUser() error {
 	return nil
 }
 
-var cleanData = flag.Bool("clean-data", false, "Clean data before running the benchmark tests")
+var noCleanData = flag.Bool("no-clean-data", true, "Clean data before running the benchmark tests")
 var wroteData = true
 
 func (self *IntegrationSuite) SetUpSuite(c *C) {
 
-	if *cleanData {
+	if !*noCleanData {
 		wroteData = false
 		err := os.RemoveAll("/tmp/influxdb")
 		c.Assert(err, IsNil)
@@ -149,7 +149,7 @@ func (self *IntegrationSuite) SetUpSuite(c *C) {
 	err := self.server.start()
 	c.Assert(err, IsNil)
 
-	if *cleanData {
+	if !*noCleanData {
 		err = self.createUser()
 		c.Assert(err, IsNil)
 	}
