@@ -134,7 +134,7 @@ func (self *IntegrationSuite) createUser() error {
 	return nil
 }
 
-var noCleanData = flag.Bool("no-clean-data", true, "Clean data before running the benchmark tests")
+var noCleanData = flag.Bool("no-clean-data", false, "Clean data before running the benchmark tests")
 var wroteData = true
 
 func (self *IntegrationSuite) SetUpSuite(c *C) {
