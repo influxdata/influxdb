@@ -60,7 +60,13 @@
 #### Features
 
 - Add stddev(...) support
+- Better docs, thanks @auxesis and @d-snp.
+- Return an error if an empty username was given when creating a new user.
 
 #### Bugfixes
 
 - set CC and PYTHONPATH for mac os users if they aren't set.
+- Set PYTHONPATH and CC appropriately on mac os x.
+- Fix the 386 rpm and debian packages init scripts.
+- Don't set goroot if it was already set. #22
+- Fix queries that use the median aggregator. #25
