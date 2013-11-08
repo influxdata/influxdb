@@ -4,6 +4,7 @@ import (
 	. "checkers"
 	"common"
 	"encoding/json"
+	"fmt"
 	. "launchpad.net/gocheck"
 	"os"
 	"parser"
@@ -66,6 +67,39 @@ func executeQuery(user common.User, database, query string, db Datastore, c *C) 
 	return resultSeries
 }
 
+func (self *DatastoreSuite) TestPropagateErrorsProperly(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+	mock := `
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 3
+          }
+        ],
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": ["value"]
+  }`
+	pointTime := time.Now().Unix()
+	series := stringToSeries(mock, pointTime, c)
+	err := db.WriteSeriesData("test", series)
+	c.Assert(err, IsNil)
+	q, err := parser.ParseQuery("select value from foo;")
+	c.Assert(err, IsNil)
+	yield := func(series *protocol.Series) error {
+		return fmt.Errorf("Whatever")
+	}
+	user := &MockUser{}
+	err = db.ExecuteQuery(user, "test", q, yield)
+	c.Assert(err, ErrorMatches, "Whatever")
+}
+
 func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	cleanup(nil)
 	db := newDatastore(c)
@@ -119,6 +153,7 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	c.Assert(*resultSeries[0].Points[0].Values[0].Int64Value, Equals, int64(2))
 	c.Assert(*resultSeries[0].Points[1].Values[0].Int64Value, Equals, int64(3))
 	c.Assert(resultSeries[1].Points, HasLen, 0)
+	c.Assert(resultSeries[1].Fields, HasLen, 1)
 	c.Assert(resultSeries, Not(DeepEquals), series)
 }
 

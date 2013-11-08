@@ -340,7 +340,9 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			// check if we should send the batch along
 			if resultByteCount > MAX_SERIES_SIZE {
 				filteredResult, _ := Filter(query, result)
-				yield(filteredResult)
+				if err := yield(filteredResult); err != nil {
+					return err
+				}
 				resultByteCount = 0
 				result = &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 			}
@@ -350,10 +352,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		}
 	}
 	filteredResult, _ := Filter(query, result)
-	yield(filteredResult)
-	emptyResult := &protocol.Series{Name: &series, Points: nil}
-	yield(emptyResult)
-	return nil
+	if err := yield(filteredResult); err != nil {
+		return err
+	}
+	emptyResult := &protocol.Series{Name: &series, Fields: fieldNames, Points: nil}
+	return yield(emptyResult)
 }
 
 func (self *LevelDbDatastore) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
