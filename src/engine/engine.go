@@ -56,7 +56,6 @@ func (self *QueryEngine) distributeQuery(user common.User, database string, quer
 	}
 
 	return self.coordinator.DistributeQuery(user, database, query, yield)
-
 }
 
 func NewQueryEngine(c coordinator.Coordinator) (EngineI, error) {
