@@ -57,8 +57,6 @@ function package_files {
 
     mv server build/influxdb
 
-    cp config.json.sample build/
-
     # cp -R src/admin/site/ build/admin/
     mkdir build/admin
     cp -R $admin_dir/build/* build/admin/
@@ -72,8 +70,17 @@ function package_files {
     mv $tar_file packages/
 
     # the tar file should use "./assets" but the deb and rpm packages should use "/opt/influxdb/current/admin"
-    mv build/config.json.sample build/config.json
-    sed -i.bak -e 's/"AdminAssetsDir.*/"AdminAssetsDir": "\/opt\/influxdb\/current\/admin\/",/' build/config.json
+    cat > build/config.json <<EOF
+{
+  "AdminHttpPort":  8083,
+  "AdminAssetsDir": "/opt/influxdb/current/admin",
+  "ApiHttpPort":    8086,
+  "RaftServerPort": 8090,
+  "SeedServers":    [],
+  "DataDir":        "/opt/influxdb/shared/data/db",
+  "RaftDir":        "/opt/influxdb/shared/data/raft"
+}
+EOF
     rm build/*.bak
     rm build/scripts/*.bak
 }
