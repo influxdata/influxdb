@@ -110,14 +110,14 @@ function build_packages {
 function setup_version {
     echo "Changing version from dev to $influxdb_version"
     sha1=`git rev-list --max-count=1 HEAD`
-    sed -i.bak -e "s/version = \"dev\"/version = \"$influxdb_version\"/" -e "s/gitSha\s*=\s*\"HEAD\"/gitSha = \"$sha1\"/" src/server/influxd.go
+    sed -i.bak -e "s/version = \"dev\"/version = \"$influxdb_version\"/" -e "s/gitSha\s*=\s*\"HEAD\"/gitSha = \"$sha1\"/" src/daemon/influxd.go
     sed -i.bak -e "s/REPLACE_VERSION/$influxdb_version/" scripts/post_install.sh
 }
 
 function revert_version {
-    if [ -e src/server/influxd.go.bak ]; then
-        rm src/server/influxd.go
-        mv src/server/influxd.go.bak src/server/influxd.go
+    if [ -e src/daemon/influxd.go.bak ]; then
+        rm src/daemon/influxd.go
+        mv src/daemon/influxd.go.bak src/daemon/influxd.go
     fi
 
     if [ -e scripts/post_install.sh ]; then

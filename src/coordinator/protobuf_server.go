@@ -20,7 +20,6 @@ const MAX_REQUEST_SIZE = 1024
 
 func NewProtobufServer(port string, requestHandler RequestHandler) *ProtobufServer {
 	server := &ProtobufServer{port: port, requestHandler: requestHandler}
-	go server.listenAndServe(port)
 	return server
 }
 
@@ -42,13 +41,13 @@ func (self *ProtobufServer) Close() {
 	}
 }
 
-func (self *ProtobufServer) listenAndServe(port string) {
-	ln, err := net.Listen("tcp", port)
+func (self *ProtobufServer) ListenAndServe() {
+	ln, err := net.Listen("tcp", self.port)
 	if err != nil {
 		panic(err)
 	}
 	self.listener = ln
-	log.Println("ProtobufServer listening on ", port)
+	log.Println("ProtobufServer listening on ", self.port)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {

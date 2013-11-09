@@ -15,6 +15,7 @@ type Configuration struct {
 	SeedServers    []string
 	DataDir        string
 	RaftDir        string
+	ProtobufPort   int
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -42,4 +43,8 @@ func (self *Configuration) AdminHttpPortString() string {
 
 func (self *Configuration) ApiHttpPortString() string {
 	return fmt.Sprintf(":%d", self.ApiHttpPort)
+}
+
+func (self *Configuration) ProtobufPortString() string {
+	return fmt.Sprintf(":%d", self.ProtobufPort)
 }

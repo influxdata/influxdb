@@ -1,12 +1,8 @@
 package main
 
 import (
-	"admin"
-	"api/http"
 	"configuration"
 	"coordinator"
-	"datastore"
-	"engine"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -14,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"server"
 	"strconv"
 	"syscall"
 	"time"
@@ -96,40 +93,24 @@ func main() {
 	}
 
 	log.Println("Starting Influx Server...")
-	clusterConfig := coordinator.NewClusterConfiguration()
 	os.MkdirAll(config.RaftDir, 0744)
-
-	raftServer := coordinator.NewRaftServer(config.RaftDir, "localhost", config.RaftServerPort, clusterConfig)
-	go func() {
-		raftServer.ListenAndServe(config.SeedServers, false)
-	}()
+	os.MkdirAll(config.DataDir, 0744)
+	server, err := server.NewServer(config)
+	if err != nil {
+		panic(err)
+	}
 
 	if *resetRootPassword {
-		time.Sleep(2 * time.Second) // wait for the raft server to join the cluster
+		// TODO: make this not suck
+		// This is ghetto as hell, but it'll work for now.
+		go func() {
+			time.Sleep(2 * time.Second) // wait for the raft server to join the cluster
 
-		fmt.Printf("Resetting root's password to %s", coordinator.DEFAULT_ROOT_PWD)
-		if err := raftServer.CreateRootUser(); err != nil {
-			panic(err)
-		}
+			fmt.Printf("Resetting root's password to %s", coordinator.DEFAULT_ROOT_PWD)
+			if err := server.RaftServer.CreateRootUser(); err != nil {
+				panic(err)
+			}
+		}()
 	}
-	os.MkdirAll(config.DataDir, 0744)
-	log.Println("Opening database at ", config.DataDir)
-	db, err := datastore.NewLevelDbDatastore(config.DataDir)
-	if err != nil {
-		panic(err)
-	}
-	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
-	eng, err := engine.NewQueryEngine(coord)
-	if err != nil {
-		panic(err)
-	}
-	log.Println()
-	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
-	log.Println("Starting admin interface on port", config.AdminHttpPort)
-	go func() {
-		adminServer.ListenAndServe()
-	}()
-	log.Println("Starting Http Api server on port", config.ApiHttpPort)
-	server := http.NewHttpServer(config.ApiHttpPortString(), eng, coord, coord)
 	server.ListenAndServe()
 }
