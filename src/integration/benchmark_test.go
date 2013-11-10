@@ -226,7 +226,41 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 	}
 	bs, err := self.server.RunQuery("select median(cpu) from test_medians group by host;")
 	c.Assert(err, IsNil)
-	fmt.Printf(string(bs))
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Name, Equals, "test_medians")
+	c.Assert(data[0].Columns, HasLen, 4)
+	c.Assert(data[0].Points, HasLen, 2)
+	c.Assert(data[0].Points[0][2], Equals, 80.0)
+	c.Assert(data[0].Points[1][2], Equals, 70.0)
+}
+
+func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
+	for i := 0; i < 20; i++ {
+		err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_count",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10))
+		c.Assert(err, IsNil)
+		time.Sleep(1 * time.Second)
+	}
+	bs, err := self.server.RunQuery("select count(cpu) from test_count group by host limit 10")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Name, Equals, "test_count")
+	c.Assert(data[0].Columns, HasLen, 4)
+	c.Assert(data[0].Points, HasLen, 2)
+	// count should be 3
+	c.Assert(data[0].Points[0][2], Equals, 5.0)
+	c.Assert(data[0].Points[1][2], Equals, 5.0)
 }
 
 func (self *IntegrationSuite) TestReading(c *C) {
