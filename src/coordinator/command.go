@@ -23,11 +23,12 @@ func (c *DropDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
 }
 
 type CreateDatabaseCommand struct {
-	Name string `json:"name"`
+	Name              string `json:"name"`
+	ReplicationFactor uint8  `json:"replicationFactor"`
 }
 
-func NewCreateDatabaseCommand(name string) *CreateDatabaseCommand {
-	return &CreateDatabaseCommand{name}
+func NewCreateDatabaseCommand(name string, replicationFactor uint8) *CreateDatabaseCommand {
+	return &CreateDatabaseCommand{name, replicationFactor}
 }
 
 func (c *CreateDatabaseCommand) CommandName() string {
@@ -36,7 +37,7 @@ func (c *CreateDatabaseCommand) CommandName() string {
 
 func (c *CreateDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*ClusterConfiguration)
-	err := config.CreateDatabase(c.Name)
+	err := config.CreateDatabase(c.Name, c.ReplicationFactor)
 	return nil, err
 }
 

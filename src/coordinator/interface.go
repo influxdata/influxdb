@@ -19,8 +19,8 @@ type Coordinator interface {
 	DistributeQuery(user common.User, db string, query *parser.Query, yield func(*protocol.Series) error) error
 	WriteSeriesData(user common.User, db string, series *protocol.Series) error
 	DropDatabase(user common.User, db string) error
-	CreateDatabase(user common.User, db string) error
-	ListDatabases(user common.User) ([]string, error)
+	CreateDatabase(user common.User, db string, replicationFactor uint8) error
+	ListDatabases(user common.User) ([]*Database, error)
 }
 
 type UserManager interface {
@@ -52,7 +52,7 @@ type UserManager interface {
 }
 
 type ClusterConsensus interface {
-	CreateDatabase(name string) error
+	CreateDatabase(name string, replicationFactor uint8) error
 	DropDatabase(name string) error
 	SaveClusterAdminUser(u *clusterAdmin) error
 	SaveDbUser(user *dbUser) error

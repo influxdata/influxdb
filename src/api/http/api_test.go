@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"common"
+	"coordinator"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -109,13 +110,13 @@ func (self *MockCoordinator) WriteSeriesData(_ common.User, db string, series *p
 	return nil
 }
 
-func (self *MockCoordinator) CreateDatabase(_ common.User, db string) error {
+func (self *MockCoordinator) CreateDatabase(_ common.User, db string, _ uint8) error {
 	self.db = db
 	return nil
 }
 
-func (self *MockCoordinator) ListDatabases(_ common.User) ([]string, error) {
-	return []string{"db1", "db2"}, nil
+func (self *MockCoordinator) ListDatabases(_ common.User) ([]*coordinator.Database, error) {
+	return []*coordinator.Database{&coordinator.Database{"db1", 1}, &coordinator.Database{"db2", 1}}, nil
 }
 
 func (self *MockCoordinator) DropDatabase(_ common.User, db string) error {
@@ -602,10 +603,10 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		c.Assert(err, IsNil)
-		users := []*Database{}
+		users := []*coordinator.Database{}
 		err = json.Unmarshal(body, &users)
 		c.Assert(err, IsNil)
-		c.Assert(users, DeepEquals, []*Database{&Database{"db1"}, &Database{"db2"}})
+		c.Assert(users, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", uint8(1)}, &coordinator.Database{"db2", uint8(1)}})
 	}
 }
 
@@ -620,8 +621,8 @@ func (self *ApiSuite) TestBasicAuthentication(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	users := []*Database{}
+	users := []*coordinator.Database{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*Database{&Database{"db1"}, &Database{"db2"}})
+	c.Assert(users, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", 1}, &coordinator.Database{"db2", 1}})
 }

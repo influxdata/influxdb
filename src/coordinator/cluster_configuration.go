@@ -7,25 +7,30 @@ import (
 )
 
 type ClusterConfiguration struct {
-	createDatabaseLock sync.RWMutex
-	databaseNames      map[string]bool
-	usersLock          sync.RWMutex
-	clusterAdmins      map[string]*clusterAdmin
-	dbUsers            map[string]map[string]*dbUser
-	servers            []*ClusterServer
-	serversLock        sync.RWMutex
-	hasRunningServers  bool
-	currentServerId    uint32
+	createDatabaseLock         sync.RWMutex
+	databaseReplicationFactors map[string]uint8
+	usersLock                  sync.RWMutex
+	clusterAdmins              map[string]*clusterAdmin
+	dbUsers                    map[string]map[string]*dbUser
+	servers                    []*ClusterServer
+	serversLock                sync.RWMutex
+	hasRunningServers          bool
+	currentServerId            uint32
+}
+
+type Database struct {
+	Name              string `json:"name"`
+	ReplicationFactor uint8  `json:"replicationFactor"`
 }
 
 const NUMBER_OF_RING_LOCATIONS = 10000
 
 func NewClusterConfiguration() *ClusterConfiguration {
 	return &ClusterConfiguration{
-		databaseNames: make(map[string]bool),
-		clusterAdmins: make(map[string]*clusterAdmin),
-		dbUsers:       make(map[string]map[string]*dbUser),
-		servers:       make([]*ClusterServer, 0),
+		databaseReplicationFactors: make(map[string]uint8),
+		clusterAdmins:              make(map[string]*clusterAdmin),
+		dbUsers:                    make(map[string]map[string]*dbUser),
+		servers:                    make([]*ClusterServer, 0),
 	}
 }
 
@@ -66,25 +71,25 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.servers = append(self.servers, server)
 }
 
-func (self *ClusterConfiguration) GetDatabases() []string {
+func (self *ClusterConfiguration) GetDatabases() []*Database {
 	self.createDatabaseLock.RLock()
 	defer self.createDatabaseLock.RUnlock()
 
-	names := make([]string, 0, len(self.databaseNames))
-	for name, _ := range self.databaseNames {
-		names = append(names, name)
+	dbs := make([]*Database, 0, len(self.databaseReplicationFactors))
+	for name, rf := range self.databaseReplicationFactors {
+		dbs = append(dbs, &Database{Name: name, ReplicationFactor: rf})
 	}
-	return names
+	return dbs
 }
 
-func (self *ClusterConfiguration) CreateDatabase(name string) error {
+func (self *ClusterConfiguration) CreateDatabase(name string, replicationFactor uint8) error {
 	self.createDatabaseLock.Lock()
 	defer self.createDatabaseLock.Unlock()
 
-	if _, ok := self.databaseNames[name]; ok {
+	if _, ok := self.databaseReplicationFactors[name]; ok {
 		return fmt.Errorf("database %s exists", name)
 	}
-	self.databaseNames[name] = true
+	self.databaseReplicationFactors[name] = replicationFactor
 	return nil
 }
 
@@ -92,11 +97,11 @@ func (self *ClusterConfiguration) DropDatabase(name string) error {
 	self.createDatabaseLock.Lock()
 	defer self.createDatabaseLock.Unlock()
 
-	if _, ok := self.databaseNames[name]; !ok {
+	if _, ok := self.databaseReplicationFactors[name]; !ok {
 		return fmt.Errorf("Database %s doesn't exist", name)
 	}
 
-	delete(self.databaseNames, name)
+	delete(self.databaseReplicationFactors, name)
 
 	self.usersLock.Lock()
 	defer self.usersLock.Unlock()
@@ -172,4 +177,10 @@ func (self *ClusterConfiguration) SaveClusterAdmin(u *clusterAdmin) {
 		return
 	}
 	self.clusterAdmins[u.GetName()] = u
+}
+
+func (self *ClusterConfiguration) GetDatabaseReplicationFactor(name string) uint8 {
+	self.createDatabaseLock.RLock()
+	defer self.createDatabaseLock.RUnlock()
+	return self.databaseReplicationFactors[name]
 }

@@ -34,19 +34,19 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	return self.datastore.WriteSeriesData(db, series)
 }
 
-func (self *CoordinatorImpl) CreateDatabase(user common.User, db string) error {
+func (self *CoordinatorImpl) CreateDatabase(user common.User, db string, replicationFactor uint8) error {
 	if !user.IsClusterAdmin() {
 		return common.NewAuthorizationError("Insufficient permission to create database")
 	}
 
-	err := self.raftServer.CreateDatabase(db)
+	err := self.raftServer.CreateDatabase(db, replicationFactor)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (self *CoordinatorImpl) ListDatabases(user common.User) ([]string, error) {
+func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*Database, error) {
 	if !user.IsClusterAdmin() {
 		return nil, common.NewAuthorizationError("Insufficient permission to list databases")
 	}
@@ -151,7 +151,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 		return fmt.Errorf("Username cannot be empty")
 	}
 
-	self.clusterConfiguration.CreateDatabase(db) // ignore the error since the db may exist
+	self.clusterConfiguration.CreateDatabase(db, uint8(1)) // ignore the error since the db may exist
 	dbUsers := self.clusterConfiguration.dbUsers[db]
 	if dbUsers != nil && dbUsers[username] != nil {
 		return fmt.Errorf("User %s already exists", username)

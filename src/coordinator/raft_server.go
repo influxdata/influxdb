@@ -123,8 +123,11 @@ func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) 
 	return nil, nil
 }
 
-func (s *RaftServer) CreateDatabase(name string) error {
-	command := NewCreateDatabaseCommand(name)
+func (s *RaftServer) CreateDatabase(name string, replicationFactor uint8) error {
+	if replicationFactor == 0 {
+		replicationFactor = 1
+	}
+	command := NewCreateDatabaseCommand(name, replicationFactor)
 	_, err := s.doOrProxyCommand(command, "create_db")
 	return err
 }
@@ -374,7 +377,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 func (s *RaftServer) configHandler(w http.ResponseWriter, req *http.Request) {
 	jsonObject := make(map[string]interface{})
 	dbs := make([]string, 0)
-	for db, _ := range s.clusterConfig.databaseNames {
+	for db, _ := range s.clusterConfig.databaseReplicationFactors {
 		dbs = append(dbs, db)
 	}
 	jsonObject["databases"] = dbs
