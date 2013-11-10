@@ -78,13 +78,14 @@ free_error (error *error)
 void
 close_query (query *q)
 {
-  if (q->error) {
+   if (q->error) {
     free_error(q->error);
-    return;
-  }
+   }
 
-  // free the columns
-  free_value_array(q->c);
+  if (q->c) {
+    // free the columns
+    free_value_array(q->c);
+  }
 
   if (q->where_condition) {
     free_condition(q->where_condition);
@@ -94,6 +95,8 @@ close_query (query *q)
     free_value_array(q->group_by);
   }
 
-  // free the from clause
-  free_from_clause(q->from_clause);
+  if (q->from_clause) {
+    // free the from clause
+    free_from_clause(q->from_clause);
+  }
 }

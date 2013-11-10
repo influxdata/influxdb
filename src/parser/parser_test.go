@@ -23,29 +23,34 @@ func ToValueArray(strings ...string) (values []*Value) {
 }
 
 func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
-	query := "select value from t where c == '5';"
-	q, err := ParseQuery(query)
-	c.Assert(err, IsNil)
+	for _, query := range []string{
+		"select value from t where c == '5';",
+		// semicolon is optional
+		"select value from t where c == '5'",
+	} {
+		q, err := ParseQuery(query)
+		c.Assert(err, IsNil)
 
-	c.Assert(q.GetQueryString(), Equals, query)
+		c.Assert(q.GetQueryString(), Equals, query)
 
-	c.Assert(q.Limit, Equals, 0)
+		c.Assert(q.Limit, Equals, 0)
 
-	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value"))
-	w := q.GetWhereCondition()
+		c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value"))
+		w := q.GetWhereCondition()
 
-	boolExpression, ok := w.GetBoolExpression()
-	c.Assert(ok, Equals, true)
+		boolExpression, ok := w.GetBoolExpression()
+		c.Assert(ok, Equals, true)
 
-	leftExpression := boolExpression.Left
-	rightExpression := boolExpression.Right
+		leftExpression := boolExpression.Left
+		rightExpression := boolExpression.Right
 
-	leftValue, ok := leftExpression.GetLeftValue() // simple value is an expression with one value, e.g. it doesn't combine value using arithmetic operations
-	rightValue, ok := rightExpression.GetLeftValue()
+		leftValue, ok := leftExpression.GetLeftValue() // simple value is an expression with one value, e.g. it doesn't combine value using arithmetic operations
+		rightValue, ok := rightExpression.GetLeftValue()
 
-	c.Assert(leftValue.Name, Equals, "c")
-	c.Assert(boolExpression.Operation, Equals, "==")
-	c.Assert(rightValue.Name, Equals, "5")
+		c.Assert(leftValue.Name, Equals, "c")
+		c.Assert(boolExpression.Operation, Equals, "==")
+		c.Assert(rightValue.Name, Equals, "5")
+	}
 }
 
 func (self *QueryParserSuite) TestSimpleFromClause(c *C) {

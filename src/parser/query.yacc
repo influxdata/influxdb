@@ -39,6 +39,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
   value_array*          value_array;
   value*                v;
   from_clause*          from_clause;
+  query*                query;
   struct {
     int limit;
     char ascending;
@@ -84,9 +85,10 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 %type <integer>         LIMIT_CLAUSE
 %type <character>       ORDER_CLAUSE
 %type <limit_and_order> LIMIT_AND_ORDER_CLAUSES
+%type <query>           QUERY
 
 // the initial token
-%start                  QUERY
+%start                  QUERIES
 
 // destructors are used to free up memory in case of an error
 %destructor { free_value($$); } <v>
@@ -95,28 +97,50 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 %destructor { free($$); } <string>
 %destructor { free_expression($$); } <expression>
 %destructor { if ($$) free_value_array($$); } <value_array>
+%destructor { close_query($$); free($$); } <query>
 
 // grammar
 %%
-QUERY:
-        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES ';'
+QUERIES:
+        QUERY
         {
-          q->c = $2;
-          q->from_clause = $3;
-          q->group_by = $4;
-          q->where_condition = $5;
-          q->limit = $6.limit;
-          q->ascending = $6.ascending;
+          *q = *$1;
+          free($1);
         }
         |
-        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT_AND_ORDER_CLAUSES ';'
+        QUERY ';'
         {
-          q->c = $2;
-          q->from_clause = $3;
-          q->where_condition = $4;
-          q->group_by = $5;
-          q->limit = $6.limit;
-          q->ascending = $6.ascending;
+          *q = *$1;
+          free($1);
+        }
+        |
+        QUERY ';' QUERIES
+        {
+          *q = *$1;
+          free($1);
+        }
+
+QUERY:
+        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES
+        {
+          $$ = calloc(1, sizeof(query));
+          $$->c = $2;
+          $$->from_clause = $3;
+          $$->group_by = $4;
+          $$->where_condition = $5;
+          $$->limit = $6.limit;
+          $$->ascending = $6.ascending;
+        }
+        |
+        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT_AND_ORDER_CLAUSES
+        {
+          $$ = calloc(1, sizeof(query));
+          $$->c = $2;
+          $$->from_clause = $3;
+          $$->where_condition = $4;
+          $$->group_by = $5;
+          $$->limit = $6.limit;
+          $$->ascending = $6.ascending;
         }
 
 LIMIT_AND_ORDER_CLAUSES:
@@ -415,8 +439,7 @@ void yy_delete_buffer(void *, void *);
 query
 parse_query(char *const query_s)
 {
-  query q;
-  q.error = NULL;
+  query q = {NULL, NULL, NULL, NULL, NULL};
   /* yydebug = 1; */
   void *scanner;
   yylex_init(&scanner);
