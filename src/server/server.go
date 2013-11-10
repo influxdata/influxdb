@@ -40,6 +40,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	}
 
 	httpApi := http.NewHttpServer(config.ApiHttpPortString(), eng, coord, coord)
+	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
 	return &Server{
 		RaftServer:     raftServer,
@@ -48,6 +49,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		ClusterConfig:  clusterConfig,
 		HttpApi:        httpApi,
 		Coordinator:    coord,
+		AdminServer:    adminServer,
 		Config:         config}, nil
 }
 
