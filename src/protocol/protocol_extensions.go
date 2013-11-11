@@ -44,5 +44,10 @@ func (self *FieldValue) GetValue() interface{} {
 }
 
 func (self *Point) GetFieldValue(idx int) interface{} {
-	return self.Values[idx].GetValue()
+	v := self.Values[idx]
+	// issue #27
+	if v == nil {
+		return nil
+	}
+	return v.GetValue()
 }

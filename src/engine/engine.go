@@ -328,6 +328,8 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 						point.Values = append(point.Values, &protocol.FieldValue{DoubleValue: &x})
 					case int64:
 						point.Values = append(point.Values, &protocol.FieldValue{Int64Value: &x})
+					case nil:
+						point.Values = append(point.Values, nil)
 					}
 				}
 

@@ -73,3 +73,4 @@
 - Issue #23. Fix the init scripts on redhat
 - Issue #25. Fix queries that use the median aggregator
 - Issue #26. Default log and db directories should be in /opt/influxdb/shared/data
+- Issue #27. Group by should not blow up if the one of the columns in group by has null values
