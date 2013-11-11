@@ -281,11 +281,12 @@ func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 }
 
 func errorToStatusCode(err error) int {
-	if strings.Contains(err.Error(), "Insufficient permission") {
+	switch err.(type) {
+	case common.AuthorizationError:
 		return libhttp.StatusUnauthorized
+	default:
+		return libhttp.StatusBadRequest
 	}
-
-	return libhttp.StatusBadRequest
 }
 
 func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request) {

@@ -31,7 +31,7 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 
 func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series *protocol.Series) error {
 	if !user.HasWriteAccess(db) {
-		return fmt.Errorf("Insufficient permission to write to %s", db)
+		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
 
 	now := common.CurrentTime()
@@ -56,7 +56,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 
 func (self *CoordinatorImpl) CreateDatabase(user common.User, db string) error {
 	if !user.IsClusterAdmin() {
-		return fmt.Errorf("Insufficient permission to create database")
+		return common.NewAuthorizationError("Insufficient permission to create database")
 	}
 
 	err := self.raftServer.CreateDatabase(db)
@@ -68,7 +68,7 @@ func (self *CoordinatorImpl) CreateDatabase(user common.User, db string) error {
 
 func (self *CoordinatorImpl) ListDatabases(user common.User) ([]string, error) {
 	if !user.IsClusterAdmin() {
-		return nil, fmt.Errorf("Insufficient permission to list databases")
+		return nil, common.NewAuthorizationError("Insufficient permission to list databases")
 	}
 
 	dbs := self.clusterConfiguration.GetDatabases()
@@ -77,7 +77,7 @@ func (self *CoordinatorImpl) ListDatabases(user common.User) ([]string, error) {
 
 func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 	if !user.IsClusterAdmin() {
-		return fmt.Errorf("Insufficient permission to drop database")
+		return common.NewAuthorizationError("Insufficient permission to drop database")
 	}
 
 	return self.raftServer.DropDatabase(db)
@@ -92,23 +92,23 @@ func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (
 	if user.isValidPwd(password) {
 		return user, nil
 	}
-	return nil, fmt.Errorf("Invalid username/password")
+	return nil, common.NewAuthorizationError("Invalid username/password")
 }
 
 func (self *CoordinatorImpl) AuthenticateClusterAdmin(username, password string) (common.User, error) {
 	user := self.clusterConfiguration.clusterAdmins[username]
 	if user == nil {
-		return nil, fmt.Errorf("Invalid username/password")
+		return nil, common.NewAuthorizationError("Invalid username/password")
 	}
 	if user.isValidPwd(password) {
 		return user, nil
 	}
-	return nil, fmt.Errorf("Invalid username/password")
+	return nil, common.NewAuthorizationError("Invalid username/password")
 }
 
 func (self *CoordinatorImpl) ListClusterAdmins(requester common.User) ([]string, error) {
 	if !requester.IsClusterAdmin() {
-		return nil, fmt.Errorf("Insufficient permissions")
+		return nil, common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	return self.clusterConfiguration.GetClusterAdmins(), nil
@@ -116,7 +116,7 @@ func (self *CoordinatorImpl) ListClusterAdmins(requester common.User) ([]string,
 
 func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, username string) error {
 	if !requester.IsClusterAdmin() {
-		return fmt.Errorf("Insufficient permissions")
+		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	if username == "" {
@@ -132,7 +132,7 @@ func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, usern
 
 func (self *CoordinatorImpl) DeleteClusterAdminUser(requester common.User, username string) error {
 	if !requester.IsClusterAdmin() {
-		return fmt.Errorf("Insufficient permissions")
+		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	user := self.clusterConfiguration.clusterAdmins[username]
@@ -146,7 +146,7 @@ func (self *CoordinatorImpl) DeleteClusterAdminUser(requester common.User, usern
 
 func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, username, password string) error {
 	if !requester.IsClusterAdmin() {
-		return fmt.Errorf("Insufficient permissions")
+		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	user := self.clusterConfiguration.clusterAdmins[username]
@@ -160,7 +160,7 @@ func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, u
 
 func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
-		return fmt.Errorf("Insufficient permissions")
+		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	if username == "" {
@@ -184,7 +184,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 
 func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
-		return fmt.Errorf("Insufficient permissions")
+		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	dbUsers := self.clusterConfiguration.dbUsers[db]
@@ -199,7 +199,7 @@ func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username st
 
 func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]string, error) {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
-		return nil, fmt.Errorf("Insufficient permissions")
+		return nil, common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	return self.clusterConfiguration.GetDbUsers(db), nil
@@ -207,7 +207,7 @@ func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]st
 
 func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, username, password string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) && !(requester.GetDb() == db && requester.GetName() == username) {
-		return fmt.Errorf("Insufficient permissions")
+		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	dbUsers := self.clusterConfiguration.dbUsers[db]
@@ -221,7 +221,7 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, use
 
 func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username string, isAdmin bool) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
-		return fmt.Errorf("Insufficient permissions")
+		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	dbUsers := self.clusterConfiguration.dbUsers[db]

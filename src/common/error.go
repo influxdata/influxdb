@@ -22,3 +22,13 @@ func (self *QueryError) Error() string {
 func NewQueryError(code int, msg string, args ...interface{}) *QueryError {
 	return &QueryError{code, fmt.Sprintf(msg, args...)}
 }
+
+type AuthorizationError string
+
+func (self AuthorizationError) Error() string {
+	return string(self)
+}
+
+func NewAuthorizationError(formatStr string, args ...interface{}) AuthorizationError {
+	return AuthorizationError(fmt.Sprintf(formatStr, args...))
+}
