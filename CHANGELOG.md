@@ -61,12 +61,14 @@
 
 - Add stddev(...) support
 - Better docs, thanks @auxesis and @d-snp.
-- Return an error if an empty username was given when creating a new user.
+- Issue #29. Semicolon is now optional in queries
 
 #### Bugfixes
 
-- set CC and PYTHONPATH for mac os users if they aren't set.
 - Set PYTHONPATH and CC appropriately on mac os x.
-- Fix the 386 rpm and debian packages init scripts.
-- Don't set goroot if it was already set. #22
-- Fix queries that use the median aggregator. #25
+- Don't allow creating users with empty username
+- Issue #18. Fix 386 debian and redhat packages
+- Issue #22. Don't set goroot if it was set
+- Issue #23. Fix the init scripts on redhat
+- Issue #25. Fix queries that use the median aggregator
+- Issue #26. Default log and db directories should be in /opt/influxdb/shared/data
