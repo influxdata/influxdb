@@ -222,8 +222,7 @@ func removeTimestampFieldDefinition(fields []string) []string {
 		return fields
 	}
 
-	fields[len(fields)-1], fields[timestampIdx] = fields[timestampIdx], fields[len(fields)-1]
-	return fields[:len(fields)-1]
+	return append(fields[:timestampIdx], fields[timestampIdx+1:]...)
 }
 
 func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*protocol.Series, error) {
@@ -251,17 +250,14 @@ func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 			switch v := value.(type) {
 			case string:
 				values = append(values, &protocol.FieldValue{StringValue: &v})
-
 			case float64:
 				if i := int64(v); float64(i) == v {
 					values = append(values, &protocol.FieldValue{Int64Value: &i})
 				} else {
 					values = append(values, &protocol.FieldValue{DoubleValue: &v})
 				}
-				continue
 			case bool:
 				values = append(values, &protocol.FieldValue{BoolValue: &v})
-				continue
 			default:
 				// if we reached this line then the dynamic type didn't match
 				return nil, fmt.Errorf("Unknown type %T", value)

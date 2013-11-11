@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ type Server struct {
 	p *os.Process
 }
 
-func (self *Server) WriteData(data interface{}) error {
+func (self *Server) WriteData(data interface{}, extraQueryParams ...string) error {
 	bs := []byte{}
 	switch x := data.(type) {
 	case string:
@@ -55,7 +56,12 @@ func (self *Server) WriteData(data interface{}) error {
 		}
 	}
 
-	resp, err := http.Post("http://localhost:8086/db/db1/series?u=user&p=pass", "application/json", bytes.NewBuffer(bs))
+	extraQueryParam := strings.Join(extraQueryParams, "&")
+	if extraQueryParam != "" {
+		extraQueryParam = "&" + extraQueryParam
+	}
+	resp, err := http.Post(fmt.Sprintf("http://localhost:8086/db/db1/series?u=user&p=pass%s", extraQueryParam),
+		"application/json", bytes.NewBuffer(bs))
 	if err != nil {
 		return err
 	}
@@ -261,6 +267,34 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 	// count should be 3
 	c.Assert(data[0].Points[0][2], Equals, 5.0)
 	c.Assert(data[0].Points[1][2], Equals, 5.0)
+}
+
+// test for issue #30
+func (self *IntegrationSuite) TestHttpPostWithTime(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+    "name": "test_post_with_time",
+    "columns": ["time", "val1", "val2"],
+    "points":[[1384118307, "v1", 2]]
+  }
+]`, "time_precision=s")
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select * from test_post_with_time where time > now() - 20d")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Name, Equals, "test_post_with_time")
+	c.Assert(data[0].Columns, HasLen, 4)
+	c.Assert(data[0].Points, HasLen, 1)
+	// count should be 3
+	values := make(map[string]interface{})
+	for idx, value := range data[0].Points[0] {
+		values[data[0].Columns[idx]] = value
+	}
+	c.Assert(values["val1"], Equals, "v1")
+	c.Assert(values["val2"], Equals, 2.0)
 }
 
 func (self *IntegrationSuite) TestReading(c *C) {
