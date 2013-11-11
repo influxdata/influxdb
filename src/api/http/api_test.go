@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"common"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -157,10 +158,12 @@ func (self *ApiSuite) TestClusterAdminAuthentication(c *C) {
 	resp, err = libhttp.Get(url)
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusUnauthorized)
+	c.Assert(resp.Header.Get("WWW-Authenticate"), Equals, "Basic realm=\"influxdb\"")
+	resp.Body.Close()
 }
 
 func (self *ApiSuite) TestDbUserAuthentication(c *C) {
-	url := self.formatUrl("/db/foo/authenticate?u=user&p=password")
+	url := self.formatUrl("/db/foo/authenticate?u=dbuser&p=password")
 	resp, err := libhttp.Get(url)
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
@@ -170,6 +173,19 @@ func (self *ApiSuite) TestDbUserAuthentication(c *C) {
 	resp, err = libhttp.Get(url)
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusUnauthorized)
+	c.Assert(resp.Header.Get("WWW-Authenticate"), Equals, "Basic realm=\"influxdb\"")
+	resp.Body.Close()
+}
+
+func (self *ApiSuite) TestDbUserBasicAuthentication(c *C) {
+	url := self.formatUrl("/db/foo/authenticate")
+	req, err := libhttp.NewRequest("GET", url, nil)
+	auth := base64.StdEncoding.EncodeToString([]byte("dbuser:password"))
+	req.Header.Add("Authorization", "Basic "+auth)
+	c.Assert(err, IsNil)
+	resp, err := libhttp.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	resp.Body.Close()
 }
 
@@ -361,7 +377,7 @@ func (self *ApiSuite) TestWriteData(c *C) {
 
 func (self *ApiSuite) TestCreateDatabase(c *C) {
 	data := `{"name": "foo", "apiKey": "bar"}`
-	addr := self.formatUrl("/db?api_key=asdf&u=dbuser&p=password")
+	addr := self.formatUrl("/db?api_key=asdf&u=root&p=root")
 	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	_, err = ioutil.ReadAll(resp.Body)
@@ -425,48 +441,49 @@ func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 
 func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	url := self.formatUrl("/db/db1/users?u=root&p=root")
-	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"new_user", "password": "new_pass"}`))
+	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"dbuser", "password": "password"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.manager.ops, HasLen, 2)
 	c.Assert(self.manager.ops[0].operation, Equals, "db_user_add")
-	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
 	c.Assert(self.manager.ops[1].operation, Equals, "db_user_passwd")
-	c.Assert(self.manager.ops[1].username, Equals, "new_user")
-	c.Assert(self.manager.ops[1].password, Equals, "new_pass")
+	c.Assert(self.manager.ops[1].username, Equals, "dbuser")
+	c.Assert(self.manager.ops[1].password, Equals, "password")
 	self.manager.ops = nil
 
-	url = self.formatUrl("/db/db1/users/new_user?u=root&p=root")
+	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
 	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"password":"new_password"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.manager.ops, HasLen, 1)
 	c.Assert(self.manager.ops[0].operation, Equals, "db_user_passwd")
-	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
 	c.Assert(self.manager.ops[0].password, Equals, "new_password")
 	self.manager.ops = nil
 
+	// empty usernames aren't valid
 	url = self.formatUrl("/db/db1/users?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"username":"", "password": "new_pass"}`))
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"username":"", "password": "password"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
 
 	// set and unset the db admin flag
-	url = self.formatUrl("/db/db1/admins/new_user?u=root&p=root")
+	url = self.formatUrl("/db/db1/admins/dbuser?u=root&p=root")
 	resp, err = libhttp.Post(url, "", nil)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.manager.ops, HasLen, 1)
 	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
-	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
 	c.Assert(self.manager.ops[0].isAdmin, Equals, true)
 	self.manager.ops = nil
 
-	url = self.formatUrl("/db/db1/admins/new_user?u=root&p=root")
+	url = self.formatUrl("/db/db1/admins/dbuser?u=root&p=root")
 	req, _ := libhttp.NewRequest("DELETE", url, nil)
 	resp, err = libhttp.DefaultClient.Do(req)
 	c.Assert(err, IsNil)
@@ -474,11 +491,11 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.manager.ops, HasLen, 1)
 	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
-	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
 	c.Assert(self.manager.ops[0].isAdmin, Equals, false)
 	self.manager.ops = nil
 
-	url = self.formatUrl("/db/db1/users/new_user?u=root&p=root")
+	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
 	req, _ = libhttp.NewRequest("DELETE", url, nil)
 	resp, err = libhttp.DefaultClient.Do(req)
 	c.Assert(err, IsNil)
@@ -486,7 +503,7 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	c.Assert(self.manager.ops, HasLen, 1)
 	c.Assert(self.manager.ops[0].operation, Equals, "db_user_del")
-	c.Assert(self.manager.ops[0].username, Equals, "new_user")
+	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
 }
 
 func (self *ApiSuite) TestClusterAdminsIndex(c *C) {
@@ -522,6 +539,24 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
+	users := []*Database{}
+	err = json.Unmarshal(body, &users)
+	c.Assert(err, IsNil)
+	c.Assert(users, DeepEquals, []*Database{&Database{"db1"}, &Database{"db2"}})
+}
+
+func (self *ApiSuite) TestBasicAuthentication(c *C) {
+	url := self.formatUrl("/dbs")
+	req, err := libhttp.NewRequest("GET", url, nil)
+	c.Assert(err, IsNil)
+	auth := base64.StdEncoding.EncodeToString([]byte("root:root"))
+	req.Header.Add("Authorization", "Basic "+auth)
+	resp, err := libhttp.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	fmt.Printf("body: %s\n", string(body))
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	users := []*Database{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
