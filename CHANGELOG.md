@@ -62,6 +62,7 @@
 - Add stddev(...) support
 - Better docs, thanks @auxesis and @d-snp.
 - Issue #29. Semicolon is now optional in queries
+- Issue #31. Support Basic Auth as well as query params for authentication.
 
 #### Bugfixes
 
