@@ -61,7 +61,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 
 // define types of tokens (terminals)
 %token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST LIMIT ORDER ASC DESC MERGE INNER JOIN
-%token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
+%token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
 // define the precedence of these operators
 %left  OR
@@ -376,6 +376,17 @@ BOOL_EXPRESSION:
         }
         |
         EXPRESSION REGEX_OP REGEX_VALUE
+        {
+          $$ = malloc(sizeof(bool_expression));
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = malloc(sizeof(expression));
+          $$->right->left = $3;
+          $$->right->op = '\0';
+          $$->right->right = NULL;
+        }
+        |
+        EXPRESSION NEGATION_REGEX_OP REGEX_VALUE
         {
           $$ = malloc(sizeof(bool_expression));
           $$->left = $1;

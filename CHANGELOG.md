@@ -89,6 +89,8 @@
 
 ### Features
 
+- [Issue #37](https://github.com/influxdb/influxdb/issues/37). Support the negation of the regex matcher !~
+
 ### Bugfixes
 
 - [Issue #36](https://github.com/influxdb/influxdb/issues/36). The regex operator should be =~ not ~=
