@@ -90,3 +90,5 @@
 ### Features
 
 ### Bugfixes
+
+- [Issue #36](https://github.com/influxdb/influxdb/issues/36). The regex operator should be =~ not ~=

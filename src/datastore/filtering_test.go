@@ -90,7 +90,7 @@ func (self *FilteringSuite) TestReturnRequestedColumnsOnly(c *C) {
 }
 
 func (self *FilteringSuite) TestRegexFiltering(c *C) {
-	queryStr := "select * from t where column_one ~= /.*foo.*/ and time > now() - 1d;"
+	queryStr := "select * from t where column_one =~ /.*foo.*/ and time > now() - 1d;"
 	query, err := parser.ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	series, err := common.StringToSeriesArray(`

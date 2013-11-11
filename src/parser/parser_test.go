@@ -357,19 +357,19 @@ func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseSelectWithInvalidRegex(c *C) {
-	_, err := ParseQuery("select email from users.events where email ~= /[/i and time>now()-2d;")
+	_, err := ParseQuery("select email from users.events where email =~ /[/i and time>now()-2d;")
 	c.Assert(err, ErrorMatches, ".*missing closing.*")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithRegexCondition(c *C) {
-	q, err := ParseQuery("select email from users.events where email ~= /gmail\\.com/i and time>now()-2d;")
+	q, err := ParseQuery("select email from users.events where email =~ /gmail\\.com/i and time>now()-2d;")
 	c.Assert(err, IsNil)
 	w := q.GetWhereCondition()
 
 	// note: conditions that involve time are removed after the query is parsed
 	regexExpression, _ := w.GetBoolExpression()
 	c.Assert(regexExpression.Left.Left, DeepEquals, &Value{"email", ValueSimpleName, false, nil, nil})
-	c.Assert(regexExpression.Operation, Equals, "~=")
+	c.Assert(regexExpression.Operation, Equals, "=~")
 	expr, ok := regexExpression.Right.GetLeftValue()
 	c.Assert(ok, Equals, true)
 	c.Assert(expr.Type, Equals, ValueRegex)

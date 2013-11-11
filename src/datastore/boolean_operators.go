@@ -18,7 +18,7 @@ func init() {
 	registeredOperators[">"] = GreaterThanOperator
 	registeredOperators["<"] = not(GreaterThanOrEqualOperator)
 	registeredOperators["<="] = not(GreaterThanOperator)
-	registeredOperators["~="] = RegexMatcherOperator
+	registeredOperators["=~"] = RegexMatcherOperator
 }
 
 func not(op BooleanOperation) BooleanOperation {
