@@ -55,22 +55,38 @@
 - Fix the default admin site path in the .deb and .rpm packages.
 - Fix the configuration filename in the .tar.gz package.
 
-## v0.0.9 (unreleased)
+## v0.0.9
 
 #### Features
 
 - Add stddev(...) support
 - Better docs, thanks @auxesis and @d-snp.
-- Issue #29. Semicolon is now optional in queries
-- Issue #31. Support Basic Auth as well as query params for authentication.
 
 #### Bugfixes
 
 - Set PYTHONPATH and CC appropriately on mac os x.
-- Don't allow creating users with empty username
 - Issue #18. Fix 386 debian and redhat packages
-- Issue #22. Don't set goroot if it was set
 - Issue #23. Fix the init scripts on redhat
+
+## v0.1.0
+
+### Features
+
+- Issue #29. Semicolon is now optional in queries
+- Issue #31. Support Basic Auth as well as query params for authentication.
+
+### Bugfixes
+
+- Don't allow creating users with empty username
+- Issue #22. Don't set goroot if it was set
 - Issue #25. Fix queries that use the median aggregator
 - Issue #26. Default log and db directories should be in /opt/influxdb/shared/data
 - Issue #27. Group by should not blow up if the one of the columns in group by has null values
+- Issue #30. Column indexes/names getting off somehow
+- Issue #32. Fix many typos in the codebase. Thanks @pborreli
+
+## v0.1.1 (unreleased)
+
+### Features
+
+### Bugfixes
