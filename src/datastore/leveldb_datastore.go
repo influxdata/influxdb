@@ -223,10 +223,6 @@ func (self *LevelDbDatastore) DeleteRangeOfRegex(user common.User, database stri
 }
 
 func (self *LevelDbDatastore) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
-	if startTime < 1382361894000 {
-		panic("wtf")
-	}
-
 	startTimeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	binary.Write(startTimeBuffer, binary.BigEndian, self.convertTimestampToUint(&startTime))
 	startTimeBytes := startTimeBuffer.Bytes()
