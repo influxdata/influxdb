@@ -62,7 +62,7 @@ Modules
           |                    |                |                    |
           +--------+-----------+                +-------+------------+
 
-Replication & Concensus Notes
+Replication & Consensus Notes
 -----------------------------
 
 Single raft cluster for which machines are in cluster and who owns which locations.

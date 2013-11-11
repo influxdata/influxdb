@@ -67,7 +67,7 @@ func createEngine(c *C, seriesString string) EngineI {
 // in the order specified.
 //
 // expectedSeries must be a json array, e.g. time series must by
-// inclosed in '[' and ']'
+// enclosed in '[' and ']'
 func runQueryRunError(engine EngineI, query string, c *C, expectedErr error) {
 	err := engine.RunQuery(nil, "", query, func(series *protocol.Series) error { return nil })
 

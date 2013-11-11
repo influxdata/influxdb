@@ -421,7 +421,7 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 		columns = self.getColumnNamesForSeries(db, series)
 	}
 	if len(columns) == 0 {
-		return nil, errors.New("Coulnd't look up columns for series: " + series)
+		return nil, errors.New("Couldn't look up columns for series: " + series)
 	}
 
 	fields := make([]*Field, len(columns), len(columns))

@@ -301,7 +301,7 @@ func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
 	c.Assert(rightExpression.Right.Left, DeepEquals, &Value{"10.0", ValueFloat, false, nil, nil})
 }
 
-func (self *QueryParserSuite) TestParseWhereClauseParantheses(c *C) {
+func (self *QueryParserSuite) TestParseWhereClauseParentheses(c *C) {
 	q, err := ParseQuery("select value from cpu.idle where value > 90 and (other_value > 10 or value > 80) and other_value > 20;")
 	c.Assert(err, IsNil)
 

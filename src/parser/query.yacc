@@ -63,7 +63,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 %token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST LIMIT ORDER ASC DESC MERGE INNER JOIN
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
-// define the precendence of these operators
+// define the precedence of these operators
 %left  OR
 %left  AND
 %nonassoc <string> OPERATION_EQUAL OPERATION_NE OPERATION_GT OPERATION_LT OPERATION_LE OPERATION_GE

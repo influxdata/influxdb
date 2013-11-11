@@ -30,7 +30,7 @@ type UserManager interface {
 	AuthenticateClusterAdmin(username, password string) (common.User, error)
 	// Create a cluster admin user, it's an error if requester isn't a cluster admin
 	CreateClusterAdminUser(request common.User, username string) error
-	// Delete a cluster admin. Same restricutions as CreateClusterAdminUser
+	// Delete a cluster admin. Same restrictions as CreateClusterAdminUser
 	DeleteClusterAdminUser(requester common.User, username string) error
 	// Change cluster admin's password. It's an error if requester isn't a cluster admin
 	ChangeClusterAdminPassword(requester common.User, username, password string) error
