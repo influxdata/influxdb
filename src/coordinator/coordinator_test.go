@@ -240,7 +240,7 @@ func (self *UserSuite) BenchmarkHashing(c *C) {
 	}
 }
 
-func (self *CoordinatorSuite) TestAutomaitcDbCreations(c *C) {
+func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 	servers := startAndVerifyCluster(1, c)
 	defer clean(servers...)
 

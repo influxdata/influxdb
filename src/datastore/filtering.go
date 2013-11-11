@@ -39,7 +39,7 @@ func getExpressionValue(expr *parser.Expression, fields []string, point *protoco
 		}
 	}
 
-	return nil, fmt.Errorf("Cannot evaulate expression")
+	return nil, fmt.Errorf("Cannot evaluate expression")
 }
 
 func matchesExpression(expr *parser.BoolExpression, fields []string, point *protocol.Point) (bool, error) {

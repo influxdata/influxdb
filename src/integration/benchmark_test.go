@@ -322,7 +322,7 @@ func (self *IntegrationSuite) TestReading(c *C) {
 		c.Assert(err, IsNil)
 
 		c.Assert(data, HasLen, 1)
-		c.Assert(data[0].Columns, HasLen, r[0]+2)                   // time, sequence nuber and the requested columns
+		c.Assert(data[0].Columns, HasLen, r[0]+2)                   // time, sequence number and the requested columns
 		c.Assert(len(data[0].Points), checkers.InRange, r[1], r[2]) // values between 0.5 and 0.65 should be about 100,000
 
 		fmt.Printf("Took %s to execute %s\n", elapsedTime, q)

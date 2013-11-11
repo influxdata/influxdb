@@ -13,7 +13,7 @@ It aims to answer queries in real-time. That means every data point is indexed a
 
 * Understand the [design goals and motivations of the project](http://influxdb.org/overview/).
 * Follow the [getting started guide](http://influxdb.org/docs/) to find out how to install InfluxDB, start writing data, and issue queries - in just a few minutes.
-* See the [list of libraries for different langauges](http://influxdb.org/docs/libraries/javascript.html), or check out the [HTTP API documentation to start writing a library for your favorite language](http://influxdb.org/docs/api/http.html).
+* See the [list of libraries for different languages](http://influxdb.org/docs/libraries/javascript.html), or check out the [HTTP API documentation to start writing a library for your favorite language](http://influxdb.org/docs/api/http.html).
 
 ## Building
 

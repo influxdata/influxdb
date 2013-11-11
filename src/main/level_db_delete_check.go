@@ -26,8 +26,8 @@ func main() {
 	pointsToDeletePerSeries := pointsToWritePerSeries / 2
 
 	opts := levigo.NewOptions()
-	hundregMegabytes := 100 * 1048576
-	opts.SetCache(levigo.NewLRUCache(hundregMegabytes))
+	hundredMegabytes := 100 * 1048576
+	opts.SetCache(levigo.NewLRUCache(hundredMegabytes))
 	opts.SetCreateIfMissing(true)
 	opts.SetBlockSize(262144)
 	os.MkdirAll(dbDir, 0744)
