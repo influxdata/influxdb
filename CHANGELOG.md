@@ -65,25 +65,25 @@
 #### Bugfixes
 
 - Set PYTHONPATH and CC appropriately on mac os x.
-- Issue #18. Fix 386 debian and redhat packages
-- Issue #23. Fix the init scripts on redhat
+- [Issue #18](https://github.com/influxdb/influxdb/issues/18). Fix 386 debian and redhat packages
+- [Issue #23](https://github.com/influxdb/influxdb/issues/23). Fix the init scripts on redhat
 
 ## v0.1.0
 
 ### Features
 
-- Issue #29. Semicolon is now optional in queries
-- Issue #31. Support Basic Auth as well as query params for authentication.
+- [Issue #29](https://github.com/influxdb/influxdb/issues/29). Semicolon is now optional in queries
+- [Issue #31](https://github.com/influxdb/influxdb/issues/31). Support Basic Auth as well as query params for authentication.
 
 ### Bugfixes
 
 - Don't allow creating users with empty username
-- Issue #22. Don't set goroot if it was set
-- Issue #25. Fix queries that use the median aggregator
-- Issue #26. Default log and db directories should be in /opt/influxdb/shared/data
-- Issue #27. Group by should not blow up if the one of the columns in group by has null values
-- Issue #30. Column indexes/names getting off somehow
-- Issue #32. Fix many typos in the codebase. Thanks @pborreli
+- [Issue #22](https://github.com/influxdb/influxdb/issues/22). Don't set goroot if it was set
+- [Issue #25](https://github.com/influxdb/influxdb/issues/25). Fix queries that use the median aggregator
+- [Issue #26](https://github.com/influxdb/influxdb/issues/26). Default log and db directories should be in /opt/influxdb/shared/data
+- [Issue #27](https://github.com/influxdb/influxdb/issues/27). Group by should not blow up if the one of the columns in group by has null values
+- [Issue #30](https://github.com/influxdb/influxdb/issues/30). Column indexes/names getting off somehow
+- [Issue #32](https://github.com/influxdb/influxdb/issues/32). Fix many typos in the codebase. Thanks @pborreli
 
 ## v0.1.1 (unreleased)
 
