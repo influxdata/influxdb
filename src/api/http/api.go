@@ -124,17 +124,19 @@ func (self *AllPointsWriter) yield(series *protocol.Series) error {
 func (self *AllPointsWriter) done() {
 	data, err := serializeMultipleSeries(self.memSeries, self.precision)
 	if err != nil {
-		self.w.Write([]byte(err.Error()))
 		self.w.WriteHeader(libhttp.StatusInternalServerError)
+		self.w.Write([]byte(err.Error()))
 		return
 	}
-	self.w.Write(data)
+	self.w.Header().Add("content-type", "application/json")
 	self.w.WriteHeader(libhttp.StatusOK)
+	self.w.Write(data)
 }
 
 type ChunkWriter struct {
-	w         libhttp.ResponseWriter
-	precision TimePrecision
+	w                libhttp.ResponseWriter
+	precision        TimePrecision
+	wroteContentType bool
 }
 
 func (self *ChunkWriter) yield(series *protocol.Series) error {
@@ -142,8 +144,12 @@ func (self *ChunkWriter) yield(series *protocol.Series) error {
 	if err != nil {
 		return err
 	}
-	self.w.Write(data)
+	if !self.wroteContentType {
+		self.wroteContentType = true
+		self.w.Header().Add("content-type", "application/json")
+	}
 	self.w.WriteHeader(libhttp.StatusOK)
+	self.w.Write(data)
 	self.w.(libhttp.Flusher).Flush()
 	return nil
 }
@@ -182,7 +188,7 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	query := r.URL.Query().Get("q")
 	db := r.URL.Query().Get(":db")
 
-	statusCode, body := self.tryAsDbUser(w, r, func(user common.User) (int, interface{}) {
+	self.tryAsDbUser(w, r, func(user common.User) (int, interface{}) {
 
 		precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
 		if err != nil {
@@ -192,7 +198,7 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 
 		var writer Writer
 		if r.URL.Query().Get("chunked") == "true" {
-			writer = &ChunkWriter{w, precision}
+			writer = &ChunkWriter{w, precision, false}
 		} else {
 			writer = &AllPointsWriter{map[string]*protocol.Series{}, w, precision}
 		}
@@ -204,10 +210,6 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 		writer.done()
 		return libhttp.StatusOK, nil
 	})
-	w.WriteHeader(statusCode)
-	if len(body) > 0 {
-		w.Write(body)
-	}
 }
 
 func removeTimestampFieldDefinition(fields []string) []string {
@@ -353,11 +355,7 @@ func (self *HttpServer) listDatabases(w libhttp.ResponseWriter, r *libhttp.Reque
 		for _, db := range dbNames {
 			databases = append(databases, &Database{db})
 		}
-		body, err := json.Marshal(databases)
-		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
-		}
-		return libhttp.StatusOK, body
+		return libhttp.StatusOK, databases
 	})
 }
 
@@ -454,28 +452,29 @@ func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 
 // // cluster admins management interface
 
-func toBytes(body interface{}) ([]byte, error) {
+func toBytes(body interface{}) ([]byte, string, error) {
 	if body == nil {
-		return nil, nil
+		return nil, "text/plain", nil
 	}
 	switch x := body.(type) {
 	case string:
-		return []byte(x), nil
+		return []byte(x), "text/plain", nil
 	case []byte:
-		return x, nil
+		return x, "text/plain", nil
 	default:
-		return json.Marshal(body)
+		body, err := json.Marshal(body)
+		return body, "application/json", err
 	}
 }
 
-func yieldUser(user common.User, yield func(common.User) (int, interface{})) (int, []byte) {
+func yieldUser(user common.User, yield func(common.User) (int, interface{})) (int, string, []byte) {
 	statusCode, body := yield(user)
-	bodyContent, err := toBytes(body)
+	bodyContent, contentType, err := toBytes(body)
 	if err != nil {
-		return libhttp.StatusInternalServerError, []byte(err.Error())
+		return libhttp.StatusInternalServerError, "text/plain", []byte(err.Error())
 	}
 
-	return statusCode, bodyContent
+	return statusCode, contentType, bodyContent
 }
 
 func getUsernameAndPassword(r *libhttp.Request) (string, string, error) {
@@ -531,10 +530,11 @@ func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 		w.Write([]byte(err.Error()))
 		return
 	}
-	statusCode, body := yieldUser(user, yield)
+	statusCode, contentType, body := yieldUser(user, yield)
 	if statusCode == libhttp.StatusUnauthorized {
 		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
 	}
+	w.Header().Add("content-type", contentType)
 	w.WriteHeader(statusCode)
 	if len(body) > 0 {
 		w.Write(body)
@@ -664,10 +664,11 @@ func (self *HttpServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request
 		return libhttp.StatusUnauthorized, []byte(err.Error())
 	}
 
-	statusCode, v := yieldUser(user, yield)
+	statusCode, contentType, v := yieldUser(user, yield)
 	if statusCode == libhttp.StatusUnauthorized {
 		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
 	}
+	w.Header().Add("content-type", contentType)
 	return statusCode, v
 }
 

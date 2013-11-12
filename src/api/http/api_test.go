@@ -240,6 +240,7 @@ func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
 	data, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	series := []SerializedSeries{}
@@ -261,6 +262,7 @@ func (self *ApiSuite) TestChunkedQuery(c *C) {
 	resp, err := libhttp.Get(addr)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
 
 	for i := 0; i < 2; i++ {
 		chunk := make([]byte, 2048, 2048)
@@ -510,6 +512,7 @@ func (self *ApiSuite) TestClusterAdminsIndex(c *C) {
 	url := self.formatUrl("/cluster_admins?u=root&p=root")
 	resp, err := libhttp.Get(url)
 	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
@@ -523,6 +526,7 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 	url := self.formatUrl("/db/db1/users?u=root&p=root")
 	resp, err := libhttp.Get(url)
 	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
@@ -536,6 +540,7 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 	url := self.formatUrl("/dbs?u=root&p=root")
 	resp, err := libhttp.Get(url)
 	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
