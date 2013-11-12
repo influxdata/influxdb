@@ -100,6 +100,43 @@ func (self *DatastoreSuite) TestPropagateErrorsProperly(c *C) {
 	c.Assert(err, ErrorMatches, "Whatever")
 }
 
+func (self *DatastoreSuite) TestDeletingData(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+	mock := `
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 3
+          }
+        ],
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": ["value"]
+  }`
+	pointTime := time.Now().Unix()
+	series := stringToSeries(mock, pointTime, c)
+	err := db.WriteSeriesData("test", series)
+	c.Assert(err, IsNil)
+	q, err := parser.ParseQuery("select value from foo;")
+	c.Assert(err, IsNil)
+	yield := func(series *protocol.Series) error {
+		if len(series.Points) > 0 {
+			panic("Series contains points")
+		}
+		return nil
+	}
+	c.Assert(db.DropDatabase("test"), IsNil)
+	user := &MockUser{}
+	err = db.ExecuteQuery(user, "test", q, yield)
+	c.Assert(err, ErrorMatches, ".*Field value doesn't exist.*")
+}
+
 func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	cleanup(nil)
 	db := newDatastore(c)

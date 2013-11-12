@@ -297,6 +297,36 @@ func (self *IntegrationSuite) TestHttpPostWithTime(c *C) {
 	c.Assert(values["val2"], Equals, 2.0)
 }
 
+// test for issue #41
+func (self *IntegrationSuite) TestDbDelete(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+    "name": "test_deletetions",
+    "columns": ["val1", "val2"],
+    "points":[["v1", 2]]
+  }
+]`, "time_precision=s")
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select val1 from test_deletetions")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+
+	req, err := http.NewRequest("DELETE", "http://localhost:8086/db/db1?u=root&p=root", nil)
+	c.Assert(err, IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+	// recreate the database and the user
+	c.Assert(self.createUser(), IsNil)
+
+	// this shouldn't return any data
+	bs, err = self.server.RunQuery("select val1 from test_deletetions")
+	c.Assert(err, ErrorMatches, ".*Field val1 doesn't exist.*")
+}
+
 func (self *IntegrationSuite) TestReading(c *C) {
 	if !*benchmark {
 		c.Skip("Benchmarking is disabled")

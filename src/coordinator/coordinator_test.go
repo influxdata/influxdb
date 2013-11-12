@@ -42,11 +42,17 @@ const (
 
 type DatastoreMock struct {
 	datastore.Datastore
-	Series *protocol.Series
+	Series          *protocol.Series
+	DroppedDatabase string
 }
 
 func (self *DatastoreMock) WriteSeriesData(database string, series *protocol.Series) error {
 	self.Series = series
+	return nil
+}
+
+func (self *DatastoreMock) DropDatabase(database string) error {
+	self.DroppedDatabase = database
 	return nil
 }
 
@@ -244,7 +250,7 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 	servers := startAndVerifyCluster(1, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(&DatastoreMock{}, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -267,6 +273,7 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 
 	// if the db is dropped it should remove the users as well
 	c.Assert(coordinator.DropDatabase(root, "db1"), IsNil)
+	c.Assert(coordinator.datastore.(*DatastoreMock).DroppedDatabase, Equals, "db1")
 	_, err = coordinator.AuthenticateDbUser("db1", "db_user", "pass")
 	c.Assert(err, ErrorMatches, ".*Invalid.*")
 }

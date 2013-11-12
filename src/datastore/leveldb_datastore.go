@@ -112,6 +112,47 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 	return self.db.Write(self.writeOptions, wb)
 }
 
+func (self *LevelDbDatastore) dropSeries(database, series string) error {
+	startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
+	wb := levigo.NewWriteBatch()
+	defer wb.Close()
+
+	for _, name := range self.getColumnNamesForSeries(database, series) {
+		if err := self.deleteRangeOfSeries(database, series, startTimeBytes, endTimeBytes); err != nil {
+			return err
+		}
+
+		indexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(database+"~"+series+"~"+name)...)
+		wb.Delete(indexKey)
+	}
+
+	// remove the column indeces for this time series
+	return self.db.Write(self.writeOptions, wb)
+}
+
+func (self *LevelDbDatastore) DropDatabase(database string) error {
+	wb := levigo.NewWriteBatch()
+	defer wb.Close()
+
+	err := self.getSeriesForDb(database, func(name string) error {
+		if err := self.dropSeries(database, name); err != nil {
+			return err
+		}
+
+		seriesKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~")...)
+		wb.Delete(seriesKey)
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return self.db.Write(self.writeOptions, wb)
+}
+
 func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error {
 	seriesAndColumns := query.GetReferencedColumns()
 	hasAccess := true
@@ -154,13 +195,12 @@ func (self *LevelDbDatastore) Close() {
 	self.writeOptions = nil
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
+func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, startTimeBytes, endTimeBytes []byte) error {
 	columns := self.getColumnNamesForSeries(database, series)
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
 		return err
 	}
-	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
 	ro.SetFillCache(false)
@@ -200,6 +240,11 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 		self.db.CompactRange(*r)
 	}
 	return nil
+}
+
+func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
+	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
+	return self.deleteRangeOfSeries(database, series, startTimeBytes, endTimeBytes)
 }
 
 func (self *LevelDbDatastore) DeleteRangeOfRegex(user common.User, database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
@@ -355,13 +400,12 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	return yield(emptyResult)
 }
 
-func (self *LevelDbDatastore) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
+func (self *LevelDbDatastore) getSeriesForDb(database string, yield func(string) error) error {
 	it := self.db.NewIterator(self.readOptions)
 	defer it.Close()
 
 	seekKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~")...)
 	it.Seek(seekKey)
-	names := make([]string, 0)
 	dbNameStart := len(DATABASE_SERIES_INDEX_PREFIX)
 	for it = it; it.Valid(); it.Next() {
 		key := it.Key()
@@ -375,11 +419,22 @@ func (self *LevelDbDatastore) getSeriesForDbAndRegex(database string, regex *reg
 				break
 			}
 			name := parts[1]
-			if regex.MatchString(name) {
-				names = append(names, parts[1])
+			if err := yield(name); err != nil {
+				return err
 			}
 		}
 	}
+	return nil
+}
+
+func (self *LevelDbDatastore) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
+	names := []string{}
+	self.getSeriesForDb(database, func(name string) error {
+		if regex.MatchString(name) {
+			names = append(names, name)
+		}
+		return nil
+	})
 	return names
 }
 

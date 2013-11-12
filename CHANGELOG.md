@@ -96,6 +96,7 @@
 - [Issue #36](https://github.com/influxdb/influxdb/issues/36). The regex operator should be =~ not ~=
 - [Issue #39](https://github.com/influxdb/influxdb/issues/39). Return proper content types from the http api
 - [Issue #42](https://github.com/influxdb/influxdb/issues/42). Make the api consistent with the docs
+- [Issue #41](https://github.com/influxdb/influxdb/issues/41). Table/Points not deleted when database is dropped
 
 ### Deprecated
 

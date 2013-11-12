@@ -80,7 +80,11 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 		return common.NewAuthorizationError("Insufficient permission to drop database")
 	}
 
-	return self.raftServer.DropDatabase(db)
+	if err := self.raftServer.DropDatabase(db); err != nil {
+		return err
+	}
+
+	return self.datastore.DropDatabase(db)
 }
 
 func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {
