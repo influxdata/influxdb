@@ -2,6 +2,7 @@ package admin
 
 import (
 	"net/http"
+	"strings"
 )
 
 type HttpServer struct {
@@ -18,5 +19,8 @@ func NewHttpServer(homeDir, port string) *HttpServer {
 }
 
 func (self *HttpServer) ListenAndServe() {
-	http.ListenAndServe(self.port, http.FileServer(http.Dir(self.homeDir)))
+	err := http.ListenAndServe(self.port, http.FileServer(http.Dir(self.homeDir)))
+	if !strings.Contains(err.Error(), "closed") {
+		panic(err)
+	}
 }
