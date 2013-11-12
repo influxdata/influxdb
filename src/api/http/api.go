@@ -337,8 +337,7 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 }
 
 type createDatabaseRequest struct {
-	Name   string `json:"name"`
-	ApiKey string `json:apiKey"`
+	Name string `json:"name"`
 }
 
 type Database struct {
