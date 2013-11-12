@@ -170,6 +170,7 @@ func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, start
 		it := self.db.NewIterator(ro)
 		defer it.Close()
 		wb := levigo.NewWriteBatch()
+		defer wb.Close()
 
 		startKey := append(field.Id, startTimeBytes...)
 		endKey := startKey
@@ -467,6 +468,7 @@ func (self *LevelDbDatastore) getNextIdForColumn(db, series, column *string) (re
 	idBytes := make([]byte, 8, 8)
 	binary.PutUvarint(idBytes, id)
 	wb := levigo.NewWriteBatch()
+	defer wb.Close()
 	wb.Put(NEXT_ID_KEY, idBytes)
 	databaseSeriesIndexKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(*db+"~"+*series)...)
 	wb.Put(databaseSeriesIndexKey, []byte{})
