@@ -38,7 +38,7 @@ func (self *QueryEngine) RunQuery(user common.User, database string, query strin
 	if isAggregateQuery(q) {
 		return self.executeCountQueryWithGroupBy(user, database, q, yield)
 	} else {
-		self.distributeQuery(user, database, q, yield)
+		return self.distributeQuery(user, database, q, yield)
 	}
 	return nil
 }

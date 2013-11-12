@@ -23,10 +23,15 @@ type EngineSuite struct{}
 var _ = Suite(&EngineSuite{})
 
 type MockCoordinator struct {
-	series []*protocol.Series
+	returnedError error
+	series        []*protocol.Series
 }
 
 func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error {
+	if self.returnedError != nil {
+		return self.returnedError
+	}
+
 	for _, series := range self.series {
 		if err := yield(series); err != nil {
 			return err
@@ -144,6 +149,18 @@ func (self *EngineSuite) TestBasicQuery(c *C) {
 	// the query only returns the raw data
 	engine := createEngine(c, mockData)
 	runQuery(engine, "select * from foo;", c, mockData)
+}
+
+func (self *EngineSuite) TestBasicQueryError(c *C) {
+	// create an engine and assert the engine works as a passthrough if
+	// the query only returns the raw data
+	engine := createEngine(c, "[]")
+	engine.(*QueryEngine).coordinator.(*MockCoordinator).returnedError = fmt.Errorf("some error")
+	err := engine.RunQuery(nil, "", "select * from foo", func(series *protocol.Series) error {
+		return nil
+	})
+
+	c.Assert(err, ErrorMatches, "some error")
 }
 
 func (self *EngineSuite) TestCountQuery(c *C) {
