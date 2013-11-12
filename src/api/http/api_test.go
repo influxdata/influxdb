@@ -441,7 +441,7 @@ func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 	c.Assert(self.manager.ops[0].username, Equals, "new_user")
 }
 
-func (self *ApiSuite) TestDbUSerOperations(c *C) {
+func (self *ApiSuite) TestDbUserOperations(c *C) {
 	url := self.formatUrl("/db/db1/users?u=root&p=root")
 	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"dbuser", "password": "password"}`))
 	c.Assert(err, IsNil)
@@ -474,6 +474,29 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
 
 	// set and unset the db admin flag
+	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"admin": true}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.ops, HasLen, 1)
+	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
+	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
+	c.Assert(self.manager.ops[0].isAdmin, Equals, true)
+	self.manager.ops = nil
+	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"admin": false}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.ops, HasLen, 1)
+	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
+	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
+	c.Assert(self.manager.ops[0].isAdmin, Equals, false)
+	self.manager.ops = nil
+
+	// TODO: remove this parapgraph one the old endpoints are removed
+	// set and unset the db admin flag
 	url = self.formatUrl("/db/db1/admins/dbuser?u=root&p=root")
 	resp, err = libhttp.Post(url, "", nil)
 	c.Assert(err, IsNil)
@@ -484,7 +507,6 @@ func (self *ApiSuite) TestDbUSerOperations(c *C) {
 	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
 	c.Assert(self.manager.ops[0].isAdmin, Equals, true)
 	self.manager.ops = nil
-
 	url = self.formatUrl("/db/db1/admins/dbuser?u=root&p=root")
 	req, _ := libhttp.NewRequest("DELETE", url, nil)
 	resp, err = libhttp.DefaultClient.Do(req)

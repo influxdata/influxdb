@@ -755,8 +755,8 @@ func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 		return
 	}
 
-	updateUser := &UpdateUser{}
-	err = json.Unmarshal(body, updateUser)
+	updateUser := make(map[string]interface{})
+	err = json.Unmarshal(body, &updateUser)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -767,8 +767,26 @@ func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
-		if err := self.userManager.ChangeDbUserPassword(u, db, newUser, updateUser.Password); err != nil {
-			return errorToStatusCode(err), err.Error()
+		if pwd, ok := updateUser["password"]; ok {
+			newPassword, ok := pwd.(string)
+			if !ok {
+				return libhttp.StatusBadRequest, "password must be string"
+			}
+
+			if err := self.userManager.ChangeDbUserPassword(u, db, newUser, newPassword); err != nil {
+				return errorToStatusCode(err), err.Error()
+			}
+		}
+
+		if admin, ok := updateUser["admin"]; ok {
+			isAdmin, ok := admin.(bool)
+			if !ok {
+				return libhttp.StatusBadRequest, "admin must be boolean"
+			}
+
+			if err := self.userManager.SetDbAdmin(u, db, newUser, isAdmin); err != nil {
+				return errorToStatusCode(err), err.Error()
+			}
 		}
 		return libhttp.StatusOK, nil
 	})
