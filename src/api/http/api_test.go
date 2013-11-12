@@ -442,8 +442,23 @@ func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 }
 
 func (self *ApiSuite) TestDbUserOperations(c *C) {
+	// create user using the `name` field
 	url := self.formatUrl("/db/db1/users?u=root&p=root")
-	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"dbuser", "password": "password"}`))
+	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"name":"dbuser", "password": "password"}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.ops, HasLen, 2)
+	c.Assert(self.manager.ops[0].operation, Equals, "db_user_add")
+	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
+	c.Assert(self.manager.ops[1].operation, Equals, "db_user_passwd")
+	c.Assert(self.manager.ops[1].username, Equals, "dbuser")
+	c.Assert(self.manager.ops[1].password, Equals, "password")
+	self.manager.ops = nil
+
+	// create user using the `username` field
+	url = self.formatUrl("/db/db1/users?u=root&p=root")
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"username":"dbuser", "password": "password"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
@@ -582,7 +597,6 @@ func (self *ApiSuite) TestBasicAuthentication(c *C) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	fmt.Printf("body: %s\n", string(body))
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 	users := []*Database{}
 	err = json.Unmarshal(body, &users)
