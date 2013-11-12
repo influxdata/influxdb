@@ -25,15 +25,22 @@ func Test(t *testing.T) {
 type ApiSuite struct {
 	listener    net.Listener
 	server      *HttpServer
+	engine      *MockEngine
 	coordinator *MockCoordinator
 	manager     *MockUserManager
 }
 
 var _ = Suite(&ApiSuite{})
 
-type MockEngine struct{}
+type MockEngine struct {
+	returnedError error
+}
 
 func (self *MockEngine) RunQuery(_ common.User, _ string, query string, yield func(*protocol.Series) error) error {
+	if self.returnedError != nil {
+		return self.returnedError
+	}
+
 	series, err := common.StringToSeriesArray(`
 [
   {
@@ -128,7 +135,8 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 		clusterAdmins: []string{"root"},
 		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
 	}
-	self.server = NewHttpServer("", &MockEngine{}, self.coordinator, self.manager)
+	self.engine = &MockEngine{}
+	self.server = NewHttpServer("", self.engine, self.coordinator, self.manager)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
 	c.Assert(err, IsNil)
@@ -144,6 +152,7 @@ func (self *ApiSuite) TearDownSuite(c *C) {
 
 func (self *ApiSuite) SetUpTest(c *C) {
 	self.coordinator.series = nil
+	self.engine.returnedError = nil
 	self.manager.ops = nil
 }
 
@@ -209,6 +218,17 @@ func (self *ApiSuite) TestQueryWithNullColumns(c *C) {
 	c.Assert(series[0].Points, HasLen, 4)
 	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631)
 	c.Assert(series[0].Points[0][3], Equals, nil)
+}
+
+func (self *ApiSuite) TestQueryErrorPropagatesProperly(c *C) {
+	self.engine.returnedError = fmt.Errorf("some error")
+	query := "select * from does_not_exist;"
+	query = url.QueryEscape(query)
+	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=s&u=dbuser&p=password", query)
+	resp, err := libhttp.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
 }
 
 func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {

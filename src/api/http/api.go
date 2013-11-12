@@ -189,7 +189,7 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	query := r.URL.Query().Get("q")
 	db := r.URL.Query().Get(":db")
 
-	self.tryAsDbUser(w, r, func(user common.User) (int, interface{}) {
+	statusCode, body := self.tryAsDbUser(w, r, func(user common.User) (int, interface{}) {
 
 		precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
 		if err != nil {
@@ -211,6 +211,12 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 		writer.done()
 		return libhttp.StatusOK, nil
 	})
+
+	if statusCode != libhttp.StatusOK {
+		w.Header().Add("content-type", "text/plaing")
+		w.WriteHeader(statusCode)
+		w.Write(body)
+	}
 }
 
 func removeTimestampFieldDefinition(fields []string) []string {
