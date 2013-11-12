@@ -94,6 +94,10 @@
 ### Bugfixes
 
 - [Issue #36](https://github.com/influxdb/influxdb/issues/36). The regex operator should be =~ not ~=
+
+### Deprecated
+
+- Preparing to deprecate `/dbs` (for listing databases) in favor of a more consistent `/db` endpoint
 - Preparing to deprecate `username` field for a more consistent `name` field in the `/db/:db/users`
 - Preparing to deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
   be used to update user flags, password, etc.

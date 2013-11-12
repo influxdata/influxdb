@@ -66,6 +66,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	// Write points to the given database
 	self.registerEndpoint(p, "post", "/db/:db/series", self.writePoints)
 	self.registerEndpoint(p, "get", "/dbs", self.listDatabases)
+	self.registerEndpoint(p, "get", "/db", self.listDatabases)
 	self.registerEndpoint(p, "post", "/db", self.createDatabase)
 	self.registerEndpoint(p, "del", "/db/:name", self.dropDatabase)
 

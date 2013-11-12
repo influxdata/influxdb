@@ -574,17 +574,19 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 }
 
 func (self *ApiSuite) TestDatabasesIndex(c *C) {
-	url := self.formatUrl("/dbs?u=root&p=root")
-	resp, err := libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	users := []*Database{}
-	err = json.Unmarshal(body, &users)
-	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*Database{&Database{"db1"}, &Database{"db2"}})
+	for _, path := range []string{"/dbs?u=root&p=root", "/db?u=root&p=root"} {
+		url := self.formatUrl(path)
+		resp, err := libhttp.Get(url)
+		c.Assert(err, IsNil)
+		c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, IsNil)
+		users := []*Database{}
+		err = json.Unmarshal(body, &users)
+		c.Assert(err, IsNil)
+		c.Assert(users, DeepEquals, []*Database{&Database{"db1"}, &Database{"db2"}})
+	}
 }
 
 func (self *ApiSuite) TestBasicAuthentication(c *C) {
