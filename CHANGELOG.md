@@ -90,6 +90,7 @@
 ### Features
 
 - [Issue #37](https://github.com/influxdb/influxdb/issues/37). Support the negation of the regex matcher !~
+- [Issue #47](https://github.com/influxdb/influxdb/issues/47). Spill out query and database detail at the time of bug report
 
 ### Bugfixes
 
