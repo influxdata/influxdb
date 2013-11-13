@@ -13,6 +13,7 @@ admin_dir=`mktemp -d`
 influxdb_version=$1
 rm -rf packages
 mkdir packages
+bundle install
 
 function package_admin_interface {
     pushd $admin_dir
