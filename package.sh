@@ -9,18 +9,17 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
-admin_dir=/tmp/influx_admin_interface
+admin_dir=`mktemp -d`
 influxdb_version=$1
 rm -rf packages
 mkdir packages
 
 function package_admin_interface {
-    [ -d $admin_dir ] || git clone https://github.com/influxdb/influxdb-js.git $admin_dir
-    rvm rvmrc trust /tmp/influx_admin_interface/.rvmrc
     pushd $admin_dir
-    git checkout .
-    git pull --rebase
+    git clone https://github.com/influxdb/influxdb-admin.git .
+    rvm rvmrc trust ./.rvmrc
 
+    gem install bundler
     bundle install
     bundle exec middleman build
     popd
