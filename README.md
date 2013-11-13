@@ -1,13 +1,13 @@
 InfluxDB [![Build Status](https://travis-ci.org/influxdb/influxdb.png?branch=master)](https://travis-ci.org/influxdb/influxdb)
 =========
 
-InfluxDB is an open source **distributed time series database** with **no external dependencies**. It's useful for recording metrics, events, and performing analytics.  
+InfluxDB is an open source **distributed time series database** with **no external dependencies**. It's useful for recording metrics, events, and performing analytics.
 
-It has a built-in HTTP API so you don't have to write any server side code to get up and running. 
+It has a built-in HTTP API so you don't have to write any server side code to get up and running.
 
 InfluxDB is designed to be scalable, simple to install and manage, and fast to get data in and out.
 
-It aims to answer queries in real-time. That means every data point is indexed as it comes in and is immediately available in queries that should return in < 100ms. 
+It aims to answer queries in real-time. That means every data point is indexed as it comes in and is immediately available in queries that should return in < 100ms.
 
 ## Quickstart
 
@@ -19,9 +19,9 @@ It aims to answer queries in real-time. That means every data point is indexed a
 
 ### Mac OS X
 
-- Install the build dependencies of the project: 
+- Install the build dependencies of the project:
 
-``` shell 
+``` shell
 brew install protobuf bison flex leveldb go hg bzr
 ```
 
@@ -33,14 +33,14 @@ Note: If you are on Mac OS X Mavericks, you might want to try to install go usin
 
 - You need to [get Go from Google Code](http://code.google.com/p/go/downloads/list).
 - Ensure `go` is on your `PATH`.
-- If you're on a Red Hat-based distro: 
+- If you're on a Red Hat-based distro:
 
 ``` bash
 sudo yum install hg bzr protobuf-compiler flex bison valgrind
 ```
 
 - If you're on a Debian-based distro:
-``` 
+```
 sudo apt-get install mercurial bzr protobuf-compiler flex bison valgrind
 ```
 
