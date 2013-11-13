@@ -11,6 +11,7 @@ import (
 	"protocol"
 	"reflect"
 	"testing"
+	"time"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -693,6 +694,73 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
   }
 ]
 `)
+}
+
+func (self *EngineSuite) TestCountQueryWithGroupByTimeDescendingOrder(c *C) {
+	points := `
+[
+  {
+    "points": [
+`
+
+	expectedResponse := `
+[
+  {
+    "points": [
+`
+	endTime := time.Now().Round(time.Hour)
+
+	for i := 0; i < 3600; i++ {
+		delimiter := ","
+		if i == 3599 {
+			delimiter = ""
+		}
+
+		points += fmt.Sprintf(`
+      {
+        "values": [
+          {
+            "string_value": "some_value"
+          }
+        ],
+        "timestamp": %d,
+        "sequence_number": 1
+      }%s
+`, endTime.Add(time.Duration(-i)*time.Second).Unix()*1000000, delimiter)
+
+		expectedResponse += fmt.Sprintf(`
+      {
+        "values": [
+          {
+            "int64_value": 1
+          }
+        ],
+        "timestamp": %d,
+        "sequence_number": 1
+      }%s
+`, endTime.Add(time.Duration(-i)*time.Second).Unix()*1000000, delimiter)
+	}
+
+	points += `
+    ],
+    "name": "foo",
+    "fields": ["count"]
+  }
+]
+`
+
+	expectedResponse += `
+    ],
+    "name": "foo",
+    "fields": ["count"]
+  }
+]
+`
+
+	// make the mock coordinator return some data
+	engine := createEngine(c, points)
+
+	runQuery(engine, "select count(column_one) from foo group by time(1s);", c, expectedResponse)
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {

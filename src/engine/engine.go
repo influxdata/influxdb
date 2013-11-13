@@ -8,6 +8,7 @@ import (
 	"parser"
 	"protocol"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 )
@@ -206,6 +207,30 @@ func crossProduct(values [][]*protocol.FieldValue) [][]*protocol.FieldValue {
 	return returnValues
 }
 
+type SortableGroups struct {
+	data       []interface{}
+	table      string
+	aggregator Aggregator
+	ascending  bool
+}
+
+func (self SortableGroups) Len() int {
+	return len(self.data)
+}
+
+func (self SortableGroups) Less(i, j int) bool {
+	iTimestamp := self.aggregator.GetValue(self.table, self.data[i])[0].Int64Value
+	jTimestamp := self.aggregator.GetValue(self.table, self.data[j])[0].Int64Value
+	if self.ascending {
+		return *iTimestamp < *jTimestamp
+	}
+	return *iTimestamp > *jTimestamp
+}
+
+func (self SortableGroups) Swap(i, j int) {
+	self.data[i], self.data[j] = self.data[j], self.data[i]
+}
+
 func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database string, query *parser.Query,
 	yield func(*protocol.Series) error) error {
 	duration, err := query.GetGroupByClause().GetGroupByTime()
@@ -293,7 +318,17 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 	for table, tableGroups := range groups {
 		tempTable := table
 		points := []*protocol.Point{}
+
+		// sort the table groups by timestamp
+		groups := make([]interface{}, 0, len(tableGroups))
 		for groupId, _ := range tableGroups {
+			groups = append(groups, groupId)
+		}
+
+		sortedGroups := SortableGroups{groups, table, timestampAggregator, query.Ascending}
+		sort.Sort(sortedGroups)
+
+		for _, groupId := range sortedGroups.data {
 			timestamp := *timestampAggregator.GetValue(table, groupId)[0].Int64Value
 			values := [][]*protocol.FieldValue{}
 
