@@ -21,7 +21,7 @@ import (
 
 const (
 	version = "dev"
-	gitSha  = ""
+	gitSha  = "HEAD"
 )
 
 func waitForSignals(stopped <-chan bool) {
