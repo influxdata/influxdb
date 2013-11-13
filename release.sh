@@ -47,8 +47,9 @@ for filepath in `ls packages/*.{tar.gz,deb,rpm}`; do
     filename=`basename $filepath`
     latest_filename=`echo ${filename} | sed "s/${version}/latest/g"`
     bucket=influxdb
-    AWS_CONFIG_FILE=~/aws.conf aws s3 put-object --bucket $bucket --key $filename --body $filepath --acl public-read
-    AWS_CONFIG_FILE=~/aws.conf aws s3 put-object --bucket $bucket --key ${latest_filename} --body $filepath --acl public-read
+
+    AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
+    AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://influxdb/${latest_filename} --acl public-read --region us-east-1
 done
 
 branch=`git rev-parse --abbrev-ref HEAD`
