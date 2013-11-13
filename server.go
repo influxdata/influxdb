@@ -918,6 +918,7 @@ func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 					default:
 						panic("server unable to send signal to commit channel")
 					}
+					entry.commit = nil
 				}
 			}
 		}
