@@ -25,6 +25,8 @@ func (self *QueryEngine) RunQuery(user common.User, database string, query strin
 			fmt.Fprintf(os.Stderr, "********************************BUG********************************\n")
 			buf := make([]byte, 1024)
 			n := runtime.Stack(buf, false)
+			fmt.Fprintf(os.Stderr, "Database: %s\n", database)
+			fmt.Fprintf(os.Stderr, "Query: [%s]\n", query)
 			fmt.Fprintf(os.Stderr, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
 			err = common.NewQueryError(common.InternalError, "Internal Error")
 		}
