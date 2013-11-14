@@ -242,17 +242,22 @@ func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 		for idx, field := range s.Columns {
 			value := point[idx]
 			if field == "time" {
-				_timestamp := int64(value.(float64))
-				switch precision {
-				case SecondPrecision:
-					_timestamp *= 1000
-					fallthrough
-				case MillisecondPrecision:
-					_timestamp *= 1000
-				}
+				switch value.(type) {
+					case float64:
+						_timestamp := int64(value.(float64))
+						switch precision {
+						case SecondPrecision:
+							_timestamp *= 1000
+							fallthrough
+						case MillisecondPrecision:
+							_timestamp *= 1000
+						}
 
-				timestamp = &_timestamp
-				continue
+						timestamp = &_timestamp
+						continue
+					default:
+						return nil, fmt.Errorf("time field must be float but is %T (%v)", value,value)
+				}
 			}
 
 			switch v := value.(type) {

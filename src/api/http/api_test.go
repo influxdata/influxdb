@@ -371,6 +371,25 @@ func (self *ApiSuite) TestWriteDataWithTime(c *C) {
 	c.Assert(*series.Points[0].GetTimestampInMicroseconds(), Equals, int64(1382131686000000))
 }
 
+func (self *ApiSuite) TestWriteDataWithInvalidTime(c *C) {
+	data := `
+[
+  {
+    "points": [
+				["foo", "1"]
+    ],
+    "name": "foo",
+    "columns": ["time", "column_one"]
+  }
+]
+`
+
+	addr := self.formatUrl("/db/foo/series?u=dbuser&p=password")
+	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
+}
+
 func (self *ApiSuite) TestWriteDataWithNull(c *C) {
 	data := `
 [
