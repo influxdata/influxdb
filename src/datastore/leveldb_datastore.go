@@ -370,8 +370,6 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	// optimize for the case where we're pulling back only a single column or aggregate
 	for {
 		isValid := false
-		var pointTimeRaw []byte
-		var pointSequenceRaw []byte
 
 		point := &protocol.Point{Values: make([]*protocol.FieldValue, fieldCount, fieldCount)}
 		for i, it := range iterators {
@@ -393,8 +391,21 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			sequenceNumber := key[16:]
 
 			rawValue := &rawColumnValue{time: time, sequence: sequenceNumber, value: value}
-			pointTimeRaw, pointSequenceRaw = rawValue.updatePointTimeAndSequence(pointTimeRaw, pointSequenceRaw, query.Ascending)
 			rawColumnValues[i] = rawValue
+		}
+
+		var pointTimeRaw []byte
+		var pointSequenceRaw []byte
+		// choose the highest (or lowest in case of ascending queries) timestamp
+		// and sequence number. that will become the timestamp and sequence of
+		// the next point.
+		for _, value := range rawColumnValues {
+			if value == nil {
+				continue
+			}
+
+			pointTimeRaw, pointSequenceRaw = value.updatePointTimeAndSequence(pointTimeRaw,
+				pointSequenceRaw, query.Ascending)
 		}
 
 		for i, iterator := range iterators {
