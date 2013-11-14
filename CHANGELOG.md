@@ -85,7 +85,7 @@
 - [Issue #30](https://github.com/influxdb/influxdb/issues/30). Column indexes/names getting off somehow
 - [Issue #32](https://github.com/influxdb/influxdb/issues/32). Fix many typos in the codebase. Thanks @pborreli
 
-## v0.1.1 (unreleased)
+## v0.2.0
 
 ### Features
 
@@ -110,3 +110,9 @@
 - Preparing to deprecate `username` field for a more consistent `name` field in the `/db/:db/users`
 - Preparing to deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
   be used to update user flags, password, etc.
+
+## v0.2.1 (unreleased)
+
+## Features
+
+## Bugfixes
