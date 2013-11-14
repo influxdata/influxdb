@@ -268,6 +268,8 @@ func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 				}
 			case bool:
 				values = append(values, &protocol.FieldValue{BoolValue: &v})
+			case nil:
+				values = append(values, nil)
 			default:
 				// if we reached this line then the dynamic type didn't match
 				return nil, fmt.Errorf("Unknown type %T", value)
