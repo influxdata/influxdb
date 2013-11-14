@@ -480,6 +480,28 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
 	c.Assert(results[0], DeepEquals, series)
 }
 
+func (self *DatastoreSuite) TestReturnsResultsInAscendingOrderWithNulls(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	minuteAgo := time.Now().Add(-time.Minute).Unix()
+	mock := `{
+    "points":[
+      {"values":[null, {"string_value": "dix"}],"sequence_number":1},
+      {"values":[{"string_value":"todd"}, {"string_value": "persen"}],"sequence_number":2}],
+      "name":"user_things",
+      "fields":["first_name", "last_name"]
+    }`
+	series := stringToSeries(mock, minuteAgo, c)
+	err := db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	user := &MockUser{}
+	results := executeQuery(user, "foobar", "select first_name, last_name from user_things order asc;", db, c)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0], DeepEquals, series)
+}
+
 func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
 	cleanup(nil)
 	db := newDatastore(c)

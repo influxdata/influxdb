@@ -36,6 +36,38 @@ type rawColumnValue struct {
 	value    []byte
 }
 
+// depending on the query order (whether it's ascending or not) returns
+// the min (or max in case of descending query) of the current
+// [timestamp,sequence] and the self's [timestamp,sequence]
+//
+// This is used to determine what the next point's timestamp
+// and sequence number should be.
+func (self *rawColumnValue) updatePointTimeAndSequence(currentTimeRaw, currentSequenceRaw []byte, isAscendingQuery bool) ([]byte, []byte) {
+	if currentTimeRaw == nil {
+		return self.time, self.sequence
+	}
+
+	compareValue := 1
+	if isAscendingQuery {
+		compareValue = -1
+	}
+
+	timeCompare := bytes.Compare(self.time, currentTimeRaw)
+	if timeCompare == compareValue {
+		return self.time, self.sequence
+	}
+
+	if timeCompare != 0 {
+		return currentTimeRaw, currentSequenceRaw
+	}
+
+	if bytes.Compare(self.sequence, currentSequenceRaw) == compareValue {
+		return currentTimeRaw, self.sequence
+	}
+
+	return currentTimeRaw, currentSequenceRaw
+}
+
 const (
 	ONE_MEGABYTE              = 1024 * 1024
 	ONE_GIGABYTE              = ONE_MEGABYTE * 1024
@@ -102,6 +134,13 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 			binary.Write(timestampBuffer, binary.BigEndian, self.convertTimestampToUint(point.GetTimestampInMicroseconds()))
 			binary.Write(sequenceNumberBuffer, binary.BigEndian, uint64(*point.SequenceNumber))
 			pointKey := append(append(id, timestampBuffer.Bytes()...), sequenceNumberBuffer.Bytes()...)
+
+			// TODO: we should remove the column value if timestamp and sequence number
+			// were provided
+			if point.Values[fieldIndex] == nil {
+				continue
+			}
+
 			data, err2 := proto.Marshal(point.Values[fieldIndex])
 			if err2 != nil {
 				return err2
@@ -277,6 +316,34 @@ func (self *LevelDbDatastore) byteArraysForStartAndEndTimes(startTime, endTime i
 	return startTimeBytes, endTimeBytes
 }
 
+func (self *LevelDbDatastore) getIterators(fields []*Field, start, end []byte, isAscendingQuery bool) (fieldNames []string, iterators []*levigo.Iterator) {
+	iterators = make([]*levigo.Iterator, len(fields))
+	fieldNames = make([]string, len(fields))
+
+	// start the iterators to go through the series data
+	for i, field := range fields {
+		fieldNames[i] = field.Name
+		iterators[i] = self.db.NewIterator(self.readOptions)
+		if isAscendingQuery {
+			iterators[i].Seek(append(field.Id, start...))
+		} else {
+			iterators[i].Seek(append(append(field.Id, end...), MAX_SEQUENCE...))
+			if iterators[i].Valid() {
+				iterators[i].Prev()
+			}
+		}
+	}
+	return
+}
+
+// returns true if the point has the correct field id and is
+// in the given time range
+func isPointInRange(fieldId, startTime, endTime, point []byte) bool {
+	id := point[:8]
+	time := point[8:16]
+	return bytes.Equal(id, fieldId) && bytes.Compare(time, startTime) > -1 && bytes.Compare(time, endTime) < 1
+}
+
 func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string, query *parser.Query, yield func(*protocol.Series) error) error {
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(query.GetStartTime()), common.TimeToMicroseconds(query.GetEndTime()))
 
@@ -285,28 +352,12 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		return err
 	}
 	fieldCount := len(fields)
-	prefixes := make([][]byte, fieldCount, fieldCount)
-	iterators := make([]*levigo.Iterator, fieldCount, fieldCount)
-	fieldNames := make([]string, len(fields))
+	fieldNames, iterators := self.getIterators(fields, startTimeBytes, endTimeBytes, query.Ascending)
 
-	// start the iterators to go through the series data
-	for i, field := range fields {
-		fieldNames[i] = field.Name
-		prefixes[i] = field.Id
-		iterators[i] = self.db.NewIterator(self.readOptions)
-		if query.Ascending {
-			iterators[i].Seek(append(field.Id, startTimeBytes...))
-		} else {
-			iterators[i].Seek(append(append(field.Id, endTimeBytes...), MAX_SEQUENCE...))
-			if iterators[i].Valid() {
-				iterators[i].Prev()
-			}
-		}
-	}
+	// iterators :=
 
 	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 	rawColumnValues := make([]*rawColumnValue, fieldCount, fieldCount)
-	isValid := true
 
 	limit := query.Limit
 	if limit == 0 {
@@ -317,76 +368,92 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 
 	// TODO: clean up, this is super gnarly
 	// optimize for the case where we're pulling back only a single column or aggregate
-	for isValid {
-		isValid = false
-		latestTimeRaw := make([]byte, 8, 8)
-		latestSequenceRaw := make([]byte, 8, 8)
+	for {
+		isValid := false
+		var pointTimeRaw []byte
+		var pointSequenceRaw []byte
+
 		point := &protocol.Point{Values: make([]*protocol.FieldValue, fieldCount, fieldCount)}
 		for i, it := range iterators {
-			if rawColumnValues[i] == nil && it.Valid() {
-				k := it.Key()
-				if len(k) >= 16 {
-					t := k[8:16]
-					if bytes.Equal(k[:8], fields[i].Id) && bytes.Compare(t, startTimeBytes) > -1 && bytes.Compare(t, endTimeBytes) < 1 {
-						v := it.Value()
-						s := k[16:]
-						rawColumnValues[i] = &rawColumnValue{time: t, sequence: s, value: v}
-						timeCompare := bytes.Compare(t, latestTimeRaw)
-						if timeCompare == 1 {
-							latestTimeRaw = t
-							latestSequenceRaw = s
-						} else if timeCompare == 0 {
-							if bytes.Compare(s, latestSequenceRaw) == 1 {
-								latestSequenceRaw = s
-							}
-						}
-					}
-				}
+			if rawColumnValues[i] != nil || !it.Valid() {
+				continue
 			}
+
+			key := it.Key()
+			if len(key) < 16 {
+				continue
+			}
+
+			if !isPointInRange(fields[i].Id, startTimeBytes, endTimeBytes, key) {
+				continue
+			}
+
+			time := key[8:16]
+			value := it.Value()
+			sequenceNumber := key[16:]
+
+			rawValue := &rawColumnValue{time: time, sequence: sequenceNumber, value: value}
+			pointTimeRaw, pointSequenceRaw = rawValue.updatePointTimeAndSequence(pointTimeRaw, pointSequenceRaw, query.Ascending)
+			rawColumnValues[i] = rawValue
 		}
 
 		for i, iterator := range iterators {
-			if rawColumnValues[i] != nil && bytes.Equal(rawColumnValues[i].time, latestTimeRaw) && bytes.Equal(rawColumnValues[i].sequence, latestSequenceRaw) {
-				isValid = true
-				if query.Ascending {
-					iterator.Next()
-				} else {
-					iterator.Prev()
-				}
-				fv := &protocol.FieldValue{}
-				err := proto.Unmarshal(rawColumnValues[i].value, fv)
-				if err != nil {
-					return err
-				}
-				resultByteCount += len(rawColumnValues[i].value)
-				point.Values[i] = fv
-				var t uint64
-				binary.Read(bytes.NewBuffer(rawColumnValues[i].time), binary.BigEndian, &t)
-				time := self.convertUintTimestampToInt64(&t)
-				var sequence uint64
-				binary.Read(bytes.NewBuffer(rawColumnValues[i].sequence), binary.BigEndian, &sequence)
-				seq32 := uint32(sequence)
-				point.SetTimestampInMicroseconds(time)
-				point.SequenceNumber = &seq32
-				rawColumnValues[i] = nil
+			// if the value is nil, or doesn't match the point's timestamp and sequence number
+			// then skip it
+			if rawColumnValues[i] == nil ||
+				!bytes.Equal(rawColumnValues[i].time, pointTimeRaw) ||
+				!bytes.Equal(rawColumnValues[i].sequence, pointSequenceRaw) {
+
+				continue
 			}
+
+			// if we emitted at lease one column, then we should keep
+			// trying to get more points
+			isValid = true
+
+			// advance the iterator to read a new value in the next iteration
+			if query.Ascending {
+				iterator.Next()
+			} else {
+				iterator.Prev()
+			}
+			fv := &protocol.FieldValue{}
+			err := proto.Unmarshal(rawColumnValues[i].value, fv)
+			if err != nil {
+				return err
+			}
+			resultByteCount += len(rawColumnValues[i].value)
+			point.Values[i] = fv
+			var t uint64
+			binary.Read(bytes.NewBuffer(rawColumnValues[i].time), binary.BigEndian, &t)
+			time := self.convertUintTimestampToInt64(&t)
+			var sequence uint64
+			binary.Read(bytes.NewBuffer(rawColumnValues[i].sequence), binary.BigEndian, &sequence)
+			seq32 := uint32(sequence)
+			point.SetTimestampInMicroseconds(time)
+			point.SequenceNumber = &seq32
+			rawColumnValues[i] = nil
 		}
-		if isValid {
-			limit -= 1
-			result.Points = append(result.Points, point)
 
-			// add byte count for the timestamp and the sequence
-			resultByteCount += 16
+		// stop the loop if we ran out of points
+		if !isValid {
+			break
+		}
 
-			// check if we should send the batch along
-			if resultByteCount > MAX_SERIES_SIZE {
-				filteredResult, _ := Filter(query, result)
-				if err := yield(filteredResult); err != nil {
-					return err
-				}
-				resultByteCount = 0
-				result = &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
+		limit -= 1
+		result.Points = append(result.Points, point)
+
+		// add byte count for the timestamp and the sequence
+		resultByteCount += 16
+
+		// check if we should send the batch along
+		if resultByteCount > MAX_SERIES_SIZE {
+			filteredResult, _ := Filter(query, result)
+			if err := yield(filteredResult); err != nil {
+				return err
 			}
+			resultByteCount = 0
+			result = &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 		}
 		if limit < 1 {
 			break

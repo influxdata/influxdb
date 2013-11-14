@@ -242,6 +242,44 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 	c.Assert(data[0].Points[1][2], Equals, 70.0)
 }
 
+// issue #34
+func (self *IntegrationSuite) TestAscendingQueries(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+     "name": "test_ascending",
+     "columns": ["host"],
+     "points": [["hosta"]]
+  }
+]`)
+	time.Sleep(1 * time.Second)
+	for i := 0; i < 3; i++ {
+		err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_ascending",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10))
+		c.Assert(err, IsNil)
+		time.Sleep(1 * time.Second)
+	}
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select host, cpu from test_ascending order asc")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Name, Equals, "test_ascending")
+	c.Assert(data[0].Columns, HasLen, 4)
+	c.Assert(data[0].Points, HasLen, 7)
+	for i := 1; i < 7; i++ {
+		c.Assert(data[0].Points[i][3], NotNil)
+	}
+}
+
 func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 	for i := 0; i < 20; i++ {
 		err := self.server.WriteData(fmt.Sprintf(`
