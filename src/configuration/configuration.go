@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 )
 
 type Configuration struct {
@@ -16,6 +17,7 @@ type Configuration struct {
 	DataDir        string
 	RaftDir        string
 	ProtobufPort   int
+	Hostname       string
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -47,4 +49,21 @@ func (self *Configuration) ApiHttpPortString() string {
 
 func (self *Configuration) ProtobufPortString() string {
 	return fmt.Sprintf(":%d", self.ProtobufPort)
+}
+
+func (self *Configuration) HostnameOrDetect() string {
+	if self.Hostname != "" {
+		return self.Hostname
+	} else {
+		n, err := os.Hostname()
+		if err == nil {
+			return n
+		} else {
+			return "localhost"
+		}
+	}
+}
+
+func (self *Configuration) ProtobufConnectionString() string {
+	return fmt.Sprintf("%s:%d", self.HostnameOrDetect(), self.ProtobufPort)
 }

@@ -23,8 +23,6 @@ type Database struct {
 	ReplicationFactor uint8  `json:"replicationFactor"`
 }
 
-const NUMBER_OF_RING_LOCATIONS = 10000
-
 func NewClusterConfiguration() *ClusterConfiguration {
 	return &ClusterConfiguration{
 		databaseReplicationFactors: make(map[string]uint8),
@@ -34,6 +32,18 @@ func NewClusterConfiguration() *ClusterConfiguration {
 	}
 }
 
+func (self *ClusterConfiguration) IsSingleServer() bool {
+	return len(self.servers) == 0
+}
+
+func (self *ClusterConfiguration) Servers() []*ClusterServer {
+	return self.servers
+}
+
+func (self *ClusterConfiguration) GetReplicationFactor(database *string) uint8 {
+	return self.databaseReplicationFactors[*database]
+}
+
 func (self *ClusterConfiguration) IsActive() bool {
 	return self.hasRunningServers
 }
@@ -41,6 +51,42 @@ func (self *ClusterConfiguration) IsActive() bool {
 func (self *ClusterConfiguration) GetServerByRaftName(name string) *ClusterServer {
 	for _, server := range self.servers {
 		if server.RaftName == name {
+			return server
+		}
+	}
+	return nil
+}
+
+func (self *ClusterConfiguration) GetServerIndexByLocation(location *int) int {
+	return *location % len(self.servers)
+}
+
+func (self *ClusterConfiguration) GetServersByRingLocation(database *string, location *int) []*ClusterServer {
+	index := *location % len(self.servers)
+	return self.GetServersByIndexAndReplicationFactor(database, &index)
+}
+
+func (self *ClusterConfiguration) GetServersByIndexAndReplicationFactor(database *string, index *int) []*ClusterServer {
+	replicationFactor := self.GetReplicationFactor(database)
+	serverCount := len(self.servers)
+	if int(replicationFactor) >= serverCount {
+		return self.servers
+	}
+	owners := make([]*ClusterServer, 0, replicationFactor)
+	for i := *index; i < serverCount; i++ {
+		owners = append(owners, self.servers[i])
+	}
+	ownerCount := len(owners)
+	for i := 0; ownerCount < int(replicationFactor); i++ {
+		owners = append(owners, self.servers[i])
+		ownerCount++
+	}
+	return owners
+}
+
+func (self *ClusterConfiguration) GetServerByProtobufConnectionString(connectionString string) *ClusterServer {
+	for _, server := range self.servers {
+		if server.ProtobufConnectionString == connectionString {
 			return server
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"datastore"
 	"engine"
 	"log"
+	"time"
 )
 
 type Server struct {
@@ -29,7 +30,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	}
 
 	clusterConfig := coordinator.NewClusterConfiguration()
-	raftServer := coordinator.NewRaftServer(config.RaftDir, "localhost", config.RaftServerPort, clusterConfig)
+	raftServer := coordinator.NewRaftServer(config, clusterConfig)
 	requestHandler := coordinator.NewProtobufRequestHandler(db, raftServer)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
@@ -61,6 +62,11 @@ func (self *Server) ListenAndServe() error {
 		retryUntilJoinedCluster = true
 	}
 	go self.RaftServer.ListenAndServe(self.Config.SeedServers, retryUntilJoinedCluster)
+	time.Sleep(time.Second * 3)
+	err := self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.Config.ProtobufConnectionString())
+	if err != nil {
+		return err
+	}
 	log.Println("Starting admin interface on port", self.Config.AdminHttpPort)
 	go self.AdminServer.ListenAndServe()
 	log.Println("Starting Http Api server on port", self.Config.ApiHttpPort)

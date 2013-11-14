@@ -2,6 +2,8 @@ package coordinator
 
 import (
 	"bytes"
+	"common"
+	"configuration"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,12 +40,15 @@ type RaftServer struct {
 	mutex         sync.RWMutex
 	listener      net.Listener
 	closing       bool
+	config        *configuration.Configuration
+	localServerId uint32
 }
 
 var registeredCommands bool
+var replicateWrite = protocol.Request_REPLICATION_WRITE
 
 // Creates a new server.
-func NewRaftServer(path string, host string, port int, clusterConfig *ClusterConfiguration) *RaftServer {
+func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterConfiguration) *RaftServer {
 	if !registeredCommands {
 		registeredCommands = true
 		raft.RegisterCommand(&AddPotentialServerCommand{})
@@ -53,24 +58,34 @@ func NewRaftServer(path string, host string, port int, clusterConfig *ClusterCon
 		raft.RegisterCommand(&SaveDbUserCommand{})
 		raft.RegisterCommand(&SaveClusterAdminCommand{})
 	}
+
 	s := &RaftServer{
-		host:          host,
-		port:          port,
-		path:          path,
+		host:          config.HostnameOrDetect(),
+		port:          config.RaftServerPort,
+		path:          config.RaftDir,
 		clusterConfig: clusterConfig,
 		router:        mux.NewRouter(),
+		config:        config,
 	}
 	// Read existing name or generate a new one.
-	if b, err := ioutil.ReadFile(filepath.Join(path, "name")); err == nil {
+	if b, err := ioutil.ReadFile(filepath.Join(s.path, "name")); err == nil {
 		s.name = string(b)
 	} else {
 		s.name = fmt.Sprintf("%07x", rand.Int())[0:7]
-		if err = ioutil.WriteFile(filepath.Join(path, "name"), []byte(s.name), 0644); err != nil {
+		if err = ioutil.WriteFile(filepath.Join(s.path, "name"), []byte(s.name), 0644); err != nil {
 			panic(err)
 		}
 	}
 
 	return s
+}
+
+func (self *RaftServer) GetLocalServerId() (uint32, error) {
+	s := self.clusterConfig.GetServerByRaftName(self.name)
+	if s == nil {
+		return uint32(0), errors.New("Couldn't find server matching this name: " + self.name)
+	}
+	return s.Id, nil
 }
 
 func (s *RaftServer) ClusterServer() *ClusterServer {
@@ -155,13 +170,34 @@ func (s *RaftServer) ReplicateWrite(request *protocol.Request) error {
 	if request.Series == nil {
 		return errors.New("Only requests with a series get write replicated")
 	}
+	if request.Id == nil {
+		return errors.New("Replication writes must have a request id")
+	}
 	for _, point := range request.Series.Points {
 		if point.Timestamp == nil || point.SequenceNumber == nil {
 			return errors.New("Points must have times and sequence numbers to be replicated")
 		}
 	}
+	if len(request.Series.Points) == 0 {
+		return errors.New("Can't replicate a write without points")
+	}
+	location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
+	replicas := s.clusterConfig.GetServersByRingLocation(request.Database, &location)
 
-	// TODO: implement this
+	if s.localServerId == 0 {
+		localId, err := s.GetLocalServerId()
+		if err != nil {
+			log.Println("RaftServer: coulnd't look up server id for: ", s.name, s.clusterConfig.servers)
+		} else {
+			s.localServerId = localId
+		}
+	}
+	request.Type = &replicateWrite
+	for _, server := range replicas {
+		if server.Id != s.localServerId {
+			server.protobufClient.MakeRequest(request, nil)
+		}
+	}
 	return nil
 }
 
@@ -192,14 +228,6 @@ func (s *RaftServer) connectionString() string {
 }
 
 func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
-	// there's a race condition in goraft that will cause the server to panic
-	// while shutting down
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Printf("Raft paniced: %v\n", err)
-		}
-	}()
-
 	log.Printf("Initializing Raft Server: %s %d", s.path, s.port)
 
 	// Initialize and start Raft server.
@@ -233,15 +261,16 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 
 				name := s.raftServer.Name()
 				connectionString := s.connectionString()
-				_, err := s.raftServer.Do(&raft.DefaultJoinCommand{
-					Name:             name,
-					ConnectionString: connectionString,
+				_, err := s.raftServer.Do(&InfluxJoinCommand{
+					Name:                     name,
+					ConnectionString:         connectionString,
+					ProtobufConnectionString: s.config.ProtobufConnectionString(),
 				})
 				if err != nil {
 					log.Fatal(err)
 				}
 
-				command := NewAddPotentialServerCommand(&ClusterServer{RaftName: name, RaftConnectionString: connectionString})
+				command := NewAddPotentialServerCommand(&ClusterServer{RaftName: name, RaftConnectionString: connectionString, ProtobufConnectionString: s.config.ProtobufConnectionString()})
 				s.doOrProxyCommand(command, "add_server")
 				s.CreateRootUser()
 				break
@@ -302,9 +331,10 @@ func (s *RaftServer) HandleFunc(pattern string, handler func(http.ResponseWriter
 
 // Joins to the leader of an existing cluster.
 func (s *RaftServer) Join(leader string) error {
-	command := &raft.DefaultJoinCommand{
-		Name:             s.raftServer.Name(),
-		ConnectionString: s.connectionString(),
+	command := &InfluxJoinCommand{
+		Name:                     s.raftServer.Name(),
+		ConnectionString:         s.connectionString(),
+		ProtobufConnectionString: s.config.ProtobufConnectionString(),
 	}
 	connectUrl := leader
 	if !strings.HasPrefix(connectUrl, "http://") {
@@ -345,7 +375,7 @@ func (s *RaftServer) retryCommand(command raft.Command, retries int) (ret interf
 
 func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 	if s.raftServer.State() == raft.Leader {
-		command := &raft.DefaultJoinCommand{}
+		command := &InfluxJoinCommand{}
 		if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -358,7 +388,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		server := s.clusterConfig.GetServerByRaftName(command.Name)
 		// it's a new server the cluster has never seen, make it a potential
 		if server == nil {
-			addServer := NewAddPotentialServerCommand(&ClusterServer{RaftName: command.Name, RaftConnectionString: command.ConnectionString})
+			addServer := NewAddPotentialServerCommand(&ClusterServer{RaftName: command.Name, RaftConnectionString: command.ConnectionString, ProtobufConnectionString: command.ProtobufConnectionString})
 			if _, err := s.raftServer.Do(addServer); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return

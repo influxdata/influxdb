@@ -3,16 +3,22 @@ package coordinator
 import (
 	"common"
 	"datastore"
+	"errors"
 	"fmt"
 	"parser"
 	"protocol"
+	"sync/atomic"
 )
 
 type CoordinatorImpl struct {
 	clusterConfiguration *ClusterConfiguration
 	raftServer           ClusterConsensus
 	datastore            datastore.Datastore
+	localHostId          uint32
+	requestId            uint32
 }
+
+var proxyWrite = protocol.Request_PROXY_WRITE
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
 	return &CoordinatorImpl{
@@ -30,8 +36,113 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	if !user.HasWriteAccess(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
+	if len(series.Points) == 0 {
+		return fmt.Errorf("Can't write series with zero points.")
+	}
 
-	return self.datastore.WriteSeriesData(db, series)
+	if self.clusterConfiguration.IsSingleServer() {
+		_, err := self.writeSeriesToLocalStore(&db, series)
+		return err
+	}
+
+	// break the series object into separate ones based on their ring location
+
+	// if times server assigned, all the points will go to the same place
+	serverAssignedTime := true
+	now := common.CurrentTime()
+	for _, p := range series.Points {
+		if p.Timestamp == nil {
+			p.Timestamp = &now
+		} else {
+			serverAssignedTime = false
+		}
+	}
+
+	if serverAssignedTime {
+		location := common.RingLocation(&db, series.Name, series.Points[0].Timestamp)
+		i := self.clusterConfiguration.GetServerIndexByLocation(&location)
+		return self.handleClusterWrite(&i, &db, series)
+	}
+
+	// TODO: make this more efficient and not suck so much
+	// not all the same, so break things up
+
+	seriesToServerIndex := make(map[int]*protocol.Series)
+	for _, p := range series.Points {
+		location := common.RingLocation(&db, series.Name, p.Timestamp)
+		i := self.clusterConfiguration.GetServerIndexByLocation(&location)
+		s := seriesToServerIndex[i]
+		if s == nil {
+			s = &protocol.Series{Name: series.Name, Fields: series.Fields, Points: make([]*protocol.Point, 0)}
+			seriesToServerIndex[i] = s
+		}
+		s.Points = append(s.Points, p)
+	}
+
+	for serverIndex, s := range seriesToServerIndex {
+		err := self.handleClusterWrite(&serverIndex, &db, s)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protocol.Series) (*protocol.Request, error) {
+	request := &protocol.Request{Type: &proxyWrite, Database: db, Series: series}
+	err := self.datastore.(*datastore.LevelDbDatastore).LogRequestAndAssignId(request)
+	if err != nil {
+		return nil, err
+	}
+
+	return request, self.datastore.WriteSeriesData(*db, series)
+}
+
+func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, series *protocol.Series) error {
+	servers := self.clusterConfiguration.GetServersByIndexAndReplicationFactor(db, serverIndex)
+	for _, s := range servers {
+		if s.Id == self.localHostId {
+			request, err := self.writeSeriesToLocalStore(db, series)
+			if err != nil {
+				// proxy it to a server that can hopefully take it
+				if servers[0].Id != self.localHostId {
+					return self.proxyWrite(servers[0], db, series)
+				} else {
+					return self.proxyWrite(servers[1], db, series)
+				}
+			}
+			// now replicate and return
+			request.Type = &replicateWrite
+			for _, replica := range servers {
+				if replica.Id != self.localHostId {
+					replica.protobufClient.MakeRequest(request, nil)
+				}
+			}
+		}
+	}
+
+	// it didn't live locally so proxy it
+	var err error
+	for _, s := range servers {
+		err = self.proxyWrite(s, db, series)
+		if err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, db *string, series *protocol.Series) error {
+	id := atomic.AddUint32(&self.requestId, uint32(1))
+	request := &protocol.Request{Database: db, Type: &proxyWrite, Series: series, Id: &id}
+	responseChan := make(chan *protocol.Response, 1)
+	clusterServer.protobufClient.MakeRequest(request, responseChan)
+	response := <-responseChan
+	if *response.Type == protocol.Response_WRITE_OK {
+		return nil
+	} else {
+		return errors.New(response.GetErrorMessage())
+	}
 }
 
 func (self *CoordinatorImpl) CreateDatabase(user common.User, db string, replicationFactor uint8) error {
@@ -216,5 +327,22 @@ func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username stri
 	user := dbUsers[username]
 	user.IsAdmin = isAdmin
 	self.raftServer.SaveDbUser(user)
+	return nil
+}
+
+func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString string) error {
+	// We shouldn't hit this. It's possible during initialization if Raft hasn't
+	// finished spinning up then there won't be any servers in the cluster config.
+	if len(self.clusterConfiguration.Servers()) == 0 {
+		return errors.New("No Protobuf servers to connect to.")
+	}
+	for _, server := range self.clusterConfiguration.Servers() {
+		if server.ProtobufConnectionString != localConnectionString {
+			server.Connect()
+		} else {
+			fmt.Println("Coordinator: setting local id: ", server.Id)
+			self.localHostId = server.Id
+		}
+	}
 	return nil
 }

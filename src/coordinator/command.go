@@ -117,3 +117,24 @@ func (c *UpdateServerStateCommand) Apply(server raft.Server) (interface{}, error
 	err := config.UpdateServerState(c.ServerId, c.State)
 	return nil, err
 }
+
+type InfluxJoinCommand struct {
+	Name                     string `json:"name"`
+	ConnectionString         string `json:"connectionString"`
+	ProtobufConnectionString string `json:"protobufConnectionString"`
+}
+
+// The name of the Join command in the log
+func (c *InfluxJoinCommand) CommandName() string {
+	return "raft:join"
+}
+
+func (c *InfluxJoinCommand) Apply(server raft.Server) (interface{}, error) {
+	err := server.AddPeer(c.Name, c.ConnectionString)
+
+	return []byte("join"), err
+}
+
+func (c *InfluxJoinCommand) NodeName() string {
+	return c.Name
+}

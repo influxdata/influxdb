@@ -134,7 +134,12 @@ func (self *DatastoreSuite) TestDeletingData(c *C) {
 	c.Assert(db.DropDatabase("test"), IsNil)
 	user := &MockUser{}
 	err = db.ExecuteQuery(user, "test", q, yield)
-	c.Assert(err, ErrorMatches, ".*Field value doesn't exist.*")
+
+	// we don't have an error any more on query for fields that don't exist.
+	// This is because of the clustering. Some servers could have some fields
+	// while others don't. To be expected.
+	// c.Assert(err, ErrorMatches, ".*Field value doesn't exist.*")
+	c.Assert(err, IsNil)
 }
 
 func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,6 +26,7 @@ type LevelDbDatastore struct {
 	writeOptions          *levigo.WriteOptions
 	sequenceNumberLock    sync.Mutex
 	currentSequenceNumber uint32
+	requestId             uint32
 }
 
 type Field struct {
@@ -188,6 +190,13 @@ func (self *LevelDbDatastore) DropDatabase(database string) error {
 	return self.db.Write(self.writeOptions, wb)
 }
 
+func (self *LevelDbDatastore) LogRequestAndAssignId(request *protocol.Request) error {
+	// TODO: actually log the request
+	id := atomic.AddUint32(&self.requestId, uint32(1))
+	request.Id = &id
+	return nil
+}
+
 func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error {
 	seriesAndColumns := query.GetReferencedColumns()
 	hasAccess := true
@@ -238,7 +247,13 @@ func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, start
 	columns := self.getColumnNamesForSeries(database, series)
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
-		return err
+		// because a db is distributed across the cluster, it's possible we don't have the series indexed here. ignore
+		switch err := err.(type) {
+		case FieldLookupError:
+			return nil
+		default:
+			return err
+		}
 	}
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
@@ -318,10 +333,17 @@ func (self *LevelDbDatastore) byteArraysForStartAndEndTimes(startTime, endTime i
 
 func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string, query *parser.Query, yield func(*protocol.Series) error) error {
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(query.GetStartTime()), common.TimeToMicroseconds(query.GetEndTime()))
+	emptyResult := &protocol.Series{Name: &series, Points: nil}
 
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
-		return err
+		// because a db is distributed across the cluster, it's possible we don't have the series indexed here. ignore
+		switch err := err.(type) {
+		case FieldLookupError:
+			return yield(emptyResult)
+		default:
+			return err
+		}
 	}
 	fieldCount := len(fields)
 	prefixes := make([][]byte, fieldCount, fieldCount)
@@ -435,7 +457,6 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	if err := yield(filteredResult); err != nil {
 		return err
 	}
-	emptyResult := &protocol.Series{Name: &series, Fields: fieldNames, Points: nil}
 	return yield(emptyResult)
 }
 
@@ -502,6 +523,14 @@ func (self *LevelDbDatastore) getColumnNamesForSeries(db, series string) []strin
 	return names
 }
 
+type FieldLookupError struct {
+	message string
+}
+
+func (self FieldLookupError) Error() string {
+	return self.message
+}
+
 func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []string) ([]*Field, error) {
 	isCountQuery := false
 	if len(columns) > 0 && columns[0] == "*" {
@@ -511,7 +540,7 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 		columns = self.getColumnNamesForSeries(db, series)
 	}
 	if len(columns) == 0 {
-		return nil, errors.New("Couldn't look up columns for series: " + series)
+		return nil, FieldLookupError{"Coulnd't look up columns for series: " + series}
 	}
 
 	fields := make([]*Field, len(columns), len(columns))
@@ -522,7 +551,7 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 			return nil, errId
 		}
 		if !alreadyPresent {
-			return nil, errors.New("Field " + name + " doesn't exist in series " + series)
+			return nil, FieldLookupError{"Field " + name + " doesn't exist in series " + series}
 		}
 		fields[i] = &Field{Name: name, Id: id}
 	}

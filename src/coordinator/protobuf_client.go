@@ -8,14 +8,12 @@ import (
 	"net"
 	"protocol"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
 type ProtobufClient struct {
 	conn              net.Conn
 	hostAndPort       string
-	requestId         uint32
 	requestBufferLock sync.RWMutex
 	requestBuffer     map[uint32]chan *protocol.Response
 	reconnectLock     sync.Mutex
@@ -45,15 +43,15 @@ func (self *ProtobufClient) Close() {
 }
 
 func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
-	id := atomic.AddUint32(&self.requestId, 1)
-	request.Id = &id
-	self.requestBufferLock.Lock()
-	if oldResponseChannel, alreadyHasRequestById := self.requestBuffer[id]; alreadyHasRequestById {
-		log.Println("ProtobufClient: error, already has a request with this id, must have timed out: ")
-		close(oldResponseChannel)
+	if responseStream != nil {
+		self.requestBufferLock.Lock()
+		if oldResponseChannel, alreadyHasRequestById := self.requestBuffer[*request.Id]; alreadyHasRequestById {
+			log.Println("ProtobufClient: error, already has a request with this id, must have timed out: ")
+			close(oldResponseChannel)
+		}
+		self.requestBuffer[*request.Id] = responseStream
+		self.requestBufferLock.Unlock()
 	}
-	self.requestBuffer[id] = responseStream
-	self.requestBufferLock.Unlock()
 
 	data, err := request.Encode()
 	if err != nil {
@@ -69,7 +67,7 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 				return nil
 			}
 		} else {
-			log.Println("Error making request: ", err)
+			log.Println("ProtobufClient: error making request: ", err)
 		}
 		// TODO: do something smarter here based on whatever the error is.
 		// failed to make the request, reconnect and try again.
@@ -78,7 +76,7 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 
 	// if we got here it errored out, clear out the request
 	self.requestBufferLock.Lock()
-	delete(self.requestBuffer, id)
+	delete(self.requestBuffer, *request.Id)
 	self.requestBufferLock.Unlock()
 	return err
 }
@@ -94,7 +92,7 @@ func (self *ProtobufClient) readResponses() {
 			if _, err := io.Copy(buff, messageReader); err == nil {
 				response, err := protocol.DecodeResponse(buff)
 				if err != nil {
-					log.Println("Error unmarshaling response: ", err)
+					log.Println("ProtobufClient: error unmarshaling response: ", err)
 				}
 				self.requestBufferLock.RLock()
 				responseChan, ok := self.requestBuffer[*response.RequestId]
@@ -135,7 +133,7 @@ func (self *ProtobufClient) reconnect() {
 		conn, err := net.Dial("tcp", self.hostAndPort)
 		if err == nil {
 			self.conn = conn
-			log.Println("Connected to ", self.hostAndPort)
+			log.Println("ProtobufClient: connected to ", self.hostAndPort)
 			self.reconnectLock.Lock()
 			self.reconnecting = false
 			self.reconnectWait.Done()
@@ -143,7 +141,7 @@ func (self *ProtobufClient) reconnect() {
 			return
 		} else {
 			if attempts%100 == 0 {
-				log.Println("Failed to connect to ", self.hostAndPort, " after 10 seconds. Continuing to retry...")
+				log.Println("ProtobufClient: failed to connect to ", self.hostAndPort, " after 10 seconds. Continuing to retry...")
 			}
 			time.Sleep(time.Millisecond * 100)
 		}

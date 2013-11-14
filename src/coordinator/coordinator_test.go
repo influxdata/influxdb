@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	. "common"
+	"configuration"
 	"datastore"
 	"encoding/json"
 	"flag"
@@ -104,7 +105,8 @@ func newConfigAndServer(c *C) *RaftServer {
 	path, err := ioutil.TempDir(os.TempDir(), "influxdb")
 	c.Assert(err, IsNil)
 	config := NewClusterConfiguration()
-	server := NewRaftServer(path, "localhost", 0, config)
+	setupConfig := &configuration.Configuration{Hostname: "localhost", RaftDir: path, RaftServerPort: 0}
+	server := NewRaftServer(setupConfig, config)
 	return server
 }
 

@@ -77,8 +77,13 @@ type ClusterConsensus interface {
 
 	// When a cluster is turned on for the first time.
 	CreateRootUser() error
+	GetLocalServerId() (uint32, error)
 }
 
 type RequestHandler interface {
 	HandleRequest(request *protocol.Request, conn net.Conn) error
+}
+
+type RequestLogger interface {
+	LogRequestAndAssignId(request *protocol.Request) error
 }
