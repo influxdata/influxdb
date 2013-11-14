@@ -458,6 +458,7 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrder(c *C) {
 	c.Assert(err, IsNil)
 	user := &MockUser{}
 	results := executeQuery(user, "foobar", "select name from user_things order asc;", db, c)
+	c.Assert(results, HasLen, 1)
 	c.Assert(results[0], DeepEquals, series)
 
 	mock = `{
