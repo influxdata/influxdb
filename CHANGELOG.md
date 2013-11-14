@@ -101,6 +101,7 @@
 - [Issue #45](https://github.com/influxdb/influxdb/issues/45). Aggregation shouldn't mess up the order of the points
 - [Issue #44](https://github.com/influxdb/influxdb/issues/44). Fix crashes on RHEL 5.9
 - [Issue #34](https://github.com/influxdb/influxdb/issues/34). Ascending order always return null for columns that have a null value
+- [Issue #55](https://github.com/influxdb/influxdb/issues/55). Limit should limit the points that match the Where clause
 
 ### Deprecated
 

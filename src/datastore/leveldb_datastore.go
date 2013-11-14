@@ -458,8 +458,10 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		resultByteCount += 16
 
 		// check if we should send the batch along
-		if resultByteCount > MAX_SERIES_SIZE {
+		if resultByteCount > MAX_SERIES_SIZE || limit < 1 {
+			lengthBeforeFiltering := len(result.Points)
 			filteredResult, _ := Filter(query, result)
+			limit += lengthBeforeFiltering - len(filteredResult.Points)
 			if err := yield(filteredResult); err != nil {
 				return err
 			}
