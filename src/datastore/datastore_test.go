@@ -195,7 +195,7 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	c.Assert(*resultSeries[0].Points[0].Values[0].Int64Value, Equals, int64(2))
 	c.Assert(*resultSeries[0].Points[1].Values[0].Int64Value, Equals, int64(3))
 	c.Assert(resultSeries[1].Points, HasLen, 0)
-	c.Assert(resultSeries[1].Fields, HasLen, 1)
+	c.Assert(resultSeries[1].Fields, HasLen, 0)
 	c.Assert(resultSeries, Not(DeepEquals), series)
 }
 
