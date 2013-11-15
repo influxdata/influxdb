@@ -118,6 +118,8 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 					replica.protobufClient.MakeRequest(request, nil)
 				}
 			}
+
+			return nil
 		}
 	}
 
