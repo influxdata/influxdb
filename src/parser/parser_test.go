@@ -73,6 +73,15 @@ func (self *QueryParserSuite) TestParseFromWithMergedTable(c *C) {
 	c.Assert(fromClause.Names[1].Name, Equals, "user.signups")
 }
 
+func (self *QueryParserSuite) TestMultipleAggregateFunctions(c *C) {
+	q, err := ParseQuery("select first(bar), last(bar) from foo")
+	c.Assert(err, IsNil)
+	columns := q.GetColumnNames()
+	c.Assert(columns, HasLen, 2)
+	c.Assert(columns[0].Name, Equals, "first")
+	c.Assert(columns[1].Name, Equals, "last")
+}
+
 func (self *QueryParserSuite) TestParseFromWithJoinedTable(c *C) {
 	q, err := ParseQuery("select max(newsletter.signups.value, user.signups.value) from newsletter.signups inner join user.signups where time>now()-1d;")
 	c.Assert(err, IsNil)

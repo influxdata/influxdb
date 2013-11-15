@@ -60,7 +60,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT FROM WHERE EQUAL GROUP BY FIRST LAST LIMIT ORDER ASC DESC MERGE INNER JOIN
+%token          SELECT FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
 // define the precedence of these operators
