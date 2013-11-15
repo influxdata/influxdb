@@ -213,7 +213,7 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	})
 
 	if statusCode != libhttp.StatusOK {
-		w.Header().Add("content-type", "text/plaing")
+		w.Header().Add("content-type", "text/plain")
 		w.WriteHeader(statusCode)
 		w.Write(body)
 	}
