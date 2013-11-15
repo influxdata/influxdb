@@ -193,8 +193,7 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 
 		precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
 		if err != nil {
-			w.WriteHeader(libhttp.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+			return libhttp.StatusBadRequest, err.Error()
 		}
 
 		var writer Writer
@@ -213,7 +212,6 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	})
 
 	if statusCode != libhttp.StatusOK {
-		w.Header().Add("content-type", "text/plain")
 		w.WriteHeader(statusCode)
 		w.Write(body)
 	}

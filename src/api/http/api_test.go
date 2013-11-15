@@ -252,6 +252,17 @@ func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
 	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631)
 }
 
+func (self *ApiSuite) TestQueryWithInvalidPrecision(c *C) {
+	query := "select * from foo where column_one == 'some_value';"
+	query = url.QueryEscape(query)
+	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=foo&u=dbuser&p=password", query)
+	resp, err := libhttp.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
+	c.Assert(resp.Header.Get("content-type"), Equals, "text/plain")
+}
+
 func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
