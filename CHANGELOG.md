@@ -103,7 +103,6 @@
 - [Issue #34](https://github.com/influxdb/influxdb/issues/34). Ascending order always return null for columns that have a null value
 - [Issue #55](https://github.com/influxdb/influxdb/issues/55). Limit should limit the points that match the Where clause
 - [Issue #53](https://github.com/influxdb/influxdb/issues/53). Writing null values via HTTP API fails
-- [Issue #57](https://github.com/influxdb/influxdb/issues/57). Don't panic when type of time != float
 
 ### Deprecated
 
@@ -116,4 +115,8 @@
 
 ## Features
 
+- [Issue #51](https://github.com/influxdb/influxdb/issues/51). Implement first and last aggregates
+
 ## Bugfixes
+
+- [Issue #57](https://github.com/influxdb/influxdb/issues/57). Don't panic when type of time != float

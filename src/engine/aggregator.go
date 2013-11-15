@@ -36,6 +36,8 @@ func init() {
 	registeredAggregators["mean"] = NewMeanAggregator
 	registeredAggregators["mode"] = NewModeAggregator
 	registeredAggregators["distinct"] = NewDistinctAggregator
+	registeredAggregators["first"] = NewFirstAggregator
+	registeredAggregators["last"] = NewLastAggregator
 }
 
 //
@@ -811,4 +813,64 @@ func NewSumAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) 
 		}
 		return currentValue + fv
 	})
+}
+
+type FirstOrLastAggregator struct {
+	name       string
+	fieldName  string
+	fieldIndex int
+	isFirst    bool
+	values     map[string]map[interface{}]*protocol.FieldValue
+}
+
+func (self *FirstOrLastAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+	values := self.values[series]
+	if values == nil {
+		values = make(map[interface{}]*protocol.FieldValue)
+		self.values[series] = values
+	}
+	if values[group] == nil || !self.isFirst {
+		values[group] = p.Values[self.fieldIndex]
+	}
+	return nil
+}
+
+func (self *FirstOrLastAggregator) ColumnName() string {
+	return self.name
+}
+
+func (self *FirstOrLastAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
+	return []*protocol.FieldValue{self.values[series][group]}
+}
+
+func (self *FirstOrLastAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+	for idx, field := range series.Fields {
+		if field == self.fieldName {
+			self.fieldIndex = idx
+			return nil
+		}
+	}
+
+	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
+}
+
+func NewFirstOrLastAggregator(name string, v *parser.Value, isFirst bool) (Aggregator, error) {
+	if len(v.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
+	}
+
+	return &FirstOrLastAggregator{
+		name:      name,
+		fieldName: v.Elems[0].Name,
+		isFirst:   isFirst,
+		values:    make(map[string]map[interface{}]*protocol.FieldValue),
+	}, nil
+}
+
+func NewFirstAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+	return NewFirstOrLastAggregator("first", value, true)
+}
+
+func NewLastAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+	return NewFirstOrLastAggregator("last", value, false)
 }

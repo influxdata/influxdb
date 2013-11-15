@@ -216,6 +216,70 @@ func (self *EngineSuite) TestCountQuery(c *C) {
 
 }
 
+func (self *EngineSuite) TestFirstAndLastQuery(c *C) {
+	// make the mock coordinator return some data
+	engine := createEngine(c, `
+[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 1
+          }
+        ],
+        "timestamp": 1381346631000000,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int64_value": 2
+          }
+        ],
+        "timestamp": 1381346631000000,
+        "sequence_number": 2
+      },
+      {
+        "values": [
+          {
+            "int64_value": 3
+          }
+        ],
+        "timestamp": 1381346631000000,
+        "sequence_number": 3
+      }
+    ],
+    "name": "foo",
+    "fields": ["column_one"]
+  }
+]
+`)
+
+	runQuery(engine, "select first(column_one), last(column_one) from foo", c, `[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 1
+          },
+          {
+            "int64_value": 3
+          }
+        ],
+        "timestamp": 1381346631000000,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": ["first", "last"]
+  }
+]
+`)
+
+}
+
 func (self *EngineSuite) TestUpperCaseQuery(c *C) {
 	// make the mock coordinator return some data
 	engine := createEngine(c, `
