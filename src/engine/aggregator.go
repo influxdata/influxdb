@@ -36,6 +36,25 @@ func init() {
 	registeredAggregators["mean"] = NewMeanAggregator
 	registeredAggregators["mode"] = NewModeAggregator
 	registeredAggregators["distinct"] = NewDistinctAggregator
+	registeredAggregators["first"] = NewFirstAggregator
+	registeredAggregators["last"] = NewLastAggregator
+}
+
+type AbstractAggregator struct {
+	Aggregator
+	fieldName  string
+	fieldIndex int
+}
+
+func (self *AbstractAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+	for idx, field := range series.Fields {
+		if field == self.fieldName {
+			self.fieldIndex = idx
+			return nil
+		}
+	}
+
+	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
 }
 
 //
@@ -83,9 +102,8 @@ type StandardDeviationRunning struct {
 }
 
 type StandardDeviationAggregator struct {
-	fieldIndex int
-	fieldName  string
-	running    map[string]map[interface{}]*StandardDeviationRunning
+	AbstractAggregator
+	running map[string]map[interface{}]*StandardDeviationRunning
 }
 
 func (self *StandardDeviationAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
@@ -130,17 +148,6 @@ func (self *StandardDeviationAggregator) GetValue(series string, group interface
 	return []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &standardDeviation}}
 }
 
-func (self *StandardDeviationAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	for idx, field := range series.Fields {
-		if field == self.fieldName {
-			self.fieldIndex = idx
-			return nil
-		}
-	}
-
-	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
-}
-
 func NewStandardDeviationAggregator(q *parser.Query, v *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function stddev() requires exactly one argument")
@@ -151,8 +158,10 @@ func NewStandardDeviationAggregator(q *parser.Query, v *parser.Value) (Aggregato
 	}
 
 	return &StandardDeviationAggregator{
-		fieldName: v.Elems[0].Name,
-		running:   make(map[string]map[interface{}]*StandardDeviationRunning),
+		AbstractAggregator: AbstractAggregator{
+			fieldName: v.Elems[0].Name,
+		},
+		running: make(map[string]map[interface{}]*StandardDeviationRunning),
 	}, nil
 }
 
@@ -161,8 +170,7 @@ func NewStandardDeviationAggregator(q *parser.Query, v *parser.Value) (Aggregato
 //
 
 type DerivativeAggregator struct {
-	fieldIndex  int
-	fieldName   string
+	AbstractAggregator
 	firstValues map[string]map[interface{}]*protocol.Point
 	lastValues  map[string]map[interface{}]*protocol.Point
 }
@@ -220,17 +228,6 @@ func (self *DerivativeAggregator) GetValue(series string, group interface{}) []*
 	return []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &derivative}}
 }
 
-func (self *DerivativeAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	for idx, field := range series.Fields {
-		if field == self.fieldName {
-			self.fieldIndex = idx
-			return nil
-		}
-	}
-
-	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
-}
-
 func NewDerivativeAggregator(q *parser.Query, v *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function derivative() requires exactly one argument")
@@ -241,7 +238,9 @@ func NewDerivativeAggregator(q *parser.Query, v *parser.Value) (Aggregator, erro
 	}
 
 	return &DerivativeAggregator{
-		fieldName:   v.Elems[0].Name,
+		AbstractAggregator: AbstractAggregator{
+			fieldName: v.Elems[0].Name,
+		},
 		firstValues: make(map[string]map[interface{}]*protocol.Point),
 		lastValues:  make(map[string]map[interface{}]*protocol.Point),
 	}, nil
@@ -365,10 +364,9 @@ func NewTimestampAggregator(query *parser.Query, _ *parser.Value) (Aggregator, e
 //
 
 type MeanAggregator struct {
-	fieldName  string
-	fieldIndex int
-	means      map[string]map[interface{}]float64
-	counts     map[string]map[interface{}]int
+	AbstractAggregator
+	means  map[string]map[interface{}]float64
+	counts map[string]map[interface{}]int
 }
 
 func (self *MeanAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
@@ -412,26 +410,17 @@ func (self *MeanAggregator) GetValue(series string, group interface{}) []*protoc
 	return returnValues
 }
 
-func (self *MeanAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	for idx, field := range series.Fields {
-		if field == self.fieldName {
-			self.fieldIndex = idx
-			return nil
-		}
-	}
-
-	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
-}
-
 func NewMeanAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mean() requires exactly one argument")
 	}
 
 	return &MeanAggregator{
-		fieldName: value.Elems[0].Name,
-		means:     make(map[string]map[interface{}]float64),
-		counts:    make(map[string]map[interface{}]int),
+		AbstractAggregator: AbstractAggregator{
+			fieldName: value.Elems[0].Name,
+		},
+		means:  make(map[string]map[interface{}]float64),
+		counts: make(map[string]map[interface{}]int),
 	}, nil
 }
 
@@ -441,8 +430,10 @@ func NewMedianAggregator(_ *parser.Query, value *parser.Value) (Aggregator, erro
 	}
 
 	return &PercentileAggregator{
+		AbstractAggregator: AbstractAggregator{
+			fieldName: value.Elems[0].Name,
+		},
 		functionName: "median",
-		fieldName:    value.Elems[0].Name,
 		percentile:   50.0,
 		float_values: make(map[string]map[interface{}][]float64),
 	}, nil
@@ -453,9 +444,8 @@ func NewMedianAggregator(_ *parser.Query, value *parser.Value) (Aggregator, erro
 //
 
 type PercentileAggregator struct {
+	AbstractAggregator
 	functionName string
-	fieldName    string
-	fieldIndex   int
 	percentile   float64
 	float_values map[string]map[interface{}][]float64
 }
@@ -498,17 +488,6 @@ func (self *PercentileAggregator) GetValue(series string, group interface{}) []*
 	return returnValues
 }
 
-func (self *PercentileAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	for idx, field := range series.Fields {
-		if field == self.fieldName {
-			self.fieldIndex = idx
-			return nil
-		}
-	}
-
-	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
-}
-
 func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 2 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function percentile() requires exactly two arguments")
@@ -520,8 +499,10 @@ func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, 
 	}
 
 	return &PercentileAggregator{
+		AbstractAggregator: AbstractAggregator{
+			fieldName: value.Elems[0].Name,
+		},
 		functionName: "percentile",
-		fieldName:    value.Elems[0].Name,
 		percentile:   percentile,
 		float_values: make(map[string]map[interface{}][]float64),
 	}, nil
@@ -532,9 +513,8 @@ func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, 
 //
 
 type ModeAggregator struct {
-	fieldName  string
-	fieldIndex int
-	counts     map[string]map[interface{}]map[float64]int
+	AbstractAggregator
+	counts map[string]map[interface{}]map[float64]int
 }
 
 func (self *ModeAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
@@ -597,26 +577,16 @@ func (self *ModeAggregator) GetValue(series string, group interface{}) []*protoc
 	return returnValues
 }
 
-func (self *ModeAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	for idx, field := range series.Fields {
-		if field == self.fieldName {
-			self.fieldIndex = idx
-
-			return nil
-		}
-	}
-
-	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
-}
-
 func NewModeAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mode() requires exactly one argument")
 	}
 
 	return &ModeAggregator{
-		fieldName: value.Elems[0].Name,
-		counts:    make(map[string]map[interface{}]map[float64]int),
+		AbstractAggregator: AbstractAggregator{
+			fieldName: value.Elems[0].Name,
+		},
+		counts: make(map[string]map[interface{}]map[float64]int),
 	}, nil
 }
 
@@ -625,9 +595,8 @@ func NewModeAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error)
 //
 
 type DistinctAggregator struct {
-	fieldName  string
-	fieldIndex int
-	counts     map[string]map[interface{}]map[interface{}]int
+	AbstractAggregator
+	counts map[string]map[interface{}]map[interface{}]int
 }
 
 func (self *DistinctAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
@@ -688,21 +657,12 @@ func (self *DistinctAggregator) GetValue(series string, group interface{}) []*pr
 	return returnValues
 }
 
-func (self *DistinctAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	for idx, field := range series.Fields {
-		if field == self.fieldName {
-			self.fieldIndex = idx
-			return nil
-		}
-	}
-
-	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
-}
-
 func NewDistinctAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
 	return &DistinctAggregator{
-		fieldName: value.Elems[0].Name,
-		counts:    make(map[string]map[interface{}]map[interface{}]int),
+		AbstractAggregator: AbstractAggregator{
+			fieldName: value.Elems[0].Name,
+		},
+		counts: make(map[string]map[interface{}]map[interface{}]int),
 	}, nil
 }
 
@@ -713,9 +673,8 @@ func NewDistinctAggregator(_ *parser.Query, value *parser.Value) (Aggregator, er
 type Operation func(currentValue float64, newValue *protocol.FieldValue) float64
 
 type CumulativeArithmeticAggregator struct {
+	AbstractAggregator
 	name         string
-	fieldName    string
-	fieldIndex   int
 	values       map[string]map[interface{}]float64
 	operation    Operation
 	initialValue float64
@@ -746,25 +705,16 @@ func (self *CumulativeArithmeticAggregator) GetValue(series string, group interf
 	return returnValues
 }
 
-func (self *CumulativeArithmeticAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	for idx, field := range series.Fields {
-		if field == self.fieldName {
-			self.fieldIndex = idx
-			return nil
-		}
-	}
-
-	return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown column name %s", self.fieldName))
-}
-
 func NewCumulativeArithmeticAggregator(name string, value *parser.Value, initialValue float64, operation Operation) (Aggregator, error) {
 	if len(value.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
 	}
 
 	return &CumulativeArithmeticAggregator{
+		AbstractAggregator: AbstractAggregator{
+			fieldName: value.Elems[0].Name,
+		},
 		name:         name,
-		fieldName:    value.Elems[0].Name,
 		values:       make(map[string]map[interface{}]float64),
 		operation:    operation,
 		initialValue: initialValue,
@@ -811,4 +761,54 @@ func NewSumAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) 
 		}
 		return currentValue + fv
 	})
+}
+
+type FirstOrLastAggregator struct {
+	AbstractAggregator
+	name    string
+	isFirst bool
+	values  map[string]map[interface{}]*protocol.FieldValue
+}
+
+func (self *FirstOrLastAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+	values := self.values[series]
+	if values == nil {
+		values = make(map[interface{}]*protocol.FieldValue)
+		self.values[series] = values
+	}
+	if values[group] == nil || !self.isFirst {
+		values[group] = p.Values[self.fieldIndex]
+	}
+	return nil
+}
+
+func (self *FirstOrLastAggregator) ColumnName() string {
+	return self.name
+}
+
+func (self *FirstOrLastAggregator) GetValue(series string, group interface{}) []*protocol.FieldValue {
+	return []*protocol.FieldValue{self.values[series][group]}
+}
+
+func NewFirstOrLastAggregator(name string, v *parser.Value, isFirst bool) (Aggregator, error) {
+	if len(v.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
+	}
+
+	return &FirstOrLastAggregator{
+		AbstractAggregator: AbstractAggregator{
+			fieldName: v.Elems[0].Name,
+		},
+		name:    name,
+		isFirst: isFirst,
+		values:  make(map[string]map[interface{}]*protocol.FieldValue),
+	}, nil
+}
+
+func NewFirstAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+	return NewFirstOrLastAggregator("first", value, true)
+}
+
+func NewLastAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+	return NewFirstOrLastAggregator("last", value, false)
 }

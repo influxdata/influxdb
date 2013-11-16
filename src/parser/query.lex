@@ -25,8 +25,6 @@ static int yycolumn = 1;
 "merge"                   { return MERGE; }
 "inner"                   { return INNER; }
 "join"                    { return JOIN; }
-"first"                   { return FIRST; }
-"last"                    { return LAST; }
 "from"                    { return FROM; }
 "where"                   { return WHERE; }
 "select"                  { return SELECT; }

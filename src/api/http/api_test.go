@@ -257,6 +257,17 @@ func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
 	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631)
 }
 
+func (self *ApiSuite) TestQueryWithInvalidPrecision(c *C) {
+	query := "select * from foo where column_one == 'some_value';"
+	query = url.QueryEscape(query)
+	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=foo&u=dbuser&p=password", query)
+	resp, err := libhttp.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
+	c.Assert(resp.Header.Get("content-type"), Equals, "text/plain")
+}
+
 func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
@@ -363,6 +374,62 @@ func (self *ApiSuite) TestWriteDataWithTime(c *C) {
 	c.Assert(series.Points, HasLen, 1)
 	c.Assert(*series.Points[0].Values[0].StringValue, Equals, "1")
 	c.Assert(*series.Points[0].GetTimestampInMicroseconds(), Equals, int64(1382131686000000))
+}
+
+func (self *ApiSuite) TestWriteDataWithInvalidTime(c *C) {
+	data := `
+[
+  {
+    "points": [
+				["foo", "1"]
+    ],
+    "name": "foo",
+    "columns": ["time", "column_one"]
+  }
+]
+`
+
+	addr := self.formatUrl("/db/foo/series?u=dbuser&p=password")
+	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
+}
+
+func (self *ApiSuite) TestWriteDataWithNull(c *C) {
+	data := `
+[
+  {
+    "points": [
+				["1", 1, 1.0, true],
+				["2", 2, 2.0, false],
+				["3", 3, 3.0, null]
+    ],
+    "name": "foo",
+    "columns": ["column_one", "column_two", "column_three", "column_four"]
+  }
+]
+`
+
+	addr := self.formatUrl("/db/foo/series?u=dbuser&p=password")
+	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.coordinator.series, HasLen, 1)
+	series := self.coordinator.series[0]
+	c.Assert(series.Fields, HasLen, 4)
+
+	// check the types
+	c.Assert(series.Fields[0], Equals, "column_one")
+	c.Assert(series.Fields[1], Equals, "column_two")
+	c.Assert(series.Fields[2], Equals, "column_three")
+	c.Assert(series.Fields[3], Equals, "column_four")
+
+	// check the values
+	c.Assert(series.Points, HasLen, 3)
+	c.Assert(*series.Points[2].Values[0].StringValue, Equals, "3")
+	c.Assert(*series.Points[2].Values[1].Int64Value, Equals, int64(3))
+	c.Assert(*series.Points[2].Values[2].Int64Value, Equals, int64(3))
+	c.Assert(series.Points[2].Values[3], IsNil)
 }
 
 func (self *ApiSuite) TestWriteData(c *C) {

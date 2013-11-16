@@ -85,7 +85,7 @@
 - [Issue #30](https://github.com/influxdb/influxdb/issues/30). Column indexes/names getting off somehow
 - [Issue #32](https://github.com/influxdb/influxdb/issues/32). Fix many typos in the codebase. Thanks @pborreli
 
-## v0.1.1 (unreleased)
+## v0.2.0
 
 ### Features
 
@@ -101,6 +101,8 @@
 - [Issue #45](https://github.com/influxdb/influxdb/issues/45). Aggregation shouldn't mess up the order of the points
 - [Issue #44](https://github.com/influxdb/influxdb/issues/44). Fix crashes on RHEL 5.9
 - [Issue #34](https://github.com/influxdb/influxdb/issues/34). Ascending order always return null for columns that have a null value
+- [Issue #55](https://github.com/influxdb/influxdb/issues/55). Limit should limit the points that match the Where clause
+- [Issue #53](https://github.com/influxdb/influxdb/issues/53). Writing null values via HTTP API fails
 
 ### Deprecated
 
@@ -108,3 +110,13 @@
 - Preparing to deprecate `username` field for a more consistent `name` field in the `/db/:db/users`
 - Preparing to deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
   be used to update user flags, password, etc.
+
+## v0.2.1 (unreleased)
+
+## Features
+
+- [Issue #51](https://github.com/influxdb/influxdb/issues/51). Implement first and last aggregates
+
+## Bugfixes
+
+- [Issue #57](https://github.com/influxdb/influxdb/issues/57). Don't panic when type of time != float

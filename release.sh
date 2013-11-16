@@ -11,8 +11,8 @@ fi
 
 git fetch --tags
 
-if [ $# -ne 1 ]; then
-    current_version=`git tag | sort -V | tail -n1`
+if [ $# -lt 1 ]; then
+    current_version=`git tag | grep -v rc | sort -V | tail -n1`
     current_version=${current_version#v}
     version=`echo $current_version | awk 'BEGIN {FS="."}; {print $1 "." $2 "." ++$3}'`
 else

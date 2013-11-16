@@ -507,6 +507,54 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrderWithNulls(c *C) {
 	c.Assert(results[0], DeepEquals, series)
 }
 
+func (self *DatastoreSuite) TestNullValues(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	minuteAgo := time.Now().Add(-time.Minute).Unix()
+	mock := `{
+    "points":[
+      {"values":[null, {"string_value": "dix"}],"sequence_number":1},
+      {"values":[{"string_value": "dix"}, null],"sequence_number":2},
+      {"values":[null, {"string_value": "dix"}],"sequence_number":3},
+      {"values":[{"string_value":"todd"}, null],"sequence_number":4}],
+      "name":"user_things",
+      "fields":["first_name", "last_name"]
+    }`
+	series := stringToSeries(mock, minuteAgo, c)
+	err := db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	user := &MockUser{}
+	results := executeQuery(user, "foobar", "select * from user_things", db, c)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Points, HasLen, 4)
+}
+
+func (self *DatastoreSuite) TestLimitShouldLimitPointsThatMatchTheFilter(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+
+	minuteAgo := time.Now().Add(-time.Minute).Unix()
+	mock := `{
+    "points":[
+      {"values":[{"string_value": "paul"}, {"string_value": "dix"}],"sequence_number":1},
+      {"values":[{"string_value":"todd"}, {"string_value": "persen"}],"sequence_number":2}],
+      "name":"user_things",
+      "fields":["first_name", "last_name"]
+    }`
+	series := stringToSeries(mock, minuteAgo, c)
+	err := db.WriteSeriesData("foobar", series)
+	c.Assert(err, IsNil)
+	user := &MockUser{}
+	results := executeQuery(user, "foobar", "select last_name from user_things where first_name == 'paul' limit 1", db, c)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Points, HasLen, 1)
+	c.Assert(results[0].Points[0].Values, HasLen, 1)
+	c.Assert(*results[0].Points[0].Values[0].StringValue, Equals, "dix")
+}
+
 func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
 	cleanup(nil)
 	db := newDatastore(c)
