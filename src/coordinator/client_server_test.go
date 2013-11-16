@@ -33,7 +33,9 @@ func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	server := startAndVerifyCluster(1, c)[0]
 	defer clean(server)
 	db := newDatastore(c)
-	requestHandler := NewProtobufRequestHandler(db, server)
+	coord := NewCoordinatorImpl(db, server, server.clusterConfig)
+	coord.ConnectToProtobufServers(server.config.ProtobufConnectionString())
+	requestHandler := NewProtobufRequestHandler(db, coord)
 	protobufServer := NewProtobufServer(":8091", requestHandler)
 	go protobufServer.ListenAndServe()
 	c.Assert(protobufServer, Not(IsNil))
@@ -43,14 +45,17 @@ func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	mock := `
   {
     "points": [
-      { "values": [{"int64_value": 3}]},
-      { "values": [{"int64_value": 23}]}
+      { "values": [{"int64_value": 3}]}
     ],
     "name": "foo",
     "fields": ["val"]
   }`
 	fmt.Println("creating series")
 	series := stringToSeries(mock, c)
+	t := time.Now().Unix()
+	s := uint64(1)
+	series.Points[0].Timestamp = &t
+	series.Points[0].SequenceNumber = &s
 	id := uint32(1)
 	database := "pauldb"
 	proxyWrite := protocol.Request_PROXY_WRITE

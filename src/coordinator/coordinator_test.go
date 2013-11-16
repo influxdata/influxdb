@@ -56,8 +56,14 @@ func (self *DatastoreMock) DropDatabase(database string) error {
 	return nil
 }
 
-func (self *DatastoreMock) CurrentSequenceNumber() uint32 {
-	return uint32(1)
+func (self *DatastoreMock) LogRequestAndAssignId(request *protocol.Request) error {
+	id := uint32(1)
+	request.Id = &id
+	return nil
+}
+
+func (self *DatastoreMock) AtomicIncrement(name string, val int) (uint64, error) {
+	return uint64(val), nil
 }
 
 func stringToSeries(seriesString string, c *C) *protocol.Series {

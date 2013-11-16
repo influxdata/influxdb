@@ -298,7 +298,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 		return err
 	}
 
-	var sequenceNumber uint32 = 1
+	var sequenceNumber uint64 = 1
 	fields := []string{}
 
 	for _, aggregator := range aggregators {

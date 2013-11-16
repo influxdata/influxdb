@@ -21,6 +21,7 @@ type Coordinator interface {
 	DropDatabase(user common.User, db string) error
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ListDatabases(user common.User) ([]*Database, error)
+	ReplicateWrite(request *protocol.Request) error
 }
 
 type UserManager interface {
@@ -73,17 +74,10 @@ type ClusterConsensus interface {
 	// server. The replacement must have a state of "Potential" for this to work.
 	ReplaceServer(oldServer *ClusterServer, replacement *ClusterServer) error
 
-	ReplicateWrite(request *protocol.Request) error
-
 	// When a cluster is turned on for the first time.
 	CreateRootUser() error
-	GetLocalServerId() (uint32, error)
 }
 
 type RequestHandler interface {
 	HandleRequest(request *protocol.Request, conn net.Conn) error
-}
-
-type RequestLogger interface {
-	LogRequestAndAssignId(request *protocol.Request) error
 }

@@ -33,7 +33,7 @@ func NewClusterConfiguration() *ClusterConfiguration {
 }
 
 func (self *ClusterConfiguration) IsSingleServer() bool {
-	return len(self.servers) == 0
+	return len(self.servers) < 2
 }
 
 func (self *ClusterConfiguration) Servers() []*ClusterServer {

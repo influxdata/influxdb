@@ -188,8 +188,8 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	c.Assert(resultSeries, HasLen, 2)
 	c.Assert(resultSeries[0].Points, HasLen, 2)
 	c.Assert(resultSeries[0].Fields, HasLen, 1)
-	c.Assert(*resultSeries[0].Points[0].SequenceNumber, Equals, uint32(2))
-	c.Assert(*resultSeries[0].Points[1].SequenceNumber, Equals, uint32(1))
+	c.Assert(*resultSeries[0].Points[0].SequenceNumber, Equals, uint64(2))
+	c.Assert(*resultSeries[0].Points[1].SequenceNumber, Equals, uint64(1))
 	c.Assert(*resultSeries[0].Points[0].GetTimestampInMicroseconds(), Equals, pointTime*1000000)
 	c.Assert(*resultSeries[0].Points[1].GetTimestampInMicroseconds(), Equals, pointTime*1000000)
 	c.Assert(*resultSeries[0].Points[0].Values[0].Int64Value, Equals, int64(2))
@@ -272,8 +272,8 @@ func (self *DatastoreSuite) TestCanWriteDataWithDifferentTimesAndSeries(c *C) {
 	results = executeQuery(user, "db1", "select blah from events;", db, c)
 	c.Assert(results[0].Points, HasLen, 2)
 	c.Assert(results[0].Fields, HasLen, 1)
-	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(1))
-	c.Assert(*results[0].Points[1].SequenceNumber, Equals, uint32(3))
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint64(1))
+	c.Assert(*results[0].Points[1].SequenceNumber, Equals, uint64(3))
 	c.Assert(*results[0].Points[0].GetTimestampInMicroseconds(), Equals, now*1000000)
 	c.Assert(*results[0].Points[1].GetTimestampInMicroseconds(), Equals, secondAgo*1000000)
 	c.Assert(*results[0].Points[0].Values[0].DoubleValue, Equals, float64(0.1))
@@ -345,8 +345,8 @@ func (self *DatastoreSuite) TestCanQueryBasedOnTime(c *C) {
 	results = executeQuery(user, "db1", "select val from foo;", db, c)
 	c.Assert(results[0].Points, HasLen, 2)
 	c.Assert(results[0].Fields, HasLen, 1)
-	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(3))
-	c.Assert(*results[0].Points[1].SequenceNumber, Equals, uint32(3))
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint64(3))
+	c.Assert(*results[0].Points[1].SequenceNumber, Equals, uint64(3))
 	c.Assert(*results[0].Points[0].GetTimestampInMicroseconds(), Equals, now*1000000)
 	c.Assert(*results[0].Points[1].GetTimestampInMicroseconds(), Equals, minutesAgo*1000000)
 	c.Assert(*results[0].Points[0].Values[0].Int64Value, Equals, int64(3))
@@ -373,7 +373,7 @@ func (self *DatastoreSuite) TestCanDoWhereQueryEquals(c *C) {
 	results = executeQuery(user, "db1", "select name from events where name == 'paul';", db, c)
 	c.Assert(results[0].Points, HasLen, 1)
 	c.Assert(results[0].Fields, HasLen, 1)
-	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(2))
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint64(2))
 	c.Assert(*results[0].Points[0].Values[0].StringValue, Equals, "paul")
 }
 
@@ -416,9 +416,9 @@ func (self *DatastoreSuite) TestCanDoCountStarQueries(c *C) {
 	results := executeQuery(user, "foobar", "select count(*) from user_things;", db, c)
 	c.Assert(results[0].Points, HasLen, 2)
 	c.Assert(results[0].Fields, HasLen, 1)
-	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(2))
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint64(2))
 	c.Assert(*results[0].Points[0].Values[0].Int64Value, Equals, int64(3))
-	c.Assert(*results[0].Points[1].SequenceNumber, Equals, uint32(1))
+	c.Assert(*results[0].Points[1].SequenceNumber, Equals, uint64(1))
 	c.Assert(*results[0].Points[1].Values[0].Int64Value, Equals, int64(1))
 }
 
@@ -441,7 +441,7 @@ func (self *DatastoreSuite) TestLimitsPointsReturnedBasedOnQuery(c *C) {
 	results := executeQuery(user, "foobar", "select name from user_things limit 1;", db, c)
 	c.Assert(results[0].Points, HasLen, 1)
 	c.Assert(results[0].Fields, HasLen, 1)
-	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(2))
+	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint64(2))
 	c.Assert(*results[0].Points[0].Values[0].StringValue, Equals, "paul")
 }
 
@@ -674,7 +674,7 @@ func (self *DatastoreSuite) TestBreaksLargeResultsIntoMultipleBatches(c *C) {
 	for i := 0; i < 50000; i++ {
 		for _, p := range series.Points {
 			sequence += 1
-			s := uint32(sequence)
+			s := uint64(sequence)
 			p.SequenceNumber = &s
 		}
 		writtenPoints += 2
@@ -788,39 +788,4 @@ func (self *DatastoreSuite) TestCheckWriteAccess(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(resultSeries, HasLen, 1)
 	c.Assert(resultSeries[0], DeepEquals, otherSeries)
-}
-
-func (self *DatastoreSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWithout(c *C) {
-	mock := `
-  {
-    "points": [
-      {
-        "values": [
-          {
-            "int64_value": 3
-          }
-        ]
-      }
-    ],
-    "name": "foo",
-    "fields": ["value"]
-  }`
-	series := &protocol.Series{}
-	err := json.Unmarshal([]byte(mock), &series)
-	c.Assert(err, IsNil)
-
-	cleanup(nil)
-	db := newDatastore(c)
-
-	beforeTime := common.CurrentTime()
-	db.WriteSeriesData("foo", series)
-	afterTime := common.CurrentTime()
-	c.Assert(*series.Points[0].SequenceNumber, Equals, uint32(1))
-	t := *series.Points[0].Timestamp
-	c.Assert(t, InRange, beforeTime, afterTime)
-
-	db.Close()
-	db = newDatastore(c)
-	defer cleanup(db)
-	c.Assert(db.CurrentSequenceNumber(), Equals, uint32(1))
 }

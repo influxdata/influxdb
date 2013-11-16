@@ -20,6 +20,13 @@ type CoordinatorImpl struct {
 
 var proxyWrite = protocol.Request_PROXY_WRITE
 
+// this is the key used for the persistent atomic ints for sequence numbers
+const POINT_SEQUENCE_NUMBER_KEY = "p"
+
+// actual point sequence numbers will have the first part of the number
+// be a host id. This ensures that sequence numbers are unique across the cluster
+const HOST_ID_OFFSET = uint64(10000)
+
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
 	return &CoordinatorImpl{
 		clusterConfiguration: clusterConfiguration,
@@ -50,11 +57,22 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	// if times server assigned, all the points will go to the same place
 	serverAssignedTime := true
 	now := common.CurrentTime()
+
+	// assign sequence numbers
+	lastNumber, err := self.datastore.AtomicIncrement(POINT_SEQUENCE_NUMBER_KEY, len(series.Points))
+	if err != nil {
+		return err
+	}
 	for _, p := range series.Points {
 		if p.Timestamp == nil {
 			p.Timestamp = &now
 		} else {
 			serverAssignedTime = false
+		}
+		if p.SequenceNumber == nil {
+			n := self.sequenceNumberWithServerId(lastNumber)
+			lastNumber--
+			p.SequenceNumber = &n
 		}
 	}
 
@@ -90,7 +108,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 
 func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protocol.Series) (*protocol.Request, error) {
 	request := &protocol.Request{Type: &proxyWrite, Database: db, Series: series}
-	err := self.datastore.(*datastore.LevelDbDatastore).LogRequestAndAssignId(request)
+	err := self.datastore.LogRequestAndAssignId(request)
 	if err != nil {
 		return nil, err
 	}
@@ -111,13 +129,7 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 					return self.proxyWrite(servers[1], db, series)
 				}
 			}
-			// now replicate and return
-			request.Type = &replicateWrite
-			for _, replica := range servers {
-				if replica.Id != self.localHostId {
-					replica.protobufClient.MakeRequest(request, nil)
-				}
-			}
+			self.sendRequestToReplicas(request, servers)
 
 			return nil
 		}
@@ -347,4 +359,24 @@ func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString stri
 		}
 	}
 	return nil
+}
+
+func (self *CoordinatorImpl) ReplicateWrite(request *protocol.Request) error {
+	location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
+	replicas := self.clusterConfiguration.GetServersByRingLocation(request.Database, &location)
+	self.sendRequestToReplicas(request, replicas)
+	return nil
+}
+
+func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, replicas []*ClusterServer) {
+	request.Type = &replicateWrite
+	for _, server := range replicas {
+		if server.Id != self.localHostId {
+			server.protobufClient.MakeRequest(request, nil)
+		}
+	}
+}
+
+func (self *CoordinatorImpl) sequenceNumberWithServerId(n uint64) uint64 {
+	return n*HOST_ID_OFFSET + uint64(self.localHostId)
 }

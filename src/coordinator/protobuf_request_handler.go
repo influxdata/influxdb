@@ -10,27 +10,27 @@ import (
 )
 
 type ProtobufRequestHandler struct {
-	db               datastore.Datastore
-	clusterConsensus ClusterConsensus
-	writeOk          protocol.Response_Type
+	db          datastore.Datastore
+	coordinator Coordinator
+	writeOk     protocol.Response_Type
 }
 
-func NewProtobufRequestHandler(db datastore.Datastore, clusterConsensus ClusterConsensus) *ProtobufRequestHandler {
-	return &ProtobufRequestHandler{db: db, clusterConsensus: clusterConsensus, writeOk: protocol.Response_WRITE_OK}
+func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator) *ProtobufRequestHandler {
+	return &ProtobufRequestHandler{db: db, coordinator: coordinator, writeOk: protocol.Response_WRITE_OK}
 }
 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
 	if *request.Type == protocol.Request_PROXY_WRITE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
-		self.db.(*datastore.LevelDbDatastore).LogRequestAndAssignId(request)
+		self.db.LogRequestAndAssignId(request)
 		err := self.db.WriteSeriesData(*request.Database, request.Series)
 		if err != nil {
 			return err
 		}
 		err = self.WriteResponse(conn, response)
 		// TODO: add quorum writes?
-		self.clusterConsensus.ReplicateWrite(request)
+		self.coordinator.ReplicateWrite(request)
 		return err
 	} else if *request.Type == protocol.Request_PROXY_DELETE {
 

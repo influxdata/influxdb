@@ -173,7 +173,7 @@ func (m *FieldValue) GetInt64Value() int64 {
 type Point struct {
 	Values           []*FieldValue `protobuf:"bytes,1,rep,name=values" json:"values,omitempty"`
 	Timestamp        *int64        `protobuf:"varint,2,opt,name=timestamp" json:"timestamp,omitempty"`
-	SequenceNumber   *uint32       `protobuf:"varint,3,opt,name=sequence_number" json:"sequence_number,omitempty"`
+	SequenceNumber   *uint64       `protobuf:"varint,3,opt,name=sequence_number" json:"sequence_number,omitempty"`
 	XXX_unrecognized []byte        `json:"-"`
 }
 
@@ -195,7 +195,7 @@ func (m *Point) GetTimestamp() int64 {
 	return 0
 }
 
-func (m *Point) GetSequenceNumber() uint32 {
+func (m *Point) GetSequenceNumber() uint64 {
 	if m != nil && m.SequenceNumber != nil {
 		return *m.SequenceNumber
 	}

@@ -58,6 +58,10 @@ func (self *MockCoordinator) ListDatabases(user common.User) ([]*coordinator.Dat
 	return nil, nil
 }
 
+func (self *MockCoordinator) ReplicateWrite(request *protocol.Request) error {
+	return nil
+}
+
 func createEngine(c *C, seriesString string) EngineI {
 	series, err := common.StringToSeriesArray(seriesString)
 	c.Assert(err, IsNil)

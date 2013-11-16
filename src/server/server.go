@@ -31,9 +31,9 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 
 	clusterConfig := coordinator.NewClusterConfiguration()
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
-	requestHandler := coordinator.NewProtobufRequestHandler(db, raftServer)
-	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
+	requestHandler := coordinator.NewProtobufRequestHandler(db, coord)
+	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
 
 	eng, err := engine.NewQueryEngine(coord)
 	if err != nil {

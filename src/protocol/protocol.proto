@@ -10,7 +10,7 @@ message FieldValue {
 message Point {
   repeated FieldValue values = 1;
   optional int64 timestamp = 2;
-  optional uint32 sequence_number = 3;
+  optional uint64 sequence_number = 3;
 }
 
 message Series {

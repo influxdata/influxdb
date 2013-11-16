@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"bytes"
-	"common"
 	"configuration"
 	"encoding/json"
 	"errors"
@@ -41,7 +40,6 @@ type RaftServer struct {
 	listener      net.Listener
 	closing       bool
 	config        *configuration.Configuration
-	localServerId uint32
 }
 
 var registeredCommands bool
@@ -78,14 +76,6 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 	}
 
 	return s
-}
-
-func (self *RaftServer) GetLocalServerId() (uint32, error) {
-	s := self.clusterConfig.GetServerByRaftName(self.name)
-	if s == nil {
-		return uint32(0), errors.New("Couldn't find server matching this name: " + self.name)
-	}
-	return s.Id, nil
 }
 
 func (s *RaftServer) ClusterServer() *ClusterServer {
@@ -163,42 +153,6 @@ func (s *RaftServer) SaveClusterAdminUser(u *clusterAdmin) error {
 	command := NewSaveClusterAdminCommand(u)
 	_, err := s.doOrProxyCommand(command, "save_cluster_admin_user")
 	return err
-}
-
-func (s *RaftServer) ReplicateWrite(request *protocol.Request) error {
-	// requests for replication should already have their times and sequence numbers set
-	if request.Series == nil {
-		return errors.New("Only requests with a series get write replicated")
-	}
-	if request.Id == nil {
-		return errors.New("Replication writes must have a request id")
-	}
-	for _, point := range request.Series.Points {
-		if point.Timestamp == nil || point.SequenceNumber == nil {
-			return errors.New("Points must have times and sequence numbers to be replicated")
-		}
-	}
-	if len(request.Series.Points) == 0 {
-		return errors.New("Can't replicate a write without points")
-	}
-	location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
-	replicas := s.clusterConfig.GetServersByRingLocation(request.Database, &location)
-
-	if s.localServerId == 0 {
-		localId, err := s.GetLocalServerId()
-		if err != nil {
-			log.Println("RaftServer: coulnd't look up server id for: ", s.name, s.clusterConfig.servers)
-		} else {
-			s.localServerId = localId
-		}
-	}
-	request.Type = &replicateWrite
-	for _, server := range replicas {
-		if server.Id != s.localServerId {
-			server.protobufClient.MakeRequest(request, nil)
-		}
-	}
-	return nil
 }
 
 func (s *RaftServer) CreateRootUser() error {
