@@ -47,11 +47,6 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 		return fmt.Errorf("Can't write series with zero points.")
 	}
 
-	if self.clusterConfiguration.IsSingleServer() {
-		_, err := self.writeSeriesToLocalStore(&db, series)
-		return err
-	}
-
 	// break the series object into separate ones based on their ring location
 
 	// if times server assigned, all the points will go to the same place
@@ -74,6 +69,13 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 			lastNumber--
 			p.SequenceNumber = &n
 		}
+	}
+
+	// if it's a single server setup, we don't need to bother with getting ring
+	// locations or logging requests or any of that, so just write to the local db and be done.
+	if self.clusterConfiguration.IsSingleServer() {
+		_, err := self.writeSeriesToLocalStore(&db, series)
+		return err
 	}
 
 	if serverAssignedTime {
