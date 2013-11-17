@@ -105,7 +105,7 @@ func (self *Server) start() error {
 	}
 
 	root := filepath.Join(dir, "..", "..")
-	filename := filepath.Join(root, "server")
+	filename := filepath.Join(root, "daemon")
 	p, err := os.StartProcess(filename, []string{filename, "-cpuprofile", "/tmp/cpuprofile"}, &os.ProcAttr{
 		Dir:   root,
 		Env:   os.Environ(),

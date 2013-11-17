@@ -55,7 +55,7 @@ function package_files {
 
     package_admin_interface
 
-    mv influxd build/influxdb
+    mv daemon build/influxdb
 
     # cp -R src/admin/site/ build/admin/
     mkdir build/admin
