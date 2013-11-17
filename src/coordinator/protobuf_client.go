@@ -16,9 +16,14 @@ type ProtobufClient struct {
 	conn              net.Conn
 	hostAndPort       string
 	requestBufferLock sync.RWMutex
-	requestBuffer     map[uint32]chan *protocol.Response
+	requestBuffer     map[uint32]*runningRequest
 	reconnecting      uint32
 	reconnectWait     sync.WaitGroup
+}
+
+type runningRequest struct {
+	timeMade     time.Time
+	responseChan chan *protocol.Response
 }
 
 const (
@@ -26,14 +31,16 @@ const (
 	MAX_RESPONSE_SIZE      = 1024
 	IS_RECONNECTING        = uint32(1)
 	IS_CONNECTED           = uint32(0)
+	MAX_REQUEST_TIME       = time.Second * 1200
 )
 
 func NewProtobufClient(hostAndPort string) *ProtobufClient {
-	client := &ProtobufClient{hostAndPort: hostAndPort, requestBuffer: make(map[uint32]chan *protocol.Response), reconnecting: IS_CONNECTED}
+	client := &ProtobufClient{hostAndPort: hostAndPort, requestBuffer: make(map[uint32]*runningRequest), reconnecting: IS_CONNECTED}
 	go func() {
 		client.reconnect()
 		client.readResponses()
 	}()
+	go client.peridicallySweepTimedOutRequests()
 	return client
 }
 
@@ -47,11 +54,14 @@ func (self *ProtobufClient) Close() {
 func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
 	if responseStream != nil {
 		self.requestBufferLock.Lock()
-		if oldResponseChannel, alreadyHasRequestById := self.requestBuffer[*request.Id]; alreadyHasRequestById {
+
+		// this should actually never happen. The sweeper should clear out dead requests
+		// before the uint32 ids roll over.
+		if oldReq, alreadyHasRequestById := self.requestBuffer[*request.Id]; alreadyHasRequestById {
 			log.Println("ProtobufClient: error, already has a request with this id, must have timed out: ")
-			close(oldResponseChannel)
+			close(oldReq.responseChan)
 		}
-		self.requestBuffer[*request.Id] = responseStream
+		self.requestBuffer[*request.Id] = &runningRequest{time.Now(), responseStream}
 		self.requestBufferLock.Unlock()
 	}
 
@@ -95,15 +105,8 @@ func (self *ProtobufClient) readResponses() {
 				response, err := protocol.DecodeResponse(buff)
 				if err != nil {
 					log.Println("ProtobufClient: error unmarshaling response: ", err)
-				}
-				self.requestBufferLock.RLock()
-				responseChan, ok := self.requestBuffer[*response.RequestId]
-				self.requestBufferLock.RUnlock()
-				if ok {
-					responseChan <- response
-					if *response.Type == protocol.Response_END_STREAM {
-						close(responseChan)
-					}
+				} else {
+					self.sendResponse(response)
 				}
 			} else {
 				// TODO: do something smarter based on the error
@@ -114,6 +117,21 @@ func (self *ProtobufClient) readResponses() {
 			self.reconnect()
 		}
 		buff.Reset()
+	}
+}
+
+func (self *ProtobufClient) sendResponse(response *protocol.Response) {
+	self.requestBufferLock.RLock()
+	req, ok := self.requestBuffer[*response.RequestId]
+	self.requestBufferLock.RUnlock()
+	if ok {
+		req.responseChan <- response
+		if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK {
+			close(req.responseChan)
+			self.requestBufferLock.Lock()
+			delete(self.requestBuffer, *response.RequestId)
+			self.requestBufferLock.Unlock()
+		}
 	}
 }
 
@@ -144,5 +162,20 @@ func (self *ProtobufClient) reconnect() {
 			}
 			time.Sleep(time.Millisecond * 100)
 		}
+	}
+}
+
+func (self *ProtobufClient) peridicallySweepTimedOutRequests() {
+	for {
+		time.Sleep(time.Minute)
+		self.requestBufferLock.Lock()
+		maxAge := time.Now().Add(-MAX_REQUEST_TIME)
+		for k, req := range self.requestBuffer {
+			if req.timeMade.Before(maxAge) {
+				delete(self.requestBuffer, k)
+				log.Println("Request timed out.")
+			}
+		}
+		self.requestBufferLock.Unlock()
 	}
 }
