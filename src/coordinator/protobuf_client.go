@@ -8,6 +8,7 @@ import (
 	"net"
 	"protocol"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,18 +17,19 @@ type ProtobufClient struct {
 	hostAndPort       string
 	requestBufferLock sync.RWMutex
 	requestBuffer     map[uint32]chan *protocol.Response
-	reconnectLock     sync.Mutex
-	reconnecting      bool
+	reconnecting      uint32
 	reconnectWait     sync.WaitGroup
 }
 
 const (
 	REQUEST_RETRY_ATTEMPTS = 3
 	MAX_RESPONSE_SIZE      = 1024
+	IS_RECONNECTING        = uint32(1)
+	IS_CONNECTED           = uint32(0)
 )
 
 func NewProtobufClient(hostAndPort string) *ProtobufClient {
-	client := &ProtobufClient{hostAndPort: hostAndPort, requestBuffer: make(map[uint32]chan *protocol.Response)}
+	client := &ProtobufClient{hostAndPort: hostAndPort, requestBuffer: make(map[uint32]chan *protocol.Response), reconnecting: IS_CONNECTED}
 	go func() {
 		client.reconnect()
 		client.readResponses()
@@ -116,15 +118,14 @@ func (self *ProtobufClient) readResponses() {
 }
 
 func (self *ProtobufClient) reconnect() {
-	self.reconnectLock.Lock()
-	if self.reconnecting {
-		self.reconnectLock.Unlock()
+	swapped := atomic.CompareAndSwapUint32(&self.reconnecting, self.reconnecting, IS_RECONNECTING)
+
+	// if it's not swapped, some other goroutine is already handling the reconect. Wait for it
+	if !swapped {
 		self.reconnectWait.Wait()
 		return
 	}
 	self.reconnectWait.Add(1)
-	self.reconnecting = true
-	self.reconnectLock.Unlock()
 
 	self.Close()
 	attempts := 0
@@ -134,10 +135,8 @@ func (self *ProtobufClient) reconnect() {
 		if err == nil {
 			self.conn = conn
 			log.Println("ProtobufClient: connected to ", self.hostAndPort)
-			self.reconnectLock.Lock()
-			self.reconnecting = false
+			atomic.CompareAndSwapUint32(&self.reconnecting, self.reconnecting, IS_CONNECTED)
 			self.reconnectWait.Done()
-			self.reconnectLock.Unlock()
 			return
 		} else {
 			if attempts%100 == 0 {
