@@ -115,7 +115,7 @@ func (self *Server) start() error {
 		return err
 	}
 	self.p = p
-	time.Sleep(2 * time.Second)
+	time.Sleep(4 * time.Second)
 	return nil
 }
 
