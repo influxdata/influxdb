@@ -122,11 +122,7 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 		if s.Id == self.localHostId {
 			request, err := self.writeSeriesToLocalStore(db, series)
 			if err != nil {
-				err = self.proxyUntilSuccess(servers, db, series)
-				if err != nil {
-					// we failed to write locally and to any proxy, bail
-					return err
-				}
+				return self.proxyUntilSuccess(servers, db, series)
 			}
 			self.sendRequestToReplicas(request, servers)
 
