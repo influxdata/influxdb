@@ -136,7 +136,7 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 }
 
 func (self *ProtobufClient) reconnect() {
-	swapped := atomic.CompareAndSwapUint32(&self.reconnecting, self.reconnecting, IS_RECONNECTING)
+	swapped := atomic.CompareAndSwapUint32(&self.reconnecting, IS_CONNECTED, IS_RECONNECTING)
 
 	// if it's not swapped, some other goroutine is already handling the reconect. Wait for it
 	if !swapped {
@@ -153,7 +153,7 @@ func (self *ProtobufClient) reconnect() {
 		if err == nil {
 			self.conn = conn
 			log.Println("ProtobufClient: connected to ", self.hostAndPort)
-			atomic.CompareAndSwapUint32(&self.reconnecting, self.reconnecting, IS_CONNECTED)
+			atomic.CompareAndSwapUint32(&self.reconnecting, IS_RECONNECTING, IS_CONNECTED)
 			self.reconnectWait.Done()
 			return
 		} else {
