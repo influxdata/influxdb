@@ -17,7 +17,7 @@ type ProtobufClient struct {
 	hostAndPort       string
 	requestBufferLock sync.RWMutex
 	requestBuffer     map[uint32]*runningRequest
-	reconnecting      uint32
+	connectionStatus  uint32
 	reconnectWait     sync.WaitGroup
 }
 
@@ -35,7 +35,7 @@ const (
 )
 
 func NewProtobufClient(hostAndPort string) *ProtobufClient {
-	client := &ProtobufClient{hostAndPort: hostAndPort, requestBuffer: make(map[uint32]*runningRequest), reconnecting: IS_CONNECTED}
+	client := &ProtobufClient{hostAndPort: hostAndPort, requestBuffer: make(map[uint32]*runningRequest), connectionStatus: IS_CONNECTED}
 	go func() {
 		client.reconnect()
 		client.readResponses()
@@ -136,7 +136,7 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 }
 
 func (self *ProtobufClient) reconnect() {
-	swapped := atomic.CompareAndSwapUint32(&self.reconnecting, IS_CONNECTED, IS_RECONNECTING)
+	swapped := atomic.CompareAndSwapUint32(&self.connectionStatus, IS_CONNECTED, IS_RECONNECTING)
 
 	// if it's not swapped, some other goroutine is already handling the reconect. Wait for it
 	if !swapped {
@@ -153,7 +153,7 @@ func (self *ProtobufClient) reconnect() {
 		if err == nil {
 			self.conn = conn
 			log.Println("ProtobufClient: connected to ", self.hostAndPort)
-			atomic.CompareAndSwapUint32(&self.reconnecting, IS_RECONNECTING, IS_CONNECTED)
+			self.connectionStatus = IS_CONNECTED
 			self.reconnectWait.Done()
 			return
 		} else {
