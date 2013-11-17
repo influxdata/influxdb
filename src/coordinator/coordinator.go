@@ -138,6 +138,8 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 	return self.proxyUntilSuccess(servers, db, series)
 }
 
+// This method will attemp to proxy the request until the call to proxy returns nil. If no server succeeds,
+// the last err value will be returned.
 func (self *CoordinatorImpl) proxyUntilSuccess(servers []*ClusterServer, db *string, series *protocol.Series) (err error) {
 	for _, s := range servers {
 		if s.Id != self.localHostId {
