@@ -122,11 +122,10 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 		if s.Id == self.localHostId {
 			request, err := self.writeSeriesToLocalStore(db, series)
 			if err != nil {
-				// proxy it to a server that can hopefully take it
-				if servers[0].Id != self.localHostId {
-					return self.proxyWrite(servers[0], db, series)
-				} else {
-					return self.proxyWrite(servers[1], db, series)
+				err = self.proxyUntilSuccess(servers, db, series)
+				if err != nil {
+					// we failed to write locally and to any proxy, bail
+					return err
 				}
 			}
 			self.sendRequestToReplicas(request, servers)
@@ -136,14 +135,19 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 	}
 
 	// it didn't live locally so proxy it
-	var err error
+	return self.proxyUntilSuccess(servers, db, series)
+}
+
+func (self *CoordinatorImpl) proxyUntilSuccess(servers []*ClusterServer, db *string, series *protocol.Series) (err error) {
 	for _, s := range servers {
-		err = self.proxyWrite(s, db, series)
-		if err == nil {
-			return nil
+		if s.Id != self.localHostId {
+			err = self.proxyWrite(s, db, series)
+			if err == nil {
+				return nil
+			}
 		}
 	}
-	return err
+	return
 }
 
 func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, db *string, series *protocol.Series) error {
