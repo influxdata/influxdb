@@ -49,10 +49,28 @@ echo "Running tests for packages: $test_packages"
 
 ulimit -n 2048 || echo could not change ulimit
 
+function notify_failure {
+    if ! which notify-send > /dev/null 2>&1; then
+        return
+    fi
+
+    notify-send Influxdb "Package $1 test failed"
+}
+
+function notify_end {
+    if ! which notify-send > /dev/null 2>&1; then
+        return
+    fi
+
+    notify-send Influxdb "Test script finished"
+}
+
 for i in $test_packages; do
     if go version | grep go1.2 > /dev/null 2>&1; then
-        go test -coverprofile /tmp/influxdb.${i/\//.}.coverage $i $gocheck_args $@
+        go test -coverprofile /tmp/influxdb.${i/\//.}.coverage $i $gocheck_args $@ || notify_failure $i
     else
-        go test $i $gocheck_args $@
+        go test $i $gocheck_args $@ || notify_failure $i
     fi
 done
+
+notify_end
