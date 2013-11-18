@@ -176,8 +176,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       },
       {
         "values": [
@@ -185,8 +184,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 2
+        "timestamp": 1381346631000000
       }
     ],
     "name": "foo",
@@ -204,8 +202,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       }
     ],
     "name": "foo",
@@ -268,8 +265,7 @@ func (self *EngineSuite) TestFirstAndLastQuery(c *C) {
             "int64_value": 3
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       }
     ],
     "name": "foo",
@@ -320,8 +316,7 @@ func (self *EngineSuite) TestUpperCaseQuery(c *C) {
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       }
     ],
     "name": "foo",
@@ -378,8 +373,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       }
     ],
     "name": "foo.bar",
@@ -393,8 +387,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       }
     ],
     "name": "foo.baz",
@@ -448,8 +441,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       },
       {
         "values": [
@@ -460,8 +452,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
             "string_value": "another_value"
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       }
     ],
     "name": "foo",
@@ -532,8 +523,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseAndNullValues(c *C) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       },
       {
         "values": [
@@ -544,8 +534,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseAndNullValues(c *C) {
             "string_value": "another_value"
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       },
       {
         "values": [
@@ -554,8 +543,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseAndNullValues(c *C) {
           },
 				  null
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       }
     ],
     "name": "foo",
@@ -650,8 +638,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       },
       {
         "values": [
@@ -665,8 +652,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       },
 			{
         "values": [
@@ -680,8 +666,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
+        "timestamp": 1381346631000000
       }
     ],
     "name": "foo",
@@ -740,8 +725,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346640000000,
-        "sequence_number": 1
+        "timestamp": 1381346640000000
       },
       {
         "values": [
@@ -749,8 +733,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346700000000,
-        "sequence_number": 1
+        "timestamp": 1381346700000000
       }
     ],
     "name": "foo",
@@ -799,8 +782,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeDescendingOrder(c *C) {
             "int64_value": 1
           }
         ],
-        "timestamp": %d,
-        "sequence_number": 1
+        "timestamp": %d
       }%s
 `, endTime.Add(time.Duration(-i)*time.Second).Unix()*1000000, delimiter)
 	}
@@ -843,9 +825,9 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
 	runQuery(engine, "select count(column_one), column_one from foo group by time(1m), column_one order asc", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346640000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "string_value": "another_value" }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346700000000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346640000000   },
+        { "values": [{ "int64_value": 1 }, { "string_value": "another_value" }], "timestamp": 1381346700000000},
+        { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346700000000   }
       ],
       "name": "foo",
       "fields": ["count" , "column_one"]
@@ -869,8 +851,8 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select min(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 3 }], "timestamp": 1381346640000000},
+        { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000}
       ],
       "name": "foo",
       "fields": ["min"]
@@ -894,8 +876,8 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select max(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 8 }], "timestamp": 1381346700000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 3 }], "timestamp": 1381346640000000},
+        { "values": [{ "double_value": 8 }], "timestamp": 1381346700000000}
       ],
       "name": "foo",
       "fields": ["max"]
@@ -920,8 +902,8 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select max(column_one), min(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 3 }, { "double_value": 3 }], "timestamp": 1381346640000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 8 }, { "double_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 3 }, { "double_value": 3 }], "timestamp": 1381346640000000},
+        { "values": [{ "double_value": 8 }, { "double_value": 4 }], "timestamp": 1381346700000000}
       ],
       "name": "foo",
       "fields": ["max", "min"]
@@ -957,8 +939,8 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select percentile(column_one, 80) from foo group by time(1m) order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 6 }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 8 }], "timestamp": 1381346760000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 6 }], "timestamp": 1381346700000000},
+        { "values": [{ "double_value": 8 }], "timestamp": 1381346760000000}
       ],
       "name": "foo",
       "fields": ["percentile"]
@@ -994,7 +976,7 @@ func (self *EngineSuite) TestCountDistinct(c *C) {
 	runQuery(engine, "select count(distinct(column_one)) from foo order asc", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000}
       ],
       "name": "foo",
       "fields": ["count"]
@@ -1029,8 +1011,8 @@ func (self *EngineSuite) TestMedianQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select median(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 6 }], "timestamp": 1381346760000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000},
+        { "values": [{ "double_value": 6 }], "timestamp": 1381346760000000}
       ],
       "name": "foo",
       "fields": ["median"]
@@ -1065,8 +1047,8 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select mean(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 6 }], "timestamp": 1381346760000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000},
+        { "values": [{ "double_value": 6 }], "timestamp": 1381346760000000}
       ],
       "name": "foo",
       "fields": ["mean"]
@@ -1116,8 +1098,8 @@ func (self *EngineSuite) TestDerivativeQuery(c *C) {
 	runQuery(engine, "select derivative(column_one) from foo group by time(2s) order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 1 } ], "timestamp": 1381347700000000, "sequence_number": 1 },
-        { "values": [{ "double_value": -2 }], "timestamp": 1381347702000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 1 } ], "timestamp": 1381347700000000},
+        { "values": [{ "double_value": -2 }], "timestamp": 1381347702000000}
       ],
       "name": "foo",
       "fields": ["derivative"]
@@ -1142,9 +1124,9 @@ func (self *EngineSuite) TestDistinctQuery(c *C) {
 	runQuery(engine, "select distinct(column_one) from foo order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 1 }], "timestamp": 1381347704000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 2 }], "timestamp": 1381347704000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 6 }], "timestamp": 1381347704000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 1 }], "timestamp": 1381347704000000},
+        { "values": [{ "double_value": 2 }], "timestamp": 1381347704000000},
+        { "values": [{ "double_value": 6 }], "timestamp": 1381347704000000}
       ],
       "name": "foo",
       "fields": ["distinct"]
@@ -1171,8 +1153,8 @@ func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select sum(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 11 }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 16 }], "timestamp": 1381346760000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 11 }], "timestamp": 1381346700000000},
+        { "values": [{ "double_value": 16 }], "timestamp": 1381346760000000}
       ],
       "name": "foo",
       "fields": ["sum"]
@@ -1208,8 +1190,8 @@ func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
 	runQuery(engine, "select mode(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 1 }], "timestamp": 1381346700000000, "sequence_number": 1 },
-        { "values": [{ "double_value": 3 }], "timestamp": 1381346760000000, "sequence_number": 1 }
+        { "values": [{ "double_value": 1 }], "timestamp": 1381346700000000},
+        { "values": [{ "double_value": 3 }], "timestamp": 1381346760000000}
       ],
       "name": "foo",
       "fields": ["mode"]

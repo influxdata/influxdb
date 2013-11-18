@@ -236,10 +236,10 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_medians")
-	c.Assert(data[0].Columns, HasLen, 4)
+	c.Assert(data[0].Columns, HasLen, 3)
 	c.Assert(data[0].Points, HasLen, 2)
-	c.Assert(data[0].Points[0][2], Equals, 80.0)
-	c.Assert(data[0].Points[1][2], Equals, 70.0)
+	c.Assert(data[0].Points[0][1], Equals, 80.0)
+	c.Assert(data[0].Points[1][1], Equals, 70.0)
 }
 
 // issue #34
@@ -325,11 +325,11 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_count")
-	c.Assert(data[0].Columns, HasLen, 4)
+	c.Assert(data[0].Columns, HasLen, 3)
 	c.Assert(data[0].Points, HasLen, 2)
 	// count should be 3
-	c.Assert(data[0].Points[0][2], Equals, 5.0)
-	c.Assert(data[0].Points[1][2], Equals, 5.0)
+	c.Assert(data[0].Points[0][1], Equals, 5.0)
+	c.Assert(data[0].Points[1][1], Equals, 5.0)
 }
 
 // test for issue #30

@@ -187,9 +187,8 @@ func (self *DerivativeAggregator) AggregatePoint(series string, group interface{
 	}
 
 	newValue := &protocol.Point{
-		Timestamp:      p.Timestamp,
-		SequenceNumber: p.SequenceNumber,
-		Values:         []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &value}},
+		Timestamp: p.Timestamp,
+		Values:    []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &value}},
 	}
 
 	firstValues := self.firstValues[series]

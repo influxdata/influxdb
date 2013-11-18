@@ -298,7 +298,6 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 		return err
 	}
 
-	var sequenceNumber uint32 = 1
 	fields := []string{}
 
 	for _, aggregator := range aggregators {
@@ -342,8 +341,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 			for _, v := range values {
 				/* groupPoints := []*protocol.Point{} */
 				point := &protocol.Point{
-					SequenceNumber: &sequenceNumber,
-					Values:         v,
+					Values: v,
 				}
 				point.SetTimestampInMicroseconds(timestamp)
 
