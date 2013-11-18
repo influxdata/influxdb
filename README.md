@@ -17,6 +17,8 @@ It aims to answer queries in real-time. That means every data point is indexed a
 
 ## Building
 
+You don't need to build the project to use it. Pre-built [binaries and instructions to install InfluxDB are here](http://influxdb.org/download/). That's the recommended way to get it running. However, if you want to contribute to the core of InfluxDB, you'll need to build. For those adventurous enough follow the instructions below.
+
 ### Mac OS X
 
 - Install the build dependencies of the project:
