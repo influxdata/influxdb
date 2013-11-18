@@ -58,15 +58,24 @@ typedef struct {
 } error;
 
 typedef struct {
+  value *name;
+  char *alias;
+} table_name;
+
+typedef struct {
+  size_t size;
+  table_name **elems;
+} table_name_array;
+
+typedef struct {
   enum {
     FROM_ARRAY,
     FROM_MERGE,
     FROM_INNER_JOIN
   } from_clause_type;
-  // in case of merge or join, it's guaranteed
-  // that the names array will have two table
-  // names only and they aren't regex.
-  value_array *names;
+  // in case of merge or join, it's guaranteed that the names array
+  // will have two table names only and they aren't regex.
+  table_name_array *names;
 } from_clause;
 
 typedef struct {

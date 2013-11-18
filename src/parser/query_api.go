@@ -29,6 +29,64 @@ func uniq(slice []string) []string {
 	return slice
 }
 
+func (self *Query) GetTableAliases(name string) []string {
+	names := self.GetFromClause().Names
+	if len(names) == 1 && names[0].Name.Type == ValueRegex {
+		return []string{name}
+	}
+
+	aliases := []string{}
+
+	for _, fromName := range names {
+		if fromName.Name.Name != name {
+			continue
+		}
+
+		if fromName.Alias == "" {
+			aliases = append(aliases, name)
+			continue
+		}
+
+		aliases = append(aliases, fromName.Alias)
+	}
+	return aliases
+}
+
+func (self *Query) revertAlias(mapping map[string][]string) {
+	fromClause := self.GetFromClause()
+	if fromClause.Type != FromClauseInnerJoin {
+		return
+	}
+
+	columns := make(map[string]map[string]bool)
+
+	for _, table := range fromClause.Names {
+		name := table.Name.Name
+		alias := name
+		if table.Alias != "" {
+			alias = table.Alias
+		}
+
+		for _, column := range mapping[alias] {
+			tableColumns := columns[name]
+			if tableColumns == nil {
+				tableColumns = make(map[string]bool)
+				columns[name] = tableColumns
+			}
+			tableColumns[column] = true
+		}
+
+		delete(mapping, alias)
+	}
+
+	for table, tableColumns := range columns {
+		mapping[table] = []string{}
+		for column, _ := range tableColumns {
+			mapping[table] = append(mapping[table], column)
+		}
+	}
+}
+
 // Returns a mapping from the time series names (or regex) to the
 // column names that are references
 func (self *Query) GetReferencedColumns() map[*Value][]string {
@@ -49,8 +107,13 @@ func (self *Query) GetReferencedColumns() map[*Value][]string {
 
 	notPrefixedColumns = uniq(notPrefixedColumns)
 
+	self.revertAlias(mapping)
+
+	addedTables := make(map[string]bool)
+
 	returnedMapping := make(map[*Value][]string)
-	for _, value := range self.GetFromClause().Names {
+	for _, tableName := range self.GetFromClause().Names {
+		value := tableName.Name
 		if _, ok := value.GetCompiledRegex(); ok {
 			// this is a regex table, cannot be referenced, only unreferenced
 			// columns will be attached to regex table names
@@ -59,6 +122,10 @@ func (self *Query) GetReferencedColumns() map[*Value][]string {
 		}
 
 		name := value.Name
+		if addedTables[name] {
+			continue
+		}
+		addedTables[name] = true
 		returnedMapping[value] = uniq(append(mapping[name], notPrefixedColumns...))
 		if len(returnedMapping[value]) > 1 && returnedMapping[value][0] == "*" {
 			returnedMapping[value] = returnedMapping[value][:1]
@@ -146,7 +213,7 @@ func parseTime(expr *Expression) (int64, error) {
 
 func getReferencedColumnsFromValue(v *Value, mapping map[string][]string) (notAssigned []string) {
 	switch v.Type {
-	case ValueSimpleName:
+	case ValueSimpleName, ValueTableName:
 		if idx := strings.LastIndex(v.Name, "."); idx != -1 {
 			tableName := v.Name[:idx]
 			columnName := v.Name[idx+1:]

@@ -1393,6 +1393,54 @@ func (self *EngineSuite) TestQueryWithJoinedTablesDescendingOrder(c *C) {
   ]`)
 }
 
+func (self *EngineSuite) TestJoiningWithSelf(c *C) {
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["value"]
+    },
+    {
+      "points": [],
+      "name": "foo",
+      "fields": ["value"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000000, "sequence_number": 1 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 }
+      ],
+      "name": "bar",
+      "fields": ["value"]
+    },
+    {
+      "points": [],
+      "name": "bar",
+      "fields": ["value"]
+    }
+  ]`)
+
+	runQuery(engine, "select * from t as foo inner join t as bar", c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346706000000, "sequence_number": 1 }
+      ],
+      "name": "foo_join_bar",
+      "fields": ["foo.value", "bar.value"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 }
+      ],
+      "name": "foo_join_bar",
+      "fields": ["foo.value", "bar.value"]
+    }
+  ]`)
+}
+
 func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
 	engine := createEngine(c, `[
     {

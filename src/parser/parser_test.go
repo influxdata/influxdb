@@ -60,7 +60,7 @@ func (self *QueryParserSuite) TestSimpleFromClause(c *C) {
 	fromClause := q.GetFromClause()
 	c.Assert(fromClause.Type, Equals, FromClauseArray)
 	c.Assert(fromClause.Names, HasLen, 1)
-	c.Assert(fromClause.Names[0].Name, Equals, "t")
+	c.Assert(fromClause.Names[0].Name.Name, Equals, "t")
 }
 
 func (self *QueryParserSuite) TestParseFromWithMergedTable(c *C) {
@@ -69,8 +69,8 @@ func (self *QueryParserSuite) TestParseFromWithMergedTable(c *C) {
 	fromClause := q.GetFromClause()
 	c.Assert(fromClause.Type, Equals, FromClauseMerge)
 	c.Assert(fromClause.Names, HasLen, 2)
-	c.Assert(fromClause.Names[0].Name, Equals, "newsletter.signups")
-	c.Assert(fromClause.Names[1].Name, Equals, "user.signups")
+	c.Assert(fromClause.Names[0].Name.Name, Equals, "newsletter.signups")
+	c.Assert(fromClause.Names[1].Name.Name, Equals, "user.signups")
 }
 
 func (self *QueryParserSuite) TestMultipleAggregateFunctions(c *C) {
@@ -88,8 +88,8 @@ func (self *QueryParserSuite) TestParseFromWithJoinedTable(c *C) {
 	fromClause := q.GetFromClause()
 	c.Assert(fromClause.Type, Equals, FromClauseInnerJoin)
 	c.Assert(fromClause.Names, HasLen, 2)
-	c.Assert(fromClause.Names[0].Name, Equals, "newsletter.signups")
-	c.Assert(fromClause.Names[1].Name, Equals, "user.signups")
+	c.Assert(fromClause.Names[0].Name.Name, Equals, "newsletter.signups")
+	c.Assert(fromClause.Names[1].Name.Name, Equals, "user.signups")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithInsensitiveRegexTables(c *C) {
@@ -99,9 +99,9 @@ func (self *QueryParserSuite) TestParseSelectWithInsensitiveRegexTables(c *C) {
 	fromClause := q.GetFromClause()
 	c.Assert(fromClause.Type, Equals, FromClauseArray)
 	c.Assert(fromClause.Names, HasLen, 1)
-	c.Assert(fromClause.Names[0].Name, Equals, "users.*")
-	c.Assert(fromClause.Names[0].Type, Equals, ValueRegex)
-	c.Assert(fromClause.Names[0].IsCaseInsensitive, Equals, true)
+	c.Assert(fromClause.Names[0].Name.Name, Equals, "users.*")
+	c.Assert(fromClause.Names[0].Name.Type, Equals, ValueRegex)
+	c.Assert(fromClause.Names[0].Name.IsCaseInsensitive, Equals, true)
 }
 
 func (self *QueryParserSuite) TestParseSelectWithRegexTables(c *C) {
@@ -111,9 +111,9 @@ func (self *QueryParserSuite) TestParseSelectWithRegexTables(c *C) {
 	fromClause := q.GetFromClause()
 	c.Assert(fromClause.Type, Equals, FromClauseArray)
 	c.Assert(fromClause.Names, HasLen, 1)
-	c.Assert(fromClause.Names[0].Name, Equals, "users.*")
-	c.Assert(fromClause.Names[0].Type, Equals, ValueRegex)
-	c.Assert(fromClause.Names[0].IsCaseInsensitive, Equals, false)
+	c.Assert(fromClause.Names[0].Name.Name, Equals, "users.*")
+	c.Assert(fromClause.Names[0].Name.Type, Equals, ValueRegex)
+	c.Assert(fromClause.Names[0].Name.IsCaseInsensitive, Equals, false)
 }
 
 func (self *QueryParserSuite) TestMergeFromClause(c *C) {

@@ -21,7 +21,8 @@ func getExpressionValue(expr *parser.Expression, fields []string, point *protoco
 			return &protocol.FieldValue{Int64Value: &value}, nil
 		case parser.ValueString, parser.ValueRegex:
 			return &protocol.FieldValue{StringValue: &value.Name}, nil
-		case parser.ValueSimpleName:
+		case parser.ValueTableName, parser.ValueSimpleName:
+
 			// TODO: optimize this so we don't have to lookup the column everytime
 			fieldIdx := -1
 			for idx, field := range fields {
@@ -51,6 +52,7 @@ func matchesExpression(expr *parser.BoolExpression, fields []string, point *prot
 	if err != nil {
 		return false, err
 	}
+
 	operator := registeredOperators[expr.Operation]
 	return operator(leftValue, rightValue)
 }
