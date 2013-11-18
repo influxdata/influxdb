@@ -1,18 +1,22 @@
 package engine
 
 import (
+	"datastore"
+	"parser"
 	"protocol"
 )
 
-func getJoinYield(table1, table2 string, ascending bool, yield func(*protocol.Series) error) func(*protocol.Series) error {
+func getJoinYield(query *parser.Query, yield func(*protocol.Series) error) func(*protocol.Series) error {
 	var lastPoint1 *protocol.Point
 	var lastFields1 []string
 	var lastPoint2 *protocol.Point
 	var lastFields2 []string
 
+	table1 := query.GetFromClause().Names[0].GetAlias()
+	table2 := query.GetFromClause().Names[1].GetAlias()
 	name := table1 + "_join_" + table2
 
-	return mergeYield(table1, table2, false, ascending, func(s *protocol.Series) error {
+	return mergeYield(table1, table2, false, query.Ascending, func(s *protocol.Series) error {
 		if *s.Name == table1 {
 			lastPoint1 = s.Points[len(s.Points)-1]
 			if lastFields1 == nil {
@@ -50,7 +54,11 @@ func getJoinYield(table1, table2 string, ascending bool, yield func(*protocol.Se
 		lastPoint1 = nil
 		lastPoint2 = nil
 
-		return yield(newSeries)
+		filteredSeries, _ := datastore.Filter(query, newSeries)
+		if len(filteredSeries.Points) > 0 {
+			return yield(newSeries)
+		}
+		return nil
 	})
 }
 
