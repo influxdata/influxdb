@@ -32,7 +32,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	clusterConfig := coordinator.NewClusterConfiguration()
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
-	requestHandler := coordinator.NewProtobufRequestHandler(db, coord)
+	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
 
 	eng, err := engine.NewQueryEngine(coord)
@@ -72,4 +72,12 @@ func (self *Server) ListenAndServe() error {
 	log.Println("Starting Http Api server on port", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()
 	return nil
+}
+
+func (self *Server) Stop() {
+	self.RaftServer.Close()
+	self.Db.Close()
+	self.HttpApi.Close()
+	self.ProtobufServer.Close()
+	// TODO: close admin server and protobuf client connections
 }

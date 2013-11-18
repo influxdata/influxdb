@@ -57,6 +57,28 @@ func (self *ClusterConfiguration) GetServerByRaftName(name string) *ClusterServe
 	return nil
 }
 
+// This function will return an array of servers to issue query to. Queries are issued to every nth server
+// in the cluster where n is the replication factor. We need the local host id because we want to issue the
+// query locally and the nth servers from there.
+func (self *ClusterConfiguration) GetServersToMakeQueryTo(localHostId uint32, database *string) []*ClusterServer {
+	rf := int(self.GetReplicationFactor(database))
+	startIndex := 0
+	for i, s := range self.servers {
+		if s.Id == localHostId {
+			startIndex = i % rf
+			break
+		}
+	}
+	servers := make([]*ClusterServer, 0, len(self.servers)/rf)
+	for i := startIndex; i < len(self.servers); i += rf {
+		server := self.servers[i]
+		if server.Id != localHostId {
+			servers = append(servers, server)
+		}
+	}
+	return servers
+}
+
 func (self *ClusterConfiguration) GetServerIndexByLocation(location *int) int {
 	return *location % len(self.servers)
 }

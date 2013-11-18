@@ -240,6 +240,7 @@ type Request struct {
 	Database         *string       `protobuf:"bytes,3,req,name=database" json:"database,omitempty"`
 	Series           *Series       `protobuf:"bytes,4,opt,name=series" json:"series,omitempty"`
 	Query            *string       `protobuf:"bytes,5,opt,name=query" json:"query,omitempty"`
+	UserName         *string       `protobuf:"bytes,6,opt,name=userName" json:"userName,omitempty"`
 	XXX_unrecognized []byte        `json:"-"`
 }
 
@@ -282,12 +283,20 @@ func (m *Request) GetQuery() string {
 	return ""
 }
 
+func (m *Request) GetUserName() string {
+	if m != nil && m.UserName != nil {
+		return *m.UserName
+	}
+	return ""
+}
+
 type Response struct {
 	Type             *Response_Type      `protobuf:"varint,1,req,name=type,enum=protocol.Response_Type" json:"type,omitempty"`
 	RequestId        *uint32             `protobuf:"varint,2,req,name=request_id" json:"request_id,omitempty"`
 	Series           *Series             `protobuf:"bytes,3,opt,name=series" json:"series,omitempty"`
 	ErrorCode        *Response_ErrorCode `protobuf:"varint,4,opt,name=error_code,enum=protocol.Response_ErrorCode" json:"error_code,omitempty"`
 	ErrorMessage     *string             `protobuf:"bytes,5,opt,name=error_message" json:"error_message,omitempty"`
+	NextPointTime    *int64              `protobuf:"varint,6,opt,name=nextPointTime" json:"nextPointTime,omitempty"`
 	XXX_unrecognized []byte              `json:"-"`
 }
 
@@ -328,6 +337,13 @@ func (m *Response) GetErrorMessage() string {
 		return *m.ErrorMessage
 	}
 	return ""
+}
+
+func (m *Response) GetNextPointTime() int64 {
+	if m != nil && m.NextPointTime != nil {
+		return *m.NextPointTime
+	}
+	return 0
 }
 
 func init() {

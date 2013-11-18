@@ -35,7 +35,7 @@ func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	db := newDatastore(c)
 	coord := NewCoordinatorImpl(db, server, server.clusterConfig)
 	coord.ConnectToProtobufServers(server.config.ProtobufConnectionString())
-	requestHandler := NewProtobufRequestHandler(db, coord)
+	requestHandler := NewProtobufRequestHandler(db, coord, server.clusterConfig)
 	protobufServer := NewProtobufServer(":8091", requestHandler)
 	go protobufServer.ListenAndServe()
 	c.Assert(protobufServer, Not(IsNil))

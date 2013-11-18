@@ -32,6 +32,7 @@ message Request {
   required string database = 3;
   optional Series series = 4;
   optional string query = 5;
+  optional string userName = 6;
 }
 
 message Response {
@@ -48,4 +49,5 @@ message Response {
   optional Series series = 3;
   optional ErrorCode error_code = 4;
   optional string error_message = 5;
+  optional int64 nextPointTime = 6;
 }

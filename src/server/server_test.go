@@ -5,11 +5,13 @@ import (
 	"common"
 	"configuration"
 	"datastore"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"parser"
 	"protocol"
@@ -23,12 +25,33 @@ func Test(t *testing.T) {
 	TestingT(t)
 }
 
-type ServerSuite struct{}
+type ServerSuite struct {
+	servers []*Server
+}
 
 var _ = Suite(&ServerSuite{})
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU() * 2)
+}
+
+func (self *ServerSuite) SetUpSuite(c *C) {
+	self.servers = startCluster(3, c)
+	time.Sleep(time.Second * 4)
+	time.Sleep(time.Second)
+	err := self.servers[0].RaftServer.CreateDatabase("test_rep", uint8(2))
+	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 10)
+	_, err = self.postToServer(self.servers[0], "/db/test_rep/users?u=root&p=root", `{"username": "paul", "password": "pass"}`, c)
+	c.Assert(err, IsNil)
+}
+
+func (self *ServerSuite) TearDownSuite(c *C) {
+	for _, s := range self.servers {
+		s.Stop()
+		os.RemoveAll(s.Config.DataDir)
+		os.RemoveAll(s.Config.RaftDir)
+	}
 }
 
 func getAvailablePorts(count int, c *C) []int {
@@ -38,7 +61,6 @@ func getAvailablePorts(count int, c *C) []int {
 		l, err := net.Listen("tcp4", ":0")
 		c.Assert(err, IsNil)
 		port := l.Addr().(*net.TCPAddr).Port
-		fmt.Printf("PORT: %d\n", port)
 		ports[i] = port
 		listeners[i] = l
 	}
@@ -119,19 +141,7 @@ func executeQuery(user common.User, database, query string, db datastore.Datasto
 }
 
 func (self *ServerSuite) TestDataReplication(c *C) {
-	servers := startCluster(3, c)
-	time.Sleep(time.Second * 4)
-	for _, s := range servers {
-		defer os.RemoveAll(s.Config.DataDir)
-		defer os.RemoveAll(s.Config.RaftDir)
-	}
-	time.Sleep(time.Second)
-	err := servers[0].RaftServer.CreateDatabase("test_rep", uint8(2))
-	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 10)
-
-	// debug, take out
-	resp, _ := self.postToServer(servers[0], "/db/test_rep/users?u=root&p=root", `{"username": "paul", "password": "pass"}`, c)
+	servers := self.servers
 
 	data := `
   [{
@@ -141,7 +151,7 @@ func (self *ServerSuite) TestDataReplication(c *C) {
     "name": "foo",
     "columns": ["val_1", "val_2"]
   }]`
-	resp, _ = self.postToServer(servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	resp, _ := self.postToServer(servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	time.Sleep(time.Millisecond * 10)
 
@@ -169,5 +179,40 @@ func (self *ServerSuite) TestDataReplication(c *C) {
 }
 
 func (self *ServerSuite) TestCrossClusterQueries(c *C) {
+	data := `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[1], [2], [3], [4]]
+		}]`
+	resp, _ := self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 
+	time.Sleep(time.Second)
+	data = `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[5], [6], [7]]
+		}]`
+	resp, _ = self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 100)
+
+	for _, s := range self.servers {
+		query := "select count(val1) from cluster_query;"
+		encodedQuery := url.QueryEscape(query)
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/db/test_rep/series?u=paul&p=pass&q=%s", s.Config.ApiHttpPort, encodedQuery))
+		c.Assert(err, IsNil)
+		body, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, IsNil)
+		c.Assert(resp.StatusCode, Equals, http.StatusOK)
+		resp.Body.Close()
+		var results []map[string]interface{}
+		err = json.Unmarshal(body, &results)
+		c.Assert(err, IsNil)
+		fmt.Println("RESULT: ", string(body))
+		c.Assert(results, HasLen, 1)
+		point := results[0]["points"].([]interface{})[0].([]interface{})
+		val := point[len(point)-1].(float64)
+		c.Assert(val, Equals, float64(7))
+	}
 }

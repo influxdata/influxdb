@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
+	"sort"
 )
 
 func DecodePoint(buff *bytes.Buffer) (point *Point, err error) {
@@ -71,4 +72,35 @@ func DecodeResponse(buff *bytes.Buffer) (response *Response, err error) {
 
 func (self *Response) Encode() (data []byte, err error) {
 	return proto.Marshal(self)
+}
+
+type PointsCollection []*Point
+
+func (s PointsCollection) Len() int      { return len(s) }
+func (s PointsCollection) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+type ByPointTimeDesc struct{ PointsCollection }
+type ByPointTimeAsc struct{ PointsCollection }
+
+func (s ByPointTimeAsc) Less(i, j int) bool {
+	if s.PointsCollection[i] != nil && s.PointsCollection[j] != nil {
+		return *s.PointsCollection[i].Timestamp < *s.PointsCollection[j].Timestamp
+	}
+	return false
+}
+func (s ByPointTimeDesc) Less(i, j int) bool {
+	if s.PointsCollection[i] != nil && s.PointsCollection[j] != nil {
+		return *s.PointsCollection[i].Timestamp > *s.PointsCollection[j].Timestamp
+	}
+	return false
+}
+
+func (self *Series) SortPointsTimeAscending() {
+	sort.Sort(ByPointTimeAsc{self.Points})
+}
+
+func (self *Series) SortPointsTimeDescending() {
+	if self.Points != nil {
+		sort.Sort(ByPointTimeDesc{self.Points})
+	}
 }

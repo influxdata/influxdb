@@ -5,6 +5,7 @@ import (
 	"datastore"
 	"errors"
 	"fmt"
+	"math"
 	"parser"
 	"protocol"
 	"sync/atomic"
@@ -27,6 +28,10 @@ const POINT_SEQUENCE_NUMBER_KEY = "p"
 // be a host id. This ensures that sequence numbers are unique across the cluster
 const HOST_ID_OFFSET = uint64(10000)
 
+var queryRequest = protocol.Request_QUERY
+var endStreamResponse = protocol.Response_END_STREAM
+var queryResponse = protocol.Response_QUERY
+
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
 	return &CoordinatorImpl{
 		clusterConfiguration: clusterConfiguration,
@@ -35,8 +40,223 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 	}
 }
 
+// Distributes the query across the cluster and combines the results. Yields as they come in ensuring proper order.
+// TODO: make this work even if there is a downed server in the cluster
 func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query *parser.Query, yield func(*protocol.Series) error) error {
-	return self.datastore.ExecuteQuery(user, db, query, yield)
+	if self.clusterConfiguration.IsSingleServer() {
+		return self.datastore.ExecuteQuery(user, db, query, yield)
+	}
+	servers := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &db)
+	queryString := query.GetQueryString()
+	id := atomic.AddUint32(&self.requestId, uint32(1))
+	userName := user.GetName()
+	request := &protocol.Request{Type: &queryRequest, Query: &queryString, Id: &id, Database: &db, UserName: &userName}
+	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
+	for _, server := range servers {
+		responseChan := make(chan *protocol.Response, 3)
+		server.protobufClient.MakeRequest(request, responseChan)
+		fmt.Println("COORD adding channel for server: ", server)
+		responseChannels = append(responseChannels, responseChan)
+	}
+
+	local := make(chan *protocol.Response)
+	var nextPoint *protocol.Point
+	sendFromLocal := func(series *protocol.Series) error {
+		pointCount := len(series.Points)
+		if pointCount == 0 {
+			if nextPoint != nil {
+				series.Points = []*protocol.Point{nextPoint}
+				fmt.Println("COORD local last points: ", series)
+				local <- &protocol.Response{Type: &queryResponse, Series: series}
+			}
+			fmt.Println("COORD local end stream: ", series)
+
+			local <- &protocol.Response{Type: &endStreamResponse, Series: series}
+			close(local)
+			return nil
+		}
+		oldNextPoint := nextPoint
+		nextPoint = series.Points[pointCount-1]
+		series.Points[pointCount-1] = nil
+		if oldNextPoint != nil {
+			copy(series.Points[1:], series.Points[0:])
+			series.Points[0] = oldNextPoint
+		}
+
+		response := &protocol.Response{Series: series, Type: &queryResponse}
+		if nextPoint != nil {
+			response.NextPointTime = nextPoint.Timestamp
+		}
+		fmt.Println("COORD local series: ", *response.Series.Name, len(response.Series.Points), *response.NextPointTime)
+		local <- response
+		return nil
+	}
+	responseChannels = append(responseChannels, local)
+	// TODO: wire up the willreturnsingleseries method and uncomment this line and delete the next one.
+	//	isSingleSeriesQuery := query.WillReturnSingleSeries()
+	isSingleSeriesQuery := false
+	go self.streamResultsFromChannels(isSingleSeriesQuery, query.Ascending, responseChannels, yield)
+
+	return self.datastore.ExecuteQuery(user, db, query, sendFromLocal)
+}
+
+// This function streams results from servers and ensures that series are yielded in the proper order (which is expected by the engine)
+func (self *CoordinatorImpl) streamResultsFromChannels(isSingleSeriesQuery, isAscending bool, channels []chan *protocol.Response, yield func(*protocol.Series) error) {
+	fmt.Println("COORD resopnse channel count: ", len(channels))
+	channelCount := len(channels)
+	closedChannels := 0
+	responses := make([]*protocol.Response, 0)
+	var leftovers []*protocol.Series
+
+	for closedChannels < channelCount {
+		fmt.Println("COORD: looping through channels")
+		for _, ch := range channels {
+			response := <-ch
+			if response != nil {
+				fmt.Println("COORD got response on channel: ", *response.Series.Name, len(response.Series.Points))
+				if *response.Type == protocol.Response_END_STREAM {
+					closedChannels++
+				}
+				responses = append(responses, response)
+			}
+			fmt.Println("COORD: read response")
+		}
+		leftovers = self.yieldResults(isSingleSeriesQuery, isAscending, leftovers, responses, yield)
+	}
+}
+
+// Response objects have a nextPointTime that tells us what the time of the next series from a given server will be.
+// Using that we can make sure to yield results in the correct order. So we can safely yield all results that fall before
+// (or after if descending) the lowest (or highest if descending) nextPointTime. If they're all nil, then we're safe to
+// yield everything
+func (self *CoordinatorImpl) yieldResults(isSingleSeriesQuery, isAscending bool, leftovers []*protocol.Series,
+	responses []*protocol.Response, yield func(*protocol.Series) error) []*protocol.Series {
+
+	if isSingleSeriesQuery {
+		var oldLeftOver *protocol.Series
+		if len(leftovers) > 0 {
+			oldLeftOver = leftovers[0]
+		}
+		leftover := self.yieldResultsForSeries(isAscending, oldLeftOver, responses, yield)
+		if leftover != nil {
+			return []*protocol.Series{leftover}
+		}
+		return nil
+	}
+
+	// a query could yield results from multiple series, handle the cases individually
+	nameToSeriesResponses := make(map[string][]*protocol.Response)
+	for _, response := range responses {
+		seriesResponses := nameToSeriesResponses[*response.Series.Name]
+		if seriesResponses == nil {
+			seriesResponses = make([]*protocol.Response, 0)
+		}
+		nameToSeriesResponses[*response.Series.Name] = append(seriesResponses, response)
+	}
+	leftoverResults := make([]*protocol.Series, 0)
+	for _, responses := range nameToSeriesResponses {
+		response := responses[0]
+		var seriesLeftover *protocol.Series
+		for _, series := range leftovers {
+			if *series.Name == *response.Series.Name {
+				seriesLeftover = series
+				break
+			}
+		}
+		leftover := self.yieldResultsForSeries(isAscending, seriesLeftover, responses, yield)
+		if leftover != nil {
+			leftoverResults = append(leftoverResults, leftover)
+		}
+	}
+	return leftoverResults
+}
+
+// Function yields all results that are safe to do so ensuring order. Returns all results that must wait for more from the servers.
+func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *protocol.Series, responses []*protocol.Response, yield func(*protocol.Series) error) *protocol.Series {
+	result := &protocol.Series{Name: responses[0].Series.Name, Points: make([]*protocol.Point, 0)}
+	if leftover == nil {
+		leftover = &protocol.Series{Name: responses[0].Series.Name, Points: make([]*protocol.Point, 0)}
+	}
+
+	barrierTime := int64(0)
+	if isAscending {
+		barrierTime = math.MaxInt64
+	}
+	var shouldYieldComparator func(rawTime *int64) bool
+	if isAscending {
+		shouldYieldComparator = func(rawTime *int64) bool {
+			if rawTime != nil && *rawTime < barrierTime {
+				return true
+			} else {
+				return false
+			}
+		}
+	} else {
+		shouldYieldComparator = func(rawTime *int64) bool {
+			if rawTime != nil && *rawTime > barrierTime {
+				return true
+			} else {
+				return false
+			}
+		}
+	}
+	// find the barrier time
+	for _, response := range responses {
+		if shouldYieldComparator(response.NextPointTime) {
+			barrierTime = *response.NextPointTime
+		}
+	}
+	// yield the points from leftover that are safe
+	for i, point := range leftover.Points {
+		if shouldYieldComparator(point.Timestamp) {
+			result.Points = append(result.Points, point)
+		} else {
+			leftover.Points = leftover.Points[i:]
+			break
+		}
+	}
+
+	if barrierTime == int64(0) || barrierTime == math.MaxInt64 {
+		// all the nextPointTimes were nil so we're safe to send everything
+		for _, response := range responses {
+			result.Points = append(result.Points, response.Series.Points...)
+			result.Points = append(result.Points, leftover.Points...)
+			leftover.Points = []*protocol.Point{}
+		}
+	} else {
+		for _, response := range responses {
+			if shouldYieldComparator(response.NextPointTime) {
+				// all points safe to yield
+				result.Points = append(result.Points, response.Series.Points...)
+				continue
+			}
+
+			for i, point := range response.Series.Points {
+				if shouldYieldComparator(point.Timestamp) {
+					result.Points = append(result.Points, point)
+				} else {
+					// since they're returned in order, we can just append these to
+					// the leftover and break out.
+					leftover.Points = append(leftover.Points, response.Series.Points[i:]...)
+					break
+				}
+			}
+		}
+	}
+
+	if isAscending {
+		result.SortPointsTimeAscending()
+		leftover.SortPointsTimeAscending()
+	} else {
+		result.SortPointsTimeDescending()
+		leftover.SortPointsTimeDescending()
+	}
+	fmt.Println("COORD yielding: ", result)
+	yield(result)
+	if len(leftover.Points) > 0 {
+		return leftover
+	}
+	return nil
 }
 
 func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series *protocol.Series) error {
