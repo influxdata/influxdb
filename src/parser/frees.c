@@ -10,10 +10,26 @@ free_array(array *array)
   free(array->elems);
   free(array);
 }
+void free_table_name(table_name *name)
+{
+  free_value(name->name);
+  free(name->alias);
+  free(name);
+}
+void
+free_table_name_array(table_name_array *array)
+{
+  int i;
+  for (i = 0; i < array->size; i++)
+    free_table_name(array->elems[i]);
+  free(array->elems);
+  free(array);
+}
+
 void
 free_from_clause(from_clause *f)
 {
-  free_value_array(f->names);
+  free_table_name_array(f->names);
   free(f);
 }
 

@@ -1,18 +1,22 @@
 package engine
 
 import (
+	"datastore"
+	"parser"
 	"protocol"
 )
 
-func getJoinYield(table1, table2 string, yield func(*protocol.Series) error) func(*protocol.Series) error {
+func getJoinYield(query *parser.Query, yield func(*protocol.Series) error) func(*protocol.Series) error {
 	var lastPoint1 *protocol.Point
 	var lastFields1 []string
 	var lastPoint2 *protocol.Point
 	var lastFields2 []string
 
+	table1 := query.GetFromClause().Names[0].GetAlias()
+	table2 := query.GetFromClause().Names[1].GetAlias()
 	name := table1 + "_join_" + table2
 
-	return mergeYield(table1, table2, false, func(s *protocol.Series) error {
+	return mergeYield(table1, table2, false, query.Ascending, func(s *protocol.Series) error {
 		if *s.Name == table1 {
 			lastPoint1 = s.Points[len(s.Points)-1]
 			if lastFields1 == nil {
@@ -50,14 +54,18 @@ func getJoinYield(table1, table2 string, yield func(*protocol.Series) error) fun
 		lastPoint1 = nil
 		lastPoint2 = nil
 
-		return yield(newSeries)
+		filteredSeries, _ := datastore.Filter(query, newSeries)
+		if len(filteredSeries.Points) > 0 {
+			return yield(newSeries)
+		}
+		return nil
 	})
 }
 
-func getMergeYield(table1, table2 string, yield func(*protocol.Series) error) func(*protocol.Series) error {
+func getMergeYield(table1, table2 string, ascending bool, yield func(*protocol.Series) error) func(*protocol.Series) error {
 	name := table1 + "_merge_" + table2
 
-	return mergeYield(table1, table2, true, func(s *protocol.Series) error {
+	return mergeYield(table1, table2, true, ascending, func(s *protocol.Series) error {
 		oldName := s.Name
 		s.Name = &name
 		s.Fields = append(s.Fields, "_orig_series")
@@ -79,8 +87,12 @@ func (self *seriesMergeState) hasPoints() bool {
 	return len(self.series) > 0 && len(self.series[0].Points) > 0
 }
 
-func (self *seriesMergeState) isEarlier(other *seriesMergeState) bool {
-	return *self.series[0].Points[0].Timestamp < *other.series[0].Points[0].Timestamp
+func isEarlier(first *seriesMergeState, other *seriesMergeState) bool {
+	return *first.series[0].Points[0].Timestamp < *other.series[0].Points[0].Timestamp
+}
+
+func isLater(first *seriesMergeState, other *seriesMergeState) bool {
+	return *first.series[0].Points[0].Timestamp > *other.series[0].Points[0].Timestamp
 }
 
 func (self *seriesMergeState) flush(state *mergeState, yield func(*protocol.Series) error) error {
@@ -124,6 +136,7 @@ func (self *seriesMergeState) updateState(p *protocol.Series) {
 }
 
 type mergeState struct {
+	leftGoFirst  func(_, _ *seriesMergeState) bool
 	fields       map[string]int
 	left         *seriesMergeState
 	right        *seriesMergeState
@@ -168,7 +181,7 @@ func (self *mergeState) yieldNextPoints(yield func(*protocol.Series) error) erro
 		// state is the state of the series from which the next point
 		// will be fetched
 		next := self.right
-		if self.left.isEarlier(self.right) {
+		if self.leftGoFirst(self.left, self.right) {
 			next = self.left
 		}
 
@@ -237,9 +250,7 @@ func (self *seriesMergeState) removeAndGetFirstPoint() ([]string, *protocol.Poin
 
 // returns a yield function that will sort points from table1 and
 // table2 no matter what the order in which they are received.
-//
-// FIXME: This won't work for queries that are executed in descending order.
-func mergeYield(table1, table2 string, modifyValues bool, yield func(*protocol.Series) error) func(*protocol.Series) error {
+func mergeYield(table1, table2 string, modifyValues bool, ascending bool, yield func(*protocol.Series) error) func(*protocol.Series) error {
 	state1 := &seriesMergeState{
 		name: table1,
 	}
@@ -247,9 +258,15 @@ func mergeYield(table1, table2 string, modifyValues bool, yield func(*protocol.S
 		name: table2,
 	}
 
+	whoGoFirst := isEarlier
+	if !ascending {
+		whoGoFirst = isLater
+	}
+
 	state := &mergeState{
 		left:         state1,
 		right:        state2,
+		leftGoFirst:  whoGoFirst,
 		modifyValues: modifyValues,
 	}
 
