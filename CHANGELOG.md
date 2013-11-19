@@ -117,6 +117,7 @@
 
 - [Issue #51](https://github.com/influxdb/influxdb/issues/51). Implement first and last aggregates
 - [Issue #35](https://github.com/influxdb/influxdb/issues/35). Support table aliases in Join Queries
+- [Issue #71](https://github.com/influxdb/influxdb/issues/71). Add WillReturnSingleSeries to the Query
 
 ## Bugfixes
 

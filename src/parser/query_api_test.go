@@ -9,6 +9,19 @@ type QueryApiSuite struct{}
 
 var _ = Suite(&QueryApiSuite{})
 
+func (self *QueryApiSuite) TestWillReturnSingleSeries(c *C) {
+	for queryStr, expected := range map[string]bool{
+		"select * from t":                  true,
+		"select * from /uesrs.*/":          false,
+		"select * from foo merge bar":      false,
+		"select * from foo inner join bar": false,
+	} {
+		query, err := ParseQuery(queryStr)
+		c.Assert(err, IsNil)
+		c.Assert(query.WillReturnSingleSeries(), Equals, expected)
+	}
+}
+
 func (self *QueryApiSuite) TestGetStartTime(c *C) {
 	for _, queryStr := range []string{
 		"select * from t where time > now() - 1d and time < now() - 1h;",

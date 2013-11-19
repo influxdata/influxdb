@@ -29,6 +29,23 @@ func uniq(slice []string) []string {
 	return slice
 }
 
+func (self *Query) WillReturnSingleSeries() bool {
+	fromClause := self.GetFromClause()
+	if fromClause.Type != FromClauseArray {
+		return false
+	}
+
+	if len(fromClause.Names) > 1 {
+		return false
+	}
+
+	if _, ok := fromClause.Names[0].Name.GetCompiledRegex(); ok {
+		return false
+	}
+
+	return true
+}
+
 func (self *Query) GetTableAliases(name string) []string {
 	names := self.GetFromClause().Names
 	if len(names) == 1 && names[0].Name.Type == ValueRegex {
