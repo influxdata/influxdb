@@ -119,5 +119,6 @@
 
 ## Bugfixes
 
+- Fix join and merges when the query is a descending order query
 - [Issue #57](https://github.com/influxdb/influxdb/issues/57). Don't panic when type of time != float
 - [Issue #63](https://github.com/influxdb/influxdb/issues/63). Aggregate queries should not have a sequence_number column
