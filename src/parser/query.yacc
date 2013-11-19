@@ -180,7 +180,7 @@ LIMIT_CLAUSE:
         }
         |
         {
-          $$ = 0;
+          $$ = -1;
         }
 
 VALUES:

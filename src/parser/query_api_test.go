@@ -2,6 +2,7 @@ package parser
 
 import (
 	. "launchpad.net/gocheck"
+	"math"
 	"time"
 )
 
@@ -160,16 +161,27 @@ func (self *QueryApiSuite) TestGetReferencedColumnsWithInnerJoinAndWildcard(c *C
 	c.Assert(aliases["foo"], DeepEquals, []string{"*"})
 }
 
+func (self *QueryApiSuite) TestDefaultLimit(c *C) {
+	for queryStr, limit := range map[string]int{
+		"select * from t limit 0":    0,
+		"select * from t limit 1000": 1000,
+		"select * from t;":           10000,
+	} {
+		query, err := ParseQuery(queryStr)
+		c.Assert(err, IsNil)
+		c.Assert(query.Limit, Equals, limit)
+	}
+}
+
 func (self *QueryApiSuite) TestDefaultStartTime(c *C) {
 	for queryStr, t := range map[string]time.Time{
-		"select * from t where time < now() - 1d;": time.Now().Add(-24 * time.Hour).Add(-1 * time.Hour).Round(time.Minute),
-		"select * from t;":                         time.Now().Add(-1 * time.Hour).Round(time.Minute),
+		"select * from t where time < now() - 1d;": time.Unix(math.MinInt64, 0),
+		"select * from t;":                         time.Unix(math.MinInt64, 0),
 	} {
 		query, err := ParseQuery(queryStr)
 		c.Assert(err, IsNil)
 		startTime := query.GetStartTime()
-		roundedStartTime := startTime.Round(time.Minute)
-		c.Assert(roundedStartTime, Equals, t)
+		c.Assert(startTime, Equals, t)
 	}
 }
 

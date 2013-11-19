@@ -7,6 +7,7 @@ import "C"
 import (
 	"common"
 	"fmt"
+	"math"
 	"reflect"
 	"regexp"
 	"time"
@@ -20,6 +21,10 @@ type From struct {
 type Operation int
 
 type ValueType int
+
+const (
+	DEFAULT_LIMIT = 10000
+)
 
 const (
 	ValueRegex        ValueType = C.VALUE_REGEX
@@ -353,7 +358,12 @@ func ParseQuery(query string) (*Query, error) {
 		return nil, err
 	}
 
-	goQuery := &Query{query, nil, nil, nil, nil, int(q.limit), q.ascending != 0, time.Unix(0, 0), time.Now()}
+	limit := q.limit
+	if limit == -1 {
+		limit = DEFAULT_LIMIT
+	}
+
+	goQuery := &Query{query, nil, nil, nil, nil, int(limit), q.ascending != 0, time.Unix(0, 0), time.Now()}
 
 	var err error
 
@@ -406,7 +416,7 @@ func ParseQuery(query string) (*Query, error) {
 	if startTime.Unix() > 0 {
 		goQuery.startTime = startTime
 	} else if goQuery.endTime.Unix() > 0 {
-		goQuery.startTime = goQuery.endTime.Add(-1 * time.Hour)
+		goQuery.startTime = time.Unix(math.MinInt64, 0)
 	}
 
 	return goQuery, nil

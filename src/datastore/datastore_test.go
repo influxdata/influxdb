@@ -777,7 +777,7 @@ func (self *DatastoreSuite) TestBreaksLargeResultsIntoMultipleBatches(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	q, errQ := parser.ParseQuery("select * from user_things;")
+	q, errQ := parser.ParseQuery("select * from user_things limit 0;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {

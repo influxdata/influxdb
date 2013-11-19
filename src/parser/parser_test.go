@@ -33,8 +33,6 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 
 		c.Assert(q.GetQueryString(), Equals, query)
 
-		c.Assert(q.Limit, Equals, 0)
-
 		c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value"))
 		w := q.GetWhereCondition()
 
@@ -119,8 +117,6 @@ func (self *QueryParserSuite) TestParseSelectWithRegexTables(c *C) {
 func (self *QueryParserSuite) TestMergeFromClause(c *C) {
 	q, err := ParseQuery("select value from t1 merge t2 where c == '5';")
 	c.Assert(err, IsNil)
-
-	c.Assert(q.Limit, Equals, 0)
 
 	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value"))
 	w := q.GetWhereCondition()
@@ -333,7 +329,6 @@ func (self *QueryParserSuite) TestParseSelectWithOrderByAndLimit(c *C) {
 
 	q, err = ParseQuery("select value from t order desc;")
 	c.Assert(err, IsNil)
-	c.Assert(q.Limit, Equals, 0)
 	c.Assert(q.Ascending, Equals, false)
 
 	q, err = ParseQuery("select value from t limit 20;")
