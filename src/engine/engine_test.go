@@ -1485,6 +1485,203 @@ func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
   ]`)
 }
 
+func (self *EngineSuite) TestHistogramQueryWithGroupByTime(c *C) {
+	// make the mock coordinator return some data
+	engine := createEngine(c, `
+[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 100
+          }
+        ],
+        "timestamp": 1381346641000000,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int64_value": 5
+          }
+        ],
+        "timestamp": 1381346651000000,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int64_value": 200
+          }
+        ],
+        "timestamp": 1381346701000000,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int64_value": 299
+          }
+        ],
+        "timestamp": 1381346721000000,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": ["column_one"]
+  }
+]
+`)
+
+	runQuery(engine, "select histogram(column_one, 100) from foo group by time(1m) order asc", c, `[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "double_value": 100
+          },
+          {
+            "int64_value": 1
+          }
+        ],
+        "timestamp": 1381346640000000
+      },
+      {
+        "values": [
+          {
+            "double_value": 0
+          },
+          {
+            "int64_value": 1
+          }
+        ],
+        "timestamp": 1381346640000000
+      },
+      {
+        "values": [
+          {
+            "double_value": 200
+          },
+          {
+            "int64_value": 2
+          }
+        ],
+        "timestamp": 1381346700000000
+      }
+    ],
+    "name": "foo",
+    "fields": ["bucket_start", "count"]
+  }
+]
+`)
+}
+
+func (self *EngineSuite) TestHistogramQueryWithGroupByTimeAndDefaultBucketSize(c *C) {
+	// make the mock coordinator return some data
+	engine := createEngine(c, `
+[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 100
+          }
+        ],
+        "timestamp": 1381346641000000,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int64_value": 5
+          }
+        ],
+        "timestamp": 1381346651000000,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int64_value": 200
+          }
+        ],
+        "timestamp": 1381346701000000,
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int64_value": 299
+          }
+        ],
+        "timestamp": 1381346721000000,
+        "sequence_number": 1
+      }
+    ],
+    "name": "foo",
+    "fields": ["column_one"]
+  }
+]
+`)
+
+	runQuery(engine, "select histogram(column_one) from foo group by time(1m) order asc", c, `[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "double_value": 100
+          },
+          {
+            "int64_value": 1
+          }
+        ],
+        "timestamp": 1381346640000000
+      },
+      {
+        "values": [
+          {
+            "double_value": 5
+          },
+          {
+            "int64_value": 1
+          }
+        ],
+        "timestamp": 1381346640000000
+      },
+      {
+        "values": [
+          {
+            "double_value": 200
+          },
+          {
+            "int64_value": 1
+          }
+        ],
+        "timestamp": 1381346700000000
+      },
+      {
+        "values": [
+          {
+            "double_value": 299
+          },
+          {
+            "int64_value": 1
+          }
+        ],
+        "timestamp": 1381346700000000
+      }
+    ],
+    "name": "foo",
+    "fields": ["bucket_start", "count"]
+  }
+]
+`)
+}
+
 func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidNumberOfArguments(c *C) {
 	err := common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
 	engine := createEngine(c, `[]`)

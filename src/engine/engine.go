@@ -192,7 +192,7 @@ func createValuesToInterface(groupBy parser.GroupByClause, fields []string) (Map
 	}
 }
 
-func crossProduct(values [][]*protocol.FieldValue) [][]*protocol.FieldValue {
+func crossProduct(values [][][]*protocol.FieldValue) [][]*protocol.FieldValue {
 	if len(values) == 0 {
 		return [][]*protocol.FieldValue{[]*protocol.FieldValue{}}
 	}
@@ -201,7 +201,7 @@ func crossProduct(values [][]*protocol.FieldValue) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
 	for _, v := range values[len(values)-1] {
 		for _, values := range _returnedValues {
-			returnValues = append(returnValues, append(values, v))
+			returnValues = append(returnValues, append(values, v...))
 		}
 	}
 	return returnValues
@@ -219,8 +219,8 @@ func (self SortableGroups) Len() int {
 }
 
 func (self SortableGroups) Less(i, j int) bool {
-	iTimestamp := self.aggregator.GetValue(self.table, self.data[i])[0].Int64Value
-	jTimestamp := self.aggregator.GetValue(self.table, self.data[j])[0].Int64Value
+	iTimestamp := self.aggregator.GetValues(self.table, self.data[i])[0][0].Int64Value
+	jTimestamp := self.aggregator.GetValues(self.table, self.data[j])[0][0].Int64Value
 	if self.ascending {
 		return *iTimestamp < *jTimestamp
 	}
@@ -301,8 +301,8 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 	fields := []string{}
 
 	for _, aggregator := range aggregators {
-		columnName := aggregator.ColumnName()
-		fields = append(fields, columnName)
+		columnNames := aggregator.ColumnNames()
+		fields = append(fields, columnNames...)
 	}
 
 	for _, value := range groupBy {
@@ -328,17 +328,17 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 		sort.Sort(sortedGroups)
 
 		for _, groupId := range sortedGroups.data {
-			timestamp := *timestampAggregator.GetValue(table, groupId)[0].Int64Value
-			values := [][]*protocol.FieldValue{}
+			timestamp := *timestampAggregator.GetValues(table, groupId)[0][0].Int64Value
+			values := [][][]*protocol.FieldValue{}
 
 			for _, aggregator := range aggregators {
-				values = append(values, aggregator.GetValue(table, groupId))
+				values = append(values, aggregator.GetValues(table, groupId))
 			}
 
 			// do cross product of all the values
-			values = crossProduct(values)
+			_values := crossProduct(values)
 
-			for _, v := range values {
+			for _, v := range _values {
 				/* groupPoints := []*protocol.Point{} */
 				point := &protocol.Point{
 					Values: v,
