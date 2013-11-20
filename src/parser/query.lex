@@ -27,6 +27,7 @@ static int yycolumn = 1;
 "join"                    { return JOIN; }
 "from"                    { return FROM; }
 "where"                   { return WHERE; }
+"as"                      { return AS; }
 "select"                  { return SELECT; }
 "limit"                   { return LIMIT; }
 "order"                   { return ORDER; }

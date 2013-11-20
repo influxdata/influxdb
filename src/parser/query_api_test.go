@@ -2,12 +2,26 @@ package parser
 
 import (
 	. "launchpad.net/gocheck"
+	"math"
 	"time"
 )
 
 type QueryApiSuite struct{}
 
 var _ = Suite(&QueryApiSuite{})
+
+func (self *QueryApiSuite) TestWillReturnSingleSeries(c *C) {
+	for queryStr, expected := range map[string]bool{
+		"select * from t":                  true,
+		"select * from /uesrs.*/":          false,
+		"select * from foo merge bar":      false,
+		"select * from foo inner join bar": false,
+	} {
+		query, err := ParseQuery(queryStr)
+		c.Assert(err, IsNil)
+		c.Assert(query.WillReturnSingleSeries(), Equals, expected)
+	}
+}
 
 func (self *QueryApiSuite) TestGetStartTime(c *C) {
 	for _, queryStr := range []string{
@@ -115,16 +129,59 @@ func (self *QueryApiSuite) TestGetReferencedColumnsWithWhereClause(c *C) {
 	}
 }
 
+func (self *QueryApiSuite) TestGetReferencedColumnsWithInnerJoin(c *C) {
+	queryStr := "select f2.b from foo as f1 inner join foo as f2 where f1.a == 5 and f2.a == 6;"
+	query, err := ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	columns := query.GetReferencedColumns()
+	c.Assert(columns, HasLen, 1)
+	aliases := make(map[string][]string)
+	for v, columns := range columns {
+		if _, ok := aliases[v.Name]; ok {
+			c.Fail()
+		}
+		aliases[v.Name] = columns
+	}
+	c.Assert(aliases["foo"], DeepEquals, []string{"a", "b"})
+}
+
+func (self *QueryApiSuite) TestGetReferencedColumnsWithInnerJoinAndWildcard(c *C) {
+	queryStr := "select * from foo as f1 inner join foo as f2"
+	query, err := ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	columns := query.GetReferencedColumns()
+	c.Assert(columns, HasLen, 1)
+	aliases := make(map[string][]string)
+	for v, columns := range columns {
+		if _, ok := aliases[v.Name]; ok {
+			c.Fail()
+		}
+		aliases[v.Name] = columns
+	}
+	c.Assert(aliases["foo"], DeepEquals, []string{"*"})
+}
+
+func (self *QueryApiSuite) TestDefaultLimit(c *C) {
+	for queryStr, limit := range map[string]int{
+		"select * from t limit 0":    0,
+		"select * from t limit 1000": 1000,
+		"select * from t;":           10000,
+	} {
+		query, err := ParseQuery(queryStr)
+		c.Assert(err, IsNil)
+		c.Assert(query.Limit, Equals, limit)
+	}
+}
+
 func (self *QueryApiSuite) TestDefaultStartTime(c *C) {
 	for queryStr, t := range map[string]time.Time{
-		"select * from t where time < now() - 1d;": time.Now().Add(-24 * time.Hour).Add(-1 * time.Hour).Round(time.Minute),
-		"select * from t;":                         time.Now().Add(-1 * time.Hour).Round(time.Minute),
+		"select * from t where time < now() - 1d;": time.Unix(math.MinInt64, 0),
+		"select * from t;":                         time.Unix(math.MinInt64, 0),
 	} {
 		query, err := ParseQuery(queryStr)
 		c.Assert(err, IsNil)
 		startTime := query.GetStartTime()
-		roundedStartTime := startTime.Round(time.Minute)
-		c.Assert(roundedStartTime, Equals, t)
+		c.Assert(startTime, Equals, t)
 	}
 }
 
@@ -167,4 +224,19 @@ func (self *QueryApiSuite) TestErrorInStartTime(c *C) {
 		_, err := ParseQuery(queryStr)
 		c.Assert(err, ErrorMatches, error)
 	}
+}
+
+func (self *QueryApiSuite) TestAliasing(c *C) {
+	query, err := ParseQuery("select * from user.events")
+	c.Assert(err, IsNil)
+	c.Assert(query.GetTableAliases("user.events"), DeepEquals, []string{"user.events"})
+
+	query, err = ParseQuery("select * from user.events as events inner join user.events as clicks")
+	c.Assert(err, IsNil)
+	c.Assert(query.GetTableAliases("user.events"), DeepEquals, []string{"events", "clicks"})
+
+	// aliasing is ignored in case of a regex
+	query, err = ParseQuery("select * from /.*events.*/i")
+	c.Assert(err, IsNil)
+	c.Assert(query.GetTableAliases("user.events"), DeepEquals, []string{"user.events"})
 }

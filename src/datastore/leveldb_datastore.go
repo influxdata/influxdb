@@ -514,12 +514,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 
 		// check if we should send the batch along
 		if resultByteCount > MAX_SERIES_SIZE || limit < 1 {
-			lengthBeforeFiltering := len(result.Points)
-			filteredResult, _ := Filter(query, result)
-			limit += lengthBeforeFiltering - len(filteredResult.Points)
-			if err := yield(filteredResult); err != nil {
+			dropped, err := self.sendBatch(query, result, yield)
+			if err != nil {
 				return err
 			}
+			limit += dropped
 			resultByteCount = 0
 			result = &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 		}
@@ -527,11 +526,39 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			break
 		}
 	}
-	filteredResult, _ := Filter(query, result)
-	if err := yield(filteredResult); err != nil {
+	if _, err := self.sendBatch(query, result, yield); err != nil {
 		return err
 	}
-	return yield(emptyResult)
+	_, err = self.sendBatch(query, emptyResult, yield)
+	return err
+}
+
+// Return the number of dropped ticks from filtering. if the series
+// had more than one alias, returns the min of all dropped ticks
+func (self *LevelDbDatastore) sendBatch(query *parser.Query, series *protocol.Series, yield func(series *protocol.Series) error) (int, error) {
+	dropped := int(math.MaxInt32)
+
+	for _, alias := range query.GetTableAliases(*series.Name) {
+		_alias := alias
+		newSeries := &protocol.Series{Name: &_alias, Points: series.Points, Fields: series.Fields}
+
+		lengthBeforeFiltering := len(newSeries.Points)
+		var filteredResult *protocol.Series
+		if query.GetFromClause().Type == parser.FromClauseInnerJoin {
+			filteredResult = newSeries
+		} else {
+			filteredResult, _ = Filter(query, newSeries)
+		}
+		_dropped := lengthBeforeFiltering - len(filteredResult.Points)
+		if _dropped < dropped {
+			dropped = _dropped
+		}
+		if err := yield(filteredResult); err != nil {
+			return 0, err
+		}
+	}
+
+	return dropped, nil
 }
 
 func (self *LevelDbDatastore) getSeriesForDb(database string, yield func(string) error) error {

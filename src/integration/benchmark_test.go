@@ -236,10 +236,10 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_medians")
-	c.Assert(data[0].Columns, HasLen, 4)
+	c.Assert(data[0].Columns, HasLen, 3)
 	c.Assert(data[0].Points, HasLen, 2)
-	c.Assert(data[0].Points[0][2], Equals, 80.0)
-	c.Assert(data[0].Points[1][2], Equals, 70.0)
+	c.Assert(data[0].Points[0][1], Equals, 80.0)
+	c.Assert(data[0].Points[1][1], Equals, 70.0)
 }
 
 // issue #34
@@ -305,6 +305,36 @@ func (self *IntegrationSuite) TestFilterWithLimit(c *C) {
 	c.Assert(data[0].Points, HasLen, 1)
 }
 
+// issue #36
+func (self *IntegrationSuite) TestInnerJoin(c *C) {
+	for i := 0; i < 3; i++ {
+		host := "hosta"
+		if i%2 == 0 {
+			host = "hostb"
+		}
+
+		err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_join",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "%s"]]
+  }
+]
+`, 60+i*10, host))
+		c.Assert(err, IsNil)
+		time.Sleep(1 * time.Second)
+	}
+	bs, err := self.server.RunQuery("select * from test_join as f1 inner join test_join as f2 where f1.host == 'hostb'")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Name, Equals, "f1_join_f2")
+	c.Assert(data[0].Columns, HasLen, 6)
+	c.Assert(data[0].Points, HasLen, 2)
+}
+
 func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 	for i := 0; i < 20; i++ {
 		err := self.server.WriteData(fmt.Sprintf(`
@@ -325,11 +355,11 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_count")
-	c.Assert(data[0].Columns, HasLen, 4)
+	c.Assert(data[0].Columns, HasLen, 3)
 	c.Assert(data[0].Points, HasLen, 2)
 	// count should be 3
-	c.Assert(data[0].Points[0][2], Equals, 5.0)
-	c.Assert(data[0].Points[1][2], Equals, 5.0)
+	c.Assert(data[0].Points[0][1], Equals, 5.0)
+	c.Assert(data[0].Points[1][1], Equals, 5.0)
 }
 
 // test for issue #30

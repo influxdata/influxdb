@@ -142,6 +142,58 @@ func (self *DatastoreSuite) TestDeletingData(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (self *DatastoreSuite) TestCanWriteAndRetrievePointsWithAlias(c *C) {
+	cleanup(nil)
+	db := newDatastore(c)
+	defer cleanup(db)
+	mock := `
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 3
+          }
+        ],
+        "sequence_number": 1
+      },
+      {
+        "values": [
+          {
+            "int64_value": 2
+          }
+        ],
+        "sequence_number": 2
+      }
+    ],
+    "name": "foo",
+    "fields": ["value"]
+  }`
+	pointTime := time.Now().Unix()
+	series := stringToSeries(mock, pointTime, c)
+	err := db.WriteSeriesData("test", series)
+	c.Assert(err, IsNil)
+	q, errQ := parser.ParseQuery("select * from foo as f1 inner join foo as f2;")
+	c.Assert(errQ, IsNil)
+	resultSeries := map[string][]*protocol.Series{}
+	yield := func(series *protocol.Series) error {
+		resultSeries[*series.Name] = append(resultSeries[*series.Name], series)
+		return nil
+	}
+	user := &MockUser{}
+	err = db.ExecuteQuery(user, "test", q, yield)
+	c.Assert(err, IsNil)
+	// we should get the actual data and the end of series data
+	// indicator , i.e. a series with no points
+	c.Assert(resultSeries, HasLen, 2)
+	c.Assert(resultSeries["f1"], HasLen, 2)
+	c.Assert(resultSeries["f1"][0].Points, HasLen, 2)
+	c.Assert(resultSeries["f1"][1].Points, HasLen, 0)
+	c.Assert(resultSeries["f2"], HasLen, 2)
+	c.Assert(resultSeries["f2"][0].Points, HasLen, 2)
+	c.Assert(resultSeries["f2"][1].Points, HasLen, 0)
+}
+
 func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	cleanup(nil)
 	db := newDatastore(c)
@@ -730,7 +782,7 @@ func (self *DatastoreSuite) TestBreaksLargeResultsIntoMultipleBatches(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	q, errQ := parser.ParseQuery("select * from user_things;")
+	q, errQ := parser.ParseQuery("select * from user_things limit 0;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {

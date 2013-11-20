@@ -418,7 +418,15 @@ func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 	serializedSeries := []*SerializedSeries{}
 
 	for _, series := range memSeries {
-		columns := []string{"time", "sequence_number"}
+		includeSequenceNumber := true
+		if len(series.Points) > 0 && series.Points[0].SequenceNumber == nil {
+			includeSequenceNumber = false
+		}
+
+		columns := []string{"time"}
+		if includeSequenceNumber {
+			columns = append(columns, "sequence_number")
+		}
 		for _, field := range series.Fields {
 			columns = append(columns, field)
 		}
@@ -434,7 +442,10 @@ func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 				timestamp /= 1000
 			}
 
-			rowValues := []interface{}{timestamp, *row.SequenceNumber}
+			rowValues := []interface{}{timestamp}
+			if includeSequenceNumber {
+				rowValues = append(rowValues, *row.SequenceNumber)
+			}
 			for _, value := range row.Values {
 				if value != nil {
 					rowValues = append(rowValues, value.GetValue())

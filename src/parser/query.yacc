@@ -60,8 +60,9 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN
-%token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
+%token          SELECT FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS
+%token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP
+%token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
 // define the precedence of these operators
 %left  OR
@@ -74,7 +75,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 %type <from_clause>     FROM_CLAUSE
 %type <condition>       WHERE_CLAUSE
 %type <value_array>     COLUMN_NAMES
-%type <string>          BOOL_OPERATION
+%type <string>          BOOL_OPERATION ALIAS_CLAUSE
 %type <condition>       CONDITION
 %type <bool_expression> BOOL_EXPRESSION
 %type <value_array>     VALUES
@@ -179,7 +180,7 @@ LIMIT_CLAUSE:
         }
         |
         {
-          $$ = 0;
+          $$ = -1;
         }
 
 VALUES:
@@ -213,36 +214,69 @@ GROUP_BY_CLAUSE:
 COLUMN_NAMES:
         VALUES
 
+ALIAS_CLAUSE:
+        AS SIMPLE_TABLE_VALUE
+        {
+          $$ = $2->name;
+          free($2);
+        }
+        |
+        {
+          $$ = NULL;
+        }
+
 FROM_CLAUSE:
         FROM TABLE_VALUE
         {
           $$ = malloc(sizeof(from_clause));
-          $$->names = malloc(sizeof(value_array));
-          $$->names->elems = malloc(sizeof(value*));
+          $$->names = malloc(sizeof(table_name_array));
+          $$->names->elems = malloc(sizeof(table_name*));
           $$->names->size = 1;
-          $$->names->elems[0] = $2;
+          $$->names->elems[0] = malloc(sizeof(table_name));
+          $$->names->elems[0]->name = $2;
+          $$->names->elems[0]->alias = NULL;
+          $$->from_clause_type = FROM_ARRAY;
+        }
+        |
+        FROM SIMPLE_TABLE_VALUE
+        {
+          $$ = malloc(sizeof(from_clause));
+          $$->names = malloc(sizeof(table_name_array));
+          $$->names->elems = malloc(sizeof(table_name*));
+          $$->names->size = 1;
+          $$->names->elems[0] = malloc(sizeof(table_name));
+          $$->names->elems[0]->name = $2;
+          $$->names->elems[0]->alias = NULL;
           $$->from_clause_type = FROM_ARRAY;
         }
         |
         FROM SIMPLE_TABLE_VALUE MERGE SIMPLE_TABLE_VALUE
         {
           $$ = malloc(sizeof(from_clause));
-          $$->names = malloc(sizeof(value_array));
-          $$->names->elems = malloc(2 * sizeof(value*));
+          $$->names = malloc(sizeof(table_name_array));
+          $$->names->elems = malloc(2 * sizeof(table_name*));
           $$->names->size = 2;
-          $$->names->elems[0] = $2;
-          $$->names->elems[1] = $4;
+          $$->names->elems[0] = malloc(sizeof(table_name));
+          $$->names->elems[0]->name = $2;
+          $$->names->elems[0]->alias = NULL;
+          $$->names->elems[1] = malloc(sizeof(table_name));
+          $$->names->elems[1]->name = $4;
+          $$->names->elems[1]->alias = NULL;
           $$->from_clause_type = FROM_MERGE;
         }
         |
-        FROM SIMPLE_TABLE_VALUE INNER JOIN SIMPLE_TABLE_VALUE
+        FROM SIMPLE_TABLE_VALUE ALIAS_CLAUSE INNER JOIN SIMPLE_TABLE_VALUE ALIAS_CLAUSE
         {
           $$ = malloc(sizeof(from_clause));
-          $$->names = malloc(sizeof(value_array));
+          $$->names = malloc(sizeof(table_name_array));
           $$->names->elems = malloc(2 * sizeof(value*));
           $$->names->size = 2;
-          $$->names->elems[0] = $2;
-          $$->names->elems[1] = $5;
+          $$->names->elems[0] = malloc(sizeof(table_name));
+          $$->names->elems[0]->name = $2;
+          $$->names->elems[0]->alias = $3;
+          $$->names->elems[1] = malloc(sizeof(table_name));
+          $$->names->elems[1]->name = $6;
+          $$->names->elems[1]->alias = $7;
           $$->from_clause_type = FROM_INNER_JOIN;
         }
 
