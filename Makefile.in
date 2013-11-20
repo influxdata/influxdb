@@ -1,0 +1,131 @@
+SHELL = /bin/bash
+
+PROTOC = @PROTOC@
+GO     = @GO@
+# or 386
+arch   = amd64
+CGO_ENABLED = 1
+
+cflags =
+ifeq ($(arch),386)
+	cflags = -m32
+	GOARCH = $(arch)
+endif
+
+export GOARCH
+export CGO_ENABLED
+
+.PHONY: all valgrind parser
+
+all: build test
+
+valgrind:
+
+GOPATH := $(shell pwd)
+export GOPATH
+uname_S = $(shell sh -c "uname -s 2>/dev/null || echo not")
+
+# packages
+packages = admin api/http common configuration \
+  checkers coordinator datastore engine parser \
+  protocol server
+
+# snappy variables
+snappy_version = 1.1.0
+snappy_dir     = /tmp/snappy.influxdb.$(arch)
+snappy_file    = snappy-$(snappy_version).tar.gz
+snappy_deps    = $(snappy_dir)/.libs/libsnappy.a
+
+# leveldb variables
+leveldb_version = 1.12.0
+leveldb_dir     = /tmp/leveldb.influxdb.$(arch)
+leveldb_file    = leveldb-$(leveldb_version).tar.gz
+leveldb_deps    = $(leveldb_dir)/libleveldb.a
+
+# levigo flags
+CGO_CFLAGS  += -I$(leveldb_dir)/include
+CGO_LDFLAGS += $(leveldb_dir)/libleveldb.a $(snappy_dir)/.libs/libsnappy.a -lstdc++
+export CGO_CFLAGS
+export CGO_LDFLAGS
+
+$(snappy_deps):
+ifeq ($(uname_S),Linux)
+	rm -rf $(snappy_dir)
+	mkdir -p $(snappy_dir)
+	bash -c "cd $(snappy_dir); \
+	wget https://snappy.googlecode.com/files/$(snappy_file); \
+	tar --strip-components=1 -xvzf $(snappy_file); \
+	CFLAGS=$(cflags) CXXFLAGS=$(cflags) ./configure; \
+	$(MAKE)"
+endif
+
+$(leveldb_deps): $(snappy_deps)
+ifeq ($(uname_S),Linux)
+	rm -rf $(leveldb_dir)
+	mkdir -p $(leveldb_dir)
+	bash -c "cd $(leveldb_dir); \
+	wget https://leveldb.googlecode.com/files/$(leveldb_file); \
+	tar --strip-components=1 -xvzf $(leveldb_file); \
+	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' make"
+endif
+
+
+dependencies: $(leveldb_deps)
+	$(GO) get code.google.com/p/goprotobuf/proto
+	$(GO) get github.com/influxdb/raft
+	$(GO) get github.com/gorilla/mux
+	$(GO) get github.com/jmhodges/levigo
+	$(GO) get github.com/bmizerany/pat
+	$(GO) get github.com/fitstar/falcore
+	$(GO) get github.com/fitstar/falcore/filter
+	$(GO) get code.google.com/p/log4go
+	$(GO) get code.google.com/p/go.crypto/bcrypt
+	$(GO) get github.com/pmylund/go-cache
+	$(GO) get code.google.com/p/goprotobuf/proto
+	$(GO) get code.google.com/p/goprotobuf/protoc-gen-go
+
+test_dependencies: dependencies
+	$(GO) get launchpad.net/gocheck
+
+protobuf:
+	rm -f src/protocol/*.pb.go
+	PATH=$$PWD/bin:$$PATH $(PROTOC) --go_out=. src/protocol/*.proto
+
+parser:
+	$(MAKE) -C src/parser
+
+build: dependencies protobuf parser
+# TODO: build all packages, otherwise we won't know
+# if there's an error
+	$(GO) build server
+
+clean:
+	rm -rf pkg/
+	rm -rf bin/
+	rm -rf packages/
+
+valgrind: build
+	$(MAKE) -C src/parser test
+
+only =
+verbose = off
+ifneq ($(only),)
+	GOTEST_OPTS = -gocheck.f $(only)
+endif
+ifneq ($(verbose),off)
+	GOTEST_OPTS += -v -gocheck.v
+endif
+
+test: test_dependencies parser
+	$(GO) test $(packages) $(GOTEST_OPTS)
+
+coverage: test_dependencies
+	for i in $(packages); do $(GO) test -coverprofile /tmp/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
+   $(GO) tool cover -html=/tmp/influxdb.$${i/\//}.coverage; done
+
+
+integration_test: test_dependencies
+	$(GO) test src/integration
+
+package:
+	@echo not implemented yet

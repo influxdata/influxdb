@@ -1,0 +1,8 @@
+BISON = @YACC@
+FLEX  = @LEX@
+
+all:
+	$(YACC) -t -d query.yacc -o y.tab.c --defines=y.tab.h && $(FLEX) -o lex.yy.c -i query.lex
+
+test:
+	./test_memory_leaks.sh
