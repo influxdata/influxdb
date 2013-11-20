@@ -27,6 +27,13 @@ function package_admin_interface {
 }
 
 function packae_source {
+    # make sure we revert the changes we made to the levigo
+    # source packages are used by MacOSX which should be using
+    # dynamic linking
+    pushd src/github.com/jmhodges/levigo/
+    git checkout .
+    popd
+
     rm -f server
     git ls-files --others  | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
     echo "pkg/*" >> /tmp/influxdb.ignored
@@ -131,6 +138,6 @@ function revert_version {
 setup_version
 UPDATE=on ./build.sh && package_files amd64 && build_packages amd64
 # we need to build to make sure all the dependencies are downloaded
-packae_source
 [ $on_linux == yes ] && CGO_ENABLED=1 GOARCH=386 UPDATE=on ./build.sh && package_files 386 && build_packages 386
+packae_source
 revert_version
