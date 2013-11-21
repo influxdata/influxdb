@@ -9,7 +9,9 @@ import (
 )
 
 type Datastore interface {
-	ExecuteQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error
+	ExecuteQuery(user common.User, database string,
+		query *parser.Query, yield func(*protocol.Series) error,
+		ringFilter func(database, series *string, time *int64) bool) error
 	LogRequestAndAssignId(request *protocol.Request) error
 	// Increment the named integer by the given amount and return the new value
 	AtomicIncrement(name string, val int) (uint64, error)

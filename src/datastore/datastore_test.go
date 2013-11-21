@@ -62,7 +62,7 @@ func executeQuery(user common.User, database, query string, db Datastore, c *C) 
 		}
 		return nil
 	}
-	err := db.ExecuteQuery(user, database, q, yield)
+	err := db.ExecuteQuery(user, database, q, yield, nil)
 	c.Assert(err, IsNil)
 	return resultSeries
 }
@@ -96,7 +96,7 @@ func (self *DatastoreSuite) TestPropagateErrorsProperly(c *C) {
 		return fmt.Errorf("Whatever")
 	}
 	user := &MockUser{}
-	err = db.ExecuteQuery(user, "test", q, yield)
+	err = db.ExecuteQuery(user, "test", q, yield, nil)
 	c.Assert(err, ErrorMatches, "Whatever")
 }
 
@@ -133,7 +133,7 @@ func (self *DatastoreSuite) TestDeletingData(c *C) {
 	}
 	c.Assert(db.DropDatabase("test"), IsNil)
 	user := &MockUser{}
-	err = db.ExecuteQuery(user, "test", q, yield)
+	err = db.ExecuteQuery(user, "test", q, yield, nil)
 
 	// we don't have an error any more on query for fields that don't exist.
 	// This is because of the clustering. Some servers could have some fields
@@ -181,7 +181,7 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePointsWithAlias(c *C) {
 		return nil
 	}
 	user := &MockUser{}
-	err = db.ExecuteQuery(user, "test", q, yield)
+	err = db.ExecuteQuery(user, "test", q, yield, nil)
 	c.Assert(err, IsNil)
 	// we should get the actual data and the end of series data
 	// indicator , i.e. a series with no points
@@ -233,7 +233,7 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 		return nil
 	}
 	user := &MockUser{}
-	err = db.ExecuteQuery(user, "test", q, yield)
+	err = db.ExecuteQuery(user, "test", q, yield, nil)
 	c.Assert(err, IsNil)
 	// we should get the actual data and the end of series data
 	// indicator , i.e. a series with no points
@@ -749,7 +749,7 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 		}
 		return nil
 	}
-	err = db.ExecuteQuery(user, "foobar", q, yield)
+	err = db.ExecuteQuery(user, "foobar", q, yield, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resultSeries, HasLen, 2)
 	c.Assert(resultSeries[0], DeepEquals, otherSeries)
@@ -790,7 +790,7 @@ func (self *DatastoreSuite) TestBreaksLargeResultsIntoMultipleBatches(c *C) {
 		return nil
 	}
 	user := &MockUser{}
-	err := db.ExecuteQuery(user, "foobar", q, yield)
+	err := db.ExecuteQuery(user, "foobar", q, yield, nil)
 	c.Assert(err, IsNil)
 	c.Assert(len(resultSeries), InRange, 2, 20)
 	pointCount := 0
@@ -836,7 +836,7 @@ func (self *DatastoreSuite) TestCheckReadAccess(c *C) {
 		}
 		return nil
 	}
-	err = db.ExecuteQuery(user, "foobar", q, yield)
+	err = db.ExecuteQuery(user, "foobar", q, yield, nil)
 	c.Assert(err, ErrorMatches, ".*one or more.*")
 	c.Assert(len(resultSeries), Equals, 1)
 	c.Assert(*resultSeries[0].Name, Equals, "user_things")
@@ -884,7 +884,7 @@ func (self *DatastoreSuite) TestCheckWriteAccess(c *C) {
 		}
 		return nil
 	}
-	err = db.ExecuteQuery(user, "foobar", q, yield)
+	err = db.ExecuteQuery(user, "foobar", q, yield, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resultSeries, HasLen, 1)
 	c.Assert(resultSeries[0], DeepEquals, otherSeries)

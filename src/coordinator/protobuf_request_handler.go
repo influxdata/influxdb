@@ -4,7 +4,6 @@ import (
 	"datastore"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"log"
 	"net"
 	"parser"
@@ -58,15 +57,11 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	var nextPoint *protocol.Point
 	assignNextPointTimesAndSend := func(series *protocol.Series) error {
 		pointCount := len(series.Points)
-		if pointCount == 0 {
+		if pointCount <= 1 {
 			if nextPoint != nil {
-				series.Points = []*protocol.Point{nextPoint}
-				response := &protocol.Response{Type: &queryResponse, Series: series, RequestId: request.Id}
-				fmt.Println("HANDLER writing last points: ", *response.Series.Name, len(response.Series.Points))
-				self.WriteResponse(conn, response)
+				series.Points = append(series.Points, nextPoint)
 			}
 			response := &protocol.Response{Type: &endStreamResponse, Series: series, RequestId: request.Id}
-			fmt.Println("HANDLER writing end stream: ", *response.Series.Name, len(response.Series.Points))
 
 			self.WriteResponse(conn, response)
 			return nil
@@ -85,15 +80,18 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 		if nextPoint != nil {
 			response.NextPointTime = nextPoint.Timestamp
 		}
-		fmt.Println("HANDLER writing response: ", *response.Series.Name, len(response.Series.Points), *response.NextPointTime)
 		err := self.WriteResponse(conn, response)
 		return err
 	}
-	fmt.Println("HANDLER got query: ", *request.Query)
 	// the query should always parse correctly since it was parsed at the originating server.
 	query, _ := parser.ParseQuery(*request.Query)
 	user := self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
-	self.db.ExecuteQuery(user, *request.Database, query, assignNextPointTimesAndSend)
+
+	var ringFilter func(database, series *string, time *int64) bool
+	if request.RingLocationsToQuery != nil {
+		ringFilter = self.clusterConfig.GetRingFilterFunction(*request.Database, *request.RingLocationsToQuery)
+	}
+	self.db.ExecuteQuery(user, *request.Database, query, assignNextPointTimesAndSend, ringFilter)
 }
 
 func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *protocol.Response) error {

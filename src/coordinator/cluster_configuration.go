@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"common"
 	"errors"
 	"fmt"
 	"sync"
@@ -16,6 +17,7 @@ type ClusterConfiguration struct {
 	serversLock                sync.RWMutex
 	hasRunningServers          bool
 	currentServerId            uint32
+	localServerId              uint32
 }
 
 type Database struct {
@@ -57,26 +59,102 @@ func (self *ClusterConfiguration) GetServerByRaftName(name string) *ClusterServe
 	return nil
 }
 
-// This function will return an array of servers to issue query to. Queries are issued to every nth server
-// in the cluster where n is the replication factor. We need the local host id because we want to issue the
-// query locally and the nth servers from there.
-func (self *ClusterConfiguration) GetServersToMakeQueryTo(localHostId uint32, database *string) []*ClusterServer {
-	rf := int(self.GetReplicationFactor(database))
-	startIndex := 0
+type serverToQuery struct {
+	server               *ClusterServer
+	ringLocationsToQuery uint32
+}
+
+// This function will return an array of servers to query and the number of ring locations to return per server.
+// Queries are issued to every nth server in the cluster where n is the replication factor. We need the local host id
+// because we want to issue the query locally and the nth servers from there.
+// Optimally, the number of servers in a cluster will be evenly divisible by the replication factors used. For example,
+// if you have a cluster with databases with RFs of 1, 2, and 3: optimal cluster sizes would be 6, 12, 18, 24, 30, etc.
+// If that's not the case, one or more servers will have to filter out data from other servers on the fly, which could
+// be a little more expensive.
+func (self *ClusterConfiguration) GetServersToMakeQueryTo(localHostId uint32, database *string) (servers []*serverToQuery, replicationFactor uint32) {
+	replicationFactor = uint32(self.GetReplicationFactor(database))
+	replicationFactorInt := int(replicationFactor)
+	index := 0
 	for i, s := range self.servers {
 		if s.Id == localHostId {
-			startIndex = i % rf
+			index = i % replicationFactorInt
 			break
 		}
 	}
-	servers := make([]*ClusterServer, 0, len(self.servers)/rf)
-	for i := startIndex; i < len(self.servers); i += rf {
-		server := self.servers[i]
-		if server.Id != localHostId {
-			servers = append(servers, server)
+	servers = make([]*serverToQuery, 0, len(self.servers)/replicationFactorInt)
+	serverCount := len(self.servers)
+	for index = index; index < serverCount; index += replicationFactorInt {
+		server := self.servers[index]
+		servers = append(servers, &serverToQuery{server, replicationFactor})
+	}
+	// need to maybe add a server and set which ones filter their data
+	if serverCount%replicationFactorInt != 0 {
+		/*
+				Here's what this looks like with a few different ring sizes and replication factors.
+
+			  server indexes
+				0 1 2 3 4
+
+				0   2   4   6     - 0 only sends his
+				  1   3   5       - add 0 and have 1 only send his
+
+				0     3     6     - have 0 only send his and 4
+				  1     4     7   - have 1 only send his and 0
+				    2     5       - add 0 and have 2 send only his and 1
+
+
+				server indexes
+				0 1 2 3 4 5 6 7
+
+				0     3     6     9     - have 0 only send his and 7
+				  1     4     7     10  - have 1 only send his and 0
+				    2     5     8       - add 0 and have 2 only send his and 1
+
+						We see that there are the number of cases equal to the replication factor. The last case
+						always has us adding the first server in the ring. Then we're determining how much data
+						the local server should be ignoring.
+		*/
+		lastIndexAdded := index - replicationFactorInt
+		if serverCount-lastIndexAdded == replicationFactorInt {
+			servers[0].ringLocationsToQuery = uint32(replicationFactorInt - 1)
+			servers = append(servers, &serverToQuery{self.servers[0], replicationFactor})
+		} else {
+			servers[0].ringLocationsToQuery = uint32(replicationFactorInt - 1)
 		}
 	}
-	return servers
+	return servers, replicationFactor
+}
+
+// This method returns a function that can be passed into the datastore's ExecuteQuery method. It will tell the datastore
+// if each point is something that should be returned in the query based on its ring location and if the query calls for
+// data from different replicas.
+func (self *ClusterConfiguration) GetRingFilterFunction(database string, countOfServersToInclude uint32) func(database, series *string, time *int64) bool {
+	serversToInclude := make([]*ClusterServer, 0, countOfServersToInclude)
+	countServers := int(countOfServersToInclude)
+	for i, s := range self.servers {
+		if s.Id == self.localServerId {
+			serversToInclude = append(serversToInclude, s)
+			for j := i - 1; j >= 0 && len(serversToInclude) < countServers; j-- {
+				serversToInclude = append(serversToInclude, self.servers[j])
+			}
+			if len(serversToInclude) < countServers {
+				for j := len(self.servers) - 1; len(serversToInclude) < countServers; j-- {
+					serversToInclude = append(serversToInclude, self.servers[j])
+				}
+			}
+		}
+	}
+	f := func(database, series *string, time *int64) bool {
+		location := common.RingLocation(database, series, time)
+		server := self.servers[location%len(self.servers)]
+		for _, s := range serversToInclude {
+			if s.Id == server.Id {
+				return false
+			}
+		}
+		return true
+	}
+	return f
 }
 
 func (self *ClusterConfiguration) GetServerIndexByLocation(location *int) int {
@@ -89,17 +167,18 @@ func (self *ClusterConfiguration) GetServersByRingLocation(database *string, loc
 }
 
 func (self *ClusterConfiguration) GetServersByIndexAndReplicationFactor(database *string, index *int) []*ClusterServer {
-	replicationFactor := self.GetReplicationFactor(database)
+	replicationFactor := int(self.GetReplicationFactor(database))
 	serverCount := len(self.servers)
-	if int(replicationFactor) >= serverCount {
+	if replicationFactor >= serverCount {
 		return self.servers
 	}
 	owners := make([]*ClusterServer, 0, replicationFactor)
-	for i := *index; i < serverCount; i++ {
+	ownerCount := 0
+	for i := *index; i < serverCount && ownerCount < replicationFactor; i++ {
 		owners = append(owners, self.servers[i])
+		ownerCount++
 	}
-	ownerCount := len(owners)
-	for i := 0; ownerCount < int(replicationFactor); i++ {
+	for i := 0; ownerCount < replicationFactor; i++ {
 		owners = append(owners, self.servers[i])
 		ownerCount++
 	}

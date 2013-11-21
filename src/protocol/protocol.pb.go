@@ -235,13 +235,14 @@ func (m *Series) GetFields() []string {
 }
 
 type Request struct {
-	Id               *uint32       `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
-	Type             *Request_Type `protobuf:"varint,2,req,name=type,enum=protocol.Request_Type" json:"type,omitempty"`
-	Database         *string       `protobuf:"bytes,3,req,name=database" json:"database,omitempty"`
-	Series           *Series       `protobuf:"bytes,4,opt,name=series" json:"series,omitempty"`
-	Query            *string       `protobuf:"bytes,5,opt,name=query" json:"query,omitempty"`
-	UserName         *string       `protobuf:"bytes,6,opt,name=userName" json:"userName,omitempty"`
-	XXX_unrecognized []byte        `json:"-"`
+	Id                   *uint32       `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
+	Type                 *Request_Type `protobuf:"varint,2,req,name=type,enum=protocol.Request_Type" json:"type,omitempty"`
+	Database             *string       `protobuf:"bytes,3,req,name=database" json:"database,omitempty"`
+	Series               *Series       `protobuf:"bytes,4,opt,name=series" json:"series,omitempty"`
+	Query                *string       `protobuf:"bytes,5,opt,name=query" json:"query,omitempty"`
+	UserName             *string       `protobuf:"bytes,6,opt,name=userName" json:"userName,omitempty"`
+	RingLocationsToQuery *uint32       `protobuf:"varint,7,opt,name=ringLocationsToQuery" json:"ringLocationsToQuery,omitempty"`
+	XXX_unrecognized     []byte        `json:"-"`
 }
 
 func (m *Request) Reset()         { *m = Request{} }
@@ -288,6 +289,13 @@ func (m *Request) GetUserName() string {
 		return *m.UserName
 	}
 	return ""
+}
+
+func (m *Request) GetRingLocationsToQuery() uint32 {
+	if m != nil && m.RingLocationsToQuery != nil {
+		return *m.RingLocationsToQuery
+	}
+	return 0
 }
 
 type Response struct {

@@ -135,7 +135,7 @@ func executeQuery(user common.User, database, query string, db datastore.Datasto
 		}
 		return nil
 	}
-	err := db.ExecuteQuery(user, database, q, yield)
+	err := db.ExecuteQuery(user, database, q, yield, nil)
 	c.Assert(err, IsNil)
 	return resultSeries
 }
@@ -209,10 +209,45 @@ func (self *ServerSuite) TestCrossClusterQueries(c *C) {
 		var results []map[string]interface{}
 		err = json.Unmarshal(body, &results)
 		c.Assert(err, IsNil)
-		fmt.Println("RESULT: ", string(body))
 		c.Assert(results, HasLen, 1)
 		point := results[0]["points"].([]interface{})[0].([]interface{})
 		val := point[len(point)-1].(float64)
 		c.Assert(val, Equals, float64(7))
+	}
+
+	data = `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[8], [9]]
+		}]`
+	resp, _ = self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 100)
+
+	data = `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[10], [11]]
+		}]`
+	resp, _ = self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 100)
+
+	for _, s := range self.servers {
+		query := "select count(val1) from cluster_query;"
+		encodedQuery := url.QueryEscape(query)
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/db/test_rep/series?u=paul&p=pass&q=%s", s.Config.ApiHttpPort, encodedQuery))
+		c.Assert(err, IsNil)
+		body, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, IsNil)
+		c.Assert(resp.StatusCode, Equals, http.StatusOK)
+		resp.Body.Close()
+		var results []map[string]interface{}
+		err = json.Unmarshal(body, &results)
+		c.Assert(err, IsNil)
+		c.Assert(results, HasLen, 1)
+		point := results[0]["points"].([]interface{})[0].([]interface{})
+		val := point[len(point)-1].(float64)
+		c.Assert(val, Equals, float64(11))
 	}
 }

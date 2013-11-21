@@ -235,7 +235,10 @@ func (self *LevelDbDatastore) LogRequestAndAssignId(request *protocol.Request) e
 	return nil
 }
 
-func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string,
+	query *parser.Query, yield func(*protocol.Series) error,
+	ringFilter func(database, series *string, time *int64) bool) error {
+
 	seriesAndColumns := query.GetReferencedColumns()
 	hasAccess := true
 	for series, columns := range seriesAndColumns {
@@ -246,7 +249,7 @@ func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, qu
 					hasAccess = false
 					continue
 				}
-				err := self.executeQueryForSeries(database, name, columns, query, yield)
+				err := self.executeQueryForSeries(database, name, columns, query, yield, ringFilter)
 				if err != nil {
 					return err
 				}
@@ -256,7 +259,7 @@ func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, qu
 				hasAccess = false
 				continue
 			}
-			err := self.executeQueryForSeries(database, series.Name, columns, query, yield)
+			err := self.executeQueryForSeries(database, series.Name, columns, query, yield, ringFilter)
 			if err != nil {
 				return err
 			}
@@ -393,7 +396,10 @@ func isPointInRange(fieldId, startTime, endTime, point []byte) bool {
 	return bytes.Equal(id, fieldId) && bytes.Compare(time, startTime) > -1 && bytes.Compare(time, endTime) < 1
 }
 
-func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string,
+	query *parser.Query, yield func(*protocol.Series) error,
+	ringFilter func(database, series *string, time *int64) bool) error {
+
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(query.GetStartTime()), common.TimeToMicroseconds(query.GetEndTime()))
 	emptyResult := &protocol.Series{Name: &series, Points: nil}
 
@@ -442,11 +448,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 				continue
 			}
 
-			time := key[8:16]
 			value := it.Value()
 			sequenceNumber := key[16:]
 
-			rawValue := &rawColumnValue{time: time, sequence: sequenceNumber, value: value}
+			rawTime := key[8:16]
+			rawValue := &rawColumnValue{time: rawTime, sequence: sequenceNumber, value: value}
 			rawColumnValues[i] = rawValue
 		}
 
@@ -484,6 +490,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			} else {
 				iterator.Prev()
 			}
+
 			fv := &protocol.FieldValue{}
 			err := proto.Unmarshal(rawColumnValues[i].value, fv)
 			if err != nil {
@@ -491,11 +498,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			}
 			resultByteCount += len(rawColumnValues[i].value)
 			point.Values[i] = fv
+			var sequence uint64
+			binary.Read(bytes.NewBuffer(rawColumnValues[i].sequence), binary.BigEndian, &sequence)
 			var t uint64
 			binary.Read(bytes.NewBuffer(rawColumnValues[i].time), binary.BigEndian, &t)
 			time := self.convertUintTimestampToInt64(&t)
-			var sequence uint64
-			binary.Read(bytes.NewBuffer(rawColumnValues[i].sequence), binary.BigEndian, &sequence)
 			point.SetTimestampInMicroseconds(time)
 			point.SequenceNumber = &sequence
 			rawColumnValues[i] = nil
@@ -507,6 +514,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		}
 
 		limit -= 1
+
+		if ringFilter != nil && ringFilter(&database, &series, point.Timestamp) {
+			continue
+		}
+
 		result.Points = append(result.Points, point)
 
 		// add byte count for the timestamp and the sequence

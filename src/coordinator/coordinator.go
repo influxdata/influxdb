@@ -44,35 +44,44 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 // TODO: make this work even if there is a downed server in the cluster
 func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query *parser.Query, yield func(*protocol.Series) error) error {
 	if self.clusterConfiguration.IsSingleServer() {
-		return self.datastore.ExecuteQuery(user, db, query, yield)
+		return self.datastore.ExecuteQuery(user, db, query, yield, nil)
 	}
-	servers := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &db)
+	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &db)
 	queryString := query.GetQueryString()
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	userName := user.GetName()
-	request := &protocol.Request{Type: &queryRequest, Query: &queryString, Id: &id, Database: &db, UserName: &userName}
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
+	var localServerToQuery *serverToQuery
 	for _, server := range servers {
-		responseChan := make(chan *protocol.Response, 3)
-		server.protobufClient.MakeRequest(request, responseChan)
-		fmt.Println("COORD adding channel for server: ", server)
-		responseChannels = append(responseChannels, responseChan)
+		if server.server.Id == self.localHostId {
+			localServerToQuery = server
+		} else {
+			request := &protocol.Request{Type: &queryRequest, Query: &queryString, Id: &id, Database: &db, UserName: &userName}
+			if server.ringLocationsToQuery != replicationFactor {
+				r := server.ringLocationsToQuery
+				request.RingLocationsToQuery = &r
+			}
+			responseChan := make(chan *protocol.Response, 3)
+			server.server.protobufClient.MakeRequest(request, responseChan)
+			responseChannels = append(responseChannels, responseChan)
+		}
 	}
 
 	local := make(chan *protocol.Response)
 	var nextPoint *protocol.Point
+	chanClosed := false
 	sendFromLocal := func(series *protocol.Series) error {
 		pointCount := len(series.Points)
 		if pointCount == 0 {
 			if nextPoint != nil {
-				series.Points = []*protocol.Point{nextPoint}
-				fmt.Println("COORD local last points: ", series)
-				local <- &protocol.Response{Type: &queryResponse, Series: series}
+				series.Points = append(series.Points, nextPoint)
 			}
-			fmt.Println("COORD local end stream: ", series)
 
-			local <- &protocol.Response{Type: &endStreamResponse, Series: series}
-			close(local)
+			if !chanClosed {
+				local <- &protocol.Response{Type: &endStreamResponse, Series: series}
+				chanClosed = true
+				close(local)
+			}
 			return nil
 		}
 		oldNextPoint := nextPoint
@@ -81,13 +90,14 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 		if oldNextPoint != nil {
 			copy(series.Points[1:], series.Points[0:])
 			series.Points[0] = oldNextPoint
+		} else {
+			series.Points = series.Points[:len(series.Points)-1]
 		}
 
 		response := &protocol.Response{Series: series, Type: &queryResponse}
 		if nextPoint != nil {
 			response.NextPointTime = nextPoint.Timestamp
 		}
-		fmt.Println("COORD local series: ", *response.Series.Name, len(response.Series.Points), *response.NextPointTime)
 		local <- response
 		return nil
 	}
@@ -95,33 +105,50 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 	// TODO: wire up the willreturnsingleseries method and uncomment this line and delete the next one.
 	//	isSingleSeriesQuery := query.WillReturnSingleSeries()
 	isSingleSeriesQuery := false
-	go self.streamResultsFromChannels(isSingleSeriesQuery, query.Ascending, responseChannels, yield)
 
-	return self.datastore.ExecuteQuery(user, db, query, sendFromLocal)
+	go func() {
+		var ringFilter func(database, series *string, time *int64) bool
+		if replicationFactor != localServerToQuery.ringLocationsToQuery {
+			ringFilter = self.clusterConfiguration.GetRingFilterFunction(db, localServerToQuery.ringLocationsToQuery)
+		}
+		self.datastore.ExecuteQuery(user, db, query, sendFromLocal, ringFilter)
+	}()
+	self.streamResultsFromChannels(isSingleSeriesQuery, query.Ascending, responseChannels, yield)
+	return nil
 }
 
 // This function streams results from servers and ensures that series are yielded in the proper order (which is expected by the engine)
 func (self *CoordinatorImpl) streamResultsFromChannels(isSingleSeriesQuery, isAscending bool, channels []chan *protocol.Response, yield func(*protocol.Series) error) {
-	fmt.Println("COORD resopnse channel count: ", len(channels))
 	channelCount := len(channels)
 	closedChannels := 0
 	responses := make([]*protocol.Response, 0)
 	var leftovers []*protocol.Series
 
+	seriesNames := make(map[string]bool)
 	for closedChannels < channelCount {
-		fmt.Println("COORD: looping through channels")
 		for _, ch := range channels {
 			response := <-ch
 			if response != nil {
-				fmt.Println("COORD got response on channel: ", *response.Series.Name, len(response.Series.Points))
 				if *response.Type == protocol.Response_END_STREAM {
 					closedChannels++
 				}
-				responses = append(responses, response)
+				seriesNames[*response.Series.Name] = true
+				if response.Series.Points != nil {
+					responses = append(responses, response)
+				}
 			}
-			fmt.Println("COORD: read response")
 		}
 		leftovers = self.yieldResults(isSingleSeriesQuery, isAscending, leftovers, responses, yield)
+		responses = make([]*protocol.Response, 0)
+	}
+	for _, leftover := range leftovers {
+		if len(leftover.Points) > 0 {
+			yield(leftover)
+		}
+	}
+	for n, _ := range seriesNames {
+		name := n
+		yield(&protocol.Series{Name: &name, Points: []*protocol.Point{}})
 	}
 }
 
@@ -207,13 +234,16 @@ func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *p
 		}
 	}
 	// yield the points from leftover that are safe
-	for i, point := range leftover.Points {
+	for _, point := range leftover.Points {
 		if shouldYieldComparator(point.Timestamp) {
 			result.Points = append(result.Points, point)
 		} else {
-			leftover.Points = leftover.Points[i:]
 			break
 		}
+	}
+	// if they all got added, clear out the leftover
+	if len(leftover.Points) == len(result.Points) {
+		leftover.Points = make([]*protocol.Point, 0)
 	}
 
 	if barrierTime == int64(0) || barrierTime == math.MaxInt64 {
@@ -251,8 +281,12 @@ func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *p
 		result.SortPointsTimeDescending()
 		leftover.SortPointsTimeDescending()
 	}
-	fmt.Println("COORD yielding: ", result)
-	yield(result)
+
+	// Don't yield an empty points array, the engine will think it's the end of the stream.
+	// streamResultsFromChannels will send the empty ones after all channels have returned.
+	if len(result.Points) > 0 {
+		yield(result)
+	}
 	if len(leftover.Points) > 0 {
 		return leftover
 	}
@@ -278,6 +312,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	if err != nil {
 		return err
 	}
+	lastNumber = lastNumber - uint64(len(series.Points)-1)
 	for _, p := range series.Points {
 		if p.Timestamp == nil {
 			p.Timestamp = &now
@@ -286,7 +321,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 		}
 		if p.SequenceNumber == nil {
 			n := self.sequenceNumberWithServerId(lastNumber)
-			lastNumber--
+			lastNumber++
 			p.SequenceNumber = &n
 		}
 	}
@@ -580,6 +615,7 @@ func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString stri
 		} else {
 			fmt.Println("Coordinator: setting local id: ", server.Id)
 			self.localHostId = server.Id
+			self.clusterConfiguration.localServerId = server.Id
 		}
 	}
 	return nil

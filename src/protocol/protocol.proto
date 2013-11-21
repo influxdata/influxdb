@@ -33,6 +33,13 @@ message Request {
   optional Series series = 4;
   optional string query = 5;
   optional string userName = 6;
+  // ringLocationsToQuery tells the server what data it should be returning.
+  // for example, if the number is 1, it will only return data that is owned by 
+  // this server on the hash ring. If 2, it will return this server and data replicated
+  // from the server directly before it on the ring. 3, etc.
+  // If this field is left out, we assume that we'll be returning all data the server has
+  // for the query.
+  optional uint32 ringLocationsToQuery = 7;
 }
 
 message Response {
