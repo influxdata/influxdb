@@ -14,7 +14,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -72,12 +71,13 @@ func (self *rawColumnValue) updatePointTimeAndSequence(currentTimeRaw, currentSe
 }
 
 const (
-	ONE_MEGABYTE              = 1024 * 1024
-	ONE_GIGABYTE              = ONE_MEGABYTE * 1024
-	TWO_FIFTY_SIX_KILOBYTES   = 256 * 1024
-	BLOOM_FILTER_BITS_PER_KEY = 64
-	MAX_POINTS_TO_SCAN        = 1000000
-	MAX_SERIES_SIZE           = ONE_MEGABYTE
+	ONE_MEGABYTE                = 1024 * 1024
+	ONE_GIGABYTE                = ONE_MEGABYTE * 1024
+	TWO_FIFTY_SIX_KILOBYTES     = 256 * 1024
+	BLOOM_FILTER_BITS_PER_KEY   = 64
+	MAX_POINTS_TO_SCAN          = 1000000
+	MAX_SERIES_SIZE             = ONE_MEGABYTE
+	REQUEST_SEQUENCE_NUMBER_KEY = "r"
 )
 
 var (
@@ -228,10 +228,25 @@ func (self *LevelDbDatastore) DropDatabase(database string) error {
 	return self.db.Write(self.writeOptions, wb)
 }
 
-func (self *LevelDbDatastore) LogRequestAndAssignId(request *protocol.Request) error {
+func (self *LevelDbDatastore) ReplayRequestsFromSequenceNumber(clusterVersion, serverId *uint32, yield func(*protocol.Request) error) error {
+	return nil
+}
+
+func (self *LevelDbDatastore) keyForOwnerAndServerSequenceNumber(ownerServerId, serverId *uint32) string {
+	return fmt.Sprintf("%s%d%d", REQUEST_SEQUENCE_NUMBER_KEY, *ownerServerId, *serverId)
+}
+
+func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protocol.Request, clusterVersion, ownerServerId, serverId *uint32) error {
 	// TODO: actually log the request
-	id := atomic.AddUint32(&self.requestId, uint32(1))
-	request.Id = &id
+	// log to this key structure on a different DB sharded by day: <cluster version><owner id><sequence server id><replication sequence>
+	if request.SequenceNumber == nil {
+		sequenceNumber, err := self.AtomicIncrement(self.keyForOwnerAndServerSequenceNumber(ownerServerId, serverId), 1)
+		if err != nil {
+			return err
+		}
+		request.SequenceNumber = &sequenceNumber
+	}
+	request.OriginatingServerId = serverId
 	return nil
 }
 

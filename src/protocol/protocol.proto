@@ -31,15 +31,23 @@ message Request {
   required Type type = 2;
   required string database = 3;
   optional Series series = 4;
-  optional string query = 5;
-  optional string userName = 6;
+  // only write and delete requests get sequenceNumbers assigned. These are used to
+  // ensure that the receiving server is up to date
+  optional uint64 sequenceNumber = 5;
+  // the originzatingServerId is only used for writes and deletes. It is the id of the
+  // server that first committed the write to its local datastore. It is used for
+  // the other servers in the hash ring to ensure they remain consistent.
+  optional uint32 originatingServerId = 6;
+  optional uint32 clusterVersion = 10;
+  optional string query = 7;
+  optional string userName = 8;
   // ringLocationsToQuery tells the server what data it should be returning.
   // for example, if the number is 1, it will only return data that is owned by 
   // this server on the hash ring. If 2, it will return this server and data replicated
   // from the server directly before it on the ring. 3, etc.
   // If this field is left out, we assume that we'll be returning all data the server has
   // for the query.
-  optional uint32 ringLocationsToQuery = 7;
+  optional uint32 ringLocationsToQuery = 9;
 }
 
 message Response {

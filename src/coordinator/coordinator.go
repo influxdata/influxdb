@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	log "code.google.com/p/log4go"
 	"common"
 	"datastore"
 	"errors"
@@ -329,7 +330,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	// if it's a single server setup, we don't need to bother with getting ring
 	// locations or logging requests or any of that, so just write to the local db and be done.
 	if self.clusterConfiguration.IsSingleServer() {
-		_, err := self.writeSeriesToLocalStore(&db, series)
+		err := self.writeSeriesToLocalStore(&db, series)
 		return err
 	}
 
@@ -363,23 +364,26 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	return nil
 }
 
-func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protocol.Series) (*protocol.Request, error) {
-	request := &protocol.Request{Type: &proxyWrite, Database: db, Series: series}
-	err := self.datastore.LogRequestAndAssignId(request)
-	if err != nil {
-		return nil, err
-	}
-
-	return request, self.datastore.WriteSeriesData(*db, series)
+func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protocol.Series) error {
+	return self.datastore.WriteSeriesData(*db, series)
 }
 
 func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, series *protocol.Series) error {
-	servers := self.clusterConfiguration.GetServersByIndexAndReplicationFactor(db, serverIndex)
+	owner, servers := self.clusterConfiguration.GetServersByIndexAndReplicationFactor(db, serverIndex)
 	for _, s := range servers {
 		if s.Id == self.localHostId {
-			request, err := self.writeSeriesToLocalStore(db, series)
+			// TODO: make storing of the data and logging of the request atomic
+			id := atomic.AddUint32(&self.requestId, uint32(1))
+			request := &protocol.Request{Type: &proxyWrite, Database: db, Series: series, Id: &id}
+			err := self.datastore.LogRequestAndAssignSequenceNumber(request, &self.clusterConfiguration.ClusterVersion, &owner.Id, &self.localHostId)
 			if err != nil {
 				return self.proxyUntilSuccess(servers, db, series)
+			}
+
+			// ignoring the error for writing to the local store because we still want to send to replicas
+			err = self.writeSeriesToLocalStore(db, series)
+			if err != nil {
+				log.Error("Couldn't write data to local store: ", err, request)
 			}
 			self.sendRequestToReplicas(request, servers)
 
@@ -622,6 +626,8 @@ func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString stri
 }
 
 func (self *CoordinatorImpl) ReplicateWrite(request *protocol.Request) error {
+	id := atomic.AddUint32(&self.requestId, uint32(1))
+	request.Id = &id
 	location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
 	replicas := self.clusterConfiguration.GetServersByRingLocation(request.Database, &location)
 	self.sendRequestToReplicas(request, replicas)

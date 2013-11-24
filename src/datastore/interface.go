@@ -12,7 +12,11 @@ type Datastore interface {
 	ExecuteQuery(user common.User, database string,
 		query *parser.Query, yield func(*protocol.Series) error,
 		ringFilter func(database, series *string, time *int64) bool) error
-	LogRequestAndAssignId(request *protocol.Request) error
+	// Logs the request to a local store and assigns a sequence number that is unique per server id per day
+	LogRequestAndAssignSequenceNumber(request *protocol.Request, clusterVersion, ownerServerId, serverId *uint32) error
+	// will replay all requests from a given number. If the number hasn't occured yet today, it replays from yesterday.
+	// So this log replay is only meant to work for outages that last less than maybe 12 hours.
+	ReplayRequestsFromSequenceNumber(clusterVersion, serverId *uint32, yield func(*protocol.Request) error) error
 	// Increment the named integer by the given amount and return the new value
 	AtomicIncrement(name string, val int) (uint64, error)
 	WriteSeriesData(database string, series *protocol.Series) error

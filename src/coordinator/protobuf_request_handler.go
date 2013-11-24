@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"common"
 	"datastore"
 	"encoding/binary"
 	"errors"
@@ -25,8 +26,14 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 	if *request.Type == protocol.Request_PROXY_WRITE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
-		self.db.LogRequestAndAssignId(request)
-		err := self.db.WriteSeriesData(*request.Database, request.Series)
+		location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
+		ownerId := self.clusterConfig.GetOwnerIdByLocation(&location)
+		// TODO: make request logging and datastore write atomic
+		err := self.db.LogRequestAndAssignSequenceNumber(request, &self.clusterConfig.ClusterVersion, ownerId, &self.clusterConfig.localServerId)
+		if err != nil {
+			return err
+		}
+		err = self.db.WriteSeriesData(*request.Database, request.Series)
 		if err != nil {
 			return err
 		}
@@ -40,6 +47,13 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		// TODO: check the request id and server and make sure it's next (+1 from last one from the server).
 		//       If so, write. If not, request replay.
 		// TODO: log replication writes so the can be retrieved from other servers
+		location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
+		ownerId := self.clusterConfig.GetOwnerIdByLocation(&location)
+		// TODO: make request logging and datastore write atomic
+		err := self.db.LogRequestAndAssignSequenceNumber(request, &self.clusterConfig.ClusterVersion, ownerId, &self.clusterConfig.localServerId)
+		if err != nil {
+			return err
+		}
 		self.db.WriteSeriesData(*request.Database, request.Series)
 		return nil
 	} else if *request.Type == protocol.Request_REPLICATION_DELETE {

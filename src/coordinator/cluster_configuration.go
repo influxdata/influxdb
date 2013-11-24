@@ -5,8 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
+/*
+  This struct stores all the metadata confiugration information about a running cluster. This includes
+  the servers in the cluster and their state, databases, users, and which continuous queries are running.
+
+  ClusterVersion is a monotonically increasing int that keeps track of different server configurations.
+  For example, when you spin up a cluster and start writing data, the version will be 1. If you expand the
+  cluster the version will be bumped. Using this the cluster is able to run two versions simultaneously
+  while the new servers are being brought online.
+*/
 type ClusterConfiguration struct {
 	createDatabaseLock         sync.RWMutex
 	databaseReplicationFactors map[string]uint8
@@ -18,6 +28,7 @@ type ClusterConfiguration struct {
 	hasRunningServers          bool
 	currentServerId            uint32
 	localServerId              uint32
+	ClusterVersion             uint32
 }
 
 type Database struct {
@@ -48,6 +59,15 @@ func (self *ClusterConfiguration) GetReplicationFactor(database *string) uint8 {
 
 func (self *ClusterConfiguration) IsActive() bool {
 	return self.hasRunningServers
+}
+
+func (self *ClusterConfiguration) SetActive() {
+	self.serversLock.Lock()
+	defer self.serversLock.Unlock()
+	for _, server := range self.servers {
+		server.State = Running
+	}
+	atomic.AddUint32(&self.ClusterVersion, uint32(1))
 }
 
 func (self *ClusterConfiguration) GetServerByRaftName(name string) *ClusterServer {
@@ -161,16 +181,23 @@ func (self *ClusterConfiguration) GetServerIndexByLocation(location *int) int {
 	return *location % len(self.servers)
 }
 
-func (self *ClusterConfiguration) GetServersByRingLocation(database *string, location *int) []*ClusterServer {
-	index := *location % len(self.servers)
-	return self.GetServersByIndexAndReplicationFactor(database, &index)
+func (self *ClusterConfiguration) GetOwnerIdByLocation(location *int) *uint32 {
+	return &self.servers[self.GetServerIndexByLocation(location)].Id
 }
 
-func (self *ClusterConfiguration) GetServersByIndexAndReplicationFactor(database *string, index *int) []*ClusterServer {
+func (self *ClusterConfiguration) GetServersByRingLocation(database *string, location *int) []*ClusterServer {
+	index := *location % len(self.servers)
+	_, replicas := self.GetServersByIndexAndReplicationFactor(database, &index)
+	return replicas
+}
+
+// This function returns the server that owns the ring location and a set of servers that are replicas (which include the onwer)
+func (self *ClusterConfiguration) GetServersByIndexAndReplicationFactor(database *string, index *int) (*ClusterServer, []*ClusterServer) {
 	replicationFactor := int(self.GetReplicationFactor(database))
 	serverCount := len(self.servers)
+	owner := self.servers[*index]
 	if replicationFactor >= serverCount {
-		return self.servers
+		return owner, self.servers
 	}
 	owners := make([]*ClusterServer, 0, replicationFactor)
 	ownerCount := 0
@@ -182,7 +209,7 @@ func (self *ClusterConfiguration) GetServersByIndexAndReplicationFactor(database
 		owners = append(owners, self.servers[i])
 		ownerCount++
 	}
-	return owners
+	return owner, owners
 }
 
 func (self *ClusterConfiguration) GetServerByProtobufConnectionString(connectionString string) *ClusterServer {
@@ -197,6 +224,7 @@ func (self *ClusterConfiguration) GetServerByProtobufConnectionString(connection
 func (self *ClusterConfiguration) UpdateServerState(serverId uint32, state ServerState) error {
 	self.serversLock.Lock()
 	defer self.serversLock.Unlock()
+	atomic.AddUint32(&self.ClusterVersion, uint32(1))
 	for _, server := range self.servers {
 		if server.Id == serverId {
 			if state == Running {

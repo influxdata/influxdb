@@ -25,7 +25,7 @@ func (self *ProtocolSuite) TestCanEncodeAndDecode(c *C) {
 	p.Values = []*FieldValue{v}
 	t := time.Now().Unix()
 	p.Timestamp = &t
-	s := uint32(23432423)
+	s := uint64(23432423)
 	p.SequenceNumber = &s
 
 	d, err := p.Encode()

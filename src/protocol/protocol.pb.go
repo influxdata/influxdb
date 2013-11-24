@@ -239,9 +239,12 @@ type Request struct {
 	Type                 *Request_Type `protobuf:"varint,2,req,name=type,enum=protocol.Request_Type" json:"type,omitempty"`
 	Database             *string       `protobuf:"bytes,3,req,name=database" json:"database,omitempty"`
 	Series               *Series       `protobuf:"bytes,4,opt,name=series" json:"series,omitempty"`
-	Query                *string       `protobuf:"bytes,5,opt,name=query" json:"query,omitempty"`
-	UserName             *string       `protobuf:"bytes,6,opt,name=userName" json:"userName,omitempty"`
-	RingLocationsToQuery *uint32       `protobuf:"varint,7,opt,name=ringLocationsToQuery" json:"ringLocationsToQuery,omitempty"`
+	SequenceNumber       *uint64       `protobuf:"varint,5,opt,name=sequenceNumber" json:"sequenceNumber,omitempty"`
+	OriginatingServerId  *uint32       `protobuf:"varint,6,opt,name=originatingServerId" json:"originatingServerId,omitempty"`
+	ClusterVersion       *uint32       `protobuf:"varint,10,opt,name=clusterVersion" json:"clusterVersion,omitempty"`
+	Query                *string       `protobuf:"bytes,7,opt,name=query" json:"query,omitempty"`
+	UserName             *string       `protobuf:"bytes,8,opt,name=userName" json:"userName,omitempty"`
+	RingLocationsToQuery *uint32       `protobuf:"varint,9,opt,name=ringLocationsToQuery" json:"ringLocationsToQuery,omitempty"`
 	XXX_unrecognized     []byte        `json:"-"`
 }
 
@@ -275,6 +278,27 @@ func (m *Request) GetSeries() *Series {
 		return m.Series
 	}
 	return nil
+}
+
+func (m *Request) GetSequenceNumber() uint64 {
+	if m != nil && m.SequenceNumber != nil {
+		return *m.SequenceNumber
+	}
+	return 0
+}
+
+func (m *Request) GetOriginatingServerId() uint32 {
+	if m != nil && m.OriginatingServerId != nil {
+		return *m.OriginatingServerId
+	}
+	return 0
+}
+
+func (m *Request) GetClusterVersion() uint32 {
+	if m != nil && m.ClusterVersion != nil {
+		return *m.ClusterVersion
+	}
+	return 0
 }
 
 func (m *Request) GetQuery() string {
