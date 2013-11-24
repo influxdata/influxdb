@@ -136,7 +136,11 @@ type event struct {
 //
 //------------------------------------------------------------------------------
 
-// Creates a new server with a log at the given path.
+// Creates a new server with a log at the given path. transporter must
+// not be nil. stateMachine can be nil if snapshotting and log
+// compaction is to be disabled. context can be anything (including nil)
+// and is not used by the raft package except returned by
+// Server.Context(). connectionString can be anything.
 func NewServer(name string, path string, transporter Transporter, stateMachine StateMachine, context interface{}, connectionString string) (Server, error) {
 	if name == "" {
 		return nil, errors.New("raft.Server: Name cannot be blank")
