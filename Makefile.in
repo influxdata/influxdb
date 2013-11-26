@@ -79,20 +79,30 @@ ifeq ($(uname_S),Linux)
 	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' make"
 endif
 
+dependencies = code.google.com/p/go.crypto/bcrypt \
+code.google.com/p/goprotobuf/proto \
+code.google.com/p/goprotobuf/protoc-gen-go \
+code.google.com/p/log4go \
+github.com/bmizerany/pat \
+github.com/fitstar/falcore \
+github.com/fitstar/falcore/filter \
+github.com/gorilla/mux \
+github.com/influxdb/raft \
+github.com/pmylund/go-cache
 
-dependencies: $(leveldb_deps)
-	$(GO) get code.google.com/p/goprotobuf/proto
-	$(GO) get github.com/influxdb/raft
-	$(GO) get github.com/gorilla/mux
-	$(GO) get github.com/jmhodges/levigo
-	$(GO) get github.com/bmizerany/pat
-	$(GO) get github.com/fitstar/falcore
-	$(GO) get github.com/fitstar/falcore/filter
-	$(GO) get code.google.com/p/log4go
-	$(GO) get code.google.com/p/go.crypto/bcrypt
-	$(GO) get github.com/pmylund/go-cache
-	$(GO) get code.google.com/p/goprotobuf/proto
-	$(GO) get code.google.com/p/goprotobuf/protoc-gen-go
+levigo_dependency = github.com/jmhodges/levigo
+
+dependencies_paths := $(addprefix src/,$(dependencies))
+
+src/$(levigo_dependency):
+	$(GO) get -d $(levigo_dependency)
+	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'; popd"
+
+
+$(dependencies_paths):
+	for i in $(dependencies); do $(GO) get $$i; done
+
+dependencies: src/$(levigo_dependency) $(dependencies_paths)
 
 test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck
@@ -107,7 +117,6 @@ parser:
 build: dependencies protobuf parser
 # TODO: build all packages, otherwise we won't know
 # if there's an error
-	@echo $(PYTHONPATH)
 	$(GO) build server
 
 clean:
