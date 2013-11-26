@@ -586,10 +586,11 @@ PACKAGE_URL='http://influxdb.org/'
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
-with_bison
-with_flex
 HG
 BZR
+with_flex
+with_bison
+GOROOT
 GO
 PROTOC
 target_alias
@@ -633,6 +634,7 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
+with_goroot
 with_flex
 with_bison
 '
@@ -1247,6 +1249,7 @@ if test -n "$ac_init_help"; then
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+  --with-goroot           Set goroot to use
   --with-flex             Use flex given at that path
   --with-bison            Use bison given at that path
 
@@ -1680,6 +1683,10 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
+
+
+
+
 # Extract the first word of "protoc", so it can be a program name with args.
 set dummy protoc; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
@@ -1724,6 +1731,12 @@ fi
 if test x"${PROTOC}" == x"notfound"; then
     as_fn_error $? "Please install protobuf before trying to build Influxdb" "$LINENO" 5
 fi
+
+# Check whether --with-goroot was given.
+if test "${with_goroot+set}" = set; then :
+  withval=$with_goroot; GO=$withval/bin/go; GOROOT=$withval
+fi
+
 # Extract the first word of "go", so it can be a program name with args.
 set dummy go; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5

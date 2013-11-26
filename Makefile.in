@@ -2,9 +2,14 @@ SHELL = /bin/bash
 
 PROTOC = @PROTOC@
 GO     = @GO@
+GOROOT = @GOROOT@
 # or 386
 arch   = amd64
 CGO_ENABLED = 1
+
+ifneq ($(GOROOT),)
+export GOROOT
+endif
 
 cflags =
 ifeq ($(arch),386)
