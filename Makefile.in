@@ -20,7 +20,7 @@ endif
 export GOARCH
 export CGO_ENABLED
 
-.PHONY: all valgrind parser
+.PHONY: all valgrind parser package package_init
 
 all: build test
 
@@ -125,8 +125,12 @@ build: dependencies protobuf parser
 	$(GO) build server
 
 clean:
+	rm -f server
 	rm -rf pkg/
 	rm -rf packages/
+	rm -rf src/$(levigo_dependency)
+	rm -rf /tmp/influxdb
+	rm -rf /tmp/admin.influxdb
 
 valgrind: build
 	$(MAKE) -C src/parser test
@@ -151,5 +155,84 @@ coverage: test_dependencies
 integration_test: test_dependencies
 	$(GO) test src/integration
 
-package:
-	@echo not implemented yet
+version=
+admin_dir = /tmp/admin.influxdb
+
+source_package = packages/influxdb-$(version).src.tar.gz
+binary_package = packages/influxdb-$(version).$(arch).tar.gz
+ifeq ($(arch),386)
+	rpm_package = packages/influxdb-$(version)-1.i686.rpm
+	debian_package = packages/influxdb_$(version)_i386.deb
+	rpm_args = setarch i386
+	deb_args = -a i386
+else
+	rpm_package = packages/influxdb-$(version).-1.x86_64.rpm
+	debian_package = packages/influxdb_$(version)_amd64.deb
+endif
+
+files = $(binary_package) $(debian_package) $(source_package)
+sha1 = $(shell sh -c "git rev-list --max-count=1 HEAD")
+
+package_init:
+ifeq ($(version),)
+	$(error Please specify the version to be packaged using 'make version=major.minor.patch')
+endif
+	sed -i.bak -e "s/version = \"dev\"/version = \"$(version)\"/" -e "s/gitSha\s*=\s*\"HEAD\"/gitSha = \"$(sha1)\"/" src/server/server.go
+	sed -i.bak -e "s/REPLACE_VERSION/$(version)/" scripts/post_install.sh
+
+
+$(admin_dir)/build:
+	rm -rf $(admin_dir)
+	rvm 1.9.3 do rvm gemset create influxdb
+	rvm 1.9.3@influxdb do bundle install
+	git clone https://github.com/influxdb/influxdb-admin.git $(admin_dir)
+	rvm 1.9.3@influxdb do bash -c "pushd $(admin_dir); middleman build; popd"
+
+$(rpm_package): $(admin_dir)/build build
+	rm -rf out_rpm
+	mkdir -p out_rpm/opt/influxdb/versions/$(version)
+	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
+	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; $(rpm_args) fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	mv out_rpm/$(shell basename $(rpm_package)) packages/
+
+$(debian_package): $(admin_dir)/build build
+	rm -rf out_rpm
+	mkdir -p out_rpm/opt/influxdb/versions/$(version)
+	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
+	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t deb $(deb_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	mv out_rpm/$(shell basename $(debian_package)) packages/
+
+$(source_package): dependencies
+	rm -rf src/$(levigo_dependency)
+	$(GO) get -d $(levigo_dependency)
+	rm -f server
+	git ls-files --others  | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
+	echo "pkg/*" >> /tmp/influxdb.ignored
+	echo "packages/*" >> /tmp/influxdb.ignored
+	echo "build/*" >> /tmp/influxdb.ignored
+	echo "out_rpm/*" >> /tmp/influxdb.ignored
+	tar -czf $(source_package) --exclude-vcs -X /tmp/influxdb.ignored *
+	rm -rf /tmp/influxdb
+	mkdir /tmp/influxdb
+	tar -xzf $(source_package) -C /tmp/influxdb
+	rm $(source_package)
+	bash -c "pushd /tmp/; tar -czf `basename $(source_package)` influxdb; popd"
+	mv /tmp/$(shell basename $(source_package)) $(source_package)
+	rm -rf src/$(levigo_dependency)
+
+$(binary_package): $(admin_dir)/build build
+	rm -rf build
+	mkdir build
+	mv server build/influxdb
+	mkdir build/admin
+	cp -R $(admin_dir)/build/* build/admin/
+	cp -R scripts/ build/
+	rm -f build/scripts/post_install.sh.bak
+	tar -czf $(binary_package) build/*
+
+packages:
+	mkdir $@
+
+package: | packages package_init $(files)
+	mv -f src/server/server.go.bak src/server/server.go
+	mv -f scripts/post_install.sh.bak scripts/post_install.sh
