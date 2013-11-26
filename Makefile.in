@@ -43,10 +43,20 @@ leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
 # levigo flags
+ifeq ($(uname_S),Linux)
 CGO_CFLAGS  += -I$(leveldb_dir)/include
 CGO_LDFLAGS += $(leveldb_dir)/libleveldb.a $(snappy_dir)/.libs/libsnappy.a -lstdc++
 export CGO_CFLAGS
 export CGO_LDFLAGS
+else
+CGO_LDFLAGS = -lleveldb -lsnappy -lstdc++
+export CGO_LDFLAGS
+endif
+
+ifneq ($(uname_S),Linux)
+PYTHONPATH ?= /usr/local/lib/python2.7/site-packages/
+export PYTHONPATH
+endif
 
 $(snappy_deps):
 ifeq ($(uname_S),Linux)
@@ -97,6 +107,7 @@ parser:
 build: dependencies protobuf parser
 # TODO: build all packages, otherwise we won't know
 # if there's an error
+	@echo $(PYTHONPATH)
 	$(GO) build server
 
 clean:
