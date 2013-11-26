@@ -16,12 +16,28 @@ AC_PATH_PROG(HG, hg, "notfound")
 if test x"${HG}" == x"notfound"; then
     AC_MSG_ERROR([Please install mercurial before trying to build Influxdb])
 fi
-AC_PATH_PROG(LEX, flex, "notfound")
-if test x"${LEX}" == x"notfound"; then
-    AC_MSG_ERROR([Please install flex before trying to build Influxdb])
+AC_ARG_WITH([flex],
+  [AS_HELP_STRING([--with-flex],
+    [Use flex given at that path])],
+  [],
+  [with_flex=])
+
+if test x"${with_flex}" == x""; then
+   AC_PATH_PROG(with_flex, flex, "notfound")
 fi
-AC_PATH_PROG(YACC, bison, "notfound")
-if test x"${YACC}" == x"notfound"; then
-    AC_MSG_ERROR([Please install bison before trying to build Influxdb])
+if test x"${with_flex}" == x"notfound"; then
+   AC_MSG_ERROR([Please install flex before trying to build Influxdb])
+fi
+AC_ARG_WITH([bison],
+  [AS_HELP_STRING([--with-bison],
+    [Use bison given at that path])],
+  [],
+  [with_bison=])
+
+if test x"${with_bison}" == x""; then
+   AC_PATH_PROG(with_bison, bison, "notfound")
+fi
+if test x"${with_bison}" == x"notfound"; then
+   AC_MSG_ERROR([Please install bison before trying to build Influxdb])
 fi
 AC_OUTPUT([Makefile src/parser/Makefile])

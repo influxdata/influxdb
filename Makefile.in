@@ -121,7 +121,6 @@ build: dependencies protobuf parser
 
 clean:
 	rm -rf pkg/
-	rm -rf bin/
 	rm -rf packages/
 
 valgrind: build

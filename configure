@@ -586,8 +586,8 @@ PACKAGE_URL='http://influxdb.org/'
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
-YACC
-LEX
+with_bison
+with_flex
 HG
 BZR
 GO
@@ -633,6 +633,8 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
+with_flex
+with_bison
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1242,6 +1244,12 @@ if test -n "$ac_init_help"; then
    esac
   cat <<\_ACEOF
 
+Optional Packages:
+  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+  --with-flex             Use flex given at that path
+  --with-bison            Use bison given at that path
+
 Report bugs to <support@influxdb.com>.
 Influxdb home page: <http://influxdb.org/>.
 _ACEOF
@@ -1848,16 +1856,26 @@ fi
 if test x"${HG}" == x"notfound"; then
     as_fn_error $? "Please install mercurial before trying to build Influxdb" "$LINENO" 5
 fi
-# Extract the first word of "flex", so it can be a program name with args.
+
+# Check whether --with-flex was given.
+if test "${with_flex+set}" = set; then :
+  withval=$with_flex;
+else
+  with_flex=
+fi
+
+
+if test x"${with_flex}" == x""; then
+   # Extract the first word of "flex", so it can be a program name with args.
 set dummy flex; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
 $as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_path_LEX+:} false; then :
+if ${ac_cv_path_with_flex+:} false; then :
   $as_echo_n "(cached) " >&6
 else
-  case $LEX in
+  case $with_flex in
   [\\/]* | ?:[\\/]*)
-  ac_cv_path_LEX="$LEX" # Let the user override the test with a path.
+  ac_cv_path_with_flex="$with_flex" # Let the user override the test with a path.
   ;;
   *)
   as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
@@ -1867,7 +1885,7 @@ do
   test -z "$as_dir" && as_dir=.
     for ac_exec_ext in '' $ac_executable_extensions; do
   if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_path_LEX="$as_dir/$ac_word$ac_exec_ext"
+    ac_cv_path_with_flex="$as_dir/$ac_word$ac_exec_ext"
     $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
@@ -1875,33 +1893,44 @@ done
   done
 IFS=$as_save_IFS
 
-  test -z "$ac_cv_path_LEX" && ac_cv_path_LEX=""notfound""
+  test -z "$ac_cv_path_with_flex" && ac_cv_path_with_flex=""notfound""
   ;;
 esac
 fi
-LEX=$ac_cv_path_LEX
-if test -n "$LEX"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $LEX" >&5
-$as_echo "$LEX" >&6; }
+with_flex=$ac_cv_path_with_flex
+if test -n "$with_flex"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $with_flex" >&5
+$as_echo "$with_flex" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 fi
 
 
-if test x"${LEX}" == x"notfound"; then
-    as_fn_error $? "Please install flex before trying to build Influxdb" "$LINENO" 5
 fi
-# Extract the first word of "bison", so it can be a program name with args.
+if test x"${with_flex}" == x"notfound"; then
+   as_fn_error $? "Please install flex before trying to build Influxdb" "$LINENO" 5
+fi
+
+# Check whether --with-bison was given.
+if test "${with_bison+set}" = set; then :
+  withval=$with_bison;
+else
+  with_bison=
+fi
+
+
+if test x"${with_bison}" == x""; then
+   # Extract the first word of "bison", so it can be a program name with args.
 set dummy bison; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
 $as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_path_YACC+:} false; then :
+if ${ac_cv_path_with_bison+:} false; then :
   $as_echo_n "(cached) " >&6
 else
-  case $YACC in
+  case $with_bison in
   [\\/]* | ?:[\\/]*)
-  ac_cv_path_YACC="$YACC" # Let the user override the test with a path.
+  ac_cv_path_with_bison="$with_bison" # Let the user override the test with a path.
   ;;
   *)
   as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
@@ -1911,7 +1940,7 @@ do
   test -z "$as_dir" && as_dir=.
     for ac_exec_ext in '' $ac_executable_extensions; do
   if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_path_YACC="$as_dir/$ac_word$ac_exec_ext"
+    ac_cv_path_with_bison="$as_dir/$ac_word$ac_exec_ext"
     $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
@@ -1919,22 +1948,23 @@ done
   done
 IFS=$as_save_IFS
 
-  test -z "$ac_cv_path_YACC" && ac_cv_path_YACC=""notfound""
+  test -z "$ac_cv_path_with_bison" && ac_cv_path_with_bison=""notfound""
   ;;
 esac
 fi
-YACC=$ac_cv_path_YACC
-if test -n "$YACC"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $YACC" >&5
-$as_echo "$YACC" >&6; }
+with_bison=$ac_cv_path_with_bison
+if test -n "$with_bison"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $with_bison" >&5
+$as_echo "$with_bison" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 fi
 
 
-if test x"${YACC}" == x"notfound"; then
-    as_fn_error $? "Please install bison before trying to build Influxdb" "$LINENO" 5
+fi
+if test x"${with_bison}" == x"notfound"; then
+   as_fn_error $? "Please install bison before trying to build Influxdb" "$LINENO" 5
 fi
 ac_config_files="$ac_config_files Makefile src/parser/Makefile"
 
