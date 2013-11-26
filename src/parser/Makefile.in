@@ -4,7 +4,7 @@ FLEX  = @LEX@
 all: y.tab.c y.tab.h lex.yy.c
 
 y.tab.c y.tab.h: query.yacc
-	$(YACC) -t -d query.yacc -o y.tab.c --defines=y.tab.h
+	$(BISON) -t -d query.yacc -o y.tab.c --defines=y.tab.h
 
 lex.yy.c: query.lex
 	$(FLEX) -o lex.yy.c -i query.lex
