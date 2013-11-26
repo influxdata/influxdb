@@ -8,8 +8,8 @@ before_install:
   - sudo apt-get update
   - sudo apt-get install -y protobuf-compiler valgrind
 
-install: ./build.sh
-script: ./test.sh
+install: ./configure
+script: make
 
 notifications:
   irc: "chat.freenode.net#influxdb"
