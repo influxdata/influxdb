@@ -1818,6 +1818,7 @@ done
   done
 IFS=$as_save_IFS
 
+  test -z "$ac_cv_path_PROTOC" && ac_cv_path_PROTOC=""notfound""
   ;;
 esac
 fi
@@ -1831,6 +1832,9 @@ $as_echo "no" >&6; }
 fi
 
 
+if test x"${PROTOC}" == x"notfound"; then
+    as_fn_error $? "Please install protobuf before trying to build Influxdb" "$LINENO" 5
+fi
 # Extract the first word of "go", so it can be a program name with args.
 set dummy go; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
@@ -1858,6 +1862,7 @@ done
   done
 IFS=$as_save_IFS
 
+  test -z "$ac_cv_path_GO" && ac_cv_path_GO=""notfound""
   ;;
 esac
 fi
@@ -1871,6 +1876,9 @@ $as_echo "no" >&6; }
 fi
 
 
+if test x"${GO}" == x"notfound"; then
+    as_fn_error $? "Please install GO (or make sure it's on your path) before trying to build Influxdb" "$LINENO" 5
+fi
 # Extract the first word of "bzr", so it can be a program name with args.
 set dummy bzr; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
@@ -1898,6 +1906,7 @@ done
   done
 IFS=$as_save_IFS
 
+  test -z "$ac_cv_path_BZR" && ac_cv_path_BZR=""notfound""
   ;;
 esac
 fi
@@ -1911,6 +1920,9 @@ $as_echo "no" >&6; }
 fi
 
 
+if test x"${BZR}" == x"notfound"; then
+    as_fn_error $? "Please install bzr before trying to build Influxdb" "$LINENO" 5
+fi
 # Extract the first word of "hg", so it can be a program name with args.
 set dummy hg; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
@@ -1938,6 +1950,7 @@ done
   done
 IFS=$as_save_IFS
 
+  test -z "$ac_cv_path_HG" && ac_cv_path_HG=""notfound""
   ;;
 esac
 fi
@@ -1951,6 +1964,9 @@ $as_echo "no" >&6; }
 fi
 
 
+if test x"${HG}" == x"notfound"; then
+    as_fn_error $? "Please install mercurial before trying to build Influxdb" "$LINENO" 5
+fi
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
