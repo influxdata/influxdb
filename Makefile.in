@@ -107,7 +107,7 @@ src/$(levigo_dependency):
 $(dependencies_paths):
 	for i in $(dependencies); do $(GO) get $$i; done
 
-dependencies: src/$(levigo_dependency) $(dependencies_paths)
+dependencies: src/$(levigo_dependency) $(dependencies_paths) $(leveldb_deps) $(snappy_deps)
 
 test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck
