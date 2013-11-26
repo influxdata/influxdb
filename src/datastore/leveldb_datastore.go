@@ -3,13 +3,16 @@ package datastore
 import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
+	log "code.google.com/p/log4go"
 	"common"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/jmhodges/levigo"
 	"math"
+	"os"
 	"parser"
+	"path/filepath"
 	"protocol"
 	"regexp"
 	"strings"
@@ -18,13 +21,17 @@ import (
 )
 
 type LevelDbDatastore struct {
-	db            *levigo.DB
-	lastIdUsed    uint64
-	columnIdMutex sync.Mutex
-	readOptions   *levigo.ReadOptions
-	writeOptions  *levigo.WriteOptions
-	incrementLock sync.Mutex
-	requestId     uint32
+	db                 *levigo.DB
+	requestLogLock     sync.RWMutex
+	currentRequestLog  *requestLogDb
+	previousRequestLog *requestLogDb
+	lastIdUsed         uint64
+	columnIdMutex      sync.Mutex
+	readOptions        *levigo.ReadOptions
+	writeOptions       *levigo.WriteOptions
+	incrementLock      sync.Mutex
+	requestId          uint32
+	requestLogDir      string
 }
 
 type Field struct {
@@ -36,6 +43,40 @@ type rawColumnValue struct {
 	time     []byte
 	sequence []byte
 	value    []byte
+}
+
+type requestLogDb struct {
+	dir string
+	db  *levigo.DB
+}
+
+func (self *requestLogDb) delete() error {
+	log.Warn("Deleting request log: ", self.dir)
+	self.db.Close()
+	return os.RemoveAll(self.dir)
+}
+
+func getRequestLogDirForDate(baseDir string, t time.Time) string {
+	logDir := fmt.Sprintf("%d-%0.2d-%0.2d", t.Year(), t.Month, t.Day())
+	return filepath.Join(baseDir, logDir)
+}
+
+func NewRequestLogDb(dir string) (*requestLogDb, error) {
+	err := os.MkdirAll(dir, 0744)
+	if err != nil {
+		return nil, err
+	}
+	opts := levigo.NewOptions()
+	opts.SetCache(levigo.NewLRUCache(ONE_MEGABYTE))
+	opts.SetCreateIfMissing(true)
+	opts.SetBlockSize(TWO_FIFTY_SIX_KILOBYTES)
+	filter := levigo.NewBloomFilter(BLOOM_FILTER_BITS_PER_KEY)
+	opts.SetFilterPolicy(filter)
+	db, err := levigo.Open(dir, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &requestLogDb{dir: dir, db: db}, nil
 }
 
 // depending on the query order (whether it's ascending or not) returns
@@ -71,13 +112,18 @@ func (self *rawColumnValue) updatePointTimeAndSequence(currentTimeRaw, currentSe
 }
 
 const (
-	ONE_MEGABYTE                = 1024 * 1024
-	ONE_GIGABYTE                = ONE_MEGABYTE * 1024
-	TWO_FIFTY_SIX_KILOBYTES     = 256 * 1024
-	BLOOM_FILTER_BITS_PER_KEY   = 64
-	MAX_POINTS_TO_SCAN          = 1000000
-	MAX_SERIES_SIZE             = ONE_MEGABYTE
-	REQUEST_SEQUENCE_NUMBER_KEY = "r"
+	ONE_MEGABYTE                 = 1024 * 1024
+	ONE_GIGABYTE                 = ONE_MEGABYTE * 1024
+	TWO_FIFTY_SIX_KILOBYTES      = 256 * 1024
+	BLOOM_FILTER_BITS_PER_KEY    = 64
+	MAX_POINTS_TO_SCAN           = 1000000
+	MAX_SERIES_SIZE              = ONE_MEGABYTE
+	REQUEST_SEQUENCE_NUMBER_KEY  = "r"
+	REQUEST_LOG_BASE_DIR         = "request_logs"
+	DATABASE_DIR                 = "db"
+	REQUEST_LOG_ROTATION_PERIOD  = 24 * time.Hour
+	HOUR_TO_ROTATE_REQUEST_LOG   = 0
+	MINUTE_TO_ROTATE_REQUEST_LOG = 1
 )
 
 var (
@@ -95,6 +141,22 @@ var (
 )
 
 func NewLevelDbDatastore(dbDir string) (Datastore, error) {
+	mainDbDir := filepath.Join(dbDir, DATABASE_DIR)
+	requestLogDir := filepath.Join(dbDir, REQUEST_LOG_BASE_DIR)
+
+	err := os.MkdirAll(mainDbDir, 0744)
+	if err != nil {
+		return nil, err
+	}
+	previousLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now().Add(-time.Hour*24)))
+	if err != nil {
+		return nil, err
+	}
+	currentLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now()))
+	if err != nil {
+		return nil, err
+	}
+
 	opts := levigo.NewOptions()
 	opts.SetCache(levigo.NewLRUCache(ONE_GIGABYTE))
 	opts.SetCreateIfMissing(true)
@@ -123,7 +185,51 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 
 	wo := levigo.NewWriteOptions()
 
-	return &LevelDbDatastore{db: db, lastIdUsed: lastId, readOptions: ro, writeOptions: wo}, nil
+	leveldbStore := &LevelDbDatastore{
+		db:                 db,
+		lastIdUsed:         lastId,
+		readOptions:        ro,
+		writeOptions:       wo,
+		requestLogDir:      requestLogDir,
+		currentRequestLog:  currentLog,
+		previousRequestLog: previousLog}
+
+	go leveldbStore.periodicallyRotateRequestLog()
+
+	return leveldbStore, nil
+}
+
+func (self *LevelDbDatastore) periodicallyRotateRequestLog() {
+	ticker := self.nextLogRotationTicker()
+	for {
+		<-ticker.C
+		self.rotateRequestLog()
+		ticker = self.nextLogRotationTicker()
+	}
+}
+
+func (self *LevelDbDatastore) rotateRequestLog() {
+	log.Warn("Rotating request log...")
+	self.requestLogLock.Lock()
+	defer self.requestLogLock.Unlock()
+	oldLog := self.previousRequestLog
+	self.previousRequestLog = self.currentRequestLog
+	var err error
+	self.currentRequestLog, err = NewRequestLogDb(getRequestLogDirForDate(self.requestLogDir, time.Now()))
+	if err != nil {
+		log.Error("Error creating new requst log: ", err)
+		panic(err)
+	}
+	go oldLog.delete()
+}
+
+func (self *LevelDbDatastore) nextLogRotationTicker() *time.Ticker {
+	nextTick := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), HOUR_TO_ROTATE_REQUEST_LOG, MINUTE_TO_ROTATE_REQUEST_LOG, 0, 0, time.Local)
+	if !nextTick.After(time.Now()) {
+		nextTick = nextTick.Add(REQUEST_LOG_ROTATION_PERIOD)
+	}
+	diff := nextTick.Sub(time.Now())
+	return time.NewTicker(diff)
 }
 
 func (self *LevelDbDatastore) AtomicIncrement(name string, val int) (uint64, error) {
@@ -237,7 +343,6 @@ func (self *LevelDbDatastore) keyForOwnerAndServerSequenceNumber(ownerServerId, 
 }
 
 func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protocol.Request, clusterVersion, ownerServerId, serverId *uint32) error {
-	// TODO: actually log the request
 	// log to this key structure on a different DB sharded by day: <cluster version><owner id><sequence server id><replication sequence>
 	if request.SequenceNumber == nil {
 		sequenceNumber, err := self.AtomicIncrement(self.keyForOwnerAndServerSequenceNumber(ownerServerId, serverId), 1)
@@ -247,7 +352,26 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 		request.SequenceNumber = &sequenceNumber
 	}
 	request.OriginatingServerId = serverId
-	return nil
+	request.ClusterVersion = clusterVersion
+
+	self.requestLogLock.RLock()
+	requestLog := self.currentRequestLog
+	self.requestLogLock.RUnlock()
+
+	data, err := request.Encode()
+	if err != nil {
+		return err
+	}
+	clusterVersionBytes := bytes.NewBuffer(make([]byte, 0, 4))
+	binary.Write(clusterVersionBytes, binary.BigEndian, *clusterVersion)
+	ownerServerBytes := bytes.NewBuffer(make([]byte, 0, 4))
+	binary.Write(ownerServerBytes, binary.BigEndian, *ownerServerId)
+	serverBytes := bytes.NewBuffer(make([]byte, 0, 4))
+	binary.Write(ownerServerBytes, binary.BigEndian, serverBytes)
+	sequenceBytes := bytes.NewBuffer(make([]byte, 0, 8))
+	binary.Write(sequenceBytes, binary.BigEndian, *request.SequenceNumber)
+	key := append(append(append(clusterVersionBytes.Bytes(), ownerServerBytes.Bytes()...), serverBytes.Bytes()...), sequenceBytes.Bytes()...)
+	return requestLog.db.Put(self.writeOptions, key, data)
 }
 
 func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string,
@@ -289,6 +413,10 @@ func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string,
 func (self *LevelDbDatastore) Close() {
 	self.db.Close()
 	self.db = nil
+	self.currentRequestLog.db.Close()
+	self.currentRequestLog = nil
+	self.previousRequestLog.db.Close()
+	self.previousRequestLog = nil
 	self.readOptions.Close()
 	self.readOptions = nil
 	self.writeOptions.Close()
