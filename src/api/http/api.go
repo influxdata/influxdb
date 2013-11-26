@@ -13,8 +13,19 @@ import (
 	"net"
 	libhttp "net/http"
 	"protocol"
+	"regexp"
 	"strings"
 )
+
+var VALID_TABLE_NAMES *regexp.Regexp
+
+func init() {
+	var err error
+	VALID_TABLE_NAMES, err = regexp.Compile("^[a-zA-Z][a-zA-Z0-9._-]*$")
+	if err != nil {
+		panic(err)
+	}
+}
 
 type HttpServer struct {
 	conn        net.Listener
@@ -234,6 +245,10 @@ func removeTimestampFieldDefinition(fields []string) []string {
 }
 
 func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*protocol.Series, error) {
+	if !VALID_TABLE_NAMES.MatchString(s.Name) {
+		return nil, fmt.Errorf("%s is not a valid series name", s.Name)
+	}
+
 	points := []*protocol.Point{}
 	for _, point := range s.Points {
 		values := []*protocol.FieldValue{}

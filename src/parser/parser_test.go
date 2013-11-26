@@ -22,6 +22,13 @@ func ToValueArray(strings ...string) (values []*Value) {
 	return
 }
 
+func (self *QueryParserSuite) TestInvalidFromClause(c *C) {
+	query := "select value from _t"
+	_, err := ParseQuery(query)
+
+	c.Assert(err, ErrorMatches, ".*\\$undefined.*")
+}
+
 func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	for _, query := range []string{
 		"select value from t where c == '5';",

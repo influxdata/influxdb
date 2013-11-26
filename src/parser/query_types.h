@@ -3,6 +3,8 @@
 #define FALSE 0
 #define TRUE !FALSE
 
+// #define DEBUG
+
 typedef struct {
   size_t size;
   char **elems;

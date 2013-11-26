@@ -15,6 +15,7 @@
 static int yycolumn = 1;
 
 %option reentrant
+%option debug
 %option bison-bridge
 %option bison-locations
 %option noyywrap
@@ -70,3 +71,6 @@ static int yycolumn = 1;
   yylval->string = strdup(yytext+1);
   return STRING_VALUE;
 }
+
+[\t ]*                    {}
+.                         { return *yytext; }
