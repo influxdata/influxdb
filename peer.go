@@ -226,7 +226,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 	// Attach the peer to resp, thus server can know where it comes from
 	resp.peer = p.Name
 	// Send response to server for processing.
-	p.server.send(resp)
+	p.server.sendAsync(resp)
 }
 
 // Sends an Snapshot request to the peer through the transport.
@@ -270,7 +270,7 @@ func (p *Peer) sendSnapshotRecoveryRequest() {
 		return
 	}
 	// Send response to server for processing.
-	p.server.send(&AppendEntriesResponse{Term: resp.Term, Success: resp.Success, append: (resp.Term == p.server.currentTerm)})
+	p.server.sendAsync(&AppendEntriesResponse{Term: resp.Term, Success: resp.Success, append: (resp.Term == p.server.currentTerm)})
 }
 
 //--------------------------------------
