@@ -951,7 +951,7 @@ func (s *server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 
 	// If the request is coming from an old term then reject it.
 	if req.Term < s.Term() {
-		s.debugln("server.rv.error: stale term")
+		s.debugln("server.rv.deny.vote: cause stale term")
 		return newRequestVoteResponse(s.currentTerm, false), false
 	}
 
@@ -959,7 +959,7 @@ func (s *server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 
 	// If we've already voted for a different candidate then don't vote for this candidate.
 	if s.votedFor != "" && s.votedFor != req.CandidateName {
-		s.debugln("server.rv.error: duplicate vote: ", req.CandidateName,
+		s.debugln("server.deny.vote: cause duplicate vote: ", req.CandidateName,
 			" already vote for ", s.votedFor)
 		return newRequestVoteResponse(s.currentTerm, false), false
 	}
@@ -967,7 +967,7 @@ func (s *server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 	// If the candidate's log is not at least as up-to-date as our last log then don't vote.
 	lastIndex, lastTerm := s.log.lastInfo()
 	if lastIndex > req.LastLogIndex || lastTerm > req.LastLogTerm {
-		s.debugln("server.rv.error: out of date log: ", req.CandidateName,
+		s.debugln("server.deny.vote: cause out of date log: ", req.CandidateName,
 			"Index :[", lastIndex, "]", " [", req.LastLogIndex, "]",
 			"Term :[", lastTerm, "]", " [", req.LastLogTerm, "]")
 		return newRequestVoteResponse(s.currentTerm, false), false
