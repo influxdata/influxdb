@@ -79,7 +79,7 @@ func (p *Peer) setPrevLogIndex(value uint64) {
 
 // Starts the peer heartbeat.
 func (p *Peer) startHeartbeat() {
-	p.stopChan = make(chan bool, 1)
+	p.stopChan = make(chan bool)
 	c := make(chan bool)
 	go p.heartbeat(c)
 	<-c
@@ -87,17 +87,7 @@ func (p *Peer) startHeartbeat() {
 
 // Stops the peer heartbeat.
 func (p *Peer) stopHeartbeat(flush bool) {
-	// here is a problem
-	// the previous stop is no buffer leader may get blocked
-	// when heartbeat returns
-	// I make the channel with 1 buffer
-	// and try to panic here
-	select {
-	case p.stopChan <- flush:
-
-	default:
-		panic("[" + p.server.Name() + "] cannot stop [" + p.Name + "] heartbeat")
-	}
+	p.stopChan <- flush
 }
 
 //--------------------------------------

@@ -111,7 +111,9 @@ type server struct {
 	mutex      sync.RWMutex
 	syncedPeer map[string]bool
 
-	c                chan *event
+	c       chan *event
+	stopped chan bool
+
 	electionTimeout  time.Duration
 	heartbeatTimeout time.Duration
 
@@ -159,6 +161,7 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 		peers:                   make(map[string]*Peer),
 		log:                     newLog(),
 		c:                       make(chan *event, 256),
+		stopped:                 make(chan bool),
 		electionTimeout:         DefaultElectionTimeout,
 		heartbeatTimeout:        DefaultHeartbeatTimeout,
 		maxLogEntriesPerRequest: MaxLogEntriesPerRequest,
@@ -429,8 +432,9 @@ func (s *server) Start() error {
 // Shuts down the server.
 func (s *server) Stop() {
 	s.send(&stopValue)
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+
+	// make sure the server has stopped before we close the log
+	<-s.stopped
 	s.log.close()
 }
 
@@ -507,6 +511,7 @@ func (s *server) loop() {
 			s.snapshotLoop()
 
 		case Stopped:
+			s.stopped <- true
 			return
 		}
 	}
@@ -727,6 +732,7 @@ func (s *server) leaderLoop() {
 	for _, peer := range s.peers {
 		peer.stopHeartbeat(false)
 	}
+
 	s.syncedPeer = nil
 }
 
