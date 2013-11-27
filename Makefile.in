@@ -166,11 +166,11 @@ ifeq ($(arch),386)
 	rpm_args = setarch i386
 	deb_args = -a i386
 else
-	rpm_package = packages/influxdb-$(version).-1.x86_64.rpm
+	rpm_package = packages/influxdb-$(version)-1.x86_64.rpm
 	debian_package = packages/influxdb_$(version)_amd64.deb
 endif
 
-files = $(binary_package) $(debian_package) $(source_package)
+files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
 sha1 = $(shell sh -c "git rev-list --max-count=1 HEAD")
 
 package_init:
@@ -206,7 +206,7 @@ $(source_package): dependencies
 	rm -rf src/$(levigo_dependency)
 	$(GO) get -d $(levigo_dependency)
 	rm -f server
-	git ls-files --others  | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
+	git ls-files --others | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
 	echo "pkg/*" >> /tmp/influxdb.ignored
 	echo "packages/*" >> /tmp/influxdb.ignored
 	echo "build/*" >> /tmp/influxdb.ignored
@@ -220,6 +220,18 @@ $(source_package): dependencies
 	mv /tmp/$(shell basename $(source_package)) $(source_package)
 	rm -rf src/$(levigo_dependency)
 
+sample_config = ' \
+{ \
+  "AdminHttpPort":  8083, \
+  "AdminAssetsDir": "/opt/influxdb/current/admin", \
+  "ApiHttpPort":    8086, \
+  "RaftServerPort": 8090, \
+  "SeedServers":    [], \
+  "DataDir":        "/opt/influxdb/shared/data/db", \
+  "RaftDir":        "/opt/influxdb/shared/data/raft" \
+} \
+'
+
 $(binary_package): $(admin_dir)/build build
 	rm -rf build
 	mkdir build
@@ -228,6 +240,9 @@ $(binary_package): $(admin_dir)/build build
 	cp -R $(admin_dir)/build/* build/admin/
 	cp -R scripts/ build/
 	rm -f build/scripts/post_install.sh.bak
+	@echo $(sample_config) > build/config.json
+	sed -i.bak 's/,/,\n/g' build/config.json
+	rm build/config.json.bak
 	tar -czf $(binary_package) build/*
 
 packages:
