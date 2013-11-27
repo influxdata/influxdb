@@ -515,15 +515,17 @@ func (s *server) loop() {
 // Sends an event to the event loop to be processed. The function will wait
 // until the event is actually processed before returning.
 func (s *server) send(value interface{}) (interface{}, error) {
-	event := s.sendAsync(value)
+	event := &event{target: value, c: make(chan error, 1)}
+	s.c <- event
 	err := <-event.c
 	return event.returnValue, err
 }
 
-func (s *server) sendAsync(value interface{}) *event {
-	event := &event{target: value, c: make(chan error, 1)}
-	s.c <- event
-	return event
+func (s *server) sendAsync(value interface{}) {
+	go func() {
+		event := &event{target: value, c: make(chan error, 1)}
+		s.c <- event
+	}()
 }
 
 // The event loop that is run when the server is in a Follower state.
@@ -532,7 +534,6 @@ func (s *server) sendAsync(value interface{}) *event {
 //   1.Receiving valid AppendEntries RPC, or
 //   2.Granting vote to candidate
 func (s *server) followerLoop() {
-
 	s.setState(Follower)
 	timeoutChan := afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2)
 
@@ -812,12 +813,9 @@ func (s *server) processCommand(command Command, e *event) {
 	resp.peer = s.Name()
 
 	// this must be async
-	// sendAsync is not really async every time
 	// when the sending speed of the user is larger than
 	// the processing speed of the server, the buffered channel
-	// will be full. Then sendAsync will become sync, which will
-	// cause deadlock here.
-	// so we use a goroutine to avoid the deadlock
+	// will be full, which may blocking the sending if not async.
 	go s.sendAsync(resp)
 }
 
