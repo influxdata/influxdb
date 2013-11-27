@@ -1324,9 +1324,13 @@ func (s *server) readConf() error {
 //--------------------------------------
 
 func (s *server) debugln(v ...interface{}) {
-	debugf("[%s Term:%d] %s", s.name, s.Term(), fmt.Sprintln(v...))
+	if logLevel > Debug {
+		debugf("[%s Term:%d] %s", s.name, s.Term(), fmt.Sprintln(v...))
+	}
 }
 
 func (s *server) traceln(v ...interface{}) {
-	tracef("[%s] %s", s.name, fmt.Sprintln(v...))
+	if logLevel > Trace {
+		tracef("[%s] %s", s.name, fmt.Sprintln(v...))
+	}
 }
