@@ -82,7 +82,6 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "del", "/db/:name", self.dropDatabase)
 
 	// cluster admins management interface
-
 	self.registerEndpoint(p, "get", "/cluster_admins", self.listClusterAdmins)
 	self.registerEndpoint(p, "get", "/cluster_admins/authenticate", self.authenticateClusterAdmin)
 	self.registerEndpoint(p, "post", "/cluster_admins", self.createClusterAdmin)
@@ -97,6 +96,9 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "post", "/db/:db/users/:user", self.updateDbUser)
 	self.registerEndpoint(p, "post", "/db/:db/admins/:user", self.setDbAdmin)
 	self.registerEndpoint(p, "del", "/db/:db/admins/:user", self.unsetDbAdmin)
+
+	// fetch current list of available interfaces
+	self.registerEndpoint(p, "get", "/interfaces", self.listInterfaces)
 
 	if err := libhttp.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
@@ -856,5 +858,23 @@ func (self *HttpServer) commonSetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Re
 			return errorToStatusCode(err), err.Error()
 		}
 		return libhttp.StatusOK, nil
+	})
+}
+
+func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
+		entries, err := ioutil.ReadDir("admin/interfaces")
+
+		if err != nil {
+			return errorToStatusCode(err), err.Error()
+		}
+
+		directories := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() {
+				directories = append(directories, entry.Name())
+			}
+		}
+		return libhttp.StatusOK, directories
 	})
 }
