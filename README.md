@@ -21,15 +21,25 @@ You don't need to build the project to use it. Pre-built [binaries and instructi
 
 ### Mac OS X
 
-- Install the build dependencies of the project:
+#### Installing via Homebrew
+
+InfluxDB has an officially supported recipe included in Homebrew. To use it, just run:
+
+``` shell
+brew install influxdb
+```
+
+#### Building from source
+
+First, install the build dependencies of the project (via Homebrew):
 
 ``` shell
 brew install protobuf bison flex leveldb go hg bzr
 ```
 
-- Run `./test.sh`. This will build the server and run the tests.
+Then run `./test.sh`. This will build the server and run the tests.
 
-Note: If you are on Mac OS X Mavericks, you might want to try to install go using `brew install go --devel`
+_Note: If you are on Mac OS X Mavericks, you might want to try to install go using_ `brew install go --devel`
 
 ### Linux
 

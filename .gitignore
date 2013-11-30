@@ -39,3 +39,9 @@ src/launchpad.net/gocheck/
 /src/github.com/*
 out_rpm/
 packages/
+
+# autconf
+autom4te.cache/
+config.log
+config.status
+Makefile

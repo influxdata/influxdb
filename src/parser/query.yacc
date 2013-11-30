@@ -46,7 +46,6 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
   } limit_and_order;
 }
 
-// debugging
 %debug
 
 // better error/location reporting
@@ -485,9 +484,12 @@ query
 parse_query(char *const query_s)
 {
   query q = {NULL, NULL, NULL, NULL, NULL};
-  /* yydebug = 1; */
   void *scanner;
   yylex_init(&scanner);
+#ifdef DEBUG
+  yydebug = 1;
+  yyset_debug(1, scanner);
+#endif
   void *buffer = yy_scan_string(query_s, scanner);
   yyparse (&q, scanner);
   yy_delete_buffer(buffer, scanner);

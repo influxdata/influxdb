@@ -257,6 +257,29 @@ func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
 	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631)
 }
 
+func (self *ApiSuite) TestWriritingToSeriesWithUnderscore(c *C) {
+	for _, name := range []string{"1foo", "_foo"} {
+
+		data := fmt.Sprintf(`
+[
+  {
+    "points": [
+				[1382131686, "1"]
+    ],
+    "name": "%s",
+    "columns": ["time", "column_one"]
+  }
+]
+`, name)
+
+		addr := self.formatUrl("/db/db1/series?time_precision=s&u=dbuser&p=password")
+		resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
+		c.Assert(err, IsNil)
+		c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
+		c.Assert(self.coordinator.series, HasLen, 0)
+	}
+}
+
 func (self *ApiSuite) TestQueryWithInvalidPrecision(c *C) {
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)

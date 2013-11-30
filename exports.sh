@@ -21,8 +21,8 @@ for i in $all_packages; do
 done
 popd
 
-snappy_dir=/tmp/snappychronosdb
-leveldb_dir=/tmp/leveldbchronosdb
+snappy_dir=/tmp/snappy.influxdb.amd64
+leveldb_dir=/tmp/leveldb.influxdb.amd64
 export LD_LIBRARY_PATH=/usr/local/lib
 on_linux="no"
 if [ `uname` = "Linux" ]; then
