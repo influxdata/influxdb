@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"net"
 	libhttp "net/http"
-	"path/filepath"
 	"protocol"
 	"regexp"
 	"strings"
@@ -29,19 +28,17 @@ func init() {
 }
 
 type HttpServer struct {
-	conn           net.Listener
-	httpPort       string
-	adminAssetsDir string
-	engine         engine.EngineI
-	coordinator    coordinator.Coordinator
-	userManager    coordinator.UserManager
-	shutdown       chan bool
+	conn        net.Listener
+	httpAddr    string
+	engine      engine.EngineI
+	coordinator coordinator.Coordinator
+	userManager coordinator.UserManager
+	shutdown    chan bool
 }
 
-func NewHttpServer(httpPort string, adminAssetsDir string, theEngine engine.EngineI, theCoordinator coordinator.Coordinator, userManager coordinator.UserManager) *HttpServer {
+func NewHttpServer(httpAddr string, theEngine engine.EngineI, theCoordinator coordinator.Coordinator, userManager coordinator.UserManager) *HttpServer {
 	self := &HttpServer{}
-	self.httpPort = httpPort
-	self.adminAssetsDir = adminAssetsDir
+	self.httpAddr = httpAddr
 	self.engine = theEngine
 	self.coordinator = theCoordinator
 	self.userManager = userManager
@@ -50,7 +47,7 @@ func NewHttpServer(httpPort string, adminAssetsDir string, theEngine engine.Engi
 }
 
 func (self *HttpServer) ListenAndServe() {
-	conn, err := net.Listen("tcp", self.httpPort)
+	conn, err := net.Listen("tcp", self.httpAddr)
 	if err != nil {
 		log.Error("Listen: ", err)
 	}
@@ -866,7 +863,7 @@ func (self *HttpServer) commonSetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Re
 
 func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
-		entries, err := ioutil.ReadDir(filepath.Join(self.adminAssetsDir, "interfaces"))
+		entries, err := ioutil.ReadDir("admin/interfaces")
 
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
