@@ -47,6 +47,8 @@ for filepath in `ls packages/*.{tar.gz,deb,rpm}`; do
 
     AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
     AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://influxdb/${latest_filename} --acl public-read --region us-east-1
+    AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://get.influxdb.org/$filename --acl public-read --region us-east-1
+    AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://get.influxdb.org/${latest_filename} --acl public-read --region us-east-1
 done
 
 branch=`git rev-parse --abbrev-ref HEAD`
