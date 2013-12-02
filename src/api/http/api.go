@@ -865,7 +865,7 @@ func (self *HttpServer) commonSetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Re
 }
 
 func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
+	statusCode, contentType, body := yieldUser(nil, func(u common.User) (int, interface{}) {
 		entries, err := ioutil.ReadDir(filepath.Join(self.adminAssetsDir, "interfaces"))
 
 		if err != nil {
@@ -880,4 +880,10 @@ func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Requ
 		}
 		return libhttp.StatusOK, directories
 	})
+
+	w.Header().Add("content-type", contentType)
+	w.WriteHeader(statusCode)
+	if len(body) > 0 {
+		w.Write(body)
+	}
 }
