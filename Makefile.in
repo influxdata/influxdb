@@ -22,7 +22,7 @@ export CGO_ENABLED
 
 .PHONY: all valgrind parser package package_init
 
-all: build test
+all: build test integration_test
 
 valgrind:
 
@@ -153,7 +153,7 @@ coverage: test_dependencies
 
 
 integration_test: test_dependencies
-	$(GO) test src/integration
+	$(GO) test integration $(GOTEST_OPTS)
 
 version=
 admin_dir = /tmp/admin.influxdb
