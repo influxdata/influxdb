@@ -152,7 +152,7 @@ coverage: test_dependencies
    $(GO) tool cover -html=/tmp/influxdb.$${i/\//}.coverage; done
 
 
-integration_test: test_dependencies
+integration_test: test_dependencies build
 	$(GO) test integration $(GOTEST_OPTS)
 
 version=
