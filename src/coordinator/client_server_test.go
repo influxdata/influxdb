@@ -2,8 +2,10 @@ package coordinator
 
 import (
 	"datastore"
+	"encoding/binary"
 	"fmt"
 	. "launchpad.net/gocheck"
+	"net"
 	"os"
 	"protocol"
 	"time"
@@ -29,13 +31,26 @@ func cleanDb(db datastore.Datastore) {
 	os.RemoveAll(DB_DIR)
 }
 
+type MockRequestHandler struct {
+}
+
+var writeOk = protocol.Response_WRITE_OK
+
+func (self *MockRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
+	response := &protocol.Response{RequestId: request.Id, Type: &writeOk}
+	data, _ := response.Encode()
+	binary.Write(conn, binary.LittleEndian, uint32(len(data)))
+	conn.Write(data)
+	return nil
+}
+
 func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	server := startAndVerifyCluster(1, c)[0]
 	defer clean(server)
 	db := newDatastore(c)
 	coord := NewCoordinatorImpl(db, server, server.clusterConfig)
 	coord.ConnectToProtobufServers(server.config.ProtobufConnectionString())
-	requestHandler := NewProtobufRequestHandler(db, coord, server.clusterConfig)
+	requestHandler := &MockRequestHandler{}
 	protobufServer := NewProtobufServer(":8091", requestHandler)
 	go protobufServer.ListenAndServe()
 	c.Assert(protobufServer, Not(IsNil))

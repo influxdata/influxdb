@@ -128,6 +128,10 @@ func (self *MockCoordinator) ReplicateWrite(request *protocol.Request) error {
 	return nil
 }
 
+func (self *MockCoordinator) ReplayReplication(replicationFactor *uint8, clusterVersion, originatingServerId, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
+	return nil
+}
+
 func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
 	path = fmt.Sprintf(path, args...)
 	port := self.listener.Addr().(*net.TCPAddr).Port
