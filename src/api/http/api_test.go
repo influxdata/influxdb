@@ -306,7 +306,7 @@ func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	c.Assert(series[0].Columns, HasLen, 4)
 	c.Assert(series[0].Points, HasLen, 4)
 	// timestamp precision is milliseconds by default
-	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631000)
+	c.Assert(int64(series[0].Points[0][0].(float64)), Equals, int64(1381346631000))
 }
 
 func (self *ApiSuite) TestChunkedQuery(c *C) {
