@@ -124,7 +124,7 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 	defer wb.Close()
 	for fieldIndex, field := range series.Fields {
 		temp := field
-		id, _, err := self.getIdForDbSeriesColumn(&database, series.Name, &temp)
+		id, err := self.createIdForDbSeriesColumn(&database, series.Name, &temp)
 		if err != nil {
 			return err
 		}
@@ -585,11 +585,11 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 	fields := make([]*Field, len(columns), len(columns))
 
 	for i, name := range columns {
-		id, alreadyPresent, errId := self.getIdForDbSeriesColumn(&db, &series, &name)
+		id, errId := self.getIdForDbSeriesColumn(&db, &series, &name)
 		if errId != nil {
 			return nil, errId
 		}
-		if !alreadyPresent {
+		if id == nil {
 			return nil, errors.New("Field " + name + " doesn't exist in series " + series)
 		}
 		fields[i] = &Field{Name: name, Id: id}
@@ -604,21 +604,35 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 	return fields, nil
 }
 
-func (self *LevelDbDatastore) getIdForDbSeriesColumn(db, series, column *string) (ret []byte, alreadyPresent bool, err error) {
+func (self *LevelDbDatastore) getIdForDbSeriesColumn(db, series, column *string) (ret []byte, err error) {
 	s := fmt.Sprintf("%s~%s~%s", *db, *series, *column)
 	b := []byte(s)
 	key := append(SERIES_COLUMN_INDEX_PREFIX, b...)
 	if ret, err = self.db.Get(self.readOptions, key); err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	if ret == nil {
-		ret, err = self.getNextIdForColumn(db, series, column)
-		if err = self.db.Put(self.writeOptions, key, ret); err != nil {
-			return nil, false, err
-		}
-		return ret, false, nil
+	return ret, nil
+}
+
+func (self *LevelDbDatastore) createIdForDbSeriesColumn(db, series, column *string) (ret []byte, err error) {
+	ret, err = self.getIdForDbSeriesColumn(db, series, column)
+	if err != nil {
+		return
 	}
-	return ret, true, nil
+
+	if ret != nil {
+		return
+	}
+
+	ret, err = self.getNextIdForColumn(db, series, column)
+	if err != nil {
+		return
+	}
+	s := fmt.Sprintf("%s~%s~%s", *db, *series, *column)
+	b := []byte(s)
+	key := append(SERIES_COLUMN_INDEX_PREFIX, b...)
+	err = self.db.Put(self.writeOptions, key, ret)
+	return
 }
 
 func (self *LevelDbDatastore) getNextIdForColumn(db, series, column *string) (ret []byte, err error) {

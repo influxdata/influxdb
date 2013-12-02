@@ -330,6 +330,28 @@ func (self *IntegrationSuite) TestFilterWithInClause(c *C) {
 	c.Assert(data[0].Points, HasLen, 1)
 }
 
+// issue #85
+// querying a time series shouldn't add non existing columns
+func (self *IntegrationSuite) TestIssue85(c *C) {
+	for i := 0; i < 3; i++ {
+		err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_issue_85",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10))
+		c.Assert(err, IsNil)
+		time.Sleep(1 * time.Second)
+	}
+	_, err := self.server.RunQuery("select time from test_issue_85")
+	c.Assert(err, NotNil)
+	_, err = self.server.RunQuery("select time from test_issue_85")
+	c.Assert(err, NotNil)
+}
+
 // issue #36
 func (self *IntegrationSuite) TestInnerJoin(c *C) {
 	for i := 0; i < 3; i++ {

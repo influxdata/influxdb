@@ -138,3 +138,4 @@
 ## Bugfixes
 
 - [Issue #75](https://github.com/influxdb/influxdb/issues/75). Don't allow time series names that start with underscore
+- [Issue #85](https://github.com/influxdb/influxdb/issues/85). Non-existing columns exist after they have been queried before
