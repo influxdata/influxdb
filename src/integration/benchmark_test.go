@@ -364,14 +364,15 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 
 // test for issue #30
 func (self *IntegrationSuite) TestHttpPostWithTime(c *C) {
-	err := self.server.WriteData(`
+	now := time.Now().Add(-10 * 24 * time.Hour)
+	err := self.server.WriteData(fmt.Sprintf(`
 [
   {
     "name": "test_post_with_time",
     "columns": ["time", "val1", "val2"],
-    "points":[[1384118307, "v1", 2]]
+    "points":[[%d, "v1", 2]]
   }
-]`, "time_precision=s")
+]`, now.Unix()), "time_precision=s")
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select * from test_post_with_time where time > now() - 20d")
 	c.Assert(err, IsNil)
