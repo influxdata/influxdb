@@ -20,7 +20,7 @@ endif
 export GOARCH
 export CGO_ENABLED
 
-.PHONY: all valgrind parser package package_init
+.PHONY: all valgrind parser package package_init build
 
 all: build test integration_test
 
