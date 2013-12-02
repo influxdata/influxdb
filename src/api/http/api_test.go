@@ -136,7 +136,8 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
 	}
 	self.engine = &MockEngine{}
-	self.server = NewHttpServer("", self.engine, self.coordinator, self.manager)
+	dir := c.MkDir()
+	self.server = NewHttpServer("", dir, self.engine, self.coordinator, self.manager)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
 	c.Assert(err, IsNil)

@@ -130,6 +130,6 @@ func main() {
 		adminServer.ListenAndServe()
 	}()
 	log.Println("Starting Http Api server on port", config.ApiHttpPort)
-	server := http.NewHttpServer(config.ApiHttpPortString(), eng, coord, coord)
+	server := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, eng, coord, coord)
 	server.ListenAndServe()
 }
