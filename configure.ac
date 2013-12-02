@@ -17,14 +17,6 @@ AC_PATH_PROG(GO, go, "notfound")
 if test x"${GO}" == x"notfound"; then
     AC_MSG_ERROR([Please install GO (or make sure it's on your path) before trying to build Influxdb])
 fi
-AC_PATH_PROG(BZR, bzr, "notfound")
-if test x"${BZR}" == x"notfound"; then
-    AC_MSG_ERROR([Please install bzr before trying to build Influxdb])
-fi
-AC_PATH_PROG(HG, hg, "notfound")
-if test x"${HG}" == x"notfound"; then
-    AC_MSG_ERROR([Please install mercurial before trying to build Influxdb])
-fi
 AC_ARG_WITH([flex],
   [AS_HELP_STRING([--with-flex],
     [Use flex given at that path])],
