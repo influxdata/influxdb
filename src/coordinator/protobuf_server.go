@@ -7,24 +7,32 @@ import (
 	"log"
 	"net"
 	"protocol"
+	"sync"
 	"time"
 )
 
 type ProtobufServer struct {
-	listener       net.Listener
-	port           string
-	requestHandler RequestHandler
+	listener          net.Listener
+	port              string
+	requestHandler    RequestHandler
+	connectionMapLock sync.Mutex
+	connectionMap     map[net.Conn]bool
 }
 
 const MAX_REQUEST_SIZE = 1024
 
 func NewProtobufServer(port string, requestHandler RequestHandler) *ProtobufServer {
-	server := &ProtobufServer{port: port, requestHandler: requestHandler}
+	server := &ProtobufServer{port: port, requestHandler: requestHandler, connectionMap: make(map[net.Conn]bool)}
 	return server
 }
 
 func (self *ProtobufServer) Close() {
 	self.listener.Close()
+	self.connectionMapLock.Lock()
+	defer self.connectionMapLock.Unlock()
+	for conn, _ := range self.connectionMap {
+		conn.Close()
+	}
 
 	// loop while the port is still accepting connections
 	for {
@@ -54,6 +62,9 @@ func (self *ProtobufServer) ListenAndServe() {
 			log.Println("Error with TCP connection. Assuming server is closing: ", err, conn)
 			break
 		}
+		self.connectionMapLock.Lock()
+		self.connectionMap[conn] = true
+		self.connectionMapLock.Unlock()
 		go self.handleConnection(conn)
 	}
 }
@@ -68,6 +79,9 @@ func (self *ProtobufServer) handleConnection(conn net.Conn) {
 		err := binary.Read(conn, binary.LittleEndian, &messageSizeU)
 		if err != nil {
 			log.Println("ProtobufServer: Error reading from connection: ", conn.RemoteAddr().String(), err)
+			self.connectionMapLock.Lock()
+			delete(self.connectionMap, conn)
+			self.connectionMapLock.Unlock()
 			conn.Close()
 			return
 		}
@@ -81,6 +95,9 @@ func (self *ProtobufServer) handleConnection(conn net.Conn) {
 
 		if err != nil {
 			log.Println("Error, closing connection: ", err)
+			self.connectionMapLock.Lock()
+			delete(self.connectionMap, conn)
+			self.connectionMapLock.Unlock()
 			conn.Close()
 			return
 		}

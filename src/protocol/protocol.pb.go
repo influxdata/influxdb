@@ -21,6 +21,7 @@ const (
 	Request_PROXY_WRITE        Request_Type = 3
 	Request_REPLICATION_DELETE Request_Type = 4
 	Request_PROXY_DELETE       Request_Type = 5
+	Request_REPLICATION_REPLAY Request_Type = 6
 )
 
 var Request_Type_name = map[int32]string{
@@ -29,6 +30,7 @@ var Request_Type_name = map[int32]string{
 	3: "PROXY_WRITE",
 	4: "REPLICATION_DELETE",
 	5: "PROXY_DELETE",
+	6: "REPLICATION_REPLAY",
 }
 var Request_Type_value = map[string]int32{
 	"QUERY":              1,
@@ -36,6 +38,7 @@ var Request_Type_value = map[string]int32{
 	"PROXY_WRITE":        3,
 	"REPLICATION_DELETE": 4,
 	"PROXY_DELETE":       5,
+	"REPLICATION_REPLAY": 6,
 }
 
 func (x Request_Type) Enum() *Request_Type {
@@ -61,20 +64,26 @@ func (x *Request_Type) UnmarshalJSON(data []byte) error {
 type Response_Type int32
 
 const (
-	Response_QUERY      Response_Type = 1
-	Response_WRITE_OK   Response_Type = 2
-	Response_END_STREAM Response_Type = 3
+	Response_QUERY                  Response_Type = 1
+	Response_WRITE_OK               Response_Type = 2
+	Response_END_STREAM             Response_Type = 3
+	Response_REPLICATION_REPLAY     Response_Type = 4
+	Response_REPLICATION_REPLAY_END Response_Type = 5
 )
 
 var Response_Type_name = map[int32]string{
 	1: "QUERY",
 	2: "WRITE_OK",
 	3: "END_STREAM",
+	4: "REPLICATION_REPLAY",
+	5: "REPLICATION_REPLAY_END",
 }
 var Response_Type_value = map[string]int32{
-	"QUERY":      1,
-	"WRITE_OK":   2,
-	"END_STREAM": 3,
+	"QUERY":                  1,
+	"WRITE_OK":               2,
+	"END_STREAM":             3,
+	"REPLICATION_REPLAY":     4,
+	"REPLICATION_REPLAY_END": 5,
 }
 
 func (x Response_Type) Enum() *Response_Type {
@@ -235,17 +244,20 @@ func (m *Series) GetFields() []string {
 }
 
 type Request struct {
-	Id                   *uint32       `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
-	Type                 *Request_Type `protobuf:"varint,2,req,name=type,enum=protocol.Request_Type" json:"type,omitempty"`
-	Database             *string       `protobuf:"bytes,3,req,name=database" json:"database,omitempty"`
-	Series               *Series       `protobuf:"bytes,4,opt,name=series" json:"series,omitempty"`
-	SequenceNumber       *uint64       `protobuf:"varint,5,opt,name=sequenceNumber" json:"sequenceNumber,omitempty"`
-	OriginatingServerId  *uint32       `protobuf:"varint,6,opt,name=originatingServerId" json:"originatingServerId,omitempty"`
-	ClusterVersion       *uint32       `protobuf:"varint,10,opt,name=clusterVersion" json:"clusterVersion,omitempty"`
-	Query                *string       `protobuf:"bytes,7,opt,name=query" json:"query,omitempty"`
-	UserName             *string       `protobuf:"bytes,8,opt,name=userName" json:"userName,omitempty"`
-	RingLocationsToQuery *uint32       `protobuf:"varint,9,opt,name=ringLocationsToQuery" json:"ringLocationsToQuery,omitempty"`
-	XXX_unrecognized     []byte        `json:"-"`
+	Id                      *uint32       `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
+	Type                    *Request_Type `protobuf:"varint,2,req,name=type,enum=protocol.Request_Type" json:"type,omitempty"`
+	Database                *string       `protobuf:"bytes,3,req,name=database" json:"database,omitempty"`
+	Series                  *Series       `protobuf:"bytes,4,opt,name=series" json:"series,omitempty"`
+	SequenceNumber          *uint64       `protobuf:"varint,5,opt,name=sequence_number" json:"sequence_number,omitempty"`
+	OriginatingServerId     *uint32       `protobuf:"varint,6,opt,name=originating_server_id" json:"originating_server_id,omitempty"`
+	ClusterVersion          *uint32       `protobuf:"varint,10,opt,name=cluster_version" json:"cluster_version,omitempty"`
+	Query                   *string       `protobuf:"bytes,7,opt,name=query" json:"query,omitempty"`
+	UserName                *string       `protobuf:"bytes,8,opt,name=user_name" json:"user_name,omitempty"`
+	RingLocationsToQuery    *uint32       `protobuf:"varint,9,opt,name=ring_locations_to_query" json:"ring_locations_to_query,omitempty"`
+	ReplicationFactor       *uint32       `protobuf:"varint,16,opt,name=replication_factor" json:"replication_factor,omitempty"`
+	OwnerServerId           *uint32       `protobuf:"varint,17,opt,name=owner_server_id" json:"owner_server_id,omitempty"`
+	LastKnownSequenceNumber *uint64       `protobuf:"varint,18,opt,name=last_known_sequence_number" json:"last_known_sequence_number,omitempty"`
+	XXX_unrecognized        []byte        `json:"-"`
 }
 
 func (m *Request) Reset()         { *m = Request{} }
@@ -322,6 +334,27 @@ func (m *Request) GetRingLocationsToQuery() uint32 {
 	return 0
 }
 
+func (m *Request) GetReplicationFactor() uint32 {
+	if m != nil && m.ReplicationFactor != nil {
+		return *m.ReplicationFactor
+	}
+	return 0
+}
+
+func (m *Request) GetOwnerServerId() uint32 {
+	if m != nil && m.OwnerServerId != nil {
+		return *m.OwnerServerId
+	}
+	return 0
+}
+
+func (m *Request) GetLastKnownSequenceNumber() uint64 {
+	if m != nil && m.LastKnownSequenceNumber != nil {
+		return *m.LastKnownSequenceNumber
+	}
+	return 0
+}
+
 type Response struct {
 	Type             *Response_Type      `protobuf:"varint,1,req,name=type,enum=protocol.Response_Type" json:"type,omitempty"`
 	RequestId        *uint32             `protobuf:"varint,2,req,name=request_id" json:"request_id,omitempty"`
@@ -329,6 +362,7 @@ type Response struct {
 	ErrorCode        *Response_ErrorCode `protobuf:"varint,4,opt,name=error_code,enum=protocol.Response_ErrorCode" json:"error_code,omitempty"`
 	ErrorMessage     *string             `protobuf:"bytes,5,opt,name=error_message" json:"error_message,omitempty"`
 	NextPointTime    *int64              `protobuf:"varint,6,opt,name=nextPointTime" json:"nextPointTime,omitempty"`
+	Request          *Request            `protobuf:"bytes,7,opt,name=request" json:"request,omitempty"`
 	XXX_unrecognized []byte              `json:"-"`
 }
 
@@ -376,6 +410,13 @@ func (m *Response) GetNextPointTime() int64 {
 		return *m.NextPointTime
 	}
 	return 0
+}
+
+func (m *Response) GetRequest() *Request {
+	if m != nil {
+		return m.Request
+	}
+	return nil
 }
 
 func init() {

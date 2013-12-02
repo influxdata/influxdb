@@ -32,6 +32,7 @@ const (
 	IS_RECONNECTING        = uint32(1)
 	IS_CONNECTED           = uint32(0)
 	MAX_REQUEST_TIME       = time.Second * 1200
+	RECONNECT_RETRY_WAIT   = time.Millisecond * 100
 )
 
 func NewProtobufClient(hostAndPort string) *ProtobufClient {
@@ -51,6 +52,9 @@ func (self *ProtobufClient) Close() {
 	}
 }
 
+// Makes a request to the server. If the responseStream chan is not nil it will expect a response from the server
+// with a matching request.Id. The REQUEST_RETRY_ATTEMPTS constant of 3 and the RECONNECT_RETRY_WAIT of 100ms means
+// that an attempt to make a request to a downed server will take 300ms to time out.
 func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
 	if responseStream != nil {
 		self.requestBufferLock.Lock()
@@ -72,18 +76,21 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 
 	// retry sending this at least a few times
 	for attempts := 0; attempts < REQUEST_RETRY_ATTEMPTS; attempts++ {
-		err = binary.Write(self.conn, binary.LittleEndian, uint32(len(data)))
-		if err == nil {
-			_, err = self.conn.Write(data)
-			if err == nil {
-				return nil
-			}
+		if self.conn == nil {
+			self.reconnect()
 		} else {
+			err = binary.Write(self.conn, binary.LittleEndian, uint32(len(data)))
+			if err == nil {
+				_, err = self.conn.Write(data)
+				if err == nil {
+					return nil
+				}
+			}
 			log.Println("ProtobufClient: error making request: ", err)
+			// TODO: do something smarter here based on whatever the error is.
+			// failed to make the request, reconnect and try again.
+			self.reconnect()
 		}
-		// TODO: do something smarter here based on whatever the error is.
-		// failed to make the request, reconnect and try again.
-		self.reconnect()
 	}
 
 	// if we got here it errored out, clear out the request
@@ -97,24 +104,23 @@ func (self *ProtobufClient) readResponses() {
 	message := make([]byte, 0, MAX_RESPONSE_SIZE)
 	buff := bytes.NewBuffer(message)
 	for {
-		var messageSizeU uint32
-		if err := binary.Read(self.conn, binary.LittleEndian, &messageSizeU); err == nil {
-			messageSize := int64(messageSizeU)
-			messageReader := io.LimitReader(self.conn, messageSize)
-			if _, err := io.Copy(buff, messageReader); err == nil {
-				response, err := protocol.DecodeResponse(buff)
-				if err != nil {
-					log.Println("ProtobufClient: error unmarshaling response: ", err)
-				} else {
-					self.sendResponse(response)
-				}
-			} else {
-				// TODO: do something smarter based on the error
-				self.reconnect()
-			}
-		} else {
-			// TODO: do something smarter based on the error
+		if self.conn == nil {
 			self.reconnect()
+		} else {
+			var messageSizeU uint32
+			var err error
+			if err = binary.Read(self.conn, binary.LittleEndian, &messageSizeU); err == nil {
+				messageSize := int64(messageSizeU)
+				messageReader := io.LimitReader(self.conn, messageSize)
+				if _, err = io.Copy(buff, messageReader); err == nil {
+					response, err := protocol.DecodeResponse(buff)
+					if err != nil {
+						log.Println("ProtobufClient: error unmarshaling response: ", err)
+					} else {
+						self.sendResponse(response)
+					}
+				}
+			}
 		}
 		buff.Reset()
 	}
@@ -146,23 +152,17 @@ func (self *ProtobufClient) reconnect() {
 	self.reconnectWait.Add(1)
 
 	self.Close()
-	attempts := 0
-	for {
-		attempts++
-		conn, err := net.Dial("tcp", self.hostAndPort)
-		if err == nil {
-			self.conn = conn
-			log.Println("ProtobufClient: connected to ", self.hostAndPort)
-			self.connectionStatus = IS_CONNECTED
-			self.reconnectWait.Done()
-			return
-		} else {
-			if attempts%100 == 0 {
-				log.Println("ProtobufClient: failed to connect to ", self.hostAndPort, " after 10 seconds. Continuing to retry...")
-			}
-			time.Sleep(time.Millisecond * 100)
-		}
+	conn, err := net.Dial("tcp", self.hostAndPort)
+	if err == nil {
+		self.conn = conn
+		log.Println("ProtobufClient: connected to ", self.hostAndPort)
+	} else {
+		log.Println("ProtobufClient: failed to connect to ", self.hostAndPort)
+		time.Sleep(RECONNECT_RETRY_WAIT)
 	}
+	self.connectionStatus = IS_CONNECTED
+	self.reconnectWait.Done()
+	return
 }
 
 func (self *ProtobufClient) peridicallySweepTimedOutRequests() {

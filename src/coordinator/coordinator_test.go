@@ -56,7 +56,7 @@ func (self *DatastoreMock) DropDatabase(database string) error {
 	return nil
 }
 
-func (self *DatastoreMock) LogRequestAndAssignSequenceNumber(request *protocol.Request, clusterVersion, ownerServerId, serverId *uint32) error {
+func (self *DatastoreMock) LogRequestAndAssignSequenceNumber(request *protocol.Request, replicationFactor *uint8, ownerServerId *uint32) error {
 	id := uint64(1)
 	request.SequenceNumber = &id
 	return nil

@@ -107,10 +107,12 @@ func (self *HttpServer) Serve(listener net.Listener) {
 }
 
 func (self *HttpServer) Close() {
-	log.Info("Closing http server")
-	self.conn.Close()
-	log.Info("Waiting for all requests to finish before killing the process")
-	<-self.shutdown
+	if self.conn != nil {
+		log.Info("Closing http server")
+		self.conn.Close()
+		log.Info("Waiting for all requests to finish before killing the process")
+		<-self.shutdown
+	}
 }
 
 type Writer interface {

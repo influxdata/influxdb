@@ -79,6 +79,15 @@ func (self *ClusterConfiguration) GetServerByRaftName(name string) *ClusterServe
 	return nil
 }
 
+func (self *ClusterConfiguration) GetServerById(id *uint32) *ClusterServer {
+	for _, server := range self.servers {
+		if server.Id == *id {
+			return server
+		}
+	}
+	return nil
+}
+
 type serverToQuery struct {
 	server               *ClusterServer
 	ringLocationsToQuery uint32

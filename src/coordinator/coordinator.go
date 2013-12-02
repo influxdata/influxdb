@@ -9,6 +9,7 @@ import (
 	"math"
 	"parser"
 	"protocol"
+	"sync"
 	"sync/atomic"
 )
 
@@ -18,9 +19,12 @@ type CoordinatorImpl struct {
 	datastore            datastore.Datastore
 	localHostId          uint32
 	requestId            uint32
+	runningReplays       map[string]bool
+	runningReplaysLock   sync.Mutex
 }
 
 var proxyWrite = protocol.Request_PROXY_WRITE
+var replayReplication = protocol.Request_REPLICATION_REPLAY
 
 // this is the key used for the persistent atomic ints for sequence numbers
 const POINT_SEQUENCE_NUMBER_KEY = "p"
@@ -38,6 +42,7 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
 		datastore:            datastore,
+		runningReplays:       make(map[string]bool),
 	}
 }
 
@@ -294,6 +299,47 @@ func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *p
 	return nil
 }
 
+func (self *CoordinatorImpl) ReplayReplication(replicationFactor *uint8, clusterVersion, originatingServerId, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
+	key := fmt.Sprintf("%d_%d_%d_%d", *replicationFactor, *clusterVersion, *originatingServerId, *owningServerId)
+	self.runningReplaysLock.Lock()
+	isReplaying := self.runningReplays[key]
+	if isReplaying {
+		self.runningReplaysLock.Unlock()
+		return
+	}
+	self.runningReplays[key] = true
+	self.runningReplaysLock.Unlock()
+	id := atomic.AddUint32(&self.requestId, uint32(1))
+	replicationFactor32 := uint32(*replicationFactor)
+	request := &protocol.Request{
+		Id:                      &id,
+		Type:                    &replayReplication,
+		ReplicationFactor:       &replicationFactor32,
+		OriginatingServerId:     originatingServerId,
+		OwnerServerId:           owningServerId,
+		ClusterVersion:          clusterVersion,
+		LastKnownSequenceNumber: lastSeenSequenceNumber}
+	replayedRequests := make(chan *protocol.Response, 100)
+	server := self.clusterConfiguration.GetServerById(originatingServerId)
+	server.protobufClient.MakeRequest(request, replayedRequests)
+	for {
+		response := <-replayedRequests
+		if response == nil || *response.Type == protocol.Response_REPLICATION_REPLAY_END {
+			log.Info("Replay done for originating server %d and owner server %d", *originatingServerId, *owningServerId)
+			return
+		}
+		request := response.Request
+		fmt.Println("REPLAY: ", request)
+		// TODO: make request logging and datastore write atomic
+		err := self.datastore.LogRequestAndAssignSequenceNumber(request, replicationFactor, owningServerId)
+		if err != nil {
+			log.Error("ERROR writing replay: ", err)
+		} else {
+			self.datastore.WriteSeriesData(*request.Database, request.Series)
+		}
+	}
+}
+
 func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series *protocol.Series) error {
 	if !user.HasWriteAccess(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
@@ -375,7 +421,10 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 			// TODO: make storing of the data and logging of the request atomic
 			id := atomic.AddUint32(&self.requestId, uint32(1))
 			request := &protocol.Request{Type: &proxyWrite, Database: db, Series: series, Id: &id}
-			err := self.datastore.LogRequestAndAssignSequenceNumber(request, &self.clusterConfiguration.ClusterVersion, &owner.Id, &self.localHostId)
+			request.OriginatingServerId = &self.localHostId
+			request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
+			replicationFactor := self.clusterConfiguration.GetReplicationFactor(db)
+			err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
 			if err != nil {
 				return self.proxyUntilSuccess(servers, db, series)
 			}
@@ -412,6 +461,7 @@ func (self *CoordinatorImpl) proxyUntilSuccess(servers []*ClusterServer, db *str
 func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, db *string, series *protocol.Series) error {
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	request := &protocol.Request{Database: db, Type: &proxyWrite, Series: series, Id: &id}
+	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
 	responseChan := make(chan *protocol.Response, 1)
 	clusterServer.protobufClient.MakeRequest(request, responseChan)
 	response := <-responseChan

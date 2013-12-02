@@ -18,18 +18,24 @@ type ProtobufRequestHandler struct {
 	writeOk       protocol.Response_Type
 }
 
+var replayReplicationEnd = protocol.Response_REPLICATION_REPLAY_END
+var responseReplicationReplay = protocol.Response_REPLICATION_REPLAY
+
 func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, clusterConfig *ClusterConfiguration) *ProtobufRequestHandler {
 	return &ProtobufRequestHandler{db: db, coordinator: coordinator, writeOk: protocol.Response_WRITE_OK, clusterConfig: clusterConfig}
 }
 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
+	log.Println("GOT REQUEST: ", self.clusterConfig.localServerId, request)
 	if *request.Type == protocol.Request_PROXY_WRITE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
 		location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
 		ownerId := self.clusterConfig.GetOwnerIdByLocation(&location)
+		request.OriginatingServerId = &self.clusterConfig.localServerId
 		// TODO: make request logging and datastore write atomic
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &self.clusterConfig.ClusterVersion, ownerId, &self.clusterConfig.localServerId)
+		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
+		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, ownerId)
 		if err != nil {
 			return err
 		}
@@ -49,10 +55,17 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		// TODO: log replication writes so the can be retrieved from other servers
 		location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
 		ownerId := self.clusterConfig.GetOwnerIdByLocation(&location)
+		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
 		// TODO: make request logging and datastore write atomic
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &self.clusterConfig.ClusterVersion, ownerId, &self.clusterConfig.localServerId)
+		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, ownerId)
 		if err != nil {
-			return err
+			switch err := err.(type) {
+			case datastore.SequenceMissingRequestsError:
+				go self.coordinator.ReplayReplication(&replicationFactor, request.ClusterVersion, request.OriginatingServerId, ownerId, &err.LastKnownRequestSequence)
+				return nil
+			default:
+				return err
+			}
 		}
 		self.db.WriteSeriesData(*request.Database, request.Series)
 		return nil
@@ -60,11 +73,33 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 
 	} else if *request.Type == protocol.Request_QUERY {
 		go self.handleQuery(request, conn)
+	} else if *request.Type == protocol.Request_REPLICATION_REPLAY {
+		self.handleReplay(request, conn)
 	} else {
 		log.Println("unknown request type: ", request)
 		return errors.New("Unknown request type")
 	}
 	return nil
+}
+
+func (self *ProtobufRequestHandler) handleReplay(request *protocol.Request, conn net.Conn) {
+	sendRequest := func(loggedRequest *protocol.Request) error {
+		var response *protocol.Response
+		if loggedRequest != nil {
+			response = &protocol.Response{Type: &responseReplicationReplay, Request: request, RequestId: request.Id}
+		} else {
+			response = &protocol.Response{Type: &replayReplicationEnd, RequestId: request.Id}
+		}
+		return self.WriteResponse(conn, response)
+	}
+	replicationFactor8 := uint8(*request.ReplicationFactor)
+	self.db.ReplayRequestsFromSequenceNumber(
+		request.ClusterVersion,
+		request.OriginatingServerId,
+		request.OwnerServerId,
+		&replicationFactor8,
+		request.LastKnownSequenceNumber,
+		sendRequest)
 }
 
 func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn net.Conn) {

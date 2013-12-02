@@ -20,6 +20,7 @@ type Server struct {
 	AdminServer    *admin.HttpServer
 	Coordinator    coordinator.Coordinator
 	Config         *configuration.Configuration
+	stopped        bool
 }
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
@@ -75,6 +76,10 @@ func (self *Server) ListenAndServe() error {
 }
 
 func (self *Server) Stop() {
+	if self.stopped {
+		return
+	}
+	self.stopped = true
 	self.RaftServer.Close()
 	self.Db.Close()
 	self.HttpApi.Close()

@@ -251,3 +251,126 @@ func (self *ServerSuite) TestCrossClusterQueries(c *C) {
 		c.Assert(val, Equals, float64(11))
 	}
 }
+
+func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
+	fmt.Println("START_____________________________________________________")
+	servers := self.servers
+
+	err := servers[0].RaftServer.CreateDatabase("full_rep", uint8(3))
+	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 10)
+	_, err = self.postToServer(self.servers[0], "/db/full_rep/users?u=root&p=root", `{"username": "paul", "password": "pass"}`, c)
+	c.Assert(err, IsNil)
+
+	// write data and confirm that it went to all three servers
+	data := `
+  [{
+    "points": [
+        [1]
+    ],
+    "name": "test_failure_replays",
+    "columns": ["val"]
+  }]`
+	resp, _ := self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 10)
+
+	countWithPoint := 0
+	user := &MockUser{}
+	for _, server := range servers {
+		results := executeQuery(user, "full_rep", "select sum(val) from test_failure_replays;", server.Db, c)
+		pointCount := 0
+		for _, series := range results {
+			if *series.Name == "test_failure_replays" {
+				if len(series.Points) > 0 {
+					pointCount += 1
+				}
+			} else {
+				c.Error(fmt.Sprintf("Got a series in the query we didn't expect: %s", *series.Name))
+			}
+		}
+		if pointCount > 0 {
+			countWithPoint += 1
+		}
+	}
+	c.Assert(countWithPoint, Equals, 3)
+
+	// kill a server, write data
+	killedConfig := servers[1].Config
+	fmt.Println("STOPPING SERVER")
+	servers[1].Stop()
+	time.Sleep(time.Second)
+	// TODO: make the admin server actually close so we don't have to go to a new port
+	killedConfig.AdminHttpPort = 8110
+
+	data = `
+	[{
+		"points": [[2]],
+		"name": "test_failure_replays",
+		"columns": ["val"]
+	}]
+	`
+	fmt.Println("WRITING NEW DATA")
+	resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 10)
+
+	fmt.Println("BRINGING SERVER BACK UP")
+	// now bring the server back up and make sure that it only has the old data. replays get triggered on write
+	server, err := NewServer(killedConfig)
+	if err != nil {
+		c.Error(err)
+	}
+	go func() {
+		err := server.ListenAndServe()
+		if err != nil {
+			c.Error(err)
+		}
+	}()
+	time.Sleep(time.Millisecond * 50)
+	servers[1] = server
+
+	getSum := func(db datastore.Datastore) int64 {
+		results := executeQuery(user, "full_rep", "select * from test_failure_replays;", db, c)
+		sum := int64(0)
+		for _, series := range results {
+			fmt.Println("SERIES: ", series)
+			if *series.Name == "test_failure_replays" {
+				for _, point := range series.Points {
+					sum += *point.Values[0].Int64Value
+				}
+			}
+		}
+		return sum
+	}
+	c.Assert(getSum(servers[0].Db), Equals, int64(3))
+	c.Assert(getSum(servers[1].Db), Equals, int64(1))
+	c.Assert(getSum(servers[2].Db), Equals, int64(3))
+
+	data = `
+	[{
+		"points": [[3]],
+		"name": "test_failure_replays",
+		"columns": ["val"]
+	}]
+	`
+	fmt.Println("WRITING NEW DATA")
+	resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+
+	data = `
+	[{
+		"points": [[4]],
+		"name": "test_failure_replays",
+		"columns": ["val"]
+	}]
+	`
+	fmt.Println("WRITING NEW DATA")
+	resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+
+	time.Sleep(time.Millisecond * 10)
+	c.Assert(getSum(servers[0].Db), Equals, int64(10))
+	c.Assert(getSum(servers[1].Db), Equals, int64(10))
+	c.Assert(getSum(servers[2].Db), Equals, int64(10))
+}

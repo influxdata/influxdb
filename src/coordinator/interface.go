@@ -22,6 +22,7 @@ type Coordinator interface {
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ListDatabases(user common.User) ([]*Database, error)
 	ReplicateWrite(request *protocol.Request) error
+	ReplayReplication(replicationFactor *uint8, clusterVersion, originatingServerId, owningServerId *uint32, lastSeenSequenceNumber *uint64)
 }
 
 type UserManager interface {
