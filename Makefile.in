@@ -119,7 +119,7 @@ protobuf:
 parser:
 	$(MAKE) -C src/parser
 
-build: dependencies protobuf parser
+build: | dependencies protobuf parser
 # TODO: build all packages, otherwise we won't know
 # if there's an error
 	$(GO) build server
