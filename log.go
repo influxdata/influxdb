@@ -573,7 +573,8 @@ func (l *Log) compact(index uint64, term uint64) error {
 	}
 
 	// create a new log file and add all the entries
-	file, err := os.OpenFile(l.path+".new", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	new_file_path := l.path + ".new"
+	file, err := os.OpenFile(new_file_path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -582,24 +583,26 @@ func (l *Log) compact(index uint64, term uint64) error {
 		entry.Position = position
 
 		if _, err = entry.encode(file); err != nil {
+			file.Close()
+			os.Remove(new_file_path)
 			return err
 		}
 	}
-	// close the current log file
-	l.file.Close()
+	file.Sync()
 
-	// remove the current log file to .bak
-	err = os.Remove(l.path)
-	if err != nil {
-		return err
-	}
+	old_file := l.file
 
 	// rename the new log file
-	err = os.Rename(l.path+".new", l.path)
+	err = os.Rename(new_file_path, l.path)
 	if err != nil {
+		file.Close()
+		os.Remove(new_file_path)
 		return err
 	}
 	l.file = file
+
+	// close the old log file
+	old_file.Close()
 
 	// compaction the in memory log
 	l.entries = entries
