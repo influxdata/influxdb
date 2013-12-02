@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -364,14 +365,16 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 
 // test for issue #30
 func (self *IntegrationSuite) TestHttpPostWithTime(c *C) {
-	err := self.server.WriteData(`
-[
+	nineteenDaysInNanos := 19 * 24 * time.Hour
+	nineteenDaysAgo := time.Now().Add(-nineteenDaysInNanos).Unix()
+	frame := `[
   {
     "name": "test_post_with_time",
-    "columns": ["time", "val1", "val2"],
-    "points":[[1384118307, "v1", 2]]
+    "columns": ["time", "val1", "val2"], 
+    "points":[[` + strconv.FormatInt(nineteenDaysAgo, 10) + `, "v1", 2]]
   }
-]`, "time_precision=s")
+]`
+	err := self.server.WriteData(frame, "time_precision=s")
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select * from test_post_with_time where time > now() - 20d")
 	c.Assert(err, IsNil)
