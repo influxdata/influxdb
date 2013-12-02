@@ -84,18 +84,19 @@ ifeq ($(uname_S),Linux)
 	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' make"
 endif
 
+levigo_dependency = github.com/jmhodges/levigo
+proto_dependency  = code.google.com/p/goprotobuf/protoc-gen-go
+
 dependencies = code.google.com/p/go.crypto/bcrypt \
 code.google.com/p/goprotobuf/proto \
-code.google.com/p/goprotobuf/protoc-gen-go \
 code.google.com/p/log4go \
 github.com/bmizerany/pat \
 github.com/fitstar/falcore \
 github.com/fitstar/falcore/filter \
 github.com/gorilla/mux \
 github.com/influxdb/raft \
-github.com/pmylund/go-cache
-
-levigo_dependency = github.com/jmhodges/levigo
+github.com/pmylund/go-cache \
+$(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
 
@@ -105,7 +106,7 @@ src/$(levigo_dependency):
 
 
 $(dependencies_paths):
-	for i in $(dependencies); do $(GO) get $$i; done
+	for i in $(dependencies); do $(GO) get -d $$i; done
 
 dependencies: src/$(levigo_dependency) $(dependencies_paths) $(leveldb_deps) $(snappy_deps)
 
@@ -113,6 +114,7 @@ test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck
 
 protobuf:
+	$(GO) get $(proto_dependency)
 	rm -f src/protocol/*.pb.go
 	PATH=$$PWD/bin:$$PATH $(PROTOC) --go_out=. src/protocol/*.proto
 
