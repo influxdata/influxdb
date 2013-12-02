@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	. "launchpad.net/gocheck"
 	"testing"
 	"time"
@@ -415,6 +416,19 @@ func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *
 	value, ok = rightExpression.Right.GetLeftValue()
 	c.Assert(ok, Equals, true)
 	c.Assert(value.Name, Equals, "3")
+}
+
+func (self *QueryParserSuite) TestTimeConditionWithFloats(c *C) {
+	var startTime int64 = 13853965
+	for _, query := range []string{
+		fmt.Sprintf("select * from foo where time > %d000000000.0", startTime),
+		fmt.Sprintf("select * from foo where time > %ds", startTime),
+		fmt.Sprintf("select * from foo where time > %d.0s", startTime),
+	} {
+		q, err := ParseQuery(query)
+		c.Assert(err, IsNil)
+		c.Assert(q.GetStartTime(), Equals, time.Unix(startTime, 0))
+	}
 }
 
 // TODO:

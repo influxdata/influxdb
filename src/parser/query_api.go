@@ -179,34 +179,36 @@ func parseTime(expr *Expression) (int64, error) {
 
 		name := value.Name
 
-		parsedInt, err := strconv.ParseInt(name[:len(name)-1], 10, 64)
+		parsedFloat, err := strconv.ParseFloat(name[:len(name)-1], 64)
 		if err != nil {
 			return 0, err
 		}
 
 		switch name[len(name)-1] {
 		case 'u':
-			return parsedInt * int64(time.Microsecond), nil
+			return int64(parsedFloat * float64(time.Microsecond)), nil
 		case 's':
-			return parsedInt * int64(time.Second), nil
+			return int64(parsedFloat * float64(time.Second)), nil
 		case 'm':
-			return parsedInt * int64(time.Minute), nil
+			return int64(parsedFloat * float64(time.Minute)), nil
 		case 'h':
-			return parsedInt * int64(time.Hour), nil
+			return int64(parsedFloat * float64(time.Hour)), nil
 		case 'd':
-			return parsedInt * 24 * int64(time.Hour), nil
+			return int64(parsedFloat * 24 * float64(time.Hour)), nil
 		case 'w':
-			return parsedInt * 7 * 24 * int64(time.Hour), nil
+			return int64(parsedFloat * 7 * 24 * float64(time.Hour)), nil
 		}
 
 		lastChar := name[len(name)-1]
-		if !unicode.IsDigit(rune(lastChar)) {
+		if !unicode.IsDigit(rune(lastChar)) && lastChar != '.' {
 			return 0, fmt.Errorf("Invalid character '%c'", lastChar)
 		}
 
-		extraDigit := int64(lastChar - '0')
-		parsedInt = parsedInt*10 + extraDigit
-		return int64(parsedInt), err
+		if name[len(name)-2] != '.' {
+			extraDigit := float64(lastChar - '0')
+			parsedFloat = parsedFloat*10 + extraDigit
+		}
+		return int64(parsedFloat), nil
 	}
 
 	leftExpression, _ := expr.GetLeftExpression()
@@ -283,6 +285,15 @@ func getReferencedColumnsFromCondition(condition *WhereCondition, mapping map[st
 	return
 }
 
+func isNumericValue(value *Value) bool {
+	switch value.Type {
+	case ValueDuration, ValueFloat, ValueInt:
+		return true
+	default:
+		return false
+	}
+}
+
 // parse the start time or end time from the where conditions and return the new condition
 // without the time clauses, or nil if there are no where conditions left
 func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereCondition, time.Time, error) {
@@ -293,6 +304,17 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 	if expr, ok := condition.GetBoolExpression(); ok {
 		leftValue, isLeftValue := expr.Left.GetLeftValue()
 		rightValue, isRightValue := expr.Right.GetLeftValue()
+
+		// this can only be the case if the where condition
+		// is of the form `"time" > 123456789`, so let's see
+		// which side is a float value
+		if isLeftValue && isRightValue {
+			if isNumericValue(rightValue) {
+				isRightValue = false
+			} else {
+				isLeftValue = false
+			}
+		}
 
 		// if this expression isn't "time > xxx" or "xxx < time" then return
 		// TODO: we should do a check to make sure "time" doesn't show up in
@@ -307,11 +329,13 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 				return condition, ZERO_TIME, nil
 			}
 			timeExpression = expr.Right
-		} else {
+		} else if !isLeftValue {
 			if rightValue.Name != "time" {
 				return condition, ZERO_TIME, nil
 			}
 			timeExpression = expr.Left
+		} else {
+			return nil, ZERO_TIME, fmt.Errorf("Invalid time condition %v", condition)
 		}
 
 		switch expr.Operation {
