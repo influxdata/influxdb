@@ -132,6 +132,7 @@
 ## Features
 
 - [Issue #80](https://github.com/influxdb/influxdb/issues/80). Support durations when specifying start and end time
+- [Issue #81](https://github.com/influxdb/influxdb/issues/81). Add support for IN
 
 ## Bugfixes
 

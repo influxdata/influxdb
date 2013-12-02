@@ -165,8 +165,15 @@ func (self *Expression) GetLeftValue() (*Value, bool) {
 	return nil, false
 }
 
+func (self *Expression) GetLeftValues() ([]*Value, bool) {
+	if self.Operation == 1 {
+		return self.Left.([]*Value), true
+	}
+	return nil, false
+}
+
 func (self *Expression) GetLeftExpression() (*Expression, bool) {
-	if self.Operation != 0 {
+	if self.Operation > 1 {
 		return self.Left.(*Expression), true
 	}
 	return nil, false
@@ -271,6 +278,14 @@ func GetExpression(expr *C.expression) (*Expression, error) {
 	expression := &Expression{}
 	if expr.op == 0 {
 		value, err := GetValue((*C.value)(expr.left))
+		if err != nil {
+			return nil, err
+		}
+		expression.Left = value
+		expression.Operation = byte(expr.op)
+		expression.Right = nil
+	} else if expr.op == 1 {
+		value, err := GetValueArray((*C.value_array)(expr.left))
 		if err != nil {
 			return nil, err
 		}

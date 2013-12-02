@@ -10,6 +10,35 @@ type FilteringSuite struct{}
 
 var _ = Suite(&FilteringSuite{})
 
+func (self *FilteringSuite) TestInOperatorFiltering(c *C) {
+	queryStr := "select * from t where column_one in (100, 85);"
+	query, err := parser.ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+
+	series, err := common.StringToSeriesArray(`
+[
+ {
+   "points": [
+     {"values": [{"int64_value": 100},{"int64_value": 5 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int64_value": 85},{"int64_value": 6 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int64_value": 90 },{"int64_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
+   ],
+   "name": "t",
+   "fields": ["column_one", "column_two"]
+ }
+]
+`)
+	c.Assert(err, IsNil)
+	result, err := Filter(query, series[0])
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Assert(result.Points, HasLen, 2)
+	c.Assert(*result.Points[0].Values[0].Int64Value, Equals, int64(100))
+	c.Assert(*result.Points[0].Values[1].Int64Value, Equals, int64(5))
+	c.Assert(*result.Points[1].Values[0].Int64Value, Equals, int64(85))
+	c.Assert(*result.Points[1].Values[1].Int64Value, Equals, int64(6))
+}
+
 func (self *FilteringSuite) TestEqualityFiltering(c *C) {
 	queryStr := "select * from t where column_one == 100 and column_two != 6;"
 	query, err := parser.ParseQuery(queryStr)

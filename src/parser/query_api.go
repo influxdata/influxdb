@@ -262,8 +262,18 @@ func getReferencedColumnsFromExpression(expr *Expression, mapping map[string][]s
 		return
 	}
 
-	value, _ := expr.GetLeftValue()
-	notAssigned = append(notAssigned, getReferencedColumnsFromValue(value, mapping)...)
+	values, ok := expr.GetLeftValues()
+	if !ok {
+		value, ok := expr.GetLeftValue()
+		if ok {
+			values = []*Value{value}
+		}
+	}
+
+	for _, v := range values {
+		notAssigned = append(notAssigned, getReferencedColumnsFromValue(v, mapping)...)
+	}
+
 	return
 }
 

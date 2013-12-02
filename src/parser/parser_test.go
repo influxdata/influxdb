@@ -431,6 +431,23 @@ func (self *QueryParserSuite) TestTimeConditionWithFloats(c *C) {
 	}
 }
 
+func (self *QueryParserSuite) TestQureyWithInCondition(c *C) {
+	query := "select * from foo where bar in ('baz', 'bazz')"
+	q, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+	condition := q.GetWhereCondition()
+	expr, ok := condition.GetBoolExpression()
+	c.Assert(ok, Equals, true)
+	left, _ := expr.Left.GetLeftValue()
+	c.Assert(expr.Operation, Equals, "in")
+	right, ok := expr.Right.GetLeftValues()
+	c.Assert(ok, Equals, true)
+	c.Assert(left.Name, Equals, "bar")
+	c.Assert(right, HasLen, 2)
+	c.Assert(right[0].Name, Equals, "baz")
+	c.Assert(right[1].Name, Equals, "bazz")
+}
+
 // TODO:
 // insert into user.events.count.per_day select count(*) from user.events where time<forever group by time(1d)
 // insert into :series_name.percentiles.95 select percentile(95,value) from stats.* where time<forever group by time(1d)

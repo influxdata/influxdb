@@ -33,6 +33,7 @@ static int yycolumn = 1;
 "limit"                   { return LIMIT; }
 "order"                   { return ORDER; }
 "asc"                     { return ASC; }
+"in"                      { yylval->string = strdup(yytext); return OPERATION_IN; }
 "desc"                    { return DESC; }
 "group"                   { return GROUP; }
 "by"                      { return BY; }
@@ -66,7 +67,7 @@ static int yycolumn = 1;
 
 [a-zA-Z][a-zA-Z0-9._-]*   { yylval->string = strdup(yytext); return TABLE_NAME; }
 
-\'.*\'                    {
+\'[^\']*\'                    {
   yytext[yyleng-1] = '\0';
   yylval->string = strdup(yytext+1);
   return STRING_VALUE;

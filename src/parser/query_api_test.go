@@ -65,6 +65,18 @@ func (self *QueryApiSuite) TestGetReferencedColumns(c *C) {
 	}
 }
 
+func (self *QueryApiSuite) TestGetReferencedColumnsWithInClause(c *C) {
+	queryStr := "select value1, sum(value2) from t where value In (90.0, 100.0) group by value3;"
+	query, err := ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+	columns := query.GetReferencedColumns()
+	c.Assert(columns, HasLen, 1)
+	for v, columns := range columns {
+		c.Assert(columns, DeepEquals, []string{"value", "value1", "value2", "value3"})
+		c.Assert(v.Name, Equals, "t")
+	}
+}
+
 func (self *QueryApiSuite) TestGetReferencedColumnsReturnsTheStarAsAColumn(c *C) {
 	queryStr := "select * from events;"
 	query, err := ParseQuery(queryStr)

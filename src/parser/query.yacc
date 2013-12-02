@@ -66,7 +66,7 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
 // define the precedence of these operators
 %left  OR
 %left  AND
-%nonassoc <string> OPERATION_EQUAL OPERATION_NE OPERATION_GT OPERATION_LT OPERATION_LE OPERATION_GE
+%nonassoc <string> OPERATION_EQUAL OPERATION_NE OPERATION_GT OPERATION_LT OPERATION_LE OPERATION_GE OPERATION_IN
 %left  <character> '+' '-'
 %left  <character> '*' '/'
 
@@ -406,6 +406,17 @@ BOOL_EXPRESSION:
           $$->left = $1;
           $$->op = $2;
           $$->right = $3;
+        }
+        |
+        EXPRESSION OPERATION_IN '(' VALUES ')'
+        {
+          $$ = malloc(sizeof(bool_expression));
+          $$->left = $1;
+          $$->op = $2;
+          $$->right = malloc(sizeof(expression));
+          $$->right->left = $4;
+          $$->right->op = '\1';
+          $$->right->right = NULL;
         }
         |
         EXPRESSION REGEX_OP REGEX_VALUE

@@ -1,29 +1,42 @@
 package datastore
 
 import (
+	"fmt"
 	"protocol"
 	"regexp"
 )
 
-type BooleanOperation func(leftValue, rightValue *protocol.FieldValue) (bool, error)
+type oldBooleanOperation func(leftValue, rightValues *protocol.FieldValue) (bool, error)
+type BooleanOperation func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (bool, error)
+
+func wrapOldBooleanOperation(operation oldBooleanOperation) BooleanOperation {
+	return func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (bool, error) {
+		if len(rightValues) != 1 {
+			return false, fmt.Errorf("Expected one value on the right side")
+		}
+
+		return operation(leftValue, rightValues[0])
+	}
+}
 
 var (
 	registeredOperators = map[string]BooleanOperation{}
 )
 
 func init() {
-	registeredOperators["=="] = EqualityOperator
-	registeredOperators["!="] = not(EqualityOperator)
-	registeredOperators[">="] = GreaterThanOrEqualOperator
-	registeredOperators[">"] = GreaterThanOperator
-	registeredOperators["<"] = not(GreaterThanOrEqualOperator)
-	registeredOperators["<="] = not(GreaterThanOperator)
-	registeredOperators["=~"] = RegexMatcherOperator
-	registeredOperators["!~"] = not(RegexMatcherOperator)
+	registeredOperators["=="] = wrapOldBooleanOperation(EqualityOperator)
+	registeredOperators["!="] = not(wrapOldBooleanOperation(EqualityOperator))
+	registeredOperators[">="] = wrapOldBooleanOperation(GreaterThanOrEqualOperator)
+	registeredOperators[">"] = wrapOldBooleanOperation(GreaterThanOperator)
+	registeredOperators["<"] = not(wrapOldBooleanOperation(GreaterThanOrEqualOperator))
+	registeredOperators["<="] = not(wrapOldBooleanOperation(GreaterThanOperator))
+	registeredOperators["=~"] = wrapOldBooleanOperation(RegexMatcherOperator)
+	registeredOperators["!~"] = not(wrapOldBooleanOperation(RegexMatcherOperator))
+	registeredOperators["in"] = InOperator
 }
 
 func not(op BooleanOperation) BooleanOperation {
-	return func(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+	return func(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (bool, error) {
 		ok, err := op(leftValue, rightValue)
 		return !ok, err
 	}
@@ -134,4 +147,31 @@ func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (bool, erro
 	default:
 		return false, nil
 	}
+}
+
+func InOperator(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (bool, error) {
+	for _, v := range rightValue {
+		v1, v2, cType := coerceValues(leftValue, v)
+
+		var result bool
+
+		switch cType {
+		case TYPE_STRING:
+			result = v1.(string) == v2.(string)
+		case TYPE_INT:
+			result = v1.(int64) == v2.(int64)
+		case TYPE_DOUBLE:
+			result = v1.(float64) == v2.(float64)
+		case TYPE_BOOL:
+			result = v1.(bool) == v2.(bool)
+		default:
+			result = false
+		}
+
+		if result {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

@@ -305,6 +305,31 @@ func (self *IntegrationSuite) TestFilterWithLimit(c *C) {
 	c.Assert(data[0].Points, HasLen, 1)
 }
 
+// issue #81
+func (self *IntegrationSuite) TestFilterWithInClause(c *C) {
+	for i := 0; i < 3; i++ {
+		err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_in_clause",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10))
+		c.Assert(err, IsNil)
+		time.Sleep(1 * time.Second)
+	}
+	bs, err := self.server.RunQuery("select host, cpu from test_in_clause where host in ('hostb') order asc limit 1")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Name, Equals, "test_in_clause")
+	c.Assert(data[0].Columns, HasLen, 4)
+	c.Assert(data[0].Points, HasLen, 1)
+}
+
 // issue #36
 func (self *IntegrationSuite) TestInnerJoin(c *C) {
 	for i := 0; i < 3; i++ {
