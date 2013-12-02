@@ -9,8 +9,8 @@ message FieldValue {
 
 message Point {
   repeated FieldValue values = 1;
-  required int64 timestamp = 2;
-  required uint32 sequence_number = 3;
+  optional int64 timestamp = 2;
+  optional uint64 sequence_number = 3;
 }
 
 message Series {
@@ -22,11 +22,37 @@ message Series {
 message Request {
   enum Type {
     QUERY = 1;
-    WRITE = 2;
-    GET_SERVERS = 3;
+    REPLICATION_WRITE = 2;
+    PROXY_WRITE = 3;
+    REPLICATION_DELETE = 4;
+    PROXY_DELETE = 5;
+    REPLICATION_REPLAY = 6;
   }
-  required int32 id = 1;
+  required uint32 id = 1;
   required Type type = 2;
+  required string database = 3;
+  optional Series series = 4;
+  // only write and delete requests get sequenceNumbers assigned. These are used to
+  // ensure that the receiving server is up to date
+  optional uint64 sequence_number = 5;
+  // the originzatingServerId is only used for writes and deletes. It is the id of the
+  // server that first committed the write to its local datastore. It is used for
+  // the other servers in the hash ring to ensure they remain consistent.
+  optional uint32 originating_server_id = 6;
+  optional uint32 cluster_version = 10;
+  optional string query = 7;
+  optional string user_name = 8;
+  // ringLocationsToQuery tells the server what data it should be returning.
+  // for example, if the number is 1, it will only return data that is owned by 
+  // this server on the hash ring. If 2, it will return this server and data replicated
+  // from the server directly before it on the ring. 3, etc.
+  // If this field is left out, we assume that we'll be returning all data the server has
+  // for the query.
+  optional uint32 ring_locations_to_query = 9;
+  // optional fields for replication replay requests. should include originating serer id
+  optional uint32 replication_factor = 16;
+  optional uint32 owner_server_id = 17;
+  optional uint64 last_known_sequence_number = 18;
 }
 
 message Response {
@@ -34,8 +60,17 @@ message Response {
     QUERY = 1;
     WRITE_OK = 2;
     END_STREAM = 3;
+    REPLICATION_REPLAY = 4;
+    REPLICATION_REPLAY_END = 5;
   }
-  required int32 id = 1;
-  optional Series series = 2;
-  repeated string servers = 3;
+  enum ErrorCode {
+    REQUEST_TOO_LARGE = 1;
+  }
+  required Type type = 1;
+  required uint32 request_id = 2;
+  optional Series series = 3;
+  optional ErrorCode error_code = 4;
+  optional string error_message = 5;
+  optional int64 nextPointTime = 6;
+  optional Request request = 7;
 }

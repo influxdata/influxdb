@@ -14,7 +14,7 @@ go get github.com/fitstar/falcore/filter
 go get code.google.com/p/log4go
 go get code.google.com/p/go.crypto/bcrypt
 go get launchpad.net/gocheck
-go get github.com/pmylund/go-cache
+go get github.com/influxdb/go-cache
 
 patch="off"
 cflags="-m32"

@@ -105,7 +105,7 @@ func (self *Server) start() error {
 	}
 
 	root := filepath.Join(dir, "..", "..")
-	filename := filepath.Join(root, "server")
+	filename := filepath.Join(root, "daemon")
 	p, err := os.StartProcess(filename, []string{filename, "-cpuprofile", "/tmp/cpuprofile"}, &os.ProcAttr{
 		Dir:   root,
 		Env:   os.Environ(),
@@ -115,7 +115,7 @@ func (self *Server) start() error {
 		return err
 	}
 	self.p = p
-	time.Sleep(2 * time.Second)
+	time.Sleep(4 * time.Second)
 	return nil
 }
 

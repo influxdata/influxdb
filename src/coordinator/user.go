@@ -2,7 +2,7 @@ package coordinator
 
 import (
 	"code.google.com/p/go.crypto/bcrypt"
-	"github.com/pmylund/go-cache"
+	"github.com/influxdb/go-cache"
 	"regexp"
 )
 

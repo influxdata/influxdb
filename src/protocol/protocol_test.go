@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"bytes"
 	. "launchpad.net/gocheck"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ type ProtocolSuite struct{}
 
 var _ = Suite(&ProtocolSuite{})
 
-func (self *ProtocolSuite) TestCanMarshalAndUnmarshal(c *C) {
+func (self *ProtocolSuite) TestCanEncodeAndDecode(c *C) {
 	p := &Point{}
 	v := &FieldValue{}
 
@@ -24,14 +25,14 @@ func (self *ProtocolSuite) TestCanMarshalAndUnmarshal(c *C) {
 	p.Values = []*FieldValue{v}
 	t := time.Now().Unix()
 	p.Timestamp = &t
-	s := uint32(23432423)
+	s := uint64(23432423)
 	p.SequenceNumber = &s
 
-	d, err := MarshalPoint(p)
+	d, err := p.Encode()
 	c.Assert(err, Equals, nil)
 	c.Assert(len(d), Equals, 22)
 
-	point, err2 := UnmarshalPoint(d)
+	point, err2 := DecodePoint(bytes.NewBuffer(d))
 	c.Assert(err2, Equals, nil)
 	c.Assert(point.Values[0].GetDoubleValue(), Equals, f)
 }

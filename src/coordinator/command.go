@@ -23,11 +23,12 @@ func (c *DropDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
 }
 
 type CreateDatabaseCommand struct {
-	Name string `json:"name"`
+	Name              string `json:"name"`
+	ReplicationFactor uint8  `json:"replicationFactor"`
 }
 
-func NewCreateDatabaseCommand(name string) *CreateDatabaseCommand {
-	return &CreateDatabaseCommand{name}
+func NewCreateDatabaseCommand(name string, replicationFactor uint8) *CreateDatabaseCommand {
+	return &CreateDatabaseCommand{name, replicationFactor}
 }
 
 func (c *CreateDatabaseCommand) CommandName() string {
@@ -36,7 +37,7 @@ func (c *CreateDatabaseCommand) CommandName() string {
 
 func (c *CreateDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*ClusterConfiguration)
-	err := config.CreateDatabase(c.Name)
+	err := config.CreateDatabase(c.Name, c.ReplicationFactor)
 	return nil, err
 }
 
@@ -115,4 +116,25 @@ func (c *UpdateServerStateCommand) Apply(server raft.Server) (interface{}, error
 	config := server.Context().(*ClusterConfiguration)
 	err := config.UpdateServerState(c.ServerId, c.State)
 	return nil, err
+}
+
+type InfluxJoinCommand struct {
+	Name                     string `json:"name"`
+	ConnectionString         string `json:"connectionString"`
+	ProtobufConnectionString string `json:"protobufConnectionString"`
+}
+
+// The name of the Join command in the log
+func (c *InfluxJoinCommand) CommandName() string {
+	return "raft:join"
+}
+
+func (c *InfluxJoinCommand) Apply(server raft.Server) (interface{}, error) {
+	err := server.AddPeer(c.Name, c.ConnectionString)
+
+	return []byte("join"), err
+}
+
+func (c *InfluxJoinCommand) NodeName() string {
+	return c.Name
 }
