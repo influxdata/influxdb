@@ -213,6 +213,8 @@ $(source_package): dependencies
 	echo "packages/*" >> /tmp/influxdb.ignored
 	echo "build/*" >> /tmp/influxdb.ignored
 	echo "out_rpm/*" >> /tmp/influxdb.ignored
+	rm -rf admin
+	cp -R $(admin_dir)/build admin
 	tar -czf $(source_package) --exclude-vcs -X /tmp/influxdb.ignored *
 	rm -rf /tmp/influxdb
 	mkdir /tmp/influxdb
@@ -221,6 +223,7 @@ $(source_package): dependencies
 	bash -c "pushd /tmp/; tar -czf `basename $(source_package)` influxdb; popd"
 	mv /tmp/$(shell basename $(source_package)) $(source_package)
 	rm -rf src/$(levigo_dependency)
+	rm -rf admin
 
 sample_config = ' \
 { \
