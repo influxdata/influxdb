@@ -295,7 +295,7 @@ func (self *IntegrationSuite) TestFilterWithLimit(c *C) {
 		c.Assert(err, IsNil)
 		time.Sleep(1 * time.Second)
 	}
-	bs, err := self.server.RunQuery("select host, cpu from test_ascending where host == 'hostb' order asc limit 1")
+	bs, err := self.server.RunQuery("select host, cpu from test_ascending where host = 'hostb' order asc limit 1")
 	c.Assert(err, IsNil)
 	data := []*h.SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
@@ -372,7 +372,7 @@ func (self *IntegrationSuite) TestInnerJoin(c *C) {
 		c.Assert(err, IsNil)
 		time.Sleep(1 * time.Second)
 	}
-	bs, err := self.server.RunQuery("select * from test_join as f1 inner join test_join as f2 where f1.host == 'hostb'")
+	bs, err := self.server.RunQuery("select * from test_join as f1 inner join test_join as f2 where f1.host = 'hostb'")
 	c.Assert(err, IsNil)
 	data := []*h.SerializedSeries{}
 	err = json.Unmarshal(bs, &data)

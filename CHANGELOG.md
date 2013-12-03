@@ -127,7 +127,7 @@
 - [Issue #57](https://github.com/influxdb/influxdb/issues/57). Don't panic when type of time != float
 - [Issue #63](https://github.com/influxdb/influxdb/issues/63). Aggregate queries should not have a sequence_number column
 
-## v0.3.1 (unreleased)
+## v0.3.2
 
 ## Features
 
@@ -139,3 +139,11 @@
 
 - [Issue #75](https://github.com/influxdb/influxdb/issues/75). Don't allow time series names that start with underscore
 - [Issue #85](https://github.com/influxdb/influxdb/issues/85). Non-existing columns exist after they have been queried before
+
+## v0.4.0
+
+## Features
+
+- [Issue #92](https://github.com/influxdb/influxdb/issues/92). Change '==' to '=' and '!=' to '<>'
+
+## Bugfixes

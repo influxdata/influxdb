@@ -40,7 +40,7 @@ func (self *FilteringSuite) TestInOperatorFiltering(c *C) {
 }
 
 func (self *FilteringSuite) TestEqualityFiltering(c *C) {
-	queryStr := "select * from t where column_one == 100 and column_two != 6;"
+	queryStr := "select * from t where column_one = 100 and column_two <> 6;"
 	query, err := parser.ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 
@@ -67,7 +67,7 @@ func (self *FilteringSuite) TestEqualityFiltering(c *C) {
 }
 
 func (self *FilteringSuite) TestFilteringNonExistentColumn(c *C) {
-	queryStr := "select * from t where column_one == 100 and column_two != 6"
+	queryStr := "select * from t where column_one = 100 and column_two <> 6"
 	query, err := parser.ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 
@@ -89,7 +89,7 @@ func (self *FilteringSuite) TestFilteringNonExistentColumn(c *C) {
 }
 
 func (self *FilteringSuite) TestFilteringWithJoin(c *C) {
-	queryStr := "select * from t as bar inner join t as foo where bar.column_one == 100 and foo.column_two != 6;"
+	queryStr := "select * from t as bar inner join t as foo where bar.column_one = 100 and foo.column_two <> 6;"
 	query, err := parser.ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	series, err := common.StringToSeriesArray(`
@@ -114,7 +114,7 @@ func (self *FilteringSuite) TestFilteringWithJoin(c *C) {
 }
 
 func (self *FilteringSuite) TestReturnAllColumnsIfAskedForWildcard(c *C) {
-	queryStr := "select * from t where column_one == 100 and column_two != 6;"
+	queryStr := "select * from t where column_one = 100 and column_two <> 6;"
 	query, err := parser.ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	series, err := common.StringToSeriesArray(`
@@ -140,7 +140,7 @@ func (self *FilteringSuite) TestReturnAllColumnsIfAskedForWildcard(c *C) {
 }
 
 func (self *FilteringSuite) TestReturnRequestedColumnsOnly(c *C) {
-	queryStr := "select column_two from t where column_one == 100 and column_two != 6;"
+	queryStr := "select column_two from t where column_one = 100 and column_two <> 6;"
 	query, err := parser.ParseQuery(queryStr)
 	c.Assert(err, IsNil)
 	series, err := common.StringToSeriesArray(`

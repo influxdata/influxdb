@@ -24,8 +24,8 @@ var (
 )
 
 func init() {
-	registeredOperators["=="] = wrapOldBooleanOperation(EqualityOperator)
-	registeredOperators["!="] = not(wrapOldBooleanOperation(EqualityOperator))
+	registeredOperators["="] = wrapOldBooleanOperation(EqualityOperator)
+	registeredOperators["<>"] = not(wrapOldBooleanOperation(EqualityOperator))
 	registeredOperators[">="] = wrapOldBooleanOperation(GreaterThanOrEqualOperator)
 	registeredOperators[">"] = wrapOldBooleanOperation(GreaterThanOperator)
 	registeredOperators["<"] = not(wrapOldBooleanOperation(GreaterThanOrEqualOperator))

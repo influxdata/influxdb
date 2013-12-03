@@ -32,9 +32,9 @@ func (self *QueryParserSuite) TestInvalidFromClause(c *C) {
 
 func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	for _, query := range []string{
-		"select value from t where c == '5';",
+		"select value from t where c = '5';",
 		// semicolon is optional
-		"select value from t where c == '5'",
+		"select value from t where c = '5'",
 	} {
 		q, err := ParseQuery(query)
 		c.Assert(err, IsNil)
@@ -54,7 +54,7 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 		rightValue, ok := rightExpression.GetLeftValue()
 
 		c.Assert(leftValue.Name, Equals, "c")
-		c.Assert(boolExpression.Operation, Equals, "==")
+		c.Assert(boolExpression.Operation, Equals, "=")
 		c.Assert(rightValue.Name, Equals, "5")
 	}
 }
@@ -123,7 +123,7 @@ func (self *QueryParserSuite) TestParseSelectWithRegexTables(c *C) {
 }
 
 func (self *QueryParserSuite) TestMergeFromClause(c *C) {
-	q, err := ParseQuery("select value from t1 merge t2 where c == '5';")
+	q, err := ParseQuery("select value from t1 merge t2 where c = '5';")
 	c.Assert(err, IsNil)
 
 	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value"))
@@ -139,7 +139,7 @@ func (self *QueryParserSuite) TestMergeFromClause(c *C) {
 	rightValue, ok := rightExpression.GetLeftValue()
 
 	c.Assert(leftValue.Name, Equals, "c")
-	c.Assert(boolExpression.Operation, Equals, "==")
+	c.Assert(boolExpression.Operation, Equals, "=")
 	c.Assert(rightValue.Name, Equals, "5")
 }
 
@@ -151,7 +151,7 @@ func (self *QueryParserSuite) TestParseSelectWithoutWhereClause(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseSelectWithUpperCase(c *C) {
-	q, err := ParseQuery("SELECT VALUE, TIME FROM t WHERE C == '5';")
+	q, err := ParseQuery("SELECT VALUE, TIME FROM t WHERE C = '5';")
 	c.Assert(err, IsNil)
 	c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("VALUE", "TIME"))
 	w := q.GetWhereCondition()

@@ -45,10 +45,10 @@ static int yycolumn = 1;
 "/"                       { yylval->character = *yytext; return *yytext; }
 "and"                     { return AND; }
 "or"                      { return OR; }
-"=="                      { yylval->string = strdup(yytext); return OPERATION_EQUAL; }
 "=~"                      { yylval->string = strdup(yytext); return REGEX_OP; }
+"="                       { yylval->string = strdup(yytext); return OPERATION_EQUAL; }
 "!~"                      { yylval->string = strdup(yytext); return NEGATION_REGEX_OP; }
-"!="                      { yylval->string = strdup(yytext); return OPERATION_NE; }
+"<>"                      { yylval->string = strdup(yytext); return OPERATION_NE; }
 "<"                       { yylval->string = strdup(yytext); return OPERATION_LT; }
 ">"                       { yylval->string = strdup(yytext); return OPERATION_GT; }
 "<="                      { yylval->string = strdup(yytext); return OPERATION_LE; }

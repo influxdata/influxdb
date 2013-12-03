@@ -417,7 +417,7 @@ func (self *DatastoreSuite) TestCanDoWhereQueryEquals(c *C) {
 	user := &MockUser{}
 	results := executeQuery(user, "db1", "select name from events;", db, c)
 	c.Assert(results[0], DeepEquals, allData)
-	results = executeQuery(user, "db1", "select name from events where name == 'paul';", db, c)
+	results = executeQuery(user, "db1", "select name from events where name = 'paul';", db, c)
 	c.Assert(results[0].Points, HasLen, 1)
 	c.Assert(results[0].Fields, HasLen, 1)
 	c.Assert(*results[0].Points[0].SequenceNumber, Equals, uint32(2))
@@ -595,7 +595,7 @@ func (self *DatastoreSuite) TestLimitShouldLimitPointsThatMatchTheFilter(c *C) {
 	err := db.WriteSeriesData("foobar", series)
 	c.Assert(err, IsNil)
 	user := &MockUser{}
-	results := executeQuery(user, "foobar", "select last_name from user_things where first_name == 'paul' limit 1", db, c)
+	results := executeQuery(user, "foobar", "select last_name from user_things where first_name = 'paul' limit 1", db, c)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Points, HasLen, 1)
 	c.Assert(results[0].Points[0].Values, HasLen, 1)
