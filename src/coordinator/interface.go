@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"common"
+	"net"
 	"parser"
 	"protocol"
 )
@@ -18,8 +19,10 @@ type Coordinator interface {
 	DistributeQuery(user common.User, db string, query *parser.Query, yield func(*protocol.Series) error) error
 	WriteSeriesData(user common.User, db string, series *protocol.Series) error
 	DropDatabase(user common.User, db string) error
-	CreateDatabase(user common.User, db string) error
-	ListDatabases(user common.User) ([]string, error)
+	CreateDatabase(user common.User, db string, replicationFactor uint8) error
+	ListDatabases(user common.User) ([]*Database, error)
+	ReplicateWrite(request *protocol.Request) error
+	ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64)
 }
 
 type UserManager interface {
@@ -51,7 +54,7 @@ type UserManager interface {
 }
 
 type ClusterConsensus interface {
-	CreateDatabase(name string) error
+	CreateDatabase(name string, replicationFactor uint8) error
 	DropDatabase(name string) error
 	SaveClusterAdminUser(u *clusterAdmin) error
 	SaveDbUser(user *dbUser) error
@@ -74,4 +77,8 @@ type ClusterConsensus interface {
 
 	// When a cluster is turned on for the first time.
 	CreateRootUser() error
+}
+
+type RequestHandler interface {
+	HandleRequest(request *protocol.Request, conn net.Conn) error
 }

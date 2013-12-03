@@ -34,7 +34,7 @@ function packae_source {
     git checkout .
     popd
 
-    rm -f server
+    rm -f influxd
     git ls-files --others  | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
     echo "pkg/*" >> /tmp/influxdb.ignored
     echo "packages/*" >> /tmp/influxdb.ignored
@@ -62,7 +62,7 @@ function package_files {
 
     package_admin_interface
 
-    mv server build/influxdb
+    mv daemon build/influxdb
 
     # cp -R src/admin/site/ build/admin/
     mkdir build/admin
@@ -117,14 +117,14 @@ function build_packages {
 function setup_version {
     echo "Changing version from dev to $influxdb_version"
     sha1=`git rev-list --max-count=1 HEAD`
-    sed -i.bak -e "s/version = \"dev\"/version = \"$influxdb_version\"/" -e "s/gitSha\s*=\s*\"HEAD\"/gitSha = \"$sha1\"/" src/server/server.go
+    sed -i.bak -e "s/version = \"dev\"/version = \"$influxdb_version\"/" -e "s/gitSha\s*=\s*\"HEAD\"/gitSha = \"$sha1\"/" src/daemon/influxd.go
     sed -i.bak -e "s/REPLACE_VERSION/$influxdb_version/" scripts/post_install.sh
 }
 
 function revert_version {
-    if [ -e src/server/server.go.bak ]; then
-        rm src/server/server.go
-        mv src/server/server.go.bak src/server/server.go
+    if [ -e src/daemon/influxd.go.bak ]; then
+        rm src/daemon/influxd.go
+        mv src/daemon/influxd.go.bak src/daemon/influxd.go
     fi
 
     if [ -e scripts/post_install.sh ]; then

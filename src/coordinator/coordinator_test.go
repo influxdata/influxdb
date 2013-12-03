@@ -1,8 +1,8 @@
 package coordinator
 
 import (
-	. "checkers"
 	. "common"
+	"configuration"
 	"datastore"
 	"encoding/json"
 	"flag"
@@ -56,6 +56,20 @@ func (self *DatastoreMock) DropDatabase(database string) error {
 	return nil
 }
 
+func (self *DatastoreMock) LogRequestAndAssignSequenceNumber(request *protocol.Request, replicationFactor *uint8, ownerServerId *uint32) error {
+	id := uint64(1)
+	request.SequenceNumber = &id
+	return nil
+}
+
+func (self *DatastoreMock) AtomicIncrement(name string, val int) (uint64, error) {
+	return uint64(val), nil
+}
+
+func (self *DatastoreMock) ReplayRequestsFromSequenceNumber(*uint32, *uint32, *uint32, *uint8, *uint64, func(*[]byte) error) error {
+	return nil
+}
+
 func stringToSeries(seriesString string, c *C) *protocol.Series {
 	series := &protocol.Series{}
 	err := json.Unmarshal([]byte(seriesString), &series)
@@ -101,7 +115,8 @@ func newConfigAndServer(c *C) *RaftServer {
 	path, err := ioutil.TempDir(os.TempDir(), "influxdb")
 	c.Assert(err, IsNil)
 	config := NewClusterConfiguration()
-	server := NewRaftServer(path, "localhost", 0, config)
+	setupConfig := &configuration.Configuration{Hostname: "localhost", RaftDir: path, RaftServerPort: 0}
+	server := NewRaftServer(setupConfig, config)
 	return server
 }
 
@@ -143,7 +158,7 @@ func (self *CoordinatorSuite) TestCanRecover(c *C) {
 
 	path, port := server.path, server.port
 
-	server.CreateDatabase("db1")
+	server.CreateDatabase("db1", uint8(1))
 	assertConfigContains(server.port, "db1", true, c)
 	server.Close()
 	time.Sleep(SERVER_STARTUP_TIME)
@@ -168,7 +183,7 @@ func (self *CoordinatorSuite) TestCanCreateCoordinatorsAndReplicate(c *C) {
 	servers := startAndVerifyCluster(2, c)
 	defer clean(servers...)
 
-	err := servers[0].CreateDatabase("db2")
+	err := servers[0].CreateDatabase("db2", uint8(1))
 	c.Assert(err, IsNil)
 	time.Sleep(REPLICATION_LAG)
 	assertConfigContains(servers[0].port, "db2", true, c)
@@ -182,7 +197,7 @@ func (self *CoordinatorSuite) TestDoWriteOperationsFromNonLeaderServer(c *C) {
 
 	servers := startAndVerifyCluster(2, c)
 
-	err := servers[1].CreateDatabase("db3")
+	err := servers[1].CreateDatabase("db3", uint8(1))
 	c.Assert(err, Equals, nil)
 	time.Sleep(REPLICATION_LAG)
 	assertConfigContains(servers[0].port, "db3", true, c)
@@ -192,7 +207,7 @@ func (self *CoordinatorSuite) TestDoWriteOperationsFromNonLeaderServer(c *C) {
 func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
 	server := startAndVerifyCluster(1, c)[0]
 	defer clean(server)
-	server.CreateDatabase("db4")
+	server.CreateDatabase("db4", uint8(1))
 	assertConfigContains(server.port, "db4", true, c)
 
 	server2 := newConfigAndServer(c)
@@ -214,7 +229,7 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	err := servers[0].CreateDatabase("db5")
+	err := servers[0].CreateDatabase("db5", uint8(1))
 	c.Assert(err, Equals, nil)
 	time.Sleep(REPLICATION_LAG)
 	assertConfigContains(servers[0].port, "db5", true, c)
@@ -231,7 +246,7 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	time.Sleep(3 * time.Second)
 	leader, _ = servers[1].leaderConnectString()
 	c.Assert(leader, Not(Equals), fmt.Sprintf("http://localhost:%d", servers[0].port))
-	err = servers[1].CreateDatabase("db6")
+	err = servers[1].CreateDatabase("db6", uint8(1))
 	c.Assert(err, Equals, nil)
 	time.Sleep(REPLICATION_LAG)
 	assertConfigContains(servers[1].port, "db6", true, c)
@@ -269,7 +284,7 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 	// the db should be in the index now
 	dbs, err := coordinator.ListDatabases(root)
 	c.Assert(err, IsNil)
-	c.Assert(dbs, DeepEquals, []string{"db1"})
+	c.Assert(dbs, DeepEquals, []*Database{&Database{"db1", 1}})
 
 	// if the db is dropped it should remove the users as well
 	c.Assert(coordinator.DropDatabase(root, "db1"), IsNil)
@@ -464,15 +479,15 @@ func (self *CoordinatorSuite) TestUserDataReplication(c *C) {
 }
 
 func (self *CoordinatorSuite) createDatabases(servers []*RaftServer, c *C) {
-	err := servers[0].CreateDatabase("db1")
+	err := servers[0].CreateDatabase("db1", 0)
 	c.Assert(err, IsNil)
-	err = servers[1].CreateDatabase("db2")
+	err = servers[1].CreateDatabase("db2", 1)
 	c.Assert(err, IsNil)
-	err = servers[2].CreateDatabase("db3")
+	err = servers[2].CreateDatabase("db3", 3)
 	c.Assert(err, IsNil)
 }
 
-func (self *CoordinatorSuite) TestCanCreateDatabaseWithName(c *C) {
+func (self *CoordinatorSuite) TestCanCreateDatabaseWithNameAndReplicationFactor(c *C) {
 	if !*noSkipReplicationTests {
 		c.Skip("Not running replication tests. goraft has some rough edges")
 	}
@@ -486,12 +501,12 @@ func (self *CoordinatorSuite) TestCanCreateDatabaseWithName(c *C) {
 
 	for i := 0; i < 3; i++ {
 		databases := servers[i].clusterConfig.GetDatabases()
-		c.Assert(databases, DeepEquals, []string{"db1", "db2", "db3"})
+		c.Assert(databases, DeepEquals, []*Database{&Database{"db1", 1}, &Database{"db2", 1}, &Database{"db3", 3}})
 	}
 
-	err := servers[0].CreateDatabase("db3")
+	err := servers[0].CreateDatabase("db3", 1)
 	c.Assert(err, ErrorMatches, ".*db3 exists.*")
-	err = servers[2].CreateDatabase("db3")
+	err = servers[2].CreateDatabase("db3", 1)
 	c.Assert(err, ErrorMatches, ".*db3 exists.*")
 }
 
@@ -523,44 +538,6 @@ func (self *CoordinatorSuite) TestCanDropDatabaseWithName(c *C) {
 	c.Assert(err, ErrorMatches, ".*db3 doesn't exist.*")
 	err = servers[2].DropDatabase("db3")
 	c.Assert(err, ErrorMatches, ".*db3 doesn't exist.*")
-}
-
-func (self *CoordinatorSuite) TestWillSetTimestampsAndSequenceNumbersForPointsWithout(c *C) {
-	datastoreMock := &DatastoreMock{}
-	coordinator := NewCoordinatorImpl(datastoreMock, nil, nil)
-	mock := `
-  {
-    "points": [
-      {
-        "values": [
-          {
-            "int64_value": 3
-          }
-        ],
-        "sequence_number": 1,
-        "timestamp": 23423
-      }
-    ],
-    "name": "foo",
-    "fields": ["value"]
-  }`
-	series := stringToSeries(mock, c)
-	user := &MockUser{}
-	coordinator.WriteSeriesData(user, "foo", series)
-	c.Assert(datastoreMock.Series, DeepEquals, series)
-	mock = `{
-    "points": [{"values": [{"int64_value": 3}]}],
-    "name": "foo",
-    "fields": ["value"]
-  }`
-	series = stringToSeries(mock, c)
-	beforeTime := CurrentTime()
-	coordinator.WriteSeriesData(user, "foo", series)
-	afterTime := CurrentTime()
-	c.Assert(datastoreMock.Series, Not(DeepEquals), stringToSeries(mock, c))
-	c.Assert(*datastoreMock.Series.Points[0].SequenceNumber, Equals, uint32(1))
-	t := *datastoreMock.Series.Points[0].Timestamp
-	c.Assert(t, InRange, beforeTime, afterTime)
 }
 
 func (self *CoordinatorSuite) TestCheckReadAccess(c *C) {
@@ -637,7 +614,7 @@ func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader
 	}()
 	time.Sleep(SERVER_STARTUP_TIME)
 
-	err = servers[0].CreateDatabase("db8")
+	err = servers[0].CreateDatabase("db8", uint8(1))
 	c.Assert(err, Equals, nil)
 	time.Sleep(REPLICATION_LAG)
 	assertConfigContains(newServer.port, "db8", true, c)

@@ -3,13 +3,16 @@ package datastore
 import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
+	log "code.google.com/p/log4go"
 	"common"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/jmhodges/levigo"
 	"math"
+	"os"
 	"parser"
+	"path/filepath"
 	"protocol"
 	"regexp"
 	"strings"
@@ -18,11 +21,17 @@ import (
 )
 
 type LevelDbDatastore struct {
-	db            *levigo.DB
-	lastIdUsed    uint64
-	columnIdMutex sync.Mutex
-	readOptions   *levigo.ReadOptions
-	writeOptions  *levigo.WriteOptions
+	db                 *levigo.DB
+	requestLogLock     sync.RWMutex
+	currentRequestLog  *requestLogDb
+	previousRequestLog *requestLogDb
+	lastIdUsed         uint64
+	columnIdMutex      sync.Mutex
+	readOptions        *levigo.ReadOptions
+	writeOptions       *levigo.WriteOptions
+	incrementLock      sync.Mutex
+	requestId          uint32
+	requestLogDir      string
 }
 
 type Field struct {
@@ -34,6 +43,40 @@ type rawColumnValue struct {
 	time     []byte
 	sequence []byte
 	value    []byte
+}
+
+type requestLogDb struct {
+	dir string
+	db  *levigo.DB
+}
+
+func (self *requestLogDb) delete() error {
+	log.Warn("Deleting request log: ", self.dir)
+	self.db.Close()
+	return os.RemoveAll(self.dir)
+}
+
+func getRequestLogDirForDate(baseDir string, t time.Time) string {
+	logDir := fmt.Sprintf("%d-%0.2d-%0.2d", t.Year(), t.Month, t.Day())
+	return filepath.Join(baseDir, logDir)
+}
+
+func NewRequestLogDb(dir string) (*requestLogDb, error) {
+	err := os.MkdirAll(dir, 0744)
+	if err != nil {
+		return nil, err
+	}
+	opts := levigo.NewOptions()
+	opts.SetCache(levigo.NewLRUCache(ONE_MEGABYTE))
+	opts.SetCreateIfMissing(true)
+	opts.SetBlockSize(TWO_FIFTY_SIX_KILOBYTES)
+	filter := levigo.NewBloomFilter(BLOOM_FILTER_BITS_PER_KEY)
+	opts.SetFilterPolicy(filter)
+	db, err := levigo.Open(dir, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &requestLogDb{dir: dir, db: db}, nil
 }
 
 // depending on the query order (whether it's ascending or not) returns
@@ -69,15 +112,25 @@ func (self *rawColumnValue) updatePointTimeAndSequence(currentTimeRaw, currentSe
 }
 
 const (
-	ONE_MEGABYTE              = 1024 * 1024
-	ONE_GIGABYTE              = ONE_MEGABYTE * 1024
-	TWO_FIFTY_SIX_KILOBYTES   = 256 * 1024
-	BLOOM_FILTER_BITS_PER_KEY = 64
-	MAX_POINTS_TO_SCAN        = 1000000
-	MAX_SERIES_SIZE           = ONE_MEGABYTE
+	ONE_MEGABYTE                 = 1024 * 1024
+	ONE_GIGABYTE                 = ONE_MEGABYTE * 1024
+	TWO_FIFTY_SIX_KILOBYTES      = 256 * 1024
+	BLOOM_FILTER_BITS_PER_KEY    = 64
+	MAX_POINTS_TO_SCAN           = 1000000
+	MAX_SERIES_SIZE              = ONE_MEGABYTE
+	REQUEST_SEQUENCE_NUMBER_KEY  = "r"
+	REQUEST_LOG_BASE_DIR         = "request_logs"
+	DATABASE_DIR                 = "db"
+	REQUEST_LOG_ROTATION_PERIOD  = 24 * time.Hour
+	HOUR_TO_ROTATE_REQUEST_LOG   = 0
+	MINUTE_TO_ROTATE_REQUEST_LOG = 1
 )
 
 var (
+
+	// This datastore implements the PersistentAtomicInteger interface. All of the persistent
+	// integers start with this prefix, followed by their name
+	ATOMIC_INCREMENT_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD}
 	// NEXT_ID_KEY holds the next id. ids are used to "intern" timeseries and column names
 	NEXT_ID_KEY = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	// SERIES_COLUMN_INDEX_PREFIX is the prefix of the series to column names index
@@ -85,9 +138,27 @@ var (
 	// DATABASE_SERIES_INDEX_PREFIX is the prefix of the database to series names index
 	DATABASE_SERIES_INDEX_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 	MAX_SEQUENCE                 = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
+	replicateWrite = protocol.Request_REPLICATION_WRITE
 )
 
 func NewLevelDbDatastore(dbDir string) (Datastore, error) {
+	mainDbDir := filepath.Join(dbDir, DATABASE_DIR)
+	requestLogDir := filepath.Join(dbDir, REQUEST_LOG_BASE_DIR)
+
+	err := os.MkdirAll(mainDbDir, 0744)
+	if err != nil {
+		return nil, err
+	}
+	previousLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now().Add(-time.Hour*24)))
+	if err != nil {
+		return nil, err
+	}
+	currentLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now()))
+	if err != nil {
+		return nil, err
+	}
+
 	opts := levigo.NewOptions()
 	opts.SetCache(levigo.NewLRUCache(ONE_GIGABYTE))
 	opts.SetCreateIfMissing(true)
@@ -116,12 +187,87 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 
 	wo := levigo.NewWriteOptions()
 
-	return &LevelDbDatastore{db: db, lastIdUsed: lastId, readOptions: ro, writeOptions: wo}, nil
+	leveldbStore := &LevelDbDatastore{
+		db:                 db,
+		lastIdUsed:         lastId,
+		readOptions:        ro,
+		writeOptions:       wo,
+		requestLogDir:      requestLogDir,
+		currentRequestLog:  currentLog,
+		previousRequestLog: previousLog}
+
+	go leveldbStore.periodicallyRotateRequestLog()
+
+	return leveldbStore, nil
+}
+
+func (self *LevelDbDatastore) periodicallyRotateRequestLog() {
+	ticker := self.nextLogRotationTicker()
+	for {
+		<-ticker.C
+		self.rotateRequestLog()
+		ticker = self.nextLogRotationTicker()
+	}
+}
+
+func (self *LevelDbDatastore) rotateRequestLog() {
+	log.Warn("Rotating request log...")
+	self.requestLogLock.Lock()
+	defer self.requestLogLock.Unlock()
+	oldLog := self.previousRequestLog
+	self.previousRequestLog = self.currentRequestLog
+	var err error
+	self.currentRequestLog, err = NewRequestLogDb(getRequestLogDirForDate(self.requestLogDir, time.Now()))
+	if err != nil {
+		log.Error("Error creating new requst log: ", err)
+		panic(err)
+	}
+	go oldLog.delete()
+}
+
+func (self *LevelDbDatastore) nextLogRotationTicker() *time.Ticker {
+	nextTick := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), HOUR_TO_ROTATE_REQUEST_LOG, MINUTE_TO_ROTATE_REQUEST_LOG, 0, 0, time.Local)
+	if !nextTick.After(time.Now()) {
+		nextTick = nextTick.Add(REQUEST_LOG_ROTATION_PERIOD)
+	}
+	diff := nextTick.Sub(time.Now())
+	return time.NewTicker(diff)
+}
+
+func (self *LevelDbDatastore) AtomicIncrement(name string, val int) (uint64, error) {
+	self.incrementLock.Lock()
+	defer self.incrementLock.Unlock()
+	numberKey := append(ATOMIC_INCREMENT_PREFIX, []byte(name)...)
+	numberBytes, err := self.db.Get(self.readOptions, numberKey)
+	if err != nil {
+		return uint64(0), err
+	}
+	currentNumber := self.bytesToCurrentNumber(numberBytes)
+	currentNumber += uint64(val)
+	currentNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+	binary.Write(currentNumberBuffer, binary.BigEndian, currentNumber)
+	self.db.Put(self.writeOptions, numberKey, currentNumberBuffer.Bytes())
+
+	return currentNumber, nil
+}
+
+func (self *LevelDbDatastore) bytesToCurrentNumber(numberBytes []byte) uint64 {
+	currentNumber := uint64(0)
+
+	if numberBytes != nil {
+		binary.Read(bytes.NewBuffer(numberBytes), binary.BigEndian, &currentNumber)
+	}
+	return currentNumber
 }
 
 func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.Series) error {
 	wb := levigo.NewWriteBatch()
 	defer wb.Close()
+
+	if series == nil || len(series.Points) == 0 {
+		return errors.New("Unable to write no data. Series was nil or had no points.")
+	}
+
 	for fieldIndex, field := range series.Fields {
 		temp := field
 		id, err := self.createIdForDbSeriesColumn(&database, series.Name, &temp)
@@ -132,11 +278,12 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 			timestampBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 			sequenceNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 			binary.Write(timestampBuffer, binary.BigEndian, self.convertTimestampToUint(point.GetTimestampInMicroseconds()))
-			binary.Write(sequenceNumberBuffer, binary.BigEndian, uint64(*point.SequenceNumber))
+			binary.Write(sequenceNumberBuffer, binary.BigEndian, *point.SequenceNumber)
 			pointKey := append(append(id, timestampBuffer.Bytes()...), sequenceNumberBuffer.Bytes()...)
 
 			// TODO: we should remove the column value if timestamp and sequence number
-			// were provided
+			// were provided.
+			//  Paul: since these are assigned in the coordinator, we'll have to figure out how to represent this.
 			if point.Values[fieldIndex] == nil {
 				continue
 			}
@@ -148,6 +295,7 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 			wb.Put(pointKey, data)
 		}
 	}
+
 	return self.db.Write(self.writeOptions, wb)
 }
 
@@ -192,7 +340,157 @@ func (self *LevelDbDatastore) DropDatabase(database string) error {
 	return self.db.Write(self.writeOptions, wb)
 }
 
-func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *LevelDbDatastore) ReplayRequestsFromSequenceNumber(clusterVersion, originatingServerId, ownerServerId *uint32, replicationFactor *uint8, lastKnownSequence *uint64, yield func(*[]byte) error) error {
+	self.requestLogLock.RLock()
+	defer self.requestLogLock.RUnlock()
+
+	requestLog := self.currentRequestLog
+
+	key := self.requestLogKey(clusterVersion, originatingServerId, ownerServerId, lastKnownSequence, replicationFactor)
+	data, err := requestLog.db.Get(self.readOptions, key)
+	if err != nil {
+		return err
+	}
+	if data == nil {
+		err = self.replayFromLog(key, self.previousRequestLog, yield)
+		if err != nil {
+			return err
+		}
+		startSequence := uint64(0)
+		key = self.requestLogKey(clusterVersion, originatingServerId, ownerServerId, &startSequence, replicationFactor)
+	}
+	err = self.replayFromLog(key, requestLog, yield)
+	if err != nil {
+		return err
+	}
+
+	yield(nil)
+
+	return nil
+}
+
+func (self *LevelDbDatastore) replayFromLog(seekKey []byte, requestLog *requestLogDb, yield func(*[]byte) error) error {
+	ro := levigo.NewReadOptions()
+	defer ro.Close()
+	ro.SetFillCache(false)
+	it := requestLog.db.NewIterator(ro)
+	defer it.Close()
+
+	startingKey := seekKey[:len(seekKey)-8]
+	sliceTo := len(startingKey)
+	it.Seek(seekKey)
+	if it.Valid() {
+		if bytes.Equal(it.Key(), seekKey) {
+			it.Next()
+		}
+	}
+
+	for it = it; it.Valid(); it.Next() {
+		k := it.Key()
+		if !bytes.Equal(k[:sliceTo], startingKey) {
+			return nil
+		}
+		b := it.Value()
+		err := yield(&b)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (self *LevelDbDatastore) keyForOwnerAndServerSequenceNumber(clusterVersion *uint32, replicationFactor *uint8, ownerServerId, serverId *uint32) string {
+	return fmt.Sprintf("%s%d_%d_%d_%d", REQUEST_SEQUENCE_NUMBER_KEY, *clusterVersion, *replicationFactor, *ownerServerId, *serverId)
+}
+
+type SequenceMissingRequestsError struct {
+	message                  string
+	LastKnownRequestSequence uint64
+}
+
+func (self SequenceMissingRequestsError) Error() string {
+	return self.message
+}
+
+func (self *LevelDbDatastore) requestLogKey(clusterVersion, originatingServerId, ownerServerId *uint32, sequenceNumber *uint64, replicationFactor *uint8) []byte {
+	clusterVersionBytes := bytes.NewBuffer(make([]byte, 0, 4))
+	binary.Write(clusterVersionBytes, binary.BigEndian, *clusterVersion)
+
+	ownerServerBytes := bytes.NewBuffer(make([]byte, 0, 4))
+	binary.Write(ownerServerBytes, binary.BigEndian, *ownerServerId)
+
+	serverBytes := bytes.NewBuffer(make([]byte, 0, 4))
+	binary.Write(serverBytes, binary.BigEndian, *originatingServerId)
+
+	sequenceBytes := bytes.NewBuffer(make([]byte, 0, 8))
+	binary.Write(sequenceBytes, binary.BigEndian, *sequenceNumber)
+
+	sequenceReplication := bytes.NewBuffer(make([]byte, 0, 1))
+	binary.Write(sequenceReplication, binary.BigEndian, *replicationFactor)
+
+	return append(
+		append(
+			append(
+				append(clusterVersionBytes.Bytes(), ownerServerBytes.Bytes()...),
+				sequenceReplication.Bytes()...),
+			serverBytes.Bytes()...),
+		sequenceBytes.Bytes()...)
+}
+
+func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protocol.Request, replicationFactor *uint8, ownerServerId *uint32) error {
+	// log to this key structure on a different DB sharded by day: <cluster version><owner id><sequence server id><replication sequence>
+	var numberKey []byte
+	if request.SequenceNumber == nil {
+		sequenceNumber, err := self.AtomicIncrement(self.keyForOwnerAndServerSequenceNumber(request.ClusterVersion, replicationFactor, ownerServerId, request.OriginatingServerId), 1)
+		if err != nil {
+			return err
+		}
+		request.SequenceNumber = &sequenceNumber
+	} else {
+		// this is for a replicated write, ensure that it's the next in line for this owner and server
+		name := self.keyForOwnerAndServerSequenceNumber(request.ClusterVersion, replicationFactor, ownerServerId, request.OriginatingServerId)
+		numberKey = append(ATOMIC_INCREMENT_PREFIX, []byte(name)...)
+		numberBytes, err := self.db.Get(self.readOptions, numberKey)
+		if err != nil {
+			return err
+		}
+		previousSequenceNumber := self.bytesToCurrentNumber(numberBytes)
+		if previousSequenceNumber+uint64(1) != *request.SequenceNumber {
+			return SequenceMissingRequestsError{"Missing requests between last seen and this one.", previousSequenceNumber}
+		}
+	}
+
+	self.requestLogLock.RLock()
+	requestLog := self.currentRequestLog
+	self.requestLogLock.RUnlock()
+
+	// proxied writes should be logged as replicated ones. That's what is expected if they're replayed later
+	if *request.Type == protocol.Request_PROXY_WRITE {
+		request.Type = &replicateWrite
+	}
+
+	data, err := request.Encode()
+	if err != nil {
+		return err
+	}
+
+	key := self.requestLogKey(request.ClusterVersion, request.OriginatingServerId, ownerServerId, request.SequenceNumber, replicationFactor)
+	err = requestLog.db.Put(self.writeOptions, key, data)
+	if err != nil {
+		return err
+	}
+	if numberKey != nil {
+		currentNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+		binary.Write(currentNumberBuffer, binary.BigEndian, *request.SequenceNumber)
+		self.db.Put(self.writeOptions, numberKey, currentNumberBuffer.Bytes())
+	}
+	return nil
+}
+
+func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string,
+	query *parser.Query, yield func(*protocol.Series) error,
+	ringFilter func(database, series *string, time *int64) bool) error {
+
 	seriesAndColumns := query.GetReferencedColumns()
 	hasAccess := true
 	for series, columns := range seriesAndColumns {
@@ -203,7 +501,7 @@ func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, qu
 					hasAccess = false
 					continue
 				}
-				err := self.executeQueryForSeries(database, name, columns, query, yield)
+				err := self.executeQueryForSeries(database, name, columns, query, yield, ringFilter)
 				if err != nil {
 					return err
 				}
@@ -213,7 +511,7 @@ func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, qu
 				hasAccess = false
 				continue
 			}
-			err := self.executeQueryForSeries(database, series.Name, columns, query, yield)
+			err := self.executeQueryForSeries(database, series.Name, columns, query, yield, ringFilter)
 			if err != nil {
 				return err
 			}
@@ -228,6 +526,10 @@ func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string, qu
 func (self *LevelDbDatastore) Close() {
 	self.db.Close()
 	self.db = nil
+	self.currentRequestLog.db.Close()
+	self.currentRequestLog = nil
+	self.previousRequestLog.db.Close()
+	self.previousRequestLog = nil
 	self.readOptions.Close()
 	self.readOptions = nil
 	self.writeOptions.Close()
@@ -238,7 +540,13 @@ func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, start
 	columns := self.getColumnNamesForSeries(database, series)
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
-		return err
+		// because a db is distributed across the cluster, it's possible we don't have the series indexed here. ignore
+		switch err := err.(type) {
+		case FieldLookupError:
+			return nil
+		default:
+			return err
+		}
 	}
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
@@ -344,12 +652,22 @@ func isPointInRange(fieldId, startTime, endTime, point []byte) bool {
 	return bytes.Equal(id, fieldId) && bytes.Compare(time, startTime) > -1 && bytes.Compare(time, endTime) < 1
 }
 
-func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string,
+	query *parser.Query, yield func(*protocol.Series) error,
+	ringFilter func(database, series *string, time *int64) bool) error {
+
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(query.GetStartTime()), common.TimeToMicroseconds(query.GetEndTime()))
+	emptyResult := &protocol.Series{Name: &series, Points: nil}
 
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
-		return err
+		// because a db is distributed across the cluster, it's possible we don't have the series indexed here. ignore
+		switch err := err.(type) {
+		case FieldLookupError:
+			return yield(emptyResult)
+		default:
+			return err
+		}
 	}
 	fieldCount := len(fields)
 	fieldNames, iterators := self.getIterators(fields, startTimeBytes, endTimeBytes, query.Ascending)
@@ -386,11 +704,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 				continue
 			}
 
-			time := key[8:16]
 			value := it.Value()
 			sequenceNumber := key[16:]
 
-			rawValue := &rawColumnValue{time: time, sequence: sequenceNumber, value: value}
+			rawTime := key[8:16]
+			rawValue := &rawColumnValue{time: rawTime, sequence: sequenceNumber, value: value}
 			rawColumnValues[i] = rawValue
 		}
 
@@ -428,6 +746,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			} else {
 				iterator.Prev()
 			}
+
 			fv := &protocol.FieldValue{}
 			err := proto.Unmarshal(rawColumnValues[i].value, fv)
 			if err != nil {
@@ -435,14 +754,13 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			}
 			resultByteCount += len(rawColumnValues[i].value)
 			point.Values[i] = fv
+			var sequence uint64
+			binary.Read(bytes.NewBuffer(rawColumnValues[i].sequence), binary.BigEndian, &sequence)
 			var t uint64
 			binary.Read(bytes.NewBuffer(rawColumnValues[i].time), binary.BigEndian, &t)
 			time := self.convertUintTimestampToInt64(&t)
-			var sequence uint64
-			binary.Read(bytes.NewBuffer(rawColumnValues[i].sequence), binary.BigEndian, &sequence)
-			seq32 := uint32(sequence)
 			point.SetTimestampInMicroseconds(time)
-			point.SequenceNumber = &seq32
+			point.SequenceNumber = &sequence
 			rawColumnValues[i] = nil
 		}
 
@@ -452,6 +770,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		}
 
 		limit -= 1
+
+		if ringFilter != nil && ringFilter(&database, &series, point.Timestamp) {
+			continue
+		}
+
 		result.Points = append(result.Points, point)
 
 		// add byte count for the timestamp and the sequence
@@ -474,7 +797,6 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	if _, err := self.sendBatch(query, result, yield); err != nil {
 		return err
 	}
-	emptyResult := &protocol.Series{Name: &series, Fields: fieldNames, Points: nil}
 	_, err = self.sendBatch(query, emptyResult, yield)
 	return err
 }
@@ -570,6 +892,14 @@ func (self *LevelDbDatastore) getColumnNamesForSeries(db, series string) []strin
 	return names
 }
 
+type FieldLookupError struct {
+	message string
+}
+
+func (self FieldLookupError) Error() string {
+	return self.message
+}
+
 func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []string) ([]*Field, error) {
 	isCountQuery := false
 	if len(columns) > 0 && columns[0] == "*" {
@@ -579,7 +909,7 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 		columns = self.getColumnNamesForSeries(db, series)
 	}
 	if len(columns) == 0 {
-		return nil, errors.New("Couldn't look up columns for series: " + series)
+		return nil, FieldLookupError{"Coulnd't look up columns for series: " + series}
 	}
 
 	fields := make([]*Field, len(columns), len(columns))
@@ -590,7 +920,7 @@ func (self *LevelDbDatastore) getFieldsForSeries(db, series string, columns []st
 			return nil, errId
 		}
 		if id == nil {
-			return nil, errors.New("Field " + name + " doesn't exist in series " + series)
+			return nil, FieldLookupError{"Field " + name + " doesn't exist in series " + series}
 		}
 		fields[i] = &Field{Name: name, Id: id}
 	}
