@@ -1,7 +1,7 @@
 package coordinator
 
 import (
-	"github.com/influxdb/raft"
+	"github.com/goraft/raft"
 )
 
 type DropDatabaseCommand struct {

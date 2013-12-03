@@ -94,7 +94,7 @@ github.com/bmizerany/pat \
 github.com/fitstar/falcore \
 github.com/fitstar/falcore/filter \
 github.com/gorilla/mux \
-github.com/influxdb/raft \
+github.com/goraft/raft \
 github.com/influxdb/go-cache \
 $(proto_dependency)
 
