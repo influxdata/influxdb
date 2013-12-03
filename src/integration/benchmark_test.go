@@ -352,6 +352,72 @@ func (self *IntegrationSuite) TestIssue85(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func toMap(series *h.SerializedSeries) []map[string]interface{} {
+	points := make([]map[string]interface{}, 0, len(series.Points))
+	for _, p := range series.Points {
+		point := map[string]interface{}{}
+		for idx, column := range series.Columns {
+			point[column] = p[idx]
+		}
+		points = append(points, point)
+	}
+	return points
+}
+
+// issue #92
+// grouping my multiple columns fails
+// Assuming the following sample data
+//
+// time        | fr      | to       | app        | kb
+// -----------------------------------------------------
+//  now() - 1hr | home    | office   | ssl        | 10
+//  now() - 1hr | home    | office   | ssl        | 20
+//  now() - 1hr | home    | internet | http       | 30
+//  now() - 1hr | home    | office   | http       | 40
+//  now()       | home    | internet | skype      | 50
+//  now()       | home    | office   | lotus      | 60
+//  now()       | home    | internet | skype      | 70
+//
+// the query `select sum(kb) from test group by time(1h), to, app`
+// will cause an index out of range
+func (self *IntegrationSuite) TestIssue92(c *C) {
+	hourAgo := time.Now().Add(-1 * time.Hour).Unix()
+	now := time.Now().Unix()
+
+	err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_issue_92",
+     "columns": ["time", "fr", "to", "app", "kb"],
+     "points": [
+			 [%d, "home", "office", "ssl", 10],
+			 [%d, "home", "office", "ssl", 20],
+			 [%d, "home", "internet", "http", 30],
+			 [%d, "home", "office", "http", 40],
+			 [%d, "home", "internet", "skype", 50],
+			 [%d, "home", "office", "lotus", 60],
+			 [%d, "home", "internet", "skype", 70]
+		 ]
+  }
+]
+`, hourAgo, hourAgo, hourAgo, hourAgo, now, now, now))
+	c.Assert(err, IsNil)
+	time.Sleep(1 * time.Second)
+	bs, err := self.server.RunQuery("select sum(kb) from test_issue_92 group by time(1h), to, app")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	points := toMap(data[0])
+	c.Assert(points[0]["sum"], Equals, 120.0)
+	c.Assert(points[0]["to"], Equals, "internet")
+	c.Assert(points[0]["app"], Equals, "skype")
+	c.Assert(points[1]["sum"], Equals, 60.0)
+	c.Assert(points[2]["sum"], Equals, 40.0)
+	c.Assert(points[3]["sum"], Equals, 30.0)
+	c.Assert(points[4]["sum"], Equals, 30.0)
+}
+
 // issue #36
 func (self *IntegrationSuite) TestInnerJoin(c *C) {
 	for i := 0; i < 3; i++ {

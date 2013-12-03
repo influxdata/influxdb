@@ -148,11 +148,6 @@ func createValuesToInterface(groupBy parser.GroupByClause, fields []string) (Map
 			}, nil
 
 	case 2:
-		names := []string{}
-		for _, value := range groupBy {
-			names = append(names, value.Name)
-		}
-
 		idx1, idx2 := -1, -1
 		for index, fieldName := range fields {
 			if fieldName == names[0] {
@@ -163,6 +158,14 @@ func createValuesToInterface(groupBy parser.GroupByClause, fields []string) (Map
 			if idx1 > 0 && idx2 > 0 {
 				break
 			}
+		}
+
+		if idx1 == -1 {
+			return nil, nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Invalid column name %s", names[0]))
+		}
+
+		if idx2 == -1 {
+			return nil, nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Invalid column name %s", names[1]))
 		}
 
 		if window != nil {

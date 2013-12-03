@@ -148,6 +148,8 @@
 
 ## Bugfixes
 
+- [Issue #90](https://github.com/influxdb/influxdb/issues/90). Group by multiple columns panic
+
 ### Deprecated
 
 - deprecate '==' and '!=' in favor of '=' and '<>', respectively
