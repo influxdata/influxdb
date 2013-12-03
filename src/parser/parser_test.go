@@ -209,6 +209,44 @@ func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 	c.Assert(q.GetStartTime().Round(time.Minute), Equals, time.Now().Add(-24*time.Hour).Round(time.Minute))
 }
 
+func (self *QueryParserSuite) TestParseSelectWithPartialTimeString(c *C) {
+	for actual, expected := range map[string]string{
+		"2013-08-15":          "2013-08-15 00:00:00",
+		"2013-08-15 7":        "2013-08-15 07:00:00",
+		"2013-08-15 7:04":     "2013-08-15 07:04:00",
+		"2013-08-15 15":       "2013-08-15 15:00:00",
+		"2013-08-15 15:14":    "2013-08-15 15:14:00",
+		"2013-08-15 15:14:26": "2013-08-15 15:14:26",
+	} {
+		t, err := time.Parse("2006-01-02 15:04:05", expected)
+		c.Assert(err, IsNil)
+		q, err := ParseQuery(fmt.Sprintf("select value, time from t where time > '%s';", actual))
+		c.Assert(err, IsNil)
+
+		// note: the time condition will be removed
+		c.Assert(q.GetWhereCondition(), IsNil)
+
+		startTime := q.GetStartTime()
+		c.Assert(startTime, Equals, t)
+	}
+}
+
+func (self *QueryParserSuite) TestParseSelectWithTimeString(c *C) {
+	t, err := time.Parse("2006-01-02 15:04:05", "2013-08-12 23:32:01.232")
+	c.Assert(err, IsNil)
+	q, err := ParseQuery("select value, time from t where time > '2013-08-12 23:32:01.232';")
+	c.Assert(err, IsNil)
+
+	// note: the time condition will be removed
+	c.Assert(q.GetWhereCondition(), IsNil)
+
+	startTime := q.GetStartTime()
+	c.Assert(startTime, Equals, t)
+
+	milliseconds := startTime.Sub(startTime.Round(time.Second)).Nanoseconds() / 1000000
+	c.Assert(milliseconds, Equals, int64(232))
+}
+
 func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 	q, err := ParseQuery("select value from cpu.idle where value > exp() * 2 and value < exp() * 3;")
 	c.Assert(err, IsNil)

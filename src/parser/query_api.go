@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -166,6 +167,41 @@ func (self *Query) GetEndTime() time.Time {
 	return self.endTime
 }
 
+// parse time that matches the following format:
+//   2006-01-02 [15[:04[:05[.000]]]]
+// notice, hour, minute and seconds are optional
+var time_regex *regexp.Regexp
+
+func init() {
+	var err error
+	time_regex, err = regexp.Compile(
+		"^([0-9]{4}|[0-9]{2})-[0-9]{1,2}-[0-9]{1,2}( [0-9]{1,2}(:[0-9]{1,2}(:[0-9]{1,2}?(\\.[0-9]+)?)?)?)?$")
+	if err != nil {
+		panic(err)
+	}
+}
+
+func parseTimeString(t string) (time.Time, error) {
+	submatches := time_regex.FindStringSubmatch(t)
+	if len(submatches) == 0 {
+		return ZERO_TIME, fmt.Errorf("%s isn't a valid time string", t)
+	}
+
+	if submatches[5] != "" || submatches[4] != "" {
+		return time.Parse("2006-01-02 15:04:05", t)
+	}
+
+	if submatches[3] != "" {
+		return time.Parse("2006-01-02 15:04", t)
+	}
+
+	if submatches[2] != "" {
+		return time.Parse("2006-01-02 15", t)
+	}
+
+	return time.Parse("2006-01-02", t)
+}
+
 // parse time expressions, e.g. now() - 1d
 func parseTime(expr *Expression) (int64, error) {
 	if value, ok := expr.GetLeftValue(); ok {
@@ -175,6 +211,11 @@ func parseTime(expr *Expression) (int64, error) {
 
 		if value.IsFunctionCall() {
 			return 0, fmt.Errorf("Invalid use of function %s", value.Name)
+		}
+
+		if value.Type == ValueString {
+			t, err := parseTimeString(value.Name)
+			return t.UnixNano(), err
 		}
 
 		name := value.Name
@@ -297,7 +338,7 @@ func getReferencedColumnsFromCondition(condition *WhereCondition, mapping map[st
 
 func isNumericValue(value *Value) bool {
 	switch value.Type {
-	case ValueDuration, ValueFloat, ValueInt:
+	case ValueDuration, ValueFloat, ValueInt, ValueString:
 		return true
 	default:
 		return false
@@ -365,7 +406,7 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 		if err != nil {
 			return nil, ZERO_TIME, err
 		}
-		return nil, time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)), nil
+		return nil, time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)).UTC(), nil
 	}
 
 	leftCondition, _ := condition.GetLeftWhereCondition()

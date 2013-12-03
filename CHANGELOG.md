@@ -145,6 +145,7 @@
 ## Features
 
 - [Issue #92](https://github.com/influxdb/influxdb/issues/92). Change '==' to '=' and '!=' to '<>'
+- [Issue #88](https://github.com/influxdb/influxdb/issues/88). Support datetime strings
 
 ## Bugfixes
 
