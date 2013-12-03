@@ -267,6 +267,10 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 	var inverse InverseMapper
 
 	err = self.distributeQuery(user, database, query, func(series *protocol.Series) error {
+		if len(series.Points) == 0 {
+			return nil
+		}
+
 		var mapper Mapper
 		mapper, inverse, err = createValuesToInterface(groupBy, series.Fields)
 		if err != nil {

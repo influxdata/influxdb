@@ -35,6 +35,7 @@ function packae_source {
     popd
 
     rm -f influxd
+    rm -f server
     git ls-files --others  | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
     echo "pkg/*" >> /tmp/influxdb.ignored
     echo "packages/*" >> /tmp/influxdb.ignored

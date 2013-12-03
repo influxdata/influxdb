@@ -49,9 +49,6 @@ func (x Request_Type) Enum() *Request_Type {
 func (x Request_Type) String() string {
 	return proto.EnumName(Request_Type_name, int32(x))
 }
-func (x Request_Type) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
-}
 func (x *Request_Type) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Request_Type_value, data, "Request_Type")
 	if err != nil {
@@ -94,9 +91,6 @@ func (x Response_Type) Enum() *Response_Type {
 func (x Response_Type) String() string {
 	return proto.EnumName(Response_Type_name, int32(x))
 }
-func (x Response_Type) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
-}
 func (x *Response_Type) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Response_Type_value, data, "Response_Type")
 	if err != nil {
@@ -126,9 +120,6 @@ func (x Response_ErrorCode) Enum() *Response_ErrorCode {
 }
 func (x Response_ErrorCode) String() string {
 	return proto.EnumName(Response_ErrorCode_name, int32(x))
-}
-func (x Response_ErrorCode) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
 }
 func (x *Response_ErrorCode) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Response_ErrorCode_value, data, "Response_ErrorCode")

@@ -95,7 +95,7 @@ github.com/fitstar/falcore \
 github.com/fitstar/falcore/filter \
 github.com/gorilla/mux \
 github.com/influxdb/raft \
-github.com/pmylund/go-cache \
+github.com/influxdb/go-cache \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
@@ -124,10 +124,10 @@ parser:
 build: | dependencies protobuf parser
 # TODO: build all packages, otherwise we won't know
 # if there's an error
-	$(GO) build server
+	$(GO) build daemon
 
 clean:
-	rm -f server
+	rm -f daemon
 	rm -rf pkg/
 	rm -rf packages/
 	rm -rf src/$(levigo_dependency)
@@ -179,7 +179,7 @@ package_init:
 ifeq ($(version),)
 	$(error Please specify the version to be packaged using 'make version=major.minor.patch')
 endif
-	sed -i.bak -e "s/version = \"dev\"/version = \"$(version)\"/" -e "s/gitSha\s*=\s*\"HEAD\"/gitSha = \"$(sha1)\"/" src/server/server.go
+	sed -i.bak -e "s/version = \"dev\"/version = \"$(version)\"/" -e "s/gitSha\s*=\s*\"HEAD\"/gitSha = \"$(sha1)\"/" src/daemon/influxd.go
 	sed -i.bak -e "s/REPLACE_VERSION/$(version)/" scripts/post_install.sh
 
 
@@ -207,7 +207,7 @@ $(debian_package): $(admin_dir)/build build
 $(source_package): dependencies
 	rm -rf src/$(levigo_dependency)
 	$(GO) get -d $(levigo_dependency)
-	rm -f server
+	rm -f daemon
 	git ls-files --others | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
 	echo "pkg/*" >> /tmp/influxdb.ignored
 	echo "packages/*" >> /tmp/influxdb.ignored
@@ -240,7 +240,7 @@ sample_config = ' \
 $(binary_package): $(admin_dir)/build build
 	rm -rf build
 	mkdir build
-	mv server build/influxdb
+	mv daemon build/influxdb
 	mkdir build/admin
 	cp -R $(admin_dir)/build/* build/admin/
 	cp -R scripts/ build/
@@ -254,5 +254,5 @@ packages:
 	mkdir $@
 
 package: | packages package_init $(files)
-	mv -f src/server/server.go.bak src/server/server.go
+	mv -f src/daemon/influxd.go.bak src/daemon/influxd.go
 	mv -f scripts/post_install.sh.bak scripts/post_install.sh

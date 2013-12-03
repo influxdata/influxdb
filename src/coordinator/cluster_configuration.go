@@ -112,7 +112,7 @@ func (self *ClusterConfiguration) GetServersToMakeQueryTo(localHostId uint32, da
 	}
 	servers = make([]*serverToQuery, 0, len(self.servers)/replicationFactorInt)
 	serverCount := len(self.servers)
-	for index = index; index < serverCount; index += replicationFactorInt {
+	for ; index < serverCount; index += replicationFactorInt {
 		server := self.servers[index]
 		servers = append(servers, &serverToQuery{server, replicationFactor})
 	}
@@ -157,6 +157,13 @@ func (self *ClusterConfiguration) GetServersToMakeQueryTo(localHostId uint32, da
 // This method returns a function that can be passed into the datastore's ExecuteQuery method. It will tell the datastore
 // if each point is something that should be returned in the query based on its ring location and if the query calls for
 // data from different replicas.
+//
+// Params:
+// - database: the name of the database
+// - countOfServersToInclude: the number of replicas that this server will return data for
+//
+// Returns a function that returns true if the point should be filtered out. Otherwise the point should be included
+// in the yielded time series
 func (self *ClusterConfiguration) GetRingFilterFunction(database string, countOfServersToInclude uint32) func(database, series *string, time *int64) bool {
 	serversToInclude := make([]*ClusterServer, 0, countOfServersToInclude)
 	countServers := int(countOfServersToInclude)
@@ -195,7 +202,7 @@ func (self *ClusterConfiguration) GetOwnerIdByLocation(location *int) *uint32 {
 }
 
 func (self *ClusterConfiguration) GetServersByRingLocation(database *string, location *int) []*ClusterServer {
-	index := *location % len(self.servers)
+	index := self.GetServerIndexByLocation(location)
 	_, replicas := self.GetServersByIndexAndReplicationFactor(database, &index)
 	return replicas
 }

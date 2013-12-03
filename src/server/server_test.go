@@ -42,7 +42,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	err := self.servers[0].RaftServer.CreateDatabase("test_rep", uint8(2))
 	c.Assert(err, IsNil)
 	time.Sleep(time.Millisecond * 10)
-	_, err = self.postToServer(self.servers[0], "/db/test_rep/users?u=root&p=root", `{"username": "paul", "password": "pass"}`, c)
+	_, err = self.postToServer(self.servers[0], "/db/test_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
 	c.Assert(err, IsNil)
 }
 
@@ -258,7 +258,7 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 	err := servers[0].RaftServer.CreateDatabase("full_rep", uint8(3))
 	c.Assert(err, IsNil)
 	time.Sleep(time.Millisecond * 10)
-	_, err = self.postToServer(self.servers[0], "/db/full_rep/users?u=root&p=root", `{"username": "paul", "password": "pass"}`, c)
+	_, err = self.postToServer(self.servers[0], "/db/full_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
 	c.Assert(err, IsNil)
 
 	// write data and confirm that it went to all three servers

@@ -206,7 +206,7 @@ func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 	// note: the time condition will be removed
 	c.Assert(q.GetWhereCondition(), IsNil)
 
-	c.Assert(q.GetStartTime().Round(time.Minute), Equals, time.Now().Add(-24*time.Hour).Round(time.Minute))
+	c.Assert(q.GetStartTime().Round(time.Minute), Equals, time.Now().Add(-24*time.Hour).Round(time.Minute).UTC())
 }
 
 func (self *QueryParserSuite) TestParseSelectWithPartialTimeString(c *C) {
@@ -465,7 +465,7 @@ func (self *QueryParserSuite) TestTimeConditionWithFloats(c *C) {
 	} {
 		q, err := ParseQuery(query)
 		c.Assert(err, IsNil)
-		c.Assert(q.GetStartTime(), Equals, time.Unix(startTime, 0))
+		c.Assert(q.GetStartTime(), Equals, time.Unix(startTime, 0).UTC())
 	}
 }
 

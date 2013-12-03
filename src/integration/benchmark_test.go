@@ -346,10 +346,14 @@ func (self *IntegrationSuite) TestIssue85(c *C) {
 		c.Assert(err, IsNil)
 		time.Sleep(1 * time.Second)
 	}
-	_, err := self.server.RunQuery("select time from test_issue_85")
-	c.Assert(err, NotNil)
-	_, err = self.server.RunQuery("select time from test_issue_85")
-	c.Assert(err, NotNil)
+	_, err := self.server.RunQuery("select new_column from test_issue_85")
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select * from test_issue_85")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Columns, HasLen, 4)
 }
 
 func toMap(series *h.SerializedSeries) []map[string]interface{} {
@@ -574,7 +578,12 @@ func (self *IntegrationSuite) TestDbDelete(c *C) {
 
 	// this shouldn't return any data
 	bs, err = self.server.RunQuery("select val1 from test_deletetions")
-	c.Assert(err, ErrorMatches, ".*Field val1 doesn't exist.*")
+	c.Assert(err, IsNil)
+	data = []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(err, IsNil)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Points, HasLen, 0)
 }
 
 func (self *IntegrationSuite) TestReading(c *C) {

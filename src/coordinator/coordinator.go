@@ -23,9 +23,6 @@ type CoordinatorImpl struct {
 	runningReplaysLock   sync.Mutex
 }
 
-var proxyWrite = protocol.Request_PROXY_WRITE
-var replayReplication = protocol.Request_REPLICATION_REPLAY
-
 // this is the key used for the persistent atomic ints for sequence numbers
 const POINT_SEQUENCE_NUMBER_KEY = "p"
 
@@ -33,9 +30,19 @@ const POINT_SEQUENCE_NUMBER_KEY = "p"
 // be a host id. This ensures that sequence numbers are unique across the cluster
 const HOST_ID_OFFSET = uint64(10000)
 
-var queryRequest = protocol.Request_QUERY
-var endStreamResponse = protocol.Response_END_STREAM
-var queryResponse = protocol.Response_QUERY
+var (
+	BARRIER_TIME_MIN int64 = math.MinInt64
+	BARRIER_TIME_MAX int64 = math.MaxInt64
+)
+
+// shorter constants for readability
+var (
+	proxyWrite        = protocol.Request_PROXY_WRITE
+	queryRequest      = protocol.Request_QUERY
+	endStreamResponse = protocol.Response_END_STREAM
+	queryResponse     = protocol.Response_QUERY
+	replayReplication = protocol.Request_REPLICATION_REPLAY
+)
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
 	return &CoordinatorImpl{
@@ -211,9 +218,9 @@ func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *p
 		leftover = &protocol.Series{Name: responses[0].Series.Name, Points: make([]*protocol.Point, 0)}
 	}
 
-	barrierTime := int64(0)
+	barrierTime := BARRIER_TIME_MIN
 	if isAscending {
-		barrierTime = math.MaxInt64
+		barrierTime = BARRIER_TIME_MAX
 	}
 	var shouldYieldComparator func(rawTime *int64) bool
 	if isAscending {
@@ -252,7 +259,7 @@ func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *p
 		leftover.Points = make([]*protocol.Point, 0)
 	}
 
-	if barrierTime == int64(0) || barrierTime == math.MaxInt64 {
+	if barrierTime == BARRIER_TIME_MIN || barrierTime == BARRIER_TIME_MAX {
 		// all the nextPointTimes were nil so we're safe to send everything
 		for _, response := range responses {
 			result.Points = append(result.Points, response.Series.Points...)
