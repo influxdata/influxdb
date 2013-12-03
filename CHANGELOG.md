@@ -140,10 +140,18 @@
 - [Issue #75](https://github.com/influxdb/influxdb/issues/75). Don't allow time series names that start with underscore
 - [Issue #85](https://github.com/influxdb/influxdb/issues/85). Non-existing columns exist after they have been queried before
 
-## v0.4.0
+## v0.4.0 (unreleased)
 
 ## Features
 
 - [Issue #92](https://github.com/influxdb/influxdb/issues/92). Change '==' to '=' and '!=' to '<>'
 
 ## Bugfixes
+
+### Deprecated
+
+- deprecate '==' and '!=' in favor of '=' and '<>', respectively
+- deprecate `/dbs` (for listing databases) in favor of a more consistent `/db` endpoint
+- deprecate `username` field for a more consistent `name` field in the `/db/:db/users`
+- deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
+  be used to update user flags, password, etc.

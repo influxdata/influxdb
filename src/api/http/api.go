@@ -79,7 +79,6 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// Write points to the given database
 	self.registerEndpoint(p, "post", "/db/:db/series", self.writePoints)
-	self.registerEndpoint(p, "get", "/dbs", self.listDatabases)
 	self.registerEndpoint(p, "get", "/db", self.listDatabases)
 	self.registerEndpoint(p, "post", "/db", self.createDatabase)
 	self.registerEndpoint(p, "del", "/db/:name", self.dropDatabase)
@@ -584,7 +583,6 @@ func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 }
 
 type NewUser struct {
-	Username string `json:"username"`
 	Name     string `json:"name"`
 	Password string `json:"password"`
 }
@@ -634,9 +632,6 @@ func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 
 	self.tryAsClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		username := newUser.Name
-		if username == "" {
-			username = newUser.Username
-		}
 		if err := self.userManager.CreateClusterAdminUser(u, username); err != nil {
 			errorStr := err.Error()
 			return errorToStatusCode(err), errorStr
@@ -774,9 +769,6 @@ func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		username := newUser.Name
-		if username == "" {
-			username = newUser.Username
-		}
 		if err := self.userManager.CreateDbUser(u, db, username); err != nil {
 			return errorToStatusCode(err), err.Error()
 		}

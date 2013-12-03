@@ -513,13 +513,13 @@ func (self *ApiSuite) TestDropDatabase(c *C) {
 
 func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 	url := self.formatUrl("/cluster_admins?u=root&p=root")
-	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"username":"", "password": "new_pass"}`))
+	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"name":"", "password": "new_pass"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
 
 	url = self.formatUrl("/cluster_admins?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"username":"new_user", "password": "new_pass"}`))
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"name":"new_user", "password": "new_pass"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
@@ -569,7 +569,7 @@ func (self *ApiSuite) TestDbUserOperations(c *C) {
 
 	// create user using the `username` field
 	url = self.formatUrl("/db/db1/users?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"username":"dbuser", "password": "password"}`))
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"name":"dbuser", "password": "password"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
@@ -594,7 +594,7 @@ func (self *ApiSuite) TestDbUserOperations(c *C) {
 
 	// empty usernames aren't valid
 	url = self.formatUrl("/db/db1/users?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"username":"", "password": "password"}`))
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"name":"", "password": "password"}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
@@ -685,7 +685,7 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 }
 
 func (self *ApiSuite) TestDatabasesIndex(c *C) {
-	for _, path := range []string{"/dbs?u=root&p=root", "/db?u=root&p=root"} {
+	for _, path := range []string{"/db?u=root&p=root", "/db?u=root&p=root"} {
 		url := self.formatUrl(path)
 		resp, err := libhttp.Get(url)
 		c.Assert(err, IsNil)
@@ -701,7 +701,7 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 }
 
 func (self *ApiSuite) TestBasicAuthentication(c *C) {
-	url := self.formatUrl("/dbs")
+	url := self.formatUrl("/db")
 	req, err := libhttp.NewRequest("GET", url, nil)
 	c.Assert(err, IsNil)
 	auth := base64.StdEncoding.EncodeToString([]byte("root:root"))

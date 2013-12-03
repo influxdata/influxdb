@@ -130,7 +130,7 @@ func (self *Server) stop() {
 
 func (self *IntegrationSuite) createUser() error {
 	resp, err := http.Post("http://localhost:8086/db/db1/users?u=root&p=root", "application/json",
-		bytes.NewBufferString(`{"username": "user", "password": "pass"}`))
+		bytes.NewBufferString(`{"name": "user", "password": "pass"}`))
 	if err != nil {
 		return err
 	}
