@@ -62,6 +62,10 @@ func (self *MockCoordinator) ReplicateWrite(request *protocol.Request) error {
 	return nil
 }
 
+func (self *MockCoordinator) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
+	return
+}
+
 func createEngine(c *C, seriesString string) EngineI {
 	series, err := common.StringToSeriesArray(seriesString)
 	c.Assert(err, IsNil)

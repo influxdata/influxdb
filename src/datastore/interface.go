@@ -16,7 +16,7 @@ type Datastore interface {
 	LogRequestAndAssignSequenceNumber(request *protocol.Request, replicationFactor *uint8, ownerServerId *uint32) error
 	// will replay all requests from a given number. If the number hasn't occured yet today, it replays from yesterday.
 	// So this log replay is only meant to work for outages that last less than maybe 12 hours.
-	ReplayRequestsFromSequenceNumber(*uint32, *uint32, *uint32, *uint8, *uint64, func(*protocol.Request) error) error
+	ReplayRequestsFromSequenceNumber(*uint32, *uint32, *uint32, *uint8, *uint64, func(*[]byte) error) error
 	// Increment the named integer by the given amount and return the new value
 	AtomicIncrement(name string, val int) (uint64, error)
 	WriteSeriesData(database string, series *protocol.Series) error

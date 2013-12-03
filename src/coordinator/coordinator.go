@@ -19,7 +19,7 @@ type CoordinatorImpl struct {
 	datastore            datastore.Datastore
 	localHostId          uint32
 	requestId            uint32
-	runningReplays       map[string]bool
+	runningReplays       map[string][]*protocol.Request
 	runningReplaysLock   sync.Mutex
 }
 
@@ -42,7 +42,7 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
 		datastore:            datastore,
-		runningReplays:       make(map[string]bool),
+		runningReplays:       make(map[string][]*protocol.Request),
 	}
 }
 
@@ -299,37 +299,55 @@ func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *p
 	return nil
 }
 
-func (self *CoordinatorImpl) ReplayReplication(replicationFactor *uint8, clusterVersion, originatingServerId, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
-	key := fmt.Sprintf("%d_%d_%d_%d", *replicationFactor, *clusterVersion, *originatingServerId, *owningServerId)
+func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
+	key := fmt.Sprintf("%d_%d_%d_%d", *replicationFactor, *request.ClusterVersion, *request.OriginatingServerId, *owningServerId)
 	self.runningReplaysLock.Lock()
-	isReplaying := self.runningReplays[key]
-	if isReplaying {
+	requestsWaitingToWrite := self.runningReplays[key]
+	if requestsWaitingToWrite != nil {
+		self.runningReplays[key] = append(requestsWaitingToWrite, request)
 		self.runningReplaysLock.Unlock()
 		return
 	}
-	self.runningReplays[key] = true
+	self.runningReplays[key] = []*protocol.Request{request}
 	self.runningReplaysLock.Unlock()
+
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	replicationFactor32 := uint32(*replicationFactor)
-	request := &protocol.Request{
+	database := ""
+	replayRequest := &protocol.Request{
 		Id:                      &id,
 		Type:                    &replayReplication,
+		Database:                &database,
 		ReplicationFactor:       &replicationFactor32,
-		OriginatingServerId:     originatingServerId,
+		OriginatingServerId:     request.OriginatingServerId,
 		OwnerServerId:           owningServerId,
-		ClusterVersion:          clusterVersion,
+		ClusterVersion:          request.ClusterVersion,
 		LastKnownSequenceNumber: lastSeenSequenceNumber}
 	replayedRequests := make(chan *protocol.Response, 100)
-	server := self.clusterConfiguration.GetServerById(originatingServerId)
-	server.protobufClient.MakeRequest(request, replayedRequests)
+	server := self.clusterConfiguration.GetServerById(request.OriginatingServerId)
+	log.Error("COORD REPLAY: ", request, server, self.localHostId)
+	err := server.protobufClient.MakeRequest(replayRequest, replayedRequests)
+	if err != nil {
+		log.Error("COORD REPLAY ERROR: ", err)
+		return
+	}
 	for {
 		response := <-replayedRequests
 		if response == nil || *response.Type == protocol.Response_REPLICATION_REPLAY_END {
-			log.Info("Replay done for originating server %d and owner server %d", *originatingServerId, *owningServerId)
+			self.runningReplaysLock.Lock()
+			defer self.runningReplaysLock.Unlock()
+			for _, r := range self.runningReplays[key] {
+				err := self.datastore.LogRequestAndAssignSequenceNumber(r, replicationFactor, owningServerId)
+				if err != nil {
+					log.Error("Error writing waiting requests after replay: ", err)
+				}
+				self.datastore.WriteSeriesData(*r.Database, r.Series)
+			}
+			delete(self.runningReplays, key)
+			log.Info("Replay done for originating server %d and owner server %d", *request.OriginatingServerId, *owningServerId)
 			return
 		}
 		request := response.Request
-		fmt.Println("REPLAY: ", request)
 		// TODO: make request logging and datastore write atomic
 		err := self.datastore.LogRequestAndAssignSequenceNumber(request, replicationFactor, owningServerId)
 		if err != nil {
@@ -667,7 +685,6 @@ func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString stri
 		if server.ProtobufConnectionString != localConnectionString {
 			server.Connect()
 		} else {
-			fmt.Println("Coordinator: setting local id: ", server.Id)
 			self.localHostId = server.Id
 			self.clusterConfiguration.localServerId = server.Id
 		}

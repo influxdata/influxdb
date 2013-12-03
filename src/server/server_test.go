@@ -253,7 +253,6 @@ func (self *ServerSuite) TestCrossClusterQueries(c *C) {
 }
 
 func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
-	fmt.Println("START_____________________________________________________")
 	servers := self.servers
 
 	err := servers[0].RaftServer.CreateDatabase("full_rep", uint8(3))
@@ -297,7 +296,7 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 
 	// kill a server, write data
 	killedConfig := servers[1].Config
-	fmt.Println("STOPPING SERVER")
+
 	servers[1].Stop()
 	time.Sleep(time.Second)
 	// TODO: make the admin server actually close so we don't have to go to a new port
@@ -310,12 +309,10 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 		"columns": ["val"]
 	}]
 	`
-	fmt.Println("WRITING NEW DATA")
 	resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	time.Sleep(time.Millisecond * 10)
 
-	fmt.Println("BRINGING SERVER BACK UP")
 	// now bring the server back up and make sure that it only has the old data. replays get triggered on write
 	server, err := NewServer(killedConfig)
 	if err != nil {
@@ -327,14 +324,13 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 			c.Error(err)
 		}
 	}()
-	time.Sleep(time.Millisecond * 50)
+	time.Sleep(time.Second * 4)
 	servers[1] = server
 
 	getSum := func(db datastore.Datastore) int64 {
 		results := executeQuery(user, "full_rep", "select * from test_failure_replays;", db, c)
 		sum := int64(0)
 		for _, series := range results {
-			fmt.Println("SERIES: ", series)
 			if *series.Name == "test_failure_replays" {
 				for _, point := range series.Points {
 					sum += *point.Values[0].Int64Value
@@ -347,30 +343,24 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 	c.Assert(getSum(servers[1].Db), Equals, int64(1))
 	c.Assert(getSum(servers[2].Db), Equals, int64(3))
 
+	// TODO: fix this. I do this 1k times because there's no way right now to force a replay
+	//       on a server other than having a write with the originating server id and owner server id
+	//       the same as the write that occured while the server was down. Doing this means it
+	//       will almost certainly trigger one (i.e. a request will randomly hash to the org/owner server)
 	data = `
 	[{
-		"points": [[3]],
+		"points": [[1]],
 		"name": "test_failure_replays",
 		"columns": ["val"]
 	}]
 	`
-	fmt.Println("WRITING NEW DATA")
-	resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-
-	data = `
-	[{
-		"points": [[4]],
-		"name": "test_failure_replays",
-		"columns": ["val"]
-	}]
-	`
-	fmt.Println("WRITING NEW DATA")
-	resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	for i := 0; i < 1000; i++ {
+		resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
+		c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	}
 
 	time.Sleep(time.Millisecond * 10)
-	c.Assert(getSum(servers[0].Db), Equals, int64(10))
-	c.Assert(getSum(servers[1].Db), Equals, int64(10))
-	c.Assert(getSum(servers[2].Db), Equals, int64(10))
+	c.Assert(getSum(servers[0].Db), Equals, int64(1003))
+	c.Assert(getSum(servers[1].Db), Equals, int64(1003))
+	c.Assert(getSum(servers[2].Db), Equals, int64(1003))
 }

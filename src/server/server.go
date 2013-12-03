@@ -20,6 +20,7 @@ type Server struct {
 	AdminServer    *admin.HttpServer
 	Coordinator    coordinator.Coordinator
 	Config         *configuration.Configuration
+	RequestHandler *coordinator.ProtobufRequestHandler
 	stopped        bool
 }
 
@@ -52,7 +53,8 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		HttpApi:        httpApi,
 		Coordinator:    coord,
 		AdminServer:    adminServer,
-		Config:         config}, nil
+		Config:         config,
+		RequestHandler: requestHandler}, nil
 }
 
 func (self *Server) ListenAndServe() error {

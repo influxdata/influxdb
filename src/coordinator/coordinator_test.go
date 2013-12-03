@@ -66,7 +66,7 @@ func (self *DatastoreMock) AtomicIncrement(name string, val int) (uint64, error)
 	return uint64(val), nil
 }
 
-func (self *DatastoreMock) ReplayRequestsFromSequenceNumber(*uint32, *uint32, *uint32, *uint8, *uint64, func(*protocol.Request) error) error {
+func (self *DatastoreMock) ReplayRequestsFromSequenceNumber(*uint32, *uint32, *uint32, *uint8, *uint64, func(*[]byte) error) error {
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"bytes"
 	"common"
 	"datastore"
 	"encoding/binary"
@@ -26,7 +27,6 @@ func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, 
 }
 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
-	log.Println("GOT REQUEST: ", self.clusterConfig.localServerId, request)
 	if *request.Type == protocol.Request_PROXY_WRITE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
@@ -61,7 +61,7 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		if err != nil {
 			switch err := err.(type) {
 			case datastore.SequenceMissingRequestsError:
-				go self.coordinator.ReplayReplication(&replicationFactor, request.ClusterVersion, request.OriginatingServerId, ownerId, &err.LastKnownRequestSequence)
+				go self.coordinator.ReplayReplication(request, &replicationFactor, ownerId, &err.LastKnownRequestSequence)
 				return nil
 			default:
 				return err
@@ -83,23 +83,30 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 }
 
 func (self *ProtobufRequestHandler) handleReplay(request *protocol.Request, conn net.Conn) {
-	sendRequest := func(loggedRequest *protocol.Request) error {
+	sendRequest := func(loggedRequestData *[]byte) error {
 		var response *protocol.Response
-		if loggedRequest != nil {
-			response = &protocol.Response{Type: &responseReplicationReplay, Request: request, RequestId: request.Id}
+		if loggedRequestData != nil {
+			loggedRequest, err := protocol.DecodeRequest(bytes.NewBuffer(*loggedRequestData))
+			if err != nil {
+				return err
+			}
+			response = &protocol.Response{Type: &responseReplicationReplay, Request: loggedRequest, RequestId: request.Id}
 		} else {
 			response = &protocol.Response{Type: &replayReplicationEnd, RequestId: request.Id}
 		}
 		return self.WriteResponse(conn, response)
 	}
 	replicationFactor8 := uint8(*request.ReplicationFactor)
-	self.db.ReplayRequestsFromSequenceNumber(
+	err := self.db.ReplayRequestsFromSequenceNumber(
 		request.ClusterVersion,
 		request.OriginatingServerId,
 		request.OwnerServerId,
 		&replicationFactor8,
 		request.LastKnownSequenceNumber,
 		sendRequest)
+	if err != nil {
+		log.Println("REPLAY ERROR: ", err)
+	}
 }
 
 func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn net.Conn) {

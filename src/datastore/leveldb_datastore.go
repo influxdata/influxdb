@@ -138,6 +138,8 @@ var (
 	// DATABASE_SERIES_INDEX_PREFIX is the prefix of the database to series names index
 	DATABASE_SERIES_INDEX_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 	MAX_SEQUENCE                 = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
+	replicateWrite = protocol.Request_REPLICATION_WRITE
 )
 
 func NewLevelDbDatastore(dbDir string) (Datastore, error) {
@@ -338,7 +340,7 @@ func (self *LevelDbDatastore) DropDatabase(database string) error {
 	return self.db.Write(self.writeOptions, wb)
 }
 
-func (self *LevelDbDatastore) ReplayRequestsFromSequenceNumber(clusterVersion, originatingServerId, ownerServerId *uint32, replicationFactor *uint8, lastKnownSequence *uint64, yield func(*protocol.Request) error) error {
+func (self *LevelDbDatastore) ReplayRequestsFromSequenceNumber(clusterVersion, originatingServerId, ownerServerId *uint32, replicationFactor *uint8, lastKnownSequence *uint64, yield func(*[]byte) error) error {
 	self.requestLogLock.RLock()
 	defer self.requestLogLock.RUnlock()
 
@@ -356,15 +358,10 @@ func (self *LevelDbDatastore) ReplayRequestsFromSequenceNumber(clusterVersion, o
 		}
 		startSequence := uint64(0)
 		key = self.requestLogKey(clusterVersion, originatingServerId, ownerServerId, &startSequence, replicationFactor)
-		err = self.replayFromLog(key, requestLog, yield)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = self.replayFromLog(key, requestLog, yield)
-		if err != nil {
-			return err
-		}
+	}
+	err = self.replayFromLog(key, requestLog, yield)
+	if err != nil {
+		return err
 	}
 
 	yield(nil)
@@ -372,29 +369,32 @@ func (self *LevelDbDatastore) ReplayRequestsFromSequenceNumber(clusterVersion, o
 	return nil
 }
 
-func (self *LevelDbDatastore) replayFromLog(seekKey []byte, requestLog *requestLogDb, yield func(*protocol.Request) error) error {
+func (self *LevelDbDatastore) replayFromLog(seekKey []byte, requestLog *requestLogDb, yield func(*[]byte) error) error {
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
 	ro.SetFillCache(false)
 	it := requestLog.db.NewIterator(ro)
 	defer it.Close()
-	it.Seek(seekKey)
-	if it.Valid() {
-		it.Next()
-	}
+
 	startingKey := seekKey[:len(seekKey)-8]
 	sliceTo := len(startingKey)
+	it.Seek(seekKey)
+	if it.Valid() {
+		if bytes.Equal(it.Key(), seekKey) {
+			it.Next()
+		}
+	}
+
 	for it = it; it.Valid(); it.Next() {
 		k := it.Key()
 		if !bytes.Equal(k[:sliceTo], startingKey) {
 			return nil
 		}
-		buff := bytes.NewBuffer(it.Value())
-		request, err := protocol.DecodeRequest(buff)
+		b := it.Value()
+		err := yield(&b)
 		if err != nil {
 			return err
 		}
-		yield(request)
 	}
 	return nil
 }
@@ -455,8 +455,6 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 			return err
 		}
 		previousSequenceNumber := self.bytesToCurrentNumber(numberBytes)
-		fmt.Printf("LOG: v: %d, o: %d, s: %d, prev: %d, next: %d\n", *request.ClusterVersion, *ownerServerId, *request.OriginatingServerId, previousSequenceNumber, *request.SequenceNumber)
-		fmt.Println(request)
 		if previousSequenceNumber+uint64(1) != *request.SequenceNumber {
 			return SequenceMissingRequestsError{"Missing requests between last seen and this one.", previousSequenceNumber}
 		}
@@ -465,6 +463,11 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 	self.requestLogLock.RLock()
 	requestLog := self.currentRequestLog
 	self.requestLogLock.RUnlock()
+
+	// proxied writes should be logged as replicated ones. That's what is expected if they're replayed later
+	if *request.Type == protocol.Request_PROXY_WRITE {
+		request.Type = &replicateWrite
+	}
 
 	data, err := request.Encode()
 	if err != nil {

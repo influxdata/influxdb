@@ -1,7 +1,7 @@
 package coordinator
 
 import (
-	"fmt"
+	log "code.google.com/p/log4go"
 )
 
 type ClusterServer struct {
@@ -24,6 +24,6 @@ const (
 )
 
 func (self *ClusterServer) Connect() {
-	fmt.Printf("ClusterServer: %d connecting to: %s\n", self.Id, self.ProtobufConnectionString)
+	log.Info("ClusterServer: %d connecting to: %s", self.Id, self.ProtobufConnectionString)
 	self.protobufClient = NewProtobufClient(self.ProtobufConnectionString)
 }

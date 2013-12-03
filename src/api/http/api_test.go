@@ -128,8 +128,8 @@ func (self *MockCoordinator) ReplicateWrite(request *protocol.Request) error {
 	return nil
 }
 
-func (self *MockCoordinator) ReplayReplication(replicationFactor *uint8, clusterVersion, originatingServerId, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
-	return nil
+func (self *MockCoordinator) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
+	return
 }
 
 func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
