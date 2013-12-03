@@ -39,6 +39,32 @@ func (self *FilteringSuite) TestInOperatorFiltering(c *C) {
 	c.Assert(*result.Points[1].Values[1].Int64Value, Equals, int64(6))
 }
 
+func (self *FilteringSuite) TestFilteringWithGroupBy(c *C) {
+	queryStr := "select sum(column_one) from t group by column_two where column_one = 85;"
+	query, err := parser.ParseQuery(queryStr)
+	c.Assert(err, IsNil)
+
+	series, err := common.StringToSeriesArray(`
+[
+ {
+   "points": [
+     {"values": [{"int64_value": 100},{"int64_value": 5 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int64_value": 85},{"int64_value": 6 }], "timestamp": 1381346631, "sequence_number": 1},
+     {"values": [{"int64_value": 90 },{"int64_value": 15}], "timestamp": 1381346632, "sequence_number": 1}
+   ],
+   "name": "t",
+   "fields": ["column_one", "column_two"]
+ }
+]
+`)
+	c.Assert(err, IsNil)
+	result, err := Filter(query, series[0])
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Assert(result.Points, HasLen, 1)
+	c.Assert(result.Fields, HasLen, 2)
+}
+
 func (self *FilteringSuite) TestEqualityFiltering(c *C) {
 	queryStr := "select * from t where column_one = 100 and column_two <> 6;"
 	query, err := parser.ParseQuery(queryStr)

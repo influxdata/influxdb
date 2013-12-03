@@ -418,6 +418,49 @@ func (self *IntegrationSuite) TestIssue92(c *C) {
 	c.Assert(points[4]["sum"], Equals, 30.0)
 }
 
+// issue #89
+// Group by combined with where clause doesn't work
+//
+// a | b | c
+// ---------
+// x | y | 10
+// x | y | 20
+// y | z | 30
+// x | z | 40
+//
+// `select sum(c) from test group by b where a = 'x'` should return the following:
+//
+// time | sum | b
+// --------------
+// tttt | 30  | y
+// tttt | 40  | z
+func (self *IntegrationSuite) TestIssue89(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+     "name": "test_issue_89",
+     "columns": ["a", "b", "c"],
+     "points": [
+			 ["x", "y", 10],
+			 ["x", "y", 20],
+			 ["y", "z", 30],
+			 ["x", "z", 40]
+		 ]
+  }
+]`)
+	c.Assert(err, IsNil)
+	time.Sleep(1 * time.Second)
+	bs, err := self.server.RunQuery("select sum(c) from test_issue_89 group by b where a = 'x'")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	points := toMap(data[0])
+	c.Assert(points, HasLen, 2)
+	c.Assert(points[0]["sum"], Equals, 40.0)
+	c.Assert(points[1]["sum"], Equals, 30.0)
+}
+
 // issue #36
 func (self *IntegrationSuite) TestInnerJoin(c *C) {
 	for i := 0; i < 3; i++ {

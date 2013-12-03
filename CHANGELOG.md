@@ -149,6 +149,7 @@
 ## Bugfixes
 
 - [Issue #90](https://github.com/influxdb/influxdb/issues/90). Group by multiple columns panic
+- [Issue #89](https://github.com/influxdb/influxdb/issues/89). 'Group by' combined with 'where' not working
 
 ### Deprecated
 
