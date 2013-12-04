@@ -36,6 +36,9 @@ int main(int argc, char **argv) {
   q = parse_query("select email from users.events as events where email === /gmail\\\\.com/i and time>now()-2d;");
   close_query(&q);
 
+  q = parse_query("select email from users.events where email in ('jvshahid@gmail.com')");
+  close_query(&q);
+
   return 0;
 }
 EOF

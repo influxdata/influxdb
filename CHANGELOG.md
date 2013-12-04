@@ -144,6 +144,7 @@
 
 ## Features
 
+- [Issue #86](https://github.com/influxdb/influxdb/issues/86). Support arithmetic expressions in select clause
 - [Issue #92](https://github.com/influxdb/influxdb/issues/92). Change '==' to '=' and '!=' to '<>'
 - [Issue #88](https://github.com/influxdb/influxdb/issues/88). Support datetime strings
 - [Issue #64](https://github.com/influxdb/influxdb/issues/64). Implement basic clustering. Writes and queries sharded across cluster with write replay for briefly downed nodes (< 24 hrs)

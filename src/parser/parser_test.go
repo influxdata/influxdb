@@ -47,14 +47,11 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 		boolExpression, ok := w.GetBoolExpression()
 		c.Assert(ok, Equals, true)
 
-		leftExpression := boolExpression.Left
-		rightExpression := boolExpression.Right
-
-		leftValue, ok := leftExpression.GetLeftValue() // simple value is an expression with one value, e.g. it doesn't combine value using arithmetic operations
-		rightValue, ok := rightExpression.GetLeftValue()
+		leftValue := boolExpression.Elems[0]
+		rightValue := boolExpression.Elems[1]
 
 		c.Assert(leftValue.Name, Equals, "c")
-		c.Assert(boolExpression.Operation, Equals, "=")
+		c.Assert(boolExpression.Name, Equals, "=")
 		c.Assert(rightValue.Name, Equals, "5")
 	}
 }
@@ -132,14 +129,11 @@ func (self *QueryParserSuite) TestMergeFromClause(c *C) {
 	boolExpression, ok := w.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	leftExpression := boolExpression.Left
-	rightExpression := boolExpression.Right
-
-	leftValue, ok := leftExpression.GetLeftValue() // simple value is an expression with one value, e.g. it doesn't combine value using arithmetic operations
-	rightValue, ok := rightExpression.GetLeftValue()
+	leftValue := boolExpression.Elems[0]
+	rightValue := boolExpression.Elems[1]
 
 	c.Assert(leftValue.Name, Equals, "c")
-	c.Assert(boolExpression.Operation, Equals, "=")
+	c.Assert(boolExpression.Name, Equals, "=")
 	c.Assert(rightValue.Name, Equals, "5")
 }
 
@@ -158,13 +152,8 @@ func (self *QueryParserSuite) TestParseSelectWithUpperCase(c *C) {
 
 	boolExpression, ok := w.GetBoolExpression()
 	c.Assert(ok, Equals, true)
-	leftExpression := boolExpression.Left
-	rightExpression := boolExpression.Right
-
-	leftValue, ok := leftExpression.GetLeftValue()
-	c.Assert(ok, Equals, true)
-	rightValue, ok := rightExpression.GetLeftValue()
-	c.Assert(ok, Equals, true)
+	leftValue := boolExpression.Elems[0]
+	rightValue := boolExpression.Elems[1]
 
 	c.Assert(leftValue.Name, Equals, "C")
 	c.Assert(rightValue.Name, Equals, "5")
@@ -187,15 +176,11 @@ func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
 
 	boolExpression, ok := w.GetBoolExpression()
 	c.Assert(ok, Equals, true)
-	leftExpression := boolExpression.Left
-	rightExpression := boolExpression.Right
-	leftValue, ok := leftExpression.GetLeftValue()
-	c.Assert(ok, Equals, true)
-	rightValue, ok := rightExpression.GetLeftValue()
-	c.Assert(ok, Equals, true)
+	leftValue := boolExpression.Elems[0]
+	rightValue := boolExpression.Elems[1]
 
 	c.Assert(leftValue.Name, Equals, "c")
-	c.Assert(boolExpression.Operation, Equals, "<")
+	c.Assert(boolExpression.Name, Equals, "<")
 	c.Assert(rightValue.Name, Equals, "5")
 }
 
@@ -263,27 +248,19 @@ func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 	rightBoolExpression, ok := w.Right.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	c.Assert(leftBoolExpression.Left.Left, DeepEquals, &Value{"value", ValueSimpleName, false, nil, nil})
-	expr, ok := leftBoolExpression.Right.GetLeftExpression()
-	c.Assert(ok, Equals, true)
-	value, ok := expr.GetLeftValue()
-	c.Assert(ok, Equals, true)
+	c.Assert(leftBoolExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, false, nil, nil})
+	value := leftBoolExpression.Elems[1].Elems[0]
 	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, false, nil, nil})
-	value, ok = leftBoolExpression.Right.Right.GetLeftValue()
-	c.Assert(ok, Equals, true)
+	value = leftBoolExpression.Elems[1].Elems[1]
 	c.Assert(value, DeepEquals, &Value{"2", ValueInt, false, nil, nil})
-	c.Assert(leftBoolExpression.Operation, Equals, ">")
+	c.Assert(leftBoolExpression.Name, Equals, ">")
 
-	c.Assert(rightBoolExpression.Left.Left, DeepEquals, &Value{"value", ValueSimpleName, false, nil, nil})
-	expr, ok = rightBoolExpression.Right.GetLeftExpression()
-	c.Assert(ok, Equals, true)
-	value, ok = expr.GetLeftValue()
-	c.Assert(ok, Equals, true)
+	c.Assert(rightBoolExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, false, nil, nil})
+	value = rightBoolExpression.Elems[1].Elems[0]
 	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, false, nil, nil})
-	value, ok = rightBoolExpression.Right.Right.GetLeftValue()
-	c.Assert(ok, Equals, true)
+	value = rightBoolExpression.Elems[1].Elems[1]
 	c.Assert(value, DeepEquals, &Value{"3", ValueInt, false, nil, nil})
-	c.Assert(rightBoolExpression.Operation, Equals, "<")
+	c.Assert(rightBoolExpression.Name, Equals, "<")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithGroupBy(c *C) {
@@ -341,15 +318,15 @@ func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
 	c.Assert(ok, Equals, true)
 	leftExpression, ok := condition.GetBoolExpression()
 	c.Assert(ok, Equals, true)
-	c.Assert(leftExpression.Operation, Equals, ">")
-	c.Assert(leftExpression.Left.Left, DeepEquals, &Value{"value", ValueSimpleName, false, nil, nil})
-	c.Assert(leftExpression.Right.Left, DeepEquals, &Value{"90", ValueInt, false, nil, nil})
+	c.Assert(leftExpression.Name, Equals, ">")
+	c.Assert(leftExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, false, nil, nil})
+	c.Assert(leftExpression.Elems[1], DeepEquals, &Value{"90", ValueInt, false, nil, nil})
 
 	rightExpression, ok := leftCondition.Right.GetBoolExpression()
 	c.Assert(ok, Equals, true)
-	c.Assert(rightExpression.Operation, Equals, ">")
-	c.Assert(rightExpression.Left.Left, DeepEquals, &Value{"other_value", ValueSimpleName, false, nil, nil})
-	c.Assert(rightExpression.Right.Left, DeepEquals, &Value{"10.0", ValueFloat, false, nil, nil})
+	c.Assert(rightExpression.Name, Equals, ">")
+	c.Assert(rightExpression.Elems[0], DeepEquals, &Value{"other_value", ValueSimpleName, false, nil, nil})
+	c.Assert(rightExpression.Elems[1], DeepEquals, &Value{"10.0", ValueFloat, false, nil, nil})
 }
 
 func (self *QueryParserSuite) TestParseWhereClauseParentheses(c *C) {
@@ -358,13 +335,13 @@ func (self *QueryParserSuite) TestParseWhereClauseParentheses(c *C) {
 
 	whereCondition := q.GetWhereCondition()
 
-	first := whereCondition.Left.(*WhereCondition).Left.(*WhereCondition).Left.(*BoolExpression)
+	first := whereCondition.Left.(*WhereCondition).Left.(*WhereCondition).Left.(*Value)
 	second := whereCondition.Left.(*WhereCondition).Right
-	third := whereCondition.Right.Left.(*BoolExpression)
+	third := whereCondition.Right.Left.(*Value)
 
-	c.Assert(first.Operation, Equals, ">")
+	c.Assert(first.Name, Equals, ">")
 	c.Assert(second.Operation, Equals, "OR")
-	c.Assert(third.Operation, Equals, ">")
+	c.Assert(third.Name, Equals, ">")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithOrderByAndLimit(c *C) {
@@ -418,10 +395,9 @@ func (self *QueryParserSuite) TestParseSelectWithRegexCondition(c *C) {
 
 	// note: conditions that involve time are removed after the query is parsed
 	regexExpression, _ := w.GetBoolExpression()
-	c.Assert(regexExpression.Left.Left, DeepEquals, &Value{"email", ValueSimpleName, false, nil, nil})
-	c.Assert(regexExpression.Operation, Equals, "=~")
-	expr, ok := regexExpression.Right.GetLeftValue()
-	c.Assert(ok, Equals, true)
+	c.Assert(regexExpression.Elems[0], DeepEquals, &Value{"email", ValueSimpleName, false, nil, nil})
+	c.Assert(regexExpression.Name, Equals, "=~")
+	expr := regexExpression.Elems[1]
 	c.Assert(expr.Type, Equals, ValueRegex)
 	c.Assert(expr.Name, Equals, "gmail\\.com")
 	c.Assert(expr.IsCaseInsensitive, Equals, true)
@@ -434,25 +410,22 @@ func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *
 	boolExpression, ok := q.GetWhereCondition().GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	c.Assert(boolExpression.Left.Left, DeepEquals, &Value{".30", ValueFloat, false, nil, nil})
+	c.Assert(boolExpression.Elems[0], DeepEquals, &Value{".30", ValueFloat, false, nil, nil})
 
 	// value * 1 / 3
-	rightExpression := boolExpression.Right
+	rightExpression := boolExpression.Elems[1]
 
 	// value * 1
-	left, ok := rightExpression.GetLeftExpression()
-	c.Assert(ok, Equals, true)
-	c.Assert(left.Operation, Equals, byte('*'))
-	_value, _ := left.GetLeftExpression()
-	value, _ := _value.GetLeftValue()
+	left := rightExpression.Elems[0]
+	c.Assert(left.Name, Equals, "*")
+	value := left.Elems[0]
 	c.Assert(value.Name, Equals, "value")
-	one, _ := left.Right.GetLeftValue()
+	one := left.Elems[1]
 	c.Assert(one.Name, Equals, "1")
 
 	// '3'
-	c.Assert(rightExpression.Operation, Equals, byte('/'))
-	value, ok = rightExpression.Right.GetLeftValue()
-	c.Assert(ok, Equals, true)
+	c.Assert(rightExpression.Name, Equals, "/")
+	value = rightExpression.Elems[1]
 	c.Assert(value.Name, Equals, "3")
 }
 
@@ -476,10 +449,9 @@ func (self *QueryParserSuite) TestQureyWithInCondition(c *C) {
 	condition := q.GetWhereCondition()
 	expr, ok := condition.GetBoolExpression()
 	c.Assert(ok, Equals, true)
-	left, _ := expr.Left.GetLeftValue()
-	c.Assert(expr.Operation, Equals, "in")
-	right, ok := expr.Right.GetLeftValues()
-	c.Assert(ok, Equals, true)
+	c.Assert(expr.Name, Equals, "in")
+	left := expr.Elems[0]
+	right := expr.Elems[1:]
 	c.Assert(left.Name, Equals, "bar")
 	c.Assert(right, HasLen, 2)
 	c.Assert(right[0].Name, Equals, "baz")

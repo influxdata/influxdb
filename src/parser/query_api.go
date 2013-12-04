@@ -203,8 +203,8 @@ func parseTimeString(t string) (time.Time, error) {
 }
 
 // parse time expressions, e.g. now() - 1d
-func parseTime(expr *Expression) (int64, error) {
-	if value, ok := expr.GetLeftValue(); ok {
+func parseTime(value *Value) (int64, error) {
+	if value.Type != ValueExpression {
 		if value.IsFunctionCall() && value.Name == "now" {
 			return time.Now().UnixNano(), nil
 		}
@@ -252,22 +252,21 @@ func parseTime(expr *Expression) (int64, error) {
 		return int64(parsedFloat), nil
 	}
 
-	leftExpression, _ := expr.GetLeftExpression()
-	leftValue, err := parseTime(leftExpression)
+	leftValue, err := parseTime(value.Elems[0])
 	if err != nil {
 		return 0, err
 	}
-	rightValue, err := parseTime(expr.Right)
+	rightValue, err := parseTime(value.Elems[1])
 	if err != nil {
 		return 0, err
 	}
-	switch expr.Operation {
-	case '+':
+	switch value.Name {
+	case "+":
 		return leftValue + rightValue, nil
-	case '-':
+	case "-":
 		return leftValue - rightValue, nil
 	default:
-		return 0, fmt.Errorf("Cannot use '%c' in a time expression", expr.Operation)
+		return 0, fmt.Errorf("Cannot use '%s' in a time expression", value.Name)
 	}
 }
 
@@ -283,7 +282,7 @@ func getReferencedColumnsFromValue(v *Value, mapping map[string][]string) (notAs
 		notAssigned = append(notAssigned, v.Name)
 	case ValueWildcard:
 		notAssigned = append(notAssigned, "*")
-	case ValueFunctionCall:
+	case ValueExpression, ValueFunctionCall:
 		for _, value := range v.Elems {
 			newNotAssignedColumns := getReferencedColumnsFromValue(value, mapping)
 			if len(newNotAssignedColumns) > 0 && newNotAssignedColumns[0] == "*" {
@@ -296,34 +295,6 @@ func getReferencedColumnsFromValue(v *Value, mapping map[string][]string) (notAs
 	return
 }
 
-func getReferencedColumnsFromExpression(expr *Expression, mapping map[string][]string) (notAssigned []string) {
-	if left, ok := expr.GetLeftExpression(); ok {
-		notAssigned = append(notAssigned, getReferencedColumnsFromExpression(left, mapping)...)
-		notAssigned = append(notAssigned, getReferencedColumnsFromExpression(expr.Right, mapping)...)
-		return
-	}
-
-	values, ok := expr.GetLeftValues()
-	if !ok {
-		value, ok := expr.GetLeftValue()
-		if ok {
-			values = []*Value{value}
-		}
-	}
-
-	for _, v := range values {
-		notAssigned = append(notAssigned, getReferencedColumnsFromValue(v, mapping)...)
-	}
-
-	return
-}
-
-func getReferencedColumnsFromBool(expr *BoolExpression, mapping map[string][]string) (notAssigned []string) {
-	notAssigned = append(notAssigned, getReferencedColumnsFromExpression(expr.Right, mapping)...)
-	notAssigned = append(notAssigned, getReferencedColumnsFromExpression(expr.Left, mapping)...)
-	return
-}
-
 func getReferencedColumnsFromCondition(condition *WhereCondition, mapping map[string][]string) (notPrefixed []string) {
 	if left, ok := condition.GetLeftWhereCondition(); ok {
 		notPrefixed = append(notPrefixed, getReferencedColumnsFromCondition(left, mapping)...)
@@ -332,7 +303,7 @@ func getReferencedColumnsFromCondition(condition *WhereCondition, mapping map[st
 	}
 
 	expr, _ := condition.GetBoolExpression()
-	notPrefixed = append(notPrefixed, getReferencedColumnsFromBool(expr, mapping)...)
+	notPrefixed = append(notPrefixed, getReferencedColumnsFromValue(expr, mapping)...)
 	return
 }
 
@@ -353,8 +324,10 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 	}
 
 	if expr, ok := condition.GetBoolExpression(); ok {
-		leftValue, isLeftValue := expr.Left.GetLeftValue()
-		rightValue, isRightValue := expr.Right.GetLeftValue()
+		leftValue := expr.Elems[0]
+		isLeftValue := leftValue.Type != ValueExpression
+		rightValue := expr.Elems[1]
+		isRightValue := rightValue.Type != ValueExpression
 
 		// this can only be the case if the where condition
 		// is of the form `"time" > 123456789`, so let's see
@@ -374,22 +347,22 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 			return condition, ZERO_TIME, nil
 		}
 
-		var timeExpression *Expression
+		var timeExpression *Value
 		if !isRightValue {
 			if leftValue.Name != "time" {
 				return condition, ZERO_TIME, nil
 			}
-			timeExpression = expr.Right
+			timeExpression = rightValue
 		} else if !isLeftValue {
 			if rightValue.Name != "time" {
 				return condition, ZERO_TIME, nil
 			}
-			timeExpression = expr.Left
+			timeExpression = leftValue
 		} else {
 			return nil, ZERO_TIME, fmt.Errorf("Invalid time condition %v", condition)
 		}
 
-		switch expr.Operation {
+		switch expr.Name {
 		case ">":
 			if isParsingStartTime && !isLeftValue || !isParsingStartTime && !isRightValue {
 				return condition, ZERO_TIME, nil
@@ -399,7 +372,7 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 				return condition, ZERO_TIME, nil
 			}
 		default:
-			return nil, ZERO_TIME, fmt.Errorf("Cannot use time with '%s'", expr.Operation)
+			return nil, ZERO_TIME, fmt.Errorf("Cannot use time with '%s'", expr.Name)
 		}
 
 		nanoseconds, err := parseTime(timeExpression)

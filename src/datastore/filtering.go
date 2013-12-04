@@ -7,13 +7,7 @@ import (
 	"strconv"
 )
 
-func getExpressionValue(expr *parser.Expression, fields []string, point *protocol.Point) ([]*protocol.FieldValue, error) {
-
-	values, _ := expr.GetLeftValues()
-
-	if value, ok := expr.GetLeftValue(); ok {
-		values = []*parser.Value{value}
-	}
+func getExpressionValue(values []*parser.Value, fields []string, point *protocol.Point) ([]*protocol.FieldValue, error) {
 
 	fieldValues := []*protocol.FieldValue{}
 	for _, value := range values {
@@ -52,17 +46,17 @@ func getExpressionValue(expr *parser.Expression, fields []string, point *protoco
 	return fieldValues, nil
 }
 
-func matchesExpression(expr *parser.BoolExpression, fields []string, point *protocol.Point) (bool, error) {
-	leftValue, err := getExpressionValue(expr.Left, fields, point)
+func matchesExpression(expr *parser.Value, fields []string, point *protocol.Point) (bool, error) {
+	leftValue, err := getExpressionValue(expr.Elems[:1], fields, point)
 	if err != nil {
 		return false, err
 	}
-	rightValue, err := getExpressionValue(expr.Right, fields, point)
+	rightValue, err := getExpressionValue(expr.Elems[1:], fields, point)
 	if err != nil {
 		return false, err
 	}
 
-	operator := registeredOperators[expr.Operation]
+	operator := registeredOperators[expr.Name]
 	return operator(leftValue[0], rightValue)
 }
 

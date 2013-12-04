@@ -52,33 +52,10 @@ free_value(value *value)
 }
 
 void
-free_expression(expression *expr)
-{
-  if (expr->op == 0) {
-    free_value((value*)expr->left);
-  } else if (expr->op == 1) {
-    free_value_array((value_array*)expr->left);
-  } else {
-    free_expression((expression*) expr->left);
-    free_expression(expr->right);
-  }
-  free(expr);
-}
-
-void
-free_bool_expression(bool_expression *expr)
-{
-  free_expression(expr->left);
-  if (expr->op) free(expr->op);
-  if (expr->right) free_expression(expr->right);
-  free(expr);
-}
-
-void
 free_condition(condition *condition)
 {
   if (condition->is_bool_expression) {
-    free_bool_expression((bool_expression*) condition->left);
+    free_value((value*) condition->left);
   } else {
     free_condition(condition->left);
     free_condition(condition->right);

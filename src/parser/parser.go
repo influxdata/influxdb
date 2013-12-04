@@ -36,6 +36,7 @@ const (
 	ValueDuration               = C.VALUE_DURATION
 	ValueWildcard               = C.VALUE_WILDCARD
 	ValueFunctionCall           = C.VALUE_FUNCTION_CALL
+	ValueExpression             = C.VALUE_EXPRESSION
 )
 
 type Value struct {
@@ -79,18 +80,6 @@ type FromClause struct {
 	Names []*TableName
 }
 
-type Expression struct {
-	Left      interface{}
-	Operation byte
-	Right     *Expression
-}
-
-type BoolExpression struct {
-	Left      *Expression
-	Operation string
-	Right     *Expression
-}
-
 type GroupByClause []*Value
 
 func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
@@ -120,9 +109,9 @@ type WhereCondition struct {
 	Right               *WhereCondition
 }
 
-func (self *WhereCondition) GetBoolExpression() (*BoolExpression, bool) {
+func (self *WhereCondition) GetBoolExpression() (*Value, bool) {
 	if self.isBooleanExpression {
-		return self.Left.(*BoolExpression), true
+		return self.Left.(*Value), true
 	}
 	return nil, false
 }
@@ -156,27 +145,6 @@ func (self *Query) GetColumnNames() []*Value {
 
 func (self *Query) GetFromClause() *FromClause {
 	return self.FromClause
-}
-
-func (self *Expression) GetLeftValue() (*Value, bool) {
-	if self.Operation == 0 {
-		return self.Left.(*Value), true
-	}
-	return nil, false
-}
-
-func (self *Expression) GetLeftValues() ([]*Value, bool) {
-	if self.Operation == 1 {
-		return self.Left.([]*Value), true
-	}
-	return nil, false
-}
-
-func (self *Expression) GetLeftExpression() (*Expression, bool) {
-	if self.Operation > 1 {
-		return self.Left.(*Expression), true
-	}
-	return nil, false
 }
 
 func setupSlice(hdr *reflect.SliceHeader, ptr unsafe.Pointer, size C.size_t) {
@@ -274,58 +242,58 @@ func GetFromClause(fromClause *C.from_clause) (*FromClause, error) {
 	return &FromClause{FromClauseType(fromClause.from_clause_type), arr}, nil
 }
 
-func GetExpression(expr *C.expression) (*Expression, error) {
-	expression := &Expression{}
-	if expr.op == 0 {
-		value, err := GetValue((*C.value)(expr.left))
-		if err != nil {
-			return nil, err
-		}
-		expression.Left = value
-		expression.Operation = byte(expr.op)
-		expression.Right = nil
-	} else if expr.op == 1 {
-		value, err := GetValueArray((*C.value_array)(expr.left))
-		if err != nil {
-			return nil, err
-		}
-		expression.Left = value
-		expression.Operation = byte(expr.op)
-		expression.Right = nil
-	} else {
-		var err error
-		expression.Left, err = GetExpression((*C.expression)(expr.left))
-		if err != nil {
-			return nil, err
-		}
-		expression.Operation = byte(expr.op)
-		expression.Right, err = GetExpression((*C.expression)(unsafe.Pointer(expr.right)))
-		if err != nil {
-			return nil, err
-		}
-	}
+// func GetExpression(expr *C.expression) (*Expression, error) {
+// 	expression := &Expression{}
+// 	if expr.op == 0 {
+// 		value, err := GetValue((*C.value)(expr.left))
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		expression.Left = value
+// 		expression.Operation = byte(expr.op)
+// 		expression.Right = nil
+// 	} else if expr.op == 1 {
+// 		value, err := GetValueArray((*C.value_array)(expr.left))
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		expression.Left = value
+// 		expression.Operation = byte(expr.op)
+// 		expression.Right = nil
+// 	} else {
+// 		var err error
+// 		expression.Left, err = GetExpression((*C.expression)(expr.left))
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		expression.Operation = byte(expr.op)
+// 		expression.Right, err = GetExpression((*C.expression)(unsafe.Pointer(expr.right)))
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 	}
 
-	return expression, nil
-}
+// 	return expression, nil
+// }
 
-func GetBoolExpression(expr *C.bool_expression) (*BoolExpression, error) {
-	boolExpression := &BoolExpression{}
-	var err error
-	boolExpression.Left, err = GetExpression(expr.left)
-	if err != nil {
-		return nil, err
-	}
-	if expr.op != nil {
-		boolExpression.Operation = C.GoString(expr.op)
-		boolExpression.Right, err = GetExpression(expr.right)
-	}
+// func GetBoolExpression(expr *C.bool_expression) (*BoolExpression, error) {
+// 	boolExpression := &BoolExpression{}
+// 	var err error
+// 	boolExpression.Left, err = GetExpression(expr.left)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if expr.op != nil {
+// 		boolExpression.Operation = C.GoString(expr.op)
+// 		boolExpression.Right, err = GetExpression(expr.right)
+// 	}
 
-	return boolExpression, err
-}
+// 	return boolExpression, err
+// }
 
 func GetWhereCondition(condition *C.condition) (*WhereCondition, error) {
 	if condition.is_bool_expression != 0 {
-		expr, err := GetBoolExpression((*C.bool_expression)(condition.left))
+		expr, err := GetValue((*C.value)(condition.left))
 		if err != nil {
 			return nil, err
 		}

@@ -242,6 +242,47 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 	c.Assert(data[0].Points[1][1], Equals, 70.0)
 }
 
+func (self *IntegrationSuite) TestArithmeticOperations(c *C) {
+	queries := map[string][9]float64{
+		"select input + output from test_arithmetic_3.0;":       [9]float64{1, 2, 3, 4, 5, 9, 6, 7, 13},
+		"select input - output from test_arithmetic_-1.0;":      [9]float64{1, 2, -1, 4, 5, -1, 6, 7, -1},
+		"select input * output from test_arithmetic_2.0;":       [9]float64{1, 2, 2, 4, 5, 20, 6, 7, 42},
+		"select 1.0 * input / output from test_arithmetic_0.5;": [9]float64{1, 2, 0.5, 4, 5, 0.8, 6, 8, 0.75},
+	}
+
+	for query, values := range queries {
+
+		fmt.Printf("Running query %s\n", query)
+
+		for i := 0; i < 3; i++ {
+
+			data := fmt.Sprintf(`
+        [
+          {
+             "name": "test_arithmetic_%.1f",
+             "columns": ["input", "output"],
+             "points": [[%f, %f]]
+          }
+        ]
+      `, values[2], values[3*i], values[3*i+1])
+			err := self.server.WriteData(data)
+			c.Assert(err, IsNil)
+			time.Sleep(1 * time.Second)
+		}
+		bs, err := self.server.RunQuery(query)
+		c.Assert(err, IsNil)
+		data := []*h.SerializedSeries{}
+		err = json.Unmarshal(bs, &data)
+		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Columns, HasLen, 3)
+		c.Assert(data[0].Points, HasLen, 3)
+		for i, p := range data[0].Points {
+			idx := 2 - i
+			c.Assert(p[2], Equals, values[3*idx+2])
+		}
+	}
+}
+
 // issue #34
 func (self *IntegrationSuite) TestAscendingQueries(c *C) {
 	err := self.server.WriteData(`
