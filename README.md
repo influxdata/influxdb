@@ -17,43 +17,5 @@ It aims to answer queries in real-time. That means every data point is indexed a
 
 ## Building
 
-You don't need to build the project to use it. Pre-built [binaries and instructions to install InfluxDB are here](http://influxdb.org/download/). That's the recommended way to get it running. However, if you want to contribute to the core of InfluxDB, you'll need to build. For those adventurous enough follow the instructions below.
+You don't need to build the project to use it. Pre-built [binaries and instructions to install InfluxDB are here](http://influxdb.org/download/). That's the recommended way to get it running. However, if you want to contribute to the core of InfluxDB, you'll need to build. For those adventurous enough, you can [follow along on our docs](http://influxdb.org/docs/getting_started/building.html).
 
-### Mac OS X
-
-#### Installing via Homebrew
-
-InfluxDB has an officially supported recipe included in Homebrew. To use it, just run:
-
-``` shell
-brew install influxdb
-```
-
-#### Building from source
-
-First, install the build dependencies of the project (via Homebrew):
-
-``` shell
-brew install protobuf bison flex leveldb go hg bzr
-```
-
-Then run `./test.sh`. This will build the server and run the tests.
-
-_Note: If you are on Mac OS X Mavericks, you might want to try to install go using_ `brew install go --devel`
-
-### Linux
-
-- You need to [get Go from Google Code](http://code.google.com/p/go/downloads/list).
-- Ensure `go` is on your `PATH`.
-- If you're on a Red Hat-based distro:
-
-``` bash
-sudo yum install hg bzr protobuf-compiler flex bison valgrind
-```
-
-- If you're on a Debian-based distro:
-```
-sudo apt-get install mercurial bzr protobuf-compiler flex bison valgrind
-```
-
-- Run `./test.sh`. This will build the server and run the tests.
