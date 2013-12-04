@@ -22,9 +22,13 @@ export CGO_ENABLED
 
 .PHONY: all valgrind parser package package_init build
 
-all: build test integration_test
+all: | parser valgrind build test integration_test
+
+parser:
+	$(MAKE) -C src/parser
 
 valgrind:
+	$(MAKE) -C src/parser valgrind
 
 GOPATH := $(shell pwd)
 export GOPATH
@@ -118,9 +122,6 @@ protobuf:
 	rm -f src/protocol/*.pb.go
 	PATH=$$PWD/bin:$$PATH $(PROTOC) --go_out=. src/protocol/*.proto
 
-parser:
-	$(MAKE) -C src/parser
-
 build: | dependencies protobuf parser
 # TODO: build all packages, otherwise we won't know
 # if there's an error
@@ -133,9 +134,7 @@ clean:
 	rm -rf src/$(levigo_dependency)
 	rm -rf /tmp/influxdb
 	rm -rf /tmp/admin.influxdb
-
-valgrind: build
-	$(MAKE) -C src/parser test
+	$(MAKE) -C src/parser clean
 
 only =
 verbose = off
