@@ -146,6 +146,8 @@
 
 - [Issue #92](https://github.com/influxdb/influxdb/issues/92). Change '==' to '=' and '!=' to '<>'
 - [Issue #88](https://github.com/influxdb/influxdb/issues/88). Support datetime strings
+- [Issue #64](https://github.com/influxdb/influxdb/issues/64). Implement basic clustering. Writes and queries sharded across cluster with write replay for briefly downed nodes (< 24 hrs)
+- [Issue #78](https://github.com/influxdb/influxdb/issues/78). After processes restart sequence starts from beginning. Was not implemented yet. Now sequence numbers persist across restarts so they're not reused.
 
 ## Bugfixes
 
@@ -159,3 +161,4 @@
 - deprecate `username` field for a more consistent `name` field in the `/db/:db/users`
 - deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
   be used to update user flags, password, etc.
+- Querying for column names that don't exist no longer throws an error.
