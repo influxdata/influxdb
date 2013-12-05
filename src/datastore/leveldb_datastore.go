@@ -812,10 +812,14 @@ func (self *LevelDbDatastore) sendBatch(query *parser.Query, series *protocol.Se
 
 		lengthBeforeFiltering := len(newSeries.Points)
 		var filteredResult *protocol.Series
+		var err error
 		if query.GetFromClause().Type == parser.FromClauseInnerJoin {
 			filteredResult = newSeries
 		} else {
-			filteredResult, _ = Filter(query, newSeries)
+			filteredResult, err = Filter(query, newSeries)
+			if err != nil {
+				return 0, err
+			}
 		}
 		_dropped := lengthBeforeFiltering - len(filteredResult.Points)
 		if _dropped < dropped {
