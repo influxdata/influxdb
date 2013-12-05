@@ -1116,6 +1116,26 @@ func (self *EngineSuite) TestDerivativeQuery(c *C) {
   ]`)
 }
 
+func (self *EngineSuite) TestDerivativeQueryWithOnePoint(c *C) {
+	engine := createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000000, "sequence_number": 1 }
+      ],
+      "name": "foo",
+      "fields": ["column_one"]
+    }
+  ]`)
+
+	runQuery(engine, "select derivative(column_one) from foo", c, `[
+    {
+      "points": [],
+      "name": "foo",
+      "fields": ["derivative"]
+    }
+  ]`)
+}
+
 func (self *EngineSuite) TestDistinctQuery(c *C) {
 	engine := createEngine(c, `[
     {

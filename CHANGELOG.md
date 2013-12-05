@@ -154,6 +154,7 @@
 
 - [Issue #90](https://github.com/influxdb/influxdb/issues/90). Group by multiple columns panic
 - [Issue #89](https://github.com/influxdb/influxdb/issues/89). 'Group by' combined with 'where' not working
+- [Issue #106](https://github.com/influxdb/influxdb/issues/106). Don't panic if we only see one point and can't calculate derivative
 
 ### Deprecated
 

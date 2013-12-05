@@ -592,6 +592,28 @@ func (self *IntegrationSuite) TestHttpPostWithTime(c *C) {
 	c.Assert(values["val2"], Equals, 2.0)
 }
 
+// test for issue #106
+func (self *IntegrationSuite) TestIssue106(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+    "name": "test_issue_106",
+    "columns": ["time", "a"],
+    "points":[
+		  [1386262529794, 2]
+	  ]
+  }
+]`, "time_precision=m")
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select derivative(a) from test_issue_106")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Columns, HasLen, 3)
+	c.Assert(data[0].Points, HasLen, 0)
+}
+
 // test for issue #41
 func (self *IntegrationSuite) TestDbDelete(c *C) {
 	err := self.server.WriteData(`

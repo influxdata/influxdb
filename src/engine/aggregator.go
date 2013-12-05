@@ -225,15 +225,18 @@ func (self *DerivativeAggregator) GetValues(series string, group interface{}) []
 	oldValue := self.firstValues[series][group]
 	newValue := self.lastValues[series][group]
 
-	// if an old value exist, then compute the derivative and insert it in the points slice
-	deltaT := float64(*newValue.Timestamp-*oldValue.Timestamp) / float64(time.Second/time.Microsecond)
-	deltaV := *newValue.Values[self.fieldIndex].DoubleValue - *oldValue.Values[self.fieldIndex].DoubleValue
-	derivative := deltaV / deltaT
-	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{
-			&protocol.FieldValue{DoubleValue: &derivative},
-		},
+	if newValue != nil {
+		// if an old value exist, then compute the derivative and insert it in the points slice
+		deltaT := float64(*newValue.Timestamp-*oldValue.Timestamp) / float64(time.Second/time.Microsecond)
+		deltaV := *newValue.Values[self.fieldIndex].DoubleValue - *oldValue.Values[self.fieldIndex].DoubleValue
+		derivative := deltaV / deltaT
+		return [][]*protocol.FieldValue{
+			[]*protocol.FieldValue{
+				&protocol.FieldValue{DoubleValue: &derivative},
+			},
+		}
 	}
+	return [][]*protocol.FieldValue{}
 }
 
 func NewDerivativeAggregator(q *parser.Query, v *parser.Value) (Aggregator, error) {
