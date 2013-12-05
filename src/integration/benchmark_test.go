@@ -641,7 +641,7 @@ func (self *IntegrationSuite) TestWhereConditionWithExpression(c *C) {
 	err := self.server.WriteData(`
 [
   {
-    "name": "test_issue_105",
+    "name": "test_where_expression",
     "columns": ["time", "a", "b"],
     "points":[
 		  [1386262529794, 2, 1],
@@ -650,7 +650,7 @@ func (self *IntegrationSuite) TestWhereConditionWithExpression(c *C) {
   }
 ]`, "time_precision=m")
 	c.Assert(err, IsNil)
-	bs, err := self.server.RunQuery("select a, b from test_issue_105 where a + b >= 3")
+	bs, err := self.server.RunQuery("select a, b from test_where_expression where a + b >= 3")
 	c.Assert(err, IsNil)
 	data := []*h.SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
@@ -658,6 +658,29 @@ func (self *IntegrationSuite) TestWhereConditionWithExpression(c *C) {
 	c.Assert(data[0].Columns, HasLen, 4)
 	c.Assert(data[0].Points, HasLen, 1)
 	c.Assert(data[0].Points[0][3], Equals, 1.0)
+}
+
+func (self *IntegrationSuite) TestAggregateWithExpression(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+    "name": "test_aggregate_expression",
+    "columns": ["time", "a", "b"],
+    "points":[
+		  [1386262529794, 1, 1],
+		  [1386262529794, 2, 2]
+	  ]
+  }
+]`, "time_precision=m")
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select mean(a + b) from test_aggregate_expression")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Columns, HasLen, 2)
+	c.Assert(data[0].Points, HasLen, 1)
+	c.Assert(data[0].Points[0][1], Equals, 3.0)
 }
 
 // test for issue #41
