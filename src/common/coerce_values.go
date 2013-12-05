@@ -14,7 +14,34 @@ const (
 	TYPE_UNKNOWN
 )
 
+func getValue(value *protocol.FieldValue) (interface{}, Type) {
+	if value.Int64Value != nil {
+		return value.Int64Value, TYPE_INT
+	}
+	if value.DoubleValue != nil {
+		return value.DoubleValue, TYPE_DOUBLE
+	}
+	if value.BoolValue != nil {
+		return value.BoolValue, TYPE_BOOL
+	}
+	if value.StringValue != nil {
+		return value.StringValue, TYPE_STRING
+	}
+
+	return nil, TYPE_UNKNOWN
+}
+
 func CoerceValues(leftValue, rightValue *protocol.FieldValue) (interface{}, interface{}, Type) {
+	if leftValue == nil {
+		value, t := getValue(rightValue)
+		return nil, value, t
+	}
+
+	if rightValue == nil {
+		value, t := getValue(leftValue)
+		return value, nil, t
+	}
+
 	if leftValue.Int64Value != nil {
 		if rightValue.Int64Value != nil {
 			return *leftValue.Int64Value, *rightValue.Int64Value, TYPE_INT

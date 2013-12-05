@@ -16,6 +16,10 @@ func wrapOldBooleanOperation(operation oldBooleanOperation) BooleanOperation {
 			return false, fmt.Errorf("Expected one value on the right side")
 		}
 
+		if leftValue == nil || rightValues[0] == nil {
+			return false, nil
+		}
+
 		return operation(leftValue, rightValues[0])
 	}
 }
