@@ -299,7 +299,10 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 		for _, point := range series.Points {
 			value := mapper(point)
 			for _, aggregator := range aggregators {
-				aggregator.AggregatePoint(*series.Name, value, point)
+				err := aggregator.AggregatePoint(*series.Name, value, point)
+				if err != nil {
+					return err
+				}
 			}
 
 			timestampAggregator.AggregatePoint(*series.Name, value, point)
