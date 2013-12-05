@@ -1,4 +1,4 @@
-package engine
+package datastore
 
 import (
 	"common"
@@ -20,7 +20,7 @@ func init() {
 	registeredArithmeticOperator["/"] = DivideOperator
 }
 
-func getValue(value *parser.Value, fields []string, point *protocol.Point) (*protocol.FieldValue, error) {
+func GetValue(value *parser.Value, fields []string, point *protocol.Point) (*protocol.FieldValue, error) {
 	switch value.Type {
 	case parser.ValueSimpleName:
 		for idx, f := range fields {
@@ -44,11 +44,11 @@ func getValue(value *parser.Value, fields []string, point *protocol.Point) (*pro
 }
 
 func PlusOperator(elems []*parser.Value, fields []string, point *protocol.Point) (*protocol.FieldValue, error) {
-	leftValue, err := getValue(elems[0], fields, point)
+	leftValue, err := GetValue(elems[0], fields, point)
 	if err != nil {
 		return nil, err
 	}
-	rightValues, err := getValue(elems[1], fields, point)
+	rightValues, err := GetValue(elems[1], fields, point)
 	if err != nil {
 		return nil, err
 	}
@@ -65,11 +65,11 @@ func PlusOperator(elems []*parser.Value, fields []string, point *protocol.Point)
 }
 
 func MinusOperator(elems []*parser.Value, fields []string, point *protocol.Point) (*protocol.FieldValue, error) {
-	leftValue, err := getValue(elems[0], fields, point)
+	leftValue, err := GetValue(elems[0], fields, point)
 	if err != nil {
 		return nil, err
 	}
-	rightValues, err := getValue(elems[1], fields, point)
+	rightValues, err := GetValue(elems[1], fields, point)
 	if err != nil {
 		return nil, err
 	}
@@ -86,11 +86,11 @@ func MinusOperator(elems []*parser.Value, fields []string, point *protocol.Point
 }
 
 func MultiplyOperator(elems []*parser.Value, fields []string, point *protocol.Point) (*protocol.FieldValue, error) {
-	leftValue, err := getValue(elems[0], fields, point)
+	leftValue, err := GetValue(elems[0], fields, point)
 	if err != nil {
 		return nil, err
 	}
-	rightValues, err := getValue(elems[1], fields, point)
+	rightValues, err := GetValue(elems[1], fields, point)
 	if err != nil {
 		return nil, err
 	}
@@ -107,11 +107,11 @@ func MultiplyOperator(elems []*parser.Value, fields []string, point *protocol.Po
 }
 
 func DivideOperator(elems []*parser.Value, fields []string, point *protocol.Point) (*protocol.FieldValue, error) {
-	leftValue, err := getValue(elems[0], fields, point)
+	leftValue, err := GetValue(elems[0], fields, point)
 	if err != nil {
 		return nil, err
 	}
-	rightValues, err := getValue(elems[1], fields, point)
+	rightValues, err := GetValue(elems[1], fields, point)
 	if err != nil {
 		return nil, err
 	}

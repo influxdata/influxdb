@@ -149,6 +149,7 @@
 - [Issue #88](https://github.com/influxdb/influxdb/issues/88). Support datetime strings
 - [Issue #64](https://github.com/influxdb/influxdb/issues/64). Shard writes and queries across cluster with replay for briefly downed nodes (< 24 hrs)
 - [Issue #78](https://github.com/influxdb/influxdb/issues/78). Sequence numbers persist across restarts so they're not reused
+- [Issue #102](https://github.com/influxdb/influxdb/issues/102). Support expressions in where condition
 
 ## Bugfixes
 

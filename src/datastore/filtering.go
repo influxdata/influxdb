@@ -38,6 +38,12 @@ func getExpressionValue(values []*parser.Value, fields []string, point *protocol
 			}
 
 			fieldValues = append(fieldValues, point.Values[fieldIdx])
+		case parser.ValueExpression:
+			v, err := GetValue(value, fields, point)
+			if err != nil {
+				return nil, err
+			}
+			fieldValues = append(fieldValues, v)
 		default:
 			return nil, fmt.Errorf("Cannot evaluate expression")
 		}

@@ -3,6 +3,7 @@ package engine
 import (
 	"common"
 	"coordinator"
+	"datastore"
 	"fmt"
 	"os"
 	"parser"
@@ -438,7 +439,7 @@ func (self *QueryEngine) executeArithmeticQuery(user common.User, database strin
 			}
 			for _, field := range newSeries.Fields {
 				value := names[field]
-				v, err := getValue(value, series.Fields, point)
+				v, err := datastore.GetValue(value, series.Fields, point)
 				if err != nil {
 					return err
 				}
