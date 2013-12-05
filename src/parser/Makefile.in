@@ -6,7 +6,7 @@ FLEX  = @with_flex@
 all: y.tab.c y.tab.h lex.yy.c
 
 clean:
-	rm y.tab.c y.tab.h lex.yy.c
+	rm -f y.tab.c y.tab.h lex.yy.c
 
 y.tab.c y.tab.h: query.yacc
 	$(BISON) -t -d query.yacc -o y.tab.c --defines=y.tab.h
