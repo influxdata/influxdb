@@ -281,10 +281,8 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 			binary.Write(sequenceNumberBuffer, binary.BigEndian, *point.SequenceNumber)
 			pointKey := append(append(id, timestampBuffer.Bytes()...), sequenceNumberBuffer.Bytes()...)
 
-			// TODO: we should remove the column value if timestamp and sequence number
-			// were provided.
-			//  Paul: since these are assigned in the coordinator, we'll have to figure out how to represent this.
 			if point.Values[fieldIndex] == nil {
+				wb.Delete(pointKey)
 				continue
 			}
 

@@ -234,20 +234,25 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	}
 }
 
-func removeTimestampFieldDefinition(fields []string) []string {
-	timestampIdx := -1
+func removeField(fields []string, name string) []string {
+	index := -1
 	for idx, field := range fields {
-		if field == "time" {
-			timestampIdx = idx
+		if field == name {
+			index = idx
 			break
 		}
 	}
 
-	if timestampIdx == -1 {
+	if index == -1 {
 		return fields
 	}
 
-	return append(fields[:timestampIdx], fields[timestampIdx+1:]...)
+	return append(fields[:index], fields[index+1:]...)
+}
+
+func removeTimestampFieldDefinition(fields []string) []string {
+	fields = removeField(fields, "time")
+	return removeField(fields, "sequence_number")
 }
 
 func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*protocol.Series, error) {
@@ -259,6 +264,7 @@ func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 	for _, point := range s.Points {
 		values := []*protocol.FieldValue{}
 		var timestamp *int64
+		var sequence *uint64
 
 		for idx, field := range s.Columns {
 			value := point[idx]
@@ -281,6 +287,17 @@ func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 				}
 			}
 
+			if field == "sequence_number" {
+				switch value.(type) {
+				case float64:
+					_sequenceNumber := uint64(value.(float64))
+					sequence = &_sequenceNumber
+					continue
+				default:
+					return nil, fmt.Errorf("sequence_number field must be float but is %T (%v)", value, value)
+				}
+			}
+
 			switch v := value.(type) {
 			case string:
 				values = append(values, &protocol.FieldValue{StringValue: &v})
@@ -300,8 +317,9 @@ func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 			}
 		}
 		points = append(points, &protocol.Point{
-			Values:    values,
-			Timestamp: timestamp,
+			Values:         values,
+			Timestamp:      timestamp,
+			SequenceNumber: sequence,
 		})
 	}
 

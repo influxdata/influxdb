@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -681,6 +682,57 @@ func (self *IntegrationSuite) TestAggregateWithExpression(c *C) {
 	c.Assert(data[0].Columns, HasLen, 2)
 	c.Assert(data[0].Points, HasLen, 1)
 	c.Assert(data[0].Points[0][1], Equals, 3.0)
+}
+
+func (self *IntegrationSuite) verifyWrite(series string, value, sequence interface{}, c *C) interface{} {
+	valueString := "null"
+	if value != nil {
+		valueString = strconv.Itoa(int(value.(float64)))
+	}
+
+	columns := `["time", "a"]`
+	points := fmt.Sprintf(`[[1386299093602, %s]]`, valueString)
+	if sequence != nil {
+		columns = `["time", "sequence_number", "a"]`
+		points = fmt.Sprintf(`[[1386299093602, %.0f, %s]]`, sequence, valueString)
+	}
+
+	payload := fmt.Sprintf(`
+[
+  {
+    "name": "%s",
+    "columns": %s,
+    "points": %s
+  }
+]`, series, columns, points)
+	err := self.server.WriteData(payload)
+	c.Assert(err, IsNil)
+
+	bs, err := self.server.RunQuery("select * from " + series)
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Columns, HasLen, 3)
+
+	if value != nil {
+		c.Assert(data[0].Points, HasLen, 1)
+		p := toMap(data[0])
+		c.Assert(p[0]["a"], Equals, value)
+		return p[0]["sequence_number"]
+	}
+	c.Assert(data[0].Points, HasLen, 0)
+	return nil
+}
+
+func (self *IntegrationSuite) TestUpdatePoint(c *C) {
+	sequence := self.verifyWrite("test_updating_point", 1.0, nil, c)
+	self.verifyWrite("test_updating_point", 2.0, sequence, c)
+}
+
+func (self *IntegrationSuite) TestDeletePoint(c *C) {
+	sequence := self.verifyWrite("test_deleting_point", 1.0, nil, c)
+	self.verifyWrite("test_deleting_point", nil, sequence, c)
 }
 
 // test for issue #41

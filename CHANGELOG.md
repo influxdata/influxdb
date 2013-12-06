@@ -151,6 +151,7 @@
 - [Issue #78](https://github.com/influxdb/influxdb/issues/78). Sequence numbers persist across restarts so they're not reused
 - [Issue #102](https://github.com/influxdb/influxdb/issues/102). Support expressions in where condition
 - [Issue #101](https://github.com/influxdb/influxdb/issues/101). Support expressions in aggregates
+- [Issue #62](https://github.com/influxdb/influxdb/issues/62). Support updating and deleting column values
 
 ## Bugfixes
 
