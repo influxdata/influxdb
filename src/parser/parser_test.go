@@ -18,7 +18,7 @@ var _ = Suite(&QueryParserSuite{})
 
 func ToValueArray(strings ...string) (values []*Value) {
 	for _, str := range strings {
-		values = append(values, &Value{str, ValueSimpleName, false, nil, nil})
+		values = append(values, &Value{str, ValueSimpleName, nil, nil})
 	}
 	return
 }
@@ -102,9 +102,9 @@ func (self *QueryParserSuite) TestParseSelectWithInsensitiveRegexTables(c *C) {
 	fromClause := q.GetFromClause()
 	c.Assert(fromClause.Type, Equals, FromClauseArray)
 	c.Assert(fromClause.Names, HasLen, 1)
-	c.Assert(fromClause.Names[0].Name.Name, Equals, "users.*")
-	c.Assert(fromClause.Names[0].Name.Type, Equals, ValueRegex)
-	c.Assert(fromClause.Names[0].Name.IsCaseInsensitive, Equals, true)
+	regex, ok := fromClause.Names[0].Name.GetCompiledRegex()
+	c.Assert(ok, Equals, true)
+	c.Assert(regex.MatchString("USERSFOOBAR"), Equals, true)
 }
 
 func (self *QueryParserSuite) TestParseSelectWithRegexTables(c *C) {
@@ -114,9 +114,10 @@ func (self *QueryParserSuite) TestParseSelectWithRegexTables(c *C) {
 	fromClause := q.GetFromClause()
 	c.Assert(fromClause.Type, Equals, FromClauseArray)
 	c.Assert(fromClause.Names, HasLen, 1)
-	c.Assert(fromClause.Names[0].Name.Name, Equals, "users.*")
-	c.Assert(fromClause.Names[0].Name.Type, Equals, ValueRegex)
-	c.Assert(fromClause.Names[0].Name.IsCaseInsensitive, Equals, false)
+	regex, ok := fromClause.Names[0].Name.GetCompiledRegex()
+	c.Assert(ok, Equals, true)
+	c.Assert(regex.MatchString("USERSFOOBAR"), Equals, false)
+	c.Assert(regex.MatchString("usersfoobar"), Equals, true)
 }
 
 func (self *QueryParserSuite) TestMergeFromClause(c *C) {
@@ -248,18 +249,18 @@ func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 	rightBoolExpression, ok := w.Right.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	c.Assert(leftBoolExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, false, nil, nil})
+	c.Assert(leftBoolExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, nil, nil})
 	value := leftBoolExpression.Elems[1].Elems[0]
-	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, false, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, nil, nil})
 	value = leftBoolExpression.Elems[1].Elems[1]
-	c.Assert(value, DeepEquals, &Value{"2", ValueInt, false, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"2", ValueInt, nil, nil})
 	c.Assert(leftBoolExpression.Name, Equals, ">")
 
-	c.Assert(rightBoolExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, false, nil, nil})
+	c.Assert(rightBoolExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, nil, nil})
 	value = rightBoolExpression.Elems[1].Elems[0]
-	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, false, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, nil, nil})
 	value = rightBoolExpression.Elems[1].Elems[1]
-	c.Assert(value, DeepEquals, &Value{"3", ValueInt, false, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"3", ValueInt, nil, nil})
 	c.Assert(rightBoolExpression.Name, Equals, "<")
 }
 
@@ -319,14 +320,14 @@ func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
 	leftExpression, ok := condition.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 	c.Assert(leftExpression.Name, Equals, ">")
-	c.Assert(leftExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, false, nil, nil})
-	c.Assert(leftExpression.Elems[1], DeepEquals, &Value{"90", ValueInt, false, nil, nil})
+	c.Assert(leftExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, nil, nil})
+	c.Assert(leftExpression.Elems[1], DeepEquals, &Value{"90", ValueInt, nil, nil})
 
 	rightExpression, ok := leftCondition.Right.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 	c.Assert(rightExpression.Name, Equals, ">")
-	c.Assert(rightExpression.Elems[0], DeepEquals, &Value{"other_value", ValueSimpleName, false, nil, nil})
-	c.Assert(rightExpression.Elems[1], DeepEquals, &Value{"10.0", ValueFloat, false, nil, nil})
+	c.Assert(rightExpression.Elems[0], DeepEquals, &Value{"other_value", ValueSimpleName, nil, nil})
+	c.Assert(rightExpression.Elems[1], DeepEquals, &Value{"10.0", ValueFloat, nil, nil})
 }
 
 func (self *QueryParserSuite) TestParseWhereClauseParentheses(c *C) {
@@ -376,10 +377,9 @@ func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {
 
 	c.Assert(q.GetGroupByClause(), HasLen, 1)
 	c.Assert(q.GetGroupByClause()[0], DeepEquals, &Value{
-		Name:              "time",
-		Type:              ValueFunctionCall,
-		IsCaseInsensitive: false,
-		Elems:             []*Value{&Value{"15m", ValueDuration, false, nil, nil}},
+		Name:  "time",
+		Type:  ValueFunctionCall,
+		Elems: []*Value{&Value{"15m", ValueDuration, nil, nil}},
 	})
 }
 
@@ -395,12 +395,11 @@ func (self *QueryParserSuite) TestParseSelectWithRegexCondition(c *C) {
 
 	// note: conditions that involve time are removed after the query is parsed
 	regexExpression, _ := w.GetBoolExpression()
-	c.Assert(regexExpression.Elems[0], DeepEquals, &Value{"email", ValueSimpleName, false, nil, nil})
+	c.Assert(regexExpression.Elems[0], DeepEquals, &Value{"email", ValueSimpleName, nil, nil})
 	c.Assert(regexExpression.Name, Equals, "=~")
 	expr := regexExpression.Elems[1]
 	c.Assert(expr.Type, Equals, ValueRegex)
 	c.Assert(expr.Name, Equals, "gmail\\.com")
-	c.Assert(expr.IsCaseInsensitive, Equals, true)
 }
 
 func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *C) {
@@ -410,7 +409,7 @@ func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *
 	boolExpression, ok := q.GetWhereCondition().GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	c.Assert(boolExpression.Elems[0], DeepEquals, &Value{".30", ValueFloat, false, nil, nil})
+	c.Assert(boolExpression.Elems[0], DeepEquals, &Value{".30", ValueFloat, nil, nil})
 
 	// value * 1 / 3
 	rightExpression := boolExpression.Elems[1]

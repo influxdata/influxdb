@@ -40,11 +40,10 @@ const (
 )
 
 type Value struct {
-	Name              string
-	Type              ValueType
-	IsCaseInsensitive bool
-	Elems             []*Value
-	compiledRegex     *regexp.Regexp
+	Name          string
+	Type          ValueType
+	Elems         []*Value
+	compiledRegex *regexp.Regexp
 }
 
 func (self *Value) IsFunctionCall() bool {
@@ -198,9 +197,13 @@ func GetValue(value *C.value) (*Value, error) {
 		return nil, err
 	}
 	v.Type = ValueType(value.value_type)
-	v.IsCaseInsensitive = value.is_case_insensitive != 0
+	isCaseInsensitive := value.is_case_insensitive != 0
 	if v.Type == ValueRegex {
-		v.compiledRegex, err = regexp.Compile(v.Name)
+		if isCaseInsensitive {
+			v.compiledRegex, err = regexp.Compile("(?i)" + v.Name)
+		} else {
+			v.compiledRegex, err = regexp.Compile(v.Name)
+		}
 	}
 	return v, err
 }
