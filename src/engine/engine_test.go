@@ -29,7 +29,7 @@ type MockCoordinator struct {
 	series        []*protocol.Series
 }
 
-func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.SelectQuery, yield func(*protocol.Series) error) error {
 	if self.returnedError != nil {
 		return self.returnedError
 	}
@@ -43,6 +43,10 @@ func (self *MockCoordinator) DistributeQuery(user common.User, database string, 
 }
 
 func (self *MockCoordinator) WriteSeriesData(user common.User, database string, series *protocol.Series) error {
+	return nil
+}
+
+func (self *MockCoordinator) DeleteSeriesData(user common.User, database string, query *parser.DeleteQuery) error {
 	return nil
 }
 

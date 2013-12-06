@@ -21,7 +21,7 @@ type Aggregator interface {
 	ColumnNames() []string
 }
 
-type AggregatorInitializer func(*parser.Query, *parser.Value) (Aggregator, error)
+type AggregatorInitializer func(*parser.SelectQuery, *parser.Value) (Aggregator, error)
 
 var registeredAggregators = make(map[string]AggregatorInitializer)
 
@@ -153,7 +153,7 @@ func (self *StandardDeviationAggregator) GetValues(series string, group interfac
 	}
 }
 
-func NewStandardDeviationAggregator(q *parser.Query, v *parser.Value) (Aggregator, error) {
+func NewStandardDeviationAggregator(q *parser.SelectQuery, v *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function stddev() requires exactly one argument")
 	}
@@ -244,7 +244,7 @@ func (self *DerivativeAggregator) GetValues(series string, group interface{}) []
 	return [][]*protocol.FieldValue{}
 }
 
-func NewDerivativeAggregator(q *parser.Query, v *parser.Value) (Aggregator, error) {
+func NewDerivativeAggregator(q *parser.SelectQuery, v *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function derivative() requires exactly one argument")
 	}
@@ -323,7 +323,7 @@ func (self *HistogramAggregator) GetValues(series string, group interface{}) [][
 	return returnValues
 }
 
-func NewHistogramAggregator(q *parser.Query, v *parser.Value) (Aggregator, error) {
+func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value) (Aggregator, error) {
 	if len(v.Elems) < 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function histogram() requires at least one arguments")
 	}
@@ -394,7 +394,7 @@ func (self *CountAggregator) GetValues(series string, group interface{}) [][]*pr
 
 func (self *CountAggregator) InitializeFieldsMetadata(series *protocol.Series) error { return nil }
 
-func NewCountAggregator(q *parser.Query, v *parser.Value) (Aggregator, error) {
+func NewCountAggregator(q *parser.SelectQuery, v *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function count() requires exactly one argument")
 	}
@@ -458,7 +458,7 @@ func (self *TimestampAggregator) GetValues(series string, group interface{}) [][
 
 func (self *TimestampAggregator) InitializeFieldsMetadata(series *protocol.Series) error { return nil }
 
-func NewTimestampAggregator(query *parser.Query, _ *parser.Value) (Aggregator, error) {
+func NewTimestampAggregator(query *parser.SelectQuery, _ *parser.Value) (Aggregator, error) {
 	duration, err := query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return nil, err
@@ -535,7 +535,7 @@ func (self *MeanAggregator) GetValues(series string, group interface{}) [][]*pro
 	return returnValues
 }
 
-func NewMeanAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewMeanAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mean() requires exactly one argument")
 	}
@@ -549,7 +549,7 @@ func NewMeanAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error)
 	}, nil
 }
 
-func NewMedianAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewMedianAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function median() requires exactly one argument")
 	}
@@ -619,7 +619,7 @@ func (self *PercentileAggregator) GetValues(series string, group interface{}) []
 	return returnValues
 }
 
-func NewPercentileAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewPercentileAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 2 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function percentile() requires exactly two arguments")
 	}
@@ -714,7 +714,7 @@ func (self *ModeAggregator) GetValues(series string, group interface{}) [][]*pro
 	return returnValues
 }
 
-func NewModeAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewModeAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mode() requires exactly one argument")
 	}
@@ -798,7 +798,7 @@ func (self *DistinctAggregator) GetValues(series string, group interface{}) [][]
 	return returnValues
 }
 
-func NewDistinctAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewDistinctAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	return &DistinctAggregator{
 		AbstractAggregator: AbstractAggregator{
 			value: value.Elems[0],
@@ -866,7 +866,7 @@ func NewCumulativeArithmeticAggregator(name string, value *parser.Value, initial
 	}, nil
 }
 
-func NewMaxAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewMaxAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	return NewCumulativeArithmeticAggregator("max", value, -math.MaxFloat64, func(currentValue float64, p *protocol.FieldValue) float64 {
 		if p.Int64Value != nil {
 			if fv := float64(*p.Int64Value); fv > currentValue {
@@ -881,7 +881,7 @@ func NewMaxAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) 
 	})
 }
 
-func NewMinAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewMinAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	return NewCumulativeArithmeticAggregator("min", value, math.MaxFloat64, func(currentValue float64, p *protocol.FieldValue) float64 {
 		if p.Int64Value != nil {
 			if fv := float64(*p.Int64Value); fv < currentValue {
@@ -896,7 +896,7 @@ func NewMinAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) 
 	})
 }
 
-func NewSumAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewSumAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	return NewCumulativeArithmeticAggregator("sum", value, 0, func(currentValue float64, p *protocol.FieldValue) float64 {
 		var fv float64
 		if p.Int64Value != nil {
@@ -959,10 +959,10 @@ func NewFirstOrLastAggregator(name string, v *parser.Value, isFirst bool) (Aggre
 	}, nil
 }
 
-func NewFirstAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewFirstAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	return NewFirstOrLastAggregator("first", value, true)
 }
 
-func NewLastAggregator(_ *parser.Query, value *parser.Value) (Aggregator, error) {
+func NewLastAggregator(_ *parser.SelectQuery, value *parser.Value) (Aggregator, error) {
 	return NewFirstOrLastAggregator("last", value, false)
 }

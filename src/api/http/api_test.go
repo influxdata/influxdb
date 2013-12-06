@@ -96,17 +96,23 @@ func (self *MockEngine) RunQuery(_ common.User, _ string, query string, yield fu
 }
 
 type MockCoordinator struct {
-	series    []*protocol.Series
-	db        string
-	droppedDb string
+	series        []*protocol.Series
+	deleteQueries []*parser.DeleteQuery
+	db            string
+	droppedDb     string
 }
 
-func (self *MockCoordinator) DistributeQuery(_ common.User, db string, query *parser.Query, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) DistributeQuery(_ common.User, db string, query *parser.SelectQuery, yield func(*protocol.Series) error) error {
 	return nil
 }
 
 func (self *MockCoordinator) WriteSeriesData(_ common.User, db string, series *protocol.Series) error {
 	self.series = append(self.series, series)
+	return nil
+}
+
+func (self *MockCoordinator) DeleteSeriesData(_ common.User, db string, query *parser.DeleteQuery) error {
+	self.deleteQueries = append(self.deleteQueries, query)
 	return nil
 }
 

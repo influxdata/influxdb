@@ -47,6 +47,8 @@ value *create_expression_value(char *operator, size_t size, ...) {
   value*                v;
   from_clause*          from_clause;
   query*                query;
+  select_query*         select_query;
+  delete_query*         delete_query;
   struct {
     int limit;
     char ascending;
@@ -66,7 +68,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS
+%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP
 %token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
@@ -92,6 +94,8 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %type <character>       ORDER_CLAUSE
 %type <limit_and_order> LIMIT_AND_ORDER_CLAUSES
 %type <query>           QUERY
+%type <delete_query>    DELETE_QUERY
+%type <select_query>    SELECT_QUERY
 
 // the initial token
 %start                  QUERIES
@@ -127,9 +131,30 @@ QUERIES:
         }
 
 QUERY:
-        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES
+        SELECT_QUERY
         {
           $$ = calloc(1, sizeof(query));
+          $$->select_query = $1;
+        }
+        |
+        DELETE_QUERY
+        {
+          $$ = calloc(1, sizeof(query));
+          $$->delete_query = $1;
+        }
+
+DELETE_QUERY:
+        DELETE FROM_CLAUSE WHERE_CLAUSE
+        {
+          $$ = calloc(1, sizeof(delete_query));
+          $$->from_clause = $2;
+          $$->where_condition = $3;
+        }
+
+SELECT_QUERY:
+        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES
+        {
+          $$ = calloc(1, sizeof(select_query));
           $$->c = $2;
           $$->from_clause = $3;
           $$->group_by = $4;
@@ -140,7 +165,7 @@ QUERY:
         |
         SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT_AND_ORDER_CLAUSES
         {
-          $$ = calloc(1, sizeof(query));
+          $$ = calloc(1, sizeof(select_query));
           $$->c = $2;
           $$->from_clause = $3;
           $$->where_condition = $4;
@@ -469,7 +494,7 @@ void yy_delete_buffer(void *, void *);
 query
 parse_query(char *const query_s)
 {
-  query q = {NULL, NULL, NULL, NULL, NULL};
+  query q = {NULL, NULL, NULL};
   void *scanner;
   yylex_init(&scanner);
 #ifdef DEBUG

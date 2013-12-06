@@ -21,37 +21,49 @@ type QueryEngine struct {
 	coordinator coordinator.Coordinator
 }
 
-func (self *QueryEngine) RunQuery(user common.User, database string, query string, yield func(*protocol.Series) error) (err error) {
+func (self *QueryEngine) RunQuery(user common.User, database string, queryString string, yield func(*protocol.Series) error) (err error) {
 	// don't let a panic pass beyond RunQuery
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Fprintf(os.Stderr, "********************************BUG********************************\n")
-			buf := make([]byte, 1024)
-			n := runtime.Stack(buf, false)
-			fmt.Fprintf(os.Stderr, "Database: %s\n", database)
-			fmt.Fprintf(os.Stderr, "Query: [%s]\n", query)
-			fmt.Fprintf(os.Stderr, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
-			err = common.NewQueryError(common.InternalError, "Internal Error")
-		}
-	}()
+	defer recoverFunc(database, queryString)
 
-	q, err := parser.ParseQuery(query)
+	q, err := parser.ParseQuery(queryString)
 	if err != nil {
 		return err
 	}
 
-	if isAggregateQuery(q) {
-		return self.executeCountQueryWithGroupBy(user, database, q, yield)
-	} else if containsArithmeticOperators(q) {
-		return self.executeArithmeticQuery(user, database, q, yield)
-	} else {
-		return self.distributeQuery(user, database, q, yield)
+	for _, query := range q {
+		if query.DeleteQuery != nil {
+			if err := self.coordinator.DeleteSeriesData(user, database, query.DeleteQuery); err != nil {
+				return err
+			}
+			continue
+		}
+
+		selectQuery := query.SelectQuery
+		if isAggregateQuery(selectQuery) {
+			return self.executeCountQueryWithGroupBy(user, database, selectQuery, yield)
+		} else if containsArithmeticOperators(selectQuery) {
+			return self.executeArithmeticQuery(user, database, selectQuery, yield)
+		} else {
+			return self.distributeQuery(user, database, selectQuery, yield)
+		}
 	}
 	return nil
 }
 
+func recoverFunc(database, query string) {
+	if err := recover(); err != nil {
+		fmt.Fprintf(os.Stderr, "********************************BUG********************************\n")
+		buf := make([]byte, 1024)
+		n := runtime.Stack(buf, false)
+		fmt.Fprintf(os.Stderr, "Database: %s\n", database)
+		fmt.Fprintf(os.Stderr, "Query: [%s]\n", query)
+		fmt.Fprintf(os.Stderr, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
+		err = common.NewQueryError(common.InternalError, "Internal Error")
+	}
+}
+
 // distribute query and possibly do the merge/join before yielding the points
-func (self *QueryEngine) distributeQuery(user common.User, database string, query *parser.Query, yield func(*protocol.Series) error) (err error) {
+func (self *QueryEngine) distributeQuery(user common.User, database string, query *parser.SelectQuery, yield func(*protocol.Series) error) (err error) {
 	// see if this is a merge query
 	fromClause := query.GetFromClause()
 	if fromClause.Type == parser.FromClauseMerge {
@@ -69,7 +81,7 @@ func NewQueryEngine(c coordinator.Coordinator) (EngineI, error) {
 	return &QueryEngine{c}, nil
 }
 
-func containsArithmeticOperators(query *parser.Query) bool {
+func containsArithmeticOperators(query *parser.SelectQuery) bool {
 	for _, column := range query.GetColumnNames() {
 		if column.Type == parser.ValueExpression {
 			return true
@@ -78,7 +90,7 @@ func containsArithmeticOperators(query *parser.Query) bool {
 	return false
 }
 
-func isAggregateQuery(query *parser.Query) bool {
+func isAggregateQuery(query *parser.SelectQuery) bool {
 	for _, column := range query.GetColumnNames() {
 		if column.IsFunctionCall() {
 			return true
@@ -247,7 +259,7 @@ func (self SortableGroups) Swap(i, j int) {
 	self.data[i], self.data[j] = self.data[j], self.data[i]
 }
 
-func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database string, query *parser.Query,
+func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database string, query *parser.SelectQuery,
 	yield func(*protocol.Series) error) error {
 	duration, err := query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
@@ -405,7 +417,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 	return nil
 }
 
-func (self *QueryEngine) executeArithmeticQuery(user common.User, database string, query *parser.Query,
+func (self *QueryEngine) executeArithmeticQuery(user common.User, database string, query *parser.SelectQuery,
 	yield func(*protocol.Series) error) error {
 
 	names := map[string]*parser.Value{}

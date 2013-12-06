@@ -124,7 +124,7 @@ func (self *ServerSuite) postToServer(server *Server, url, data string, c *C) (*
 }
 
 func executeQuery(user common.User, database, query string, db datastore.Datastore, c *C) []*protocol.Series {
-	q, errQ := parser.ParseQuery(query)
+	q, errQ := parser.ParseSelectQuery(query)
 	c.Assert(errQ, IsNil)
 	resultSeries := []*protocol.Series{}
 	yield := func(series *protocol.Series) error {

@@ -140,7 +140,7 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 		return err
 	}
 	// the query should always parse correctly since it was parsed at the originating server.
-	query, _ := parser.ParseQuery(*request.Query)
+	query, _ := parser.ParseSelectQuery(*request.Query)
 	user := self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
 
 	var ringFilter func(database, series *string, time *int64) bool

@@ -51,7 +51,7 @@ func stringToSeries(seriesString string, timestamp int64, c *C) *protocol.Series
 }
 
 func executeQuery(user common.User, database, query string, db Datastore, c *C) []*protocol.Series {
-	q, errQ := parser.ParseQuery(query)
+	q, errQ := parser.ParseSelectQuery(query)
 	c.Assert(errQ, IsNil)
 	resultSeries := []*protocol.Series{}
 	yield := func(series *protocol.Series) error {
@@ -90,7 +90,7 @@ func (self *DatastoreSuite) TestPropagateErrorsProperly(c *C) {
 	series := stringToSeries(mock, pointTime, c)
 	err := db.WriteSeriesData("test", series)
 	c.Assert(err, IsNil)
-	q, err := parser.ParseQuery("select value from foo;")
+	q, err := parser.ParseSelectQuery("select value from foo;")
 	c.Assert(err, IsNil)
 	yield := func(series *protocol.Series) error {
 		return fmt.Errorf("Whatever")
@@ -123,7 +123,7 @@ func (self *DatastoreSuite) TestDeletingData(c *C) {
 	series := stringToSeries(mock, pointTime, c)
 	err := db.WriteSeriesData("test", series)
 	c.Assert(err, IsNil)
-	q, err := parser.ParseQuery("select value from foo;")
+	q, err := parser.ParseSelectQuery("select value from foo;")
 	c.Assert(err, IsNil)
 	yield := func(series *protocol.Series) error {
 		if len(series.Points) > 0 {
@@ -173,7 +173,7 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePointsWithAlias(c *C) {
 	series := stringToSeries(mock, pointTime, c)
 	err := db.WriteSeriesData("test", series)
 	c.Assert(err, IsNil)
-	q, errQ := parser.ParseQuery("select * from foo as f1 inner join foo as f2;")
+	q, errQ := parser.ParseSelectQuery("select * from foo as f1 inner join foo as f2;")
 	c.Assert(errQ, IsNil)
 	resultSeries := map[string][]*protocol.Series{}
 	yield := func(series *protocol.Series) error {
@@ -225,7 +225,7 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	series := stringToSeries(mock, pointTime, c)
 	err := db.WriteSeriesData("test", series)
 	c.Assert(err, IsNil)
-	q, errQ := parser.ParseQuery("select value from foo;")
+	q, errQ := parser.ParseSelectQuery("select value from foo;")
 	c.Assert(errQ, IsNil)
 	resultSeries := []*protocol.Series{}
 	yield := func(series *protocol.Series) error {
@@ -740,7 +740,7 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 	results = executeQuery(user, "foobar", "select state from other_things;", db, c)
 	c.Assert(results[0], DeepEquals, otherSeries)
 
-	q, errQ := parser.ParseQuery("select * from /.*things/;")
+	q, errQ := parser.ParseSelectQuery("select * from /.*things/;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
@@ -782,7 +782,7 @@ func (self *DatastoreSuite) TestBreaksLargeResultsIntoMultipleBatches(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	q, errQ := parser.ParseQuery("select * from user_things limit 0;")
+	q, errQ := parser.ParseSelectQuery("select * from user_things limit 0;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
@@ -827,7 +827,7 @@ func (self *DatastoreSuite) TestCheckReadAccess(c *C) {
 	user := &MockUser{
 		dbCannotRead: map[string]bool{"other_things": true},
 	}
-	q, errQ := parser.ParseQuery("select * from /.*things/;")
+	q, errQ := parser.ParseSelectQuery("select * from /.*things/;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
@@ -875,7 +875,7 @@ func (self *DatastoreSuite) TestCheckWriteAccess(c *C) {
 	err = db.DeleteRangeOfRegex(user, "foobar", regex, time.Now().Add(-time.Hour), time.Now())
 	c.Assert(err, ErrorMatches, ".*one or more.*")
 
-	q, errQ := parser.ParseQuery("select * from /.*things/;")
+	q, errQ := parser.ParseSelectQuery("select * from /.*things/;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
