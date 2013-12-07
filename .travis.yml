@@ -1,7 +1,8 @@
 language: go
 
 go:
-  - 1.1
+  - 1.1.2
+  - 1.2
 
 install:
   - make dependencies
