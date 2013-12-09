@@ -17,7 +17,7 @@ func (self *QueryApiSuite) TestWillReturnSingleSeries(c *C) {
 		"select * from foo merge bar":      false,
 		"select * from foo inner join bar": false,
 	} {
-		query, err := ParseQuery(queryStr)
+		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)
 		c.Assert(query.WillReturnSingleSeries(), Equals, expected)
 	}
@@ -28,7 +28,7 @@ func (self *QueryApiSuite) TestGetStartTime(c *C) {
 		"select * from t where time > now() - 1d and time < now() - 1h;",
 		"select * from t where now() - 1d < time and time < now() - 1h;",
 	} {
-		query, err := ParseQuery(queryStr)
+		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)
 		startTime := query.GetStartTime()
 		roundedStartTime := startTime.Round(time.Minute).Unix()
@@ -43,7 +43,7 @@ func (self *QueryApiSuite) TestGetEndTime(c *C) {
 		"select * from t where time > now() - 1d and time < now() - 1h;",
 		"select * from t where now() - 1d < time and now() - 1h > time;",
 	} {
-		query, err := ParseQuery(queryStr)
+		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)
 		endTime := query.GetEndTime()
 		roundedEndTime := endTime.Round(time.Minute).Unix()
@@ -55,7 +55,7 @@ func (self *QueryApiSuite) TestGetEndTime(c *C) {
 
 func (self *QueryApiSuite) TestGetReferencedColumns(c *C) {
 	queryStr := "select value1, sum(value2) from t where value > 90.0 and value2 < 10.0 group by value3;"
-	query, err := ParseQuery(queryStr)
+	query, err := ParseSelectQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 1)
@@ -67,7 +67,7 @@ func (self *QueryApiSuite) TestGetReferencedColumns(c *C) {
 
 func (self *QueryApiSuite) TestGetReferencedColumnsWithInClause(c *C) {
 	queryStr := "select value1, sum(value2) from t where value In (90.0, 100.0) group by value3;"
-	query, err := ParseQuery(queryStr)
+	query, err := ParseSelectQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 1)
@@ -79,7 +79,7 @@ func (self *QueryApiSuite) TestGetReferencedColumnsWithInClause(c *C) {
 
 func (self *QueryApiSuite) TestGetReferencedColumnsReturnsTheStarAsAColumn(c *C) {
 	queryStr := "select * from events;"
-	query, err := ParseQuery(queryStr)
+	query, err := ParseSelectQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 1)
@@ -91,7 +91,7 @@ func (self *QueryApiSuite) TestGetReferencedColumnsReturnsTheStarAsAColumn(c *C)
 
 func (self *QueryApiSuite) TestGetReferencedColumnsReturnsEmptyArrayIfQueryIsAggregateStar(c *C) {
 	queryStr := "select count(*) from events;"
-	query, err := ParseQuery(queryStr)
+	query, err := ParseSelectQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 1)
@@ -103,7 +103,7 @@ func (self *QueryApiSuite) TestGetReferencedColumnsReturnsEmptyArrayIfQueryIsAgg
 
 func (self *QueryApiSuite) TestGetReferencedColumnsWithTablesMerge(c *C) {
 	queryStr := "select * from events merge other_events;"
-	query, err := ParseQuery(queryStr)
+	query, err := ParseSelectQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 2)
@@ -118,7 +118,7 @@ func (self *QueryApiSuite) TestGetReferencedColumnsWithTablesMerge(c *C) {
 
 func (self *QueryApiSuite) TestGetReferencedColumnsWithARegexTable(c *C) {
 	queryStr := "select count(*), region from /events.*/ group by time(1h), region;"
-	query, err := ParseQuery(queryStr)
+	query, err := ParseSelectQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 1)
@@ -131,7 +131,7 @@ func (self *QueryApiSuite) TestGetReferencedColumnsWithARegexTable(c *C) {
 
 func (self *QueryApiSuite) TestGetReferencedColumnsWithWhereClause(c *C) {
 	queryStr := "select * from foo where a = 5;"
-	query, err := ParseQuery(queryStr)
+	query, err := ParseSelectQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 1)
@@ -143,7 +143,7 @@ func (self *QueryApiSuite) TestGetReferencedColumnsWithWhereClause(c *C) {
 
 func (self *QueryApiSuite) TestGetReferencedColumnsWithInnerJoin(c *C) {
 	queryStr := "select f2.b from foo as f1 inner join foo as f2 where f1.a = 5 and f2.a = 6;"
-	query, err := ParseQuery(queryStr)
+	query, err := ParseSelectQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 1)
@@ -159,7 +159,7 @@ func (self *QueryApiSuite) TestGetReferencedColumnsWithInnerJoin(c *C) {
 
 func (self *QueryApiSuite) TestGetReferencedColumnsWithInnerJoinAndWildcard(c *C) {
 	queryStr := "select * from foo as f1 inner join foo as f2"
-	query, err := ParseQuery(queryStr)
+	query, err := ParseSelectQuery(queryStr)
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 1)
@@ -179,7 +179,7 @@ func (self *QueryApiSuite) TestDefaultLimit(c *C) {
 		"select * from t limit 1000": 1000,
 		"select * from t;":           10000,
 	} {
-		query, err := ParseQuery(queryStr)
+		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)
 		c.Assert(query.Limit, Equals, limit)
 	}
@@ -190,7 +190,7 @@ func (self *QueryApiSuite) TestDefaultStartTime(c *C) {
 		"select * from t where time < now() - 1d;": time.Unix(math.MinInt64, 0),
 		"select * from t;":                         time.Unix(math.MinInt64, 0),
 	} {
-		query, err := ParseQuery(queryStr)
+		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)
 		startTime := query.GetStartTime()
 		c.Assert(startTime, Equals, t)
@@ -202,7 +202,7 @@ func (self *QueryApiSuite) TestDefaultEndTime(c *C) {
 		"select * from t where time > now() - 1d;": time.Now().Round(time.Minute),
 		"select * from t;":                         time.Now().Round(time.Minute),
 	} {
-		query, err := ParseQuery(queryStr)
+		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)
 		endTime := query.GetEndTime()
 		roundedEndTime := endTime.Round(time.Minute)
@@ -214,7 +214,7 @@ func (self *QueryApiSuite) TestGetStartTimeWithOr(c *C) {
 	for _, queryStr := range []string{
 		"select * from t where time > now() - 1d and (value > 90 or value < 10);",
 	} {
-		query, err := ParseQuery(queryStr)
+		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)
 		startTime := query.GetStartTime()
 		roundedStartTime := startTime.Round(time.Minute).Unix()
@@ -233,22 +233,22 @@ func (self *QueryApiSuite) TestErrorInStartTime(c *C) {
 	}
 
 	for queryStr, error := range queriesAndErrors {
-		_, err := ParseQuery(queryStr)
+		_, err := ParseSelectQuery(queryStr)
 		c.Assert(err, ErrorMatches, error)
 	}
 }
 
 func (self *QueryApiSuite) TestAliasing(c *C) {
-	query, err := ParseQuery("select * from user.events")
+	query, err := ParseSelectQuery("select * from user.events")
 	c.Assert(err, IsNil)
 	c.Assert(query.GetTableAliases("user.events"), DeepEquals, []string{"user.events"})
 
-	query, err = ParseQuery("select * from user.events as events inner join user.events as clicks")
+	query, err = ParseSelectQuery("select * from user.events as events inner join user.events as clicks")
 	c.Assert(err, IsNil)
 	c.Assert(query.GetTableAliases("user.events"), DeepEquals, []string{"events", "clicks"})
 
 	// aliasing is ignored in case of a regex
-	query, err = ParseQuery("select * from /.*events.*/i")
+	query, err = ParseSelectQuery("select * from /.*events.*/i")
 	c.Assert(err, IsNil)
 	c.Assert(query.GetTableAliases("user.events"), DeepEquals, []string{"user.events"})
 }

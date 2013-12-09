@@ -3,7 +3,8 @@ FLEX  = @with_flex@
 
 .PHONY: valgrind clean
 
-all: y.tab.c y.tab.h lex.yy.c
+files = y.tab.c y.tab.h lex.yy.c
+all: $(files)
 
 clean:
 	rm -f y.tab.c y.tab.h lex.yy.c
@@ -14,5 +15,5 @@ y.tab.c y.tab.h: query.yacc
 lex.yy.c: query.lex
 	$(FLEX) -o lex.yy.c -i query.lex
 
-valgrind:
+valgrind: all
 	./test_memory_leaks.sh

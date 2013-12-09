@@ -30,7 +30,7 @@ func uniq(slice []string) []string {
 	return slice
 }
 
-func (self *Query) WillReturnSingleSeries() bool {
+func (self *SelectDeleteCommonQuery) WillReturnSingleSeries() bool {
 	fromClause := self.GetFromClause()
 	if fromClause.Type != FromClauseArray {
 		return false
@@ -47,7 +47,7 @@ func (self *Query) WillReturnSingleSeries() bool {
 	return true
 }
 
-func (self *Query) GetTableAliases(name string) []string {
+func (self *SelectDeleteCommonQuery) GetTableAliases(name string) []string {
 	names := self.GetFromClause().Names
 	if len(names) == 1 && names[0].Name.Type == ValueRegex {
 		return []string{name}
@@ -70,7 +70,7 @@ func (self *Query) GetTableAliases(name string) []string {
 	return aliases
 }
 
-func (self *Query) revertAlias(mapping map[string][]string) {
+func (self *SelectQuery) revertAlias(mapping map[string][]string) {
 	fromClause := self.GetFromClause()
 	if fromClause.Type != FromClauseInnerJoin {
 		return
@@ -107,7 +107,7 @@ func (self *Query) revertAlias(mapping map[string][]string) {
 
 // Returns a mapping from the time series names (or regex) to the
 // column names that are references
-func (self *Query) GetReferencedColumns() map[*Value][]string {
+func (self *SelectQuery) GetReferencedColumns() map[*Value][]string {
 	mapping := make(map[string][]string)
 
 	notPrefixedColumns := []string{}
@@ -157,13 +157,13 @@ func (self *Query) GetReferencedColumns() map[*Value][]string {
 
 // Returns the start time of the query. Queries can only have
 // one condition of the form time > start_time
-func (self *Query) GetStartTime() time.Time {
+func (self *BasicQuery) GetStartTime() time.Time {
 	return self.startTime
 }
 
 // Returns the start time of the query. Queries can only have
 // one condition of the form time > start_time
-func (self *Query) GetEndTime() time.Time {
+func (self *BasicQuery) GetEndTime() time.Time {
 	return self.endTime
 }
 

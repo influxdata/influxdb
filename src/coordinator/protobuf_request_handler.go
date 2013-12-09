@@ -48,20 +48,33 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		self.coordinator.ReplicateWrite(request)
 		return err
 	} else if *request.Type == protocol.Request_PROXY_DELETE {
+		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
+		request.OriginatingServerId = &self.clusterConfig.localServerId
+		// TODO: make request logging and datastore write atomic
+		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
+		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
+		if err != nil {
+			return err
+		}
+		user := self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
+		query, _ := parser.ParseQuery(*request.Query)
+		err = self.db.DeleteSeriesData(user, *request.Database, query[0].DeleteQuery)
+		if err != nil {
+			return err
+		}
+		err = self.WriteResponse(conn, response)
+		// TODO: add quorum writes?
+		self.coordinator.ReplicateDelete(request)
+		return err
 	} else if *request.Type == protocol.Request_REPLICATION_WRITE {
-		// TODO: check the request id and server and make sure it's next (+1 from last one from the server).
-		//       If so, write. If not, request replay.
-		// TODO: log replication writes so the can be retrieved from other servers
-		location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
-		ownerId := self.clusterConfig.GetOwnerIdByLocation(&location)
 		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
 		// TODO: make request logging and datastore write atomic
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, ownerId)
+		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
 		if err != nil {
 			switch err := err.(type) {
 			case datastore.SequenceMissingRequestsError:
-				go self.coordinator.ReplayReplication(request, &replicationFactor, ownerId, &err.LastKnownRequestSequence)
+				go self.coordinator.ReplayReplication(request, &replicationFactor, request.OwnerServerId, &err.LastKnownRequestSequence)
 				return nil
 			default:
 				return err
@@ -70,7 +83,21 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		self.db.WriteSeriesData(*request.Database, request.Series)
 		return nil
 	} else if *request.Type == protocol.Request_REPLICATION_DELETE {
-
+		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
+		// TODO: make request logging and datastore write atomic
+		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
+		if err != nil {
+			switch err := err.(type) {
+			case datastore.SequenceMissingRequestsError:
+				go self.coordinator.ReplayReplication(request, &replicationFactor, request.OwnerServerId, &err.LastKnownRequestSequence)
+				return nil
+			default:
+				return err
+			}
+		}
+		user := self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
+		query, _ := parser.ParseQuery(*request.Query)
+		return self.db.DeleteSeriesData(user, *request.Database, query[0].DeleteQuery)
 	} else if *request.Type == protocol.Request_QUERY {
 		go self.handleQuery(request, conn)
 	} else if *request.Type == protocol.Request_REPLICATION_REPLAY {
@@ -140,7 +167,7 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 		return err
 	}
 	// the query should always parse correctly since it was parsed at the originating server.
-	query, _ := parser.ParseQuery(*request.Query)
+	query, _ := parser.ParseSelectQuery(*request.Query)
 	user := self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
 
 	var ringFilter func(database, series *string, time *int64) bool
