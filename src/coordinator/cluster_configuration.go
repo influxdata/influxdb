@@ -207,6 +207,17 @@ func (self *ClusterConfiguration) GetServersByRingLocation(database *string, loc
 	return replicas
 }
 
+// This function returns the replicas of the given server
+func (self *ClusterConfiguration) GetReplicas(server *ClusterServer, database *string) (*ClusterServer, []*ClusterServer) {
+	for index, s := range self.servers {
+		if s.Id == server.Id {
+			return self.GetServersByIndexAndReplicationFactor(database, &index)
+		}
+	}
+
+	return nil, nil
+}
+
 // This function returns the server that owns the ring location and a set of servers that are replicas (which include the onwer)
 func (self *ClusterConfiguration) GetServersByIndexAndReplicationFactor(database *string, index *int) (*ClusterServer, []*ClusterServer) {
 	replicationFactor := int(self.GetReplicationFactor(database))

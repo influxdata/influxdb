@@ -151,6 +151,13 @@ type Query struct {
 	DeleteQuery *DeleteQuery
 }
 
+func (self *Query) GetQueryString() string {
+	if self.SelectQuery != nil {
+		return self.SelectQuery.GetQueryString()
+	}
+	return self.DeleteQuery.GetQueryString()
+}
+
 func (self *BasicQuery) GetQueryString() string {
 	return self.queryString
 }
@@ -363,7 +370,7 @@ func ParseSelectQuery(query string) (*SelectQuery, error) {
 
 	selectQuery := queries[0].SelectQuery
 	if selectQuery == nil {
-		return nil, fmt.Errorf("Query isn't a select query: '%s'", selectQuery.GetQueryString())
+		return nil, fmt.Errorf("Query isn't a select query: '%s'", queries[0].GetQueryString())
 	}
 
 	return selectQuery, nil
