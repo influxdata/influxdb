@@ -38,6 +38,7 @@ var (
 // shorter constants for readability
 var (
 	proxyWrite        = protocol.Request_PROXY_WRITE
+	proxyDelete       = protocol.Request_PROXY_DELETE
 	queryRequest      = protocol.Request_QUERY
 	endStreamResponse = protocol.Response_END_STREAM
 	queryResponse     = protocol.Response_QUERY
@@ -348,7 +349,13 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 				if err != nil {
 					log.Error("Error writing waiting requests after replay: ", err)
 				}
-				self.datastore.WriteSeriesData(*r.Database, r.Series)
+				if *r.Type == protocol.Request_PROXY_WRITE {
+					self.datastore.WriteSeriesData(*r.Database, r.Series)
+				} else {
+					user := self.clusterConfiguration.GetDbUser(*r.Database, *r.UserName)
+					query, _ := parser.ParseQuery(*r.Query)
+					err = self.datastore.DeleteSeriesData(user, *r.Database, query[0].DeleteQuery)
+				}
 			}
 			delete(self.runningReplays, key)
 			log.Info("Replay done for originating server %d and owner server %d", *request.OriginatingServerId, *owningServerId)
@@ -444,11 +451,57 @@ func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query
 		return self.deleteSeriesDataLocally(user, db, query)
 	}
 
-	return fmt.Errorf("not implemented yet")
+	servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &db)
+	for _, server := range servers {
+		if err := self.handleSeriesDelete(user, server.server, db, query); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (self *CoordinatorImpl) deleteSeriesDataLocally(user common.User, database string, query *parser.DeleteQuery) error {
 	return self.datastore.DeleteSeriesData(user, database, query)
+}
+
+func (self *CoordinatorImpl) createRequest(requestType protocol.Request_Type, database *string) *protocol.Request {
+	id := atomic.AddUint32(&self.requestId, uint32(1))
+	return &protocol.Request{Type: &requestType, Database: database, Id: &id}
+}
+
+func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *ClusterServer, database string, query *parser.DeleteQuery) error {
+	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
+
+	request := self.createRequest(proxyDelete, &database)
+	queryStr := query.GetQueryString()
+	request.Query = &queryStr
+	request.OriginatingServerId = &self.localHostId
+	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
+	request.OwnerServerId = &owner.Id
+	userName := user.GetName()
+	request.UserName = &userName
+
+	if server.Id == self.localHostId {
+		// this is a local delete
+		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
+		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
+		if err != nil {
+			return self.proxyUntilSuccess(servers, request)
+		}
+		self.deleteSeriesDataLocally(user, database, query)
+		if err != nil {
+			log.Error("Couldn't write data to local store: ", err, request)
+		}
+
+		// ignoring the error because we still want to send to replicas
+		request.Type = &replicateDelete
+		self.sendRequestToReplicas(request, servers)
+		return nil
+	}
+
+	// otherwise, proxy the delete
+	return self.proxyUntilSuccess(servers, request)
 }
 
 func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protocol.Series) error {
@@ -457,17 +510,20 @@ func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protoco
 
 func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, series *protocol.Series) error {
 	owner, servers := self.clusterConfiguration.GetServersByIndexAndReplicationFactor(db, serverIndex)
+
+	request := self.createRequest(proxyWrite, db)
+	request.Series = series
+	request.OriginatingServerId = &self.localHostId
+	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
+	request.OwnerServerId = &owner.Id
+
 	for _, s := range servers {
 		if s.Id == self.localHostId {
 			// TODO: make storing of the data and logging of the request atomic
-			id := atomic.AddUint32(&self.requestId, uint32(1))
-			request := &protocol.Request{Type: &proxyWrite, Database: db, Series: series, Id: &id}
-			request.OriginatingServerId = &self.localHostId
-			request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
 			replicationFactor := self.clusterConfiguration.GetReplicationFactor(db)
 			err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
 			if err != nil {
-				return self.proxyUntilSuccess(servers, db, series)
+				return self.proxyUntilSuccess(servers, request)
 			}
 
 			// ignoring the error for writing to the local store because we still want to send to replicas
@@ -475,6 +531,7 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 			if err != nil {
 				log.Error("Couldn't write data to local store: ", err, request)
 			}
+			request.Type = &replicateWrite
 			self.sendRequestToReplicas(request, servers)
 
 			return nil
@@ -482,15 +539,15 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 	}
 
 	// it didn't live locally so proxy it
-	return self.proxyUntilSuccess(servers, db, series)
+	return self.proxyUntilSuccess(servers, request)
 }
 
 // This method will attemp to proxy the request until the call to proxy returns nil. If no server succeeds,
 // the last err value will be returned.
-func (self *CoordinatorImpl) proxyUntilSuccess(servers []*ClusterServer, db *string, series *protocol.Series) (err error) {
+func (self *CoordinatorImpl) proxyUntilSuccess(servers []*ClusterServer, request *protocol.Request) (err error) {
 	for _, s := range servers {
 		if s.Id != self.localHostId {
-			err = self.proxyWrite(s, db, series)
+			err = self.proxyWrite(s, request)
 			if err == nil {
 				return nil
 			}
@@ -499,10 +556,11 @@ func (self *CoordinatorImpl) proxyUntilSuccess(servers []*ClusterServer, db *str
 	return
 }
 
-func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, db *string, series *protocol.Series) error {
-	id := atomic.AddUint32(&self.requestId, uint32(1))
-	request := &protocol.Request{Database: db, Type: &proxyWrite, Series: series, Id: &id}
-	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
+func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, request *protocol.Request) error {
+	originatingServerId := request.OriginatingServerId
+	request.OriginatingServerId = nil
+	defer func() { request.OriginatingServerId = originatingServerId }()
+
 	responseChan := make(chan *protocol.Response, 1)
 	clusterServer.protobufClient.MakeRequest(request, responseChan)
 	response := <-responseChan
@@ -720,12 +778,22 @@ func (self *CoordinatorImpl) ReplicateWrite(request *protocol.Request) error {
 	request.Id = &id
 	location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
 	replicas := self.clusterConfiguration.GetServersByRingLocation(request.Database, &location)
+	request.Type = &replicateWrite
+	self.sendRequestToReplicas(request, replicas)
+	return nil
+}
+
+func (self *CoordinatorImpl) ReplicateDelete(request *protocol.Request) error {
+	id := atomic.AddUint32(&self.requestId, uint32(1))
+	request.Id = &id
+	server := self.clusterConfiguration.GetServerById(request.OwnerServerId)
+	_, replicas := self.clusterConfiguration.GetReplicas(server, request.Database)
+	request.Type = &replicateDelete
 	self.sendRequestToReplicas(request, replicas)
 	return nil
 }
 
 func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, replicas []*ClusterServer) {
-	request.Type = &replicateWrite
 	for _, server := range replicas {
 		if server.Id != self.localHostId {
 			server.protobufClient.MakeRequest(request, nil)

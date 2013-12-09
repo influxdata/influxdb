@@ -44,6 +44,7 @@ type RaftServer struct {
 
 var registeredCommands bool
 var replicateWrite = protocol.Request_REPLICATION_WRITE
+var replicateDelete = protocol.Request_REPLICATION_DELETE
 
 // Creates a new server.
 func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterConfiguration) *RaftServer {

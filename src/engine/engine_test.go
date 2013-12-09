@@ -29,6 +29,10 @@ type MockCoordinator struct {
 	series        []*protocol.Series
 }
 
+func (self *MockCoordinator) ReplicateDelete(request *protocol.Request) error {
+	return nil
+}
+
 func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.SelectQuery, yield func(*protocol.Series) error) error {
 	if self.returnedError != nil {
 		return self.returnedError
