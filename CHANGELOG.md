@@ -152,7 +152,8 @@
 - [Issue #102](https://github.com/influxdb/influxdb/issues/102). Support expressions in where condition
 - [Issue #101](https://github.com/influxdb/influxdb/issues/101). Support expressions in aggregates
 - [Issue #62](https://github.com/influxdb/influxdb/issues/62). Support updating and deleting column values
-- Support delete queries
+- [Issue #96](https://github.com/influxdb/influxdb/issues/96). Replicate deletes in a cluster
+- [Issue #94](https://github.com/influxdb/influxdb/issues/94). delete queries
 
 ## Bugfixes
 
