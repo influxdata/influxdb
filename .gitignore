@@ -1,0 +1,7 @@
+pkg/
+bin/
+src/code.google.com/
+*~
+src/github.com/
+flymake.sh
+*.test
