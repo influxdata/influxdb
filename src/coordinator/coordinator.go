@@ -733,7 +733,10 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, use
 		return fmt.Errorf("Invalid username %s", username)
 	}
 
-	dbUsers[username].changePassword(password)
+	err := dbUsers[username].changePassword(password)
+	if err != nil {
+		return err
+	}
 	return self.raftServer.SaveDbUser(dbUsers[username])
 }
 
