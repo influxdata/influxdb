@@ -13,6 +13,7 @@ import (
 )
 
 type ProtobufClient struct {
+	connLock          sync.Mutex
 	conn              net.Conn
 	hostAndPort       string
 	requestBufferLock sync.RWMutex
@@ -46,10 +47,18 @@ func NewProtobufClient(hostAndPort string) *ProtobufClient {
 }
 
 func (self *ProtobufClient) Close() {
+	self.connLock.Lock()
+	defer self.connLock.Unlock()
 	if self.conn != nil {
 		self.conn.Close()
 		self.conn = nil
 	}
+}
+
+func (self *ProtobufClient) getConnection() net.Conn {
+	self.connLock.Lock()
+	defer self.connLock.Unlock()
+	return self.conn
 }
 
 // Makes a request to the server. If the responseStream chan is not nil it will expect a response from the server
@@ -76,21 +85,23 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 
 	// retry sending this at least a few times
 	for attempts := 0; attempts < REQUEST_RETRY_ATTEMPTS; attempts++ {
-		if self.conn == nil {
+		conn := self.getConnection()
+		if conn == nil {
 			self.reconnect()
-		} else {
-			err = binary.Write(self.conn, binary.LittleEndian, uint32(len(data)))
-			if err == nil {
-				_, err = self.conn.Write(data)
-				if err == nil {
-					return nil
-				}
-			}
-			log.Println("ProtobufClient: error making request: ", err)
-			// TODO: do something smarter here based on whatever the error is.
-			// failed to make the request, reconnect and try again.
-			self.reconnect()
+			continue
 		}
+
+		err = binary.Write(conn, binary.LittleEndian, uint32(len(data)))
+		if err == nil {
+			_, err = conn.Write(data)
+			if err == nil {
+				return nil
+			}
+		}
+		log.Println("ProtobufClient: error making request: ", err)
+		// TODO: do something smarter here based on whatever the error is.
+		// failed to make the request, reconnect and try again.
+		self.reconnect()
 	}
 
 	// if we got here it errored out, clear out the request
@@ -104,25 +115,30 @@ func (self *ProtobufClient) readResponses() {
 	message := make([]byte, 0, MAX_RESPONSE_SIZE)
 	buff := bytes.NewBuffer(message)
 	for {
-		if self.conn == nil {
-			self.reconnect()
-		} else {
-			var messageSizeU uint32
-			var err error
-			if err = binary.Read(self.conn, binary.LittleEndian, &messageSizeU); err == nil {
-				messageSize := int64(messageSizeU)
-				messageReader := io.LimitReader(self.conn, messageSize)
-				if _, err = io.Copy(buff, messageReader); err == nil {
-					response, err := protocol.DecodeResponse(buff)
-					if err != nil {
-						log.Println("ProtobufClient: error unmarshaling response: ", err)
-					} else {
-						self.sendResponse(response)
-					}
-				}
-			}
-		}
 		buff.Reset()
+		conn := self.getConnection()
+		if conn == nil {
+			self.reconnect()
+			continue
+		}
+		var messageSizeU uint32
+		var err error
+		err = binary.Read(conn, binary.LittleEndian, &messageSizeU)
+		if err != nil {
+			continue
+		}
+		messageSize := int64(messageSizeU)
+		messageReader := io.LimitReader(conn, messageSize)
+		_, err = io.Copy(buff, messageReader)
+		if err != nil {
+			continue
+		}
+		response, err := protocol.DecodeResponse(buff)
+		if err != nil {
+			log.Println("ProtobufClient: error unmarshaling response: ", err)
+		} else {
+			self.sendResponse(response)
+		}
 	}
 }
 
