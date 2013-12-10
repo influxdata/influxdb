@@ -260,6 +260,27 @@ func (self *LevelDbDatastore) bytesToCurrentNumber(numberBytes []byte) uint64 {
 	return currentNumber
 }
 
+func (self *LevelDbDatastore) DeleteSeriesData(database string, query *parser.DeleteQuery) error {
+	series := query.GetFromClause()
+	if series.Type != parser.FromClauseArray {
+		return fmt.Errorf("Merge and Inner joins can't be used with a delete query", series.Type)
+	}
+
+	for _, name := range series.Names {
+		var err error
+		if regex, ok := name.Name.GetCompiledRegex(); ok {
+			err = self.DeleteRangeOfRegex(database, regex, query.GetStartTime(), query.GetEndTime())
+		} else {
+			err = self.deleteRangeOfSeries(database, name.Name.Name, query.GetStartTime(), query.GetEndTime())
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.Series) error {
 	wb := levigo.NewWriteBatch()
 	defer wb.Close()
@@ -305,7 +326,7 @@ func (self *LevelDbDatastore) dropSeries(database, series string) error {
 	defer wb.Close()
 
 	for _, name := range self.getColumnNamesForSeries(database, series) {
-		if err := self.deleteRangeOfSeries(database, series, startTimeBytes, endTimeBytes); err != nil {
+		if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
 			return err
 		}
 
@@ -486,7 +507,7 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 }
 
 func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string,
-	query *parser.Query, yield func(*protocol.Series) error,
+	query *parser.SelectQuery, yield func(*protocol.Series) error,
 	ringFilter func(database, series *string, time *int64) bool) error {
 
 	seriesAndColumns := query.GetReferencedColumns()
@@ -534,7 +555,7 @@ func (self *LevelDbDatastore) Close() {
 	self.writeOptions = nil
 }
 
-func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, startTimeBytes, endTimeBytes []byte) error {
+func (self *LevelDbDatastore) deleteRangeOfSeriesCommon(database, series string, startTimeBytes, endTimeBytes []byte) error {
 	columns := self.getColumnNamesForSeries(database, series)
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
@@ -587,27 +608,18 @@ func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, start
 	return nil
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
+func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
-	return self.deleteRangeOfSeries(database, series, startTimeBytes, endTimeBytes)
+	return self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes)
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfRegex(user common.User, database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
+func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
 	series := self.getSeriesForDbAndRegex(database, regex)
-	hasAccess := true
 	for _, name := range series {
-		if !user.HasWriteAccess(name) {
-			hasAccess = false
-			continue
-		}
-
-		err := self.DeleteRangeOfSeries(database, name, startTime, endTime)
+		err := self.deleteRangeOfSeries(database, name, startTime, endTime)
 		if err != nil {
 			return err
 		}
-	}
-	if !hasAccess {
-		return fmt.Errorf("You don't have access to delete from one or more time series")
 	}
 	return nil
 }
@@ -651,7 +663,7 @@ func isPointInRange(fieldId, startTime, endTime, point []byte) bool {
 }
 
 func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string,
-	query *parser.Query, yield func(*protocol.Series) error,
+	query *parser.SelectQuery, yield func(*protocol.Series) error,
 	ringFilter func(database, series *string, time *int64) bool) error {
 
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(query.GetStartTime()), common.TimeToMicroseconds(query.GetEndTime()))
@@ -801,7 +813,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 
 // Return the number of dropped ticks from filtering. if the series
 // had more than one alias, returns the min of all dropped ticks
-func (self *LevelDbDatastore) sendBatch(query *parser.Query, series *protocol.Series, yield func(series *protocol.Series) error) (int, error) {
+func (self *LevelDbDatastore) sendBatch(query *parser.SelectQuery, series *protocol.Series, yield func(series *protocol.Series) error) (int, error) {
 	dropped := int(math.MaxInt32)
 
 	for _, alias := range query.GetTableAliases(*series.Name) {

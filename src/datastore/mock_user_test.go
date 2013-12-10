@@ -2,6 +2,7 @@ package datastore
 
 type MockUser struct {
 	dbCannotRead  map[string]bool
+	dbAdmin       map[string]bool
 	dbCannotWrite map[string]bool
 }
 
@@ -15,7 +16,7 @@ func (self *MockUser) IsClusterAdmin() bool {
 	return false
 }
 func (self *MockUser) IsDbAdmin(db string) bool {
-	return false
+	return self.dbAdmin[db]
 }
 func (self *MockUser) GetDb() string {
 	return ""

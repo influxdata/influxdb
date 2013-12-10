@@ -4,13 +4,11 @@ import (
 	"common"
 	"parser"
 	"protocol"
-	"regexp"
-	"time"
 )
 
 type Datastore interface {
 	ExecuteQuery(user common.User, database string,
-		query *parser.Query, yield func(*protocol.Series) error,
+		query *parser.SelectQuery, yield func(*protocol.Series) error,
 		ringFilter func(database, series *string, time *int64) bool) error
 	// Logs the request to a local store and assigns a sequence number that is unique per server id per day
 	LogRequestAndAssignSequenceNumber(request *protocol.Request, replicationFactor *uint8, ownerServerId *uint32) error
@@ -20,8 +18,7 @@ type Datastore interface {
 	// Increment the named integer by the given amount and return the new value
 	AtomicIncrement(name string, val int) (uint64, error)
 	WriteSeriesData(database string, series *protocol.Series) error
+	DeleteSeriesData(database string, query *parser.DeleteQuery) error
 	DropDatabase(database string) error
-	DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error
-	DeleteRangeOfRegex(user common.User, database string, regex *regexp.Regexp, startTime, endTime time.Time) error
 	Close()
 }

@@ -118,7 +118,7 @@ func filterColumns(columns map[string]bool, fields []string, point *protocol.Poi
 	point.Values = newValues
 }
 
-func Filter(query *parser.Query, series *protocol.Series) (*protocol.Series, error) {
+func Filter(query *parser.SelectQuery, series *protocol.Series) (*protocol.Series, error) {
 	if query.GetWhereCondition() == nil {
 		return series, nil
 	}

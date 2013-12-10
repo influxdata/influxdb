@@ -138,6 +138,14 @@ func (self *IntegrationSuite) createUser() error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Statuscode is %d", resp.StatusCode)
 	}
+	resp, err = http.Post("http://localhost:8086/db/db1/users/user?u=root&p=root", "application/json",
+		bytes.NewBufferString(`{"admin": true}`))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Statuscode is %d", resp.StatusCode)
+	}
 	return nil
 }
 
@@ -768,6 +776,46 @@ func (self *IntegrationSuite) TestDbDelete(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Points, HasLen, 0)
+}
+
+// test delete query
+func (self *IntegrationSuite) TestDeleteQuery(c *C) {
+	for _, queryString := range []string{
+		"delete from test_delete_query",
+		"delete from test_delete_query where time > now() - 1d and time < now()",
+		"delete from /.*test_delete_query.*/",
+		"delete from /.*TEST_DELETE_QUERY.*/i",
+	} {
+
+		fmt.Printf("Running %s\n", queryString)
+
+		err := self.server.WriteData(`
+[
+  {
+    "name": "test_delete_query",
+    "columns": ["val1", "val2"],
+    "points":[["v1", 2]]
+  }
+]`)
+		c.Assert(err, IsNil)
+		bs, err := self.server.RunQuery("select val1 from test_delete_query")
+		c.Assert(err, IsNil)
+		data := []*h.SerializedSeries{}
+		err = json.Unmarshal(bs, &data)
+		c.Assert(data, HasLen, 1)
+
+		_, err = self.server.RunQuery(queryString)
+		c.Assert(err, IsNil)
+
+		// this shouldn't return any data
+		bs, err = self.server.RunQuery("select val1 from test_delete_query")
+		c.Assert(err, IsNil)
+		data = []*h.SerializedSeries{}
+		err = json.Unmarshal(bs, &data)
+		c.Assert(err, IsNil)
+		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Points, HasLen, 0)
+	}
 }
 
 func (self *IntegrationSuite) TestReading(c *C) {

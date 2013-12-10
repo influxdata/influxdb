@@ -30,6 +30,7 @@ static int yycolumn = 1;
 "where"                   { return WHERE; }
 "as"                      { return AS; }
 "select"                  { return SELECT; }
+"delete"                  { return DELETE; }
 "limit"                   { return LIMIT; }
 "order"                   { return ORDER; }
 "asc"                     { return ASC; }

@@ -9,7 +9,6 @@ import (
 	"os"
 	"parser"
 	"protocol"
-	"regexp"
 	"testing"
 	"time"
 )
@@ -51,7 +50,7 @@ func stringToSeries(seriesString string, timestamp int64, c *C) *protocol.Series
 }
 
 func executeQuery(user common.User, database, query string, db Datastore, c *C) []*protocol.Series {
-	q, errQ := parser.ParseQuery(query)
+	q, errQ := parser.ParseSelectQuery(query)
 	c.Assert(errQ, IsNil)
 	resultSeries := []*protocol.Series{}
 	yield := func(series *protocol.Series) error {
@@ -90,7 +89,7 @@ func (self *DatastoreSuite) TestPropagateErrorsProperly(c *C) {
 	series := stringToSeries(mock, pointTime, c)
 	err := db.WriteSeriesData("test", series)
 	c.Assert(err, IsNil)
-	q, err := parser.ParseQuery("select value from foo;")
+	q, err := parser.ParseSelectQuery("select value from foo;")
 	c.Assert(err, IsNil)
 	yield := func(series *protocol.Series) error {
 		return fmt.Errorf("Whatever")
@@ -123,7 +122,7 @@ func (self *DatastoreSuite) TestDeletingData(c *C) {
 	series := stringToSeries(mock, pointTime, c)
 	err := db.WriteSeriesData("test", series)
 	c.Assert(err, IsNil)
-	q, err := parser.ParseQuery("select value from foo;")
+	q, err := parser.ParseSelectQuery("select value from foo;")
 	c.Assert(err, IsNil)
 	yield := func(series *protocol.Series) error {
 		if len(series.Points) > 0 {
@@ -173,7 +172,7 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePointsWithAlias(c *C) {
 	series := stringToSeries(mock, pointTime, c)
 	err := db.WriteSeriesData("test", series)
 	c.Assert(err, IsNil)
-	q, errQ := parser.ParseQuery("select * from foo as f1 inner join foo as f2;")
+	q, errQ := parser.ParseSelectQuery("select * from foo as f1 inner join foo as f2;")
 	c.Assert(errQ, IsNil)
 	resultSeries := map[string][]*protocol.Series{}
 	yield := func(series *protocol.Series) error {
@@ -225,7 +224,7 @@ func (self *DatastoreSuite) TestCanWriteAndRetrievePoints(c *C) {
 	series := stringToSeries(mock, pointTime, c)
 	err := db.WriteSeriesData("test", series)
 	c.Assert(err, IsNil)
-	q, errQ := parser.ParseQuery("select value from foo;")
+	q, errQ := parser.ParseSelectQuery("select value from foo;")
 	c.Assert(errQ, IsNil)
 	resultSeries := []*protocol.Series{}
 	yield := func(series *protocol.Series) error {
@@ -639,7 +638,8 @@ func (self *DatastoreSuite) TestCanDeleteARangeOfData(c *C) {
 	results = executeQuery(user, "foobar", "select count, name from user_things;", db, c)
 	c.Assert(results[0].Points, HasLen, 3)
 
-	err = db.DeleteRangeOfSeries("foobar", "user_things", time.Now().Add(-time.Hour), time.Now().Add(-time.Minute))
+	queries, _ := parser.ParseQuery("delete from user_things where time > now() - 1h and time < now() - 1m")
+	err = db.DeleteSeriesData("foobar", queries[0].DeleteQuery)
 	c.Assert(err, IsNil)
 	results = executeQuery(user, "foobar", "select count, name from user_things;", db, c)
 	c.Assert(results[0].Points, HasLen, 1)
@@ -688,8 +688,8 @@ func (self *DatastoreSuite) TestCanDeleteRangeOfDataFromRegex(c *C) {
 	results = executeQuery(user, "foobar", "select processed_time from queue_time;", db, c)
 	c.Assert(results[0], DeepEquals, otherSeries)
 
-	regex, _ := regexp.Compile(".*time.*")
-	db.DeleteRangeOfRegex(user, "foobar", regex, time.Now().Add(-time.Hour), time.Now())
+	queries, _ := parser.ParseQuery("delete from /.*time.*/ where time > now() - 1h")
+	db.DeleteSeriesData("foobar", queries[0].DeleteQuery)
 
 	results = executeQuery(user, "foobar", "select * from events;", db, c)
 	c.Assert(results[0], DeepEquals, series)
@@ -740,7 +740,7 @@ func (self *DatastoreSuite) TestCanSelectFromARegex(c *C) {
 	results = executeQuery(user, "foobar", "select state from other_things;", db, c)
 	c.Assert(results[0], DeepEquals, otherSeries)
 
-	q, errQ := parser.ParseQuery("select * from /.*things/;")
+	q, errQ := parser.ParseSelectQuery("select * from /.*things/;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
@@ -782,7 +782,7 @@ func (self *DatastoreSuite) TestBreaksLargeResultsIntoMultipleBatches(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	q, errQ := parser.ParseQuery("select * from user_things limit 0;")
+	q, errQ := parser.ParseSelectQuery("select * from user_things limit 0;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
@@ -827,7 +827,7 @@ func (self *DatastoreSuite) TestCheckReadAccess(c *C) {
 	user := &MockUser{
 		dbCannotRead: map[string]bool{"other_things": true},
 	}
-	q, errQ := parser.ParseQuery("select * from /.*things/;")
+	q, errQ := parser.ParseSelectQuery("select * from /.*things/;")
 	c.Assert(errQ, IsNil)
 	resultSeries := make([]*protocol.Series, 0)
 	yield := func(series *protocol.Series) error {
@@ -843,49 +843,54 @@ func (self *DatastoreSuite) TestCheckReadAccess(c *C) {
 	c.Assert(resultSeries[0], DeepEquals, series)
 }
 
-func (self *DatastoreSuite) TestCheckWriteAccess(c *C) {
-	cleanup(nil)
-	db := newDatastore(c)
-	defer cleanup(db)
+// previously, write permissions gave read and write access
+// currently any db admin can delete data from any time
+// series in the db. Also the datastore isn't enforcing
+// the access rules, instead they're being enforced in
+// the coordinator
+// func (self *DatastoreSuite) TestCheckWriteAccess(c *C) {
+// 	cleanup(nil)
+// 	db := newDatastore(c)
+// 	defer cleanup(db)
 
-	mock := `{
-    "points":[
-      {"values":[{"int64_value":3},{"string_value":"paul"}],"sequence_number":2},
-      {"values":[{"int64_value":1},{"string_value":"todd"}],"sequence_number":1}],
-      "name":"user_things",
-      "fields":["count", "name"]
-    }`
-	series := stringToSeries(mock, time.Now().Unix(), c)
-	err := db.WriteSeriesData("foobar", series)
-	c.Assert(err, IsNil)
+// 	mock := `{
+//     "points":[
+//       {"values":[{"int64_value":3},{"string_value":"paul"}],"sequence_number":2},
+//       {"values":[{"int64_value":1},{"string_value":"todd"}],"sequence_number":1}],
+//       "name":"user_things",
+//       "fields":["count", "name"]
+//     }`
+// 	series := stringToSeries(mock, time.Now().Unix(), c)
+// 	err := db.WriteSeriesData("foobar", series)
+// 	c.Assert(err, IsNil)
 
-	mock = `{
-    "points":[{"values":[{"string_value":"NY"}],"sequence_number":23}, {"values":[{"string_value":"CO"}],"sequence_number":20}],
-    "name":"other_things",
-    "fields":["state"]
-  }`
-	otherSeries := stringToSeries(mock, time.Now().Unix(), c)
-	err = db.WriteSeriesData("foobar", otherSeries)
-	c.Assert(err, IsNil)
+// 	user := &MockUser{
+// 		dbCannotWrite: map[string]bool{"other_things": true},
+// 	}
+// 	mock = `{
+//     "points":[{"values":[{"string_value":"NY"}],"sequence_number":23}, {"values":[{"string_value":"CO"}],"sequence_number":20}],
+//     "name":"other_things",
+//     "fields":["state"]
+//   }`
+// 	otherSeries := stringToSeries(mock, time.Now().Unix(), c)
+// 	err = db.WriteSeriesData("foobar", otherSeries)
+// 	c.Assert(err, NotNil)
 
-	user := &MockUser{
-		dbCannotWrite: map[string]bool{"other_things": true},
-	}
-	regex, _ := regexp.Compile(".*")
-	err = db.DeleteRangeOfRegex(user, "foobar", regex, time.Now().Add(-time.Hour), time.Now())
-	c.Assert(err, ErrorMatches, ".*one or more.*")
+// 	queries, _ := parser.ParseQuery("delete from /.*/ where time > now() - 1h")
+// 	err = db.DeleteSeriesData("foobar", queries[0].DeleteQuery)
+// 	// c.Assert(err, ErrorMatches, ".*one or more.*")
 
-	q, errQ := parser.ParseQuery("select * from /.*things/;")
-	c.Assert(errQ, IsNil)
-	resultSeries := make([]*protocol.Series, 0)
-	yield := func(series *protocol.Series) error {
-		if len(series.Points) > 0 {
-			resultSeries = append(resultSeries, series)
-		}
-		return nil
-	}
-	err = db.ExecuteQuery(user, "foobar", q, yield, nil)
-	c.Assert(err, IsNil)
-	c.Assert(resultSeries, HasLen, 1)
-	c.Assert(resultSeries[0], DeepEquals, otherSeries)
-}
+// 	q, errQ := parser.ParseSelectQuery("select * from /.*things/;")
+// 	c.Assert(errQ, IsNil)
+// 	resultSeries := make([]*protocol.Series, 0)
+// 	yield := func(series *protocol.Series) error {
+// 		if len(series.Points) > 0 {
+// 			resultSeries = append(resultSeries, series)
+// 		}
+// 		return nil
+// 	}
+// 	err = db.ExecuteQuery(user, "foobar", q, yield, nil)
+// 	c.Assert(err, IsNil)
+// 	c.Assert(resultSeries, HasLen, 1)
+// 	c.Assert(resultSeries[0], DeepEquals, otherSeries)
+// }

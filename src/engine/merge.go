@@ -6,7 +6,7 @@ import (
 	"protocol"
 )
 
-func getJoinYield(query *parser.Query, yield func(*protocol.Series) error) func(*protocol.Series) error {
+func getJoinYield(query *parser.SelectQuery, yield func(*protocol.Series) error) func(*protocol.Series) error {
 	var lastPoint1 *protocol.Point
 	var lastFields1 []string
 	var lastPoint2 *protocol.Point

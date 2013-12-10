@@ -74,9 +74,20 @@ typedef struct {
   from_clause *from_clause;
   value_array *group_by;
   condition *where_condition;
-  error *error;
   int limit;
   char ascending;
+} select_query;
+
+typedef struct {
+  from_clause *from_clause;
+  condition *where_condition;
+  error *error;
+} delete_query;
+
+typedef struct {
+  select_query *select_query;
+  delete_query *delete_query;
+  error *error;
 } query;
 
 // some funcs for freeing our types

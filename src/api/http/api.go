@@ -16,6 +16,7 @@ import (
 	"protocol"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var VALID_TABLE_NAMES *regexp.Regexp
@@ -113,7 +114,11 @@ func (self *HttpServer) Close() {
 		log.Info("Closing http server")
 		self.conn.Close()
 		log.Info("Waiting for all requests to finish before killing the process")
-		<-self.shutdown
+		select {
+		case <-time.After(time.Second * 5):
+			log.Error("There seems to be a hanging request. Closing anyway")
+		case <-self.shutdown:
+		}
 	}
 }
 
