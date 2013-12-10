@@ -4,8 +4,6 @@ import (
 	"common"
 	"parser"
 	"protocol"
-	"regexp"
-	"time"
 )
 
 type Datastore interface {
@@ -20,9 +18,7 @@ type Datastore interface {
 	// Increment the named integer by the given amount and return the new value
 	AtomicIncrement(name string, val int) (uint64, error)
 	WriteSeriesData(database string, series *protocol.Series) error
-	DeleteSeriesData(user common.User, database string, query *parser.DeleteQuery) error
+	DeleteSeriesData(database string, query *parser.DeleteQuery) error
 	DropDatabase(database string) error
-	DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error
-	DeleteRangeOfRegex(user common.User, database string, regex *regexp.Regexp, startTime, endTime time.Time) error
 	Close()
 }

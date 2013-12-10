@@ -260,7 +260,7 @@ func (self *LevelDbDatastore) bytesToCurrentNumber(numberBytes []byte) uint64 {
 	return currentNumber
 }
 
-func (self *LevelDbDatastore) DeleteSeriesData(user common.User, database string, query *parser.DeleteQuery) error {
+func (self *LevelDbDatastore) DeleteSeriesData(database string, query *parser.DeleteQuery) error {
 	series := query.GetFromClause()
 	if series.Type != parser.FromClauseArray {
 		return fmt.Errorf("Merge and Inner joins can't be used with a delete query", series.Type)
@@ -269,9 +269,9 @@ func (self *LevelDbDatastore) DeleteSeriesData(user common.User, database string
 	for _, name := range series.Names {
 		var err error
 		if regex, ok := name.Name.GetCompiledRegex(); ok {
-			err = self.DeleteRangeOfRegex(user, database, regex, query.GetStartTime(), query.GetEndTime())
+			err = self.DeleteRangeOfRegex(database, regex, query.GetStartTime(), query.GetEndTime())
 		} else {
-			err = self.DeleteRangeOfSeries(database, name.Name.Name, query.GetStartTime(), query.GetEndTime())
+			err = self.deleteRangeOfSeries(database, name.Name.Name, query.GetStartTime(), query.GetEndTime())
 		}
 
 		if err != nil {
@@ -326,7 +326,7 @@ func (self *LevelDbDatastore) dropSeries(database, series string) error {
 	defer wb.Close()
 
 	for _, name := range self.getColumnNamesForSeries(database, series) {
-		if err := self.deleteRangeOfSeries(database, series, startTimeBytes, endTimeBytes); err != nil {
+		if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
 			return err
 		}
 
@@ -555,7 +555,7 @@ func (self *LevelDbDatastore) Close() {
 	self.writeOptions = nil
 }
 
-func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, startTimeBytes, endTimeBytes []byte) error {
+func (self *LevelDbDatastore) deleteRangeOfSeriesCommon(database, series string, startTimeBytes, endTimeBytes []byte) error {
 	columns := self.getColumnNamesForSeries(database, series)
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
@@ -608,27 +608,18 @@ func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, start
 	return nil
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
+func (self *LevelDbDatastore) deleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
-	return self.deleteRangeOfSeries(database, series, startTimeBytes, endTimeBytes)
+	return self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes)
 }
 
-func (self *LevelDbDatastore) DeleteRangeOfRegex(user common.User, database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
+func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
 	series := self.getSeriesForDbAndRegex(database, regex)
-	hasAccess := true
 	for _, name := range series {
-		if !user.HasWriteAccess(name) {
-			hasAccess = false
-			continue
-		}
-
-		err := self.DeleteRangeOfSeries(database, name, startTime, endTime)
+		err := self.deleteRangeOfSeries(database, name, startTime, endTime)
 		if err != nil {
 			return err
 		}
-	}
-	if !hasAccess {
-		return fmt.Errorf("You don't have access to delete from one or more time series")
 	}
 	return nil
 }

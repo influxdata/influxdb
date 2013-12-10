@@ -186,6 +186,8 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
 	time.Sleep(time.Millisecond * 10)
 	_, err = self.postToServer(self.servers[0], "/db/test_del_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
 	c.Assert(err, IsNil)
+	_, err = self.postToServer(self.servers[0], "/db/test_del_rep/users/paul?u=root&p=root", `{"admin": true}`, c)
+	c.Assert(err, IsNil)
 
 	data := `
   [{
@@ -362,7 +364,7 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 	servers[1].Stop()
 	time.Sleep(time.Second)
 	// TODO: make the admin server actually close so we don't have to go to a new port
-	killedConfig.AdminHttpPort = 8110
+	killedConfig.AdminHttpPort = 8111
 
 	data = `
 	[{
@@ -434,6 +436,8 @@ func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
 	c.Assert(err, IsNil)
 	time.Sleep(time.Millisecond * 10)
 	_, err = self.postToServer(self.servers[0], "/db/full_del_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	c.Assert(err, IsNil)
+	_, err = self.postToServer(self.servers[0], "/db/full_del_rep/users/paul?u=root&p=root", `{"admin": true}`, c)
 	c.Assert(err, IsNil)
 
 	// write data and confirm that it went to all three servers

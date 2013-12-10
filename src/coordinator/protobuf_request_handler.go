@@ -57,9 +57,8 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		if err != nil {
 			return err
 		}
-		user := self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
 		query, _ := parser.ParseQuery(*request.Query)
-		err = self.db.DeleteSeriesData(user, *request.Database, query[0].DeleteQuery)
+		err = self.db.DeleteSeriesData(*request.Database, query[0].DeleteQuery)
 		if err != nil {
 			return err
 		}
@@ -95,9 +94,8 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 				return err
 			}
 		}
-		user := self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
 		query, _ := parser.ParseQuery(*request.Query)
-		return self.db.DeleteSeriesData(user, *request.Database, query[0].DeleteQuery)
+		return self.db.DeleteSeriesData(*request.Database, query[0].DeleteQuery)
 	} else if *request.Type == protocol.Request_QUERY {
 		go self.handleQuery(request, conn)
 	} else if *request.Type == protocol.Request_REPLICATION_REPLAY {

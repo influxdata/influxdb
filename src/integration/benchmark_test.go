@@ -138,6 +138,14 @@ func (self *IntegrationSuite) createUser() error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Statuscode is %d", resp.StatusCode)
 	}
+	resp, err = http.Post("http://localhost:8086/db/db1/users/user?u=root&p=root", "application/json",
+		bytes.NewBufferString(`{"admin": true}`))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Statuscode is %d", resp.StatusCode)
+	}
 	return nil
 }
 

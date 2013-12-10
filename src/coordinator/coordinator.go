@@ -352,9 +352,8 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 				if *r.Type == protocol.Request_PROXY_WRITE {
 					self.datastore.WriteSeriesData(*r.Database, r.Series)
 				} else if *r.Type == protocol.Request_PROXY_DELETE || *r.Type == protocol.Request_REPLICATION_DELETE {
-					user := self.clusterConfiguration.GetDbUser(*r.Database, *r.UserName)
 					query, _ := parser.ParseQuery(*r.Query)
-					err = self.datastore.DeleteSeriesData(user, *r.Database, query[0].DeleteQuery)
+					err = self.datastore.DeleteSeriesData(*r.Database, query[0].DeleteQuery)
 				}
 			}
 			delete(self.runningReplays, key)
@@ -443,7 +442,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 }
 
 func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery) error {
-	if !user.HasWriteAccess(db) {
+	if !user.IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
 
@@ -462,7 +461,7 @@ func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query
 }
 
 func (self *CoordinatorImpl) deleteSeriesDataLocally(user common.User, database string, query *parser.DeleteQuery) error {
-	return self.datastore.DeleteSeriesData(user, database, query)
+	return self.datastore.DeleteSeriesData(database, query)
 }
 
 func (self *CoordinatorImpl) createRequest(requestType protocol.Request_Type, database *string) *protocol.Request {
@@ -479,8 +478,6 @@ func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *Cluste
 	request.OriginatingServerId = &self.localHostId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
 	request.OwnerServerId = &owner.Id
-	userName := user.GetName()
-	request.UserName = &userName
 
 	if server.Id == self.localHostId {
 		// this is a local delete
