@@ -5,7 +5,7 @@
 # prior to shutting down
 
 # seed-servers =
-# datadir     = "/tmp/influxdb/development/db"
+datadir     = "/tmp/influxdb/development/db"
 
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
@@ -15,7 +15,7 @@
 # Configure the admin server
 [admin]
 # port   = 8083
-# assets = "./admin"
+assets = "./admin"
 
 # Configure the http api
 [api]
@@ -24,7 +24,7 @@
 # Raft configuration
 [raft]
 # port = 8090
-# dir  = "/tmp/influxdb/development/raft"
+dir  = "/tmp/influxdb/development/raft"
 
 # Protobuf configuration
 [protobuf]
