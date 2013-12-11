@@ -86,6 +86,7 @@ func (self *Server) Stop() {
 	self.Db.Close()
 	self.HttpApi.Close()
 	self.ProtobufServer.Close()
+	self.AdminServer.Close()
 	// TODO: close admin server and protobuf client connections
 	log.Info("Stopping server")
 }

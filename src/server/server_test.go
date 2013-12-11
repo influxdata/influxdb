@@ -363,8 +363,6 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 
 	servers[1].Stop()
 	time.Sleep(time.Second)
-	// TODO: make the admin server actually close so we don't have to go to a new port
-	killedConfig.AdminHttpPort = 8111
 
 	data = `
 	[{
@@ -478,8 +476,6 @@ func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
 
 	servers[1].Stop()
 	time.Sleep(time.Second)
-	// TODO: make the admin server actually close so we don't have to go to a new port
-	killedConfig.AdminHttpPort = 8110
 
 	escapedQuery := url.QueryEscape("delete from test_failure_replays")
 	resp, err = http.Get(fmt.Sprintf("http://localhost:%d/db/full_del_rep/series?u=paul&p=pass&q=%s", servers[0].Config.ApiHttpPort, escapedQuery))
