@@ -23,10 +23,6 @@ type Operation int
 type ValueType int
 
 const (
-	DEFAULT_LIMIT = 10000
-)
-
-const (
 	ValueRegex        ValueType = C.VALUE_REGEX
 	ValueInt                    = C.VALUE_INT
 	ValueFloat                  = C.VALUE_FLOAT
@@ -456,7 +452,8 @@ func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause,
 func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, error) {
 	limit := q.limit
 	if limit == -1 {
-		limit = DEFAULT_LIMIT
+		// no limit by default
+		limit = 0
 	}
 
 	basicQurey, err := parseSelectDeleteCommonQuery(queryString, q.from_clause, q.where_condition)

@@ -163,6 +163,7 @@
 - [Issue #89](https://github.com/influxdb/influxdb/issues/89). 'Group by' combined with 'where' not working
 - [Issue #106](https://github.com/influxdb/influxdb/issues/106). Don't panic if we only see one point and can't calculate derivative
 - [Issue #105](https://github.com/influxdb/influxdb/issues/105). Panic when using a where clause that reference columns with null values
+- [Issue #61](https://github.com/influxdb/influxdb/issues/61). Remove default limits from queries
 
 ### Deprecated
 

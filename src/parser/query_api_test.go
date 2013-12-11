@@ -177,7 +177,7 @@ func (self *QueryApiSuite) TestDefaultLimit(c *C) {
 	for queryStr, limit := range map[string]int{
 		"select * from t limit 0":    0,
 		"select * from t limit 1000": 1000,
-		"select * from t;":           10000,
+		"select * from t;":           0,
 	} {
 		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)
