@@ -3,9 +3,12 @@ package configuration
 import (
 	log "code.google.com/p/log4go"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"github.com/stvp/go-toml-config"
 	"io/ioutil"
 	"os"
+	"strings"
 )
 
 type Configuration struct {
@@ -21,6 +24,51 @@ type Configuration struct {
 }
 
 func LoadConfiguration(fileName string) *Configuration {
+	config, err := parseTomlConfiguration(fileName)
+	if err != nil {
+		log.Error("Couldn't parse configuration file: " + fileName)
+		panic(err)
+	}
+	return config
+}
+
+func parseTomlConfiguration(filename string) (*Configuration, error) {
+	configSet := config.NewConfigSet("influxdb", flag.ContinueOnError)
+	adminPort := configSet.Int("admin.port", 8083)
+	adminAssetsDir := configSet.String("admin.assets", "./admin")
+	apiHttpPort := configSet.Int("api.port", 8086)
+	raftPort := configSet.Int("raft.port", 8090)
+	raftDir := configSet.String("raft.dir", "/tmp/influxdb/development/raft")
+	seedServers := configSet.String("seed-servers", "")
+	dataDir := configSet.String("datadir", "/tmp/influxdb/development/db")
+	protobufPort := configSet.Int("protobuf.port", 8099)
+
+	if err := configSet.Parse(filename); err != nil {
+		return nil, err
+	}
+
+	config := &Configuration{
+		AdminHttpPort:  *adminPort,
+		AdminAssetsDir: *adminAssetsDir,
+		ApiHttpPort:    *apiHttpPort,
+		RaftServerPort: *raftPort,
+		RaftDir:        *raftDir,
+		ProtobufPort:   *protobufPort,
+		DataDir:        *dataDir,
+	}
+
+	servers := strings.Split(*seedServers, ",")
+	for _, server := range servers {
+		server = strings.TrimSpace(server)
+		if server == "" {
+			continue
+		}
+		config.SeedServers = append(config.SeedServers, server)
+	}
+	return config, nil
+}
+
+func parseJsonConfiguration(fileName string) (*Configuration, error) {
 	log.Info("Loading Config from " + fileName)
 	config := &Configuration{}
 
@@ -28,15 +76,14 @@ func LoadConfiguration(fileName string) *Configuration {
 	if err == nil {
 		err = json.Unmarshal(data, config)
 		if err != nil {
-			log.Error("Couldn't parse configuration file: " + fileName)
-			panic(err)
+			return nil, err
 		}
 	} else {
 		log.Error("Couldn't load configuration file: " + fileName)
 		panic(err)
 	}
 
-	return config
+	return config, nil
 }
 
 func (self *Configuration) AdminHttpPortString() string {

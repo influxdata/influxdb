@@ -1,0 +1,26 @@
+# A command separated list of servers to seed
+# this server. this is only relevant when the
+# server is joining a new cluster. Otherwise
+# the server will use the list of known servers
+# prior to shutting down
+
+# seed-servers =
+# datadir     = "/tmp/influxdb/development/db"
+
+# Configure the admin server
+[admin]
+# port   = 8083
+# assets = "./admin"
+
+# Configure the http api
+[api]
+# port = 8086
+
+# Raft configuration
+[raft]
+# port = 8090
+# dir  = "/tmp/influxdb/development/raft"
+
+# Protobuf configuration
+[protobuf]
+port = 8099

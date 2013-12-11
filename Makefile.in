@@ -20,7 +20,7 @@ endif
 export GOARCH
 export CGO_ENABLED
 
-.PHONY: all valgrind parser package package_init build
+.PHONY: all valgrind parser package package_init build binary_package
 
 all: | parser valgrind build test integration_test
 
@@ -100,6 +100,7 @@ github.com/fitstar/falcore/filter \
 github.com/gorilla/mux \
 github.com/goraft/raft \
 github.com/influxdb/go-cache \
+github.com/stvp/go-toml-config \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
@@ -224,19 +225,37 @@ $(source_package): dependencies
 	rm -rf src/$(levigo_dependency)
 	rm -rf admin
 
-sample_config = ' \
-{ \
-  "AdminHttpPort":  8083, \
-  "AdminAssetsDir": "/opt/influxdb/current/admin", \
-  "ApiHttpPort":    8086, \
-  "RaftServerPort": 8090, \
-  "SeedServers":    [], \
-  "DataDir":        "/opt/influxdb/shared/data/db", \
-  "RaftDir":        "/opt/influxdb/shared/data/raft" \
-} \
-'
+define sample_config
+# A command separated list of servers to seed
+# this server. this is only relevant when the
+# server is joining a new cluster. Otherwise
+# the server will use the list of known servers
+# prior to shutting down
 
-$(binary_package): $(admin_dir)/build build
+# seed-servers =
+datadir     = "/opt/influxdb/shared/data/db"
+
+# Configure the admin server
+[admin]
+# port   = 8083
+assets = "/opt/influxdb/current/admin"
+
+# Configure the http api
+[api]
+# port = 8086
+
+# Raft configuration
+[raft]
+# port = 8090
+dir  = "/opt/influxdb/shared/data/raft"
+
+# Protobuf configuration
+[protobuf]
+# port = 8099
+endef
+export sample_config
+
+$(binary_package): $(admin_dir)/build build packages
 	rm -rf build
 	mkdir build
 	mv daemon build/influxdb
@@ -244,10 +263,10 @@ $(binary_package): $(admin_dir)/build build
 	cp -R $(admin_dir)/build/* build/admin/
 	cp -R scripts/ build/
 	rm -f build/scripts/post_install.sh.bak
-	@echo $(sample_config) > build/config.json
-	sed -i.bak 's/,/,\n/g' build/config.json
-	rm build/config.json.bak
+	@echo "$$sample_config" > build/config.toml
 	tar -czf $(binary_package) build/*
+
+binary_package: $(binary_package)
 
 packages:
 	mkdir $@

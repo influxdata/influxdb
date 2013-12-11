@@ -15,6 +15,6 @@ type LoadConfigurationSuite struct{}
 var _ = Suite(&LoadConfigurationSuite{})
 
 func (self *LoadConfigurationSuite) TestConfig(c *C) {
-	config := LoadConfiguration("../../config.json.sample")
+	config := LoadConfiguration("../../config.toml.sample")
 	c.Assert(config.DataDir, Equals, "/tmp/influxdb/development/db")
 }

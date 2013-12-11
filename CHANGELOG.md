@@ -154,6 +154,8 @@
 - [Issue #62](https://github.com/influxdb/influxdb/issues/62). Support updating and deleting column values
 - [Issue #96](https://github.com/influxdb/influxdb/issues/96). Replicate deletes in a cluster
 - [Issue #94](https://github.com/influxdb/influxdb/issues/94). delete queries
+- [Issue #116](https://github.com/influxdb/influxdb/issues/116). Use proper logging
+- [Issue #40](https://github.com/influxdb/influxdb/issues/40). Use TOML instead of JSON in the config file
 
 ## Bugfixes
 
