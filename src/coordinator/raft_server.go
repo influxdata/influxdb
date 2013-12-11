@@ -66,6 +66,7 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 		router:        mux.NewRouter(),
 		config:        config,
 	}
+	rand.Seed(time.Now().Unix())
 	// Read existing name or generate a new one.
 	if b, err := ioutil.ReadFile(filepath.Join(s.path, "name")); err == nil {
 		s.name = string(b)

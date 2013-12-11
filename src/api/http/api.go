@@ -733,8 +733,10 @@ func (self *HttpServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request
 }
 
 func (self *HttpServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(common.User) (int, interface{})) {
+	log.Debug("Trying to auth as a db user")
 	statusCode, body := self.tryAsDbUser(w, r, yield)
 	if statusCode == libhttp.StatusUnauthorized {
+		log.Debug("Authenticating as a db user failed with %s (%d)", string(body), statusCode)
 		// tryAsDbUser will set this header, since we're retrying
 		// we should delete the header and let tryAsClusterAdmin
 		// set it properly
