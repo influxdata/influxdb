@@ -110,7 +110,7 @@ func startCluster(count int, c *C) []*Server {
 				c.Error(err)
 			}
 		}()
-		time.Sleep(time.Millisecond * 50)
+		time.Sleep(time.Second * 1)
 		servers[i] = server
 	}
 	return servers
