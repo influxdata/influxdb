@@ -41,9 +41,9 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	apiHttpPort := configSet.Int("api.port", 8086)
 	raftPort := configSet.Int("raft.port", 8090)
 	raftDir := configSet.String("raft.dir", "/tmp/influxdb/development/raft")
-	seedServers := configSet.String("seed-servers", "")
-	dataDir := configSet.String("datadir", "/tmp/influxdb/development/db")
-	protobufPort := configSet.Int("protobuf.port", 8099)
+	seedServers := configSet.String("cluster.seed-servers", "")
+	dataDir := configSet.String("storage.dir", "/tmp/influxdb/development/db")
+	protobufPort := configSet.Int("cluster.protobuf_port", 8099)
 	logFile := configSet.String("logging.file", "influxdb.log")
 	logLevel := configSet.String("logging.level", "info")
 
@@ -68,6 +68,9 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		server = strings.TrimSpace(server)
 		if server == "" {
 			continue
+		}
+		if !strings.HasPrefix(server, "http://") {
+			server = "http://" + server
 		}
 		config.SeedServers = append(config.SeedServers, server)
 	}
