@@ -3,11 +3,11 @@ package server
 import (
 	"admin"
 	"api/http"
+	log "code.google.com/p/log4go"
 	"configuration"
 	"coordinator"
 	"datastore"
 	"engine"
-	"log"
 	"time"
 )
 
@@ -25,7 +25,7 @@ type Server struct {
 }
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
-	log.Println("Opening database at ", config.DataDir)
+	log.Info("Opening database at %s", config.DataDir)
 	db, err := datastore.NewLevelDbDatastore(config.DataDir)
 	if err != nil {
 		return nil, err
@@ -70,9 +70,9 @@ func (self *Server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
-	log.Println("Starting admin interface on port", self.Config.AdminHttpPort)
+	log.Info("Starting admin interface on port %d", self.Config.AdminHttpPort)
 	go self.AdminServer.ListenAndServe()
-	log.Println("Starting Http Api server on port", self.Config.ApiHttpPort)
+	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()
 	return nil
 }
@@ -87,4 +87,5 @@ func (self *Server) Stop() {
 	self.HttpApi.Close()
 	self.ProtobufServer.Close()
 	// TODO: close admin server and protobuf client connections
+	log.Info("Stopping server")
 }

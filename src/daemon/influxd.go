@@ -1,12 +1,12 @@
 package main
 
 import (
+	log "code.google.com/p/log4go"
 	"configuration"
 	"coordinator"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -26,7 +26,7 @@ func waitForSignals(stopped <-chan bool) {
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	for {
 		sig := <-ch
-		fmt.Printf("Received signal: %s\n", sig.String())
+		log.Info("Received signal: %s\n", sig.String())
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
 			runtime.SetCPUProfileRate(0)
@@ -67,6 +67,22 @@ func startProfiler(filename *string) error {
 	return nil
 }
 
+func setupLogging(loggingLevel string) {
+	level := log.DEBUG
+	switch loggingLevel {
+	case "info":
+		level = log.INFO
+	case "warn":
+		level = log.WARNING
+	case "error":
+		level = log.ERROR
+	}
+
+	for _, filter := range log.Global {
+		filter.Level = level
+	}
+}
+
 func main() {
 	fileName := flag.String("config", "config.json.sample", "Config file")
 	wantsVersion := flag.Bool("v", false, "Get version number")
@@ -78,6 +94,8 @@ func main() {
 	flag.Parse()
 
 	startProfiler(cpuProfiler)
+
+	setupLogging("debug")
 
 	if wantsVersion != nil && *wantsVersion {
 		fmt.Printf("InfluxDB v%s (git: %s)\n", version, gitSha)
@@ -92,8 +110,8 @@ func main() {
 		}
 	}
 
-	log.Println("Starting Influx Server...")
-	fmt.Printf(`
+	log.Info("Starting Influx Server...")
+	log.Info(`
 +---------------------------------------------+
 |  _____        __ _            _____  ____   |
 | |_   _|      / _| |          |  __ \|  _ \  |
@@ -117,7 +135,7 @@ func main() {
 		go func() {
 			time.Sleep(2 * time.Second) // wait for the raft server to join the cluster
 
-			fmt.Printf("Resetting root's password to %s", coordinator.DEFAULT_ROOT_PWD)
+			log.Warn("Resetting root's password to %s", coordinator.DEFAULT_ROOT_PWD)
 			if err := server.RaftServer.CreateRootUser(); err != nil {
 				panic(err)
 			}

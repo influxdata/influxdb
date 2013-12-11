@@ -2,9 +2,9 @@ package coordinator
 
 import (
 	"bytes"
+	log "code.google.com/p/log4go"
 	"encoding/binary"
 	"io"
-	"log"
 	"net"
 	"protocol"
 	"sync"
@@ -39,12 +39,12 @@ func (self *ProtobufServer) Close() {
 		_, port, _ := net.SplitHostPort(self.port)
 		conn, err := net.Dial("tcp", "localhost:"+port)
 		if err != nil {
-			log.Printf("Received error %s, assuming connection is closed.", err)
+			log.Error("Received error %s, assuming connection is closed.", err)
 			break
 		}
 		conn.Close()
 
-		log.Println("Waiting while the server port is closing")
+		log.Info("Waiting while the server port is closing")
 		time.Sleep(1 * time.Second)
 	}
 }
@@ -55,11 +55,11 @@ func (self *ProtobufServer) ListenAndServe() {
 		panic(err)
 	}
 	self.listener = ln
-	log.Println("ProtobufServer listening on ", self.port)
+	log.Info("ProtobufServer listening on %s", self.port)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Println("Error with TCP connection. Assuming server is closing: ", err, conn)
+			log.Error("Error with TCP connection. Assuming server is closing: %s", err)
 			break
 		}
 		self.connectionMapLock.Lock()
@@ -70,7 +70,7 @@ func (self *ProtobufServer) ListenAndServe() {
 }
 
 func (self *ProtobufServer) handleConnection(conn net.Conn) {
-	log.Println("ProtobufServer: client connected: ", conn.RemoteAddr().String())
+	log.Info("ProtobufServer: client connected: %s", conn.RemoteAddr().String())
 
 	message := make([]byte, 0, MAX_REQUEST_SIZE)
 	buff := bytes.NewBuffer(message)
@@ -78,7 +78,7 @@ func (self *ProtobufServer) handleConnection(conn net.Conn) {
 	for {
 		err := binary.Read(conn, binary.LittleEndian, &messageSizeU)
 		if err != nil {
-			log.Println("ProtobufServer: Error reading from connection: ", conn.RemoteAddr().String(), err)
+			log.Error("Error reading from connection (%s): %s", conn.RemoteAddr().String(), err)
 			self.connectionMapLock.Lock()
 			delete(self.connectionMap, conn)
 			self.connectionMapLock.Unlock()
@@ -94,7 +94,7 @@ func (self *ProtobufServer) handleConnection(conn net.Conn) {
 		}
 
 		if err != nil {
-			log.Println("Error, closing connection: ", err)
+			log.Error("Error, closing connection: %s", err)
 			self.connectionMapLock.Lock()
 			delete(self.connectionMap, conn)
 			self.connectionMapLock.Unlock()
@@ -120,7 +120,7 @@ func (self *ProtobufServer) handleRequest(conn net.Conn, messageSize int64, buff
 }
 
 func (self *ProtobufServer) handleRequestTooLarge(conn net.Conn, messageSize int64, buff *bytes.Buffer) error {
-	log.Println("ProtobufServer: request too large, dumping: ", conn.RemoteAddr().String(), messageSize)
+	log.Error("request too large, dumping: %s (%d)", conn.RemoteAddr().String(), messageSize)
 	for messageSize > 0 {
 		reader := io.LimitReader(conn, MAX_REQUEST_SIZE)
 		_, err := io.Copy(buff, reader)

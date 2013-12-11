@@ -1,10 +1,10 @@
 package configuration
 
 import (
+	log "code.google.com/p/log4go"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 )
 
@@ -21,18 +21,18 @@ type Configuration struct {
 }
 
 func LoadConfiguration(fileName string) *Configuration {
-	log.Println("Loading Config from " + fileName)
+	log.Info("Loading Config from " + fileName)
 	config := &Configuration{}
 
 	data, err := ioutil.ReadFile(fileName)
 	if err == nil {
 		err = json.Unmarshal(data, config)
 		if err != nil {
-			log.Println("Couldn't parse configuration file: " + fileName)
+			log.Error("Couldn't parse configuration file: " + fileName)
 			panic(err)
 		}
 	} else {
-		log.Println("Couldn't load configuration file: " + fileName)
+		log.Error("Couldn't load configuration file: " + fileName)
 		panic(err)
 	}
 

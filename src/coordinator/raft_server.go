@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"bytes"
+	log "code.google.com/p/log4go"
 	"configuration"
 	"encoding/json"
 	"errors"
@@ -9,7 +10,6 @@ import (
 	"github.com/goraft/raft"
 	"github.com/gorilla/mux"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net"
 	"net/http"
@@ -101,7 +101,7 @@ func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) 
 	if s.raftServer.State() == raft.Leader {
 		value, err := s.raftServer.Do(command)
 		if err != nil {
-			fmt.Printf("Error: Cannot run command %#v. %s", command, err)
+			log.Error("Cannot run command %#v. %s", command, err)
 		}
 		return value, err
 	} else {
@@ -183,14 +183,14 @@ func (s *RaftServer) connectionString() string {
 }
 
 func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
-	log.Printf("Initializing Raft Server: %s %d", s.path, s.port)
+	log.Info("Initializing Raft Server: %s %d", s.path, s.port)
 
 	// Initialize and start Raft server.
 	transporter := raft.NewHTTPTransporter("/raft")
 	var err error
 	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, nil, s.clusterConfig, "")
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 
 	transporter.Install(s.raftServer, s)
@@ -200,11 +200,11 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 		for {
 			joined := false
 			for _, leader := range potentialLeaders {
-				log.Println("Attempting to join leader: ", leader, s.port)
+				log.Info("Attempting to join leader: ", leader, s.port)
 
 				if err := s.Join(leader); err == nil {
 					joined = true
-					log.Println("Joined: ", leader)
+					log.Info("Joined: ", leader)
 					break
 				}
 			}
@@ -212,7 +212,7 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 			if joined {
 				break
 			} else if !joined && !retryUntilJoin {
-				log.Println("Couldn't contact a leader so initializing new cluster for server on port: ", s.port)
+				log.Warn("Couldn't contact a leader so initializing new cluster for server on port: ", s.port)
 
 				name := s.raftServer.Name()
 				connectionString := s.connectionString()
@@ -222,7 +222,7 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 					ProtobufConnectionString: s.config.ProtobufConnectionString(),
 				})
 				if err != nil {
-					log.Fatal(err)
+					log.Error(err)
 				}
 
 				command := NewAddPotentialServerCommand(&ClusterServer{RaftName: name, RaftConnectionString: connectionString, ProtobufConnectionString: s.config.ProtobufConnectionString()})
@@ -231,12 +231,12 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 				break
 			} else {
 				// sleep for a little bit and retry it
-				log.Println("Couldn't join any of the seeds, sleeping and retrying...")
+				log.Warn("Couldn't join any of the seeds, sleeping and retrying...")
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
 	} else {
-		log.Println("Recovered from log")
+		log.Info("Recovered from log")
 	}
 }
 
@@ -254,7 +254,7 @@ func (s *RaftServer) Serve(l net.Listener, potentialLeaders []string, retryUntil
 
 	go s.startRaft(potentialLeaders, retryUntilJoin)
 
-	log.Println("Initializing Raft HTTP server")
+	log.Info("Initializing Raft HTTP server")
 
 	// Initialize and start HTTP server.
 	s.httpServer = &http.Server{
@@ -265,7 +265,7 @@ func (s *RaftServer) Serve(l net.Listener, potentialLeaders []string, retryUntil
 	s.router.HandleFunc("/join", s.joinHandler).Methods("POST")
 	s.router.HandleFunc("/process_command/{command_type}", s.processCommandHandler).Methods("POST")
 
-	log.Println("Listening at:", s.connectionString())
+	log.Info("Listening at %s", s.connectionString())
 
 	return s.httpServer.Serve(l)
 }
@@ -303,13 +303,13 @@ func (s *RaftServer) Join(leader string) error {
 	json.NewEncoder(&b).Encode(command)
 	resp, err := http.Post(connectUrl, "application/json", &b)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Error(err)
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusTemporaryRedirect {
 		address := resp.Header.Get("Location")
-		log.Printf("Redirected to %s to join leader\n", address)
+		log.Debug("Redirected to %s to join leader\n", address)
 		return s.Join(address)
 	}
 
@@ -351,7 +351,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		}
 	} else {
 		if leader, ok := s.leaderConnectString(); ok {
-			log.Println("redirecting to leader to join...")
+			log.Debug("redirecting to leader to join...")
 			http.Redirect(w, req, leader+"/join", http.StatusTemporaryRedirect)
 		} else {
 			http.Error(w, errors.New("Couldn't find leader of the cluster to join").Error(), http.StatusInternalServerError)
@@ -370,7 +370,7 @@ func (s *RaftServer) configHandler(w http.ResponseWriter, req *http.Request) {
 	jsonObject["database_users"] = s.clusterConfig.dbUsers
 	js, err := json.Marshal(jsonObject)
 	if err != nil {
-		log.Println("ERROR marshalling config: ", err)
+		log.Error("ERROR marshalling config: ", err)
 	}
 	w.Write(js)
 }
@@ -405,7 +405,7 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		command = &AddPotentialServerCommand{}
 	}
 	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
-		log.Println("ERROR processCommandHanlder", err)
+		log.Error("ERROR processCommandHanlder", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
 		if result != nil {

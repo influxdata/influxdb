@@ -2,11 +2,11 @@ package coordinator
 
 import (
 	"bytes"
+	log "code.google.com/p/log4go"
 	"common"
 	"datastore"
 	"encoding/binary"
 	"errors"
-	"log"
 	"net"
 	"parser"
 	"protocol"
@@ -101,7 +101,7 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 	} else if *request.Type == protocol.Request_REPLICATION_REPLAY {
 		self.handleReplay(request, conn)
 	} else {
-		log.Println("unknown request type: ", request)
+		log.Error("unknown request type: %v", request)
 		return errors.New("Unknown request type")
 	}
 	return nil
@@ -130,7 +130,7 @@ func (self *ProtobufRequestHandler) handleReplay(request *protocol.Request, conn
 		request.LastKnownSequenceNumber,
 		sendRequest)
 	if err != nil {
-		log.Println("REPLAY ERROR: ", err)
+		log.Error("REPLAY ERROR: %s", err)
 	}
 }
 
@@ -178,12 +178,12 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *protocol.Response) error {
 	data, err := response.Encode()
 	if err != nil {
-		log.Println("ProtobufRequestHandler error encoding response: ", err)
+		log.Error("error encoding response: %s", err)
 		return err
 	}
 	err = binary.Write(conn, binary.LittleEndian, uint32(len(data)))
 	if err != nil {
-		log.Println("ProtobufRequestHandler error writing response length: ", err)
+		log.Error("error writing response length: %s", err)
 		return err
 	}
 	_, err = conn.Write(data)
