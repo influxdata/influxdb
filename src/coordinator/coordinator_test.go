@@ -247,7 +247,7 @@ func (self *UserSuite) BenchmarkHashing(c *C) {
 }
 
 func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
-	servers := startAndVerifyCluster(1, c)
+	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
 	coordinator := NewCoordinatorImpl(&DatastoreMock{}, servers[0], servers[0].clusterConfig)
@@ -279,7 +279,7 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 }
 
 func (self *CoordinatorSuite) TestAdminOperations(c *C) {
-	servers := startAndVerifyCluster(1, c)
+	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
 	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
@@ -339,7 +339,7 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 }
 
 func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
-	servers := startAndVerifyCluster(1, c)
+	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
 	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
@@ -395,7 +395,7 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 }
 
 func (self *CoordinatorSuite) TestDbUserOperations(c *C) {
-	servers := startAndVerifyCluster(1, c)
+	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
 	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
