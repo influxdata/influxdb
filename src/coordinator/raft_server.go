@@ -204,40 +204,47 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 	for {
 		joined := false
 		for _, leader := range potentialLeaders {
-			log.Info("Attempting to join leader: ", leader, s.port)
+			log.Info("(raft:%d) Attempting to join leader: %s", s.port, leader)
 
 			if err := s.Join(leader); err == nil {
 				joined = true
-				log.Info("Joined: ", leader)
+				log.Info("Joined: %s", leader)
 				break
 			}
 		}
+
 		// couldn't join a leader so we must be the first one up
 		if joined {
 			break
-		} else if !joined && !retryUntilJoin {
-			log.Warn("Couldn't contact a leader so initializing new cluster for server on port: ", s.port)
-
-			name := s.raftServer.Name()
-			connectionString := s.connectionString()
-			_, err := s.raftServer.Do(&InfluxJoinCommand{
-				Name:                     name,
-				ConnectionString:         connectionString,
-				ProtobufConnectionString: s.config.ProtobufConnectionString(),
-			})
-			if err != nil {
-				log.Error(err)
-			}
-
-			command := NewAddPotentialServerCommand(&ClusterServer{RaftName: name, RaftConnectionString: connectionString, ProtobufConnectionString: s.config.ProtobufConnectionString()})
-			s.doOrProxyCommand(command, "add_server")
-			s.CreateRootUser()
-			break
-		} else {
-			// sleep for a little bit and retry it
+		} else if retryUntilJoin {
 			log.Warn("Couldn't join any of the seeds, sleeping and retrying...")
 			time.Sleep(100 * time.Millisecond)
+			continue
 		}
+
+		// if we shouldn't retry and we can't reach any server, start a new cluster
+		log.Warn("Couldn't contact a leader so initializing new cluster for server on port %d", s.port)
+
+		name := s.raftServer.Name()
+		connectionString := s.connectionString()
+		_, err := s.raftServer.Do(&InfluxJoinCommand{
+			Name:                     name,
+			ConnectionString:         connectionString,
+			ProtobufConnectionString: s.config.ProtobufConnectionString(),
+		})
+
+		if err != nil {
+			log.Error(err)
+		}
+
+		command := NewAddPotentialServerCommand(&ClusterServer{
+			RaftName:                 name,
+			RaftConnectionString:     connectionString,
+			ProtobufConnectionString: s.config.ProtobufConnectionString(),
+		})
+		s.doOrProxyCommand(command, "add_server")
+		s.CreateRootUser()
+		break
 	}
 }
 

@@ -333,10 +333,9 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 		LastKnownSequenceNumber: lastSeenSequenceNumber}
 	replayedRequests := make(chan *protocol.Response, 100)
 	server := self.clusterConfiguration.GetServerById(request.OriginatingServerId)
-	log.Error("COORD REPLAY: ", request, server, self.localHostId)
 	err := server.protobufClient.MakeRequest(replayRequest, replayedRequests)
 	if err != nil {
-		log.Error("COORD REPLAY ERROR: ", err)
+		log.Error(err)
 		return
 	}
 	for {
@@ -347,7 +346,7 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 			for _, r := range self.runningReplays[key] {
 				err := self.datastore.LogRequestAndAssignSequenceNumber(r, replicationFactor, owningServerId)
 				if err != nil {
-					log.Error("Error writing waiting requests after replay: ", err)
+					log.Error("Error writing waiting requests after replay: %s", err)
 				}
 				if *r.Type == protocol.Request_PROXY_WRITE {
 					self.datastore.WriteSeriesData(*r.Database, r.Series)
