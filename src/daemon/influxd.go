@@ -67,7 +67,7 @@ func startProfiler(filename *string) error {
 	return nil
 }
 
-func setupLogging(loggingLevel string) {
+func setupLogging(loggingLevel, logFile string) {
 	level := log.DEBUG
 	switch loggingLevel {
 	case "info":
@@ -81,6 +81,15 @@ func setupLogging(loggingLevel string) {
 	for _, filter := range log.Global {
 		filter.Level = level
 	}
+
+	flw := log.NewFileLogWriter(logFile, false)
+	flw.SetFormat("[%D %T] [%L] (%S) %M")
+	flw.SetRotate(true)
+	flw.SetRotateSize(0)
+	flw.SetRotateLines(0)
+	flw.SetRotateDaily(true)
+	log.AddFilter("file", level, flw)
+	log.Info("Redirectoring logging to %s", logFile)
 }
 
 func main() {
@@ -95,13 +104,12 @@ func main() {
 
 	startProfiler(cpuProfiler)
 
-	setupLogging("debug")
-
 	if wantsVersion != nil && *wantsVersion {
 		fmt.Printf("InfluxDB v%s (git: %s)\n", version, gitSha)
 		return
 	}
 	config := configuration.LoadConfiguration(*fileName)
+	setupLogging(config.LogLevel, config.LogFile)
 
 	if pidFile != nil && *pidFile != "" {
 		pid := strconv.Itoa(os.Getpid())

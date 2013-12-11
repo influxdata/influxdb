@@ -235,6 +235,11 @@ define sample_config
 # seed-servers =
 datadir     = "/opt/influxdb/shared/data/db"
 
+[logging]
+# logging level can be one of "debug", "info", "warn" or "error"
+# level  = "info"
+file   = "/opt/influxdb/shared/log.txt"
+
 # Configure the admin server
 [admin]
 # port   = 8083

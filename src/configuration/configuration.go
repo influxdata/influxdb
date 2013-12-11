@@ -21,6 +21,8 @@ type Configuration struct {
 	RaftDir        string
 	ProtobufPort   int
 	Hostname       string
+	LogFile        string
+	LogLevel       string
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -42,6 +44,8 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	seedServers := configSet.String("seed-servers", "")
 	dataDir := configSet.String("datadir", "/tmp/influxdb/development/db")
 	protobufPort := configSet.Int("protobuf.port", 8099)
+	logFile := configSet.String("logging.file", "influxdb.log")
+	logLevel := configSet.String("logging.level", "info")
 
 	if err := configSet.Parse(filename); err != nil {
 		return nil, err
@@ -55,6 +59,8 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		RaftDir:        *raftDir,
 		ProtobufPort:   *protobufPort,
 		DataDir:        *dataDir,
+		LogFile:        *logFile,
+		LogLevel:       *logLevel,
 	}
 
 	servers := strings.Split(*seedServers, ",")

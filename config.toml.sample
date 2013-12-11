@@ -7,6 +7,11 @@
 # seed-servers =
 # datadir     = "/tmp/influxdb/development/db"
 
+[logging]
+# logging level can be one of "debug", "info", "warn" or "error"
+# level  = "info"
+# file   = "influxdb.log"
+
 # Configure the admin server
 [admin]
 # port   = 8083
