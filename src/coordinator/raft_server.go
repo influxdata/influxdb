@@ -413,7 +413,7 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		command = &AddPotentialServerCommand{}
 	}
 	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
-		log.Error("ERROR processCommandHanlder", err)
+		log.Error("ERROR processCommandHanlder: %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
 		if result != nil {
