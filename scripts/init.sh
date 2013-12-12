@@ -93,7 +93,7 @@ case $1 in
         else
             sudo ${daemon}-daemon -pidfile $pidfile -config /opt/$name/shared/config.toml
         fi
-        log_success_msg "Anomalous agent started"
+        log_success_msg "$name process was started"
         ;;
     stop)
         # Stop the daemon.
