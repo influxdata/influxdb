@@ -214,7 +214,6 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 			}
 		}
 
-		// couldn't join a leader so we must be the first one up
 		if joined {
 			break
 		} else if retryUntilJoin {
@@ -223,7 +222,7 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 			continue
 		}
 
-		// if we shouldn't retry and we can't reach any server, start a new cluster
+		// couldn't join a leader so we must be the first one up
 		log.Warn("Couldn't contact a leader so initializing new cluster for server on port %d", s.port)
 
 		name := s.raftServer.Name()
