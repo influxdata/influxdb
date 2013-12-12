@@ -225,41 +225,6 @@ $(source_package): dependencies
 	rm -rf src/$(levigo_dependency)
 	rm -rf admin
 
-define sample_config
-# A command separated list of servers to seed
-# this server. this is only relevant when the
-# server is joining a new cluster. Otherwise
-# the server will use the list of known servers
-# prior to shutting down
-
-# seed-servers =
-datadir     = "/opt/influxdb/shared/data/db"
-
-[logging]
-# logging level can be one of "debug", "info", "warn" or "error"
-# level  = "info"
-file   = "/opt/influxdb/shared/log.txt"
-
-# Configure the admin server
-[admin]
-# port   = 8083
-assets = "/opt/influxdb/current/admin"
-
-# Configure the http api
-[api]
-# port = 8086
-
-# Raft configuration
-[raft]
-# port = 8090
-dir  = "/opt/influxdb/shared/data/raft"
-
-# Protobuf configuration
-[protobuf]
-# port = 8099
-endef
-export sample_config
-
 $(binary_package): $(admin_dir)/build build packages
 	rm -rf build
 	mkdir build
@@ -267,8 +232,12 @@ $(binary_package): $(admin_dir)/build build packages
 	mkdir build/admin
 	cp -R $(admin_dir)/build/* build/admin/
 	cp -R scripts/ build/
+	cp config.toml.sample build/config.toml
+	sed -i 's/.\/admin/\/opt\/influxdb\/current\/admin/g' build/config.toml
+	sed -i 's/influxdb.log/\/opt\/influxdb\/shared\/log.txt/g' build/config.toml
+	sed -i 's/\/tmp\/influxdb\/development\/db/\/opt\/influxdb\/shared\/data\/db/g' build/config.toml
+	sed -i 's/\/tmp\/influxdb\/development\/raft/\/opt\/influxdb\/shared\/data\/raft/g' build/config.toml
 	rm -f build/scripts/post_install.sh.bak
-	@echo "$$sample_config" > build/config.toml
 	tar -czf $(binary_package) build/*
 
 binary_package: $(binary_package)
