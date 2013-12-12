@@ -165,6 +165,7 @@
 - [Issue #105](https://github.com/influxdb/influxdb/issues/105). Panic when using a where clause that reference columns with null values
 - [Issue #61](https://github.com/influxdb/influxdb/issues/61). Remove default limits from queries
 - [Issue #118](https://github.com/influxdb/influxdb/issues/118). Make column names starting with '_' legal
+- [Issue #121](https://github.com/influxdb/influxdb/issues/121). Don't fall back to the cluster admin auth if the db user auth fails
 
 ### Deprecated
 
