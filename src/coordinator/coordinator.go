@@ -672,7 +672,11 @@ func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, u
 		return fmt.Errorf("Invalid user name %s", username)
 	}
 
-	user.changePassword(password)
+	hash, err := hashPassword(password)
+	if err != nil {
+		return err
+	}
+	user.changePassword(string(hash))
 	return self.raftServer.SaveClusterAdminUser(user)
 }
 
@@ -722,21 +726,11 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, use
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
-	dbUsers := self.clusterConfiguration.dbUsers[db]
-	if dbUsers == nil {
-		return fmt.Errorf("Invalid database name %s", db)
-	}
-
-	if dbUsers[username] == nil {
-		return fmt.Errorf("Invalid username %s", username)
-	}
-
-	user := *dbUsers[username]
-	err := user.changePassword(password)
+	hash, err := hashPassword(password)
 	if err != nil {
 		return err
 	}
-	return self.raftServer.SaveDbUser(&user)
+	return self.raftServer.ChangeDbUserPassword(db, username, hash)
 }
 
 func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username string, isAdmin bool) error {

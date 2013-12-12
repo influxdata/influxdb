@@ -353,6 +353,20 @@ func (self *ClusterConfiguration) SaveDbUser(u *dbUser) {
 	dbUsers[u.GetName()] = u
 }
 
+func (self *ClusterConfiguration) ChangeDbUserPassword(db, username, hash string) error {
+	self.usersLock.Lock()
+	defer self.usersLock.Unlock()
+	dbUsers := self.dbUsers[db]
+	if dbUsers == nil {
+		return fmt.Errorf("Invalid database name %s", db)
+	}
+	if dbUsers[username] == nil {
+		return fmt.Errorf("Invalid username %s", username)
+	}
+	dbUsers[username].changePassword(hash)
+	return nil
+}
+
 func (self *ClusterConfiguration) GetClusterAdmins() (names []string) {
 	self.usersLock.RLock()
 	defer self.usersLock.RUnlock()

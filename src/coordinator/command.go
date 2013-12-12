@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	log "code.google.com/p/log4go"
 	"github.com/goraft/raft"
 )
 
@@ -59,6 +60,30 @@ func (c *SaveDbUserCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*ClusterConfiguration)
 	config.SaveDbUser(c.User)
 	return nil, nil
+}
+
+type ChangeDbUserPassword struct {
+	Database string
+	Username string
+	Hash     string
+}
+
+func NewChangeDbUserPasswordCommand(db, username, hash string) *ChangeDbUserPassword {
+	return &ChangeDbUserPassword{
+		Database: db,
+		Username: username,
+		Hash:     hash,
+	}
+}
+
+func (c *ChangeDbUserPassword) CommandName() string {
+	return "change_db_user_password"
+}
+
+func (c *ChangeDbUserPassword) Apply(server raft.Server) (interface{}, error) {
+	log.Debug("(raft:%s) changing db user password for %s:%s", server.Name(), c.Database, c.Username)
+	config := server.Context().(*ClusterConfiguration)
+	return nil, config.ChangeDbUserPassword(c.Database, c.Username, c.Hash)
 }
 
 type SaveClusterAdminCommand struct {

@@ -21,7 +21,9 @@ func (self *UserSuite) TestProperties(c *C) {
 	u := clusterAdmin{CommonUser{Name: "root"}}
 	c.Assert(u.IsClusterAdmin(), Equals, true)
 	c.Assert(u.GetName(), Equals, "root")
-	c.Assert(u.changePassword("foobar"), IsNil)
+	hash, err := hashPassword("foobar")
+	c.Assert(err, IsNil)
+	c.Assert(u.changePassword(string(hash)), IsNil)
 	c.Assert(u.isValidPwd("foobar"), Equals, true)
 	c.Assert(u.isValidPwd("password"), Equals, false)
 
@@ -29,7 +31,9 @@ func (self *UserSuite) TestProperties(c *C) {
 	c.Assert(dbUser.IsClusterAdmin(), Equals, false)
 	c.Assert(dbUser.IsDbAdmin("db"), Equals, true)
 	c.Assert(dbUser.GetName(), Equals, "db_user")
-	c.Assert(dbUser.changePassword("password"), IsNil)
+	hash, err = hashPassword("password")
+	c.Assert(err, IsNil)
+	c.Assert(dbUser.changePassword(string(hash)), IsNil)
 	c.Assert(dbUser.isValidPwd("password"), Equals, true)
 	c.Assert(dbUser.isValidPwd("password1"), Equals, false)
 }

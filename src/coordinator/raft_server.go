@@ -56,6 +56,7 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 		raft.RegisterCommand(&DropDatabaseCommand{})
 		raft.RegisterCommand(&SaveDbUserCommand{})
 		raft.RegisterCommand(&SaveClusterAdminCommand{})
+		raft.RegisterCommand(&ChangeDbUserPassword{})
 	}
 
 	s := &RaftServer{
@@ -151,6 +152,12 @@ func (s *RaftServer) SaveDbUser(u *dbUser) error {
 	return err
 }
 
+func (s *RaftServer) ChangeDbUserPassword(db, username string, hash []byte) error {
+	command := NewChangeDbUserPasswordCommand(db, username, string(hash))
+	_, err := s.doOrProxyCommand(command, "change_db_user_password")
+	return err
+}
+
 func (s *RaftServer) SaveClusterAdminUser(u *clusterAdmin) error {
 	command := NewSaveClusterAdminCommand(u)
 	_, err := s.doOrProxyCommand(command, "save_cluster_admin_user")
@@ -159,7 +166,8 @@ func (s *RaftServer) SaveClusterAdminUser(u *clusterAdmin) error {
 
 func (s *RaftServer) CreateRootUser() error {
 	u := &clusterAdmin{CommonUser{"root", "", false}}
-	u.changePassword(DEFAULT_ROOT_PWD)
+	hash, _ := hashPassword(DEFAULT_ROOT_PWD)
+	u.changePassword(string(hash))
 	return s.SaveClusterAdminUser(u)
 }
 
@@ -398,20 +406,23 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 	vars := mux.Vars(req)
 	value := vars["command_type"]
 	var command raft.Command
-	if value == "create_db" {
+	switch value {
+	case "create_db":
 		command = &CreateDatabaseCommand{}
-	} else if value == "drop_db" {
+	case "drop_db":
 		command = &DropDatabaseCommand{}
-	} else if value == "save_db_user" {
+	case "save_db_user":
 		command = &SaveDbUserCommand{}
-	} else if value == "save_cluster_admin_user" {
+	case "save_cluster_admin_user":
 		command = &SaveClusterAdminCommand{}
-	} else if value == "update_state" {
+	case "update_state":
 		command = &UpdateServerStateCommand{}
-	} else if value == "add_server" {
-		fmt.Println("add_server: ", s.name)
+	case "add_server":
 		command = &AddPotentialServerCommand{}
+	case "change_db_user_password":
+		command = &ChangeDbUserPassword{}
 	}
+
 	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
 		log.Error("command %T failed: %s", command, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

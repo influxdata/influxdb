@@ -39,12 +39,8 @@ func (self *CommonUser) IsDeleted() bool {
 	return self.IsUserDeleted
 }
 
-func (self *CommonUser) changePassword(password string) error {
-	hash, err := hashPassword(password)
-	if err != nil {
-		return err
-	}
-	self.Hash = string(hash)
+func (self *CommonUser) changePassword(hash string) error {
+	self.Hash = hash
 	userCache.Delete(self.Name)
 	return nil
 }

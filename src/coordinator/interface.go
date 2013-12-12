@@ -60,6 +60,7 @@ type ClusterConsensus interface {
 	DropDatabase(name string) error
 	SaveClusterAdminUser(u *clusterAdmin) error
 	SaveDbUser(user *dbUser) error
+	ChangeDbUserPassword(db, username string, hash []byte) error
 
 	// an insert index of -1 will append to the end of the ring
 	AddServer(server *ClusterServer, insertIndex int) error
