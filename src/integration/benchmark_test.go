@@ -251,6 +251,16 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 	c.Assert(data[0].Points[1][1], Equals, 70.0)
 }
 
+func (self *IntegrationSuite) TestDbUserAuthentication(c *C) {
+	resp, err := http.Get("http://localhost:8086/db/db1/authenticate?u=root&p=root")
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusUnauthorized)
+
+	resp, err = http.Get("http://localhost:8086/db/db2/authenticate?u=root&p=root")
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusUnauthorized)
+}
+
 func (self *IntegrationSuite) TestArithmeticOperations(c *C) {
 	queries := map[string][9]float64{
 		"select input + output from test_arithmetic_3.0;":       [9]float64{1, 2, 3, 4, 5, 9, 6, 7, 13},

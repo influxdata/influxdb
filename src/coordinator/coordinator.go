@@ -603,7 +603,7 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {
 	dbUsers := self.clusterConfiguration.dbUsers[db]
 	if dbUsers == nil || dbUsers[username] == nil {
-		return self.AuthenticateClusterAdmin(username, password)
+		return nil, common.NewAuthorizationError("Invalid username/password")
 	}
 	user := dbUsers[username]
 	if user.isValidPwd(password) {
