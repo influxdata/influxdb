@@ -601,6 +601,7 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 }
 
 func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {
+	log.Debug("(raft:%s) Authenticating password for %s;%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
 	dbUsers := self.clusterConfiguration.dbUsers[db]
 	if dbUsers == nil || dbUsers[username] == nil {
 		return nil, common.NewAuthorizationError("Invalid username/password")
@@ -722,7 +723,11 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, use
 	}
 
 	dbUsers := self.clusterConfiguration.dbUsers[db]
-	if dbUsers == nil || dbUsers[username] == nil {
+	if dbUsers == nil {
+		return fmt.Errorf("Invalid database name %s", db)
+	}
+
+	if dbUsers[username] == nil {
 		return fmt.Errorf("Invalid username %s", username)
 	}
 

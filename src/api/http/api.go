@@ -420,8 +420,10 @@ func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Requ
 		}
 		err = self.coordinator.CreateDatabase(user, createRequest.Name, createRequest.ReplicationFactor)
 		if err != nil {
+			log.Error("Cannot create database %s. Error: %s", createRequest.Name, err)
 			return errorToStatusCode(err), err.Error()
 		}
+		log.Debug("Created database %s with replication factor %d", createRequest.Name, createRequest.ReplicationFactor)
 		return libhttp.StatusCreated, nil
 	})
 }
@@ -790,11 +792,18 @@ func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
 		username := newUser.Name
 		if err := self.userManager.CreateDbUser(u, db, username); err != nil {
+			log.Error("Cannot create user: %s", err)
 			return errorToStatusCode(err), err.Error()
 		}
+		log.Debug("Created user %s", username)
 		if err := self.userManager.ChangeDbUserPassword(u, db, username, newUser.Password); err != nil {
-			return libhttp.StatusUnauthorized, err.Error()
+			log.Error("Cannot change user password: %s", err)
+			// there is probably something wrong if we could create
+			// the user but not change the password. so return
+			// 500
+			return libhttp.StatusInternalServerError, err.Error()
 		}
+		log.Debug("Successfully changed %s password", username)
 		return libhttp.StatusOK, nil
 	})
 }

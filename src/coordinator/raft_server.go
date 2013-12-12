@@ -205,7 +205,7 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 	for {
 		joined := false
 		for _, leader := range potentialLeaders {
-			log.Info("(raft:%d) Attempting to join leader: %s", s.port, leader)
+			log.Info("(raft:%s) Attempting to join leader: %s", s.raftServer.Name(), leader)
 
 			if err := s.Join(leader); err == nil {
 				joined = true
@@ -413,7 +413,7 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		command = &AddPotentialServerCommand{}
 	}
 	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
-		log.Error("ERROR processCommandHanlder: %s", err)
+		log.Error("command %T failed: %s", command, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
 		if result != nil {
