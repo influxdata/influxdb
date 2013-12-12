@@ -24,7 +24,7 @@ func ToValueArray(strings ...string) (values []*Value) {
 }
 
 func (self *QueryParserSuite) TestInvalidFromClause(c *C) {
-	query := "select value from _t"
+	query := "select value from .t"
 	_, err := ParseSelectQuery(query)
 
 	c.Assert(err, ErrorMatches, ".*\\$undefined.*")
@@ -75,6 +75,17 @@ func (self *QueryParserSuite) TestParseDeleteQuery(c *C) {
 	endTime, _ := time.Parse("2006-01-02", "2013-08-13")
 	c.Assert(q.GetStartTime(), Equals, startTime)
 	c.Assert(q.GetEndTime(), Equals, endTime)
+}
+
+func (self *QueryParserSuite) TestParseWithUnderscore(c *C) {
+	queryString := "select _value from foo"
+	query, err := ParseSelectQuery(queryString)
+	c.Assert(err, IsNil)
+
+	for table, columns := range query.GetReferencedColumns() {
+		c.Assert(table.Name, Equals, "foo")
+		c.Assert(columns, DeepEquals, []string{"_value"})
+	}
 }
 
 func (self *QueryParserSuite) TestSimpleFromClause(c *C) {

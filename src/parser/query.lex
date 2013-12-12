@@ -64,9 +64,9 @@ static int yycolumn = 1;
 \/.+\/                    { yytext[strlen(yytext)-1]='\0';yylval->string=strdup(yytext+1);return REGEX_STRING; }
 \/.+\/i                   { yytext[strlen(yytext)-2]='\0';yylval->string=strdup(yytext+1);return INSENSITIVE_REGEX_STRING; }
 
-[a-zA-Z][a-zA-Z0-9_]*     { yylval->string = strdup(yytext); return SIMPLE_NAME; }
+[a-zA-Z0-9_]*     { yylval->string = strdup(yytext); return SIMPLE_NAME; }
 
-[a-zA-Z][a-zA-Z0-9._-]*   { yylval->string = strdup(yytext); return TABLE_NAME; }
+[a-zA-Z0-9_][a-zA-Z0-9._-]*   { yylval->string = strdup(yytext); return TABLE_NAME; }
 
 \'[^\']*\'                    {
   yytext[yyleng-1] = '\0';
