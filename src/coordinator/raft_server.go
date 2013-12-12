@@ -50,13 +50,9 @@ var replicateDelete = protocol.Request_REPLICATION_DELETE
 func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterConfiguration) *RaftServer {
 	if !registeredCommands {
 		registeredCommands = true
-		raft.RegisterCommand(&AddPotentialServerCommand{})
-		raft.RegisterCommand(&UpdateServerStateCommand{})
-		raft.RegisterCommand(&CreateDatabaseCommand{})
-		raft.RegisterCommand(&DropDatabaseCommand{})
-		raft.RegisterCommand(&SaveDbUserCommand{})
-		raft.RegisterCommand(&SaveClusterAdminCommand{})
-		raft.RegisterCommand(&ChangeDbUserPassword{})
+		for _, command := range internalRaftCommands {
+			raft.RegisterCommand(command)
+		}
 	}
 
 	s := &RaftServer{
@@ -405,23 +401,7 @@ func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http
 func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	value := vars["command_type"]
-	var command raft.Command
-	switch value {
-	case "create_db":
-		command = &CreateDatabaseCommand{}
-	case "drop_db":
-		command = &DropDatabaseCommand{}
-	case "save_db_user":
-		command = &SaveDbUserCommand{}
-	case "save_cluster_admin_user":
-		command = &SaveClusterAdminCommand{}
-	case "update_state":
-		command = &UpdateServerStateCommand{}
-	case "add_server":
-		command = &AddPotentialServerCommand{}
-	case "change_db_user_password":
-		command = &ChangeDbUserPassword{}
-	}
+	command := internalRaftCommands[value]
 
 	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
 		log.Error("command %T failed: %s", command, err)

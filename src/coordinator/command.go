@@ -5,6 +5,23 @@ import (
 	"github.com/goraft/raft"
 )
 
+var internalRaftCommands map[string]raft.Command
+
+func init() {
+	internalRaftCommands = map[string]raft.Command{}
+	for _, command := range []raft.Command{
+		&AddPotentialServerCommand{},
+		&UpdateServerStateCommand{},
+		&CreateDatabaseCommand{},
+		&DropDatabaseCommand{},
+		&SaveDbUserCommand{},
+		&SaveClusterAdminCommand{},
+		&ChangeDbUserPassword{},
+	} {
+		internalRaftCommands[command.CommandName()] = command
+	}
+}
+
 type DropDatabaseCommand struct {
 	Name string `json:"name"`
 }
