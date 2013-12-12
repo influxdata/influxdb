@@ -321,9 +321,9 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 
 	_, err := self.postToServer(self.servers[0], "/db?u=root&p=root", `{"name": "full_rep", "replicationFactor": 3}`, c)
 	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 10)
 	_, err = self.postToServer(self.servers[0], "/db/full_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 50)
 
 	// write data and confirm that it went to all three servers
 	data := `
