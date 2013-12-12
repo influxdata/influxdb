@@ -100,6 +100,9 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "post", "/db/:db/admins/:user", self.setDbAdmin)
 	self.registerEndpoint(p, "del", "/db/:db/admins/:user", self.unsetDbAdmin)
 
+	// healthcheck
+	self.registerEndpoint(p, "get", "/ping", self.ping)
+
 	// fetch current list of available interfaces
 	self.registerEndpoint(p, "get", "/interfaces", self.listInterfaces)
 
@@ -871,6 +874,11 @@ func (self *HttpServer) setDbAdmin(w libhttp.ResponseWriter, r *libhttp.Request)
 
 func (self *HttpServer) unsetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.commonSetDbAdmin(w, r, false)
+}
+
+func (self *HttpServer) ping(w libhttp.ResponseWriter, r *libhttp.Request) {
+	w.WriteHeader(libhttp.StatusOK)
+	w.Write([]byte("{\"status\":\"ok\"}"))
 }
 
 func (self *HttpServer) commonSetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Request, isAdmin bool) {
