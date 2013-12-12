@@ -684,17 +684,11 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 		return fmt.Errorf("Username cannot be empty")
 	}
 
-	self.clusterConfiguration.CreateDatabase(db, uint8(1)) // ignore the error since the db may exist
+	self.CreateDatabase(requester, db, uint8(1)) // ignore the error since the db may exist
 	dbUsers := self.clusterConfiguration.dbUsers[db]
 	if dbUsers != nil && dbUsers[username] != nil {
 		return fmt.Errorf("User %s already exists", username)
 	}
-
-	if dbUsers == nil {
-		dbUsers = map[string]*dbUser{}
-		self.clusterConfiguration.dbUsers[db] = dbUsers
-	}
-
 	matchers := []*Matcher{&Matcher{true, ".*"}}
 	return self.raftServer.SaveDbUser(&dbUser{CommonUser{Name: username}, db, matchers, matchers, false})
 }
@@ -732,11 +726,12 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, use
 		return fmt.Errorf("Invalid username %s", username)
 	}
 
-	err := dbUsers[username].changePassword(password)
+	user := *dbUsers[username]
+	err := user.changePassword(password)
 	if err != nil {
 		return err
 	}
-	return self.raftServer.SaveDbUser(dbUsers[username])
+	return self.raftServer.SaveDbUser(&user)
 }
 
 func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username string, isAdmin bool) error {

@@ -267,9 +267,12 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 	c.Assert(coordinator.ChangeDbUserPassword(root, "db1", "db_user", "pass"), Equals, nil)
 
 	// the db should be in the index now
-	dbs, err := coordinator.ListDatabases(root)
-	c.Assert(err, IsNil)
-	c.Assert(dbs, DeepEquals, []*Database{&Database{"db1", 1}})
+	for _, server := range servers {
+		coordinator := NewCoordinatorImpl(&DatastoreMock{}, server, server.clusterConfig)
+		dbs, err := coordinator.ListDatabases(root)
+		c.Assert(err, IsNil)
+		c.Assert(dbs, DeepEquals, []*Database{&Database{"db1", 1}})
+	}
 
 	// if the db is dropped it should remove the users as well
 	c.Assert(coordinator.DropDatabase(root, "db1"), IsNil)
