@@ -357,6 +357,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		if server == nil {
 			addServer := NewAddPotentialServerCommand(&ClusterServer{RaftName: command.Name, RaftConnectionString: command.ConnectionString, ProtobufConnectionString: command.ProtobufConnectionString})
 			if _, err := s.raftServer.Do(addServer); err != nil {
+				log.Info("Error joining raft server: ", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}

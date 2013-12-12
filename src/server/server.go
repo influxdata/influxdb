@@ -64,7 +64,12 @@ func (self *Server) ListenAndServe() error {
 	if len(self.Config.SeedServers) > 0 {
 		retryUntilJoinedCluster = true
 	}
-	go self.RaftServer.ListenAndServe(self.Config.SeedServers, retryUntilJoinedCluster)
+	go func() {
+		err := self.RaftServer.ListenAndServe(self.Config.SeedServers, retryUntilJoinedCluster)
+		if err != nil {
+			log.Error("Error calling ListenAndServe on Raft Server: ", err)
+		}
+	}()
 	time.Sleep(time.Second * 3)
 	err := self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.Config.ProtobufConnectionString())
 	if err != nil {

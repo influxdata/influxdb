@@ -149,5 +149,8 @@ func main() {
 			}
 		}()
 	}
-	server.ListenAndServe()
+	err = server.ListenAndServe()
+	if err != nil {
+		log.Error("ListenAndServe failed: ", err)
+	}
 }
