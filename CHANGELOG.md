@@ -166,6 +166,7 @@
 - [Issue #61](https://github.com/influxdb/influxdb/issues/61). Remove default limits from queries
 - [Issue #118](https://github.com/influxdb/influxdb/issues/118). Make column names starting with '_' legal
 - [Issue #121](https://github.com/influxdb/influxdb/issues/121). Don't fall back to the cluster admin auth if the db user auth fails
+- [Issue #117](https://github.com/influxdb/influxdb/issues/117). Return error on delete queries with where condition that don't have time
 
 ### Deprecated
 
