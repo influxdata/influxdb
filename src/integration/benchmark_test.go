@@ -788,6 +788,36 @@ func (self *IntegrationSuite) TestDbDelete(c *C) {
 	c.Assert(data[0].Points, HasLen, 0)
 }
 
+func (self *IntegrationSuite) TestInvalidDeleteQuery(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+    "name": "test_invalid_delete_query",
+    "columns": ["val1", "val2"],
+    "points":[["v1", 2]]
+  }
+]`)
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select val1 from test_invalid_delete_query")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Points, HasLen, 1)
+
+	_, err = self.server.RunQuery("delete from test_invalid_delete_query where foo = 'bar'")
+	c.Assert(err, ErrorMatches, ".*don't reference time.*")
+
+	// this shouldn't return any data
+	bs, err = self.server.RunQuery("select val1 from test_invalid_delete_query")
+	c.Assert(err, IsNil)
+	data = []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(err, IsNil)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Points, HasLen, 1)
+}
+
 // test delete query
 func (self *IntegrationSuite) TestDeleteQuery(c *C) {
 	for _, queryString := range []string{

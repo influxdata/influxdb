@@ -493,5 +493,8 @@ func parseDeleteQuery(queryString string, query *C.delete_query) (*DeleteQuery, 
 	goQuery := &DeleteQuery{
 		SelectDeleteCommonQuery: basicQurey,
 	}
+	if basicQurey.GetWhereCondition() != nil {
+		return nil, fmt.Errorf("Delete queries can't have where clause that don't reference time")
+	}
 	return goQuery, nil
 }

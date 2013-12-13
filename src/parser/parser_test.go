@@ -218,13 +218,22 @@ func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
-	q, err := ParseSelectQuery("select value, time from t where time > now() - 1d;")
-	c.Assert(err, IsNil)
+	queries := map[string]time.Time{
+		"select value, time from t where time > now() - 1d and time < now() - 1m;": time.Now().Add(-time.Minute).Round(time.Minute).UTC(),
+		"select value, time from t where time > now() - 1d and time < now();":      time.Now().Round(time.Minute).UTC(),
+	}
+	for query, expected := range queries {
+		fmt.Printf("Running %s\n", query)
 
-	// note: the time condition will be removed
-	c.Assert(q.GetWhereCondition(), IsNil)
+		q, err := ParseSelectQuery(query)
+		c.Assert(err, IsNil)
 
-	c.Assert(q.GetStartTime().Round(time.Minute), Equals, time.Now().Add(-24*time.Hour).Round(time.Minute).UTC())
+		c.Assert(q.GetStartTime().Round(time.Minute), Equals, time.Now().Add(-24*time.Hour).Round(time.Minute).UTC())
+		c.Assert(q.GetEndTime().Round(time.Minute).UTC(), Equals, expected)
+
+		// note: the time condition will be removed
+		c.Assert(q.GetWhereCondition(), IsNil)
+	}
 }
 
 func (self *QueryParserSuite) TestParseSelectWithPartialTimeString(c *C) {

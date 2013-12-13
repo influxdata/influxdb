@@ -325,35 +325,35 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 
 	if expr, ok := condition.GetBoolExpression(); ok {
 		leftValue := expr.Elems[0]
-		isLeftValue := leftValue.Type != ValueExpression
+		isTimeOnLeft := leftValue.Type != ValueExpression && leftValue.Type != ValueFunctionCall
 		rightValue := expr.Elems[1]
-		isRightValue := rightValue.Type != ValueExpression
+		isTimeOnRight := rightValue.Type != ValueExpression && rightValue.Type != ValueFunctionCall
 
 		// this can only be the case if the where condition
 		// is of the form `"time" > 123456789`, so let's see
 		// which side is a float value
-		if isLeftValue && isRightValue {
+		if isTimeOnLeft && isTimeOnRight {
 			if isNumericValue(rightValue) {
-				isRightValue = false
+				isTimeOnRight = false
 			} else {
-				isLeftValue = false
+				isTimeOnLeft = false
 			}
 		}
 
 		// if this expression isn't "time > xxx" or "xxx < time" then return
 		// TODO: we should do a check to make sure "time" doesn't show up in
 		// either expressions
-		if !isLeftValue && !isRightValue {
+		if !isTimeOnLeft && !isTimeOnRight {
 			return condition, ZERO_TIME, nil
 		}
 
 		var timeExpression *Value
-		if !isRightValue {
+		if !isTimeOnRight {
 			if leftValue.Name != "time" {
 				return condition, ZERO_TIME, nil
 			}
 			timeExpression = rightValue
-		} else if !isLeftValue {
+		} else if !isTimeOnLeft {
 			if rightValue.Name != "time" {
 				return condition, ZERO_TIME, nil
 			}
@@ -364,11 +364,11 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 
 		switch expr.Name {
 		case ">":
-			if isParsingStartTime && !isLeftValue || !isParsingStartTime && !isRightValue {
+			if isParsingStartTime && !isTimeOnLeft || !isParsingStartTime && !isTimeOnRight {
 				return condition, ZERO_TIME, nil
 			}
 		case "<":
-			if !isParsingStartTime && !isLeftValue || isParsingStartTime && !isRightValue {
+			if !isParsingStartTime && !isTimeOnLeft || isParsingStartTime && !isTimeOnRight {
 				return condition, ZERO_TIME, nil
 			}
 		default:
