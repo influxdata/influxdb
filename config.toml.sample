@@ -1,5 +1,10 @@
 # Welcome to the InfluxDB configuration file.
 
+# If hostname (on the OS) doesn't return a name that can be resolved by the other 
+# systems in the cluster, you'll have to set the hostname to an IP or something 
+# that can be resovled here.
+# hostname = ""
+
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
 # level  = "info"

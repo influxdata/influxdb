@@ -46,6 +46,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	protobufPort := configSet.Int("cluster.protobuf_port", 8099)
 	logFile := configSet.String("logging.file", "influxdb.log")
 	logLevel := configSet.String("logging.level", "info")
+	hostname := configSet.String("hostname", "")
 
 	if err := configSet.Parse(filename); err != nil {
 		return nil, err
@@ -61,6 +62,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		DataDir:        *dataDir,
 		LogFile:        *logFile,
 		LogLevel:       *logLevel,
+		Hostname:       *hostname,
 	}
 
 	servers := strings.Split(*seedServers, ",")
