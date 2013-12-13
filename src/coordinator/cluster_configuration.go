@@ -272,7 +272,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	server.Id = self.currentServerId + 1
 	self.currentServerId += 1
 	self.servers = append(self.servers, server)
-	log.Info("Added server to cluster config: ", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
+	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
 }
 
 func (self *ClusterConfiguration) GetDatabases() []*Database {
