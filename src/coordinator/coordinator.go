@@ -212,11 +212,30 @@ func (self *CoordinatorImpl) yieldResults(isSingleSeriesQuery, isAscending bool,
 	return leftoverResults
 }
 
+// TODO: refactor this for clarity. This got super ugly...
 // Function yields all results that are safe to do so ensuring order. Returns all results that must wait for more from the servers.
 func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *protocol.Series, responses []*protocol.Response, yield func(*protocol.Series) error) *protocol.Series {
-	result := &protocol.Series{Name: responses[0].Series.Name, Points: make([]*protocol.Point, 0)}
+	// results can come from different servers. Some of which won't know about fields that other servers may know about.
+	// We need to normalize all this so that all fields are represented and the other field values are null.
+	// Give each unique field name an index. We'll use this map later to construct the results and make sure that
+	// the response objects have their fields in the result.
+	fieldIndexes := make(map[string]int)
+	for _, response := range responses {
+		for _, name := range response.Series.Fields {
+			if _, hasField := fieldIndexes[name]; !hasField {
+				fieldIndexes[name] = len(fieldIndexes)
+			}
+		}
+	}
+	fields := make([]string, len(fieldIndexes), len(fieldIndexes))
+	for name, index := range fieldIndexes {
+		fields[index] = name
+	}
+	fieldCount := len(fields)
+
+	result := &protocol.Series{Name: responses[0].Series.Name, Fields: fields, Points: make([]*protocol.Point, 0)}
 	if leftover == nil {
-		leftover = &protocol.Series{Name: responses[0].Series.Name, Points: make([]*protocol.Point, 0)}
+		leftover = &protocol.Series{Name: responses[0].Series.Name, Fields: fields, Points: make([]*protocol.Point, 0)}
 	}
 
 	barrierTime := BARRIER_TIME_MIN
@@ -263,26 +282,64 @@ func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *p
 	if barrierTime == BARRIER_TIME_MIN || barrierTime == BARRIER_TIME_MAX {
 		// all the nextPointTimes were nil so we're safe to send everything
 		for _, response := range responses {
-			result.Points = append(result.Points, response.Series.Points...)
+			// if this is the case we know that all responses contained the same
+			// fields. So just append the points
+			if len(response.Series.Fields) == fieldCount {
+				result.Points = append(result.Points, response.Series.Points...)
+			} else {
+				log.Debug("Responses from servers had different numbers of fields.")
+				for _, p := range response.Series.Points {
+					self.normalizePointAndAppend(fieldIndexes, result, response.Series.Fields, p)
+				}
+			}
+		}
+		if len(leftover.Fields) == fieldCount {
 			result.Points = append(result.Points, leftover.Points...)
 			leftover.Points = []*protocol.Point{}
+		} else {
+			log.Debug("Responses from servers had different numbers of fields.")
+			for _, p := range leftover.Points {
+				self.normalizePointAndAppend(fieldIndexes, result, leftover.Fields, p)
+			}
 		}
 	} else {
 		for _, response := range responses {
 			if shouldYieldComparator(response.NextPointTime) {
 				// all points safe to yield
-				result.Points = append(result.Points, response.Series.Points...)
+				if fieldCount == len(response.Series.Fields) {
+					result.Points = append(result.Points, response.Series.Points...)
+				} else {
+					log.Debug("Responses from servers had different numbers of fields.")
+					for _, p := range response.Series.Points {
+						self.normalizePointAndAppend(fieldIndexes, result, response.Series.Fields, p)
+					}
+				}
 				continue
 			}
 
-			for i, point := range response.Series.Points {
-				if shouldYieldComparator(point.Timestamp) {
-					result.Points = append(result.Points, point)
-				} else {
-					// since they're returned in order, we can just append these to
-					// the leftover and break out.
-					leftover.Points = append(leftover.Points, response.Series.Points[i:]...)
-					break
+			if fieldCount == len(response.Series.Fields) {
+				for i, point := range response.Series.Points {
+					if shouldYieldComparator(point.Timestamp) {
+						result.Points = append(result.Points, point)
+					} else {
+						// since they're returned in order, we can just append these to
+						// the leftover and break out.
+						leftover.Points = append(leftover.Points, response.Series.Points[i:]...)
+						break
+					}
+				}
+			} else {
+				for i, point := range response.Series.Points {
+					if shouldYieldComparator(point.Timestamp) {
+						self.normalizePointAndAppend(fieldIndexes, result, response.Series.Fields, point)
+					} else {
+						// since they're returned in order, we can just append these to
+						// the leftover and break out.
+						for _, point := range response.Series.Points[i:] {
+							self.normalizePointAndAppend(fieldIndexes, leftover, response.Series.Fields, point)
+						}
+						break
+					}
 				}
 			}
 		}
@@ -305,6 +362,22 @@ func (self *CoordinatorImpl) yieldResultsForSeries(isAscending bool, leftover *p
 		return leftover
 	}
 	return nil
+}
+
+func (self *CoordinatorImpl) normalizePointAndAppend(fieldNames map[string]int, result *protocol.Series, fields []string, point *protocol.Point) {
+	oldValues := point.Values
+	point.Values = make([]*protocol.FieldValue, len(fieldNames), len(fieldNames))
+	for index, field := range fields {
+		indexForField, ok := fieldNames[field]
+
+		// drop this point on the floor if the unexpected happens
+		if !ok {
+			log.Error("Couldn't lookup field: ", field, fields, fieldNames)
+			return
+		}
+		point.Values[indexForField] = oldValues[index]
+	}
+	result.Points = append(result.Points, point)
 }
 
 func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
