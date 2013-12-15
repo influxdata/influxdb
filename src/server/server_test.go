@@ -192,352 +192,352 @@ func (self *ServerSuite) TestDataReplication(c *C) {
 	c.Assert(countWithPoint, Equals, 2)
 }
 
-// func (self *ServerSuite) TestDeleteReplication(c *C) {
-// 	servers := self.servers
+func (self *ServerSuite) TestDeleteReplication(c *C) {
+	servers := self.servers
 
-// 	err := servers[0].RaftServer.CreateDatabase("test_del_rep", uint8(2))
-// 	c.Assert(err, IsNil)
-// 	time.Sleep(time.Millisecond * 10)
-// 	_, err = self.postToServer(self.servers[0], "/db/test_del_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
-// 	c.Assert(err, IsNil)
-// 	_, err = self.postToServer(self.servers[0], "/db/test_del_rep/users/paul?u=root&p=root", `{"admin": true}`, c)
-// 	c.Assert(err, IsNil)
+	err := servers[0].RaftServer.CreateDatabase("test_del_rep", uint8(2))
+	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 10)
+	_, err = self.postToServer(self.servers[0], "/db/test_del_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	c.Assert(err, IsNil)
+	_, err = self.postToServer(self.servers[0], "/db/test_del_rep/users/paul?u=root&p=root", `{"admin": true}`, c)
+	c.Assert(err, IsNil)
 
-// 	data := `
-//   [{
-//     "points": [
-//         ["val1", 2]
-//     ],
-//     "name": "foo",
-//     "columns": ["val_1", "val_2"]
-//   }]`
-// 	resp, _ := self.postToServer(servers[0], "/db/test_del_rep/series?u=paul&p=pass", data, c)
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 	time.Sleep(time.Millisecond * 10)
+	data := `
+  [{
+    "points": [
+        ["val1", 2]
+    ],
+    "name": "foo",
+    "columns": ["val_1", "val_2"]
+  }]`
+	resp, _ := self.postToServer(servers[0], "/db/test_del_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 10)
 
-// 	countWithPoint := 0
-// 	user := &MockUser{}
-// 	for _, server := range servers {
-// 		results := executeQuery(user, "test_del_rep", "select * from foo;", server.Db, c)
-// 		pointCount := 0
-// 		for _, series := range results {
-// 			if *series.Name == "foo" {
-// 				if len(series.Points) > 0 {
-// 					pointCount += 1
-// 				}
-// 			} else {
-// 				c.Error(fmt.Sprintf("Got a series in the query we didn't expect: %s", *series.Name))
-// 			}
-// 		}
-// 		if pointCount > 1 {
-// 			c.Error("Got too many points for the series from one db")
-// 		} else if pointCount > 0 {
-// 			countWithPoint += 1
-// 		}
-// 	}
+	countWithPoint := 0
+	user := &MockUser{}
+	for _, server := range servers {
+		results := executeQuery(user, "test_del_rep", "select * from foo;", server.Db, c)
+		pointCount := 0
+		for _, series := range results {
+			if *series.Name == "foo" {
+				if len(series.Points) > 0 {
+					pointCount += 1
+				}
+			} else {
+				c.Error(fmt.Sprintf("Got a series in the query we didn't expect: %s", *series.Name))
+			}
+		}
+		if pointCount > 1 {
+			c.Error("Got too many points for the series from one db")
+		} else if pointCount > 0 {
+			countWithPoint += 1
+		}
+	}
 
-// 	escapedQuery := url.QueryEscape("delete from foo")
-// 	resp, err = http.Get(fmt.Sprintf("http://localhost:%d/db/test_del_rep/series?u=paul&p=pass&q=%s", servers[0].Config.ApiHttpPort, escapedQuery))
-// 	c.Assert(err, IsNil)
-// 	defer resp.Body.Close()
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	escapedQuery := url.QueryEscape("delete from foo")
+	resp, err = http.Get(fmt.Sprintf("http://localhost:%d/db/test_del_rep/series?u=paul&p=pass&q=%s", servers[0].Config.ApiHttpPort, escapedQuery))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 
-// 	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 10)
 
-// 	for _, server := range servers {
-// 		results := executeQuery(user, "test_del_rep", "select * from foo;", server.Db, c)
-// 		for _, series := range results {
-// 			if *series.Name == "foo" {
-// 				c.Assert(series.Points, HasLen, 0)
-// 			} else {
-// 				c.Error(fmt.Sprintf("Got a series in the query we didn't expect: %s", *series.Name))
-// 			}
-// 		}
-// 	}
-// }
+	for _, server := range servers {
+		results := executeQuery(user, "test_del_rep", "select * from foo;", server.Db, c)
+		for _, series := range results {
+			if *series.Name == "foo" {
+				c.Assert(series.Points, HasLen, 0)
+			} else {
+				c.Error(fmt.Sprintf("Got a series in the query we didn't expect: %s", *series.Name))
+			}
+		}
+	}
+}
 
-// func (self *ServerSuite) TestCrossClusterQueries(c *C) {
-// 	data := `[{
-// 		"name": "cluster_query",
-// 		"columns": ["val1"],
-// 		"points": [[1], [2], [3], [4]]
-// 		}]`
-// 	resp, _ := self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+func (self *ServerSuite) TestCrossClusterQueries(c *C) {
+	data := `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[1], [2], [3], [4]]
+		}]`
+	resp, _ := self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 
-// 	time.Sleep(time.Second)
-// 	data = `[{
-// 		"name": "cluster_query",
-// 		"columns": ["val1"],
-// 		"points": [[5], [6], [7]]
-// 		}]`
-// 	resp, _ = self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Second)
+	data = `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[5], [6], [7]]
+		}]`
+	resp, _ = self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 100)
 
-// 	for _, s := range self.servers {
-// 		query := "select count(val1) from cluster_query;"
-// 		encodedQuery := url.QueryEscape(query)
-// 		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/db/test_rep/series?u=paul&p=pass&q=%s", s.Config.ApiHttpPort, encodedQuery))
-// 		c.Assert(err, IsNil)
-// 		body, err := ioutil.ReadAll(resp.Body)
-// 		c.Assert(err, IsNil)
-// 		c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 		resp.Body.Close()
-// 		var results []map[string]interface{}
-// 		err = json.Unmarshal(body, &results)
-// 		c.Assert(err, IsNil)
-// 		c.Assert(results, HasLen, 1)
-// 		point := results[0]["points"].([]interface{})[0].([]interface{})
-// 		val := point[len(point)-1].(float64)
-// 		c.Assert(val, Equals, float64(7))
-// 	}
+	for _, s := range self.servers {
+		query := "select count(val1) from cluster_query;"
+		encodedQuery := url.QueryEscape(query)
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/db/test_rep/series?u=paul&p=pass&q=%s", s.Config.ApiHttpPort, encodedQuery))
+		c.Assert(err, IsNil)
+		body, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, IsNil)
+		c.Assert(resp.StatusCode, Equals, http.StatusOK)
+		resp.Body.Close()
+		var results []map[string]interface{}
+		err = json.Unmarshal(body, &results)
+		c.Assert(err, IsNil)
+		c.Assert(results, HasLen, 1)
+		point := results[0]["points"].([]interface{})[0].([]interface{})
+		val := point[len(point)-1].(float64)
+		c.Assert(val, Equals, float64(7))
+	}
 
-// 	data = `[{
-// 		"name": "cluster_query",
-// 		"columns": ["val1"],
-// 		"points": [[8], [9]]
-// 		}]`
-// 	resp, _ = self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 	time.Sleep(time.Millisecond * 100)
+	data = `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[8], [9]]
+		}]`
+	resp, _ = self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 100)
 
-// 	data = `[{
-// 		"name": "cluster_query",
-// 		"columns": ["val1"],
-// 		"points": [[10], [11]]
-// 		}]`
-// 	resp, _ = self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 	time.Sleep(time.Millisecond * 100)
+	data = `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[10], [11]]
+		}]`
+	resp, _ = self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 100)
 
-// 	for _, s := range self.servers {
-// 		query := "select count(val1) from cluster_query;"
-// 		encodedQuery := url.QueryEscape(query)
-// 		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/db/test_rep/series?u=paul&p=pass&q=%s", s.Config.ApiHttpPort, encodedQuery))
-// 		c.Assert(err, IsNil)
-// 		body, err := ioutil.ReadAll(resp.Body)
-// 		c.Assert(err, IsNil)
-// 		c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 		resp.Body.Close()
-// 		var results []map[string]interface{}
-// 		err = json.Unmarshal(body, &results)
-// 		c.Assert(err, IsNil)
-// 		c.Assert(results, HasLen, 1)
-// 		point := results[0]["points"].([]interface{})[0].([]interface{})
-// 		val := point[len(point)-1].(float64)
-// 		c.Assert(val, Equals, float64(11))
-// 	}
-// }
+	for _, s := range self.servers {
+		query := "select count(val1) from cluster_query;"
+		encodedQuery := url.QueryEscape(query)
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/db/test_rep/series?u=paul&p=pass&q=%s", s.Config.ApiHttpPort, encodedQuery))
+		c.Assert(err, IsNil)
+		body, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, IsNil)
+		c.Assert(resp.StatusCode, Equals, http.StatusOK)
+		resp.Body.Close()
+		var results []map[string]interface{}
+		err = json.Unmarshal(body, &results)
+		c.Assert(err, IsNil)
+		c.Assert(results, HasLen, 1)
+		point := results[0]["points"].([]interface{})[0].([]interface{})
+		val := point[len(point)-1].(float64)
+		c.Assert(val, Equals, float64(11))
+	}
+}
 
-// func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
-// 	servers := self.servers
+func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
+	servers := self.servers
 
-// 	_, err := self.postToServer(self.servers[0], "/db?u=root&p=root", `{"name": "full_rep", "replicationFactor": 3}`, c)
-// 	c.Assert(err, IsNil)
-// 	_, err = self.postToServer(self.servers[0], "/db/full_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
-// 	c.Assert(err, IsNil)
-// 	time.Sleep(time.Millisecond * 50)
+	_, err := self.postToServer(self.servers[0], "/db?u=root&p=root", `{"name": "full_rep", "replicationFactor": 3}`, c)
+	c.Assert(err, IsNil)
+	_, err = self.postToServer(self.servers[0], "/db/full_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 50)
 
-// 	// write data and confirm that it went to all three servers
-// 	data := `
-//   [{
-//     "points": [
-//         [1]
-//     ],
-//     "name": "test_failure_replays",
-//     "columns": ["val"]
-//   }]`
-// 	resp, _ := self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 	time.Sleep(time.Millisecond * 10)
+	// write data and confirm that it went to all three servers
+	data := `
+  [{
+    "points": [
+        [1]
+    ],
+    "name": "test_failure_replays",
+    "columns": ["val"]
+  }]`
+	resp, _ := self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 10)
 
-// 	countWithPoint := 0
-// 	user := &MockUser{}
-// 	for _, server := range servers {
-// 		results := executeQuery(user, "full_rep", "select sum(val) from test_failure_replays;", server.Db, c)
-// 		pointCount := 0
-// 		for _, series := range results {
-// 			if *series.Name == "test_failure_replays" {
-// 				if len(series.Points) > 0 {
-// 					pointCount += 1
-// 				}
-// 			} else {
-// 				c.Error(fmt.Sprintf("Got a series in the query we didn't expect: %s", *series.Name))
-// 			}
-// 		}
-// 		if pointCount > 0 {
-// 			countWithPoint += 1
-// 		}
-// 	}
-// 	c.Assert(countWithPoint, Equals, 3)
+	countWithPoint := 0
+	user := &MockUser{}
+	for _, server := range servers {
+		results := executeQuery(user, "full_rep", "select sum(val) from test_failure_replays;", server.Db, c)
+		pointCount := 0
+		for _, series := range results {
+			if *series.Name == "test_failure_replays" {
+				if len(series.Points) > 0 {
+					pointCount += 1
+				}
+			} else {
+				c.Error(fmt.Sprintf("Got a series in the query we didn't expect: %s", *series.Name))
+			}
+		}
+		if pointCount > 0 {
+			countWithPoint += 1
+		}
+	}
+	c.Assert(countWithPoint, Equals, 3)
 
-// 	// kill a server, write data
-// 	killedConfig := servers[1].Config
+	// kill a server, write data
+	killedConfig := servers[1].Config
 
-// 	servers[1].Stop()
-// 	time.Sleep(time.Second)
+	servers[1].Stop()
+	time.Sleep(time.Second)
 
-// 	data = `
-// 	[{
-// 		"points": [[2]],
-// 		"name": "test_failure_replays",
-// 		"columns": ["val"]
-// 	}]
-// 	`
-// 	resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 	time.Sleep(time.Millisecond * 10)
+	data = `
+	[{
+		"points": [[2]],
+		"name": "test_failure_replays",
+		"columns": ["val"]
+	}]
+	`
+	resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 10)
 
-// 	// now bring the server back up and make sure that it only has the old data. replays get triggered on write
-// 	server, err := NewServer(killedConfig)
-// 	if err != nil {
-// 		c.Error(err)
-// 	}
-// 	go func() {
-// 		err := server.ListenAndServe()
-// 		if err != nil {
-// 			c.Error(err)
-// 		}
-// 	}()
-// 	time.Sleep(time.Second * 4)
-// 	servers[1] = server
+	// now bring the server back up and make sure that it only has the old data. replays get triggered on write
+	server, err := NewServer(killedConfig)
+	if err != nil {
+		c.Error(err)
+	}
+	go func() {
+		err := server.ListenAndServe()
+		if err != nil {
+			c.Error(err)
+		}
+	}()
+	time.Sleep(time.Second * 4)
+	servers[1] = server
 
-// 	getSum := func(db datastore.Datastore) int64 {
-// 		results := executeQuery(user, "full_rep", "select * from test_failure_replays;", db, c)
-// 		sum := int64(0)
-// 		for _, series := range results {
-// 			if *series.Name == "test_failure_replays" {
-// 				for _, point := range series.Points {
-// 					sum += *point.Values[0].Int64Value
-// 				}
-// 			}
-// 		}
-// 		return sum
-// 	}
-// 	c.Assert(getSum(servers[0].Db), Equals, int64(3))
-// 	c.Assert(getSum(servers[1].Db), Equals, int64(1))
-// 	c.Assert(getSum(servers[2].Db), Equals, int64(3))
+	getSum := func(db datastore.Datastore) int64 {
+		results := executeQuery(user, "full_rep", "select * from test_failure_replays;", db, c)
+		sum := int64(0)
+		for _, series := range results {
+			if *series.Name == "test_failure_replays" {
+				for _, point := range series.Points {
+					sum += *point.Values[0].Int64Value
+				}
+			}
+		}
+		return sum
+	}
+	c.Assert(getSum(servers[0].Db), Equals, int64(3))
+	c.Assert(getSum(servers[1].Db), Equals, int64(1))
+	c.Assert(getSum(servers[2].Db), Equals, int64(3))
 
-// 	// TODO: fix this. I do this 1k times because there's no way right now to force a replay
-// 	//       on a server other than having a write with the originating server id and owner server id
-// 	//       the same as the write that occured while the server was down. Doing this means it
-// 	//       will almost certainly trigger one (i.e. a request will randomly hash to the org/owner server)
-// 	data = `
-// 	[{
-// 		"points": [[1]],
-// 		"name": "test_failure_replays",
-// 		"columns": ["val"]
-// 	}]
-// 	`
-// 	for i := 0; i < 1000; i++ {
-// 		resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
-// 		c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 	}
+	// TODO: fix this. I do this 1k times because there's no way right now to force a replay
+	//       on a server other than having a write with the originating server id and owner server id
+	//       the same as the write that occured while the server was down. Doing this means it
+	//       will almost certainly trigger one (i.e. a request will randomly hash to the org/owner server)
+	data = `
+	[{
+		"points": [[1]],
+		"name": "test_failure_replays",
+		"columns": ["val"]
+	}]
+	`
+	for i := 0; i < 1000; i++ {
+		resp, _ = self.postToServer(servers[0], "/db/full_rep/series?u=paul&p=pass", data, c)
+		c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	}
 
-// 	time.Sleep(time.Millisecond * 10)
-// 	c.Assert(getSum(servers[0].Db), Equals, int64(1003))
-// 	c.Assert(getSum(servers[1].Db), Equals, int64(1003))
-// 	c.Assert(getSum(servers[2].Db), Equals, int64(1003))
-// }
+	time.Sleep(time.Millisecond * 10)
+	c.Assert(getSum(servers[0].Db), Equals, int64(1003))
+	c.Assert(getSum(servers[1].Db), Equals, int64(1003))
+	c.Assert(getSum(servers[2].Db), Equals, int64(1003))
+}
 
-// func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
-// 	servers := self.servers
+func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
+	servers := self.servers
 
-// 	err := servers[0].RaftServer.CreateDatabase("full_del_rep", uint8(3))
-// 	c.Assert(err, IsNil)
-// 	time.Sleep(time.Millisecond * 10)
-// 	_, err = self.postToServer(self.servers[0], "/db/full_del_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
-// 	c.Assert(err, IsNil)
-// 	_, err = self.postToServer(self.servers[0], "/db/full_del_rep/users/paul?u=root&p=root", `{"admin": true}`, c)
-// 	c.Assert(err, IsNil)
+	err := servers[0].RaftServer.CreateDatabase("full_del_rep", uint8(3))
+	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 10)
+	_, err = self.postToServer(self.servers[0], "/db/full_del_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	c.Assert(err, IsNil)
+	_, err = self.postToServer(self.servers[0], "/db/full_del_rep/users/paul?u=root&p=root", `{"admin": true}`, c)
+	c.Assert(err, IsNil)
 
-// 	// write data and confirm that it went to all three servers
-// 	data := `
-//   [{
-//     "points": [
-//         [1]
-//     ],
-//     "name": "test_failure_replays",
-//     "columns": ["val"]
-//   }]`
-// 	resp, _ := self.postToServer(servers[0], "/db/full_del_rep/series?u=paul&p=pass", data, c)
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-// 	time.Sleep(time.Millisecond * 10)
+	// write data and confirm that it went to all three servers
+	data := `
+  [{
+    "points": [
+        [1]
+    ],
+    "name": "test_failure_replays",
+    "columns": ["val"]
+  }]`
+	resp, _ := self.postToServer(servers[0], "/db/full_del_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 10)
 
-// 	countWithPoint := 0
-// 	user := &MockUser{}
-// 	for _, server := range servers {
-// 		results := executeQuery(user, "full_del_rep", "select sum(val) from test_failure_replays;", server.Db, c)
-// 		pointCount := 0
-// 		for _, series := range results {
-// 			if *series.Name == "test_failure_replays" {
-// 				if len(series.Points) > 0 {
-// 					pointCount += 1
-// 				}
-// 			} else {
-// 				c.Error(fmt.Sprintf("Got a series in the query we didn't expect: %s", *series.Name))
-// 			}
-// 		}
-// 		if pointCount > 0 {
-// 			countWithPoint += 1
-// 		}
-// 	}
-// 	c.Assert(countWithPoint, Equals, 3)
+	countWithPoint := 0
+	user := &MockUser{}
+	for _, server := range servers {
+		results := executeQuery(user, "full_del_rep", "select sum(val) from test_failure_replays;", server.Db, c)
+		pointCount := 0
+		for _, series := range results {
+			if *series.Name == "test_failure_replays" {
+				if len(series.Points) > 0 {
+					pointCount += 1
+				}
+			} else {
+				c.Error(fmt.Sprintf("Got a series in the query we didn't expect: %s", *series.Name))
+			}
+		}
+		if pointCount > 0 {
+			countWithPoint += 1
+		}
+	}
+	c.Assert(countWithPoint, Equals, 3)
 
-// 	// kill a server, write data
-// 	killedConfig := servers[1].Config
+	// kill a server, write data
+	killedConfig := servers[1].Config
 
-// 	servers[1].Stop()
-// 	time.Sleep(time.Second)
+	servers[1].Stop()
+	time.Sleep(time.Second)
 
-// 	escapedQuery := url.QueryEscape("delete from test_failure_replays")
-// 	resp, err = http.Get(fmt.Sprintf("http://localhost:%d/db/full_del_rep/series?u=paul&p=pass&q=%s", servers[0].Config.ApiHttpPort, escapedQuery))
-// 	c.Assert(err, IsNil)
-// 	defer resp.Body.Close()
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	escapedQuery := url.QueryEscape("delete from test_failure_replays")
+	resp, err = http.Get(fmt.Sprintf("http://localhost:%d/db/full_del_rep/series?u=paul&p=pass&q=%s", servers[0].Config.ApiHttpPort, escapedQuery))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 
-// 	time.Sleep(time.Second)
+	time.Sleep(time.Second)
 
-// 	// now bring the server back up and make sure that it only has the old data. replays get triggered on write
-// 	server, err := NewServer(killedConfig)
-// 	if err != nil {
-// 		c.Error(err)
-// 	}
-// 	go func() {
-// 		err := server.ListenAndServe()
-// 		if err != nil {
-// 			c.Error(err)
-// 		}
-// 	}()
-// 	time.Sleep(time.Second * 4)
-// 	servers[1] = server
+	// now bring the server back up and make sure that it only has the old data. replays get triggered on write
+	server, err := NewServer(killedConfig)
+	if err != nil {
+		c.Error(err)
+	}
+	go func() {
+		err := server.ListenAndServe()
+		if err != nil {
+			c.Error(err)
+		}
+	}()
+	time.Sleep(time.Second * 4)
+	servers[1] = server
 
-// 	getSum := func(db datastore.Datastore) int {
-// 		results := executeQuery(user, "full_del_rep", "select * from test_failure_replays;", db, c)
-// 		count := 0
-// 		for _, series := range results {
-// 			if *series.Name == "test_failure_replays" {
-// 				count += len(series.Points)
-// 			}
-// 		}
-// 		return count
-// 	}
-// 	c.Assert(getSum(servers[0].Db), Equals, 0)
-// 	c.Assert(getSum(servers[1].Db), Equals, 1)
-// 	c.Assert(getSum(servers[2].Db), Equals, 0)
+	getSum := func(db datastore.Datastore) int {
+		results := executeQuery(user, "full_del_rep", "select * from test_failure_replays;", db, c)
+		count := 0
+		for _, series := range results {
+			if *series.Name == "test_failure_replays" {
+				count += len(series.Points)
+			}
+		}
+		return count
+	}
+	c.Assert(getSum(servers[0].Db), Equals, 0)
+	c.Assert(getSum(servers[1].Db), Equals, 1)
+	c.Assert(getSum(servers[2].Db), Equals, 0)
 
-// 	resp, err = http.Get(fmt.Sprintf("http://localhost:%d/db/full_del_rep/series?u=paul&p=pass&q=%s", servers[0].Config.ApiHttpPort, escapedQuery))
-// 	c.Assert(err, IsNil)
-// 	defer resp.Body.Close()
-// 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	resp, err = http.Get(fmt.Sprintf("http://localhost:%d/db/full_del_rep/series?u=paul&p=pass&q=%s", servers[0].Config.ApiHttpPort, escapedQuery))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 
-// 	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 10)
 
-// 	c.Assert(getSum(servers[0].Db), Equals, 0)
-// 	c.Assert(getSum(servers[1].Db), Equals, 0)
-// 	c.Assert(getSum(servers[2].Db), Equals, 0)
-// }
+	c.Assert(getSum(servers[0].Db), Equals, 0)
+	c.Assert(getSum(servers[1].Db), Equals, 0)
+	c.Assert(getSum(servers[2].Db), Equals, 0)
+}
 
 // For issue #130 https://github.com/influxdb/influxdb/issues/130
 func (self *ServerSuite) TestColumnNamesReturnInDistributedQuery(c *C) {
@@ -559,4 +559,46 @@ func (self *ServerSuite) TestColumnNamesReturnInDistributedQuery(c *C) {
 	c.Assert(columns[2].(string), Equals, "asdf")
 	c.Assert(len(point), Equals, 3)
 	c.Assert(point[2].(float64), Equals, float64(4))
+}
+
+// For issue #131 https://github.com/influxdb/influxdb/issues/131
+func (self *ServerSuite) TestSelectFromRegexInCluster(c *C) {
+	data := `[{
+		"name": "cluster_regex_query",
+		"columns": ["col1", "col2"],
+		"points": [[1, "foo"], [23, "bar"]]
+		},{
+			"name": "cluster_regex_query_number2",
+			"columns": ["blah"],
+			"points": [[true]]
+		}]`
+	resp, _ := self.postToServer(self.servers[0], "/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+
+	time.Sleep(time.Millisecond * 100)
+	response := self.queryServer(self.servers[0], "test_rep", "select * from /.*/ limit 1", c)
+
+	count := 0
+	for _, res := range response {
+		series := res.(map[string]interface{})
+		name := series["name"].(string)
+		if name == "cluster_regex_query" {
+			count += 1
+			columns := series["columns"].([]interface{})
+			c.Assert(columns[2].(string), Equals, "col1")
+			c.Assert(columns[3].(string), Equals, "col2")
+			points := series["points"].([]interface{})
+			point := points[0].([]interface{})
+			c.Assert(point[2].(float64), Equals, float64(23))
+			c.Assert(point[3].(string), Equals, "bar")
+		} else if name == "cluster_regex_query_number2" {
+			count += 1
+			columns := series["columns"].([]interface{})
+			c.Assert(columns[2].(string), Equals, "blah")
+			points := series["points"].([]interface{})
+			point := points[0].([]interface{})
+			c.Assert(point[2].(bool), Equals, true)
+		}
+	}
+	c.Assert(count, Equals, 2)
 }

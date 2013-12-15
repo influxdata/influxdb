@@ -19,6 +19,11 @@ message Series {
   repeated string fields = 3;
 }
 
+message QueryResponseChunk {
+  optional Series series = 1;
+  optional bool done = 2;
+}
+
 message Request {
   enum Type {
     QUERY = 1;

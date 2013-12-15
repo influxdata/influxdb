@@ -135,20 +135,20 @@ func (self *ProtobufRequestHandler) handleReplay(request *protocol.Request, conn
 }
 
 func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn net.Conn) {
-	var nextPoint *protocol.Point
+	nextPointMap := make(map[string]*protocol.Point)
 	assignNextPointTimesAndSend := func(series *protocol.Series) error {
 		pointCount := len(series.Points)
 		if pointCount <= 1 {
-			if nextPoint != nil {
+			if nextPoint := nextPointMap[*series.Name]; nextPoint != nil {
 				series.Points = append(series.Points, nextPoint)
 			}
-			response := &protocol.Response{Type: &endStreamResponse, Series: series, RequestId: request.Id}
+			response := &protocol.Response{Type: &queryResponse, Series: series, RequestId: request.Id}
 
 			self.WriteResponse(conn, response)
 			return nil
 		}
-		oldNextPoint := nextPoint
-		nextPoint = series.Points[pointCount-1]
+		oldNextPoint := nextPointMap[*series.Name]
+		nextPoint := series.Points[pointCount-1]
 		series.Points[pointCount-1] = nil
 		if oldNextPoint != nil {
 			copy(series.Points[1:], series.Points[0:])
@@ -160,6 +160,7 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 		response := &protocol.Response{Series: series, Type: &queryResponse, RequestId: request.Id}
 		if nextPoint != nil {
 			response.NextPointTime = nextPoint.Timestamp
+			nextPointMap[*series.Name] = nextPoint
 		}
 		err := self.WriteResponse(conn, response)
 		return err
@@ -173,6 +174,9 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 		ringFilter = self.clusterConfig.GetRingFilterFunction(*request.Database, *request.RingLocationsToQuery)
 	}
 	self.db.ExecuteQuery(user, *request.Database, query, assignNextPointTimesAndSend, ringFilter)
+
+	response := &protocol.Response{Type: &endStreamResponse, RequestId: request.Id}
+	self.WriteResponse(conn, response)
 }
 
 func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *protocol.Response) error {

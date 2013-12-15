@@ -82,24 +82,22 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 	}
 
 	local := make(chan *protocol.Response)
-	var nextPoint *protocol.Point
-	chanClosed := false
+	nextPointMap := make(map[string]*protocol.Point)
+
+	// TODO: this style of wrapping the series in response objects with the
+	//       last point time is duplicated in the request handler. Refactor...
 	sendFromLocal := func(series *protocol.Series) error {
 		pointCount := len(series.Points)
 		if pointCount == 0 {
-			if nextPoint != nil {
+			if nextPoint := nextPointMap[*series.Name]; nextPoint != nil {
 				series.Points = append(series.Points, nextPoint)
 			}
 
-			if !chanClosed {
-				local <- &protocol.Response{Type: &endStreamResponse, Series: series}
-				chanClosed = true
-				close(local)
-			}
+			local <- &protocol.Response{Type: &queryResponse, Series: series}
 			return nil
 		}
-		oldNextPoint := nextPoint
-		nextPoint = series.Points[pointCount-1]
+		oldNextPoint := nextPointMap[*series.Name]
+		nextPoint := series.Points[pointCount-1]
 		series.Points[pointCount-1] = nil
 		if oldNextPoint != nil {
 			copy(series.Points[1:], series.Points[0:])
@@ -110,6 +108,7 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 
 		response := &protocol.Response{Series: series, Type: &queryResponse}
 		if nextPoint != nil {
+			nextPointMap[*series.Name] = nextPoint
 			response.NextPointTime = nextPoint.Timestamp
 		}
 		local <- response
@@ -126,6 +125,8 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 			ringFilter = self.clusterConfiguration.GetRingFilterFunction(db, localServerToQuery.ringLocationsToQuery)
 		}
 		self.datastore.ExecuteQuery(user, db, query, sendFromLocal, ringFilter)
+		local <- &protocol.Response{Type: &endStreamResponse}
+		close(local)
 	}()
 	self.streamResultsFromChannels(isSingleSeriesQuery, query.Ascending, responseChannels, yield)
 	return nil
@@ -145,10 +146,11 @@ func (self *CoordinatorImpl) streamResultsFromChannels(isSingleSeriesQuery, isAs
 			if response != nil {
 				if *response.Type == protocol.Response_END_STREAM {
 					closedChannels++
-				}
-				seriesNames[*response.Series.Name] = true
-				if response.Series.Points != nil {
-					responses = append(responses, response)
+				} else {
+					seriesNames[*response.Series.Name] = true
+					if response.Series.Points != nil {
+						responses = append(responses, response)
+					}
 				}
 			}
 		}
