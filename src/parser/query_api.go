@@ -119,7 +119,7 @@ func (self *SelectQuery) GetReferencedColumns() map[*Value][]string {
 		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromCondition(condition, mapping)...)
 	}
 
-	for _, groupBy := range self.GetGroupByClause() {
+	for _, groupBy := range self.groupByClause.Elems {
 		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromValue(groupBy, mapping)...)
 	}
 

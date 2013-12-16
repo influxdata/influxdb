@@ -75,10 +75,14 @@ type FromClause struct {
 	Names []*TableName
 }
 
-type GroupByClause []*Value
+type GroupByClause struct {
+	FillWithZero bool
+	FillValue    *Value
+	Elems        []*Value
+}
 
 func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
-	for _, groupBy := range self {
+	for _, groupBy := range self.Elems {
 		if groupBy.IsFunctionCall() {
 			// TODO: check the number of arguments and return an error
 			if len(groupBy.Elems) != 1 {
@@ -133,7 +137,7 @@ type SelectDeleteCommonQuery struct {
 type SelectQuery struct {
 	SelectDeleteCommonQuery
 	ColumnNames   []*Value
-	groupByClause GroupByClause
+	groupByClause *GroupByClause
 	Limit         int
 	Ascending     bool
 }
@@ -170,6 +174,43 @@ func setupSlice(hdr *reflect.SliceHeader, ptr unsafe.Pointer, size C.size_t) {
 	hdr.Cap = int(size)
 	hdr.Len = int(size)
 	hdr.Data = uintptr(ptr)
+}
+
+func GetGroupByClause(groupByClause *C.groupby_clause) (*GroupByClause, error) {
+	if groupByClause == nil {
+		return &GroupByClause{Elems: nil}, nil
+	}
+
+	values, err := GetValueArray(groupByClause.elems)
+	if err != nil {
+		return nil, err
+	}
+
+	fillWithZero := false
+	var fillValue *Value
+
+	if groupByClause.fill_function != nil {
+		fun, err := GetValue(groupByClause.fill_function)
+		if err != nil {
+			return nil, err
+		}
+		if fun.Name != "fill" {
+			return nil, fmt.Errorf("You can't use %s with group by", fun.Name)
+		}
+
+		if len(fun.Elems) != 1 {
+			return nil, fmt.Errorf("`fill` accepts one argument only")
+		}
+
+		fillValue = fun.Elems[0]
+		fillWithZero = true
+	}
+
+	return &GroupByClause{
+		Elems:        values,
+		FillWithZero: fillWithZero,
+		FillValue:    fillValue,
+	}, nil
 }
 
 func GetValueArray(array *C.value_array) ([]*Value, error) {
@@ -344,11 +385,7 @@ func (self *SelectDeleteCommonQuery) GetWhereCondition() *WhereCondition {
 	return self.Condition
 }
 
-func (self *SelectQuery) GetGroupByClause() GroupByClause {
-	if self.groupByClause != nil {
-		return self.groupByClause
-	}
-
+func (self *SelectQuery) GetGroupByClause() *GroupByClause {
 	return self.groupByClause
 }
 
@@ -474,9 +511,9 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 
 	// get the group by clause
 	if q.group_by == nil {
-		goQuery.groupByClause = GroupByClause{}
+		goQuery.groupByClause = &GroupByClause{}
 	} else {
-		goQuery.groupByClause, err = GetValueArray(q.group_by)
+		goQuery.groupByClause, err = GetGroupByClause(q.group_by)
 		if err != nil {
 			return nil, err
 		}

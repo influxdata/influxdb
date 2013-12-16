@@ -125,7 +125,7 @@ func Filter(query *parser.SelectQuery, series *protocol.Series) (*protocol.Serie
 
 	columns := map[string]bool{}
 	getColumns(query.GetColumnNames(), columns)
-	getColumns(query.GetGroupByClause(), columns)
+	getColumns(query.GetGroupByClause().Elems, columns)
 
 	points := series.Points
 	series.Points = nil

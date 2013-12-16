@@ -49,6 +49,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
   query*                query;
   select_query*         select_query;
   delete_query*         delete_query;
+  groupby_clause*       groupby_clause;
   struct {
     int limit;
     char ascending;
@@ -89,7 +90,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %type <value_array>     VALUES
 %type <v>               VALUE TABLE_VALUE SIMPLE_TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE
 %type <v>               WILDCARD REGEX_VALUE DURATION_VALUE FUNCTION_CALL
-%type <value_array>     GROUP_BY_CLAUSE
+%type <groupby_clause>  GROUP_BY_CLAUSE
 %type <integer>         LIMIT_CLAUSE
 %type <character>       ORDER_CLAUSE
 %type <limit_and_order> LIMIT_AND_ORDER_CLAUSES
@@ -107,6 +108,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %destructor { free($$); } <string>
 %destructor { free_expression($$); } <expression>
 %destructor { if ($$) free_value_array($$); } <value_array>
+%destructor { free_groupby_clause($$); } <groupby_clause>
 %destructor { close_query($$); free($$); } <query>
 
 // grammar
@@ -234,7 +236,16 @@ VALUES:
 GROUP_BY_CLAUSE:
         GROUP BY VALUES
         {
-          $$ = $3;
+          $$ = malloc(sizeof(groupby_clause));
+          $$->elems = $3;
+          $$->fill_function = NULL;
+        }
+        |
+        GROUP BY VALUES FUNCTION_CALL
+        {
+          $$ = malloc(sizeof(groupby_clause));
+          $$->elems = $3;
+          $$->fill_function = $4;
         }
         |
         {

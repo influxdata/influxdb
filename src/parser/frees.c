@@ -44,6 +44,16 @@ free_value_array(value_array *array)
 }
 
 void
+free_groupby_clause(groupby_clause *g)
+{
+  free_value_array(g->elems);
+  if (g->fill_function) {
+    free_value(g->fill_function);
+  }
+  free(g);
+}
+
+void
 free_value(value *value)
 {
   free(value->name);
@@ -83,7 +93,7 @@ free_select_query (select_query *q)
   }
 
   if (q->group_by) {
-    free_value_array(q->group_by);
+    free_groupby_clause(q->group_by);
   }
 
   if (q->from_clause) {
