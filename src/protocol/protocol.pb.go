@@ -234,6 +234,30 @@ func (m *Series) GetFields() []string {
 	return nil
 }
 
+type QueryResponseChunk struct {
+	Series           *Series `protobuf:"bytes,1,opt,name=series" json:"series,omitempty"`
+	Done             *bool   `protobuf:"varint,2,opt,name=done" json:"done,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *QueryResponseChunk) Reset()         { *m = QueryResponseChunk{} }
+func (m *QueryResponseChunk) String() string { return proto.CompactTextString(m) }
+func (*QueryResponseChunk) ProtoMessage()    {}
+
+func (m *QueryResponseChunk) GetSeries() *Series {
+	if m != nil {
+		return m.Series
+	}
+	return nil
+}
+
+func (m *QueryResponseChunk) GetDone() bool {
+	if m != nil && m.Done != nil {
+		return *m.Done
+	}
+	return false
+}
+
 type Request struct {
 	Id                      *uint32       `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
 	Type                    *Request_Type `protobuf:"varint,2,req,name=type,enum=protocol.Request_Type" json:"type,omitempty"`
