@@ -25,6 +25,7 @@ build/
 # executables
 /server
 /daemon
+/benchmark
 /main
 godef
 
