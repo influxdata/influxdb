@@ -333,7 +333,7 @@ func (l *Log) commitInfo() (index uint64, term uint64) {
 	return entry.Index, entry.Term
 }
 
-// Retrieves the last index and term that has been committed to the log.
+// Retrieves the last index and term that has been appended to the log.
 func (l *Log) lastInfo() (index uint64, term uint64) {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
