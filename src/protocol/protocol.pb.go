@@ -22,6 +22,7 @@ const (
 	Request_REPLICATION_DELETE Request_Type = 4
 	Request_PROXY_DELETE       Request_Type = 5
 	Request_REPLICATION_REPLAY Request_Type = 6
+	Request_LIST_SERIES        Request_Type = 7
 )
 
 var Request_Type_name = map[int32]string{
@@ -31,6 +32,7 @@ var Request_Type_name = map[int32]string{
 	4: "REPLICATION_DELETE",
 	5: "PROXY_DELETE",
 	6: "REPLICATION_REPLAY",
+	7: "LIST_SERIES",
 }
 var Request_Type_value = map[string]int32{
 	"QUERY":              1,
@@ -39,6 +41,7 @@ var Request_Type_value = map[string]int32{
 	"REPLICATION_DELETE": 4,
 	"PROXY_DELETE":       5,
 	"REPLICATION_REPLAY": 6,
+	"LIST_SERIES":        7,
 }
 
 func (x Request_Type) Enum() *Request_Type {
@@ -66,6 +69,7 @@ const (
 	Response_END_STREAM             Response_Type = 3
 	Response_REPLICATION_REPLAY     Response_Type = 4
 	Response_REPLICATION_REPLAY_END Response_Type = 5
+	Response_LIST_SERIES            Response_Type = 6
 )
 
 var Response_Type_name = map[int32]string{
@@ -74,6 +78,7 @@ var Response_Type_name = map[int32]string{
 	3: "END_STREAM",
 	4: "REPLICATION_REPLAY",
 	5: "REPLICATION_REPLAY_END",
+	6: "LIST_SERIES",
 }
 var Response_Type_value = map[string]int32{
 	"QUERY":                  1,
@@ -81,6 +86,7 @@ var Response_Type_value = map[string]int32{
 	"END_STREAM":             3,
 	"REPLICATION_REPLAY":     4,
 	"REPLICATION_REPLAY_END": 5,
+	"LIST_SERIES":            6,
 }
 
 func (x Response_Type) Enum() *Response_Type {

@@ -69,7 +69,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS
+%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP
 %token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
@@ -143,6 +143,12 @@ QUERY:
         {
           $$ = calloc(1, sizeof(query));
           $$->delete_query = $1;
+        }
+        |
+        LIST SERIES
+        {
+          $$ = calloc(1, sizeof(query));
+          $$->list_series_query = TRUE;
         }
 
 DELETE_QUERY:
@@ -505,7 +511,7 @@ void yy_delete_buffer(void *, void *);
 query
 parse_query(char *const query_s)
 {
-  query q = {NULL, NULL, NULL};
+  query q = {NULL, NULL, FALSE, NULL};
   void *scanner;
   yylex_init(&scanner);
 #ifdef DEBUG

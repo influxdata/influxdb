@@ -110,6 +110,10 @@ func (self *MockCoordinator) ReplicateDelete(request *protocol.Request) error {
 	return nil
 }
 
+func (self *MockCoordinator) ListSeries(_ common.User, _ string) ([]*string, error) {
+	return nil, nil
+}
+
 func (self *MockCoordinator) WriteSeriesData(_ common.User, db string, series *protocol.Series) error {
 	self.series = append(self.series, series)
 	return nil

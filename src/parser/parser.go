@@ -143,6 +143,8 @@ type SelectQuery struct {
 	Ascending     bool
 }
 
+type ListQuery struct{}
+
 type DeleteQuery struct {
 	SelectDeleteCommonQuery
 }
@@ -150,6 +152,7 @@ type DeleteQuery struct {
 type Query struct {
 	SelectQuery *SelectQuery
 	DeleteQuery *DeleteQuery
+	ListQuery   *ListQuery
 }
 
 func (self *Query) GetQueryString() string {
@@ -157,6 +160,10 @@ func (self *Query) GetQueryString() string {
 		return self.SelectQuery.GetQueryString()
 	}
 	return self.DeleteQuery.GetQueryString()
+}
+
+func (self *Query) IsListQuery() bool {
+	return self.ListQuery != nil
 }
 
 func (self *BasicQuery) GetQueryString() string {
@@ -414,6 +421,10 @@ func ParseQuery(query string) ([]*Query, error) {
 		str := C.GoString(q.error.err)
 		err := fmt.Errorf("Error at %d:%d. %s", q.error.line, q.error.column, str)
 		return nil, err
+	}
+
+	if q.list_series_query != 0 {
+		return []*Query{&Query{ListQuery: &ListQuery{}}}, nil
 	}
 
 	if q.select_query != nil {

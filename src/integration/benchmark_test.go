@@ -261,6 +261,34 @@ func (self *IntegrationSuite) TestDbUserAuthentication(c *C) {
 	c.Assert(resp.StatusCode, Equals, http.StatusUnauthorized)
 }
 
+func (self *IntegrationSuite) TestSeriesListing(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+     "name": "test_series_listing",
+     "columns": ["cpu", "host"],
+     "points": [[99.2, "hosta"], [55.6, "hostb"]]
+  }
+]
+`)
+	c.Assert(err, IsNil)
+
+	bs, err := self.server.RunQuery("list series")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	series := data[0]
+	c.Assert(series.Columns, HasLen, 3)
+	points := toMap(series)
+	for _, p := range points {
+		if p["name"] == "test_series_listing" {
+			return
+		}
+	}
+	c.Fail()
+}
+
 func (self *IntegrationSuite) TestArithmeticOperations(c *C) {
 	queries := map[string][9]float64{
 		"select input + output from test_arithmetic_3.0;":       [9]float64{1, 2, 3, 4, 5, 9, 6, 7, 13},

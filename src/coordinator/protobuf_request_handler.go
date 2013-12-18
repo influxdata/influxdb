@@ -98,6 +98,8 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		return self.db.DeleteSeriesData(*request.Database, query[0].DeleteQuery)
 	} else if *request.Type == protocol.Request_QUERY {
 		go self.handleQuery(request, conn)
+	} else if *request.Type == protocol.Request_LIST_SERIES {
+		go self.handleListSeries(request, conn)
 	} else if *request.Type == protocol.Request_REPLICATION_REPLAY {
 		self.handleReplay(request, conn)
 	} else {
@@ -176,6 +178,19 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	self.db.ExecuteQuery(user, *request.Database, query, assignNextPointTimesAndSend, ringFilter)
 
 	response := &protocol.Response{Type: &endStreamResponse, RequestId: request.Id}
+	self.WriteResponse(conn, response)
+}
+
+func (self *ProtobufRequestHandler) handleListSeries(request *protocol.Request, conn net.Conn) {
+	dbs := []string{}
+	self.db.GetSeriesForDatabase(*request.Database, func(db string) error {
+		dbs = append(dbs, db)
+		return nil
+	})
+
+	response := &protocol.Response{RequestId: request.Id, Type: &listSeriesResponse, Series: seriesFromListSeries(dbs)}
+	self.WriteResponse(conn, response)
+	response = &protocol.Response{RequestId: request.Id, Type: &endStreamResponse}
 	self.WriteResponse(conn, response)
 }
 
