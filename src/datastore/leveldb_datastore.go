@@ -342,7 +342,7 @@ func (self *LevelDbDatastore) DropDatabase(database string) error {
 	wb := levigo.NewWriteBatch()
 	defer wb.Close()
 
-	err := self.getSeriesForDb(database, func(name string) error {
+	err := self.GetSeriesForDatabase(database, func(name string) error {
 		if err := self.dropSeries(database, name); err != nil {
 			return err
 		}
@@ -843,7 +843,7 @@ func (self *LevelDbDatastore) sendBatch(query *parser.SelectQuery, series *proto
 	return dropped, nil
 }
 
-func (self *LevelDbDatastore) getSeriesForDb(database string, yield func(string) error) error {
+func (self *LevelDbDatastore) GetSeriesForDatabase(database string, yield func(string) error) error {
 	it := self.db.NewIterator(self.readOptions)
 	defer it.Close()
 
@@ -872,7 +872,7 @@ func (self *LevelDbDatastore) getSeriesForDb(database string, yield func(string)
 
 func (self *LevelDbDatastore) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
 	names := []string{}
-	self.getSeriesForDb(database, func(name string) error {
+	self.GetSeriesForDatabase(database, func(name string) error {
 		if regex.MatchString(name) {
 			names = append(names, name)
 		}

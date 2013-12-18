@@ -36,6 +36,37 @@ func (self *QueryEngine) RunQuery(user common.User, database string, queryString
 			continue
 		}
 
+		if query.IsListQuery() {
+			series, err := self.coordinator.ListSeries(user, database)
+			if err != nil {
+				return err
+			}
+			seriesName := "series"
+			points := make([]*protocol.Point, 0, len(series))
+			timestamp := time.Now().UnixNano() / 1000
+			sequenceNumber := uint64(1)
+			for _, s := range series {
+				points = append(points, &protocol.Point{
+					Timestamp:      &timestamp,
+					SequenceNumber: &sequenceNumber,
+					Values: []*protocol.FieldValue{
+						&protocol.FieldValue{
+							StringValue: s,
+						},
+					},
+				})
+			}
+			returnedSeries := &protocol.Series{
+				Name:   &seriesName,
+				Fields: []string{"name"},
+				Points: points,
+			}
+			if err := yield(returnedSeries); err != nil {
+				return err
+			}
+			continue
+		}
+
 		selectQuery := query.SelectQuery
 		if isAggregateQuery(selectQuery) {
 			return self.executeCountQueryWithGroupBy(user, database, selectQuery, yield)

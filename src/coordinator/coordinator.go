@@ -37,12 +37,14 @@ var (
 
 // shorter constants for readability
 var (
-	proxyWrite        = protocol.Request_PROXY_WRITE
-	proxyDelete       = protocol.Request_PROXY_DELETE
-	queryRequest      = protocol.Request_QUERY
-	endStreamResponse = protocol.Response_END_STREAM
-	queryResponse     = protocol.Response_QUERY
-	replayReplication = protocol.Request_REPLICATION_REPLAY
+	proxyWrite         = protocol.Request_PROXY_WRITE
+	proxyDelete        = protocol.Request_PROXY_DELETE
+	queryRequest       = protocol.Request_QUERY
+	listSeriesRequest  = protocol.Request_LIST_SERIES
+	listSeriesResponse = protocol.Response_LIST_SERIES
+	endStreamResponse  = protocol.Response_END_STREAM
+	queryResponse      = protocol.Response_QUERY
+	replayReplication  = protocol.Request_REPLICATION_REPLAY
 )
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
@@ -154,8 +156,10 @@ func (self *CoordinatorImpl) streamResultsFromChannels(isSingleSeriesQuery, isAs
 				}
 			}
 		}
-		leftovers = self.yieldResults(isSingleSeriesQuery, isAscending, leftovers, responses, yield)
-		responses = make([]*protocol.Response, 0)
+		if len(responses) > 0 {
+			leftovers = self.yieldResults(isSingleSeriesQuery, isAscending, leftovers, responses, yield)
+			responses = make([]*protocol.Response, 0)
+		}
 	}
 	for _, leftover := range leftovers {
 		if len(leftover.Points) > 0 {
@@ -663,6 +667,96 @@ func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*Database, error
 	return dbs, nil
 }
 
+func seriesFromListSeries(series []string) *protocol.Series {
+	name := "series"
+	now := common.CurrentTime()
+	points := make([]*protocol.Point, 0, len(series))
+	for _, s := range series {
+		_s := s
+		points = append(points, &protocol.Point{
+			Timestamp: &now,
+			Values: []*protocol.FieldValue{
+				&protocol.FieldValue{StringValue: &_s},
+			},
+		})
+	}
+
+	return &protocol.Series{
+		Name:   &name,
+		Fields: []string{"name"},
+		Points: points,
+	}
+}
+
+func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*string, error) {
+	if self.clusterConfiguration.IsSingleServer() {
+		dbs := []*string{}
+		self.datastore.GetSeriesForDatabase(database, func(db string) error {
+			_db := db
+			dbs = append(dbs, &_db)
+			return nil
+		})
+		return dbs, nil
+	}
+	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &database)
+	id := atomic.AddUint32(&self.requestId, uint32(1))
+	userName := user.GetName()
+	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
+	for _, server := range servers {
+		if server.server.Id == self.localHostId {
+			continue
+		}
+		request := &protocol.Request{Type: &listSeriesRequest, Id: &id, Database: &database, UserName: &userName}
+		if server.ringLocationsToQuery != replicationFactor {
+			r := server.ringLocationsToQuery
+			request.RingLocationsToQuery = &r
+		}
+		responseChan := make(chan *protocol.Response, 3)
+		server.server.protobufClient.MakeRequest(request, responseChan)
+		responseChannels = append(responseChannels, responseChan)
+	}
+
+	local := make(chan *protocol.Response)
+
+	responseChannels = append(responseChannels, local)
+
+	go func() {
+		dbs := []string{}
+		self.datastore.GetSeriesForDatabase(database, func(db string) error {
+			dbs = append(dbs, db)
+			return nil
+		})
+		local <- &protocol.Response{Type: &listSeriesResponse, Series: seriesFromListSeries(dbs)}
+		local <- &protocol.Response{Type: &endStreamResponse}
+		close(local)
+	}()
+	names := map[string]bool{}
+	self.streamResultsFromChannels(true, true, responseChannels, func(series *protocol.Series) error {
+		if *series.Name != "series" {
+			return fmt.Errorf("received an unexpected series with name '%s'", *series.Name)
+		}
+
+		if len(series.Fields) != 1 || series.Fields[0] != "name" {
+			return fmt.Errorf("expected a series with one column called 'name' but received %v", series.Fields)
+		}
+
+		for _, p := range series.Points {
+			if v := p.Values[0].StringValue; v != nil {
+				names[*v] = true
+				continue
+			}
+			return fmt.Errorf("First column should be a string value but wasn't: %v", p.Values[0])
+		}
+		return nil
+	})
+	returnedNames := make([]*string, 0, len(names))
+	for name, _ := range names {
+		_name := name
+		returnedNames = append(returnedNames, &_name)
+	}
+	return returnedNames, nil
+}
+
 func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 	if !user.IsClusterAdmin() {
 		return common.NewAuthorizationError("Insufficient permission to drop database")
@@ -676,13 +770,14 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 }
 
 func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {
-	log.Debug("(raft:%s) Authenticating password for %s;%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
+	log.Debug("(raft:%s) Authenticating password for %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
 	dbUsers := self.clusterConfiguration.dbUsers[db]
 	if dbUsers == nil || dbUsers[username] == nil {
 		return nil, common.NewAuthorizationError("Invalid username/password")
 	}
 	user := dbUsers[username]
 	if user.isValidPwd(password) {
+		log.Debug("(raft:%s) User %s authenticated succesfuly", self.raftServer.(*RaftServer).raftServer.Name(), username)
 		return user, nil
 	}
 	return nil, common.NewAuthorizationError("Invalid username/password")

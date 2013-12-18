@@ -50,6 +50,10 @@ func (self *MockCoordinator) WriteSeriesData(user common.User, database string, 
 	return nil
 }
 
+func (self *MockCoordinator) ListSeries(_ common.User, _ string) ([]*string, error) {
+	return nil, nil
+}
+
 func (self *MockCoordinator) DeleteSeriesData(user common.User, database string, query *parser.DeleteQuery) error {
 	return nil
 }
