@@ -97,8 +97,6 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "post", "/db/:db/users", self.createDbUser)
 	self.registerEndpoint(p, "del", "/db/:db/users/:user", self.deleteDbUser)
 	self.registerEndpoint(p, "post", "/db/:db/users/:user", self.updateDbUser)
-	self.registerEndpoint(p, "post", "/db/:db/admins/:user", self.setDbAdmin)
-	self.registerEndpoint(p, "del", "/db/:db/admins/:user", self.unsetDbAdmin)
 
 	// healthcheck
 	self.registerEndpoint(p, "get", "/ping", self.ping)
@@ -610,7 +608,7 @@ type NewUser struct {
 	Password string `json:"password"`
 }
 
-type UpdateUser struct {
+type UpdateClusterAdminUser struct {
 	Password string `json:"password"`
 }
 
@@ -685,13 +683,13 @@ func (self *HttpServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 		return
 	}
 
-	updateUser := &UpdateUser{}
-	json.Unmarshal(body, updateUser)
+	updateClusterAdminUser := &UpdateClusterAdminUser{}
+	json.Unmarshal(body, updateClusterAdminUser)
 
 	newUser := r.URL.Query().Get(":user")
 
 	self.tryAsClusterAdmin(w, r, func(u common.User) (int, interface{}) {
-		if err := self.userManager.ChangeClusterAdminPassword(u, newUser, updateUser.Password); err != nil {
+		if err := self.userManager.ChangeClusterAdminPassword(u, newUser, updateClusterAdminUser.Password); err != nil {
 			return errorToStatusCode(err), err.Error()
 		}
 		return libhttp.StatusOK, nil
@@ -868,29 +866,9 @@ func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	})
 }
 
-func (self *HttpServer) setDbAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.commonSetDbAdmin(w, r, true)
-}
-
-func (self *HttpServer) unsetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.commonSetDbAdmin(w, r, false)
-}
-
 func (self *HttpServer) ping(w libhttp.ResponseWriter, r *libhttp.Request) {
 	w.WriteHeader(libhttp.StatusOK)
 	w.Write([]byte("{\"status\":\"ok\"}"))
-}
-
-func (self *HttpServer) commonSetDbAdmin(w libhttp.ResponseWriter, r *libhttp.Request, isAdmin bool) {
-	newUser := r.URL.Query().Get(":user")
-	db := r.URL.Query().Get(":db")
-
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
-		if err := self.userManager.SetDbAdmin(u, db, newUser, isAdmin); err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-		return libhttp.StatusOK, nil
-	})
 }
 
 func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Request) {
