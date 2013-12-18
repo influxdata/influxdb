@@ -173,7 +173,7 @@
 
 - deprecate '==' and '!=' in favor of '=' and '<>', respectively
 - deprecate `/dbs` (for listing databases) in favor of a more consistent `/db` endpoint
-- deprecate `username` field for a more consistent `name` field in the `/db/:db/users`
+- deprecate `username` field for a more consistent `name` field in `/db/:db/users` and `/cluster_admins`
 - deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
   be used to update user flags, password, etc.
 - Querying for column names that don't exist no longer throws an error.
