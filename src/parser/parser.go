@@ -306,55 +306,6 @@ func GetFromClause(fromClause *C.from_clause) (*FromClause, error) {
 	return &FromClause{FromClauseType(fromClause.from_clause_type), arr}, nil
 }
 
-// func GetExpression(expr *C.expression) (*Expression, error) {
-// 	expression := &Expression{}
-// 	if expr.op == 0 {
-// 		value, err := GetValue((*C.value)(expr.left))
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		expression.Left = value
-// 		expression.Operation = byte(expr.op)
-// 		expression.Right = nil
-// 	} else if expr.op == 1 {
-// 		value, err := GetValueArray((*C.value_array)(expr.left))
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		expression.Left = value
-// 		expression.Operation = byte(expr.op)
-// 		expression.Right = nil
-// 	} else {
-// 		var err error
-// 		expression.Left, err = GetExpression((*C.expression)(expr.left))
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		expression.Operation = byte(expr.op)
-// 		expression.Right, err = GetExpression((*C.expression)(unsafe.Pointer(expr.right)))
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 	}
-
-// 	return expression, nil
-// }
-
-// func GetBoolExpression(expr *C.bool_expression) (*BoolExpression, error) {
-// 	boolExpression := &BoolExpression{}
-// 	var err error
-// 	boolExpression.Left, err = GetExpression(expr.left)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if expr.op != nil {
-// 		boolExpression.Operation = C.GoString(expr.op)
-// 		boolExpression.Right, err = GetExpression(expr.right)
-// 	}
-
-// 	return boolExpression, err
-// }
-
 func GetWhereCondition(condition *C.condition) (*WhereCondition, error) {
 	if condition.is_bool_expression != 0 {
 		expr, err := GetValue((*C.value)(condition.left))
