@@ -76,7 +76,7 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 				request.RingLocationsToQuery = &r
 			}
 			responseChan := make(chan *protocol.Response, 3)
-			server.server.protobufClient.MakeRequest(request, responseChan)
+			server.server.MakeRequest(request, responseChan)
 			responseChannels = append(responseChannels, responseChan)
 		}
 	}
@@ -408,7 +408,7 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 		LastKnownSequenceNumber: lastSeenSequenceNumber}
 	replayedRequests := make(chan *protocol.Response, 100)
 	server := self.clusterConfiguration.GetServerById(request.OriginatingServerId)
-	err := server.protobufClient.MakeRequest(replayRequest, replayedRequests)
+	err := server.MakeRequest(replayRequest, replayedRequests)
 	if err != nil {
 		log.Error(err)
 		return
@@ -633,7 +633,7 @@ func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, request *p
 	defer func() { request.OriginatingServerId = originatingServerId }()
 
 	responseChan := make(chan *protocol.Response, 1)
-	clusterServer.protobufClient.MakeRequest(request, responseChan)
+	clusterServer.MakeRequest(request, responseChan)
 	response := <-responseChan
 	if *response.Type == protocol.Response_WRITE_OK {
 		return nil
@@ -864,7 +864,7 @@ func (self *CoordinatorImpl) ReplicateDelete(request *protocol.Request) error {
 func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, replicas []*ClusterServer) {
 	for _, server := range replicas {
 		if server.Id != self.localHostId {
-			server.protobufClient.MakeRequest(request, nil)
+			server.MakeRequest(request, nil)
 		}
 	}
 }
