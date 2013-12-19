@@ -10,6 +10,7 @@ import (
 	"math"
 	"reflect"
 	"regexp"
+	"strconv"
 	"time"
 	"unsafe"
 )
@@ -164,6 +165,49 @@ func (self *BasicQuery) GetQueryString() string {
 
 func (self *SelectQuery) GetColumnNames() []*Value {
 	return self.ColumnNames
+}
+
+func (self *SelectQuery) IsSinglePointQuery() bool {
+	w := self.GetWhereCondition()
+	if w == nil {
+		return false
+	}
+
+	leftWhereCondition, ok := w.GetLeftWhereCondition()
+	if !ok {
+		return false
+	}
+
+	leftBoolExpression, ok := leftWhereCondition.GetBoolExpression()
+	if !ok {
+		return false
+	}
+
+	rightBoolExpression, ok := w.Right.GetBoolExpression()
+	if !ok {
+		return false
+	}
+
+	if leftBoolExpression.Name != "=" && rightBoolExpression.Name != "=" {
+		return false
+	}
+
+	if leftBoolExpression.Elems[0].Name != "time" || rightBoolExpression.Elems[0].Name != "sequence_number" {
+		return false
+	}
+
+	return true
+}
+
+func (self *SelectQuery) GetSinglePointQuerySequenceNumber() (int64, error) {
+	w := self.GetWhereCondition()
+	rightBoolExpression, _ := w.Right.GetBoolExpression()
+	sequence := rightBoolExpression.Elems[1].Name
+	sequence_number, err := strconv.ParseInt(sequence, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("The column sequence_number can only be queried as an integer.")
+	}
+	return sequence_number, nil
 }
 
 func (self *SelectDeleteCommonQuery) GetFromClause() *FromClause {
@@ -444,12 +488,12 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 		limit = 0
 	}
 
-	basicQurey, err := parseSelectDeleteCommonQuery(queryString, q.from_clause, q.where_condition)
+	basicQuery, err := parseSelectDeleteCommonQuery(queryString, q.from_clause, q.where_condition)
 	if err != nil {
 		return nil, err
 	}
 	goQuery := &SelectQuery{
-		SelectDeleteCommonQuery: basicQurey,
+		SelectDeleteCommonQuery: basicQuery,
 		Limit:     int(limit),
 		Ascending: q.ascending != 0,
 	}
@@ -474,14 +518,14 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 }
 
 func parseDeleteQuery(queryString string, query *C.delete_query) (*DeleteQuery, error) {
-	basicQurey, err := parseSelectDeleteCommonQuery(queryString, query.from_clause, query.where_condition)
+	basicQuery, err := parseSelectDeleteCommonQuery(queryString, query.from_clause, query.where_condition)
 	if err != nil {
 		return nil, err
 	}
 	goQuery := &DeleteQuery{
-		SelectDeleteCommonQuery: basicQurey,
+		SelectDeleteCommonQuery: basicQuery,
 	}
-	if basicQurey.GetWhereCondition() != nil {
+	if basicQuery.GetWhereCondition() != nil {
 		return nil, fmt.Errorf("Delete queries can't have where clause that don't reference time")
 	}
 	return goQuery, nil

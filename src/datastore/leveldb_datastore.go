@@ -624,14 +624,15 @@ func (self *LevelDbDatastore) DeleteRangeOfRegex(database string, regex *regexp.
 	return nil
 }
 
+func (self *LevelDbDatastore) byteArrayForTime(time int64) []byte {
+	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&time))
+	bytes := timeBuffer.Bytes()
+	return bytes
+}
+
 func (self *LevelDbDatastore) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
-	startTimeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-	binary.Write(startTimeBuffer, binary.BigEndian, self.convertTimestampToUint(&startTime))
-	startTimeBytes := startTimeBuffer.Bytes()
-	endTimeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-	binary.Write(endTimeBuffer, binary.BigEndian, self.convertTimestampToUint(&endTime))
-	endTimeBytes := endTimeBuffer.Bytes()
-	return startTimeBytes, endTimeBytes
+	return self.byteArrayForTime(startTime), self.byteArrayForTime(endTime)
 }
 
 func (self *LevelDbDatastore) getIterators(fields []*Field, start, end []byte, isAscendingQuery bool) (fieldNames []string, iterators []*levigo.Iterator) {
@@ -662,6 +663,50 @@ func isPointInRange(fieldId, startTime, endTime, point []byte) bool {
 	return bytes.Equal(id, fieldId) && bytes.Compare(time, startTime) > -1 && bytes.Compare(time, endTime) < 1
 }
 
+func (self *LevelDbDatastore) fetchSinglePoint(database, series string, fields []*Field,
+	query *parser.SelectQuery) (*protocol.Series, error) {
+	fieldCount := len(fields)
+	fieldNames := make([]string, fieldCount)
+	point := &protocol.Point{Values: make([]*protocol.FieldValue, fieldCount, fieldCount)}
+
+	for i, field := range fields {
+
+		fieldNames[i] = field.Name
+		timestampBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+		sequenceNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+
+		timestamp := common.TimeToMicroseconds(query.GetStartTime())
+		sequence_number, err := query.GetSinglePointQuerySequenceNumber()
+		if err != nil {
+			return nil, err
+		}
+
+		binary.Write(timestampBuffer, binary.BigEndian, self.convertTimestampToUint(&timestamp))
+		binary.Write(sequenceNumberBuffer, binary.BigEndian, sequence_number)
+		pointKey := append(append(field.Id, timestampBuffer.Bytes()...), sequenceNumberBuffer.Bytes()...)
+
+		if data, err := self.db.Get(self.readOptions, pointKey); err != nil {
+			return nil, err
+		} else {
+			fv := &protocol.FieldValue{}
+			err := proto.Unmarshal(data, fv)
+			if err != nil {
+				return nil, err
+			}
+			point.Values[i] = fv
+		}
+
+		seq := uint64(sequence_number)
+		point.SetTimestampInMicroseconds(timestamp)
+		point.SequenceNumber = &seq
+
+	}
+
+	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: []*protocol.Point{point}}
+
+	return result, nil
+}
+
 func (self *LevelDbDatastore) executeQueryForSeries(database, series string, columns []string,
 	query *parser.SelectQuery, yield func(*protocol.Series) error,
 	ringFilter func(database, series *string, time *int64) bool) error {
@@ -679,13 +724,24 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			return err
 		}
 	}
+
 	fieldCount := len(fields)
-	fieldNames, iterators := self.getIterators(fields, startTimeBytes, endTimeBytes, query.Ascending)
-
-	// iterators :=
-
-	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 	rawColumnValues := make([]*rawColumnValue, fieldCount, fieldCount)
+
+	if query.IsSinglePointQuery() {
+		result, err := self.fetchSinglePoint(database, series, fields, query)
+		if err != nil {
+			return err
+		}
+
+		if err := yield(result); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	fieldNames, iterators := self.getIterators(fields, startTimeBytes, endTimeBytes, query.Ascending)
+	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 
 	limit := query.Limit
 	if limit == 0 {
@@ -698,8 +754,8 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	// optimize for the case where we're pulling back only a single column or aggregate
 	for {
 		isValid := false
-
 		point := &protocol.Point{Values: make([]*protocol.FieldValue, fieldCount, fieldCount)}
+
 		for i, it := range iterators {
 			if rawColumnValues[i] != nil || !it.Valid() {
 				continue

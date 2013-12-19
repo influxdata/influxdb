@@ -516,7 +516,7 @@ func (self *QueryParserSuite) TestTimeConditionWithFloats(c *C) {
 	}
 }
 
-func (self *QueryParserSuite) TestQureyWithInCondition(c *C) {
+func (self *QueryParserSuite) TestQueryWithInCondition(c *C) {
 	query := "select * from foo where bar in ('baz', 'bazz')"
 	q, err := ParseSelectQuery(query)
 	c.Assert(err, IsNil)
@@ -530,6 +530,43 @@ func (self *QueryParserSuite) TestQureyWithInCondition(c *C) {
 	c.Assert(right, HasLen, 2)
 	c.Assert(right[0].Name, Equals, "baz")
 	c.Assert(right[1].Name, Equals, "bazz")
+}
+
+func (self *QueryParserSuite) TestParseSinglePointQuery(c *C) {
+	q, err := ParseSelectQuery("select value from foo where time = 999 and sequence_number = 1;")
+	c.Assert(err, IsNil)
+
+	w := q.GetWhereCondition()
+	c.Assert(w.Operation, Equals, "AND")
+
+	// leftBoolExpression = 'time = 999'
+	leftWhereCondition, ok := w.GetLeftWhereCondition()
+	c.Assert(ok, Equals, true)
+	leftBoolExpression, ok := leftWhereCondition.GetBoolExpression()
+	c.Assert(ok, Equals, true)
+
+	// rightBoolExpression = 'sequence_number = 1'
+	rightBoolExpression, ok := w.Right.GetBoolExpression()
+	c.Assert(ok, Equals, true)
+
+	c.Assert(leftBoolExpression.Elems[0], DeepEquals, &Value{"time", ValueSimpleName, nil, nil})
+	value := leftBoolExpression.Elems[1]
+	c.Assert(value, DeepEquals, &Value{"999", ValueInt, nil, nil})
+	c.Assert(leftBoolExpression.Name, Equals, "=")
+
+	c.Assert(rightBoolExpression.Elems[0], DeepEquals, &Value{"sequence_number", ValueSimpleName, nil, nil})
+	value = rightBoolExpression.Elems[1]
+	c.Assert(value, DeepEquals, &Value{"1", ValueInt, nil, nil})
+	c.Assert(rightBoolExpression.Name, Equals, "=")
+}
+
+// TODO: test reversed order of time and sequence_number
+func (self *QueryParserSuite) TestIsSinglePointQuery(c *C) {
+	query := "select * from foo where time = 123 and sequence_number = 99"
+	q, err := ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	result := q.IsSinglePointQuery()
+	c.Assert(result, Equals, true)
 }
 
 // TODO:
