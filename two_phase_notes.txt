@@ -1,0 +1,77 @@
+Notes for two phase query refactor
+-----------------------------------------------------------------------
+
+// when done, the nextTime on QueryMapResult will be nil
+datastore.Query(databaseQuery *DatabaseQuery, yield func(result *QueryMapResult) err) err
+  q := databaseQuery.Query
+  mr := NewQueryMapResult(q)
+
+  // iterate through points
+  shouldYieldMr := q.YieldPoint(point, mr)
+  if shouldYieldMr {
+    yield(mr)
+    mr = NewQueryMapResult(q)
+  }
+
+// if a query has a join, we run a stupid reduce that just returns all points
+// the engine will then reconstruct those and run a local map reduce
+
+// for percentile queries, it can just serialize the raw values array as long as
+// they're all in the same group by period. Shahid says to just serialize the percentile
+// aggregator state.
+
+type DatabaseQuery struct {
+  user string
+  database string
+  query *SelectQuery
+}
+
+QueryMapResult
+  data []byte
+  reducer (some enum)
+  startTime
+  endTime
+  nextTime
+
+# authenticating the user happens before here
+engine.Query(databaseQuery *DatabaseQuery, yeild func(series *protocol.Series) err) err
+  mrJob := NewMapReduceJob(databaseQuery.Query, yield)
+
+  f := func(result *QueryMapResult) err {
+    return mrJob.Reduce(result)
+  }
+  retunr self.coordinator.DistributeQuery(databaseQuery, f)
+}
+
+type Reducer interface {
+  Decode([]byte) err
+  Reduce(queryMapResult *QueryMapResult) err
+  GetValues(seriesName *string, group Group) []*protocol.FieldValue
+}
+
+type MapReduceJob struct {
+  reducers []Reducer
+}
+
+func NewMapReduceJob(query *protocol.Query, yeild func(series *protocol.Series) err) *MapReduceJob {
+  mr := &MapReduceJob{query: query}
+}
+
+func (self *MapReduceJob) Reduce(result *QueryMapResult) err {
+}
+
+coordinator.DistributeQuery(databaseQuery *DatabaseQuery, yield func(result *QueryMapResult) err)
+
+
+
+select * from response_time as r1 inner join response_time as r2 where r1.host = 'hosta' and r2.host = 'hostb'
+select * form foo limit 10
+
+query := "select count(uid), distinct(uid) from foo group by time(1d)"
+myChan := make(chan *QueryMapResult)
+datastore.Query(query, myChan)
+
+OLD STUFF
+sendBatch does a weird thing where it returns the number of points dropped so that number can be readded to the limit.
+This is odd. Instead, we should decrement the limit for a given series name when we yield the points (or in the new case, the
+query map result)
