@@ -865,6 +865,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 		return fmt.Errorf("User %s already exists", username)
 	}
 	matchers := []*Matcher{&Matcher{true, ".*"}}
+	log.Debug("(raft:%s) Creating uesr %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
 	return self.raftServer.SaveDbUser(&dbUser{CommonUser{Name: username}, db, matchers, matchers, false})
 }
 
