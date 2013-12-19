@@ -76,6 +76,7 @@ func (c *SaveDbUserCommand) CommandName() string {
 func (c *SaveDbUserCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*ClusterConfiguration)
 	config.SaveDbUser(c.User)
+	log.Debug("(raft:%s) Created user %s:%s", server.Name(), c.User.Db, c.User.Name)
 	return nil, nil
 }
 

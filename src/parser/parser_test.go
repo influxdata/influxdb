@@ -127,6 +127,13 @@ func (self *QueryParserSuite) TestParseFromWithJoinedTable(c *C) {
 	c.Assert(fromClause.Names[1].Name.Name, Equals, "user.signups")
 }
 
+func (self *QueryParserSuite) TestParseListSeries(c *C) {
+	queries, err := ParseQuery("list series")
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].IsListQuery(), Equals, true)
+}
+
 func (self *QueryParserSuite) TestParseSelectWithInsensitiveRegexTables(c *C) {
 	q, err := ParseSelectQuery("select email from /users.*/i where time>now()-2d;")
 	c.Assert(err, IsNil)
