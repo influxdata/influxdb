@@ -67,7 +67,7 @@ func (self *Server) ListenAndServe() error {
 	go func() {
 		err := self.RaftServer.ListenAndServe(self.Config.SeedServers, retryUntilJoinedCluster)
 		if err != nil {
-			log.Error("Error calling ListenAndServe on Raft Server: ", err)
+			log.Error("Error calling ListenAndServe on Raft Server: %s", err)
 		}
 	}()
 	time.Sleep(time.Second * 3)
