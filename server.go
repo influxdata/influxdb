@@ -94,9 +94,12 @@ type Server interface {
 	Do(command Command) (interface{}, error)
 	TakeSnapshot() error
 	LoadSnapshot() error
+	AddEventListener(string, EventListener)
 }
 
 type server struct {
+	*eventDispatcher
+
 	name        string
 	path        string
 	state       string
@@ -111,7 +114,7 @@ type server struct {
 	mutex      sync.RWMutex
 	syncedPeer map[string]bool
 
-	c                chan *event
+	c                chan *ev
 	electionTimeout  time.Duration
 	heartbeatTimeout time.Duration
 
@@ -123,8 +126,8 @@ type server struct {
 	connectionString string
 }
 
-// An event to be processed by the server's event loop.
-type event struct {
+// An internal event to be processed by the server's event loop.
+type ev struct {
 	target      interface{}
 	returnValue interface{}
 	c           chan error
@@ -158,12 +161,13 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 		state:                   Stopped,
 		peers:                   make(map[string]*Peer),
 		log:                     newLog(),
-		c:                       make(chan *event, 256),
+		c:                       make(chan *ev, 256),
 		electionTimeout:         DefaultElectionTimeout,
 		heartbeatTimeout:        DefaultHeartbeatTimeout,
 		maxLogEntriesPerRequest: MaxLogEntriesPerRequest,
 		connectionString:        connectionString,
 	}
+	s.eventDispatcher = newEventDispatcher(s)
 
 	// Setup apply function.
 	s.log.ApplyFunc = func(c Command) (interface{}, error) {
@@ -250,9 +254,23 @@ func (s *server) State() string {
 func (s *server) setState(state string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	// Temporarily store previous values.
+	prevState := s.state
+	prevLeader := s.leader
+
+	// Update state and leader.
 	s.state = state
 	if state == Leader {
 		s.leader = s.Name()
+	}
+
+	// Dispatch state and leader change events.
+	if prevState != state {
+		s.DispatchEvent(newEvent(StateChangeEventType, s.state, prevState))
+	}
+	if prevLeader != s.leader {
+		s.DispatchEvent(newEvent(LeaderChangeEventType, s.leader, prevLeader))
 	}
 }
 
@@ -451,22 +469,34 @@ func (s *server) setCurrentTerm(term uint64, leaderName string, append bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// update the term and clear vote for
+	// Store previous values temporarily.
+	prevState := s.state
+	prevTerm := s.currentTerm
+	prevLeader := s.leader
+
 	if term > s.currentTerm {
+		// update the term and clear vote for
 		s.state = Follower
 		s.currentTerm = term
 		s.leader = leaderName
 		s.votedFor = ""
-		return
-	}
-
-	// discover new leader when candidate
-	// save leader name when follower
-	if term == s.currentTerm && s.state != Leader && append {
+	} else if term == s.currentTerm && s.state != Leader && append {
+		// discover new leader when candidate
+		// save leader name when follower
 		s.state = Follower
 		s.leader = leaderName
 	}
 
+	// Dispatch change events.
+	if prevState != s.state {
+		s.DispatchEvent(newEvent(StateChangeEventType, s.state, prevState))
+	}
+	if prevLeader != s.leader {
+		s.DispatchEvent(newEvent(LeaderChangeEventType, s.leader, prevLeader))
+	}
+	if prevTerm != s.currentTerm {
+		s.DispatchEvent(newEvent(TermChangeEventType, s.currentTerm, prevTerm))
+	}
 }
 
 //--------------------------------------
@@ -520,8 +550,8 @@ func (s *server) send(value interface{}) (interface{}, error) {
 	return event.returnValue, err
 }
 
-func (s *server) sendAsync(value interface{}) *event {
-	event := &event{target: value, c: make(chan error, 1)}
+func (s *server) sendAsync(value interface{}) *ev {
+	event := &ev{target: value, c: make(chan error, 1)}
 	s.c <- event
 	return event
 }
@@ -596,7 +626,13 @@ func (s *server) followerLoop() {
 // The event loop that is run when the server is in a Candidate state.
 func (s *server) candidateLoop() {
 	lastLogIndex, lastLogTerm := s.log.lastInfo()
+
+	// Clear leader value.
+	prevLeader := s.leader
 	s.leader = ""
+	if prevLeader != s.leader {
+		s.DispatchEvent(newEvent(LeaderChangeEventType, s.leader, prevLeader))
+	}
 
 	for {
 		// Increment current term, vote for self.
@@ -773,7 +809,7 @@ func (s *server) Do(command Command) (interface{}, error) {
 }
 
 // Processes a command.
-func (s *server) processCommand(command Command, e *event) {
+func (s *server) processCommand(command Command, e *ev) {
 	s.debugln("server.command.process")
 
 	// Create an entry for the command in the log.
@@ -998,6 +1034,8 @@ func (s *server) AddPeer(name string, connectiongString string) error {
 		}
 
 		s.peers[peer.Name] = peer
+
+		s.DispatchEvent(newEvent(AddPeerEventType, name, nil))
 	}
 
 	// Write the configuration to file.
@@ -1024,6 +1062,8 @@ func (s *server) RemovePeer(name string) error {
 		}
 
 		delete(s.peers, name)
+
+		s.DispatchEvent(newEvent(RemovePeerEventType, name, nil))
 	}
 
 	// Write the configuration to file.
