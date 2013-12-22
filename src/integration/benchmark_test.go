@@ -921,3 +921,41 @@ func (self *IntegrationSuite) TestSinglePointSelect(c *C) {
 		c.Assert(data[0].Points[0][3], Equals, point[3])
 	}
 }
+
+func (self *IntegrationSuite) TestColumnsWithOnlySomeValuesWorkWithWhereQuery(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+    "name": "test_missing_column_values",
+    "columns": ["a", "b"],
+    "points":[["a", "b"]]
+  }
+]`)
+	c.Assert(err, IsNil)
+	err = self.server.WriteData(`
+[
+  {
+    "name": "test_missing_column_values",
+    "columns": ["a", "b"],
+    "points":[["a", "b"]]
+  }
+]`)
+	c.Assert(err, IsNil)
+	err = self.server.WriteData(`
+[
+  {
+    "name": "test_missing_column_values",
+    "columns": ["a", "b", "c"],
+    "points":[["a", "b", "c"]]
+  }
+]`)
+	c.Assert(err, IsNil)
+
+	bs, err := self.server.RunQuery("select * from test_missing_column_values where c = 'c'", "m")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(err, IsNil)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Points, HasLen, 1)
+}
