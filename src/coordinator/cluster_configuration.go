@@ -267,7 +267,7 @@ func (self *ClusterConfiguration) UpdateServerState(serverId uint32, state Serve
 
 func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.serversLock.Lock()
-	self.serversLock.Unlock()
+	defer self.serversLock.Unlock()
 	server.State = Potential
 	server.Id = self.currentServerId + 1
 	self.currentServerId += 1
