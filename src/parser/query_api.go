@@ -115,12 +115,14 @@ func (self *SelectQuery) GetReferencedColumns() map[*Value][]string {
 		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromValue(value, mapping)...)
 	}
 
-	if condition := self.GetWhereCondition(); condition != nil {
-		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromCondition(condition, mapping)...)
-	}
+	if !self.IsSinglePointQuery() {
+		if condition := self.GetWhereCondition(); condition != nil {
+			notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromCondition(condition, mapping)...)
+		}
 
-	for _, groupBy := range self.groupByClause.Elems {
-		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromValue(groupBy, mapping)...)
+		for _, groupBy := range self.groupByClause.Elems {
+			notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromValue(groupBy, mapping)...)
+		}
 	}
 
 	notPrefixedColumns = uniq(notPrefixedColumns)
@@ -371,6 +373,13 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 			if !isParsingStartTime && !isTimeOnLeft || isParsingStartTime && !isTimeOnRight {
 				return condition, ZERO_TIME, nil
 			}
+		case "=":
+			microseconds, err := parseTime(timeExpression)
+			nanoseconds := microseconds * 1000
+			if err != nil {
+				return nil, ZERO_TIME, err
+			}
+			return condition, time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)).UTC(), nil
 		default:
 			return nil, ZERO_TIME, fmt.Errorf("Cannot use time with '%s'", expr.Name)
 		}
