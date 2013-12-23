@@ -908,6 +908,7 @@ func (self *IntegrationSuite) TestSinglePointSelect(c *C) {
 	data := []*h.SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(err, IsNil)
+  c.Assert(data[0].Points, HasLen, 2)
 
 	for _, point := range data[0].Points {
 		query := fmt.Sprintf("select * from test_single_points where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
@@ -951,6 +952,7 @@ func (self *IntegrationSuite) TestSinglePointSelectWithNullValues(c *C) {
 	data := []*h.SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(err, IsNil)
+  c.Assert(data[0].Points, HasLen, 1)
 
 	for _, point := range data[0].Points {
 		query := fmt.Sprintf("select * from test_single_points_with_nulls where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
