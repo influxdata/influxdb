@@ -917,8 +917,41 @@ func (self *IntegrationSuite) TestSinglePointSelect(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Points, HasLen, 1)
+		c.Assert(data[0].Points[0], HasLen, 4)
 		c.Assert(data[0].Points[0][2], Equals, point[2])
 		c.Assert(data[0].Points[0][3], Equals, point[3])
+	}
+}
+
+func (self *IntegrationSuite) TestSinglePointSelectWithNullValues(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+     "name": "test_single_points",
+     "columns": ["name", "age"],
+     "points": [["john", null]]
+  }
+]`)
+	c.Assert(err, IsNil)
+
+	query := "select * from test_single_points_with_nulls;"
+	bs, err := self.server.RunQuery(query, "u")
+	c.Assert(err, IsNil)
+
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(err, IsNil)
+
+	for _, point := range data[0].Points {
+		query := fmt.Sprintf("select name, age from test_single_points where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
+		bs, err := self.server.RunQuery(query, "u")
+		data := []*h.SerializedSeries{}
+		err = json.Unmarshal(bs, &data)
+		c.Assert(err, IsNil)
+		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Points, HasLen, 1)
+		c.Assert(data[0].Points[0], HasLen, 3)
+		c.Assert(data[0].Points[0][2], Equals, point[2])
 	}
 }
 

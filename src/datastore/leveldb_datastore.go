@@ -666,40 +666,38 @@ func isPointInRange(fieldId, startTime, endTime, point []byte) bool {
 func (self *LevelDbDatastore) fetchSinglePoint(database, series string, fields []*Field,
 	query *parser.SelectQuery) (*protocol.Series, error) {
 	fieldCount := len(fields)
-	fieldNames := make([]string, fieldCount)
-	point := &protocol.Point{Values: make([]*protocol.FieldValue, fieldCount, fieldCount)}
+	fieldNames := make([]string, 0, fieldCount)
+	point := &protocol.Point{Values: make([]*protocol.FieldValue, 0, fieldCount)}
+	timestampBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+	sequenceNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+	timestamp := common.TimeToMicroseconds(query.GetStartTime())
+	sequenceNumber, err := query.GetSinglePointQuerySequenceNumber()
+	if err != nil {
+		return nil, err
+	}
 
-	for i, field := range fields {
+	binary.Write(timestampBuffer, binary.BigEndian, self.convertTimestampToUint(&timestamp))
+	binary.Write(sequenceNumberBuffer, binary.BigEndian, sequenceNumber)
+	sequenceNumber_uint64 := uint64(sequenceNumber)
+	point.SequenceNumber = &sequenceNumber_uint64
+	point.SetTimestampInMicroseconds(timestamp)
 
-		fieldNames[i] = field.Name
-		timestampBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-		sequenceNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-
-		timestamp := common.TimeToMicroseconds(query.GetStartTime())
-		sequence_number, err := query.GetSinglePointQuerySequenceNumber()
-		if err != nil {
-			return nil, err
-		}
-
-		binary.Write(timestampBuffer, binary.BigEndian, self.convertTimestampToUint(&timestamp))
-		binary.Write(sequenceNumberBuffer, binary.BigEndian, sequence_number)
+	for _, field := range fields {
 		pointKey := append(append(field.Id, timestampBuffer.Bytes()...), sequenceNumberBuffer.Bytes()...)
 
 		if data, err := self.db.Get(self.readOptions, pointKey); err != nil {
 			return nil, err
 		} else {
-			fv := &protocol.FieldValue{}
-			err := proto.Unmarshal(data, fv)
+			fieldValue := &protocol.FieldValue{}
+			err := proto.Unmarshal(data, fieldValue)
 			if err != nil {
 				return nil, err
 			}
-			point.Values[i] = fv
+			if data != nil {
+				fieldNames = append(fieldNames, field.Name)
+				point.Values = append(point.Values, fieldValue)
+			}
 		}
-
-		seq := uint64(sequence_number)
-		point.SetTimestampInMicroseconds(timestamp)
-		point.SequenceNumber = &seq
-
 	}
 
 	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: []*protocol.Point{point}}
