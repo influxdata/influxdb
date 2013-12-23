@@ -36,14 +36,33 @@ func (self *QueryEngine) RunQuery(user common.User, database string, queryString
 			continue
 		}
 
-		if query.IsListQuery() {
-			series, err := self.coordinator.ListSeries(user, database)
-			if err != nil {
+		if query.DropQuery != nil {
+			if err := self.coordinator.DeleteContinuousQuery(user, database, uint32(query.DropQuery.Id)); err != nil {
 				return err
 			}
-			for _, s := range series {
-				if err := yield(s); err != nil {
+			continue
+		}
+
+		if query.IsListQuery() {
+			if query.IsListSeriesQuery() {
+				series, err := self.coordinator.ListSeries(user, database)
+				if err != nil {
 					return err
+				}
+				for _, s := range series {
+					if err := yield(s); err != nil {
+						return err
+					}
+				}
+			} else if query.IsListContinuousQueriesQuery() {
+				queries, err := self.coordinator.ListContinuousQueries(user, database)
+				if err != nil {
+					return err
+				}
+				for _, q := range queries {
+					if err := yield(q); err != nil {
+						return err
+					}
 				}
 			}
 			continue
@@ -58,6 +77,11 @@ func (self *QueryEngine) RunQuery(user common.User, database string, queryString
 		}
 
 		selectQuery := query.SelectQuery
+
+		if selectQuery.IsContinuousQuery() {
+			return self.coordinator.CreateContinuousQuery(user, database, queryString)
+		}
+
 		if isAggregateQuery(selectQuery) {
 			return self.executeCountQueryWithGroupBy(user, database, selectQuery, localOnly, yield)
 		} else if containsArithmeticOperators(selectQuery) {

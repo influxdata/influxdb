@@ -45,6 +45,16 @@ int main(int argc, char **argv) {
   q = parse_query("select * from foobar limit");
   close_query(&q);
 
+  // test continuous queries
+  q = parse_query("select * from foo into bar;");
+  close_query(&q);
+
+  q = parse_query("list continuous queries;");
+  close_query(&q);
+
+  q = parse_query("drop continuous query 5;");
+  close_query(&q);
+
   return 0;
 }
 EOF

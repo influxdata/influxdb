@@ -369,6 +369,62 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	c.Assert(coordinator.DeleteClusterAdminUser(root, "another_cluster_admin"), IsNil)
 }
 
+func (self *CoordinatorSuite) TestContinuousQueryOperations(c *C) {
+	servers := startAndVerifyCluster(3, c)
+	defer clean(servers...)
+
+	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+
+	time.Sleep(REPLICATION_LAG)
+
+	// create users
+	root, _ := coordinator.AuthenticateClusterAdmin("root", "root")
+
+	coordinator.CreateDbUser(root, "db1", "db_admin")
+	coordinator.ChangeDbUserPassword(root, "db1", "db_admin", "db_pass")
+	coordinator.SetDbAdmin(root, "db1", "db_admin", true)
+	dbAdmin, _ := coordinator.AuthenticateDbUser("db1", "db_admin", "db_pass")
+
+	coordinator.CreateDbUser(root, "db1", "db_user")
+	coordinator.ChangeDbUserPassword(root, "db1", "db_user", "db_pass")
+	dbUser, _ := coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
+
+	allowedUsers := []*User{&root, &dbAdmin}
+	disallowedUsers := []*User{&dbUser}
+
+	// cluster admins and db admins should be able to do everything
+	for _, user := range allowedUsers {
+		results, err := coordinator.ListContinuousQueries(*user, "db1")
+		c.Assert(err, IsNil)
+		c.Assert(results[0].Points, HasLen, 0)
+
+		c.Assert(coordinator.CreateContinuousQuery(*user, "db1", "select * from foo into bar;"), IsNil)
+
+		results, err = coordinator.ListContinuousQueries(*user, "db1")
+		c.Assert(err, IsNil)
+		c.Assert(results[0].Points, HasLen, 1)
+		c.Assert(*results[0].Points[0].Values[0].Int64Value, Equals, int64(1))
+		c.Assert(*results[0].Points[0].Values[1].StringValue, Equals, "select * from foo into bar;")
+
+		c.Assert(coordinator.DeleteContinuousQuery(*user, "db1", 1), IsNil)
+
+		results, err = coordinator.ListContinuousQueries(*user, "db1")
+		c.Assert(err, IsNil)
+		c.Assert(results[0].Points, HasLen, 0)
+	}
+
+	// regular database users shouldn't be able to do anything
+	for _, user := range disallowedUsers {
+		_, err := coordinator.ListContinuousQueries(*user, "db1")
+		c.Assert(err, NotNil)
+		c.Assert(coordinator.CreateContinuousQuery(*user, "db1", "select * from foo into bar;"), NotNil)
+		c.Assert(coordinator.DeleteContinuousQuery(*user, "db1", 1), NotNil)
+	}
+
+	coordinator.DeleteDbUser(root, "db1", "db_admin")
+	coordinator.DeleteDbUser(root, "db1", "db_user")
+}
+
 func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)

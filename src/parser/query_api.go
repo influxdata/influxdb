@@ -337,6 +337,33 @@ func (self *SelectDeleteCommonQuery) GetQueryStringWithTimeCondition() string {
 	return queryString + " and time < " + timeStr + "u"
 }
 
+func (self *SelectDeleteCommonQuery) GetQueryStringForContinuousQuery(start, end time.Time) string {
+	queryString := self.GetQueryString()
+	queryString = strings.TrimSuffix(queryString, ";")
+
+	intoRegex, _ := regexp.Compile("(?i)\\s+into\\s+")
+	components := intoRegex.Split(queryString, 2)
+
+	queryString = components[0]
+
+	startTime := common.TimeToMicroseconds(start)
+	startTimeStr := strconv.FormatInt(startTime-1, 10)
+	endTime := common.TimeToMicroseconds(end)
+	endTimeStr := strconv.FormatInt(endTime, 10)
+
+	if self.GetWhereCondition() == nil {
+		queryString = queryString + " where "
+	} else {
+		queryString = queryString + " and "
+	}
+
+	if start.IsZero() {
+		return queryString + "time < " + endTimeStr + "u"
+	} else {
+		return queryString + "time > " + startTimeStr + "u and time < " + endTimeStr + "u"
+	}
+}
+
 // parse the start time or end time from the where conditions and return the new condition
 // without the time clauses, or nil if there are no where conditions left
 func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereCondition, time.Time, error) {
