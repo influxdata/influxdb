@@ -910,7 +910,7 @@ func (self *IntegrationSuite) TestSinglePointSelect(c *C) {
 	c.Assert(err, IsNil)
 
 	for _, point := range data[0].Points {
-		query := fmt.Sprintf("select name, age from test_single_points where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
+		query := fmt.Sprintf("select * from test_single_points where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
 		bs, err := self.server.RunQuery(query, "u")
 		data := []*h.SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
@@ -927,14 +927,24 @@ func (self *IntegrationSuite) TestSinglePointSelectWithNullValues(c *C) {
 	err := self.server.WriteData(`
 [
   {
-     "name": "test_single_points",
+     "name": "test_single_points_with_nulls",
+     "columns": ["name", "age"],
+     "points": [["paul", 50]]
+  }
+]`)
+	c.Assert(err, IsNil)
+
+	err = self.server.WriteData(`
+[
+  {
+     "name": "test_single_points_with_nulls",
      "columns": ["name", "age"],
      "points": [["john", null]]
   }
 ]`)
 	c.Assert(err, IsNil)
 
-	query := "select * from test_single_points_with_nulls;"
+	query := "select * from test_single_points_with_nulls where name='john';"
 	bs, err := self.server.RunQuery(query, "u")
 	c.Assert(err, IsNil)
 
@@ -943,7 +953,7 @@ func (self *IntegrationSuite) TestSinglePointSelectWithNullValues(c *C) {
 	c.Assert(err, IsNil)
 
 	for _, point := range data[0].Points {
-		query := fmt.Sprintf("select name, age from test_single_points where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
+		query := fmt.Sprintf("select * from test_single_points_with_nulls where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
 		bs, err := self.server.RunQuery(query, "u")
 		data := []*h.SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
@@ -951,7 +961,7 @@ func (self *IntegrationSuite) TestSinglePointSelectWithNullValues(c *C) {
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Points, HasLen, 1)
 		c.Assert(data[0].Points[0], HasLen, 3)
-		c.Assert(data[0].Points[0][2], Equals, point[2])
+		c.Assert(data[0].Points[0][2], Equals, point[3])
 	}
 }
 
