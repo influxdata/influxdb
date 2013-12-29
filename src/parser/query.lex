@@ -61,8 +61,8 @@ static int yycolumn = 1;
 
 [0-9]*\.[0-9]+|[0-9]+\.[0-9]* { yylval->string = strdup(yytext); return FLOAT_VALUE; }
 
-\/.+\/                    { yytext[strlen(yytext)-1]='\0';yylval->string=strdup(yytext+1);return REGEX_STRING; }
-\/.+\/i                   { yytext[strlen(yytext)-2]='\0';yylval->string=strdup(yytext+1);return INSENSITIVE_REGEX_STRING; }
+\/[^/]+\/                    { yytext[strlen(yytext)-1]='\0';yylval->string=strdup(yytext+1);return REGEX_STRING; }
+\/[^/]+\/i                   { yytext[strlen(yytext)-2]='\0';yylval->string=strdup(yytext+1);return INSENSITIVE_REGEX_STRING; }
 
 [a-zA-Z0-9_]*     { yylval->string = strdup(yytext); return SIMPLE_NAME; }
 
