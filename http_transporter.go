@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // Parts from this transporter were heavily influenced by Peter Bougon's
@@ -24,6 +25,7 @@ type HTTPTransporter struct {
 	appendEntriesPath string
 	requestVotePath   string
 	httpClient        http.Client
+	transport         *http.Transport
 }
 
 type HTTPMuxer interface {
@@ -38,13 +40,15 @@ type HTTPMuxer interface {
 
 // Creates a new HTTP transporter with the given path prefix.
 func NewHTTPTransporter(prefix string) *HTTPTransporter {
-	return &HTTPTransporter{
+	t := &HTTPTransporter{
 		DisableKeepAlives: false,
 		prefix:            prefix,
 		appendEntriesPath: fmt.Sprintf("%s%s", prefix, "/appendEntries"),
 		requestVotePath:   fmt.Sprintf("%s%s", prefix, "/requestVote"),
-		httpClient:        http.Client{Transport: &http.Transport{DisableKeepAlives: false}},
+		transport: &http.Transport{DisableKeepAlives: false},
 	}
+	t.httpClient.Transport = t.transport
+	return t
 }
 
 //------------------------------------------------------------------------------
@@ -99,6 +103,7 @@ func (t *HTTPTransporter) SendAppendEntriesRequest(server Server, peer *Peer, re
 	url := fmt.Sprintf("%s%s", peer.ConnectionString, t.AppendEntriesPath())
 	traceln(server.Name(), "POST", url)
 
+	t.transport.ResponseHeaderTimeout = server.ElectionTimeout()
 	httpResp, err := t.httpClient.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
 		traceln("transporter.ae.response.error:", err)
@@ -161,6 +166,7 @@ func (t *HTTPTransporter) appendEntriesHandler(server Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceln(server.Name(), "RECV /appendEntries")
 
+		time.Sleep(testHeartbeatTimeout * 2)
 		req := &AppendEntriesRequest{}
 		if _, err := req.Decode(r.Body); err != nil {
 			http.Error(w, "", http.StatusBadRequest)
