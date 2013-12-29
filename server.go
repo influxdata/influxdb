@@ -851,6 +851,8 @@ func (s *server) processCommand(command Command, e *ev) {
 			s.debugln("server.command.timeout")
 			e.c <- CommandTimeoutError
 		}
+
+		entry.commit = nil
 	}()
 
 	// Issue an append entries response for the server.
@@ -969,7 +971,6 @@ func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 					default:
 						panic("server unable to send signal to commit channel")
 					}
-					entry.commit = nil
 				}
 			}
 		}
