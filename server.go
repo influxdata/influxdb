@@ -40,7 +40,7 @@ const (
 // ElectionTimeoutThresholdPercent specifies the threshold at which the server
 // will dispatch warning events that the heartbeat RTT is too close to the
 // election timeout.
-const ElectionTimeoutThresholdPercent  = 0.8
+const ElectionTimeoutThresholdPercent = 0.8
 
 var stopValue interface{}
 
@@ -606,7 +606,7 @@ func (s *server) followerLoop() {
 				case *AppendEntriesRequest:
 					// If heartbeats get too close to the election timeout then send an event.
 					elapsedTime := time.Now().Sub(since)
-					if elapsedTime > time.Duration(float64(electionTimeout) * ElectionTimeoutThresholdPercent) {
+					if elapsedTime > time.Duration(float64(electionTimeout)*ElectionTimeoutThresholdPercent) {
 						s.DispatchEvent(newEvent(ElectionTimeoutThresholdEventType, elapsedTime, nil))
 					}
 					e.returnValue, update = s.processAppendEntriesRequest(req)
