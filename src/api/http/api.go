@@ -212,7 +212,7 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	query := r.URL.Query().Get("q")
 	db := r.URL.Query().Get(":db")
 
-	statusCode, body := self.tryAsDbUser(w, r, func(user common.User) (int, interface{}) {
+	self.tryAsDbUserAndClusterAdmin(w, r, func(user common.User) (int, interface{}) {
 
 		precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
 		if err != nil {
@@ -233,11 +233,6 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 		writer.done()
 		return libhttp.StatusOK, nil
 	})
-
-	if statusCode != libhttp.StatusOK {
-		w.WriteHeader(statusCode)
-		w.Write(body)
-	}
 }
 
 func removeField(fields []string, name string) []string {
@@ -356,7 +351,7 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 		w.Write([]byte(err.Error()))
 	}
 
-	statusCode, body := self.tryAsDbUser(w, r, func(user common.User) (int, interface{}) {
+	self.tryAsDbUserAndClusterAdmin(w, r, func(user common.User) (int, interface{}) {
 		series, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
@@ -386,11 +381,6 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 		}
 		return libhttp.StatusOK, nil
 	})
-
-	w.WriteHeader(statusCode)
-	if len(body) > 0 {
-		w.Write(body)
-	}
 }
 
 type createDatabaseRequest struct {

@@ -226,6 +226,16 @@ func (self *ApiSuite) TestDbUserBasicAuthentication(c *C) {
 	resp.Body.Close()
 }
 
+func (self *ApiSuite) TestQueryAsClusterAdmin(c *C) {
+	query := "select * from foo;"
+	query = url.QueryEscape(query)
+	addr := self.formatUrl("/db/foo/series?q=%s&u=root&p=root", query)
+	resp, err := libhttp.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+}
+
 func (self *ApiSuite) TestQueryWithNullColumns(c *C) {
 	query := "select * from foo;"
 	query = url.QueryEscape(query)
@@ -513,6 +523,25 @@ func (self *ApiSuite) TestWriteData(c *C) {
 	c.Assert(*series.Points[0].Values[1].Int64Value, Equals, int64(1))
 	c.Assert(*series.Points[0].Values[2].Int64Value, Equals, int64(1))
 	c.Assert(*series.Points[0].Values[3].BoolValue, Equals, true)
+}
+
+func (self *ApiSuite) TestWriteDataAsClusterAdmin(c *C) {
+	data := `
+[
+  {
+    "points": [
+				["1", true]
+    ],
+    "name": "foo",
+    "columns": ["column_one", "column_two"]
+  }
+]
+`
+
+	addr := self.formatUrl("/db/foo/series?u=root&p=root")
+	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 }
 
 func (self *ApiSuite) TestCreateDatabase(c *C) {
