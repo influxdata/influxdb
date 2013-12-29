@@ -280,7 +280,7 @@ func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
 	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631)
 }
 
-func (self *ApiSuite) TestWriritingToSeriesWithUnderscore(c *C) {
+func (self *ApiSuite) TestWritingToSeriesWithUnderscore(c *C) {
 	for _, name := range []string{"1foo", "_foo"} {
 
 		data := fmt.Sprintf(`
