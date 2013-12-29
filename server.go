@@ -40,7 +40,7 @@ const (
 // ElectionTimeoutThresholdPercent specifies the threshold at which the server
 // will dispatch warning events that the heartbeat RTT is too close to the
 // election timeout.
-const ElectionTimeoutThresholdPercent  = 0.8
+const ElectionTimeoutThresholdPercent = 0.8
 
 var stopValue interface{}
 
@@ -606,7 +606,7 @@ func (s *server) followerLoop() {
 				case *AppendEntriesRequest:
 					// If heartbeats get too close to the election timeout then send an event.
 					elapsedTime := time.Now().Sub(since)
-					if elapsedTime > time.Duration(float64(electionTimeout) * ElectionTimeoutThresholdPercent) {
+					if elapsedTime > time.Duration(float64(electionTimeout)*ElectionTimeoutThresholdPercent) {
 						s.DispatchEvent(newEvent(ElectionTimeoutThresholdEventType, elapsedTime, nil))
 					}
 					e.returnValue, update = s.processAppendEntriesRequest(req)
@@ -864,6 +864,8 @@ func (s *server) processCommand(command Command, e *ev) {
 			s.debugln("server.command.timeout")
 			e.c <- CommandTimeoutError
 		}
+
+		entry.commit = nil
 	}()
 
 	// Issue an append entries response for the server.
@@ -982,7 +984,6 @@ func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 					default:
 						panic("server unable to send signal to commit channel")
 					}
-					entry.commit = nil
 				}
 			}
 		}

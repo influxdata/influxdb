@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 )
 
 // Parts from this transporter were heavily influenced by Peter Bougon's
@@ -45,7 +44,7 @@ func NewHTTPTransporter(prefix string) *HTTPTransporter {
 		prefix:            prefix,
 		appendEntriesPath: fmt.Sprintf("%s%s", prefix, "/appendEntries"),
 		requestVotePath:   fmt.Sprintf("%s%s", prefix, "/requestVote"),
-		transport: &http.Transport{DisableKeepAlives: false},
+		transport:         &http.Transport{DisableKeepAlives: false},
 	}
 	t.httpClient.Transport = t.transport
 	return t
@@ -166,7 +165,6 @@ func (t *HTTPTransporter) appendEntriesHandler(server Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceln(server.Name(), "RECV /appendEntries")
 
-		time.Sleep(testHeartbeatTimeout * 2)
 		req := &AppendEntriesRequest{}
 		if _, err := req.Decode(r.Body); err != nil {
 			http.Error(w, "", http.StatusBadRequest)
