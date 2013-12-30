@@ -42,6 +42,11 @@ typedef struct condition_t {
   struct condition_t *right;
 } condition;
 
+typedef struct groupby_clause_t {
+  value_array *elems;
+  value *fill_function;
+} groupby_clause;
+
 typedef struct {
   int line;
   int column;
@@ -72,7 +77,7 @@ typedef struct {
 typedef struct {
   value_array *c;
   from_clause *from_clause;
-  value_array *group_by;
+  groupby_clause *group_by;
   condition *where_condition;
   int limit;
   char ascending;

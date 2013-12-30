@@ -8,7 +8,6 @@ import (
 )
 
 func getExpressionValue(values []*parser.Value, fields []string, point *protocol.Point) ([]*protocol.FieldValue, error) {
-
 	fieldValues := []*protocol.FieldValue{}
 	for _, value := range values {
 		switch value.Type {
@@ -22,6 +21,7 @@ func getExpressionValue(values []*parser.Value, fields []string, point *protocol
 			fieldValues = append(fieldValues, &protocol.FieldValue{Int64Value: &value})
 		case parser.ValueString, parser.ValueRegex:
 			fieldValues = append(fieldValues, &protocol.FieldValue{StringValue: &value.Name})
+
 		case parser.ValueTableName, parser.ValueSimpleName:
 
 			// TODO: optimize this so we don't have to lookup the column everytime
@@ -36,8 +36,8 @@ func getExpressionValue(values []*parser.Value, fields []string, point *protocol
 			if fieldIdx == -1 {
 				return nil, fmt.Errorf("Cannot find column %s", value.Name)
 			}
-
 			fieldValues = append(fieldValues, point.Values[fieldIdx])
+
 		case parser.ValueExpression:
 			v, err := GetValue(value, fields, point)
 			if err != nil {
@@ -125,7 +125,7 @@ func Filter(query *parser.SelectQuery, series *protocol.Series) (*protocol.Serie
 
 	columns := map[string]bool{}
 	getColumns(query.GetColumnNames(), columns)
-	getColumns(query.GetGroupByClause(), columns)
+	getColumns(query.GetGroupByClause().Elems, columns)
 
 	points := series.Points
 	series.Points = nil

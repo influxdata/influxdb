@@ -166,12 +166,14 @@
 - [Issue #61](https://github.com/influxdb/influxdb/issues/61). Remove default limits from queries
 - [Issue #118](https://github.com/influxdb/influxdb/issues/118). Make column names starting with '_' legal
 - [Issue #121](https://github.com/influxdb/influxdb/issues/121). Don't fall back to the cluster admin auth if the db user auth fails
+- [Issue #127](https://github.com/influxdb/influxdb/issues/127). Return error on delete queries with where condition that don't have time
+- [Issue #117](https://github.com/influxdb/influxdb/issues/117). Fill empty groups with default values
 
 ### Deprecated
 
 - deprecate '==' and '!=' in favor of '=' and '<>', respectively
 - deprecate `/dbs` (for listing databases) in favor of a more consistent `/db` endpoint
-- deprecate `username` field for a more consistent `name` field in the `/db/:db/users`
+- deprecate `username` field for a more consistent `name` field in `/db/:db/users` and `/cluster_admins`
 - deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
   be used to update user flags, password, etc.
 - Querying for column names that don't exist no longer throws an error.

@@ -319,13 +319,47 @@ func (self *QueryParserSuite) TestParseSelectWithGroupBy(c *C) {
 	c.Assert(column.Elems[0].Name, Equals, "*")
 
 	groupBy := q.GetGroupByClause()
-	c.Assert(groupBy, HasLen, 2)
-	c.Assert(groupBy[0].IsFunctionCall(), Equals, false)
-	c.Assert(groupBy[0].Name, Equals, "user_email")
-	c.Assert(groupBy[1].IsFunctionCall(), Equals, true)
-	c.Assert(groupBy[1].Name, Equals, "time")
-	c.Assert(groupBy[1].Elems, HasLen, 1)
-	c.Assert(groupBy[1].Elems[0].Name, Equals, "1h")
+	c.Assert(groupBy.FillWithZero, Equals, false)
+	c.Assert(groupBy.Elems, HasLen, 2)
+	c.Assert(groupBy.Elems[0].IsFunctionCall(), Equals, false)
+	c.Assert(groupBy.Elems[0].Name, Equals, "user_email")
+	c.Assert(groupBy.Elems[1].IsFunctionCall(), Equals, true)
+	c.Assert(groupBy.Elems[1].Name, Equals, "time")
+	c.Assert(groupBy.Elems[1].Elems, HasLen, 1)
+	c.Assert(groupBy.Elems[1].Elems[0].Name, Equals, "1h")
+}
+
+func (self *QueryParserSuite) TestParseSelectWithGroupByFillWithZero(c *C) {
+	q, err := ParseSelectQuery("select count(*) from users.events group by user_email,time(1h) fill(0) where time>now()-1d;")
+	c.Assert(err, IsNil)
+
+	c.Assert(q.GetColumnNames(), HasLen, 1)
+
+	column := q.GetColumnNames()[0]
+	c.Assert(column.IsFunctionCall(), Equals, true)
+	c.Assert(column.Name, Equals, "count")
+	c.Assert(column.Elems, HasLen, 1)
+	c.Assert(column.Elems[0].IsFunctionCall(), Equals, false)
+	c.Assert(column.Elems[0].Name, Equals, "*")
+
+	groupBy := q.GetGroupByClause()
+	c.Assert(groupBy.FillWithZero, Equals, true)
+	c.Assert(groupBy.Elems, HasLen, 2)
+	c.Assert(groupBy.Elems[0].IsFunctionCall(), Equals, false)
+	c.Assert(groupBy.Elems[0].Name, Equals, "user_email")
+	c.Assert(groupBy.Elems[1].IsFunctionCall(), Equals, true)
+	c.Assert(groupBy.Elems[1].Name, Equals, "time")
+	c.Assert(groupBy.Elems[1].Elems, HasLen, 1)
+	c.Assert(groupBy.Elems[1].Elems[0].Name, Equals, "1h")
+}
+
+func (self *QueryParserSuite) TestParseSelectWithGroupByWithInvalidFunctions(c *C) {
+	for _, query := range []string{
+		"select count(*) from users.events group by user_email,time(1h) foobar(0) where time>now()-1d;",
+	} {
+		_, err := ParseSelectQuery(query)
+		c.Assert(err, NotNil)
+	}
 }
 
 func (self *QueryParserSuite) TestParseFromWithNestedFunctions(c *C) {
@@ -416,8 +450,8 @@ func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {
 	c.Assert(column.Elems[0].Elems, HasLen, 1)
 	c.Assert(column.Elems[0].Elems[0].Name, Equals, "email")
 
-	c.Assert(q.GetGroupByClause(), HasLen, 1)
-	c.Assert(q.GetGroupByClause()[0], DeepEquals, &Value{
+	c.Assert(q.GetGroupByClause().Elems, HasLen, 1)
+	c.Assert(q.GetGroupByClause().Elems[0], DeepEquals, &Value{
 		Name:  "time",
 		Type:  ValueFunctionCall,
 		Elems: []*Value{&Value{"15m", ValueDuration, nil, nil}},
@@ -482,7 +516,7 @@ func (self *QueryParserSuite) TestTimeConditionWithFloats(c *C) {
 	}
 }
 
-func (self *QueryParserSuite) TestQureyWithInCondition(c *C) {
+func (self *QueryParserSuite) TestQueryWithInCondition(c *C) {
 	query := "select * from foo where bar in ('baz', 'bazz')"
 	q, err := ParseSelectQuery(query)
 	c.Assert(err, IsNil)
@@ -496,6 +530,43 @@ func (self *QueryParserSuite) TestQureyWithInCondition(c *C) {
 	c.Assert(right, HasLen, 2)
 	c.Assert(right[0].Name, Equals, "baz")
 	c.Assert(right[1].Name, Equals, "bazz")
+}
+
+func (self *QueryParserSuite) TestParseSinglePointQuery(c *C) {
+	q, err := ParseSelectQuery("select value from foo where time = 999 and sequence_number = 1;")
+	c.Assert(err, IsNil)
+
+	w := q.GetWhereCondition()
+	c.Assert(w.Operation, Equals, "AND")
+
+	// leftBoolExpression = 'time = 999'
+	leftWhereCondition, ok := w.GetLeftWhereCondition()
+	c.Assert(ok, Equals, true)
+	leftBoolExpression, ok := leftWhereCondition.GetBoolExpression()
+	c.Assert(ok, Equals, true)
+
+	// rightBoolExpression = 'sequence_number = 1'
+	rightBoolExpression, ok := w.Right.GetBoolExpression()
+	c.Assert(ok, Equals, true)
+
+	c.Assert(leftBoolExpression.Elems[0], DeepEquals, &Value{"time", ValueSimpleName, nil, nil})
+	value := leftBoolExpression.Elems[1]
+	c.Assert(value, DeepEquals, &Value{"999", ValueInt, nil, nil})
+	c.Assert(leftBoolExpression.Name, Equals, "=")
+
+	c.Assert(rightBoolExpression.Elems[0], DeepEquals, &Value{"sequence_number", ValueSimpleName, nil, nil})
+	value = rightBoolExpression.Elems[1]
+	c.Assert(value, DeepEquals, &Value{"1", ValueInt, nil, nil})
+	c.Assert(rightBoolExpression.Name, Equals, "=")
+}
+
+// TODO: test reversed order of time and sequence_number
+func (self *QueryParserSuite) TestIsSinglePointQuery(c *C) {
+	query := "select * from foo where time = 123 and sequence_number = 99"
+	q, err := ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	result := q.IsSinglePointQuery()
+	c.Assert(result, Equals, true)
 }
 
 // TODO:

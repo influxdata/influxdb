@@ -27,12 +27,14 @@ all: | parser valgrind build test integration_test
 parser:
 	$(MAKE) -C src/parser
 
-valgrind:
-	$(MAKE) -C src/parser valgrind
-
 GOPATH := $(shell pwd)
 export GOPATH
 uname_S = $(shell sh -c "uname -s 2>/dev/null || echo not")
+
+valgrind:
+ifeq ($(uname_S),Linux)
+	$(MAKE) -C src/parser valgrind
+endif
 
 # packages
 packages = admin api/http common configuration \

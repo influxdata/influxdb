@@ -10,6 +10,7 @@ import (
 	"math"
 	"reflect"
 	"regexp"
+	"strconv"
 	"time"
 	"unsafe"
 )
@@ -75,10 +76,14 @@ type FromClause struct {
 	Names []*TableName
 }
 
-type GroupByClause []*Value
+type GroupByClause struct {
+	FillWithZero bool
+	FillValue    *Value
+	Elems        []*Value
+}
 
 func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
-	for _, groupBy := range self {
+	for _, groupBy := range self.Elems {
 		if groupBy.IsFunctionCall() {
 			// TODO: check the number of arguments and return an error
 			if len(groupBy.Elems) != 1 {
@@ -133,7 +138,7 @@ type SelectDeleteCommonQuery struct {
 type SelectQuery struct {
 	SelectDeleteCommonQuery
 	ColumnNames   []*Value
-	groupByClause GroupByClause
+	groupByClause *GroupByClause
 	Limit         int
 	Ascending     bool
 }
@@ -162,6 +167,49 @@ func (self *SelectQuery) GetColumnNames() []*Value {
 	return self.ColumnNames
 }
 
+func (self *SelectQuery) IsSinglePointQuery() bool {
+	w := self.GetWhereCondition()
+	if w == nil {
+		return false
+	}
+
+	leftWhereCondition, ok := w.GetLeftWhereCondition()
+	if !ok {
+		return false
+	}
+
+	leftBoolExpression, ok := leftWhereCondition.GetBoolExpression()
+	if !ok {
+		return false
+	}
+
+	rightBoolExpression, ok := w.Right.GetBoolExpression()
+	if !ok {
+		return false
+	}
+
+	if leftBoolExpression.Name != "=" && rightBoolExpression.Name != "=" {
+		return false
+	}
+
+	if leftBoolExpression.Elems[0].Name != "time" || rightBoolExpression.Elems[0].Name != "sequence_number" {
+		return false
+	}
+
+	return true
+}
+
+func (self *SelectQuery) GetSinglePointQuerySequenceNumber() (int64, error) {
+	w := self.GetWhereCondition()
+	rightBoolExpression, _ := w.Right.GetBoolExpression()
+	sequence := rightBoolExpression.Elems[1].Name
+	sequence_number, err := strconv.ParseInt(sequence, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("The column sequence_number can only be queried as an integer.")
+	}
+	return sequence_number, nil
+}
+
 func (self *SelectDeleteCommonQuery) GetFromClause() *FromClause {
 	return self.FromClause
 }
@@ -170,6 +218,43 @@ func setupSlice(hdr *reflect.SliceHeader, ptr unsafe.Pointer, size C.size_t) {
 	hdr.Cap = int(size)
 	hdr.Len = int(size)
 	hdr.Data = uintptr(ptr)
+}
+
+func GetGroupByClause(groupByClause *C.groupby_clause) (*GroupByClause, error) {
+	if groupByClause == nil {
+		return &GroupByClause{Elems: nil}, nil
+	}
+
+	values, err := GetValueArray(groupByClause.elems)
+	if err != nil {
+		return nil, err
+	}
+
+	fillWithZero := false
+	var fillValue *Value
+
+	if groupByClause.fill_function != nil {
+		fun, err := GetValue(groupByClause.fill_function)
+		if err != nil {
+			return nil, err
+		}
+		if fun.Name != "fill" {
+			return nil, fmt.Errorf("You can't use %s with group by", fun.Name)
+		}
+
+		if len(fun.Elems) != 1 {
+			return nil, fmt.Errorf("`fill` accepts one argument only")
+		}
+
+		fillValue = fun.Elems[0]
+		fillWithZero = true
+	}
+
+	return &GroupByClause{
+		Elems:        values,
+		FillWithZero: fillWithZero,
+		FillValue:    fillValue,
+	}, nil
 }
 
 func GetValueArray(array *C.value_array) ([]*Value, error) {
@@ -265,55 +350,6 @@ func GetFromClause(fromClause *C.from_clause) (*FromClause, error) {
 	return &FromClause{FromClauseType(fromClause.from_clause_type), arr}, nil
 }
 
-// func GetExpression(expr *C.expression) (*Expression, error) {
-// 	expression := &Expression{}
-// 	if expr.op == 0 {
-// 		value, err := GetValue((*C.value)(expr.left))
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		expression.Left = value
-// 		expression.Operation = byte(expr.op)
-// 		expression.Right = nil
-// 	} else if expr.op == 1 {
-// 		value, err := GetValueArray((*C.value_array)(expr.left))
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		expression.Left = value
-// 		expression.Operation = byte(expr.op)
-// 		expression.Right = nil
-// 	} else {
-// 		var err error
-// 		expression.Left, err = GetExpression((*C.expression)(expr.left))
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		expression.Operation = byte(expr.op)
-// 		expression.Right, err = GetExpression((*C.expression)(unsafe.Pointer(expr.right)))
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 	}
-
-// 	return expression, nil
-// }
-
-// func GetBoolExpression(expr *C.bool_expression) (*BoolExpression, error) {
-// 	boolExpression := &BoolExpression{}
-// 	var err error
-// 	boolExpression.Left, err = GetExpression(expr.left)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if expr.op != nil {
-// 		boolExpression.Operation = C.GoString(expr.op)
-// 		boolExpression.Right, err = GetExpression(expr.right)
-// 	}
-
-// 	return boolExpression, err
-// }
-
 func GetWhereCondition(condition *C.condition) (*WhereCondition, error) {
 	if condition.is_bool_expression != 0 {
 		expr, err := GetValue((*C.value)(condition.left))
@@ -344,11 +380,7 @@ func (self *SelectDeleteCommonQuery) GetWhereCondition() *WhereCondition {
 	return self.Condition
 }
 
-func (self *SelectQuery) GetGroupByClause() GroupByClause {
-	if self.groupByClause != nil {
-		return self.groupByClause
-	}
-
+func (self *SelectQuery) GetGroupByClause() *GroupByClause {
 	return self.groupByClause
 }
 
@@ -456,12 +488,12 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 		limit = 0
 	}
 
-	basicQurey, err := parseSelectDeleteCommonQuery(queryString, q.from_clause, q.where_condition)
+	basicQuery, err := parseSelectDeleteCommonQuery(queryString, q.from_clause, q.where_condition)
 	if err != nil {
 		return nil, err
 	}
 	goQuery := &SelectQuery{
-		SelectDeleteCommonQuery: basicQurey,
+		SelectDeleteCommonQuery: basicQuery,
 		Limit:     int(limit),
 		Ascending: q.ascending != 0,
 	}
@@ -474,9 +506,9 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 
 	// get the group by clause
 	if q.group_by == nil {
-		goQuery.groupByClause = GroupByClause{}
+		goQuery.groupByClause = &GroupByClause{}
 	} else {
-		goQuery.groupByClause, err = GetValueArray(q.group_by)
+		goQuery.groupByClause, err = GetGroupByClause(q.group_by)
 		if err != nil {
 			return nil, err
 		}
@@ -486,14 +518,14 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 }
 
 func parseDeleteQuery(queryString string, query *C.delete_query) (*DeleteQuery, error) {
-	basicQurey, err := parseSelectDeleteCommonQuery(queryString, query.from_clause, query.where_condition)
+	basicQuery, err := parseSelectDeleteCommonQuery(queryString, query.from_clause, query.where_condition)
 	if err != nil {
 		return nil, err
 	}
 	goQuery := &DeleteQuery{
-		SelectDeleteCommonQuery: basicQurey,
+		SelectDeleteCommonQuery: basicQuery,
 	}
-	if basicQurey.GetWhereCondition() != nil {
+	if basicQuery.GetWhereCondition() != nil {
 		return nil, fmt.Errorf("Delete queries can't have where clause that don't reference time")
 	}
 	return goQuery, nil

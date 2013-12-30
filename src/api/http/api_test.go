@@ -648,32 +648,8 @@ func (self *ApiSuite) TestDbUserOperations(c *C) {
 	c.Assert(self.manager.ops[0].isAdmin, Equals, false)
 	self.manager.ops = nil
 
-	// TODO: remove this parapgraph one the old endpoints are removed
-	// set and unset the db admin flag
-	url = self.formatUrl("/db/db1/admins/dbuser?u=root&p=root")
-	resp, err = libhttp.Post(url, "", nil)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
-	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[0].isAdmin, Equals, true)
-	self.manager.ops = nil
-	url = self.formatUrl("/db/db1/admins/dbuser?u=root&p=root")
-	req, _ := libhttp.NewRequest("DELETE", url, nil)
-	resp, err = libhttp.DefaultClient.Do(req)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
-	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[0].isAdmin, Equals, false)
-	self.manager.ops = nil
-
 	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
-	req, _ = libhttp.NewRequest("DELETE", url, nil)
+	req, _ := libhttp.NewRequest("DELETE", url, nil)
 	resp, err = libhttp.DefaultClient.Do(req)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()

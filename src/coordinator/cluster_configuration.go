@@ -294,12 +294,12 @@ func (self *ClusterConfiguration) UpdateServerState(serverId uint32, state Serve
 
 func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.serversLock.Lock()
-	self.serversLock.Unlock()
+	defer self.serversLock.Unlock()
 	server.State = Potential
 	server.Id = self.currentServerId + 1
 	self.currentServerId += 1
 	self.servers = append(self.servers, server)
-	log.Info("Added server to cluster config: ", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
+	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
 	server.Connect()
 }
 
