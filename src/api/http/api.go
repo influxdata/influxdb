@@ -225,7 +225,8 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 		} else {
 			writer = &AllPointsWriter{map[string]*protocol.Series{}, w, precision}
 		}
-		err = self.engine.RunQuery(user, db, query, writer.yield)
+		forceLocal := r.URL.Query().Get("force_local") == "true"
+		err = self.engine.RunQuery(user, db, query, forceLocal, writer.yield)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}

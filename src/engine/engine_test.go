@@ -33,7 +33,7 @@ func (self *MockCoordinator) ReplicateDelete(request *protocol.Request) error {
 	return nil
 }
 
-func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.SelectQuery, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
 	if self.returnedError != nil {
 		return self.returnedError
 	}
@@ -50,7 +50,7 @@ func (self *MockCoordinator) WriteSeriesData(user common.User, database string, 
 	return nil
 }
 
-func (self *MockCoordinator) DeleteSeriesData(user common.User, database string, query *parser.DeleteQuery) error {
+func (self *MockCoordinator) DeleteSeriesData(user common.User, database string, query *parser.DeleteQuery, localOnly bool) error {
 	return nil
 }
 

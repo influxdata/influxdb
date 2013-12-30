@@ -57,8 +57,8 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 
 // Distributes the query across the cluster and combines the results. Yields as they come in ensuring proper order.
 // TODO: make this work even if there is a downed server in the cluster
-func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query *parser.SelectQuery, yield func(*protocol.Series) error) error {
-	if self.clusterConfiguration.IsSingleServer() {
+func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
+	if self.clusterConfiguration.IsSingleServer() || localOnly {
 		return self.datastore.ExecuteQuery(user, db, query, yield, nil)
 	}
 	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &db)
@@ -516,12 +516,12 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	return nil
 }
 
-func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery) error {
+func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery, localOnly bool) error {
 	if !user.IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
 
-	if self.clusterConfiguration.IsSingleServer() {
+	if self.clusterConfiguration.IsSingleServer() || localOnly {
 		return self.deleteSeriesDataLocally(user, db, query)
 	}
 
