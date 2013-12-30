@@ -831,10 +831,6 @@ func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString stri
 		return err
 	}
 
-	fmt.Println("CONNECT SERVERS: ", len(self.clusterConfiguration.Servers()))
-	for _, s := range self.clusterConfiguration.Servers() {
-		fmt.Println("SERVER: ", s)
-	}
 	for _, server := range self.clusterConfiguration.Servers() {
 		if server.ProtobufConnectionString != localConnectionString {
 			server.Connect()
