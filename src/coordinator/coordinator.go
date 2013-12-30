@@ -11,6 +11,7 @@ import (
 	"protocol"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type CoordinatorImpl struct {
@@ -825,10 +826,14 @@ func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username stri
 }
 
 func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString string) error {
-	// We shouldn't hit this. It's possible during initialization if Raft hasn't
-	// finished spinning up then there won't be any servers in the cluster config.
-	if len(self.clusterConfiguration.Servers()) == 0 {
-		return errors.New("No Protobuf servers to connect to.")
+	err := self.clusterConfiguration.WaitForServers(2 * time.Second)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("CONNECT SERVERS: ", len(self.clusterConfiguration.Servers()))
+	for _, s := range self.clusterConfiguration.Servers() {
+		fmt.Println("SERVER: ", s)
 	}
 	for _, server := range self.clusterConfiguration.Servers() {
 		if server.ProtobufConnectionString != localConnectionString {

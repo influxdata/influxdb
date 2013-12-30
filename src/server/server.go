@@ -8,7 +8,6 @@ import (
 	"coordinator"
 	"datastore"
 	"engine"
-	"time"
 )
 
 type Server struct {
@@ -60,18 +59,11 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 func (self *Server) ListenAndServe() error {
 	go self.ProtobufServer.ListenAndServe()
 
-	retryUntilJoinedCluster := false
-	if len(self.Config.SeedServers) > 0 {
-		retryUntilJoinedCluster = true
+	err := self.RaftServer.Start()
+	if err != nil {
+		return err
 	}
-	go func() {
-		err := self.RaftServer.ListenAndServe(self.Config.SeedServers, retryUntilJoinedCluster)
-		if err != nil {
-			log.Error("Error calling ListenAndServe on Raft Server: ", err)
-		}
-	}()
-	time.Sleep(time.Second * 3)
-	err := self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.Config.ProtobufConnectionString())
+	err = self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.Config.ProtobufConnectionString())
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 /*
@@ -52,6 +53,32 @@ func (self *ClusterConfiguration) IsSingleServer() bool {
 
 func (self *ClusterConfiguration) Servers() []*ClusterServer {
 	return self.servers
+}
+
+func (self *ClusterConfiguration) hasServers() bool {
+	return len(self.servers) > 0
+}
+
+// This function will wait for a period of time for the cluster configuration to
+// get initialized with servers. This could take a little bit because it's waiting
+// to join the Raft cluster or it's replaying from the Raft logs. There should always
+// be at least one server in the cluster (itself)
+func (self *ClusterConfiguration) WaitForServers(timeout time.Duration) error {
+	// It's possible during initialization if Raft hasn't finished relpaying the log file or joining
+	// the cluster that the cluster config won't have any servers. Wait for a little bit and retry, but error out eventually.
+	if self.hasServers() {
+		return nil
+	} else {
+		tries := 0
+		for tries = tries; tries < 30; tries++ {
+			time.Sleep(100 * time.Millisecond)
+			if self.hasServers() {
+				return nil
+			}
+		}
+	}
+
+	return errors.New("No Protobuf servers to connect to.")
 }
 
 func (self *ClusterConfiguration) GetReplicationFactor(database *string) uint8 {
@@ -273,6 +300,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.currentServerId += 1
 	self.servers = append(self.servers, server)
 	log.Info("Added server to cluster config: ", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
+	server.Connect()
 }
 
 func (self *ClusterConfiguration) GetDatabases() []*Database {

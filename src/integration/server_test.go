@@ -28,7 +28,6 @@ func NewServerProcess(configFile string, apiPort int, c *C) *ServerProcess {
 	s := &ServerProcess{configFile: configFile, apiPort: apiPort}
 	err := s.Start()
 	c.Assert(err, IsNil)
-	time.Sleep(4 * time.Second)
 	return s
 }
 
@@ -97,6 +96,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 		NewServerProcess("test_config1.toml", 60500, c),
 		NewServerProcess("test_config2.toml", 60506, c),
 		NewServerProcess("test_config3.toml", 60510, c)}
+	time.Sleep(time.Second)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"full_rep\", \"replicationFactor\":3}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"test_rep\", \"replicationFactor\":2}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"single_rep\", \"replicationFactor\":2}", c)
@@ -138,11 +138,10 @@ func (self *ServerSuite) TestRestartServers(c *C) {
 
 	err := self.serverProcesses[0].Start()
 	c.Assert(err, IsNil)
-	time.Sleep(4 * time.Second)
 	err = self.serverProcesses[1].Start()
 	c.Assert(err, IsNil)
 	err = self.serverProcesses[2].Start()
-	time.Sleep(3 * time.Second)
+	time.Sleep(time.Second)
 
 	response = self.serverProcesses[0].Query("single_rep", "select * from test_restart", c)
 	c.Assert(response, HasLen, 1)
