@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"server"
 	"strconv"
@@ -81,6 +82,9 @@ func setupLogging(loggingLevel, logFile string) {
 	for _, filter := range log.Global {
 		filter.Level = level
 	}
+
+	logFileDir := filepath.Dir(logFile)
+	os.MkdirAll(logFileDir, 0744)
 
 	flw := log.NewFileLogWriter(logFile, false)
 	flw.SetFormat("[%D %T] [%L] (%S) %M")
