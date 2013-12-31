@@ -66,7 +66,69 @@ func (self *ServerProcess) Stop() {
 	self.p = nil
 }
 
-func (self *ServerProcess) Query(database, query string, c *C) []interface{} {
+func ResultsToSeriesCollection(results []interface{}) *SeriesCollection {
+	collection := &SeriesCollection{Members: make([]*Series, 0)}
+	for _, result := range results {
+		seriesResult := result.(map[string]interface{})
+		series := &Series{}
+		series.Name = seriesResult["name"].(string)
+		columns := seriesResult["columns"].([]interface{})
+		series.Columns = make([]string, 0)
+		for _, col := range columns {
+			series.Columns = append(series.Columns, col.(string))
+		}
+		points := seriesResult["points"].([]interface{})
+		series.Points = make([]*Point, 0)
+		for _, point := range points {
+			series.Points = append(series.Points, &Point{Values: point.([]interface{})})
+		}
+		collection.Members = append(collection.Members, series)
+	}
+	return collection
+}
+
+type SeriesCollection struct {
+	Members []*Series
+}
+
+func (self *SeriesCollection) GetSeries(name string, c *C) *Series {
+	for _, s := range self.Members {
+		if s.Name == name {
+			return s
+		}
+	}
+	c.Errorf("Couldn't find series '%s' in:\n", name, self)
+	return nil
+}
+
+type Series struct {
+	Name    string
+	Columns []string
+	Points  []*Point
+}
+
+func (self *Series) GetValueForPointAndColumn(pointIndex int, columnName string, c *C) interface{} {
+	columnIndex := -1
+	for index, name := range self.Columns {
+		if name == columnName {
+			columnIndex = index
+		}
+	}
+	if columnIndex == -1 {
+		c.Errorf("Couldn't find column '%s' in series:\n", columnName, self)
+		return nil
+	}
+	if pointIndex > len(self.Points)-1 {
+		c.Errorf("Fewer than %d points in series '%s':\n", pointIndex+1, self.Name, self)
+	}
+	return self.Points[pointIndex].Values[columnIndex]
+}
+
+type Point struct {
+	Values []interface{}
+}
+
+func (self *ServerProcess) Query(database, query string, c *C) *SeriesCollection {
 	encodedQuery := url.QueryEscape(query)
 	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=paul&p=pass&q=%s", self.apiPort, database, encodedQuery)
 	resp, err := http.Get(fullUrl)
@@ -77,13 +139,14 @@ func (self *ServerProcess) Query(database, query string, c *C) []interface{} {
 	var js []interface{}
 	err = json.Unmarshal(body, &js)
 	c.Assert(err, IsNil)
-	return js
+	return ResultsToSeriesCollection(js)
 }
 
 func (self *ServerProcess) Post(url, data string, c *C) *http.Response {
 	fullUrl := fmt.Sprintf("http://localhost:%d%s", self.apiPort, url)
 	resp, err := http.Post(fullUrl, "application/json", bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 10)
 	return resp
 }
 
@@ -99,7 +162,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	time.Sleep(time.Second)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"full_rep\", \"replicationFactor\":3}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"test_rep\", \"replicationFactor\":2}", c)
-	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"single_rep\", \"replicationFactor\":2}", c)
+	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"single_rep\", \"replicationFactor\":1}", c)
 	self.serverProcesses[0].Post("/db/full_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\"}", c)
 	self.serverProcesses[0].Post("/db/test_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\"}", c)
 	self.serverProcesses[0].Post("/db/single_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\"}", c)
@@ -121,15 +184,12 @@ func (self *ServerSuite) TestRestartServers(c *C) {
     "columns": ["val"]
   }]
   `
-	self.serverProcesses[0].Post("/db/single_rep/series?u=paul&p=pass", data, c)
-	time.Sleep(time.Millisecond * 10)
-	self.serverProcesses[0].Query("single_rep", "select * from test_restart", c)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
 
-	response := self.serverProcesses[0].Query("single_rep", "select * from test_restart", c)
-	c.Assert(response, HasLen, 1)
-	series := response[0].(map[string]interface{})
-	points := series["points"].([]interface{})
-	c.Assert(points, HasLen, 1)
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_restart", c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_restart", c)
+	c.Assert(series.Points, HasLen, 1)
 
 	for _, s := range self.serverProcesses {
 		s.Stop()
@@ -143,9 +203,8 @@ func (self *ServerSuite) TestRestartServers(c *C) {
 	err = self.serverProcesses[2].Start()
 	time.Sleep(time.Second)
 
-	response = self.serverProcesses[0].Query("single_rep", "select * from test_restart", c)
-	c.Assert(response, HasLen, 1)
-	series = response[0].(map[string]interface{})
-	points = series["points"].([]interface{})
-	c.Assert(points, HasLen, 1)
+	collection = self.serverProcesses[0].Query("test_rep", "select * from test_restart", c)
+	c.Assert(collection.Members, HasLen, 1)
+	series = collection.GetSeries("test_restart", c)
+	c.Assert(series.Points, HasLen, 1)
 }
