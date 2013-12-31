@@ -28,6 +28,7 @@ func NewServerProcess(configFile string, apiPort int, c *C) *ServerProcess {
 	s := &ServerProcess{configFile: configFile, apiPort: apiPort}
 	err := s.Start()
 	c.Assert(err, IsNil)
+	time.Sleep(time.Second * 4)
 	return s
 }
 
@@ -128,9 +129,12 @@ type Point struct {
 	Values []interface{}
 }
 
-func (self *ServerProcess) Query(database, query string, c *C) *SeriesCollection {
+func (self *ServerProcess) Query(database, query string, onlyLocal bool, c *C) *SeriesCollection {
 	encodedQuery := url.QueryEscape(query)
 	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=paul&p=pass&q=%s", self.apiPort, database, encodedQuery)
+	if onlyLocal {
+		fullUrl = fullUrl + "&force_local=true"
+	}
 	resp, err := http.Get(fullUrl)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -159,7 +163,6 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 		NewServerProcess("test_config1.toml", 60500, c),
 		NewServerProcess("test_config2.toml", 60506, c),
 		NewServerProcess("test_config3.toml", 60510, c)}
-	time.Sleep(time.Second)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"full_rep\", \"replicationFactor\":3}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"test_rep\", \"replicationFactor\":2}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"single_rep\", \"replicationFactor\":1}", c)
@@ -186,7 +189,7 @@ func (self *ServerSuite) TestRestartServers(c *C) {
   `
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
 
-	collection := self.serverProcesses[0].Query("test_rep", "select * from test_restart", c)
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_restart", false, c)
 	c.Assert(collection.Members, HasLen, 1)
 	series := collection.GetSeries("test_restart", c)
 	c.Assert(series.Points, HasLen, 1)
@@ -203,8 +206,30 @@ func (self *ServerSuite) TestRestartServers(c *C) {
 	err = self.serverProcesses[2].Start()
 	time.Sleep(time.Second)
 
-	collection = self.serverProcesses[0].Query("test_rep", "select * from test_restart", c)
+	collection = self.serverProcesses[0].Query("test_rep", "select * from test_restart", false, c)
 	c.Assert(collection.Members, HasLen, 1)
 	series = collection.GetSeries("test_restart", c)
 	c.Assert(series.Points, HasLen, 1)
+}
+
+func (self *ServerSuite) TestDataReplication(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2]
+    ],
+    "name": "test_data_replication",
+    "columns": ["val_1", "val_2"]
+  }]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	serversWithPoint := 0
+	for _, server := range self.serverProcesses {
+		collection := server.Query("test_rep", "select * from test_data_replication", true, c)
+		series := collection.GetSeries("test_data_replication", c)
+		if len(series.Points) > 0 {
+			serversWithPoint += 1
+		}
+	}
+	c.Assert(serversWithPoint, Equals, 2)
 }
