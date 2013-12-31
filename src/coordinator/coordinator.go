@@ -11,7 +11,6 @@ import (
 	"protocol"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 type CoordinatorImpl struct {
@@ -826,7 +825,7 @@ func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username stri
 }
 
 func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString string) error {
-	err := self.clusterConfiguration.WaitForServers(2 * time.Second)
+	err := self.clusterConfiguration.WaitForServers()
 	if err != nil {
 		return err
 	}

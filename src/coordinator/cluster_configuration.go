@@ -63,15 +63,15 @@ func (self *ClusterConfiguration) hasServers() bool {
 // get initialized with servers. This could take a little bit because it's waiting
 // to join the Raft cluster or it's replaying from the Raft logs. There should always
 // be at least one server in the cluster (itself)
-func (self *ClusterConfiguration) WaitForServers(timeout time.Duration) error {
+func (self *ClusterConfiguration) WaitForServers() error {
 	// It's possible during initialization if Raft hasn't finished relpaying the log file or joining
 	// the cluster that the cluster config won't have any servers. Wait for a little bit and retry, but error out eventually.
 	if self.hasServers() {
 		return nil
 	} else {
 		tries := 0
-		for tries = tries; tries < 30; tries++ {
-			time.Sleep(100 * time.Millisecond)
+		for tries = tries; tries < 10; tries++ {
+			time.Sleep(500 * time.Millisecond)
 			if self.hasServers() {
 				return nil
 			}
