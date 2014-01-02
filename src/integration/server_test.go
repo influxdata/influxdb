@@ -142,6 +142,9 @@ func (self *ServerProcess) Query(database, query string, onlyLocal bool, c *C) *
 	c.Assert(err, IsNil)
 	var js []interface{}
 	err = json.Unmarshal(body, &js)
+	if err != nil {
+		fmt.Println("NOT JSON: ", string(body))
+	}
 	c.Assert(err, IsNil)
 	return ResultsToSeriesCollection(js)
 }
@@ -166,9 +169,9 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"full_rep\", \"replicationFactor\":3}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"test_rep\", \"replicationFactor\":2}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"single_rep\", \"replicationFactor\":1}", c)
-	self.serverProcesses[0].Post("/db/full_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\"}", c)
-	self.serverProcesses[0].Post("/db/test_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\"}", c)
-	self.serverProcesses[0].Post("/db/single_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\"}", c)
+	self.serverProcesses[0].Post("/db/full_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
+	self.serverProcesses[0].Post("/db/test_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
+	self.serverProcesses[0].Post("/db/single_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
 	time.Sleep(300 * time.Millisecond)
 }
 
@@ -201,6 +204,7 @@ func (self *ServerSuite) TestRestartServers(c *C) {
 
 	err := self.serverProcesses[0].Start()
 	c.Assert(err, IsNil)
+	time.Sleep(time.Second)
 	err = self.serverProcesses[1].Start()
 	c.Assert(err, IsNil)
 	err = self.serverProcesses[2].Start()
@@ -232,4 +236,23 @@ func (self *ServerSuite) TestDataReplication(c *C) {
 		}
 	}
 	c.Assert(serversWithPoint, Equals, 2)
+}
+
+func (self *ServerSuite) TestDeleteReplication(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2]
+    ],
+    "name": "test_delete_replication",
+    "columns": ["val_1", "val_2"]
+  }]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	collection := self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
+	series := collection.GetSeries("test_delete_replication", c)
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
+
+	self.serverProcesses[0].Query("test_rep", "delete from test_delete_replication", false, c)
+	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
+	c.Assert(collection.Members, HasLen, 0)
 }
