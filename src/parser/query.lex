@@ -19,6 +19,8 @@ static int yycolumn = 1;
 %option bison-bridge
 %option bison-locations
 %option noyywrap
+%s FROM_CLAUSE REGEX_CONDITION
+%x IN_REGEX
 %%
 
 ;                         { return *yytext; }
@@ -28,17 +30,39 @@ static int yycolumn = 1;
 "series"                  { return SERIES; }
 "inner"                   { return INNER; }
 "join"                    { return JOIN; }
-"from"                    { return FROM; }
-"where"                   { return WHERE; }
+"from"                    { BEGIN(FROM_CLAUSE); return FROM; }
+<FROM_CLAUSE,REGEX_CONDITION>\/ { BEGIN(IN_REGEX); yylval->string=calloc(1, sizeof(char)); }
+<IN_REGEX>\\\/ {
+  yylval->string = realloc(yylval->string, strlen(yylval->string) + 2);
+  strcat(yylval->string, "/");
+}
+<IN_REGEX>\\ {
+  yylval->string = realloc(yylval->string, strlen(yylval->string) + 2);
+  strcat(yylval->string, "\\");
+}
+<IN_REGEX>\/ {
+  BEGIN(INITIAL);
+  return REGEX_STRING;
+}
+<IN_REGEX>\/i {
+  BEGIN(INITIAL);
+  return INSENSITIVE_REGEX_STRING;
+}
+<IN_REGEX>[^\\/]* {
+  yylval->string=realloc(yylval->string, strlen(yylval->string) + strlen(yytext) + 1);
+  strcat(yylval->string, yytext);
+}
+
+"where"                   { BEGIN(INITIAL); return WHERE; }
 "as"                      { return AS; }
 "select"                  { return SELECT; }
 "delete"                  { return DELETE; }
-"limit"                   { return LIMIT; }
-"order"                   { return ORDER; }
+"limit"                   { BEGIN(INITIAL); return LIMIT; }
+"order"                   { BEGIN(INITIAL); return ORDER; }
 "asc"                     { return ASC; }
 "in"                      { yylval->string = strdup(yytext); return OPERATION_IN; }
 "desc"                    { return DESC; }
-"group"                   { return GROUP; }
+"group"                   { BEGIN(INITIAL); return GROUP; }
 "by"                      { return BY; }
 "("                       { yylval->character = *yytext; return *yytext; }
 ")"                       { yylval->character = *yytext; return *yytext; }
@@ -48,9 +72,9 @@ static int yycolumn = 1;
 "/"                       { yylval->character = *yytext; return *yytext; }
 "and"                     { return AND; }
 "or"                      { return OR; }
-"=~"                      { yylval->string = strdup(yytext); return REGEX_OP; }
+"=~"                      { BEGIN(REGEX_CONDITION); yylval->string = strdup(yytext); return REGEX_OP; }
 "="                       { yylval->string = strdup(yytext); return OPERATION_EQUAL; }
-"!~"                      { yylval->string = strdup(yytext); return NEGATION_REGEX_OP; }
+"!~"                      { BEGIN(REGEX_CONDITION); yylval->string = strdup(yytext); return NEGATION_REGEX_OP; }
 "<>"                      { yylval->string = strdup(yytext); return OPERATION_NE; }
 "<"                       { yylval->string = strdup(yytext); return OPERATION_LT; }
 ">"                       { yylval->string = strdup(yytext); return OPERATION_GT; }
@@ -62,9 +86,6 @@ static int yycolumn = 1;
 ([0-9]+|[0-9]*\.[0-9]+|[0-9]+\.[0-9]*)[smhdw]             { yylval->string = strdup(yytext); return DURATION; }
 
 [0-9]*\.[0-9]+|[0-9]+\.[0-9]* { yylval->string = strdup(yytext); return FLOAT_VALUE; }
-
-\/.+\/                    { yytext[strlen(yytext)-1]='\0';yylval->string=strdup(yytext+1);return REGEX_STRING; }
-\/.+\/i                   { yytext[strlen(yytext)-2]='\0';yylval->string=strdup(yytext+1);return INSENSITIVE_REGEX_STRING; }
 
 [a-zA-Z0-9_]*     { yylval->string = strdup(yytext); return SIMPLE_NAME; }
 
