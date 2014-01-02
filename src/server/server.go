@@ -30,7 +30,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		return nil, err
 	}
 
-	clusterConfig := coordinator.NewClusterConfiguration()
+	clusterConfig := coordinator.NewClusterConfiguration(config)
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
 	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
