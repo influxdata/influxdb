@@ -33,7 +33,7 @@ func (self *MockCoordinator) ReplicateDelete(request *protocol.Request) error {
 	return nil
 }
 
-func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.SelectQuery, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
 	if self.returnedError != nil {
 		return self.returnedError
 	}
@@ -50,12 +50,12 @@ func (self *MockCoordinator) WriteSeriesData(user common.User, database string, 
 	return nil
 }
 
-func (self *MockCoordinator) ListSeries(_ common.User, _ string) ([]*string, error) {
-	return nil, nil
+func (self *MockCoordinator) DeleteSeriesData(user common.User, database string, query *parser.DeleteQuery, localOnly bool) error {
+	return nil
 }
 
-func (self *MockCoordinator) DeleteSeriesData(user common.User, database string, query *parser.DeleteQuery) error {
-	return nil
+func (self *MockCoordinator) ListSeries(_ common.User, _ string) ([]*string, error) {
+	return nil, nil
 }
 
 func (self *MockCoordinator) CreateDatabase(user common.User, db string, rf uint8) error {
@@ -96,7 +96,7 @@ func createEngine(c *C, seriesString string) EngineI {
 // expectedSeries must be a json array, e.g. time series must by
 // enclosed in '[' and ']'
 func runQueryRunError(engine EngineI, query string, c *C, expectedErr error) {
-	err := engine.RunQuery(nil, "", query, func(series *protocol.Series) error { return nil })
+	err := engine.RunQuery(nil, "", query, false, func(series *protocol.Series) error { return nil })
 
 	c.Assert(err, DeepEquals, expectedErr)
 }
@@ -125,7 +125,7 @@ func runQueryExtended(engine EngineI, query string, c *C, appendPoints bool, exp
 
 func runQueryWithoutChecking(engine EngineI, query string, c *C, appendPoints bool) []*protocol.Series {
 	var result []*protocol.Series
-	err := engine.RunQuery(nil, "", query, func(series *protocol.Series) error {
+	err := engine.RunQuery(nil, "", query, false, func(series *protocol.Series) error {
 		if appendPoints && result != nil {
 			result[0].Points = append(result[0].Points, series.Points...)
 		} else {
@@ -178,7 +178,7 @@ func (self *EngineSuite) TestBasicQueryError(c *C) {
 	// the query only returns the raw data
 	engine := createEngine(c, "[]")
 	engine.(*QueryEngine).coordinator.(*MockCoordinator).returnedError = fmt.Errorf("some error")
-	err := engine.RunQuery(nil, "", "select * from foo", func(series *protocol.Series) error {
+	err := engine.RunQuery(nil, "", "select * from foo", false, func(series *protocol.Series) error {
 		return nil
 	})
 

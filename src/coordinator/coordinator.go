@@ -17,7 +17,6 @@ type CoordinatorImpl struct {
 	clusterConfiguration *ClusterConfiguration
 	raftServer           ClusterConsensus
 	datastore            datastore.Datastore
-	localHostId          uint32
 	requestId            uint32
 	runningReplays       map[string][]*protocol.Request
 	runningReplaysLock   sync.Mutex
@@ -58,18 +57,18 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 
 // Distributes the query across the cluster and combines the results. Yields as they come in ensuring proper order.
 // TODO: make this work even if there is a downed server in the cluster
-func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query *parser.SelectQuery, yield func(*protocol.Series) error) error {
-	if self.clusterConfiguration.IsSingleServer() {
+func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
+	if self.clusterConfiguration.IsSingleServer() || localOnly {
 		return self.datastore.ExecuteQuery(user, db, query, yield, nil)
 	}
-	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &db)
+	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
 	queryString := query.GetQueryString()
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	userName := user.GetName()
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
 	var localServerToQuery *serverToQuery
 	for _, server := range servers {
-		if server.server.Id == self.localHostId {
+		if server.server.Id == self.clusterConfiguration.localServerId {
 			localServerToQuery = server
 		} else {
 			request := &protocol.Request{Type: &queryRequest, Query: &queryString, Id: &id, Database: &db, UserName: &userName}
@@ -78,7 +77,7 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 				request.RingLocationsToQuery = &r
 			}
 			responseChan := make(chan *protocol.Response, 3)
-			server.server.protobufClient.MakeRequest(request, responseChan)
+			server.server.MakeRequest(request, responseChan)
 			responseChannels = append(responseChannels, responseChan)
 		}
 	}
@@ -387,6 +386,7 @@ func (self *CoordinatorImpl) normalizePointAndAppend(fieldNames map[string]int, 
 }
 
 func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
+	log.Warn("COORDINATOR: ReplayReplication: ", request, *replicationFactor, *owningServerId, *lastSeenSequenceNumber)
 	key := fmt.Sprintf("%d_%d_%d_%d", *replicationFactor, *request.ClusterVersion, *request.OriginatingServerId, *owningServerId)
 	self.runningReplaysLock.Lock()
 	requestsWaitingToWrite := self.runningReplays[key]
@@ -412,7 +412,7 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 		LastKnownSequenceNumber: lastSeenSequenceNumber}
 	replayedRequests := make(chan *protocol.Response, 100)
 	server := self.clusterConfiguration.GetServerById(request.OriginatingServerId)
-	err := server.protobufClient.MakeRequest(replayRequest, replayedRequests)
+	err := server.MakeRequest(replayRequest, replayedRequests)
 	if err != nil {
 		log.Error(err)
 		return
@@ -519,16 +519,16 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	return nil
 }
 
-func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery) error {
+func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery, localOnly bool) error {
 	if !user.IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
 
-	if self.clusterConfiguration.IsSingleServer() {
+	if self.clusterConfiguration.IsSingleServer() || localOnly {
 		return self.deleteSeriesDataLocally(user, db, query)
 	}
 
-	servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &db)
+	servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
 	for _, server := range servers {
 		if err := self.handleSeriesDelete(user, server.server, db, query); err != nil {
 			return err
@@ -553,11 +553,11 @@ func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *Cluste
 	request := self.createRequest(proxyDelete, &database)
 	queryStr := query.GetQueryString()
 	request.Query = &queryStr
-	request.OriginatingServerId = &self.localHostId
+	request.OriginatingServerId = &self.clusterConfiguration.localServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
 	request.OwnerServerId = &owner.Id
 
-	if server.Id == self.localHostId {
+	if server.Id == self.clusterConfiguration.localServerId {
 		// this is a local delete
 		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
 		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
@@ -588,12 +588,12 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 
 	request := self.createRequest(proxyWrite, db)
 	request.Series = series
-	request.OriginatingServerId = &self.localHostId
+	request.OriginatingServerId = &self.clusterConfiguration.localServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
 	request.OwnerServerId = &owner.Id
 
 	for _, s := range servers {
-		if s.Id == self.localHostId {
+		if s.Id == self.clusterConfiguration.localServerId {
 			// TODO: make storing of the data and logging of the request atomic
 			replicationFactor := self.clusterConfiguration.GetReplicationFactor(db)
 			err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
@@ -621,7 +621,7 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 // the last err value will be returned.
 func (self *CoordinatorImpl) proxyUntilSuccess(servers []*ClusterServer, request *protocol.Request) (err error) {
 	for _, s := range servers {
-		if s.Id != self.localHostId {
+		if s.Id != self.clusterConfiguration.localServerId {
 			err = self.proxyWrite(s, request)
 			if err == nil {
 				return nil
@@ -637,7 +637,7 @@ func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, request *p
 	defer func() { request.OriginatingServerId = originatingServerId }()
 
 	responseChan := make(chan *protocol.Response, 1)
-	clusterServer.protobufClient.MakeRequest(request, responseChan)
+	clusterServer.MakeRequest(request, responseChan)
 	response := <-responseChan
 	if *response.Type == protocol.Response_WRITE_OK {
 		return nil
@@ -698,12 +698,12 @@ func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*s
 		})
 		return dbs, nil
 	}
-	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &database)
+	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(&database)
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	userName := user.GetName()
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
 	for _, server := range servers {
-		if server.server.Id == self.localHostId {
+		if server.server.Id == self.clusterConfiguration.localServerId {
 			continue
 		}
 		request := &protocol.Request{Type: &listSeriesRequest, Id: &id, Database: &database, UserName: &userName}
@@ -921,17 +921,11 @@ func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username stri
 }
 
 func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString string) error {
-	// We shouldn't hit this. It's possible during initialization if Raft hasn't
-	// finished spinning up then there won't be any servers in the cluster config.
-	if len(self.clusterConfiguration.Servers()) == 0 {
-		return errors.New("No Protobuf servers to connect to.")
-	}
+	self.clusterConfiguration.WaitForLocalServerLoaded()
+
 	for _, server := range self.clusterConfiguration.Servers() {
 		if server.ProtobufConnectionString != localConnectionString {
 			server.Connect()
-		} else {
-			self.localHostId = server.Id
-			self.clusterConfiguration.localServerId = server.Id
 		}
 	}
 	return nil
@@ -959,12 +953,12 @@ func (self *CoordinatorImpl) ReplicateDelete(request *protocol.Request) error {
 
 func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, replicas []*ClusterServer) {
 	for _, server := range replicas {
-		if server.Id != self.localHostId {
-			server.protobufClient.MakeRequest(request, nil)
+		if server.Id != self.clusterConfiguration.localServerId {
+			server.MakeRequest(request, nil)
 		}
 	}
 }
 
 func (self *CoordinatorImpl) sequenceNumberWithServerId(n uint64) uint64 {
-	return n*HOST_ID_OFFSET + uint64(self.localHostId)
+	return n*HOST_ID_OFFSET + uint64(self.clusterConfiguration.localServerId)
 }
