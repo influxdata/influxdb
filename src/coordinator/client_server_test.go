@@ -45,11 +45,6 @@ func (self *MockRequestHandler) HandleRequest(request *protocol.Request, conn ne
 }
 
 func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
-	server := startAndVerifyCluster(1, c)[0]
-	defer clean(server)
-	db := newDatastore(c)
-	coord := NewCoordinatorImpl(db, server, server.clusterConfig)
-	coord.ConnectToProtobufServers(server.config.ProtobufConnectionString())
 	requestHandler := &MockRequestHandler{}
 	protobufServer := NewProtobufServer(":8091", requestHandler)
 	go protobufServer.ListenAndServe()
