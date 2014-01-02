@@ -326,10 +326,58 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 		self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
 	}
 
-	expected = []float64{float64(13), float64(13), float64(13)}
-	for i, s := range self.serverProcesses {
+	for _, s := range self.serverProcesses {
 		collection := s.Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
 		series := collection.GetSeries("test_failure_replays", c)
-		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, expected[i])
+		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(13))
+	}
+}
+
+func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
+	data := `
+  [{
+    "points": [
+        [1]
+    ],
+    "name": "test_failure_delete_replays",
+    "columns": ["val"]
+  }]`
+	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("full_rep", "select val from test_failure_delete_replays", true, c)
+		series := collection.GetSeries("test_failure_delete_replays", c)
+		c.Assert(series.Points, HasLen, 1)
+	}
+	self.serverProcesses[1].Stop()
+	self.serverProcesses[0].Query("full_rep", "delete from test_failure_delete_replays", false, c)
+	time.Sleep(time.Second)
+	self.serverProcesses[1].Start()
+	time.Sleep(time.Second)
+
+	for i, s := range self.serverProcesses {
+		collection := s.Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
+
+		if i == 1 {
+			series := collection.GetSeries("test_failure_delete_replays", c)
+			c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(1))
+		} else {
+			c.Assert(collection.Members, HasLen, 0)
+		}
+	}
+
+	data = `
+  [{
+    "points": [
+        [2]
+    ],
+    "name": "test_failure_delete_replays",
+    "columns": ["val"]
+  }]`
+	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+
+	for _, s := range self.serverProcesses {
+		collection := s.Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
+		series := collection.GetSeries("test_failure_delete_replays", c)
+		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(2))
 	}
 }
