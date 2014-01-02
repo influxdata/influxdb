@@ -85,6 +85,14 @@ func (self *clusterAdmin) IsClusterAdmin() bool {
 	return true
 }
 
+func (self *clusterAdmin) HasWriteAccess(_ string) bool {
+	return true
+}
+
+func (self *clusterAdmin) HasReadAccess(_ string) bool {
+	return true
+}
+
 type dbUser struct {
 	CommonUser `json:"common"`
 	Db         string     `json:"db"`
