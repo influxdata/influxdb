@@ -188,9 +188,12 @@ func (self *ProtobufRequestHandler) handleListSeries(request *protocol.Request, 
 		return nil
 	})
 
-	response := &protocol.Response{RequestId: request.Id, Type: &listSeriesResponse, Series: seriesFromListSeries(dbs)}
-	self.WriteResponse(conn, response)
-	response = &protocol.Response{RequestId: request.Id, Type: &endStreamResponse}
+	seriesArray := seriesFromListSeries(dbs)
+	for _, series := range seriesArray {
+		response := &protocol.Response{RequestId: request.Id, Type: &listSeriesResponse, Series: series}
+		self.WriteResponse(conn, response)
+	}
+	response := &protocol.Response{RequestId: request.Id, Type: &endStreamResponse}
 	self.WriteResponse(conn, response)
 }
 

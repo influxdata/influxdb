@@ -667,36 +667,28 @@ func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*Database, error
 	return dbs, nil
 }
 
-func seriesFromListSeries(series []string) *protocol.Series {
-	name := "series"
-	now := common.CurrentTime()
-	points := make([]*protocol.Point, 0, len(series))
-	for _, s := range series {
-		_s := s
-		points = append(points, &protocol.Point{
-			Timestamp: &now,
-			Values: []*protocol.FieldValue{
-				&protocol.FieldValue{StringValue: &_s},
-			},
+func seriesFromListSeries(names []string) []*protocol.Series {
+	series := []*protocol.Series{}
+
+	for _, _name := range names {
+		name := _name
+		series = append(series, &protocol.Series{
+			Name:   &name,
+			Fields: []string{},
+			Points: []*protocol.Point{},
 		})
 	}
-
-	return &protocol.Series{
-		Name:   &name,
-		Fields: []string{"name"},
-		Points: points,
-	}
+	return series
 }
 
-func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*string, error) {
+func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*protocol.Series, error) {
 	if self.clusterConfiguration.IsSingleServer() {
-		dbs := []*string{}
+		dbs := []string{}
 		self.datastore.GetSeriesForDatabase(database, func(db string) error {
-			_db := db
-			dbs = append(dbs, &_db)
+			dbs = append(dbs, db)
 			return nil
 		})
-		return dbs, nil
+		return seriesFromListSeries(dbs), nil
 	}
 	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(&database)
 	id := atomic.AddUint32(&self.requestId, uint32(1))
@@ -726,35 +718,19 @@ func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*s
 			dbs = append(dbs, db)
 			return nil
 		})
-		local <- &protocol.Response{Type: &listSeriesResponse, Series: seriesFromListSeries(dbs)}
+		seriesArray := seriesFromListSeries(dbs)
+		for _, series := range seriesArray {
+			local <- &protocol.Response{Type: &listSeriesResponse, Series: series}
+		}
 		local <- &protocol.Response{Type: &endStreamResponse}
 		close(local)
 	}()
-	names := map[string]bool{}
+	seriesArray := []*protocol.Series{}
 	self.streamResultsFromChannels(true, true, responseChannels, func(series *protocol.Series) error {
-		if *series.Name != "series" {
-			return fmt.Errorf("received an unexpected series with name '%s'", *series.Name)
-		}
-
-		if len(series.Fields) != 1 || series.Fields[0] != "name" {
-			return fmt.Errorf("expected a series with one column called 'name' but received %v", series.Fields)
-		}
-
-		for _, p := range series.Points {
-			if v := p.Values[0].StringValue; v != nil {
-				names[*v] = true
-				continue
-			}
-			return fmt.Errorf("First column should be a string value but wasn't: %v", p.Values[0])
-		}
+		seriesArray = append(seriesArray, series)
 		return nil
 	})
-	returnedNames := make([]*string, 0, len(names))
-	for name, _ := range names {
-		_name := name
-		returnedNames = append(returnedNames, &_name)
-	}
-	return returnedNames, nil
+	return seriesArray, nil
 }
 
 func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {

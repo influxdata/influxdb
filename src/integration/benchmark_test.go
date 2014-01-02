@@ -277,16 +277,13 @@ func (self *IntegrationSuite) TestSeriesListing(c *C) {
 	c.Assert(err, IsNil)
 	data := []*h.SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
-	c.Assert(data, HasLen, 1)
-	series := data[0]
-	c.Assert(series.Columns, HasLen, 3)
-	points := toMap(series)
-	for _, p := range points {
-		if p["name"] == "test_series_listing" {
-			return
-		}
+	// the response should include {"name": "test_series_listing"}
+	// columns may or may not be empty as well as points
+	names := map[string]bool{}
+	for _, series := range data {
+		names[series.Name] = true
 	}
-	c.Fail()
+	c.Assert(names["test_series_listing"], Equals, true)
 }
 
 func (self *IntegrationSuite) TestArithmeticOperations(c *C) {

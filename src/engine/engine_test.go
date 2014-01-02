@@ -54,7 +54,7 @@ func (self *MockCoordinator) DeleteSeriesData(user common.User, database string,
 	return nil
 }
 
-func (self *MockCoordinator) ListSeries(_ common.User, _ string) ([]*string, error) {
+func (self *MockCoordinator) ListSeries(_ common.User, _ string) ([]*protocol.Series, error) {
 	return nil, nil
 }
 
