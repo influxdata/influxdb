@@ -396,3 +396,25 @@ func (self *ServerSuite) TestColumnNamesReturnInDistributedQuery(c *C) {
 		c.Assert(series.GetValueForPointAndColumn(0, "asdf", c), Equals, float64(4))
 	}
 }
+
+// For issue #131 https://github.com/influxdb/influxdb/issues/131
+func (self *ServerSuite) TestSelectFromRegexInCluster(c *C) {
+	data := `[{
+		"name": "cluster_regex_query",
+		"columns": ["col1", "col2"],
+		"points": [[1, "foo"], [23, "bar"]]
+		},{
+			"name": "cluster_regex_query_number2",
+			"columns": ["blah"],
+			"points": [[true]]
+		}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select * from /.*/ limit 1", false, c)
+		series := collection.GetSeries("cluster_regex_query", c)
+		c.Assert(series.GetValueForPointAndColumn(0, "col1", c), Equals, float64(23))
+		c.Assert(series.GetValueForPointAndColumn(0, "col2", c), Equals, "bar")
+		series = collection.GetSeries("cluster_regex_query_number2", c)
+		c.Assert(series.GetValueForPointAndColumn(0, "blah", c), Equals, true)
+	}
+}
