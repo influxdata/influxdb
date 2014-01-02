@@ -35,7 +35,6 @@ type RaftServer struct {
 	raftServer    raft.Server
 	httpServer    *http.Server
 	clusterConfig *ClusterConfiguration
-	clusterServer *ClusterServer
 	mutex         sync.RWMutex
 	listener      net.Listener
 	closing       bool
@@ -75,14 +74,6 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 	}
 
 	return s
-}
-
-func (s *RaftServer) ClusterServer() *ClusterServer {
-	if s.clusterServer != nil {
-		return s.clusterServer
-	}
-	s.clusterServer = s.clusterConfig.GetServerByRaftName(s.name)
-	return s.clusterServer
 }
 
 func (s *RaftServer) leaderConnectString() (string, bool) {
