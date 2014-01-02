@@ -74,25 +74,42 @@ func stringToSeries(seriesString string, c *C) *protocol.Series {
 	return series
 }
 
+// TODO: this is an ugly hack to just get protobuf servers running for the moment. clean this up later by mocking out the
+//       cluster configuration object.
+var protobufServers []*ProtobufServer
+
 func startAndVerifyCluster(count int, c *C) []*RaftServer {
+	protobufServers := make([]*ProtobufServer, 0)
 	firstPort := 0
 	servers := make([]*RaftServer, count, count)
 	for i := 0; i < count; i++ {
 		l, err := net.Listen("tcp4", ":0")
 		c.Assert(err, IsNil)
+		l2, err := net.Listen("tcp4", ":0")
+		c.Assert(err, IsNil)
+		port := l.Addr().(*net.TCPAddr).Port
+		protobufPort := l2.Addr().(*net.TCPAddr).Port
+		l.Close()
+		l2.Close()
 		server := newConfigAndServer(c)
+		server.port = port
+		server.config.RaftServerPort = port
+		server.config.ProtobufPort = protobufPort
+
+		protobufServer := NewProtobufServer(server.config.ProtobufPortString(), nil)
+		go func() {
+			protobufServer.ListenAndServe()
+		}()
+		protobufServers = append(protobufServers, protobufServer)
+
+		if firstPort == 0 {
+			firstPort = port
+		} else {
+			server.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", firstPort)}
+		}
 		servers[i] = server
 
-		if i == 0 {
-			firstPort = l.Addr().(*net.TCPAddr).Port
-			go func() {
-				server.Serve(l, []string{}, false)
-			}()
-		} else {
-			go func() {
-				server.ListenAndServe([]string{fmt.Sprintf("http://localhost:%d", firstPort)}, true)
-			}()
-		}
+		server.Start()
 		time.Sleep(SERVER_STARTUP_TIME)
 		// verify that the server is up
 		getConfig(server.port, c)
@@ -104,6 +121,9 @@ func clean(servers ...*RaftServer) {
 	for _, server := range servers {
 		server.Close()
 		os.RemoveAll(server.path)
+	}
+	for _, s := range protobufServers {
+		s.Close()
 	}
 	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 }
@@ -137,18 +157,6 @@ func (self *CoordinatorSuite) TestCanCreateCoordinatorWithNoSeed(c *C) {
 	defer clean(server)
 }
 
-func (self *CoordinatorSuite) TestCanCreateCoordinatorWithSeedThatIsNotRunning(c *C) {
-	server := newConfigAndServer(c)
-	defer clean(server)
-	l, err := net.Listen("tcp4", ":0")
-	c.Assert(err, IsNil)
-	go func() {
-		server.Serve(l, []string{"localhost:8079"}, false)
-	}()
-	time.Sleep(SERVER_STARTUP_TIME)
-	getConfig(server.port, c)
-}
-
 func (self *CoordinatorSuite) TestCanRecover(c *C) {
 	server := startAndVerifyCluster(1, c)[0]
 	defer clean(server)
@@ -166,7 +174,7 @@ func (self *CoordinatorSuite) TestCanRecover(c *C) {
 	server.port = port
 	defer clean(server)
 	go func() {
-		server.ListenAndServe([]string{}, false)
+		server.ListenAndServe()
 	}()
 	time.Sleep(SERVER_STARTUP_TIME)
 	assertConfigContains(server.port, "db1", true, c)
@@ -204,7 +212,8 @@ func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
 	l, err := net.Listen("tcp4", ":0")
 	c.Assert(err, IsNil)
 	go func() {
-		server2.Serve(l, []string{fmt.Sprintf("http://localhost:%d", server.port)}, true)
+		server2.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", server.port)}
+		server2.Serve(l)
 	}()
 	time.Sleep(SERVER_STARTUP_TIME)
 	assertConfigContains(server2.port, "db4", true, c)
@@ -578,7 +587,8 @@ func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader
 		if leaderPort == servers[1].port {
 			followerPort = servers[0].port
 		}
-		newServer.Serve(l, []string{fmt.Sprintf("http://localhost:%d", followerPort)}, true)
+		newServer.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", followerPort)}
+		newServer.Serve(l)
 	}()
 	time.Sleep(SERVER_STARTUP_TIME)
 
