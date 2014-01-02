@@ -256,3 +256,19 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
 	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
 	c.Assert(collection.Members, HasLen, 0)
 }
+
+func (self *ServerSuite) TestListSeries(c *C) {
+	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "list_series", "replicationFactor": 2}`, c)
+	self.serverProcesses[0].Post("/db/list_series/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	data := `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[1]]
+		}]`
+	self.serverProcesses[0].Post("/db/list_series/series?u=paul&p=pass", data, c)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("list_series", "list series", false, c)
+		s := collection.GetSeries("series", c)
+		c.Assert(s.GetValueForPointAndColumn(0, "name", c), Equals, "cluster_query")
+	}
+}
