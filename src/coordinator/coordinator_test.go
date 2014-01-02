@@ -296,6 +296,8 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	root, err = coordinator.AuthenticateClusterAdmin("root", "root")
 	c.Assert(err, IsNil)
 	c.Assert(root.IsClusterAdmin(), Equals, true)
+	c.Assert(root.HasWriteAccess("foobar"), Equals, true)
+	c.Assert(root.HasReadAccess("foobar"), Equals, true)
 
 	// Can change it's own password
 	c.Assert(coordinator.ChangeClusterAdminPassword(root, "root", "password"), Equals, nil)
