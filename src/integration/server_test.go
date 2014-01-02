@@ -272,3 +272,64 @@ func (self *ServerSuite) TestListSeries(c *C) {
 		c.Assert(s.GetValueForPointAndColumn(0, "name", c), Equals, "cluster_query")
 	}
 }
+
+func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
+	// write data and confirm that it went to all three servers
+	data := `
+  [{
+    "points": [
+        [1]
+    ],
+    "name": "test_failure_replays",
+    "columns": ["val"]
+  }]`
+	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+
+	for _, s := range self.serverProcesses {
+		collection := s.Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
+		series := collection.GetSeries("test_failure_replays", c)
+		c.Assert(series.Points, HasLen, 1)
+	}
+
+	self.serverProcesses[1].Stop()
+	time.Sleep(time.Second)
+	data = `
+	[{
+		"points": [[2]],
+		"name": "test_failure_replays",
+		"columns": ["val"]
+	}]
+	`
+	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+	self.serverProcesses[1].Start()
+	time.Sleep(time.Second)
+
+	expected := []float64{float64(3), float64(1), float64(3)}
+	for i, s := range self.serverProcesses {
+		collection := s.Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
+		series := collection.GetSeries("test_failure_replays", c)
+		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, expected[i])
+	}
+
+	// TODO: fix this. I do this 1k times because there's no way right now to force a replay
+	//       on a server other than having a write with the originating server id and owner server id
+	//       the same as the write that occured while the server was down. Doing this means it
+	//       will almost certainly trigger one (i.e. a request will randomly hash to the org/owner server)
+	data = `
+	[{
+		"points": [[1]],
+		"name": "test_failure_replays",
+		"columns": ["val"]
+	}]
+	`
+	for i := 0; i < 10; i++ {
+		self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+	}
+
+	expected = []float64{float64(13), float64(13), float64(13)}
+	for i, s := range self.serverProcesses {
+		collection := s.Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
+		series := collection.GetSeries("test_failure_replays", c)
+		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, expected[i])
+	}
+}
