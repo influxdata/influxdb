@@ -597,6 +597,7 @@ func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 type NewUser struct {
 	Name     string `json:"name"`
 	Password string `json:"password"`
+	IsAdmin  bool   `json:"isAdmin"`
 }
 
 type UpdateClusterAdminUser struct {
@@ -794,6 +795,12 @@ func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 			// the user but not change the password. so return
 			// 500
 			return libhttp.StatusInternalServerError, err.Error()
+		}
+		if newUser.IsAdmin {
+			err = self.userManager.SetDbAdmin(u, db, newUser.Name, true)
+			if err != nil {
+				return libhttp.StatusInternalServerError, err.Error()
+			}
 		}
 		log.Debug("Successfully changed %s password", username)
 		return libhttp.StatusOK, nil
