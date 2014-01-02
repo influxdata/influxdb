@@ -134,6 +134,44 @@ func (self *QueryParserSuite) TestParseListSeries(c *C) {
 	c.Assert(queries[0].IsListQuery(), Equals, true)
 }
 
+// issue #150
+func (self *QueryParserSuite) TestParseSelectWithDivisionThatLooksLikeRegex(c *C) {
+	q, err := ParseSelectQuery("select a/2, b/2 from x")
+	c.Assert(err, IsNil)
+	c.Assert(q.GetFromClause().Names[0].Name.Name, Equals, "x")
+	c.Assert(q.GetColumnNames(), HasLen, 2)
+}
+
+// issue #150
+func (self *QueryParserSuite) TestParseSelectWithSlashesInRegex(c *C) {
+	q, err := ParseSelectQuery("select * from foo where x =~ /users\\/login/")
+	c.Assert(err, IsNil)
+	whereCondition := q.GetWhereCondition()
+	boolExpression, _ := whereCondition.GetBoolExpression()
+	fmt.Printf("value: %v\n", boolExpression.Elems[1])
+	c.Assert(boolExpression.Elems[1].Name, Equals, "users/login")
+}
+
+func (self *QueryParserSuite) TestParseSelectWithRegexNegation(c *C) {
+	q, err := ParseSelectQuery("select * from foo where x !~ /users\\/login/")
+	c.Assert(err, IsNil)
+	whereCondition := q.GetWhereCondition()
+	boolExpression, _ := whereCondition.GetBoolExpression()
+	fmt.Printf("value: %v\n", boolExpression.Elems[1])
+	c.Assert(boolExpression.Elems[1].Name, Equals, "users/login")
+}
+
+// issue #150
+func (self *QueryParserSuite) TestParseSelectWithTwoRegexThatLooksLikeSingleRegex(c *C) {
+	q, err := ParseSelectQuery("select * from /.*/ where x =~ /.*/")
+	c.Assert(err, IsNil)
+	fromClause := q.GetFromClause()
+	c.Assert(fromClause.Names[0].Name.Name, Equals, ".*")
+	whereCondition := q.GetWhereCondition()
+	boolExpression, _ := whereCondition.GetBoolExpression()
+	c.Assert(boolExpression.Elems[1].Name, Equals, ".*")
+}
+
 func (self *QueryParserSuite) TestParseSelectWithInsensitiveRegexTables(c *C) {
 	q, err := ParseSelectQuery("select email from /users.*/i where time>now()-2d;")
 	c.Assert(err, IsNil)
