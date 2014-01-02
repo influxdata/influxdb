@@ -37,7 +37,7 @@ type MockEngine struct {
 	returnedError error
 }
 
-func (self *MockEngine) RunQuery(_ common.User, _ string, query string, yield func(*protocol.Series) error) error {
+func (self *MockEngine) RunQuery(_ common.User, _ string, query string, localOnly bool, yield func(*protocol.Series) error) error {
 	if self.returnedError != nil {
 		return self.returnedError
 	}
@@ -102,7 +102,7 @@ type MockCoordinator struct {
 	droppedDb     string
 }
 
-func (self *MockCoordinator) DistributeQuery(_ common.User, db string, query *parser.SelectQuery, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) DistributeQuery(_ common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
 	return nil
 }
 
@@ -119,7 +119,7 @@ func (self *MockCoordinator) WriteSeriesData(_ common.User, db string, series *p
 	return nil
 }
 
-func (self *MockCoordinator) DeleteSeriesData(_ common.User, db string, query *parser.DeleteQuery) error {
+func (self *MockCoordinator) DeleteSeriesData(_ common.User, db string, query *parser.DeleteQuery, localOnly bool) error {
 	self.deleteQueries = append(self.deleteQueries, query)
 	return nil
 }

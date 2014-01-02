@@ -3,6 +3,7 @@ package coordinator
 import (
 	log "code.google.com/p/log4go"
 	"common"
+	"configuration"
 	"errors"
 	"fmt"
 	"sync"
@@ -27,9 +28,10 @@ type ClusterConfiguration struct {
 	servers                    []*ClusterServer
 	serversLock                sync.RWMutex
 	hasRunningServers          bool
-	currentServerId            uint32
 	localServerId              uint32
 	ClusterVersion             uint32
+	config                     *configuration.Configuration
+	addedLocalServerWait       chan bool
 }
 
 type Database struct {
@@ -37,12 +39,14 @@ type Database struct {
 	ReplicationFactor uint8  `json:"replicationFactor"`
 }
 
-func NewClusterConfiguration() *ClusterConfiguration {
+func NewClusterConfiguration(config *configuration.Configuration) *ClusterConfiguration {
 	return &ClusterConfiguration{
 		databaseReplicationFactors: make(map[string]uint8),
 		clusterAdmins:              make(map[string]*clusterAdmin),
 		dbUsers:                    make(map[string]map[string]*dbUser),
 		servers:                    make([]*ClusterServer, 0),
+		config:                     config,
+		addedLocalServerWait:       make(chan bool, 1),
 	}
 }
 
@@ -52,6 +56,14 @@ func (self *ClusterConfiguration) IsSingleServer() bool {
 
 func (self *ClusterConfiguration) Servers() []*ClusterServer {
 	return self.servers
+}
+
+// This function will wait until the configuration has received an addPotentialServer command for
+// this local server.
+func (self *ClusterConfiguration) WaitForLocalServerLoaded() {
+	// It's possible during initialization if Raft hasn't finished relpaying the log file or joining
+	// the cluster that the cluster config won't have any servers. Wait for a little bit and retry, but error out eventually.
+	<-self.addedLocalServerWait
 }
 
 func (self *ClusterConfiguration) GetReplicationFactor(database *string) uint8 {
@@ -86,6 +98,7 @@ func (self *ClusterConfiguration) GetServerById(id *uint32) *ClusterServer {
 			return server
 		}
 	}
+	log.Warn("Couldn't find server with id: ", *id, self.servers)
 	return nil
 }
 
@@ -101,12 +114,12 @@ type serverToQuery struct {
 // if you have a cluster with databases with RFs of 1, 2, and 3: optimal cluster sizes would be 6, 12, 18, 24, 30, etc.
 // If that's not the case, one or more servers will have to filter out data from other servers on the fly, which could
 // be a little more expensive.
-func (self *ClusterConfiguration) GetServersToMakeQueryTo(localHostId uint32, database *string) (servers []*serverToQuery, replicationFactor uint32) {
+func (self *ClusterConfiguration) GetServersToMakeQueryTo(database *string) (servers []*serverToQuery, replicationFactor uint32) {
 	replicationFactor = uint32(self.GetReplicationFactor(database))
 	replicationFactorInt := int(replicationFactor)
 	index := 0
 	for i, s := range self.servers {
-		if s.Id == localHostId {
+		if s.Id == self.localServerId {
 			index = i % replicationFactorInt
 			break
 		}
@@ -269,10 +282,17 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.serversLock.Lock()
 	defer self.serversLock.Unlock()
 	server.State = Potential
-	server.Id = self.currentServerId + 1
-	self.currentServerId += 1
 	self.servers = append(self.servers, server)
+	server.Id = uint32(len(self.servers))
 	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
+	if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
+		log.Info("Connecting to ProtobufServer: ", server.ProtobufConnectionString)
+		server.Connect()
+	} else {
+		log.Info("Added the local server")
+		self.localServerId = server.Id
+		self.addedLocalServerWait <- true
+	}
 }
 
 func (self *ClusterConfiguration) GetDatabases() []*Database {

@@ -35,7 +35,6 @@ type RaftServer struct {
 	raftServer    raft.Server
 	httpServer    *http.Server
 	clusterConfig *ClusterConfiguration
-	clusterServer *ClusterServer
 	mutex         sync.RWMutex
 	listener      net.Listener
 	closing       bool
@@ -75,14 +74,6 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 	}
 
 	return s
-}
-
-func (s *RaftServer) ClusterServer() *ClusterServer {
-	if s.clusterServer != nil {
-		return s.clusterServer
-	}
-	s.clusterServer = s.clusterConfig.GetServerByRaftName(s.name)
-	return s.clusterServer
 }
 
 func (s *RaftServer) leaderConnectString() (string, bool) {
@@ -187,7 +178,7 @@ func (s *RaftServer) connectionString() string {
 	return fmt.Sprintf("http://%s:%d", s.host, s.port)
 }
 
-func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
+func (s *RaftServer) startRaft() error {
 	log.Info("Initializing Raft Server: %s %d", s.path, s.port)
 
 	// Initialize and start Raft server.
@@ -195,7 +186,7 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 	var err error
 	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, nil, s.clusterConfig, "")
 	if err != nil {
-		log.Error(err)
+		return err
 	}
 
 	transporter.Install(s.raftServer, s)
@@ -203,32 +194,13 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 
 	if !s.raftServer.IsLogEmpty() {
 		log.Info("Recovered from log")
-		return
+		return nil
 	}
 
-	for {
-		joined := false
-		for _, leader := range potentialLeaders {
-			log.Info("(raft:%s) Attempting to join leader: %s", s.raftServer.Name(), leader)
+	potentialLeaders := s.config.SeedServers
 
-			if err := s.Join(leader); err == nil {
-				joined = true
-				log.Info("Joined: %s", leader)
-				break
-			}
-		}
-
-		if joined {
-			break
-		} else if retryUntilJoin {
-			log.Warn("Couldn't join any of the seeds, sleeping and retrying...")
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-
-		// couldn't join a leader so we must be the first one up
-		log.Warn("Couldn't contact a leader so initializing new cluster for server on port %d", s.port)
-
+	if len(potentialLeaders) == 0 {
+		log.Info("Starting as new Raft leader...")
 		name := s.raftServer.Name()
 		connectionString := s.connectionString()
 		_, err := s.raftServer.Do(&InfluxJoinCommand{
@@ -246,25 +218,42 @@ func (s *RaftServer) startRaft(potentialLeaders []string, retryUntilJoin bool) {
 			RaftConnectionString:     connectionString,
 			ProtobufConnectionString: s.config.ProtobufConnectionString(),
 		})
-		s.doOrProxyCommand(command, "add_server")
-		s.CreateRootUser()
-		break
+		_, err = s.doOrProxyCommand(command, "add_server")
+		if err != nil {
+			return err
+		}
+		err = s.CreateRootUser()
+		return err
 	}
+
+	for {
+		for _, leader := range potentialLeaders {
+			log.Info("(raft:%s) Attempting to join leader: %s", s.raftServer.Name(), leader)
+
+			if err := s.Join(leader); err == nil {
+				log.Info("Joined: %s", leader)
+				return nil
+			}
+		}
+
+		log.Warn("Couldn't join any of the seeds, sleeping and retrying...")
+		time.Sleep(100 * time.Millisecond)
+		continue
+	}
+	return nil
 }
 
-func (s *RaftServer) ListenAndServe(potentialLeaders []string, retryUntilJoin bool) error {
+func (s *RaftServer) ListenAndServe() error {
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
 		panic(err)
 	}
-	return s.Serve(l, potentialLeaders, retryUntilJoin)
+	return s.Serve(l)
 }
 
-func (s *RaftServer) Serve(l net.Listener, potentialLeaders []string, retryUntilJoin bool) error {
+func (s *RaftServer) Serve(l net.Listener) error {
 	s.port = l.Addr().(*net.TCPAddr).Port
 	s.listener = l
-
-	go s.startRaft(potentialLeaders, retryUntilJoin)
 
 	log.Info("Initializing Raft HTTP server")
 
@@ -277,7 +266,7 @@ func (s *RaftServer) Serve(l net.Listener, potentialLeaders []string, retryUntil
 	s.router.HandleFunc("/join", s.joinHandler).Methods("POST")
 	s.router.HandleFunc("/process_command/{command_type}", s.processCommandHandler).Methods("POST")
 
-	log.Info("Listening at %s", s.connectionString())
+	log.Info("Raft Server Listening at %s", s.connectionString())
 
 	return s.httpServer.Serve(l)
 }
@@ -288,6 +277,19 @@ func (self *RaftServer) Close() {
 		self.raftServer.Stop()
 		self.listener.Close()
 	}
+}
+
+func (self *RaftServer) Start() error {
+	go func() {
+		self.ListenAndServe()
+	}()
+	started := make(chan error)
+	go func() {
+		started <- self.startRaft()
+	}()
+	err := <-started
+	//	time.Sleep(3 * time.Second)
+	return err
 }
 
 // This is a hack around Gorilla mux not providing the correct net/http
@@ -357,7 +359,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		if server == nil {
 			addServer := NewAddPotentialServerCommand(&ClusterServer{RaftName: command.Name, RaftConnectionString: command.ConnectionString, ProtobufConnectionString: command.ProtobufConnectionString})
 			if _, err := s.raftServer.Do(addServer); err != nil {
-				log.Info("Error joining raft server: ", err)
+				log.Error("Error joining raft server: ", err, command)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
