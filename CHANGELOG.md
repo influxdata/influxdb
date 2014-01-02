@@ -157,6 +157,8 @@
 - [Issue #116](https://github.com/influxdb/influxdb/issues/116). Use proper logging
 - [Issue #40](https://github.com/influxdb/influxdb/issues/40). Use TOML instead of JSON in the config file
 - [Issue #99](https://github.com/influxdb/influxdb/issues/99). Support list series in the query language
+- [Issue #149](https://github.com/influxdb/influxdb/issues/149). Cluster admins should be able to perform reads and writes.
+- [Issue #108](https://github.com/influxdb/influxdb/issues/108). Querying one point using `time =`
 
 ## Bugfixes
 
