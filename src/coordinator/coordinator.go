@@ -450,7 +450,6 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 }
 
 func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series *protocol.Series) error {
-	fmt.Println("WriteSeriesData: servers: ", len(self.clusterConfiguration.servers), self.clusterConfiguration.servers)
 	if !user.HasWriteAccess(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
@@ -521,7 +520,6 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 }
 
 func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery, localOnly bool) error {
-	fmt.Println("DeleteSeriesData: servers: ", len(self.clusterConfiguration.servers), self.clusterConfiguration.servers)
 	if !user.IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
@@ -700,12 +698,12 @@ func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*s
 		})
 		return dbs, nil
 	}
-	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(self.localHostId, &database)
+	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(&database)
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	userName := user.GetName()
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
 	for _, server := range servers {
-		if server.server.Id == self.localHostId {
+		if server.server.Id == self.clusterConfiguration.localServerId {
 			continue
 		}
 		request := &protocol.Request{Type: &listSeriesRequest, Id: &id, Database: &database, UserName: &userName}
@@ -934,8 +932,6 @@ func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString stri
 }
 
 func (self *CoordinatorImpl) ReplicateWrite(request *protocol.Request) error {
-	fmt.Println("ReplicateWrite: servers: ", len(self.clusterConfiguration.servers), self.clusterConfiguration.servers)
-
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	request.Id = &id
 	location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
@@ -946,8 +942,6 @@ func (self *CoordinatorImpl) ReplicateWrite(request *protocol.Request) error {
 }
 
 func (self *CoordinatorImpl) ReplicateDelete(request *protocol.Request) error {
-	fmt.Println("ReplicateDelete: servers: ", len(self.clusterConfiguration.servers), self.clusterConfiguration.servers)
-
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	request.Id = &id
 	server := self.clusterConfiguration.GetServerById(request.OwnerServerId)
