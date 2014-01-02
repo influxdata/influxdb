@@ -837,7 +837,7 @@ func (s *server) processCommand(command Command, e *ev) {
 	s.debugln("server.command.process")
 
 	// Create an entry for the command in the log.
-	entry, err := s.log.createEntry(s.currentTerm, command)
+	entry, err := s.log.createEntry(s.currentTerm, command, e)
 
 	if err != nil {
 		s.debugln("server.command.log.entry.error:", err)
@@ -850,23 +850,6 @@ func (s *server) processCommand(command Command, e *ev) {
 		e.c <- err
 		return
 	}
-
-	// Issue a callback for the entry once it's committed.
-	go func() {
-		// Wait for the entry to be committed.
-		select {
-		case <-entry.commit:
-			var err error
-			s.debugln("server.command.commit")
-			e.returnValue, err = s.log.getEntryResult(entry, true)
-			e.c <- err
-		case <-time.After(time.Second):
-			s.debugln("server.command.timeout")
-			e.c <- CommandTimeoutError
-		}
-
-		entry.commit = nil
-	}()
 
 	// Issue an append entries response for the server.
 	resp := newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex())
@@ -972,21 +955,6 @@ func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 	if commitIndex > committedIndex {
 		s.log.setCommitIndex(commitIndex)
 		s.debugln("commit index ", commitIndex)
-		for i := committedIndex; i < commitIndex; i++ {
-			if entry := s.log.getEntry(i + 1); entry != nil {
-				// if the leader is a new one and the entry came from the
-				// old leader, the commit channel will be nil and no go routine
-				// is waiting from this channel
-				// if we try to send to it, the new leader will get stuck
-				if entry.commit != nil {
-					select {
-					case entry.commit <- true:
-					default:
-						panic("server unable to send signal to commit channel")
-					}
-				}
-			}
-		}
 	}
 }
 
