@@ -381,3 +381,18 @@ func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
 		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(2))
 	}
 }
+
+// For issue #130 https://github.com/influxdb/influxdb/issues/130
+func (self *ServerSuite) TestColumnNamesReturnInDistributedQuery(c *C) {
+	data := `[{
+		"name": "cluster_query_with_columns",
+		"columns": ["asdf"],
+		"points": [[1], [2], [3], [4]]
+		}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select * from cluster_query_with_columns", false, c)
+		series := collection.GetSeries("cluster_query_with_columns", c)
+		c.Assert(series.GetValueForPointAndColumn(0, "asdf", c), Equals, float64(4))
+	}
+}
