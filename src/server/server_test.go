@@ -256,6 +256,46 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
 	}
 }
 
+func (self *ServerSuite) TestListSeries(c *C) {
+	// create a new db
+	resp, err := self.postToServer(self.servers[0], "/db?u=root&p=root", `{"name": "list_series", "replicationFactor": 2}`, c)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
+	resp, err = self.postToServer(self.servers[0], "/db/list_series/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Millisecond * 50)
+
+	data := `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[1]]
+		}]`
+	resp, err = self.postToServer(self.servers[0], "/db/list_series/series?u=paul&p=pass", data, c)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(50 * time.Millisecond)
+
+	for _, s := range self.servers {
+		query := "list series"
+		encodedQuery := url.QueryEscape(query)
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/db/list_series/series?u=paul&p=pass&q=%s", s.Config.ApiHttpPort, encodedQuery))
+		c.Assert(err, IsNil)
+		body, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, IsNil)
+		c.Assert(resp.StatusCode, Equals, http.StatusOK)
+		resp.Body.Close()
+		var results []map[string]interface{}
+		err = json.Unmarshal(body, &results)
+		c.Assert(err, IsNil)
+		c.Assert(results, HasLen, 1)
+		points := results[0]["points"].([]interface{})
+		c.Assert(points, HasLen, 1)
+		point := points[0].([]interface{})
+		c.Assert(point[len(point)-1].(string), Equals, "cluster_query")
+	}
+}
+
 func (self *ServerSuite) TestCrossClusterQueries(c *C) {
 	data := `[{
 		"name": "cluster_query",

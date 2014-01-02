@@ -63,6 +63,7 @@ func (self *Server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
+
 	err = self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.Config.ProtobufConnectionString())
 	if err != nil {
 		return err

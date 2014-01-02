@@ -22,6 +22,7 @@ type Coordinator interface {
 	DropDatabase(user common.User, db string) error
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ListDatabases(user common.User) ([]*Database, error)
+	ListSeries(user common.User, database string) ([]*string, error)
 	ReplicateWrite(request *protocol.Request) error
 	ReplicateDelete(request *protocol.Request) error
 	ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64)

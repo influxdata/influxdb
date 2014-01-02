@@ -92,6 +92,7 @@ typedef struct {
 typedef struct {
   select_query *select_query;
   delete_query *delete_query;
+  char list_series_query;
   error *error;
 } query;
 

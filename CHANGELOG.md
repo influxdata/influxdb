@@ -156,6 +156,7 @@
 - [Issue #94](https://github.com/influxdb/influxdb/issues/94). delete queries
 - [Issue #116](https://github.com/influxdb/influxdb/issues/116). Use proper logging
 - [Issue #40](https://github.com/influxdb/influxdb/issues/40). Use TOML instead of JSON in the config file
+- [Issue #99](https://github.com/influxdb/influxdb/issues/99). Support list series in the query language
 
 ## Bugfixes
 

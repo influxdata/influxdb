@@ -19,6 +19,7 @@ type Datastore interface {
 	AtomicIncrement(name string, val int) (uint64, error)
 	WriteSeriesData(database string, series *protocol.Series) error
 	DeleteSeriesData(database string, query *parser.DeleteQuery) error
+	GetSeriesForDatabase(database string, yield func(string) error) error
 	DropDatabase(database string) error
 	Close()
 }
