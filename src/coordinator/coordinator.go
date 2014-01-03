@@ -88,30 +88,7 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 	// TODO: this style of wrapping the series in response objects with the
 	//       last point time is duplicated in the request handler. Refactor...
 	sendFromLocal := func(series *protocol.Series) error {
-		pointCount := len(series.Points)
-		if pointCount == 0 {
-			if nextPoint := nextPointMap[*series.Name]; nextPoint != nil {
-				series.Points = append(series.Points, nextPoint)
-			}
-
-			local <- &protocol.Response{Type: &queryResponse, Series: series}
-			return nil
-		}
-		oldNextPoint := nextPointMap[*series.Name]
-		nextPoint := series.Points[pointCount-1]
-		series.Points[pointCount-1] = nil
-		if oldNextPoint != nil {
-			copy(series.Points[1:], series.Points[0:])
-			series.Points[0] = oldNextPoint
-		} else {
-			series.Points = series.Points[:len(series.Points)-1]
-		}
-
-		response := &protocol.Response{Series: series, Type: &queryResponse}
-		if nextPoint != nil {
-			nextPointMap[*series.Name] = nextPoint
-			response.NextPointTime = nextPoint.Timestamp
-		}
+		response := createResponse(nextPointMap, series, nil)
 		local <- response
 		return nil
 	}
@@ -144,21 +121,27 @@ func (self *CoordinatorImpl) streamResultsFromChannels(isSingleSeriesQuery, isAs
 	for closedChannels < channelCount {
 		for _, ch := range channels {
 			response := <-ch
-			if response != nil {
-				if *response.Type == protocol.Response_END_STREAM {
-					closedChannels++
-				} else {
-					seriesNames[*response.Series.Name] = true
-					if response.Series.Points != nil {
-						responses = append(responses, response)
-					}
-				}
+			if response == nil {
+				continue
+			}
+
+			if *response.Type == protocol.Response_END_STREAM {
+				closedChannels++
+				continue
+			}
+
+			seriesNames[*response.Series.Name] = true
+			if response.Series.Points != nil {
+				responses = append(responses, response)
 			}
 		}
-		if len(responses) > 0 {
-			leftovers = self.yieldResults(isSingleSeriesQuery, isAscending, leftovers, responses, yield)
-			responses = make([]*protocol.Response, 0)
+
+		if len(responses) == 0 {
+			continue
 		}
+
+		leftovers = self.yieldResults(isSingleSeriesQuery, isAscending, leftovers, responses, yield)
+		responses = make([]*protocol.Response, 0)
 	}
 	for _, leftover := range leftovers {
 		if len(leftover.Points) > 0 {
