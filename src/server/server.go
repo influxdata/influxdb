@@ -59,7 +59,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 func (self *Server) ListenAndServe() error {
 	go self.ProtobufServer.ListenAndServe()
 
-	err := self.RaftServer.Start()
+	err := self.RaftServer.ListenAndServe()
 	if err != nil {
 		return err
 	}

@@ -265,20 +265,32 @@ func (m *QueryResponseChunk) GetDone() bool {
 }
 
 type Request struct {
-	Id                      *uint32       `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
-	Type                    *Request_Type `protobuf:"varint,2,req,name=type,enum=protocol.Request_Type" json:"type,omitempty"`
-	Database                *string       `protobuf:"bytes,3,req,name=database" json:"database,omitempty"`
-	Series                  *Series       `protobuf:"bytes,4,opt,name=series" json:"series,omitempty"`
-	SequenceNumber          *uint64       `protobuf:"varint,5,opt,name=sequence_number" json:"sequence_number,omitempty"`
-	OriginatingServerId     *uint32       `protobuf:"varint,6,opt,name=originating_server_id" json:"originating_server_id,omitempty"`
-	ClusterVersion          *uint32       `protobuf:"varint,10,opt,name=cluster_version" json:"cluster_version,omitempty"`
-	Query                   *string       `protobuf:"bytes,7,opt,name=query" json:"query,omitempty"`
-	UserName                *string       `protobuf:"bytes,8,opt,name=user_name" json:"user_name,omitempty"`
-	RingLocationsToQuery    *uint32       `protobuf:"varint,9,opt,name=ring_locations_to_query" json:"ring_locations_to_query,omitempty"`
-	ReplicationFactor       *uint32       `protobuf:"varint,16,opt,name=replication_factor" json:"replication_factor,omitempty"`
-	OwnerServerId           *uint32       `protobuf:"varint,17,opt,name=owner_server_id" json:"owner_server_id,omitempty"`
-	LastKnownSequenceNumber *uint64       `protobuf:"varint,18,opt,name=last_known_sequence_number" json:"last_known_sequence_number,omitempty"`
-	XXX_unrecognized        []byte        `json:"-"`
+	Id       *uint32       `protobuf:"varint,1,req,name=id" json:"id,omitempty"`
+	Type     *Request_Type `protobuf:"varint,2,req,name=type,enum=protocol.Request_Type" json:"type,omitempty"`
+	Database *string       `protobuf:"bytes,3,req,name=database" json:"database,omitempty"`
+	Series   *Series       `protobuf:"bytes,4,opt,name=series" json:"series,omitempty"`
+	// only write and delete requests get sequenceNumbers assigned. These are used to
+	// ensure that the receiving server is up to date
+	SequenceNumber *uint64 `protobuf:"varint,5,opt,name=sequence_number" json:"sequence_number,omitempty"`
+	// the originzatingServerId is only used for writes and deletes. It is the id of the
+	// server that first committed the write to its local datastore. It is used for
+	// the other servers in the hash ring to ensure they remain consistent.
+	OriginatingServerId *uint32 `protobuf:"varint,6,opt,name=originating_server_id" json:"originating_server_id,omitempty"`
+	ClusterVersion      *uint32 `protobuf:"varint,10,opt,name=cluster_version" json:"cluster_version,omitempty"`
+	Query               *string `protobuf:"bytes,7,opt,name=query" json:"query,omitempty"`
+	UserName            *string `protobuf:"bytes,8,opt,name=user_name" json:"user_name,omitempty"`
+	// ringLocationsToQuery tells the server what data it should be returning.
+	// for example, if the number is 1, it will only return data that is owned by
+	// this server on the hash ring. If 2, it will return this server and data replicated
+	// from the server directly before it on the ring. 3, etc.
+	// If this field is left out, we assume that we'll be returning all data the server has
+	// for the query.
+	RingLocationsToQuery *uint32 `protobuf:"varint,9,opt,name=ring_locations_to_query" json:"ring_locations_to_query,omitempty"`
+	// optional fields for replication replay requests. should include originating serer id
+	ReplicationFactor       *uint32 `protobuf:"varint,16,opt,name=replication_factor" json:"replication_factor,omitempty"`
+	OwnerServerId           *uint32 `protobuf:"varint,17,opt,name=owner_server_id" json:"owner_server_id,omitempty"`
+	LastKnownSequenceNumber *uint64 `protobuf:"varint,18,opt,name=last_known_sequence_number" json:"last_known_sequence_number,omitempty"`
+	XXX_unrecognized        []byte  `json:"-"`
 }
 
 func (m *Request) Reset()         { *m = Request{} }

@@ -286,7 +286,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	server.Id = uint32(len(self.servers))
 	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
 	if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
-		log.Info("Connecting to ProtobufServer: ", server.ProtobufConnectionString)
+		log.Info("Connecting to ProtobufServer: %s", server.ProtobufConnectionString)
 		server.Connect()
 	} else {
 		log.Info("Added the local server")
