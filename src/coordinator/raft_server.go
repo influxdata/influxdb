@@ -268,28 +268,24 @@ func (s *RaftServer) Serve(l net.Listener) error {
 
 	log.Info("Raft Server Listening at %s", s.connectionString())
 
-	return s.httpServer.Serve(l)
-}
-
-func (self *RaftServer) Close() {
-	if !self.closing {
-		self.closing = true
-		self.raftServer.Stop()
-		self.listener.Close()
-	}
-}
-
-func (self *RaftServer) Start() error {
 	go func() {
-		self.ListenAndServe()
+		s.httpServer.Serve(l)
 	}()
 	started := make(chan error)
 	go func() {
-		started <- self.startRaft()
+		started <- s.startRaft()
 	}()
 	err := <-started
 	//	time.Sleep(3 * time.Second)
 	return err
+}
+
+func (self *RaftServer) Close() {
+	if !self.closing || self.raftServer == nil {
+		self.closing = true
+		self.raftServer.Stop()
+		self.listener.Close()
+	}
 }
 
 // This is a hack around Gorilla mux not providing the correct net/http
