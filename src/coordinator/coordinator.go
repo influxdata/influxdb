@@ -386,7 +386,7 @@ func (self *CoordinatorImpl) normalizePointAndAppend(fieldNames map[string]int, 
 }
 
 func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
-	log.Warn("COORDINATOR: ReplayReplication: ", request, *replicationFactor, *owningServerId, *lastSeenSequenceNumber)
+	log.Warn("COORDINATOR: ReplayReplication: %v, %v, %v, %v", request, *replicationFactor, *owningServerId, *lastSeenSequenceNumber)
 	key := fmt.Sprintf("%d_%d_%d_%d", *replicationFactor, *request.ClusterVersion, *request.OriginatingServerId, *owningServerId)
 	self.runningReplaysLock.Lock()
 	requestsWaitingToWrite := self.runningReplays[key]
