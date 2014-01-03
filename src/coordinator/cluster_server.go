@@ -25,13 +25,15 @@ const (
 )
 
 func (self *ClusterServer) Connect() {
+	if self.protobufClient != nil {
+		return
+	}
+
 	log.Info("ClusterServer: %d connecting to: %s", self.Id, self.ProtobufConnectionString)
 	self.protobufClient = NewProtobufClient(self.ProtobufConnectionString)
 }
 
 func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
-	if self.protobufClient == nil {
-		self.protobufClient = NewProtobufClient(self.ProtobufConnectionString)
-	}
+	self.Connect()
 	return self.protobufClient.MakeRequest(request, responseStream)
 }
