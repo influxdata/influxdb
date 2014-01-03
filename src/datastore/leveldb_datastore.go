@@ -425,6 +425,7 @@ func (self *LevelDbDatastore) keyForOwnerAndServerSequenceNumber(clusterVersion 
 type SequenceMissingRequestsError struct {
 	message                  string
 	LastKnownRequestSequence uint64
+	ReceivedSequence         uint64
 }
 
 func (self SequenceMissingRequestsError) Error() string {
@@ -475,7 +476,7 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 		}
 		previousSequenceNumber := self.bytesToCurrentNumber(numberBytes)
 		if previousSequenceNumber+uint64(1) != *request.SequenceNumber {
-			return SequenceMissingRequestsError{"Missing requests between last seen and this one.", previousSequenceNumber}
+			return SequenceMissingRequestsError{"Missing requests between last seen and this one.", previousSequenceNumber, *request.SequenceNumber}
 		}
 	}
 
