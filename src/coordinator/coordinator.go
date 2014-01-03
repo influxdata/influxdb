@@ -423,29 +423,28 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 			self.runningReplaysLock.Lock()
 			defer self.runningReplaysLock.Unlock()
 			for _, r := range self.runningReplays[key] {
-				err := self.datastore.LogRequestAndAssignSequenceNumber(r, replicationFactor, owningServerId)
-				if err != nil {
-					log.Error("Error writing waiting requests after replay: %s", err)
-				}
-				if *r.Type == protocol.Request_PROXY_WRITE {
-					self.datastore.WriteSeriesData(*r.Database, r.Series)
-				} else if *r.Type == protocol.Request_PROXY_DELETE || *r.Type == protocol.Request_REPLICATION_DELETE {
-					query, _ := parser.ParseQuery(*r.Query)
-					err = self.datastore.DeleteSeriesData(*r.Database, query[0].DeleteQuery)
-				}
+				self.handleReplayRequest(r, replicationFactor, owningServerId)
 			}
 			delete(self.runningReplays, key)
 			log.Info("Replay done for originating server %d and owner server %d", *request.OriginatingServerId, *owningServerId)
 			return
 		}
 		request := response.Request
-		// TODO: make request logging and datastore write atomic
-		err := self.datastore.LogRequestAndAssignSequenceNumber(request, replicationFactor, owningServerId)
-		if err != nil {
-			log.Error("ERROR writing replay: ", err)
-		} else {
-			self.datastore.WriteSeriesData(*request.Database, request.Series)
-		}
+		self.handleReplayRequest(request, replicationFactor, owningServerId)
+	}
+}
+
+func (self *CoordinatorImpl) handleReplayRequest(r *protocol.Request, replicationFactor *uint8, owningServerId *uint32) {
+	err := self.datastore.LogRequestAndAssignSequenceNumber(r, replicationFactor, owningServerId)
+	if err != nil {
+		log.Error("Error writing waiting requests after replay: %s", err)
+	}
+	if *r.Type == protocol.Request_PROXY_WRITE || *r.Type == protocol.Request_REPLICATION_WRITE {
+		log.Debug("Replaying write request")
+		self.datastore.WriteSeriesData(*r.Database, r.Series)
+	} else if *r.Type == protocol.Request_PROXY_DELETE || *r.Type == protocol.Request_REPLICATION_DELETE {
+		query, _ := parser.ParseQuery(*r.Query)
+		err = self.datastore.DeleteSeriesData(*r.Database, query[0].DeleteQuery)
 	}
 }
 
