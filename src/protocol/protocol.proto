@@ -78,6 +78,44 @@ message Response {
   optional Series series = 3;
   optional ErrorCode error_code = 4;
   optional string error_message = 5;
-  optional int64 nextPointTime = 6;
   optional Request request = 7;
+  optional QueryMapResult map_result = 6;
+}
+
+// The Map phase of a query outputs map results. These are
+// then shuffled together and reduced. Since all shuffles are
+// based on time, the end_time, start_time, and next_time let
+// the ReducePhase of the job know how to shuffle them together
+// even when the MapResults come in through multiple streams (like
+// multiple servers)
+message MapResult {
+  repeated MapGroupResult mapped_groups = 1;
+  required string series = 2;
+  required int64 end_time = 3;
+  required int64 start_time = 4;
+  optional int64 next_time = 5;
+}
+
+// Map results come for each group in a query. For example
+// if you have select count(foo) from bar group by org_id.
+// Each unique org id would have a map group result associated 
+// with it. Or if you had 'group by time(5m), org_id'
+// each unique org id per five minute interval would have a 
+// map group result. Each five minute window would thus have
+// an associated MapResult from each server (assuming there was
+// data in that window of time)
+message MapGroupResult {
+  required bytes data = 1;
+  required bytes group = 2;
+  enum Reducer {
+    POINTS = 1;
+    SUM = 2;
+    COUNT = 3;
+    MIN = 4;
+    MAX = 5;
+    MEAN = 6;
+    FIRST = 7;
+    LAST = 8;
+    CUSTOM = 9;
+  }
 }

@@ -26,6 +26,10 @@ type DatabaseQuery struct {
   query *SelectQuery
 }
 
+// queries can have multiple mappers. like in the case that you're doing two aggregations: select count(val), sum(val) from foo
+// each mapper will emit a query map result. because of this the query map result needs to return which reducer should be
+// used to process the map result.
+
 QueryMapResult
   data []byte
   reducer (some enum)
@@ -75,3 +79,33 @@ OLD STUFF
 sendBatch does a weird thing where it returns the number of points dropped so that number can be readded to the limit.
 This is odd. Instead, we should decrement the limit for a given series name when we yield the points (or in the new case, the
 query map result)
+
+select count(foo) from bar group by time(5m), org_id
+
+
+New Notes on Implementation:
+
+thing that yields points to the mapper:
+  will have to do the grouping for it. So the mapper won't worry about grouping at all.
+  will have to ensure that the size of those things going to get grouped don't go over the total serialization limit
+  will call out to mapper to process the points and get results back. will buffer the results based on group. then will yield when the group is done or the size limit is hit.
+
+the thing that yields to the reducer:
+  will get a map result with the reducer to call and the group (bytes?)
+  will call out to the reducer that won't have to worry about groupings.
+  the reducer will return a series object
+  the thing will yield series objects to the yield function
+
+coord creates ReducePhase
+coord gathers MapResults, yields to ReducePhase
+
+
+datastore yields series name and points into the MapJob as they are ready
+  does auth check to make sure user can see series (or if regex, each one)
+  does any point filters, yields points to MapJob.
+MapJob yields to all mappers associated with the query
+Mappers when yielded points optionally return MapResults to MapJob
+MapJob buffers MapResults and sends to MapResultStream out when appropriate (size, whatever)
+ReduceJob gets ShuffleAndReduce called with MapResults
+  shuffles together, yields to individual reducers
+Reducers optionally yield points which then get sent to the QueryResultStream
