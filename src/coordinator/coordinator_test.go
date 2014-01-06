@@ -74,45 +74,25 @@ func stringToSeries(seriesString string, c *C) *protocol.Series {
 	return series
 }
 
-// TODO: this is an ugly hack to just get protobuf servers running for the moment. clean this up later by mocking out the
-//       cluster configuration object.
-var protobufServers []*ProtobufServer
-
 func startAndVerifyCluster(count int, c *C) []*RaftServer {
-	protobufServers := make([]*ProtobufServer, 0)
 	firstPort := 0
 	servers := make([]*RaftServer, count, count)
 	for i := 0; i < count; i++ {
 		l, err := net.Listen("tcp4", ":0")
 		c.Assert(err, IsNil)
-		l2, err := net.Listen("tcp4", ":0")
-		c.Assert(err, IsNil)
-		port := l.Addr().(*net.TCPAddr).Port
-		protobufPort := l2.Addr().(*net.TCPAddr).Port
-		l.Close()
-		l2.Close()
-		server := newConfigAndServer(c)
-		server.port = port
-		server.config.RaftServerPort = port
-		server.config.ProtobufPort = protobufPort
-
-		protobufServer := NewProtobufServer(server.config.ProtobufPortString(), nil)
-		go func() {
-			protobufServer.ListenAndServe()
-		}()
-		protobufServers = append(protobufServers, protobufServer)
+		servers[i] = newConfigAndServer(c)
 
 		if firstPort == 0 {
-			firstPort = port
+			firstPort = l.Addr().(*net.TCPAddr).Port
 		} else {
-			server.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", firstPort)}
+			servers[i].config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", firstPort)}
 		}
-		servers[i] = server
 
-		server.Start()
+		servers[i].Serve(l)
+
 		time.Sleep(SERVER_STARTUP_TIME)
 		// verify that the server is up
-		getConfig(server.port, c)
+		getConfig(servers[i].port, c)
 	}
 	return servers
 }
@@ -121,9 +101,6 @@ func clean(servers ...*RaftServer) {
 	for _, server := range servers {
 		server.Close()
 		os.RemoveAll(server.path)
-	}
-	for _, s := range protobufServers {
-		s.Close()
 	}
 	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 }
@@ -168,15 +145,13 @@ func (self *CoordinatorSuite) TestCanRecover(c *C) {
 	server.Close()
 	time.Sleep(SERVER_STARTUP_TIME)
 	server = newConfigAndServer(c)
-	// reset the path and port to the previous server
+	// reset the path and port to the previous server and remove the
+	// path that was created by newConfigAndServer
 	os.RemoveAll(server.path)
 	server.path = path
 	server.port = port
 	defer clean(server)
-	go func() {
-		server.ListenAndServe()
-	}()
-	time.Sleep(SERVER_STARTUP_TIME)
+	server.ListenAndServe()
 	assertConfigContains(server.port, "db1", true, c)
 }
 
@@ -211,10 +186,8 @@ func (self *CoordinatorSuite) TestNewServerJoiningClusterWillPickUpData(c *C) {
 	defer clean(server2)
 	l, err := net.Listen("tcp4", ":0")
 	c.Assert(err, IsNil)
-	go func() {
-		server2.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", server.port)}
-		server2.Serve(l)
-	}()
+	server2.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", server.port)}
+	server2.Serve(l)
 	time.Sleep(SERVER_STARTUP_TIME)
 	assertConfigContains(server2.port, "db4", true, c)
 }
@@ -577,21 +550,20 @@ func (self *CoordinatorSuite) TestServersGetUniqueIdsAndCanActivateCluster(c *C)
 
 func (self *CoordinatorSuite) TestCanJoinAClusterWhenNotInitiallyPointedAtLeader(c *C) {
 	servers := startAndVerifyCluster(2, c)
+	defer clean(servers...)
 	newServer := newConfigAndServer(c)
 	defer clean(newServer)
 	l, err := net.Listen("tcp4", ":0")
 	c.Assert(err, IsNil)
-	go func() {
-		leaderAddr, ok := servers[1].leaderConnectString()
-		c.Assert(ok, Equals, true)
-		leaderPort, _ := strconv.Atoi(strings.Split(leaderAddr, ":")[2])
-		followerPort := servers[1].port
-		if leaderPort == servers[1].port {
-			followerPort = servers[0].port
-		}
-		newServer.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", followerPort)}
-		newServer.Serve(l)
-	}()
+	leaderAddr, ok := servers[1].leaderConnectString()
+	c.Assert(ok, Equals, true)
+	leaderPort, _ := strconv.Atoi(strings.Split(leaderAddr, ":")[2])
+	followerPort := servers[1].port
+	if leaderPort == servers[1].port {
+		followerPort = servers[0].port
+	}
+	newServer.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", followerPort)}
+	newServer.Serve(l)
 	time.Sleep(SERVER_STARTUP_TIME)
 
 	err = servers[0].CreateDatabase("db8", uint8(1))

@@ -138,6 +138,7 @@ func (self *ServerProcess) Query(database, query string, onlyLocal bool, c *C) *
 	resp, err := http.Get(fullUrl)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	var js []interface{}
@@ -366,20 +367,25 @@ func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
 		}
 	}
 
-	data = `
+	for i := 1; i <= 100; i++ {
+		data = fmt.Sprintf(`
   [{
     "points": [
-        [2]
+        [%d]
     ],
     "name": "test_failure_delete_replays",
     "columns": ["val"]
-  }]`
-	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+  }]`, i)
+		time.Sleep(time.Millisecond)
+		self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+	}
+
+	expectedSum := 100 * 101 / 2
 
 	for _, s := range self.serverProcesses {
 		collection := s.Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
 		series := collection.GetSeries("test_failure_delete_replays", c)
-		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(2))
+		c.Assert(series.GetValueForPointAndColumn(0, "sum", c).(float64) <= float64(expectedSum), Equals, true)
 	}
 }
 
@@ -388,13 +394,13 @@ func (self *ServerSuite) TestColumnNamesReturnInDistributedQuery(c *C) {
 	data := `[{
 		"name": "cluster_query_with_columns",
 		"columns": ["asdf"],
-		"points": [[1], [2], [3], [4]]
+		"points": [[1]]
 		}]`
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("test_rep", "select * from cluster_query_with_columns", false, c)
 		series := collection.GetSeries("cluster_query_with_columns", c)
-		c.Assert(series.GetValueForPointAndColumn(0, "asdf", c), Equals, float64(4))
+		c.Assert(series.GetValueForPointAndColumn(0, "asdf", c), Equals, float64(1))
 	}
 }
 
