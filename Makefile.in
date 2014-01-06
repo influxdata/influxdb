@@ -188,9 +188,8 @@ endif
 $(admin_dir)/build:
 	rm -rf $(admin_dir)
 	rvm 1.9.3 do rvm gemset create influxdb
-	rvm 1.9.3@influxdb do bundle install
 	git clone https://github.com/influxdb/influxdb-admin.git $(admin_dir)
-	rvm 1.9.3@influxdb do bash -c "pushd $(admin_dir); middleman build; popd"
+	rvm 1.9.3@influxdb do bash -c "pushd $(admin_dir); bundle install; middleman build; popd"
 
 $(rpm_package): $(admin_dir)/build build
 	rm -rf out_rpm
