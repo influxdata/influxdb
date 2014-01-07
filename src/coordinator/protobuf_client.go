@@ -29,7 +29,7 @@ type runningRequest struct {
 
 const (
 	REQUEST_RETRY_ATTEMPTS = 3
-	MAX_RESPONSE_SIZE      = 1024
+	MAX_RESPONSE_SIZE      = MAX_REQUEST_SIZE
 	IS_RECONNECTING        = uint32(1)
 	IS_CONNECTED           = uint32(0)
 	MAX_REQUEST_TIME       = time.Second * 1200

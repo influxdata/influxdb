@@ -19,7 +19,9 @@ type ProtobufServer struct {
 	connectionMap     map[net.Conn]bool
 }
 
-const MAX_REQUEST_SIZE = 1024
+const KILOBYTE = 1024
+const MEGABYTE = 1024 * KILOBYTE
+const MAX_REQUEST_SIZE = MEGABYTE * 2
 
 func NewProtobufServer(port string, requestHandler RequestHandler) *ProtobufServer {
 	server := &ProtobufServer{port: port, requestHandler: requestHandler, connectionMap: make(map[net.Conn]bool)}
