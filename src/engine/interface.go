@@ -14,7 +14,7 @@ type EngineI interface {
 // will be halted.
 type QueryResultStream interface {
 	Yield(series *protocol.Series) error
-	// tells the stream object to flush any remaining things and close out.
+	// tells the stream object to flush any buffered series and close out.
 	Close()
 }
 
@@ -33,20 +33,32 @@ type MapResultStream interface {
 type MapJob interface {
 	// returns true if the query has hit its limit and should be stopped
 	YieldPoint(series *string, point *protocol.Point) (stopQuery *bool, err error)
+	// tells the map job that no more points will be yielded. It should flush remaining
+	// MapResults to the MapResultStream
+	Close()
 }
 
 // The reduce job knows how to shuffle map results together and will call the reducers.
-// Will yield series results to a given
+// Will combine reducer outputs and yield series results to a QueryResultsStream
 type ReduceJob interface {
-	ShuffleAndReduce([]*protocol.MapResult) error
+	ShuffleAndReduce(mapResults []*protocol.MapResult) error
+	// tell the reduce job that no more map results will be sent
+	Close()
 	WaitForCompletion() error
 }
 
 type Reducer interface {
-	// series could be nil if there's nothing to return
-	Reduce(mapResults *[]protocol.MapResult) (*protocol.Series, error)
+	// the field values could be nil if there's nothing to return
+	Reduce(mapResults *[]protocol.MapResult) ([]*protocol.FieldValue, error)
+	// when the stream of MapResults are done, this gets called and remaining results are returned.
+	Close() ([]*protocol.FieldValue, error)
+	// the field value arrays returned by reduce and close will correspond to this array of column
+	// names. The Reduce job should only have to call this once to know which columns a given
+	// reducer is returning. That means the reducer should always return field values in the same order.
+	ColumnNames() []string
 }
 
 type Mapper interface {
 	Map(points []*protocol.Point) (*protocol.MapResult, error)
+	Close() (*protocol.MapResult, error)
 }

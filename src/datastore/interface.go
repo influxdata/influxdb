@@ -24,5 +24,5 @@ type Datastore interface {
 	DropDatabase(database string) error
 	Close()
 
-	ExecuteMap(databaseQuery *protocol.DatabaseQuery, mapJob engine.MapJob)
+	ExecuteMap(databaseQuery *protocol.DatabaseQuery, mapJob engine.MapJob) error
 }

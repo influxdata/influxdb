@@ -424,7 +424,7 @@ func (self *ClusterConfiguration) GetDatabaseReplicationFactor(name string) uint
 }
 
 // Returns true if the user can read from the series name. The datastore will use
-// this to determin if a series should be scanned when doing a select from /.*/ type query.
+// this to determine if a series should be scanned when doing a `select from /.*/` type query.
 func (self *ClusterConfiguration) CanReadSeries(name *string) bool {
 
 }
