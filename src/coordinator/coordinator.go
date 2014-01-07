@@ -22,6 +22,7 @@ type CoordinatorImpl struct {
 	requestId            uint32
 	runningReplays       map[string][]*protocol.Request
 	runningReplaysLock   sync.Mutex
+	writeLock            sync.Mutex
 }
 
 // this is the key used for the persistent atomic ints for sequence numbers
@@ -501,7 +502,7 @@ func (self *CoordinatorImpl) getCurrentSequenceNumber(replicationFactor uint8, o
 }
 
 func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
-	log.Warn("COORDINATOR: ReplayReplication: %v, %v, %v, %v", request, *replicationFactor, *owningServerId, *lastSeenSequenceNumber)
+	log.Warn("COORDINATOR: ReplayReplication: SN: %d, LS: %d, RF: %d, OS: %d", *request.SequenceNumber, *lastSeenSequenceNumber, *replicationFactor, *owningServerId)
 	key := fmt.Sprintf("%d_%d_%d_%d", *replicationFactor, *request.ClusterVersion, *request.OriginatingServerId, *owningServerId)
 	self.runningReplaysLock.Lock()
 	requestsWaitingToWrite := self.runningReplays[key]
@@ -536,7 +537,7 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 	server := self.clusterConfiguration.GetServerById(request.OriginatingServerId)
 	err := server.MakeRequest(replayRequest, replayedRequests)
 	if err != nil {
-		log.Error(err)
+		log.Error("REPLAY ERROR: ", err)
 		return
 	}
 	for {
@@ -706,6 +707,12 @@ func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protoco
 }
 
 func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, series *protocol.Series) error {
+	// TODO: Figure out how to not need this lock. Shouldn't have to lock to send on a connection. However,
+	// when the server is under load, replication requests can get out of order, which triggers a replay.
+	// Maybe we need a special channel for replication?
+	self.writeLock.Lock()
+	defer self.writeLock.Unlock()
+
 	owner, servers := self.clusterConfiguration.GetServersByIndexAndReplicationFactor(db, serverIndex)
 
 	request := self.createRequest(proxyWrite, db)
@@ -759,7 +766,11 @@ func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, request *p
 	defer func() { request.OriginatingServerId = originatingServerId }()
 
 	responseChan := make(chan *protocol.Response, 1)
-	clusterServer.MakeRequest(request, responseChan)
+	err := clusterServer.MakeRequest(request, responseChan)
+	if err != nil {
+		log.Warn("PROXY WRITE ERROR: ", err)
+		return err
+	}
 	response := <-responseChan
 	if *response.Type == protocol.Response_WRITE_OK {
 		return nil
@@ -1052,7 +1063,10 @@ func (self *CoordinatorImpl) ReplicateDelete(request *protocol.Request) error {
 func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, replicas []*ClusterServer) {
 	for _, server := range replicas {
 		if server.Id != self.clusterConfiguration.localServerId {
-			server.MakeRequest(request, nil)
+			err := server.MakeRequest(request, nil)
+			if err != nil {
+				log.Warn("REPLICATION ERROR: ", request.GetSequenceNumber(), err)
+			}
 		}
 	}
 }

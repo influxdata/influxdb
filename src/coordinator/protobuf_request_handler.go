@@ -80,7 +80,7 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		if err != nil {
 			switch err := err.(type) {
 			case datastore.SequenceMissingRequestsError:
-				log.Warn("Missing sequence number error: %v", err)
+				log.Warn("Missing sequence number error: Request SN: %v Last Known SN: %v", request.GetSequenceNumber(), err.LastKnownRequestSequence)
 				go self.coordinator.ReplayReplication(request, &replicationFactor, request.OwnerServerId, &err.LastKnownRequestSequence)
 				return nil
 			default:
