@@ -57,7 +57,10 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		if err != nil {
 			return err
 		}
-		query, _ := parser.ParseQuery(*request.Query)
+		query, err := parser.ParseQuery(*request.Query)
+		if err != nil {
+			return err
+		}
 		err = self.db.DeleteSeriesData(*request.Database, query[0].DeleteQuery)
 		if err != nil {
 			return err
@@ -95,7 +98,10 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 				return err
 			}
 		}
-		query, _ := parser.ParseQuery(*request.Query)
+		query, err := parser.ParseQuery(*request.Query)
+		if err != nil {
+			return err
+		}
 		return self.db.DeleteSeriesData(*request.Database, query[0].DeleteQuery)
 	} else if *request.Type == protocol.Request_QUERY {
 		go self.handleQuery(request, conn)
