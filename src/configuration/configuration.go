@@ -3,13 +3,49 @@ package configuration
 import (
 	log "code.google.com/p/log4go"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"github.com/stvp/go-toml-config"
+	"github.com/BurntSushi/toml"
 	"io/ioutil"
 	"os"
-	"strings"
 )
+
+type AdminConfig struct {
+	Port   int
+	Assets string
+}
+
+type ApiConfig struct {
+	Port int
+}
+
+type RaftConfig struct {
+	Port int
+	Dir  string
+}
+
+type StorageConfig struct {
+	Dir string
+}
+
+type ClusterConfig struct {
+	SeedServers  []string `toml:"seed-servers"`
+	ProtobufPort int      `toml:"protobuf_port"`
+}
+
+type LoggingConfig struct {
+	File  string
+	Level string
+}
+
+type TomlConfiguration struct {
+	Admin    AdminConfig
+	Api      ApiConfig
+	Raft     RaftConfig
+	Storage  StorageConfig
+	Cluster  ClusterConfig
+	Logging  LoggingConfig
+	Hostname string
+}
 
 type Configuration struct {
 	AdminHttpPort  int
@@ -35,47 +71,30 @@ func LoadConfiguration(fileName string) *Configuration {
 }
 
 func parseTomlConfiguration(filename string) (*Configuration, error) {
-	configSet := config.NewConfigSet("influxdb", flag.ContinueOnError)
-	adminPort := configSet.Int("admin.port", 8083)
-	adminAssetsDir := configSet.String("admin.assets", "./admin")
-	apiHttpPort := configSet.Int("api.port", 8086)
-	raftPort := configSet.Int("raft.port", 8090)
-	raftDir := configSet.String("raft.dir", "/tmp/influxdb/development/raft")
-	seedServers := configSet.String("cluster.seed-servers", "")
-	dataDir := configSet.String("storage.dir", "/tmp/influxdb/development/db")
-	protobufPort := configSet.Int("cluster.protobuf_port", 8099)
-	logFile := configSet.String("logging.file", "influxdb.log")
-	logLevel := configSet.String("logging.level", "info")
-	hostname := configSet.String("hostname", "")
-
-	if err := configSet.Parse(filename); err != nil {
+	body, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	tomlConfiguration := &TomlConfiguration{}
+	_, err = toml.Decode(string(body), tomlConfiguration)
+	if err != nil {
 		return nil, err
 	}
 
 	config := &Configuration{
-		AdminHttpPort:  *adminPort,
-		AdminAssetsDir: *adminAssetsDir,
-		ApiHttpPort:    *apiHttpPort,
-		RaftServerPort: *raftPort,
-		RaftDir:        *raftDir,
-		ProtobufPort:   *protobufPort,
-		DataDir:        *dataDir,
-		LogFile:        *logFile,
-		LogLevel:       *logLevel,
-		Hostname:       *hostname,
+		AdminHttpPort:  tomlConfiguration.Admin.Port,
+		AdminAssetsDir: tomlConfiguration.Admin.Assets,
+		ApiHttpPort:    tomlConfiguration.Api.Port,
+		RaftServerPort: tomlConfiguration.Raft.Port,
+		RaftDir:        tomlConfiguration.Raft.Dir,
+		ProtobufPort:   tomlConfiguration.Cluster.ProtobufPort,
+		SeedServers:    tomlConfiguration.Cluster.SeedServers,
+		DataDir:        tomlConfiguration.Storage.Dir,
+		LogFile:        tomlConfiguration.Logging.File,
+		LogLevel:       tomlConfiguration.Logging.Level,
+		Hostname:       tomlConfiguration.Hostname,
 	}
 
-	servers := strings.Split(*seedServers, ",")
-	for _, server := range servers {
-		server = strings.TrimSpace(server)
-		if server == "" {
-			continue
-		}
-		if !strings.HasPrefix(server, "http://") {
-			server = "http://" + server
-		}
-		config.SeedServers = append(config.SeedServers, server)
-	}
 	return config, nil
 }
 

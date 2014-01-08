@@ -102,7 +102,7 @@ github.com/fitstar/falcore/filter \
 github.com/gorilla/mux \
 github.com/goraft/raft \
 github.com/influxdb/go-cache \
-github.com/stvp/go-toml-config \
+github.com/BurntSushi/toml \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
