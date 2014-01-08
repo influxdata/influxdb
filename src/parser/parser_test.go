@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"common"
 	"fmt"
 	. "launchpad.net/gocheck"
 	"testing"
@@ -53,6 +54,57 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 		c.Assert(leftValue.Name, Equals, "c")
 		c.Assert(boolExpression.Name, Equals, "=")
 		c.Assert(rightValue.Name, Equals, "5")
+	}
+}
+
+func (self *QueryParserSuite) TestParseDeleteQueryWithEndTime(c *C) {
+	query := "delete from foo where time < 1389040522000000u"
+	queries, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+
+	c.Assert(queries, HasLen, 1)
+
+	_q := queries[0]
+
+	c.Assert(_q.DeleteQuery, NotNil)
+
+	q := _q.DeleteQuery
+
+	c.Assert(q.GetEndTime(), Equals, time.Unix(1389040522, 0).UTC())
+}
+
+func (self *QueryParserSuite) TestGetQueryStringWithTimeCondition(c *C) {
+	now := time.Now().Round(time.Minute).UTC()
+	micros := common.TimeToMicroseconds(now)
+
+	for _, q := range []string{
+		"delete from foo",
+		fmt.Sprintf("delete from foo where time < %du", micros),
+	} {
+		fmt.Printf("testing %s\n", q)
+
+		queries, err := ParseQuery(q)
+		c.Assert(err, IsNil)
+
+		c.Assert(queries, HasLen, 1)
+
+		_q := queries[0]
+
+		c.Assert(_q.DeleteQuery, NotNil)
+
+		q := _q.DeleteQuery
+
+		// try to parse the query with the time condition
+		queries, err = ParseQuery(q.GetQueryStringWithTimeCondition())
+		fmt.Printf("query: %s\n", q.GetQueryStringWithTimeCondition())
+		c.Assert(err, IsNil)
+
+		_q = queries[0]
+		c.Assert(_q.DeleteQuery, NotNil)
+
+		q = _q.DeleteQuery
+
+		c.Assert(q.GetEndTime().Round(time.Minute), Equals, now)
 	}
 }
 

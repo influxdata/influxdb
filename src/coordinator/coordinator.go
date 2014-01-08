@@ -533,7 +533,7 @@ func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *Cluste
 	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
 
 	request := self.createRequest(proxyDelete, &database)
-	queryStr := query.GetQueryString()
+	queryStr := query.GetQueryStringWithTimeCondition()
 	request.Query = &queryStr
 	request.OriginatingServerId = &self.clusterConfiguration.localServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion

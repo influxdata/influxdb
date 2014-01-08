@@ -133,6 +133,7 @@ type SelectDeleteCommonQuery struct {
 	BasicQuery
 	FromClause *FromClause
 	Condition  *WhereCondition
+	endTimeSet bool
 }
 
 type SelectQuery struct {
@@ -474,7 +475,9 @@ func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause,
 		return goQuery, err
 	}
 
-	if endTime.Unix() > 0 {
+	goQuery.endTimeSet = endTime.Unix() > 0
+
+	if goQuery.endTimeSet {
 		goQuery.endTime = endTime
 	}
 
