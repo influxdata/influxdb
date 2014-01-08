@@ -172,6 +172,7 @@
 - [Issue #127](https://github.com/influxdb/influxdb/issues/127). Return error on delete queries with where condition that don't have time
 - [Issue #117](https://github.com/influxdb/influxdb/issues/117). Fill empty groups with default values
 - [Issue #150](https://github.com/influxdb/influxdb/pull/150). Fix parser for when multiple divisions look like a regex.
+- [Issue #158](https://github.com/influxdb/influxdb/issues/158). Logged deletes should be stored with the time range if missing.
 
 ### Deprecated
 
