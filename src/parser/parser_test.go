@@ -56,6 +56,22 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	}
 }
 
+func (self *QueryParserSuite) TestParseDeleteQueryWithEndTime(c *C) {
+	query := "delete from foo where time < 1389040522000000u"
+	queries, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+
+	c.Assert(queries, HasLen, 1)
+
+	_q := queries[0]
+
+	c.Assert(_q.DeleteQuery, NotNil)
+
+	q := _q.DeleteQuery
+
+	c.Assert(q.GetEndTime(), Equals, time.Unix(1389040522, 0).UTC())
+}
+
 func (self *QueryParserSuite) TestParseDeleteQuery(c *C) {
 	query := "delete from foo where time > '2012-08-13' and time < '2013-08-13'"
 	queries, err := ParseQuery(query)
