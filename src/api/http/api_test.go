@@ -102,6 +102,10 @@ type MockCoordinator struct {
 	droppedDb     string
 }
 
+func (self *MockCoordinator) GetLastSequenceNumber(replicationFactor uint8, _, _ uint32) (uint64, error) {
+	return 0, nil
+}
+
 func (self *MockCoordinator) DistributeQuery(_ common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
 	return nil
 }

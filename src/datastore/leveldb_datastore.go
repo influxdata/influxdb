@@ -467,9 +467,28 @@ func NewWALKey(clusterVersion, originatingServerId, ownerServerId *uint32, seque
 		sequenceBytes.Bytes()...)
 }
 
+func (self *LevelDbDatastore) CurrentSequenceNumber(clusterVersion *uint32, replicationFactor *uint8, ownerServerId, originatingServerId *uint32) (uint64, error) {
+	// this is for a replicated write, ensure that it's the next in line for this owner and server
+	name := self.keyForOwnerAndServerSequenceNumber(clusterVersion, replicationFactor, ownerServerId, originatingServerId)
+	numberKey := append(ATOMIC_INCREMENT_PREFIX, []byte(name)...)
+	numberBytes, err := self.db.Get(self.readOptions, numberKey)
+	if err != nil {
+		return 0, err
+	}
+	return self.bytesToCurrentNumber(numberBytes), nil
+}
+
+func (self *LevelDbDatastore) updateSequenceNumber(clusterVersion *uint32, replicationFactor *uint8, ownerServerId, originatingServerId *uint32, newSequenceNumber uint64) error {
+	currentNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+	binary.Write(currentNumberBuffer, binary.BigEndian, newSequenceNumber)
+	name := self.keyForOwnerAndServerSequenceNumber(clusterVersion, replicationFactor, ownerServerId, originatingServerId)
+	numberKey := append(ATOMIC_INCREMENT_PREFIX, []byte(name)...)
+	return self.db.Put(self.writeOptions, numberKey, currentNumberBuffer.Bytes())
+}
+
 func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protocol.Request, replicationFactor *uint8, ownerServerId *uint32) error {
 	// log to this key structure on a different DB sharded by day: <cluster version><owner id><sequence server id><replication sequence>
-	var numberKey []byte
+	updateSequenceNumber := false
 	if request.SequenceNumber == nil {
 		sequenceNumber, err := self.AtomicIncrement(self.keyForOwnerAndServerSequenceNumber(request.ClusterVersion, replicationFactor, ownerServerId, request.OriginatingServerId), 1)
 		if err != nil {
@@ -477,14 +496,11 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 		}
 		request.SequenceNumber = &sequenceNumber
 	} else {
-		// this is for a replicated write, ensure that it's the next in line for this owner and server
-		name := self.keyForOwnerAndServerSequenceNumber(request.ClusterVersion, replicationFactor, ownerServerId, request.OriginatingServerId)
-		numberKey = append(ATOMIC_INCREMENT_PREFIX, []byte(name)...)
-		numberBytes, err := self.db.Get(self.readOptions, numberKey)
+		updateSequenceNumber = true
+		previousSequenceNumber, err := self.CurrentSequenceNumber(request.ClusterVersion, replicationFactor, ownerServerId, request.OriginatingServerId)
 		if err != nil {
 			return err
 		}
-		previousSequenceNumber := self.bytesToCurrentNumber(numberBytes)
 		if previousSequenceNumber+uint64(1) != *request.SequenceNumber {
 			return SequenceMissingRequestsError{"Missing requests between last seen and this one.", previousSequenceNumber, *request.SequenceNumber}
 		}
@@ -509,10 +525,8 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 	if err != nil {
 		return err
 	}
-	if numberKey != nil {
-		currentNumberBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-		binary.Write(currentNumberBuffer, binary.BigEndian, *request.SequenceNumber)
-		self.db.Put(self.writeOptions, numberKey, currentNumberBuffer.Bytes())
+	if updateSequenceNumber {
+		return self.updateSequenceNumber(request.ClusterVersion, replicationFactor, ownerServerId, request.OriginatingServerId, *request.SequenceNumber)
 	}
 	return nil
 }

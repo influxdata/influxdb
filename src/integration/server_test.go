@@ -303,36 +303,25 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 	}]
 	`
 	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
-	self.serverProcesses[1].Start()
-	time.Sleep(time.Second)
 
-	expected := []float64{float64(3), float64(1), float64(3)}
+	expected := []float64{float64(3), 0, float64(3)}
 	for i, s := range self.serverProcesses {
+		if i == 1 {
+			continue
+		}
+
 		collection := s.Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
 		series := collection.GetSeries("test_failure_replays", c)
 		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, expected[i])
 	}
 
-	// TODO: fix this. I do this 1k times because there's no way right now to force a replay
-	//       on a server other than having a write with the originating server id and owner server id
-	//       the same as the write that occured while the server was down. Doing this means it
-	//       will almost certainly trigger one (i.e. a request will randomly hash to the org/owner server)
-	data = `
-	[{
-		"points": [[1]],
-		"name": "test_failure_replays",
-		"columns": ["val"]
-	}]
-	`
-	for i := 0; i < 10; i++ {
-		self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
-	}
+	self.serverProcesses[1].Start()
+	// wait for the server to startup and the WAL to be synced
+	time.Sleep(3 * time.Second)
 
-	for _, s := range self.serverProcesses {
-		collection := s.Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
-		series := collection.GetSeries("test_failure_replays", c)
-		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(13))
-	}
+	collection := self.serverProcesses[1].Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
+	series := collection.GetSeries("test_failure_replays", c)
+	c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(3))
 }
 
 func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
@@ -353,40 +342,21 @@ func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
 	self.serverProcesses[1].Stop()
 	self.serverProcesses[0].Query("full_rep", "delete from test_failure_delete_replays", false, c)
 	time.Sleep(time.Second)
-	self.serverProcesses[1].Start()
-	time.Sleep(time.Second)
-
 	for i, s := range self.serverProcesses {
-		collection := s.Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
-
 		if i == 1 {
-			series := collection.GetSeries("test_failure_delete_replays", c)
-			c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(1))
+			continue
 		} else {
+			collection := s.Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
+
 			c.Assert(collection.Members, HasLen, 0)
 		}
 	}
 
-	for i := 1; i <= 100; i++ {
-		data = fmt.Sprintf(`
-  [{
-    "points": [
-        [%d]
-    ],
-    "name": "test_failure_delete_replays",
-    "columns": ["val"]
-  }]`, i)
-		time.Sleep(time.Millisecond)
-		self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
-	}
+	self.serverProcesses[1].Start()
+	time.Sleep(2 * time.Second)
 
-	expectedSum := 100 * 101 / 2
-
-	for _, s := range self.serverProcesses {
-		collection := s.Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
-		series := collection.GetSeries("test_failure_delete_replays", c)
-		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(expectedSum))
-	}
+	collection := self.serverProcesses[1].Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
+	c.Assert(collection.Members, HasLen, 0)
 }
 
 // For issue #130 https://github.com/influxdb/influxdb/issues/130
