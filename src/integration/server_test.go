@@ -385,7 +385,7 @@ func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
 	for _, s := range self.serverProcesses {
 		collection := s.Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
 		series := collection.GetSeries("test_failure_delete_replays", c)
-		c.Assert(series.GetValueForPointAndColumn(0, "sum", c).(float64) <= float64(expectedSum), Equals, true)
+		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(expectedSum))
 	}
 }
 

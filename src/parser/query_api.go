@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"common"
 	"fmt"
 	"regexp"
 	"sort"
@@ -316,6 +317,24 @@ func isNumericValue(value *Value) bool {
 	default:
 		return false
 	}
+}
+
+func (self *SelectDeleteCommonQuery) GetQueryStringWithTimeCondition() string {
+	queryString := self.GetQueryString()
+
+	if self.endTimeSet {
+		return queryString
+	}
+
+	t := common.TimeToMicroseconds(self.GetEndTime())
+	timeStr := strconv.FormatInt(t, 10)
+
+	condition := self.GetWhereCondition()
+	if condition == nil {
+		return queryString + " where time < " + timeStr + "u"
+	}
+
+	return queryString + " and time < " + timeStr + "u"
 }
 
 // parse the start time or end time from the where conditions and return the new condition
