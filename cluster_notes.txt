@@ -1,0 +1,86 @@
+make integration_test verbose=on only=TestRestartServers
+
+parts to create:
+
+protobuf server
+protobuf client
+
+Coordinator has Datastore and ConcensusEngine
+ConsensusEngine has a collection of ClusterServers (one is the localhost) and the ProtobufServer
+
+ClusterServer has protobuf client (automatically tries to connect unless it's localhost)
+ProtobufServer has a datastore to answer queries
+
+
+ringLocations: [{servers: []}, {servers: []}]
+
+startup:
+create db
+start protobuf server
+start clusterConsensus
+  for each server, createClient and connect
+
+write comes in:
+split it into discreet ring locations (time series objects with points all on the same ring loc)
+  ring location is figured by hashing db, series, and time (rounded to 5 min interval)
+proxy to one of the servers that have the ring location
+
+On the server we proxied to...
+log the write...
+  assign the operation a sequence number (should be an operation sequence number, have one per ring location)
+  assign points sequence numbers (can have one global incrementer)
+  log it -
+  <ring location><operation sequence><timestamp><db, series id> - serialized operation
+
+  attempt to write to other servers in ring
+    receiving server tracks for a given server id and ring location, what the last sequence was
+    for receiving server, if it's not the next in the sequence, set aside and request missing ops
+
+  write the value to key:
+  <db/series/column id><timestamp><sequence>
+
+point sequence numbers:
+  first two bytes is the server id. Guaranteed unique in a cluster
+  the other six bytes are the sequence number. 
+
+every 5 minutes create a marker
+  <sequence marker prefix><ring location><time stamp> - <sequence number>
+
+deleting series data
+  delete the values and do compactions.
+  for each ring location:
+    look up the sequence number for the time frame of the start of the deletion. Seek there and iterate over keys
+      if <db, series id> matches and timestamp in range, delete.
+      if timestamp out of range, break
+    run compaction for ring location range
+
+every x seconds each server asks the other servers that own its ring locations to replay operations from a given sequence number
+
+joining a server to a cluster:
+  figure out ring locations
+  ask servers to replay operations for ring locations from previous
+  tell old server to drop log and index data:
+    go through ring locations, read serialized operations, if it's a write then delete the corresponding values.
+    compact the ring log, let the points index compact gradually on its own
+
+example of expanding cluster:
+rf: 1, 2, 3
+
+A 0-3333
+B 3334 - 6666
+C 6667 - 9999
+
+A 0-2499
+  rf 1 [0-3333]    -> [0-2499]    del: (2499-3333)
+  rf 2 [6667-3333] -> [7500-2499] del: (2499-3333, 6667-7500)
+  rf 3 [3334-3333] -> [5000-2499] del: (2499-4999)
+B 2500-4999
+  rf 1 [3334-6666] -> [2500-4999] del: (5000-6666)
+  rf 2 [0-6666]    -> [0-4999]    del: (5000-6666)
+  rf 3 [6667-6666] -> [7500-4999] del: (5000-7500)
+C 5000-7499
+  rf 1 [6667-9999] -> [5000-7499] del: (7500-9999)
+  rf 2 [3334-9999] -> [2500-7499] del: (7500-9999)
+  rf 3 [0-9999]    -> [0-7499]    del: (7500-9999)
+D 7500-9999
+  all butter...
