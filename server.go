@@ -908,7 +908,7 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 		return newAppendEntriesResponse(s.currentTerm, false, s.log.currentIndex(), s.log.CommitIndex()), true
 	}
 
-	// once the server appended and commited all the log entries from the leader
+	// once the server appended and committed all the log entries from the leader
 
 	return newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex()), true
 }
