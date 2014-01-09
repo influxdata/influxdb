@@ -39,15 +39,17 @@ var (
 
 // shorter constants for readability
 var (
-	proxyWrite         = protocol.Request_PROXY_WRITE
-	proxyDelete        = protocol.Request_PROXY_DELETE
-	queryRequest       = protocol.Request_QUERY
-	listSeriesRequest  = protocol.Request_LIST_SERIES
-	listSeriesResponse = protocol.Response_LIST_SERIES
-	endStreamResponse  = protocol.Response_END_STREAM
-	queryResponse      = protocol.Response_QUERY
-	replayReplication  = protocol.Request_REPLICATION_REPLAY
-	sequenceNumber     = protocol.Request_SEQUENCE_NUMBER
+	proxyWrite            = protocol.Request_PROXY_WRITE
+	proxyDelete           = protocol.Request_PROXY_DELETE
+	proxyDropDatabase     = protocol.Request_PROXY_DROP_DATABASE
+	replicateDropDatabase = protocol.Request_REPLICATION_DROP_DATABASE
+	queryRequest          = protocol.Request_QUERY
+	listSeriesRequest     = protocol.Request_LIST_SERIES
+	listSeriesResponse    = protocol.Response_LIST_SERIES
+	endStreamResponse     = protocol.Response_END_STREAM
+	queryResponse         = protocol.Response_QUERY
+	replayReplication     = protocol.Request_REPLICATION_REPLAY
+	sequenceNumber        = protocol.Request_SEQUENCE_NUMBER
 )
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
@@ -702,6 +704,38 @@ func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *Cluste
 	return self.proxyUntilSuccess(servers, request)
 }
 
+func (self *CoordinatorImpl) handleDropDatabase(server *ClusterServer, database string) error {
+	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
+
+	request := self.createRequest(proxyDropDatabase, &database)
+	request.OriginatingServerId = &self.clusterConfiguration.localServerId
+	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
+	request.OwnerServerId = &owner.Id
+	replicationFactor := uint32(self.clusterConfiguration.GetDatabaseReplicationFactor(database))
+	request.ReplicationFactor = &replicationFactor
+
+	if server.Id == self.clusterConfiguration.localServerId {
+		// this is a local delete
+		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
+		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
+		if err != nil {
+			return self.proxyUntilSuccess(servers, request)
+		}
+		self.datastore.DropDatabase(database)
+		if err != nil {
+			log.Error("Couldn't write data to local store: ", err, request)
+		}
+
+		// ignoring the error because we still want to send to replicas
+		request.Type = &replicateDropDatabase
+		self.sendRequestToReplicas(request, servers)
+		return nil
+	}
+
+	// otherwise, proxy the request
+	return self.proxyUntilSuccess(servers, request)
+}
+
 func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protocol.Series) error {
 	return self.datastore.WriteSeriesData(*db, series)
 }
@@ -871,11 +905,26 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 		return common.NewAuthorizationError("Insufficient permission to drop database")
 	}
 
+	if self.clusterConfiguration.IsSingleServer() {
+		if err := self.datastore.DropDatabase(db); err != nil {
+			return err
+		}
+	} else {
+		servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
+		for _, server := range servers {
+			if err := self.handleDropDatabase(server.server, db); err != nil {
+				return err
+			}
+		}
+	}
+
+	// don't delete the metadata, we need the replication factor to be
+	// able to replicate the request properly
 	if err := self.raftServer.DropDatabase(db); err != nil {
 		return err
 	}
 
-	return self.datastore.DropDatabase(db)
+	return nil
 }
 
 func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {

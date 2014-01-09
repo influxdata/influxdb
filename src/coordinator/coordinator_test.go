@@ -257,8 +257,7 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 	}
 
 	// if the db is dropped it should remove the users as well
-	c.Assert(coordinator.DropDatabase(root, "db1"), IsNil)
-	c.Assert(coordinator.datastore.(*DatastoreMock).DroppedDatabase, Equals, "db1")
+	c.Assert(servers[0].DropDatabase("db1"), IsNil)
 	_, err = coordinator.AuthenticateDbUser("db1", "db_user", "pass")
 	c.Assert(err, ErrorMatches, ".*Invalid.*")
 }

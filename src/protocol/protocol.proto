@@ -34,6 +34,8 @@ message Request {
     REPLICATION_REPLAY = 6;
     LIST_SERIES = 7;
     SEQUENCE_NUMBER = 8;
+    PROXY_DROP_DATABASE = 9;
+    REPLICATION_DROP_DATABASE = 10;
   }
   required uint32 id = 1;
   required Type type = 2;

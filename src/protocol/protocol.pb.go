@@ -16,35 +16,41 @@ var _ = math.Inf
 type Request_Type int32
 
 const (
-	Request_QUERY              Request_Type = 1
-	Request_REPLICATION_WRITE  Request_Type = 2
-	Request_PROXY_WRITE        Request_Type = 3
-	Request_REPLICATION_DELETE Request_Type = 4
-	Request_PROXY_DELETE       Request_Type = 5
-	Request_REPLICATION_REPLAY Request_Type = 6
-	Request_LIST_SERIES        Request_Type = 7
-	Request_SEQUENCE_NUMBER    Request_Type = 8
+	Request_QUERY                     Request_Type = 1
+	Request_REPLICATION_WRITE         Request_Type = 2
+	Request_PROXY_WRITE               Request_Type = 3
+	Request_REPLICATION_DELETE        Request_Type = 4
+	Request_PROXY_DELETE              Request_Type = 5
+	Request_REPLICATION_REPLAY        Request_Type = 6
+	Request_LIST_SERIES               Request_Type = 7
+	Request_SEQUENCE_NUMBER           Request_Type = 8
+	Request_PROXY_DROP_DATABASE       Request_Type = 9
+	Request_REPLICATION_DROP_DATABASE Request_Type = 10
 )
 
 var Request_Type_name = map[int32]string{
-	1: "QUERY",
-	2: "REPLICATION_WRITE",
-	3: "PROXY_WRITE",
-	4: "REPLICATION_DELETE",
-	5: "PROXY_DELETE",
-	6: "REPLICATION_REPLAY",
-	7: "LIST_SERIES",
-	8: "SEQUENCE_NUMBER",
+	1:  "QUERY",
+	2:  "REPLICATION_WRITE",
+	3:  "PROXY_WRITE",
+	4:  "REPLICATION_DELETE",
+	5:  "PROXY_DELETE",
+	6:  "REPLICATION_REPLAY",
+	7:  "LIST_SERIES",
+	8:  "SEQUENCE_NUMBER",
+	9:  "PROXY_DROP_DATABASE",
+	10: "REPLICATION_DROP_DATABASE",
 }
 var Request_Type_value = map[string]int32{
-	"QUERY":              1,
-	"REPLICATION_WRITE":  2,
-	"PROXY_WRITE":        3,
-	"REPLICATION_DELETE": 4,
-	"PROXY_DELETE":       5,
-	"REPLICATION_REPLAY": 6,
-	"LIST_SERIES":        7,
-	"SEQUENCE_NUMBER":    8,
+	"QUERY":                     1,
+	"REPLICATION_WRITE":         2,
+	"PROXY_WRITE":               3,
+	"REPLICATION_DELETE":        4,
+	"PROXY_DELETE":              5,
+	"REPLICATION_REPLAY":        6,
+	"LIST_SERIES":               7,
+	"SEQUENCE_NUMBER":           8,
+	"PROXY_DROP_DATABASE":       9,
+	"REPLICATION_DROP_DATABASE": 10,
 }
 
 func (x Request_Type) Enum() *Request_Type {
