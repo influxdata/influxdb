@@ -350,6 +350,7 @@ func (s *RaftServer) Join(leader string) error {
 		return s.Join(address)
 	}
 
+	log.Debug("(raft:%s) Posted to seed server %s", s.raftServer.Name(), connectUrl)
 	return nil
 }
 
@@ -372,8 +373,10 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		log.Debug("Leader processing: %v", command)
 		// during the test suite the join command will sometimes time out.. just retry a few times
 		if _, err := s.raftServer.Do(command); err != nil {
+			log.Error("Can't process %v: %s", command, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -392,8 +395,11 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 		}
+		log.Info("Server %s already exist in the cluster config", command.Name)
 	} else {
-		if leader, ok := s.leaderConnectString(); ok {
+		leader, ok := s.leaderConnectString()
+		log.Debug("Non-leader redirecting to: (%v, %v)", leader, ok)
+		if ok {
 			log.Debug("redirecting to leader to join...")
 			http.Redirect(w, req, leader+"/join", http.StatusTemporaryRedirect)
 		} else {
