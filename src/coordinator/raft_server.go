@@ -333,7 +333,12 @@ func (s *RaftServer) Join(leader string) error {
 
 	var b bytes.Buffer
 	json.NewEncoder(&b).Encode(command)
-	resp, err := http.Post(connectUrl, "application/json", &b)
+	log.Debug("(raft:%s) Posting to seed server %s", s.raftServer.Name(), connectUrl)
+	tr := &http.Transport{
+		ResponseHeaderTimeout: time.Second,
+	}
+	client := &http.Client{Transport: tr}
+	resp, err := client.Post(connectUrl, "application/json", &b)
 	if err != nil {
 		log.Error(err)
 		return err
