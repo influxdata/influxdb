@@ -207,7 +207,7 @@ func (self *BenchmarkHarness) reportResults() {
 	client := self.reportClient()
 
 	successColumns := []string{"response_time", "point_count", "series_count"}
-	failureColumns := []string{"response_time", "err"}
+	failureColumns := []string{"response_time", "message"}
 
 	startTime := time.Now()
 	lastReport := time.Now()
@@ -292,7 +292,8 @@ func (self *BenchmarkHarness) runLoadDefinition(loadDef *loadDefinition) {
 	}
 
 	for _, q := range loadDef.Queries {
-		go self.runQuery(loadDef, seriesNames, &q)
+		query := q
+		go self.runQuery(loadDef, seriesNames, &query)
 	}
 
 	requestCount := self.Config.LoadSettings.RunPerLoadDefinition
@@ -379,6 +380,51 @@ func (self *BenchmarkHarness) runQuery(loadDef *loadDefinition, seriesNames []st
 }
 
 func (self *BenchmarkHarness) queryAndReport(loadDef *loadDefinition, q *query, queryString string) {
+	s := self.Config.Servers[rand.Intn(len(self.Config.Servers))]
+	clientConfig := &influxdb.ClientConfig{
+		Host:     s.ConnectionString,
+		Database: self.Config.ClusterCredentials.Database,
+		Username: self.Config.ClusterCredentials.User,
+		Password: self.Config.ClusterCredentials.Password}
+	client, err := influxdb.NewClient(clientConfig)
+	if err != nil {
+		// report query fail
+	}
+	startTime := time.Now()
+	results, err := client.Query(queryString)
+	microsecondsTaken := time.Now().Sub(startTime).Nanoseconds() / 1000
+
+	if err != nil {
+		self.reportQueryFailure(q.Name, queryString, err.Error())
+	} else {
+		self.reportQuerySuccess(results, q.Name, microsecondsTaken)
+	}
+}
+
+func (self *BenchmarkHarness) reportQueryFailure(name, query, message string) {
+	client := self.reportClient()
+	s := &influxdb.Series{
+		Name:    name + ".fail",
+		Columns: []string{"message"},
+		Points:  [][]interface{}{{message}}}
+	client.WriteSeries([]*influxdb.Series{s})
+	self.writeMessage(fmt.Sprintf("QUERY: %s failed with: %s", query, message))
+}
+
+func (self *BenchmarkHarness) reportQuerySuccess(results []*influxdb.Series, seriesName string, microseconds int64) {
+	client := self.reportClient()
+	seriesCount := len(results)
+	pointCount := 0
+	for _, series := range results {
+		pointCount += len(series.Points)
+	}
+	millisecondsTaken := microseconds / 1000
+	s := &influxdb.Series{
+		Name:    seriesName + ".ok",
+		Columns: []string{"response_time", "series_returned", "points_returned"},
+		Points:  [][]interface{}{{millisecondsTaken, seriesCount, pointCount}}}
+	client.WriteSeries([]*influxdb.Series{s})
+	self.writeMessage(fmt.Sprintf("QUERY: %s completed in %dms", seriesName, millisecondsTaken))
 }
 
 func (self *BenchmarkHarness) handleWrites(s *server) {
