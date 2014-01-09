@@ -24,11 +24,13 @@ type ServerProcess struct {
 	apiPort    int
 }
 
-func NewServerProcess(configFile string, apiPort int, c *C) *ServerProcess {
+func NewServerProcess(configFile string, apiPort int, d time.Duration, c *C) *ServerProcess {
 	s := &ServerProcess{configFile: configFile, apiPort: apiPort}
 	err := s.Start()
 	c.Assert(err, IsNil)
-	time.Sleep(time.Second * 4)
+	if d > 0 {
+		time.Sleep(d)
+	}
 	return s
 }
 
@@ -164,9 +166,9 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	err := os.RemoveAll("/tmp/influxdb/test")
 	c.Assert(err, IsNil)
 	self.serverProcesses = []*ServerProcess{
-		NewServerProcess("test_config1.toml", 60500, c),
-		NewServerProcess("test_config2.toml", 60506, c),
-		NewServerProcess("test_config3.toml", 60510, c)}
+		NewServerProcess("test_config1.toml", 60500, time.Second*4, c),
+		NewServerProcess("test_config2.toml", 60506, time.Second*4, c),
+		NewServerProcess("test_config3.toml", 60510, time.Second*4, c)}
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"full_rep\", \"replicationFactor\":3}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"test_rep\", \"replicationFactor\":2}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"single_rep\", \"replicationFactor\":1}", c)
