@@ -127,7 +127,9 @@ func main() {
 	harness.Run()
 	elapsed := time.Now().Sub(startTime)
 
-	fmt.Printf("Finished in %.3f seconds\n", elapsed.Seconds())
+	message := fmt.Sprintf("Finished in %.3f seconds\n", elapsed.Seconds())
+	fmt.Printf(message)
+	logFile.WriteString(message)
 }
 
 type BenchmarkHarness struct {
@@ -185,7 +187,7 @@ func (self *BenchmarkHarness) startPostWorkers() {
 	self.writes = make(chan *LoadWrite)
 	for i := 0; i < self.Config.LoadSettings.ConcurrentConnections; i++ {
 		for _, s := range self.Config.Servers {
-			fmt.Println("Connecting to ", s.ConnectionString)
+			self.writeMessage("Connecting to " + s.ConnectionString)
 			go self.handleWrites(&s)
 		}
 	}
@@ -225,11 +227,11 @@ func (self *BenchmarkHarness) reportResults() {
 				now := time.Now()
 				totalPerSecond := float64(totalPointCount) / now.Sub(startTime).Seconds()
 				runPerSecond := float64(postedSinceLastReport) / now.Sub(lastReport).Seconds()
-				fmt.Printf("This Interval: %d points. %.0f per second. Run Total: %d points. %.0f per second.\n",
+				self.writeMessage(fmt.Sprintf("This Interval: %d points. %.0f per second. Run Total: %d points. %.0f per second.",
 					postedSinceLastReport,
 					runPerSecond,
 					totalPointCount,
-					totalPerSecond)
+					totalPerSecond))
 				lastReport = now
 				lastReportPointCount = totalPointCount
 			}
@@ -404,15 +406,20 @@ func (self *BenchmarkHarness) handleWrites(s *server) {
 	}
 }
 
+func (self *BenchmarkHarness) writeMessage(message string) {
+	fmt.Println(message)
+	self.Config.Log.WriteString(message + "\n")
+}
+
 func (self *BenchmarkHarness) reportSuccess(success *successResult) {
 	if len(self.success) == MAX_SUCCESS_REPORTS_TO_QUEUE {
-		fmt.Println("Success reporting queue backed up. Dropping report.")
+		self.writeMessage("Success reporting queue backed up. Dropping report.")
 		return
 	}
 	self.success <- success
 }
 
 func (self *BenchmarkHarness) reportFailure(failure *failureResult) {
-	fmt.Println("FAILURE: ", failure)
+	self.writeMessage(fmt.Sprint("FAILURE: ", failure))
 	self.failure <- failure
 }
