@@ -4,6 +4,7 @@ import (
 	"bytes"
 	log "code.google.com/p/log4go"
 	"configuration"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"protocol"
 	"strings"
@@ -62,12 +64,33 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 		router:        mux.NewRouter(),
 		config:        config,
 	}
-	rand.Seed(time.Now().Unix())
 	// Read existing name or generate a new one.
 	if b, err := ioutil.ReadFile(filepath.Join(s.path, "name")); err == nil {
 		s.name = string(b)
 	} else {
-		s.name = fmt.Sprintf("%07x", rand.Int())[0:7]
+		var i uint64
+		if _, err := os.Stat("/dev/random"); err == nil {
+			log.Info("Using /dev/random to initialize the raft server name")
+			f, err := os.Open("/dev/random")
+			if err != nil {
+				panic(err)
+			}
+			b := make([]byte, 8)
+			_, err = f.Read(b)
+			if err != nil {
+				panic(err)
+			}
+			i, err = binary.ReadUvarint(bytes.NewBuffer(b))
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			log.Info("Using rand package to generate raft server name")
+			rand.Seed(time.Now().UnixNano())
+			i = uint64(rand.Int())
+		}
+		s.name = fmt.Sprintf("%07x", i)[0:7]
+		log.Info("Setting raft name to %s", s.name)
 		if err = ioutil.WriteFile(filepath.Join(s.path, "name"), []byte(s.name), 0644); err != nil {
 			panic(err)
 		}
