@@ -157,6 +157,7 @@ type LoadWrite struct {
 const MAX_SUCCESS_REPORTS_TO_QUEUE = 100000
 
 func NewBenchmarkHarness(conf *benchmarkConfig) *BenchmarkHarness {
+	rand.Seed(time.Now().UnixNano())
 	harness := &BenchmarkHarness{
 		Config:                  conf,
 		loadDefinitionCompleted: make(chan bool),
