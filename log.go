@@ -262,7 +262,7 @@ func (l *Log) getEntriesAfter(index uint64, maxLogEntriesPerRequest uint64) ([]*
 	entries := l.entries[index-l.startIndex:]
 	length := len(entries)
 
-	traceln("log.entriesAfter: startIndex:", l.startIndex, " lenght", len(l.entries))
+	traceln("log.entriesAfter: startIndex:", l.startIndex, " length", len(l.entries))
 
 	if uint64(length) < maxLogEntriesPerRequest {
 		// Determine the term at the given entry and return a subslice.
@@ -336,7 +336,7 @@ func (l *Log) setCommitIndex(index uint64) error {
 	// Do not allow previous indices to be committed again.
 
 	// This could happens, since the guarantee is that the new leader has up-to-dated
-	// log entires rather than has most up-to-dated committed index
+	// log entries rather than has most up-to-dated committed index
 
 	// For example, Leader 1 send log 80 to follower 2 and follower 3
 	// follower 2 and follow 3 all got the new entries and reply

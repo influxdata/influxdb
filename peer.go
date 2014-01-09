@@ -202,7 +202,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 		if resp.CommitIndex >= p.prevLogIndex {
 
 			// we may miss a response from peer
-			// so maybe the peer has commited the logs we sent
+			// so maybe the peer has committed the logs we sent
 			// but we did not receive the success reply and did not increase
 			// the prevLogIndex
 
