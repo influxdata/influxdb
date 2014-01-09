@@ -130,13 +130,12 @@ func main() {
 }
 
 type BenchmarkHarness struct {
-	Config          *benchmarkConfig
-	writes          chan *LoadWrite
-	requestPending  chan bool
-	requestComplete chan bool
-	done            chan bool
-	success         chan *successResult
-	failure         chan *failureResult
+	Config                  *benchmarkConfig
+	writes                  chan *LoadWrite
+	loadDefinitionCompleted chan bool
+	done                    chan bool
+	success                 chan *successResult
+	failure                 chan *failureResult
 }
 
 type successResult struct {
@@ -155,17 +154,16 @@ type LoadWrite struct {
 	Series         []*influxdb.Series
 }
 
-const MAX_SUCCESS_REPORTS_TO_QUEUE = 1000
+const MAX_SUCCESS_REPORTS_TO_QUEUE = 100000
 
 func NewBenchmarkHarness(conf *benchmarkConfig) *BenchmarkHarness {
 	harness := &BenchmarkHarness{
-		Config:          conf,
-		requestPending:  make(chan bool),
-		requestComplete: make(chan bool),
-		done:            make(chan bool),
-		success:         make(chan *successResult, MAX_SUCCESS_REPORTS_TO_QUEUE),
-		failure:         make(chan *failureResult, 1000)}
-	go harness.trackRunningRequests()
+		Config:                  conf,
+		loadDefinitionCompleted: make(chan bool),
+		done:    make(chan bool),
+		success: make(chan *successResult, MAX_SUCCESS_REPORTS_TO_QUEUE),
+		failure: make(chan *failureResult, 1000)}
+	go harness.trackRunningLoadDefinitions()
 	harness.startPostWorkers()
 	go harness.reportResults()
 	return harness
@@ -175,6 +173,7 @@ func (self *BenchmarkHarness) Run() {
 	for _, loadDef := range self.Config.LoadDefinitions {
 		go func() {
 			self.runLoadDefinition(&loadDef)
+			self.loadDefinitionCompleted <- true
 		}()
 	}
 	self.waitForCompletion()
@@ -184,6 +183,7 @@ func (self *BenchmarkHarness) startPostWorkers() {
 	self.writes = make(chan *LoadWrite)
 	for i := 0; i < self.Config.LoadSettings.ConcurrentConnections; i++ {
 		for _, s := range self.Config.Servers {
+			fmt.Println("Connecting to ", s.ConnectionString)
 			go self.handleWrites(&s)
 		}
 	}
@@ -238,34 +238,31 @@ func (self *BenchmarkHarness) reportResults() {
 				Points:  [][]interface{}{{res.microseconds / 1000, pointCount, seriesCount}}}
 			client.WriteSeries([]*influxdb.Series{s})
 
-			self.requestComplete <- true
 		case res := <-self.failure:
 			s := &influxdb.Series{
 				Name:    res.write.LoadDefinition.Name + ".ok",
 				Columns: failureColumns,
 				Points:  [][]interface{}{{res.microseconds / 1000, res.err}}}
 			client.WriteSeries([]*influxdb.Series{s})
-			self.requestComplete <- true
 		}
 	}
 }
 
 func (self *BenchmarkHarness) waitForCompletion() {
 	<-self.done
+	// TODO: fix this. Just a hack to give the reporting goroutines time to purge before the process quits.
+	time.Sleep(time.Second)
 }
 
-func (self *BenchmarkHarness) trackRunningRequests() {
+func (self *BenchmarkHarness) trackRunningLoadDefinitions() {
 	count := 0
+	loadDefinitionCount := len(self.Config.LoadDefinitions)
 	for {
-		select {
-		case <-self.requestPending:
-			count += 1
-		case <-self.requestComplete:
-			count -= 1
-			if count == 0 {
-				self.done <- true
-				return
-			}
+		<-self.loadDefinitionCompleted
+		count += 1
+		if count == loadDefinitionCount {
+			self.done <- true
+			return
 		}
 	}
 }
@@ -379,7 +376,6 @@ func (self *BenchmarkHarness) handleWrites(s *server) {
 	for {
 		write := <-self.writes
 
-		self.requestPending <- true
 		startTime := time.Now()
 		err := client.WriteSeries(write.Series)
 		microsecondsTaken := time.Now().Sub(startTime).Nanoseconds() / 1000
@@ -389,7 +385,6 @@ func (self *BenchmarkHarness) handleWrites(s *server) {
 		} else {
 			self.reportSuccess(&successResult{write: write, microseconds: microsecondsTaken})
 		}
-		self.requestComplete <- true
 	}
 }
 
@@ -399,10 +394,9 @@ func (self *BenchmarkHarness) reportSuccess(success *successResult) {
 		return
 	}
 	self.success <- success
-	self.requestPending <- true
 }
 
 func (self *BenchmarkHarness) reportFailure(failure *failureResult) {
+	fmt.Println("FAILURE: ", failure)
 	self.failure <- failure
-	self.requestPending <- true
 }
