@@ -380,7 +380,12 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		server := s.clusterConfig.GetServerByRaftName(command.Name)
 		// it's a new server the cluster has never seen, make it a potential
 		if server == nil {
-			addServer := NewAddPotentialServerCommand(&ClusterServer{RaftName: command.Name, RaftConnectionString: command.ConnectionString, ProtobufConnectionString: command.ProtobufConnectionString})
+			log.Info("Adding new server to the cluster config %s", command.Name)
+			addServer := NewAddPotentialServerCommand(&ClusterServer{
+				RaftName:                 command.Name,
+				RaftConnectionString:     command.ConnectionString,
+				ProtobufConnectionString: command.ProtobufConnectionString,
+			})
 			if _, err := s.raftServer.Do(addServer); err != nil {
 				log.Error("Error joining raft server: ", err, command)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
