@@ -130,7 +130,7 @@ func (p *Peer) heartbeat(c chan bool) {
 				// before we can safely remove a node
 				// we must flush the remove command to the node first
 				p.flush()
-				debugln("peer.heartbeat.stop: ", p.Name)
+				debugln("peer.heartbeat.stop.with.flush: ", p.Name)
 				return
 			}
 
@@ -141,7 +141,7 @@ func (p *Peer) heartbeat(c chan bool) {
 }
 
 func (p *Peer) flush() {
-	debugln("peer.heartbeat.run: ", p.Name)
+	debugln("peer.heartbeat.flush: ", p.Name)
 	prevLogIndex := p.getPrevLogIndex()
 	entries, prevLogTerm := p.server.log.getEntriesAfter(prevLogIndex, p.server.maxLogEntriesPerRequest)
 
@@ -162,15 +162,16 @@ func (p *Peer) flush() {
 
 // Sends an AppendEntries request to the peer through the transport.
 func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
-	traceln("peer.flush.send: ", p.server.Name(), "->", p.Name, " ", len(req.Entries))
+	tracef("peer.append.send: %s->%s [prevLog:%v length: %v]\n",
+		p.server.Name(), p.Name, req.PrevLogIndex, len(req.Entries))
 
 	resp := p.server.Transporter().SendAppendEntriesRequest(p.server, p, req)
 	if resp == nil {
 		p.server.DispatchEvent(newEvent(HeartbeatTimeoutEventType, p, nil))
-		debugln("peer.flush.timeout: ", p.server.Name(), "->", p.Name)
+		debugln("peer.append.timeout: ", p.server.Name(), "->", p.Name)
 		return
 	}
-	traceln("peer.flush.recv: ", p.Name)
+	traceln("peer.append.resp: ", p.server.Name(), "<-", p.Name)
 
 	// If successful then update the previous log index.
 	p.mutex.Lock()
@@ -184,21 +185,22 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 				resp.append = true
 			}
 		}
-		traceln("peer.flush.success: ", p.server.Name(), "->", p.Name, "; idx =", p.prevLogIndex)
-
+		traceln("peer.append.resp.success: ", p.Name, "; idx =", p.prevLogIndex)
 		// If it was unsuccessful then decrement the previous log index and
 		// we'll try again next time.
 	} else {
 		if resp.CommitIndex >= p.prevLogIndex {
-
 			// we may miss a response from peer
-			// so maybe the peer has committed the logs we sent
-			// but we did not receive the success reply and did not increase
+			// so maybe the peer has committed the logs we just sent
+			// but we did not receive the successful reply and did not increase
 			// the prevLogIndex
 
-			p.prevLogIndex = resp.CommitIndex
+			// peer failed to truncate the log and sent a fail reply at this time
+			// we just need to update peer's prevLog index to commitIndex
 
-			debugln("peer.flush.commitIndex: ", p.server.Name(), "->", p.Name, " idx =", p.prevLogIndex)
+			p.prevLogIndex = resp.CommitIndex
+			debugln("peer.append.resp.update: ", p.Name, "; idx =", p.prevLogIndex)
+
 		} else if p.prevLogIndex > 0 {
 			// Decrement the previous log index down until we find a match. Don't
 			// let it go below where the peer's commit index is though. That's a
@@ -209,7 +211,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 				p.prevLogIndex = resp.Index
 			}
 
-			debugln("peer.flush.decrement: ", p.server.Name(), "->", p.Name, " idx =", p.prevLogIndex)
+			debugln("peer.append.resp.decrement: ", p.Name, "; idx =", p.prevLogIndex)
 		}
 	}
 	p.mutex.Unlock()
@@ -273,8 +275,10 @@ func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteRespo
 	debugln("peer.vote: ", p.server.Name(), "->", p.Name)
 	req.peer = p
 	if resp := p.server.Transporter().SendVoteRequest(p.server, p, req); resp != nil {
-		debugln("peer.vote: recv", p.server.Name(), "<-", p.Name)
+		debugln("peer.vote.recv: ", p.server.Name(), "<-", p.Name)
 		resp.peer = p
 		c <- resp
+	} else {
+		debugln("peer.vote.failed: ", p.server.Name(), "<-", p.Name)
 	}
 }

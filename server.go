@@ -887,7 +887,6 @@ func (s *server) AppendEntries(req *AppendEntriesRequest) *AppendEntriesResponse
 
 // Processes the "append entries" request.
 func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*AppendEntriesResponse, bool) {
-
 	s.traceln("server.ae.process")
 
 	if req.Term < s.currentTerm {
