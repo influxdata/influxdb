@@ -103,6 +103,7 @@ github.com/gorilla/mux \
 github.com/goraft/raft \
 github.com/influxdb/go-cache \
 github.com/BurntSushi/toml \
+github.com/influxdb/influxdb-go \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
@@ -129,9 +130,11 @@ build: | dependencies protobuf parser
 # TODO: build all packages, otherwise we won't know
 # if there's an error
 	$(GO) build daemon
+	$(GO) build benchmark
 
 clean:
 	rm -f daemon
+	rm -f benchmakr
 	rm -rf pkg/
 	rm -rf packages/
 	rm -rf src/$(levigo_dependency)
@@ -209,6 +212,7 @@ $(source_package): dependencies
 	rm -rf src/$(levigo_dependency)
 	$(GO) get -d $(levigo_dependency)
 	rm -f daemon
+	rm -f benchmark
 	git ls-files --others | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
 	echo "pkg/*" >> /tmp/influxdb.ignored
 	echo "packages/*" >> /tmp/influxdb.ignored
@@ -230,6 +234,8 @@ $(binary_package): $(admin_dir)/build build packages
 	rm -rf build
 	mkdir build
 	mv daemon build/influxdb
+	mv benchmark build/influxdb-benchmark
+	cp src/benchmark/benchmark_config.sample.toml build/benchmark_config.toml
 	mkdir build/admin
 	cp -R $(admin_dir)/build/* build/admin/
 	cp -R scripts/ build/
