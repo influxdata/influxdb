@@ -572,8 +572,17 @@ func (s *server) send(value interface{}) (interface{}, error) {
 }
 
 func (s *server) sendAsync(value interface{}) {
+	event := &ev{target: value, c: make(chan error, 1)}
+	// try a non-blocking send first
+	// in most cases, this should not be blocking
+	// avoid create unnecessary go routines
+	select {
+	case s.c <- event:
+		return
+	default:
+	}
+
 	go func() {
-		event := &ev{target: value, c: make(chan error, 1)}
 		s.c <- event
 	}()
 }
