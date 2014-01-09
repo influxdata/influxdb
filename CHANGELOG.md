@@ -159,6 +159,7 @@
 - [Issue #99](https://github.com/influxdb/influxdb/issues/99). Support list series in the query language
 - [Issue #149](https://github.com/influxdb/influxdb/issues/149). Cluster admins should be able to perform reads and writes.
 - [Issue #108](https://github.com/influxdb/influxdb/issues/108). Querying one point using `time =`
+- [Issue #114](https://github.com/influxdb/influxdb/issues/114). Servers should periodically check that they're consistent.
 
 ## Bugfixes
 
