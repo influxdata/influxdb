@@ -238,7 +238,6 @@ func (s *RaftServer) startRaft() error {
 
 		log.Warn("Couldn't join any of the seeds, sleeping and retrying...")
 		time.Sleep(100 * time.Millisecond)
-		continue
 	}
 	return nil
 }
