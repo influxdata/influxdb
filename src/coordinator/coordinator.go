@@ -1030,7 +1030,9 @@ func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username stri
 }
 
 func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString string) error {
+	log.Info("Waiting for local server to be added")
 	self.clusterConfiguration.WaitForLocalServerLoaded()
+	log.Info("Local server added. Connecting to other nodes in the cluster")
 
 	for _, server := range self.clusterConfiguration.Servers() {
 		if server.ProtobufConnectionString != localConnectionString {

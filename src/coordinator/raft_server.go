@@ -4,6 +4,7 @@ import (
 	"bytes"
 	log "code.google.com/p/log4go"
 	"configuration"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"protocol"
 	"strings"
@@ -62,12 +64,33 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 		router:        mux.NewRouter(),
 		config:        config,
 	}
-	rand.Seed(time.Now().Unix())
 	// Read existing name or generate a new one.
 	if b, err := ioutil.ReadFile(filepath.Join(s.path, "name")); err == nil {
 		s.name = string(b)
 	} else {
-		s.name = fmt.Sprintf("%07x", rand.Int())[0:7]
+		var i uint64
+		if _, err := os.Stat("/dev/random"); err == nil {
+			log.Info("Using /dev/random to initialize the raft server name")
+			f, err := os.Open("/dev/random")
+			if err != nil {
+				panic(err)
+			}
+			b := make([]byte, 8)
+			_, err = f.Read(b)
+			if err != nil {
+				panic(err)
+			}
+			i, err = binary.ReadUvarint(bytes.NewBuffer(b))
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			log.Info("Using rand package to generate raft server name")
+			rand.Seed(time.Now().UnixNano())
+			i = uint64(rand.Int())
+		}
+		s.name = fmt.Sprintf("%07x", i)[0:7]
+		log.Info("Setting raft name to %s", s.name)
 		if err = ioutil.WriteFile(filepath.Join(s.path, "name"), []byte(s.name), 0644); err != nil {
 			panic(err)
 		}
@@ -238,7 +261,6 @@ func (s *RaftServer) startRaft() error {
 
 		log.Warn("Couldn't join any of the seeds, sleeping and retrying...")
 		time.Sleep(100 * time.Millisecond)
-		continue
 	}
 	return nil
 }
@@ -311,7 +333,12 @@ func (s *RaftServer) Join(leader string) error {
 
 	var b bytes.Buffer
 	json.NewEncoder(&b).Encode(command)
-	resp, err := http.Post(connectUrl, "application/json", &b)
+	log.Debug("(raft:%s) Posting to seed server %s", s.raftServer.Name(), connectUrl)
+	tr := &http.Transport{
+		ResponseHeaderTimeout: time.Second,
+	}
+	client := &http.Client{Transport: tr}
+	resp, err := client.Post(connectUrl, "application/json", &b)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -323,6 +350,7 @@ func (s *RaftServer) Join(leader string) error {
 		return s.Join(address)
 	}
 
+	log.Debug("(raft:%s) Posted to seed server %s", s.raftServer.Name(), connectUrl)
 	return nil
 }
 
@@ -345,23 +373,33 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		log.Debug("Leader processing: %v", command)
 		// during the test suite the join command will sometimes time out.. just retry a few times
 		if _, err := s.raftServer.Do(command); err != nil {
+			log.Error("Can't process %v: %s", command, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		server := s.clusterConfig.GetServerByRaftName(command.Name)
 		// it's a new server the cluster has never seen, make it a potential
 		if server == nil {
-			addServer := NewAddPotentialServerCommand(&ClusterServer{RaftName: command.Name, RaftConnectionString: command.ConnectionString, ProtobufConnectionString: command.ProtobufConnectionString})
+			log.Info("Adding new server to the cluster config %s", command.Name)
+			addServer := NewAddPotentialServerCommand(&ClusterServer{
+				RaftName:                 command.Name,
+				RaftConnectionString:     command.ConnectionString,
+				ProtobufConnectionString: command.ProtobufConnectionString,
+			})
 			if _, err := s.raftServer.Do(addServer); err != nil {
 				log.Error("Error joining raft server: ", err, command)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
+		log.Info("Server %s already exist in the cluster config", command.Name)
 	} else {
-		if leader, ok := s.leaderConnectString(); ok {
+		leader, ok := s.leaderConnectString()
+		log.Debug("Non-leader redirecting to: (%v, %v)", leader, ok)
+		if ok {
 			log.Debug("redirecting to leader to join...")
 			http.Redirect(w, req, leader+"/join", http.StatusTemporaryRedirect)
 		} else {
