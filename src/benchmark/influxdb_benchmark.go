@@ -1,6 +1,7 @@
 package main
 
 import (
+	crand "crypto/rand"
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
@@ -330,7 +331,11 @@ func (self *BenchmarkHarness) runLoad(seriesNames []string, columns []string, lo
 					point = append(point, rand.Float64())
 				}
 				for _, col := range loadDef.StringColumns {
-					point = append(point, col.Values[rand.Intn(len(col.Values))])
+					if col.RandomLength != 0 {
+						point = append(point, self.randomString(col.RandomLength))
+					} else {
+						point = append(point, col.Values[rand.Intn(len(col.Values))])
+					}
 				}
 
 				s.Points[pointCount] = point
@@ -342,6 +347,16 @@ func (self *BenchmarkHarness) runLoad(seriesNames []string, columns []string, lo
 	if shouldSleep == nil {
 		time.Sleep(sleepTime)
 	}
+}
+
+func (self *BenchmarkHarness) randomString(length int) string {
+	const alphanum = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	var bytes = make([]byte, length)
+	crand.Read(bytes)
+	for i, b := range bytes {
+		bytes[i] = alphanum[b%byte(len(alphanum))]
+	}
+	return string(bytes)
 }
 
 func (self *BenchmarkHarness) runQuery(loadDef *loadDefinition, seriesNames []string, q *query) {
