@@ -19,8 +19,12 @@ type ProtobufRequestHandler struct {
 	writeOk       protocol.Response_Type
 }
 
-var replayReplicationEnd = protocol.Response_REPLICATION_REPLAY_END
-var responseReplicationReplay = protocol.Response_REPLICATION_REPLAY
+var (
+	replayReplicationEnd      = protocol.Response_REPLICATION_REPLAY_END
+	responseReplicationReplay = protocol.Response_REPLICATION_REPLAY
+	internalError             = protocol.Response_INTERNAL_ERROR
+	sequenceNumberResponse    = protocol.Response_SEQUENCE_NUMBER
+)
 
 func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, clusterConfig *ClusterConfiguration) *ProtobufRequestHandler {
 	return &ProtobufRequestHandler{db: db, coordinator: coordinator, writeOk: protocol.Response_WRITE_OK, clusterConfig: clusterConfig}
@@ -109,11 +113,27 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		go self.handleListSeries(request, conn)
 	} else if *request.Type == protocol.Request_REPLICATION_REPLAY {
 		self.handleReplay(request, conn)
+	} else if *request.Type == protocol.Request_SEQUENCE_NUMBER {
+		self.handleSequenceNumberRequest(request, conn)
 	} else {
 		log.Error("unknown request type: %v", request)
 		return errors.New("Unknown request type")
 	}
 	return nil
+}
+
+func (self *ProtobufRequestHandler) handleSequenceNumberRequest(request *protocol.Request, conn net.Conn) {
+	replicationFactor := uint8(*request.ReplicationFactor)
+	var err error
+	lastKnownSequenceNumber, err := self.coordinator.GetLastSequenceNumber(replicationFactor, *request.OriginatingServerId, *request.OwnerServerId)
+	var response *protocol.Response
+	if err != nil {
+		response = &protocol.Response{Type: &sequenceNumberResponse, Request: request, RequestId: request.Id, ErrorCode: &internalError}
+	} else {
+		response = &protocol.Response{Type: &sequenceNumberResponse, Request: request, RequestId: request.Id}
+		request.LastKnownSequenceNumber = &lastKnownSequenceNumber
+	}
+	self.WriteResponse(conn, response)
 }
 
 func (self *ProtobufRequestHandler) handleReplay(request *protocol.Request, conn net.Conn) {

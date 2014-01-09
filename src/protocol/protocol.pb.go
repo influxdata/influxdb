@@ -23,6 +23,7 @@ const (
 	Request_PROXY_DELETE       Request_Type = 5
 	Request_REPLICATION_REPLAY Request_Type = 6
 	Request_LIST_SERIES        Request_Type = 7
+	Request_SEQUENCE_NUMBER    Request_Type = 8
 )
 
 var Request_Type_name = map[int32]string{
@@ -33,6 +34,7 @@ var Request_Type_name = map[int32]string{
 	5: "PROXY_DELETE",
 	6: "REPLICATION_REPLAY",
 	7: "LIST_SERIES",
+	8: "SEQUENCE_NUMBER",
 }
 var Request_Type_value = map[string]int32{
 	"QUERY":              1,
@@ -42,6 +44,7 @@ var Request_Type_value = map[string]int32{
 	"PROXY_DELETE":       5,
 	"REPLICATION_REPLAY": 6,
 	"LIST_SERIES":        7,
+	"SEQUENCE_NUMBER":    8,
 }
 
 func (x Request_Type) Enum() *Request_Type {
@@ -70,6 +73,7 @@ const (
 	Response_REPLICATION_REPLAY     Response_Type = 4
 	Response_REPLICATION_REPLAY_END Response_Type = 5
 	Response_LIST_SERIES            Response_Type = 6
+	Response_SEQUENCE_NUMBER        Response_Type = 7
 )
 
 var Response_Type_name = map[int32]string{
@@ -79,6 +83,7 @@ var Response_Type_name = map[int32]string{
 	4: "REPLICATION_REPLAY",
 	5: "REPLICATION_REPLAY_END",
 	6: "LIST_SERIES",
+	7: "SEQUENCE_NUMBER",
 }
 var Response_Type_value = map[string]int32{
 	"QUERY":                  1,
@@ -87,6 +92,7 @@ var Response_Type_value = map[string]int32{
 	"REPLICATION_REPLAY":     4,
 	"REPLICATION_REPLAY_END": 5,
 	"LIST_SERIES":            6,
+	"SEQUENCE_NUMBER":        7,
 }
 
 func (x Response_Type) Enum() *Response_Type {
@@ -110,13 +116,16 @@ type Response_ErrorCode int32
 
 const (
 	Response_REQUEST_TOO_LARGE Response_ErrorCode = 1
+	Response_INTERNAL_ERROR    Response_ErrorCode = 2
 )
 
 var Response_ErrorCode_name = map[int32]string{
 	1: "REQUEST_TOO_LARGE",
+	2: "INTERNAL_ERROR",
 }
 var Response_ErrorCode_value = map[string]int32{
 	"REQUEST_TOO_LARGE": 1,
+	"INTERNAL_ERROR":    2,
 }
 
 func (x Response_ErrorCode) Enum() *Response_ErrorCode {

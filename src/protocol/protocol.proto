@@ -33,6 +33,7 @@ message Request {
     PROXY_DELETE = 5;
     REPLICATION_REPLAY = 6;
     LIST_SERIES = 7;
+    SEQUENCE_NUMBER = 8;
   }
   required uint32 id = 1;
   required Type type = 2;
@@ -69,9 +70,11 @@ message Response {
     REPLICATION_REPLAY = 4;
     REPLICATION_REPLAY_END = 5;
     LIST_SERIES = 6;
+    SEQUENCE_NUMBER = 7;
   }
   enum ErrorCode {
     REQUEST_TOO_LARGE = 1;
+    INTERNAL_ERROR = 2;
   }
   required Type type = 1;
   required uint32 request_id = 2;

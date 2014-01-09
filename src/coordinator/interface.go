@@ -26,6 +26,7 @@ type Coordinator interface {
 	ReplicateWrite(request *protocol.Request) error
 	ReplicateDelete(request *protocol.Request) error
 	ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64)
+	GetLastSequenceNumber(replicationFactor uint8, ownerServerId, originatingServerId uint32) (uint64, error)
 }
 
 type UserManager interface {

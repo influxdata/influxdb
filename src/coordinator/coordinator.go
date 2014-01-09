@@ -9,8 +9,10 @@ import (
 	"math"
 	"parser"
 	"protocol"
+	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type CoordinatorImpl struct {
@@ -44,15 +46,20 @@ var (
 	endStreamResponse  = protocol.Response_END_STREAM
 	queryResponse      = protocol.Response_QUERY
 	replayReplication  = protocol.Request_REPLICATION_REPLAY
+	sequenceNumber     = protocol.Request_SEQUENCE_NUMBER
 )
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
-	return &CoordinatorImpl{
+	coordinator := &CoordinatorImpl{
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
 		datastore:            datastore,
 		runningReplays:       make(map[string][]*protocol.Request),
 	}
+
+	go coordinator.SyncLogs()
+
+	return coordinator
 }
 
 // Distributes the query across the cluster and combines the results. Yields as they come in ensuring proper order.
@@ -368,17 +375,149 @@ func (self *CoordinatorImpl) normalizePointAndAppend(fieldNames map[string]int, 
 	result.Points = append(result.Points, point)
 }
 
+func (self *CoordinatorImpl) SyncLogs() {
+	for {
+		self.SyncLogIteration()
+		time.Sleep(time.Second)
+	}
+}
+
+func (self *CoordinatorImpl) SyncLogIteration() {
+	defer func() {
+		if err := recover(); err != nil {
+			buf := make([]byte, 1024)
+			n := runtime.Stack(buf, false)
+			log.Error("recovering from panic in SyncLogIteration: %s. Stacktrace: %s", err, string(buf[:n]))
+		}
+	}()
+
+	servers := self.clusterConfiguration.Servers()
+
+	replicationFactors := map[uint8]bool{}
+	for _, replicationFactor := range self.clusterConfiguration.databaseReplicationFactors {
+		replicationFactors[replicationFactor] = true
+	}
+
+	localId := self.clusterConfiguration.localServerId
+
+	for replicationFactor, _ := range replicationFactors {
+		for _, owningServer := range servers {
+		outer:
+			for _, originatingServer := range servers {
+				if originatingServer.Id == localId {
+					continue
+				}
+
+				var lastKnownSequenceNumber, currentSequenceNumber uint64
+				var err error
+
+				for i := 0; i < 2; i++ {
+					if i == 0 {
+						lastKnownSequenceNumber, currentSequenceNumber, err = self.getLastAndCurrentSequenceNumbers(replicationFactor, originatingServer, owningServer)
+					} else {
+						lastKnownSequenceNumber, err = self.GetLastSequenceNumber(replicationFactor, originatingServer.Id, owningServer.Id)
+					}
+
+					if err != nil {
+						log.Error("Cannot get sequence numbers: %s", err)
+						continue
+					}
+
+					if lastKnownSequenceNumber >= currentSequenceNumber {
+						log.Debug("[%d] Sequence numbers are in sync for originating server %d and owner server %d and replication factor %d [%d %d]",
+							localId, originatingServer.Id, owningServer.Id, replicationFactor, lastKnownSequenceNumber, currentSequenceNumber)
+						continue outer
+					}
+
+					log.Info("[%d] Sequence numbers are out of sync for originating server %d and owner server %d and replication factor %d [%d %d]",
+						localId, originatingServer.Id, owningServer.Id, replicationFactor, lastKnownSequenceNumber, currentSequenceNumber)
+
+					// if the sequence numbers are out of sync the first time,
+					// wait a second in case there are requests comming in that
+					// will increase the last known sequence number
+					if i == 0 {
+						time.Sleep(time.Second)
+					}
+				}
+
+				log.Info("[%d] Syncing log for originating server %d and owner server %d and replication factor %d starting at %d",
+					localId, originatingServer.Id, owningServer.Id, replicationFactor, lastKnownSequenceNumber)
+
+				request := &protocol.Request{
+					OriginatingServerId: &originatingServer.Id,
+					ClusterVersion:      &self.clusterConfiguration.ClusterVersion,
+				}
+				self.ReplayReplication(request, &replicationFactor, &owningServer.Id, &lastKnownSequenceNumber)
+			}
+		}
+	}
+}
+
+func (self *CoordinatorImpl) getLastAndCurrentSequenceNumbers(replicationFactor uint8, originatingServer, owningServer *ClusterServer) (uint64, uint64, error) {
+	lastKnownSequenceNumber, err := self.GetLastSequenceNumber(replicationFactor, originatingServer.Id, owningServer.Id)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	currentSequenceNumber, err := self.getCurrentSequenceNumber(replicationFactor, originatingServer, owningServer)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return lastKnownSequenceNumber, currentSequenceNumber, nil
+}
+
+func (self *CoordinatorImpl) GetLastSequenceNumber(replicationFactor uint8, originatingServer, owningServer uint32) (uint64, error) {
+	return self.datastore.CurrentSequenceNumber(&self.clusterConfiguration.ClusterVersion,
+		&replicationFactor, &owningServer, &originatingServer)
+}
+
+func (self *CoordinatorImpl) getCurrentSequenceNumber(replicationFactor uint8, originatingServer, owningServer *ClusterServer) (uint64, error) {
+	id := atomic.AddUint32(&self.requestId, uint32(1))
+	replicationFactor32 := uint32(replicationFactor)
+	database := ""
+	replayRequest := &protocol.Request{
+		Id:                  &id,
+		Type:                &sequenceNumber,
+		Database:            &database,
+		ReplicationFactor:   &replicationFactor32,
+		OriginatingServerId: &originatingServer.Id,
+		OwnerServerId:       &owningServer.Id,
+		ClusterVersion:      &self.clusterConfiguration.ClusterVersion,
+	}
+	responses := make(chan *protocol.Response)
+	err := originatingServer.MakeRequest(replayRequest, responses)
+	if err != nil {
+		return 0, err
+	}
+	response := <-responses
+	if response == nil {
+		return 0, fmt.Errorf("Get a nil response back")
+	}
+	if response.ErrorCode != nil {
+		return 0, fmt.Errorf("Internal server error")
+	}
+	return *response.Request.LastKnownSequenceNumber, nil
+}
+
 func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
 	log.Warn("COORDINATOR: ReplayReplication: %v, %v, %v, %v", request, *replicationFactor, *owningServerId, *lastSeenSequenceNumber)
 	key := fmt.Sprintf("%d_%d_%d_%d", *replicationFactor, *request.ClusterVersion, *request.OriginatingServerId, *owningServerId)
 	self.runningReplaysLock.Lock()
 	requestsWaitingToWrite := self.runningReplays[key]
 	if requestsWaitingToWrite != nil {
+		// request will be nil if this is a forced replay
+		if request.Type == nil {
+			return
+		}
 		self.runningReplays[key] = append(requestsWaitingToWrite, request)
 		self.runningReplaysLock.Unlock()
 		return
 	}
-	self.runningReplays[key] = []*protocol.Request{request}
+	self.runningReplays[key] = []*protocol.Request{}
+	if request.Type != nil {
+		self.runningReplays[key] = append(self.runningReplays[key], request)
+	}
 	self.runningReplaysLock.Unlock()
 
 	id := atomic.AddUint32(&self.requestId, uint32(1))
@@ -413,6 +552,7 @@ func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replic
 			return
 		}
 		request := response.Request
+		log.Debug("Replaying %v", request)
 		self.handleReplayRequest(request, replicationFactor, owningServerId)
 	}
 }
