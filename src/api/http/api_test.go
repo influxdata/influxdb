@@ -96,26 +96,11 @@ func (self *MockEngine) RunQuery(_ common.User, _ string, query string, localOnl
 }
 
 type MockCoordinator struct {
+	coordinator.Coordinator
 	series        []*protocol.Series
 	deleteQueries []*parser.DeleteQuery
 	db            string
 	droppedDb     string
-}
-
-func (self *MockCoordinator) GetLastSequenceNumber(replicationFactor uint8, _, _ uint32) (uint64, error) {
-	return 0, nil
-}
-
-func (self *MockCoordinator) DistributeQuery(_ common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
-	return nil
-}
-
-func (self *MockCoordinator) ReplicateDelete(request *protocol.Request) error {
-	return nil
-}
-
-func (self *MockCoordinator) ListSeries(_ common.User, _ string) ([]*protocol.Series, error) {
-	return nil, nil
 }
 
 func (self *MockCoordinator) WriteSeriesData(_ common.User, db string, series *protocol.Series) error {
@@ -140,14 +125,6 @@ func (self *MockCoordinator) ListDatabases(_ common.User) ([]*coordinator.Databa
 func (self *MockCoordinator) DropDatabase(_ common.User, db string) error {
 	self.droppedDb = db
 	return nil
-}
-
-func (self *MockCoordinator) ReplicateWrite(request *protocol.Request) error {
-	return nil
-}
-
-func (self *MockCoordinator) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
-	return
 }
 
 func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
