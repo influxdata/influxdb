@@ -1331,7 +1331,7 @@ func (s *server) writeConf() {
 	confPath := path.Join(s.path, "conf")
 	tmpConfPath := path.Join(s.path, "conf.tmp")
 
-	err := ioutil.WriteFile(tmpConfPath, b, 0600)
+	err := writeFileSynced(tmpConfPath, b, 0600)
 
 	if err != nil {
 		panic(err)
