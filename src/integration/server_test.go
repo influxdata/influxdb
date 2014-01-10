@@ -153,10 +153,15 @@ func (self *ServerProcess) Query(database, query string, onlyLocal bool, c *C) *
 }
 
 func (self *ServerProcess) Post(url, data string, c *C) *http.Response {
+	return self.Request("POST", url, data, c)
+}
+
+func (self *ServerProcess) Request(method, url, data string, c *C) *http.Response {
 	fullUrl := fmt.Sprintf("http://localhost:%d%s", self.apiPort, url)
-	resp, err := http.Post(fullUrl, "application/json", bytes.NewBufferString(data))
+	req, err := http.NewRequest(method, fullUrl, bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 10)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
 	return resp
 }
 
@@ -274,6 +279,51 @@ func (self *ServerSuite) TestListSeries(c *C) {
 		s := collection.GetSeries("cluster_query", c)
 		c.Assert(s.Columns, HasLen, 2)
 		c.Assert(s.Points, HasLen, 0)
+	}
+}
+
+func (self *ServerSuite) TestDropDatabase(c *C) {
+	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_db", "replicationFactor": 3}`, c)
+	self.serverProcesses[0].Post("/db/drop_db/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	data := `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[1]]
+		}]`
+	self.serverProcesses[0].Post("/db/drop_db/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second)
+	resp := self.serverProcesses[0].Request("DELETE", "/db/drop_db?u=root&p=root", "", c)
+	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+	time.Sleep(time.Second)
+	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_db", "replicationFactor": 3}`, c)
+	self.serverProcesses[0].Post("/db/drop_db/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		fmt.Printf("Running query against: %d\n", s.apiPort)
+		collection := s.Query("drop_db", "select * from cluster_query", true, c)
+		c.Assert(collection.GetSeries("cluster_query", c).Points, HasLen, 0)
+		c.Assert(collection.GetSeries("cluster_query", c).Columns, DeepEquals, []string{"time", "sequence_number"})
+	}
+}
+
+func (self *ServerSuite) TestDropSeries(c *C) {
+	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_series", "replicationFactor": 3}`, c)
+	self.serverProcesses[0].Post("/db/drop_series/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	data := `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[1]]
+		}]`
+	self.serverProcesses[0].Post("/db/drop_series/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second)
+	resp := self.serverProcesses[0].Request("DELETE", "/db/drop_series/series/cluster_query?u=root&p=root", "", c)
+	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		fmt.Printf("Running query against: %d\n", s.apiPort)
+		collection := s.Query("drop_series", "select * from cluster_query", true, c)
+		c.Assert(collection.GetSeries("cluster_query", c).Points, HasLen, 0)
+		c.Assert(collection.GetSeries("cluster_query", c).Columns, DeepEquals, []string{"time", "sequence_number"})
 	}
 }
 

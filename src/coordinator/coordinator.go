@@ -39,15 +39,19 @@ var (
 
 // shorter constants for readability
 var (
-	proxyWrite         = protocol.Request_PROXY_WRITE
-	proxyDelete        = protocol.Request_PROXY_DELETE
-	queryRequest       = protocol.Request_QUERY
-	listSeriesRequest  = protocol.Request_LIST_SERIES
-	listSeriesResponse = protocol.Response_LIST_SERIES
-	endStreamResponse  = protocol.Response_END_STREAM
-	queryResponse      = protocol.Response_QUERY
-	replayReplication  = protocol.Request_REPLICATION_REPLAY
-	sequenceNumber     = protocol.Request_SEQUENCE_NUMBER
+	proxyWrite            = protocol.Request_PROXY_WRITE
+	proxyDelete           = protocol.Request_PROXY_DELETE
+	proxyDropDatabase     = protocol.Request_PROXY_DROP_DATABASE
+	replicateDropDatabase = protocol.Request_REPLICATION_DROP_DATABASE
+	proxyDropSeries       = protocol.Request_PROXY_DROP_SERIES
+	replicateDropSeries   = protocol.Request_REPLICATION_DROP_SERIES
+	queryRequest          = protocol.Request_QUERY
+	listSeriesRequest     = protocol.Request_LIST_SERIES
+	listSeriesResponse    = protocol.Response_LIST_SERIES
+	endStreamResponse     = protocol.Response_END_STREAM
+	queryResponse         = protocol.Response_QUERY
+	replayReplication     = protocol.Request_REPLICATION_REPLAY
+	sequenceNumber        = protocol.Request_SEQUENCE_NUMBER
 )
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
@@ -502,7 +506,7 @@ func (self *CoordinatorImpl) getCurrentSequenceNumber(replicationFactor uint8, o
 }
 
 func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
-	log.Warn("COORDINATOR: ReplayReplication: SN: %d, LS: %d, RF: %d, OS: %d", *request.SequenceNumber, *lastSeenSequenceNumber, *replicationFactor, *owningServerId)
+	log.Warn("COORDINATOR: ReplayReplication: LS: %d, RF: %d, OS: %d", *lastSeenSequenceNumber, *replicationFactor, *owningServerId)
 	key := fmt.Sprintf("%d_%d_%d_%d", *replicationFactor, *request.ClusterVersion, *request.OriginatingServerId, *owningServerId)
 	self.runningReplaysLock.Lock()
 	requestsWaitingToWrite := self.runningReplays[key]
@@ -702,6 +706,71 @@ func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *Cluste
 	return self.proxyUntilSuccess(servers, request)
 }
 
+func (self *CoordinatorImpl) handleDropDatabase(server *ClusterServer, database string) error {
+	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
+
+	request := self.createRequest(proxyDropDatabase, &database)
+	request.OriginatingServerId = &self.clusterConfiguration.localServerId
+	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
+	request.OwnerServerId = &owner.Id
+	replicationFactor := uint32(self.clusterConfiguration.GetDatabaseReplicationFactor(database))
+	request.ReplicationFactor = &replicationFactor
+
+	if server.Id == self.clusterConfiguration.localServerId {
+		// this is a local delete
+		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
+		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
+		if err != nil {
+			return self.proxyUntilSuccess(servers, request)
+		}
+		self.datastore.DropDatabase(database)
+		if err != nil {
+			log.Error("Couldn't write data to local store: ", err, request)
+		}
+
+		// ignoring the error because we still want to send to replicas
+		request.Type = &replicateDropDatabase
+		self.sendRequestToReplicas(request, servers)
+		return nil
+	}
+
+	// otherwise, proxy the request
+	return self.proxyUntilSuccess(servers, request)
+}
+
+func (self *CoordinatorImpl) handleDropSeries(server *ClusterServer, database, series string) error {
+	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
+
+	request := self.createRequest(proxyDropSeries, &database)
+	request.OriginatingServerId = &self.clusterConfiguration.localServerId
+	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
+	request.OwnerServerId = &owner.Id
+	request.Series = &protocol.Series{Name: &series}
+	replicationFactor := uint32(self.clusterConfiguration.GetDatabaseReplicationFactor(database))
+	request.ReplicationFactor = &replicationFactor
+
+	if server.Id == self.clusterConfiguration.localServerId {
+		// this is a local delete
+		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
+		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
+		if err != nil {
+			return self.proxyUntilSuccess(servers, request)
+		}
+		self.datastore.DropSeries(database, series)
+		if err != nil {
+			log.Error("Couldn't write data to local store: ", err, request)
+		}
+
+		// ignoring the error because we still want to send to replicas
+		request.Type = &replicateDropSeries
+		self.sendRequestToReplicas(request, servers)
+		return nil
+	}
+
+	// otherwise, proxy the request
+	return self.proxyUntilSuccess(servers, request)
+}
+
 func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protocol.Series) error {
 	return self.datastore.WriteSeriesData(*db, series)
 }
@@ -871,11 +940,45 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 		return common.NewAuthorizationError("Insufficient permission to drop database")
 	}
 
+	if self.clusterConfiguration.IsSingleServer() {
+		if err := self.datastore.DropDatabase(db); err != nil {
+			return err
+		}
+	} else {
+		servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
+		for _, server := range servers {
+			if err := self.handleDropDatabase(server.server, db); err != nil {
+				return err
+			}
+		}
+	}
+
+	// don't delete the metadata, we need the replication factor to be
+	// able to replicate the request properly
 	if err := self.raftServer.DropDatabase(db); err != nil {
 		return err
 	}
 
-	return self.datastore.DropDatabase(db)
+	return nil
+}
+
+func (self *CoordinatorImpl) DropSeries(user common.User, db, series string) error {
+	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) && !user.HasWriteAccess(series) {
+		return common.NewAuthorizationError("Insufficient permission to drop series")
+	}
+
+	if self.clusterConfiguration.IsSingleServer() {
+		return self.datastore.DropSeries(db, series)
+	}
+
+	servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
+	for _, server := range servers {
+		if err := self.handleDropSeries(server.server, db, series); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {

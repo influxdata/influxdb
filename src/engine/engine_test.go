@@ -25,16 +25,9 @@ type EngineSuite struct{}
 var _ = Suite(&EngineSuite{})
 
 type MockCoordinator struct {
+	coordinator.Coordinator
 	returnedError error
 	series        []*protocol.Series
-}
-
-func (self *MockCoordinator) ReplicateDelete(request *protocol.Request) error {
-	return nil
-}
-
-func (self *MockCoordinator) GetLastSequenceNumber(replicationFactor uint8, _, _ uint32) (uint64, error) {
-	return 0, nil
 }
 
 func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
@@ -48,38 +41,6 @@ func (self *MockCoordinator) DistributeQuery(user common.User, database string, 
 		}
 	}
 	return nil
-}
-
-func (self *MockCoordinator) WriteSeriesData(user common.User, database string, series *protocol.Series) error {
-	return nil
-}
-
-func (self *MockCoordinator) DeleteSeriesData(user common.User, database string, query *parser.DeleteQuery, localOnly bool) error {
-	return nil
-}
-
-func (self *MockCoordinator) ListSeries(_ common.User, _ string) ([]*protocol.Series, error) {
-	return nil, nil
-}
-
-func (self *MockCoordinator) CreateDatabase(user common.User, db string, rf uint8) error {
-	return nil
-}
-
-func (self *MockCoordinator) DropDatabase(user common.User, db string) error {
-	return nil
-}
-
-func (self *MockCoordinator) ListDatabases(user common.User) ([]*coordinator.Database, error) {
-	return nil, nil
-}
-
-func (self *MockCoordinator) ReplicateWrite(request *protocol.Request) error {
-	return nil
-}
-
-func (self *MockCoordinator) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
-	return
 }
 
 func createEngine(c *C, seriesString string) EngineI {

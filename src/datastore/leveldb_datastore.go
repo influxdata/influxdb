@@ -318,7 +318,7 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 	return self.db.Write(self.writeOptions, wb)
 }
 
-func (self *LevelDbDatastore) dropSeries(database, series string) error {
+func (self *LevelDbDatastore) DropSeries(database, series string) error {
 	startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
@@ -343,7 +343,7 @@ func (self *LevelDbDatastore) DropDatabase(database string) error {
 	defer wb.Close()
 
 	err := self.GetSeriesForDatabase(database, func(name string) error {
-		if err := self.dropSeries(database, name); err != nil {
+		if err := self.DropSeries(database, name); err != nil {
 			return err
 		}
 
