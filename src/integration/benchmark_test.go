@@ -135,16 +135,20 @@ func (self *IntegrationSuite) createUser() error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Statuscode is %d", resp.StatusCode)
+		body, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("Statuscode is %d with body %s", resp.StatusCode, string(body))
 	}
 	resp, err = http.Post("http://localhost:8086/db/db1/users/user?u=root&p=root", "application/json",
 		bytes.NewBufferString(`{"admin": true}`))
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Statuscode is %d", resp.StatusCode)
+		body, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("Statuscode is %d with body %s", resp.StatusCode, string(body))
 	}
 	return nil
 }
