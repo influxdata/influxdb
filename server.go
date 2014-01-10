@@ -960,6 +960,8 @@ func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 	committedIndex := s.log.commitIndex
 
 	if commitIndex > committedIndex {
+		// leader needs to do a fsync before committing log entries
+		s.log.sync()
 		s.log.setCommitIndex(commitIndex)
 		s.debugln("commit index ", commitIndex)
 	}

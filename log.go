@@ -206,6 +206,11 @@ func (l *Log) close() {
 	l.entries = make([]*LogEntry, 0)
 }
 
+// sync to disk
+func (l *Log) sync() error {
+	return l.file.Sync()
+}
+
 //--------------------------------------
 // Entries
 //--------------------------------------
@@ -477,7 +482,7 @@ func (l *Log) appendEntries(entries []*LogEntry) error {
 		startPosition += size
 	}
 	w.Flush()
-	err = l.file.Sync()
+	err = l.sync()
 
 	if err != nil {
 		panic(err)
