@@ -20,6 +20,7 @@ type Coordinator interface {
 	WriteSeriesData(user common.User, db string, series *protocol.Series) error
 	DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery, localOnly bool) error
 	DropDatabase(user common.User, db string) error
+	DropSeries(user common.User, db, series string) error
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ListDatabases(user common.User) ([]*Database, error)
 	ListSeries(user common.User, database string) ([]*protocol.Series, error)

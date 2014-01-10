@@ -302,6 +302,28 @@ func (self *ServerSuite) TestDropDatabase(c *C) {
 		fmt.Printf("Running query against: %d\n", s.apiPort)
 		collection := s.Query("drop_db", "select * from cluster_query", true, c)
 		c.Assert(collection.GetSeries("cluster_query", c).Points, HasLen, 0)
+		c.Assert(collection.GetSeries("cluster_query", c).Columns, DeepEquals, []string{"time", "sequence_number"})
+	}
+}
+
+func (self *ServerSuite) TestDropSeries(c *C) {
+	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_series", "replicationFactor": 3}`, c)
+	self.serverProcesses[0].Post("/db/drop_series/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	data := `[{
+		"name": "cluster_query",
+		"columns": ["val1"],
+		"points": [[1]]
+		}]`
+	self.serverProcesses[0].Post("/db/drop_series/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second)
+	resp := self.serverProcesses[0].Request("DELETE", "/db/drop_series/series/cluster_query?u=root&p=root", "", c)
+	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		fmt.Printf("Running query against: %d\n", s.apiPort)
+		collection := s.Query("drop_series", "select * from cluster_query", true, c)
+		c.Assert(collection.GetSeries("cluster_query", c).Points, HasLen, 0)
+		c.Assert(collection.GetSeries("cluster_query", c).Columns, DeepEquals, []string{"time", "sequence_number"})
 	}
 }
 

@@ -26,6 +26,8 @@ const (
 	Request_SEQUENCE_NUMBER           Request_Type = 8
 	Request_PROXY_DROP_DATABASE       Request_Type = 9
 	Request_REPLICATION_DROP_DATABASE Request_Type = 10
+	Request_PROXY_DROP_SERIES         Request_Type = 11
+	Request_REPLICATION_DROP_SERIES   Request_Type = 12
 )
 
 var Request_Type_name = map[int32]string{
@@ -39,6 +41,8 @@ var Request_Type_name = map[int32]string{
 	8:  "SEQUENCE_NUMBER",
 	9:  "PROXY_DROP_DATABASE",
 	10: "REPLICATION_DROP_DATABASE",
+	11: "PROXY_DROP_SERIES",
+	12: "REPLICATION_DROP_SERIES",
 }
 var Request_Type_value = map[string]int32{
 	"QUERY":                     1,
@@ -51,6 +55,8 @@ var Request_Type_value = map[string]int32{
 	"SEQUENCE_NUMBER":           8,
 	"PROXY_DROP_DATABASE":       9,
 	"REPLICATION_DROP_DATABASE": 10,
+	"PROXY_DROP_SERIES":         11,
+	"REPLICATION_DROP_SERIES":   12,
 }
 
 func (x Request_Type) Enum() *Request_Type {

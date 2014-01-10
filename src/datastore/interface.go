@@ -22,5 +22,6 @@ type Datastore interface {
 	DeleteSeriesData(database string, query *parser.DeleteQuery) error
 	GetSeriesForDatabase(database string, yield func(string) error) error
 	DropDatabase(database string) error
+	DropSeries(database, series string) error
 	Close()
 }

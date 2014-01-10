@@ -80,6 +80,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// Write points to the given database
 	self.registerEndpoint(p, "post", "/db/:db/series", self.writePoints)
+	self.registerEndpoint(p, "del", "/db/:db/series/:series", self.dropSeries)
 	self.registerEndpoint(p, "get", "/db", self.listDatabases)
 	self.registerEndpoint(p, "post", "/db", self.createDatabase)
 	self.registerEndpoint(p, "del", "/db/:name", self.dropDatabase)
@@ -424,6 +425,19 @@ func (self *HttpServer) dropDatabase(w libhttp.ResponseWriter, r *libhttp.Reques
 	self.tryAsClusterAdmin(w, r, func(user common.User) (int, interface{}) {
 		name := r.URL.Query().Get(":name")
 		err := self.coordinator.DropDatabase(user, name)
+		if err != nil {
+			return errorToStatusCode(err), err.Error()
+		}
+		return libhttp.StatusNoContent, nil
+	})
+}
+
+func (self *HttpServer) dropSeries(w libhttp.ResponseWriter, r *libhttp.Request) {
+	db := r.URL.Query().Get(":db")
+	series := r.URL.Query().Get(":series")
+
+	self.tryAsDbUserAndClusterAdmin(w, r, func(user common.User) (int, interface{}) {
+		err := self.coordinator.DropSeries(user, db, series)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}

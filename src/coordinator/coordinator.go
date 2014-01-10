@@ -43,6 +43,8 @@ var (
 	proxyDelete           = protocol.Request_PROXY_DELETE
 	proxyDropDatabase     = protocol.Request_PROXY_DROP_DATABASE
 	replicateDropDatabase = protocol.Request_REPLICATION_DROP_DATABASE
+	proxyDropSeries       = protocol.Request_PROXY_DROP_SERIES
+	replicateDropSeries   = protocol.Request_REPLICATION_DROP_SERIES
 	queryRequest          = protocol.Request_QUERY
 	listSeriesRequest     = protocol.Request_LIST_SERIES
 	listSeriesResponse    = protocol.Response_LIST_SERIES
@@ -736,6 +738,39 @@ func (self *CoordinatorImpl) handleDropDatabase(server *ClusterServer, database 
 	return self.proxyUntilSuccess(servers, request)
 }
 
+func (self *CoordinatorImpl) handleDropSeries(server *ClusterServer, database, series string) error {
+	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
+
+	request := self.createRequest(proxyDropSeries, &database)
+	request.OriginatingServerId = &self.clusterConfiguration.localServerId
+	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
+	request.OwnerServerId = &owner.Id
+	request.Series = &protocol.Series{Name: &series}
+	replicationFactor := uint32(self.clusterConfiguration.GetDatabaseReplicationFactor(database))
+	request.ReplicationFactor = &replicationFactor
+
+	if server.Id == self.clusterConfiguration.localServerId {
+		// this is a local delete
+		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
+		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
+		if err != nil {
+			return self.proxyUntilSuccess(servers, request)
+		}
+		self.datastore.DropSeries(database, series)
+		if err != nil {
+			log.Error("Couldn't write data to local store: ", err, request)
+		}
+
+		// ignoring the error because we still want to send to replicas
+		request.Type = &replicateDropSeries
+		self.sendRequestToReplicas(request, servers)
+		return nil
+	}
+
+	// otherwise, proxy the request
+	return self.proxyUntilSuccess(servers, request)
+}
+
 func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protocol.Series) error {
 	return self.datastore.WriteSeriesData(*db, series)
 }
@@ -922,6 +957,25 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 	// able to replicate the request properly
 	if err := self.raftServer.DropDatabase(db); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (self *CoordinatorImpl) DropSeries(user common.User, db, series string) error {
+	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) && !user.HasWriteAccess(series) {
+		return common.NewAuthorizationError("Insufficient permission to drop series")
+	}
+
+	if self.clusterConfiguration.IsSingleServer() {
+		return self.datastore.DropSeries(db, series)
+	}
+
+	servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
+	for _, server := range servers {
+		if err := self.handleDropSeries(server.server, db, series); err != nil {
+			return err
+		}
 	}
 
 	return nil
