@@ -160,6 +160,7 @@
 - [Issue #149](https://github.com/influxdb/influxdb/issues/149). Cluster admins should be able to perform reads and writes.
 - [Issue #108](https://github.com/influxdb/influxdb/issues/108). Querying one point using `time =`
 - [Issue #114](https://github.com/influxdb/influxdb/issues/114). Servers should periodically check that they're consistent.
+- [Issue #93](https://github.com/influxdb/influxdb/issues/93). Should be able to drop a time series
 
 ## Bugfixes
 
@@ -176,6 +177,7 @@
 - [Issue #158](https://github.com/influxdb/influxdb/issues/158). Logged deletes should be stored with the time range if missing.
 - [Issue #136](https://github.com/influxdb/influxdb/issues/136). Make sure writes are replicated in order to avoid triggering replays
 - [Issue #145](https://github.com/influxdb/influxdb/issues/145). Server fails to join cluster if all starting at same time.
+- [Issue #176](https://github.com/influxdb/influxdb/issues/176). Drop database should take effect on all nodes
 
 ### Deprecated
 
