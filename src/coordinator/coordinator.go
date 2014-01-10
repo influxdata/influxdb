@@ -506,7 +506,7 @@ func (self *CoordinatorImpl) getCurrentSequenceNumber(replicationFactor uint8, o
 }
 
 func (self *CoordinatorImpl) ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64) {
-	log.Warn("COORDINATOR: ReplayReplication: SN: %d, LS: %d, RF: %d, OS: %d", *request.SequenceNumber, *lastSeenSequenceNumber, *replicationFactor, *owningServerId)
+	log.Warn("COORDINATOR: ReplayReplication: LS: %d, RF: %d, OS: %d", *lastSeenSequenceNumber, *replicationFactor, *owningServerId)
 	key := fmt.Sprintf("%d_%d_%d_%d", *replicationFactor, *request.ClusterVersion, *request.OriginatingServerId, *owningServerId)
 	self.runningReplaysLock.Lock()
 	requestsWaitingToWrite := self.runningReplays[key]
