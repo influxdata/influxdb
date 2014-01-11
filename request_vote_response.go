@@ -1,10 +1,11 @@
 package raft
 
 import (
-	"code.google.com/p/goprotobuf/proto"
-	"github.com/goraft/raft/protobuf"
 	"io"
 	"io/ioutil"
+
+	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/goraft/raft/protobuf"
 )
 
 // The response returned from a server after a vote for a candidate to become a leader.

@@ -2,11 +2,12 @@ package raft
 
 import (
 	"bytes"
-	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
-	"github.com/goraft/raft/protobuf"
 	"io"
+
+	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/goraft/raft/protobuf"
 )
 
 // A log entry stores a single item in the log.
@@ -50,22 +51,21 @@ func newLogEntry(log *Log, event *ev, index uint64, term uint64, command Command
 // Encodes the log entry to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (e *LogEntry) encode(w io.Writer) (int, error) {
-	defer e.log.pBuffer.Reset()
 	e.log.pLogEntry.Index = proto.Uint64(e.Index)
 	e.log.pLogEntry.Term = proto.Uint64(e.Term)
 	e.log.pLogEntry.CommandName = proto.String(e.CommandName)
 	e.log.pLogEntry.Command = e.Command
 
-	err := e.log.pBuffer.Marshal(e.log.pLogEntry)
+	b, err := proto.Marshal(e.log.pLogEntry)
 	if err != nil {
 		return -1, err
 	}
 
-	if _, err = fmt.Fprintf(w, "%8x\n", len(e.log.pBuffer.Bytes())); err != nil {
+	if _, err = fmt.Fprintf(w, "%8x\n", len(b)); err != nil {
 		return -1, err
 	}
 
-	return w.Write(e.log.pBuffer.Bytes())
+	return w.Write(b)
 }
 
 // Decodes the log entry from a buffer. Returns the number of bytes read and

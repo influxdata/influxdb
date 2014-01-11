@@ -2,13 +2,13 @@ package raft
 
 import (
 	"bufio"
-	"code.google.com/p/goprotobuf/proto"
 	"errors"
 	"fmt"
-	"github.com/goraft/raft/protobuf"
 	"io"
 	"os"
 	"sync"
+
+	"github.com/goraft/raft/protobuf"
 )
 
 //------------------------------------------------------------------------------
@@ -27,7 +27,6 @@ type Log struct {
 	mutex       sync.RWMutex
 	startIndex  uint64 // the index before the first entry in the Log entries
 	startTerm   uint64
-	pBuffer     *proto.Buffer
 	pLogEntry   *protobuf.ProtoLogEntry
 }
 
@@ -47,7 +46,6 @@ type logResult struct {
 func newLog() *Log {
 	return &Log{
 		entries:   make([]*LogEntry, 0),
-		pBuffer:   proto.NewBuffer(nil),
 		pLogEntry: &protobuf.ProtoLogEntry{},
 	}
 }

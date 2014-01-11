@@ -1,10 +1,11 @@
 package raft
 
 import (
-	"code.google.com/p/goprotobuf/proto"
-	"github.com/goraft/raft/protobuf"
 	"io"
 	"io/ioutil"
+
+	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/goraft/raft/protobuf"
 )
 
 // The response returned if the follower entered snapshot state
