@@ -1,9 +1,9 @@
 package raft
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -289,22 +289,35 @@ func TestServerAppendEntriesOverwritesUncommittedEntries(t *testing.T) {
 	s.Start()
 	defer s.Stop()
 
-	entry1, _ := newLogEntry(nil, nil, 1, 1, &testCommand1{Val: "foo", I: 10})
-	entry2, _ := newLogEntry(nil, nil, 2, 1, &testCommand1{Val: "foo", I: 15})
-	entry3, _ := newLogEntry(nil, nil, 2, 2, &testCommand1{Val: "bar", I: 20})
+	entry1, _ := newLogEntry(s.(*server).log, nil, 1, 1, &testCommand1{Val: "foo", I: 10})
+	entry2, _ := newLogEntry(s.(*server).log, nil, 2, 1, &testCommand1{Val: "foo", I: 15})
+	entry3, _ := newLogEntry(s.(*server).log, nil, 2, 2, &testCommand1{Val: "bar", I: 20})
 
 	// Append single entry + commit.
 	entries := []*LogEntry{entry1, entry2}
 	resp := s.AppendEntries(newAppendEntriesRequest(1, 0, 0, 1, "ldr", entries))
-	if resp.Term != 1 || !resp.Success || s.(*server).log.commitIndex != 1 || !reflect.DeepEqual(s.(*server).log.entries, []*LogEntry{entry1, entry2}) {
+	if resp.Term != 1 || !resp.Success || s.(*server).log.commitIndex != 1 {
 		t.Fatalf("AppendEntries failed: %v/%v", resp.Term, resp.Success)
+	}
+
+	for i, entry := range s.(*server).log.entries {
+		if entry.Term() != entries[i].Term() || entry.Index() != entries[i].Index() || !bytes.Equal(entry.Command(), entries[i].Command()) {
+			t.Fatalf("AppendEntries failed: %v/%v", resp.Term, resp.Success)
+		}
 	}
 
 	// Append entry that overwrites the second (uncommitted) entry.
 	entries = []*LogEntry{entry3}
 	resp = s.AppendEntries(newAppendEntriesRequest(2, 1, 1, 2, "ldr", entries))
-	if resp.Term != 2 || !resp.Success || s.(*server).log.commitIndex != 2 || !reflect.DeepEqual(s.(*server).log.entries, []*LogEntry{entry1, entry3}) {
+	if resp.Term != 2 || !resp.Success || s.(*server).log.commitIndex != 2 {
 		t.Fatalf("AppendEntries should have succeeded: %v/%v", resp.Term, resp.Success)
+	}
+
+	entries = []*LogEntry{entry1, entry3}
+	for i, entry := range s.(*server).log.entries {
+		if entry.Term() != entries[i].Term() || entry.Index() != entries[i].Index() || !bytes.Equal(entry.Command(), entries[i].Command()) {
+			t.Fatalf("AppendEntries failed: %v/%v", resp.Term, resp.Success)
+		}
 	}
 }
 

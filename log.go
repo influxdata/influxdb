@@ -79,7 +79,7 @@ func (l *Log) internalCurrentIndex() uint64 {
 	if len(l.entries) == 0 {
 		return l.startIndex
 	}
-	return l.entries[len(l.entries)-1].Index
+	return l.entries[len(l.entries)-1].Index()
 }
 
 // The next index in the log.
@@ -100,7 +100,7 @@ func (l *Log) lastCommandName() string {
 	defer l.mutex.RUnlock()
 	if len(l.entries) > 0 {
 		if entry := l.entries[len(l.entries)-1]; entry != nil {
-			return entry.CommandName
+			return entry.CommandName()
 		}
 	}
 	return ""
@@ -118,7 +118,7 @@ func (l *Log) currentTerm() uint64 {
 	if len(l.entries) == 0 {
 		return l.startTerm
 	}
-	return l.entries[len(l.entries)-1].Term
+	return l.entries[len(l.entries)-1].Term()
 }
 
 //------------------------------------------------------------------------------
@@ -173,17 +173,17 @@ func (l *Log) open(path string) error {
 			}
 			break
 		}
-		if entry.Index > l.startIndex {
+		if entry.Index() > l.startIndex {
 			// Append entry.
 			l.entries = append(l.entries, entry)
-			if entry.Index <= l.commitIndex {
-				command, err := newCommand(entry.CommandName, entry.Command)
+			if entry.Index() <= l.commitIndex {
+				command, err := newCommand(entry.CommandName(), entry.Command())
 				if err != nil {
 					continue
 				}
 				l.ApplyFunc(command)
 			}
-			debugln("open.log.append log index ", entry.Index)
+			debugln("open.log.append log index ", entry.Index())
 		}
 
 		readBytes += int64(n)
@@ -228,7 +228,7 @@ func (l *Log) getEntry(index uint64) *LogEntry {
 // Checks if the log contains a given index/term combination.
 func (l *Log) containsEntry(index uint64, term uint64) bool {
 	entry := l.getEntry(index)
-	return (entry != nil && entry.Term == term)
+	return (entry != nil && entry.Term() == term)
 }
 
 // Retrieves a list of entries after a given index as well as the term of the
@@ -264,9 +264,9 @@ func (l *Log) getEntriesAfter(index uint64, maxLogEntriesPerRequest uint64) ([]*
 
 	if uint64(length) < maxLogEntriesPerRequest {
 		// Determine the term at the given entry and return a subslice.
-		return entries, l.entries[index-1-l.startIndex].Term
+		return entries, l.entries[index-1-l.startIndex].Term()
 	} else {
-		return entries[:maxLogEntriesPerRequest], l.entries[index-1-l.startIndex].Term
+		return entries[:maxLogEntriesPerRequest], l.entries[index-1-l.startIndex].Term()
 	}
 }
 
@@ -291,7 +291,7 @@ func (l *Log) commitInfo() (index uint64, term uint64) {
 	// Return the last index & term from the last committed entry.
 	debugln("commitInfo.get.[", l.commitIndex, "/", l.startIndex, "]")
 	entry := l.entries[l.commitIndex-1-l.startIndex]
-	return entry.Index, entry.Term
+	return entry.Index(), entry.Term()
 }
 
 // Retrieves the last index and term that has been appended to the log.
@@ -306,7 +306,7 @@ func (l *Log) lastInfo() (index uint64, term uint64) {
 
 	// Return the last index & term
 	entry := l.entries[len(l.entries)-1]
-	return entry.Index, entry.Term
+	return entry.Index(), entry.Term()
 }
 
 // Updates the commit index
@@ -356,17 +356,17 @@ func (l *Log) setCommitIndex(index uint64) error {
 		entry := l.entries[entryIndex]
 
 		// Update commit index.
-		l.commitIndex = entry.Index
+		l.commitIndex = entry.Index()
 
 		// Decode the command.
-		command, err := newCommand(entry.CommandName, entry.Command)
+		command, err := newCommand(entry.CommandName(), entry.Command())
 		if err != nil {
 			return err
 		}
 
 		// Apply the changes to the state machine and store the error code.
 		returnValue, err := l.ApplyFunc(command)
-		debugf("setCommitIndex.set.result index: %v entires index: ", i, entryIndex)
+		debugf("setCommitIndex.set.result index: %v entires index: %v", i, entryIndex)
 		if entry.event != nil {
 			entry.event.returnValue = returnValue
 			entry.event.c <- err
@@ -423,9 +423,9 @@ func (l *Log) truncate(index uint64, term uint64) error {
 	} else {
 		// Do not truncate if the entry at index does not have the matching term.
 		entry := l.entries[index-l.startIndex-1]
-		if len(l.entries) > 0 && entry.Term != term {
+		if len(l.entries) > 0 && entry.Term() != term {
 			debugln("log.truncate.termMismatch")
-			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term, index, term)
+			return fmt.Errorf("raft.Log: Entry at index does not have matching term (%v): (IDX=%v, TERM=%v)", entry.Term(), index, term)
 		}
 
 		// Otherwise truncate up to the desired entry.
@@ -455,7 +455,7 @@ func (l *Log) truncate(index uint64, term uint64) error {
 //--------------------------------------
 
 // Appends a series of entries to the log.
-func (l *Log) appendEntries(entries []*LogEntry) error {
+func (l *Log) appendEntries(entries []*protobuf.ProtoLogEntry) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
@@ -466,12 +466,17 @@ func (l *Log) appendEntries(entries []*LogEntry) error {
 	var size int64
 	var err error
 	// Append each entry but exit if we hit an error.
-	for _, entry := range entries {
-		entry.log = l
-		if size, err = l.writeEntry(entry, w); err != nil {
+	for i := range entries {
+		logEntry := &LogEntry{
+			log:      l,
+			Position: startPosition,
+			pb:       entries[i],
+		}
+
+		if size, err = l.writeEntry(logEntry, w); err != nil {
 			return err
 		}
-		entry.Position = startPosition
+
 		startPosition += size
 	}
 	w.Flush()
@@ -496,10 +501,10 @@ func (l *Log) appendEntry(entry *LogEntry) error {
 	// Make sure the term and index are greater than the previous.
 	if len(l.entries) > 0 {
 		lastEntry := l.entries[len(l.entries)-1]
-		if entry.Term < lastEntry.Term {
-			return fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
-		} else if entry.Term == lastEntry.Term && entry.Index <= lastEntry.Index {
-			return fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
+		if entry.Term() < lastEntry.Term() {
+			return fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x <= %x:%x)", entry.Term(), entry.Index(), lastEntry.Term(), lastEntry.Index())
+		} else if entry.Term() == lastEntry.Term() && entry.Index() <= lastEntry.Index() {
+			return fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.Term(), entry.Index(), lastEntry.Term(), lastEntry.Index())
 		}
 	}
 
@@ -527,10 +532,10 @@ func (l *Log) writeEntry(entry *LogEntry, w io.Writer) (int64, error) {
 	// Make sure the term and index are greater than the previous.
 	if len(l.entries) > 0 {
 		lastEntry := l.entries[len(l.entries)-1]
-		if entry.Term < lastEntry.Term {
-			return -1, fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
-		} else if entry.Term == lastEntry.Term && entry.Index <= lastEntry.Index {
-			return -1, fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.Term, entry.Index, lastEntry.Term, lastEntry.Index)
+		if entry.Term() < lastEntry.Term() {
+			return -1, fmt.Errorf("raft.Log: Cannot append entry with earlier term (%x:%x <= %x:%x)", entry.Term(), entry.Index(), lastEntry.Term(), lastEntry.Index())
+		} else if entry.Term() == lastEntry.Term() && entry.Index() <= lastEntry.Index() {
+			return -1, fmt.Errorf("raft.Log: Cannot append entry with earlier index in the same term (%x:%x <= %x:%x)", entry.Term(), entry.Index(), lastEntry.Term(), lastEntry.Index())
 		}
 	}
 

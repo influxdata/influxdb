@@ -10,22 +10,22 @@ import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
-import io1 "io"
-import code_google_com_p_gogoprotobuf_proto2 "code.google.com/p/gogoprotobuf/proto"
+import io2 "io"
+import code_google_com_p_gogoprotobuf_proto4 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt3 "fmt"
-import strings2 "strings"
-import reflect2 "reflect"
+import fmt6 "fmt"
+import strings4 "strings"
+import reflect4 "reflect"
 
-import fmt4 "fmt"
-import strings3 "strings"
-import code_google_com_p_gogoprotobuf_proto3 "code.google.com/p/gogoprotobuf/proto"
-import sort1 "sort"
-import strconv1 "strconv"
-import reflect3 "reflect"
+import fmt7 "fmt"
+import strings5 "strings"
+import code_google_com_p_gogoprotobuf_proto5 "code.google.com/p/gogoprotobuf/proto"
+import sort2 "sort"
+import strconv2 "strconv"
+import reflect5 "reflect"
 
-import fmt5 "fmt"
-import bytes1 "bytes"
+import fmt8 "fmt"
+import bytes2 "bytes"
 
 // Reference proto, json, and math imports to suppress error if they are not otherwise used.
 var _ = proto.Marshal
@@ -80,7 +80,7 @@ func (m *ProtoAppendEntriesResponse) Unmarshal(data []byte) error {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
 			if index >= l {
-				return io1.ErrUnexpectedEOF
+				return io2.ErrUnexpectedEOF
 			}
 			b := data[index]
 			index++
@@ -99,7 +99,7 @@ func (m *ProtoAppendEntriesResponse) Unmarshal(data []byte) error {
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io1.ErrUnexpectedEOF
+					return io2.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -116,7 +116,7 @@ func (m *ProtoAppendEntriesResponse) Unmarshal(data []byte) error {
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io1.ErrUnexpectedEOF
+					return io2.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -133,7 +133,7 @@ func (m *ProtoAppendEntriesResponse) Unmarshal(data []byte) error {
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io1.ErrUnexpectedEOF
+					return io2.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -150,7 +150,7 @@ func (m *ProtoAppendEntriesResponse) Unmarshal(data []byte) error {
 			var v int
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io1.ErrUnexpectedEOF
+					return io2.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -171,7 +171,7 @@ func (m *ProtoAppendEntriesResponse) Unmarshal(data []byte) error {
 				}
 			}
 			index -= sizeOfWire
-			skippy, err := code_google_com_p_gogoprotobuf_proto2.Skip(data[index:])
+			skippy, err := code_google_com_p_gogoprotobuf_proto4.Skip(data[index:])
 			if err != nil {
 				return err
 			}
@@ -185,23 +185,23 @@ func (this *ProtoAppendEntriesResponse) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings2.Join([]string{`&ProtoAppendEntriesResponse{`,
+	s := strings4.Join([]string{`&ProtoAppendEntriesResponse{`,
 		`Term:` + valueToStringAppendEntriesResponses(this.Term) + `,`,
 		`Index:` + valueToStringAppendEntriesResponses(this.Index) + `,`,
 		`CommitIndex:` + valueToStringAppendEntriesResponses(this.CommitIndex) + `,`,
 		`Success:` + valueToStringAppendEntriesResponses(this.Success) + `,`,
-		`XXX_unrecognized:` + fmt3.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt6.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
 }
 func valueToStringAppendEntriesResponses(v interface{}) string {
-	rv := reflect2.ValueOf(v)
+	rv := reflect4.ValueOf(v)
 	if rv.IsNil() {
 		return "nil"
 	}
-	pv := reflect2.Indirect(rv).Interface()
-	return fmt3.Sprintf("*%v", pv)
+	pv := reflect4.Indirect(rv).Interface()
+	return fmt6.Sprintf("*%v", pv)
 }
 func (m *ProtoAppendEntriesResponse) Size() (n int) {
 	var l int
@@ -396,18 +396,18 @@ func (this *ProtoAppendEntriesResponse) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings3.Join([]string{`&protobuf.ProtoAppendEntriesResponse{` + `Term:` + valueToGoStringAppendEntriesResponses(this.Term, "uint64"), `Index:` + valueToGoStringAppendEntriesResponses(this.Index, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesResponses(this.CommitIndex, "uint64"), `Success:` + valueToGoStringAppendEntriesResponses(this.Success, "bool"), `XXX_unrecognized:` + fmt4.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings5.Join([]string{`&protobuf.ProtoAppendEntriesResponse{` + `Term:` + valueToGoStringAppendEntriesResponses(this.Term, "uint64"), `Index:` + valueToGoStringAppendEntriesResponses(this.Index, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesResponses(this.CommitIndex, "uint64"), `Success:` + valueToGoStringAppendEntriesResponses(this.Success, "bool"), `XXX_unrecognized:` + fmt7.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringAppendEntriesResponses(v interface{}, typ string) string {
-	rv := reflect3.ValueOf(v)
+	rv := reflect5.ValueOf(v)
 	if rv.IsNil() {
 		return "nil"
 	}
-	pv := reflect3.Indirect(rv).Interface()
-	return fmt4.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	pv := reflect5.Indirect(rv).Interface()
+	return fmt7.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
-func extensionToGoStringAppendEntriesResponses(e map[int32]code_google_com_p_gogoprotobuf_proto3.Extension) string {
+func extensionToGoStringAppendEntriesResponses(e map[int32]code_google_com_p_gogoprotobuf_proto5.Extension) string {
 	if e == nil {
 		return "nil"
 	}
@@ -416,12 +416,12 @@ func extensionToGoStringAppendEntriesResponses(e map[int32]code_google_com_p_gog
 	for k := range e {
 		keys = append(keys, int(k))
 	}
-	sort1.Ints(keys)
+	sort2.Ints(keys)
 	ss := []string{}
 	for _, k := range keys {
-		ss = append(ss, strconv1.Itoa(k)+": "+e[int32(k)].GoString())
+		ss = append(ss, strconv2.Itoa(k)+": "+e[int32(k)].GoString())
 	}
-	s += strings3.Join(ss, ",") + "}"
+	s += strings5.Join(ss, ",") + "}"
 	return s
 }
 func (this *ProtoAppendEntriesResponse) VerboseEqual(that interface{}) error {
@@ -429,59 +429,59 @@ func (this *ProtoAppendEntriesResponse) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt5.Errorf("that == nil && this != nil")
+		return fmt8.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*ProtoAppendEntriesResponse)
 	if !ok {
-		return fmt5.Errorf("that is not of type *ProtoAppendEntriesResponse")
+		return fmt8.Errorf("that is not of type *ProtoAppendEntriesResponse")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt5.Errorf("that is type *ProtoAppendEntriesResponse but is nil && this != nil")
+		return fmt8.Errorf("that is type *ProtoAppendEntriesResponse but is nil && this != nil")
 	} else if this == nil {
-		return fmt5.Errorf("that is type *ProtoAppendEntriesResponsebut is not nil && this == nil")
+		return fmt8.Errorf("that is type *ProtoAppendEntriesResponsebut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
-			return fmt5.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
+			return fmt8.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
 		}
 	} else if this.Term != nil {
-		return fmt5.Errorf("this.Term == nil && that.Term != nil")
+		return fmt8.Errorf("this.Term == nil && that.Term != nil")
 	} else if that1.Term != nil {
-		return fmt5.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
+		return fmt8.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
 	}
 	if this.Index != nil && that1.Index != nil {
 		if *this.Index != *that1.Index {
-			return fmt5.Errorf("Index this(%v) Not Equal that(%v)", *this.Index, *that1.Index)
+			return fmt8.Errorf("Index this(%v) Not Equal that(%v)", *this.Index, *that1.Index)
 		}
 	} else if this.Index != nil {
-		return fmt5.Errorf("this.Index == nil && that.Index != nil")
+		return fmt8.Errorf("this.Index == nil && that.Index != nil")
 	} else if that1.Index != nil {
-		return fmt5.Errorf("Index this(%v) Not Equal that(%v)", this.Index, that1.Index)
+		return fmt8.Errorf("Index this(%v) Not Equal that(%v)", this.Index, that1.Index)
 	}
 	if this.CommitIndex != nil && that1.CommitIndex != nil {
 		if *this.CommitIndex != *that1.CommitIndex {
-			return fmt5.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
+			return fmt8.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
 		}
 	} else if this.CommitIndex != nil {
-		return fmt5.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
+		return fmt8.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
 	} else if that1.CommitIndex != nil {
-		return fmt5.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
+		return fmt8.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
 	}
 	if this.Success != nil && that1.Success != nil {
 		if *this.Success != *that1.Success {
-			return fmt5.Errorf("Success this(%v) Not Equal that(%v)", *this.Success, *that1.Success)
+			return fmt8.Errorf("Success this(%v) Not Equal that(%v)", *this.Success, *that1.Success)
 		}
 	} else if this.Success != nil {
-		return fmt5.Errorf("this.Success == nil && that.Success != nil")
+		return fmt8.Errorf("this.Success == nil && that.Success != nil")
 	} else if that1.Success != nil {
-		return fmt5.Errorf("Success this(%v) Not Equal that(%v)", this.Success, that1.Success)
+		return fmt8.Errorf("Success this(%v) Not Equal that(%v)", this.Success, that1.Success)
 	}
-	if !bytes1.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt5.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+	if !bytes2.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
+		return fmt8.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }
@@ -541,7 +541,7 @@ func (this *ProtoAppendEntriesResponse) Equal(that interface{}) bool {
 	} else if that1.Success != nil {
 		return false
 	}
-	if !bytes1.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
+	if !bytes2.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
 		return false
 	}
 	return true

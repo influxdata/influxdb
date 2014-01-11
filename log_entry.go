@@ -12,13 +12,10 @@ import (
 
 // A log entry stores a single item in the log.
 type LogEntry struct {
-	log         *Log
-	Index       uint64
-	Term        uint64
-	CommandName string
-	Command     []byte
-	Position    int64 // position in the log file
-	event       *ev
+	pb       *protobuf.ProtoLogEntry
+	Position int64 // position in the log file
+	log      *Log
+	event    *ev
 }
 
 // Creates a new log entry associated with a log.
@@ -36,27 +33,42 @@ func newLogEntry(log *Log, event *ev, index uint64, term uint64, command Command
 		}
 	}
 
-	e := &LogEntry{
-		log:         log,
-		Index:       index,
-		Term:        term,
-		CommandName: commandName,
+	pb := &protobuf.ProtoLogEntry{
+		Index:       proto.Uint64(index),
+		Term:        proto.Uint64(term),
+		CommandName: proto.String(commandName),
 		Command:     buf.Bytes(),
-		event:       event,
+	}
+
+	e := &LogEntry{
+		pb:    pb,
+		log:   log,
+		event: event,
 	}
 
 	return e, nil
 }
 
+func (e *LogEntry) Index() uint64 {
+	return e.pb.GetIndex()
+}
+
+func (e *LogEntry) Term() uint64 {
+	return e.pb.GetTerm()
+}
+
+func (e *LogEntry) CommandName() string {
+	return e.pb.GetCommandName()
+}
+
+func (e *LogEntry) Command() []byte {
+	return e.pb.GetCommand()
+}
+
 // Encodes the log entry to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (e *LogEntry) encode(w io.Writer) (int, error) {
-	e.log.pLogEntry.Index = proto.Uint64(e.Index)
-	e.log.pLogEntry.Term = proto.Uint64(e.Term)
-	e.log.pLogEntry.CommandName = proto.String(e.CommandName)
-	e.log.pLogEntry.Command = e.Command
-
-	b, err := proto.Marshal(e.log.pLogEntry)
+	b, err := proto.Marshal(e.pb)
 	if err != nil {
 		return -1, err
 	}
@@ -85,15 +97,9 @@ func (e *LogEntry) decode(r io.Reader) (int, error) {
 		return -1, err
 	}
 
-	pb := &protobuf.ProtoLogEntry{}
-	if err = proto.Unmarshal(data, pb); err != nil {
+	if err = proto.Unmarshal(data, e.pb); err != nil {
 		return -1, err
 	}
-
-	e.Term = pb.GetTerm()
-	e.Index = pb.GetIndex()
-	e.CommandName = pb.GetCommandName()
-	e.Command = pb.Command
 
 	return length, nil
 }

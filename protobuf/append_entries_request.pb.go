@@ -10,22 +10,22 @@ import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
-import io "io"
-import code_google_com_p_gogoprotobuf_proto "code.google.com/p/gogoprotobuf/proto"
+import io1 "io"
+import code_google_com_p_gogoprotobuf_proto2 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt "fmt"
-import strings "strings"
-import reflect "reflect"
+import fmt3 "fmt"
+import strings2 "strings"
+import reflect2 "reflect"
 
-import fmt1 "fmt"
-import strings1 "strings"
-import code_google_com_p_gogoprotobuf_proto1 "code.google.com/p/gogoprotobuf/proto"
-import sort "sort"
-import strconv "strconv"
-import reflect1 "reflect"
+import fmt4 "fmt"
+import strings3 "strings"
+import code_google_com_p_gogoprotobuf_proto3 "code.google.com/p/gogoprotobuf/proto"
+import sort1 "sort"
+import strconv1 "strconv"
+import reflect3 "reflect"
 
-import fmt2 "fmt"
-import bytes "bytes"
+import fmt5 "fmt"
+import bytes1 "bytes"
 
 // Reference proto, json, and math imports to suppress error if they are not otherwise used.
 var _ = proto.Marshal
@@ -33,13 +33,13 @@ var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type ProtoAppendEntriesRequest struct {
-	Term             *uint64                                    `protobuf:"varint,1,req" json:"Term,omitempty"`
-	PrevLogIndex     *uint64                                    `protobuf:"varint,2,req" json:"PrevLogIndex,omitempty"`
-	PrevLogTerm      *uint64                                    `protobuf:"varint,3,req" json:"PrevLogTerm,omitempty"`
-	CommitIndex      *uint64                                    `protobuf:"varint,4,req" json:"CommitIndex,omitempty"`
-	LeaderName       *string                                    `protobuf:"bytes,5,req" json:"LeaderName,omitempty"`
-	Entries          []*ProtoAppendEntriesRequest_ProtoLogEntry `protobuf:"bytes,6,rep" json:"Entries,omitempty"`
-	XXX_unrecognized []byte                                     `json:"-"`
+	Term             *uint64          `protobuf:"varint,1,req" json:"Term,omitempty"`
+	PrevLogIndex     *uint64          `protobuf:"varint,2,req" json:"PrevLogIndex,omitempty"`
+	PrevLogTerm      *uint64          `protobuf:"varint,3,req" json:"PrevLogTerm,omitempty"`
+	CommitIndex      *uint64          `protobuf:"varint,4,req" json:"CommitIndex,omitempty"`
+	LeaderName       *string          `protobuf:"bytes,5,req" json:"LeaderName,omitempty"`
+	Entries          []*ProtoLogEntry `protobuf:"bytes,6,rep" json:"Entries,omitempty"`
+	XXX_unrecognized []byte           `json:"-"`
 }
 
 func (m *ProtoAppendEntriesRequest) Reset()      { *m = ProtoAppendEntriesRequest{} }
@@ -80,50 +80,9 @@ func (m *ProtoAppendEntriesRequest) GetLeaderName() string {
 	return ""
 }
 
-func (m *ProtoAppendEntriesRequest) GetEntries() []*ProtoAppendEntriesRequest_ProtoLogEntry {
+func (m *ProtoAppendEntriesRequest) GetEntries() []*ProtoLogEntry {
 	if m != nil {
 		return m.Entries
-	}
-	return nil
-}
-
-type ProtoAppendEntriesRequest_ProtoLogEntry struct {
-	Index            *uint64 `protobuf:"varint,1,req" json:"Index,omitempty"`
-	Term             *uint64 `protobuf:"varint,2,req" json:"Term,omitempty"`
-	CommandName      *string `protobuf:"bytes,3,req" json:"CommandName,omitempty"`
-	Command          []byte  `protobuf:"bytes,4,opt" json:"Command,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *ProtoAppendEntriesRequest_ProtoLogEntry) Reset() {
-	*m = ProtoAppendEntriesRequest_ProtoLogEntry{}
-}
-func (*ProtoAppendEntriesRequest_ProtoLogEntry) ProtoMessage() {}
-
-func (m *ProtoAppendEntriesRequest_ProtoLogEntry) GetIndex() uint64 {
-	if m != nil && m.Index != nil {
-		return *m.Index
-	}
-	return 0
-}
-
-func (m *ProtoAppendEntriesRequest_ProtoLogEntry) GetTerm() uint64 {
-	if m != nil && m.Term != nil {
-		return *m.Term
-	}
-	return 0
-}
-
-func (m *ProtoAppendEntriesRequest_ProtoLogEntry) GetCommandName() string {
-	if m != nil && m.CommandName != nil {
-		return *m.CommandName
-	}
-	return ""
-}
-
-func (m *ProtoAppendEntriesRequest_ProtoLogEntry) GetCommand() []byte {
-	if m != nil {
-		return m.Command
 	}
 	return nil
 }
@@ -137,7 +96,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
 			if index >= l {
-				return io.ErrUnexpectedEOF
+				return io1.ErrUnexpectedEOF
 			}
 			b := data[index]
 			index++
@@ -156,7 +115,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io.ErrUnexpectedEOF
+					return io1.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -173,7 +132,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io.ErrUnexpectedEOF
+					return io1.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -190,7 +149,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io.ErrUnexpectedEOF
+					return io1.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -207,7 +166,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io.ErrUnexpectedEOF
+					return io1.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -224,7 +183,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io.ErrUnexpectedEOF
+					return io1.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -235,7 +194,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 			}
 			postIndex := index + int(stringLen)
 			if postIndex > l {
-				return io.ErrUnexpectedEOF
+				return io1.ErrUnexpectedEOF
 			}
 			s := string(data[index:postIndex])
 			m.LeaderName = &s
@@ -247,7 +206,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io.ErrUnexpectedEOF
+					return io1.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -258,9 +217,9 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 			}
 			postIndex := index + msglen
 			if postIndex > l {
-				return io.ErrUnexpectedEOF
+				return io1.ErrUnexpectedEOF
 			}
-			m.Entries = append(m.Entries, &ProtoAppendEntriesRequest_ProtoLogEntry{})
+			m.Entries = append(m.Entries, &ProtoLogEntry{})
 			m.Entries[len(m.Entries)-1].Unmarshal(data[index:postIndex])
 			index = postIndex
 		default:
@@ -273,125 +232,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 				}
 			}
 			index -= sizeOfWire
-			skippy, err := code_google_com_p_gogoprotobuf_proto.Skip(data[index:])
-			if err != nil {
-				return err
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
-			index += skippy
-		}
-	}
-	return nil
-}
-func (m *ProtoAppendEntriesRequest_ProtoLogEntry) Unmarshal(data []byte) error {
-	l := len(data)
-	index := 0
-	for index < l {
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if index >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := data[index]
-			index++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return proto.ErrWrongType
-			}
-			var v uint64
-			for shift := uint(0); ; shift += 7 {
-				if index >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[index]
-				index++
-				v |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.Index = &v
-		case 2:
-			if wireType != 0 {
-				return proto.ErrWrongType
-			}
-			var v uint64
-			for shift := uint(0); ; shift += 7 {
-				if index >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[index]
-				index++
-				v |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.Term = &v
-		case 3:
-			if wireType != 2 {
-				return proto.ErrWrongType
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if index >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[index]
-				index++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			postIndex := index + int(stringLen)
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			s := string(data[index:postIndex])
-			m.CommandName = &s
-			index = postIndex
-		case 4:
-			if wireType != 2 {
-				return proto.ErrWrongType
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if index >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[index]
-				index++
-				byteLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			postIndex := index + byteLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Command = append(m.Command, data[index:postIndex]...)
-			index = postIndex
-		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			index -= sizeOfWire
-			skippy, err := code_google_com_p_gogoprotobuf_proto.Skip(data[index:])
+			skippy, err := code_google_com_p_gogoprotobuf_proto2.Skip(data[index:])
 			if err != nil {
 				return err
 			}
@@ -405,39 +246,25 @@ func (this *ProtoAppendEntriesRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&ProtoAppendEntriesRequest{`,
+	s := strings2.Join([]string{`&ProtoAppendEntriesRequest{`,
 		`Term:` + valueToStringAppendEntriesRequest(this.Term) + `,`,
 		`PrevLogIndex:` + valueToStringAppendEntriesRequest(this.PrevLogIndex) + `,`,
 		`PrevLogTerm:` + valueToStringAppendEntriesRequest(this.PrevLogTerm) + `,`,
 		`CommitIndex:` + valueToStringAppendEntriesRequest(this.CommitIndex) + `,`,
 		`LeaderName:` + valueToStringAppendEntriesRequest(this.LeaderName) + `,`,
-		`Entries:` + strings.Replace(fmt.Sprintf("%v", this.Entries), "ProtoAppendEntriesRequest_ProtoLogEntry", "ProtoAppendEntriesRequest_ProtoLogEntry", 1) + `,`,
-		`XXX_unrecognized:` + fmt.Sprintf("%v", this.XXX_unrecognized) + `,`,
-		`}`,
-	}, "")
-	return s
-}
-func (this *ProtoAppendEntriesRequest_ProtoLogEntry) String() string {
-	if this == nil {
-		return "nil"
-	}
-	s := strings.Join([]string{`&ProtoAppendEntriesRequest_ProtoLogEntry{`,
-		`Index:` + valueToStringAppendEntriesRequest(this.Index) + `,`,
-		`Term:` + valueToStringAppendEntriesRequest(this.Term) + `,`,
-		`CommandName:` + valueToStringAppendEntriesRequest(this.CommandName) + `,`,
-		`Command:` + valueToStringAppendEntriesRequest(this.Command) + `,`,
-		`XXX_unrecognized:` + fmt.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`Entries:` + strings2.Replace(fmt3.Sprintf("%v", this.Entries), "ProtoLogEntry", "ProtoLogEntry", 1) + `,`,
+		`XXX_unrecognized:` + fmt3.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
 }
 func valueToStringAppendEntriesRequest(v interface{}) string {
-	rv := reflect.ValueOf(v)
+	rv := reflect2.ValueOf(v)
 	if rv.IsNil() {
 		return "nil"
 	}
-	pv := reflect.Indirect(rv).Interface()
-	return fmt.Sprintf("*%v", pv)
+	pv := reflect2.Indirect(rv).Interface()
+	return fmt3.Sprintf("*%v", pv)
 }
 func (m *ProtoAppendEntriesRequest) Size() (n int) {
 	var l int
@@ -463,28 +290,6 @@ func (m *ProtoAppendEntriesRequest) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovAppendEntriesRequest(uint64(l))
 		}
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-func (m *ProtoAppendEntriesRequest_ProtoLogEntry) Size() (n int) {
-	var l int
-	_ = l
-	if m.Index != nil {
-		n += 1 + sovAppendEntriesRequest(uint64(*m.Index))
-	}
-	if m.Term != nil {
-		n += 1 + sovAppendEntriesRequest(uint64(*m.Term))
-	}
-	if m.CommandName != nil {
-		l = len(*m.CommandName)
-		n += 1 + l + sovAppendEntriesRequest(uint64(l))
-	}
-	if m.Command != nil {
-		l = len(m.Command)
-		n += 1 + l + sovAppendEntriesRequest(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -520,34 +325,13 @@ func NewPopulatedProtoAppendEntriesRequest(r randyAppendEntriesRequest, easy boo
 	this.LeaderName = &v5
 	if r.Intn(10) != 0 {
 		v6 := r.Intn(10)
-		this.Entries = make([]*ProtoAppendEntriesRequest_ProtoLogEntry, v6)
+		this.Entries = make([]*ProtoLogEntry, v6)
 		for i := 0; i < v6; i++ {
-			this.Entries[i] = NewPopulatedProtoAppendEntriesRequest_ProtoLogEntry(r, easy)
+			this.Entries[i] = NewPopulatedProtoLogEntry(r, easy)
 		}
 	}
 	if !easy && r.Intn(10) != 0 {
 		this.XXX_unrecognized = randUnrecognizedAppendEntriesRequest(r, 7)
-	}
-	return this
-}
-
-func NewPopulatedProtoAppendEntriesRequest_ProtoLogEntry(r randyAppendEntriesRequest, easy bool) *ProtoAppendEntriesRequest_ProtoLogEntry {
-	this := &ProtoAppendEntriesRequest_ProtoLogEntry{}
-	v7 := uint64(r.Uint32())
-	this.Index = &v7
-	v8 := uint64(r.Uint32())
-	this.Term = &v8
-	v9 := randStringAppendEntriesRequest(r)
-	this.CommandName = &v9
-	if r.Intn(10) != 0 {
-		v10 := r.Intn(100)
-		this.Command = make([]byte, v10)
-		for i := 0; i < v10; i++ {
-			this.Command[i] = byte(r.Intn(256))
-		}
-	}
-	if !easy && r.Intn(10) != 0 {
-		this.XXX_unrecognized = randUnrecognizedAppendEntriesRequest(r, 5)
 	}
 	return this
 }
@@ -569,9 +353,9 @@ func randUTF8RuneAppendEntriesRequest(r randyAppendEntriesRequest) rune {
 	return res
 }
 func randStringAppendEntriesRequest(r randyAppendEntriesRequest) string {
-	v11 := r.Intn(100)
-	tmps := make([]rune, v11)
-	for i := 0; i < v11; i++ {
+	v7 := r.Intn(100)
+	tmps := make([]rune, v7)
+	for i := 0; i < v7; i++ {
 		tmps[i] = randUTF8RuneAppendEntriesRequest(r)
 	}
 	return string(tmps)
@@ -676,48 +460,6 @@ func (m *ProtoAppendEntriesRequest) MarshalTo(data []byte) (n int, err error) {
 	}
 	return i, nil
 }
-func (m *ProtoAppendEntriesRequest_ProtoLogEntry) Marshal() (data []byte, err error) {
-	size := m.Size()
-	data = make([]byte, size)
-	n, err := m.MarshalTo(data)
-	if err != nil {
-		return nil, err
-	}
-	return data[:n], nil
-}
-
-func (m *ProtoAppendEntriesRequest_ProtoLogEntry) MarshalTo(data []byte) (n int, err error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Index != nil {
-		data[i] = 0x8
-		i++
-		i = encodeVarintAppendEntriesRequest(data, i, uint64(*m.Index))
-	}
-	if m.Term != nil {
-		data[i] = 0x10
-		i++
-		i = encodeVarintAppendEntriesRequest(data, i, uint64(*m.Term))
-	}
-	if m.CommandName != nil {
-		data[i] = 0x1a
-		i++
-		i = encodeVarintAppendEntriesRequest(data, i, uint64(len(*m.CommandName)))
-		i += copy(data[i:], *m.CommandName)
-	}
-	if m.Command != nil {
-		data[i] = 0x22
-		i++
-		i = encodeVarintAppendEntriesRequest(data, i, uint64(len(m.Command)))
-		i += copy(data[i:], m.Command)
-	}
-	if m.XXX_unrecognized != nil {
-		i += copy(data[i:], m.XXX_unrecognized)
-	}
-	return i, nil
-}
 func encodeFixed64AppendEntriesRequest(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	data[offset+1] = uint8(v >> 8)
@@ -749,25 +491,18 @@ func (this *ProtoAppendEntriesRequest) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings1.Join([]string{`&protobuf.ProtoAppendEntriesRequest{` + `Term:` + valueToGoStringAppendEntriesRequest(this.Term, "uint64"), `PrevLogIndex:` + valueToGoStringAppendEntriesRequest(this.PrevLogIndex, "uint64"), `PrevLogTerm:` + valueToGoStringAppendEntriesRequest(this.PrevLogTerm, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesRequest(this.CommitIndex, "uint64"), `LeaderName:` + valueToGoStringAppendEntriesRequest(this.LeaderName, "string"), `Entries:` + fmt1.Sprintf("%#v", this.Entries), `XXX_unrecognized:` + fmt1.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
-	return s
-}
-func (this *ProtoAppendEntriesRequest_ProtoLogEntry) GoString() string {
-	if this == nil {
-		return "nil"
-	}
-	s := strings1.Join([]string{`&protobuf.ProtoAppendEntriesRequest_ProtoLogEntry{` + `Index:` + valueToGoStringAppendEntriesRequest(this.Index, "uint64"), `Term:` + valueToGoStringAppendEntriesRequest(this.Term, "uint64"), `CommandName:` + valueToGoStringAppendEntriesRequest(this.CommandName, "string"), `Command:` + valueToGoStringAppendEntriesRequest(this.Command, "byte"), `XXX_unrecognized:` + fmt1.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings3.Join([]string{`&protobuf.ProtoAppendEntriesRequest{` + `Term:` + valueToGoStringAppendEntriesRequest(this.Term, "uint64"), `PrevLogIndex:` + valueToGoStringAppendEntriesRequest(this.PrevLogIndex, "uint64"), `PrevLogTerm:` + valueToGoStringAppendEntriesRequest(this.PrevLogTerm, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesRequest(this.CommitIndex, "uint64"), `LeaderName:` + valueToGoStringAppendEntriesRequest(this.LeaderName, "string"), `Entries:` + fmt4.Sprintf("%#v", this.Entries), `XXX_unrecognized:` + fmt4.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringAppendEntriesRequest(v interface{}, typ string) string {
-	rv := reflect1.ValueOf(v)
+	rv := reflect3.ValueOf(v)
 	if rv.IsNil() {
 		return "nil"
 	}
-	pv := reflect1.Indirect(rv).Interface()
-	return fmt1.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	pv := reflect3.Indirect(rv).Interface()
+	return fmt4.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
-func extensionToGoStringAppendEntriesRequest(e map[int32]code_google_com_p_gogoprotobuf_proto1.Extension) string {
+func extensionToGoStringAppendEntriesRequest(e map[int32]code_google_com_p_gogoprotobuf_proto3.Extension) string {
 	if e == nil {
 		return "nil"
 	}
@@ -776,12 +511,12 @@ func extensionToGoStringAppendEntriesRequest(e map[int32]code_google_com_p_gogop
 	for k := range e {
 		keys = append(keys, int(k))
 	}
-	sort.Ints(keys)
+	sort1.Ints(keys)
 	ss := []string{}
 	for _, k := range keys {
-		ss = append(ss, strconv.Itoa(k)+": "+e[int32(k)].GoString())
+		ss = append(ss, strconv1.Itoa(k)+": "+e[int32(k)].GoString())
 	}
-	s += strings1.Join(ss, ",") + "}"
+	s += strings3.Join(ss, ",") + "}"
 	return s
 }
 func (this *ProtoAppendEntriesRequest) VerboseEqual(that interface{}) error {
@@ -789,76 +524,76 @@ func (this *ProtoAppendEntriesRequest) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt2.Errorf("that == nil && this != nil")
+		return fmt5.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*ProtoAppendEntriesRequest)
 	if !ok {
-		return fmt2.Errorf("that is not of type *ProtoAppendEntriesRequest")
+		return fmt5.Errorf("that is not of type *ProtoAppendEntriesRequest")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt2.Errorf("that is type *ProtoAppendEntriesRequest but is nil && this != nil")
+		return fmt5.Errorf("that is type *ProtoAppendEntriesRequest but is nil && this != nil")
 	} else if this == nil {
-		return fmt2.Errorf("that is type *ProtoAppendEntriesRequestbut is not nil && this == nil")
+		return fmt5.Errorf("that is type *ProtoAppendEntriesRequestbut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
-			return fmt2.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
+			return fmt5.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
 		}
 	} else if this.Term != nil {
-		return fmt2.Errorf("this.Term == nil && that.Term != nil")
+		return fmt5.Errorf("this.Term == nil && that.Term != nil")
 	} else if that1.Term != nil {
-		return fmt2.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
+		return fmt5.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
 	}
 	if this.PrevLogIndex != nil && that1.PrevLogIndex != nil {
 		if *this.PrevLogIndex != *that1.PrevLogIndex {
-			return fmt2.Errorf("PrevLogIndex this(%v) Not Equal that(%v)", *this.PrevLogIndex, *that1.PrevLogIndex)
+			return fmt5.Errorf("PrevLogIndex this(%v) Not Equal that(%v)", *this.PrevLogIndex, *that1.PrevLogIndex)
 		}
 	} else if this.PrevLogIndex != nil {
-		return fmt2.Errorf("this.PrevLogIndex == nil && that.PrevLogIndex != nil")
+		return fmt5.Errorf("this.PrevLogIndex == nil && that.PrevLogIndex != nil")
 	} else if that1.PrevLogIndex != nil {
-		return fmt2.Errorf("PrevLogIndex this(%v) Not Equal that(%v)", this.PrevLogIndex, that1.PrevLogIndex)
+		return fmt5.Errorf("PrevLogIndex this(%v) Not Equal that(%v)", this.PrevLogIndex, that1.PrevLogIndex)
 	}
 	if this.PrevLogTerm != nil && that1.PrevLogTerm != nil {
 		if *this.PrevLogTerm != *that1.PrevLogTerm {
-			return fmt2.Errorf("PrevLogTerm this(%v) Not Equal that(%v)", *this.PrevLogTerm, *that1.PrevLogTerm)
+			return fmt5.Errorf("PrevLogTerm this(%v) Not Equal that(%v)", *this.PrevLogTerm, *that1.PrevLogTerm)
 		}
 	} else if this.PrevLogTerm != nil {
-		return fmt2.Errorf("this.PrevLogTerm == nil && that.PrevLogTerm != nil")
+		return fmt5.Errorf("this.PrevLogTerm == nil && that.PrevLogTerm != nil")
 	} else if that1.PrevLogTerm != nil {
-		return fmt2.Errorf("PrevLogTerm this(%v) Not Equal that(%v)", this.PrevLogTerm, that1.PrevLogTerm)
+		return fmt5.Errorf("PrevLogTerm this(%v) Not Equal that(%v)", this.PrevLogTerm, that1.PrevLogTerm)
 	}
 	if this.CommitIndex != nil && that1.CommitIndex != nil {
 		if *this.CommitIndex != *that1.CommitIndex {
-			return fmt2.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
+			return fmt5.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
 		}
 	} else if this.CommitIndex != nil {
-		return fmt2.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
+		return fmt5.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
 	} else if that1.CommitIndex != nil {
-		return fmt2.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
+		return fmt5.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
 	}
 	if this.LeaderName != nil && that1.LeaderName != nil {
 		if *this.LeaderName != *that1.LeaderName {
-			return fmt2.Errorf("LeaderName this(%v) Not Equal that(%v)", *this.LeaderName, *that1.LeaderName)
+			return fmt5.Errorf("LeaderName this(%v) Not Equal that(%v)", *this.LeaderName, *that1.LeaderName)
 		}
 	} else if this.LeaderName != nil {
-		return fmt2.Errorf("this.LeaderName == nil && that.LeaderName != nil")
+		return fmt5.Errorf("this.LeaderName == nil && that.LeaderName != nil")
 	} else if that1.LeaderName != nil {
-		return fmt2.Errorf("LeaderName this(%v) Not Equal that(%v)", this.LeaderName, that1.LeaderName)
+		return fmt5.Errorf("LeaderName this(%v) Not Equal that(%v)", this.LeaderName, that1.LeaderName)
 	}
 	if len(this.Entries) != len(that1.Entries) {
-		return fmt2.Errorf("Entries this(%v) Not Equal that(%v)", len(this.Entries), len(that1.Entries))
+		return fmt5.Errorf("Entries this(%v) Not Equal that(%v)", len(this.Entries), len(that1.Entries))
 	}
 	for i := range this.Entries {
 		if !this.Entries[i].Equal(that1.Entries[i]) {
-			return fmt2.Errorf("Entries this[%v](%v) Not Equal that[%v](%v)", i, this.Entries[i], i, that1.Entries[i])
+			return fmt5.Errorf("Entries this[%v](%v) Not Equal that[%v](%v)", i, this.Entries[i], i, that1.Entries[i])
 		}
 	}
-	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt2.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+	if !bytes1.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
+		return fmt5.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }
@@ -935,117 +670,7 @@ func (this *ProtoAppendEntriesRequest) Equal(that interface{}) bool {
 			return false
 		}
 	}
-	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return false
-	}
-	return true
-}
-func (this *ProtoAppendEntriesRequest_ProtoLogEntry) VerboseEqual(that interface{}) error {
-	if that == nil {
-		if this == nil {
-			return nil
-		}
-		return fmt2.Errorf("that == nil && this != nil")
-	}
-
-	that1, ok := that.(*ProtoAppendEntriesRequest_ProtoLogEntry)
-	if !ok {
-		return fmt2.Errorf("that is not of type *ProtoAppendEntriesRequest_ProtoLogEntry")
-	}
-	if that1 == nil {
-		if this == nil {
-			return nil
-		}
-		return fmt2.Errorf("that is type *ProtoAppendEntriesRequest_ProtoLogEntry but is nil && this != nil")
-	} else if this == nil {
-		return fmt2.Errorf("that is type *ProtoAppendEntriesRequest_ProtoLogEntrybut is not nil && this == nil")
-	}
-	if this.Index != nil && that1.Index != nil {
-		if *this.Index != *that1.Index {
-			return fmt2.Errorf("Index this(%v) Not Equal that(%v)", *this.Index, *that1.Index)
-		}
-	} else if this.Index != nil {
-		return fmt2.Errorf("this.Index == nil && that.Index != nil")
-	} else if that1.Index != nil {
-		return fmt2.Errorf("Index this(%v) Not Equal that(%v)", this.Index, that1.Index)
-	}
-	if this.Term != nil && that1.Term != nil {
-		if *this.Term != *that1.Term {
-			return fmt2.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
-		}
-	} else if this.Term != nil {
-		return fmt2.Errorf("this.Term == nil && that.Term != nil")
-	} else if that1.Term != nil {
-		return fmt2.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
-	}
-	if this.CommandName != nil && that1.CommandName != nil {
-		if *this.CommandName != *that1.CommandName {
-			return fmt2.Errorf("CommandName this(%v) Not Equal that(%v)", *this.CommandName, *that1.CommandName)
-		}
-	} else if this.CommandName != nil {
-		return fmt2.Errorf("this.CommandName == nil && that.CommandName != nil")
-	} else if that1.CommandName != nil {
-		return fmt2.Errorf("CommandName this(%v) Not Equal that(%v)", this.CommandName, that1.CommandName)
-	}
-	if !bytes.Equal(this.Command, that1.Command) {
-		return fmt2.Errorf("Command this(%v) Not Equal that(%v)", this.Command, that1.Command)
-	}
-	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt2.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
-	}
-	return nil
-}
-func (this *ProtoAppendEntriesRequest_ProtoLogEntry) Equal(that interface{}) bool {
-	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	}
-
-	that1, ok := that.(*ProtoAppendEntriesRequest_ProtoLogEntry)
-	if !ok {
-		return false
-	}
-	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	} else if this == nil {
-		return false
-	}
-	if this.Index != nil && that1.Index != nil {
-		if *this.Index != *that1.Index {
-			return false
-		}
-	} else if this.Index != nil {
-		return false
-	} else if that1.Index != nil {
-		return false
-	}
-	if this.Term != nil && that1.Term != nil {
-		if *this.Term != *that1.Term {
-			return false
-		}
-	} else if this.Term != nil {
-		return false
-	} else if that1.Term != nil {
-		return false
-	}
-	if this.CommandName != nil && that1.CommandName != nil {
-		if *this.CommandName != *that1.CommandName {
-			return false
-		}
-	} else if this.CommandName != nil {
-		return false
-	} else if that1.CommandName != nil {
-		return false
-	}
-	if !bytes.Equal(this.Command, that1.Command) {
-		return false
-	}
-	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
+	if !bytes1.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
 		return false
 	}
 	return true

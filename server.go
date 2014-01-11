@@ -1127,7 +1127,7 @@ func (s *server) TakeSnapshot() error {
 	// to the slightly slow machines
 	if lastIndex-s.log.startIndex > NumberOfLogEntriesAfterSnapshot {
 		compactIndex := lastIndex - NumberOfLogEntriesAfterSnapshot
-		compactTerm := s.log.getEntry(compactIndex).Term
+		compactTerm := s.log.getEntry(compactIndex).Term()
 		s.log.compact(compactIndex, compactTerm)
 	}
 
@@ -1178,7 +1178,7 @@ func (s *server) processSnapshotRequest(req *SnapshotRequest) *SnapshotResponse 
 
 	entry := s.log.getEntry(req.LastIndex)
 
-	if entry != nil && entry.Term == req.LastTerm {
+	if entry != nil && entry.Term() == req.LastTerm {
 		return newSnapshotResponse(false)
 	}
 

@@ -1,6 +1,7 @@
 package protobuf;
 
 import "code.google.com/p/gogoprotobuf/gogoproto/gogo.proto";
+import "log_entry.proto";
 
 option (gogoproto.gostring_all) = true;
 option (gogoproto.equal_all) = true;
@@ -20,13 +21,5 @@ message ProtoAppendEntriesRequest {
 	required uint64 PrevLogTerm=3;
 	required uint64 CommitIndex=4;
 	required string LeaderName=5;
-
-	message ProtoLogEntry {
-		required uint64 Index=1;
-		required uint64 Term=2;
-		required string CommandName=3;
-		optional bytes Command=4;
-	}
-
 	repeated ProtoLogEntry Entries=6;
 }

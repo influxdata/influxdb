@@ -10,22 +10,22 @@ import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
-import io2 "io"
-import code_google_com_p_gogoprotobuf_proto4 "code.google.com/p/gogoprotobuf/proto"
+import io "io"
+import code_google_com_p_gogoprotobuf_proto "code.google.com/p/gogoprotobuf/proto"
 
-import fmt6 "fmt"
-import strings4 "strings"
-import reflect4 "reflect"
+import fmt "fmt"
+import strings "strings"
+import reflect "reflect"
 
-import fmt7 "fmt"
-import strings5 "strings"
-import code_google_com_p_gogoprotobuf_proto5 "code.google.com/p/gogoprotobuf/proto"
-import sort2 "sort"
-import strconv2 "strconv"
-import reflect5 "reflect"
+import fmt1 "fmt"
+import strings1 "strings"
+import code_google_com_p_gogoprotobuf_proto1 "code.google.com/p/gogoprotobuf/proto"
+import sort "sort"
+import strconv "strconv"
+import reflect1 "reflect"
 
-import fmt8 "fmt"
-import bytes2 "bytes"
+import fmt2 "fmt"
+import bytes "bytes"
 
 // Reference proto, json, and math imports to suppress error if they are not otherwise used.
 var _ = proto.Marshal
@@ -80,7 +80,7 @@ func (m *ProtoLogEntry) Unmarshal(data []byte) error {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
 			if index >= l {
-				return io2.ErrUnexpectedEOF
+				return io.ErrUnexpectedEOF
 			}
 			b := data[index]
 			index++
@@ -99,7 +99,7 @@ func (m *ProtoLogEntry) Unmarshal(data []byte) error {
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io2.ErrUnexpectedEOF
+					return io.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -116,7 +116,7 @@ func (m *ProtoLogEntry) Unmarshal(data []byte) error {
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io2.ErrUnexpectedEOF
+					return io.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -133,7 +133,7 @@ func (m *ProtoLogEntry) Unmarshal(data []byte) error {
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io2.ErrUnexpectedEOF
+					return io.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -144,7 +144,7 @@ func (m *ProtoLogEntry) Unmarshal(data []byte) error {
 			}
 			postIndex := index + int(stringLen)
 			if postIndex > l {
-				return io2.ErrUnexpectedEOF
+				return io.ErrUnexpectedEOF
 			}
 			s := string(data[index:postIndex])
 			m.CommandName = &s
@@ -156,7 +156,7 @@ func (m *ProtoLogEntry) Unmarshal(data []byte) error {
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
 				if index >= l {
-					return io2.ErrUnexpectedEOF
+					return io.ErrUnexpectedEOF
 				}
 				b := data[index]
 				index++
@@ -167,7 +167,7 @@ func (m *ProtoLogEntry) Unmarshal(data []byte) error {
 			}
 			postIndex := index + byteLen
 			if postIndex > l {
-				return io2.ErrUnexpectedEOF
+				return io.ErrUnexpectedEOF
 			}
 			m.Command = append(m.Command, data[index:postIndex]...)
 			index = postIndex
@@ -181,7 +181,7 @@ func (m *ProtoLogEntry) Unmarshal(data []byte) error {
 				}
 			}
 			index -= sizeOfWire
-			skippy, err := code_google_com_p_gogoprotobuf_proto4.Skip(data[index:])
+			skippy, err := code_google_com_p_gogoprotobuf_proto.Skip(data[index:])
 			if err != nil {
 				return err
 			}
@@ -195,23 +195,23 @@ func (this *ProtoLogEntry) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings4.Join([]string{`&ProtoLogEntry{`,
+	s := strings.Join([]string{`&ProtoLogEntry{`,
 		`Index:` + valueToStringLogEntry(this.Index) + `,`,
 		`Term:` + valueToStringLogEntry(this.Term) + `,`,
 		`CommandName:` + valueToStringLogEntry(this.CommandName) + `,`,
 		`Command:` + valueToStringLogEntry(this.Command) + `,`,
-		`XXX_unrecognized:` + fmt6.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
 }
 func valueToStringLogEntry(v interface{}) string {
-	rv := reflect4.ValueOf(v)
+	rv := reflect.ValueOf(v)
 	if rv.IsNil() {
 		return "nil"
 	}
-	pv := reflect4.Indirect(rv).Interface()
-	return fmt6.Sprintf("*%v", pv)
+	pv := reflect.Indirect(rv).Interface()
+	return fmt.Sprintf("*%v", pv)
 }
 func (m *ProtoLogEntry) Size() (n int) {
 	var l int
@@ -410,18 +410,18 @@ func (this *ProtoLogEntry) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings5.Join([]string{`&protobuf.ProtoLogEntry{` + `Index:` + valueToGoStringLogEntry(this.Index, "uint64"), `Term:` + valueToGoStringLogEntry(this.Term, "uint64"), `CommandName:` + valueToGoStringLogEntry(this.CommandName, "string"), `Command:` + valueToGoStringLogEntry(this.Command, "byte"), `XXX_unrecognized:` + fmt7.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings1.Join([]string{`&protobuf.ProtoLogEntry{` + `Index:` + valueToGoStringLogEntry(this.Index, "uint64"), `Term:` + valueToGoStringLogEntry(this.Term, "uint64"), `CommandName:` + valueToGoStringLogEntry(this.CommandName, "string"), `Command:` + valueToGoStringLogEntry(this.Command, "byte"), `XXX_unrecognized:` + fmt1.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringLogEntry(v interface{}, typ string) string {
-	rv := reflect5.ValueOf(v)
+	rv := reflect1.ValueOf(v)
 	if rv.IsNil() {
 		return "nil"
 	}
-	pv := reflect5.Indirect(rv).Interface()
-	return fmt7.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	pv := reflect1.Indirect(rv).Interface()
+	return fmt1.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
-func extensionToGoStringLogEntry(e map[int32]code_google_com_p_gogoprotobuf_proto5.Extension) string {
+func extensionToGoStringLogEntry(e map[int32]code_google_com_p_gogoprotobuf_proto1.Extension) string {
 	if e == nil {
 		return "nil"
 	}
@@ -430,12 +430,12 @@ func extensionToGoStringLogEntry(e map[int32]code_google_com_p_gogoprotobuf_prot
 	for k := range e {
 		keys = append(keys, int(k))
 	}
-	sort2.Ints(keys)
+	sort.Ints(keys)
 	ss := []string{}
 	for _, k := range keys {
-		ss = append(ss, strconv2.Itoa(k)+": "+e[int32(k)].GoString())
+		ss = append(ss, strconv.Itoa(k)+": "+e[int32(k)].GoString())
 	}
-	s += strings5.Join(ss, ",") + "}"
+	s += strings1.Join(ss, ",") + "}"
 	return s
 }
 func (this *ProtoLogEntry) VerboseEqual(that interface{}) error {
@@ -443,53 +443,53 @@ func (this *ProtoLogEntry) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt8.Errorf("that == nil && this != nil")
+		return fmt2.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*ProtoLogEntry)
 	if !ok {
-		return fmt8.Errorf("that is not of type *ProtoLogEntry")
+		return fmt2.Errorf("that is not of type *ProtoLogEntry")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt8.Errorf("that is type *ProtoLogEntry but is nil && this != nil")
+		return fmt2.Errorf("that is type *ProtoLogEntry but is nil && this != nil")
 	} else if this == nil {
-		return fmt8.Errorf("that is type *ProtoLogEntrybut is not nil && this == nil")
+		return fmt2.Errorf("that is type *ProtoLogEntrybut is not nil && this == nil")
 	}
 	if this.Index != nil && that1.Index != nil {
 		if *this.Index != *that1.Index {
-			return fmt8.Errorf("Index this(%v) Not Equal that(%v)", *this.Index, *that1.Index)
+			return fmt2.Errorf("Index this(%v) Not Equal that(%v)", *this.Index, *that1.Index)
 		}
 	} else if this.Index != nil {
-		return fmt8.Errorf("this.Index == nil && that.Index != nil")
+		return fmt2.Errorf("this.Index == nil && that.Index != nil")
 	} else if that1.Index != nil {
-		return fmt8.Errorf("Index this(%v) Not Equal that(%v)", this.Index, that1.Index)
+		return fmt2.Errorf("Index this(%v) Not Equal that(%v)", this.Index, that1.Index)
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
-			return fmt8.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
+			return fmt2.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
 		}
 	} else if this.Term != nil {
-		return fmt8.Errorf("this.Term == nil && that.Term != nil")
+		return fmt2.Errorf("this.Term == nil && that.Term != nil")
 	} else if that1.Term != nil {
-		return fmt8.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
+		return fmt2.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
 	}
 	if this.CommandName != nil && that1.CommandName != nil {
 		if *this.CommandName != *that1.CommandName {
-			return fmt8.Errorf("CommandName this(%v) Not Equal that(%v)", *this.CommandName, *that1.CommandName)
+			return fmt2.Errorf("CommandName this(%v) Not Equal that(%v)", *this.CommandName, *that1.CommandName)
 		}
 	} else if this.CommandName != nil {
-		return fmt8.Errorf("this.CommandName == nil && that.CommandName != nil")
+		return fmt2.Errorf("this.CommandName == nil && that.CommandName != nil")
 	} else if that1.CommandName != nil {
-		return fmt8.Errorf("CommandName this(%v) Not Equal that(%v)", this.CommandName, that1.CommandName)
+		return fmt2.Errorf("CommandName this(%v) Not Equal that(%v)", this.CommandName, that1.CommandName)
 	}
-	if !bytes2.Equal(this.Command, that1.Command) {
-		return fmt8.Errorf("Command this(%v) Not Equal that(%v)", this.Command, that1.Command)
+	if !bytes.Equal(this.Command, that1.Command) {
+		return fmt2.Errorf("Command this(%v) Not Equal that(%v)", this.Command, that1.Command)
 	}
-	if !bytes2.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt8.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
+		return fmt2.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }
@@ -540,10 +540,10 @@ func (this *ProtoLogEntry) Equal(that interface{}) bool {
 	} else if that1.CommandName != nil {
 		return false
 	}
-	if !bytes2.Equal(this.Command, that1.Command) {
+	if !bytes.Equal(this.Command, that1.Command) {
 		return false
 	}
-	if !bytes2.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
+	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
 		return false
 	}
 	return true

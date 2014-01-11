@@ -177,11 +177,11 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 	p.mutex.Lock()
 	if resp.Success {
 		if len(req.Entries) > 0 {
-			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
+			p.prevLogIndex = req.Entries[len(req.Entries)-1].GetIndex()
 
 			// if peer append a log entry from the current term
 			// we set append to true
-			if req.Entries[len(req.Entries)-1].Term == p.server.currentTerm {
+			if req.Entries[len(req.Entries)-1].GetTerm() == p.server.currentTerm {
 				resp.append = true
 			}
 		}
