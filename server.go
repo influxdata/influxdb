@@ -281,6 +281,7 @@ func (s *server) setState(state string) {
 	s.state = state
 	if state == Leader {
 		s.leader = s.Name()
+		s.syncedPeer = make(map[string]bool)
 	}
 
 	// Dispatch state and leader change events.
@@ -866,12 +867,12 @@ func (s *server) processCommand(command Command, e *ev) {
 		return
 	}
 
-	// Issue an append entries response for the server.
-	resp := newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex())
-	resp.append = true
-	resp.peer = s.Name()
-
-	s.sendAsync(resp)
+	s.syncedPeer[s.Name()] = true
+	if len(s.peers) == 0 {
+		commitIndex := s.log.currentIndex()
+		s.log.setCommitIndex(commitIndex)
+		s.debugln("commit index ", commitIndex)
+	}
 }
 
 //--------------------------------------
