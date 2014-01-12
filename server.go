@@ -754,7 +754,6 @@ func (s *server) candidateLoop() {
 // The event loop that is run when the server is in a Leader state.
 func (s *server) leaderLoop() {
 	s.setState(Leader)
-	s.syncedPeer = make(map[string]bool)
 	logIndex, _ := s.log.lastInfo()
 
 	// Update the peers prevLogIndex to leader's lastLogIndex and start heartbeat.
