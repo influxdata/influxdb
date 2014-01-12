@@ -33,7 +33,7 @@ const (
 )
 
 const (
-	DefaultHeartbeatTimeout = 50 * time.Millisecond
+	DefaultHeartbeatTimeout = 1 * time.Millisecond
 	DefaultElectionTimeout  = 150 * time.Millisecond
 )
 
@@ -926,13 +926,13 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 
 	// If we find a higher term then change to a follower and exit.
-	if resp.Term > s.Term() {
-		s.setCurrentTerm(resp.Term, "", false)
+	if resp.Term() > s.Term() {
+		s.setCurrentTerm(resp.Term(), "", false)
 		return
 	}
 
 	// panic response if it's not successful.
-	if !resp.Success {
+	if !resp.Success() {
 		return
 	}
 

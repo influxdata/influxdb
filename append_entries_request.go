@@ -66,9 +66,7 @@ func (req *AppendEntriesRequest) Decode(r io.Reader) (int, error) {
 		return -1, err
 	}
 
-	totalBytes := len(data)
-
-	pb := &protobuf.ProtoAppendEntriesRequest{}
+	pb := new(protobuf.ProtoAppendEntriesRequest)
 	if err := proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}
@@ -80,5 +78,5 @@ func (req *AppendEntriesRequest) Decode(r io.Reader) (int, error) {
 	req.LeaderName = pb.GetLeaderName()
 	req.Entries = pb.GetEntries()
 
-	return totalBytes, nil
+	return len(data), nil
 }
