@@ -116,6 +116,12 @@ free_delete_query (delete_query *q)
 }
 
 void
+free_drop_series_query (drop_series_query *q)
+{
+  free_value(q->name);
+}
+
+void
 close_query (query *q)
 {
    if (q->error) {
@@ -125,6 +131,11 @@ close_query (query *q)
   if (q->select_query) {
     free_select_query(q->select_query);
     free(q->select_query);
+  }
+
+  if (q->drop_series_query) {
+    free_drop_series_query(q->drop_series_query);
+    free(q->drop_series_query);
   }
 
   if (q->delete_query) {

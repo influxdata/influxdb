@@ -49,6 +49,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
   query*                query;
   select_query*         select_query;
   delete_query*         delete_query;
+  drop_series_query*    drop_series_query;
   groupby_clause*       groupby_clause;
   struct {
     int limit;
@@ -69,7 +70,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES
+%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES DROP_SERIES
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP
 %token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
@@ -96,6 +97,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %type <limit_and_order> LIMIT_AND_ORDER_CLAUSES
 %type <query>           QUERY
 %type <delete_query>    DELETE_QUERY
+%type <drop_series_query> DROP_SERIES_QUERY
 %type <select_query>    SELECT_QUERY
 
 // the initial token
@@ -150,6 +152,12 @@ QUERY:
           $$ = calloc(1, sizeof(query));
           $$->list_series_query = TRUE;
         }
+        |
+        DROP_SERIES_QUERY
+        {
+          $$ = calloc(1, sizeof(query));
+          $$->drop_series_query = $1;
+        }
 
 DELETE_QUERY:
         DELETE FROM_CLAUSE WHERE_CLAUSE
@@ -157,6 +165,13 @@ DELETE_QUERY:
           $$ = calloc(1, sizeof(delete_query));
           $$->from_clause = $2;
           $$->where_condition = $3;
+        }
+
+DROP_SERIES_QUERY:
+        DROP_SERIES SIMPLE_NAME_VALUE
+        {
+          $$ = malloc(sizeof(drop_series_query));
+          $$->name = $2;
         }
 
 SELECT_QUERY:
@@ -511,7 +526,7 @@ void yy_delete_buffer(void *, void *);
 query
 parse_query(char *const query_s)
 {
-  query q = {NULL, NULL, FALSE, NULL};
+  query q = {NULL, NULL, NULL, FALSE, NULL};
   void *scanner;
   yylex_init(&scanner);
 #ifdef DEBUG

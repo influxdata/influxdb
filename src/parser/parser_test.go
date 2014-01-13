@@ -73,6 +73,22 @@ func (self *QueryParserSuite) TestParseDeleteQueryWithEndTime(c *C) {
 	c.Assert(q.GetEndTime(), Equals, time.Unix(1389040522, 0).UTC())
 }
 
+func (self *QueryParserSuite) TestParseDropSeries(c *C) {
+	query := "drop series foobar"
+	queries, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+
+	c.Assert(queries, HasLen, 1)
+
+	_q := queries[0]
+
+	c.Assert(_q.DropSeriesQuery, NotNil)
+
+	q := _q.DropSeriesQuery
+
+	c.Assert(q.GetTableName(), Equals, "foobar")
+}
+
 func (self *QueryParserSuite) TestGetQueryStringWithTimeCondition(c *C) {
 	now := time.Now().Round(time.Minute).UTC()
 	micros := common.TimeToMicroseconds(now)

@@ -57,6 +57,7 @@ static int yycolumn = 1;
 "as"                      { return AS; }
 "select"                  { return SELECT; }
 "delete"                  { return DELETE; }
+"drop series"                    { return DROP_SERIES; }
 "limit"                   { BEGIN(INITIAL); return LIMIT; }
 "order"                   { BEGIN(INITIAL); return ORDER; }
 "asc"                     { return ASC; }

@@ -146,14 +146,23 @@ type SelectQuery struct {
 
 type ListQuery struct{}
 
+type DropSeriesQuery struct {
+	tableName string
+}
+
+func (self *DropSeriesQuery) GetTableName() string {
+	return self.tableName
+}
+
 type DeleteQuery struct {
 	SelectDeleteCommonQuery
 }
 
 type Query struct {
-	SelectQuery *SelectQuery
-	DeleteQuery *DeleteQuery
-	ListQuery   *ListQuery
+	SelectQuery     *SelectQuery
+	DeleteQuery     *DeleteQuery
+	ListQuery       *ListQuery
+	DropSeriesQuery *DropSeriesQuery
 }
 
 func (self *Query) GetQueryString() string {
@@ -426,20 +435,37 @@ func ParseQuery(query string) ([]*Query, error) {
 
 	if q.list_series_query != 0 {
 		return []*Query{&Query{ListQuery: &ListQuery{}}}, nil
-	}
-
-	if q.select_query != nil {
+	} else if q.select_query != nil {
 		selectQuery, err := parseSelectQuery(query, q.select_query)
 		if err != nil {
 			return nil, err
 		}
 		return []*Query{&Query{SelectQuery: selectQuery}}, nil
+	} else if q.delete_query != nil {
+		deleteQuery, err := parseDeleteQuery(query, q.delete_query)
+		if err != nil {
+			return nil, err
+		}
+		return []*Query{&Query{DeleteQuery: deleteQuery}}, nil
+	} else if q.drop_series_query != nil {
+		dropSeriesQuery, err := parseDropSeriesQuery(query, q.drop_series_query)
+		if err != nil {
+			return nil, err
+		}
+		return []*Query{&Query{DropSeriesQuery: dropSeriesQuery}}, nil
 	}
-	deleteQuery, err := parseDeleteQuery(query, q.delete_query)
+	return nil, fmt.Errorf("Unknown query type encountered")
+}
+
+func parseDropSeriesQuery(queryStirng string, dropSeriesQuery *C.drop_series_query) (*DropSeriesQuery, error) {
+	name, err := GetValue(dropSeriesQuery.name)
 	if err != nil {
 		return nil, err
 	}
-	return []*Query{&Query{DeleteQuery: deleteQuery}}, nil
+
+	return &DropSeriesQuery{
+		tableName: name.Name,
+	}, nil
 }
 
 func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause, whereCondition *C.condition) (SelectDeleteCommonQuery, error) {
