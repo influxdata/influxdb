@@ -161,6 +161,7 @@
 - [Issue #108](https://github.com/influxdb/influxdb/issues/108). Querying one point using `time =`
 - [Issue #114](https://github.com/influxdb/influxdb/issues/114). Servers should periodically check that they're consistent.
 - [Issue #93](https://github.com/influxdb/influxdb/issues/93). Should be able to drop a time series
+- [Issue #177](https://github.com/influxdb/influxdb/issues/177). Support drop series in the query language.
 
 ## Bugfixes
 
