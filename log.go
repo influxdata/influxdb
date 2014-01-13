@@ -368,7 +368,7 @@ func (l *Log) setCommitIndex(index uint64) error {
 
 		// Apply the changes to the state machine and store the error code.
 		returnValue, err := l.ApplyFunc(command)
-		debugf("setCommitIndex.set.result index: %v entires index: ", i, entryIndex)
+		debugf("setCommitIndex.set.result index: %v, entries index: %v", i, entryIndex)
 		if entry.event != nil {
 			entry.event.returnValue = returnValue
 			entry.event.c <- err
