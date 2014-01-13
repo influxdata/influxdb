@@ -49,6 +49,14 @@ func (self *QueryEngine) RunQuery(user common.User, database string, queryString
 			continue
 		}
 
+		if query.DropSeriesQuery != nil {
+			err := self.coordinator.DropSeries(user, database, query.DropSeriesQuery.GetTableName())
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
 		selectQuery := query.SelectQuery
 		if isAggregateQuery(selectQuery) {
 			return self.executeCountQueryWithGroupBy(user, database, selectQuery, localOnly, yield)

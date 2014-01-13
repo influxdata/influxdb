@@ -90,8 +90,13 @@ typedef struct {
 } delete_query;
 
 typedef struct {
+  value *name;
+} drop_series_query;
+
+typedef struct {
   select_query *select_query;
   delete_query *delete_query;
+  drop_series_query *drop_series_query;
   char list_series_query;
   error *error;
 } query;
