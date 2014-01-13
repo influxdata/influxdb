@@ -224,11 +224,17 @@ func (self *ProtobufRequestHandler) handleReplay(request *protocol.Request, conn
 	}
 }
 
-func createResponse(nextPointMap map[string]*protocol.Point, series *protocol.Series, id *uint32) *protocol.Response {
+type NextPoint struct {
+	fields []string
+	point  *protocol.Point
+}
+
+func createResponse(nextPointMap map[string]*NextPoint, series *protocol.Series, id *uint32) *protocol.Response {
 	pointCount := len(series.Points)
-	if pointCount <= 1 {
+	if pointCount < 1 {
 		if nextPoint := nextPointMap[*series.Name]; nextPoint != nil {
-			series.Points = append(series.Points, nextPoint)
+			series.Points = append(series.Points, nextPoint.point)
+			series.Fields = nextPoint.fields
 		}
 		response := &protocol.Response{Type: &queryResponse, Series: series, RequestId: id}
 
@@ -239,7 +245,7 @@ func createResponse(nextPointMap map[string]*protocol.Point, series *protocol.Se
 	series.Points[pointCount-1] = nil
 	if oldNextPoint != nil {
 		copy(series.Points[1:], series.Points[0:])
-		series.Points[0] = oldNextPoint
+		series.Points[0] = oldNextPoint.point
 	} else {
 		series.Points = series.Points[:len(series.Points)-1]
 	}
@@ -247,13 +253,13 @@ func createResponse(nextPointMap map[string]*protocol.Point, series *protocol.Se
 	response := &protocol.Response{Series: series, Type: &queryResponse, RequestId: id}
 	if nextPoint != nil {
 		response.NextPointTime = nextPoint.Timestamp
-		nextPointMap[*series.Name] = nextPoint
+		nextPointMap[*series.Name] = &NextPoint{series.Fields, nextPoint}
 	}
 	return response
 }
 
 func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn net.Conn) {
-	nextPointMap := make(map[string]*protocol.Point)
+	nextPointMap := make(map[string]*NextPoint)
 	assignNextPointTimesAndSend := func(series *protocol.Series) error {
 		response := createResponse(nextPointMap, series, request.Id)
 		return self.WriteResponse(conn, response)
