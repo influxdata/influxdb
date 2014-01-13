@@ -75,10 +75,14 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 			if err != nil {
 				panic(err)
 			}
+			readBytes := 0
 			b := make([]byte, 8)
-			_, err = f.Read(b)
-			if err != nil {
-				panic(err)
+			for readBytes < 8 {
+				n, err := f.Read(b[readBytes:])
+				if err != nil {
+					panic(err)
+				}
+				readBytes += n
 			}
 			i, err = binary.ReadUvarint(bytes.NewBuffer(b))
 			if err != nil {
