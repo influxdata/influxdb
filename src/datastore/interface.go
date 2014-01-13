@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"common"
+	"engine"
 	"parser"
 	"protocol"
 )
@@ -24,4 +25,6 @@ type Datastore interface {
 	DropDatabase(database string) error
 	DropSeries(database, series string) error
 	Close()
+
+	ExecuteMap(databaseQuery *protocol.DatabaseQuery, mapJob engine.MapJob) error
 }

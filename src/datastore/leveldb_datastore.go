@@ -533,6 +533,58 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 	return nil
 }
 
+func (self *LevelDbDatastore) ExecuteMap(databaseQuery *engine.DatabaseQuery, mapJob engine.MapJob) error {
+	seriesAndColumns := query.GetReferencedColumns()
+	hasAccess := self.hasReadAccessForQuery(databaseQuery.User, seriesAndColumns)
+	if !hasAccess {
+		return fmt.Errorf("You don't have permission to access one or more time series in the query.")
+	}
+	for series, columns := range seriesAndColumns {
+		var err error
+
+		if regex, ok := series.GetCompiledRegex(); ok {
+			err = self.executeMapForRegex(databaseQuery, regex, columns, mapJob)
+		} else {
+			err = self.executeMapForSeries(databaseQuery, series.Name, columns, mapJob)
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (self *LevelDbDatastore) executeMapForRegex(databaseQuery *engine.DatabaseQuery, regex regexp.Regexp, columns []string, mapJob engine.MapJob) error {
+	seriesNames := self.getSeriesForDbAndRegex(database, regex)
+	for _, name := range seriesNames {
+		if !user.HasReadAccess(name) {
+			continue
+		}
+
+		err := self.executeMapForSeries(databaseQuery, name, columns, mapJob)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (self *LevelDbDatastore) executeMapForSeries(databaseQuery *engine.DatabaseQuery, name string, columns []string, mapJob engine.MapJob) error {
+
+}
+
+func (self *LevelDbDatastore) hasReadAccessForQuery(user common.User, seriesAndColumns map[*Value][]string) bool {
+	for series, _ := range seriesAndColumns {
+		_, isRegex := series.GetCompiledRegex()
+
+		if !isRegex && !user.HasReadAccess(series.Name) {
+			return false
+		}
+	}
+	return true
+}
+
 func (self *LevelDbDatastore) ExecuteQuery(user common.User, database string,
 	query *parser.SelectQuery, yield func(*protocol.Series) error,
 	ringFilter func(database, series *string, time *int64) bool) error {

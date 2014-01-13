@@ -422,3 +422,21 @@ func (self *ClusterConfiguration) GetDatabaseReplicationFactor(name string) uint
 	defer self.createDatabaseLock.RUnlock()
 	return self.databaseReplicationFactors[name]
 }
+
+// Returns true if the user can read from the series name. The datastore will use
+// this to determine if a series should be scanned when doing a `select from /.*/` type query.
+func (self *ClusterConfiguration) CanReadSeries(name *string) bool {
+
+}
+
+// Inteface for an object that can filter points. The object will need to know the
+// user read rights, which are based on a given database, series, and user.
+type PointFilter interface {
+	ShouldFilter(point *protocol.Point) *bool
+}
+
+// Returns a filter if points from the given series should be filtered to ensure
+// the user can access them, and a boolean on if points should be filtered.
+func (self *ClusterConfiguration) GetFilterForPointsInSeries(name *string, user *string) (filter PointFilter, shouldFilter bool) {
+
+}

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"common"
-	"coordinator"
 	"datastore"
 	"fmt"
 	"os"

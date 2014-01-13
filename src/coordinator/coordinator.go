@@ -4,6 +4,7 @@ import (
 	log "code.google.com/p/log4go"
 	"common"
 	"datastore"
+	"engine"
 	"errors"
 	"fmt"
 	"math"
@@ -65,6 +66,31 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 	go coordinator.SyncLogs()
 
 	return coordinator
+}
+
+func (self *CoordinatorImpl) RunQuery(databaseQuery *engine.DatabaseQuery, localOnly bool, resultStream engine.QueryResultStream) error {
+	reduceJob := engine.NewLocalReduceJob(databaseQuery, resultStream)
+	if localOnly || self.clusterConfiguration.IsSingleServer() {
+		mapStream := engine.NewLocalMapResultStream(reduceJob)
+		mapJob := engine.NewLocalMapJob(reduceJob, query)
+		err := self.datastore.ExecuteMap(query, mapJob)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := self.distributeMapJob(databaseQuery, reduceJob)
+		if err != nil {
+			return err
+		}
+	}
+	return reduceJob.WaitForCompletion()
+}
+
+func (self *CoordinatorImpl) distributeMapJob(databaseQuery *engine.DatabaseQuery, reduceJob engine.ReduceJob) error {
+	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(&database)
+	for _, server := range servrs {
+		if 
+	}
 }
 
 // Distributes the query across the cluster and combines the results. Yields as they come in ensuring proper order.
