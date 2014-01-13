@@ -95,7 +95,7 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 	}
 
 	local := make(chan *protocol.Response)
-	nextPointMap := make(map[string]*protocol.Point)
+	nextPointMap := make(map[string]*NextPoint)
 
 	// TODO: this style of wrapping the series in response objects with the
 	//       last point time is duplicated in the request handler. Refactor...

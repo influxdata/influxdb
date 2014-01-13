@@ -415,14 +415,15 @@ func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
 func (self *ServerSuite) TestColumnNamesReturnInDistributedQuery(c *C) {
 	data := `[{
 		"name": "cluster_query_with_columns",
-		"columns": ["asdf"],
-		"points": [[1]]
+		"columns": ["col1"],
+		"points": [[1], [2]]
 		}]`
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("test_rep", "select * from cluster_query_with_columns", false, c)
 		series := collection.GetSeries("cluster_query_with_columns", c)
-		c.Assert(series.GetValueForPointAndColumn(0, "asdf", c), Equals, float64(1))
+		c.Assert(series.GetValueForPointAndColumn(0, "col1", c), Equals, float64(2))
+		c.Assert(series.GetValueForPointAndColumn(1, "col1", c), Equals, float64(1))
 	}
 }
 
