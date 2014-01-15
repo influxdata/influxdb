@@ -13,6 +13,7 @@ import (
 	"os"
 	"protocol"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -297,7 +298,8 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	// can get other cluster admin
 	admins, err := coordinator.ListClusterAdmins(root)
 	c.Assert(err, IsNil)
-	c.Assert(admins, DeepEquals, []string{"root", "another_cluster_admin"})
+	sort.Sort(admins)
+	c.Assert(admins, DeepEquals, []string{"another_cluster_admin", "root"})
 
 	// can create db users
 	c.Assert(coordinator.CreateDbUser(root, "db1", "db_user"), IsNil)
