@@ -180,6 +180,7 @@
 - [Issue #145](https://github.com/influxdb/influxdb/issues/145). Server fails to join cluster if all starting at same time.
 - [Issue #176](https://github.com/influxdb/influxdb/issues/176). Drop database should take effect on all nodes
 - [Issue #180](https://github.com/influxdb/influxdb/issues/180). Column names not returned when running multi-node cluster and writing more than one point.
+- [Issue #182](https://github.com/influxdb/influxdb/issues/182). Queries with invalid limit clause crash the server
 
 ### Deprecated
 

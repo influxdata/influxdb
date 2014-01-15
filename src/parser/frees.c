@@ -46,6 +46,9 @@ free_value_array(value_array *array)
 void
 free_groupby_clause(groupby_clause *g)
 {
+  if (!g)
+    return;
+
   free_value_array(g->elems);
   if (g->fill_function) {
     free_value(g->fill_function);

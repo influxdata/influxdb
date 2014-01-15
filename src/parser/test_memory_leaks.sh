@@ -42,6 +42,9 @@ int main(int argc, char **argv) {
   q = parse_query("drop series foobar");
   close_query(&q);
 
+  q = parse_query("select * from foobar limit");
+  close_query(&q);
+
   return 0;
 }
 EOF

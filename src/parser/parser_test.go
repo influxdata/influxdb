@@ -533,6 +533,11 @@ func (self *QueryParserSuite) TestParseWhereClauseParentheses(c *C) {
 	c.Assert(third.Name, Equals, ">")
 }
 
+func (self *QueryParserSuite) TestParseSelectWithInvalidLimit(c *C) {
+	_, err := ParseSelectQuery("select value from t limit;")
+	c.Assert(err, NotNil)
+}
+
 func (self *QueryParserSuite) TestParseSelectWithOrderByAndLimit(c *C) {
 	q, err := ParseSelectQuery("select value from t order asc limit 10;")
 	c.Assert(err, IsNil)
