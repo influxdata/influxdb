@@ -960,6 +960,8 @@ func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 	committedIndex := s.log.commitIndex
 
 	if commitIndex > committedIndex {
+		// leader needs to do a fsync before committing log entries
+		s.log.sync()
 		s.log.setCommitIndex(commitIndex)
 		s.debugln("commit index ", commitIndex)
 	}
@@ -1329,7 +1331,7 @@ func (s *server) writeConf() {
 	confPath := path.Join(s.path, "conf")
 	tmpConfPath := path.Join(s.path, "conf.tmp")
 
-	err := ioutil.WriteFile(tmpConfPath, b, 0600)
+	err := writeFileSynced(tmpConfPath, b, 0600)
 
 	if err != nil {
 		panic(err)
