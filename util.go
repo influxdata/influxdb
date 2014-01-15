@@ -15,11 +15,17 @@ func writeFileSynced(filename string, data []byte, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
+
 	n, err := f.Write(data)
-	f.Sync()
-	f.Close()
-	if err == nil && n < len(data) {
-		err = io.ErrShortWrite
+	if n < len(data) {
+		f.Close()
+		return io.ErrShortWrite
 	}
-	return err
+
+	err = f.Sync()
+	if err != nil {
+		return err
+	}
+
+	return f.Close()
 }
