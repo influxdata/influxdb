@@ -281,6 +281,7 @@ func (s *server) setState(state string) {
 	s.state = state
 	if state == Leader {
 		s.leader = s.Name()
+		s.syncedPeer = make(map[string]bool)
 	}
 
 	// Dispatch state and leader change events.
@@ -753,7 +754,6 @@ func (s *server) candidateLoop() {
 // The event loop that is run when the server is in a Leader state.
 func (s *server) leaderLoop() {
 	s.setState(Leader)
-	s.syncedPeer = make(map[string]bool)
 	logIndex, _ := s.log.lastInfo()
 
 	// Update the peers prevLogIndex to leader's lastLogIndex and start heartbeat.
@@ -866,12 +866,12 @@ func (s *server) processCommand(command Command, e *ev) {
 		return
 	}
 
-	// Issue an append entries response for the server.
-	resp := newAppendEntriesResponse(s.currentTerm, true, s.log.currentIndex(), s.log.CommitIndex())
-	resp.append = true
-	resp.peer = s.Name()
-
-	s.sendAsync(resp)
+	s.syncedPeer[s.Name()] = true
+	if len(s.peers) == 0 {
+		commitIndex := s.log.currentIndex()
+		s.log.setCommitIndex(commitIndex)
+		s.debugln("commit index ", commitIndex)
+	}
 }
 
 //--------------------------------------
