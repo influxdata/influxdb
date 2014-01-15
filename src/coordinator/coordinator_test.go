@@ -298,7 +298,7 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	// can get other cluster admin
 	admins, err := coordinator.ListClusterAdmins(root)
 	c.Assert(err, IsNil)
-	sort.Sort(admins)
+	sort.Strings(admins)
 	c.Assert(admins, DeepEquals, []string{"another_cluster_admin", "root"})
 
 	// can create db users
