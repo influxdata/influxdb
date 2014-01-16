@@ -29,6 +29,7 @@ type CommonUser struct {
 	Name          string `json:"name"`
 	Hash          string `json:"hash"`
 	IsUserDeleted bool   `json:"is_deleted"`
+	CacheKey      string `json:"cache_key"`
 }
 
 func (self *CommonUser) GetName() string {
@@ -41,18 +42,18 @@ func (self *CommonUser) IsDeleted() bool {
 
 func (self *CommonUser) changePassword(hash string) error {
 	self.Hash = hash
-	userCache.Delete(self.Name)
+	userCache.Delete(self.CacheKey)
 	return nil
 }
 
 func (self *CommonUser) isValidPwd(password string) bool {
-	if pwd, ok := userCache.Get(self.Name); ok {
+	if pwd, ok := userCache.Get(self.CacheKey); ok {
 		return password == pwd.(string)
 	}
 
 	isValid := bcrypt.CompareHashAndPassword([]byte(self.Hash), []byte(password)) == nil
 	if isValid {
-		userCache.Set(self.Name, password, 0)
+		userCache.Set(self.CacheKey, password, 0)
 	}
 	return isValid
 }

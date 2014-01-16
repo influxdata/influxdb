@@ -180,7 +180,7 @@ func (s *RaftServer) SaveClusterAdminUser(u *clusterAdmin) error {
 }
 
 func (s *RaftServer) CreateRootUser() error {
-	u := &clusterAdmin{CommonUser{"root", "", false}}
+	u := &clusterAdmin{CommonUser{"root", "", false, "root"}}
 	hash, _ := hashPassword(DEFAULT_ROOT_PWD)
 	u.changePassword(string(hash))
 	return s.SaveClusterAdminUser(u)

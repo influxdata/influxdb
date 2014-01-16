@@ -1043,7 +1043,7 @@ func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, usern
 		return fmt.Errorf("User %s already exists", username)
 	}
 
-	return self.raftServer.SaveClusterAdminUser(&clusterAdmin{CommonUser{Name: username}})
+	return self.raftServer.SaveClusterAdminUser(&clusterAdmin{CommonUser{Name: username, CacheKey: username}})
 }
 
 func (self *CoordinatorImpl) DeleteClusterAdminUser(requester common.User, username string) error {
@@ -1098,7 +1098,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 	}
 	matchers := []*Matcher{&Matcher{true, ".*"}}
 	log.Debug("(raft:%s) Creating uesr %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
-	return self.raftServer.SaveDbUser(&dbUser{CommonUser{Name: username}, db, matchers, matchers, false})
+	return self.raftServer.SaveDbUser(&dbUser{CommonUser{Name: username, CacheKey: db + "%" + username}, db, matchers, matchers, false})
 }
 
 func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username string) error {

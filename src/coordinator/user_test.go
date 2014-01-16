@@ -12,7 +12,7 @@ var _ = Suite(&UserSuite{})
 var root common.User
 
 func (self *UserSuite) SetUpSuite(c *C) {
-	user := &clusterAdmin{CommonUser{"root", "", false}}
+	user := &clusterAdmin{CommonUser{"root", "", false, "root"}}
 	c.Assert(user.changePassword("password"), IsNil)
 	root = user
 }
