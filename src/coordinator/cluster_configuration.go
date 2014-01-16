@@ -426,6 +426,7 @@ func (self *ClusterConfiguration) GetDatabaseReplicationFactor(name string) uint
 }
 
 func (self *ClusterConfiguration) Save() ([]byte, error) {
+	log.Debug("Dumping the cluster configuration")
 	data := struct {
 		Databases         map[string]uint8
 		Admins            map[string]*clusterAdmin
@@ -454,6 +455,7 @@ func (self *ClusterConfiguration) Save() ([]byte, error) {
 }
 
 func (self *ClusterConfiguration) Recovery(b []byte) error {
+	log.Debug("Recovering the cluster configuration")
 	data := struct {
 		Databases         map[string]uint8
 		Admins            map[string]*clusterAdmin
