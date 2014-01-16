@@ -9,6 +9,7 @@ import (
 	"math"
 	"parser"
 	"protocol"
+	"regexp"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -53,6 +54,17 @@ var (
 	replayReplication     = protocol.Request_REPLICATION_REPLAY
 	sequenceNumber        = protocol.Request_SEQUENCE_NUMBER
 )
+
+// usernames and db names should match this regex
+var VALID_NAMES *regexp.Regexp
+
+func init() {
+	var err error
+	VALID_NAMES, err = regexp.Compile("^[a-zA-Z0-9_][a-zA-Z0-9\\._-]*$")
+	if err != nil {
+		panic(err)
+	}
+}
 
 func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
 	coordinator := &CoordinatorImpl{
@@ -853,6 +865,10 @@ func (self *CoordinatorImpl) CreateDatabase(user common.User, db string, replica
 		return common.NewAuthorizationError("Insufficient permission to create database")
 	}
 
+	if !isValidName(db) {
+		return fmt.Errorf("%s isn't a valid db name", db)
+	}
+
 	err := self.raftServer.CreateDatabase(db, replicationFactor)
 	if err != nil {
 		return err
@@ -1019,8 +1035,8 @@ func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, usern
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
-	if username == "" {
-		return fmt.Errorf("Username cannot be empty")
+	if !isValidName(username) {
+		return fmt.Errorf("%s isn't a valid username", username)
 	}
 
 	if self.clusterConfiguration.clusterAdmins[username] != nil {
@@ -1069,6 +1085,10 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 
 	if username == "" {
 		return fmt.Errorf("Username cannot be empty")
+	}
+
+	if !isValidName(username) {
+		return fmt.Errorf("%s isn't a valid username", username)
 	}
 
 	self.CreateDatabase(requester, db, uint8(1)) // ignore the error since the db may exist
@@ -1178,4 +1198,8 @@ func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, re
 
 func (self *CoordinatorImpl) sequenceNumberWithServerId(n uint64) uint64 {
 	return n*HOST_ID_OFFSET + uint64(self.clusterConfiguration.localServerId)
+}
+
+func isValidName(name string) bool {
+	return VALID_NAMES.MatchString(name)
 }

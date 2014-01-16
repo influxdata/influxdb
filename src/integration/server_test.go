@@ -246,6 +246,13 @@ func (self *ServerSuite) TestDataReplication(c *C) {
 	c.Assert(serversWithPoint, Equals, 2)
 }
 
+func (self *ServerSuite) TestInvalidUserNameAndDbName(c *C) {
+	resp := self.serverProcesses[0].Post("/db/dummy_db/users?u=root&p=3rrpl4n3!", "{\"name\":\"foo%bar\", \"password\":\"root\"}", c)
+	c.Assert(resp.StatusCode, Not(Equals), http.StatusOK)
+	resp = self.serverProcesses[0].Post("/db/dummy%db/users?u=root&p=3rrpl4n3!", "{\"name\":\"foobar\", \"password\":\"root\"}", c)
+	c.Assert(resp.StatusCode, Not(Equals), http.StatusOK)
+}
+
 func (self *ServerSuite) TestDeleteReplication(c *C) {
 	data := `
   [{
