@@ -253,6 +253,8 @@ func (s *RaftServer) startRaft() error {
 		return err
 	}
 
+	s.raftServer.LoadSnapshot() // ignore errors
+
 	transporter.Install(s.raftServer, s)
 	s.raftServer.Start()
 
