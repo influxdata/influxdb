@@ -3,6 +3,7 @@ package coordinator
 import (
 	"bytes"
 	log "code.google.com/p/log4go"
+	"common"
 	"configuration"
 	"encoding/binary"
 	"encoding/json"
@@ -206,19 +207,56 @@ func (s *RaftServer) connectionString() string {
 	return fmt.Sprintf("http://%s:%d", s.host, s.port)
 }
 
+const (
+	MAX_SIZE = 10 * MEGABYTE
+)
+
+func (s *RaftServer) forceLogCompaction() {
+	err := s.raftServer.TakeSnapshot()
+	if err != nil {
+		log.Error("Cannot take snapshot: %s", err)
+	}
+}
+
+func (s *RaftServer) CompactLog() {
+	checkSizeTicker := time.Tick(time.Minute)
+	forceCompactionTicker := time.Tick(time.Hour * 24)
+
+	for {
+		select {
+		case <-checkSizeTicker:
+			log.Debug("Testing if we should compact the raft logs")
+
+			path := s.raftServer.LogPath()
+			size, err := common.GetFileSize(path)
+			if err != nil {
+				log.Error("Error getting size of file '%s': %s", path, err)
+			}
+			if size < MAX_SIZE {
+				continue
+			}
+			s.forceLogCompaction()
+		case <-forceCompactionTicker:
+			s.forceLogCompaction()
+		}
+	}
+}
+
 func (s *RaftServer) startRaft() error {
 	log.Info("Initializing Raft Server: %s %d", s.path, s.port)
 
 	// Initialize and start Raft server.
 	transporter := raft.NewHTTPTransporter("/raft")
 	var err error
-	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, nil, s.clusterConfig, "")
+	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, s.clusterConfig, s.clusterConfig, "")
 	if err != nil {
 		return err
 	}
 
 	transporter.Install(s.raftServer, s)
 	s.raftServer.Start()
+
+	go s.CompactLog()
 
 	if !s.raftServer.IsLogEmpty() {
 		log.Info("Recovered from log")

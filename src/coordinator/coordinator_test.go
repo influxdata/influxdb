@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"common"
 	. "common"
 	"configuration"
 	"datastore"
@@ -154,6 +155,40 @@ func (self *CoordinatorSuite) TestCanRecover(c *C) {
 	defer clean(server)
 	server.ListenAndServe()
 	assertConfigContains(server.port, "db1", true, c)
+}
+
+func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
+	server := startAndVerifyCluster(1, c)[0]
+	// defer clean(server)
+
+	path, port := server.path, server.port
+
+	for i := 0; i < 1000; i++ {
+		dbname := fmt.Sprintf("db%d", i)
+		server.CreateDatabase(dbname, uint8(1))
+		assertConfigContains(server.port, dbname, true, c)
+	}
+	size, err := common.GetFileSize(server.raftServer.LogPath())
+	c.Assert(err, IsNil)
+	server.forceLogCompaction()
+	newSize, err := common.GetFileSize(server.raftServer.LogPath())
+	c.Assert(err, IsNil)
+	c.Assert(newSize < size, Equals, true)
+	fmt.Printf("size of %s shrinked from %d to %d\n", server.raftServer.LogPath(), size, newSize)
+	server.Close()
+	time.Sleep(SERVER_STARTUP_TIME)
+	server = newConfigAndServer(c)
+	// reset the path and port to the previous server and remove the
+	// path that was created by newConfigAndServer
+	os.RemoveAll(server.path)
+	server.path = path
+	server.port = port
+	// defer clean(server)
+	server.ListenAndServe()
+	for i := 0; i < 1000; i++ {
+		dbname := fmt.Sprintf("db%d", i)
+		assertConfigContains(server.port, dbname, true, c)
+	}
 }
 
 func (self *CoordinatorSuite) TestCanCreateCoordinatorsAndReplicate(c *C) {

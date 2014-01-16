@@ -1,9 +1,11 @@
 package coordinator
 
 import (
+	"bytes"
 	log "code.google.com/p/log4go"
 	"common"
 	"configuration"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"sync"
@@ -421,4 +423,72 @@ func (self *ClusterConfiguration) GetDatabaseReplicationFactor(name string) uint
 	self.createDatabaseLock.RLock()
 	defer self.createDatabaseLock.RUnlock()
 	return self.databaseReplicationFactors[name]
+}
+
+func (self *ClusterConfiguration) Save() ([]byte, error) {
+	data := struct {
+		Databases         map[string]uint8
+		Admins            map[string]*clusterAdmin
+		DbUsers           map[string]map[string]*dbUser
+		Servers           []*ClusterServer
+		HasRunningServers bool
+		LocalServerId     uint32
+		ClusterVersion    uint32
+	}{
+		self.databaseReplicationFactors,
+		self.clusterAdmins,
+		self.dbUsers,
+		self.servers,
+		self.hasRunningServers,
+		self.localServerId,
+		self.ClusterVersion,
+	}
+
+	b := bytes.NewBuffer(nil)
+	err := gob.NewEncoder(b).Encode(&data)
+	if err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func (self *ClusterConfiguration) Recovery(b []byte) error {
+	data := struct {
+		Databases         map[string]uint8
+		Admins            map[string]*clusterAdmin
+		DbUsers           map[string]map[string]*dbUser
+		Servers           []*ClusterServer
+		HasRunningServers bool
+		LocalServerId     uint32
+		ClusterVersion    uint32
+	}{}
+
+	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&data)
+	if err != nil {
+		return err
+	}
+
+	self.databaseReplicationFactors = data.Databases
+	self.clusterAdmins = data.Admins
+	self.dbUsers = data.DbUsers
+
+	// copy the protobuf client from the old servers
+	oldServers := map[string]*ProtobufClient{}
+	for _, server := range self.servers {
+		oldServers[server.ProtobufConnectionString] = server.protobufClient
+	}
+
+	self.servers = data.Servers
+	for _, server := range self.servers {
+		server.protobufClient = oldServers[server.ProtobufConnectionString]
+		if server.protobufClient == nil {
+			server.Connect()
+		}
+	}
+	self.hasRunningServers = data.HasRunningServers
+	self.localServerId = data.LocalServerId
+	self.ClusterVersion = data.ClusterVersion
+
+	return nil
 }
