@@ -163,6 +163,7 @@
 - [Issue #93](https://github.com/influxdb/influxdb/issues/93). Should be able to drop a time series
 - [Issue #177](https://github.com/influxdb/influxdb/issues/177). Support drop series in the query language.
 - [Issue #184](https://github.com/influxdb/influxdb/issues/184). Implement Raft log compaction.
+- [Issue #153](https://github.com/influxdb/influxdb/issues/153). Implement continuous queries
 
 ## Bugfixes
 
