@@ -76,6 +76,10 @@ type FromClause struct {
 	Names []*TableName
 }
 
+type IntoClause struct {
+	Target *Value
+}
+
 type GroupByClause struct {
 	FillWithZero bool
 	FillValue    *Value
@@ -140,11 +144,25 @@ type SelectQuery struct {
 	SelectDeleteCommonQuery
 	ColumnNames   []*Value
 	groupByClause *GroupByClause
+	IntoClause    *IntoClause
 	Limit         int
 	Ascending     bool
 }
 
-type ListQuery struct{}
+type ListType int
+
+const (
+	Series ListType = iota
+	ContinuousQueries
+)
+
+type ListQuery struct {
+	Type ListType
+}
+
+type DropQuery struct {
+	Id int
+}
 
 type DropSeriesQuery struct {
 	tableName string
@@ -163,6 +181,7 @@ type Query struct {
 	DeleteQuery     *DeleteQuery
 	ListQuery       *ListQuery
 	DropSeriesQuery *DropSeriesQuery
+	DropQuery       *DropQuery
 }
 
 func (self *Query) GetQueryString() string {
@@ -174,6 +193,14 @@ func (self *Query) GetQueryString() string {
 
 func (self *Query) IsListQuery() bool {
 	return self.ListQuery != nil
+}
+
+func (self *Query) IsListSeriesQuery() bool {
+	return self.ListQuery != nil && self.ListQuery.Type == Series
+}
+
+func (self *Query) IsListContinuousQueriesQuery() bool {
+	return self.ListQuery != nil && self.ListQuery.Type == ContinuousQueries
 }
 
 func (self *BasicQuery) GetQueryString() string {
@@ -225,6 +252,14 @@ func (self *SelectQuery) GetSinglePointQuerySequenceNumber() (int64, error) {
 		return 0, fmt.Errorf("The column sequence_number can only be queried as an integer.")
 	}
 	return sequence_number, nil
+}
+
+func (self *SelectQuery) IsContinuousQuery() bool {
+	return self.GetIntoClause() != nil
+}
+
+func (self *SelectQuery) GetIntoClause() *IntoClause {
+	return self.IntoClause
 }
 
 func (self *SelectDeleteCommonQuery) GetFromClause() *FromClause {
@@ -367,6 +402,19 @@ func GetFromClause(fromClause *C.from_clause) (*FromClause, error) {
 	return &FromClause{FromClauseType(fromClause.from_clause_type), arr}, nil
 }
 
+func GetIntoClause(intoClause *C.into_clause) (*IntoClause, error) {
+	if intoClause == nil {
+		return nil, nil
+	}
+
+	target, err := GetValue(intoClause.target)
+	if err != nil {
+		return nil, err
+	}
+
+	return &IntoClause{target}, nil
+}
+
 func GetWhereCondition(condition *C.condition) (*WhereCondition, error) {
 	if condition.is_bool_expression != 0 {
 		expr, err := GetValue((*C.value)(condition.left))
@@ -434,12 +482,19 @@ func ParseQuery(query string) ([]*Query, error) {
 	}
 
 	if q.list_series_query != 0 {
-		return []*Query{&Query{ListQuery: &ListQuery{}}}, nil
-	} else if q.select_query != nil {
+		return []*Query{&Query{ListQuery: &ListQuery{Type: Series}}}, nil
+	}
+
+	if q.list_continuous_queries_query != 0 {
+		return []*Query{&Query{ListQuery: &ListQuery{Type: ContinuousQueries}}}, nil
+	}
+
+	if q.select_query != nil {
 		selectQuery, err := parseSelectQuery(query, q.select_query)
 		if err != nil {
 			return nil, err
 		}
+
 		return []*Query{&Query{SelectQuery: selectQuery}}, nil
 	} else if q.delete_query != nil {
 		deleteQuery, err := parseDeleteQuery(query, q.delete_query)
@@ -453,6 +508,9 @@ func ParseQuery(query string) ([]*Query, error) {
 			return nil, err
 		}
 		return []*Query{&Query{DropSeriesQuery: dropSeriesQuery}}, nil
+	} else if q.drop_query != nil {
+		fmt.Println(q.drop_query.id)
+		return []*Query{&Query{DropQuery: &DropQuery{Id: int(q.drop_query.id)}}}, nil
 	}
 	return nil, fmt.Errorf("Unknown query type encountered")
 }
@@ -532,6 +590,7 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 	if err != nil {
 		return nil, err
 	}
+
 	goQuery := &SelectQuery{
 		SelectDeleteCommonQuery: basicQuery,
 		Limit:     int(limit),
@@ -552,6 +611,12 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	// get the into clause
+	goQuery.IntoClause, err = GetIntoClause(q.into_clause)
+	if err != nil {
+		return goQuery, err
 	}
 
 	return goQuery, nil

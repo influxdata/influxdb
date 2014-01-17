@@ -99,6 +99,11 @@ free_select_query (select_query *q)
     free_groupby_clause(q->group_by);
   }
 
+  if (q->into_clause) {
+    free_value(q->into_clause->target);
+    free(q->into_clause);
+  }
+
   if (q->from_clause) {
     // free the from clause
     free_from_clause(q->from_clause);
@@ -139,6 +144,10 @@ close_query (query *q)
   if (q->drop_series_query) {
     free_drop_series_query(q->drop_series_query);
     free(q->drop_series_query);
+  }
+
+  if (q->drop_query) {
+    free(q->drop_query);
   }
 
   if (q->delete_query) {

@@ -124,6 +124,39 @@ func (self *QueryParserSuite) TestGetQueryStringWithTimeCondition(c *C) {
 	}
 }
 
+func (self *QueryParserSuite) TestGetQueryStringForContinuousQuery(c *C) {
+	base := time.Now().Truncate(time.Minute)
+	start := base.UTC()
+	end := base.Add(time.Minute).UTC()
+
+	startMicroseconds := common.TimeToMicroseconds(start.UTC()) - 1
+	endMicroseconds := common.TimeToMicroseconds(end.UTC())
+
+	inputQuery := "select count(c1) from s1 group by time(1m) into d1;"
+	outputQuery := fmt.Sprintf("select count(c1) from s1 group by time(1m) where time > %du and time < %du", startMicroseconds, endMicroseconds)
+
+	queries, err := ParseQuery(inputQuery)
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+
+	query := queries[0]
+	c.Assert(query.SelectQuery, NotNil)
+
+	selectQuery := query.SelectQuery
+	c.Assert(selectQuery.GetQueryStringForContinuousQuery(start, end), Equals, outputQuery)
+
+	// try to parse the query with the time condition
+	queries, err = ParseQuery(selectQuery.GetQueryStringForContinuousQuery(start, end))
+	c.Assert(err, IsNil)
+
+	query = queries[0]
+	c.Assert(query.SelectQuery, NotNil)
+
+	selectQuery = query.SelectQuery
+	c.Assert(selectQuery.GetStartTime().Round(time.Second), Equals, start)
+	c.Assert(selectQuery.GetEndTime(), Equals, end)
+}
+
 func (self *QueryParserSuite) TestParseDeleteQuery(c *C) {
 	query := "delete from foo where time > '2012-08-13' and time < '2013-08-13'"
 	queries, err := ParseQuery(query)
@@ -685,6 +718,33 @@ func (self *QueryParserSuite) TestIsSinglePointQuery(c *C) {
 	c.Assert(err, IsNil)
 	result := q.IsSinglePointQuery()
 	c.Assert(result, Equals, true)
+}
+
+func (self *QueryParserSuite) TestParseContinuousQueryCreation(c *C) {
+	query := "select * from foo into bar;"
+	q, err := ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.IsContinuousQuery(), Equals, true)
+	clause := q.GetIntoClause()
+	c.Assert(clause.Target, DeepEquals, &Value{"bar", ValueSimpleName, nil, nil})
+}
+
+func (self *QueryParserSuite) TestParseContinuousQueryDeletion(c *C) {
+	query := "drop continuous query 1;"
+	queries, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].DropQuery, NotNil)
+	c.Assert(queries[0].DropQuery.Id, Equals, 1)
+}
+
+func (self *QueryParserSuite) TestParseContinuousQueryList(c *C) {
+	query := "list continuous queries;"
+	queries, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].IsListQuery(), Equals, true)
+	c.Assert(queries[0].IsListContinuousQueriesQuery(), Equals, true)
 }
 
 // TODO:

@@ -97,10 +97,11 @@ func (self *MockEngine) RunQuery(_ common.User, _ string, query string, localOnl
 
 type MockCoordinator struct {
 	coordinator.Coordinator
-	series        []*protocol.Series
-	deleteQueries []*parser.DeleteQuery
-	db            string
-	droppedDb     string
+	series            []*protocol.Series
+	continuousQueries map[string][]*coordinator.ContinuousQuery
+	deleteQueries     []*parser.DeleteQuery
+	db                string
+	droppedDb         string
 }
 
 func (self *MockCoordinator) WriteSeriesData(_ common.User, db string, series *protocol.Series) error {
@@ -127,6 +128,42 @@ func (self *MockCoordinator) DropDatabase(_ common.User, db string) error {
 	return nil
 }
 
+func (self *MockCoordinator) ListContinuousQueries(_ common.User, db string) ([]*protocol.Series, error) {
+	points := []*protocol.Point{}
+
+	for _, query := range self.continuousQueries[db] {
+		queryId := int64(query.Id)
+		queryString := query.Query
+		points = append(points, &protocol.Point{
+			Values: []*protocol.FieldValue{
+				&protocol.FieldValue{Int64Value: &queryId},
+				&protocol.FieldValue{StringValue: &queryString},
+			},
+			Timestamp:      nil,
+			SequenceNumber: nil,
+		})
+	}
+
+	seriesName := "continuous queries"
+	series := []*protocol.Series{&protocol.Series{
+		Name:   &seriesName,
+		Fields: []string{"id", "query"},
+		Points: points,
+	}}
+	return series, nil
+}
+
+func (self *MockCoordinator) CreateContinuousQuery(_ common.User, db string, query string) error {
+	self.continuousQueries[db] = append(self.continuousQueries[db], &coordinator.ContinuousQuery{2, query})
+	return nil
+}
+
+func (self *MockCoordinator) DeleteContinuousQuery(_ common.User, db string, id uint32) error {
+	length := len(self.continuousQueries[db])
+	_, self.continuousQueries[db] = self.continuousQueries[db][length-1], self.continuousQueries[db][:length-1]
+	return nil
+}
+
 func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
 	path = fmt.Sprintf(path, args...)
 	port := self.listener.Addr().(*net.TCPAddr).Port
@@ -134,7 +171,13 @@ func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
 }
 
 func (self *ApiSuite) SetUpSuite(c *C) {
-	self.coordinator = &MockCoordinator{}
+	self.coordinator = &MockCoordinator{
+		continuousQueries: map[string][]*coordinator.ContinuousQuery{
+			"db1": []*coordinator.ContinuousQuery{
+				&coordinator.ContinuousQuery{1, "select * from foo into bar;"},
+			},
+		},
+	}
 	self.manager = &MockUserManager{
 		clusterAdmins: []string{"root"},
 		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
@@ -732,4 +775,88 @@ func (self *ApiSuite) TestBasicAuthentication(c *C) {
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
 	c.Assert(users, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", 1}, &coordinator.Database{"db2", 1}})
+}
+
+func (self *ApiSuite) TestContinuousQueryOperations(c *C) {
+	// verify current continuous query index
+	url := self.formatUrl("/db/db1/continuous_queries?u=root&p=root")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	series := []*protocol.Series{}
+	err = json.Unmarshal(body, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0].Values, HasLen, 2)
+
+	c.Assert(*series[0].Name, Equals, "continuous queries")
+	c.Assert(*series[0].Points[0].Values[0].Int64Value, Equals, int64(1))
+	c.Assert(*series[0].Points[0].Values[1].StringValue, Equals, "select * from foo into bar;")
+
+	resp.Body.Close()
+
+	// add a new continuous query
+	data := `{"query": "select * from quu into qux;"}`
+	url = self.formatUrl("/db/db1/continuous_queries?u=root&p=root")
+	resp, err = libhttp.Post(url, "application/json", bytes.NewBufferString(data))
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	resp.Body.Close()
+
+	// verify updated continuous query index
+	url = self.formatUrl("/db/db1/continuous_queries?u=root&p=root")
+	resp, err = libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	body, err = ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	series = []*protocol.Series{}
+	err = json.Unmarshal(body, &series)
+	c.Assert(err, IsNil)
+
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Points, HasLen, 2)
+	c.Assert(series[0].Points[0].Values, HasLen, 2)
+	c.Assert(series[0].Points[1].Values, HasLen, 2)
+
+	c.Assert(*series[0].Name, Equals, "continuous queries")
+	c.Assert(*series[0].Points[0].Values[0].Int64Value, Equals, int64(1))
+	c.Assert(*series[0].Points[0].Values[1].StringValue, Equals, "select * from foo into bar;")
+	c.Assert(*series[0].Points[1].Values[0].Int64Value, Equals, int64(2))
+	c.Assert(*series[0].Points[1].Values[1].StringValue, Equals, "select * from quu into qux;")
+
+	resp.Body.Close()
+
+	// delete the newly-created query
+	url = self.formatUrl("/db/db1/continuous_queries/2?u=root&p=root")
+	req, err := libhttp.NewRequest("DELETE", url, nil)
+	c.Assert(err, IsNil)
+	resp, err = libhttp.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
+	_, err = ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	resp.Body.Close()
+
+	// verify updated continuous query index
+	url = self.formatUrl("/db/db1/continuous_queries?u=root&p=root")
+	resp, err = libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	body, err = ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	series = []*protocol.Series{}
+	err = json.Unmarshal(body, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0].Values, HasLen, 2)
+
+	c.Assert(*series[0].Name, Equals, "continuous queries")
+	c.Assert(*series[0].Points[0].Values[0].Int64Value, Equals, int64(1))
+	c.Assert(*series[0].Points[0].Values[1].StringValue, Equals, "select * from foo into bar;")
+	resp.Body.Close()
 }

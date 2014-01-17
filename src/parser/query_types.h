@@ -75,9 +75,14 @@ typedef struct {
 } from_clause;
 
 typedef struct {
+  value *target;
+} into_clause;
+
+typedef struct {
   value_array *c;
   from_clause *from_clause;
   groupby_clause *group_by;
+  into_clause *into_clause;
   condition *where_condition;
   int limit;
   char ascending;
@@ -94,10 +99,16 @@ typedef struct {
 } drop_series_query;
 
 typedef struct {
+  int id;
+} drop_query;
+
+typedef struct {
   select_query *select_query;
   delete_query *delete_query;
   drop_series_query *drop_series_query;
+  drop_query *drop_query;
   char list_series_query;
+  char list_continuous_queries_query;
   error *error;
 } query;
 

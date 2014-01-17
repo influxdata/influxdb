@@ -28,6 +28,8 @@ static int yycolumn = 1;
 "merge"                   { return MERGE; }
 "list"                    { return LIST; }
 "series"                  { return SERIES; }
+"continuous query"        { return CONTINUOUS_QUERY; }
+"continuous queries"      { return CONTINUOUS_QUERIES; }
 "inner"                   { return INNER; }
 "join"                    { return JOIN; }
 "from"                    { BEGIN(FROM_CLAUSE); return FROM; }
@@ -57,7 +59,8 @@ static int yycolumn = 1;
 "as"                      { return AS; }
 "select"                  { return SELECT; }
 "delete"                  { return DELETE; }
-"drop series"                    { return DROP_SERIES; }
+"drop series"             { return DROP_SERIES; }
+"drop"                    { return DROP; }
 "limit"                   { BEGIN(INITIAL); return LIMIT; }
 "order"                   { BEGIN(INITIAL); return ORDER; }
 "asc"                     { return ASC; }
@@ -65,6 +68,7 @@ static int yycolumn = 1;
 "desc"                    { return DESC; }
 "group"                   { BEGIN(INITIAL); return GROUP; }
 "by"                      { return BY; }
+"into"                    { return INTO; }
 "("                       { yylval->character = *yytext; return *yytext; }
 ")"                       { yylval->character = *yytext; return *yytext; }
 "+"                       { yylval->character = *yytext; return *yytext; }
@@ -90,7 +94,7 @@ static int yycolumn = 1;
 
 [a-zA-Z0-9_]*     { yylval->string = strdup(yytext); return SIMPLE_NAME; }
 
-[a-zA-Z0-9_][a-zA-Z0-9._-]*   { yylval->string = strdup(yytext); return TABLE_NAME; }
+[:a-zA-Z0-9_][a-zA-Z0-9._-]*   { yylval->string = strdup(yytext); return TABLE_NAME; }
 
 \'[^\']*\'                    {
   yytext[yyleng-1] = '\0';

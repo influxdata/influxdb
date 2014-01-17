@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"parser"
 	"path/filepath"
 	"protocol"
 	"strings"
@@ -42,6 +43,13 @@ type RaftServer struct {
 	listener      net.Listener
 	closing       bool
 	config        *configuration.Configuration
+	notLeader     chan bool
+	engine        queryRunner
+	coordinator   *CoordinatorImpl
+}
+
+type queryRunner interface {
+	RunQuery(user common.User, database string, query string, localOnly bool, yield func(*protocol.Series) error) error
 }
 
 var registeredCommands bool
@@ -62,6 +70,7 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 		port:          config.RaftServerPort,
 		path:          config.RaftDir,
 		clusterConfig: clusterConfig,
+		notLeader:     make(chan bool, 1),
 		router:        mux.NewRouter(),
 		config:        config,
 	}
@@ -187,6 +196,43 @@ func (s *RaftServer) CreateRootUser() error {
 	return s.SaveClusterAdminUser(u)
 }
 
+func (s *RaftServer) SetContinuousQueryTimestamp(timestamp time.Time) error {
+	command := NewSetContinuousQueryTimestampCommand(timestamp)
+	_, err := s.doOrProxyCommand(command, "set_cq_ts")
+	return err
+}
+
+func (s *RaftServer) CreateContinuousQuery(db string, query string) error {
+	// if there are already-running queries, we need to initiate a backfill
+	if !s.clusterConfig.continuousQueryTimestamp.IsZero() {
+		selectQuery, err := parser.ParseSelectQuery(query)
+		if err != nil {
+			return fmt.Errorf("Failed to parse continuous query: %s", query)
+		}
+
+		duration, err := selectQuery.GetGroupByClause().GetGroupByTime()
+		if err != nil {
+			return fmt.Errorf("Couldn't get group by time for continuous query: %s", err)
+		}
+
+		if duration != nil {
+			zeroTime := time.Time{}
+			currentBoundary := time.Now().Truncate(*duration)
+			go s.runContinuousQuery(db, selectQuery, zeroTime, currentBoundary)
+		}
+	}
+
+	command := NewCreateContinuousQueryCommand(db, query)
+	_, err := s.doOrProxyCommand(command, "create_cq")
+	return err
+}
+
+func (s *RaftServer) DeleteContinuousQuery(db string, id uint32) error {
+	command := NewDeleteContinuousQueryCommand(db, id)
+	_, err := s.doOrProxyCommand(command, "delete_cq")
+	return err
+}
+
 func (s *RaftServer) ActivateServer(server *ClusterServer) error {
 	return errors.New("not implemented")
 }
@@ -201,6 +247,12 @@ func (s *RaftServer) MovePotentialServer(server *ClusterServer, insertIndex int)
 
 func (s *RaftServer) ReplaceServer(oldServer *ClusterServer, replacement *ClusterServer) error {
 	return errors.New("not implemented")
+}
+
+func (s *RaftServer) AssignEngineAndCoordinator(engine queryRunner, coordinator *CoordinatorImpl) error {
+	s.engine = engine
+	s.coordinator = coordinator
+	return nil
 }
 
 func (s *RaftServer) connectionString() string {
@@ -255,6 +307,8 @@ func (s *RaftServer) startRaft() error {
 
 	s.raftServer.LoadSnapshot() // ignore errors
 
+	s.raftServer.AddEventListener(raft.StateChangeEventType, s.raftEventHandler)
+
 	transporter.Install(s.raftServer, s)
 	s.raftServer.Start()
 
@@ -307,7 +361,91 @@ func (s *RaftServer) startRaft() error {
 		log.Warn("Couldn't join any of the seeds, sleeping and retrying...")
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	return nil
+}
+
+func (s *RaftServer) raftEventHandler(e raft.Event) {
+	if e.Value() == "leader" {
+		log.Info("(raft:%s) Selected as leader. Starting leader loop.", s.raftServer.Name())
+		go s.raftLeaderLoop(time.NewTicker(1 * time.Second))
+	}
+
+	if e.PrevValue() == "leader" {
+		log.Info("(raft:%s) Demoted from leader. Ending leader loop.", s.raftServer.Name())
+		s.notLeader <- true
+	}
+}
+
+func (s *RaftServer) raftLeaderLoop(loopTimer *time.Ticker) {
+	for {
+		select {
+		case <-loopTimer.C:
+			log.Debug("(raft:%s) Executing leader loop.", s.raftServer.Name())
+			s.checkContinuousQueries()
+			break
+		case <-s.notLeader:
+			log.Debug("(raft:%s) Exiting leader loop.", s.raftServer.Name())
+			return
+		}
+	}
+}
+
+func (s *RaftServer) checkContinuousQueries() {
+	if s.clusterConfig.continuousQueries == nil || len(s.clusterConfig.continuousQueries) == 0 {
+		return
+	}
+
+	runTime := time.Now()
+	queriesDidRun := false
+
+	for db, queries := range s.clusterConfig.parsedContinuousQueries {
+		for _, query := range queries {
+			groupByClause := query.GetGroupByClause()
+
+			// if there's no group by clause, it's handled as a fanout query
+			if groupByClause.Elems == nil {
+				continue
+			}
+
+			duration, err := query.GetGroupByClause().GetGroupByTime()
+			if err != nil {
+				log.Error("Couldn't get group by time for continuous query:", err)
+				continue
+			}
+
+			currentBoundary := runTime.Truncate(*duration)
+			lastBoundary := s.clusterConfig.continuousQueryTimestamp.Truncate(*duration)
+
+			if currentBoundary.After(s.clusterConfig.continuousQueryTimestamp) {
+				s.runContinuousQuery(db, query, lastBoundary, currentBoundary)
+				queriesDidRun = true
+			}
+		}
+	}
+
+	if queriesDidRun {
+		s.clusterConfig.continuousQueryTimestamp = runTime
+		s.SetContinuousQueryTimestamp(runTime)
+	}
+}
+
+func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, start time.Time, end time.Time) {
+	clusterAdmin := s.clusterConfig.clusterAdmins["root"]
+	intoClause := query.GetIntoClause()
+	targetName := intoClause.Target.Name
+	sequenceNumber := uint64(1)
+	queryString := query.GetQueryStringForContinuousQuery(start, end)
+
+	s.engine.RunQuery(clusterAdmin, db, queryString, false, func(series *protocol.Series) error {
+		interpolatedTargetName := strings.Replace(targetName, ":series_name", *series.Name, -1)
+		series.Name = &interpolatedTargetName
+		for _, point := range series.Points {
+			point.SequenceNumber = &sequenceNumber
+		}
+
+		return s.coordinator.WriteSeriesData(clusterAdmin, db, series)
+	})
 }
 
 func (s *RaftServer) ListenAndServe() error {
@@ -355,6 +493,7 @@ func (self *RaftServer) Close() {
 		self.closing = true
 		self.raftServer.Stop()
 		self.listener.Close()
+		self.notLeader <- true
 	}
 }
 

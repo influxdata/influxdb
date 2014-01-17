@@ -28,6 +28,9 @@ type Coordinator interface {
 	ReplicateDelete(request *protocol.Request) error
 	ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64)
 	GetLastSequenceNumber(replicationFactor uint8, ownerServerId, originatingServerId uint32) (uint64, error)
+	DeleteContinuousQuery(user common.User, db string, id uint32) error
+	CreateContinuousQuery(user common.User, db string, query string) error
+	ListContinuousQueries(user common.User, db string) ([]*protocol.Series, error)
 }
 
 type UserManager interface {
@@ -61,6 +64,8 @@ type UserManager interface {
 type ClusterConsensus interface {
 	CreateDatabase(name string, replicationFactor uint8) error
 	DropDatabase(name string) error
+	CreateContinuousQuery(db string, query string) error
+	DeleteContinuousQuery(db string, id uint32) error
 	SaveClusterAdminUser(u *clusterAdmin) error
 	SaveDbUser(user *dbUser) error
 	ChangeDbUserPassword(db, username string, hash []byte) error
@@ -77,9 +82,12 @@ type ClusterConsensus interface {
 		  delete all of the data that they no longer have to keep from the ring
 	*/
 	ActivateServer(server *ClusterServer) error
+
 	// Efficient method to have a potential server take the place of a running (or downed)
 	// server. The replacement must have a state of "Potential" for this to work.
 	ReplaceServer(oldServer *ClusterServer, replacement *ClusterServer) error
+
+	AssignEngineAndCoordinator(engine queryRunner, coordinator *CoordinatorImpl) error
 
 	// When a cluster is turned on for the first time.
 	CreateRootUser() error

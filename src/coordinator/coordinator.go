@@ -11,6 +11,7 @@ import (
 	"protocol"
 	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -86,10 +87,10 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 		return self.datastore.ExecuteQuery(user, db, query, yield, nil)
 	}
 	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
-	queryString := query.GetQueryString()
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	userName := user.GetName()
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
+	queryString := query.GetQueryString()
 	var localServerToQuery *serverToQuery
 	for _, server := range servers {
 		if server.server.Id == self.clusterConfiguration.localServerId {
@@ -587,7 +588,6 @@ func (self *CoordinatorImpl) handleReplayRequest(r *protocol.Request, replicatio
 		err = self.datastore.DeleteSeriesData(*r.Database, query[0].DeleteQuery)
 	}
 }
-
 func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series *protocol.Series) error {
 	if !user.HasWriteAccess(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
@@ -596,6 +596,51 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 		return fmt.Errorf("Can't write series with zero points.")
 	}
 
+	err := self.CommitSeriesData(db, series)
+
+	self.ProcessContinuousQueries(db, series)
+
+	return err
+}
+
+func (self *CoordinatorImpl) ProcessContinuousQueries(db string, series *protocol.Series) {
+	if self.clusterConfiguration.parsedContinuousQueries != nil {
+		incomingSeriesName := *series.Name
+		for _, query := range self.clusterConfiguration.parsedContinuousQueries[db] {
+			groupByClause := query.GetGroupByClause()
+			if groupByClause.Elems != nil {
+				continue
+			}
+
+			fromClause := query.GetFromClause()
+			intoClause := query.GetIntoClause()
+			targetName := intoClause.Target.Name
+
+			interpolatedTargetName := strings.Replace(targetName, ":series_name", incomingSeriesName, -1)
+
+			for _, table := range fromClause.Names {
+				tableValue := table.Name
+				if regex, ok := tableValue.GetCompiledRegex(); ok {
+					if regex.MatchString(incomingSeriesName) {
+						series.Name = &interpolatedTargetName
+						if e := self.CommitSeriesData(db, series); e != nil {
+							log.Error("Couldn't write data for continuous query: ", e)
+						}
+					}
+				} else {
+					if tableValue.Name == incomingSeriesName {
+						series.Name = &interpolatedTargetName
+						if e := self.CommitSeriesData(db, series); e != nil {
+							log.Error("Couldn't write data for continuous query: ", e)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series) error {
 	// break the series object into separate ones based on their ring location
 
 	// if times server assigned, all the points will go to the same place
@@ -655,6 +700,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -858,6 +904,61 @@ func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, request *p
 	} else {
 		return errors.New(response.GetErrorMessage())
 	}
+}
+
+func (self *CoordinatorImpl) CreateContinuousQuery(user common.User, db string, query string) error {
+	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) {
+		return common.NewAuthorizationError("Insufficient permission to create continuous query")
+	}
+
+	err := self.raftServer.CreateContinuousQuery(db, query)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (self *CoordinatorImpl) DeleteContinuousQuery(user common.User, db string, id uint32) error {
+	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) {
+		return common.NewAuthorizationError("Insufficient permission to delete continuous query")
+	}
+
+	err := self.raftServer.DeleteContinuousQuery(db, id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (self *CoordinatorImpl) ListContinuousQueries(user common.User, db string) ([]*protocol.Series, error) {
+	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) {
+		return nil, common.NewAuthorizationError("Insufficient permission to list continuous queries")
+	}
+
+	queries := self.clusterConfiguration.GetContinuousQueries(db)
+	points := []*protocol.Point{}
+
+	for _, query := range queries {
+		queryId := int64(query.Id)
+		queryString := query.Query
+		timestamp := time.Now().Unix()
+		sequenceNumber := uint64(1)
+		points = append(points, &protocol.Point{
+			Values: []*protocol.FieldValue{
+				&protocol.FieldValue{Int64Value: &queryId},
+				&protocol.FieldValue{StringValue: &queryString},
+			},
+			Timestamp:      &timestamp,
+			SequenceNumber: &sequenceNumber,
+		})
+	}
+	seriesName := "continuous queries"
+	series := []*protocol.Series{&protocol.Series{
+		Name:   &seriesName,
+		Fields: []string{"id", "query"},
+		Points: points,
+	}}
+	return series, nil
 }
 
 func (self *CoordinatorImpl) CreateDatabase(user common.User, db string, replicationFactor uint8) error {

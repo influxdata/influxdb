@@ -41,6 +41,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		return nil, err
 	}
 
+	raftServer.AssignEngineAndCoordinator(eng, coord)
 	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, eng, coord, coord)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 

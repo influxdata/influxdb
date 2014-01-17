@@ -148,7 +148,7 @@ ifneq ($(only),)
 	GOTEST_OPTS = -gocheck.f $(only)
 endif
 ifneq ($(verbose),off)
-	GOTEST_OPTS += -v -gocheck.v
+	GOTEST_OPTS += -v -gocheck.v -gocheck.vv
 endif
 
 test: test_dependencies parser
