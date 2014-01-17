@@ -1,7 +1,6 @@
 package coordinator
 
 import (
-	"common"
 	. "common"
 	"configuration"
 	"datastore"
@@ -168,17 +167,17 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 	server := startAndVerifyCluster(1, c)[0]
 	// defer clean(server)
 
-	path, port := server.path, server.port
+	path, port, name := server.path, server.port, server.name
 
 	for i := 0; i < 1000; i++ {
 		dbname := fmt.Sprintf("db%d", i)
 		server.CreateDatabase(dbname, uint8(1))
 		assertConfigContains(server.port, dbname, true, c)
 	}
-	size, err := common.GetFileSize(server.raftServer.LogPath())
+	size, err := GetFileSize(server.raftServer.LogPath())
 	c.Assert(err, IsNil)
 	server.forceLogCompaction()
-	newSize, err := common.GetFileSize(server.raftServer.LogPath())
+	newSize, err := GetFileSize(server.raftServer.LogPath())
 	c.Assert(err, IsNil)
 	c.Assert(newSize < size, Equals, true)
 	fmt.Printf("size of %s shrinked from %d to %d\n", server.raftServer.LogPath(), size, newSize)
@@ -190,12 +189,27 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 	os.RemoveAll(server.path)
 	server.path = path
 	server.port = port
+	server.name = name
 	// defer clean(server)
 	err = server.ListenAndServe()
 	c.Assert(err, IsNil)
+	time.Sleep(SERVER_STARTUP_TIME)
 	for i := 0; i < 1000; i++ {
 		dbname := fmt.Sprintf("db%d", i)
 		assertConfigContains(server.port, dbname, true, c)
+	}
+
+	// make another server join the cluster
+	server2 := newConfigAndServer(c)
+	defer clean(server2)
+	l, err := net.Listen("tcp4", ":0")
+	c.Assert(err, IsNil)
+	server2.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", server.port)}
+	server2.Serve(l)
+	time.Sleep(SERVER_STARTUP_TIME)
+	for i := 0; i < 1000; i++ {
+		dbname := fmt.Sprintf("db%d", i)
+		assertConfigContains(server2.port, dbname, true, c)
 	}
 }
 
