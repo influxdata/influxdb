@@ -336,7 +336,10 @@ func (s *RaftServer) Serve(l net.Listener) error {
 	log.Info("Raft Server Listening at %s", s.connectionString())
 
 	go func() {
-		s.httpServer.Serve(l)
+		err := s.httpServer.Serve(l)
+		if !strings.Contains(err.Error(), "closed network") {
+			panic(err)
+		}
 	}()
 	started := make(chan error)
 	go func() {

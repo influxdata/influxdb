@@ -99,12 +99,18 @@ func startAndVerifyCluster(count int, c *C) []*RaftServer {
 	return servers
 }
 
-func clean(servers ...*RaftServer) {
+func cleanWithoutDeleting(servers ...*RaftServer) {
 	for _, server := range servers {
 		server.Close()
-		os.RemoveAll(server.path)
 	}
 	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
+}
+
+func clean(servers ...*RaftServer) {
+	cleanWithoutDeleting(servers...)
+	for _, server := range servers {
+		os.RemoveAll(server.path)
+	}
 }
 
 func newConfigAndServer(c *C) *RaftServer {
@@ -144,7 +150,7 @@ func (self *CoordinatorSuite) TestCanRecover(c *C) {
 
 	server.CreateDatabase("db1", uint8(1))
 	assertConfigContains(server.port, "db1", true, c)
-	server.Close()
+	cleanWithoutDeleting(server)
 	time.Sleep(SERVER_STARTUP_TIME)
 	server = newConfigAndServer(c)
 	// reset the path and port to the previous server and remove the
@@ -154,6 +160,7 @@ func (self *CoordinatorSuite) TestCanRecover(c *C) {
 	server.port = port
 	defer clean(server)
 	server.ListenAndServe()
+	time.Sleep(time.Second)
 	assertConfigContains(server.port, "db1", true, c)
 }
 
@@ -175,7 +182,7 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(newSize < size, Equals, true)
 	fmt.Printf("size of %s shrinked from %d to %d\n", server.raftServer.LogPath(), size, newSize)
-	server.Close()
+	cleanWithoutDeleting(server)
 	time.Sleep(SERVER_STARTUP_TIME)
 	server = newConfigAndServer(c)
 	// reset the path and port to the previous server and remove the
@@ -184,7 +191,8 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 	server.path = path
 	server.port = port
 	// defer clean(server)
-	server.ListenAndServe()
+	err = server.ListenAndServe()
+	c.Assert(err, IsNil)
 	for i := 0; i < 1000; i++ {
 		dbname := fmt.Sprintf("db%d", i)
 		assertConfigContains(server.port, dbname, true, c)
