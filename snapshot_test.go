@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ func TestSnapshot(t *testing.T) {
 		s.Do(&testCommand1{})
 		err := s.TakeSnapshot()
 		assert.NoError(t, err)
-		assert.Equal(t, s.(*server).lastSnapshot.LastIndex, uint64(3))
+		assert.Equal(t, s.(*server).lastSnapshot.LastIndex, uint64(2))
 
 		// Repeat to make sure new snapshot gets created.
 		s.Do(&testCommand1{})
@@ -32,14 +31,6 @@ func TestSnapshot(t *testing.T) {
 		// Recover from snapshot.
 		err = s.LoadSnapshot()
 		assert.NoError(t, err)
-	})
-}
-
-// Ensure that snapshotting fails if there are no log entries yet.
-func TestSnapshotWithNoLog(t *testing.T) {
-	runServerWithMockStateMachine(Leader, func (s Server, m *mock.Mock) {
-		err := s.TakeSnapshot()
-		assert.Equal(t, err, errors.New("No logs"))
 	})
 }
 
