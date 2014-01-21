@@ -12,12 +12,6 @@ type SnapshotResponse struct {
 	Success bool `json:"success"`
 }
 
-//------------------------------------------------------------------------------
-//
-// Constructors
-//
-//------------------------------------------------------------------------------
-
 // Creates a new Snapshot response.
 func newSnapshotResponse(success bool) *SnapshotResponse {
 	return &SnapshotResponse{
