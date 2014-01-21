@@ -1,4 +1,4 @@
-COVERPROFILE=/tmp/c.out
+COVERPROFILE=cover.out
 
 default: test
 
