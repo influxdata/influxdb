@@ -135,7 +135,10 @@ func (p *Peer) heartbeat(c chan bool) {
 			}
 
 		case <-ticker:
+			start := time.Now()
 			p.flush()
+			duration := time.Now().Sub(start)
+			p.server.DispatchEvent(newEvent(HeartbeatEventType, duration, nil))
 		}
 	}
 }
