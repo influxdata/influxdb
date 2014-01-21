@@ -100,7 +100,7 @@ func (self *SeriesCollection) GetSeries(name string, c *C) *Series {
 			return s
 		}
 	}
-	c.Errorf("Couldn't find series '%s' in:\n", name, self)
+	c.Fatalf("Couldn't find series '%s' in:\n", name, self)
 	return nil
 }
 
