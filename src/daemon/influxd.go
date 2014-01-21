@@ -82,17 +82,26 @@ func setupLogging(loggingLevel, logFile string) {
 	for _, filter := range log.Global {
 		filter.Level = level
 	}
-
-	logFileDir := filepath.Dir(logFile)
-	os.MkdirAll(logFileDir, 0744)
-
-	flw := log.NewFileLogWriter(logFile, false)
-	flw.SetFormat("[%D %T] [%L] (%S) %M")
-	flw.SetRotate(true)
-	flw.SetRotateSize(0)
-	flw.SetRotateLines(0)
-	flw.SetRotateDaily(true)
-	log.AddFilter("file", level, flw)
+	
+	if logFile == "stdout" {
+		flw := log.NewConsoleLogWriter()
+		log.AddFilter("stdout", level, flw)
+		
+	} else {
+		logFileDir := filepath.Dir(logFile)
+		os.MkdirAll(logFileDir, 0744)
+		
+		flw := log.NewFileLogWriter(logFile, false)
+		log.AddFilter("file", level, flw)
+		
+		flw.SetFormat("[%D %T] [%L] (%S) %M")
+		flw.SetRotate(true)
+		flw.SetRotateSize(0)
+		flw.SetRotateLines(0)
+		flw.SetRotateDaily(true)
+	}
+	
+	
 	log.Info("Redirectoring logging to %s", logFile)
 }
 
