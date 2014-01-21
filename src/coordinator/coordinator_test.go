@@ -578,8 +578,12 @@ func (self *CoordinatorSuite) TestCanCreateDatabaseWithNameAndReplicationFactor(
 	time.Sleep(REPLICATION_LAG)
 
 	for i := 0; i < 3; i++ {
-		databases := servers[i].clusterConfig.GetDatabases()
-		c.Assert(databases, DeepEquals, []*Database{&Database{"db1", 1}, &Database{"db2", 1}, &Database{"db3", 3}})
+		databases := servers[i].clusterConfig.databaseReplicationFactors
+		c.Assert(databases, DeepEquals, map[string]uint8{
+			"db1": 1,
+			"db2": 1,
+			"db3": 3,
+		})
 	}
 
 	err := servers[0].CreateDatabase("db3", 1)
