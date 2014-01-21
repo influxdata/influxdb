@@ -415,12 +415,17 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 	}
 
 	self.serverProcesses[1].Start()
-	// wait for the server to startup and the WAL to be synced
-	time.Sleep(3 * time.Second)
 
-	collection := self.serverProcesses[1].Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
-	series := collection.GetSeries("test_failure_replays", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, float64(3))
+	for i := 0; i < 3; i++ {
+		// wait for the server to startup and the WAL to be synced
+		time.Sleep(2 * time.Second)
+		collection := self.serverProcesses[1].Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
+		series := collection.GetSeries("test_failure_replays", c)
+		if series.GetValueForPointAndColumn(0, "sum", c).(float64) == 3 {
+			return
+		}
+	}
+	c.Error("write didn't replay properly")
 }
 
 func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
@@ -452,10 +457,15 @@ func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
 	}
 
 	self.serverProcesses[1].Start()
-	time.Sleep(2 * time.Second)
+	for i := 0; i < 3; i++ {
+		time.Sleep(2 * time.Second)
+		collection := self.serverProcesses[1].Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
+		if len(collection.Members) == 0 {
+			return
+		}
+	}
 
-	collection := self.serverProcesses[1].Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
-	c.Assert(collection.Members, HasLen, 0)
+	c.Error("Delete query didn't replay properly")
 }
 
 // For issue #130 https://github.com/influxdb/influxdb/issues/130
