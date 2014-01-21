@@ -502,13 +502,18 @@ func (self *IntegrationSuite) TestIssue92(c *C) {
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	points := toMap(data[0])
-	c.Assert(points[0]["sum"], Equals, 120.0)
-	c.Assert(points[0]["to"], Equals, "internet")
-	c.Assert(points[0]["app"], Equals, "skype")
-	c.Assert(points[1]["sum"], Equals, 60.0)
-	c.Assert(points[2]["sum"], Equals, 40.0)
-	c.Assert(points[3]["sum"], Equals, 30.0)
-	c.Assert(points[4]["sum"], Equals, 30.0)
+	// use a map since the order isn't guaranteed
+	sumToPointsMap := map[float64][]map[string]interface{}{}
+	for _, point := range points {
+		sum := point["sum"].(float64)
+		sumToPointsMap[sum] = append(sumToPointsMap[sum], point)
+	}
+	c.Assert(sumToPointsMap[120.0], HasLen, 1)
+	c.Assert(sumToPointsMap[120.0][0]["to"], Equals, "internet")
+	c.Assert(sumToPointsMap[120.0][0]["app"], Equals, "skype")
+	c.Assert(sumToPointsMap[60.0], HasLen, 1)
+	c.Assert(sumToPointsMap[40.0], HasLen, 1)
+	c.Assert(sumToPointsMap[30.0], HasLen, 2)
 }
 
 // issue #89
