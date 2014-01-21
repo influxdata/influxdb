@@ -85,7 +85,7 @@ func runQueryExtended(engine EngineI, query string, c *C, appendPoints bool, exp
 			seriesData, resultData)
 	}
 
-	c.Assert(result, DeepEquals, series)
+	c.Assert(result, SeriesEquals, series)
 }
 
 func runQueryWithoutChecking(engine EngineI, query string, c *C, appendPoints bool) []*protocol.Series {
