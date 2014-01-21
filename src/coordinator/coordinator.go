@@ -75,8 +75,6 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 		runningReplays:       make(map[string][]*protocol.Request),
 	}
 
-	go coordinator.SyncLogs()
-
 	return coordinator
 }
 

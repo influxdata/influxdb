@@ -33,6 +33,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	clusterConfig := coordinator.NewClusterConfiguration(config)
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
+	go coord.SyncLogs()
 	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
 
