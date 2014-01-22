@@ -165,7 +165,7 @@
 - [Issue #184](https://github.com/influxdb/influxdb/issues/184). Implement Raft log compaction.
 - [Issue #153](https://github.com/influxdb/influxdb/issues/153). Implement continuous queries
 
-## Bugfixes
+### Bugfixes
 
 - [Issue #90](https://github.com/influxdb/influxdb/issues/90). Group by multiple columns panic
 - [Issue #89](https://github.com/influxdb/influxdb/issues/89). 'Group by' combined with 'where' not working
@@ -192,3 +192,11 @@
 - deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
   be used to update user flags, password, etc.
 - Querying for column names that don't exist no longer throws an error.
+
+## v0.5.0 [unreleased]
+
+### Bugfixes
+
+- [Issue #195](https://github.com/influxdb/influxdb/issues/195). Allow the bind address to be configurable, Thanks @schmurfy.
+
+### Deprecated

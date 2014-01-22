@@ -130,8 +130,12 @@ func main() {
 			panic(err)
 		}
 	}
-
-	log.Info("Starting Influx Server...")
+	
+	if config.BindAddress == "" {
+			log.Info("Starting Influx Server...")
+		} else {
+			log.Info("Starting Influx Server bound to %s ...", config.BindAddress)
+		}
 	log.Info(`
 +---------------------------------------------+
 |  _____        __ _            _____  ____   |
