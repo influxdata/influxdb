@@ -35,6 +35,7 @@ type RaftServer struct {
 	host          string
 	port          int
 	path          string
+	bind_address  string
 	router        *mux.Router
 	raftServer    raft.Server
 	httpServer    *http.Server
@@ -69,6 +70,7 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterCo
 		host:          config.HostnameOrDetect(),
 		port:          config.RaftServerPort,
 		path:          config.RaftDir,
+		bind_address:  config.BindAddress,
 		clusterConfig: clusterConfig,
 		notLeader:     make(chan bool, 1),
 		router:        mux.NewRouter(),
@@ -449,7 +451,7 @@ func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, st
 }
 
 func (s *RaftServer) ListenAndServe() error {
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.bind_address, s.port))
 	if err != nil {
 		panic(err)
 	}

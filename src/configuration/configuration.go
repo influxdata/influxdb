@@ -45,6 +45,7 @@ type TomlConfiguration struct {
 	Cluster  ClusterConfig
 	Logging  LoggingConfig
 	Hostname string
+	BindAddress string
 }
 
 type Configuration struct {
@@ -59,6 +60,7 @@ type Configuration struct {
 	Hostname       string
 	LogFile        string
 	LogLevel       string
+	BindAddress 	 string
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -93,6 +95,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		LogFile:        tomlConfiguration.Logging.File,
 		LogLevel:       tomlConfiguration.Logging.Level,
 		Hostname:       tomlConfiguration.Hostname,
+		BindAddress:    tomlConfiguration.BindAddress,
 	}
 
 	return config, nil
@@ -117,15 +120,15 @@ func parseJsonConfiguration(fileName string) (*Configuration, error) {
 }
 
 func (self *Configuration) AdminHttpPortString() string {
-	return fmt.Sprintf(":%d", self.AdminHttpPort)
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.AdminHttpPort)
 }
 
 func (self *Configuration) ApiHttpPortString() string {
-	return fmt.Sprintf(":%d", self.ApiHttpPort)
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.ApiHttpPort)
 }
 
 func (self *Configuration) ProtobufPortString() string {
-	return fmt.Sprintf(":%d", self.ProtobufPort)
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.ProtobufPort)
 }
 
 func (self *Configuration) HostnameOrDetect() string {
