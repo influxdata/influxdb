@@ -45,7 +45,7 @@ type TomlConfiguration struct {
 	Cluster  ClusterConfig
 	Logging  LoggingConfig
 	Hostname string
-	BindAddress string
+	BindAddress string `toml:"bind-address"`
 }
 
 type Configuration struct {
