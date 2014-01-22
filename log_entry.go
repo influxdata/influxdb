@@ -95,5 +95,5 @@ func (e *LogEntry) decode(r io.Reader) (int, error) {
 	e.CommandName = pb.GetCommandName()
 	e.Command = pb.Command
 
-	return length, nil
+	return length + 8 + 1, nil
 }
