@@ -239,7 +239,7 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 		}
 
 		writer.done()
-		return libhttp.StatusOK, nil
+		return -1, nil
 	})
 }
 
@@ -357,6 +357,7 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
+		return
 	}
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(user common.User) (int, interface{}) {
@@ -764,7 +765,9 @@ func (self *HttpServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *
 		return
 	}
 
-	w.WriteHeader(statusCode)
+	if statusCode > 0 {
+		w.WriteHeader(statusCode)
+	}
 	if len(body) > 0 {
 		w.Write(body)
 	}
