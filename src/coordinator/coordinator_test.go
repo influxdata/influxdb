@@ -480,7 +480,7 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	for _, admin := range admins {
 		adminsSet[admin] = true
 	}
-	c.Assert(admins, DeepEquals, map[string]bool{"db_user": true, "db_user2": true})
+	c.Assert(adminsSet, DeepEquals, map[string]bool{"db_user": true, "db_user2": true})
 
 	// cannot create db users for a different db
 	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)
