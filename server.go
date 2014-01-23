@@ -924,7 +924,6 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 // processed when the server is a leader. Responses received during other
 // states are dropped.
 func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
-
 	// If we find a higher term then change to a follower and exit.
 	if resp.Term() > s.Term() {
 		s.setCurrentTerm(resp.Term(), "", false)
