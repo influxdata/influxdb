@@ -307,6 +307,7 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
 func (self *ServerSuite) TestListSeries(c *C) {
 	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "list_series", "replicationFactor": 2}`, c)
 	self.serverProcesses[0].Post("/db/list_series/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	time.Sleep(time.Second)
 	data := `[{
 		"name": "cluster_query",
 		"columns": ["val1"],
