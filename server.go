@@ -33,7 +33,7 @@ const (
 )
 
 const (
-	DefaultHeartbeatTimeout = 50 * time.Millisecond
+	DefaultHeartbeatTimeout = 1 * time.Millisecond
 	DefaultElectionTimeout  = 150 * time.Millisecond
 )
 
@@ -926,13 +926,13 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 
 	// If we find a higher term then change to a follower and exit.
-	if resp.Term > s.Term() {
-		s.setCurrentTerm(resp.Term, "", false)
+	if resp.Term() > s.Term() {
+		s.setCurrentTerm(resp.Term(), "", false)
 		return
 	}
 
 	// panic response if it's not successful.
-	if !resp.Success {
+	if !resp.Success() {
 		return
 	}
 
@@ -1118,9 +1118,9 @@ func (s *server) TakeSnapshot() error {
 
 	// We keep some log entries after the snapshot.
 	// We do not want to send the whole snapshot to the slightly slow machines
-	if lastIndex - s.log.startIndex > NumberOfLogEntriesAfterSnapshot {
+	if lastIndex-s.log.startIndex > NumberOfLogEntriesAfterSnapshot {
 		compactIndex := lastIndex - NumberOfLogEntriesAfterSnapshot
-		compactTerm := s.log.getEntry(compactIndex).Term
+		compactTerm := s.log.getEntry(compactIndex).Term()
 		s.log.compact(compactIndex, compactTerm)
 	}
 
@@ -1167,7 +1167,8 @@ func (s *server) processSnapshotRequest(req *SnapshotRequest) *SnapshotResponse 
 	// that matches the snapshot’s last term, then the follower already has all the
 	// information found in the snapshot and can reply false.
 	entry := s.log.getEntry(req.LastIndex)
-	if entry != nil && entry.Term == req.LastTerm {
+
+	if entry != nil && entry.Term() == req.LastTerm {
 		return newSnapshotResponse(false)
 	}
 

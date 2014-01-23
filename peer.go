@@ -178,13 +178,13 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 
 	// If successful then update the previous log index.
 	p.mutex.Lock()
-	if resp.Success {
+	if resp.Success() {
 		if len(req.Entries) > 0 {
-			p.prevLogIndex = req.Entries[len(req.Entries)-1].Index
+			p.prevLogIndex = req.Entries[len(req.Entries)-1].GetIndex()
 
 			// if peer append a log entry from the current term
 			// we set append to true
-			if req.Entries[len(req.Entries)-1].Term == p.server.currentTerm {
+			if req.Entries[len(req.Entries)-1].GetTerm() == p.server.currentTerm {
 				resp.append = true
 			}
 		}
@@ -192,7 +192,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 		// If it was unsuccessful then decrement the previous log index and
 		// we'll try again next time.
 	} else {
-		if resp.CommitIndex >= p.prevLogIndex {
+		if resp.CommitIndex() >= p.prevLogIndex {
 			// we may miss a response from peer
 			// so maybe the peer has committed the logs we just sent
 			// but we did not receive the successful reply and did not increase
@@ -201,7 +201,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 			// peer failed to truncate the log and sent a fail reply at this time
 			// we just need to update peer's prevLog index to commitIndex
 
-			p.prevLogIndex = resp.CommitIndex
+			p.prevLogIndex = resp.CommitIndex()
 			debugln("peer.append.resp.update: ", p.Name, "; idx =", p.prevLogIndex)
 
 		} else if p.prevLogIndex > 0 {
@@ -210,8 +210,8 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 			// problem.
 			p.prevLogIndex--
 			// if it not enough, we directly decrease to the index of the
-			if p.prevLogIndex > resp.Index {
-				p.prevLogIndex = resp.Index
+			if p.prevLogIndex > resp.Index() {
+				p.prevLogIndex = resp.Index()
 			}
 
 			debugln("peer.append.resp.decrement: ", p.Name, "; idx =", p.prevLogIndex)
@@ -265,8 +265,8 @@ func (p *Peer) sendSnapshotRecoveryRequest() {
 		debugln("peer.snap.recovery.failed: ", p.Name)
 		return
 	}
-	// Send response to server for processing.
-	p.server.sendAsync(&AppendEntriesResponse{Term: resp.Term, Success: resp.Success, append: (resp.Term == p.server.currentTerm)})
+
+	p.server.sendAsync(resp)
 }
 
 //--------------------------------------

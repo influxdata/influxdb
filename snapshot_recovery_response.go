@@ -1,10 +1,11 @@
 package raft
 
 import (
-	"code.google.com/p/goprotobuf/proto"
-	"github.com/goraft/raft/protobuf"
 	"io"
 	"io/ioutil"
+
+	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/goraft/raft/protobuf"
 )
 
 // The response returned from a server appending entries to the log.
@@ -26,7 +27,7 @@ func newSnapshotRecoveryResponse(term uint64, success bool, commitIndex uint64) 
 // Encode writes the response to a writer.
 // Returns the number of bytes written and any error that occurs.
 func (req *SnapshotRecoveryResponse) Encode(w io.Writer) (int, error) {
-	pb := &protobuf.ProtoSnapshotRecoveryResponse{
+	pb := &protobuf.SnapshotRecoveryResponse{
 		Term:        proto.Uint64(req.Term),
 		Success:     proto.Bool(req.Success),
 		CommitIndex: proto.Uint64(req.CommitIndex),
@@ -49,7 +50,7 @@ func (req *SnapshotRecoveryResponse) Decode(r io.Reader) (int, error) {
 
 	totalBytes := len(data)
 
-	pb := &protobuf.ProtoSnapshotRecoveryResponse{}
+	pb := &protobuf.SnapshotRecoveryResponse{}
 	if err := proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}
