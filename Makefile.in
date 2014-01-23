@@ -151,6 +151,9 @@ ifneq ($(verbose),off)
 	GOTEST_OPTS += -v -gocheck.v -gocheck.vv
 endif
 
+timeout = 10m
+GOTEST_OPTS += -test.timeout=$(timeout)
+
 test: test_dependencies parser
 	$(GO) test $(packages) $(GOTEST_OPTS)
 
