@@ -763,6 +763,10 @@ func (s *server) leaderLoop() {
 		peer.startHeartbeat()
 	}
 
+	// Commit a NOP after the server becomes leader. From the Raft paper:
+	// "Upon election: send initial empty AppendEntries RPCs (heartbeat) to
+	// each server; repeat during idle periods to prevent election timeouts
+	// (§5.2)". The heartbeats started above do the "idle" period work.
 	go s.Do(NOPCommand{})
 
 	// Begin to collect response from followers
