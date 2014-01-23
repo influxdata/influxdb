@@ -193,9 +193,10 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 		// we'll try again next time.
 	} else {
 		if resp.Term() > server.Term() {
-			// this happens when there is a new leader comes up that this leader does not
-			// know yet.
+			// this happens when there is a new leader comes up that this *leader* has not
+			// known yet.
 			// this server can know until the new leader send a ae with higher term
+			// or this server finish processing this response.
 			debugln("peer.append.resp.not.update: new.leader.found")
 		} else if resp.CommitIndex() >= p.prevLogIndex {
 			// we may miss a response from peer
