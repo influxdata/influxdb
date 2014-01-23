@@ -192,7 +192,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 		// If it was unsuccessful then decrement the previous log index and
 		// we'll try again next time.
 	} else {
-		if resp.Term() > p.server.Term() {
+		if resp.Term() > p.server.Term() || resp.CommitIndex() > p.server.CommitIndex() {
 			// this happens when there is a new leader comes up that this *leader* has not
 			// known yet.
 			// this server can know until the new leader send a ae with higher term

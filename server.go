@@ -33,7 +33,7 @@ const (
 )
 
 const (
-	DefaultHeartbeatTimeout = 1 * time.Millisecond
+	DefaultHeartbeatTimeout = 50 * time.Millisecond
 	DefaultElectionTimeout  = 150 * time.Millisecond
 )
 
