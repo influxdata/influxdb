@@ -192,7 +192,13 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 		// If it was unsuccessful then decrement the previous log index and
 		// we'll try again next time.
 	} else {
-		if resp.CommitIndex() >= p.prevLogIndex {
+		if resp.Term() > server.Term() {
+			// this happens when there is a new leader comes up that this *leader* has not
+			// known yet.
+			// this server can know until the new leader send a ae with higher term
+			// or this server finish processing this response.
+			debugln("peer.append.resp.not.update: new.leader.found")
+		} else if resp.CommitIndex() >= p.prevLogIndex {
 			// we may miss a response from peer
 			// so maybe the peer has committed the logs we just sent
 			// but we did not receive the successful reply and did not increase
