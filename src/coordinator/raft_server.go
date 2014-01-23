@@ -127,6 +127,23 @@ func (s *RaftServer) leaderConnectString() (string, bool) {
 }
 
 func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) (interface{}, error) {
+	var err error
+	var value interface{}
+	for i := 0; i < 3; i++ {
+		value, err = s.doOrProxyCommandOnce(command, commandType)
+		if err == nil {
+			return value, nil
+		}
+		if strings.Contains(err.Error(), "node failure") {
+			continue
+		}
+		return nil, err
+	}
+	return nil, err
+}
+
+func (s *RaftServer) doOrProxyCommandOnce(command raft.Command, commandType string) (interface{}, error) {
+
 	if s.raftServer.State() == raft.Leader {
 		value, err := s.raftServer.Do(command)
 		if err != nil {
