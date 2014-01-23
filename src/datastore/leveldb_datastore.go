@@ -503,7 +503,7 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 		}
 		// Do a less than comparison because it's ok if we're just getting the same write again. As long as we haven't missed one.
 		if previousSequenceNumber+uint64(1) < *request.SequenceNumber {
-			log.Warn("MISSING REQUESTS: ", previousSequenceNumber, *request.SequenceNumber)
+			log.Warn("MISSING REQUESTS: %d, %d", previousSequenceNumber, *request.SequenceNumber)
 			return SequenceMissingRequestsError{"Missing requests between last seen and this one.", previousSequenceNumber, *request.SequenceNumber}
 		}
 	}
