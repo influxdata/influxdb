@@ -14,7 +14,7 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
-message ProtoRequestVoteRequest {
+message RequestVoteRequest {
 	required uint64 Term=1;
 	required uint64 LastLogIndex=2;
 	required uint64 LastLogTerm=3;

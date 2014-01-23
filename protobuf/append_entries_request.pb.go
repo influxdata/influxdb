@@ -32,55 +32,55 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type ProtoAppendEntriesRequest struct {
-	Term             *uint64          `protobuf:"varint,1,req" json:"Term,omitempty"`
-	PrevLogIndex     *uint64          `protobuf:"varint,2,req" json:"PrevLogIndex,omitempty"`
-	PrevLogTerm      *uint64          `protobuf:"varint,3,req" json:"PrevLogTerm,omitempty"`
-	CommitIndex      *uint64          `protobuf:"varint,4,req" json:"CommitIndex,omitempty"`
-	LeaderName       *string          `protobuf:"bytes,5,req" json:"LeaderName,omitempty"`
-	Entries          []*ProtoLogEntry `protobuf:"bytes,6,rep" json:"Entries,omitempty"`
-	XXX_unrecognized []byte           `json:"-"`
+type AppendEntriesRequest struct {
+	Term             *uint64     `protobuf:"varint,1,req" json:"Term,omitempty"`
+	PrevLogIndex     *uint64     `protobuf:"varint,2,req" json:"PrevLogIndex,omitempty"`
+	PrevLogTerm      *uint64     `protobuf:"varint,3,req" json:"PrevLogTerm,omitempty"`
+	CommitIndex      *uint64     `protobuf:"varint,4,req" json:"CommitIndex,omitempty"`
+	LeaderName       *string     `protobuf:"bytes,5,req" json:"LeaderName,omitempty"`
+	Entries          []*LogEntry `protobuf:"bytes,6,rep" json:"Entries,omitempty"`
+	XXX_unrecognized []byte      `json:"-"`
 }
 
-func (m *ProtoAppendEntriesRequest) Reset()      { *m = ProtoAppendEntriesRequest{} }
-func (*ProtoAppendEntriesRequest) ProtoMessage() {}
+func (m *AppendEntriesRequest) Reset()      { *m = AppendEntriesRequest{} }
+func (*AppendEntriesRequest) ProtoMessage() {}
 
-func (m *ProtoAppendEntriesRequest) GetTerm() uint64 {
+func (m *AppendEntriesRequest) GetTerm() uint64 {
 	if m != nil && m.Term != nil {
 		return *m.Term
 	}
 	return 0
 }
 
-func (m *ProtoAppendEntriesRequest) GetPrevLogIndex() uint64 {
+func (m *AppendEntriesRequest) GetPrevLogIndex() uint64 {
 	if m != nil && m.PrevLogIndex != nil {
 		return *m.PrevLogIndex
 	}
 	return 0
 }
 
-func (m *ProtoAppendEntriesRequest) GetPrevLogTerm() uint64 {
+func (m *AppendEntriesRequest) GetPrevLogTerm() uint64 {
 	if m != nil && m.PrevLogTerm != nil {
 		return *m.PrevLogTerm
 	}
 	return 0
 }
 
-func (m *ProtoAppendEntriesRequest) GetCommitIndex() uint64 {
+func (m *AppendEntriesRequest) GetCommitIndex() uint64 {
 	if m != nil && m.CommitIndex != nil {
 		return *m.CommitIndex
 	}
 	return 0
 }
 
-func (m *ProtoAppendEntriesRequest) GetLeaderName() string {
+func (m *AppendEntriesRequest) GetLeaderName() string {
 	if m != nil && m.LeaderName != nil {
 		return *m.LeaderName
 	}
 	return ""
 }
 
-func (m *ProtoAppendEntriesRequest) GetEntries() []*ProtoLogEntry {
+func (m *AppendEntriesRequest) GetEntries() []*LogEntry {
 	if m != nil {
 		return m.Entries
 	}
@@ -89,7 +89,7 @@ func (m *ProtoAppendEntriesRequest) GetEntries() []*ProtoLogEntry {
 
 func init() {
 }
-func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
+func (m *AppendEntriesRequest) Unmarshal(data []byte) error {
 	l := len(data)
 	index := 0
 	for index < l {
@@ -219,7 +219,7 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 			if postIndex > l {
 				return io1.ErrUnexpectedEOF
 			}
-			m.Entries = append(m.Entries, &ProtoLogEntry{})
+			m.Entries = append(m.Entries, &LogEntry{})
 			m.Entries[len(m.Entries)-1].Unmarshal(data[index:postIndex])
 			index = postIndex
 		default:
@@ -242,17 +242,17 @@ func (m *ProtoAppendEntriesRequest) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (this *ProtoAppendEntriesRequest) String() string {
+func (this *AppendEntriesRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings2.Join([]string{`&ProtoAppendEntriesRequest{`,
+	s := strings2.Join([]string{`&AppendEntriesRequest{`,
 		`Term:` + valueToStringAppendEntriesRequest(this.Term) + `,`,
 		`PrevLogIndex:` + valueToStringAppendEntriesRequest(this.PrevLogIndex) + `,`,
 		`PrevLogTerm:` + valueToStringAppendEntriesRequest(this.PrevLogTerm) + `,`,
 		`CommitIndex:` + valueToStringAppendEntriesRequest(this.CommitIndex) + `,`,
 		`LeaderName:` + valueToStringAppendEntriesRequest(this.LeaderName) + `,`,
-		`Entries:` + strings2.Replace(fmt3.Sprintf("%v", this.Entries), "ProtoLogEntry", "ProtoLogEntry", 1) + `,`,
+		`Entries:` + strings2.Replace(fmt3.Sprintf("%v", this.Entries), "LogEntry", "LogEntry", 1) + `,`,
 		`XXX_unrecognized:` + fmt3.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
@@ -266,7 +266,7 @@ func valueToStringAppendEntriesRequest(v interface{}) string {
 	pv := reflect2.Indirect(rv).Interface()
 	return fmt3.Sprintf("*%v", pv)
 }
-func (m *ProtoAppendEntriesRequest) Size() (n int) {
+func (m *AppendEntriesRequest) Size() (n int) {
 	var l int
 	_ = l
 	if m.Term != nil {
@@ -311,8 +311,8 @@ func sozAppendEntriesRequest(x uint64) (n int) {
 	return sovAppendEntriesRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovAppendEntriesRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func NewPopulatedProtoAppendEntriesRequest(r randyAppendEntriesRequest, easy bool) *ProtoAppendEntriesRequest {
-	this := &ProtoAppendEntriesRequest{}
+func NewPopulatedAppendEntriesRequest(r randyAppendEntriesRequest, easy bool) *AppendEntriesRequest {
+	this := &AppendEntriesRequest{}
 	v1 := uint64(r.Uint32())
 	this.Term = &v1
 	v2 := uint64(r.Uint32())
@@ -325,9 +325,9 @@ func NewPopulatedProtoAppendEntriesRequest(r randyAppendEntriesRequest, easy boo
 	this.LeaderName = &v5
 	if r.Intn(10) != 0 {
 		v6 := r.Intn(10)
-		this.Entries = make([]*ProtoLogEntry, v6)
+		this.Entries = make([]*LogEntry, v6)
 		for i := 0; i < v6; i++ {
-			this.Entries[i] = NewPopulatedProtoLogEntry(r, easy)
+			this.Entries[i] = NewPopulatedLogEntry(r, easy)
 		}
 	}
 	if !easy && r.Intn(10) != 0 {
@@ -402,7 +402,7 @@ func encodeVarintPopulateAppendEntriesRequest(data []byte, v uint64) []byte {
 	data = append(data, uint8(v))
 	return data
 }
-func (m *ProtoAppendEntriesRequest) Marshal() (data []byte, err error) {
+func (m *AppendEntriesRequest) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -412,7 +412,7 @@ func (m *ProtoAppendEntriesRequest) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ProtoAppendEntriesRequest) MarshalTo(data []byte) (n int, err error) {
+func (m *AppendEntriesRequest) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -487,11 +487,11 @@ func encodeVarintAppendEntriesRequest(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	return offset + 1
 }
-func (this *ProtoAppendEntriesRequest) GoString() string {
+func (this *AppendEntriesRequest) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings3.Join([]string{`&protobuf.ProtoAppendEntriesRequest{` + `Term:` + valueToGoStringAppendEntriesRequest(this.Term, "uint64"), `PrevLogIndex:` + valueToGoStringAppendEntriesRequest(this.PrevLogIndex, "uint64"), `PrevLogTerm:` + valueToGoStringAppendEntriesRequest(this.PrevLogTerm, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesRequest(this.CommitIndex, "uint64"), `LeaderName:` + valueToGoStringAppendEntriesRequest(this.LeaderName, "string"), `Entries:` + fmt4.Sprintf("%#v", this.Entries), `XXX_unrecognized:` + fmt4.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings3.Join([]string{`&protobuf.AppendEntriesRequest{` + `Term:` + valueToGoStringAppendEntriesRequest(this.Term, "uint64"), `PrevLogIndex:` + valueToGoStringAppendEntriesRequest(this.PrevLogIndex, "uint64"), `PrevLogTerm:` + valueToGoStringAppendEntriesRequest(this.PrevLogTerm, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesRequest(this.CommitIndex, "uint64"), `LeaderName:` + valueToGoStringAppendEntriesRequest(this.LeaderName, "string"), `Entries:` + fmt4.Sprintf("%#v", this.Entries), `XXX_unrecognized:` + fmt4.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringAppendEntriesRequest(v interface{}, typ string) string {
@@ -519,7 +519,7 @@ func extensionToGoStringAppendEntriesRequest(e map[int32]code_google_com_p_gogop
 	s += strings3.Join(ss, ",") + "}"
 	return s
 }
-func (this *ProtoAppendEntriesRequest) VerboseEqual(that interface{}) error {
+func (this *AppendEntriesRequest) VerboseEqual(that interface{}) error {
 	if that == nil {
 		if this == nil {
 			return nil
@@ -527,17 +527,17 @@ func (this *ProtoAppendEntriesRequest) VerboseEqual(that interface{}) error {
 		return fmt5.Errorf("that == nil && this != nil")
 	}
 
-	that1, ok := that.(*ProtoAppendEntriesRequest)
+	that1, ok := that.(*AppendEntriesRequest)
 	if !ok {
-		return fmt5.Errorf("that is not of type *ProtoAppendEntriesRequest")
+		return fmt5.Errorf("that is not of type *AppendEntriesRequest")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt5.Errorf("that is type *ProtoAppendEntriesRequest but is nil && this != nil")
+		return fmt5.Errorf("that is type *AppendEntriesRequest but is nil && this != nil")
 	} else if this == nil {
-		return fmt5.Errorf("that is type *ProtoAppendEntriesRequestbut is not nil && this == nil")
+		return fmt5.Errorf("that is type *AppendEntriesRequestbut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
@@ -597,7 +597,7 @@ func (this *ProtoAppendEntriesRequest) VerboseEqual(that interface{}) error {
 	}
 	return nil
 }
-func (this *ProtoAppendEntriesRequest) Equal(that interface{}) bool {
+func (this *AppendEntriesRequest) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -605,7 +605,7 @@ func (this *ProtoAppendEntriesRequest) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*ProtoAppendEntriesRequest)
+	that1, ok := that.(*AppendEntriesRequest)
 	if !ok {
 		return false
 	}

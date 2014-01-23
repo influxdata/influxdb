@@ -10,14 +10,14 @@ import (
 
 // The response returned from a server appending entries to the log.
 type AppendEntriesResponse struct {
-	pb     *protobuf.ProtoAppendEntriesResponse
+	pb     *protobuf.AppendEntriesResponse
 	peer   string
 	append bool
 }
 
 // Creates a new AppendEntries response.
 func newAppendEntriesResponse(term uint64, success bool, index uint64, commitIndex uint64) *AppendEntriesResponse {
-	pb := &protobuf.ProtoAppendEntriesResponse{
+	pb := &protobuf.AppendEntriesResponse{
 		Term:        proto.Uint64(term),
 		Index:       proto.Uint64(index),
 		Success:     proto.Bool(success),
@@ -64,7 +64,7 @@ func (resp *AppendEntriesResponse) Decode(r io.Reader) (int, error) {
 		return -1, err
 	}
 
-	resp.pb = new(protobuf.ProtoAppendEntriesResponse)
+	resp.pb = new(protobuf.AppendEntriesResponse)
 	if err := proto.Unmarshal(data, resp.pb); err != nil {
 		return -1, err
 	}

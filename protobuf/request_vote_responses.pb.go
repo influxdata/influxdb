@@ -32,23 +32,23 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type ProtoRequestVoteResponse struct {
+type RequestVoteResponse struct {
 	Term             *uint64 `protobuf:"varint,1,req" json:"Term,omitempty"`
 	VoteGranted      *bool   `protobuf:"varint,2,req" json:"VoteGranted,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ProtoRequestVoteResponse) Reset()      { *m = ProtoRequestVoteResponse{} }
-func (*ProtoRequestVoteResponse) ProtoMessage() {}
+func (m *RequestVoteResponse) Reset()      { *m = RequestVoteResponse{} }
+func (*RequestVoteResponse) ProtoMessage() {}
 
-func (m *ProtoRequestVoteResponse) GetTerm() uint64 {
+func (m *RequestVoteResponse) GetTerm() uint64 {
 	if m != nil && m.Term != nil {
 		return *m.Term
 	}
 	return 0
 }
 
-func (m *ProtoRequestVoteResponse) GetVoteGranted() bool {
+func (m *RequestVoteResponse) GetVoteGranted() bool {
 	if m != nil && m.VoteGranted != nil {
 		return *m.VoteGranted
 	}
@@ -57,7 +57,7 @@ func (m *ProtoRequestVoteResponse) GetVoteGranted() bool {
 
 func init() {
 }
-func (m *ProtoRequestVoteResponse) Unmarshal(data []byte) error {
+func (m *RequestVoteResponse) Unmarshal(data []byte) error {
 	l := len(data)
 	index := 0
 	for index < l {
@@ -131,11 +131,11 @@ func (m *ProtoRequestVoteResponse) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (this *ProtoRequestVoteResponse) String() string {
+func (this *RequestVoteResponse) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings8.Join([]string{`&ProtoRequestVoteResponse{`,
+	s := strings8.Join([]string{`&RequestVoteResponse{`,
 		`Term:` + valueToStringRequestVoteResponses(this.Term) + `,`,
 		`VoteGranted:` + valueToStringRequestVoteResponses(this.VoteGranted) + `,`,
 		`XXX_unrecognized:` + fmt12.Sprintf("%v", this.XXX_unrecognized) + `,`,
@@ -151,7 +151,7 @@ func valueToStringRequestVoteResponses(v interface{}) string {
 	pv := reflect8.Indirect(rv).Interface()
 	return fmt12.Sprintf("*%v", pv)
 }
-func (m *ProtoRequestVoteResponse) Size() (n int) {
+func (m *RequestVoteResponse) Size() (n int) {
 	var l int
 	_ = l
 	if m.Term != nil {
@@ -180,8 +180,8 @@ func sozRequestVoteResponses(x uint64) (n int) {
 	return sovRequestVoteResponses(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovRequestVoteResponses(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func NewPopulatedProtoRequestVoteResponse(r randyRequestVoteResponses, easy bool) *ProtoRequestVoteResponse {
-	this := &ProtoRequestVoteResponse{}
+func NewPopulatedRequestVoteResponse(r randyRequestVoteResponses, easy bool) *RequestVoteResponse {
+	this := &RequestVoteResponse{}
 	v1 := uint64(r.Uint32())
 	this.Term = &v1
 	v2 := bool(r.Intn(2) == 0)
@@ -258,7 +258,7 @@ func encodeVarintPopulateRequestVoteResponses(data []byte, v uint64) []byte {
 	data = append(data, uint8(v))
 	return data
 }
-func (m *ProtoRequestVoteResponse) Marshal() (data []byte, err error) {
+func (m *RequestVoteResponse) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -268,7 +268,7 @@ func (m *ProtoRequestVoteResponse) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ProtoRequestVoteResponse) MarshalTo(data []byte) (n int, err error) {
+func (m *RequestVoteResponse) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -320,11 +320,11 @@ func encodeVarintRequestVoteResponses(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	return offset + 1
 }
-func (this *ProtoRequestVoteResponse) GoString() string {
+func (this *RequestVoteResponse) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings9.Join([]string{`&protobuf.ProtoRequestVoteResponse{` + `Term:` + valueToGoStringRequestVoteResponses(this.Term, "uint64"), `VoteGranted:` + valueToGoStringRequestVoteResponses(this.VoteGranted, "bool"), `XXX_unrecognized:` + fmt13.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings9.Join([]string{`&protobuf.RequestVoteResponse{` + `Term:` + valueToGoStringRequestVoteResponses(this.Term, "uint64"), `VoteGranted:` + valueToGoStringRequestVoteResponses(this.VoteGranted, "bool"), `XXX_unrecognized:` + fmt13.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringRequestVoteResponses(v interface{}, typ string) string {
@@ -352,7 +352,7 @@ func extensionToGoStringRequestVoteResponses(e map[int32]code_google_com_p_gogop
 	s += strings9.Join(ss, ",") + "}"
 	return s
 }
-func (this *ProtoRequestVoteResponse) VerboseEqual(that interface{}) error {
+func (this *RequestVoteResponse) VerboseEqual(that interface{}) error {
 	if that == nil {
 		if this == nil {
 			return nil
@@ -360,17 +360,17 @@ func (this *ProtoRequestVoteResponse) VerboseEqual(that interface{}) error {
 		return fmt14.Errorf("that == nil && this != nil")
 	}
 
-	that1, ok := that.(*ProtoRequestVoteResponse)
+	that1, ok := that.(*RequestVoteResponse)
 	if !ok {
-		return fmt14.Errorf("that is not of type *ProtoRequestVoteResponse")
+		return fmt14.Errorf("that is not of type *RequestVoteResponse")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt14.Errorf("that is type *ProtoRequestVoteResponse but is nil && this != nil")
+		return fmt14.Errorf("that is type *RequestVoteResponse but is nil && this != nil")
 	} else if this == nil {
-		return fmt14.Errorf("that is type *ProtoRequestVoteResponsebut is not nil && this == nil")
+		return fmt14.Errorf("that is type *RequestVoteResponsebut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
@@ -395,7 +395,7 @@ func (this *ProtoRequestVoteResponse) VerboseEqual(that interface{}) error {
 	}
 	return nil
 }
-func (this *ProtoRequestVoteResponse) Equal(that interface{}) bool {
+func (this *RequestVoteResponse) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -403,7 +403,7 @@ func (this *ProtoRequestVoteResponse) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*ProtoRequestVoteResponse)
+	that1, ok := that.(*RequestVoteResponse)
 	if !ok {
 		return false
 	}

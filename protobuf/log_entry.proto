@@ -14,7 +14,7 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
-message ProtoLogEntry {
+message LogEntry {
 	required uint64 Index=1;
 	required uint64 Term=2;
 	required string CommandName=3;

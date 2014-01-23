@@ -38,16 +38,16 @@ func newSnapshotRecoveryRequest(leaderName string, snapshot *Snapshot) *Snapshot
 // written and any error that may have occurred.
 func (req *SnapshotRecoveryRequest) Encode(w io.Writer) (int, error) {
 
-	protoPeers := make([]*protobuf.ProtoSnapshotRecoveryRequest_ProtoPeer, len(req.Peers))
+	protoPeers := make([]*protobuf.SnapshotRecoveryRequest_Peer, len(req.Peers))
 
 	for i, peer := range req.Peers {
-		protoPeers[i] = &protobuf.ProtoSnapshotRecoveryRequest_ProtoPeer{
+		protoPeers[i] = &protobuf.SnapshotRecoveryRequest_Peer{
 			Name:             proto.String(peer.Name),
 			ConnectionString: proto.String(peer.ConnectionString),
 		}
 	}
 
-	pb := &protobuf.ProtoSnapshotRecoveryRequest{
+	pb := &protobuf.SnapshotRecoveryRequest{
 		LeaderName: proto.String(req.LeaderName),
 		LastIndex:  proto.Uint64(req.LastIndex),
 		LastTerm:   proto.Uint64(req.LastTerm),
@@ -73,7 +73,7 @@ func (req *SnapshotRecoveryRequest) Decode(r io.Reader) (int, error) {
 
 	totalBytes := len(data)
 
-	pb := &protobuf.ProtoSnapshotRecoveryRequest{}
+	pb := &protobuf.SnapshotRecoveryRequest{}
 	if err = proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}

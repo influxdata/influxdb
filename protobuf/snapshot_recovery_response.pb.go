@@ -32,31 +32,31 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type ProtoSnapshotRecoveryResponse struct {
+type SnapshotRecoveryResponse struct {
 	Term             *uint64 `protobuf:"varint,1,req" json:"Term,omitempty"`
 	Success          *bool   `protobuf:"varint,2,req" json:"Success,omitempty"`
 	CommitIndex      *uint64 `protobuf:"varint,3,req" json:"CommitIndex,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ProtoSnapshotRecoveryResponse) Reset()      { *m = ProtoSnapshotRecoveryResponse{} }
-func (*ProtoSnapshotRecoveryResponse) ProtoMessage() {}
+func (m *SnapshotRecoveryResponse) Reset()      { *m = SnapshotRecoveryResponse{} }
+func (*SnapshotRecoveryResponse) ProtoMessage() {}
 
-func (m *ProtoSnapshotRecoveryResponse) GetTerm() uint64 {
+func (m *SnapshotRecoveryResponse) GetTerm() uint64 {
 	if m != nil && m.Term != nil {
 		return *m.Term
 	}
 	return 0
 }
 
-func (m *ProtoSnapshotRecoveryResponse) GetSuccess() bool {
+func (m *SnapshotRecoveryResponse) GetSuccess() bool {
 	if m != nil && m.Success != nil {
 		return *m.Success
 	}
 	return false
 }
 
-func (m *ProtoSnapshotRecoveryResponse) GetCommitIndex() uint64 {
+func (m *SnapshotRecoveryResponse) GetCommitIndex() uint64 {
 	if m != nil && m.CommitIndex != nil {
 		return *m.CommitIndex
 	}
@@ -65,7 +65,7 @@ func (m *ProtoSnapshotRecoveryResponse) GetCommitIndex() uint64 {
 
 func init() {
 }
-func (m *ProtoSnapshotRecoveryResponse) Unmarshal(data []byte) error {
+func (m *SnapshotRecoveryResponse) Unmarshal(data []byte) error {
 	l := len(data)
 	index := 0
 	for index < l {
@@ -156,11 +156,11 @@ func (m *ProtoSnapshotRecoveryResponse) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (this *ProtoSnapshotRecoveryResponse) String() string {
+func (this *SnapshotRecoveryResponse) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings12.Join([]string{`&ProtoSnapshotRecoveryResponse{`,
+	s := strings12.Join([]string{`&SnapshotRecoveryResponse{`,
 		`Term:` + valueToStringSnapshotRecoveryResponse(this.Term) + `,`,
 		`Success:` + valueToStringSnapshotRecoveryResponse(this.Success) + `,`,
 		`CommitIndex:` + valueToStringSnapshotRecoveryResponse(this.CommitIndex) + `,`,
@@ -177,7 +177,7 @@ func valueToStringSnapshotRecoveryResponse(v interface{}) string {
 	pv := reflect12.Indirect(rv).Interface()
 	return fmt18.Sprintf("*%v", pv)
 }
-func (m *ProtoSnapshotRecoveryResponse) Size() (n int) {
+func (m *SnapshotRecoveryResponse) Size() (n int) {
 	var l int
 	_ = l
 	if m.Term != nil {
@@ -209,8 +209,8 @@ func sozSnapshotRecoveryResponse(x uint64) (n int) {
 	return sovSnapshotRecoveryResponse(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovSnapshotRecoveryResponse(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func NewPopulatedProtoSnapshotRecoveryResponse(r randySnapshotRecoveryResponse, easy bool) *ProtoSnapshotRecoveryResponse {
-	this := &ProtoSnapshotRecoveryResponse{}
+func NewPopulatedSnapshotRecoveryResponse(r randySnapshotRecoveryResponse, easy bool) *SnapshotRecoveryResponse {
+	this := &SnapshotRecoveryResponse{}
 	v1 := uint64(r.Uint32())
 	this.Term = &v1
 	v2 := bool(r.Intn(2) == 0)
@@ -289,7 +289,7 @@ func encodeVarintPopulateSnapshotRecoveryResponse(data []byte, v uint64) []byte 
 	data = append(data, uint8(v))
 	return data
 }
-func (m *ProtoSnapshotRecoveryResponse) Marshal() (data []byte, err error) {
+func (m *SnapshotRecoveryResponse) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -299,7 +299,7 @@ func (m *ProtoSnapshotRecoveryResponse) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ProtoSnapshotRecoveryResponse) MarshalTo(data []byte) (n int, err error) {
+func (m *SnapshotRecoveryResponse) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -356,11 +356,11 @@ func encodeVarintSnapshotRecoveryResponse(data []byte, offset int, v uint64) int
 	data[offset] = uint8(v)
 	return offset + 1
 }
-func (this *ProtoSnapshotRecoveryResponse) GoString() string {
+func (this *SnapshotRecoveryResponse) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings13.Join([]string{`&protobuf.ProtoSnapshotRecoveryResponse{` + `Term:` + valueToGoStringSnapshotRecoveryResponse(this.Term, "uint64"), `Success:` + valueToGoStringSnapshotRecoveryResponse(this.Success, "bool"), `CommitIndex:` + valueToGoStringSnapshotRecoveryResponse(this.CommitIndex, "uint64"), `XXX_unrecognized:` + fmt19.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings13.Join([]string{`&protobuf.SnapshotRecoveryResponse{` + `Term:` + valueToGoStringSnapshotRecoveryResponse(this.Term, "uint64"), `Success:` + valueToGoStringSnapshotRecoveryResponse(this.Success, "bool"), `CommitIndex:` + valueToGoStringSnapshotRecoveryResponse(this.CommitIndex, "uint64"), `XXX_unrecognized:` + fmt19.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringSnapshotRecoveryResponse(v interface{}, typ string) string {
@@ -388,7 +388,7 @@ func extensionToGoStringSnapshotRecoveryResponse(e map[int32]code_google_com_p_g
 	s += strings13.Join(ss, ",") + "}"
 	return s
 }
-func (this *ProtoSnapshotRecoveryResponse) VerboseEqual(that interface{}) error {
+func (this *SnapshotRecoveryResponse) VerboseEqual(that interface{}) error {
 	if that == nil {
 		if this == nil {
 			return nil
@@ -396,17 +396,17 @@ func (this *ProtoSnapshotRecoveryResponse) VerboseEqual(that interface{}) error 
 		return fmt20.Errorf("that == nil && this != nil")
 	}
 
-	that1, ok := that.(*ProtoSnapshotRecoveryResponse)
+	that1, ok := that.(*SnapshotRecoveryResponse)
 	if !ok {
-		return fmt20.Errorf("that is not of type *ProtoSnapshotRecoveryResponse")
+		return fmt20.Errorf("that is not of type *SnapshotRecoveryResponse")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt20.Errorf("that is type *ProtoSnapshotRecoveryResponse but is nil && this != nil")
+		return fmt20.Errorf("that is type *SnapshotRecoveryResponse but is nil && this != nil")
 	} else if this == nil {
-		return fmt20.Errorf("that is type *ProtoSnapshotRecoveryResponsebut is not nil && this == nil")
+		return fmt20.Errorf("that is type *SnapshotRecoveryResponsebut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
@@ -440,7 +440,7 @@ func (this *ProtoSnapshotRecoveryResponse) VerboseEqual(that interface{}) error 
 	}
 	return nil
 }
-func (this *ProtoSnapshotRecoveryResponse) Equal(that interface{}) bool {
+func (this *SnapshotRecoveryResponse) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -448,7 +448,7 @@ func (this *ProtoSnapshotRecoveryResponse) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*ProtoSnapshotRecoveryResponse)
+	that1, ok := that.(*SnapshotRecoveryResponse)
 	if !ok {
 		return false
 	}

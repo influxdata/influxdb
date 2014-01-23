@@ -14,7 +14,7 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
-message ProtoAppendEntriesResponse {
+message AppendEntriesResponse {
 	required uint64 Term=1;
 	required uint64 Index=2;
 	required uint64 CommitIndex=3;

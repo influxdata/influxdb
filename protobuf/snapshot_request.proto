@@ -14,7 +14,7 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
-message ProtoSnapshotRequest {
+message SnapshotRequest {
 	required string LeaderName=1;
 	required uint64 LastIndex=2; 
 	required uint64 LastTerm=3;

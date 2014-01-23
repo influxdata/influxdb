@@ -15,13 +15,13 @@ type AppendEntriesRequest struct {
 	PrevLogTerm  uint64
 	CommitIndex  uint64
 	LeaderName   string
-	Entries      []*protobuf.ProtoLogEntry
+	Entries      []*protobuf.LogEntry
 }
 
 // Creates a new AppendEntries request.
 func newAppendEntriesRequest(term uint64, prevLogIndex uint64, prevLogTerm uint64,
 	commitIndex uint64, leaderName string, entries []*LogEntry) *AppendEntriesRequest {
-	pbEntries := make([]*protobuf.ProtoLogEntry, len(entries))
+	pbEntries := make([]*protobuf.LogEntry, len(entries))
 
 	for i := range entries {
 		pbEntries[i] = entries[i].pb
@@ -40,7 +40,7 @@ func newAppendEntriesRequest(term uint64, prevLogIndex uint64, prevLogTerm uint6
 // Encodes the AppendEntriesRequest to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (req *AppendEntriesRequest) Encode(w io.Writer) (int, error) {
-	pb := &protobuf.ProtoAppendEntriesRequest{
+	pb := &protobuf.AppendEntriesRequest{
 		Term:         proto.Uint64(req.Term),
 		PrevLogIndex: proto.Uint64(req.PrevLogIndex),
 		PrevLogTerm:  proto.Uint64(req.PrevLogTerm),
@@ -66,7 +66,7 @@ func (req *AppendEntriesRequest) Decode(r io.Reader) (int, error) {
 		return -1, err
 	}
 
-	pb := new(protobuf.ProtoAppendEntriesRequest)
+	pb := new(protobuf.AppendEntriesRequest)
 	if err := proto.Unmarshal(data, pb); err != nil {
 		return -1, err
 	}

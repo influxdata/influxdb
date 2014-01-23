@@ -12,7 +12,7 @@ import (
 
 // A log entry stores a single item in the log.
 type LogEntry struct {
-	pb       *protobuf.ProtoLogEntry
+	pb       *protobuf.LogEntry
 	Position int64 // position in the log file
 	log      *Log
 	event    *ev
@@ -33,7 +33,7 @@ func newLogEntry(log *Log, event *ev, index uint64, term uint64, command Command
 		}
 	}
 
-	pb := &protobuf.ProtoLogEntry{
+	pb := &protobuf.LogEntry{
 		Index:       proto.Uint64(index),
 		Term:        proto.Uint64(term),
 		CommandName: proto.String(commandName),

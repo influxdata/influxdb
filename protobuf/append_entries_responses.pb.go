@@ -32,7 +32,7 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type ProtoAppendEntriesResponse struct {
+type AppendEntriesResponse struct {
 	Term             *uint64 `protobuf:"varint,1,req" json:"Term,omitempty"`
 	Index            *uint64 `protobuf:"varint,2,req" json:"Index,omitempty"`
 	CommitIndex      *uint64 `protobuf:"varint,3,req" json:"CommitIndex,omitempty"`
@@ -40,31 +40,31 @@ type ProtoAppendEntriesResponse struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ProtoAppendEntriesResponse) Reset()      { *m = ProtoAppendEntriesResponse{} }
-func (*ProtoAppendEntriesResponse) ProtoMessage() {}
+func (m *AppendEntriesResponse) Reset()      { *m = AppendEntriesResponse{} }
+func (*AppendEntriesResponse) ProtoMessage() {}
 
-func (m *ProtoAppendEntriesResponse) GetTerm() uint64 {
+func (m *AppendEntriesResponse) GetTerm() uint64 {
 	if m != nil && m.Term != nil {
 		return *m.Term
 	}
 	return 0
 }
 
-func (m *ProtoAppendEntriesResponse) GetIndex() uint64 {
+func (m *AppendEntriesResponse) GetIndex() uint64 {
 	if m != nil && m.Index != nil {
 		return *m.Index
 	}
 	return 0
 }
 
-func (m *ProtoAppendEntriesResponse) GetCommitIndex() uint64 {
+func (m *AppendEntriesResponse) GetCommitIndex() uint64 {
 	if m != nil && m.CommitIndex != nil {
 		return *m.CommitIndex
 	}
 	return 0
 }
 
-func (m *ProtoAppendEntriesResponse) GetSuccess() bool {
+func (m *AppendEntriesResponse) GetSuccess() bool {
 	if m != nil && m.Success != nil {
 		return *m.Success
 	}
@@ -73,7 +73,7 @@ func (m *ProtoAppendEntriesResponse) GetSuccess() bool {
 
 func init() {
 }
-func (m *ProtoAppendEntriesResponse) Unmarshal(data []byte) error {
+func (m *AppendEntriesResponse) Unmarshal(data []byte) error {
 	l := len(data)
 	index := 0
 	for index < l {
@@ -181,11 +181,11 @@ func (m *ProtoAppendEntriesResponse) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (this *ProtoAppendEntriesResponse) String() string {
+func (this *AppendEntriesResponse) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings4.Join([]string{`&ProtoAppendEntriesResponse{`,
+	s := strings4.Join([]string{`&AppendEntriesResponse{`,
 		`Term:` + valueToStringAppendEntriesResponses(this.Term) + `,`,
 		`Index:` + valueToStringAppendEntriesResponses(this.Index) + `,`,
 		`CommitIndex:` + valueToStringAppendEntriesResponses(this.CommitIndex) + `,`,
@@ -203,7 +203,7 @@ func valueToStringAppendEntriesResponses(v interface{}) string {
 	pv := reflect4.Indirect(rv).Interface()
 	return fmt6.Sprintf("*%v", pv)
 }
-func (m *ProtoAppendEntriesResponse) Size() (n int) {
+func (m *AppendEntriesResponse) Size() (n int) {
 	var l int
 	_ = l
 	if m.Term != nil {
@@ -238,8 +238,8 @@ func sozAppendEntriesResponses(x uint64) (n int) {
 	return sovAppendEntriesResponses(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovAppendEntriesResponses(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func NewPopulatedProtoAppendEntriesResponse(r randyAppendEntriesResponses, easy bool) *ProtoAppendEntriesResponse {
-	this := &ProtoAppendEntriesResponse{}
+func NewPopulatedAppendEntriesResponse(r randyAppendEntriesResponses, easy bool) *AppendEntriesResponse {
+	this := &AppendEntriesResponse{}
 	v1 := uint64(r.Uint32())
 	this.Term = &v1
 	v2 := uint64(r.Uint32())
@@ -320,7 +320,7 @@ func encodeVarintPopulateAppendEntriesResponses(data []byte, v uint64) []byte {
 	data = append(data, uint8(v))
 	return data
 }
-func (m *ProtoAppendEntriesResponse) Marshal() (data []byte, err error) {
+func (m *AppendEntriesResponse) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -330,7 +330,7 @@ func (m *ProtoAppendEntriesResponse) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ProtoAppendEntriesResponse) MarshalTo(data []byte) (n int, err error) {
+func (m *AppendEntriesResponse) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -392,11 +392,11 @@ func encodeVarintAppendEntriesResponses(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	return offset + 1
 }
-func (this *ProtoAppendEntriesResponse) GoString() string {
+func (this *AppendEntriesResponse) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings5.Join([]string{`&protobuf.ProtoAppendEntriesResponse{` + `Term:` + valueToGoStringAppendEntriesResponses(this.Term, "uint64"), `Index:` + valueToGoStringAppendEntriesResponses(this.Index, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesResponses(this.CommitIndex, "uint64"), `Success:` + valueToGoStringAppendEntriesResponses(this.Success, "bool"), `XXX_unrecognized:` + fmt7.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings5.Join([]string{`&protobuf.AppendEntriesResponse{` + `Term:` + valueToGoStringAppendEntriesResponses(this.Term, "uint64"), `Index:` + valueToGoStringAppendEntriesResponses(this.Index, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesResponses(this.CommitIndex, "uint64"), `Success:` + valueToGoStringAppendEntriesResponses(this.Success, "bool"), `XXX_unrecognized:` + fmt7.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringAppendEntriesResponses(v interface{}, typ string) string {
@@ -424,7 +424,7 @@ func extensionToGoStringAppendEntriesResponses(e map[int32]code_google_com_p_gog
 	s += strings5.Join(ss, ",") + "}"
 	return s
 }
-func (this *ProtoAppendEntriesResponse) VerboseEqual(that interface{}) error {
+func (this *AppendEntriesResponse) VerboseEqual(that interface{}) error {
 	if that == nil {
 		if this == nil {
 			return nil
@@ -432,17 +432,17 @@ func (this *ProtoAppendEntriesResponse) VerboseEqual(that interface{}) error {
 		return fmt8.Errorf("that == nil && this != nil")
 	}
 
-	that1, ok := that.(*ProtoAppendEntriesResponse)
+	that1, ok := that.(*AppendEntriesResponse)
 	if !ok {
-		return fmt8.Errorf("that is not of type *ProtoAppendEntriesResponse")
+		return fmt8.Errorf("that is not of type *AppendEntriesResponse")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt8.Errorf("that is type *ProtoAppendEntriesResponse but is nil && this != nil")
+		return fmt8.Errorf("that is type *AppendEntriesResponse but is nil && this != nil")
 	} else if this == nil {
-		return fmt8.Errorf("that is type *ProtoAppendEntriesResponsebut is not nil && this == nil")
+		return fmt8.Errorf("that is type *AppendEntriesResponsebut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
@@ -485,7 +485,7 @@ func (this *ProtoAppendEntriesResponse) VerboseEqual(that interface{}) error {
 	}
 	return nil
 }
-func (this *ProtoAppendEntriesResponse) Equal(that interface{}) bool {
+func (this *AppendEntriesResponse) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -493,7 +493,7 @@ func (this *ProtoAppendEntriesResponse) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*ProtoAppendEntriesResponse)
+	that1, ok := that.(*AppendEntriesResponse)
 	if !ok {
 		return false
 	}

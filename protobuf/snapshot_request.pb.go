@@ -32,31 +32,31 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type ProtoSnapshotRequest struct {
+type SnapshotRequest struct {
 	LeaderName       *string `protobuf:"bytes,1,req" json:"LeaderName,omitempty"`
 	LastIndex        *uint64 `protobuf:"varint,2,req" json:"LastIndex,omitempty"`
 	LastTerm         *uint64 `protobuf:"varint,3,req" json:"LastTerm,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ProtoSnapshotRequest) Reset()      { *m = ProtoSnapshotRequest{} }
-func (*ProtoSnapshotRequest) ProtoMessage() {}
+func (m *SnapshotRequest) Reset()      { *m = SnapshotRequest{} }
+func (*SnapshotRequest) ProtoMessage() {}
 
-func (m *ProtoSnapshotRequest) GetLeaderName() string {
+func (m *SnapshotRequest) GetLeaderName() string {
 	if m != nil && m.LeaderName != nil {
 		return *m.LeaderName
 	}
 	return ""
 }
 
-func (m *ProtoSnapshotRequest) GetLastIndex() uint64 {
+func (m *SnapshotRequest) GetLastIndex() uint64 {
 	if m != nil && m.LastIndex != nil {
 		return *m.LastIndex
 	}
 	return 0
 }
 
-func (m *ProtoSnapshotRequest) GetLastTerm() uint64 {
+func (m *SnapshotRequest) GetLastTerm() uint64 {
 	if m != nil && m.LastTerm != nil {
 		return *m.LastTerm
 	}
@@ -65,7 +65,7 @@ func (m *ProtoSnapshotRequest) GetLastTerm() uint64 {
 
 func init() {
 }
-func (m *ProtoSnapshotRequest) Unmarshal(data []byte) error {
+func (m *SnapshotRequest) Unmarshal(data []byte) error {
 	l := len(data)
 	index := 0
 	for index < l {
@@ -161,11 +161,11 @@ func (m *ProtoSnapshotRequest) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (this *ProtoSnapshotRequest) String() string {
+func (this *SnapshotRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings14.Join([]string{`&ProtoSnapshotRequest{`,
+	s := strings14.Join([]string{`&SnapshotRequest{`,
 		`LeaderName:` + valueToStringSnapshotRequest(this.LeaderName) + `,`,
 		`LastIndex:` + valueToStringSnapshotRequest(this.LastIndex) + `,`,
 		`LastTerm:` + valueToStringSnapshotRequest(this.LastTerm) + `,`,
@@ -182,7 +182,7 @@ func valueToStringSnapshotRequest(v interface{}) string {
 	pv := reflect14.Indirect(rv).Interface()
 	return fmt21.Sprintf("*%v", pv)
 }
-func (m *ProtoSnapshotRequest) Size() (n int) {
+func (m *SnapshotRequest) Size() (n int) {
 	var l int
 	_ = l
 	if m.LeaderName != nil {
@@ -215,8 +215,8 @@ func sozSnapshotRequest(x uint64) (n int) {
 	return sovSnapshotRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovSnapshotRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func NewPopulatedProtoSnapshotRequest(r randySnapshotRequest, easy bool) *ProtoSnapshotRequest {
-	this := &ProtoSnapshotRequest{}
+func NewPopulatedSnapshotRequest(r randySnapshotRequest, easy bool) *SnapshotRequest {
+	this := &SnapshotRequest{}
 	v1 := randStringSnapshotRequest(r)
 	this.LeaderName = &v1
 	v2 := uint64(r.Uint32())
@@ -295,7 +295,7 @@ func encodeVarintPopulateSnapshotRequest(data []byte, v uint64) []byte {
 	data = append(data, uint8(v))
 	return data
 }
-func (m *ProtoSnapshotRequest) Marshal() (data []byte, err error) {
+func (m *SnapshotRequest) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -305,7 +305,7 @@ func (m *ProtoSnapshotRequest) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ProtoSnapshotRequest) MarshalTo(data []byte) (n int, err error) {
+func (m *SnapshotRequest) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -358,11 +358,11 @@ func encodeVarintSnapshotRequest(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	return offset + 1
 }
-func (this *ProtoSnapshotRequest) GoString() string {
+func (this *SnapshotRequest) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings15.Join([]string{`&protobuf.ProtoSnapshotRequest{` + `LeaderName:` + valueToGoStringSnapshotRequest(this.LeaderName, "string"), `LastIndex:` + valueToGoStringSnapshotRequest(this.LastIndex, "uint64"), `LastTerm:` + valueToGoStringSnapshotRequest(this.LastTerm, "uint64"), `XXX_unrecognized:` + fmt22.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings15.Join([]string{`&protobuf.SnapshotRequest{` + `LeaderName:` + valueToGoStringSnapshotRequest(this.LeaderName, "string"), `LastIndex:` + valueToGoStringSnapshotRequest(this.LastIndex, "uint64"), `LastTerm:` + valueToGoStringSnapshotRequest(this.LastTerm, "uint64"), `XXX_unrecognized:` + fmt22.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringSnapshotRequest(v interface{}, typ string) string {
@@ -390,7 +390,7 @@ func extensionToGoStringSnapshotRequest(e map[int32]code_google_com_p_gogoprotob
 	s += strings15.Join(ss, ",") + "}"
 	return s
 }
-func (this *ProtoSnapshotRequest) VerboseEqual(that interface{}) error {
+func (this *SnapshotRequest) VerboseEqual(that interface{}) error {
 	if that == nil {
 		if this == nil {
 			return nil
@@ -398,17 +398,17 @@ func (this *ProtoSnapshotRequest) VerboseEqual(that interface{}) error {
 		return fmt23.Errorf("that == nil && this != nil")
 	}
 
-	that1, ok := that.(*ProtoSnapshotRequest)
+	that1, ok := that.(*SnapshotRequest)
 	if !ok {
-		return fmt23.Errorf("that is not of type *ProtoSnapshotRequest")
+		return fmt23.Errorf("that is not of type *SnapshotRequest")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt23.Errorf("that is type *ProtoSnapshotRequest but is nil && this != nil")
+		return fmt23.Errorf("that is type *SnapshotRequest but is nil && this != nil")
 	} else if this == nil {
-		return fmt23.Errorf("that is type *ProtoSnapshotRequestbut is not nil && this == nil")
+		return fmt23.Errorf("that is type *SnapshotRequestbut is not nil && this == nil")
 	}
 	if this.LeaderName != nil && that1.LeaderName != nil {
 		if *this.LeaderName != *that1.LeaderName {
@@ -442,7 +442,7 @@ func (this *ProtoSnapshotRequest) VerboseEqual(that interface{}) error {
 	}
 	return nil
 }
-func (this *ProtoSnapshotRequest) Equal(that interface{}) bool {
+func (this *SnapshotRequest) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -450,7 +450,7 @@ func (this *ProtoSnapshotRequest) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*ProtoSnapshotRequest)
+	that1, ok := that.(*SnapshotRequest)
 	if !ok {
 		return false
 	}

@@ -32,72 +32,70 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type ProtoSnapshotRecoveryRequest struct {
-	LeaderName       *string                                   `protobuf:"bytes,1,req" json:"LeaderName,omitempty"`
-	LastIndex        *uint64                                   `protobuf:"varint,2,req" json:"LastIndex,omitempty"`
-	LastTerm         *uint64                                   `protobuf:"varint,3,req" json:"LastTerm,omitempty"`
-	Peers            []*ProtoSnapshotRecoveryRequest_ProtoPeer `protobuf:"bytes,4,rep" json:"Peers,omitempty"`
-	State            []byte                                    `protobuf:"bytes,5,req" json:"State,omitempty"`
-	XXX_unrecognized []byte                                    `json:"-"`
+type SnapshotRecoveryRequest struct {
+	LeaderName       *string                         `protobuf:"bytes,1,req" json:"LeaderName,omitempty"`
+	LastIndex        *uint64                         `protobuf:"varint,2,req" json:"LastIndex,omitempty"`
+	LastTerm         *uint64                         `protobuf:"varint,3,req" json:"LastTerm,omitempty"`
+	Peers            []*SnapshotRecoveryRequest_Peer `protobuf:"bytes,4,rep" json:"Peers,omitempty"`
+	State            []byte                          `protobuf:"bytes,5,req" json:"State,omitempty"`
+	XXX_unrecognized []byte                          `json:"-"`
 }
 
-func (m *ProtoSnapshotRecoveryRequest) Reset()      { *m = ProtoSnapshotRecoveryRequest{} }
-func (*ProtoSnapshotRecoveryRequest) ProtoMessage() {}
+func (m *SnapshotRecoveryRequest) Reset()      { *m = SnapshotRecoveryRequest{} }
+func (*SnapshotRecoveryRequest) ProtoMessage() {}
 
-func (m *ProtoSnapshotRecoveryRequest) GetLeaderName() string {
+func (m *SnapshotRecoveryRequest) GetLeaderName() string {
 	if m != nil && m.LeaderName != nil {
 		return *m.LeaderName
 	}
 	return ""
 }
 
-func (m *ProtoSnapshotRecoveryRequest) GetLastIndex() uint64 {
+func (m *SnapshotRecoveryRequest) GetLastIndex() uint64 {
 	if m != nil && m.LastIndex != nil {
 		return *m.LastIndex
 	}
 	return 0
 }
 
-func (m *ProtoSnapshotRecoveryRequest) GetLastTerm() uint64 {
+func (m *SnapshotRecoveryRequest) GetLastTerm() uint64 {
 	if m != nil && m.LastTerm != nil {
 		return *m.LastTerm
 	}
 	return 0
 }
 
-func (m *ProtoSnapshotRecoveryRequest) GetPeers() []*ProtoSnapshotRecoveryRequest_ProtoPeer {
+func (m *SnapshotRecoveryRequest) GetPeers() []*SnapshotRecoveryRequest_Peer {
 	if m != nil {
 		return m.Peers
 	}
 	return nil
 }
 
-func (m *ProtoSnapshotRecoveryRequest) GetState() []byte {
+func (m *SnapshotRecoveryRequest) GetState() []byte {
 	if m != nil {
 		return m.State
 	}
 	return nil
 }
 
-type ProtoSnapshotRecoveryRequest_ProtoPeer struct {
+type SnapshotRecoveryRequest_Peer struct {
 	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
 	ConnectionString *string `protobuf:"bytes,2,req" json:"ConnectionString,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) Reset() {
-	*m = ProtoSnapshotRecoveryRequest_ProtoPeer{}
-}
-func (*ProtoSnapshotRecoveryRequest_ProtoPeer) ProtoMessage() {}
+func (m *SnapshotRecoveryRequest_Peer) Reset()      { *m = SnapshotRecoveryRequest_Peer{} }
+func (*SnapshotRecoveryRequest_Peer) ProtoMessage() {}
 
-func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) GetName() string {
+func (m *SnapshotRecoveryRequest_Peer) GetName() string {
 	if m != nil && m.Name != nil {
 		return *m.Name
 	}
 	return ""
 }
 
-func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) GetConnectionString() string {
+func (m *SnapshotRecoveryRequest_Peer) GetConnectionString() string {
 	if m != nil && m.ConnectionString != nil {
 		return *m.ConnectionString
 	}
@@ -106,7 +104,7 @@ func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) GetConnectionString() string {
 
 func init() {
 }
-func (m *ProtoSnapshotRecoveryRequest) Unmarshal(data []byte) error {
+func (m *SnapshotRecoveryRequest) Unmarshal(data []byte) error {
 	l := len(data)
 	index := 0
 	for index < l {
@@ -202,7 +200,7 @@ func (m *ProtoSnapshotRecoveryRequest) Unmarshal(data []byte) error {
 			if postIndex > l {
 				return io5.ErrUnexpectedEOF
 			}
-			m.Peers = append(m.Peers, &ProtoSnapshotRecoveryRequest_ProtoPeer{})
+			m.Peers = append(m.Peers, &SnapshotRecoveryRequest_Peer{})
 			m.Peers[len(m.Peers)-1].Unmarshal(data[index:postIndex])
 			index = postIndex
 		case 5:
@@ -247,7 +245,7 @@ func (m *ProtoSnapshotRecoveryRequest) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) Unmarshal(data []byte) error {
+func (m *SnapshotRecoveryRequest_Peer) Unmarshal(data []byte) error {
 	l := len(data)
 	index := 0
 	for index < l {
@@ -332,26 +330,26 @@ func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (this *ProtoSnapshotRecoveryRequest) String() string {
+func (this *SnapshotRecoveryRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings10.Join([]string{`&ProtoSnapshotRecoveryRequest{`,
+	s := strings10.Join([]string{`&SnapshotRecoveryRequest{`,
 		`LeaderName:` + valueToStringSnapshotRecoveryRequest(this.LeaderName) + `,`,
 		`LastIndex:` + valueToStringSnapshotRecoveryRequest(this.LastIndex) + `,`,
 		`LastTerm:` + valueToStringSnapshotRecoveryRequest(this.LastTerm) + `,`,
-		`Peers:` + strings10.Replace(fmt15.Sprintf("%v", this.Peers), "ProtoSnapshotRecoveryRequest_ProtoPeer", "ProtoSnapshotRecoveryRequest_ProtoPeer", 1) + `,`,
+		`Peers:` + strings10.Replace(fmt15.Sprintf("%v", this.Peers), "SnapshotRecoveryRequest_Peer", "SnapshotRecoveryRequest_Peer", 1) + `,`,
 		`State:` + valueToStringSnapshotRecoveryRequest(this.State) + `,`,
 		`XXX_unrecognized:` + fmt15.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
 }
-func (this *ProtoSnapshotRecoveryRequest_ProtoPeer) String() string {
+func (this *SnapshotRecoveryRequest_Peer) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings10.Join([]string{`&ProtoSnapshotRecoveryRequest_ProtoPeer{`,
+	s := strings10.Join([]string{`&SnapshotRecoveryRequest_Peer{`,
 		`Name:` + valueToStringSnapshotRecoveryRequest(this.Name) + `,`,
 		`ConnectionString:` + valueToStringSnapshotRecoveryRequest(this.ConnectionString) + `,`,
 		`XXX_unrecognized:` + fmt15.Sprintf("%v", this.XXX_unrecognized) + `,`,
@@ -367,7 +365,7 @@ func valueToStringSnapshotRecoveryRequest(v interface{}) string {
 	pv := reflect10.Indirect(rv).Interface()
 	return fmt15.Sprintf("*%v", pv)
 }
-func (m *ProtoSnapshotRecoveryRequest) Size() (n int) {
+func (m *SnapshotRecoveryRequest) Size() (n int) {
 	var l int
 	_ = l
 	if m.LeaderName != nil {
@@ -395,7 +393,7 @@ func (m *ProtoSnapshotRecoveryRequest) Size() (n int) {
 	}
 	return n
 }
-func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) Size() (n int) {
+func (m *SnapshotRecoveryRequest_Peer) Size() (n int) {
 	var l int
 	_ = l
 	if m.Name != nil {
@@ -426,8 +424,8 @@ func sozSnapshotRecoveryRequest(x uint64) (n int) {
 	return sovSnapshotRecoveryRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovSnapshotRecoveryRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func NewPopulatedProtoSnapshotRecoveryRequest(r randySnapshotRecoveryRequest, easy bool) *ProtoSnapshotRecoveryRequest {
-	this := &ProtoSnapshotRecoveryRequest{}
+func NewPopulatedSnapshotRecoveryRequest(r randySnapshotRecoveryRequest, easy bool) *SnapshotRecoveryRequest {
+	this := &SnapshotRecoveryRequest{}
 	v1 := randStringSnapshotRecoveryRequest(r)
 	this.LeaderName = &v1
 	v2 := uint64(r.Uint32())
@@ -436,9 +434,9 @@ func NewPopulatedProtoSnapshotRecoveryRequest(r randySnapshotRecoveryRequest, ea
 	this.LastTerm = &v3
 	if r.Intn(10) != 0 {
 		v4 := r.Intn(10)
-		this.Peers = make([]*ProtoSnapshotRecoveryRequest_ProtoPeer, v4)
+		this.Peers = make([]*SnapshotRecoveryRequest_Peer, v4)
 		for i := 0; i < v4; i++ {
-			this.Peers[i] = NewPopulatedProtoSnapshotRecoveryRequest_ProtoPeer(r, easy)
+			this.Peers[i] = NewPopulatedSnapshotRecoveryRequest_Peer(r, easy)
 		}
 	}
 	v5 := r.Intn(100)
@@ -452,8 +450,8 @@ func NewPopulatedProtoSnapshotRecoveryRequest(r randySnapshotRecoveryRequest, ea
 	return this
 }
 
-func NewPopulatedProtoSnapshotRecoveryRequest_ProtoPeer(r randySnapshotRecoveryRequest, easy bool) *ProtoSnapshotRecoveryRequest_ProtoPeer {
-	this := &ProtoSnapshotRecoveryRequest_ProtoPeer{}
+func NewPopulatedSnapshotRecoveryRequest_Peer(r randySnapshotRecoveryRequest, easy bool) *SnapshotRecoveryRequest_Peer {
+	this := &SnapshotRecoveryRequest_Peer{}
 	v6 := randStringSnapshotRecoveryRequest(r)
 	this.Name = &v6
 	v7 := randStringSnapshotRecoveryRequest(r)
@@ -530,7 +528,7 @@ func encodeVarintPopulateSnapshotRecoveryRequest(data []byte, v uint64) []byte {
 	data = append(data, uint8(v))
 	return data
 }
-func (m *ProtoSnapshotRecoveryRequest) Marshal() (data []byte, err error) {
+func (m *SnapshotRecoveryRequest) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -540,7 +538,7 @@ func (m *ProtoSnapshotRecoveryRequest) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ProtoSnapshotRecoveryRequest) MarshalTo(data []byte) (n int, err error) {
+func (m *SnapshotRecoveryRequest) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -584,7 +582,7 @@ func (m *ProtoSnapshotRecoveryRequest) MarshalTo(data []byte) (n int, err error)
 	}
 	return i, nil
 }
-func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) Marshal() (data []byte, err error) {
+func (m *SnapshotRecoveryRequest_Peer) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -594,7 +592,7 @@ func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) Marshal() (data []byte, err err
 	return data[:n], nil
 }
 
-func (m *ProtoSnapshotRecoveryRequest_ProtoPeer) MarshalTo(data []byte) (n int, err error) {
+func (m *SnapshotRecoveryRequest_Peer) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -643,18 +641,18 @@ func encodeVarintSnapshotRecoveryRequest(data []byte, offset int, v uint64) int 
 	data[offset] = uint8(v)
 	return offset + 1
 }
-func (this *ProtoSnapshotRecoveryRequest) GoString() string {
+func (this *SnapshotRecoveryRequest) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings11.Join([]string{`&protobuf.ProtoSnapshotRecoveryRequest{` + `LeaderName:` + valueToGoStringSnapshotRecoveryRequest(this.LeaderName, "string"), `LastIndex:` + valueToGoStringSnapshotRecoveryRequest(this.LastIndex, "uint64"), `LastTerm:` + valueToGoStringSnapshotRecoveryRequest(this.LastTerm, "uint64"), `Peers:` + fmt16.Sprintf("%#v", this.Peers), `State:` + valueToGoStringSnapshotRecoveryRequest(this.State, "byte"), `XXX_unrecognized:` + fmt16.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings11.Join([]string{`&protobuf.SnapshotRecoveryRequest{` + `LeaderName:` + valueToGoStringSnapshotRecoveryRequest(this.LeaderName, "string"), `LastIndex:` + valueToGoStringSnapshotRecoveryRequest(this.LastIndex, "uint64"), `LastTerm:` + valueToGoStringSnapshotRecoveryRequest(this.LastTerm, "uint64"), `Peers:` + fmt16.Sprintf("%#v", this.Peers), `State:` + valueToGoStringSnapshotRecoveryRequest(this.State, "byte"), `XXX_unrecognized:` + fmt16.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
-func (this *ProtoSnapshotRecoveryRequest_ProtoPeer) GoString() string {
+func (this *SnapshotRecoveryRequest_Peer) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings11.Join([]string{`&protobuf.ProtoSnapshotRecoveryRequest_ProtoPeer{` + `Name:` + valueToGoStringSnapshotRecoveryRequest(this.Name, "string"), `ConnectionString:` + valueToGoStringSnapshotRecoveryRequest(this.ConnectionString, "string"), `XXX_unrecognized:` + fmt16.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings11.Join([]string{`&protobuf.SnapshotRecoveryRequest_Peer{` + `Name:` + valueToGoStringSnapshotRecoveryRequest(this.Name, "string"), `ConnectionString:` + valueToGoStringSnapshotRecoveryRequest(this.ConnectionString, "string"), `XXX_unrecognized:` + fmt16.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringSnapshotRecoveryRequest(v interface{}, typ string) string {
@@ -682,7 +680,7 @@ func extensionToGoStringSnapshotRecoveryRequest(e map[int32]code_google_com_p_go
 	s += strings11.Join(ss, ",") + "}"
 	return s
 }
-func (this *ProtoSnapshotRecoveryRequest) VerboseEqual(that interface{}) error {
+func (this *SnapshotRecoveryRequest) VerboseEqual(that interface{}) error {
 	if that == nil {
 		if this == nil {
 			return nil
@@ -690,17 +688,17 @@ func (this *ProtoSnapshotRecoveryRequest) VerboseEqual(that interface{}) error {
 		return fmt17.Errorf("that == nil && this != nil")
 	}
 
-	that1, ok := that.(*ProtoSnapshotRecoveryRequest)
+	that1, ok := that.(*SnapshotRecoveryRequest)
 	if !ok {
-		return fmt17.Errorf("that is not of type *ProtoSnapshotRecoveryRequest")
+		return fmt17.Errorf("that is not of type *SnapshotRecoveryRequest")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt17.Errorf("that is type *ProtoSnapshotRecoveryRequest but is nil && this != nil")
+		return fmt17.Errorf("that is type *SnapshotRecoveryRequest but is nil && this != nil")
 	} else if this == nil {
-		return fmt17.Errorf("that is type *ProtoSnapshotRecoveryRequestbut is not nil && this == nil")
+		return fmt17.Errorf("that is type *SnapshotRecoveryRequestbut is not nil && this == nil")
 	}
 	if this.LeaderName != nil && that1.LeaderName != nil {
 		if *this.LeaderName != *that1.LeaderName {
@@ -745,7 +743,7 @@ func (this *ProtoSnapshotRecoveryRequest) VerboseEqual(that interface{}) error {
 	}
 	return nil
 }
-func (this *ProtoSnapshotRecoveryRequest) Equal(that interface{}) bool {
+func (this *SnapshotRecoveryRequest) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -753,7 +751,7 @@ func (this *ProtoSnapshotRecoveryRequest) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*ProtoSnapshotRecoveryRequest)
+	that1, ok := that.(*SnapshotRecoveryRequest)
 	if !ok {
 		return false
 	}
@@ -808,7 +806,7 @@ func (this *ProtoSnapshotRecoveryRequest) Equal(that interface{}) bool {
 	}
 	return true
 }
-func (this *ProtoSnapshotRecoveryRequest_ProtoPeer) VerboseEqual(that interface{}) error {
+func (this *SnapshotRecoveryRequest_Peer) VerboseEqual(that interface{}) error {
 	if that == nil {
 		if this == nil {
 			return nil
@@ -816,17 +814,17 @@ func (this *ProtoSnapshotRecoveryRequest_ProtoPeer) VerboseEqual(that interface{
 		return fmt17.Errorf("that == nil && this != nil")
 	}
 
-	that1, ok := that.(*ProtoSnapshotRecoveryRequest_ProtoPeer)
+	that1, ok := that.(*SnapshotRecoveryRequest_Peer)
 	if !ok {
-		return fmt17.Errorf("that is not of type *ProtoSnapshotRecoveryRequest_ProtoPeer")
+		return fmt17.Errorf("that is not of type *SnapshotRecoveryRequest_Peer")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt17.Errorf("that is type *ProtoSnapshotRecoveryRequest_ProtoPeer but is nil && this != nil")
+		return fmt17.Errorf("that is type *SnapshotRecoveryRequest_Peer but is nil && this != nil")
 	} else if this == nil {
-		return fmt17.Errorf("that is type *ProtoSnapshotRecoveryRequest_ProtoPeerbut is not nil && this == nil")
+		return fmt17.Errorf("that is type *SnapshotRecoveryRequest_Peerbut is not nil && this == nil")
 	}
 	if this.Name != nil && that1.Name != nil {
 		if *this.Name != *that1.Name {
@@ -851,7 +849,7 @@ func (this *ProtoSnapshotRecoveryRequest_ProtoPeer) VerboseEqual(that interface{
 	}
 	return nil
 }
-func (this *ProtoSnapshotRecoveryRequest_ProtoPeer) Equal(that interface{}) bool {
+func (this *SnapshotRecoveryRequest_Peer) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -859,7 +857,7 @@ func (this *ProtoSnapshotRecoveryRequest_ProtoPeer) Equal(that interface{}) bool
 		return false
 	}
 
-	that1, ok := that.(*ProtoSnapshotRecoveryRequest_ProtoPeer)
+	that1, ok := that.(*SnapshotRecoveryRequest_Peer)
 	if !ok {
 		return false
 	}

@@ -32,7 +32,7 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type ProtoLogEntry struct {
+type LogEntry struct {
 	Index            *uint64 `protobuf:"varint,1,req" json:"Index,omitempty"`
 	Term             *uint64 `protobuf:"varint,2,req" json:"Term,omitempty"`
 	CommandName      *string `protobuf:"bytes,3,req" json:"CommandName,omitempty"`
@@ -40,31 +40,31 @@ type ProtoLogEntry struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ProtoLogEntry) Reset()      { *m = ProtoLogEntry{} }
-func (*ProtoLogEntry) ProtoMessage() {}
+func (m *LogEntry) Reset()      { *m = LogEntry{} }
+func (*LogEntry) ProtoMessage() {}
 
-func (m *ProtoLogEntry) GetIndex() uint64 {
+func (m *LogEntry) GetIndex() uint64 {
 	if m != nil && m.Index != nil {
 		return *m.Index
 	}
 	return 0
 }
 
-func (m *ProtoLogEntry) GetTerm() uint64 {
+func (m *LogEntry) GetTerm() uint64 {
 	if m != nil && m.Term != nil {
 		return *m.Term
 	}
 	return 0
 }
 
-func (m *ProtoLogEntry) GetCommandName() string {
+func (m *LogEntry) GetCommandName() string {
 	if m != nil && m.CommandName != nil {
 		return *m.CommandName
 	}
 	return ""
 }
 
-func (m *ProtoLogEntry) GetCommand() []byte {
+func (m *LogEntry) GetCommand() []byte {
 	if m != nil {
 		return m.Command
 	}
@@ -73,7 +73,7 @@ func (m *ProtoLogEntry) GetCommand() []byte {
 
 func init() {
 }
-func (m *ProtoLogEntry) Unmarshal(data []byte) error {
+func (m *LogEntry) Unmarshal(data []byte) error {
 	l := len(data)
 	index := 0
 	for index < l {
@@ -191,11 +191,11 @@ func (m *ProtoLogEntry) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (this *ProtoLogEntry) String() string {
+func (this *LogEntry) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&ProtoLogEntry{`,
+	s := strings.Join([]string{`&LogEntry{`,
 		`Index:` + valueToStringLogEntry(this.Index) + `,`,
 		`Term:` + valueToStringLogEntry(this.Term) + `,`,
 		`CommandName:` + valueToStringLogEntry(this.CommandName) + `,`,
@@ -213,7 +213,7 @@ func valueToStringLogEntry(v interface{}) string {
 	pv := reflect.Indirect(rv).Interface()
 	return fmt.Sprintf("*%v", pv)
 }
-func (m *ProtoLogEntry) Size() (n int) {
+func (m *LogEntry) Size() (n int) {
 	var l int
 	_ = l
 	if m.Index != nil {
@@ -250,8 +250,8 @@ func sozLogEntry(x uint64) (n int) {
 	return sovLogEntry(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovLogEntry(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func NewPopulatedProtoLogEntry(r randyLogEntry, easy bool) *ProtoLogEntry {
-	this := &ProtoLogEntry{}
+func NewPopulatedLogEntry(r randyLogEntry, easy bool) *LogEntry {
+	this := &LogEntry{}
 	v1 := uint64(r.Uint32())
 	this.Index = &v1
 	v2 := uint64(r.Uint32())
@@ -337,7 +337,7 @@ func encodeVarintPopulateLogEntry(data []byte, v uint64) []byte {
 	data = append(data, uint8(v))
 	return data
 }
-func (m *ProtoLogEntry) Marshal() (data []byte, err error) {
+func (m *LogEntry) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -347,7 +347,7 @@ func (m *ProtoLogEntry) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ProtoLogEntry) MarshalTo(data []byte) (n int, err error) {
+func (m *LogEntry) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -406,11 +406,11 @@ func encodeVarintLogEntry(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	return offset + 1
 }
-func (this *ProtoLogEntry) GoString() string {
+func (this *LogEntry) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings1.Join([]string{`&protobuf.ProtoLogEntry{` + `Index:` + valueToGoStringLogEntry(this.Index, "uint64"), `Term:` + valueToGoStringLogEntry(this.Term, "uint64"), `CommandName:` + valueToGoStringLogEntry(this.CommandName, "string"), `Command:` + valueToGoStringLogEntry(this.Command, "byte"), `XXX_unrecognized:` + fmt1.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings1.Join([]string{`&protobuf.LogEntry{` + `Index:` + valueToGoStringLogEntry(this.Index, "uint64"), `Term:` + valueToGoStringLogEntry(this.Term, "uint64"), `CommandName:` + valueToGoStringLogEntry(this.CommandName, "string"), `Command:` + valueToGoStringLogEntry(this.Command, "byte"), `XXX_unrecognized:` + fmt1.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringLogEntry(v interface{}, typ string) string {
@@ -438,7 +438,7 @@ func extensionToGoStringLogEntry(e map[int32]code_google_com_p_gogoprotobuf_prot
 	s += strings1.Join(ss, ",") + "}"
 	return s
 }
-func (this *ProtoLogEntry) VerboseEqual(that interface{}) error {
+func (this *LogEntry) VerboseEqual(that interface{}) error {
 	if that == nil {
 		if this == nil {
 			return nil
@@ -446,17 +446,17 @@ func (this *ProtoLogEntry) VerboseEqual(that interface{}) error {
 		return fmt2.Errorf("that == nil && this != nil")
 	}
 
-	that1, ok := that.(*ProtoLogEntry)
+	that1, ok := that.(*LogEntry)
 	if !ok {
-		return fmt2.Errorf("that is not of type *ProtoLogEntry")
+		return fmt2.Errorf("that is not of type *LogEntry")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt2.Errorf("that is type *ProtoLogEntry but is nil && this != nil")
+		return fmt2.Errorf("that is type *LogEntry but is nil && this != nil")
 	} else if this == nil {
-		return fmt2.Errorf("that is type *ProtoLogEntrybut is not nil && this == nil")
+		return fmt2.Errorf("that is type *LogEntrybut is not nil && this == nil")
 	}
 	if this.Index != nil && that1.Index != nil {
 		if *this.Index != *that1.Index {
@@ -493,7 +493,7 @@ func (this *ProtoLogEntry) VerboseEqual(that interface{}) error {
 	}
 	return nil
 }
-func (this *ProtoLogEntry) Equal(that interface{}) bool {
+func (this *LogEntry) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -501,7 +501,7 @@ func (this *ProtoLogEntry) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*ProtoLogEntry)
+	that1, ok := that.(*LogEntry)
 	if !ok {
 		return false
 	}

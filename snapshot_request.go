@@ -33,7 +33,7 @@ func newSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest 
 // Encodes the SnapshotRequest to a buffer. Returns the number of bytes
 // written and any error that may have occurred.
 func (req *SnapshotRequest) Encode(w io.Writer) (int, error) {
-	pb := &protobuf.ProtoSnapshotRequest{
+	pb := &protobuf.SnapshotRequest{
 		LeaderName: proto.String(req.LeaderName),
 		LastIndex:  proto.Uint64(req.LastIndex),
 		LastTerm:   proto.Uint64(req.LastTerm),
@@ -57,7 +57,7 @@ func (req *SnapshotRequest) Decode(r io.Reader) (int, error) {
 
 	totalBytes := len(data)
 
-	pb := &protobuf.ProtoSnapshotRequest{}
+	pb := &protobuf.SnapshotRequest{}
 
 	if err := proto.Unmarshal(data, pb); err != nil {
 		return -1, err

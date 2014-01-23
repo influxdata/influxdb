@@ -32,15 +32,15 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type ProtoSnapshotResponse struct {
+type SnapshotResponse struct {
 	Success          *bool  `protobuf:"varint,1,req" json:"Success,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
-func (m *ProtoSnapshotResponse) Reset()      { *m = ProtoSnapshotResponse{} }
-func (*ProtoSnapshotResponse) ProtoMessage() {}
+func (m *SnapshotResponse) Reset()      { *m = SnapshotResponse{} }
+func (*SnapshotResponse) ProtoMessage() {}
 
-func (m *ProtoSnapshotResponse) GetSuccess() bool {
+func (m *SnapshotResponse) GetSuccess() bool {
 	if m != nil && m.Success != nil {
 		return *m.Success
 	}
@@ -49,7 +49,7 @@ func (m *ProtoSnapshotResponse) GetSuccess() bool {
 
 func init() {
 }
-func (m *ProtoSnapshotResponse) Unmarshal(data []byte) error {
+func (m *SnapshotResponse) Unmarshal(data []byte) error {
 	l := len(data)
 	index := 0
 	for index < l {
@@ -106,11 +106,11 @@ func (m *ProtoSnapshotResponse) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (this *ProtoSnapshotResponse) String() string {
+func (this *SnapshotResponse) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings16.Join([]string{`&ProtoSnapshotResponse{`,
+	s := strings16.Join([]string{`&SnapshotResponse{`,
 		`Success:` + valueToStringSnapshotResponse(this.Success) + `,`,
 		`XXX_unrecognized:` + fmt24.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
@@ -125,7 +125,7 @@ func valueToStringSnapshotResponse(v interface{}) string {
 	pv := reflect16.Indirect(rv).Interface()
 	return fmt24.Sprintf("*%v", pv)
 }
-func (m *ProtoSnapshotResponse) Size() (n int) {
+func (m *SnapshotResponse) Size() (n int) {
 	var l int
 	_ = l
 	if m.Success != nil {
@@ -151,8 +151,8 @@ func sozSnapshotResponse(x uint64) (n int) {
 	return sovSnapshotResponse(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovSnapshotResponse(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func NewPopulatedProtoSnapshotResponse(r randySnapshotResponse, easy bool) *ProtoSnapshotResponse {
-	this := &ProtoSnapshotResponse{}
+func NewPopulatedSnapshotResponse(r randySnapshotResponse, easy bool) *SnapshotResponse {
+	this := &SnapshotResponse{}
 	v1 := bool(r.Intn(2) == 0)
 	this.Success = &v1
 	if !easy && r.Intn(10) != 0 {
@@ -227,7 +227,7 @@ func encodeVarintPopulateSnapshotResponse(data []byte, v uint64) []byte {
 	data = append(data, uint8(v))
 	return data
 }
-func (m *ProtoSnapshotResponse) Marshal() (data []byte, err error) {
+func (m *SnapshotResponse) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -237,7 +237,7 @@ func (m *ProtoSnapshotResponse) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ProtoSnapshotResponse) MarshalTo(data []byte) (n int, err error) {
+func (m *SnapshotResponse) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -284,11 +284,11 @@ func encodeVarintSnapshotResponse(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	return offset + 1
 }
-func (this *ProtoSnapshotResponse) GoString() string {
+func (this *SnapshotResponse) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings17.Join([]string{`&protobuf.ProtoSnapshotResponse{` + `Success:` + valueToGoStringSnapshotResponse(this.Success, "bool"), `XXX_unrecognized:` + fmt25.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings17.Join([]string{`&protobuf.SnapshotResponse{` + `Success:` + valueToGoStringSnapshotResponse(this.Success, "bool"), `XXX_unrecognized:` + fmt25.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringSnapshotResponse(v interface{}, typ string) string {
@@ -316,7 +316,7 @@ func extensionToGoStringSnapshotResponse(e map[int32]code_google_com_p_gogoproto
 	s += strings17.Join(ss, ",") + "}"
 	return s
 }
-func (this *ProtoSnapshotResponse) VerboseEqual(that interface{}) error {
+func (this *SnapshotResponse) VerboseEqual(that interface{}) error {
 	if that == nil {
 		if this == nil {
 			return nil
@@ -324,17 +324,17 @@ func (this *ProtoSnapshotResponse) VerboseEqual(that interface{}) error {
 		return fmt26.Errorf("that == nil && this != nil")
 	}
 
-	that1, ok := that.(*ProtoSnapshotResponse)
+	that1, ok := that.(*SnapshotResponse)
 	if !ok {
-		return fmt26.Errorf("that is not of type *ProtoSnapshotResponse")
+		return fmt26.Errorf("that is not of type *SnapshotResponse")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt26.Errorf("that is type *ProtoSnapshotResponse but is nil && this != nil")
+		return fmt26.Errorf("that is type *SnapshotResponse but is nil && this != nil")
 	} else if this == nil {
-		return fmt26.Errorf("that is type *ProtoSnapshotResponsebut is not nil && this == nil")
+		return fmt26.Errorf("that is type *SnapshotResponsebut is not nil && this == nil")
 	}
 	if this.Success != nil && that1.Success != nil {
 		if *this.Success != *that1.Success {
@@ -350,7 +350,7 @@ func (this *ProtoSnapshotResponse) VerboseEqual(that interface{}) error {
 	}
 	return nil
 }
-func (this *ProtoSnapshotResponse) Equal(that interface{}) bool {
+func (this *SnapshotResponse) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -358,7 +358,7 @@ func (this *ProtoSnapshotResponse) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*ProtoSnapshotResponse)
+	that1, ok := that.(*SnapshotResponse)
 	if !ok {
 		return false
 	}

@@ -27,7 +27,7 @@ type Log struct {
 	mutex       sync.RWMutex
 	startIndex  uint64 // the index before the first entry in the Log entries
 	startTerm   uint64
-	pLogEntry   *protobuf.ProtoLogEntry
+	pLogEntry   *protobuf.LogEntry
 }
 
 // The results of the applying a log entry.
@@ -46,7 +46,7 @@ type logResult struct {
 func newLog() *Log {
 	return &Log{
 		entries:   make([]*LogEntry, 0),
-		pLogEntry: &protobuf.ProtoLogEntry{},
+		pLogEntry: &protobuf.LogEntry{},
 	}
 }
 
@@ -455,7 +455,7 @@ func (l *Log) truncate(index uint64, term uint64) error {
 //--------------------------------------
 
 // Appends a series of entries to the log.
-func (l *Log) appendEntries(entries []*protobuf.ProtoLogEntry) error {
+func (l *Log) appendEntries(entries []*protobuf.LogEntry) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 

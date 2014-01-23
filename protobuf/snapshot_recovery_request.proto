@@ -14,16 +14,16 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
-message ProtoSnapshotRecoveryRequest {
+message SnapshotRecoveryRequest {
 	required string  LeaderName=1;
 	required uint64  LastIndex=2;
 	required uint64  LastTerm=3;   
 
-	message ProtoPeer {
+	message Peer {
 		required string Name=1;
 		required string ConnectionString=2;
 	}  
-	repeated ProtoPeer  Peers=4;  
+	repeated Peer  Peers=4;  
 
 	required bytes   State=5;
 }
