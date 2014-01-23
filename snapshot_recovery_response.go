@@ -15,12 +15,6 @@ type SnapshotRecoveryResponse struct {
 	CommitIndex uint64
 }
 
-//------------------------------------------------------------------------------
-//
-// Constructors
-//
-//------------------------------------------------------------------------------
-
 // Creates a new Snapshot response.
 func newSnapshotRecoveryResponse(term uint64, success bool, commitIndex uint64) *SnapshotRecoveryResponse {
 	return &SnapshotRecoveryResponse{
@@ -30,8 +24,8 @@ func newSnapshotRecoveryResponse(term uint64, success bool, commitIndex uint64) 
 	}
 }
 
-// Encodes the SnapshotRecoveryResponse to a buffer. Returns the number of bytes
-// written and any error that may have occurred.
+// Encode writes the response to a writer.
+// Returns the number of bytes written and any error that occurs.
 func (req *SnapshotRecoveryResponse) Encode(w io.Writer) (int, error) {
 	pb := &protobuf.SnapshotRecoveryResponse{
 		Term:        proto.Uint64(req.Term),
@@ -46,8 +40,7 @@ func (req *SnapshotRecoveryResponse) Encode(w io.Writer) (int, error) {
 	return w.Write(p)
 }
 
-// Decodes the SnapshotRecoveryResponse from a buffer. Returns the number of bytes read and
-// any error that occurs.
+// Decodes the SnapshotRecoveryResponse from a buffer. 
 func (req *SnapshotRecoveryResponse) Decode(r io.Reader) (int, error) {
 	data, err := ioutil.ReadAll(r)
 

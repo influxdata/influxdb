@@ -17,12 +17,6 @@ type SnapshotRecoveryRequest struct {
 	State      []byte
 }
 
-//------------------------------------------------------------------------------
-//
-// Constructors
-//
-//------------------------------------------------------------------------------
-
 // Creates a new Snapshot request.
 func newSnapshotRecoveryRequest(leaderName string, snapshot *Snapshot) *SnapshotRecoveryRequest {
 	return &SnapshotRecoveryRequest{

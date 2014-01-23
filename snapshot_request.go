@@ -15,12 +15,6 @@ type SnapshotRequest struct {
 	LastTerm   uint64
 }
 
-//------------------------------------------------------------------------------
-//
-// Constructors
-//
-//------------------------------------------------------------------------------
-
 // Creates a new Snapshot request.
 func newSnapshotRequest(leaderName string, snapshot *Snapshot) *SnapshotRequest {
 	return &SnapshotRequest{

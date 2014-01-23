@@ -101,5 +101,5 @@ func (e *LogEntry) decode(r io.Reader) (int, error) {
 		return -1, err
 	}
 
-	return length, nil
+	return length + 8 + 1, nil
 }
