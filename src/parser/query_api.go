@@ -113,6 +113,9 @@ func (self *SelectQuery) GetReferencedColumns() map[*Value][]string {
 
 	notPrefixedColumns := []string{}
 	for _, value := range self.GetColumnNames() {
+		if value.Name == "time" || value.Name == "sequence_number" {
+			continue
+		}
 		notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromValue(value, mapping)...)
 	}
 

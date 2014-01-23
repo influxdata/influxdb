@@ -322,6 +322,24 @@ func (self *ServerSuite) TestListSeries(c *C) {
 	}
 }
 
+func (self *ServerSuite) TestSelectingTimeColumn(c *C) {
+	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "test_rep", "replicationFactor": 2}`, c)
+	self.serverProcesses[0].Post("/db/test_rep/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	time.Sleep(time.Second)
+	data := `[{
+		"name": "selecting_time_column",
+		"columns": ["val1"],
+		"points": [[1]]
+		}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select val1, time from selecting_time_column", false, c)
+		s := collection.GetSeries("selecting_time_column", c)
+		c.Assert(s.Columns, HasLen, 3)
+		c.Assert(s.Points, HasLen, 1)
+	}
+}
+
 func (self *ServerSuite) TestDropDatabase(c *C) {
 	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_db", "replicationFactor": 3}`, c)
 	self.serverProcesses[0].Post("/db/drop_db/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)

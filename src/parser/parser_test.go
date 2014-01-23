@@ -179,7 +179,7 @@ func (self *QueryParserSuite) TestParseDeleteQuery(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseWithUnderscore(c *C) {
-	queryString := "select _value from foo"
+	queryString := "select _value, time, sequence_number from foo"
 	query, err := ParseSelectQuery(queryString)
 	c.Assert(err, IsNil)
 
