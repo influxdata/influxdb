@@ -193,7 +193,7 @@ func TestServerPromote(t *testing.T) {
 func TestServerAppendEntries(t *testing.T) {
 	s := newTestServer("1", &testTransporter{})
 
-	s.SetHeartbeatTimeout(time.Second * 10)
+	s.SetHeartbeatInterval(time.Second * 10)
 	s.Start()
 	defer s.Stop()
 
@@ -393,14 +393,14 @@ func TestServerRecoverFromPreviousLogAndConf(t *testing.T) {
 
 		if name == "1" {
 			leader = s
-			s.SetHeartbeatTimeout(testHeartbeatTimeout)
+			s.SetHeartbeatInterval(testHeartbeatInterval)
 			s.Start()
-			time.Sleep(testHeartbeatTimeout)
+			time.Sleep(testHeartbeatInterval)
 		} else {
 			s.SetElectionTimeout(testElectionTimeout)
-			s.SetHeartbeatTimeout(testHeartbeatTimeout)
+			s.SetHeartbeatInterval(testHeartbeatInterval)
 			s.Start()
-			time.Sleep(testHeartbeatTimeout)
+			time.Sleep(testHeartbeatInterval)
 		}
 		if _, err := leader.Do(&DefaultJoinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
@@ -415,7 +415,7 @@ func TestServerRecoverFromPreviousLogAndConf(t *testing.T) {
 		}
 	}
 
-	time.Sleep(2 * testHeartbeatTimeout)
+	time.Sleep(2 * testHeartbeatInterval)
 
 	for _, name := range names {
 		s := servers[name]
@@ -473,7 +473,7 @@ func TestServerSingleNode(t *testing.T) {
 
 	s.Start()
 
-	time.Sleep(testHeartbeatTimeout)
+	time.Sleep(testHeartbeatInterval)
 
 	// Join the server to itself.
 	if _, err := s.Do(&DefaultJoinCommand{Name: "1"}); err != nil {
@@ -573,14 +573,14 @@ func TestServerMultiNode(t *testing.T) {
 
 		if name == "1" {
 			leader = s
-			s.SetHeartbeatTimeout(testHeartbeatTimeout)
+			s.SetHeartbeatInterval(testHeartbeatInterval)
 			s.Start()
-			time.Sleep(testHeartbeatTimeout)
+			time.Sleep(testHeartbeatInterval)
 		} else {
 			s.SetElectionTimeout(testElectionTimeout)
-			s.SetHeartbeatTimeout(testHeartbeatTimeout)
+			s.SetHeartbeatInterval(testHeartbeatInterval)
 			s.Start()
-			time.Sleep(testHeartbeatTimeout)
+			time.Sleep(testHeartbeatInterval)
 		}
 		if _, err := leader.Do(&DefaultJoinCommand{Name: name}); err != nil {
 			t.Fatalf("Unable to join server[%s]: %v", name, err)
