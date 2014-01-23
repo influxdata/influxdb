@@ -405,6 +405,8 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
   }]`
 	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
 
+	time.Sleep(time.Second) // wait for data to get replicated
+
 	for _, s := range self.serverProcesses {
 		collection := s.Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
 		series := collection.GetSeries("test_failure_replays", c)
