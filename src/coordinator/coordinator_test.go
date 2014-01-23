@@ -476,7 +476,11 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	// can get db users
 	admins, err := coordinator.ListDbUsers(dbUser, "db1")
 	c.Assert(err, IsNil)
-	c.Assert(admins, DeepEquals, []string{"db_user", "db_user2"})
+	adminsSet := map[string]bool{}
+	for _, admin := range admins {
+		adminsSet[admin] = true
+	}
+	c.Assert(admins, DeepEquals, map[string]bool{"db_user": true, "db_user2": true})
 
 	// cannot create db users for a different db
 	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)
