@@ -195,9 +195,15 @@
 
 ## v0.5.0 [unreleased]
 
+### Features
+
+- [Issue #193](https://github.com/influxdb/influxdb/issues/193). Allow logging to stdout. Thanks @schmurfy
+
 ### Bugfixes
 
+- [Issue #33](https://github.com/influxdb/influxdb/issues/33). Don't call WriteHeader more than once per request
 - [Issue #195](https://github.com/influxdb/influxdb/issues/195). Allow the bind address to be configurable, Thanks @schmurfy.
+- [Issue #199](https://github.com/influxdb/influxdb/issues/199). Make the test timeout configurable
 - [Issue #200](https://github.com/influxdb/influxdb/issues/200). Selecting `time` or `sequence_number` silently fail
 
 ### Deprecated
