@@ -251,8 +251,11 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 	c.Assert(data[0].Name, Equals, "test_medians")
 	c.Assert(data[0].Columns, HasLen, 3)
 	c.Assert(data[0].Points, HasLen, 2)
-	c.Assert(data[0].Points[0][1], Equals, 80.0)
-	c.Assert(data[0].Points[1][1], Equals, 70.0)
+	medians := map[float64]string{}
+	for _, point := range data[0].Points {
+		medians[point[1].(float64)] = point[2].(string)
+	}
+	c.Assert(medians, DeepEquals, map[float64]string{70.0: "hosta", 80.0: "hostb"})
 }
 
 func (self *IntegrationSuite) TestDbUserAuthentication(c *C) {
