@@ -11,6 +11,6 @@ before_install:
 install: ./configure
 script: make verbose=on
 
-notifications:
-  irc: "chat.freenode.net#influxdb"
-  use_notice: false
+# notifications:
+#   irc: "chat.freenode.net#influxdb"
+#   use_notice: false
