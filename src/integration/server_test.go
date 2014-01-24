@@ -203,7 +203,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	self.serverProcesses[0].Post("/db/test_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
 	self.serverProcesses[0].Post("/db/single_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
 	self.serverProcesses[0].Post("/db/test_cq/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(time.Second)
 }
 
 func (self *ServerSuite) TearDownSuite(c *C) {
