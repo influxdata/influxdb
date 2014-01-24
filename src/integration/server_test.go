@@ -279,6 +279,7 @@ func (self *ServerSuite) TestInvalidUserNameAndDbName(c *C) {
 func (self *ServerSuite) TestShouldNotResetRootsPassword(c *C) {
 	resp := self.serverProcesses[0].Post("/db/dummy_db/users?u=root&p=root", "{\"name\":\"root\", \"password\":\"pass\"}", c)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	time.Sleep(time.Second)
 	resp = self.serverProcesses[0].Request("GET", "/db/dummy_db/authenticate?u=root&p=pass", "", c)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	resp = self.serverProcesses[0].Request("GET", "/cluster_admins/authenticate?u=root&p=root", "", c)
