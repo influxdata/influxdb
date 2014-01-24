@@ -14,6 +14,7 @@ file   = "influxdb.log"         # stdout to log to standard out
 
 # Configure the admin server
 [admin]
+enabled = true                  # whether to enable the admin api or not
 port   = 8083
 assets = "./admin"
 
