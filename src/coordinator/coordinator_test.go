@@ -413,7 +413,7 @@ func (self *CoordinatorSuite) TestContinuousQueryOperations(c *C) {
 		c.Assert(results[0].Points, HasLen, 0)
 
 		c.Assert(coordinator.CreateContinuousQuery(*user, "db1", "select * from foo into bar;"), IsNil)
-
+		time.Sleep(REPLICATION_LAG)
 		results, err = coordinator.ListContinuousQueries(*user, "db1")
 		c.Assert(err, IsNil)
 		c.Assert(results[0].Points, HasLen, 1)
