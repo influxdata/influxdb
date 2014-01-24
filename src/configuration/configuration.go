@@ -15,7 +15,9 @@ type AdminConfig struct {
 }
 
 type ApiConfig struct {
-	Port int
+	SslPort     int    `toml:"ssl-port"`
+	SslCertPath string `toml:"ssl-cert"`
+	Port        int
 }
 
 type RaftConfig struct {
@@ -38,29 +40,31 @@ type LoggingConfig struct {
 }
 
 type TomlConfiguration struct {
-	Admin    AdminConfig
-	Api      ApiConfig
-	Raft     RaftConfig
-	Storage  StorageConfig
-	Cluster  ClusterConfig
-	Logging  LoggingConfig
-	Hostname string
+	Admin       AdminConfig
+	Api         ApiConfig
+	Raft        RaftConfig
+	Storage     StorageConfig
+	Cluster     ClusterConfig
+	Logging     LoggingConfig
+	Hostname    string
 	BindAddress string `toml:"bind-address"`
 }
 
 type Configuration struct {
-	AdminHttpPort  int
-	AdminAssetsDir string
-	ApiHttpPort    int
-	RaftServerPort int
-	SeedServers    []string
-	DataDir        string
-	RaftDir        string
-	ProtobufPort   int
-	Hostname       string
-	LogFile        string
-	LogLevel       string
-	BindAddress 	 string
+	AdminHttpPort   int
+	AdminAssetsDir  string
+	ApiHttpSslPort  int
+	ApiHttpCertPath string
+	ApiHttpPort     int
+	RaftServerPort  int
+	SeedServers     []string
+	DataDir         string
+	RaftDir         string
+	ProtobufPort    int
+	Hostname        string
+	LogFile         string
+	LogLevel        string
+	BindAddress     string
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -84,18 +88,20 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	}
 
 	config := &Configuration{
-		AdminHttpPort:  tomlConfiguration.Admin.Port,
-		AdminAssetsDir: tomlConfiguration.Admin.Assets,
-		ApiHttpPort:    tomlConfiguration.Api.Port,
-		RaftServerPort: tomlConfiguration.Raft.Port,
-		RaftDir:        tomlConfiguration.Raft.Dir,
-		ProtobufPort:   tomlConfiguration.Cluster.ProtobufPort,
-		SeedServers:    tomlConfiguration.Cluster.SeedServers,
-		DataDir:        tomlConfiguration.Storage.Dir,
-		LogFile:        tomlConfiguration.Logging.File,
-		LogLevel:       tomlConfiguration.Logging.Level,
-		Hostname:       tomlConfiguration.Hostname,
-		BindAddress:    tomlConfiguration.BindAddress,
+		AdminHttpPort:   tomlConfiguration.Admin.Port,
+		AdminAssetsDir:  tomlConfiguration.Admin.Assets,
+		ApiHttpPort:     tomlConfiguration.Api.Port,
+		ApiHttpCertPath: tomlConfiguration.Api.SslCertPath,
+		ApiHttpSslPort:  tomlConfiguration.Api.SslPort,
+		RaftServerPort:  tomlConfiguration.Raft.Port,
+		RaftDir:         tomlConfiguration.Raft.Dir,
+		ProtobufPort:    tomlConfiguration.Cluster.ProtobufPort,
+		SeedServers:     tomlConfiguration.Cluster.SeedServers,
+		DataDir:         tomlConfiguration.Storage.Dir,
+		LogFile:         tomlConfiguration.Logging.File,
+		LogLevel:        tomlConfiguration.Logging.Level,
+		Hostname:        tomlConfiguration.Hostname,
+		BindAddress:     tomlConfiguration.BindAddress,
 	}
 
 	return config, nil
@@ -120,11 +126,23 @@ func parseJsonConfiguration(fileName string) (*Configuration, error) {
 }
 
 func (self *Configuration) AdminHttpPortString() string {
+	if self.AdminHttpPort <= 0 {
+		return ""
+	}
+
 	return fmt.Sprintf("%s:%d", self.BindAddress, self.AdminHttpPort)
 }
 
 func (self *Configuration) ApiHttpPortString() string {
+	if self.ApiHttpPort <= 0 {
+		return ""
+	}
+
 	return fmt.Sprintf("%s:%d", self.BindAddress, self.ApiHttpPort)
+}
+
+func (self *Configuration) ApiHttpSslPortString() string {
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.ApiHttpSslPort)
 }
 
 func (self *Configuration) ProtobufPortString() string {

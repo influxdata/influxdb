@@ -24,7 +24,10 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	c.Assert(config.AdminAssetsDir, Equals, "./admin")
 	c.Assert(config.AdminHttpPort, Equals, 8083)
 
-	c.Assert(config.ApiHttpPort, Equals, 8086)
+	c.Assert(config.ApiHttpPort, Equals, 0)
+	c.Assert(config.ApiHttpSslPort, Equals, 8087)
+	c.Assert(config.ApiHttpCertPath, Equals, "../cert.pem")
+	c.Assert(config.ApiHttpPortString(), Equals, "")
 
 	c.Assert(config.RaftDir, Equals, "/tmp/influxdb/development/raft")
 	c.Assert(config.RaftServerPort, Equals, 8090)
