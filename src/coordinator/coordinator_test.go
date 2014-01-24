@@ -555,6 +555,7 @@ func (self *CoordinatorSuite) TestUserDataReplication(c *C) {
 	}
 
 	c.Assert(coordinators[0].CreateClusterAdminUser(root, "admin"), IsNil)
+	time.Sleep(time.Second)
 	c.Assert(coordinators[0].ChangeClusterAdminPassword(root, "admin", "admin"), IsNil)
 	time.Sleep(REPLICATION_LAG)
 	for _, coordinator := range coordinators {
