@@ -313,7 +313,8 @@ func (self *ServerSuite) TestListSeries(c *C) {
 		"columns": ["val1"],
 		"points": [[1]]
 		}]`
-	self.serverProcesses[0].Post("/db/list_series/series?u=paul&p=pass", data, c)
+	resp := self.serverProcesses[0].Post("/db/list_series/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("list_series", "list series", false, c)
 		s := collection.GetSeries("cluster_query", c)
