@@ -558,8 +558,11 @@ func (self *IntegrationSuite) TestIssue89(c *C) {
 	c.Assert(data, HasLen, 1)
 	points := toMap(data[0])
 	c.Assert(points, HasLen, 2)
-	c.Assert(points[0]["sum"], Equals, 40.0)
-	c.Assert(points[1]["sum"], Equals, 30.0)
+	sums := map[string]float64{}
+	for _, p := range points {
+		sums[p["b"].(string)] = p["sum"].(float64)
+	}
+	c.Assert(sums, DeepEquals, map[string]float64{"y": 30.0, "z": 40.0})
 }
 
 // issue #36
