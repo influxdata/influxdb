@@ -107,13 +107,12 @@ func (self *QueryApiSuite) TestGetReferencedColumnsWithTablesMerge(c *C) {
 	c.Assert(err, IsNil)
 	columns := query.GetReferencedColumns()
 	c.Assert(columns, HasLen, 2)
-	expectedNames := []string{"events", "other_events"}
-	index := 0
-	for v, columns := range columns {
-		c.Assert(v.Name, Equals, expectedNames[index])
-		index++
-		c.Assert(columns, DeepEquals, []string{"*"})
+	names := map[string]string{}
+	for v, c := range columns {
+		names[v.Name] = c[0]
 	}
+	expectedNames := map[string]string{"events": "*", "other_events": "*"}
+	c.Assert(names, DeepEquals, expectedNames)
 }
 
 func (self *QueryApiSuite) TestGetReferencedColumnsWithARegexTable(c *C) {
