@@ -500,9 +500,11 @@ func (s *server) setCurrentTerm(term uint64, leaderName string, append bool) {
 	if term > s.currentTerm {
 		// stop heartbeats before step-down
 		if s.state == Leader {
+			s.mutex.Unlock()
 			for _, peer := range s.peers {
 				peer.stopHeartbeat(false)
 			}
+			s.mutex.Lock()
 		}
 		// update the term and clear vote for
 		s.state = Follower
