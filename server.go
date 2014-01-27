@@ -495,6 +495,12 @@ func (s *server) setCurrentTerm(term uint64, leaderName string, append bool) {
 	prevLeader := s.leader
 
 	if term > s.currentTerm {
+		// stop heartbeats before step-down
+		if s.state == Leader {
+			for _, peer := range s.peers {
+				peer.stopHeartbeat(false)
+			}
+		}
 		// update the term and clear vote for
 		s.state = Follower
 		s.currentTerm = term
@@ -771,6 +777,10 @@ func (s *server) leaderLoop() {
 		select {
 		case e := <-s.c:
 			if e.target == &stopValue {
+				// Stop all peers before stop
+				for _, peer := range s.peers {
+					peer.stopHeartbeat(false)
+				}
 				s.setState(Stopped)
 			} else {
 				switch req := e.target.(type) {
@@ -794,11 +804,6 @@ func (s *server) leaderLoop() {
 		if s.State() != Leader {
 			break
 		}
-	}
-
-	// Stop all peers.
-	for _, peer := range s.peers {
-		peer.stopHeartbeat(false)
 	}
 
 	s.syncedPeer = nil
