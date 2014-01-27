@@ -269,6 +269,28 @@ func (self *ServerSuite) TestDataReplication(c *C) {
 	c.Assert(serversWithPoint, Equals, 2)
 }
 
+// issue #206
+func (self *ServerSuite) TestUnicodeSupport(c *C) {
+	data := `
+  [{
+    "points": [
+        ["山田太郎", "中文", "⚑"]
+    ],
+    "name": "test_unicode",
+    "columns": ["val_1", "val_2", "val_3"]
+  }]`
+	resp := self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+
+	time.Sleep(time.Second)
+
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_unicode", false, c)
+	series := collection.GetSeries("test_unicode", c)
+	c.Assert(series.GetValueForPointAndColumn(0, "val_1", c), Equals, "山田太郎")
+	c.Assert(series.GetValueForPointAndColumn(0, "val_2", c), Equals, "中文")
+	c.Assert(series.GetValueForPointAndColumn(0, "val_3", c), Equals, "⚑")
+}
+
 func (self *ServerSuite) TestInvalidUserNameAndDbName(c *C) {
 	resp := self.serverProcesses[0].Post("/db/dummy_db/users?u=root&p=3rrpl4n3!", "{\"name\":\"foo%bar\", \"password\":\"root\"}", c)
 	c.Assert(resp.StatusCode, Not(Equals), http.StatusOK)
