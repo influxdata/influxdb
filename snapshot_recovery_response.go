@@ -40,7 +40,7 @@ func (req *SnapshotRecoveryResponse) Encode(w io.Writer) (int, error) {
 	return w.Write(p)
 }
 
-// Decodes the SnapshotRecoveryResponse from a buffer. 
+// Decodes the SnapshotRecoveryResponse from a buffer.
 func (req *SnapshotRecoveryResponse) Decode(r io.Reader) (int, error) {
 	data, err := ioutil.ReadAll(r)
 

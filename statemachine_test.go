@@ -13,7 +13,7 @@ func (m *mockStateMachine) Save() ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (m *mockStateMachine) Recovery(b []byte) (error) {
+func (m *mockStateMachine) Recovery(b []byte) error {
 	args := m.Called(b)
 	return args.Error(0)
 }
