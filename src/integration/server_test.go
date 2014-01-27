@@ -269,6 +269,27 @@ func (self *ServerSuite) TestDataReplication(c *C) {
 	c.Assert(serversWithPoint, Equals, 2)
 }
 
+// issue #147
+func (self *ServerSuite) TestExtraSequenceNumberColumns(c *C) {
+	data := `
+  [{
+    "points": [
+        ["foo", 1390852524, 1234]
+    ],
+    "name": "test_extra_sequence_number_column",
+    "columns": ["val_1", "time", "sequence_number"]
+  }]`
+	resp := self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass&time_precision=s", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+
+	time.Sleep(time.Second)
+
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_extra_sequence_number_column", false, c)
+	series := collection.GetSeries("test_extra_sequence_number_column", c)
+	c.Assert(series.Columns, HasLen, 3)
+	c.Assert(series.GetValueForPointAndColumn(0, "sequence_number", c), Equals, float64(1234))
+}
+
 // issue #206
 func (self *ServerSuite) TestUnicodeSupport(c *C) {
 	data := `
