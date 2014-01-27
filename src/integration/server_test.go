@@ -502,8 +502,11 @@ func (self *ServerSuite) TestColumnNamesReturnInDistributedQuery(c *C) {
 	for _, s := range self.serverProcesses {
 		collection := s.Query("test_rep", "select * from cluster_query_with_columns", false, c)
 		series := collection.GetSeries("cluster_query_with_columns", c)
-		c.Assert(series.GetValueForPointAndColumn(0, "col1", c), Equals, float64(2))
-		c.Assert(series.GetValueForPointAndColumn(1, "col1", c), Equals, float64(1))
+		set := map[float64]bool{}
+		for idx, _ := range series.Points {
+			set[series.GetValueForPointAndColumn(idx, "col1", c).(float64)] = true
+		}
+		c.Assert(set, DeepEquals, map[float64]bool{1: true, 2: true})
 	}
 }
 
