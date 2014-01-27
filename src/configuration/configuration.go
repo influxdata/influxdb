@@ -10,8 +10,9 @@ import (
 )
 
 type AdminConfig struct {
-	Port   int
-	Assets string
+	Enabled bool
+	Port    int
+	Assets  string
 }
 
 type ApiConfig struct {
@@ -38,29 +39,30 @@ type LoggingConfig struct {
 }
 
 type TomlConfiguration struct {
-	Admin    AdminConfig
-	Api      ApiConfig
-	Raft     RaftConfig
-	Storage  StorageConfig
-	Cluster  ClusterConfig
-	Logging  LoggingConfig
-	Hostname string
+	Admin       AdminConfig
+	Api         ApiConfig
+	Raft        RaftConfig
+	Storage     StorageConfig
+	Cluster     ClusterConfig
+	Logging     LoggingConfig
+	Hostname    string
 	BindAddress string `toml:"bind-address"`
 }
 
 type Configuration struct {
-	AdminHttpPort  int
-	AdminAssetsDir string
-	ApiHttpPort    int
-	RaftServerPort int
-	SeedServers    []string
-	DataDir        string
-	RaftDir        string
-	ProtobufPort   int
-	Hostname       string
-	LogFile        string
-	LogLevel       string
-	BindAddress 	 string
+	AdminApiEnabled bool
+	AdminHttpPort   int
+	AdminAssetsDir  string
+	ApiHttpPort     int
+	RaftServerPort  int
+	SeedServers     []string
+	DataDir         string
+	RaftDir         string
+	ProtobufPort    int
+	Hostname        string
+	LogFile         string
+	LogLevel        string
+	BindAddress     string
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -84,18 +86,19 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	}
 
 	config := &Configuration{
-		AdminHttpPort:  tomlConfiguration.Admin.Port,
-		AdminAssetsDir: tomlConfiguration.Admin.Assets,
-		ApiHttpPort:    tomlConfiguration.Api.Port,
-		RaftServerPort: tomlConfiguration.Raft.Port,
-		RaftDir:        tomlConfiguration.Raft.Dir,
-		ProtobufPort:   tomlConfiguration.Cluster.ProtobufPort,
-		SeedServers:    tomlConfiguration.Cluster.SeedServers,
-		DataDir:        tomlConfiguration.Storage.Dir,
-		LogFile:        tomlConfiguration.Logging.File,
-		LogLevel:       tomlConfiguration.Logging.Level,
-		Hostname:       tomlConfiguration.Hostname,
-		BindAddress:    tomlConfiguration.BindAddress,
+		AdminApiEnabled: tomlConfiguration.Admin.Enabled,
+		AdminHttpPort:   tomlConfiguration.Admin.Port,
+		AdminAssetsDir:  tomlConfiguration.Admin.Assets,
+		ApiHttpPort:     tomlConfiguration.Api.Port,
+		RaftServerPort:  tomlConfiguration.Raft.Port,
+		RaftDir:         tomlConfiguration.Raft.Dir,
+		ProtobufPort:    tomlConfiguration.Cluster.ProtobufPort,
+		SeedServers:     tomlConfiguration.Cluster.SeedServers,
+		DataDir:         tomlConfiguration.Storage.Dir,
+		LogFile:         tomlConfiguration.Logging.File,
+		LogLevel:        tomlConfiguration.Logging.Level,
+		Hostname:        tomlConfiguration.Hostname,
+		BindAddress:     tomlConfiguration.BindAddress,
 	}
 
 	return config, nil

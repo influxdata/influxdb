@@ -12,6 +12,7 @@ file   = "influxdb.log"
 
 # Configure the admin server
 [admin]
+enabled = false
 port   = 8083
 assets = "./admin"
 

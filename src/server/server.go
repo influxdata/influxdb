@@ -70,8 +70,12 @@ func (self *Server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
-	log.Info("Starting admin interface on port %d", self.Config.AdminHttpPort)
-	go self.AdminServer.ListenAndServe()
+	if !self.Config.AdminApiEnabled {
+		log.Info("Admin interface is disabled")
+	} else {
+		log.Info("Starting admin interface on port %d", self.Config.AdminHttpPort)
+		go self.AdminServer.ListenAndServe()
+	}
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()
 	return nil
