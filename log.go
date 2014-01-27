@@ -238,8 +238,8 @@ func (l *Log) containsEntry(index uint64, term uint64) bool {
 // index provided. A nil list of entries is returned if the index no longer
 // exists because a snapshot was made.
 func (l *Log) getEntriesAfter(index uint64, maxLogEntriesPerRequest uint64) ([]*LogEntry, uint64) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	// Return nil if index is before the start of the log.
 	if index < l.startIndex {
