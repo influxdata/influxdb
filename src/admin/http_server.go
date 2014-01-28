@@ -22,6 +22,10 @@ func NewHttpServer(homeDir, port string) *HttpServer {
 }
 
 func (self *HttpServer) ListenAndServe() {
+	if self.port == "" {
+		return
+	}
+
 	var err error
 	self.listener, err = net.Listen("tcp", self.port)
 	if err != nil {

@@ -12,12 +12,13 @@ file   = "influxdb.log"
 
 # Configure the admin server
 [admin]
-port   = 8083
+port   = 8083                   # binding is disabled if the port isn't set
 assets = "./admin"
 
 # Configure the http api
 [api]
-port = 8086
+ssl-port = 8087    # Ssl support is enabled if you set a port and cert
+ssl-cert = "../cert.pem"
 
 # Raft configuration
 [raft]
