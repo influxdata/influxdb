@@ -9,7 +9,7 @@ import (
 
 // Ensure that a snapshot occurs when there are existing logs.
 func TestSnapshot(t *testing.T) {
-	runServerWithMockStateMachine(Leader, func (s Server, m *mock.Mock) {
+	runServerWithMockStateMachine(Leader, func(s Server, m *mock.Mock) {
 		m.On("Save").Return([]byte("foo"), nil)
 		m.On("Recovery", []byte("foo")).Return(nil)
 
@@ -36,7 +36,7 @@ func TestSnapshot(t *testing.T) {
 
 // Ensure that a snapshot request can be sent and received.
 func TestSnapshotRequest(t *testing.T) {
-	runServerWithMockStateMachine(Follower, func (s Server, m *mock.Mock) {
+	runServerWithMockStateMachine(Follower, func(s Server, m *mock.Mock) {
 		m.On("Recovery", []byte("bar")).Return(nil)
 
 		// Send snapshot request.
@@ -56,7 +56,7 @@ func TestSnapshotRequest(t *testing.T) {
 	})
 }
 
-func runServerWithMockStateMachine(state string, fn func (s Server, m *mock.Mock)) {
+func runServerWithMockStateMachine(state string, fn func(s Server, m *mock.Mock)) {
 	var m mockStateMachine
 	s := newTestServer("1", &testTransporter{})
 	s.(*server).stateMachine = &m

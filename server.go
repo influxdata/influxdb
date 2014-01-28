@@ -33,8 +33,11 @@ const (
 )
 
 const (
-	DefaultHeartbeatTimeout = 50 * time.Millisecond
-	DefaultElectionTimeout  = 150 * time.Millisecond
+	// DefaultHeartbeatInterval is the interval that the leader will send
+	// AppendEntriesRequests to followers to maintain leadership.
+	DefaultHeartbeatInterval = 50 * time.Millisecond
+
+	DefaultElectionTimeout = 150 * time.Millisecond
 )
 
 // ElectionTimeoutThresholdPercent specifies the threshold at which the server
@@ -82,8 +85,8 @@ type Server interface {
 	GetState() string
 	ElectionTimeout() time.Duration
 	SetElectionTimeout(duration time.Duration)
-	HeartbeatTimeout() time.Duration
-	SetHeartbeatTimeout(duration time.Duration)
+	HeartbeatInterval() time.Duration
+	SetHeartbeatInterval(duration time.Duration)
 	Transporter() Transporter
 	SetTransporter(t Transporter)
 	AppendEntries(req *AppendEntriesRequest) *AppendEntriesResponse
@@ -119,10 +122,10 @@ type server struct {
 	mutex      sync.RWMutex
 	syncedPeer map[string]bool
 
-	stopped          chan bool
-	c                chan *ev
-	electionTimeout  time.Duration
-	heartbeatTimeout time.Duration
+	stopped           chan bool
+	c                 chan *ev
+	electionTimeout   time.Duration
+	heartbeatInterval time.Duration
 
 	currentSnapshot         *Snapshot
 	lastSnapshot            *Snapshot
@@ -170,7 +173,7 @@ func NewServer(name string, path string, transporter Transporter, stateMachine S
 		stopped:                 make(chan bool),
 		c:                       make(chan *ev, 256),
 		electionTimeout:         DefaultElectionTimeout,
-		heartbeatTimeout:        DefaultHeartbeatTimeout,
+		heartbeatInterval:       DefaultHeartbeatInterval,
 		maxLogEntriesPerRequest: MaxLogEntriesPerRequest,
 		connectionString:        connectionString,
 	}
@@ -378,20 +381,20 @@ func (s *server) SetElectionTimeout(duration time.Duration) {
 //--------------------------------------
 
 // Retrieves the heartbeat timeout.
-func (s *server) HeartbeatTimeout() time.Duration {
+func (s *server) HeartbeatInterval() time.Duration {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	return s.heartbeatTimeout
+	return s.heartbeatInterval
 }
 
 // Sets the heartbeat timeout.
-func (s *server) SetHeartbeatTimeout(duration time.Duration) {
+func (s *server) SetHeartbeatInterval(duration time.Duration) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.heartbeatTimeout = duration
+	s.heartbeatInterval = duration
 	for _, peer := range s.peers {
-		peer.setHeartbeatTimeout(duration)
+		peer.setHeartbeatInterval(duration)
 	}
 }
 
@@ -495,6 +498,12 @@ func (s *server) setCurrentTerm(term uint64, leaderName string, append bool) {
 	prevLeader := s.leader
 
 	if term > s.currentTerm {
+		// stop heartbeats before step-down
+		if s.state == Leader {
+			for _, peer := range s.peers {
+				peer.stopHeartbeat(false)
+			}
+		}
 		// update the term and clear vote for
 		s.state = Follower
 		s.currentTerm = term
@@ -763,6 +772,10 @@ func (s *server) leaderLoop() {
 		peer.startHeartbeat()
 	}
 
+	// Commit a NOP after the server becomes leader. From the Raft paper:
+	// "Upon election: send initial empty AppendEntries RPCs (heartbeat) to
+	// each server; repeat during idle periods to prevent election timeouts
+	// (§5.2)". The heartbeats started above do the "idle" period work.
 	go s.Do(NOPCommand{})
 
 	// Begin to collect response from followers
@@ -771,6 +784,10 @@ func (s *server) leaderLoop() {
 		select {
 		case e := <-s.c:
 			if e.target == &stopValue {
+				// Stop all peers before stop
+				for _, peer := range s.peers {
+					peer.stopHeartbeat(false)
+				}
 				s.setState(Stopped)
 			} else {
 				switch req := e.target.(type) {
@@ -794,11 +811,6 @@ func (s *server) leaderLoop() {
 		if s.State() != Leader {
 			break
 		}
-	}
-
-	// Stop all peers.
-	for _, peer := range s.peers {
-		peer.stopHeartbeat(false)
 	}
 
 	s.syncedPeer = nil
@@ -1028,7 +1040,7 @@ func (s *server) AddPeer(name string, connectiongString string) error {
 
 	// Skip the Peer if it has the same name as the Server
 	if s.name != name {
-		peer := newPeer(s, name, connectiongString, s.heartbeatTimeout)
+		peer := newPeer(s, name, connectiongString, s.heartbeatInterval)
 
 		if s.State() == Leader {
 			peer.startHeartbeat()
