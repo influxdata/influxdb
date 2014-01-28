@@ -178,6 +178,14 @@ func (self *QueryParserSuite) TestParseDeleteQuery(c *C) {
 	c.Assert(q.GetEndTime(), Equals, endTime)
 }
 
+func (self *QueryParserSuite) TestInvalidWhereClause(c *C) {
+	_, err := ParseQuery("delete from foo where 1;")
+	c.Assert(err, NotNil)
+
+	_, err = ParseQuery("select * from foo where is_uppercase(name);")
+	c.Assert(err, IsNil)
+}
+
 func (self *QueryParserSuite) TestParseWithUnderscore(c *C) {
 	queryString := "select _value, time, sequence_number from foo"
 	query, err := ParseSelectQuery(queryString)

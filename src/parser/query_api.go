@@ -375,6 +375,15 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 	}
 
 	if expr, ok := condition.GetBoolExpression(); ok {
+		switch expr.Type {
+		case ValueDuration, ValueFloat, ValueInt, ValueString, ValueWildcard:
+			return nil, ZERO_TIME, fmt.Errorf("Invalid where expression: %v", expr)
+		}
+
+		if expr.Type == ValueFunctionCall {
+			return condition, ZERO_TIME, nil
+		}
+
 		leftValue := expr.Elems[0]
 		isTimeOnLeft := leftValue.Type != ValueExpression && leftValue.Type != ValueFunctionCall
 		rightValue := expr.Elems[1]
