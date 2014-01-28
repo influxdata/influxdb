@@ -198,6 +198,8 @@
 ### Features
 
 - [Issue #193](https://github.com/influxdb/influxdb/issues/193). Allow logging to stdout. Thanks @schmurfy
+- [Issue #190](https://github.com/influxdb/influxdb/pull/190). Add support for SSL.
+- [Issue #194](https://github.com/influxdb/influxdb/pull/194). Should be able to disable Admin interface.
 
 ### Bugfixes
 
