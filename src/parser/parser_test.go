@@ -57,8 +57,6 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 		q, err := ParseSelectQuery(query)
 		c.Assert(err, IsNil)
 
-		c.Assert(q.GetQueryString(), Equals, query)
-
 		c.Assert(q.GetColumnNames(), DeepEquals, ToValueArray("value"))
 		w := q.GetWhereCondition()
 
@@ -71,6 +69,34 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 		c.Assert(leftValue.Name, Equals, "c")
 		c.Assert(boolExpression.Name, Equals, "=")
 		c.Assert(rightValue.Name, Equals, "5")
+	}
+}
+
+func (self *QueryParserSuite) TestGetQueryString(c *C) {
+	for _, query := range []string{
+		"select value from t",
+		"select value from t where c = '5'",
+		"select value from t where c = '5' limit 1",
+		"select value from t where c = '5' limit 1 order asc",
+		"select a.value, b.value from foo as a inner join bar as b where c = '5' limit 1 order asc",
+		"select count(value) from t group by time(1h)",
+		"select count(value) from t group by time(1h) into value.hourly",
+		"select count(value), host from t group by time(1h), host into value.hourly.[:host]",
+		"delete from foo",
+	} {
+		fmt.Printf("testing %s\n", query)
+		expectedQuery, err := ParseQuery(query)
+		c.Assert(err, IsNil)
+		c.Assert(expectedQuery, HasLen, 1)
+		queryString := expectedQuery[0].GetQueryStringWithTimeCondition()
+		fmt.Printf("query string: %s\n", queryString)
+		actualQuery, err := ParseQuery(queryString)
+		c.Assert(err, IsNil)
+		c.Assert(actualQuery, HasLen, 1)
+		expectedQuery[0].QueryString = ""
+		actualQuery[0].QueryString = ""
+
+		c.Assert(actualQuery[0], DeepEquals, expectedQuery[0])
 	}
 }
 
@@ -164,11 +190,7 @@ func (self *QueryParserSuite) TestGetQueryStringForContinuousQuery(c *C) {
 	start := base.UTC()
 	end := base.Add(time.Minute).UTC()
 
-	startMicroseconds := common.TimeToMicroseconds(start.UTC()) - 1
-	endMicroseconds := common.TimeToMicroseconds(end.UTC())
-
 	inputQuery := "select count(c1) from s1 group by time(1m) into d1;"
-	outputQuery := fmt.Sprintf("select count(c1) from s1 group by time(1m) where time > %du and time < %du", startMicroseconds, endMicroseconds)
 
 	queries, err := ParseQuery(inputQuery)
 	c.Assert(err, IsNil)
@@ -178,10 +200,9 @@ func (self *QueryParserSuite) TestGetQueryStringForContinuousQuery(c *C) {
 	c.Assert(query.SelectQuery, NotNil)
 
 	selectQuery := query.SelectQuery
-	c.Assert(selectQuery.GetQueryStringForContinuousQuery(start, end), Equals, outputQuery)
 
 	// try to parse the query with the time condition
-	queries, err = ParseQuery(selectQuery.GetQueryStringForContinuousQuery(start, end))
+	queries, err = ParseQuery(selectQuery.GetQueryStringWithTimesAndNoIntoClause(start, end))
 	c.Assert(err, IsNil)
 
 	query = queries[0]
@@ -204,8 +225,6 @@ func (self *QueryParserSuite) TestParseDeleteQuery(c *C) {
 	c.Assert(_q.DeleteQuery, NotNil)
 
 	q := _q.DeleteQuery
-
-	c.Assert(q.GetQueryString(), Equals, query)
 
 	startTime, _ := time.Parse("2006-01-02", "2012-08-13")
 	endTime, _ := time.Parse("2006-01-02", "2013-08-13")

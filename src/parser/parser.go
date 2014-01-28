@@ -5,7 +5,7 @@ package parser
 import "C"
 
 import (
-	"common"
+	"bytes"
 	"fmt"
 	"math"
 	"reflect"
@@ -21,127 +21,19 @@ type From struct {
 
 type Operation int
 
-type ValueType int
-
-const (
-	ValueRegex        ValueType = C.VALUE_REGEX
-	ValueInt                    = C.VALUE_INT
-	ValueBool                   = C.VALUE_BOOLEAN
-	ValueFloat                  = C.VALUE_FLOAT
-	ValueString                 = C.VALUE_STRING
-	ValueIntoName               = C.VALUE_INTO_NAME
-	ValueTableName              = C.VALUE_TABLE_NAME
-	ValueSimpleName             = C.VALUE_SIMPLE_NAME
-	ValueDuration               = C.VALUE_DURATION
-	ValueWildcard               = C.VALUE_WILDCARD
-	ValueFunctionCall           = C.VALUE_FUNCTION_CALL
-	ValueExpression             = C.VALUE_EXPRESSION
-)
-
-type Value struct {
-	Name          string
-	Alias         string
-	Type          ValueType
-	Elems         []*Value
-	compiledRegex *regexp.Regexp
-}
-
-func (self *Value) IsFunctionCall() bool {
-	return self.Type == ValueFunctionCall
-}
-
-func (self *Value) GetCompiledRegex() (*regexp.Regexp, bool) {
-	return self.compiledRegex, self.Type == ValueRegex
-}
-
-type FromClauseType int
-
-const (
-	FromClauseArray     FromClauseType = C.FROM_ARRAY
-	FromClauseMerge     FromClauseType = C.FROM_MERGE
-	FromClauseInnerJoin FromClauseType = C.FROM_INNER_JOIN
-)
-
-type TableName struct {
-	Name  *Value
-	Alias string
-}
-
-func (self *TableName) GetAlias() string {
-	if self.Alias != "" {
-		return self.Alias
-	}
-	return self.Name.Name
-}
-
-type FromClause struct {
-	Type  FromClauseType
-	Names []*TableName
-}
-
 type IntoClause struct {
 	Target *Value
 }
 
-type GroupByClause struct {
-	FillWithZero bool
-	FillValue    *Value
-	Elems        []*Value
-}
-
-func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
-	for _, groupBy := range self.Elems {
-		if groupBy.IsFunctionCall() {
-			// TODO: check the number of arguments and return an error
-			if len(groupBy.Elems) != 1 {
-				return nil, common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
-			}
-			// TODO: check the function name
-			// TODO: error checking
-			arg := groupBy.Elems[0].Name
-			durationInt, err := common.ParseTimeDuration(arg)
-			if err != nil {
-				return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("invalid argument %s to the time function", arg))
-			}
-			duration := time.Duration(durationInt)
-			return &duration, nil
-		}
-	}
-	return nil, nil
-}
-
-type WhereCondition struct {
-	isBooleanExpression bool
-	Left                interface{}
-	Operation           string
-	Right               *WhereCondition
-}
-
-func (self *WhereCondition) GetBoolExpression() (*Value, bool) {
-	if self.isBooleanExpression {
-		return self.Left.(*Value), true
-	}
-	return nil, false
-}
-
-func (self *WhereCondition) GetLeftWhereCondition() (*WhereCondition, bool) {
-	if !self.isBooleanExpression {
-		return self.Left.(*WhereCondition), true
-	}
-	return nil, false
-}
-
 type BasicQuery struct {
-	queryString string
-	startTime   time.Time
-	endTime     time.Time
+	startTime time.Time
+	endTime   time.Time
 }
 
 type SelectDeleteCommonQuery struct {
 	BasicQuery
 	FromClause *FromClause
 	Condition  *WhereCondition
-	endTimeSet bool
 }
 
 type SelectQuery struct {
@@ -190,13 +82,28 @@ type Query struct {
 	DropQuery       *DropQuery
 }
 
+func (self *IntoClause) GetString() string {
+	return self.Target.GetString()
+}
+
 func (self *Query) GetQueryString() string {
+	return self.commonGetQueryString(false)
+}
+
+func (self *Query) GetQueryStringWithTimeCondition() string {
+	return self.commonGetQueryString(true)
+}
+
+func (self *Query) commonGetQueryString(withTime bool) string {
 	if self.SelectQuery != nil {
+		if withTime {
+			return self.SelectQuery.GetQueryStringWithTimeCondition()
+		}
 		return self.SelectQuery.GetQueryString()
 	} else if self.ListQuery != nil {
 		return "list series"
 	} else if self.DeleteQuery != nil {
-		return self.DeleteQuery.GetQueryString()
+		return self.DeleteQuery.GetQueryString(withTime)
 	}
 	return self.QueryString
 }
@@ -217,8 +124,15 @@ func (self *Query) IsListContinuousQueriesQuery() bool {
 	return self.ListQuery != nil && self.ListQuery.Type == ContinuousQueries
 }
 
-func (self *BasicQuery) GetQueryString() string {
-	return self.queryString
+func (self *DeleteQuery) GetQueryString(withTime bool) string {
+	buffer := bytes.NewBufferString("delete ")
+	fmt.Fprintf(buffer, "from %s", self.FromClause.GetString())
+	if withTime {
+		fmt.Fprintf(buffer, " where %s", self.GetWhereConditionWithTime(self.startTime, self.endTime).GetString())
+	} else if condition := self.GetWhereCondition(); condition != nil {
+		fmt.Fprintf(buffer, " where %s", condition.GetString())
+	}
+	return buffer.String()
 }
 
 func (self *SelectQuery) GetColumnNames() []*Value {
@@ -227,6 +141,53 @@ func (self *SelectQuery) GetColumnNames() []*Value {
 
 func (self *SelectQuery) IsExplainQuery() bool {
 	return self.Explain
+}
+
+func (self *SelectQuery) GetQueryString() string {
+	return self.commonGetQueryStringWithTimes(false, true, self.startTime, self.endTime)
+}
+
+func (self *SelectQuery) GetQueryStringWithTimeCondition() string {
+	return self.commonGetQueryStringWithTimes(true, true, self.startTime, self.endTime)
+}
+
+func (self *SelectQuery) GetQueryStringWithTimes(startTime, endTime time.Time) string {
+	return self.commonGetQueryStringWithTimes(true, true, startTime, endTime)
+}
+
+func (self *SelectQuery) GetQueryStringWithTimesAndNoIntoClause(startTime, endTime time.Time) string {
+	return self.commonGetQueryStringWithTimes(true, false, startTime, endTime)
+}
+
+func (self *SelectQuery) commonGetQueryStringWithTimes(withTime, withIntoClause bool, startTime, endTime time.Time) string {
+	buffer := bytes.NewBufferString("")
+	fmt.Fprintf(buffer, "select ")
+
+	buffer.WriteString(Values(self.ColumnNames).GetString())
+
+	fmt.Fprintf(buffer, " from %s", self.FromClause.GetString())
+	if withTime {
+		fmt.Fprintf(buffer, " where %s", self.GetWhereConditionWithTime(startTime, endTime).GetString())
+	} else if condition := self.GetWhereCondition(); condition != nil {
+		fmt.Fprintf(buffer, " where %s", condition.GetString())
+	}
+	if self.GetGroupByClause() != nil && len(self.GetGroupByClause().Elems) > 0 {
+		fmt.Fprintf(buffer, " group by %s", self.GetGroupByClause().GetString())
+	}
+
+	if self.Limit > 0 {
+		fmt.Fprintf(buffer, " limit %d", self.Limit)
+	}
+
+	if self.Ascending {
+		fmt.Fprintf(buffer, " order asc")
+	}
+
+	if clause := self.IntoClause; withIntoClause && clause != nil {
+		fmt.Fprintf(buffer, " into %s", clause.GetString())
+	}
+
+	return buffer.String()
 }
 
 func (self *SelectQuery) IsSinglePointQuery() bool {
@@ -482,6 +443,47 @@ func (self *SelectDeleteCommonQuery) GetWhereCondition() *WhereCondition {
 	return self.Condition
 }
 
+func (self *SelectDeleteCommonQuery) GetWhereConditionWithTime(startTime, endTime time.Time) *WhereCondition {
+	timeCondition := &WhereCondition{
+		isBooleanExpression: false,
+		Operation:           "AND",
+		Left: &WhereCondition{
+			isBooleanExpression: true,
+			Left: &Value{
+				Name: "<",
+				Type: ValueExpression,
+				Elems: []*Value{
+					&Value{Name: "time", Type: ValueSimpleName},
+					&Value{Name: strconv.FormatInt(endTime.UnixNano(), 10), Type: ValueInt},
+				},
+			},
+		},
+		Right: &WhereCondition{
+			isBooleanExpression: true,
+			Left: &Value{
+				Name: ">",
+				Type: ValueExpression,
+				Elems: []*Value{
+					&Value{Name: "time", Type: ValueSimpleName},
+					&Value{Name: strconv.FormatInt(startTime.UnixNano(), 10), Type: ValueInt},
+				},
+			},
+		},
+	}
+
+	if self.Condition == nil {
+		return timeCondition
+	}
+
+	return &WhereCondition{
+		isBooleanExpression: false,
+		Left:                self.Condition,
+		Right:               timeCondition,
+		Operation:           "AND",
+	}
+
+}
+
 func (self *SelectQuery) GetGroupByClause() *GroupByClause {
 	return self.groupByClause
 }
@@ -515,7 +517,6 @@ func ParseQuery(query string) ([]*Query, error) {
 	if q.error != nil {
 		str := C.GoString(q.error.err)
 		return nil, &QueryError{
-			queryString: query,
 			firstLine:   int(q.error.first_line),
 			firstColumn: int(q.error.first_column) - 1,
 			lastLine:    int(q.error.last_line),
@@ -533,14 +534,14 @@ func ParseQuery(query string) ([]*Query, error) {
 	}
 
 	if q.select_query != nil {
-		selectQuery, err := parseSelectQuery(query, q.select_query)
+		selectQuery, err := parseSelectQuery(q.select_query)
 		if err != nil {
 			return nil, err
 		}
 
 		return []*Query{&Query{QueryString: query, SelectQuery: selectQuery}}, nil
 	} else if q.delete_query != nil {
-		deleteQuery, err := parseDeleteQuery(query, q.delete_query)
+		deleteQuery, err := parseDeleteQuery(q.delete_query)
 		if err != nil {
 			return nil, err
 		}
@@ -568,13 +569,12 @@ func parseDropSeriesQuery(queryStirng string, dropSeriesQuery *C.drop_series_que
 	}, nil
 }
 
-func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause, whereCondition *C.condition) (SelectDeleteCommonQuery, error) {
+func parseSelectDeleteCommonQuery(fromClause *C.from_clause, whereCondition *C.condition) (SelectDeleteCommonQuery, error) {
 
 	goQuery := SelectDeleteCommonQuery{
 		BasicQuery: BasicQuery{
-			queryString: queryString,
-			startTime:   time.Unix(math.MinInt64/1000000, 0).UTC(),
-			endTime:     time.Now().UTC(),
+			startTime: time.Unix(math.MinInt64/1000000000, 0).UTC(),
+			endTime:   time.Now().UTC(),
 		},
 	}
 
@@ -601,7 +601,6 @@ func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause,
 	}
 
 	if endTime != nil {
-		goQuery.endTimeSet = true
 		goQuery.endTime = *endTime
 	}
 
@@ -617,14 +616,14 @@ func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause,
 	return goQuery, nil
 }
 
-func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, error) {
+func parseSelectQuery(q *C.select_query) (*SelectQuery, error) {
 	limit := q.limit
 	if limit == -1 {
 		// no limit by default
 		limit = 0
 	}
 
-	basicQuery, err := parseSelectDeleteCommonQuery(queryString, q.from_clause, q.where_condition)
+	basicQuery, err := parseSelectDeleteCommonQuery(q.from_clause, q.where_condition)
 	if err != nil {
 		return nil, err
 	}
@@ -661,8 +660,8 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 	return goQuery, nil
 }
 
-func parseDeleteQuery(queryString string, query *C.delete_query) (*DeleteQuery, error) {
-	basicQuery, err := parseSelectDeleteCommonQuery(queryString, query.from_clause, query.where_condition)
+func parseDeleteQuery(query *C.delete_query) (*DeleteQuery, error) {
+	basicQuery, err := parseSelectDeleteCommonQuery(query.from_clause, query.where_condition)
 	if err != nil {
 		return nil, err
 	}
