@@ -311,6 +311,7 @@ type Request struct {
 	ReplicationFactor       *uint32 `protobuf:"varint,16,opt,name=replication_factor" json:"replication_factor,omitempty"`
 	OwnerServerId           *uint32 `protobuf:"varint,17,opt,name=owner_server_id" json:"owner_server_id,omitempty"`
 	LastKnownSequenceNumber *uint64 `protobuf:"varint,18,opt,name=last_known_sequence_number" json:"last_known_sequence_number,omitempty"`
+	IsDbUser                *bool   `protobuf:"varint,19,opt,name=is_db_user" json:"is_db_user,omitempty"`
 	XXX_unrecognized        []byte  `json:"-"`
 }
 
@@ -407,6 +408,13 @@ func (m *Request) GetLastKnownSequenceNumber() uint64 {
 		return *m.LastKnownSequenceNumber
 	}
 	return 0
+}
+
+func (m *Request) GetIsDbUser() bool {
+	if m != nil && m.IsDbUser != nil {
+		return *m.IsDbUser
+	}
+	return false
 }
 
 type Response struct {

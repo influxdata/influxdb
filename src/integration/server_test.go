@@ -133,29 +133,16 @@ type Point struct {
 }
 
 func (self *ServerProcess) Query(database, query string, onlyLocal bool, c *C) *SeriesCollection {
-	encodedQuery := url.QueryEscape(query)
-	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=paul&p=pass&q=%s", self.apiPort, database, encodedQuery)
-	if onlyLocal {
-		fullUrl = fullUrl + "&force_local=true"
-	}
-	resp, err := http.Get(fullUrl)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	var js []interface{}
-	err = json.Unmarshal(body, &js)
-	if err != nil {
-		fmt.Println("NOT JSON: ", string(body))
-	}
-	c.Assert(err, IsNil)
-	return ResultsToSeriesCollection(js)
+	return self.QueryWithUsername(database, query, onlyLocal, c, "paul", "pass")
 }
 
 func (self *ServerProcess) QueryAsRoot(database, query string, onlyLocal bool, c *C) *SeriesCollection {
+	return self.QueryWithUsername(database, query, onlyLocal, c, "root", "root")
+}
+
+func (self *ServerProcess) QueryWithUsername(database, query string, onlyLocal bool, c *C, username, password string) *SeriesCollection {
 	encodedQuery := url.QueryEscape(query)
-	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=root&p=root&q=%s", self.apiPort, database, encodedQuery)
+	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=%s&p=%s&q=%s", self.apiPort, database, username, password, encodedQuery)
 	if onlyLocal {
 		fullUrl = fullUrl + "&force_local=true"
 	}
@@ -379,6 +366,27 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
 
 	self.serverProcesses[0].Query("test_rep", "delete from test_delete_replication", false, c)
 	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
+	c.Assert(collection.Members, HasLen, 0)
+}
+
+// Reported by Alex in the following thread
+// https://groups.google.com/forum/#!msg/influxdb/I_Ns6xYiMOc/XilTv6BDgHgJ
+func (self *ServerSuite) TestAdminPermissionToDeleteData(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2]
+    ],
+    "name": "test_delete_admin_permission",
+    "columns": ["val_1", "val_2"]
+  }]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	collection := self.serverProcesses[0].QueryAsRoot("test_rep", "select count(val_1) from test_delete_admin_permission", false, c)
+	series := collection.GetSeries("test_delete_admin_permission", c)
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
+
+	self.serverProcesses[0].Query("test_rep", "delete from test_delete_admin_permission", false, c)
+	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_admin_permission", false, c)
 	c.Assert(collection.Members, HasLen, 0)
 }
 

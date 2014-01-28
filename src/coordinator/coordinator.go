@@ -87,6 +87,7 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	userName := user.GetName()
+	isDbUser := !user.IsClusterAdmin()
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
 	queryString := query.GetQueryString()
 	var localServerToQuery *serverToQuery
@@ -94,7 +95,7 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 		if server.server.Id == self.clusterConfiguration.localServerId {
 			localServerToQuery = server
 		} else {
-			request := &protocol.Request{Type: &queryRequest, Query: &queryString, Id: &id, Database: &db, UserName: &userName}
+			request := &protocol.Request{Type: &queryRequest, Query: &queryString, Id: &id, Database: &db, UserName: &userName, IsDbUser: &isDbUser}
 			if server.ringLocationsToQuery != replicationFactor {
 				r := server.ringLocationsToQuery
 				request.RingLocationsToQuery = &r
@@ -1010,12 +1011,13 @@ func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*p
 	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(&database)
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	userName := user.GetName()
+	isDbUser := !user.IsClusterAdmin()
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
 	for _, server := range servers {
 		if server.server.Id == self.clusterConfiguration.localServerId {
 			continue
 		}
-		request := &protocol.Request{Type: &listSeriesRequest, Id: &id, Database: &database, UserName: &userName}
+		request := &protocol.Request{Type: &listSeriesRequest, Id: &id, Database: &database, UserName: &userName, IsDbUser: &isDbUser}
 		if server.ringLocationsToQuery != replicationFactor {
 			r := server.ringLocationsToQuery
 			request.RingLocationsToQuery = &r

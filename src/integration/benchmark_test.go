@@ -77,7 +77,15 @@ func (self *Server) WriteData(data interface{}, extraQueryParams ...string) erro
 	return nil
 }
 
-func (self *Server) RunQuery(query string, precision string) ([]byte, error) {
+func (self *Server) RunQuery(query, precision string) ([]byte, error) {
+	return self.RunQueryAsUser(query, precision, "user", "pass")
+}
+
+func (self *Server) RunQueryAsRoot(query, precision string) ([]byte, error) {
+	return self.RunQueryAsUser(query, precision, "root", "root")
+}
+
+func (self *Server) RunQueryAsUser(query, precision, username, password string) ([]byte, error) {
 	encodedQuery := url.QueryEscape(query)
 	resp, err := http.Get(fmt.Sprintf("http://localhost:8086/db/db1/series?u=user&p=pass&q=%s&time_precision=%s", encodedQuery, precision))
 	if err != nil {
@@ -227,6 +235,35 @@ func (self *IntegrationSuite) TestWriting(c *C) {
 	}
 
 	self.writeData(c)
+}
+
+// Reported by Alex in the following thread
+// https://groups.google.com/forum/#!msg/influxdb/I_Ns6xYiMOc/XilTv6BDgHgJ
+func (self *IntegrationSuite) TestAdminPermissionToDeleteData(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2]
+    ],
+    "name": "test_delete_admin_permission",
+    "columns": ["val_1", "val_2"]
+  }]`
+	c.Assert(self.server.WriteData(data), IsNil)
+	bs, err := self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s")
+	c.Assert(err, IsNil)
+	series := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0][1], Equals, float64(1))
+
+	_, err = self.server.RunQueryAsRoot("delete from test_delete_admin_permission", "s")
+	c.Assert(err, IsNil)
+	bs, err = self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s")
+	c.Assert(err, IsNil)
+	err = json.Unmarshal(bs, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 0)
 }
 
 func (self *IntegrationSuite) TestMedians(c *C) {

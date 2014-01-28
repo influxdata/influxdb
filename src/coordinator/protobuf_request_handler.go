@@ -3,9 +3,11 @@ package coordinator
 import (
 	"bytes"
 	log "code.google.com/p/log4go"
+	"common"
 	"datastore"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"parser"
 	"protocol"
@@ -266,15 +268,29 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	}
 	// the query should always parse correctly since it was parsed at the originating server.
 	query, _ := parser.ParseSelectQuery(*request.Query)
-	user := self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
+	var user common.User
+	if *request.IsDbUser {
+		user = self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
+	} else {
+		user = self.clusterConfig.GetClusterAdmin(*request.UserName)
+	}
 
+	var response *protocol.Response
 	var ringFilter func(database, series *string, time *int64) bool
+
+	if user == nil {
+		errorMsg := fmt.Sprintf("Cannot find user %s", *request.UserName)
+		response = &protocol.Response{ErrorMessage: &errorMsg}
+		goto response
+	}
+
 	if request.RingLocationsToQuery != nil {
 		ringFilter = self.clusterConfig.GetRingFilterFunction(*request.Database, *request.RingLocationsToQuery)
 	}
 	self.db.ExecuteQuery(user, *request.Database, query, assignNextPointTimesAndSend, ringFilter)
 
-	response := &protocol.Response{Type: &endStreamResponse, RequestId: request.Id}
+	response = &protocol.Response{Type: &endStreamResponse, RequestId: request.Id}
+response:
 	self.WriteResponse(conn, response)
 }
 

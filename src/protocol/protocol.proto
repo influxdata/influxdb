@@ -64,6 +64,7 @@ message Request {
   optional uint32 replication_factor = 16;
   optional uint32 owner_server_id = 17;
   optional uint64 last_known_sequence_number = 18;
+  optional bool is_db_user = 19;
 }
 
 message Response {
