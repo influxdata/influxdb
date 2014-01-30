@@ -301,10 +301,11 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.servers = append(self.servers, server)
 	server.Id = uint32(len(self.servers))
 	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
+	log.Info("Checking whether this is the local server new: %s, local: %s\n", self.config.ProtobufConnectionString(), server.ProtobufConnectionString)
 	if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
 		log.Info("Connecting to ProtobufServer: %s", server.ProtobufConnectionString)
 		server.Connect()
-	} else {
+	} else if !self.addedLocalServer {
 		log.Info("Added the local server")
 		self.localServerId = server.Id
 		self.addedLocalServerWait <- true
@@ -581,9 +582,11 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	}
 
 	for _, server := range self.servers {
+		log.Info("Checking whether this is the local server new: %s, local: %s\n", self.config.ProtobufConnectionString(), server.ProtobufConnectionString)
 		if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
 			continue
 		}
+		log.Info("Added the local server")
 		self.addedLocalServerWait <- true
 		self.addedLocalServer = true
 		break
