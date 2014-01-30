@@ -193,7 +193,7 @@
   be used to update user flags, password, etc.
 - Querying for column names that don't exist no longer throws an error.
 
-## v0.5.0 [unreleased]
+## v0.4.1
 
 ### Features
 
@@ -207,5 +207,6 @@
 - [Issue #195](https://github.com/influxdb/influxdb/issues/195). Allow the bind address to be configurable, Thanks @schmurfy.
 - [Issue #199](https://github.com/influxdb/influxdb/issues/199). Make the test timeout configurable
 - [Issue #200](https://github.com/influxdb/influxdb/issues/200). Selecting `time` or `sequence_number` silently fail
+- [Issue #215](https://github.com/influxdb/influxdb/pull/215). Server fails to start up after Raft log compaction and restart.
 
 ### Deprecated
