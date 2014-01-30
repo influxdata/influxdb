@@ -130,6 +130,9 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	// healthcheck
 	self.registerEndpoint(p, "get", "/ping", self.ping)
 
+	// force a raft log compaction
+	self.registerEndpoint(p, "post", "/raft/force_compaction", self.forceRaftCompaction)
+
 	// fetch current list of available interfaces
 	self.registerEndpoint(p, "get", "/interfaces", self.listInterfaces)
 
@@ -265,6 +268,13 @@ func TimePrecisionFromString(s string) (TimePrecision, error) {
 	}
 
 	return 0, fmt.Errorf("Unknown time precision %s", s)
+}
+
+func (self *HttpServer) forceRaftCompaction(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(user common.User) (int, interface{}) {
+		self.coordinator.ForceCompaction(user)
+		return libhttp.StatusOK, "OK"
+	})
 }
 
 func (self *HttpServer) sendCrossOriginHeader(w libhttp.ResponseWriter, r *libhttp.Request) {

@@ -176,7 +176,7 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 	}
 	size, err := GetFileSize(server.raftServer.LogPath())
 	c.Assert(err, IsNil)
-	server.forceLogCompaction()
+	server.ForceLogCompaction()
 	newSize, err := GetFileSize(server.raftServer.LogPath())
 	c.Assert(err, IsNil)
 	c.Assert(newSize < size, Equals, true)
