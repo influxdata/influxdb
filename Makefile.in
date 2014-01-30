@@ -104,6 +104,7 @@ github.com/goraft/raft \
 github.com/influxdb/go-cache \
 github.com/BurntSushi/toml \
 github.com/influxdb/influxdb-go \
+code.google.com/p/gogoprotobuf/proto \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
