@@ -22,6 +22,7 @@ type Coordinator interface {
 	DropDatabase(user common.User, db string) error
 	DropSeries(user common.User, db, series string) error
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
+	ForceCompaction(user common.User) error
 	ListDatabases(user common.User) ([]*Database, error)
 	ListSeries(user common.User, database string) ([]*protocol.Series, error)
 	ReplicateWrite(request *protocol.Request) error
@@ -91,6 +92,8 @@ type ClusterConsensus interface {
 
 	// When a cluster is turned on for the first time.
 	CreateRootUser() error
+
+	ForceLogCompaction() error
 }
 
 type RequestHandler interface {

@@ -200,6 +200,33 @@ func (self *ServerSuite) TearDownSuite(c *C) {
 	}
 }
 
+func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
+	data := `
+  [{
+    "points": [[1]],
+    "name": "test_restart_after_compaction",
+    "columns": ["val"]
+  }]
+  `
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_restart_after_compaction", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_restart_after_compaction", c)
+	c.Assert(series.Points, HasLen, 1)
+	resp := self.serverProcesses[0].Post("/raft/force_compaction?u=root&p=root", "", c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	self.serverProcesses[0].Stop()
+	time.Sleep(time.Second)
+	self.serverProcesses[0].Start()
+	time.Sleep(time.Second * 3)
+
+	collection = self.serverProcesses[0].Query("test_rep", "select * from test_restart_after_compaction", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series = collection.GetSeries("test_restart_after_compaction", c)
+	c.Assert(series.Points, HasLen, 1)
+}
+
 // For issue #140 https://github.com/influxdb/influxdb/issues/140
 func (self *ServerSuite) TestRestartServers(c *C) {
 	data := `

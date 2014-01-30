@@ -7,7 +7,7 @@
 
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
-# level  = "info"
+level  = "info"
 file   = "/tmp/influxdb/test/2/influxdb.log"
 
 # Configure the admin server

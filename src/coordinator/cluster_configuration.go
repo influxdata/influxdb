@@ -40,6 +40,7 @@ type ClusterConfiguration struct {
 	ClusterVersion             uint32
 	config                     *configuration.Configuration
 	addedLocalServerWait       chan bool
+	addedLocalServer           bool
 }
 
 type ContinuousQuery struct {
@@ -307,6 +308,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 		log.Info("Added the local server")
 		self.localServerId = server.Id
 		self.addedLocalServerWait <- true
+		self.addedLocalServer = true
 	}
 }
 
@@ -569,9 +571,23 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 			server.Connect()
 		}
 	}
+
 	self.hasRunningServers = data.HasRunningServers
 	self.localServerId = data.LocalServerId
 	self.ClusterVersion = data.ClusterVersion
+
+	if self.addedLocalServer {
+		return nil
+	}
+
+	for _, server := range self.servers {
+		if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
+			continue
+		}
+		self.addedLocalServerWait <- true
+		self.addedLocalServer = true
+		break
+	}
 
 	return nil
 }

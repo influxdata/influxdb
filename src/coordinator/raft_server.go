@@ -282,11 +282,13 @@ const (
 	MAX_SIZE = 10 * MEGABYTE
 )
 
-func (s *RaftServer) forceLogCompaction() {
+func (s *RaftServer) ForceLogCompaction() error {
 	err := s.raftServer.TakeSnapshot()
 	if err != nil {
 		log.Error("Cannot take snapshot: %s", err)
+		return err
 	}
+	return nil
 }
 
 func (s *RaftServer) CompactLog() {
@@ -306,9 +308,9 @@ func (s *RaftServer) CompactLog() {
 			if size < MAX_SIZE {
 				continue
 			}
-			s.forceLogCompaction()
+			s.ForceLogCompaction()
 		case <-forceCompactionTicker:
-			s.forceLogCompaction()
+			s.ForceLogCompaction()
 		}
 	}
 }

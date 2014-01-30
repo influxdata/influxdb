@@ -78,6 +78,14 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 	return coordinator
 }
 
+func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
+	if !user.IsClusterAdmin() {
+		return fmt.Errorf("Insufficient permission to force a log compaction")
+	}
+
+	return self.raftServer.ForceLogCompaction()
+}
+
 // Distributes the query across the cluster and combines the results. Yields as they come in ensuring proper order.
 // TODO: make this work even if there is a downed server in the cluster
 func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
