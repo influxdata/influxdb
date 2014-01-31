@@ -120,8 +120,8 @@ func newProtobufClient(connectString string) cluster.ServerConnection {
 func newConfigAndServer(c *C) *RaftServer {
 	path, err := ioutil.TempDir(os.TempDir(), "influxdb")
 	c.Assert(err, IsNil)
-	config := cluster.NewClusterConfiguration(&configuration.Configuration{}, newProtobufClient)
 	setupConfig := &configuration.Configuration{Hostname: "localhost", RaftDir: path, RaftServerPort: 0}
+	config := cluster.NewClusterConfiguration(setupConfig, newProtobufClient)
 	server := NewRaftServer(setupConfig, config)
 	return server
 }
