@@ -770,6 +770,10 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 
 	limit := query.Limit
+	shouldLimit := true
+	if limit == 0 {
+		shouldLimit = false
+	}
 	resultByteCount := 0
 
 	// TODO: clean up, this is super gnarly
@@ -881,7 +885,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			resultByteCount = 0
 			result = &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 		}
-		if limit != 0 && limit < 1 {
+		if shouldLimit && limit < 1 {
 			break
 		}
 	}
