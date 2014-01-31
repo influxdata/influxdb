@@ -116,7 +116,6 @@ const (
 	ONE_GIGABYTE                 = ONE_MEGABYTE * 1024
 	TWO_FIFTY_SIX_KILOBYTES      = 256 * 1024
 	BLOOM_FILTER_BITS_PER_KEY    = 64
-	MAX_POINTS_TO_SCAN           = 1000000
 	MAX_SERIES_SIZE              = ONE_MEGABYTE
 	REQUEST_SEQUENCE_NUMBER_KEY  = "r"
 	REQUEST_LOG_BASE_DIR         = "request_logs"
@@ -771,10 +770,6 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 
 	limit := query.Limit
-	if limit == 0 {
-		limit = MAX_POINTS_TO_SCAN
-	}
-
 	resultByteCount := 0
 
 	// TODO: clean up, this is super gnarly
@@ -886,7 +881,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			resultByteCount = 0
 			result = &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 		}
-		if limit < 1 {
+		if limit != 0 && limit < 1 {
 			break
 		}
 	}
