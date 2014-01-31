@@ -162,6 +162,7 @@ type FieldValue struct {
 	DoubleValue      *float64 `protobuf:"fixed64,3,opt,name=double_value" json:"double_value,omitempty"`
 	BoolValue        *bool    `protobuf:"varint,4,opt,name=bool_value" json:"bool_value,omitempty"`
 	Int64Value       *int64   `protobuf:"varint,5,opt,name=int64_value" json:"int64_value,omitempty"`
+	IsNull           *bool    `protobuf:"varint,6,opt,name=is_null" json:"is_null,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -195,6 +196,13 @@ func (m *FieldValue) GetInt64Value() int64 {
 		return *m.Int64Value
 	}
 	return 0
+}
+
+func (m *FieldValue) GetIsNull() bool {
+	if m != nil && m.IsNull != nil {
+		return *m.IsNull
+	}
+	return false
 }
 
 type Point struct {

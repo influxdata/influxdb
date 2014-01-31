@@ -262,6 +262,14 @@ func (self *ServerSuite) TestRestartServers(c *C) {
 	c.Assert(series.Points, HasLen, 1)
 }
 
+func (self *ServerSuite) TestWritingNullInCluster(c *C) {
+	data := `[{"name":"test_null_in_cluster","columns":["provider","city"],"points":[["foo", "bar"], [null, "baz"]]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_null_in_cluster", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	c.Assert(collection.GetSeries("test_null_in_cluster", c).Points, HasLen, 2)
+}
 func (self *ServerSuite) TestDataReplication(c *C) {
 	data := `
   [{

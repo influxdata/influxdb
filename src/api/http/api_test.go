@@ -48,7 +48,7 @@ func (self *MockEngine) RunQuery(_ common.User, _ string, query string, localOnl
     "points": [
       {
         "values": [
-				  { "string_value": "some_value"},null
+				  { "string_value": "some_value"},{"is_null": true}
         ],
         "timestamp": 1381346631000000,
         "sequence_number": 1
@@ -513,7 +513,7 @@ func (self *ApiSuite) TestWriteDataWithNull(c *C) {
 	c.Assert(*series.Points[2].Values[0].StringValue, Equals, "3")
 	c.Assert(*series.Points[2].Values[1].Int64Value, Equals, int64(3))
 	c.Assert(*series.Points[2].Values[2].Int64Value, Equals, int64(3))
-	c.Assert(series.Points[2].Values[3], IsNil)
+	c.Assert(series.Points[2].Values[3].GetIsNull(), Equals, true)
 }
 
 func (self *ApiSuite) TestWriteData(c *C) {

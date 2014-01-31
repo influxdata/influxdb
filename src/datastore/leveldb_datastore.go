@@ -140,6 +140,8 @@ var (
 	MAX_SEQUENCE                 = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
 	replicateWrite = protocol.Request_REPLICATION_WRITE
+
+	TRUE = true
 )
 
 func NewLevelDbDatastore(dbDir string) (Datastore, error) {
@@ -302,7 +304,7 @@ func (self *LevelDbDatastore) WriteSeriesData(database string, series *protocol.
 			binary.Write(sequenceNumberBuffer, binary.BigEndian, *point.SequenceNumber)
 			pointKey := append(append(id, timestampBuffer.Bytes()...), sequenceNumberBuffer.Bytes()...)
 
-			if point.Values[fieldIndex] == nil {
+			if point.Values[fieldIndex].GetIsNull() {
 				wb.Delete(pointKey)
 				continue
 			}
@@ -818,12 +820,13 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		}
 
 		for i, iterator := range iterators {
-			// if the value is nil, or doesn't match the point's timestamp and sequence number
+			// if the value is nil or doesn't match the point's timestamp and sequence number
 			// then skip it
 			if rawColumnValues[i] == nil ||
 				!bytes.Equal(rawColumnValues[i].time, pointTimeRaw) ||
 				!bytes.Equal(rawColumnValues[i].sequence, pointSequenceRaw) {
 
+				point.Values[i] = &protocol.FieldValue{IsNull: &TRUE}
 				continue
 			}
 
@@ -839,21 +842,23 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			}
 
 			fv := &protocol.FieldValue{}
+			resultByteCount += len(rawColumnValues[i].value)
 			err := proto.Unmarshal(rawColumnValues[i].value, fv)
 			if err != nil {
 				return err
 			}
-			resultByteCount += len(rawColumnValues[i].value)
 			point.Values[i] = fv
-			var sequence uint64
-			binary.Read(bytes.NewBuffer(rawColumnValues[i].sequence), binary.BigEndian, &sequence)
-			var t uint64
-			binary.Read(bytes.NewBuffer(rawColumnValues[i].time), binary.BigEndian, &t)
-			time := self.convertUintTimestampToInt64(&t)
-			point.SetTimestampInMicroseconds(time)
-			point.SequenceNumber = &sequence
 			rawColumnValues[i] = nil
 		}
+
+		var sequence uint64
+		// set the point sequence number and timestamp
+		binary.Read(bytes.NewBuffer(pointSequenceRaw), binary.BigEndian, &sequence)
+		var t uint64
+		binary.Read(bytes.NewBuffer(pointTimeRaw), binary.BigEndian, &t)
+		time := self.convertUintTimestampToInt64(&t)
+		point.SetTimestampInMicroseconds(time)
+		point.SequenceNumber = &sequence
 
 		// stop the loop if we ran out of points
 		if !isValid {

@@ -482,7 +482,9 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseAndNullValues(c *C) {
       },
       {
         "values": [
-				  null,
+				  {
+						"is_null": true
+					},
           {
             "double_value": 3.0
           }
@@ -527,7 +529,9 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseAndNullValues(c *C) {
           {
             "int64_value": 1
           },
-				  null
+				  {
+						"is_null": true
+					}
         ],
         "timestamp": 1381346631000000
       }

@@ -255,6 +255,8 @@ const (
 	SecondPrecision
 )
 
+var TRUE = true
+
 func TimePrecisionFromString(s string) (TimePrecision, error) {
 	switch s {
 	case "u":
@@ -385,7 +387,7 @@ func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 			case bool:
 				values = append(values, &protocol.FieldValue{BoolValue: &v})
 			case nil:
-				values = append(values, nil)
+				values = append(values, &protocol.FieldValue{IsNull: &TRUE})
 			default:
 				// if we reached this line then the dynamic type didn't match
 				return nil, fmt.Errorf("Unknown type %T", value)
@@ -572,11 +574,7 @@ func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 				rowValues = append(rowValues, *row.SequenceNumber)
 			}
 			for _, value := range row.Values {
-				if value != nil {
-					rowValues = append(rowValues, value.GetValue())
-				} else {
-					rowValues = append(rowValues, nil)
-				}
+				rowValues = append(rowValues, value.GetValue())
 			}
 			points = append(points, rowValues)
 		}

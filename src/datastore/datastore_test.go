@@ -544,7 +544,7 @@ func (self *DatastoreSuite) TestReturnsResultsInAscendingOrderWithNulls(c *C) {
 	minuteAgo := time.Now().Add(-time.Minute).Unix()
 	mock := `{
     "points":[
-      {"values":[null, {"string_value": "dix"}],"sequence_number":1},
+      {"values":[{"is_null": true}, {"string_value": "dix"}],"sequence_number":1},
       {"values":[{"string_value":"todd"}, {"string_value": "persen"}],"sequence_number":2}],
       "name":"user_things",
       "fields":["first_name", "last_name"]
@@ -566,10 +566,10 @@ func (self *DatastoreSuite) TestNullValues(c *C) {
 	minuteAgo := time.Now().Add(-time.Minute).Unix()
 	mock := `{
     "points":[
-      {"values":[null, {"string_value": "dix"}],"sequence_number":1},
-      {"values":[{"string_value": "dix"}, null],"sequence_number":2},
-      {"values":[null, {"string_value": "dix"}],"sequence_number":3},
-      {"values":[{"string_value":"todd"}, null],"sequence_number":4}],
+      {"values":[{"is_null": true}, {"string_value": "dix"}],"sequence_number":1},
+      {"values":[{"string_value": "dix"}, {"is_null": true}],"sequence_number":2},
+      {"values":[{"is_null": true}, {"string_value": "dix"}],"sequence_number":3},
+      {"values":[{"string_value":"todd"}, {"is_null": true}],"sequence_number":4}],
       "name":"user_things",
       "fields":["first_name", "last_name"]
     }`
