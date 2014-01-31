@@ -881,9 +881,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			if err != nil {
 				return err
 			}
-			if shouldLimit {
-				limit += dropped
-			}
+			limit += dropped
 			resultByteCount = 0
 			result = &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 		}
