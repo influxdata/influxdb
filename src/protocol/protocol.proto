@@ -5,6 +5,7 @@ message FieldValue {
   optional double double_value = 3;
   optional bool bool_value = 4;
   optional int64 int64_value = 5;
+  optional bool is_null = 6;
 }
 
 message Point {
