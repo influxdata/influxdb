@@ -196,7 +196,6 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 	server.port = port
 	server.name = name
 	// defer clean(server)
-	fmt.Println("STARTING UP.......")
 	err = server.ListenAndServe()
 	c.Assert(err, IsNil)
 	time.Sleep(SERVER_STARTUP_TIME)
@@ -205,7 +204,6 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 		assertConfigContains(server.port, dbname, true, c)
 	}
 
-	fmt.Println("NEW SERVER JOINING...")
 	// make another server join the cluster
 	server2 := newConfigAndServer(c)
 	defer clean(server2)
@@ -213,7 +211,6 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 	c.Assert(err, IsNil)
 	server2.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", server.port)}
 	server2.Serve(l)
-	fmt.Println("DONE...")
 	time.Sleep(SERVER_STARTUP_TIME)
 	for i := 0; i < 1000; i++ {
 		dbname := fmt.Sprintf("db%d", i)

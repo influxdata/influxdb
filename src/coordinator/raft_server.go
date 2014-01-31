@@ -568,7 +568,7 @@ func (s *RaftServer) retryCommand(command raft.Command, retries int) (ret interf
 			return ret, nil
 		}
 		time.Sleep(50 * time.Millisecond)
-		fmt.Println("Retrying RAFT command...")
+		log.Info("Retrying RAFT command...")
 	}
 	return
 }
@@ -580,7 +580,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		log.Debug("Leader processing: %v", command)
+		log.Debug("ON RAFT LEADER - JOIN: %v", command)
 		// during the test suite the join command will sometimes time out.. just retry a few times
 		if _, err := s.raftServer.Do(command); err != nil {
 			log.Error("Can't process %v: %s", command, err)
@@ -592,16 +592,13 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		if server == nil {
 			log.Info("Adding new server to the cluster config %s", command.Name)
 			client := NewProtobufClient(command.ProtobufConnectionString)
-			fmt.Println("CREATED CLIENT")
 			clusterServer := cluster.NewClusterServer(command.Name, command.ConnectionString, command.ProtobufConnectionString, client)
-			fmt.Println("CREATED SERVER")
 			addServer := NewAddPotentialServerCommand(clusterServer)
 			if _, err := s.raftServer.Do(addServer); err != nil {
 				log.Error("Error joining raft server: ", err, command)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			fmt.Println("DID COMMAND...")
 		}
 		log.Info("Server %s already exist in the cluster config", command.Name)
 	} else {

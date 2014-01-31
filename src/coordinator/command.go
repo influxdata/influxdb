@@ -3,7 +3,6 @@ package coordinator
 import (
 	"cluster"
 	log "code.google.com/p/log4go"
-	"fmt"
 	"github.com/goraft/raft"
 	"time"
 )
@@ -200,7 +199,6 @@ func (c *AddPotentialServerCommand) CommandName() string {
 
 func (c *AddPotentialServerCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*cluster.ClusterConfiguration)
-	fmt.Println("COMMMAND: adding potent server")
 	config.AddPotentialServer(c.Server)
 	return nil, nil
 }
