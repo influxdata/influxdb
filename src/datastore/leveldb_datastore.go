@@ -772,6 +772,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	limit := query.Limit
 	shouldLimit := true
 	if limit == 0 {
+		limit = -1
 		shouldLimit = false
 	}
 	resultByteCount := 0
@@ -876,7 +877,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		resultByteCount += 16
 
 		// check if we should send the batch along
-		if resultByteCount > MAX_SERIES_SIZE || limit < 1 {
+		if resultByteCount > MAX_SERIES_SIZE || (shouldLimit && limit == 0) {
 			dropped, err := self.sendBatch(query, result, yield)
 			if err != nil {
 				return err
