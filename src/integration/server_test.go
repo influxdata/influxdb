@@ -270,6 +270,17 @@ func (self *ServerSuite) TestWritingNullInCluster(c *C) {
 	c.Assert(collection.Members, HasLen, 1)
 	c.Assert(collection.GetSeries("test_null_in_cluster", c).Points, HasLen, 2)
 }
+
+func (self *ServerSuite) TestCountDistinctWithNullValues(c *C) {
+	data := `[{"name":"test_null_with_distinct","columns":["column"],"points":[["value1"], [null], ["value2"], ["value1"], [null]]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	collection := self.serverProcesses[0].Query("test_rep", "select count(distinct(column)) from test_null_with_distinct group by time(1m)", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_null_with_distinct", c)
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(2))
+}
+
 func (self *ServerSuite) TestDataReplication(c *C) {
 	data := `
   [{
