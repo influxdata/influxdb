@@ -20,6 +20,7 @@ type ProtobufClient struct {
 	requestBuffer     map[uint32]*runningRequest
 	connectionStatus  uint32
 	reconnectWait     sync.WaitGroup
+	connectCalled     bool
 }
 
 type runningRequest struct {
@@ -37,13 +38,19 @@ const (
 )
 
 func NewProtobufClient(hostAndPort string) *ProtobufClient {
-	client := &ProtobufClient{hostAndPort: hostAndPort, requestBuffer: make(map[uint32]*runningRequest), connectionStatus: IS_CONNECTED}
+	return &ProtobufClient{hostAndPort: hostAndPort, requestBuffer: make(map[uint32]*runningRequest), connectionStatus: IS_CONNECTED}
+}
+
+func (self *ProtobufClient) Connect() {
+	if self.connectCalled {
+		return
+	}
+	self.connectCalled = true
 	go func() {
-		client.reconnect()
-		client.readResponses()
+		self.reconnect()
+		self.readResponses()
 	}()
-	go client.peridicallySweepTimedOutRequests()
-	return client
+	go self.peridicallySweepTimedOutRequests()
 }
 
 func (self *ProtobufClient) Close() {

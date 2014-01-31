@@ -1,4 +1,4 @@
-package coordinator
+package cluster
 
 import (
 	"bytes"
@@ -14,6 +14,15 @@ import (
 	"time"
 )
 
+// defined by cluster config (in cluster package)
+type QuerySpec interface {
+	GetStartTime() time.Time
+	GetEndTime() time.Time
+	Database() string
+	TableNames() []string
+	IsRegex() bool
+}
+
 /*
   This struct stores all the metadata confiugration information about a running cluster. This includes
   the servers in the cluster and their state, databases, users, and which continuous queries are running.
@@ -25,22 +34,23 @@ import (
 */
 type ClusterConfiguration struct {
 	createDatabaseLock         sync.RWMutex
-	databaseReplicationFactors map[string]uint8
+	DatabaseReplicationFactors map[string]uint8
 	usersLock                  sync.RWMutex
-	clusterAdmins              map[string]*clusterAdmin
-	dbUsers                    map[string]map[string]*dbUser
+	clusterAdmins              map[string]*ClusterAdmin
+	dbUsers                    map[string]map[string]*DbUser
 	servers                    []*ClusterServer
 	serversLock                sync.RWMutex
 	continuousQueries          map[string][]*ContinuousQuery
 	continuousQueriesLock      sync.RWMutex
-	parsedContinuousQueries    map[string]map[uint32]*parser.SelectQuery
+	ParsedContinuousQueries    map[string]map[uint32]*parser.SelectQuery
 	continuousQueryTimestamp   time.Time
 	hasRunningServers          bool
-	localServerId              uint32
+	LocalServerId              uint32
 	ClusterVersion             uint32
 	config                     *configuration.Configuration
 	addedLocalServerWait       chan bool
 	addedLocalServer           bool
+	connectionCreator          func(string) ServerConnection
 }
 
 type ContinuousQuery struct {
@@ -53,16 +63,17 @@ type Database struct {
 	ReplicationFactor uint8  `json:"replicationFactor"`
 }
 
-func NewClusterConfiguration(config *configuration.Configuration) *ClusterConfiguration {
+func NewClusterConfiguration(config *configuration.Configuration, connectionCreator func(string) ServerConnection) *ClusterConfiguration {
 	return &ClusterConfiguration{
-		databaseReplicationFactors: make(map[string]uint8),
-		clusterAdmins:              make(map[string]*clusterAdmin),
-		dbUsers:                    make(map[string]map[string]*dbUser),
+		DatabaseReplicationFactors: make(map[string]uint8),
+		clusterAdmins:              make(map[string]*ClusterAdmin),
+		dbUsers:                    make(map[string]map[string]*DbUser),
 		continuousQueries:          make(map[string][]*ContinuousQuery),
-		parsedContinuousQueries:    make(map[string]map[uint32]*parser.SelectQuery),
+		ParsedContinuousQueries:    make(map[string]map[uint32]*parser.SelectQuery),
 		servers:                    make([]*ClusterServer, 0),
 		config:                     config,
 		addedLocalServerWait:       make(chan bool, 1),
+		connectionCreator:          connectionCreator,
 	}
 }
 
@@ -83,7 +94,7 @@ func (self *ClusterConfiguration) WaitForLocalServerLoaded() {
 }
 
 func (self *ClusterConfiguration) GetReplicationFactor(database *string) uint8 {
-	return self.databaseReplicationFactors[*database]
+	return self.DatabaseReplicationFactors[*database]
 }
 
 func (self *ClusterConfiguration) IsActive() bool {
@@ -118,9 +129,9 @@ func (self *ClusterConfiguration) GetServerById(id *uint32) *ClusterServer {
 	return nil
 }
 
-type serverToQuery struct {
-	server               *ClusterServer
-	ringLocationsToQuery uint32
+type ServerToQuery struct {
+	Server              *ClusterServer
+	RingLocationToQuery uint32
 }
 
 // This function will return an array of servers to query and the number of ring locations to return per server.
@@ -130,21 +141,21 @@ type serverToQuery struct {
 // if you have a cluster with databases with RFs of 1, 2, and 3: optimal cluster sizes would be 6, 12, 18, 24, 30, etc.
 // If that's not the case, one or more servers will have to filter out data from other servers on the fly, which could
 // be a little more expensive.
-func (self *ClusterConfiguration) GetServersToMakeQueryTo(database *string) (servers []*serverToQuery, replicationFactor uint32) {
+func (self *ClusterConfiguration) GetServersToMakeQueryTo(database *string) (servers []*ServerToQuery, replicationFactor uint32) {
 	replicationFactor = uint32(self.GetReplicationFactor(database))
 	replicationFactorInt := int(replicationFactor)
 	index := 0
 	for i, s := range self.servers {
-		if s.Id == self.localServerId {
+		if s.Id == self.LocalServerId {
 			index = i % replicationFactorInt
 			break
 		}
 	}
-	servers = make([]*serverToQuery, 0, len(self.servers)/replicationFactorInt)
+	servers = make([]*ServerToQuery, 0, len(self.servers)/replicationFactorInt)
 	serverCount := len(self.servers)
 	for ; index < serverCount; index += replicationFactorInt {
 		server := self.servers[index]
-		servers = append(servers, &serverToQuery{server, replicationFactor})
+		servers = append(servers, &ServerToQuery{server, replicationFactor})
 	}
 	// need to maybe add a server and set which ones filter their data
 	if serverCount%replicationFactorInt != 0 {
@@ -175,10 +186,10 @@ func (self *ClusterConfiguration) GetServersToMakeQueryTo(database *string) (ser
 		*/
 		lastIndexAdded := index - replicationFactorInt
 		if serverCount-lastIndexAdded == replicationFactorInt {
-			servers[0].ringLocationsToQuery = uint32(replicationFactorInt - 1)
-			servers = append(servers, &serverToQuery{self.servers[0], replicationFactor})
+			servers[0].RingLocationToQuery = uint32(replicationFactorInt - 1)
+			servers = append(servers, &ServerToQuery{self.servers[0], replicationFactor})
 		} else {
-			servers[0].ringLocationsToQuery = uint32(replicationFactorInt - 1)
+			servers[0].RingLocationToQuery = uint32(replicationFactorInt - 1)
 		}
 	}
 	return servers, replicationFactor
@@ -198,7 +209,7 @@ func (self *ClusterConfiguration) GetRingFilterFunction(database string, countOf
 	serversToInclude := make([]*ClusterServer, 0, countOfServersToInclude)
 	countServers := int(countOfServersToInclude)
 	for i, s := range self.servers {
-		if s.Id == self.localServerId {
+		if s.Id == self.LocalServerId {
 			serversToInclude = append(serversToInclude, s)
 			for j := i - 1; j >= 0 && len(serversToInclude) < countServers; j-- {
 				serversToInclude = append(serversToInclude, self.servers[j])
@@ -307,7 +318,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 		server.Connect()
 	} else if !self.addedLocalServer {
 		log.Info("Added the local server")
-		self.localServerId = server.Id
+		self.LocalServerId = server.Id
 		self.addedLocalServerWait <- true
 		self.addedLocalServer = true
 	}
@@ -317,8 +328,8 @@ func (self *ClusterConfiguration) GetDatabases() []*Database {
 	self.createDatabaseLock.RLock()
 	defer self.createDatabaseLock.RUnlock()
 
-	dbs := make([]*Database, 0, len(self.databaseReplicationFactors))
-	for name, rf := range self.databaseReplicationFactors {
+	dbs := make([]*Database, 0, len(self.DatabaseReplicationFactors))
+	for name, rf := range self.DatabaseReplicationFactors {
 		dbs = append(dbs, &Database{Name: name, ReplicationFactor: rf})
 	}
 	return dbs
@@ -328,10 +339,10 @@ func (self *ClusterConfiguration) CreateDatabase(name string, replicationFactor 
 	self.createDatabaseLock.Lock()
 	defer self.createDatabaseLock.Unlock()
 
-	if _, ok := self.databaseReplicationFactors[name]; ok {
+	if _, ok := self.DatabaseReplicationFactors[name]; ok {
 		return fmt.Errorf("database %s exists", name)
 	}
-	self.databaseReplicationFactors[name] = replicationFactor
+	self.DatabaseReplicationFactors[name] = replicationFactor
 	return nil
 }
 
@@ -339,11 +350,11 @@ func (self *ClusterConfiguration) DropDatabase(name string) error {
 	self.createDatabaseLock.Lock()
 	defer self.createDatabaseLock.Unlock()
 
-	if _, ok := self.databaseReplicationFactors[name]; !ok {
+	if _, ok := self.DatabaseReplicationFactors[name]; !ok {
 		return fmt.Errorf("Database %s doesn't exist", name)
 	}
 
-	delete(self.databaseReplicationFactors, name)
+	delete(self.DatabaseReplicationFactors, name)
 
 	self.usersLock.Lock()
 	defer self.usersLock.Unlock()
@@ -360,8 +371,8 @@ func (self *ClusterConfiguration) CreateContinuousQuery(db string, query string)
 		self.continuousQueries = map[string][]*ContinuousQuery{}
 	}
 
-	if self.parsedContinuousQueries == nil {
-		self.parsedContinuousQueries = map[string]map[uint32]*parser.SelectQuery{}
+	if self.ParsedContinuousQueries == nil {
+		self.ParsedContinuousQueries = map[string]map[uint32]*parser.SelectQuery{}
 	}
 
 	maxId := uint32(0)
@@ -377,10 +388,10 @@ func (self *ClusterConfiguration) CreateContinuousQuery(db string, query string)
 	}
 
 	queryId := maxId + 1
-	if self.parsedContinuousQueries[db] == nil {
-		self.parsedContinuousQueries[db] = map[uint32]*parser.SelectQuery{queryId: selectQuery}
+	if self.ParsedContinuousQueries[db] == nil {
+		self.ParsedContinuousQueries[db] = map[uint32]*parser.SelectQuery{queryId: selectQuery}
 	} else {
-		self.parsedContinuousQueries[db][queryId] = selectQuery
+		self.ParsedContinuousQueries[db][queryId] = selectQuery
 	}
 	self.continuousQueries[db] = append(self.continuousQueries[db], &ContinuousQuery{queryId, query})
 
@@ -405,7 +416,7 @@ func (self *ClusterConfiguration) DeleteContinuousQuery(db string, id uint32) er
 			q := self.continuousQueries[db]
 			q[len(q)-1], q[i], q = nil, q[len(q)-1], q[:len(q)-1]
 			self.continuousQueries[db] = q
-			delete(self.parsedContinuousQueries[db], id)
+			delete(self.ParsedContinuousQueries[db], id)
 			break
 		}
 	}
@@ -431,7 +442,7 @@ func (self *ClusterConfiguration) GetDbUsers(db string) (names []string) {
 	return
 }
 
-func (self *ClusterConfiguration) GetDbUser(db, username string) *dbUser {
+func (self *ClusterConfiguration) GetDbUser(db, username string) *DbUser {
 	self.usersLock.RLock()
 	defer self.usersLock.RUnlock()
 
@@ -442,7 +453,7 @@ func (self *ClusterConfiguration) GetDbUser(db, username string) *dbUser {
 	return dbUsers[username]
 }
 
-func (self *ClusterConfiguration) SaveDbUser(u *dbUser) {
+func (self *ClusterConfiguration) SaveDbUser(u *DbUser) {
 	self.usersLock.Lock()
 	defer self.usersLock.Unlock()
 	db := u.GetDb()
@@ -455,7 +466,7 @@ func (self *ClusterConfiguration) SaveDbUser(u *dbUser) {
 		return
 	}
 	if dbUsers == nil {
-		dbUsers = map[string]*dbUser{}
+		dbUsers = map[string]*DbUser{}
 		self.dbUsers[db] = dbUsers
 	}
 	dbUsers[u.GetName()] = u
@@ -471,7 +482,7 @@ func (self *ClusterConfiguration) ChangeDbUserPassword(db, username, hash string
 	if dbUsers[username] == nil {
 		return fmt.Errorf("Invalid username %s", username)
 	}
-	dbUsers[username].changePassword(hash)
+	dbUsers[username].ChangePassword(hash)
 	return nil
 }
 
@@ -486,14 +497,14 @@ func (self *ClusterConfiguration) GetClusterAdmins() (names []string) {
 	return
 }
 
-func (self *ClusterConfiguration) GetClusterAdmin(username string) *clusterAdmin {
+func (self *ClusterConfiguration) GetClusterAdmin(username string) *ClusterAdmin {
 	self.usersLock.RLock()
 	defer self.usersLock.RUnlock()
 
 	return self.clusterAdmins[username]
 }
 
-func (self *ClusterConfiguration) SaveClusterAdmin(u *clusterAdmin) {
+func (self *ClusterConfiguration) SaveClusterAdmin(u *ClusterAdmin) {
 	self.usersLock.Lock()
 	defer self.usersLock.Unlock()
 	if u.IsDeleted() {
@@ -506,26 +517,26 @@ func (self *ClusterConfiguration) SaveClusterAdmin(u *clusterAdmin) {
 func (self *ClusterConfiguration) GetDatabaseReplicationFactor(name string) uint8 {
 	self.createDatabaseLock.RLock()
 	defer self.createDatabaseLock.RUnlock()
-	return self.databaseReplicationFactors[name]
+	return self.DatabaseReplicationFactors[name]
 }
 
 func (self *ClusterConfiguration) Save() ([]byte, error) {
 	log.Debug("Dumping the cluster configuration")
 	data := struct {
 		Databases         map[string]uint8
-		Admins            map[string]*clusterAdmin
-		DbUsers           map[string]map[string]*dbUser
+		Admins            map[string]*ClusterAdmin
+		DbUsers           map[string]map[string]*DbUser
 		Servers           []*ClusterServer
 		HasRunningServers bool
 		LocalServerId     uint32
 		ClusterVersion    uint32
 	}{
-		self.databaseReplicationFactors,
+		self.DatabaseReplicationFactors,
 		self.clusterAdmins,
 		self.dbUsers,
 		self.servers,
 		self.hasRunningServers,
-		self.localServerId,
+		self.LocalServerId,
 		self.ClusterVersion,
 	}
 
@@ -542,8 +553,8 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	log.Debug("Recovering the cluster configuration")
 	data := struct {
 		Databases         map[string]uint8
-		Admins            map[string]*clusterAdmin
-		DbUsers           map[string]map[string]*dbUser
+		Admins            map[string]*ClusterAdmin
+		DbUsers           map[string]map[string]*DbUser
 		Servers           []*ClusterServer
 		HasRunningServers bool
 		LocalServerId     uint32
@@ -555,26 +566,29 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 		return err
 	}
 
-	self.databaseReplicationFactors = data.Databases
+	self.DatabaseReplicationFactors = data.Databases
 	self.clusterAdmins = data.Admins
 	self.dbUsers = data.DbUsers
 
 	// copy the protobuf client from the old servers
-	oldServers := map[string]*ProtobufClient{}
+	oldServers := map[string]ServerConnection{}
 	for _, server := range self.servers {
-		oldServers[server.ProtobufConnectionString] = server.protobufClient
+		oldServers[server.ProtobufConnectionString] = server.connection
 	}
 
 	self.servers = data.Servers
 	for _, server := range self.servers {
-		server.protobufClient = oldServers[server.ProtobufConnectionString]
-		if server.protobufClient == nil {
-			server.Connect()
+		server.connection = oldServers[server.ProtobufConnectionString]
+		if server.connection == nil {
+			server.connection = self.connectionCreator(server.ProtobufConnectionString)
+			if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
+				server.Connect()
+			}
 		}
 	}
 
 	self.hasRunningServers = data.HasRunningServers
-	self.localServerId = data.LocalServerId
+	self.LocalServerId = data.LocalServerId
 	self.ClusterVersion = data.ClusterVersion
 
 	if self.addedLocalServer {
@@ -593,4 +607,51 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	}
 
 	return nil
+}
+
+func (self *ClusterConfiguration) AuthenticateDbUser(db, username, password string) (common.User, error) {
+	dbUsers := self.dbUsers[db]
+	if dbUsers == nil || dbUsers[username] == nil {
+		return nil, common.NewAuthorizationError("Invalid username/password")
+	}
+	user := dbUsers[username]
+	if user.isValidPwd(password) {
+		return user, nil
+	}
+	return nil, common.NewAuthorizationError("Invalid username/password")
+}
+
+func (self *ClusterConfiguration) AuthenticateClusterAdmin(username, password string) (common.User, error) {
+	user := self.clusterAdmins[username]
+	if user == nil {
+		return nil, common.NewAuthorizationError("Invalid username/password")
+	}
+	if user.isValidPwd(password) {
+		return user, nil
+	}
+	return nil, common.NewAuthorizationError("Invalid username/password")
+}
+
+func (self *ClusterConfiguration) HasContinuousQueries() bool {
+	return self.continuousQueries != nil && len(self.continuousQueries) > 0
+}
+
+func (self *ClusterConfiguration) LastContinuousQueryRunTime() time.Time {
+	return self.continuousQueryTimestamp
+}
+
+func (self *ClusterConfiguration) SetLastContinuousQueryRunTime(t time.Time) {
+	self.continuousQueryTimestamp = t
+}
+
+func (self *ClusterConfiguration) GetMapForJsonSerialization() map[string]interface{} {
+	jsonObject := make(map[string]interface{})
+	dbs := make([]string, 0)
+	for db, _ := range self.DatabaseReplicationFactors {
+		dbs = append(dbs, db)
+	}
+	jsonObject["databases"] = dbs
+	jsonObject["cluster_admins"] = self.clusterAdmins
+	jsonObject["database_users"] = self.dbUsers
+	return jsonObject
 }

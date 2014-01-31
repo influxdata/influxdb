@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"cluster"
 	. "common"
 	"configuration"
 	"datastore"
@@ -112,10 +113,14 @@ func clean(servers ...*RaftServer) {
 	}
 }
 
+func newProtobufClient(connectString string) cluster.ServerConnection {
+	return NewProtobufClient(connectString)
+}
+
 func newConfigAndServer(c *C) *RaftServer {
 	path, err := ioutil.TempDir(os.TempDir(), "influxdb")
 	c.Assert(err, IsNil)
-	config := NewClusterConfiguration(&configuration.Configuration{})
+	config := cluster.NewClusterConfiguration(&configuration.Configuration{}, newProtobufClient)
 	setupConfig := &configuration.Configuration{Hostname: "localhost", RaftDir: path, RaftServerPort: 0}
 	server := NewRaftServer(setupConfig, config)
 	return server
@@ -191,6 +196,7 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 	server.port = port
 	server.name = name
 	// defer clean(server)
+	fmt.Println("STARTING UP.......")
 	err = server.ListenAndServe()
 	c.Assert(err, IsNil)
 	time.Sleep(SERVER_STARTUP_TIME)
@@ -199,6 +205,7 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 		assertConfigContains(server.port, dbname, true, c)
 	}
 
+	fmt.Println("NEW SERVER JOINING...")
 	// make another server join the cluster
 	server2 := newConfigAndServer(c)
 	defer clean(server2)
@@ -206,6 +213,7 @@ func (self *CoordinatorSuite) TestCanSnapshot(c *C) {
 	c.Assert(err, IsNil)
 	server2.config.SeedServers = []string{fmt.Sprintf("http://localhost:%d", server.port)}
 	server2.Serve(l)
+	fmt.Println("DONE...")
 	time.Sleep(SERVER_STARTUP_TIME)
 	for i := 0; i < 1000; i++ {
 		dbname := fmt.Sprintf("db%d", i)
@@ -278,14 +286,6 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	assertConfigContains(servers[2].port, "db6", true, c)
 }
 
-func (self *UserSuite) BenchmarkHashing(c *C) {
-	for i := 0; i < c.N; i++ {
-		pwd := fmt.Sprintf("password%d", i)
-		_, err := hashPassword(pwd)
-		c.Assert(err, IsNil)
-	}
-}
-
 func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
@@ -311,7 +311,7 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 		coordinator := NewCoordinatorImpl(&DatastoreMock{}, server, server.clusterConfig)
 		dbs, err := coordinator.ListDatabases(root)
 		c.Assert(err, IsNil)
-		c.Assert(dbs, DeepEquals, []*Database{&Database{"db1", 1}})
+		c.Assert(dbs, DeepEquals, []*cluster.Database{&cluster.Database{"db1", 1}})
 	}
 
 	// if the db is dropped it should remove the users as well
@@ -583,7 +583,7 @@ func (self *CoordinatorSuite) TestCanCreateDatabaseWithNameAndReplicationFactor(
 	time.Sleep(REPLICATION_LAG)
 
 	for i := 0; i < 3; i++ {
-		databases := servers[i].clusterConfig.databaseReplicationFactors
+		databases := servers[i].clusterConfig.DatabaseReplicationFactors
 		c.Assert(databases, DeepEquals, map[string]uint8{
 			"db1": 1,
 			"db2": 1,
@@ -655,16 +655,16 @@ func (self *CoordinatorSuite) TestServersGetUniqueIdsAndCanActivateCluster(c *C)
 	defer clean(servers...)
 
 	// ensure they're all in the same order across the cluster
-	expectedServers := servers[0].clusterConfig.servers
+	expectedServers := servers[0].clusterConfig.Servers()
 	for _, server := range servers {
-		c.Assert(server.clusterConfig.servers, HasLen, len(expectedServers))
+		c.Assert(server.clusterConfig.Servers(), HasLen, len(expectedServers))
 		for i, clusterServer := range expectedServers {
-			c.Assert(server.clusterConfig.servers[i].Id, Equals, clusterServer.Id)
+			c.Assert(server.clusterConfig.Servers()[i].Id, Equals, clusterServer.Id)
 		}
 	}
 	// ensure cluster server ids are unique
 	idMap := make(map[uint32]bool)
-	for _, clusterServer := range servers[0].clusterConfig.servers {
+	for _, clusterServer := range servers[0].clusterConfig.Servers() {
 		_, ok := idMap[clusterServer.Id]
 		c.Assert(ok, Equals, false)
 		idMap[clusterServer.Id] = true

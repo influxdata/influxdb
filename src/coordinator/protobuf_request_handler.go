@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"bytes"
+	"cluster"
 	log "code.google.com/p/log4go"
 	"common"
 	"datastore"
@@ -16,7 +17,7 @@ import (
 type ProtobufRequestHandler struct {
 	db            datastore.Datastore
 	coordinator   Coordinator
-	clusterConfig *ClusterConfiguration
+	clusterConfig *cluster.ClusterConfiguration
 	writeOk       protocol.Response_Type
 }
 
@@ -27,7 +28,7 @@ var (
 	sequenceNumberResponse    = protocol.Response_SEQUENCE_NUMBER
 )
 
-func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, clusterConfig *ClusterConfiguration) *ProtobufRequestHandler {
+func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
 	return &ProtobufRequestHandler{db: db, coordinator: coordinator, writeOk: protocol.Response_WRITE_OK, clusterConfig: clusterConfig}
 }
 
@@ -35,7 +36,7 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 	if *request.Type == protocol.Request_PROXY_WRITE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
-		request.OriginatingServerId = &self.clusterConfig.localServerId
+		request.OriginatingServerId = &self.clusterConfig.LocalServerId
 		// TODO: make request logging and datastore write atomic
 		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
 		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
@@ -53,7 +54,7 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 	} else if *request.Type == protocol.Request_PROXY_DROP_SERIES {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
-		request.OriginatingServerId = &self.clusterConfig.localServerId
+		request.OriginatingServerId = &self.clusterConfig.LocalServerId
 		replicationFactor := uint8(*request.ReplicationFactor)
 		// TODO: make request logging and datastore write atomic
 		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
@@ -85,7 +86,7 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 	} else if *request.Type == protocol.Request_PROXY_DROP_DATABASE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
-		request.OriginatingServerId = &self.clusterConfig.localServerId
+		request.OriginatingServerId = &self.clusterConfig.LocalServerId
 		replicationFactor := uint8(*request.ReplicationFactor)
 		// TODO: make request logging and datastore write atomic
 		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
@@ -117,7 +118,7 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 	} else if *request.Type == protocol.Request_PROXY_DELETE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
-		request.OriginatingServerId = &self.clusterConfig.localServerId
+		request.OriginatingServerId = &self.clusterConfig.LocalServerId
 		// TODO: make request logging and datastore write atomic
 		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
 		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)

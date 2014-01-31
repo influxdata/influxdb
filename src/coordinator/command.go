@@ -1,7 +1,9 @@
 package coordinator
 
 import (
+	"cluster"
 	log "code.google.com/p/log4go"
+	"fmt"
 	"github.com/goraft/raft"
 	"time"
 )
@@ -39,7 +41,7 @@ func (c *SetContinuousQueryTimestampCommand) CommandName() string {
 }
 
 func (c *SetContinuousQueryTimestampCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.SetContinuousQueryTimestamp(c.Timestamp)
 	return nil, err
 }
@@ -58,7 +60,7 @@ func (c *CreateContinuousQueryCommand) CommandName() string {
 }
 
 func (c *CreateContinuousQueryCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.CreateContinuousQuery(c.Database, c.Query)
 	return nil, err
 }
@@ -77,7 +79,7 @@ func (c *DeleteContinuousQueryCommand) CommandName() string {
 }
 
 func (c *DeleteContinuousQueryCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.DeleteContinuousQuery(c.Database, c.Id)
 	return nil, err
 }
@@ -95,7 +97,7 @@ func (c *DropDatabaseCommand) CommandName() string {
 }
 
 func (c *DropDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.DropDatabase(c.Name)
 	return nil, err
 }
@@ -114,16 +116,16 @@ func (c *CreateDatabaseCommand) CommandName() string {
 }
 
 func (c *CreateDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.CreateDatabase(c.Name, c.ReplicationFactor)
 	return nil, err
 }
 
 type SaveDbUserCommand struct {
-	User *dbUser `json:"user"`
+	User *cluster.DbUser `json:"user"`
 }
 
-func NewSaveDbUserCommand(u *dbUser) *SaveDbUserCommand {
+func NewSaveDbUserCommand(u *cluster.DbUser) *SaveDbUserCommand {
 	return &SaveDbUserCommand{
 		User: u,
 	}
@@ -134,7 +136,7 @@ func (c *SaveDbUserCommand) CommandName() string {
 }
 
 func (c *SaveDbUserCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
 	config.SaveDbUser(c.User)
 	log.Debug("(raft:%s) Created user %s:%s", server.Name(), c.User.Db, c.User.Name)
 	return nil, nil
@@ -160,15 +162,15 @@ func (c *ChangeDbUserPassword) CommandName() string {
 
 func (c *ChangeDbUserPassword) Apply(server raft.Server) (interface{}, error) {
 	log.Debug("(raft:%s) changing db user password for %s:%s", server.Name(), c.Database, c.Username)
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
 	return nil, config.ChangeDbUserPassword(c.Database, c.Username, c.Hash)
 }
 
 type SaveClusterAdminCommand struct {
-	User *clusterAdmin `json:"user"`
+	User *cluster.ClusterAdmin `json:"user"`
 }
 
-func NewSaveClusterAdminCommand(u *clusterAdmin) *SaveClusterAdminCommand {
+func NewSaveClusterAdminCommand(u *cluster.ClusterAdmin) *SaveClusterAdminCommand {
 	return &SaveClusterAdminCommand{
 		User: u,
 	}
@@ -179,16 +181,16 @@ func (c *SaveClusterAdminCommand) CommandName() string {
 }
 
 func (c *SaveClusterAdminCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
 	config.SaveClusterAdmin(c.User)
 	return nil, nil
 }
 
 type AddPotentialServerCommand struct {
-	Server *ClusterServer
+	Server *cluster.ClusterServer
 }
 
-func NewAddPotentialServerCommand(s *ClusterServer) *AddPotentialServerCommand {
+func NewAddPotentialServerCommand(s *cluster.ClusterServer) *AddPotentialServerCommand {
 	return &AddPotentialServerCommand{Server: s}
 }
 
@@ -197,17 +199,18 @@ func (c *AddPotentialServerCommand) CommandName() string {
 }
 
 func (c *AddPotentialServerCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
+	fmt.Println("COMMMAND: adding potent server")
 	config.AddPotentialServer(c.Server)
 	return nil, nil
 }
 
 type UpdateServerStateCommand struct {
 	ServerId uint32
-	State    ServerState
+	State    cluster.ServerState
 }
 
-func NewUpdateServerStateCommand(serverId uint32, state ServerState) *UpdateServerStateCommand {
+func NewUpdateServerStateCommand(serverId uint32, state cluster.ServerState) *UpdateServerStateCommand {
 	return &UpdateServerStateCommand{ServerId: serverId, State: state}
 }
 
@@ -216,7 +219,7 @@ func (c *UpdateServerStateCommand) CommandName() string {
 }
 
 func (c *UpdateServerStateCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*ClusterConfiguration)
+	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.UpdateServerState(c.ServerId, c.State)
 	return nil, err
 }

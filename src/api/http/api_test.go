@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"cluster"
 	"common"
 	"coordinator"
 	"encoding/base64"
@@ -98,7 +99,7 @@ func (self *MockEngine) RunQuery(_ common.User, _ string, query string, localOnl
 type MockCoordinator struct {
 	coordinator.Coordinator
 	series            []*protocol.Series
-	continuousQueries map[string][]*coordinator.ContinuousQuery
+	continuousQueries map[string][]*cluster.ContinuousQuery
 	deleteQueries     []*parser.DeleteQuery
 	db                string
 	droppedDb         string
@@ -119,8 +120,8 @@ func (self *MockCoordinator) CreateDatabase(_ common.User, db string, _ uint8) e
 	return nil
 }
 
-func (self *MockCoordinator) ListDatabases(_ common.User) ([]*coordinator.Database, error) {
-	return []*coordinator.Database{&coordinator.Database{"db1", 1}, &coordinator.Database{"db2", 1}}, nil
+func (self *MockCoordinator) ListDatabases(_ common.User) ([]*cluster.Database, error) {
+	return []*cluster.Database{&cluster.Database{"db1", 1}, &cluster.Database{"db2", 1}}, nil
 }
 
 func (self *MockCoordinator) DropDatabase(_ common.User, db string) error {
@@ -154,7 +155,7 @@ func (self *MockCoordinator) ListContinuousQueries(_ common.User, db string) ([]
 }
 
 func (self *MockCoordinator) CreateContinuousQuery(_ common.User, db string, query string) error {
-	self.continuousQueries[db] = append(self.continuousQueries[db], &coordinator.ContinuousQuery{2, query})
+	self.continuousQueries[db] = append(self.continuousQueries[db], &cluster.ContinuousQuery{2, query})
 	return nil
 }
 
@@ -172,9 +173,9 @@ func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
 
 func (self *ApiSuite) SetUpSuite(c *C) {
 	self.coordinator = &MockCoordinator{
-		continuousQueries: map[string][]*coordinator.ContinuousQuery{
-			"db1": []*coordinator.ContinuousQuery{
-				&coordinator.ContinuousQuery{1, "select * from foo into bar;"},
+		continuousQueries: map[string][]*cluster.ContinuousQuery{
+			"db1": []*cluster.ContinuousQuery{
+				&cluster.ContinuousQuery{1, "select * from foo into bar;"},
 			},
 		},
 	}
@@ -753,10 +754,10 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		c.Assert(err, IsNil)
-		users := []*coordinator.Database{}
+		users := []*cluster.Database{}
 		err = json.Unmarshal(body, &users)
 		c.Assert(err, IsNil)
-		c.Assert(users, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", uint8(1)}, &coordinator.Database{"db2", uint8(1)}})
+		c.Assert(users, DeepEquals, []*cluster.Database{&cluster.Database{"db1", uint8(1)}, &cluster.Database{"db2", uint8(1)}})
 	}
 }
 
@@ -771,10 +772,10 @@ func (self *ApiSuite) TestBasicAuthentication(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	users := []*coordinator.Database{}
+	users := []*cluster.Database{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", 1}, &coordinator.Database{"db2", 1}})
+	c.Assert(users, DeepEquals, []*cluster.Database{&cluster.Database{"db1", 1}, &cluster.Database{"db2", 1}})
 }
 
 func (self *ApiSuite) TestContinuousQueryOperations(c *C) {

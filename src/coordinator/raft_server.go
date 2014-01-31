@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"bytes"
+	"cluster"
 	log "code.google.com/p/log4go"
 	"common"
 	"configuration"
@@ -39,7 +40,7 @@ type RaftServer struct {
 	router        *mux.Router
 	raftServer    raft.Server
 	httpServer    *http.Server
-	clusterConfig *ClusterConfiguration
+	clusterConfig *cluster.ClusterConfiguration
 	mutex         sync.RWMutex
 	listener      net.Listener
 	closing       bool
@@ -58,7 +59,7 @@ var replicateWrite = protocol.Request_REPLICATION_WRITE
 var replicateDelete = protocol.Request_REPLICATION_DELETE
 
 // Creates a new server.
-func NewRaftServer(config *configuration.Configuration, clusterConfig *ClusterConfiguration) *RaftServer {
+func NewRaftServer(config *configuration.Configuration, clusterConfig *cluster.ClusterConfiguration) *RaftServer {
 	if !registeredCommands {
 		registeredCommands = true
 		for _, command := range internalRaftCommands {
@@ -190,7 +191,7 @@ func (s *RaftServer) DropDatabase(name string) error {
 	return err
 }
 
-func (s *RaftServer) SaveDbUser(u *dbUser) error {
+func (s *RaftServer) SaveDbUser(u *cluster.DbUser) error {
 	command := NewSaveDbUserCommand(u)
 	_, err := s.doOrProxyCommand(command, "save_db_user")
 	return err
@@ -202,16 +203,16 @@ func (s *RaftServer) ChangeDbUserPassword(db, username string, hash []byte) erro
 	return err
 }
 
-func (s *RaftServer) SaveClusterAdminUser(u *clusterAdmin) error {
+func (s *RaftServer) SaveClusterAdminUser(u *cluster.ClusterAdmin) error {
 	command := NewSaveClusterAdminCommand(u)
 	_, err := s.doOrProxyCommand(command, "save_cluster_admin_user")
 	return err
 }
 
 func (s *RaftServer) CreateRootUser() error {
-	u := &clusterAdmin{CommonUser{"root", "", false, "root"}}
-	hash, _ := hashPassword(DEFAULT_ROOT_PWD)
-	u.changePassword(string(hash))
+	u := &cluster.ClusterAdmin{cluster.CommonUser{"root", "", false, "root"}}
+	hash, _ := cluster.HashPassword(DEFAULT_ROOT_PWD)
+	u.ChangePassword(string(hash))
 	return s.SaveClusterAdminUser(u)
 }
 
@@ -222,27 +223,26 @@ func (s *RaftServer) SetContinuousQueryTimestamp(timestamp time.Time) error {
 }
 
 func (s *RaftServer) CreateContinuousQuery(db string, query string) error {
-	// if there are already-running queries, we need to initiate a backfill
-	if !s.clusterConfig.continuousQueryTimestamp.IsZero() {
-		selectQuery, err := parser.ParseSelectQuery(query)
-		if err != nil {
-			return fmt.Errorf("Failed to parse continuous query: %s", query)
-		}
+	selectQuery, err := parser.ParseSelectQuery(query)
+	if err != nil {
+		return fmt.Errorf("Failed to parse continuous query: %s", query)
+	}
 
-		duration, err := selectQuery.GetGroupByClause().GetGroupByTime()
-		if err != nil {
-			return fmt.Errorf("Couldn't get group by time for continuous query: %s", err)
-		}
+	duration, err := selectQuery.GetGroupByClause().GetGroupByTime()
+	if err != nil {
+		return fmt.Errorf("Couldn't get group by time for continuous query: %s", err)
+	}
 
-		if duration != nil {
-			zeroTime := time.Time{}
-			currentBoundary := time.Now().Truncate(*duration)
-			go s.runContinuousQuery(db, selectQuery, zeroTime, currentBoundary)
-		}
+	if duration != nil {
+		zeroTime := time.Time{}
+		currentBoundary := time.Now().Truncate(*duration)
+		go s.runContinuousQuery(db, selectQuery, zeroTime, currentBoundary)
+	} else {
+		// TODO: make continuous queries backfill for queries that don't have a group by time
 	}
 
 	command := NewCreateContinuousQueryCommand(db, query)
-	_, err := s.doOrProxyCommand(command, "create_cq")
+	_, err = s.doOrProxyCommand(command, "create_cq")
 	return err
 }
 
@@ -252,19 +252,19 @@ func (s *RaftServer) DeleteContinuousQuery(db string, id uint32) error {
 	return err
 }
 
-func (s *RaftServer) ActivateServer(server *ClusterServer) error {
+func (s *RaftServer) ActivateServer(server *cluster.ClusterServer) error {
 	return errors.New("not implemented")
 }
 
-func (s *RaftServer) AddServer(server *ClusterServer, insertIndex int) error {
+func (s *RaftServer) AddServer(server *cluster.ClusterServer, insertIndex int) error {
 	return errors.New("not implemented")
 }
 
-func (s *RaftServer) MovePotentialServer(server *ClusterServer, insertIndex int) error {
+func (s *RaftServer) MovePotentialServer(server *cluster.ClusterServer, insertIndex int) error {
 	return errors.New("not implemented")
 }
 
-func (s *RaftServer) ReplaceServer(oldServer *ClusterServer, replacement *ClusterServer) error {
+func (s *RaftServer) ReplaceServer(oldServer *cluster.ClusterServer, replacement *cluster.ClusterServer) error {
 	return errors.New("not implemented")
 }
 
@@ -356,11 +356,9 @@ func (s *RaftServer) startRaft() error {
 			log.Error(err)
 		}
 
-		command := NewAddPotentialServerCommand(&ClusterServer{
-			RaftName:                 name,
-			RaftConnectionString:     connectionString,
-			ProtobufConnectionString: s.config.ProtobufConnectionString(),
-		})
+		protobufConnectString := s.config.ProtobufConnectionString()
+		clusterServer := cluster.NewClusterServer(name, connectionString, protobufConnectString, NewProtobufClient(protobufConnectString))
+		command := NewAddPotentialServerCommand(clusterServer)
 		_, err = s.doOrProxyCommand(command, "add_server")
 		if err != nil {
 			return err
@@ -413,14 +411,14 @@ func (s *RaftServer) raftLeaderLoop(loopTimer *time.Ticker) {
 }
 
 func (s *RaftServer) checkContinuousQueries() {
-	if s.clusterConfig.continuousQueries == nil || len(s.clusterConfig.continuousQueries) == 0 {
+	if !s.clusterConfig.HasContinuousQueries() {
 		return
 	}
 
 	runTime := time.Now()
 	queriesDidRun := false
 
-	for db, queries := range s.clusterConfig.parsedContinuousQueries {
+	for db, queries := range s.clusterConfig.ParsedContinuousQueries {
 		for _, query := range queries {
 			groupByClause := query.GetGroupByClause()
 
@@ -436,9 +434,10 @@ func (s *RaftServer) checkContinuousQueries() {
 			}
 
 			currentBoundary := runTime.Truncate(*duration)
-			lastBoundary := s.clusterConfig.continuousQueryTimestamp.Truncate(*duration)
+			lastRun := s.clusterConfig.LastContinuousQueryRunTime()
+			lastBoundary := lastRun.Truncate(*duration)
 
-			if currentBoundary.After(s.clusterConfig.continuousQueryTimestamp) {
+			if currentBoundary.After(lastRun) {
 				s.runContinuousQuery(db, query, lastBoundary, currentBoundary)
 				queriesDidRun = true
 			}
@@ -446,13 +445,13 @@ func (s *RaftServer) checkContinuousQueries() {
 	}
 
 	if queriesDidRun {
-		s.clusterConfig.continuousQueryTimestamp = runTime
+		s.clusterConfig.SetLastContinuousQueryRunTime(runTime)
 		s.SetContinuousQueryTimestamp(runTime)
 	}
 }
 
 func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, start time.Time, end time.Time) {
-	clusterAdmin := s.clusterConfig.clusterAdmins["root"]
+	clusterAdmin := s.clusterConfig.GetClusterAdmin("root")
 	intoClause := query.GetIntoClause()
 	targetName := intoClause.Target.Name
 	sequenceNumber := uint64(1)
@@ -592,16 +591,17 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		// it's a new server the cluster has never seen, make it a potential
 		if server == nil {
 			log.Info("Adding new server to the cluster config %s", command.Name)
-			addServer := NewAddPotentialServerCommand(&ClusterServer{
-				RaftName:                 command.Name,
-				RaftConnectionString:     command.ConnectionString,
-				ProtobufConnectionString: command.ProtobufConnectionString,
-			})
+			client := NewProtobufClient(command.ProtobufConnectionString)
+			fmt.Println("CREATED CLIENT")
+			clusterServer := cluster.NewClusterServer(command.Name, command.ConnectionString, command.ProtobufConnectionString, client)
+			fmt.Println("CREATED SERVER")
+			addServer := NewAddPotentialServerCommand(clusterServer)
 			if _, err := s.raftServer.Do(addServer); err != nil {
 				log.Error("Error joining raft server: ", err, command)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+			fmt.Println("DID COMMAND...")
 		}
 		log.Info("Server %s already exist in the cluster config", command.Name)
 	} else {
@@ -617,15 +617,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *RaftServer) configHandler(w http.ResponseWriter, req *http.Request) {
-	jsonObject := make(map[string]interface{})
-	dbs := make([]string, 0)
-	for db, _ := range s.clusterConfig.databaseReplicationFactors {
-		dbs = append(dbs, db)
-	}
-	jsonObject["databases"] = dbs
-	jsonObject["cluster_admins"] = s.clusterConfig.clusterAdmins
-	jsonObject["database_users"] = s.clusterConfig.dbUsers
-	js, err := json.Marshal(jsonObject)
+	js, err := json.Marshal(s.clusterConfig.GetMapForJsonSerialization())
 	if err != nil {
 		log.Error("ERROR marshalling config: ", err)
 	}

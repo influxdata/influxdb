@@ -1,4 +1,4 @@
-package coordinator
+package cluster
 
 import (
 	log "code.google.com/p/log4go"
@@ -12,7 +12,12 @@ type ClusterServer struct {
 	State                    ServerState
 	RaftConnectionString     string
 	ProtobufConnectionString string
-	protobufClient           *ProtobufClient
+	connection               ServerConnection
+}
+
+type ServerConnection interface {
+	Connect()
+	MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error
 }
 
 type ServerState int
@@ -25,10 +30,20 @@ const (
 	Potential
 )
 
+func NewClusterServer(raftName, raftConnectionString, protobufConnectionString string, connection ServerConnection) *ClusterServer {
+	return &ClusterServer{
+		RaftName:                 raftName,
+		RaftConnectionString:     raftConnectionString,
+		ProtobufConnectionString: protobufConnectionString,
+		connection:               connection,
+	}
+}
+
 // in the coordinator test we don't want to create protobuf servers,
 // so we just ignore creating a protobuf client when the connection
 // string has a 0 port
 func shouldConnect(addr string) bool {
+	log.Debug("SHOULD CONNECT: ", addr)
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		log.Error("Error parsing address '%s': %s", addr, err)
@@ -43,19 +58,15 @@ func shouldConnect(addr string) bool {
 }
 
 func (self *ClusterServer) Connect() {
-	if self.protobufClient != nil {
-		return
-	}
-
 	if !shouldConnect(self.ProtobufConnectionString) {
 		return
 	}
 
 	log.Info("ClusterServer: %d connecting to: %s", self.Id, self.ProtobufConnectionString)
-	self.protobufClient = NewProtobufClient(self.ProtobufConnectionString)
+	self.connection.Connect()
 }
 
 func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
 	self.Connect()
-	return self.protobufClient.MakeRequest(request, responseStream)
+	return self.connection.MakeRequest(request, responseStream)
 }

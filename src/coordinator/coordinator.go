@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"cluster"
 	log "code.google.com/p/log4go"
 	"common"
 	"datastore"
@@ -18,7 +19,7 @@ import (
 )
 
 type CoordinatorImpl struct {
-	clusterConfiguration *ClusterConfiguration
+	clusterConfiguration *cluster.ClusterConfiguration
 	raftServer           ClusterConsensus
 	datastore            datastore.Datastore
 	requestId            uint32
@@ -67,7 +68,7 @@ func init() {
 	}
 }
 
-func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *ClusterConfiguration) *CoordinatorImpl {
+func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
 	coordinator := &CoordinatorImpl{
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
@@ -98,18 +99,18 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 	isDbUser := !user.IsClusterAdmin()
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
 	queryString := query.GetQueryString()
-	var localServerToQuery *serverToQuery
+	var localServerToQuery *cluster.ServerToQuery
 	for _, server := range servers {
-		if server.server.Id == self.clusterConfiguration.localServerId {
+		if server.Server.Id == self.clusterConfiguration.LocalServerId {
 			localServerToQuery = server
 		} else {
 			request := &protocol.Request{Type: &queryRequest, Query: &queryString, Id: &id, Database: &db, UserName: &userName, IsDbUser: &isDbUser}
-			if server.ringLocationsToQuery != replicationFactor {
-				r := server.ringLocationsToQuery
+			if server.RingLocationToQuery != replicationFactor {
+				r := server.RingLocationToQuery
 				request.RingLocationsToQuery = &r
 			}
 			responseChan := make(chan *protocol.Response, 3)
-			server.server.MakeRequest(request, responseChan)
+			server.Server.MakeRequest(request, responseChan)
 			responseChannels = append(responseChannels, responseChan)
 		}
 	}
@@ -131,8 +132,8 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 
 	go func() {
 		var ringFilter func(database, series *string, time *int64) bool
-		if replicationFactor != localServerToQuery.ringLocationsToQuery {
-			ringFilter = self.clusterConfiguration.GetRingFilterFunction(db, localServerToQuery.ringLocationsToQuery)
+		if replicationFactor != localServerToQuery.RingLocationToQuery {
+			ringFilter = self.clusterConfiguration.GetRingFilterFunction(db, localServerToQuery.RingLocationToQuery)
 		}
 		self.datastore.ExecuteQuery(user, db, query, sendFromLocal, ringFilter)
 		local <- &protocol.Response{Type: &endStreamResponse}
@@ -419,11 +420,11 @@ func (self *CoordinatorImpl) SyncLogIteration() {
 	servers := self.clusterConfiguration.Servers()
 
 	replicationFactors := map[uint8]bool{}
-	for _, replicationFactor := range self.clusterConfiguration.databaseReplicationFactors {
+	for _, replicationFactor := range self.clusterConfiguration.DatabaseReplicationFactors {
 		replicationFactors[replicationFactor] = true
 	}
 
-	localId := self.clusterConfiguration.localServerId
+	localId := self.clusterConfiguration.LocalServerId
 
 	for replicationFactor, _ := range replicationFactors {
 		for _, owningServer := range servers {
@@ -478,7 +479,7 @@ func (self *CoordinatorImpl) SyncLogIteration() {
 	}
 }
 
-func (self *CoordinatorImpl) getLastAndCurrentSequenceNumbers(replicationFactor uint8, originatingServer, owningServer *ClusterServer) (uint64, uint64, error) {
+func (self *CoordinatorImpl) getLastAndCurrentSequenceNumbers(replicationFactor uint8, originatingServer, owningServer *cluster.ClusterServer) (uint64, uint64, error) {
 	lastKnownSequenceNumber, err := self.GetLastSequenceNumber(replicationFactor, originatingServer.Id, owningServer.Id)
 	if err != nil {
 		return 0, 0, err
@@ -497,7 +498,7 @@ func (self *CoordinatorImpl) GetLastSequenceNumber(replicationFactor uint8, orig
 		&replicationFactor, &owningServer, &originatingServer)
 }
 
-func (self *CoordinatorImpl) getCurrentSequenceNumber(replicationFactor uint8, originatingServer, owningServer *ClusterServer) (uint64, error) {
+func (self *CoordinatorImpl) getCurrentSequenceNumber(replicationFactor uint8, originatingServer, owningServer *cluster.ClusterServer) (uint64, error) {
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	replicationFactor32 := uint32(replicationFactor)
 	database := ""
@@ -611,9 +612,9 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 }
 
 func (self *CoordinatorImpl) ProcessContinuousQueries(db string, series *protocol.Series) {
-	if self.clusterConfiguration.parsedContinuousQueries != nil {
+	if self.clusterConfiguration.ParsedContinuousQueries != nil {
 		incomingSeriesName := *series.Name
-		for _, query := range self.clusterConfiguration.parsedContinuousQueries[db] {
+		for _, query := range self.clusterConfiguration.ParsedContinuousQueries[db] {
 			groupByClause := query.GetGroupByClause()
 			if groupByClause.Elems != nil {
 				continue
@@ -722,7 +723,7 @@ func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query
 
 	servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
 	for _, server := range servers {
-		if err := self.handleSeriesDelete(user, server.server, db, query); err != nil {
+		if err := self.handleSeriesDelete(user, server.Server, db, query); err != nil {
 			return err
 		}
 	}
@@ -739,17 +740,17 @@ func (self *CoordinatorImpl) createRequest(requestType protocol.Request_Type, da
 	return &protocol.Request{Type: &requestType, Database: database, Id: &id}
 }
 
-func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *ClusterServer, database string, query *parser.DeleteQuery) error {
+func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *cluster.ClusterServer, database string, query *parser.DeleteQuery) error {
 	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
 
 	request := self.createRequest(proxyDelete, &database)
 	queryStr := query.GetQueryStringWithTimeCondition()
 	request.Query = &queryStr
-	request.OriginatingServerId = &self.clusterConfiguration.localServerId
+	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
 	request.OwnerServerId = &owner.Id
 
-	if server.Id == self.clusterConfiguration.localServerId {
+	if server.Id == self.clusterConfiguration.LocalServerId {
 		// this is a local delete
 		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
 		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
@@ -771,17 +772,17 @@ func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *Cluste
 	return self.proxyUntilSuccess(servers, request)
 }
 
-func (self *CoordinatorImpl) handleDropDatabase(server *ClusterServer, database string) error {
+func (self *CoordinatorImpl) handleDropDatabase(server *cluster.ClusterServer, database string) error {
 	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
 
 	request := self.createRequest(proxyDropDatabase, &database)
-	request.OriginatingServerId = &self.clusterConfiguration.localServerId
+	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
 	request.OwnerServerId = &owner.Id
 	replicationFactor := uint32(self.clusterConfiguration.GetDatabaseReplicationFactor(database))
 	request.ReplicationFactor = &replicationFactor
 
-	if server.Id == self.clusterConfiguration.localServerId {
+	if server.Id == self.clusterConfiguration.LocalServerId {
 		// this is a local delete
 		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
 		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
@@ -803,18 +804,18 @@ func (self *CoordinatorImpl) handleDropDatabase(server *ClusterServer, database 
 	return self.proxyUntilSuccess(servers, request)
 }
 
-func (self *CoordinatorImpl) handleDropSeries(server *ClusterServer, database, series string) error {
+func (self *CoordinatorImpl) handleDropSeries(server *cluster.ClusterServer, database, series string) error {
 	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
 
 	request := self.createRequest(proxyDropSeries, &database)
-	request.OriginatingServerId = &self.clusterConfiguration.localServerId
+	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
 	request.OwnerServerId = &owner.Id
 	request.Series = &protocol.Series{Name: &series}
 	replicationFactor := uint32(self.clusterConfiguration.GetDatabaseReplicationFactor(database))
 	request.ReplicationFactor = &replicationFactor
 
-	if server.Id == self.clusterConfiguration.localServerId {
+	if server.Id == self.clusterConfiguration.LocalServerId {
 		// this is a local delete
 		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
 		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
@@ -851,12 +852,12 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 
 	request := self.createRequest(proxyWrite, db)
 	request.Series = series
-	request.OriginatingServerId = &self.clusterConfiguration.localServerId
+	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
 	request.OwnerServerId = &owner.Id
 
 	for _, s := range servers {
-		if s.Id == self.clusterConfiguration.localServerId {
+		if s.Id == self.clusterConfiguration.LocalServerId {
 			// TODO: make storing of the data and logging of the request atomic
 			replicationFactor := self.clusterConfiguration.GetReplicationFactor(db)
 			err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
@@ -882,9 +883,9 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 
 // This method will attemp to proxy the request until the call to proxy returns nil. If no server succeeds,
 // the last err value will be returned.
-func (self *CoordinatorImpl) proxyUntilSuccess(servers []*ClusterServer, request *protocol.Request) (err error) {
+func (self *CoordinatorImpl) proxyUntilSuccess(servers []*cluster.ClusterServer, request *protocol.Request) (err error) {
 	for _, s := range servers {
-		if s.Id != self.clusterConfiguration.localServerId {
+		if s.Id != self.clusterConfiguration.LocalServerId {
 			err = self.proxyWrite(s, request)
 			if err == nil {
 				return nil
@@ -894,7 +895,7 @@ func (self *CoordinatorImpl) proxyUntilSuccess(servers []*ClusterServer, request
 	return
 }
 
-func (self *CoordinatorImpl) proxyWrite(clusterServer *ClusterServer, request *protocol.Request) error {
+func (self *CoordinatorImpl) proxyWrite(clusterServer *cluster.ClusterServer, request *protocol.Request) error {
 	originatingServerId := request.OriginatingServerId
 	request.OriginatingServerId = nil
 	defer func() { request.OriginatingServerId = originatingServerId }()
@@ -984,7 +985,7 @@ func (self *CoordinatorImpl) CreateDatabase(user common.User, db string, replica
 	return nil
 }
 
-func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*Database, error) {
+func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*cluster.Database, error) {
 	if !user.IsClusterAdmin() {
 		return nil, common.NewAuthorizationError("Insufficient permission to list databases")
 	}
@@ -1022,16 +1023,16 @@ func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*p
 	isDbUser := !user.IsClusterAdmin()
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
 	for _, server := range servers {
-		if server.server.Id == self.clusterConfiguration.localServerId {
+		if server.Server.Id == self.clusterConfiguration.LocalServerId {
 			continue
 		}
 		request := &protocol.Request{Type: &listSeriesRequest, Id: &id, Database: &database, UserName: &userName, IsDbUser: &isDbUser}
-		if server.ringLocationsToQuery != replicationFactor {
-			r := server.ringLocationsToQuery
+		if server.RingLocationToQuery != replicationFactor {
+			r := server.RingLocationToQuery
 			request.RingLocationsToQuery = &r
 		}
 		responseChan := make(chan *protocol.Response, 3)
-		server.server.protobufClient.MakeRequest(request, responseChan)
+		server.Server.MakeRequest(request, responseChan)
 		responseChannels = append(responseChannels, responseChan)
 	}
 
@@ -1072,7 +1073,7 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 	} else {
 		servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
 		for _, server := range servers {
-			if err := self.handleDropDatabase(server.server, db); err != nil {
+			if err := self.handleDropDatabase(server.Server, db); err != nil {
 				return err
 			}
 		}
@@ -1098,7 +1099,7 @@ func (self *CoordinatorImpl) DropSeries(user common.User, db, series string) err
 
 	servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
 	for _, server := range servers {
-		if err := self.handleDropSeries(server.server, db, series); err != nil {
+		if err := self.handleDropSeries(server.Server, db, series); err != nil {
 			return err
 		}
 	}
@@ -1108,27 +1109,15 @@ func (self *CoordinatorImpl) DropSeries(user common.User, db, series string) err
 
 func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {
 	log.Debug("(raft:%s) Authenticating password for %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
-	dbUsers := self.clusterConfiguration.dbUsers[db]
-	if dbUsers == nil || dbUsers[username] == nil {
-		return nil, common.NewAuthorizationError("Invalid username/password")
-	}
-	user := dbUsers[username]
-	if user.isValidPwd(password) {
+	user, err := self.clusterConfiguration.AuthenticateDbUser(db, username, password)
+	if user != nil {
 		log.Debug("(raft:%s) User %s authenticated succesfuly", self.raftServer.(*RaftServer).raftServer.Name(), username)
-		return user, nil
 	}
-	return nil, common.NewAuthorizationError("Invalid username/password")
+	return user, err
 }
 
 func (self *CoordinatorImpl) AuthenticateClusterAdmin(username, password string) (common.User, error) {
-	user := self.clusterConfiguration.clusterAdmins[username]
-	if user == nil {
-		return nil, common.NewAuthorizationError("Invalid username/password")
-	}
-	if user.isValidPwd(password) {
-		return user, nil
-	}
-	return nil, common.NewAuthorizationError("Invalid username/password")
+	return self.clusterConfiguration.AuthenticateClusterAdmin(username, password)
 }
 
 func (self *CoordinatorImpl) ListClusterAdmins(requester common.User) ([]string, error) {
@@ -1148,11 +1137,11 @@ func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, usern
 		return fmt.Errorf("%s isn't a valid username", username)
 	}
 
-	if self.clusterConfiguration.clusterAdmins[username] != nil {
+	if self.clusterConfiguration.GetClusterAdmin(username) != nil {
 		return fmt.Errorf("User %s already exists", username)
 	}
 
-	return self.raftServer.SaveClusterAdminUser(&clusterAdmin{CommonUser{Name: username, CacheKey: username}})
+	return self.raftServer.SaveClusterAdminUser(&cluster.ClusterAdmin{cluster.CommonUser{Name: username, CacheKey: username}})
 }
 
 func (self *CoordinatorImpl) DeleteClusterAdminUser(requester common.User, username string) error {
@@ -1160,7 +1149,7 @@ func (self *CoordinatorImpl) DeleteClusterAdminUser(requester common.User, usern
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
-	user := self.clusterConfiguration.clusterAdmins[username]
+	user := self.clusterConfiguration.GetClusterAdmin(username)
 	if user == nil {
 		return fmt.Errorf("User %s doesn't exists", username)
 	}
@@ -1174,16 +1163,16 @@ func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, u
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
-	user := self.clusterConfiguration.clusterAdmins[username]
+	user := self.clusterConfiguration.GetClusterAdmin(username)
 	if user == nil {
 		return fmt.Errorf("Invalid user name %s", username)
 	}
 
-	hash, err := hashPassword(password)
+	hash, err := cluster.HashPassword(password)
 	if err != nil {
 		return err
 	}
-	user.changePassword(string(hash))
+	user.ChangePassword(string(hash))
 	return self.raftServer.SaveClusterAdminUser(user)
 }
 
@@ -1201,13 +1190,12 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 	}
 
 	self.CreateDatabase(requester, db, uint8(1)) // ignore the error since the db may exist
-	dbUsers := self.clusterConfiguration.dbUsers[db]
-	if dbUsers != nil && dbUsers[username] != nil {
+	if self.clusterConfiguration.GetDbUser(db, username) != nil {
 		return fmt.Errorf("User %s already exists", username)
 	}
-	matchers := []*Matcher{&Matcher{true, ".*"}}
+	matchers := []*cluster.Matcher{&cluster.Matcher{true, ".*"}}
 	log.Debug("(raft:%s) Creating uesr %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
-	return self.raftServer.SaveDbUser(&dbUser{CommonUser{Name: username, CacheKey: db + "%" + username}, db, matchers, matchers, false})
+	return self.raftServer.SaveDbUser(&cluster.DbUser{cluster.CommonUser{Name: username, CacheKey: db + "%" + username}, db, matchers, matchers, false})
 }
 
 func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username string) error {
@@ -1215,12 +1203,10 @@ func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username st
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
-	dbUsers := self.clusterConfiguration.dbUsers[db]
-	if dbUsers == nil || dbUsers[username] == nil {
+	user := self.clusterConfiguration.GetDbUser(db, username)
+	if user == nil {
 		return fmt.Errorf("User %s doesn't exists", username)
 	}
-
-	user := dbUsers[username]
 	user.CommonUser.IsUserDeleted = true
 	return self.raftServer.SaveDbUser(user)
 }
@@ -1238,7 +1224,7 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, use
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
-	hash, err := hashPassword(password)
+	hash, err := cluster.HashPassword(password)
 	if err != nil {
 		return err
 	}
@@ -1250,12 +1236,10 @@ func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username stri
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
 
-	dbUsers := self.clusterConfiguration.dbUsers[db]
-	if dbUsers == nil || dbUsers[username] == nil {
+	user := self.clusterConfiguration.GetDbUser(db, username)
+	if user == nil {
 		return fmt.Errorf("Invalid username %s", username)
 	}
-
-	user := dbUsers[username]
 	user.IsAdmin = isAdmin
 	self.raftServer.SaveDbUser(user)
 	return nil
@@ -1294,9 +1278,9 @@ func (self *CoordinatorImpl) ReplicateDelete(request *protocol.Request) error {
 	return nil
 }
 
-func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, replicas []*ClusterServer) {
+func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, replicas []*cluster.ClusterServer) {
 	for _, server := range replicas {
-		if server.Id != self.clusterConfiguration.localServerId {
+		if server.Id != self.clusterConfiguration.LocalServerId {
 			err := server.MakeRequest(request, nil)
 			if err != nil {
 				log.Warn("REPLICATION ERROR: ", request.GetSequenceNumber(), err)
@@ -1306,7 +1290,7 @@ func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, re
 }
 
 func (self *CoordinatorImpl) sequenceNumberWithServerId(n uint64) uint64 {
-	return n*HOST_ID_OFFSET + uint64(self.clusterConfiguration.localServerId)
+	return n*HOST_ID_OFFSET + uint64(self.clusterConfiguration.LocalServerId)
 }
 
 func isValidName(name string) bool {
