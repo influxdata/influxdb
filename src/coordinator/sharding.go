@@ -15,6 +15,7 @@ import (
 type ShardAwareObject interface {
 	GetShards(querySpec cluster.QuerySpec) []Shard
 	GetShardById(id uint32) Shard
+	GetShardToWriteToBySeriesAndTime(series string, t time.Time) Shard
 }
 
 type Shard interface {
@@ -23,5 +24,5 @@ type Shard interface {
 	EndTime() time.Time
 	SeriesNames() []string
 	Write([]*protocol.Series) error
-	Query(cluster.QuerySpec, chan *protocol.Response) error
+	Query(*protocol.Query, chan *protocol.Response) error
 }
