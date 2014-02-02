@@ -647,3 +647,11 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 		}
 	}
 }
+
+func (self *RaftServer) CreateShard(id uint32, startTime, endTime time.Time, server []*cluster.ClusterServer) error {
+	return nil
+}
+
+func (self *RaftServer) DeleteShard(id uint32, server []*cluster.ClusterServer) error {
+	return nil
+}

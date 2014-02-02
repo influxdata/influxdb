@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"cluster"
+	"parser"
 	"protocol"
 	"time"
 )
@@ -18,11 +19,12 @@ type ShardAwareObject interface {
 	GetShardToWriteToBySeriesAndTime(series string, t time.Time) Shard
 }
 
+// Shard contains data from [startTime, endTime)
+// Ids are unique across the cluster
 type Shard interface {
 	Id() uint32
 	StartTime() time.Time
 	EndTime() time.Time
-	SeriesNames() []string
 	Write([]*protocol.Series) error
-	Query(*protocol.Query, chan *protocol.Response) error
+	Query(*parser.Query, chan *protocol.Response) error
 }

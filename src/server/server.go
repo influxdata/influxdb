@@ -3,6 +3,7 @@ package server
 import (
 	"admin"
 	"api/http"
+	"cluster"
 	log "code.google.com/p/log4go"
 	"configuration"
 	"coordinator"
@@ -14,7 +15,7 @@ type Server struct {
 	RaftServer     *coordinator.RaftServer
 	Db             datastore.Datastore
 	ProtobufServer *coordinator.ProtobufServer
-	ClusterConfig  *coordinator.ClusterConfiguration
+	ClusterConfig  *cluster.ClusterConfiguration
 	HttpApi        *http.HttpServer
 	AdminServer    *admin.HttpServer
 	Coordinator    coordinator.Coordinator
@@ -30,7 +31,15 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		return nil, err
 	}
 
-	clusterConfig := coordinator.NewClusterConfiguration(config)
+	shardDb, err := datastore.NewLevelDbShardDatastore(config)
+	if err != nil {
+		return nil, err
+	}
+
+	newClient := func(connectString string) cluster.ServerConnection {
+		return coordinator.NewProtobufClient(connectString)
+	}
+	clusterConfig := cluster.NewClusterConfiguration(config, shardDb, newClient)
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
 	go coord.SyncLogs()

@@ -51,6 +51,7 @@ type ClusterConfiguration struct {
 	addedLocalServerWait       chan bool
 	addedLocalServer           bool
 	connectionCreator          func(string) ServerConnection
+	shardStore                 LocalShardStore
 }
 
 type ContinuousQuery struct {
@@ -63,7 +64,10 @@ type Database struct {
 	ReplicationFactor uint8  `json:"replicationFactor"`
 }
 
-func NewClusterConfiguration(config *configuration.Configuration, connectionCreator func(string) ServerConnection) *ClusterConfiguration {
+func NewClusterConfiguration(
+	config *configuration.Configuration,
+	shardStore LocalShardStore,
+	connectionCreator func(string) ServerConnection) *ClusterConfiguration {
 	return &ClusterConfiguration{
 		DatabaseReplicationFactors: make(map[string]uint8),
 		clusterAdmins:              make(map[string]*ClusterAdmin),
@@ -74,6 +78,7 @@ func NewClusterConfiguration(config *configuration.Configuration, connectionCrea
 		config:                     config,
 		addedLocalServerWait:       make(chan bool, 1),
 		connectionCreator:          connectionCreator,
+		shardStore:                 shardStore,
 	}
 }
 
