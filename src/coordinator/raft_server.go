@@ -26,6 +26,7 @@ import (
 
 const (
 	DEFAULT_ROOT_PWD = "root"
+	DEFAULT_ROOT_PWD_ENVKEY = "INFLUXDB_INIT_PWD"
 )
 
 // The raftd server is a combination of the Raft server and an HTTP
@@ -210,7 +211,13 @@ func (s *RaftServer) SaveClusterAdminUser(u *clusterAdmin) error {
 
 func (s *RaftServer) CreateRootUser() error {
 	u := &clusterAdmin{CommonUser{"root", "", false, "root"}}
-	hash, _ := hashPassword(DEFAULT_ROOT_PWD)
+	checkAltRootPassword := os.Getenv(DEFAULT_ROOT_PWD_ENVKEY)
+	if checkAltRootPassword == "" {
+		initRootPassword := DEFAULT_ROOT_PWD
+	} else {
+		initRootPassword := checkAltRootPassword
+	}
+	hash, _ := hashPassword(initRootPassword)
 	u.changePassword(string(hash))
 	return s.SaveClusterAdminUser(u)
 }
