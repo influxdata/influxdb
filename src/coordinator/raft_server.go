@@ -217,9 +217,13 @@ func (s *RaftServer) CreateRootUser() error {
 	} else {
 		initRootPassword := checkAltRootPassword
 	}
-	hash, _ := hashPassword(initRootPassword)
-	u.changePassword(string(hash))
-	return s.SaveClusterAdminUser(u)
+	hash, err := hashPassword(initRootPassword)
+	if err != nil {
+		return err
+	} else {
+		u.changePassword(string(hash))
+		return s.SaveClusterAdminUser(u)
+	}
 }
 
 func (s *RaftServer) SetContinuousQueryTimestamp(timestamp time.Time) error {
