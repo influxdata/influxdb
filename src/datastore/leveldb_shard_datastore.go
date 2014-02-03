@@ -20,6 +20,7 @@ type LevelDbShardDatastore struct {
 }
 
 const (
+	ONE_KILOBYTE                    = 1024
 	SHARD_BLOOM_FILTER_BITS_PER_KEY = 10
 	SHARD_DATABASE_DIR              = "shard_db"
 )
@@ -33,7 +34,7 @@ func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShar
 	opts := levigo.NewOptions()
 	opts.SetCache(levigo.NewLRUCache(ONE_MEGABYTE))
 	opts.SetCreateIfMissing(true)
-	opts.SetBlockSize(TWO_FIFTY_SIX_KILOBYTES)
+	opts.SetBlockSize(64 * ONE_KILOBYTE)
 	filter := levigo.NewBloomFilter(SHARD_BLOOM_FILTER_BITS_PER_KEY)
 	opts.SetFilterPolicy(filter)
 
