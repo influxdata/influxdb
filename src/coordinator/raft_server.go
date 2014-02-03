@@ -46,12 +46,7 @@ type RaftServer struct {
 	closing       bool
 	config        *configuration.Configuration
 	notLeader     chan bool
-	engine        queryRunner
 	coordinator   *CoordinatorImpl
-}
-
-type queryRunner interface {
-	RunQuery(user common.User, database string, query string, localOnly bool, yield func(*protocol.Series) error) error
 }
 
 var registeredCommands bool
@@ -268,8 +263,7 @@ func (s *RaftServer) ReplaceServer(oldServer *cluster.ClusterServer, replacement
 	return errors.New("not implemented")
 }
 
-func (s *RaftServer) AssignEngineAndCoordinator(engine queryRunner, coordinator *CoordinatorImpl) error {
-	s.engine = engine
+func (s *RaftServer) AssignCoordinator(coordinator *CoordinatorImpl) error {
 	s.coordinator = coordinator
 	return nil
 }
@@ -457,7 +451,7 @@ func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, st
 	sequenceNumber := uint64(1)
 	queryString := query.GetQueryStringForContinuousQuery(start, end)
 
-	s.engine.RunQuery(clusterAdmin, db, queryString, false, func(series *protocol.Series) error {
+	s.coordinator.RunQuery(clusterAdmin, db, queryString, func(series *protocol.Series) error {
 		interpolatedTargetName := strings.Replace(targetName, ":series_name", *series.Name, -1)
 		series.Name = &interpolatedTargetName
 		for _, point := range series.Points {

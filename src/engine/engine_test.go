@@ -3,7 +3,6 @@ package engine
 import (
 	. "checkers"
 	"common"
-	"coordinator"
 	"encoding/json"
 	"fmt"
 	. "launchpad.net/gocheck"
@@ -25,7 +24,6 @@ type EngineSuite struct{}
 var _ = Suite(&EngineSuite{})
 
 type MockCoordinator struct {
-	coordinator.Coordinator
 	returnedError error
 	series        []*protocol.Series
 }
@@ -43,7 +41,7 @@ func (self *MockCoordinator) DistributeQuery(user common.User, database string, 
 	return nil
 }
 
-func createEngine(c *C, seriesString string) EngineI {
+func createEngine(c *C, seriesString string) *QueryEngine {
 	series, err := common.StringToSeriesArray(seriesString)
 	c.Assert(err, IsNil)
 
@@ -60,17 +58,17 @@ func createEngine(c *C, seriesString string) EngineI {
 //
 // expectedSeries must be a json array, e.g. time series must by
 // enclosed in '[' and ']'
-func runQueryRunError(engine EngineI, query string, c *C, expectedErr error) {
-	err := engine.RunQuery(nil, "", query, false, func(series *protocol.Series) error { return nil })
+func runQueryRunError(engine *QueryEngine, query string, c *C, expectedErr error) {
+	err := engine.coordinator.RunQuery(nil, "", query, func(series *protocol.Series) error { return nil })
 
 	c.Assert(err, DeepEquals, expectedErr)
 }
 
-func runQuery(engine EngineI, query string, c *C, expectedSeries string) {
+func runQuery(engine *QueryEngine, query string, c *C, expectedSeries string) {
 	runQueryExtended(engine, query, c, false, expectedSeries)
 }
 
-func runQueryExtended(engine EngineI, query string, c *C, appendPoints bool, expectedSeries string) {
+func runQueryExtended(engine *QueryEngine, query string, c *C, appendPoints bool, expectedSeries string) {
 	series, err := common.StringToSeriesArray(expectedSeries)
 	c.Assert(err, IsNil)
 
@@ -88,9 +86,9 @@ func runQueryExtended(engine EngineI, query string, c *C, appendPoints bool, exp
 	c.Assert(result, SeriesEquals, series)
 }
 
-func runQueryWithoutChecking(engine EngineI, query string, c *C, appendPoints bool) []*protocol.Series {
+func runQueryWithoutChecking(engine *QueryEngine, query string, c *C, appendPoints bool) []*protocol.Series {
 	var result []*protocol.Series
-	err := engine.RunQuery(nil, "", query, false, func(series *protocol.Series) error {
+	err := engine.coordinator.RunQuery(nil, "", query, func(series *protocol.Series) error {
 		if appendPoints && result != nil {
 			result[0].Points = append(result[0].Points, series.Points...)
 		} else {
@@ -142,8 +140,8 @@ func (self *EngineSuite) TestBasicQueryError(c *C) {
 	// create an engine and assert the engine works as a passthrough if
 	// the query only returns the raw data
 	engine := createEngine(c, "[]")
-	engine.(*QueryEngine).coordinator.(*MockCoordinator).returnedError = fmt.Errorf("some error")
-	err := engine.RunQuery(nil, "", "select * from foo", false, func(series *protocol.Series) error {
+	engine.coordinator.(*MockCoordinator).returnedError = fmt.Errorf("some error")
+	err := engine.coordinator.RunQuery(nil, "", "select * from foo", func(series *protocol.Series) error {
 		return nil
 	})
 

@@ -8,7 +8,6 @@ import (
 	"configuration"
 	"coordinator"
 	"datastore"
-	"engine"
 )
 
 type Server struct {
@@ -46,13 +45,8 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
 
-	eng, err := engine.NewQueryEngine(coord)
-	if err != nil {
-		return nil, err
-	}
-
-	raftServer.AssignEngineAndCoordinator(eng, coord)
-	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, eng, coord, coord)
+	raftServer.AssignCoordinator(coord)
+	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, coord, coord)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 

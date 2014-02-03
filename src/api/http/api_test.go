@@ -27,18 +27,13 @@ func Test(t *testing.T) {
 type ApiSuite struct {
 	listener    net.Listener
 	server      *HttpServer
-	engine      *MockEngine
 	coordinator *MockCoordinator
 	manager     *MockUserManager
 }
 
 var _ = Suite(&ApiSuite{})
 
-type MockEngine struct {
-	returnedError error
-}
-
-func (self *MockEngine) RunQuery(_ common.User, _ string, query string, localOnly bool, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) RunQuery(_ common.User, _ string, query string, yield func(*protocol.Series) error) error {
 	if self.returnedError != nil {
 		return self.returnedError
 	}
@@ -103,6 +98,7 @@ type MockCoordinator struct {
 	deleteQueries     []*parser.DeleteQuery
 	db                string
 	droppedDb         string
+	returnedError     error
 }
 
 func (self *MockCoordinator) WriteSeriesData(_ common.User, db string, series *protocol.Series) error {
@@ -183,9 +179,8 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 		clusterAdmins: []string{"root"},
 		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
 	}
-	self.engine = &MockEngine{}
 	dir := c.MkDir()
-	self.server = NewHttpServer("", dir, self.engine, self.coordinator, self.manager)
+	self.server = NewHttpServer("", dir, self.coordinator, self.manager)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
 	c.Assert(err, IsNil)
@@ -201,7 +196,7 @@ func (self *ApiSuite) TearDownSuite(c *C) {
 
 func (self *ApiSuite) SetUpTest(c *C) {
 	self.coordinator.series = nil
-	self.engine.returnedError = nil
+	self.coordinator.returnedError = nil
 	self.manager.ops = nil
 }
 
@@ -288,7 +283,7 @@ func (self *ApiSuite) TestQueryWithNullColumns(c *C) {
 }
 
 func (self *ApiSuite) TestQueryErrorPropagatesProperly(c *C) {
-	self.engine.returnedError = fmt.Errorf("some error")
+	self.coordinator.returnedError = fmt.Errorf("some error")
 	query := "select * from does_not_exist;"
 	query = url.QueryEscape(query)
 	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=s&u=dbuser&p=password", query)

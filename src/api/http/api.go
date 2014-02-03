@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
-	"engine"
 	"fmt"
 	"github.com/bmizerany/pat"
 	"io/ioutil"
@@ -38,17 +37,15 @@ type HttpServer struct {
 	httpSslPort    string
 	httpSslCert    string
 	adminAssetsDir string
-	engine         engine.EngineI
 	coordinator    coordinator.Coordinator
 	userManager    coordinator.UserManager
 	shutdown       chan bool
 }
 
-func NewHttpServer(httpPort string, adminAssetsDir string, theEngine engine.EngineI, theCoordinator coordinator.Coordinator, userManager coordinator.UserManager) *HttpServer {
+func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager coordinator.UserManager) *HttpServer {
 	self := &HttpServer{}
 	self.httpPort = httpPort
 	self.adminAssetsDir = adminAssetsDir
-	self.engine = theEngine
 	self.coordinator = theCoordinator
 	self.userManager = userManager
 	self.shutdown = make(chan bool, 2)
@@ -300,8 +297,7 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 		} else {
 			writer = &AllPointsWriter{map[string]*protocol.Series{}, w, precision}
 		}
-		forceLocal := r.URL.Query().Get("force_local") == "true"
-		err = self.engine.RunQuery(user, db, query, forceLocal, writer.yield)
+		err = self.coordinator.RunQuery(user, db, query, writer.yield)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}

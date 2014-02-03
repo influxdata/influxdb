@@ -33,6 +33,9 @@ type Coordinator interface {
 	DeleteContinuousQuery(user common.User, db string, id uint32) error
 	CreateContinuousQuery(user common.User, db string, query string) error
 	ListContinuousQueries(user common.User, db string) ([]*protocol.Series, error)
+
+	// v2 clustering, based on sharding instead of the circular hash ring
+	RunQuery(user common.User, db, query string, yield func(*protocol.Series) error) error
 }
 
 type UserManager interface {
@@ -89,7 +92,7 @@ type ClusterConsensus interface {
 	// server. The replacement must have a state of "Potential" for this to work.
 	ReplaceServer(oldServer *cluster.ClusterServer, replacement *cluster.ClusterServer) error
 
-	AssignEngineAndCoordinator(engine queryRunner, coordinator *CoordinatorImpl) error
+	AssignCoordinator(coordinator *CoordinatorImpl) error
 
 	// When a cluster is turned on for the first time.
 	CreateRootUser() error

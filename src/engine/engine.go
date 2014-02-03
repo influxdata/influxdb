@@ -2,13 +2,10 @@ package engine
 
 import (
 	"common"
-	"coordinator"
 	"datastore"
 	"fmt"
-	"os"
 	"parser"
 	"protocol"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,97 +13,15 @@ import (
 )
 
 type QueryEngine struct {
-	coordinator coordinator.Coordinator
+	coordinator Coordinator
 }
 
-func (self *QueryEngine) RunQuery(user common.User, database string, queryString string, localOnly bool, yield func(*protocol.Series) error) (err error) {
-	// don't let a panic pass beyond RunQuery
-	defer recoverFunc(database, queryString)
-
-	q, err := parser.ParseQuery(queryString)
-	if err != nil {
-		return err
-	}
-
-	for _, query := range q {
-		if query.DeleteQuery != nil {
-			if err := self.coordinator.DeleteSeriesData(user, database, query.DeleteQuery, localOnly); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if query.DropQuery != nil {
-			if err := self.coordinator.DeleteContinuousQuery(user, database, uint32(query.DropQuery.Id)); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if query.IsListQuery() {
-			if query.IsListSeriesQuery() {
-				series, err := self.coordinator.ListSeries(user, database)
-				if err != nil {
-					return err
-				}
-				for _, s := range series {
-					if err := yield(s); err != nil {
-						return err
-					}
-				}
-			} else if query.IsListContinuousQueriesQuery() {
-				queries, err := self.coordinator.ListContinuousQueries(user, database)
-				if err != nil {
-					return err
-				}
-				for _, q := range queries {
-					if err := yield(q); err != nil {
-						return err
-					}
-				}
-			}
-			continue
-		}
-
-		if query.DropSeriesQuery != nil {
-			err := self.coordinator.DropSeries(user, database, query.DropSeriesQuery.GetTableName())
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		selectQuery := query.SelectQuery
-
-		if selectQuery.IsContinuousQuery() {
-			return self.coordinator.CreateContinuousQuery(user, database, queryString)
-		}
-
-		if isAggregateQuery(selectQuery) {
-			return self.executeCountQueryWithGroupBy(user, database, selectQuery, localOnly, yield)
-		} else if containsArithmeticOperators(selectQuery) {
-			return self.executeArithmeticQuery(user, database, selectQuery, localOnly, yield)
-		} else {
-			return self.distributeQuery(user, database, selectQuery, localOnly, yield)
-		}
-	}
-	return nil
-}
-
-func recoverFunc(database, query string) {
-	if err := recover(); err != nil {
-		fmt.Fprintf(os.Stderr, "********************************BUG********************************\n")
-		buf := make([]byte, 1024)
-		n := runtime.Stack(buf, false)
-		fmt.Fprintf(os.Stderr, "Database: %s\n", database)
-		fmt.Fprintf(os.Stderr, "Query: [%s]\n", query)
-		fmt.Fprintf(os.Stderr, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
-		err = common.NewQueryError(common.InternalError, "Internal Error")
-	}
+type Coordinator interface {
+	DistributeQuery(user common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error
 }
 
 // distribute query and possibly do the merge/join before yielding the points
-func (self *QueryEngine) distributeQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) (err error) {
+func (self *QueryEngine) DistributeQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) (err error) {
 	// see if this is a merge query
 	fromClause := query.GetFromClause()
 	if fromClause.Type == parser.FromClauseMerge {
@@ -120,11 +35,11 @@ func (self *QueryEngine) distributeQuery(user common.User, database string, quer
 	return self.coordinator.DistributeQuery(user, database, query, localOnly, yield)
 }
 
-func NewQueryEngine(c coordinator.Coordinator) (EngineI, error) {
-	return &QueryEngine{c}, nil
+func NewQueryEngine(coordinator Coordinator) (*QueryEngine, error) {
+	return &QueryEngine{coordinator}, nil
 }
 
-func containsArithmeticOperators(query *parser.SelectQuery) bool {
+func ContainsArithmeticOperators(query *parser.SelectQuery) bool {
 	for _, column := range query.GetColumnNames() {
 		if column.Type == parser.ValueExpression {
 			return true
@@ -133,7 +48,7 @@ func containsArithmeticOperators(query *parser.SelectQuery) bool {
 	return false
 }
 
-func isAggregateQuery(query *parser.SelectQuery) bool {
+func IsAggregateQuery(query *parser.SelectQuery) bool {
 	for _, column := range query.GetColumnNames() {
 		if column.IsFunctionCall() {
 			return true
@@ -272,7 +187,7 @@ func crossProduct(values [][][]*protocol.FieldValue) [][]*protocol.FieldValue {
 	return returnValues
 }
 
-func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database string, query *parser.SelectQuery, localOnly bool,
+func (self *QueryEngine) ExecuteCountQueryWithGroupBy(user common.User, database string, query *parser.SelectQuery, localOnly bool,
 	yield func(*protocol.Series) error) error {
 	duration, err := query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
@@ -303,7 +218,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 	pointsRange := make(map[string]*PointRange)
 	groupBy := query.GetGroupByClause()
 
-	err = self.distributeQuery(user, database, query, localOnly, func(series *protocol.Series) error {
+	err = self.DistributeQuery(user, database, query, localOnly, func(series *protocol.Series) error {
 		if len(series.Points) == 0 {
 			return nil
 		}
@@ -482,7 +397,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 	return nil
 }
 
-func (self *QueryEngine) executeArithmeticQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool,
+func (self *QueryEngine) ExecuteArithmeticQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool,
 	yield func(*protocol.Series) error) error {
 
 	names := map[string]*parser.Value{}
@@ -497,7 +412,7 @@ func (self *QueryEngine) executeArithmeticQuery(user common.User, database strin
 		}
 	}
 
-	return self.distributeQuery(user, database, query, localOnly, func(series *protocol.Series) error {
+	return self.DistributeQuery(user, database, query, localOnly, func(series *protocol.Series) error {
 		if len(series.Points) == 0 {
 			yield(series)
 			return nil

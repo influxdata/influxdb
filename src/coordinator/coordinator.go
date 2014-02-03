@@ -5,9 +5,11 @@ import (
 	log "code.google.com/p/log4go"
 	"common"
 	"datastore"
+	"engine"
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"parser"
 	"protocol"
 	"regexp"
@@ -26,6 +28,7 @@ type CoordinatorImpl struct {
 	runningReplays       map[string][]*protocol.Request
 	runningReplaysLock   sync.Mutex
 	writeLock            sync.Mutex
+	eng                  *engine.QueryEngine
 }
 
 // this is the key used for the persistent atomic ints for sequence numbers
@@ -75,8 +78,95 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 		datastore:            datastore,
 		runningReplays:       make(map[string][]*protocol.Request),
 	}
+	coordinator.eng, _ = engine.NewQueryEngine(coordinator)
 
 	return coordinator
+}
+
+func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, yield func(*protocol.Series) error) (err error) {
+	// don't let a panic pass beyond RunQuery
+	defer recoverFunc(database, queryString)
+
+	q, err := parser.ParseQuery(queryString)
+	if err != nil {
+		return err
+	}
+
+	for _, query := range q {
+		if query.DeleteQuery != nil {
+			if err := self.DeleteSeriesData(user, database, query.DeleteQuery, false); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if query.DropQuery != nil {
+			if err := self.DeleteContinuousQuery(user, database, uint32(query.DropQuery.Id)); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if query.IsListQuery() {
+			if query.IsListSeriesQuery() {
+				series, err := self.ListSeries(user, database)
+				if err != nil {
+					return err
+				}
+				for _, s := range series {
+					if err := yield(s); err != nil {
+						return err
+					}
+				}
+			} else if query.IsListContinuousQueriesQuery() {
+				queries, err := self.ListContinuousQueries(user, database)
+				if err != nil {
+					return err
+				}
+				for _, q := range queries {
+					if err := yield(q); err != nil {
+						return err
+					}
+				}
+			}
+			continue
+		}
+
+		if query.DropSeriesQuery != nil {
+			err := self.DropSeries(user, database, query.DropSeriesQuery.GetTableName())
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		selectQuery := query.SelectQuery
+
+		if selectQuery.IsContinuousQuery() {
+			return self.CreateContinuousQuery(user, database, queryString)
+		}
+
+		if engine.IsAggregateQuery(selectQuery) {
+			return self.eng.ExecuteCountQueryWithGroupBy(user, database, selectQuery, false, yield)
+		} else if engine.ContainsArithmeticOperators(selectQuery) {
+			return self.eng.ExecuteArithmeticQuery(user, database, selectQuery, false, yield)
+		} else {
+			return self.eng.DistributeQuery(user, database, selectQuery, false, yield)
+		}
+	}
+	return nil
+}
+
+func recoverFunc(database, query string) {
+	if err := recover(); err != nil {
+		fmt.Fprintf(os.Stderr, "********************************BUG********************************\n")
+		buf := make([]byte, 1024)
+		n := runtime.Stack(buf, false)
+		fmt.Fprintf(os.Stderr, "Database: %s\n", database)
+		fmt.Fprintf(os.Stderr, "Query: [%s]\n", query)
+		fmt.Fprintf(os.Stderr, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
+		err = common.NewQueryError(common.InternalError, "Internal Error")
+	}
 }
 
 func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
