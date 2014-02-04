@@ -20,6 +20,7 @@ a.out
 src/parser/lex.yy.c
 src/parser/y.tab.h
 src/parser/y.tab.c
+src/protocol/protocol.pb.go
 build/
 
 # executables
