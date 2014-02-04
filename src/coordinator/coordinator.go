@@ -29,6 +29,7 @@ type CoordinatorImpl struct {
 	runningReplaysLock   sync.Mutex
 	writeLock            sync.Mutex
 	eng                  *engine.QueryEngine
+	wal                  WAL
 }
 
 // this is the key used for the persistent atomic ints for sequence numbers
@@ -71,12 +72,13 @@ func init() {
 	}
 }
 
-func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
+func NewCoordinatorImpl(datastore datastore.Datastore, wal WAL, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
 	coordinator := &CoordinatorImpl{
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
 		datastore:            datastore,
 		runningReplays:       make(map[string][]*protocol.Request),
+		wal:                  wal,
 	}
 	coordinator.eng, _ = engine.NewQueryEngine(coordinator)
 
@@ -1336,9 +1338,7 @@ func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username stri
 }
 
 func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString string) error {
-	log.Info("Waiting for local server to be added")
-	self.clusterConfiguration.WaitForLocalServerLoaded()
-	log.Info("Local server added. Connecting to other nodes in the cluster")
+	log.Info("Connecting to other nodes in the cluster")
 
 	for _, server := range self.clusterConfiguration.Servers() {
 		if server.ProtobufConnectionString != localConnectionString {

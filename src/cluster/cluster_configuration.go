@@ -82,6 +82,10 @@ func NewClusterConfiguration(
 	}
 }
 
+func (self *ClusterConfiguration) ServerId() uint32 {
+	return self.LocalServerId
+}
+
 func (self *ClusterConfiguration) IsSingleServer() bool {
 	return len(self.servers) < 2
 }

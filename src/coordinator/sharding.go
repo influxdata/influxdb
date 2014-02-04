@@ -5,6 +5,7 @@ import (
 	"parser"
 	"protocol"
 	"time"
+	"wal"
 )
 
 // duration 1h, 1d, 7d
@@ -27,4 +28,11 @@ type Shard interface {
 	EndTime() time.Time
 	Write([]*protocol.Series) error
 	Query(*parser.Query, chan *protocol.Response) error
+}
+
+type WAL interface {
+	AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard, servers []wal.Server) (uint64, error)
+	Commit(requestNumber uint64, server wal.Server) error
+	RecoverFromLog(yield func(request *protocol.Request, shard wal.Shard, server wal.Server) error) error
+	RecoverServerFromRequestNumber(requestNumber uint64, server wal.Server, yield func(request *protocol.Request, shard wal.Shard) error) error
 }

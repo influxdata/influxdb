@@ -8,6 +8,7 @@ import (
 	"configuration"
 	"coordinator"
 	"datastore"
+	"wal"
 )
 
 type Server struct {
@@ -40,7 +41,15 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	}
 	clusterConfig := cluster.NewClusterConfiguration(config, shardDb, newClient)
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
-	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
+
+	log.Info("Waiting for local server to be added")
+	clusterConfig.WaitForLocalServerLoaded()
+
+	writeLog, err := wal.NewWAL(config, clusterConfig.ServerId())
+	if err != nil {
+		return nil, err
+	}
+	coord := coordinator.NewCoordinatorImpl(db, writeLog, raftServer, clusterConfig)
 	go coord.SyncLogs()
 	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
