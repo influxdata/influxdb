@@ -8,12 +8,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"server"
 	"strconv"
-	"syscall"
 	"time"
 )
 
@@ -21,52 +19,6 @@ const (
 	version = "dev"
 	gitSha  = "HEAD"
 )
-
-func waitForSignals(stopped <-chan bool) {
-	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
-	for {
-		sig := <-ch
-		log.Info("Received signal: %s\n", sig.String())
-		switch sig {
-		case syscall.SIGINT, syscall.SIGTERM:
-			runtime.SetCPUProfileRate(0)
-			<-stopped
-			os.Exit(0)
-		}
-	}
-}
-
-func startProfiler(filename *string) error {
-	if filename == nil || *filename == "" {
-		return nil
-	}
-
-	cpuProfileFile, err := os.Create(*filename)
-	if err != nil {
-		return err
-	}
-	runtime.SetCPUProfileRate(500)
-	stopped := make(chan bool)
-
-	go waitForSignals(stopped)
-
-	go func() {
-		for {
-			select {
-			default:
-				data := runtime.CPUProfile()
-				if data == nil {
-					cpuProfileFile.Close()
-					stopped <- true
-					break
-				}
-				cpuProfileFile.Write(data)
-			}
-		}
-	}()
-	return nil
-}
 
 func setupLogging(loggingLevel, logFile string) {
 	level := log.DEBUG
@@ -82,26 +34,25 @@ func setupLogging(loggingLevel, logFile string) {
 	for _, filter := range log.Global {
 		filter.Level = level
 	}
-	
+
 	if logFile == "stdout" {
 		flw := log.NewConsoleLogWriter()
 		log.AddFilter("stdout", level, flw)
-		
+
 	} else {
 		logFileDir := filepath.Dir(logFile)
 		os.MkdirAll(logFileDir, 0744)
-		
+
 		flw := log.NewFileLogWriter(logFile, false)
 		log.AddFilter("file", level, flw)
-		
+
 		flw.SetFormat("[%D %T] [%L] (%S) %M")
 		flw.SetRotate(true)
 		flw.SetRotateSize(0)
 		flw.SetRotateLines(0)
 		flw.SetRotateDaily(true)
 	}
-	
-	
+
 	log.Info("Redirectoring logging to %s", logFile)
 }
 
@@ -110,12 +61,11 @@ func main() {
 	wantsVersion := flag.Bool("v", false, "Get version number")
 	resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
 	pidFile := flag.String("pidfile", "", "the pid file")
-	cpuProfiler := flag.String("cpuprofile", "", "filename where cpu profile data will be written")
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	startProfiler(cpuProfiler)
+	startProfiler()
 
 	if wantsVersion != nil && *wantsVersion {
 		fmt.Printf("InfluxDB v%s (git: %s)\n", version, gitSha)
@@ -130,12 +80,12 @@ func main() {
 			panic(err)
 		}
 	}
-	
+
 	if config.BindAddress == "" {
-			log.Info("Starting Influx Server...")
-		} else {
-			log.Info("Starting Influx Server bound to %s ...", config.BindAddress)
-		}
+		log.Info("Starting Influx Server...")
+	} else {
+		log.Info("Starting Influx Server bound to %s ...", config.BindAddress)
+	}
 	log.Info(`
 +---------------------------------------------+
 |  _____        __ _            _____  ____   |
