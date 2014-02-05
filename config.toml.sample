@@ -52,3 +52,9 @@ dir = "/tmp/influxdb/development/db"
 # However, this port shouldn't be accessible from the internet.
 
 protobuf_port = 8099
+
+[leveldb]
+
+# Maximum mmap open files, this will affect the virtual memory used by
+# the process
+max-open-files = 100

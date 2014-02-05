@@ -25,7 +25,7 @@ type Server struct {
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
 	log.Info("Opening database at %s", config.DataDir)
-	db, err := datastore.NewLevelDbDatastore(config.DataDir)
+	db, err := datastore.NewLevelDbDatastore(config.DataDir, config.LevelDbMaxOpenFiles)
 	if err != nil {
 		return nil, err
 	}

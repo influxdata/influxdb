@@ -19,7 +19,7 @@ const DB_DIR = "/tmp/influxdb/datastore_test"
 
 func newDatastore(c *C) datastore.Datastore {
 	os.MkdirAll(DB_DIR, 0744)
-	db, err := datastore.NewLevelDbDatastore(DB_DIR)
+	db, err := datastore.NewLevelDbDatastore(DB_DIR, 100)
 	c.Assert(err, Equals, nil)
 	return db
 }

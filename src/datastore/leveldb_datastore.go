@@ -32,6 +32,7 @@ type LevelDbDatastore struct {
 	incrementLock      sync.Mutex
 	requestId          uint32
 	requestLogDir      string
+	maxOpenFiles       int
 }
 
 type Field struct {
@@ -61,12 +62,13 @@ func getRequestLogDirForDate(baseDir string, t time.Time) string {
 	return filepath.Join(baseDir, logDir)
 }
 
-func NewRequestLogDb(dir string) (*requestLogDb, error) {
+func NewRequestLogDb(dir string, maxOpenFiles int) (*requestLogDb, error) {
 	err := os.MkdirAll(dir, 0744)
 	if err != nil {
 		return nil, err
 	}
 	opts := levigo.NewOptions()
+	opts.SetMaxOpenFiles(maxOpenFiles)
 	opts.SetCache(levigo.NewLRUCache(ONE_MEGABYTE))
 	opts.SetCreateIfMissing(true)
 	opts.SetBlockSize(TWO_FIFTY_SIX_KILOBYTES)
@@ -143,7 +145,7 @@ var (
 	TRUE = true
 )
 
-func NewLevelDbDatastore(dbDir string) (Datastore, error) {
+func NewLevelDbDatastore(dbDir string, maxOpenFiles int) (Datastore, error) {
 	mainDbDir := filepath.Join(dbDir, DATABASE_DIR)
 	requestLogDir := filepath.Join(dbDir, REQUEST_LOG_BASE_DIR)
 
@@ -151,16 +153,17 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 	if err != nil {
 		return nil, err
 	}
-	previousLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now().Add(-time.Hour*24)))
+	previousLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now().Add(-time.Hour*24)), maxOpenFiles)
 	if err != nil {
 		return nil, err
 	}
-	currentLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now()))
+	currentLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now()), maxOpenFiles)
 	if err != nil {
 		return nil, err
 	}
 
 	opts := levigo.NewOptions()
+	opts.SetMaxOpenFiles(maxOpenFiles)
 	opts.SetCache(levigo.NewLRUCache(ONE_GIGABYTE))
 	opts.SetCreateIfMissing(true)
 	opts.SetBlockSize(TWO_FIFTY_SIX_KILOBYTES)
@@ -195,7 +198,9 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 		writeOptions:       wo,
 		requestLogDir:      requestLogDir,
 		currentRequestLog:  currentLog,
-		previousRequestLog: previousLog}
+		previousRequestLog: previousLog,
+		maxOpenFiles:       maxOpenFiles,
+	}
 
 	go leveldbStore.periodicallyRotateRequestLog()
 
@@ -218,7 +223,7 @@ func (self *LevelDbDatastore) rotateRequestLog() {
 	oldLog := self.previousRequestLog
 	self.previousRequestLog = self.currentRequestLog
 	var err error
-	self.currentRequestLog, err = NewRequestLogDb(getRequestLogDirForDate(self.requestLogDir, time.Now()))
+	self.currentRequestLog, err = NewRequestLogDb(getRequestLogDirForDate(self.requestLogDir, time.Now()), self.maxOpenFiles)
 	if err != nil {
 		log.Error("Error creating new requst log: ", err)
 		panic(err)
