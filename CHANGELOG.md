@@ -193,7 +193,7 @@
   be used to update user flags, password, etc.
 - Querying for column names that don't exist no longer throws an error.
 
-## v0.4.1
+## v0.4.1 [2014-01-30]
 
 ### Features
 
@@ -211,7 +211,7 @@
 
 ### Deprecated
 
-## v0.4.2
+## v0.4.3 [2014-01-31]
 
 ### Bugfixes
 
@@ -219,3 +219,14 @@
 - [Issue #223](https://github.com/influxdb/influxdb/issues/223). Null values caused count(distinct()) to panic
 - [Issue #224](https://github.com/influxdb/influxdb/issues/224). Null values broke replication due to protobuf limitation
 
+## v0.4.4 [2014-02-05]
+
+### Features
+
+- Make the leveldb max open files configurable in the toml file
+
+## v0.4.5 [unreleased]
+
+### Bugfixes
+
+### Features
