@@ -29,7 +29,6 @@ type CoordinatorImpl struct {
 	runningReplaysLock   sync.Mutex
 	writeLock            sync.Mutex
 	eng                  *engine.QueryEngine
-	wal                  WAL
 }
 
 // this is the key used for the persistent atomic ints for sequence numbers
@@ -59,6 +58,8 @@ var (
 	queryResponse         = protocol.Response_QUERY
 	replayReplication     = protocol.Request_REPLICATION_REPLAY
 	sequenceNumber        = protocol.Request_SEQUENCE_NUMBER
+
+	write = protocol.Request_WRITE
 )
 
 // usernames and db names should match this regex
@@ -72,13 +73,12 @@ func init() {
 	}
 }
 
-func NewCoordinatorImpl(datastore datastore.Datastore, wal WAL, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
+func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
 	coordinator := &CoordinatorImpl{
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
 		datastore:            datastore,
 		runningReplays:       make(map[string][]*protocol.Request),
-		wal:                  wal,
 	}
 	coordinator.eng, _ = engine.NewQueryEngine(coordinator)
 
@@ -193,7 +193,7 @@ func (self *CoordinatorImpl) DistributeQuery(user common.User, db string, query 
 	queryString := query.GetQueryString()
 	var localServerToQuery *cluster.ServerToQuery
 	for _, server := range servers {
-		if server.Server.Id == self.clusterConfiguration.LocalServerId {
+		if server.Server.Id() == self.clusterConfiguration.LocalServerId {
 			localServerToQuery = server
 		} else {
 			request := &protocol.Request{Type: &queryRequest, Query: &queryString, Id: &id, Database: &db, UserName: &userName, IsDbUser: &isDbUser}
@@ -522,7 +522,7 @@ func (self *CoordinatorImpl) SyncLogIteration() {
 		for _, owningServer := range servers {
 		outer:
 			for _, originatingServer := range servers {
-				if originatingServer.Id == localId {
+				if originatingServer.Id() == localId {
 					continue
 				}
 
@@ -533,7 +533,7 @@ func (self *CoordinatorImpl) SyncLogIteration() {
 					if i == 0 {
 						lastKnownSequenceNumber, currentSequenceNumber, err = self.getLastAndCurrentSequenceNumbers(replicationFactor, originatingServer, owningServer)
 					} else {
-						lastKnownSequenceNumber, err = self.GetLastSequenceNumber(replicationFactor, originatingServer.Id, owningServer.Id)
+						lastKnownSequenceNumber, err = self.GetLastSequenceNumber(replicationFactor, originatingServer.Id(), owningServer.Id())
 					}
 
 					if err != nil {
@@ -543,12 +543,12 @@ func (self *CoordinatorImpl) SyncLogIteration() {
 
 					if lastKnownSequenceNumber >= currentSequenceNumber {
 						log.Debug("[%d] Sequence numbers are in sync for originating server %d and owner server %d and replication factor %d [%d %d]",
-							localId, originatingServer.Id, owningServer.Id, replicationFactor, lastKnownSequenceNumber, currentSequenceNumber)
+							localId, originatingServer.Id(), owningServer.Id(), replicationFactor, lastKnownSequenceNumber, currentSequenceNumber)
 						continue outer
 					}
 
 					log.Info("[%d] Sequence numbers are out of sync for originating server %d and owner server %d and replication factor %d [%d %d]",
-						localId, originatingServer.Id, owningServer.Id, replicationFactor, lastKnownSequenceNumber, currentSequenceNumber)
+						localId, originatingServer.Id(), owningServer.Id(), replicationFactor, lastKnownSequenceNumber, currentSequenceNumber)
 
 					// if the sequence numbers are out of sync the first time,
 					// wait a second in case there are requests comming in that
@@ -559,20 +559,22 @@ func (self *CoordinatorImpl) SyncLogIteration() {
 				}
 
 				log.Info("[%d] Syncing log for originating server %d and owner server %d and replication factor %d starting at %d",
-					localId, originatingServer.Id, owningServer.Id, replicationFactor, lastKnownSequenceNumber)
+					localId, originatingServer.Id(), owningServer.Id(), replicationFactor, lastKnownSequenceNumber)
 
+				origId := originatingServer.Id()
 				request := &protocol.Request{
-					OriginatingServerId: &originatingServer.Id,
+					OriginatingServerId: &origId,
 					ClusterVersion:      &self.clusterConfiguration.ClusterVersion,
 				}
-				self.ReplayReplication(request, &replicationFactor, &owningServer.Id, &lastKnownSequenceNumber)
+				ownId := owningServer.Id()
+				self.ReplayReplication(request, &replicationFactor, &ownId, &lastKnownSequenceNumber)
 			}
 		}
 	}
 }
 
 func (self *CoordinatorImpl) getLastAndCurrentSequenceNumbers(replicationFactor uint8, originatingServer, owningServer *cluster.ClusterServer) (uint64, uint64, error) {
-	lastKnownSequenceNumber, err := self.GetLastSequenceNumber(replicationFactor, originatingServer.Id, owningServer.Id)
+	lastKnownSequenceNumber, err := self.GetLastSequenceNumber(replicationFactor, originatingServer.Id(), owningServer.Id())
 	if err != nil {
 		return 0, 0, err
 	}
@@ -594,13 +596,15 @@ func (self *CoordinatorImpl) getCurrentSequenceNumber(replicationFactor uint8, o
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	replicationFactor32 := uint32(replicationFactor)
 	database := ""
+	origId := originatingServer.Id()
+	ownId := owningServer.Id()
 	replayRequest := &protocol.Request{
 		Id:                  &id,
 		Type:                &sequenceNumber,
 		Database:            &database,
 		ReplicationFactor:   &replicationFactor32,
-		OriginatingServerId: &originatingServer.Id,
-		OwnerServerId:       &owningServer.Id,
+		OriginatingServerId: &origId,
+		OwnerServerId:       &ownId,
 		ClusterVersion:      &self.clusterConfiguration.ClusterVersion,
 	}
 	responses := make(chan *protocol.Response)
@@ -741,67 +745,39 @@ func (self *CoordinatorImpl) ProcessContinuousQueries(db string, series *protoco
 }
 
 func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series) error {
-	// break the series object into separate ones based on their ring location
-
-	// if times server assigned, all the points will go to the same place
-	serverAssignedTime := true
+	lastTime := int64(0)
+	lastPointIndex := 0
 	now := common.CurrentTime()
-
-	// assign sequence numbers
-	lastNumber, err := self.datastore.AtomicIncrement(POINT_SEQUENCE_NUMBER_KEY, len(series.Points))
-	if err != nil {
-		return err
-	}
-	lastNumber = lastNumber - uint64(len(series.Points)-1)
-	for _, p := range series.Points {
-		if p.Timestamp == nil {
-			p.Timestamp = &now
-		} else {
-			serverAssignedTime = false
+	var shardToWrite cluster.Shard
+	for i, point := range series.Points {
+		if point.Timestamp == nil {
+			point.Timestamp = &now
 		}
-		if p.SequenceNumber == nil {
-			n := self.sequenceNumberWithServerId(lastNumber)
-			lastNumber++
-			p.SequenceNumber = &n
-		}
-	}
-
-	// if it's a single server setup, we don't need to bother with getting ring
-	// locations or logging requests or any of that, so just write to the local db and be done.
-	if self.clusterConfiguration.IsSingleServer() {
-		err := self.writeSeriesToLocalStore(&db, series)
-		return err
-	}
-
-	if serverAssignedTime {
-		location := common.RingLocation(&db, series.Name, series.Points[0].Timestamp)
-		i := self.clusterConfiguration.GetServerIndexByLocation(&location)
-		return self.handleClusterWrite(&i, &db, series)
-	}
-
-	// TODO: make this more efficient and not suck so much
-	// not all the same, so break things up
-
-	seriesToServerIndex := make(map[int]*protocol.Series)
-	for _, p := range series.Points {
-		location := common.RingLocation(&db, series.Name, p.Timestamp)
-		i := self.clusterConfiguration.GetServerIndexByLocation(&location)
-		s := seriesToServerIndex[i]
-		if s == nil {
-			s = &protocol.Series{Name: series.Name, Fields: series.Fields, Points: make([]*protocol.Point, 0)}
-			seriesToServerIndex[i] = s
-		}
-		s.Points = append(s.Points, p)
-	}
-
-	for serverIndex, s := range seriesToServerIndex {
-		err := self.handleClusterWrite(&serverIndex, &db, s)
-		if err != nil {
-			return err
+		if *point.Timestamp != lastTime {
+			shard, err := self.clusterConfiguration.GetShardToWriteToBySeriesAndTime(db, *series.Name, *point.Timestamp)
+			if err != nil {
+				return err
+			}
+			if shardToWrite == nil {
+				shardToWrite = shard
+			} else if shardToWrite.Id() != shard.Id() {
+				newIndex := i + 1
+				newSeries := &protocol.Series{Name: series.Name, Fields: series.Fields, Points: series.Points[lastPointIndex:newIndex]}
+				self.write(db, newSeries, shard)
+				lastPointIndex = newIndex
+			}
+			lastTime = *point.Timestamp
 		}
 	}
+
+	self.write(db, series, shardToWrite)
 
 	return nil
+}
+
+func (self *CoordinatorImpl) write(db string, series *protocol.Series, shard cluster.Shard) error {
+	request := &protocol.Request{Type: &write, Database: &db, Series: series}
+	return shard.Write(request)
 }
 
 func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery, localOnly bool) error {
@@ -840,12 +816,13 @@ func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *cluste
 	request.Query = &queryStr
 	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
-	request.OwnerServerId = &owner.Id
+	ownId := owner.Id()
+	request.OwnerServerId = &ownId
 
-	if server.Id == self.clusterConfiguration.LocalServerId {
+	if server.Id() == self.clusterConfiguration.LocalServerId {
 		// this is a local delete
 		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
-		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
+		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &ownId)
 		if err != nil {
 			return self.proxyUntilSuccess(servers, request)
 		}
@@ -870,14 +847,15 @@ func (self *CoordinatorImpl) handleDropDatabase(server *cluster.ClusterServer, d
 	request := self.createRequest(proxyDropDatabase, &database)
 	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
-	request.OwnerServerId = &owner.Id
+	ownId := owner.Id()
+	request.OwnerServerId = &ownId
 	replicationFactor := uint32(self.clusterConfiguration.GetDatabaseReplicationFactor(database))
 	request.ReplicationFactor = &replicationFactor
 
-	if server.Id == self.clusterConfiguration.LocalServerId {
+	if server.Id() == self.clusterConfiguration.LocalServerId {
 		// this is a local delete
 		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
-		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
+		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &ownId)
 		if err != nil {
 			return self.proxyUntilSuccess(servers, request)
 		}
@@ -902,15 +880,16 @@ func (self *CoordinatorImpl) handleDropSeries(server *cluster.ClusterServer, dat
 	request := self.createRequest(proxyDropSeries, &database)
 	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
-	request.OwnerServerId = &owner.Id
+	ownId := owner.Id()
+	request.OwnerServerId = &ownId
 	request.Series = &protocol.Series{Name: &series}
 	replicationFactor := uint32(self.clusterConfiguration.GetDatabaseReplicationFactor(database))
 	request.ReplicationFactor = &replicationFactor
 
-	if server.Id == self.clusterConfiguration.LocalServerId {
+	if server.Id() == self.clusterConfiguration.LocalServerId {
 		// this is a local delete
 		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
-		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
+		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &ownId)
 		if err != nil {
 			return self.proxyUntilSuccess(servers, request)
 		}
@@ -946,13 +925,14 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 	request.Series = series
 	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
 	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
-	request.OwnerServerId = &owner.Id
+	ownId := owner.Id()
+	request.OwnerServerId = &ownId
 
 	for _, s := range servers {
-		if s.Id == self.clusterConfiguration.LocalServerId {
+		if s.Id() == self.clusterConfiguration.LocalServerId {
 			// TODO: make storing of the data and logging of the request atomic
 			replicationFactor := self.clusterConfiguration.GetReplicationFactor(db)
-			err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &owner.Id)
+			err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &ownId)
 			if err != nil {
 				return self.proxyUntilSuccess(servers, request)
 			}
@@ -977,7 +957,7 @@ func (self *CoordinatorImpl) handleClusterWrite(serverIndex *int, db *string, se
 // the last err value will be returned.
 func (self *CoordinatorImpl) proxyUntilSuccess(servers []*cluster.ClusterServer, request *protocol.Request) (err error) {
 	for _, s := range servers {
-		if s.Id != self.clusterConfiguration.LocalServerId {
+		if s.Id() != self.clusterConfiguration.LocalServerId {
 			err = self.proxyWrite(s, request)
 			if err == nil {
 				return nil
@@ -1115,7 +1095,7 @@ func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*p
 	isDbUser := !user.IsClusterAdmin()
 	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
 	for _, server := range servers {
-		if server.Server.Id == self.clusterConfiguration.LocalServerId {
+		if server.Server.Id() == self.clusterConfiguration.LocalServerId {
 			continue
 		}
 		request := &protocol.Request{Type: &listSeriesRequest, Id: &id, Database: &database, UserName: &userName, IsDbUser: &isDbUser}
@@ -1370,7 +1350,7 @@ func (self *CoordinatorImpl) ReplicateDelete(request *protocol.Request) error {
 
 func (self *CoordinatorImpl) sendRequestToReplicas(request *protocol.Request, replicas []*cluster.ClusterServer) {
 	for _, server := range replicas {
-		if server.Id != self.clusterConfiguration.LocalServerId {
+		if server.Id() != self.clusterConfiguration.LocalServerId {
 			err := server.MakeRequest(request, nil)
 			if err != nil {
 				log.Warn("REPLICATION ERROR: ", request.GetSequenceNumber(), err)

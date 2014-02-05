@@ -39,6 +39,8 @@ message Request {
     REPLICATION_DROP_DATABASE = 10;
     PROXY_DROP_SERIES = 11;
     REPLICATION_DROP_SERIES = 12;
+
+    WRITE = 13;
   }
   required uint32 id = 1;
   required Type type = 2;
@@ -66,6 +68,9 @@ message Request {
   optional uint32 owner_server_id = 17;
   optional uint64 last_known_sequence_number = 18;
   optional bool is_db_user = 19;
+
+  // This number is used by the WAL to track which requests have been committed.
+  optional uint32 request_number = 20;
 }
 
 message Response {

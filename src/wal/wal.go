@@ -14,8 +14,8 @@ type WAL struct {
 
 const HOST_ID_OFFSET = uint64(10000)
 
-func NewWAL(config *configuration.Configuration, serverId uint32) (*WAL, error) {
-	return &WAL{config: config, serverId: uint64(serverId)}, nil
+func NewWAL(config *configuration.Configuration) (*WAL, error) {
+	return &WAL{config: config}, nil
 }
 
 type Shard interface {
@@ -26,9 +26,13 @@ type Server interface {
 	Id() uint32
 }
 
+func (self *WAL) SetServerId(id uint32) {
+	self.serverId = uint64(id)
+}
+
 // Will assign sequence numbers if null. Returns a unique id that should be marked as committed for each server
 // as it gets confirmed.
-func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Shard, servers []Server) (uint64, error) {
+func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Shard, servers []Server) (uint32, error) {
 	for _, point := range request.Series.Points {
 		if point.SequenceNumber == nil {
 			sn := self.getNextSequenceNumber(shard)
@@ -37,11 +41,11 @@ func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Sh
 	}
 
 	// TODO: assign a unique number and actually log it
-	return uint64(1), nil
+	return uint32(1), nil
 }
 
 // Marks a given request for a given server as committed
-func (self *WAL) Commit(requestNumber uint64, server Server) error {
+func (self *WAL) Commit(requestNumber uint32, server Server) error {
 	// TODO: make this do sometihing
 	return nil
 }
@@ -57,7 +61,7 @@ func (self *WAL) RecoverFromLog(yield func(request *protocol.Request, shard Shar
 // In the case where this server is running and another one in the cluster stops responding, at some point this server will have to just write
 // requests to disk. When the downed server comes back up, it's this server's responsibility to send out any writes that were queued up. If
 // the yield function returns nil then the request is committed.
-func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint64, server Server, yield func(request *protocol.Request, shard Shard) error) error {
+func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, server Server, yield func(request *protocol.Request, shard Shard) error) error {
 	// TODO: make this do stuff
 	return nil
 }

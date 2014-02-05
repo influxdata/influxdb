@@ -14,7 +14,7 @@ func NewLevelDbShard(db *levigo.DB) *LevelDbShard {
 	return &LevelDbShard{db: db}
 }
 
-func (self *LevelDbShard) Write([]*protocol.Series) error {
+func (self *LevelDbShard) Write(database string, series *protocol.Series) error {
 	return nil
 }
 

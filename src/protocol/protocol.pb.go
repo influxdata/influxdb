@@ -28,6 +28,7 @@ const (
 	Request_REPLICATION_DROP_DATABASE Request_Type = 10
 	Request_PROXY_DROP_SERIES         Request_Type = 11
 	Request_REPLICATION_DROP_SERIES   Request_Type = 12
+	Request_WRITE                     Request_Type = 13
 )
 
 var Request_Type_name = map[int32]string{
@@ -43,6 +44,7 @@ var Request_Type_name = map[int32]string{
 	10: "REPLICATION_DROP_DATABASE",
 	11: "PROXY_DROP_SERIES",
 	12: "REPLICATION_DROP_SERIES",
+	13: "WRITE",
 }
 var Request_Type_value = map[string]int32{
 	"QUERY":                     1,
@@ -57,6 +59,7 @@ var Request_Type_value = map[string]int32{
 	"REPLICATION_DROP_DATABASE": 10,
 	"PROXY_DROP_SERIES":         11,
 	"REPLICATION_DROP_SERIES":   12,
+	"WRITE":                     13,
 }
 
 func (x Request_Type) Enum() *Request_Type {
@@ -320,7 +323,9 @@ type Request struct {
 	OwnerServerId           *uint32 `protobuf:"varint,17,opt,name=owner_server_id" json:"owner_server_id,omitempty"`
 	LastKnownSequenceNumber *uint64 `protobuf:"varint,18,opt,name=last_known_sequence_number" json:"last_known_sequence_number,omitempty"`
 	IsDbUser                *bool   `protobuf:"varint,19,opt,name=is_db_user" json:"is_db_user,omitempty"`
-	XXX_unrecognized        []byte  `json:"-"`
+	// This number is used by the WAL to track which requests have been committed.
+	RequestNumber    *uint32 `protobuf:"varint,20,opt,name=request_number" json:"request_number,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
 }
 
 func (m *Request) Reset()         { *m = Request{} }
@@ -423,6 +428,13 @@ func (m *Request) GetIsDbUser() bool {
 		return *m.IsDbUser
 	}
 	return false
+}
+
+func (m *Request) GetRequestNumber() uint32 {
+	if m != nil && m.RequestNumber != nil {
+		return *m.RequestNumber
+	}
+	return 0
 }
 
 type Response struct {

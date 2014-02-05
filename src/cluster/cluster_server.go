@@ -7,7 +7,7 @@ import (
 )
 
 type ClusterServer struct {
-	Id                       uint32
+	id                       uint32
 	RaftName                 string
 	State                    ServerState
 	RaftConnectionString     string
@@ -55,6 +55,10 @@ func shouldConnect(addr string) bool {
 		return false
 	}
 	return true
+}
+
+func (self *ClusterServer) Id() uint32 {
+	return self.id
 }
 
 func (self *ClusterServer) Connect() {

@@ -39,17 +39,20 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	newClient := func(connectString string) cluster.ServerConnection {
 		return coordinator.NewProtobufClient(connectString)
 	}
-	clusterConfig := cluster.NewClusterConfiguration(config, shardDb, newClient)
+	writeLog, err := wal.NewWAL(config)
+	if err != nil {
+		return nil, err
+	}
+
+	clusterConfig := cluster.NewClusterConfiguration(config, writeLog, shardDb, newClient)
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
 
 	log.Info("Waiting for local server to be added")
 	clusterConfig.WaitForLocalServerLoaded()
 
-	writeLog, err := wal.NewWAL(config, clusterConfig.ServerId())
-	if err != nil {
-		return nil, err
-	}
-	coord := coordinator.NewCoordinatorImpl(db, writeLog, raftServer, clusterConfig)
+	writeLog.SetServerId(clusterConfig.ServerId())
+
+	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
 	go coord.SyncLogs()
 	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)

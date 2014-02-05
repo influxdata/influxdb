@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"parser"
+	"protocol"
 	"sync"
 	"sync/atomic"
 	"time"
+	"wal"
 )
 
 // defined by cluster config (in cluster package)
@@ -21,6 +23,13 @@ type QuerySpec interface {
 	Database() string
 	TableNames() []string
 	IsRegex() bool
+}
+
+type WAL interface {
+	AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard, servers []wal.Server) (uint32, error)
+	Commit(requestNumber uint32, server wal.Server) error
+	RecoverFromLog(yield func(request *protocol.Request, shard wal.Shard, server wal.Server) error) error
+	RecoverServerFromRequestNumber(requestNumber uint32, server wal.Server, yield func(request *protocol.Request, shard wal.Shard) error) error
 }
 
 /*
@@ -52,6 +61,7 @@ type ClusterConfiguration struct {
 	addedLocalServer           bool
 	connectionCreator          func(string) ServerConnection
 	shardStore                 LocalShardStore
+	wal                        WAL
 }
 
 type ContinuousQuery struct {
@@ -66,6 +76,7 @@ type Database struct {
 
 func NewClusterConfiguration(
 	config *configuration.Configuration,
+	wal WAL,
 	shardStore LocalShardStore,
 	connectionCreator func(string) ServerConnection) *ClusterConfiguration {
 	return &ClusterConfiguration{
@@ -79,6 +90,7 @@ func NewClusterConfiguration(
 		addedLocalServerWait:       make(chan bool, 1),
 		connectionCreator:          connectionCreator,
 		shardStore:                 shardStore,
+		wal:                        wal,
 	}
 }
 
@@ -130,7 +142,7 @@ func (self *ClusterConfiguration) GetServerByRaftName(name string) *ClusterServe
 
 func (self *ClusterConfiguration) GetServerById(id *uint32) *ClusterServer {
 	for _, server := range self.servers {
-		if server.Id == *id {
+		if server.id == *id {
 			return server
 		}
 	}
@@ -155,7 +167,7 @@ func (self *ClusterConfiguration) GetServersToMakeQueryTo(database *string) (ser
 	replicationFactorInt := int(replicationFactor)
 	index := 0
 	for i, s := range self.servers {
-		if s.Id == self.LocalServerId {
+		if s.id == self.LocalServerId {
 			index = i % replicationFactorInt
 			break
 		}
@@ -218,7 +230,7 @@ func (self *ClusterConfiguration) GetRingFilterFunction(database string, countOf
 	serversToInclude := make([]*ClusterServer, 0, countOfServersToInclude)
 	countServers := int(countOfServersToInclude)
 	for i, s := range self.servers {
-		if s.Id == self.LocalServerId {
+		if s.id == self.LocalServerId {
 			serversToInclude = append(serversToInclude, s)
 			for j := i - 1; j >= 0 && len(serversToInclude) < countServers; j-- {
 				serversToInclude = append(serversToInclude, self.servers[j])
@@ -234,7 +246,7 @@ func (self *ClusterConfiguration) GetRingFilterFunction(database string, countOf
 		location := common.RingLocation(database, series, time)
 		server := self.servers[location%len(self.servers)]
 		for _, s := range serversToInclude {
-			if s.Id == server.Id {
+			if s.id == server.id {
 				return false
 			}
 		}
@@ -248,7 +260,7 @@ func (self *ClusterConfiguration) GetServerIndexByLocation(location *int) int {
 }
 
 func (self *ClusterConfiguration) GetOwnerIdByLocation(location *int) *uint32 {
-	return &self.servers[self.GetServerIndexByLocation(location)].Id
+	return &self.servers[self.GetServerIndexByLocation(location)].id
 }
 
 func (self *ClusterConfiguration) GetServersByRingLocation(database *string, location *int) []*ClusterServer {
@@ -260,7 +272,7 @@ func (self *ClusterConfiguration) GetServersByRingLocation(database *string, loc
 // This function returns the replicas of the given server
 func (self *ClusterConfiguration) GetReplicas(server *ClusterServer, database *string) (*ClusterServer, []*ClusterServer) {
 	for index, s := range self.servers {
-		if s.Id == server.Id {
+		if s.id == server.id {
 			return self.GetServersByIndexAndReplicationFactor(database, &index)
 		}
 	}
@@ -303,7 +315,7 @@ func (self *ClusterConfiguration) UpdateServerState(serverId uint32, state Serve
 	defer self.serversLock.Unlock()
 	atomic.AddUint32(&self.ClusterVersion, uint32(1))
 	for _, server := range self.servers {
-		if server.Id == serverId {
+		if server.id == serverId {
 			if state == Running {
 				self.hasRunningServers = true
 			}
@@ -319,7 +331,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	defer self.serversLock.Unlock()
 	server.State = Potential
 	self.servers = append(self.servers, server)
-	server.Id = uint32(len(self.servers))
+	server.id = uint32(len(self.servers))
 	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
 	log.Info("Checking whether this is the local server new: %s, local: %s\n", self.config.ProtobufConnectionString(), server.ProtobufConnectionString)
 	if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
@@ -327,7 +339,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 		server.Connect()
 	} else if !self.addedLocalServer {
 		log.Info("Added the local server")
-		self.LocalServerId = server.Id
+		self.LocalServerId = server.id
 		self.addedLocalServerWait <- true
 		self.addedLocalServer = true
 	}
@@ -663,4 +675,11 @@ func (self *ClusterConfiguration) GetMapForJsonSerialization() map[string]interf
 	jsonObject["cluster_admins"] = self.clusterAdmins
 	jsonObject["database_users"] = self.dbUsers
 	return jsonObject
+}
+
+func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series string, microsecondsEpoch int64) (Shard, error) {
+	shard := NewShard(self.LocalServerId, time.Now(), time.Now())
+	shard.SetServers([]*ClusterServer{})
+	shard.SetLocalStore(self.shardStore)
+	return shard, nil
 }
