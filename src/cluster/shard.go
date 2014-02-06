@@ -2,8 +2,10 @@ package cluster
 
 import (
 	log "code.google.com/p/log4go"
+	"errors"
 	"parser"
 	"protocol"
+	"sort"
 	"time"
 	"wal"
 )
@@ -17,7 +19,7 @@ type Shard interface {
 	StartTime() time.Time
 	EndTime() time.Time
 	Write(*protocol.Request) error
-	Query(*parser.Query, chan *protocol.Response) error
+	Query(querySpec *parser.QuerySpec, responseChan chan *protocol.Response) error
 }
 
 type ShardData struct {
@@ -27,6 +29,7 @@ type ShardData struct {
 	wal          WAL
 	servers      []wal.Server
 	store        LocalShardStore
+	localShard   LocalShardDb
 	localWrites  chan *protocol.Request
 	serverWrites map[*ClusterServer]chan *protocol.Request
 }
@@ -42,7 +45,7 @@ const (
 
 type LocalShardDb interface {
 	Write(database string, series *protocol.Series) error
-	Query(*parser.Query, chan *protocol.Response) error
+	Query(*parser.QuerySpec, chan *protocol.Response) error
 }
 
 type LocalShardStore interface {
@@ -72,10 +75,17 @@ func (self *ShardData) SetServers(servers []*ClusterServer) {
 	}
 }
 
-func (self *ShardData) SetLocalStore(store LocalShardStore) {
+func (self *ShardData) SetLocalStore(store LocalShardStore) error {
 	self.store = store
 	self.localWrites = make(chan *protocol.Request, LOCAL_WRITE_BUFFER_SIZE)
+	shard, err := self.store.GetOrCreateShard(self.id)
+	if err != nil {
+		return err
+	}
+	self.localShard = shard
+
 	go self.handleLocalWrites()
+	return nil
 }
 
 func (self *ShardData) Write(request *protocol.Request) error {
@@ -93,8 +103,12 @@ func (self *ShardData) Write(request *protocol.Request) error {
 	return nil
 }
 
-func (self *ShardData) Query(*parser.Query, chan *protocol.Response) error {
-	return nil
+func (self *ShardData) Query(querySpec *parser.QuerySpec, responseChan chan *protocol.Response) error {
+	if self.localShard != nil {
+		return self.localShard.Query(querySpec, responseChan)
+	}
+	// TODO: make remote shards work
+	return errors.New("Remote shards not implemented!")
 }
 
 func (self *ShardData) handleWritesToServer(server *ClusterServer, writeBuffer chan *protocol.Request) {
@@ -125,16 +139,40 @@ func (self *ShardData) handleWritesToServer(server *ClusterServer, writeBuffer c
 func (self *ShardData) handleLocalWrites() {
 	for {
 		request := <-self.localWrites
-		shard, err := self.store.GetOrCreateShard(self.id)
-		if err != nil {
-			log.Error("Creating shard %d: %s", self.id, err)
+		err := self.localShard.Write(*request.Database, request.Series)
 
-			// TODO: handle write retry
-			continue
-		}
-		err = shard.Write(*request.Database, request.Series)
+		// TODO: handle errors writing to local store
 		if err != nil {
 			log.Error("Writing to local shard: ", err)
 		}
 	}
+}
+
+func SortShardsByTimeAscending(shards []Shard) {
+	sort.Sort(ByShardTimeAsc{shards})
+}
+
+func SortShardsByTimeDescending(shards []Shard) {
+	sort.Sort(ByShardTimeDesc{shards})
+}
+
+type ShardCollection []Shard
+
+func (s ShardCollection) Len() int      { return len(s) }
+func (s ShardCollection) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+type ByShardTimeDesc struct{ ShardCollection }
+type ByShardTimeAsc struct{ ShardCollection }
+
+func (s ByShardTimeAsc) Less(i, j int) bool {
+	if s.ShardCollection[i] != nil && s.ShardCollection[j] != nil {
+		return s.ShardCollection[i].StartTime().Unix() < s.ShardCollection[j].StartTime().Unix()
+	}
+	return false
+}
+func (s ByShardTimeDesc) Less(i, j int) bool {
+	if s.ShardCollection[i] != nil && s.ShardCollection[j] != nil {
+		return s.ShardCollection[i].StartTime().Unix() > s.ShardCollection[j].StartTime().Unix()
+	}
+	return false
 }

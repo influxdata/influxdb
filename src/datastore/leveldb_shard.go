@@ -3,6 +3,7 @@ package datastore
 import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
+	log "code.google.com/p/log4go"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -44,6 +45,10 @@ func NewLevelDbShard(db *levigo.DB) (*LevelDbShard, error) {
 	}, nil
 }
 
+var (
+	endStreamResponse = protocol.Response_END_STREAM
+)
+
 func (self *LevelDbShard) Write(database string, series *protocol.Series) error {
 	wb := levigo.NewWriteBatch()
 	defer wb.Close()
@@ -81,7 +86,10 @@ func (self *LevelDbShard) Write(database string, series *protocol.Series) error 
 	return self.db.Write(self.writeOptions, wb)
 }
 
-func (self *LevelDbShard) Query(*parser.Query, chan *protocol.Response) error {
+func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, responseChan chan *protocol.Response) error {
+	log.Error("LevelDbShard: QUERY")
+	response := &protocol.Response{Type: &endStreamResponse}
+	responseChan <- response
 	return nil
 }
 

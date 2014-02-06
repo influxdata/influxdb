@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"cluster"
+	"parser"
 )
 
 // duration 1h, 1d, 7d
@@ -11,7 +12,10 @@ import (
 
 // These are things that the Coordinator need (defined in Coordinator, will have to import cluster package)
 type ShardAwareObject interface {
-	GetShards(querySpec cluster.QuerySpec) []cluster.Shard
+	GetShards(querySpec *parser.QuerySpec) []cluster.Shard
+	// returns true if results from shards can just be ordered. false if the results are raw points that
+	// need to be sent through the query engine
+	CanCollateShards(querySpec *parser.QuerySpec) bool
 	GetShardById(id uint32) cluster.Shard
 	GetShardToWriteToBySeriesAndTime(db, series string, microsecondsEpoch int64) (cluster.Shard, error)
 }

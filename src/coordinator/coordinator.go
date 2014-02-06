@@ -148,12 +148,35 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 			return self.CreateContinuousQuery(user, database, queryString)
 		}
 
-		if engine.IsAggregateQuery(selectQuery) {
-			return self.eng.ExecuteCountQueryWithGroupBy(user, database, selectQuery, false, yield)
-		} else if engine.ContainsArithmeticOperators(selectQuery) {
-			return self.eng.ExecuteArithmeticQuery(user, database, selectQuery, false, yield)
-		} else {
-			return self.eng.DistributeQuery(user, database, selectQuery, false, yield)
+		return self.runQuery(query, user, database, yield)
+	}
+	return nil
+}
+
+func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, database string, yield func(*protocol.Series) error) error {
+	// if engine.IsAggregateQuery(selectQuery) {
+	// 	return self.eng.ExecuteCountQueryWithGroupBy(user, database, selectQuery, false, yield)
+	// } else if engine.ContainsArithmeticOperators(selectQuery) {
+	// 	return self.eng.ExecuteArithmeticQuery(user, database, selectQuery, false, yield)
+	// } else {
+	// 	return self.eng.DistributeQuery(user, database, selectQuery, false, yield)
+	// }
+	querySpec := parser.NewQuerySpec(user, database, query)
+	shards := self.clusterConfiguration.GetShards(querySpec)
+	responses := make([]chan *protocol.Response, len(shards), len(shards))
+	for i, shard := range shards {
+		responseChan := make(chan *protocol.Response, 1)
+		go shard.Query(querySpec, responseChan)
+		responses[i] = responseChan
+	}
+
+	for _, responseChan := range responses {
+		for {
+			response := <-responseChan
+			if *response.Type == endStreamResponse {
+				break
+			}
+			yield(response.Series)
 		}
 	}
 	return nil

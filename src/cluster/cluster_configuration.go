@@ -22,6 +22,7 @@ type QuerySpec interface {
 	GetEndTime() time.Time
 	Database() string
 	TableNames() []string
+	GetGroupByInterval() *time.Duration
 	IsRegex() bool
 }
 
@@ -681,6 +682,16 @@ func (self *ClusterConfiguration) GetMapForJsonSerialization() map[string]interf
 func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series string, microsecondsEpoch int64) (Shard, error) {
 	shard := NewShard(self.LocalServerId, time.Now(), time.Now(), self.wal)
 	shard.SetServers([]*ClusterServer{})
-	shard.SetLocalStore(self.shardStore)
+	err := shard.SetLocalStore(self.shardStore)
+	if err != nil {
+		return nil, err
+	}
 	return shard, nil
+}
+
+func (self *ClusterConfiguration) GetShards(querySpec QuerySpec) []Shard {
+	shard := NewShard(self.LocalServerId, time.Now(), time.Now(), self.wal)
+	shard.SetServers([]*ClusterServer{})
+	shard.SetLocalStore(self.shardStore)
+	return []Shard{shard}
 }
