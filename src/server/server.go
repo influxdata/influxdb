@@ -22,6 +22,7 @@ type Server struct {
 	Config         *configuration.Configuration
 	RequestHandler *coordinator.ProtobufRequestHandler
 	stopped        bool
+	writeLog       *wal.WAL
 }
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
@@ -47,11 +48,6 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	clusterConfig := cluster.NewClusterConfiguration(config, writeLog, shardDb, newClient)
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
 
-	log.Info("Waiting for local server to be added")
-	clusterConfig.WaitForLocalServerLoaded()
-
-	writeLog.SetServerId(clusterConfig.ServerId())
-
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
 	go coord.SyncLogs()
 	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
@@ -71,13 +67,23 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		Coordinator:    coord,
 		AdminServer:    adminServer,
 		Config:         config,
-		RequestHandler: requestHandler}, nil
+		RequestHandler: requestHandler,
+		writeLog:       writeLog}, nil
 }
 
 func (self *Server) ListenAndServe() error {
 	go self.ProtobufServer.ListenAndServe()
 
 	err := self.RaftServer.ListenAndServe()
+	if err != nil {
+		return err
+	}
+
+	log.Info("Waiting for local server to be added")
+	self.ClusterConfig.WaitForLocalServerLoaded()
+	self.writeLog.SetServerId(self.ClusterConfig.ServerId())
+
+	err = self.recoverFromLog()
 	if err != nil {
 		return err
 	}
@@ -90,6 +96,11 @@ func (self *Server) ListenAndServe() error {
 	go self.AdminServer.ListenAndServe()
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()
+	return nil
+}
+
+func (self *Server) recoverFromLog() error {
+	// TODO: recover from the log: wal.RecoverFromLog....
 	return nil
 }
 
