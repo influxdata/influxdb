@@ -229,4 +229,6 @@
 
 ### Bugfixes
 
+- Ensure large deletes don't take too much memory
+
 ### Features
