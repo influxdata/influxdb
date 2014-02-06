@@ -21,15 +21,14 @@ type Shard interface {
 }
 
 type ShardData struct {
-	id             uint32
-	startTime      time.Time
-	endTime        time.Time
-	wal            WAL
-	clusterServers []*ClusterServer
-	servers        []wal.Server
-	store          LocalShardStore
-	localWrites    chan *protocol.Request
-	serverWrites   map[*ClusterServer]chan *protocol.Request
+	id           uint32
+	startTime    time.Time
+	endTime      time.Time
+	wal          WAL
+	servers      []wal.Server
+	store        LocalShardStore
+	localWrites  chan *protocol.Request
+	serverWrites map[*ClusterServer]chan *protocol.Request
 }
 
 func NewShard(id uint32, startTime, endTime time.Time) *ShardData {
@@ -63,11 +62,6 @@ func (self *ShardData) EndTime() time.Time {
 }
 
 func (self *ShardData) SetServers(servers []*ClusterServer) {
-	self.clusterServers = servers
-
-	// Doing this thing with the serveres because wal.AssignSequenceNumbersAndLog expects a slice of
-	// wal.Server interface and go won't do the conversion to *ClusterServer automatically.
-	// See: http://stackoverflow.com/questions/12994679/golang-slice-of-struct-slice-of-interface-it-implements
 	self.servers = make([]wal.Server, len(servers), len(servers))
 	self.serverWrites = make(map[*ClusterServer]chan *protocol.Request)
 	for i, server := range servers {
