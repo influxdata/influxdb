@@ -621,12 +621,23 @@ func (self *LevelDbDatastore) deleteRangeOfSeriesCommon(database, series string,
 				}
 			}
 		}
+		count := 0
 		for it = it; it.Valid(); it.Next() {
 			k := it.Key()
 			if len(k) < 16 || !bytes.Equal(k[:8], field.Id) || bytes.Compare(k[8:16], endTimeBytes) == 1 {
 				break
 			}
 			wb.Delete(k)
+			count++
+			// delete every one million keys which is approximately 24 megabytes
+			if count == ONE_MEGABYTE {
+				err = self.db.Write(self.writeOptions, wb)
+				if err != nil {
+					return err
+				}
+				wb.Clear()
+				count = 0
+			}
 			endKey = k
 		}
 		err = self.db.Write(self.writeOptions, wb)

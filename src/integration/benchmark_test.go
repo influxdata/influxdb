@@ -935,6 +935,43 @@ func (self *IntegrationSuite) TestDeleteQuery(c *C) {
 	}
 }
 
+func (self *IntegrationSuite) TestLargeDeletes(c *C) {
+	numberOfPoints := 2 * 1024 * 1024
+	points := []interface{}{}
+	for i := 0; i < numberOfPoints; i++ {
+		points = append(points, []interface{}{i})
+	}
+	pointsString, _ := json.Marshal(points)
+	err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+    "name": "test_large_deletes",
+    "columns": ["val1"],
+    "points":%s
+  }
+]`, string(pointsString)))
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select count(val1) from test_large_deletes", "m")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Points, HasLen, 1)
+	c.Assert(data[0].Points[0][1], Equals, float64(numberOfPoints))
+
+	query := "delete from test_large_deletes"
+	_, err = self.server.RunQuery(query, "m")
+	c.Assert(err, IsNil)
+
+	// this shouldn't return any data
+	bs, err = self.server.RunQuery("select count(val1) from test_large_deletes", "m")
+	c.Assert(err, IsNil)
+	data = []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(err, IsNil)
+	c.Assert(data, HasLen, 0)
+}
+
 func (self *IntegrationSuite) TestReading(c *C) {
 	if !*benchmark {
 		c.Skip("Benchmarking is disabled")
