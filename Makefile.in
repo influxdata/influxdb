@@ -53,6 +53,12 @@ leveldb_dir     = /tmp/leveldb.influxdb.$(arch)
 leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
+profile=off
+ifneq ($(profile),off)
+CGO_LDFLAGS += -ltcmalloc
+GO_BUILD_OPTIONS = -tags profile
+endif
+
 # levigo flags
 ifeq ($(uname_S),Linux)
 CGO_CFLAGS  += -I$(leveldb_dir)/include
@@ -60,7 +66,7 @@ CGO_LDFLAGS += $(leveldb_dir)/libleveldb.a $(snappy_dir)/.libs/libsnappy.a -lstd
 export CGO_CFLAGS
 export CGO_LDFLAGS
 else
-CGO_LDFLAGS = -lleveldb -lsnappy -lstdc++
+CGO_LDFLAGS += -lleveldb -lsnappy -lstdc++
 export CGO_LDFLAGS
 endif
 
@@ -130,7 +136,7 @@ protobuf:
 build: | dependencies protobuf parser
 # TODO: build all packages, otherwise we won't know
 # if there's an error
-	$(GO) build daemon
+	$(GO) build $(GO_BUILD_OPTIONS) daemon
 	$(GO) build benchmark
 
 clean:

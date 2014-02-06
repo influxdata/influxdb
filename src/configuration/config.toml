@@ -49,3 +49,9 @@ seed-servers = ["hosta:8090", "hostb:8090"]
 # However, this port shouldn't be accessible from the internet.
 
 protobuf_port = 8099
+
+[leveldb]
+
+# Maximum mmap open files, this will affect the virtual memory used by
+# the process
+# max-open-files = 100

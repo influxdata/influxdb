@@ -32,6 +32,7 @@ type LevelDbDatastore struct {
 	incrementLock      sync.Mutex
 	requestId          uint32
 	requestLogDir      string
+	maxOpenFiles       int
 }
 
 type Field struct {
@@ -61,12 +62,13 @@ func getRequestLogDirForDate(baseDir string, t time.Time) string {
 	return filepath.Join(baseDir, logDir)
 }
 
-func NewRequestLogDb(dir string) (*requestLogDb, error) {
+func NewRequestLogDb(dir string, maxOpenFiles int) (*requestLogDb, error) {
 	err := os.MkdirAll(dir, 0744)
 	if err != nil {
 		return nil, err
 	}
 	opts := levigo.NewOptions()
+	opts.SetMaxOpenFiles(maxOpenFiles)
 	opts.SetCache(levigo.NewLRUCache(ONE_MEGABYTE))
 	opts.SetCreateIfMissing(true)
 	opts.SetBlockSize(TWO_FIFTY_SIX_KILOBYTES)
@@ -116,7 +118,6 @@ const (
 	ONE_GIGABYTE                 = ONE_MEGABYTE * 1024
 	TWO_FIFTY_SIX_KILOBYTES      = 256 * 1024
 	BLOOM_FILTER_BITS_PER_KEY    = 64
-	MAX_POINTS_TO_SCAN           = 1000000
 	MAX_SERIES_SIZE              = ONE_MEGABYTE
 	REQUEST_SEQUENCE_NUMBER_KEY  = "r"
 	REQUEST_LOG_BASE_DIR         = "request_logs"
@@ -144,7 +145,7 @@ var (
 	TRUE = true
 )
 
-func NewLevelDbDatastore(dbDir string) (Datastore, error) {
+func NewLevelDbDatastore(dbDir string, maxOpenFiles int) (Datastore, error) {
 	mainDbDir := filepath.Join(dbDir, DATABASE_DIR)
 	requestLogDir := filepath.Join(dbDir, REQUEST_LOG_BASE_DIR)
 
@@ -152,16 +153,17 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 	if err != nil {
 		return nil, err
 	}
-	previousLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now().Add(-time.Hour*24)))
+	previousLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now().Add(-time.Hour*24)), maxOpenFiles)
 	if err != nil {
 		return nil, err
 	}
-	currentLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now()))
+	currentLog, err := NewRequestLogDb(getRequestLogDirForDate(requestLogDir, time.Now()), maxOpenFiles)
 	if err != nil {
 		return nil, err
 	}
 
 	opts := levigo.NewOptions()
+	opts.SetMaxOpenFiles(maxOpenFiles)
 	opts.SetCache(levigo.NewLRUCache(ONE_GIGABYTE))
 	opts.SetCreateIfMissing(true)
 	opts.SetBlockSize(TWO_FIFTY_SIX_KILOBYTES)
@@ -196,7 +198,9 @@ func NewLevelDbDatastore(dbDir string) (Datastore, error) {
 		writeOptions:       wo,
 		requestLogDir:      requestLogDir,
 		currentRequestLog:  currentLog,
-		previousRequestLog: previousLog}
+		previousRequestLog: previousLog,
+		maxOpenFiles:       maxOpenFiles,
+	}
 
 	go leveldbStore.periodicallyRotateRequestLog()
 
@@ -219,7 +223,7 @@ func (self *LevelDbDatastore) rotateRequestLog() {
 	oldLog := self.previousRequestLog
 	self.previousRequestLog = self.currentRequestLog
 	var err error
-	self.currentRequestLog, err = NewRequestLogDb(getRequestLogDirForDate(self.requestLogDir, time.Now()))
+	self.currentRequestLog, err = NewRequestLogDb(getRequestLogDirForDate(self.requestLogDir, time.Now()), self.maxOpenFiles)
 	if err != nil {
 		log.Error("Error creating new requst log: ", err)
 		panic(err)
@@ -771,10 +775,11 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 
 	limit := query.Limit
+	shouldLimit := true
 	if limit == 0 {
-		limit = MAX_POINTS_TO_SCAN
+		limit = -1
+		shouldLimit = false
 	}
-
 	resultByteCount := 0
 
 	// TODO: clean up, this is super gnarly
@@ -877,7 +882,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 		resultByteCount += 16
 
 		// check if we should send the batch along
-		if resultByteCount > MAX_SERIES_SIZE || limit < 1 {
+		if resultByteCount > MAX_SERIES_SIZE || (shouldLimit && limit == 0) {
 			dropped, err := self.sendBatch(query, result, yield)
 			if err != nil {
 				return err
@@ -886,7 +891,7 @@ func (self *LevelDbDatastore) executeQueryForSeries(database, series string, col
 			resultByteCount = 0
 			result = &protocol.Series{Name: &series, Fields: fieldNames, Points: make([]*protocol.Point, 0)}
 		}
-		if limit < 1 {
+		if shouldLimit && limit < 1 {
 			break
 		}
 	}

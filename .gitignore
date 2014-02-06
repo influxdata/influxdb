@@ -20,6 +20,7 @@ a.out
 src/parser/lex.yy.c
 src/parser/y.tab.h
 src/parser/y.tab.c
+src/protocol/protocol.pb.go
 build/
 
 # executables
@@ -34,6 +35,7 @@ src/code.google.com/p/log4go
 src/code.google.com/p/go.crypto/
 /src/code.google.com/p/goplan9/
 /src/code.google.com/p/goprotobuf/
+/src/code.google.com/p/gogoprotobuf/
 /src/code.google.com/p/rog-go/
 src/launchpad.net/gocheck/
 /src/github.com/nsf/gocode/

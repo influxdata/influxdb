@@ -24,6 +24,10 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	c.Assert(config.AdminAssetsDir, Equals, "./admin")
 	c.Assert(config.AdminHttpPort, Equals, 8083)
 
+	// the default should be 100, this shouldn't be set in the test toml
+	// file
+	c.Assert(config.LevelDbMaxOpenFiles, Equals, 100)
+
 	c.Assert(config.ApiHttpPort, Equals, 0)
 	c.Assert(config.ApiHttpSslPort, Equals, 8087)
 	c.Assert(config.ApiHttpCertPath, Equals, "../cert.pem")
