@@ -31,8 +31,8 @@ type ShardData struct {
 	serverWrites map[*ClusterServer]chan *protocol.Request
 }
 
-func NewShard(id uint32, startTime, endTime time.Time) *ShardData {
-	return &ShardData{id: id, startTime: startTime, endTime: endTime}
+func NewShard(id uint32, startTime, endTime time.Time, wal WAL) *ShardData {
+	return &ShardData{id: id, startTime: startTime, endTime: endTime, wal: wal}
 }
 
 const (
@@ -128,6 +128,9 @@ func (self *ShardData) handleLocalWrites() {
 		shard, err := self.store.GetOrCreateShard(self.id)
 		if err != nil {
 			log.Error("Creating shard %d: %s", self.id, err)
+
+			// TODO: handle write retry
+			continue
 		}
 		err = shard.Write(*request.Database, request.Series)
 		if err != nil {

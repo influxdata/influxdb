@@ -679,7 +679,7 @@ func (self *ClusterConfiguration) GetMapForJsonSerialization() map[string]interf
 }
 
 func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series string, microsecondsEpoch int64) (Shard, error) {
-	shard := NewShard(self.LocalServerId, time.Now(), time.Now())
+	shard := NewShard(self.LocalServerId, time.Now(), time.Now(), self.wal)
 	shard.SetServers([]*ClusterServer{})
 	shard.SetLocalStore(self.shardStore)
 	return shard, nil

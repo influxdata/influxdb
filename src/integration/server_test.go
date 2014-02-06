@@ -200,6 +200,22 @@ func (self *ServerSuite) TearDownSuite(c *C) {
 	}
 }
 
+func (self *ServerSuite) TestWriteAndGetPoint(c *C) {
+	data := `
+  [{
+    "points": [[23.0]],
+    "name": "test_write_and_get_point",
+    "columns": ["something"]
+  }]
+  `
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_write_and_get_point", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_write_and_get_point", c)
+	c.Assert(series.Points, HasLen, 1)
+}
+
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
 	data := `
   [{

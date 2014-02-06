@@ -49,8 +49,17 @@ func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShar
 func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, error) {
 	self.shardsLock.RLock()
 	db := self.shards[id]
-	self.shardsLock.Unlock()
+	self.shardsLock.RUnlock()
 
+	if db != nil {
+		return db, nil
+	}
+
+	self.shardsLock.Lock()
+	defer self.shardsLock.Unlock()
+
+	// check to make sure it hasn't been put there between the RUnlock and the Lock
+	db = self.shards[id]
 	if db != nil {
 		return db, nil
 	}
@@ -63,9 +72,10 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 		return nil, err
 	}
 
-	self.shardsLock.Lock()
-	defer self.shardsLock.Unlock()
-	db = NewLevelDbShard(ldb)
+	db, err = NewLevelDbShard(ldb)
+	if err != nil {
+		return nil, err
+	}
 	self.shards[id] = db
 	return db, nil
 }

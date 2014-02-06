@@ -770,9 +770,12 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series
 		}
 	}
 
-	self.write(db, series, shardToWrite)
+	err := self.write(db, series, shardToWrite)
+	if err != nil {
+		log.Error("COORD error writing: ", err)
+	}
 
-	return nil
+	return err
 }
 
 func (self *CoordinatorImpl) write(db string, series *protocol.Series, shard cluster.Shard) error {
