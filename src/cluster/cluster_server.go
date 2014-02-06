@@ -71,6 +71,5 @@ func (self *ClusterServer) Connect() {
 }
 
 func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
-	self.Connect()
 	return self.connection.MakeRequest(request, responseStream)
 }
