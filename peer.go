@@ -123,14 +123,14 @@ func (p *Peer) heartbeat(c chan bool) {
 	for {
 		select {
 		case flush := <-stopChan:
-			if !flush {
-				debugln("peer.heartbeat.stop: ", p.Name)
-				return
-			} else {
+			if flush {
 				// before we can safely remove a node
 				// we must flush the remove command to the node first
 				p.flush()
 				debugln("peer.heartbeat.stop.with.flush: ", p.Name)
+				return
+			} else {
+				debugln("peer.heartbeat.stop: ", p.Name)
 				return
 			}
 
