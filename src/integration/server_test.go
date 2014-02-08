@@ -214,6 +214,8 @@ func (self *ServerSuite) TestWriteAndGetPoint(c *C) {
 	c.Assert(collection.Members, HasLen, 1)
 	series := collection.GetSeries("test_write_and_get_point", c)
 	c.Assert(series.Points, HasLen, 1)
+	c.Assert(series.Columns[2], Equals, "something")
+	c.Assert(series.Points[0].Values[2].(float64), Equals, float64(23))
 }
 
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {

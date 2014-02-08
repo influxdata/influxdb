@@ -6,13 +6,14 @@ import (
 )
 
 type QuerySpec struct {
-	query     *Query
-	database  string
-	isRegex   bool
-	names     []string
-	user      common.User
-	startTime time.Time
-	endTime   time.Time
+	query                  *Query
+	database               string
+	isRegex                bool
+	names                  []string
+	user                   common.User
+	startTime              time.Time
+	endTime                time.Time
+	seriesValuesAndColumns map[*Value][]string
 }
 
 func NewQuerySpec(user common.User, database string, query *Query) *QuerySpec {
@@ -67,6 +68,18 @@ func (self *QuerySpec) TableNames() []string {
 	return names
 }
 
+func (self *QuerySpec) SeriesValuesAndColumns() map[*Value][]string {
+	if self.seriesValuesAndColumns != nil {
+		return self.seriesValuesAndColumns
+	}
+	if self.query.SelectQuery != nil {
+		self.seriesValuesAndColumns = self.query.SelectQuery.GetReferencedColumns()
+	} else {
+		self.seriesValuesAndColumns = make(map[*Value][]string)
+	}
+	return self.seriesValuesAndColumns
+}
+
 func (self *QuerySpec) GetGroupByInterval() *time.Duration {
 	if self.query.SelectQuery == nil {
 		return nil
@@ -78,4 +91,19 @@ func (self *QuerySpec) GetGroupByInterval() *time.Duration {
 func (self *QuerySpec) IsRegex() bool {
 	self.TableNames()
 	return self.isRegex
+}
+
+func (self *QuerySpec) HasReadAccess(name string) bool {
+	return self.user.HasReadAccess(name)
+}
+
+func (self *QuerySpec) IsSinglePointQuery() bool {
+	if self.query.SelectQuery != nil {
+		return self.query.SelectQuery.IsSinglePointQuery()
+	}
+	return false
+}
+
+func (self *QuerySpec) SelectQuery() *SelectQuery {
+	return self.query.SelectQuery
 }

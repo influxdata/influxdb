@@ -11,7 +11,7 @@ import (
 )
 
 // A shard imements an interface for writing and querying data.
-// It can be copied to multiple servers.
+// It can be copied to multiple servers or the local datastore.
 // Shard contains data from [startTime, endTime)
 // Ids are unique across the cluster
 type Shard interface {
@@ -19,7 +19,43 @@ type Shard interface {
 	StartTime() time.Time
 	EndTime() time.Time
 	Write(*protocol.Request) error
-	Query(querySpec *parser.QuerySpec, responseChan chan *protocol.Response) error
+	Query(querySpec *parser.QuerySpec, response chan *protocol.Response) error
+}
+
+// Passed to a shard (local datastore or whatever) that gets yielded points from series.
+type QueryProcessor interface {
+	// This method returns true if the query should continue. If the query should be stopped,
+	// like maybe the limit was hit, it should return false
+	YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool
+}
+
+type PassthroughProcessor struct {
+	responseChan chan *protocol.Response
+	response     *protocol.Response
+}
+
+func NewPassthroughProcessor(responseChan chan *protocol.Response) *PassthroughProcessor {
+	response := &protocol.Response{
+		Type:   &queryResponse,
+		Series: &protocol.Series{Points: make([]*protocol.Point, 0)}}
+
+	return &PassthroughProcessor{
+		responseChan: responseChan,
+		response:     response,
+	}
+}
+
+func (self *PassthroughProcessor) YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool {
+	self.response.Series.Name = seriesName
+	self.response.Series.Fields = columnNames
+	self.response.Series.Points = append(self.response.Series.Points, point)
+	return true
+}
+
+func (self *PassthroughProcessor) Close() {
+	self.responseChan <- self.response
+	response := &protocol.Response{Type: &endStreamResponse}
+	self.responseChan <- response
 }
 
 type ShardData struct {
@@ -43,9 +79,14 @@ const (
 	LOCAL_WRITE_BUFFER_SIZE = 10
 )
 
+var (
+	queryResponse     = protocol.Response_QUERY
+	endStreamResponse = protocol.Response_END_STREAM
+)
+
 type LocalShardDb interface {
 	Write(database string, series *protocol.Series) error
-	Query(*parser.QuerySpec, chan *protocol.Response) error
+	Query(*parser.QuerySpec, QueryProcessor) error
 }
 
 type LocalShardStore interface {
@@ -103,9 +144,12 @@ func (self *ShardData) Write(request *protocol.Request) error {
 	return nil
 }
 
-func (self *ShardData) Query(querySpec *parser.QuerySpec, responseChan chan *protocol.Response) error {
+func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
 	if self.localShard != nil {
-		return self.localShard.Query(querySpec, responseChan)
+		processor := NewPassthroughProcessor(response)
+		err := self.localShard.Query(querySpec, processor)
+		processor.Close()
+		return err
 	}
 	// TODO: make remote shards work
 	return errors.New("Remote shards not implemented!")

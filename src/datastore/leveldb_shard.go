@@ -2,8 +2,10 @@ package datastore
 
 import (
 	"bytes"
+	"cluster"
 	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
+	"common"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -11,7 +13,10 @@ import (
 	"math"
 	"parser"
 	"protocol"
+	"regexp"
+	"strings"
 	"sync"
+	"time"
 )
 
 type LevelDbShard struct {
@@ -44,10 +49,6 @@ func NewLevelDbShard(db *levigo.DB) (*LevelDbShard, error) {
 		lastIdUsed:   lastId,
 	}, nil
 }
-
-var (
-	endStreamResponse = protocol.Response_END_STREAM
-)
 
 func (self *LevelDbShard) Write(database string, series *protocol.Series) error {
 	wb := levigo.NewWriteBatch()
@@ -86,11 +87,289 @@ func (self *LevelDbShard) Write(database string, series *protocol.Series) error 
 	return self.db.Write(self.writeOptions, wb)
 }
 
-func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, responseChan chan *protocol.Response) error {
+func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	log.Error("LevelDbShard: QUERY")
-	response := &protocol.Response{Type: &endStreamResponse}
-	responseChan <- response
+	seriesAndColumns := querySpec.SelectQuery().GetReferencedColumns()
+
+	if !self.hasReadAccess(querySpec) {
+		return errors.New("User does not have access to one or more of the series requested.")
+	}
+
+	for series, columns := range seriesAndColumns {
+		if regex, ok := series.GetCompiledRegex(); ok {
+			seriesNames := self.getSeriesForDbAndRegex(querySpec.Database(), regex)
+			for _, name := range seriesNames {
+				if !querySpec.HasReadAccess(name) {
+					continue
+				}
+				err := self.executeQueryForSeries(querySpec, name, columns, processor)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			err := self.executeQueryForSeries(querySpec, series.Name, columns, processor)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
+}
+
+func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor cluster.QueryProcessor) error {
+	startTimeBytes := self.byteArrayForTime(querySpec.GetStartTime())
+	endTimeBytes := self.byteArrayForTime(querySpec.GetEndTime())
+
+	fields, err := self.getFieldsForSeries(querySpec.Database(), seriesName, columns)
+	if err != nil {
+		// because a db is distributed across the cluster, it's possible we don't have the series indexed here. ignore
+		switch err := err.(type) {
+		case FieldLookupError:
+			return nil
+		default:
+			return fmt.Errorf("Error looking up fields for %s: %s", seriesName, err)
+		}
+	}
+
+	fieldCount := len(fields)
+	rawColumnValues := make([]*rawColumnValue, fieldCount, fieldCount)
+	query := querySpec.SelectQuery()
+
+	if querySpec.IsSinglePointQuery() {
+		series, err := self.fetchSinglePoint(querySpec, seriesName, fields)
+		if err != nil {
+			return err
+		}
+		if len(series.Points) > 0 {
+			processor.YieldPoint(series.Name, series.Fields, series.Points[0])
+		}
+		return nil
+	}
+
+	hasNonTimeWhereClause := query.GetWhereCondition() != nil
+	fieldNames, iterators := self.getIterators(fields, startTimeBytes, endTimeBytes, query.Ascending)
+
+	// TODO: clean up, this is super gnarly
+	// optimize for the case where we're pulling back only a single column or aggregate
+	for {
+		isValid := false
+		point := &protocol.Point{Values: make([]*protocol.FieldValue, fieldCount, fieldCount)}
+
+		for i, it := range iterators {
+			if rawColumnValues[i] != nil || !it.Valid() {
+				continue
+			}
+
+			key := it.Key()
+			if len(key) < 16 {
+				continue
+			}
+
+			if !isPointInRange(fields[i].Id, startTimeBytes, endTimeBytes, key) {
+				continue
+			}
+
+			value := it.Value()
+			sequenceNumber := key[16:]
+
+			rawTime := key[8:16]
+			rawValue := &rawColumnValue{time: rawTime, sequence: sequenceNumber, value: value}
+			rawColumnValues[i] = rawValue
+		}
+
+		var pointTimeRaw []byte
+		var pointSequenceRaw []byte
+		// choose the highest (or lowest in case of ascending queries) timestamp
+		// and sequence number. that will become the timestamp and sequence of
+		// the next point.
+		for _, value := range rawColumnValues {
+			if value == nil {
+				continue
+			}
+
+			pointTimeRaw, pointSequenceRaw = value.updatePointTimeAndSequence(pointTimeRaw,
+				pointSequenceRaw, query.Ascending)
+		}
+
+		for i, iterator := range iterators {
+			// if the value is nil or doesn't match the point's timestamp and sequence number
+			// then skip it
+			if rawColumnValues[i] == nil ||
+				!bytes.Equal(rawColumnValues[i].time, pointTimeRaw) ||
+				!bytes.Equal(rawColumnValues[i].sequence, pointSequenceRaw) {
+
+				point.Values[i] = &protocol.FieldValue{IsNull: &TRUE}
+				continue
+			}
+
+			// if we emitted at lease one column, then we should keep
+			// trying to get more points
+			isValid = true
+
+			// advance the iterator to read a new value in the next iteration
+			if query.Ascending {
+				iterator.Next()
+			} else {
+				iterator.Prev()
+			}
+
+			fv := &protocol.FieldValue{}
+			err := proto.Unmarshal(rawColumnValues[i].value, fv)
+			if err != nil {
+				return err
+			}
+			point.Values[i] = fv
+			rawColumnValues[i] = nil
+		}
+
+		var sequence uint64
+		// set the point sequence number and timestamp
+		binary.Read(bytes.NewBuffer(pointSequenceRaw), binary.BigEndian, &sequence)
+		var t uint64
+		binary.Read(bytes.NewBuffer(pointTimeRaw), binary.BigEndian, &t)
+		time := self.convertUintTimestampToInt64(&t)
+		point.SetTimestampInMicroseconds(time)
+		point.SequenceNumber = &sequence
+
+		// stop the loop if we ran out of points
+		if !isValid {
+			break
+		}
+
+		if hasNonTimeWhereClause && self.matchesWhereClause(seriesName, query, point) {
+			// yield the point to the query processor and stop iteration if it returns false. i.e. limit hit, etc.
+			if !processor.YieldPoint(&seriesName, fieldNames, point) {
+				break
+			}
+		} else {
+			// yield the point to the query processor and stop iteration if it returns false. i.e. limit hit, etc.
+			if !processor.YieldPoint(&seriesName, fieldNames, point) {
+				break
+			}
+		}
+	}
+
+	return nil
+}
+
+func (self *LevelDbShard) matchesWhereClause(series string, query *parser.SelectQuery, point *protocol.Point) bool {
+	// TODO: move over filtering/where clause matching
+	return true
+}
+
+func (self *LevelDbShard) getFieldsForSeries(db, series string, columns []string) ([]*Field, error) {
+	isCountQuery := false
+	if len(columns) > 0 && columns[0] == "*" {
+		columns = self.getColumnNamesForSeries(db, series)
+	} else if len(columns) == 0 {
+		isCountQuery = true
+		columns = self.getColumnNamesForSeries(db, series)
+	}
+	if len(columns) == 0 {
+		return nil, FieldLookupError{"Coulnd't look up columns for series: " + series}
+	}
+
+	fields := make([]*Field, len(columns), len(columns))
+
+	for i, name := range columns {
+		id, errId := self.getIdForDbSeriesColumn(&db, &series, &name)
+		if errId != nil {
+			return nil, errId
+		}
+		if id == nil {
+			return nil, FieldLookupError{"Field " + name + " doesn't exist in series " + series}
+		}
+		fields[i] = &Field{Name: name, Id: id}
+	}
+
+	// if it's a count query we just want the column that will be the most efficient to
+	// scan through. So find that and return it.
+	if isCountQuery {
+		bestField := fields[0]
+		return []*Field{bestField}, nil
+	}
+	return fields, nil
+}
+
+func (self *LevelDbShard) getColumnNamesForSeries(db, series string) []string {
+	it := self.db.NewIterator(self.readOptions)
+	defer it.Close()
+
+	seekKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(db+"~"+series+"~")...)
+	it.Seek(seekKey)
+	names := make([]string, 0)
+	dbNameStart := len(SERIES_COLUMN_INDEX_PREFIX)
+	for it = it; it.Valid(); it.Next() {
+		key := it.Key()
+		if len(key) < dbNameStart || !bytes.Equal(key[:dbNameStart], SERIES_COLUMN_INDEX_PREFIX) {
+			break
+		}
+		dbSeriesColumn := string(key[dbNameStart:])
+		parts := strings.Split(dbSeriesColumn, "~")
+		if len(parts) > 2 {
+			if parts[0] != db || parts[1] != series {
+				break
+			}
+			names = append(names, parts[2])
+		}
+	}
+	return names
+}
+
+func (self *LevelDbShard) hasReadAccess(querySpec *parser.QuerySpec) bool {
+	for series, _ := range querySpec.SeriesValuesAndColumns() {
+		if _, isRegex := series.GetCompiledRegex(); !isRegex {
+			if !querySpec.HasReadAccess(series.Name) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (self *LevelDbShard) byteArrayForTime(t time.Time) []byte {
+	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+	timeMicro := common.TimeToMicroseconds(t)
+	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&timeMicro))
+	return timeBuffer.Bytes()
+}
+
+func (self *LevelDbShard) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
+	names := []string{}
+	allSeries := self.getSeriesForDatabase(database)
+	for _, name := range allSeries {
+		if regex.MatchString(name) {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func (self *LevelDbShard) getSeriesForDatabase(database string) []string {
+	it := self.db.NewIterator(self.readOptions)
+	defer it.Close()
+
+	seekKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~")...)
+	it.Seek(seekKey)
+	dbNameStart := len(DATABASE_SERIES_INDEX_PREFIX)
+	names := make([]string, 0)
+	for it = it; it.Valid(); it.Next() {
+		key := it.Key()
+		if len(key) < dbNameStart || !bytes.Equal(key[:dbNameStart], DATABASE_SERIES_INDEX_PREFIX) {
+			break
+		}
+		dbSeries := string(key[dbNameStart:])
+		parts := strings.Split(dbSeries, "~")
+		if len(parts) > 1 {
+			if parts[0] != database {
+				break
+			}
+			name := parts[1]
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 func (self *LevelDbShard) createIdForDbSeriesColumn(db, series, column *string) (ret []byte, err error) {
@@ -155,4 +434,73 @@ func (self *LevelDbShard) convertTimestampToUint(t *int64) uint64 {
 		return uint64(math.MaxInt64 + *t + 1)
 	}
 	return uint64(*t) + uint64(math.MaxInt64) + uint64(1)
+}
+
+func (self *LevelDbShard) fetchSinglePoint(querySpec *parser.QuerySpec, series string, fields []*Field) (*protocol.Series, error) {
+	query := querySpec.SelectQuery()
+	fieldCount := len(fields)
+	fieldNames := make([]string, 0, fieldCount)
+	point := &protocol.Point{Values: make([]*protocol.FieldValue, 0, fieldCount)}
+	timestamp := common.TimeToMicroseconds(query.GetStartTime())
+	sequenceNumber, err := query.GetSinglePointQuerySequenceNumber()
+	if err != nil {
+		return nil, err
+	}
+
+	timeAndSequenceBuffer := bytes.NewBuffer(make([]byte, 0, 16))
+	binary.Write(timeAndSequenceBuffer, binary.BigEndian, self.convertTimestampToUint(&timestamp))
+	binary.Write(timeAndSequenceBuffer, binary.BigEndian, sequenceNumber)
+	sequenceNumber_uint64 := uint64(sequenceNumber)
+	point.SequenceNumber = &sequenceNumber_uint64
+	point.SetTimestampInMicroseconds(timestamp)
+
+	timeAndSequenceBytes := timeAndSequenceBuffer.Bytes()
+	for _, field := range fields {
+		pointKey := append(field.Id, timeAndSequenceBytes...)
+
+		if data, err := self.db.Get(self.readOptions, pointKey); err != nil {
+			return nil, err
+		} else {
+			fieldValue := &protocol.FieldValue{}
+			err := proto.Unmarshal(data, fieldValue)
+			if err != nil {
+				return nil, err
+			}
+			if data != nil {
+				fieldNames = append(fieldNames, field.Name)
+				point.Values = append(point.Values, fieldValue)
+			}
+		}
+	}
+
+	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: []*protocol.Point{point}}
+
+	return result, nil
+}
+
+func (self *LevelDbShard) getIterators(fields []*Field, start, end []byte, isAscendingQuery bool) (fieldNames []string, iterators []*levigo.Iterator) {
+	iterators = make([]*levigo.Iterator, len(fields))
+	fieldNames = make([]string, len(fields))
+
+	// start the iterators to go through the series data
+	for i, field := range fields {
+		fieldNames[i] = field.Name
+		iterators[i] = self.db.NewIterator(self.readOptions)
+		if isAscendingQuery {
+			iterators[i].Seek(append(field.Id, start...))
+		} else {
+			iterators[i].Seek(append(append(field.Id, end...), MAX_SEQUENCE...))
+			if iterators[i].Valid() {
+				iterators[i].Prev()
+			}
+		}
+	}
+	return
+}
+
+func (self *LevelDbShard) convertUintTimestampToInt64(t *uint64) int64 {
+	if *t > uint64(math.MaxInt64) {
+		return int64(*t-math.MaxInt64) - int64(1)
+	}
+	return int64(*t) - math.MaxInt64 - int64(1)
 }
