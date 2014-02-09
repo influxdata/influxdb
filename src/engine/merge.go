@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"datastore"
 	"parser"
 	"protocol"
 )
@@ -54,7 +53,7 @@ func getJoinYield(query *parser.SelectQuery, yield func(*protocol.Series) error)
 		lastPoint1 = nil
 		lastPoint2 = nil
 
-		filteredSeries, _ := datastore.Filter(query, newSeries)
+		filteredSeries, _ := Filter(query, newSeries)
 		if len(filteredSeries.Points) > 0 {
 			return yield(newSeries)
 		}

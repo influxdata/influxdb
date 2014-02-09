@@ -82,6 +82,8 @@ message Response {
     REPLICATION_REPLAY_END = 5;
     LIST_SERIES = 6;
     SEQUENCE_NUMBER = 7;
+    // Access denied also serves as an end of stream response
+    ACCESS_DENIED = 8;
   }
   enum ErrorCode {
     REQUEST_TOO_LARGE = 1;

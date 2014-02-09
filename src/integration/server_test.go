@@ -214,8 +214,18 @@ func (self *ServerSuite) TestWriteAndGetPoint(c *C) {
 	c.Assert(collection.Members, HasLen, 1)
 	series := collection.GetSeries("test_write_and_get_point", c)
 	c.Assert(series.Points, HasLen, 1)
-	c.Assert(series.Columns[2], Equals, "something")
-	c.Assert(series.Points[0].Values[2].(float64), Equals, float64(23))
+	c.Assert(series.GetValueForPointAndColumn(0, "something", c).(float64), Equals, float64(23))
+}
+
+func (self *ServerSuite) TestWhereQuery(c *C) {
+	data := `[{"points": [[4], [10], [5]], "name": "test_where_query", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_where_query where value < 6", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_where_query", c)
+	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.GetValueForPointAndColumn(0, "value", c).(float64), Equals, float64(5))
+	c.Assert(series.GetValueForPointAndColumn(1, "value", c).(float64), Equals, float64(4))
 }
 
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {

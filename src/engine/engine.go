@@ -2,7 +2,6 @@ package engine
 
 import (
 	"common"
-	"datastore"
 	"fmt"
 	"parser"
 	"protocol"
@@ -13,15 +12,26 @@ import (
 )
 
 type QueryEngine struct {
-	coordinator Coordinator
+	query          *parser.SelectQuery
+	where          *parser.WhereCondition
+	responseChan   chan *protocol.Response
+	shouldLimit    bool
+	limit          int
+	seriesToPoints map[*string]*protocol.Series
+	yield          func(*protocol.Series) error
 }
 
-type Coordinator interface {
-	DistributeQuery(user common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error
-}
+const (
+	POINT_BATCH_SIZE = 100
+)
+
+var (
+	responseQuery     = protocol.Response_QUERY
+	responseEndStream = protocol.Response_END_STREAM
+)
 
 // distribute query and possibly do the merge/join before yielding the points
-func (self *QueryEngine) DistributeQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) (err error) {
+func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*protocol.Series) error) (err error) {
 	// see if this is a merge query
 	fromClause := query.GetFromClause()
 	if fromClause.Type == parser.FromClauseMerge {
@@ -32,14 +42,106 @@ func (self *QueryEngine) DistributeQuery(user common.User, database string, quer
 		yield = getJoinYield(query, yield)
 	}
 
-	return self.coordinator.DistributeQuery(user, database, query, localOnly, yield)
+	self.yield = yield
+	return nil
 }
 
-func NewQueryEngine(coordinator Coordinator) (*QueryEngine, error) {
-	return &QueryEngine{coordinator}, nil
+func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Response) *QueryEngine {
+	limit := query.Limit
+	shouldLimit := true
+	if limit == 0 {
+		shouldLimit = false
+	}
+
+	queryEngine := &QueryEngine{
+		query:          query,
+		where:          query.GetWhereCondition(),
+		limit:          limit,
+		shouldLimit:    shouldLimit,
+		responseChan:   responseChan,
+		seriesToPoints: make(map[*string]*protocol.Series),
+	}
+
+	yield := func(series *protocol.Series) error {
+		response := &protocol.Response{Type: &responseQuery, Series: series}
+		responseChan <- response
+		return nil
+	}
+
+	if isAggregateQuery(query) {
+		queryEngine.executeCountQueryWithGroupBy(query, yield)
+	} else if containsArithmeticOperators(query) {
+		queryEngine.executeArithmeticQuery(query, yield)
+	} else {
+		queryEngine.distributeQuery(query, yield)
+	}
+
+	return queryEngine
 }
 
-func ContainsArithmeticOperators(query *parser.SelectQuery) bool {
+// Returns false if the query should be stopped (either because of limit or error)
+func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, point *protocol.Point) (shouldContinue bool) {
+	shouldContinue = true
+	series := self.seriesToPoints[seriesName]
+	if series == nil {
+		series = &protocol.Series{Name: seriesName, Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+		self.seriesToPoints[seriesName] = series
+	} else if len(series.Points) >= POINT_BATCH_SIZE {
+		shouldContinue = self.yieldSeriesData(series)
+		series = &protocol.Series{Name: seriesName, Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+	}
+	series.Points = append(series.Points, point)
+
+	return shouldContinue
+}
+
+func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
+	var err error
+	if self.where != nil {
+		serieses := self.filter(series)
+		for _, series := range serieses {
+			if len(series.Points) > 0 {
+				err = self.yield(series)
+			}
+		}
+	} else {
+		err = self.yield(series)
+	}
+	if err != nil {
+		return false
+	}
+	return true
+}
+
+func (self *QueryEngine) filter(series *protocol.Series) []*protocol.Series {
+	aliases := self.query.GetTableAliases(*series.Name)
+	result := make([]*protocol.Series, len(aliases), len(aliases))
+	for i, alias := range aliases {
+		_alias := alias
+		newSeries := &protocol.Series{Name: &_alias, Points: series.Points, Fields: series.Fields}
+
+		var filteredResult *protocol.Series
+
+		// var err error
+		if self.query.GetFromClause().Type == parser.FromClauseInnerJoin {
+			filteredResult = newSeries
+		} else {
+			filteredResult, _ = Filter(self.query, newSeries)
+		}
+		result[i] = filteredResult
+	}
+	return result
+}
+
+func (self *QueryEngine) Close() {
+	for _, series := range self.seriesToPoints {
+		self.yieldSeriesData(series)
+	}
+	response := &protocol.Response{Type: &responseEndStream}
+	self.responseChan <- response
+}
+
+func containsArithmeticOperators(query *parser.SelectQuery) bool {
 	for _, column := range query.GetColumnNames() {
 		if column.Type == parser.ValueExpression {
 			return true
@@ -48,7 +150,7 @@ func ContainsArithmeticOperators(query *parser.SelectQuery) bool {
 	return false
 }
 
-func IsAggregateQuery(query *parser.SelectQuery) bool {
+func isAggregateQuery(query *parser.SelectQuery) bool {
 	for _, column := range query.GetColumnNames() {
 		if column.IsFunctionCall() {
 			return true
@@ -187,8 +289,7 @@ func crossProduct(values [][][]*protocol.FieldValue) [][]*protocol.FieldValue {
 	return returnValues
 }
 
-func (self *QueryEngine) ExecuteCountQueryWithGroupBy(user common.User, database string, query *parser.SelectQuery, localOnly bool,
-	yield func(*protocol.Series) error) error {
+func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery, yield func(*protocol.Series) error) error {
 	duration, err := query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return err
@@ -218,7 +319,7 @@ func (self *QueryEngine) ExecuteCountQueryWithGroupBy(user common.User, database
 	pointsRange := make(map[string]*PointRange)
 	groupBy := query.GetGroupByClause()
 
-	err = self.DistributeQuery(user, database, query, localOnly, func(series *protocol.Series) error {
+	err = self.distributeQuery(query, func(series *protocol.Series) error {
 		if len(series.Points) == 0 {
 			return nil
 		}
@@ -397,8 +498,7 @@ func (self *QueryEngine) ExecuteCountQueryWithGroupBy(user common.User, database
 	return nil
 }
 
-func (self *QueryEngine) ExecuteArithmeticQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool,
-	yield func(*protocol.Series) error) error {
+func (self *QueryEngine) executeArithmeticQuery(query *parser.SelectQuery, yield func(*protocol.Series) error) error {
 
 	names := map[string]*parser.Value{}
 	for idx, v := range query.GetColumnNames() {
@@ -412,7 +512,7 @@ func (self *QueryEngine) ExecuteArithmeticQuery(user common.User, database strin
 		}
 	}
 
-	return self.DistributeQuery(user, database, query, localOnly, func(series *protocol.Series) error {
+	return self.distributeQuery(query, func(series *protocol.Series) error {
 		if len(series.Points) == 0 {
 			yield(series)
 			return nil
@@ -434,7 +534,7 @@ func (self *QueryEngine) ExecuteArithmeticQuery(user common.User, database strin
 			}
 			for _, field := range newSeries.Fields {
 				value := names[field]
-				v, err := datastore.GetValue(value, series.Fields, point)
+				v, err := GetValue(value, series.Fields, point)
 				if err != nil {
 					return err
 				}

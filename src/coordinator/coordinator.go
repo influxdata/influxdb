@@ -5,7 +5,6 @@ import (
 	log "code.google.com/p/log4go"
 	"common"
 	"datastore"
-	"engine"
 	"errors"
 	"fmt"
 	"math"
@@ -28,7 +27,6 @@ type CoordinatorImpl struct {
 	runningReplays       map[string][]*protocol.Request
 	runningReplaysLock   sync.Mutex
 	writeLock            sync.Mutex
-	eng                  *engine.QueryEngine
 }
 
 // this is the key used for the persistent atomic ints for sequence numbers
@@ -80,7 +78,6 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 		datastore:            datastore,
 		runningReplays:       make(map[string][]*protocol.Request),
 	}
-	coordinator.eng, _ = engine.NewQueryEngine(coordinator)
 
 	return coordinator
 }
@@ -153,14 +150,8 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 	return nil
 }
 
+// This should only get run for SelectQuery types
 func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, database string, yield func(*protocol.Series) error) error {
-	// if engine.IsAggregateQuery(selectQuery) {
-	// 	return self.eng.ExecuteCountQueryWithGroupBy(user, database, selectQuery, false, yield)
-	// } else if engine.ContainsArithmeticOperators(selectQuery) {
-	// 	return self.eng.ExecuteArithmeticQuery(user, database, selectQuery, false, yield)
-	// } else {
-	// 	return self.eng.DistributeQuery(user, database, selectQuery, false, yield)
-	// }
 	querySpec := parser.NewQuerySpec(user, database, query)
 	shards := self.clusterConfiguration.GetShards(querySpec)
 	responses := make([]chan *protocol.Response, len(shards), len(shards))

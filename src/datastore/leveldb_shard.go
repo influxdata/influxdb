@@ -147,7 +147,6 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		return nil
 	}
 
-	hasNonTimeWhereClause := query.GetWhereCondition() != nil
 	fieldNames, iterators := self.getIterators(fields, startTimeBytes, endTimeBytes, query.Ascending)
 
 	// TODO: clean up, this is super gnarly
@@ -237,25 +236,12 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 			break
 		}
 
-		if hasNonTimeWhereClause && self.matchesWhereClause(seriesName, query, point) {
-			// yield the point to the query processor and stop iteration if it returns false. i.e. limit hit, etc.
-			if !processor.YieldPoint(&seriesName, fieldNames, point) {
-				break
-			}
-		} else {
-			// yield the point to the query processor and stop iteration if it returns false. i.e. limit hit, etc.
-			if !processor.YieldPoint(&seriesName, fieldNames, point) {
-				break
-			}
+		if !processor.YieldPoint(&seriesName, fieldNames, point) {
+			break
 		}
 	}
 
 	return nil
-}
-
-func (self *LevelDbShard) matchesWhereClause(series string, query *parser.SelectQuery, point *protocol.Point) bool {
-	// TODO: move over filtering/where clause matching
-	return true
 }
 
 func (self *LevelDbShard) getFieldsForSeries(db, series string, columns []string) ([]*Field, error) {

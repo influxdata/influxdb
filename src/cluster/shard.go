@@ -2,6 +2,7 @@ package cluster
 
 import (
 	log "code.google.com/p/log4go"
+	"engine"
 	"errors"
 	"parser"
 	"protocol"
@@ -146,7 +147,7 @@ func (self *ShardData) Write(request *protocol.Request) error {
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
 	if self.localShard != nil {
-		processor := NewPassthroughProcessor(response)
+		processor := engine.NewQueryEngine(querySpec.SelectQuery(), response)
 		err := self.localShard.Query(querySpec, processor)
 		processor.Close()
 		return err
