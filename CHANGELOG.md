@@ -230,5 +230,6 @@
 ### Bugfixes
 
 - Ensure large deletes don't take too much memory
+- [Issue #240](https://github.com/influxdb/influxdb/pull/240). Unable to query against columns with `.` in the name.
 
 ### Features
