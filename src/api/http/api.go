@@ -695,7 +695,7 @@ type User struct {
 }
 
 type UserDetail struct {
-	Name    string `json:"username"`
+	Name    string `json:"name"`
 	IsAdmin bool   `json:"isAdmin"`
 }
 
