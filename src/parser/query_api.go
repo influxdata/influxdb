@@ -158,6 +158,24 @@ func (self *SelectQuery) GetReferencedColumns() map[*Value][]string {
 		delete(mapping, name)
 	}
 
+	if len(mapping) == 0 {
+		return returnedMapping
+	}
+
+	// if `mapping` still have some mappings, then we have mistaken a
+	// column name with dots with a prefix.column, see issue #240
+	for prefix, columnNames := range mapping {
+		for _, columnName := range columnNames {
+			for table, columns := range returnedMapping {
+				if len(returnedMapping[table]) > 1 && returnedMapping[table][0] == "*" {
+					continue
+				}
+				returnedMapping[table] = append(columns, prefix+"."+columnName)
+			}
+		}
+		delete(mapping, prefix)
+	}
+
 	return returnedMapping
 }
 
