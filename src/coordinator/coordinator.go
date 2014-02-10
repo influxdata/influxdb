@@ -1233,6 +1233,19 @@ func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]st
 	return self.clusterConfiguration.GetDbUsers(db), nil
 }
 
+func (self *CoordinatorImpl) GetDbUser(requester common.User, db string, username string) (common.User, error) {
+	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
+		return nil, common.NewAuthorizationError("Insufficient permissions")
+	}
+
+	dbUsers := self.clusterConfiguration.dbUsers[db]
+	if dbUsers == nil || dbUsers[username] == nil {
+		return nil, fmt.Errorf("Invalid username %s", username)
+	}
+
+	return dbUsers[username], nil
+}
+
 func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, username, password string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) && !(requester.GetDb() == db && requester.GetName() == username) {
 		return common.NewAuthorizationError("Insufficient permissions")

@@ -119,6 +119,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "get", "/db/:db/authenticate", self.authenticateDbUser)
 	self.registerEndpoint(p, "get", "/db/:db/users", self.listDbUsers)
 	self.registerEndpoint(p, "post", "/db/:db/users", self.createDbUser)
+	self.registerEndpoint(p, "get", "/db/:db/users/:user", self.showDbUser)
 	self.registerEndpoint(p, "del", "/db/:db/users/:user", self.deleteDbUser)
 	self.registerEndpoint(p, "post", "/db/:db/users/:user", self.updateDbUser)
 
@@ -693,6 +694,11 @@ type User struct {
 	Name string `json:"username"`
 }
 
+type UserDetail struct {
+	Name    string `json:"username"`
+	IsAdmin bool   `json:"isAdmin"`
+}
+
 type NewContinuousQuery struct {
 	Query string `json:"query"`
 }
@@ -852,6 +858,23 @@ func (self *HttpServer) listDbUsers(w libhttp.ResponseWriter, r *libhttp.Request
 			users = append(users, &User{name})
 		}
 		return libhttp.StatusOK, users
+	})
+}
+
+func (self *HttpServer) showDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+	db := r.URL.Query().Get(":db")
+	username := r.URL.Query().Get(":user")
+
+	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
+		user, err := self.userManager.GetDbUser(u, db, username)
+		if err != nil {
+			return errorToStatusCode(err), err.Error()
+		}
+
+		userDetail := &UserDetail{username, user.IsDbAdmin(db)}
+		fmt.Println(userDetail)
+
+		return libhttp.StatusOK, userDetail
 	})
 }
 

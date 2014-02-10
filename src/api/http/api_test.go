@@ -744,6 +744,20 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 	c.Assert(users, DeepEquals, []*User{&User{"db_user1"}})
 }
 
+func (self *ApiSuite) TestDbUserShow(c *C) {
+	url := self.formatUrl("/db/db1/users/db_user1?u=root&p=root")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	userDetail := &UserDetail{}
+	err = json.Unmarshal(body, &userDetail)
+	c.Assert(err, IsNil)
+	c.Assert(userDetail, DeepEquals, &UserDetail{"db_user1", false})
+}
+
 func (self *ApiSuite) TestDatabasesIndex(c *C) {
 	for _, path := range []string{"/db?u=root&p=root", "/db?u=root&p=root"} {
 		url := self.formatUrl(path)

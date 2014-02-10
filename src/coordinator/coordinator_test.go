@@ -367,6 +367,17 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	c.Assert(u.IsClusterAdmin(), Equals, false)
 	c.Assert(u.IsDbAdmin("db1"), Equals, false)
 
+	// can get properties of db users
+	dbUser, err := coordinator.GetDbUser(root, "db1", "db_user")
+	c.Assert(err, IsNil)
+	c.Assert(dbUser, NotNil)
+	c.Assert(dbUser.GetName(), Equals, "db_user")
+	c.Assert(dbUser.IsDbAdmin("db1"), Equals, false)
+
+	dbUser, err = coordinator.GetDbUser(root, "db1", "invalid_user")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "Invalid username invalid_user")
+
 	// can make db users db admins
 	c.Assert(coordinator.SetDbAdmin(root, "db1", "db_user", true), IsNil)
 	u, err = coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")

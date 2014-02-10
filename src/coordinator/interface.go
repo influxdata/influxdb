@@ -56,6 +56,7 @@ type UserManager interface {
 	ChangeDbUserPassword(requester common.User, db, username, password string) error
 	// list cluster admins. only a cluster admin or the db admin can list the db users
 	ListDbUsers(requester common.User, db string) ([]string, error)
+	GetDbUser(requester common.User, db, username string) (common.User, error)
 	// make user a db admin for 'db'. It's an error if the requester
 	// isn't a db admin or cluster admin or if user isn't a db user
 	// for the given db
