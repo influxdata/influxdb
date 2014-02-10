@@ -753,10 +753,10 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		c.Assert(err, IsNil)
-		users := []*coordinator.Database{}
-		err = json.Unmarshal(body, &users)
+		databases := []*coordinator.Database{}
+		err = json.Unmarshal(body, &databases)
 		c.Assert(err, IsNil)
-		c.Assert(users, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", uint8(1)}, &coordinator.Database{"db2", uint8(1)}})
+		c.Assert(databases, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", uint8(1)}, &coordinator.Database{"db2", uint8(1)}})
 	}
 }
 
@@ -771,10 +771,10 @@ func (self *ApiSuite) TestBasicAuthentication(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	users := []*coordinator.Database{}
-	err = json.Unmarshal(body, &users)
+	databases := []*coordinator.Database{}
+	err = json.Unmarshal(body, &databases)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", 1}, &coordinator.Database{"db2", 1}})
+	c.Assert(databases, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", 1}, &coordinator.Database{"db2", 1}})
 }
 
 func (self *ApiSuite) TestContinuousQueryOperations(c *C) {
