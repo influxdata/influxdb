@@ -94,6 +94,10 @@ func (self *ShardConfiguration) SplitRegex() *regexp.Regexp {
 	return self.splitRandomRegex
 }
 
+type WalConfig struct {
+	Dir string `toml:"dir"`
+}
+
 type TomlConfiguration struct {
 	Admin       AdminConfig
 	Api         ApiConfig
@@ -105,6 +109,7 @@ type TomlConfiguration struct {
 	Hostname    string
 	BindAddress string             `toml:"bind-address"`
 	Sharding    ShardingDefinition `toml:"sharding"`
+	WalConfig   WalConfig          `toml:"wal"`
 }
 
 type Configuration struct {
@@ -126,6 +131,7 @@ type Configuration struct {
 	ShortTermShard      *ShardConfiguration
 	LongTermShard       *ShardConfiguration
 	ReplicationFactor   int
+	WalDir              string
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -175,6 +181,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		LongTermShard:       &tomlConfiguration.Sharding.LongTerm,
 		ShortTermShard:      &tomlConfiguration.Sharding.ShortTerm,
 		ReplicationFactor:   tomlConfiguration.Sharding.ReplicationFactor,
+		WalDir:              tomlConfiguration.WalConfig.Dir,
 	}
 
 	// if it wasn't set, set it to 100
