@@ -73,6 +73,24 @@ func (self *QueryParserSuite) TestParseDeleteQueryWithEndTime(c *C) {
 	c.Assert(q.GetEndTime(), Equals, time.Unix(1389040522, 0).UTC())
 }
 
+func (self *QueryParserSuite) TestParseSelectQueryWithDotInColumnName(c *C) {
+	query := "select patient.first.name from foo"
+	queries, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+
+	c.Assert(queries, HasLen, 1)
+
+	_q := queries[0]
+
+	c.Assert(_q.SelectQuery, NotNil)
+
+	q := _q.SelectQuery
+
+	for _, columns := range q.GetReferencedColumns() {
+		c.Assert(columns, DeepEquals, []string{"patient.first.name"})
+	}
+}
+
 func (self *QueryParserSuite) TestParseDropSeries(c *C) {
 	query := "drop series foobar"
 	queries, err := ParseQuery(query)

@@ -1004,6 +1004,41 @@ func (self *IntegrationSuite) TestReading(c *C) {
 	}
 }
 
+func (self *IntegrationSuite) TestReadingWhenColumnHasDot(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+     "name": "test_column_names_with_dots",
+     "columns": ["first.name", "last.name"],
+     "points": [["paul", "dix"], ["john", "shahid"]]
+  }
+]`)
+	c.Assert(err, IsNil)
+
+	for name, expected := range map[string]map[string]bool{
+		"first.name": map[string]bool{"paul": true, "john": true},
+		"last.name":  map[string]bool{"dix": true, "shahid": true},
+	} {
+		q := fmt.Sprintf("select %s from test_column_names_with_dots", name)
+
+		bs, err := self.server.RunQuery(q, "m")
+		c.Assert(err, IsNil)
+
+		data := []*h.SerializedSeries{}
+		err = json.Unmarshal(bs, &data)
+		c.Assert(err, IsNil)
+
+		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Columns, HasLen, 3) // time, sequence number and the requested columns
+		c.Assert(data[0].Columns[2], Equals, name)
+		names := map[string]bool{}
+		for _, p := range data[0].Points {
+			names[p[2].(string)] = true
+		}
+		c.Assert(names, DeepEquals, expected)
+	}
+}
+
 func (self *IntegrationSuite) TestSinglePointSelect(c *C) {
 	err := self.server.WriteData(`
 [
