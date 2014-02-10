@@ -744,6 +744,20 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 	c.Assert(users, DeepEquals, []*User{&User{"db_user1"}})
 }
 
+func (self *ApiSuite) TestDbUserShow(c *C) {
+	url := self.formatUrl("/db/db1/users/db_user1?u=root&p=root")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	userDetail := &UserDetail{}
+	err = json.Unmarshal(body, &userDetail)
+	c.Assert(err, IsNil)
+	c.Assert(userDetail, DeepEquals, &UserDetail{"db_user1", false})
+}
+
 func (self *ApiSuite) TestDatabasesIndex(c *C) {
 	for _, path := range []string{"/db?u=root&p=root", "/db?u=root&p=root"} {
 		url := self.formatUrl(path)
@@ -753,10 +767,10 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		c.Assert(err, IsNil)
-		users := []*coordinator.Database{}
-		err = json.Unmarshal(body, &users)
+		databases := []*coordinator.Database{}
+		err = json.Unmarshal(body, &databases)
 		c.Assert(err, IsNil)
-		c.Assert(users, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", uint8(1)}, &coordinator.Database{"db2", uint8(1)}})
+		c.Assert(databases, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", uint8(1)}, &coordinator.Database{"db2", uint8(1)}})
 	}
 }
 
@@ -771,10 +785,10 @@ func (self *ApiSuite) TestBasicAuthentication(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	users := []*coordinator.Database{}
-	err = json.Unmarshal(body, &users)
+	databases := []*coordinator.Database{}
+	err = json.Unmarshal(body, &databases)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", 1}, &coordinator.Database{"db2", 1}})
+	c.Assert(databases, DeepEquals, []*coordinator.Database{&coordinator.Database{"db1", 1}, &coordinator.Database{"db2", 1}})
 }
 
 func (self *ApiSuite) TestContinuousQueryOperations(c *C) {
