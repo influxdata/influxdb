@@ -161,7 +161,7 @@ endif
 timeout = 10m
 GOTEST_OPTS += -test.timeout=$(timeout)
 
-test: test_dependencies parser
+test: test_dependencies parser protobuf
 	$(GO) test $(packages) $(GOTEST_OPTS)
 
 coverage: test_dependencies
