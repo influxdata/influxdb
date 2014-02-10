@@ -40,4 +40,6 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 
 	c.Assert(config.ProtobufPort, Equals, 8099)
 	c.Assert(config.SeedServers, DeepEquals, []string{"hosta:8090", "hostb:8090"})
+
+	c.Assert(config.WalDir, Equals, "/tmp/influxdb/development/wal")
 }

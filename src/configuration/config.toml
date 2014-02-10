@@ -55,3 +55,7 @@ protobuf_port = 8099
 # Maximum mmap open files, this will affect the virtual memory used by
 # the process
 # max-open-files = 100
+
+[wal]
+
+dir = "/tmp/influxdb/development/wal"
