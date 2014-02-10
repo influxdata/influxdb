@@ -228,6 +228,21 @@ func (self *ServerSuite) TestWhereQuery(c *C) {
 	c.Assert(series.GetValueForPointAndColumn(1, "value", c).(float64), Equals, float64(4))
 }
 
+func (self *ServerSuite) TestCountQueryOnSingleShard(c *C) {
+	data := `[{"points": [[4], [10], [5]], "name": "test_count_query_single_shard", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 60) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_count_query_single_shard", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	self.serverProcesses[0].Query("test_rep", "select * from test_count_query_single_shard", false, c)
+	collection := self.serverProcesses[0].Query("test_rep", "select count(value) from test_count_query_single_shard group by time(1m)", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_count_query_single_shard", c)
+	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(3))
+	c.Assert(series.GetValueForPointAndColumn(1, "count", c).(float64), Equals, float64(1))
+}
+
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
 	data := `
   [{

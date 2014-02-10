@@ -19,6 +19,16 @@ type QueryEngine struct {
 	limit          int
 	seriesToPoints map[*string]*protocol.Series
 	yield          func(*protocol.Series) error
+
+	// variables for aggregate queries
+	isAggregateQuery    bool
+	aggregators         []Aggregator
+	duration            *time.Duration
+	timestampAggregator Aggregator
+	groups              map[string]map[Group]bool
+	pointsRange         map[string]*PointRange
+	groupBy             *parser.GroupByClause
+	aggregateYield      func(*protocol.Series) error
 }
 
 const (
@@ -109,6 +119,9 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 	}
 	if err != nil {
 		return false
+	}
+	if self.isAggregateQuery {
+		self.runAggregates()
 	}
 	return true
 }
@@ -290,12 +303,16 @@ func crossProduct(values [][][]*protocol.FieldValue) [][]*protocol.FieldValue {
 }
 
 func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery, yield func(*protocol.Series) error) error {
+	self.aggregateYield = yield
 	duration, err := query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return err
 	}
 
-	aggregators := []Aggregator{}
+	self.isAggregateQuery = true
+	self.duration = duration
+	self.aggregators = []Aggregator{}
+
 	for _, value := range query.GetColumnNames() {
 		if value.IsFunctionCall() {
 			lowerCaseName := strings.ToLower(value.Name)
@@ -307,17 +324,17 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 			if err != nil {
 				return err
 			}
-			aggregators = append(aggregators, aggregator)
+			self.aggregators = append(self.aggregators, aggregator)
 		}
 	}
 	timestampAggregator, err := NewTimestampAggregator(query, nil)
 	if err != nil {
 		return err
 	}
-
-	groups := make(map[string]map[Group]bool)
-	pointsRange := make(map[string]*PointRange)
-	groupBy := query.GetGroupByClause()
+	self.timestampAggregator = timestampAggregator
+	self.groups = make(map[string]map[Group]bool)
+	self.pointsRange = make(map[string]*PointRange)
+	self.groupBy = query.GetGroupByClause()
 
 	err = self.distributeQuery(query, func(series *protocol.Series) error {
 		if len(series.Points) == 0 {
@@ -325,38 +342,38 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 		}
 
 		var mapper Mapper
-		mapper, err = createValuesToInterface(groupBy, series.Fields)
+		mapper, err = createValuesToInterface(self.groupBy, series.Fields)
 		if err != nil {
 			return err
 		}
 
-		for _, aggregator := range aggregators {
+		for _, aggregator := range self.aggregators {
 			if err := aggregator.InitializeFieldsMetadata(series); err != nil {
 				return err
 			}
 		}
 
-		currentRange := pointsRange[*series.Name]
+		currentRange := self.pointsRange[*series.Name]
 		for _, point := range series.Points {
 			value := mapper(point)
-			for _, aggregator := range aggregators {
+			for _, aggregator := range self.aggregators {
 				err := aggregator.AggregatePoint(*series.Name, value, point)
 				if err != nil {
 					return err
 				}
 			}
 
-			timestampAggregator.AggregatePoint(*series.Name, value, point)
-			seriesGroups := groups[*series.Name]
+			self.timestampAggregator.AggregatePoint(*series.Name, value, point)
+			seriesGroups := self.groups[*series.Name]
 			if seriesGroups == nil {
 				seriesGroups = make(map[Group]bool)
-				groups[*series.Name] = seriesGroups
+				self.groups[*series.Name] = seriesGroups
 			}
 			seriesGroups[value] = true
 
 			if currentRange == nil {
 				currentRange = &PointRange{*point.Timestamp, *point.Timestamp}
-				pointsRange[*series.Name] = currentRange
+				self.pointsRange[*series.Name] = currentRange
 			} else {
 				currentRange.UpdateRange(point)
 			}
@@ -365,18 +382,21 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 		return nil
 	})
 
-	if err != nil {
-		return err
-	}
+	return err
+}
+
+func (self *QueryEngine) runAggregates() {
+	duration := self.duration
+	query := self.query
 
 	fields := []string{}
 
-	for _, aggregator := range aggregators {
+	for _, aggregator := range self.aggregators {
 		columnNames := aggregator.ColumnNames()
 		fields = append(fields, columnNames...)
 	}
 
-	for _, value := range groupBy.Elems {
+	for _, value := range self.groupBy.Elems {
 		if value.IsFunctionCall() {
 			continue
 		}
@@ -385,7 +405,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 		fields = append(fields, tempName)
 	}
 
-	for table, tableGroups := range groups {
+	for table, tableGroups := range self.groups {
 		tempTable := table
 		points := []*protocol.Point{}
 
@@ -400,7 +420,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 
 		} else {
 			groupsWithTime := map[Group]bool{}
-			timeRange, ok := pointsRange[table]
+			timeRange, ok := self.pointsRange[table]
 			if ok {
 				first := timeRange.startTime * 1000 / int64(*duration) * int64(*duration)
 				end := timeRange.endTime * 1000 / int64(*duration) * int64(*duration)
@@ -431,9 +451,9 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 			}
 		} else {
 			if query.Ascending {
-				sortedGroups = &AscendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, timestampAggregator}
+				sortedGroups = &AscendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, self.timestampAggregator}
 			} else {
-				sortedGroups = &DescendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, timestampAggregator}
+				sortedGroups = &DescendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, self.timestampAggregator}
 			}
 		}
 		sort.Sort(sortedGroups)
@@ -443,11 +463,11 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 			if groupId.HasTimestamp() {
 				timestamp = groupId.GetTimestamp()
 			} else {
-				timestamp = *timestampAggregator.GetValues(table, groupId)[0][0].Int64Value
+				timestamp = *self.timestampAggregator.GetValues(table, groupId)[0][0].Int64Value
 			}
 			values := [][][]*protocol.FieldValue{}
 
-			for _, aggregator := range aggregators {
+			for _, aggregator := range self.aggregators {
 				values = append(values, aggregator.GetValues(table, groupId))
 			}
 
@@ -463,7 +483,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 
 				// FIXME: this should be looking at the fields slice not the group by clause
 				// FIXME: we should check whether the selected columns are in the group by clause
-				for idx, _ := range groupBy.Elems {
+				for idx, _ := range self.groupBy.Elems {
 					if duration != nil && idx == 0 {
 						continue
 					}
@@ -492,10 +512,8 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 			Fields: fields,
 			Points: points,
 		}
-		yield(expectedData)
+		self.aggregateYield(expectedData)
 	}
-
-	return nil
 }
 
 func (self *QueryEngine) executeArithmeticQuery(query *parser.SelectQuery, yield func(*protocol.Series) error) error {
