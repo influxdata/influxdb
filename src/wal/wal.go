@@ -52,18 +52,10 @@ func (self *WAL) Commit(requestNumber uint32, server Server) error {
 	return nil
 }
 
-// Yields to the passed in function requests that need to be sent back out to the associated server. If the yield function
-// returns a nil, the request is marked as committed. Should also make sure that any sequence numbers aren't repeated from
-// the log (even those that weren't committed)
-func (self *WAL) RecoverFromLog(yield func(request *protocol.Request, shard Shard, server Server) error) error {
-	// TODO: make this do stuff
-	return nil
-}
-
 // In the case where this server is running and another one in the cluster stops responding, at some point this server will have to just write
 // requests to disk. When the downed server comes back up, it's this server's responsibility to send out any writes that were queued up. If
 // the yield function returns nil then the request is committed.
-func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, server Server, yield func(request *protocol.Request, shard Shard) error) error {
+func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shard Shard) error) error {
 	// TODO: make this do stuff
 	return nil
 }
