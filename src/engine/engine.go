@@ -111,19 +111,35 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 		serieses := self.filter(series)
 		for _, series := range serieses {
 			if len(series.Points) > 0 {
+				self.calculateLimitAndSlicePoints(series)
 				err = self.yield(series)
 			}
 		}
 	} else {
+		self.calculateLimitAndSlicePoints(series)
 		err = self.yield(series)
 	}
 	if err != nil {
 		return false
 	}
-	if self.isAggregateQuery {
-		self.runAggregates()
+	return !self.hitLimit()
+}
+
+// TODO: make limits work for aggregate queries and for queries that pull from multiple series.
+func (self *QueryEngine) calculateLimitAndSlicePoints(series *protocol.Series) {
+	if !self.isAggregateQuery && self.shouldLimit {
+		self.limit -= len(series.Points)
+		if self.limit < 0 {
+			series.Points = series.Points[0 : len(series.Points)+self.limit]
+		}
 	}
-	return true
+}
+
+func (self *QueryEngine) hitLimit() bool {
+	if self.isAggregateQuery || !self.shouldLimit {
+		return false
+	}
+	return self.limit < 1
 }
 
 func (self *QueryEngine) filter(series *protocol.Series) []*protocol.Series {
@@ -149,6 +165,9 @@ func (self *QueryEngine) filter(series *protocol.Series) []*protocol.Series {
 func (self *QueryEngine) Close() {
 	for _, series := range self.seriesToPoints {
 		self.yieldSeriesData(series)
+	}
+	if self.isAggregateQuery {
+		self.runAggregates()
 	}
 	response := &protocol.Response{Type: &responseEndStream}
 	self.responseChan <- response
