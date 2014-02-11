@@ -64,6 +64,10 @@ func (self *Request) Encode() (data []byte, err error) {
 	return proto.Marshal(self)
 }
 
+func (self *Request) Decode(data []byte) error {
+	return proto.Unmarshal(data, self)
+}
+
 func DecodeResponse(buff *bytes.Buffer) (response *Response, err error) {
 	response = &Response{}
 	err = proto.Unmarshal(buff.Bytes(), response)
