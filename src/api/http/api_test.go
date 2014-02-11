@@ -178,9 +178,10 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 			},
 		},
 	}
+
 	self.manager = &MockUserManager{
 		clusterAdmins: []string{"root"},
-		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
+    dbUsers:       map[string]map[string]MockDbUser{"db1": map[string]MockDbUser{"db_user1": {Name: "db_user1", IsAdmin: false}}},
 	}
 	self.engine = &MockEngine{}
 	dir := c.MkDir()
@@ -738,10 +739,11 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	users := []*User{}
+	users := []*UserDetail{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*User{&User{"db_user1"}})
+  c.Assert(users, HasLen, 1)
+  c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false})
 }
 
 func (self *ApiSuite) TestDbUserShow(c *C) {

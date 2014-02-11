@@ -848,14 +848,14 @@ func (self *HttpServer) listDbUsers(w libhttp.ResponseWriter, r *libhttp.Request
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
-		names, err := self.userManager.ListDbUsers(u, db)
+		dbUsers, err := self.userManager.ListDbUsers(u, db)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}
 
-		users := make([]*User, 0, len(names))
-		for _, name := range names {
-			users = append(users, &User{name})
+		users := make([]*UserDetail, 0, len(dbUsers))
+		for _, dbUser := range dbUsers {
+			users = append(users, &UserDetail{dbUser.GetName(), dbUser.IsDbAdmin(db)})
 		}
 		return libhttp.StatusOK, users
 	})
@@ -871,8 +871,7 @@ func (self *HttpServer) showDbUser(w libhttp.ResponseWriter, r *libhttp.Request)
 			return errorToStatusCode(err), err.Error()
 		}
 
-		userDetail := &UserDetail{username, user.IsDbAdmin(db)}
-		fmt.Println(userDetail)
+		userDetail := &UserDetail{user.GetName(), user.IsDbAdmin(db)}
 
 		return libhttp.StatusOK, userDetail
 	})
