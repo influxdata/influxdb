@@ -27,36 +27,36 @@ func newLog(file *os.File) (*log, error) {
 	return l, nil
 }
 
-func (log *log) recover() error {
+func (self *log) recover() error {
 	return nil
 }
 
-func (log *log) setServerId(serverId uint32) {
-	log.serverId = serverId
+func (self *log) setServerId(serverId uint32) {
+	self.serverId = serverId
 }
 
-func (log *log) processEntries() {
+func (self *log) processEntries() {
 	for {
 		select {
-		case x := <-log.entries:
+		case x := <-self.entries:
 			bytes, err := x.request.Encode()
 			if err != nil {
 				x.confirmation <- &confirmation{0, err}
 				continue
 			}
-			requestNumber := log.state.getNextRequestNumber()
+			requestNumber := self.state.getNextRequestNumber()
 			// every request is preceded with the length, shard id and the request number
 			hdr := &entryHeader{
 				shardId:       x.shardId,
 				requestNumber: requestNumber,
 				length:        uint32(len(bytes)),
 			}
-			err = hdr.Write(log.file)
+			err = hdr.Write(self.file)
 			if err != nil {
 				x.confirmation <- &confirmation{0, err}
 				continue
 			}
-			written, err := log.file.Write(bytes)
+			written, err := self.file.Write(bytes)
 			if err != nil {
 				x.confirmation <- &confirmation{0, err}
 				continue
@@ -70,23 +70,23 @@ func (log *log) processEntries() {
 	}
 }
 
-func (log *log) appendRequest(request *protocol.Request, shardId uint32) (uint32, error) {
+func (self *log) appendRequest(request *protocol.Request, shardId uint32) (uint32, error) {
 	entry := &entry{make(chan *confirmation), request, shardId}
-	log.entries <- entry
+	self.entries <- entry
 	confirmation := <-entry.confirmation
 	return confirmation.requestNumber, confirmation.err
 }
 
-func (log *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32) (chan *replayRequest, chan struct{}) {
+func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32) (chan *replayRequest, chan struct{}) {
 	stopChan := make(chan struct{})
 	replayChan := make(chan *replayRequest, 10)
 	go func() {
-		fd, err := syscall.Dup(int(log.file.Fd()))
+		fd, err := syscall.Dup(int(self.file.Fd()))
 		if err != nil {
 			replayChan <- &replayRequest{nil, uint32(0), err}
 			return
 		}
-		file := os.NewFile(uintptr(fd), log.file.Name())
+		file := os.NewFile(uintptr(fd), self.file.Name())
 		defer file.Close()
 		// TODO: create a request number to file location index that we
 		// can use for fast seeks
@@ -122,7 +122,7 @@ func (log *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32)
 			}
 
 			bytes := make([]byte, hdr.length)
-			read, err := log.file.Read(bytes)
+			read, err := self.file.Read(bytes)
 			if err != nil {
 				replayChan <- &replayRequest{nil, uint32(0), err}
 				return
@@ -144,6 +144,6 @@ func (log *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32)
 	return replayChan, stopChan
 }
 
-func (log *log) forceBookmark() error {
+func (self *log) forceBookmark() error {
 	return fmt.Errorf("not implemented yet")
 }

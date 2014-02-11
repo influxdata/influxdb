@@ -11,19 +11,19 @@ type state struct {
 	serverLastRequestNumber map[uint32]uint32
 }
 
-func (s *state) getNextRequestNumber() uint32 {
-	s.currentRequestNumber++
-	return s.currentRequestNumber
+func (self *state) getNextRequestNumber() uint32 {
+	self.currentRequestNumber++
+	return self.currentRequestNumber
 }
 
-func (s *state) getCurrentSequenceNumber(shardId uint32) uint32 {
-	return s.shardLastSequenceNumber[shardId]
+func (self *state) getCurrentSequenceNumber(shardId uint32) uint32 {
+	return self.shardLastSequenceNumber[shardId]
 }
 
-func (s *state) setCurrentSequenceNumber(shardId, sequenceNumber uint32) {
-	s.shardLastSequenceNumber[shardId] = sequenceNumber
+func (self *state) setCurrentSequenceNumber(shardId, sequenceNumber uint32) {
+	self.shardLastSequenceNumber[shardId] = sequenceNumber
 }
 
-func (s *state) commitRequestNumber(serverId, requestNumber uint32) {
-	s.serverLastRequestNumber[serverId] = requestNumber
+func (self *state) commitRequestNumber(serverId, requestNumber uint32) {
+	self.serverLastRequestNumber[serverId] = requestNumber
 }
