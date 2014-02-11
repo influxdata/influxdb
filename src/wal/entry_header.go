@@ -11,8 +11,8 @@ type entryHeader struct {
 	length        uint32
 }
 
-func (hdr *entryHeader) Write(w io.Writer) error {
-	for _, n := range []uint32{hdr.requestNumber, hdr.shardId, hdr.length} {
+func (self *entryHeader) Write(w io.Writer) error {
+	for _, n := range []uint32{self.requestNumber, self.shardId, self.length} {
 		if err := binary.Write(w, binary.BigEndian, n); err != nil {
 			return err
 		}
@@ -20,8 +20,8 @@ func (hdr *entryHeader) Write(w io.Writer) error {
 	return nil
 }
 
-func (hdr *entryHeader) Read(r io.Reader) error {
-	for _, n := range []*uint32{&hdr.requestNumber, &hdr.shardId, &hdr.length} {
+func (self *entryHeader) Read(r io.Reader) error {
+	for _, n := range []*uint32{&self.requestNumber, &self.shardId, &self.length} {
 		if err := binary.Read(r, binary.BigEndian, n); err != nil {
 			return err
 		}
