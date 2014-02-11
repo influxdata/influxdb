@@ -2,20 +2,44 @@ package wal
 
 import (
 	"configuration"
+	"fmt"
+	"os"
+	"path"
 	"protocol"
-	"sync/atomic"
 )
 
 type WAL struct {
-	config             *configuration.Configuration
-	lastSequenceNumber uint64
-	serverId           uint64
+	config *configuration.Configuration
+	log    *log
 }
 
 const HOST_ID_OFFSET = uint64(10000)
 
 func NewWAL(config *configuration.Configuration) (*WAL, error) {
-	return &WAL{config: config}, nil
+	if config.WalDir == "" {
+		return nil, fmt.Errorf("wal directory cannot be empty")
+	}
+	_, err := os.Stat(config.WalDir)
+
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(config.WalDir, 0755)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	logFile, err := os.OpenFile(path.Join(config.WalDir, "log"), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	log, err := newLog(logFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return &WAL{config: config, log: log}, nil
 }
 
 type Shard interface {
@@ -27,40 +51,38 @@ type Server interface {
 }
 
 func (self *WAL) SetServerId(id uint32) {
-	self.serverId = uint64(id)
+	self.log.setServerId(id)
 }
 
 // Will assign sequence numbers if null. Returns a unique id that should be marked as committed for each server
 // as it gets confirmed.
 func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Shard, servers []Server) (uint32, error) {
-	if request.Series != nil {
-		for _, point := range request.Series.Points {
-			if point.SequenceNumber == nil {
-				sn := self.getNextSequenceNumber(shard)
-				point.SequenceNumber = &sn
-			}
-		}
-	}
-
-	// TODO: assign a unique number and actually log it
-	return uint32(1), nil
+	return self.log.appendRequest(request, shard.Id())
 }
 
 // Marks a given request for a given server as committed
 func (self *WAL) Commit(requestNumber uint32, server Server) error {
-	// TODO: make this do sometihing
-	return nil
+	return fmt.Errorf("not implemented yet")
 }
 
 // In the case where this server is running and another one in the cluster stops responding, at some point this server will have to just write
 // requests to disk. When the downed server comes back up, it's this server's responsibility to send out any writes that were queued up. If
 // the yield function returns nil then the request is committed.
-func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shard Shard) error) error {
-	// TODO: make this do stuff
-	return nil
-}
+func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
+	ch, stopChan := self.log.replayFromRequestNumber(shardIds, requestNumber)
+	for {
+		x := <-ch
+		if x == nil {
+			return nil
+		}
 
-// TODO: make this persistent. could scope sequence numbers by shard.
-func (self *WAL) getNextSequenceNumber(shard Shard) uint64 {
-	return atomic.AddUint64(&self.lastSequenceNumber, uint64(1))*HOST_ID_OFFSET + self.serverId
+		if x.err != nil {
+			return x.err
+		}
+
+		if err := yield(x.request, x.shardId); err != nil {
+			stopChan <- struct{}{}
+			return err
+		}
+	}
 }
