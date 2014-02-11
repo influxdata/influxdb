@@ -6,8 +6,14 @@ const (
 
 type state struct {
 	version                 byte
+	currentRequestNumber    uint32
 	shardLastSequenceNumber map[uint32]uint32
 	serverLastRequestNumber map[uint32]uint32
+}
+
+func (s *state) getNextRequestNumber() uint32 {
+	s.currentRequestNumber++
+	return s.currentRequestNumber
 }
 
 func (s *state) getCurrentSequenceNumber(shardId uint32) uint32 {

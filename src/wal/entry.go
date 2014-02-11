@@ -7,4 +7,5 @@ import (
 type entry struct {
 	confirmation chan *confirmation
 	request      *protocol.Request
+	shardId      uint32
 }
