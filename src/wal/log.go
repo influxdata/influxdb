@@ -87,6 +87,14 @@ func (log *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32)
 			return
 		}
 		file := os.NewFile(uintptr(fd), log.file.Name())
+		defer file.Close()
+		// TODO: create a request number to file location index that we
+		// can use for fast seeks
+		_, err = file.Seek(0, os.SEEK_SET)
+		if err != nil {
+			replayChan <- &replayRequest{nil, uint32(0), err}
+			return
+		}
 		shardIdsSet := map[uint32]struct{}{}
 		for _, shardId := range shardIds {
 			shardIdsSet[shardId] = struct{}{}
