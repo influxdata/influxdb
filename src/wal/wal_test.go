@@ -43,7 +43,7 @@ func generateRequest(numberOfPoints int) *protocol.Request {
 		Id:       proto.Uint32(1),
 		Database: proto.String("db"),
 		Type:     &requestType,
-		Series:   generateSeries(2),
+		Series:   generateSeries(numberOfPoints),
 	}
 }
 
@@ -84,11 +84,13 @@ func (_ *WalSuite) TestReplay(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(id, Equals, uint32(3))
 
-	err = wal.RecoverServerFromRequestNumber(uint32(2), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
-		c.Assert(shardId, Equals, 1)
-		c.Assert(req.Series.Points, HasLen, 3)
+	requests := []*protocol.Request{}
+	wal.RecoverServerFromRequestNumber(uint32(2), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		requests = append(requests, req)
 		return nil
 	})
+	c.Assert(requests, HasLen, 1)
+	c.Assert(requests[0].Series.Points, HasLen, 3)
 	c.Assert(err, IsNil)
 }
 
