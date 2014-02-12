@@ -12,18 +12,41 @@ type Operation struct {
 	isAdmin   bool
 }
 
-type MockUser struct {
-	common.User
+type MockDbUser struct {
 	Name    string
 	IsAdmin bool
 }
 
-func (self MockUser) IsDbAdmin(_ string) bool {
+func (self MockDbUser) GetName() string {
+	return self.Name
+}
+
+func (self MockDbUser) IsDeleted() bool {
+	return false
+}
+
+func (self MockDbUser) IsClusterAdmin() bool {
+	return false
+}
+
+func (self MockDbUser) IsDbAdmin(_ string) bool {
 	return self.IsAdmin
 }
 
+func (self MockDbUser) GetDb() string {
+	return ""
+}
+
+func (self MockDbUser) HasWriteAccess(_ string) bool {
+	return true
+}
+
+func (self MockDbUser) HasReadAccess(_ string) bool {
+	return true
+}
+
 type MockUserManager struct {
-	dbUsers       map[string][]string
+	dbUsers       map[string]map[string]MockDbUser
 	clusterAdmins []string
 	ops           []*Operation
 }
@@ -99,10 +122,21 @@ func (self *MockUserManager) ListClusterAdmins(requester common.User) ([]string,
 	return self.clusterAdmins, nil
 }
 
-func (self *MockUserManager) ListDbUsers(requester common.User, db string) ([]string, error) {
-	return self.dbUsers[db], nil
+func (self *MockUserManager) ListDbUsers(requester common.User, db string) ([]common.User, error) {
+	dbUsers := self.dbUsers[db]
+	users := make([]common.User, 0, len(dbUsers))
+	for _, user := range dbUsers {
+		users = append(users, user)
+	}
+
+	return users, nil
 }
 
 func (self *MockUserManager) GetDbUser(requester common.User, db, username string) (common.User, error) {
-	return MockUser{Name: username, IsAdmin: false}, nil
+	dbUsers := self.dbUsers[db]
+	if dbUser, ok := dbUsers[username]; ok {
+		return MockDbUser{Name: dbUser.GetName(), IsAdmin: dbUser.IsDbAdmin(db)}, nil
+	} else {
+		return nil, fmt.Errorf("'%s' is not a valid username for database '%s'", username, db)
+	}
 }

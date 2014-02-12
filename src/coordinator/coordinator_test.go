@@ -387,7 +387,9 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	// can list db users
 	dbUsers, err := coordinator.ListDbUsers(root, "db1")
 	c.Assert(err, IsNil)
-	c.Assert(dbUsers, DeepEquals, []string{"db_user"})
+	c.Assert(dbUsers, HasLen, 1)
+	c.Assert(dbUsers[0].GetName(), Equals, "db_user")
+	c.Assert(dbUsers[0].IsDbAdmin("db1"), Equals, true)
 
 	// can delete cluster admins and db users
 	c.Assert(coordinator.DeleteDbUser(root, "db1", "db_user"), IsNil)
@@ -487,11 +489,10 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	// can get db users
 	admins, err := coordinator.ListDbUsers(dbUser, "db1")
 	c.Assert(err, IsNil)
-	adminsSet := map[string]bool{}
-	for _, admin := range admins {
-		adminsSet[admin] = true
-	}
-	c.Assert(adminsSet, DeepEquals, map[string]bool{"db_user": true, "db_user2": true})
+	c.Assert(admins[0].GetName(), Equals, "db_user")
+	c.Assert(admins[0].IsDbAdmin("db1"), Equals, true)
+	c.Assert(admins[1].GetName(), Equals, "db_user2")
+	c.Assert(admins[1].IsDbAdmin("db1"), Equals, true)
 
 	// cannot create db users for a different db
 	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)
