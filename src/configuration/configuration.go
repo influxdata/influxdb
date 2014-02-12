@@ -95,7 +95,9 @@ func (self *ShardConfiguration) SplitRegex() *regexp.Regexp {
 }
 
 type WalConfig struct {
-	Dir string `toml:"dir"`
+	Dir                   string `toml:"dir"`
+	FlushAfterRequests    int    `toml:"flush"`
+	BookmarkAfterRequests int    `toml:"bookmark"`
 }
 
 type TomlConfiguration struct {
@@ -113,25 +115,27 @@ type TomlConfiguration struct {
 }
 
 type Configuration struct {
-	AdminHttpPort       int
-	AdminAssetsDir      string
-	ApiHttpSslPort      int
-	ApiHttpCertPath     string
-	ApiHttpPort         int
-	RaftServerPort      int
-	SeedServers         []string
-	DataDir             string
-	RaftDir             string
-	ProtobufPort        int
-	Hostname            string
-	LogFile             string
-	LogLevel            string
-	BindAddress         string
-	LevelDbMaxOpenFiles int
-	ShortTermShard      *ShardConfiguration
-	LongTermShard       *ShardConfiguration
-	ReplicationFactor   int
-	WalDir              string
+	AdminHttpPort            int
+	AdminAssetsDir           string
+	ApiHttpSslPort           int
+	ApiHttpCertPath          string
+	ApiHttpPort              int
+	RaftServerPort           int
+	SeedServers              []string
+	DataDir                  string
+	RaftDir                  string
+	ProtobufPort             int
+	Hostname                 string
+	LogFile                  string
+	LogLevel                 string
+	BindAddress              string
+	LevelDbMaxOpenFiles      int
+	ShortTermShard           *ShardConfiguration
+	LongTermShard            *ShardConfiguration
+	ReplicationFactor        int
+	WalDir                   string
+	WalFlushAfterRequests    int
+	WalBookmarkAfterRequests int
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -163,25 +167,27 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	}
 
 	config := &Configuration{
-		AdminHttpPort:       tomlConfiguration.Admin.Port,
-		AdminAssetsDir:      tomlConfiguration.Admin.Assets,
-		ApiHttpPort:         tomlConfiguration.Api.Port,
-		ApiHttpCertPath:     tomlConfiguration.Api.SslCertPath,
-		ApiHttpSslPort:      tomlConfiguration.Api.SslPort,
-		RaftServerPort:      tomlConfiguration.Raft.Port,
-		RaftDir:             tomlConfiguration.Raft.Dir,
-		ProtobufPort:        tomlConfiguration.Cluster.ProtobufPort,
-		SeedServers:         tomlConfiguration.Cluster.SeedServers,
-		DataDir:             tomlConfiguration.Storage.Dir,
-		LogFile:             tomlConfiguration.Logging.File,
-		LogLevel:            tomlConfiguration.Logging.Level,
-		Hostname:            tomlConfiguration.Hostname,
-		BindAddress:         tomlConfiguration.BindAddress,
-		LevelDbMaxOpenFiles: tomlConfiguration.LevelDb.MaxOpenFiles,
-		LongTermShard:       &tomlConfiguration.Sharding.LongTerm,
-		ShortTermShard:      &tomlConfiguration.Sharding.ShortTerm,
-		ReplicationFactor:   tomlConfiguration.Sharding.ReplicationFactor,
-		WalDir:              tomlConfiguration.WalConfig.Dir,
+		AdminHttpPort:            tomlConfiguration.Admin.Port,
+		AdminAssetsDir:           tomlConfiguration.Admin.Assets,
+		ApiHttpPort:              tomlConfiguration.Api.Port,
+		ApiHttpCertPath:          tomlConfiguration.Api.SslCertPath,
+		ApiHttpSslPort:           tomlConfiguration.Api.SslPort,
+		RaftServerPort:           tomlConfiguration.Raft.Port,
+		RaftDir:                  tomlConfiguration.Raft.Dir,
+		ProtobufPort:             tomlConfiguration.Cluster.ProtobufPort,
+		SeedServers:              tomlConfiguration.Cluster.SeedServers,
+		DataDir:                  tomlConfiguration.Storage.Dir,
+		LogFile:                  tomlConfiguration.Logging.File,
+		LogLevel:                 tomlConfiguration.Logging.Level,
+		Hostname:                 tomlConfiguration.Hostname,
+		BindAddress:              tomlConfiguration.BindAddress,
+		LevelDbMaxOpenFiles:      tomlConfiguration.LevelDb.MaxOpenFiles,
+		LongTermShard:            &tomlConfiguration.Sharding.LongTerm,
+		ShortTermShard:           &tomlConfiguration.Sharding.ShortTerm,
+		ReplicationFactor:        tomlConfiguration.Sharding.ReplicationFactor,
+		WalDir:                   tomlConfiguration.WalConfig.Dir,
+		WalFlushAfterRequests:    tomlConfiguration.WalConfig.FlushAfterRequests,
+		WalBookmarkAfterRequests: tomlConfiguration.WalConfig.BookmarkAfterRequests,
 	}
 
 	// if it wasn't set, set it to 100
