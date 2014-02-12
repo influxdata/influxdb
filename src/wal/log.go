@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	"io"
 	"os"
@@ -19,7 +20,7 @@ func newLog(file *os.File) (*log, error) {
 	l := &log{
 		entries: make(chan *entry, 10),
 		file:    file,
-		state:   &state{},
+		state:   newState(),
 	}
 
 	l.recover()
@@ -35,10 +36,23 @@ func (self *log) setServerId(serverId uint32) {
 	self.serverId = serverId
 }
 
+func (self *log) assignSequenceNumbers(shardId uint32, request *protocol.Request) {
+	sequenceNumber := self.state.getCurrentSequenceNumber(shardId)
+	for _, p := range request.Series.Points {
+		if p.SequenceNumber != nil {
+			continue
+		}
+		sequenceNumber++
+		p.SequenceNumber = proto.Uint64(sequenceNumber)
+	}
+	self.state.setCurrentSequenceNumber(shardId, sequenceNumber)
+}
+
 func (self *log) processEntries() {
 	for {
 		select {
 		case x := <-self.entries:
+			self.assignSequenceNumbers(x.shardId, x.request)
 			bytes, err := x.request.Encode()
 			if err != nil {
 				x.confirmation <- &confirmation{0, err}
