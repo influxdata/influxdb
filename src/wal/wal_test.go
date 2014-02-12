@@ -69,6 +69,30 @@ func (_ *WalSuite) TestRequestNumberAssignment(c *C) {
 	c.Assert(id, Equals, uint32(2))
 }
 
+func (_ *WalSuite) TestRequestNumberAssignmentRecovery(c *C) {
+	wal := newWal(c)
+	request := generateRequest(2)
+	id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(id, Equals, uint32(1))
+	c.Assert(wal.Close(), IsNil)
+	wal, err = NewWAL(wal.config)
+	c.Assert(err, IsNil)
+	request = generateRequest(2)
+	id, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(id, Equals, uint32(2))
+
+	// test recovery from wal replay
+	c.Assert(wal.log.closeWithoutBookmark(), IsNil)
+	wal, err = NewWAL(wal.config)
+	c.Assert(err, IsNil)
+	request = generateRequest(2)
+	id, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(id, Equals, uint32(3))
+}
+
 func (_ *WalSuite) TestReplay(c *C) {
 	wal := newWal(c)
 	request := generateRequest(1)
