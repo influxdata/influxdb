@@ -86,3 +86,7 @@ func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds [
 		}
 	}
 }
+
+func (self *WAL) Close() error {
+	return self.log.close()
+}

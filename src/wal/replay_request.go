@@ -5,7 +5,14 @@ import (
 )
 
 type replayRequest struct {
-	request *protocol.Request
-	shardId uint32
-	err     error
+	requestNumber uint32
+	request       *protocol.Request
+	shardId       uint32
+	err           error
+}
+
+func newErrorReplayRequest(err error) *replayRequest {
+	return &replayRequest{
+		err: err,
+	}
 }
