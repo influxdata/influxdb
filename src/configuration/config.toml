@@ -58,4 +58,6 @@ protobuf_port = 8099
 
 [wal]
 
-dir = "/tmp/influxdb/development/wal"
+dir   = "/tmp/influxdb/development/wal"
+# flush = 0 # the number of writes after which wal will be flushed, 0 for flushing on every write
+# bookmark = 0 # the number of writes after which a bookmark will be created
