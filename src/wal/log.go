@@ -91,16 +91,25 @@ func (self *log) appendRequest(request *protocol.Request, shardId uint32) (uint3
 	return confirmation.requestNumber, confirmation.err
 }
 
+func (self *log) dupLogFile() (*os.File, error) {
+	fd, err := syscall.Dup(int(self.file.Fd()))
+	if err != nil {
+		return nil, err
+	}
+	return os.NewFile(uintptr(fd), self.file.Name()), nil
+}
+
+// replay requests starting at the given requestNumber and for the
+// given shard ids. Return all requests if shardIds is empty
 func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32) (chan *replayRequest, chan struct{}) {
 	stopChan := make(chan struct{})
 	replayChan := make(chan *replayRequest, 10)
 	go func() {
-		fd, err := syscall.Dup(int(self.file.Fd()))
+		file, err := self.dupLogFile()
 		if err != nil {
 			replayChan <- &replayRequest{nil, uint32(0), err}
 			return
 		}
-		file := os.NewFile(uintptr(fd), self.file.Name())
 		defer file.Close()
 		// TODO: create a request number to file location index that we
 		// can use for fast seeks
@@ -115,7 +124,7 @@ func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32
 		}
 		for {
 			hdr := &entryHeader{}
-			err := hdr.Read(file)
+			_, err := hdr.Read(file)
 
 			if err == io.EOF {
 				close(replayChan)
@@ -123,15 +132,32 @@ func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32
 			}
 
 			if err != nil {
+				// TODO: the following line is all over the place. DRY
 				replayChan <- &replayRequest{nil, uint32(0), err}
 				return
 			}
 
-			if _, ok := shardIdsSet[hdr.shardId]; !ok {
+			ok := false
+			if len(shardIdsSet) == 0 {
+				ok = true
+			} else {
+				_, ok = shardIdsSet[hdr.shardId]
+			}
+			if !ok {
+				_, err = file.Seek(int64(hdr.length), os.SEEK_CUR)
+				if err != nil {
+					replayChan <- &replayRequest{nil, uint32(0), err}
+					return
+				}
 				continue
 			}
 
 			if hdr.requestNumber < requestNumber {
+				_, err = file.Seek(int64(hdr.length), os.SEEK_CUR)
+				if err != nil {
+					replayChan <- &replayRequest{nil, uint32(0), err}
+					return
+				}
 				continue
 			}
 
