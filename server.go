@@ -674,8 +674,6 @@ func (s *server) followerLoop() {
 
 // The event loop that is run when the server is in a Candidate state.
 func (s *server) candidateLoop() {
-	lastLogIndex, lastLogTerm := s.log.lastInfo()
-
 	// Clear leader value.
 	prevLeader := s.leader
 	s.leader = ""
@@ -683,75 +681,70 @@ func (s *server) candidateLoop() {
 		s.DispatchEvent(newEvent(LeaderChangeEventType, s.leader, prevLeader))
 	}
 
+	lastLogIndex, lastLogTerm := s.log.lastInfo()
+	doVote := true
+	votesGranted := 0
+	var timeoutChan <-chan time.Time
+	var respChan chan *RequestVoteResponse
+
 	for s.State() == Candidate {
-		// Increment current term, vote for self.
-		s.currentTerm++
-		s.votedFor = s.name
+		if doVote {
+			// Increment current term, vote for self.
+			s.currentTerm++
+			s.votedFor = s.name
 
-		// Send RequestVote RPCs to all other servers.
-		respChan := make(chan *RequestVoteResponse, len(s.peers))
-		for _, peer := range s.peers {
-			go peer.sendVoteRequest(newRequestVoteRequest(s.currentTerm, s.name, lastLogIndex, lastLogTerm), respChan)
+			// Send RequestVote RPCs to all other servers.
+			respChan = make(chan *RequestVoteResponse, len(s.peers))
+			for _, peer := range s.peers {
+				go peer.sendVoteRequest(newRequestVoteRequest(s.currentTerm, s.name, lastLogIndex, lastLogTerm), respChan)
+			}
+
+			// Wait for either:
+			//   * Votes received from majority of servers: become leader
+			//   * AppendEntries RPC received from new leader: step down.
+			//   * Election timeout elapses without election resolution: increment term, start new election
+			//   * Discover higher term: step down (§5.1)
+			votesGranted = 1
+			timeoutChan = afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2)
+			doVote = false
 		}
 
-		// Wait for either:
-		//   * Votes received from majority of servers: become leader
-		//   * AppendEntries RPC received from new leader: step down.
-		//   * Election timeout elapses without election resolution: increment term, start new election
-		//   * Discover higher term: step down (§5.1)
-		votesGranted := 1
-		timeoutChan := afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2)
-		timeout := false
-
-		for {
-			// If we received enough votes then stop waiting for more votes.
-			s.debugln("server.candidate.votes: ", votesGranted, " quorum:", s.QuorumSize())
-			if votesGranted >= s.QuorumSize() {
-				s.setState(Leader)
-				break
-			}
-
-			// Collect votes from peers.
-			select {
-			case resp := <-respChan:
-				if resp.VoteGranted {
-					s.debugln("server.candidate.vote.granted: ", votesGranted)
-					votesGranted++
-				} else if resp.Term > s.currentTerm {
-					s.debugln("server.candidate.vote.failed")
-					s.setCurrentTerm(resp.Term, "", false)
-				} else {
-					s.debugln("server.candidate.vote: denied")
-				}
-
-			case e := <-s.c:
-				var err error
-				if e.target == &stopValue {
-					s.setState(Stopped)
-				} else {
-					switch req := e.target.(type) {
-					case Command:
-						err = NotLeaderError
-					case *AppendEntriesRequest:
-						e.returnValue, _ = s.processAppendEntriesRequest(req)
-					case *RequestVoteRequest:
-						e.returnValue, _ = s.processRequestVoteRequest(req)
-					}
-				}
-				// Callback to event.
-				e.c <- err
-
-			case <-timeoutChan:
-				timeout = true
-			}
-
-			// both process AER and RVR can make the server to follower
-			// also break when timeout happens
-			if s.State() != Candidate || timeout {
-				break
-			}
+		// If we received enough votes then stop waiting for more votes.
+		// And return from the candidate loop
+		if votesGranted == s.QuorumSize() {
+			s.debugln("server.candidate.recv.enough.votes")
+			s.setState(Leader)
+			return
 		}
-		// continue when timeout happened
+
+		// Collect votes from peers.
+		select {
+		case resp := <-respChan:
+			if success := s.processVoteResponse(resp); success {
+				s.debugln("server.candidate.vote.granted: ", votesGranted)
+				votesGranted++
+			}
+
+		case e := <-s.c:
+			var err error
+			if e.target == &stopValue {
+				s.setState(Stopped)
+			} else {
+				switch req := e.target.(type) {
+				case Command:
+					err = NotLeaderError
+				case *AppendEntriesRequest:
+					e.returnValue, _ = s.processAppendEntriesRequest(req)
+				case *RequestVoteRequest:
+					e.returnValue, _ = s.processRequestVoteRequest(req)
+				}
+			}
+			// Callback to event.
+			e.c <- err
+
+		case <-timeoutChan:
+			doVote = true
+		}
 	}
 }
 
@@ -961,6 +954,25 @@ func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 		s.log.setCommitIndex(commitIndex)
 		s.debugln("commit index ", commitIndex)
 	}
+}
+
+// processVoteReponse processes a vote request:
+// 1. if the vote is granted for the current term of the candidate, return true
+// 2. if the vote is denied due to smaller term, update the term of this server
+//    which will also cause the candidate to step-down, and return false.
+// 3. if the vote is for a smaller term, ignore it and return false.
+func (s *server) processVoteResponse(resp *RequestVoteResponse) bool {
+	if resp.VoteGranted && resp.Term == s.currentTerm {
+		return true
+	}
+
+	if resp.Term > s.currentTerm {
+		s.debugln("server.candidate.vote.failed")
+		s.setCurrentTerm(resp.Term, "", false)
+	} else {
+		s.debugln("server.candidate.vote: denied")
+	}
+	return false
 }
 
 //--------------------------------------
