@@ -37,6 +37,7 @@ func newLog(file *os.File, indexBlockSize, flushSize, bookmarkSize int) (*log, e
 	l := &log{
 		entries:        make(chan *entry, 10),
 		bookmarkChan:   make(chan *bookmarkEvent),
+		indexChan:      make(chan struct{}),
 		file:           file,
 		state:          newState(),
 		fileSize:       size,
@@ -54,6 +55,12 @@ func newLog(file *os.File, indexBlockSize, flushSize, bookmarkSize int) (*log, e
 }
 
 func (self *log) internalIndex() error {
+	// don't do anything if the number of requests writtern since the
+	// last index update is 0
+	if self.state.RequestsSinceLastIndex == 0 {
+		return nil
+	}
+
 	startRequestNumber := self.state.CurrentRequestNumber - uint32(self.state.RequestsSinceLastIndex)
 	logger.Info("Creating new index entry [%d,%d]", startRequestNumber, self.state.RequestsSinceLastBookmark)
 	self.state.Index.addEntry(startRequestNumber, self.state.RequestsSinceLastIndex, self.fileSize)
@@ -77,6 +84,7 @@ func (self *log) closeWithoutBookmark() error {
 }
 
 func (self *log) close() error {
+	self.forceIndex()
 	self.forceBookmark(true)
 	self.internalFlush()
 	return self.file.Close()
@@ -158,6 +166,8 @@ func (self *log) processEntries() {
 		select {
 		case x := <-self.entries:
 			self.internalAppendRequest(x)
+		case _ = <-self.indexChan:
+			self.internalIndex()
 		case x := <-self.bookmarkChan:
 			err := self.internalFlush()
 			// only if we could flush successfully create a bookmark
@@ -339,6 +349,11 @@ func (self *log) forceBookmark(shutdown bool) error {
 	self.bookmarkChan <- &bookmarkEvent{shutdown, confirmationChan}
 	confirmation := <-confirmationChan
 	return confirmation.err
+}
+
+func (self *log) forceIndex() error {
+	self.indexChan <- struct{}{}
+	return nil
 }
 
 func (self *log) internalBookmark() error {
