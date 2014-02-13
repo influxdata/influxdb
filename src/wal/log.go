@@ -2,6 +2,7 @@ package wal
 
 import (
 	"code.google.com/p/goprotobuf/proto"
+	logger "code.google.com/p/log4go"
 	"fmt"
 	"io"
 	"os"
@@ -17,11 +18,15 @@ type log struct {
 	file                   *os.File
 	serverId               uint32
 	bookmarkChan           chan *bookmarkEvent
+	indexChan              chan struct{}
 	closed                 bool
 	requestsSinceLastFlush int
+	indexBlockSize         int
+	flushSize              int
+	bookmarkSize           int
 }
 
-func newLog(file *os.File) (*log, error) {
+func newLog(file *os.File, indexBlockSize, flushSize, bookmarkSize int) (*log, error) {
 	info, err := file.Stat()
 	if err != nil {
 		return nil, err
@@ -30,12 +35,15 @@ func newLog(file *os.File) (*log, error) {
 	size := uint64(info.Size())
 
 	l := &log{
-		entries:      make(chan *entry, 10),
-		bookmarkChan: make(chan *bookmarkEvent),
-		file:         file,
-		state:        newState(),
-		fileSize:     size,
-		closed:       false,
+		entries:        make(chan *entry, 10),
+		bookmarkChan:   make(chan *bookmarkEvent),
+		file:           file,
+		state:          newState(),
+		fileSize:       size,
+		closed:         false,
+		indexBlockSize: indexBlockSize,
+		flushSize:      flushSize,
+		bookmarkSize:   bookmarkSize,
 	}
 
 	if err := l.recover(); err != nil {
@@ -45,7 +53,16 @@ func newLog(file *os.File) (*log, error) {
 	return l, nil
 }
 
-func (self *log) fsync() error {
+func (self *log) internalIndex() error {
+	startRequestNumber := self.state.CurrentRequestNumber - uint32(self.state.RequestsSinceLastIndex)
+	logger.Info("Creating new index entry [%d,%d]", startRequestNumber, self.state.RequestsSinceLastBookmark)
+	self.state.Index.addEntry(startRequestNumber, self.state.RequestsSinceLastIndex, self.fileSize)
+	self.state.RequestsSinceLastIndex = 0
+	return nil
+}
+
+func (self *log) internalFlush() error {
+	logger.Info("Fsyncing the log file to disk")
 	self.requestsSinceLastFlush = 0
 	return self.file.Sync()
 }
@@ -61,7 +78,7 @@ func (self *log) closeWithoutBookmark() error {
 
 func (self *log) close() error {
 	self.forceBookmark(true)
-	self.fsync()
+	self.internalFlush()
 	return self.file.Close()
 }
 
@@ -142,7 +159,11 @@ func (self *log) processEntries() {
 		case x := <-self.entries:
 			self.internalAppendRequest(x)
 		case x := <-self.bookmarkChan:
-			err := self.internalBookmark()
+			err := self.internalFlush()
+			// only if we could flush successfully create a bookmark
+			if err == nil {
+				err = self.internalBookmark()
+			}
 			x.confirmationChan <- &confirmation{0, err}
 			if x.shutdown {
 				self.closed = true
@@ -161,6 +182,7 @@ func (self *log) internalAppendRequest(x *entry) {
 	var requestNumber uint32
 	var written, writtenHdrBytes int
 	var hdr *entryHeader
+	shouldFlush := false
 
 	if err != nil {
 		goto returnError
@@ -185,20 +207,28 @@ func (self *log) internalAppendRequest(x *entry) {
 		goto returnError
 	}
 	self.fileSize += uint64(writtenHdrBytes + written)
+
 	self.state.RequestsSinceLastBookmark++
+	if self.state.RequestsSinceLastBookmark >= self.bookmarkSize {
+		shouldFlush = true
+		self.internalBookmark()
+	}
+
+	self.state.RequestsSinceLastIndex++
+	if self.state.RequestsSinceLastIndex >= uint32(self.indexBlockSize) {
+		shouldFlush = true
+		self.internalIndex()
+	}
+
 	self.requestsSinceLastFlush++
+	if self.requestsSinceLastFlush > self.flushSize || shouldFlush {
+		self.internalFlush()
+	}
+
 	x.confirmation <- &confirmation{requestNumber, nil}
 	return
 returnError:
 	x.confirmation <- &confirmation{0, err}
-}
-
-func (self *log) getRequestsSinceLastBookmark() int {
-	return self.state.RequestsSinceLastBookmark
-}
-
-func (self *log) getRequestsSinceLastFlush() int {
-	return self.requestsSinceLastFlush
 }
 
 func (self *log) appendRequest(request *protocol.Request, shardId uint32) (uint32, error) {
@@ -228,9 +258,8 @@ func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32
 			return
 		}
 		defer file.Close()
-		// TODO: create a request number to file location index that we
-		// can use for fast seeks
-		_, err = file.Seek(0, os.SEEK_SET)
+		offset := self.state.Index.requestOffset(requestNumber)
+		_, err = file.Seek(int64(offset), os.SEEK_SET)
 		if err != nil {
 			replayChan <- newErrorReplayRequest(err)
 			return
@@ -313,9 +342,7 @@ func (self *log) forceBookmark(shutdown bool) error {
 }
 
 func (self *log) internalBookmark() error {
-	if err := self.fsync(); err != nil {
-		return err
-	}
+	logger.Info("Creating bookmark at file offset %d", self.fileSize)
 	dir := filepath.Dir(self.file.Name())
 	bookmarkPath := filepath.Join(dir, "bookmark.new")
 	bookmarkFile, err := os.OpenFile(bookmarkPath, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)

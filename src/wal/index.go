@@ -5,17 +5,24 @@ import (
 )
 
 type indexEntry struct {
-	startRequestNumber uint32 // first request number in the block
-	size               uint32 // number of requests in the block
-	startOffset        uint64 // the offset of the first request
+	StartRequestNumber uint32 // first request number in the block
+	Size               uint32 // number of requests in the block
+	StartOffset        uint64 // the offset of the first request
 }
 
 type index struct {
-	entries []*indexEntry
+	Entries       []*indexEntry
+	CurrentOffset uint64
 }
 
-func (self *index) addEntry(entry *indexEntry) {
-	self.entries = append(self.entries, entry)
+func (self *index) addEntry(startRequestNumber, size uint32, currentOffset uint64) {
+	entry := &indexEntry{
+		StartRequestNumber: startRequestNumber,
+		Size:               size,
+		StartOffset:        self.CurrentOffset,
+	}
+	self.Entries = append(self.Entries, entry)
+	self.CurrentOffset = currentOffset
 }
 
 func (self *index) findOffsetBlock(requestNumber uint32) func(int) bool {
@@ -24,7 +31,7 @@ func (self *index) findOffsetBlock(requestNumber uint32) func(int) bool {
 		// for index i f returns true, then it must return true for every
 		// index greater than i. sort.Search will return the smallest
 		// index satisfying f
-		if self.entries[i].startRequestNumber > requestNumber {
+		if self.Entries[i].StartRequestNumber > requestNumber {
 			return true
 		}
 
@@ -33,20 +40,23 @@ func (self *index) findOffsetBlock(requestNumber uint32) func(int) bool {
 }
 
 func (self *index) requestOffset(requestNumber uint32) uint64 {
-	numberOfEntries := len(self.entries)
+	numberOfEntries := len(self.Entries)
+	if numberOfEntries == 0 {
+		return 0
+	}
 	index := sort.Search(numberOfEntries, self.findOffsetBlock(requestNumber))
 	if index != numberOfEntries {
-		return self.entries[index-1].startOffset
+		return self.Entries[index-1].StartOffset
 	}
 
-	if requestNumber >= self.entries[0].startRequestNumber {
-		return self.entries[0].startOffset
+	firstEntry := self.Entries[0]
+	if requestNumber < firstEntry.StartRequestNumber {
+		return self.Entries[0].StartOffset
 	}
 
-	lastEntry := self.entries[len(self.entries)-1]
-	lastRequestNumber := lastEntry.startRequestNumber + lastEntry.size
-	if requestNumber > lastRequestNumber {
-		return lastEntry.startOffset
+	lastEntry := self.Entries[numberOfEntries-1]
+	if requestNumber > lastEntry.StartRequestNumber {
+		return lastEntry.StartOffset
 	}
 
 	return 0
