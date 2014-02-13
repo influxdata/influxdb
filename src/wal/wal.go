@@ -56,8 +56,15 @@ func (self *WAL) SetServerId(id uint32) {
 
 // Will assign sequence numbers if null. Returns a unique id that should be marked as committed for each server
 // as it gets confirmed.
-func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Shard, servers []Server) (uint32, error) {
-	return self.log.appendRequest(request, shard.Id())
+func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Shard) (uint32, error) {
+	requestNumber, err := self.log.appendRequest(request, shard.Id())
+	if err != nil {
+		return 0, err
+	}
+	if self.log.getRequestsSinceLastBookmark() >= self.config.WalBookmarkAfterRequests {
+		err = self.log.forceBookmark(false)
+	}
+	return requestNumber, err
 }
 
 // Marks a given request for a given server as committed

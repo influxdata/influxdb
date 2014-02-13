@@ -10,11 +10,12 @@ const (
 )
 
 type state struct {
-	Version                 byte
-	FileOffset              int64
-	CurrentRequestNumber    uint32
-	ShardLastSequenceNumber map[uint32]uint64
-	ServerLastRequestNumber map[uint32]uint32
+	Version                   byte
+	RequestsSinceLastBookmark int
+	FileOffset                int64
+	CurrentRequestNumber      uint32
+	ShardLastSequenceNumber   map[uint32]uint64
+	ServerLastRequestNumber   map[uint32]uint32
 }
 
 func newState() *state {

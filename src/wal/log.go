@@ -11,11 +11,13 @@ import (
 )
 
 type log struct {
-	fileSize uint64
-	entries  chan *entry
-	state    *state
-	file     *os.File
-	serverId uint32
+	fileSize     uint64
+	entries      chan *entry
+	state        *state
+	file         *os.File
+	serverId     uint32
+	bookmarkChan chan *bookmarkEvent
+	closed       bool
 }
 
 func newLog(file *os.File) (*log, error) {
@@ -27,10 +29,12 @@ func newLog(file *os.File) (*log, error) {
 	size := uint64(info.Size())
 
 	l := &log{
-		entries:  make(chan *entry, 10),
-		file:     file,
-		state:    newState(),
-		fileSize: size,
+		entries:      make(chan *entry, 10),
+		bookmarkChan: make(chan *bookmarkEvent),
+		file:         file,
+		state:        newState(),
+		fileSize:     size,
+		closed:       false,
 	}
 
 	if err := l.recover(); err != nil {
@@ -40,29 +44,17 @@ func newLog(file *os.File) (*log, error) {
 	return l, nil
 }
 
+func (self *log) requestsSinceLastBookmark() int {
+	return self.state.RequestsSinceLastBookmark
+}
+
 // this is for testing only
 func (self *log) closeWithoutBookmark() error {
 	return self.file.Close()
 }
 
 func (self *log) close() error {
-	dir := filepath.Dir(self.file.Name())
-	bookmarkPath := filepath.Join(dir, "bookmark.new")
-	bookmarkFile, err := os.OpenFile(bookmarkPath, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)
-	if err != nil {
-		return err
-	}
-	defer bookmarkFile.Close()
-	self.state.setFileOffset(int64(self.fileSize))
-	if err := self.state.write(bookmarkFile); err != nil {
-		return err
-	}
-	if err := bookmarkFile.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(bookmarkPath, filepath.Join(dir, "bookmark")); err != nil {
-		return err
-	}
+	self.forceBookmark(true)
 	return self.file.Close()
 }
 
@@ -141,37 +133,60 @@ func (self *log) processEntries() {
 	for {
 		select {
 		case x := <-self.entries:
-			self.assignSequenceNumbers(x.shardId, x.request)
-			bytes, err := x.request.Encode()
-			if err != nil {
-				x.confirmation <- &confirmation{0, err}
-				continue
+			self.internalAppendRequest(x)
+		case x := <-self.bookmarkChan:
+			err := self.internalBookmark()
+			x.confirmationChan <- &confirmation{0, err}
+			if x.shutdown {
+				self.closed = true
+				return
 			}
-			requestNumber := self.state.getNextRequestNumber()
-			// every request is preceded with the length, shard id and the request number
-			hdr := &entryHeader{
-				shardId:       x.shardId,
-				requestNumber: requestNumber,
-				length:        uint32(len(bytes)),
-			}
-			writtenHdrBytes, err := hdr.Write(self.file)
-			if err != nil {
-				x.confirmation <- &confirmation{0, err}
-				continue
-			}
-			written, err := self.file.Write(bytes)
-			if err != nil {
-				x.confirmation <- &confirmation{0, err}
-				continue
-			}
-			if written < len(bytes) {
-				x.confirmation <- &confirmation{0, fmt.Errorf("Couldn't write entire request")}
-				continue
-			}
-			self.fileSize += uint64(writtenHdrBytes + written)
-			x.confirmation <- &confirmation{requestNumber, nil}
 		}
 	}
+}
+
+func (self *log) internalAppendRequest(x *entry) {
+	self.assignSequenceNumbers(x.shardId, x.request)
+	bytes, err := x.request.Encode()
+
+	// declare some variables so we can goto returnError without go
+	// complaining
+	var requestNumber uint32
+	var written, writtenHdrBytes int
+	var hdr *entryHeader
+
+	if err != nil {
+		goto returnError
+	}
+	requestNumber = self.state.getNextRequestNumber()
+	// every request is preceded with the length, shard id and the request number
+	hdr = &entryHeader{
+		shardId:       x.shardId,
+		requestNumber: requestNumber,
+		length:        uint32(len(bytes)),
+	}
+	writtenHdrBytes, err = hdr.Write(self.file)
+	if err != nil {
+		goto returnError
+	}
+	written, err = self.file.Write(bytes)
+	if err != nil {
+		goto returnError
+	}
+	if written < len(bytes) {
+		err = fmt.Errorf("Couldn't write entire request")
+		goto returnError
+	}
+	self.fileSize += uint64(writtenHdrBytes + written)
+	self.state.RequestsSinceLastBookmark++
+	x.confirmation <- &confirmation{requestNumber, nil}
+	return
+returnError:
+	x.confirmation <- &confirmation{0, err}
+}
+
+func (self *log) getRequestsSinceLastBookmark() int {
+	return self.state.RequestsSinceLastBookmark
 }
 
 func (self *log) appendRequest(request *protocol.Request, shardId uint32) (uint32, error) {
@@ -278,6 +293,32 @@ func (self *log) replayFromFile(file *os.File, shardIdsSet map[uint32]struct{}, 
 	}
 }
 
-func (self *log) forceBookmark() error {
-	return fmt.Errorf("not implemented yet")
+func (self *log) forceBookmark(shutdown bool) error {
+	confirmationChan := make(chan *confirmation)
+	self.bookmarkChan <- &bookmarkEvent{shutdown, confirmationChan}
+	confirmation := <-confirmationChan
+	return confirmation.err
+}
+
+func (self *log) internalBookmark() error {
+	dir := filepath.Dir(self.file.Name())
+	bookmarkPath := filepath.Join(dir, "bookmark.new")
+	bookmarkFile, err := os.OpenFile(bookmarkPath, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return err
+	}
+	defer bookmarkFile.Close()
+	self.state.setFileOffset(int64(self.fileSize))
+	if err := self.state.write(bookmarkFile); err != nil {
+		return err
+	}
+	if err := bookmarkFile.Close(); err != nil {
+		return err
+	}
+	err = os.Rename(bookmarkPath, filepath.Join(dir, "bookmark"))
+	if err != nil {
+		return err
+	}
+	self.state.RequestsSinceLastBookmark = 0
+	return nil
 }
