@@ -34,7 +34,7 @@ func NewWAL(config *configuration.Configuration) (*WAL, error) {
 		return nil, err
 	}
 
-	log, err := newLog(logFile)
+	log, err := newLog(logFile, config.WalIndexAfterRequests, config.WalFlushAfterRequests, config.WalBookmarkAfterRequests)
 	if err != nil {
 		return nil, err
 	}
@@ -61,16 +61,7 @@ func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Sh
 	if err != nil {
 		return 0, err
 	}
-	if self.log.getRequestsSinceLastBookmark() >= self.config.WalBookmarkAfterRequests {
-		err = self.log.forceBookmark(false)
-	}
-	if err != nil {
-		return 0, err
-	}
-	if self.log.getRequestsSinceLastFlush() >= self.config.WalFlushAfterRequests {
-		err = self.log.fsync()
-	}
-	return requestNumber, err
+	return requestNumber, nil
 }
 
 // Marks a given request for a given server as committed

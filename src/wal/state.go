@@ -12,10 +12,12 @@ const (
 type state struct {
 	Version                   byte
 	RequestsSinceLastBookmark int
-	FileOffset                int64
+	RequestsSinceLastIndex    uint32
+	FileOffset                int64 // the file offset at which this bookmark was created
 	CurrentRequestNumber      uint32
 	ShardLastSequenceNumber   map[uint32]uint64
 	ServerLastRequestNumber   map[uint32]uint32
+	Index                     *index
 }
 
 func newState() *state {
@@ -24,6 +26,9 @@ func newState() *state {
 		CurrentRequestNumber:    0,
 		ShardLastSequenceNumber: make(map[uint32]uint64),
 		ServerLastRequestNumber: make(map[uint32]uint32),
+		Index: &index{
+			Entries: make([]*indexEntry, 0),
+		},
 	}
 }
 

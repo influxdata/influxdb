@@ -53,6 +53,9 @@ func newWal(c *C) *WAL {
 	dir := c.MkDir()
 	config := &configuration.Configuration{
 		WalDir: dir,
+		WalBookmarkAfterRequests: 1000,
+		WalIndexAfterRequests:    1000,
+		WalFlushAfterRequests:    1000,
 	}
 	wal, err := NewWAL(config)
 	c.Assert(err, IsNil)
@@ -98,6 +101,7 @@ func (_ *WalSuite) TestRequestNumberAssignmentRecovery(c *C) {
 func (_ *WalSuite) TestAutoBookmark(c *C) {
 	wal := newWal(c)
 	wal.config.WalBookmarkAfterRequests = 2
+	wal.log.bookmarkSize = 2
 	for i := 0; i < 2; i++ {
 		request := generateRequest(2)
 		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
@@ -118,6 +122,7 @@ func (_ *WalSuite) TestAutoBookmark(c *C) {
 func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 	wal := newWal(c)
 	wal.config.WalBookmarkAfterRequests = 2
+	wal.log.bookmarkSize = 2
 	request := generateRequest(2)
 	id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
@@ -143,6 +148,7 @@ func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 func (_ *WalSuite) TestAutoBookmarkShouldntHappenTooOften(c *C) {
 	wal := newWal(c)
 	wal.config.WalBookmarkAfterRequests = 3
+	wal.log.bookmarkSize = 3
 	for i := 0; i < 2; i++ {
 		request := generateRequest(2)
 		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
@@ -178,6 +184,23 @@ func (_ *WalSuite) TestReplay(c *C) {
 	c.Assert(requests, HasLen, 1)
 	c.Assert(requests[0].Series.Points, HasLen, 3)
 	c.Assert(err, IsNil)
+}
+
+func (_ *WalSuite) TestIndex(c *C) {
+	wal := newWal(c)
+	wal.log.indexBlockSize = 1000
+	for i := 0; i < 3000; i++ {
+		request := generateRequest(1)
+		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+		c.Assert(err, IsNil)
+		c.Assert(id, Equals, uint32(i+1))
+	}
+
+	c.Assert(wal.log.state.Index.Entries, HasLen, 3)
+	requestOffset := wal.log.state.Index.requestOffset(2001)
+	c.Assert(requestOffset > 0, Equals, true)
+	// request 2000 should be in the second block not the third block
+	c.Assert(requestOffset > wal.log.state.Index.requestOffset(2000), Equals, true)
 }
 
 func (_ *WalSuite) TestSequenceNumberAssignment(c *C) {
