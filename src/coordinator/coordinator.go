@@ -1225,7 +1225,7 @@ func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username st
 	return self.raftServer.SaveDbUser(user)
 }
 
-func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]*dbUser, error) {
+func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]common.User, error) {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return nil, common.NewAuthorizationError("Insufficient permissions")
 	}
@@ -1233,7 +1233,7 @@ func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]*d
 	return self.clusterConfiguration.GetDbUsers(db), nil
 }
 
-func (self *CoordinatorImpl) GetDbUser(requester common.User, db string, username string) (*dbUser, error) {
+func (self *CoordinatorImpl) GetDbUser(requester common.User, db string, username string) (common.User, error) {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return nil, common.NewAuthorizationError("Insufficient permissions")
 	}

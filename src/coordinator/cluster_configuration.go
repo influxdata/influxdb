@@ -420,20 +420,20 @@ func (self *ClusterConfiguration) GetContinuousQueries(db string) []*ContinuousQ
 	return self.continuousQueries[db]
 }
 
-func (self *ClusterConfiguration) GetDbUsers(db string) []*dbUser {
+func (self *ClusterConfiguration) GetDbUsers(db string) []common.User {
 	self.usersLock.RLock()
 	defer self.usersLock.RUnlock()
 
 	dbUsers := self.dbUsers[db]
-	users := make([]*dbUser, 0, len(dbUsers))
+	users := make([]common.User, 0, len(dbUsers))
 	for name, _ := range dbUsers {
-		fmt.Println(name)
-		users = append(users, dbUsers[name])
+		dbUser := dbUsers[name]
+		users = append(users, dbUser)
 	}
 	return users
 }
 
-func (self *ClusterConfiguration) GetDbUser(db, username string) *dbUser {
+func (self *ClusterConfiguration) GetDbUser(db, username string) common.User {
 	self.usersLock.RLock()
 	defer self.usersLock.RUnlock()
 
