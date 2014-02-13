@@ -11,13 +11,14 @@ import (
 )
 
 type log struct {
-	fileSize     uint64
-	entries      chan *entry
-	state        *state
-	file         *os.File
-	serverId     uint32
-	bookmarkChan chan *bookmarkEvent
-	closed       bool
+	fileSize               uint64
+	entries                chan *entry
+	state                  *state
+	file                   *os.File
+	serverId               uint32
+	bookmarkChan           chan *bookmarkEvent
+	closed                 bool
+	requestsSinceLastFlush int
 }
 
 func newLog(file *os.File) (*log, error) {
@@ -44,6 +45,11 @@ func newLog(file *os.File) (*log, error) {
 	return l, nil
 }
 
+func (self *log) fsync() error {
+	self.requestsSinceLastFlush = 0
+	return self.file.Sync()
+}
+
 func (self *log) requestsSinceLastBookmark() int {
 	return self.state.RequestsSinceLastBookmark
 }
@@ -55,6 +61,7 @@ func (self *log) closeWithoutBookmark() error {
 
 func (self *log) close() error {
 	self.forceBookmark(true)
+	self.fsync()
 	return self.file.Close()
 }
 
@@ -179,6 +186,7 @@ func (self *log) internalAppendRequest(x *entry) {
 	}
 	self.fileSize += uint64(writtenHdrBytes + written)
 	self.state.RequestsSinceLastBookmark++
+	self.requestsSinceLastFlush++
 	x.confirmation <- &confirmation{requestNumber, nil}
 	return
 returnError:
@@ -187,6 +195,10 @@ returnError:
 
 func (self *log) getRequestsSinceLastBookmark() int {
 	return self.state.RequestsSinceLastBookmark
+}
+
+func (self *log) getRequestsSinceLastFlush() int {
+	return self.requestsSinceLastFlush
 }
 
 func (self *log) appendRequest(request *protocol.Request, shardId uint32) (uint32, error) {
