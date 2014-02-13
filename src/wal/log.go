@@ -313,6 +313,9 @@ func (self *log) forceBookmark(shutdown bool) error {
 }
 
 func (self *log) internalBookmark() error {
+	if err := self.fsync(); err != nil {
+		return err
+	}
 	dir := filepath.Dir(self.file.Name())
 	bookmarkPath := filepath.Join(dir, "bookmark.new")
 	bookmarkFile, err := os.OpenFile(bookmarkPath, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)
