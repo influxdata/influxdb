@@ -64,6 +64,12 @@ func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Sh
 	if self.log.getRequestsSinceLastBookmark() >= self.config.WalBookmarkAfterRequests {
 		err = self.log.forceBookmark(false)
 	}
+	if err != nil {
+		return 0, err
+	}
+	if self.log.getRequestsSinceLastFlush() >= self.config.WalFlushAfterRequests {
+		err = self.log.fsync()
+	}
 	return requestNumber, err
 }
 
