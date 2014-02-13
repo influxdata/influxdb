@@ -2,8 +2,17 @@ package raft
 
 import (
 	"io"
+	"math/rand"
 	"os"
+	"time"
 )
+
+// uint64Slice implements sort interface
+type uint64Slice []uint64
+
+func (p uint64Slice) Len() int           { return len(p) }
+func (p uint64Slice) Less(i, j int) bool { return p[i] < p[j] }
+func (p uint64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // WriteFile writes data to a file named by filename.
 // If the file does not exist, WriteFile creates it with permissions perm;
@@ -28,4 +37,15 @@ func writeFileSynced(filename string, data []byte, perm os.FileMode) error {
 	}
 
 	return f.Close()
+}
+
+// Waits for a random time between two durations and sends the current time on
+// the returned channel.
+func afterBetween(min time.Duration, max time.Duration) <-chan time.Time {
+	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+	d, delta := min, (max - min)
+	if delta > 0 {
+		d += time.Duration(rand.Int63n(int64(delta)))
+	}
+	return time.After(d)
 }
