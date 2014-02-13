@@ -96,8 +96,9 @@ func (self *ShardConfiguration) SplitRegex() *regexp.Regexp {
 
 type WalConfig struct {
 	Dir                   string `toml:"dir"`
-	FlushAfterRequests    int    `toml:"flush"`
-	BookmarkAfterRequests int    `toml:"bookmark"`
+	FlushAfterRequests    int    `toml:"flush-after"`
+	BookmarkAfterRequests int    `toml:"bookmark-after"`
+	IndexAfterRequests    int    `toml:"index-after"`
 }
 
 type TomlConfiguration struct {
@@ -136,6 +137,7 @@ type Configuration struct {
 	WalDir                   string
 	WalFlushAfterRequests    int
 	WalBookmarkAfterRequests int
+	WalIndexAfterRequests    int
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -166,6 +168,10 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		return nil, err
 	}
 
+	if tomlConfiguration.WalConfig.IndexAfterRequests == 0 {
+		tomlConfiguration.WalConfig.IndexAfterRequests = 1000
+	}
+
 	config := &Configuration{
 		AdminHttpPort:            tomlConfiguration.Admin.Port,
 		AdminAssetsDir:           tomlConfiguration.Admin.Assets,
@@ -188,6 +194,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		WalDir:                   tomlConfiguration.WalConfig.Dir,
 		WalFlushAfterRequests:    tomlConfiguration.WalConfig.FlushAfterRequests,
 		WalBookmarkAfterRequests: tomlConfiguration.WalConfig.BookmarkAfterRequests,
+		WalIndexAfterRequests:    tomlConfiguration.WalConfig.IndexAfterRequests,
 	}
 
 	// if it wasn't set, set it to 100

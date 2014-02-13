@@ -44,4 +44,5 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	c.Assert(config.WalDir, Equals, "/tmp/influxdb/development/wal")
 	c.Assert(config.WalFlushAfterRequests, Equals, 0)
 	c.Assert(config.WalBookmarkAfterRequests, Equals, 0)
+	c.Assert(config.WalIndexAfterRequests, Equals, 1000)
 }
