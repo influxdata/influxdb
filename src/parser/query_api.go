@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 )
 
 // this file provides the high level api of the query object
@@ -224,38 +223,7 @@ func parseTime(value *Value) (int64, error) {
 			return t.UnixNano(), err
 		}
 
-		name := value.Name
-
-		parsedFloat, err := strconv.ParseFloat(name[:len(name)-1], 64)
-		if err != nil {
-			return 0, err
-		}
-
-		switch name[len(name)-1] {
-		case 'u':
-			return int64(parsedFloat * float64(time.Microsecond)), nil
-		case 's':
-			return int64(parsedFloat * float64(time.Second)), nil
-		case 'm':
-			return int64(parsedFloat * float64(time.Minute)), nil
-		case 'h':
-			return int64(parsedFloat * float64(time.Hour)), nil
-		case 'd':
-			return int64(parsedFloat * 24 * float64(time.Hour)), nil
-		case 'w':
-			return int64(parsedFloat * 7 * 24 * float64(time.Hour)), nil
-		}
-
-		lastChar := name[len(name)-1]
-		if !unicode.IsDigit(rune(lastChar)) && lastChar != '.' {
-			return 0, fmt.Errorf("Invalid character '%c'", lastChar)
-		}
-
-		if name[len(name)-2] != '.' {
-			extraDigit := float64(lastChar - '0')
-			parsedFloat = parsedFloat*10 + extraDigit
-		}
-		return int64(parsedFloat), nil
+		return common.ParseTimeDuration(value.Name)
 	}
 
 	leftValue, err := parseTime(value.Elems[0])
