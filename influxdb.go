@@ -207,16 +207,6 @@ type Series struct {
 	Points  [][]interface{} `json:"points"`
 }
 
-func (self *Client) WriteSeries(series []*Series) error {
-	data, err := json.Marshal(series)
-	if err != nil {
-		return err
-	}
-	url := self.getUrl("/db/" + self.database + "/series")
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
-	return responseToError(resp, err, true)
-}
-
 type TimePrecision string
 
 const (
@@ -225,13 +215,23 @@ const (
 	Microsecond TimePrecision = "u"
 )
 
+func (self *Client) WriteSeries(series []*Series) error {
+	return self.writeSeriesCommon(series, nil)
+}
+
 func (self *Client) WriteSeriesWithTimePrecision(series []*Series, timePrecision TimePrecision) error {
+	return self.writeSeriesCommon(series, map[string]string{"time_precision": string(timePrecision)})
+}
+
+func (self *Client) writeSeriesCommon(series []*Series, options map[string]string) error {
 	data, err := json.Marshal(series)
 	if err != nil {
 		return err
 	}
 	url := self.getUrl("/db/" + self.database + "/series")
-	url += fmt.Sprintf("&time_precision=%s", timePrecision)
+	for name, value := range options {
+		url += fmt.Sprintf("&%s=%s", name, value)
+	}
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
 	return responseToError(resp, err, true)
 }
