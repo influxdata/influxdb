@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 )
 
 // this file provides the high level api of the query object
@@ -226,39 +225,6 @@ func parseTimeString(t string) (time.Time, error) {
 	return time.Parse("2006-01-02", t)
 }
 
-func parseTimeDuration(value string) (int64, error) {
-	parsedFloat, err := strconv.ParseFloat(value[:len(value)-1], 64)
-	if err != nil {
-		return 0, err
-	}
-
-	switch value[len(value)-1] {
-	case 'u':
-		return int64(parsedFloat * float64(time.Microsecond)), nil
-	case 's':
-		return int64(parsedFloat * float64(time.Second)), nil
-	case 'm':
-		return int64(parsedFloat * float64(time.Minute)), nil
-	case 'h':
-		return int64(parsedFloat * float64(time.Hour)), nil
-	case 'd':
-		return int64(parsedFloat * 24 * float64(time.Hour)), nil
-	case 'w':
-		return int64(parsedFloat * 7 * 24 * float64(time.Hour)), nil
-	}
-
-	lastChar := value[len(value)-1]
-	if !unicode.IsDigit(rune(lastChar)) && lastChar != '.' {
-		return 0, fmt.Errorf("Invalid character '%c'", lastChar)
-	}
-
-	if value[len(value)-2] != '.' {
-		extraDigit := float64(lastChar - '0')
-		parsedFloat = parsedFloat*10 + extraDigit
-	}
-	return int64(parsedFloat), nil
-}
-
 // parse time expressions, e.g. now() - 1d
 func parseTime(value *Value) (int64, error) {
 	if value.Type != ValueExpression {
@@ -275,7 +241,7 @@ func parseTime(value *Value) (int64, error) {
 			return t.UnixNano(), err
 		}
 
-		return parseTimeDuration(value.Name)
+		return common.ParseTimeDuration(value.Name)
 	}
 
 	leftValue, err := parseTime(value.Elems[0])
