@@ -46,14 +46,10 @@ func (self *index) requestOffset(requestNumber uint32) uint64 {
 		logger.Info("no index entries, assuming beginning of the file")
 		return 0
 	}
-	index := sort.Search(numberOfEntries, self.findOffsetBlock(requestNumber))
-	if index != numberOfEntries {
-		return self.Entries[index-1].StartOffset
-	}
 
 	firstEntry := self.Entries[0]
 	if requestNumber < firstEntry.StartRequestNumber {
-		return self.Entries[0].StartOffset
+		return firstEntry.StartOffset
 	}
 
 	lastEntry := self.Entries[numberOfEntries-1]
@@ -61,5 +57,6 @@ func (self *index) requestOffset(requestNumber uint32) uint64 {
 		return lastEntry.StartOffset
 	}
 
-	return 0
+	index := sort.Search(numberOfEntries, self.findOffsetBlock(requestNumber))
+	return self.Entries[index-1].StartOffset
 }

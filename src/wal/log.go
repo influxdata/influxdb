@@ -12,6 +12,7 @@ import (
 )
 
 type log struct {
+	closed                 bool
 	fileSize               uint64
 	entries                chan *entry
 	state                  *state
@@ -19,14 +20,14 @@ type log struct {
 	serverId               uint32
 	bookmarkChan           chan *bookmarkEvent
 	indexChan              chan struct{}
-	closed                 bool
 	requestsSinceLastFlush int
 	indexBlockSize         int
 	flushSize              int
 	bookmarkSize           int
+	suffix                 int
 }
 
-func newLog(file *os.File, indexBlockSize, flushSize, bookmarkSize int) (*log, error) {
+func newLog(file *os.File, suffix int, indexBlockSize, flushSize, bookmarkSize int) (*log, error) {
 	info, err := file.Stat()
 	if err != nil {
 		return nil, err
@@ -35,6 +36,7 @@ func newLog(file *os.File, indexBlockSize, flushSize, bookmarkSize int) (*log, e
 	size := uint64(info.Size())
 
 	l := &log{
+		suffix:         suffix,
 		entries:        make(chan *entry, 10),
 		bookmarkChan:   make(chan *bookmarkEvent),
 		indexChan:      make(chan struct{}),
@@ -52,6 +54,10 @@ func newLog(file *os.File, indexBlockSize, flushSize, bookmarkSize int) (*log, e
 	}
 	go l.processEntries()
 	return l, nil
+}
+
+func (self *log) firstRequestNumber() uint32 {
+	return self.state.CurrentRequestNumber - uint32(self.state.TotalNumberOfRequests)
 }
 
 func (self *log) internalIndex() error {
@@ -84,6 +90,9 @@ func (self *log) closeWithoutBookmark() error {
 }
 
 func (self *log) close() error {
+	if self.closed {
+		return nil
+	}
 	self.forceIndex()
 	self.forceBookmark(true)
 	self.internalFlush()
@@ -92,7 +101,7 @@ func (self *log) close() error {
 
 func (self *log) recover() error {
 	dir := filepath.Dir(self.file.Name())
-	bookmarkPath := filepath.Join(dir, "bookmark")
+	bookmarkPath := filepath.Join(dir, fmt.Sprintf("bookmark.%d", self.suffix))
 	_, err := os.Stat(bookmarkPath)
 	if os.IsNotExist(err) {
 		return nil
@@ -189,6 +198,8 @@ func (self *log) processEntries() {
 }
 
 func (self *log) conditionalBookmarkAndIndex() {
+	self.state.TotalNumberOfRequests++
+
 	shouldFlush := false
 	self.state.RequestsSinceLastIndex++
 	if self.state.RequestsSinceLastIndex >= uint32(self.indexBlockSize) {
@@ -369,7 +380,7 @@ func (self *log) forceIndex() error {
 func (self *log) internalBookmark() error {
 	logger.Info("Creating bookmark at file offset %d", self.fileSize)
 	dir := filepath.Dir(self.file.Name())
-	bookmarkPath := filepath.Join(dir, "bookmark.new")
+	bookmarkPath := filepath.Join(dir, fmt.Sprintf("bookmark.%d.new", self.suffix))
 	bookmarkFile, err := os.OpenFile(bookmarkPath, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return err
@@ -382,7 +393,7 @@ func (self *log) internalBookmark() error {
 	if err := bookmarkFile.Close(); err != nil {
 		return err
 	}
-	err = os.Rename(bookmarkPath, filepath.Join(dir, "bookmark"))
+	err = os.Rename(bookmarkPath, filepath.Join(dir, fmt.Sprintf("bookmark.%d", self.suffix)))
 	if err != nil {
 		return err
 	}
