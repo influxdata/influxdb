@@ -127,13 +127,16 @@ func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 	id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
 	c.Assert(id, Equals, uint32(1))
+	// close andn reopen the wal
 	wal.Close()
-	wal, err = NewWAL(wal.config)
-	c.Assert(err, IsNil)
-	request = generateRequest(2)
-	id, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
-	c.Assert(err, IsNil)
-	c.Assert(id, Equals, uint32(2))
+	for i := 0; i < 2; i++ {
+		wal, err = NewWAL(wal.config)
+		c.Assert(err, IsNil)
+		request = generateRequest(2)
+		id, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+		c.Assert(err, IsNil)
+		c.Assert(id, Equals, uint32(i+2))
+	}
 	// make sure the bookmark exist
 	bookmarkPath := path.Join(wal.config.WalDir, "bookmark")
 	f, err := os.Open(bookmarkPath)
@@ -141,8 +144,8 @@ func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 	s := &state{}
 	err = s.read(f)
 	c.Assert(err, IsNil)
-	c.Assert(s.ShardLastSequenceNumber[1], Equals, uint64(4))
-	c.Assert(s.CurrentRequestNumber, Equals, uint32(2))
+	c.Assert(s.ShardLastSequenceNumber[1], Equals, uint64(6))
+	c.Assert(s.CurrentRequestNumber, Equals, uint32(3))
 }
 
 func (_ *WalSuite) TestAutoBookmarkShouldntHappenTooOften(c *C) {
@@ -186,9 +189,35 @@ func (_ *WalSuite) TestReplay(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (_ *WalSuite) TestIndexAfterRecovery(c *C) {
+	wal := newWal(c)
+	for i := 0; i < 1500; i++ {
+		request := generateRequest(2)
+		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+		c.Assert(err, IsNil)
+		c.Assert(id, Equals, uint32(i+1))
+	}
+
+	wal.log.closeWithoutBookmark()
+
+	wal, err := NewWAL(wal.config)
+	c.Assert(err, IsNil)
+
+	for i := 0; i < 500; i++ {
+		request := generateRequest(2)
+		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+		c.Assert(err, IsNil)
+		c.Assert(id, Equals, uint32(1500+i+1))
+	}
+	c.Assert(wal.log.state.Index.Entries, HasLen, 2)
+	c.Assert(wal.log.state.Index.Entries[0].Size, Equals, uint32(1000))
+	c.Assert(wal.log.state.Index.Entries[0].StartRequestNumber, Equals, uint32(1))
+	c.Assert(wal.log.state.Index.Entries[1].Size, Equals, uint32(1000))
+	c.Assert(wal.log.state.Index.Entries[1].StartRequestNumber, Equals, uint32(1001))
+}
+
 func (_ *WalSuite) TestIndex(c *C) {
 	wal := newWal(c)
-	wal.log.indexBlockSize = 1000
 	for i := 0; i < 3000; i++ {
 		request := generateRequest(1)
 		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})

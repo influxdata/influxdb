@@ -1,6 +1,7 @@
 package wal
 
 import (
+	logger "code.google.com/p/log4go"
 	"sort"
 )
 
@@ -42,6 +43,7 @@ func (self *index) findOffsetBlock(requestNumber uint32) func(int) bool {
 func (self *index) requestOffset(requestNumber uint32) uint64 {
 	numberOfEntries := len(self.Entries)
 	if numberOfEntries == 0 {
+		logger.Info("no index entries, assuming beginning of the file")
 		return 0
 	}
 	index := sort.Search(numberOfEntries, self.findOffsetBlock(requestNumber))
@@ -55,7 +57,7 @@ func (self *index) requestOffset(requestNumber uint32) uint64 {
 	}
 
 	lastEntry := self.Entries[numberOfEntries-1]
-	if requestNumber > lastEntry.StartRequestNumber {
+	if requestNumber >= lastEntry.StartRequestNumber {
 		return lastEntry.StartOffset
 	}
 

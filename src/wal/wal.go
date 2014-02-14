@@ -1,6 +1,7 @@
 package wal
 
 import (
+	logger "code.google.com/p/log4go"
 	"configuration"
 	"fmt"
 	"os"
@@ -29,7 +30,9 @@ func NewWAL(config *configuration.Configuration) (*WAL, error) {
 		return nil, err
 	}
 
-	logFile, err := os.OpenFile(path.Join(config.WalDir, "log"), os.O_CREATE|os.O_RDWR, 0644)
+	logFilePath := path.Join(config.WalDir, "log")
+	logger.Info("Opening log file %s", logFilePath)
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
 	}
