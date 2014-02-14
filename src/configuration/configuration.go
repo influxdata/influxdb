@@ -99,6 +99,7 @@ type WalConfig struct {
 	FlushAfterRequests    int    `toml:"flush-after"`
 	BookmarkAfterRequests int    `toml:"bookmark-after"`
 	IndexAfterRequests    int    `toml:"index-after"`
+	RequestsPerLogFile    int    `toml:"requests-per-log-file"`
 }
 
 type TomlConfiguration struct {
@@ -138,6 +139,7 @@ type Configuration struct {
 	WalFlushAfterRequests    int
 	WalBookmarkAfterRequests int
 	WalIndexAfterRequests    int
+	WalRequestsPerLogFile    int
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -172,6 +174,10 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		tomlConfiguration.WalConfig.IndexAfterRequests = 1000
 	}
 
+	if tomlConfiguration.WalConfig.RequestsPerLogFile == 0 {
+		tomlConfiguration.WalConfig.RequestsPerLogFile = 10 * tomlConfiguration.WalConfig.IndexAfterRequests
+	}
+
 	config := &Configuration{
 		AdminHttpPort:            tomlConfiguration.Admin.Port,
 		AdminAssetsDir:           tomlConfiguration.Admin.Assets,
@@ -195,6 +201,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		WalFlushAfterRequests:    tomlConfiguration.WalConfig.FlushAfterRequests,
 		WalBookmarkAfterRequests: tomlConfiguration.WalConfig.BookmarkAfterRequests,
 		WalIndexAfterRequests:    tomlConfiguration.WalConfig.IndexAfterRequests,
+		WalRequestsPerLogFile:    tomlConfiguration.WalConfig.RequestsPerLogFile,
 	}
 
 	// if it wasn't set, set it to 100
