@@ -45,4 +45,5 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	c.Assert(config.WalFlushAfterRequests, Equals, 0)
 	c.Assert(config.WalBookmarkAfterRequests, Equals, 0)
 	c.Assert(config.WalIndexAfterRequests, Equals, 1000)
+	c.Assert(config.WalRequestsPerLogFile, Equals, 10000)
 }
