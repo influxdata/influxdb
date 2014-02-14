@@ -642,10 +642,28 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 	}
 }
 
-func (self *RaftServer) CreateShard(id uint32, startTime, endTime time.Time, server []*cluster.ClusterServer) error {
-	return nil
+func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster.ShardData, error) {
+	fmt.Println("RAFT: CreateShards")
+	command := NewCreateShardsCommand(shards)
+	createShardsResult, err := self.doOrProxyCommand(command, "create_shards")
+	if err != nil {
+		log.Error("RAFT: CreateShards: ", err)
+		return nil, err
+	}
+	js, err := json.Marshal(createShardsResult)
+	fmt.Println("RAFT JSON: ", string(js))
+	if err != nil {
+		return nil, err
+	}
+	newShards := make([]*cluster.NewShardData, 0)
+	err = json.Unmarshal(js, &newShards)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("NEW SHARDS: ", newShards)
+	return self.clusterConfig.MarshalNewShardArrayToShards(newShards)
 }
 
-func (self *RaftServer) DeleteShard(id uint32, server []*cluster.ClusterServer) error {
+func (self *RaftServer) DeleteShard(id uint32) error {
 	return nil
 }

@@ -47,6 +47,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 
 	clusterConfig := cluster.NewClusterConfiguration(config, writeLog, shardDb, newClient)
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
+	clusterConfig.SetShardCreator(raftServer)
 
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
 	go coord.SyncLogs()

@@ -7,6 +7,8 @@ import (
 	"github.com/BurntSushi/toml"
 	"io/ioutil"
 	"os"
+	"regexp"
+	"time"
 )
 
 type AdminConfig struct {
@@ -43,6 +45,58 @@ type LevelDbConfiguration struct {
 	MaxOpenFiles int `toml:"max-open-files"`
 }
 
+type ShardingDefinition struct {
+	ReplicationFactor int                `toml:"replication-factor"`
+	ShortTerm         ShardConfiguration `toml:"short-term"`
+	LongTerm          ShardConfiguration `toml:"long-term"`
+}
+
+type ShardConfiguration struct {
+	Duration         string
+	parsedDuration   time.Duration
+	Split            int
+	SplitRandom      string `toml:"split-random"`
+	splitRandomRegex *regexp.Regexp
+	hasRandomSplit   bool
+}
+
+func (self *ShardConfiguration) ParseAndValidate() error {
+	fmt.Println("ParseAndValidate...")
+	var err error
+	if self.Split == 0 {
+		self.Split = 1
+	}
+	if self.SplitRandom == "" {
+		self.hasRandomSplit = false
+	} else {
+		self.hasRandomSplit = true
+		self.splitRandomRegex, err = regexp.Compile(self.SplitRandom)
+		if err != nil {
+			return err
+		}
+	}
+	if self.Duration == "" {
+		fmt.Println("ParseAndValidate duration was empty")
+		self.parsedDuration = time.Hour * 24 * 7
+		return nil
+	}
+	self.parsedDuration, err = time.ParseDuration(self.Duration)
+	fmt.Println("ParseAndValidate: split, random, duration", self.Split, self.SplitRandom, self.Duration, self.ParsedDuration().Seconds())
+	return err
+}
+
+func (self *ShardConfiguration) ParsedDuration() *time.Duration {
+	return &self.parsedDuration
+}
+
+func (self *ShardConfiguration) HasRandomSplit() bool {
+	return self.hasRandomSplit
+}
+
+func (self *ShardConfiguration) SplitRegex() *regexp.Regexp {
+	return self.splitRandomRegex
+}
+
 type TomlConfiguration struct {
 	Admin       AdminConfig
 	Api         ApiConfig
@@ -52,7 +106,8 @@ type TomlConfiguration struct {
 	Logging     LoggingConfig
 	LevelDb     LevelDbConfiguration
 	Hostname    string
-	BindAddress string `toml:"bind-address"`
+	BindAddress string             `toml:"bind-address"`
+	Sharding    ShardingDefinition `toml:"sharding"`
 }
 
 type Configuration struct {
@@ -71,6 +126,9 @@ type Configuration struct {
 	LogLevel            string
 	BindAddress         string
 	LevelDbMaxOpenFiles int
+	ShortTermShard      *ShardConfiguration
+	LongTermShard       *ShardConfiguration
+	ReplicationFactor   int
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -83,12 +141,22 @@ func LoadConfiguration(fileName string) *Configuration {
 }
 
 func parseTomlConfiguration(filename string) (*Configuration, error) {
+	fmt.Println("parseTomlConfigration: ", filename)
 	body, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
 	tomlConfiguration := &TomlConfiguration{}
 	_, err = toml.Decode(string(body), tomlConfiguration)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("TOML: ", filename)
+	err = tomlConfiguration.Sharding.LongTerm.ParseAndValidate()
+	if err != nil {
+		return nil, err
+	}
+	err = tomlConfiguration.Sharding.ShortTerm.ParseAndValidate()
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +177,9 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		Hostname:            tomlConfiguration.Hostname,
 		BindAddress:         tomlConfiguration.BindAddress,
 		LevelDbMaxOpenFiles: tomlConfiguration.LevelDb.MaxOpenFiles,
+		LongTermShard:       &tomlConfiguration.Sharding.LongTerm,
+		ShortTermShard:      &tomlConfiguration.Sharding.ShortTerm,
+		ReplicationFactor:   tomlConfiguration.Sharding.ReplicationFactor,
 	}
 
 	// if it wasn't set, set it to 100

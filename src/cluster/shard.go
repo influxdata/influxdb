@@ -4,6 +4,7 @@ import (
 	log "code.google.com/p/log4go"
 	"engine"
 	"errors"
+	"fmt"
 	"parser"
 	"protocol"
 	"sort"
@@ -21,6 +22,7 @@ type Shard interface {
 	EndTime() time.Time
 	Write(*protocol.Request) error
 	Query(querySpec *parser.QuerySpec, response chan *protocol.Response) error
+	IsMicrosecondInRange(t int64) bool
 }
 
 // Passed to a shard (local datastore or whatever) that gets yielded points from series.
@@ -59,9 +61,26 @@ func (self *PassthroughProcessor) Close() {
 	self.responseChan <- response
 }
 
+type NewShardData struct {
+	Id        uint32 `json:",omitempty"`
+	StartTime time.Time
+	EndTime   time.Time
+	ServerIds []uint32
+	Type      ShardType
+}
+
+type ShardType int
+
+const (
+	LONG_TERM ShardType = iota
+	SHORT_TERM
+)
+
 type ShardData struct {
 	id           uint32
 	startTime    time.Time
+	startMicro   int64
+	endMicro     int64
 	endTime      time.Time
 	wal          WAL
 	servers      []wal.Server
@@ -69,10 +88,21 @@ type ShardData struct {
 	localShard   LocalShardDb
 	localWrites  chan *protocol.Request
 	serverWrites map[*ClusterServer]chan *protocol.Request
+	serverIds    []uint32
+	shardType    ShardType
 }
 
-func NewShard(id uint32, startTime, endTime time.Time, wal WAL) *ShardData {
-	return &ShardData{id: id, startTime: startTime, endTime: endTime, wal: wal}
+func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, wal WAL) *ShardData {
+	return &ShardData{
+		id:         id,
+		startTime:  startTime,
+		endTime:    endTime,
+		wal:        wal,
+		startMicro: startTime.Unix() * int64(1000*1000),
+		endMicro:   endTime.Unix() * int64(1000*1000),
+		serverIds:  make([]uint32, 0),
+		shardType:  shardType,
+	}
 }
 
 const (
@@ -106,10 +136,15 @@ func (self *ShardData) EndTime() time.Time {
 	return self.endTime
 }
 
+func (self *ShardData) IsMicrosecondInRange(t int64) bool {
+	return t >= self.startMicro && t < self.endMicro
+}
+
 func (self *ShardData) SetServers(servers []*ClusterServer) {
 	self.servers = make([]wal.Server, len(servers), len(servers))
 	self.serverWrites = make(map[*ClusterServer]chan *protocol.Request)
 	for i, server := range servers {
+		self.serverIds = append(self.serverIds, server.Id())
 		self.servers[i] = server
 		writeBuffer := make(chan *protocol.Request, PER_SERVER_BUFFER_SIZE)
 		go self.handleWritesToServer(server, writeBuffer)
@@ -117,7 +152,8 @@ func (self *ShardData) SetServers(servers []*ClusterServer) {
 	}
 }
 
-func (self *ShardData) SetLocalStore(store LocalShardStore) error {
+func (self *ShardData) SetLocalStore(store LocalShardStore, localServerId uint32) error {
+	self.serverIds = append(self.serverIds, localServerId)
 	self.store = store
 	self.localWrites = make(chan *protocol.Request, LOCAL_WRITE_BUFFER_SIZE)
 	shard, err := self.store.GetOrCreateShard(self.id)
@@ -128,6 +164,14 @@ func (self *ShardData) SetLocalStore(store LocalShardStore) error {
 
 	go self.handleLocalWrites()
 	return nil
+}
+
+func (self *ShardData) IsLocal() bool {
+	return self.store != nil
+}
+
+func (self *ShardData) ServerIds() []uint32 {
+	return self.serverIds
 }
 
 func (self *ShardData) Write(request *protocol.Request) error {
@@ -156,8 +200,20 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 	return errors.New("Remote shards not implemented!")
 }
 
+// used to serialize shards when sending around in raft or when snapshotting in the log
+func (self *ShardData) ToNewShardData() *NewShardData {
+	return &NewShardData{
+		Id:        self.id,
+		StartTime: self.startTime,
+		EndTime:   self.endTime,
+		Type:      self.shardType,
+		ServerIds: self.serverIds,
+	}
+}
+
 func (self *ShardData) handleWritesToServer(server *ClusterServer, writeBuffer chan *protocol.Request) {
 	responseStream := make(chan *protocol.Response)
+	fmt.Println("HandleWritesToServer: ", server)
 	for {
 		request := <-writeBuffer
 		requestNumber := *request.RequestNumber
@@ -193,15 +249,15 @@ func (self *ShardData) handleLocalWrites() {
 	}
 }
 
-func SortShardsByTimeAscending(shards []Shard) {
+func SortShardsByTimeAscending(shards []*ShardData) {
 	sort.Sort(ByShardTimeAsc{shards})
 }
 
-func SortShardsByTimeDescending(shards []Shard) {
+func SortShardsByTimeDescending(shards []*ShardData) {
 	sort.Sort(ByShardTimeDesc{shards})
 }
 
-type ShardCollection []Shard
+type ShardCollection []*ShardData
 
 func (s ShardCollection) Len() int      { return len(s) }
 func (s ShardCollection) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
@@ -211,13 +267,23 @@ type ByShardTimeAsc struct{ ShardCollection }
 
 func (s ByShardTimeAsc) Less(i, j int) bool {
 	if s.ShardCollection[i] != nil && s.ShardCollection[j] != nil {
-		return s.ShardCollection[i].StartTime().Unix() < s.ShardCollection[j].StartTime().Unix()
+		iStartTime := s.ShardCollection[i].StartTime().Unix()
+		jStartTime := s.ShardCollection[j].StartTime().Unix()
+		if iStartTime == jStartTime {
+			return s.ShardCollection[i].Id() < s.ShardCollection[j].Id()
+		}
+		return iStartTime < jStartTime
 	}
 	return false
 }
 func (s ByShardTimeDesc) Less(i, j int) bool {
 	if s.ShardCollection[i] != nil && s.ShardCollection[j] != nil {
-		return s.ShardCollection[i].StartTime().Unix() > s.ShardCollection[j].StartTime().Unix()
+		iStartTime := s.ShardCollection[i].StartTime().Unix()
+		jStartTime := s.ShardCollection[j].StartTime().Unix()
+		if iStartTime == jStartTime {
+			return s.ShardCollection[i].Id() < s.ShardCollection[j].Id()
+		}
+		return iStartTime > jStartTime
 	}
 	return false
 }

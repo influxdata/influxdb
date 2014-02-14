@@ -21,6 +21,7 @@ type ProtobufClient struct {
 	connectionStatus  uint32
 	reconnectWait     sync.WaitGroup
 	connectCalled     bool
+	lastRequestId     uint32
 }
 
 type runningRequest struct {
@@ -72,6 +73,10 @@ func (self *ProtobufClient) getConnection() net.Conn {
 // with a matching request.Id. The REQUEST_RETRY_ATTEMPTS constant of 3 and the RECONNECT_RETRY_WAIT of 100ms means
 // that an attempt to make a request to a downed server will take 300ms to time out.
 func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
+	if request.Id == nil {
+		id := atomic.AddUint32(&self.lastRequestId, uint32(1))
+		request.Id = &id
+	}
 	if responseStream != nil {
 		self.requestBufferLock.Lock()
 

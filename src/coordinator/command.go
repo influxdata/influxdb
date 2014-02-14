@@ -22,6 +22,7 @@ func init() {
 		&CreateContinuousQueryCommand{},
 		&DeleteContinuousQueryCommand{},
 		&SetContinuousQueryTimestampCommand{},
+		&CreateShardsCommand{},
 	} {
 		internalRaftCommands[command.CommandName()] = command
 	}
@@ -241,4 +242,29 @@ func (c *InfluxJoinCommand) Apply(server raft.Server) (interface{}, error) {
 
 func (c *InfluxJoinCommand) NodeName() string {
 	return c.Name
+}
+
+type CreateShardsCommand struct {
+	Shards []*cluster.NewShardData
+}
+
+func NewCreateShardsCommand(shards []*cluster.NewShardData) *CreateShardsCommand {
+	return &CreateShardsCommand{shards}
+}
+
+func (c *CreateShardsCommand) CommandName() string {
+	return "create_shards"
+}
+
+func (c *CreateShardsCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*cluster.ClusterConfiguration)
+	createdShards, err := config.AddShards(c.Shards)
+	if err != nil {
+		return nil, err
+	}
+	createdShardData := make([]*cluster.NewShardData, 0)
+	for _, s := range createdShards {
+		createdShardData = append(createdShardData, s.ToNewShardData())
+	}
+	return createdShardData, nil
 }
