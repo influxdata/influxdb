@@ -18,6 +18,7 @@ type state struct {
 	ShardLastSequenceNumber   map[uint32]uint64
 	ServerLastRequestNumber   map[uint32]uint32
 	Index                     *index
+	TotalNumberOfRequests     int
 }
 
 func newState() *state {
