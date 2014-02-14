@@ -61,8 +61,8 @@ func (self *log) internalIndex() error {
 		return nil
 	}
 
-	startRequestNumber := self.state.CurrentRequestNumber - uint32(self.state.RequestsSinceLastIndex)
-	logger.Info("Creating new index entry [%d,%d]", startRequestNumber, self.state.RequestsSinceLastBookmark)
+	startRequestNumber := self.state.CurrentRequestNumber - uint32(self.state.RequestsSinceLastIndex) + 1
+	logger.Info("Creating new index entry [%d,%d]", startRequestNumber, self.state.RequestsSinceLastIndex)
 	self.state.Index.addEntry(startRequestNumber, self.state.RequestsSinceLastIndex, self.fileSize)
 	self.state.RequestsSinceLastIndex = 0
 	return nil
@@ -111,6 +111,10 @@ func (self *log) recover() error {
 		return err
 	}
 
+	self.state.RequestsSinceLastBookmark = 0
+	self.state.RequestsSinceLastIndex = 0
+	self.state.setFileOffset(self.state.FileOffset)
+
 	// replay the rest of the wal
 	if _, err := self.file.Seek(self.state.FileOffset, os.SEEK_SET); err != nil {
 		return err
@@ -134,6 +138,7 @@ func (self *log) recover() error {
 		}
 
 		self.state.recover(x)
+		self.conditionalBookmarkAndIndex()
 	}
 
 	info, err := self.file.Stat()
@@ -183,6 +188,26 @@ func (self *log) processEntries() {
 	}
 }
 
+func (self *log) conditionalBookmarkAndIndex() {
+	shouldFlush := false
+	self.state.RequestsSinceLastIndex++
+	if self.state.RequestsSinceLastIndex >= uint32(self.indexBlockSize) {
+		shouldFlush = true
+		self.internalIndex()
+	}
+
+	self.state.RequestsSinceLastBookmark++
+	if self.state.RequestsSinceLastBookmark >= self.bookmarkSize {
+		shouldFlush = true
+		self.internalBookmark()
+	}
+
+	self.requestsSinceLastFlush++
+	if self.requestsSinceLastFlush > self.flushSize || shouldFlush {
+		self.internalFlush()
+	}
+}
+
 func (self *log) internalAppendRequest(x *entry) {
 	self.assignSequenceNumbers(x.shardId, x.request)
 	bytes, err := x.request.Encode()
@@ -192,7 +217,6 @@ func (self *log) internalAppendRequest(x *entry) {
 	var requestNumber uint32
 	var written, writtenHdrBytes int
 	var hdr *entryHeader
-	shouldFlush := false
 
 	if err != nil {
 		goto returnError
@@ -206,35 +230,21 @@ func (self *log) internalAppendRequest(x *entry) {
 	}
 	writtenHdrBytes, err = hdr.Write(self.file)
 	if err != nil {
+		logger.Error("Error while writing header: %s", err)
 		goto returnError
 	}
 	written, err = self.file.Write(bytes)
 	if err != nil {
+		logger.Error("Error while writing request: %s", err)
 		goto returnError
 	}
 	if written < len(bytes) {
 		err = fmt.Errorf("Couldn't write entire request")
+		logger.Error("Error while writing request: %s", err)
 		goto returnError
 	}
 	self.fileSize += uint64(writtenHdrBytes + written)
-
-	self.state.RequestsSinceLastBookmark++
-	if self.state.RequestsSinceLastBookmark >= self.bookmarkSize {
-		shouldFlush = true
-		self.internalBookmark()
-	}
-
-	self.state.RequestsSinceLastIndex++
-	if self.state.RequestsSinceLastIndex >= uint32(self.indexBlockSize) {
-		shouldFlush = true
-		self.internalIndex()
-	}
-
-	self.requestsSinceLastFlush++
-	if self.requestsSinceLastFlush > self.flushSize || shouldFlush {
-		self.internalFlush()
-	}
-
+	self.conditionalBookmarkAndIndex()
 	x.confirmation <- &confirmation{requestNumber, nil}
 	return
 returnError:
