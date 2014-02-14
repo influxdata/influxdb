@@ -217,6 +217,25 @@ func (self *Client) WriteSeries(series []*Series) error {
 	return responseToError(resp, err, true)
 }
 
+type TimePrecision string
+
+const (
+	Second      TimePrecision = "s"
+	Millisecond TimePrecision = "m"
+	Microsecond TimePrecision = "u"
+)
+
+func (self *Client) WriteSeriesWithTimePrecision(series []*Series, timePrecision TimePrecision) error {
+	data, err := json.Marshal(series)
+	if err != nil {
+		return err
+	}
+	url := self.getUrl("/db/" + self.database + "/series")
+	url += fmt.Sprintf("&time_precision=%s", timePrecision)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	return responseToError(resp, err, true)
+}
+
 func (self *Client) Query(query string) ([]*Series, error) {
 	escapedQuery := url.QueryEscape(query)
 	url := self.getUrl("/db/" + self.database + "/series")
