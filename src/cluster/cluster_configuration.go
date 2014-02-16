@@ -27,6 +27,7 @@ type QuerySpec interface {
 	TableNames() []string
 	GetGroupByInterval() *time.Duration
 	IsRegex() bool
+	ShouldQueryShortTermAndLongTerm() (shouldQueryShortTerm bool, shouldQueryLongTerm bool)
 }
 
 type WAL interface {
@@ -705,7 +706,7 @@ func (self *ClusterConfiguration) GetMapForJsonSerialization() map[string]interf
 	return jsonObject
 }
 
-func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series string, microsecondsEpoch int64) (Shard, error) {
+func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series string, microsecondsEpoch int64) (*ShardData, error) {
 	shards := self.shortTermShards
 	//	split := self.config.ShortTermShard.Split
 	hasRandomSplit := self.config.ShortTermShard.HasRandomSplit()
@@ -782,7 +783,9 @@ func (self *ClusterConfiguration) createShards(microsecondsEpoch int64, shardTyp
 			if startIndex >= len(self.servers) {
 				startIndex = 0
 			}
-			serverIds = append(serverIds, self.servers[startIndex].Id())
+			server := self.servers[startIndex]
+			self.lastServerToGetShard = server
+			serverIds = append(serverIds, server.Id())
 			startIndex += 1
 		}
 		shards = append(shards, &NewShardData{StartTime: *startTime, EndTime: *endTime, ServerIds: serverIds, Type: shardType})
@@ -810,11 +813,55 @@ func (self *ClusterConfiguration) getStartAndEndBasedOnDuration(microsecondsEpoc
 	return &startTime, &endTime
 }
 
-func (self *ClusterConfiguration) GetShards(querySpec QuerySpec) []Shard {
-	shard := NewShard(self.LocalServerId, time.Now(), time.Now(), LONG_TERM, self.wal)
-	shard.SetServers([]*ClusterServer{})
-	shard.SetLocalStore(self.shardStore, self.LocalServerId)
-	return []Shard{shard}
+func (self *ClusterConfiguration) GetShards(querySpec QuerySpec) []*ShardData {
+	shouldQueryShortTerm, shouldQueryLongTerm := querySpec.ShouldQueryShortTermAndLongTerm()
+
+	if shouldQueryLongTerm && shouldQueryShortTerm {
+		fmt.Println("GetShards: long term and short term")
+		shards := make([]*ShardData, 0)
+		shards = append(shards, self.getShardRange(querySpec, self.shortTermShards)...)
+		shards = append(shards, self.getShardRange(querySpec, self.longTermShards)...)
+		SortShardsByTimeDescending(shards)
+		return shards
+	} else if shouldQueryLongTerm {
+		fmt.Println("GetShards: long term")
+		return self.getShardRange(querySpec, self.longTermShards)
+	}
+	fmt.Println("GetShards: short term")
+	return self.getShardRange(querySpec, self.shortTermShards)
+}
+
+func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*ShardData) []*ShardData {
+	fmt.Println("---------------------- getShardRange")
+	startTime := querySpec.GetStartTime().UnixNano() / 1000
+	endTime := querySpec.GetEndTime().UnixNano() / 1000
+	fmt.Println("StartTime, EndTime: ", startTime, endTime)
+	startIndex := -1
+	endIndex := -1
+
+	// this logic looks a little weird because the shards passed into this function should
+	// always be passed in time descending order. But start time is low and end time is high. just FYI.
+	for i, shard := range shards {
+		fmt.Println("shard: ", shard)
+		if startIndex == -1 {
+			if shard.IsMicrosecondInRange(endTime) {
+				startIndex = i
+				continue
+			}
+		} else if shard.IsMicrosecondInRange(startTime) {
+			endIndex = i
+			break
+		}
+	}
+	fmt.Println("StartIndex, EndIndex: ", startIndex, endIndex)
+	fmt.Println("END ---------------------- getShardRange")
+	if startIndex == -1 {
+		return []*ShardData{}
+	}
+	if endIndex == -1 {
+		endIndex = len(shards)
+	}
+	return shards[startIndex:endIndex]
 }
 
 func (self *ClusterConfiguration) HashDbAndSeriesToInt(database, series string) int {

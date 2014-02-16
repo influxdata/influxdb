@@ -259,7 +259,7 @@ func (self *ServerSuite) TestQueryAgainstMultipleShards(c *C) {
 	t := (time.Now().Unix() - 3600) * 1000
 	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_query_against_multiple_shards", "columns": ["value", "time"]}]`, t)
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second)
 	collection := self.serverProcesses[0].Query("test_rep", "select count(value) from test_query_against_multiple_shards group by time(1h)", false, c)
 	c.Assert(collection.Members, HasLen, 1)
 	series := collection.GetSeries("test_query_against_multiple_shards", c)

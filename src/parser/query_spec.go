@@ -107,3 +107,15 @@ func (self *QuerySpec) IsSinglePointQuery() bool {
 func (self *QuerySpec) SelectQuery() *SelectQuery {
 	return self.query.SelectQuery
 }
+
+func (self *QuerySpec) ShouldQueryShortTermAndLongTerm() (shouldQueryShortTerm bool, shouldQueryLongTerm bool) {
+	for val, _ := range self.SeriesValuesAndColumns() {
+		firstChar := val.Name[0]
+		if firstChar < 97 {
+			shouldQueryLongTerm = true
+		} else {
+			shouldQueryShortTerm = true
+		}
+	}
+	return
+}

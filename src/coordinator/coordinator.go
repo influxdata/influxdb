@@ -154,6 +154,11 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, database string, yield func(*protocol.Series) error) error {
 	querySpec := parser.NewQuerySpec(user, database, query)
 	shards := self.clusterConfiguration.GetShards(querySpec)
+	fmt.Println("COORD: runQuery shards ")
+	for _, s := range shards {
+		fmt.Println("shard: ", s)
+	}
+	fmt.Println("**************************")
 	responses := make([]chan *protocol.Response, len(shards), len(shards))
 	for i, shard := range shards {
 		responseChan := make(chan *protocol.Response, 1)
