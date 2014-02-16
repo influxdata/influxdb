@@ -61,7 +61,6 @@ type ShardConfiguration struct {
 }
 
 func (self *ShardConfiguration) ParseAndValidate() error {
-	fmt.Println("ParseAndValidate...")
 	var err error
 	if self.Split == 0 {
 		self.Split = 1
@@ -76,12 +75,10 @@ func (self *ShardConfiguration) ParseAndValidate() error {
 		}
 	}
 	if self.Duration == "" {
-		fmt.Println("ParseAndValidate duration was empty")
 		self.parsedDuration = time.Hour * 24 * 7
 		return nil
 	}
 	self.parsedDuration, err = time.ParseDuration(self.Duration)
-	fmt.Println("ParseAndValidate: split, random, duration", self.Split, self.SplitRandom, self.Duration, self.ParsedDuration().Seconds())
 	return err
 }
 
@@ -141,7 +138,6 @@ func LoadConfiguration(fileName string) *Configuration {
 }
 
 func parseTomlConfiguration(filename string) (*Configuration, error) {
-	fmt.Println("parseTomlConfigration: ", filename)
 	body, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -151,7 +147,6 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("TOML: ", filename)
 	err = tomlConfiguration.Sharding.LongTerm.ParseAndValidate()
 	if err != nil {
 		return nil, err

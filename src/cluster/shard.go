@@ -175,6 +175,8 @@ func (self *ShardData) ServerIds() []uint32 {
 }
 
 func (self *ShardData) Write(request *protocol.Request) error {
+	fmt.Println("SHARD Write: ", self.id, request)
+	request.ShardId = &self.id
 	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self, self.servers)
 	if err != nil {
 		return err
@@ -185,6 +187,18 @@ func (self *ShardData) Write(request *protocol.Request) error {
 	}
 	for _, writeBuffer := range self.serverWrites {
 		writeBuffer <- request
+	}
+	return nil
+}
+
+func (self *ShardData) WriteLocalOnly(request *protocol.Request) error {
+	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self, self.servers)
+	if err != nil {
+		return err
+	}
+	request.RequestNumber = &requestNumber
+	if self.store != nil {
+		self.localWrites <- request
 	}
 	return nil
 }
@@ -229,6 +243,7 @@ func (self *ShardData) handleWritesToServer(server *ClusterServer, writeBuffer c
 		server.MakeRequest(request, responseStream)
 		response := <-responseStream
 		if *response.Type == protocol.Response_WRITE_OK {
+			fmt.Println("COMMIT!")
 			self.wal.Commit(requestNumber, server)
 		} else {
 			// TODO: retry logic for failed request

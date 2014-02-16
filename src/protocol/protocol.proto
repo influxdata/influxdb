@@ -49,10 +49,11 @@ message Request {
   // only write and delete requests get sequenceNumbers assigned. These are used to
   // ensure that the receiving server is up to date
   optional uint64 sequence_number = 5;
+  optional uint32 shard_id = 6;
   // the originzatingServerId is only used for writes and deletes. It is the id of the
   // server that first committed the write to its local datastore. It is used for
   // the other servers in the hash ring to ensure they remain consistent.
-  optional uint32 originating_server_id = 6;
+  optional uint32 originating_server_id = 21;
   optional uint32 cluster_version = 10;
   optional string query = 7;
   optional string user_name = 8;

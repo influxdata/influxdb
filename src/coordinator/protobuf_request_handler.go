@@ -33,7 +33,17 @@ func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, 
 }
 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
-	if *request.Type == protocol.Request_PROXY_WRITE {
+	if *request.Type == protocol.Request_WRITE {
+		shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
+		fmt.Println("HANDLE: ", shard)
+		err := shard.WriteLocalOnly(request)
+		if err != nil {
+			log.Error("ProtobufRequestHandler: error writing local shard: ", err)
+			return err
+		}
+		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
+		return self.WriteResponse(conn, response)
+	} else if *request.Type == protocol.Request_PROXY_WRITE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
 		request.OriginatingServerId = &self.clusterConfig.LocalServerId

@@ -79,6 +79,8 @@ type ClusterConfiguration struct {
 	shardCreator               ShardCreator
 	shardLock                  sync.Mutex
 	lastShardId                uint32
+	shardsById                 map[uint32]*ShardData
+	shardsByIdLock             sync.RWMutex
 }
 
 type ContinuousQuery struct {
@@ -111,6 +113,7 @@ func NewClusterConfiguration(
 		longTermShards:             make([]*ShardData, 0),
 		shortTermShards:            make([]*ShardData, 0),
 		random:                     rand.New(rand.NewSource(time.Now().UnixNano())),
+		shardsById:                 make(map[uint32]*ShardData, 0),
 	}
 }
 
@@ -863,8 +866,8 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 	}
 
 	for _, newShard := range shards {
-		self.lastShardId += uint32(1)
-		shard := NewShard(self.LocalServerId, newShard.StartTime, newShard.EndTime, shardType, self.wal)
+		id := atomic.AddUint32(&self.lastShardId, uint32(1))
+		shard := NewShard(id, newShard.StartTime, newShard.EndTime, shardType, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range newShard.ServerIds {
 			if serverId == self.LocalServerId {
@@ -878,6 +881,10 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 			}
 		}
 		shard.SetServers(servers)
+
+		self.shardsByIdLock.Lock()
+		self.shardsById[shard.id] = shard
+		self.shardsByIdLock.Unlock()
 
 		message := "Adding long term shard"
 		if newShard.Type == LONG_TERM {
@@ -930,4 +937,21 @@ func (self *ClusterConfiguration) MarshalNewShardArrayToShards(newShards []*NewS
 	}
 	fmt.Println("MarshalNewShardArray DONE!")
 	return shards, nil
+}
+
+// This function is for the request handler to get the shard to write a
+// request to locally.
+func (self *ClusterConfiguration) GetLocalShardById(id uint32) *ShardData {
+	self.shardsByIdLock.RLock()
+	defer self.shardsByIdLock.RUnlock()
+	shard := self.shardsById[id]
+
+	// If it's nil it just means that it hasn't been replicated by Raft yet.
+	// Just create a fake local shard temporarily for the write.
+	if shard == nil {
+		shard = NewShard(id, time.Now(), time.Now(), LONG_TERM, self.wal)
+		shard.SetServers([]*ClusterServer{})
+		shard.SetLocalStore(self.shardStore, self.LocalServerId)
+	}
+	return shard
 }
