@@ -292,9 +292,8 @@ func (s *server) setState(state string) {
 	}
 
 	// Dispatch state and leader change events.
-	if prevState != state {
-		s.DispatchEvent(newEvent(StateChangeEventType, s.state, prevState))
-	}
+	s.DispatchEvent(newEvent(StateChangeEventType, s.state, prevState))
+
 	if prevLeader != s.leader {
 		s.DispatchEvent(newEvent(LeaderChangeEventType, s.leader, prevLeader))
 	}
@@ -490,47 +489,44 @@ func (s *server) Running() bool {
 // Term
 //--------------------------------------
 
-// Sets the current term for the server. This is only used when an external
-// current term is found.
-func (s *server) setCurrentTerm(term uint64, leaderName string, append bool) {
+// updates the current term for the server. This is only used when a larger
+// external term is found.
+func (s *server) updateCurrentTerm(term uint64, leaderName string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if term <= s.currentTerm {
+		panic("updteCurrentTerm: update is called when term is not larger than currentTerm")
+	}
+
 	// Store previous values temporarily.
-	prevState := s.state
 	prevTerm := s.currentTerm
 	prevLeader := s.leader
 
-	if term > s.currentTerm {
-		// stop heartbeats before step-down
-		if s.state == Leader {
-			s.mutex.Unlock()
-			for _, peer := range s.peers {
-				peer.stopHeartbeat(false)
-			}
-			s.mutex.Lock()
+	// set currentTerm = T, convert to follower (§5.1)
+	// stop heartbeats before step-down
+	if s.state == Leader {
+		s.mutex.Unlock()
+		for _, peer := range s.peers {
+			peer.stopHeartbeat(false)
 		}
-		// update the term and clear vote for
-		s.state = Follower
-		s.currentTerm = term
-		s.leader = leaderName
-		s.votedFor = ""
-	} else if term == s.currentTerm && s.state != Leader && append {
-		// discover new leader when candidate
-		// save leader name when follower
-		s.state = Follower
-		s.leader = leaderName
+		s.mutex.Lock()
 	}
+	// update the term and clear vote for
+	if s.state != Follower {
+		s.mutex.Unlock()
+		s.setState(Follower)
+		s.mutex.Lock()
+	}
+	s.currentTerm = term
+	s.leader = leaderName
+	s.votedFor = ""
 
 	// Dispatch change events.
-	if prevState != s.state {
-		s.DispatchEvent(newEvent(StateChangeEventType, s.state, prevState))
-	}
+	s.DispatchEvent(newEvent(TermChangeEventType, s.currentTerm, prevTerm))
+
 	if prevLeader != s.leader {
 		s.DispatchEvent(newEvent(LeaderChangeEventType, s.leader, prevLeader))
-	}
-	if prevTerm != s.currentTerm {
-		s.DispatchEvent(newEvent(TermChangeEventType, s.currentTerm, prevTerm))
 	}
 }
 
@@ -609,7 +605,6 @@ func (s *server) sendAsync(value interface{}) {
 //   1.Receiving valid AppendEntries RPC, or
 //   2.Granting vote to candidate
 func (s *server) followerLoop() {
-	s.setState(Follower)
 	since := time.Now()
 	electionTimeout := s.ElectionTimeout()
 	timeoutChan := afterBetween(s.ElectionTimeout(), s.ElectionTimeout()*2)
@@ -750,7 +745,6 @@ func (s *server) candidateLoop() {
 
 // The event loop that is run when the server is in a Leader state.
 func (s *server) leaderLoop() {
-	s.setState(Leader)
 	logIndex, _ := s.log.lastInfo()
 
 	// Update the peers prevLogIndex to leader's lastLogIndex and start heartbeat.
@@ -800,8 +794,6 @@ func (s *server) leaderLoop() {
 }
 
 func (s *server) snapshotLoop() {
-	s.setState(Snapshotting)
-
 	for s.State() == Snapshotting {
 		var err error
 
@@ -884,8 +876,20 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 		return newAppendEntriesResponse(s.currentTerm, false, s.log.currentIndex(), s.log.CommitIndex()), false
 	}
 
-	// Update term and leader.
-	s.setCurrentTerm(req.Term, req.LeaderName, true)
+	if req.Term == s.currentTerm {
+		if s.state == Leader {
+			msg := fmt.Sprintf("leader.elected.at.same.term.%d\n", s.currentTerm)
+			panic(msg)
+		}
+		// change state to follower
+		s.state = Follower
+		// discover new leader when candidate
+		// save leader name when follower
+		s.leader = req.LeaderName
+	} else {
+		// Update term and leader.
+		s.updateCurrentTerm(req.Term, req.LeaderName)
+	}
 
 	// Reject if log doesn't contain a matching previous entry.
 	if err := s.log.truncate(req.PrevLogIndex, req.PrevLogTerm); err != nil {
@@ -916,7 +920,7 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 	// If we find a higher term then change to a follower and exit.
 	if resp.Term() > s.Term() {
-		s.setCurrentTerm(resp.Term(), "", false)
+		s.updateCurrentTerm(resp.Term(), "")
 		return
 	}
 
@@ -968,7 +972,7 @@ func (s *server) processVoteResponse(resp *RequestVoteResponse) bool {
 
 	if resp.Term > s.currentTerm {
 		s.debugln("server.candidate.vote.failed")
-		s.setCurrentTerm(resp.Term, "", false)
+		s.updateCurrentTerm(resp.Term, "")
 	} else {
 		s.debugln("server.candidate.vote: denied")
 	}
@@ -997,10 +1001,12 @@ func (s *server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 		return newRequestVoteResponse(s.currentTerm, false), false
 	}
 
-	s.setCurrentTerm(req.Term, "", false)
-
-	// If we've already voted for a different candidate then don't vote for this candidate.
-	if s.votedFor != "" && s.votedFor != req.CandidateName {
+	// If the term of the request peer is larger than this node, update the term
+	// If the term is equal and we've already voted for a different candidate then
+	// don't vote for this candidate.
+	if req.Term > s.Term() {
+		s.updateCurrentTerm(req.Term, "")
+	} else if s.votedFor != "" && s.votedFor != req.CandidateName {
 		s.debugln("server.deny.vote: cause duplicate vote: ", req.CandidateName,
 			" already vote for ", s.votedFor)
 		return newRequestVoteResponse(s.currentTerm, false), false
