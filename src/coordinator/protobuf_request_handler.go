@@ -26,6 +26,7 @@ var (
 	responseReplicationReplay = protocol.Response_REPLICATION_REPLAY
 	internalError             = protocol.Response_INTERNAL_ERROR
 	sequenceNumberResponse    = protocol.Response_SEQUENCE_NUMBER
+	accessDeniedResponse      = protocol.Response_ACCESS_DENIED
 )
 
 func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
@@ -272,11 +273,6 @@ func createResponse(nextPointMap map[string]*NextPoint, series *protocol.Series,
 }
 
 func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn net.Conn) {
-	nextPointMap := make(map[string]*NextPoint)
-	assignNextPointTimesAndSend := func(series *protocol.Series) error {
-		response := createResponse(nextPointMap, series, request.Id)
-		return self.WriteResponse(conn, response)
-	}
 	// the query should always parse correctly since it was parsed at the originating server.
 	query, _ := parser.ParseSelectQuery(*request.Query)
 	var user common.User
@@ -286,23 +282,26 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 		user = self.clusterConfig.GetClusterAdmin(*request.UserName)
 	}
 
-	var response *protocol.Response
-	var ringFilter func(database, series *string, time *int64) bool
-
 	if user == nil {
 		errorMsg := fmt.Sprintf("Cannot find user %s", *request.UserName)
-		response = &protocol.Response{ErrorMessage: &errorMsg}
-		goto response
+		response := &protocol.Response{Type: &accessDeniedResponse, ErrorMessage: &errorMsg, RequestId: request.Id}
+		self.WriteResponse(conn, response)
+		return
 	}
 
-	if request.RingLocationsToQuery != nil {
-		ringFilter = self.clusterConfig.GetRingFilterFunction(*request.Database, *request.RingLocationsToQuery)
-	}
-	self.db.ExecuteQuery(user, *request.Database, query, assignNextPointTimesAndSend, ringFilter)
+	shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
+	querySpec := parser.NewQuerySpec(user, *request.Database, &parser.Query{SelectQuery: query})
 
-	response = &protocol.Response{Type: &endStreamResponse, RequestId: request.Id}
-response:
-	self.WriteResponse(conn, response)
+	responseChan := make(chan *protocol.Response)
+	go shard.Query(querySpec, responseChan)
+	for {
+		response := <-responseChan
+		response.RequestId = request.Id
+		self.WriteResponse(conn, response)
+		if response.Type == &endStreamResponse || response.Type == &accessDeniedResponse {
+			return
+		}
+	}
 }
 
 func (self *ProtobufRequestHandler) handleListSeries(request *protocol.Request, conn net.Conn) {

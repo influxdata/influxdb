@@ -3,7 +3,6 @@ package cluster
 import (
 	log "code.google.com/p/log4go"
 	"engine"
-	"errors"
 	"fmt"
 	"parser"
 	"protocol"
@@ -77,19 +76,20 @@ const (
 )
 
 type ShardData struct {
-	id           uint32
-	startTime    time.Time
-	startMicro   int64
-	endMicro     int64
-	endTime      time.Time
-	wal          WAL
-	servers      []wal.Server
-	store        LocalShardStore
-	localShard   LocalShardDb
-	localWrites  chan *protocol.Request
-	serverWrites map[*ClusterServer]chan *protocol.Request
-	serverIds    []uint32
-	shardType    ShardType
+	id             uint32
+	startTime      time.Time
+	startMicro     int64
+	endMicro       int64
+	endTime        time.Time
+	wal            WAL
+	servers        []wal.Server
+	clusterServers []*ClusterServer
+	store          LocalShardStore
+	localShard     LocalShardDb
+	localWrites    chan *protocol.Request
+	serverWrites   map[*ClusterServer]chan *protocol.Request
+	serverIds      []uint32
+	shardType      ShardType
 }
 
 func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, wal WAL) *ShardData {
@@ -113,6 +113,7 @@ const (
 var (
 	queryResponse     = protocol.Response_QUERY
 	endStreamResponse = protocol.Response_END_STREAM
+	queryRequest      = protocol.Request_QUERY
 )
 
 type LocalShardDb interface {
@@ -141,6 +142,7 @@ func (self *ShardData) IsMicrosecondInRange(t int64) bool {
 }
 
 func (self *ShardData) SetServers(servers []*ClusterServer) {
+	self.clusterServers = servers
 	self.servers = make([]wal.Server, len(servers), len(servers))
 	self.serverWrites = make(map[*ClusterServer]chan *protocol.Request)
 	for i, server := range servers {
@@ -210,8 +212,17 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 		processor.Close()
 		return err
 	}
-	// TODO: make remote shards work
-	return errors.New("Remote shards not implemented!")
+
+	randServerIndex := int(time.Now().UnixNano() % int64(len(self.clusterServers)))
+	server := self.clusterServers[randServerIndex]
+	selectQuery := querySpec.SelectQuery()
+	queryString := selectQuery.GetQueryString()
+	user := querySpec.User()
+	userName := user.GetName()
+	database := querySpec.Database()
+	isDbUser := !user.IsClusterAdmin()
+	request := &protocol.Request{Type: &queryRequest, ShardId: &self.id, Query: &queryString, UserName: &userName, Database: &database, IsDbUser: &isDbUser}
+	return server.MakeRequest(request, response)
 }
 
 // used to serialize shards when sending around in raft or when snapshotting in the log
