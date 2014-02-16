@@ -50,7 +50,6 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	clusterConfig.SetShardCreator(raftServer)
 
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
-	go coord.SyncLogs()
 	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
 
