@@ -1,9 +1,9 @@
 package integration
 
 import (
-	h "api/http"
 	"bytes"
 	"checkers"
+	. "common"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -187,7 +187,7 @@ func (self *IntegrationSuite) TearDownSuite(c *C) {
 }
 
 func (self *IntegrationSuite) createPoints(name string, numOfColumns, numOfPoints int) interface{} {
-	series := &h.SerializedSeries{}
+	series := &SerializedSeries{}
 
 	series.Name = name
 	for i := 0; i < numOfColumns; i++ {
@@ -202,7 +202,7 @@ func (self *IntegrationSuite) createPoints(name string, numOfColumns, numOfPoint
 		series.Points = append(series.Points, point)
 	}
 
-	return []*h.SerializedSeries{series}
+	return []*SerializedSeries{series}
 }
 
 func (self *IntegrationSuite) writeData(c *C) {
@@ -251,7 +251,7 @@ func (self *IntegrationSuite) TestAdminPermissionToDeleteData(c *C) {
 	c.Assert(self.server.WriteData(data), IsNil)
 	bs, err := self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s")
 	c.Assert(err, IsNil)
-	series := []*h.SerializedSeries{}
+	series := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &series)
 	c.Assert(err, IsNil)
 	c.Assert(series[0].Points, HasLen, 1)
@@ -282,7 +282,7 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 	}
 	bs, err := self.server.RunQuery("select median(cpu) from test_medians group by host;", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_medians")
@@ -319,7 +319,7 @@ func (self *IntegrationSuite) TestSeriesListing(c *C) {
 
 	bs, err := self.server.RunQuery("list series", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	// the response should include {"name": "test_series_listing"}
 	// columns may or may not be empty as well as points
@@ -359,7 +359,7 @@ func (self *IntegrationSuite) TestArithmeticOperations(c *C) {
 		}
 		bs, err := self.server.RunQuery(query, "m")
 		c.Assert(err, IsNil)
-		data := []*h.SerializedSeries{}
+		data := []*SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Columns, HasLen, 3)
@@ -398,7 +398,7 @@ func (self *IntegrationSuite) TestAscendingQueries(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select host, cpu from test_ascending order asc", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_ascending")
@@ -426,7 +426,7 @@ func (self *IntegrationSuite) TestFilterWithLimit(c *C) {
 	}
 	bs, err := self.server.RunQuery("select host, cpu from test_ascending where host = 'hostb' order asc limit 1", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_ascending")
@@ -451,7 +451,7 @@ func (self *IntegrationSuite) TestFilterWithInClause(c *C) {
 	}
 	bs, err := self.server.RunQuery("select host, cpu from test_in_clause where host in ('hostb') order asc limit 1", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_in_clause")
@@ -479,13 +479,13 @@ func (self *IntegrationSuite) TestIssue85(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select * from test_issue_85", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 4)
 }
 
-func toMap(series *h.SerializedSeries) []map[string]interface{} {
+func toMap(series *SerializedSeries) []map[string]interface{} {
 	points := make([]map[string]interface{}, 0, len(series.Points))
 	for _, p := range series.Points {
 		point := map[string]interface{}{}
@@ -538,7 +538,7 @@ func (self *IntegrationSuite) TestIssue92(c *C) {
 	time.Sleep(1 * time.Second)
 	bs, err := self.server.RunQuery("select sum(kb) from test_issue_92 group by time(1h), to, app", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	points := toMap(data[0])
@@ -590,7 +590,7 @@ func (self *IntegrationSuite) TestIssue89(c *C) {
 	time.Sleep(1 * time.Second)
 	bs, err := self.server.RunQuery("select sum(c) from test_issue_89 group by b where a = 'x'", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	points := toMap(data[0])
@@ -624,7 +624,7 @@ func (self *IntegrationSuite) TestInnerJoin(c *C) {
 	}
 	bs, err := self.server.RunQuery("select * from test_join as f1 inner join test_join as f2 where f1.host = 'hostb'", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "f1_join_f2")
@@ -648,7 +648,7 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 	}
 	bs, err := self.server.RunQuery("select count(cpu) from test_count group by host limit 10", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_count")
@@ -673,7 +673,7 @@ func (self *IntegrationSuite) TestHttpPostWithTime(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select * from test_post_with_time where time > now() - 20d", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_post_with_time")
@@ -703,7 +703,7 @@ func (self *IntegrationSuite) TestIssue106(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select derivative(a) from test_issue_106", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 3)
@@ -725,7 +725,7 @@ func (self *IntegrationSuite) TestIssue105(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select a, b from test_issue_105 where b > 0", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 4)
@@ -748,7 +748,7 @@ func (self *IntegrationSuite) TestWhereConditionWithExpression(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select a, b from test_where_expression where a + b >= 3", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 4)
@@ -771,7 +771,7 @@ func (self *IntegrationSuite) TestAggregateWithExpression(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select mean(a + b) from test_aggregate_expression", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 2)
@@ -805,7 +805,7 @@ func (self *IntegrationSuite) verifyWrite(series string, value, sequence interfa
 
 	bs, err := self.server.RunQuery("select * from "+series, "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 3)
@@ -843,7 +843,7 @@ func (self *IntegrationSuite) TestDbDelete(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select val1 from test_deletetions", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 
@@ -858,7 +858,7 @@ func (self *IntegrationSuite) TestDbDelete(c *C) {
 	// this shouldn't return any data
 	bs, err = self.server.RunQuery("select val1 from test_deletetions", "m")
 	c.Assert(err, IsNil)
-	data = []*h.SerializedSeries{}
+	data = []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(err, IsNil)
 	c.Assert(data, HasLen, 1)
@@ -877,7 +877,7 @@ func (self *IntegrationSuite) TestInvalidDeleteQuery(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select val1 from test_invalid_delete_query", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Points, HasLen, 1)
@@ -888,7 +888,7 @@ func (self *IntegrationSuite) TestInvalidDeleteQuery(c *C) {
 	// this shouldn't return any data
 	bs, err = self.server.RunQuery("select val1 from test_invalid_delete_query", "m")
 	c.Assert(err, IsNil)
-	data = []*h.SerializedSeries{}
+	data = []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(err, IsNil)
 	c.Assert(data, HasLen, 1)
@@ -917,7 +917,7 @@ func (self *IntegrationSuite) TestDeleteQuery(c *C) {
 		c.Assert(err, IsNil)
 		bs, err := self.server.RunQuery("select val1 from test_delete_query", "m")
 		c.Assert(err, IsNil)
-		data := []*h.SerializedSeries{}
+		data := []*SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
 		c.Assert(data, HasLen, 1)
 
@@ -927,7 +927,7 @@ func (self *IntegrationSuite) TestDeleteQuery(c *C) {
 		// this shouldn't return any data
 		bs, err = self.server.RunQuery("select val1 from test_delete_query", "m")
 		c.Assert(err, IsNil)
-		data = []*h.SerializedSeries{}
+		data = []*SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
 		c.Assert(err, IsNil)
 		c.Assert(data, HasLen, 1)
@@ -955,7 +955,7 @@ func (self *IntegrationSuite) TestReading(c *C) {
 		c.Assert(err, IsNil)
 		elapsedTime := time.Now().Sub(startTime)
 
-		data := []*h.SerializedSeries{}
+		data := []*SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
 		c.Assert(err, IsNil)
 
@@ -982,7 +982,7 @@ func (self *IntegrationSuite) TestSinglePointSelect(c *C) {
 	bs, err := self.server.RunQuery(query, "u")
 	c.Assert(err, IsNil)
 
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(err, IsNil)
 	c.Assert(data[0].Points, HasLen, 2)
@@ -990,7 +990,7 @@ func (self *IntegrationSuite) TestSinglePointSelect(c *C) {
 	for _, point := range data[0].Points {
 		query := fmt.Sprintf("select * from test_single_points where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
 		bs, err := self.server.RunQuery(query, "u")
-		data := []*h.SerializedSeries{}
+		data := []*SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
 		c.Assert(err, IsNil)
 		c.Assert(data, HasLen, 1)
@@ -1026,7 +1026,7 @@ func (self *IntegrationSuite) TestSinglePointSelectWithNullValues(c *C) {
 	bs, err := self.server.RunQuery(query, "u")
 	c.Assert(err, IsNil)
 
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(err, IsNil)
 	c.Assert(data[0].Points, HasLen, 1)
@@ -1034,7 +1034,7 @@ func (self *IntegrationSuite) TestSinglePointSelectWithNullValues(c *C) {
 	for _, point := range data[0].Points {
 		query := fmt.Sprintf("select * from test_single_points_with_nulls where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
 		bs, err := self.server.RunQuery(query, "u")
-		data := []*h.SerializedSeries{}
+		data := []*SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
 		c.Assert(err, IsNil)
 		c.Assert(data, HasLen, 1)
@@ -1075,7 +1075,7 @@ func (self *IntegrationSuite) TestColumnsWithOnlySomeValuesWorkWithWhereQuery(c 
 
 	bs, err := self.server.RunQuery("select * from test_missing_column_values where c = 'c'", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(err, IsNil)
 	c.Assert(data, HasLen, 1)
