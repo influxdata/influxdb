@@ -7,7 +7,6 @@ import (
 	"path"
 	"protocol"
 	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -50,42 +49,30 @@ func NewWAL(config *configuration.Configuration) (*WAL, error) {
 		if !strings.HasPrefix(name, "log.") {
 			continue
 		}
-		suffixString := strings.TrimLeft(name, "log.")
-		suffix, err := strconv.Atoi(suffixString)
-		if err != nil {
-			return nil, err
-		}
-		if suffix > nextLogFileSuffix {
-			nextLogFileSuffix = suffix
-		}
 		f, err := os.OpenFile(path.Join(config.WalDir, name), os.O_RDWR, 0644)
 		if err != nil {
 			return nil, err
 		}
-		logFile, err := newLog(f, suffix, config.WalIndexAfterRequests, config.WalFlushAfterRequests, config.WalBookmarkAfterRequests)
+		logFile, err := newLog(f, config)
 		if err != nil {
 			return nil, err
+		}
+		if suffix := logFile.suffix(); suffix > nextLogFileSuffix {
+			nextLogFileSuffix = suffix
 		}
 		logFiles = append(logFiles, logFile)
 	}
 
-	// sort the logfiles
+	// sort the logfiles by the first request number in the log
 	sort.Sort(sortableLogSlice(logFiles))
 
 	wal := &WAL{config: config, logFiles: logFiles, requestsPerLogFile: config.WalRequestsPerLogFile, nextLogFileSuffix: nextLogFileSuffix}
 
+	// if we don't have any log files open yet, open a new one
 	if len(logFiles) == 0 {
-		wal.createNewLog()
+		_, err = wal.createNewLog()
 	}
-	return wal, nil
-}
-
-type Shard interface {
-	Id() uint32
-}
-
-type Server interface {
-	Id() uint32
+	return wal, err
 }
 
 func (self *WAL) SetServerId(id uint32) {
@@ -99,15 +86,19 @@ func (self *WAL) createNewLog() (*log, error) {
 	if err != nil {
 		return nil, err
 	}
-	log, err := newLog(logFile, self.nextLogFileSuffix, self.config.WalIndexAfterRequests, self.config.WalFlushAfterRequests, self.config.WalBookmarkAfterRequests)
+	log, err := newLog(logFile, self.config)
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: this is ugly, we have to copy some of the state to the new
+	// log. Find a better way to do this, possibly separating the state
+	// that we need to keep between log files in their own file
 	if len(self.logFiles) > 0 {
 		lastLogFile := self.logFiles[len(self.logFiles)-1]
-		log.state.CurrentRequestNumber = lastLogFile.state.CurrentRequestNumber
-		log.state.ServerLastRequestNumber = lastLogFile.state.ServerLastRequestNumber
-		log.state.ShardLastSequenceNumber = lastLogFile.state.ShardLastSequenceNumber
+		// update the new state to continue from where the last log file
+		// left off
+		log.state.continueFromState(lastLogFile.state)
 	}
 	self.logFiles = append(self.logFiles, log)
 	return log, nil
@@ -139,24 +130,20 @@ func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Sh
 func (self *WAL) Commit(requestNumber uint32, server Server) error {
 	lastLogFile := self.logFiles[len(self.logFiles)-1]
 	lastLogFile.state.commitRequestNumber(server.Id(), requestNumber)
-	for _, number := range lastLogFile.state.ServerLastRequestNumber {
-		if number < requestNumber {
-			requestNumber = number
-		}
-	}
+	lowestCommitedRequestNumber := lastLogFile.state.LowestCommitedRequestNumber()
 
-	index := self.firstLogFile(requestNumber)
+	index := self.firstLogFile(lowestCommitedRequestNumber)
 	if index == 0 {
 		return nil
 	}
 
-	unusedLogFiles, newLogFiles := self.logFiles[:index], self.logFiles[index:]
-	self.logFiles = newLogFiles
+	var unusedLogFiles []*log
+	unusedLogFiles, self.logFiles = self.logFiles[:index], self.logFiles[index:]
 	for _, logFile := range unusedLogFiles {
 		logFile.close()
-		filePath := path.Join(self.config.WalDir, fmt.Sprintf("bookmark.%d", logFile.suffix))
+		filePath := path.Join(self.config.WalDir, fmt.Sprintf("bookmark.%d", logFile.suffix()))
 		os.Remove(filePath)
-		filePath = path.Join(self.config.WalDir, fmt.Sprintf("log.%d", logFile.suffix))
+		filePath = path.Join(self.config.WalDir, fmt.Sprintf("log.%d", logFile.suffix()))
 		os.Remove(filePath)
 	}
 	return nil
@@ -171,6 +158,7 @@ func (self *WAL) getFirstLogFile(requestNumber uint32) func(int) bool {
 	}
 }
 
+// returns the first log file that contains the given request number
 func (self *WAL) firstLogFile(requestNumber uint32) int {
 	lengthLogFiles := len(self.logFiles)
 	if requestNumber >= self.logFiles[lengthLogFiles-1].firstRequestNumber() {

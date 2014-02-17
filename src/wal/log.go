@@ -3,50 +3,57 @@ package wal
 import (
 	"code.google.com/p/goprotobuf/proto"
 	logger "code.google.com/p/log4go"
+	"configuration"
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"protocol"
+	"strconv"
+	"strings"
 	"syscall"
 )
 
 type log struct {
 	closed                 bool
 	fileSize               uint64
-	entries                chan *entry
 	state                  *state
 	file                   *os.File
 	serverId               uint32
-	bookmarkChan           chan *bookmarkEvent
-	indexChan              chan struct{}
 	requestsSinceLastFlush int
-	indexBlockSize         int
-	flushSize              int
-	bookmarkSize           int
-	suffix                 int
+	config                 *configuration.Configuration
+	cachedSuffix           int
+	// channels used to process entries, force a bookmark or create an
+	// index entry
+	entries      chan *entry
+	bookmarkChan chan *bookmarkEvent
+	indexChan    chan struct{}
 }
 
-func newLog(file *os.File, suffix int, indexBlockSize, flushSize, bookmarkSize int) (*log, error) {
+func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
 	info, err := file.Stat()
 	if err != nil {
 		return nil, err
 	}
 
 	size := uint64(info.Size())
+	suffixString := strings.TrimLeft(path.Base(file.Name()), "log.")
+	suffix, err := strconv.Atoi(suffixString)
+	if err != nil {
+		return nil, err
+	}
 
 	l := &log{
-		suffix:         suffix,
-		entries:        make(chan *entry, 10),
-		bookmarkChan:   make(chan *bookmarkEvent),
-		indexChan:      make(chan struct{}),
-		file:           file,
-		state:          newState(),
-		fileSize:       size,
-		closed:         false,
-		indexBlockSize: indexBlockSize,
-		flushSize:      flushSize,
-		bookmarkSize:   bookmarkSize,
+		entries:      make(chan *entry, 10),
+		bookmarkChan: make(chan *bookmarkEvent),
+		indexChan:    make(chan struct{}),
+		file:         file,
+		state:        newState(),
+		fileSize:     size,
+		closed:       false,
+		config:       config,
+		cachedSuffix: suffix,
 	}
 
 	if err := l.recover(); err != nil {
@@ -56,8 +63,12 @@ func newLog(file *os.File, suffix int, indexBlockSize, flushSize, bookmarkSize i
 	return l, nil
 }
 
+func (self *log) suffix() int {
+	return self.cachedSuffix
+}
+
 func (self *log) firstRequestNumber() uint32 {
-	return self.state.CurrentRequestNumber - uint32(self.state.TotalNumberOfRequests)
+	return self.state.LargestRequestNumber - uint32(self.state.TotalNumberOfRequests)
 }
 
 func (self *log) internalIndex() error {
@@ -67,7 +78,7 @@ func (self *log) internalIndex() error {
 		return nil
 	}
 
-	startRequestNumber := self.state.CurrentRequestNumber - uint32(self.state.RequestsSinceLastIndex) + 1
+	startRequestNumber := self.state.LargestRequestNumber - uint32(self.state.RequestsSinceLastIndex) + 1
 	logger.Info("Creating new index entry [%d,%d]", startRequestNumber, self.state.RequestsSinceLastIndex)
 	self.state.Index.addEntry(startRequestNumber, self.state.RequestsSinceLastIndex, self.fileSize)
 	self.state.RequestsSinceLastIndex = 0
@@ -101,7 +112,7 @@ func (self *log) close() error {
 
 func (self *log) recover() error {
 	dir := filepath.Dir(self.file.Name())
-	bookmarkPath := filepath.Join(dir, fmt.Sprintf("bookmark.%d", self.suffix))
+	bookmarkPath := filepath.Join(dir, fmt.Sprintf("bookmark.%d", self.suffix()))
 	_, err := os.Stat(bookmarkPath)
 	if os.IsNotExist(err) {
 		return nil
@@ -202,19 +213,19 @@ func (self *log) conditionalBookmarkAndIndex() {
 
 	shouldFlush := false
 	self.state.RequestsSinceLastIndex++
-	if self.state.RequestsSinceLastIndex >= uint32(self.indexBlockSize) {
+	if self.state.RequestsSinceLastIndex >= uint32(self.config.WalIndexAfterRequests) {
 		shouldFlush = true
 		self.internalIndex()
 	}
 
 	self.state.RequestsSinceLastBookmark++
-	if self.state.RequestsSinceLastBookmark >= self.bookmarkSize {
+	if self.state.RequestsSinceLastBookmark >= self.config.WalBookmarkAfterRequests {
 		shouldFlush = true
 		self.internalBookmark()
 	}
 
 	self.requestsSinceLastFlush++
-	if self.requestsSinceLastFlush > self.flushSize || shouldFlush {
+	if self.requestsSinceLastFlush > self.config.WalFlushAfterRequests || shouldFlush {
 		self.internalFlush()
 	}
 }
@@ -380,7 +391,7 @@ func (self *log) forceIndex() error {
 func (self *log) internalBookmark() error {
 	logger.Info("Creating bookmark at file offset %d", self.fileSize)
 	dir := filepath.Dir(self.file.Name())
-	bookmarkPath := filepath.Join(dir, fmt.Sprintf("bookmark.%d.new", self.suffix))
+	bookmarkPath := filepath.Join(dir, fmt.Sprintf("bookmark.%d.new", self.suffix()))
 	bookmarkFile, err := os.OpenFile(bookmarkPath, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return err
@@ -393,7 +404,7 @@ func (self *log) internalBookmark() error {
 	if err := bookmarkFile.Close(); err != nil {
 		return err
 	}
-	err = os.Rename(bookmarkPath, filepath.Join(dir, fmt.Sprintf("bookmark.%d", self.suffix)))
+	err = os.Rename(bookmarkPath, filepath.Join(dir, fmt.Sprintf("bookmark.%d", self.suffix())))
 	if err != nil {
 		return err
 	}
