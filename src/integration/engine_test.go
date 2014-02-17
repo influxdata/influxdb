@@ -1,4 +1,4 @@
-package engine
+package integration
 
 import (
 	. "checkers"
@@ -6,50 +6,37 @@ import (
 	"encoding/json"
 	"fmt"
 	. "launchpad.net/gocheck"
+	"net/http"
 	"os"
-	"parser"
-	"protocol"
 	"reflect"
-	"testing"
 	"time"
 )
 
-// Hook up gocheck into the gotest runner.
-func Test(t *testing.T) {
-	TestingT(t)
+type EngineSuite struct {
+	server *ServerProcess
 }
-
-type EngineSuite struct{}
 
 var _ = Suite(&EngineSuite{})
 
-type MockCoordinator struct {
-	returnedError error
-	series        []*protocol.Series
+func (self *EngineSuite) SetUpSuite(c *C) {
+	self.server = NewServerProcess("test_config1.toml", 60500, time.Second*4, c)
 }
 
-func (self *MockCoordinator) DistributeQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error {
-	if self.returnedError != nil {
-		return self.returnedError
-	}
-
-	for _, series := range self.series {
-		if err := yield(series); err != nil {
-			return err
-		}
-	}
-	return nil
+func (self *EngineSuite) createEngine(c *C, seriesString string) {
+	resp := self.server.Post("/db/test_db/series", seriesString, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 }
 
-func createEngine(c *C, seriesString string) *QueryEngine {
-	series, err := common.StringToSeriesArray(seriesString)
-	c.Assert(err, IsNil)
+func (self *EngineSuite) SetUpTest(c *C) {
+	resp := self.server.Post("/db?u=root&p=root", "{\"name\":\"test_db\"}", c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	resp = self.server.Post("/db/test_db/users?u=root&p=root", "{\"name\":\"user\", \"password\":\"pass\", \"isAdmin\": true}", c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+}
 
-	engine, err := NewQueryEngine(&MockCoordinator{
-		series: series,
-	})
-	c.Assert(err, IsNil)
-	return engine
+func (self *EngineSuite) TearDownTest(c *C) {
+	resp := self.server.Request("DEL", "/db/test_db", "", c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 }
 
 // runQuery() will run the given query on the engine and assert that
@@ -58,23 +45,13 @@ func createEngine(c *C, seriesString string) *QueryEngine {
 //
 // expectedSeries must be a json array, e.g. time series must by
 // enclosed in '[' and ']'
-func runQueryRunError(engine *QueryEngine, query string, c *C, expectedErr error) {
-	err := engine.coordinator.RunQuery(nil, "", query, func(series *protocol.Series) error { return nil })
-
-	c.Assert(err, DeepEquals, expectedErr)
-}
-
-func runQuery(engine *QueryEngine, query string, c *C, expectedSeries string) {
-	runQueryExtended(engine, query, c, false, expectedSeries)
-}
-
-func runQueryExtended(engine *QueryEngine, query string, c *C, appendPoints bool, expectedSeries string) {
+func (self *EngineSuite) runQuery(query string, c *C, expectedSeries string) {
 	series, err := common.StringToSeriesArray(expectedSeries)
 	c.Assert(err, IsNil)
 
-	result := runQueryWithoutChecking(engine, query, c, appendPoints)
+	result := self.server.Query("test_db", query, false, c)
 
-	if !reflect.DeepEqual(result, series) {
+	if !reflect.DeepEqual(result.Members[0], series) {
 		resultData, _ := json.MarshalIndent(result, "", "  ")
 		seriesData, _ := json.MarshalIndent(series, "", "  ")
 
@@ -85,29 +62,6 @@ func runQueryExtended(engine *QueryEngine, query string, c *C, appendPoints bool
 
 	c.Assert(result, SeriesEquals, series)
 }
-
-func runQueryWithoutChecking(engine *QueryEngine, query string, c *C, appendPoints bool) []*protocol.Series {
-	var result []*protocol.Series
-	err := engine.coordinator.RunQuery(nil, "", query, func(series *protocol.Series) error {
-		if appendPoints && result != nil {
-			result[0].Points = append(result[0].Points, series.Points...)
-		} else {
-			result = append(result, series)
-		}
-		return nil
-	})
-
-	c.Assert(err, IsNil)
-	return result
-}
-
-// All tests do more or less the following steps
-//
-// 1. initialize an engine
-// 2. generate a query
-// 3. issue query to engine
-// 4. mock coordinator
-// 5. verify that data is returned
 
 func (self *EngineSuite) TestBasicQuery(c *C) {
 	mockData := `
@@ -132,25 +86,25 @@ func (self *EngineSuite) TestBasicQuery(c *C) {
 
 	// create an engine and assert the engine works as a passthrough if
 	// the query only returns the raw data
-	engine := createEngine(c, mockData)
-	runQuery(engine, "select * from foo order asc", c, mockData)
+	self.createEngine(c, mockData)
+	self.runQuery("select * from foo order asc", c, mockData)
 }
 
-func (self *EngineSuite) TestBasicQueryError(c *C) {
-	// create an engine and assert the engine works as a passthrough if
-	// the query only returns the raw data
-	engine := createEngine(c, "[]")
-	engine.coordinator.(*MockCoordinator).returnedError = fmt.Errorf("some error")
-	err := engine.coordinator.RunQuery(nil, "", "select * from foo", func(series *protocol.Series) error {
-		return nil
-	})
+// func (self *EngineSuite) TestBasicQueryError(c *C) {
+// 	// create an engine and assert the engine works as a passthrough if
+// 	// the query only returns the raw data
+// 	engine := createEngine(c, "[]")
+// 	engine.coordinator.(*MockCoordinator).returnedError = fmt.Errorf("some error")
+// 	err := engine.coordinator.RunQuery(nil, "", "select * from foo", func(series *protocol.Series) error {
+// 		return nil
+// 	})
 
-	c.Assert(err, ErrorMatches, "some error")
-}
+// 	c.Assert(err, ErrorMatches, "some error")
+// }
 
 func (self *EngineSuite) TestCountQuery(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -177,7 +131,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(column_one) from foo order asc", c, `[
+	self.runQuery("select count(column_one) from foo order asc", c, `[
   {
     "points": [
       {
@@ -199,7 +153,7 @@ func (self *EngineSuite) TestCountQuery(c *C) {
 
 func (self *EngineSuite) TestFirstAndLastQuery(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -237,7 +191,7 @@ func (self *EngineSuite) TestFirstAndLastQuery(c *C) {
 ]
 `)
 
-	runQuery(engine, "select first(column_one), last(column_one) from foo", c, `[
+	self.runQuery("select first(column_one), last(column_one) from foo", c, `[
   {
     "points": [
       {
@@ -262,7 +216,7 @@ func (self *EngineSuite) TestFirstAndLastQuery(c *C) {
 
 func (self *EngineSuite) TestUpperCaseQuery(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -291,7 +245,7 @@ func (self *EngineSuite) TestUpperCaseQuery(c *C) {
 ]
 `)
 
-	runQuery(engine, "select COUNT(column_one) from foo order asc", c, `[
+	self.runQuery("select COUNT(column_one) from foo order asc", c, `[
   {
     "points": [
       {
@@ -313,7 +267,7 @@ func (self *EngineSuite) TestUpperCaseQuery(c *C) {
 
 func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -348,7 +302,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(column_one) from /foo.*/ order asc", c, `[
+	self.runQuery("select count(column_one) from /foo.*/ order asc", c, `[
   {
     "points": [
       {
@@ -384,7 +338,7 @@ func (self *EngineSuite) TestCountQueryWithRegexTables(c *C) {
 
 func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -413,7 +367,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(column_one), column_one from foo group by column_one order asc", c, `[
+	self.runQuery("select count(column_one), column_one from foo group by column_one order asc", c, `[
   {
     "points": [
       {
@@ -450,7 +404,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClause(c *C) {
 // issue #27
 func (self *EngineSuite) TestCountQueryWithGroupByClauseAndNullValues(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -497,7 +451,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseAndNullValues(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(column_two), column_one from foo group by column_one order asc", c, `[
+	self.runQuery("select count(column_two), column_one from foo group by column_one order asc", c, `[
   {
     "points": [
       {
@@ -564,7 +518,7 @@ func (self *EngineSuite) BenchmarkStringFoo(c *C) {
 
 func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -611,7 +565,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
 ]
 `)
 
-	runQuery(engine, "select count(column_one), column_one, column_two from foo group by column_one, column_two order asc", c, `[
+	self.runQuery("select count(column_one), column_one, column_two from foo group by column_one, column_two order asc", c, `[
   {
     "points": [
       {
@@ -666,7 +620,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
 
 func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -704,7 +658,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
 ]
 `)
 
-	runQuery(engine, "select count(column_one) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select count(column_one) from foo group by time(1m) order asc", c, `[
   {
     "points": [
       {
@@ -792,13 +746,13 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeDescendingOrder(c *C) {
 `
 
 	// make the mock coordinator return some data
-	engine := createEngine(c, points)
+	self.createEngine(c, points)
 
-	runQuery(engine, "select count(column_one) from foo group by time(1s);", c, expectedResponse)
+	self.runQuery("select count(column_one) from foo group by time(1s);", c, expectedResponse)
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "string_value": "some_value" }], "timestamp": 1381346641000000, "sequence_number": 1 },
@@ -810,7 +764,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select count(column_one), column_one from foo group by time(1m), column_one order asc", c, `[
+	self.runQuery("select count(column_one), column_one from foo group by time(1m), column_one order asc", c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }, { "string_value": "some_value" }], "timestamp": 1381346640000000   },
@@ -824,7 +778,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
 }
 
 func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000000, "sequence_number": 1 },
@@ -836,7 +790,7 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select min(column_one) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select min(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 3 }], "timestamp": 1381346640000000},
@@ -849,7 +803,7 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
 }
 
 func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000000, "sequence_number": 1 },
@@ -861,7 +815,7 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select max(column_one) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select max(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 3 }], "timestamp": 1381346640000000},
@@ -875,7 +829,7 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
 
 func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000000, "sequence_number": 1 },
@@ -887,7 +841,7 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select max(column_one), min(column_one) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select max(column_one), min(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 3 }, { "double_value": 3 }], "timestamp": 1381346640000000},
@@ -901,7 +855,7 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 
 func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -924,7 +878,7 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select percentile(column_one, 80) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select percentile(column_one, 80) from foo group by time(1m) order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 6 }], "timestamp": 1381346700000000},
@@ -938,7 +892,7 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
 
 func (self *EngineSuite) TestCountDistinct(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -961,7 +915,7 @@ func (self *EngineSuite) TestCountDistinct(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select count(distinct(column_one)) from foo order asc", c, `[
+	self.runQuery("select count(distinct(column_one)) from foo order asc", c, `[
     {
       "points": [
         { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000}
@@ -973,7 +927,7 @@ func (self *EngineSuite) TestCountDistinct(c *C) {
 }
 
 func (self *EngineSuite) TestEmptyGroups(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -997,7 +951,7 @@ func (self *EngineSuite) TestEmptyGroups(c *C) {
 		"select count(column_one) from foo where time > 1381346701s and time < 1381346872s group by time(1m) fill(0) order asc",
 		"select count(column_one) from foo group by time(1m) fill(0) order asc",
 	} {
-		runQuery(engine, query, c, `[
+		self.runQuery(query, c, `[
     {
       "points": [
         { "values": [{ "int64_value": 7 }], "timestamp": 1381346700000000},
@@ -1012,7 +966,7 @@ func (self *EngineSuite) TestEmptyGroups(c *C) {
 }
 
 func (self *EngineSuite) TestEmptyGroupsWithNonZeroDefault(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1036,7 +990,7 @@ func (self *EngineSuite) TestEmptyGroupsWithNonZeroDefault(c *C) {
 		"select count(column_one) from foo where time > 1381346701s and time < 1381346872s group by time(1m) fill(10) order asc",
 		"select count(column_one) from foo group by time(1m) fill(10) order asc",
 	} {
-		runQuery(engine, query, c, `[
+		self.runQuery(query, c, `[
     {
       "points": [
         { "values": [{ "int64_value": 7 }], "timestamp": 1381346700000000},
@@ -1051,7 +1005,7 @@ func (self *EngineSuite) TestEmptyGroupsWithNonZeroDefault(c *C) {
 }
 
 func (self *EngineSuite) TestEmptyGroupsWithoutTime(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1075,7 +1029,7 @@ func (self *EngineSuite) TestEmptyGroupsWithoutTime(c *C) {
 		"select count(column_one) from foo where time > 1381346701s and time < 1381346872s group by column_one fill(0) order asc",
 		"select count(column_one) from foo group by column_one fill(0) order asc",
 	} {
-		runQuery(engine, query, c, `[
+		self.runQuery(query, c, `[
     {
       "points": [
         { "values": [{ "int64_value": 5}, { "int64_value": 1 }], "timestamp": 1381346871000000},
@@ -1088,7 +1042,7 @@ func (self *EngineSuite) TestEmptyGroupsWithoutTime(c *C) {
 	}
 }
 func (self *EngineSuite) TestEmptyGroupsWithMultipleColumns(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1112,7 +1066,7 @@ func (self *EngineSuite) TestEmptyGroupsWithMultipleColumns(c *C) {
 		"select count(column_one) from foo where time > 1381346701s and time < 1381346872s group by time(1m), column_one fill(0) order asc",
 		"select count(column_one) from foo group by time(1m), column_one fill(0) order asc",
 	} {
-		runQuery(engine, query, c, `[
+		self.runQuery(query, c, `[
     {
       "points": [
         { "values": [{ "int64_value": 2}, { "int64_value": 1 }], "timestamp": 1381346700000000},
@@ -1130,7 +1084,7 @@ func (self *EngineSuite) TestEmptyGroupsWithMultipleColumns(c *C) {
 }
 
 func (self *EngineSuite) TestEmptyGroupsDescending(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1154,7 +1108,7 @@ func (self *EngineSuite) TestEmptyGroupsDescending(c *C) {
 		"select count(column_one) from foo where time > 1381346701s and time < 1381346872s group by time(1m) fill(0)",
 		"select count(column_one) from foo group by time(1m) fill(0)",
 	} {
-		runQuery(engine, query, c, `[
+		self.runQuery(query, c, `[
     {
       "points": [
         { "values": [{ "int64_value": 4 }], "timestamp": 1381346820000000},
@@ -1169,7 +1123,7 @@ func (self *EngineSuite) TestEmptyGroupsDescending(c *C) {
 }
 
 func (self *EngineSuite) TestMedianQueryWithGroupByTime(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1192,7 +1146,7 @@ func (self *EngineSuite) TestMedianQueryWithGroupByTime(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select median(column_one) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select median(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000},
@@ -1205,7 +1159,7 @@ func (self *EngineSuite) TestMedianQueryWithGroupByTime(c *C) {
 }
 
 func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1228,7 +1182,7 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select mean(column_one) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select mean(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 4 }], "timestamp": 1381346700000000},
@@ -1241,7 +1195,7 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
 }
 
 func (self *EngineSuite) TestStddevQuery(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000000, "sequence_number": 1 },
@@ -1255,17 +1209,17 @@ func (self *EngineSuite) TestStddevQuery(c *C) {
     }
   ]`)
 
-	result := runQueryWithoutChecking(engine, "select stddev(column_one) from foo group by time(2s) order asc", c, false)
+	result := self.server.Query("test_db", "select stddev(column_one) from foo group by time(2s) order asc", false, c).Members
 	c.Assert(result, HasLen, 1)
-	c.Assert(*result[0].Name, Equals, "foo")
-	c.Assert(result[0].Fields, DeepEquals, []string{"stddev"})
+	c.Assert(result[0].Name, Equals, "foo")
+	c.Assert(result[0].Columns, DeepEquals, []string{"stddev"})
 	c.Assert(result[0].Points, HasLen, 2)
-	c.Assert(*result[0].Points[0].Values[0].DoubleValue, InRange, 0.4714, 0.4715)
-	c.Assert(*result[0].Points[1].Values[0].DoubleValue, InRange, 0.9999, 1.0001)
+	c.Assert(result[0].Points[0].Values[0], InRange, 0.4714, 0.4715)
+	c.Assert(result[0].Points[1].Values[1], InRange, 0.9999, 1.0001)
 }
 
 func (self *EngineSuite) TestDerivativeQuery(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000000, "sequence_number": 1 },
@@ -1279,7 +1233,7 @@ func (self *EngineSuite) TestDerivativeQuery(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select derivative(column_one) from foo group by time(2s) order asc", c, `[
+	self.runQuery("select derivative(column_one) from foo group by time(2s) order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 1 } ], "timestamp": 1381347700000000},
@@ -1292,7 +1246,7 @@ func (self *EngineSuite) TestDerivativeQuery(c *C) {
 }
 
 func (self *EngineSuite) TestDerivativeQueryWithOnePoint(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000000, "sequence_number": 1 }
@@ -1302,7 +1256,7 @@ func (self *EngineSuite) TestDerivativeQueryWithOnePoint(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select derivative(column_one) from foo", c, `[
+	self.runQuery("select derivative(column_one) from foo", c, `[
     {
       "points": [],
       "name": "foo",
@@ -1312,7 +1266,7 @@ func (self *EngineSuite) TestDerivativeQueryWithOnePoint(c *C) {
 }
 
 func (self *EngineSuite) TestDistinctQuery(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381347701000000, "sequence_number": 1 },
@@ -1325,7 +1279,7 @@ func (self *EngineSuite) TestDistinctQuery(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select distinct(column_one) from foo order asc", c, `[
+	self.runQuery("select distinct(column_one) from foo order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 1 }], "timestamp": 1381347704000000},
@@ -1339,7 +1293,7 @@ func (self *EngineSuite) TestDistinctQuery(c *C) {
 }
 
 func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1354,7 +1308,7 @@ func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select sum(column_one) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select sum(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 11 }], "timestamp": 1381346700000000},
@@ -1367,7 +1321,7 @@ func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
 }
 
 func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1391,7 +1345,7 @@ func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select mode(column_one) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select mode(column_one) from foo group by time(1m) order asc", c, `[
     {
       "points": [
         { "values": [{ "double_value": 1 }], "timestamp": 1381346700000000},
@@ -1404,7 +1358,7 @@ func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
 }
 
 func (self *EngineSuite) TestQueryWithMergedTables(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 }
@@ -1445,7 +1399,7 @@ func (self *EngineSuite) TestQueryWithMergedTables(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select * from foo merge bar order asc", c, `[
+	self.runQuery("select * from foo merge bar order asc", c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000000, "sequence_number": 1 }
@@ -1478,7 +1432,7 @@ func (self *EngineSuite) TestQueryWithMergedTables(c *C) {
 }
 
 func (self *EngineSuite) TestQueryWithJoinedTables(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 }
@@ -1519,7 +1473,7 @@ func (self *EngineSuite) TestQueryWithJoinedTables(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select * from foo inner join bar order asc", c, `[
+	self.runQuery("select * from foo inner join bar order asc", c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000000, "sequence_number": 1 }
@@ -1538,7 +1492,7 @@ func (self *EngineSuite) TestQueryWithJoinedTables(c *C) {
 }
 
 func (self *EngineSuite) TestQueryWithJoinedTablesDescendingOrder(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 4 }], "timestamp": 1381346707000000, "sequence_number": 1 }
@@ -1579,7 +1533,7 @@ func (self *EngineSuite) TestQueryWithJoinedTablesDescendingOrder(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select * from foo inner join bar", c, `[
+	self.runQuery("select * from foo inner join bar", c, `[
     {
       "points": [
         { "values": [{ "int64_value": 3 }, { "int64_value": 4 }], "timestamp": 1381346707000000, "sequence_number": 1 }
@@ -1598,7 +1552,7 @@ func (self *EngineSuite) TestQueryWithJoinedTablesDescendingOrder(c *C) {
 }
 
 func (self *EngineSuite) TestJoiningWithSelf(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000000, "sequence_number": 1 },
@@ -1627,7 +1581,7 @@ func (self *EngineSuite) TestJoiningWithSelf(c *C) {
     }
   ]`)
 
-	runQuery(engine, "select * from t as foo inner join t as bar", c, `[
+	self.runQuery("select * from t as foo inner join t as bar", c, `[
     {
       "points": [
         { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346706000000, "sequence_number": 1 }
@@ -1646,7 +1600,7 @@ func (self *EngineSuite) TestJoiningWithSelf(c *C) {
 }
 
 func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
-	engine := createEngine(c, `[
+	self.createEngine(c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1675,7 +1629,7 @@ func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
     }
   ]`)
 
-	runQueryExtended(engine, "select * from foo merge bar order asc", c, true, `[
+	self.runQuery("select * from foo merge bar order asc", c, `[
     {
       "points": [
         { "values": [{ "int64_value": 1 }, { "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000000, "sequence_number": 1 },
@@ -1691,7 +1645,7 @@ func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
 
 func (self *EngineSuite) TestHistogramQueryWithGroupByTime(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -1738,7 +1692,7 @@ func (self *EngineSuite) TestHistogramQueryWithGroupByTime(c *C) {
 ]
 `)
 
-	runQuery(engine, "select histogram(column_one, 100) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select histogram(column_one, 100) from foo group by time(1m) order asc", c, `[
   {
     "points": [
       {
@@ -1784,7 +1738,7 @@ func (self *EngineSuite) TestHistogramQueryWithGroupByTime(c *C) {
 
 func (self *EngineSuite) TestHistogramQueryWithGroupByTimeAndDefaultBucketSize(c *C) {
 	// make the mock coordinator return some data
-	engine := createEngine(c, `
+	self.createEngine(c, `
 [
   {
     "points": [
@@ -1831,7 +1785,7 @@ func (self *EngineSuite) TestHistogramQueryWithGroupByTimeAndDefaultBucketSize(c
 ]
 `)
 
-	runQuery(engine, "select histogram(column_one) from foo group by time(1m) order asc", c, `[
+	self.runQuery("select histogram(column_one) from foo group by time(1m) order asc", c, `[
   {
     "points": [
       {
@@ -1886,39 +1840,39 @@ func (self *EngineSuite) TestHistogramQueryWithGroupByTimeAndDefaultBucketSize(c
 `)
 }
 
-func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidNumberOfArguments(c *C) {
-	err := common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
-	engine := createEngine(c, `[]`)
-	runQueryRunError(engine, "select count(*) from foo group by time(1h, 1m) order asc", c, err)
-}
+// func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidNumberOfArguments(c *C) {
+// 	err := common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
+// self.createEngine(c, `[]`)
+// 	runQueryRunError(engine, "select count(*) from foo group by time(1h, 1m) order asc", c, err)
+// }
 
-func (self *EngineSuite) TestCountQueryWithInvalidWildcardArgument(c *C) {
-	err := common.NewQueryError(common.InvalidArgument, "function count() doesn't work with wildcards")
-	engine := createEngine(c, `[]`)
-	runQueryRunError(engine, "select count(*) from foo order asc", c, err)
-}
+// func (self *EngineSuite) TestCountQueryWithInvalidWildcardArgument(c *C) {
+// 	err := common.NewQueryError(common.InvalidArgument, "function count() doesn't work with wildcards")
+// self.createEngine(c, `[]`)
+// 	runQueryRunError(engine, "select count(*) from foo order asc", c, err)
+// }
 
-func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidArgument(c *C) {
-	err := common.NewQueryError(common.InvalidArgument, "invalid argument foobar to the time function")
-	engine := createEngine(c, `[]`)
-	runQueryRunError(engine, "select count(*) from foo group by time(foobar) order asc", c, err)
-}
+// func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidArgument(c *C) {
+// 	err := common.NewQueryError(common.InvalidArgument, "invalid argument foobar to the time function")
+// self.createEngine(c, `[]`)
+// 	runQueryRunError(engine, "select count(*) from foo group by time(foobar) order asc", c, err)
+// }
 
-func (self *EngineSuite) TestPercentileQueryWithInvalidNumberOfArguments(c *C) {
-	err := common.NewQueryError(common.WrongNumberOfArguments, "function percentile() requires exactly two arguments")
-	engine := createEngine(c, `[]`)
-	runQueryRunError(engine, "select percentile(95) from foo group by time(1m) order asc", c, err)
-}
+// func (self *EngineSuite) TestPercentileQueryWithInvalidNumberOfArguments(c *C) {
+// 	err := common.NewQueryError(common.WrongNumberOfArguments, "function percentile() requires exactly two arguments")
+// self.createEngine(c, `[]`)
+// 	runQueryRunError(engine, "select percentile(95) from foo group by time(1m) order asc", c, err)
+// }
 
-func (self *EngineSuite) TestPercentileQueryWithNonNumericArguments(c *C) {
-	err := common.NewQueryError(common.InvalidArgument, "function percentile() requires a numeric second argument between 0 and 100")
-	engine := createEngine(c, `[]`)
-	runQueryRunError(engine, "select percentile(column_one, a95) from foo group by time(1m) order asc", c, err)
-}
+// func (self *EngineSuite) TestPercentileQueryWithNonNumericArguments(c *C) {
+// 	err := common.NewQueryError(common.InvalidArgument, "function percentile() requires a numeric second argument between 0 and 100")
+// self.createEngine(c, `[]`)
+// 	runQueryRunError(engine, "select percentile(column_one, a95) from foo group by time(1m) order asc", c, err)
+// }
 
-func (self *EngineSuite) TestPercentileQueryWithOutOfBoundNumericArguments(c *C) {
-	err := common.NewQueryError(common.InvalidArgument, "function percentile() requires a numeric second argument between 0 and 100")
-	engine := createEngine(c, `[]`)
-	runQueryRunError(engine, "select percentile(column_one, 0) from foo group by time(1m) order asc", c, err)
-	runQueryRunError(engine, "select percentile(column_one, 105) from foo group by time(1m) order asc", c, err)
-}
+// func (self *EngineSuite) TestPercentileQueryWithOutOfBoundNumericArguments(c *C) {
+// 	err := common.NewQueryError(common.InvalidArgument, "function percentile() requires a numeric second argument between 0 and 100")
+// self.createEngine(c, `[]`)
+// 	runQueryRunError(engine, "select percentile(column_one, 0) from foo group by time(1m) order asc", c, err)
+// 	runQueryRunError(engine, "select percentile(column_one, 105) from foo group by time(1m) order asc", c, err)
+// }
