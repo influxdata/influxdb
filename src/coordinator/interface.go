@@ -25,7 +25,6 @@ type Coordinator interface {
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ForceCompaction(user common.User) error
 	ListDatabases(user common.User) ([]*cluster.Database, error)
-	ListSeries(user common.User, database string) ([]*protocol.Series, error)
 	ReplicateWrite(request *protocol.Request) error
 	ReplicateDelete(request *protocol.Request) error
 	ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64)

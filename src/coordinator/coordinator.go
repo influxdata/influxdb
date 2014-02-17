@@ -54,8 +54,6 @@ var (
 	proxyDropSeries       = protocol.Request_PROXY_DROP_SERIES
 	replicateDropSeries   = protocol.Request_REPLICATION_DROP_SERIES
 	queryRequest          = protocol.Request_QUERY
-	listSeriesRequest     = protocol.Request_LIST_SERIES
-	listSeriesResponse    = protocol.Response_LIST_SERIES
 	endStreamResponse     = protocol.Response_END_STREAM
 	queryResponse         = protocol.Response_QUERY
 	replayReplication     = protocol.Request_REPLICATION_REPLAY
@@ -1124,73 +1122,6 @@ func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*cluster.Databas
 
 	dbs := self.clusterConfiguration.GetDatabases()
 	return dbs, nil
-}
-
-func seriesFromListSeries(names []string) []*protocol.Series {
-	series := []*protocol.Series{}
-
-	for _, _name := range names {
-		name := _name
-		series = append(series, &protocol.Series{
-			Name:   &name,
-			Fields: []string{},
-			Points: []*protocol.Point{},
-		})
-	}
-	return series
-}
-
-func (self *CoordinatorImpl) ListSeries(user common.User, database string) ([]*protocol.Series, error) {
-	if self.clusterConfiguration.IsSingleServer() {
-		dbs := []string{}
-		self.datastore.GetSeriesForDatabase(database, func(db string) error {
-			dbs = append(dbs, db)
-			return nil
-		})
-		return seriesFromListSeries(dbs), nil
-	}
-	servers, replicationFactor := self.clusterConfiguration.GetServersToMakeQueryTo(&database)
-	id := atomic.AddUint32(&self.requestId, uint32(1))
-	userName := user.GetName()
-	isDbUser := !user.IsClusterAdmin()
-	responseChannels := make([]chan *protocol.Response, 0, len(servers)+1)
-	for _, server := range servers {
-		if server.Server.Id() == self.clusterConfiguration.LocalServerId {
-			continue
-		}
-		request := &protocol.Request{Type: &listSeriesRequest, Id: &id, Database: &database, UserName: &userName, IsDbUser: &isDbUser}
-		if server.RingLocationToQuery != replicationFactor {
-			r := server.RingLocationToQuery
-			request.RingLocationsToQuery = &r
-		}
-		responseChan := make(chan *protocol.Response, 3)
-		server.Server.MakeRequest(request, responseChan)
-		responseChannels = append(responseChannels, responseChan)
-	}
-
-	local := make(chan *protocol.Response)
-
-	responseChannels = append(responseChannels, local)
-
-	go func() {
-		dbs := []string{}
-		self.datastore.GetSeriesForDatabase(database, func(db string) error {
-			dbs = append(dbs, db)
-			return nil
-		})
-		seriesArray := seriesFromListSeries(dbs)
-		for _, series := range seriesArray {
-			local <- &protocol.Response{Type: &listSeriesResponse, Series: series}
-		}
-		local <- &protocol.Response{Type: &endStreamResponse}
-		close(local)
-	}()
-	seriesArray := []*protocol.Series{}
-	self.streamResultsFromChannels(true, true, responseChannels, func(series *protocol.Series) error {
-		seriesArray = append(seriesArray, series)
-		return nil
-	})
-	return seriesArray, nil
 }
 
 func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
