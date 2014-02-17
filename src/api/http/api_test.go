@@ -3,7 +3,7 @@ package http
 import (
 	"bytes"
 	"cluster"
-	"common"
+	. "common"
 	"coordinator"
 	"encoding/base64"
 	"encoding/json"
@@ -33,12 +33,12 @@ type ApiSuite struct {
 
 var _ = Suite(&ApiSuite{})
 
-func (self *MockCoordinator) RunQuery(_ common.User, _ string, query string, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) RunQuery(_ User, _ string, query string, yield func(*protocol.Series) error) error {
 	if self.returnedError != nil {
 		return self.returnedError
 	}
 
-	series, err := common.StringToSeriesArray(`
+	series, err := StringToSeriesArray(`
 [
   {
     "points": [
@@ -101,31 +101,31 @@ type MockCoordinator struct {
 	returnedError     error
 }
 
-func (self *MockCoordinator) WriteSeriesData(_ common.User, db string, series *protocol.Series) error {
+func (self *MockCoordinator) WriteSeriesData(_ User, db string, series *protocol.Series) error {
 	self.series = append(self.series, series)
 	return nil
 }
 
-func (self *MockCoordinator) DeleteSeriesData(_ common.User, db string, query *parser.DeleteQuery, localOnly bool) error {
+func (self *MockCoordinator) DeleteSeriesData(_ User, db string, query *parser.DeleteQuery, localOnly bool) error {
 	self.deleteQueries = append(self.deleteQueries, query)
 	return nil
 }
 
-func (self *MockCoordinator) CreateDatabase(_ common.User, db string, _ uint8) error {
+func (self *MockCoordinator) CreateDatabase(_ User, db string, _ uint8) error {
 	self.db = db
 	return nil
 }
 
-func (self *MockCoordinator) ListDatabases(_ common.User) ([]*cluster.Database, error) {
+func (self *MockCoordinator) ListDatabases(_ User) ([]*cluster.Database, error) {
 	return []*cluster.Database{&cluster.Database{"db1", 1}, &cluster.Database{"db2", 1}}, nil
 }
 
-func (self *MockCoordinator) DropDatabase(_ common.User, db string) error {
+func (self *MockCoordinator) DropDatabase(_ User, db string) error {
 	self.droppedDb = db
 	return nil
 }
 
-func (self *MockCoordinator) ListContinuousQueries(_ common.User, db string) ([]*protocol.Series, error) {
+func (self *MockCoordinator) ListContinuousQueries(_ User, db string) ([]*protocol.Series, error) {
 	points := []*protocol.Point{}
 
 	for _, query := range self.continuousQueries[db] {
@@ -150,12 +150,12 @@ func (self *MockCoordinator) ListContinuousQueries(_ common.User, db string) ([]
 	return series, nil
 }
 
-func (self *MockCoordinator) CreateContinuousQuery(_ common.User, db string, query string) error {
+func (self *MockCoordinator) CreateContinuousQuery(_ User, db string, query string) error {
 	self.continuousQueries[db] = append(self.continuousQueries[db], &cluster.ContinuousQuery{2, query})
 	return nil
 }
 
-func (self *MockCoordinator) DeleteContinuousQuery(_ common.User, db string, id uint32) error {
+func (self *MockCoordinator) DeleteContinuousQuery(_ User, db string, id uint32) error {
 	length := len(self.continuousQueries[db])
 	_, self.continuousQueries[db] = self.continuousQueries[db][length-1], self.continuousQueries[db][:length-1]
 	return nil
@@ -723,7 +723,7 @@ func (self *ApiSuite) TestClusterAdminsIndex(c *C) {
 	users := []*User{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*User{&User{"root"}})
+	c.Assert(users, DeepEquals, []*ApiUser{&ApiUser{"root"}})
 }
 
 func (self *ApiSuite) TestDbUsersIndex(c *C) {
@@ -737,7 +737,7 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 	users := []*User{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*User{&User{"db_user1"}})
+	c.Assert(users, DeepEquals, []*ApiUser{&ApiUser{"db_user1"}})
 }
 
 func (self *ApiSuite) TestDatabasesIndex(c *C) {
