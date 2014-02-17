@@ -79,6 +79,68 @@ func (self *WAL) SetServerId(id uint32) {
 	self.serverId = id
 }
 
+// Marks a given request for a given server as committed
+func (self *WAL) Commit(requestNumber uint32, server Server) error {
+	lastLogFile := self.logFiles[len(self.logFiles)-1]
+	lastLogFile.state.commitRequestNumber(server.Id(), requestNumber)
+	lowestCommitedRequestNumber := lastLogFile.state.LowestCommitedRequestNumber()
+
+	index := self.firstLogFile(lowestCommitedRequestNumber)
+	if index == 0 {
+		return nil
+	}
+
+	var unusedLogFiles []*log
+	unusedLogFiles, self.logFiles = self.logFiles[:index], self.logFiles[index:]
+	for _, logFile := range unusedLogFiles {
+		logFile.close()
+		logFile.delete()
+	}
+	return nil
+}
+
+// In the case where this server is running and another one in the cluster stops responding, at some point this server will have to just write
+// requests to disk. When the downed server comes back up, it's this server's responsibility to send out any writes that were queued up. If
+// the yield function returns nil then the request is committed.
+func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
+	var firstLogFile int
+
+outer:
+	for _, logFile := range self.logFiles[firstLogFile:] {
+		ch, stopChan := logFile.replayFromRequestNumber(shardIds, requestNumber)
+		for {
+			x := <-ch
+			if x == nil {
+				continue outer
+			}
+
+			if x.err != nil {
+				return x.err
+			}
+
+			if err := yield(x.request, x.shardId); err != nil {
+				stopChan <- struct{}{}
+				return err
+			}
+		}
+		close(stopChan)
+	}
+	return nil
+}
+
+func (self *WAL) Close() error {
+	for _, l := range self.logFiles {
+		if err := l.close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PRIVATE functions
+
+// creates a new log file using the next suffix and initializes its
+// state with the state of the last log file
 func (self *WAL) createNewLog() (*log, error) {
 	self.nextLogFileSuffix++
 	logFileName := path.Join(self.config.WalDir, fmt.Sprintf("log.%d", self.nextLogFileSuffix))
@@ -126,30 +188,7 @@ func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Sh
 	return requestNumber, nil
 }
 
-// Marks a given request for a given server as committed
-func (self *WAL) Commit(requestNumber uint32, server Server) error {
-	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	lastLogFile.state.commitRequestNumber(server.Id(), requestNumber)
-	lowestCommitedRequestNumber := lastLogFile.state.LowestCommitedRequestNumber()
-
-	index := self.firstLogFile(lowestCommitedRequestNumber)
-	if index == 0 {
-		return nil
-	}
-
-	var unusedLogFiles []*log
-	unusedLogFiles, self.logFiles = self.logFiles[:index], self.logFiles[index:]
-	for _, logFile := range unusedLogFiles {
-		logFile.close()
-		filePath := path.Join(self.config.WalDir, fmt.Sprintf("bookmark.%d", logFile.suffix()))
-		os.Remove(filePath)
-		filePath = path.Join(self.config.WalDir, fmt.Sprintf("log.%d", logFile.suffix()))
-		os.Remove(filePath)
-	}
-	return nil
-}
-
-func (self *WAL) getFirstLogFile(requestNumber uint32) func(int) bool {
+func (self *WAL) doesLogFileContainRequest(requestNumber uint32) func(int) bool {
 	return func(i int) bool {
 		if self.logFiles[i].firstRequestNumber() > requestNumber {
 			return true
@@ -166,42 +205,5 @@ func (self *WAL) firstLogFile(requestNumber uint32) int {
 	} else if requestNumber <= self.logFiles[0].firstRequestNumber() {
 		return 0
 	}
-	return sort.Search(lengthLogFiles, self.getFirstLogFile(requestNumber)) - 1
-}
-
-// In the case where this server is running and another one in the cluster stops responding, at some point this server will have to just write
-// requests to disk. When the downed server comes back up, it's this server's responsibility to send out any writes that were queued up. If
-// the yield function returns nil then the request is committed.
-func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
-	var firstLogFile int
-
-outer:
-	for _, logFile := range self.logFiles[firstLogFile:] {
-		ch, stopChan := logFile.replayFromRequestNumber(shardIds, requestNumber)
-		for {
-			x := <-ch
-			if x == nil {
-				continue outer
-			}
-
-			if x.err != nil {
-				return x.err
-			}
-
-			if err := yield(x.request, x.shardId); err != nil {
-				stopChan <- struct{}{}
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (self *WAL) Close() error {
-	for _, l := range self.logFiles {
-		if err := l.close(); err != nil {
-			return err
-		}
-	}
-	return nil
+	return sort.Search(lengthLogFiles, self.doesLogFileContainRequest(requestNumber)) - 1
 }
