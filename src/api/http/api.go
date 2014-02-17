@@ -691,7 +691,7 @@ type UpdateClusterAdminUser struct {
 }
 
 type User struct {
-	Name string `json:"username"`
+	Name string `json:"name"`
 }
 
 type UserDetail struct {
