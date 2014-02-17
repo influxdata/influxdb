@@ -123,7 +123,7 @@ func (_ *WalSuite) TestLogFilesCompaction(c *C) {
 	c.Assert(wal.logFiles, HasLen, 2)
 	wal.Close()
 
-	suffix := wal.logFiles[0].suffix
+	suffix := wal.logFiles[0].suffix()
 	c.Assert(wal.Commit(2001, &MockServer{id: 1}), IsNil)
 	c.Assert(wal.logFiles, HasLen, 2)
 	_, err := os.Stat(path.Join(wal.config.WalDir, fmt.Sprintf("log.%d", suffix)))
@@ -167,7 +167,6 @@ func (_ *WalSuite) TestMultipleLogFiles(c *C) {
 func (_ *WalSuite) TestAutoBookmark(c *C) {
 	wal := newWal(c)
 	wal.config.WalBookmarkAfterRequests = 2
-	wal.logFiles[0].bookmarkSize = 2
 	for i := 0; i < 2; i++ {
 		request := generateRequest(2)
 		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
@@ -182,13 +181,12 @@ func (_ *WalSuite) TestAutoBookmark(c *C) {
 	err = s.read(f)
 	c.Assert(err, IsNil)
 	c.Assert(s.ShardLastSequenceNumber[1], Equals, uint64(4))
-	c.Assert(s.CurrentRequestNumber, Equals, uint32(2))
+	c.Assert(s.LargestRequestNumber, Equals, uint32(2))
 }
 
 func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 	wal := newWal(c)
 	wal.config.WalBookmarkAfterRequests = 2
-	wal.logFiles[0].bookmarkSize = 2
 	request := generateRequest(2)
 	id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
@@ -211,13 +209,12 @@ func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 	err = s.read(f)
 	c.Assert(err, IsNil)
 	c.Assert(s.ShardLastSequenceNumber[1], Equals, uint64(6))
-	c.Assert(s.CurrentRequestNumber, Equals, uint32(3))
+	c.Assert(s.LargestRequestNumber, Equals, uint32(3))
 }
 
 func (_ *WalSuite) TestAutoBookmarkShouldntHappenTooOften(c *C) {
 	wal := newWal(c)
 	wal.config.WalBookmarkAfterRequests = 3
-	wal.logFiles[0].bookmarkSize = 3
 	for i := 0; i < 2; i++ {
 		request := generateRequest(2)
 		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
