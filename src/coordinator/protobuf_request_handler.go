@@ -126,28 +126,6 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 			}
 		}
 		return self.db.DropDatabase(*request.Database)
-	} else if *request.Type == protocol.Request_PROXY_DELETE {
-		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
-
-		request.OriginatingServerId = &self.clusterConfig.LocalServerId
-		// TODO: make request logging and datastore write atomic
-		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
-		if err != nil {
-			return err
-		}
-		query, err := parser.ParseQuery(*request.Query)
-		if err != nil {
-			return err
-		}
-		err = self.db.DeleteSeriesData(*request.Database, query[0].DeleteQuery)
-		if err != nil {
-			return err
-		}
-		err = self.WriteResponse(conn, response)
-		// TODO: add quorum writes?
-		self.coordinator.ReplicateDelete(request)
-		return err
 	} else if *request.Type == protocol.Request_REPLICATION_WRITE {
 		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
 		// TODO: make request logging and datastore write atomic
@@ -164,24 +142,6 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		}
 		self.db.WriteSeriesData(*request.Database, request.Series)
 		return nil
-	} else if *request.Type == protocol.Request_REPLICATION_DELETE {
-		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
-		// TODO: make request logging and datastore write atomic
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
-		if err != nil {
-			switch err := err.(type) {
-			case datastore.SequenceMissingRequestsError:
-				go self.coordinator.ReplayReplication(request, &replicationFactor, request.OwnerServerId, &err.LastKnownRequestSequence)
-				return nil
-			default:
-				return err
-			}
-		}
-		query, err := parser.ParseQuery(*request.Query)
-		if err != nil {
-			return err
-		}
-		return self.db.DeleteSeriesData(*request.Database, query[0].DeleteQuery)
 	} else if *request.Type == protocol.Request_QUERY {
 		go self.handleQuery(request, conn)
 	} else if *request.Type == protocol.Request_REPLICATION_REPLAY {

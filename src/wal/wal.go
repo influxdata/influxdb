@@ -33,10 +33,12 @@ func (self *WAL) SetServerId(id uint32) {
 // Will assign sequence numbers if null. Returns a unique id that should be marked as committed for each server
 // as it gets confirmed.
 func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Shard, servers []Server) (uint32, error) {
-	for _, point := range request.Series.Points {
-		if point.SequenceNumber == nil {
-			sn := self.getNextSequenceNumber(shard)
-			point.SequenceNumber = &sn
+	if request.Series != nil {
+		for _, point := range request.Series.Points {
+			if point.SequenceNumber == nil {
+				sn := self.getNextSequenceNumber(shard)
+				point.SequenceNumber = &sn
+			}
 		}
 	}
 

@@ -48,7 +48,6 @@ var (
 // shorter constants for readability
 var (
 	proxyWrite            = protocol.Request_PROXY_WRITE
-	proxyDelete           = protocol.Request_PROXY_DELETE
 	proxyDropDatabase     = protocol.Request_PROXY_DROP_DATABASE
 	replicateDropDatabase = protocol.Request_REPLICATION_DROP_DATABASE
 	proxyDropSeries       = protocol.Request_PROXY_DROP_SERIES
@@ -97,7 +96,7 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 		querySpec := parser.NewQuerySpec(user, database, query)
 
 		if query.DeleteQuery != nil {
-			if err := self.DeleteSeriesData(user, database, query.DeleteQuery, false); err != nil {
+			if err := self.runDeleteQuery(querySpec, yield); err != nil {
 				return err
 			}
 			continue
@@ -209,6 +208,31 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, yie
 					yield(series)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, yield func(*protocol.Series) error) error {
+	db := querySpec.Database()
+	if !querySpec.User().IsDbAdmin(db) {
+		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
+	}
+	shards := self.clusterConfiguration.GetShards(querySpec)
+	responses := make([]chan *protocol.Response, 0)
+	for _, shard := range shards {
+		responseChan := make(chan *protocol.Response, 1)
+		shard.Query(querySpec, responseChan)
+		responses = append(responses, responseChan)
+	}
+
+	for _, responseChan := range responses {
+		for {
+			response := <-responseChan
+			if *response.Type == endStreamResponse {
+				break
+			}
+			yield(response.Series)
 		}
 	}
 	return nil
@@ -743,8 +767,8 @@ func (self *CoordinatorImpl) handleReplayRequest(r *protocol.Request, replicatio
 		log.Debug("Replaying write request")
 		self.datastore.WriteSeriesData(*r.Database, r.Series)
 	} else if *r.Type == protocol.Request_PROXY_DELETE || *r.Type == protocol.Request_REPLICATION_DELETE {
-		query, _ := parser.ParseQuery(*r.Query)
-		err = self.datastore.DeleteSeriesData(*r.Database, query[0].DeleteQuery)
+		// query, _ := parser.ParseQuery(*r.Query)
+		// err = self.datastore.DeleteSeriesData(*r.Database, query[0].DeleteQuery)
 	}
 }
 func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series *protocol.Series) error {
@@ -838,65 +862,9 @@ func (self *CoordinatorImpl) write(db string, series *protocol.Series, shard clu
 	return shard.Write(request)
 }
 
-func (self *CoordinatorImpl) DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery, localOnly bool) error {
-	if !user.IsDbAdmin(db) {
-		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
-	}
-
-	if self.clusterConfiguration.IsSingleServer() || localOnly {
-		return self.deleteSeriesDataLocally(user, db, query)
-	}
-
-	servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
-	for _, server := range servers {
-		if err := self.handleSeriesDelete(user, server.Server, db, query); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (self *CoordinatorImpl) deleteSeriesDataLocally(user common.User, database string, query *parser.DeleteQuery) error {
-	return self.datastore.DeleteSeriesData(database, query)
-}
-
 func (self *CoordinatorImpl) createRequest(requestType protocol.Request_Type, database *string) *protocol.Request {
 	id := atomic.AddUint32(&self.requestId, uint32(1))
 	return &protocol.Request{Type: &requestType, Database: database, Id: &id}
-}
-
-func (self *CoordinatorImpl) handleSeriesDelete(user common.User, server *cluster.ClusterServer, database string, query *parser.DeleteQuery) error {
-	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
-
-	request := self.createRequest(proxyDelete, &database)
-	queryStr := query.GetQueryStringWithTimeCondition()
-	request.Query = &queryStr
-	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
-	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
-	ownId := owner.Id()
-	request.OwnerServerId = &ownId
-
-	if server.Id() == self.clusterConfiguration.LocalServerId {
-		// this is a local delete
-		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
-		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &ownId)
-		if err != nil {
-			return self.proxyUntilSuccess(servers, request)
-		}
-		self.deleteSeriesDataLocally(user, database, query)
-		if err != nil {
-			log.Error("Couldn't write data to local store: ", err, request)
-		}
-
-		// ignoring the error because we still want to send to replicas
-		request.Type = &replicateDelete
-		self.sendRequestToReplicas(request, servers)
-		return nil
-	}
-
-	// otherwise, proxy the delete
-	return self.proxyUntilSuccess(servers, request)
 }
 
 func (self *CoordinatorImpl) handleDropDatabase(server *cluster.ClusterServer, database string) error {
@@ -1325,16 +1293,6 @@ func (self *CoordinatorImpl) ReplicateWrite(request *protocol.Request) error {
 	location := common.RingLocation(request.Database, request.Series.Name, request.Series.Points[0].Timestamp)
 	replicas := self.clusterConfiguration.GetServersByRingLocation(request.Database, &location)
 	request.Type = &replicateWrite
-	self.sendRequestToReplicas(request, replicas)
-	return nil
-}
-
-func (self *CoordinatorImpl) ReplicateDelete(request *protocol.Request) error {
-	id := atomic.AddUint32(&self.requestId, uint32(1))
-	request.Id = &id
-	server := self.clusterConfiguration.GetServerById(request.OwnerServerId)
-	_, replicas := self.clusterConfiguration.GetReplicas(server, request.Database)
-	request.Type = &replicateDelete
 	self.sendRequestToReplicas(request, replicas)
 	return nil
 }

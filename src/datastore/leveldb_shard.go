@@ -90,6 +90,8 @@ func (self *LevelDbShard) Write(database string, series *protocol.Series) error 
 func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	if querySpec.IsListSeriesQuery() {
 		return self.executeListSeriesQuery(querySpec, processor)
+	} else if querySpec.IsDeleteFromSeriesQuery() {
+		return self.executeDeleteQuery(querySpec, processor)
 	}
 
 	seriesAndColumns := querySpec.SelectQuery().GetReferencedColumns()
@@ -271,6 +273,109 @@ func (self *LevelDbShard) executeListSeriesQuery(querySpec *parser.QuerySpec, pr
 			if !shouldContinue {
 				return nil
 			}
+		}
+	}
+	return nil
+}
+
+func (self *LevelDbShard) executeDeleteQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+	query := querySpec.DeleteQuery()
+	series := query.GetFromClause()
+	database := querySpec.Database()
+	if series.Type != parser.FromClauseArray {
+		return fmt.Errorf("Merge and Inner joins can't be used with a delete query", series.Type)
+	}
+
+	for _, name := range series.Names {
+		var err error
+		if regex, ok := name.Name.GetCompiledRegex(); ok {
+			err = self.deleteRangeOfRegex(database, regex, query.GetStartTime(), query.GetEndTime())
+		} else {
+			err = self.deleteRangeOfSeries(database, name.Name.Name, query.GetStartTime(), query.GetEndTime())
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (self *LevelDbShard) byteArrayForTimeInt(time int64) []byte {
+	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&time))
+	bytes := timeBuffer.Bytes()
+	return bytes
+}
+
+func (self *LevelDbShard) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
+	return self.byteArrayForTimeInt(startTime), self.byteArrayForTimeInt(endTime)
+}
+
+func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, startTimeBytes, endTimeBytes []byte) error {
+	columns := self.getColumnNamesForSeries(database, series)
+	fields, err := self.getFieldsForSeries(database, series, columns)
+	if err != nil {
+		// because a db is distributed across the cluster, it's possible we don't have the series indexed here. ignore
+		switch err := err.(type) {
+		case FieldLookupError:
+			return nil
+		default:
+			return err
+		}
+	}
+	ro := levigo.NewReadOptions()
+	defer ro.Close()
+	ro.SetFillCache(false)
+	rangesToCompact := make([]*levigo.Range, 0)
+	for _, field := range fields {
+		it := self.db.NewIterator(ro)
+		defer it.Close()
+		wb := levigo.NewWriteBatch()
+		defer wb.Close()
+
+		startKey := append(field.Id, startTimeBytes...)
+		endKey := startKey
+		it.Seek(startKey)
+		if it.Valid() {
+			if !bytes.Equal(it.Key()[:8], field.Id) {
+				it.Next()
+				if it.Valid() {
+					startKey = it.Key()
+				}
+			}
+		}
+		for it = it; it.Valid(); it.Next() {
+			k := it.Key()
+			if len(k) < 16 || !bytes.Equal(k[:8], field.Id) || bytes.Compare(k[8:16], endTimeBytes) == 1 {
+				break
+			}
+			wb.Delete(k)
+			endKey = k
+		}
+		err = self.db.Write(self.writeOptions, wb)
+		if err != nil {
+			return err
+		}
+		rangesToCompact = append(rangesToCompact, &levigo.Range{startKey, endKey})
+	}
+	for _, r := range rangesToCompact {
+		self.db.CompactRange(*r)
+	}
+	return nil
+}
+
+func (self *LevelDbShard) deleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
+	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
+	return self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes)
+}
+
+func (self *LevelDbShard) deleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
+	series := self.getSeriesForDbAndRegex(database, regex)
+	for _, name := range series {
+		err := self.deleteRangeOfSeries(database, name, startTime, endTime)
+		if err != nil {
+			return err
 		}
 	}
 	return nil

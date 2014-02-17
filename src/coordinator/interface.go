@@ -19,14 +19,12 @@ type Coordinator interface {
 	//   5. TODO: Aggregation on the nodes
 	DistributeQuery(user common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error
 	WriteSeriesData(user common.User, db string, series *protocol.Series) error
-	DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery, localOnly bool) error
 	DropDatabase(user common.User, db string) error
 	DropSeries(user common.User, db, series string) error
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ForceCompaction(user common.User) error
 	ListDatabases(user common.User) ([]*cluster.Database, error)
 	ReplicateWrite(request *protocol.Request) error
-	ReplicateDelete(request *protocol.Request) error
 	ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64)
 	GetLastSequenceNumber(replicationFactor uint8, ownerServerId, originatingServerId uint32) (uint64, error)
 	DeleteContinuousQuery(user common.User, db string, id uint32) error

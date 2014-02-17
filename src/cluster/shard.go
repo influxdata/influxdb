@@ -182,12 +182,18 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 		var processor QueryProcessor
 		if querySpec.IsListSeriesQuery() {
 			processor = engine.NewListSeriesEngine(response)
+		} else if querySpec.IsDeleteFromSeriesQuery() {
+			processor = engine.NewPassthroughEngine(response)
 		} else {
 			processor = engine.NewQueryEngine(querySpec.SelectQuery(), response)
 		}
 		err := self.localShard.Query(querySpec, processor)
 		processor.Close()
 		return err
+	}
+
+	if querySpec.IsDeleteFromSeriesQuery() {
+		return self.logAndHandleDeleteQuery(querySpec, response)
 	}
 
 	randServerIndex := int(time.Now().UnixNano() % int64(len(self.clusterServers)))
@@ -199,6 +205,45 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 	isDbUser := !user.IsClusterAdmin()
 	request := &protocol.Request{Type: &queryRequest, ShardId: &self.id, Query: &queryString, UserName: &userName, Database: &database, IsDbUser: &isDbUser}
 	return server.MakeRequest(request, response)
+}
+
+func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
+	user := querySpec.User()
+	userName := user.GetName()
+	database := querySpec.Database()
+	isDbUser := !user.IsClusterAdmin()
+
+	queryString := querySpec.GetQueryStringWithTimeCondition()
+	request := &protocol.Request{
+		Type:     &queryRequest,
+		ShardId:  &self.id,
+		Query:    &queryString,
+		UserName: &userName,
+		Database: &database,
+		IsDbUser: &isDbUser,
+	}
+	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self, self.servers)
+	if err != nil {
+		return err
+	}
+	responses := make([]chan *protocol.Response, len(self.clusterServers), len(self.clusterServers))
+	for i, server := range self.clusterServers {
+		responseChan := make(chan *protocol.Response, 1)
+		responses[i] = responseChan
+		server.MakeRequest(request, responseChan)
+	}
+	for i, responseChan := range responses {
+		for {
+			res := <-responseChan
+			if *res.Type == endStreamResponse {
+				self.wal.Commit(requestNumber, self.clusterServers[i])
+				break
+			}
+			response <- res
+		}
+	}
+	response <- &protocol.Response{Type: &endStreamResponse}
+	return nil
 }
 
 // used to serialize shards when sending around in raft or when snapshotting in the log

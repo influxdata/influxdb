@@ -480,9 +480,11 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
 	series := collection.GetSeries("test_delete_replication", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
 
-	self.serverProcesses[0].Query("test_rep", "delete from test_delete_replication", false, c)
-	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
-	c.Assert(collection.Members, HasLen, 0)
+	for _, s := range self.serverProcesses {
+		s.Query("test_rep", "delete from test_delete_replication", false, c)
+		collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
+		c.Assert(collection.Members, HasLen, 0)
+	}
 }
 
 // Reported by Alex in the following thread

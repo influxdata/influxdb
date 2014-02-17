@@ -46,6 +46,10 @@ func (self *QuerySpec) User() common.User {
 	return self.user
 }
 
+func (self *QuerySpec) DeleteQuery() *DeleteQuery {
+	return self.query.DeleteQuery
+}
+
 func (self *QuerySpec) TableNames() []string {
 	if self.names != nil {
 		return self.names
@@ -124,6 +128,19 @@ func (self *QuerySpec) IsListSeriesQuery() bool {
 	return self.query.IsListSeriesQuery()
 }
 
+func (self *QuerySpec) IsDeleteFromSeriesQuery() bool {
+	return self.query.DeleteQuery != nil
+}
+
 func (self *QuerySpec) GetQueryString() string {
+	return self.query.GetQueryString()
+}
+
+func (self *QuerySpec) GetQueryStringWithTimeCondition() string {
+	if self.query.SelectQuery != nil {
+		return self.query.SelectQuery.GetQueryStringWithTimeCondition()
+	} else if self.query.DeleteQuery != nil {
+		return self.query.DeleteQuery.GetQueryStringWithTimeCondition()
+	}
 	return self.query.GetQueryString()
 }
