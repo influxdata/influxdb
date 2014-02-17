@@ -189,8 +189,6 @@ func (self *log) assignSequenceNumbers(shardId uint32, request *protocol.Request
 func (self *log) processEntries() {
 	for {
 		select {
-		case x := <-self.entries:
-			self.internalAppendRequest(x)
 		case _ = <-self.indexChan:
 			self.internalIndex()
 		case x := <-self.bookmarkChan:
@@ -204,6 +202,9 @@ func (self *log) processEntries() {
 				self.closed = true
 				return
 			}
+		case x := <-self.entries:
+			requestNumber, err := self.internalAppendRequest(x)
+			x.confirmation <- &confirmation{requestNumber, err}
 		}
 	}
 }
@@ -230,47 +231,38 @@ func (self *log) conditionalBookmarkAndIndex() {
 	}
 }
 
-func (self *log) internalAppendRequest(x *entry) {
+func (self *log) internalAppendRequest(x *entry) (uint32, error) {
 	self.assignSequenceNumbers(x.shardId, x.request)
 	bytes, err := x.request.Encode()
 
-	// declare some variables so we can goto returnError without go
-	// complaining
-	var requestNumber uint32
-	var written, writtenHdrBytes int
-	var hdr *entryHeader
-
 	if err != nil {
-		goto returnError
+		return 0, err
 	}
-	requestNumber = self.state.getNextRequestNumber()
+	requestNumber := self.state.getNextRequestNumber()
 	// every request is preceded with the length, shard id and the request number
-	hdr = &entryHeader{
+	hdr := &entryHeader{
 		shardId:       x.shardId,
 		requestNumber: requestNumber,
 		length:        uint32(len(bytes)),
 	}
-	writtenHdrBytes, err = hdr.Write(self.file)
+	writtenHdrBytes, err := hdr.Write(self.file)
 	if err != nil {
 		logger.Error("Error while writing header: %s", err)
-		goto returnError
+		return 0, err
 	}
-	written, err = self.file.Write(bytes)
+	written, err := self.file.Write(bytes)
 	if err != nil {
 		logger.Error("Error while writing request: %s", err)
-		goto returnError
+		return 0, err
 	}
 	if written < len(bytes) {
 		err = fmt.Errorf("Couldn't write entire request")
 		logger.Error("Error while writing request: %s", err)
-		goto returnError
+		return 0, err
 	}
 	self.fileSize += uint64(writtenHdrBytes + written)
 	self.conditionalBookmarkAndIndex()
-	x.confirmation <- &confirmation{requestNumber, nil}
-	return
-returnError:
-	x.confirmation <- &confirmation{0, err}
+	return requestNumber, nil
 }
 
 func (self *log) appendRequest(request *protocol.Request, shardId uint32) (uint32, error) {
@@ -384,8 +376,8 @@ func (self *log) replayFromFileLocation(file *os.File,
 func sendOrStop(req *replayRequest, replayChan chan *replayRequest, stopChan chan struct{}) bool {
 	select {
 	case replayChan <- req:
-	case <-stopChan:
-		return true
+	case _, ok := <-stopChan:
+		return ok
 	}
 	return false
 }
