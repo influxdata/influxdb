@@ -673,7 +673,7 @@ func (self *CoordinatorSuite) TestServersGetUniqueIdsAndCanActivateCluster(c *C)
 	for _, server := range servers {
 		c.Assert(server.clusterConfig.Servers(), HasLen, len(expectedServers))
 		for i, clusterServer := range expectedServers {
-			c.Assert(server.clusterConfig.Servers()[i].Id, Equals, clusterServer.Id())
+			c.Assert(server.clusterConfig.Servers()[i].Id(), Equals, clusterServer.Id())
 		}
 	}
 	// ensure cluster server ids are unique
