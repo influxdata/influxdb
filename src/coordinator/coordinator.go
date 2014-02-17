@@ -61,6 +61,8 @@ var (
 	write = protocol.Request_WRITE
 )
 
+type seriesYieldFunc func(*protocol.Series) error
+
 // usernames and db names should match this regex
 var VALID_NAMES *regexp.Regexp
 
@@ -83,7 +85,7 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 	return coordinator
 }
 
-func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, yield func(*protocol.Series) error) (err error) {
+func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, yield seriesYieldFunc) (err error) {
 	// don't let a panic pass beyond RunQuery
 	defer recoverFunc(database, queryString)
 
@@ -146,7 +148,7 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 }
 
 // This should only get run for SelectQuery types
-func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, database string, yield func(*protocol.Series) error) error {
+func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, database string, yield seriesYieldFunc) error {
 	querySpec := parser.NewQuerySpec(user, database, query)
 	shards := self.clusterConfiguration.GetShards(querySpec)
 	fmt.Println("COORD: runQuery shards ")
@@ -173,7 +175,7 @@ func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, dat
 	return nil
 }
 
-func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, yield func(*protocol.Series) error) error {
+func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, yield seriesYieldFunc) error {
 	shortTermShards := self.clusterConfiguration.GetShortTermShards()
 	if len(shortTermShards) > SHARDS_TO_QUERY_FOR_LIST_SERIES {
 		shortTermShards = shortTermShards[:SHARDS_TO_QUERY_FOR_LIST_SERIES]
@@ -213,7 +215,7 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, yie
 	return nil
 }
 
-func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, yield func(*protocol.Series) error) error {
+func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, yield seriesYieldFunc) error {
 	db := querySpec.Database()
 	if !querySpec.User().IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
