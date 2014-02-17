@@ -44,24 +44,6 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		}
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 		return self.WriteResponse(conn, response)
-	} else if *request.Type == protocol.Request_PROXY_WRITE {
-		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
-
-		request.OriginatingServerId = &self.clusterConfig.LocalServerId
-		// TODO: make request logging and datastore write atomic
-		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
-		if err != nil {
-			return err
-		}
-		err = self.db.WriteSeriesData(*request.Database, request.Series)
-		if err != nil {
-			return err
-		}
-		err = self.WriteResponse(conn, response)
-		// TODO: add quorum writes?
-		self.coordinator.ReplicateWrite(request)
-		return err
 	} else if *request.Type == protocol.Request_PROXY_DROP_DATABASE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 
@@ -94,22 +76,6 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 			}
 		}
 		return self.db.DropDatabase(*request.Database)
-	} else if *request.Type == protocol.Request_REPLICATION_WRITE {
-		replicationFactor := self.clusterConfig.GetReplicationFactor(request.Database)
-		// TODO: make request logging and datastore write atomic
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
-		if err != nil {
-			switch err := err.(type) {
-			case datastore.SequenceMissingRequestsError:
-				log.Warn("Missing sequence number error: Request SN: %v Last Known SN: %v", request.GetSequenceNumber(), err.LastKnownRequestSequence)
-				go self.coordinator.ReplayReplication(request, &replicationFactor, request.OwnerServerId, &err.LastKnownRequestSequence)
-				return nil
-			default:
-				return err
-			}
-		}
-		self.db.WriteSeriesData(*request.Database, request.Series)
-		return nil
 	} else if *request.Type == protocol.Request_QUERY {
 		go self.handleQuery(request, conn)
 	} else if *request.Type == protocol.Request_REPLICATION_REPLAY {
