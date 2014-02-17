@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"cluster"
 	"code.google.com/p/goprotobuf/proto"
-	log "code.google.com/p/log4go"
+	//	log "code.google.com/p/log4go"
 	"common"
 	"encoding/binary"
 	"errors"
@@ -88,7 +88,10 @@ func (self *LevelDbShard) Write(database string, series *protocol.Series) error 
 }
 
 func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
-	log.Error("LevelDbShard: QUERY")
+	if querySpec.IsListSeriesQuery() {
+		return self.executeListSeriesQuery(querySpec, processor)
+	}
+
 	seriesAndColumns := querySpec.SelectQuery().GetReferencedColumns()
 
 	if !self.hasReadAccess(querySpec) {
@@ -241,6 +244,35 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		}
 	}
 
+	return nil
+}
+
+func (self *LevelDbShard) executeListSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+	it := self.db.NewIterator(self.readOptions)
+	defer it.Close()
+
+	database := querySpec.Database()
+	seekKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(querySpec.Database()+"~")...)
+	it.Seek(seekKey)
+	dbNameStart := len(DATABASE_SERIES_INDEX_PREFIX)
+	for it = it; it.Valid(); it.Next() {
+		key := it.Key()
+		if len(key) < dbNameStart || !bytes.Equal(key[:dbNameStart], DATABASE_SERIES_INDEX_PREFIX) {
+			break
+		}
+		dbSeries := string(key[dbNameStart:])
+		parts := strings.Split(dbSeries, "~")
+		if len(parts) > 1 {
+			if parts[0] != database {
+				break
+			}
+			name := parts[1]
+			shouldContinue := processor.YieldPoint(&name, nil, nil)
+			if !shouldContinue {
+				return nil
+			}
+		}
+	}
 	return nil
 }
 

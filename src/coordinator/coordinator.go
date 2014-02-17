@@ -29,12 +29,16 @@ type CoordinatorImpl struct {
 	writeLock            sync.Mutex
 }
 
-// this is the key used for the persistent atomic ints for sequence numbers
-const POINT_SEQUENCE_NUMBER_KEY = "p"
+const (
+	// this is the key used for the persistent atomic ints for sequence numbers
+	POINT_SEQUENCE_NUMBER_KEY = "p"
 
-// actual point sequence numbers will have the first part of the number
-// be a host id. This ensures that sequence numbers are unique across the cluster
-const HOST_ID_OFFSET = uint64(10000)
+	// actual point sequence numbers will have the first part of the number
+	// be a host id. This ensures that sequence numbers are unique across the cluster
+	HOST_ID_OFFSET = uint64(10000)
+
+	SHARDS_TO_QUERY_FOR_LIST_SERIES = 10
+)
 
 var (
 	BARRIER_TIME_MIN int64 = math.MinInt64
@@ -92,6 +96,8 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 	}
 
 	for _, query := range q {
+		querySpec := parser.NewQuerySpec(user, database, query)
+
 		if query.DeleteQuery != nil {
 			if err := self.DeleteSeriesData(user, database, query.DeleteQuery, false); err != nil {
 				return err
@@ -108,15 +114,7 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 
 		if query.IsListQuery() {
 			if query.IsListSeriesQuery() {
-				series, err := self.ListSeries(user, database)
-				if err != nil {
-					return err
-				}
-				for _, s := range series {
-					if err := yield(s); err != nil {
-						return err
-					}
-				}
+				self.runListSeriesQuery(querySpec, yield)
 			} else if query.IsListContinuousQueriesQuery() {
 				queries, err := self.ListContinuousQueries(user, database)
 				if err != nil {
@@ -173,6 +171,46 @@ func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, dat
 				break
 			}
 			yield(response.Series)
+		}
+	}
+	return nil
+}
+
+func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, yield func(*protocol.Series) error) error {
+	shortTermShards := self.clusterConfiguration.GetShortTermShards()
+	if len(shortTermShards) > SHARDS_TO_QUERY_FOR_LIST_SERIES {
+		shortTermShards = shortTermShards[:SHARDS_TO_QUERY_FOR_LIST_SERIES]
+	}
+	longTermShards := self.clusterConfiguration.GetLongTermShards()
+	if len(longTermShards) > SHARDS_TO_QUERY_FOR_LIST_SERIES {
+		longTermShards = longTermShards[:SHARDS_TO_QUERY_FOR_LIST_SERIES]
+	}
+	seriesYielded := make(map[string]bool)
+
+	responses := make([]chan *protocol.Response, 0)
+	for _, shard := range shortTermShards {
+		responseChan := make(chan *protocol.Response, 1)
+		go shard.Query(querySpec, responseChan)
+		responses = append(responses, responseChan)
+	}
+	for _, shard := range longTermShards {
+		responseChan := make(chan *protocol.Response, 1)
+		go shard.Query(querySpec, responseChan)
+		responses = append(responses, responseChan)
+	}
+
+	for _, responseChan := range responses {
+		for {
+			response := <-responseChan
+			if *response.Type == endStreamResponse {
+				break
+			}
+			for _, series := range response.MultiSeries {
+				if !seriesYielded[*series.Name] {
+					seriesYielded[*series.Name] = true
+					yield(series)
+				}
+			}
 		}
 	}
 	return nil

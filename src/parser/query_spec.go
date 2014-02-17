@@ -119,3 +119,11 @@ func (self *QuerySpec) ShouldQueryShortTermAndLongTerm() (shouldQueryShortTerm b
 	}
 	return
 }
+
+func (self *QuerySpec) IsListSeriesQuery() bool {
+	return self.query.IsListSeriesQuery()
+}
+
+func (self *QuerySpec) GetQueryString() string {
+	return self.query.GetQueryString()
+}

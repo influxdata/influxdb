@@ -274,7 +274,12 @@ func createResponse(nextPointMap map[string]*NextPoint, series *protocol.Series,
 
 func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn net.Conn) {
 	// the query should always parse correctly since it was parsed at the originating server.
-	query, _ := parser.ParseSelectQuery(*request.Query)
+	queries, err := parser.ParseQuery(*request.Query)
+	if err != nil || len(queries) < 1 {
+		log.Error("Erorr parsing query: ", err)
+		return
+	}
+	query := queries[0]
 	var user common.User
 	if *request.IsDbUser {
 		user = self.clusterConfig.GetDbUser(*request.Database, *request.UserName)
@@ -290,7 +295,7 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	}
 
 	shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
-	querySpec := parser.NewQuerySpec(user, *request.Database, &parser.Query{SelectQuery: query})
+	querySpec := parser.NewQuerySpec(user, *request.Database, query)
 
 	responseChan := make(chan *protocol.Response)
 	go shard.Query(querySpec, responseChan)

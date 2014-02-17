@@ -187,6 +187,8 @@ type Query struct {
 func (self *Query) GetQueryString() string {
 	if self.SelectQuery != nil {
 		return self.SelectQuery.GetQueryString()
+	} else if self.ListQuery != nil {
+		return "list series"
 	}
 	return self.DeleteQuery.GetQueryString()
 }

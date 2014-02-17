@@ -97,4 +97,5 @@ message Response {
   optional string error_message = 5;
   optional int64 nextPointTime = 6;
   optional Request request = 7;
+  repeated Series multi_series = 8;
 }

@@ -29,35 +29,7 @@ type QueryProcessor interface {
 	// This method returns true if the query should continue. If the query should be stopped,
 	// like maybe the limit was hit, it should return false
 	YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool
-}
-
-type PassthroughProcessor struct {
-	responseChan chan *protocol.Response
-	response     *protocol.Response
-}
-
-func NewPassthroughProcessor(responseChan chan *protocol.Response) *PassthroughProcessor {
-	response := &protocol.Response{
-		Type:   &queryResponse,
-		Series: &protocol.Series{Points: make([]*protocol.Point, 0)}}
-
-	return &PassthroughProcessor{
-		responseChan: responseChan,
-		response:     response,
-	}
-}
-
-func (self *PassthroughProcessor) YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool {
-	self.response.Series.Name = seriesName
-	self.response.Series.Fields = columnNames
-	self.response.Series.Points = append(self.response.Series.Points, point)
-	return true
-}
-
-func (self *PassthroughProcessor) Close() {
-	self.responseChan <- self.response
-	response := &protocol.Response{Type: &endStreamResponse}
-	self.responseChan <- response
+	Close()
 }
 
 type NewShardData struct {
@@ -207,7 +179,12 @@ func (self *ShardData) WriteLocalOnly(request *protocol.Request) error {
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
 	if self.localShard != nil {
-		processor := engine.NewQueryEngine(querySpec.SelectQuery(), response)
+		var processor QueryProcessor
+		if querySpec.IsListSeriesQuery() {
+			processor = engine.NewListSeriesEngine(response)
+		} else {
+			processor = engine.NewQueryEngine(querySpec.SelectQuery(), response)
+		}
 		err := self.localShard.Query(querySpec, processor)
 		processor.Close()
 		return err
@@ -215,8 +192,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 
 	randServerIndex := int(time.Now().UnixNano() % int64(len(self.clusterServers)))
 	server := self.clusterServers[randServerIndex]
-	selectQuery := querySpec.SelectQuery()
-	queryString := selectQuery.GetQueryString()
+	queryString := querySpec.GetQueryString()
 	user := querySpec.User()
 	userName := user.GetName()
 	database := querySpec.Database()

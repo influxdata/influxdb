@@ -831,6 +831,14 @@ func (self *ClusterConfiguration) GetShards(querySpec QuerySpec) []*ShardData {
 	return self.getShardRange(querySpec, self.shortTermShards)
 }
 
+func (self *ClusterConfiguration) GetLongTermShards() []*ShardData {
+	return self.longTermShards
+}
+
+func (self *ClusterConfiguration) GetShortTermShards() []*ShardData {
+	return self.shortTermShards
+}
+
 func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*ShardData) []*ShardData {
 	fmt.Println("---------------------- getShardRange")
 	startTime := querySpec.GetStartTime().UnixNano() / 1000

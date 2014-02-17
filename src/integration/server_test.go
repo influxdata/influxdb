@@ -261,7 +261,6 @@ func (self *ServerSuite) TestQueryAgainstMultipleShards(c *C) {
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
 	time.Sleep(time.Second)
 	for _, s := range self.serverProcesses {
-		fmt.Println("GET FOR SERVER: ", s.apiPort)
 		collection := s.Query("test_rep", "select count(value) from test_query_against_multiple_shards group by time(1h)", false, c)
 		c.Assert(collection.Members, HasLen, 1)
 		series := collection.GetSeries("test_query_against_multiple_shards", c)
@@ -516,13 +515,19 @@ func (self *ServerSuite) TestListSeries(c *C) {
 		"columns": ["val1"],
 		"points": [[1]]
 		}]`
-	resp := self.serverProcesses[0].Post("/db/list_series/series?u=paul&p=pass", data, c)
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	self.serverProcesses[0].Post("/db/list_series/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 3600) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "another_query", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/list_series/series?u=paul&p=pass", data, c)
+
+	time.Sleep(time.Second)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("list_series", "list series", false, c)
+		c.Assert(collection.Members, HasLen, 2)
 		s := collection.GetSeries("cluster_query", c)
-		c.Assert(s.Columns, HasLen, 2)
-		c.Assert(s.Points, HasLen, 0)
+		c.Assert(s, NotNil)
+		s = collection.GetSeries("another_query", c)
+		c.Assert(s, NotNil)
 	}
 }
 
