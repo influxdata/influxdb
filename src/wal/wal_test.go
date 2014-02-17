@@ -191,7 +191,7 @@ func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 	id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
 	c.Assert(id, Equals, uint32(1))
-	// close andn reopen the wal
+	// close and reopen the wal
 	wal.Close()
 	wal, err = NewWAL(wal.config)
 	c.Assert(err, IsNil)
@@ -250,6 +250,38 @@ func (_ *WalSuite) TestReplay(c *C) {
 	c.Assert(requests, HasLen, 1)
 	c.Assert(requests[0].Series.Points, HasLen, 3)
 	c.Assert(err, IsNil)
+}
+
+func (_ *WalSuite) TestErrorInReplay(c *C) {
+	wal := newWal(c)
+	request := generateRequest(1)
+	id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(id, Equals, uint32(1))
+
+	err = wal.RecoverServerFromRequestNumber(uint32(1), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		return fmt.Errorf("end replay")
+	})
+	c.Assert(err, NotNil)
+}
+
+func (_ *WalSuite) TestErrorInReplayWithManyRequests(c *C) {
+	wal := newWal(c)
+	for i := 1; i <= 100; i++ {
+		request := generateRequest(i)
+		_, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+		c.Assert(err, IsNil)
+	}
+
+	count := 0
+	err := wal.RecoverServerFromRequestNumber(uint32(1), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		count++
+		if count > 50 {
+			return fmt.Errorf("end replay")
+		}
+		return nil
+	})
+	c.Assert(err, NotNil)
 }
 
 func (_ *WalSuite) TestIndexAfterRecovery(c *C) {

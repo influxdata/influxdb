@@ -144,7 +144,7 @@ func (self *log) recover() error {
 	stopChan := make(chan struct{})
 
 	go func() {
-		self.replayFromFile(self.file, map[uint32]struct{}{}, 0, replayChan, stopChan)
+		self.replayFromFileLocation(self.file, map[uint32]struct{}{}, 0, replayChan, stopChan)
 	}()
 
 	for {
@@ -291,43 +291,53 @@ func (self *log) dupLogFile() (*os.File, error) {
 // replay requests starting at the given requestNumber and for the
 // given shard ids. Return all requests if shardIds is empty
 func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32) (chan *replayRequest, chan struct{}) {
-	stopChan := make(chan struct{})
+	// this channel needs to be buffered in case the last request in the
+	// log file caused an error in the yield function
+	stopChan := make(chan struct{}, 1)
 	replayChan := make(chan *replayRequest, 10)
+
 	go func() {
 		file, err := self.dupLogFile()
 		if err != nil {
-			replayChan <- newErrorReplayRequest(err)
+			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
+			close(replayChan)
 			return
 		}
 		defer file.Close()
 		offset := self.state.Index.requestOffset(requestNumber)
 		_, err = file.Seek(int64(offset), os.SEEK_SET)
 		if err != nil {
-			replayChan <- newErrorReplayRequest(err)
+			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
+			close(replayChan)
 			return
 		}
 		shardIdsSet := map[uint32]struct{}{}
 		for _, shardId := range shardIds {
 			shardIdsSet[shardId] = struct{}{}
 		}
-		self.replayFromFile(file, shardIdsSet, requestNumber, replayChan, stopChan)
+		self.replayFromFileLocation(file, shardIdsSet, requestNumber, replayChan, stopChan)
 	}()
 	return replayChan, stopChan
 }
 
-func (self *log) replayFromFile(file *os.File, shardIdsSet map[uint32]struct{}, requestNumber uint32, replayChan chan *replayRequest, stopChan chan struct{}) {
+func (self *log) replayFromFileLocation(file *os.File,
+	shardIdsSet map[uint32]struct{},
+	requestNumber uint32,
+	replayChan chan *replayRequest,
+	stopChan chan struct{}) {
+
+	defer func() { close(replayChan) }()
 	for {
 		hdr := &entryHeader{}
 		_, err := hdr.Read(file)
 
 		if err == io.EOF {
-			close(replayChan)
 			return
 		}
 
 		if err != nil {
 			// TODO: the following line is all over the place. DRY
-			replayChan <- newErrorReplayRequest(err)
+			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 			return
 		}
 
@@ -337,19 +347,10 @@ func (self *log) replayFromFile(file *os.File, shardIdsSet map[uint32]struct{}, 
 		} else {
 			_, ok = shardIdsSet[hdr.shardId]
 		}
-		if !ok {
+		if !ok || hdr.requestNumber < requestNumber {
 			_, err = file.Seek(int64(hdr.length), os.SEEK_CUR)
 			if err != nil {
-				replayChan <- newErrorReplayRequest(err)
-				return
-			}
-			continue
-		}
-
-		if hdr.requestNumber < requestNumber {
-			_, err = file.Seek(int64(hdr.length), os.SEEK_CUR)
-			if err != nil {
-				replayChan <- newErrorReplayRequest(err)
+				sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 				return
 			}
 			continue
@@ -358,22 +359,35 @@ func (self *log) replayFromFile(file *os.File, shardIdsSet map[uint32]struct{}, 
 		bytes := make([]byte, hdr.length)
 		read, err := self.file.Read(bytes)
 		if err != nil {
-			replayChan <- newErrorReplayRequest(err)
+			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 			return
 		}
 
 		if uint32(read) != hdr.length {
-			replayChan <- newErrorReplayRequest(err)
+			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 			return
 		}
 		req := &protocol.Request{}
 		err = req.Decode(bytes)
 		if err != nil {
-			replayChan <- newErrorReplayRequest(err)
+			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 			return
 		}
-		replayChan <- &replayRequest{hdr.requestNumber, req, hdr.shardId, nil}
+
+		replayRequest := &replayRequest{hdr.requestNumber, req, hdr.shardId, nil}
+		if sendOrStop(replayRequest, replayChan, stopChan) {
+			return
+		}
 	}
+}
+
+func sendOrStop(req *replayRequest, replayChan chan *replayRequest, stopChan chan struct{}) bool {
+	select {
+	case replayChan <- req:
+	case <-stopChan:
+		return true
+	}
+	return false
 }
 
 func (self *log) forceBookmark(shutdown bool) error {
@@ -410,4 +424,11 @@ func (self *log) internalBookmark() error {
 	}
 	self.state.RequestsSinceLastBookmark = 0
 	return nil
+}
+
+func (self *log) delete() {
+	filePath := path.Join(self.config.WalDir, fmt.Sprintf("bookmark.%d", self.suffix()))
+	os.Remove(filePath)
+	filePath = path.Join(self.config.WalDir, fmt.Sprintf("log.%d", self.suffix()))
+	os.Remove(filePath)
 }
