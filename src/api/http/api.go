@@ -508,7 +508,10 @@ func (self *HttpServer) dropSeries(w libhttp.ResponseWriter, r *libhttp.Request)
 	series := r.URL.Query().Get(":series")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(user common.User) (int, interface{}) {
-		err := self.coordinator.DropSeries(user, db, series)
+		f := func(s *protocol.Series) error {
+			return nil
+		}
+		err := self.coordinator.RunQuery(user, db, fmt.Sprintf("drop series %s", series), f)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}

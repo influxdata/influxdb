@@ -62,38 +62,6 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		// TODO: add quorum writes?
 		self.coordinator.ReplicateWrite(request)
 		return err
-	} else if *request.Type == protocol.Request_PROXY_DROP_SERIES {
-		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
-
-		request.OriginatingServerId = &self.clusterConfig.LocalServerId
-		replicationFactor := uint8(*request.ReplicationFactor)
-		// TODO: make request logging and datastore write atomic
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
-		if err != nil {
-			return err
-		}
-		err = self.db.DropSeries(*request.Database, *request.Series.Name)
-		if err != nil {
-			return err
-		}
-		err = self.WriteResponse(conn, response)
-		self.coordinator.ReplicateWrite(request)
-		return err
-	} else if *request.Type == protocol.Request_REPLICATION_DROP_SERIES {
-		replicationFactor := uint8(*request.ReplicationFactor)
-		// TODO: make request logging and datastore write atomic
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
-		if err != nil {
-			switch err := err.(type) {
-			case datastore.SequenceMissingRequestsError:
-				log.Warn("Missing sequence number error: Request SN: %v Last Known SN: %v", request.GetSequenceNumber(), err.LastKnownRequestSequence)
-				go self.coordinator.ReplayReplication(request, &replicationFactor, request.OwnerServerId, &err.LastKnownRequestSequence)
-				return nil
-			default:
-				return err
-			}
-		}
-		return self.db.DropSeries(*request.Database, *request.Series.Name)
 	} else if *request.Type == protocol.Request_PROXY_DROP_DATABASE {
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 

@@ -92,6 +92,8 @@ func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.Q
 		return self.executeListSeriesQuery(querySpec, processor)
 	} else if querySpec.IsDeleteFromSeriesQuery() {
 		return self.executeDeleteQuery(querySpec, processor)
+	} else if querySpec.IsDropSeriesQuery() {
+		return self.executeDropSeriesQuery(querySpec, processor)
 	}
 
 	seriesAndColumns := querySpec.SelectQuery().GetReferencedColumns()
@@ -299,6 +301,29 @@ func (self *LevelDbShard) executeDeleteQuery(querySpec *parser.QuerySpec, proces
 		}
 	}
 	return nil
+}
+
+func (self *LevelDbShard) executeDropSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+	database := querySpec.Database()
+	series := querySpec.Query().DropSeriesQuery.GetTableName()
+	fmt.Println("DROP SERIES QUERY: ", database, series)
+	startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
+	wb := levigo.NewWriteBatch()
+	defer wb.Close()
+
+	for _, name := range self.getColumnNamesForSeries(database, series) {
+		if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
+			return err
+		}
+
+		indexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(database+"~"+series+"~"+name)...)
+		wb.Delete(indexKey)
+	}
+
+	// remove the column indeces for this time series
+	return self.db.Write(self.writeOptions, wb)
 }
 
 func (self *LevelDbShard) byteArrayForTimeInt(time int64) []byte {

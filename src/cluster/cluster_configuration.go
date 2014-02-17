@@ -43,6 +43,10 @@ type ShardCreator interface {
 	CreateShards(shards []*NewShardData) ([]*ShardData, error)
 }
 
+const (
+	FIRST_LOWER_CASE_CHARACTER = 97
+)
+
 /*
   This struct stores all the metadata confiugration information about a running cluster. This includes
   the servers in the cluster and their state, databases, users, and which continuous queries are running.
@@ -714,7 +718,7 @@ func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series st
 	shardType := SHORT_TERM
 
 	firstChar := series[0]
-	if firstChar < 97 {
+	if firstChar < FIRST_LOWER_CASE_CHARACTER {
 		shardType = LONG_TERM
 		shards = self.longTermShards
 		//		split = self.config.LongTermShard.Split
@@ -813,7 +817,15 @@ func (self *ClusterConfiguration) getStartAndEndBasedOnDuration(microsecondsEpoc
 	return &startTime, &endTime
 }
 
-func (self *ClusterConfiguration) GetShards(querySpec QuerySpec) []*ShardData {
+func (self *ClusterConfiguration) GetShards(querySpec *parser.QuerySpec) []*ShardData {
+	if querySpec.IsDropSeriesQuery() {
+		seriesName := querySpec.Query().DropSeriesQuery.GetTableName()
+		if seriesName[0] < FIRST_LOWER_CASE_CHARACTER {
+			return self.longTermShards
+		}
+		return self.shortTermShards
+	}
+
 	shouldQueryShortTerm, shouldQueryLongTerm := querySpec.ShouldQueryShortTermAndLongTerm()
 
 	if shouldQueryLongTerm && shouldQueryShortTerm {

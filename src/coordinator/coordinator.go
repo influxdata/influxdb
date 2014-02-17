@@ -50,8 +50,6 @@ var (
 	proxyWrite            = protocol.Request_PROXY_WRITE
 	proxyDropDatabase     = protocol.Request_PROXY_DROP_DATABASE
 	replicateDropDatabase = protocol.Request_REPLICATION_DROP_DATABASE
-	proxyDropSeries       = protocol.Request_PROXY_DROP_SERIES
-	replicateDropSeries   = protocol.Request_REPLICATION_DROP_SERIES
 	queryRequest          = protocol.Request_QUERY
 	endStreamResponse     = protocol.Response_END_STREAM
 	queryResponse         = protocol.Response_QUERY
@@ -129,7 +127,7 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 		}
 
 		if query.DropSeriesQuery != nil {
-			err := self.DropSeries(user, database, query.DropSeriesQuery.GetTableName())
+			err := self.runDropSeriesQuery(querySpec, yield)
 			if err != nil {
 				return err
 			}
@@ -150,29 +148,7 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 // This should only get run for SelectQuery types
 func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, database string, yield seriesYieldFunc) error {
 	querySpec := parser.NewQuerySpec(user, database, query)
-	shards := self.clusterConfiguration.GetShards(querySpec)
-	fmt.Println("COORD: runQuery shards ")
-	for _, s := range shards {
-		fmt.Println("shard: ", s)
-	}
-	fmt.Println("**************************")
-	responses := make([]chan *protocol.Response, len(shards), len(shards))
-	for i, shard := range shards {
-		responseChan := make(chan *protocol.Response, 1)
-		go shard.Query(querySpec, responseChan)
-		responses[i] = responseChan
-	}
-
-	for _, responseChan := range responses {
-		for {
-			response := <-responseChan
-			if *response.Type == endStreamResponse {
-				break
-			}
-			yield(response.Series)
-		}
-	}
-	return nil
+	return self.runQuerySpec(querySpec, yield)
 }
 
 func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, yield seriesYieldFunc) error {
@@ -220,11 +196,27 @@ func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, yield s
 	if !querySpec.User().IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
+	querySpec.RunAgainstAllServersInShard = true
+	return self.runQuerySpec(querySpec, yield)
+}
+
+func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, yield seriesYieldFunc) error {
+	user := querySpec.User()
+	db := querySpec.Database()
+	series := querySpec.Query().DropSeriesQuery.GetTableName()
+	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) && !user.HasWriteAccess(series) {
+		return common.NewAuthorizationError("Insufficient permission to drop series")
+	}
+	querySpec.RunAgainstAllServersInShard = true
+	return self.runQuerySpec(querySpec, yield)
+}
+
+func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, yield seriesYieldFunc) error {
 	shards := self.clusterConfiguration.GetShards(querySpec)
 	responses := make([]chan *protocol.Response, 0)
 	for _, shard := range shards {
 		responseChan := make(chan *protocol.Response, 1)
-		shard.Query(querySpec, responseChan)
+		go shard.Query(querySpec, responseChan)
 		responses = append(responses, responseChan)
 	}
 
@@ -238,6 +230,7 @@ func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, yield s
 		}
 	}
 	return nil
+
 }
 
 func recoverFunc(database, query string) {
@@ -902,40 +895,6 @@ func (self *CoordinatorImpl) handleDropDatabase(server *cluster.ClusterServer, d
 	return self.proxyUntilSuccess(servers, request)
 }
 
-func (self *CoordinatorImpl) handleDropSeries(server *cluster.ClusterServer, database, series string) error {
-	owner, servers := self.clusterConfiguration.GetReplicas(server, &database)
-
-	request := self.createRequest(proxyDropSeries, &database)
-	request.OriginatingServerId = &self.clusterConfiguration.LocalServerId
-	request.ClusterVersion = &self.clusterConfiguration.ClusterVersion
-	ownId := owner.Id()
-	request.OwnerServerId = &ownId
-	request.Series = &protocol.Series{Name: &series}
-	replicationFactor := uint32(self.clusterConfiguration.GetDatabaseReplicationFactor(database))
-	request.ReplicationFactor = &replicationFactor
-
-	if server.Id() == self.clusterConfiguration.LocalServerId {
-		// this is a local delete
-		replicationFactor := self.clusterConfiguration.GetReplicationFactor(&database)
-		err := self.datastore.LogRequestAndAssignSequenceNumber(request, &replicationFactor, &ownId)
-		if err != nil {
-			return self.proxyUntilSuccess(servers, request)
-		}
-		self.datastore.DropSeries(database, series)
-		if err != nil {
-			log.Error("Couldn't write data to local store: ", err, request)
-		}
-
-		// ignoring the error because we still want to send to replicas
-		request.Type = &replicateDropSeries
-		self.sendRequestToReplicas(request, servers)
-		return nil
-	}
-
-	// otherwise, proxy the request
-	return self.proxyUntilSuccess(servers, request)
-}
-
 func (self *CoordinatorImpl) writeSeriesToLocalStore(db *string, series *protocol.Series) error {
 	return self.datastore.WriteSeriesData(*db, series)
 }
@@ -1116,25 +1075,6 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 	// able to replicate the request properly
 	if err := self.raftServer.DropDatabase(db); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func (self *CoordinatorImpl) DropSeries(user common.User, db, series string) error {
-	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) && !user.HasWriteAccess(series) {
-		return common.NewAuthorizationError("Insufficient permission to drop series")
-	}
-
-	if self.clusterConfiguration.IsSingleServer() {
-		return self.datastore.DropSeries(db, series)
-	}
-
-	servers, _ := self.clusterConfiguration.GetServersToMakeQueryTo(&db)
-	for _, server := range servers {
-		if err := self.handleDropSeries(server.Server, db, series); err != nil {
-			return err
-		}
 	}
 
 	return nil

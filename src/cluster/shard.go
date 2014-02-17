@@ -178,65 +178,79 @@ func (self *ShardData) WriteLocalOnly(request *protocol.Request) error {
 }
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
+	// This is only for queries that are deletes or drops. They need to be sent everywhere as opposed to just the local or one of the remote shards.
+	// But this boolean should only be set to true on the server that receives the initial query.
+	if querySpec.RunAgainstAllServersInShard {
+		if querySpec.IsDeleteFromSeriesQuery() {
+			return self.logAndHandleDeleteQuery(querySpec, response)
+		} else if querySpec.IsDropSeriesQuery() {
+			return self.logAndHandleDropSeriesQuery(querySpec, response)
+		}
+	}
+
 	if self.localShard != nil {
 		var processor QueryProcessor
 		if querySpec.IsListSeriesQuery() {
 			processor = engine.NewListSeriesEngine(response)
-		} else if querySpec.IsDeleteFromSeriesQuery() {
+		} else if querySpec.IsDeleteFromSeriesQuery() || querySpec.IsDropSeriesQuery() {
 			processor = engine.NewPassthroughEngine(response)
 		} else {
 			processor = engine.NewQueryEngine(querySpec.SelectQuery(), response)
 		}
+		fmt.Println("SHARD query local: ", self.id)
 		err := self.localShard.Query(querySpec, processor)
 		processor.Close()
 		return err
 	}
 
-	if querySpec.IsDeleteFromSeriesQuery() {
-		return self.logAndHandleDeleteQuery(querySpec, response)
-	}
-
 	randServerIndex := int(time.Now().UnixNano() % int64(len(self.clusterServers)))
 	server := self.clusterServers[randServerIndex]
-	queryString := querySpec.GetQueryString()
-	user := querySpec.User()
-	userName := user.GetName()
-	database := querySpec.Database()
-	isDbUser := !user.IsClusterAdmin()
-	request := &protocol.Request{Type: &queryRequest, ShardId: &self.id, Query: &queryString, UserName: &userName, Database: &database, IsDbUser: &isDbUser}
+	request := self.createRequest(querySpec)
+
 	return server.MakeRequest(request, response)
 }
 
 func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
-	user := querySpec.User()
-	userName := user.GetName()
-	database := querySpec.Database()
-	isDbUser := !user.IsClusterAdmin()
-
 	queryString := querySpec.GetQueryStringWithTimeCondition()
-	request := &protocol.Request{
-		Type:     &queryRequest,
-		ShardId:  &self.id,
-		Query:    &queryString,
-		UserName: &userName,
-		Database: &database,
-		IsDbUser: &isDbUser,
-	}
+	request := self.createRequest(querySpec)
+	request.Query = &queryString
+	return self.logAndHandleDestructiveQuery(querySpec, request, response)
+}
+
+func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
+	return self.logAndHandleDestructiveQuery(querySpec, self.createRequest(querySpec), response)
+}
+
+func (self *ShardData) logAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *protocol.Request, response chan *protocol.Response) error {
 	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self, self.servers)
 	if err != nil {
 		return err
 	}
 	responses := make([]chan *protocol.Response, len(self.clusterServers), len(self.clusterServers))
 	for i, server := range self.clusterServers {
+		fmt.Println("SHARD: requesting to server: ", server.id)
 		responseChan := make(chan *protocol.Response, 1)
 		responses[i] = responseChan
 		server.MakeRequest(request, responseChan)
+	}
+	if self.localShard != nil {
+		responseChan := make(chan *protocol.Response, 1)
+		responses = append(responses, responseChan)
+		processor := engine.NewPassthroughEngine(responseChan)
+		err := self.localShard.Query(querySpec, processor)
+		processor.Close()
+		if err != nil {
+			return err
+		}
 	}
 	for i, responseChan := range responses {
 		for {
 			res := <-responseChan
 			if *res.Type == endStreamResponse {
-				self.wal.Commit(requestNumber, self.clusterServers[i])
+				// don't need to do a commit for the local datastore for now.
+				if i < len(self.clusterServers) {
+					self.wal.Commit(requestNumber, self.clusterServers[i])
+				}
 				break
 			}
 			response <- res
@@ -244,6 +258,23 @@ func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, resp
 	}
 	response <- &protocol.Response{Type: &endStreamResponse}
 	return nil
+}
+
+func (self *ShardData) createRequest(querySpec *parser.QuerySpec) *protocol.Request {
+	queryString := querySpec.GetQueryString()
+	user := querySpec.User()
+	userName := user.GetName()
+	database := querySpec.Database()
+	isDbUser := !user.IsClusterAdmin()
+
+	return &protocol.Request{
+		Type:     &queryRequest,
+		ShardId:  &self.id,
+		Query:    &queryString,
+		UserName: &userName,
+		Database: &database,
+		IsDbUser: &isDbUser,
+	}
 }
 
 // used to serialize shards when sending around in raft or when snapshotting in the log

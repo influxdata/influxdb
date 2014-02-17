@@ -20,7 +20,6 @@ type Coordinator interface {
 	DistributeQuery(user common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error
 	WriteSeriesData(user common.User, db string, series *protocol.Series) error
 	DropDatabase(user common.User, db string) error
-	DropSeries(user common.User, db, series string) error
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ForceCompaction(user common.User) error
 	ListDatabases(user common.User) ([]*cluster.Database, error)

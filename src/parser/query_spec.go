@@ -6,14 +6,15 @@ import (
 )
 
 type QuerySpec struct {
-	query                  *Query
-	database               string
-	isRegex                bool
-	names                  []string
-	user                   common.User
-	startTime              time.Time
-	endTime                time.Time
-	seriesValuesAndColumns map[*Value][]string
+	query                       *Query
+	database                    string
+	isRegex                     bool
+	names                       []string
+	user                        common.User
+	startTime                   time.Time
+	endTime                     time.Time
+	seriesValuesAndColumns      map[*Value][]string
+	RunAgainstAllServersInShard bool
 }
 
 func NewQuerySpec(user common.User, database string, query *Query) *QuerySpec {
@@ -143,4 +144,12 @@ func (self *QuerySpec) GetQueryStringWithTimeCondition() string {
 		return self.query.DeleteQuery.GetQueryStringWithTimeCondition()
 	}
 	return self.query.GetQueryString()
+}
+
+func (self *QuerySpec) IsDropSeriesQuery() bool {
+	return self.query.DropSeriesQuery != nil
+}
+
+func (self *QuerySpec) Query() *Query {
+	return self.query
 }
