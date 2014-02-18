@@ -33,7 +33,7 @@ message Request {
     REPLICATION_REPLAY = 6;
     SEQUENCE_NUMBER = 8;
   }
-  required uint32 id = 1;
+  optional uint32 id = 1;
   required Type type = 2;
   required string database = 3;
   optional Series series = 4;
