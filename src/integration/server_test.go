@@ -270,6 +270,23 @@ func (self *ServerSuite) TestQueryAgainstMultipleShards(c *C) {
 	}
 }
 
+func (self *ServerSuite) TestQueryAscendingAgainstMultipleShards(c *C) {
+	data := `[{"points": [[4], [10]], "name": "test_ascending_against_multiple_shards", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 3600) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_ascending_against_multiple_shards", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select * from test_ascending_against_multiple_shards order asc", false, c)
+		series := collection.GetSeries("test_ascending_against_multiple_shards", c)
+		c.Assert(series.Points, HasLen, 3)
+		c.Assert(series.GetValueForPointAndColumn(0, "value", c).(float64), Equals, float64(2))
+		c.Assert(series.GetValueForPointAndColumn(1, "value", c).(float64), Equals, float64(4))
+		c.Assert(series.GetValueForPointAndColumn(2, "value", c).(float64), Equals, float64(10))
+	}
+}
+
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
 	data := `
   [{

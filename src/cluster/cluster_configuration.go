@@ -833,14 +833,28 @@ func (self *ClusterConfiguration) GetShards(querySpec *parser.QuerySpec) []*Shar
 		shards := make([]*ShardData, 0)
 		shards = append(shards, self.getShardRange(querySpec, self.shortTermShards)...)
 		shards = append(shards, self.getShardRange(querySpec, self.longTermShards)...)
-		SortShardsByTimeDescending(shards)
+		if querySpec.IsAscending() {
+			SortShardsByTimeAscending(shards)
+		} else {
+			SortShardsByTimeDescending(shards)
+		}
 		return shards
-	} else if shouldQueryLongTerm {
-		fmt.Println("GetShards: long term")
-		return self.getShardRange(querySpec, self.longTermShards)
 	}
-	fmt.Println("GetShards: short term")
-	return self.getShardRange(querySpec, self.shortTermShards)
+
+	var shards []*ShardData
+	if shouldQueryLongTerm {
+		fmt.Println("GetShards: long term")
+		shards = self.getShardRange(querySpec, self.longTermShards)
+	} else {
+		fmt.Println("GetShards: short term")
+		shards = self.getShardRange(querySpec, self.shortTermShards)
+	}
+	if querySpec.IsAscending() {
+		newShards := append([]*ShardData{}, shards...)
+		SortShardsByTimeAscending(newShards)
+		return newShards
+	}
+	return shards
 }
 
 func (self *ClusterConfiguration) GetLongTermShards() []*ShardData {
@@ -864,6 +878,10 @@ func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*S
 	startIndex := -1
 	endIndex := -1
 
+	if startTime == 0 {
+		startIndex = 0
+	}
+
 	// this logic looks a little weird because the shards passed into this function should
 	// always be passed in time descending order. But start time is low and end time is high. just FYI.
 	for i, shard := range shards {
@@ -874,18 +892,18 @@ func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*S
 				continue
 			}
 		} else if shard.IsMicrosecondInRange(startTime) {
-			endIndex = i
+			endIndex = i + 1
 			break
 		}
 	}
-	fmt.Println("StartIndex, EndIndex: ", startIndex, endIndex)
-	fmt.Println("END ---------------------- getShardRange")
 	if startIndex == -1 {
 		return []*ShardData{}
 	}
 	if endIndex == -1 {
 		endIndex = len(shards)
 	}
+	fmt.Printf("StartIndex: %d, EndIndex: %d, Len: %d\n", startIndex, endIndex, len(shards[startIndex:endIndex]))
+	fmt.Println("END ---------------------- getShardRange")
 	return shards[startIndex:endIndex]
 }
 

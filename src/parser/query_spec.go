@@ -153,3 +153,10 @@ func (self *QuerySpec) IsDropSeriesQuery() bool {
 func (self *QuerySpec) Query() *Query {
 	return self.query
 }
+
+func (self *QuerySpec) IsAscending() bool {
+	if self.query.SelectQuery != nil {
+		return self.query.SelectQuery.Ascending
+	}
+	return false
+}
