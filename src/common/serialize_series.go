@@ -166,6 +166,10 @@ func SerializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 				rowValues = append(rowValues, *row.SequenceNumber)
 			}
 			for _, value := range row.Values {
+				if value == nil {
+					rowValues = append(rowValues, nil)
+					continue
+				}
 				rowValues = append(rowValues, value.GetValue())
 			}
 			points = append(points, rowValues)
