@@ -31,10 +31,9 @@ type QuerySpec interface {
 }
 
 type WAL interface {
-	AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard, servers []wal.Server) (uint32, error)
+	AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard) (uint32, error)
 	Commit(requestNumber uint32, server wal.Server) error
-	RecoverFromLog(yield func(request *protocol.Request, shard wal.Shard, server wal.Server) error) error
-	RecoverServerFromRequestNumber(requestNumber uint32, server wal.Server, yield func(request *protocol.Request, shard wal.Shard) error) error
+	RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
 }
 
 type ShardCreator interface {

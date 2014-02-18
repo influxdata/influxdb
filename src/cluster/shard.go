@@ -157,7 +157,7 @@ func (self *ShardData) ServerIds() []uint32 {
 func (self *ShardData) Write(request *protocol.Request) error {
 	fmt.Println("SHARD Write: ", self.id, request)
 	request.ShardId = &self.id
-	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self, self.servers)
+	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ func (self *ShardData) Write(request *protocol.Request) error {
 }
 
 func (self *ShardData) WriteLocalOnly(request *protocol.Request) error {
-	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self, self.servers)
+	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
 		return err
 	}
@@ -184,6 +184,7 @@ func (self *ShardData) WriteLocalOnly(request *protocol.Request) error {
 }
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
+	fmt.Printf("query spec: %#v\n", querySpec)
 	// This is only for queries that are deletes or drops. They need to be sent everywhere as opposed to just the local or one of the remote shards.
 	// But this boolean should only be set to true on the server that receives the initial query.
 	if querySpec.RunAgainstAllServersInShard {
@@ -274,7 +275,7 @@ func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, 
 }
 
 func (self *ShardData) logAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *protocol.Request, response chan *protocol.Response) error {
-	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self, self.servers)
+	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
 		return err
 	}
