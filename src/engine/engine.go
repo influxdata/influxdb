@@ -164,8 +164,20 @@ func (self *QueryEngine) filter(series *protocol.Series) []*protocol.Series {
 
 func (self *QueryEngine) Close() {
 	for _, series := range self.seriesToPoints {
+		if len(series.Points) == 0 {
+			continue
+		}
 		self.yieldSeriesData(series)
 	}
+
+	for _, series := range self.seriesToPoints {
+		s := &protocol.Series{
+			Name:   series.Name,
+			Fields: series.Fields,
+		}
+		self.yield(s)
+	}
+
 	if self.isAggregateQuery {
 		self.runAggregates()
 	}
