@@ -180,7 +180,7 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
 	}
 	dir := c.MkDir()
-	self.server = NewHttpServer("", dir, self.coordinator, self.manager)
+	self.server = NewHttpServer("", dir, self.coordinator, self.manager, nil)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
 	c.Assert(err, IsNil)

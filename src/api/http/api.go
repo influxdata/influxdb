@@ -1,6 +1,7 @@
 package http
 
 import (
+	"cluster"
 	log "code.google.com/p/log4go"
 	. "common"
 	"coordinator"
@@ -29,15 +30,17 @@ type HttpServer struct {
 	coordinator    coordinator.Coordinator
 	userManager    coordinator.UserManager
 	shutdown       chan bool
+	clusterConfig  *cluster.ClusterConfiguration
 }
 
-func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager coordinator.UserManager) *HttpServer {
+func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager coordinator.UserManager, clusterConfig *cluster.ClusterConfiguration) *HttpServer {
 	self := &HttpServer{}
 	self.httpPort = httpPort
 	self.adminAssetsDir = adminAssetsDir
 	self.coordinator = theCoordinator
 	self.userManager = userManager
 	self.shutdown = make(chan bool, 2)
+	self.clusterConfig = clusterConfig
 	return self
 }
 
@@ -121,6 +124,9 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// fetch current list of available interfaces
 	self.registerEndpoint(p, "get", "/interfaces", self.listInterfaces)
+
+	// cluster config endpoints
+	self.registerEndpoint(p, "get", "/cluster/servers", self.listServers)
 
 	go self.startSsl(p)
 
@@ -854,5 +860,16 @@ func (self *HttpServer) deleteDbContinuousQueries(w libhttp.ResponseWriter, r *l
 			return errorToStatusCode(err), err.Error()
 		}
 		return libhttp.StatusOK, nil
+	})
+}
+
+func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		servers := self.clusterConfig.Servers()
+		serverMaps := make([]map[string]interface{}, len(servers), len(servers))
+		for i, s := range servers {
+			serverMaps[i] = map[string]interface{}{"id": s.Id(), "protobufConnectString": s.ProtobufConnectionString}
+		}
+		return libhttp.StatusOK, serverMaps
 	})
 }

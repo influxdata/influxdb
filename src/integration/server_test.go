@@ -147,6 +147,20 @@ func (self *ServerProcess) Post(url, data string, c *C) *http.Response {
 	return self.Request("POST", url, data, c)
 }
 
+func (self *ServerProcess) PostGetBody(url, data string, c *C) []byte {
+	resp := self.Request("POST", url, data, c)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	return body
+}
+
+func (self *ServerProcess) Get(url string, c *C) []byte {
+	resp := self.Request("GET", url, "", c)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	return body
+}
+
 func (self *ServerProcess) Request(method, url, data string, c *C) *http.Response {
 	fullUrl := fmt.Sprintf("http://localhost:%d%s", self.apiPort, url)
 	req, err := http.NewRequest(method, fullUrl, bytes.NewBufferString(data))
@@ -893,4 +907,17 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
+}
+
+func (self *ServerSuite) TestGetServers(c *C) {
+	body := self.serverProcesses[0].Get("/cluster/servers?u=root&p=root", c)
+
+	res := make([]interface{}, 0)
+	err := json.Unmarshal(body, &res)
+	c.Assert(err, IsNil)
+	for _, js := range res {
+		server := js.(map[string]interface{})
+		c.Assert(server["id"], NotNil)
+		c.Assert(server["protobufConnectString"], NotNil)
+	}
 }
