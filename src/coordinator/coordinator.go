@@ -220,6 +220,8 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 	var processor cluster.QueryProcessor
 	var responseChan chan *protocol.Response
 	for _, s := range shards {
+		// If the aggregation is done at the shard level, we don't need to
+		// do it here at the coordinator level.
 		if !s.ShouldAggregateLocally(querySpec) {
 			shouldAggregateLocally = false
 			responseChan = make(chan *protocol.Response)
