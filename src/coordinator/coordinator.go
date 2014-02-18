@@ -5,6 +5,7 @@ import (
 	log "code.google.com/p/log4go"
 	"common"
 	"datastore"
+	"engine"
 	"fmt"
 	"math"
 	"os"
@@ -214,6 +215,28 @@ func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, ser
 
 func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
 	shards := self.clusterConfiguration.GetShards(querySpec)
+
+	shouldAggregateLocally := true
+	var processor cluster.QueryProcessor
+	var responseChan chan *protocol.Response
+	for _, s := range shards {
+		if !s.ShouldAggregateLocally(querySpec) {
+			shouldAggregateLocally = false
+			responseChan = make(chan *protocol.Response)
+			processor = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
+			go func() {
+				for {
+					res := <-responseChan
+					if *res.Type == endStreamResponse {
+						return
+					}
+					seriesWriter.Write(res.Series)
+				}
+			}()
+			break
+		}
+	}
+
 	responses := make([]chan *protocol.Response, 0)
 	for _, shard := range shards {
 		responseChan := make(chan *protocol.Response, 1)
@@ -227,9 +250,21 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 			if *response.Type == endStreamResponse {
 				break
 			}
-			seriesWriter.Write(response.Series)
+			if shouldAggregateLocally {
+				seriesWriter.Write(response.Series)
+			} else {
+				if response.Series != nil {
+					for _, p := range response.Series.Points {
+						processor.YieldPoint(response.Series.Name, response.Series.Fields, p)
+					}
+				}
+			}
 		}
 	}
+	if !shouldAggregateLocally {
+		processor.Close()
+	}
+	seriesWriter.Close()
 	return nil
 }
 

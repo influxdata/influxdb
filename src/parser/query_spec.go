@@ -160,3 +160,7 @@ func (self *QuerySpec) IsAscending() bool {
 	}
 	return false
 }
+
+func (self *QuerySpec) ReadsFromMultipleSeries() bool {
+	return len(self.SeriesValuesAndColumns()) > 1
+}

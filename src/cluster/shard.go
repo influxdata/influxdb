@@ -48,32 +48,36 @@ const (
 )
 
 type ShardData struct {
-	id             uint32
-	startTime      time.Time
-	startMicro     int64
-	endMicro       int64
-	endTime        time.Time
-	wal            WAL
-	servers        []wal.Server
-	clusterServers []*ClusterServer
-	store          LocalShardStore
-	localShard     LocalShardDb
-	localWrites    chan *protocol.Request
-	serverWrites   map[*ClusterServer]chan *protocol.Request
-	serverIds      []uint32
-	shardType      ShardType
+	id              uint32
+	startTime       time.Time
+	startMicro      int64
+	endMicro        int64
+	endTime         time.Time
+	wal             WAL
+	servers         []wal.Server
+	clusterServers  []*ClusterServer
+	store           LocalShardStore
+	localShard      LocalShardDb
+	localWrites     chan *protocol.Request
+	serverWrites    map[*ClusterServer]chan *protocol.Request
+	serverIds       []uint32
+	shardType       ShardType
+	durationIsSplit bool
+	shardDuration   time.Duration
 }
 
-func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, wal WAL) *ShardData {
+func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, durationIsSplit bool, wal WAL) *ShardData {
 	return &ShardData{
-		id:         id,
-		startTime:  startTime,
-		endTime:    endTime,
-		wal:        wal,
-		startMicro: startTime.Unix() * int64(1000*1000),
-		endMicro:   endTime.Unix() * int64(1000*1000),
-		serverIds:  make([]uint32, 0),
-		shardType:  shardType,
+		id:              id,
+		startTime:       startTime,
+		endTime:         endTime,
+		wal:             wal,
+		startMicro:      startTime.Unix() * int64(1000*1000),
+		endMicro:        endTime.Unix() * int64(1000*1000),
+		serverIds:       make([]uint32, 0),
+		shardType:       shardType,
+		durationIsSplit: durationIsSplit,
+		shardDuration:   endTime.Sub(startTime),
 	}
 }
 
@@ -195,12 +199,21 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 		if querySpec.IsListSeriesQuery() {
 			processor = engine.NewListSeriesEngine(response)
 		} else if querySpec.IsDeleteFromSeriesQuery() || querySpec.IsDropSeriesQuery() {
-			processor = engine.NewPassthroughEngine(response)
+			maxDeleteResults := 10000
+			processor = engine.NewPassthroughEngine(response, maxDeleteResults)
 		} else {
-			processor = engine.NewQueryEngine(querySpec.SelectQuery(), response)
+			if self.ShouldAggregateLocally(querySpec) {
+				fmt.Println("SHARD: query aggregate locally", self.id)
+				processor = engine.NewQueryEngine(querySpec.SelectQuery(), response)
+			} else {
+				fmt.Println("SHARD: query passthrough", self.id)
+				maxPointsToBufferBeforeSending := 1000
+				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
+			}
 		}
 		fmt.Println("SHARD query local: ", self.id)
 		err := self.localShard.Query(querySpec, processor)
+		fmt.Println("SHARD: processor.Close()", self.id)
 		processor.Close()
 		return err
 	}
@@ -235,6 +248,20 @@ func (self *ShardData) DropDatabase(database string, sendToServers bool) {
 	}
 }
 
+func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool {
+	if self.durationIsSplit && querySpec.ReadsFromMultipleSeries() {
+		return false
+	}
+	groupByInterval := querySpec.GetGroupByInterval()
+	if groupByInterval == nil {
+		return false
+	}
+	if groupByInterval.Seconds() <= self.shardDuration.Seconds() {
+		return true
+	}
+	return false
+}
+
 func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
 	queryString := querySpec.GetQueryStringWithTimeCondition()
 	request := self.createRequest(querySpec)
@@ -263,7 +290,10 @@ func (self *ShardData) logAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 	if self.localShard != nil {
 		responseChan := make(chan *protocol.Response, 1)
 		responses = append(responses, responseChan)
-		processor := engine.NewPassthroughEngine(responseChan)
+
+		// this doesn't really apply at this point since destructive queries don't output anything, but it may later
+		maxPointsFromDestructiveQuery := 1000
+		processor := engine.NewPassthroughEngine(responseChan, maxPointsFromDestructiveQuery)
 		err := self.localShard.Query(querySpec, processor)
 		processor.Close()
 		if err != nil {

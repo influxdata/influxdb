@@ -6,18 +6,16 @@ import (
 	"protocol"
 )
 
-const (
-	MAX_POINTS_IN_RESPONSE = 10000
-)
-
 type PassthroughEngine struct {
-	responseChan chan *protocol.Response
-	response     *protocol.Response
+	responseChan        chan *protocol.Response
+	response            *protocol.Response
+	maxPointsInResponse int
 }
 
-func NewPassthroughEngine(responseChan chan *protocol.Response) *PassthroughEngine {
+func NewPassthroughEngine(responseChan chan *protocol.Response, maxPointsInResponse int) *PassthroughEngine {
 	return &PassthroughEngine{
-		responseChan: responseChan,
+		responseChan:        responseChan,
+		maxPointsInResponse: maxPointsInResponse,
 	}
 }
 
@@ -33,7 +31,7 @@ func (self *PassthroughEngine) YieldPoint(seriesName *string, columnNames []stri
 			Type:   &queryResponse,
 			Series: &protocol.Series{Name: seriesName, Points: []*protocol.Point{point}, Fields: columnNames},
 		}
-	} else if len(self.response.Series.Points) > MAX_POINTS_IN_RESPONSE {
+	} else if len(self.response.Series.Points) > self.maxPointsInResponse {
 		self.responseChan <- self.response
 		self.response = &protocol.Response{
 			Type:   &queryResponse,

@@ -955,9 +955,10 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 		return createdShards, nil
 	}
 
+	durationIsSplit := len(shards) > 1
 	for _, newShard := range shards {
 		id := atomic.AddUint32(&self.lastShardId, uint32(1))
-		shard := NewShard(id, newShard.StartTime, newShard.EndTime, shardType, self.wal)
+		shard := NewShard(id, newShard.StartTime, newShard.EndTime, shardType, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range newShard.ServerIds {
 			if serverId == self.LocalServerId {
@@ -1005,9 +1006,10 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 func (self *ClusterConfiguration) MarshalNewShardArrayToShards(newShards []*NewShardData) ([]*ShardData, error) {
 	fmt.Println("MarshalNewShardArray...")
 	shards := make([]*ShardData, len(newShards), len(newShards))
+	durationIsSplit := len(newShards) > 1
 	for i, s := range newShards {
 		fmt.Println("MARSHAL: ", s)
-		shard := NewShard(s.Id, s.StartTime, s.EndTime, s.Type, self.wal)
+		shard := NewShard(s.Id, s.StartTime, s.EndTime, s.Type, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range s.ServerIds {
 			if serverId == self.LocalServerId {
@@ -1039,7 +1041,7 @@ func (self *ClusterConfiguration) GetLocalShardById(id uint32) *ShardData {
 	// If it's nil it just means that it hasn't been replicated by Raft yet.
 	// Just create a fake local shard temporarily for the write.
 	if shard == nil {
-		shard = NewShard(id, time.Now(), time.Now(), LONG_TERM, self.wal)
+		shard = NewShard(id, time.Now(), time.Now(), LONG_TERM, false, self.wal)
 		shard.SetServers([]*ClusterServer{})
 		shard.SetLocalStore(self.shardStore, self.LocalServerId)
 	}

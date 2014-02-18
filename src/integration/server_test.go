@@ -287,6 +287,21 @@ func (self *ServerSuite) TestQueryAscendingAgainstMultipleShards(c *C) {
 	}
 }
 
+func (self *ServerSuite) TestBigGroupByQueryAgainstMultipleShards(c *C) {
+	data := `[{"points": [[4], [10]], "name": "test_multiple_shards_big_group_by", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 3600*25) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_multiple_shards_big_group_by", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select count(value) from test_multiple_shards_big_group_by group by time(48h)", false, c)
+		series := collection.GetSeries("test_multiple_shards_big_group_by", c)
+		c.Assert(series.Points, HasLen, 1)
+		c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(3))
+	}
+}
+
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
 	data := `
   [{
