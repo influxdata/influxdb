@@ -254,11 +254,14 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 			}
 			if shouldAggregateLocally {
 				seriesWriter.Write(response.Series)
-			} else {
-				if response.Series != nil {
-					for _, p := range response.Series.Points {
-						processor.YieldPoint(response.Series.Name, response.Series.Fields, p)
-					}
+				continue
+			}
+
+			// if the data wasn't aggregated at the shard level, aggregate
+			// the data here
+			if response.Series != nil {
+				for _, p := range response.Series.Points {
+					processor.YieldPoint(response.Series.Name, response.Series.Fields, p)
 				}
 			}
 		}
