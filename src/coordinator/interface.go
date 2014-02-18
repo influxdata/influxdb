@@ -4,7 +4,6 @@ import (
 	"cluster"
 	"common"
 	"net"
-	"parser"
 	"protocol"
 )
 
@@ -17,15 +16,11 @@ type Coordinator interface {
 	//      for all the data points that are returned
 	//   4. The end of a time series is signaled by returning a series with no data points
 	//   5. TODO: Aggregation on the nodes
-	DistributeQuery(user common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error
 	WriteSeriesData(user common.User, db string, series *protocol.Series) error
 	DropDatabase(user common.User, db string) error
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ForceCompaction(user common.User) error
 	ListDatabases(user common.User) ([]*cluster.Database, error)
-	ReplicateWrite(request *protocol.Request) error
-	ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64)
-	GetLastSequenceNumber(replicationFactor uint8, ownerServerId, originatingServerId uint32) (uint64, error)
 	DeleteContinuousQuery(user common.User, db string, id uint32) error
 	CreateContinuousQuery(user common.User, db string, query string) error
 	ListContinuousQueries(user common.User, db string) ([]*protocol.Series, error)

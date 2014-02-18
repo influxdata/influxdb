@@ -27,20 +27,11 @@ message QueryResponseChunk {
 
 message Request {
   enum Type {
-    QUERY = 1;
-    REPLICATION_WRITE = 2;
-    PROXY_WRITE = 3;
-    REPLICATION_DELETE = 4;
-    PROXY_DELETE = 5;
+    WRITE = 1;
+    QUERY = 2;
+    DROP_DATABASE = 3;
     REPLICATION_REPLAY = 6;
-    LIST_SERIES = 7;
     SEQUENCE_NUMBER = 8;
-    PROXY_DROP_DATABASE = 9;
-    REPLICATION_DROP_DATABASE = 10;
-    PROXY_DROP_SERIES = 11;
-    REPLICATION_DROP_SERIES = 12;
-
-    WRITE = 13;
   }
   required uint32 id = 1;
   required Type type = 2;
@@ -81,7 +72,6 @@ message Response {
     END_STREAM = 3;
     REPLICATION_REPLAY = 4;
     REPLICATION_REPLAY_END = 5;
-    LIST_SERIES = 6;
     SEQUENCE_NUMBER = 7;
     // Access denied also serves as an end of stream response
     ACCESS_DENIED = 8;

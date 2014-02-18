@@ -83,14 +83,16 @@ const (
 )
 
 var (
-	queryResponse     = protocol.Response_QUERY
-	endStreamResponse = protocol.Response_END_STREAM
-	queryRequest      = protocol.Request_QUERY
+	queryResponse       = protocol.Response_QUERY
+	endStreamResponse   = protocol.Response_END_STREAM
+	queryRequest        = protocol.Request_QUERY
+	dropDatabaseRequest = protocol.Request_DROP_DATABASE
 )
 
 type LocalShardDb interface {
 	Write(database string, series *protocol.Series) error
 	Query(*parser.QuerySpec, QueryProcessor) error
+	DropDatabase(database string) error
 }
 
 type LocalShardStore interface {
@@ -210,6 +212,29 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 	return server.MakeRequest(request, response)
 }
 
+func (self *ShardData) DropDatabase(database string, sendToServers bool) {
+	if self.localShard != nil {
+		fmt.Println("SHARD DropDatabase: ", database)
+		self.localShard.DropDatabase(database)
+	}
+
+	if !sendToServers {
+		return
+	}
+
+	responses := make([]chan *protocol.Response, len(self.clusterServers), len(self.clusterServers))
+	for i, server := range self.clusterServers {
+		responseChan := make(chan *protocol.Response, 1)
+		responses[i] = responseChan
+		request := &protocol.Request{Type: &dropDatabaseRequest, Database: &database, ShardId: &self.id}
+		go server.MakeRequest(request, responseChan)
+	}
+	for _, responseChan := range responses {
+		// TODO: handle error responses
+		<-responseChan
+	}
+}
+
 func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
 	queryString := querySpec.GetQueryStringWithTimeCondition()
 	request := self.createRequest(querySpec)
@@ -231,6 +256,8 @@ func (self *ShardData) logAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 		fmt.Println("SHARD: requesting to server: ", server.id)
 		responseChan := make(chan *protocol.Response, 1)
 		responses[i] = responseChan
+		// do this so that a new id will get assigned
+		request.Id = nil
 		server.MakeRequest(request, responseChan)
 	}
 	if self.localShard != nil {

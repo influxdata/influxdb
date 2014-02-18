@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"cluster"
 	"code.google.com/p/goprotobuf/proto"
-	//	log "code.google.com/p/log4go"
+	log "code.google.com/p/log4go"
 	"common"
 	"encoding/binary"
 	"errors"
@@ -122,6 +122,23 @@ func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.Q
 		}
 	}
 	return nil
+}
+
+func (self *LevelDbShard) DropDatabase(database string) error {
+	wb := levigo.NewWriteBatch()
+	defer wb.Close()
+
+	seriesNames := self.getSeriesForDatabase(database)
+	for _, name := range seriesNames {
+		if err := self.dropSeries(database, name); err != nil {
+			log.Error("DropDatabase: ", err)
+		}
+
+		seriesKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~")...)
+		wb.Delete(seriesKey)
+	}
+
+	return self.db.Write(self.writeOptions, wb)
 }
 
 func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor cluster.QueryProcessor) error {
@@ -306,7 +323,10 @@ func (self *LevelDbShard) executeDeleteQuery(querySpec *parser.QuerySpec, proces
 func (self *LevelDbShard) executeDropSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	database := querySpec.Database()
 	series := querySpec.Query().DropSeriesQuery.GetTableName()
-	fmt.Println("DROP SERIES QUERY: ", database, series)
+	return self.dropSeries(database, series)
+}
+
+func (self *LevelDbShard) dropSeries(database, series string) error {
 	startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 

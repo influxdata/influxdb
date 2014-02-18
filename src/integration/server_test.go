@@ -570,8 +570,7 @@ func (self *ServerSuite) TestDropDatabase(c *C) {
 	for _, s := range self.serverProcesses {
 		fmt.Printf("Running query against: %d\n", s.apiPort)
 		collection := s.Query("drop_db", "select * from cluster_query", true, c)
-		c.Assert(collection.GetSeries("cluster_query", c).Points, HasLen, 0)
-		c.Assert(collection.GetSeries("cluster_query", c).Columns, DeepEquals, []string{"time", "sequence_number"})
+		c.Assert(collection.Members, HasLen, 0)
 	}
 }
 

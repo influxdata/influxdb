@@ -1,7 +1,6 @@
 package coordinator
 
 import (
-	"bytes"
 	"cluster"
 	log "code.google.com/p/log4go"
 	"common"
@@ -22,11 +21,8 @@ type ProtobufRequestHandler struct {
 }
 
 var (
-	replayReplicationEnd      = protocol.Response_REPLICATION_REPLAY_END
-	responseReplicationReplay = protocol.Response_REPLICATION_REPLAY
-	internalError             = protocol.Response_INTERNAL_ERROR
-	sequenceNumberResponse    = protocol.Response_SEQUENCE_NUMBER
-	accessDeniedResponse      = protocol.Response_ACCESS_DENIED
+	internalError        = protocol.Response_INTERNAL_ERROR
+	accessDeniedResponse = protocol.Response_ACCESS_DENIED
 )
 
 func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
@@ -44,124 +40,16 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		}
 		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
 		return self.WriteResponse(conn, response)
-	} else if *request.Type == protocol.Request_PROXY_DROP_DATABASE {
-		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
-
-		request.OriginatingServerId = &self.clusterConfig.LocalServerId
-		replicationFactor := uint8(*request.ReplicationFactor)
-		// TODO: make request logging and datastore write atomic
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
-		if err != nil {
-			return err
-		}
-		err = self.db.DropDatabase(*request.Database)
-		if err != nil {
-			return err
-		}
-		err = self.WriteResponse(conn, response)
-		self.coordinator.ReplicateWrite(request)
-		return err
-	} else if *request.Type == protocol.Request_REPLICATION_DROP_DATABASE {
-		replicationFactor := uint8(*request.ReplicationFactor)
-		// TODO: make request logging and datastore write atomic
-		err := self.db.LogRequestAndAssignSequenceNumber(request, &replicationFactor, request.OwnerServerId)
-		if err != nil {
-			switch err := err.(type) {
-			case datastore.SequenceMissingRequestsError:
-				log.Warn("Missing sequence number error: Request SN: %v Last Known SN: %v", request.GetSequenceNumber(), err.LastKnownRequestSequence)
-				go self.coordinator.ReplayReplication(request, &replicationFactor, request.OwnerServerId, &err.LastKnownRequestSequence)
-				return nil
-			default:
-				return err
-			}
-		}
-		return self.db.DropDatabase(*request.Database)
+	} else if *request.Type == protocol.Request_DROP_DATABASE {
+		go self.handleDropDatabase(request, conn)
+		return nil
 	} else if *request.Type == protocol.Request_QUERY {
 		go self.handleQuery(request, conn)
-	} else if *request.Type == protocol.Request_REPLICATION_REPLAY {
-		self.handleReplay(request, conn)
-	} else if *request.Type == protocol.Request_SEQUENCE_NUMBER {
-		self.handleSequenceNumberRequest(request, conn)
 	} else {
 		log.Error("unknown request type: %v", request)
 		return errors.New("Unknown request type")
 	}
 	return nil
-}
-
-func (self *ProtobufRequestHandler) handleSequenceNumberRequest(request *protocol.Request, conn net.Conn) {
-	replicationFactor := uint8(*request.ReplicationFactor)
-	var err error
-	lastKnownSequenceNumber, err := self.coordinator.GetLastSequenceNumber(replicationFactor, *request.OriginatingServerId, *request.OwnerServerId)
-	var response *protocol.Response
-	if err != nil {
-		response = &protocol.Response{Type: &sequenceNumberResponse, Request: request, RequestId: request.Id, ErrorCode: &internalError}
-	} else {
-		response = &protocol.Response{Type: &sequenceNumberResponse, Request: request, RequestId: request.Id}
-		request.LastKnownSequenceNumber = &lastKnownSequenceNumber
-	}
-	self.WriteResponse(conn, response)
-}
-
-func (self *ProtobufRequestHandler) handleReplay(request *protocol.Request, conn net.Conn) {
-	sendRequest := func(loggedRequestData *[]byte) error {
-		var response *protocol.Response
-		if loggedRequestData != nil {
-			loggedRequest, err := protocol.DecodeRequest(bytes.NewBuffer(*loggedRequestData))
-			if err != nil {
-				return err
-			}
-			response = &protocol.Response{Type: &responseReplicationReplay, Request: loggedRequest, RequestId: request.Id}
-		} else {
-			response = &protocol.Response{Type: &replayReplicationEnd, RequestId: request.Id}
-		}
-		return self.WriteResponse(conn, response)
-	}
-	replicationFactor8 := uint8(*request.ReplicationFactor)
-	err := self.db.ReplayRequestsFromSequenceNumber(
-		request.ClusterVersion,
-		request.OriginatingServerId,
-		request.OwnerServerId,
-		&replicationFactor8,
-		request.LastKnownSequenceNumber,
-		sendRequest)
-	if err != nil {
-		log.Error("REPLAY ERROR: %s", err)
-	}
-}
-
-type NextPoint struct {
-	fields []string
-	point  *protocol.Point
-}
-
-func createResponse(nextPointMap map[string]*NextPoint, series *protocol.Series, id *uint32) *protocol.Response {
-	pointCount := len(series.Points)
-	if pointCount < 1 {
-		if nextPoint := nextPointMap[*series.Name]; nextPoint != nil {
-			series.Points = append(series.Points, nextPoint.point)
-			series.Fields = nextPoint.fields
-		}
-		response := &protocol.Response{Type: &queryResponse, Series: series, RequestId: id}
-
-		return response
-	}
-	oldNextPoint := nextPointMap[*series.Name]
-	nextPoint := series.Points[pointCount-1]
-	series.Points[pointCount-1] = nil
-	if oldNextPoint != nil {
-		copy(series.Points[1:], series.Points[0:])
-		series.Points[0] = oldNextPoint.point
-	} else {
-		series.Points = series.Points[:len(series.Points)-1]
-	}
-
-	response := &protocol.Response{Series: series, Type: &queryResponse, RequestId: id}
-	if nextPoint != nil {
-		response.NextPointTime = nextPoint.Timestamp
-		nextPointMap[*series.Name] = &NextPoint{series.Fields, nextPoint}
-	}
-	return response
 }
 
 func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn net.Conn) {
@@ -199,6 +87,13 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 			return
 		}
 	}
+}
+
+func (self *ProtobufRequestHandler) handleDropDatabase(request *protocol.Request, conn net.Conn) {
+	shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
+	shard.DropDatabase(*request.Database, false)
+	response := &protocol.Response{Type: &endStreamResponse, RequestId: request.Id}
+	self.WriteResponse(conn, response)
 }
 
 func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *protocol.Response) error {

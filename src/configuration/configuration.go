@@ -60,7 +60,7 @@ type ShardConfiguration struct {
 	hasRandomSplit   bool
 }
 
-func (self *ShardConfiguration) ParseAndValidate() error {
+func (self *ShardConfiguration) ParseAndValidate(defaultShardDuration time.Duration) error {
 	var err error
 	if self.Split == 0 {
 		self.Split = 1
@@ -75,7 +75,7 @@ func (self *ShardConfiguration) ParseAndValidate() error {
 		}
 	}
 	if self.Duration == "" {
-		self.parsedDuration = time.Hour * 24 * 7
+		self.parsedDuration = defaultShardDuration
 		return nil
 	}
 	self.parsedDuration, err = time.ParseDuration(self.Duration)
@@ -147,11 +147,11 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = tomlConfiguration.Sharding.LongTerm.ParseAndValidate()
+	err = tomlConfiguration.Sharding.LongTerm.ParseAndValidate(time.Hour * 24 * 30)
 	if err != nil {
 		return nil, err
 	}
-	err = tomlConfiguration.Sharding.ShortTerm.ParseAndValidate()
+	err = tomlConfiguration.Sharding.ShortTerm.ParseAndValidate(time.Hour * 24 * 7)
 	if err != nil {
 		return nil, err
 	}
