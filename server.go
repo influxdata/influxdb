@@ -492,13 +492,11 @@ func (s *server) Running() bool {
 // updates the current term for the server. This is only used when a larger
 // external term is found.
 func (s *server) updateCurrentTerm(term uint64, leaderName string) {
+	_assert(term > s.currentTerm,
+		"upadteCurrentTerm: update is called when term is not larger than currentTerm")
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
-	if term <= s.currentTerm {
-		panic("updteCurrentTerm: update is called when term is not larger than currentTerm")
-	}
-
 	// Store previous values temporarily.
 	prevTerm := s.currentTerm
 	prevLeader := s.leader
@@ -877,10 +875,7 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 	}
 
 	if req.Term == s.currentTerm {
-		if s.state == Leader {
-			msg := fmt.Sprintf("leader.elected.at.same.term.%d\n", s.currentTerm)
-			panic(msg)
-		}
+		_assert(s.state != Leader, "leader.elected.at.same.term.%d\n", s.currentTerm)
 		// change state to follower
 		s.state = Follower
 		// discover new leader when candidate

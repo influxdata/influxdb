@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"io"
 	"math/rand"
 	"os"
@@ -48,4 +49,13 @@ func afterBetween(min time.Duration, max time.Duration) <-chan time.Time {
 		d += time.Duration(rand.Int63n(int64(delta)))
 	}
 	return time.After(d)
+}
+
+// TODO(xiangli): Remove assertions when we reach version 1.0
+
+// _assert will panic with a given formatted message if the given condition is false.
+func _assert(condition bool, msg string, v ...interface{}) {
+	if !condition {
+		panic(fmt.Sprintf("assertion failed: "+msg, v...))
+	}
 }
