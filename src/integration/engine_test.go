@@ -560,8 +560,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000,
-        "sequence_number": 1
+        "timestamp": 1381346631000
       },
       {
         "values": [
@@ -572,8 +571,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631000,
-        "sequence_number": 1
+        "timestamp": 1381346631000
       },
       {
         "values": [
@@ -584,8 +582,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000,
-        "sequence_number": 1
+        "timestamp": 1381346631000
       }
     ],
     "name": "foo",
@@ -784,9 +781,9 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346641000, "sequence_number": 1 },
-        { "values": [{ "string_value": "another_value" }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346721000, "sequence_number": 1 }
+        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346641000 },
+        { "values": [{ "string_value": "another_value" }], "timestamp": 1381346701000 },
+        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346721000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -810,9 +807,9 @@ func (self *EngineSuite) TestMinQueryWithGroupByTime(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -835,9 +832,9 @@ func (self *EngineSuite) TestMaxQueryWithGroupByTime(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -861,9 +858,9 @@ func (self *EngineSuite) TestMaxMinQueryWithGroupByTime(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346641000 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346721000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -887,20 +884,20 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -924,20 +921,20 @@ func (self *EngineSuite) TestCountDistinct(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -959,17 +956,17 @@ func (self *EngineSuite) TestEmptyGroups(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -998,17 +995,17 @@ func (self *EngineSuite) TestEmptyGroupsWithNonZeroDefault(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1037,17 +1034,17 @@ func (self *EngineSuite) TestEmptyGroupsWithoutTime(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1074,17 +1071,17 @@ func (self *EngineSuite) TestEmptyGroupsWithMultipleColumns(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1116,17 +1113,17 @@ func (self *EngineSuite) TestEmptyGroupsDescending(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346871000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346871000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346871000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1155,20 +1152,20 @@ func (self *EngineSuite) TestMedianQueryWithGroupByTime(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346771000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346771000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1191,20 +1188,20 @@ func (self *EngineSuite) TestMeanQueryWithGroupByTime(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1227,11 +1224,11 @@ func (self *EngineSuite) TestStddevQuery(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700500, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381347701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381347702000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381347703000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700500 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381347701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381347702000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381347703000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1251,11 +1248,11 @@ func (self *EngineSuite) TestDerivativeQuery(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700500, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381347701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381347702000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381347703000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700500 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381347701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381347702000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381347703000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1278,7 +1275,7 @@ func (self *EngineSuite) TestDerivativeQueryWithOnePoint(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347700000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1298,10 +1295,10 @@ func (self *EngineSuite) TestDistinctQuery(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381347701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381347702000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381347703000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381347704000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381347701000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381347702000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381347703000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381347704000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1325,12 +1322,12 @@ func (self *EngineSuite) TestSumQueryWithGroupByTime(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1353,21 +1350,21 @@ func (self *EngineSuite) TestModeQueryWithGroupByTime(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 8 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 7 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 6 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 5 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346771000 }
       ],
       "name": "foo",
       "fields": ["column_one"]
@@ -1390,28 +1387,28 @@ func (self *EngineSuite) TestQueryWithMergedTables(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 }
       ],
       "name": "foo",
       "fields": ["value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346705000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346705000 }
       ],
       "name": "bar",
       "fields": ["value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346707000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346707000 }
       ],
       "name": "foo",
       "fields": ["value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346706000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346706000 }
       ],
       "name": "bar",
       "fields": ["value"]
@@ -1431,28 +1428,28 @@ func (self *EngineSuite) TestQueryWithMergedTables(c *C) {
 	self.runQuery("select * from foo merge bar order asc", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000 }
       ],
       "name": "foo_merge_bar",
       "fields": ["value", "_orig_series"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 2 }, {"string_value": "bar"}], "timestamp": 1381346705000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 2 }, {"string_value": "bar"}], "timestamp": 1381346705000 }
       ],
       "name": "foo_merge_bar",
       "fields": ["value", "_orig_series"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 4 }, {"string_value": "bar"}], "timestamp": 1381346706000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 4 }, {"string_value": "bar"}], "timestamp": 1381346706000 }
       ],
       "name": "foo_merge_bar",
       "fields": ["value", "_orig_series"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 3 }, {"string_value": "foo"}], "timestamp": 1381346707000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }, {"string_value": "foo"}], "timestamp": 1381346707000 }
       ],
       "name": "foo_merge_bar",
       "fields": ["value", "_orig_series"]
@@ -1464,28 +1461,28 @@ func (self *EngineSuite) TestQueryWithJoinedTables(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 }
       ],
       "name": "foo",
       "fields": ["value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346705000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346705000 }
       ],
       "name": "bar",
       "fields": ["value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000 }
       ],
       "name": "foo",
       "fields": ["value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346707000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346707000 }
       ],
       "name": "bar",
       "fields": ["value"]
@@ -1505,14 +1502,14 @@ func (self *EngineSuite) TestQueryWithJoinedTables(c *C) {
 	self.runQuery("select * from foo inner join bar order asc", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000 }
       ],
       "name": "foo_join_bar",
       "fields": ["foo.value", "bar.value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 3 }, { "int64_value": 4 }], "timestamp": 1381346707000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }, { "int64_value": 4 }], "timestamp": 1381346707000 }
       ],
       "name": "foo_join_bar",
       "fields": ["foo.value", "bar.value"]
@@ -1524,28 +1521,28 @@ func (self *EngineSuite) TestQueryWithJoinedTablesDescendingOrder(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 4 }], "timestamp": 1381346707000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346707000 }
       ],
       "name": "bar",
       "fields": ["value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000 }
       ],
       "name": "foo",
       "fields": ["value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 2 }], "timestamp": 1381346705000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346705000 }
       ],
       "name": "bar",
       "fields": ["value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 }
       ],
       "name": "foo",
       "fields": ["value"]
@@ -1565,14 +1562,14 @@ func (self *EngineSuite) TestQueryWithJoinedTablesDescendingOrder(c *C) {
 	self.runQuery("select * from foo inner join bar", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }, { "int64_value": 4 }], "timestamp": 1381346707000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }, { "int64_value": 4 }], "timestamp": 1381346707000 }
       ],
       "name": "foo_join_bar",
       "fields": ["foo.value", "bar.value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000 }
       ],
       "name": "foo_join_bar",
       "fields": ["foo.value", "bar.value"]
@@ -1584,8 +1581,8 @@ func (self *EngineSuite) TestJoiningWithSelf(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 }
       ],
       "name": "foo",
       "fields": ["value"]
@@ -1597,8 +1594,8 @@ func (self *EngineSuite) TestJoiningWithSelf(c *C) {
     },
     {
       "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000 }
       ],
       "name": "bar",
       "fields": ["value"]
@@ -1613,14 +1610,14 @@ func (self *EngineSuite) TestJoiningWithSelf(c *C) {
 	self.runQuery("select * from t as foo inner join t as bar", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346706000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346706000 }
       ],
       "name": "foo_join_bar",
       "fields": ["foo.value", "bar.value"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000 }
       ],
       "name": "foo_join_bar",
       "fields": ["foo.value", "bar.value"]
@@ -1632,8 +1629,8 @@ func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
 	self.createEngine(c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }], "timestamp": 1381346707000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }], "timestamp": 1381346707000 }
       ],
       "name": "foo",
       "fields": ["a", "b"]
@@ -1645,8 +1642,8 @@ func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
     },
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 3 }], "timestamp": 1381346706000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 3 }], "timestamp": 1381346706000 }
       ],
       "name": "bar",
       "fields": ["a", "b"]
@@ -1661,10 +1658,10 @@ func (self *EngineSuite) TestQueryWithMergedTablesWithPointsAppend(c *C) {
 	self.runQuery("select * from foo merge bar order asc", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }, {"string_value": "bar"}], "timestamp": 1381346705000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 3 }, {"string_value": "bar"}], "timestamp": 1381346706000, "sequence_number": 1 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }, {"string_value": "foo"}], "timestamp": 1381346707000, "sequence_number": 1 }
+        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }, {"string_value": "bar"}], "timestamp": 1381346705000 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 3 }, {"string_value": "bar"}], "timestamp": 1381346706000 },
+        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }, {"string_value": "foo"}], "timestamp": 1381346707000 }
       ],
       "name": "foo_merge_bar",
       "fields": ["a", "b", "_orig_series"]
