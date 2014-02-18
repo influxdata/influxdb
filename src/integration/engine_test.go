@@ -75,7 +75,7 @@ func (self *EngineSuite) runQuery(query string, c *C, expectedSeries string) {
 	c.Assert(err, IsNil)
 	actual := []*protocol.Series{}
 	for _, s := range result.Members {
-		dataStoreS, err := ConvertToDataStoreSeries(s, MillisecondPrecision)
+		dataStoreS, err := ConvertToDataStoreSeries(s, SecondPrecision)
 		c.Assert(err, IsNil)
 		actual = append(actual, dataStoreS)
 	}
