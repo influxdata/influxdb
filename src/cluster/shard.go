@@ -256,7 +256,7 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 	if groupByInterval == nil {
 		return false
 	}
-	if groupByInterval.Seconds() <= self.shardDuration.Seconds() {
+	if self.shardDuration%*groupByInterval == 0 {
 		return true
 	}
 	return false
