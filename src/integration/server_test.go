@@ -2,6 +2,7 @@ package integration
 
 import (
 	"bytes"
+	"common"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -70,35 +71,18 @@ func (self *ServerProcess) Stop() {
 	self.p = nil
 }
 
-func ResultsToSeriesCollection(results []interface{}) *SeriesCollection {
-	collection := &SeriesCollection{Members: make([]*Series, 0)}
-	for _, result := range results {
-		seriesResult := result.(map[string]interface{})
-		series := &Series{}
-		series.Name = seriesResult["name"].(string)
-		columns := seriesResult["columns"].([]interface{})
-		series.Columns = make([]string, 0)
-		for _, col := range columns {
-			series.Columns = append(series.Columns, col.(string))
-		}
-		points := seriesResult["points"].([]interface{})
-		series.Points = make([]*Point, 0)
-		for _, point := range points {
-			series.Points = append(series.Points, &Point{Values: point.([]interface{})})
-		}
-		collection.Members = append(collection.Members, series)
-	}
-	return collection
+func ResultsToSeriesCollection(results []*common.SerializedSeries) *SeriesCollection {
+	return &SeriesCollection{Members: results}
 }
 
 type SeriesCollection struct {
-	Members []*Series
+	Members []*common.SerializedSeries
 }
 
 func (self *SeriesCollection) GetSeries(name string, c *C) *Series {
 	for _, s := range self.Members {
 		if s.Name == name {
-			return s
+			return &Series{s}
 		}
 	}
 	c.Fatalf("Couldn't find series '%s' in:\n", name, self)
@@ -106,9 +90,7 @@ func (self *SeriesCollection) GetSeries(name string, c *C) *Series {
 }
 
 type Series struct {
-	Name    string
-	Columns []string
-	Points  []*Point
+	*common.SerializedSeries
 }
 
 func (self *Series) GetValueForPointAndColumn(pointIndex int, columnName string, c *C) interface{} {
@@ -125,7 +107,7 @@ func (self *Series) GetValueForPointAndColumn(pointIndex int, columnName string,
 	if pointIndex > len(self.Points)-1 {
 		c.Errorf("Fewer than %d points in series '%s':\n", pointIndex+1, self.Name, self)
 	}
-	return self.Points[pointIndex].Values[columnIndex]
+	return self.Points[pointIndex][columnIndex]
 }
 
 type Point struct {
@@ -152,7 +134,7 @@ func (self *ServerProcess) QueryWithUsername(database, query string, onlyLocal b
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	var js []interface{}
+	var js []*common.SerializedSeries
 	err = json.Unmarshal(body, &js)
 	if err != nil {
 		fmt.Println("NOT JSON: ", string(body))
@@ -473,7 +455,7 @@ func (self *ServerSuite) TestSslSupport(c *C) {
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	var js []interface{}
+	var js []*common.SerializedSeries
 	err = json.Unmarshal(body, &js)
 	c.Assert(err, IsNil)
 	collection := ResultsToSeriesCollection(js)

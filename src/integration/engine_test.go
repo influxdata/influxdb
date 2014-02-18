@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"protocol"
-	"reflect"
 	"time"
 )
 
@@ -43,13 +42,14 @@ func (self *EngineSuite) TearDownSuite(c *C) {
 }
 
 func (self *EngineSuite) createEngine(c *C, seriesString string) {
-	seriesString = convertToDataStoreSeries(seriesString, c)
+	seriesString = convertFromDataStoreSeries(seriesString, c)
 	fmt.Printf("new series string: %s\n", seriesString)
 	resp := self.server.Post("/db/test_db/series?u=user&p=pass", seriesString, c)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 }
 
-func convertToDataStoreSeries(seriesString string, c *C) string {
+// convert from data store internal series format to the api format
+func convertFromDataStoreSeries(seriesString string, c *C) string {
 	series := []*protocol.Series{}
 	c.Assert(json.Unmarshal([]byte(seriesString), &series), IsNil)
 	apiSeries := []*SerializedSeries{}
@@ -69,23 +69,27 @@ func convertToDataStoreSeries(seriesString string, c *C) string {
 // expectedSeries must be a json array, e.g. time series must by
 // enclosed in '[' and ']'
 func (self *EngineSuite) runQuery(query string, c *C, expectedSeries string) {
-	series, err := StringToSeriesArray(expectedSeries)
-	c.Assert(err, IsNil)
-
 	result := self.server.QueryWithUsername("test_db", query, false, c, "user", "pass")
+	var expected []*protocol.Series
+	err := json.Unmarshal([]byte(expectedSeries), &expected)
+	c.Assert(err, IsNil)
+	actual := []*protocol.Series{}
+	for _, s := range result.Members {
+		dataStoreS, err := ConvertToDataStoreSeries(s, MillisecondPrecision)
+		c.Assert(err, IsNil)
+		actual = append(actual, dataStoreS)
+	}
 
-	fmt.Printf("result: %s\n", result)
-
-	if !reflect.DeepEqual(result.Members[0], series) {
-		resultData, _ := json.MarshalIndent(result, "", "  ")
-		seriesData, _ := json.MarshalIndent(series, "", "  ")
+	if !CheckEquality(actual, expected) {
+		actualString, _ := json.MarshalIndent(actual, "", "  ")
+		expectedString, _ := json.MarshalIndent(expected, "", "  ")
 
 		fmt.Fprintf(os.Stderr,
 			"===============\nThe two series aren't equal.\nExpected: %s\nActual: %s\n===============\n",
-			seriesData, resultData)
+			expectedString, actualString)
 	}
 
-	c.Assert(result, SeriesEquals, series)
+	c.Assert(actual, SeriesEquals, expected)
 }
 
 func (self *EngineSuite) TestBasicQuery(c *C) {
@@ -1239,8 +1243,8 @@ func (self *EngineSuite) TestStddevQuery(c *C) {
 	c.Assert(result[0].Name, Equals, "foo")
 	c.Assert(result[0].Columns, DeepEquals, []string{"stddev"})
 	c.Assert(result[0].Points, HasLen, 2)
-	c.Assert(result[0].Points[0].Values[0], InRange, 0.4714, 0.4715)
-	c.Assert(result[0].Points[1].Values[1], InRange, 0.9999, 1.0001)
+	c.Assert(result[0].Points[0][0], InRange, 0.4714, 0.4715)
+	c.Assert(result[0].Points[1][1], InRange, 0.9999, 1.0001)
 }
 
 func (self *EngineSuite) TestDerivativeQuery(c *C) {

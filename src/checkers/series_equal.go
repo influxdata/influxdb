@@ -39,7 +39,7 @@ func (checker *SeriesEqualsChecker) Check(params []interface{}, names []string) 
 		return false, "second parameter isn't a series"
 	}
 
-	areEqual := checkEquality(p1, p2)
+	areEqual := CheckEquality(p1, p2)
 	if areEqual {
 		return true, ""
 	}
@@ -47,13 +47,13 @@ func (checker *SeriesEqualsChecker) Check(params []interface{}, names []string) 
 	return false, "series aren't equal"
 }
 
-func checkEquality(s1, s2 []*protocol.Series) bool {
+func CheckEquality(s1, s2 []*protocol.Series) bool {
 	if len(s1) != len(s2) {
 		return false
 	}
 
 	for idx, series := range s1 {
-		if !checkSeriesEquality(series, s2[idx]) {
+		if !CheckSeriesEquality(series, s2[idx]) {
 			return false
 		}
 	}
@@ -65,7 +65,7 @@ func checkEquality(s1, s2 []*protocol.Series) bool {
 // points with the same timestamp. Two points can have the same
 // sequence number if the user issue a query with group by time(1h)
 // and some_column.
-func checkSeriesEquality(s1, s2 *protocol.Series) bool {
+func CheckSeriesEquality(s1, s2 *protocol.Series) bool {
 	if len(s1.Points) != len(s2.Points) {
 		return false
 	}

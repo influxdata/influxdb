@@ -131,6 +131,8 @@ func ConvertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 	return series, nil
 }
 
+// takes a slice of protobuf series and convert them to the format
+// that the http api expect
 func SerializeSeries(memSeries map[string]*protocol.Series, precision TimePrecision) []*SerializedSeries {
 	serializedSeries := []*SerializedSeries{}
 
