@@ -147,6 +147,10 @@ func (self *ServerProcess) Post(url, data string, c *C) *http.Response {
 	return self.Request("POST", url, data, c)
 }
 
+func (self *ServerProcess) Delete(url, body string, c *C) *http.Response {
+	return self.Request("DELETE", url, body, c)
+}
+
 func (self *ServerProcess) PostGetBody(url, data string, c *C) []byte {
 	resp := self.Request("POST", url, data, c)
 	body, err := ioutil.ReadAll(resp.Body)
@@ -920,4 +924,159 @@ func (self *ServerSuite) TestGetServers(c *C) {
 		c.Assert(server["id"], NotNil)
 		c.Assert(server["protobufConnectString"], NotNil)
 	}
+}
+
+func (self *ServerSuite) TestCreateAndGetShards(c *C) {
+	// put this far in the future so it doesn't mess up the other tests
+	secondsOffset := int64(86400 * 365)
+	startSeconds := time.Now().Unix() + secondsOffset
+	endSeconds := startSeconds + 3600
+	data := fmt.Sprintf(`{
+		"startTime":%d,
+		"endTime":%d,
+		"longTerm": false,
+		"shards": [{
+			"serverIds": [%d, %d]
+		}]
+	}`, startSeconds, endSeconds, 2, 3)
+	resp := self.serverProcesses[0].Post("/cluster/shards?u=root&p=root", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		body := s.Get("/cluster/shards?u=root&p=root", c)
+		res := make(map[string]interface{})
+		err := json.Unmarshal(body, &res)
+		c.Assert(err, IsNil)
+		hasShard := false
+		for _, s := range res["shortTerm"].([]interface{}) {
+			sh := s.(map[string]interface{})
+			if sh["startTime"].(float64) == float64(startSeconds) && sh["endTime"].(float64) == float64(endSeconds) {
+				servers := sh["serverIds"].([]interface{})
+				c.Assert(servers, HasLen, 2)
+				c.Assert(servers[0].(float64), Equals, float64(2))
+				c.Assert(servers[1].(float64), Equals, float64(3))
+				hasShard = true
+				break
+			}
+		}
+		c.Assert(hasShard, Equals, true)
+	}
+
+}
+
+func (self *ServerSuite) TestDropShard(c *C) {
+	// put this far in the future so it doesn't mess up the other tests
+	secondsOffset := int64(86400 * 720)
+	startSeconds := time.Now().Unix() + secondsOffset
+	endSeconds := startSeconds + 3600
+	data := fmt.Sprintf(`{
+		"startTime":%d,
+		"endTime":%d,
+		"longTerm": false,
+		"shards": [{
+			"serverIds": [%d, %d]
+		}]
+	}`, startSeconds, endSeconds, 1, 2)
+	resp := self.serverProcesses[0].Post("/cluster/shards?u=root&p=root", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+
+	// now write some data to ensure that the local files get created
+	t := (time.Now().Unix() + secondsOffset) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_drop_shard", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	// and find the shard id
+	body := self.serverProcesses[0].Get("/cluster/shards?u=root&p=root", c)
+	res := make(map[string]interface{})
+	err := json.Unmarshal(body, &res)
+	c.Assert(err, IsNil)
+	var shardId int
+	for _, s := range res["shortTerm"].([]interface{}) {
+		sh := s.(map[string]interface{})
+		if sh["startTime"].(float64) == float64(startSeconds) && sh["endTime"].(float64) == float64(endSeconds) {
+			shardId = int(sh["id"].(float64))
+			break
+		}
+	}
+
+	// confirm the shard files are there
+	shardDirServer1 := fmt.Sprintf("/tmp/influxdb/test/1/db/shard_db/%.5d", shardId)
+	shardDirServer2 := fmt.Sprintf("/tmp/influxdb/test/2/db/shard_db/%.5d", shardId)
+	exists, _ := dirExists(shardDirServer1)
+	c.Assert(exists, Equals, true)
+	exists, _ = dirExists(shardDirServer2)
+	c.Assert(exists, Equals, true)
+
+	// now drop and confirm they're gone
+	data = fmt.Sprintf(`{"serverIds": [%d]}`, 1)
+
+	resp = self.serverProcesses[0].Delete(fmt.Sprintf("/cluster/shards/%d?u=root&p=root", shardId), data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+	time.Sleep(time.Second)
+
+	for _, s := range self.serverProcesses {
+		body := s.Get("/cluster/shards?u=root&p=root", c)
+		res := make(map[string]interface{})
+		err := json.Unmarshal(body, &res)
+		c.Assert(err, IsNil)
+		hasShard := false
+		for _, s := range res["shortTerm"].([]interface{}) {
+			sh := s.(map[string]interface{})
+			if int(sh["id"].(float64)) == shardId {
+				hasShard = true
+				hasServer := false
+				for _, serverId := range sh["serverIds"].([]interface{}) {
+					if serverId.(float64) == float64(1) {
+						hasServer = true
+						break
+					}
+				}
+				c.Assert(hasServer, Equals, false)
+			}
+		}
+		c.Assert(hasShard, Equals, true)
+	}
+
+	exists, _ = dirExists(shardDirServer1)
+	c.Assert(exists, Equals, false)
+	exists, _ = dirExists(shardDirServer2)
+	c.Assert(exists, Equals, true)
+
+	// now drop the shard from the last server and confirm it's gone
+	data = fmt.Sprintf(`{"serverIds": [%d]}`, 2)
+
+	resp = self.serverProcesses[0].Delete(fmt.Sprintf("/cluster/shards/%d?u=root&p=root", shardId), data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+	time.Sleep(time.Second)
+
+	for _, s := range self.serverProcesses {
+		body := s.Get("/cluster/shards?u=root&p=root", c)
+		res := make(map[string]interface{})
+		err := json.Unmarshal(body, &res)
+		c.Assert(err, IsNil)
+		hasShard := false
+		for _, s := range res["shortTerm"].([]interface{}) {
+			sh := s.(map[string]interface{})
+			if int(sh["id"].(float64)) == shardId {
+				hasShard = true
+			}
+		}
+		c.Assert(hasShard, Equals, false)
+	}
+
+	exists, _ = dirExists(shardDirServer1)
+	c.Assert(exists, Equals, false)
+	exists, _ = dirExists(shardDirServer2)
+	c.Assert(exists, Equals, false)
+}
+
+func dirExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }

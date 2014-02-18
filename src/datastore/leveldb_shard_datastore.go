@@ -64,7 +64,7 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 		return db, nil
 	}
 
-	dbDir := filepath.Join(self.baseDbDir, fmt.Sprintf("%.5d", id))
+	dbDir := self.shardDir(id)
 
 	log.Info("DATASTORE: opening or creating shard %s", dbDir)
 	ldb, err := levigo.Open(dbDir, self.levelDbOptions)
@@ -78,4 +78,23 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 	}
 	self.shards[id] = db
 	return db, nil
+}
+
+func (self *LevelDbShardDatastore) DeleteShard(shardId uint32) error {
+	self.shardsLock.Lock()
+	shardDb := self.shards[shardId]
+	delete(self.shards, shardId)
+	self.shardsLock.Unlock()
+
+	if shardDb != nil {
+		shardDb.close()
+	}
+
+	dir := self.shardDir(shardId)
+	log.Info("DATASTORE: dropping shard %s", dir)
+	return os.RemoveAll(dir)
+}
+
+func (self *LevelDbShardDatastore) shardDir(id uint32) string {
+	return filepath.Join(self.baseDbDir, fmt.Sprintf("%.5d", id))
 }

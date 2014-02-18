@@ -665,6 +665,8 @@ func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster
 	return self.clusterConfig.MarshalNewShardArrayToShards(newShards)
 }
 
-func (self *RaftServer) DeleteShard(id uint32) error {
-	return nil
+func (self *RaftServer) DropShard(id uint32, serverIds []uint32) error {
+	command := NewDropShardCommand(id, serverIds)
+	_, err := self.doOrProxyCommand(command, "drop_shard")
+	return err
 }

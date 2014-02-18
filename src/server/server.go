@@ -54,7 +54,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
 
 	raftServer.AssignCoordinator(coord)
-	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, coord, coord, clusterConfig)
+	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, coord, coord, clusterConfig, raftServer)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 

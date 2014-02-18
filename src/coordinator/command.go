@@ -23,6 +23,7 @@ func init() {
 		&DeleteContinuousQueryCommand{},
 		&SetContinuousQueryTimestampCommand{},
 		&CreateShardsCommand{},
+		&DropShardCommand{},
 	} {
 		internalRaftCommands[command.CommandName()] = command
 	}
@@ -267,4 +268,23 @@ func (c *CreateShardsCommand) Apply(server raft.Server) (interface{}, error) {
 		createdShardData = append(createdShardData, s.ToNewShardData())
 	}
 	return createdShardData, nil
+}
+
+type DropShardCommand struct {
+	ShardId   uint32
+	ServerIds []uint32
+}
+
+func NewDropShardCommand(id uint32, serverIds []uint32) *DropShardCommand {
+	return &DropShardCommand{ShardId: id, ServerIds: serverIds}
+}
+
+func (c *DropShardCommand) CommandName() string {
+	return "drop_shard"
+}
+
+func (c *DropShardCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*cluster.ClusterConfiguration)
+	err := config.DropShard(c.ShardId, c.ServerIds)
+	return nil, err
 }

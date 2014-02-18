@@ -817,6 +817,9 @@ func (self *ClusterConfiguration) getStartAndEndBasedOnDuration(microsecondsEpoc
 }
 
 func (self *ClusterConfiguration) GetShards(querySpec *parser.QuerySpec) []*ShardData {
+	self.shardsByIdLock.RLock()
+	defer self.shardsByIdLock.RUnlock()
+
 	if querySpec.IsDropSeriesQuery() {
 		seriesName := querySpec.Query().DropSeriesQuery.GetTableName()
 		if seriesName[0] < FIRST_LOWER_CASE_CHARACTER {
@@ -1045,4 +1048,69 @@ func (self *ClusterConfiguration) GetLocalShardById(id uint32) *ShardData {
 		shard.SetLocalStore(self.shardStore, self.LocalServerId)
 	}
 	return shard
+}
+
+func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) error {
+	// take it out of the memory map so writes and queries stop going to it
+	self.updateOrRemoveShard(shardId, serverIds)
+
+	// now actually remove it from disk if it lives here
+	for _, serverId := range serverIds {
+		if serverId == self.LocalServerId {
+			return self.shardStore.DeleteShard(shardId)
+		}
+	}
+	return nil
+}
+
+func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds []uint32) {
+	self.shardsByIdLock.RLock()
+	shard := self.shardsById[shardId]
+	self.shardsByIdLock.RUnlock()
+	if len(shard.serverIds) == len(serverIds) {
+		self.removeShard(shardId)
+		return
+	}
+	self.shardsByIdLock.Lock()
+	defer self.shardsByIdLock.Unlock()
+	newIds := make([]uint32, 0)
+	for _, oldId := range shard.serverIds {
+		include := true
+		for _, removeId := range serverIds {
+			if oldId == removeId {
+				include = false
+				break
+			}
+		}
+		if include {
+			newIds = append(newIds, oldId)
+		}
+	}
+	shard.serverIds = newIds
+}
+
+func (self *ClusterConfiguration) removeShard(shardId uint32) {
+	self.shardLock.Lock()
+	self.shardsByIdLock.Lock()
+	defer self.shardLock.Unlock()
+	defer self.shardsByIdLock.Unlock()
+	delete(self.shardsById, shardId)
+
+	for i, shard := range self.shortTermShards {
+		if shard.id == shardId {
+			copy(self.shortTermShards[i:], self.shortTermShards[i+1:])
+			self.shortTermShards[len(self.shortTermShards)-1] = nil
+			self.shortTermShards = self.shortTermShards[:len(self.shortTermShards)-1]
+			return
+		}
+	}
+
+	for i, shard := range self.longTermShards {
+		if shard.id == shardId {
+			copy(self.longTermShards[i:], self.longTermShards[i+1:])
+			self.longTermShards[len(self.longTermShards)-1] = nil
+			self.longTermShards = self.longTermShards[:len(self.longTermShards)-1]
+			return
+		}
+	}
 }

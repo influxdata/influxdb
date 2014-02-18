@@ -101,6 +101,7 @@ type LocalShardDb interface {
 
 type LocalShardStore interface {
 	GetOrCreateShard(id uint32) (LocalShardDb, error)
+	DeleteShard(shardId uint32) error
 }
 
 func (self *ShardData) Id() uint32 {
@@ -130,10 +131,13 @@ func (self *ShardData) SetServers(servers []*ClusterServer) {
 		go self.handleWritesToServer(server, writeBuffer)
 		self.serverWrites[server] = writeBuffer
 	}
+	self.sortServerIds()
 }
 
 func (self *ShardData) SetLocalStore(store LocalShardStore, localServerId uint32) error {
 	self.serverIds = append(self.serverIds, localServerId)
+	self.sortServerIds()
+
 	self.store = store
 	self.localWrites = make(chan *protocol.Request, LOCAL_WRITE_BUFFER_SIZE)
 	shard, err := self.store.GetOrCreateShard(self.id)
@@ -382,6 +386,18 @@ func (self *ShardData) handleLocalWrites() {
 		if err != nil {
 			log.Error("Writing to local shard: ", err)
 		}
+	}
+}
+
+// server ids should always be returned in sorted order
+func (self *ShardData) sortServerIds() {
+	serverIdInts := make([]int, len(self.serverIds), len(self.serverIds))
+	for i, id := range self.serverIds {
+		serverIdInts[i] = int(id)
+	}
+	sort.Ints(serverIdInts)
+	for i, id := range serverIdInts {
+		self.serverIds[i] = uint32(id)
 	}
 }
 

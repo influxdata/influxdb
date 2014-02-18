@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/bmizerany/pat"
 	"io/ioutil"
@@ -31,9 +32,10 @@ type HttpServer struct {
 	userManager    coordinator.UserManager
 	shutdown       chan bool
 	clusterConfig  *cluster.ClusterConfiguration
+	raftServer     *coordinator.RaftServer
 }
 
-func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager coordinator.UserManager, clusterConfig *cluster.ClusterConfiguration) *HttpServer {
+func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager coordinator.UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
 	self := &HttpServer{}
 	self.httpPort = httpPort
 	self.adminAssetsDir = adminAssetsDir
@@ -41,6 +43,7 @@ func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordi
 	self.userManager = userManager
 	self.shutdown = make(chan bool, 2)
 	self.clusterConfig = clusterConfig
+	self.raftServer = raftServer
 	return self
 }
 
@@ -127,6 +130,9 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// cluster config endpoints
 	self.registerEndpoint(p, "get", "/cluster/servers", self.listServers)
+	self.registerEndpoint(p, "post", "/cluster/shards", self.createShard)
+	self.registerEndpoint(p, "get", "/cluster/shards", self.getShards)
+	self.registerEndpoint(p, "del", "/cluster/shards/:id", self.dropShard)
 
 	go self.startSsl(p)
 
@@ -842,7 +848,6 @@ func (self *HttpServer) createDbContinuousQueries(w libhttp.ResponseWriter, r *l
 		}
 		json.Unmarshal(body, &values)
 		query := values.(map[string]interface{})["query"].(string)
-		fmt.Println(query)
 
 		if err := self.coordinator.CreateContinuousQuery(u, db, query); err != nil {
 			return errorToStatusCode(err), err.Error()
@@ -872,4 +877,99 @@ func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request
 		}
 		return libhttp.StatusOK, serverMaps
 	})
+}
+
+type newShardInfo struct {
+	StartTime int64               `json:"startTime"`
+	EndTime   int64               `json:"endTime"`
+	Shards    []newShardServerIds `json:"shards"`
+	LongTerm  bool                `json:"longTerm"`
+}
+
+type newShardServerIds struct {
+	ServerIds []uint32 `json:"serverIds"`
+}
+
+func (self *HttpServer) createShard(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		newShards := &newShardInfo{}
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		err = json.Unmarshal(body, &newShards)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		shards := make([]*cluster.NewShardData, 0)
+
+		shardType := cluster.SHORT_TERM
+		if newShards.LongTerm {
+			shardType = cluster.LONG_TERM
+		}
+		for _, s := range newShards.Shards {
+			newShardData := &cluster.NewShardData{
+				StartTime: time.Unix(newShards.StartTime, 0),
+				EndTime:   time.Unix(newShards.EndTime, 0),
+				ServerIds: s.ServerIds,
+				Type:      shardType,
+			}
+			shards = append(shards, newShardData)
+		}
+		_, err = self.raftServer.CreateShards(shards)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		return libhttp.StatusAccepted, nil
+	})
+}
+
+func (self *HttpServer) getShards(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		result := make(map[string]interface{})
+		result["shortTerm"] = self.convertShardsToMap(self.clusterConfig.GetShortTermShards())
+		result["longTerm"] = self.convertShardsToMap(self.clusterConfig.GetLongTermShards())
+		return libhttp.StatusOK, result
+	})
+}
+
+func (self *HttpServer) dropShard(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		id, err := strconv.ParseInt(r.URL.Query().Get(":id"), 10, 64)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		serverIdInfo := &newShardServerIds{}
+		fmt.Println("API: BODY: ", string(body))
+		err = json.Unmarshal(body, &serverIdInfo)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		if len(serverIdInfo.ServerIds) < 1 {
+			return libhttp.StatusBadRequest, errors.New("Request must include an object with an array of 'serverIds'").Error()
+		}
+
+		err = self.raftServer.DropShard(uint32(id), serverIdInfo.ServerIds)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		return libhttp.StatusAccepted, nil
+	})
+}
+
+func (self *HttpServer) convertShardsToMap(shards []*cluster.ShardData) []interface{} {
+	result := make([]interface{}, 0)
+	for _, shard := range shards {
+		s := make(map[string]interface{})
+		s["id"] = shard.Id()
+		s["startTime"] = shard.StartTime().Unix()
+		s["endTime"] = shard.EndTime().Unix()
+		s["serverIds"] = shard.ServerIds()
+		result = append(result, s)
+	}
+	return result
 }
