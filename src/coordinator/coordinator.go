@@ -56,7 +56,10 @@ var (
 	write = protocol.Request_WRITE
 )
 
-type seriesYieldFunc func(*protocol.Series) error
+type SeriesWriter interface {
+	Write(*protocol.Series) error
+	Close()
+}
 
 // usernames and db names should match this regex
 var VALID_NAMES *regexp.Regexp
@@ -80,7 +83,7 @@ func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsens
 	return coordinator
 }
 
-func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, yield seriesYieldFunc) (err error) {
+func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
 	// don't let a panic pass beyond RunQuery
 	defer recoverFunc(database, queryString)
 
@@ -93,7 +96,7 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 		querySpec := parser.NewQuerySpec(user, database, query)
 
 		if query.DeleteQuery != nil {
-			if err := self.runDeleteQuery(querySpec, yield); err != nil {
+			if err := self.runDeleteQuery(querySpec, seriesWriter); err != nil {
 				return err
 			}
 			continue
@@ -108,14 +111,14 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 
 		if query.IsListQuery() {
 			if query.IsListSeriesQuery() {
-				self.runListSeriesQuery(querySpec, yield)
+				self.runListSeriesQuery(querySpec, seriesWriter)
 			} else if query.IsListContinuousQueriesQuery() {
 				queries, err := self.ListContinuousQueries(user, database)
 				if err != nil {
 					return err
 				}
 				for _, q := range queries {
-					if err := yield(q); err != nil {
+					if err := seriesWriter.Write(q); err != nil {
 						return err
 					}
 				}
@@ -124,7 +127,7 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 		}
 
 		if query.DropSeriesQuery != nil {
-			err := self.runDropSeriesQuery(querySpec, yield)
+			err := self.runDropSeriesQuery(querySpec, seriesWriter)
 			if err != nil {
 				return err
 			}
@@ -137,18 +140,19 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 			return self.CreateContinuousQuery(user, database, queryString)
 		}
 
-		return self.runQuery(query, user, database, yield)
+		return self.runQuery(query, user, database, seriesWriter)
 	}
+	seriesWriter.Close()
 	return nil
 }
 
 // This should only get run for SelectQuery types
-func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, database string, yield seriesYieldFunc) error {
+func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, database string, seriesWriter SeriesWriter) error {
 	querySpec := parser.NewQuerySpec(user, database, query)
-	return self.runQuerySpec(querySpec, yield)
+	return self.runQuerySpec(querySpec, seriesWriter)
 }
 
-func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, yield seriesYieldFunc) error {
+func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
 	shortTermShards := self.clusterConfiguration.GetShortTermShards()
 	if len(shortTermShards) > SHARDS_TO_QUERY_FOR_LIST_SERIES {
 		shortTermShards = shortTermShards[:SHARDS_TO_QUERY_FOR_LIST_SERIES]
@@ -180,7 +184,7 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, yie
 			for _, series := range response.MultiSeries {
 				if !seriesYielded[*series.Name] {
 					seriesYielded[*series.Name] = true
-					yield(series)
+					seriesWriter.Write(series)
 				}
 			}
 		}
@@ -188,16 +192,16 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, yie
 	return nil
 }
 
-func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, yield seriesYieldFunc) error {
+func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
 	db := querySpec.Database()
 	if !querySpec.User().IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
 	querySpec.RunAgainstAllServersInShard = true
-	return self.runQuerySpec(querySpec, yield)
+	return self.runQuerySpec(querySpec, seriesWriter)
 }
 
-func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, yield seriesYieldFunc) error {
+func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
 	user := querySpec.User()
 	db := querySpec.Database()
 	series := querySpec.Query().DropSeriesQuery.GetTableName()
@@ -205,10 +209,10 @@ func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, yie
 		return common.NewAuthorizationError("Insufficient permission to drop series")
 	}
 	querySpec.RunAgainstAllServersInShard = true
-	return self.runQuerySpec(querySpec, yield)
+	return self.runQuerySpec(querySpec, seriesWriter)
 }
 
-func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, yield seriesYieldFunc) error {
+func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
 	shards := self.clusterConfiguration.GetShards(querySpec)
 	responses := make([]chan *protocol.Response, 0)
 	for _, shard := range shards {
@@ -223,11 +227,10 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, yield ser
 			if *response.Type == endStreamResponse {
 				break
 			}
-			yield(response.Series)
+			seriesWriter.Write(response.Series)
 		}
 	}
 	return nil
-
 }
 
 func recoverFunc(database, query string) {

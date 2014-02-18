@@ -449,7 +449,7 @@ func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, st
 	sequenceNumber := uint64(1)
 	queryString := query.GetQueryStringForContinuousQuery(start, end)
 
-	s.coordinator.RunQuery(clusterAdmin, db, queryString, func(series *protocol.Series) error {
+	f := func(series *protocol.Series) error {
 		interpolatedTargetName := strings.Replace(targetName, ":series_name", *series.Name, -1)
 		series.Name = &interpolatedTargetName
 		for _, point := range series.Points {
@@ -457,7 +457,10 @@ func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, st
 		}
 
 		return s.coordinator.WriteSeriesData(clusterAdmin, db, series)
-	})
+	}
+
+	writer := NewContinuousQueryWriter(f)
+	s.coordinator.RunQuery(clusterAdmin, db, queryString, writer)
 }
 
 func (s *RaftServer) ListenAndServe() error {

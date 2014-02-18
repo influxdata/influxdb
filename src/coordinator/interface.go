@@ -26,7 +26,7 @@ type Coordinator interface {
 	ListContinuousQueries(user common.User, db string) ([]*protocol.Series, error)
 
 	// v2 clustering, based on sharding instead of the circular hash ring
-	RunQuery(user common.User, db, query string, yield seriesYieldFunc) error
+	RunQuery(user common.User, db, query string, seriesWriter SeriesWriter) error
 }
 
 type UserManager interface {

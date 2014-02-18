@@ -276,7 +276,8 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 		} else {
 			writer = &AllPointsWriter{map[string]*protocol.Series{}, w, precision}
 		}
-		err = self.coordinator.RunQuery(user, db, query, writer.yield)
+		seriesWriter := NewSeriesWriter(writer.yield)
+		err = self.coordinator.RunQuery(user, db, query, seriesWriter)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}
@@ -391,7 +392,8 @@ func (self *HttpServer) dropSeries(w libhttp.ResponseWriter, r *libhttp.Request)
 		f := func(s *protocol.Series) error {
 			return nil
 		}
-		err := self.coordinator.RunQuery(user, db, fmt.Sprintf("drop series %s", series), f)
+		seriesWriter := NewSeriesWriter(f)
+		err := self.coordinator.RunQuery(user, db, fmt.Sprintf("drop series %s", series), seriesWriter)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}
