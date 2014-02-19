@@ -70,14 +70,14 @@ max-open-files = 100
 [sharding]
   # how many servers in the cluster should have a copy of each shard.
   # this will give you high availability and scalability on queries
-  replication-factor = 2
+  replication-factor = 1
 
   [sharding.short-term]
   # each shard will have this period of time. Note that it's best to have
   # group by time() intervals on all queries be < than this setting. If they are
   # then the aggregate is calculated locally. Otherwise, all that data gets sent
   # over the network when doing a query.
-  duration = "1d"
+  duration = "7d"
 
   # split will determine how many shards to split each duration into. For example, 
   # if we created a shard for 2014-02-10 and split was set to 2. Then two shards
