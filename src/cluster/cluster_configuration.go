@@ -125,6 +125,34 @@ func (self *ClusterConfiguration) SetShardCreator(shardCreator ShardCreator) {
 	self.shardCreator = shardCreator
 }
 
+// called by the server, this will wake up every 10 mintues to see if it should
+// create a shard for the next window of time. This way shards get created before
+// a bunch of writes stream in and try to create it all at the same time.
+func (self *ClusterConfiguration) CreateFutureShardsAutomaticallyBeforeTimeComes() {
+	go func() {
+		for {
+			time.Sleep(time.Minute * 10)
+			log.Debug("Checking to see if future shards should be created")
+			self.automaticallyCreateFutureShard(self.shortTermShards, SHORT_TERM)
+			self.automaticallyCreateFutureShard(self.longTermShards, LONG_TERM)
+		}
+	}()
+}
+
+func (self *ClusterConfiguration) automaticallyCreateFutureShard(shards []*ShardData, shardType ShardType) {
+	if len(shards) == 0 {
+		// don't automatically create shards if they haven't created any yet.
+		return
+	}
+	latestShard := shards[0]
+	if latestShard.endTime.Add(-15*time.Minute).Unix() < time.Now().Unix() {
+		newShardTime := latestShard.endTime.Add(time.Second)
+		microSecondEpochForNewShard := newShardTime.Unix() * 1000 * 1000
+		log.Info("Automatically creating shard for %s", newShardTime.Format("Mon Jan 2 15:04:05 -0700 MST 2006"))
+		self.createShards(microSecondEpochForNewShard, shardType)
+	}
+}
+
 func (self *ClusterConfiguration) ServerId() uint32 {
 	return self.LocalServerId
 }

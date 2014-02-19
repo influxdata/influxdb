@@ -48,6 +48,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	clusterConfig := cluster.NewClusterConfiguration(config, writeLog, shardDb, newClient)
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
 	clusterConfig.SetShardCreator(raftServer)
+	clusterConfig.CreateFutureShardsAutomaticallyBeforeTimeComes()
 
 	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
 	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
