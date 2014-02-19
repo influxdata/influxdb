@@ -719,8 +719,6 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeDescendingOrder(c *C) {
 			delimiter = ""
 		}
 
-		fmt.Printf("timestamp: %d\n", endTime.Add(time.Duration(-i)*time.Second).Unix()*1000000)
-
 		points += fmt.Sprintf(`
       {
         "values": [
