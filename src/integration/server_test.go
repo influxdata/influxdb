@@ -242,6 +242,21 @@ func (self *ServerSuite) TestCountQueryOnSingleShard(c *C) {
 	c.Assert(series.GetValueForPointAndColumn(1, "count", c).(float64), Equals, float64(1))
 }
 
+func (self *ServerSuite) TestGroupByDay(c *C) {
+	data := `[{"points": [[4], [10], [5]], "name": "test_group_by_day", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 86400) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_group_by_day", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second)
+	collection := self.serverProcesses[0].Query("test_rep", "select count(value) from test_group_by_day group by time(1d)", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_group_by_day", c)
+	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(3))
+	c.Assert(series.GetValueForPointAndColumn(1, "count", c).(float64), Equals, float64(1))
+}
+
 func (self *ServerSuite) TestLimitQueryOnSingleShard(c *C) {
 	data := `[{"points": [[4], [10], [5]], "name": "test_limit_query_single_shard", "columns": ["value"]}]`
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)

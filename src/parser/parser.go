@@ -96,10 +96,11 @@ func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
 			// TODO: check the function name
 			// TODO: error checking
 			arg := groupBy.Elems[0].Name
-			duration, err := time.ParseDuration(arg)
+			durationInt, err := common.ParseTimeDuration(arg)
 			if err != nil {
 				return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("invalid argument %s to the time function", arg))
 			}
+			duration := time.Duration(durationInt)
 			return &duration, nil
 		}
 	}
