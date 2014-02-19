@@ -719,16 +719,21 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeDescendingOrder(c *C) {
 			delimiter = ""
 		}
 
+		fmt.Printf("timestamp: %d\n", endTime.Add(time.Duration(-i)*time.Second).Unix()*1000000)
+
 		points += fmt.Sprintf(`
       {
         "values": [
           {
             "string_value": "some_value"
+          },
+          {
+            "int64_value": %d
           }
         ],
         "timestamp": %d
       }%s
-`, endTime.Add(time.Duration(-i)*time.Second).Unix()*1000000, delimiter)
+`, i, endTime.Add(time.Duration(-i)*time.Second).Unix()*1000000, delimiter)
 
 		expectedResponse += fmt.Sprintf(`
       {
@@ -745,7 +750,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeDescendingOrder(c *C) {
 	points += `
     ],
     "name": "foo",
-    "fields": ["count"]
+    "fields": ["column_one", "column_two"]
   }
 ]
 `
@@ -760,8 +765,8 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeDescendingOrder(c *C) {
 
 	// make the mock coordinator return some data
 	self.createEngine(c, points)
-
-	self.runQuery("select count(column_one) from foo group by time(1s);", c, expectedResponse)
+	time.Sleep(time.Second)
+	self.runQuery("select count(column_two) from foo group by time(1s);", c, expectedResponse)
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTimeAndColumn(c *C) {

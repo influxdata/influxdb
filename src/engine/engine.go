@@ -99,6 +99,7 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 	} else if len(series.Points) >= POINT_BATCH_SIZE {
 		shouldContinue = self.yieldSeriesData(series)
 		series = &protocol.Series{Name: seriesName, Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+		self.seriesToPoints[seriesName] = series
 	}
 	series.Points = append(series.Points, point)
 
