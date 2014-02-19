@@ -2,6 +2,7 @@ package configuration
 
 import (
 	log "code.google.com/p/log4go"
+	"common"
 	"encoding/json"
 	"fmt"
 	"github.com/BurntSushi/toml"
@@ -78,8 +79,12 @@ func (self *ShardConfiguration) ParseAndValidate(defaultShardDuration time.Durat
 		self.parsedDuration = defaultShardDuration
 		return nil
 	}
-	self.parsedDuration, err = time.ParseDuration(self.Duration)
-	return err
+	val, err := common.ParseTimeDuration(self.Duration)
+	if err != nil {
+		return err
+	}
+	self.parsedDuration = time.Duration(val)
+	return nil
 }
 
 func (self *ShardConfiguration) ParsedDuration() *time.Duration {
