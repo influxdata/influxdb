@@ -699,6 +699,11 @@ type UserDetail struct {
 	IsAdmin bool   `json:"isAdmin"`
 }
 
+type ContinuousQuery struct {
+	Id    int64  `json:"id"`
+	Query string `json:"query"`
+}
+
 type NewContinuousQuery struct {
 	Query string `json:"query"`
 }
@@ -1010,9 +1015,15 @@ func (self *HttpServer) listDbContinuousQueries(w libhttp.ResponseWriter, r *lib
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u common.User) (int, interface{}) {
-		queries, err := self.coordinator.ListContinuousQueries(u, db)
+		series, err := self.coordinator.ListContinuousQueries(u, db)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
+		}
+
+		queries := make([]ContinuousQuery, 0, len(series[0].Points))
+
+		for _, point := range series[0].Points {
+			queries = append(queries, ContinuousQuery{Id: *point.Values[0].Int64Value, Query: *point.Values[1].StringValue})
 		}
 
 		return libhttp.StatusOK, queries
@@ -1030,7 +1041,6 @@ func (self *HttpServer) createDbContinuousQueries(w libhttp.ResponseWriter, r *l
 		}
 		json.Unmarshal(body, &values)
 		query := values.(map[string]interface{})["query"].(string)
-		fmt.Println(query)
 
 		if err := self.coordinator.CreateContinuousQuery(u, db, query); err != nil {
 			return errorToStatusCode(err), err.Error()
