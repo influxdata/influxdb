@@ -366,11 +366,13 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series
 				newSeries := &protocol.Series{Name: series.Name, Fields: series.Fields, Points: series.Points[lastPointIndex:newIndex]}
 				self.write(db, newSeries, shard)
 				lastPointIndex = newIndex
+				shardToWrite = shard
 			}
 			lastTime = *point.Timestamp
 		}
 	}
 
+	series.Points = series.Points[lastPointIndex:]
 	err := self.write(db, series, shardToWrite)
 	if err != nil {
 		log.Error("COORD error writing: ", err)
