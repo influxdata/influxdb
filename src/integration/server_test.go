@@ -302,6 +302,25 @@ func (self *ServerSuite) TestBigGroupByQueryAgainstMultipleShards(c *C) {
 	}
 }
 
+func (self *ServerSuite) TestWriteSplitToMultipleShards(c *C) {
+	data := `[
+		{"points": [[4], [10]], "name": "test_write_multiple_shards", "columns": ["value"]},
+		{"points": [["asdf"]], "name": "Test_write_multiple_shards", "columns": ["thing"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select count(value) from test_write_multiple_shards", false, c)
+		series := collection.GetSeries("test_write_multiple_shards", c)
+		c.Assert(series.Points, HasLen, 1)
+		c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(2))
+
+		collection = s.Query("test_rep", "select * from Test_write_multiple_shards", false, c)
+		series = collection.GetSeries("Test_write_multiple_shards", c)
+		c.Assert(series.Points, HasLen, 1)
+		c.Assert(series.GetValueForPointAndColumn(0, "thing", c).(string), Equals, "asdf")
+	}
+}
+
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
 	data := `
   [{
