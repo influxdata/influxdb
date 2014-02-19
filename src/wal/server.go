@@ -1,5 +1,5 @@
 package wal
 
 type Server interface {
-	Id() uint32
+	GetId() uint32
 }

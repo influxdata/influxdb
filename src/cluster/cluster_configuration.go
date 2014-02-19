@@ -156,7 +156,7 @@ func (self *ClusterConfiguration) GetServerByRaftName(name string) *ClusterServe
 
 func (self *ClusterConfiguration) GetServerById(id *uint32) *ClusterServer {
 	for _, server := range self.servers {
-		if server.id == *id {
+		if server.Id == *id {
 			return server
 		}
 	}
@@ -178,7 +178,7 @@ func (self *ClusterConfiguration) UpdateServerState(serverId uint32, state Serve
 	defer self.serversLock.Unlock()
 	atomic.AddUint32(&self.ClusterVersion, uint32(1))
 	for _, server := range self.servers {
-		if server.id == serverId {
+		if server.Id == serverId {
 			if state == Running {
 				self.hasRunningServers = true
 			}
@@ -194,7 +194,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	defer self.serversLock.Unlock()
 	server.State = Potential
 	self.servers = append(self.servers, server)
-	server.id = uint32(len(self.servers))
+	server.Id = uint32(len(self.servers))
 	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
 	log.Info("Checking whether this is the local server new: %s, local: %s\n", self.config.ProtobufConnectionString(), server.ProtobufConnectionString)
 	if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
@@ -203,7 +203,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 		server.Connect()
 	} else if !self.addedLocalServer {
 		log.Info("Added the local server")
-		self.LocalServerId = server.id
+		self.LocalServerId = server.Id
 		self.addedLocalServerWait <- true
 		self.addedLocalServer = true
 	}
@@ -399,24 +399,30 @@ func (self *ClusterConfiguration) SaveClusterAdmin(u *ClusterAdmin) {
 	self.clusterAdmins[u.GetName()] = u
 }
 
+type SavedConfiguration struct {
+	Databases         map[string]uint8
+	Admins            map[string]*ClusterAdmin
+	DbUsers           map[string]map[string]*DbUser
+	Servers           []*ClusterServer
+	HasRunningServers bool
+	LocalServerId     uint32
+	ClusterVersion    uint32
+	ShortTermShards   []*NewShardData
+	LongTermShards    []*NewShardData
+}
+
 func (self *ClusterConfiguration) Save() ([]byte, error) {
 	log.Debug("Dumping the cluster configuration")
-	data := struct {
-		Databases         map[string]uint8
-		Admins            map[string]*ClusterAdmin
-		DbUsers           map[string]map[string]*DbUser
-		Servers           []*ClusterServer
-		HasRunningServers bool
-		LocalServerId     uint32
-		ClusterVersion    uint32
-	}{
-		self.DatabaseReplicationFactors,
-		self.clusterAdmins,
-		self.dbUsers,
-		self.servers,
-		self.hasRunningServers,
-		self.LocalServerId,
-		self.ClusterVersion,
+	data := &SavedConfiguration{
+		Databases:         self.DatabaseReplicationFactors,
+		Admins:            self.clusterAdmins,
+		DbUsers:           self.dbUsers,
+		Servers:           self.servers,
+		HasRunningServers: self.hasRunningServers,
+		LocalServerId:     self.LocalServerId,
+		ClusterVersion:    self.ClusterVersion,
+		ShortTermShards:   self.convertShardsToNewShardData(self.shortTermShards),
+		LongTermShards:    self.convertShardsToNewShardData(self.longTermShards),
 	}
 
 	b := bytes.NewBuffer(nil)
@@ -428,17 +434,40 @@ func (self *ClusterConfiguration) Save() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+func (self *ClusterConfiguration) convertShardsToNewShardData(shards []*ShardData) []*NewShardData {
+	newShardData := make([]*NewShardData, len(shards), len(shards))
+	for i, shard := range shards {
+		newShardData[i] = &NewShardData{Id: shard.id, Type: shard.shardType, StartTime: shard.startTime, EndTime: shard.endTime, ServerIds: shard.serverIds, DurationSplit: shard.durationIsSplit}
+	}
+	return newShardData
+}
+
+func (self *ClusterConfiguration) convertNewShardDataToShards(newShards []*NewShardData) []*ShardData {
+	shards := make([]*ShardData, len(newShards), len(newShards))
+	for i, newShard := range newShards {
+		shard := NewShard(newShard.Id, newShard.StartTime, newShard.EndTime, newShard.Type, newShard.DurationSplit, self.wal)
+		servers := make([]*ClusterServer, 0)
+		for _, serverId := range newShard.ServerIds {
+			if serverId == self.LocalServerId {
+				err := shard.SetLocalStore(self.shardStore, self.LocalServerId)
+				if err != nil {
+					log.Error("CliusterConfig convertNewShardDataToShards: ", err)
+				}
+			} else {
+				server := self.GetServerById(&serverId)
+				fmt.Println("CONFIG: ", server, serverId)
+				servers = append(servers, server)
+			}
+		}
+		shard.SetServers(servers)
+		shards[i] = shard
+	}
+	return shards
+}
+
 func (self *ClusterConfiguration) Recovery(b []byte) error {
 	log.Debug("Recovering the cluster configuration")
-	data := struct {
-		Databases         map[string]uint8
-		Admins            map[string]*ClusterAdmin
-		DbUsers           map[string]map[string]*DbUser
-		Servers           []*ClusterServer
-		HasRunningServers bool
-		LocalServerId     uint32
-		ClusterVersion    uint32
-	}{}
+	data := &SavedConfiguration{}
 
 	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&data)
 	if err != nil {
@@ -457,6 +486,7 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 
 	self.servers = data.Servers
 	for _, server := range self.servers {
+		fmt.Println("CONFIG: server: ", server.Id, server)
 		server.connection = oldServers[server.ProtobufConnectionString]
 		if server.connection == nil {
 			server.connection = self.connectionCreator(server.ProtobufConnectionString)
@@ -483,6 +513,21 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 		self.addedLocalServerWait <- true
 		self.addedLocalServer = true
 		break
+	}
+
+	self.shardsByIdLock.Lock()
+	self.shardLock.Lock()
+	defer self.shardsByIdLock.Unlock()
+	defer self.shardLock.Unlock()
+	self.shortTermShards = self.convertNewShardDataToShards(data.ShortTermShards)
+	self.longTermShards = self.convertNewShardDataToShards(data.LongTermShards)
+	for _, s := range self.shortTermShards {
+		shard := s
+		self.shardsById[s.id] = shard
+	}
+	for _, s := range self.longTermShards {
+		shard := s
+		self.shardsById[s.id] = shard
 	}
 
 	return nil
@@ -614,7 +659,7 @@ func (self *ClusterConfiguration) createShards(microsecondsEpoch int64, shardTyp
 			}
 			server := self.servers[startIndex]
 			self.lastServerToGetShard = server
-			serverIds = append(serverIds, server.Id())
+			serverIds = append(serverIds, server.Id)
 			startIndex += 1
 		}
 		shards = append(shards, &NewShardData{StartTime: *startTime, EndTime: *endTime, ServerIds: serverIds, Type: shardType})
@@ -694,7 +739,7 @@ func (self *ClusterConfiguration) GetShortTermShards() []*ShardData {
 }
 
 func (self *ClusterConfiguration) GetAllShards() []*ShardData {
-	sh := append([]*ShardData(nil), self.shortTermShards...)
+	sh := append([]*ShardData{}, self.shortTermShards...)
 	return append(sh, self.longTermShards...)
 }
 

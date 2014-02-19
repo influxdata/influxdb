@@ -33,11 +33,12 @@ type QueryProcessor interface {
 }
 
 type NewShardData struct {
-	Id        uint32 `json:",omitempty"`
-	StartTime time.Time
-	EndTime   time.Time
-	ServerIds []uint32
-	Type      ShardType
+	Id            uint32 `json:",omitempty"`
+	StartTime     time.Time
+	EndTime       time.Time
+	ServerIds     []uint32
+	Type          ShardType
+	DurationSplit bool `json:",omitempty"`
 }
 
 type ShardType int
@@ -125,7 +126,7 @@ func (self *ShardData) SetServers(servers []*ClusterServer) {
 	self.servers = make([]wal.Server, len(servers), len(servers))
 	self.serverWrites = make(map[*ClusterServer]chan *protocol.Request)
 	for i, server := range servers {
-		self.serverIds = append(self.serverIds, server.Id())
+		self.serverIds = append(self.serverIds, server.Id)
 		self.servers[i] = server
 		writeBuffer := make(chan *protocol.Request, PER_SERVER_BUFFER_SIZE)
 		go self.handleWritesToServer(server, writeBuffer)
@@ -285,7 +286,7 @@ func (self *ShardData) logAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 	}
 	responses := make([]chan *protocol.Response, len(self.clusterServers), len(self.clusterServers))
 	for i, server := range self.clusterServers {
-		fmt.Println("SHARD: requesting to server: ", server.id)
+		fmt.Println("SHARD: requesting to server: ", server.Id)
 		responseChan := make(chan *protocol.Response, 1)
 		responses[i] = responseChan
 		// do this so that a new id will get assigned

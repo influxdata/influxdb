@@ -873,7 +873,7 @@ func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request
 		servers := self.clusterConfig.Servers()
 		serverMaps := make([]map[string]interface{}, len(servers), len(servers))
 		for i, s := range servers {
-			serverMaps[i] = map[string]interface{}{"id": s.Id(), "protobufConnectString": s.ProtobufConnectionString}
+			serverMaps[i] = map[string]interface{}{"id": s.Id, "protobufConnectString": s.ProtobufConnectionString}
 		}
 		return libhttp.StatusOK, serverMaps
 	})
