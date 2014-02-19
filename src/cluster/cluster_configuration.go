@@ -43,7 +43,7 @@ type ShardCreator interface {
 }
 
 const (
-	FIRST_LOWER_CASE_CHARACTER = 97
+	FIRST_LOWER_CASE_CHARACTER = uint8('a')
 )
 
 /*
