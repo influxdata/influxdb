@@ -160,6 +160,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 	rawColumnValues := make([]*rawColumnValue, fieldCount, fieldCount)
 	query := querySpec.SelectQuery()
 
+	aliases := query.GetTableAliases(seriesName)
 	if querySpec.IsSinglePointQuery() {
 		series, err := self.fetchSinglePoint(querySpec, seriesName, fields)
 		if err != nil {
@@ -260,8 +261,11 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 			break
 		}
 
-		if !processor.YieldPoint(&seriesName, fieldNames, point) {
-			break
+		for _, alias := range aliases {
+			_alias := alias
+			if !processor.YieldPoint(&_alias, fieldNames, point) {
+				break
+			}
 		}
 	}
 

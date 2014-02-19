@@ -1534,15 +1534,7 @@ func (self *EngineSuite) TestJoiningWithSelf(c *C) {
         { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000000 },
         { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000 }
       ],
-      "name": "foo",
-      "fields": ["value"]
-    },
-    {
-      "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000000 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000 }
-      ],
-      "name": "bar",
+      "name": "t",
       "fields": ["value"]
     }
   ]`)
@@ -1550,13 +1542,7 @@ func (self *EngineSuite) TestJoiningWithSelf(c *C) {
 	self.runQuery("select * from t as foo inner join t as bar", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346706000000 }
-      ],
-      "name": "foo_join_bar",
-      "fields": ["foo.value", "bar.value"]
-    },
-    {
-      "points": [
+        { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346706000000 },
         { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000000 }
       ],
       "name": "foo_join_bar",
