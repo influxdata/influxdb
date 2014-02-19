@@ -130,7 +130,10 @@ func (self *QueryEngine) calculateLimitAndSlicePoints(series *protocol.Series) {
 	if !self.isAggregateQuery && self.shouldLimit {
 		self.limit -= len(series.Points)
 		if self.limit < 0 {
-			series.Points = series.Points[0 : len(series.Points)+self.limit]
+			sliceTo := len(series.Points) + self.limit
+			if sliceTo > 0 {
+				series.Points = series.Points[0:sliceTo]
+			}
 		}
 	}
 }

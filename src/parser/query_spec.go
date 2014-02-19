@@ -115,6 +115,10 @@ func (self *QuerySpec) SelectQuery() *SelectQuery {
 
 func (self *QuerySpec) ShouldQueryShortTermAndLongTerm() (shouldQueryShortTerm bool, shouldQueryLongTerm bool) {
 	for val, _ := range self.SeriesValuesAndColumns() {
+		_, isRegex := val.GetCompiledRegex()
+		if isRegex {
+			return true, true
+		}
 		firstChar := val.Name[0]
 		if firstChar < 97 {
 			shouldQueryLongTerm = true

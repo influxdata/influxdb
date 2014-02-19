@@ -778,8 +778,13 @@ func (self *ServerSuite) TestSelectFromRegexInCluster(c *C) {
 			"name": "cluster_regex_query_number2",
 			"columns": ["blah"],
 			"points": [[true]]
-		}]`
+		},{
+			"name": "Cluster_regex_query_3",
+			"columns": ["foobar"],
+			"points": [["asdf"]]
+			}]`
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second * 2)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("test_rep", "select * from /.*/ limit 1", false, c)
 		series := collection.GetSeries("cluster_regex_query", c)
@@ -787,6 +792,8 @@ func (self *ServerSuite) TestSelectFromRegexInCluster(c *C) {
 		c.Assert(series.GetValueForPointAndColumn(0, "col2", c), Equals, "bar")
 		series = collection.GetSeries("cluster_regex_query_number2", c)
 		c.Assert(series.GetValueForPointAndColumn(0, "blah", c), Equals, true)
+		series = collection.GetSeries("Cluster_regex_query_3", c)
+		c.Assert(series.GetValueForPointAndColumn(0, "foobar", c), Equals, "asdf")
 	}
 }
 
