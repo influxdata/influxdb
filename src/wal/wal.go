@@ -8,6 +8,7 @@ import (
 	"protocol"
 	"sort"
 	"strings"
+	"sync"
 )
 
 type WAL struct {
@@ -16,6 +17,7 @@ type WAL struct {
 	serverId           uint32
 	nextLogFileSuffix  int
 	requestsPerLogFile int
+	rotateLock         sync.Mutex
 }
 
 const HOST_ID_OFFSET = uint64(10000)
@@ -170,13 +172,8 @@ func (self *WAL) createNewLog() (*log, error) {
 // should be marked as committed for each server as it gets confirmed.
 func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Shard) (uint32, error) {
 	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	if lastLogFile.state.TotalNumberOfRequests >= self.requestsPerLogFile {
-		err := lastLogFile.forceBookmark(true)
-		if err != nil {
-			return 0, err
-		}
-		lastLogFile, err = self.createNewLog()
-		if err != nil {
+	if self.shouldRotateTheLogFile() {
+		if err := self.rotateTheLogFile(); err != nil {
 			return 0, err
 		}
 	}
@@ -206,4 +203,29 @@ func (self *WAL) firstLogFile(requestNumber uint32) int {
 		return 0
 	}
 	return sort.Search(lengthLogFiles, self.doesLogFileContainRequest(requestNumber)) - 1
+}
+
+func (self *WAL) shouldRotateTheLogFile() bool {
+	lastLogFile := self.logFiles[len(self.logFiles)-1]
+	return lastLogFile.state.TotalNumberOfRequests >= self.requestsPerLogFile
+}
+
+func (self *WAL) rotateTheLogFile() error {
+	self.rotateLock.Lock()
+	defer self.rotateLock.Unlock()
+
+	if !self.shouldRotateTheLogFile() {
+		return nil
+	}
+
+	lastLogFile := self.logFiles[len(self.logFiles)-1]
+	err := lastLogFile.forceBookmark(true)
+	if err != nil {
+		return err
+	}
+	lastLogFile, err = self.createNewLog()
+	if err != nil {
+		return err
+	}
+	return nil
 }
