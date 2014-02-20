@@ -107,9 +107,6 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 }
 
 func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
-	for _, p := range series.Points {
-		fmt.Printf("engine:111 timestamp: %d\n", *p.Timestamp)
-	}
 	var err error
 	if self.where != nil {
 		serieses := self.filter(series)
