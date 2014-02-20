@@ -222,27 +222,29 @@ func (s *RaftServer) SetContinuousQueryTimestamp(timestamp time.Time) error {
 }
 
 func (s *RaftServer) CreateContinuousQuery(db string, query string) error {
+	selectQuery, err := parser.ParseSelectQuery(query)
+	if err != nil {
+		return fmt.Errorf("Failed to parse continuous query: %s", query)
+	}
+
+	if !selectQuery.IsValidContinuousQuery() {
+		return fmt.Errorf("Continuous queries with a group by clause must include time(...) as one of the elements")
+	}
+
+	duration, err := selectQuery.GetGroupByClause().GetGroupByTime()
+	if err != nil {
+		return fmt.Errorf("Couldn't get group by time for continuous query: %s", err)
+	}
+
 	// if there are already-running queries, we need to initiate a backfill
-	if !s.clusterConfig.continuousQueryTimestamp.IsZero() {
-		selectQuery, err := parser.ParseSelectQuery(query)
-		if err != nil {
-			return fmt.Errorf("Failed to parse continuous query: %s", query)
-		}
-
-		duration, err := selectQuery.GetGroupByClause().GetGroupByTime()
-		if err != nil {
-			return fmt.Errorf("Couldn't get group by time for continuous query: %s", err)
-		}
-
-		if duration != nil {
-			zeroTime := time.Time{}
-			currentBoundary := time.Now().Truncate(*duration)
-			go s.runContinuousQuery(db, selectQuery, zeroTime, currentBoundary)
-		}
+	if duration != nil && !s.clusterConfig.continuousQueryTimestamp.IsZero() {
+		zeroTime := time.Time{}
+		currentBoundary := time.Now().Truncate(*duration)
+		go s.runContinuousQuery(db, selectQuery, zeroTime, currentBoundary)
 	}
 
 	command := NewCreateContinuousQueryCommand(db, query)
-	_, err := s.doOrProxyCommand(command, "create_cq")
+	_, err = s.doOrProxyCommand(command, "create_cq")
 	return err
 }
 

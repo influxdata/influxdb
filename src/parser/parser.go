@@ -258,6 +258,23 @@ func (self *SelectQuery) IsContinuousQuery() bool {
 	return self.GetIntoClause() != nil
 }
 
+func (self *SelectQuery) IsValidContinuousQuery() bool {
+	groupByClause := self.GetGroupByClause()
+	fmt.Println(groupByClause)
+
+	if len(groupByClause.Elems) == 0 {
+		return true
+	}
+
+	for _, elem := range groupByClause.Elems {
+		if elem.Name == "time" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (self *SelectQuery) GetIntoClause() *IntoClause {
 	return self.IntoClause
 }

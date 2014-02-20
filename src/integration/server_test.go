@@ -685,9 +685,10 @@ func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
 	series := collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 0)
 
-	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from foo into bar;", false, c)
 	response := self.serverProcesses[0].VerifyForbiddenQuery("test_cq", "select * from foo into bar;", false, c, "weakpaul", "pass")
 	c.Assert(response, Equals, "Insufficient permissions to create continuous query")
+
+	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from foo into bar;", false, c)
 
 	collection = self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series = collection.GetSeries("continuous queries", c)
