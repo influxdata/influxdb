@@ -681,7 +681,14 @@ func (self *ClusterConfiguration) createShards(microsecondsEpoch int64, shardTyp
 
 	for i := numberOfShardsToCreateForDuration; i > 0; i-- {
 		serverIds := make([]uint32, 0)
-		for rf := self.config.ReplicationFactor; rf > 0; rf-- {
+
+		// if they have the replication factor set higher than the number of servers in the cluster, limit it
+		rf := self.config.ReplicationFactor
+		if rf > len(self.servers) {
+			rf = len(self.servers)
+		}
+
+		for rf = rf; rf > 0; rf-- {
 			if startIndex >= len(self.servers) {
 				startIndex = 0
 			}
