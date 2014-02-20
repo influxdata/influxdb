@@ -34,6 +34,7 @@ type WAL interface {
 	AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard) (uint32, error)
 	Commit(requestNumber uint32, server wal.Server) error
 	RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
+	RecoverServerFromLastCommit(serverId uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
 }
 
 type ShardCreator interface {
@@ -967,6 +968,25 @@ func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) 
 		}
 	}
 	return nil
+}
+
+func (self *ClusterConfiguration) RecoverFromWAL() error {
+	// var waitForAll sync.WaitGroup
+	// for _, server := range self.servers {
+	// 	waitForAll.Add(1)
+	// 	if server.Id == self.LocalServerId {
+	// 		go func() {
+	// 			self.replayLocal()
+	// 			waitForAll.Done()
+	// 		}()
+	// 	} else {
+	// 		go func() {
+	// 			self.replayServer(server)
+	// 			waitForAll.Done()
+	// 		}()
+	// 	}
+	// }
+	// waitForAll.Wait()
 }
 
 func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds []uint32) {

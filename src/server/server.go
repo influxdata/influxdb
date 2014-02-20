@@ -84,10 +84,12 @@ func (self *Server) ListenAndServe() error {
 	self.ClusterConfig.WaitForLocalServerLoaded()
 	self.writeLog.SetServerId(self.ClusterConfig.ServerId())
 
-	err = self.recoverFromLog()
+	log.Info("Recovering from log...")
+	err = self.ClusterConfig.RecoverFromWAL()
 	if err != nil {
 		return err
 	}
+	log.Info("recovered")
 
 	err = self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.Config.ProtobufConnectionString())
 	if err != nil {
@@ -97,11 +99,6 @@ func (self *Server) ListenAndServe() error {
 	go self.AdminServer.ListenAndServe()
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()
-	return nil
-}
-
-func (self *Server) recoverFromLog() error {
-	// TODO: recover from the log: wal.RecoverFromLog....
 	return nil
 }
 
