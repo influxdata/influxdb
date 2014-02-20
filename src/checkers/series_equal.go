@@ -61,6 +61,8 @@ func CheckEquality(s1, s2 []*protocol.Series) bool {
 	return true
 }
 
+type SimplePoint [10]interface{}
+
 // return true if the two series are equal, ignoring the order of
 // points with the same timestamp. Two points can have the same
 // sequence number if the user issue a query with group by time(1h)
@@ -70,8 +72,12 @@ func CheckSeriesEquality(s1, s2 *protocol.Series) bool {
 		return false
 	}
 
-	firstSeriesPoints := map[int64]map[*protocol.Point]bool{}
-	secondSeriesPoints := map[int64]map[*protocol.Point]bool{}
+	if !reflect.DeepEqual(s1.Fields, s2.Fields) {
+		return false
+	}
+
+	firstSeriesPoints := map[int64]map[SimplePoint]bool{}
+	secondSeriesPoints := map[int64]map[SimplePoint]bool{}
 
 	for idx, point := range s1.Points {
 		secondPoint := s2.Points[idx]
@@ -80,15 +86,26 @@ func CheckSeriesEquality(s1, s2 *protocol.Series) bool {
 			return false
 		}
 
-		// for each timestamp update the set of points
-		for _, m := range []map[int64]map[*protocol.Point]bool{firstSeriesPoints, secondSeriesPoints} {
-			pointsMap := m[*point.Timestamp]
-			if pointsMap == nil {
-				pointsMap = map[*protocol.Point]bool{}
-				m[*point.Timestamp] = pointsMap
-			}
-			pointsMap[point] = true
+		firstSimplePoint := SimplePoint{}
+		secondSimplePoint := SimplePoint{}
+		for fieldIndex, _ := range s1.Fields {
+			firstSimplePoint[fieldIndex] = point.Values[fieldIndex].GetValue()
+			secondSimplePoint[fieldIndex] = point.Values[fieldIndex].GetValue()
 		}
+
+		pointsMap := firstSeriesPoints[*point.Timestamp]
+		if pointsMap == nil {
+			pointsMap = map[SimplePoint]bool{}
+			firstSeriesPoints[*point.Timestamp] = pointsMap
+		}
+		pointsMap[firstSimplePoint] = true
+
+		pointsMap = secondSeriesPoints[*point.Timestamp]
+		if pointsMap == nil {
+			pointsMap = map[SimplePoint]bool{}
+			secondSeriesPoints[*point.Timestamp] = pointsMap
+		}
+		pointsMap[secondSimplePoint] = true
 	}
 
 	return reflect.DeepEqual(firstSeriesPoints, secondSeriesPoints)
