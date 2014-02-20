@@ -349,7 +349,11 @@ func (s *RaftServer) startRaft() error {
 		}
 
 		protobufConnectString := s.config.ProtobufConnectionString()
-		clusterServer := cluster.NewClusterServer(name, connectionString, protobufConnectString, NewProtobufClient(protobufConnectString))
+		clusterServer := cluster.NewClusterServer(name,
+			connectionString,
+			protobufConnectString,
+			NewProtobufClient(protobufConnectString),
+			s.config.ProtobufHeartbeatInterval.Duration)
 		command := NewAddPotentialServerCommand(clusterServer)
 		_, err = s.doOrProxyCommand(command, "add_server")
 		if err != nil {
@@ -587,7 +591,11 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		if server == nil {
 			log.Info("Adding new server to the cluster config %s", command.Name)
 			client := NewProtobufClient(command.ProtobufConnectionString)
-			clusterServer := cluster.NewClusterServer(command.Name, command.ConnectionString, command.ProtobufConnectionString, client)
+			clusterServer := cluster.NewClusterServer(command.Name,
+				command.ConnectionString,
+				command.ProtobufConnectionString,
+				client,
+				s.config.ProtobufHeartbeatInterval.Duration)
 			addServer := NewAddPotentialServerCommand(clusterServer)
 			if _, err := s.raftServer.Do(addServer); err != nil {
 				log.Error("Error joining raft server: ", err, command)

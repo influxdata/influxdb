@@ -2,8 +2,15 @@ package cluster
 
 import (
 	log "code.google.com/p/log4go"
+	"fmt"
 	"net"
 	"protocol"
+	"time"
+)
+
+const (
+	DEFAULT_BACKOFF = time.Second
+	MAX_BACKOFF     = 10 * time.Second
 )
 
 type ClusterServer struct {
@@ -13,6 +20,9 @@ type ClusterServer struct {
 	RaftConnectionString     string
 	ProtobufConnectionString string
 	connection               ServerConnection
+	heartbeatInterval        time.Duration
+	backoff                  time.Duration
+	isUp                     bool
 }
 
 type ServerConnection interface {
@@ -30,13 +40,90 @@ const (
 	Potential
 )
 
-func NewClusterServer(raftName, raftConnectionString, protobufConnectionString string, connection ServerConnection) *ClusterServer {
-	return &ClusterServer{
+func NewClusterServer(raftName, raftConnectionString, protobufConnectionString string, connection ServerConnection, heartbeatInterval time.Duration) *ClusterServer {
+	s := &ClusterServer{
 		RaftName:                 raftName,
 		RaftConnectionString:     raftConnectionString,
 		ProtobufConnectionString: protobufConnectionString,
 		connection:               connection,
+		heartbeatInterval:        heartbeatInterval,
+		backoff:                  DEFAULT_BACKOFF,
 	}
+
+	go s.heartbeat()
+
+	return s
+}
+
+func (self *ClusterServer) GetId() uint32 {
+	return self.Id
+}
+
+func (self *ClusterServer) Connect() {
+	if !shouldConnect(self.ProtobufConnectionString) {
+		return
+	}
+
+	log.Info("ClusterServer: %d connecting to: %s", self.Id, self.ProtobufConnectionString)
+	self.connection.Connect()
+}
+
+func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
+	return self.connection.MakeRequest(request, responseStream)
+}
+
+func (self *ClusterServer) IsUp() bool {
+	return self.isUp
+}
+
+// private methods
+
+var HEARTBEAT_TYPE = protocol.Request_HEARTBEAT
+
+func (self *ClusterServer) heartbeat() {
+	responseChan := make(chan *protocol.Response)
+	heartbeatRequest := &protocol.Request{
+		Type:     &HEARTBEAT_TYPE,
+		Database: protocol.String(""),
+	}
+	for {
+		err := self.MakeRequest(heartbeatRequest, responseChan)
+		if err != nil {
+			self.handleHeartbeatError()
+			continue
+		}
+
+		if err := self.getHeartbeatResponse(responseChan); err != nil {
+			self.handleHeartbeatError()
+			continue
+		}
+
+		// otherwise, reset the backoff and mark the server as up
+		self.isUp = true
+		self.backoff = DEFAULT_BACKOFF
+		<-time.After(self.heartbeatInterval)
+	}
+}
+
+func (self *ClusterServer) getHeartbeatResponse(responseChan <-chan *protocol.Response) error {
+	response := <-responseChan
+	if response.ErrorMessage != nil {
+		return fmt.Errorf("Server returned error to heartbeat: %s", *response.ErrorMessage)
+	}
+
+	if *response.Type != protocol.Response_HEARTBEAT {
+		return fmt.Errorf("Server returned a non heartbeat response")
+	}
+	return nil
+}
+
+func (self *ClusterServer) handleHeartbeatError() {
+	self.isUp = false
+	self.backoff *= 2
+	if self.backoff > MAX_BACKOFF {
+		self.backoff = MAX_BACKOFF
+	}
+	<-time.After(self.backoff)
 }
 
 // in the coordinator test we don't want to create protobuf servers,
@@ -55,21 +142,4 @@ func shouldConnect(addr string) bool {
 		return false
 	}
 	return true
-}
-
-func (self *ClusterServer) GetId() uint32 {
-	return self.Id
-}
-
-func (self *ClusterServer) Connect() {
-	if !shouldConnect(self.ProtobufConnectionString) {
-		return
-	}
-
-	log.Info("ClusterServer: %d connecting to: %s", self.Id, self.ProtobufConnectionString)
-	self.connection.Connect()
-}
-
-func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
-	return self.connection.MakeRequest(request, responseStream)
 }

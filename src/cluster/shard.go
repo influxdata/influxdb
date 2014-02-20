@@ -223,8 +223,15 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 		return err
 	}
 
-	randServerIndex := int(time.Now().UnixNano() % int64(len(self.clusterServers)))
-	server := self.clusterServers[randServerIndex]
+	healthyServers := make([]*ClusterServer, 0, len(self.clusterServers))
+	for _, s := range self.clusterServers {
+		if !s.IsUp() {
+			continue
+		}
+		healthyServers = append(healthyServers, s)
+	}
+	randServerIndex := int(time.Now().UnixNano() % int64(len(healthyServers)))
+	server := healthyServers[randServerIndex]
 	request := self.createRequest(querySpec)
 
 	return server.MakeRequest(request, response)

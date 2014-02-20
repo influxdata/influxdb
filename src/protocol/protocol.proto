@@ -32,6 +32,7 @@ message Request {
     DROP_DATABASE = 3;
     REPLICATION_REPLAY = 6;
     SEQUENCE_NUMBER = 8;
+    HEARTBEAT = 7;
   }
   optional uint32 id = 1;
   required Type type = 2;
@@ -75,6 +76,7 @@ message Response {
     SEQUENCE_NUMBER = 7;
     // Access denied also serves as an end of stream response
     ACCESS_DENIED = 8;
+    HEARTBEAT = 9;
   }
   enum ErrorCode {
     REQUEST_TOO_LARGE = 1;
