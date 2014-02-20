@@ -101,6 +101,12 @@ func (self *WAL) Commit(requestNumber uint32, serverId uint32) error {
 	return nil
 }
 
+func (self *WAL) RecoverServerFromLastCommit(serverId uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
+	lastLogFile := self.logFiles[len(self.logFiles)-1]
+	requestNumber := lastLogFile.state.ServerLastRequestNumber[serverId]
+	return self.RecoverServerFromRequestNumber(requestNumber, shardIds, yield)
+}
+
 // In the case where this server is running and another one in the cluster stops responding, at some point this server will have to just write
 // requests to disk. When the downed server comes back up, it's this server's responsibility to send out any writes that were queued up. If
 // the yield function returns nil then the request is committed.
