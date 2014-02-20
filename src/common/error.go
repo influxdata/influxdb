@@ -23,6 +23,16 @@ func NewQueryError(code int, msg string, args ...interface{}) *QueryError {
 	return &QueryError{code, fmt.Sprintf(msg, args...)}
 }
 
+type AuthenticationError string
+
+func (self AuthenticationError) Error() string {
+	return string(self)
+}
+
+func NewAuthenticationError(formatStr string, args ...interface{}) AuthenticationError {
+	return AuthenticationError(fmt.Sprintf(formatStr, args...))
+}
+
 type AuthorizationError string
 
 func (self AuthorizationError) Error() string {

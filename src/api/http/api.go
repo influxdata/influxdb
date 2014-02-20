@@ -413,10 +413,12 @@ func convertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 
 func errorToStatusCode(err error) int {
 	switch err.(type) {
+	case common.AuthenticationError:
+		return libhttp.StatusUnauthorized // HTTP 401
 	case common.AuthorizationError:
-		return libhttp.StatusUnauthorized
+		return libhttp.StatusForbidden // HTTP 403
 	default:
-		return libhttp.StatusBadRequest
+		return libhttp.StatusBadRequest // HTTP 400
 	}
 }
 
