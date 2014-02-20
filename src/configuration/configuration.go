@@ -12,6 +12,16 @@ import (
 	"time"
 )
 
+type duration struct {
+	time.Duration
+}
+
+func (d *duration) UnmarshalText(text []byte) error {
+	var err error
+	d.Duration, err = time.ParseDuration(string(text))
+	return err
+}
+
 type AdminConfig struct {
 	Port   int
 	Assets string
@@ -33,8 +43,10 @@ type StorageConfig struct {
 }
 
 type ClusterConfig struct {
-	SeedServers  []string `toml:"seed-servers"`
-	ProtobufPort int      `toml:"protobuf_port"`
+	SeedServers               []string `toml:"seed-servers"`
+	ProtobufPort              int      `toml:"protobuf_port"`
+	ProtobufTimeout           duration `toml:"protobuf_timeout"`
+	ProtobufHeartbeatInterval duration `toml:"protobuf_heartbeat"`
 }
 
 type LoggingConfig struct {
@@ -122,29 +134,31 @@ type TomlConfiguration struct {
 }
 
 type Configuration struct {
-	AdminHttpPort            int
-	AdminAssetsDir           string
-	ApiHttpSslPort           int
-	ApiHttpCertPath          string
-	ApiHttpPort              int
-	RaftServerPort           int
-	SeedServers              []string
-	DataDir                  string
-	RaftDir                  string
-	ProtobufPort             int
-	Hostname                 string
-	LogFile                  string
-	LogLevel                 string
-	BindAddress              string
-	LevelDbMaxOpenFiles      int
-	ShortTermShard           *ShardConfiguration
-	LongTermShard            *ShardConfiguration
-	ReplicationFactor        int
-	WalDir                   string
-	WalFlushAfterRequests    int
-	WalBookmarkAfterRequests int
-	WalIndexAfterRequests    int
-	WalRequestsPerLogFile    int
+	AdminHttpPort             int
+	AdminAssetsDir            string
+	ApiHttpSslPort            int
+	ApiHttpCertPath           string
+	ApiHttpPort               int
+	RaftServerPort            int
+	SeedServers               []string
+	DataDir                   string
+	RaftDir                   string
+	ProtobufPort              int
+	ProtobufTimeout           duration
+	ProtobufHeartbeatInterval duration
+	Hostname                  string
+	LogFile                   string
+	LogLevel                  string
+	BindAddress               string
+	LevelDbMaxOpenFiles       int
+	ShortTermShard            *ShardConfiguration
+	LongTermShard             *ShardConfiguration
+	ReplicationFactor         int
+	WalDir                    string
+	WalFlushAfterRequests     int
+	WalBookmarkAfterRequests  int
+	WalIndexAfterRequests     int
+	WalRequestsPerLogFile     int
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -184,29 +198,31 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	}
 
 	config := &Configuration{
-		AdminHttpPort:            tomlConfiguration.Admin.Port,
-		AdminAssetsDir:           tomlConfiguration.Admin.Assets,
-		ApiHttpPort:              tomlConfiguration.Api.Port,
-		ApiHttpCertPath:          tomlConfiguration.Api.SslCertPath,
-		ApiHttpSslPort:           tomlConfiguration.Api.SslPort,
-		RaftServerPort:           tomlConfiguration.Raft.Port,
-		RaftDir:                  tomlConfiguration.Raft.Dir,
-		ProtobufPort:             tomlConfiguration.Cluster.ProtobufPort,
-		SeedServers:              tomlConfiguration.Cluster.SeedServers,
-		DataDir:                  tomlConfiguration.Storage.Dir,
-		LogFile:                  tomlConfiguration.Logging.File,
-		LogLevel:                 tomlConfiguration.Logging.Level,
-		Hostname:                 tomlConfiguration.Hostname,
-		BindAddress:              tomlConfiguration.BindAddress,
-		LevelDbMaxOpenFiles:      tomlConfiguration.LevelDb.MaxOpenFiles,
-		LongTermShard:            &tomlConfiguration.Sharding.LongTerm,
-		ShortTermShard:           &tomlConfiguration.Sharding.ShortTerm,
-		ReplicationFactor:        tomlConfiguration.Sharding.ReplicationFactor,
-		WalDir:                   tomlConfiguration.WalConfig.Dir,
-		WalFlushAfterRequests:    tomlConfiguration.WalConfig.FlushAfterRequests,
-		WalBookmarkAfterRequests: tomlConfiguration.WalConfig.BookmarkAfterRequests,
-		WalIndexAfterRequests:    tomlConfiguration.WalConfig.IndexAfterRequests,
-		WalRequestsPerLogFile:    tomlConfiguration.WalConfig.RequestsPerLogFile,
+		AdminHttpPort:             tomlConfiguration.Admin.Port,
+		AdminAssetsDir:            tomlConfiguration.Admin.Assets,
+		ApiHttpPort:               tomlConfiguration.Api.Port,
+		ApiHttpCertPath:           tomlConfiguration.Api.SslCertPath,
+		ApiHttpSslPort:            tomlConfiguration.Api.SslPort,
+		RaftServerPort:            tomlConfiguration.Raft.Port,
+		RaftDir:                   tomlConfiguration.Raft.Dir,
+		ProtobufPort:              tomlConfiguration.Cluster.ProtobufPort,
+		ProtobufTimeout:           tomlConfiguration.Cluster.ProtobufTimeout,
+		ProtobufHeartbeatInterval: tomlConfiguration.Cluster.ProtobufHeartbeatInterval,
+		SeedServers:               tomlConfiguration.Cluster.SeedServers,
+		DataDir:                   tomlConfiguration.Storage.Dir,
+		LogFile:                   tomlConfiguration.Logging.File,
+		LogLevel:                  tomlConfiguration.Logging.Level,
+		Hostname:                  tomlConfiguration.Hostname,
+		BindAddress:               tomlConfiguration.BindAddress,
+		LevelDbMaxOpenFiles:       tomlConfiguration.LevelDb.MaxOpenFiles,
+		LongTermShard:             &tomlConfiguration.Sharding.LongTerm,
+		ShortTermShard:            &tomlConfiguration.Sharding.ShortTerm,
+		ReplicationFactor:         tomlConfiguration.Sharding.ReplicationFactor,
+		WalDir:                    tomlConfiguration.WalConfig.Dir,
+		WalFlushAfterRequests:     tomlConfiguration.WalConfig.FlushAfterRequests,
+		WalBookmarkAfterRequests:  tomlConfiguration.WalConfig.BookmarkAfterRequests,
+		WalIndexAfterRequests:     tomlConfiguration.WalConfig.IndexAfterRequests,
+		WalRequestsPerLogFile:     tomlConfiguration.WalConfig.RequestsPerLogFile,
 	}
 
 	// if it wasn't set, set it to 100

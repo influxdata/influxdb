@@ -50,6 +50,8 @@ dir = "/tmp/influxdb/test/1/db"
 # However, this port shouldn't be accessible from the internet.
 
 protobuf_port = 60502
+protobuf_timeout = "1s" # the write timeout on the protobuf conn any duration parseable by time.ParseDuration
+protobuf_heartbeat = "10ms" # the heartbeat interval between the servers. must be parseable by time.ParseDuration
 
 # These options specify how data is sharded across the cluster. There are two 
 # shard configurations that have the same knobs: short term and long term.
