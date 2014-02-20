@@ -32,7 +32,7 @@ type QuerySpec interface {
 
 type WAL interface {
 	AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard) (uint32, error)
-	Commit(requestNumber uint32, server wal.Server) error
+	Commit(requestNumber uint32, serverId uint32) error
 	RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
 	RecoverServerFromLastCommit(serverId uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
 }
@@ -987,6 +987,7 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 	// 	}
 	// }
 	// waitForAll.Wait()
+	return nil
 }
 
 func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds []uint32) {

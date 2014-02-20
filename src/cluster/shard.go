@@ -311,7 +311,7 @@ func (self *ShardData) logAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 			if *res.Type == endStreamResponse {
 				// don't need to do a commit for the local datastore for now.
 				if i < len(self.clusterServers) {
-					self.wal.Commit(requestNumber, self.clusterServers[i])
+					self.wal.Commit(requestNumber, self.clusterServers[i].Id)
 				}
 				break
 			}
@@ -369,7 +369,7 @@ func (self *ShardData) handleWritesToServer(server *ClusterServer, writeBuffer c
 		response := <-responseStream
 		if *response.Type == protocol.Response_WRITE_OK {
 			fmt.Println("COMMIT!")
-			self.wal.Commit(requestNumber, server)
+			self.wal.Commit(requestNumber, server.Id)
 		} else {
 			// TODO: retry logic for failed request
 			log.Error("REQUEST to server %s failed:: ", server.ProtobufConnectionString, response.GetErrorMessage())

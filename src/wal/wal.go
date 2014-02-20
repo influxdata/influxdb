@@ -80,9 +80,9 @@ func (self *WAL) SetServerId(id uint32) {
 }
 
 // Marks a given request for a given server as committed
-func (self *WAL) Commit(requestNumber uint32, server Server) error {
+func (self *WAL) Commit(requestNumber uint32, serverId uint32) error {
 	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	lastLogFile.state.commitRequestNumber(server.GetId(), requestNumber)
+	lastLogFile.state.commitRequestNumber(serverId, requestNumber)
 	lowestCommitedRequestNumber := lastLogFile.state.LowestCommitedRequestNumber()
 
 	index := self.firstLogFile(lowestCommitedRequestNumber)

@@ -76,7 +76,7 @@ type WALMock struct {
 func (self *WALMock) AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard, servers []wal.Server) (uint32, error) {
 	return uint32(1), nil
 }
-func (self *WALMock) Commit(requestNumber uint32, server wal.Server) error {
+func (self *WALMock) Commit(requestNumber uint32, serverId uint32) error {
 	return nil
 }
 func (self *WALMock) RecoverFromLog(yield func(request *protocol.Request, shard wal.Shard, server wal.Server) error) error {
