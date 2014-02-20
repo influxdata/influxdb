@@ -17,7 +17,7 @@ type QueryEngine struct {
 	responseChan   chan *protocol.Response
 	shouldLimit    bool
 	limit          int
-	seriesToPoints map[*string]*protocol.Series
+	seriesToPoints map[string]*protocol.Series
 	yield          func(*protocol.Series) error
 
 	// variables for aggregate queries
@@ -69,7 +69,7 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		limit:          limit,
 		shouldLimit:    shouldLimit,
 		responseChan:   responseChan,
-		seriesToPoints: make(map[*string]*protocol.Series),
+		seriesToPoints: make(map[string]*protocol.Series),
 	}
 
 	yield := func(series *protocol.Series) error {
@@ -92,14 +92,14 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 // Returns false if the query should be stopped (either because of limit or error)
 func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, point *protocol.Point) (shouldContinue bool) {
 	shouldContinue = true
-	series := self.seriesToPoints[seriesName]
+	series := self.seriesToPoints[*seriesName]
 	if series == nil {
-		series = &protocol.Series{Name: seriesName, Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
-		self.seriesToPoints[seriesName] = series
+		series = &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+		self.seriesToPoints[*seriesName] = series
 	} else if len(series.Points) >= POINT_BATCH_SIZE {
 		shouldContinue = self.yieldSeriesData(series)
-		series = &protocol.Series{Name: seriesName, Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
-		self.seriesToPoints[seriesName] = series
+		series = &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+		self.seriesToPoints[*seriesName] = series
 	}
 	series.Points = append(series.Points, point)
 
@@ -107,6 +107,9 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 }
 
 func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
+	for _, p := range series.Points {
+		fmt.Printf("engine:111 timestamp: %d\n", *p.Timestamp)
+	}
 	var err error
 	if self.where != nil {
 		serieses := self.filter(series)

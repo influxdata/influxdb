@@ -6,6 +6,8 @@ import (
 	"sort"
 )
 
+var String = proto.String
+
 func DecodePoint(buff *bytes.Buffer) (point *Point, err error) {
 	point = &Point{}
 	err = proto.Unmarshal(buff.Bytes(), point)
