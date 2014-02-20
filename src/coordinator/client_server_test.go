@@ -49,7 +49,7 @@ func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	protobufServer := NewProtobufServer(":8091", requestHandler)
 	go protobufServer.ListenAndServe()
 	c.Assert(protobufServer, Not(IsNil))
-	protobufClient := NewProtobufClient("localhost:8091")
+	protobufClient := NewProtobufClient("localhost:8091", 0)
 	protobufClient.Connect()
 	responseStream := make(chan *protocol.Response, 1)
 

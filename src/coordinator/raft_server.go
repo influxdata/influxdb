@@ -352,7 +352,7 @@ func (s *RaftServer) startRaft() error {
 		clusterServer := cluster.NewClusterServer(name,
 			connectionString,
 			protobufConnectString,
-			NewProtobufClient(protobufConnectString),
+			NewProtobufClient(protobufConnectString, s.config.ProtobufTimeout.Duration),
 			s.config.ProtobufHeartbeatInterval.Duration)
 		command := NewAddPotentialServerCommand(clusterServer)
 		_, err = s.doOrProxyCommand(command, "add_server")
@@ -590,7 +590,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		// it's a new server the cluster has never seen, make it a potential
 		if server == nil {
 			log.Info("Adding new server to the cluster config %s", command.Name)
-			client := NewProtobufClient(command.ProtobufConnectionString)
+			client := NewProtobufClient(command.ProtobufConnectionString, s.config.ProtobufTimeout.Duration)
 			clusterServer := cluster.NewClusterServer(command.Name,
 				command.ConnectionString,
 				command.ProtobufConnectionString,

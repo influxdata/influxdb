@@ -38,7 +38,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	}
 
 	newClient := func(connectString string) cluster.ServerConnection {
-		return coordinator.NewProtobufClient(connectString)
+		return coordinator.NewProtobufClient(connectString, config.ProtobufTimeout.Duration)
 	}
 	writeLog, err := wal.NewWAL(config)
 	if err != nil {

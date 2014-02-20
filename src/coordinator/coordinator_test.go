@@ -131,7 +131,7 @@ func clean(servers ...*RaftServer) {
 }
 
 func newProtobufClient(connectString string) cluster.ServerConnection {
-	return NewProtobufClient(connectString)
+	return NewProtobufClient(connectString, 0)
 }
 
 func newConfigAndServer(c *C) *RaftServer {

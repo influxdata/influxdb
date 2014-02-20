@@ -22,6 +22,7 @@ type ProtobufClient struct {
 	reconnectWait     sync.WaitGroup
 	connectCalled     bool
 	lastRequestId     uint32
+	writeTimeout      time.Duration
 }
 
 type runningRequest struct {
@@ -38,8 +39,13 @@ const (
 	RECONNECT_RETRY_WAIT   = time.Millisecond * 100
 )
 
-func NewProtobufClient(hostAndPort string) *ProtobufClient {
-	return &ProtobufClient{hostAndPort: hostAndPort, requestBuffer: make(map[uint32]*runningRequest), connectionStatus: IS_CONNECTED}
+func NewProtobufClient(hostAndPort string, writeTimeout time.Duration) *ProtobufClient {
+	return &ProtobufClient{
+		hostAndPort:      hostAndPort,
+		requestBuffer:    make(map[uint32]*runningRequest),
+		connectionStatus: IS_CONNECTED,
+		writeTimeout:     writeTimeout,
+	}
 }
 
 func (self *ProtobufClient) Connect() {
@@ -103,6 +109,7 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 			continue
 		}
 
+		conn.SetWriteDeadline(time.Now().Add(self.writeTimeout))
 		err = binary.Write(conn, binary.LittleEndian, uint32(len(data)))
 		if err == nil {
 			_, err = conn.Write(data)
