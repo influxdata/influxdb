@@ -46,6 +46,9 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		return nil
 	} else if *request.Type == protocol.Request_QUERY {
 		go self.handleQuery(request, conn)
+	} else if *request.Type == protocol.Request_HEARTBEAT {
+		response := &protocol.Response{RequestId: request.Id, Type: &heartbeatResponse}
+		return self.WriteResponse(conn, response)
 	} else {
 		log.Error("unknown request type: %v", request)
 		return errors.New("Unknown request type")

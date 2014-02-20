@@ -51,6 +51,7 @@ var (
 	queryRequest      = protocol.Request_QUERY
 	endStreamResponse = protocol.Response_END_STREAM
 	queryResponse     = protocol.Response_QUERY
+	heartbeatResponse = protocol.Response_HEARTBEAT
 	replayReplication = protocol.Request_REPLICATION_REPLAY
 	sequenceNumber    = protocol.Request_SEQUENCE_NUMBER
 
