@@ -157,7 +157,6 @@ func (self *ShardData) ServerIds() []uint32 {
 }
 
 func (self *ShardData) Write(request *protocol.Request) error {
-	fmt.Println("SHARD Write: ", self.id, request)
 	request.ShardId = &self.id
 	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
