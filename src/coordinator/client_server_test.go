@@ -69,7 +69,7 @@ func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	series.Points[0].SequenceNumber = &s
 	id := uint32(1)
 	database := "pauldb"
-	proxyWrite := protocol.Request_PROXY_WRITE
+	proxyWrite := protocol.Request_WRITE
 	request := &protocol.Request{Id: &id, Type: &proxyWrite, Database: &database, Series: series}
 
 	time.Sleep(time.Second * 1)

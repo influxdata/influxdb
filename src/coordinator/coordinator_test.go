@@ -71,19 +71,11 @@ func (self *DatastoreMock) ReplayRequestsFromSequenceNumber(*uint32, *uint32, *u
 }
 
 type WALMock struct {
+	cluster.WAL
 }
 
-func (self *WALMock) AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard, servers []wal.Server) (uint32, error) {
+func (self *WALMock) AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard) (uint32, error) {
 	return uint32(1), nil
-}
-func (self *WALMock) Commit(requestNumber uint32, serverId uint32) error {
-	return nil
-}
-func (self *WALMock) RecoverFromLog(yield func(request *protocol.Request, shard wal.Shard, server wal.Server) error) error {
-	return nil
-}
-func (self *WALMock) RecoverServerFromRequestNumber(requestNumber uint32, server wal.Server, yield func(request *protocol.Request, shard wal.Shard) error) error {
-	return nil
 }
 
 func stringToSeries(seriesString string, c *C) *protocol.Series {
@@ -673,15 +665,15 @@ func (self *CoordinatorSuite) TestServersGetUniqueIdsAndCanActivateCluster(c *C)
 	for _, server := range servers {
 		c.Assert(server.clusterConfig.Servers(), HasLen, len(expectedServers))
 		for i, clusterServer := range expectedServers {
-			c.Assert(server.clusterConfig.Servers()[i].Id(), Equals, clusterServer.Id())
+			c.Assert(server.clusterConfig.Servers()[i].Id, Equals, clusterServer.Id)
 		}
 	}
 	// ensure cluster server ids are unique
 	idMap := make(map[uint32]bool)
 	for _, clusterServer := range servers[0].clusterConfig.Servers() {
-		_, ok := idMap[clusterServer.Id()]
+		_, ok := idMap[clusterServer.Id]
 		c.Assert(ok, Equals, false)
-		idMap[clusterServer.Id()] = true
+		idMap[clusterServer.Id] = true
 	}
 }
 

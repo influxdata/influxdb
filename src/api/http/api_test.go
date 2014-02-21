@@ -33,7 +33,7 @@ type ApiSuite struct {
 
 var _ = Suite(&ApiSuite{})
 
-func (self *MockCoordinator) RunQuery(_ User, _ string, query string, yield func(*protocol.Series) error) error {
+func (self *MockCoordinator) RunQuery(_ User, _ string, query string, yield coordinator.SeriesWriter) error {
 	if self.returnedError != nil {
 		return self.returnedError
 	}
@@ -85,10 +85,10 @@ func (self *MockCoordinator) RunQuery(_ User, _ string, query string, yield func
 	if err != nil {
 		return err
 	}
-	if err := yield(series[0]); err != nil {
+	if err := yield.Write(series[0]); err != nil {
 		return err
 	}
-	return yield(series[1])
+	return yield.Write(series[1])
 }
 
 type MockCoordinator struct {
@@ -180,7 +180,7 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
 	}
 	dir := c.MkDir()
-	self.server = NewHttpServer("", dir, self.coordinator, self.manager, nil)
+	self.server = NewHttpServer("", dir, self.coordinator, self.manager, nil, nil)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
 	c.Assert(err, IsNil)
