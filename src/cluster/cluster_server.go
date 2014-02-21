@@ -24,6 +24,7 @@ type ClusterServer struct {
 	backoff                  time.Duration
 	isUp                     bool
 	writeBuffer              *WriteBuffer
+	heartbeatStarted         bool
 }
 
 type ServerConnection interface {
@@ -49,11 +50,20 @@ func NewClusterServer(raftName, raftConnectionString, protobufConnectionString s
 		connection:               connection,
 		heartbeatInterval:        heartbeatInterval,
 		backoff:                  DEFAULT_BACKOFF,
+		heartbeatStarted:         false,
 	}
 
-	go s.heartbeat()
-
 	return s
+}
+
+func (self *ClusterServer) StartHeartbeat() {
+	if self.heartbeatStarted {
+		return
+	}
+
+	self.heartbeatStarted = true
+	self.isUp = true
+	go self.heartbeat()
 }
 
 func (self *ClusterServer) SetWriteBuffer(writeBuffer *WriteBuffer) {
@@ -97,20 +107,25 @@ func (self *ClusterServer) IsUp() bool {
 var HEARTBEAT_TYPE = protocol.Request_HEARTBEAT
 
 func (self *ClusterServer) heartbeat() {
+	defer func() {
+		self.heartbeatStarted = false
+	}()
+
 	responseChan := make(chan *protocol.Response)
 	heartbeatRequest := &protocol.Request{
 		Type:     &HEARTBEAT_TYPE,
 		Database: protocol.String(""),
 	}
 	for {
+		heartbeatRequest.Id = nil
 		err := self.MakeRequest(heartbeatRequest, responseChan)
 		if err != nil {
-			self.handleHeartbeatError()
+			self.handleHeartbeatError(err)
 			continue
 		}
-
-		if err := self.getHeartbeatResponse(responseChan); err != nil {
-			self.handleHeartbeatError()
+		err = self.getHeartbeatResponse(responseChan)
+		if err != nil {
+			self.handleHeartbeatError(err)
 			continue
 		}
 
@@ -133,7 +148,7 @@ func (self *ClusterServer) getHeartbeatResponse(responseChan <-chan *protocol.Re
 	return nil
 }
 
-func (self *ClusterServer) handleHeartbeatError() {
+func (self *ClusterServer) handleHeartbeatError(err error) {
 	self.isUp = false
 	self.backoff *= 2
 	if self.backoff > MAX_BACKOFF {

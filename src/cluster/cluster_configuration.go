@@ -231,6 +231,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 		server.connection = self.connectionCreator(server.ProtobufConnectionString)
 		server.Connect()
 		server.SetWriteBuffer(NewWriteBuffer(server, self.wal, server.Id, self.config.PerServerWriteBufferSize))
+		server.StartHeartbeat()
 	} else if !self.addedLocalServer {
 		log.Info("Added the local server")
 		self.LocalServerId = server.Id
