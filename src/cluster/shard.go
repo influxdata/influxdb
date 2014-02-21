@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"engine"
+	"errors"
 	"fmt"
 	"parser"
 	"protocol"
@@ -222,7 +223,13 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 		}
 		healthyServers = append(healthyServers, s)
 	}
-	randServerIndex := int(time.Now().UnixNano() % int64(len(healthyServers)))
+	healthyCount := len(healthyServers)
+	if healthyCount == 0 {
+		message := fmt.Sprintf("No servers up to query shard %d", self.id)
+		response <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}
+		return errors.New(message)
+	}
+	randServerIndex := int(time.Now().UnixNano() % int64(healthyCount))
 	server := healthyServers[randServerIndex]
 	request := self.createRequest(querySpec)
 
