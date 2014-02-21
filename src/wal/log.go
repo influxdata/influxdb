@@ -24,11 +24,6 @@ type log struct {
 	requestsSinceLastFlush int
 	config                 *configuration.Configuration
 	cachedSuffix           int
-	// channels used to process entries, force a bookmark or create an
-	// index entry
-	entries      chan *entry
-	bookmarkChan chan *bookmarkEvent
-	indexChan    chan struct{}
 }
 
 func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
@@ -45,9 +40,6 @@ func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
 	}
 
 	l := &log{
-		entries:      make(chan *entry, 10),
-		bookmarkChan: make(chan *bookmarkEvent),
-		indexChan:    make(chan struct{}),
 		file:         file,
 		state:        newState(),
 		fileSize:     size,
@@ -59,7 +51,6 @@ func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
 	if err := l.recover(); err != nil {
 		return nil, err
 	}
-	go l.processEntries()
 	return l, nil
 }
 
@@ -69,20 +60,6 @@ func (self *log) suffix() int {
 
 func (self *log) firstRequestNumber() uint32 {
 	return self.state.LargestRequestNumber - uint32(self.state.TotalNumberOfRequests)
-}
-
-func (self *log) internalIndex() error {
-	// don't do anything if the number of requests writtern since the
-	// last index update is 0
-	if self.state.RequestsSinceLastIndex == 0 {
-		return nil
-	}
-
-	startRequestNumber := self.state.LargestRequestNumber - uint32(self.state.RequestsSinceLastIndex) + 1
-	logger.Info("Creating new index entry [%d,%d]", startRequestNumber, self.state.RequestsSinceLastIndex)
-	self.state.Index.addEntry(startRequestNumber, self.state.RequestsSinceLastIndex, self.fileSize)
-	self.state.RequestsSinceLastIndex = 0
-	return nil
 }
 
 func (self *log) internalFlush() error {
@@ -105,7 +82,7 @@ func (self *log) close() error {
 		return nil
 	}
 	self.forceIndex()
-	self.forceBookmark(true)
+	self.forceBookmark()
 	self.internalFlush()
 	return self.file.Close()
 }
@@ -189,29 +166,6 @@ func (self *log) assignSequenceNumbers(shardId uint32, request *protocol.Request
 	self.state.setCurrentSequenceNumber(shardId, sequenceNumber)
 }
 
-func (self *log) processEntries() {
-	for {
-		select {
-		case _ = <-self.indexChan:
-			self.internalIndex()
-		case x := <-self.bookmarkChan:
-			err := self.internalFlush()
-			// only if we could flush successfully create a bookmark
-			if err == nil {
-				err = self.internalBookmark()
-			}
-			x.confirmationChan <- &confirmation{0, err}
-			if x.shutdown {
-				self.closed = true
-				return
-			}
-		case x := <-self.entries:
-			requestNumber, err := self.internalAppendRequest(x)
-			x.confirmation <- &confirmation{requestNumber, err}
-		}
-	}
-}
-
 func (self *log) conditionalBookmarkAndIndex() {
 	self.state.TotalNumberOfRequests++
 
@@ -219,13 +173,13 @@ func (self *log) conditionalBookmarkAndIndex() {
 	self.state.RequestsSinceLastIndex++
 	if self.state.RequestsSinceLastIndex >= uint32(self.config.WalIndexAfterRequests) {
 		shouldFlush = true
-		self.internalIndex()
+		self.forceIndex()
 	}
 
 	self.state.RequestsSinceLastBookmark++
 	if self.state.RequestsSinceLastBookmark >= self.config.WalBookmarkAfterRequests {
 		shouldFlush = true
-		self.internalBookmark()
+		self.forceBookmark()
 	}
 
 	self.requestsSinceLastFlush++
@@ -234,9 +188,9 @@ func (self *log) conditionalBookmarkAndIndex() {
 	}
 }
 
-func (self *log) internalAppendRequest(x *entry) (uint32, error) {
-	self.assignSequenceNumbers(x.shardId, x.request)
-	bytes, err := x.request.Encode()
+func (self *log) appendRequest(request *protocol.Request, shardId uint32) (uint32, error) {
+	self.assignSequenceNumbers(shardId, request)
+	bytes, err := request.Encode()
 
 	if err != nil {
 		return 0, err
@@ -244,7 +198,7 @@ func (self *log) internalAppendRequest(x *entry) (uint32, error) {
 	requestNumber := self.state.getNextRequestNumber()
 	// every request is preceded with the length, shard id and the request number
 	hdr := &entryHeader{
-		shardId:       x.shardId,
+		shardId:       shardId,
 		requestNumber: requestNumber,
 		length:        uint32(len(bytes)),
 	}
@@ -266,13 +220,6 @@ func (self *log) internalAppendRequest(x *entry) (uint32, error) {
 	self.fileSize += uint64(writtenHdrBytes + written)
 	self.conditionalBookmarkAndIndex()
 	return requestNumber, nil
-}
-
-func (self *log) appendRequest(request *protocol.Request, shardId uint32) (uint32, error) {
-	entry := &entry{make(chan *confirmation), request, shardId}
-	self.entries <- entry
-	confirmation := <-entry.confirmation
-	return confirmation.requestNumber, confirmation.err
 }
 
 func (self *log) dupLogFile() (*os.File, error) {
@@ -385,19 +332,7 @@ func sendOrStop(req *replayRequest, replayChan chan *replayRequest, stopChan cha
 	return false
 }
 
-func (self *log) forceBookmark(shutdown bool) error {
-	confirmationChan := make(chan *confirmation)
-	self.bookmarkChan <- &bookmarkEvent{shutdown, confirmationChan}
-	confirmation := <-confirmationChan
-	return confirmation.err
-}
-
-func (self *log) forceIndex() error {
-	self.indexChan <- struct{}{}
-	return nil
-}
-
-func (self *log) internalBookmark() error {
+func (self *log) forceBookmark() error {
 	logger.Info("Creating bookmark at file offset %d", self.fileSize)
 	dir := filepath.Dir(self.file.Name())
 	bookmarkPath := filepath.Join(dir, fmt.Sprintf("bookmark.%d.new", self.suffix()))
@@ -418,6 +353,20 @@ func (self *log) internalBookmark() error {
 		return err
 	}
 	self.state.RequestsSinceLastBookmark = 0
+	return nil
+}
+
+func (self *log) forceIndex() error {
+	// don't do anything if the number of requests writtern since the
+	// last index update is 0
+	if self.state.RequestsSinceLastIndex == 0 {
+		return nil
+	}
+
+	startRequestNumber := self.state.LargestRequestNumber - uint32(self.state.RequestsSinceLastIndex) + 1
+	logger.Info("Creating new index entry [%d,%d]", startRequestNumber, self.state.RequestsSinceLastIndex)
+	self.state.Index.addEntry(startRequestNumber, self.state.RequestsSinceLastIndex, self.fileSize)
+	self.state.RequestsSinceLastIndex = 0
 	return nil
 }
 

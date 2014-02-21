@@ -49,7 +49,7 @@ func generateSeries(numberOfPoints int) *protocol.Series {
 }
 
 func generateRequest(numberOfPoints int) *protocol.Request {
-	requestType := protocol.Request_PROXY_WRITE
+	requestType := protocol.Request_WRITE
 	return &protocol.Request{
 		Id:       proto.Uint32(1),
 		Database: proto.String("db"),
@@ -112,8 +112,8 @@ func (_ *WalSuite) TestLogFilesCompaction(c *C) {
 	wal := newWal(c)
 	wal.config.WalRequestsPerLogFile = 2000
 	wal.requestsPerLogFile = 2000
-	wal.Commit(0, &MockServer{id: 1})
-	wal.Commit(0, &MockServer{id: 2})
+	wal.Commit(0, 1)
+	wal.Commit(0, 2)
 	for i := 0; i < 2500; i++ {
 		request := generateRequest(2)
 		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
@@ -124,11 +124,11 @@ func (_ *WalSuite) TestLogFilesCompaction(c *C) {
 	wal.Close()
 
 	suffix := wal.logFiles[0].suffix()
-	c.Assert(wal.Commit(2001, &MockServer{id: 1}), IsNil)
+	c.Assert(wal.Commit(2001, 1), IsNil)
 	c.Assert(wal.logFiles, HasLen, 2)
 	_, err := os.Stat(path.Join(wal.config.WalDir, fmt.Sprintf("log.%d", suffix)))
 	c.Assert(err, IsNil)
-	c.Assert(wal.Commit(2001, &MockServer{id: 2}), IsNil)
+	c.Assert(wal.Commit(2001, 2), IsNil)
 	c.Assert(wal.logFiles, HasLen, 1)
 	_, err = os.Stat(path.Join(wal.config.WalDir, fmt.Sprintf("log.%d", suffix)))
 	c.Assert(os.IsNotExist(err), Equals, true)

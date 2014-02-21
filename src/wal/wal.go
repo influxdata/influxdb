@@ -8,7 +8,6 @@ import (
 	"protocol"
 	"sort"
 	"strings"
-	"sync"
 )
 
 type WAL struct {
@@ -17,7 +16,7 @@ type WAL struct {
 	serverId           uint32
 	nextLogFileSuffix  int
 	requestsPerLogFile int
-	rotateLock         sync.Mutex
+	entries            chan interface{}
 }
 
 const HOST_ID_OFFSET = uint64(10000)
@@ -68,12 +67,21 @@ func NewWAL(config *configuration.Configuration) (*WAL, error) {
 	// sort the logfiles by the first request number in the log
 	sort.Sort(sortableLogSlice(logFiles))
 
-	wal := &WAL{config: config, logFiles: logFiles, requestsPerLogFile: config.WalRequestsPerLogFile, nextLogFileSuffix: nextLogFileSuffix}
+	wal := &WAL{
+		config:             config,
+		logFiles:           logFiles,
+		requestsPerLogFile: config.WalRequestsPerLogFile,
+		nextLogFileSuffix:  nextLogFileSuffix,
+		entries:            make(chan interface{}, 10),
+	}
 
 	// if we don't have any log files open yet, open a new one
 	if len(logFiles) == 0 {
 		_, err = wal.createNewLog()
 	}
+
+	go wal.processEntries()
+
 	return wal, err
 }
 
@@ -83,22 +91,10 @@ func (self *WAL) SetServerId(id uint32) {
 
 // Marks a given request for a given server as committed
 func (self *WAL) Commit(requestNumber uint32, serverId uint32) error {
-	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	lastLogFile.state.commitRequestNumber(serverId, requestNumber)
-	lowestCommitedRequestNumber := lastLogFile.state.LowestCommitedRequestNumber()
-
-	index := self.firstLogFile(lowestCommitedRequestNumber)
-	if index == 0 {
-		return nil
-	}
-
-	var unusedLogFiles []*log
-	unusedLogFiles, self.logFiles = self.logFiles[:index], self.logFiles[index:]
-	for _, logFile := range unusedLogFiles {
-		logFile.close()
-		logFile.delete()
-	}
-	return nil
+	confirmationChan := make(chan *confirmation)
+	self.entries <- &commitEntry{confirmationChan, serverId, requestNumber}
+	confirmation := <-confirmationChan
+	return confirmation.err
 }
 
 func (self *WAL) RecoverServerFromLastCommit(serverId uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
@@ -147,6 +143,60 @@ func (self *WAL) Close() error {
 
 // PRIVATE functions
 
+func (self *WAL) processEntries() {
+	for {
+		e := <-self.entries
+		switch x := e.(type) {
+		case *commitEntry:
+			self.processCommitEntry(x)
+		case *appendEntry:
+			self.processAppendEntry(x)
+		case *closeEntry:
+			x.confirmation <- &confirmation{0, self.Close()}
+			return
+		default:
+			panic(fmt.Errorf("unknown entry type %T", e))
+		}
+	}
+}
+
+func (self *WAL) processAppendEntry(e *appendEntry) {
+	if self.shouldRotateTheLogFile() {
+		if err := self.rotateTheLogFile(); err != nil {
+			e.confirmation <- &confirmation{0, err}
+			return
+		}
+	}
+
+	lastLogFile := self.logFiles[len(self.logFiles)-1]
+	requestNumber, err := lastLogFile.appendRequest(e.request, e.shardId)
+	if err != nil {
+		e.confirmation <- &confirmation{0, err}
+		return
+	}
+	e.confirmation <- &confirmation{requestNumber, nil}
+}
+
+func (self *WAL) processCommitEntry(e *commitEntry) {
+	lastLogFile := self.logFiles[len(self.logFiles)-1]
+	lastLogFile.state.commitRequestNumber(e.serverId, e.requestNumber)
+	lowestCommitedRequestNumber := lastLogFile.state.LowestCommitedRequestNumber()
+
+	index := self.firstLogFile(lowestCommitedRequestNumber)
+	if index == 0 {
+		e.confirmation <- &confirmation{0, nil}
+		return
+	}
+
+	var unusedLogFiles []*log
+	unusedLogFiles, self.logFiles = self.logFiles[:index], self.logFiles[index:]
+	for _, logFile := range unusedLogFiles {
+		logFile.close()
+		logFile.delete()
+	}
+	e.confirmation <- &confirmation{0, nil}
+}
+
 // creates a new log file using the next suffix and initializes its
 // state with the state of the last log file
 func (self *WAL) createNewLog() (*log, error) {
@@ -177,18 +227,10 @@ func (self *WAL) createNewLog() (*log, error) {
 // Will assign sequence numbers if null. Returns a unique id that
 // should be marked as committed for each server as it gets confirmed.
 func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Shard) (uint32, error) {
-	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	if self.shouldRotateTheLogFile() {
-		if err := self.rotateTheLogFile(); err != nil {
-			return 0, err
-		}
-	}
-
-	requestNumber, err := lastLogFile.appendRequest(request, shard.Id())
-	if err != nil {
-		return 0, err
-	}
-	return requestNumber, nil
+	confirmationChan := make(chan *confirmation)
+	self.entries <- &appendEntry{confirmationChan, request, shard.Id()}
+	confirmation := <-confirmationChan
+	return confirmation.requestNumber, confirmation.err
 }
 
 func (self *WAL) doesLogFileContainRequest(requestNumber uint32) func(int) bool {
@@ -217,15 +259,12 @@ func (self *WAL) shouldRotateTheLogFile() bool {
 }
 
 func (self *WAL) rotateTheLogFile() error {
-	self.rotateLock.Lock()
-	defer self.rotateLock.Unlock()
-
 	if !self.shouldRotateTheLogFile() {
 		return nil
 	}
 
 	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	err := lastLogFile.forceBookmark(true)
+	err := lastLogFile.forceBookmark()
 	if err != nil {
 		return err
 	}
