@@ -447,16 +447,18 @@ func (s *RaftServer) checkContinuousQueries() {
 }
 
 func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, start time.Time, end time.Time) {
+	sequenceMap := make(map[int64]int)
 	clusterAdmin := s.clusterConfig.GetClusterAdmin("root")
 	intoClause := query.GetIntoClause()
 	targetName := intoClause.Target.Name
-	sequenceNumber := uint64(1)
 	queryString := query.GetQueryStringForContinuousQuery(start, end)
 
 	f := func(series *protocol.Series) error {
 		interpolatedTargetName := strings.Replace(targetName, ":series_name", *series.Name, -1)
 		series.Name = &interpolatedTargetName
 		for _, point := range series.Points {
+			sequenceMap[*point.Timestamp] = sequenceMap[*point.Timestamp] + 1
+			sequenceNumber := uint64(sequenceMap[*point.Timestamp])
 			point.SequenceNumber = &sequenceNumber
 		}
 

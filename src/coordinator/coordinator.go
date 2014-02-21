@@ -374,12 +374,22 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series
 	}
 
 	series.Points = series.Points[lastPointIndex:]
-	err := self.write(db, series, shardToWrite)
-	if err != nil {
-		log.Error("COORD error writing: ", err)
+
+	if len(series.Points) > 0 {
+		if shardToWrite == nil {
+			shardToWrite, _ = self.clusterConfiguration.GetShardToWriteToBySeriesAndTime(db, *series.Name, *series.Points[0].Timestamp)
+		}
+
+		err := self.write(db, series, shardToWrite)
+
+		if err != nil {
+			log.Error("COORD error writing: ", err)
+		}
+
+		return err
 	}
 
-	return err
+	return nil
 }
 
 func (self *CoordinatorImpl) write(db string, series *protocol.Series, shard cluster.Shard) error {

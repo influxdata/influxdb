@@ -1121,3 +1121,36 @@ func dirExists(path string) (bool, error) {
 	}
 	return false, err
 }
+
+func (self *ServerSuite) TestContinuousQueryWithMixedGroupByOperations(c *C) {
+	data := fmt.Sprintf(`[
+  {
+    "name": "cqtest",
+    "columns": ["time", "reqtime", "url"],
+    "points": [
+        [0, 8.0, "/login"],
+        [0, 3.0, "/list"],
+        [0, 4.0, "/register"],
+        [5, 9.0, "/login"],
+        [5, 4.0, "/list"],
+        [5, 5.0, "/register"]
+    ]
+  }
+  ]`)
+
+	self.serverProcesses[0].Post("/db/test_cq/series?u=paul&p=pass&time_precision=s", data, c)
+
+	time.Sleep(time.Second)
+
+	self.serverProcesses[0].QueryAsRoot("test_cq", "select mean(reqtime), url from cqtest group by time(10s), url into cqtest.10s", false, c)
+
+	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "select * from cqtest.10s", false, c)
+	series := collection.GetSeries("cqtest.10s", c)
+
+	c.Assert(series.GetValueForPointAndColumn(0, "mean", c), Equals, float64(8.5))
+	c.Assert(series.GetValueForPointAndColumn(0, "url", c), Equals, "/login")
+	c.Assert(series.GetValueForPointAndColumn(1, "mean", c), Equals, float64(3.5))
+	c.Assert(series.GetValueForPointAndColumn(1, "url", c), Equals, "/list")
+	c.Assert(series.GetValueForPointAndColumn(2, "mean", c), Equals, float64(4.5))
+	c.Assert(series.GetValueForPointAndColumn(2, "url", c), Equals, "/register")
+}
