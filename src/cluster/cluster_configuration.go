@@ -973,24 +973,53 @@ func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) 
 }
 
 func (self *ClusterConfiguration) RecoverFromWAL() error {
-	// var waitForAll sync.WaitGroup
-	// for _, server := range self.servers {
-	// 	waitForAll.Add(1)
-	// 	if server.Id == self.LocalServerId {
-	// 		go func() {
-	// 			self.replayLocal()
-	// 			waitForAll.Done()
-	// 		}()
-	// 	} else {
-	// 		go func() {
-	// 			self.replayServer(server)
-	// 			waitForAll.Done()
-	// 		}()
-	// 	}
-	// }
-	// waitForAll.Wait()
 	self.shardStore.SetWriteBuffer(NewWriteBuffer(self.shardStore, self.wal, self.LocalServerId, self.config.LocalStoreWriteBufferSize))
+	var waitForAll sync.WaitGroup
+	for _, server := range self.servers {
+		waitForAll.Add(1)
+		if server.Id == self.LocalServerId {
+			go func(serverId uint32) {
+				self.recover(serverId, self.shardStore)
+				waitForAll.Done()
+			}(server.Id)
+		} else {
+			go func(serverId uint32) {
+				self.recover(serverId, server)
+				waitForAll.Done()
+			}(server.Id)
+		}
+	}
+	waitForAll.Wait()
 	return nil
+}
+
+func (self *ClusterConfiguration) recover(serverId uint32, writer Writer) error {
+	return self.wal.RecoverServerFromLastCommit(serverId, self.shardIdsForServerId(serverId), func(request *protocol.Request, shardId uint32) error {
+		if request == nil {
+			log.Error("Error on recover, the wal yielded a nil request")
+			return nil
+		}
+		requestNumber := request.GetRequestNumber()
+		err := writer.Write(request)
+		if err != nil {
+			return err
+		}
+		return self.wal.Commit(requestNumber, serverId)
+	})
+}
+
+func (self *ClusterConfiguration) shardIdsForServerId(serverId uint32) []uint32 {
+	shardIds := make([]uint32, 0)
+	for _, shard := range self.GetAllShards() {
+		for _, id := range shard.serverIds {
+			if id == serverId {
+				sid := id
+				shardIds = append(shardIds, sid)
+				break
+			}
+		}
+	}
+	return shardIds
 }
 
 func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds []uint32) {
