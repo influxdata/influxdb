@@ -78,7 +78,7 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		return nil
 	}
 
-	if isAggregateQuery(query) {
+	if query.HasAggregates() {
 		queryEngine.executeCountQueryWithGroupBy(query, yield)
 	} else if containsArithmeticOperators(query) {
 		queryEngine.executeArithmeticQuery(query, yield)
@@ -192,15 +192,6 @@ func (self *QueryEngine) Close() {
 func containsArithmeticOperators(query *parser.SelectQuery) bool {
 	for _, column := range query.GetColumnNames() {
 		if column.Type == parser.ValueExpression {
-			return true
-		}
-	}
-	return false
-}
-
-func isAggregateQuery(query *parser.SelectQuery) bool {
-	for _, column := range query.GetColumnNames() {
-		if column.IsFunctionCall() {
 			return true
 		}
 	}

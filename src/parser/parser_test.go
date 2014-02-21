@@ -224,6 +224,7 @@ func (self *QueryParserSuite) TestMultipleAggregateFunctions(c *C) {
 	c.Assert(columns, HasLen, 2)
 	c.Assert(columns[0].Name, Equals, "first")
 	c.Assert(columns[1].Name, Equals, "last")
+	c.Assert(q.HasAggregates(), Equals, true)
 }
 
 func (self *QueryParserSuite) TestParseFromWithJoinedTable(c *C) {
