@@ -153,7 +153,7 @@ func (p *Peer) flush() {
 	if entries != nil {
 		p.sendAppendEntriesRequest(newAppendEntriesRequest(term, prevLogIndex, prevLogTerm, p.server.log.CommitIndex(), p.server.name, entries))
 	} else {
-		p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.lastSnapshot))
+		p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.snapshot))
 	}
 }
 
@@ -254,7 +254,7 @@ func (p *Peer) sendSnapshotRequest(req *SnapshotRequest) {
 
 // Sends an Snapshot Recovery request to the peer through the transport.
 func (p *Peer) sendSnapshotRecoveryRequest() {
-	req := newSnapshotRecoveryRequest(p.server.name, p.server.lastSnapshot)
+	req := newSnapshotRecoveryRequest(p.server.name, p.server.snapshot)
 	debugln("peer.snap.recovery.send: ", p.Name)
 	resp := p.server.Transporter().SendSnapshotRecoveryRequest(p.server, p, req)
 
