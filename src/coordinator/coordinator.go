@@ -226,7 +226,13 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 		if !s.ShouldAggregateLocally(querySpec) {
 			shouldAggregateLocally = false
 			responseChan = make(chan *protocol.Response)
-			processor = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
+
+			if querySpec.SelectQuery() != nil {
+				processor = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
+			} else {
+				bufferSize := 100
+				processor = engine.NewPassthroughEngine(responseChan, bufferSize)
+			}
 			go func() {
 				for {
 					res := <-responseChan

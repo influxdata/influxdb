@@ -63,6 +63,7 @@ type ShardData struct {
 	shardType       ShardType
 	durationIsSplit bool
 	shardDuration   time.Duration
+	localServerId   uint32
 }
 
 func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, durationIsSplit bool, wal WAL) *ShardData {
@@ -134,6 +135,7 @@ func (self *ShardData) SetServers(servers []*ClusterServer) {
 
 func (self *ShardData) SetLocalStore(store LocalShardStore, localServerId uint32) error {
 	self.serverIds = append(self.serverIds, localServerId)
+	self.localServerId = localServerId
 	self.sortServerIds()
 
 	self.store = store
@@ -265,7 +267,10 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 	}
 	groupByInterval := querySpec.GetGroupByInterval()
 	if groupByInterval == nil {
-		return false
+		if querySpec.HasAggregates() {
+			return false
+		}
+		return true
 	}
 	if self.shardDuration%*groupByInterval == 0 {
 		return true
@@ -277,53 +282,65 @@ func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, resp
 	queryString := querySpec.GetQueryStringWithTimeCondition()
 	request := self.createRequest(querySpec)
 	request.Query = &queryString
-	return self.logAndHandleDestructiveQuery(querySpec, request, response)
+	return self.LogAndHandleDestructiveQuery(querySpec, request, response, false)
 }
 
 func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
-	return self.logAndHandleDestructiveQuery(querySpec, self.createRequest(querySpec), response)
+	return self.LogAndHandleDestructiveQuery(querySpec, self.createRequest(querySpec), response, false)
 }
 
-func (self *ShardData) logAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *protocol.Request, response chan *protocol.Response) error {
+func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *protocol.Request, response chan *protocol.Response, runLocalOnly bool) error {
+	fmt.Println("logAndHandleDestructiveQuery")
 	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
 		return err
 	}
-	responses := make([]chan *protocol.Response, len(self.clusterServers), len(self.clusterServers))
-	for i, server := range self.clusterServers {
-		fmt.Println("SHARD: requesting to server: ", server.Id)
-		responseChan := make(chan *protocol.Response, 1)
-		responses[i] = responseChan
-		// do this so that a new id will get assigned
-		request.Id = nil
-		server.MakeRequest(request, responseChan)
-	}
+	var localResponses chan *protocol.Response
 	if self.localShard != nil {
-		responseChan := make(chan *protocol.Response, 1)
-		responses = append(responses, responseChan)
+		localResponses = make(chan *protocol.Response, 1)
 
 		// this doesn't really apply at this point since destructive queries don't output anything, but it may later
 		maxPointsFromDestructiveQuery := 1000
-		processor := engine.NewPassthroughEngine(responseChan, maxPointsFromDestructiveQuery)
+		processor := engine.NewPassthroughEngine(localResponses, maxPointsFromDestructiveQuery)
 		err := self.localShard.Query(querySpec, processor)
 		processor.Close()
 		if err != nil {
 			return err
 		}
 	}
-	for i, responseChan := range responses {
-		for {
-			res := <-responseChan
-			if *res.Type == endStreamResponse {
-				// don't need to do a commit for the local datastore for now.
-				if i < len(self.clusterServers) {
+	if !runLocalOnly {
+		responses := make([]chan *protocol.Response, len(self.clusterServers), len(self.clusterServers))
+		for i, server := range self.clusterServers {
+			fmt.Println("SHARD: requesting to server: ", server.Id)
+			responseChan := make(chan *protocol.Response, 1)
+			responses[i] = responseChan
+			// do this so that a new id will get assigned
+			request.Id = nil
+			server.MakeRequest(request, responseChan)
+		}
+		for i, responseChan := range responses {
+			for {
+				res := <-responseChan
+				if *res.Type == endStreamResponse {
 					self.wal.Commit(requestNumber, self.clusterServers[i].Id)
+					break
 				}
+				response <- res
+			}
+		}
+	}
+
+	if localResponses != nil {
+		for {
+			res := <-localResponses
+			if *res.Type == endStreamResponse {
+				self.wal.Commit(requestNumber, self.localServerId)
 				break
 			}
 			response <- res
 		}
 	}
+
 	response <- &protocol.Response{Type: &endStreamResponse}
 	return nil
 }

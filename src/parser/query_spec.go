@@ -168,3 +168,11 @@ func (self *QuerySpec) IsAscending() bool {
 func (self *QuerySpec) ReadsFromMultipleSeries() bool {
 	return len(self.SeriesValuesAndColumns()) > 1
 }
+
+func (self *QuerySpec) IsDestructiveQuery() bool {
+	return self.query.DeleteQuery != nil || self.query.DropQuery != nil || self.query.DropSeriesQuery != nil
+}
+
+func (self *QuerySpec) HasAggregates() bool {
+	return self.SelectQuery().HasAggregates()
+}

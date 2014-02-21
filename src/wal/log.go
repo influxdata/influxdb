@@ -175,6 +175,9 @@ func (self *log) setServerId(serverId uint32) {
 }
 
 func (self *log) assignSequenceNumbers(shardId uint32, request *protocol.Request) {
+	if request.Series == nil {
+		return
+	}
 	sequenceNumber := self.state.getCurrentSequenceNumber(shardId)
 	for _, p := range request.Series.Points {
 		if p.SequenceNumber != nil {

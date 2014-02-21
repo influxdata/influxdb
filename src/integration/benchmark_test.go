@@ -248,7 +248,9 @@ func (self *IntegrationSuite) TestAdminPermissionToDeleteData(c *C) {
     "name": "test_delete_admin_permission",
     "columns": ["val_1", "val_2"]
   }]`
+	fmt.Println("TESTAD writing")
 	c.Assert(self.server.WriteData(data), IsNil)
+	fmt.Println("TESTAD query root")
 	bs, err := self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s")
 	c.Assert(err, IsNil)
 	series := []*SerializedSeries{}
@@ -257,8 +259,10 @@ func (self *IntegrationSuite) TestAdminPermissionToDeleteData(c *C) {
 	c.Assert(series[0].Points, HasLen, 1)
 	c.Assert(series[0].Points[0][1], Equals, float64(1))
 
+	fmt.Println("TESTAD deleting")
 	_, err = self.server.RunQueryAsRoot("delete from test_delete_admin_permission", "s")
 	c.Assert(err, IsNil)
+	fmt.Println("TESTAD query")
 	bs, err = self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s")
 	c.Assert(err, IsNil)
 	err = json.Unmarshal(bs, &series)

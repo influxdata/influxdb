@@ -82,7 +82,11 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	querySpec := parser.NewQuerySpec(user, *request.Database, query)
 
 	responseChan := make(chan *protocol.Response)
-	go shard.Query(querySpec, responseChan)
+	if querySpec.IsDestructiveQuery() {
+		go shard.LogAndHandleDestructiveQuery(querySpec, request, responseChan, true)
+	} else {
+		go shard.Query(querySpec, responseChan)
+	}
 	for {
 		response := <-responseChan
 		response.RequestId = request.Id
