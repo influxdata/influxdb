@@ -125,8 +125,8 @@ type server struct {
 	electionTimeout   time.Duration
 	heartbeatInterval time.Duration
 
-	currentSnapshot         *Snapshot
-	lastSnapshot            *Snapshot
+	snapshot                *Snapshot
+	pendingSnapshot         *Snapshot
 	stateMachine            StateMachine
 	maxLogEntriesPerRequest uint64
 
@@ -1087,8 +1087,8 @@ func (s *server) TakeSnapshot() error {
 	s.debugln("take Snapshot")
 
 	// Exit if the server is currently creating a snapshot.
-	if s.currentSnapshot != nil {
-		return errors.New("handling snapshot")
+	if s.pendingSnapshot != nil {
+		return errors.New("Snapshot: Last snapshot is not finished.")
 	}
 
 	// Exit if there are no logs yet in the system.
@@ -1117,7 +1117,7 @@ func (s *server) TakeSnapshot() error {
 	peers = append(peers, &Peer{Name: s.Name(), ConnectionString: s.connectionString})
 
 	// Attach current snapshot and save it to disk.
-	s.currentSnapshot = &Snapshot{lastIndex, lastTerm, peers, state, path}
+	s.pendingSnapshot = &Snapshot{lastIndex, lastTerm, peers, state, path}
 	s.saveSnapshot()
 
 	// We keep some log entries after the snapshot.
@@ -1133,24 +1133,24 @@ func (s *server) TakeSnapshot() error {
 
 // Retrieves the log path for the server.
 func (s *server) saveSnapshot() error {
-	if s.currentSnapshot == nil {
-		return errors.New("no snapshot to save")
+	if s.pendingSnapshot == nil {
+		return errors.New("pendingSnapshot.is.nil")
 	}
 
 	// Write snapshot to disk.
-	if err := s.currentSnapshot.save(); err != nil {
+	if err := s.pendingSnapshot.save(); err != nil {
 		return err
 	}
 
 	// Swap the current and last snapshots.
-	tmp := s.lastSnapshot
-	s.lastSnapshot = s.currentSnapshot
+	tmp := s.snapshot
+	s.snapshot = s.pendingSnapshot
 
 	// Delete the previous snapshot if there is any change
-	if tmp != nil && !(tmp.LastIndex == s.lastSnapshot.LastIndex && tmp.LastTerm == s.lastSnapshot.LastTerm) {
+	if tmp != nil && !(tmp.LastIndex == s.snapshot.LastIndex && tmp.LastTerm == s.snapshot.LastTerm) {
 		tmp.remove()
 	}
-	s.currentSnapshot = nil
+	s.pendingSnapshot = nil
 
 	return nil
 }
@@ -1205,7 +1205,7 @@ func (s *server) processSnapshotRecoveryRequest(req *SnapshotRecoveryRequest) *S
 	s.log.updateCommitIndex(req.LastIndex)
 
 	// Create local snapshot.
-	s.currentSnapshot = &Snapshot{req.LastIndex, req.LastTerm, req.Peers, req.State, s.SnapshotPath(req.LastIndex, req.LastTerm)}
+	s.pendingSnapshot = &Snapshot{req.LastIndex, req.LastTerm, req.Peers, req.State, s.SnapshotPath(req.LastIndex, req.LastTerm)}
 	s.saveSnapshot()
 
 	// Clear the previous log entries.
@@ -1269,26 +1269,26 @@ func (s *server) LoadSnapshot() error {
 	}
 
 	// Decode snapshot.
-	if err = json.Unmarshal(b, &s.lastSnapshot); err != nil {
+	if err = json.Unmarshal(b, &s.snapshot); err != nil {
 		s.debugln("unmarshal error: ", err)
 		return err
 	}
 
 	// Recover snapshot into state machine.
-	if err = s.stateMachine.Recovery(s.lastSnapshot.State); err != nil {
+	if err = s.stateMachine.Recovery(s.snapshot.State); err != nil {
 		s.debugln("recovery error: ", err)
 		return err
 	}
 
 	// Recover cluster configuration.
-	for _, peer := range s.lastSnapshot.Peers {
+	for _, peer := range s.snapshot.Peers {
 		s.AddPeer(peer.Name, peer.ConnectionString)
 	}
 
 	// Update log state.
-	s.log.startTerm = s.lastSnapshot.LastTerm
-	s.log.startIndex = s.lastSnapshot.LastIndex
-	s.log.updateCommitIndex(s.lastSnapshot.LastIndex)
+	s.log.startTerm = s.snapshot.LastTerm
+	s.log.startIndex = s.snapshot.LastIndex
+	s.log.updateCommitIndex(s.snapshot.LastIndex)
 
 	return err
 }
