@@ -230,6 +230,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 		log.Info("Connecting to ProtobufServer: %s", server.ProtobufConnectionString)
 		server.connection = self.connectionCreator(server.ProtobufConnectionString)
 		server.Connect()
+		server.SetWriteBuffer(NewWriteBuffer(server, self.wal, server.Id, self.config.PerServerWriteBufferSize))
 	} else if !self.addedLocalServer {
 		log.Info("Added the local server")
 		self.LocalServerId = server.Id
@@ -520,6 +521,7 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 		if server.connection == nil {
 			server.connection = self.connectionCreator(server.ProtobufConnectionString)
 			if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
+				server.SetWriteBuffer(NewWriteBuffer(server, self.wal, server.Id, self.config.PerServerWriteBufferSize))
 				server.Connect()
 			}
 		}
@@ -987,6 +989,7 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 	// 	}
 	// }
 	// waitForAll.Wait()
+	self.shardStore.SetWriteBuffer(NewWriteBuffer(self.shardStore, self.wal, self.LocalServerId, self.config.LocalStoreWriteBufferSize))
 	return nil
 }
 

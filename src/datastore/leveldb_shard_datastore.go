@@ -8,6 +8,7 @@ import (
 	"github.com/jmhodges/levigo"
 	"os"
 	"path/filepath"
+	"protocol"
 	"sync"
 )
 
@@ -17,6 +18,7 @@ type LevelDbShardDatastore struct {
 	shards         map[uint32]*LevelDbShard
 	shardsLock     sync.RWMutex
 	levelDbOptions *levigo.Options
+	writeBuffer    *cluster.WriteBuffer
 }
 
 const (
@@ -78,6 +80,22 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 	}
 	self.shards[id] = db
 	return db, nil
+}
+
+func (self *LevelDbShardDatastore) Write(request *protocol.Request) error {
+	shardDb, err := self.GetOrCreateShard(*request.ShardId)
+	if err != nil {
+		return err
+	}
+	return shardDb.Write(*request.Database, request.Series)
+}
+
+func (self *LevelDbShardDatastore) BufferWrite(request *protocol.Request) {
+	self.writeBuffer.Write(request)
+}
+
+func (self *LevelDbShardDatastore) SetWriteBuffer(writeBuffer *cluster.WriteBuffer) {
+	self.writeBuffer = writeBuffer
 }
 
 func (self *LevelDbShardDatastore) DeleteShard(shardId uint32) error {

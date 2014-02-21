@@ -39,7 +39,8 @@ type RaftConfig struct {
 }
 
 type StorageConfig struct {
-	Dir string
+	Dir             string
+	WriteBufferSize int `toml:"write-buffer-size"`
 }
 
 type ClusterConfig struct {
@@ -47,6 +48,7 @@ type ClusterConfig struct {
 	ProtobufPort              int      `toml:"protobuf_port"`
 	ProtobufTimeout           duration `toml:"protobuf_timeout"`
 	ProtobufHeartbeatInterval duration `toml:"protobuf_heartbeat"`
+	WriteBufferSize           int      `toml"write-buffer-size"`
 }
 
 type LoggingConfig struct {
@@ -159,6 +161,8 @@ type Configuration struct {
 	WalBookmarkAfterRequests  int
 	WalIndexAfterRequests     int
 	WalRequestsPerLogFile     int
+	LocalStoreWriteBufferSize int
+	PerServerWriteBufferSize  int
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -223,6 +227,15 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		WalBookmarkAfterRequests:  tomlConfiguration.WalConfig.BookmarkAfterRequests,
 		WalIndexAfterRequests:     tomlConfiguration.WalConfig.IndexAfterRequests,
 		WalRequestsPerLogFile:     tomlConfiguration.WalConfig.RequestsPerLogFile,
+		LocalStoreWriteBufferSize: tomlConfiguration.Storage.WriteBufferSize,
+		PerServerWriteBufferSize:  tomlConfiguration.Cluster.WriteBufferSize,
+	}
+
+	if config.LocalStoreWriteBufferSize == 0 {
+		config.LocalStoreWriteBufferSize = 1000
+	}
+	if config.PerServerWriteBufferSize == 0 {
+		config.PerServerWriteBufferSize = 1000
 	}
 
 	// if it wasn't set, set it to 100

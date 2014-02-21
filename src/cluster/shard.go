@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	log "code.google.com/p/log4go"
 	"engine"
 	"fmt"
 	"parser"
@@ -59,8 +58,6 @@ type ShardData struct {
 	clusterServers  []*ClusterServer
 	store           LocalShardStore
 	localShard      LocalShardDb
-	localWrites     chan *protocol.Request
-	serverWrites    map[*ClusterServer]chan *protocol.Request
 	serverIds       []uint32
 	shardType       ShardType
 	durationIsSplit bool
@@ -101,6 +98,9 @@ type LocalShardDb interface {
 }
 
 type LocalShardStore interface {
+	Write(request *protocol.Request) error
+	SetWriteBuffer(writeBuffer *WriteBuffer)
+	BufferWrite(request *protocol.Request)
 	GetOrCreateShard(id uint32) (LocalShardDb, error)
 	DeleteShard(shardId uint32) error
 }
@@ -124,13 +124,9 @@ func (self *ShardData) IsMicrosecondInRange(t int64) bool {
 func (self *ShardData) SetServers(servers []*ClusterServer) {
 	self.clusterServers = servers
 	self.servers = make([]wal.Server, len(servers), len(servers))
-	self.serverWrites = make(map[*ClusterServer]chan *protocol.Request)
 	for i, server := range servers {
 		self.serverIds = append(self.serverIds, server.Id)
 		self.servers[i] = server
-		writeBuffer := make(chan *protocol.Request, PER_SERVER_BUFFER_SIZE)
-		go self.handleWritesToServer(server, writeBuffer)
-		self.serverWrites[server] = writeBuffer
 	}
 	self.sortServerIds()
 }
@@ -140,14 +136,12 @@ func (self *ShardData) SetLocalStore(store LocalShardStore, localServerId uint32
 	self.sortServerIds()
 
 	self.store = store
-	self.localWrites = make(chan *protocol.Request, LOCAL_WRITE_BUFFER_SIZE)
 	shard, err := self.store.GetOrCreateShard(self.id)
 	if err != nil {
 		return err
 	}
 	self.localShard = shard
 
-	go self.handleLocalWrites()
 	return nil
 }
 
@@ -168,10 +162,10 @@ func (self *ShardData) Write(request *protocol.Request) error {
 	}
 	request.RequestNumber = &requestNumber
 	if self.store != nil {
-		self.localWrites <- request
+		self.store.BufferWrite(request)
 	}
-	for _, writeBuffer := range self.serverWrites {
-		writeBuffer <- request
+	for _, server := range self.clusterServers {
+		server.BufferWrite(request)
 	}
 	return nil
 }
@@ -182,9 +176,7 @@ func (self *ShardData) WriteLocalOnly(request *protocol.Request) error {
 		return err
 	}
 	request.RequestNumber = &requestNumber
-	if self.store != nil {
-		self.localWrites <- request
-	}
+	self.store.BufferWrite(request)
 	return nil
 }
 
@@ -354,45 +346,6 @@ func (self *ShardData) ToNewShardData() *NewShardData {
 		EndTime:   self.endTime,
 		Type:      self.shardType,
 		ServerIds: self.serverIds,
-	}
-}
-
-func (self *ShardData) handleWritesToServer(server *ClusterServer, writeBuffer chan *protocol.Request) {
-	responseStream := make(chan *protocol.Response)
-	fmt.Println("HandleWritesToServer: ", server)
-	for {
-		request := <-writeBuffer
-		requestNumber := *request.RequestNumber
-		// this doens't need to be sent to the remote server, we just keep it around for the WAL commit
-		request.SequenceNumber = nil
-
-		// TODO: make some sort of timeout for this response along with a replay from the WAL.
-		// Basically, if the server is in a timeout state do the following:
-		// * keep pulling requests from the writeBuffer and throw them on the ground. Or keep some in memory and then toss
-		// * check periodically for the server to come back. when it has:
-		// * self.WAL.RecoverServerFromRequestNumber(requestNumber, server, yield func(request *protocol.Request, shard wal.Shard) error)
-		// * once all those have been sent to the server, resume sending requests
-		server.MakeRequest(request, responseStream)
-		response := <-responseStream
-		if *response.Type == protocol.Response_WRITE_OK {
-			fmt.Println("COMMIT!")
-			self.wal.Commit(requestNumber, server.Id)
-		} else {
-			// TODO: retry logic for failed request
-			log.Error("REQUEST to server %s failed:: ", server.ProtobufConnectionString, response.GetErrorMessage())
-		}
-	}
-}
-
-func (self *ShardData) handleLocalWrites() {
-	for {
-		request := <-self.localWrites
-		err := self.localShard.Write(*request.Database, request.Series)
-
-		// TODO: handle errors writing to local store
-		if err != nil {
-			log.Error("Writing to local shard: ", err)
-		}
 	}
 }
 

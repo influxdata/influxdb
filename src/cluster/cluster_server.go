@@ -23,6 +23,7 @@ type ClusterServer struct {
 	heartbeatInterval        time.Duration
 	backoff                  time.Duration
 	isUp                     bool
+	writeBuffer              *WriteBuffer
 }
 
 type ServerConnection interface {
@@ -55,6 +56,10 @@ func NewClusterServer(raftName, raftConnectionString, protobufConnectionString s
 	return s
 }
 
+func (self *ClusterServer) SetWriteBuffer(writeBuffer *WriteBuffer) {
+	self.writeBuffer = writeBuffer
+}
+
 func (self *ClusterServer) GetId() uint32 {
 	return self.Id
 }
@@ -70,6 +75,17 @@ func (self *ClusterServer) Connect() {
 
 func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
 	return self.connection.MakeRequest(request, responseStream)
+}
+
+func (self *ClusterServer) Write(request *protocol.Request) error {
+	responseChan := make(chan *protocol.Response)
+	err := self.connection.MakeRequest(request, responseChan)
+	<-responseChan
+	return err
+}
+
+func (self *ClusterServer) BufferWrite(request *protocol.Request) {
+	self.writeBuffer.Write(request)
 }
 
 func (self *ClusterServer) IsUp() bool {
