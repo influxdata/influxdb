@@ -659,8 +659,8 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 	c.Assert(data[0].Columns, HasLen, 3)
 	c.Assert(data[0].Points, HasLen, 2)
 	// count should be 3
-	c.Assert(data[0].Points[0][1], Equals, 5.0)
-	c.Assert(data[0].Points[1][1], Equals, 5.0)
+	c.Assert(data[0].Points[0][1], Equals, 20.0)
+	c.Assert(data[0].Points[1][1], Equals, 20.0)
 }
 
 // test for issue #30
