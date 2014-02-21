@@ -71,6 +71,38 @@ func (self *ServerProcess) Stop() {
 	self.p = nil
 }
 
+func (self *ServerSuite) precreateShards(server *ServerProcess, c *C) {
+	time.Sleep(time.Second)
+	self.createShards(server, int64(3600), "false", c)
+	self.createShards(server, int64(86400), "true", c)
+	time.Sleep(time.Second)
+}
+
+func (self ServerSuite) createShards(server *ServerProcess, bucketSize int64, longTerm string, c *C) {
+	serverCount := 3
+	nowBucket := time.Now().Unix() / bucketSize * bucketSize
+	startIndex := 0
+
+	for i := 0; i < 30; i++ {
+		serverId1 := startIndex%serverCount + 1
+		startIndex += 1
+		serverId2 := startIndex%serverCount + 1
+		startIndex += 1
+		data := fmt.Sprintf(`{
+			"startTime":%d,
+			"endTime":%d,
+			"longTerm": %s,
+			"shards": [{
+				"serverIds": [%d, %d]
+			}]
+		}`, nowBucket, nowBucket+bucketSize, longTerm, serverId1, serverId2)
+
+		resp := server.Post("/cluster/shards?u=root&p=root", data, c)
+		c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+		nowBucket -= bucketSize
+	}
+}
+
 func ResultsToSeriesCollection(results []*common.SerializedSeries) *SeriesCollection {
 	return &SeriesCollection{Members: results}
 }
@@ -192,6 +224,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	self.serverProcesses[0].Post("/db/single_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
 	self.serverProcesses[0].Post("/db/test_cq/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
 	time.Sleep(time.Second)
+	self.precreateShards(self.serverProcesses[0], c)
 }
 
 func (self *ServerSuite) TearDownSuite(c *C) {
@@ -248,7 +281,6 @@ func (self *ServerSuite) TestGroupByDay(c *C) {
 	t := (time.Now().Unix() - 86400) * 1000
 	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_group_by_day", "columns": ["value", "time"]}]`, t)
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-	time.Sleep(time.Second)
 	collection := self.serverProcesses[0].Query("test_rep", "select count(value) from test_group_by_day group by time(1d)", false, c)
 	c.Assert(collection.Members, HasLen, 1)
 	series := collection.GetSeries("test_group_by_day", c)
@@ -274,7 +306,6 @@ func (self *ServerSuite) TestQueryAgainstMultipleShards(c *C) {
 	t := (time.Now().Unix() - 3600) * 1000
 	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_query_against_multiple_shards", "columns": ["value", "time"]}]`, t)
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-	time.Sleep(time.Second)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("test_rep", "select count(value) from test_query_against_multiple_shards group by time(1h)", false, c)
 		c.Assert(collection.Members, HasLen, 1)
@@ -291,7 +322,6 @@ func (self *ServerSuite) TestQueryAscendingAgainstMultipleShards(c *C) {
 	t := (time.Now().Unix() - 3600) * 1000
 	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_ascending_against_multiple_shards", "columns": ["value", "time"]}]`, t)
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-	time.Sleep(time.Second)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("test_rep", "select * from test_ascending_against_multiple_shards order asc", false, c)
 		series := collection.GetSeries("test_ascending_against_multiple_shards", c)
@@ -322,7 +352,6 @@ func (self *ServerSuite) TestWriteSplitToMultipleShards(c *C) {
 		{"points": [[4], [10]], "name": "test_write_multiple_shards", "columns": ["value"]},
 		{"points": [["asdf"]], "name": "Test_write_multiple_shards", "columns": ["thing"]}]`
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-	time.Sleep(time.Second)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("test_rep", "select count(value) from test_write_multiple_shards", false, c)
 		series := collection.GetSeries("test_write_multiple_shards", c)
