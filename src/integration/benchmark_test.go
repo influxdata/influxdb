@@ -811,16 +811,16 @@ func (self *IntegrationSuite) verifyWrite(series string, value, sequence interfa
 	c.Assert(err, IsNil)
 	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
+	if value == nil {
+		c.Assert(data, HasLen, 0)
+		return nil
+	}
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 3)
-
-	if value != nil {
-		c.Assert(data[0].Points, HasLen, 1)
-		p := toMap(data[0])
-		c.Assert(p[0]["a"], Equals, value)
-		return p[0]["sequence_number"]
-	}
-	c.Assert(data[0].Points, HasLen, 0)
+	c.Assert(data[0].Points, HasLen, 1)
+	p := toMap(data[0])
+	c.Assert(p[0]["a"], Equals, value)
+	return p[0]["sequence_number"]
 	return nil
 }
 
@@ -865,8 +865,7 @@ func (self *IntegrationSuite) TestDbDelete(c *C) {
 	data = []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(err, IsNil)
-	c.Assert(data, HasLen, 1)
-	c.Assert(data[0].Points, HasLen, 0)
+	c.Assert(data, HasLen, 0)
 }
 
 func (self *IntegrationSuite) TestInvalidDeleteQuery(c *C) {
@@ -934,8 +933,7 @@ func (self *IntegrationSuite) TestDeleteQuery(c *C) {
 		data = []*SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
 		c.Assert(err, IsNil)
-		c.Assert(data, HasLen, 1)
-		c.Assert(data[0].Points, HasLen, 0)
+		c.Assert(data, HasLen, 0)
 	}
 }
 
