@@ -1,6 +1,7 @@
 package engine
 
 import (
+	log "code.google.com/p/log4go"
 	"common"
 	"fmt"
 	"parser"
@@ -109,7 +110,11 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 	var err error
 	if self.where != nil {
-		serieses := self.filter(series)
+		serieses, err := self.filter(series)
+		if err != nil {
+			log.Error("Error while filtering points: %s\n", err)
+			return false
+		}
 		for _, series := range serieses {
 			if len(series.Points) > 0 {
 				self.calculateLimitAndSlicePoints(series)
@@ -146,24 +151,26 @@ func (self *QueryEngine) hitLimit() bool {
 	return self.limit < 1
 }
 
-func (self *QueryEngine) filter(series *protocol.Series) []*protocol.Series {
+func (self *QueryEngine) filter(series *protocol.Series) ([]*protocol.Series, error) {
 	aliases := self.query.GetTableAliases(*series.Name)
 	result := make([]*protocol.Series, len(aliases), len(aliases))
 	for i, alias := range aliases {
 		_alias := alias
 		newSeries := &protocol.Series{Name: &_alias, Points: series.Points, Fields: series.Fields}
 
-		var filteredResult *protocol.Series
+		filteredResult := newSeries
+		var err error
 
 		// var err error
-		if self.query.GetFromClause().Type == parser.FromClauseInnerJoin {
-			filteredResult = newSeries
-		} else {
-			filteredResult, _ = Filter(self.query, newSeries)
+		if self.query.GetFromClause().Type != parser.FromClauseInnerJoin {
+			filteredResult, err = Filter(self.query, newSeries)
+			if err != nil {
+				return nil, err
+			}
 		}
 		result[i] = filteredResult
 	}
-	return result
+	return result, nil
 }
 
 func (self *QueryEngine) Close() {

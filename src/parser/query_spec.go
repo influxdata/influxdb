@@ -174,5 +174,5 @@ func (self *QuerySpec) IsDestructiveQuery() bool {
 }
 
 func (self *QuerySpec) HasAggregates() bool {
-	return self.SelectQuery().HasAggregates()
+	return self.SelectQuery() != nil && self.SelectQuery().HasAggregates()
 }

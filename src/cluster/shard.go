@@ -197,7 +197,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 		var processor QueryProcessor
 		if querySpec.IsListSeriesQuery() {
 			processor = engine.NewListSeriesEngine(response)
-		} else if querySpec.IsDeleteFromSeriesQuery() || querySpec.IsDropSeriesQuery() {
+		} else if querySpec.IsDeleteFromSeriesQuery() || querySpec.IsDropSeriesQuery() || querySpec.IsSinglePointQuery() {
 			maxDeleteResults := 10000
 			processor = engine.NewPassthroughEngine(response, maxDeleteResults)
 		} else {
