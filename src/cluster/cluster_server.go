@@ -2,6 +2,7 @@ package cluster
 
 import (
 	log "code.google.com/p/log4go"
+	"errors"
 	"fmt"
 	"net"
 	"protocol"
@@ -9,8 +10,9 @@ import (
 )
 
 const (
-	DEFAULT_BACKOFF = time.Second
-	MAX_BACKOFF     = 10 * time.Second
+	DEFAULT_BACKOFF   = time.Second
+	MAX_BACKOFF       = 10 * time.Second
+	HEARTBEAT_TIMEOUT = 200 * time.Millisecond
 )
 
 type ClusterServer struct {
@@ -88,14 +90,24 @@ func (self *ClusterServer) Connect() {
 }
 
 func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
-	return self.connection.MakeRequest(request, responseStream)
+	err := self.connection.MakeRequest(request, responseStream)
+	if err != nil {
+		self.isUp = false
+	}
+	return err
 }
 
 func (self *ClusterServer) Write(request *protocol.Request) error {
 	responseChan := make(chan *protocol.Response)
 	err := self.connection.MakeRequest(request, responseChan)
-	<-responseChan
-	return err
+	if err != nil {
+		return err
+	}
+	response := <-responseChan
+	if response.ErrorMessage != nil {
+		return errors.New(*response.ErrorMessage)
+	}
+	return nil
 }
 
 func (self *ClusterServer) BufferWrite(request *protocol.Request) {
@@ -141,14 +153,19 @@ func (self *ClusterServer) heartbeat() {
 }
 
 func (self *ClusterServer) getHeartbeatResponse(responseChan <-chan *protocol.Response) error {
-	response := <-responseChan
-	if response.ErrorMessage != nil {
-		return fmt.Errorf("Server returned error to heartbeat: %s", *response.ErrorMessage)
+	select {
+	case response := <-responseChan:
+		if response.ErrorMessage != nil {
+			return fmt.Errorf("Server returned error to heartbeat: %s", *response.ErrorMessage)
+		}
+
+		if *response.Type != protocol.Response_HEARTBEAT {
+			return fmt.Errorf("Server returned a non heartbeat response")
+		}
+	case <-time.After(HEARTBEAT_TIMEOUT):
+		return fmt.Errorf("Server failed to return heartbeat in 100ms", "")
 	}
 
-	if *response.Type != protocol.Response_HEARTBEAT {
-		return fmt.Errorf("Server returned a non heartbeat response")
-	}
 	return nil
 }
 

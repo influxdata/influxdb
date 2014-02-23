@@ -4,6 +4,7 @@ import (
 	"bytes"
 	log "code.google.com/p/log4go"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"protocol"
@@ -31,7 +32,7 @@ type runningRequest struct {
 }
 
 const (
-	REQUEST_RETRY_ATTEMPTS = 3
+	REQUEST_RETRY_ATTEMPTS = 2
 	MAX_RESPONSE_SIZE      = MAX_REQUEST_SIZE
 	IS_RECONNECTING        = uint32(1)
 	IS_CONNECTED           = uint32(0)
@@ -102,7 +103,7 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 	}
 
 	// retry sending this at least a few times
-	for attempts := 0; attempts < REQUEST_RETRY_ATTEMPTS; attempts++ {
+	for attempts := 0; attempts <= REQUEST_RETRY_ATTEMPTS; attempts++ {
 		conn := self.getConnection()
 		if conn == nil {
 			self.reconnect()
@@ -127,6 +128,9 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 	self.requestBufferLock.Lock()
 	delete(self.requestBuffer, *request.Id)
 	self.requestBufferLock.Unlock()
+	if err == nil {
+		err = fmt.Errorf("Failed to connect after %d tries.", REQUEST_RETRY_ATTEMPTS)
+	}
 	return err
 }
 
@@ -137,7 +141,6 @@ func (self *ProtobufClient) readResponses() {
 		buff.Reset()
 		conn := self.getConnection()
 		if conn == nil {
-			self.reconnect()
 			continue
 		}
 		var messageSizeU uint32
@@ -181,22 +184,18 @@ func (self *ProtobufClient) reconnect() {
 
 	// if it's not swapped, some other goroutine is already handling the reconect. Wait for it
 	if !swapped {
-		self.reconnectWait.Wait()
 		return
 	}
-	self.reconnectWait.Add(1)
 
 	self.Close()
-	conn, err := net.Dial("tcp", self.hostAndPort)
+	conn, err := net.DialTimeout("tcp", self.hostAndPort, self.writeTimeout)
 	if err == nil {
 		self.conn = conn
 		log.Info("connected to %s", self.hostAndPort)
 	} else {
 		log.Error("failed to connect to %s", self.hostAndPort)
-		time.Sleep(RECONNECT_RETRY_WAIT)
 	}
 	self.connectionStatus = IS_CONNECTED
-	self.reconnectWait.Done()
 	return
 }
 
