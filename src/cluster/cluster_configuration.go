@@ -497,7 +497,7 @@ func (self *ClusterConfiguration) convertNewShardDataToShards(newShards []*NewSh
 }
 
 func (self *ClusterConfiguration) Recovery(b []byte) error {
-	log.Debug("Recovering the cluster configuration")
+	log.Info("Recovering the cluster configuration")
 	data := &SavedConfiguration{}
 
 	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&data)
@@ -526,6 +526,7 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 				server.Connect()
 			}
 		}
+		server.StartHeartbeat()
 	}
 
 	self.hasRunningServers = data.HasRunningServers

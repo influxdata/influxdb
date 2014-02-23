@@ -20,8 +20,8 @@ type ClusterServer struct {
 	RaftConnectionString     string
 	ProtobufConnectionString string
 	connection               ServerConnection
-	heartbeatInterval        time.Duration
-	backoff                  time.Duration
+	HeartbeatInterval        time.Duration
+	Backoff                  time.Duration
 	isUp                     bool
 	writeBuffer              *WriteBuffer
 	heartbeatStarted         bool
@@ -43,13 +43,17 @@ const (
 )
 
 func NewClusterServer(raftName, raftConnectionString, protobufConnectionString string, connection ServerConnection, heartbeatInterval time.Duration) *ClusterServer {
+	if heartbeatInterval.Nanoseconds() < 1000 {
+		heartbeatInterval = time.Millisecond * 10
+	}
+
 	s := &ClusterServer{
 		RaftName:                 raftName,
 		RaftConnectionString:     raftConnectionString,
 		ProtobufConnectionString: protobufConnectionString,
 		connection:               connection,
-		heartbeatInterval:        heartbeatInterval,
-		backoff:                  DEFAULT_BACKOFF,
+		HeartbeatInterval:        heartbeatInterval,
+		Backoff:                  DEFAULT_BACKOFF,
 		heartbeatStarted:         false,
 	}
 
@@ -131,8 +135,8 @@ func (self *ClusterServer) heartbeat() {
 
 		// otherwise, reset the backoff and mark the server as up
 		self.isUp = true
-		self.backoff = DEFAULT_BACKOFF
-		<-time.After(self.heartbeatInterval)
+		self.Backoff = DEFAULT_BACKOFF
+		<-time.After(self.HeartbeatInterval)
 	}
 }
 
@@ -150,11 +154,11 @@ func (self *ClusterServer) getHeartbeatResponse(responseChan <-chan *protocol.Re
 
 func (self *ClusterServer) handleHeartbeatError(err error) {
 	self.isUp = false
-	self.backoff *= 2
-	if self.backoff > MAX_BACKOFF {
-		self.backoff = MAX_BACKOFF
+	self.Backoff *= 2
+	if self.Backoff > MAX_BACKOFF {
+		self.Backoff = MAX_BACKOFF
 	}
-	<-time.After(self.backoff)
+	<-time.After(self.Backoff)
 }
 
 // in the coordinator test we don't want to create protobuf servers,
