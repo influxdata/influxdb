@@ -110,12 +110,12 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 		}
 
 		conn.SetWriteDeadline(time.Now().Add(self.writeTimeout))
-		err = binary.Write(conn, binary.LittleEndian, uint32(len(data)))
+		buff := bytes.NewBuffer(make([]byte, 0, len(data)+8))
+		binary.Write(buff, binary.LittleEndian, uint32(len(data)))
+		_, err = conn.Write(append(buff.Bytes(), data...))
+
 		if err == nil {
-			_, err = conn.Write(data)
-			if err == nil {
-				return nil
-			}
+			return nil
 		}
 		log.Error("ProtobufClient: error making request: %s", err)
 		// TODO: do something smarter here based on whatever the error is.

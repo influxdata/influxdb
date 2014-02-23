@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"bytes"
 	"cluster"
 	log "code.google.com/p/log4go"
 	"common"
@@ -122,13 +123,9 @@ func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *proto
 		return self.WriteResponse(conn, response)
 	}
 
-	err = binary.Write(conn, binary.LittleEndian, uint32(len(data)))
-	if err != nil {
-		log.Error("error writing response length: %s", err)
-		return err
-	}
-
-	_, err = conn.Write(data)
+	buff := bytes.NewBuffer(make([]byte, 0, len(data)+8))
+	binary.Write(buff, binary.LittleEndian, uint32(len(data)))
+	_, err = conn.Write(append(buff.Bytes(), data...))
 	if err != nil {
 		log.Error("error writing response: %s", err)
 		return err
