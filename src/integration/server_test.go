@@ -863,6 +863,10 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s2 into d2;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from /s\\d/ into d3;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from silly_name into :series_name.foo;", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 3;", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 4;", false, c)
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series := collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 4)
@@ -909,11 +913,6 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 	series = collection.GetSeries("silly_name.foo", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "c4", c), Equals, float64(4))
 	c.Assert(series.GetValueForPointAndColumn(0, "c5", c), Equals, float64(5))
-
-	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
-	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
-	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 3;", false, c)
-	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 4;", false, c)
 }
 
 func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
