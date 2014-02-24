@@ -176,11 +176,15 @@ func (self *ServerProcess) QueryWithUsername(database, query string, onlyLocal b
 }
 
 func (self *ServerProcess) Post(url, data string, c *C) *http.Response {
-	return self.Request("POST", url, data, c)
+	err := self.Request("POST", url, data, c)
+	time.Sleep(time.Millisecond * 10)
+	return err
 }
 
 func (self *ServerProcess) Delete(url, body string, c *C) *http.Response {
-	return self.Request("DELETE", url, body, c)
+	err := self.Request("DELETE", url, body, c)
+	time.Sleep(time.Millisecond * 10)
+	return err
 }
 
 func (self *ServerProcess) PostGetBody(url, data string, c *C) []byte {
