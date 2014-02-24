@@ -933,8 +933,6 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
     ]}
   ]`, oldTime, oldTime, oldTime, oldOldTime, oldOldTime, oldOldTime)
 
-	fmt.Println(data)
-
 	self.serverProcesses[0].Post("/db/test_cq/series?u=paul&p=pass&time_precision=s", data, c)
 
 	time.Sleep(time.Second)
