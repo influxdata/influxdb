@@ -313,6 +313,9 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	}
 
 	err := self.CommitSeriesData(db, series)
+	if err != nil {
+		return err
+	}
 
 	self.ProcessContinuousQueries(db, series)
 
@@ -338,15 +341,15 @@ func (self *CoordinatorImpl) ProcessContinuousQueries(db string, series *protoco
 				tableValue := table.Name
 				if regex, ok := tableValue.GetCompiledRegex(); ok {
 					if regex.MatchString(incomingSeriesName) {
-						series.Name = &interpolatedTargetName
-						if e := self.CommitSeriesData(db, series); e != nil {
+						newSeries := &protocol.Series{Name: &interpolatedTargetName, Fields: series.Fields, Points: series.Points}
+						if e := self.CommitSeriesData(db, newSeries); e != nil {
 							log.Error("Couldn't write data for continuous query: ", e)
 						}
 					}
 				} else {
 					if tableValue.Name == incomingSeriesName {
-						series.Name = &interpolatedTargetName
-						if e := self.CommitSeriesData(db, series); e != nil {
+						newSeries := &protocol.Series{Name: &interpolatedTargetName, Fields: series.Fields, Points: series.Points}
+						if e := self.CommitSeriesData(db, newSeries); e != nil {
 							log.Error("Couldn't write data for continuous query: ", e)
 						}
 					}
