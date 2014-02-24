@@ -1153,6 +1153,7 @@ func (self *ServerSuite) TestContinuousQueryWithMixedGroupByOperations(c *C) {
 	time.Sleep(time.Second)
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select mean(reqtime), url from cqtest group by time(10s), url into cqtest.10s", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
 
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "select * from cqtest.10s", false, c)
 	series := collection.GetSeries("cqtest.10s", c)
