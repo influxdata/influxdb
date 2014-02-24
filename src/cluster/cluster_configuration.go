@@ -986,6 +986,10 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 			}(server.Id)
 		} else {
 			go func(serverId uint32) {
+				if server.connection == nil {
+					server.connection = self.connectionCreator(server.ProtobufConnectionString)
+					server.Connect()
+				}
 				self.recover(serverId, server)
 				waitForAll.Done()
 			}(server.Id)
