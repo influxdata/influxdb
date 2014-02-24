@@ -12,7 +12,7 @@ import (
 const (
 	DEFAULT_BACKOFF   = time.Second
 	MAX_BACKOFF       = 10 * time.Second
-	HEARTBEAT_TIMEOUT = 200 * time.Millisecond
+	HEARTBEAT_TIMEOUT = 100 * time.Millisecond
 )
 
 type ClusterServer struct {
@@ -93,6 +93,11 @@ func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream
 	err := self.connection.MakeRequest(request, responseStream)
 	if err != nil {
 		self.isUp = false
+		message := err.Error()
+		select {
+		case responseStream <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}:
+		default:
+		}
 	}
 	return err
 }
@@ -156,14 +161,14 @@ func (self *ClusterServer) getHeartbeatResponse(responseChan <-chan *protocol.Re
 	select {
 	case response := <-responseChan:
 		if response.ErrorMessage != nil {
-			return fmt.Errorf("Server returned error to heartbeat: %s", *response.ErrorMessage)
+			return fmt.Errorf("Server %d returned error to heartbeat: %s", self.Id, *response.ErrorMessage)
 		}
 
 		if *response.Type != protocol.Response_HEARTBEAT {
 			return fmt.Errorf("Server returned a non heartbeat response")
 		}
 	case <-time.After(HEARTBEAT_TIMEOUT):
-		return fmt.Errorf("Server failed to return heartbeat in 100ms", "")
+		return fmt.Errorf("Server failed to return heartbeat in 100ms: %d", self.Id)
 	}
 
 	return nil
