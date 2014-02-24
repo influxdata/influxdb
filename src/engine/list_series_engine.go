@@ -43,7 +43,9 @@ func (self *ListSeriesEngine) YieldPoint(seriesName *string, columnNames []strin
 }
 
 func (self *ListSeriesEngine) Close() {
-	self.responseChan <- self.response
+	if len(self.response.MultiSeries) > 0 {
+		self.responseChan <- self.response
+	}
 	response := &protocol.Response{Type: &endStreamResponse}
 	self.responseChan <- response
 }
