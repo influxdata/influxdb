@@ -240,10 +240,13 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 			go func() {
 				for {
 					res := <-responseChan
-					if *res.Type == endStreamResponse {
+					if *res.Type == endStreamResponse || *res.Type == accessDeniedResponse {
+						seriesWriter.Close()
 						return
 					}
-					seriesWriter.Write(res.Series)
+					if res.Series != nil && len(res.Series.Points) > 0 {
+						seriesWriter.Write(res.Series)
+					}
 				}
 			}()
 			break
