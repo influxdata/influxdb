@@ -180,7 +180,10 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 	for _, responseChan := range responses {
 		for {
 			response := <-responseChan
-			if *response.Type == endStreamResponse {
+			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
+				if response.ErrorMessage != nil {
+					log.Error("ListSeries Query Error from Shard: ", *response.ErrorMessage)
+				}
 				break
 			}
 			for _, series := range response.MultiSeries {
@@ -191,6 +194,7 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 			}
 		}
 	}
+	seriesWriter.Close()
 	return nil
 }
 
@@ -256,7 +260,7 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 	for _, responseChan := range responses {
 		for {
 			response := <-responseChan
-			if *response.Type == endStreamResponse {
+			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
 				break
 			}
 			if shouldAggregateLocally {
