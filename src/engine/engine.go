@@ -118,12 +118,17 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 		for _, series := range serieses {
 			if len(series.Points) > 0 {
 				self.calculateLimitAndSlicePoints(series)
-				err = self.yield(series)
+				if len(series.Points) > 0 {
+					err = self.yield(series)
+				}
 			}
 		}
 	} else {
 		self.calculateLimitAndSlicePoints(series)
-		err = self.yield(series)
+
+		if len(series.Points) > 0 {
+			err = self.yield(series)
+		}
 	}
 	if err != nil {
 		return false
@@ -181,18 +186,28 @@ func (self *QueryEngine) Close() {
 		self.yieldSeriesData(series)
 	}
 
+	var err error
 	for _, series := range self.seriesToPoints {
 		s := &protocol.Series{
 			Name:   series.Name,
 			Fields: series.Fields,
 		}
-		self.yield(s)
+		if len(s.Points) > 0 {
+			err = self.yield(s)
+			if err != nil {
+				break
+			}
+		}
 	}
 
 	if self.isAggregateQuery {
 		self.runAggregates()
 	}
 	response := &protocol.Response{Type: &responseEndStream}
+	if err != nil {
+		message := err.Error()
+		response.ErrorMessage = &message
+	}
 	self.responseChan <- response
 }
 
