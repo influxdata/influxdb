@@ -186,16 +186,20 @@ func (self *ProtobufClient) reconnect() {
 	if !swapped {
 		return
 	}
+	defer func() {
+		self.connectionStatus = IS_CONNECTED
+	}()
 
 	self.Close()
 	conn, err := net.DialTimeout("tcp", self.hostAndPort, self.writeTimeout)
 	if err == nil {
+		self.connLock.Lock()
+		defer self.connLock.Unlock()
 		self.conn = conn
 		log.Info("connected to %s", self.hostAndPort)
 	} else {
 		log.Error("failed to connect to %s", self.hostAndPort)
 	}
-	self.connectionStatus = IS_CONNECTED
 	return
 }
 
