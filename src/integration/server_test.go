@@ -446,28 +446,6 @@ func (self *ServerSuite) TestCountDistinctWithNullValues(c *C) {
 	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(2))
 }
 
-func (self *ServerSuite) TestDataReplication(c *C) {
-	data := `
-  [{
-    "points": [
-        ["val1", 2]
-    ],
-    "name": "test_data_replication",
-    "columns": ["val_1", "val_2"]
-  }]`
-	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-
-	serversWithPoint := 0
-	for _, server := range self.serverProcesses {
-		collection := server.Query("test_rep", "select * from test_data_replication", true, c)
-		series := collection.GetSeries("test_data_replication", c)
-		if len(series.Points) > 0 {
-			serversWithPoint += 1
-		}
-	}
-	c.Assert(serversWithPoint, Equals, 2)
-}
-
 // issue #147
 func (self *ServerSuite) TestExtraSequenceNumberColumns(c *C) {
 	data := `
