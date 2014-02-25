@@ -83,7 +83,7 @@ func (self ServerSuite) createShards(server *ServerProcess, bucketSize int64, lo
 	nowBucket := time.Now().Unix() / bucketSize * bucketSize
 	startIndex := 0
 
-	for i := 0; i < 30; i++ {
+	for i := 0; i <= 50; i++ {
 		serverId1 := startIndex%serverCount + 1
 		startIndex += 1
 		serverId2 := startIndex%serverCount + 1
@@ -339,12 +339,12 @@ func (self *ServerSuite) TestQueryAscendingAgainstMultipleShards(c *C) {
 func (self *ServerSuite) TestBigGroupByQueryAgainstMultipleShards(c *C) {
 	data := `[{"points": [[4], [10]], "name": "test_multiple_shards_big_group_by", "columns": ["value"]}]`
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-	t := (time.Now().Unix() - 3600*25) * 1000
+	t := (time.Now().Unix() - 3600*2) * 1000
 	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_multiple_shards_big_group_by", "columns": ["value", "time"]}]`, t)
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
 	time.Sleep(time.Second)
 	for _, s := range self.serverProcesses {
-		collection := s.Query("test_rep", "select count(value) from test_multiple_shards_big_group_by group by time(48h)", false, c)
+		collection := s.Query("test_rep", "select count(value) from test_multiple_shards_big_group_by group by time(30d)", false, c)
 		series := collection.GetSeries("test_multiple_shards_big_group_by", c)
 		c.Assert(series.Points, HasLen, 1)
 		c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(3))
@@ -423,7 +423,7 @@ func (self *ServerSuite) TestRestartServers(c *C) {
 	err = self.serverProcesses[1].Start()
 	c.Assert(err, IsNil)
 	err = self.serverProcesses[2].Start()
-	time.Sleep(time.Second)
+	time.Sleep(time.Second * 5)
 
 	collection = self.serverProcesses[0].Query("test_rep", "select * from test_restart", false, c)
 	c.Assert(collection.Members, HasLen, 1)
