@@ -61,6 +61,9 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	queries, err := parser.ParseQuery(*request.Query)
 	if err != nil || len(queries) < 1 {
 		log.Error("Erorr parsing query: ", err)
+		errorMsg := fmt.Sprintf("Cannot find user %s", *request.UserName)
+		response := &protocol.Response{Type: &endStreamResponse, ErrorMessage: &errorMsg, RequestId: request.Id}
+		self.WriteResponse(conn, response)
 		return
 	}
 	query := queries[0]
