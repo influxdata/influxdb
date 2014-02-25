@@ -161,9 +161,13 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 	req, ok := self.requestBuffer[*response.RequestId]
 	self.requestBufferLock.RUnlock()
 	if ok {
-		req.responseChan <- response
+		select {
+		case req.responseChan <- response:
+		default:
+			log.Error("ProtobufClient: Response buffer full! ", self.hostAndPort, response)
+		}
+
 		if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK {
-			close(req.responseChan)
 			self.requestBufferLock.Lock()
 			delete(self.requestBuffer, *response.RequestId)
 			self.requestBufferLock.Unlock()

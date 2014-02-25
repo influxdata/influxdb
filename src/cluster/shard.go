@@ -7,6 +7,7 @@ import (
 	"parser"
 	"protocol"
 	"sort"
+	"strings"
 	"time"
 	"wal"
 )
@@ -260,6 +261,19 @@ func (self *ShardData) DropDatabase(database string, sendToServers bool) {
 	}
 }
 
+func (self *ShardData) String() string {
+	serversString := make([]string, 0)
+	for _, s := range self.servers {
+		serversString = append(serversString, fmt.Sprintf("%d", s.GetId()))
+	}
+	local := "false"
+	if self.localShard != nil {
+		local = "true"
+	}
+
+	return fmt.Sprintf("[ID: %d, LOCAL: %s, SERVERS: [%s]]", self.id, local, strings.Join(serversString, ","))
+}
+
 func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool {
 	if self.durationIsSplit && querySpec.ReadsFromMultipleSeries() {
 		return false
@@ -289,7 +303,6 @@ func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, 
 }
 
 func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *protocol.Request, response chan *protocol.Response, runLocalOnly bool) error {
-	fmt.Println("logAndHandleDestructiveQuery")
 	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
 		return err
@@ -310,7 +323,6 @@ func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 	if !runLocalOnly {
 		responses := make([]chan *protocol.Response, len(self.clusterServers), len(self.clusterServers))
 		for i, server := range self.clusterServers {
-			fmt.Println("SHARD: requesting to server: ", server.Id)
 			responseChan := make(chan *protocol.Response, 1)
 			responses[i] = responseChan
 			// do this so that a new id will get assigned

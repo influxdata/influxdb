@@ -48,8 +48,17 @@ seed-servers = ["localhost:60501"]
 # However, this port shouldn't be accessible from the internet.
 
 protobuf_port = 60512
-protobuf_timeout = "2s" # the write timeout on the protobuf conn any duration parseable by time.ParseDuration
+protobuf_timeout = "1200ms" # the write timeout on the protobuf conn any duration parseable by time.ParseDuration
 protobuf_heartbeat = "1s" # the heartbeat interval between the servers. must be parseable by time.ParseDuration
+
+# How many write requests to potentially buffer in memory per server. If the buffer gets filled then writes
+# will still be logged and once the server has caught up (or come back online) the writes
+# will be replayed from the WAL
+write-buffer-size = 1000
+
+# When queries get distributed out, the go in parallel. However, the responses must be sent in time order.
+# This setting determines how many responses can be buffered in memory per shard before data starts gettind dropped.
+query-shard-buffer-size = 500
 
 # These options specify how data is sharded across the cluster. There are two 
 # shard configurations that have the same knobs: short term and long term.

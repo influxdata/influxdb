@@ -61,6 +61,10 @@ protobuf_heartbeat = "200ms" # the heartbeat interval between the servers. must 
 # will be replayed from the WAL
 write-buffer-size = 1000
 
+# When queries get distributed out, the go in parallel. However, the responses must be sent in time order.
+# This setting determines how many responses can be buffered in memory per shard before data starts gettind dropped.
+query-shard-buffer-size = 500
+
 [leveldb]
 
 # Maximum mmap open files, this will affect the virtual memory used by

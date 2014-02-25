@@ -4,6 +4,7 @@ import (
 	"cluster"
 	log "code.google.com/p/log4go"
 	"common"
+	"configuration"
 	"datastore"
 	"engine"
 	"fmt"
@@ -15,7 +16,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -23,10 +23,7 @@ type CoordinatorImpl struct {
 	clusterConfiguration *cluster.ClusterConfiguration
 	raftServer           ClusterConsensus
 	datastore            datastore.Datastore
-	requestId            uint32
-	runningReplays       map[string][]*protocol.Request
-	runningReplaysLock   sync.Mutex
-	writeLock            sync.Mutex
+	config               *configuration.Configuration
 }
 
 const (
@@ -74,18 +71,19 @@ func init() {
 	}
 }
 
-func NewCoordinatorImpl(datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
+func NewCoordinatorImpl(config *configuration.Configuration, datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
 	coordinator := &CoordinatorImpl{
+		config:               config,
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
 		datastore:            datastore,
-		runningReplays:       make(map[string][]*protocol.Request),
 	}
 
 	return coordinator
 }
 
 func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
+	fmt.Println("COORD: RunQuery: ", queryString)
 	// don't let a panic pass beyond RunQuery
 	defer recoverFunc(database, queryString)
 
@@ -167,12 +165,12 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 
 	responses := make([]chan *protocol.Response, 0)
 	for _, shard := range shortTermShards {
-		responseChan := make(chan *protocol.Response, 1)
+		responseChan := make(chan *protocol.Response, self.config.QueryShardBufferSize)
 		go shard.Query(querySpec, responseChan)
 		responses = append(responses, responseChan)
 	}
 	for _, shard := range longTermShards {
-		responseChan := make(chan *protocol.Response, 1)
+		responseChan := make(chan *protocol.Response, self.config.QueryShardBufferSize)
 		go shard.Query(querySpec, responseChan)
 		responses = append(responses, responseChan)
 	}
@@ -224,10 +222,12 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 	shouldAggregateLocally := true
 	var processor cluster.QueryProcessor
 	var responseChan chan *protocol.Response
+	var seriesClosed chan bool
 	for _, s := range shards {
 		// If the aggregation is done at the shard level, we don't need to
 		// do it here at the coordinator level.
 		if !s.ShouldAggregateLocally(querySpec) {
+			seriesClosed = make(chan bool)
 			shouldAggregateLocally = false
 			responseChan = make(chan *protocol.Response)
 
@@ -241,7 +241,9 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 				for {
 					res := <-responseChan
 					if *res.Type == endStreamResponse || *res.Type == accessDeniedResponse {
+						fmt.Println("Closing seriesWriter...")
 						seriesWriter.Close()
+						seriesClosed <- true
 						return
 					}
 					if res.Series != nil && len(res.Series.Points) > 0 {
@@ -255,33 +257,45 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 
 	responses := make([]chan *protocol.Response, 0)
 	for _, shard := range shards {
-		responseChan := make(chan *protocol.Response, 1)
+		responseChan := make(chan *protocol.Response, self.config.QueryShardBufferSize)
 		go shard.Query(querySpec, responseChan)
 		responses = append(responses, responseChan)
 	}
 
-	for _, responseChan := range responses {
+	for i, responseChan := range responses {
+		fmt.Println("READING: shard: ", shards[i].String())
 		for {
 			response := <-responseChan
+			fmt.Println("GOT RESPONSE: ", response.Type, response.Series)
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
 				break
 			}
 			if shouldAggregateLocally {
+				fmt.Println("WRITING: ", len(response.Series.Points))
 				seriesWriter.Write(response.Series)
+				fmt.Println("WRITING (done)")
 				continue
 			}
 
 			// if the data wasn't aggregated at the shard level, aggregate
 			// the data here
+			fmt.Println("YIELDING: ", len(response.Series.Points))
 			if response.Series != nil {
 				for _, p := range response.Series.Points {
 					processor.YieldPoint(response.Series.Name, response.Series.Fields, p)
 				}
 			}
+			fmt.Println("YIELDING(done)")
 		}
+		fmt.Println("DONE: shard: ", shards[i].String())
 	}
+	fmt.Println("Finished reading from all channels, closing out")
 	if !shouldAggregateLocally {
+		fmt.Println("closing processor")
 		processor.Close()
+		<-seriesClosed
+		fmt.Println("all closed outs")
+		return nil
 	}
 	seriesWriter.Close()
 	return nil
@@ -411,11 +425,6 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series
 func (self *CoordinatorImpl) write(db string, series *protocol.Series, shard cluster.Shard) error {
 	request := &protocol.Request{Type: &write, Database: &db, Series: series}
 	return shard.Write(request)
-}
-
-func (self *CoordinatorImpl) createRequest(requestType protocol.Request_Type, database *string) *protocol.Request {
-	id := atomic.AddUint32(&self.requestId, uint32(1))
-	return &protocol.Request{Type: &requestType, Database: database, Id: &id}
 }
 
 func (self *CoordinatorImpl) CreateContinuousQuery(user common.User, db string, query string) error {
