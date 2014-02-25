@@ -192,11 +192,9 @@ func (self *QueryEngine) Close() {
 			Name:   series.Name,
 			Fields: series.Fields,
 		}
-		if len(s.Points) > 0 {
-			err = self.yield(s)
-			if err != nil {
-				break
-			}
+		err = self.yield(s)
+		if err != nil {
+			break
 		}
 	}
 
