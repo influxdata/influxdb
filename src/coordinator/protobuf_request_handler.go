@@ -33,7 +33,7 @@ func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
 	if *request.Type == protocol.Request_WRITE {
 		shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
-		fmt.Println("HANDLE: ", shard)
+		log.Debug("HANDLE: ", shard)
 		err := shard.WriteLocalOnly(request)
 		if err != nil {
 			log.Error("ProtobufRequestHandler: error writing local shard: ", err)

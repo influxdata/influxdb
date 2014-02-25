@@ -207,7 +207,6 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	if server.RaftName != self.LocalRaftName {
 		log.Info("Connecting to ProtobufServer: %s", server.ProtobufConnectionString, self.config.ProtobufConnectionString())
 		if server.connection == nil {
-			fmt.Println("Creating connection from AddPotentialServer")
 			server.connection = self.connectionCreator(server.ProtobufConnectionString)
 			server.Connect()
 		}
@@ -463,7 +462,6 @@ func (self *ClusterConfiguration) convertNewShardDataToShards(newShards []*NewSh
 				}
 			} else {
 				server := self.GetServerById(&serverId)
-				fmt.Println("CONFIG: ", server, serverId)
 				servers = append(servers, server)
 			}
 		}
@@ -495,7 +493,6 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	self.servers = data.Servers
 	for _, server := range self.servers {
 		if server.RaftName == self.LocalRaftName {
-			fmt.Println("Set local server after recovery")
 			self.LocalServerId = server.Id
 			self.addedLocalServerWait <- true
 			self.addedLocalServer = true
@@ -504,7 +501,6 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 
 		server.connection = oldServers[server.ProtobufConnectionString]
 		if server.connection == nil {
-			fmt.Println("Creating connection from Recovery")
 			server.connection = self.connectionCreator(server.ProtobufConnectionString)
 			if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
 				server.SetWriteBuffer(NewWriteBuffer(server, self.wal, server.Id, self.config.PerServerWriteBufferSize))
@@ -606,7 +602,7 @@ func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series st
 
 	var err error
 	if len(matchingShards) == 0 {
-		fmt.Println("no matching shards.....")
+		log.Info("No matching shards for write at time %du, creating...", microsecondsEpoch)
 		matchingShards, err = self.createShards(microsecondsEpoch, shardType)
 		if err != nil {
 			return nil, err
@@ -769,7 +765,6 @@ func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*S
 	if endIndex == -1 {
 		endIndex = len(shards)
 	}
-	fmt.Printf("getShardRange: StartIndex: %d, EndIndex: %d, Len: %d\n", startIndex, endIndex, len(shards[startIndex:endIndex]))
 	return shards[startIndex:endIndex]
 }
 
@@ -864,11 +859,9 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 }
 
 func (self *ClusterConfiguration) MarshalNewShardArrayToShards(newShards []*NewShardData) ([]*ShardData, error) {
-	fmt.Println("MarshalNewShardArray...")
 	shards := make([]*ShardData, len(newShards), len(newShards))
 	durationIsSplit := len(newShards) > 1
 	for i, s := range newShards {
-		fmt.Println("MARSHAL: ", s)
 		shard := NewShard(s.Id, s.StartTime, s.EndTime, s.Type, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range s.ServerIds {
@@ -879,15 +872,12 @@ func (self *ClusterConfiguration) MarshalNewShardArrayToShards(newShards []*NewS
 					return nil, err
 				}
 			} else {
-				server := self.GetServerById(&serverId)
-				fmt.Println("MARSHAL: ", serverId, server)
 				servers = append(servers, self.GetServerById(&serverId))
 			}
 		}
 		shard.SetServers(servers)
 		shards[i] = shard
 	}
-	fmt.Println("MarshalNewShardArray DONE!")
 	return shards, nil
 }
 
@@ -935,7 +925,6 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 		} else {
 			go func(serverId uint32) {
 				if server.connection == nil {
-					fmt.Println("Creating connection from WAL: ", serverId, self.LocalServerId)
 					server.connection = self.connectionCreator(server.ProtobufConnectionString)
 					server.Connect()
 				}

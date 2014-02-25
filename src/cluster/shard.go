@@ -203,17 +203,13 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 			processor = engine.NewPassthroughEngine(response, maxDeleteResults)
 		} else {
 			if self.ShouldAggregateLocally(querySpec) {
-				fmt.Println("SHARD: query aggregate locally", self.id)
 				processor = engine.NewQueryEngine(querySpec.SelectQuery(), response)
 			} else {
-				fmt.Println("SHARD: query passthrough", self.id)
 				maxPointsToBufferBeforeSending := 1000
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
 			}
 		}
-		fmt.Println("SHARD query local: ", self.id)
 		err := self.localShard.Query(querySpec, processor)
-		fmt.Println("SHARD: processor.Close()", self.id)
 		processor.Close()
 		return err
 	}
@@ -240,7 +236,6 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 
 func (self *ShardData) DropDatabase(database string, sendToServers bool) {
 	if self.localShard != nil {
-		fmt.Println("SHARD DropDatabase: ", database)
 		self.localShard.DropDatabase(database)
 	}
 

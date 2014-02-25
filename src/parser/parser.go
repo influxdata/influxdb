@@ -267,7 +267,6 @@ func (self *SelectQuery) IsContinuousQuery() bool {
 
 func (self *SelectQuery) IsValidContinuousQuery() bool {
 	groupByClause := self.GetGroupByClause()
-	fmt.Println(groupByClause)
 
 	if len(groupByClause.Elems) == 0 {
 		return true
@@ -533,7 +532,6 @@ func ParseQuery(query string) ([]*Query, error) {
 		}
 		return []*Query{&Query{QueryString: query, DropSeriesQuery: dropSeriesQuery}}, nil
 	} else if q.drop_query != nil {
-		fmt.Println(q.drop_query.id)
 		return []*Query{&Query{QueryString: query, DropQuery: &DropQuery{Id: int(q.drop_query.id)}}}, nil
 	}
 	return nil, fmt.Errorf("Unknown query type encountered")

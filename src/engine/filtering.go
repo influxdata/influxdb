@@ -22,7 +22,6 @@ func NewPointFilter(query *parser.SelectQuery, queryColumnNames []string) *Point
 }
 
 func (self *PointFilter) matchesWhereClause(point *protocol.Point) bool {
-	fmt.Println("matchesWhereClause: ", point, self.queryColumnNames)
 	ok, _ := matches(self.where, self.queryColumnNames, point)
 	return ok
 }

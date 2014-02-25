@@ -38,7 +38,7 @@ const (
 )
 
 func NewProtobufClient(hostAndPort string, writeTimeout time.Duration) *ProtobufClient {
-	fmt.Println("NewProtobufClient")
+	log.Debug("NewProtobufClient: ", hostAndPort)
 	return &ProtobufClient{
 		hostAndPort:   hostAndPort,
 		requestBuffer: make(map[uint32]*runningRequest),

@@ -654,7 +654,7 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 }
 
 func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster.ShardData, error) {
-	fmt.Println("RAFT: CreateShards")
+	log.Debug("RAFT: CreateShards")
 	command := NewCreateShardsCommand(shards)
 	createShardsResult, err := self.doOrProxyCommand(command, "create_shards")
 	if err != nil {
@@ -662,7 +662,6 @@ func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster
 		return nil, err
 	}
 	js, err := json.Marshal(createShardsResult)
-	fmt.Println("RAFT JSON: ", string(js))
 	if err != nil {
 		return nil, err
 	}
@@ -671,7 +670,7 @@ func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("NEW SHARDS: ", newShards)
+	log.Debug("NEW SHARDS: ", newShards)
 	return self.clusterConfig.MarshalNewShardArrayToShards(newShards)
 }
 

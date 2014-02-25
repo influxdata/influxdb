@@ -979,7 +979,6 @@ func (self *HttpServer) dropShard(w libhttp.ResponseWriter, r *libhttp.Request) 
 			return libhttp.StatusInternalServerError, err.Error()
 		}
 		serverIdInfo := &newShardServerIds{}
-		fmt.Println("API: BODY: ", string(body))
 		err = json.Unmarshal(body, &serverIdInfo)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()

@@ -63,7 +63,7 @@ func (self *log) firstRequestNumber() uint32 {
 }
 
 func (self *log) internalFlush() error {
-	logger.Info("Fsyncing the log file to disk")
+	logger.Debug("Fsyncing the log file to disk")
 	self.requestsSinceLastFlush = 0
 	return self.file.Sync()
 }
@@ -333,7 +333,7 @@ func sendOrStop(req *replayRequest, replayChan chan *replayRequest, stopChan cha
 }
 
 func (self *log) forceBookmark() error {
-	logger.Info("Creating bookmark at file offset %d", self.fileSize)
+	logger.Debug("Creating bookmark at file offset %d", self.fileSize)
 	dir := filepath.Dir(self.file.Name())
 	bookmarkPath := filepath.Join(dir, fmt.Sprintf("bookmark.%d.new", self.suffix()))
 	bookmarkFile, err := os.OpenFile(bookmarkPath, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)
@@ -364,7 +364,7 @@ func (self *log) forceIndex() error {
 	}
 
 	startRequestNumber := self.state.LargestRequestNumber - uint32(self.state.RequestsSinceLastIndex) + 1
-	logger.Info("Creating new index entry [%d,%d]", startRequestNumber, self.state.RequestsSinceLastIndex)
+	logger.Debug("Creating new index entry [%d,%d]", startRequestNumber, self.state.RequestsSinceLastIndex)
 	self.state.Index.addEntry(startRequestNumber, self.state.RequestsSinceLastIndex, self.fileSize)
 	self.state.RequestsSinceLastIndex = 0
 	return nil

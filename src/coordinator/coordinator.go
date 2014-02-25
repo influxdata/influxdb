@@ -83,7 +83,7 @@ func NewCoordinatorImpl(config *configuration.Configuration, datastore datastore
 }
 
 func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
-	fmt.Println("COORD: RunQuery: ", queryString)
+	log.Debug("COORD: RunQuery: ", queryString)
 	// don't let a panic pass beyond RunQuery
 	defer recoverFunc(database, queryString)
 
@@ -241,7 +241,6 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 				for {
 					res := <-responseChan
 					if *res.Type == endStreamResponse || *res.Type == accessDeniedResponse {
-						fmt.Println("Closing seriesWriter...")
 						seriesWriter.Close()
 						seriesClosed <- true
 						return
@@ -263,38 +262,34 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 	}
 
 	for i, responseChan := range responses {
-		fmt.Println("READING: shard: ", shards[i].String())
+		log.Debug("READING: shard: ", shards[i].String())
 		for {
 			response := <-responseChan
-			fmt.Println("GOT RESPONSE: ", response.Type, response.Series)
+			log.Debug("GOT RESPONSE: ", response.Type, response.Series)
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
 				break
 			}
 			if shouldAggregateLocally {
-				fmt.Println("WRITING: ", len(response.Series.Points))
+				log.Debug("WRITING: ", len(response.Series.Points))
 				seriesWriter.Write(response.Series)
-				fmt.Println("WRITING (done)")
+				log.Debug("WRITING (done)")
 				continue
 			}
 
 			// if the data wasn't aggregated at the shard level, aggregate
 			// the data here
-			fmt.Println("YIELDING: ", len(response.Series.Points))
+			log.Debug("YIELDING: ", len(response.Series.Points))
 			if response.Series != nil {
 				for _, p := range response.Series.Points {
 					processor.YieldPoint(response.Series.Name, response.Series.Fields, p)
 				}
 			}
-			fmt.Println("YIELDING(done)")
 		}
-		fmt.Println("DONE: shard: ", shards[i].String())
+		log.Debug("DONE: shard: ", shards[i].String())
 	}
-	fmt.Println("Finished reading from all channels, closing out")
 	if !shouldAggregateLocally {
-		fmt.Println("closing processor")
 		processor.Close()
 		<-seriesClosed
-		fmt.Println("all closed outs")
 		return nil
 	}
 	seriesWriter.Close()
