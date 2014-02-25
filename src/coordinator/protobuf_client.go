@@ -123,6 +123,7 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 	self.requestBufferLock.Lock()
 	delete(self.requestBuffer, *request.Id)
 	self.requestBufferLock.Unlock()
+	self.reconnect()
 	return err
 }
 
