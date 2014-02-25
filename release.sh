@@ -45,12 +45,15 @@ fi
 make clean
 make package version=$version
 make package version=$version arch=386
+# rpm convention is not to have dashes in the package, or at least
+# that's what fpm is claiming
+rpm_version=${version/-/_}
 
 for filepath in `ls packages/*.{tar.gz,deb,rpm}`; do
     [ -e "$filepath" ] || continue
     echo "Uploading $filepath to S3"
     filename=`basename $filepath`
-    latest_filename=`echo ${filename} | sed "s/${version}/latest/g"`
+    latest_filename=`echo ${filename} | sed "s/${rpm_version}/latest/g" | sed "s/${version}/latest/g"`
     bucket=influxdb
 
     AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
