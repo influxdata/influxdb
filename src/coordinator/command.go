@@ -13,7 +13,6 @@ func init() {
 	internalRaftCommands = map[string]raft.Command{}
 	for _, command := range []raft.Command{
 		&AddPotentialServerCommand{},
-		&UpdateServerStateCommand{},
 		&CreateDatabaseCommand{},
 		&DropDatabaseCommand{},
 		&SaveDbUserCommand{},
@@ -203,25 +202,6 @@ func (c *AddPotentialServerCommand) Apply(server raft.Server) (interface{}, erro
 	config := server.Context().(*cluster.ClusterConfiguration)
 	config.AddPotentialServer(c.Server)
 	return nil, nil
-}
-
-type UpdateServerStateCommand struct {
-	ServerId uint32
-	State    cluster.ServerState
-}
-
-func NewUpdateServerStateCommand(serverId uint32, state cluster.ServerState) *UpdateServerStateCommand {
-	return &UpdateServerStateCommand{ServerId: serverId, State: state}
-}
-
-func (c *UpdateServerStateCommand) CommandName() string {
-	return "update_state"
-}
-
-func (c *UpdateServerStateCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*cluster.ClusterConfiguration)
-	err := config.UpdateServerState(c.ServerId, c.State)
-	return nil, err
 }
 
 type InfluxJoinCommand struct {

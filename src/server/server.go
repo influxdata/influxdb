@@ -47,6 +47,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 
 	clusterConfig := cluster.NewClusterConfiguration(config, writeLog, shardDb, newClient)
 	raftServer := coordinator.NewRaftServer(config, clusterConfig)
+	clusterConfig.LocalRaftName = raftServer.GetRaftName()
 	clusterConfig.SetShardCreator(raftServer)
 	clusterConfig.CreateFutureShardsAutomaticallyBeforeTimeComes()
 
