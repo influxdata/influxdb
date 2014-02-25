@@ -34,7 +34,7 @@ func (self *EngineSuite) SetUpTest(c *C) {
 func (self *EngineSuite) TearDownTest(c *C) {
 	resp := self.server.Request("DELETE", "/db/test_db?u=root&p=root", "", c)
 	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Second)
 }
 
 func (self *EngineSuite) TearDownSuite(c *C) {
