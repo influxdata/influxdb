@@ -225,12 +225,17 @@ func (s *RaftServer) CreateContinuousQuery(db string, query string) error {
 		return fmt.Errorf("Failed to parse continuous query: %s", query)
 	}
 
+	if !selectQuery.IsValidContinuousQuery() {
+		return fmt.Errorf("Continuous queries with a group by clause must include time(...) as one of the elements")
+	}
+
 	duration, err := selectQuery.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return fmt.Errorf("Couldn't get group by time for continuous query: %s", err)
 	}
 
-	if duration != nil {
+	// if there are already-running queries, we need to initiate a backfill
+	if duration != nil && !s.clusterConfig.LastContinuousQueryRunTime().IsZero() {
 		zeroTime := time.Time{}
 		currentBoundary := time.Now().Truncate(*duration)
 		go s.runContinuousQuery(db, selectQuery, zeroTime, currentBoundary)

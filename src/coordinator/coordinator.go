@@ -210,7 +210,7 @@ func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, ser
 	db := querySpec.Database()
 	series := querySpec.Query().DropSeriesQuery.GetTableName()
 	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) && !user.HasWriteAccess(series) {
-		return common.NewAuthorizationError("Insufficient permission to drop series")
+		return common.NewAuthorizationError("Insufficient permissions to drop series")
 	}
 	querySpec.RunAgainstAllServersInShard = true
 	return self.runQuerySpec(querySpec, seriesWriter)
@@ -315,7 +315,7 @@ func recoverFunc(database, query string) {
 
 func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
 	if !user.IsClusterAdmin() {
-		return fmt.Errorf("Insufficient permission to force a log compaction")
+		return fmt.Errorf("Insufficient permissions to force a log compaction")
 	}
 
 	return self.raftServer.ForceLogCompaction()
@@ -323,7 +323,7 @@ func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
 
 func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series *protocol.Series) error {
 	if !user.HasWriteAccess(db) {
-		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
+		return common.NewAuthorizationError("Insufficient permissions to write to %s", db)
 	}
 	if len(series.Points) == 0 {
 		return fmt.Errorf("Can't write series with zero points.")
@@ -429,7 +429,7 @@ func (self *CoordinatorImpl) write(db string, series *protocol.Series, shard clu
 
 func (self *CoordinatorImpl) CreateContinuousQuery(user common.User, db string, query string) error {
 	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) {
-		return common.NewAuthorizationError("Insufficient permission to create continuous query")
+		return common.NewAuthorizationError("Insufficient permissions to create continuous query")
 	}
 
 	err := self.raftServer.CreateContinuousQuery(db, query)
@@ -441,7 +441,7 @@ func (self *CoordinatorImpl) CreateContinuousQuery(user common.User, db string, 
 
 func (self *CoordinatorImpl) DeleteContinuousQuery(user common.User, db string, id uint32) error {
 	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) {
-		return common.NewAuthorizationError("Insufficient permission to delete continuous query")
+		return common.NewAuthorizationError("Insufficient permissions to delete continuous query")
 	}
 
 	err := self.raftServer.DeleteContinuousQuery(db, id)
@@ -453,7 +453,7 @@ func (self *CoordinatorImpl) DeleteContinuousQuery(user common.User, db string, 
 
 func (self *CoordinatorImpl) ListContinuousQueries(user common.User, db string) ([]*protocol.Series, error) {
 	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) {
-		return nil, common.NewAuthorizationError("Insufficient permission to list continuous queries")
+		return nil, common.NewAuthorizationError("Insufficient permissions to list continuous queries")
 	}
 
 	queries := self.clusterConfiguration.GetContinuousQueries(db)
@@ -484,7 +484,7 @@ func (self *CoordinatorImpl) ListContinuousQueries(user common.User, db string) 
 
 func (self *CoordinatorImpl) CreateDatabase(user common.User, db string, replicationFactor uint8) error {
 	if !user.IsClusterAdmin() {
-		return common.NewAuthorizationError("Insufficient permission to create database")
+		return common.NewAuthorizationError("Insufficient permissions to create database")
 	}
 
 	if !isValidName(db) {
@@ -500,7 +500,7 @@ func (self *CoordinatorImpl) CreateDatabase(user common.User, db string, replica
 
 func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*cluster.Database, error) {
 	if !user.IsClusterAdmin() {
-		return nil, common.NewAuthorizationError("Insufficient permission to list databases")
+		return nil, common.NewAuthorizationError("Insufficient permissions to list databases")
 	}
 
 	dbs := self.clusterConfiguration.GetDatabases()
@@ -509,7 +509,7 @@ func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*cluster.Databas
 
 func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 	if !user.IsClusterAdmin() {
-		return common.NewAuthorizationError("Insufficient permission to drop database")
+		return common.NewAuthorizationError("Insufficient permissions to drop database")
 	}
 
 	if err := self.raftServer.DropDatabase(db); err != nil {
@@ -615,7 +615,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 		return fmt.Errorf("User %s already exists", username)
 	}
 	matchers := []*cluster.Matcher{&cluster.Matcher{true, ".*"}}
-	log.Debug("(raft:%s) Creating uesr %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
+	log.Debug("(raft:%s) Creating user %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
 	return self.raftServer.SaveDbUser(&cluster.DbUser{cluster.CommonUser{Name: username, CacheKey: db + "%" + username}, db, matchers, matchers, false})
 }
 

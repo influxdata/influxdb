@@ -175,6 +175,22 @@ func (self *ServerProcess) QueryWithUsername(database, query string, onlyLocal b
 	return ResultsToSeriesCollection(js)
 }
 
+func (self *ServerProcess) VerifyForbiddenQuery(database, query string, onlyLocal bool, c *C, username, password string) string {
+	encodedQuery := url.QueryEscape(query)
+	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=%s&p=%s&q=%s", self.apiPort, database, username, password, encodedQuery)
+	if onlyLocal {
+		fullUrl = fullUrl + "&force_local=true"
+	}
+	resp, err := http.Get(fullUrl)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusForbidden)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+
+	return string(body)
+}
+
 func (self *ServerProcess) Post(url, data string, c *C) *http.Response {
 	err := self.Request("POST", url, data, c)
 	time.Sleep(time.Millisecond * 10)
@@ -227,6 +243,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	self.serverProcesses[0].Post("/db/test_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
 	self.serverProcesses[0].Post("/db/single_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
 	self.serverProcesses[0].Post("/db/test_cq/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
+	self.serverProcesses[0].Post("/db/test_cq/users?u=root&p=root", "{\"name\":\"weakpaul\", \"password\":\"pass\", \"isAdmin\": false}", c)
 	time.Sleep(time.Second)
 	self.precreateShards(self.serverProcesses[0], c)
 }
@@ -833,6 +850,9 @@ func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series := collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 0)
+
+	response := self.serverProcesses[0].VerifyForbiddenQuery("test_cq", "select * from foo into bar;", false, c, "weakpaul", "pass")
+	c.Assert(response, Equals, "Insufficient permissions to create continuous query")
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from foo into bar;", false, c)
 

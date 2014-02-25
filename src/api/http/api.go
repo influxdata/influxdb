@@ -302,10 +302,12 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 
 func errorToStatusCode(err error) int {
 	switch err.(type) {
+	case AuthenticationError:
+		return libhttp.StatusUnauthorized // HTTP 401
 	case AuthorizationError:
-		return libhttp.StatusUnauthorized
+		return libhttp.StatusForbidden // HTTP 403
 	default:
-		return libhttp.StatusBadRequest
+		return libhttp.StatusBadRequest // HTTP 400
 	}
 }
 
@@ -537,6 +539,11 @@ type ApiUser struct {
 type UserDetail struct {
 	Name    string `json:"name"`
 	IsAdmin bool   `json:"isAdmin"`
+}
+
+type ContinuousQuery struct {
+	Id    int64  `json:"id"`
+	Query string `json:"query"`
 }
 
 type NewContinuousQuery struct {
@@ -850,9 +857,15 @@ func (self *HttpServer) listDbContinuousQueries(w libhttp.ResponseWriter, r *lib
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		queries, err := self.coordinator.ListContinuousQueries(u, db)
+		series, err := self.coordinator.ListContinuousQueries(u, db)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
+		}
+
+		queries := make([]ContinuousQuery, 0, len(series[0].Points))
+
+		for _, point := range series[0].Points {
+			queries = append(queries, ContinuousQuery{Id: *point.Values[0].Int64Value, Query: *point.Values[1].StringValue})
 		}
 
 		return libhttp.StatusOK, queries

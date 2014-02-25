@@ -429,6 +429,10 @@ func (self *CoordinatorSuite) TestContinuousQueryOperations(c *C) {
 	allowedUsers := []*User{&root, &dbAdmin}
 	disallowedUsers := []*User{&dbUser}
 
+	// make sure that invalid continuous queries throw an error
+	response := coordinator.CreateContinuousQuery(root, "db1", "select * from foo group by blah into bar;")
+	c.Assert(response, ErrorMatches, "^Continuous queries with a group by clause must include .*")
+
 	// cluster admins and db admins should be able to do everything
 	for _, user := range allowedUsers {
 		results, err := coordinator.ListContinuousQueries(*user, "db1")

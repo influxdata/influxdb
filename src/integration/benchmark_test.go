@@ -924,7 +924,7 @@ func (self *IntegrationSuite) TestLargeDeletes(c *C) {
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select count(val1) from test_large_deletes", "m")
 	c.Assert(err, IsNil)
-	data := []*h.SerializedSeries{}
+	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Points, HasLen, 1)
@@ -937,7 +937,7 @@ func (self *IntegrationSuite) TestLargeDeletes(c *C) {
 	// this shouldn't return any data
 	bs, err = self.server.RunQuery("select count(val1) from test_large_deletes", "m")
 	c.Assert(err, IsNil)
-	data = []*h.SerializedSeries{}
+	data = []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
 	c.Assert(err, IsNil)
 	c.Assert(data, HasLen, 0)
@@ -995,7 +995,7 @@ func (self *IntegrationSuite) TestReadingWhenColumnHasDot(c *C) {
 		bs, err := self.server.RunQuery(q, "m")
 		c.Assert(err, IsNil)
 
-		data := []*h.SerializedSeries{}
+		data := []*SerializedSeries{}
 		err = json.Unmarshal(bs, &data)
 		c.Assert(err, IsNil)
 

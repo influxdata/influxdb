@@ -800,16 +800,13 @@ func (self *ApiSuite) TestContinuousQueryOperations(c *C) {
 	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	series := []*protocol.Series{}
-	err = json.Unmarshal(body, &series)
+	queries := []ContinuousQuery{}
+	err = json.Unmarshal(body, &queries)
 	c.Assert(err, IsNil)
-	c.Assert(series, HasLen, 1)
-	c.Assert(series[0].Points, HasLen, 1)
-	c.Assert(series[0].Points[0].Values, HasLen, 2)
+	c.Assert(queries, HasLen, 1)
 
-	c.Assert(*series[0].Name, Equals, "continuous queries")
-	c.Assert(*series[0].Points[0].Values[0].Int64Value, Equals, int64(1))
-	c.Assert(*series[0].Points[0].Values[1].StringValue, Equals, "select * from foo into bar;")
+	c.Assert(queries[0].Id, Equals, int64(1))
+	c.Assert(queries[0].Query, Equals, "select * from foo into bar;")
 
 	resp.Body.Close()
 
@@ -828,20 +825,15 @@ func (self *ApiSuite) TestContinuousQueryOperations(c *C) {
 	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
 	body, err = ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	series = []*protocol.Series{}
-	err = json.Unmarshal(body, &series)
+	queries = []ContinuousQuery{}
+	err = json.Unmarshal(body, &queries)
 	c.Assert(err, IsNil)
 
-	c.Assert(series, HasLen, 1)
-	c.Assert(series[0].Points, HasLen, 2)
-	c.Assert(series[0].Points[0].Values, HasLen, 2)
-	c.Assert(series[0].Points[1].Values, HasLen, 2)
-
-	c.Assert(*series[0].Name, Equals, "continuous queries")
-	c.Assert(*series[0].Points[0].Values[0].Int64Value, Equals, int64(1))
-	c.Assert(*series[0].Points[0].Values[1].StringValue, Equals, "select * from foo into bar;")
-	c.Assert(*series[0].Points[1].Values[0].Int64Value, Equals, int64(2))
-	c.Assert(*series[0].Points[1].Values[1].StringValue, Equals, "select * from quu into qux;")
+	c.Assert(queries, HasLen, 2)
+	c.Assert(queries[0].Id, Equals, int64(1))
+	c.Assert(queries[0].Query, Equals, "select * from foo into bar;")
+	c.Assert(queries[1].Id, Equals, int64(2))
+	c.Assert(queries[1].Query, Equals, "select * from quu into qux;")
 
 	resp.Body.Close()
 
@@ -863,15 +855,11 @@ func (self *ApiSuite) TestContinuousQueryOperations(c *C) {
 	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
 	body, err = ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	series = []*protocol.Series{}
-	err = json.Unmarshal(body, &series)
+	queries = []ContinuousQuery{}
+	err = json.Unmarshal(body, &queries)
 	c.Assert(err, IsNil)
-	c.Assert(series, HasLen, 1)
-	c.Assert(series[0].Points, HasLen, 1)
-	c.Assert(series[0].Points[0].Values, HasLen, 2)
-
-	c.Assert(*series[0].Name, Equals, "continuous queries")
-	c.Assert(*series[0].Points[0].Values[0].Int64Value, Equals, int64(1))
-	c.Assert(*series[0].Points[0].Values[1].StringValue, Equals, "select * from foo into bar;")
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].Id, Equals, int64(1))
+	c.Assert(queries[0].Query, Equals, "select * from foo into bar;")
 	resp.Body.Close()
 }
