@@ -916,6 +916,7 @@ func (self *IntegrationSuite) TestDeleteQuery(c *C) {
   }
 ]`)
 		c.Assert(err, IsNil)
+		time.Sleep(time.Second)
 		bs, err := self.server.RunQuery("select val1 from test_delete_query", "m")
 		c.Assert(err, IsNil)
 		data := []*SerializedSeries{}
