@@ -1272,13 +1272,7 @@ func (self *EngineSuite) TestDerivativeQueryWithOnePoint(c *C) {
     }
   ]`)
 
-	self.runQuery("select derivative(column_one) from foo", c, `[
-    {
-      "points": [],
-      "name": "foo",
-      "fields": ["derivative"]
-    }
-  ]`)
+	self.runQuery("select derivative(column_one) from foo", c, `[]`)
 }
 
 func (self *EngineSuite) TestDistinctQuery(c *C) {
