@@ -709,9 +709,7 @@ func (self *IntegrationSuite) TestIssue106(c *C) {
 	c.Assert(err, IsNil)
 	data := []*SerializedSeries{}
 	err = json.Unmarshal(bs, &data)
-	c.Assert(data, HasLen, 1)
-	c.Assert(data[0].Columns, HasLen, 3)
-	c.Assert(data[0].Points, HasLen, 0)
+	c.Assert(data, HasLen, 0)
 }
 
 func (self *IntegrationSuite) TestIssue105(c *C) {
