@@ -1,4 +1,4 @@
-package datastore
+package engine
 
 import (
 	"fmt"
@@ -6,6 +6,26 @@ import (
 	"protocol"
 	"strconv"
 )
+
+// Pair this with a query on a specific series for queries with a where clause
+type PointFilter struct {
+	columns          map[string]bool
+	queryColumnNames []string
+	where            *parser.WhereCondition
+}
+
+func NewPointFilter(query *parser.SelectQuery, queryColumnNames []string) *PointFilter {
+	columns := map[string]bool{}
+	getColumns(query.GetColumnNames(), columns)
+	getColumns(query.GetGroupByClause().Elems, columns)
+	return &PointFilter{columns: columns, queryColumnNames: queryColumnNames, where: query.GetWhereCondition()}
+}
+
+func (self *PointFilter) matchesWhereClause(point *protocol.Point) bool {
+	fmt.Println("matchesWhereClause: ", point, self.queryColumnNames)
+	ok, _ := matches(self.where, self.queryColumnNames, point)
+	return ok
+}
 
 func getExpressionValue(values []*parser.Value, fields []string, point *protocol.Point) ([]*protocol.FieldValue, error) {
 	fieldValues := []*protocol.FieldValue{}

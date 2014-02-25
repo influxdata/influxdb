@@ -140,7 +140,7 @@ var (
 	DATABASE_SERIES_INDEX_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 	MAX_SEQUENCE                 = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
-	replicateWrite = protocol.Request_REPLICATION_WRITE
+	// replicateWrite = protocol.Request_REPLICATION_WRITE
 
 	TRUE = true
 )
@@ -519,9 +519,9 @@ func (self *LevelDbDatastore) LogRequestAndAssignSequenceNumber(request *protoco
 	self.requestLogLock.RUnlock()
 
 	// proxied writes should be logged as replicated ones. That's what is expected if they're replayed later
-	if *request.Type == protocol.Request_PROXY_WRITE {
-		request.Type = &replicateWrite
-	}
+	// if *request.Type == protocol.Request_PROXY_WRITE {
+	// 	request.Type = &replicateWrite
+	// }
 
 	data, err := request.Encode()
 	if err != nil {
@@ -924,14 +924,14 @@ func (self *LevelDbDatastore) sendBatch(query *parser.SelectQuery, series *proto
 
 		lengthBeforeFiltering := len(newSeries.Points)
 		var filteredResult *protocol.Series
-		var err error
+		// var err error
 		if query.GetFromClause().Type == parser.FromClauseInnerJoin {
 			filteredResult = newSeries
 		} else {
-			filteredResult, err = Filter(query, newSeries)
-			if err != nil {
-				return 0, err
-			}
+			// filteredResult, err = Filter(query, newSeries)
+			// if err != nil {
+			// 	return 0, err
+			// }
 		}
 		_dropped := lengthBeforeFiltering - len(filteredResult.Points)
 		if _dropped < dropped {

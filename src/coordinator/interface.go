@@ -1,9 +1,9 @@
 package coordinator
 
 import (
+	"cluster"
 	"common"
 	"net"
-	"parser"
 	"protocol"
 )
 
@@ -16,22 +16,17 @@ type Coordinator interface {
 	//      for all the data points that are returned
 	//   4. The end of a time series is signaled by returning a series with no data points
 	//   5. TODO: Aggregation on the nodes
-	DistributeQuery(user common.User, db string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) error
 	WriteSeriesData(user common.User, db string, series *protocol.Series) error
-	DeleteSeriesData(user common.User, db string, query *parser.DeleteQuery, localOnly bool) error
 	DropDatabase(user common.User, db string) error
-	DropSeries(user common.User, db, series string) error
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ForceCompaction(user common.User) error
-	ListDatabases(user common.User) ([]*Database, error)
-	ListSeries(user common.User, database string) ([]*protocol.Series, error)
-	ReplicateWrite(request *protocol.Request) error
-	ReplicateDelete(request *protocol.Request) error
-	ReplayReplication(request *protocol.Request, replicationFactor *uint8, owningServerId *uint32, lastSeenSequenceNumber *uint64)
-	GetLastSequenceNumber(replicationFactor uint8, ownerServerId, originatingServerId uint32) (uint64, error)
+	ListDatabases(user common.User) ([]*cluster.Database, error)
 	DeleteContinuousQuery(user common.User, db string, id uint32) error
 	CreateContinuousQuery(user common.User, db string, query string) error
 	ListContinuousQueries(user common.User, db string) ([]*protocol.Series, error)
+
+	// v2 clustering, based on sharding instead of the circular hash ring
+	RunQuery(user common.User, db, query string, seriesWriter SeriesWriter) error
 }
 
 type UserManager interface {
@@ -68,14 +63,14 @@ type ClusterConsensus interface {
 	DropDatabase(name string) error
 	CreateContinuousQuery(db string, query string) error
 	DeleteContinuousQuery(db string, id uint32) error
-	SaveClusterAdminUser(u *clusterAdmin) error
-	SaveDbUser(user *dbUser) error
+	SaveClusterAdminUser(u *cluster.ClusterAdmin) error
+	SaveDbUser(user *cluster.DbUser) error
 	ChangeDbUserPassword(db, username string, hash []byte) error
 
 	// an insert index of -1 will append to the end of the ring
-	AddServer(server *ClusterServer, insertIndex int) error
+	AddServer(server *cluster.ClusterServer, insertIndex int) error
 	// only servers that are in a Potential state can be moved around in the ring
-	MovePotentialServer(server *ClusterServer, insertIndex int) error
+	MovePotentialServer(server *cluster.ClusterServer, insertIndex int) error
 	/*
 		Activate tells the cluster to start sending writes to this node.
 		The node will also make requests to the other servers to backfill any
@@ -83,13 +78,13 @@ type ClusterConsensus interface {
 		Once the new node updates it state to "Running" the other servers will
 		  delete all of the data that they no longer have to keep from the ring
 	*/
-	ActivateServer(server *ClusterServer) error
+	ActivateServer(server *cluster.ClusterServer) error
 
 	// Efficient method to have a potential server take the place of a running (or downed)
 	// server. The replacement must have a state of "Potential" for this to work.
-	ReplaceServer(oldServer *ClusterServer, replacement *ClusterServer) error
+	ReplaceServer(oldServer *cluster.ClusterServer, replacement *cluster.ClusterServer) error
 
-	AssignEngineAndCoordinator(engine queryRunner, coordinator *CoordinatorImpl) error
+	AssignCoordinator(coordinator *CoordinatorImpl) error
 
 	// When a cluster is turned on for the first time.
 	CreateRootUser() error

@@ -27,30 +27,25 @@ message QueryResponseChunk {
 
 message Request {
   enum Type {
-    QUERY = 1;
-    REPLICATION_WRITE = 2;
-    PROXY_WRITE = 3;
-    REPLICATION_DELETE = 4;
-    PROXY_DELETE = 5;
+    WRITE = 1;
+    QUERY = 2;
+    DROP_DATABASE = 3;
     REPLICATION_REPLAY = 6;
-    LIST_SERIES = 7;
     SEQUENCE_NUMBER = 8;
-    PROXY_DROP_DATABASE = 9;
-    REPLICATION_DROP_DATABASE = 10;
-    PROXY_DROP_SERIES = 11;
-    REPLICATION_DROP_SERIES = 12;
+    HEARTBEAT = 7;
   }
-  required uint32 id = 1;
+  optional uint32 id = 1;
   required Type type = 2;
   required string database = 3;
   optional Series series = 4;
   // only write and delete requests get sequenceNumbers assigned. These are used to
   // ensure that the receiving server is up to date
   optional uint64 sequence_number = 5;
+  optional uint32 shard_id = 6;
   // the originzatingServerId is only used for writes and deletes. It is the id of the
   // server that first committed the write to its local datastore. It is used for
   // the other servers in the hash ring to ensure they remain consistent.
-  optional uint32 originating_server_id = 6;
+  optional uint32 originating_server_id = 21;
   optional uint32 cluster_version = 10;
   optional string query = 7;
   optional string user_name = 8;
@@ -66,6 +61,9 @@ message Request {
   optional uint32 owner_server_id = 17;
   optional uint64 last_known_sequence_number = 18;
   optional bool is_db_user = 19;
+
+  // This number is used by the WAL to track which requests have been committed.
+  optional uint32 request_number = 20;
 }
 
 message Response {
@@ -75,8 +73,10 @@ message Response {
     END_STREAM = 3;
     REPLICATION_REPLAY = 4;
     REPLICATION_REPLAY_END = 5;
-    LIST_SERIES = 6;
     SEQUENCE_NUMBER = 7;
+    // Access denied also serves as an end of stream response
+    ACCESS_DENIED = 8;
+    HEARTBEAT = 9;
   }
   enum ErrorCode {
     REQUEST_TOO_LARGE = 1;
@@ -89,4 +89,5 @@ message Response {
   optional string error_message = 5;
   optional int64 nextPointTime = 6;
   optional Request request = 7;
+  repeated Series multi_series = 8;
 }

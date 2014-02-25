@@ -1,14 +1,20 @@
-package datastore
+package engine
 
 import (
 	"common"
 	. "launchpad.net/gocheck"
 	"parser"
+	"testing"
 )
 
 type FilteringSuite struct{}
 
 var _ = Suite(&FilteringSuite{})
+
+// Hook up gocheck into the gotest runner.
+func Test(t *testing.T) {
+	TestingT(t)
+}
 
 func (self *FilteringSuite) TestInOperatorFiltering(c *C) {
 	queryStr := "select * from t where column_one in (100, 85);"

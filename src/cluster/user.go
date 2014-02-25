@@ -1,4 +1,4 @@
-package coordinator
+package cluster
 
 import (
 	"code.google.com/p/go.crypto/bcrypt"
@@ -40,7 +40,7 @@ func (self *CommonUser) IsDeleted() bool {
 	return self.IsUserDeleted
 }
 
-func (self *CommonUser) changePassword(hash string) error {
+func (self *CommonUser) ChangePassword(hash string) error {
 	self.Hash = hash
 	userCache.Delete(self.CacheKey)
 	return nil
@@ -78,23 +78,23 @@ func (self *CommonUser) HasReadAccess(name string) bool {
 	return false
 }
 
-type clusterAdmin struct {
+type ClusterAdmin struct {
 	CommonUser `json:"common"`
 }
 
-func (self *clusterAdmin) IsClusterAdmin() bool {
+func (self *ClusterAdmin) IsClusterAdmin() bool {
 	return true
 }
 
-func (self *clusterAdmin) HasWriteAccess(_ string) bool {
+func (self *ClusterAdmin) HasWriteAccess(_ string) bool {
 	return true
 }
 
-func (self *clusterAdmin) HasReadAccess(_ string) bool {
+func (self *ClusterAdmin) HasReadAccess(_ string) bool {
 	return true
 }
 
-type dbUser struct {
+type DbUser struct {
 	CommonUser `json:"common"`
 	Db         string     `json:"db"`
 	WriteTo    []*Matcher `json:"write_matchers"`
@@ -102,11 +102,11 @@ type dbUser struct {
 	IsAdmin    bool       `json:"is_admin"`
 }
 
-func (self *dbUser) IsDbAdmin(db string) bool {
+func (self *DbUser) IsDbAdmin(db string) bool {
 	return self.IsAdmin && self.Db == db
 }
 
-func (self *dbUser) HasWriteAccess(name string) bool {
+func (self *DbUser) HasWriteAccess(name string) bool {
 	for _, matcher := range self.WriteTo {
 		if matcher.Matches(name) {
 			return true
@@ -116,7 +116,7 @@ func (self *dbUser) HasWriteAccess(name string) bool {
 	return false
 }
 
-func (self *dbUser) HasReadAccess(name string) bool {
+func (self *DbUser) HasReadAccess(name string) bool {
 	for _, matcher := range self.ReadFrom {
 		if matcher.Matches(name) {
 			return true
@@ -126,13 +126,11 @@ func (self *dbUser) HasReadAccess(name string) bool {
 	return false
 }
 
-func (self *dbUser) GetDb() string {
+func (self *DbUser) GetDb() string {
 	return self.Db
 }
 
-// private funcs
-
-func hashPassword(password string) ([]byte, error) {
+func HashPassword(password string) ([]byte, error) {
 	// The second arg is the cost of the hashing, higher is slower but makes it harder
 	// to brute force, since it will be really slow and impractical
 	return bcrypt.GenerateFromPassword([]byte(password), 10)

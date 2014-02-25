@@ -105,6 +105,17 @@ func (self *SelectQuery) revertAlias(mapping map[string][]string) {
 	}
 }
 
+// Returns true if the query has aggregate functions applied to the
+// columns
+func (self *SelectQuery) HasAggregates() bool {
+	for _, column := range self.GetColumnNames() {
+		if column.IsFunctionCall() {
+			return true
+		}
+	}
+	return false
+}
+
 // Returns a mapping from the time series names (or regex) to the
 // column names that are references
 func (self *SelectQuery) GetReferencedColumns() map[*Value][]string {

@@ -49,7 +49,8 @@ func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	protobufServer := NewProtobufServer(":8091", requestHandler)
 	go protobufServer.ListenAndServe()
 	c.Assert(protobufServer, Not(IsNil))
-	protobufClient := NewProtobufClient("localhost:8091")
+	protobufClient := NewProtobufClient("localhost:8091", 0)
+	protobufClient.Connect()
 	responseStream := make(chan *protocol.Response, 1)
 
 	mock := `
@@ -68,7 +69,7 @@ func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	series.Points[0].SequenceNumber = &s
 	id := uint32(1)
 	database := "pauldb"
-	proxyWrite := protocol.Request_PROXY_WRITE
+	proxyWrite := protocol.Request_WRITE
 	request := &protocol.Request{Id: &id, Type: &proxyWrite, Database: &database, Series: series}
 
 	time.Sleep(time.Second * 1)

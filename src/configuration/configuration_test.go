@@ -3,6 +3,7 @@ package configuration
 import (
 	. "launchpad.net/gocheck"
 	"testing"
+	"time"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -39,5 +40,13 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	c.Assert(config.DataDir, Equals, "/tmp/influxdb/development/db")
 
 	c.Assert(config.ProtobufPort, Equals, 8099)
+	c.Assert(config.ProtobufHeartbeatInterval.Duration, Equals, 200*time.Millisecond)
+	c.Assert(config.ProtobufTimeout.Duration, Equals, 2*time.Second)
 	c.Assert(config.SeedServers, DeepEquals, []string{"hosta:8090", "hostb:8090"})
+
+	c.Assert(config.WalDir, Equals, "/tmp/influxdb/development/wal")
+	c.Assert(config.WalFlushAfterRequests, Equals, 0)
+	c.Assert(config.WalBookmarkAfterRequests, Equals, 0)
+	c.Assert(config.WalIndexAfterRequests, Equals, 1000)
+	c.Assert(config.WalRequestsPerLogFile, Equals, 10000)
 }

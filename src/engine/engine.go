@@ -1,14 +1,11 @@
 package engine
 
 import (
+	log "code.google.com/p/log4go"
 	"common"
-	"coordinator"
-	"datastore"
 	"fmt"
-	"os"
 	"parser"
 	"protocol"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,97 +13,36 @@ import (
 )
 
 type QueryEngine struct {
-	coordinator coordinator.Coordinator
+	query          *parser.SelectQuery
+	where          *parser.WhereCondition
+	responseChan   chan *protocol.Response
+	shouldLimit    bool
+	limit          int
+	seriesToPoints map[string]*protocol.Series
+	yield          func(*protocol.Series) error
+
+	// variables for aggregate queries
+	isAggregateQuery    bool
+	aggregators         []Aggregator
+	duration            *time.Duration
+	timestampAggregator Aggregator
+	groups              map[string]map[Group]bool
+	pointsRange         map[string]*PointRange
+	groupBy             *parser.GroupByClause
+	aggregateYield      func(*protocol.Series) error
 }
 
-func (self *QueryEngine) RunQuery(user common.User, database string, queryString string, localOnly bool, yield func(*protocol.Series) error) (err error) {
-	// don't let a panic pass beyond RunQuery
-	defer recoverFunc(database, queryString)
+const (
+	POINT_BATCH_SIZE = 100
+)
 
-	q, err := parser.ParseQuery(queryString)
-	if err != nil {
-		return err
-	}
-
-	for _, query := range q {
-		if query.DeleteQuery != nil {
-			if err := self.coordinator.DeleteSeriesData(user, database, query.DeleteQuery, localOnly); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if query.DropQuery != nil {
-			if err := self.coordinator.DeleteContinuousQuery(user, database, uint32(query.DropQuery.Id)); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if query.IsListQuery() {
-			if query.IsListSeriesQuery() {
-				series, err := self.coordinator.ListSeries(user, database)
-				if err != nil {
-					return err
-				}
-				for _, s := range series {
-					if err := yield(s); err != nil {
-						return err
-					}
-				}
-			} else if query.IsListContinuousQueriesQuery() {
-				queries, err := self.coordinator.ListContinuousQueries(user, database)
-				if err != nil {
-					return err
-				}
-				for _, q := range queries {
-					if err := yield(q); err != nil {
-						return err
-					}
-				}
-			}
-			continue
-		}
-
-		if query.DropSeriesQuery != nil {
-			err := self.coordinator.DropSeries(user, database, query.DropSeriesQuery.GetTableName())
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		selectQuery := query.SelectQuery
-
-		if selectQuery.IsContinuousQuery() {
-			return self.coordinator.CreateContinuousQuery(user, database, queryString)
-		}
-
-		if isAggregateQuery(selectQuery) {
-			return self.executeCountQueryWithGroupBy(user, database, selectQuery, localOnly, yield)
-		} else if containsArithmeticOperators(selectQuery) {
-			return self.executeArithmeticQuery(user, database, selectQuery, localOnly, yield)
-		} else {
-			return self.distributeQuery(user, database, selectQuery, localOnly, yield)
-		}
-	}
-	return nil
-}
-
-func recoverFunc(database, query string) {
-	if err := recover(); err != nil {
-		fmt.Fprintf(os.Stderr, "********************************BUG********************************\n")
-		buf := make([]byte, 1024)
-		n := runtime.Stack(buf, false)
-		fmt.Fprintf(os.Stderr, "Database: %s\n", database)
-		fmt.Fprintf(os.Stderr, "Query: [%s]\n", query)
-		fmt.Fprintf(os.Stderr, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
-		err = common.NewQueryError(common.InternalError, "Internal Error")
-	}
-}
+var (
+	responseQuery     = protocol.Response_QUERY
+	responseEndStream = protocol.Response_END_STREAM
+)
 
 // distribute query and possibly do the merge/join before yielding the points
-func (self *QueryEngine) distributeQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool, yield func(*protocol.Series) error) (err error) {
+func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*protocol.Series) error) (err error) {
 	// see if this is a merge query
 	fromClause := query.GetFromClause()
 	if fromClause.Type == parser.FromClauseMerge {
@@ -117,25 +53,165 @@ func (self *QueryEngine) distributeQuery(user common.User, database string, quer
 		yield = getJoinYield(query, yield)
 	}
 
-	return self.coordinator.DistributeQuery(user, database, query, localOnly, yield)
+	self.yield = yield
+	return nil
 }
 
-func NewQueryEngine(c coordinator.Coordinator) (EngineI, error) {
-	return &QueryEngine{c}, nil
+func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Response) *QueryEngine {
+	limit := query.Limit
+	shouldLimit := true
+	if limit == 0 {
+		shouldLimit = false
+	}
+
+	queryEngine := &QueryEngine{
+		query:          query,
+		where:          query.GetWhereCondition(),
+		limit:          limit,
+		shouldLimit:    shouldLimit,
+		responseChan:   responseChan,
+		seriesToPoints: make(map[string]*protocol.Series),
+	}
+
+	yield := func(series *protocol.Series) error {
+		response := &protocol.Response{Type: &responseQuery, Series: series}
+		responseChan <- response
+		return nil
+	}
+
+	if query.HasAggregates() {
+		queryEngine.executeCountQueryWithGroupBy(query, yield)
+	} else if containsArithmeticOperators(query) {
+		queryEngine.executeArithmeticQuery(query, yield)
+	} else {
+		queryEngine.distributeQuery(query, yield)
+	}
+
+	return queryEngine
+}
+
+// Returns false if the query should be stopped (either because of limit or error)
+func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, point *protocol.Point) (shouldContinue bool) {
+	shouldContinue = true
+	series := self.seriesToPoints[*seriesName]
+	if series == nil {
+		series = &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+		self.seriesToPoints[*seriesName] = series
+	} else if len(series.Points) >= POINT_BATCH_SIZE {
+		shouldContinue = self.yieldSeriesData(series)
+		series = &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+		self.seriesToPoints[*seriesName] = series
+	}
+	series.Points = append(series.Points, point)
+
+	return shouldContinue
+}
+
+func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
+	var err error
+	if self.where != nil {
+		serieses, err := self.filter(series)
+		if err != nil {
+			log.Error("Error while filtering points: %s\n", err)
+			return false
+		}
+		for _, series := range serieses {
+			if len(series.Points) > 0 {
+				self.calculateLimitAndSlicePoints(series)
+				if len(series.Points) > 0 {
+					err = self.yield(series)
+				}
+			}
+		}
+	} else {
+		self.calculateLimitAndSlicePoints(series)
+
+		if len(series.Points) > 0 {
+			err = self.yield(series)
+		}
+	}
+	if err != nil {
+		return false
+	}
+	return !self.hitLimit()
+}
+
+// TODO: make limits work for aggregate queries and for queries that pull from multiple series.
+func (self *QueryEngine) calculateLimitAndSlicePoints(series *protocol.Series) {
+	if !self.isAggregateQuery && self.shouldLimit {
+		self.limit -= len(series.Points)
+		if self.limit < 0 {
+			sliceTo := len(series.Points) + self.limit
+			if sliceTo > 0 {
+				series.Points = series.Points[0:sliceTo]
+			}
+		}
+	}
+}
+
+func (self *QueryEngine) hitLimit() bool {
+	if self.isAggregateQuery || !self.shouldLimit {
+		return false
+	}
+	return self.limit < 1
+}
+
+func (self *QueryEngine) filter(series *protocol.Series) ([]*protocol.Series, error) {
+	aliases := self.query.GetTableAliases(*series.Name)
+	result := make([]*protocol.Series, len(aliases), len(aliases))
+	for i, alias := range aliases {
+		_alias := alias
+		newSeries := &protocol.Series{Name: &_alias, Points: series.Points, Fields: series.Fields}
+
+		filteredResult := newSeries
+		var err error
+
+		// var err error
+		if self.query.GetFromClause().Type != parser.FromClauseInnerJoin {
+			filteredResult, err = Filter(self.query, newSeries)
+			if err != nil {
+				return nil, err
+			}
+		}
+		result[i] = filteredResult
+	}
+	return result, nil
+}
+
+func (self *QueryEngine) Close() {
+	for _, series := range self.seriesToPoints {
+		if len(series.Points) == 0 {
+			continue
+		}
+		self.yieldSeriesData(series)
+	}
+
+	var err error
+	for _, series := range self.seriesToPoints {
+		s := &protocol.Series{
+			Name:   series.Name,
+			Fields: series.Fields,
+		}
+		err = self.yield(s)
+		if err != nil {
+			break
+		}
+	}
+
+	if self.isAggregateQuery {
+		self.runAggregates()
+	}
+	response := &protocol.Response{Type: &responseEndStream}
+	if err != nil {
+		message := err.Error()
+		response.ErrorMessage = &message
+	}
+	self.responseChan <- response
 }
 
 func containsArithmeticOperators(query *parser.SelectQuery) bool {
 	for _, column := range query.GetColumnNames() {
 		if column.Type == parser.ValueExpression {
-			return true
-		}
-	}
-	return false
-}
-
-func isAggregateQuery(query *parser.SelectQuery) bool {
-	for _, column := range query.GetColumnNames() {
-		if column.IsFunctionCall() {
 			return true
 		}
 	}
@@ -272,14 +348,17 @@ func crossProduct(values [][][]*protocol.FieldValue) [][]*protocol.FieldValue {
 	return returnValues
 }
 
-func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database string, query *parser.SelectQuery, localOnly bool,
-	yield func(*protocol.Series) error) error {
+func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery, yield func(*protocol.Series) error) error {
+	self.aggregateYield = yield
 	duration, err := query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return err
 	}
 
-	aggregators := []Aggregator{}
+	self.isAggregateQuery = true
+	self.duration = duration
+	self.aggregators = []Aggregator{}
+
 	for _, value := range query.GetColumnNames() {
 		if value.IsFunctionCall() {
 			lowerCaseName := strings.ToLower(value.Name)
@@ -291,56 +370,56 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 			if err != nil {
 				return err
 			}
-			aggregators = append(aggregators, aggregator)
+			self.aggregators = append(self.aggregators, aggregator)
 		}
 	}
 	timestampAggregator, err := NewTimestampAggregator(query, nil)
 	if err != nil {
 		return err
 	}
+	self.timestampAggregator = timestampAggregator
+	self.groups = make(map[string]map[Group]bool)
+	self.pointsRange = make(map[string]*PointRange)
+	self.groupBy = query.GetGroupByClause()
 
-	groups := make(map[string]map[Group]bool)
-	pointsRange := make(map[string]*PointRange)
-	groupBy := query.GetGroupByClause()
-
-	err = self.distributeQuery(user, database, query, localOnly, func(series *protocol.Series) error {
+	err = self.distributeQuery(query, func(series *protocol.Series) error {
 		if len(series.Points) == 0 {
 			return nil
 		}
 
 		var mapper Mapper
-		mapper, err = createValuesToInterface(groupBy, series.Fields)
+		mapper, err = createValuesToInterface(self.groupBy, series.Fields)
 		if err != nil {
 			return err
 		}
 
-		for _, aggregator := range aggregators {
+		for _, aggregator := range self.aggregators {
 			if err := aggregator.InitializeFieldsMetadata(series); err != nil {
 				return err
 			}
 		}
 
-		currentRange := pointsRange[*series.Name]
+		currentRange := self.pointsRange[*series.Name]
 		for _, point := range series.Points {
 			value := mapper(point)
-			for _, aggregator := range aggregators {
+			for _, aggregator := range self.aggregators {
 				err := aggregator.AggregatePoint(*series.Name, value, point)
 				if err != nil {
 					return err
 				}
 			}
 
-			timestampAggregator.AggregatePoint(*series.Name, value, point)
-			seriesGroups := groups[*series.Name]
+			self.timestampAggregator.AggregatePoint(*series.Name, value, point)
+			seriesGroups := self.groups[*series.Name]
 			if seriesGroups == nil {
 				seriesGroups = make(map[Group]bool)
-				groups[*series.Name] = seriesGroups
+				self.groups[*series.Name] = seriesGroups
 			}
 			seriesGroups[value] = true
 
 			if currentRange == nil {
 				currentRange = &PointRange{*point.Timestamp, *point.Timestamp}
-				pointsRange[*series.Name] = currentRange
+				self.pointsRange[*series.Name] = currentRange
 			} else {
 				currentRange.UpdateRange(point)
 			}
@@ -349,18 +428,21 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 		return nil
 	})
 
-	if err != nil {
-		return err
-	}
+	return err
+}
+
+func (self *QueryEngine) runAggregates() {
+	duration := self.duration
+	query := self.query
 
 	fields := []string{}
 
-	for _, aggregator := range aggregators {
+	for _, aggregator := range self.aggregators {
 		columnNames := aggregator.ColumnNames()
 		fields = append(fields, columnNames...)
 	}
 
-	for _, value := range groupBy.Elems {
+	for _, value := range self.groupBy.Elems {
 		if value.IsFunctionCall() {
 			continue
 		}
@@ -369,7 +451,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 		fields = append(fields, tempName)
 	}
 
-	for table, tableGroups := range groups {
+	for table, tableGroups := range self.groups {
 		tempTable := table
 		points := []*protocol.Point{}
 
@@ -384,7 +466,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 
 		} else {
 			groupsWithTime := map[Group]bool{}
-			timeRange, ok := pointsRange[table]
+			timeRange, ok := self.pointsRange[table]
 			if ok {
 				first := timeRange.startTime * 1000 / int64(*duration) * int64(*duration)
 				end := timeRange.endTime * 1000 / int64(*duration) * int64(*duration)
@@ -415,9 +497,9 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 			}
 		} else {
 			if query.Ascending {
-				sortedGroups = &AscendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, timestampAggregator}
+				sortedGroups = &AscendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, self.timestampAggregator}
 			} else {
-				sortedGroups = &DescendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, timestampAggregator}
+				sortedGroups = &DescendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, self.timestampAggregator}
 			}
 		}
 		sort.Sort(sortedGroups)
@@ -427,11 +509,11 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 			if groupId.HasTimestamp() {
 				timestamp = groupId.GetTimestamp()
 			} else {
-				timestamp = *timestampAggregator.GetValues(table, groupId)[0][0].Int64Value
+				timestamp = *self.timestampAggregator.GetValues(table, groupId)[0][0].Int64Value
 			}
 			values := [][][]*protocol.FieldValue{}
 
-			for _, aggregator := range aggregators {
+			for _, aggregator := range self.aggregators {
 				values = append(values, aggregator.GetValues(table, groupId))
 			}
 
@@ -447,7 +529,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 
 				// FIXME: this should be looking at the fields slice not the group by clause
 				// FIXME: we should check whether the selected columns are in the group by clause
-				for idx, _ := range groupBy.Elems {
+				for idx, _ := range self.groupBy.Elems {
 					if duration != nil && idx == 0 {
 						continue
 					}
@@ -476,14 +558,11 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(user common.User, database
 			Fields: fields,
 			Points: points,
 		}
-		yield(expectedData)
+		self.aggregateYield(expectedData)
 	}
-
-	return nil
 }
 
-func (self *QueryEngine) executeArithmeticQuery(user common.User, database string, query *parser.SelectQuery, localOnly bool,
-	yield func(*protocol.Series) error) error {
+func (self *QueryEngine) executeArithmeticQuery(query *parser.SelectQuery, yield func(*protocol.Series) error) error {
 
 	names := map[string]*parser.Value{}
 	for idx, v := range query.GetColumnNames() {
@@ -497,7 +576,7 @@ func (self *QueryEngine) executeArithmeticQuery(user common.User, database strin
 		}
 	}
 
-	return self.distributeQuery(user, database, query, localOnly, func(series *protocol.Series) error {
+	return self.distributeQuery(query, func(series *protocol.Series) error {
 		if len(series.Points) == 0 {
 			yield(series)
 			return nil
@@ -519,7 +598,7 @@ func (self *QueryEngine) executeArithmeticQuery(user common.User, database strin
 			}
 			for _, field := range newSeries.Fields {
 				value := names[field]
-				v, err := datastore.GetValue(value, series.Fields, point)
+				v, err := GetValue(value, series.Fields, point)
 				if err != nil {
 					return err
 				}

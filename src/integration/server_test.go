@@ -2,6 +2,7 @@ package integration
 
 import (
 	"bytes"
+	"common"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -70,35 +71,50 @@ func (self *ServerProcess) Stop() {
 	self.p = nil
 }
 
-func ResultsToSeriesCollection(results []interface{}) *SeriesCollection {
-	collection := &SeriesCollection{Members: make([]*Series, 0)}
-	for _, result := range results {
-		seriesResult := result.(map[string]interface{})
-		series := &Series{}
-		series.Name = seriesResult["name"].(string)
-		columns := seriesResult["columns"].([]interface{})
-		series.Columns = make([]string, 0)
-		for _, col := range columns {
-			series.Columns = append(series.Columns, col.(string))
-		}
-		points := seriesResult["points"].([]interface{})
-		series.Points = make([]*Point, 0)
-		for _, point := range points {
-			series.Points = append(series.Points, &Point{Values: point.([]interface{})})
-		}
-		collection.Members = append(collection.Members, series)
+func (self *ServerSuite) precreateShards(server *ServerProcess, c *C) {
+	time.Sleep(time.Second)
+	self.createShards(server, int64(3600), "false", c)
+	self.createShards(server, int64(86400), "true", c)
+	time.Sleep(time.Second)
+}
+
+func (self ServerSuite) createShards(server *ServerProcess, bucketSize int64, longTerm string, c *C) {
+	serverCount := 3
+	nowBucket := time.Now().Unix() / bucketSize * bucketSize
+	startIndex := 0
+
+	for i := 0; i <= 50; i++ {
+		serverId1 := startIndex%serverCount + 1
+		startIndex += 1
+		serverId2 := startIndex%serverCount + 1
+		startIndex += 1
+		data := fmt.Sprintf(`{
+			"startTime":%d,
+			"endTime":%d,
+			"longTerm": %s,
+			"shards": [{
+				"serverIds": [%d, %d]
+			}]
+		}`, nowBucket, nowBucket+bucketSize, longTerm, serverId1, serverId2)
+
+		resp := server.Post("/cluster/shards?u=root&p=root", data, c)
+		c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+		nowBucket -= bucketSize
 	}
-	return collection
+}
+
+func ResultsToSeriesCollection(results []*common.SerializedSeries) *SeriesCollection {
+	return &SeriesCollection{Members: results}
 }
 
 type SeriesCollection struct {
-	Members []*Series
+	Members []*common.SerializedSeries
 }
 
 func (self *SeriesCollection) GetSeries(name string, c *C) *Series {
 	for _, s := range self.Members {
 		if s.Name == name {
-			return s
+			return &Series{s}
 		}
 	}
 	c.Fatalf("Couldn't find series '%s' in:\n", name, self)
@@ -106,9 +122,7 @@ func (self *SeriesCollection) GetSeries(name string, c *C) *Series {
 }
 
 type Series struct {
-	Name    string
-	Columns []string
-	Points  []*Point
+	*common.SerializedSeries
 }
 
 func (self *Series) GetValueForPointAndColumn(pointIndex int, columnName string, c *C) interface{} {
@@ -125,7 +139,7 @@ func (self *Series) GetValueForPointAndColumn(pointIndex int, columnName string,
 	if pointIndex > len(self.Points)-1 {
 		c.Errorf("Fewer than %d points in series '%s':\n", pointIndex+1, self.Name, self)
 	}
-	return self.Points[pointIndex].Values[columnIndex]
+	return self.Points[pointIndex][columnIndex]
 }
 
 type Point struct {
@@ -152,7 +166,7 @@ func (self *ServerProcess) QueryWithUsername(database, query string, onlyLocal b
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	var js []interface{}
+	var js []*common.SerializedSeries
 	err = json.Unmarshal(body, &js)
 	if err != nil {
 		fmt.Println("NOT JSON: ", string(body))
@@ -178,7 +192,29 @@ func (self *ServerProcess) VerifyForbiddenQuery(database, query string, onlyLoca
 }
 
 func (self *ServerProcess) Post(url, data string, c *C) *http.Response {
-	return self.Request("POST", url, data, c)
+	err := self.Request("POST", url, data, c)
+	time.Sleep(time.Millisecond * 10)
+	return err
+}
+
+func (self *ServerProcess) Delete(url, body string, c *C) *http.Response {
+	err := self.Request("DELETE", url, body, c)
+	time.Sleep(time.Millisecond * 10)
+	return err
+}
+
+func (self *ServerProcess) PostGetBody(url, data string, c *C) []byte {
+	resp := self.Request("POST", url, data, c)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	return body
+}
+
+func (self *ServerProcess) Get(url string, c *C) []byte {
+	resp := self.Request("GET", url, "", c)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	return body
 }
 
 func (self *ServerProcess) Request(method, url, data string, c *C) *http.Response {
@@ -209,11 +245,144 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	self.serverProcesses[0].Post("/db/test_cq/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
 	self.serverProcesses[0].Post("/db/test_cq/users?u=root&p=root", "{\"name\":\"weakpaul\", \"password\":\"pass\", \"isAdmin\": false}", c)
 	time.Sleep(time.Second)
+	self.precreateShards(self.serverProcesses[0], c)
 }
 
 func (self *ServerSuite) TearDownSuite(c *C) {
 	for _, s := range self.serverProcesses {
 		s.Stop()
+	}
+}
+
+func (self *ServerSuite) TestWriteAndGetPoint(c *C) {
+	data := `
+  [{
+    "points": [[23.0]],
+    "name": "test_write_and_get_point",
+    "columns": ["something"]
+  }]
+  `
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_write_and_get_point", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_write_and_get_point", c)
+	c.Assert(series.Points, HasLen, 1)
+	c.Assert(series.GetValueForPointAndColumn(0, "something", c).(float64), Equals, float64(23))
+}
+
+func (self *ServerSuite) TestWhereQuery(c *C) {
+	data := `[{"points": [[4], [10], [5]], "name": "test_where_query", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_where_query where value < 6", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_where_query", c)
+	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.GetValueForPointAndColumn(0, "value", c).(float64), Equals, float64(5))
+	c.Assert(series.GetValueForPointAndColumn(1, "value", c).(float64), Equals, float64(4))
+}
+
+func (self *ServerSuite) TestCountQueryOnSingleShard(c *C) {
+	data := `[{"points": [[4], [10], [5]], "name": "test_count_query_single_shard", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 60) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_count_query_single_shard", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	collection := self.serverProcesses[0].Query("test_rep", "select count(value) from test_count_query_single_shard group by time(1m)", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_count_query_single_shard", c)
+	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(3))
+	c.Assert(series.GetValueForPointAndColumn(1, "count", c).(float64), Equals, float64(1))
+}
+
+func (self *ServerSuite) TestGroupByDay(c *C) {
+	data := `[{"points": [[4], [10], [5]], "name": "test_group_by_day", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 86400) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_group_by_day", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	collection := self.serverProcesses[0].Query("test_rep", "select count(value) from test_group_by_day group by time(1d)", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_group_by_day", c)
+	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(3))
+	c.Assert(series.GetValueForPointAndColumn(1, "count", c).(float64), Equals, float64(1))
+}
+
+func (self *ServerSuite) TestLimitQueryOnSingleShard(c *C) {
+	data := `[{"points": [[4], [10], [5]], "name": "test_limit_query_single_shard", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	collection := self.serverProcesses[0].Query("test_rep", "select * from test_limit_query_single_shard limit 2", false, c)
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("test_limit_query_single_shard", c)
+	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.GetValueForPointAndColumn(0, "value", c).(float64), Equals, float64(5))
+	c.Assert(series.GetValueForPointAndColumn(1, "value", c).(float64), Equals, float64(10))
+}
+
+func (self *ServerSuite) TestQueryAgainstMultipleShards(c *C) {
+	data := `[{"points": [[4], [10], [5]], "name": "test_query_against_multiple_shards", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 3600) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_query_against_multiple_shards", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select count(value) from test_query_against_multiple_shards group by time(1h)", false, c)
+		c.Assert(collection.Members, HasLen, 1)
+		series := collection.GetSeries("test_query_against_multiple_shards", c)
+		c.Assert(series.Points, HasLen, 2)
+		c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(3))
+		c.Assert(series.GetValueForPointAndColumn(1, "count", c).(float64), Equals, float64(1))
+	}
+}
+
+func (self *ServerSuite) TestQueryAscendingAgainstMultipleShards(c *C) {
+	data := `[{"points": [[4], [10]], "name": "test_ascending_against_multiple_shards", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 3600) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_ascending_against_multiple_shards", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select * from test_ascending_against_multiple_shards order asc", false, c)
+		series := collection.GetSeries("test_ascending_against_multiple_shards", c)
+		c.Assert(series.Points, HasLen, 3)
+		c.Assert(series.GetValueForPointAndColumn(0, "value", c).(float64), Equals, float64(2))
+		c.Assert(series.GetValueForPointAndColumn(1, "value", c).(float64), Equals, float64(4))
+		c.Assert(series.GetValueForPointAndColumn(2, "value", c).(float64), Equals, float64(10))
+	}
+}
+
+func (self *ServerSuite) TestBigGroupByQueryAgainstMultipleShards(c *C) {
+	data := `[{"points": [[4], [10]], "name": "test_multiple_shards_big_group_by", "columns": ["value"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 3600*2) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_multiple_shards_big_group_by", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select count(value) from test_multiple_shards_big_group_by group by time(30d)", false, c)
+		series := collection.GetSeries("test_multiple_shards_big_group_by", c)
+		c.Assert(series.Points, HasLen, 1)
+		c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(3))
+	}
+}
+
+func (self *ServerSuite) TestWriteSplitToMultipleShards(c *C) {
+	data := `[
+		{"points": [[4], [10]], "name": "test_write_multiple_shards", "columns": ["value"]},
+		{"points": [["asdf"]], "name": "Test_write_multiple_shards", "columns": ["thing"]}]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	for _, s := range self.serverProcesses {
+		collection := s.Query("test_rep", "select count(value) from test_write_multiple_shards", false, c)
+		series := collection.GetSeries("test_write_multiple_shards", c)
+		c.Assert(series.Points, HasLen, 1)
+		c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(2))
+
+		collection = s.Query("test_rep", "select * from Test_write_multiple_shards", false, c)
+		series = collection.GetSeries("Test_write_multiple_shards", c)
+		c.Assert(series.Points, HasLen, 1)
+		c.Assert(series.GetValueForPointAndColumn(0, "thing", c).(string), Equals, "asdf")
 	}
 }
 
@@ -271,7 +440,7 @@ func (self *ServerSuite) TestRestartServers(c *C) {
 	err = self.serverProcesses[1].Start()
 	c.Assert(err, IsNil)
 	err = self.serverProcesses[2].Start()
-	time.Sleep(time.Second)
+	time.Sleep(time.Second * 5)
 
 	collection = self.serverProcesses[0].Query("test_rep", "select * from test_restart", false, c)
 	c.Assert(collection.Members, HasLen, 1)
@@ -296,28 +465,6 @@ func (self *ServerSuite) TestCountDistinctWithNullValues(c *C) {
 	c.Assert(collection.Members, HasLen, 1)
 	series := collection.GetSeries("test_null_with_distinct", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(2))
-}
-
-func (self *ServerSuite) TestDataReplication(c *C) {
-	data := `
-  [{
-    "points": [
-        ["val1", 2]
-    ],
-    "name": "test_data_replication",
-    "columns": ["val_1", "val_2"]
-  }]`
-	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-
-	serversWithPoint := 0
-	for _, server := range self.serverProcesses {
-		collection := server.Query("test_rep", "select * from test_data_replication", true, c)
-		series := collection.GetSeries("test_data_replication", c)
-		if len(series.Points) > 0 {
-			serversWithPoint += 1
-		}
-	}
-	c.Assert(serversWithPoint, Equals, 2)
 }
 
 // issue #147
@@ -388,7 +535,7 @@ func (self *ServerSuite) TestSslSupport(c *C) {
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	var js []interface{}
+	var js []*common.SerializedSeries
 	err = json.Unmarshal(body, &js)
 	c.Assert(err, IsNil)
 	collection := ResultsToSeriesCollection(js)
@@ -427,9 +574,11 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
 	series := collection.GetSeries("test_delete_replication", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
 
-	self.serverProcesses[0].Query("test_rep", "delete from test_delete_replication", false, c)
-	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
-	c.Assert(collection.Members, HasLen, 0)
+	for _, s := range self.serverProcesses {
+		s.Query("test_rep", "delete from test_delete_replication", false, c)
+		collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
+		c.Assert(collection.Members, HasLen, 0)
+	}
 }
 
 // Reported by Alex in the following thread
@@ -462,13 +611,19 @@ func (self *ServerSuite) TestListSeries(c *C) {
 		"columns": ["val1"],
 		"points": [[1]]
 		}]`
-	resp := self.serverProcesses[0].Post("/db/list_series/series?u=paul&p=pass", data, c)
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	self.serverProcesses[0].Post("/db/list_series/series?u=paul&p=pass", data, c)
+	t := (time.Now().Unix() - 3600) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "another_query", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/list_series/series?u=paul&p=pass", data, c)
+
+	time.Sleep(time.Second)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("list_series", "list series", false, c)
+		c.Assert(collection.Members, HasLen, 2)
 		s := collection.GetSeries("cluster_query", c)
-		c.Assert(s.Columns, HasLen, 2)
-		c.Assert(s.Points, HasLen, 0)
+		c.Assert(s, NotNil)
+		s = collection.GetSeries("another_query", c)
+		c.Assert(s, NotNil)
 	}
 }
 
@@ -509,8 +664,7 @@ func (self *ServerSuite) TestDropDatabase(c *C) {
 	for _, s := range self.serverProcesses {
 		fmt.Printf("Running query against: %d\n", s.apiPort)
 		collection := s.Query("drop_db", "select * from cluster_query", true, c)
-		c.Assert(collection.GetSeries("cluster_query", c).Points, HasLen, 0)
-		c.Assert(collection.GetSeries("cluster_query", c).Columns, DeepEquals, []string{"time", "sequence_number"})
+		c.Assert(collection.Members, HasLen, 0)
 	}
 }
 
@@ -537,8 +691,7 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 		for _, s := range self.serverProcesses {
 			fmt.Printf("Running query against: %d\n", s.apiPort)
 			collection := s.Query("drop_series", "select * from cluster_query", true, c)
-			c.Assert(collection.GetSeries("cluster_query", c).Points, HasLen, 0)
-			c.Assert(collection.GetSeries("cluster_query", c).Columns, DeepEquals, []string{"time", "sequence_number"})
+			c.Assert(collection.Members, HasLen, 0)
 		}
 	}
 }
@@ -599,45 +752,51 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 	c.Error("write didn't replay properly")
 }
 
-func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
-	data := `
-  [{
-    "points": [
-        [1]
-    ],
-    "name": "test_failure_delete_replays",
-    "columns": ["val"]
-  }]`
-	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
-	for _, s := range self.serverProcesses {
-		collection := s.Query("full_rep", "select val from test_failure_delete_replays", true, c)
-		series := collection.GetSeries("test_failure_delete_replays", c)
-		c.Assert(series.Points, HasLen, 1)
-	}
-	self.serverProcesses[1].Stop()
-	self.serverProcesses[0].Query("full_rep", "delete from test_failure_delete_replays", false, c)
-	time.Sleep(time.Second)
-	for i, s := range self.serverProcesses {
-		if i == 1 {
-			continue
-		} else {
-			collection := s.Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
+// func (self *ServerSuite) TestFailureAndDeleteReplays(c *C) {
+// 	data := `
+//   [{
+//     "points": [
+//         [1]
+//     ],
+//     "name": "test_failure_delete_replays",
+//     "columns": ["val"]
+//   }]`
+// 	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+// 	fmt.Println("TEST: posted failure")
+// 	for _, s := range self.serverProcesses {
+// 		collection := s.Query("full_rep", "select val from test_failure_delete_replays", true, c)
+// 		series := collection.GetSeries("test_failure_delete_replays", c)
+// 		c.Assert(series.Points, HasLen, 1)
+// 	}
+// 	fmt.Println("TEST: did queries, now stopping")
+// 	self.serverProcesses[1].Stop()
+// 	fmt.Println("TEST: running delete query on server 0")
+// 	self.serverProcesses[0].Query("full_rep", "delete from test_failure_delete_replays", false, c)
+// 	fmt.Println("TEST: done!")
+// 	time.Sleep(time.Second)
+// 	for i, s := range self.serverProcesses {
+// 		if i == 1 {
+// 			continue
+// 		} else {
+// 			fmt.Println("TEST: running sum query on server ", i)
+// 			collection := s.Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
 
-			c.Assert(collection.Members, HasLen, 0)
-		}
-	}
+// 			c.Assert(collection.Members, HasLen, 0)
+// 		}
+// 	}
 
-	self.serverProcesses[1].Start()
-	for i := 0; i < 3; i++ {
-		time.Sleep(2 * time.Second)
-		collection := self.serverProcesses[1].Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
-		if len(collection.Members) == 0 {
-			return
-		}
-	}
+// 	fmt.Println("TEST: starting server")
+// 	self.serverProcesses[1].Start()
+// 	time.Sleep(2 * time.Second)
+// 	sum := 0
+// 	for i := 0; i < 3; i++ {
+// 		fmt.Println("TEST: running sum query on server")
+// 		collection := self.serverProcesses[1].Query("full_rep", "select sum(val) from test_failure_delete_replays;", true, c)
+// 		sum += len(collection.Members)
+// 	}
 
-	c.Error("Delete query didn't replay properly")
-}
+// 	c.Assert(sum, Equals, 0)
+// }
 
 // For issue #130 https://github.com/influxdb/influxdb/issues/130
 func (self *ServerSuite) TestColumnNamesReturnInDistributedQuery(c *C) {
@@ -668,8 +827,13 @@ func (self *ServerSuite) TestSelectFromRegexInCluster(c *C) {
 			"name": "cluster_regex_query_number2",
 			"columns": ["blah"],
 			"points": [[true]]
-		}]`
+		},{
+			"name": "Cluster_regex_query_3",
+			"columns": ["foobar"],
+			"points": [["asdf"]]
+			}]`
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	time.Sleep(time.Second * 2)
 	for _, s := range self.serverProcesses {
 		collection := s.Query("test_rep", "select * from /.*/ limit 1", false, c)
 		series := collection.GetSeries("cluster_regex_query", c)
@@ -677,6 +841,8 @@ func (self *ServerSuite) TestSelectFromRegexInCluster(c *C) {
 		c.Assert(series.GetValueForPointAndColumn(0, "col2", c), Equals, "bar")
 		series = collection.GetSeries("cluster_regex_query_number2", c)
 		c.Assert(series.GetValueForPointAndColumn(0, "blah", c), Equals, true)
+		series = collection.GetSeries("Cluster_regex_query_3", c)
+		c.Assert(series.GetValueForPointAndColumn(0, "foobar", c), Equals, "asdf")
 	}
 }
 
@@ -721,6 +887,10 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s2 into d2;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from /s\\d/ into d3;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from silly_name into :series_name.foo;", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 3;", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 4;", false, c)
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series := collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 4)
@@ -767,11 +937,6 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 	series = collection.GetSeries("silly_name.foo", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "c4", c), Equals, float64(4))
 	c.Assert(series.GetValueForPointAndColumn(0, "c5", c), Equals, float64(5))
-
-	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
-	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
-	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 3;", false, c)
-	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 4;", false, c)
 }
 
 func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
@@ -791,8 +956,6 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
       [9, "z", %d]
     ]}
   ]`, oldTime, oldTime, oldTime, oldOldTime, oldOldTime, oldOldTime)
-
-	fmt.Println(data)
 
 	self.serverProcesses[0].Post("/db/test_cq/series?u=paul&p=pass&time_precision=s", data, c)
 
@@ -823,4 +986,206 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
+}
+
+func (self *ServerSuite) TestGetServers(c *C) {
+	body := self.serverProcesses[0].Get("/cluster/servers?u=root&p=root", c)
+
+	res := make([]interface{}, 0)
+	err := json.Unmarshal(body, &res)
+	c.Assert(err, IsNil)
+	for _, js := range res {
+		server := js.(map[string]interface{})
+		c.Assert(server["id"], NotNil)
+		c.Assert(server["protobufConnectString"], NotNil)
+	}
+}
+
+func (self *ServerSuite) TestCreateAndGetShards(c *C) {
+	// put this far in the future so it doesn't mess up the other tests
+	secondsOffset := int64(86400 * 365)
+	startSeconds := time.Now().Unix() + secondsOffset
+	endSeconds := startSeconds + 3600
+	data := fmt.Sprintf(`{
+		"startTime":%d,
+		"endTime":%d,
+		"longTerm": false,
+		"shards": [{
+			"serverIds": [%d, %d]
+		}]
+	}`, startSeconds, endSeconds, 2, 3)
+	resp := self.serverProcesses[0].Post("/cluster/shards?u=root&p=root", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		body := s.Get("/cluster/shards?u=root&p=root", c)
+		res := make(map[string]interface{})
+		err := json.Unmarshal(body, &res)
+		c.Assert(err, IsNil)
+		hasShard := false
+		for _, s := range res["shortTerm"].([]interface{}) {
+			sh := s.(map[string]interface{})
+			if sh["startTime"].(float64) == float64(startSeconds) && sh["endTime"].(float64) == float64(endSeconds) {
+				servers := sh["serverIds"].([]interface{})
+				c.Assert(servers, HasLen, 2)
+				c.Assert(servers[0].(float64), Equals, float64(2))
+				c.Assert(servers[1].(float64), Equals, float64(3))
+				hasShard = true
+				break
+			}
+		}
+		c.Assert(hasShard, Equals, true)
+	}
+
+}
+
+func (self *ServerSuite) TestDropShard(c *C) {
+	// put this far in the future so it doesn't mess up the other tests
+	secondsOffset := int64(86400 * 720)
+	startSeconds := time.Now().Unix() + secondsOffset
+	endSeconds := startSeconds + 3600
+	data := fmt.Sprintf(`{
+		"startTime":%d,
+		"endTime":%d,
+		"longTerm": false,
+		"shards": [{
+			"serverIds": [%d, %d]
+		}]
+	}`, startSeconds, endSeconds, 1, 2)
+	resp := self.serverProcesses[0].Post("/cluster/shards?u=root&p=root", data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+
+	// now write some data to ensure that the local files get created
+	t := (time.Now().Unix() + secondsOffset) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_drop_shard", "columns": ["value", "time"]}]`, t)
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	// and find the shard id
+	body := self.serverProcesses[0].Get("/cluster/shards?u=root&p=root", c)
+	res := make(map[string]interface{})
+	err := json.Unmarshal(body, &res)
+	c.Assert(err, IsNil)
+	var shardId int
+	for _, s := range res["shortTerm"].([]interface{}) {
+		sh := s.(map[string]interface{})
+		if sh["startTime"].(float64) == float64(startSeconds) && sh["endTime"].(float64) == float64(endSeconds) {
+			shardId = int(sh["id"].(float64))
+			break
+		}
+	}
+
+	// confirm the shard files are there
+	shardDirServer1 := fmt.Sprintf("/tmp/influxdb/test/1/db/shard_db/%.5d", shardId)
+	shardDirServer2 := fmt.Sprintf("/tmp/influxdb/test/2/db/shard_db/%.5d", shardId)
+	exists, _ := dirExists(shardDirServer1)
+	c.Assert(exists, Equals, true)
+	exists, _ = dirExists(shardDirServer2)
+	c.Assert(exists, Equals, true)
+
+	// now drop and confirm they're gone
+	data = fmt.Sprintf(`{"serverIds": [%d]}`, 1)
+
+	resp = self.serverProcesses[0].Delete(fmt.Sprintf("/cluster/shards/%d?u=root&p=root", shardId), data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+	time.Sleep(time.Second)
+
+	for _, s := range self.serverProcesses {
+		body := s.Get("/cluster/shards?u=root&p=root", c)
+		res := make(map[string]interface{})
+		err := json.Unmarshal(body, &res)
+		c.Assert(err, IsNil)
+		hasShard := false
+		for _, s := range res["shortTerm"].([]interface{}) {
+			sh := s.(map[string]interface{})
+			if int(sh["id"].(float64)) == shardId {
+				hasShard = true
+				hasServer := false
+				for _, serverId := range sh["serverIds"].([]interface{}) {
+					if serverId.(float64) == float64(1) {
+						hasServer = true
+						break
+					}
+				}
+				c.Assert(hasServer, Equals, false)
+			}
+		}
+		c.Assert(hasShard, Equals, true)
+	}
+
+	exists, _ = dirExists(shardDirServer1)
+	c.Assert(exists, Equals, false)
+	exists, _ = dirExists(shardDirServer2)
+	c.Assert(exists, Equals, true)
+
+	// now drop the shard from the last server and confirm it's gone
+	data = fmt.Sprintf(`{"serverIds": [%d]}`, 2)
+
+	resp = self.serverProcesses[0].Delete(fmt.Sprintf("/cluster/shards/%d?u=root&p=root", shardId), data, c)
+	c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
+	time.Sleep(time.Second)
+
+	for _, s := range self.serverProcesses {
+		body := s.Get("/cluster/shards?u=root&p=root", c)
+		res := make(map[string]interface{})
+		err := json.Unmarshal(body, &res)
+		c.Assert(err, IsNil)
+		hasShard := false
+		for _, s := range res["shortTerm"].([]interface{}) {
+			sh := s.(map[string]interface{})
+			if int(sh["id"].(float64)) == shardId {
+				hasShard = true
+			}
+		}
+		c.Assert(hasShard, Equals, false)
+	}
+
+	exists, _ = dirExists(shardDirServer1)
+	c.Assert(exists, Equals, false)
+	exists, _ = dirExists(shardDirServer2)
+	c.Assert(exists, Equals, false)
+}
+
+func dirExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func (self *ServerSuite) TestContinuousQueryWithMixedGroupByOperations(c *C) {
+	data := fmt.Sprintf(`[
+  {
+    "name": "cqtest",
+    "columns": ["time", "reqtime", "url"],
+    "points": [
+        [0, 8.0, "/login"],
+        [0, 3.0, "/list"],
+        [0, 4.0, "/register"],
+        [5, 9.0, "/login"],
+        [5, 4.0, "/list"],
+        [5, 5.0, "/register"]
+    ]
+  }
+  ]`)
+
+	self.serverProcesses[0].Post("/db/test_cq/series?u=paul&p=pass&time_precision=s", data, c)
+
+	time.Sleep(time.Second)
+
+	self.serverProcesses[0].QueryAsRoot("test_cq", "select mean(reqtime), url from cqtest group by time(10s), url into cqtest.10s", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
+
+	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "select * from cqtest.10s", false, c)
+	series := collection.GetSeries("cqtest.10s", c)
+
+	c.Assert(series.GetValueForPointAndColumn(0, "mean", c), Equals, float64(8.5))
+	c.Assert(series.GetValueForPointAndColumn(0, "url", c), Equals, "/login")
+	c.Assert(series.GetValueForPointAndColumn(1, "mean", c), Equals, float64(3.5))
+	c.Assert(series.GetValueForPointAndColumn(1, "url", c), Equals, "/list")
+	c.Assert(series.GetValueForPointAndColumn(2, "mean", c), Equals, float64(4.5))
+	c.Assert(series.GetValueForPointAndColumn(2, "url", c), Equals, "/register")
 }

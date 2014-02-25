@@ -3,24 +3,26 @@ package server
 import (
 	"admin"
 	"api/http"
+	"cluster"
 	log "code.google.com/p/log4go"
 	"configuration"
 	"coordinator"
 	"datastore"
-	"engine"
+	"wal"
 )
 
 type Server struct {
 	RaftServer     *coordinator.RaftServer
 	Db             datastore.Datastore
 	ProtobufServer *coordinator.ProtobufServer
-	ClusterConfig  *coordinator.ClusterConfiguration
+	ClusterConfig  *cluster.ClusterConfiguration
 	HttpApi        *http.HttpServer
 	AdminServer    *admin.HttpServer
 	Coordinator    coordinator.Coordinator
 	Config         *configuration.Configuration
 	RequestHandler *coordinator.ProtobufRequestHandler
 	stopped        bool
+	writeLog       *wal.WAL
 }
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
@@ -30,20 +32,31 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		return nil, err
 	}
 
-	clusterConfig := coordinator.NewClusterConfiguration(config)
-	raftServer := coordinator.NewRaftServer(config, clusterConfig)
-	coord := coordinator.NewCoordinatorImpl(db, raftServer, clusterConfig)
-	go coord.SyncLogs()
-	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
-	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
-
-	eng, err := engine.NewQueryEngine(coord)
+	shardDb, err := datastore.NewLevelDbShardDatastore(config)
 	if err != nil {
 		return nil, err
 	}
 
-	raftServer.AssignEngineAndCoordinator(eng, coord)
-	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, eng, coord, coord)
+	newClient := func(connectString string) cluster.ServerConnection {
+		return coordinator.NewProtobufClient(connectString, config.ProtobufTimeout.Duration)
+	}
+	writeLog, err := wal.NewWAL(config)
+	if err != nil {
+		return nil, err
+	}
+
+	clusterConfig := cluster.NewClusterConfiguration(config, writeLog, shardDb, newClient)
+	raftServer := coordinator.NewRaftServer(config, clusterConfig)
+	clusterConfig.LocalRaftName = raftServer.GetRaftName()
+	clusterConfig.SetShardCreator(raftServer)
+	clusterConfig.CreateFutureShardsAutomaticallyBeforeTimeComes()
+
+	coord := coordinator.NewCoordinatorImpl(config, db, raftServer, clusterConfig)
+	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
+	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
+
+	raftServer.AssignCoordinator(coord)
+	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, coord, coord, clusterConfig, raftServer)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
@@ -56,7 +69,8 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		Coordinator:    coord,
 		AdminServer:    adminServer,
 		Config:         config,
-		RequestHandler: requestHandler}, nil
+		RequestHandler: requestHandler,
+		writeLog:       writeLog}, nil
 }
 
 func (self *Server) ListenAndServe() error {
@@ -66,6 +80,17 @@ func (self *Server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
+
+	log.Info("Waiting for local server to be added")
+	self.ClusterConfig.WaitForLocalServerLoaded()
+	self.writeLog.SetServerId(self.ClusterConfig.ServerId())
+
+	log.Info("Recovering from log...")
+	err = self.ClusterConfig.RecoverFromWAL()
+	if err != nil {
+		return err
+	}
+	log.Info("recovered")
 
 	err = self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.Config.ProtobufConnectionString())
 	if err != nil {
@@ -88,6 +113,7 @@ func (self *Server) Stop() {
 	self.HttpApi.Close()
 	self.ProtobufServer.Close()
 	self.AdminServer.Close()
+	self.writeLog.Close()
 	// TODO: close admin server and protobuf client connections
 	log.Info("Stopping server")
 }

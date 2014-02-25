@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"datastore"
 	"parser"
 	"protocol"
 )
@@ -44,9 +43,8 @@ func getJoinYield(query *parser.SelectQuery, yield func(*protocol.Series) error)
 			Fields: append(lastFields1, lastFields2...),
 			Points: []*protocol.Point{
 				&protocol.Point{
-					Values:         append(lastPoint1.Values, lastPoint2.Values...),
-					Timestamp:      lastPoint2.Timestamp,
-					SequenceNumber: lastPoint2.SequenceNumber,
+					Values:    append(lastPoint1.Values, lastPoint2.Values...),
+					Timestamp: lastPoint2.Timestamp,
 				},
 			},
 		}
@@ -54,7 +52,7 @@ func getJoinYield(query *parser.SelectQuery, yield func(*protocol.Series) error)
 		lastPoint1 = nil
 		lastPoint2 = nil
 
-		filteredSeries, _ := datastore.Filter(query, newSeries)
+		filteredSeries, _ := Filter(query, newSeries)
 		if len(filteredSeries.Points) > 0 {
 			return yield(newSeries)
 		}

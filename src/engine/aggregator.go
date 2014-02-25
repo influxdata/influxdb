@@ -2,7 +2,6 @@ package engine
 
 import (
 	"common"
-	"datastore"
 	"fmt"
 	"math"
 	"parser"
@@ -107,7 +106,7 @@ type StandardDeviationAggregator struct {
 }
 
 func (self *StandardDeviationAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	fieldValue, err := datastore.GetValue(self.value, self.columns, p)
+	fieldValue, err := GetValue(self.value, self.columns, p)
 	if err != nil {
 		return err
 	}
@@ -212,7 +211,7 @@ type DerivativeAggregator struct {
 }
 
 func (self *DerivativeAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	fieldValue, err := datastore.GetValue(self.value, self.columns, p)
+	fieldValue, err := GetValue(self.value, self.columns, p)
 	if err != nil {
 		return err
 	}
@@ -326,7 +325,7 @@ func (self *HistogramAggregator) AggregatePoint(series string, group interface{}
 		groups[group] = buckets
 	}
 
-	fieldValue, err := datastore.GetValue(self.value, self.columns, p)
+	fieldValue, err := GetValue(self.value, self.columns, p)
 	if err != nil {
 		return err
 	}
@@ -555,7 +554,7 @@ func (self *MeanAggregator) AggregatePoint(series string, group interface{}, p *
 	currentMean := means[group]
 	currentCount := counts[group] + 1
 
-	fieldValue, err := datastore.GetValue(self.value, self.columns, p)
+	fieldValue, err := GetValue(self.value, self.columns, p)
 	if err != nil {
 		return err
 	}
@@ -646,7 +645,7 @@ type PercentileAggregator struct {
 }
 
 func (self *PercentileAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	v, err := datastore.GetValue(self.value, self.columns, p)
+	v, err := GetValue(self.value, self.columns, p)
 	if err != nil {
 		return err
 	}
@@ -742,7 +741,7 @@ func (self *ModeAggregator) AggregatePoint(series string, group interface{}, p *
 		groupCounts = make(map[float64]int)
 	}
 
-	point, err := datastore.GetValue(self.value, self.columns, p)
+	point, err := GetValue(self.value, self.columns, p)
 	if err != nil {
 		return err
 	}
@@ -841,7 +840,7 @@ func (self *DistinctAggregator) AggregatePoint(series string, group interface{},
 		groupCounts = make(map[interface{}]int)
 	}
 
-	point, err := datastore.GetValue(self.value, self.columns, p)
+	point, err := GetValue(self.value, self.columns, p)
 	if err != nil {
 		return err
 	}
@@ -936,7 +935,7 @@ func (self *CumulativeArithmeticAggregator) AggregatePoint(series string, group 
 	if !ok {
 		currentValue = self.initialValue
 	}
-	value, err := datastore.GetValue(self.value, self.columns, p)
+	value, err := GetValue(self.value, self.columns, p)
 	if err != nil {
 		return err
 	}
@@ -1034,7 +1033,7 @@ func (self *FirstOrLastAggregator) AggregatePoint(series string, group interface
 		self.values[series] = values
 	}
 	if values[group] == nil || !self.isFirst {
-		value, err := datastore.GetValue(self.value, self.columns, p)
+		value, err := GetValue(self.value, self.columns, p)
 		if err != nil {
 			return err
 		}

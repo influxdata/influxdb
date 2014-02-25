@@ -6,6 +6,8 @@ import (
 	"sort"
 )
 
+var String = proto.String
+
 func DecodePoint(buff *bytes.Buffer) (point *Point, err error) {
 	point = &Point{}
 	err = proto.Unmarshal(buff.Bytes(), point)
@@ -62,6 +64,10 @@ func DecodeRequest(buff *bytes.Buffer) (request *Request, err error) {
 
 func (self *Request) Encode() (data []byte, err error) {
 	return proto.Marshal(self)
+}
+
+func (self *Request) Decode(data []byte) error {
+	return proto.Unmarshal(data, self)
 }
 
 func DecodeResponse(buff *bytes.Buffer) (response *Response, err error) {

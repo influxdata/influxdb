@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"cluster"
 	. "common"
 	"configuration"
 	"datastore"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"wal"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -28,6 +30,10 @@ func Test(t *testing.T) {
 type CoordinatorSuite struct{}
 
 var _ = Suite(&CoordinatorSuite{})
+
+var DEFAULT_CONFIGURATION = &configuration.Configuration{
+	QueryShardBufferSize: 1,
+}
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU() * 2)
@@ -66,6 +72,14 @@ func (self *DatastoreMock) AtomicIncrement(name string, val int) (uint64, error)
 
 func (self *DatastoreMock) ReplayRequestsFromSequenceNumber(*uint32, *uint32, *uint32, *uint8, *uint64, func(*[]byte) error) error {
 	return nil
+}
+
+type WALMock struct {
+	cluster.WAL
+}
+
+func (self *WALMock) AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard) (uint32, error) {
+	return uint32(1), nil
 }
 
 func stringToSeries(seriesString string, c *C) *protocol.Series {
@@ -112,11 +126,15 @@ func clean(servers ...*RaftServer) {
 	}
 }
 
+func newProtobufClient(connectString string) cluster.ServerConnection {
+	return NewProtobufClient(connectString, 0)
+}
+
 func newConfigAndServer(c *C) *RaftServer {
 	path, err := ioutil.TempDir(os.TempDir(), "influxdb")
 	c.Assert(err, IsNil)
-	config := NewClusterConfiguration(&configuration.Configuration{})
 	setupConfig := &configuration.Configuration{Hostname: "localhost", RaftDir: path, RaftServerPort: 0}
+	config := cluster.NewClusterConfiguration(setupConfig, &WALMock{}, nil, newProtobufClient)
 	server := NewRaftServer(setupConfig, config)
 	return server
 }
@@ -278,19 +296,11 @@ func (self *CoordinatorSuite) TestCanElectNewLeaderAndRecover(c *C) {
 	assertConfigContains(servers[2].port, "db6", true, c)
 }
 
-func (self *UserSuite) BenchmarkHashing(c *C) {
-	for i := 0; i < c.N; i++ {
-		pwd := fmt.Sprintf("password%d", i)
-		_, err := hashPassword(pwd)
-		c.Assert(err, IsNil)
-	}
-}
-
 func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(&DatastoreMock{}, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, &DatastoreMock{}, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -308,10 +318,10 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 
 	// the db should be in the index now
 	for _, server := range servers {
-		coordinator := NewCoordinatorImpl(&DatastoreMock{}, server, server.clusterConfig)
+		coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, &DatastoreMock{}, server, server.clusterConfig)
 		dbs, err := coordinator.ListDatabases(root)
 		c.Assert(err, IsNil)
-		c.Assert(dbs, DeepEquals, []*Database{&Database{"db1", 1}})
+		c.Assert(dbs, DeepEquals, []*cluster.Database{&cluster.Database{"db1", 1}})
 	}
 
 	// if the db is dropped it should remove the users as well
@@ -324,7 +334,7 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -400,7 +410,7 @@ func (self *CoordinatorSuite) TestContinuousQueryOperations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -460,7 +470,7 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -496,7 +506,7 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	c.Assert(admins[0].GetName(), Equals, "db_user")
 	c.Assert(admins[0].IsDbAdmin("db1"), Equals, true)
 	c.Assert(admins[1].GetName(), Equals, "db_user2")
-	c.Assert(admins[1].IsDbAdmin("db1"), Equals, true)
+	c.Assert(admins[1].IsDbAdmin("db1"), Equals, false)
 
 	// cannot create db users for a different db
 	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)
@@ -519,7 +529,7 @@ func (self *CoordinatorSuite) TestDbUserOperations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(nil, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -558,7 +568,7 @@ func (self *CoordinatorSuite) TestUserDataReplication(c *C) {
 
 	coordinators := make([]*CoordinatorImpl, 0, len(servers))
 	for _, server := range servers {
-		coordinators = append(coordinators, NewCoordinatorImpl(nil, server, server.clusterConfig))
+		coordinators = append(coordinators, NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, server, server.clusterConfig))
 	}
 
 	// root must exist on all three nodes
@@ -599,7 +609,7 @@ func (self *CoordinatorSuite) TestCanCreateDatabaseWithNameAndReplicationFactor(
 	time.Sleep(REPLICATION_LAG)
 
 	for i := 0; i < 3; i++ {
-		databases := servers[i].clusterConfig.databaseReplicationFactors
+		databases := servers[i].clusterConfig.DatabaseReplicationFactors
 		c.Assert(databases, DeepEquals, map[string]uint8{
 			"db1": 1,
 			"db2": 1,
@@ -641,7 +651,7 @@ func (self *CoordinatorSuite) TestCanDropDatabaseWithName(c *C) {
 
 func (self *CoordinatorSuite) TestCheckReadAccess(c *C) {
 	datastoreMock := &DatastoreMock{}
-	coordinator := NewCoordinatorImpl(datastoreMock, nil, nil)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, datastoreMock, nil, nil)
 	mock := `{
     "points": [
       {
@@ -671,16 +681,16 @@ func (self *CoordinatorSuite) TestServersGetUniqueIdsAndCanActivateCluster(c *C)
 	defer clean(servers...)
 
 	// ensure they're all in the same order across the cluster
-	expectedServers := servers[0].clusterConfig.servers
+	expectedServers := servers[0].clusterConfig.Servers()
 	for _, server := range servers {
-		c.Assert(server.clusterConfig.servers, HasLen, len(expectedServers))
+		c.Assert(server.clusterConfig.Servers(), HasLen, len(expectedServers))
 		for i, clusterServer := range expectedServers {
-			c.Assert(server.clusterConfig.servers[i].Id, Equals, clusterServer.Id)
+			c.Assert(server.clusterConfig.Servers()[i].Id, Equals, clusterServer.Id)
 		}
 	}
 	// ensure cluster server ids are unique
 	idMap := make(map[uint32]bool)
-	for _, clusterServer := range servers[0].clusterConfig.servers {
+	for _, clusterServer := range servers[0].clusterConfig.Servers() {
 		_, ok := idMap[clusterServer.Id]
 		c.Assert(ok, Equals, false)
 		idMap[clusterServer.Id] = true

@@ -96,10 +96,11 @@ func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
 			// TODO: check the function name
 			// TODO: error checking
 			arg := groupBy.Elems[0].Name
-			duration, err := time.ParseDuration(arg)
+			durationInt, err := common.ParseTimeDuration(arg)
 			if err != nil {
 				return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("invalid argument %s to the time function", arg))
 			}
+			duration := time.Duration(durationInt)
 			return &duration, nil
 		}
 	}
@@ -177,6 +178,7 @@ type DeleteQuery struct {
 }
 
 type Query struct {
+	QueryString     string
 	SelectQuery     *SelectQuery
 	DeleteQuery     *DeleteQuery
 	ListQuery       *ListQuery
@@ -187,8 +189,12 @@ type Query struct {
 func (self *Query) GetQueryString() string {
 	if self.SelectQuery != nil {
 		return self.SelectQuery.GetQueryString()
+	} else if self.ListQuery != nil {
+		return "list series"
+	} else if self.DeleteQuery != nil {
+		return self.DeleteQuery.GetQueryString()
 	}
-	return self.DeleteQuery.GetQueryString()
+	return self.QueryString
 }
 
 func (self *Query) IsListQuery() bool {
@@ -499,11 +505,11 @@ func ParseQuery(query string) ([]*Query, error) {
 	}
 
 	if q.list_series_query != 0 {
-		return []*Query{&Query{ListQuery: &ListQuery{Type: Series}}}, nil
+		return []*Query{&Query{QueryString: query, ListQuery: &ListQuery{Type: Series}}}, nil
 	}
 
 	if q.list_continuous_queries_query != 0 {
-		return []*Query{&Query{ListQuery: &ListQuery{Type: ContinuousQueries}}}, nil
+		return []*Query{&Query{QueryString: query, ListQuery: &ListQuery{Type: ContinuousQueries}}}, nil
 	}
 
 	if q.select_query != nil {
@@ -512,22 +518,22 @@ func ParseQuery(query string) ([]*Query, error) {
 			return nil, err
 		}
 
-		return []*Query{&Query{SelectQuery: selectQuery}}, nil
+		return []*Query{&Query{QueryString: query, SelectQuery: selectQuery}}, nil
 	} else if q.delete_query != nil {
 		deleteQuery, err := parseDeleteQuery(query, q.delete_query)
 		if err != nil {
 			return nil, err
 		}
-		return []*Query{&Query{DeleteQuery: deleteQuery}}, nil
+		return []*Query{&Query{QueryString: query, DeleteQuery: deleteQuery}}, nil
 	} else if q.drop_series_query != nil {
 		dropSeriesQuery, err := parseDropSeriesQuery(query, q.drop_series_query)
 		if err != nil {
 			return nil, err
 		}
-		return []*Query{&Query{DropSeriesQuery: dropSeriesQuery}}, nil
+		return []*Query{&Query{QueryString: query, DropSeriesQuery: dropSeriesQuery}}, nil
 	} else if q.drop_query != nil {
 		fmt.Println(q.drop_query.id)
-		return []*Query{&Query{DropQuery: &DropQuery{Id: int(q.drop_query.id)}}}, nil
+		return []*Query{&Query{QueryString: query, DropQuery: &DropQuery{Id: int(q.drop_query.id)}}}, nil
 	}
 	return nil, fmt.Errorf("Unknown query type encountered")
 }

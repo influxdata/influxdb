@@ -4,6 +4,12 @@ set -e
 
 cd `dirname $0`
 
+git checkout .
+git pull --rebase
+make clean
+git clean -dfx
+./configure --with-goroot=$HOME/bin/go/
+
 modified=$(git ls-files --modified | wc -l)
 
 if [ $modified -ne 0 ]; then
