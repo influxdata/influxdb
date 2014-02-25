@@ -19,7 +19,6 @@ type ProtobufClient struct {
 	hostAndPort       string
 	requestBufferLock sync.RWMutex
 	requestBuffer     map[uint32]*runningRequest
-	connectionStatus  uint32
 	reconnectWait     sync.WaitGroup
 	connectCalled     bool
 	lastRequestId     uint32
@@ -34,22 +33,22 @@ type runningRequest struct {
 const (
 	REQUEST_RETRY_ATTEMPTS = 2
 	MAX_RESPONSE_SIZE      = MAX_REQUEST_SIZE
-	IS_RECONNECTING        = uint32(1)
-	IS_CONNECTED           = uint32(0)
 	MAX_REQUEST_TIME       = time.Second * 1200
 	RECONNECT_RETRY_WAIT   = time.Millisecond * 100
 )
 
 func NewProtobufClient(hostAndPort string, writeTimeout time.Duration) *ProtobufClient {
+	fmt.Println("NewProtobufClient")
 	return &ProtobufClient{
-		hostAndPort:      hostAndPort,
-		requestBuffer:    make(map[uint32]*runningRequest),
-		connectionStatus: IS_CONNECTED,
-		writeTimeout:     writeTimeout,
+		hostAndPort:   hostAndPort,
+		requestBuffer: make(map[uint32]*runningRequest),
+		writeTimeout:  writeTimeout,
 	}
 }
 
 func (self *ProtobufClient) Connect() {
+	self.connLock.Lock()
+	defer self.connLock.Unlock()
 	if self.connectCalled {
 		return
 	}
@@ -90,8 +89,9 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 		// this should actually never happen. The sweeper should clear out dead requests
 		// before the uint32 ids roll over.
 		if oldReq, alreadyHasRequestById := self.requestBuffer[*request.Id]; alreadyHasRequestById {
-			log.Error("already has a request with this id, must have timed out")
-			close(oldReq.responseChan)
+			message := "already has a request with this id, must have timed out"
+			log.Error(message)
+			oldReq.responseChan <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}
 		}
 		self.requestBuffer[*request.Id] = &runningRequest{time.Now(), responseStream}
 		self.requestBufferLock.Unlock()
@@ -102,35 +102,27 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 		return err
 	}
 
-	// retry sending this at least a few times
-	for attempts := 0; attempts <= REQUEST_RETRY_ATTEMPTS; attempts++ {
-		conn := self.getConnection()
+	conn := self.getConnection()
+	if conn == nil {
+		conn = self.reconnect()
 		if conn == nil {
-			self.reconnect()
-			continue
+			return fmt.Errorf("Failed to connect to server %s", self.hostAndPort)
 		}
+	}
 
-		conn.SetWriteDeadline(time.Now().Add(self.writeTimeout))
-		buff := bytes.NewBuffer(make([]byte, 0, len(data)+8))
-		binary.Write(buff, binary.LittleEndian, uint32(len(data)))
-		_, err = conn.Write(append(buff.Bytes(), data...))
+	conn.SetWriteDeadline(time.Now().Add(self.writeTimeout))
+	buff := bytes.NewBuffer(make([]byte, 0, len(data)+8))
+	binary.Write(buff, binary.LittleEndian, uint32(len(data)))
+	_, err = conn.Write(append(buff.Bytes(), data...))
 
-		if err == nil {
-			return nil
-		}
-		log.Error("ProtobufClient: error making request: %s", err)
-		// TODO: do something smarter here based on whatever the error is.
-		// failed to make the request, reconnect and try again.
-		self.reconnect()
+	if err == nil {
+		return nil
 	}
 
 	// if we got here it errored out, clear out the request
 	self.requestBufferLock.Lock()
 	delete(self.requestBuffer, *request.Id)
 	self.requestBufferLock.Unlock()
-	if err == nil {
-		err = fmt.Errorf("Failed to connect after %d tries.", REQUEST_RETRY_ATTEMPTS)
-	}
 	return err
 }
 
@@ -179,28 +171,21 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 	}
 }
 
-func (self *ProtobufClient) reconnect() {
-	swapped := atomic.CompareAndSwapUint32(&self.connectionStatus, IS_CONNECTED, IS_RECONNECTING)
+func (self *ProtobufClient) reconnect() net.Conn {
+	self.connLock.Lock()
+	defer self.connLock.Unlock()
 
-	// if it's not swapped, some other goroutine is already handling the reconect. Wait for it
-	if !swapped {
-		return
+	if self.conn != nil {
+		self.conn.Close()
 	}
-	defer func() {
-		self.connectionStatus = IS_CONNECTED
-	}()
-
-	self.Close()
 	conn, err := net.DialTimeout("tcp", self.hostAndPort, self.writeTimeout)
 	if err == nil {
-		self.connLock.Lock()
-		defer self.connLock.Unlock()
 		self.conn = conn
 		log.Info("connected to %s", self.hostAndPort)
-	} else {
-		log.Error("failed to connect to %s", self.hostAndPort)
+		return self.conn
 	}
-	return
+	log.Error("failed to connect to %s", self.hostAndPort)
+	return nil
 }
 
 func (self *ProtobufClient) peridicallySweepTimedOutRequests() {
