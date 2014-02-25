@@ -161,16 +161,21 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 	req, ok := self.requestBuffer[*response.RequestId]
 	self.requestBufferLock.RUnlock()
 	if ok {
-		select {
-		case req.responseChan <- response:
-		default:
-			log.Error("ProtobufClient: Response buffer full! ", self.hostAndPort, response)
-		}
-
 		if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK {
 			self.requestBufferLock.Lock()
 			delete(self.requestBuffer, *response.RequestId)
 			self.requestBufferLock.Unlock()
+		}
+		select {
+		case req.responseChan <- response:
+		default:
+			log.Error("ProtobufClient: Response buffer full! ", self.hostAndPort, response)
+			// if it's an end stream response, we have to send it so start it in a goroutine so we can make sure it gets through without blocking the reading of responses.
+			if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK || *response.Type == protocol.Response_ACCESS_DENIED {
+				go func() {
+					req.responseChan <- response
+				}()
+			}
 		}
 	}
 }
