@@ -720,7 +720,7 @@ func (self *ApiSuite) TestClusterAdminsIndex(c *C) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	users := []*User{}
+	users := []*ApiUser{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
 	c.Assert(users, DeepEquals, []*ApiUser{&ApiUser{"root"}})
@@ -734,7 +734,7 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	users := []*User{}
+	users := []*ApiUser{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
 	c.Assert(users, DeepEquals, []*ApiUser{&ApiUser{"db_user1"}})
