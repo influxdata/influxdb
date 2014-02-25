@@ -176,16 +176,16 @@ version=
 package_version=$(subst -,_,$(version))
 admin_dir = /tmp/admin.influxdb
 
-source_package = packages/influxdb-$(package_version).src.tar.gz
-binary_package = packages/influxdb-$(package_version).$(arch).tar.gz
+source_package = packages/influxdb-$(version).src.tar.gz
+binary_package = packages/influxdb-$(version).$(arch).tar.gz
 ifeq ($(arch),386)
 	rpm_package = packages/influxdb-$(package_version)-1.i686.rpm
-	debian_package = packages/influxdb_$(package_version)_i386.deb
+	debian_package = packages/influxdb_$(version)_i386.deb
 	rpm_args = setarch i386
 	deb_args = -a i386
 else
 	rpm_package = packages/influxdb-$(package_version)-1.x86_64.rpm
-	debian_package = packages/influxdb_$(package_version)_amd64.deb
+	debian_package = packages/influxdb_$(version)_amd64.deb
 endif
 
 files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
