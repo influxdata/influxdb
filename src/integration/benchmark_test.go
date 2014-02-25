@@ -74,6 +74,7 @@ func (self *Server) WriteData(data interface{}, extraQueryParams ...string) erro
 		}
 		return fmt.Errorf("Status code = %d. Body = %s", resp.StatusCode, string(body))
 	}
+	time.Sleep(time.Second)
 	return nil
 }
 
@@ -282,7 +283,6 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 ]
 `, 60+i*10, 70+i*10))
 		c.Assert(err, IsNil)
-		time.Sleep(1 * time.Second)
 	}
 	bs, err := self.server.RunQuery("select median(cpu) from test_medians group by host;", "m")
 	c.Assert(err, IsNil)
@@ -359,7 +359,6 @@ func (self *IntegrationSuite) TestArithmeticOperations(c *C) {
       `, values[2], values[3*i], values[3*i+1])
 			err := self.server.WriteData(data)
 			c.Assert(err, IsNil)
-			time.Sleep(1 * time.Second)
 		}
 		bs, err := self.server.RunQuery(query, "m")
 		c.Assert(err, IsNil)
@@ -426,7 +425,6 @@ func (self *IntegrationSuite) TestFilterWithLimit(c *C) {
 ]
 `, 60+i*10, 70+i*10))
 		c.Assert(err, IsNil)
-		time.Sleep(1 * time.Second)
 	}
 	bs, err := self.server.RunQuery("select host, cpu from test_ascending where host = 'hostb' order asc limit 1", "m")
 	c.Assert(err, IsNil)
@@ -451,7 +449,6 @@ func (self *IntegrationSuite) TestFilterWithInClause(c *C) {
 ]
 `, 60+i*10, 70+i*10))
 		c.Assert(err, IsNil)
-		time.Sleep(1 * time.Second)
 	}
 	bs, err := self.server.RunQuery("select host, cpu from test_in_clause where host in ('hostb') order asc limit 1", "m")
 	c.Assert(err, IsNil)
@@ -477,7 +474,6 @@ func (self *IntegrationSuite) TestIssue85(c *C) {
 ]
 `, 60+i*10, 70+i*10))
 		c.Assert(err, IsNil)
-		time.Sleep(1 * time.Second)
 	}
 	_, err := self.server.RunQuery("select new_column from test_issue_85", "m")
 	c.Assert(err, IsNil)
@@ -539,7 +535,6 @@ func (self *IntegrationSuite) TestIssue92(c *C) {
 ]
 `, hourAgo, hourAgo, hourAgo, hourAgo, now, now, now))
 	c.Assert(err, IsNil)
-	time.Sleep(1 * time.Second)
 	bs, err := self.server.RunQuery("select sum(kb) from test_issue_92 group by time(1h), to, app", "m")
 	c.Assert(err, IsNil)
 	data := []*SerializedSeries{}
@@ -591,7 +586,6 @@ func (self *IntegrationSuite) TestIssue89(c *C) {
   }
 ]`)
 	c.Assert(err, IsNil)
-	time.Sleep(1 * time.Second)
 	bs, err := self.server.RunQuery("select sum(c) from test_issue_89 group by b where a = 'x'", "m")
 	c.Assert(err, IsNil)
 	data := []*SerializedSeries{}
@@ -618,7 +612,6 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 ]
 `, 60+i*10, 70+i*10))
 		c.Assert(err, IsNil)
-		time.Sleep(1 * time.Second)
 	}
 	bs, err := self.server.RunQuery("select count(cpu) from test_count group by host limit 10", "m")
 	c.Assert(err, IsNil)
@@ -886,7 +879,6 @@ func (self *IntegrationSuite) TestDeleteQuery(c *C) {
   }
 ]`)
 		c.Assert(err, IsNil)
-		time.Sleep(time.Second)
 		bs, err := self.server.RunQuery("select val1 from test_delete_query", "m")
 		c.Assert(err, IsNil)
 		data := []*SerializedSeries{}
