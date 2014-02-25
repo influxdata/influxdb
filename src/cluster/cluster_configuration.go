@@ -924,7 +924,8 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 	var waitForAll sync.WaitGroup
 	for _, server := range self.servers {
 		waitForAll.Add(1)
-		if server.Id == self.LocalServerId {
+		if server.RaftName == self.LocalRaftName {
+			self.LocalServerId = server.Id
 			go func(serverId uint32) {
 				self.recover(serverId, self.shardStore)
 				waitForAll.Done()
