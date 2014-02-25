@@ -73,7 +73,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 
 // define types of tokens (terminals)
 %token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES
-%token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME REGEX_OP
+%token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME INTO_NAME REGEX_OP
 %token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
 // define the precedence of these operators
@@ -84,28 +84,28 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %left  <character> '*' '/'
 
 // define the types of the non-terminals
-%type <from_clause>     FROM_CLAUSE
-%type <condition>       WHERE_CLAUSE
-%type <value_array>     COLUMN_NAMES
-%type <string>          BOOL_OPERATION ALIAS_CLAUSE
-%type <condition>       CONDITION
-%type <v>               BOOL_EXPRESSION
-%type <value_array>     VALUES
-%type <v>               VALUE TABLE_VALUE SIMPLE_TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE
-%type <v>               WILDCARD REGEX_VALUE DURATION_VALUE FUNCTION_CALL
-%type <groupby_clause>  GROUP_BY_CLAUSE
-%type <integer>         LIMIT_CLAUSE
-%type <character>       ORDER_CLAUSE
-%type <into_clause>     INTO_CLAUSE
-%type <limit_and_order> LIMIT_AND_ORDER_CLAUSES
-%type <query>           QUERY
-%type <delete_query>    DELETE_QUERY
+%type <from_clause>       FROM_CLAUSE
+%type <condition>         WHERE_CLAUSE
+%type <value_array>       COLUMN_NAMES
+%type <string>            BOOL_OPERATION ALIAS_CLAUSE
+%type <condition>         CONDITION
+%type <v>                 BOOL_EXPRESSION
+%type <value_array>       VALUES
+%type <v>                 VALUE TABLE_VALUE SIMPLE_TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE INTO_VALUE INTO_NAME_VALUE
+%type <v>                 WILDCARD REGEX_VALUE DURATION_VALUE FUNCTION_CALL
+%type <groupby_clause>    GROUP_BY_CLAUSE
+%type <integer>           LIMIT_CLAUSE
+%type <character>         ORDER_CLAUSE
+%type <into_clause>       INTO_CLAUSE
+%type <limit_and_order>   LIMIT_AND_ORDER_CLAUSES
+%type <query>             QUERY
+%type <delete_query>      DELETE_QUERY
 %type <drop_series_query> DROP_SERIES_QUERY
-%type <select_query>    SELECT_QUERY
-%type <drop_query>      DROP_QUERY
+%type <select_query>      SELECT_QUERY
+%type <drop_query>        DROP_QUERY
 
 // the initial token
-%start                  ALL_QUERIES
+%start                    ALL_QUERIES
 
 // destructors are used to free up memory in case of an error
 %destructor { free_value($$); } <v>
@@ -300,7 +300,7 @@ GROUP_BY_CLAUSE:
         }
 
 INTO_CLAUSE:
-        INTO TABLE_VALUE
+        INTO INTO_VALUE
         {
           $$ = malloc(sizeof(into_clause));
           $$->target = $2;
@@ -446,6 +446,9 @@ TABLE_VALUE:
 SIMPLE_TABLE_VALUE:
         SIMPLE_NAME_VALUE | TABLE_NAME_VALUE
 
+INTO_VALUE:
+        SIMPLE_NAME_VALUE | TABLE_NAME_VALUE | INTO_NAME_VALUE
+
 DURATION_VALUE:
         DURATION
         {
@@ -463,6 +466,12 @@ WILDCARD:
         {
           char *name = strdup("*");
           $$ = create_value(name, VALUE_WILDCARD, FALSE, NULL);
+        }
+
+INTO_NAME_VALUE:
+        INTO_NAME
+        {
+          $$ = create_value($1, VALUE_INTO_NAME, FALSE, NULL);
         }
 
 TABLE_NAME_VALUE:

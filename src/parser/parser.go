@@ -28,6 +28,7 @@ const (
 	ValueInt                    = C.VALUE_INT
 	ValueFloat                  = C.VALUE_FLOAT
 	ValueString                 = C.VALUE_STRING
+	ValueIntoName               = C.VALUE_INTO_NAME
 	ValueTableName              = C.VALUE_TABLE_NAME
 	ValueSimpleName             = C.VALUE_SIMPLE_NAME
 	ValueDuration               = C.VALUE_DURATION

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
 	"sort"
+	"strconv"
 )
 
 var String = proto.String
@@ -56,6 +57,25 @@ func (self *Point) GetFieldValue(idx int) interface{} {
 	return v.GetValue()
 }
 
+func (self *Point) GetFieldValueAsString(idx int) string {
+	if idx < 0 {
+		return ""
+	} else {
+		pointValue := self.GetFieldValue(idx)
+
+		switch value := pointValue.(type) {
+		case int64:
+			return strconv.FormatInt(value, 10)
+		case float64:
+			return strconv.FormatFloat(value, 'f', -1, 64)
+		case string:
+			return value
+		default:
+			return ""
+		}
+	}
+}
+
 func DecodeRequest(buff *bytes.Buffer) (request *Request, err error) {
 	request = &Request{}
 	err = proto.Unmarshal(buff.Bytes(), request)
@@ -99,6 +119,16 @@ func (s ByPointTimeDesc) Less(i, j int) bool {
 		return *s.PointsCollection[i].Timestamp > *s.PointsCollection[j].Timestamp
 	}
 	return false
+}
+
+func (self *Series) GetFieldIndex(fieldName string) int {
+	for index, field := range self.Fields {
+		if field == fieldName {
+			return index
+		}
+	}
+
+	return -1
 }
 
 func (self *Series) SortPointsTimeAscending() {

@@ -755,38 +755,40 @@ func (self *QueryParserSuite) TestParseContinuousQueryCreation(c *C) {
 	c.Assert(q.IsValidContinuousQuery(), Equals, true)
 	clause := q.GetIntoClause()
 	c.Assert(clause.Target, DeepEquals, &Value{"bar", ValueSimpleName, nil, nil})
+}
 
-	query = "select * from foo group by time(5m) into bar;"
+func (self *QueryParserSuite) TestParseInterpolatedContinuousQueryCreation(c *C) {
+	query := "select * from foo into bar.[c4];"
+	q, err := ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.IsContinuousQuery(), Equals, true)
+	clause := q.GetIntoClause()
+	c.Assert(clause.Target, DeepEquals, &Value{"bar.[c4]", ValueIntoName, nil, nil})
+
+	query = "select * from foo into [c5].bar.[c4];"
 	q, err = ParseSelectQuery(query)
 	c.Assert(err, IsNil)
 	c.Assert(q.IsContinuousQuery(), Equals, true)
-	c.Assert(q.IsValidContinuousQuery(), Equals, true)
 	clause = q.GetIntoClause()
-	c.Assert(clause.Target, DeepEquals, &Value{"bar", ValueSimpleName, nil, nil})
+	c.Assert(clause.Target, DeepEquals, &Value{"[c5].bar.[c4]", ValueIntoName, nil, nil})
 
-	query = "select * from foo group by field into bar;"
+	query = "select average(c4), count(c5) from s3 group by time(1h) into [average].[count];"
 	q, err = ParseSelectQuery(query)
 	c.Assert(err, IsNil)
 	c.Assert(q.IsContinuousQuery(), Equals, true)
-	c.Assert(q.IsValidContinuousQuery(), Equals, false)
 	clause = q.GetIntoClause()
-	c.Assert(clause.Target, DeepEquals, &Value{"bar", ValueSimpleName, nil, nil})
+	c.Assert(clause.Target, DeepEquals, &Value{"[average].[count]", ValueIntoName, nil, nil})
 
-	query = "select * from foo group by time(5m), field into bar;"
+	query = "select * from foo into :series_name.foo;"
 	q, err = ParseSelectQuery(query)
 	c.Assert(err, IsNil)
 	c.Assert(q.IsContinuousQuery(), Equals, true)
-	c.Assert(q.IsValidContinuousQuery(), Equals, true)
 	clause = q.GetIntoClause()
-	c.Assert(clause.Target, DeepEquals, &Value{"bar", ValueSimpleName, nil, nil})
+	c.Assert(clause.Target, DeepEquals, &Value{":series_name.foo", ValueIntoName, nil, nil})
 
-	query = "select * from foo group by field, time(5m) into bar;"
+	query = "select * from foo into ]bar"
 	q, err = ParseSelectQuery(query)
-	c.Assert(err, IsNil)
-	c.Assert(q.IsContinuousQuery(), Equals, true)
-	c.Assert(q.IsValidContinuousQuery(), Equals, true)
-	clause = q.GetIntoClause()
-	c.Assert(clause.Target, DeepEquals, &Value{"bar", ValueSimpleName, nil, nil})
+	c.Assert(err, NotNil)
 }
 
 func (self *QueryParserSuite) TestParseContinuousQueryDeletion(c *C) {

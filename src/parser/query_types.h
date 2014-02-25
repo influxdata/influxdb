@@ -24,6 +24,7 @@ typedef struct value_t {
     VALUE_INT,
     VALUE_FLOAT,
     VALUE_STRING,
+    VALUE_INTO_NAME,
     VALUE_TABLE_NAME,
     VALUE_SIMPLE_NAME,
     VALUE_DURATION,

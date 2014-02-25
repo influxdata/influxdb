@@ -456,22 +456,14 @@ func (s *RaftServer) checkContinuousQueries() {
 }
 
 func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, start time.Time, end time.Time) {
-	sequenceMap := make(map[int64]int)
-	clusterAdmin := s.clusterConfig.GetClusterAdmin("root")
+	adminName := s.clusterConfig.GetClusterAdmins()[0]
+	clusterAdmin := s.clusterConfig.GetClusterAdmin(adminName)
 	intoClause := query.GetIntoClause()
 	targetName := intoClause.Target.Name
 	queryString := query.GetQueryStringForContinuousQuery(start, end)
 
 	f := func(series *protocol.Series) error {
-		interpolatedTargetName := strings.Replace(targetName, ":series_name", *series.Name, -1)
-		series.Name = &interpolatedTargetName
-		for _, point := range series.Points {
-			sequenceMap[*point.Timestamp] = sequenceMap[*point.Timestamp] + 1
-			sequenceNumber := uint64(sequenceMap[*point.Timestamp])
-			point.SequenceNumber = &sequenceNumber
-		}
-
-		return s.coordinator.WriteSeriesData(clusterAdmin, db, series)
+		return s.coordinator.InterpolateValuesAndCommit(db, series, targetName, true)
 	}
 
 	writer := NewContinuousQueryWriter(f)

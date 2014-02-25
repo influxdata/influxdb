@@ -352,28 +352,81 @@ func (self *CoordinatorImpl) ProcessContinuousQueries(db string, series *protoco
 			intoClause := query.GetIntoClause()
 			targetName := intoClause.Target.Name
 
-			interpolatedTargetName := strings.Replace(targetName, ":series_name", incomingSeriesName, -1)
-
 			for _, table := range fromClause.Names {
 				tableValue := table.Name
 				if regex, ok := tableValue.GetCompiledRegex(); ok {
 					if regex.MatchString(incomingSeriesName) {
-						newSeries := &protocol.Series{Name: &interpolatedTargetName, Fields: series.Fields, Points: series.Points}
-						if e := self.CommitSeriesData(db, newSeries); e != nil {
-							log.Error("Couldn't write data for continuous query: ", e)
-						}
+						self.InterpolateValuesAndCommit(db, series, targetName, false)
 					}
 				} else {
 					if tableValue.Name == incomingSeriesName {
-						newSeries := &protocol.Series{Name: &interpolatedTargetName, Fields: series.Fields, Points: series.Points}
-						if e := self.CommitSeriesData(db, newSeries); e != nil {
-							log.Error("Couldn't write data for continuous query: ", e)
-						}
+						self.InterpolateValuesAndCommit(db, series, targetName, false)
 					}
 				}
 			}
 		}
 	}
+}
+
+func (self *CoordinatorImpl) InterpolateValuesAndCommit(db string, series *protocol.Series, targetName string, assignSequenceNumbers bool) error {
+	targetName = strings.Replace(targetName, ":series_name", *series.Name, -1)
+	type sequenceKey struct {
+		seriesName string
+		timestamp  int64
+	}
+	sequenceMap := make(map[sequenceKey]int)
+	r, _ := regexp.Compile(`\[.*\]`)
+	replaceInvalidCharacters := func(r rune) rune {
+		switch {
+		case (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+			return r
+		case r == '_' || r == '-' || r == '.':
+			return r
+		case r == ' ':
+			return '_'
+		case r == '/':
+			return '.'
+		}
+		return -1
+	}
+
+	if r.MatchString(targetName) {
+		for _, point := range series.Points {
+			targetNameWithValues := r.ReplaceAllStringFunc(targetName, func(match string) string {
+				fieldName := match[1 : len(match)-1]
+				fieldIndex := series.GetFieldIndex(fieldName)
+				return point.GetFieldValueAsString(fieldIndex)
+			})
+			cleanedTargetName := strings.Map(replaceInvalidCharacters, targetNameWithValues)
+
+			if assignSequenceNumbers {
+				sequenceMap[sequenceKey{targetName, *point.Timestamp}] += 1
+				sequenceNumber := uint64(sequenceMap[sequenceKey{targetName, *point.Timestamp}])
+				point.SequenceNumber = &sequenceNumber
+			}
+
+			newSeries := &protocol.Series{Name: &cleanedTargetName, Fields: series.Fields, Points: []*protocol.Point{point}}
+			if e := self.CommitSeriesData(db, newSeries); e != nil {
+				log.Error("Couldn't write data for continuous query: ", e)
+			}
+		}
+	} else {
+		newSeries := &protocol.Series{Name: &targetName, Fields: series.Fields, Points: series.Points}
+
+		if assignSequenceNumbers {
+			for _, point := range newSeries.Points {
+				sequenceMap[sequenceKey{targetName, *point.Timestamp}] += 1
+				sequenceNumber := uint64(sequenceMap[sequenceKey{targetName, *point.Timestamp}])
+				point.SequenceNumber = &sequenceNumber
+			}
+		}
+
+		if e := self.CommitSeriesData(db, newSeries); e != nil {
+			log.Error("Couldn't write data for continuous query: ", e)
+		}
+	}
+
+	return nil
 }
 
 func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series) error {
