@@ -111,6 +111,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "get", "/db/:db/authenticate", self.authenticateDbUser)
 	self.registerEndpoint(p, "get", "/db/:db/users", self.listDbUsers)
 	self.registerEndpoint(p, "post", "/db/:db/users", self.createDbUser)
+	self.registerEndpoint(p, "get", "/db/:db/users/:user", self.showDbUser)
 	self.registerEndpoint(p, "del", "/db/:db/users/:user", self.deleteDbUser)
 	self.registerEndpoint(p, "post", "/db/:db/users/:user", self.updateDbUser)
 
@@ -533,6 +534,11 @@ type ApiUser struct {
 	Name string `json:"username"`
 }
 
+type UserDetail struct {
+	Name    string `json:"name"`
+	IsAdmin bool   `json:"isAdmin"`
+}
+
 type NewContinuousQuery struct {
 	Query string `json:"query"`
 }
@@ -682,16 +688,32 @@ func (self *HttpServer) listDbUsers(w libhttp.ResponseWriter, r *libhttp.Request
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		names, err := self.userManager.ListDbUsers(u, db)
+		dbUsers, err := self.userManager.ListDbUsers(u, db)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}
 
-		users := make([]*ApiUser, 0, len(names))
-		for _, name := range names {
-			users = append(users, &ApiUser{name})
+		users := make([]*UserDetail, 0, len(dbUsers))
+		for _, dbUser := range dbUsers {
+			users = append(users, &UserDetail{dbUser.GetName(), dbUser.IsDbAdmin(db)})
 		}
 		return libhttp.StatusOK, users
+	})
+}
+
+func (self *HttpServer) showDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+	db := r.URL.Query().Get(":db")
+	username := r.URL.Query().Get(":user")
+
+	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
+		user, err := self.userManager.GetDbUser(u, db, username)
+		if err != nil {
+			return errorToStatusCode(err), err.Error()
+		}
+
+		userDetail := &UserDetail{user.GetName(), user.IsDbAdmin(db)}
+
+		return libhttp.StatusOK, userDetail
 	})
 }
 

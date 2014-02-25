@@ -377,6 +377,17 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	c.Assert(u.IsClusterAdmin(), Equals, false)
 	c.Assert(u.IsDbAdmin("db1"), Equals, false)
 
+	// can get properties of db users
+	dbUser, err := coordinator.GetDbUser(root, "db1", "db_user")
+	c.Assert(err, IsNil)
+	c.Assert(dbUser, NotNil)
+	c.Assert(dbUser.GetName(), Equals, "db_user")
+	c.Assert(dbUser.IsDbAdmin("db1"), Equals, false)
+
+	dbUser, err = coordinator.GetDbUser(root, "db1", "invalid_user")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "Invalid username invalid_user")
+
 	// can make db users db admins
 	c.Assert(coordinator.SetDbAdmin(root, "db1", "db_user", true), IsNil)
 	u, err = coordinator.AuthenticateDbUser("db1", "db_user", "db_pass")
@@ -386,7 +397,9 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	// can list db users
 	dbUsers, err := coordinator.ListDbUsers(root, "db1")
 	c.Assert(err, IsNil)
-	c.Assert(dbUsers, DeepEquals, []string{"db_user"})
+	c.Assert(dbUsers, HasLen, 1)
+	c.Assert(dbUsers[0].GetName(), Equals, "db_user")
+	c.Assert(dbUsers[0].IsDbAdmin("db1"), Equals, true)
 
 	// can delete cluster admins and db users
 	c.Assert(coordinator.DeleteDbUser(root, "db1", "db_user"), IsNil)
@@ -486,11 +499,10 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	// can get db users
 	admins, err := coordinator.ListDbUsers(dbUser, "db1")
 	c.Assert(err, IsNil)
-	adminsSet := map[string]bool{}
-	for _, admin := range admins {
-		adminsSet[admin] = true
-	}
-	c.Assert(adminsSet, DeepEquals, map[string]bool{"db_user": true, "db_user2": true})
+	c.Assert(admins[0].GetName(), Equals, "db_user")
+	c.Assert(admins[0].IsDbAdmin("db1"), Equals, true)
+	c.Assert(admins[1].GetName(), Equals, "db_user2")
+	c.Assert(admins[1].IsDbAdmin("db1"), Equals, false)
 
 	// cannot create db users for a different db
 	c.Assert(coordinator.CreateDbUser(dbUser, "db2", "db_user"), NotNil)

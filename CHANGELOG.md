@@ -225,8 +225,19 @@
 
 - Make the leveldb max open files configurable in the toml file
 
-## v0.4.5 [unreleased]
+## v0.5.0 [unreleased]
 
 ### Bugfixes
 
+- Ensure large deletes don't take too much memory
+- [Issue #240](https://github.com/influxdb/influxdb/pull/240). Unable to query against columns with `.` in the name.
+- [Issue #189](https://github.com/influxdb/influxdb/issues/189). Deprecate more field names that were missed in 0.4.0
+
 ### Features
+
+- [Issue #243](https://github.com/influxdb/influxdb/
+issues/243). Should have endpoint to GET a user's attributes.
+
+### Deprecated
+
+- `/cluster_admins` and `/db/:db/users` return usernames in a `name` key instead of `username` key.

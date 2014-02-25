@@ -906,6 +906,43 @@ func (self *IntegrationSuite) TestDeleteQuery(c *C) {
 	}
 }
 
+func (self *IntegrationSuite) TestLargeDeletes(c *C) {
+	numberOfPoints := 2 * 1024 * 1024
+	points := []interface{}{}
+	for i := 0; i < numberOfPoints; i++ {
+		points = append(points, []interface{}{i})
+	}
+	pointsString, _ := json.Marshal(points)
+	err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+    "name": "test_large_deletes",
+    "columns": ["val1"],
+    "points":%s
+  }
+]`, string(pointsString)))
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select count(val1) from test_large_deletes", "m")
+	c.Assert(err, IsNil)
+	data := []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Points, HasLen, 1)
+	c.Assert(data[0].Points[0][1], Equals, float64(numberOfPoints))
+
+	query := "delete from test_large_deletes"
+	_, err = self.server.RunQuery(query, "m")
+	c.Assert(err, IsNil)
+
+	// this shouldn't return any data
+	bs, err = self.server.RunQuery("select count(val1) from test_large_deletes", "m")
+	c.Assert(err, IsNil)
+	data = []*h.SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(err, IsNil)
+	c.Assert(data, HasLen, 0)
+}
+
 func (self *IntegrationSuite) TestReading(c *C) {
 	if !*benchmark {
 		c.Skip("Benchmarking is disabled")
@@ -935,6 +972,41 @@ func (self *IntegrationSuite) TestReading(c *C) {
 		c.Assert(len(data[0].Points), checkers.InRange, r[1], r[2]) // values between 0.5 and 0.65 should be about 100,000
 
 		fmt.Printf("Took %s to execute %s\n", elapsedTime, q)
+	}
+}
+
+func (self *IntegrationSuite) TestReadingWhenColumnHasDot(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+     "name": "test_column_names_with_dots",
+     "columns": ["first.name", "last.name"],
+     "points": [["paul", "dix"], ["john", "shahid"]]
+  }
+]`)
+	c.Assert(err, IsNil)
+
+	for name, expected := range map[string]map[string]bool{
+		"first.name": map[string]bool{"paul": true, "john": true},
+		"last.name":  map[string]bool{"dix": true, "shahid": true},
+	} {
+		q := fmt.Sprintf("select %s from test_column_names_with_dots", name)
+
+		bs, err := self.server.RunQuery(q, "m")
+		c.Assert(err, IsNil)
+
+		data := []*h.SerializedSeries{}
+		err = json.Unmarshal(bs, &data)
+		c.Assert(err, IsNil)
+
+		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Columns, HasLen, 3) // time, sequence number and the requested columns
+		c.Assert(data[0].Columns[2], Equals, name)
+		names := map[string]bool{}
+		for _, p := range data[0].Points {
+			names[p[2].(string)] = true
+		}
+		c.Assert(names, DeepEquals, expected)
 	}
 }
 

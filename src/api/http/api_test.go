@@ -175,9 +175,10 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 			},
 		},
 	}
+
 	self.manager = &MockUserManager{
 		clusterAdmins: []string{"root"},
-		dbUsers:       map[string][]string{"db1": []string{"db_user1"}},
+		dbUsers:       map[string]map[string]MockDbUser{"db1": map[string]MockDbUser{"db_user1": {Name: "db_user1", IsAdmin: false}}},
 	}
 	dir := c.MkDir()
 	self.server = NewHttpServer("", dir, self.coordinator, self.manager, nil, nil)
@@ -734,10 +735,25 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	users := []*ApiUser{}
+	users := []*UserDetail{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*ApiUser{&ApiUser{"db_user1"}})
+	c.Assert(users, HasLen, 1)
+	c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false})
+}
+
+func (self *ApiSuite) TestDbUserShow(c *C) {
+	url := self.formatUrl("/db/db1/users/db_user1?u=root&p=root")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	userDetail := &UserDetail{}
+	err = json.Unmarshal(body, &userDetail)
+	c.Assert(err, IsNil)
+	c.Assert(userDetail, DeepEquals, &UserDetail{"db_user1", false})
 }
 
 func (self *ApiSuite) TestDatabasesIndex(c *C) {
@@ -749,10 +765,12 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		c.Assert(err, IsNil)
-		users := []*cluster.Database{}
-		err = json.Unmarshal(body, &users)
+		databases := []*cluster.Database{}
+		err = json.Unmarshal(body, &databases)
 		c.Assert(err, IsNil)
-		c.Assert(users, DeepEquals, []*cluster.Database{&cluster.Database{"db1", uint8(1)}, &cluster.Database{"db2", uint8(1)}})
+		err = json.Unmarshal(body, &databases)
+		c.Assert(err, IsNil)
+		c.Assert(databases, DeepEquals, []*cluster.Database{&cluster.Database{"db1", uint8(1)}, &cluster.Database{"db2", uint8(1)}})
 	}
 }
 
@@ -767,10 +785,11 @@ func (self *ApiSuite) TestBasicAuthentication(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	users := []*cluster.Database{}
-	err = json.Unmarshal(body, &users)
+	databases := []*cluster.Database{}
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*cluster.Database{&cluster.Database{"db1", 1}, &cluster.Database{"db2", 1}})
+	err = json.Unmarshal(body, &databases)
+	c.Assert(err, IsNil)
+	c.Assert(databases, DeepEquals, []*cluster.Database{&cluster.Database{"db1", 1}, &cluster.Database{"db2", 1}})
 }
 
 func (self *ApiSuite) TestContinuousQueryOperations(c *C) {

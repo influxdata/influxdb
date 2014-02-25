@@ -626,18 +626,31 @@ func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username st
 
 	user := self.clusterConfiguration.GetDbUser(db, username)
 	if user == nil {
-		return fmt.Errorf("User %s doesn't exists", username)
+		return fmt.Errorf("User %s doesn't exist", username)
 	}
 	user.CommonUser.IsUserDeleted = true
 	return self.raftServer.SaveDbUser(user)
 }
 
-func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]string, error) {
+func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]common.User, error) {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return nil, common.NewAuthorizationError("Insufficient permissions")
 	}
 
 	return self.clusterConfiguration.GetDbUsers(db), nil
+}
+
+func (self *CoordinatorImpl) GetDbUser(requester common.User, db string, username string) (common.User, error) {
+	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
+		return nil, common.NewAuthorizationError("Insufficient permissions")
+	}
+
+	dbUser := self.clusterConfiguration.GetDbUser(db, username)
+	if dbUser == nil {
+		return nil, fmt.Errorf("Invalid username %s", username)
+	}
+
+	return dbUser, nil
 }
 
 func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, username, password string) error {
