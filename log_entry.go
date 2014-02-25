@@ -91,7 +91,7 @@ func (e *LogEntry) Decode(r io.Reader) (int, error) {
 	}
 
 	data := make([]byte, length)
-	_, err = r.Read(data)
+	_, err = io.ReadFull(r, data)
 
 	if err != nil {
 		return -1, err
