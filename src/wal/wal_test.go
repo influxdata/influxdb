@@ -1,6 +1,7 @@
 package wal
 
 import (
+	. "checkers"
 	"code.google.com/p/goprotobuf/proto"
 	"configuration"
 	"fmt"
@@ -243,13 +244,45 @@ func (_ *WalSuite) TestReplay(c *C) {
 	c.Assert(id, Equals, uint32(3))
 
 	requests := []*protocol.Request{}
-	wal.RecoverServerFromRequestNumber(uint32(2), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+	err = wal.RecoverServerFromRequestNumber(uint32(2), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
 		requests = append(requests, req)
 		return nil
 	})
+	c.Assert(err, IsNil)
 	c.Assert(requests, HasLen, 1)
 	c.Assert(requests[0].Series.Points, HasLen, 3)
 	c.Assert(err, IsNil)
+}
+
+func (_ *WalSuite) TestSimultaneousReplay(c *C) {
+	wal := newWal(c)
+	signalChan := make(chan struct{})
+	go func() {
+		count := 0
+		for i := 0; i < 10000; i++ {
+			request := generateRequest(2)
+			wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+			count++
+			if count == 100 {
+				signalChan <- struct{}{}
+			}
+		}
+		signalChan <- struct{}{}
+	}()
+
+	<-signalChan
+	// when we recover from the log, the last log file may not exist yet
+	// and we may miss a few requests
+	requests := []*protocol.Request{}
+	wal.RecoverServerFromRequestNumber(uint32(0), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		requests = append(requests, req)
+		return nil
+	})
+	<-signalChan
+	c.Assert(wal.Close(), IsNil)
+	_, err := NewWAL(wal.config)
+	c.Assert(err, IsNil)
+	c.Assert(len(requests), InRange, 100, 200)
 }
 
 func (_ *WalSuite) TestErrorInReplay(c *C) {
