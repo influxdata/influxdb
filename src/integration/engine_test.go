@@ -711,7 +711,7 @@ func (self *EngineSuite) TestCountQueryWithGroupByTimeDescendingOrder(c *C) {
   {
     "points": [
 `
-	endTime := time.Now().Round(time.Hour)
+	endTime := time.Now().Truncate(time.Hour)
 
 	for i := 0; i < 3600; i++ {
 		delimiter := ","
