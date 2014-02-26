@@ -101,6 +101,8 @@ func main() {
 	os.MkdirAll(config.DataDir, 0744)
 	server, err := server.NewServer(config)
 	if err != nil {
+		// sleep for the log to flush
+		time.Sleep(time.Second)
 		panic(err)
 	}
 
