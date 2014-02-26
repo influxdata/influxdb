@@ -807,7 +807,7 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 
 	for _, s := range existingShards {
 		if s.startTime.Unix() == startTime.Unix() && s.endTime.Unix() == endTime.Unix() {
-			existingShards = append(existingShards, s)
+			createdShards = append(createdShards, s)
 		}
 	}
 
