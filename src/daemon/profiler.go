@@ -1,8 +1,7 @@
 // build this file if the profile tag is specified and we're running
 // on linux
 
-// +build linux
-// +build profile
+// +build linux,profile
 
 package main
 
