@@ -13,7 +13,6 @@ import (
 
 type Server struct {
 	RaftServer     *coordinator.RaftServer
-	Db             datastore.Datastore
 	ProtobufServer *coordinator.ProtobufServer
 	ClusterConfig  *cluster.ClusterConfiguration
 	HttpApi        *http.HttpServer
@@ -23,15 +22,11 @@ type Server struct {
 	RequestHandler *coordinator.ProtobufRequestHandler
 	stopped        bool
 	writeLog       *wal.WAL
+	shardStore     *datastore.LevelDbShardDatastore
 }
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
 	log.Info("Opening database at %s", config.DataDir)
-	db, err := datastore.NewLevelDbDatastore(config.DataDir, config.LevelDbMaxOpenFiles)
-	if err != nil {
-		return nil, err
-	}
-
 	shardDb, err := datastore.NewLevelDbShardDatastore(config)
 	if err != nil {
 		return nil, err
@@ -51,8 +46,8 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	clusterConfig.SetShardCreator(raftServer)
 	clusterConfig.CreateFutureShardsAutomaticallyBeforeTimeComes()
 
-	coord := coordinator.NewCoordinatorImpl(config, db, raftServer, clusterConfig)
-	requestHandler := coordinator.NewProtobufRequestHandler(db, coord, clusterConfig)
+	coord := coordinator.NewCoordinatorImpl(config, raftServer, clusterConfig)
+	requestHandler := coordinator.NewProtobufRequestHandler(coord, clusterConfig)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
 
 	raftServer.AssignCoordinator(coord)
@@ -62,7 +57,6 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 
 	return &Server{
 		RaftServer:     raftServer,
-		Db:             db,
 		ProtobufServer: protobufServer,
 		ClusterConfig:  clusterConfig,
 		HttpApi:        httpApi,
@@ -70,7 +64,8 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		AdminServer:    adminServer,
 		Config:         config,
 		RequestHandler: requestHandler,
-		writeLog:       writeLog}, nil
+		writeLog:       writeLog,
+		shardStore:     shardDb}, nil
 }
 
 func (self *Server) ListenAndServe() error {
@@ -109,11 +104,11 @@ func (self *Server) Stop() {
 	}
 	self.stopped = true
 	self.RaftServer.Close()
-	self.Db.Close()
 	self.HttpApi.Close()
 	self.ProtobufServer.Close()
 	self.AdminServer.Close()
 	self.writeLog.Close()
+	self.shardStore.Close()
 	// TODO: close admin server and protobuf client connections
 	log.Info("Stopping server")
 }

@@ -1,12 +1,10 @@
 package coordinator
 
 import (
-	"datastore"
 	"encoding/binary"
 	"fmt"
 	. "launchpad.net/gocheck"
 	"net"
-	"os"
 	"protocol"
 	"time"
 )
@@ -16,20 +14,6 @@ type ClientServerSuite struct{}
 var _ = Suite(&ClientServerSuite{})
 
 const DB_DIR = "/tmp/influxdb/datastore_test"
-
-func newDatastore(c *C) datastore.Datastore {
-	os.MkdirAll(DB_DIR, 0744)
-	db, err := datastore.NewLevelDbDatastore(DB_DIR, 100)
-	c.Assert(err, Equals, nil)
-	return db
-}
-
-func cleanDb(db datastore.Datastore) {
-	if db != nil {
-		db.Close()
-	}
-	os.RemoveAll(DB_DIR)
-}
 
 type MockRequestHandler struct {
 }

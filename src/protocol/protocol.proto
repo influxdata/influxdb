@@ -42,28 +42,10 @@ message Request {
   // ensure that the receiving server is up to date
   optional uint64 sequence_number = 5;
   optional uint32 shard_id = 6;
-  // the originzatingServerId is only used for writes and deletes. It is the id of the
-  // server that first committed the write to its local datastore. It is used for
-  // the other servers in the hash ring to ensure they remain consistent.
-  optional uint32 originating_server_id = 21;
-  optional uint32 cluster_version = 10;
   optional string query = 7;
   optional string user_name = 8;
-  // ringLocationsToQuery tells the server what data it should be returning.
-  // for example, if the number is 1, it will only return data that is owned by 
-  // this server on the hash ring. If 2, it will return this server and data replicated
-  // from the server directly before it on the ring. 3, etc.
-  // If this field is left out, we assume that we'll be returning all data the server has
-  // for the query.
-  optional uint32 ring_locations_to_query = 9;
-  // optional fields for replication replay requests. should include originating serer id
-  optional uint32 replication_factor = 16;
-  optional uint32 owner_server_id = 17;
-  optional uint64 last_known_sequence_number = 18;
-  optional bool is_db_user = 19;
-
-  // This number is used by the WAL to track which requests have been committed.
-  optional uint32 request_number = 20;
+  optional uint32 request_number = 9;
+  optional bool is_db_user = 10;
 }
 
 message Response {

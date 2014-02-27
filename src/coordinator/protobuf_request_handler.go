@@ -5,7 +5,6 @@ import (
 	"cluster"
 	log "code.google.com/p/log4go"
 	"common"
-	"datastore"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 )
 
 type ProtobufRequestHandler struct {
-	db            datastore.Datastore
 	coordinator   Coordinator
 	clusterConfig *cluster.ClusterConfiguration
 	writeOk       protocol.Response_Type
@@ -26,8 +24,8 @@ var (
 	accessDeniedResponse = protocol.Response_ACCESS_DENIED
 )
 
-func NewProtobufRequestHandler(db datastore.Datastore, coordinator Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
-	return &ProtobufRequestHandler{db: db, coordinator: coordinator, writeOk: protocol.Response_WRITE_OK, clusterConfig: clusterConfig}
+func NewProtobufRequestHandler(coordinator Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
+	return &ProtobufRequestHandler{coordinator: coordinator, writeOk: protocol.Response_WRITE_OK, clusterConfig: clusterConfig}
 }
 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {

@@ -4,7 +4,6 @@ import (
 	"cluster"
 	. "common"
 	"configuration"
-	"datastore"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -43,36 +42,6 @@ const (
 	SERVER_STARTUP_TIME = time.Second * 2
 	REPLICATION_LAG     = time.Millisecond * 500
 )
-
-type DatastoreMock struct {
-	datastore.Datastore
-	Series          *protocol.Series
-	DroppedDatabase string
-}
-
-func (self *DatastoreMock) WriteSeriesData(database string, series *protocol.Series) error {
-	self.Series = series
-	return nil
-}
-
-func (self *DatastoreMock) DropDatabase(database string) error {
-	self.DroppedDatabase = database
-	return nil
-}
-
-func (self *DatastoreMock) LogRequestAndAssignSequenceNumber(request *protocol.Request, replicationFactor *uint8, ownerServerId *uint32) error {
-	id := uint64(1)
-	request.SequenceNumber = &id
-	return nil
-}
-
-func (self *DatastoreMock) AtomicIncrement(name string, val int) (uint64, error) {
-	return uint64(val), nil
-}
-
-func (self *DatastoreMock) ReplayRequestsFromSequenceNumber(*uint32, *uint32, *uint32, *uint8, *uint64, func(*[]byte) error) error {
-	return nil
-}
 
 type WALMock struct {
 	cluster.WAL
@@ -300,7 +269,7 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, &DatastoreMock{}, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -318,7 +287,7 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 
 	// the db should be in the index now
 	for _, server := range servers {
-		coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, &DatastoreMock{}, server, server.clusterConfig)
+		coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, server, server.clusterConfig)
 		dbs, err := coordinator.ListDatabases(root)
 		c.Assert(err, IsNil)
 		c.Assert(dbs, DeepEquals, []*cluster.Database{&cluster.Database{"db1", 1}})
@@ -334,7 +303,7 @@ func (self *CoordinatorSuite) TestAdminOperations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -410,7 +379,7 @@ func (self *CoordinatorSuite) TestContinuousQueryOperations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -470,7 +439,7 @@ func (self *CoordinatorSuite) TestDbAdminOperations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -529,7 +498,7 @@ func (self *CoordinatorSuite) TestDbUserOperations(c *C) {
 	servers := startAndVerifyCluster(3, c)
 	defer clean(servers...)
 
-	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, servers[0], servers[0].clusterConfig)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, servers[0], servers[0].clusterConfig)
 
 	time.Sleep(REPLICATION_LAG)
 
@@ -568,7 +537,7 @@ func (self *CoordinatorSuite) TestUserDataReplication(c *C) {
 
 	coordinators := make([]*CoordinatorImpl, 0, len(servers))
 	for _, server := range servers {
-		coordinators = append(coordinators, NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, server, server.clusterConfig))
+		coordinators = append(coordinators, NewCoordinatorImpl(DEFAULT_CONFIGURATION, server, server.clusterConfig))
 	}
 
 	// root must exist on all three nodes
@@ -650,8 +619,7 @@ func (self *CoordinatorSuite) TestCanDropDatabaseWithName(c *C) {
 }
 
 func (self *CoordinatorSuite) TestCheckReadAccess(c *C) {
-	datastoreMock := &DatastoreMock{}
-	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, datastoreMock, nil, nil)
+	coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, nil, nil)
 	mock := `{
     "points": [
       {
@@ -673,7 +641,6 @@ func (self *CoordinatorSuite) TestCheckReadAccess(c *C) {
 	}
 	err := coordinator.WriteSeriesData(user, "foo", series)
 	c.Assert(err, ErrorMatches, ".*Insufficient permission.*")
-	c.Assert(datastoreMock.Series, IsNil)
 }
 
 func (self *CoordinatorSuite) TestServersGetUniqueIdsAndCanActivateCluster(c *C) {

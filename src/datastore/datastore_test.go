@@ -2,13 +2,13 @@ package datastore
 
 import (
 	// . "checkers"
-	"common"
-	"encoding/json"
+	// "common"
+	// "encoding/json"
 	// "fmt"
 	. "launchpad.net/gocheck"
-	"os"
-	"parser"
-	"protocol"
+	// "os"
+	// "parser"
+	// "protocol"
 	"testing"
 	// "time"
 )
@@ -24,47 +24,47 @@ var _ = Suite(&DatastoreSuite{})
 
 const DB_DIR = "/tmp/chronosdb/datastore_test"
 
-func newDatastore(c *C) Datastore {
-	os.MkdirAll(DB_DIR, 0744)
-	db, err := NewLevelDbDatastore(DB_DIR, 100)
-	c.Assert(err, Equals, nil)
-	return db
-}
+// func newDatastore(c *C) Datastore {
+// 	os.MkdirAll(DB_DIR, 0744)
+// 	db, err := NewLevelDbDatastore(DB_DIR, 100)
+// 	c.Assert(err, Equals, nil)
+// 	return db
+// }
 
-func cleanup(db Datastore) {
-	if db != nil {
-		db.Close()
-	}
-	os.RemoveAll(DB_DIR)
-}
+// func cleanup(db Datastore) {
+// 	if db != nil {
+// 		db.Close()
+// 	}
+// 	os.RemoveAll(DB_DIR)
+// }
 
-func stringToSeries(seriesString string, timestamp int64, c *C) *protocol.Series {
-	series := &protocol.Series{}
-	err := json.Unmarshal([]byte(seriesString), &series)
-	c.Assert(err, IsNil)
-	timestamp *= 1000000
-	for _, point := range series.Points {
-		point.Timestamp = &timestamp
-	}
-	return series
-}
+// func stringToSeries(seriesString string, timestamp int64, c *C) *protocol.Series {
+// 	series := &protocol.Series{}
+// 	err := json.Unmarshal([]byte(seriesString), &series)
+// 	c.Assert(err, IsNil)
+// 	timestamp *= 1000000
+// 	for _, point := range series.Points {
+// 		point.Timestamp = &timestamp
+// 	}
+// 	return series
+// }
 
-func executeQuery(user common.User, database, query string, db Datastore, c *C) []*protocol.Series {
-	q, errQ := parser.ParseSelectQuery(query)
-	c.Assert(errQ, IsNil)
-	resultSeries := []*protocol.Series{}
-	yield := func(series *protocol.Series) error {
-		// ignore time series which have no data, this includes
-		// end of series indicator
-		if len(series.Points) > 0 {
-			resultSeries = append(resultSeries, series)
-		}
-		return nil
-	}
-	err := db.ExecuteQuery(user, database, q, yield, nil)
-	c.Assert(err, IsNil)
-	return resultSeries
-}
+// func executeQuery(user common.User, database, query string, db Datastore, c *C) []*protocol.Series {
+// 	q, errQ := parser.ParseSelectQuery(query)
+// 	c.Assert(errQ, IsNil)
+// 	resultSeries := []*protocol.Series{}
+// 	yield := func(series *protocol.Series) error {
+// 		// ignore time series which have no data, this includes
+// 		// end of series indicator
+// 		if len(series.Points) > 0 {
+// 			resultSeries = append(resultSeries, series)
+// 		}
+// 		return nil
+// 	}
+// 	err := db.ExecuteQuery(user, database, q, yield, nil)
+// 	c.Assert(err, IsNil)
+// 	return resultSeries
+// }
 
 // func (self *DatastoreSuite) TestPropagateErrorsProperly(c *C) {
 // 	cleanup(nil)

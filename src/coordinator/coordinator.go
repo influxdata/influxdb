@@ -5,7 +5,6 @@ import (
 	log "code.google.com/p/log4go"
 	"common"
 	"configuration"
-	"datastore"
 	"engine"
 	"fmt"
 	"math"
@@ -22,7 +21,6 @@ import (
 type CoordinatorImpl struct {
 	clusterConfiguration *cluster.ClusterConfiguration
 	raftServer           ClusterConsensus
-	datastore            datastore.Datastore
 	config               *configuration.Configuration
 }
 
@@ -71,12 +69,11 @@ func init() {
 	}
 }
 
-func NewCoordinatorImpl(config *configuration.Configuration, datastore datastore.Datastore, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
+func NewCoordinatorImpl(config *configuration.Configuration, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
 	coordinator := &CoordinatorImpl{
 		config:               config,
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
-		datastore:            datastore,
 	}
 
 	return coordinator
