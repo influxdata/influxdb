@@ -12,7 +12,6 @@ import (
 	"protocol"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 type log struct {
@@ -111,7 +110,6 @@ func (self *log) recover() error {
 
 	self.state.RequestsSinceLastBookmark = 0
 	self.state.RequestsSinceLastIndex = 0
-	self.state.setFileOffset(self.state.FileOffset)
 
 	logger.Debug("Recovering from previous state from file offset: %d", self.state.FileOffset)
 
@@ -227,11 +225,7 @@ func (self *log) appendRequest(request *protocol.Request, shardId uint32) (uint3
 }
 
 func (self *log) dupLogFile() (*os.File, error) {
-	fd, err := syscall.Dup(int(self.file.Fd()))
-	if err != nil {
-		return nil, err
-	}
-	return os.NewFile(uintptr(fd), self.file.Name()), nil
+	return os.OpenFile(self.file.Name(), os.O_RDONLY, 0)
 }
 
 // replay requests starting at the given requestNumber and for the
