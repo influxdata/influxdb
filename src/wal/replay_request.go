@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"common"
 	"protocol"
 )
 
@@ -13,6 +14,6 @@ type replayRequest struct {
 
 func newErrorReplayRequest(err error) *replayRequest {
 	return &replayRequest{
-		err: err,
+		err: common.NewErrorWithStacktrace(err, "Replay error"),
 	}
 }

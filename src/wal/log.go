@@ -270,7 +270,7 @@ func (self *log) replayFromFileLocation(file *os.File,
 	defer func() { close(replayChan) }()
 	for {
 		hdr := &entryHeader{}
-		_, err := hdr.Read(file)
+		numberOfBytes, err := hdr.Read(file)
 
 		if err == io.EOF {
 			return
@@ -299,6 +299,20 @@ func (self *log) replayFromFileLocation(file *os.File,
 
 		bytes := make([]byte, hdr.length)
 		read, err := file.Read(bytes)
+		if err == io.EOF {
+			// file ends prematurely, truncate to the previous request
+			logger.Warn("%s ends prematurely, truncating to last known good request", file.Name())
+			offset, err := file.Seek(int64(-numberOfBytes), os.SEEK_CUR)
+			if err != nil {
+				sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
+				return
+			}
+			err = file.Truncate(offset)
+			if err != nil {
+				sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
+			}
+			return
+		}
 		if err != nil {
 			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 			return

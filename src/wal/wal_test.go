@@ -253,6 +253,29 @@ func (_ *WalSuite) TestReplay(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (_ *WalSuite) TestRecoveryFromCrash(c *C) {
+	wal := newWal(c)
+	req := generateRequest(2)
+	_, err := wal.AssignSequenceNumbersAndLog(req, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(wal.Close(), IsNil)
+	filePath := path.Join(wal.config.WalDir, "log.1")
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	c.Assert(err, IsNil)
+	defer file.Close()
+	hdr := &entryHeader{1, 1, 10}
+	_, err = hdr.Write(file)
+	c.Assert(err, IsNil)
+	wal, err = NewWAL(wal.config)
+	c.Assert(err, IsNil)
+	requests := []*protocol.Request{}
+	wal.RecoverServerFromRequestNumber(0, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		requests = append(requests, req)
+		return nil
+	})
+	c.Assert(requests, HasLen, 1)
+}
+
 func (_ *WalSuite) TestSimultaneousReplay(c *C) {
 	wal := newWal(c)
 	signalChan := make(chan struct{})
