@@ -43,7 +43,6 @@ func (self *WriteBuffer) Write(request *protocol.Request) {
 	case self.writes <- request:
 		return
 	default:
-		log.Info("Write buffer full, pausing that shit")
 		select {
 		case self.stoppedWrites <- *request.RequestNumber:
 			return
@@ -98,6 +97,10 @@ func (self *WriteBuffer) replayAndRecover(missedRequest uint32) {
 					req = r
 				}
 			}
+		}
+		if req == nil {
+			log.Error("REPLAY: emptied channel, but no request set")
+			return
 		}
 		log.Info("REPLAY: Emptied out channel")
 		shardIds := make([]uint32, 0)
