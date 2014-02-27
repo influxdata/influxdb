@@ -20,7 +20,7 @@ endif
 export GOARCH
 export CGO_ENABLED
 
-.PHONY: all valgrind parser package package_init build binary_package
+.PHONY: all valgrind parser package replace_version_string build binary_package
 
 all: | parser valgrind build test integration_test
 
@@ -133,11 +133,12 @@ protobuf:
 	rm -f src/protocol/*.pb.go
 	PATH=$$PWD/bin:$$PATH $(PROTOC) --go_out=. src/protocol/*.proto
 
-build: | dependencies protobuf parser
+build: | dependencies protobuf parser build_version_string
 # TODO: build all packages, otherwise we won't know
 # if there's an error
 	$(GO) build $(GO_BUILD_OPTIONS) daemon
 	$(GO) build benchmark
+	mv -f src/daemon/influxd.go.bak src/daemon/influxd.go
 
 clean:
 	rm -f daemon
@@ -158,6 +159,11 @@ ifneq ($(verbose),off)
 	GOTEST_OPTS += -v -gocheck.v -gocheck.vv
 endif
 
+version=
+ifeq ($(version),)
+	version = "dev"
+endif
+
 timeout = 10m
 GOTEST_OPTS += -test.timeout=$(timeout)
 
@@ -172,7 +178,6 @@ coverage: test_dependencies
 integration_test: test_dependencies build
 	$(GO) test integration $(GOTEST_OPTS)
 
-version=
 package_version=$(subst -,_,$(version))
 admin_dir = /tmp/admin.influxdb
 
@@ -191,10 +196,10 @@ endif
 files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
 sha1 = $(shell sh -c "git rev-list --max-count=1 HEAD")
 
-package_init:
-ifeq ($(version),)
-	$(error Please specify the version to be packaged using 'make version=major.minor.patch')
-endif
+build_version_string:
+	sed -i.bak -e "s/version = \"dev\"/version = \"$(version)\"/" -e "s/gitSha\s*=\s*\"HEAD\"/gitSha = \"$(sha1)\"/" src/daemon/influxd.go
+
+package_version_string:
 	sed -i.bak -e "s/version = \"dev\"/version = \"$(version)\"/" -e "s/gitSha\s*=\s*\"HEAD\"/gitSha = \"$(sha1)\"/" src/daemon/influxd.go
 	sed -i.bak -e "s/REPLACE_VERSION/$(version)/" scripts/post_install.sh
 
@@ -263,6 +268,6 @@ binary_package: $(binary_package)
 packages:
 	mkdir $@
 
-package: | packages package_init $(files)
-	mv -f src/daemon/influxd.go.bak src/daemon/influxd.go
+package: | packages build package_version_string $(files)
 	mv -f scripts/post_install.sh.bak scripts/post_install.sh
+	mv -f src/daemon/influxd.go.bak src/daemon/influxd.go
