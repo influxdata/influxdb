@@ -104,6 +104,7 @@ func (self *log) recover() error {
 	if err != nil {
 		return err
 	}
+	defer bookmark.Close()
 	if err := self.state.read(bookmark); err != nil {
 		return err
 	}
@@ -123,7 +124,7 @@ func (self *log) recover() error {
 	stopChan := make(chan struct{})
 
 	go func() {
-		self.replayFromFileLocation(self.file, map[uint32]struct{}{}, 0, replayChan, stopChan)
+		self.replayFromFileLocation(self.file, map[uint32]struct{}{}, replayChan, stopChan)
 	}()
 
 	for {
@@ -230,7 +231,7 @@ func (self *log) dupLogFile() (*os.File, error) {
 
 // replay requests starting at the given requestNumber and for the
 // given shard ids. Return all requests if shardIds is empty
-func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32) (chan *replayRequest, chan struct{}) {
+func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32, order RequestNumberOrder) (chan *replayRequest, chan struct{}) {
 	// this channel needs to be buffered in case the last request in the
 	// log file caused an error in the yield function
 	stopChan := make(chan struct{}, 1)
@@ -244,7 +245,7 @@ func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32
 			return
 		}
 		defer file.Close()
-		offset := self.state.Index.requestOffset(requestNumber)
+		offset := self.state.Index.requestOffset(order, requestNumber)
 		logger.Debug("Replaying from file offset %d", offset)
 		_, err = file.Seek(int64(offset), os.SEEK_SET)
 		if err != nil {
@@ -256,24 +257,61 @@ func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32
 		for _, shardId := range shardIds {
 			shardIdsSet[shardId] = struct{}{}
 		}
-		self.replayFromFileLocation(file, shardIdsSet, requestNumber, replayChan, stopChan)
+		if err := self.skipToRequest(file, requestNumber, order); err != nil {
+			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
+			return
+		}
+		self.replayFromFileLocation(file, shardIdsSet, replayChan, stopChan)
 	}()
 	return replayChan, stopChan
 }
 
+func (self *log) getNextHeader(file *os.File) (int, *entryHeader, error) {
+	hdr := &entryHeader{}
+	numberOfBytes, err := hdr.Read(file)
+	if err == io.EOF {
+		return 0, nil, nil
+	}
+	return numberOfBytes, hdr, err
+}
+
+func (self *log) skipRequest(file *os.File, hdr *entryHeader) (err error) {
+	_, err = file.Seek(int64(hdr.length), os.SEEK_CUR)
+	return
+}
+
+func (self *log) skipToRequest(file *os.File, requestNumber uint32, order RequestNumberOrder) error {
+	for {
+		n, hdr, err := self.getNextHeader(file)
+		if n == 0 {
+			// EOF
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if order.isBefore(hdr.requestNumber, requestNumber) {
+			if err := self.skipRequest(file, hdr); err != nil {
+				return err
+			}
+			continue
+		}
+		// seek back to the beginning of the request header
+		_, err = file.Seek(int64(-n), os.SEEK_CUR)
+		return err
+	}
+}
+
 func (self *log) replayFromFileLocation(file *os.File,
 	shardIdsSet map[uint32]struct{},
-	requestNumber uint32,
 	replayChan chan *replayRequest,
 	stopChan chan struct{}) {
 
 	defer func() { close(replayChan) }()
 	for {
-		hdr := &entryHeader{}
-		numberOfBytes, err := hdr.Read(file)
-
-		if err == io.EOF {
-			return
+		numberOfBytes, hdr, err := self.getNextHeader(file)
+		if numberOfBytes == 0 {
+			break
 		}
 
 		if err != nil {
@@ -288,8 +326,8 @@ func (self *log) replayFromFileLocation(file *os.File,
 		} else {
 			_, ok = shardIdsSet[hdr.shardId]
 		}
-		if !ok || hdr.requestNumber < requestNumber {
-			_, err = file.Seek(int64(hdr.length), os.SEEK_CUR)
+		if !ok {
+			err = self.skipRequest(file, hdr)
 			if err != nil {
 				sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 				return

@@ -26,21 +26,17 @@ func (self *index) addEntry(startRequestNumber, size uint32, currentOffset uint6
 	self.CurrentOffset = currentOffset
 }
 
-func (self *index) findOffsetBlock(requestNumber uint32) func(int) bool {
+func (self *index) findOffsetBlock(order RequestNumberOrder, requestNumber uint32) func(int) bool {
 	return func(i int) bool {
 		// The returned function must satisfy `f(i) => f(i+1)`, meaning if
 		// for index i f returns true, then it must return true for every
 		// index greater than i. sort.Search will return the smallest
 		// index satisfying f
-		if self.Entries[i].StartRequestNumber > requestNumber {
-			return true
-		}
-
-		return false
+		return order.isAfter(self.Entries[i].StartRequestNumber, requestNumber)
 	}
 }
 
-func (self *index) requestOffset(requestNumber uint32) uint64 {
+func (self *index) requestOffset(order RequestNumberOrder, requestNumber uint32) uint64 {
 	numberOfEntries := len(self.Entries)
 	if numberOfEntries == 0 {
 		logger.Info("no index entries, assuming beginning of the file")
@@ -48,15 +44,15 @@ func (self *index) requestOffset(requestNumber uint32) uint64 {
 	}
 
 	firstEntry := self.Entries[0]
-	if requestNumber < firstEntry.StartRequestNumber {
+	if order.isBeforeOrEqual(requestNumber, firstEntry.StartRequestNumber) {
 		return firstEntry.StartOffset
 	}
 
 	lastEntry := self.Entries[numberOfEntries-1]
-	if requestNumber >= lastEntry.StartRequestNumber {
+	if order.isAfterOrEqual(requestNumber, lastEntry.StartRequestNumber) {
 		return lastEntry.StartOffset
 	}
 
-	index := sort.Search(numberOfEntries, self.findOffsetBlock(requestNumber))
+	index := sort.Search(numberOfEntries, self.findOffsetBlock(order, requestNumber))
 	return self.Entries[index-1].StartOffset
 }

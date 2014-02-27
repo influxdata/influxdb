@@ -1,15 +1,20 @@
 package wal
 
-type sortableLogSlice []*log
+type sortableLogSlice struct {
+	logFiles []*log
+	order    RequestNumberOrder
+}
 
 func (self sortableLogSlice) Len() int {
-	return len(self)
+	return len(self.logFiles)
 }
 
 func (self sortableLogSlice) Less(i, j int) bool {
-	return self[i].firstRequestNumber() < self[j].firstRequestNumber()
+	left := self.logFiles[i].firstRequestNumber()
+	right := self.logFiles[j].firstRequestNumber()
+	return self.order.isBefore(left, right)
 }
 
 func (self sortableLogSlice) Swap(i, j int) {
-	self[i], self[j] = self[j], self[i]
+	self.logFiles[i], self.logFiles[j] = self.logFiles[j], self.logFiles[i]
 }
