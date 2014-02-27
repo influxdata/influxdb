@@ -1,6 +1,7 @@
 package wal
 
 import (
+	logger "code.google.com/p/log4go"
 	"configuration"
 	"fmt"
 	"os"
@@ -111,10 +112,13 @@ func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds [
 
 outer:
 	for _, logFile := range self.logFiles[firstLogFile:] {
+		logger.Info("Replaying from %s", logFile.file.Name())
+		count := 0
 		ch, stopChan := logFile.replayFromRequestNumber(shardIds, requestNumber)
 		for {
 			x := <-ch
 			if x == nil {
+				logger.Info("%s yielded %d requests", logFile.file.Name(), count)
 				continue outer
 			}
 
@@ -126,6 +130,7 @@ outer:
 				stopChan <- struct{}{}
 				return err
 			}
+			count++
 		}
 		close(stopChan)
 	}
