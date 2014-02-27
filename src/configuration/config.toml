@@ -69,7 +69,7 @@ query-shard-buffer-size = 1000
 
 # Maximum mmap open files, this will affect the virtual memory used by
 # the process
-# max-open-files = 100
+max-open-files = 40
 
 # These options specify how data is sharded across the cluster. There are two 
 # shard configurations that have the same knobs: short term and long term.

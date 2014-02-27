@@ -74,6 +74,7 @@ func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShar
 	opts.SetBlockSize(64 * ONE_KILOBYTE)
 	filter := levigo.NewBloomFilter(SHARD_BLOOM_FILTER_BITS_PER_KEY)
 	opts.SetFilterPolicy(filter)
+	opts.SetMaxOpenFiles(config.LevelDbMaxOpenFiles)
 
 	return &LevelDbShardDatastore{
 		baseDbDir:      baseDbDir,
