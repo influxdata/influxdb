@@ -238,7 +238,7 @@
 
 - [Issue #243](https://github.com/influxdb/influxdb/issues/243). Should have endpoint to GET a user's attributes.
 - [Issue #269](https://github.com/influxdb/influxdb/pull/269), [Issue #65](https://github.com/influxdb/influxdb/issues/65) New clustering architecture (see docs), with the side effect that queries can be distributed between multiple shards
-- [Issue 164](https://github.com/influxdb/influxdb/pull/269),[Issue 103](https://github.com/influxdb/influxdb/pull/269),[Issue 166](https://github.com/influxdb/influxdb/pull/269),[Issue 165](https://github.com/influxdb/influxdb/pull/269),[Issue 132](https://github.com/influxdb/influxdb/pull/269) Make request log a log file instead of leveldb with recovery on startup
+- [Issue #164](https://github.com/influxdb/influxdb/pull/269),[Issue #103](https://github.com/influxdb/influxdb/pull/269),[Issue #166](https://github.com/influxdb/influxdb/pull/269),[Issue #165](https://github.com/influxdb/influxdb/pull/269),[Issue #132](https://github.com/influxdb/influxdb/pull/269) Make request log a log file instead of leveldb with recovery on startup
 
 ### Deprecated
 
