@@ -245,10 +245,16 @@
 - [Issue #189](https://github.com/influxdb/influxdb/issues/189). `/cluster_admins` and `/db/:db/users` return usernames in a `name` key instead of `username` key.
 - [Issue #216](https://github.com/influxdb/influxdb/pull/216). Results with no points should exclude columns and points
 
-## v0.5.0-rc.2 [unreleased]
+## v0.5.0-rc.2 [2014-02-27]
 
 ### Bugfixes
 
 - [Issue #274](https://github.com/influxdb/influxdb/issues/274). Crash after restart
 - [Issue #277](https://github.com/influxdb/influxdb/issues/277). Ensure duplicate shards won't be created
 - [Issue #279](https://github.com/influxdb/influxdb/issues/279). Limits not working on regex queries
+- [Issue #281](https://github.com/influxdb/influxdb/issues/281). `./influxdb -v` should print the sha when building from source
+- [Issue #283](https://github.com/influxdb/influxdb/issues/283). Dropping shard and restart in cluster causes panic.
+
+## v0.5.0-rc.3 [unreleased]
+
+### Bugfixes
