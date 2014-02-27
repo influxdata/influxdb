@@ -138,6 +138,13 @@ outer:
 }
 
 func (self *WAL) Close() error {
+	confirmationChan := make(chan *confirmation)
+	self.entries <- &closeEntry{confirmationChan}
+	confirmation := <-confirmationChan
+	return confirmation.err
+}
+
+func (self *WAL) processClose() error {
 	for _, l := range self.logFiles {
 		if err := l.close(); err != nil {
 			return err
@@ -157,7 +164,8 @@ func (self *WAL) processEntries() {
 		case *appendEntry:
 			self.processAppendEntry(x)
 		case *closeEntry:
-			x.confirmation <- &confirmation{0, self.Close()}
+			x.confirmation <- &confirmation{0, self.processClose()}
+			logger.Info("Closing wal")
 			return
 		default:
 			panic(fmt.Errorf("unknown entry type %T", e))
