@@ -298,7 +298,7 @@ func (self *log) replayFromFileLocation(file *os.File,
 		}
 
 		bytes := make([]byte, hdr.length)
-		read, err := self.file.Read(bytes)
+		read, err := file.Read(bytes)
 		if err != nil {
 			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 			return
