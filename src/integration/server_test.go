@@ -817,6 +817,46 @@ func (self *ServerSuite) TestColumnNamesReturnInDistributedQuery(c *C) {
 	}
 }
 
+func generateHttpApiSeries(name string, n int) *common.SerializedSeries {
+	points := [][]interface{}{}
+
+	for i := 0; i < n; i++ {
+		points = append(points, []interface{}{i})
+	}
+
+	return &common.SerializedSeries{
+		Name:    name,
+		Columns: []string{"value"},
+		Points:  points,
+	}
+}
+
+func (self *ServerSuite) TestLimitWithRegex(c *C) {
+	// run the test once with less than POINT_BATCH_SIZE points and once
+	// with more than POINT_BATCH_SIZE points
+	for _, numberOfPoints := range []int{100, 1000} {
+		for i := 0; i < 100; i++ {
+			name := fmt.Sprintf("limit_with_regex_%d_%d", numberOfPoints, i)
+			series := generateHttpApiSeries(name, numberOfPoints)
+			bytes, err := json.Marshal([]*common.SerializedSeries{series})
+			c.Assert(err, IsNil)
+			resp := self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", string(bytes), c)
+			defer resp.Body.Close()
+			c.Assert(resp.StatusCode, Equals, http.StatusOK)
+		}
+		time.Sleep(time.Second * 2)
+		query := fmt.Sprintf("select * from /.*limit_with_regex_%d.*/ limit 1", numberOfPoints)
+		collection := self.serverProcesses[0].Query("test_rep", query, false, c)
+		// make sure all series get back 1 point only
+		for i := 0; i < 100; i++ {
+			table := fmt.Sprintf("limit_with_regex_%d_%d", numberOfPoints, i)
+			series := collection.GetSeries(table, c)
+			c.Assert(series.SerializedSeries.Points, HasLen, 1)
+			c.Assert(series.GetValueForPointAndColumn(0, "value", c), Equals, float64(numberOfPoints-1))
+		}
+	}
+}
+
 // For issue #131 https://github.com/influxdb/influxdb/issues/131
 func (self *ServerSuite) TestSelectFromRegexInCluster(c *C) {
 	data := `[{
