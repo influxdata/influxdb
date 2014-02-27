@@ -251,3 +251,4 @@
 
 - [Issue #274](https://github.com/influxdb/influxdb/issues/274). Crash after restart
 - [Issue #277](https://github.com/influxdb/influxdb/issues/277). Ensure duplicate shards won't be created
+- [Issue #279](https://github.com/influxdb/influxdb/issues/279). Limits not working on regex queries
