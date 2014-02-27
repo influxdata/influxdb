@@ -73,8 +73,8 @@ func (self *ServerProcess) Stop() {
 
 func (self *ServerSuite) precreateShards(server *ServerProcess, c *C) {
 	time.Sleep(time.Second)
-	self.createShards(server, int64(3600), "false", c)
-	self.createShards(server, int64(86400), "true", c)
+	go self.createShards(server, int64(3600), "false", c)
+	go self.createShards(server, int64(86400), "true", c)
 	time.Sleep(time.Second)
 }
 
