@@ -261,11 +261,16 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 			break
 		}
 
+		shouldContinue := true
 		for _, alias := range aliases {
 			_alias := alias
 			if !processor.YieldPoint(&_alias, fieldNames, point) {
-				break
+				shouldContinue = false
 			}
+		}
+
+		if !shouldContinue {
+			break
 		}
 	}
 
