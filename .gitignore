@@ -51,3 +51,4 @@ Makefile
 
 # log file
 influxdb.log
+benchmark.log
