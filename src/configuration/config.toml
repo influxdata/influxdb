@@ -35,7 +35,7 @@ dir = "/tmp/influxdb/development/db"
 # How many requests to potentially buffer in memory. If the buffer gets filled then writes
 # will still be logged and once the local storage has caught up (or compacted) the writes
 # will be replayed from the WAL
-write-buffer-size = 1000
+write-buffer-size = 10000
 
 [cluster]
 # A comma separated list of servers to seed
@@ -59,11 +59,11 @@ protobuf_heartbeat = "200ms" # the heartbeat interval between the servers. must 
 # How many write requests to potentially buffer in memory per server. If the buffer gets filled then writes
 # will still be logged and once the server has caught up (or come back online) the writes
 # will be replayed from the WAL
-write-buffer-size = 1000
+write-buffer-size = 10000
 
 # When queries get distributed out, the go in parallel. However, the responses must be sent in time order.
 # This setting determines how many responses can be buffered in memory per shard before data starts gettind dropped.
-query-shard-buffer-size = 500
+query-shard-buffer-size = 1000
 
 [leveldb]
 
