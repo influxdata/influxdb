@@ -49,6 +49,7 @@ func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
 	}
 
 	if err := l.recover(); err != nil {
+		logger.Error("Error while recovering from file %s", file.Name())
 		return nil, err
 	}
 	return l, nil
@@ -112,8 +113,11 @@ func (self *log) recover() error {
 	self.state.RequestsSinceLastIndex = 0
 	self.state.setFileOffset(self.state.FileOffset)
 
+	logger.Debug("Recovering from previous state from file offset: %d", self.state.FileOffset)
+
 	// replay the rest of the wal
 	if _, err := self.file.Seek(self.state.FileOffset, os.SEEK_SET); err != nil {
+		logger.Error("Cannot seek to %d. Error: %s", self.state.FileOffset, err)
 		return err
 	}
 
@@ -247,6 +251,7 @@ func (self *log) replayFromRequestNumber(shardIds []uint32, requestNumber uint32
 		}
 		defer file.Close()
 		offset := self.state.Index.requestOffset(requestNumber)
+		logger.Debug("Replaying from file offset %d", offset)
 		_, err = file.Seek(int64(offset), os.SEEK_SET)
 		if err != nil {
 			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
@@ -324,9 +329,14 @@ func (self *log) replayFromFileLocation(file *os.File,
 }
 
 func sendOrStop(req *replayRequest, replayChan chan *replayRequest, stopChan chan struct{}) bool {
+	if req.err != nil {
+		logger.Error("Error in replay: %s", req.err)
+	}
+
 	select {
 	case replayChan <- req:
 	case _, ok := <-stopChan:
+		logger.Debug("Stopping replay")
 		return ok
 	}
 	return false
