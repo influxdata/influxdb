@@ -970,6 +970,20 @@ func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds 
 	self.shardsByIdLock.RLock()
 	shard := self.shardsById[shardId]
 	self.shardsByIdLock.RUnlock()
+
+	// may not be in the map, try to get it from the list
+	if shard == nil {
+		for _, s := range self.GetAllShards() {
+			if s.id == shardId {
+				shard = s
+				break
+			}
+		}
+	}
+	if shard == nil {
+		log.Error("Attempted to remove shard %d, which we couldn't find. %d shards currently loaded.", shardId, len(self.GetAllShards()))
+	}
+
 	if len(shard.serverIds) == len(serverIds) {
 		self.removeShard(shardId)
 		return
