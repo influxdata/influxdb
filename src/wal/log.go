@@ -315,6 +315,7 @@ func (self *log) replayFromFileLocation(file *os.File,
 			return
 		}
 
+		req.RequestNumber = proto.Uint32(hdr.requestNumber)
 		replayRequest := &replayRequest{hdr.requestNumber, req, hdr.shardId, nil}
 		if sendOrStop(replayRequest, replayChan, stopChan) {
 			return

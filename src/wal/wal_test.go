@@ -122,8 +122,6 @@ func (_ *WalSuite) TestLogFilesCompaction(c *C) {
 		c.Assert(id, Equals, uint32(i+1))
 	}
 	c.Assert(wal.logFiles, HasLen, 2)
-	wal.Close()
-
 	suffix := wal.logFiles[0].suffix()
 	c.Assert(wal.Commit(2001, 1), IsNil)
 	c.Assert(wal.logFiles, HasLen, 2)
@@ -251,6 +249,7 @@ func (_ *WalSuite) TestReplay(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(requests, HasLen, 1)
 	c.Assert(requests[0].Series.Points, HasLen, 3)
+	c.Assert(*requests[0].RequestNumber, Equals, uint32(3))
 	c.Assert(err, IsNil)
 }
 
