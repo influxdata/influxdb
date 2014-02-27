@@ -285,5 +285,6 @@ func (self *WAL) rotateTheLogFile() error {
 	if err != nil {
 		return err
 	}
+	logger.Info("Rotating log. New log file %s", lastLogFile.file.Name())
 	return nil
 }
