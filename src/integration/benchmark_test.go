@@ -533,7 +533,7 @@ func (self *IntegrationSuite) TestIssue92(c *C) {
 		 ]
   }
 ]
-`, hourAgo, hourAgo, hourAgo, hourAgo, now, now, now))
+`, hourAgo, hourAgo, hourAgo, hourAgo, now, now, now), "time_precision=s")
 	c.Assert(err, IsNil)
 	bs, err := self.server.RunQuery("select sum(kb) from test_issue_92 group by time(1h), to, app", "m")
 	c.Assert(err, IsNil)
