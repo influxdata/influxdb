@@ -88,6 +88,9 @@ func NewWAL(config *configuration.Configuration) (*WAL, error) {
 
 func (self *WAL) SetServerId(id uint32) {
 	self.serverId = id
+	for _, log := range self.logFiles {
+		log.setServerId(id)
+	}
 }
 
 // Marks a given request for a given server as committed
@@ -223,6 +226,7 @@ func (self *WAL) createNewLog() (*log, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.setServerId(self.serverId)
 
 	// TODO: this is ugly, we have to copy some of the state to the new
 	// log. Find a better way to do this, possibly separating the state

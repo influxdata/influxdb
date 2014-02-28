@@ -19,7 +19,7 @@ type log struct {
 	fileSize               uint64
 	state                  *state
 	file                   *os.File
-	serverId               uint32
+	serverId               uint64
 	requestsSinceLastFlush int
 	config                 *configuration.Configuration
 	cachedSuffix           int
@@ -150,7 +150,7 @@ func (self *log) recover() error {
 }
 
 func (self *log) setServerId(serverId uint32) {
-	self.serverId = serverId
+	self.serverId = uint64(serverId)
 }
 
 func (self *log) assignSequenceNumbers(shardId uint32, request *protocol.Request) {
@@ -163,7 +163,7 @@ func (self *log) assignSequenceNumbers(shardId uint32, request *protocol.Request
 			continue
 		}
 		sequenceNumber++
-		p.SequenceNumber = proto.Uint64(sequenceNumber)
+		p.SequenceNumber = proto.Uint64(sequenceNumber*HOST_ID_OFFSET + self.serverId)
 	}
 	self.state.setCurrentSequenceNumber(shardId, sequenceNumber)
 }

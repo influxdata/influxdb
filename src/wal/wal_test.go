@@ -387,11 +387,26 @@ func (_ *WalSuite) TestSequenceNumberAssignment(c *C) {
 	request := generateRequest(2)
 	_, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
-	c.Assert(request.Series.Points[0].GetSequenceNumber(), Equals, uint64(1))
-	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, uint64(2))
+	c.Assert(request.Series.Points[0].GetSequenceNumber(), Equals, uint64(1*HOST_ID_OFFSET+1))
+	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, uint64(2*HOST_ID_OFFSET+1))
 	request = generateRequest(2)
 	_, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
-	c.Assert(request.Series.Points[0].GetSequenceNumber(), Equals, uint64(3))
-	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, uint64(4))
+	c.Assert(request.Series.Points[0].GetSequenceNumber(), Equals, uint64(3*HOST_ID_OFFSET+1))
+	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, uint64(4*HOST_ID_OFFSET+1))
+}
+
+func (_ *WalSuite) TestSequenceNumberAssignmentPerServer(c *C) {
+	wal := newWal(c)
+	wal.SetServerId(1)
+	request := generateRequest(1)
+	_, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+
+	anotherWal := newWal(c)
+	anotherWal.SetServerId(2)
+	anotherRequest := generateRequest(1)
+	_, err = anotherWal.AssignSequenceNumbersAndLog(anotherRequest, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(request.Series.Points[0].GetSequenceNumber(), Not(Equals), anotherRequest.Series.Points[0].GetSequenceNumber())
 }
