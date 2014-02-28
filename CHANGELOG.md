@@ -254,6 +254,7 @@
 - [Issue #279](https://github.com/influxdb/influxdb/issues/279). Limits not working on regex queries
 - [Issue #281](https://github.com/influxdb/influxdb/issues/281). `./influxdb -v` should print the sha when building from source
 - [Issue #283](https://github.com/influxdb/influxdb/issues/283). Dropping shard and restart in cluster causes panic.
+- [Issue #288](https://github.com/influxdb/influxdb/issues/288). Sequence numbers should be unique per server id
 
 ## v0.5.0-rc.3 [unreleased]
 
