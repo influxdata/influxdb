@@ -22,8 +22,10 @@ func NewErrorWithStacktrace(cause error, msg ...interface{}) *ErrorWithStacktrac
 	n := runtime.Stack(buffer, false)
 	message := ""
 	if len(msg) > 0 {
-		msgString := msg[0].(string)
-		message = fmt.Sprintf(msgString, msg[1:])
+		message = msg[0].(string)
+		if len(msg) > 1 {
+			message = fmt.Sprintf(message, msg[1:])
+		}
 	}
 	return &ErrorWithStacktrace{message, string(buffer[:n]), cause}
 }

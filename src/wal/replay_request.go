@@ -9,6 +9,8 @@ type replayRequest struct {
 	requestNumber uint32
 	request       *protocol.Request
 	shardId       uint32
+	startOffset   int64
+	endOffset     int64
 	err           error
 }
 

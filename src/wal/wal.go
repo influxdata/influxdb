@@ -1,9 +1,11 @@
 package wal
 
 import (
+	"code.google.com/p/goprotobuf/proto"
 	logger "code.google.com/p/log4go"
 	"configuration"
 	"fmt"
+	"math"
 	"os"
 	"path"
 	"protocol"
@@ -12,12 +14,19 @@ import (
 )
 
 type WAL struct {
-	config             *configuration.Configuration
-	logFiles           []*log
-	serverId           uint32
-	nextLogFileSuffix  int
-	requestsPerLogFile int
-	entries            chan interface{}
+	state             *GlobalState
+	config            *configuration.Configuration
+	logFiles          []*log
+	logIndex          []*index
+	serverId          uint32
+	nextLogFileSuffix int
+	entries           chan interface{}
+
+	// counters to force index creation, bookmark and flushing
+	requestsSinceLastFlush    int
+	requestsSinceLastBookmark int
+	requestsSinceLastIndex    int
+	requestsSinceRotation     int
 }
 
 const HOST_ID_OFFSET = uint64(10000)
@@ -26,6 +35,8 @@ func NewWAL(config *configuration.Configuration) (*WAL, error) {
 	if config.WalDir == "" {
 		return nil, fmt.Errorf("wal directory cannot be empty")
 	}
+
+	logger.Info("Opening wal in %s", config.WalDir)
 	_, err := os.Stat(config.WalDir)
 
 	if os.IsNotExist(err) {
@@ -45,41 +56,51 @@ func NewWAL(config *configuration.Configuration) (*WAL, error) {
 		return nil, err
 	}
 
-	nextLogFileSuffix := 0
-	logFiles := make([]*log, 0)
-	for _, name := range names {
-		if !strings.HasPrefix(name, "log.") {
-			continue
-		}
-		f, err := os.OpenFile(path.Join(config.WalDir, name), os.O_RDWR, 0644)
-		if err != nil {
-			return nil, err
-		}
-		logFile, err := newLog(f, config)
-		if err != nil {
-			return nil, err
-		}
-		if suffix := logFile.suffix(); suffix > nextLogFileSuffix {
-			nextLogFileSuffix = suffix
-		}
-		logFiles = append(logFiles, logFile)
+	state, err := newGlobalState(path.Join(config.WalDir, "bookmark"))
+	if err != nil {
+		logger.Error("Cannot open global state. Error: %s", err)
+		return nil, err
 	}
 
 	// sort the logfiles by the first request number in the log
 	wal := &WAL{
-		config:             config,
-		logFiles:           logFiles,
-		requestsPerLogFile: config.WalRequestsPerLogFile,
-		nextLogFileSuffix:  nextLogFileSuffix,
-		entries:            make(chan interface{}, 10),
+		config:   config,
+		logFiles: []*log{},
+		logIndex: []*index{},
+		state:    state,
+		entries:  make(chan interface{}, 10),
 	}
 
-	// if we don't have any log files open yet, open a new one
-	if len(logFiles) == 0 {
-		_, err = wal.createNewLog()
-	} else {
-		state := logFiles[len(logFiles)-1].state
-		sort.Sort(sortableLogSlice{logFiles, state})
+	for _, name := range names {
+		if !strings.HasPrefix(name, "log.") {
+			continue
+		}
+		log, _, err := wal.openLog(path.Join(config.WalDir, name))
+		if err != nil {
+			return nil, err
+		}
+		if suffix := log.suffix(); suffix > wal.nextLogFileSuffix {
+			wal.nextLogFileSuffix = suffix
+		}
+	}
+
+	// sort the log files by suffix first
+	sort.Sort(sortableLogSlice{wal.logFiles, wal.logIndex})
+
+	for idx, logFile := range wal.logFiles {
+		logger.Debug("suffix: %d, first suffix: %d", logFile.suffix(), wal.state.FirstSuffix)
+		if logFile.suffix() < wal.state.FirstSuffix {
+			continue
+		}
+
+		wal.logFiles = append(wal.logFiles[idx:], wal.logFiles[:idx]...)
+		wal.logIndex = append(wal.logIndex[idx:], wal.logIndex[:idx]...)
+		wal.state.FirstSuffix = logFile.suffix()
+		break
+	}
+
+	if err := wal.recover(); err != nil {
+		return nil, err
 	}
 
 	go wal.processEntries()
@@ -89,9 +110,6 @@ func NewWAL(config *configuration.Configuration) (*WAL, error) {
 
 func (self *WAL) SetServerId(id uint32) {
 	self.serverId = id
-	for _, log := range self.logFiles {
-		log.setServerId(id)
-	}
 }
 
 // Marks a given request for a given server as committed
@@ -103,23 +121,50 @@ func (self *WAL) Commit(requestNumber uint32, serverId uint32) error {
 }
 
 func (self *WAL) RecoverServerFromLastCommit(serverId uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
-	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	requestNumber := lastLogFile.state.ServerLastRequestNumber[serverId]
+	requestNumber := self.state.ServerLastRequestNumber[serverId]
 	return self.RecoverServerFromRequestNumber(requestNumber, shardIds, yield)
+}
+
+func (self *WAL) isInRange(requestNumber uint32) bool {
+	rn := int(requestNumber)
+	largestRequestNumber := int(self.state.LargestRequestNumber)
+	if self.state.FirstSuffix > largestRequestNumber {
+		return rn <= largestRequestNumber || rn >= self.state.FirstSuffix
+	}
+	return rn >= self.state.FirstSuffix && rn <= largestRequestNumber
 }
 
 // In the case where this server is running and another one in the cluster stops responding, at some point this server will have to just write
 // requests to disk. When the downed server comes back up, it's this server's responsibility to send out any writes that were queued up. If
 // the yield function returns nil then the request is committed.
 func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
-	var firstLogFile int
+	firstIndex := 0
+	firstOffset := int64(-1)
+	if self.isInRange(requestNumber) {
+		for idx, logIndex := range self.logIndex {
+			logger.Debug("Trying to find request %d in %s", requestNumber, self.logFiles[idx].file.Name())
+			if firstOffset = logIndex.requestOffset(requestNumber); firstOffset != -1 {
+				logger.Debug("Found reqeust %d in %s at offset %d", requestNumber, self.logFiles[idx].file.Name(), firstOffset)
+				firstIndex = idx
+				break
+			}
+		}
 
-	state := self.logFiles[len(self.logFiles)-1].state
+		// the request must be at the end of the current log file
+		if firstOffset == -1 {
+			firstIndex = len(self.logIndex) - 1
+			firstOffset = self.logIndex[firstIndex].requestOrLastOffset(requestNumber)
+		}
+	}
 outer:
-	for _, logFile := range self.logFiles[firstLogFile:] {
+	for idx := firstIndex; idx < len(self.logFiles); idx++ {
+		logFile := self.logFiles[idx]
+		if idx > firstIndex {
+			firstOffset = -1
+		}
 		logger.Info("Replaying from %s", logFile.file.Name())
 		count := 0
-		ch, stopChan := logFile.replayFromRequestNumber(shardIds, requestNumber, state)
+		ch, stopChan := logFile.dupAndReplayFromOffset(shardIds, firstOffset, requestNumber)
 		for {
 			x := <-ch
 			if x == nil {
@@ -150,11 +195,13 @@ func (self *WAL) Close() error {
 }
 
 func (self *WAL) processClose() error {
-	for _, l := range self.logFiles {
-		if err := l.close(); err != nil {
-			return err
-		}
+	for idx, logFile := range self.logFiles {
+		logFile.syncFile()
+		logFile.close()
+		self.logIndex[idx].syncFile()
+		self.logIndex[idx].close()
 	}
+	self.bookmark()
 	return nil
 }
 
@@ -178,70 +225,121 @@ func (self *WAL) processEntries() {
 	}
 }
 
+func (self *WAL) assignSequenceNumbers(shardId uint32, request *protocol.Request) {
+	if request.Series == nil {
+		return
+	}
+	sequenceNumber := self.state.getCurrentSequenceNumber(shardId)
+	for _, p := range request.Series.Points {
+		if p.SequenceNumber != nil {
+			continue
+		}
+		sequenceNumber++
+		p.SequenceNumber = proto.Uint64(sequenceNumber*HOST_ID_OFFSET + uint64(self.serverId))
+	}
+	self.state.setCurrentSequenceNumber(shardId, sequenceNumber)
+}
+
 func (self *WAL) processAppendEntry(e *appendEntry) {
-	if self.shouldRotateTheLogFile() {
-		if err := self.rotateTheLogFile(); err != nil {
+	nextRequestNumber := self.state.getNextRequestNumber()
+	e.request.RequestNumber = proto.Uint32(nextRequestNumber)
+
+	if len(self.logFiles) == 0 {
+		if _, err := self.createNewLog(nextRequestNumber); err != nil {
 			e.confirmation <- &confirmation{0, err}
 			return
 		}
+		self.state.FirstSuffix = int(nextRequestNumber)
 	}
 
 	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	requestNumber, err := lastLogFile.appendRequest(e.request, e.shardId)
+	self.assignSequenceNumbers(e.shardId, e.request)
+	logger.Debug("appending request")
+	err := lastLogFile.appendRequest(e.request, e.shardId)
 	if err != nil {
 		e.confirmation <- &confirmation{0, err}
 		return
 	}
-	e.confirmation <- &confirmation{requestNumber, nil}
+	self.state.CurrentFileOffset = self.logFiles[len(self.logFiles)-1].offset()
+
+	self.requestsSinceLastIndex++
+	self.requestsSinceLastBookmark++
+	self.requestsSinceLastFlush++
+	self.requestsSinceRotation++
+	logger.Debug("requestsSinceRotation: %d", self.requestsSinceRotation)
+	if rotated, err := self.rotateTheLogFile(nextRequestNumber); err != nil || rotated {
+		e.confirmation <- &confirmation{e.request.GetRequestNumber(), err}
+		return
+	}
+
+	self.conditionalBookmarkAndIndex()
+	e.confirmation <- &confirmation{e.request.GetRequestNumber(), nil}
 }
 
 func (self *WAL) processCommitEntry(e *commitEntry) {
-	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	lastLogFile.state.commitRequestNumber(e.serverId, e.requestNumber)
-	lowestCommitedRequestNumber := lastLogFile.state.LowestCommitedRequestNumber()
-
-	index := self.firstLogFile(lowestCommitedRequestNumber)
-	if index == 0 {
+	self.state.commitRequestNumber(e.serverId, e.requestNumber)
+	idx := self.firstLogFile()
+	if idx == 0 {
 		e.confirmation <- &confirmation{0, nil}
 		return
 	}
 
 	var unusedLogFiles []*log
-	unusedLogFiles, self.logFiles = self.logFiles[:index], self.logFiles[index:]
-	for _, logFile := range unusedLogFiles {
+	var unusedLogIndex []*index
+
+	logger.Debug("Removing some unneeded log files: %d", idx)
+	unusedLogFiles, self.logFiles = self.logFiles[:idx], self.logFiles[idx:]
+	unusedLogIndex, self.logIndex = self.logIndex[:idx], self.logIndex[idx:]
+	for logIdx, logFile := range unusedLogFiles {
+		logger.Info("Deleting %s", logFile.file.Name())
 		logFile.close()
 		logFile.delete()
+		logIndex := unusedLogIndex[logIdx]
+		logIndex.close()
+		logIndex.delete()
 	}
-	lastLogFile.state.FirstRequestNumber = self.logFiles[0].firstRequestNumber()
+	self.state.FirstSuffix = self.logFiles[0].suffix()
 	e.confirmation <- &confirmation{0, nil}
 }
 
 // creates a new log file using the next suffix and initializes its
 // state with the state of the last log file
-func (self *WAL) createNewLog() (*log, error) {
+func (self *WAL) createNewLog(firstRequestNumber uint32) (*log, error) {
 	self.nextLogFileSuffix++
-	logFileName := path.Join(self.config.WalDir, fmt.Sprintf("log.%d", self.nextLogFileSuffix))
-	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_RDWR, 0644)
+	logFileName := path.Join(self.config.WalDir, fmt.Sprintf("log.%d", firstRequestNumber))
+	log, _, err := self.openLog(logFileName)
 	if err != nil {
 		return nil, err
+	}
+	self.state.CurrentFileSuffix = log.suffix()
+	self.state.CurrentFileOffset = 0
+	return log, nil
+}
+
+func (self *WAL) openLog(logFileName string) (*log, *index, error) {
+	logger.Info("Opening log file %s", logFileName)
+
+	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return nil, nil, err
 	}
 	log, err := newLog(logFile, self.config)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	log.setServerId(self.serverId)
 
-	// TODO: this is ugly, we have to copy some of the state to the new
-	// log. Find a better way to do this, possibly separating the state
-	// that we need to keep between log files in their own file
-	if len(self.logFiles) > 0 {
-		lastLogFile := self.logFiles[len(self.logFiles)-1]
-		// update the new state to continue from where the last log file
-		// left off
-		log.state.continueFromState(lastLogFile.state)
-	}
 	self.logFiles = append(self.logFiles, log)
-	return log, nil
+	suffix := strings.TrimPrefix(path.Base(logFileName), "log.")
+	indexFileName := path.Join(self.config.WalDir, "index."+suffix)
+	logger.Info("Opening index file %s", indexFileName)
+	index, err := newIndex(indexFileName)
+	if err != nil {
+		logger.Error("Cannot open index file %s", err)
+		log.close()
+		return nil, nil, err
+	}
+	self.logIndex = append(self.logIndex, index)
+	return log, index, nil
 }
 
 // Will assign sequence numbers if null. Returns a unique id that
@@ -253,50 +351,148 @@ func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Sh
 	return confirmation.requestNumber, confirmation.err
 }
 
-func (self *WAL) doesLogFileContainRequest(order RequestNumberOrder, requestNumber uint32) func(int) bool {
-	return func(i int) bool {
-		if order.isAfter(self.logFiles[i].firstRequestNumber(), requestNumber) {
-			return true
-		}
-		return false
-	}
-}
-
 // returns the first log file that contains the given request number
-func (self *WAL) firstLogFile(requestNumber uint32) int {
-	lengthLogFiles := len(self.logFiles)
-
-	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	state := lastLogFile.state
-
-	if state.isAfterOrEqual(requestNumber, lastLogFile.firstRequestNumber()) {
-		return lengthLogFiles - 1
-	} else if state.isAfterOrEqual(self.logFiles[0].firstRequestNumber(), requestNumber) {
-		return 0
+func (self *WAL) firstLogFile() int {
+	for idx, logIndex := range self.logIndex {
+		for _, requestNumber := range self.state.ServerLastRequestNumber {
+			// if no server needs to keep this log file arround we delete it
+			if logIndex.requestOffset(requestNumber) != -1 {
+				return idx
+			}
+		}
 	}
-	return sort.Search(lengthLogFiles, self.doesLogFileContainRequest(state, requestNumber)) - 1
+
+	if len(self.logIndex) > 0 {
+		return len(self.logIndex) - 1
+	}
+	return 0
 }
 
 func (self *WAL) shouldRotateTheLogFile() bool {
-	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	return lastLogFile.state.TotalNumberOfRequests >= self.requestsPerLogFile
+	return self.requestsSinceRotation >= self.config.WalRequestsPerLogFile
 }
 
-func (self *WAL) rotateTheLogFile() error {
-	if !self.shouldRotateTheLogFile() {
-		return nil
+func (self *WAL) recover() error {
+	for idx, logFile := range self.logFiles {
+		self.requestsSinceLastIndex = 0
+		self.requestsSinceRotation = self.logIndex[idx].getLength()
+
+		lastOffset := self.logIndex[idx].getLastOffset()
+		stat, _ := logFile.file.Stat()
+		logger.Info("Checking %s, last: %d, size: %d", logFile.file.Name(), lastOffset, stat.Size())
+		replay, _ := logFile.dupAndReplayFromOffset(nil, lastOffset, 0)
+		firstOffset := int64(-1)
+		for {
+			replayRequest := <-replay
+
+			if replayRequest == nil {
+				break
+			}
+
+			if err := replayRequest.err; err != nil {
+				return err
+			}
+
+			sequenceNumber := (replayRequest.request.GetSequenceNumber() - uint64(self.serverId)) / HOST_ID_OFFSET
+			self.state.recover(replayRequest.shardId, sequenceNumber)
+
+			if firstOffset == -1 {
+				firstOffset = replayRequest.startOffset
+			}
+
+			self.requestsSinceLastIndex++
+			self.requestsSinceRotation++
+			logger.Debug("recovery requestsSinceLastIndex: %d, requestNumber: %d", self.requestsSinceLastIndex, replayRequest.request.GetRequestNumber())
+
+			if self.requestsSinceLastIndex < self.config.WalIndexAfterRequests {
+				continue
+			}
+
+			self.logIndex[idx].addEntry(
+				replayRequest.requestNumber-uint32(self.requestsSinceLastIndex),
+				uint32(replayRequest.requestNumber),
+				firstOffset,
+				replayRequest.endOffset,
+			)
+		}
 	}
 
-	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	lastLogFile.state.FirstRequestNumber = self.logFiles[0].firstRequestNumber()
-	err := lastLogFile.forceBookmark()
-	if err != nil {
-		return err
+	return nil
+}
+
+func (self *WAL) rotateTheLogFile(nextRequestNumber uint32) (bool, error) {
+	if !self.shouldRotateTheLogFile() && nextRequestNumber != math.MaxUint32 {
+		return false, nil
 	}
-	lastLogFile, err = self.createNewLog()
+
+	self.requestsSinceRotation = 0
+	if self.requestsSinceLastIndex > 0 {
+		self.index()
+	}
+	lastEntryIndex := len(self.logFiles) - 1
+	lastLogFile := self.logFiles[lastEntryIndex]
+	lastIndex := self.logIndex[lastEntryIndex]
+	if err := lastLogFile.syncFile(); err != nil {
+		return false, err
+	}
+	if err := lastIndex.syncFile(); err != nil {
+		return false, err
+	}
+	lastLogFile, err := self.createNewLog(nextRequestNumber + 1)
 	if err != nil {
-		return err
+		return false, err
 	}
 	logger.Info("Rotating log. New log file %s", lastLogFile.file.Name())
+	return true, nil
+}
+
+func (self *WAL) conditionalBookmarkAndIndex() {
+	shouldFlush := false
+	logger.Debug("requestsSinceLastIndex: %d", self.requestsSinceLastIndex)
+	if self.requestsSinceLastIndex >= self.config.WalIndexAfterRequests {
+		self.index()
+	}
+
+	if self.requestsSinceLastBookmark >= self.config.WalBookmarkAfterRequests {
+		self.bookmark()
+	}
+
+	if self.requestsSinceLastFlush >= self.config.WalFlushAfterRequests || shouldFlush {
+		self.flush()
+	}
+}
+
+func (self *WAL) flush() error {
+	logger.Debug("Fsyncing the log file to disk")
+	self.requestsSinceLastFlush = 0
+	lastEntryIndex := len(self.logFiles) - 1
+	if err := self.logFiles[lastEntryIndex].syncFile(); err != nil {
+		return err
+	}
+	if err := self.logIndex[lastEntryIndex].syncFile(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (self *WAL) bookmark() error {
+	if err := self.state.writeToFile(); err != nil {
+		logger.Error("Cannot write bookmark %s", err)
+		return err
+	}
+	self.requestsSinceLastBookmark = 0
+	return nil
+}
+
+func (self *WAL) index() error {
+	lastIndex := self.logIndex[len(self.logIndex)-1]
+	firstOffset := lastIndex.getLastOffset()
+	lastIndex.addEntry(
+		self.state.LargestRequestNumber+1-uint32(self.requestsSinceLastIndex),
+		self.state.LargestRequestNumber,
+		firstOffset,
+		self.state.CurrentFileOffset,
+	)
+	self.requestsSinceLastIndex = 0
 	return nil
 }

@@ -101,7 +101,7 @@ func (_ *WalSuite) TestRequestNumberAssignmentRecovery(c *C) {
 	c.Assert(id, Equals, uint32(2))
 
 	// test recovery from wal replay
-	c.Assert(wal.logFiles[0].closeWithoutBookmark(), IsNil)
+	c.Assert(wal.Close(), IsNil)
 	wal, err = NewWAL(wal.config)
 	c.Assert(err, IsNil)
 	request = generateRequest(2)
@@ -113,9 +113,8 @@ func (_ *WalSuite) TestRequestNumberAssignmentRecovery(c *C) {
 func (_ *WalSuite) TestLogFilesCompaction(c *C) {
 	wal := newWal(c)
 	wal.config.WalRequestsPerLogFile = 2000
-	wal.requestsPerLogFile = 2000
-	wal.Commit(0, 1)
-	wal.Commit(0, 2)
+	wal.Commit(1, 1)
+	wal.Commit(1, 2)
 	for i := 0; i < 2500; i++ {
 		request := generateRequest(2)
 		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
@@ -137,7 +136,6 @@ func (_ *WalSuite) TestLogFilesCompaction(c *C) {
 func (_ *WalSuite) TestMultipleLogFiles(c *C) {
 	wal := newWal(c)
 	wal.config.WalRequestsPerLogFile = 2000
-	wal.requestsPerLogFile = 2000
 	for i := 0; i < 2500; i++ {
 		request := generateRequest(2)
 		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
@@ -154,7 +152,7 @@ func (_ *WalSuite) TestMultipleLogFiles(c *C) {
 		requests = append(requests, request)
 		return nil
 	})
-	c.Assert(requests, HasLen, 500)
+	c.Assert(len(requests), Equals, 500)
 
 	requests = []*protocol.Request{}
 	err = wal.RecoverServerFromRequestNumber(501, []uint32{1}, func(request *protocol.Request, _ uint32) error {
@@ -174,11 +172,10 @@ func (_ *WalSuite) TestAutoBookmark(c *C) {
 		c.Assert(id, Equals, uint32(i+1))
 	}
 	// make sure the bookmark exist
-	bookmarkPath := path.Join(wal.config.WalDir, fmt.Sprintf("bookmark.%d", wal.nextLogFileSuffix))
+	bookmarkPath := path.Join(wal.config.WalDir, "bookmark")
 	f, err := os.Open(bookmarkPath)
 	c.Assert(err, IsNil)
-	s := &state{}
-	err = s.read(f)
+	s, err := newGlobalState(f.Name())
 	c.Assert(err, IsNil)
 	c.Assert(s.ShardLastSequenceNumber[1], Equals, uint64(4))
 	c.Assert(s.LargestRequestNumber, Equals, uint32(2))
@@ -202,11 +199,10 @@ func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 		c.Assert(id, Equals, uint32(i+2))
 	}
 	// make sure the bookmark exist
-	bookmarkPath := path.Join(wal.config.WalDir, fmt.Sprintf("bookmark.%d", wal.nextLogFileSuffix))
+	bookmarkPath := path.Join(wal.config.WalDir, "bookmark")
 	f, err := os.Open(bookmarkPath)
 	c.Assert(err, IsNil)
-	s := &state{}
-	err = s.read(f)
+	s, err := newGlobalState(f.Name())
 	c.Assert(err, IsNil)
 	c.Assert(s.ShardLastSequenceNumber[1], Equals, uint64(6))
 	c.Assert(s.LargestRequestNumber, Equals, uint32(3))
@@ -259,7 +255,7 @@ func (_ *WalSuite) TestReplay(c *C) {
 func (_ *WalSuite) TestRequestNumberRollOver(c *C) {
 	wal := newWal(c)
 	firstRequestNumber := uint32(math.MaxUint32 - 10)
-	wal.logFiles[0].state.LargestRequestNumber = firstRequestNumber
+	wal.state.LargestRequestNumber = firstRequestNumber
 	var i uint32
 	for i = 0; i < 20; i++ {
 		req := generateRequest(2)
@@ -279,7 +275,7 @@ func (_ *WalSuite) TestRequestNumberRollOver(c *C) {
 func (_ *WalSuite) TestRequestNumberRollOverAcrossMultipleFiles(c *C) {
 	wal := newWal(c)
 	firstRequestNumber := uint32(math.MaxUint32 - 5000)
-	wal.logFiles[0].state.LargestRequestNumber = firstRequestNumber
+	wal.state.LargestRequestNumber = firstRequestNumber
 	var i uint32
 	for i = 0; i < 20000; i++ {
 		req := generateRequest(2)
@@ -307,7 +303,7 @@ func (_ *WalSuite) TestRequestNumberRollOverAcrossMultipleFiles(c *C) {
 func (_ *WalSuite) TestRequestNumberRollOverAndIndexing(c *C) {
 	wal := newWal(c)
 	firstRequestNumber := uint32(math.MaxUint32 - 5000)
-	wal.logFiles[0].state.LargestRequestNumber = firstRequestNumber
+	wal.state.LargestRequestNumber = firstRequestNumber
 	var i uint32
 	for i = 0; i < 20000; i++ {
 		req := generateRequest(2)
@@ -419,7 +415,7 @@ func (_ *WalSuite) TestIndexAfterRecovery(c *C) {
 		c.Assert(id, Equals, uint32(i+1))
 	}
 
-	wal.logFiles[0].closeWithoutBookmark()
+	wal.Close()
 
 	wal, err := NewWAL(wal.config)
 	c.Assert(err, IsNil)
@@ -430,11 +426,11 @@ func (_ *WalSuite) TestIndexAfterRecovery(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(id, Equals, uint32(1500+i+1))
 	}
-	c.Assert(wal.logFiles[0].state.Index.Entries, HasLen, 2)
-	c.Assert(wal.logFiles[0].state.Index.Entries[0].Size, Equals, uint32(1000))
-	c.Assert(wal.logFiles[0].state.Index.Entries[0].StartRequestNumber, Equals, uint32(1))
-	c.Assert(wal.logFiles[0].state.Index.Entries[1].Size, Equals, uint32(1000))
-	c.Assert(wal.logFiles[0].state.Index.Entries[1].StartRequestNumber, Equals, uint32(1001))
+	c.Assert(wal.logIndex[0].Entries, HasLen, 2)
+	c.Assert(wal.logIndex[0].Entries[0].NumberOfRequests(), Equals, 1000)
+	c.Assert(wal.logIndex[0].Entries[0].FirstRequestNumber, Equals, uint32(1))
+	c.Assert(wal.logIndex[0].Entries[1].NumberOfRequests(), Equals, 1000)
+	c.Assert(wal.logIndex[0].Entries[1].FirstRequestNumber, Equals, uint32(1001))
 }
 
 func (_ *WalSuite) TestIndex(c *C) {
@@ -446,12 +442,11 @@ func (_ *WalSuite) TestIndex(c *C) {
 		c.Assert(id, Equals, uint32(i+1))
 	}
 
-	c.Assert(wal.logFiles[0].state.Index.Entries, HasLen, 3)
-	state := wal.logFiles[len(wal.logFiles)-1].state
-	requestOffset := wal.logFiles[0].state.Index.requestOffset(state, 2001)
+	c.Assert(wal.logIndex[0].Entries, HasLen, 3)
+	requestOffset := wal.logIndex[0].requestOffset(2001)
 	c.Assert(requestOffset > 0, Equals, true)
 	// request 2000 should be in the second block not the third block
-	c.Assert(requestOffset > wal.logFiles[0].state.Index.requestOffset(state, 2000), Equals, true)
+	c.Assert(requestOffset > wal.logIndex[0].requestOffset(2000), Equals, true)
 }
 
 func (_ *WalSuite) TestSequenceNumberAssignment(c *C) {
