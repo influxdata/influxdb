@@ -9,8 +9,37 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 )
+
+type size struct {
+	int
+}
+
+const (
+	ONE_MEGABYTE = 1024 * 1024
+	ONE_GIGABYTE = 1024 * ONE_MEGABYTE
+)
+
+func (d *size) UnmarshalText(text []byte) error {
+	str := string(text)
+	length := len(str)
+	size, err := strconv.ParseInt(string(text[:length-1]), 10, 64)
+	if err != nil {
+		return err
+	}
+	switch suffix := text[len(text)-1]; suffix {
+	case 'm':
+		size *= ONE_MEGABYTE
+	case 'g':
+		size *= ONE_GIGABYTE
+	default:
+		return fmt.Errorf("Unknown size suffix %s", suffix)
+	}
+	d.int = int(size)
+	return nil
+}
 
 type duration struct {
 	time.Duration
@@ -59,6 +88,7 @@ type LoggingConfig struct {
 
 type LevelDbConfiguration struct {
 	MaxOpenFiles int `toml:"max-open-files"`
+	LruCacheSize int `toml:"lru-cache-size"`
 }
 
 type ShardingDefinition struct {
@@ -154,6 +184,7 @@ type Configuration struct {
 	LogLevel                  string
 	BindAddress               string
 	LevelDbMaxOpenFiles       int
+	LevelDbLruCacheSize       int
 	ShortTermShard            *ShardConfiguration
 	LongTermShard             *ShardConfiguration
 	ReplicationFactor         int
@@ -226,6 +257,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		Hostname:                  tomlConfiguration.Hostname,
 		BindAddress:               tomlConfiguration.BindAddress,
 		LevelDbMaxOpenFiles:       tomlConfiguration.LevelDb.MaxOpenFiles,
+		LevelDbLruCacheSize:       tomlConfiguration.LevelDb.LruCacheSize,
 		LongTermShard:             &tomlConfiguration.Sharding.LongTerm,
 		ShortTermShard:            &tomlConfiguration.Sharding.ShortTerm,
 		ReplicationFactor:         tomlConfiguration.Sharding.ReplicationFactor,
@@ -249,6 +281,11 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	// if it wasn't set, set it to 100
 	if config.LevelDbMaxOpenFiles == 0 {
 		config.LevelDbMaxOpenFiles = 100
+	}
+
+	// if it wasn't set, set it to 100
+	if config.LevelDbLruCacheSize == 0 {
+		config.LevelDbLruCacheSize = 200 * ONE_MEGABYTE
 	}
 
 	return config, nil

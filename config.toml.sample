@@ -74,6 +74,11 @@ query-shard-buffer-size = 1000
 # the process
 max-open-files = 40
 
+# LRU cache size, LRU is used by leveldb to store contents of the
+# uncompressed sstables. You can use `m` or `g` prefix for megabytes
+# and gigabytes, respectively.
+lru-cache-size = "200m"
+
 # These options specify how data is sharded across the cluster. There are two 
 # shard configurations that have the same knobs: short term and long term.
 # Any series that begins with a capital letter like Exceptions will be written

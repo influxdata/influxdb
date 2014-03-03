@@ -69,7 +69,7 @@ func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShar
 		return nil, err
 	}
 	opts := levigo.NewOptions()
-	opts.SetCache(levigo.NewLRUCache(ONE_MEGABYTE))
+	opts.SetCache(levigo.NewLRUCache(config.LevelDbLruCacheSize))
 	opts.SetCreateIfMissing(true)
 	opts.SetBlockSize(64 * ONE_KILOBYTE)
 	filter := levigo.NewBloomFilter(SHARD_BLOOM_FILTER_BITS_PER_KEY)
