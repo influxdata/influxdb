@@ -7,19 +7,23 @@ import (
 	"configuration"
 	"fmt"
 	"github.com/jmhodges/levigo"
+	"math"
 	"os"
 	"path/filepath"
 	"protocol"
 	"sync"
+	"time"
 )
 
 type LevelDbShardDatastore struct {
 	baseDbDir      string
 	config         *configuration.Configuration
 	shards         map[uint32]*LevelDbShard
+	lastAccess     map[uint32]int64
 	shardsLock     sync.RWMutex
 	levelDbOptions *levigo.Options
 	writeBuffer    *cluster.WriteBuffer
+	maxOpenShards  int
 }
 
 const (
@@ -81,6 +85,8 @@ func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShar
 		config:         config,
 		shards:         make(map[uint32]*LevelDbShard),
 		levelDbOptions: opts,
+		maxOpenShards:  config.LevelDbMaxOpenShards,
+		lastAccess:     make(map[uint32]int64),
 	}, nil
 }
 
@@ -93,16 +99,19 @@ func (self *LevelDbShardDatastore) Close() {
 }
 
 func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, error) {
-	self.shardsLock.RLock()
+	now := time.Now().Unix()
+	self.shardsLock.Lock()
+	defer self.shardsLock.Unlock()
 	db := self.shards[id]
-	self.shardsLock.RUnlock()
+	self.lastAccess[id] = now
 
 	if db != nil {
 		return db, nil
 	}
 
-	self.shardsLock.Lock()
-	defer self.shardsLock.Unlock()
+	if self.maxOpenShards > 0 && len(self.shards) > self.maxOpenShards {
+		self.closeOldestShard()
+	}
 
 	// check to make sure it hasn't been put there between the RUnlock and the Lock
 	db = self.shards[id]
@@ -146,6 +155,7 @@ func (self *LevelDbShardDatastore) DeleteShard(shardId uint32) error {
 	self.shardsLock.Lock()
 	shardDb := self.shards[shardId]
 	delete(self.shards, shardId)
+	delete(self.lastAccess, shardId)
 	self.shardsLock.Unlock()
 
 	if shardDb != nil {
@@ -159,6 +169,23 @@ func (self *LevelDbShardDatastore) DeleteShard(shardId uint32) error {
 
 func (self *LevelDbShardDatastore) shardDir(id uint32) string {
 	return filepath.Join(self.baseDbDir, fmt.Sprintf("%.5d", id))
+}
+
+func (self *LevelDbShardDatastore) closeOldestShard() {
+	var oldestId uint32
+	oldestAccess := int64(math.MaxInt64)
+	for id, lastAccess := range self.lastAccess {
+		if lastAccess < oldestAccess {
+			oldestId = id
+			oldestAccess = lastAccess
+		}
+	}
+	shard := self.shards[oldestId]
+	if shard != nil {
+		shard.close()
+	}
+	delete(self.shards, oldestId)
+	delete(self.lastAccess, oldestId)
 }
 
 // // returns true if the point has the correct field id and is

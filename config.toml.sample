@@ -79,6 +79,10 @@ max-open-files = 40
 # and gigabytes, respectively.
 lru-cache-size = "200m"
 
+# The default setting on this is 0, which means unlimited. Set this to something if you want to 
+# limit the max number of open files. max-open-files is per shard so this * that will be max.
+max-open-shards = 0
+
 # These options specify how data is sharded across the cluster. There are two 
 # shard configurations that have the same knobs: short term and long term.
 # Any series that begins with a capital letter like Exceptions will be written
