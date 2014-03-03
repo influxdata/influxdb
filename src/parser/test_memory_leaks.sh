@@ -12,6 +12,10 @@ int main(int argc, char **argv) {
   q = parse_query("select count(*) from users.events group_by user_email,time(1h) where time >> now()-1d;");
   close_query(&q);
 
+  // test freeing alias
+  q = parse_query("select count(bar) as the_count from users.events group_by user_email,time(1h);");
+  close_query(&q);
+
   // test freeing where conditions
   q = parse_query("select value from t where c == 5 and b == 6;");
   close_query(&q);

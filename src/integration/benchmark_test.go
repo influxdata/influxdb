@@ -5,6 +5,7 @@ import (
 	"checkers"
 	. "common"
 	"encoding/json"
+	"engine"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -624,6 +625,39 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 	// count should be 3
 	c.Assert(data[0].Points[0][1], Equals, 20.0)
 	c.Assert(data[0].Points[1][1], Equals, 20.0)
+}
+
+func (self *IntegrationSuite) TestCountWithAlias(c *C) {
+	for i := 0; i < 5; i++ {
+		err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_aliasing",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10))
+		c.Assert(err, IsNil)
+	}
+	for _, name := range engine.GetRegisteredAggregators() {
+		query := fmt.Sprintf("select %s(cpu) as some_alias from test_aliasing", name)
+		if name == "percentile" {
+			query = "select percentile(cpu, 90) as some_alias from test_aliasing"
+		}
+		fmt.Printf("query: %s\n", query)
+		bs, err := self.server.RunQuery(query, "m")
+		c.Assert(err, IsNil)
+		data := []*SerializedSeries{}
+		err = json.Unmarshal(bs, &data)
+		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Name, Equals, "test_aliasing")
+		if name == "histogram" {
+			c.Assert(data[0].Columns, DeepEquals, []string{"time", "some_alias_bucket_start", "some_alias_count"})
+			continue
+		}
+		c.Assert(data[0].Columns, DeepEquals, []string{"time", "some_alias"})
+	}
 }
 
 // test for issue #30

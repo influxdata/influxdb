@@ -32,6 +32,7 @@ typedef struct value_t {
     VALUE_FUNCTION_CALL,
     VALUE_EXPRESSION
   } value_type;
+  char *alias;
   char is_case_insensitive;
   value_array *args;
 } value;

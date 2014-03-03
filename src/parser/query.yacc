@@ -13,12 +13,14 @@ value *create_value(char *name, int type, char is_case_insensitive, value_array 
   v->value_type = type;
   v->is_case_insensitive = is_case_insensitive;
   v->args = args;
+  v->alias = NULL;
   return v;
 }
 
 value *create_expression_value(char *operator, size_t size, ...) {
   value *v = malloc(sizeof(value));
   v->name = operator;
+  v->alias = NULL;
   v->value_type = VALUE_EXPRESSION;
   v->is_case_insensitive = FALSE;
   v->args = malloc(sizeof(value_array));
@@ -418,18 +420,44 @@ VALUE:
         }
         |
         DURATION_VALUE
+        {
+          $$ = $1;
+          $$->alias = NULL;
+        }
         |
         SIMPLE_NAME_VALUE
+        {
+          $$ = $1;
+          $$->alias = NULL;
+        }
         |
         WILDCARD
+        {
+          $$ = $1;
+          $$->alias = NULL;
+        }
         |
         TABLE_NAME_VALUE
+        {
+          $$ = $1;
+          $$->alias = NULL;
+        }
         |
         FUNCTION_CALL
+        {
+          $$ = $1;
+          $$->alias = NULL;
+        }
         |
         '(' VALUE ')'
         {
           $$ = $2;
+        }
+        |
+        FUNCTION_CALL AS SIMPLE_NAME
+        {
+          $$ = $1;
+          $$->alias = $3;
         }
         |
         VALUE '*' VALUE { $$ = create_expression_value(strdup("*"), 2, $1, $3); }
