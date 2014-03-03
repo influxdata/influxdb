@@ -21,9 +21,35 @@ type state struct {
 	FileOffset                int64 // the file offset at which this bookmark was created
 	Index                     *index
 	TotalNumberOfRequests     int
+	FirstRequestNumber        uint32
 	LargestRequestNumber      uint32
 	ShardLastSequenceNumber   map[uint32]uint64
 	ServerLastRequestNumber   map[uint32]uint32
+}
+
+func (self *state) isAfter(left, right uint32) bool {
+	if left == right {
+		return false
+	}
+	if left >= self.FirstRequestNumber && right >= self.FirstRequestNumber {
+		return left > right
+	}
+	if left <= self.LargestRequestNumber && right <= self.LargestRequestNumber {
+		return left > right
+	}
+	return left <= self.LargestRequestNumber
+}
+
+func (self *state) isAfterOrEqual(left, right uint32) bool {
+	return left == right || self.isAfter(left, right)
+}
+
+func (self *state) isBefore(left, right uint32) bool {
+	return !self.isAfterOrEqual(left, right)
+}
+
+func (self *state) isBeforeOrEqual(left, right uint32) bool {
+	return !self.isAfter(left, right)
 }
 
 func newState() *state {
@@ -64,6 +90,7 @@ func (self *state) getNextRequestNumber() uint32 {
 }
 
 func (self *state) continueFromState(state *state) {
+	self.FirstRequestNumber = state.FirstRequestNumber
 	self.LargestRequestNumber = state.LargestRequestNumber
 	self.ShardLastSequenceNumber = state.ShardLastSequenceNumber
 	self.ServerLastRequestNumber = state.ServerLastRequestNumber
