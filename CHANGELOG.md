@@ -256,12 +256,15 @@
 - [Issue #283](https://github.com/influxdb/influxdb/issues/283). Dropping shard and restart in cluster causes panic.
 - [Issue #288](https://github.com/influxdb/influxdb/issues/288). Sequence numbers should be unique per server id
 
-## v0.5.0-rc.3 [unreleased]
+## v0.5.0-rc.3 [2014-03-03]
 
-### Features
+### Bugfixes
 - [Issue #69](https://github.com/influxdb/influxdb/issues/69). Support column aliases
 - [Issue #287](https://github.com/influxdb/influxdb/issues/287). Make the lru cache size configurable
 - [Issue #38](https://github.com/influxdb/influxdb/issues/38). Fix a memory leak discussed in this story
+- [Issue #286](https://github.com/influxdb/influxdb/issues/286). Make the number of open shards configurable
+- Make LevelDB use the max open files configuration option.
+
+## v0.5.0-rc.4 [unreleased]
 
 ### Bugfixes
-- Make LevelDB use the max open files configuration option.
