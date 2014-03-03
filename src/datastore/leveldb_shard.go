@@ -173,6 +173,11 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 	}
 
 	fieldNames, iterators := self.getIterators(fields, startTimeBytes, endTimeBytes, query.Ascending)
+	defer func() {
+		for _, it := range iterators {
+			it.Close()
+		}
+	}()
 
 	// TODO: clean up, this is super gnarly
 	// optimize for the case where we're pulling back only a single column or aggregate
