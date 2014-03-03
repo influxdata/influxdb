@@ -39,6 +39,7 @@ const (
 
 type Value struct {
 	Name          string
+	Alias         string
 	Type          ValueType
 	Elems         []*Value
 	compiledRegex *regexp.Regexp
@@ -384,6 +385,9 @@ func GetValue(value *C.value) (*Value, error) {
 		} else {
 			v.compiledRegex, err = regexp.Compile(v.Name)
 		}
+	}
+	if value.alias != nil {
+		v.Alias = C.GoString(value.alias)
 	}
 	return v, err
 }

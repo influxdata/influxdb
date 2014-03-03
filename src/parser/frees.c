@@ -60,6 +60,7 @@ void
 free_value(value *value)
 {
   free(value->name);
+  if (value->alias) free(value->alias);
   if (value->args) free_value_array(value->args);
   free(value);
 }

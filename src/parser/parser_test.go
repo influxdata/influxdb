@@ -19,7 +19,7 @@ var _ = Suite(&QueryParserSuite{})
 
 func ToValueArray(strings ...string) (values []*Value) {
 	for _, str := range strings {
-		values = append(values, &Value{str, ValueSimpleName, nil, nil})
+		values = append(values, &Value{str, "", ValueSimpleName, nil, nil})
 	}
 	return
 }
@@ -463,18 +463,18 @@ func (self *QueryParserSuite) TestParseSelectWithAnd(c *C) {
 	rightBoolExpression, ok := w.Right.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	c.Assert(leftBoolExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, nil, nil})
+	c.Assert(leftBoolExpression.Elems[0], DeepEquals, &Value{"value", "", ValueSimpleName, nil, nil})
 	value := leftBoolExpression.Elems[1].Elems[0]
-	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"exp", "", ValueFunctionCall, nil, nil})
 	value = leftBoolExpression.Elems[1].Elems[1]
-	c.Assert(value, DeepEquals, &Value{"2", ValueInt, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"2", "", ValueInt, nil, nil})
 	c.Assert(leftBoolExpression.Name, Equals, ">")
 
-	c.Assert(rightBoolExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, nil, nil})
+	c.Assert(rightBoolExpression.Elems[0], DeepEquals, &Value{"value", "", ValueSimpleName, nil, nil})
 	value = rightBoolExpression.Elems[1].Elems[0]
-	c.Assert(value, DeepEquals, &Value{"exp", ValueFunctionCall, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"exp", "", ValueFunctionCall, nil, nil})
 	value = rightBoolExpression.Elems[1].Elems[1]
-	c.Assert(value, DeepEquals, &Value{"3", ValueInt, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"3", "", ValueInt, nil, nil})
 	c.Assert(rightBoolExpression.Name, Equals, "<")
 }
 
@@ -568,14 +568,14 @@ func (self *QueryParserSuite) TestParseWhereClausePrecedence(c *C) {
 	leftExpression, ok := condition.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 	c.Assert(leftExpression.Name, Equals, ">")
-	c.Assert(leftExpression.Elems[0], DeepEquals, &Value{"value", ValueSimpleName, nil, nil})
-	c.Assert(leftExpression.Elems[1], DeepEquals, &Value{"90", ValueInt, nil, nil})
+	c.Assert(leftExpression.Elems[0], DeepEquals, &Value{"value", "", ValueSimpleName, nil, nil})
+	c.Assert(leftExpression.Elems[1], DeepEquals, &Value{"90", "", ValueInt, nil, nil})
 
 	rightExpression, ok := leftCondition.Right.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 	c.Assert(rightExpression.Name, Equals, ">")
-	c.Assert(rightExpression.Elems[0], DeepEquals, &Value{"other_value", ValueSimpleName, nil, nil})
-	c.Assert(rightExpression.Elems[1], DeepEquals, &Value{"10.0", ValueFloat, nil, nil})
+	c.Assert(rightExpression.Elems[0], DeepEquals, &Value{"other_value", "", ValueSimpleName, nil, nil})
+	c.Assert(rightExpression.Elems[1], DeepEquals, &Value{"10.0", "", ValueFloat, nil, nil})
 }
 
 func (self *QueryParserSuite) TestParseWhereClauseParentheses(c *C) {
@@ -631,9 +631,21 @@ func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {
 	c.Assert(q.GetGroupByClause().Elems, HasLen, 1)
 	c.Assert(q.GetGroupByClause().Elems[0], DeepEquals, &Value{
 		Name:  "time",
+		Alias: "",
 		Type:  ValueFunctionCall,
-		Elems: []*Value{&Value{"15m", ValueDuration, nil, nil}},
+		Elems: []*Value{&Value{"15m", "", ValueDuration, nil, nil}},
 	})
+}
+
+func (self *QueryParserSuite) TestParseWithColumnAlias(c *C) {
+	q, err := ParseSelectQuery("select count(email) as email_count from user.events")
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), HasLen, 1)
+	column := q.GetColumnNames()[0]
+	c.Assert(column.IsFunctionCall(), Equals, true)
+	c.Assert(column.Name, Equals, "count")
+	c.Assert(column.Elems, HasLen, 1)
+	c.Assert(column.Alias, Equals, "email_count")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithInvalidRegex(c *C) {
@@ -648,7 +660,7 @@ func (self *QueryParserSuite) TestParseSelectWithRegexCondition(c *C) {
 
 	// note: conditions that involve time are removed after the query is parsed
 	regexExpression, _ := w.GetBoolExpression()
-	c.Assert(regexExpression.Elems[0], DeepEquals, &Value{"email", ValueSimpleName, nil, nil})
+	c.Assert(regexExpression.Elems[0], DeepEquals, &Value{"email", "", ValueSimpleName, nil, nil})
 	c.Assert(regexExpression.Name, Equals, "=~")
 	expr := regexExpression.Elems[1]
 	c.Assert(expr.Type, Equals, ValueRegex)
@@ -662,7 +674,7 @@ func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *
 	boolExpression, ok := q.GetWhereCondition().GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	c.Assert(boolExpression.Elems[0], DeepEquals, &Value{".30", ValueFloat, nil, nil})
+	c.Assert(boolExpression.Elems[0], DeepEquals, &Value{".30", "", ValueFloat, nil, nil})
 
 	// value * 1 / 3
 	rightExpression := boolExpression.Elems[1]
@@ -727,14 +739,14 @@ func (self *QueryParserSuite) TestParseSinglePointQuery(c *C) {
 	rightBoolExpression, ok := w.Right.GetBoolExpression()
 	c.Assert(ok, Equals, true)
 
-	c.Assert(leftBoolExpression.Elems[0], DeepEquals, &Value{"time", ValueSimpleName, nil, nil})
+	c.Assert(leftBoolExpression.Elems[0], DeepEquals, &Value{"time", "", ValueSimpleName, nil, nil})
 	value := leftBoolExpression.Elems[1]
-	c.Assert(value, DeepEquals, &Value{"999", ValueInt, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"999", "", ValueInt, nil, nil})
 	c.Assert(leftBoolExpression.Name, Equals, "=")
 
-	c.Assert(rightBoolExpression.Elems[0], DeepEquals, &Value{"sequence_number", ValueSimpleName, nil, nil})
+	c.Assert(rightBoolExpression.Elems[0], DeepEquals, &Value{"sequence_number", "", ValueSimpleName, nil, nil})
 	value = rightBoolExpression.Elems[1]
-	c.Assert(value, DeepEquals, &Value{"1", ValueInt, nil, nil})
+	c.Assert(value, DeepEquals, &Value{"1", "", ValueInt, nil, nil})
 	c.Assert(rightBoolExpression.Name, Equals, "=")
 }
 
@@ -754,7 +766,7 @@ func (self *QueryParserSuite) TestParseContinuousQueryCreation(c *C) {
 	c.Assert(q.IsContinuousQuery(), Equals, true)
 	c.Assert(q.IsValidContinuousQuery(), Equals, true)
 	clause := q.GetIntoClause()
-	c.Assert(clause.Target, DeepEquals, &Value{"bar", ValueSimpleName, nil, nil})
+	c.Assert(clause.Target, DeepEquals, &Value{"bar", "", ValueSimpleName, nil, nil})
 }
 
 func (self *QueryParserSuite) TestParseInterpolatedContinuousQueryCreation(c *C) {
@@ -763,28 +775,28 @@ func (self *QueryParserSuite) TestParseInterpolatedContinuousQueryCreation(c *C)
 	c.Assert(err, IsNil)
 	c.Assert(q.IsContinuousQuery(), Equals, true)
 	clause := q.GetIntoClause()
-	c.Assert(clause.Target, DeepEquals, &Value{"bar.[c4]", ValueIntoName, nil, nil})
+	c.Assert(clause.Target, DeepEquals, &Value{"bar.[c4]", "", ValueIntoName, nil, nil})
 
 	query = "select * from foo into [c5].bar.[c4];"
 	q, err = ParseSelectQuery(query)
 	c.Assert(err, IsNil)
 	c.Assert(q.IsContinuousQuery(), Equals, true)
 	clause = q.GetIntoClause()
-	c.Assert(clause.Target, DeepEquals, &Value{"[c5].bar.[c4]", ValueIntoName, nil, nil})
+	c.Assert(clause.Target, DeepEquals, &Value{"[c5].bar.[c4]", "", ValueIntoName, nil, nil})
 
 	query = "select average(c4), count(c5) from s3 group by time(1h) into [average].[count];"
 	q, err = ParseSelectQuery(query)
 	c.Assert(err, IsNil)
 	c.Assert(q.IsContinuousQuery(), Equals, true)
 	clause = q.GetIntoClause()
-	c.Assert(clause.Target, DeepEquals, &Value{"[average].[count]", ValueIntoName, nil, nil})
+	c.Assert(clause.Target, DeepEquals, &Value{"[average].[count]", "", ValueIntoName, nil, nil})
 
 	query = "select * from foo into :series_name.foo;"
 	q, err = ParseSelectQuery(query)
 	c.Assert(err, IsNil)
 	c.Assert(q.IsContinuousQuery(), Equals, true)
 	clause = q.GetIntoClause()
-	c.Assert(clause.Target, DeepEquals, &Value{":series_name.foo", ValueIntoName, nil, nil})
+	c.Assert(clause.Target, DeepEquals, &Value{":series_name.foo", "", ValueIntoName, nil, nil})
 
 	query = "select * from foo into ]bar"
 	q, err = ParseSelectQuery(query)
