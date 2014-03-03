@@ -258,12 +258,10 @@
 
 ## v0.5.0-rc.3 [unreleased]
 
-### Bugfixes
-
-## v0.5.0-rc.3 [unreleased]
-
 ### Features
-- [Issue #69](https://github.com/influxdb/influxdb/issues/69) Support column aliases
+- [Issue #69](https://github.com/influxdb/influxdb/issues/69). Support column aliases
+- [Issue #287](https://github.com/influxdb/influxdb/issues/287). Make the lru cache size configurable
+- [Issue #38](https://github.com/influxdb/influxdb/issues/38). Fix a memory leak discussed in this story
 
 ### Bugfixes
 - Make LevelDB use the max open files configuration option.
