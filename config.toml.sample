@@ -23,6 +23,10 @@ port     = 8086    # binding is disabled if the port isn't set
 # ssl-port = 8084    # Ssl support is enabled if you set a port and cert
 # ssl-cert = /path/to/cert.pem
 
+[graphite]
+port = 2003  # optionally enable a graphite (carbon) compatible ingestion
+database = "dbname"  # connect to this database
+
 # Raft configuration
 [raft]
 # The raft port should be open between all servers in a cluster.
