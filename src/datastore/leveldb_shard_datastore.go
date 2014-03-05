@@ -20,6 +20,8 @@ type LevelDbShardDatastore struct {
 	config         *configuration.Configuration
 	shards         map[uint32]*LevelDbShard
 	lastAccess     map[uint32]int64
+	shardRefCounts map[uint32]int
+	shardsToClose  map[uint32]bool
 	shardsLock     sync.RWMutex
 	levelDbOptions *levigo.Options
 	writeBuffer    *cluster.WriteBuffer
@@ -87,6 +89,8 @@ func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShar
 		levelDbOptions: opts,
 		maxOpenShards:  config.LevelDbMaxOpenShards,
 		lastAccess:     make(map[uint32]int64),
+		shardRefCounts: make(map[uint32]int),
+		shardsToClose:  make(map[uint32]bool),
 	}, nil
 }
 
@@ -106,17 +110,12 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 	self.lastAccess[id] = now
 
 	if db != nil {
+		self.shardRefCounts[id] += 1
 		return db, nil
 	}
 
 	if self.maxOpenShards > 0 && len(self.shards) > self.maxOpenShards {
 		self.closeOldestShard()
-	}
-
-	// check to make sure it hasn't been put there between the RUnlock and the Lock
-	db = self.shards[id]
-	if db != nil {
-		return db, nil
 	}
 
 	dbDir := self.shardDir(id)
@@ -132,7 +131,17 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 		return nil, err
 	}
 	self.shards[id] = db
+	self.shardRefCounts[id] += 1
 	return db, nil
+}
+
+func (self *LevelDbShardDatastore) ReturnShard(id uint32) {
+	self.shardsLock.Lock()
+	defer self.shardsLock.Unlock()
+	self.shardRefCounts[id] -= 1
+	if self.shardsToClose[id] && self.shardRefCounts[id] == 0 {
+		self.closeShard(id)
+	}
 }
 
 func (self *LevelDbShardDatastore) Write(request *protocol.Request) error {
@@ -140,6 +149,7 @@ func (self *LevelDbShardDatastore) Write(request *protocol.Request) error {
 	if err != nil {
 		return err
 	}
+	defer self.ReturnShard(*request.ShardId)
 	return shardDb.Write(*request.Database, request.Series)
 }
 
@@ -180,12 +190,22 @@ func (self *LevelDbShardDatastore) closeOldestShard() {
 			oldestAccess = lastAccess
 		}
 	}
-	shard := self.shards[oldestId]
+	if self.shardRefCounts[oldestId] == 0 {
+		self.closeShard(oldestId)
+	} else {
+		self.shardsToClose[oldestId] = true
+	}
+}
+
+func (self *LevelDbShardDatastore) closeShard(id uint32) {
+	delete(self.shardRefCounts, id)
+	delete(self.shards, id)
+	delete(self.lastAccess, id)
+	delete(self.shardsToClose, id)
+	shard := self.shards[id]
 	if shard != nil {
 		shard.close()
 	}
-	delete(self.shards, oldestId)
-	delete(self.lastAccess, oldestId)
 }
 
 // // returns true if the point has the correct field id and is
