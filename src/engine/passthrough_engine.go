@@ -10,37 +10,49 @@ type PassthroughEngine struct {
 	responseChan        chan *protocol.Response
 	response            *protocol.Response
 	maxPointsInResponse int
+	limiter             *Limiter
 }
 
 func NewPassthroughEngine(responseChan chan *protocol.Response, maxPointsInResponse int) *PassthroughEngine {
+	return NewPassthroughEngineWithLimit(responseChan, maxPointsInResponse, 0)
+}
+
+func NewPassthroughEngineWithLimit(responseChan chan *protocol.Response, maxPointsInResponse, limit int) *PassthroughEngine {
 	return &PassthroughEngine{
 		responseChan:        responseChan,
 		maxPointsInResponse: maxPointsInResponse,
+		limiter:             NewLimiter(limit),
 	}
 }
 
 func (self *PassthroughEngine) YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool {
+	series := &protocol.Series{Name: seriesName, Points: []*protocol.Point{point}, Fields: columnNames}
+	self.limiter.calculateLimitAndSlicePoints(series)
+	if len(series.Points) == 0 {
+		return false
+	}
+
 	if self.response == nil {
 		self.response = &protocol.Response{
 			Type:   &queryResponse,
-			Series: &protocol.Series{Name: seriesName, Points: []*protocol.Point{point}, Fields: columnNames},
+			Series: series,
 		}
 	} else if self.response.Series.Name != seriesName {
 		self.responseChan <- self.response
 		self.response = &protocol.Response{
 			Type:   &queryResponse,
-			Series: &protocol.Series{Name: seriesName, Points: []*protocol.Point{point}, Fields: columnNames},
+			Series: series,
 		}
 	} else if len(self.response.Series.Points) > self.maxPointsInResponse {
 		self.responseChan <- self.response
 		self.response = &protocol.Response{
 			Type:   &queryResponse,
-			Series: &protocol.Series{Name: seriesName, Points: []*protocol.Point{point}, Fields: columnNames},
+			Series: series,
 		}
 	} else {
 		self.response.Series.Points = append(self.response.Series.Points, point)
 	}
-	return true
+	return !self.limiter.hitLimit(*seriesName)
 }
 
 func (self *PassthroughEngine) Close() {

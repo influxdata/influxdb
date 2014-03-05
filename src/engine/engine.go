@@ -16,9 +16,7 @@ type QueryEngine struct {
 	query          *parser.SelectQuery
 	where          *parser.WhereCondition
 	responseChan   chan *protocol.Response
-	shouldLimit    bool
-	limit          int
-	limits         map[string]int
+	limiter        *Limiter
 	seriesToPoints map[string]*protocol.Series
 	yield          func(*protocol.Series) error
 
@@ -60,17 +58,16 @@ func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*
 
 func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Response) *QueryEngine {
 	limit := query.Limit
-	shouldLimit := true
-	if limit == 0 {
-		shouldLimit = false
+	// disable limit if the query has aggregates let the coordinator
+	// deal with the limit
+	if query.HasAggregates() {
+		limit = 0
 	}
 
 	queryEngine := &QueryEngine{
 		query:          query,
 		where:          query.GetWhereCondition(),
-		limit:          limit,
-		limits:         make(map[string]int),
-		shouldLimit:    shouldLimit,
+		limiter:        NewLimiter(limit),
 		responseChan:   responseChan,
 		seriesToPoints: make(map[string]*protocol.Series),
 	}
@@ -119,14 +116,14 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 		}
 		for _, series := range serieses {
 			if len(series.Points) > 0 {
-				self.calculateLimitAndSlicePoints(series)
+				self.limiter.calculateLimitAndSlicePoints(series)
 				if len(series.Points) > 0 {
 					err = self.yield(series)
 				}
 			}
 		}
 	} else {
-		self.calculateLimitAndSlicePoints(series)
+		self.limiter.calculateLimitAndSlicePoints(series)
 
 		if len(series.Points) > 0 {
 			err = self.yield(series)
@@ -136,42 +133,7 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 		log.Error(err)
 		return false
 	}
-	return !self.hitLimit(*series.Name)
-}
-
-// TODO: make limits work for aggregate queries and for queries that pull from multiple series.
-func (self *QueryEngine) calculateLimitAndSlicePoints(series *protocol.Series) {
-	if !self.isAggregateQuery && self.shouldLimit {
-		// if the limit is 0, stop returning any points
-		limit := self.limitForSeries(*series.Name)
-		defer func() { self.limits[*series.Name] = limit }()
-		if limit == 0 {
-			series.Points = nil
-			return
-		}
-		limit -= len(series.Points)
-		if limit <= 0 {
-			sliceTo := len(series.Points) + limit
-			series.Points = series.Points[0:sliceTo]
-			limit = 0
-		}
-	}
-}
-
-func (self *QueryEngine) hitLimit(seriesName string) bool {
-	if self.isAggregateQuery || !self.shouldLimit {
-		return false
-	}
-	return self.limitForSeries(seriesName) <= 0
-}
-
-func (self *QueryEngine) limitForSeries(name string) int {
-	currentLimit, ok := self.limits[name]
-	if !ok {
-		currentLimit = self.limit
-		self.limits[name] = currentLimit
-	}
-	return currentLimit
+	return !self.limiter.hitLimit(*series.Name)
 }
 
 func (self *QueryEngine) filter(series *protocol.Series) ([]*protocol.Series, error) {
