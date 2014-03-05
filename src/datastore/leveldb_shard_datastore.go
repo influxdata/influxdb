@@ -198,14 +198,14 @@ func (self *LevelDbShardDatastore) closeOldestShard() {
 }
 
 func (self *LevelDbShardDatastore) closeShard(id uint32) {
-	delete(self.shardRefCounts, id)
-	delete(self.shards, id)
-	delete(self.lastAccess, id)
-	delete(self.shardsToClose, id)
 	shard := self.shards[id]
 	if shard != nil {
 		shard.close()
 	}
+	delete(self.shardRefCounts, id)
+	delete(self.shards, id)
+	delete(self.lastAccess, id)
+	delete(self.shardsToClose, id)
 }
 
 // // returns true if the point has the correct field id and is
