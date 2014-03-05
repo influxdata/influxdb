@@ -268,3 +268,5 @@
 ## v0.5.0-rc.4 [unreleased]
 
 ### Bugfixes
+
+- [Issue #298](https://github.com/influxdb/influxdb/issues/298). Fix limit when querying multiple shards

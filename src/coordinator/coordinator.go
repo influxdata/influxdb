@@ -213,43 +213,60 @@ func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, ser
 	return self.runQuerySpec(querySpec, seriesWriter)
 }
 
-func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	shards := self.clusterConfiguration.GetShards(querySpec)
-
-	shouldAggregateLocally := true
-	var processor cluster.QueryProcessor
-	var responseChan chan *protocol.Response
-	var seriesClosed chan bool
+func (self *CoordinatorImpl) shouldAggregateLocally(shards []*cluster.ShardData, querySpec *parser.QuerySpec) bool {
 	for _, s := range shards {
-		// If the aggregation is done at the shard level, we don't need to
-		// do it here at the coordinator level.
 		if !s.ShouldAggregateLocally(querySpec) {
-			seriesClosed = make(chan bool)
-			shouldAggregateLocally = false
-			responseChan = make(chan *protocol.Response)
-
-			if querySpec.SelectQuery() != nil {
-				processor = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
-			} else {
-				bufferSize := 100
-				processor = engine.NewPassthroughEngine(responseChan, bufferSize)
-			}
-			go func() {
-				for {
-					res := <-responseChan
-					if *res.Type == endStreamResponse || *res.Type == accessDeniedResponse {
-						seriesWriter.Close()
-						seriesClosed <- true
-						return
-					}
-					if res.Series != nil && len(res.Series.Points) > 0 {
-						seriesWriter.Write(res.Series)
-					}
-				}
-			}()
-			break
+			return false
 		}
 	}
+	return true
+}
+
+func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, chan bool) {
+	shards := self.clusterConfiguration.GetShards(querySpec)
+	shouldAggregateLocally := self.shouldAggregateLocally(shards, querySpec)
+
+	var processor cluster.QueryProcessor
+
+	responseChan := make(chan *protocol.Response)
+	seriesClosed := make(chan bool)
+
+	selectQuery := querySpec.SelectQuery()
+	if selectQuery != nil && !shouldAggregateLocally {
+		// if we should aggregate in the coordinator (i.e. aggregation
+		// isn't happening locally at the shard level), create an engine
+		processor = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
+	} else if selectQuery != nil && selectQuery.Limit > 0 {
+		// if we have a query with limit, then create an engine, or we can
+		// make the passthrough limit aware
+		processor = engine.NewPassthroughEngineWithLimit(responseChan, 100, selectQuery.Limit)
+	} else if !shouldAggregateLocally {
+		processor = engine.NewPassthroughEngine(responseChan, 100)
+	}
+
+	if processor == nil {
+		return shards, nil, nil
+	}
+
+	go func() {
+		for {
+			res := <-responseChan
+			if *res.Type == endStreamResponse || *res.Type == accessDeniedResponse {
+				writer.Close()
+				seriesClosed <- true
+				return
+			}
+			if res.Series != nil && len(res.Series.Points) > 0 {
+				writer.Write(res.Series)
+			}
+		}
+	}()
+
+	return shards, processor, seriesClosed
+}
+
+func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+	shards, processor, seriesClosed := self.getShardsAndProcessor(querySpec, seriesWriter)
 
 	responses := make([]chan *protocol.Response, 0)
 	for _, shard := range shards {
@@ -266,7 +283,9 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
 				break
 			}
-			if shouldAggregateLocally {
+
+			// if we don't have a processor, yield the point to the writer
+			if processor == nil {
 				log.Debug("WRITING: ", len(response.Series.Points))
 				seriesWriter.Write(response.Series)
 				log.Debug("WRITING (done)")
@@ -284,7 +303,8 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 		}
 		log.Debug("DONE: shard: ", shards[i].String())
 	}
-	if !shouldAggregateLocally {
+
+	if processor != nil {
 		processor.Close()
 		<-seriesClosed
 		return nil

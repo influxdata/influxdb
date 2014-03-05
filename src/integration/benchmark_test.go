@@ -601,6 +601,34 @@ func (self *IntegrationSuite) TestIssue89(c *C) {
 	c.Assert(sums, DeepEquals, map[string]float64{"y": 30.0, "z": 40.0})
 }
 
+// make sure aggregation when happen locally at the shard level don't
+// get repeated at the coordinator level, otherwise unexpected
+// behavior will happen
+func (self *IntegrationSuite) TestCountWithGroupByTimeAndLimit(c *C) {
+	for i := 0; i < 1; i++ {
+		err := self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_count_with_groupby_and_limit",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10))
+		c.Assert(err, IsNil)
+	}
+	bs, err := self.server.RunQuery("select count(cpu) from test_count_with_groupby_and_limit group by time(5m) limit 10", "m")
+	c.Assert(err, IsNil)
+	data := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Name, Equals, "test_count_with_groupby_and_limit")
+	c.Assert(data[0].Columns, HasLen, 2)
+	c.Assert(data[0].Points, HasLen, 1)
+	// count should be 3
+	c.Assert(data[0].Points[0][1], Equals, 2.0)
+}
+
 func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 	for i := 0; i < 20; i++ {
 		err := self.server.WriteData(fmt.Sprintf(`
@@ -687,6 +715,35 @@ func (self *IntegrationSuite) TestHttpPostWithTime(c *C) {
 	}
 	c.Assert(values["val1"], Equals, "v1")
 	c.Assert(values["val2"], Equals, 2.0)
+}
+
+// test limit when getting data from multiple shards
+func (self *IntegrationSuite) TestLimitMultipleShards(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+    "name": "test_limit_with_multiple_shards",
+    "columns": ["time", "a"],
+    "points":[
+		  [1393577978000, 1],
+		  [1383577978000, 2],
+		  [1373577978000, 2],
+		  [1363577978000, 2],
+		  [1353577978000, 2],
+		  [1343577978000, 2],
+		  [1333577978000, 2],
+		  [1323577978000, 2],
+		  [1313577978000, 2]
+	  ]
+  }
+]`, "time_precision=m")
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select * from test_limit_with_multiple_shards limit 1", "m")
+	c.Assert(err, IsNil)
+	data := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Points, HasLen, 1)
 }
 
 // test for issue #106
