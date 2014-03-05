@@ -25,6 +25,7 @@ type LevelDbShard struct {
 	writeOptions  *levigo.WriteOptions
 	lastIdUsed    uint64
 	columnIdMutex sync.Mutex
+	closed        bool
 }
 
 func NewLevelDbShard(db *levigo.DB) (*LevelDbShard, error) {
@@ -139,6 +140,10 @@ func (self *LevelDbShard) DropDatabase(database string) error {
 	}
 
 	return self.db.Write(self.writeOptions, wb)
+}
+
+func (self *LevelDbShard) IsClosed() bool {
+	return self.closed
 }
 
 func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor cluster.QueryProcessor) error {
@@ -606,6 +611,7 @@ func (self *LevelDbShard) getNextIdForColumn(db, series, column *string) (ret []
 }
 
 func (self *LevelDbShard) close() {
+	self.closed = true
 	self.readOptions.Close()
 	self.writeOptions.Close()
 	self.db.Close()

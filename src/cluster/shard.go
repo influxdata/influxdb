@@ -99,6 +99,7 @@ type LocalShardDb interface {
 	Write(database string, series *p.Series) error
 	Query(*parser.QuerySpec, QueryProcessor) error
 	DropDatabase(database string) error
+	IsClosed() bool
 }
 
 type LocalShardStore interface {
