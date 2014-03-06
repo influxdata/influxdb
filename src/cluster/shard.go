@@ -174,12 +174,7 @@ func (self *ShardData) Write(request *protocol.Request) error {
 }
 
 func (self *ShardData) WriteLocalOnly(request *protocol.Request) error {
-	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
-	if err != nil {
-		return err
-	}
-	request.RequestNumber = &requestNumber
-	self.store.BufferWrite(request)
+	self.store.Write(request)
 	return nil
 }
 
