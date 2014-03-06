@@ -2,6 +2,7 @@ package server
 
 import (
 	"admin"
+	"api/graphite"
 	"api/http"
 	"cluster"
 	log "code.google.com/p/log4go"
@@ -16,7 +17,7 @@ type Server struct {
 	ProtobufServer *coordinator.ProtobufServer
 	ClusterConfig  *cluster.ClusterConfiguration
 	HttpApi        *http.HttpServer
-	GraphiteAPi    *graphite.Server
+	GraphiteApi    *graphite.Server
 	AdminServer    *admin.HttpServer
 	Coordinator    coordinator.Coordinator
 	Config         *configuration.Configuration
@@ -54,7 +55,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	raftServer.AssignCoordinator(coord)
 	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, coord, coord, clusterConfig, raftServer)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
-	graphiteApi := graphite.NewGraphiteServer(config.GraphitePortString(), coord)
+	graphiteApi := graphite.NewServer(config.GraphitePortString(), config.GraphiteDatabase, coord, clusterConfig)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
 	return &Server{
@@ -98,9 +99,9 @@ func (self *Server) ListenAndServe() error {
 	go self.AdminServer.ListenAndServe()
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()
-	if self.config.GraphitePort > 0 && self.config.GraphiteDatabase != "" {
+	if self.Config.GraphitePort > 0 && self.Config.GraphiteDatabase != "" {
 		log.Info("Starting Graphite Listener on port %d", self.Config.GraphitePort)
-		self.GraphiteAPi.ListenAndServe()
+		self.GraphiteApi.ListenAndServe()
 	}
 	return nil
 }
