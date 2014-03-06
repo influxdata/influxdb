@@ -186,6 +186,7 @@ outer:
 				return x.err
 			}
 
+			logger.Debug("Yielding request %d", x.request.GetRequestNumber())
 			if err := yield(x.request, x.shardId); err != nil {
 				stopChan <- struct{}{}
 				return err
@@ -213,6 +214,7 @@ func (self *WAL) closeCommon(shouldBookmark bool) error {
 }
 
 func (self *WAL) processClose(shouldBookmark bool) error {
+	logger.Info("Closing WAL")
 	for idx, logFile := range self.logFiles {
 		logFile.syncFile()
 		logFile.close()
@@ -222,6 +224,7 @@ func (self *WAL) processClose(shouldBookmark bool) error {
 	if shouldBookmark {
 		self.bookmark()
 	}
+	logger.Info("Closed WAL")
 	return nil
 }
 
@@ -274,7 +277,7 @@ func (self *WAL) processAppendEntry(e *appendEntry) {
 
 	lastLogFile := self.logFiles[len(self.logFiles)-1]
 	self.assignSequenceNumbers(e.shardId, e.request)
-	logger.Debug("appending request")
+	logger.Debug("appending request %d", e.request.GetRequestNumber())
 	err := lastLogFile.appendRequest(e.request, e.shardId)
 	if err != nil {
 		e.confirmation <- &confirmation{0, err}
@@ -297,6 +300,7 @@ func (self *WAL) processAppendEntry(e *appendEntry) {
 }
 
 func (self *WAL) processCommitEntry(e *commitEntry) {
+	logger.Debug("commiting %d for server %d", e.requestNumber, e.serverId)
 	self.state.commitRequestNumber(e.serverId, e.requestNumber)
 	idx := self.firstLogFile()
 	if idx == 0 {
