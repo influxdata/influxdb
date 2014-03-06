@@ -92,7 +92,7 @@ func (_ *WalSuite) TestRequestNumberAssignmentRecovery(c *C) {
 	id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
 	c.Assert(id, Equals, uint32(1))
-	c.Assert(wal.Close(), IsNil)
+	c.Assert(wal.closeWithoutBookmarking(), IsNil)
 	wal, err = NewWAL(wal.config)
 	c.Assert(err, IsNil)
 	request = generateRequest(2)
@@ -101,7 +101,7 @@ func (_ *WalSuite) TestRequestNumberAssignmentRecovery(c *C) {
 	c.Assert(id, Equals, uint32(2))
 
 	// test recovery from wal replay
-	c.Assert(wal.Close(), IsNil)
+	c.Assert(wal.closeWithoutBookmarking(), IsNil)
 	wal, err = NewWAL(wal.config)
 	c.Assert(err, IsNil)
 	request = generateRequest(2)
@@ -320,6 +320,16 @@ func (_ *WalSuite) TestRequestNumberRollOverAndIndexing(c *C) {
 	c.Assert(len(requests), Equals, 15000)
 }
 
+func (_ *WalSuite) TestRecoveryAfterStartup(c *C) {
+	wal := newWal(c)
+	requests := []*protocol.Request{}
+	wal.RecoverServerFromRequestNumber(0, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		requests = append(requests, req)
+		return nil
+	})
+	c.Assert(requests, HasLen, 0)
+}
+
 func (_ *WalSuite) TestRecoveryFromCrash(c *C) {
 	wal := newWal(c)
 	req := generateRequest(2)
@@ -415,7 +425,7 @@ func (_ *WalSuite) TestIndexAfterRecovery(c *C) {
 		c.Assert(id, Equals, uint32(i+1))
 	}
 
-	wal.Close()
+	wal.closeWithoutBookmarking()
 
 	wal, err := NewWAL(wal.config)
 	c.Assert(err, IsNil)

@@ -6,6 +6,8 @@ import (
 
 type closeEntry struct {
 	confirmation chan *confirmation
+	// this is used for testing only
+	shouldBookmark bool
 }
 
 type commitEntry struct {

@@ -121,7 +121,10 @@ func (self *WAL) Commit(requestNumber uint32, serverId uint32) error {
 }
 
 func (self *WAL) RecoverServerFromLastCommit(serverId uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
-	requestNumber := self.state.ServerLastRequestNumber[serverId]
+	requestNumber, ok := self.state.ServerLastRequestNumber[serverId]
+	if !ok {
+		requestNumber = uint32(self.state.FirstSuffix)
+	}
 	return self.RecoverServerFromRequestNumber(requestNumber, shardIds, yield)
 }
 
@@ -138,8 +141,15 @@ func (self *WAL) isInRange(requestNumber uint32) bool {
 // requests to disk. When the downed server comes back up, it's this server's responsibility to send out any writes that were queued up. If
 // the yield function returns nil then the request is committed.
 func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
+	// don't replay if we don't have any log files yet
+	if len(self.logFiles) == 0 {
+		return nil
+	}
+
 	firstIndex := 0
 	firstOffset := int64(-1)
+	// find the log file from which replay will start if the request
+	// number is in range, otherwise replay from all log files
 	if self.isInRange(requestNumber) {
 		for idx, logIndex := range self.logIndex {
 			logger.Debug("Trying to find request %d in %s", requestNumber, self.logFiles[idx].file.Name())
@@ -188,20 +198,30 @@ outer:
 }
 
 func (self *WAL) Close() error {
+	return self.closeCommon(true)
+}
+
+func (self *WAL) closeWithoutBookmarking() error {
+	return self.closeCommon(false)
+}
+
+func (self *WAL) closeCommon(shouldBookmark bool) error {
 	confirmationChan := make(chan *confirmation)
-	self.entries <- &closeEntry{confirmationChan}
+	self.entries <- &closeEntry{confirmationChan, shouldBookmark}
 	confirmation := <-confirmationChan
 	return confirmation.err
 }
 
-func (self *WAL) processClose() error {
+func (self *WAL) processClose(shouldBookmark bool) error {
 	for idx, logFile := range self.logFiles {
 		logFile.syncFile()
 		logFile.close()
 		self.logIndex[idx].syncFile()
 		self.logIndex[idx].close()
 	}
-	self.bookmark()
+	if shouldBookmark {
+		self.bookmark()
+	}
 	return nil
 }
 
@@ -216,7 +236,7 @@ func (self *WAL) processEntries() {
 		case *appendEntry:
 			self.processAppendEntry(x)
 		case *closeEntry:
-			x.confirmation <- &confirmation{0, self.processClose()}
+			x.confirmation <- &confirmation{0, self.processClose(x.shouldBookmark)}
 			logger.Info("Closing wal")
 			return
 		default:
@@ -319,7 +339,7 @@ func (self *WAL) createNewLog(firstRequestNumber uint32) (*log, error) {
 func (self *WAL) openLog(logFileName string) (*log, *index, error) {
 	logger.Info("Opening log file %s", logFileName)
 
-	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_RDWR, 0644)
+	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -389,6 +409,7 @@ func (self *WAL) recover() error {
 				break
 			}
 
+			self.state.LargestRequestNumber = replayRequest.requestNumber
 			if err := replayRequest.err; err != nil {
 				return err
 			}
@@ -403,6 +424,7 @@ func (self *WAL) recover() error {
 			self.requestsSinceLastIndex++
 			self.requestsSinceRotation++
 			logger.Debug("recovery requestsSinceLastIndex: %d, requestNumber: %d", self.requestsSinceLastIndex, replayRequest.request.GetRequestNumber())
+			logger.Debug("largestrequestnumber: %d\n", self.state.LargestRequestNumber)
 
 			if self.requestsSinceLastIndex < self.config.WalIndexAfterRequests {
 				continue

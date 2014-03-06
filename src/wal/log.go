@@ -122,6 +122,7 @@ func (self *log) dupAndReplayFromOffset(shardIds []uint32, offset int64, rn uint
 		if err = self.skip(file, offset, rn); err != nil {
 			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 			close(replayChan)
+			return
 		}
 		shardIdsSet := map[uint32]struct{}{}
 		for _, shardId := range shardIds {
@@ -242,7 +243,7 @@ func (self *log) replayFromFileLocation(file *os.File,
 		}
 
 		if uint32(read) != hdr.length {
-			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
+			sendOrStop(newErrorReplayRequest(fmt.Errorf("expected to read %d but got %d instead", hdr.length, read)), replayChan, stopChan)
 			return
 		}
 		req := &protocol.Request{}
