@@ -97,12 +97,16 @@ func (self *Server) ListenAndServe() error {
 	}
 	log.Info("Starting admin interface on port %d", self.Config.AdminHttpPort)
 	go self.AdminServer.ListenAndServe()
+	if self.Config.GraphiteEnabled {
+		if self.Config.GraphitePort <= 0 || self.Config.GraphiteDatabase == "" {
+			log.Warn("Cannot start graphite server. please check your configuration")
+		} else {
+			log.Info("Starting Graphite Listener on port %d", self.Config.GraphitePort)
+			go self.GraphiteApi.ListenAndServe()
+		}
+	}
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()
-	if self.Config.GraphitePort > 0 && self.Config.GraphiteDatabase != "" {
-		log.Info("Starting Graphite Listener on port %d", self.Config.GraphitePort)
-		self.GraphiteApi.ListenAndServe()
-	}
 	return nil
 }
 

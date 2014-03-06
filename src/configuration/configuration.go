@@ -34,6 +34,7 @@ type ApiConfig struct {
 }
 
 type GraphiteConfig struct {
+	Enabled  bool
 	Port     int
 	Database string
 }
@@ -148,6 +149,7 @@ type Configuration struct {
 	ApiHttpSslPort            int
 	ApiHttpCertPath           string
 	ApiHttpPort               int
+	GraphiteEnabled           bool
 	GraphitePort              int
 	GraphiteDatabase          string
 	RaftServerPort            int
@@ -222,6 +224,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		ApiHttpPort:               tomlConfiguration.Api.Port,
 		ApiHttpCertPath:           tomlConfiguration.Api.SslCertPath,
 		ApiHttpSslPort:            tomlConfiguration.Api.SslPort,
+		GraphiteEnabled:           tomlConfiguration.Graphite.Enabled,
 		GraphitePort:              tomlConfiguration.Graphite.Port,
 		GraphiteDatabase:          tomlConfiguration.Graphite.Database,
 		RaftServerPort:            tomlConfiguration.Raft.Port,

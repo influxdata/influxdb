@@ -48,19 +48,19 @@ func NewServer(listen_addr, database string, coord coordinator.Coordinator, clus
 	self.coordinator = coord
 	self.shutdown = make(chan bool, 1)
 	self.clusterConfig = clusterConfig
-	self.getAuth()
 	return self
 }
 
 // getAuth assures that the user property is a user with access to the graphite database
+// only call this function after everything (i.e. Raft) is initialized, so that there's at least 1 admin user
 func (self *Server) getAuth() {
 	// just use any (the first) of the list of admins.
-	// can we assume there's always at least 1 ?
 	names := self.clusterConfig.GetClusterAdmins()
 	self.user = self.clusterConfig.GetClusterAdmin(names[0])
 }
 
 func (self *Server) ListenAndServe() {
+	self.getAuth()
 	var err error
 	if self.listen_addr != "" {
 		self.conn, err = net.Listen("tcp", self.listen_addr)
@@ -151,8 +151,8 @@ func (self *Server) handleClient(conn_in net.Conn) {
 		} else {
 			values = append(values, &protocol.FieldValue{DoubleValue: &val})
 		}
-		ts := int64(timestamp)
-		sn := uint64(1)  // use same SN makes sure that we'll only keep the latest value for a given metric_id-timestamp pair
+		ts := int64(timestamp * 1000000)
+		sn := uint64(1) // use same SN makes sure that we'll only keep the latest value for a given metric_id-timestamp pair
 		point := &protocol.Point{
 			Timestamp:      &ts,
 			Values:         values,

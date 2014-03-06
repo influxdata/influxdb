@@ -24,8 +24,10 @@ port     = 8086    # binding is disabled if the port isn't set
 # ssl-cert = /path/to/cert.pem
 
 [graphite]
-port = 2003  # optionally enable a graphite (carbon) compatible ingestion
-database = "dbname"  # connect to this database
+# optionally enable a graphite (carbon) compatible ingestion
+enabled = false
+port = 2003
+database = ""  # store graphite data in this database
 
 # Raft configuration
 [raft]
