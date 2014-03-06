@@ -145,11 +145,6 @@ func (self *Server) handleClient(conn_in net.Conn) {
 		if err != nil {
 			continue // invalid line
 		}
-		// this doesn't work yet.  should i use the types in protocol/types.go ?
-		// they don't seem to match with what's in protocol.pb.go
-		// and the latter seems a little lowlevel and has attributes that don't apply in this context
-		// also, not sure if i still have to reserve a column for time or sequence number, or whether
-		// that will be handled automatically for me
 		values := []*protocol.FieldValue{}
 		if i := int64(val); float64(i) == val {
 			values = append(values, &protocol.FieldValue{Int64Value: &i})
@@ -157,11 +152,11 @@ func (self *Server) handleClient(conn_in net.Conn) {
 			values = append(values, &protocol.FieldValue{DoubleValue: &val})
 		}
 		ts := int64(timestamp)
-		sn := uint64(1)
+		sn := uint64(1)  // use same SN makes sure that we'll only keep the latest value for a given metric_id-timestamp pair
 		point := &protocol.Point{
 			Timestamp:      &ts,
 			Values:         values,
-			SequenceNumber: &sn, // use same SN makes sure that we'll only keep the latest value for a given metric_id-timestamp pair
+			SequenceNumber: &sn,
 		}
 		series := &protocol.Series{
 			Name:   &elements[0],
