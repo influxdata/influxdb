@@ -133,8 +133,11 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 
 func (self *LevelDbShardDatastore) incrementShardRefCountAndCloseOldestIfNeeded(id uint32) {
 	self.shardRefCounts[id] += 1
+	delete(self.shardsToClose, id)
 	if self.maxOpenShards > 0 && len(self.shards) > self.maxOpenShards {
-		self.closeOldestShard()
+		for i := len(self.shards) - self.maxOpenShards; i > 0; i-- {
+			self.closeOldestShard()
+		}
 	}
 }
 
@@ -188,7 +191,7 @@ func (self *LevelDbShardDatastore) closeOldestShard() {
 	var oldestId uint32
 	oldestAccess := int64(math.MaxInt64)
 	for id, lastAccess := range self.lastAccess {
-		if lastAccess < oldestAccess {
+		if lastAccess < oldestAccess && self.shardsToClose[id] == false {
 			oldestId = id
 			oldestAccess = lastAccess
 		}
