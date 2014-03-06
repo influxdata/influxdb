@@ -1273,3 +1273,56 @@ func (self *ServerSuite) TestContinuousQueryWithMixedGroupByOperations(c *C) {
 	c.Assert(series.GetValueForPointAndColumn(2, "mean", c), Equals, float64(4.5))
 	c.Assert(series.GetValueForPointAndColumn(2, "url", c), Equals, "/register")
 }
+
+// fix for #305: https://github.com/influxdb/influxdb/issues/305
+func (self *ServerSuite) TestShardIdUniquenessAfterRestart(c *C) {
+	server := self.serverProcesses[0]
+	t := (time.Now().Unix() + 86400*720) * 1000
+	data := fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_shard_id_uniqueness", "columns": ["value", "time"]}]`, t)
+	server.Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	body := server.Get("/cluster/shards?u=root&p=root", c)
+	res := make(map[string]interface{})
+	err := json.Unmarshal(body, &res)
+	c.Assert(err, IsNil)
+	shardIds := make(map[float64]bool)
+	for _, s := range res["shortTerm"].([]interface{}) {
+		sh := s.(map[string]interface{})
+		shardId := sh["id"].(float64)
+		hasId := shardIds[shardId]
+		c.Assert(hasId, Equals, false)
+		shardIds[shardId] = true
+	}
+	c.Assert(len(shardIds) > 0, Equals, true)
+
+	resp := self.serverProcesses[0].Post("/raft/force_compaction?u=root&p=root", "", c)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+
+	for _, s := range self.serverProcesses {
+		s.Stop()
+	}
+	time.Sleep(time.Second * 2)
+	for _, s := range self.serverProcesses {
+		s.Start()
+		time.Sleep(time.Second)
+	}
+
+	server = self.serverProcesses[0]
+	t = (time.Now().Unix() + 86400*720*2) * 1000
+	data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_shard_id_uniqueness", "columns": ["value", "time"]}]`, t)
+	server.Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	body = server.Get("/cluster/shards?u=root&p=root", c)
+	res = make(map[string]interface{})
+	err = json.Unmarshal(body, &res)
+	c.Assert(err, IsNil)
+	shardIds = make(map[float64]bool)
+	for _, s := range res["shortTerm"].([]interface{}) {
+		sh := s.(map[string]interface{})
+		shardId := sh["id"].(float64)
+		hasId := shardIds[shardId]
+		c.Assert(hasId, Equals, false)
+		shardIds[shardId] = true
+	}
+	c.Assert(len(shardIds) > 0, Equals, true)
+}

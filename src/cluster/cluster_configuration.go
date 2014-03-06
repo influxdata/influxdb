@@ -14,7 +14,6 @@ import (
 	"parser"
 	"protocol"
 	"sync"
-	"sync/atomic"
 	"time"
 	"wal"
 )
@@ -76,7 +75,6 @@ type ClusterConfiguration struct {
 	lastServerToGetShard       *ClusterServer
 	shardCreator               ShardCreator
 	shardLock                  sync.Mutex
-	lastShardId                uint32
 	shardsById                 map[uint32]*ShardData
 	shardsByIdLock             sync.RWMutex
 	LocalRaftName              string
@@ -818,7 +816,7 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 
 	durationIsSplit := len(shards) > 1
 	for _, newShard := range shards {
-		id := atomic.AddUint32(&self.lastShardId, uint32(1))
+		id := uint32(len(self.GetAllShards()) + 1)
 		shard := NewShard(id, newShard.StartTime, newShard.EndTime, shardType, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range newShard.ServerIds {
