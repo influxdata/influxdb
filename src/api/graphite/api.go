@@ -21,8 +21,6 @@ import (
 	"time"
 )
 
-// TODO log prefixes so that you know the lines originate from this package?
-
 type Server struct {
 	listen_addr   string
 	database      string
@@ -65,7 +63,8 @@ func (self *Server) ListenAndServe() {
 	if self.listen_addr != "" {
 		self.conn, err = net.Listen("tcp", self.listen_addr)
 		if err != nil {
-			log.Error("Listen: ", err)
+			log.Error("GraphiteServer: Listen: ", err)
+			return
 		}
 	}
 	self.Serve(self.conn)
@@ -79,7 +78,7 @@ func (self *Server) Serve(listener net.Listener) {
 	for {
 		conn_in, err := listener.Accept()
 		if err != nil {
-			log.Error("Accept: ", err)
+			log.Error("GraphiteServer: Accept: ", err)
 			continue
 		}
 		go self.handleClient(conn_in)
@@ -88,12 +87,12 @@ func (self *Server) Serve(listener net.Listener) {
 
 func (self *Server) Close() {
 	if self.conn != nil {
-		log.Info("Closing graphite server")
+		log.Info("GraphiteServer: Closing graphite server")
 		self.conn.Close()
-		log.Info("Waiting for all graphite requests to finish before killing the process")
+		log.Info("GraphiteServer: Waiting for all graphite requests to finish before killing the process")
 		select {
 		case <-time.After(time.Second * 5):
-			log.Error("There seems to be a hanging graphite request. Closing anyway")
+			log.Error("GraphiteServer: There seems to be a hanging graphite request. Closing anyway")
 		case <-self.shutdown:
 		}
 	}
@@ -108,10 +107,10 @@ func (self *Server) writePoints(series *protocol.Series) error {
 			self.getAuth()
 			err = self.coordinator.WriteSeriesData(self.user, self.database, series)
 			if err != nil {
-				log.Warn("failed to write series after getting new auth: %s\n", err.Error())
+				log.Warn("GraphiteServer: failed to write series after getting new auth: %s\n", err.Error())
 			}
 		default:
-			log.Warn("failed write series: %s\n", err.Error())
+			log.Warn("GraphiteServer: failed write series: %s\n", err.Error())
 		}
 	}
 	return err
@@ -125,10 +124,10 @@ func (self *Server) handleClient(conn_in net.Conn) {
 		if err != nil {
 			str := strings.TrimSpace(string(buf))
 			if err != io.EOF {
-				log.Warn("connection closed uncleanly/broken: %s\n", err.Error())
+				log.Warn("GraphiteServer: connection closed uncleanly/broken: %s\n", err.Error())
 			}
 			if len(str) > 0 {
-				log.Warn("incomplete read, line read: '%s'. neglecting line because connection closed because of %s\n", str, err.Error())
+				log.Warn("GraphiteServer: incomplete read, line read: '%s'. neglecting line because connection closed because of %s\n", str, err.Error())
 			}
 			return
 		}
