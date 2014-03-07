@@ -271,5 +271,5 @@
 
 - [Issue #298](https://github.com/influxdb/influxdb/issues/298). Fix limit when querying multiple shards
 - [Issue #305](https://github.com/influxdb/influxdb/issues/305). Shard ids not unique after restart
-- Don't relog the requests on the remote server
+- [Issue #309](https://github.com/influxdb/influxdb/issues/309). Don't relog the requests on the remote server
 - Fix few bugs in the WAL and refactor the way it works (this requires purging the WAL from previous rc)
