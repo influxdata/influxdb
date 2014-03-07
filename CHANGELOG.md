@@ -265,7 +265,7 @@
 - [Issue #286](https://github.com/influxdb/influxdb/issues/286). Make the number of open shards configurable
 - Make LevelDB use the max open files configuration option.
 
-## v0.5.0-rc.4 [unreleased]
+## v0.5.0-rc.4 [2014-03-07]
 
 ### Bugfixes
 
@@ -273,3 +273,8 @@
 - [Issue #305](https://github.com/influxdb/influxdb/issues/305). Shard ids not unique after restart
 - [Issue #309](https://github.com/influxdb/influxdb/issues/309). Don't relog the requests on the remote server
 - Fix few bugs in the WAL and refactor the way it works (this requires purging the WAL from previous rc)
+
+## v0.5.0-rc.4 [unreleased]
+
+### Bugfixes
+
