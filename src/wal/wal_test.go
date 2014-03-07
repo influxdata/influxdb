@@ -181,6 +181,25 @@ func (_ *WalSuite) TestAutoBookmark(c *C) {
 	c.Assert(s.LargestRequestNumber, Equals, uint32(2))
 }
 
+func (_ *WalSuite) TestSequenceNumberRecovery(c *C) {
+	wal := newWal(c)
+	serverId := uint32(10)
+	wal.SetServerId(serverId)
+	request := generateRequest(2)
+	id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(id, Equals, uint32(1))
+	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, 2*HOST_ID_OFFSET+uint64(serverId))
+	wal.closeWithoutBookmarking()
+	wal, err = NewWAL(wal.config)
+	wal.SetServerId(serverId)
+	c.Assert(err, IsNil)
+	request = generateRequest(2)
+	id, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, 4*HOST_ID_OFFSET+uint64(serverId))
+}
+
 func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 	wal := newWal(c)
 	wal.config.WalBookmarkAfterRequests = 2

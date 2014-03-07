@@ -278,3 +278,4 @@
 
 ### Bugfixes
 
+- [Issue #312](https://github.com/influxdb/influxdb/issues/312). WAL should wait for server id to be set before recovering

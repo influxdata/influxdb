@@ -99,17 +99,18 @@ func NewWAL(config *configuration.Configuration) (*WAL, error) {
 		break
 	}
 
-	if err := wal.recover(); err != nil {
-		return nil, err
-	}
-
 	go wal.processEntries()
 
 	return wal, err
 }
 
 func (self *WAL) SetServerId(id uint32) {
+	logger.Info("Setting server id to %d and recovering", id)
 	self.serverId = id
+
+	if err := self.recover(); err != nil {
+		panic(err)
+	}
 }
 
 // Marks a given request for a given server as committed
@@ -418,8 +419,10 @@ func (self *WAL) recover() error {
 				return err
 			}
 
-			sequenceNumber := (replayRequest.request.GetSequenceNumber() - uint64(self.serverId)) / HOST_ID_OFFSET
-			self.state.recover(replayRequest.shardId, sequenceNumber)
+			for _, point := range replayRequest.request.Series.Points {
+				sequenceNumber := (point.GetSequenceNumber() - uint64(self.serverId)) / HOST_ID_OFFSET
+				self.state.recover(replayRequest.shardId, sequenceNumber)
+			}
 
 			if firstOffset == -1 {
 				firstOffset = replayRequest.startOffset
