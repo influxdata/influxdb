@@ -294,11 +294,15 @@ func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, 
 }
 
 func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) error {
+	if runLocalOnly {
+		return self.HandleDestructiveQuery(querySpec, request, response, true)
+	}
+
 	_, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
 		return err
 	}
-	return self.HandleDestructiveQuery(querySpec, request, response, runLocalOnly)
+	return self.HandleDestructiveQuery(querySpec, request, response, false)
 }
 
 func (self *ShardData) deleteDataLocally(querySpec *parser.QuerySpec) (<-chan *p.Response, error) {
@@ -312,7 +316,9 @@ func (self *ShardData) deleteDataLocally(querySpec *parser.QuerySpec) (<-chan *p
 	return localResponses, err
 }
 
-func (self *ShardData) forwardRequest(request *p.Request, responses []<-chan *p.Response, ids []uint32) error {
+func (self *ShardData) forwardRequest(request *p.Request) ([]<-chan *p.Response, []uint32, error) {
+	ids := []uint32{}
+	responses := []<-chan *p.Response{}
 	for _, server := range self.clusterServers {
 		responseChan := make(chan *p.Response, 1)
 		// do this so that a new id will get assigned
@@ -322,7 +328,7 @@ func (self *ShardData) forwardRequest(request *p.Request, responses []<-chan *p.
 		responses = append(responses, responseChan)
 		ids = append(ids, server.Id)
 	}
-	return nil
+	return responses, ids, nil
 }
 
 func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) error {
@@ -344,7 +350,9 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 
 	log.Debug("request %s, runLocalOnly: %v", request.GetDescription(), runLocalOnly)
 	if !runLocalOnly {
-		self.forwardRequest(request, responseCahnnels, serverIds)
+		responses, ids, _ := self.forwardRequest(request)
+		serverIds = append(serverIds, ids...)
+		responseCahnnels = append(responseCahnnels, responses...)
 	}
 
 	for idx, channel := range responseCahnnels {

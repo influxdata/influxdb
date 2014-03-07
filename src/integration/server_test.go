@@ -567,6 +567,27 @@ func (self *ServerSuite) TestShouldNotResetRootsPassword(c *C) {
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 }
 
+func (self *ServerSuite) TestDeleteFullReplication(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2]
+    ],
+    "name": "test_delete_replication",
+    "columns": ["val_1", "val_2"]
+  }]`
+	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+	collection := self.serverProcesses[0].Query("full_rep", "select count(val_1) from test_delete_replication", true, c)
+	series := collection.GetSeries("test_delete_replication", c)
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
+	self.serverProcesses[0].Query("full_rep", "delete from test_delete_replication", false, c)
+
+	for _, s := range self.serverProcesses {
+		collection = s.Query("full_rep", "select count(val_1) from test_delete_replication", true, c)
+		c.Assert(collection.Members, HasLen, 0)
+	}
+}
+
 func (self *ServerSuite) TestDeleteReplication(c *C) {
 	data := `
   [{
