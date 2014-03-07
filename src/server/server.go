@@ -8,6 +8,10 @@ import (
 	"configuration"
 	"coordinator"
 	"datastore"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 	"wal"
 )
 
@@ -91,6 +95,7 @@ func (self *Server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
+	go self.ListenForSignals()
 	log.Info("Starting admin interface on port %d", self.Config.AdminHttpPort)
 	go self.AdminServer.ListenAndServe()
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
@@ -102,6 +107,7 @@ func (self *Server) Stop() {
 	if self.stopped {
 		return
 	}
+	log.Info("Stopping server")
 	self.stopped = true
 	self.RaftServer.Close()
 	self.HttpApi.Close()
@@ -109,6 +115,19 @@ func (self *Server) Stop() {
 	self.AdminServer.Close()
 	self.writeLog.Close()
 	self.shardStore.Close()
-	// TODO: close admin server and protobuf client connections
-	log.Info("Stopping server")
+}
+
+func (self *Server) ListenForSignals() {
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
+	for {
+		sig := <-ch
+		log.Info("Received signal: %s\n", sig.String())
+		switch sig {
+		case syscall.SIGINT, syscall.SIGTERM:
+			self.Stop()
+			time.Sleep(time.Second)
+			os.Exit(0)
+		}
+	}
 }
