@@ -300,46 +300,56 @@ func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 	return self.HandleDestructiveQuery(querySpec, request, response, runLocalOnly)
 }
 
-func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) error {
-	var localResponses chan *p.Response
-	if self.localShard != nil {
-		localResponses = make(chan *p.Response, 1)
+func (self *ShardData) deleteDataLocally(querySpec *parser.QuerySpec) (<-chan *p.Response, error) {
+	localResponses := make(chan *p.Response, 1)
 
-		// this doesn't really apply at this point since destructive queries don't output anything, but it may later
-		maxPointsFromDestructiveQuery := 1000
-		processor := engine.NewPassthroughEngine(localResponses, maxPointsFromDestructiveQuery)
-		err := self.localShard.Query(querySpec, processor)
-		processor.Close()
+	// this doesn't really apply at this point since destructive queries don't output anything, but it may later
+	maxPointsFromDestructiveQuery := 1000
+	processor := engine.NewPassthroughEngine(localResponses, maxPointsFromDestructiveQuery)
+	err := self.localShard.Query(querySpec, processor)
+	processor.Close()
+	return localResponses, err
+}
+
+func (self *ShardData) forwardRequest(request *p.Request, responses []<-chan *p.Response, ids []uint32) error {
+	for _, server := range self.clusterServers {
+		responseChan := make(chan *p.Response, 1)
+		// do this so that a new id will get assigned
+		request.Id = nil
+		server.MakeRequest(request, responseChan)
+		responses = append(responses, responseChan)
+		ids = append(ids, server.Id)
+	}
+	return nil
+}
+
+func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) error {
+	if self.localShard == nil && runLocalOnly {
+		return nil
+	}
+
+	responseCahnnels := []<-chan *p.Response{}
+	serverIds := []uint32{}
+
+	if self.localShard != nil {
+		channel, err := self.deleteDataLocally(querySpec)
 		if err != nil {
 			return err
 		}
-	}
-	if !runLocalOnly {
-		responses := make([]chan *p.Response, len(self.clusterServers), len(self.clusterServers))
-		for i, server := range self.clusterServers {
-			responseChan := make(chan *p.Response, 1)
-			responses[i] = responseChan
-			// do this so that a new id will get assigned
-			request.Id = nil
-			server.MakeRequest(request, responseChan)
-		}
-		for i, responseChan := range responses {
-			for {
-				res := <-responseChan
-				if *res.Type == endStreamResponse {
-					self.wal.Commit(request.GetRequestNumber(), self.clusterServers[i].Id)
-					break
-				}
-				response <- res
-			}
-		}
+		responseCahnnels = append(responseCahnnels, channel)
+		serverIds = append(serverIds, self.localServerId)
 	}
 
-	if localResponses != nil {
+	if !runLocalOnly {
+		self.forwardRequest(request, responseCahnnels, serverIds)
+	}
+
+	for idx, channel := range responseCahnnels {
 		for {
-			res := <-localResponses
+			res := <-channel
 			if *res.Type == endStreamResponse {
-				self.wal.Commit(request.GetRequestNumber(), self.localServerId)
+				serverId := serverIds[idx]
+				self.wal.Commit(request.GetRequestNumber(), serverId)
 				break
 			}
 			response <- res
