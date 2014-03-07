@@ -19,6 +19,11 @@ import (
 	"time"
 )
 
+const (
+	//#if point is over 0 it aggregates wrong small data
+	POINT_BATCH_SIZE = 256
+)
+
 type LevelDbShard struct {
 	db            *levigo.DB
 	readOptions   *levigo.ReadOptions
@@ -179,6 +184,8 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		}
 	}()
 
+	seriesOutgoing := &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+
 	// TODO: clean up, this is super gnarly
 	// optimize for the case where we're pulling back only a single column or aggregate
 	for {
@@ -263,21 +270,39 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 
 		// stop the loop if we ran out of points
 		if !isValid {
+			log.Debug("Not valid point")
 			break
 		}
 
 		shouldContinue := true
-		for _, alias := range aliases {
-			_alias := alias
-			if !processor.YieldPoint(&_alias, fieldNames, point) {
-				shouldContinue = false
-			}
-		}
+
+		seriesOutgoing.Points = append(seriesOutgoing.Points, point)
+
+		if len(seriesOutgoing.Points) >= POINT_BATCH_SIZE {			
+			for _, alias := range aliases {
+				_alias := alias				
+				if !processor.YieldSeries(&_alias, fieldNames, seriesOutgoing) {					
+					shouldContinue = false
+				}
+			}				
+			seriesOutgoing = &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+		
+			//seriesOutgoing.Points = seriesOutgoing.Points[:0]
+		} 
 
 		if !shouldContinue {
 			break
 		}
 	}
+
+//Yield remaining data
+	for _, alias := range aliases {
+		_alias := alias
+		log.Debug("Final Flush %s", _alias)
+		if !processor.YieldSeries(&_alias, fieldNames, seriesOutgoing) {
+			log.Debug("Cancelled...")
+		}
+	}	
 
 	return nil
 }
@@ -301,7 +326,7 @@ func (self *LevelDbShard) executeListSeriesQuery(querySpec *parser.QuerySpec, pr
 			if parts[0] != database {
 				break
 			}
-			name := parts[1]
+			name := parts[1]			
 			shouldContinue := processor.YieldPoint(&name, nil, nil)
 			if !shouldContinue {
 				return nil

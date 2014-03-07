@@ -52,3 +52,6 @@ Makefile
 # log file
 influxdb.log
 benchmark.log
+
+# config file
+config.toml

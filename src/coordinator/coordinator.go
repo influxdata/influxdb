@@ -279,7 +279,9 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 		log.Debug("READING: shard: ", shards[i].String())
 		for {
 			response := <-responseChan
-			log.Debug("GOT RESPONSE: ", response.Type, response.Series)
+
+			//log.Debug("GOT RESPONSE: ", response.Type, response.Series)
+			log.Debug("GOT RESPONSE: ", response.Type)
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
 				break
 			}
@@ -294,11 +296,17 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 
 			// if the data wasn't aggregated at the shard level, aggregate
 			// the data here
-			log.Debug("YIELDING: ", len(response.Series.Points))
+			
+			//log.Debug("YIELDING: ", len(response.Series.Points))
 			if response.Series != nil {
-				for _, p := range response.Series.Points {
-					processor.YieldPoint(response.Series.Name, response.Series.Fields, p)
-				}
+				log.Debug("YIELDING: ", len(response.Series.Points))
+				processor.YieldSeries(response.Series.Name, response.Series.Fields, response.Series)
+				//for _, p := range response.Series.Points {
+					//processor.YieldPoint(response.Series.Name, response.Series.Fields, p)
+
+				//}
+			} else {
+				log.Debug("No series!")
 			}
 		}
 		log.Debug("DONE: shard: ", shards[i].String())

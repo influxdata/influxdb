@@ -30,6 +30,8 @@ type QueryProcessor interface {
 	// This method returns true if the query should continue. If the query should be stopped,
 	// like maybe the limit was hit, it should return false
 	YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool
+
+	YieldSeries(seriesName *string, columnNames []string, seriesIncoming *protocol.Series) bool
 	Close()
 }
 

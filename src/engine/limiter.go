@@ -2,6 +2,7 @@ package engine
 
 import (
 	"protocol"
+	log "code.google.com/p/log4go"
 )
 
 type Limiter struct {
@@ -19,9 +20,11 @@ func NewLimiter(limit int) *Limiter {
 }
 
 func (self *Limiter) calculateLimitAndSlicePoints(series *protocol.Series) {
+	log.Debug("Before limit: %d", len(series.Points))
 	if self.shouldLimit {
-		// if the limit is 0, stop returning any points
+		// if the limit is 0, stop returning any points		
 		limit := self.limitForSeries(*series.Name)
+		log.Debug("shouldLimit %d", limit)
 		defer func() { self.limits[*series.Name] = limit }()
 		if limit == 0 {
 			series.Points = nil
@@ -34,6 +37,7 @@ func (self *Limiter) calculateLimitAndSlicePoints(series *protocol.Series) {
 			limit = 0
 		}
 	}
+	log.Debug("After limit: %d", len(series.Points))
 }
 
 func (self *Limiter) hitLimit(seriesName string) bool {
