@@ -104,8 +104,8 @@ query-shard-buffer-size = 500
 [wal]
 
 dir   = "/tmp/influxdb/test/3/wal"
-flush-after = 1000 # the number of writes after which wal will be flushed, 0 for flushing on every write
-bookmark-after = 1000 # the number of writes after which a bookmark will be created
+flush-after = 0 # the number of writes after which wal will be flushed, 0 for flushing on every write
+bookmark-after = 0 # the number of writes after which a bookmark will be created
 
 # the number of writes after which an index entry is created pointing
 # to the offset of the first request, default to 1k
