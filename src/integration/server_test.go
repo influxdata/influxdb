@@ -3,6 +3,7 @@ package integration
 import (
 	"bytes"
 	"common"
+	"configuration"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -34,6 +35,12 @@ func NewServerProcess(configFile string, apiPort int, d time.Duration, c *C) *Se
 		time.Sleep(d)
 	}
 	return s
+}
+
+func (self *ServerProcess) doesWalExist() error {
+	config := configuration.LoadConfiguration(self.configFile)
+	_, err := os.Stat(filepath.Join(config.WalDir, "log.1"))
+	return err
 }
 
 func (self *ServerProcess) Start() error {
@@ -693,6 +700,33 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 			collection := s.Query("drop_series", "select * from cluster_query", true, c)
 			c.Assert(collection.Members, HasLen, 0)
 		}
+	}
+}
+
+func (self *ServerSuite) TestRelogging(c *C) {
+	// write data and confirm that it went to all three servers
+	data := `
+  [{
+    "points": [
+        [1]
+    ],
+    "name": "test_relogging",
+    "columns": ["val"]
+  }]`
+
+	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
+
+	time.Sleep(time.Second) // wait for data to get replicated
+
+	for _, server := range self.serverProcesses[1:] {
+		err := server.doesWalExist()
+		c.Assert(os.IsNotExist(err), Equals, true)
+		server.Stop()
+		time.Sleep(time.Second)
+		server.Start()
+		time.Sleep(time.Second)
+		err = server.doesWalExist()
+		c.Assert(os.IsNotExist(err), Equals, true)
 	}
 }
 
