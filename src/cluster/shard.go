@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"parser"
-	"protocol"
+	p "protocol"
 	"sort"
 	"strings"
 	"time"
@@ -20,8 +20,8 @@ type Shard interface {
 	Id() uint32
 	StartTime() time.Time
 	EndTime() time.Time
-	Write(*protocol.Request) error
-	Query(querySpec *parser.QuerySpec, response chan *protocol.Response) error
+	Write(*p.Request) error
+	Query(querySpec *parser.QuerySpec, response chan *p.Response) error
 	IsMicrosecondInRange(t int64) bool
 }
 
@@ -29,7 +29,7 @@ type Shard interface {
 type QueryProcessor interface {
 	// This method returns true if the query should continue. If the query should be stopped,
 	// like maybe the limit was hit, it should return false
-	YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool
+	YieldPoint(seriesName *string, columnNames []string, point *p.Point) bool
 	Close()
 }
 
@@ -88,22 +88,22 @@ const (
 )
 
 var (
-	queryResponse       = protocol.Response_QUERY
-	endStreamResponse   = protocol.Response_END_STREAM
-	queryRequest        = protocol.Request_QUERY
-	dropDatabaseRequest = protocol.Request_DROP_DATABASE
+	queryResponse       = p.Response_QUERY
+	endStreamResponse   = p.Response_END_STREAM
+	queryRequest        = p.Request_QUERY
+	dropDatabaseRequest = p.Request_DROP_DATABASE
 )
 
 type LocalShardDb interface {
-	Write(database string, series *protocol.Series) error
+	Write(database string, series *p.Series) error
 	Query(*parser.QuerySpec, QueryProcessor) error
 	DropDatabase(database string) error
 }
 
 type LocalShardStore interface {
-	Write(request *protocol.Request) error
+	Write(request *p.Request) error
 	SetWriteBuffer(writeBuffer *WriteBuffer)
-	BufferWrite(request *protocol.Request)
+	BufferWrite(request *p.Request)
 	GetOrCreateShard(id uint32) (LocalShardDb, error)
 	DeleteShard(shardId uint32) error
 }
@@ -157,7 +157,7 @@ func (self *ShardData) ServerIds() []uint32 {
 	return self.serverIds
 }
 
-func (self *ShardData) Write(request *protocol.Request) error {
+func (self *ShardData) Write(request *p.Request) error {
 	request.ShardId = &self.id
 	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
@@ -173,12 +173,12 @@ func (self *ShardData) Write(request *protocol.Request) error {
 	return nil
 }
 
-func (self *ShardData) WriteLocalOnly(request *protocol.Request) error {
+func (self *ShardData) WriteLocalOnly(request *p.Request) error {
 	self.store.Write(request)
 	return nil
 }
 
-func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
+func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Response) error {
 	// This is only for queries that are deletes or drops. They need to be sent everywhere as opposed to just the local or one of the remote shards.
 	// But this boolean should only be set to true on the server that receives the initial query.
 	if querySpec.RunAgainstAllServersInShard {
@@ -219,7 +219,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 	healthyCount := len(healthyServers)
 	if healthyCount == 0 {
 		message := fmt.Sprintf("No servers up to query shard %d", self.id)
-		response <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}
+		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &message}
 		return errors.New(message)
 	}
 	randServerIndex := int(time.Now().UnixNano() % int64(healthyCount))
@@ -238,11 +238,11 @@ func (self *ShardData) DropDatabase(database string, sendToServers bool) {
 		return
 	}
 
-	responses := make([]chan *protocol.Response, len(self.clusterServers), len(self.clusterServers))
+	responses := make([]chan *p.Response, len(self.clusterServers), len(self.clusterServers))
 	for i, server := range self.clusterServers {
-		responseChan := make(chan *protocol.Response, 1)
+		responseChan := make(chan *p.Response, 1)
 		responses[i] = responseChan
-		request := &protocol.Request{Type: &dropDatabaseRequest, Database: &database, ShardId: &self.id}
+		request := &p.Request{Type: &dropDatabaseRequest, Database: &database, ShardId: &self.id}
 		go server.MakeRequest(request, responseChan)
 	}
 	for _, responseChan := range responses {
@@ -281,25 +281,25 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 	return false
 }
 
-func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
+func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *p.Response) error {
 	queryString := querySpec.GetQueryStringWithTimeCondition()
 	request := self.createRequest(querySpec)
 	request.Query = &queryString
 	return self.LogAndHandleDestructiveQuery(querySpec, request, response, false)
 }
 
-func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, response chan *protocol.Response) error {
+func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, response chan *p.Response) error {
 	return self.LogAndHandleDestructiveQuery(querySpec, self.createRequest(querySpec), response, false)
 }
 
-func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *protocol.Request, response chan *protocol.Response, runLocalOnly bool) error {
+func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) error {
 	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
 		return err
 	}
-	var localResponses chan *protocol.Response
+	var localResponses chan *p.Response
 	if self.localShard != nil {
-		localResponses = make(chan *protocol.Response, 1)
+		localResponses = make(chan *p.Response, 1)
 
 		// this doesn't really apply at this point since destructive queries don't output anything, but it may later
 		maxPointsFromDestructiveQuery := 1000
@@ -311,9 +311,9 @@ func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 		}
 	}
 	if !runLocalOnly {
-		responses := make([]chan *protocol.Response, len(self.clusterServers), len(self.clusterServers))
+		responses := make([]chan *p.Response, len(self.clusterServers), len(self.clusterServers))
 		for i, server := range self.clusterServers {
-			responseChan := make(chan *protocol.Response, 1)
+			responseChan := make(chan *p.Response, 1)
 			responses[i] = responseChan
 			// do this so that a new id will get assigned
 			request.Id = nil
@@ -342,18 +342,18 @@ func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 		}
 	}
 
-	response <- &protocol.Response{Type: &endStreamResponse}
+	response <- &p.Response{Type: &endStreamResponse}
 	return nil
 }
 
-func (self *ShardData) createRequest(querySpec *parser.QuerySpec) *protocol.Request {
+func (self *ShardData) createRequest(querySpec *parser.QuerySpec) *p.Request {
 	queryString := querySpec.GetQueryString()
 	user := querySpec.User()
 	userName := user.GetName()
 	database := querySpec.Database()
 	isDbUser := !user.IsClusterAdmin()
 
-	return &protocol.Request{
+	return &p.Request{
 		Type:     &queryRequest,
 		ShardId:  &self.id,
 		Query:    &queryString,
