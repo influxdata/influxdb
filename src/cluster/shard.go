@@ -6,7 +6,6 @@ import (
 	"engine"
 	"fmt"
 	"parser"
-	"protocol"
 	p "protocol"
 	"sort"
 	"strings"
@@ -32,6 +31,7 @@ type QueryProcessor interface {
 	// This method returns true if the query should continue. If the query should be stopped,
 	// like maybe the limit was hit, it should return false
 	YieldPoint(seriesName *string, columnNames []string, point *p.Point) bool
+	YieldSeries(seriesName *string, columnNames []string, seriesIncoming *p.Series) bool
 	Close()
 }
 
@@ -213,18 +213,24 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 			if self.ShouldAggregateLocally(querySpec) {
 				processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), response)
 				if err != nil {
-					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: protocol.String(err.Error())}
+					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
 					log.Error("Error while creating engine: %s", err)
 					return
+				}
+				if querySpec.IsExplainQuery() {
+					processor.SetShardInfo(int(self.Id()), self.IsLocal)
 				}
 			} else {
 				maxPointsToBufferBeforeSending := 1000
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
+				if querySpec.IsExplainQuery() {
+					processor.SetShardInfo(int(self.Id()), self.IsLocal)
+				}
 			}
 		}
 		shard, err := self.store.GetOrCreateShard(self.id)
 		if err != nil {
-			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: protocol.String(err.Error())}
+			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
 			log.Error("Error while getting shards: %s", err)
 			return
 		}
@@ -232,7 +238,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 		err = shard.Query(querySpec, processor)
 		processor.Close()
 		if err != nil {
-			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: protocol.String(err.Error())}
+			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
 		}
 		response <- &p.Response{Type: &endStreamResponse}
 		return

@@ -1,6 +1,6 @@
 package engine
 
-import (
+import (	
 	"common"
 	"fmt"
 	"math"
@@ -15,6 +15,7 @@ type PointSlice []protocol.Point
 
 type Aggregator interface {
 	AggregatePoint(series string, group interface{}, p *protocol.Point) error
+	AggregateSeries(series string, group interface{}, s *protocol.Series) error
 	InitializeFieldsMetadata(series *protocol.Series) error
 	GetValues(series string, group interface{}) [][]*protocol.FieldValue
 	ColumnNames() []string
@@ -74,6 +75,10 @@ type CompositeAggregator struct {
 
 func (self *CompositeAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
 	return self.right.AggregatePoint(series, group, p)
+}
+
+func (self *CompositeAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	return self.right.AggregateSeries(series, group, s)
 }
 
 func (self *CompositeAggregator) ColumnNames() []string {
@@ -145,6 +150,14 @@ func (self *StandardDeviationAggregator) AggregatePoint(series string, group int
 	r.count++
 	r.totalX += value
 	r.totalX2 += value * value
+	return nil
+}
+
+//TODO: to be optimized
+func (self *StandardDeviationAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	for _, p := range s.Points {
+		self.AggregatePoint(series, group, p)
+	}
 	return nil
 }
 
@@ -267,6 +280,14 @@ func (self *DerivativeAggregator) AggregatePoint(series string, group interface{
 	return nil
 }
 
+//TODO: to be optimized
+func (self *DerivativeAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	for _, p := range s.Points {
+		self.AggregatePoint(series, group, p)
+	}
+	return nil
+}
+
 func (self *DerivativeAggregator) ColumnNames() []string {
 	if self.alias != "" {
 		return []string{self.alias}
@@ -363,6 +384,14 @@ func (self *HistogramAggregator) AggregatePoint(series string, group interface{}
 	return nil
 }
 
+//TODO: to be optimized
+func (self *HistogramAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	for _, p := range s.Points {
+		self.AggregatePoint(series, group, p)
+	}
+	return nil
+}
+
 func (self *HistogramAggregator) ColumnNames() []string {
 	return self.columnNames
 }
@@ -433,17 +462,27 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 
 type CountAggregator struct {
 	defaultValue *protocol.FieldValue
-	counts       map[string]map[interface{}]int32
+	counts       map[string]map[interface{}]int64
 	alias        string
 }
 
 func (self *CountAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
 	counts := self.counts[series]
 	if counts == nil {
-		counts = make(map[interface{}]int32)
+		counts = make(map[interface{}]int64)
 		self.counts[series] = counts
 	}
 	counts[group]++
+	return nil
+}
+
+func (self *CountAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	counts := self.counts[series]
+	if counts == nil {
+		counts = make(map[interface{}]int64)
+		self.counts[series] = counts
+	}
+	counts[group] += int64(len(s.Points))
 	return nil
 }
 
@@ -495,10 +534,10 @@ func NewCountAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *pa
 		if err != nil {
 			return nil, err
 		}
-		return NewCompositeAggregator(&CountAggregator{wrappedDefaultValue, make(map[string]map[interface{}]int32), v.Alias}, inner)
+		return NewCompositeAggregator(&CountAggregator{wrappedDefaultValue, make(map[string]map[interface{}]int64), v.Alias}, inner)
 	}
 
-	return &CountAggregator{wrappedDefaultValue, make(map[string]map[interface{}]int32), v.Alias}, nil
+	return &CountAggregator{wrappedDefaultValue, make(map[string]map[interface{}]int64), v.Alias}, nil
 }
 
 //
@@ -515,7 +554,7 @@ func (self *TimestampAggregator) AggregatePoint(series string, group interface{}
 	if timestamps == nil {
 		timestamps = make(map[interface{}]int64)
 		self.timestamps[series] = timestamps
-	}
+	}	
 	if self.duration != nil {
 		timestamps[group] = *p.GetTimestampInMicroseconds() / *self.duration * *self.duration
 	} else {
@@ -523,6 +562,33 @@ func (self *TimestampAggregator) AggregatePoint(series string, group interface{}
 	}
 	return nil
 }
+
+func (self *TimestampAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	timestamps := self.timestamps[series]
+	if timestamps == nil {
+		timestamps = make(map[interface{}]int64)
+		self.timestamps[series] = timestamps
+	}
+	if len(s.Points) > 0 {
+		if self.duration != nil {
+			timestamps[group] = *(s.Points[len(s.Points) - 1]).GetTimestampInMicroseconds() / *self.duration * *self.duration
+		} else {
+			timestamps[group] = *(s.Points[len(s.Points) - 1]).GetTimestampInMicroseconds()
+		}
+	}
+	return nil
+}
+/*
+//TODO: to be optimized
+func (self *TimestampAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	//log.Error("Timestamp: ", len(s.Points))
+	for _, p := range s.Points {		
+		//log.Error("Point: ", p)
+		self.AggregatePoint(series, group, p)
+	}
+	return nil
+}
+*/
 
 func (self *TimestampAggregator) ColumnNames() []string {
 	return []string{"count"}
@@ -548,9 +614,12 @@ func NewTimestampAggregator(query *parser.SelectQuery, _ *parser.Value) (Aggrega
 
 	var durationPtr *int64
 
+	//log.Error("Duration: ", duration)
+
 	if duration != nil {
 		newDuration := int64(*duration / time.Microsecond)
 		durationPtr = &newDuration
+	//	log.Error("Woohoo! ", durationPtr)
 	}
 
 	return &TimestampAggregator{
@@ -602,6 +671,14 @@ func (self *MeanAggregator) AggregatePoint(series string, group interface{}, p *
 
 	means[group] = currentMean
 	counts[group] = currentCount
+	return nil
+}
+
+//TODO: to be optimized
+func (self *MeanAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	for _, p := range s.Points {
+		self.AggregatePoint(series, group, p)
+	}
 	return nil
 }
 
@@ -714,6 +791,14 @@ func (self *PercentileAggregator) AggregatePoint(series string, group interface{
 	return nil
 }
 
+//TODO: to be optimized
+func (self *PercentileAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	for _, p := range s.Points {
+		self.AggregatePoint(series, group, p)
+	}
+	return nil
+}
+
 func (self *PercentileAggregator) ColumnNames() []string {
 	if self.alias != "" {
 		return []string{self.alias}
@@ -813,6 +898,14 @@ func (self *ModeAggregator) AggregatePoint(series string, group interface{}, p *
 	groupCounts[value] = count
 	seriesCounts[group] = groupCounts
 
+	return nil
+}
+
+//TODO: to be optimized
+func (self *ModeAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	for _, p := range s.Points {
+		self.AggregatePoint(series, group, p)
+	}
 	return nil
 }
 
@@ -924,6 +1017,14 @@ func (self *DistinctAggregator) AggregatePoint(series string, group interface{},
 	return nil
 }
 
+//TODO: to be optimized
+func (self *DistinctAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	for _, p := range s.Points {
+		self.AggregatePoint(series, group, p)
+	}
+	return nil
+}
+
 func (self *DistinctAggregator) ColumnNames() []string {
 	if self.alias != "" {
 		return []string{self.alias}
@@ -1002,6 +1103,14 @@ func (self *CumulativeArithmeticAggregator) AggregatePoint(series string, group 
 		return err
 	}
 	values[group] = self.operation(currentValue, value)
+	return nil
+}
+
+//TODO: to be optimized
+func (self *CumulativeArithmeticAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	for _, p := range s.Points {
+		self.AggregatePoint(series, group, p)
+	}
 	return nil
 }
 
@@ -1105,6 +1214,14 @@ func (self *FirstOrLastAggregator) AggregatePoint(series string, group interface
 		}
 
 		values[group] = value
+	}
+	return nil
+}
+
+//TODO: to be optimized
+func (self *FirstOrLastAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
+	for _, p := range s.Points {
+		self.AggregatePoint(series, group, p)
 	}
 	return nil
 }

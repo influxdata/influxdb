@@ -32,7 +32,7 @@ type QueryEngine struct {
 }
 
 const (
-	POINT_BATCH_SIZE = 100
+	POINT_BATCH_SIZE = 64
 )
 
 var (
@@ -69,7 +69,7 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		where:          query.GetWhereCondition(),
 		limiter:        NewLimiter(limit),
 		responseChan:   responseChan,
-		seriesToPoints: make(map[string]*protocol.Series),
+		seriesToPoints: make(map[string]*protocol.Series),		
 	}
 
 	yield := func(series *protocol.Series) error {
@@ -110,6 +110,10 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 	return shouldContinue
 }
 
+func (self *QueryEngine) YieldSeries(seriesName *string, fieldNames []string, seriesIncoming *protocol.Series) (shouldContinue bool) {
+	return self.yieldSeriesData(seriesIncoming)
+}
+
 func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 	var err error
 	if self.where != nil {
@@ -132,9 +136,7 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 		self.limiter.calculateLimitAndSlicePoints(series)
 
 		if len(series.Points) > 0 {
-			if err = self.yield(series); err != nil {
-				return false
-			}
+			err = self.yield(series)
 		}
 	}
 	if err != nil {
@@ -376,6 +378,8 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 			return nil
 		}
 
+		seriesGroups := make(map[Group]*protocol.Series)
+
 		var mapper Mapper
 		mapper, err = createValuesToInterface(self.groupBy, series.Fields)
 		if err != nil {
@@ -389,29 +393,36 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 		}
 
 		currentRange := self.pointsRange[*series.Name]
+		if currentRange == nil {
+			currentRange = &PointRange{*series.Points[0].Timestamp, *series.Points[0].Timestamp}
+			self.pointsRange[*series.Name] = currentRange
+		}
 		for _, point := range series.Points {
+			currentRange.UpdateRange(point)
 			value := mapper(point)
+			seriesGroup := seriesGroups[value]
+			if seriesGroup == nil {
+				seriesGroup = &protocol.Series{Name: series.Name, Fields: series.Fields, Points: make([]*protocol.Point, 0)}
+				seriesGroups[value] = seriesGroup
+			}
+			seriesGroup.Points = append(seriesGroup.Points, point)
+		}
+
+		for value, seriesGroup := range seriesGroups {
 			for _, aggregator := range self.aggregators {
-				err := aggregator.AggregatePoint(*series.Name, value, point)
+				err := aggregator.AggregateSeries(*series.Name, value, seriesGroup)
 				if err != nil {
 					return err
 				}
 			}
+			self.timestampAggregator.AggregateSeries(*series.Name, value, seriesGroup)
 
-			self.timestampAggregator.AggregatePoint(*series.Name, value, point)
-			seriesGroups := self.groups[*series.Name]
-			if seriesGroups == nil {
-				seriesGroups = make(map[Group]bool)
-				self.groups[*series.Name] = seriesGroups
+			_groups := self.groups[*seriesGroup.Name]
+			if _groups == nil {
+				_groups = make(map[Group]bool)
+				self.groups[*seriesGroup.Name] = _groups
 			}
-			seriesGroups[value] = true
-
-			if currentRange == nil {
-				currentRange = &PointRange{*point.Timestamp, *point.Timestamp}
-				self.pointsRange[*series.Name] = currentRange
-			} else {
-				currentRange.UpdateRange(point)
-			}
+			_groups[value] = true
 		}
 
 		return nil

@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"protocol"
+	"protocol"	
 )
 
 type Limiter struct {
@@ -18,10 +18,10 @@ func NewLimiter(limit int) *Limiter {
 	}
 }
 
-func (self *Limiter) calculateLimitAndSlicePoints(series *protocol.Series) {
+func (self *Limiter) calculateLimitAndSlicePoints(series *protocol.Series) {	
 	if self.shouldLimit {
-		// if the limit is 0, stop returning any points
-		limit := self.limitForSeries(*series.Name)
+		// if the limit is 0, stop returning any points		
+		limit := self.limitForSeries(*series.Name)		
 		defer func() { self.limits[*series.Name] = limit }()
 		if limit == 0 {
 			series.Points = nil
@@ -33,7 +33,7 @@ func (self *Limiter) calculateLimitAndSlicePoints(series *protocol.Series) {
 			series.Points = series.Points[0:sliceTo]
 			limit = 0
 		}
-	}
+	}	
 }
 
 func (self *Limiter) hitLimit(seriesName string) bool {

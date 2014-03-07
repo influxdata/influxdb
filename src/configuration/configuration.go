@@ -87,9 +87,10 @@ type LoggingConfig struct {
 }
 
 type LevelDbConfiguration struct {
-	MaxOpenFiles  int  `toml:"max-open-files"`
-	LruCacheSize  size `toml:"lru-cache-size"`
-	MaxOpenShards int  `toml:"max-open-shards"`
+	MaxOpenFiles  int  	`toml:"max-open-files"`
+	LruCacheSize  size 	`toml:"lru-cache-size"`
+	MaxOpenShards int  	`toml:"max-open-shards"`
+	PointBatchSize int 	`toml:"point-batch-size"`
 }
 
 type ShardingDefinition struct {
@@ -187,6 +188,7 @@ type Configuration struct {
 	LevelDbMaxOpenFiles       int
 	LevelDbLruCacheSize       int
 	LevelDbMaxOpenShards      int
+	LevelDbPointBatchSize	  int
 	ShortTermShard            *ShardConfiguration
 	LongTermShard             *ShardConfiguration
 	ReplicationFactor         int
@@ -286,9 +288,14 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		config.LevelDbMaxOpenFiles = 100
 	}
 
-	// if it wasn't set, set it to 100
+	// if it wasn't set, set it to 200 MB
 	if config.LevelDbLruCacheSize == 0 {
 		config.LevelDbLruCacheSize = 200 * ONE_MEGABYTE
+	}
+
+	// if it wasn't set, set it to 100
+	if config.LevelDbPointBatchSize == 0 {
+		config.LevelDbPointBatchSize = 100
 	}
 
 	return config, nil

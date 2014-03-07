@@ -20,15 +20,16 @@ import (
 )
 
 type LevelDbShard struct {
-	db            *levigo.DB
-	readOptions   *levigo.ReadOptions
-	writeOptions  *levigo.WriteOptions
-	lastIdUsed    uint64
-	columnIdMutex sync.Mutex
-	closed        bool
+	db             *levigo.DB
+	readOptions    *levigo.ReadOptions
+	writeOptions   *levigo.WriteOptions
+	lastIdUsed     uint64
+	columnIdMutex  sync.Mutex
+	closed         bool
+	pointBatchSize int
 }
 
-func NewLevelDbShard(db *levigo.DB) (*LevelDbShard, error) {
+func NewLevelDbShard(db *levigo.DB, pointBatchSize int) (*LevelDbShard, error) {
 	ro := levigo.NewReadOptions()
 	lastIdBytes, err2 := db.Get(ro, NEXT_ID_KEY)
 	if err2 != nil {
@@ -44,10 +45,11 @@ func NewLevelDbShard(db *levigo.DB) (*LevelDbShard, error) {
 	}
 
 	return &LevelDbShard{
-		db:           db,
-		writeOptions: levigo.NewWriteOptions(),
-		readOptions:  ro,
-		lastIdUsed:   lastId,
+		db:             db,
+		writeOptions:   levigo.NewWriteOptions(),
+		readOptions:    ro,
+		lastIdUsed:     lastId,
+		pointBatchSize: pointBatchSize,
 	}, nil
 }
 
@@ -184,6 +186,8 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		}
 	}()
 
+	seriesOutgoing := &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
+
 	// TODO: clean up, this is super gnarly
 	// optimize for the case where we're pulling back only a single column or aggregate
 	for {
@@ -272,15 +276,30 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		}
 
 		shouldContinue := true
-		for _, alias := range aliases {
-			_alias := alias
-			if !processor.YieldPoint(&_alias, fieldNames, point) {
-				shouldContinue = false
+
+		seriesOutgoing.Points = append(seriesOutgoing.Points, point)
+
+		if len(seriesOutgoing.Points) >= self.pointBatchSize {
+			for _, alias := range aliases {
+				_alias := alias
+				if !processor.YieldSeries(&_alias, fieldNames, seriesOutgoing) {
+					shouldContinue = false
+				}
 			}
+			seriesOutgoing = &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
 		}
 
 		if !shouldContinue {
 			break
+		}
+	}
+
+	//Yield remaining data
+	for _, alias := range aliases {
+		_alias := alias
+		log.Debug("Final Flush %s", _alias)
+		if !processor.YieldSeries(&_alias, fieldNames, seriesOutgoing) {
+			log.Debug("Cancelled...")
 		}
 	}
 

@@ -42,6 +42,18 @@ func (self *ListSeriesEngine) YieldPoint(seriesName *string, columnNames []strin
 	return true
 }
 
+func (self *ListSeriesEngine) YieldSeries(seriesName *string, columnNames []string, seriesIncoming *protocol.Series) bool {
+	if len(self.response.MultiSeries) > MAX_SERIES_IN_RESPONSE {
+		self.responseChan <- self.response
+		self.response = &protocol.Response{
+			Type:        &queryResponse,
+			MultiSeries: make([]*protocol.Series, 0),
+		}
+	}
+	self.response.MultiSeries = append(self.response.MultiSeries, &protocol.Series{Name: seriesName})
+	return true
+}
+
 func (self *ListSeriesEngine) Close() {
 	if len(self.response.MultiSeries) > 0 {
 		self.responseChan <- self.response
