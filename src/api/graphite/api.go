@@ -1,10 +1,13 @@
 // package Graphite provides a tcp listener that you can use to ingest metrics into influxdb
 // via the graphite protocol.
-// it behaves as a carbon daemon, with these exceptions:
-// * no rounding of timestamps to the nearest interval.  Upon ingestion of multiple datapoints
-//   for a given key within the same interval, graphite will use the latest value.
-//   We store everything we receive so it's up to the user to feed the data in proper intervals
-//   and use round intervals if you plan to rely on that.
+// it behaves as a carbon daemon, except:
+// no rounding of timestamps to the nearest interval.  Upon ingestion of multiple datapoints
+// for a given key within the same interval (possibly but not necessarily the same timestamp),
+// graphite would use one (the latest received) value
+// with a rounded timestamp representing that interval.
+// We store values for every timestamp we receive (only the latest value for a given metric-timestamp pair)
+// so it's up to the user to feed the data in proper intervals
+// (and use round intervals if you plan to rely on that)
 package graphite
 
 import (
