@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	//#if point is over 0 it aggregates wrong small data
 	POINT_BATCH_SIZE = 256
 )
 
