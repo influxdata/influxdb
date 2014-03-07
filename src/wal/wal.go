@@ -403,7 +403,11 @@ func (self *WAL) recover() error {
 		self.requestsSinceRotation = self.logIndex[idx].getLength()
 
 		lastOffset := self.logIndex[idx].getLastOffset()
-		stat, _ := logFile.file.Stat()
+		logger.Debug("Getting file size for %s[%d]", logFile.file.Name(), logFile.file.Fd())
+		stat, err := logFile.file.Stat()
+		if err != nil {
+			return err
+		}
 		logger.Info("Checking %s, last: %d, size: %d", logFile.file.Name(), lastOffset, stat.Size())
 		replay, _ := logFile.dupAndReplayFromOffset(nil, lastOffset, 0)
 		firstOffset := int64(-1)

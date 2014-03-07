@@ -94,6 +94,7 @@ func (_ *WalSuite) TestRequestNumberAssignmentRecovery(c *C) {
 	c.Assert(id, Equals, uint32(1))
 	c.Assert(wal.closeWithoutBookmarking(), IsNil)
 	wal, err = NewWAL(wal.config)
+	wal.SetServerId(1)
 	c.Assert(err, IsNil)
 	request = generateRequest(2)
 	id, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
@@ -103,6 +104,7 @@ func (_ *WalSuite) TestRequestNumberAssignmentRecovery(c *C) {
 	// test recovery from wal replay
 	c.Assert(wal.closeWithoutBookmarking(), IsNil)
 	wal, err = NewWAL(wal.config)
+	wal.SetServerId(1)
 	c.Assert(err, IsNil)
 	request = generateRequest(2)
 	id, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
@@ -146,6 +148,7 @@ func (_ *WalSuite) TestMultipleLogFiles(c *C) {
 	wal.Close()
 
 	wal, err := NewWAL(wal.config)
+	wal.SetServerId(1)
 	c.Assert(err, IsNil)
 	requests := []*protocol.Request{}
 	err = wal.RecoverServerFromRequestNumber(2001, []uint32{1}, func(request *protocol.Request, _ uint32) error {
@@ -192,6 +195,7 @@ func (_ *WalSuite) TestSequenceNumberRecovery(c *C) {
 	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, 2*HOST_ID_OFFSET+uint64(serverId))
 	wal.closeWithoutBookmarking()
 	wal, err = NewWAL(wal.config)
+	wal.SetServerId(1)
 	wal.SetServerId(serverId)
 	c.Assert(err, IsNil)
 	request = generateRequest(2)
@@ -210,6 +214,7 @@ func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
 	// close and reopen the wal
 	wal.Close()
 	wal, err = NewWAL(wal.config)
+	wal.SetServerId(1)
 	c.Assert(err, IsNil)
 	for i := 0; i < 2; i++ {
 		request = generateRequest(2)
@@ -310,6 +315,7 @@ func (_ *WalSuite) TestRequestNumberRollOverAcrossMultipleFiles(c *C) {
 	})
 	c.Assert(len(requests), Equals, 20000)
 	wal, err := NewWAL(wal.config)
+	wal.SetServerId(1)
 	c.Assert(err, IsNil)
 	requests = []*protocol.Request{}
 	wal.RecoverServerFromRequestNumber(firstRequestNumber, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
@@ -363,6 +369,7 @@ func (_ *WalSuite) TestRecoveryFromCrash(c *C) {
 	_, err = hdr.Write(file)
 	c.Assert(err, IsNil)
 	wal, err = NewWAL(wal.config)
+	wal.SetServerId(1)
 	c.Assert(err, IsNil)
 	requests := []*protocol.Request{}
 	wal.RecoverServerFromRequestNumber(0, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
@@ -389,8 +396,6 @@ func (_ *WalSuite) TestSimultaneousReplay(c *C) {
 	}()
 
 	<-signalChan
-	// when we recover from the log, the last log file may not exist yet
-	// and we may miss a few requests
 	requests := []*protocol.Request{}
 	wal.RecoverServerFromRequestNumber(uint32(0), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
 		requests = append(requests, req)
@@ -398,8 +403,9 @@ func (_ *WalSuite) TestSimultaneousReplay(c *C) {
 	})
 	<-signalChan
 	c.Assert(wal.Close(), IsNil)
-	_, err := NewWAL(wal.config)
+	wal, err := NewWAL(wal.config)
 	c.Assert(err, IsNil)
+	wal.SetServerId(1)
 	c.Assert(len(requests), InRange, 100, 200)
 }
 
@@ -447,6 +453,7 @@ func (_ *WalSuite) TestIndexAfterRecovery(c *C) {
 	wal.closeWithoutBookmarking()
 
 	wal, err := NewWAL(wal.config)
+	wal.SetServerId(1)
 	c.Assert(err, IsNil)
 
 	for i := 0; i < 500; i++ {
