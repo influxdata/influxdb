@@ -114,36 +114,11 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 }
 
 func (self *QueryEngine) YieldSeries(seriesName *string, fieldNames []string, seriesIncoming *protocol.Series) (shouldContinue bool) {
-	log.Debug("Engine YieldSeries")
-	//shouldContinue = true
-	//log.Error("Yielding Series")
-	/*
-	seriesCopy := &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}	
-	for _, point := range seriesIncoming.Points {
-		seriesCopy.Points = append(seriesCopy.Points, point)
-	}	
-	log.Error("Copied %d", len(seriesCopy.Points))
-	*/
-	shouldContinue = self.yieldSeriesData(seriesIncoming)
-/*
-	series := self.seriesToPoints[*seriesName]
-	if series == nil {
-		series = &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
-	} else {
-		shouldContinue = self.yieldSeriesData(series)
-		//reset slice
-		series.Points = series.Points[:0]
-		self.seriesToPoints[*seriesName] = series
-	}
-
-	series.Points = append(series.Points, seriesIncoming.Points...)
-*/
-	return shouldContinue
+	return self.yieldSeriesData(seriesIncoming)
 }
 
 func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
-	var err error
-	log.Debug("yieldSeriesData")
+	var err error	
 	if self.where != nil {
 		serieses, err := self.filter(series)
 		if err != nil {
@@ -159,12 +134,9 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 			}
 		}
 	} else {
-		log.Debug("Init %d", len(series.Points))
-		log.Debug("Calculating limit and slicing points")
 		self.limiter.calculateLimitAndSlicePoints(series)
 
 		if len(series.Points) > 0 {
-			log.Debug("Yielding %d", len(series.Points))
 			err = self.yield(series)
 		}
 	}
@@ -427,8 +399,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 		}
 		for _, point := range series.Points {
 			currentRange.UpdateRange(point)
-			value := mapper(point)
-			//log.Error(value)
+			value := mapper(point)			
 			seriesGroup := seriesGroups[value]
 			if seriesGroup == nil {
 				seriesGroup = &protocol.Series{Name: series.Name, Fields: series.Fields, Points: make([]*protocol.Point, 0)}
@@ -438,8 +409,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 		}
 
 		for value, seriesGroup := range seriesGroups {
-			for _, aggregator := range self.aggregators {
-				//log.Error("%s len: %d", value, len(seriesGroup.Points))
+			for _, aggregator := range self.aggregators {				
 				err := aggregator.AggregateSeries(*series.Name, value, seriesGroup)				
 				if err != nil {
 					return err

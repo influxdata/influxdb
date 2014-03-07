@@ -554,8 +554,7 @@ func (self *TimestampAggregator) AggregatePoint(series string, group interface{}
 	if timestamps == nil {
 		timestamps = make(map[interface{}]int64)
 		self.timestamps[series] = timestamps
-	}
-	//log.Error(self.duration)
+	}	
 	if self.duration != nil {
 		timestamps[group] = *p.GetTimestampInMicroseconds() / *self.duration * *self.duration
 	} else {
@@ -590,6 +589,7 @@ func (self *TimestampAggregator) AggregateSeries(series string, group interface{
 	return nil
 }
 */
+
 func (self *TimestampAggregator) ColumnNames() []string {
 	return []string{"count"}
 }

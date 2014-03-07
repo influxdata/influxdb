@@ -269,8 +269,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		point.SequenceNumber = &sequence
 
 		// stop the loop if we ran out of points
-		if !isValid {
-			log.Debug("Not valid point")
+		if !isValid {			
 			break
 		}
 
@@ -285,9 +284,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 					shouldContinue = false
 				}
 			}				
-			seriesOutgoing = &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
-		
-			//seriesOutgoing.Points = seriesOutgoing.Points[:0]
+			seriesOutgoing = &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}			
 		} 
 
 		if !shouldContinue {
