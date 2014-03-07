@@ -777,10 +777,10 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 	}
 
 	self.serverProcesses[1].Start()
+	time.Sleep(2 * time.Second)
 
 	for i := 0; i < 3; i++ {
 		// wait for the server to startup and the WAL to be synced
-		time.Sleep(2 * time.Second)
 		collection := self.serverProcesses[1].Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
 		series := collection.GetSeries("test_failure_replays", c)
 		if series.GetValueForPointAndColumn(0, "sum", c).(float64) == 3 {
