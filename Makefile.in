@@ -260,6 +260,7 @@ $(binary_package): $(admin_dir)/build build packages
 	sed -i 's/influxdb.log/\/opt\/influxdb\/shared\/log.txt/g' build/config.toml
 	sed -i 's/\/tmp\/influxdb\/development\/db/\/opt\/influxdb\/shared\/data\/db/g' build/config.toml
 	sed -i 's/\/tmp\/influxdb\/development\/raft/\/opt\/influxdb\/shared\/data\/raft/g' build/config.toml
+	sed -i 's/\/tmp\/influxdb\/development\/wal/\/opt\/influxdb\/shared\/data\/wal/g' build/config.toml
 	rm -f build/scripts/post_install.sh.bak
 	tar -czf $(binary_package) build/*
 
