@@ -114,6 +114,9 @@ func (self *GlobalState) setCurrentSequenceNumber(shardId uint32, sequenceNumber
 }
 
 func (self *GlobalState) commitRequestNumber(serverId, requestNumber uint32) {
+	if nextRequestNumber := self.ServerLastRequestNumber[serverId] + 1; nextRequestNumber != requestNumber {
+		panic(fmt.Errorf("Expecting %d to equal %d", nextRequestNumber, requestNumber))
+	}
 	self.ServerLastRequestNumber[serverId] = requestNumber
 }
 
