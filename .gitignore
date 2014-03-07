@@ -29,6 +29,7 @@ build/
 /benchmark
 /main
 godef
+gosym
 
 # dependencies
 src/code.google.com/p/log4go
