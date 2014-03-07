@@ -84,7 +84,7 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 
 	responseChan := make(chan *protocol.Response)
 	if querySpec.IsDestructiveQuery() {
-		go shard.LogAndHandleDestructiveQuery(querySpec, request, responseChan, true)
+		go shard.HandleDestructiveQuery(querySpec, request, responseChan, true)
 	} else {
 		go shard.Query(querySpec, responseChan)
 	}

@@ -718,6 +718,10 @@ func (self *ServerSuite) TestRelogging(c *C) {
 
 	time.Sleep(time.Second) // wait for data to get replicated
 
+	self.serverProcesses[0].Query("full_rep", "delete from test_relogging", false, c)
+
+	time.Sleep(time.Second)
+
 	for _, server := range self.serverProcesses[1:] {
 		err := server.doesWalExist()
 		c.Assert(os.IsNotExist(err), Equals, true)

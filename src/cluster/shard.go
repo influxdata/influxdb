@@ -293,10 +293,14 @@ func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, 
 }
 
 func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) error {
-	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
+	_, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
 		return err
 	}
+	return self.HandleDestructiveQuery(querySpec, request, response, runLocalOnly)
+}
+
+func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) error {
 	var localResponses chan *p.Response
 	if self.localShard != nil {
 		localResponses = make(chan *p.Response, 1)
@@ -323,7 +327,7 @@ func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 			for {
 				res := <-responseChan
 				if *res.Type == endStreamResponse {
-					self.wal.Commit(requestNumber, self.clusterServers[i].Id)
+					self.wal.Commit(request.GetRequestNumber(), self.clusterServers[i].Id)
 					break
 				}
 				response <- res
@@ -335,7 +339,7 @@ func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 		for {
 			res := <-localResponses
 			if *res.Type == endStreamResponse {
-				self.wal.Commit(requestNumber, self.localServerId)
+				self.wal.Commit(request.GetRequestNumber(), self.localServerId)
 				break
 			}
 			response <- res
