@@ -423,7 +423,11 @@ func (self *WAL) recover() error {
 				return err
 			}
 
-			for _, point := range replayRequest.request.Series.Points {
+			var points []*protocol.Point
+			if s := replayRequest.request.Series; s != nil {
+				points = s.Points
+			}
+			for _, point := range points {
 				sequenceNumber := (point.GetSequenceNumber() - uint64(self.serverId)) / HOST_ID_OFFSET
 				self.state.recover(replayRequest.shardId, sequenceNumber)
 			}
@@ -450,6 +454,7 @@ func (self *WAL) recover() error {
 		}
 	}
 
+	logger.Debug("Finished wal recovery")
 	return nil
 }
 

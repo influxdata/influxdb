@@ -379,6 +379,20 @@ func (_ *WalSuite) TestRecoveryFromCrash(c *C) {
 	c.Assert(requests, HasLen, 1)
 }
 
+func (_ *WalSuite) TestRecoverWithNonWriteRequests(c *C) {
+	wal := newWal(c)
+	requestType := protocol.Request_QUERY
+	request := &protocol.Request{
+		Type:     &requestType,
+		Database: protocol.String("some_db"),
+	}
+	wal.AssignSequenceNumbersAndLog(request, &MockServer{id: 1})
+	c.Assert(wal.Close(), IsNil)
+	wal, err := NewWAL(wal.config)
+	c.Assert(err, IsNil)
+	wal.SetServerId(1)
+}
+
 func (_ *WalSuite) TestSimultaneousReplay(c *C) {
 	wal := newWal(c)
 	signalChan := make(chan struct{})
