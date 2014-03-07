@@ -118,6 +118,8 @@ func (self *ProtobufServer) handleRequest(conn net.Conn, messageSize int64, buff
 		return err
 	}
 
+	log.Debug("Received %s request: %d", request.GetType(), request.GetRequestNumber())
+
 	return self.requestHandler.HandleRequest(request, conn)
 }
 

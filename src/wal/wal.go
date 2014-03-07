@@ -189,6 +189,7 @@ outer:
 
 			logger.Debug("Yielding request %d", x.request.GetRequestNumber())
 			if err := yield(x.request, x.shardId); err != nil {
+				logger.Debug("Stopping replay due to error: %s", err)
 				stopChan <- struct{}{}
 				return err
 			}

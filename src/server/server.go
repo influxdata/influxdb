@@ -109,12 +109,30 @@ func (self *Server) Stop() {
 	}
 	log.Info("Stopping server")
 	self.stopped = true
-	self.RaftServer.Close()
+
+	log.Info("Stopping api server")
 	self.HttpApi.Close()
-	self.ProtobufServer.Close()
+	log.Info("Api server stopped")
+
+	log.Info("Stopping admin server")
 	self.AdminServer.Close()
+	log.Info("admin server stopped")
+
+	log.Info("Stopping raft server")
+	self.RaftServer.Close()
+	log.Info("Raft server stopped")
+
+	log.Info("Stopping protobuf server")
+	self.ProtobufServer.Close()
+	log.Info("protobuf server stopped")
+
+	log.Info("Stopping wal")
 	self.writeLog.Close()
+	log.Info("wal stopped")
+
+	log.Info("Stopping shard store")
 	self.shardStore.Close()
+	log.Info("shard store stopped")
 }
 
 func (self *Server) ListenForSignals() {

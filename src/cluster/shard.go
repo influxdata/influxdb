@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	log "code.google.com/p/log4go"
 	"engine"
 	"errors"
 	"fmt"
@@ -316,6 +317,7 @@ func (self *ShardData) forwardRequest(request *p.Request, responses []<-chan *p.
 		responseChan := make(chan *p.Response, 1)
 		// do this so that a new id will get assigned
 		request.Id = nil
+		log.Debug("Forwarding request %s to %d", request.GetDescription(), server.Id)
 		server.MakeRequest(request, responseChan)
 		responses = append(responses, responseChan)
 		ids = append(ids, server.Id)
@@ -340,15 +342,18 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 		serverIds = append(serverIds, self.localServerId)
 	}
 
+	log.Debug("request %s, runLocalOnly: %v", request.GetDescription(), runLocalOnly)
 	if !runLocalOnly {
 		self.forwardRequest(request, responseCahnnels, serverIds)
 	}
 
 	for idx, channel := range responseCahnnels {
+		serverId := serverIds[idx]
+		log.Debug("Waiting for response to %s from %d", request.GetDescription(), serverId)
 		for {
 			res := <-channel
+			log.Debug("Received %s response from %d for %s", res.GetType(), serverId, request.GetDescription())
 			if *res.Type == endStreamResponse {
-				serverId := serverIds[idx]
 				self.wal.Commit(request.GetRequestNumber(), serverId)
 				break
 			}

@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
+	"fmt"
 	"sort"
 	"strconv"
 )
@@ -80,6 +81,15 @@ func DecodeRequest(buff *bytes.Buffer) (request *Request, err error) {
 	request = &Request{}
 	err = proto.Unmarshal(buff.Bytes(), request)
 	return
+}
+
+func (self *Request) GetDescription() string {
+	switch t := self.GetType(); t {
+	case Request_QUERY:
+		return fmt.Sprintf("%s:%d [%s]", t, self.GetRequestNumber(), self.GetQuery())
+	default:
+		return fmt.Sprintf("%s:%d", t, self.GetRequestNumber())
+	}
 }
 
 func (self *Request) Encode() (data []byte, err error) {

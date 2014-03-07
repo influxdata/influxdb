@@ -108,6 +108,7 @@ func (self *ClusterServer) Write(request *protocol.Request) error {
 	if err != nil {
 		return err
 	}
+	log.Debug("Waiting for response to %d", request.GetRequestNumber())
 	response := <-responseChan
 	if response.ErrorMessage != nil {
 		return errors.New(*response.ErrorMessage)

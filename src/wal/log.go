@@ -61,10 +61,12 @@ func (self *log) syncFile() error {
 }
 
 func (self *log) close() error {
+	logger.Debug("Closing %s", self.file.Name())
 	return self.file.Close()
 }
 
 func (self *log) delete() error {
+	logger.Debug("Deleting %s", self.file.Name())
 	return os.Remove(self.file.Name())
 }
 

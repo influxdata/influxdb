@@ -917,7 +917,9 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 		if server.RaftName == self.LocalRaftName {
 			self.LocalServerId = server.Id
 			go func(serverId uint32) {
+				log.Info("Recovering local server")
 				self.recover(serverId, self.shardStore)
+				log.Info("Recovered local server")
 				waitForAll.Done()
 			}(server.Id)
 		} else {
@@ -926,11 +928,14 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 					server.connection = self.connectionCreator(server.ProtobufConnectionString)
 					server.Connect()
 				}
+				log.Info("Recovering remote server %d", serverId)
 				self.recover(serverId, server)
+				log.Info("Recovered remote server %d", serverId)
 				waitForAll.Done()
 			}(server.Id)
 		}
 	}
+	log.Info("Waiting for servers to recover")
 	waitForAll.Wait()
 	return nil
 }
@@ -942,10 +947,12 @@ func (self *ClusterConfiguration) recover(serverId uint32, writer Writer) error 
 			return nil
 		}
 		requestNumber := request.GetRequestNumber()
+		log.Debug("Sending request %s for shard %d to server %d", request.GetDescription(), shardId, serverId)
 		err := writer.Write(request)
 		if err != nil {
 			return err
 		}
+		log.Debug("Finished sending request %d to server %d", request.GetRequestNumber(), serverId)
 		return self.wal.Commit(requestNumber, serverId)
 	})
 }
