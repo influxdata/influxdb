@@ -29,8 +29,6 @@ type QueryEngine struct {
 	pointsRange         map[string]*PointRange
 	groupBy             *parser.GroupByClause
 	aggregateYield      func(*protocol.Series) error
-
-	timesAllocated		int
 }
 
 const (
@@ -100,11 +98,7 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 		series = &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
 		self.seriesToPoints[*seriesName] = series
 	} else if len(series.Points) >= POINT_BATCH_SIZE {		
-		log.Debug("Allocating! %d", self.timesAllocated)
-		self.timesAllocated++
 		shouldContinue = self.yieldSeriesData(series)
-		// Reset our Points slice
-		//series.Points = series.Points[:0]
 		series = &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
 		self.seriesToPoints[*seriesName] = series
 	}
