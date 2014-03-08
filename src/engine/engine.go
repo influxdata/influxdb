@@ -69,8 +69,7 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		where:          query.GetWhereCondition(),
 		limiter:        NewLimiter(limit),
 		responseChan:   responseChan,
-		seriesToPoints: make(map[string]*protocol.Series),
-		timesAllocated: 0,
+		seriesToPoints: make(map[string]*protocol.Series),		
 	}
 
 	yield := func(series *protocol.Series) error {
