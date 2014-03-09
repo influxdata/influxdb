@@ -222,10 +222,11 @@ func (self *CoordinatorImpl) shouldAggregateLocally(shards []*cluster.ShardData,
 	return true
 }
 
-func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, chan bool) {
+func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, chan bool, error) {
 	shards := self.clusterConfiguration.GetShards(querySpec)
 	shouldAggregateLocally := self.shouldAggregateLocally(shards, querySpec)
 
+	var err error
 	var processor cluster.QueryProcessor
 
 	responseChan := make(chan *protocol.Response)
@@ -235,7 +236,7 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 	if selectQuery != nil && !shouldAggregateLocally {
 		// if we should aggregate in the coordinator (i.e. aggregation
 		// isn't happening locally at the shard level), create an engine
-		processor = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
+		processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
 	} else if selectQuery != nil && selectQuery.Limit > 0 {
 		// if we have a query with limit, then create an engine, or we can
 		// make the passthrough limit aware
@@ -244,8 +245,12 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 		processor = engine.NewPassthroughEngine(responseChan, 100)
 	}
 
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	if processor == nil {
-		return shards, nil, nil
+		return shards, nil, nil, nil
 	}
 
 	go func() {
@@ -262,11 +267,14 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 		}
 	}()
 
-	return shards, processor, seriesClosed
+	return shards, processor, seriesClosed, nil
 }
 
 func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	shards, processor, seriesClosed := self.getShardsAndProcessor(querySpec, seriesWriter)
+	shards, processor, seriesClosed, err := self.getShardsAndProcessor(querySpec, seriesWriter)
+	if err != nil {
+		return err
+	}
 
 	responses := make([]chan *protocol.Response, 0)
 	for _, shard := range shards {
