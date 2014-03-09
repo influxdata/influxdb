@@ -297,9 +297,7 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
 				break
 			}
-
-			log.Debug(response)
-
+			
 			// if we don't have a processor, yield the point to the writer
 			// this happens if shard took care of the query
 			// otherwise client will get points from passthrough engine
