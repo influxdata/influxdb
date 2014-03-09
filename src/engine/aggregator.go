@@ -613,13 +613,10 @@ func NewTimestampAggregator(query *parser.SelectQuery, _ *parser.Value) (Aggrega
 	}
 
 	var durationPtr *int64
-
-	//log.Error("Duration: ", duration)
-
+	
 	if duration != nil {
 		newDuration := int64(*duration / time.Microsecond)
-		durationPtr = &newDuration
-	//	log.Error("Woohoo! ", durationPtr)
+		durationPtr = &newDuration	
 	}
 
 	return &TimestampAggregator{
