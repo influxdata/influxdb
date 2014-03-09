@@ -8,6 +8,9 @@ int main(int argc, char **argv) {
   query q = parse_query("select count(*) from users.events group_by user_email,time(1h) where time>now()-1d;");
   close_query(&q);
 
+  q = parse_query("explain select users.events group_by user_email,time(1h) where time>now()-1d;");
+  close_query(&q);
+
   // test freeing on error
   q = parse_query("select count(*) from users.events group_by user_email,time(1h) where time >> now()-1d;");
   close_query(&q);

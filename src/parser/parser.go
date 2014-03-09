@@ -150,6 +150,7 @@ type SelectQuery struct {
 	IntoClause    *IntoClause
 	Limit         int
 	Ascending     bool
+	Explain       bool
 }
 
 type ListType int
@@ -203,6 +204,10 @@ func (self *Query) IsListQuery() bool {
 	return self.ListQuery != nil
 }
 
+func (self *Query) IsExplainQuery() bool {
+	return self.SelectQuery != nil && self.SelectQuery.Explain
+}
+
 func (self *Query) IsListSeriesQuery() bool {
 	return self.ListQuery != nil && self.ListQuery.Type == Series
 }
@@ -217,6 +222,10 @@ func (self *BasicQuery) GetQueryString() string {
 
 func (self *SelectQuery) GetColumnNames() []*Value {
 	return self.ColumnNames
+}
+
+func (self *SelectQuery) IsExplainQuery() bool {
+	return self.Explain
 }
 
 func (self *SelectQuery) IsSinglePointQuery() bool {
@@ -617,6 +626,7 @@ func parseSelectQuery(queryString string, q *C.select_query) (*SelectQuery, erro
 		SelectDeleteCommonQuery: basicQuery,
 		Limit:     int(limit),
 		Ascending: q.ascending != 0,
+		Explain:   q.explain != 0,
 	}
 
 	// get the column names

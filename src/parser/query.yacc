@@ -74,7 +74,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES
+%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES EXPLAIN
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME INTO_NAME REGEX_OP
 %token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
@@ -105,6 +105,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %type <drop_series_query> DROP_SERIES_QUERY
 %type <select_query>      SELECT_QUERY
 %type <drop_query>        DROP_QUERY
+%type <select_query>      EXPLAIN_QUERY
 
 // the initial token
 %start                    ALL_QUERIES
@@ -176,6 +177,12 @@ QUERY:
           $$ = calloc(1, sizeof(query));
           $$->list_continuous_queries_query = TRUE;
         }
+        |
+        EXPLAIN_QUERY
+        {
+          $$ = calloc(1, sizeof(query));
+          $$->select_query = $1;
+        }
 
 DROP_QUERY:
         DROP CONTINUOUS_QUERY INT_VALUE
@@ -200,6 +207,33 @@ DROP_SERIES_QUERY:
           $$->name = $2;
         }
 
+EXPLAIN_QUERY:
+        EXPLAIN SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
+        {
+          $$ = calloc(1, sizeof(select_query));
+          $$->c = $3;
+          $$->from_clause = $4;
+          $$->group_by = $5;
+          $$->where_condition = $6;
+          $$->limit = $7.limit;
+          $$->ascending = $7.ascending;
+          $$->into_clause = $8;
+          $$->explain = TRUE;
+        }
+        |
+        EXPLAIN SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
+        {
+          $$ = calloc(1, sizeof(select_query));
+          $$->c = $3;
+          $$->from_clause = $4;
+          $$->where_condition = $5;
+          $$->group_by = $6;
+          $$->limit = $7.limit;
+          $$->ascending = $7.ascending;
+          $$->into_clause = $8;
+          $$->explain = TRUE;
+        }
+
 SELECT_QUERY:
         SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
         {
@@ -211,6 +245,7 @@ SELECT_QUERY:
           $$->limit = $6.limit;
           $$->ascending = $6.ascending;
           $$->into_clause = $7;
+          $$->explain = FALSE;
         }
         |
         SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
@@ -223,6 +258,7 @@ SELECT_QUERY:
           $$->limit = $6.limit;
           $$->ascending = $6.ascending;
           $$->into_clause = $7;
+          $$->explain = FALSE;
         }
 
 LIMIT_AND_ORDER_CLAUSES:

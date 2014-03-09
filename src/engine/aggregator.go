@@ -1,6 +1,6 @@
 package engine
 
-import (	
+import (
 	"common"
 	"fmt"
 	"math"
@@ -554,7 +554,7 @@ func (self *TimestampAggregator) AggregatePoint(series string, group interface{}
 	if timestamps == nil {
 		timestamps = make(map[interface{}]int64)
 		self.timestamps[series] = timestamps
-	}	
+	}
 	if self.duration != nil {
 		timestamps[group] = *p.GetTimestampInMicroseconds() / *self.duration * *self.duration
 	} else {
@@ -571,18 +571,19 @@ func (self *TimestampAggregator) AggregateSeries(series string, group interface{
 	}
 	if len(s.Points) > 0 {
 		if self.duration != nil {
-			timestamps[group] = *(s.Points[len(s.Points) - 1]).GetTimestampInMicroseconds() / *self.duration * *self.duration
+			timestamps[group] = *(s.Points[len(s.Points)-1]).GetTimestampInMicroseconds() / *self.duration * *self.duration
 		} else {
-			timestamps[group] = *(s.Points[len(s.Points) - 1]).GetTimestampInMicroseconds()
+			timestamps[group] = *(s.Points[len(s.Points)-1]).GetTimestampInMicroseconds()
 		}
 	}
 	return nil
 }
+
 /*
 //TODO: to be optimized
 func (self *TimestampAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
 	//log.Error("Timestamp: ", len(s.Points))
-	for _, p := range s.Points {		
+	for _, p := range s.Points {
 		//log.Error("Point: ", p)
 		self.AggregatePoint(series, group, p)
 	}
@@ -614,12 +615,9 @@ func NewTimestampAggregator(query *parser.SelectQuery, _ *parser.Value) (Aggrega
 
 	var durationPtr *int64
 
-	//log.Error("Duration: ", duration)
-
 	if duration != nil {
 		newDuration := int64(*duration / time.Microsecond)
 		durationPtr = &newDuration
-	//	log.Error("Woohoo! ", durationPtr)
 	}
 
 	return &TimestampAggregator{

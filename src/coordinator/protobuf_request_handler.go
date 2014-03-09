@@ -58,7 +58,7 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	// the query should always parse correctly since it was parsed at the originating server.
 	queries, err := parser.ParseQuery(*request.Query)
 	if err != nil || len(queries) < 1 {
-		log.Error("Erorr parsing query: ", err)
+		log.Error("Error parsing query: ", err)
 		errorMsg := fmt.Sprintf("Cannot find user %s", *request.UserName)
 		response := &protocol.Response{Type: &endStreamResponse, ErrorMessage: &errorMsg, RequestId: request.Id}
 		self.WriteResponse(conn, response)
@@ -80,6 +80,7 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	}
 
 	shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
+
 	querySpec := parser.NewQuerySpec(user, *request.Database, query)
 
 	responseChan := make(chan *protocol.Response)

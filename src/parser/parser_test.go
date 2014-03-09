@@ -31,6 +31,23 @@ func (self *QueryParserSuite) TestInvalidFromClause(c *C) {
 	c.Assert(err, ErrorMatches, ".*\\$undefined.*")
 }
 
+func (self *QueryParserSuite) TestInvalidExplainQueries(c *C) {
+	query := "explain select foo, baz group by time(1d)"
+	_, err := ParseQuery(query)
+
+	c.Assert(err, NotNil)
+}
+
+func (self *QueryParserSuite) TestExplainQueries(c *C) {
+	query := "explain select foo, bar from baz group by time(1d)"
+	queries, err := ParseQuery(query)
+
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].SelectQuery, NotNil)
+	c.Assert(queries[0].SelectQuery.IsExplainQuery(), Equals, true)
+}
+
 func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	for _, query := range []string{
 		"select value from t where c = '5';",

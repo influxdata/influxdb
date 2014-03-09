@@ -33,6 +33,12 @@ type QueryProcessor interface {
 	YieldPoint(seriesName *string, columnNames []string, point *p.Point) bool
 	YieldSeries(seriesName *string, columnNames []string, seriesIncoming *p.Series) bool
 	Close()
+
+	// Set by the shard, so EXPLAIN query can know query against which shard is being measured
+	SetShardInfo(shardId int, shardLocal bool)
+
+	// Let QueryProcessor identify itself. What if it is a spy and we can't check that?
+	GetName() string
 }
 
 type NewShardData struct {
@@ -217,15 +223,10 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 					log.Error("Error while creating engine: %s", err)
 					return
 				}
-				if querySpec.IsExplainQuery() {
-					processor.SetShardInfo(int(self.Id()), self.IsLocal)
-				}
+				processor.SetShardInfo(int(self.Id()), self.IsLocal)
 			} else {
 				maxPointsToBufferBeforeSending := 1000
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
-				if querySpec.IsExplainQuery() {
-					processor.SetShardInfo(int(self.Id()), self.IsLocal)
-				}
 			}
 		}
 		shard, err := self.store.GetOrCreateShard(self.id)

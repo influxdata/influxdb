@@ -88,6 +88,7 @@ typedef struct {
   condition *where_condition;
   int limit;
   char ascending;
+  char explain;
 } select_query;
 
 typedef struct {
@@ -124,4 +125,3 @@ void free_error (error *error);
 // this is the api that is used in GO
 query parse_query(char *const query_s);
 void  close_query (query *q);
-

@@ -9,8 +9,7 @@ const (
 )
 
 var (
-	queryResponse     = protocol.Response_QUERY
-	endStreamResponse = protocol.Response_END_STREAM
+	queryResponse = protocol.Response_QUERY
 )
 
 type ListSeriesEngine struct {
@@ -60,4 +59,12 @@ func (self *ListSeriesEngine) Close() {
 	}
 	response := &protocol.Response{Type: &endStreamResponse}
 	self.responseChan <- response
+}
+
+func (self *ListSeriesEngine) SetShardInfo(shardId int, shardLocal bool) {
+	//EXPLAIN doens't work with this query
+}
+
+func (self *ListSeriesEngine) GetName() string {
+	return "ListSeriesEngine"
 }

@@ -1,3 +1,4 @@
+
 ## v0.0.1 [2013-10-22]
 
   * Initial Release
@@ -296,3 +297,4 @@
 - [Issue #333](https://github.com/influxdb/influxdb/issues/333). Better
   error message when password is invalid and don't create the user if
   the password is invalid
+- [Issue #318](https://github.com/influxdb/influxdb/issues/318). Support EXPLAIN queries

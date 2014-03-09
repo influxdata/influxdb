@@ -58,6 +58,7 @@ static int yycolumn = 1;
 "where"                   { BEGIN(INITIAL); return WHERE; }
 "as"                      { return AS; }
 "select"                  { return SELECT; }
+"explain"                 { return EXPLAIN; }
 "delete"                  { return DELETE; }
 "drop series"             { return DROP_SERIES; }
 "drop"                    { return DROP; }
