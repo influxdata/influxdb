@@ -6,6 +6,7 @@ message FieldValue {
   optional bool bool_value = 4;
   optional int64 int64_value = 5;
   optional bool is_null = 6;
+  optional uint64 uint64_value = 7;  
 }
 
 message Point {
@@ -59,6 +60,7 @@ message Response {
     // Access denied also serves as an end of stream response
     ACCESS_DENIED = 8;
     HEARTBEAT = 9;
+    EXPLAIN_QUERY = 10;
   }
   enum ErrorCode {
     REQUEST_TOO_LARGE = 1;

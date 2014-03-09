@@ -42,13 +42,15 @@ var (
 
 // shorter constants for readability
 var (
-	dropDatabase      = protocol.Request_DROP_DATABASE
-	queryRequest      = protocol.Request_QUERY
-	endStreamResponse = protocol.Response_END_STREAM
-	queryResponse     = protocol.Response_QUERY
-	heartbeatResponse = protocol.Response_HEARTBEAT
-	replayReplication = protocol.Request_REPLICATION_REPLAY
-	sequenceNumber    = protocol.Request_SEQUENCE_NUMBER
+	dropDatabase      		= protocol.Request_DROP_DATABASE
+	queryRequest      		= protocol.Request_QUERY
+	endStreamResponse 		= protocol.Response_END_STREAM
+	queryResponse     		= protocol.Response_QUERY
+	heartbeatResponse 		= protocol.Response_HEARTBEAT
+	explainQueryResponse	= protocol.Response_EXPLAIN_QUERY
+	
+	replayReplication 		= protocol.Request_REPLICATION_REPLAY
+	sequenceNumber    		= protocol.Request_SEQUENCE_NUMBER
 
 	write = protocol.Request_WRITE
 )
@@ -244,20 +246,29 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 		processor = engine.NewPassthroughEngine(responseChan, 100)
 	}
 
+	log.Debug(processor)
+
 	if processor == nil {
 		return shards, nil, nil
 	}
 
 	go func() {
 		for {
-			res := <-responseChan
-			if *res.Type == endStreamResponse || *res.Type == accessDeniedResponse {
+			log.Debug("Writing data...")
+			response := <-responseChan
+
+			log.Debug(response)
+
+			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
 				writer.Close()
 				seriesClosed <- true
 				return
 			}
-			if res.Series != nil && len(res.Series.Points) > 0 {
-				writer.Write(res.Series)
+			if !(*response.Type == queryResponse && querySpec.IsExplainQuery()) {
+				if response.Series != nil && len(response.Series.Points) > 0 {
+					log.Debug("Writing Points")
+					writer.Write(response.Series)
+				}
 			}
 		}
 	}()
@@ -271,6 +282,7 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 	responses := make([]chan *protocol.Response, 0)
 	for _, shard := range shards {
 		responseChan := make(chan *protocol.Response, self.config.QueryShardBufferSize)
+		// We query shards for data and stream them to query processor
 		go shard.Query(querySpec, responseChan)
 		responses = append(responses, responseChan)
 	}
@@ -286,11 +298,16 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 				break
 			}
 
+			log.Debug(response)
+
 			// if we don't have a processor, yield the point to the writer
-			if processor == nil {
-				log.Debug("WRITING: ", len(response.Series.Points))
-				seriesWriter.Write(response.Series)
-				log.Debug("WRITING (done)")
+			// this happens if shard took care of the query
+			// otherwise client will get points from passthrough engine
+			if processor == nil {				
+				// If we have EXPLAIN query, we don't write actual points (of response.Type Query) to the client 
+				if !(*response.Type == queryResponse && querySpec.IsExplainQuery()) {
+					seriesWriter.Write(response.Series)
+				}
 				continue
 			}
 
@@ -298,6 +315,13 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 			// the data here
 			if response.Series != nil {
 				log.Debug("YIELDING: ", len(response.Series.Points))
+
+				// we need to forward message type to PasstrhoughEngine
+				// this is a bit dirty TODO: refactor it...
+				if querySpec.IsExplainQuery() && processor.GetName() == "PassthroughEngine" {
+					
+				}
+
 				processor.YieldSeries(response.Series.Name, response.Series.Fields, response.Series)
 			} 
 		}

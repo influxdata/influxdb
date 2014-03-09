@@ -88,6 +88,7 @@ typedef struct {
   condition *where_condition;
   int limit;
   char ascending;
+  char explain;
 } select_query;
 
 typedef struct {
