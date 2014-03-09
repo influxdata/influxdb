@@ -1,7 +1,6 @@
 package cluster
 
-import (
-	log "code.google.com/p/log4go"
+import (	
 	"engine"
 	"errors"
 	"fmt"
@@ -214,7 +213,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 		}
 	}
 
-	if self.localShard != nil {		
+	if self.localShard != nil {
 		var processor QueryProcessor
 		if querySpec.IsListSeriesQuery() {
 			processor = engine.NewListSeriesEngine(response)
@@ -222,14 +221,12 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 			maxDeleteResults := 10000
 			processor = engine.NewPassthroughEngine(response, maxDeleteResults)
 		} else {
-			if self.ShouldAggregateLocally(querySpec) {
-				log.Debug("ShouldAggregateLocally True")
+			if self.ShouldAggregateLocally(querySpec) {				
 				processor = engine.NewQueryEngine(querySpec.SelectQuery(), response)
 				if querySpec.IsExplainQuery() {					
 					processor.SetShardInfo(int(self.Id()), !self.IsRemoteQuery())
 				}
-			} else {
-				log.Debug("ShouldAggregateLocally True -> NewPassthroughEngine")
+			} else {				
 				maxPointsToBufferBeforeSending := 1000
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
 				if querySpec.IsExplainQuery() {					
@@ -237,8 +234,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *protoco
 				}				
 			}
 		}
-		err := self.localShard.Query(querySpec, processor)
-		log.Debug("Done Shard")
+		err := self.localShard.Query(querySpec, processor)		
 		processor.Close()
 		return err
 	}

@@ -130,7 +130,7 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 	if series == nil {
 		series = &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
 		self.seriesToPoints[*seriesName] = series
-	} else if len(series.Points) >= POINT_BATCH_SIZE {		
+	} else if len(series.Points) >= POINT_BATCH_SIZE {
 		shouldContinue = self.yieldSeriesData(series)
 		series = &protocol.Series{Name: protocol.String(*seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
 		self.seriesToPoints[*seriesName] = series

@@ -42,9 +42,6 @@ func NewPassthroughEngineWithLimit(responseChan chan *protocol.Response, maxPoin
 		shardLocal:			 false, //that really doesn't matter if it is not EXPLAIN query
 	}
 
-	//if 
-	//passthroughEngine.runStartTime = float64(time.Now().UnixNano()) / float64(time.Millisecond),
-
 	return passthroughEngine
 }
 

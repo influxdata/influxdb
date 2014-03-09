@@ -47,7 +47,7 @@ var (
 	endStreamResponse 		= protocol.Response_END_STREAM
 	queryResponse     		= protocol.Response_QUERY
 	heartbeatResponse 		= protocol.Response_HEARTBEAT
-	explainQueryResponse	= protocol.Response_EXPLAIN_QUERY
+	explainQueryResponse    = protocol.Response_EXPLAIN_QUERY
 	
 	replayReplication 		= protocol.Request_REPLICATION_REPLAY
 	sequenceNumber    		= protocol.Request_SEQUENCE_NUMBER
@@ -246,27 +246,21 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 		processor = engine.NewPassthroughEngine(responseChan, 100)
 	}
 
-	log.Debug(processor)
-
 	if processor == nil {
 		return shards, nil, nil
 	}
 
 	go func() {
-		for {
-			log.Debug("Writing data...")
+		for {			
 			response := <-responseChan
-
-			log.Debug(response)
-
+			
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
 				writer.Close()
 				seriesClosed <- true
 				return
 			}
 			if !(*response.Type == queryResponse && querySpec.IsExplainQuery()) {
-				if response.Series != nil && len(response.Series.Points) > 0 {
-					log.Debug("Writing Points")
+				if response.Series != nil && len(response.Series.Points) > 0 {					
 					writer.Write(response.Series)
 				}
 			}

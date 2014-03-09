@@ -268,7 +268,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		point.SequenceNumber = &sequence
 
 		// stop the loop if we ran out of points
-		if !isValid {			
+		if !isValid {
 			break
 		}
 
@@ -322,7 +322,7 @@ func (self *LevelDbShard) executeListSeriesQuery(querySpec *parser.QuerySpec, pr
 			if parts[0] != database {
 				break
 			}
-			name := parts[1]			
+			name := parts[1]
 			shouldContinue := processor.YieldPoint(&name, nil, nil)
 			if !shouldContinue {
 				return nil

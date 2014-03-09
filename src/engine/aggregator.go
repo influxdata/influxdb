@@ -1,6 +1,6 @@
 package engine
 
-import (	
+import (
 	"common"
 	"fmt"
 	"math"
@@ -554,7 +554,7 @@ func (self *TimestampAggregator) AggregatePoint(series string, group interface{}
 	if timestamps == nil {
 		timestamps = make(map[interface{}]int64)
 		self.timestamps[series] = timestamps
-	}	
+	}
 	if self.duration != nil {
 		timestamps[group] = *p.GetTimestampInMicroseconds() / *self.duration * *self.duration
 	} else {
