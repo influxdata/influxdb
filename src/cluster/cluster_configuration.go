@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"parser"
 	"protocol"
+	"sort"
 	"sync"
 	"time"
 	"wal"
@@ -735,35 +736,33 @@ func (self *ClusterConfiguration) GetAllShards() []*ShardData {
 }
 
 func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*ShardData) []*ShardData {
-	startTime := querySpec.GetStartTime().UnixNano() / 1000
-	endTime := querySpec.GetEndTime().UnixNano() / 1000
-	startIndex := -1
-	endIndex := -1
+	startTime := common.TimeToMicroseconds(querySpec.GetStartTime())
+	endTime := common.TimeToMicroseconds(querySpec.GetEndTime())
 
-	if startTime == 0 {
-		startIndex = 0
+	// the shards are always in descending order, if we have the following shards
+	// [t + 20, t + 30], [t + 10, t + 20], [t, t + 10]
+	// if we are querying [t + 5, t + 15], we have to find the first shard whose
+	// startMicro is less than the end time of the query,
+	// which is the second shard [t + 10, t + 20], then
+	// start searching from this shard for the shard that has
+	// endMicro less than the start time of the query, which is
+	// no entry (sort.Search will return the length of the slice
+	// in this case) so we return [t + 10, t + 20], [t, t + 10]
+	// as expected
+
+	startIndex := sort.Search(len(shards), func(n int) bool {
+		return shards[n].startMicro < endTime
+	})
+
+	if startIndex == len(shards) {
+		return nil
 	}
 
-	// this logic looks a little weird because the shards passed into this function should
-	// always be passed in time descending order. But start time is low and end time is high. just FYI.
-	for i, shard := range shards {
-		if startIndex == -1 {
-			if shard.IsMicrosecondInRange(endTime) {
-				startIndex = i
-				continue
-			}
-		} else if shard.IsMicrosecondInRange(startTime) {
-			endIndex = i + 1
-			break
-		}
-	}
-	if startIndex == -1 {
-		return []*ShardData{}
-	}
-	if endIndex == -1 {
-		endIndex = len(shards)
-	}
-	return shards[startIndex:endIndex]
+	endIndex := sort.Search(len(shards)-startIndex, func(n int) bool {
+		return shards[n+startIndex].endMicro < startTime
+	})
+
+	return shards[startIndex : endIndex+startIndex]
 }
 
 func (self *ClusterConfiguration) HashDbAndSeriesToInt(database, series string) int {

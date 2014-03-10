@@ -557,8 +557,8 @@ func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause,
 	goQuery := SelectDeleteCommonQuery{
 		BasicQuery: BasicQuery{
 			queryString: queryString,
-			startTime:   time.Unix(0, 0),
-			endTime:     time.Now(),
+			startTime:   time.Unix(math.MinInt64/1000000, 0).UTC(),
+			endTime:     time.Now().UTC(),
 		},
 	}
 
