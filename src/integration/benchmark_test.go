@@ -298,6 +298,177 @@ func (self *IntegrationSuite) TestShortPasswords(c *C) {
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 }
 
+func (self *IntegrationSuite) TestExplainsWithPassthrough(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2],
+        ["val1", 3]
+    ],
+    "name": "test_explain_passthrough",
+    "columns": ["val_1", "val_2"]
+  }]`
+	c.Assert(self.server.WriteData(data), IsNil)
+	bs, err := self.server.RunQuery("explain select val_1 from test_explain_passthrough where time > now() - 1h", "m")
+	c.Assert(err, IsNil)
+	series := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "explain query")
+	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
+	c.Assert(series[0].Points[0][5], Equals, float64(2.0))
+	c.Assert(series[0].Points[0][6], Equals, float64(2.0))
+}
+
+func (self *IntegrationSuite) TestExplainsWithPassthroughAndLimit(c *C) {
+	points := []string{}
+	for i := 0; i < 101; i++ {
+		points = append(points, fmt.Sprintf(`["val1", %d]`, i))
+	}
+
+	data := fmt.Sprintf(`
+  [{
+    "points": [%s],
+    "name": "test_explain_passthrough_limit",
+    "columns": ["val_1", "val_2"]
+  }]`, strings.Join(points, ","))
+
+	c.Assert(self.server.WriteData(data), IsNil)
+	bs, err := self.server.RunQuery("explain select val_1 from test_explain_passthrough_limit where time > now() - 1h limit 1", "m")
+	c.Assert(err, IsNil)
+	series := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "explain query")
+	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
+
+	// we can read at most point-batch-size points, which is set to 100
+	// by default
+	c.Assert(series[0].Points[0][5], Equals, float64(100.0))
+	c.Assert(series[0].Points[0][6], Equals, float64(1.0))
+}
+
+func (self *IntegrationSuite) TestExplainsWithNonLocalAggregator(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2],
+        ["val1", 3],
+        ["val1", 4]
+    ],
+    "name": "test_explain_non_local",
+    "columns": ["val_1", "val_2"]
+  }]`
+	c.Assert(self.server.WriteData(data), IsNil)
+	bs, err := self.server.RunQuery("explain select count(val_1) from test_explain_non_local where time > now() - 1h", "m")
+	c.Assert(err, IsNil)
+	series := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "explain query")
+	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
+	c.Assert(series[0].Points[0][5], Equals, float64(3.0))
+	c.Assert(series[0].Points[0][6], Equals, float64(1.0))
+}
+
+func (self *IntegrationSuite) TestExplainsWithNonLocalAggregatorAndRegex(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2],
+        ["val1", 3],
+        ["val1", 4]
+    ],
+    "name": "test_explain_non_local_regex",
+    "columns": ["val_1", "val_2"]
+  }]`
+	c.Assert(self.server.WriteData(data), IsNil)
+	bs, err := self.server.RunQuery("explain select count(val_1) from /.*test_explain_non_local_regex.*/ where time > now() - 1h", "m")
+	c.Assert(err, IsNil)
+	series := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "explain query")
+	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
+	c.Assert(series[0].Points[0][5], Equals, float64(3.0))
+	c.Assert(series[0].Points[0][6], Equals, float64(1.0))
+}
+
+func (self *IntegrationSuite) TestExplainsWithLocalAggregator(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2],
+        ["val1", 3],
+        ["val1", 4]
+    ],
+    "name": "test_local_aggregator",
+    "columns": ["val_1", "val_2"]
+  }]`
+	c.Assert(self.server.WriteData(data), IsNil)
+	bs, err := self.server.RunQuery("explain select count(val_1) from test_local_aggregator group by time(1h) where time > now() - 1h", "m")
+	c.Assert(err, IsNil)
+	series := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "explain query")
+	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
+	c.Assert(series[0].Points[0][5], Equals, float64(3.0))
+	c.Assert(series[0].Points[0][6], Equals, float64(1.0))
+}
+
+func (self *IntegrationSuite) TestExplainsWithLocalAggregatorAndRegex(c *C) {
+	data := `
+[
+  {
+    "points": [
+        ["val1", 2],
+        ["val1", 3],
+        ["val1", 4]
+    ],
+    "name": "test_local_aggregator_regex_1",
+    "columns": ["val_1", "val_2"]
+  },
+  {
+    "points": [
+        ["val1", 2],
+        ["val1", 3],
+        ["val1", 4]
+    ],
+    "name": "test_local_aggregator_regex_2",
+    "columns": ["val_1", "val_2"]
+  }
+]`
+	c.Assert(self.server.WriteData(data), IsNil)
+	bs, err := self.server.RunQuery("explain select count(val_1) from /.*test_local_aggregator_regex.*/ group by time(1h) where time > now() - 1h", "m")
+	c.Assert(err, IsNil)
+	series := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "explain query")
+	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
+	c.Assert(series[0].Points[0][5], Equals, float64(6.0))
+	c.Assert(series[0].Points[0][6], Equals, float64(2.0))
+}
+
 func (self *IntegrationSuite) TestMedians(c *C) {
 	for i := 0; i < 3; i++ {
 		err := self.server.WriteData(fmt.Sprintf(`
