@@ -355,8 +355,8 @@ func (s *server) promotable() bool {
 
 // Retrieves the number of member servers in the consensus.
 func (s *server) MemberCount() int {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	return len(s.peers) + 1
 }
 
@@ -500,8 +500,6 @@ func (s *server) updateCurrentTerm(term uint64, leaderName string) {
 	_assert(term > s.currentTerm,
 		"upadteCurrentTerm: update is called when term is not larger than currentTerm")
 
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	// Store previous values temporarily.
 	prevTerm := s.currentTerm
 	prevLeader := s.leader
@@ -509,21 +507,20 @@ func (s *server) updateCurrentTerm(term uint64, leaderName string) {
 	// set currentTerm = T, convert to follower (§5.1)
 	// stop heartbeats before step-down
 	if s.state == Leader {
-		s.mutex.Unlock()
 		for _, peer := range s.peers {
 			peer.stopHeartbeat(false)
 		}
-		s.mutex.Lock()
 	}
 	// update the term and clear vote for
 	if s.state != Follower {
-		s.mutex.Unlock()
 		s.setState(Follower)
-		s.mutex.Lock()
 	}
+
+	s.mutex.Lock()
 	s.currentTerm = term
 	s.leader = leaderName
 	s.votedFor = ""
+	s.mutex.Unlock()
 
 	// Dispatch change events.
 	s.DispatchEvent(newEvent(TermChangeEventType, s.currentTerm, prevTerm))
