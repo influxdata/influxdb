@@ -601,6 +601,22 @@ func (self *IntegrationSuite) TestIssue89(c *C) {
 	c.Assert(sums, DeepEquals, map[string]float64{"y": 30.0, "z": 40.0})
 }
 
+// see https://groups.google.com/forum/#!searchin/influxdb/crash/influxdb/5d8s_zH_KdM/xo5B8qoeduoJ
+func (self *IntegrationSuite) TestCountWithInvalidInterval(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+     "name": "test_count_with_invalid_interval",
+     "columns": ["cpu", "host"],
+     "points": [[60, "hosta"], [70, "hostb"]]
+  }
+]
+`)
+	c.Assert(err, IsNil)
+	_, err = self.server.RunQuery("select count(cpu) from test_count_with_invalid_interval group by time(5)", "m")
+	c.Assert(err, ErrorMatches, ".*invalid argument.*")
+}
+
 // make sure aggregation when happen locally at the shard level don't
 // get repeated at the coordinator level, otherwise unexpected
 // behavior will happen
