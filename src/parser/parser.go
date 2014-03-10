@@ -578,17 +578,15 @@ func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause,
 		}
 	}
 
-	var startTime, endTime time.Time
-
+	var startTime, endTime *time.Time
 	goQuery.Condition, endTime, err = getTime(goQuery.GetWhereCondition(), false)
 	if err != nil {
 		return goQuery, err
 	}
 
-	goQuery.endTimeSet = endTime.Unix() > 0
-
-	if goQuery.endTimeSet {
-		goQuery.endTime = endTime
+	if endTime != nil {
+		goQuery.endTimeSet = true
+		goQuery.endTime = *endTime
 	}
 
 	goQuery.Condition, startTime, err = getTime(goQuery.GetWhereCondition(), true)
@@ -596,11 +594,12 @@ func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause,
 		return goQuery, err
 	}
 
-	if startTime.Unix() > 0 {
-		goQuery.startTime = startTime
-	} else if goQuery.endTime.Unix() > 0 {
-		goQuery.startTime = time.Unix(math.MinInt64, 0)
+	if startTime != nil {
+		fmt.Printf("here\n")
+		goQuery.startTime = *startTime
 	}
+
+	fmt.Printf("starttime: %v\n", goQuery.startTime)
 
 	return goQuery, nil
 }

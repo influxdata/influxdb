@@ -186,8 +186,8 @@ func (self *QueryApiSuite) TestDefaultLimit(c *C) {
 
 func (self *QueryApiSuite) TestDefaultStartTime(c *C) {
 	for queryStr, t := range map[string]time.Time{
-		"select * from t where time < now() - 1d;": time.Unix(math.MinInt64, 0),
-		"select * from t;":                         time.Unix(math.MinInt64, 0),
+		"select * from t where time < now() - 1d;": time.Unix(math.MinInt64, 0).UTC(),
+		"select * from t;":                         time.Unix(math.MinInt64, 0).UTC(),
 	} {
 		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)
@@ -198,8 +198,8 @@ func (self *QueryApiSuite) TestDefaultStartTime(c *C) {
 
 func (self *QueryApiSuite) TestDefaultEndTime(c *C) {
 	for queryStr, t := range map[string]time.Time{
-		"select * from t where time > now() - 1d;": time.Now().Round(time.Minute),
-		"select * from t;":                         time.Now().Round(time.Minute),
+		"select * from t where time > now() - 1d;": time.Now().Round(time.Minute).UTC(),
+		"select * from t;":                         time.Now().Round(time.Minute).UTC(),
 	} {
 		query, err := ParseSelectQuery(queryStr)
 		c.Assert(err, IsNil)

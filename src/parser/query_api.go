@@ -12,10 +12,6 @@ import (
 
 // this file provides the high level api of the query object
 
-var (
-	ZERO_TIME = time.Unix(0, 0)
-)
-
 func uniq(slice []string) []string {
 	// TODO: optimize this, maybe ?
 	uniqueMap := map[string]bool{}
@@ -215,25 +211,29 @@ func init() {
 	}
 }
 
-func parseTimeString(t string) (time.Time, error) {
+func parseTimeString(t string) (*time.Time, error) {
 	submatches := time_regex.FindStringSubmatch(t)
 	if len(submatches) == 0 {
-		return ZERO_TIME, fmt.Errorf("%s isn't a valid time string", t)
+		return nil, fmt.Errorf("%s isn't a valid time string", t)
 	}
 
 	if submatches[5] != "" || submatches[4] != "" {
-		return time.Parse("2006-01-02 15:04:05", t)
+		t, err := time.Parse("2006-01-02 15:04:05", t)
+		return &t, err
 	}
 
 	if submatches[3] != "" {
-		return time.Parse("2006-01-02 15:04", t)
+		t, err := time.Parse("2006-01-02 15:04", t)
+		return &t, err
 	}
 
 	if submatches[2] != "" {
-		return time.Parse("2006-01-02 15", t)
+		t, err := time.Parse("2006-01-02 15", t)
+		return &t, err
 	}
 
-	return time.Parse("2006-01-02", t)
+	_t, err := time.Parse("2006-01-02", t)
+	return &_t, err
 }
 
 // parse time expressions, e.g. now() - 1d
@@ -366,19 +366,19 @@ func (self *SelectDeleteCommonQuery) GetQueryStringForContinuousQuery(start, end
 
 // parse the start time or end time from the where conditions and return the new condition
 // without the time clauses, or nil if there are no where conditions left
-func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereCondition, time.Time, error) {
+func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereCondition, *time.Time, error) {
 	if condition == nil {
-		return nil, ZERO_TIME, nil
+		return nil, nil, nil
 	}
 
 	if expr, ok := condition.GetBoolExpression(); ok {
 		switch expr.Type {
 		case ValueDuration, ValueFloat, ValueInt, ValueString, ValueWildcard:
-			return nil, ZERO_TIME, fmt.Errorf("Invalid where expression: %v", expr)
+			return nil, nil, fmt.Errorf("Invalid where expression: %v", expr)
 		}
 
 		if expr.Type == ValueFunctionCall {
-			return condition, ZERO_TIME, nil
+			return condition, nil, nil
 		}
 
 		leftValue := expr.Elems[0]
@@ -401,64 +401,66 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 		// TODO: we should do a check to make sure "time" doesn't show up in
 		// either expressions
 		if !isTimeOnLeft && !isTimeOnRight {
-			return condition, ZERO_TIME, nil
+			return condition, nil, nil
 		}
 
 		var timeExpression *Value
 		if !isTimeOnRight {
 			if leftValue.Name != "time" {
-				return condition, ZERO_TIME, nil
+				return condition, nil, nil
 			}
 			timeExpression = rightValue
 		} else if !isTimeOnLeft {
 			if rightValue.Name != "time" {
-				return condition, ZERO_TIME, nil
+				return condition, nil, nil
 			}
 			timeExpression = leftValue
 		} else {
-			return nil, ZERO_TIME, fmt.Errorf("Invalid time condition %v", condition)
+			return nil, nil, fmt.Errorf("Invalid time condition %v", condition)
 		}
 
 		switch expr.Name {
 		case ">":
 			if isParsingStartTime && !isTimeOnLeft || !isParsingStartTime && !isTimeOnRight {
-				return condition, ZERO_TIME, nil
+				return condition, nil, nil
 			}
 		case "<":
 			if !isParsingStartTime && !isTimeOnLeft || isParsingStartTime && !isTimeOnRight {
-				return condition, ZERO_TIME, nil
+				return condition, nil, nil
 			}
 		case "=":
 			microseconds, err := parseTime(timeExpression)
 			nanoseconds := microseconds * 1000
 			if err != nil {
-				return nil, ZERO_TIME, err
+				return nil, nil, err
 			}
-			return condition, time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)).UTC(), nil
+			t := time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)).UTC()
+			return condition, &t, nil
 		default:
-			return nil, ZERO_TIME, fmt.Errorf("Cannot use time with '%s'", expr.Name)
+			return nil, nil, fmt.Errorf("Cannot use time with '%s'", expr.Name)
 		}
 
 		nanoseconds, err := parseTime(timeExpression)
 		if err != nil {
-			return nil, ZERO_TIME, err
+			return nil, nil, err
 		}
-		return nil, time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)).UTC(), nil
+		t := time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)).UTC()
+		return nil, &t, nil
 	}
 
 	leftCondition, _ := condition.GetLeftWhereCondition()
 	newLeftCondition, timeLeft, err := getTime(leftCondition, isParsingStartTime)
 	if err != nil {
-		return nil, ZERO_TIME, err
+		return nil, nil, err
 	}
 	newRightCondition, timeRight, err := getTime(condition.Right, isParsingStartTime)
 	if err != nil {
-		return nil, ZERO_TIME, err
+		return nil, nil, err
 	}
 
-	if condition.Operation == "OR" && (timeLeft != ZERO_TIME || timeRight != ZERO_TIME) {
+	if condition.Operation == "OR" && (timeLeft != nil || timeRight != nil) {
 		// we can't have two start times or'd together
-		return nil, ZERO_TIME, fmt.Errorf("Invalid where clause, time must appear twice to specify start and end time")
+		return nil, nil, fmt.Errorf("Invalid where clause, time must appear twice to specify start and end time")
 	}
 
 	newCondition := condition
@@ -471,10 +473,10 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 		newCondition.Right = newRightCondition
 	}
 
-	if timeLeft == ZERO_TIME {
+	if timeLeft == nil {
 		return newCondition, timeRight, nil
 	}
-	if timeRight == ZERO_TIME {
+	if timeRight == nil {
 		return newCondition, timeLeft, nil
 	}
 	if isParsingStartTime && timeLeft.Unix() < timeRight.Unix() {
