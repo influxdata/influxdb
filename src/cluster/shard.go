@@ -314,10 +314,10 @@ func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 		return self.HandleDestructiveQuery(querySpec, request, response, true)
 	}
 
-	_, err := self.wal.AssignSequenceNumbersAndLog(request, self)
-	if err != nil {
-		return err
-	}
+	// _, err := self.wal.AssignSequenceNumbersAndLog(request, self)
+	// if err != nil {
+	// 	return err
+	// }
 	return self.HandleDestructiveQuery(querySpec, request, response, false)
 }
 
@@ -383,7 +383,7 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 			res := <-channel
 			log.Debug("Received %s response from %d for %s", res.GetType(), serverId, request.GetDescription())
 			if *res.Type == endStreamResponse {
-				self.wal.Commit(request.GetRequestNumber(), serverId)
+				// self.wal.Commit(request.GetRequestNumber(), serverId)
 				break
 			}
 			response <- res
