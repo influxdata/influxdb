@@ -47,10 +47,7 @@ var (
 	endStreamResponse = protocol.Response_END_STREAM
 	queryResponse     = protocol.Response_QUERY
 	heartbeatResponse = protocol.Response_HEARTBEAT
-	replayReplication = protocol.Request_REPLICATION_REPLAY
-	sequenceNumber    = protocol.Request_SEQUENCE_NUMBER
-
-	write = protocol.Request_WRITE
+	write             = protocol.Request_WRITE
 )
 
 type SeriesWriter interface {

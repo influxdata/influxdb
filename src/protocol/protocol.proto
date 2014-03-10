@@ -30,8 +30,6 @@ message Request {
     WRITE = 1;
     QUERY = 2;
     DROP_DATABASE = 3;
-    REPLICATION_REPLAY = 6;
-    SEQUENCE_NUMBER = 8;
     HEARTBEAT = 7;
   }
   optional uint32 id = 1;
