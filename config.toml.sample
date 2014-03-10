@@ -83,6 +83,10 @@ lru-cache-size = "200m"
 # limit the max number of open files. max-open-files is per shard so this * that will be max.
 max-open-shards = 0
 
+# The default setting is 100. This option tells how many points will be fetched from LevelDb before 
+# they get flushed into backend.
+point-batch-size = 100
+
 # These options specify how data is sharded across the cluster. There are two 
 # shard configurations that have the same knobs: short term and long term.
 # Any series that begins with a capital letter like Exceptions will be written

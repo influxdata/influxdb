@@ -24,6 +24,7 @@ type LevelDbShardDatastore struct {
 	levelDbOptions *levigo.Options
 	writeBuffer    *cluster.WriteBuffer
 	maxOpenShards  int
+	pointBatchSize int
 }
 
 const (
@@ -87,6 +88,7 @@ func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShar
 		levelDbOptions: opts,
 		maxOpenShards:  config.LevelDbMaxOpenShards,
 		lastAccess:     make(map[uint32]int64),
+		pointBatchSize: config.LevelDbPointBatchSize,
 	}, nil
 }
 
@@ -127,7 +129,7 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 		return nil, err
 	}
 
-	db, err = NewLevelDbShard(ldb)
+	db, err = NewLevelDbShard(ldb, self.pointBatchSize)
 	if err != nil {
 		return nil, err
 	}

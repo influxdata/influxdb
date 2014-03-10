@@ -19,19 +19,16 @@ import (
 	"time"
 )
 
-const (
-	POINT_BATCH_SIZE = 256
-)
-
 type LevelDbShard struct {
-	db            *levigo.DB
-	readOptions   *levigo.ReadOptions
-	writeOptions  *levigo.WriteOptions
-	lastIdUsed    uint64
-	columnIdMutex sync.Mutex
+	db            	*levigo.DB
+	readOptions   	*levigo.ReadOptions
+	writeOptions  	*levigo.WriteOptions
+	lastIdUsed    	uint64
+	columnIdMutex 	sync.Mutex
+	pointBatchSize 	int
 }
 
-func NewLevelDbShard(db *levigo.DB) (*LevelDbShard, error) {
+func NewLevelDbShard(db *levigo.DB, pointBatchSize int) (*LevelDbShard, error) {
 	ro := levigo.NewReadOptions()
 	lastIdBytes, err2 := db.Get(ro, NEXT_ID_KEY)
 	if err2 != nil {
@@ -47,10 +44,11 @@ func NewLevelDbShard(db *levigo.DB) (*LevelDbShard, error) {
 	}
 
 	return &LevelDbShard{
-		db:           db,
-		writeOptions: levigo.NewWriteOptions(),
-		readOptions:  ro,
-		lastIdUsed:   lastId,
+		db:           	db,
+		writeOptions: 	levigo.NewWriteOptions(),
+		readOptions:  	ro,
+		lastIdUsed:   	lastId,
+		pointBatchSize: pointBatchSize,
 	}, nil
 }
 
@@ -183,7 +181,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		}
 	}()
 
-	seriesOutgoing := &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}
+	seriesOutgoing := &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
 
 	// TODO: clean up, this is super gnarly
 	// optimize for the case where we're pulling back only a single column or aggregate
@@ -276,16 +274,16 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 
 		seriesOutgoing.Points = append(seriesOutgoing.Points, point)
 
-		if len(seriesOutgoing.Points) >= POINT_BATCH_SIZE {			
+		if len(seriesOutgoing.Points) >= self.pointBatchSize {
 			for _, alias := range aliases {
-				_alias := alias				
-				if !processor.YieldSeries(&_alias, fieldNames, seriesOutgoing) {					
+				_alias := alias
+				if !processor.YieldSeries(&_alias, fieldNames, seriesOutgoing) {
 					shouldContinue = false
 				}
 			}				
-			seriesOutgoing = &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, POINT_BATCH_SIZE)}			
-		} 
-
+			seriesOutgoing = &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
+		}
+		
 		if !shouldContinue {
 			break
 		}
