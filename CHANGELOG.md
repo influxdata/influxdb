@@ -280,7 +280,7 @@
 
 - [Issue #312](https://github.com/influxdb/influxdb/issues/312). WAL should wait for server id to be set before recovering
 - [Issue #301](https://github.com/influxdb/influxdb/issues/301). Use ref counting to guard against race conditions in the shard cache
-- [Issue #319](https://github.com/influxdb/influxdb/issues/319). Propagate enigne creation error correctly to the user
+- [Issue #319](https://github.com/influxdb/influxdb/issues/319). Propagate engine creation error correctly to the user
 - [Issue #316](https://github.com/influxdb/influxdb/issues/316). Make
   sure we don't starve goroutines if we get an access denied error
   from one of the shards
