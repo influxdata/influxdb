@@ -161,7 +161,7 @@ func (self *ServerProcess) QueryAsRoot(database, query string, onlyLocal bool, c
 	return self.QueryWithUsername(database, query, onlyLocal, c, "root", "root")
 }
 
-func (self *ServerProcess) QueryWithUsername(database, query string, onlyLocal bool, c *C, username, password string) *SeriesCollection {
+func (self *ServerProcess) GetResponse(database, query, username, password string, onlyLocal bool, c *C) *http.Response {
 	encodedQuery := url.QueryEscape(query)
 	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=%s&p=%s&q=%s", self.apiPort, database, username, password, encodedQuery)
 	if onlyLocal {
@@ -169,6 +169,11 @@ func (self *ServerProcess) QueryWithUsername(database, query string, onlyLocal b
 	}
 	resp, err := http.Get(fullUrl)
 	c.Assert(err, IsNil)
+	return resp
+}
+
+func (self *ServerProcess) QueryWithUsername(database, query string, onlyLocal bool, c *C, username, password string) *SeriesCollection {
+	resp := self.GetResponse(database, query, username, password, onlyLocal, c)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	body, err := ioutil.ReadAll(resp.Body)

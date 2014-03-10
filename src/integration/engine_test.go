@@ -1784,11 +1784,31 @@ func (self *EngineSuite) TestHistogramQueryWithGroupByTimeAndDefaultBucketSize(c
 // 	runQueryRunError(engine, "select count(*) from foo group by time(1h, 1m) order asc", c, err)
 // }
 
-// func (self *EngineSuite) TestCountQueryWithInvalidWildcardArgument(c *C) {
-// 	err := common.NewQueryError(common.InvalidArgument, "function count() doesn't work with wildcards")
-// self.createEngine(c, `[]`)
-// 	runQueryRunError(engine, "select count(*) from foo order asc", c, err)
-// }
+func (self *EngineSuite) TestCountQueryWithInvalidWildcardArgument(c *C) {
+	self.createEngine(c, `
+[
+  {
+    "points": [
+      {
+        "values": [
+          {
+            "int64_value": 100
+          }
+        ],
+        "timestamp": 1381346641000000
+      }
+    ],
+    "name": "foo",
+    "fields": ["column_one"]
+  }
+]
+`)
+
+	query := "select count(*) from foo group by time(1h) order asc"
+	resp := self.server.GetResponse("test_db", query, "user", "pass", false, c)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Not(Equals), http.StatusOK)
+}
 
 // func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidArgument(c *C) {
 // 	err := common.NewQueryError(common.InvalidArgument, "invalid argument foobar to the time function")
