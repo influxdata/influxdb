@@ -1070,7 +1070,15 @@ func (s *server) RemovePeer(name string) error {
 
 		// Stop peer and remove it.
 		if s.State() == Leader {
-			peer.stopHeartbeat(true)
+			// We create a go routine here to avoid potential deadlock.
+			// We are holding log write lock when reach this line of code.
+			// Peer.stopHeartbeat can be blocked without go routine, if the
+			// target go routine (which we want to stop) is calling
+			// log.getEntriesAfter and waiting for log read lock.
+			// So we might be holding log lock and waiting for log lock,
+			// which lead to a deadlock.
+			// TODO(xiangli) refactor log lock
+			go peer.stopHeartbeat(true)
 		}
 
 		delete(s.peers, name)
