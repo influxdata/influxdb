@@ -192,6 +192,8 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 
 	if self.IsLocal {
 		var processor QueryProcessor
+		var err error
+
 		if querySpec.IsListSeriesQuery() {
 			processor = engine.NewListSeriesEngine(response)
 		} else if querySpec.IsDeleteFromSeriesQuery() || querySpec.IsDropSeriesQuery() || querySpec.IsSinglePointQuery() {
@@ -199,7 +201,10 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 			processor = engine.NewPassthroughEngine(response, maxDeleteResults)
 		} else {
 			if self.ShouldAggregateLocally(querySpec) {
-				processor = engine.NewQueryEngine(querySpec.SelectQuery(), response)
+				processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), response)
+				if err != nil {
+					return err
+				}
 			} else {
 				maxPointsToBufferBeforeSending := 1000
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
@@ -210,7 +215,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 			return err
 		}
 		defer self.store.ReturnShard(self.id)
-		shard.Query(querySpec, processor)
+		err = shard.Query(querySpec, processor)
 		processor.Close()
 		return err
 	}

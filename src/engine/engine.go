@@ -41,7 +41,7 @@ var (
 )
 
 // distribute query and possibly do the merge/join before yielding the points
-func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*protocol.Series) error) (err error) {
+func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*protocol.Series) error) error {
 	// see if this is a merge query
 	fromClause := query.GetFromClause()
 	if fromClause.Type == parser.FromClauseMerge {
@@ -56,7 +56,7 @@ func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*
 	return nil
 }
 
-func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Response) *QueryEngine {
+func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Response) (*QueryEngine, error) {
 	limit := query.Limit
 	// disable limit if the query has aggregates let the coordinator
 	// deal with the limit
@@ -78,15 +78,19 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		return nil
 	}
 
+	var err error
 	if query.HasAggregates() {
-		queryEngine.executeCountQueryWithGroupBy(query, yield)
+		err = queryEngine.executeCountQueryWithGroupBy(query, yield)
 	} else if containsArithmeticOperators(query) {
-		queryEngine.executeArithmeticQuery(query, yield)
+		err = queryEngine.executeArithmeticQuery(query, yield)
 	} else {
-		queryEngine.distributeQuery(query, yield)
+		err = queryEngine.distributeQuery(query, yield)
 	}
 
-	return queryEngine
+	if err != nil {
+		return nil, err
+	}
+	return queryEngine, nil
 }
 
 // Returns false if the query should be stopped (either because of limit or error)
@@ -118,7 +122,9 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 			if len(series.Points) > 0 {
 				self.limiter.calculateLimitAndSlicePoints(series)
 				if len(series.Points) > 0 {
-					err = self.yield(series)
+					if err = self.yield(series); err != nil {
+						return false
+					}
 				}
 			}
 		}
@@ -126,7 +132,9 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 		self.limiter.calculateLimitAndSlicePoints(series)
 
 		if len(series.Points) > 0 {
-			err = self.yield(series)
+			if err = self.yield(series); err != nil {
+				return false
+			}
 		}
 	}
 	if err != nil {
@@ -340,18 +348,19 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 	self.aggregators = []Aggregator{}
 
 	for _, value := range query.GetColumnNames() {
-		if value.IsFunctionCall() {
-			lowerCaseName := strings.ToLower(value.Name)
-			initializer := registeredAggregators[lowerCaseName]
-			if initializer == nil {
-				return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", value.Name))
-			}
-			aggregator, err := initializer(query, value, query.GetGroupByClause().FillValue)
-			if err != nil {
-				return err
-			}
-			self.aggregators = append(self.aggregators, aggregator)
+		if !value.IsFunctionCall() {
+			continue
 		}
+		lowerCaseName := strings.ToLower(value.Name)
+		initializer := registeredAggregators[lowerCaseName]
+		if initializer == nil {
+			return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", value.Name))
+		}
+		aggregator, err := initializer(query, value, query.GetGroupByClause().FillValue)
+		if err != nil {
+			return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("%s", err))
+		}
+		self.aggregators = append(self.aggregators, aggregator)
 	}
 	timestampAggregator, err := NewTimestampAggregator(query, nil)
 	if err != nil {
