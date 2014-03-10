@@ -172,6 +172,15 @@ func (self *ServerProcess) GetResponse(database, query, username, password strin
 	return resp
 }
 
+func (self *ServerProcess) GetErrorBody(database, query, username, password string, onlyLocal bool, c *C) (string, int) {
+	resp := self.GetResponse(database, query, username, password, onlyLocal, c)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Not(Equals), http.StatusOK)
+	bytes, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	return string(bytes), resp.StatusCode
+}
+
 func (self *ServerProcess) QueryWithUsername(database, query string, onlyLocal bool, c *C, username, password string) *SeriesCollection {
 	resp := self.GetResponse(database, query, username, password, onlyLocal, c)
 	defer resp.Body.Close()

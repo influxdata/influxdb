@@ -172,12 +172,14 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 		responses = append(responses, responseChan)
 	}
 
+	var err error
 	for _, responseChan := range responses {
 		for {
 			response := <-responseChan
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
-				if response.ErrorMessage != nil {
-					log.Error("ListSeries Query Error from Shard: ", *response.ErrorMessage)
+				if response.ErrorMessage != nil && err != nil {
+					log.Debug("Error when querying shard: %s", err)
+					err = common.NewQueryError(common.InvalidArgument, *response.ErrorMessage)
 				}
 				break
 			}
@@ -190,7 +192,7 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 		}
 	}
 	seriesWriter.Close()
-	return nil
+	return err
 }
 
 func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
@@ -289,6 +291,9 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 			response := <-responseChan
 			log.Debug("GOT RESPONSE: ", response.Type, response.Series)
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
+				if response.ErrorMessage != nil && err == nil {
+					err = common.NewQueryError(common.InvalidArgument, *response.ErrorMessage)
+				}
 				break
 			}
 
@@ -315,10 +320,10 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 	if processor != nil {
 		processor.Close()
 		<-seriesClosed
-		return nil
+		return err
 	}
 	seriesWriter.Close()
-	return nil
+	return err
 }
 
 func recoverFunc(database, query string) {

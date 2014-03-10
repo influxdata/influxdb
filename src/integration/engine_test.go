@@ -1805,9 +1805,9 @@ func (self *EngineSuite) TestCountQueryWithInvalidWildcardArgument(c *C) {
 `)
 
 	query := "select count(*) from foo group by time(1h) order asc"
-	resp := self.server.GetResponse("test_db", query, "user", "pass", false, c)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Not(Equals), http.StatusOK)
+	body, code := self.server.GetErrorBody("test_db", query, "user", "pass", false, c)
+	c.Assert(code, Equals, http.StatusBadRequest)
+	c.Assert(body, Matches, ".*count.*")
 }
 
 // func (self *EngineSuite) TestCountQueryWithGroupByTimeInvalidArgument(c *C) {

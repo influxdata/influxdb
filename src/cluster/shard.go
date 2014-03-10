@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"parser"
+	"protocol"
 	p "protocol"
 	"sort"
 	"strings"
@@ -203,6 +204,8 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 			if self.ShouldAggregateLocally(querySpec) {
 				processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), response)
 				if err != nil {
+					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: protocol.String(err.Error())}
+					log.Error("Error while creating engine: %s", err)
 					return err
 				}
 			} else {
