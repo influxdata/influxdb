@@ -78,7 +78,7 @@ func NewCoordinatorImpl(config *configuration.Configuration, raftServer ClusterC
 }
 
 func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
-	log.Debug("COORD: RunQuery: ", queryString)
+	log.Debug("COORD: RunQuery: %s", queryString)
 	// don't let a panic pass beyond RunQuery
 	defer recoverFunc(database, queryString)
 
@@ -315,14 +315,7 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 			// if the data wasn't aggregated at the shard level, aggregate
 			// the data here
 			if response.Series != nil {
-				log.Debug("YIELDING: ", len(response.Series.Points))
-
-				// we need to forward message type to PasstrhoughEngine
-				// this is a bit dirty TODO: refactor it...
-				if querySpec.IsExplainQuery() && processor.GetName() == "PassthroughEngine" {
-
-				}
-
+				log.Debug("YIELDING: %d points", len(response.Series.Points))
 				processor.YieldSeries(response.Series.Name, response.Series.Fields, response.Series)
 			}
 		}
