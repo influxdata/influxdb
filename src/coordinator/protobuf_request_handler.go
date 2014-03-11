@@ -92,7 +92,7 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 		response := <-responseChan
 		response.RequestId = request.Id
 		self.WriteResponse(conn, response)
-		if response.Type == &endStreamResponse || response.Type == &accessDeniedResponse {
+		if response.GetType() == protocol.Response_END_STREAM || response.GetType() == protocol.Response_ACCESS_DENIED {
 			return
 		}
 	}
