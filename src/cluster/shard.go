@@ -116,8 +116,16 @@ func (self *ShardData) Id() uint32 {
 	return self.id
 }
 
+func (self *ShardData) StartMicro() int64 {
+	return self.startMicro
+}
+
 func (self *ShardData) StartTime() time.Time {
 	return self.startTime
+}
+
+func (self *ShardData) EndMicro() int64 {
+	return self.endMicro
 }
 
 func (self *ShardData) EndTime() time.Time {
