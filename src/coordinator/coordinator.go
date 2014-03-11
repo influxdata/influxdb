@@ -468,7 +468,7 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series
 			if shardToWrite == nil {
 				shardToWrite = shard
 			} else if shardToWrite.Id() != shard.Id() {
-				newIndex := i + 1
+				newIndex := i
 				newSeries := &protocol.Series{Name: series.Name, Fields: series.Fields, Points: series.Points[lastPointIndex:newIndex]}
 				self.write(db, newSeries, shardToWrite)
 				lastPointIndex = newIndex
