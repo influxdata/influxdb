@@ -635,68 +635,32 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
 `)
 }
 
+
+
 func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
 	// make the mock coordinator return some data
-	self.createEngine(c, `
-[
-  {
-    "points": [
-      {
-        "values": [
-          {
-            "string_value": "some_value"
-          }
-        ],
-        "timestamp": 1381346641000000
-      },
-      {
-        "values": [
-          {
-            "string_value": "another_value"
-          }
-        ],
-        "timestamp": 1381346701000000
-      },
-      {
-        "values": [
-          {
-            "string_value": "some_value"
-          }
-        ],
-        "timestamp": 1381346721000000
-      }
-    ],
-    "name": "foo",
-    "fields": ["column_one"]
-  }
-]
-`)
+	self.createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346641000000 },
+        { "values": [{ "string_value": "another_value" }], "timestamp": 1381346701000000 },
+        { "values": [{ "string_value": "some_value" }], "timestamp": 1381346721000000}
+      ],
+      "name": "foo",
+      "fields": ["column_one"]
+    }
+  ]`)
 
 	self.runQuery("select count(column_one) from foo group by time(1m) order asc", c, `[
-  {
-    "points": [
-      {
-        "values": [
-          {
-            "int64_value": 1
-          }
-        ],
-        "timestamp": 1381346640000000
-      },
-      {
-        "values": [
-          {
-            "int64_value": 2
-          }
-        ],
-        "timestamp": 1381346700000000
-      }
-    ],
-    "name": "foo",
-    "fields": ["count"]
-  }
-]
-`)
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346640000000 },
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346700000000 }
+      ],
+      "name": "foo",
+      "fields": ["count"]
+    }
+  ]`)
 }
 
 func (self *EngineSuite) TestCountQueryWithGroupByTimeDescendingOrder(c *C) {
