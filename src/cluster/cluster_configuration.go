@@ -10,6 +10,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"parser"
 	"protocol"
@@ -622,13 +623,13 @@ func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series st
 
 func (self *ClusterConfiguration) createShards(microsecondsEpoch int64, shardType ShardType) ([]*ShardData, error) {
 	numberOfShardsToCreateForDuration := 1
-	var secondsOfDuration int64
+	var secondsOfDuration float64
 	if shardType == LONG_TERM {
 		numberOfShardsToCreateForDuration = self.config.LongTermShard.Split
-		secondsOfDuration = int64(self.config.LongTermShard.ParsedDuration().Seconds())
+		secondsOfDuration = self.config.LongTermShard.ParsedDuration().Seconds()
 	} else {
 		numberOfShardsToCreateForDuration = self.config.ShortTermShard.Split
-		secondsOfDuration = int64(self.config.ShortTermShard.ParsedDuration().Seconds())
+		secondsOfDuration = self.config.ShortTermShard.ParsedDuration().Seconds()
 	}
 	startIndex := 0
 	if self.lastServerToGetShard != nil {
@@ -674,10 +675,10 @@ func (self *ClusterConfiguration) createShards(microsecondsEpoch int64, shardTyp
 	return createdShards, nil
 }
 
-func (self *ClusterConfiguration) getStartAndEndBasedOnDuration(microsecondsEpoch int64, duration int64) (*time.Time, *time.Time) {
-	startTimeSeconds := microsecondsEpoch / int64(1000) / int64(1000) / duration * duration
-	startTime := time.Unix(startTimeSeconds, 0)
-	endTime := time.Unix(startTimeSeconds+duration, 0)
+func (self *ClusterConfiguration) getStartAndEndBasedOnDuration(microsecondsEpoch int64, duration float64) (*time.Time, *time.Time) {
+	startTimeSeconds := math.Floor(float64(microsecondsEpoch)/1000.0/1000.0/duration) * duration
+	startTime := time.Unix(int64(startTimeSeconds), 0)
+	endTime := time.Unix(int64(startTimeSeconds+duration), 0)
 
 	return &startTime, &endTime
 }
