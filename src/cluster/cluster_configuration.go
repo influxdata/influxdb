@@ -760,7 +760,7 @@ func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*S
 	}
 
 	endIndex := sort.Search(len(shards)-startIndex, func(n int) bool {
-		return shards[n+startIndex].endMicro < startTime
+		return shards[n+startIndex].endMicro <= startTime
 	})
 
 	return shards[startIndex : endIndex+startIndex]
