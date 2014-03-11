@@ -941,7 +941,9 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 }
 
 func (self *ClusterConfiguration) recover(serverId uint32, writer Writer) error {
-	return self.wal.RecoverServerFromLastCommit(serverId, self.shardIdsForServerId(serverId), func(request *protocol.Request, shardId uint32) error {
+	shardIds := self.shardIdsForServerId(serverId)
+	log.Debug("replaying wal for server %d and shardIds %#v", serverId, shardIds)
+	return self.wal.RecoverServerFromLastCommit(serverId, shardIds, func(request *protocol.Request, shardId uint32) error {
 		if request == nil {
 			log.Error("Error on recover, the wal yielded a nil request")
 			return nil
