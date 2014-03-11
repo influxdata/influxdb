@@ -292,7 +292,7 @@ func (self *ShardData) String() string {
 		local = "true"
 	}
 
-	return fmt.Sprintf("[ID: %d, LOCAL: %s, SERVERS: [%s]]", self.id, local, strings.Join(serversString, ","))
+	return fmt.Sprintf("[ID: %d, START: %d, END: %d, LOCAL: %s, SERVERS: [%s]]", self.id, self.startMicro, self.endMicro, local, strings.Join(serversString, ","))
 }
 
 func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool {
