@@ -20,7 +20,7 @@ var _ = Suite(&EngineSuite{})
 
 func (self *EngineSuite) SetUpSuite(c *C) {
 	os.RemoveAll("/tmp/influxdb/test/1")
-	self.server = NewServerProcess("test_config1.toml", 60500, time.Second*4, c)
+	self.server = NewServerProcess("test_config1.toml", 60500, time.Second, c)
 }
 
 func (self *EngineSuite) SetUpTest(c *C) {
