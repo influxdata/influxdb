@@ -594,11 +594,8 @@ func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause,
 	}
 
 	if startTime != nil {
-		fmt.Printf("here\n")
 		goQuery.startTime = *startTime
 	}
-
-	fmt.Printf("starttime: %v\n", goQuery.startTime)
 
 	return goQuery, nil
 }
