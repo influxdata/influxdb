@@ -65,6 +65,7 @@ func (self *ServerProcess) Start() error {
 		return err
 	}
 	self.p = p
+	time.Sleep(5 * time.Second)
 	return nil
 }
 
@@ -253,9 +254,9 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	err := os.RemoveAll("/tmp/influxdb/test")
 	c.Assert(err, IsNil)
 	self.serverProcesses = []*ServerProcess{
-		NewServerProcess("test_config1.toml", 60500, time.Second*4, c),
-		NewServerProcess("test_config2.toml", 60506, time.Second*4, c),
-		NewServerProcess("test_config3.toml", 60510, time.Second*4, c)}
+		NewServerProcess("test_config1.toml", 60500, time.Second, c),
+		NewServerProcess("test_config2.toml", 60506, time.Second, c),
+		NewServerProcess("test_config3.toml", 60510, time.Second, c)}
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"full_rep\", \"replicationFactor\":3}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"test_rep\", \"replicationFactor\":2}", c)
 	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"single_rep\", \"replicationFactor\":1}", c)

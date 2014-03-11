@@ -84,6 +84,8 @@ func (self *Server) ListenAndServe() error {
 	self.ClusterConfig.WaitForLocalServerLoaded()
 	self.writeLog.SetServerId(self.ClusterConfig.ServerId())
 
+	time.Sleep(5 * time.Second)
+
 	log.Info("Recovering from log...")
 	err = self.ClusterConfig.RecoverFromWAL()
 	if err != nil {
