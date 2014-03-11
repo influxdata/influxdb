@@ -226,6 +226,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: protocol.String(err.Error())}
 		}
 		response <- &p.Response{Type: &endStreamResponse}
+		return
 	}
 
 	healthyServers := make([]*ClusterServer, 0, len(self.clusterServers))
