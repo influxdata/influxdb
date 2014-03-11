@@ -847,9 +847,10 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 
 		createdShards = append(createdShards, shard)
 
-		log.Info("%s: %d - start: %s. end: %s. isLocal: %d. servers: %s",
+		log.Info("%s: %d - start: %s (%d). end: %s (%d). isLocal: %d. servers: %s",
 			message, shard.Id(),
-			shard.StartTime().Format("Mon Jan 2 15:04:05 -0700 MST 2006"), shard.EndTime().Format("Mon Jan 2 15:04:05 -0700 MST 2006"),
+			shard.StartTime().Format("Mon Jan 2 15:04:05 -0700 MST 2006"), shard.StartTime().Unix(),
+			shard.EndTime().Format("Mon Jan 2 15:04:05 -0700 MST 2006"), shard.EndTime().Unix(),
 			shard.IsLocal, shard.ServerIds())
 	}
 	return createdShards, nil
