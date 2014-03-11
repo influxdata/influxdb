@@ -7,6 +7,7 @@ import "C"
 import (
 	"common"
 	"fmt"
+	"math"
 	"reflect"
 	"regexp"
 	"strconv"
