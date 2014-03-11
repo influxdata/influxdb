@@ -2,6 +2,7 @@ package cluster
 
 import (
 	log "code.google.com/p/log4go"
+	"common"
 	"engine"
 	"fmt"
 	"parser"
@@ -74,8 +75,8 @@ func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, dura
 		startTime:       startTime,
 		endTime:         endTime,
 		wal:             wal,
-		startMicro:      startTime.Unix() * int64(1000*1000),
-		endMicro:        endTime.Unix() * int64(1000*1000),
+		startMicro:      common.TimeToMicroseconds(startTime),
+		endMicro:        common.TimeToMicroseconds(endTime),
 		serverIds:       make([]uint32, 0),
 		shardType:       shardType,
 		durationIsSplit: durationIsSplit,
@@ -234,6 +235,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: protocol.String(err.Error())}
 		}
 		response <- &p.Response{Type: &endStreamResponse}
+		return
 	}
 
 	healthyServers := make([]*ClusterServer, 0, len(self.clusterServers))
@@ -328,13 +330,6 @@ func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec,
 		self.HandleDestructiveQuery(querySpec, request, response, true)
 	}
 
-	_, err := self.wal.AssignSequenceNumbersAndLog(request, self)
-	if err != nil {
-		msg := err.Error()
-		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &msg}
-		log.Error("Error in LogAndHandleDestructiveQuery: %s", err)
-		return
-	}
 	self.HandleDestructiveQuery(querySpec, request, response, false)
 }
 
@@ -404,7 +399,6 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 			res := <-channel
 			log.Debug("Received %s response from %d for %s", res.GetType(), serverId, request.GetDescription())
 			if *res.Type == endStreamResponse {
-				self.wal.Commit(request.GetRequestNumber(), serverId)
 				break
 			}
 

@@ -126,7 +126,7 @@ func (self *Server) start() error {
 		return err
 	}
 	self.p = p
-	time.Sleep(4 * time.Second)
+	time.Sleep(6 * time.Second)
 	return nil
 }
 
@@ -599,6 +599,62 @@ func (self *IntegrationSuite) TestIssue89(c *C) {
 		sums[p["b"].(string)] = p["sum"].(float64)
 	}
 	c.Assert(sums, DeepEquals, map[string]float64{"y": 30.0, "z": 40.0})
+}
+
+// issue #306
+func (self *IntegrationSuite) TestNegativeTimeInterval(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+     "name": "test_negative_interval",
+     "columns": ["cpu", "host", "time"],
+     "points": [[60, "hosta", -1], [70, "hostb", -2]]
+  }
+]
+`)
+	c.Assert(err, IsNil)
+	bs, err := self.server.RunQuery("select count(cpu) from test_negative_interval", "m")
+	c.Assert(err, IsNil)
+	data := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Name, Equals, "test_negative_interval")
+	c.Assert(data[0].Columns, HasLen, 2)
+	c.Assert(data[0].Points, HasLen, 1)
+	// count should be 3
+	c.Assert(data[0].Points[0][1], Equals, 2.0)
+}
+
+// issue #306
+func (self *IntegrationSuite) TestShardBoundaries(c *C) {
+	d := fmt.Sprintf(`
+[
+  {
+     "name": "test_end_time_of_shard_is_exclusive",
+     "columns": ["cpu", "host", "time"],
+     "points": [[60, "hosta", %d], [70, "hostb", %d]]
+  }
+]
+`, -1, 0)
+	fmt.Printf("data: %s\n", d)
+	err := self.server.WriteData(d, "time_precision=s")
+
+	c.Assert(err, IsNil)
+	for _, query := range []string{
+		"select count(cpu) from test_end_time_of_shard_is_exclusive where time > 0s",
+		"select count(cpu) from test_end_time_of_shard_is_exclusive where time < 0s",
+	} {
+		fmt.Printf("Running query: %s\n", query)
+		bs, err := self.server.RunQuery(query, "s")
+		c.Assert(err, IsNil)
+		data := []*SerializedSeries{}
+		err = json.Unmarshal(bs, &data)
+		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Name, Equals, "test_end_time_of_shard_is_exclusive")
+		c.Assert(data[0].Columns, HasLen, 2)
+		c.Assert(data[0].Points, HasLen, 1)
+		c.Assert(data[0].Points[0][1], Equals, 1.0)
+	}
 }
 
 // see https://groups.google.com/forum/#!searchin/influxdb/crash/influxdb/5d8s_zH_KdM/xo5B8qoeduoJ
