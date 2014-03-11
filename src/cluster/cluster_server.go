@@ -89,9 +89,10 @@ func (self *ClusterServer) Connect() {
 	self.connection.Connect()
 }
 
-func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
+func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) {
 	err := self.connection.MakeRequest(request, responseStream)
 	if err != nil {
+		log.Error("Error while making request to server: %s", err)
 		self.isUp = false
 		message := err.Error()
 		select {
@@ -99,7 +100,6 @@ func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream
 		default:
 		}
 	}
-	return err
 }
 
 func (self *ClusterServer) Write(request *protocol.Request) error {
@@ -140,12 +140,8 @@ func (self *ClusterServer) heartbeat() {
 	}
 	for {
 		heartbeatRequest.Id = nil
-		err := self.MakeRequest(heartbeatRequest, responseChan)
-		if err != nil {
-			self.handleHeartbeatError(err)
-			continue
-		}
-		err = self.getHeartbeatResponse(responseChan)
+		self.MakeRequest(heartbeatRequest, responseChan)
+		err := self.getHeartbeatResponse(responseChan)
 		if err != nil {
 			self.handleHeartbeatError(err)
 			continue

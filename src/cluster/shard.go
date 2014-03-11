@@ -3,7 +3,6 @@ package cluster
 import (
 	log "code.google.com/p/log4go"
 	"engine"
-	"errors"
 	"fmt"
 	"parser"
 	"protocol"
@@ -23,7 +22,7 @@ type Shard interface {
 	StartTime() time.Time
 	EndTime() time.Time
 	Write(*p.Request) error
-	Query(querySpec *parser.QuerySpec, response chan *p.Response) error
+	Query(querySpec *parser.QuerySpec, response chan *p.Response)
 	IsMicrosecondInRange(t int64) bool
 }
 
@@ -181,14 +180,14 @@ func (self *ShardData) WriteLocalOnly(request *p.Request) error {
 	return nil
 }
 
-func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Response) error {
+func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Response) {
 	// This is only for queries that are deletes or drops. They need to be sent everywhere as opposed to just the local or one of the remote shards.
 	// But this boolean should only be set to true on the server that receives the initial query.
 	if querySpec.RunAgainstAllServersInShard {
 		if querySpec.IsDeleteFromSeriesQuery() {
-			return self.logAndHandleDeleteQuery(querySpec, response)
+			self.logAndHandleDeleteQuery(querySpec, response)
 		} else if querySpec.IsDropSeriesQuery() {
-			return self.logAndHandleDropSeriesQuery(querySpec, response)
+			self.logAndHandleDropSeriesQuery(querySpec, response)
 		}
 	}
 
@@ -207,7 +206,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 				if err != nil {
 					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: protocol.String(err.Error())}
 					log.Error("Error while creating engine: %s", err)
-					return err
+					return
 				}
 			} else {
 				maxPointsToBufferBeforeSending := 1000
@@ -216,12 +215,17 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 		}
 		shard, err := self.store.GetOrCreateShard(self.id)
 		if err != nil {
-			return err
+			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: protocol.String(err.Error())}
+			log.Error("Error while getting shards: %s", err)
+			return
 		}
 		defer self.store.ReturnShard(self.id)
 		err = shard.Query(querySpec, processor)
 		processor.Close()
-		return err
+		if err != nil {
+			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: protocol.String(err.Error())}
+		}
+		response <- &p.Response{Type: &endStreamResponse}
 	}
 
 	healthyServers := make([]*ClusterServer, 0, len(self.clusterServers))
@@ -235,13 +239,14 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 	if healthyCount == 0 {
 		message := fmt.Sprintf("No servers up to query shard %d", self.id)
 		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &message}
-		return errors.New(message)
+		log.Error(message)
+		return
 	}
 	randServerIndex := int(time.Now().UnixNano() % int64(healthyCount))
 	server := healthyServers[randServerIndex]
 	request := self.createRequest(querySpec)
 
-	return server.MakeRequest(request, response)
+	server.MakeRequest(request, response)
 }
 
 func (self *ShardData) DropDatabase(database string, sendToServers bool) {
@@ -299,27 +304,30 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 	return false
 }
 
-func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *p.Response) error {
+func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *p.Response) {
 	queryString := querySpec.GetQueryStringWithTimeCondition()
 	request := self.createRequest(querySpec)
 	request.Query = &queryString
-	return self.LogAndHandleDestructiveQuery(querySpec, request, response, false)
+	self.LogAndHandleDestructiveQuery(querySpec, request, response, false)
 }
 
-func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, response chan *p.Response) error {
-	return self.LogAndHandleDestructiveQuery(querySpec, self.createRequest(querySpec), response, false)
+func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, response chan *p.Response) {
+	self.LogAndHandleDestructiveQuery(querySpec, self.createRequest(querySpec), response, false)
 }
 
-func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) error {
+func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) {
 	if runLocalOnly {
-		return self.HandleDestructiveQuery(querySpec, request, response, true)
+		self.HandleDestructiveQuery(querySpec, request, response, true)
 	}
 
 	_, err := self.wal.AssignSequenceNumbersAndLog(request, self)
 	if err != nil {
-		return err
+		msg := err.Error()
+		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &msg}
+		log.Error("Error in LogAndHandleDestructiveQuery: %s", err)
+		return
 	}
-	return self.HandleDestructiveQuery(querySpec, request, response, false)
+	self.HandleDestructiveQuery(querySpec, request, response, false)
 }
 
 func (self *ShardData) deleteDataLocally(querySpec *parser.QuerySpec) (<-chan *p.Response, error) {
@@ -353,9 +361,9 @@ func (self *ShardData) forwardRequest(request *p.Request) ([]<-chan *p.Response,
 	return responses, ids, nil
 }
 
-func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) error {
-	if self.IsLocal && runLocalOnly {
-		return nil
+func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) {
+	if !self.IsLocal && runLocalOnly {
+		panic("WTF islocal is false and runLocalOnly is true")
 	}
 
 	responseCahnnels := []<-chan *p.Response{}
@@ -364,7 +372,10 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 	if self.IsLocal {
 		channel, err := self.deleteDataLocally(querySpec)
 		if err != nil {
-			return err
+			msg := err.Error()
+			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &msg}
+			log.Error(msg)
+			return
 		}
 		responseCahnnels = append(responseCahnnels, channel)
 		serverIds = append(serverIds, self.localServerId)
@@ -401,10 +412,8 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 
 	if accessDenied {
 		response <- &p.Response{Type: &accessDeniedResponse}
-	} else {
-		response <- &p.Response{Type: &endStreamResponse}
 	}
-	return nil
+	response <- &p.Response{Type: &endStreamResponse}
 }
 
 func (self *ShardData) createRequest(querySpec *parser.QuerySpec) *p.Request {
