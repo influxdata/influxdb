@@ -417,7 +417,7 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 			}
 			wb.Delete(k)
 			count++
-			if count >= ONE_MEGABYTE {
+			if count >= SIXTY_FOUR_KILOBYTES {
 				err = self.db.Write(self.writeOptions, wb)
 				if err != nil {
 					return err
