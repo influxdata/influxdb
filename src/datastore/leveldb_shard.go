@@ -409,12 +409,22 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 				}
 			}
 		}
+		count := 0
 		for it = it; it.Valid(); it.Next() {
 			k := it.Key()
 			if len(k) < 16 || !bytes.Equal(k[:8], field.Id) || bytes.Compare(k[8:16], endTimeBytes) == 1 {
 				break
 			}
 			wb.Delete(k)
+			count++
+			if count >= ONE_MEGABYTE {
+				err = self.db.Write(self.writeOptions, wb)
+				if err != nil {
+					return err
+				}
+				count = 0
+				wb.Clear()
+			}
 			endKey = k
 		}
 		err = self.db.Write(self.writeOptions, wb)
