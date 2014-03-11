@@ -274,7 +274,7 @@
 - [Issue #309](https://github.com/influxdb/influxdb/issues/309). Don't relog the requests on the remote server
 - Fix few bugs in the WAL and refactor the way it works (this requires purging the WAL from previous rc)
 
-## v0.5.0-rc.5 [unreleased]
+## v0.5.0-rc.5 [2014-03-11]
 
 ### Bugfixes
 
@@ -284,3 +284,11 @@
 - [Issue #316](https://github.com/influxdb/influxdb/issues/316). Make
   sure we don't starve goroutines if we get an access denied error
   from one of the shards
+- [Issue #306](https://github.com/influxdb/influxdb/issues/306). Deleting/Dropping database takes a lot of memory
+- [Issue #302](https://github.com/influxdb/influxdb/issues/302). Should be able to set negative timestamps on points
+- [Issue #327](https://github.com/influxdb/influxdb/issues/327). Make delete queries not use WAL. This addresses #315, #317 and #314
+- [Issue #321](https://github.com/influxdb/influxdb/issues/321). Make sure we split points on shards properly
+
+## v0.5.0 [unreleased]
+
+### Bugfixes
