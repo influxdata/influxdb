@@ -29,13 +29,13 @@ type HttpServer struct {
 	httpSslCert    string
 	adminAssetsDir string
 	coordinator    coordinator.Coordinator
-	userManager    coordinator.UserManager
+	userManager    UserManager
 	shutdown       chan bool
 	clusterConfig  *cluster.ClusterConfiguration
 	raftServer     *coordinator.RaftServer
 }
 
-func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager coordinator.UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
+func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
 	self := &HttpServer{}
 	self.httpPort = httpPort
 	self.adminAssetsDir = adminAssetsDir

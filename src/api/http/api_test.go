@@ -604,12 +604,10 @@ func (self *ApiSuite) TestClusterAdminOperations(c *C) {
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 2)
+	c.Assert(self.manager.ops, HasLen, 1)
 	c.Assert(self.manager.ops[0].operation, Equals, "cluster_admin_add")
 	c.Assert(self.manager.ops[0].username, Equals, "new_user")
-	c.Assert(self.manager.ops[1].operation, Equals, "cluster_admin_passwd")
-	c.Assert(self.manager.ops[1].username, Equals, "new_user")
-	c.Assert(self.manager.ops[1].password, Equals, "new_pass")
+	c.Assert(self.manager.ops[0].password, Equals, "new_pass")
 	self.manager.ops = nil
 
 	url = self.formatUrl("/cluster_admins/new_user?u=root&p=root")
@@ -640,12 +638,10 @@ func (self *ApiSuite) TestDbUserOperations(c *C) {
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 2)
+	c.Assert(self.manager.ops, HasLen, 1)
 	c.Assert(self.manager.ops[0].operation, Equals, "db_user_add")
 	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[1].operation, Equals, "db_user_passwd")
-	c.Assert(self.manager.ops[1].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[1].password, Equals, "password")
+	c.Assert(self.manager.ops[0].password, Equals, "password")
 	self.manager.ops = nil
 
 	// create user using the `username` field
@@ -654,12 +650,10 @@ func (self *ApiSuite) TestDbUserOperations(c *C) {
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 2)
+	c.Assert(self.manager.ops, HasLen, 1)
 	c.Assert(self.manager.ops[0].operation, Equals, "db_user_add")
 	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[1].operation, Equals, "db_user_passwd")
-	c.Assert(self.manager.ops[1].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[1].password, Equals, "password")
+	c.Assert(self.manager.ops[0].password, Equals, "password")
 	self.manager.ops = nil
 
 	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
