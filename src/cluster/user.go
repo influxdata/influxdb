@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"code.google.com/p/go.crypto/bcrypt"
+	"common"
 	"github.com/influxdb/go-cache"
 	"regexp"
 )
@@ -131,6 +132,10 @@ func (self *DbUser) GetDb() string {
 }
 
 func HashPassword(password string) ([]byte, error) {
+	if length := len(password); length < 4 || length > 56 {
+		return nil, common.NewQueryError(common.InvalidArgument, "Password must be more than 4 and less than 56 characters")
+	}
+
 	// The second arg is the cost of the hashing, higher is slower but makes it harder
 	// to brute force, since it will be really slow and impractical
 	return bcrypt.GenerateFromPassword([]byte(password), 10)
