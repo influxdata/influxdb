@@ -585,12 +585,9 @@ func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		username := newUser.Name
-		if err := self.userManager.CreateClusterAdminUser(u, username); err != nil {
+		if err := self.userManager.CreateClusterAdminUser(u, username, newUser.Password); err != nil {
 			errorStr := err.Error()
 			return errorToStatusCode(err), errorStr
-		}
-		if err := self.userManager.ChangeClusterAdminPassword(u, username, newUser.Password); err != nil {
-			return errorToStatusCode(err), err.Error()
 		}
 		return libhttp.StatusOK, nil
 	})
@@ -742,18 +739,11 @@ func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
 		username := newUser.Name
-		if err := self.userManager.CreateDbUser(u, db, username); err != nil {
+		if err := self.userManager.CreateDbUser(u, db, username, newUser.Password); err != nil {
 			log.Error("Cannot create user: %s", err)
 			return errorToStatusCode(err), err.Error()
 		}
 		log.Debug("Created user %s", username)
-		if err := self.userManager.ChangeDbUserPassword(u, db, username, newUser.Password); err != nil {
-			log.Error("Cannot change user password: %s", err)
-			// there is probably something wrong if we could create
-			// the user but not change the password. so return
-			// 500
-			return libhttp.StatusInternalServerError, err.Error()
-		}
 		if newUser.IsAdmin {
 			err = self.userManager.SetDbAdmin(u, db, newUser.Name, true)
 			if err != nil {

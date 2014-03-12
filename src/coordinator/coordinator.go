@@ -624,7 +624,7 @@ func (self *CoordinatorImpl) ListClusterAdmins(requester common.User) ([]string,
 	return self.clusterConfiguration.GetClusterAdmins(), nil
 }
 
-func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, username string) error {
+func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, username, password string) error {
 	if !requester.IsClusterAdmin() {
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
@@ -633,11 +633,16 @@ func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, usern
 		return fmt.Errorf("%s isn't a valid username", username)
 	}
 
+	hash, err := cluster.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
 	if self.clusterConfiguration.GetClusterAdmin(username) != nil {
 		return fmt.Errorf("User %s already exists", username)
 	}
 
-	return self.raftServer.SaveClusterAdminUser(&cluster.ClusterAdmin{cluster.CommonUser{Name: username, CacheKey: username}})
+	return self.raftServer.SaveClusterAdminUser(&cluster.ClusterAdmin{cluster.CommonUser{Name: username, CacheKey: username, Hash: string(hash)}})
 }
 
 func (self *CoordinatorImpl) DeleteClusterAdminUser(requester common.User, username string) error {
@@ -672,7 +677,7 @@ func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, u
 	return self.raftServer.SaveClusterAdminUser(user)
 }
 
-func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username string) error {
+func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, password string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
@@ -685,13 +690,22 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username st
 		return fmt.Errorf("%s isn't a valid username", username)
 	}
 
+	hash, err := cluster.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
 	self.CreateDatabase(requester, db, uint8(1)) // ignore the error since the db may exist
 	if self.clusterConfiguration.GetDbUser(db, username) != nil {
 		return fmt.Errorf("User %s already exists", username)
 	}
 	matchers := []*cluster.Matcher{&cluster.Matcher{true, ".*"}}
 	log.Debug("(raft:%s) Creating user %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
-	return self.raftServer.SaveDbUser(&cluster.DbUser{cluster.CommonUser{Name: username, CacheKey: db + "%" + username}, db, matchers, matchers, false})
+	return self.raftServer.SaveDbUser(&cluster.DbUser{cluster.CommonUser{
+		Name:     username,
+		Hash:     string(hash),
+		CacheKey: db + "%" + username,
+	}, db, matchers, matchers, false})
 }
 
 func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username string) error {

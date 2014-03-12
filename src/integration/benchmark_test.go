@@ -273,6 +273,31 @@ func (self *IntegrationSuite) TestAdminPermissionToDeleteData(c *C) {
 	c.Assert(series, HasLen, 0)
 }
 
+func (self *IntegrationSuite) TestShortPasswords(c *C) {
+	url := "http://localhost:8086/db/shahid/users?u=root&p=root"
+	resp, err := http.Post(url, "application/json", bytes.NewBufferString(`{"name": "shahid", "password": "1"}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusBadRequest)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	// we shouldn't be relieving information about the crypto
+	c.Assert(string(body), Not(Matches), ".*blowfish.*")
+
+	// should be able to recreate the user
+	url = "http://localhost:8086/db/shahid/users?u=root&p=root"
+	resp, err = http.Post(url, "application/json", bytes.NewBufferString(`{"name": "shahid", "password": "shahid"}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+
+	url = "http://localhost:8086/db/shahid/authenticate?u=shahid&p=shahid"
+	resp, err = http.Get(url)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+}
+
 func (self *IntegrationSuite) TestMedians(c *C) {
 	for i := 0; i < 3; i++ {
 		err := self.server.WriteData(fmt.Sprintf(`
