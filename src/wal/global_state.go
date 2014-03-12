@@ -114,6 +114,12 @@ func (self *GlobalState) setCurrentSequenceNumber(shardId uint32, sequenceNumber
 }
 
 func (self *GlobalState) commitRequestNumber(serverId, requestNumber uint32) {
+	// TODO: we need a way to verify the request numbers, the following
+	// won't work though when the request numbers roll over
+
+	// if currentRequestNumber := self.ServerLastRequestNumber[serverId]; requestNumber < currentRequestNumber {
+	// 	panic(fmt.Errorf("Expected rn %d to be >= %d", requestNumber, currentRequestNumber))
+	// }
 	self.ServerLastRequestNumber[serverId] = requestNumber
 }
 
