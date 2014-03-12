@@ -137,6 +137,7 @@ func (self *Server) stop() {
 
 	self.p.Signal(syscall.SIGTERM)
 	self.p.Wait()
+	self.p = nil
 }
 
 func (self *IntegrationSuite) createUser() error {
