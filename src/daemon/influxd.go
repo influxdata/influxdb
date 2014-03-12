@@ -15,11 +15,6 @@ import (
 	"time"
 )
 
-const (
-	version = "dev"
-	gitSha = "d253d091f99015360a1572658cbe6522a8b4e133"
-)
-
 func setupLogging(loggingLevel, logFile string) {
 	level := log.DEBUG
 	switch loggingLevel {

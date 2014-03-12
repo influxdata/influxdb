@@ -17,6 +17,7 @@ a.out
 .DS_Store
 
 # ignore generated files.
+src/daemon/version.go
 src/parser/lex.yy.c
 src/parser/y.tab.h
 src/parser/y.tab.c
