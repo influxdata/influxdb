@@ -41,7 +41,7 @@ func (self *ListSeriesEngine) YieldPoint(seriesName *string, columnNames []strin
 	return true
 }
 
-func (self *ListSeriesEngine) YieldSeries(seriesName *string, columnNames []string, seriesIncoming *protocol.Series) bool {
+func (self *ListSeriesEngine) YieldSeries(seriesIncoming *protocol.Series) bool {
 	if len(self.response.MultiSeries) > MAX_SERIES_IN_RESPONSE {
 		self.responseChan <- self.response
 		self.response = &protocol.Response{
@@ -49,7 +49,7 @@ func (self *ListSeriesEngine) YieldSeries(seriesName *string, columnNames []stri
 			MultiSeries: make([]*protocol.Series, 0),
 		}
 	}
-	self.response.MultiSeries = append(self.response.MultiSeries, &protocol.Series{Name: seriesName})
+	self.response.MultiSeries = append(self.response.MultiSeries, &protocol.Series{Name: seriesIncoming.Name})
 	return true
 }
 

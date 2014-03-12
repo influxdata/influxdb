@@ -301,22 +301,26 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 				break
 			}
 
-			// if we don't have a processor, yield the point to the writer
-			// this happens if shard took care of the query
-			// otherwise client will get points from passthrough engine
-			if processor == nil {
-				// If we have EXPLAIN query, we don't write actual points (of response.Type Query) to the client
-				if !(*response.Type == queryResponse && querySpec.IsExplainQuery()) {
-					seriesWriter.Write(response.Series)
-				}
+			if response.Series == nil || len(response.Series.Points) == 0 {
+				log.Debug("Series has no points, continue")
 				continue
 			}
 
-			// if the data wasn't aggregated at the shard level, aggregate
-			// the data here
-			if response.Series != nil {
+			// if we don't have a processor, yield the point to the writer
+			// this happens if shard took care of the query
+			// otherwise client will get points from passthrough engine
+			if processor != nil {
+				// if the data wasn't aggregated at the shard level, aggregate
+				// the data here
 				log.Debug("YIELDING: %d points", len(response.Series.Points))
-				processor.YieldSeries(response.Series.Name, response.Series.Fields, response.Series)
+				processor.YieldSeries(response.Series)
+				continue
+			}
+
+			// If we have EXPLAIN query, we don't write actual points (of
+			// response.Type Query) to the client
+			if !(*response.Type == queryResponse && querySpec.IsExplainQuery()) {
+				seriesWriter.Write(response.Series)
 			}
 		}
 		log.Debug("DONE: shard: ", shards[i].String())

@@ -75,7 +75,7 @@ func (self *PassthroughEngine) YieldPoint(seriesName *string, columnNames []stri
 	return !self.limiter.hitLimit(*seriesName)
 }
 
-func (self *PassthroughEngine) YieldSeries(seriesName *string, fieldNames []string, seriesIncoming *protocol.Series) bool {
+func (self *PassthroughEngine) YieldSeries(seriesIncoming *protocol.Series) bool {
 	log.Debug("PassthroughEngine YieldSeries %d", len(seriesIncoming.Points))
 	if *seriesIncoming.Name == "explain query" {
 		self.responseType = &explainQueryResponse
@@ -95,7 +95,7 @@ func (self *PassthroughEngine) YieldSeries(seriesName *string, fieldNames []stri
 			Type:   self.responseType,
 			Series: seriesIncoming,
 		}
-	} else if *self.response.Series.Name != *seriesName {
+	} else if self.response.Series.GetName() != seriesIncoming.GetName() {
 		self.responseChan <- self.response
 		self.response = &protocol.Response{
 			Type:   self.responseType,
@@ -110,7 +110,7 @@ func (self *PassthroughEngine) YieldSeries(seriesName *string, fieldNames []stri
 	} else {
 		self.response.Series.Points = append(self.response.Series.Points, seriesIncoming.Points...)
 	}
-	return !self.limiter.hitLimit(*seriesName)
+	return !self.limiter.hitLimit(seriesIncoming.GetName())
 	//return true
 }
 

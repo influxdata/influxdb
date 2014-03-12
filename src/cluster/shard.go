@@ -31,7 +31,7 @@ type QueryProcessor interface {
 	// This method returns true if the query should continue. If the query should be stopped,
 	// like maybe the limit was hit, it should return false
 	YieldPoint(seriesName *string, columnNames []string, point *p.Point) bool
-	YieldSeries(seriesName *string, columnNames []string, seriesIncoming *p.Series) bool
+	YieldSeries(seriesIncoming *p.Series) bool
 	Close()
 
 	// Set by the shard, so EXPLAIN query can know query against which shard is being measured
@@ -217,6 +217,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 			processor = engine.NewPassthroughEngine(response, maxDeleteResults)
 		} else {
 			if self.ShouldAggregateLocally(querySpec) {
+				fmt.Printf("creating a query engine\n")
 				processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), response)
 				if err != nil {
 					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
@@ -226,6 +227,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 				processor.SetShardInfo(int(self.Id()), self.IsLocal)
 			} else {
 				maxPointsToBufferBeforeSending := 1000
+				fmt.Printf("creating a passthrough engine\n")
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
 			}
 		}
