@@ -284,6 +284,8 @@ func (self *CoordinatorSuite) TestAutomaticDbCreations(c *C) {
 	// can create db users
 	c.Assert(coordinator.CreateDbUser(root, "db1", "db_user", "pass"), IsNil)
 
+	time.Sleep(REPLICATION_LAG)
+
 	// the db should be in the index now
 	for _, server := range servers {
 		coordinator := NewCoordinatorImpl(DEFAULT_CONFIGURATION, server, server.clusterConfig)
