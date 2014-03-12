@@ -228,7 +228,7 @@ $(source_package): dependencies
 	$(GO) get -d $(levigo_dependency)
 	rm -f daemon
 	rm -f benchmark
-	git ls-files --others | egrep -v 'github|launchpad|code.google' > /tmp/influxdb.ignored
+	git ls-files --others | egrep -v 'github|launchpad|code.google|version.go' > /tmp/influxdb.ignored
 	echo "pkg/*" >> /tmp/influxdb.ignored
 	echo "packages/*" >> /tmp/influxdb.ignored
 	echo "build/*" >> /tmp/influxdb.ignored
