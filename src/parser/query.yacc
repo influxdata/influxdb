@@ -208,29 +208,9 @@ DROP_SERIES_QUERY:
         }
 
 EXPLAIN_QUERY:
-        EXPLAIN SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
+        EXPLAIN SELECT_QUERY
         {
-          $$ = calloc(1, sizeof(select_query));
-          $$->c = $3;
-          $$->from_clause = $4;
-          $$->group_by = $5;
-          $$->where_condition = $6;
-          $$->limit = $7.limit;
-          $$->ascending = $7.ascending;
-          $$->into_clause = $8;
-          $$->explain = TRUE;
-        }
-        |
-        EXPLAIN SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
-        {
-          $$ = calloc(1, sizeof(select_query));
-          $$->c = $3;
-          $$->from_clause = $4;
-          $$->where_condition = $5;
-          $$->group_by = $6;
-          $$->limit = $7.limit;
-          $$->ascending = $7.ascending;
-          $$->into_clause = $8;
+          $$ = $2;
           $$->explain = TRUE;
         }
 
