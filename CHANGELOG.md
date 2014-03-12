@@ -292,3 +292,7 @@
 ## v0.5.0 [unreleased]
 
 ### Bugfixes
+
+- [Issue #333](https://github.com/influxdb/influxdb/issues/333). Better
+  error message when password is invalid and don't create the user if
+  the password is invalid
