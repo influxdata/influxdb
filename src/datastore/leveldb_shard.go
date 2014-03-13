@@ -281,8 +281,12 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 
 		if len(seriesOutgoing.Points) >= self.pointBatchSize {
 			for _, alias := range aliases {
-				_alias := alias
-				if !processor.YieldSeries(&_alias, fieldNames, seriesOutgoing) {
+				series := &protocol.Series{
+					Name:   proto.String(alias),
+					Fields: fieldNames,
+					Points: seriesOutgoing.Points,
+				}
+				if !processor.YieldSeries(series) {
 					shouldContinue = false
 				}
 			}
@@ -296,9 +300,9 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 
 	//Yield remaining data
 	for _, alias := range aliases {
-		_alias := alias
-		log.Debug("Final Flush %s", _alias)
-		if !processor.YieldSeries(&_alias, fieldNames, seriesOutgoing) {
+		log.Debug("Final Flush %s", alias)
+		series := &protocol.Series{Name: protocol.String(alias), Fields: seriesOutgoing.Fields, Points: seriesOutgoing.Points}
+		if !processor.YieldSeries(series) {
 			log.Debug("Cancelled...")
 		}
 	}

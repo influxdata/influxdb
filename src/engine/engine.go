@@ -29,15 +29,24 @@ type QueryEngine struct {
 	pointsRange         map[string]*PointRange
 	groupBy             *parser.GroupByClause
 	aggregateYield      func(*protocol.Series) error
+	explain             bool
+
+	// query statistics
+	runStartTime  float64
+	runEndTime    float64
+	pointsRead    int64
+	pointsWritten int64
+	shardId       int
+	shardLocal    bool
 }
+
+var (
+	endStreamResponse    = protocol.Response_END_STREAM
+	explainQueryResponse = protocol.Response_EXPLAIN_QUERY
+)
 
 const (
 	POINT_BATCH_SIZE = 64
-)
-
-var (
-	responseQuery     = protocol.Response_QUERY
-	responseEndStream = protocol.Response_END_STREAM
 )
 
 // distribute query and possibly do the merge/join before yielding the points
@@ -69,11 +78,30 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		where:          query.GetWhereCondition(),
 		limiter:        NewLimiter(limit),
 		responseChan:   responseChan,
-		seriesToPoints: make(map[string]*protocol.Series),		
+		seriesToPoints: make(map[string]*protocol.Series),
+		// stats stuff
+		explain:       query.IsExplainQuery(),
+		runStartTime:  0,
+		runEndTime:    0,
+		pointsRead:    0,
+		pointsWritten: 0,
+		shardId:       0,
+		shardLocal:    false, //that really doesn't matter if it is not EXPLAIN query
+	}
+
+	if queryEngine.explain {
+		queryEngine.runStartTime = float64(time.Now().UnixNano()) / float64(time.Millisecond)
 	}
 
 	yield := func(series *protocol.Series) error {
-		response := &protocol.Response{Type: &responseQuery, Series: series}
+		var response *protocol.Response
+
+		if queryEngine.explain {
+			//TODO: We may not have to send points, just count them
+			queryEngine.pointsWritten += int64(len(series.Points))
+		}
+
+		response = &protocol.Response{Type: &queryResponse, Series: series}
 		responseChan <- response
 		return nil
 	}
@@ -93,6 +121,12 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 	return queryEngine, nil
 }
 
+// Shard will call this method for EXPLAIN query
+func (self *QueryEngine) SetShardInfo(shardId int, shardLocal bool) {
+	self.shardId = shardId
+	self.shardLocal = shardLocal
+}
+
 // Returns false if the query should be stopped (either because of limit or error)
 func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, point *protocol.Point) (shouldContinue bool) {
 	shouldContinue = true
@@ -107,10 +141,20 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 	}
 	series.Points = append(series.Points, point)
 
+	if self.explain {
+		self.pointsRead++
+	}
+
+	fmt.Printf("self.seriesToPoints: %#v\n", self.seriesToPoints)
 	return shouldContinue
 }
 
-func (self *QueryEngine) YieldSeries(seriesName *string, fieldNames []string, seriesIncoming *protocol.Series) (shouldContinue bool) {
+func (self *QueryEngine) YieldSeries(seriesIncoming *protocol.Series) (shouldContinue bool) {
+	if self.explain {
+		self.pointsRead += int64(len(seriesIncoming.Points))
+	}
+	seriesName := seriesIncoming.GetName()
+	self.seriesToPoints[seriesName] = &protocol.Series{Name: &seriesName, Fields: seriesIncoming.Fields}
 	return self.yieldSeriesData(seriesIncoming)
 }
 
@@ -169,6 +213,8 @@ func (self *QueryEngine) filter(series *protocol.Series) ([]*protocol.Series, er
 }
 
 func (self *QueryEngine) Close() {
+	fmt.Printf("Closing: %#v\n", self.seriesToPoints)
+
 	for _, series := range self.seriesToPoints {
 		if len(series.Points) == 0 {
 			continue
@@ -182,6 +228,7 @@ func (self *QueryEngine) Close() {
 			Name:   series.Name,
 			Fields: series.Fields,
 		}
+		fmt.Printf("yielding empty series for %s\n", series.GetName())
 		err = self.yield(s)
 		if err != nil {
 			break
@@ -191,11 +238,52 @@ func (self *QueryEngine) Close() {
 	if self.isAggregateQuery {
 		self.runAggregates()
 	}
-	response := &protocol.Response{Type: &responseEndStream}
+
+	if self.explain {
+		self.runEndTime = float64(time.Now().UnixNano()) / float64(time.Millisecond)
+		log.Debug("QueryEngine: %.3f R:%d W:%d", self.runEndTime-self.runStartTime, self.pointsRead, self.pointsWritten)
+
+		self.SendQueryStats()
+	}
+	response := &protocol.Response{Type: &endStreamResponse}
 	if err != nil {
 		message := err.Error()
 		response.ErrorMessage = &message
 	}
+	self.responseChan <- response
+}
+
+func (self *QueryEngine) SendQueryStats() {
+	timestamp := time.Now().UnixNano() / int64(time.Microsecond)
+
+	runTime := self.runEndTime - self.runStartTime
+	points := []*protocol.Point{}
+	pointsRead := self.pointsRead
+	pointsWritten := self.pointsWritten
+	shardId := int64(self.shardId)
+	shardLocal := self.shardLocal
+	engineName := "QueryEngine"
+
+	point := &protocol.Point{
+		Values: []*protocol.FieldValue{
+			&protocol.FieldValue{StringValue: &engineName},
+			&protocol.FieldValue{Int64Value: &shardId},
+			&protocol.FieldValue{BoolValue: &shardLocal},
+			&protocol.FieldValue{DoubleValue: &runTime},
+			&protocol.FieldValue{Int64Value: &pointsRead},
+			&protocol.FieldValue{Int64Value: &pointsWritten},
+		},
+		Timestamp: &timestamp,
+	}
+	points = append(points, point)
+
+	seriesName := "explain query"
+	series := &protocol.Series{
+		Name:   &seriesName,
+		Fields: []string{"engine_name", "shard_id", "shard_local", "run_time", "points_read", "points_written"},
+		Points: points,
+	}
+	response := &protocol.Response{Type: &explainQueryResponse, Series: series}
 	self.responseChan <- response
 }
 
@@ -611,4 +699,8 @@ func (self *QueryEngine) executeArithmeticQuery(query *parser.SelectQuery, yield
 
 		return nil
 	})
+}
+
+func (self *QueryEngine) GetName() string {
+	return "QueryEngine"
 }

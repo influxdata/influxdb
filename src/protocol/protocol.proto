@@ -57,6 +57,7 @@ message Response {
     // Access denied also serves as an end of stream response
     ACCESS_DENIED = 8;
     HEARTBEAT = 9;
+    EXPLAIN_QUERY = 10;
   }
   enum ErrorCode {
     REQUEST_TOO_LARGE = 1;

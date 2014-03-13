@@ -109,6 +109,13 @@ func (self *QuerySpec) IsSinglePointQuery() bool {
 	return false
 }
 
+func (self *QuerySpec) IsExplainQuery() bool {
+	if self.query.SelectQuery != nil {
+		return self.query.SelectQuery.IsExplainQuery()
+	}
+	return false
+}
+
 func (self *QuerySpec) SelectQuery() *SelectQuery {
 	return self.query.SelectQuery
 }

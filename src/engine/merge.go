@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"parser"
 	"protocol"
 )
@@ -16,6 +17,7 @@ func getJoinYield(query *parser.SelectQuery, yield func(*protocol.Series) error)
 	name := table1 + "_join_" + table2
 
 	return mergeYield(table1, table2, false, query.Ascending, func(s *protocol.Series) error {
+		fmt.Printf("join series: %d\n", len(s.Points))
 		if *s.Name == table1 {
 			lastPoint1 = s.Points[len(s.Points)-1]
 			if lastFields1 == nil {
@@ -269,6 +271,8 @@ func mergeYield(table1, table2 string, modifyValues bool, ascending bool, yield 
 	}
 
 	return func(p *protocol.Series) error {
+		fmt.Printf("series: %v\n", len(p.Points))
+
 		state.updateState(p)
 
 		if err := state.flushIfNecessary(yield); err != nil {
