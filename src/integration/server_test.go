@@ -1291,18 +1291,20 @@ func (self *ServerSuite) TestContinuousQueryInterpolation(c *C) {
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s1 into :series_name.foo;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s2 into :series_name.foo.[c3];", false, c)
 	/* self.serverProcesses[0].QueryAsRoot("test_cq", "select average(c4), count(c5) from s3 group by time(1h) into [average].[count];", false, c) */
+	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s4 into :series_name.foo.[c6].[c7];", false, c)
 
 	data := `[
     {"name": "s1", "columns": ["c1", "c2"], "points": [[1, "a"], [2, "b"]]},
     {"name": "s2", "columns": ["c3"], "points": [[3]]},
-    {"name": "s3", "columns": ["c4", "c5"], "points": [[4,5], [5,6], [6,7]]}
+    {"name": "s3", "columns": ["c4", "c5"], "points": [[4,5], [5,6], [6,7]]},
+    {"name": "s4", "columns": ["c6", "c7", "c8"], "points": [[1, "a", 10], [2, "b", 11]]}
   ]`
 
 	self.serverProcesses[0].Post("/db/test_cq/series?u=paul&p=pass", data, c)
 
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series := collection.GetSeries("continuous queries", c)
-	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.Points, HasLen, 3)
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s1;", false, c)
 	series = collection.GetSeries("s1", c)
@@ -1326,9 +1328,22 @@ func (self *ServerSuite) TestContinuousQueryInterpolation(c *C) {
 	series = collection.GetSeries("s2.foo.3", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, float64(3))
 
+	collection = self.serverProcesses[0].Query("test_cq", "select * from s4.foo.1.a;", false, c)
+	series = collection.GetSeries("s4.foo.1.a", c)
+	c.Assert(series.GetValueForPointAndColumn(0, "c6", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(0, "c7", c), Equals, "a")
+	c.Assert(series.GetValueForPointAndColumn(0, "c8", c), Equals, float64(10))
+
+	collection = self.serverProcesses[0].Query("test_cq", "select * from s4.foo.2.b;", false, c)
+	series = collection.GetSeries("s4.foo.2.b", c)
+	c.Assert(series.GetValueForPointAndColumn(0, "c6", c), Equals, float64(2))
+	c.Assert(series.GetValueForPointAndColumn(0, "c7", c), Equals, "b")
+	c.Assert(series.GetValueForPointAndColumn(0, "c8", c), Equals, float64(11))
+
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
-	/* self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 3;", false, c) */
+	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 3;", false, c)
+	/* self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 4;", false, c) */
 }
 
 func (self *ServerSuite) TestGetServers(c *C) {

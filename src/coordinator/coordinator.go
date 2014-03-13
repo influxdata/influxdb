@@ -397,7 +397,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(db string, series *proto
 		timestamp  int64
 	}
 	sequenceMap := make(map[sequenceKey]int)
-	r, _ := regexp.Compile(`\[.*\]`)
+	r, _ := regexp.Compile(`\[.*?\]`)
 	replaceInvalidCharacters := func(r rune) rune {
 		switch {
 		case (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
