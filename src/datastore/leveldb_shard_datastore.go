@@ -215,6 +215,7 @@ func (self *LevelDbShardDatastore) closeShard(id uint32) {
 	delete(self.shards, id)
 	delete(self.lastAccess, id)
 	delete(self.shardsToClose, id)
+	log.Debug("DATASTORE: closing shard %s", self.shardDir(id))
 }
 
 // // returns true if the point has the correct field id and is
