@@ -133,7 +133,7 @@ func (self *ClusterServer) heartbeat() {
 		self.heartbeatStarted = false
 	}()
 
-	responseChan := make(chan *protocol.Response)
+	responseChan := make(chan *protocol.Response, 1)
 	heartbeatRequest := &protocol.Request{
 		Type:     &HEARTBEAT_TYPE,
 		Database: protocol.String(""),
