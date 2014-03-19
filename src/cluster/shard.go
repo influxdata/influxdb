@@ -185,7 +185,9 @@ func (self *ShardData) Write(request *p.Request) error {
 		self.store.BufferWrite(request)
 	}
 	for _, server := range self.clusterServers {
-		server.BufferWrite(request)
+		// we have to create a new reqeust object because the ID gets assigned on each server.
+		requestWithoutId := &p.Request{Type: request.Type, Database: request.Database, Series: request.Series, ShardId: &self.id, RequestNumber: request.RequestNumber}
+		server.BufferWrite(requestWithoutId)
 	}
 	return nil
 }
@@ -227,7 +229,6 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 				processor.SetShardInfo(int(self.Id()), self.IsLocal)
 			} else {
 				maxPointsToBufferBeforeSending := 1000
-				fmt.Printf("creating a passthrough engine\n")
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
 			}
 		}
