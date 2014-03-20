@@ -1319,6 +1319,14 @@ func (s *server) LoadSnapshot() error {
 // Config File
 //--------------------------------------
 
+// Flushes commit index to the disk.
+// So when the raft server restarts, it will commit upto the flushed commitIndex.
+func (s *server) FlushCommitIndex() {
+	s.debugln("server.conf.update")
+	// Write the configuration to file.
+	s.writeConf()
+}
+
 func (s *server) writeConf() {
 
 	peers := make([]*Peer, len(s.peers))
