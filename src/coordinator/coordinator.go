@@ -13,7 +13,6 @@ import (
 	"protocol"
 	"regexp"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -476,7 +475,7 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series
 	}
 
 	// sort the points by timestamp
-	sort.Sort(SortPointsByTimeDescending(series.Points))
+	series.SortPointsTimeDescending()
 
 	for i, point := range series.Points {
 		if *point.Timestamp != lastTime {
