@@ -158,7 +158,7 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 	}
 	seriesYielded := make(map[string]bool)
 
-	responses := make([]chan *protocol.Response, 0)
+	responses := make([]chan *protocol.Response, 100)
 	for _, shard := range shortTermShards {
 		responseChan := make(chan *protocol.Response, self.config.QueryShardBufferSize)
 		go shard.Query(querySpec, responseChan)
