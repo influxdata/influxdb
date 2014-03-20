@@ -103,7 +103,7 @@ func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream
 }
 
 func (self *ClusterServer) Write(request *protocol.Request) error {
-	responseChan := make(chan *protocol.Response)
+	responseChan := make(chan *protocol.Response, 1)
 	err := self.connection.MakeRequest(request, responseChan)
 	if err != nil {
 		return err
