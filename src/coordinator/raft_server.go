@@ -327,6 +327,7 @@ func (s *RaftServer) startRaft() error {
 		return err
 	}
 
+  s.raftServer.SetElectionTimeout(time.Second)
 	s.raftServer.LoadSnapshot() // ignore errors
 
 	s.raftServer.AddEventListener(raft.StateChangeEventType, s.raftEventHandler)
