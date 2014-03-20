@@ -136,23 +136,29 @@ func (self *ProtobufClient) readResponses() {
 		buff.Reset()
 		conn := self.getConnection()
 		if conn == nil {
+			time.Sleep(200 * time.Millisecond)
 			continue
 		}
 		var messageSizeU uint32
 		var err error
 		err = binary.Read(conn, binary.LittleEndian, &messageSizeU)
 		if err != nil {
+			log.Error("Error while reading messsage size: %d", err)
+			time.Sleep(200 * time.Millisecond)
 			continue
 		}
 		messageSize := int64(messageSizeU)
 		messageReader := io.LimitReader(conn, messageSize)
 		_, err = io.Copy(buff, messageReader)
 		if err != nil {
+			log.Error("Error while reading message: %d", err)
+			time.Sleep(200 * time.Millisecond)
 			continue
 		}
 		response, err := protocol.DecodeResponse(buff)
 		if err != nil {
 			log.Error("error unmarshaling response: %s", err)
+			time.Sleep(200 * time.Millisecond)
 		} else {
 			self.sendResponse(response)
 		}

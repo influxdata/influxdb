@@ -468,10 +468,16 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series
 	lastPointIndex := 0
 	now := common.CurrentTime()
 	var shardToWrite cluster.Shard
-	for i, point := range series.Points {
+	for _, point := range series.Points {
 		if point.Timestamp == nil {
 			point.Timestamp = &now
 		}
+	}
+
+	// sort the points by timestamp
+	series.SortPointsTimeDescending()
+
+	for i, point := range series.Points {
 		if *point.Timestamp != lastTime {
 			shard, err := self.clusterConfiguration.GetShardToWriteToBySeriesAndTime(db, *series.Name, *point.Timestamp)
 			if err != nil {
