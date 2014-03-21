@@ -101,6 +101,7 @@ type Server interface {
 	TakeSnapshot() error
 	LoadSnapshot() error
 	AddEventListener(string, EventListener)
+	FlushCommitIndex()
 }
 
 type server struct {
