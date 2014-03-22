@@ -21,6 +21,7 @@ import (
 
 const (
 	Stopped      = "stopped"
+	Initialized  = "initialized"
 	Follower     = "follower"
 	Candidate    = "candidate"
 	Leader       = "leader"
@@ -94,6 +95,7 @@ type Server interface {
 	AddPeer(name string, connectiongString string) error
 	RemovePeer(name string) error
 	Peers() map[string]*Peer
+	Init() error
 	Start() error
 	Stop()
 	Running() bool
@@ -423,34 +425,20 @@ func init() {
 	RegisterCommand(&DefaultLeaveCommand{})
 }
 
-// Start as follow
+// Start the raft server
 // If log entries exist then allow promotion to candidate if no AEs received.
 // If no log entries exist then wait for AEs from another node.
 // If no log entries exist and a self-join command is issued then
 // immediately become leader and commit entry.
-
 func (s *server) Start() error {
 	// Exit if the server is already running.
-	if s.State() != Stopped {
-		return errors.New("raft.Server: Server already running")
+	if s.Running() {
+		return fmt.Errorf("raft.Server: Server already running[%v]", s.state)
 	}
 
-	// Create snapshot directory if not exist
-	os.Mkdir(path.Join(s.path, "snapshot"), 0700)
-
-	if err := s.readConf(); err != nil {
-		s.debugln("raft: Conf file error: ", err)
-		return fmt.Errorf("raft: Initialization error: %s", err)
+	if err := s.Init(); err != nil {
+		return err
 	}
-
-	// Initialize the log and load it up.
-	if err := s.log.open(s.LogPath()); err != nil {
-		s.debugln("raft: Log error: ", err)
-		return fmt.Errorf("raft: Initialization error: %s", err)
-	}
-
-	// Update the term to the last term in the log.
-	_, s.currentTerm = s.log.lastInfo()
 
 	s.setState(Follower)
 
@@ -474,6 +462,42 @@ func (s *server) Start() error {
 	return nil
 }
 
+// Init initializes the raft server
+func (s *server) Init() error {
+	if s.Running() {
+		return fmt.Errorf("raft.Server: Server already running[%v]", s.state)
+	}
+
+	// server has been initialized or server was stopped after initialized
+	if s.state == Initialized || !s.log.isEmpty() {
+		s.state = Initialized
+		return nil
+	}
+
+	// Create snapshot directory if it does not exist
+	if err := os.Mkdir(path.Join(s.path, "snapshot"), 0700); err != nil {
+		s.debugln("raft: Snapshot dir error: ", err)
+		return fmt.Errorf("raft: Initialization error: %s", err)
+	}
+
+	if err := s.readConf(); err != nil {
+		s.debugln("raft: Conf file error: ", err)
+		return fmt.Errorf("raft: Initialization error: %s", err)
+	}
+
+	// Initialize the log and load it up.
+	if err := s.log.open(s.LogPath()); err != nil {
+		s.debugln("raft: Log error: ", err)
+		return fmt.Errorf("raft: Initialization error: %s", err)
+	}
+
+	// Update the term to the last term in the log.
+	_, s.currentTerm = s.log.lastInfo()
+
+	s.state = Initialized
+	return nil
+}
+
 // Shuts down the server.
 func (s *server) Stop() {
 	stop := make(chan bool)
@@ -489,7 +513,7 @@ func (s *server) Stop() {
 func (s *server) Running() bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	return s.state != Stopped
+	return (s.state != Stopped && s.state != Initialized)
 }
 
 //--------------------------------------
