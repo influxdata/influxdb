@@ -85,11 +85,11 @@ func (self *WriteBuffer) write(request *protocol.Request) {
 }
 
 func (self *WriteBuffer) replayAndRecover(missedRequest uint32) {
+	var req *protocol.Request
 	for {
 		log.Info("%s: REPLAY: Replaying dropped requests...", self.writerInfo)
 		// empty out the buffer before the replay so new writes can buffer while we're replaying
 		channelLen := len(self.writes)
-		var req *protocol.Request
 
 		// if req is nil, this is the first run through the replay. Start from the start of the write queue
 		if req == nil {
