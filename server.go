@@ -476,7 +476,7 @@ func (s *server) Init() error {
 
 	// Create snapshot directory if it does not exist
 	err := os.Mkdir(path.Join(s.path, "snapshot"), 0700)
-	if err != nil && os.IsNotExist(err) {
+	if err != nil && !os.IsExist(err) {
 		s.debugln("raft: Snapshot dir error: ", err)
 		return fmt.Errorf("raft: Initialization error: %s", err)
 	}
