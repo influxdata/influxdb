@@ -2,6 +2,7 @@ package server
 
 import (
 	"admin"
+	"api/graphite"
 	"api/http"
 	"cluster"
 	log "code.google.com/p/log4go"
@@ -20,6 +21,7 @@ type Server struct {
 	ProtobufServer *coordinator.ProtobufServer
 	ClusterConfig  *cluster.ClusterConfiguration
 	HttpApi        *http.HttpServer
+	GraphiteApi    *graphite.Server
 	AdminServer    *admin.HttpServer
 	Coordinator    coordinator.Coordinator
 	Config         *configuration.Configuration
@@ -57,6 +59,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	raftServer.AssignCoordinator(coord)
 	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.AdminAssetsDir, coord, coord, clusterConfig, raftServer)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
+	graphiteApi := graphite.NewServer(config.GraphitePortString(), config.GraphiteDatabase, coord, clusterConfig)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
 	return &Server{
@@ -64,6 +67,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		ProtobufServer: protobufServer,
 		ClusterConfig:  clusterConfig,
 		HttpApi:        httpApi,
+		GraphiteApi:    graphiteApi,
 		Coordinator:    coord,
 		AdminServer:    adminServer,
 		Config:         config,
@@ -100,6 +104,14 @@ func (self *Server) ListenAndServe() error {
 	go self.ListenForSignals()
 	log.Info("Starting admin interface on port %d", self.Config.AdminHttpPort)
 	go self.AdminServer.ListenAndServe()
+	if self.Config.GraphiteEnabled {
+		if self.Config.GraphitePort <= 0 || self.Config.GraphiteDatabase == "" {
+			log.Warn("Cannot start graphite server. please check your configuration")
+		} else {
+			log.Info("Starting Graphite Listener on port %d", self.Config.GraphitePort)
+			go self.GraphiteApi.ListenAndServe()
+		}
+	}
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()
 	return nil

@@ -62,6 +62,12 @@ type ApiConfig struct {
 	Port        int
 }
 
+type GraphiteConfig struct {
+	Enabled  bool
+	Port     int
+	Database string
+}
+
 type RaftConfig struct {
 	Port int
 	Dir  string
@@ -157,6 +163,7 @@ type WalConfig struct {
 type TomlConfiguration struct {
 	Admin       AdminConfig
 	Api         ApiConfig
+	Graphite    GraphiteConfig
 	Raft        RaftConfig
 	Storage     StorageConfig
 	Cluster     ClusterConfig
@@ -174,6 +181,9 @@ type Configuration struct {
 	ApiHttpSslPort            int
 	ApiHttpCertPath           string
 	ApiHttpPort               int
+	GraphiteEnabled           bool
+	GraphitePort              int
+	GraphiteDatabase          string
 	RaftServerPort            int
 	SeedServers               []string
 	DataDir                   string
@@ -249,6 +259,9 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		ApiHttpPort:               tomlConfiguration.Api.Port,
 		ApiHttpCertPath:           tomlConfiguration.Api.SslCertPath,
 		ApiHttpSslPort:            tomlConfiguration.Api.SslPort,
+		GraphiteEnabled:           tomlConfiguration.Graphite.Enabled,
+		GraphitePort:              tomlConfiguration.Graphite.Port,
+		GraphiteDatabase:          tomlConfiguration.Graphite.Database,
 		RaftServerPort:            tomlConfiguration.Raft.Port,
 		RaftDir:                   tomlConfiguration.Raft.Dir,
 		ProtobufPort:              tomlConfiguration.Cluster.ProtobufPort,
@@ -337,6 +350,14 @@ func (self *Configuration) ApiHttpPortString() string {
 
 func (self *Configuration) ApiHttpSslPortString() string {
 	return fmt.Sprintf("%s:%d", self.BindAddress, self.ApiHttpSslPort)
+}
+
+func (self *Configuration) GraphitePortString() string {
+	if self.GraphitePort <= 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.GraphitePort)
 }
 
 func (self *Configuration) ProtobufPortString() string {
