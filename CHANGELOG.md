@@ -290,7 +290,7 @@
 - [Issue #327](https://github.com/influxdb/influxdb/issues/327). Make delete queries not use WAL. This addresses #315, #317 and #314
 - [Issue #321](https://github.com/influxdb/influxdb/issues/321). Make sure we split points on shards properly
 
-## v0.5.0 [2014-03-20]
+## v0.5.0-rc.6 [2014-03-20]
 
 ### Bugfixes
 
