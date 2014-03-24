@@ -1,7 +1,7 @@
 # Welcome to the InfluxDB configuration file.
 
-# If hostname (on the OS) doesn't return a name that can be resolved by the other 
-# systems in the cluster, you'll have to set the hostname to an IP or something 
+# If hostname (on the OS) doesn't return a name that can be resolved by the other
+# systems in the cluster, you'll have to set the hostname to an IP or something
 # that can be resovled here.
 # hostname = ""
 
@@ -60,12 +60,12 @@ write-buffer-size = 1000
 # This setting determines how many responses can be buffered in memory per shard before data starts gettind dropped.
 query-shard-buffer-size = 500
 
-# These options specify how data is sharded across the cluster. There are two 
+# These options specify how data is sharded across the cluster. There are two
 # shard configurations that have the same knobs: short term and long term.
 # Any series that begins with a capital letter like Exceptions will be written
 # into the long term storage. Any series beginning with a lower case letter
 # like exceptions will be written into short term. The idea being that you
-# can write high precision data into short term and drop it after a couple 
+# can write high precision data into short term and drop it after a couple
 # of days. Meanwhile, continuous queries can run downsampling on the short term
 # data and write into the long term area.
 [sharding]
@@ -80,7 +80,7 @@ query-shard-buffer-size = 500
   # over the network when doing a query.
   duration = "1h"
 
-  # split will determine how many shards to split each duration into. For example, 
+  # split will determine how many shards to split each duration into. For example,
   # if we created a shard for 2014-02-10 and split was set to 2. Then two shards
   # would be created that have the data for 2014-02-10. By default, data will
   # be split into those two shards deterministically by hashing the (database, serise)

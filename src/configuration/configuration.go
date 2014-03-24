@@ -93,10 +93,10 @@ type LoggingConfig struct {
 }
 
 type LevelDbConfiguration struct {
-	MaxOpenFiles  int  	`toml:"max-open-files"`
-	LruCacheSize  size 	`toml:"lru-cache-size"`
-	MaxOpenShards int  	`toml:"max-open-shards"`
-	PointBatchSize int 	`toml:"point-batch-size"`
+	MaxOpenFiles   int  `toml:"max-open-files"`
+	LruCacheSize   size `toml:"lru-cache-size"`
+	MaxOpenShards  int  `toml:"max-open-shards"`
+	PointBatchSize int  `toml:"point-batch-size"`
 }
 
 type ShardingDefinition struct {
@@ -160,19 +160,23 @@ type WalConfig struct {
 	RequestsPerLogFile    int    `toml:"requests-per-log-file"`
 }
 
+type InputPlugins struct {
+	Graphite GraphiteConfig `toml:"graphite"`
+}
+
 type TomlConfiguration struct {
-	Admin       AdminConfig
-	Api         ApiConfig
-	Graphite    GraphiteConfig
-	Raft        RaftConfig
-	Storage     StorageConfig
-	Cluster     ClusterConfig
-	Logging     LoggingConfig
-	LevelDb     LevelDbConfiguration
-	Hostname    string
-	BindAddress string             `toml:"bind-address"`
-	Sharding    ShardingDefinition `toml:"sharding"`
-	WalConfig   WalConfig          `toml:"wal"`
+	Admin        AdminConfig
+	HttpApi      ApiConfig    `toml:"api"`
+	InputPlugins InputPlugins `toml:"input_plugins"`
+	Raft         RaftConfig
+	Storage      StorageConfig
+	Cluster      ClusterConfig
+	Logging      LoggingConfig
+	LevelDb      LevelDbConfiguration
+	Hostname     string
+	BindAddress  string             `toml:"bind-address"`
+	Sharding     ShardingDefinition `toml:"sharding"`
+	WalConfig    WalConfig          `toml:"wal"`
 }
 
 type Configuration struct {
@@ -198,7 +202,7 @@ type Configuration struct {
 	LevelDbMaxOpenFiles       int
 	LevelDbLruCacheSize       int
 	LevelDbMaxOpenShards      int
-	LevelDbPointBatchSize	  int
+	LevelDbPointBatchSize     int
 	ShortTermShard            *ShardConfiguration
 	LongTermShard             *ShardConfiguration
 	ReplicationFactor         int
@@ -256,12 +260,12 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	config := &Configuration{
 		AdminHttpPort:             tomlConfiguration.Admin.Port,
 		AdminAssetsDir:            tomlConfiguration.Admin.Assets,
-		ApiHttpPort:               tomlConfiguration.Api.Port,
-		ApiHttpCertPath:           tomlConfiguration.Api.SslCertPath,
-		ApiHttpSslPort:            tomlConfiguration.Api.SslPort,
-		GraphiteEnabled:           tomlConfiguration.Graphite.Enabled,
-		GraphitePort:              tomlConfiguration.Graphite.Port,
-		GraphiteDatabase:          tomlConfiguration.Graphite.Database,
+		ApiHttpPort:               tomlConfiguration.HttpApi.Port,
+		ApiHttpCertPath:           tomlConfiguration.HttpApi.SslCertPath,
+		ApiHttpSslPort:            tomlConfiguration.HttpApi.SslPort,
+		GraphiteEnabled:           tomlConfiguration.InputPlugins.Graphite.Enabled,
+		GraphitePort:              tomlConfiguration.InputPlugins.Graphite.Port,
+		GraphiteDatabase:          tomlConfiguration.InputPlugins.Graphite.Database,
 		RaftServerPort:            tomlConfiguration.Raft.Port,
 		RaftDir:                   tomlConfiguration.Raft.Dir,
 		ProtobufPort:              tomlConfiguration.Cluster.ProtobufPort,

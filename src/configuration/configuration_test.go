@@ -34,6 +34,10 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	c.Assert(config.ApiHttpCertPath, Equals, "../cert.pem")
 	c.Assert(config.ApiHttpPortString(), Equals, "")
 
+	c.Assert(config.GraphiteEnabled, Equals, false)
+	c.Assert(config.GraphitePort, Equals, 2003)
+	c.Assert(config.GraphiteDatabase, Equals, "")
+
 	c.Assert(config.RaftDir, Equals, "/tmp/influxdb/development/raft")
 	c.Assert(config.RaftServerPort, Equals, 8090)
 
