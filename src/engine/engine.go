@@ -145,7 +145,6 @@ func (self *QueryEngine) YieldPoint(seriesName *string, fieldNames []string, poi
 		self.pointsRead++
 	}
 
-	fmt.Printf("self.seriesToPoints: %#v\n", self.seriesToPoints)
 	return shouldContinue
 }
 
@@ -213,8 +212,6 @@ func (self *QueryEngine) filter(series *protocol.Series) ([]*protocol.Series, er
 }
 
 func (self *QueryEngine) Close() {
-	fmt.Printf("Closing: %#v\n", self.seriesToPoints)
-
 	for _, series := range self.seriesToPoints {
 		if len(series.Points) == 0 {
 			continue
@@ -228,7 +225,6 @@ func (self *QueryEngine) Close() {
 			Name:   series.Name,
 			Fields: series.Fields,
 		}
-		fmt.Printf("yielding empty series for %s\n", series.GetName())
 		err = self.yield(s)
 		if err != nil {
 			break
