@@ -20,7 +20,7 @@ endif
 export GOARCH
 export CGO_ENABLED
 
-.PHONY: all valgrind parser package replace_version_string build binary_package
+.PHONY: all valgrind parser package replace_version_string build binary_package dependencies
 
 all: | parser valgrind build test integration_test
 
@@ -124,6 +124,7 @@ $(dependencies_paths):
 	for i in $(dependencies); do $(GO) get -d $$i; done
 
 dependencies: src/$(levigo_dependency) $(dependencies_paths) $(leveldb_deps) $(snappy_deps)
+	git submodule update --init
 
 test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck
