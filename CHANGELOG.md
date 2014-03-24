@@ -290,11 +290,25 @@
 - [Issue #327](https://github.com/influxdb/influxdb/issues/327). Make delete queries not use WAL. This addresses #315, #317 and #314
 - [Issue #321](https://github.com/influxdb/influxdb/issues/321). Make sure we split points on shards properly
 
-## v0.5.0 [unreleased]
+## v0.5.0 [2014-03-20]
 
 ### Bugfixes
 
-- [Issue #333](https://github.com/influxdb/influxdb/issues/333). Better
-  error message when password is invalid and don't create the user if
-  the password is invalid
-- [Issue #318](https://github.com/influxdb/influxdb/issues/318). Support EXPLAIN queries
+- Increase raft election timeout to avoid unecessary relections
+- Sort points before writing them to avoid an explosion in the request
+  number when the points are written randomly
+- [Issue #335](https://github.com/influxdb/influxdb/issues/335). Fixes regexp for interpolating more than one column value in continuous queries
+- [Issue #318](https://github.com/influxdb/influxdb/pull/318). Support EXPLAIN queries
+- [Issue #333](https://github.com/influxdb/influxdb/pull/333). Fail
+  when the password is too short or too long instead of passing it to
+  the crypto library
+
+## v0.5.0 [2014-03-24]
+
+### Features
+
+- [Issue #293](https://github.com/influxdb/influxdb/pull/293). Implement a Graphite listener
+
+### Bugfixes
+
+- [Issue #340](https://github.com/influxdb/influxdb/issues/340). Writing many requests while replaying seems to cause commits out of order
