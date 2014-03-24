@@ -503,11 +503,11 @@ func (s *server) Init() error {
 func (s *server) Stop() {
 	stop := make(chan bool)
 	s.stopped <- stop
-	s.state = Stopped
 
 	// make sure the server has stopped before we close the log
 	<-stop
 	s.log.close()
+	s.setState(Stopped)
 }
 
 // Checks if the server is currently running.
