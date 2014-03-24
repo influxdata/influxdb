@@ -84,7 +84,7 @@ func (self *ServerSuite) precreateShards(server *ServerProcess, c *C) {
 	time.Sleep(time.Second)
 	go self.createShards(server, int64(3600), "false", c)
 	go self.createShards(server, int64(86400), "true", c)
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 }
 
 func (self ServerSuite) createShards(server *ServerProcess, bucketSize int64, longTerm string, c *C) {
@@ -639,6 +639,29 @@ func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
 	c.Assert(collection.Members, HasLen, 1)
 	series = collection.GetSeries("test_restart_after_compaction", c)
 	c.Assert(series.Points, HasLen, 1)
+}
+
+func (self *ServerSuite) TestEntireClusterRestartAfterCompaction(c *C) {
+	for i := 0; i < 3; i++ {
+		resp := self.serverProcesses[i].Post("/raft/force_compaction?u=root&p=root", "", c)
+		c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	}
+
+	for i := 0; i < 3; i++ {
+		self.serverProcesses[i].Stop()
+	}
+
+	time.Sleep(3 * time.Second)
+
+	for i := 0; i < 3; i++ {
+		self.serverProcesses[i].Start()
+	}
+
+	time.Sleep(time.Second * 3)
+
+	for i := 0; i < 3; i++ {
+		self.serverProcesses[i].Get("/ping", c)
+	}
 }
 
 // For issue #140 https://github.com/influxdb/influxdb/issues/140
