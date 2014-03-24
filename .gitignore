@@ -31,6 +31,7 @@ build/
 /main
 godef
 gosym
+gocode
 
 # dependencies
 src/code.google.com/p/log4go
