@@ -10,7 +10,7 @@ make clean
 git clean -dfx
 ./configure --with-goroot=$HOME/bin/go/
 
-git sumbodule update --init
+git submodule update --init
 modified=$(git ls-files --modified | wc -l)
 
 if [ $modified -ne 0 ]; then
