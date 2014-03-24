@@ -83,7 +83,7 @@ func (self *ServerSuite) precreateShards(server *ServerProcess, c *C) {
 	time.Sleep(time.Second)
 	go self.createShards(server, int64(3600), "false", c)
 	go self.createShards(server, int64(86400), "true", c)
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 }
 
 func (self ServerSuite) createShards(server *ServerProcess, bucketSize int64, longTerm string, c *C) {
