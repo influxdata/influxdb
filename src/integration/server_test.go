@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -515,6 +516,26 @@ func (self *ServerSuite) TestGroupByDay(c *C) {
 	c.Assert(series.Points, HasLen, 2)
 	c.Assert(series.GetValueForPointAndColumn(0, "count", c).(float64), Equals, float64(3))
 	c.Assert(series.GetValueForPointAndColumn(1, "count", c).(float64), Equals, float64(1))
+}
+
+func (self *ServerSuite) TestGraphiteInterface(c *C) {
+	conn, err := net.Dial("tcp", "localhost:60513")
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC().Truncate(time.Minute)
+	data := fmt.Sprintf("some_metric 100 %d\nsome_metric 200.5 %d\n", now.Add(-time.Minute).Unix(), now.Unix())
+
+	_, err = conn.Write([]byte(data))
+	c.Assert(err, IsNil)
+
+	time.Sleep(time.Second)
+
+	collection := self.serverProcesses[0].QueryWithUsername("graphite_db", "select * from some_metric", false, c, "root", "root")
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("some_metric", c)
+	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.GetValueForPointAndColumn(0, "value", c).(float64), Equals, float64(200.5))
+	c.Assert(series.GetValueForPointAndColumn(1, "value", c).(float64), Equals, float64(100))
 }
 
 func (self *ServerSuite) TestLimitQueryOnSingleShard(c *C) {
