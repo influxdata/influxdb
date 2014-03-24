@@ -69,8 +69,9 @@ type GraphiteConfig struct {
 }
 
 type RaftConfig struct {
-	Port int
-	Dir  string
+	Port    int
+	Dir     string
+	Timeout duration `toml:"election-timeout"`
 }
 
 type StorageConfig struct {
@@ -189,6 +190,7 @@ type Configuration struct {
 	GraphitePort              int
 	GraphiteDatabase          string
 	RaftServerPort            int
+	RaftTimeout               duration
 	SeedServers               []string
 	DataDir                   string
 	RaftDir                   string
@@ -257,6 +259,10 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		defaultQueryShardBufferSize = tomlConfiguration.Cluster.QueryShardBufferSize
 	}
 
+	if tomlConfiguration.Raft.Timeout.Duration == 0 {
+		tomlConfiguration.Raft.Timeout = duration{time.Second}
+	}
+
 	config := &Configuration{
 		AdminHttpPort:             tomlConfiguration.Admin.Port,
 		AdminAssetsDir:            tomlConfiguration.Admin.Assets,
@@ -267,6 +273,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		GraphitePort:              tomlConfiguration.InputPlugins.Graphite.Port,
 		GraphiteDatabase:          tomlConfiguration.InputPlugins.Graphite.Database,
 		RaftServerPort:            tomlConfiguration.Raft.Port,
+		RaftTimeout:               tomlConfiguration.Raft.Timeout,
 		RaftDir:                   tomlConfiguration.Raft.Dir,
 		ProtobufPort:              tomlConfiguration.Cluster.ProtobufPort,
 		ProtobufTimeout:           tomlConfiguration.Cluster.ProtobufTimeout,

@@ -40,6 +40,7 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 
 	c.Assert(config.RaftDir, Equals, "/tmp/influxdb/development/raft")
 	c.Assert(config.RaftServerPort, Equals, 8090)
+	c.Assert(config.RaftTimeout.Duration, Equals, time.Second)
 
 	c.Assert(config.DataDir, Equals, "/tmp/influxdb/development/db")
 
