@@ -577,9 +577,9 @@ func (s *server) updateCurrentTerm(term uint64, leaderName string) {
 func (s *server) loop() {
 	defer s.debugln("server.loop.end")
 
-	for s.state != Stopped {
-		state := s.State()
+	state := s.State()
 
+	for state != Stopped {
 		s.debugln("server.loop.run ", state)
 		switch state {
 		case Follower:
@@ -591,6 +591,7 @@ func (s *server) loop() {
 		case Snapshotting:
 			s.snapshotLoop()
 		}
+		state = s.State()
 	}
 }
 
@@ -900,9 +901,9 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 	}
 
 	if req.Term == s.currentTerm {
-		_assert(s.state != Leader, "leader.elected.at.same.term.%d\n", s.currentTerm)
+		_assert(s.State() != Leader, "leader.elected.at.same.term.%d\n", s.currentTerm)
 		// change state to follower
-		s.state = Follower
+		s.setState(Follower)
 		// discover new leader when candidate
 		// save leader name when follower
 		s.leader = req.LeaderName
