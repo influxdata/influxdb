@@ -44,10 +44,10 @@ func getDefault(value, key string) string {
 func NewClient(config *ClientConfig) (*Client, error) {
 	host := getDefault(config.Host, "host")
 	username := getDefault(config.Username, "username")
-	passowrd := getDefault(config.Password, "password")
+	password := getDefault(config.Password, "password")
 	database := getDefault(config.Database, "database")
 
-	return &Client{host, username, passowrd, database}, nil
+	return &Client{host, username, password, database}, nil
 }
 
 func (self *Client) getUrl(path string) string {
