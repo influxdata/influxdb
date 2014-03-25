@@ -40,6 +40,7 @@ src/code.google.com/p/go.crypto/
 /src/code.google.com/p/goprotobuf/
 /src/code.google.com/p/gogoprotobuf/
 /src/code.google.com/p/rog-go/
+src/code.google.com/p/go.tools
 src/launchpad.net/gocheck/
 /src/github.com/nsf/gocode/
 /src/github.com/*
