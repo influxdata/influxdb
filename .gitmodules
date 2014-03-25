@@ -1,3 +1,0 @@
-[submodule "src/github.com/goraft/raft"]
-	path = src/github.com/goraft/raft
-	url = git@github.com:goraft/raft.git
