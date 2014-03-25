@@ -312,3 +312,13 @@
 ### Bugfixes
 
 - [Issue #340](https://github.com/influxdb/influxdb/issues/340). Writing many requests while replaying seems to cause commits out of order
+
+## v0.5.1 [2014-03-24]
+
+### Bugfixes
+
+- Revert the version of goraft due to a bug found in the latest version
+
+## v0.5.2 [unreleased]
+
+### Bugfixes
