@@ -503,6 +503,10 @@ func (s *server) Init() error {
 
 // Shuts down the server.
 func (s *server) Stop() {
+	if s.State() == Stopped {
+		return
+	}
+
 	stop := make(chan bool)
 	s.stopped <- stop
 	s.state = Stopped
