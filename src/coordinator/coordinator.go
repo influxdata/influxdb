@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"cluster"
-	log "code.google.com/p/log4go"
 	"common"
 	"configuration"
 	"engine"
@@ -16,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 type CoordinatorImpl struct {

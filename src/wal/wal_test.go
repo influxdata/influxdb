@@ -2,10 +2,8 @@ package wal
 
 import (
 	. "checkers"
-	"code.google.com/p/goprotobuf/proto"
 	"configuration"
 	"fmt"
-	. "launchpad.net/gocheck"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
@@ -14,6 +12,9 @@ import (
 	"protocol"
 	"testing"
 	"time"
+
+	"code.google.com/p/goprotobuf/proto"
+	. "launchpad.net/gocheck"
 )
 
 func Test(t *testing.T) {

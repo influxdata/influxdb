@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,6 +15,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 type ServerSuite struct {

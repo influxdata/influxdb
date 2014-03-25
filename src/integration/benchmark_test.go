@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -20,6 +19,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 const (

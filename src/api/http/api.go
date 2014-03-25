@@ -2,7 +2,6 @@ package http
 
 import (
 	"cluster"
-	log "code.google.com/p/log4go"
 	. "common"
 	"coordinator"
 	"crypto/tls"
@@ -10,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bmizerany/pat"
 	"io/ioutil"
 	"net"
 	libhttp "net/http"
@@ -19,6 +17,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	log "code.google.com/p/log4go"
+	"github.com/bmizerany/pat"
 )
 
 type HttpServer struct {

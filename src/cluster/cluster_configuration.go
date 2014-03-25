@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"bytes"
-	log "code.google.com/p/log4go"
 	"common"
 	"configuration"
 	"crypto/sha1"
@@ -18,6 +17,8 @@ import (
 	"sync"
 	"time"
 	"wal"
+
+	log "code.google.com/p/log4go"
 )
 
 // defined by cluster config (in cluster package)
