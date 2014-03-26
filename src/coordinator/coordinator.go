@@ -606,6 +606,10 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 		return common.NewAuthorizationError("Insufficient permissions to drop database")
 	}
 
+	if err := self.clusterConfiguration.CreateCheckpoint(); err != nil {
+		return err
+	}
+
 	if err := self.raftServer.DropDatabase(db); err != nil {
 		return err
 	}

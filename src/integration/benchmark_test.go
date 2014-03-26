@@ -323,6 +323,46 @@ func (self *IntegrationSuite) TestExplainsWithPassthrough(c *C) {
 	c.Assert(series[0].Points[0][6], Equals, float64(2.0))
 }
 
+func (self *IntegrationSuite) TestDataResurrectionAfterRestart(c *C) {
+	s := self.createPoints("data_resurrection", 1, 10)
+	b, err := json.Marshal(s)
+	c.Assert(err, IsNil)
+	err = self.server.WriteData(string(b))
+	c.Assert(err, IsNil)
+	time.Sleep(time.Second)
+	fmt.Printf("wrote some data\n")
+	data, err := self.server.RunQuery("select count(column0) from data_resurrection", "s")
+	c.Assert(err, IsNil)
+	series := []*SerializedSeries{}
+	err = json.Unmarshal(data, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Points[0][1], Equals, 10.0)
+	req, err := http.NewRequest("DELETE", "http://localhost:8086/db/db1?u=root&p=root", nil)
+	c.Assert(err, IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+	resp, err = http.Post("http://localhost:8086/db?u=root&p=root", "", bytes.NewBufferString("{\"name\":\"db1\", \"replicationFactor\":3}"))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
+	resp, err = http.Post("http://localhost:8086/db/db1/users?u=root&p=root", "", bytes.NewBufferString("{\"name\":\"user\", \"password\":\"pass\"}"))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	self.server.stop()
+	time.Sleep(time.Second)
+	c.Assert(self.server.start(), IsNil)
+	time.Sleep(5 * time.Second)
+	data, err = self.server.RunQuery("select count(column0) from data_resurrection", "s")
+	c.Assert(err, IsNil)
+	series = []*SerializedSeries{}
+	err = json.Unmarshal(data, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 0)
+}
+
 func (self *IntegrationSuite) TestExplainsWithPassthroughAndLimit(c *C) {
 	points := []string{}
 	for i := 0; i < 101; i++ {

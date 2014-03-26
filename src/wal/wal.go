@@ -124,9 +124,11 @@ func (self *WAL) Commit(requestNumber uint32, serverId uint32) error {
 
 func (self *WAL) RecoverServerFromLastCommit(serverId uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
 	requestNumber, ok := self.state.ServerLastRequestNumber[serverId]
+	requestNumber += 1
 	if !ok {
 		requestNumber = uint32(self.state.FirstSuffix)
 	}
+	logger.Info("Recovering server %d from request %d", serverId, requestNumber)
 	return self.RecoverServerFromRequestNumber(requestNumber, shardIds, yield)
 }
 
@@ -152,21 +154,23 @@ func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds [
 	firstOffset := int64(-1)
 	// find the log file from which replay will start if the request
 	// number is in range, otherwise replay from all log files
-	if self.isInRange(requestNumber) {
-		for idx, logIndex := range self.logIndex {
-			logger.Debug("Trying to find request %d in %s", requestNumber, self.logFiles[idx].file.Name())
-			if firstOffset = logIndex.requestOffset(requestNumber); firstOffset != -1 {
-				logger.Debug("Found reqeust %d in %s at offset %d", requestNumber, self.logFiles[idx].file.Name(), firstOffset)
-				firstIndex = idx
-				break
-			}
-		}
+	if !self.isInRange(requestNumber) {
+		return nil
+	}
 
-		// the request must be at the end of the current log file
-		if firstOffset == -1 {
-			firstIndex = len(self.logIndex) - 1
-			firstOffset = self.logIndex[firstIndex].requestOrLastOffset(requestNumber)
+	for idx, logIndex := range self.logIndex {
+		logger.Debug("Trying to find request %d in %s", requestNumber, self.logFiles[idx].file.Name())
+		if firstOffset = logIndex.requestOffset(requestNumber); firstOffset != -1 {
+			logger.Debug("Found reqeust %d in %s at offset %d", requestNumber, self.logFiles[idx].file.Name(), firstOffset)
+			firstIndex = idx
+			break
 		}
+	}
+
+	// the request must be at the end of the current log file
+	if firstOffset == -1 {
+		firstIndex = len(self.logIndex) - 1
+		firstOffset = self.logIndex[firstIndex].requestOrLastOffset(requestNumber)
 	}
 outer:
 	for idx := firstIndex; idx < len(self.logFiles); idx++ {
@@ -174,7 +178,7 @@ outer:
 		if idx > firstIndex {
 			firstOffset = -1
 		}
-		logger.Info("Replaying from %s", logFile.file.Name())
+		logger.Info("Replaying from %s:%d", logFile.file.Name(), firstOffset)
 		count := 0
 		ch, stopChan := logFile.dupAndReplayFromOffset(shardIds, firstOffset, requestNumber)
 		for {
@@ -539,6 +543,10 @@ func (self *WAL) bookmark() error {
 }
 
 func (self *WAL) index() error {
+	if len(self.logFiles) == 0 {
+		return nil
+	}
+
 	lastIndex := self.logIndex[len(self.logIndex)-1]
 	firstOffset := lastIndex.getLastOffset()
 	lastIndex.addEntry(
