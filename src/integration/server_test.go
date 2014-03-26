@@ -927,7 +927,7 @@ func (self *ServerSuite) TestDropDatabase(c *C) {
 		}]`
 	self.serverProcesses[0].Post("/db/drop_db/series?u=paul&p=pass", data, c)
 	time.Sleep(time.Second)
-	resp := self.serverProcesses[0].Request("DELETE", "/db/drop_db?u=root&p=root", "", c)
+	resp := self.serverProcesses[0].Delete("/db/drop_db?u=root&p=root", "", c)
 	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
 	time.Sleep(time.Second)
 	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_db", "replicationFactor": 3}`, c)
@@ -941,7 +941,7 @@ func (self *ServerSuite) TestDropDatabase(c *C) {
 }
 
 func (self *ServerSuite) TestDropSeries(c *C) {
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_series", "replicationFactor": 3}`, c)
 		self.serverProcesses[0].Post("/db/drop_series/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
 		data := `[{
@@ -951,13 +951,25 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 		}]`
 		self.serverProcesses[0].Post("/db/drop_series/series?u=paul&p=pass", data, c)
 		time.Sleep(time.Second)
-		if i == 0 {
+		for _, s := range self.serverProcesses {
+			fmt.Printf("Running query against: %d\n", s.apiPort)
+			collection := s.Query("drop_series", "select * from cluster_query", true, c)
+			c.Assert(collection.Members, HasLen, 1)
+			series := collection.GetSeries("cluster_query", c)
+			c.Assert(series.SerializedSeries.Points, HasLen, 1)
+		}
+		switch i {
+		case 0:
 			fmt.Printf("Using the http api\n")
-			resp := self.serverProcesses[0].Request("DELETE", "/db/drop_series/series/cluster_query?u=root&p=root", "", c)
+			resp := self.serverProcesses[0].Delete("/db/drop_series/series/cluster_query?u=root&p=root", "", c)
 			c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
-		} else {
+		case 1:
 			fmt.Printf("Using the drop series\n")
 			self.serverProcesses[0].Query("drop_series", "drop series cluster_query", false, c)
+		case 2:
+			resp := self.serverProcesses[0].Delete("/db/drop_series?u=root&p=root", "", c)
+			c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+			self.serverProcesses[0].Post("/db/drop_series/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
 		}
 		time.Sleep(time.Second)
 		for _, s := range self.serverProcesses {
