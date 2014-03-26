@@ -2,10 +2,11 @@ package protocol
 
 import (
 	"bytes"
-	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	"sort"
 	"strconv"
+
+	"code.google.com/p/gogoprotobuf/proto"
 )
 
 var String = proto.String

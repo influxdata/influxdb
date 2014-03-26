@@ -1,8 +1,6 @@
 package wal
 
 import (
-	"code.google.com/p/goprotobuf/proto"
-	logger "code.google.com/p/log4go"
 	"configuration"
 	"fmt"
 	"io"
@@ -11,6 +9,9 @@ import (
 	"protocol"
 	"strconv"
 	"strings"
+
+	"code.google.com/p/gogoprotobuf/proto"
+	logger "code.google.com/p/log4go"
 )
 
 type log struct {
