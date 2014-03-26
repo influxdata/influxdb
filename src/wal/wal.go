@@ -241,6 +241,13 @@ func (self *WAL) processEntries() {
 			self.processCommitEntry(x)
 		case *appendEntry:
 			self.processAppendEntry(x)
+		case *bookmarkEntry:
+			err := self.bookmark()
+			if err != nil {
+				x.confirmation <- &confirmation{0, err}
+				continue
+			}
+			x.confirmation <- &confirmation{0, self.index()}
 		case *closeEntry:
 			x.confirmation <- &confirmation{0, self.processClose(x.shouldBookmark)}
 			logger.Info("Closing wal")
@@ -513,6 +520,13 @@ func (self *WAL) flush() error {
 		return err
 	}
 	return nil
+}
+
+func (self *WAL) CreateCheckpoint() error {
+	confirmationChan := make(chan *confirmation)
+	self.entries <- &bookmarkEntry{confirmationChan}
+	confirmation := <-confirmationChan
+	return confirmation.err
 }
 
 func (self *WAL) bookmark() error {

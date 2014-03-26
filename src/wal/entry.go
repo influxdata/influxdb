@@ -10,6 +10,10 @@ type closeEntry struct {
 	shouldBookmark bool
 }
 
+type bookmarkEntry struct {
+	confirmation chan *confirmation
+}
+
 type commitEntry struct {
 	confirmation  chan *confirmation
 	serverId      uint32
