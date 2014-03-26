@@ -322,3 +322,5 @@
 ## v0.5.2 [unreleased]
 
 ### Bugfixes
+
+- [Issue #342](https://github.com/influxdb/influxdb/issues/342). Data resurrected after a server restart
