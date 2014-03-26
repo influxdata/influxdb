@@ -290,7 +290,7 @@ func (_ *WalSuite) TestRequestNumberRollOver(c *C) {
 	}
 	wal.Close()
 	requests := []*protocol.Request{}
-	wal.RecoverServerFromRequestNumber(firstRequestNumber, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+	wal.RecoverServerFromRequestNumber(firstRequestNumber+1, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
 		requests = append(requests, req)
 		return nil
 	})
@@ -310,7 +310,7 @@ func (_ *WalSuite) TestRequestNumberRollOverAcrossMultipleFiles(c *C) {
 	}
 	wal.Close()
 	requests := []*protocol.Request{}
-	wal.RecoverServerFromRequestNumber(firstRequestNumber, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+	wal.RecoverServerFromRequestNumber(firstRequestNumber+1, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
 		requests = append(requests, req)
 		return nil
 	})
@@ -319,7 +319,7 @@ func (_ *WalSuite) TestRequestNumberRollOverAcrossMultipleFiles(c *C) {
 	wal.SetServerId(1)
 	c.Assert(err, IsNil)
 	requests = []*protocol.Request{}
-	wal.RecoverServerFromRequestNumber(firstRequestNumber, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+	wal.RecoverServerFromRequestNumber(firstRequestNumber+1, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
 		requests = append(requests, req)
 		return nil
 	})
@@ -373,7 +373,7 @@ func (_ *WalSuite) TestRecoveryFromCrash(c *C) {
 	wal.SetServerId(1)
 	c.Assert(err, IsNil)
 	requests := []*protocol.Request{}
-	wal.RecoverServerFromRequestNumber(0, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+	wal.RecoverServerFromRequestNumber(1, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
 		requests = append(requests, req)
 		return nil
 	})
@@ -412,7 +412,7 @@ func (_ *WalSuite) TestSimultaneousReplay(c *C) {
 
 	<-signalChan
 	requests := []*protocol.Request{}
-	wal.RecoverServerFromRequestNumber(uint32(0), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+	wal.RecoverServerFromRequestNumber(uint32(1), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
 		requests = append(requests, req)
 		return nil
 	})

@@ -35,6 +35,7 @@ type QuerySpec interface {
 type WAL interface {
 	AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard) (uint32, error)
 	Commit(requestNumber uint32, serverId uint32) error
+	CreateCheckpoint() error
 	RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
 	RecoverServerFromLastCommit(serverId uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
 }
@@ -674,6 +675,10 @@ func (self *ClusterConfiguration) createShards(microsecondsEpoch int64, shardTyp
 		return nil, err
 	}
 	return createdShards, nil
+}
+
+func (self *ClusterConfiguration) CreateCheckpoint() error {
+	return self.wal.CreateCheckpoint()
 }
 
 func (self *ClusterConfiguration) getStartAndEndBasedOnDuration(microsecondsEpoch int64, duration float64) (*time.Time, *time.Time) {
