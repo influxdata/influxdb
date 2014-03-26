@@ -85,7 +85,7 @@ type ClusterConfig struct {
 	ProtobufTimeout           duration `toml:"protobuf_timeout"`
 	ProtobufHeartbeatInterval duration `toml:"protobuf_heartbeat"`
 	WriteBufferSize           int      `toml"write-buffer-size"`
-	QueryShardBufferSize      int      `toml:"query-shard-buffer-size"`
+	ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
 }
 
 type LoggingConfig struct {
@@ -215,7 +215,7 @@ type Configuration struct {
 	WalRequestsPerLogFile     int
 	LocalStoreWriteBufferSize int
 	PerServerWriteBufferSize  int
-	QueryShardBufferSize      int
+	ConcurrentShardQueryLimit int
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -254,9 +254,9 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		tomlConfiguration.WalConfig.RequestsPerLogFile = 10 * tomlConfiguration.WalConfig.IndexAfterRequests
 	}
 
-	defaultQueryShardBufferSize := 100
-	if tomlConfiguration.Cluster.QueryShardBufferSize != 0 {
-		defaultQueryShardBufferSize = tomlConfiguration.Cluster.QueryShardBufferSize
+	defaultConcurrentShardQueryLimit := 10
+	if tomlConfiguration.Cluster.ConcurrentShardQueryLimit != 0 {
+		defaultConcurrentShardQueryLimit = tomlConfiguration.Cluster.ConcurrentShardQueryLimit
 	}
 
 	if tomlConfiguration.Raft.Timeout.Duration == 0 {
@@ -297,7 +297,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		WalRequestsPerLogFile:     tomlConfiguration.WalConfig.RequestsPerLogFile,
 		LocalStoreWriteBufferSize: tomlConfiguration.Storage.WriteBufferSize,
 		PerServerWriteBufferSize:  tomlConfiguration.Cluster.WriteBufferSize,
-		QueryShardBufferSize:      defaultQueryShardBufferSize,
+		ConcurrentShardQueryLimit: defaultConcurrentShardQueryLimit,
 	}
 
 	if config.LocalStoreWriteBufferSize == 0 {

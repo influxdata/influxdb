@@ -72,11 +72,13 @@ type ShardData struct {
 	shardType       ShardType
 	durationIsSplit bool
 	shardDuration   time.Duration
+	shardSeconds    int64
 	localServerId   uint32
 	IsLocal         bool
 }
 
 func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, durationIsSplit bool, wal WAL) *ShardData {
+	shardDuration := endTime.Sub(startTime)
 	return &ShardData{
 		id:              id,
 		startTime:       startTime,
@@ -87,7 +89,8 @@ func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, dura
 		serverIds:       make([]uint32, 0),
 		shardType:       shardType,
 		durationIsSplit: durationIsSplit,
-		shardDuration:   endTime.Sub(startTime),
+		shardDuration:   shardDuration,
+		shardSeconds:    int64(shardDuration.Seconds()),
 	}
 }
 
@@ -330,6 +333,36 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 		return true
 	}
 	return false
+}
+
+func (self *ShardData) QueryResponseBufferSize(querySpec *parser.QuerySpec, batchPointSize int) int {
+	groupByTime := querySpec.GetGroupByInterval()
+	if groupByTime == nil {
+		// If the group by time is nil, we shouldn't have to use a buffer since the shards should be queried sequentially.
+		// However, set this to something high just to be safe.
+		log.Info("BUFFER SIZE: 1000")
+		return 1000
+	}
+	tickCount := int(self.shardSeconds / int64(groupByTime.Seconds()))
+	if tickCount < 10 {
+		tickCount = 100
+	} else if tickCount > 1000 {
+		// cap this because each response should have up to this number of points in it.
+		tickCount = tickCount / batchPointSize
+
+		// but make sure it's at least 1k
+		if tickCount < 1000 {
+			tickCount = 1000
+		}
+	}
+	columnCount := querySpec.GetGroupByColumnCount()
+	if columnCount > 1 {
+		// we don't really know the cardinality for any column up front. This is a just a multiplier so we'll see how this goes.
+		// each response can have many points, so having a buffer of the ticks * 100 should be safe, but we'll see.
+		tickCount = tickCount * 100
+	}
+	log.Info("BUFFER SIZE: ", tickCount)
+	return tickCount
 }
 
 func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *p.Response) {

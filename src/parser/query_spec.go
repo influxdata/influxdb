@@ -15,6 +15,8 @@ type QuerySpec struct {
 	endTime                     time.Time
 	seriesValuesAndColumns      map[*Value][]string
 	RunAgainstAllServersInShard bool
+	groupByInterval             *time.Duration
+	groupByColumnCount          int
 }
 
 func NewQuerySpec(user common.User, database string, query *Query) *QuerySpec {
@@ -89,8 +91,20 @@ func (self *QuerySpec) GetGroupByInterval() *time.Duration {
 	if self.query.SelectQuery == nil {
 		return nil
 	}
-	duration, _ := self.query.SelectQuery.GetGroupByClause().GetGroupByTime()
-	return duration
+	if self.groupByInterval == nil {
+		self.groupByInterval, _ = self.query.SelectQuery.GetGroupByClause().GetGroupByTime()
+	}
+	return self.groupByInterval
+}
+
+func (self *QuerySpec) GetGroupByColumnCount() int {
+	if self.query.SelectQuery == nil {
+		return 0
+	}
+	if self.groupByColumnCount == 0 {
+		self.groupByColumnCount = len(self.query.SelectQuery.GetGroupByClause().Elems) - 1
+	}
+	return self.groupByColumnCount
 }
 
 func (self *QuerySpec) IsRegex() bool {
