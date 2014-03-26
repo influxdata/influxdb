@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/gogoprotobuf/proto"
 	logger "code.google.com/p/log4go"
 )
 

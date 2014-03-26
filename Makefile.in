@@ -97,10 +97,11 @@ ifeq ($(uname_S),Linux)
 endif
 
 levigo_dependency = github.com/jmhodges/levigo
-proto_dependency  = code.google.com/p/goprotobuf/protoc-gen-go
+proto_dependency  = code.google.com/p/gogoprotobuf/protoc-gen-gogo
 
 dependencies = code.google.com/p/go.crypto/bcrypt \
-code.google.com/p/goprotobuf/proto \
+code.google.com/p/gogoprotobuf/proto \
+code.google.com/p/gogoprotobuf/gogoproto \
 code.google.com/p/log4go \
 github.com/bmizerany/pat \
 github.com/fitstar/falcore \
@@ -110,7 +111,6 @@ github.com/goraft/raft \
 github.com/influxdb/go-cache \
 github.com/BurntSushi/toml \
 github.com/influxdb/influxdb-go \
-code.google.com/p/gogoprotobuf/proto \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
@@ -131,7 +131,7 @@ test_dependencies: dependencies
 protobuf:
 	$(GO) get $(proto_dependency)
 	rm -f src/protocol/*.pb.go
-	PATH=$$PWD/bin:$$PATH $(PROTOC) --go_out=. src/protocol/*.proto
+	PATH=$$PWD/bin:$$PATH $(PROTOC) --proto_path=src/protocol/ --proto_path=src/ --gogo_out=src/protocol/ src/protocol/*.proto
 
 build: | dependencies protobuf parser build_version_string
 # TODO: build all packages, otherwise we won't know

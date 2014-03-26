@@ -3,13 +3,10 @@ package datastore
 import (
 	"bytes"
 	"cluster"
-	"code.google.com/p/goprotobuf/proto"
-	log "code.google.com/p/log4go"
 	"common"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/jmhodges/levigo"
 	"math"
 	"parser"
 	"protocol"
@@ -17,6 +14,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"code.google.com/p/gogoprotobuf/proto"
+	log "code.google.com/p/log4go"
+	"github.com/jmhodges/levigo"
 )
 
 type LevelDbShard struct {
