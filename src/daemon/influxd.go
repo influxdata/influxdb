@@ -1,7 +1,6 @@
 package main
 
 import (
-	log "code.google.com/p/log4go"
 	"configuration"
 	"coordinator"
 	"flag"
@@ -13,6 +12,8 @@ import (
 	"server"
 	"strconv"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 func setupLogging(loggingLevel, logFile string) {
@@ -60,8 +61,6 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	startProfiler()
-
 	if wantsVersion != nil && *wantsVersion {
 		fmt.Printf("InfluxDB v%s (git: %s)\n", version, gitSha)
 		return
@@ -100,6 +99,8 @@ func main() {
 		time.Sleep(time.Second)
 		panic(err)
 	}
+
+	startProfiler(server)
 
 	if *resetRootPassword {
 		// TODO: make this not suck

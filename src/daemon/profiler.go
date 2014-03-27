@@ -9,7 +9,6 @@ package main
 import "C"
 
 import (
-	log "code.google.com/p/log4go"
 	"flag"
 	"fmt"
 	"os"
@@ -18,6 +17,8 @@ import (
 	"runtime/pprof"
 	"syscall"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 var profileFilename *string
@@ -26,7 +27,7 @@ func init() {
 	profileFilename = flag.String("profile", "", "filename prefix where cpu and memory profile data will be written")
 }
 
-func waitForSignals(filename string, stopped <-chan bool) {
+func waitForSignals(stoppable Stoppable, filename string, stopped <-chan bool) {
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 outer:
@@ -46,20 +47,24 @@ outer:
 			}
 			f.Close()
 			stopCHeapProfiler()
+			stoppable.Stop()
 			break outer
 			// make sure everything stopped before exiting
 		}
 	}
 	// wait for all logging messages to be printed
-	time.Sleep(time.Second)
 	<-stopped
+	time.Sleep(time.Second)
 	os.Exit(0)
 }
 
-func startProfiler() error {
+func startProfiler(stoppable Stoppable) error {
 	if profileFilename == nil || *profileFilename == "" {
+		log.Info("Not starting profiling since the profile prefix is not set")
 		return nil
 	}
+
+	log.Info("Starting profiling with prefix %s", *profileFilename)
 
 	startCHeapProfiler(*profileFilename)
 	runtime.MemProfileRate = 1024
@@ -71,7 +76,7 @@ func startProfiler() error {
 	runtime.SetCPUProfileRate(500)
 	stopped := make(chan bool)
 
-	go waitForSignals(*profileFilename, stopped)
+	go waitForSignals(stoppable, *profileFilename, stopped)
 
 	go func() {
 		for {

@@ -5,15 +5,13 @@ import (
 	"api/graphite"
 	"api/http"
 	"cluster"
-	log "code.google.com/p/log4go"
 	"configuration"
 	"coordinator"
 	"datastore"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 	"wal"
+
+	log "code.google.com/p/log4go"
 )
 
 type Server struct {
@@ -101,7 +99,6 @@ func (self *Server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
-	go self.ListenForSignals()
 	log.Info("Starting admin interface on port %d", self.Config.AdminHttpPort)
 	go self.AdminServer.ListenAndServe()
 	if self.Config.GraphiteEnabled {
@@ -147,19 +144,4 @@ func (self *Server) Stop() {
 	log.Info("Stopping shard store")
 	self.shardStore.Close()
 	log.Info("shard store stopped")
-}
-
-func (self *Server) ListenForSignals() {
-	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
-	for {
-		sig := <-ch
-		log.Info("Received signal: %s\n", sig.String())
-		switch sig {
-		case syscall.SIGINT, syscall.SIGTERM:
-			self.Stop()
-			time.Sleep(time.Second)
-			os.Exit(0)
-		}
-	}
 }
