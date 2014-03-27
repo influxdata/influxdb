@@ -313,7 +313,7 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 			if processor != nil {
 				// if the data wasn't aggregated at the shard level, aggregate
 				// the data here
-				log.Debug("YIELDING: %d points", len(response.Series.Points))
+				log.Debug("YIELDING: %d points with %d columns", len(response.Series.Points), len(response.Series.Fields))
 				processor.YieldSeries(response.Series)
 				continue
 			}
