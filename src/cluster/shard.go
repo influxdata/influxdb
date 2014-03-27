@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	log "code.google.com/p/log4go"
 	"common"
 	"engine"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"time"
 	"wal"
+
+	log "code.google.com/p/log4go"
 )
 
 // A shard imements an interface for writing and querying data.

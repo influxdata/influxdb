@@ -386,6 +386,11 @@ func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Sh
 	confirmationChan := make(chan *confirmation)
 	self.entries <- &appendEntry{confirmationChan, request, shard.Id()}
 	confirmation := <-confirmationChan
+
+	// we should panic if the wal cannot append the request
+	if confirmation.err != nil {
+		panic(confirmation.err)
+	}
 	return confirmation.requestNumber, confirmation.err
 }
 
