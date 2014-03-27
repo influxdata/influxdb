@@ -136,12 +136,12 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "get", "/cluster/shards", self.getShards)
 	self.registerEndpoint(p, "del", "/cluster/shards/:id", self.dropShard)
 
-	go self.startSsl(p)
-
 	if listener == nil {
+		self.startSsl(p)
 		return
 	}
 
+	go self.startSsl(p)
 	if err := libhttp.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
 	}

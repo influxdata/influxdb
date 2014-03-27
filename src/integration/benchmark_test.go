@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"checkers"
 	. "common"
+	"crypto/tls"
 	"encoding/json"
 	"engine"
 	"flag"
@@ -42,7 +43,8 @@ type IntegrationSuite struct {
 var _ = Suite(&IntegrationSuite{})
 
 type Server struct {
-	p *os.Process
+	p          *os.Process
+	configFile string
 }
 
 func (self *Server) WriteData(data interface{}, extraQueryParams ...string) error {
@@ -117,7 +119,10 @@ func (self *Server) start() error {
 
 	root := filepath.Join(dir, "..", "..")
 	filename := filepath.Join(root, "daemon")
-	p, err := os.StartProcess(filename, []string{filename}, &os.ProcAttr{
+	if self.configFile == "" {
+		self.configFile = "config.toml.sample"
+	}
+	p, err := os.StartProcess(filename, []string{filename, "-config", self.configFile}, &os.ProcAttr{
 		Dir:   root,
 		Env:   os.Environ(),
 		Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
@@ -230,6 +235,27 @@ func (self *IntegrationSuite) writeData(c *C) {
 			time.Now().Sub(startTime))
 	}
 	wroteData = true
+}
+
+func (self *IntegrationSuite) TestSslOnly(c *C) {
+	self.server.stop()
+	time.Sleep(time.Second)
+	self.server.configFile = "src/integration/test_ssl_only.toml"
+	self.server.start()
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	client := http.Client{Transport: transport}
+	resp, err := client.Get("https://localhost:8086/ping")
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	self.server.stop()
+	time.Sleep(time.Second)
+	self.server.configFile = ""
+	self.server.start()
+	time.Sleep(5 * time.Second)
 }
 
 func (self *IntegrationSuite) TestWriting(c *C) {

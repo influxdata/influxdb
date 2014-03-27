@@ -324,3 +324,4 @@
 ### Bugfixes
 
 - [Issue #342](https://github.com/influxdb/influxdb/issues/342). Data resurrected after a server restart
+- [Issue #367](https://github.com/influxdb/influxdb/issues/367). Influxdb won't start if the api port is commented out
