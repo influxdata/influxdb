@@ -100,7 +100,9 @@ func main() {
 		panic(err)
 	}
 
-	startProfiler(server)
+	if err := startProfiler(server); err != nil {
+		panic(err)
+	}
 
 	if *resetRootPassword {
 		// TODO: make this not suck
