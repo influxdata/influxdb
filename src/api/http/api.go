@@ -865,15 +865,16 @@ func (self *HttpServer) createDbContinuousQueries(w libhttp.ResponseWriter, r *l
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		var values interface{}
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
-		json.Unmarshal(body, &values)
-		query := values.(map[string]interface{})["query"].(string)
 
-		if err := self.coordinator.CreateContinuousQuery(u, db, query); err != nil {
+		// note: id isn't used when creating a new continuous query
+		values := &ContinuousQuery{}
+		json.Unmarshal(body, values)
+
+		if err := self.coordinator.CreateContinuousQuery(u, db, values.Query); err != nil {
 			return errorToStatusCode(err), err.Error()
 		}
 		return libhttp.StatusOK, nil
