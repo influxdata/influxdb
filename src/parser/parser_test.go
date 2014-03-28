@@ -3,9 +3,9 @@ package parser
 import (
 	"common"
 	"fmt"
-	. "launchpad.net/gocheck"
 	"testing"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -405,6 +405,13 @@ func (self *QueryParserSuite) TestParseSelectWithInequality(c *C) {
 	c.Assert(leftValue.Name, Equals, "c")
 	c.Assert(boolExpression.Name, Equals, "<")
 	c.Assert(rightValue.Name, Equals, "5")
+}
+
+// issue #355
+func (self *QueryParserSuite) TestErrorWithTimeSuffix(c *C) {
+	q := `SELECT * FROM foo where time < now() - '1f'`
+	_, err := ParseSelectQuery(q)
+	c.Assert(err, ErrorMatches, ".*1f.*")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
