@@ -327,3 +327,4 @@
 - [Issue #367](https://github.com/influxdb/influxdb/issues/367). Influxdb won't start if the api port is commented out
 - [Issue #355](https://github.com/influxdb/influxdb/issues/355). Return an error on wrong time strings
 - [Issue #331](https://github.com/influxdb/influxdb/issues/331). Allow negative time values in the where clause
+- [Issue #371](https://github.com/influxdb/influxdb/issues/371). Seris index isn't deleted when the series is dropped
