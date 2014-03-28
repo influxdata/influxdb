@@ -272,7 +272,7 @@ func (self *ClusterConfiguration) CreateContinuousQuery(db string, query string)
 		}
 	}
 
-	return self.addContinuousQuery(db, &ContinuousQuery{maxId, query})
+	return self.addContinuousQuery(db, &ContinuousQuery{maxId + 1, query})
 }
 
 func (self *ClusterConfiguration) addContinuousQuery(db string, query *ContinuousQuery) error {
