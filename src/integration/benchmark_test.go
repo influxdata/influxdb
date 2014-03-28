@@ -1,6 +1,7 @@
 package integration
 
 import (
+	h "api/http"
 	"bytes"
 	"checkers"
 	. "common"
@@ -394,6 +395,44 @@ func (self *IntegrationSuite) TestDataResurrectionAfterRestart(c *C) {
 	err = json.Unmarshal(data, &series)
 	c.Assert(err, IsNil)
 	c.Assert(series, HasLen, 0)
+}
+
+// issue #360
+func (self *IntegrationSuite) TestContinuousQueriesAfterCompaction(c *C) {
+	resp, err := http.Post("http://localhost:8086/db/db1/continuous_queries?u=root&p=root", "application/json",
+		bytes.NewBufferString(`{"query": "select * from foo into bar"}`))
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	resp, err = http.Get("http://localhost:8086/db/db1/continuous_queries?u=root&p=root")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	queries := []*h.ContinuousQuery{}
+	err = json.Unmarshal(body, &queries)
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+
+	resp, err = http.Post("http://localhost:8086/raft/force_compaction?u=root&p=root", "", nil)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+
+	self.server.stop()
+	time.Sleep(time.Second)
+	c.Assert(self.server.start(), IsNil)
+	time.Sleep(5 * time.Second)
+
+	resp, err = http.Get("http://localhost:8086/db/db1/continuous_queries?u=root&p=root")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	body, err = ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	queries = []*h.ContinuousQuery{}
+	err = json.Unmarshal(body, &queries)
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
 }
 
 func (self *IntegrationSuite) TestExplainsWithPassthroughAndLimit(c *C) {
