@@ -18,7 +18,7 @@ type HttpServer struct {
   port should be a string that looks like ":8080" or whatever port to serve on.
 */
 func NewHttpServer(homeDir, port string) *HttpServer {
-	return &HttpServer{homeDir: homeDir, port: port}
+	return &HttpServer{homeDir: homeDir, port: port, closed: true}
 }
 
 func (self *HttpServer) ListenAndServe() {
@@ -26,6 +26,7 @@ func (self *HttpServer) ListenAndServe() {
 		return
 	}
 
+	self.closed = false
 	var err error
 	self.listener, err = net.Listen("tcp", self.port)
 	if err != nil {
