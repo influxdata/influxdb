@@ -9,7 +9,7 @@ bind-address = "0.0.0.0"
 
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
-level  = "debug"
+level  = "info"
 file   = "influxdb.log"         # stdout to log to standard out
 
 # Configure the admin server
