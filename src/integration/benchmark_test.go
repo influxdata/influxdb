@@ -255,7 +255,7 @@ func (self *IntegrationSuite) TestSslOnly(c *C) {
 	time.Sleep(time.Second)
 	self.server.configFile = ""
 	self.server.start()
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 }
 
 func (self *IntegrationSuite) TestWriting(c *C) {
