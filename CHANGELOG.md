@@ -326,3 +326,4 @@
 - [Issue #342](https://github.com/influxdb/influxdb/issues/342). Data resurrected after a server restart
 - [Issue #367](https://github.com/influxdb/influxdb/issues/367). Influxdb won't start if the api port is commented out
 - [Issue #355](https://github.com/influxdb/influxdb/issues/355). Return an error on wrong time strings
+- [Issue #331](https://github.com/influxdb/influxdb/issues/331). Allow negative time values in the where clause
