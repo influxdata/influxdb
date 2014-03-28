@@ -319,7 +319,7 @@
 
 - Revert the version of goraft due to a bug found in the latest version
 
-## v0.5.2 [unreleased]
+## v0.5.2 [2014-03-28]
 
 ### Bugfixes
 
@@ -329,3 +329,8 @@
 - [Issue #331](https://github.com/influxdb/influxdb/issues/331). Allow negative time values in the where clause
 - [Issue #371](https://github.com/influxdb/influxdb/issues/371). Seris index isn't deleted when the series is dropped
 - [Issue #360](https://github.com/influxdb/influxdb/issues/360). Store and recover continuous queries
+
+## v0.5.3 [unreleased]
+
+### Bugfixes
+
