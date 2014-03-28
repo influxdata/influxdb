@@ -414,6 +414,14 @@ func (self *QueryParserSuite) TestErrorWithTimeSuffix(c *C) {
 	c.Assert(err, ErrorMatches, ".*1f.*")
 }
 
+// issue #331
+func (self *QueryParserSuite) TestTimeWithNegativeEndTime(c *C) {
+	q := `SELECT * FROM foo where time < -1s`
+	query, err := ParseSelectQuery(q)
+	c.Assert(err, IsNil)
+	c.Assert(query.GetEndTime(), Equals, time.Unix(-1, 0).UTC())
+}
+
 func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 	queries := map[string]time.Time{
 		"select value, time from t where time > now() - 1d and time < now() - 1m;": time.Now().Add(-time.Minute).Round(time.Minute).UTC(),

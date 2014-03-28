@@ -441,6 +441,17 @@ VALUE:
           $$->alias = NULL;
         }
         |
+        '-' DURATION_VALUE
+        {
+          char *name = calloc(1, strlen($2->name) + 2);
+          strcat(name, "-");
+          strcat(name, $2->name);
+          free($2->name);
+          $2->name = name;
+          $$ = $2;
+          $$->alias = NULL;
+        }
+        |
         SIMPLE_NAME_VALUE
         {
           $$ = $1;
