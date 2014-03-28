@@ -328,3 +328,4 @@
 - [Issue #355](https://github.com/influxdb/influxdb/issues/355). Return an error on wrong time strings
 - [Issue #331](https://github.com/influxdb/influxdb/issues/331). Allow negative time values in the where clause
 - [Issue #371](https://github.com/influxdb/influxdb/issues/371). Seris index isn't deleted when the series is dropped
+- [Issue #360](https://github.com/influxdb/influxdb/issues/360). Store and recover continuous queries
