@@ -3,13 +3,10 @@ package datastore
 import (
 	"bytes"
 	"cluster"
-	"code.google.com/p/goprotobuf/proto"
-	log "code.google.com/p/log4go"
 	"common"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/jmhodges/levigo"
 	"math"
 	"parser"
 	"protocol"
@@ -17,6 +14,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"code.google.com/p/goprotobuf/proto"
+	log "code.google.com/p/log4go"
+	"github.com/jmhodges/levigo"
 )
 
 type LevelDbShard struct {
@@ -137,8 +138,6 @@ func (self *LevelDbShard) DropDatabase(database string) error {
 			log.Error("DropDatabase: ", err)
 		}
 
-		seriesKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~")...)
-		wb.Delete(seriesKey)
 	}
 
 	return self.db.Write(self.writeOptions, wb)
@@ -375,14 +374,16 @@ func (self *LevelDbShard) dropSeries(database, series string) error {
 	wb := levigo.NewWriteBatch()
 	defer wb.Close()
 
-	for _, name := range self.getColumnNamesForSeries(database, series) {
-		if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
-			return err
-		}
+	if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
+		return err
+	}
 
+	for _, name := range self.getColumnNamesForSeries(database, series) {
 		indexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(database+"~"+series+"~"+name)...)
 		wb.Delete(indexKey)
 	}
+
+	wb.Delete(append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~"+series)...))
 
 	// remove the column indeces for this time series
 	return self.db.Write(self.writeOptions, wb)

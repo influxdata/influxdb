@@ -349,6 +349,7 @@ func (self *IntegrationSuite) TestExplainsWithPassthrough(c *C) {
 	c.Assert(series[0].Points[0][6], Equals, float64(2.0))
 }
 
+// issue #342, #371
 func (self *IntegrationSuite) TestDataResurrectionAfterRestart(c *C) {
 	s := self.createPoints("data_resurrection", 1, 10)
 	b, err := json.Marshal(s)
@@ -382,6 +383,12 @@ func (self *IntegrationSuite) TestDataResurrectionAfterRestart(c *C) {
 	c.Assert(self.server.start(), IsNil)
 	time.Sleep(5 * time.Second)
 	data, err = self.server.RunQuery("select count(column0) from data_resurrection", "s")
+	c.Assert(err, IsNil)
+	series = []*SerializedSeries{}
+	err = json.Unmarshal(data, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 0)
+	data, err = self.server.RunQuery("list series", "s")
 	c.Assert(err, IsNil)
 	series = []*SerializedSeries{}
 	err = json.Unmarshal(data, &series)
