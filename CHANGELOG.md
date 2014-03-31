@@ -330,8 +330,15 @@
 - [Issue #371](https://github.com/influxdb/influxdb/issues/371). Seris index isn't deleted when the series is dropped
 - [Issue #360](https://github.com/influxdb/influxdb/issues/360). Store and recover continuous queries
 
-## v0.5.3 [unreleased]
+## v0.5.3 [2014-03-31]
 
 ### Bugfixes
 
 - [Issue #378](https://github.com/influxdb/influxdb/issues/378). Indexing should return if there are no requests added since the last index
+- [Issue #370](https://github.com/influxdb/influxdb/issues/370). Filtering and limit should be enforced on the shards
+- [Issue #379](https://github.com/influxdb/influxdb/issues/379). Boolean columns should be usable in where clauses
+- [Issue #381](https://github.com/influxdb/influxdb/issues/381). Should be able to do deletes as a cluster admin
+
+## v0.5.4 [unreleased]
+
+### Bugfixes
