@@ -7,20 +7,6 @@ import (
 	"strconv"
 )
 
-// Pair this with a query on a specific series for queries with a where clause
-type PointFilter struct {
-	columns          map[string]bool
-	queryColumnNames []string
-	where            *parser.WhereCondition
-}
-
-func NewPointFilter(query *parser.SelectQuery, queryColumnNames []string) *PointFilter {
-	columns := map[string]bool{}
-	getColumns(query.GetColumnNames(), columns)
-	getColumns(query.GetGroupByClause().Elems, columns)
-	return &PointFilter{columns: columns, queryColumnNames: queryColumnNames, where: query.GetWhereCondition()}
-}
-
 func getExpressionValue(values []*parser.Value, fields []string, point *protocol.Point) ([]*protocol.FieldValue, error) {
 	fieldValues := []*protocol.FieldValue{}
 	for _, value := range values {
