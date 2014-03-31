@@ -23,6 +23,7 @@ typedef struct value_t {
     VALUE_REGEX,
     VALUE_INT,
     VALUE_FLOAT,
+    VALUE_BOOLEAN,
     VALUE_STRING,
     VALUE_INTO_NAME,
     VALUE_TABLE_NAME,

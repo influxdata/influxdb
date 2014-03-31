@@ -93,6 +93,8 @@ static int yycolumn = 1;
 
 [0-9]*\.[0-9]+|[0-9]+\.[0-9]*                       { yylval->string = strdup(yytext); return FLOAT_VALUE; }
 
+true|false                                          { yylval->string = strdup(yytext); return BOOLEAN_VALUE; }
+
 [a-zA-Z0-9_]*                                       { yylval->string = strdup(yytext); return SIMPLE_NAME; }
 
 [a-zA-Z0-9_][a-zA-Z0-9._-]*                         { yylval->string = strdup(yytext); return TABLE_NAME; }

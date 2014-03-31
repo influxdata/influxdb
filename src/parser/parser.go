@@ -26,6 +26,7 @@ type ValueType int
 const (
 	ValueRegex        ValueType = C.VALUE_REGEX
 	ValueInt                    = C.VALUE_INT
+	ValueBool                   = C.VALUE_BOOLEAN
 	ValueFloat                  = C.VALUE_FLOAT
 	ValueString                 = C.VALUE_STRING
 	ValueIntoName               = C.VALUE_INTO_NAME

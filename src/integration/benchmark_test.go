@@ -1587,6 +1587,27 @@ func (self *IntegrationSuite) TestSinglePointSelectWithNullValues(c *C) {
 	}
 }
 
+func (self *IntegrationSuite) TestBooleanColumnsWorkWithWhereQuery(c *C) {
+	err := self.server.WriteData(`
+[
+  {
+    "name": "test_boolean_columns_where",
+    "columns": ["a"],
+    "points":[[true], [false], [true]]
+  }
+]`)
+	c.Assert(err, IsNil)
+
+	bs, err := self.server.RunQuery("select count(a) from test_boolean_columns_where where a = true", "m")
+	c.Assert(err, IsNil)
+	data := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &data)
+	c.Assert(err, IsNil)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Points, HasLen, 1)
+	c.Assert(data[0].Points[0][1], Equals, 2.0)
+}
+
 func (self *IntegrationSuite) TestColumnsWithOnlySomeValuesWorkWithWhereQuery(c *C) {
 	err := self.server.WriteData(`
 [

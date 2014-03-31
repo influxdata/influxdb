@@ -75,7 +75,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 
 // define types of tokens (terminals)
 %token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES EXPLAIN
-%token <string> STRING_VALUE INT_VALUE FLOAT_VALUE TABLE_NAME SIMPLE_NAME INTO_NAME REGEX_OP
+%token <string> STRING_VALUE INT_VALUE FLOAT_VALUE BOOLEAN_VALUE TABLE_NAME SIMPLE_NAME INTO_NAME REGEX_OP
 %token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
 // define the precedence of these operators
@@ -433,6 +433,11 @@ VALUE:
         FLOAT_VALUE
         {
           $$ = create_value($1, VALUE_FLOAT, FALSE, NULL);
+        }
+        |
+        BOOLEAN_VALUE
+        {
+          $$ = create_value($1, VALUE_BOOLEAN, FALSE, NULL);
         }
         |
         DURATION_VALUE
