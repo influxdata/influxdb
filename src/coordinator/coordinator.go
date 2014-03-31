@@ -195,8 +195,9 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 }
 
 func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+	user := querySpec.User()
 	db := querySpec.Database()
-	if !querySpec.User().IsDbAdmin(db) {
+	if !user.IsClusterAdmin() && !user.IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permission to write to %s", db)
 	}
 	querySpec.RunAgainstAllServersInShard = true
