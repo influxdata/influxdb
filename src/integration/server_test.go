@@ -855,7 +855,7 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
 
 // Reported by Alex in the following thread
 // https://groups.google.com/forum/#!msg/influxdb/I_Ns6xYiMOc/XilTv6BDgHgJ
-func (self *ServerSuite) TestAdminPermissionToDeleteData(c *C) {
+func (self *ServerSuite) TestDbAdminPermissionToDeleteData(c *C) {
 	data := `
   [{
     "points": [
@@ -870,6 +870,25 @@ func (self *ServerSuite) TestAdminPermissionToDeleteData(c *C) {
 	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
 
 	self.serverProcesses[0].Query("test_rep", "delete from test_delete_admin_permission", false, c)
+	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_admin_permission", false, c)
+	c.Assert(collection.Members, HasLen, 0)
+}
+
+func (self *ServerSuite) TestClusterAdminPermissionToDeleteData(c *C) {
+	data := `
+  [{
+    "points": [
+        ["val1", 2]
+    ],
+    "name": "test_delete_admin_permission",
+    "columns": ["val_1", "val_2"]
+  }]`
+	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+	collection := self.serverProcesses[0].QueryAsRoot("test_rep", "select count(val_1) from test_delete_admin_permission", false, c)
+	series := collection.GetSeries("test_delete_admin_permission", c)
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
+
+	self.serverProcesses[0].QueryAsRoot("test_rep", "delete from test_delete_admin_permission", false, c)
 	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_admin_permission", false, c)
 	c.Assert(collection.Members, HasLen, 0)
 }
