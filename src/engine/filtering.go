@@ -21,11 +21,6 @@ func NewPointFilter(query *parser.SelectQuery, queryColumnNames []string) *Point
 	return &PointFilter{columns: columns, queryColumnNames: queryColumnNames, where: query.GetWhereCondition()}
 }
 
-func (self *PointFilter) matchesWhereClause(point *protocol.Point) bool {
-	ok, _ := matches(self.where, self.queryColumnNames, point)
-	return ok
-}
-
 func getExpressionValue(values []*parser.Value, fields []string, point *protocol.Point) ([]*protocol.FieldValue, error) {
 	fieldValues := []*protocol.FieldValue{}
 	for _, value := range values {
