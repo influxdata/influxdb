@@ -6,6 +6,7 @@
 package main
 
 // #include "google/heap-profiler.h"
+// #include "google/profiler.h"
 import "C"
 
 import (
@@ -47,6 +48,7 @@ outer:
 			}
 			f.Close()
 			stopCHeapProfiler()
+			// stopCCpuProfiler()
 			stoppable.Stop()
 			break outer
 			// make sure everything stopped before exiting
@@ -67,6 +69,7 @@ func startProfiler(stoppable Stoppable) error {
 	log.Info("Starting profiling with prefix %s", *profileFilename)
 
 	startCHeapProfiler(*profileFilename)
+	// startCCpuProfiler(*profileFilename)
 	runtime.MemProfileRate = 1024
 
 	cpuProfileFile, err := os.Create(fmt.Sprintf("%s.cpu", *profileFilename))
@@ -93,6 +96,17 @@ func startProfiler(stoppable Stoppable) error {
 		}
 	}()
 	return nil
+}
+
+func startCCpuProfiler(prefix string) {
+	log.Info("Starting native cpu profiling")
+	_prefix := C.CString(fmt.Sprintf("%s.native.cpu", prefix))
+	C.ProfilerStart(_prefix)
+}
+
+func stopCCpuProfiler() {
+	log.Info("Stopping native cpu profiling")
+	C.ProfilerStop()
 }
 
 func startCHeapProfiler(prefix string) {
