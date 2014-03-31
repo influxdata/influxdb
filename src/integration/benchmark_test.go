@@ -970,16 +970,15 @@ func (self *IntegrationSuite) TestNegativeTimeInterval(c *C) {
 
 // issue #306
 func (self *IntegrationSuite) TestShardBoundaries(c *C) {
-	d := fmt.Sprintf(`
+	d := `
 [
   {
      "name": "test_end_time_of_shard_is_exclusive",
      "columns": ["cpu", "host", "time"],
-     "points": [[60, "hosta", %d], [70, "hostb", %d]]
+     "points": [[60, "hosta", -1], [70, "hostb", 0]]
   }
 ]
-`, -1, 0)
-	fmt.Printf("data: %s\n", d)
+`
 	err := self.server.WriteData(d, "time_precision=s")
 
 	c.Assert(err, IsNil)

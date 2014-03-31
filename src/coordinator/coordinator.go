@@ -466,7 +466,6 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(db string, series *proto
 }
 
 func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series) error {
-	lastTime := int64(0)
 	lastPointIndex := 0
 	now := common.CurrentTime()
 	var shardToWrite cluster.Shard
@@ -474,6 +473,13 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series
 		if point.Timestamp == nil {
 			point.Timestamp = &now
 		}
+	}
+
+	lastTime := int64(math.MinInt64)
+	if len(series.Points) > 0 && *series.Points[0].Timestamp == lastTime {
+		// just a hack to make sure lastTime will never equal the first
+		// point's timestamp
+		lastTime = 0
 	}
 
 	// sort the points by timestamp
