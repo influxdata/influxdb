@@ -1419,6 +1419,7 @@ func (self *IntegrationSuite) TestLargeDeletes(c *C) {
   }
 ]`, string(pointsString)))
 	c.Assert(err, IsNil)
+	time.Sleep(5 * time.Second)
 	bs, err := self.server.RunQuery("select count(val1) from test_large_deletes", "m")
 	c.Assert(err, IsNil)
 	data := []*SerializedSeries{}
@@ -1430,6 +1431,8 @@ func (self *IntegrationSuite) TestLargeDeletes(c *C) {
 	query := "delete from test_large_deletes"
 	_, err = self.server.RunQuery(query, "m")
 	c.Assert(err, IsNil)
+
+	time.Sleep(5 * time.Second)
 
 	// this shouldn't return any data
 	bs, err = self.server.RunQuery("select count(val1) from test_large_deletes", "m")
