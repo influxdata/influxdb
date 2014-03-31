@@ -334,3 +334,4 @@
 
 ### Bugfixes
 
+- [Issue #378](https://github.com/influxdb/influxdb/issues/378). Indexing should return if there are no requests added since the last index

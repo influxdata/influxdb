@@ -548,7 +548,7 @@ func (self *WAL) bookmark() error {
 }
 
 func (self *WAL) index() error {
-	if len(self.logFiles) == 0 {
+	if len(self.logFiles) == 0 || self.requestsSinceLastBookmark == 0 {
 		return nil
 	}
 

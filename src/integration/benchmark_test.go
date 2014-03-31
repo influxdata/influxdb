@@ -350,6 +350,40 @@ func (self *IntegrationSuite) TestExplainsWithPassthrough(c *C) {
 	c.Assert(series[0].Points[0][6], Equals, float64(2.0))
 }
 
+// issue #378
+func (self *IntegrationSuite) TestDeletingNewDatabase(c *C) {
+	resp, err := http.Post("http://localhost:8086/db?u=root&p=root", "", bytes.NewBufferString(`{"name":"delete0"}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
+
+	s := self.createPoints("data_resurrection", 1, 10)
+	b, err := json.Marshal(s)
+	c.Assert(err, IsNil)
+	resp, err = http.Post("http://localhost:8086/db/delete0/series?u=root&p=root", "", bytes.NewBuffer(b))
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	resp.Body.Close()
+	time.Sleep(time.Second)
+	fmt.Printf("wrote some data\n")
+
+	for i := 0; i < 2; i++ {
+		resp, err = http.Post("http://localhost:8086/db?u=root&p=root", "", bytes.NewBufferString(`{"name":"delete1"}`))
+		c.Assert(err, IsNil)
+		defer resp.Body.Close()
+		c.Assert(resp.StatusCode, Equals, http.StatusCreated)
+		req, err := http.NewRequest("DELETE", "http://localhost:8086/db/delete1?u=root&p=root", nil)
+		c.Assert(err, IsNil)
+		resp, err := http.DefaultClient.Do(req)
+		c.Assert(err, IsNil)
+		c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+		resp, err = http.Get("http://localhost:8086/ping")
+		c.Assert(err, IsNil)
+		c.Assert(resp.StatusCode, Equals, http.StatusOK)
+		resp.Body.Close()
+	}
+}
+
 // issue #342, #371
 func (self *IntegrationSuite) TestDataResurrectionAfterRestart(c *C) {
 	s := self.createPoints("data_resurrection", 1, 10)
