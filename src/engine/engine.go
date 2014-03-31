@@ -1,7 +1,6 @@
 package engine
 
 import (
-	log "code.google.com/p/log4go"
 	"common"
 	"fmt"
 	"parser"
@@ -10,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 type QueryEngine struct {
@@ -158,57 +159,14 @@ func (self *QueryEngine) YieldSeries(seriesIncoming *protocol.Series) (shouldCon
 }
 
 func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
-	var err error
-	if self.where != nil {
-		serieses, err := self.filter(series)
-		if err != nil {
-			log.Error("Error while filtering points: %s\n", err)
-			return false
-		}
-		for _, series := range serieses {
-			if len(series.Points) > 0 {
-				self.limiter.calculateLimitAndSlicePoints(series)
-				if len(series.Points) > 0 {
-					if err = self.yield(series); err != nil {
-						return false
-					}
-				}
-			}
-		}
-	} else {
-		self.limiter.calculateLimitAndSlicePoints(series)
+	self.limiter.calculateLimitAndSlicePoints(series)
 
-		if len(series.Points) > 0 {
-			err = self.yield(series)
-		}
-	}
+	err := self.yield(series)
 	if err != nil {
 		log.Error(err)
 		return false
 	}
 	return !self.limiter.hitLimit(*series.Name)
-}
-
-func (self *QueryEngine) filter(series *protocol.Series) ([]*protocol.Series, error) {
-	aliases := self.query.GetTableAliases(*series.Name)
-	result := make([]*protocol.Series, len(aliases), len(aliases))
-	for i, alias := range aliases {
-		_alias := alias
-		newSeries := &protocol.Series{Name: &_alias, Points: series.Points, Fields: series.Fields}
-
-		filteredResult := newSeries
-		var err error
-
-		// var err error
-		if self.query.GetFromClause().Type != parser.FromClauseInnerJoin {
-			filteredResult, err = Filter(self.query, newSeries)
-			if err != nil {
-				return nil, err
-			}
-		}
-		result[i] = filteredResult
-	}
-	return result, nil
 }
 
 func (self *QueryEngine) Close() {

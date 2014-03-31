@@ -219,20 +219,26 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 			maxDeleteResults := 10000
 			processor = engine.NewPassthroughEngine(response, maxDeleteResults)
 		} else {
+			query := querySpec.SelectQuery()
 			if self.ShouldAggregateLocally(querySpec) {
 				log.Debug("creating a query engine\n")
-				processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), response)
+				processor, err = engine.NewQueryEngine(query, response)
 				if err != nil {
 					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
 					log.Error("Error while creating engine: %s", err)
 					return
 				}
 				processor.SetShardInfo(int(self.Id()), self.IsLocal)
-			} else {
+			} else if query.HasAggregates() {
 				maxPointsToBufferBeforeSending := 1000
 				log.Debug("creating a passthrough engine\n")
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
+			} else {
+				maxPointsToBufferBeforeSending := 1000
+				log.Debug("creating a passthrough engine with limit\n")
+				processor = engine.NewPassthroughEngineWithLimit(response, maxPointsToBufferBeforeSending, query.Limit)
 			}
+			processor = engine.NewFilteringEngine(query, processor)
 		}
 		shard, err := self.store.GetOrCreateShard(self.id)
 		if err != nil {
