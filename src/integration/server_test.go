@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	. "launchpad.net/gocheck"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,7 +16,6 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
-	. "launchpad.net/gocheck"
 )
 
 type ServerSuite struct {
@@ -216,13 +216,13 @@ func (self *ServerProcess) VerifyForbiddenQuery(database, query string, onlyLoca
 
 func (self *ServerProcess) Post(url, data string, c *C) *http.Response {
 	err := self.Request("POST", url, data, c)
-	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 100)
 	return err
 }
 
 func (self *ServerProcess) Delete(url, body string, c *C) *http.Response {
 	err := self.Request("DELETE", url, body, c)
-	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 100)
 	return err
 }
 

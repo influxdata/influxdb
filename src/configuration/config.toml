@@ -71,9 +71,11 @@ protobuf_heartbeat = "200ms" # the heartbeat interval between the servers. must 
 # will be replayed from the WAL
 write-buffer-size = 10000
 
-# When queries get distributed out, the go in parallel. However, the responses must be sent in time order.
-# This setting determines how many responses can be buffered in memory per shard before data starts gettind dropped.
-query-shard-buffer-size = 1000
+# When queries get distributed out to shards, they go in parallel. This means that results can get buffered
+# in memory since results will come in any order, but have to be processed in the correct time order. 
+# Setting this higher will give better performance, but you'll need more memory. Setting this to 1 will ensure 
+# that you don't need to buffer in memory, but you won't get the best performance.
+concurrent-shard-query-limit = 10
 
 [leveldb]
 
