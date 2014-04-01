@@ -217,8 +217,9 @@ func (self *CoordinatorImpl) shouldAggregateLocally(shards []*cluster.ShardData,
 }
 
 func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData, querySpec *parser.QuerySpec) bool {
-	// if we're not aggregating locally, that means all the raw points are being sent back in this query. Do it
-	// sequentially so we don't fill up memory like crazy.
+	// if we're not aggregating locally, that means all the raw points
+	// are being sent back in this query. Do it sequentially so we don't
+	// fill up memory like crazy.
 	return !self.shouldAggregateLocally(shards, querySpec)
 }
 
@@ -273,57 +274,23 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 	return shards, processor, seriesClosed, nil
 }
 
-func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	shards, processor, seriesClosed, err := self.getShardsAndProcessor(querySpec, seriesWriter)
-	if err != nil {
-		return err
-	}
-
-	responses := make([]chan *protocol.Response, len(shards), len(shards))
-
-	shardConcurrentLimit := self.config.ConcurrentShardQueryLimit
-	if self.shouldQuerySequentially(shards, querySpec) {
-		log.Debug("Querying shards sequentially")
-		shardConcurrentLimit = 1
-	}
-	log.Debug("Shard concurrent limit: ", shardConcurrentLimit)
-	for i := 0; i < shardConcurrentLimit && i < len(shards); i++ {
-		shard := shards[i]
-		responseChan := make(chan *protocol.Response, shard.QueryResponseBufferSize(querySpec, self.config.LevelDbPointBatchSize))
-		// We query shards for data and stream them to query processor
-		go shard.Query(querySpec, responseChan)
-		responses[i] = responseChan
-	}
-	nextIndex := shardConcurrentLimit
-	// don't queue up new shards to query if we've hit the limit for the query
-	shouldContinue := false
-
-	for i, responseChan := range responses {
-		log.Debug("READING: shard: ", i, shards[i].String())
-
-		// Do this because it's possible should continue was false so we haven't set the other response channels.
-		if responseChan == nil {
-			break
-		}
+func (self *CoordinatorImpl) readFromResposneChannels(processor cluster.QueryProcessor,
+	writer SeriesWriter,
+	isExplainQuery bool,
+	channels []<-chan *protocol.Response) (err error) {
+	for _, responseChan := range channels {
 		for {
 			response := <-responseChan
 
 			//log.Debug("GOT RESPONSE: ", response.Type, response.Series)
 			log.Debug("GOT RESPONSE: ", response.Type)
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
-				if response.ErrorMessage != nil && err == nil {
-					err = common.NewQueryError(common.InvalidArgument, *response.ErrorMessage)
+				if response.ErrorMessage == nil {
+					break
 				}
-				if nextIndex < len(shards) && shouldContinue {
-					shard := shards[nextIndex]
-					responseChan := make(chan *protocol.Response, shard.QueryResponseBufferSize(querySpec, self.config.LevelDbPointBatchSize))
-					// We query shards for data and stream them to query processor
-					log.Debug("Querying Shard: ", nextIndex, shard.String())
-					go shard.Query(querySpec, responseChan)
-					responses[nextIndex] = responseChan
-					nextIndex += 1
-				}
-				break
+
+				err = common.NewQueryError(common.InvalidArgument, *response.ErrorMessage)
+				return
 			}
 
 			if response.Series == nil || len(response.Series.Points) == 0 {
@@ -338,18 +305,49 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 				// if the data wasn't aggregated at the shard level, aggregate
 				// the data here
 				log.Debug("YIELDING: %d points with %d columns", len(response.Series.Points), len(response.Series.Fields))
-				shouldContinue = processor.YieldSeries(response.Series)
-				log.Debug("ShouldContinue: ", shouldContinue)
+				processor.YieldSeries(response.Series)
 				continue
 			}
 
 			// If we have EXPLAIN query, we don't write actual points (of
 			// response.Type Query) to the client
-			if !(*response.Type == queryResponse && querySpec.IsExplainQuery()) {
-				seriesWriter.Write(response.Series)
+			if !(*response.Type == queryResponse && isExplainQuery) {
+				writer.Write(response.Series)
 			}
 		}
-		log.Debug("DONE: shard: ", shards[i].String())
+	}
+	return
+}
+
+func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+	shards, processor, seriesClosed, err := self.getShardsAndProcessor(querySpec, seriesWriter)
+	if err != nil {
+		return err
+	}
+
+	shardConcurrentLimit := self.config.ConcurrentShardQueryLimit
+	if self.shouldQuerySequentially(shards, querySpec) {
+		log.Debug("Querying shards sequentially")
+		shardConcurrentLimit = 1
+	}
+	log.Debug("Shard concurrent limit: ", shardConcurrentLimit)
+	for i := 0; i < len(shards); i += shardConcurrentLimit {
+		responses := make([]<-chan *protocol.Response, 0, shardConcurrentLimit)
+
+		for j := 0; j < shardConcurrentLimit && i+j < len(shards); j++ {
+			shard := shards[i+j]
+			responseChan := make(chan *protocol.Response, shard.QueryResponseBufferSize(querySpec, self.config.LevelDbPointBatchSize))
+			// We query shards for data and stream them to query processor
+			log.Debug("QUERYING: shard: ", i+j, shard.String())
+			go shard.Query(querySpec, responseChan)
+			responses = append(responses, responseChan)
+		}
+
+		err := self.readFromResposneChannels(processor, seriesWriter, querySpec.IsExplainQuery(), responses)
+		if err != nil {
+			log.Error("Reading responses from channels returned an error: %s", err)
+			return err
+		}
 	}
 
 	if processor != nil {
