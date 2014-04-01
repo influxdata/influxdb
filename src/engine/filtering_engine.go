@@ -35,7 +35,7 @@ func (self *FilteringEngine) YieldSeries(seriesIncoming *p.Series) bool {
 		panic(err)
 	}
 	if len(series.Points) == 0 {
-		return false
+		return true
 	}
 	return self.processor.YieldSeries(series)
 }

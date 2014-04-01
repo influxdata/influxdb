@@ -196,6 +196,10 @@ func (self *IntegrationSuite) TearDownSuite(c *C) {
 }
 
 func (self *IntegrationSuite) createPoints(name string, numOfColumns, numOfPoints int) interface{} {
+	return self.createPointsFromFunc(name, numOfColumns, numOfPoints, func(int) float64 { return rand.Float64() })
+}
+
+func (self *IntegrationSuite) createPointsFromFunc(name string, numOfColumns, numOfPoints int, f func(int) float64) interface{} {
 	series := &SerializedSeries{}
 
 	series.Name = name
@@ -206,7 +210,7 @@ func (self *IntegrationSuite) createPoints(name string, numOfColumns, numOfPoint
 	for i := 0; i < numOfPoints; i++ {
 		point := []interface{}{}
 		for j := 0; j < numOfColumns; j++ {
-			point = append(point, rand.Float64())
+			point = append(point, f(i))
 		}
 		series.Points = append(series.Points, point)
 	}
@@ -323,6 +327,31 @@ func (self *IntegrationSuite) TestShortPasswords(c *C) {
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+}
+
+// issue #389
+func (self *IntegrationSuite) TestFilteringShouldNotStopIfAllPointsDontMatch(c *C) {
+	// make sure we exceed the pointBatchSize, so we force a yield to
+	// the filtering engine
+	numberOfPoints := 1000000
+	data := self.createPointsFromFunc("test_filtering_shouldnt_stop", 1, numberOfPoints, func(i int) float64 { return float64(numberOfPoints - i) })
+	series := data.([]*SerializedSeries)[0]
+	series.Columns = append(series.Columns, "time")
+	points := series.Points
+	series.Points = nil
+	now := time.Now()
+	for idx, point := range points {
+		point = append(point, float64(now.Add(time.Duration(-idx)*time.Second).Unix()))
+		series.Points = append(series.Points, point)
+	}
+	c.Assert(self.server.WriteData([]*SerializedSeries{series}, "time_precision=s"), IsNil)
+	time.Sleep(5 * time.Second)
+	bs, err := self.server.RunQuery("select column0 from test_filtering_shouldnt_stop where column0 < 10", "m")
+	serieses := []*SerializedSeries{}
+	c.Assert(err, IsNil)
+	err = json.Unmarshal(bs, &serieses)
+	c.Assert(err, IsNil)
+	c.Assert(serieses, HasLen, 1)
 }
 
 func (self *IntegrationSuite) TestExplainsWithPassthrough(c *C) {
