@@ -341,6 +341,10 @@
 
 ## v0.5.4 [unreleased]
 
+- Upgrade leveldb 1.10 -> 1.15
+
+  This should be a backward compatible change, but is here for documentation only
+
 ### Bugfixes
 
 - [Issue #386](https://github.com/influxdb/influxdb/issues/386). Drop series should work with series containing dots
