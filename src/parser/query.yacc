@@ -201,7 +201,7 @@ DELETE_QUERY:
         }
 
 DROP_SERIES_QUERY:
-        DROP_SERIES SIMPLE_NAME_VALUE
+        DROP_SERIES SIMPLE_TABLE_VALUE
         {
           $$ = malloc(sizeof(drop_series_query));
           $$->name = $2;

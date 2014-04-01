@@ -342,3 +342,5 @@
 ## v0.5.4 [unreleased]
 
 ### Bugfixes
+
+- [Issue #386](https://github.com/influxdb/influxdb/issues/386). Drop series should work with series containing dots

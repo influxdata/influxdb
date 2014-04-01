@@ -964,7 +964,7 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 		self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_series", "replicationFactor": 3}`, c)
 		self.serverProcesses[0].Post("/db/drop_series/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
 		data := `[{
-		"name": "cluster_query",
+		"name": "cluster_query.1",
 		"columns": ["val1"],
 		"points": [[1]]
 		}]`
@@ -972,19 +972,19 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 		time.Sleep(time.Second)
 		for _, s := range self.serverProcesses {
 			fmt.Printf("Running query against: %d\n", s.apiPort)
-			collection := s.Query("drop_series", "select * from cluster_query", true, c)
+			collection := s.Query("drop_series", "select * from cluster_query.1", true, c)
 			c.Assert(collection.Members, HasLen, 1)
-			series := collection.GetSeries("cluster_query", c)
+			series := collection.GetSeries("cluster_query.1", c)
 			c.Assert(series.SerializedSeries.Points, HasLen, 1)
 		}
 		switch i {
 		case 0:
 			fmt.Printf("Using the http api\n")
-			resp := self.serverProcesses[0].Delete("/db/drop_series/series/cluster_query?u=root&p=root", "", c)
+			resp := self.serverProcesses[0].Delete("/db/drop_series/series/cluster_query.1?u=root&p=root", "", c)
 			c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
 		case 1:
 			fmt.Printf("Using the drop series\n")
-			self.serverProcesses[0].Query("drop_series", "drop series cluster_query", false, c)
+			self.serverProcesses[0].Query("drop_series", "drop series cluster_query.1", false, c)
 		case 2:
 			resp := self.serverProcesses[0].Delete("/db/drop_series?u=root&p=root", "", c)
 			c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
@@ -993,7 +993,7 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 		time.Sleep(time.Second)
 		for _, s := range self.serverProcesses {
 			fmt.Printf("Running query against: %d\n", s.apiPort)
-			collection := s.Query("drop_series", "select * from cluster_query", true, c)
+			collection := s.Query("drop_series", "select * from cluster_query.1", true, c)
 			c.Assert(collection.Members, HasLen, 0)
 		}
 	}
