@@ -48,7 +48,7 @@ snappy_file    = snappy-$(snappy_version).tar.gz
 snappy_deps    = $(snappy_dir)/.libs/libsnappy.a
 
 # leveldb variables
-leveldb_version = 1.12.0
+leveldb_version = 1.15.0
 leveldb_dir     = /tmp/leveldb.influxdb.$(arch)
 leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
