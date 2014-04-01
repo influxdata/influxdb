@@ -344,3 +344,4 @@
 ### Bugfixes
 
 - [Issue #386](https://github.com/influxdb/influxdb/issues/386). Drop series should work with series containing dots
+- [Issue #389](https://github.com/influxdb/influxdb/issues/389). Filtering shouldn't stop prematurely
