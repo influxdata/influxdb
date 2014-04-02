@@ -351,3 +351,4 @@
 - [Issue #389](https://github.com/influxdb/influxdb/issues/389). Filtering shouldn't stop prematurely
 - [Issue #341](https://github.com/influxdb/influxdb/issues/341). Make the number of shards that are queried in parallel configurable
 - [Issue #394](https://github.com/influxdb/influxdb/issues/394). Support count(distinct) and count(DISTINCT)
+- [Issue #362](https://github.com/influxdb/influxdb/issues/362). Limit should be enforced after aggregation

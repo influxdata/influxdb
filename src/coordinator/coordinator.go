@@ -263,14 +263,16 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 	seriesClosed := make(chan bool)
 
 	selectQuery := querySpec.SelectQuery()
-	if selectQuery != nil && !shouldAggregateLocally {
-		// if we should aggregate in the coordinator (i.e. aggregation
-		// isn't happening locally at the shard level), create an engine
-		processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
-	} else if selectQuery != nil && selectQuery.Limit > 0 {
-		// if we have a query with limit, then create an engine, or we can
-		// make the passthrough limit aware
-		processor = engine.NewPassthroughEngineWithLimit(responseChan, 100, selectQuery.Limit)
+	if selectQuery != nil {
+		if !shouldAggregateLocally {
+			// if we should aggregate in the coordinator (i.e. aggregation
+			// isn't happening locally at the shard level), create an engine
+			processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
+		} else {
+			// if we have a query with limit, then create an engine, or we can
+			// make the passthrough limit aware
+			processor = engine.NewPassthroughEngineWithLimit(responseChan, 100, selectQuery.Limit)
+		}
 	} else if !shouldAggregateLocally {
 		processor = engine.NewPassthroughEngine(responseChan, 100)
 	}

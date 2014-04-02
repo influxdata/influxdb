@@ -68,11 +68,6 @@ func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*
 
 func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Response) (*QueryEngine, error) {
 	limit := query.Limit
-	// disable limit if the query has aggregates let the coordinator
-	// deal with the limit
-	if query.HasAggregates() {
-		limit = 0
-	}
 
 	queryEngine := &QueryEngine{
 		query:          query,
@@ -97,11 +92,14 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 	yield := func(series *protocol.Series) error {
 		var response *protocol.Response
 
+		queryEngine.limiter.calculateLimitAndSlicePoints(series)
+		if len(series.Points) == 0 {
+			return nil
+		}
 		if queryEngine.explain {
 			//TODO: We may not have to send points, just count them
 			queryEngine.pointsWritten += int64(len(series.Points))
 		}
-
 		response = &protocol.Response{Type: &queryResponse, Series: series}
 		responseChan <- response
 		return nil
@@ -155,18 +153,16 @@ func (self *QueryEngine) YieldSeries(seriesIncoming *protocol.Series) (shouldCon
 	}
 	seriesName := seriesIncoming.GetName()
 	self.seriesToPoints[seriesName] = &protocol.Series{Name: &seriesName, Fields: seriesIncoming.Fields}
-	return self.yieldSeriesData(seriesIncoming)
+	return self.yieldSeriesData(seriesIncoming) && !self.limiter.hitLimit(seriesIncoming.GetName())
 }
 
 func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
-	self.limiter.calculateLimitAndSlicePoints(series)
-
 	err := self.yield(series)
 	if err != nil {
 		log.Error(err)
 		return false
 	}
-	return !self.limiter.hitLimit(*series.Name)
+	return true
 }
 
 func (self *QueryEngine) Close() {

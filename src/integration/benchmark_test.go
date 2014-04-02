@@ -555,6 +555,19 @@ func (self *IntegrationSuite) TestExplainsWithNonLocalAggregator(c *C) {
 	c.Assert(series[0].Points[0][6], Equals, float64(1.0))
 }
 
+func (self *IntegrationSuite) TestDistinctWithLimit(c *C) {
+	data := self.createPoints("test_count_distinct_limit", 1, 1000)
+	c.Assert(self.server.WriteData(data), IsNil)
+	bs, err := self.server.RunQuery("select distinct(column0) from test_count_distinct_limit limit 10", "m")
+	c.Assert(err, IsNil)
+	series := []*SerializedSeries{}
+	err = json.Unmarshal(bs, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Columns, HasLen, 2) // 6 columns plus the time column
+	c.Assert(series[0].Points, HasLen, 10)
+}
+
 func (self *IntegrationSuite) TestExplainsWithNonLocalAggregatorAndRegex(c *C) {
 	data := `
   [{
