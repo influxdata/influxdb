@@ -339,7 +339,7 @@
 - [Issue #379](https://github.com/influxdb/influxdb/issues/379). Boolean columns should be usable in where clauses
 - [Issue #381](https://github.com/influxdb/influxdb/issues/381). Should be able to do deletes as a cluster admin
 
-## v0.5.4 [unreleased]
+## v0.5.4 [2014-04-02]
 
 - Upgrade leveldb 1.10 -> 1.15
 
@@ -352,3 +352,8 @@
 - [Issue #341](https://github.com/influxdb/influxdb/issues/341). Make the number of shards that are queried in parallel configurable
 - [Issue #394](https://github.com/influxdb/influxdb/issues/394). Support count(distinct) and count(DISTINCT)
 - [Issue #362](https://github.com/influxdb/influxdb/issues/362). Limit should be enforced after aggregation
+
+## v0.5.5 [unreleased]
+
+### Bugfixes
+
