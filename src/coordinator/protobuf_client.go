@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"bytes"
-	log "code.google.com/p/log4go"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -11,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 type ProtobufClient struct {
@@ -175,18 +176,7 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 			delete(self.requestBuffer, *response.RequestId)
 			self.requestBufferLock.Unlock()
 		}
-		select {
-		case req.responseChan <- response:
-		default:
-			log.Error("ProtobufClient: Response buffer full! ", self.hostAndPort, response)
-			panic("fuck, dropping shit!")
-			// if it's an end stream response, we have to send it so start it in a goroutine so we can make sure it gets through without blocking the reading of responses.
-			if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK || *response.Type == protocol.Response_ACCESS_DENIED {
-				go func() {
-					req.responseChan <- response
-				}()
-			}
-		}
+		req.responseChan <- response
 	}
 }
 

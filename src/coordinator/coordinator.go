@@ -217,10 +217,39 @@ func (self *CoordinatorImpl) shouldAggregateLocally(shards []*cluster.ShardData,
 }
 
 func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData, querySpec *parser.QuerySpec) bool {
-	// if we're not aggregating locally, that means all the raw points
-	// are being sent back in this query. Do it sequentially so we don't
-	// fill up memory like crazy.
-	return !self.shouldAggregateLocally(shards, querySpec)
+	// if the query isn't a select, then it doesn't matter
+	if querySpec.SelectQuery != nil {
+		return false
+	}
+
+	// if the query is a regex, we can't predic the number of responses
+	// we get back
+	if querySpec.IsRegex() {
+		return true
+	}
+	groupByClause := querySpec.SelectQuery().GetGroupByClause()
+	// if there's no group by clause, then we're returning raw points
+	// with some math done on them, thus we can't predict the number of
+	// points
+	if groupByClause == nil {
+		return true
+	}
+	// if there's a group by clause but no group by interval, we can't
+	// predict the cardinality of the columns used in the group by
+	// interval, thus we can't predict the number of responses returned
+	// from the shard
+	if querySpec.GetGroupByInterval() == nil {
+		return true
+	}
+	// if there's a group by time and other columns, then the previous
+	// logic holds
+	if len(groupByClause.Elems) > 1 {
+		return true
+	}
+
+	// parallel querying only if we're querying a single series, with
+	// group by time only
+	return false
 }
 
 func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, chan bool, error) {
