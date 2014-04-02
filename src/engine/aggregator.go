@@ -8,6 +8,7 @@ import (
 	"protocol"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -525,7 +526,7 @@ func NewCountAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *pa
 	}
 
 	if v.Elems[0].Type != parser.ValueSimpleName {
-		innerName := v.Elems[0].Name
+		innerName := strings.ToLower(v.Elems[0].Name)
 		init := registeredAggregators[innerName]
 		if init == nil {
 			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", innerName))

@@ -5,11 +5,11 @@ import (
 	. "common"
 	"encoding/json"
 	"fmt"
-	. "launchpad.net/gocheck"
 	"net/http"
 	"os"
 	"protocol"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 type EngineSuite struct {
@@ -635,8 +635,6 @@ func (self *EngineSuite) TestCountQueryWithGroupByClauseWithMultipleColumns(c *C
 `)
 }
 
-
-
 func (self *EngineSuite) TestCountQueryWithGroupByTime(c *C) {
 	// make the mock coordinator return some data
 	self.createEngine(c, `[
@@ -895,7 +893,8 @@ func (self *EngineSuite) TestCountDistinct(c *C) {
     }
   ]`)
 
-	self.runQuery("select count(distinct(column_one)) from foo order asc", c, `[
+	for _, fun := range []string{"distinct", "DISTINCT"} {
+		self.runQuery(fmt.Sprintf("select count(%s(column_one)) from foo order asc", fun), c, `[
     {
       "points": [
         { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000}
@@ -904,6 +903,7 @@ func (self *EngineSuite) TestCountDistinct(c *C) {
       "fields": ["count"]
     }
   ]`)
+	}
 }
 
 func (self *EngineSuite) TestEmptyGroups(c *C) {
