@@ -57,7 +57,11 @@ func NewClient(config *ClientConfig) (*Client, error) {
 }
 
 func (self *Client) getUrl(path string) string {
-	return fmt.Sprintf("http://%s%s?u=%s&p=%s", self.host, path, self.username, self.password)
+	return self.getUrlWithUserAndPass(path, self.username, self.password)
+}
+
+func (self *Client) getUrlWithUserAndPass(path, username, password string) string {
+	return fmt.Sprintf("http://%s%s?u=%s&p=%s", self.host, path, username, password)
 }
 
 func responseToError(response *http.Response, err error, closeResponse bool) error {
@@ -262,4 +266,16 @@ func (self *Client) Query(query string) ([]*Series, error) {
 		return nil, err
 	}
 	return series, nil
+}
+
+func (self *Client) Ping() error {
+	url := self.getUrl("/ping")
+	resp, err := self.httpClient.Get(url)
+	return responseToError(resp, err, true)
+}
+
+func (self *Client) AuthenticateDatabaseUser(database, username, password string) error {
+	url := self.getUrlWithUserAndPass(fmt.Sprintf("/db/%s/authenticate", database), username, password)
+	resp, err := self.httpClient.Get(url)
+	return responseToError(resp, err, true)
 }
