@@ -16,12 +16,6 @@ const (
 	SecondPrecision
 )
 
-type SerializedSeries struct {
-	Name    string          `json:"name"`
-	Columns []string        `json:"columns"`
-	Points  [][]interface{} `json:"points"`
-}
-
 var VALID_TABLE_NAMES *regexp.Regexp
 
 func init() {
@@ -53,18 +47,24 @@ func removeTimestampFieldDefinition(fields []string) []string {
 	return removeField(fields, "sequence_number")
 }
 
-func ConvertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*protocol.Series, error) {
-	if !VALID_TABLE_NAMES.MatchString(s.Name) {
-		return nil, fmt.Errorf("%s is not a valid series name", s.Name)
+type ApiSeries interface {
+	GetName() string
+	GetColumns() []string
+	GetPoints() [][]interface{}
+}
+
+func ConvertToDataStoreSeries(s ApiSeries, precision TimePrecision) (*protocol.Series, error) {
+	if !VALID_TABLE_NAMES.MatchString(s.GetName()) {
+		return nil, fmt.Errorf("%s is not a valid series name", s.GetName())
 	}
 
 	points := []*protocol.Point{}
-	for _, point := range s.Points {
+	for _, point := range s.GetPoints() {
 		values := []*protocol.FieldValue{}
 		var timestamp *int64
 		var sequence *uint64
 
-		for idx, field := range s.Columns {
+		for idx, field := range s.GetColumns() {
 			value := point[idx]
 			if field == "time" {
 				switch value.(type) {
@@ -121,10 +121,10 @@ func ConvertToDataStoreSeries(s *SerializedSeries, precision TimePrecision) (*pr
 		})
 	}
 
-	fields := removeTimestampFieldDefinition(s.Columns)
+	fields := removeTimestampFieldDefinition(s.GetColumns())
 
 	series := &protocol.Series{
-		Name:   &s.Name,
+		Name:   protocol.String(s.GetName()),
 		Fields: fields,
 		Points: points,
 	}
