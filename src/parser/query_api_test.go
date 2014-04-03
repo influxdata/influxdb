@@ -1,9 +1,9 @@
 package parser
 
 import (
-	. "launchpad.net/gocheck"
 	"math"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 type QueryApiSuite struct{}
@@ -26,6 +26,7 @@ func (self *QueryApiSuite) TestWillReturnSingleSeries(c *C) {
 func (self *QueryApiSuite) TestGetStartTime(c *C) {
 	for _, queryStr := range []string{
 		"select * from t where time > now() - 1d and time < now() - 1h;",
+		"select * from t where time > NOW() - 1d and time < NOW() - 1h;",
 		"select * from t where now() - 1d < time and time < now() - 1h;",
 	} {
 		query, err := ParseSelectQuery(queryStr)

@@ -356,3 +356,5 @@
   This should be a backward compatible change, but is here for documentation only
 
 ### Bugfixes
+
+- [Issue #398](https://github.com/influxdb/influxdb/issues/398). Support now() and NOW() in the query lang

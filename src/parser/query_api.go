@@ -239,7 +239,7 @@ func parseTimeString(t string) (*time.Time, error) {
 // parse time expressions, e.g. now() - 1d
 func parseTime(value *Value) (int64, error) {
 	if value.Type != ValueExpression {
-		if value.IsFunctionCall() && value.Name == "now" {
+		if value.IsFunctionCall() && strings.ToLower(value.Name) == "now" {
 			return time.Now().UnixNano(), nil
 		}
 
