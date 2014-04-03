@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"server"
@@ -59,6 +60,7 @@ func main() {
 	wantsVersion := flag.Bool("v", false, "Get version number")
 	resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
 	pidFile := flag.String("pidfile", "", "the pid file")
+	repairLeveldb := flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
@@ -69,6 +71,23 @@ func main() {
 	}
 	config := configuration.LoadConfiguration(*fileName)
 	setupLogging(config.LogLevel, config.LogFile)
+
+	if *repairLeveldb {
+		log.Info("Repairing leveldb")
+		files, err := ioutil.ReadDir(config.DataDir)
+		if err != nil {
+			panic(err)
+		}
+		o := levigo.NewOptions()
+		defer o.Close()
+		for _, f := range files {
+			p := path.Join(config.DataDir, f.Name())
+			log.Info("Repairing %s", p)
+			if err := levigo.RepairDatabase(p, o); err != nil {
+				panic(err)
+			}
+		}
+	}
 
 	if pidFile != nil && *pidFile != "" {
 		pid := strconv.Itoa(os.Getpid())
