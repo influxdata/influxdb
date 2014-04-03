@@ -217,12 +217,6 @@ func (self *Client) AlterDatabasePrivilege(database, name string, isAdmin bool) 
 	return self.updateDatabaseUserCommon(database, name, nil, &isAdmin)
 }
 
-type Series struct {
-	Name    string          `json:"name"`
-	Columns []string        `json:"columns"`
-	Points  [][]interface{} `json:"points"`
-}
-
 type TimePrecision string
 
 const (
