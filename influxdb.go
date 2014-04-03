@@ -10,44 +10,50 @@ import (
 )
 
 type Client struct {
-	host     string
-	username string
-	password string
-	database string
+	host       string
+	username   string
+	password   string
+	database   string
+	httpClient *http.Client
 }
 
 type ClientConfig struct {
-	Host     string
-	Username string
-	Password string
-	Database string
+	Host       string
+	Username   string
+	Password   string
+	Database   string
+	HttpClient *http.Client
 }
 
-var defaults map[string]string
+var defaults *ClientConfig
 
 func init() {
-	defaults = map[string]string{
-		"host":     "localhost:8086",
-		"username": "root",
-		"password": "root",
-		"database": "",
+	defaults = &ClientConfig{
+		Host:       "localhost:8086",
+		Username:   "root",
+		Password:   "root",
+		Database:   "",
+		HttpClient: http.DefaultClient,
 	}
 }
 
-func getDefault(value, key string) string {
+func getDefault(value, defaultValue string) string {
 	if value == "" {
-		return defaults[key]
+		return defaultValue
 	}
 	return value
 }
 
 func NewClient(config *ClientConfig) (*Client, error) {
-	host := getDefault(config.Host, "host")
-	username := getDefault(config.Username, "username")
-	password := getDefault(config.Password, "password")
-	database := getDefault(config.Database, "database")
+	host := getDefault(config.Host, defaults.Host)
+	username := getDefault(config.Username, defaults.Username)
+	passowrd := getDefault(config.Password, defaults.Password)
+	database := getDefault(config.Database, defaults.Database)
+	if config.HttpClient == nil {
+		config.HttpClient = defaults.HttpClient
+	}
 
-	return &Client{host, username, password, database}, nil
+	return &Client{host, username, passowrd, database, config.HttpClient}, nil
 }
 
 func (self *Client) getUrl(path string) string {
@@ -79,7 +85,7 @@ func (self *Client) CreateDatabase(name string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
 	return responseToError(resp, err, true)
 }
 
@@ -88,7 +94,7 @@ func (self *Client) del(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return http.DefaultClient.Do(req)
+	return self.httpClient.Do(req)
 }
 
 func (self *Client) DeleteDatabase(name string) error {
@@ -98,7 +104,7 @@ func (self *Client) DeleteDatabase(name string) error {
 }
 
 func (self *Client) listSomething(url string) ([]map[string]interface{}, error) {
-	resp, err := http.Get(url)
+	resp, err := self.httpClient.Get(url)
 	err = responseToError(resp, err, false)
 	if err != nil {
 		return nil, err
@@ -128,7 +134,7 @@ func (self *Client) CreateClusterAdmin(name, password string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
 	return responseToError(resp, err, true)
 }
 
@@ -139,7 +145,7 @@ func (self *Client) UpdateClusterAdmin(name, password string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
 	return responseToError(resp, err, true)
 }
 
@@ -161,7 +167,7 @@ func (self *Client) CreateDatabaseUser(database, name, password string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
 	return responseToError(resp, err, true)
 }
 
@@ -178,7 +184,7 @@ func (self *Client) updateDatabaseUserCommon(database, name string, password *st
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
 	return responseToError(resp, err, true)
 }
 
@@ -232,7 +238,7 @@ func (self *Client) writeSeriesCommon(series []*Series, options map[string]strin
 	for name, value := range options {
 		url += fmt.Sprintf("&%s=%s", name, value)
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
 	return responseToError(resp, err, true)
 }
 
@@ -240,7 +246,7 @@ func (self *Client) Query(query string) ([]*Series, error) {
 	escapedQuery := url.QueryEscape(query)
 	url := self.getUrl("/db/" + self.database + "/series")
 	url += "&q=" + escapedQuery
-	resp, err := http.Get(url)
+	resp, err := self.httpClient.Get(url)
 	err = responseToError(resp, err, false)
 	if err != nil {
 		return nil, err
