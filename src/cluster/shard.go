@@ -241,7 +241,18 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 				log.Debug("creating a passthrough engine with limit\n")
 				processor = engine.NewPassthroughEngineWithLimit(response, maxPointsToBufferBeforeSending, query.Limit)
 			}
-			processor = engine.NewFilteringEngine(query, processor)
+
+			if query.GetFromClause().Type != parser.FromClauseInnerJoin {
+				// Joins do their own filtering since we need to get all
+				// points before filtering. This is due to the fact that some
+				// where expressions will be difficult to compute before the
+				// points are joined together, think where clause with
+				// left.column = 'something' or right.column =
+				// 'something_else'. We can't filter the individual series
+				// separately. The filtering happens in merge.go:55
+
+				processor = engine.NewFilteringEngine(query, processor)
+			}
 		}
 		shard, err := self.store.GetOrCreateShard(self.id)
 		if err != nil {
