@@ -3,16 +3,17 @@ package datastore
 import (
 	"bytes"
 	"cluster"
-	log "code.google.com/p/log4go"
 	"configuration"
 	"fmt"
-	"github.com/jmhodges/levigo"
 	"math"
 	"os"
 	"path/filepath"
 	"protocol"
 	"sync"
 	"time"
+
+	log "code.google.com/p/log4go"
+	"github.com/jmhodges/levigo"
 )
 
 type LevelDbShardDatastore struct {
@@ -127,6 +128,7 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 
 	db, err = NewLevelDbShard(ldb, self.pointBatchSize)
 	if err != nil {
+		ldb.Close()
 		return nil, err
 	}
 	self.shards[id] = db
