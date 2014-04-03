@@ -355,6 +355,11 @@
 
   This should be a backward compatible change, but is here for documentation only
 
+### Feature
+
+- Add a command line option to repair corrupted leveldb databases on startup
+
 ### Bugfixes
 
 - [Issue #398](https://github.com/influxdb/influxdb/issues/398). Support now() and NOW() in the query lang
+- Close leveldb databases properly if we couldn't create a new Shard. See leveldb\_shard\_datastore\_test:131
