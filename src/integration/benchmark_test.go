@@ -639,6 +639,23 @@ func (self *IntegrationSuite) TestAscendingQueries(c *C) {
 	}
 }
 
+func (self *IntegrationSuite) TestFilterWithInvalidCondition(c *C) {
+	for i := 0; i < 3; i++ {
+		self.server.WriteData(fmt.Sprintf(`
+[
+  {
+     "name": "test_invalid_where_condition",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10), c)
+	}
+	data := self.server.RunQuery("select cpu from test_invalid_where_condition where cpu > 0.1s", "m", c)
+	// TODO: this should return an error
+	c.Assert(data, HasLen, 0)
+}
+
 // issue #55
 func (self *IntegrationSuite) TestFilterWithLimit(c *C) {
 	for i := 0; i < 3; i++ {
