@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jmhodges/levigo"
+
 	log "code.google.com/p/log4go"
 )
 
@@ -62,7 +64,7 @@ func main() {
 	flag.Parse()
 
 	if wantsVersion != nil && *wantsVersion {
-		fmt.Printf("InfluxDB v%s (git: %s)\n", version, gitSha)
+		fmt.Printf("InfluxDB v%s (git: %s) (leveldb: %d.%d)\n", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
 		return
 	}
 	config := configuration.LoadConfiguration(*fileName)
