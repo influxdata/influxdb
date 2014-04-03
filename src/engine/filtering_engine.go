@@ -3,6 +3,8 @@ package engine
 import (
 	"parser"
 	p "protocol"
+
+	log "code.google.com/p/log4go"
 )
 
 type FilteringEngine struct {
@@ -32,7 +34,8 @@ func (self *FilteringEngine) YieldSeries(seriesIncoming *p.Series) bool {
 
 	series, err := Filter(self.query, seriesIncoming)
 	if err != nil {
-		panic(err)
+		log.Error("Error while filtering points: %s [query = %s]", err, self.query.GetQueryString())
+		return false
 	}
 	if len(series.Points) == 0 {
 		return true
