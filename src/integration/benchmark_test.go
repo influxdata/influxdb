@@ -3,7 +3,6 @@ package integration
 import (
 	h "api/http"
 	"bytes"
-	"checkers"
 	"crypto/tls"
 	"encoding/json"
 	"engine"
@@ -33,9 +32,6 @@ const (
 func Test(t *testing.T) {
 	TestingT(t)
 }
-
-var benchmark = flag.Bool("benchmark", false, "Run the benchmarks")
-var batchSize = flag.Int("batch-size", BATCH_SIZE, "The batch size per write")
 
 type IntegrationSuite struct {
 	server *Server
@@ -188,29 +184,6 @@ func (self *IntegrationSuite) createPointsFromFunc(name string, numOfColumns, nu
 	return []*influxdb.Series{series}
 }
 
-func (self *IntegrationSuite) writeData(c *C) {
-	if wroteData {
-		return
-	}
-
-	for _, numberOfColumns := range []int{1, 5, 10} {
-		startTime := time.Now()
-		seriesName := fmt.Sprintf("foo%d", numberOfColumns)
-
-		bSize := *batchSize
-		for batch := 0; batch < NUMBER_OF_POINTS/bSize; batch++ {
-			self.server.WriteData(self.createPoints(seriesName, numberOfColumns, bSize), c)
-			if (batch*bSize+bSize)%1000 == 0 {
-				fmt.Print(".")
-			}
-		}
-		fmt.Println()
-		fmt.Printf("Writing %d points (containing %d columns) in %d batches took %s\n", NUMBER_OF_POINTS, numberOfColumns, BATCH_SIZE,
-			time.Now().Sub(startTime))
-	}
-	wroteData = true
-}
-
 func (self *IntegrationSuite) TestSslOnly(c *C) {
 	self.server.stop()
 	time.Sleep(time.Second)
@@ -239,14 +212,6 @@ func (self *IntegrationSuite) TestSslOnly(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(client.Ping(), IsNil)
 
-}
-
-func (self *IntegrationSuite) TestWriting(c *C) {
-	if !*benchmark {
-		c.Skip("Benchmarks are disabled")
-	}
-
-	self.writeData(c)
 }
 
 // Reported by Alex in the following thread
@@ -1297,36 +1262,6 @@ func (self *IntegrationSuite) TestLargeDeletes(c *C) {
 	data, err = self.server.RunQuery("select count(val1) from test_large_deletes", "m")
 	c.Assert(err, IsNil)
 	c.Assert(data, HasLen, 0)
-}
-
-func (self *IntegrationSuite) TestReading(c *C) {
-	if !*benchmark {
-		c.Skip("Benchmarking is disabled")
-	}
-
-	queries := map[string][]int{
-		"select column0 from foo1 where column0 > 0.5 and column0 < 0.6;":                                     []int{1, 80000, 120000},
-		"select column0 from foo1;":                                                                           []int{1, 1000000 - 1, 1000000 + 1},
-		"select column0 from foo5 where column0 > 0.5 and column0 < 0.6 and column1 > 0.5 and column1 < 0.6;": []int{1, 8000, 12000},
-		"select column0, column1, column2, column3, column4 from foo5;":                                       []int{5, 1000000 - 1, 1000000 + 1},
-	}
-
-	for q, r := range queries {
-		self.writeData(c)
-
-		startTime := time.Now()
-		data, err := self.server.RunQuery(q, "m")
-		c.Assert(err, IsNil)
-		elapsedTime := time.Now().Sub(startTime)
-
-		c.Assert(err, IsNil)
-
-		c.Assert(data, HasLen, 1)
-		c.Assert(data[0].Columns, HasLen, r[0]+2)                   // time, sequence number and the requested columns
-		c.Assert(len(data[0].Points), checkers.InRange, r[1], r[2]) // values between 0.5 and 0.65 should be about 100,000
-
-		fmt.Printf("Took %s to execute %s\n", elapsedTime, q)
-	}
 }
 
 func (self *IntegrationSuite) TestReadingWhenColumnHasDot(c *C) {
