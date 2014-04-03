@@ -246,9 +246,12 @@ func (self *Client) writeSeriesCommon(series []*Series, options map[string]strin
 	return responseToError(resp, err, true)
 }
 
-func (self *Client) Query(query string) ([]*Series, error) {
+func (self *Client) Query(query string, precision ...TimePrecision) ([]*Series, error) {
 	escapedQuery := url.QueryEscape(query)
 	url := self.getUrl("/db/" + self.database + "/series")
+	if len(precision) > 0 {
+		url += "&time_precision=" + string(precision[0])
+	}
 	url += "&q=" + escapedQuery
 	resp, err := self.httpClient.Get(url)
 	err = responseToError(resp, err, false)
