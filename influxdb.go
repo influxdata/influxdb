@@ -15,6 +15,7 @@ type Client struct {
 	password   string
 	database   string
 	httpClient *http.Client
+	schema     string
 }
 
 type ClientConfig struct {
@@ -23,6 +24,7 @@ type ClientConfig struct {
 	Password   string
 	Database   string
 	HttpClient *http.Client
+	IsSecure   bool
 }
 
 var defaults *ClientConfig
@@ -53,7 +55,11 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		config.HttpClient = defaults.HttpClient
 	}
 
-	return &Client{host, username, passowrd, database, config.HttpClient}, nil
+	schema := "http"
+	if config.IsSecure {
+		schema = "https"
+	}
+	return &Client{host, username, passowrd, database, config.HttpClient, schema}, nil
 }
 
 func (self *Client) getUrl(path string) string {
@@ -61,7 +67,7 @@ func (self *Client) getUrl(path string) string {
 }
 
 func (self *Client) getUrlWithUserAndPass(path, username, password string) string {
-	return fmt.Sprintf("http://%s%s?u=%s&p=%s", self.host, path, username, password)
+	return fmt.Sprintf("%s://%s%s?u=%s&p=%s", self.schema, self.host, path, username, password)
 }
 
 func responseToError(response *http.Response, err error, closeResponse bool) error {
