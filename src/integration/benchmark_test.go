@@ -70,25 +70,28 @@ func (self *Server) WriteData(data interface{}, c *C, precision ...influxdb.Time
 	time.Sleep(time.Second)
 }
 
-func (self *Server) RunQuery(query string, precision influxdb.TimePrecision) ([]*influxdb.Series, error) {
-	return self.RunQueryAsUser(query, precision, "user", "pass")
+func (self *Server) RunQuery(query string, precision influxdb.TimePrecision, c *C) []*influxdb.Series {
+	return self.RunQueryAsUser(query, precision, "user", "pass", true, c)
 }
 
-func (self *Server) RunQueryAsRoot(query string, precision influxdb.TimePrecision) ([]*influxdb.Series, error) {
-	return self.RunQueryAsUser(query, precision, "root", "root")
+func (self *Server) RunQueryAsRoot(query string, precision influxdb.TimePrecision, c *C) []*influxdb.Series {
+	return self.RunQueryAsUser(query, precision, "root", "root", true, c)
 }
 
-func (self *Server) RunQueryAsUser(query string, precision influxdb.TimePrecision, username, password string) ([]*influxdb.Series, error) {
+func (self *Server) RunQueryAsUser(query string, precision influxdb.TimePrecision, username, password string, isValid bool, c *C) []*influxdb.Series {
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{
 		Username: username,
 		Password: password,
 		Database: "db1",
 	})
-	if err != nil {
-		return nil, err
+	c.Assert(err, IsNil)
+	series, err := client.Query(query, precision)
+	if isValid {
+		c.Assert(err, IsNil)
+	} else {
+		c.Assert(err, NotNil)
 	}
-
-	return client.Query(query, precision)
+	return series
 }
 
 func (self *Server) start() error {
@@ -228,17 +231,14 @@ func (self *IntegrationSuite) TestAdminPermissionToDeleteData(c *C) {
 	fmt.Println("TESTAD writing")
 	self.server.WriteData(data, c)
 	fmt.Println("TESTAD query root")
-	series, err := self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s")
-	c.Assert(err, IsNil)
+	series := self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s", c)
 	c.Assert(series[0].Points, HasLen, 1)
 	c.Assert(series[0].Points[0][1], Equals, float64(1))
 
 	fmt.Println("TESTAD deleting")
-	_, err = self.server.RunQueryAsRoot("delete from test_delete_admin_permission", "s")
-	c.Assert(err, IsNil)
+	_ = self.server.RunQueryAsRoot("delete from test_delete_admin_permission", "s", c)
 	fmt.Println("TESTAD query")
-	series, err = self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s")
-	c.Assert(err, IsNil)
+	series = self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s", c)
 	c.Assert(series, HasLen, 0)
 }
 
@@ -270,8 +270,7 @@ func (self *IntegrationSuite) TestFilteringShouldNotStopIfAllPointsDontMatch(c *
 	}
 	self.server.WriteData([]*influxdb.Series{series}, c, influxdb.Second)
 	time.Sleep(5 * time.Second)
-	serieses, err := self.server.RunQuery("select column0 from test_filtering_shouldnt_stop where column0 < 10", "m")
-	c.Assert(err, IsNil)
+	serieses = self.server.RunQuery("select column0 from test_filtering_shouldnt_stop where column0 < 10", "m", c)
 	c.Assert(serieses, HasLen, 1)
 }
 
@@ -286,8 +285,7 @@ func (self *IntegrationSuite) TestExplainsWithPassthrough(c *C) {
     "columns": ["val_1", "val_2"]
   }]`
 	self.server.WriteData(data, c)
-	series, err := self.server.RunQuery("explain select val_1 from test_explain_passthrough where time > now() - 1h", "m")
-	c.Assert(err, IsNil)
+	series := self.server.RunQuery("explain select val_1 from test_explain_passthrough where time > now() - 1h", "m", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Name, Equals, "explain query")
 	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
@@ -321,8 +319,7 @@ func (self *IntegrationSuite) TestDataResurrectionAfterRestart(c *C) {
 	self.server.WriteData(s, c)
 	time.Sleep(time.Second)
 	fmt.Printf("wrote some data\n")
-	series, err := self.server.RunQuery("select count(column0) from data_resurrection", "s")
-	c.Assert(err, IsNil)
+	series := self.server.RunQuery("select count(column0) from data_resurrection", "s", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Points[0][1], Equals, 10.0)
 	req, err := http.NewRequest("DELETE", "http://localhost:8086/db/db1?u=root&p=root", nil)
@@ -342,11 +339,9 @@ func (self *IntegrationSuite) TestDataResurrectionAfterRestart(c *C) {
 	time.Sleep(time.Second)
 	c.Assert(self.server.start(), IsNil)
 	time.Sleep(5 * time.Second)
-	series, err = self.server.RunQuery("select count(column0) from data_resurrection", "s")
-	c.Assert(err, IsNil)
+	series = self.server.RunQuery("select count(column0) from data_resurrection", "s", c)
 	c.Assert(series, HasLen, 0)
-	series, err = self.server.RunQuery("list series", "s")
-	c.Assert(err, IsNil)
+	series = self.server.RunQuery("list series", "s", c)
 	c.Assert(series, HasLen, 0)
 }
 
@@ -402,8 +397,7 @@ func (self *IntegrationSuite) TestExplainsWithPassthroughAndLimit(c *C) {
   }]`, strings.Join(points, ","))
 
 	self.server.WriteData(data, c)
-	series, err := self.server.RunQuery("explain select val_1 from test_explain_passthrough_limit where time > now() - 1h limit 1", "m")
-	c.Assert(err, IsNil)
+	series := self.server.RunQuery("explain select val_1 from test_explain_passthrough_limit where time > now() - 1h limit 1", "m", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Name, Equals, "explain query")
 	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
@@ -428,8 +422,7 @@ func (self *IntegrationSuite) TestExplainsWithNonLocalAggregator(c *C) {
     "columns": ["val_1", "val_2"]
   }]`
 	self.server.WriteData(data, c)
-	series, err := self.server.RunQuery("explain select count(val_1) from test_explain_non_local where time > now() - 1h", "m")
-	c.Assert(err, IsNil)
+	series := self.server.RunQuery("explain select count(val_1) from test_explain_non_local where time > now() - 1h", "m", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Name, Equals, "explain query")
 	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
@@ -442,8 +435,7 @@ func (self *IntegrationSuite) TestExplainsWithNonLocalAggregator(c *C) {
 func (self *IntegrationSuite) TestDistinctWithLimit(c *C) {
 	data := self.createPoints("test_count_distinct_limit", 1, 1000)
 	self.server.WriteData(data, c)
-	series, err := self.server.RunQuery("select distinct(column0) from test_count_distinct_limit limit 10", "m")
-	c.Assert(err, IsNil)
+	series := self.server.RunQuery("select distinct(column0) from test_count_distinct_limit limit 10", "m", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Columns, HasLen, 2) // 6 columns plus the time column
 	c.Assert(series[0].Points, HasLen, 10)
@@ -461,8 +453,7 @@ func (self *IntegrationSuite) TestExplainsWithNonLocalAggregatorAndRegex(c *C) {
     "columns": ["val_1", "val_2"]
   }]`
 	self.server.WriteData(data, c)
-	series, err := self.server.RunQuery("explain select count(val_1) from /.*test_explain_non_local_regex.*/ where time > now() - 1h", "m")
-	c.Assert(err, IsNil)
+	series := self.server.RunQuery("explain select count(val_1) from /.*test_explain_non_local_regex.*/ where time > now() - 1h", "m", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Name, Equals, "explain query")
 	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
@@ -484,8 +475,7 @@ func (self *IntegrationSuite) TestExplainsWithLocalAggregator(c *C) {
     "columns": ["val_1", "val_2"]
   }]`
 	self.server.WriteData(data, c)
-	series, err := self.server.RunQuery("explain select count(val_1) from test_local_aggregator group by time(1h) where time > now() - 1h", "m")
-	c.Assert(err, IsNil)
+	series := self.server.RunQuery("explain select count(val_1) from test_local_aggregator group by time(1h) where time > now() - 1h", "m", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Name, Equals, "explain query")
 	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
@@ -518,8 +508,7 @@ func (self *IntegrationSuite) TestExplainsWithLocalAggregatorAndRegex(c *C) {
   }
 ]`
 	self.server.WriteData(data, c)
-	series, err := self.server.RunQuery("explain select count(val_1) from /.*test_local_aggregator_regex.*/ group by time(1h) where time > now() - 1h", "m")
-	c.Assert(err, IsNil)
+	series := self.server.RunQuery("explain select count(val_1) from /.*test_local_aggregator_regex.*/ group by time(1h) where time > now() - 1h", "m", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Name, Equals, "explain query")
 	c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
@@ -541,8 +530,7 @@ func (self *IntegrationSuite) TestMedians(c *C) {
 ]
 `, 60+i*10, 70+i*10), c)
 	}
-	data, err := self.server.RunQuery("select median(cpu) from test_medians group by host;", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select median(cpu) from test_medians group by host;", "m", c)
 	c.Assert(data[0].Name, Equals, "test_medians")
 	c.Assert(data[0].Columns, HasLen, 3)
 	c.Assert(data[0].Points, HasLen, 2)
@@ -574,8 +562,7 @@ func (self *IntegrationSuite) TestSeriesListing(c *C) {
 ]
 `, c)
 
-	data, err := self.server.RunQuery("list series", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("list series", "m", c)
 	names := map[string]bool{}
 	for _, series := range data {
 		names[series.Name] = true
@@ -608,8 +595,7 @@ func (self *IntegrationSuite) TestArithmeticOperations(c *C) {
       `, values[2], values[3*i], values[3*i+1])
 			self.server.WriteData(data, c)
 		}
-		data, err := self.server.RunQuery(query, "m")
-		c.Assert(err, IsNil)
+		data := self.server.RunQuery(query, "m", c)
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Columns, HasLen, 3)
 		c.Assert(data[0].Points, HasLen, 3)
@@ -643,8 +629,7 @@ func (self *IntegrationSuite) TestAscendingQueries(c *C) {
 `, 60+i*10, 70+i*10), c)
 		time.Sleep(1 * time.Second)
 	}
-	data, err := self.server.RunQuery("select host, cpu from test_ascending order asc", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select host, cpu from test_ascending order asc", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_ascending")
 	c.Assert(data[0].Columns, HasLen, 4)
@@ -667,8 +652,7 @@ func (self *IntegrationSuite) TestFilterWithLimit(c *C) {
 ]
 `, 60+i*10, 70+i*10), c)
 	}
-	data, err := self.server.RunQuery("select host, cpu from test_ascending where host = 'hostb' order asc limit 1", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select host, cpu from test_ascending where host = 'hostb' order asc limit 1", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_ascending")
 	c.Assert(data[0].Columns, HasLen, 4)
@@ -688,8 +672,7 @@ func (self *IntegrationSuite) TestFilterWithInClause(c *C) {
 ]
 `, 60+i*10, 70+i*10), c)
 	}
-	data, err := self.server.RunQuery("select host, cpu from test_in_clause where host in ('hostb') order asc limit 1", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select host, cpu from test_in_clause where host in ('hostb') order asc limit 1", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_in_clause")
 	c.Assert(data[0].Columns, HasLen, 4)
@@ -710,10 +693,8 @@ func (self *IntegrationSuite) TestIssue85(c *C) {
 ]
 `, 60+i*10, 70+i*10), c)
 	}
-	_, err := self.server.RunQuery("select new_column from test_issue_85", "m")
-	c.Assert(err, IsNil)
-	data, err := self.server.RunQuery("select * from test_issue_85", "m")
-	c.Assert(err, IsNil)
+	_ = self.server.RunQuery("select new_column from test_issue_85", "m", c)
+	data := self.server.RunQuery("select * from test_issue_85", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 4)
 }
@@ -767,8 +748,7 @@ func (self *IntegrationSuite) TestIssue92(c *C) {
   }
 ]
 `, hourAgo, hourAgo, hourAgo, hourAgo, now, now, now), c, "s")
-	data, err := self.server.RunQuery("select sum(kb) from test_issue_92 group by time(1h), to, app", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select sum(kb) from test_issue_92 group by time(1h), to, app", "m", c)
 	c.Assert(data, HasLen, 1)
 	points := toMap(data[0])
 	// use a map since the order isn't guaranteed
@@ -815,8 +795,7 @@ func (self *IntegrationSuite) TestIssue89(c *C) {
 		 ]
   }
 ]`, c)
-	data, err := self.server.RunQuery("select sum(c) from test_issue_89 group by b where a = 'x'", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select sum(c) from test_issue_89 group by b where a = 'x'", "m", c)
 	c.Assert(data, HasLen, 1)
 	points := toMap(data[0])
 	c.Assert(points, HasLen, 2)
@@ -838,8 +817,7 @@ func (self *IntegrationSuite) TestNegativeTimeInterval(c *C) {
   }
 ]
 `, c)
-	data, err := self.server.RunQuery("select count(cpu) from test_negative_interval", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select count(cpu) from test_negative_interval", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_negative_interval")
 	c.Assert(data[0].Columns, HasLen, 2)
@@ -865,8 +843,7 @@ func (self *IntegrationSuite) TestShardBoundaries(c *C) {
 		"select count(cpu) from test_end_time_of_shard_is_exclusive where time < 0s",
 	} {
 		fmt.Printf("Running query: %s\n", query)
-		data, err := self.server.RunQuery(query, "s")
-		c.Assert(err, IsNil)
+		data := self.server.RunQuery(query, "s", c)
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Name, Equals, "test_end_time_of_shard_is_exclusive")
 		c.Assert(data[0].Columns, HasLen, 2)
@@ -886,8 +863,7 @@ func (self *IntegrationSuite) TestCountWithInvalidInterval(c *C) {
   }
 ]
 `, c)
-	_, err := self.server.RunQuery("select count(cpu) from test_count_with_invalid_interval group by time(5)", "m")
-	c.Assert(err, ErrorMatches, ".*invalid argument.*")
+	_ = self.server.RunQueryAsUser("select count(cpu) from test_count_with_invalid_interval group by time(5)", "m", "user", "pass", false, c)
 }
 
 // make sure aggregation when happen locally at the shard level don't
@@ -905,8 +881,7 @@ func (self *IntegrationSuite) TestCountWithGroupByTimeAndLimit(c *C) {
 ]
 `, 60+i*10, 70+i*10), c)
 	}
-	data, err := self.server.RunQuery("select count(cpu) from test_count_with_groupby_and_limit group by time(5m) limit 10", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select count(cpu) from test_count_with_groupby_and_limit group by time(5m) limit 10", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_count_with_groupby_and_limit")
 	c.Assert(data[0].Columns, HasLen, 2)
@@ -927,8 +902,7 @@ func (self *IntegrationSuite) TestCountWithGroupBy(c *C) {
 ]
 `, 60+i*10, 70+i*10), c)
 	}
-	data, err := self.server.RunQuery("select count(cpu) from test_count group by host limit 10", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select count(cpu) from test_count group by host limit 10", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_count")
 	c.Assert(data[0].Columns, HasLen, 3)
@@ -956,8 +930,7 @@ func (self *IntegrationSuite) TestCountWithAlias(c *C) {
 			query = "select percentile(cpu, 90) as some_alias from test_aliasing"
 		}
 		fmt.Printf("query: %s\n", query)
-		data, err := self.server.RunQuery(query, "m")
-		c.Assert(err, IsNil)
+		data := self.server.RunQuery(query, "m", c)
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Name, Equals, "test_aliasing")
 		if name == "histogram" {
@@ -979,8 +952,7 @@ func (self *IntegrationSuite) TestHttpPostWithTime(c *C) {
     "points":[[%d, "v1", 2]]
   }
 ]`, now.Unix()), c, "s")
-	data, err := self.server.RunQuery("select * from test_post_with_time where time > now() - 20d", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select * from test_post_with_time where time > now() - 20d", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Name, Equals, "test_post_with_time")
 	c.Assert(data[0].Columns, HasLen, 4)
@@ -1014,8 +986,7 @@ func (self *IntegrationSuite) TestLimitMultipleShards(c *C) {
 	  ]
   }
 ]`, c, "m")
-	data, err := self.server.RunQuery("select * from test_limit_with_multiple_shards limit 1", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select * from test_limit_with_multiple_shards limit 1", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Points, HasLen, 1)
 }
@@ -1032,8 +1003,7 @@ func (self *IntegrationSuite) TestIssue106(c *C) {
 	  ]
   }
 ]`, c, "m")
-	data, err := self.server.RunQuery("select derivative(a) from test_issue_106", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select derivative(a) from test_issue_106", "m", c)
 	c.Assert(data, HasLen, 0)
 }
 
@@ -1050,8 +1020,7 @@ func (self *IntegrationSuite) TestIssue105(c *C) {
   }
 ]`, c, "m")
 
-	data, err := self.server.RunQuery("select a, b from test_issue_105 where b > 0", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select a, b from test_issue_105 where b > 0", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 4)
 	c.Assert(data[0].Points, HasLen, 1)
@@ -1070,8 +1039,7 @@ func (self *IntegrationSuite) TestWhereConditionWithExpression(c *C) {
 	  ]
   }
 ]`, c, "m")
-	data, err := self.server.RunQuery("select a, b from test_where_expression where a + b >= 3", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select a, b from test_where_expression where a + b >= 3", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 4)
 	c.Assert(data[0].Points, HasLen, 1)
@@ -1090,8 +1058,7 @@ func (self *IntegrationSuite) TestAggregateWithExpression(c *C) {
 	  ]
   }
 ]`, c, "m")
-	data, err := self.server.RunQuery("select mean(a + b) from test_aggregate_expression", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select mean(a + b) from test_aggregate_expression", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Columns, HasLen, 2)
 	c.Assert(data[0].Points, HasLen, 1)
@@ -1121,8 +1088,7 @@ func (self *IntegrationSuite) verifyWrite(series string, value, sequence interfa
 ]`, series, columns, points)
 	self.server.WriteData(payload, c)
 
-	data, err := self.server.RunQuery("select * from "+series, "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select * from "+series, "m", c)
 	if value == nil {
 		c.Assert(data, HasLen, 0)
 		return nil
@@ -1159,16 +1125,14 @@ func (self *IntegrationSuite) TestDbDelete(c *C) {
   }
 ]`, c, "s")
 
-	data, err := self.server.RunQuery("select val1 from test_deletetions", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select val1 from test_deletetions", "m", c)
 	c.Assert(data, HasLen, 1)
 
 	c.Assert(client.DeleteDatabase("db1"), IsNil)
 	self.createUser(c)
 
 	// this shouldn't return any data
-	data, err = self.server.RunQuery("select val1 from test_deletetions", "m")
-	c.Assert(err, IsNil)
+	data = self.server.RunQuery("select val1 from test_deletetions", "m", c)
 	c.Assert(data, HasLen, 0)
 }
 
@@ -1181,18 +1145,14 @@ func (self *IntegrationSuite) TestInvalidDeleteQuery(c *C) {
     "points":[["v1", 2]]
   }
 ]`, c)
-	data, err := self.server.RunQuery("select val1 from test_invalid_delete_query", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select val1 from test_invalid_delete_query", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Points, HasLen, 1)
 
-	_, err = self.server.RunQuery("delete from test_invalid_delete_query where foo = 'bar'", "m")
-	c.Assert(err, ErrorMatches, ".*don't reference time.*")
+	_ = self.server.RunQueryAsUser("delete from test_invalid_delete_query where foo = 'bar'", "m", "user", "pass", false, c)
 
 	// this shouldn't return any data
-	data, err = self.server.RunQuery("select val1 from test_invalid_delete_query", "m")
-	c.Assert(err, IsNil)
-	c.Assert(err, IsNil)
+	data = self.server.RunQuery("select val1 from test_invalid_delete_query", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Points, HasLen, 1)
 }
@@ -1216,16 +1176,13 @@ func (self *IntegrationSuite) TestDeleteQuery(c *C) {
     "points":[["v1", 2]]
   }
 ]`, c)
-		data, err := self.server.RunQuery("select val1 from test_delete_query", "m")
-		c.Assert(err, IsNil)
+		data := self.server.RunQuery("select val1 from test_delete_query", "m", c)
 		c.Assert(data, HasLen, 1)
 
-		_, err = self.server.RunQuery(queryString, "m")
-		c.Assert(err, IsNil)
+		_ = self.server.RunQuery(queryString, "m", c)
 
 		// this shouldn't return any data
-		data, err = self.server.RunQuery("select val1 from test_delete_query", "m")
-		c.Assert(err, IsNil)
+		data = self.server.RunQuery("select val1 from test_delete_query", "m", c)
 		c.Assert(data, HasLen, 0)
 	}
 }
@@ -1246,21 +1203,18 @@ func (self *IntegrationSuite) TestLargeDeletes(c *C) {
   }
 ]`, string(pointsString)), c)
 	time.Sleep(5 * time.Second)
-	data, err := self.server.RunQuery("select count(val1) from test_large_deletes", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select count(val1) from test_large_deletes", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Points, HasLen, 1)
 	c.Assert(data[0].Points[0][1], Equals, float64(numberOfPoints))
 
 	query := "delete from test_large_deletes"
-	_, err = self.server.RunQuery(query, "m")
-	c.Assert(err, IsNil)
+	_ = self.server.RunQuery(query, "m", c)
 
 	time.Sleep(5 * time.Second)
 
 	// this shouldn't return any data
-	data, err = self.server.RunQuery("select count(val1) from test_large_deletes", "m")
-	c.Assert(err, IsNil)
+	data = self.server.RunQuery("select count(val1) from test_large_deletes", "m", c)
 	c.Assert(data, HasLen, 0)
 }
 
@@ -1280,8 +1234,7 @@ func (self *IntegrationSuite) TestReadingWhenColumnHasDot(c *C) {
 	} {
 		q := fmt.Sprintf("select %s from test_column_names_with_dots", name)
 
-		data, err := self.server.RunQuery(q, "m")
-		c.Assert(err, IsNil)
+		data := self.server.RunQuery(q, "m", c)
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Columns, HasLen, 3) // time, sequence number and the requested columns
 		c.Assert(data[0].Columns[2], Equals, name)
@@ -1304,14 +1257,12 @@ func (self *IntegrationSuite) TestSinglePointSelect(c *C) {
 ]`, c)
 
 	query := "select * from test_single_points;"
-	data, err := self.server.RunQuery(query, "u")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery(query, "u", c)
 	c.Assert(data[0].Points, HasLen, 2)
 
 	for _, point := range data[0].Points {
 		query := fmt.Sprintf("select * from test_single_points where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
-		data, err := self.server.RunQuery(query, "u")
-		c.Assert(err, IsNil)
+		data := self.server.RunQuery(query, "u", c)
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Points, HasLen, 1)
 		c.Assert(data[0].Points[0], HasLen, 4)
@@ -1331,14 +1282,12 @@ func (self *IntegrationSuite) TestSinglePointSelectWithNullValues(c *C) {
 ]`, c)
 
 	query := "select * from test_single_points_with_nulls where name='john';"
-	data, err := self.server.RunQuery(query, "u")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery(query, "u", c)
 	c.Assert(data[0].Points, HasLen, 1)
 
 	for _, point := range data[0].Points {
 		query := fmt.Sprintf("select * from test_single_points_with_nulls where time = %.0f and sequence_number = %0.f;", point[0].(float64), point[1])
-		data, err := self.server.RunQuery(query, "u")
-		c.Assert(err, IsNil)
+		data := self.server.RunQuery(query, "u", c)
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Points, HasLen, 1)
 		c.Assert(data[0].Points[0], HasLen, 3)
@@ -1356,8 +1305,7 @@ func (self *IntegrationSuite) TestBooleanColumnsWorkWithWhereQuery(c *C) {
   }
 ]`, c)
 
-	data, err := self.server.RunQuery("select count(a) from test_boolean_columns_where where a = true", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select count(a) from test_boolean_columns_where where a = true", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Points, HasLen, 1)
 	c.Assert(data[0].Points[0][1], Equals, 2.0)
@@ -1390,8 +1338,7 @@ func (self *IntegrationSuite) TestColumnsWithOnlySomeValuesWorkWithWhereQuery(c 
   }
 ]`, c)
 
-	data, err := self.server.RunQuery("select * from test_missing_column_values where c = 'c'", "m")
-	c.Assert(err, IsNil)
+	data := self.server.RunQuery("select * from test_missing_column_values where c = 'c'", "m", c)
 	c.Assert(data, HasLen, 1)
 	c.Assert(data[0].Points, HasLen, 1)
 }
