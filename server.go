@@ -468,8 +468,10 @@ func (s *server) Init() error {
 		return fmt.Errorf("raft.Server: Server already running[%v]", s.state)
 	}
 
-	// server has been initialized or server was stopped after initialized
-	if s.state == Initialized || !s.log.isEmpty() {
+	// Server has been initialized or server was stopped after initialized
+	// If log has been initialized, we know that the server was stopped after
+	// running.
+	if s.state == Initialized || s.log.initialized {
 		s.state = Initialized
 		return nil
 	}
@@ -501,6 +503,10 @@ func (s *server) Init() error {
 
 // Shuts down the server.
 func (s *server) Stop() {
+	if s.State() == Stopped {
+		return
+	}
+
 	stop := make(chan bool)
 	s.stopped <- stop
 
