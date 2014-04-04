@@ -109,11 +109,12 @@ func (self *Server) ListenAndServe() error {
 			go self.GraphiteApi.ListenAndServe()
 		}
 	}
-	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
-	self.HttpApi.ListenAndServe()
 
 	// start processing continuous queries
 	self.RaftServer.StartProcessingContinuousQueries()
+
+	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
+	self.HttpApi.ListenAndServe()
 
 	return nil
 }
