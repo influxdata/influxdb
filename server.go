@@ -614,7 +614,11 @@ func (s *server) loop() {
 // until the event is actually processed before returning.
 func (s *server) send(value interface{}) (interface{}, error) {
 	event := &ev{target: value, c: make(chan error, 1)}
-	s.c <- event
+	select {
+	case s.c <- event:
+	case <-s.stopped:
+		return nil, StopError
+	}
 	select {
 	case <-s.stopped:
 		return nil, StopError
@@ -637,7 +641,10 @@ func (s *server) sendAsync(value interface{}) {
 	s.routineGroup.Add(1)
 	go func() {
 		defer s.routineGroup.Done()
-		s.c <- event
+		select {
+		case s.c <- event:
+		case <-s.stopped:
+		}
 	}()
 }
 
