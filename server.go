@@ -477,8 +477,10 @@ func (s *server) Init() error {
 		return fmt.Errorf("raft.Server: Server already running[%v]", s.state)
 	}
 
-	// server has been initialized or server was stopped after initialized
-	if s.state == Initialized || !s.log.isEmpty() {
+	// Server has been initialized or server was stopped after initialized
+	// If log has been initialized, we know that the server was stopped after
+	// running.
+	if s.state == Initialized || s.log.initialized {
 		s.state = Initialized
 		return nil
 	}
@@ -510,15 +512,17 @@ func (s *server) Init() error {
 
 // Shuts down the server.
 func (s *server) Stop() {
-	if s.stopped != nil {
-		close(s.stopped)
+	if s.State() == Stopped {
+		return
 	}
-	s.state = Stopped
+
+	close(s.stopped)
 
 	// make sure the server has stopped before we close the log
 	s.routineGroup.Wait()
 
 	s.log.close()
+	s.setState(Stopped)
 }
 
 // Checks if the server is currently running.
@@ -588,9 +592,9 @@ func (s *server) updateCurrentTerm(term uint64, leaderName string) {
 func (s *server) loop() {
 	defer s.debugln("server.loop.end")
 
-	for s.state != Stopped {
-		state := s.State()
+	state := s.State()
 
+	for state != Stopped {
 		s.debugln("server.loop.run ", state)
 		switch state {
 		case Follower:
@@ -602,6 +606,7 @@ func (s *server) loop() {
 		case Snapshotting:
 			s.snapshotLoop()
 		}
+		state = s.State()
 	}
 }
 
@@ -921,9 +926,9 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 	}
 
 	if req.Term == s.currentTerm {
-		_assert(s.state != Leader, "leader.elected.at.same.term.%d\n", s.currentTerm)
+		_assert(s.State() != Leader, "leader.elected.at.same.term.%d\n", s.currentTerm)
 		// change state to follower
-		s.state = Follower
+		s.setState(Follower)
 		// discover new leader when candidate
 		// save leader name when follower
 		s.leader = req.LeaderName
