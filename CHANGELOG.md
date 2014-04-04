@@ -364,4 +364,5 @@
 - [Issue #398](https://github.com/influxdb/influxdb/issues/398). Support now() and NOW() in the query lang
 - [Issue #403](https://github.com/influxdb/influxdb/issues/403). Filtering should work with join queries
 - [Issue #404](https://github.com/influxdb/influxdb/issues/404). Filtering with invalid condition shouldn't crash the server
+- [Issue #405](https://github.com/influxdb/influxdb/issues/405). Percentile shouldn't crash for small number of values
 - Close leveldb databases properly if we couldn't create a new Shard. See leveldb\_shard\_datastore\_test:131

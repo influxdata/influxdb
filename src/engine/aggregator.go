@@ -806,22 +806,22 @@ func (self *PercentileAggregator) ColumnNames() []string {
 }
 
 func (self *PercentileAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
-	returnValues := [][]*protocol.FieldValue{}
 	values := self.float_values[series][group]
-
-	if len(values) == 0 {
-		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
-	}
 
 	sort.Float64s(values)
 	length := len(values)
 	index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
-	point := values[index]
-	returnValues = append(returnValues, []*protocol.FieldValue{
-		&protocol.FieldValue{DoubleValue: &point},
-	})
 
-	return returnValues
+	if index < 0 || index >= len(values) {
+		return [][]*protocol.FieldValue{
+			[]*protocol.FieldValue{self.defaultValue},
+		}
+	}
+
+	point := values[index]
+	return [][]*protocol.FieldValue{
+		[]*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &point}},
+	}
 }
 
 func NewPercentileAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {

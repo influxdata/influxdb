@@ -868,6 +868,30 @@ func (self *EngineSuite) TestPercentileQueryWithGroupByTime(c *C) {
   ]`)
 }
 
+// issue #405
+func (self *EngineSuite) TestLowPercentileForOnePointShouldNotCrash(c *C) {
+	// make the mock coordinator return some data
+	self.createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000 }
+      ],
+      "name": "foo",
+      "fields": ["column_one"]
+    }
+  ]`)
+
+	self.runQuery("select percentile(column_one, 40) from foo group by time(1m)", c, `[
+    {
+      "points": [
+        { "values": [{ "double_value": 0 }], "timestamp": 1381346700000000}
+      ],
+      "name": "foo",
+      "fields": ["percentile"]
+    }
+  ]`)
+}
+
 func (self *EngineSuite) TestCountDistinct(c *C) {
 	// make the mock coordinator return some data
 	self.createEngine(c, `[
