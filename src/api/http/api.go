@@ -511,6 +511,10 @@ func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 		return
 	}
 	statusCode, contentType, body := yieldUser(user, yield)
+	if statusCode < 0 {
+		return
+	}
+
 	if statusCode == libhttp.StatusUnauthorized {
 		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
 	}
@@ -678,9 +682,12 @@ func (self *HttpServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *
 		return
 	}
 
-	if statusCode > 0 {
-		w.WriteHeader(statusCode)
+	if statusCode < 0 {
+		return
 	}
+
+	w.WriteHeader(statusCode)
+
 	if len(body) > 0 {
 		w.Write(body)
 	}

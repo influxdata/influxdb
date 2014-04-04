@@ -16,6 +16,7 @@
 - [Issue #404](https://github.com/influxdb/influxdb/issues/404). Filtering with invalid condition shouldn't crash the server
 - [Issue #405](https://github.com/influxdb/influxdb/issues/405). Percentile shouldn't crash for small number of values
 - [Issue #408](https://github.com/influxdb/influxdb/issues/408). Make InfluxDB recover from internal bugs and panics
+- [Issue #390](https://github.com/influxdb/influxdb/issues/390). Multiple response.WriteHeader when querying as admin
 - Close leveldb databases properly if we couldn't create a new Shard. See leveldb\_shard\_datastore\_test:131
 
 ## v0.5.4 [2014-04-02]
