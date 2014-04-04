@@ -202,6 +202,10 @@ func (self *ShardData) WriteLocalOnly(request *p.Request) error {
 }
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Response) {
+	defer common.RecoverFunc(querySpec.Database(), querySpec.GetQueryString(), func(err interface{}) {
+		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(fmt.Sprintf("%s", err))}
+	})
+
 	// This is only for queries that are deletes or drops. They need to be sent everywhere as opposed to just the local or one of the remote shards.
 	// But this boolean should only be set to true on the server that receives the initial query.
 	if querySpec.RunAgainstAllServersInShard {

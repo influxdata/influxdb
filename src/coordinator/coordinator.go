@@ -7,11 +7,9 @@ import (
 	"engine"
 	"fmt"
 	"math"
-	"os"
 	"parser"
 	"protocol"
 	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -81,7 +79,7 @@ func NewCoordinatorImpl(config *configuration.Configuration, raftServer ClusterC
 func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
 	log.Debug("COORD: RunQuery: %s", queryString)
 	// don't let a panic pass beyond RunQuery
-	defer recoverFunc(database, queryString)
+	defer common.RecoverFunc(database, queryString, nil)
 
 	q, err := parser.ParseQuery(queryString)
 	if err != nil {
@@ -436,18 +434,6 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 	return err
 }
 
-func recoverFunc(database, query string) {
-	if err := recover(); err != nil {
-		fmt.Fprintf(os.Stderr, "********************************BUG********************************\n")
-		buf := make([]byte, 1024)
-		n := runtime.Stack(buf, false)
-		fmt.Fprintf(os.Stderr, "Database: %s\n", database)
-		fmt.Fprintf(os.Stderr, "Query: [%s]\n", query)
-		fmt.Fprintf(os.Stderr, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
-		err = common.NewQueryError(common.InternalError, "Internal Error")
-	}
-}
-
 func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
 	if !user.IsClusterAdmin() {
 		return fmt.Errorf("Insufficient permissions to force a log compaction")
@@ -491,11 +477,11 @@ func (self *CoordinatorImpl) ProcessContinuousQueries(db string, series *protoco
 				tableValue := table.Name
 				if regex, ok := tableValue.GetCompiledRegex(); ok {
 					if regex.MatchString(incomingSeriesName) {
-						self.InterpolateValuesAndCommit(db, series, targetName, false)
+						self.InterpolateValuesAndCommit(query.GetQueryString(), db, series, targetName, false)
 					}
 				} else {
 					if tableValue.Name == incomingSeriesName {
-						self.InterpolateValuesAndCommit(db, series, targetName, false)
+						self.InterpolateValuesAndCommit(query.GetQueryString(), db, series, targetName, false)
 					}
 				}
 			}
@@ -503,7 +489,9 @@ func (self *CoordinatorImpl) ProcessContinuousQueries(db string, series *protoco
 	}
 }
 
-func (self *CoordinatorImpl) InterpolateValuesAndCommit(db string, series *protocol.Series, targetName string, assignSequenceNumbers bool) error {
+func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string, series *protocol.Series, targetName string, assignSequenceNumbers bool) error {
+	defer common.RecoverFunc(db, query, nil)
+
 	targetName = strings.Replace(targetName, ":series_name", *series.Name, -1)
 	type sequenceKey struct {
 		seriesName string

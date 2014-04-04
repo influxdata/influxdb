@@ -3,15 +3,12 @@ package coordinator
 import (
 	"bytes"
 	"cluster"
-	log "code.google.com/p/log4go"
 	"common"
 	"configuration"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/goraft/raft"
-	"github.com/gorilla/mux"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -23,6 +20,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	log "code.google.com/p/log4go"
+	"github.com/goraft/raft"
+	"github.com/gorilla/mux"
 )
 
 const (
@@ -464,7 +465,7 @@ func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, st
 	queryString := query.GetQueryStringForContinuousQuery(start, end)
 
 	f := func(series *protocol.Series) error {
-		return s.coordinator.InterpolateValuesAndCommit(db, series, targetName, true)
+		return s.coordinator.InterpolateValuesAndCommit(query.GetQueryString(), db, series, targetName, true)
 	}
 
 	writer := NewContinuousQueryWriter(f)
