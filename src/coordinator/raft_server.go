@@ -33,22 +33,21 @@ const (
 // The raftd server is a combination of the Raft server and an HTTP
 // server which acts as the transport.
 type RaftServer struct {
-	name                     string
-	host                     string
-	port                     int
-	path                     string
-	bind_address             string
-	router                   *mux.Router
-	raftServer               raft.Server
-	httpServer               *http.Server
-	clusterConfig            *cluster.ClusterConfiguration
-	mutex                    sync.RWMutex
-	listener                 net.Listener
-	closing                  bool
-	config                   *configuration.Configuration
-	notLeader                chan bool
-	coordinator              *CoordinatorImpl
-	processContinuousQueries bool
+	name          string
+	host          string
+	port          int
+	path          string
+	bind_address  string
+	router        *mux.Router
+	raftServer    raft.Server
+	httpServer    *http.Server
+	clusterConfig *cluster.ClusterConfiguration
+	mutex         sync.RWMutex
+	listener      net.Listener
+	closing       bool
+	config        *configuration.Configuration
+	notLeader     chan bool
+	coordinator   *CoordinatorImpl
 }
 
 var registeredCommands bool
@@ -418,15 +417,7 @@ func (s *RaftServer) raftLeaderLoop(loopTimer *time.Ticker) {
 	}
 }
 
-func (s *RaftServer) StartProcessingContinuousQueries() {
-	s.processContinuousQueries = true
-}
-
 func (s *RaftServer) checkContinuousQueries() {
-	if !s.processContinuousQueries {
-		return
-	}
-
 	if !s.clusterConfig.HasContinuousQueries() {
 		return
 	}

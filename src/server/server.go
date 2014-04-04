@@ -111,10 +111,6 @@ func (self *Server) ListenAndServe() error {
 	}
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()
-
-	// start processing continuous queries
-	self.RaftServer.StartProcessingContinuousQueries()
-
 	return nil
 }
 
