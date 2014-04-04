@@ -1,145 +1,173 @@
+## v0.5.5 [unreleased]
 
-## v0.0.1 [2013-10-22]
+- Upgrade leveldb 1.10 -> 1.15
 
-  * Initial Release
+  This should be a backward compatible change, but is here for documentation only
 
-## v0.0.2
+### Feature
 
-#### Features
-
-- Add an admin UI
-- Deb and RPM packages
-
-#### Bugfixes
-
-- Fix some nil pointer dereferences
-- Cleanup the aggregators implementation
-
-## v0.0.5
-
-#### Features
-
-- Cache passwords in memory to speed up password verification
-- Add MERGE and INNER JOIN support
-
-#### Bugfixes
-
-- All columns should be returned if `select *` was used
-- Read/Write benchmarks
-
-## v0.0.6
-
-#### Features
-
-- Add count(distinct(..)) support
-
-#### Bugfixes
-
-- Reuse levigo read/write options.
-
-## v0.0.7
-
-#### Features
-
-- include the admin site in the repo to make it easier for newcomers.
-
-## v0.0.8
-
-#### Features
-
-- Add a way to reset the root password from the command line.
-- Add distinct(..) and derivative(...) support
-- Print test coverage if running go1.2
-
-#### Bugfixes
-
-- Fix the default admin site path in the .deb and .rpm packages.
-- Fix the configuration filename in the .tar.gz package.
-
-## v0.0.9
-
-#### Features
-
-- Add stddev(...) support
-- Better docs, thanks @auxesis and @d-snp.
-
-#### Bugfixes
-
-- Set PYTHONPATH and CC appropriately on mac os x.
-- [Issue #18](https://github.com/influxdb/influxdb/issues/18). Fix 386 debian and redhat packages
-- [Issue #23](https://github.com/influxdb/influxdb/issues/23). Fix the init scripts on redhat
-
-## v0.1.0
-
-### Features
-
-- [Issue #29](https://github.com/influxdb/influxdb/issues/29). Semicolon is now optional in queries
-- [Issue #31](https://github.com/influxdb/influxdb/issues/31). Support Basic Auth as well as query params for authentication.
+- Add a command line option to repair corrupted leveldb databases on startup
 
 ### Bugfixes
 
-- Don't allow creating users with empty username
-- [Issue #22](https://github.com/influxdb/influxdb/issues/22). Don't set goroot if it was set
-- [Issue #25](https://github.com/influxdb/influxdb/issues/25). Fix queries that use the median aggregator
-- [Issue #26](https://github.com/influxdb/influxdb/issues/26). Default log and db directories should be in /opt/influxdb/shared/data
-- [Issue #27](https://github.com/influxdb/influxdb/issues/27). Group by should not blow up if the one of the columns in group by has null values
-- [Issue #30](https://github.com/influxdb/influxdb/issues/30). Column indexes/names getting off somehow
-- [Issue #32](https://github.com/influxdb/influxdb/issues/32). Fix many typos in the codebase. Thanks @pborreli
+- [Issue #398](https://github.com/influxdb/influxdb/issues/398). Support now() and NOW() in the query lang
+- [Issue #403](https://github.com/influxdb/influxdb/issues/403). Filtering should work with join queries
+- [Issue #404](https://github.com/influxdb/influxdb/issues/404). Filtering with invalid condition shouldn't crash the server
+- [Issue #405](https://github.com/influxdb/influxdb/issues/405). Percentile shouldn't crash for small number of values
+- Close leveldb databases properly if we couldn't create a new Shard. See leveldb\_shard\_datastore\_test:131
 
-## v0.2.0
-
-### Features
-
-- [Issue #37](https://github.com/influxdb/influxdb/issues/37). Support the negation of the regex matcher !~
-- [Issue #47](https://github.com/influxdb/influxdb/issues/47). Spill out query and database detail at the time of bug report
+## v0.5.4 [2014-04-02]
 
 ### Bugfixes
 
-- [Issue #36](https://github.com/influxdb/influxdb/issues/36). The regex operator should be =~ not ~=
-- [Issue #39](https://github.com/influxdb/influxdb/issues/39). Return proper content types from the http api
-- [Issue #42](https://github.com/influxdb/influxdb/issues/42). Make the api consistent with the docs
-- [Issue #41](https://github.com/influxdb/influxdb/issues/41). Table/Points not deleted when database is dropped
-- [Issue #45](https://github.com/influxdb/influxdb/issues/45). Aggregation shouldn't mess up the order of the points
-- [Issue #44](https://github.com/influxdb/influxdb/issues/44). Fix crashes on RHEL 5.9
-- [Issue #34](https://github.com/influxdb/influxdb/issues/34). Ascending order always return null for columns that have a null value
-- [Issue #55](https://github.com/influxdb/influxdb/issues/55). Limit should limit the points that match the Where clause
-- [Issue #53](https://github.com/influxdb/influxdb/issues/53). Writing null values via HTTP API fails
+- [Issue #386](https://github.com/influxdb/influxdb/issues/386). Drop series should work with series containing dots
+- [Issue #389](https://github.com/influxdb/influxdb/issues/389). Filtering shouldn't stop prematurely
+- [Issue #341](https://github.com/influxdb/influxdb/issues/341). Make the number of shards that are queried in parallel configurable
+- [Issue #394](https://github.com/influxdb/influxdb/issues/394). Support count(distinct) and count(DISTINCT)
+- [Issue #362](https://github.com/influxdb/influxdb/issues/362). Limit should be enforced after aggregation
+
+## v0.5.3 [2014-03-31]
+
+### Bugfixes
+
+- [Issue #378](https://github.com/influxdb/influxdb/issues/378). Indexing should return if there are no requests added since the last index
+- [Issue #370](https://github.com/influxdb/influxdb/issues/370). Filtering and limit should be enforced on the shards
+- [Issue #379](https://github.com/influxdb/influxdb/issues/379). Boolean columns should be usable in where clauses
+- [Issue #381](https://github.com/influxdb/influxdb/issues/381). Should be able to do deletes as a cluster admin
+
+## v0.5.2 [2014-03-28]
+
+### Bugfixes
+
+- [Issue #342](https://github.com/influxdb/influxdb/issues/342). Data resurrected after a server restart
+- [Issue #367](https://github.com/influxdb/influxdb/issues/367). Influxdb won't start if the api port is commented out
+- [Issue #355](https://github.com/influxdb/influxdb/issues/355). Return an error on wrong time strings
+- [Issue #331](https://github.com/influxdb/influxdb/issues/331). Allow negative time values in the where clause
+- [Issue #371](https://github.com/influxdb/influxdb/issues/371). Seris index isn't deleted when the series is dropped
+- [Issue #360](https://github.com/influxdb/influxdb/issues/360). Store and recover continuous queries
+
+## v0.5.1 [2014-03-24]
+
+### Bugfixes
+
+- Revert the version of goraft due to a bug found in the latest version
+
+## v0.5.0 [2014-03-24]
+
+### Features
+
+- [Issue #293](https://github.com/influxdb/influxdb/pull/293). Implement a Graphite listener
+
+### Bugfixes
+
+- [Issue #340](https://github.com/influxdb/influxdb/issues/340). Writing many requests while replaying seems to cause commits out of order
+
+## v0.5.0-rc.6 [2014-03-20]
+
+### Bugfixes
+
+- Increase raft election timeout to avoid unecessary relections
+- Sort points before writing them to avoid an explosion in the request
+  number when the points are written randomly
+- [Issue #335](https://github.com/influxdb/influxdb/issues/335). Fixes regexp for interpolating more than one column value in continuous queries
+- [Issue #318](https://github.com/influxdb/influxdb/pull/318). Support EXPLAIN queries
+- [Issue #333](https://github.com/influxdb/influxdb/pull/333). Fail
+  when the password is too short or too long instead of passing it to
+  the crypto library
+
+## v0.5.0-rc.5 [2014-03-11]
+
+### Bugfixes
+
+- [Issue #312](https://github.com/influxdb/influxdb/issues/312). WAL should wait for server id to be set before recovering
+- [Issue #301](https://github.com/influxdb/influxdb/issues/301). Use ref counting to guard against race conditions in the shard cache
+- [Issue #319](https://github.com/influxdb/influxdb/issues/319). Propagate engine creation error correctly to the user
+- [Issue #316](https://github.com/influxdb/influxdb/issues/316). Make
+  sure we don't starve goroutines if we get an access denied error
+  from one of the shards
+- [Issue #306](https://github.com/influxdb/influxdb/issues/306). Deleting/Dropping database takes a lot of memory
+- [Issue #302](https://github.com/influxdb/influxdb/issues/302). Should be able to set negative timestamps on points
+- [Issue #327](https://github.com/influxdb/influxdb/issues/327). Make delete queries not use WAL. This addresses #315, #317 and #314
+- [Issue #321](https://github.com/influxdb/influxdb/issues/321). Make sure we split points on shards properly
+
+## v0.5.0-rc.4 [2014-03-07]
+
+### Bugfixes
+
+- [Issue #298](https://github.com/influxdb/influxdb/issues/298). Fix limit when querying multiple shards
+- [Issue #305](https://github.com/influxdb/influxdb/issues/305). Shard ids not unique after restart
+- [Issue #309](https://github.com/influxdb/influxdb/issues/309). Don't relog the requests on the remote server
+- Fix few bugs in the WAL and refactor the way it works (this requires purging the WAL from previous rc)
+
+## v0.5.0-rc.3 [2014-03-03]
+
+### Bugfixes
+- [Issue #69](https://github.com/influxdb/influxdb/issues/69). Support column aliases
+- [Issue #287](https://github.com/influxdb/influxdb/issues/287). Make the lru cache size configurable
+- [Issue #38](https://github.com/influxdb/influxdb/issues/38). Fix a memory leak discussed in this story
+- [Issue #286](https://github.com/influxdb/influxdb/issues/286). Make the number of open shards configurable
+- Make LevelDB use the max open files configuration option.
+
+## v0.5.0-rc.2 [2014-02-27]
+
+### Bugfixes
+
+- [Issue #274](https://github.com/influxdb/influxdb/issues/274). Crash after restart
+- [Issue #277](https://github.com/influxdb/influxdb/issues/277). Ensure duplicate shards won't be created
+- [Issue #279](https://github.com/influxdb/influxdb/issues/279). Limits not working on regex queries
+- [Issue #281](https://github.com/influxdb/influxdb/issues/281). `./influxdb -v` should print the sha when building from source
+- [Issue #283](https://github.com/influxdb/influxdb/issues/283). Dropping shard and restart in cluster causes panic.
+- [Issue #288](https://github.com/influxdb/influxdb/issues/288). Sequence numbers should be unique per server id
+
+## v0.5.0-rc.1 [2014-02-25]
+
+### Bugfixes
+
+- Ensure large deletes don't take too much memory
+- [Issue #240](https://github.com/influxdb/influxdb/pull/240). Unable to query against columns with `.` in the name.
+- [Issue #250](https://github.com/influxdb/influxdb/pull/250). different result between normal and continuous query with "group by" clause
+- [Issue #216](https://github.com/influxdb/influxdb/pull/216). Results with no points should exclude columns and points
+
+### Features
+
+- [Issue #243](https://github.com/influxdb/influxdb/issues/243). Should have endpoint to GET a user's attributes.
+- [Issue #269](https://github.com/influxdb/influxdb/pull/269), [Issue #65](https://github.com/influxdb/influxdb/issues/65) New clustering architecture (see docs), with the side effect that queries can be distributed between multiple shards
+- [Issue #164](https://github.com/influxdb/influxdb/pull/269),[Issue #103](https://github.com/influxdb/influxdb/pull/269),[Issue #166](https://github.com/influxdb/influxdb/pull/269),[Issue #165](https://github.com/influxdb/influxdb/pull/269),[Issue #132](https://github.com/influxdb/influxdb/pull/269) Make request log a log file instead of leveldb with recovery on startup
 
 ### Deprecated
 
-- Preparing to deprecate `/dbs` (for listing databases) in favor of a more consistent `/db` endpoint
-- Preparing to deprecate `username` field for a more consistent `name` field in the `/db/:db/users`
-- Preparing to deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
-  be used to update user flags, password, etc.
+- [Issue #189](https://github.com/influxdb/influxdb/issues/189). `/cluster_admins` and `/db/:db/users` return usernames in a `name` key instead of `username` key.
+- [Issue #216](https://github.com/influxdb/influxdb/pull/216). Results with no points should exclude columns and points
 
-## v0.3.0
+## v0.4.4 [2014-02-05]
 
-## Features
+### Features
 
-- [Issue #51](https://github.com/influxdb/influxdb/issues/51). Implement first and last aggregates
-- [Issue #35](https://github.com/influxdb/influxdb/issues/35). Support table aliases in Join Queries
-- [Issue #71](https://github.com/influxdb/influxdb/issues/71). Add WillReturnSingleSeries to the Query
-- [Issue #61](https://github.com/influxdb/influxdb/issues/61). Limit should default to 10k
-- [Issue #59](https://github.com/influxdb/influxdb/issues/59). Add histogram aggregate function
+- Make the leveldb max open files configurable in the toml file
 
-## Bugfixes
+## v0.4.3 [2014-01-31]
 
-- Fix join and merges when the query is a descending order query
-- [Issue #57](https://github.com/influxdb/influxdb/issues/57). Don't panic when type of time != float
-- [Issue #63](https://github.com/influxdb/influxdb/issues/63). Aggregate queries should not have a sequence_number column
+### Bugfixes
 
-## v0.3.2
+- [Issue #225](https://github.com/influxdb/influxdb/issues/225). Remove a hard limit on the points returned by the datastore
+- [Issue #223](https://github.com/influxdb/influxdb/issues/223). Null values caused count(distinct()) to panic
+- [Issue #224](https://github.com/influxdb/influxdb/issues/224). Null values broke replication due to protobuf limitation
 
-## Features
+## v0.4.1 [2014-01-30]
 
-- [Issue #82](https://github.com/influxdb/influxdb/issues/82). Add endpoint for listing available admin interfaces.
-- [Issue #80](https://github.com/influxdb/influxdb/issues/80). Support durations when specifying start and end time
-- [Issue #81](https://github.com/influxdb/influxdb/issues/81). Add support for IN
+### Features
 
-## Bugfixes
+- [Issue #193](https://github.com/influxdb/influxdb/issues/193). Allow logging to stdout. Thanks @schmurfy
+- [Issue #190](https://github.com/influxdb/influxdb/pull/190). Add support for SSL.
+- [Issue #194](https://github.com/influxdb/influxdb/pull/194). Should be able to disable Admin interface.
 
-- [Issue #75](https://github.com/influxdb/influxdb/issues/75). Don't allow time series names that start with underscore
-- [Issue #85](https://github.com/influxdb/influxdb/issues/85). Non-existing columns exist after they have been queried before
+### Bugfixes
+
+- [Issue #33](https://github.com/influxdb/influxdb/issues/33). Don't call WriteHeader more than once per request
+- [Issue #195](https://github.com/influxdb/influxdb/issues/195). Allow the bind address to be configurable, Thanks @schmurfy.
+- [Issue #199](https://github.com/influxdb/influxdb/issues/199). Make the test timeout configurable
+- [Issue #200](https://github.com/influxdb/influxdb/issues/200). Selecting `time` or `sequence_number` silently fail
+- [Issue #215](https://github.com/influxdb/influxdb/pull/215). Server fails to start up after Raft log compaction and restart.
 
 ## v0.4.0 [2014-01-17]
 
@@ -194,175 +222,145 @@
   be used to update user flags, password, etc.
 - Querying for column names that don't exist no longer throws an error.
 
-## v0.4.1 [2014-01-30]
+## v0.3.2
+
+## Features
+
+- [Issue #82](https://github.com/influxdb/influxdb/issues/82). Add endpoint for listing available admin interfaces.
+- [Issue #80](https://github.com/influxdb/influxdb/issues/80). Support durations when specifying start and end time
+- [Issue #81](https://github.com/influxdb/influxdb/issues/81). Add support for IN
+
+## Bugfixes
+
+- [Issue #75](https://github.com/influxdb/influxdb/issues/75). Don't allow time series names that start with underscore
+- [Issue #85](https://github.com/influxdb/influxdb/issues/85). Non-existing columns exist after they have been queried before
+
+## v0.3.0
+
+## Features
+
+- [Issue #51](https://github.com/influxdb/influxdb/issues/51). Implement first and last aggregates
+- [Issue #35](https://github.com/influxdb/influxdb/issues/35). Support table aliases in Join Queries
+- [Issue #71](https://github.com/influxdb/influxdb/issues/71). Add WillReturnSingleSeries to the Query
+- [Issue #61](https://github.com/influxdb/influxdb/issues/61). Limit should default to 10k
+- [Issue #59](https://github.com/influxdb/influxdb/issues/59). Add histogram aggregate function
+
+## Bugfixes
+
+- Fix join and merges when the query is a descending order query
+- [Issue #57](https://github.com/influxdb/influxdb/issues/57). Don't panic when type of time != float
+- [Issue #63](https://github.com/influxdb/influxdb/issues/63). Aggregate queries should not have a sequence_number column
+
+## v0.2.0
 
 ### Features
 
-- [Issue #193](https://github.com/influxdb/influxdb/issues/193). Allow logging to stdout. Thanks @schmurfy
-- [Issue #190](https://github.com/influxdb/influxdb/pull/190). Add support for SSL.
-- [Issue #194](https://github.com/influxdb/influxdb/pull/194). Should be able to disable Admin interface.
+- [Issue #37](https://github.com/influxdb/influxdb/issues/37). Support the negation of the regex matcher !~
+- [Issue #47](https://github.com/influxdb/influxdb/issues/47). Spill out query and database detail at the time of bug report
 
 ### Bugfixes
 
-- [Issue #33](https://github.com/influxdb/influxdb/issues/33). Don't call WriteHeader more than once per request
-- [Issue #195](https://github.com/influxdb/influxdb/issues/195). Allow the bind address to be configurable, Thanks @schmurfy.
-- [Issue #199](https://github.com/influxdb/influxdb/issues/199). Make the test timeout configurable
-- [Issue #200](https://github.com/influxdb/influxdb/issues/200). Selecting `time` or `sequence_number` silently fail
-- [Issue #215](https://github.com/influxdb/influxdb/pull/215). Server fails to start up after Raft log compaction and restart.
+- [Issue #36](https://github.com/influxdb/influxdb/issues/36). The regex operator should be =~ not ~=
+- [Issue #39](https://github.com/influxdb/influxdb/issues/39). Return proper content types from the http api
+- [Issue #42](https://github.com/influxdb/influxdb/issues/42). Make the api consistent with the docs
+- [Issue #41](https://github.com/influxdb/influxdb/issues/41). Table/Points not deleted when database is dropped
+- [Issue #45](https://github.com/influxdb/influxdb/issues/45). Aggregation shouldn't mess up the order of the points
+- [Issue #44](https://github.com/influxdb/influxdb/issues/44). Fix crashes on RHEL 5.9
+- [Issue #34](https://github.com/influxdb/influxdb/issues/34). Ascending order always return null for columns that have a null value
+- [Issue #55](https://github.com/influxdb/influxdb/issues/55). Limit should limit the points that match the Where clause
+- [Issue #53](https://github.com/influxdb/influxdb/issues/53). Writing null values via HTTP API fails
 
 ### Deprecated
 
-## v0.4.3 [2014-01-31]
+- Preparing to deprecate `/dbs` (for listing databases) in favor of a more consistent `/db` endpoint
+- Preparing to deprecate `username` field for a more consistent `name` field in the `/db/:db/users`
+- Preparing to deprecate endpoints `/db/:db/admins/:user` in favor of using `/db/:db/users/:user` which should
+  be used to update user flags, password, etc.
 
-### Bugfixes
-
-- [Issue #225](https://github.com/influxdb/influxdb/issues/225). Remove a hard limit on the points returned by the datastore
-- [Issue #223](https://github.com/influxdb/influxdb/issues/223). Null values caused count(distinct()) to panic
-- [Issue #224](https://github.com/influxdb/influxdb/issues/224). Null values broke replication due to protobuf limitation
-
-## v0.4.4 [2014-02-05]
+## v0.1.0
 
 ### Features
 
-- Make the leveldb max open files configurable in the toml file
-
-## v0.5.0-rc.1 [2014-02-25]
-
-### Bugfixes
-
-- Ensure large deletes don't take too much memory
-- [Issue #240](https://github.com/influxdb/influxdb/pull/240). Unable to query against columns with `.` in the name.
-- [Issue #250](https://github.com/influxdb/influxdb/pull/250). different result between normal and continuous query with "group by" clause
-- [Issue #216](https://github.com/influxdb/influxdb/pull/216). Results with no points should exclude columns and points
-
-### Features
-
-- [Issue #243](https://github.com/influxdb/influxdb/issues/243). Should have endpoint to GET a user's attributes.
-- [Issue #269](https://github.com/influxdb/influxdb/pull/269), [Issue #65](https://github.com/influxdb/influxdb/issues/65) New clustering architecture (see docs), with the side effect that queries can be distributed between multiple shards
-- [Issue #164](https://github.com/influxdb/influxdb/pull/269),[Issue #103](https://github.com/influxdb/influxdb/pull/269),[Issue #166](https://github.com/influxdb/influxdb/pull/269),[Issue #165](https://github.com/influxdb/influxdb/pull/269),[Issue #132](https://github.com/influxdb/influxdb/pull/269) Make request log a log file instead of leveldb with recovery on startup
-
-### Deprecated
-
-- [Issue #189](https://github.com/influxdb/influxdb/issues/189). `/cluster_admins` and `/db/:db/users` return usernames in a `name` key instead of `username` key.
-- [Issue #216](https://github.com/influxdb/influxdb/pull/216). Results with no points should exclude columns and points
-
-## v0.5.0-rc.2 [2014-02-27]
+- [Issue #29](https://github.com/influxdb/influxdb/issues/29). Semicolon is now optional in queries
+- [Issue #31](https://github.com/influxdb/influxdb/issues/31). Support Basic Auth as well as query params for authentication.
 
 ### Bugfixes
 
-- [Issue #274](https://github.com/influxdb/influxdb/issues/274). Crash after restart
-- [Issue #277](https://github.com/influxdb/influxdb/issues/277). Ensure duplicate shards won't be created
-- [Issue #279](https://github.com/influxdb/influxdb/issues/279). Limits not working on regex queries
-- [Issue #281](https://github.com/influxdb/influxdb/issues/281). `./influxdb -v` should print the sha when building from source
-- [Issue #283](https://github.com/influxdb/influxdb/issues/283). Dropping shard and restart in cluster causes panic.
-- [Issue #288](https://github.com/influxdb/influxdb/issues/288). Sequence numbers should be unique per server id
+- Don't allow creating users with empty username
+- [Issue #22](https://github.com/influxdb/influxdb/issues/22). Don't set goroot if it was set
+- [Issue #25](https://github.com/influxdb/influxdb/issues/25). Fix queries that use the median aggregator
+- [Issue #26](https://github.com/influxdb/influxdb/issues/26). Default log and db directories should be in /opt/influxdb/shared/data
+- [Issue #27](https://github.com/influxdb/influxdb/issues/27). Group by should not blow up if the one of the columns in group by has null values
+- [Issue #30](https://github.com/influxdb/influxdb/issues/30). Column indexes/names getting off somehow
+- [Issue #32](https://github.com/influxdb/influxdb/issues/32). Fix many typos in the codebase. Thanks @pborreli
 
-## v0.5.0-rc.3 [2014-03-03]
+## v0.0.9
 
-### Bugfixes
-- [Issue #69](https://github.com/influxdb/influxdb/issues/69). Support column aliases
-- [Issue #287](https://github.com/influxdb/influxdb/issues/287). Make the lru cache size configurable
-- [Issue #38](https://github.com/influxdb/influxdb/issues/38). Fix a memory leak discussed in this story
-- [Issue #286](https://github.com/influxdb/influxdb/issues/286). Make the number of open shards configurable
-- Make LevelDB use the max open files configuration option.
+#### Features
 
-## v0.5.0-rc.4 [2014-03-07]
+- Add stddev(...) support
+- Better docs, thanks @auxesis and @d-snp.
 
-### Bugfixes
+#### Bugfixes
 
-- [Issue #298](https://github.com/influxdb/influxdb/issues/298). Fix limit when querying multiple shards
-- [Issue #305](https://github.com/influxdb/influxdb/issues/305). Shard ids not unique after restart
-- [Issue #309](https://github.com/influxdb/influxdb/issues/309). Don't relog the requests on the remote server
-- Fix few bugs in the WAL and refactor the way it works (this requires purging the WAL from previous rc)
+- Set PYTHONPATH and CC appropriately on mac os x.
+- [Issue #18](https://github.com/influxdb/influxdb/issues/18). Fix 386 debian and redhat packages
+- [Issue #23](https://github.com/influxdb/influxdb/issues/23). Fix the init scripts on redhat
 
-## v0.5.0-rc.5 [2014-03-11]
+## v0.0.8
 
-### Bugfixes
+#### Features
 
-- [Issue #312](https://github.com/influxdb/influxdb/issues/312). WAL should wait for server id to be set before recovering
-- [Issue #301](https://github.com/influxdb/influxdb/issues/301). Use ref counting to guard against race conditions in the shard cache
-- [Issue #319](https://github.com/influxdb/influxdb/issues/319). Propagate engine creation error correctly to the user
-- [Issue #316](https://github.com/influxdb/influxdb/issues/316). Make
-  sure we don't starve goroutines if we get an access denied error
-  from one of the shards
-- [Issue #306](https://github.com/influxdb/influxdb/issues/306). Deleting/Dropping database takes a lot of memory
-- [Issue #302](https://github.com/influxdb/influxdb/issues/302). Should be able to set negative timestamps on points
-- [Issue #327](https://github.com/influxdb/influxdb/issues/327). Make delete queries not use WAL. This addresses #315, #317 and #314
-- [Issue #321](https://github.com/influxdb/influxdb/issues/321). Make sure we split points on shards properly
+- Add a way to reset the root password from the command line.
+- Add distinct(..) and derivative(...) support
+- Print test coverage if running go1.2
 
-## v0.5.0-rc.6 [2014-03-20]
+#### Bugfixes
 
-### Bugfixes
+- Fix the default admin site path in the .deb and .rpm packages.
+- Fix the configuration filename in the .tar.gz package.
 
-- Increase raft election timeout to avoid unecessary relections
-- Sort points before writing them to avoid an explosion in the request
-  number when the points are written randomly
-- [Issue #335](https://github.com/influxdb/influxdb/issues/335). Fixes regexp for interpolating more than one column value in continuous queries
-- [Issue #318](https://github.com/influxdb/influxdb/pull/318). Support EXPLAIN queries
-- [Issue #333](https://github.com/influxdb/influxdb/pull/333). Fail
-  when the password is too short or too long instead of passing it to
-  the crypto library
+## v0.0.7
 
-## v0.5.0 [2014-03-24]
+#### Features
 
-### Features
+- include the admin site in the repo to make it easier for newcomers.
 
-- [Issue #293](https://github.com/influxdb/influxdb/pull/293). Implement a Graphite listener
+## v0.0.6
 
-### Bugfixes
+#### Features
 
-- [Issue #340](https://github.com/influxdb/influxdb/issues/340). Writing many requests while replaying seems to cause commits out of order
+- Add count(distinct(..)) support
 
-## v0.5.1 [2014-03-24]
+#### Bugfixes
 
-### Bugfixes
+- Reuse levigo read/write options.
 
-- Revert the version of goraft due to a bug found in the latest version
+## v0.0.5
 
-## v0.5.2 [2014-03-28]
+#### Features
 
-### Bugfixes
+- Cache passwords in memory to speed up password verification
+- Add MERGE and INNER JOIN support
 
-- [Issue #342](https://github.com/influxdb/influxdb/issues/342). Data resurrected after a server restart
-- [Issue #367](https://github.com/influxdb/influxdb/issues/367). Influxdb won't start if the api port is commented out
-- [Issue #355](https://github.com/influxdb/influxdb/issues/355). Return an error on wrong time strings
-- [Issue #331](https://github.com/influxdb/influxdb/issues/331). Allow negative time values in the where clause
-- [Issue #371](https://github.com/influxdb/influxdb/issues/371). Seris index isn't deleted when the series is dropped
-- [Issue #360](https://github.com/influxdb/influxdb/issues/360). Store and recover continuous queries
+#### Bugfixes
 
-## v0.5.3 [2014-03-31]
+- All columns should be returned if `select *` was used
+- Read/Write benchmarks
 
-### Bugfixes
+## v0.0.2
 
-- [Issue #378](https://github.com/influxdb/influxdb/issues/378). Indexing should return if there are no requests added since the last index
-- [Issue #370](https://github.com/influxdb/influxdb/issues/370). Filtering and limit should be enforced on the shards
-- [Issue #379](https://github.com/influxdb/influxdb/issues/379). Boolean columns should be usable in where clauses
-- [Issue #381](https://github.com/influxdb/influxdb/issues/381). Should be able to do deletes as a cluster admin
+#### Features
 
-## v0.5.4 [2014-04-02]
+- Add an admin UI
+- Deb and RPM packages
 
-### Bugfixes
+#### Bugfixes
 
-- [Issue #386](https://github.com/influxdb/influxdb/issues/386). Drop series should work with series containing dots
-- [Issue #389](https://github.com/influxdb/influxdb/issues/389). Filtering shouldn't stop prematurely
-- [Issue #341](https://github.com/influxdb/influxdb/issues/341). Make the number of shards that are queried in parallel configurable
-- [Issue #394](https://github.com/influxdb/influxdb/issues/394). Support count(distinct) and count(DISTINCT)
-- [Issue #362](https://github.com/influxdb/influxdb/issues/362). Limit should be enforced after aggregation
+- Fix some nil pointer dereferences
+- Cleanup the aggregators implementation
 
-## v0.5.5 [unreleased]
+## v0.0.1 [2013-10-22]
 
-- Upgrade leveldb 1.10 -> 1.15
+  * Initial Release
 
-  This should be a backward compatible change, but is here for documentation only
-
-### Feature
-
-- Add a command line option to repair corrupted leveldb databases on startup
-
-### Bugfixes
-
-- [Issue #398](https://github.com/influxdb/influxdb/issues/398). Support now() and NOW() in the query lang
-- [Issue #403](https://github.com/influxdb/influxdb/issues/403). Filtering should work with join queries
-- [Issue #404](https://github.com/influxdb/influxdb/issues/404). Filtering with invalid condition shouldn't crash the server
-- [Issue #405](https://github.com/influxdb/influxdb/issues/405). Percentile shouldn't crash for small number of values
-- Close leveldb databases properly if we couldn't create a new Shard. See leveldb\_shard\_datastore\_test:131
