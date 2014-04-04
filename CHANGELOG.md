@@ -7,6 +7,7 @@
 ### Feature
 
 - Add a command line option to repair corrupted leveldb databases on startup
+- [Issue #401](https://github.com/influxdb/influxdb/issues/401). No limit on the number of columns in the group by clause
 
 ### Bugfixes
 

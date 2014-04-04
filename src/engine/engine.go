@@ -270,6 +270,8 @@ func (self *PointRange) UpdateRange(point *protocol.Point) {
 	}
 }
 
+func allGroupMapper(p *protocol.Point) Group { return ALL_GROUP_IDENTIFIER }
+
 // Returns a mapper and inverse mapper. A mapper is a function to map
 // a point to a group and return an identifier of the group that can
 // be used in a map (i.e. the returned interface must be hashable).
@@ -279,7 +281,7 @@ func (self *PointRange) UpdateRange(point *protocol.Point) {
 func createValuesToInterface(groupBy *parser.GroupByClause, fields []string) (Mapper, error) {
 	// we shouldn't get an error, this is checked earlier in the executeCountQueryWithGroupBy
 	window, _ := groupBy.GetGroupByTime()
-	names := []string{}
+	var names []string
 	for _, value := range groupBy.Elems {
 		if value.IsFunctionCall() {
 			continue
@@ -287,78 +289,39 @@ func createValuesToInterface(groupBy *parser.GroupByClause, fields []string) (Ma
 		names = append(names, value.Name)
 	}
 
-	switch len(names) {
-	case 0:
-		if window != nil {
-			// this must be group by time
-			return func(p *protocol.Point) Group {
-				return createGroup1(true, getTimestampFromPoint(*window, p))
-			}, nil
-		}
-
-		// this must be group by time
-		return func(p *protocol.Point) Group {
-			return ALL_GROUP_IDENTIFIER
-		}, nil
-
-	case 1:
-		// otherwise, find the type of the column and create a mapper
-		idx := -1
-		for index, fieldName := range fields {
-			if fieldName == names[0] {
-				idx = index
-				break
-			}
-		}
-
-		if idx == -1 {
-			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Invalid column name %s", groupBy.Elems[0].Name))
-		}
-
-		if window != nil {
-			return func(p *protocol.Point) Group {
-				return createGroup2(true, getTimestampFromPoint(*window, p), p.GetFieldValue(idx))
-			}, nil
-		}
-		return func(p *protocol.Point) Group {
-			return createGroup1(false, p.GetFieldValue(idx))
-		}, nil
-
-	case 2:
-		idx1, idx2 := -1, -1
-		for index, fieldName := range fields {
-			if fieldName == names[0] {
-				idx1 = index
-			} else if fieldName == names[1] {
-				idx2 = index
-			}
-			if idx1 > 0 && idx2 > 0 {
-				break
-			}
-		}
-
-		if idx1 == -1 {
-			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Invalid column name %s", names[0]))
-		}
-
-		if idx2 == -1 {
-			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Invalid column name %s", names[1]))
-		}
-
-		if window != nil {
-			return func(p *protocol.Point) Group {
-				return createGroup3(true, getTimestampFromPoint(*window, p), p.GetFieldValue(idx1), p.GetFieldValue(idx2))
-			}, nil
-		}
-
-		return func(p *protocol.Point) Group {
-			return createGroup2(false, p.GetFieldValue(idx1), p.GetFieldValue(idx2))
-		}, nil
-
-	default:
-		// TODO: return an error instead of killing the entire process
-		return nil, common.NewQueryError(common.InvalidArgument, "Group by currently support up to two columns and an optional group by time")
+	if names == nil && window == nil {
+		return allGroupMapper, nil
 	}
+
+	if names == nil {
+		return func(p *protocol.Point) Group {
+			return ALL_GROUP_IDENTIFIER.WithTimestamp(getTimestampFromPoint(*window, p))
+		}, nil
+	}
+
+	sort.Sort(ReverseStringSlice(names))
+
+	indecesMap := map[string]int{}
+	for index, fieldName := range fields {
+		indecesMap[fieldName] = index
+	}
+
+	mapper := func(p *protocol.Point) Group {
+		var group Group = ALL_GROUP_IDENTIFIER
+		for _, name := range names {
+			idx := indecesMap[name]
+			group = createGroup2(false, p.GetFieldValue(idx), group)
+		}
+		return group
+	}
+
+	if window == nil {
+		return mapper, nil
+	}
+
+	return func(p *protocol.Point) Group {
+		return mapper(p).WithTimestamp(getTimestampFromPoint(*window, p))
+	}, nil
 }
 
 func crossProduct(values [][][]*protocol.FieldValue) [][]*protocol.FieldValue {

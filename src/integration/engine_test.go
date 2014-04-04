@@ -892,6 +892,32 @@ func (self *EngineSuite) TestLowPercentileForOnePointShouldNotCrash(c *C) {
   ]`)
 }
 
+// issue #401
+func (self *EngineSuite) TestGroupBy5Columns(c *C) {
+	// make the mock coordinator return some data
+	self.createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 },{ "int64_value": 2 },{ "int64_value": 3 },{ "int64_value": 4 }], "timestamp": 1381346701000000 },
+        { "values": [{ "int64_value": 1 },{ "int64_value": 2 },{ "int64_value": 3 },{ "int64_value": 5 }], "timestamp": 1381346701000000 }
+      ],
+      "name": "foo",
+      "fields": ["column1", "column2", "column3", "column4"]
+    }
+  ]`)
+
+	self.runQuery("select count(column1) from foo group by time(1m), column1, column2, column3, column4", c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 },{ "int64_value": 1 },{ "int64_value": 2 },{ "int64_value": 3 },{ "int64_value": 4 }], "timestamp": 1381346700000000 },
+        { "values": [{ "int64_value": 1 },{ "int64_value": 1 },{ "int64_value": 2 },{ "int64_value": 3 },{ "int64_value": 5 }], "timestamp": 1381346700000000 }
+      ],
+      "name": "foo",
+      "fields": ["count","column1","column2","column3","column4"]
+    }
+  ]`)
+}
+
 func (self *EngineSuite) TestCountDistinct(c *C) {
 	// make the mock coordinator return some data
 	self.createEngine(c, `[
