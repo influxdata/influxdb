@@ -1,4 +1,8 @@
-## v0.5.5 [unreleased]
+## v0.5.6 [unreleased]
+
+### Bugfixes
+
+## v0.5.5 [2014-04-04]
 
 - Upgrade leveldb 1.10 -> 1.15
 
