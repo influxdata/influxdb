@@ -518,7 +518,7 @@ func (s *server) Stop() {
 
 	close(s.stopped)
 
-	// make sure the server has stopped before we close the log
+	// make sure all goroutines have stopped before we close the log
 	s.routineGroup.Wait()
 
 	s.log.close()
