@@ -331,6 +331,7 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 		}
 
 		// convert the wire format to the internal representation of the time series
+		dataStoreSeries := make([]*protocol.Series, 0, len(serializedSeries))
 		for _, s := range serializedSeries {
 			if len(s.Points) == 0 {
 				continue
@@ -341,12 +342,15 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 				return libhttp.StatusBadRequest, err.Error()
 			}
 
-			err = self.coordinator.WriteSeriesData(user, db, series)
-
-			if err != nil {
-				return errorToStatusCode(err), err.Error()
-			}
+			dataStoreSeries = append(dataStoreSeries, series)
 		}
+
+		err = self.coordinator.WriteSeriesData(user, db, dataStoreSeries)
+
+		if err != nil {
+			return errorToStatusCode(err), err.Error()
+		}
+
 		return libhttp.StatusOK, nil
 	})
 }

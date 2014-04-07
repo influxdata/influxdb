@@ -3,10 +3,10 @@ package coordinator
 import (
 	"encoding/binary"
 	"fmt"
-	. "launchpad.net/gocheck"
 	"net"
 	"protocol"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 type ClientServerSuite struct{}
@@ -54,7 +54,7 @@ func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	id := uint32(1)
 	database := "pauldb"
 	proxyWrite := protocol.Request_WRITE
-	request := &protocol.Request{Id: &id, Type: &proxyWrite, Database: &database, Series: series}
+	request := &protocol.Request{Id: &id, Type: &proxyWrite, Database: &database, MultiSeries: []*protocol.Series{series}}
 
 	time.Sleep(time.Second * 1)
 	err := protobufClient.MakeRequest(request, responseStream)

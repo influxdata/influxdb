@@ -190,7 +190,7 @@ func (self *ShardData) Write(request *p.Request) error {
 	}
 	for _, server := range self.clusterServers {
 		// we have to create a new reqeust object because the ID gets assigned on each server.
-		requestWithoutId := &p.Request{Type: request.Type, Database: request.Database, Series: request.Series, ShardId: &self.id, RequestNumber: request.RequestNumber}
+		requestWithoutId := &p.Request{Type: request.Type, Database: request.Database, MultiSeries: request.MultiSeries, ShardId: &self.id, RequestNumber: request.RequestNumber}
 		server.BufferWrite(requestWithoutId)
 	}
 	return nil

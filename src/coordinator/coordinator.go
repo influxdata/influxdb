@@ -442,12 +442,9 @@ func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
 	return self.raftServer.ForceLogCompaction()
 }
 
-func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series *protocol.Series) error {
+func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series []*protocol.Series) error {
 	if !user.HasWriteAccess(db) {
 		return common.NewAuthorizationError("Insufficient permissions to write to %s", db)
-	}
-	if len(series.Points) == 0 {
-		return fmt.Errorf("Can't write series with zero points.")
 	}
 
 	err := self.CommitSeriesData(db, series)
@@ -455,7 +452,9 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 		return err
 	}
 
-	self.ProcessContinuousQueries(db, series)
+	for _, s := range series {
+		self.ProcessContinuousQueries(db, s)
+	}
 
 	return err
 }
@@ -529,7 +528,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 			}
 
 			newSeries := &protocol.Series{Name: &cleanedTargetName, Fields: series.Fields, Points: []*protocol.Point{point}}
-			if e := self.CommitSeriesData(db, newSeries); e != nil {
+			if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}); e != nil {
 				log.Error("Couldn't write data for continuous query: ", e)
 			}
 		}
@@ -544,7 +543,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 			}
 		}
 
-		if e := self.CommitSeriesData(db, newSeries); e != nil {
+		if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}); e != nil {
 			log.Error("Couldn't write data for continuous query: ", e)
 		}
 	}
@@ -552,69 +551,74 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 	return nil
 }
 
-func (self *CoordinatorImpl) CommitSeriesData(db string, series *protocol.Series) error {
-	lastPointIndex := 0
+func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Series) error {
 	now := common.CurrentTime()
-	var shardToWrite cluster.Shard
-	for _, point := range series.Points {
-		if point.Timestamp == nil {
-			point.Timestamp = &now
+
+	shardToSerieses := map[uint32]map[string]*protocol.Series{}
+	shardIdToShard := map[uint32]*cluster.ShardData{}
+
+	for _, series := range serieses {
+		if len(series.Points) == 0 {
+			return fmt.Errorf("Can't write series with zero points.")
 		}
-	}
 
-	lastTime := int64(math.MinInt64)
-	if len(series.Points) > 0 && *series.Points[0].Timestamp == lastTime {
-		// just a hack to make sure lastTime will never equal the first
-		// point's timestamp
-		lastTime = 0
-	}
+		for _, point := range series.Points {
+			if point.Timestamp == nil {
+				point.Timestamp = &now
+			}
+		}
 
-	// sort the points by timestamp
-	series.SortPointsTimeDescending()
+		// sort the points by timestamp
+		series.SortPointsTimeDescending()
 
-	for i, point := range series.Points {
-		if *point.Timestamp != lastTime {
-			shard, err := self.clusterConfiguration.GetShardToWriteToBySeriesAndTime(db, *series.Name, *point.Timestamp)
+		for i := 0; i < len(series.Points); {
+			shard, err := self.clusterConfiguration.GetShardToWriteToBySeriesAndTime(db, series.GetName(), series.Points[i].GetTimestamp())
 			if err != nil {
 				return err
 			}
-			if shardToWrite == nil {
-				shardToWrite = shard
-			} else if shardToWrite.Id() != shard.Id() {
-				newIndex := i
-				newSeries := &protocol.Series{Name: series.Name, Fields: series.Fields, Points: series.Points[lastPointIndex:newIndex]}
-				if err := self.write(db, newSeries, shardToWrite); err != nil {
-					return err
-				}
-				lastPointIndex = newIndex
-				shardToWrite = shard
+			firstIndex := i
+			timestamp := series.Points[i].GetTimestamp()
+			for ; i < len(series.Points) && series.Points[i].GetTimestamp() == timestamp; i++ {
+				// add all points with the same timestamp
 			}
-			lastTime = *point.Timestamp
+			newSeries := &protocol.Series{Name: series.Name, Fields: series.Fields, Points: series.Points[firstIndex:i:i]}
+
+			shardIdToShard[shard.Id()] = shard
+			shardSerieses := shardToSerieses[shard.Id()]
+			if shardSerieses == nil {
+				shardSerieses = map[string]*protocol.Series{}
+				shardToSerieses[shard.Id()] = shardSerieses
+			}
+			seriesName := series.GetName()
+			s := shardSerieses[seriesName]
+			if s == nil {
+				shardSerieses[seriesName] = newSeries
+				continue
+			}
+			s.Points = append(s.Points, newSeries.Points...)
 		}
 	}
 
-	series.Points = series.Points[lastPointIndex:]
+	for id, serieses := range shardToSerieses {
+		shard := shardIdToShard[id]
 
-	if len(series.Points) > 0 {
-		if shardToWrite == nil {
-			shardToWrite, _ = self.clusterConfiguration.GetShardToWriteToBySeriesAndTime(db, *series.Name, *series.Points[0].Timestamp)
+		seriesesSlice := make([]*protocol.Series, 0, len(serieses))
+		for _, s := range serieses {
+			seriesesSlice = append(seriesesSlice, s)
 		}
 
-		err := self.write(db, series, shardToWrite)
-
+		err := self.write(db, seriesesSlice, shard)
 		if err != nil {
 			log.Error("COORD error writing: ", err)
 			return err
 		}
-
-		return err
 	}
 
 	return nil
 }
 
-func (self *CoordinatorImpl) write(db string, series *protocol.Series, shard cluster.Shard) error {
-	request := &protocol.Request{Type: &write, Database: &db, Series: series}
+func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard cluster.Shard) error {
+	request := &protocol.Request{Type: &write, Database: &db, MultiSeries: series}
 	return shard.Write(request)
 }
 

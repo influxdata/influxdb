@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"net"
 	libhttp "net/http"
 	"net/url"
@@ -17,6 +16,7 @@ import (
 	"protocol"
 	"testing"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -101,8 +101,8 @@ type MockCoordinator struct {
 	returnedError     error
 }
 
-func (self *MockCoordinator) WriteSeriesData(_ User, db string, series *protocol.Series) error {
-	self.series = append(self.series, series)
+func (self *MockCoordinator) WriteSeriesData(_ User, db string, series []*protocol.Series) error {
+	self.series = append(self.series, series...)
 	return nil
 }
 

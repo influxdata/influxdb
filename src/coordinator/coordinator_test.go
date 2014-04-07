@@ -629,7 +629,7 @@ func (self *CoordinatorSuite) TestCheckReadAccess(c *C) {
 	user := &MockUser{
 		dbCannotWrite: map[string]bool{"foo": true},
 	}
-	err := coordinator.WriteSeriesData(user, "foo", series)
+	err := coordinator.WriteSeriesData(user, "foo", []*protocol.Series{series})
 	c.Assert(err, ErrorMatches, ".*Insufficient permission.*")
 }
 

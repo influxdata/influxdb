@@ -16,7 +16,7 @@ type Coordinator interface {
 	//      for all the data points that are returned
 	//   4. The end of a time series is signaled by returning a series with no data points
 	//   5. TODO: Aggregation on the nodes
-	WriteSeriesData(user common.User, db string, series *protocol.Series) error
+	WriteSeriesData(user common.User, db string, series []*protocol.Series) error
 	DropDatabase(user common.User, db string) error
 	CreateDatabase(user common.User, db string, replicationFactor uint8) error
 	ForceCompaction(user common.User) error

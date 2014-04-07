@@ -15,13 +15,14 @@ package graphite
 import (
 	"bufio"
 	"cluster"
-	log "code.google.com/p/log4go"
 	. "common"
 	"configuration"
 	"coordinator"
 	"net"
 	"protocol"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 type Server struct {
@@ -95,13 +96,14 @@ func (self *Server) Close() {
 }
 
 func (self *Server) writePoints(series *protocol.Series) error {
-	err := self.coordinator.WriteSeriesData(self.user, self.database, series)
+	serie := []*protocol.Series{series}
+	err := self.coordinator.WriteSeriesData(self.user, self.database, serie)
 	if err != nil {
 		switch err.(type) {
 		case AuthorizationError:
 			// user information got stale, get a fresh one (this should happen rarely)
 			self.getAuth()
-			err = self.coordinator.WriteSeriesData(self.user, self.database, series)
+			err = self.coordinator.WriteSeriesData(self.user, self.database, serie)
 			if err != nil {
 				log.Warn("GraphiteServer: failed to write series after getting new auth: %s\n", err.Error())
 			}
