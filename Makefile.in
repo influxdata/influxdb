@@ -37,9 +37,8 @@ ifeq ($(uname_S),Linux)
 endif
 
 # packages
-packages = admin api/http common configuration \
-  checkers coordinator datastore engine parser \
-  protocol
+packages = admin api/http api/graphite cluster common configuration	\
+  checkers coordinator datastore engine parser protocol wal
 
 # snappy variables
 snappy_version = 1.1.0
