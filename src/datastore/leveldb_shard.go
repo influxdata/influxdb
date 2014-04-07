@@ -129,18 +129,15 @@ func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.Q
 }
 
 func (self *LevelDbShard) DropDatabase(database string) error {
-	wb := levigo.NewWriteBatch()
-	defer wb.Close()
-
 	seriesNames := self.getSeriesForDatabase(database)
 	for _, name := range seriesNames {
 		if err := self.dropSeries(database, name); err != nil {
 			log.Error("DropDatabase: ", err)
+			return err
 		}
-
 	}
-
-	return self.db.Write(self.writeOptions, wb)
+	self.compact()
+	return nil
 }
 
 func (self *LevelDbShard) IsClosed() bool {
@@ -364,7 +361,12 @@ func (self *LevelDbShard) executeDeleteQuery(querySpec *parser.QuerySpec, proces
 func (self *LevelDbShard) executeDropSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	database := querySpec.Database()
 	series := querySpec.Query().DropSeriesQuery.GetTableName()
-	return self.dropSeries(database, series)
+	err := self.dropSeries(database, series)
+	if err != nil {
+		return err
+	}
+	self.compact()
+	return nil
 }
 
 func (self *LevelDbShard) dropSeries(database, series string) error {
@@ -415,7 +417,6 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
 	ro.SetFillCache(false)
-	rangesToCompact := make([]*levigo.Range, 0)
 	for _, field := range fields {
 		it := self.db.NewIterator(ro)
 		defer it.Close()
@@ -423,7 +424,6 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 		defer wb.Close()
 
 		startKey := append(field.Id, startTimeBytes...)
-		endKey := startKey
 		it.Seek(startKey)
 		if it.Valid() {
 			if !bytes.Equal(it.Key()[:8], field.Id) {
@@ -449,18 +449,18 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 				count = 0
 				wb.Clear()
 			}
-			endKey = k
 		}
 		err = self.db.Write(self.writeOptions, wb)
 		if err != nil {
 			return err
 		}
-		rangesToCompact = append(rangesToCompact, &levigo.Range{startKey, endKey})
-	}
-	for _, r := range rangesToCompact {
-		self.db.CompactRange(*r)
 	}
 	return nil
+}
+
+func (self *LevelDbShard) compact() {
+	log.Info("Compacting shard")
+	self.db.CompactRange(levigo.Range{})
 }
 
 func (self *LevelDbShard) deleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
