@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"net"
 	"net/http"
 	"os"
@@ -19,6 +18,7 @@ import (
 	"testing"
 	"time"
 	"wal"
+	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -31,7 +31,7 @@ type CoordinatorSuite struct{}
 var _ = Suite(&CoordinatorSuite{})
 
 var DEFAULT_CONFIGURATION = &configuration.Configuration{
-	QueryShardBufferSize: 1,
+	ConcurrentShardQueryLimit: 1,
 }
 
 func init() {
