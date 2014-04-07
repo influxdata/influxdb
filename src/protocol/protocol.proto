@@ -35,9 +35,9 @@ message Request {
   optional uint32 id = 1;
   required Type type = 2;
   required string database = 3;
-  optional Series series = 4;
   // only write and delete requests get sequenceNumbers assigned. These are used to
   // ensure that the receiving server is up to date
+  repeated Series multi_series = 4;
   optional uint64 sequence_number = 5;
   optional uint32 shard_id = 6;
   optional string query = 7;

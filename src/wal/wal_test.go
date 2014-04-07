@@ -51,13 +51,17 @@ func generateSeries(numberOfPoints int) *protocol.Series {
 	}
 }
 
+func generateSerieses(numberOfPoints int) []*protocol.Series {
+	return []*protocol.Series{generateSeries(numberOfPoints)}
+}
+
 func generateRequest(numberOfPoints int) *protocol.Request {
 	requestType := protocol.Request_WRITE
 	return &protocol.Request{
-		Id:       proto.Uint32(1),
-		Database: proto.String("db"),
-		Type:     &requestType,
-		Series:   generateSeries(numberOfPoints),
+		Id:          proto.Uint32(1),
+		Database:    proto.String("db"),
+		Type:        &requestType,
+		MultiSeries: generateSerieses(numberOfPoints),
 	}
 }
 
@@ -193,7 +197,7 @@ func (_ *WalSuite) TestSequenceNumberRecovery(c *C) {
 	id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
 	c.Assert(id, Equals, uint32(1))
-	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, 2*HOST_ID_OFFSET+uint64(serverId))
+	c.Assert(request.MultiSeries[0].Points[1].GetSequenceNumber(), Equals, 2*HOST_ID_OFFSET+uint64(serverId))
 	wal.closeWithoutBookmarking()
 	wal, err = NewWAL(wal.config)
 	wal.SetServerId(1)
@@ -202,7 +206,7 @@ func (_ *WalSuite) TestSequenceNumberRecovery(c *C) {
 	request = generateRequest(2)
 	id, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
-	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, 4*HOST_ID_OFFSET+uint64(serverId))
+	c.Assert(request.MultiSeries[0].Points[1].GetSequenceNumber(), Equals, 4*HOST_ID_OFFSET+uint64(serverId))
 }
 
 func (_ *WalSuite) TestAutoBookmarkAfterRecovery(c *C) {
@@ -270,7 +274,7 @@ func (_ *WalSuite) TestReplay(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(requests, HasLen, 1)
-	c.Assert(requests[0].Series.Points, HasLen, 3)
+	c.Assert(requests[0].MultiSeries[0].Points, HasLen, 3)
 	c.Assert(*requests[0].RequestNumber, Equals, uint32(3))
 	c.Assert(err, IsNil)
 }
@@ -505,13 +509,13 @@ func (_ *WalSuite) TestSequenceNumberAssignment(c *C) {
 	request := generateRequest(2)
 	_, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
-	c.Assert(request.Series.Points[0].GetSequenceNumber(), Equals, uint64(1*HOST_ID_OFFSET+1))
-	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, uint64(2*HOST_ID_OFFSET+1))
+	c.Assert(request.MultiSeries[0].Points[0].GetSequenceNumber(), Equals, uint64(1*HOST_ID_OFFSET+1))
+	c.Assert(request.MultiSeries[0].Points[1].GetSequenceNumber(), Equals, uint64(2*HOST_ID_OFFSET+1))
 	request = generateRequest(2)
 	_, err = wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
 	c.Assert(err, IsNil)
-	c.Assert(request.Series.Points[0].GetSequenceNumber(), Equals, uint64(3*HOST_ID_OFFSET+1))
-	c.Assert(request.Series.Points[1].GetSequenceNumber(), Equals, uint64(4*HOST_ID_OFFSET+1))
+	c.Assert(request.MultiSeries[0].Points[0].GetSequenceNumber(), Equals, uint64(3*HOST_ID_OFFSET+1))
+	c.Assert(request.MultiSeries[0].Points[1].GetSequenceNumber(), Equals, uint64(4*HOST_ID_OFFSET+1))
 }
 
 func (_ *WalSuite) TestSequenceNumberAssignmentPerServer(c *C) {
@@ -526,5 +530,5 @@ func (_ *WalSuite) TestSequenceNumberAssignmentPerServer(c *C) {
 	anotherRequest := generateRequest(1)
 	_, err = anotherWal.AssignSequenceNumbersAndLog(anotherRequest, &MockShard{id: 1})
 	c.Assert(err, IsNil)
-	c.Assert(request.Series.Points[0].GetSequenceNumber(), Not(Equals), anotherRequest.Series.Points[0].GetSequenceNumber())
+	c.Assert(request.MultiSeries[0].Points[0].GetSequenceNumber(), Not(Equals), anotherRequest.MultiSeries[0].Points[0].GetSequenceNumber())
 }

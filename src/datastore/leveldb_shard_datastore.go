@@ -161,7 +161,13 @@ func (self *LevelDbShardDatastore) Write(request *protocol.Request) error {
 		return err
 	}
 	defer self.ReturnShard(*request.ShardId)
-	return shardDb.Write(*request.Database, request.Series)
+	for _, s := range request.MultiSeries {
+		err := shardDb.Write(*request.Database, s)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (self *LevelDbShardDatastore) BufferWrite(request *protocol.Request) {

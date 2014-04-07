@@ -263,18 +263,20 @@ func (self *WAL) processEntries() {
 }
 
 func (self *WAL) assignSequenceNumbers(shardId uint32, request *protocol.Request) {
-	if request.Series == nil {
+	if len(request.MultiSeries) == 0 {
 		return
 	}
 	sequenceNumber := self.state.getCurrentSequenceNumber(shardId)
-	for _, p := range request.Series.Points {
-		if p.SequenceNumber != nil {
-			continue
+	for _, s := range request.MultiSeries {
+		for _, p := range s.Points {
+			if p.SequenceNumber != nil {
+				continue
+			}
+			sequenceNumber++
+			p.SequenceNumber = proto.Uint64(sequenceNumber*HOST_ID_OFFSET + uint64(self.serverId))
 		}
-		sequenceNumber++
-		p.SequenceNumber = proto.Uint64(sequenceNumber*HOST_ID_OFFSET + uint64(self.serverId))
+		self.state.setCurrentSequenceNumber(shardId, sequenceNumber)
 	}
-	self.state.setCurrentSequenceNumber(shardId, sequenceNumber)
 }
 
 func (self *WAL) processAppendEntry(e *appendEntry) {
@@ -441,13 +443,11 @@ func (self *WAL) recover() error {
 				return err
 			}
 
-			var points []*protocol.Point
-			if s := replayRequest.request.Series; s != nil {
-				points = s.Points
-			}
-			for _, point := range points {
-				sequenceNumber := (point.GetSequenceNumber() - uint64(self.serverId)) / HOST_ID_OFFSET
-				self.state.recover(replayRequest.shardId, sequenceNumber)
+			for _, s := range replayRequest.request.MultiSeries {
+				for _, point := range s.Points {
+					sequenceNumber := (point.GetSequenceNumber() - uint64(self.serverId)) / HOST_ID_OFFSET
+					self.state.recover(replayRequest.shardId, sequenceNumber)
+				}
 			}
 
 			if firstOffset == -1 {
