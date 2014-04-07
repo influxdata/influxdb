@@ -1,5 +1,9 @@
 ## v0.5.6 [unreleased]
 
+### Features
+
+- [Issue #310](https://github.com/influxdb/influxdb/issues/310). Request should support multiple timeseries
+
 ### Bugfixes
 
 ## v0.5.5 [2014-04-04]
