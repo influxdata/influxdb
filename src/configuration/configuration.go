@@ -47,6 +47,9 @@ type duration struct {
 }
 
 func (d *duration) UnmarshalText(text []byte) error {
+	if len(text) == 0 {
+		return nil
+	}
 	var err error
 	d.Duration, err = time.ParseDuration(string(text))
 	return err
@@ -61,6 +64,7 @@ type ApiConfig struct {
 	SslPort     int    `toml:"ssl-port"`
 	SslCertPath string `toml:"ssl-cert"`
 	Port        int
+	ReadTimeout duration `toml:"read-timeout"`
 }
 
 type GraphiteConfig struct {
@@ -188,6 +192,7 @@ type Configuration struct {
 	ApiHttpSslPort               int
 	ApiHttpCertPath              string
 	ApiHttpPort                  int
+	ApiReadTimeout               time.Duration
 	GraphiteEnabled              bool
 	GraphitePort                 int
 	GraphiteDatabase             string
@@ -266,12 +271,18 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		tomlConfiguration.Raft.Timeout = duration{time.Second}
 	}
 
+	apiReadTimeout := tomlConfiguration.HttpApi.ReadTimeout.Duration
+	if apiReadTimeout == 0 {
+		apiReadTimeout = 5 * time.Second
+	}
+
 	config := &Configuration{
 		AdminHttpPort:                tomlConfiguration.Admin.Port,
 		AdminAssetsDir:               tomlConfiguration.Admin.Assets,
 		ApiHttpPort:                  tomlConfiguration.HttpApi.Port,
 		ApiHttpCertPath:              tomlConfiguration.HttpApi.SslCertPath,
 		ApiHttpSslPort:               tomlConfiguration.HttpApi.SslPort,
+		ApiReadTimeout:               apiReadTimeout,
 		GraphiteEnabled:              tomlConfiguration.InputPlugins.Graphite.Enabled,
 		GraphitePort:                 tomlConfiguration.InputPlugins.Graphite.Port,
 		GraphiteDatabase:             tomlConfiguration.InputPlugins.Graphite.Database,

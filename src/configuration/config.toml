@@ -20,6 +20,11 @@ assets = "./admin"
 ssl-port = 8087    # Ssl support is enabled if you set a port and cert
 ssl-cert = "../cert.pem"
 
+# connections will timeout after this amount of time. Ensures that clients that misbehave 
+# and keep alive connections they don't use won't end up connection a million times.
+# However, if a request is taking longer than this to complete, could be a problem.
+read-timeout = "5s"
+
 [input_plugins]
 
   # Configure the graphite api
