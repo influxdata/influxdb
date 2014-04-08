@@ -274,6 +274,18 @@ func (self *IntegrationSuite) TestFilteringShouldNotStopIfAllPointsDontMatch(c *
 	c.Assert(serieses, HasLen, 1)
 }
 
+// issue #413
+func (self *IntegrationSuite) TestSmallGroupByIntervals(c *C) {
+	serieses := self.createPoints("test_small_group_by", 1, 1)
+	self.server.WriteData(serieses, c)
+	time.Sleep(time.Second)
+	serieses = self.server.RunQuery("select count(column0) from test_small_group_by group by time(10)", "m", c)
+	c.Assert(serieses, HasLen, 1)
+	c.Assert(serieses[0].Points, HasLen, 1)
+	c.Assert(serieses[0].Points[0], HasLen, 2)
+	c.Assert(serieses[0].Points[0][1], Equals, 1.0)
+}
+
 func (self *IntegrationSuite) TestExplainsWithPassthrough(c *C) {
 	data := `
   [{

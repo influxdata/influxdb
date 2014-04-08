@@ -245,6 +245,14 @@ func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData
 		return true
 	}
 
+	for _, shard := range shards {
+		bufferSize := shard.QueryResponseBufferSize(querySpec, self.config.LevelDbPointBatchSize)
+		// if the number of repsonses is too big, do a sequential querying
+		if bufferSize > self.config.ClusterMaxResponseBufferSize {
+			return true
+		}
+	}
+
 	// parallel querying only if we're querying a single series, with
 	// group by time only
 	return false
@@ -371,7 +379,11 @@ func (self *CoordinatorImpl) queryShards(querySpec *parser.QuerySpec, shards []*
 			return err
 		}
 		shard := shards[i]
-		responseChan := make(chan *protocol.Response, shard.QueryResponseBufferSize(querySpec, self.config.LevelDbPointBatchSize))
+		bufferSize := shard.QueryResponseBufferSize(querySpec, self.config.LevelDbPointBatchSize)
+		if bufferSize > self.config.ClusterMaxResponseBufferSize {
+			bufferSize = self.config.ClusterMaxResponseBufferSize
+		}
+		responseChan := make(chan *protocol.Response, bufferSize)
 		// We query shards for data and stream them to query processor
 		log.Debug("QUERYING: shard: ", i, shard.String())
 		go shard.Query(querySpec, responseChan)

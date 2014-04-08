@@ -10,6 +10,8 @@ import (
 	"unicode"
 )
 
+// Returns the parsed duration in nanoseconds, support 'u', 's', 'm',
+// 'h', 'd' and 'w' suffixes.
 func ParseTimeDuration(value string) (int64, error) {
 	parsedFloat, err := strconv.ParseFloat(value[:len(value)-1], 64)
 	if err != nil {
