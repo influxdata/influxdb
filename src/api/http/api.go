@@ -48,6 +48,10 @@ func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordi
 	return self
 }
 
+const (
+	INVALID_CREDENTIALS_MSG = "Invalid database/username/password"
+)
+
 func (self *HttpServer) EnableSsl(addr, certPath string) {
 	if addr == "" || certPath == "" {
 		// don't enable ssl unless both the address and the certificate
@@ -503,7 +507,7 @@ func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 	if username == "" {
 		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
 		w.WriteHeader(libhttp.StatusUnauthorized)
-		w.Write([]byte("Invalid username/password"))
+		w.Write([]byte(INVALID_CREDENTIALS_MSG))
 		return
 	}
 
@@ -656,7 +660,7 @@ func (self *HttpServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request
 
 	if username == "" {
 		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
-		return libhttp.StatusUnauthorized, []byte("Invalid username/password")
+		return libhttp.StatusUnauthorized, []byte(INVALID_CREDENTIALS_MSG)
 	}
 
 	user, err := self.userManager.AuthenticateDbUser(db, username, password)
