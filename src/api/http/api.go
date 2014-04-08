@@ -34,9 +34,10 @@ type HttpServer struct {
 	shutdown       chan bool
 	clusterConfig  *cluster.ClusterConfiguration
 	raftServer     *coordinator.RaftServer
+	readTimeout    time.Duration
 }
 
-func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
+func NewHttpServer(httpPort string, readTimeout time.Duration, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
 	self := &HttpServer{}
 	self.httpPort = httpPort
 	self.adminAssetsDir = adminAssetsDir
@@ -45,6 +46,7 @@ func NewHttpServer(httpPort string, adminAssetsDir string, theCoordinator coordi
 	self.shutdown = make(chan bool, 2)
 	self.clusterConfig = clusterConfig
 	self.raftServer = raftServer
+	self.readTimeout = readTimeout
 	return self
 }
 
@@ -146,9 +148,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	}
 
 	go self.startSsl(p)
-	if err := libhttp.Serve(listener, p); err != nil && !strings.Contains(err.Error(), "closed network") {
-		panic(err)
-	}
+	self.serveListener(listener, p)
 }
 
 func (self *HttpServer) startSsl(p *pat.PatternServeMux) {
@@ -173,7 +173,12 @@ func (self *HttpServer) startSsl(p *pat.PatternServeMux) {
 		panic(err)
 	}
 
-	if err := libhttp.Serve(self.sslConn, p); err != nil && !strings.Contains(err.Error(), "closed network") {
+	self.serveListener(self.sslConn, p)
+}
+
+func (self *HttpServer) serveListener(listener net.Listener, p *pat.PatternServeMux) {
+	srv := &libhttp.Server{Handler: p, ReadTimeout: self.readTimeout}
+	if err := srv.Serve(listener); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
 	}
 }
