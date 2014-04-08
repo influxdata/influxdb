@@ -1,9 +1,9 @@
 package configuration
 
 import (
-	. "launchpad.net/gocheck"
 	"testing"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -54,6 +54,8 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	c.Assert(config.WalBookmarkAfterRequests, Equals, 0)
 	c.Assert(config.WalIndexAfterRequests, Equals, 1000)
 	c.Assert(config.WalRequestsPerLogFile, Equals, 10000)
+
+	c.Assert(config.ClusterMaxResponseBufferSize, Equals, 5)
 }
 
 func (self *LoadConfigurationSuite) TestSizeParsing(c *C) {

@@ -59,38 +59,38 @@ const (
 )
 
 type ShardData struct {
-	id              uint32
-	startTime       time.Time
-	startMicro      int64
-	endMicro        int64
-	endTime         time.Time
-	wal             WAL
-	servers         []wal.Server
-	clusterServers  []*ClusterServer
-	store           LocalShardStore
-	serverIds       []uint32
-	shardType       ShardType
-	durationIsSplit bool
-	shardDuration   time.Duration
-	shardSeconds    int64
-	localServerId   uint32
-	IsLocal         bool
+	id               uint32
+	startTime        time.Time
+	startMicro       int64
+	endMicro         int64
+	endTime          time.Time
+	wal              WAL
+	servers          []wal.Server
+	clusterServers   []*ClusterServer
+	store            LocalShardStore
+	serverIds        []uint32
+	shardType        ShardType
+	durationIsSplit  bool
+	shardDuration    time.Duration
+	shardNanoseconds uint64
+	localServerId    uint32
+	IsLocal          bool
 }
 
 func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, durationIsSplit bool, wal WAL) *ShardData {
 	shardDuration := endTime.Sub(startTime)
 	return &ShardData{
-		id:              id,
-		startTime:       startTime,
-		endTime:         endTime,
-		wal:             wal,
-		startMicro:      common.TimeToMicroseconds(startTime),
-		endMicro:        common.TimeToMicroseconds(endTime),
-		serverIds:       make([]uint32, 0),
-		shardType:       shardType,
-		durationIsSplit: durationIsSplit,
-		shardDuration:   shardDuration,
-		shardSeconds:    int64(shardDuration.Seconds()),
+		id:               id,
+		startTime:        startTime,
+		endTime:          endTime,
+		wal:              wal,
+		startMicro:       common.TimeToMicroseconds(startTime),
+		endMicro:         common.TimeToMicroseconds(endTime),
+		serverIds:        make([]uint32, 0),
+		shardType:        shardType,
+		durationIsSplit:  durationIsSplit,
+		shardDuration:    shardDuration,
+		shardNanoseconds: uint64(shardDuration),
 	}
 }
 
@@ -358,7 +358,8 @@ func (self *ShardData) QueryResponseBufferSize(querySpec *parser.QuerySpec, batc
 		log.Info("BUFFER SIZE: 1000")
 		return 1000
 	}
-	tickCount := int(self.shardSeconds / int64(groupByTime.Seconds()))
+
+	tickCount := int(self.shardNanoseconds / uint64(*groupByTime))
 	if tickCount < 10 {
 		tickCount = 100
 	} else if tickCount > 1000 {

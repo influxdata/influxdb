@@ -247,8 +247,9 @@ func containsArithmeticOperators(query *parser.SelectQuery) bool {
 }
 
 func getTimestampFromPoint(window time.Duration, point *protocol.Point) int64 {
-	multiplier := int64(window / time.Microsecond)
-	return *point.GetTimestampInMicroseconds() / int64(multiplier) * int64(multiplier)
+	multiplier := uint64(window)
+	timestampNanoseconds := uint64(*point.GetTimestampInMicroseconds() * 1000)
+	return int64(timestampNanoseconds / multiplier * multiplier / 1000)
 }
 
 // Mapper given a point returns a group identifier as the first return

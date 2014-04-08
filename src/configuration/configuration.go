@@ -1,16 +1,17 @@
 package configuration
 
 import (
-	log "code.google.com/p/log4go"
 	"common"
 	"encoding/json"
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
 	"time"
+
+	log "code.google.com/p/log4go"
+	"github.com/BurntSushi/toml"
 )
 
 type size struct {
@@ -86,6 +87,7 @@ type ClusterConfig struct {
 	ProtobufHeartbeatInterval duration `toml:"protobuf_heartbeat"`
 	WriteBufferSize           int      `toml"write-buffer-size"`
 	ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
+	MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
 }
 
 type LoggingConfig struct {
@@ -181,41 +183,42 @@ type TomlConfiguration struct {
 }
 
 type Configuration struct {
-	AdminHttpPort             int
-	AdminAssetsDir            string
-	ApiHttpSslPort            int
-	ApiHttpCertPath           string
-	ApiHttpPort               int
-	GraphiteEnabled           bool
-	GraphitePort              int
-	GraphiteDatabase          string
-	RaftServerPort            int
-	RaftTimeout               duration
-	SeedServers               []string
-	DataDir                   string
-	RaftDir                   string
-	ProtobufPort              int
-	ProtobufTimeout           duration
-	ProtobufHeartbeatInterval duration
-	Hostname                  string
-	LogFile                   string
-	LogLevel                  string
-	BindAddress               string
-	LevelDbMaxOpenFiles       int
-	LevelDbLruCacheSize       int
-	LevelDbMaxOpenShards      int
-	LevelDbPointBatchSize     int
-	ShortTermShard            *ShardConfiguration
-	LongTermShard             *ShardConfiguration
-	ReplicationFactor         int
-	WalDir                    string
-	WalFlushAfterRequests     int
-	WalBookmarkAfterRequests  int
-	WalIndexAfterRequests     int
-	WalRequestsPerLogFile     int
-	LocalStoreWriteBufferSize int
-	PerServerWriteBufferSize  int
-	ConcurrentShardQueryLimit int
+	AdminHttpPort                int
+	AdminAssetsDir               string
+	ApiHttpSslPort               int
+	ApiHttpCertPath              string
+	ApiHttpPort                  int
+	GraphiteEnabled              bool
+	GraphitePort                 int
+	GraphiteDatabase             string
+	RaftServerPort               int
+	RaftTimeout                  duration
+	SeedServers                  []string
+	DataDir                      string
+	RaftDir                      string
+	ProtobufPort                 int
+	ProtobufTimeout              duration
+	ProtobufHeartbeatInterval    duration
+	Hostname                     string
+	LogFile                      string
+	LogLevel                     string
+	BindAddress                  string
+	LevelDbMaxOpenFiles          int
+	LevelDbLruCacheSize          int
+	LevelDbMaxOpenShards         int
+	LevelDbPointBatchSize        int
+	ShortTermShard               *ShardConfiguration
+	LongTermShard                *ShardConfiguration
+	ReplicationFactor            int
+	WalDir                       string
+	WalFlushAfterRequests        int
+	WalBookmarkAfterRequests     int
+	WalIndexAfterRequests        int
+	WalRequestsPerLogFile        int
+	LocalStoreWriteBufferSize    int
+	PerServerWriteBufferSize     int
+	ClusterMaxResponseBufferSize int
+	ConcurrentShardQueryLimit    int
 }
 
 func LoadConfiguration(fileName string) *Configuration {
@@ -264,40 +267,41 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	}
 
 	config := &Configuration{
-		AdminHttpPort:             tomlConfiguration.Admin.Port,
-		AdminAssetsDir:            tomlConfiguration.Admin.Assets,
-		ApiHttpPort:               tomlConfiguration.HttpApi.Port,
-		ApiHttpCertPath:           tomlConfiguration.HttpApi.SslCertPath,
-		ApiHttpSslPort:            tomlConfiguration.HttpApi.SslPort,
-		GraphiteEnabled:           tomlConfiguration.InputPlugins.Graphite.Enabled,
-		GraphitePort:              tomlConfiguration.InputPlugins.Graphite.Port,
-		GraphiteDatabase:          tomlConfiguration.InputPlugins.Graphite.Database,
-		RaftServerPort:            tomlConfiguration.Raft.Port,
-		RaftTimeout:               tomlConfiguration.Raft.Timeout,
-		RaftDir:                   tomlConfiguration.Raft.Dir,
-		ProtobufPort:              tomlConfiguration.Cluster.ProtobufPort,
-		ProtobufTimeout:           tomlConfiguration.Cluster.ProtobufTimeout,
-		ProtobufHeartbeatInterval: tomlConfiguration.Cluster.ProtobufHeartbeatInterval,
-		SeedServers:               tomlConfiguration.Cluster.SeedServers,
-		DataDir:                   tomlConfiguration.Storage.Dir,
-		LogFile:                   tomlConfiguration.Logging.File,
-		LogLevel:                  tomlConfiguration.Logging.Level,
-		Hostname:                  tomlConfiguration.Hostname,
-		BindAddress:               tomlConfiguration.BindAddress,
-		LevelDbMaxOpenFiles:       tomlConfiguration.LevelDb.MaxOpenFiles,
-		LevelDbLruCacheSize:       tomlConfiguration.LevelDb.LruCacheSize.int,
-		LevelDbMaxOpenShards:      tomlConfiguration.LevelDb.MaxOpenShards,
-		LongTermShard:             &tomlConfiguration.Sharding.LongTerm,
-		ShortTermShard:            &tomlConfiguration.Sharding.ShortTerm,
-		ReplicationFactor:         tomlConfiguration.Sharding.ReplicationFactor,
-		WalDir:                    tomlConfiguration.WalConfig.Dir,
-		WalFlushAfterRequests:     tomlConfiguration.WalConfig.FlushAfterRequests,
-		WalBookmarkAfterRequests:  tomlConfiguration.WalConfig.BookmarkAfterRequests,
-		WalIndexAfterRequests:     tomlConfiguration.WalConfig.IndexAfterRequests,
-		WalRequestsPerLogFile:     tomlConfiguration.WalConfig.RequestsPerLogFile,
-		LocalStoreWriteBufferSize: tomlConfiguration.Storage.WriteBufferSize,
-		PerServerWriteBufferSize:  tomlConfiguration.Cluster.WriteBufferSize,
-		ConcurrentShardQueryLimit: defaultConcurrentShardQueryLimit,
+		AdminHttpPort:                tomlConfiguration.Admin.Port,
+		AdminAssetsDir:               tomlConfiguration.Admin.Assets,
+		ApiHttpPort:                  tomlConfiguration.HttpApi.Port,
+		ApiHttpCertPath:              tomlConfiguration.HttpApi.SslCertPath,
+		ApiHttpSslPort:               tomlConfiguration.HttpApi.SslPort,
+		GraphiteEnabled:              tomlConfiguration.InputPlugins.Graphite.Enabled,
+		GraphitePort:                 tomlConfiguration.InputPlugins.Graphite.Port,
+		GraphiteDatabase:             tomlConfiguration.InputPlugins.Graphite.Database,
+		RaftServerPort:               tomlConfiguration.Raft.Port,
+		RaftTimeout:                  tomlConfiguration.Raft.Timeout,
+		RaftDir:                      tomlConfiguration.Raft.Dir,
+		ProtobufPort:                 tomlConfiguration.Cluster.ProtobufPort,
+		ProtobufTimeout:              tomlConfiguration.Cluster.ProtobufTimeout,
+		ProtobufHeartbeatInterval:    tomlConfiguration.Cluster.ProtobufHeartbeatInterval,
+		SeedServers:                  tomlConfiguration.Cluster.SeedServers,
+		DataDir:                      tomlConfiguration.Storage.Dir,
+		LogFile:                      tomlConfiguration.Logging.File,
+		LogLevel:                     tomlConfiguration.Logging.Level,
+		Hostname:                     tomlConfiguration.Hostname,
+		BindAddress:                  tomlConfiguration.BindAddress,
+		LevelDbMaxOpenFiles:          tomlConfiguration.LevelDb.MaxOpenFiles,
+		LevelDbLruCacheSize:          tomlConfiguration.LevelDb.LruCacheSize.int,
+		LevelDbMaxOpenShards:         tomlConfiguration.LevelDb.MaxOpenShards,
+		LongTermShard:                &tomlConfiguration.Sharding.LongTerm,
+		ShortTermShard:               &tomlConfiguration.Sharding.ShortTerm,
+		ReplicationFactor:            tomlConfiguration.Sharding.ReplicationFactor,
+		WalDir:                       tomlConfiguration.WalConfig.Dir,
+		WalFlushAfterRequests:        tomlConfiguration.WalConfig.FlushAfterRequests,
+		WalBookmarkAfterRequests:     tomlConfiguration.WalConfig.BookmarkAfterRequests,
+		WalIndexAfterRequests:        tomlConfiguration.WalConfig.IndexAfterRequests,
+		WalRequestsPerLogFile:        tomlConfiguration.WalConfig.RequestsPerLogFile,
+		LocalStoreWriteBufferSize:    tomlConfiguration.Storage.WriteBufferSize,
+		PerServerWriteBufferSize:     tomlConfiguration.Cluster.WriteBufferSize,
+		ClusterMaxResponseBufferSize: tomlConfiguration.Cluster.MaxResponseBufferSize,
+		ConcurrentShardQueryLimit:    defaultConcurrentShardQueryLimit,
 	}
 
 	if config.LocalStoreWriteBufferSize == 0 {
@@ -305,6 +309,10 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	}
 	if config.PerServerWriteBufferSize == 0 {
 		config.PerServerWriteBufferSize = 1000
+	}
+
+	if config.ClusterMaxResponseBufferSize == 0 {
+		config.ClusterMaxResponseBufferSize = 100000
 	}
 
 	// if it wasn't set, set it to 100

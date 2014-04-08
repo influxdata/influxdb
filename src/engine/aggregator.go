@@ -546,7 +546,7 @@ func NewCountAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *pa
 //
 
 type TimestampAggregator struct {
-	duration   *int64
+	duration   *uint64
 	timestamps map[string]map[interface{}]int64
 }
 
@@ -557,7 +557,8 @@ func (self *TimestampAggregator) AggregatePoint(series string, group interface{}
 		self.timestamps[series] = timestamps
 	}
 	if self.duration != nil {
-		timestamps[group] = *p.GetTimestampInMicroseconds() / *self.duration * *self.duration
+		timestampNanoseconds := uint64(*p.GetTimestampInMicroseconds()) * 1000
+		timestamps[group] = int64(timestampNanoseconds / *self.duration * *self.duration / 1000)
 	} else {
 		timestamps[group] = *p.GetTimestampInMicroseconds()
 	}
@@ -565,19 +566,11 @@ func (self *TimestampAggregator) AggregatePoint(series string, group interface{}
 }
 
 func (self *TimestampAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	timestamps := self.timestamps[series]
-	if timestamps == nil {
-		timestamps = make(map[interface{}]int64)
-		self.timestamps[series] = timestamps
+	if len(s.Points) == 0 {
+		return nil
 	}
-	if len(s.Points) > 0 {
-		if self.duration != nil {
-			timestamps[group] = *(s.Points[len(s.Points)-1]).GetTimestampInMicroseconds() / *self.duration * *self.duration
-		} else {
-			timestamps[group] = *(s.Points[len(s.Points)-1]).GetTimestampInMicroseconds()
-		}
-	}
-	return nil
+
+	return self.AggregatePoint(series, group, s.Points[len(s.Points)-1])
 }
 
 /*
@@ -614,10 +607,10 @@ func NewTimestampAggregator(query *parser.SelectQuery, _ *parser.Value) (Aggrega
 		return nil, err
 	}
 
-	var durationPtr *int64
+	var durationPtr *uint64
 
 	if duration != nil {
-		newDuration := int64(*duration / time.Microsecond)
+		newDuration := uint64(*duration)
 		durationPtr = &newDuration
 	}
 
