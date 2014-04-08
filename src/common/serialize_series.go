@@ -6,7 +6,10 @@ import (
 	"regexp"
 )
 
-var TRUE = true
+var (
+	TRUE  = true
+	FALSE = false
+)
 
 type TimePrecision int
 
