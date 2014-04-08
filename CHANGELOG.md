@@ -4,6 +4,7 @@
 
 - [Issue #310](https://github.com/influxdb/influxdb/issues/310). Request should support multiple timeseries
 - [Issue #416](https://github.com/influxdb/influxdb/issues/416). Improve the time it takes to drop database
+- [Issue #413](https://github.com/influxdb/influxdb/issues/413). Don't assume that group by interval is greater than a second
 
 ### Bugfixes
 
