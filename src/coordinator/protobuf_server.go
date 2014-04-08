@@ -2,13 +2,15 @@ package coordinator
 
 import (
 	"bytes"
-	log "code.google.com/p/log4go"
 	"encoding/binary"
 	"io"
+	"io/ioutil"
 	"net"
 	"protocol"
 	"sync"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 type ProtobufServer struct {
@@ -90,7 +92,7 @@ func (self *ProtobufServer) handleConnection(conn net.Conn) {
 
 		messageSize := int64(messageSizeU)
 		if messageSize > MAX_REQUEST_SIZE {
-			err = self.handleRequestTooLarge(conn, messageSize, buff)
+			err = self.handleRequestTooLarge(conn, messageSize)
 		} else {
 			err = self.handleRequest(conn, messageSize, buff)
 		}
@@ -123,16 +125,15 @@ func (self *ProtobufServer) handleRequest(conn net.Conn, messageSize int64, buff
 	return self.requestHandler.HandleRequest(request, conn)
 }
 
-func (self *ProtobufServer) handleRequestTooLarge(conn net.Conn, messageSize int64, buff *bytes.Buffer) error {
+func (self *ProtobufServer) handleRequestTooLarge(conn net.Conn, messageSize int64) error {
 	log.Error("request too large, dumping: %s (%d)", conn.RemoteAddr().String(), messageSize)
 	for messageSize > 0 {
 		reader := io.LimitReader(conn, MAX_REQUEST_SIZE)
-		_, err := io.Copy(buff, reader)
+		_, err := io.Copy(ioutil.Discard, reader)
 		if err != nil {
 			return err
 		}
 		messageSize -= MAX_REQUEST_SIZE
-		buff.Reset()
 	}
 	return self.sendErrorResponse(conn, protocol.Response_REQUEST_TOO_LARGE, "request too large")
 }
