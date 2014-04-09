@@ -89,7 +89,7 @@ type ClusterConfig struct {
 	ProtobufPort              int      `toml:"protobuf_port"`
 	ProtobufTimeout           duration `toml:"protobuf_timeout"`
 	ProtobufHeartbeatInterval duration `toml:"protobuf_heartbeat"`
-	WriteBufferSize           int      `toml"write-buffer-size"`
+	WriteBufferSize           int      `toml:"write-buffer-size"`
 	ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
 	MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
 }
@@ -227,6 +227,7 @@ type Configuration struct {
 }
 
 func LoadConfiguration(fileName string) *Configuration {
+	log.Info("Loading configuration file %s", fileName)
 	config, err := parseTomlConfiguration(fileName)
 	if err != nil {
 		log.Error("Couldn't parse configuration file: " + fileName)
