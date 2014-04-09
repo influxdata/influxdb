@@ -214,7 +214,7 @@ func (self *AllPointsWriter) yield(series *protocol.Series) error {
 		return nil
 	}
 
-	oldSeries.Points = append(oldSeries.Points, series.Points...)
+	self.memSeries[series.GetName()] = MergeSeries(self.memSeries[series.GetName()], series)
 	return nil
 }
 

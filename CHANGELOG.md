@@ -7,6 +7,7 @@
 - [Issue #413](https://github.com/influxdb/influxdb/issues/413). Don't assume that group by interval is greater than a second
 - [Issue #415](https://github.com/influxdb/influxdb/issues/415). Include the database when sending an auth error back to the user
 - [Issue #421](https://github.com/influxdb/influxdb/issues/421). Make read timeout a config option
+- [Issue #392](https://github.com/influxdb/influxdb/issues/392). Different columns in different shards returns invalid results when a query spans those shards
 
 ### Bugfixes
 

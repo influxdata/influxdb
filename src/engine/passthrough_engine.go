@@ -3,8 +3,10 @@ package engine
 // This engine buffers points and passes them through without modification. Works for queries
 // that can't be aggregated locally or queries that don't require it like deletes and drops.
 import (
-	log "code.google.com/p/log4go"
+	"common"
 	"protocol"
+
+	log "code.google.com/p/log4go"
 )
 
 type PassthroughEngine struct {
@@ -45,34 +47,8 @@ func NewPassthroughEngineWithLimit(responseChan chan *protocol.Response, maxPoin
 }
 
 func (self *PassthroughEngine) YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool {
-	self.responseType = &queryResponse
 	series := &protocol.Series{Name: seriesName, Points: []*protocol.Point{point}, Fields: columnNames}
-	self.limiter.calculateLimitAndSlicePoints(series)
-	if len(series.Points) == 0 {
-		return false
-	}
-
-	if self.response == nil {
-		self.response = &protocol.Response{
-			Type:   self.responseType,
-			Series: series,
-		}
-	} else if *self.response.Series.Name != *seriesName {
-		self.responseChan <- self.response
-		self.response = &protocol.Response{
-			Type:   self.responseType,
-			Series: series,
-		}
-	} else if len(self.response.Series.Points) > self.maxPointsInResponse {
-		self.responseChan <- self.response
-		self.response = &protocol.Response{
-			Type:   self.responseType,
-			Series: series,
-		}
-	} else {
-		self.response.Series.Points = append(self.response.Series.Points, point)
-	}
-	return !self.limiter.hitLimit(*seriesName)
+	return self.YieldSeries(series)
 }
 
 func (self *PassthroughEngine) YieldSeries(seriesIncoming *protocol.Series) bool {
@@ -108,7 +84,7 @@ func (self *PassthroughEngine) YieldSeries(seriesIncoming *protocol.Series) bool
 			Series: seriesIncoming,
 		}
 	} else {
-		self.response.Series.Points = append(self.response.Series.Points, seriesIncoming.Points...)
+		self.response.Series = common.MergeSeries(self.response.Series, seriesIncoming)
 	}
 	return !self.limiter.hitLimit(seriesIncoming.GetName())
 	//return true

@@ -286,6 +286,52 @@ func (self *IntegrationSuite) TestSmallGroupByIntervals(c *C) {
 	c.Assert(serieses[0].Points[0][1], Equals, 1.0)
 }
 
+// issue #392
+func (self *IntegrationSuite) TestDifferentColumnsAcrossShards(c *C) {
+	i := 0.0
+	serieses := self.createPointsFromFunc("test_different_columns_across_shards", 1, 1, func(_ int) float64 { i++; return i })
+	now := time.Now().Truncate(24 * time.Hour)
+	serieses[0].Columns = []string{"column0", "time"}
+	serieses[0].Points[0] = append(serieses[0].Points[0], now.Unix())
+	self.server.WriteData(serieses, c, "s")
+	serieses = self.createPointsFromFunc("test_different_columns_across_shards", 2, 1, func(_ int) float64 { i++; return i })
+	serieses[0].Columns = []string{"column0", "column1", "time"}
+	serieses[0].Points[0] = append(serieses[0].Points[0], now.Add(-8*24*time.Hour).Unix())
+	self.server.WriteData(serieses, c, "s")
+	time.Sleep(time.Second)
+	serieses = self.server.RunQuery("select * from test_different_columns_across_shards", "s", c)
+	c.Assert(serieses, HasLen, 1)
+
+	maps := toMap(serieses[0])
+	c.Assert(maps[0]["column0"], Equals, 1.0)
+	c.Assert(maps[0]["column1"], IsNil)
+	c.Assert(maps[1]["column0"], Equals, 2.0)
+	c.Assert(maps[1]["column1"], Equals, 3.0)
+}
+
+// issue #392
+func (self *IntegrationSuite) TestDifferentColumnsAcrossShards2(c *C) {
+	i := 0.0
+	serieses := self.createPointsFromFunc("test_different_columns_across_shards_2", 1, 1, func(_ int) float64 { i++; return i })
+	now := time.Now().Truncate(24 * time.Hour)
+	serieses[0].Columns = []string{"column1", "time"}
+	serieses[0].Points[0] = append(serieses[0].Points[0], now.Add(-13*24*time.Hour).Unix())
+	self.server.WriteData(serieses, c, "s")
+	serieses = self.createPointsFromFunc("test_different_columns_across_shards_2", 2, 1, func(_ int) float64 { i++; return i })
+	serieses[0].Columns = []string{"column1", "column0", "time"}
+	serieses[0].Points[0] = append(serieses[0].Points[0], now.Unix())
+	self.server.WriteData(serieses, c, "s")
+	time.Sleep(time.Second)
+	serieses = self.server.RunQuery("select * from test_different_columns_across_shards_2", "s", c)
+	c.Assert(serieses, HasLen, 1)
+
+	maps := toMap(serieses[0])
+	c.Assert(maps[0]["column0"], Equals, 3.0)
+	c.Assert(maps[0]["column1"], Equals, 2.0)
+	c.Assert(maps[1]["column0"], IsNil)
+	c.Assert(maps[1]["column1"], Equals, 1.0)
+}
+
 func (self *IntegrationSuite) TestExplainsWithPassthrough(c *C) {
 	data := `
   [{
