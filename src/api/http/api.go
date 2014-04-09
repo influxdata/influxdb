@@ -415,6 +415,7 @@ func (self *HttpServer) dropSeries(w libhttp.ResponseWriter, r *libhttp.Request)
 	db := r.URL.Query().Get(":db")
 	series := r.URL.Query().Get(":series")
 	before := r.URL.Query().Get("before")
+	within := r.URL.Query().Get("within")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(user User) (int, interface{}) {
 		f := func(s *protocol.Series) error {
@@ -424,6 +425,9 @@ func (self *HttpServer) dropSeries(w libhttp.ResponseWriter, r *libhttp.Request)
 		query := fmt.Sprintf("drop series %s", series)
 		if before != "" {
 			query = fmt.Sprintf("%s before %s", query, before)
+		}
+		if within != "" {
+			query = fmt.Sprintf("%s within %s", query, within)
 		}
 		err := self.coordinator.RunQuery(user, db, query, seriesWriter)
 		if err != nil {

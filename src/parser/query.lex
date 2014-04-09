@@ -71,6 +71,7 @@ static int yycolumn = 1;
 "by"                      { return BY; }
 "into"                    { return INTO; }
 "before"                  { return BEFORE; }
+"within"                  { return WITHIN; }
 "("                       { yylval->character = *yytext; return *yytext; }
 ")"                       { yylval->character = *yytext; return *yytext; }
 "+"                       { yylval->character = *yytext; return *yytext; }

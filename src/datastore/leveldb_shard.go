@@ -131,7 +131,7 @@ func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.Q
 func (self *LevelDbShard) DropDatabase(database string) error {
 	seriesNames := self.getSeriesForDatabase(database)
 	for _, name := range seriesNames {
-		if err := self.dropSeries(database, name, nil); err != nil {
+		if err := self.dropSeries(database, name, nil, nil); err != nil {
 			log.Error("DropDatabase: ", err)
 			return err
 		}
@@ -365,7 +365,11 @@ func (self *LevelDbShard) executeDropSeriesQuery(querySpec *parser.QuerySpec, pr
 	if err != nil {
 		return err
 	}
-	err = self.dropSeries(database, series, before)
+	within, err := querySpec.Query().DropSeriesQuery.GetWithinDuration()
+	if err != nil {
+		return err
+	}
+	err = self.dropSeries(database, series, before, within)
 	if err != nil {
 		return err
 	}
@@ -373,27 +377,44 @@ func (self *LevelDbShard) executeDropSeriesQuery(querySpec *parser.QuerySpec, pr
 	return nil
 }
 
-func (self *LevelDbShard) dropSeries(database, series string, before *time.Duration) error {
-	startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-
-	if before != nil {
-		endTimeBytes = self.byteArrayForTimeInt(common.TimeToMicroseconds(time.Now().Truncate(*before)))
-	}
-
-	startTime := common.MicrosecondsToTime(self.byteArrayToTimeInt(startTimeBytes))
-	endTime := common.MicrosecondsToTime(self.byteArrayToTimeInt(endTimeBytes))
-
-	log.Debug("dropping series %s:%s from %s to %s", database, series, startTime, endTime)
-
+func (self *LevelDbShard) dropSeries(database, series string, before, within *time.Duration) error {
 	wb := levigo.NewWriteBatch()
 	defer wb.Close()
 
-	if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
-		return err
+	if before != nil {
+		startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+		endTimeBytes := self.byteArrayForTimeInt(common.TimeToMicroseconds(time.Now().Truncate(*before)))
+
+		endTime := common.MicrosecondsToTime(self.byteArrayToTimeInt(endTimeBytes))
+
+		log.Debug("dropping series %s:%s before %s", database, series, endTime)
+
+		if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
+			return err
+		}
 	}
 
-	if before == nil {
+	if within != nil {
+		startTimeBytes := self.byteArrayForTimeInt(common.TimeToMicroseconds(time.Now().Truncate(*within)))
+		endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
+		startTime := common.MicrosecondsToTime(self.byteArrayToTimeInt(startTimeBytes))
+
+		log.Debug("dropping series %s:%s after %s", database, series, startTime)
+
+		if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
+			return err
+		}
+	}
+
+	if before == nil && within == nil {
+		startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+		endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
+		if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
+			return err
+		}
+
 		for _, name := range self.getColumnNamesForSeries(database, series) {
 			indexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(database+"~"+series+"~"+name)...)
 			wb.Delete(indexKey)

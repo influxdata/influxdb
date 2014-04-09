@@ -124,8 +124,8 @@ func (self *QueryParserSuite) TestParseDropSeries(c *C) {
 	c.Assert(q.GetTableName(), Equals, "foobar")
 }
 
-func (self *QueryParserSuite) TestParseDropSeriesWithBefore(c *C) {
-	query := "drop series foobar before 14d"
+func (self *QueryParserSuite) TestParseDropSeriesWithBeforeAndWithin(c *C) {
+	query := "drop series foobar before 14d within 1w"
 	queries, err := ParseQuery(query)
 	c.Assert(err, IsNil)
 
@@ -143,6 +143,11 @@ func (self *QueryParserSuite) TestParseDropSeriesWithBefore(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Assert(int(d.Hours()), Equals, 24*14)
+
+	d, err := q.GetWithinDuration()
+
+	c.Assert(err, IsNil)
+	c.Assert(int(d.Hours()), Equals, 24*7)
 }
 
 func (self *QueryParserSuite) TestGetQueryStringWithTimeCondition(c *C) {

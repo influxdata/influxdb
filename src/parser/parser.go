@@ -173,9 +173,14 @@ type BeforeClause struct {
 	Duration *Value
 }
 
+type WithinClause struct {
+	Duration *Value
+}
+
 type DropSeriesQuery struct {
 	tableName string
 	before    *BeforeClause
+	within    *WithinClause
 }
 
 func (self *DropSeriesQuery) GetTableName() string {
@@ -188,6 +193,24 @@ func (self *DropSeriesQuery) GetBeforeDuration() (*time.Duration, error) {
 	}
 
 	arg := self.before.Duration.Name
+
+	durationInt, err := common.ParseTimeDuration(arg)
+
+	if err != nil {
+		return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("invalid argument %s to the time function", arg))
+	}
+
+	duration := time.Duration(durationInt)
+
+	return &duration, nil
+}
+
+func (self *DropSeriesQuery) GetWithinDuration() (*time.Duration, error) {
+	if self.within == nil {
+		return nil, nil
+	}
+
+	arg := self.within.Duration.Name
 
 	durationInt, err := common.ParseTimeDuration(arg)
 
@@ -488,6 +511,19 @@ func GetBeforeClause(beforeClause *C.before_clause) (*BeforeClause, error) {
 	return &BeforeClause{target}, nil
 }
 
+func GetWithinClause(withinClause *C.within_clause) (*WithinClause, error) {
+	if withinClause == nil {
+		return nil, nil
+	}
+
+	target, err := GetValue(withinClause.target)
+	if err != nil {
+		return nil, err
+	}
+
+	return &WithinClause{target}, nil
+}
+
 func GetWhereCondition(condition *C.condition) (*WhereCondition, error) {
 	if condition.is_bool_expression != 0 {
 		expr, err := GetValue((*C.value)(condition.left))
@@ -597,8 +633,14 @@ func parseDropSeriesQuery(queryStirng string, dropSeriesQuery *C.drop_series_que
 		tableName: name.Name,
 	}
 
-	// get the into clause
+	// get the before clause
 	goQuery.before, err = GetBeforeClause(dropSeriesQuery.before_clause)
+	if err != nil {
+		return goQuery, err
+	}
+
+	// get the within clause
+	goQuery.within, err = GetWithinClause(dropSeriesQuery.within_clause)
 	if err != nil {
 		return goQuery, err
 	}

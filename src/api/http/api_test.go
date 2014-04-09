@@ -570,7 +570,7 @@ func (self *ApiSuite) TestWriteDataAsClusterAdmin(c *C) {
 }
 
 func (self *ApiSuite) TestDeletePoints(c *C) {
-	addr := self.formatUrl("/db/foo/series/foo?u=root&p=root&before=14d")
+	addr := self.formatUrl("/db/foo/series/foo?u=root&p=root&before=14d&within=1w")
 	client := &libhttp.Client{}
 	req, err := libhttp.NewRequest("DELETE", addr, nil)
 	c.Assert(err, IsNil)
