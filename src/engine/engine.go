@@ -602,6 +602,7 @@ func (self *QueryEngine) executeArithmeticQuery(query *parser.SelectQuery, yield
 				value := names[field]
 				v, err := GetValue(value, series.Fields, point)
 				if err != nil {
+					log.Error("Error in arithmetic computation: %s", err)
 					return err
 				}
 				newPoint.Values = append(newPoint.Values, v)

@@ -1437,6 +1437,50 @@ func (self *EngineSuite) TestQueryWithMergedTables(c *C) {
   ]`)
 }
 
+func (self *EngineSuite) TestQueryWithJoinedTablesAndArithmetic(c *C) {
+	self.createEngine(c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000 }
+      ],
+      "name": "foo",
+      "fields": ["value"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346705000000 }
+      ],
+      "name": "bar",
+      "fields": ["value"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000000 }
+      ],
+      "name": "foo",
+      "fields": ["value"]
+    },
+    {
+      "points": [
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346707000000 }
+      ],
+      "name": "bar",
+      "fields": ["value"]
+    }
+  ]`)
+
+	self.runQuery("select bar.value - foo.value from foo inner join bar", c, `[
+    {
+      "points": [
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346707000000 },
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346705000000 }
+      ],
+      "name": "foo_join_bar",
+      "fields": ["expr0"]
+    }
+  ]`)
+}
+
 func (self *EngineSuite) TestQueryWithJoinedTables(c *C) {
 	self.createEngine(c, `[
     {

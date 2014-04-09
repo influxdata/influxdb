@@ -276,7 +276,6 @@ func mergeYield(table1, table2 string, modifyValues bool, ascending bool, yield 
 			return err
 		}
 
-		state.yieldNextPoints(yield)
-		return nil
+		return state.yieldNextPoints(yield)
 	}
 }

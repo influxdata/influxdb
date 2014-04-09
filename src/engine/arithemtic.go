@@ -22,7 +22,10 @@ func init() {
 
 func GetValue(value *parser.Value, fields []string, point *protocol.Point) (*protocol.FieldValue, error) {
 	switch value.Type {
-	case parser.ValueSimpleName:
+	// if a value is of type ValueTableName then this is probably a
+	// joined time series and the names of the columns have the format
+	// series.column
+	case parser.ValueSimpleName, parser.ValueTableName:
 		for idx, f := range fields {
 			if f == value.Name {
 				return point.Values[idx], nil
@@ -40,7 +43,7 @@ func GetValue(value *parser.Value, fields []string, point *protocol.Point) (*pro
 		return &protocol.FieldValue{DoubleValue: &v}, nil
 	}
 
-	return nil, fmt.Errorf("Value cannot be evaluated for type %v", value.Type)
+	return nil, fmt.Errorf("Value cannot be evaluated for type %v", value)
 }
 
 func PlusOperator(elems []*parser.Value, fields []string, point *protocol.Point) (*protocol.FieldValue, error) {
