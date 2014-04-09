@@ -169,12 +169,35 @@ type DropQuery struct {
 	Id int
 }
 
+type BeforeClause struct {
+	Duration *Value
+}
+
 type DropSeriesQuery struct {
 	tableName string
+	before    *BeforeClause
 }
 
 func (self *DropSeriesQuery) GetTableName() string {
 	return self.tableName
+}
+
+func (self *DropSeriesQuery) GetBeforeDuration() (*time.Duration, error) {
+	if self.before == nil {
+		return nil, nil
+	}
+
+	arg := self.before.Duration.Name
+
+	durationInt, err := common.ParseTimeDuration(arg)
+
+	if err != nil {
+		return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("invalid argument %s to the time function", arg))
+	}
+
+	duration := time.Duration(durationInt)
+
+	return &duration, nil
 }
 
 type DeleteQuery struct {
@@ -452,6 +475,19 @@ func GetIntoClause(intoClause *C.into_clause) (*IntoClause, error) {
 	return &IntoClause{target}, nil
 }
 
+func GetBeforeClause(beforeClause *C.before_clause) (*BeforeClause, error) {
+	if beforeClause == nil {
+		return nil, nil
+	}
+
+	target, err := GetValue(beforeClause.target)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BeforeClause{target}, nil
+}
+
 func GetWhereCondition(condition *C.condition) (*WhereCondition, error) {
 	if condition.is_bool_expression != 0 {
 		expr, err := GetValue((*C.value)(condition.left))
@@ -557,9 +593,17 @@ func parseDropSeriesQuery(queryStirng string, dropSeriesQuery *C.drop_series_que
 		return nil, err
 	}
 
-	return &DropSeriesQuery{
+	goQuery := &DropSeriesQuery{
 		tableName: name.Name,
-	}, nil
+	}
+
+	// get the into clause
+	goQuery.before, err = GetBeforeClause(dropSeriesQuery.before_clause)
+	if err != nil {
+		return goQuery, err
+	}
+
+	return goQuery, nil
 }
 
 func parseSelectDeleteCommonQuery(queryString string, fromClause *C.from_clause, whereCondition *C.condition) (SelectDeleteCommonQuery, error) {

@@ -414,13 +414,18 @@ func (self *HttpServer) dropDatabase(w libhttp.ResponseWriter, r *libhttp.Reques
 func (self *HttpServer) dropSeries(w libhttp.ResponseWriter, r *libhttp.Request) {
 	db := r.URL.Query().Get(":db")
 	series := r.URL.Query().Get(":series")
+	before := r.URL.Query().Get("before")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(user User) (int, interface{}) {
 		f := func(s *protocol.Series) error {
 			return nil
 		}
 		seriesWriter := NewSeriesWriter(f)
-		err := self.coordinator.RunQuery(user, db, fmt.Sprintf("drop series %s", series), seriesWriter)
+		query := fmt.Sprintf("drop series %s", series)
+		if before != "" {
+			query = fmt.Sprintf("%s before %s", query, before)
+		}
+		err := self.coordinator.RunQuery(user, db, query, seriesWriter)
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}

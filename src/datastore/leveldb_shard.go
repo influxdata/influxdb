@@ -131,7 +131,7 @@ func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.Q
 func (self *LevelDbShard) DropDatabase(database string) error {
 	seriesNames := self.getSeriesForDatabase(database)
 	for _, name := range seriesNames {
-		if err := self.dropSeries(database, name); err != nil {
+		if err := self.dropSeries(database, name, nil); err != nil {
 			log.Error("DropDatabase: ", err)
 			return err
 		}
@@ -361,7 +361,11 @@ func (self *LevelDbShard) executeDeleteQuery(querySpec *parser.QuerySpec, proces
 func (self *LevelDbShard) executeDropSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	database := querySpec.Database()
 	series := querySpec.Query().DropSeriesQuery.GetTableName()
-	err := self.dropSeries(database, series)
+	before, err := querySpec.Query().DropSeriesQuery.GetBeforeDuration()
+	if err != nil {
+		return err
+	}
+	err = self.dropSeries(database, series, before)
 	if err != nil {
 		return err
 	}
@@ -369,9 +373,18 @@ func (self *LevelDbShard) executeDropSeriesQuery(querySpec *parser.QuerySpec, pr
 	return nil
 }
 
-func (self *LevelDbShard) dropSeries(database, series string) error {
+func (self *LevelDbShard) dropSeries(database, series string, before *time.Duration) error {
 	startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
+	if before != nil {
+		endTimeBytes = self.byteArrayForTimeInt(common.TimeToMicroseconds(time.Now().Truncate(*before)))
+	}
+
+	startTime := common.MicrosecondsToTime(self.byteArrayToTimeInt(startTimeBytes))
+	endTime := common.MicrosecondsToTime(self.byteArrayToTimeInt(endTimeBytes))
+
+	log.Debug("dropping series %s:%s from %s to %s", database, series, startTime, endTime)
 
 	wb := levigo.NewWriteBatch()
 	defer wb.Close()
@@ -380,12 +393,14 @@ func (self *LevelDbShard) dropSeries(database, series string) error {
 		return err
 	}
 
-	for _, name := range self.getColumnNamesForSeries(database, series) {
-		indexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(database+"~"+series+"~"+name)...)
-		wb.Delete(indexKey)
-	}
+	if before == nil {
+		for _, name := range self.getColumnNamesForSeries(database, series) {
+			indexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(database+"~"+series+"~"+name)...)
+			wb.Delete(indexKey)
+		}
 
-	wb.Delete(append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~"+series)...))
+		wb.Delete(append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~"+series)...))
+	}
 
 	// remove the column indeces for this time series
 	return self.db.Write(self.writeOptions, wb)
@@ -396,6 +411,16 @@ func (self *LevelDbShard) byteArrayForTimeInt(time int64) []byte {
 	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&time))
 	bytes := timeBuffer.Bytes()
 	return bytes
+}
+
+func (self *LevelDbShard) byteArrayToTimeInt(data []byte) int64 {
+	var t uint64
+
+	timeBuffer := bytes.NewBuffer(data)
+
+	binary.Read(timeBuffer, binary.BigEndian, &t)
+
+	return self.convertUintTimestampToInt64(&t)
 }
 
 func (self *LevelDbShard) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
