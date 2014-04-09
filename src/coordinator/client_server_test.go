@@ -2,9 +2,11 @@ package coordinator
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net"
 	"protocol"
+	"testing"
 	"time"
 	. "launchpad.net/gocheck"
 )
@@ -19,6 +21,17 @@ type MockRequestHandler struct {
 }
 
 var writeOk = protocol.Response_WRITE_OK
+
+func Test(t *testing.T) {
+	TestingT(t)
+}
+
+func stringToSeries(seriesString string, c *C) *protocol.Series {
+	series := &protocol.Series{}
+	err := json.Unmarshal([]byte(seriesString), &series)
+	c.Assert(err, IsNil)
+	return series
+}
 
 func (self *MockRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
 	response := &protocol.Response{RequestId: request.Id, Type: &writeOk}
