@@ -3,9 +3,9 @@ package parser
 import (
 	"common"
 	"fmt"
+	. "launchpad.net/gocheck"
 	"testing"
 	"time"
-	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -122,6 +122,32 @@ func (self *QueryParserSuite) TestParseDropSeries(c *C) {
 	q := _q.DropSeriesQuery
 
 	c.Assert(q.GetTableName(), Equals, "foobar")
+}
+
+func (self *QueryParserSuite) TestParseDropSeriesWithBeforeAndWithin(c *C) {
+	query := "drop series foobar before 14d within 1w"
+	queries, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+
+	c.Assert(queries, HasLen, 1)
+
+	_q := queries[0]
+
+	c.Assert(_q.DropSeriesQuery, NotNil)
+
+	q := _q.DropSeriesQuery
+
+	c.Assert(q.GetTableName(), Equals, "foobar")
+
+	d, err := q.GetBeforeDuration()
+
+	c.Assert(err, IsNil)
+	c.Assert(int(d.Hours()), Equals, 24*14)
+
+	d, err := q.GetWithinDuration()
+
+	c.Assert(err, IsNil)
+	c.Assert(int(d.Hours()), Equals, 24*7)
 }
 
 func (self *QueryParserSuite) TestGetQueryStringWithTimeCondition(c *C) {

@@ -70,6 +70,8 @@ static int yycolumn = 1;
 "group"                   { BEGIN(INITIAL); return GROUP; }
 "by"                      { return BY; }
 "into"                    { return INTO; }
+"before"                  { return BEFORE; }
+"within"                  { return WITHIN; }
 "("                       { yylval->character = *yytext; return *yytext; }
 ")"                       { yylval->character = *yytext; return *yytext; }
 "+"                       { yylval->character = *yytext; return *yytext; }

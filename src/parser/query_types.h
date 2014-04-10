@@ -99,7 +99,17 @@ typedef struct {
 } delete_query;
 
 typedef struct {
+  value *target;
+} before_clause;
+
+typedef struct {
+  value *target;
+} within_clause;
+
+typedef struct {
   value *name;
+  before_clause *before_clause;
+  within_clause *within_clause;
 } drop_series_query;
 
 typedef struct {

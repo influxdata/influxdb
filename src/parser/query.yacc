@@ -49,6 +49,8 @@ value *create_expression_value(char *operator, size_t size, ...) {
   value*                v;
   from_clause*          from_clause;
   into_clause*          into_clause;
+  before_clause*        before_clause;
+  within_clause*        within_clause;
   query*                query;
   select_query*         select_query;
   delete_query*         delete_query;
@@ -74,7 +76,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES EXPLAIN
+%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO BEFORE WITHIN CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES EXPLAIN
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE BOOLEAN_VALUE TABLE_NAME SIMPLE_NAME INTO_NAME REGEX_OP
 %token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
@@ -93,12 +95,14 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %type <condition>         CONDITION
 %type <v>                 BOOL_EXPRESSION
 %type <value_array>       VALUES
-%type <v>                 VALUE TABLE_VALUE SIMPLE_TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE INTO_VALUE INTO_NAME_VALUE
+%type <v>                 VALUE TABLE_VALUE SIMPLE_TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE INTO_VALUE INTO_NAME_VALUE BEFORE_VALUE WITHIN_VALUE
 %type <v>                 WILDCARD REGEX_VALUE DURATION_VALUE FUNCTION_CALL
 %type <groupby_clause>    GROUP_BY_CLAUSE
 %type <integer>           LIMIT_CLAUSE
 %type <character>         ORDER_CLAUSE
 %type <into_clause>       INTO_CLAUSE
+%type <before_clause>     BEFORE_CLAUSE
+%type <within_clause>     WITHIN_CLAUSE
 %type <limit_and_order>   LIMIT_AND_ORDER_CLAUSES
 %type <query>             QUERY
 %type <delete_query>      DELETE_QUERY
@@ -201,10 +205,12 @@ DELETE_QUERY:
         }
 
 DROP_SERIES_QUERY:
-        DROP_SERIES SIMPLE_TABLE_VALUE
+        DROP_SERIES SIMPLE_TABLE_VALUE BEFORE_CLAUSE WITHIN_CLAUSE
         {
           $$ = malloc(sizeof(drop_series_query));
           $$->name = $2;
+          $$->before_clause = $3;
+          $$->within_clause = $4;
         }
 
 EXPLAIN_QUERY:
@@ -321,6 +327,28 @@ INTO_CLAUSE:
         INTO INTO_VALUE
         {
           $$ = malloc(sizeof(into_clause));
+          $$->target = $2;
+        }
+        |
+        {
+          $$ = NULL;
+        }
+
+BEFORE_CLAUSE:
+        BEFORE BEFORE_VALUE
+        {
+          $$ = malloc(sizeof(before_clause));
+          $$->target = $2;
+        }
+        |
+        {
+          $$ = NULL;
+        }
+
+WITHIN_CLAUSE:
+        WITHIN WITHIN_VALUE
+        {
+          $$ = malloc(sizeof(before_clause));
           $$->target = $2;
         }
         |
@@ -508,6 +536,12 @@ SIMPLE_TABLE_VALUE:
 
 INTO_VALUE:
         SIMPLE_NAME_VALUE | TABLE_NAME_VALUE | INTO_NAME_VALUE
+
+BEFORE_VALUE:
+        DURATION_VALUE
+
+WITHIN_VALUE:
+        DURATION_VALUE
 
 DURATION_VALUE:
         DURATION

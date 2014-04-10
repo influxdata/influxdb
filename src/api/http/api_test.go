@@ -569,6 +569,16 @@ func (self *ApiSuite) TestWriteDataAsClusterAdmin(c *C) {
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
 }
 
+func (self *ApiSuite) TestDeletePoints(c *C) {
+	addr := self.formatUrl("/db/foo/series/foo?u=root&p=root&before=14d&within=1w")
+	client := &libhttp.Client{}
+	req, err := libhttp.NewRequest("DELETE", addr, nil)
+	c.Assert(err, IsNil)
+	resp, err := client.Do(req)
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusNoContent)
+}
+
 func (self *ApiSuite) TestCreateDatabase(c *C) {
 	data := `{"name": "foo", "apiKey": "bar"}`
 	addr := self.formatUrl("/db?api_key=asdf&u=root&p=root")
