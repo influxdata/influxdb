@@ -615,6 +615,10 @@ func (s *server) loop() {
 // Sends an event to the event loop to be processed. The function will wait
 // until the event is actually processed before returning.
 func (s *server) send(value interface{}) (interface{}, error) {
+	if !s.Running() {
+		return nil, StopError
+	}
+
 	event := &ev{target: value, c: make(chan error, 1)}
 	select {
 	case s.c <- event:
@@ -630,6 +634,10 @@ func (s *server) send(value interface{}) (interface{}, error) {
 }
 
 func (s *server) sendAsync(value interface{}) {
+	if !s.Running() {
+		return
+	}
+
 	event := &ev{target: value, c: make(chan error, 1)}
 	// try a non-blocking send first
 	// in most cases, this should not be blocking
