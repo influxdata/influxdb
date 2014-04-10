@@ -471,7 +471,9 @@ func (s *server) Start() error {
 	return nil
 }
 
-// Init initializes the raft server
+// Init initializes the raft server.
+// If there is no previous log file under the given path, Init() will create an empty log file.
+// Otherwise, Init() will load in the log entries from the log file.
 func (s *server) Init() error {
 	if s.Running() {
 		return fmt.Errorf("raft.Server: Server already running[%v]", s.state)
