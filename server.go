@@ -334,6 +334,8 @@ func (s *server) IsLogEmpty() bool {
 
 // A list of all the log entries. This should only be used for debugging purposes.
 func (s *server) LogEntries() []*LogEntry {
+	s.log.mutex.RLock()
+	defer s.log.mutex.RUnlock()
 	return s.log.entries
 }
 
