@@ -743,7 +743,7 @@ func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (
 	log.Debug("(raft:%s) Authenticating password for %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
 	user, err := self.clusterConfiguration.AuthenticateDbUser(db, username, password)
 	if user != nil {
-		log.Debug("(raft:%s) User %s authenticated succesfuly", self.raftServer.(*RaftServer).raftServer.Name(), username)
+		log.Debug("(raft:%s) User %s authenticated succesfully", self.raftServer.(*RaftServer).raftServer.Name(), username)
 	}
 	return user, err
 }
