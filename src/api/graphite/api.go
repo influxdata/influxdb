@@ -22,6 +22,7 @@ import (
 	"net"
 	"protocol"
 	"strings"
+	"sync"
 	"time"
 
 	log "code.google.com/p/log4go"
@@ -35,9 +36,25 @@ type Server struct {
 	conn          net.Listener
 	udpConn       *net.UDPConn
 	user          *cluster.ClusterAdmin
+	writeSeries   chan protocol.Series
 	shutdown      chan bool
 	udpEnabled    bool
 }
+
+// will commit a batch of series every commit_max_wait ms or every commit_capacity datapoints,
+// whichever is first
+// upto how many points/series to commit in 1 go?
+const commit_capacity = 40000
+
+// how long to wait max before flushing a commit payload
+// basically trade off the efficiency of a high commit_capacity with the expectation
+// to get your metrics stored in a short timeframe.
+const commit_max_wait = 100 * time.Millisecond
+
+// the write commit payload should get written in a timely fashion.
+// if not, the channel that feeds the committer will queue up to max_queue series, and then
+// block, creating backpressure to the client.
+const max_queue = 20000
 
 // TODO: check that database exists and create it if not
 func NewServer(config *configuration.Configuration, coord coordinator.Coordinator, clusterConfig *cluster.ClusterConfiguration) *Server {
@@ -45,6 +62,7 @@ func NewServer(config *configuration.Configuration, coord coordinator.Coordinato
 	self.listenAddress = config.GraphitePortString()
 	self.database = config.GraphiteDatabase
 	self.coordinator = coord
+	self.writeSeries = make(chan protocol.Series, max_queue)
 	self.shutdown = make(chan bool, 1)
 	self.clusterConfig = clusterConfig
 	self.udpEnabled = config.GraphiteUdpEnabled
@@ -75,13 +93,12 @@ func (self *Server) ListenAndServe() {
 		self.udpConn, _ = net.ListenUDP("udp", udpAddress)
 		go self.ServeUdp(self.udpConn)
 	}
+	go self.committer()
 	self.Serve(self.conn)
 }
 
 func (self *Server) Serve(listener net.Listener) {
-	// not really sure of the use of this shutdown channel,
-	// as all handling is done through goroutines. maybe we should use a waitgroup
-	defer func() { self.shutdown <- true }()
+	var wg sync.WaitGroup
 
 	for {
 		conn_in, err := listener.Accept()
@@ -89,8 +106,11 @@ func (self *Server) Serve(listener net.Listener) {
 			log.Error("GraphiteServer: Accept: ", err)
 			continue
 		}
-		go self.handleClient(conn_in)
+		wg.Add(1)
+		go self.handleClient(conn_in, wg)
 	}
+	wg.Wait()
+	close(self.writeSeries)
 }
 
 func (self *Server) ServeUdp(conn *net.UDPConn) {
@@ -129,27 +149,62 @@ func (self *Server) Close() {
 	}
 }
 
-func (self *Server) writePoints(series *protocol.Series) error {
-	serie := []*protocol.Series{series}
-	err := self.coordinator.WriteSeriesData(self.user, self.database, serie)
-	if err != nil {
-		switch err.(type) {
-		case AuthorizationError:
-			// user information got stale, get a fresh one (this should happen rarely)
-			self.getAuth()
-			err = self.coordinator.WriteSeriesData(self.user, self.database, serie)
-			if err != nil {
-				log.Warn("GraphiteServer: failed to write series after getting new auth: %s", err.Error())
+func (self *Server) committer() {
+	defer func() { self.shutdown <- true }()
+
+	// the ingest could in theory be anything from 1 series(datapoint) every few minutes, upto millions of datapoints every second.
+	// and there might be multiple connections, each delivering a certain (not necessarily equal) fraction of the total.
+	// we want ingested points to be ingested quickly (let's say at least within 100ms), but since coordinator.WriteSeriesData
+	// has a bunch of overhead, we also want to buffer up the data, let's say
+	// up to about 1MiB of data, at 24B per record -> 43690 records, let's make it an even 40k
+
+	commit := func(commit_payload []*protocol.Series) {
+		err := self.coordinator.WriteSeriesData(self.user, self.database, commit_payload)
+		if err != nil {
+			switch err.(type) {
+			case AuthorizationError:
+				// user information got stale, get a fresh one (this should happen rarely)
+				self.getAuth()
+				err = self.coordinator.WriteSeriesData(self.user, self.database, commit_payload)
+				if err != nil {
+					log.Warn("GraphiteServer: failed to write series after getting new auth: %s\n", err.Error())
+				}
+			default:
+				log.Warn("GraphiteServer: failed write series: %s\n", err.Error())
 			}
-		default:
-			log.Warn("GraphiteServer: failed write series: %s", err.Error())
 		}
 	}
-	return err
+	commit_payload := make([]*protocol.Series, 0, commit_capacity)
+	timer := time.NewTimer(commit_max_wait)
+
+CommitLoop:
+	for {
+		select {
+		case serie, ok := <-self.writeSeries:
+			if len(commit_payload) == commit_capacity {
+				commit(commit_payload)
+				commit_payload = make([]*protocol.Series, 0, commit_capacity)
+				timer.Reset(commit_max_wait)
+				if !ok {
+					break CommitLoop
+				}
+			} else {
+				commit_payload = append(commit_payload, &serie)
+				if !ok {
+					commit(commit_payload)
+					break CommitLoop
+				}
+			}
+		case <-timer.C:
+			commit(commit_payload)
+			commit_payload = make([]*protocol.Series, 0, commit_capacity)
+		}
+	}
 }
 
-func (self *Server) handleClient(conn net.Conn) {
+func (self *Server) handleClient(conn net.Conn, wg sync.WaitGroup) {
 	defer conn.Close()
+	defer wg.Done()
 	reader := bufio.NewReader(conn)
 	for {
 		err := self.handleMessage(reader)
@@ -164,11 +219,11 @@ func (self *Server) handleClient(conn net.Conn) {
 	}
 }
 
-func (self *Server) handleMessage(reader *bufio.Reader) error {
+func (self *Server) handleMessage(reader *bufio.Reader) (err error) {
 	graphiteMetric := &GraphiteMetric{}
-	err := graphiteMetric.Read(reader)
+	err = graphiteMetric.Read(reader)
 	if err != nil {
-		return err
+		return
 	}
 	values := []*protocol.FieldValue{}
 	if graphiteMetric.isInt {
@@ -182,14 +237,11 @@ func (self *Server) handleMessage(reader *bufio.Reader) error {
 		Values:         values,
 		SequenceNumber: &sn,
 	}
-	series := &protocol.Series{
+	series := protocol.Series{
 		Name:   &graphiteMetric.name,
 		Fields: []string{"value"},
 		Points: []*protocol.Point{point},
 	}
-	// little inefficient for now, later we might want to add multiple series in 1 writePoints request
-	if err := self.writePoints(series); err != nil {
-		log.Error("Error in graphite plugin: %s", err)
-	}
-	return nil
+	self.writeSeries <- series
+	return
 }
