@@ -242,6 +242,12 @@ func (self *Server) Stop() {
 	self.HttpApi.Close()
 	log.Info("Api server stopped")
 
+	if self.Config.GraphiteEnabled {
+		log.Info("Stopping GraphiteServer")
+		self.GraphiteApi.Close()
+		log.Info("GraphiteServer stopped")
+	}
+
 	log.Info("Stopping admin server")
 	self.AdminServer.Close()
 	log.Info("admin server stopped")
