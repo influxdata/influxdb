@@ -29,6 +29,7 @@ type ProtobufClient struct {
 type runningRequest struct {
 	timeMade     time.Time
 	responseChan chan *protocol.Response
+	request      *protocol.Request
 }
 
 const (
@@ -94,7 +95,7 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 			log.Error(message)
 			oldReq.responseChan <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}
 		}
-		self.requestBuffer[*request.Id] = &runningRequest{time.Now(), responseStream}
+		self.requestBuffer[*request.Id] = &runningRequest{timeMade: time.Now(), responseChan: responseStream, request: request}
 		self.requestBufferLock.Unlock()
 	}
 
@@ -205,7 +206,7 @@ func (self *ProtobufClient) peridicallySweepTimedOutRequests() {
 		for k, req := range self.requestBuffer {
 			if req.timeMade.Before(maxAge) {
 				delete(self.requestBuffer, k)
-				log.Warn("Request timed out.")
+				log.Warn("Request timed out: ", req.request)
 			}
 		}
 		self.requestBufferLock.Unlock()
