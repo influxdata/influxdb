@@ -355,7 +355,7 @@ func (self *ShardData) QueryResponseBufferSize(querySpec *parser.QuerySpec, batc
 	if groupByTime == nil {
 		// If the group by time is nil, we shouldn't have to use a buffer since the shards should be queried sequentially.
 		// However, set this to something high just to be safe.
-		log.Info("BUFFER SIZE: 1000")
+		log.Debug("BUFFER SIZE: 1000")
 		return 1000
 	}
 
@@ -377,7 +377,7 @@ func (self *ShardData) QueryResponseBufferSize(querySpec *parser.QuerySpec, batc
 		// each response can have many points, so having a buffer of the ticks * 100 should be safe, but we'll see.
 		tickCount = tickCount * 100
 	}
-	log.Info("BUFFER SIZE: ", tickCount)
+	log.Debug("BUFFER SIZE: ", tickCount)
 	return tickCount
 }
 
