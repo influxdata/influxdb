@@ -318,6 +318,12 @@ func (s *RaftServer) CompactLog() {
 	}
 }
 
+func (s *RaftServer) CommittedAllChanges() bool {
+	entries := s.raftServer.LogEntries()
+	lastIndex := entries[len(entries)-1].Index()
+	return s.raftServer.CommitIndex() == lastIndex
+}
+
 func (s *RaftServer) startRaft() error {
 	log.Info("Initializing Raft Server: %s %d", s.path, s.port)
 

@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"protocol"
+	"reflect"
 	"time"
 
 	log "code.google.com/p/log4go"
@@ -9,14 +10,16 @@ import (
 
 // Acts as a buffer for writes
 type WriteBuffer struct {
-	writer        Writer
-	wal           WAL
-	serverId      uint32
-	writes        chan *protocol.Request
-	stoppedWrites chan uint32
-	bufferSize    int
-	shardIds      map[uint32]bool
-	writerInfo    string
+	writer                     Writer
+	wal                        WAL
+	serverId                   uint32
+	writes                     chan *protocol.Request
+	stoppedWrites              chan uint32
+	bufferSize                 int
+	shardIds                   map[uint32]bool
+	shardLastRequestNumber     map[uint32]uint32
+	shardCommitedRequestNumber map[uint32]uint32
+	writerInfo                 string
 }
 
 type Writer interface {
@@ -26,22 +29,33 @@ type Writer interface {
 func NewWriteBuffer(writerInfo string, writer Writer, wal WAL, serverId uint32, bufferSize int) *WriteBuffer {
 	log.Info("%s: Initializing write buffer with buffer size of %d", writerInfo, bufferSize)
 	buff := &WriteBuffer{
-		writer:        writer,
-		wal:           wal,
-		serverId:      serverId,
-		writes:        make(chan *protocol.Request, bufferSize),
-		stoppedWrites: make(chan uint32, 1),
-		bufferSize:    bufferSize,
-		shardIds:      make(map[uint32]bool),
-		writerInfo:    writerInfo,
+		writer:                     writer,
+		wal:                        wal,
+		serverId:                   serverId,
+		writes:                     make(chan *protocol.Request, bufferSize),
+		stoppedWrites:              make(chan uint32, 1),
+		bufferSize:                 bufferSize,
+		shardIds:                   make(map[uint32]bool),
+		shardLastRequestNumber:     map[uint32]uint32{},
+		shardCommitedRequestNumber: map[uint32]uint32{},
+		writerInfo:                 writerInfo,
 	}
 	go buff.handleWrites()
 	return buff
 }
 
+func (self *WriteBuffer) ShardsRequestNumber() map[uint32]uint32 {
+	return self.shardLastRequestNumber
+}
+
+func (self *WriteBuffer) HasUncommitedWrites() bool {
+	return !reflect.DeepEqual(self.shardCommitedRequestNumber, self.shardLastRequestNumber)
+}
+
 // This method never blocks. It'll buffer writes until they fill the buffer then drop the on the
 // floor and let the background goroutine replay from the WAL
 func (self *WriteBuffer) Write(request *protocol.Request) {
+	self.shardLastRequestNumber[request.GetShardId()] = request.GetRequestNumber()
 	select {
 	case self.writes <- request:
 		return
@@ -73,6 +87,7 @@ func (self *WriteBuffer) write(request *protocol.Request) {
 		requestNumber := *request.RequestNumber
 		err := self.writer.Write(request)
 		if err == nil {
+			self.shardCommitedRequestNumber[request.GetShardId()] = request.GetRequestNumber()
 			self.wal.Commit(requestNumber, self.serverId)
 			return
 		}

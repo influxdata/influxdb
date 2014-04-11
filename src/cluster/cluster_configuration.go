@@ -82,6 +82,7 @@ type ClusterConfiguration struct {
 	shardsById                 map[uint32]*ShardData
 	shardsByIdLock             sync.RWMutex
 	LocalRaftName              string
+	writeBuffers               []*WriteBuffer
 }
 
 type ContinuousQuery struct {
@@ -198,6 +199,16 @@ func (self *ClusterConfiguration) GetServerByProtobufConnectionString(connection
 	return nil
 }
 
+// Return per shard request numbers for the local server and all remote servers
+func (self *ClusterConfiguration) HasUncommitedWrites() bool {
+	for _, buffer := range self.writeBuffers {
+		if buffer.HasUncommitedWrites() {
+			return true
+		}
+	}
+	return false
+}
+
 func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.serversLock.Lock()
 	defer self.serversLock.Unlock()
@@ -212,7 +223,9 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 			server.connection = self.connectionCreator(server.ProtobufConnectionString)
 			server.Connect()
 		}
-		server.SetWriteBuffer(NewWriteBuffer(fmt.Sprintf("%d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize))
+		writeBuffer := NewWriteBuffer(fmt.Sprintf("%d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize)
+		self.writeBuffers = append(self.writeBuffers, writeBuffer)
+		server.SetWriteBuffer(writeBuffer)
 		server.StartHeartbeat()
 	} else if !self.addedLocalServer {
 		log.Info("Added the local server")
@@ -509,7 +522,9 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 		if server.connection == nil {
 			server.connection = self.connectionCreator(server.ProtobufConnectionString)
 			if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
-				server.SetWriteBuffer(NewWriteBuffer(fmt.Sprintf("server: %d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize))
+				writeBuffer := NewWriteBuffer(fmt.Sprintf("server: %d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize)
+				self.writeBuffers = append(self.writeBuffers, writeBuffer)
+				server.SetWriteBuffer(writeBuffer)
 				server.Connect()
 				server.StartHeartbeat()
 			}
@@ -927,7 +942,9 @@ func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) 
 }
 
 func (self *ClusterConfiguration) RecoverFromWAL() error {
-	self.shardStore.SetWriteBuffer(NewWriteBuffer("local", self.shardStore, self.wal, self.LocalServerId, self.config.LocalStoreWriteBufferSize))
+	writeBuffer := NewWriteBuffer("local", self.shardStore, self.wal, self.LocalServerId, self.config.LocalStoreWriteBufferSize)
+	self.writeBuffers = append(self.writeBuffers, writeBuffer)
+	self.shardStore.SetWriteBuffer(writeBuffer)
 	var waitForAll sync.WaitGroup
 	for _, _server := range self.servers {
 		server := _server
