@@ -172,6 +172,7 @@ func (self *ClusterServer) getHeartbeatResponse(responseChan <-chan *protocol.Re
 }
 
 func (self *ClusterServer) handleHeartbeatError(err error) {
+	log.Warn("Hearbeat error for server: %d - %s: %s", self.Id, self.ProtobufConnectionString, err)
 	self.isUp = false
 	self.Backoff *= 2
 	if self.Backoff > MAX_BACKOFF {
