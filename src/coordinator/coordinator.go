@@ -134,15 +134,14 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 			return self.CreateContinuousQuery(user, database, queryString)
 		}
 
-		return self.runQuery(query, user, database, seriesWriter)
+		return self.runQuery(querySpec, seriesWriter)
 	}
 	seriesWriter.Close()
 	return nil
 }
 
 // This should only get run for SelectQuery types
-func (self *CoordinatorImpl) runQuery(query *parser.Query, user common.User, database string, seriesWriter SeriesWriter) error {
-	querySpec := parser.NewQuerySpec(user, database, query)
+func (self *CoordinatorImpl) runQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
 	return self.runQuerySpec(querySpec, seriesWriter)
 }
 
