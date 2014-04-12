@@ -75,8 +75,6 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 }
 
 func (self *Server) ListenAndServe() error {
-	go self.ProtobufServer.ListenAndServe()
-
 	err := self.RaftServer.ListenAndServe()
 	if err != nil {
 		return err
@@ -87,6 +85,8 @@ func (self *Server) ListenAndServe() error {
 	self.writeLog.SetServerId(self.ClusterConfig.ServerId())
 
 	time.Sleep(5 * time.Second)
+
+	go self.ProtobufServer.ListenAndServe()
 
 	log.Info("Recovering from log...")
 	err = self.ClusterConfig.RecoverFromWAL()
