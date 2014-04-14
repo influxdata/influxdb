@@ -981,7 +981,7 @@ func (self *ClusterConfiguration) shardIdsForServerId(serverId uint32) []uint32 
 	for _, shard := range self.GetAllShards() {
 		for _, id := range shard.serverIds {
 			if id == serverId {
-				sid := id
+				sid := shard.Id()
 				shardIds = append(shardIds, sid)
 				break
 			}
