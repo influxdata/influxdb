@@ -133,9 +133,6 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	// force a raft log compaction
 	self.registerEndpoint(p, "post", "/raft/force_compaction", self.forceRaftCompaction)
 
-	// fetch current list of available interfaces
-	self.registerEndpoint(p, "get", "/interfaces", self.listInterfaces)
-
 	// cluster config endpoints
 	self.registerEndpoint(p, "get", "/cluster/servers", self.listServers)
 	self.registerEndpoint(p, "post", "/cluster/shards", self.createShard)
@@ -836,30 +833,6 @@ func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 func (self *HttpServer) ping(w libhttp.ResponseWriter, r *libhttp.Request) {
 	w.WriteHeader(libhttp.StatusOK)
 	w.Write([]byte("{\"status\":\"ok\"}"))
-}
-
-func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Request) {
-	statusCode, contentType, body := yieldUser(nil, func(u User) (int, interface{}) {
-		entries, err := ioutil.ReadDir(filepath.Join(self.adminAssetsDir, "interfaces"))
-
-		if err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-
-		directories := make([]string, 0, len(entries))
-		for _, entry := range entries {
-			if entry.IsDir() {
-				directories = append(directories, entry.Name())
-			}
-		}
-		return libhttp.StatusOK, directories
-	})
-
-	w.Header().Add("content-type", contentType)
-	w.WriteHeader(statusCode)
-	if len(body) > 0 {
-		w.Write(body)
-	}
 }
 
 func (self *HttpServer) listDbContinuousQueries(w libhttp.ResponseWriter, r *libhttp.Request) {
