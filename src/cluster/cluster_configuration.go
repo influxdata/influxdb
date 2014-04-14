@@ -929,7 +929,8 @@ func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) 
 func (self *ClusterConfiguration) RecoverFromWAL() error {
 	self.shardStore.SetWriteBuffer(NewWriteBuffer("local", self.shardStore, self.wal, self.LocalServerId, self.config.LocalStoreWriteBufferSize))
 	var waitForAll sync.WaitGroup
-	for _, server := range self.servers {
+	for _, _server := range self.servers {
+		server := _server
 		waitForAll.Add(1)
 		if server.RaftName == self.LocalRaftName {
 			self.LocalServerId = server.Id
