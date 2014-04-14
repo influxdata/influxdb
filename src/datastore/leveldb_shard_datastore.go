@@ -123,11 +123,13 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 	log.Info("DATASTORE: opening or creating shard %s", dbDir)
 	ldb, err := levigo.Open(dbDir, self.levelDbOptions)
 	if err != nil {
+		log.Error("Error opening shard: ", err)
 		return nil, err
 	}
 
 	db, err = NewLevelDbShard(ldb, self.pointBatchSize)
 	if err != nil {
+		log.Error("Error creating shard: ", err)
 		ldb.Close()
 		return nil, err
 	}
