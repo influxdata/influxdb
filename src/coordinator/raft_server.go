@@ -371,7 +371,7 @@ func (s *RaftServer) startRaft() error {
 			connectionString,
 			protobufConnectString,
 			nil,
-			s.config.ProtobufHeartbeatInterval.Duration)
+			s.config)
 		command := NewAddPotentialServerCommand(clusterServer)
 		_, err = s.doOrProxyCommand(command, "add_server")
 		if err != nil {
@@ -614,7 +614,7 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 				command.ConnectionString,
 				command.ProtobufConnectionString,
 				nil,
-				s.config.ProtobufHeartbeatInterval.Duration)
+				s.config)
 			addServer := NewAddPotentialServerCommand(clusterServer)
 			if _, err := s.raftServer.Do(addServer); err != nil {
 				log.Error("Error joining raft server: ", err, command)

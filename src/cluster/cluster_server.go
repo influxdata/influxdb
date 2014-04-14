@@ -1,17 +1,17 @@
 package cluster
 
 import (
-	log "code.google.com/p/log4go"
+	c "configuration"
 	"errors"
 	"fmt"
 	"net"
 	"protocol"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 const (
-	DEFAULT_BACKOFF   = time.Second
-	MAX_BACKOFF       = 10 * time.Second
 	HEARTBEAT_TIMEOUT = 100 * time.Millisecond
 )
 
@@ -24,6 +24,8 @@ type ClusterServer struct {
 	connection               ServerConnection
 	HeartbeatInterval        time.Duration
 	Backoff                  time.Duration
+	MinBackoff               time.Duration
+	MaxBackoff               time.Duration
 	isUp                     bool
 	writeBuffer              *WriteBuffer
 	heartbeatStarted         bool
@@ -44,18 +46,17 @@ const (
 	Potential
 )
 
-func NewClusterServer(raftName, raftConnectionString, protobufConnectionString string, connection ServerConnection, heartbeatInterval time.Duration) *ClusterServer {
-	if heartbeatInterval.Nanoseconds() < 1000 {
-		heartbeatInterval = time.Millisecond * 10
-	}
+func NewClusterServer(raftName, raftConnectionString, protobufConnectionString string, connection ServerConnection, config *c.Configuration) *ClusterServer {
 
 	s := &ClusterServer{
 		RaftName:                 raftName,
 		RaftConnectionString:     raftConnectionString,
 		ProtobufConnectionString: protobufConnectionString,
 		connection:               connection,
-		HeartbeatInterval:        heartbeatInterval,
-		Backoff:                  DEFAULT_BACKOFF,
+		HeartbeatInterval:        config.ProtobufHeartbeatInterval.Duration,
+		Backoff:                  config.ProtobufMinBackoff.Duration,
+		MinBackoff:               config.ProtobufMinBackoff.Duration,
+		MaxBackoff:               config.ProtobufMaxBackoff.Duration,
 		heartbeatStarted:         false,
 	}
 
@@ -149,7 +150,7 @@ func (self *ClusterServer) heartbeat() {
 
 		// otherwise, reset the backoff and mark the server as up
 		self.isUp = true
-		self.Backoff = DEFAULT_BACKOFF
+		self.Backoff = self.MinBackoff
 		<-time.After(self.HeartbeatInterval)
 	}
 }
@@ -175,8 +176,8 @@ func (self *ClusterServer) handleHeartbeatError(err error) {
 	log.Warn("Hearbeat error for server: %d - %s: %s", self.Id, self.ProtobufConnectionString, err)
 	self.isUp = false
 	self.Backoff *= 2
-	if self.Backoff > MAX_BACKOFF {
-		self.Backoff = MAX_BACKOFF
+	if self.Backoff > self.MaxBackoff {
+		self.Backoff = self.MaxBackoff
 	}
 	<-time.After(self.Backoff)
 }
