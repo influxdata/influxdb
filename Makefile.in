@@ -140,7 +140,7 @@ build: | dependencies protobuf parser build_version_string
 
 clean:
 	rm -f daemon
-	rm -f benchmakr
+	rm -f benchmark
 	rm -rf pkg/
 	rm -rf packages/
 	rm -rf src/$(levigo_dependency)
