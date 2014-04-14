@@ -172,7 +172,7 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 	req, ok := self.requestBuffer[*response.RequestId]
 	self.requestBufferLock.RUnlock()
 	if ok {
-		if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK {
+		if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK || *response.Type == protocol.Response_HEARTBEAT || *response.Type == protocol.Response_ACCESS_DENIED {
 			self.requestBufferLock.Lock()
 			delete(self.requestBuffer, *response.RequestId)
 			self.requestBufferLock.Unlock()
