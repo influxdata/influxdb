@@ -24,6 +24,7 @@ type ProtobufClient struct {
 	connectCalled     bool
 	lastRequestId     uint32
 	writeTimeout      time.Duration
+	attempts          int
 }
 
 type runningRequest struct {
@@ -194,7 +195,11 @@ func (self *ProtobufClient) reconnect() net.Conn {
 		log.Info("connected to %s", self.hostAndPort)
 		return self.conn
 	}
-	log.Error("failed to connect to %s", self.hostAndPort)
+	self.attempts++
+	if self.attempts >= 100 {
+		log.Error("failed to connect to %s %d times", self.hostAndPort, self.attempts)
+		self.attempts = 0
+	}
 	return nil
 }
 

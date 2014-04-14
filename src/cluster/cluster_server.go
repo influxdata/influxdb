@@ -93,7 +93,6 @@ func (self *ClusterServer) Connect() {
 func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) {
 	err := self.connection.MakeRequest(request, responseStream)
 	if err != nil {
-		log.Error("Error while making request to server: %s", err)
 		self.isUp = false
 		message := err.Error()
 		select {
@@ -148,6 +147,9 @@ func (self *ClusterServer) heartbeat() {
 			continue
 		}
 
+		if !self.isUp {
+			log.Warn("Server marked as up. Hearbeat succeeded")
+		}
 		// otherwise, reset the backoff and mark the server as up
 		self.isUp = true
 		self.Backoff = self.MinBackoff
@@ -173,7 +175,9 @@ func (self *ClusterServer) getHeartbeatResponse(responseChan <-chan *protocol.Re
 }
 
 func (self *ClusterServer) handleHeartbeatError(err error) {
-	log.Warn("Hearbeat error for server: %d - %s: %s", self.Id, self.ProtobufConnectionString, err)
+	if self.isUp {
+		log.Warn("Server marked as down. Hearbeat error for server: %d - %s: %s", self.Id, self.ProtobufConnectionString, err)
+	}
 	self.isUp = false
 	self.Backoff *= 2
 	if self.Backoff > self.MaxBackoff {
