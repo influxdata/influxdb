@@ -56,7 +56,7 @@ func setupLogging(loggingLevel, logFile string) {
 }
 
 func main() {
-	fileName := flag.String("config", "config.toml.sample", "Config file")
+	fileName := flag.String("config", "config.sample.toml", "Config file")
 	wantsVersion := flag.Bool("v", false, "Get version number")
 	resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
 	pidFile := flag.String("pidfile", "", "the pid file")
