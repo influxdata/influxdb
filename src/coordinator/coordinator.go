@@ -77,7 +77,7 @@ func NewCoordinatorImpl(config *configuration.Configuration, raftServer ClusterC
 }
 
 func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
-	log.Debug("COORD: RunQuery: %s", queryString)
+	log.Info("Query: db: %s, u: %s, q: %s", database, user.GetName(), queryString)
 	// don't let a panic pass beyond RunQuery
 	defer common.RecoverFunc(database, queryString, nil)
 
