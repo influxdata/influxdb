@@ -28,6 +28,7 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	// the default should be 100, this shouldn't be set in the test toml
 	// file
 	c.Assert(config.LevelDbMaxOpenFiles, Equals, 100)
+	c.Assert(config.LevelDbPointBatchSize, Equals, 50)
 
 	c.Assert(config.ApiHttpPort, Equals, 0)
 	c.Assert(config.ApiHttpSslPort, Equals, 8087)

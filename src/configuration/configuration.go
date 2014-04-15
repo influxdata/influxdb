@@ -321,6 +321,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		LevelDbLruCacheSize:          tomlConfiguration.LevelDb.LruCacheSize.int,
 		LevelDbMaxOpenShards:         tomlConfiguration.LevelDb.MaxOpenShards,
 		LongTermShard:                &tomlConfiguration.Sharding.LongTerm,
+		LevelDbPointBatchSize:        tomlConfiguration.LevelDb.PointBatchSize,
 		ShortTermShard:               &tomlConfiguration.Sharding.ShortTerm,
 		ReplicationFactor:            tomlConfiguration.Sharding.ReplicationFactor,
 		WalDir:                       tomlConfiguration.WalConfig.Dir,
