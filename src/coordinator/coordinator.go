@@ -215,7 +215,7 @@ func (self *CoordinatorImpl) shouldAggregateLocally(shards []*cluster.ShardData,
 
 func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData, querySpec *parser.QuerySpec) bool {
 	// if the query isn't a select, then it doesn't matter
-	if querySpec.SelectQuery != nil {
+	if querySpec.SelectQuery() == nil {
 		return false
 	}
 
@@ -241,6 +241,10 @@ func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData
 	// if there's a group by time and other columns, then the previous
 	// logic holds
 	if len(groupByClause.Elems) > 1 {
+		return true
+	}
+
+	if !self.shouldAggregateLocally(shards, querySpec) {
 		return true
 	}
 
