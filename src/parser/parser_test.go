@@ -699,6 +699,13 @@ func (self *QueryParserSuite) TestParseSelectWithRegexCondition(c *C) {
 	c.Assert(expr.Name, Equals, "gmail\\.com")
 }
 
+func (self *QueryParserSuite) TestQueryWithArithmeticColumns(c *C) {
+	q, err := ParseSelectQuery("select -1 * value from cpu.idle")
+	c.Assert(err, IsNil)
+	c.Assert(q.ColumnNames, HasLen, 1)
+	c.Assert(int(q.ColumnNames[0].Type), Equals, ValueExpression)
+}
+
 func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *C) {
 	q, err := ParseSelectQuery("select value from cpu.idle where .30 < value * 1 / 3 ;")
 	c.Assert(err, IsNil)

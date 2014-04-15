@@ -7,6 +7,7 @@
 - [Issue #442](https://github.com/influxdb/influxdb/issues/442). shouldQuerySequentially didn't work as expected
   causing count(*) queries on large time series to use
   lots of memory
+- [Issue #437](https://github.com/influxdb/influxdb/issues/437). Queries with negative constants don't parse properly
 
 ## v0.5.6 [2014-04-08]
 

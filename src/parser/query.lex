@@ -87,11 +87,11 @@ static int yycolumn = 1;
 "<="                      { yylval->string = strdup(yytext); return OPERATION_LE; }
 ">="                      { yylval->string = strdup(yytext); return OPERATION_GE; }
 
-[0-9]+                    { yylval->string = strdup(yytext); return INT_VALUE; }
+-?[0-9]+                    { yylval->string = strdup(yytext); return INT_VALUE; }
 
 ([0-9]+|[0-9]*\.[0-9]+|[0-9]+\.[0-9]*)[usmhdw]      { yylval->string = strdup(yytext); return DURATION; }
 
-[0-9]*\.[0-9]+|[0-9]+\.[0-9]*                       { yylval->string = strdup(yytext); return FLOAT_VALUE; }
+-?[0-9]*\.[0-9]+|[0-9]+\.[0-9]*                       { yylval->string = strdup(yytext); return FLOAT_VALUE; }
 
 true|false                                          { yylval->string = strdup(yytext); return BOOLEAN_VALUE; }
 

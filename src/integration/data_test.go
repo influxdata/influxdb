@@ -1073,6 +1073,25 @@ func (self *DataTestSuite) ArithmeticOperations(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #437
+func (self *DataTestSuite) ConstantsInArithmeticQueries(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `[{"points": [[1]], "name": "test_constants", "columns": ["value"]}]`
+			client.WriteJsonData(data, c)
+		}, func(client Client) {
+			for _, query := range []string{
+				"select -1 * value from test_constants",
+				"select -1.0 * value from test_constants",
+			} {
+				collection := client.RunQuery(query, c)
+				c.Assert(collection, HasLen, 1)
+				maps := ToMap(collection[0])
+				c.Assert(maps, HasLen, 1)
+				c.Assert(maps[0]["expr0"], Equals, -1.0)
+			}
+		}
+}
+
 func (self *DataTestSuite) CountQueryOnSingleShard(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `[{"points": [[4], [10], [5]], "name": "test_count_query_single_shard", "columns": ["value"]}]`
