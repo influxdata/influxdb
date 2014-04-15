@@ -669,6 +669,8 @@ parse_query(char *const query_s)
 int yyerror(YYLTYPE *locp, query *q, void *s, char *err) {
   q->error = malloc(sizeof(error));
   q->error->err = strdup(err);
-  q->error->line = locp->last_line;
-  q->error->column = locp->last_column;
+  q->error->first_line = locp->first_line;
+  q->error->first_column = locp->first_column;
+  q->error->last_line = locp->last_line;
+  q->error->last_column = locp->last_column;
 }

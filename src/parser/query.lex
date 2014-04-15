@@ -6,9 +6,10 @@
 
 #define YY_USER_ACTION \
   do { \
-    yylloc->last_line = yylineno;                \
-    yylloc_param->last_column = yycolumn+yyleng-1; \
-    yycolumn += yyleng; \
+    yylloc_param->first_line = yylloc_param->last_line;  \
+    yylloc_param->first_column = yylloc_param->last_column; \
+    yylloc_param->last_line = yylineno;  \
+    yylloc_param->last_column += yyleng; \
   } while(0);
 %}
 

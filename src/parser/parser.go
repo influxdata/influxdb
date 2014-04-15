@@ -514,8 +514,14 @@ func ParseQuery(query string) ([]*Query, error) {
 
 	if q.error != nil {
 		str := C.GoString(q.error.err)
-		err := fmt.Errorf("Error at %d:%d. %s", q.error.line, q.error.column, str)
-		return nil, err
+		return nil, &QueryError{
+			queryString: query,
+			firstLine:   int(q.error.first_line),
+			firstColumn: int(q.error.first_column) - 1,
+			lastLine:    int(q.error.last_line),
+			lastColumn:  int(q.error.last_column) - 1,
+			errorString: str,
+		}
 	}
 
 	if q.list_series_query != 0 {

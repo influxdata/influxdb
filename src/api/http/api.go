@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"net"
 	libhttp "net/http"
+	"parser"
 	"path/filepath"
 	"protocol"
 	"strconv"
@@ -303,6 +304,9 @@ func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 		seriesWriter := NewSeriesWriter(writer.yield)
 		err = self.coordinator.RunQuery(user, db, query, seriesWriter)
 		if err != nil {
+			if e, ok := err.(*parser.QueryError); ok {
+				return errorToStatusCode(err), e.PrettyPrint()
+			}
 			return errorToStatusCode(err), err.Error()
 		}
 

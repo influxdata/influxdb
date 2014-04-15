@@ -51,8 +51,10 @@ typedef struct groupby_clause_t {
 } groupby_clause;
 
 typedef struct {
-  int line;
-  int column;
+  int first_line;
+  int first_column;
+  int last_line;
+  int last_column;
   char *err;
 } error;
 
