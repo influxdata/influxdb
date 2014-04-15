@@ -3,8 +3,6 @@
 ### Bugfixes
 
 - [Issue #557](https://github.com/influxdb/influxdb/issues/557). Group by time(1y) doesn't work while time(365d) works
-- [Issue #460](https://github.com/influxdb/influxdb/issues/460). Don't start automatically after installing
-- [Issue #529](https://github.com/influxdb/influxdb/issues/529). Don't run influxdb as root
 - [Issue #547](https://github.com/influxdb/influxdb/issues/547). Add difference function (Thanks, @mboelstra)
 - [Issue #550](https://github.com/influxdb/influxdb/issues/550). Fix tests on 32-bit ARM
 - [Issue #524](https://github.com/influxdb/influxdb/issues/524). Arithmetic operators and where conditions don't play nice together
@@ -12,6 +10,12 @@
 - [Issue #563](https://github.com/influxdb/influxdb/issues/563). Add sample config for graphite over udp
 - [Issue #537](https://github.com/influxdb/influxdb/issues/537). Incorrect query syntax causes internal error
 - [Issue #565](https://github.com/influxdb/influxdb/issues/565). Empty series names shouldn't cause a panic
+
+### Deprecated
+
+- [Issue #460](https://github.com/influxdb/influxdb/issues/460). Don't start automatically after installing
+- [Issue #529](https://github.com/influxdb/influxdb/issues/529). Don't run influxdb as root
+- [Issue #443](https://github.com/influxdb/influxdb/issues/443). Use `name` instead of `username` when returning cluster admins
 
 ## v0.6.5 [2014-05-19]
 
