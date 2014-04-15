@@ -1,4 +1,8 @@
-## v0.5.7 [unreleased]
+## v0.5.8 [unreleased]
+
+### Bugfixes
+
+## v0.5.7 [2014-04-15]
 
 ### Features
 
