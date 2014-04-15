@@ -46,6 +46,8 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 
 	c.Assert(config.ProtobufPort, Equals, 8099)
 	c.Assert(config.ProtobufHeartbeatInterval.Duration, Equals, 200*time.Millisecond)
+	c.Assert(config.ProtobufMinBackoff.Duration, Equals, 100*time.Millisecond)
+	c.Assert(config.ProtobufMaxBackoff.Duration, Equals, time.Second)
 	c.Assert(config.ProtobufTimeout.Duration, Equals, 2*time.Second)
 	c.Assert(config.SeedServers, DeepEquals, []string{"hosta:8090", "hostb:8090"})
 

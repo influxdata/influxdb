@@ -138,6 +138,9 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "get", "/cluster/shards", self.getShards)
 	self.registerEndpoint(p, "del", "/cluster/shards/:id", self.dropShard)
 
+	// return whether the cluster is in sync or not
+	self.registerEndpoint(p, "get", "/sync", self.isInSync)
+
 	if listener == nil {
 		self.startSsl(p)
 		return
@@ -947,6 +950,22 @@ func (self *HttpServer) getShards(w libhttp.ResponseWriter, r *libhttp.Request) 
 		result["shortTerm"] = self.convertShardsToMap(self.clusterConfig.GetShortTermShards())
 		result["longTerm"] = self.convertShardsToMap(self.clusterConfig.GetLongTermShards())
 		return libhttp.StatusOK, result
+	})
+}
+
+// Note: this is meant for testing purposes only and doesn't guarantee
+// data integrity and shouldn't be used in client code.
+func (self *HttpServer) isInSync(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		if self.clusterConfig.HasUncommitedWrites() {
+			return 500, "false"
+		}
+
+		if !self.raftServer.CommittedAllChanges() {
+			return 500, "false"
+		}
+
+		return 200, "true"
 	})
 }
 

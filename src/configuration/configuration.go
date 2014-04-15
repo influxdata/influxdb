@@ -89,6 +89,8 @@ type ClusterConfig struct {
 	ProtobufPort              int      `toml:"protobuf_port"`
 	ProtobufTimeout           duration `toml:"protobuf_timeout"`
 	ProtobufHeartbeatInterval duration `toml:"protobuf_heartbeat"`
+	MinBackoff                duration `toml:"protobuf_min_backoff"`
+	MaxBackoff                duration `toml:"protobuf_max_backoff"`
 	WriteBufferSize           int      `toml:"write-buffer-size"`
 	ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
 	MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
@@ -204,6 +206,8 @@ type Configuration struct {
 	ProtobufPort                 int
 	ProtobufTimeout              duration
 	ProtobufHeartbeatInterval    duration
+	ProtobufMinBackoff           duration
+	ProtobufMaxBackoff           duration
 	Hostname                     string
 	LogFile                      string
 	LogLevel                     string
@@ -277,6 +281,18 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		apiReadTimeout = 5 * time.Second
 	}
 
+	if tomlConfiguration.Cluster.MinBackoff.Duration == 0 {
+		tomlConfiguration.Cluster.MinBackoff = duration{time.Second}
+	}
+
+	if tomlConfiguration.Cluster.MaxBackoff.Duration == 0 {
+		tomlConfiguration.Cluster.MaxBackoff = duration{10 * time.Second}
+	}
+
+	if tomlConfiguration.Cluster.ProtobufHeartbeatInterval.Duration == 0 {
+		tomlConfiguration.Cluster.ProtobufHeartbeatInterval = duration{10 * time.Millisecond}
+	}
+
 	config := &Configuration{
 		AdminHttpPort:                tomlConfiguration.Admin.Port,
 		AdminAssetsDir:               tomlConfiguration.Admin.Assets,
@@ -293,6 +309,8 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		ProtobufPort:                 tomlConfiguration.Cluster.ProtobufPort,
 		ProtobufTimeout:              tomlConfiguration.Cluster.ProtobufTimeout,
 		ProtobufHeartbeatInterval:    tomlConfiguration.Cluster.ProtobufHeartbeatInterval,
+		ProtobufMinBackoff:           tomlConfiguration.Cluster.MinBackoff,
+		ProtobufMaxBackoff:           tomlConfiguration.Cluster.MaxBackoff,
 		SeedServers:                  tomlConfiguration.Cluster.SeedServers,
 		DataDir:                      tomlConfiguration.Storage.Dir,
 		LogFile:                      tomlConfiguration.Logging.File,

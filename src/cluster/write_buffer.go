@@ -1,21 +1,25 @@
 package cluster
 
 import (
-	log "code.google.com/p/log4go"
 	"protocol"
+	"reflect"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 // Acts as a buffer for writes
 type WriteBuffer struct {
-	writer        Writer
-	wal           WAL
-	serverId      uint32
-	writes        chan *protocol.Request
-	stoppedWrites chan uint32
-	bufferSize    int
-	shardIds      map[uint32]bool
-	writerInfo    string
+	writer                     Writer
+	wal                        WAL
+	serverId                   uint32
+	writes                     chan *protocol.Request
+	stoppedWrites              chan uint32
+	bufferSize                 int
+	shardIds                   map[uint32]bool
+	shardLastRequestNumber     map[uint32]uint32
+	shardCommitedRequestNumber map[uint32]uint32
+	writerInfo                 string
 }
 
 type Writer interface {
@@ -25,22 +29,33 @@ type Writer interface {
 func NewWriteBuffer(writerInfo string, writer Writer, wal WAL, serverId uint32, bufferSize int) *WriteBuffer {
 	log.Info("%s: Initializing write buffer with buffer size of %d", writerInfo, bufferSize)
 	buff := &WriteBuffer{
-		writer:        writer,
-		wal:           wal,
-		serverId:      serverId,
-		writes:        make(chan *protocol.Request, bufferSize),
-		stoppedWrites: make(chan uint32, 1),
-		bufferSize:    bufferSize,
-		shardIds:      make(map[uint32]bool),
-		writerInfo:    writerInfo,
+		writer:                     writer,
+		wal:                        wal,
+		serverId:                   serverId,
+		writes:                     make(chan *protocol.Request, bufferSize),
+		stoppedWrites:              make(chan uint32, 1),
+		bufferSize:                 bufferSize,
+		shardIds:                   make(map[uint32]bool),
+		shardLastRequestNumber:     map[uint32]uint32{},
+		shardCommitedRequestNumber: map[uint32]uint32{},
+		writerInfo:                 writerInfo,
 	}
 	go buff.handleWrites()
 	return buff
 }
 
+func (self *WriteBuffer) ShardsRequestNumber() map[uint32]uint32 {
+	return self.shardLastRequestNumber
+}
+
+func (self *WriteBuffer) HasUncommitedWrites() bool {
+	return !reflect.DeepEqual(self.shardCommitedRequestNumber, self.shardLastRequestNumber)
+}
+
 // This method never blocks. It'll buffer writes until they fill the buffer then drop the on the
 // floor and let the background goroutine replay from the WAL
 func (self *WriteBuffer) Write(request *protocol.Request) {
+	self.shardLastRequestNumber[request.GetShardId()] = request.GetRequestNumber()
 	select {
 	case self.writes <- request:
 		return
@@ -72,6 +87,7 @@ func (self *WriteBuffer) write(request *protocol.Request) {
 		requestNumber := *request.RequestNumber
 		err := self.writer.Write(request)
 		if err == nil {
+			self.shardCommitedRequestNumber[request.GetShardId()] = request.GetRequestNumber()
 			self.wal.Commit(requestNumber, self.serverId)
 			return
 		}
@@ -86,31 +102,33 @@ func (self *WriteBuffer) write(request *protocol.Request) {
 
 func (self *WriteBuffer) replayAndRecover(missedRequest uint32) {
 	var req *protocol.Request
+
+	// empty out the buffer before the replay so new writes can buffer while we're replaying
+	channelLen := len(self.writes)
+	// This is the first run through the replay. Start from the start of the write queue
+	for i := 0; i < channelLen; i++ {
+		r := <-self.writes
+		if req == nil {
+			req = r
+		}
+	}
+
+	if req == nil {
+		log.Error("%s: REPLAY: emptied channel, but no request set", self.writerInfo)
+		return
+	}
+	log.Debug("%s: REPLAY: Emptied out channel", self.writerInfo)
+
+	shardIds := make([]uint32, 0)
+	for shardId, _ := range self.shardIds {
+		shardIds = append(shardIds, shardId)
+	}
+
+	// while we're behind keep replaying from WAL
 	for {
 		log.Info("%s: REPLAY: Replaying dropped requests...", self.writerInfo)
-		// empty out the buffer before the replay so new writes can buffer while we're replaying
-		channelLen := len(self.writes)
 
-		// if req is nil, this is the first run through the replay. Start from the start of the write queue
-		if req == nil {
-			for i := 0; i < channelLen; i++ {
-				r := <-self.writes
-				if req == nil {
-					req = r
-				}
-			}
-		}
-		if req == nil {
-			log.Error("%s: REPLAY: emptied channel, but no request set", self.writerInfo)
-			return
-		}
-		log.Debug("%s: REPLAY: Emptied out channel", self.writerInfo)
-		shardIds := make([]uint32, 0)
-		for shardId, _ := range self.shardIds {
-			shardIds = append(shardIds, shardId)
-		}
-
-		log.Debug("%s: REPLAY: from request %d. Shards: ", self.writerInfo, req.GetRequestNumber(), shardIds)
+		log.Debug("%s: REPLAY: from request %d. Shards: %v", self.writerInfo, req.GetRequestNumber(), shardIds)
 		self.wal.RecoverServerFromRequestNumber(*req.RequestNumber, shardIds, func(request *protocol.Request, shardId uint32) error {
 			log.Debug("%s: REPLAY: writing request number: %d", self.writerInfo, request.GetRequestNumber())
 			req = request

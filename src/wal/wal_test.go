@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"code.google.com/p/goprotobuf/proto"
+	logger "code.google.com/p/log4go"
 	. "launchpad.net/gocheck"
 )
 
@@ -26,6 +27,10 @@ type WalSuite struct{}
 var _ = Suite(&WalSuite{})
 
 func (_ *WalSuite) SetUpSuite(c *C) {
+	for _, filter := range logger.Global {
+		filter.Level = logger.INFO
+	}
+
 	go func() {
 		panic(http.ListenAndServe("localhost:6060", nil))
 	}()

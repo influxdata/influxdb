@@ -142,6 +142,8 @@ func (self *Server) handleClient(conn net.Conn) {
 			Points: []*protocol.Point{point},
 		}
 		// little inefficient for now, later we might want to add multiple series in 1 writePoints request
-		self.writePoints(series)
+		if err := self.writePoints(series); err != nil {
+			log.Error("Error in graphite plugin: %s", err)
+		}
 	}
 }

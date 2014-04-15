@@ -3,7 +3,6 @@ package coordinator
 import (
 	"bytes"
 	"cluster"
-	log "code.google.com/p/log4go"
 	"common"
 	"encoding/binary"
 	"errors"
@@ -11,6 +10,8 @@ import (
 	"net"
 	"parser"
 	"protocol"
+
+	log "code.google.com/p/log4go"
 )
 
 type ProtobufRequestHandler struct {
@@ -31,7 +32,7 @@ func NewProtobufRequestHandler(coordinator Coordinator, clusterConfig *cluster.C
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
 	if *request.Type == protocol.Request_WRITE {
 		shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
-		log.Debug("HANDLE: ", shard)
+		log.Debug("HANDLE: (%d):%d:%v", self.clusterConfig.LocalServerId, request.GetId(), shard)
 		err := shard.WriteLocalOnly(request)
 		if err != nil {
 			log.Error("ProtobufRequestHandler: error writing local shard: ", err)
