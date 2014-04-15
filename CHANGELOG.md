@@ -1,5 +1,9 @@
 ## v0.5.7 [unreleased]
 
+### Features
+
+- Queries are now logged as INFO in the log file before they run
+
 ### Bugfixes
 
 - [Issue #328](https://github.com/influxdb/influxdb/issues/328). Join queries with math expressions don't work
@@ -10,6 +14,7 @@
 - [Issue #437](https://github.com/influxdb/influxdb/issues/437). Queries with negative constants don't parse properly
 - [Issue #432](https://github.com/influxdb/influxdb/issues/432). Deleted data using a delete query is resurrected after a server restart
 - [Issue #439](https://github.com/influxdb/influxdb/issues/439). Report the right location of the error in the query
+- Fix some bugs with the WAL recovery on startup
 
 ## v0.5.6 [2014-04-08]
 
