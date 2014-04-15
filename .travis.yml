@@ -12,5 +12,7 @@ script: make verbose=on
 
 notifications:
   hipchat:
+    on_success: change
+    on_failure: change
     rooms:
       secure: LE2EOq4lcGlnUseZnZKuiEd/QgqjPk10BpGVoeAVHKX81zfFtfpzTbSA6r3aNz0YBKk5nymr3zhScRhAXKOOzYBB/Xxd+Jk0wej+R7Ebigq9vZdLX1/SUfCM/smO9gdFUKch2Pb3TSIapSQRGwxDB9iT3dvWrbRVcMGdssvf3NI=
