@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [Issue #328](https://github.com/influxdb/influxdb/issues/328). Join queries with math expressions don't work
+- [Issue #440](https://github.com/influxdb/influxdb/issues/440). Heartbeat timeouts in logs
 
 ## v0.5.6 [2014-04-08]
 
