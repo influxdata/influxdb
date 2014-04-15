@@ -10,6 +10,7 @@ before_install:
 install: ./configure
 script: make verbose=on
 
-# notifications:
-#   irc: "chat.freenode.net#influxdb"
-#   use_notice: false
+notifications:
+  hipchat:
+    rooms:
+      secure: LE2EOq4lcGlnUseZnZKuiEd/QgqjPk10BpGVoeAVHKX81zfFtfpzTbSA6r3aNz0YBKk5nymr3zhScRhAXKOOzYBB/Xxd+Jk0wej+R7Ebigq9vZdLX1/SUfCM/smO9gdFUKch2Pb3TSIapSQRGwxDB9iT3dvWrbRVcMGdssvf3NI=
