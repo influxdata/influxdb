@@ -344,10 +344,7 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 		}
 		return true
 	}
-	if self.shardDuration%*groupByInterval == 0 {
-		return true
-	}
-	return false
+	return self.shardDuration%*groupByInterval == 0
 }
 
 func (self *ShardData) QueryResponseBufferSize(querySpec *parser.QuerySpec, batchPointSize int) int {
