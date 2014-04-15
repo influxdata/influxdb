@@ -142,6 +142,24 @@ func (self *SingleServerSuite) TestDeletingNewDatabase(c *C) {
 	}
 }
 
+// issue #432
+func (self *SingleServerSuite) TestDataResurrectionAfterRestartWithDeleteQuery(c *C) {
+	s := CreatePoints("data_resurrection_with_delete", 1, 10)
+	self.server.WriteData(s, c)
+	self.server.WaitForServerToSync()
+	series := self.server.RunQuery("select count(column0) from data_resurrection_with_delete", "s", c)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Points[0][1], Equals, 10.0)
+	self.server.RunQuery("delete from data_resurrection_with_delete", "s", c)
+	series = self.server.RunQuery("select count(column0) from data_resurrection_with_delete", "s", c)
+	c.Assert(series, HasLen, 0)
+	self.server.Stop()
+	c.Assert(self.server.Start(), IsNil)
+	self.server.WaitForServerToStart()
+	series = self.server.RunQuery("select count(column0) from data_resurrection_with_delete", "s", c)
+	c.Assert(series, HasLen, 0)
+}
+
 // issue #342, #371
 func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 	s := CreatePoints("data_resurrection", 1, 10)

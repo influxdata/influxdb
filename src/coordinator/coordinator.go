@@ -90,6 +90,10 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 		querySpec := parser.NewQuerySpec(user, database, query)
 
 		if query.DeleteQuery != nil {
+			if err := self.clusterConfiguration.CreateCheckpoint(); err != nil {
+				return err
+			}
+
 			if err := self.runDeleteQuery(querySpec, seriesWriter); err != nil {
 				return err
 			}
