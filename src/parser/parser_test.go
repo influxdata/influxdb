@@ -704,6 +704,9 @@ func (self *QueryParserSuite) TestQueryWithArithmeticColumns(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(q.ColumnNames, HasLen, 1)
 	c.Assert(int(q.ColumnNames[0].Type), Equals, ValueExpression)
+	c.Assert(q.ColumnNames[0].Name, Equals, "*")
+	c.Assert(q.ColumnNames[0].Elems[0].Name, Equals, "-1")
+	c.Assert(q.ColumnNames[0].Elems[1].Name, Equals, "value")
 }
 
 func (self *QueryParserSuite) TestParseSelectWithComplexArithmeticOperations(c *C) {

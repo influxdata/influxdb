@@ -430,9 +430,29 @@ VALUE:
           $$ = create_value($1, VALUE_INT, FALSE, NULL);
         }
         |
+        '-' INT_VALUE
+        {
+          size_t len = strlen($2) + 2;
+          char *new_value = malloc(len);
+          new_value[0] = '-';
+          strncpy(new_value+1, $2, len-1);
+          free($2);
+          $$ = create_value(new_value, VALUE_INT, FALSE, NULL);
+        }
+        |
         FLOAT_VALUE
         {
           $$ = create_value($1, VALUE_FLOAT, FALSE, NULL);
+        }
+        |
+        '-' FLOAT_VALUE
+        {
+          size_t len = strlen($2) + 2;
+          char *new_value = malloc(len);
+          new_value[0] = '-';
+          strncpy(new_value+1, $2, len-1);
+          free($2);
+          $$ = create_value(new_value, VALUE_FLOAT, FALSE, NULL);
         }
         |
         BOOLEAN_VALUE

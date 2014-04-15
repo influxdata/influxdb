@@ -26,6 +26,10 @@ int main(int argc, char **argv) {
   q = parse_query("select value from t where c == 5 and b == 6;");
   close_query(&q);
 
+  // test freeing where conditions
+  q = parse_query("select -1 * value from t where c == 5 and b == 6;");
+  close_query(&q);
+
   // test freeing simple query
   q = parse_query("select value from t where c == '5';");
   close_query(&q);
