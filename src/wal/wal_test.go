@@ -5,8 +5,6 @@ import (
 	"configuration"
 	"fmt"
 	"math"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"path"
 	"protocol"
@@ -30,10 +28,6 @@ func (_ *WalSuite) SetUpSuite(c *C) {
 	for _, filter := range logger.Global {
 		filter.Level = logger.INFO
 	}
-
-	go func() {
-		panic(http.ListenAndServe("localhost:6060", nil))
-	}()
 }
 
 func generateSeries(numberOfPoints int) *protocol.Series {

@@ -163,12 +163,7 @@ func (self *QuerySpec) GetQueryString() string {
 }
 
 func (self *QuerySpec) GetQueryStringWithTimeCondition() string {
-	if self.query.SelectQuery != nil {
-		return self.query.SelectQuery.GetQueryStringWithTimeCondition()
-	} else if self.query.DeleteQuery != nil {
-		return self.query.DeleteQuery.GetQueryStringWithTimeCondition()
-	}
-	return self.query.GetQueryString()
+	return self.query.GetQueryStringWithTimeCondition()
 }
 
 func (self *QuerySpec) IsDropSeriesQuery() bool {

@@ -236,11 +236,28 @@ func parseTimeString(t string) (*time.Time, error) {
 	return &_t, err
 }
 
+func parseTimeWithoutSuffix(value string) (int64, error) {
+	var err error
+	var f float64
+	var i int64
+	if strings.Contains(value, ".") {
+		f, err = strconv.ParseFloat(value, 64)
+		i = int64(f)
+	} else {
+		fmt.Printf("here %v\n", value)
+		i, err = strconv.ParseInt(value, 10, 64)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return i, nil
+}
+
 // parse time expressions, e.g. now() - 1d
 func parseTime(value *Value) (int64, error) {
 	if value.Type != ValueExpression {
 		if value.IsFunctionCall() && strings.ToLower(value.Name) == "now" {
-			return time.Now().UnixNano(), nil
+			return time.Now().UTC().UnixNano(), nil
 		}
 
 		if value.IsFunctionCall() {
@@ -319,51 +336,6 @@ func isNumericValue(value *Value) bool {
 		return true
 	default:
 		return false
-	}
-}
-
-func (self *SelectDeleteCommonQuery) GetQueryStringWithTimeCondition() string {
-	queryString := self.GetQueryString()
-
-	if self.endTimeSet {
-		return queryString
-	}
-
-	t := common.TimeToMicroseconds(self.GetEndTime())
-	timeStr := strconv.FormatInt(t, 10)
-
-	condition := self.GetWhereCondition()
-	if condition == nil {
-		return queryString + " where time < " + timeStr + "u"
-	}
-
-	return queryString + " and time < " + timeStr + "u"
-}
-
-func (self *SelectDeleteCommonQuery) GetQueryStringForContinuousQuery(start, end time.Time) string {
-	queryString := self.GetQueryString()
-	queryString = strings.TrimSuffix(queryString, ";")
-
-	intoRegex, _ := regexp.Compile("(?i)\\s+into\\s+")
-	components := intoRegex.Split(queryString, 2)
-
-	queryString = components[0]
-
-	startTime := common.TimeToMicroseconds(start)
-	startTimeStr := strconv.FormatInt(startTime-1, 10)
-	endTime := common.TimeToMicroseconds(end)
-	endTimeStr := strconv.FormatInt(endTime, 10)
-
-	if self.GetWhereCondition() == nil {
-		queryString = queryString + " where "
-	} else {
-		queryString = queryString + " and "
-	}
-
-	if start.IsZero() {
-		return queryString + "time < " + endTimeStr + "u"
-	} else {
-		return queryString + "time > " + startTimeStr + "u and time < " + endTimeStr + "u"
 	}
 }
 

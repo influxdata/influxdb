@@ -6,6 +6,7 @@ import (
 	"os"
 	"protocol"
 	"strconv"
+	"strings"
 	"time"
 	"unicode"
 )
@@ -13,6 +14,11 @@ import (
 // Returns the parsed duration in nanoseconds, support 'u', 's', 'm',
 // 'h', 'd' and 'w' suffixes.
 func ParseTimeDuration(value string) (int64, error) {
+	// shortcut for nanoseconds
+	if idx := strings.IndexFunc(value, func(r rune) bool { return !unicode.IsNumber(r) }); idx == -1 {
+		return strconv.ParseInt(value, 10, 64)
+	}
+
 	parsedFloat, err := strconv.ParseFloat(value[:len(value)-1], 64)
 	if err != nil {
 		return 0, err
