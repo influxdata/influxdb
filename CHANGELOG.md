@@ -1,5 +1,7 @@
 ## v0.5.8 [unreleased]
 
+- Renamed config.toml.sample to config.sample.toml
+
 ### Bugfixes
 
 - [Issue #244](https://github.com/influxdb/influxdb/issues/244). Reconstruct the query from the ast
