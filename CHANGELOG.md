@@ -1,4 +1,4 @@
-## v0.5.8 [unreleased]
+## v0.5.8 [2014-04-17]
 
 - Renamed config.toml.sample to config.sample.toml
 
