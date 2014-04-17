@@ -35,7 +35,7 @@ func (self *SingleServerSuite) createUser(c *C) {
 }
 
 func (self *SingleServerSuite) SetUpSuite(c *C) {
-	self.server = NewServer("config.toml.sample", c)
+	self.server = NewServer("config.sample.toml", c)
 	self.createUser(c)
 }
 
@@ -69,7 +69,7 @@ func (self *SingleServerSuite) TestSslOnly(c *C) {
 
 	defer func() {
 		server.Stop()
-		self.server = NewServer("config.toml.sample", c)
+		self.server = NewServer("config.sample.toml", c)
 	}()
 
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{

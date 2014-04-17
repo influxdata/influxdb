@@ -166,7 +166,7 @@ func (self *Server) Start() error {
 	root := filepath.Join(dir, "..", "..")
 	filename := filepath.Join(root, "daemon")
 	if self.configFile == "" {
-		self.configFile = "config.toml.sample"
+		self.configFile = "config.sample.toml"
 	}
 	p, err := os.StartProcess(filename, []string{filename, "-config", self.configFile}, &os.ProcAttr{
 		Dir:   root,
