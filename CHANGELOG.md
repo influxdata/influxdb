@@ -1,3 +1,9 @@
+## v0.5.9 [unreleased]
+
+### Bugfixes
+
+- [Issue #446](https://github.com/influxdb/influxdb/issues/446). Check for (de)serialization errors
+
 ## v0.5.8 [2014-04-17]
 
 - Renamed config.toml.sample to config.sample.toml

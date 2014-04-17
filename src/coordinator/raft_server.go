@@ -155,7 +155,9 @@ func (s *RaftServer) doOrProxyCommandOnce(command raft.Command, commandType stri
 			return nil, errors.New("Couldn't connect to the cluster leader...")
 		} else {
 			var b bytes.Buffer
-			json.NewEncoder(&b).Encode(command)
+			if err := json.NewEncoder(&b).Encode(command); err != nil {
+				return nil, err
+			}
 			resp, err := http.Post(leader+"/process_command/"+commandType, "application/json", &b)
 			if err != nil {
 				return nil, err

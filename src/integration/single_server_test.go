@@ -277,6 +277,17 @@ func (self *SingleServerSuite) verifyWrite(series string, value, sequence interf
 	return nil
 }
 
+func (self *SingleServerSuite) TestInvalidTimestamp(c *C) {
+	value := `[{"name":"test_invalid_timestamp","columns":["time","count"],"points":[[1397727405297,1]]}]`
+	resp, err := http.Post("http://localhost:8086/db/db1/series?u=root&p=root&time_precision=s", "", bytes.NewBufferString(value))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, http.StatusBadRequest)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Matches, ".*year outside of range.*")
+}
+
 // test for issue #41
 func (self *SingleServerSuite) TestDbDelete(c *C) {
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{})

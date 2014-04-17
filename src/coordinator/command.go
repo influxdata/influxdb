@@ -2,9 +2,12 @@ package coordinator
 
 import (
 	"cluster"
+	"encoding/json"
+	"io"
+	"time"
+
 	log "code.google.com/p/log4go"
 	"github.com/goraft/raft"
-	"time"
 )
 
 var internalRaftCommands map[string]raft.Command
@@ -235,6 +238,17 @@ func NewCreateShardsCommand(shards []*cluster.NewShardData) *CreateShardsCommand
 
 func (c *CreateShardsCommand) CommandName() string {
 	return "create_shards"
+}
+
+// TODO: Encode/Decode are not needed once this pr
+// https://github.com/goraft/raft/pull/221 is merged in and our goraft
+// is updated to a commit that includes the pr
+
+func (c *CreateShardsCommand) Encode(w io.Writer) error {
+	return json.NewEncoder(w).Encode(c)
+}
+func (c *CreateShardsCommand) Decode(r io.Reader) error {
+	return json.NewDecoder(r).Decode(c)
 }
 
 func (c *CreateShardsCommand) Apply(server raft.Server) (interface{}, error) {
