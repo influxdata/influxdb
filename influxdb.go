@@ -49,7 +49,7 @@ func getDefault(value, defaultValue string) string {
 func NewClient(config *ClientConfig) (*Client, error) {
 	host := getDefault(config.Host, defaults.Host)
 	username := getDefault(config.Username, defaults.Username)
-	passowrd := getDefault(config.Password, defaults.Password)
+	password := getDefault(config.Password, defaults.Password)
 	database := getDefault(config.Database, defaults.Database)
 	if config.HttpClient == nil {
 		config.HttpClient = defaults.HttpClient
@@ -59,7 +59,7 @@ func NewClient(config *ClientConfig) (*Client, error) {
 	if config.IsSecure {
 		schema = "https"
 	}
-	return &Client{host, username, passowrd, database, config.HttpClient, schema}, nil
+	return &Client{host, username, password, database, config.HttpClient, schema}, nil
 }
 
 func (self *Client) getUrl(path string) string {
