@@ -15,6 +15,7 @@ import (
 
 type QueryEngine struct {
 	query          *parser.SelectQuery
+	fields         []string
 	where          *parser.WhereCondition
 	responseChan   chan *protocol.Response
 	limiter        *Limiter
@@ -27,6 +28,7 @@ type QueryEngine struct {
 	duration            *time.Duration
 	timestampAggregator Aggregator
 	groups              map[string]map[Group]bool
+	buckets             map[string]int64
 	pointsRange         map[string]*PointRange
 	groupBy             *parser.GroupByClause
 	aggregateYield      func(*protocol.Series) error
@@ -82,6 +84,7 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		pointsRead:    0,
 		pointsWritten: 0,
 		shardId:       0,
+		buckets:       map[string]int64{},
 		shardLocal:    false, //that really doesn't matter if it is not EXPLAIN query
 	}
 
@@ -246,8 +249,8 @@ func containsArithmeticOperators(query *parser.SelectQuery) bool {
 	return false
 }
 
-func getTimestampFromPoint(window time.Duration, point *protocol.Point) int64 {
-	multiplier := uint64(window)
+func (self *QueryEngine) getTimestampFromPoint(point *protocol.Point) int64 {
+	multiplier := uint64(*self.duration)
 	timestampNanoseconds := uint64(*point.GetTimestampInMicroseconds() * 1000)
 	return int64(timestampNanoseconds / multiplier * multiplier / 1000)
 }
@@ -279,9 +282,8 @@ func allGroupMapper(p *protocol.Point) Group { return ALL_GROUP_IDENTIFIER }
 // An inverse mapper, takes a result of the mapper identifier and
 // return the column values and/or timestamp bucket that defines the
 // given group.
-func createValuesToInterface(groupBy *parser.GroupByClause, fields []string) (Mapper, error) {
+func (self *QueryEngine) createValuesToInterface(groupBy *parser.GroupByClause, fields []string) (Mapper, error) {
 	// we shouldn't get an error, this is checked earlier in the executeCountQueryWithGroupBy
-	window, _ := groupBy.GetGroupByTime()
 	var names []string
 	for _, value := range groupBy.Elems {
 		if value.IsFunctionCall() {
@@ -290,13 +292,13 @@ func createValuesToInterface(groupBy *parser.GroupByClause, fields []string) (Ma
 		names = append(names, value.Name)
 	}
 
-	if names == nil && window == nil {
+	if names == nil && self.duration == nil {
 		return allGroupMapper, nil
 	}
 
 	if names == nil {
 		return func(p *protocol.Point) Group {
-			return ALL_GROUP_IDENTIFIER.WithTimestamp(getTimestampFromPoint(*window, p))
+			return ALL_GROUP_IDENTIFIER.WithTimestamp(self.getTimestampFromPoint(p))
 		}, nil
 	}
 
@@ -316,12 +318,12 @@ func createValuesToInterface(groupBy *parser.GroupByClause, fields []string) (Ma
 		return group
 	}
 
-	if window == nil {
+	if self.duration == nil {
 		return mapper, nil
 	}
 
 	return func(p *protocol.Point) Group {
-		return mapper(p).WithTimestamp(getTimestampFromPoint(*window, p))
+		return mapper(p).WithTimestamp(self.getTimestampFromPoint(p))
 	}, nil
 }
 
@@ -366,6 +368,7 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 		}
 		self.aggregators = append(self.aggregators, aggregator)
 	}
+
 	timestampAggregator, err := NewTimestampAggregator(query, nil)
 	if err != nil {
 		return err
@@ -375,73 +378,70 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 	self.pointsRange = make(map[string]*PointRange)
 	self.groupBy = query.GetGroupByClause()
 
+	self.initializeFields()
+
 	err = self.distributeQuery(query, func(series *protocol.Series) error {
 		if len(series.Points) == 0 {
 			return nil
 		}
 
-		seriesGroups := make(map[Group]*protocol.Series)
-
-		var mapper Mapper
-		mapper, err = createValuesToInterface(self.groupBy, series.Fields)
-		if err != nil {
-			return err
+		// if we're not doing group by time() then keep all the state in
+		// memory until the query finishes reading all data points
+		if self.duration == nil || query.GetGroupByClause().FillWithZero {
+			return self.aggregateValuesForSeries(series)
 		}
 
-		for _, aggregator := range self.aggregators {
-			if err := aggregator.InitializeFieldsMetadata(series); err != nil {
+		// otherwise, keep the state for the current bucket. Once ticks
+		// come in for a different time bucket, we flush the state that's
+		// kept in memory by the aggregators
+
+		// split the time series by time buckets
+		bucketedSeries := []*protocol.Series{}
+		currentSeries := &protocol.Series{
+			Name:   series.Name,
+			Fields: series.Fields,
+			Points: []*protocol.Point{series.Points[0]},
+		}
+		currentBucket := self.getTimestampFromPoint(series.Points[0])
+		for _, p := range series.Points[1:] {
+			bucket := self.getTimestampFromPoint(p)
+			if bucket != currentBucket {
+				bucketedSeries = append(bucketedSeries, currentSeries)
+				currentSeries = &protocol.Series{Name: series.Name, Fields: series.Fields}
+				currentBucket = bucket
+			}
+			currentSeries.Points = append(currentSeries.Points, p)
+		}
+		bucketedSeries = append(bucketedSeries, currentSeries)
+
+		for _, s := range bucketedSeries[:len(bucketedSeries)-1] {
+			if err := self.aggregateValuesForSeries(s); err != nil {
 				return err
 			}
+			self.calculateSummariesForTable(*s.Name)
 		}
 
-		currentRange := self.pointsRange[*series.Name]
-		if currentRange == nil {
-			currentRange = &PointRange{*series.Points[0].Timestamp, *series.Points[0].Timestamp}
-			self.pointsRange[*series.Name] = currentRange
-		}
-		for _, point := range series.Points {
-			currentRange.UpdateRange(point)
-			value := mapper(point)
-			seriesGroup := seriesGroups[value]
-			if seriesGroup == nil {
-				seriesGroup = &protocol.Series{Name: series.Name, Fields: series.Fields, Points: make([]*protocol.Point, 0)}
-				seriesGroups[value] = seriesGroup
-			}
-			seriesGroup.Points = append(seriesGroup.Points, point)
+		last := bucketedSeries[len(bucketedSeries)-1]
+		bucket := self.getTimestampFromPoint(last.Points[0])
+		if b, ok := self.buckets[*series.Name]; ok && b != bucket {
+			self.calculateSummariesForTable(*last.Name)
 		}
 
-		for value, seriesGroup := range seriesGroups {
-			for _, aggregator := range self.aggregators {
-				err := aggregator.AggregateSeries(*series.Name, value, seriesGroup)
-				if err != nil {
-					return err
-				}
-			}
-			self.timestampAggregator.AggregateSeries(*series.Name, value, seriesGroup)
-
-			_groups := self.groups[*seriesGroup.Name]
-			if _groups == nil {
-				_groups = make(map[Group]bool)
-				self.groups[*seriesGroup.Name] = _groups
-			}
-			_groups[value] = true
-		}
-
-		return nil
+		self.buckets[*series.Name] = bucket
+		return self.aggregateValuesForSeries(last)
 	})
 
 	return err
 }
 
-func (self *QueryEngine) runAggregates() {
-	duration := self.duration
-	query := self.query
-
-	fields := []string{}
-
+func (self *QueryEngine) initializeFields() {
 	for _, aggregator := range self.aggregators {
 		columnNames := aggregator.ColumnNames()
-		fields = append(fields, columnNames...)
+		self.fields = append(self.fields, columnNames...)
+	}
+
+	if self.groupBy == nil {
+		return
 	}
 
 	for _, value := range self.groupBy.Elems {
@@ -450,118 +450,199 @@ func (self *QueryEngine) runAggregates() {
 		}
 
 		tempName := value.Name
-		fields = append(fields, tempName)
+		self.fields = append(self.fields, tempName)
+	}
+}
+
+func (self *QueryEngine) aggregateValuesForSeries(series *protocol.Series) error {
+	seriesGroups := make(map[Group]*protocol.Series)
+
+	mapper, err := self.createValuesToInterface(self.groupBy, series.Fields)
+	if err != nil {
+		return err
 	}
 
-	for table, tableGroups := range self.groups {
-		tempTable := table
-		points := []*protocol.Point{}
+	for _, aggregator := range self.aggregators {
+		if err := aggregator.InitializeFieldsMetadata(series); err != nil {
+			return err
+		}
+	}
 
-		var _groups []Group
+	currentRange := self.pointsRange[*series.Name]
+	if currentRange == nil {
+		currentRange = &PointRange{*series.Points[0].Timestamp, *series.Points[0].Timestamp}
+		self.pointsRange[*series.Name] = currentRange
+	}
+	for _, point := range series.Points {
+		currentRange.UpdateRange(point)
+		value := mapper(point)
+		seriesGroup := seriesGroups[value]
+		if seriesGroup == nil {
+			seriesGroup = &protocol.Series{Name: series.Name, Fields: series.Fields, Points: make([]*protocol.Point, 0)}
+			seriesGroups[value] = seriesGroup
+		}
+		seriesGroup.Points = append(seriesGroup.Points, point)
+	}
 
-		if !query.GetGroupByClause().FillWithZero || duration == nil {
-			// sort the table groups by timestamp
-			_groups = make([]Group, 0, len(tableGroups))
-			for groupId, _ := range tableGroups {
+	for value, seriesGroup := range seriesGroups {
+		for _, aggregator := range self.aggregators {
+			err := aggregator.AggregateSeries(*series.Name, value, seriesGroup)
+			if err != nil {
+				return err
+			}
+		}
+		self.timestampAggregator.AggregateSeries(*series.Name, value, seriesGroup)
+
+		_groups := self.groups[*seriesGroup.Name]
+		if _groups == nil {
+			_groups = make(map[Group]bool)
+			self.groups[*seriesGroup.Name] = _groups
+		}
+		_groups[value] = true
+	}
+
+	return nil
+}
+
+func (self *QueryEngine) runAggregates() {
+	for table, _ := range self.groups {
+		self.calculateSummariesForTable(table)
+		self.runAggregatesForTable(table)
+	}
+}
+
+func (self *QueryEngine) calculateSummariesForTable(table string) {
+	tableGroups := self.groups[table]
+	// delete(self.groups, table)
+
+	for _, aggregator := range self.aggregators {
+		for group, _ := range tableGroups {
+			aggregator.CalculateSummaries(table, group)
+		}
+	}
+}
+
+func (self *QueryEngine) runAggregatesForTable(table string) {
+	duration := self.duration
+	query := self.query
+
+	var _groups []Group
+	tableGroups := self.groups[table]
+	delete(self.groups, table)
+
+	if len(tableGroups) == 0 {
+		return
+	}
+
+	if !query.GetGroupByClause().FillWithZero || duration == nil {
+		// sort the table groups by timestamp
+		_groups = make([]Group, 0, len(tableGroups))
+		for groupId, _ := range tableGroups {
+			_groups = append(_groups, groupId)
+		}
+	} else {
+		groupsWithTime := map[Group]bool{}
+		timeRange, ok := self.pointsRange[table]
+		if ok {
+			first := timeRange.startTime * 1000 / int64(*duration) * int64(*duration)
+			end := timeRange.endTime * 1000 / int64(*duration) * int64(*duration)
+			for i := 0; ; i++ {
+				timestamp := first + int64(i)*int64(*duration)
+				if end < timestamp {
+					break
+				}
+				for group, _ := range tableGroups {
+					groupWithTime := group.WithoutTimestamp().WithTimestamp(timestamp / 1000)
+					groupsWithTime[groupWithTime] = true
+				}
+			}
+
+			for groupId, _ := range groupsWithTime {
 				_groups = append(_groups, groupId)
 			}
-
-		} else {
-			groupsWithTime := map[Group]bool{}
-			timeRange, ok := self.pointsRange[table]
-			if ok {
-				first := timeRange.startTime * 1000 / int64(*duration) * int64(*duration)
-				end := timeRange.endTime * 1000 / int64(*duration) * int64(*duration)
-				for i := 0; ; i++ {
-					timestamp := first + int64(i)*int64(*duration)
-					if end < timestamp {
-						break
-					}
-					for group, _ := range tableGroups {
-						groupWithTime := group.WithoutTimestamp().WithTimestamp(timestamp / 1000)
-						groupsWithTime[groupWithTime] = true
-					}
-				}
-
-				for groupId, _ := range groupsWithTime {
-					_groups = append(_groups, groupId)
-				}
-			}
 		}
-
-		fillWithZero := duration != nil && query.GetGroupByClause().FillWithZero
-		var sortedGroups SortableGroups
-		if fillWithZero {
-			if query.Ascending {
-				sortedGroups = &AscendingGroupTimestampSortableGroups{CommonSortableGroups{_groups, table}}
-			} else {
-				sortedGroups = &DescendingGroupTimestampSortableGroups{CommonSortableGroups{_groups, table}}
-			}
-		} else {
-			if query.Ascending {
-				sortedGroups = &AscendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, self.timestampAggregator}
-			} else {
-				sortedGroups = &DescendingAggregatorSortableGroups{CommonSortableGroups{_groups, table}, self.timestampAggregator}
-			}
-		}
-		sort.Sort(sortedGroups)
-
-		for _, groupId := range sortedGroups.GetSortedGroups() {
-			var timestamp int64
-			if groupId.HasTimestamp() {
-				timestamp = groupId.GetTimestamp()
-			} else {
-				timestamp = *self.timestampAggregator.GetValues(table, groupId)[0][0].Int64Value
-			}
-			values := [][][]*protocol.FieldValue{}
-
-			for _, aggregator := range self.aggregators {
-				values = append(values, aggregator.GetValues(table, groupId))
-			}
-
-			// do cross product of all the values
-			_values := crossProduct(values)
-
-			for _, v := range _values {
-				/* groupPoints := []*protocol.Point{} */
-				point := &protocol.Point{
-					Values: v,
-				}
-				point.SetTimestampInMicroseconds(timestamp)
-
-				// FIXME: this should be looking at the fields slice not the group by clause
-				// FIXME: we should check whether the selected columns are in the group by clause
-				for idx, _ := range self.groupBy.Elems {
-					if duration != nil && idx == 0 {
-						continue
-					}
-
-					value := groupId.GetValue(idx)
-
-					switch x := value.(type) {
-					case string:
-						point.Values = append(point.Values, &protocol.FieldValue{StringValue: &x})
-					case bool:
-						point.Values = append(point.Values, &protocol.FieldValue{BoolValue: &x})
-					case float64:
-						point.Values = append(point.Values, &protocol.FieldValue{DoubleValue: &x})
-					case int64:
-						point.Values = append(point.Values, &protocol.FieldValue{Int64Value: &x})
-					case nil:
-						point.Values = append(point.Values, nil)
-					}
-				}
-
-				points = append(points, point)
-			}
-		}
-		expectedData := &protocol.Series{
-			Name:   &tempTable,
-			Fields: fields,
-			Points: points,
-		}
-		self.aggregateYield(expectedData)
 	}
+
+	self.yieldValuesForTableAndGroups(table, _groups)
+}
+
+func (self *QueryEngine) yieldValuesForTableAndGroups(table string, groups []Group) {
+
+	points := []*protocol.Point{}
+
+	query := self.query
+	var sortedGroups SortableGroups
+	fillWithZero := self.duration != nil && query.GetGroupByClause().FillWithZero
+	if fillWithZero {
+		if query.Ascending {
+			sortedGroups = &AscendingGroupTimestampSortableGroups{CommonSortableGroups{groups, table}}
+		} else {
+			sortedGroups = &DescendingGroupTimestampSortableGroups{CommonSortableGroups{groups, table}}
+		}
+	} else {
+		if self.query.Ascending {
+			sortedGroups = &AscendingAggregatorSortableGroups{CommonSortableGroups{groups, table}, self.timestampAggregator}
+		} else {
+			sortedGroups = &DescendingAggregatorSortableGroups{CommonSortableGroups{groups, table}, self.timestampAggregator}
+		}
+	}
+	sort.Sort(sortedGroups)
+
+	for _, groupId := range sortedGroups.GetSortedGroups() {
+		var timestamp int64
+		if groupId.HasTimestamp() {
+			timestamp = groupId.GetTimestamp()
+		} else {
+			timestamp = *self.timestampAggregator.GetValues(table, groupId)[0][0].Int64Value
+		}
+		values := [][][]*protocol.FieldValue{}
+
+		for _, aggregator := range self.aggregators {
+			values = append(values, aggregator.GetValues(table, groupId))
+		}
+
+		// do cross product of all the values
+		_values := crossProduct(values)
+
+		for _, v := range _values {
+			/* groupPoints := []*protocol.Point{} */
+			point := &protocol.Point{
+				Values: v,
+			}
+			point.SetTimestampInMicroseconds(timestamp)
+
+			// FIXME: this should be looking at the fields slice not the group by clause
+			// FIXME: we should check whether the selected columns are in the group by clause
+			for idx, _ := range self.groupBy.Elems {
+				if self.duration != nil && idx == 0 {
+					continue
+				}
+
+				value := groupId.GetValue(idx)
+
+				switch x := value.(type) {
+				case string:
+					point.Values = append(point.Values, &protocol.FieldValue{StringValue: &x})
+				case bool:
+					point.Values = append(point.Values, &protocol.FieldValue{BoolValue: &x})
+				case float64:
+					point.Values = append(point.Values, &protocol.FieldValue{DoubleValue: &x})
+				case int64:
+					point.Values = append(point.Values, &protocol.FieldValue{Int64Value: &x})
+				case nil:
+					point.Values = append(point.Values, nil)
+				}
+			}
+
+			points = append(points, point)
+		}
+	}
+	expectedData := &protocol.Series{
+		Name:   &table,
+		Fields: self.fields,
+		Points: points,
+	}
+	self.aggregateYield(expectedData)
 }
 
 func (self *QueryEngine) executeArithmeticQuery(query *parser.SelectQuery, yield func(*protocol.Series) error) error {
