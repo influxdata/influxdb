@@ -459,17 +459,6 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
 	`
 	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
 
-	expected := []float64{float64(3), 0, float64(3)}
-	for i, s := range self.serverProcesses {
-		if i == 1 {
-			continue
-		}
-
-		collection := s.Query("full_rep", "select sum(val) from test_failure_replays;", true, c)
-		series := collection.GetSeries("test_failure_replays", c)
-		c.Assert(series.GetValueForPointAndColumn(0, "sum", c), Equals, expected[i])
-	}
-
 	self.serverProcesses[1].Start()
 	self.serverProcesses[1].WaitForServerToStart()
 	self.serverProcesses[0].WaitForServerToSync()
