@@ -981,6 +981,7 @@ func (self *DistinctAggregator) AggregatePoint(series string, group interface{},
 	groupCounts := seriesCounts[group]
 	if groupCounts == nil {
 		groupCounts = make(map[interface{}]int)
+		seriesCounts[group] = groupCounts
 	}
 
 	point, err := GetValue(self.value, self.columns, p)
@@ -1001,10 +1002,7 @@ func (self *DistinctAggregator) AggregatePoint(series string, group interface{},
 		return nil
 	}
 
-	count := groupCounts[value]
-	count += 1
-	groupCounts[value] = count
-	seriesCounts[group] = groupCounts
+	groupCounts[value]++
 
 	return nil
 }
