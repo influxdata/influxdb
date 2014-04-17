@@ -3,6 +3,9 @@
 ### Bugfixes
 
 - [Issue #244](https://github.com/influxdb/influxdb/issues/244). Reconstruct the query from the ast
+- [Issue #449](https://github.com/influxdb/influxdb/issues/449). Heartbeat timeouts can cause reading from connection to lock up
+- [Issue #451](https://github.com/influxdb/influxdb/issues/451). Reduce the aggregation state that is kept in memory so that
+  aggregation queries over large periods of time don't take insance amount of memory
 
 ## v0.5.7 [2014-04-15]
 
