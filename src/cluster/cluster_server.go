@@ -133,12 +133,15 @@ func (self *ClusterServer) heartbeat() {
 		self.heartbeatStarted = false
 	}()
 
-	responseChan := make(chan *protocol.Response, 1)
 	heartbeatRequest := &protocol.Request{
 		Type:     &HEARTBEAT_TYPE,
 		Database: protocol.String(""),
 	}
 	for {
+		// this chan is buffered and in the loop on purpose. This is so
+		// that if reading a heartbeat times out, and the heartbeat then comes through
+		// later, it will be dumped into this chan and not block the protobuf client reader.
+		responseChan := make(chan *protocol.Response, 1)
 		heartbeatRequest.Id = nil
 		self.MakeRequest(heartbeatRequest, responseChan)
 		err := self.getHeartbeatResponse(responseChan)
