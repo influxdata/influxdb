@@ -64,7 +64,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	}
 	self.serverProcesses[0].SetSslOnly(true)
 	client := self.serverProcesses[0].GetClient("", c)
-	dbs := []string{"full_rep", "test_rep", "single_rep", "test_cq", "drop_db"}
+	dbs := []string{"full_rep", "test_rep", "single_rep", "test_cq", "test_cq_null", "drop_db"}
 	for _, db := range dbs {
 		c.Assert(client.CreateDatabase(db), IsNil)
 	}
@@ -645,7 +645,7 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
 }
 
 func (self *ServerSuite) TestContinuousQueryGroupByOperationsWithNullColumns(c *C) {
-	client := self.serverProcesses[0].GetClient("test_cq", c)
+	client := self.serverProcesses[0].GetClient("test_cq_null", c)
 	for i := 0; i < 2; i++ {
 		columns := []string{"a"}
 		values := []interface{}{1}
