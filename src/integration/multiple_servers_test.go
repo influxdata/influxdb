@@ -70,6 +70,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	}
 	for _, db := range dbs {
 		c.Assert(client.CreateDatabaseUser(db, "paul", "pass"), IsNil)
+		c.Assert(client.AlterDatabasePrivilege(db, "paul", true), IsNil)
 		c.Assert(client.CreateDatabaseUser(db, "weakpaul", "pass"), IsNil)
 	}
 	for _, s := range self.serverProcesses {
