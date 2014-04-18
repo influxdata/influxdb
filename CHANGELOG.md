@@ -4,6 +4,7 @@
 
 - [Issue #446](https://github.com/influxdb/influxdb/issues/446). Check for (de)serialization errors
 - [Issue #456](https://github.com/influxdb/influxdb/issues/456). Continuous queries failed if one of the group by columns had null value
+- [Issue #455](https://github.com/influxdb/influxdb/issues/455). Comparison operators should ignore null values
 
 ## v0.5.8 [2014-04-17]
 
