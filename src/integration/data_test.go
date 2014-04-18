@@ -184,6 +184,29 @@ func (self *DataTestSuite) DifferentColumnsAcrossShards2(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #455
+func (self *DataTestSuite) NullValuesInComparison(c *C) (Fun, Fun) {
+	return func(client Client) {
+			series := []*influxdb.Series{
+				&influxdb.Series{
+					Name:    "foo",
+					Columns: []string{"foo", "bar"},
+					Points: [][]interface{}{
+						[]interface{}{1, 2},
+						[]interface{}{2, nil},
+					},
+				},
+			}
+			client.WriteData(series, c, "s")
+		}, func(client Client) {
+			serieses := client.RunQuery("select * from foo where bar < 10", c, "s")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["bar"], Equals, 2.0)
+		}
+}
+
 func (self *DataTestSuite) ExplainsWithPassthrough(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `

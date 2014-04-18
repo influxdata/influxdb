@@ -7,17 +7,25 @@ import (
 	"regexp"
 )
 
-type oldBooleanOperation func(leftValue, rightValues *protocol.FieldValue) (bool, error)
-type BooleanOperation func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (bool, error)
+type Result int
+
+const (
+	MATCH Result = iota
+	NO_MATCH
+	INVALID
+)
+
+type oldBooleanOperation func(leftValue, rightValues *protocol.FieldValue) (Result, error)
+type BooleanOperation func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (Result, error)
 
 func wrapOldBooleanOperation(operation oldBooleanOperation) BooleanOperation {
-	return func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (bool, error) {
+	return func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (Result, error) {
 		if len(rightValues) != 1 {
-			return false, fmt.Errorf("Expected one value on the right side")
+			return INVALID, fmt.Errorf("Expected one value on the right side")
 		}
 
 		if leftValue == nil || rightValues[0] == nil {
-			return false, nil
+			return INVALID, nil
 		}
 
 		return operation(leftValue, rightValues[0])
@@ -41,73 +49,112 @@ func init() {
 }
 
 func not(op BooleanOperation) BooleanOperation {
-	return func(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (bool, error) {
+	return func(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (Result, error) {
 		ok, err := op(leftValue, rightValue)
-		return !ok, err
+		switch ok {
+		case MATCH:
+			return NO_MATCH, err
+		case NO_MATCH:
+			return MATCH, err
+		default:
+			return INVALID, err
+		}
 	}
 }
 
-func EqualityOperator(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+func EqualityOperator(leftValue, rightValue *protocol.FieldValue) (Result, error) {
 	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
 
 	switch cType {
 	case common.TYPE_STRING:
-		return v1.(string) == v2.(string), nil
+		if v1.(string) == v2.(string) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	case common.TYPE_INT:
-		return v1.(int64) == v2.(int64), nil
+		if v1.(int64) == v2.(int64) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	case common.TYPE_DOUBLE:
-		return v1.(float64) == v2.(float64), nil
+		if v1.(float64) == v2.(float64) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	case common.TYPE_BOOL:
-		return v1.(bool) == v2.(bool), nil
+		if v1.(bool) == v2.(bool) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	default:
-		return false, nil
+		return INVALID, nil
 	}
 }
 
-func RegexMatcherOperator(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+func RegexMatcherOperator(leftValue, rightValue *protocol.FieldValue) (Result, error) {
 	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
 
 	switch cType {
 	case common.TYPE_STRING:
 		// TODO: assume that the regex is valid
-		matches, _ := regexp.MatchString(v2.(string), v1.(string))
-		return matches, nil
+		if ok, _ := regexp.MatchString(v2.(string), v1.(string)); ok {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	default:
-		return false, nil
+		return INVALID, nil
 	}
 }
 
-func GreaterThanOrEqualOperator(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+func GreaterThanOrEqualOperator(leftValue, rightValue *protocol.FieldValue) (Result, error) {
 	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
 
 	switch cType {
 	case common.TYPE_STRING:
-		return v1.(string) >= v2.(string), nil
+		if v1.(string) >= v2.(string) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	case common.TYPE_INT:
-		return v1.(int64) >= v2.(int64), nil
+		if v1.(int64) >= v2.(int64) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	case common.TYPE_DOUBLE:
-		return v1.(float64) >= v2.(float64), nil
+		if v1.(float64) >= v2.(float64) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	default:
-		return false, nil
+		return INVALID, nil
 	}
 }
 
-func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (bool, error) {
+func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (Result, error) {
 	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
 
 	switch cType {
 	case common.TYPE_STRING:
-		return v1.(string) > v2.(string), nil
+		if v1.(string) > v2.(string) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	case common.TYPE_INT:
-		return v1.(int64) > v2.(int64), nil
+		if v1.(int64) > v2.(int64) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	case common.TYPE_DOUBLE:
-		return v1.(float64) > v2.(float64), nil
+		if v1.(float64) > v2.(float64) {
+			return MATCH, nil
+		}
+		return NO_MATCH, nil
 	default:
-		return false, nil
+		return INVALID, nil
 	}
 }
 
-func InOperator(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (bool, error) {
+func InOperator(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (Result, error) {
 	for _, v := range rightValue {
 		v1, v2, cType := common.CoerceValues(leftValue, v)
 
@@ -123,13 +170,13 @@ func InOperator(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValu
 		case common.TYPE_BOOL:
 			result = v1.(bool) == v2.(bool)
 		default:
-			result = false
+			return INVALID, nil
 		}
 
 		if result {
-			return true, nil
+			return MATCH, nil
 		}
 	}
 
-	return false, nil
+	return NO_MATCH, nil
 }

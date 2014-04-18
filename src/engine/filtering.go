@@ -66,7 +66,8 @@ func matchesExpression(expr *parser.Value, fields []string, point *protocol.Poin
 	}
 
 	operator := registeredOperators[expr.Name]
-	return operator(leftValue[0], rightValue)
+	ok, err := operator(leftValue[0], rightValue)
+	return ok == MATCH, err
 }
 
 func matches(condition *parser.WhereCondition, fields []string, point *protocol.Point) (bool, error) {
