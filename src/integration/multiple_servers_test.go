@@ -61,17 +61,15 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 		NewServer("src/integration/test_config3.toml", c),
 	}
 	self.serverProcesses[0].SetSslOnly(true)
-	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"full_rep\", \"replicationFactor\":3}", c)
-	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"test_rep\", \"replicationFactor\":2}", c)
-	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"single_rep\", \"replicationFactor\":1}", c)
-	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"test_cq\", \"replicationFactor\":3}", c)
-	self.serverProcesses[0].Post("/db/full_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
-	self.serverProcesses[0].Post("/db/test_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
-	self.serverProcesses[0].Post("/db/single_rep/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
-	self.serverProcesses[0].Post("/db/test_cq/users?u=root&p=root", "{\"name\":\"paul\", \"password\":\"pass\", \"isAdmin\": true}", c)
-	self.serverProcesses[0].Post("/db/test_cq/users?u=root&p=root", "{\"name\":\"weakpaul\", \"password\":\"pass\", \"isAdmin\": false}", c)
-	self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_db", "replicationFactor": 3}`, c)
-	self.serverProcesses[0].Post("/db/drop_db/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
+	client := self.serverProcesses[0].GetClient("", c)
+	dbs := []string {"full_rep", "test_rep", "single_rep", "test_cq", "drop_db"}
+	for _, db := range dbs {
+		c.Assert(client.CreateDatabase(db), IsNil)
+	}
+	for _, db := range dbs {
+		c.Assert(client.CreateDatabaseUser(db, "paul", "pass"), IsNil)
+		c.Assert(client.CreateDatabaseUser(db, "weakpaul", "pass"), IsNil)
+	}
 	for _, s := range self.serverProcesses {
 		s.WaitForServerToSync()
 	}
