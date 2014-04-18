@@ -158,7 +158,7 @@ func (self *ServerSuite) TestEntireClusterReStartAfterCompaction(c *C) {
 }
 
 // For issue #140 https://github.com/influxdb/influxdb/issues/140
-func (self *ServerSuite) TestReStartServers(c *C) {
+func (self *ServerSuite) TestRestartServers(c *C) {
 	data := `
   [{
     "points": [[1]],
@@ -167,6 +167,8 @@ func (self *ServerSuite) TestReStartServers(c *C) {
   }]
   `
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
+
+	self.serverProcesses[0].WaitForServerToSync()
 
 	collection := self.serverProcesses[0].Query("test_rep", "select * from test_restart", false, c)
 	c.Assert(collection.Members, HasLen, 1)
@@ -184,6 +186,8 @@ func (self *ServerSuite) TestReStartServers(c *C) {
 	for _, s := range self.serverProcesses {
 		s.WaitForServerToStart()
 	}
+
+	self.serverProcesses[0].WaitForServerToSync()
 
 	collection = self.serverProcesses[0].Query("test_rep", "select * from test_restart", false, c)
 	c.Assert(collection.Members, HasLen, 1)
