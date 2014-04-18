@@ -62,7 +62,7 @@ func (self *PassthroughEngine) YieldSeries(seriesIncoming *protocol.Series) bool
 
 	self.limiter.calculateLimitAndSlicePoints(seriesIncoming)
 	if len(seriesIncoming.Points) == 0 {
-		log.Error("Not sent == 0")
+		log.Debug("Not sent == 0")
 		return false
 	}
 
