@@ -7,19 +7,19 @@ import (
 	"regexp"
 )
 
-type Result int
+type OperatorResult int
 
 const (
-	MATCH Result = iota
+	MATCH OperatorResult = iota
 	NO_MATCH
 	INVALID
 )
 
-type oldBooleanOperation func(leftValue, rightValues *protocol.FieldValue) (Result, error)
-type BooleanOperation func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (Result, error)
+type oldBooleanOperation func(leftValue, rightValues *protocol.FieldValue) (OperatorResult, error)
+type BooleanOperation func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (OperatorResult, error)
 
 func wrapOldBooleanOperation(operation oldBooleanOperation) BooleanOperation {
-	return func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (Result, error) {
+	return func(leftValue *protocol.FieldValue, rightValues []*protocol.FieldValue) (OperatorResult, error) {
 		if len(rightValues) != 1 {
 			return INVALID, fmt.Errorf("Expected one value on the right side")
 		}
@@ -49,7 +49,7 @@ func init() {
 }
 
 func not(op BooleanOperation) BooleanOperation {
-	return func(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (Result, error) {
+	return func(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (OperatorResult, error) {
 		ok, err := op(leftValue, rightValue)
 		switch ok {
 		case MATCH:
@@ -62,7 +62,7 @@ func not(op BooleanOperation) BooleanOperation {
 	}
 }
 
-func EqualityOperator(leftValue, rightValue *protocol.FieldValue) (Result, error) {
+func EqualityOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResult, error) {
 	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
 
 	switch cType {
@@ -91,7 +91,7 @@ func EqualityOperator(leftValue, rightValue *protocol.FieldValue) (Result, error
 	}
 }
 
-func RegexMatcherOperator(leftValue, rightValue *protocol.FieldValue) (Result, error) {
+func RegexMatcherOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResult, error) {
 	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
 
 	switch cType {
@@ -106,7 +106,7 @@ func RegexMatcherOperator(leftValue, rightValue *protocol.FieldValue) (Result, e
 	}
 }
 
-func GreaterThanOrEqualOperator(leftValue, rightValue *protocol.FieldValue) (Result, error) {
+func GreaterThanOrEqualOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResult, error) {
 	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
 
 	switch cType {
@@ -130,7 +130,7 @@ func GreaterThanOrEqualOperator(leftValue, rightValue *protocol.FieldValue) (Res
 	}
 }
 
-func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (Result, error) {
+func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResult, error) {
 	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
 
 	switch cType {
@@ -154,7 +154,7 @@ func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (Result, er
 	}
 }
 
-func InOperator(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (Result, error) {
+func InOperator(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (OperatorResult, error) {
 	for _, v := range rightValue {
 		v1, v2, cType := common.CoerceValues(leftValue, v)
 
