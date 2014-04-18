@@ -489,7 +489,18 @@ func generateHttpApiSeries(name string, n int) *common.SerializedSeries {
 	}
 }
 
+func (self ServerSuite) RemoveAllContinuousQueries(db string, c *C) {
+	client := self.serverProcesses[0].GetClient(db, c)
+	queries, err := client.GetContinuousQueries()
+	c.Assert(err, IsNil)
+	for _, q := range queries {
+		c.Assert(client.DeleteContinuousQueries(int(q["id"].(float64))), IsNil)
+	}
+}
+
 func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
+	defer self.RemoveAllContinuousQueries("test_cq", c)
+
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series := collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 0)
@@ -532,6 +543,8 @@ func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
 }
 
 func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
+	defer self.RemoveAllContinuousQueries("test_cq", c)
+
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s1 into d1;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s2 into d2;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from /s\\d/ into d3;", false, c)
@@ -591,6 +604,8 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 }
 
 func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
+	defer self.RemoveAllContinuousQueries("test_cq", c)
+
 	currentTime := time.Now()
 
 	previousTime := currentTime.Truncate(10 * time.Second)
@@ -645,6 +660,8 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
 }
 
 func (self *ServerSuite) TestContinuousQueryGroupByOperationsWithNullColumns(c *C) {
+	defer self.RemoveAllContinuousQueries("test_cq_null", c)
+
 	client := self.serverProcesses[0].GetClient("test_cq_null", c)
 	for i := 0; i < 2; i++ {
 		columns := []string{"a"}
@@ -685,6 +702,8 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperationsWithNullColumns(c *
 }
 
 func (self *ServerSuite) TestContinuousQueryInterpolation(c *C) {
+	defer self.RemoveAllContinuousQueries("test_cq", c)
+
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s1 into :series_name.foo;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s2 into :series_name.foo.[c3];", false, c)
 	/* self.serverProcesses[0].QueryAsRoot("test_cq", "select average(c4), count(c5) from s3 group by time(1h) into [average].[count];", false, c) */
@@ -928,6 +947,8 @@ func dirExists(path string) (bool, error) {
 }
 
 func (self *ServerSuite) TestContinuousQueryWithMixedGroupByOperations(c *C) {
+	defer self.RemoveAllContinuousQueries("test_cq", c)
+
 	data := fmt.Sprintf(`[
   {
     "name": "cqtest",
