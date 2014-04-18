@@ -102,6 +102,16 @@ func (self *Server) WaitForServerToSync() {
 	panic("servers didn't sync")
 }
 
+// optional db
+func (self *Server) GetClient(db string, c *C) *influxdb.Client {
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{
+		Host:     fmt.Sprintf("localhost:%d", self.apiPort),
+		Database: db,
+	})
+	c.Assert(err, IsNil)
+	return client
+}
+
 func (self *Server) WriteData(data interface{}, c *C, precision ...influxdb.TimePrecision) {
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{
 		Username: "user",

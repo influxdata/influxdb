@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"os"
 	"time"
+
+	influxdb "github.com/influxdb/influxdb-go"
 	. "launchpad.net/gocheck"
 )
 
@@ -62,7 +64,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	}
 	self.serverProcesses[0].SetSslOnly(true)
 	client := self.serverProcesses[0].GetClient("", c)
-	dbs := []string {"full_rep", "test_rep", "single_rep", "test_cq", "drop_db"}
+	dbs := []string{"full_rep", "test_rep", "single_rep", "test_cq", "drop_db"}
 	for _, db := range dbs {
 		c.Assert(client.CreateDatabase(db), IsNil)
 	}
@@ -639,6 +641,46 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
+}
+
+func (self *ServerSuite) TestContinuousQueryGroupByOperationsWithNullColumns(c *C) {
+	client := self.serverProcesses[0].GetClient("test_cq", c)
+	for i := 0; i < 2; i++ {
+		columns := []string{"a"}
+		values := []interface{}{1}
+		if i == 1 {
+			columns = append(columns, "b")
+			values = append(values, 2)
+		}
+		series := []*influxdb.Series{
+			&influxdb.Series{
+				Name:    "test_null_columns",
+				Columns: columns,
+				Points: [][]interface{}{
+					values,
+				},
+			},
+		}
+		c.Assert(client.WriteSeries(series), IsNil)
+	}
+
+	self.serverProcesses[0].WaitForServerToSync()
+
+	_, err := client.Query("select count(a), b from test_null_columns group by time(1s), b into test_null_columns.1s")
+	c.Assert(err, IsNil)
+
+	// wait for the query to run
+	time.Sleep(2 * time.Second)
+
+	self.serverProcesses[0].WaitForServerToSync()
+
+	s, err := client.Query("select count(count) from test_null_columns.1s")
+	c.Assert(err, IsNil)
+	c.Assert(s, HasLen, 1)
+	maps := ToMap(s[0])
+	c.Assert(maps, HasLen, 1)
+	// make sure the continuous query inserted two points
+	c.Assert(maps[0]["count"], Equals, 2.0)
 }
 
 func (self *ServerSuite) TestContinuousQueryInterpolation(c *C) {

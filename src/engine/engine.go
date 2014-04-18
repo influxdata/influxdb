@@ -13,6 +13,10 @@ import (
 	log "code.google.com/p/log4go"
 )
 
+var (
+	TRUE = true
+)
+
 type QueryEngine struct {
 	query          *parser.SelectQuery
 	fields         []string
@@ -630,7 +634,7 @@ func (self *QueryEngine) yieldValuesForTableAndGroups(table string, groups []Gro
 				case int64:
 					point.Values = append(point.Values, &protocol.FieldValue{Int64Value: &x})
 				case nil:
-					point.Values = append(point.Values, nil)
+					point.Values = append(point.Values, &protocol.FieldValue{IsNull: &TRUE})
 				}
 			}
 
