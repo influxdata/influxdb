@@ -517,19 +517,6 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 	}
 	sequenceMap := make(map[sequenceKey]int)
 	r, _ := regexp.Compile(`\[.*?\]`)
-	replaceInvalidCharacters := func(r rune) rune {
-		switch {
-		case (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
-			return r
-		case r == '_' || r == '-' || r == '.':
-			return r
-		case r == ' ':
-			return '_'
-		case r == '/':
-			return '.'
-		}
-		return -1
-	}
 
 	if r.MatchString(targetName) {
 		for _, point := range series.Points {
@@ -539,16 +526,14 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 				return point.GetFieldValueAsString(fieldIndex)
 			})
 
-			sanitizedTargetName := strings.Map(replaceInvalidCharacters, targetNameWithValues)
-
 			if assignSequenceNumbers {
-				key := sequenceKey{sanitizedTargetName, *point.Timestamp}
+				key := sequenceKey{targetNameWithValues, *point.Timestamp}
 				sequenceMap[key] += 1
 				sequenceNumber := uint64(sequenceMap[key])
 				point.SequenceNumber = &sequenceNumber
 			}
 
-			newSeries := &protocol.Series{Name: &sanitizedTargetName, Fields: series.Fields, Points: []*protocol.Point{point}}
+			newSeries := &protocol.Series{Name: &targetNameWithValues, Fields: series.Fields, Points: []*protocol.Point{point}}
 			if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}); e != nil {
 				log.Error("Couldn't write data for continuous query: ", e)
 			}

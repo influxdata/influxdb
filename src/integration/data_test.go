@@ -1416,3 +1416,22 @@ func (self *DataTestSuite) ListSeries(c *C) (Fun, Fun) {
 			c.Assert(names["another_query"], Equals, true)
 		}
 }
+
+// For issue #267 - allow all characters in series name - https://github.com/influxdb/influxdb/issues/267
+func (self *SingleServerSuite) SeriesNameWithWeirdCharacters(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `[
+  	  	{
+	      	"name": "/blah ( ) ; : ! @ # $ \n \t,foo\"=bar/baz",
+      		"columns": ["value"],
+    	  	"points": [[1]]
+  	  	}
+	  	]`
+			client.WriteJsonData(data, c, "s")
+		}, func(client Client) {
+			data := client.RunQuery("select value from \"/blah ( ) ; : ! @ # $ \n \t,foo\\\"=bar/baz\"", c)
+			c.Assert(data, HasLen, 1)
+			c.Assert(data[0].Points, HasLen, 1)
+			c.Assert(data[0].Name, Equals, "/blah ( ) ; : ! @ # $ \n \t,foo\"=bar/baz")
+		}
+}

@@ -3,7 +3,6 @@ package common
 import (
 	"fmt"
 	"protocol"
-	"regexp"
 )
 
 var (
@@ -19,14 +18,7 @@ const (
 	SecondPrecision
 )
 
-var VALID_TABLE_NAMES *regexp.Regexp
-
 func init() {
-	var err error
-	VALID_TABLE_NAMES, err = regexp.Compile("^[a-zA-Z][a-zA-Z0-9._-]*$")
-	if err != nil {
-		panic(err)
-	}
 }
 
 func removeField(fields []string, name string) []string {
@@ -57,10 +49,6 @@ type ApiSeries interface {
 }
 
 func ConvertToDataStoreSeries(s ApiSeries, precision TimePrecision) (*protocol.Series, error) {
-	if !VALID_TABLE_NAMES.MatchString(s.GetName()) {
-		return nil, fmt.Errorf("%s is not a valid series name", s.GetName())
-	}
-
 	points := []*protocol.Point{}
 	for _, point := range s.GetPoints() {
 		values := []*protocol.FieldValue{}

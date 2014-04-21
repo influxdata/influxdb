@@ -2,9 +2,9 @@ package parser
 
 import (
 	"fmt"
+	. "launchpad.net/gocheck"
 	"testing"
 	"time"
-	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -263,6 +263,14 @@ func (self *QueryParserSuite) TestParseListSeries(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(queries, HasLen, 1)
 	c.Assert(queries[0].IsListQuery(), Equals, true)
+}
+
+// issue #267
+func (self *QueryParserSuite) TestParseSelectWithWeirdCharacters(c *C) {
+	q, err := ParseSelectQuery("select a from \"/blah ( ) ; : ! @ # $ \n \t,foo\\\"=bar/baz\"")
+	c.Assert(err, IsNil)
+	c.Assert(q.GetFromClause().Names[0].Name.Name, Equals, "/blah ( ) ; : ! @ # $ \n \t,foo\"=bar/baz")
+	c.Assert(q.GetColumnNames(), HasLen, 1)
 }
 
 // issue #150
