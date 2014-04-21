@@ -538,15 +538,17 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 				fieldIndex := series.GetFieldIndex(fieldName)
 				return point.GetFieldValueAsString(fieldIndex)
 			})
-			cleanedTargetName := strings.Map(replaceInvalidCharacters, targetNameWithValues)
+
+			sanitizedTargetName := strings.Map(replaceInvalidCharacters, targetNameWithValues)
 
 			if assignSequenceNumbers {
-				sequenceMap[sequenceKey{targetName, *point.Timestamp}] += 1
-				sequenceNumber := uint64(sequenceMap[sequenceKey{targetName, *point.Timestamp}])
+				key := sequenceKey{sanitizedTargetName, *point.Timestamp}
+				sequenceMap[key] += 1
+				sequenceNumber := uint64(sequenceMap[key])
 				point.SequenceNumber = &sequenceNumber
 			}
 
-			newSeries := &protocol.Series{Name: &cleanedTargetName, Fields: series.Fields, Points: []*protocol.Point{point}}
+			newSeries := &protocol.Series{Name: &sanitizedTargetName, Fields: series.Fields, Points: []*protocol.Point{point}}
 			if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}); e != nil {
 				log.Error("Couldn't write data for continuous query: ", e)
 			}
