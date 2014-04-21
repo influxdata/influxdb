@@ -60,6 +60,22 @@ func (self *SingleServerSuite) TestLargeDeletes(c *C) {
 	c.Assert(data, HasLen, 0)
 }
 
+func (self *SingleServerSuite) TestDeletesFromCapitalNames(c *C) {
+	data := CreatePoints("TestLargeDeletes", 1, 1)
+	self.server.WriteData(data, c)
+	data = self.server.RunQuery("select count(column0) from TestLargeDeletes", "m", c)
+	c.Assert(data, HasLen, 1)
+	c.Assert(data[0].Points, HasLen, 1)
+	c.Assert(data[0].Points[0][1], Equals, 1.0)
+
+	query := "delete from TestLargeDeletes"
+	_ = self.server.RunQuery(query, "m", c)
+
+	// this shouldn't return any data
+	data = self.server.RunQuery("select count(column0) from TestLargeDeletes", "m", c)
+	c.Assert(data, HasLen, 0)
+}
+
 func (self *SingleServerSuite) TestSslOnly(c *C) {
 	self.server.Stop()
 	// TODO: don't hard code the path here
