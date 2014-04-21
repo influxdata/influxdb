@@ -718,14 +718,6 @@ func (self *ClusterConfiguration) GetShards(querySpec *parser.QuerySpec) []*Shar
 	self.shardsByIdLock.RLock()
 	defer self.shardsByIdLock.RUnlock()
 
-	if querySpec.IsDropSeriesQuery() {
-		seriesName := querySpec.Query().DropSeriesQuery.GetTableName()
-		if seriesName[0] < FIRST_LOWER_CASE_CHARACTER {
-			return self.longTermShards
-		}
-		return self.shortTermShards
-	}
-
 	shouldQueryShortTerm, shouldQueryLongTerm := querySpec.ShouldQueryShortTermAndLongTerm()
 
 	if shouldQueryLongTerm && shouldQueryShortTerm {

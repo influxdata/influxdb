@@ -81,8 +81,15 @@ func (self *QuerySpec) SeriesValuesAndColumns() map[*Value][]string {
 	}
 	if self.query.SelectQuery != nil {
 		self.seriesValuesAndColumns = self.query.SelectQuery.GetReferencedColumns()
-	} else {
+	} else if self.query.DeleteQuery != nil {
 		self.seriesValuesAndColumns = make(map[*Value][]string)
+		for _, name := range self.query.DeleteQuery.GetFromClause().Names {
+			self.seriesValuesAndColumns[name.Name] = nil
+		}
+	} else if self.query.DropSeriesQuery != nil {
+		self.seriesValuesAndColumns = make(map[*Value][]string)
+		value := &Value{Name: self.query.DropSeriesQuery.GetTableName()}
+		self.seriesValuesAndColumns[value] = nil
 	}
 	return self.seriesValuesAndColumns
 }
