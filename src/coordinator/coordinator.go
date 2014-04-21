@@ -313,6 +313,7 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 				return
 			}
 			if !(*response.Type == queryResponse && querySpec.IsExplainQuery()) {
+				log.Info("recieved %d points on the response channel", len(response.Series.Points))
 				if response.Series != nil && len(response.Series.Points) > 0 {
 					writer.Write(response.Series)
 				}
@@ -609,6 +610,8 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 			s.Points = append(s.Points, newSeries.Points...)
 		}
 	}
+
+	log.Info("Writing points to %d shards", len(shardToSerieses))
 
 	for id, serieses := range shardToSerieses {
 		shard := shardIdToShard[id]

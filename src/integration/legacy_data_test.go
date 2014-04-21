@@ -136,7 +136,7 @@ func (self *DataTestSuite) CountQuery(c *C) (Fun, Fun) {
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       }
     ],
     "name": "foo",
@@ -201,7 +201,7 @@ func (self *DataTestSuite) FirstAndLastQuery(c *C) (Fun, Fun) {
             "int64_value": 3
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       }
     ],
     "name": "foo",
@@ -255,7 +255,7 @@ func (self *DataTestSuite) UpperCaseQuery(c *C) (Fun, Fun) {
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       }
     ],
     "name": "foo",
@@ -313,7 +313,7 @@ func (self *DataTestSuite) CountQueryWithRegexTables(c *C) (Fun, Fun) {
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       }
     ],
     "name": "foo.bar",
@@ -327,7 +327,7 @@ func (self *DataTestSuite) CountQueryWithRegexTables(c *C) (Fun, Fun) {
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       }
     ],
     "name": "foo.baz",
@@ -380,7 +380,7 @@ func (self *DataTestSuite) CountQueryWithGroupByClause(c *C) (Fun, Fun) {
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       },
       {
         "values": [
@@ -391,7 +391,7 @@ func (self *DataTestSuite) CountQueryWithGroupByClause(c *C) (Fun, Fun) {
             "string_value": "another_value"
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       }
     ],
     "name": "foo",
@@ -462,7 +462,7 @@ func (self *DataTestSuite) CountQueryWithGroupByClauseAndNullValues(c *C) (Fun, 
             "string_value": "some_value"
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       },
       {
         "values": [
@@ -473,7 +473,7 @@ func (self *DataTestSuite) CountQueryWithGroupByClauseAndNullValues(c *C) (Fun, 
             "string_value": "another_value"
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       },
       {
         "values": [
@@ -484,7 +484,7 @@ func (self *DataTestSuite) CountQueryWithGroupByClauseAndNullValues(c *C) (Fun, 
 						"is_null": true
 					}
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       }
     ],
     "name": "foo",
@@ -557,7 +557,7 @@ func (self *DataTestSuite) CountQueryWithGroupByClauseWithMultipleColumns(c *C) 
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       },
       {
         "values": [
@@ -571,7 +571,7 @@ func (self *DataTestSuite) CountQueryWithGroupByClauseWithMultipleColumns(c *C) 
             "int64_value": 2
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       },
 			{
         "values": [
@@ -585,7 +585,7 @@ func (self *DataTestSuite) CountQueryWithGroupByClauseWithMultipleColumns(c *C) 
             "int64_value": 1
           }
         ],
-        "timestamp": 1381346631000000
+        "timestamp": 0
       }
     ],
     "name": "foo",
@@ -927,7 +927,7 @@ func (self *DataTestSuite) CountDistinct(c *C) (Fun, Fun) {
 				runQuery(client, fmt.Sprintf("select count(%s(column_one)) from foo order asc", fun), c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 9 }], "timestamp": 1381346771000000}
+        { "values": [{ "int64_value": 9 }], "timestamp": 0}
       ],
       "name": "foo",
       "fields": ["count"]
@@ -1048,8 +1048,8 @@ func (self *DataTestSuite) EmptyGroupsWithoutTime(c *C) (Fun, Fun) {
 				runQuery(client, query, c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 5}, { "int64_value": 1 }], "timestamp": 1381346871000000},
-        { "values": [{ "int64_value": 6}, { "int64_value": 3 }], "timestamp": 1381346871000000}
+        { "values": [{ "int64_value": 5}, { "int64_value": 1 }], "timestamp": 0},
+        { "values": [{ "int64_value": 6}, { "int64_value": 3 }], "timestamp": 0}
       ],
       "name": "foo",
       "fields": ["count", "column_one"]
@@ -1309,9 +1309,9 @@ func (self *DataTestSuite) DistinctQuery(c *C) (Fun, Fun) {
 			runQuery(client, "select distinct(column_one) from foo order asc", c, `[
     {
       "points": [
-        { "values": [{ "double_value": 1 }], "timestamp": 1381347704000000},
-        { "values": [{ "double_value": 2 }], "timestamp": 1381347704000000},
-        { "values": [{ "double_value": 6 }], "timestamp": 1381347704000000}
+        { "values": [{ "double_value": 1 }], "timestamp": 0},
+        { "values": [{ "double_value": 2 }], "timestamp": 0},
+        { "values": [{ "double_value": 6 }], "timestamp": 0}
       ],
       "name": "foo",
       "fields": ["distinct"]

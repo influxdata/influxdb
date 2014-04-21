@@ -56,7 +56,7 @@ outer:
 	}
 	// wait for all logging messages to be printed
 	<-stopped
-	time.Sleep(time.Second)
+	time.Sleep(5 * time.Second)
 	os.Exit(0)
 }
 

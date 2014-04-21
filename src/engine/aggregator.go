@@ -15,11 +15,10 @@ import (
 type PointSlice []protocol.Point
 
 type Aggregator interface {
-	AggregatePoint(series string, group interface{}, p *protocol.Point) error
-	AggregateSeries(series string, group interface{}, s *protocol.Series) error
+	AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error)
 	InitializeFieldsMetadata(series *protocol.Series) error
-	GetValues(series string, group interface{}) [][]*protocol.FieldValue
-	CalculateSummaries(series string, group interface{})
+	GetValues(state interface{}) [][]*protocol.FieldValue
+	CalculateSummaries(state interface{})
 	ColumnNames() []string
 }
 
@@ -31,11 +30,11 @@ type AggregatorInitializer func(*parser.SelectQuery, *parser.Value, *parser.Valu
 var registeredAggregators = make(map[string]AggregatorInitializer)
 
 func init() {
+	registeredAggregators["max"] = NewMaxAggregator
 	registeredAggregators["count"] = NewCountAggregator
 	registeredAggregators["histogram"] = NewHistogramAggregator
 	registeredAggregators["derivative"] = NewDerivativeAggregator
 	registeredAggregators["stddev"] = NewStandardDeviationAggregator
-	registeredAggregators["max"] = NewMaxAggregator
 	registeredAggregators["min"] = NewMinAggregator
 	registeredAggregators["sum"] = NewSumAggregator
 	registeredAggregators["percentile"] = NewPercentileAggregator
@@ -66,141 +65,7 @@ func (self *AbstractAggregator) InitializeFieldsMetadata(series *protocol.Series
 	return nil
 }
 
-func (self *AbstractAggregator) CalculateSummaries(series string, group interface{}) {
-}
-
-//
-// Composite Aggregator
-//
-
-type CompositeAggregator struct {
-	left  Aggregator
-	right Aggregator
-}
-
-func (self *CompositeAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	return self.right.AggregatePoint(series, group, p)
-}
-
-func (self *CompositeAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	return self.right.AggregateSeries(series, group, s)
-}
-
-func (self *CompositeAggregator) ColumnNames() []string {
-	return self.left.ColumnNames()
-}
-
-func (self *CompositeAggregator) CalculateSummaries(series string, group interface{}) {
-	self.right.CalculateSummaries(series, group)
-	values := self.right.GetValues(series, group)
-	for _, v := range values {
-		point := &protocol.Point{Values: v}
-		self.left.AggregatePoint(series, group, point)
-	}
-	self.left.CalculateSummaries(series, group)
-}
-
-func (self *CompositeAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
-	values := self.left.GetValues(series, group)
-	return values
-}
-
-func (self *CompositeAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
-	return self.right.InitializeFieldsMetadata(series)
-}
-
-func NewCompositeAggregator(left, right Aggregator) (Aggregator, error) {
-	return &CompositeAggregator{left, right}, nil
-}
-
-//
-// StandardDeviation Aggregator
-//
-
-type StandardDeviationRunning struct {
-	count   int
-	totalX2 float64
-	totalX  float64
-}
-
-type StandardDeviationAggregator struct {
-	AbstractAggregator
-	running      map[string]map[interface{}]*StandardDeviationRunning
-	defaultValue *protocol.FieldValue
-	alias        string
-}
-
-func (self *StandardDeviationAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	fieldValue, err := GetValue(self.value, self.columns, p)
-	if err != nil {
-		return err
-	}
-
-	var value float64
-	if ptr := fieldValue.Int64Value; ptr != nil {
-		value = float64(*ptr)
-	} else if ptr := fieldValue.DoubleValue; ptr != nil {
-		value = *ptr
-	} else {
-		// else ignore this point
-		return nil
-	}
-
-	running := self.running[series]
-	if running == nil {
-		running = make(map[interface{}]*StandardDeviationRunning)
-		self.running[series] = running
-	}
-
-	r := running[group]
-	if r == nil {
-		r = &StandardDeviationRunning{}
-		running[group] = r
-	}
-
-	r.count++
-	r.totalX += value
-	r.totalX2 += value * value
-	return nil
-}
-
-//TODO: to be optimized
-func (self *StandardDeviationAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	for _, p := range s.Points {
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
-}
-
-func (self *StandardDeviationAggregator) ColumnNames() []string {
-	if self.alias != "" {
-		return []string{self.alias}
-	}
-
-	return []string{"stddev"}
-}
-
-func (self *StandardDeviationAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
-	r := self.running[series][group]
-
-	defer delete(self.running[series], group)
-
-	if r.count == 0 {
-		return [][]*protocol.FieldValue{
-			[]*protocol.FieldValue{self.defaultValue},
-		}
-	}
-
-	eX := r.totalX / float64(r.count)
-	eX *= eX
-	eX2 := r.totalX2 / float64(r.count)
-	standardDeviation := math.Sqrt(eX2 - eX)
-
-	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{
-			&protocol.FieldValue{DoubleValue: &standardDeviation},
-		},
-	}
+func (self *AbstractAggregator) CalculateSummaries(state interface{}) {
 }
 
 func wrapDefaultValue(defaultValue *parser.Value) (*protocol.FieldValue, error) {
@@ -215,6 +80,246 @@ func wrapDefaultValue(defaultValue *parser.Value) (*protocol.FieldValue, error) 
 		return &protocol.FieldValue{Int64Value: &value}, nil
 	default:
 		return nil, fmt.Errorf("Unknown type %s", defaultValue.Type)
+	}
+}
+
+type Operation func(currentValue float64, newValue *protocol.FieldValue) float64
+
+type CumulativeArithmeticAggregatorState float64
+
+type CumulativeArithmeticAggregator struct {
+	AbstractAggregator
+	name         string
+	operation    Operation
+	initialValue float64
+	defaultValue *protocol.FieldValue
+}
+
+var count int = 0
+
+func (self *CumulativeArithmeticAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	if state == nil {
+		state = self.initialValue
+	}
+
+	value, err := GetValue(self.value, self.columns, p)
+	if err != nil {
+		return nil, err
+	}
+	return self.operation(state.(float64), value), nil
+}
+
+func (self *CumulativeArithmeticAggregator) ColumnNames() []string {
+	return []string{self.name}
+}
+
+func (self *CumulativeArithmeticAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	if state == nil {
+		return [][]*protocol.FieldValue{
+			[]*protocol.FieldValue{
+				&protocol.FieldValue{DoubleValue: &self.initialValue},
+			},
+		}
+	}
+
+	return [][]*protocol.FieldValue{
+		[]*protocol.FieldValue{
+			&protocol.FieldValue{
+				DoubleValue: protocol.Float64(state.(float64)),
+			},
+		},
+	}
+}
+
+func NewCumulativeArithmeticAggregator(name string, value *parser.Value, initialValue float64, defaultValue *parser.Value, operation Operation) (Aggregator, error) {
+	if len(value.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
+	}
+
+	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
+	if err != nil {
+		return nil, err
+	}
+
+	if value.Alias != "" {
+		name = value.Alias
+	}
+
+	return &CumulativeArithmeticAggregator{
+		AbstractAggregator: AbstractAggregator{
+			value: value.Elems[0],
+		},
+		name:         name,
+		operation:    operation,
+		initialValue: initialValue,
+		defaultValue: wrappedDefaultValue,
+	}, nil
+}
+
+func NewMaxAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	return NewCumulativeArithmeticAggregator("max", value, -math.MaxFloat64, defaultValue, func(currentValue float64, p *protocol.FieldValue) float64 {
+		if p.Int64Value != nil {
+			if fv := float64(*p.Int64Value); fv > currentValue {
+				return fv
+			}
+		} else if p.DoubleValue != nil {
+			if fv := *p.DoubleValue; fv > currentValue {
+				return fv
+			}
+		}
+		return currentValue
+	})
+}
+
+func NewMinAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	return NewCumulativeArithmeticAggregator("min", value, math.MaxFloat64, defaultValue, func(currentValue float64, p *protocol.FieldValue) float64 {
+		if p.Int64Value != nil {
+			if fv := float64(*p.Int64Value); fv < currentValue {
+				return fv
+			}
+		} else if p.DoubleValue != nil {
+			if fv := *p.DoubleValue; fv < currentValue {
+				return fv
+			}
+		}
+		return currentValue
+	})
+}
+
+func NewSumAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	return NewCumulativeArithmeticAggregator("sum", value, 0, defaultValue, func(currentValue float64, p *protocol.FieldValue) float64 {
+		var fv float64
+		if p.Int64Value != nil {
+			fv = float64(*p.Int64Value)
+		} else if p.DoubleValue != nil {
+			fv = *p.DoubleValue
+		}
+		return currentValue + fv
+	})
+}
+
+//
+// Composite Aggregator
+//
+
+type CompositeAggregatorState struct {
+	rightState interface{}
+	leftState  interface{}
+}
+
+type CompositeAggregator struct {
+	left  Aggregator
+	right Aggregator
+}
+
+func (self *CompositeAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	s, ok := state.(*CompositeAggregatorState)
+	if !ok {
+		s = &CompositeAggregatorState{}
+	}
+	var err error
+	s.rightState, err = self.right.AggregatePoint(s.rightState, p)
+	return s, err
+}
+
+func (self *CompositeAggregator) ColumnNames() []string {
+	return self.left.ColumnNames()
+}
+
+func (self *CompositeAggregator) CalculateSummaries(state interface{}) {
+	s := state.(*CompositeAggregatorState)
+	self.right.CalculateSummaries(s.rightState)
+	values := self.right.GetValues(s.rightState)
+	fmt.Printf("distinct returned: %d\n", len(values))
+	for _, v := range values {
+		point := &protocol.Point{Values: v}
+		var err error
+		s.leftState, err = self.left.AggregatePoint(s.leftState, point)
+		if err != nil {
+			panic(fmt.Errorf("Error returned from aggregator: %s", err))
+		}
+	}
+	s.rightState = nil
+	self.left.CalculateSummaries(s.leftState)
+}
+
+func (self *CompositeAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	s := state.(*CompositeAggregatorState)
+	return self.left.GetValues(s.leftState)
+}
+
+func (self *CompositeAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+	return self.right.InitializeFieldsMetadata(series)
+}
+
+func NewCompositeAggregator(left, right Aggregator) (Aggregator, error) {
+	return &CompositeAggregator{left, right}, nil
+}
+
+// StandardDeviation Aggregator
+
+type StandardDeviationRunning struct {
+	count   int
+	totalX2 float64
+	totalX  float64
+}
+
+type StandardDeviationAggregator struct {
+	AbstractAggregator
+	defaultValue *protocol.FieldValue
+	alias        string
+}
+
+func (self *StandardDeviationAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	fieldValue, err := GetValue(self.value, self.columns, p)
+	if err != nil {
+		return nil, err
+	}
+
+	var value float64
+	if ptr := fieldValue.Int64Value; ptr != nil {
+		value = float64(*ptr)
+	} else if ptr := fieldValue.DoubleValue; ptr != nil {
+		value = *ptr
+	} else {
+		// else ignore this point
+		return state, nil
+	}
+
+	running, ok := state.(*StandardDeviationRunning)
+	if !ok {
+		running = &StandardDeviationRunning{}
+	}
+
+	running.count++
+	running.totalX += value
+	running.totalX2 += value * value
+	return running, nil
+}
+
+func (self *StandardDeviationAggregator) ColumnNames() []string {
+	if self.alias != "" {
+		return []string{self.alias}
+	}
+
+	return []string{"stddev"}
+}
+
+func (self *StandardDeviationAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	r, ok := state.(*StandardDeviationRunning)
+	if !ok {
+		return nil
+	}
+
+	eX := r.totalX / float64(r.count)
+	eX *= eX
+	eX2 := r.totalX2 / float64(r.count)
+	standardDeviation := math.Sqrt(eX2 - eX)
+
+	return [][]*protocol.FieldValue{
+		[]*protocol.FieldValue{
+			&protocol.FieldValue{DoubleValue: &standardDeviation},
+		},
 	}
 }
 
@@ -235,7 +340,6 @@ func NewStandardDeviationAggregator(q *parser.SelectQuery, v *parser.Value, defa
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
 		},
-		running:      make(map[string]map[interface{}]*StandardDeviationRunning),
 		defaultValue: value,
 		alias:        v.Alias,
 	}, nil
@@ -245,18 +349,21 @@ func NewStandardDeviationAggregator(q *parser.SelectQuery, v *parser.Value, defa
 // Derivative Aggregator
 //
 
+type DerivativeAggregatorState struct {
+	firstValue *protocol.Point
+	lastValue  *protocol.Point
+}
+
 type DerivativeAggregator struct {
 	AbstractAggregator
-	firstValues  map[string]map[interface{}]*protocol.Point
-	lastValues   map[string]map[interface{}]*protocol.Point
 	defaultValue *protocol.FieldValue
 	alias        string
 }
 
-func (self *DerivativeAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+func (self *DerivativeAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
 	fieldValue, err := GetValue(self.value, self.columns, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var value float64
@@ -266,7 +373,7 @@ func (self *DerivativeAggregator) AggregatePoint(series string, group interface{
 		value = *ptr
 	} else {
 		// else ignore this point
-		return nil
+		return state, nil
 	}
 
 	newValue := &protocol.Point{
@@ -274,33 +381,18 @@ func (self *DerivativeAggregator) AggregatePoint(series string, group interface{
 		Values:    []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &value}},
 	}
 
-	firstValues := self.firstValues[series]
-	if firstValues == nil {
-		firstValues = make(map[interface{}]*protocol.Point)
-		self.firstValues[series] = firstValues
+	s, ok := state.(*DerivativeAggregatorState)
+	if !ok {
+		s = &DerivativeAggregatorState{}
 	}
 
-	if _, ok := firstValues[group]; !ok {
-		firstValues[group] = newValue
-		return nil
+	if s.firstValue == nil {
+		s.firstValue = newValue
+		return s, nil
 	}
 
-	lastValues := self.lastValues[series]
-	if lastValues == nil {
-		lastValues = make(map[interface{}]*protocol.Point)
-		self.lastValues[series] = lastValues
-	}
-
-	lastValues[group] = newValue
-	return nil
-}
-
-//TODO: to be optimized
-func (self *DerivativeAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	for _, p := range s.Points {
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
+	s.lastValue = newValue
+	return s, nil
 }
 
 func (self *DerivativeAggregator) ColumnNames() []string {
@@ -310,27 +402,21 @@ func (self *DerivativeAggregator) ColumnNames() []string {
 	return []string{"derivative"}
 }
 
-func (self *DerivativeAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
-	oldValue := self.firstValues[series][group]
-	newValue := self.lastValues[series][group]
+func (self *DerivativeAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	s, ok := state.(*DerivativeAggregatorState)
 
-	defer delete(self.firstValues[series], group)
-	defer delete(self.lastValues[series], group)
+	if !(ok && s.firstValue != nil && s.lastValue != nil) {
+		return nil
+	}
 
-	if newValue != nil {
-		// if an old value exist, then compute the derivative and insert it in the points slice
-		deltaT := float64(*newValue.Timestamp-*oldValue.Timestamp) / float64(time.Second/time.Microsecond)
-		deltaV := *newValue.Values[0].DoubleValue - *oldValue.Values[0].DoubleValue
-		derivative := deltaV / deltaT
-		return [][]*protocol.FieldValue{
-			[]*protocol.FieldValue{
-				&protocol.FieldValue{DoubleValue: &derivative},
-			},
-		}
-	} else if self.defaultValue != nil {
-		return [][]*protocol.FieldValue{
-			[]*protocol.FieldValue{self.defaultValue},
-		}
+	// if an old value exist, then compute the derivative and insert it in the points slice
+	deltaT := float64(*s.lastValue.Timestamp-*s.firstValue.Timestamp) / float64(time.Second/time.Microsecond)
+	deltaV := *s.lastValue.Values[0].DoubleValue - *s.lastValue.Values[0].DoubleValue
+	derivative := deltaV / deltaT
+	return [][]*protocol.FieldValue{
+		[]*protocol.FieldValue{
+			&protocol.FieldValue{DoubleValue: &derivative},
+		},
 	}
 	return [][]*protocol.FieldValue{}
 }
@@ -353,8 +439,6 @@ func NewDerivativeAggregator(q *parser.SelectQuery, v *parser.Value, defaultValu
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
 		},
-		firstValues:  make(map[string]map[interface{}]*protocol.Point),
-		lastValues:   make(map[string]map[interface{}]*protocol.Point),
 		defaultValue: wrappedDefaultValue,
 		alias:        v.Alias,
 	}, nil
@@ -364,29 +448,23 @@ func NewDerivativeAggregator(q *parser.SelectQuery, v *parser.Value, defaultValu
 // Histogram Aggregator
 //
 
+type HistogramAggregatorState map[int]int
+
 type HistogramAggregator struct {
 	AbstractAggregator
 	bucketSize  float64
-	histograms  map[string]map[interface{}]map[int]int
 	columnNames []string
 }
 
-func (self *HistogramAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	groups := self.histograms[series]
-	if groups == nil {
-		groups = make(map[interface{}]map[int]int)
-		self.histograms[series] = groups
-	}
-
-	buckets := groups[group]
-	if buckets == nil {
+func (self *HistogramAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	buckets, ok := state.(HistogramAggregatorState)
+	if !ok {
 		buckets = make(map[int]int)
-		groups[group] = buckets
 	}
 
 	fieldValue, err := GetValue(self.value, self.columns, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var value float64
@@ -399,25 +477,16 @@ func (self *HistogramAggregator) AggregatePoint(series string, group interface{}
 	bucket := int(value / self.bucketSize)
 	buckets[bucket] += 1
 
-	return nil
-}
-
-//TODO: to be optimized
-func (self *HistogramAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	for _, p := range s.Points {
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
+	return buckets, nil
 }
 
 func (self *HistogramAggregator) ColumnNames() []string {
 	return self.columnNames
 }
 
-func (self *HistogramAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
+func (self *HistogramAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
-	buckets := self.histograms[series][group]
-	defer delete(self.histograms[series], group)
+	buckets := state.(HistogramAggregatorState)
 	for bucket, size := range buckets {
 		_bucket := float64(bucket) * self.bucketSize
 		_size := int64(size)
@@ -470,7 +539,6 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 			value: v.Elems[0],
 		},
 		bucketSize:  bucketSize,
-		histograms:  make(map[string]map[interface{}]map[int]int),
 		columnNames: columnNames,
 	}, nil
 }
@@ -482,28 +550,16 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 type CountAggregator struct {
 	AbstractAggregator
 	defaultValue *protocol.FieldValue
-	counts       map[string]map[interface{}]int64
 	alias        string
 }
 
-func (self *CountAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	counts := self.counts[series]
-	if counts == nil {
-		counts = make(map[interface{}]int64)
-		self.counts[series] = counts
-	}
-	counts[group]++
-	return nil
-}
+type CountAggregatorState int64
 
-func (self *CountAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	counts := self.counts[series]
-	if counts == nil {
-		counts = make(map[interface{}]int64)
-		self.counts[series] = counts
+func (self *CountAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	if state == nil {
+		return int64(1), nil
 	}
-	counts[group] += int64(len(s.Points))
-	return nil
+	return state.(int64) + 1, nil
 }
 
 func (self *CountAggregator) ColumnNames() []string {
@@ -513,14 +569,12 @@ func (self *CountAggregator) ColumnNames() []string {
 	return []string{"count"}
 }
 
-func (self *CountAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
+func (self *CountAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
-	_value, ok := self.counts[series][group]
-	defer delete(self.counts[series], group)
-	value := int64(_value)
-	if !ok {
+	if state == nil {
 		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
 	} else {
+		value := state.(int64)
 		returnValues = append(returnValues, []*protocol.FieldValue{
 			&protocol.FieldValue{Int64Value: &value},
 		})
@@ -555,123 +609,36 @@ func NewCountAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *pa
 		if err != nil {
 			return nil, err
 		}
-		return NewCompositeAggregator(&CountAggregator{AbstractAggregator{}, wrappedDefaultValue, make(map[string]map[interface{}]int64), v.Alias}, inner)
+		return NewCompositeAggregator(&CountAggregator{AbstractAggregator{}, wrappedDefaultValue, v.Alias}, inner)
 	}
 
-	return &CountAggregator{AbstractAggregator{}, wrappedDefaultValue, make(map[string]map[interface{}]int64), v.Alias}, nil
-}
-
-//
-// Timestamp Aggregator
-//
-
-type TimestampAggregator struct {
-	AbstractAggregator
-	duration   *uint64
-	timestamps map[string]map[interface{}]int64
-}
-
-func (self *TimestampAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	timestamps := self.timestamps[series]
-	if timestamps == nil {
-		timestamps = make(map[interface{}]int64)
-		self.timestamps[series] = timestamps
-	}
-	if self.duration != nil {
-		timestampNanoseconds := uint64(*p.GetTimestampInMicroseconds()) * 1000
-		timestamps[group] = int64(timestampNanoseconds / *self.duration * *self.duration / 1000)
-	} else {
-		timestamps[group] = *p.GetTimestampInMicroseconds()
-	}
-	return nil
-}
-
-func (self *TimestampAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	if len(s.Points) == 0 {
-		return nil
-	}
-
-	return self.AggregatePoint(series, group, s.Points[len(s.Points)-1])
-}
-
-/*
-//TODO: to be optimized
-func (self *TimestampAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	//log.Error("Timestamp: ", len(s.Points))
-	for _, p := range s.Points {
-		//log.Error("Point: ", p)
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
-}
-*/
-
-func (self *TimestampAggregator) ColumnNames() []string {
-	return []string{"count"}
-}
-
-func (self *TimestampAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
-	returnValues := [][]*protocol.FieldValue{}
-	value := self.timestamps[series][group]
-	returnValues = append(returnValues, []*protocol.FieldValue{
-		&protocol.FieldValue{Int64Value: &value},
-	})
-
-	return returnValues
-}
-
-func (self *TimestampAggregator) InitializeFieldsMetadata(series *protocol.Series) error { return nil }
-
-func NewTimestampAggregator(query *parser.SelectQuery, _ *parser.Value) (Aggregator, error) {
-	duration, err := query.GetGroupByClause().GetGroupByTime()
-	if err != nil {
-		return nil, err
-	}
-
-	var durationPtr *uint64
-
-	if duration != nil {
-		newDuration := uint64(*duration)
-		durationPtr = &newDuration
-	}
-
-	return &TimestampAggregator{
-		AbstractAggregator: AbstractAggregator{},
-		timestamps:         make(map[string]map[interface{}]int64),
-		duration:           durationPtr,
-	}, nil
+	return &CountAggregator{AbstractAggregator{}, wrappedDefaultValue, v.Alias}, nil
 }
 
 //
 // Mean Aggregator
 //
 
+type MeanAggregatorState struct {
+	mean  float64
+	count float64
+}
+
 type MeanAggregator struct {
 	AbstractAggregator
-	means        map[string]map[interface{}]float64
-	counts       map[string]map[interface{}]int
 	defaultValue *protocol.FieldValue
 	alias        string
 }
 
-func (self *MeanAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	means := self.means[series]
-	counts := self.counts[series]
-
-	if means == nil && counts == nil {
-		means = make(map[interface{}]float64)
-		self.means[series] = means
-
-		counts = make(map[interface{}]int)
-		self.counts[series] = counts
+func (self *MeanAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	s, ok := state.(*MeanAggregatorState)
+	if !ok {
+		s = &MeanAggregatorState{}
 	}
-
-	currentMean := means[group]
-	currentCount := counts[group] + 1
 
 	fieldValue, err := GetValue(self.value, self.columns, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var value float64
@@ -681,19 +648,10 @@ func (self *MeanAggregator) AggregatePoint(series string, group interface{}, p *
 		value = *ptr
 	}
 
-	currentMean = currentMean*float64(currentCount-1)/float64(currentCount) + value/float64(currentCount)
+	s.count++
+	s.mean = s.mean*(s.count-1)/s.count + value/s.count
 
-	means[group] = currentMean
-	counts[group] = currentCount
-	return nil
-}
-
-//TODO: to be optimized
-func (self *MeanAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	for _, p := range s.Points {
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
+	return s, nil
 }
 
 func (self *MeanAggregator) ColumnNames() []string {
@@ -703,15 +661,14 @@ func (self *MeanAggregator) ColumnNames() []string {
 	return []string{"mean"}
 }
 
-func (self *MeanAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
+func (self *MeanAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
-	mean, ok := self.means[series][group]
-	defer delete(self.means[series], group)
+	s, ok := state.(*MeanAggregatorState)
 	if !ok {
 		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
 	} else {
 		returnValues = append(returnValues, []*protocol.FieldValue{
-			&protocol.FieldValue{DoubleValue: &mean},
+			&protocol.FieldValue{DoubleValue: &s.mean},
 		})
 	}
 
@@ -732,8 +689,6 @@ func NewMeanAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 		AbstractAggregator: AbstractAggregator{
 			value: value.Elems[0],
 		},
-		means:        make(map[string]map[interface{}]float64),
-		counts:       make(map[string]map[interface{}]int),
 		defaultValue: wrappedDefaultValue,
 		alias:        value.Alias,
 	}, nil
@@ -760,8 +715,6 @@ func NewMedianAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValu
 		},
 		functionName: functionName,
 		percentile:   50.0,
-		percentiles:  make(map[string]map[interface{}]float64),
-		state:        make(map[string]map[interface{}][]float64),
 		defaultValue: wrappedDefaultValue,
 		alias:        value.Alias,
 	}
@@ -772,20 +725,23 @@ func NewMedianAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValu
 // Percentile Aggregator
 //
 
+type PercentileAggregatorState struct {
+	values          []float64
+	percentileValue float64
+}
+
 type PercentileAggregator struct {
 	AbstractAggregator
 	functionName string
 	percentile   float64
-	percentiles  map[string]map[interface{}]float64
-	state        map[string]map[interface{}][]float64
 	defaultValue *protocol.FieldValue
 	alias        string
 }
 
-func (self *PercentileAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
+func (self *PercentileAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
 	v, err := GetValue(self.value, self.columns, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	value := 0.0
@@ -794,26 +750,17 @@ func (self *PercentileAggregator) AggregatePoint(series string, group interface{
 	} else if v.DoubleValue != nil {
 		value = *v.DoubleValue
 	} else {
-		return nil
+		return state, nil
 	}
 
-	values := self.state[series]
-	if values == nil {
-		values = map[interface{}][]float64{}
-		self.state[series] = values
+	s, ok := state.(*PercentileAggregatorState)
+	if !ok {
+		s = &PercentileAggregatorState{}
 	}
 
-	values[group] = append(values[group], value)
+	s.values = append(s.values, value)
 
-	return nil
-}
-
-//TODO: to be optimized
-func (self *PercentileAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	for _, p := range s.Points {
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
+	return s, nil
 }
 
 func (self *PercentileAggregator) ColumnNames() []string {
@@ -823,39 +770,30 @@ func (self *PercentileAggregator) ColumnNames() []string {
 	return []string{self.functionName}
 }
 
-func (self *PercentileAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
-	value, ok := self.percentiles[series][group]
-	defer delete(self.percentiles[series], group)
-
+func (self *PercentileAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	s, ok := state.(*PercentileAggregatorState)
 	if !ok {
 		return [][]*protocol.FieldValue{
 			[]*protocol.FieldValue{self.defaultValue},
 		}
 	}
-
 	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &value}},
+		[]*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &s.percentileValue}},
 	}
 }
 
-func (self *PercentileAggregator) CalculateSummaries(series string, group interface{}) {
-	values := self.state[series][group]
-	defer delete(self.state[series], group)
-	sort.Float64s(values)
-	length := len(values)
+func (self *PercentileAggregator) CalculateSummaries(state interface{}) {
+	s := state.(*PercentileAggregatorState)
+	sort.Float64s(s.values)
+	length := len(s.values)
 	index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
 
-	if index < 0 || index >= len(values) {
+	if index < 0 || index >= len(s.values) {
 		return
 	}
 
-	value := values[index]
-	percentiles := self.percentiles[series]
-	if percentiles == nil {
-		percentiles = map[interface{}]float64{}
-		self.percentiles[series] = percentiles
-	}
-	percentiles[group] = value
+	s.percentileValue = s.values[index]
+	s.values = nil
 }
 
 func NewPercentileAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
@@ -884,8 +822,6 @@ func NewPercentileAggregator(_ *parser.SelectQuery, value *parser.Value, default
 		},
 		functionName: functionName,
 		percentile:   percentile,
-		percentiles:  make(map[string]map[interface{}]float64),
-		state:        make(map[string]map[interface{}][]float64),
 		defaultValue: wrappedDefaultValue,
 	}, nil
 }
@@ -894,29 +830,26 @@ func NewPercentileAggregator(_ *parser.SelectQuery, value *parser.Value, default
 // Mode Aggregator
 //
 
+type ModeAggregatorState struct {
+	counts map[float64]int
+	modes  []float64
+}
+
 type ModeAggregator struct {
 	AbstractAggregator
-	counts       map[string]map[interface{}]map[float64]int
-	modes        map[string]map[interface{}][]float64
 	defaultValue *protocol.FieldValue
 	alias        string
 }
 
-func (self *ModeAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	seriesCounts := self.counts[series]
-	if seriesCounts == nil {
-		seriesCounts = make(map[interface{}]map[float64]int)
-		self.counts[series] = seriesCounts
-	}
-
-	groupCounts := seriesCounts[group]
-	if groupCounts == nil {
-		groupCounts = make(map[float64]int)
+func (self *ModeAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	s, ok := state.(*ModeAggregatorState)
+	if !ok {
+		s = &ModeAggregatorState{make(map[float64]int), nil}
 	}
 
 	point, err := GetValue(self.value, self.columns, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var value float64
@@ -925,23 +858,11 @@ func (self *ModeAggregator) AggregatePoint(series string, group interface{}, p *
 	} else if point.DoubleValue != nil {
 		value = *point.DoubleValue
 	} else {
-		return nil
+		return s, nil
 	}
 
-	count := groupCounts[value]
-	count += 1
-	groupCounts[value] = count
-	seriesCounts[group] = groupCounts
-
-	return nil
-}
-
-//TODO: to be optimized
-func (self *ModeAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	for _, p := range s.Points {
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
+	s.counts[value]++
+	return s, nil
 }
 
 func (self *ModeAggregator) ColumnNames() []string {
@@ -951,12 +872,12 @@ func (self *ModeAggregator) ColumnNames() []string {
 	return []string{"mode"}
 }
 
-func (self *ModeAggregator) CalculateSummaries(series string, group interface{}) {
+func (self *ModeAggregator) CalculateSummaries(state interface{}) {
 	modes := []float64{}
 	currentCount := 1
 
-	defer delete(self.counts[series], group)
-	for value, count := range self.counts[series][group] {
+	s := state.(*ModeAggregatorState)
+	for value, count := range s.counts {
 		if count == currentCount {
 			modes = append(modes, value)
 		} else if count > currentCount {
@@ -966,32 +887,26 @@ func (self *ModeAggregator) CalculateSummaries(series string, group interface{})
 		}
 	}
 
-	seriesModes := self.modes[series]
-	if seriesModes == nil {
-		seriesModes = map[interface{}][]float64{}
-		self.modes[series] = seriesModes
-	}
-
-	seriesModes[group] = modes
+	s.modes = modes
+	s.counts = nil
 }
 
-func (self *ModeAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
+func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
 
-	modes := self.modes[series][group]
-	defer delete(self.modes[series], group)
+	s, ok := state.(*ModeAggregatorState)
+	if !ok || len(s.modes) == 0 {
+		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
+		return returnValues
+	}
 
-	for _, value := range modes {
+	for _, value := range s.modes {
 		// we can't use value since we need a pointer to a variable that won't change,
 		// while value will change the next iteration
 		v := value
 		returnValues = append(returnValues, []*protocol.FieldValue{
 			&protocol.FieldValue{DoubleValue: &v},
 		})
-	}
-
-	if len(modes) == 0 {
-		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
 	}
 
 	return returnValues
@@ -1011,8 +926,6 @@ func NewModeAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 		AbstractAggregator: AbstractAggregator{
 			value: value.Elems[0],
 		},
-		counts:       make(map[string]map[interface{}]map[float64]int),
-		modes:        make(map[string]map[interface{}][]float64),
 		defaultValue: wrappedDefaultValue,
 		alias:        value.Alias,
 	}, nil
@@ -1022,29 +935,25 @@ func NewModeAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 // Distinct Aggregator
 //
 
+type DistinctAggregatorState struct {
+	counts map[interface{}]struct{}
+}
+
 type DistinctAggregator struct {
 	AbstractAggregator
-	counts       map[string]map[interface{}]map[interface{}]int
 	defaultValue *protocol.FieldValue
 	alias        string
 }
 
-func (self *DistinctAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	seriesCounts := self.counts[series]
-	if seriesCounts == nil {
-		seriesCounts = make(map[interface{}]map[interface{}]int)
-		self.counts[series] = seriesCounts
-	}
-
-	groupCounts := seriesCounts[group]
-	if groupCounts == nil {
-		groupCounts = make(map[interface{}]int)
-		seriesCounts[group] = groupCounts
+func (self *DistinctAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	s, ok := state.(*DistinctAggregatorState)
+	if !ok {
+		s = &DistinctAggregatorState{make(map[interface{}]struct{})}
 	}
 
 	point, err := GetValue(self.value, self.columns, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var value interface{}
@@ -1057,20 +966,12 @@ func (self *DistinctAggregator) AggregatePoint(series string, group interface{},
 	} else if point.StringValue != nil {
 		value = *point.StringValue
 	} else {
-		return nil
+		value = nil
 	}
 
-	groupCounts[value]++
+	s.counts[value] = struct{}{}
 
-	return nil
-}
-
-//TODO: to be optimized
-func (self *DistinctAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	for _, p := range s.Points {
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
+	return s, nil
 }
 
 func (self *DistinctAggregator) ColumnNames() []string {
@@ -1080,17 +981,14 @@ func (self *DistinctAggregator) ColumnNames() []string {
 	return []string{"distinct"}
 }
 
-func (self *DistinctAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
+func (self *DistinctAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
-
-	values := self.counts[series][group]
-	defer delete(self.counts[series], group)
-
-	if len(values) == 0 {
+	s, ok := state.(*DistinctAggregatorState)
+	if !ok || len(s.counts) == 0 {
 		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
 	}
 
-	for value, _ := range values {
+	for value, _ := range s.counts {
 		switch v := value.(type) {
 		case int:
 			i := int64(v)
@@ -1117,7 +1015,6 @@ func NewDistinctAggregator(_ *parser.SelectQuery, value *parser.Value, defaultVa
 		AbstractAggregator: AbstractAggregator{
 			value: value.Elems[0],
 		},
-		counts:       make(map[string]map[interface{}]map[interface{}]int),
 		defaultValue: wrappedDefaultValue,
 		alias:        value.Alias,
 	}, nil
@@ -1127,165 +1024,36 @@ func NewDistinctAggregator(_ *parser.SelectQuery, value *parser.Value, defaultVa
 // Max, Min and Sum Aggregators
 //
 
-type Operation func(currentValue float64, newValue *protocol.FieldValue) float64
-
-type CumulativeArithmeticAggregator struct {
-	AbstractAggregator
-	name         string
-	values       map[string]map[interface{}]float64
-	operation    Operation
-	initialValue float64
-	defaultValue *protocol.FieldValue
-}
-
-func (self *CumulativeArithmeticAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	values := self.values[series]
-	if values == nil {
-		values = make(map[interface{}]float64)
-		self.values[series] = values
-	}
-	currentValue, ok := values[group]
-	if !ok {
-		currentValue = self.initialValue
-	}
-	value, err := GetValue(self.value, self.columns, p)
-	if err != nil {
-		return err
-	}
-	values[group] = self.operation(currentValue, value)
-	return nil
-}
-
-//TODO: to be optimized
-func (self *CumulativeArithmeticAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	for _, p := range s.Points {
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
-}
-
-func (self *CumulativeArithmeticAggregator) ColumnNames() []string {
-	return []string{self.name}
-}
-
-func (self *CumulativeArithmeticAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
-	returnValues := [][]*protocol.FieldValue{}
-	value := self.values[series][group]
-	defer delete(self.values[series], group)
-	returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &value}})
-	return returnValues
-}
-
-func NewCumulativeArithmeticAggregator(name string, value *parser.Value, initialValue float64, defaultValue *parser.Value, operation Operation) (Aggregator, error) {
-	if len(value.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
-	}
-
-	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
-	if err != nil {
-		return nil, err
-	}
-
-	if value.Alias != "" {
-		name = value.Alias
-	}
-
-	return &CumulativeArithmeticAggregator{
-		AbstractAggregator: AbstractAggregator{
-			value: value.Elems[0],
-		},
-		name:         name,
-		values:       make(map[string]map[interface{}]float64),
-		operation:    operation,
-		initialValue: initialValue,
-		defaultValue: wrappedDefaultValue,
-	}, nil
-}
-
-func NewMaxAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
-	return NewCumulativeArithmeticAggregator("max", value, -math.MaxFloat64, defaultValue, func(currentValue float64, p *protocol.FieldValue) float64 {
-		if p.Int64Value != nil {
-			if fv := float64(*p.Int64Value); fv > currentValue {
-				return fv
-			}
-		} else if p.DoubleValue != nil {
-			if fv := *p.DoubleValue; fv > currentValue {
-				return fv
-			}
-		}
-		return currentValue
-	})
-}
-
-func NewMinAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
-	return NewCumulativeArithmeticAggregator("min", value, math.MaxFloat64, defaultValue, func(currentValue float64, p *protocol.FieldValue) float64 {
-		if p.Int64Value != nil {
-			if fv := float64(*p.Int64Value); fv < currentValue {
-				return fv
-			}
-		} else if p.DoubleValue != nil {
-			if fv := *p.DoubleValue; fv < currentValue {
-				return fv
-			}
-		}
-		return currentValue
-	})
-}
-
-func NewSumAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
-	return NewCumulativeArithmeticAggregator("sum", value, 0, defaultValue, func(currentValue float64, p *protocol.FieldValue) float64 {
-		var fv float64
-		if p.Int64Value != nil {
-			fv = float64(*p.Int64Value)
-		} else if p.DoubleValue != nil {
-			fv = *p.DoubleValue
-		}
-		return currentValue + fv
-	})
-}
+type FirstOrLastAggregatorState *protocol.FieldValue
 
 type FirstOrLastAggregator struct {
 	AbstractAggregator
 	name         string
 	isFirst      bool
-	values       map[string]map[interface{}]*protocol.FieldValue
 	defaultValue *protocol.FieldValue
 }
 
-func (self *FirstOrLastAggregator) AggregatePoint(series string, group interface{}, p *protocol.Point) error {
-	values := self.values[series]
-	if values == nil {
-		values = make(map[interface{}]*protocol.FieldValue)
-		self.values[series] = values
+func (self *FirstOrLastAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	value, err := GetValue(self.value, self.columns, p)
+	if err != nil {
+		return nil, err
 	}
-	if values[group] == nil || !self.isFirst {
-		value, err := GetValue(self.value, self.columns, p)
-		if err != nil {
-			return err
-		}
 
-		values[group] = value
+	if state == nil || !self.isFirst {
+		state = FirstOrLastAggregatorState(value)
 	}
-	return nil
-}
-
-//TODO: to be optimized
-func (self *FirstOrLastAggregator) AggregateSeries(series string, group interface{}, s *protocol.Series) error {
-	for _, p := range s.Points {
-		self.AggregatePoint(series, group, p)
-	}
-	return nil
+	return state, nil
 }
 
 func (self *FirstOrLastAggregator) ColumnNames() []string {
 	return []string{self.name}
 }
 
-func (self *FirstOrLastAggregator) GetValues(series string, group interface{}) [][]*protocol.FieldValue {
-	defer delete(self.values[series], group)
+func (self *FirstOrLastAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	s := state.(FirstOrLastAggregatorState)
 	return [][]*protocol.FieldValue{
 		[]*protocol.FieldValue{
-			self.values[series][group],
+			s,
 		},
 	}
 }
@@ -1310,7 +1078,6 @@ func NewFirstOrLastAggregator(name string, v *parser.Value, isFirst bool, defaul
 		},
 		name:         name,
 		isFirst:      isFirst,
-		values:       make(map[string]map[interface{}]*protocol.FieldValue),
 		defaultValue: wrappedDefaultValue,
 	}, nil
 }

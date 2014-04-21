@@ -2,13 +2,16 @@ package protocol
 
 import (
 	"bytes"
-	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	"sort"
 	"strconv"
+
+	"code.google.com/p/goprotobuf/proto"
 )
 
 var String = proto.String
+var Float64 = proto.Float64
+var Int64 = proto.Int64
 
 func DecodePoint(buff *bytes.Buffer) (point *Point, err error) {
 	point = &Point{}
@@ -149,4 +152,64 @@ func (self *Series) SortPointsTimeDescending() {
 	if self.Points != nil {
 		sort.Sort(ByPointTimeDesc{self.Points})
 	}
+}
+
+func (self *FieldValue) Equals(other *FieldValue) bool {
+	if self.BoolValue != nil {
+		if other.BoolValue == nil {
+			return false
+		}
+		return *other.BoolValue == *self.BoolValue
+	}
+	if self.Int64Value != nil {
+		if other.Int64Value == nil {
+			return false
+		}
+		return *other.Int64Value == *self.Int64Value
+	}
+	if self.DoubleValue != nil {
+		if other.DoubleValue == nil {
+			return false
+		}
+		return *other.DoubleValue == *self.DoubleValue
+	}
+	if self.StringValue != nil {
+		if other.StringValue == nil {
+			return false
+		}
+		return *other.StringValue == *self.StringValue
+	}
+	return false
+}
+
+// defines total order on FieldValue, the following is true
+// nil > false > true > ordered(int64) > ordered(float64) > ordered(string)
+// where order is the total natural order of the given set of values
+func (self *FieldValue) GreaterOrEqual(other *FieldValue) bool {
+	if self.BoolValue != nil {
+		if other.BoolValue == nil {
+			return false
+		}
+		// true >= false, false >= false
+		return *self.BoolValue || !*other.BoolValue
+	}
+	if self.Int64Value != nil {
+		if other.Int64Value == nil {
+			return other.BoolValue != nil
+		}
+		return *self.Int64Value >= *other.Int64Value
+	}
+	if self.DoubleValue != nil {
+		if other.DoubleValue == nil {
+			return other.BoolValue != nil || other.Int64Value != nil
+		}
+		return *self.DoubleValue >= *other.DoubleValue
+	}
+	if self.StringValue != nil {
+		if other.StringValue == nil {
+			return other.BoolValue != nil || other.Int64Value != nil || other.DoubleValue != nil
+		}
+		return *self.StringValue >= *other.StringValue
+	}
+	return other.BoolValue == nil && other.Int64Value == nil && other.DoubleValue == nil && other.StringValue == nil
 }
