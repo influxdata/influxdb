@@ -835,18 +835,22 @@ func (self *ServerSuite) TestContinuousQuerySequenceNumberAssignmentWithInterpol
 	collection = self.serverProcesses[0].Query("test_cq", "select * from points.count.a;", false, c)
 	series = collection.GetSeries("points.count.a", c)
 	c.Assert(series.Points, HasLen, 1)
+	c.Assert(series.Points[0][1], Equals, float64(1))
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from points.count.aa;", false, c)
 	series = collection.GetSeries("points.count.aa", c)
 	c.Assert(series.Points, HasLen, 1)
+	c.Assert(series.Points[0][1], Equals, float64(1))
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from points.count.b;", false, c)
 	series = collection.GetSeries("points.count.b", c)
 	c.Assert(series.Points, HasLen, 1)
+	c.Assert(series.Points[0][1], Equals, float64(1))
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from points.count.bb;", false, c)
 	series = collection.GetSeries("points.count.bb", c)
 	c.Assert(series.Points, HasLen, 1)
+	c.Assert(series.Points[0][1], Equals, float64(1))
 }
 
 func (self *ServerSuite) TestGetServers(c *C) {
