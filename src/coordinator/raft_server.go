@@ -322,6 +322,9 @@ func (s *RaftServer) CompactLog() {
 
 func (s *RaftServer) CommittedAllChanges() bool {
 	entries := s.raftServer.LogEntries()
+	if len(entries) == 0 {
+		return false
+	}
 	lastIndex := entries[len(entries)-1].Index()
 	return s.raftServer.CommitIndex() == lastIndex
 }
