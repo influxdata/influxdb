@@ -33,6 +33,7 @@ type Value struct {
 	Type          ValueType
 	Elems         []*Value
 	compiledRegex *regexp.Regexp
+	IsInsensitive bool
 }
 
 func (self *Value) IsFunctionCall() bool {
@@ -52,6 +53,11 @@ func (self *Value) GetString() string {
 		fmt.Fprintf(buffer, "%s(%s)", self.Name, Values(self.Elems).GetString())
 	case ValueString:
 		fmt.Fprintf(buffer, "'%s'", self.Name)
+	case ValueRegex:
+		fmt.Fprintf(buffer, "/%s/", self.Name)
+		if self.IsInsensitive {
+			buffer.WriteString("i")
+		}
 	default:
 		buffer.WriteString(self.Name)
 	}

@@ -356,6 +356,7 @@ func GetValue(value *C.value) (*Value, error) {
 		} else {
 			v.compiledRegex, err = regexp.Compile(v.Name)
 		}
+		v.IsInsensitive = isCaseInsensitive
 	}
 	if value.alias != nil {
 		v.Alias = C.GoString(value.alias)
