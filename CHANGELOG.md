@@ -2,7 +2,9 @@
 
 ### Features
 
-- [Issue #463](https://github.com/influxdb/influxdb/issues/463). Allow series names to be escaped
+- [Issue #463](https://github.com/influxdb/influxdb/issues/463). Allow series names to use any character (escape by wrapping in double quotes)
+- [Issue #447](https://github.com/influxdb/influxdb/issues/447). Allow @ in usernames
+- [Issue #466](https://github.com/influxdb/influxdb/issues/466). Allow column names to use any character (escape by wrapping in double quotes)
 
 ### Bugfixes
 
