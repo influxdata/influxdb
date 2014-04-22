@@ -639,6 +639,18 @@ func (self *ApiSuite) TestDbUserOperations(c *C) {
 	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
 
+	// Fix #477 - Username should support @ character - https://github.com/influxdb/influxdb/issues/447
+	url = self.formatUrl("/db/db1/users?u=root&p=root")
+	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"name":"paul@influxdb.com", "password": "password"}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(self.manager.ops, HasLen, 1)
+	c.Assert(self.manager.ops[0].operation, Equals, "db_user_add")
+	c.Assert(self.manager.ops[0].username, Equals, "paul@influxdb.com")
+	c.Assert(self.manager.ops[0].password, Equals, "password")
+	self.manager.ops = nil
+
 	// set and unset the db admin flag
 	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
 	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"admin": true}`))
