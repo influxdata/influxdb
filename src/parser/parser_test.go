@@ -865,6 +865,19 @@ func (self *QueryParserSuite) TestParseContinuousQueryList(c *C) {
 	c.Assert(queries[0].IsListContinuousQueriesQuery(), Equals, true)
 }
 
+// For issue #466 - allow all characters in column names - https://github.com/influxdb/influxdb/issues/267
+func (self *QueryParserSuite) TestParseColumnWithPeriodOrDash(c *C) {
+	query := "select count(\"column-a.foo\") as \"count-column-a.foo\" from seriesA;"
+	q, err := ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), HasLen, 1)
+	column := q.GetColumnNames()[0]
+	c.Assert(column.Name, Equals, "count")
+	c.Assert(column.Elems, HasLen, 1)
+	c.Assert(column.Elems[0].Name, Equals, "column-a.foo")
+	c.Assert(column.Alias, Equals, "count-column-a.foo")
+}
+
 // TODO:
 // insert into user.events.count.per_day select count(*) from user.events where time<forever group by time(1d)
 // insert into :series_name.percentiles.95 select percentile(95,value) from stats.* where time<forever group by time(1d)

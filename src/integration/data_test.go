@@ -1435,3 +1435,24 @@ func (self *SingleServerSuite) SeriesNameWithWeirdCharacters(c *C) (Fun, Fun) {
 			c.Assert(data[0].Name, Equals, "/blah ( ) ; : ! @ # $ \n \t,foo\"=bar/baz")
 		}
 }
+
+// For issue #466 - allow all characters in column names - https://github.com/influxdb/influxdb/issues/267
+func (self *SingleServerSuite) ColumnNameWithWeirdCharacters(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `[
+  	  	{
+	      	"name": "foo",
+      		"columns": ["foo.-239(*@&#$!#)(* #$@"],
+    	  	"points": [[1]]
+  	  	}
+	  	]`
+			client.WriteJsonData(data, c, "s")
+		}, func(client Client) {
+			data := client.RunQuery("select \"foo.-239(*@&#$!#)(* #$@\" from foo", c)
+			c.Assert(data, HasLen, 1)
+			c.Assert(data[0].Points, HasLen, 1)
+			c.Assert(data[0].Name, Equals, "foo")
+			c.Assert(data[0].Columns, HasLen, 1)
+			c.Assert(data[0].Columns[0], Equals, "foo.-239(*@&#$!#)(* #$@")
+		}
+}
