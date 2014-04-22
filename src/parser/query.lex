@@ -22,6 +22,7 @@ static int yycolumn = 1;
 %option noyywrap
 %s FROM_CLAUSE REGEX_CONDITION
 %x IN_REGEX
+%x IN_TABLE_NAME
 %%
 
 ;                         { return *yytext; }
@@ -99,6 +100,20 @@ true|false                                          { yylval->string = strdup(yy
 [a-zA-Z0-9_]*                                       { yylval->string = strdup(yytext); return SIMPLE_NAME; }
 
 [a-zA-Z0-9_][a-zA-Z0-9._-]*                         { yylval->string = strdup(yytext); return TABLE_NAME; }
+
+\" { BEGIN(IN_TABLE_NAME); yylval->string=calloc(1, sizeof(char)); }
+<IN_TABLE_NAME>\\\" {
+  yylval->string = realloc(yylval->string, strlen(yylval->string) + 1);
+  strcat(yylval->string, "\"");
+}
+<IN_TABLE_NAME>\" {
+  BEGIN(INITIAL);
+  return TABLE_NAME;
+}
+<IN_TABLE_NAME>[^\\"]* {
+  yylval->string=realloc(yylval->string, strlen(yylval->string) + strlen(yytext) + 1);
+  strcat(yylval->string, yytext);
+}
 
 [:\[a-zA-Z0-9_][:\[\]a-zA-Z0-9._-]*                 { yylval->string = strdup(yytext); return INTO_NAME; }
 
