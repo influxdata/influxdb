@@ -1,3 +1,14 @@
+## v0.5.10
+
+### Features
+
+- [Issue #463](https://github.com/influxdb/influxdb/issues/463). Allow series names to be escaped
+
+### Bugfixes
+
+- [Issue #458](https://github.com/influxdb/influxdb/issues/458). Continuous queries with group by time() and a column should insert sequence numbers of 1
+- [Issue #457](https://github.com/influxdb/influxdb/issues/457). Deleting series that start with capital letters should work
+
 ## v0.5.9 [2014-04-18]
 
 ### Bugfixes
