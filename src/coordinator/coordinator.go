@@ -525,6 +525,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 	r, _ := regexp.Compile(`\[.*?\]`)
 
 	if r.MatchString(targetName) {
+		serieses := []*protocol.Series{}
 		for _, point := range series.Points {
 			targetNameWithValues := r.ReplaceAllStringFunc(targetName, func(match string) string {
 				fieldName := match[1 : len(match)-1]
@@ -540,9 +541,10 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 			}
 
 			newSeries := &protocol.Series{Name: &targetNameWithValues, Fields: series.Fields, Points: []*protocol.Point{point}}
-			if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}); e != nil {
-				log.Error("Couldn't write data for continuous query: ", e)
-			}
+			serieses = append(serieses, newSeries)
+		}
+		if e := self.CommitSeriesData(db, serieses); e != nil {
+			log.Error("Couldn't write data for continuous query: ", e)
 		}
 	} else {
 		newSeries := &protocol.Series{Name: &targetName, Fields: series.Fields, Points: series.Points}
