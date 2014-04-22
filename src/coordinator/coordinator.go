@@ -55,17 +55,6 @@ type SeriesWriter interface {
 	Close()
 }
 
-// usernames and db names should match this regex
-var VALID_NAMES *regexp.Regexp
-
-func init() {
-	var err error
-	VALID_NAMES, err = regexp.Compile("^[a-zA-Z0-9_][a-zA-Z0-9\\._-]*$")
-	if err != nil {
-		panic(err)
-	}
-}
-
 func NewCoordinatorImpl(config *configuration.Configuration, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
 	coordinator := &CoordinatorImpl{
 		config:               config,
@@ -910,5 +899,5 @@ func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString stri
 }
 
 func isValidName(name string) bool {
-	return VALID_NAMES.MatchString(name)
+	return !strings.Contains(name, "%")
 }
