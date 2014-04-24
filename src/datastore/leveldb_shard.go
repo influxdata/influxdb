@@ -62,6 +62,7 @@ func (self *LevelDbShard) Write(database string, series *protocol.Series) error 
 		return errors.New("Unable to write no data. Series was nil or had no points.")
 	}
 
+	count := 0
 	for fieldIndex, field := range series.Fields {
 		temp := field
 		id, err := self.createIdForDbSeriesColumn(&database, series.Name, &temp)
@@ -75,16 +76,29 @@ func (self *LevelDbShard) Write(database string, series *protocol.Series) error 
 			binary.Write(keyBuffer, binary.BigEndian, *point.SequenceNumber)
 			pointKey := keyBuffer.Bytes()
 
+			var data []byte
+
 			if point.Values[fieldIndex].GetIsNull() {
 				wb.Delete(pointKey)
-				continue
+				goto check
 			}
 
-			data, err := proto.Marshal(point.Values[fieldIndex])
+			data, err = proto.Marshal(point.Values[fieldIndex])
 			if err != nil {
 				return err
 			}
 			wb.Put(pointKey, data)
+		check:
+			count++
+			if count >= SIXTY_FOUR_KILOBYTES {
+				fmt.Printf("################ FLUSHING\n")
+				err = self.db.Write(self.writeOptions, wb)
+				if err != nil {
+					return err
+				}
+				count = 0
+				wb.Clear()
+			}
 		}
 	}
 
