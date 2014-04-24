@@ -3,7 +3,7 @@ SHELL = /bin/bash
 PROTOC = @PROTOC@
 GO     = @GO@
 GOROOT = @GOROOT@
-# or 386
+# or 386, arm
 arch   = amd64
 CGO_ENABLED = 1
 
@@ -14,7 +14,31 @@ endif
 cflags =
 ifeq ($(arch),386)
 	cflags = -m32
+else
+ifeq ($(arch),arm)
+	cflags = -fpic
+endif
+endif
+
+ifneq ($(arch),)
 	GOARCH = $(arch)
+endif
+
+ifneq ($(CROSS_COMPILE),)
+export CXX=$(CROSS_COMPILE)-g++
+export CC=$(CROSS_COMPILE)-gcc
+export AS=$(CROSS_COMPILE)-as
+export AR=$(CROSS_COMPILE)-ar
+export NM=$(CROSS_COMPILE)-nm
+export LD=$(CROSS_COMPILE)-ld
+export OBJDUMP=$(CROSS_COMPILE)-objdump
+export OBJCOPY=$(CROSS_COMPILE)-objcopy
+export RANLIB=$(CROSS_COMPILE)-ranlib
+export STRIP=$(CROSS_COMPILE)-strip
+export CXX_FOR_TARGET=$(CROSS_COMPILE)-g++
+export CC_FOR_TARGET=$(CROSS_COMPILE)-gcc
+GO_BUILD_OPTIONS += -ldflags="-extld=$(CC)"
+cross_flags = --host=$(arch)
 endif
 
 export GOARCH
@@ -55,7 +79,7 @@ leveldb_deps    = $(leveldb_dir)/libleveldb.a
 profile=off
 ifneq ($(profile),off)
 CGO_LDFLAGS += -ltcmalloc -lprofiler
-GO_BUILD_OPTIONS = -tags profile
+GO_BUILD_OPTIONS += -tags profile
 endif
 
 # levigo flags
@@ -81,7 +105,7 @@ ifeq ($(uname_S),Linux)
 	bash -c "cd $(snappy_dir); \
 	wget https://snappy.googlecode.com/files/$(snappy_file); \
 	tar --strip-components=1 -xvzf $(snappy_file); \
-	CFLAGS=$(cflags) CXXFLAGS=$(cflags) ./configure; \
+	CFLAGS=$(cflags) CXXFLAGS=$(cflags) ./configure $(cross_flags); \
 	$(MAKE)"
 endif
 
@@ -183,9 +207,12 @@ source_package = packages/influxdb-$(version).src.tar.gz
 binary_package = packages/influxdb-$(version).$(arch).tar.gz
 ifeq ($(arch),386)
 	rpm_package = packages/influxdb-$(package_version)-1.i686.rpm
-	debian_package = packages/influxdb_$(version)_i386.deb
-	rpm_args = setarch i386
-	deb_args = -a i386
+	debian_package = packages/influxdb_$(version)_i686.deb
+	arch_args = -a i686
+else ifeq ($(arch),arm)
+	rpm_package = packages/influxdb-$(package_version)-1.armhf.rpm
+	debian_package = packages/influxdb_$(version)_armhf.deb
+	arch_args = -a armhf
 else
 	rpm_package = packages/influxdb-$(package_version)-1.x86_64.rpm
 	debian_package = packages/influxdb_$(version)_amd64.deb
@@ -212,14 +239,14 @@ $(rpm_package): $(admin_dir)/build build
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
-	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; $(rpm_args) fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t rpm $(arch_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
 	mv out_rpm/$(shell basename $(rpm_package)) packages/
 
 $(debian_package): $(admin_dir)/build build
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
-	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t deb $(deb_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t deb $(arch_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
 	mv out_rpm/$(shell basename $(debian_package)) packages/
 
 $(source_package): dependencies
