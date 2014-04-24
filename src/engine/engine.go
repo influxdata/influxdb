@@ -578,7 +578,12 @@ func (self *QueryEngine) getValuesForGroup(table string, group []*protocol.Field
 	}
 
 	// do cross product of all the values
-	_values := crossProduct(values)
+	var _values [][]*protocol.FieldValue
+	if len(values) == 1 {
+		_values = values[0]
+	} else {
+		_values = crossProduct(values)
+	}
 
 	points := []*protocol.Point{}
 
