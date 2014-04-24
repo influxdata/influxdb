@@ -525,7 +525,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 	r, _ := regexp.Compile(`\[.*?\]`)
 
 	if r.MatchString(targetName) {
-		serieses := []*protocol.Series{}
+		serieses := map[string]*protocol.Series{}
 		for _, point := range series.Points {
 			targetNameWithValues := r.ReplaceAllStringFunc(targetName, func(match string) string {
 				fieldName := match[1 : len(match)-1]
@@ -540,10 +540,19 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 				point.SequenceNumber = &sequenceNumber
 			}
 
-			newSeries := &protocol.Series{Name: &targetNameWithValues, Fields: series.Fields, Points: []*protocol.Point{point}}
-			serieses = append(serieses, newSeries)
+			newSeries := serieses[targetNameWithValues]
+			if newSeries == nil {
+				newSeries = &protocol.Series{Name: &targetNameWithValues, Fields: series.Fields, Points: []*protocol.Point{point}}
+				serieses[targetNameWithValues] = newSeries
+				continue
+			}
+			newSeries.Points = append(newSeries.Points, point)
 		}
-		if e := self.CommitSeriesData(db, serieses); e != nil {
+		seriesSlice := make([]*protocol.Series, 0, len(serieses))
+		for _, s := range serieses {
+			seriesSlice = append(seriesSlice, s)
+		}
+		if e := self.CommitSeriesData(db, seriesSlice); e != nil {
 			log.Error("Couldn't write data for continuous query: ", e)
 		}
 	} else {
@@ -583,6 +592,7 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 		}
 
 		// sort the points by timestamp
+		// TODO: this isn't needed anymore
 		series.SortPointsTimeDescending()
 
 		for i := 0; i < len(series.Points); {
