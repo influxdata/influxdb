@@ -1057,12 +1057,16 @@ func (self *ServerSuite) TestContinuousQueryWithMixedGroupByOperations(c *C) {
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "select * from cqtest.10s", false, c)
 	series := collection.GetSeries("cqtest.10s", c)
 
-	c.Assert(series.GetValueForPointAndColumn(0, "mean", c), Equals, float64(8.5))
-	c.Assert(series.GetValueForPointAndColumn(0, "url", c), Equals, "/login")
-	c.Assert(series.GetValueForPointAndColumn(1, "mean", c), Equals, float64(3.5))
-	c.Assert(series.GetValueForPointAndColumn(1, "url", c), Equals, "/list")
-	c.Assert(series.GetValueForPointAndColumn(2, "mean", c), Equals, float64(4.5))
-	c.Assert(series.GetValueForPointAndColumn(2, "url", c), Equals, "/register")
+	means := map[string]float64{}
+	for i := 0; i < 3; i++ {
+		mean := series.GetValueForPointAndColumn(i, "mean", c)
+		url := series.GetValueForPointAndColumn(i, "url", c)
+		means[url.(string)] = mean.(float64)
+	}
+
+	c.Assert(means["/login"], Equals, 8.5)
+	c.Assert(means["/list"], Equals, 3.5)
+	c.Assert(means["/register"], Equals, 4.5)
 }
 
 // fix for #305: https://github.com/influxdb/influxdb/issues/305
