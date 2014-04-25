@@ -343,7 +343,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	}
 
 	if config.ClusterMaxResponseBufferSize == 0 {
-		config.ClusterMaxResponseBufferSize = 100000
+		config.ClusterMaxResponseBufferSize = 100
 	}
 
 	// if it wasn't set, set it to 100
