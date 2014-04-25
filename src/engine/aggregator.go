@@ -230,7 +230,6 @@ func (self *CompositeAggregator) CalculateSummaries(state interface{}) {
 	s := state.(*CompositeAggregatorState)
 	self.right.CalculateSummaries(s.rightState)
 	values := self.right.GetValues(s.rightState)
-	fmt.Printf("distinct returned: %d\n", len(values))
 	for _, v := range values {
 		point := &protocol.Point{Values: v}
 		var err error

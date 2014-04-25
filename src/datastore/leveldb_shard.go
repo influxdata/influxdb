@@ -96,7 +96,6 @@ func (self *LevelDbShard) Write(database string, series *protocol.Series) error 
 		check:
 			count++
 			if count >= SIXTY_FOUR_KILOBYTES {
-				fmt.Printf("################ FLUSHING\n")
 				err = self.db.Write(self.writeOptions, wb)
 				if err != nil {
 					return err
