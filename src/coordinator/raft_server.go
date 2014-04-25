@@ -239,6 +239,10 @@ func (s *RaftServer) CreateContinuousQuery(db string, query string) error {
 		return fmt.Errorf("Continuous queries with a group by clause must include time(...) as one of the elements")
 	}
 
+	if !selectQuery.IsNonRecursiveContinuousQuery() {
+		return fmt.Errorf("Continuous queries with :series_name interpolation must use a regular expression in the from clause that prevents recursion")
+	}
+
 	duration, err := selectQuery.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return fmt.Errorf("Couldn't get group by time for continuous query: %s", err)

@@ -813,6 +813,38 @@ func (self *QueryParserSuite) TestParseContinuousQueryCreation(c *C) {
 	c.Assert(clause.Target, DeepEquals, &Value{"bar", "", ValueSimpleName, nil, nil, false})
 }
 
+func (self *QueryParserSuite) TestParseRecursiveContinuousQueries(c *C) {
+	query := `select * from /^stats\\..*/ into bar;`
+	q, err := ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.IsNonRecursiveContinuousQuery(), Equals, true)
+
+	query = `select * from /^stats\\..*/ group by time(5m) into rollups.:series_name.5m;`
+	q, err = ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.IsNonRecursiveContinuousQuery(), Equals, true)
+
+	query = `select * from /.*stats$/ group by time(5m) into :series_name.5m;`
+	q, err = ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.IsNonRecursiveContinuousQuery(), Equals, true)
+
+	query = `select * from /.*/ into :series_name.foo;`
+	q, err = ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.IsNonRecursiveContinuousQuery(), Equals, false)
+
+	query = `select * from /^stats\..*/ into :series_name.foo;`
+	q, err = ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.IsNonRecursiveContinuousQuery(), Equals, false)
+
+	query = `select * from /stats$/ into foo.:series_name;`
+	q, err = ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.IsNonRecursiveContinuousQuery(), Equals, false)
+}
+
 func (self *QueryParserSuite) TestParseInterpolatedContinuousQueryCreation(c *C) {
 	query := "select * from foo into bar.[c4];"
 	q, err := ParseSelectQuery(query)
