@@ -114,8 +114,8 @@ func (self *Server) GetClient(db string, c *C) *influxdb.Client {
 
 func (self *Server) WriteData(data interface{}, c *C, precision ...influxdb.TimePrecision) {
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{
-		Username: "user",
-		Password: "pass",
+		Username: "root",
+		Password: "root",
 		Database: "db1",
 	})
 	c.Assert(err, IsNil)
