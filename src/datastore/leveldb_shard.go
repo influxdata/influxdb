@@ -62,29 +62,47 @@ func (self *LevelDbShard) Write(database string, series *protocol.Series) error 
 		return errors.New("Unable to write no data. Series was nil or had no points.")
 	}
 
+	count := 0
 	for fieldIndex, field := range series.Fields {
 		temp := field
 		id, err := self.createIdForDbSeriesColumn(&database, series.Name, &temp)
 		if err != nil {
 			return err
 		}
+		keyBuffer := bytes.NewBuffer(make([]byte, 0, 24))
+		dataBuffer := proto.NewBuffer(nil)
 		for _, point := range series.Points {
-			keyBuffer := bytes.NewBuffer(make([]byte, 0, 24))
+			keyBuffer.Reset()
+			dataBuffer.Reset()
+
 			keyBuffer.Write(id)
-			binary.Write(keyBuffer, binary.BigEndian, self.convertTimestampToUint(point.GetTimestampInMicroseconds()))
-			binary.Write(keyBuffer, binary.BigEndian, *point.SequenceNumber)
+			timestamp := self.convertTimestampToUint(point.GetTimestampInMicroseconds())
+			// pass the uint64 by reference so binary.Write() doesn't create a new buffer
+			// see the source code for intDataSize() in binary.go
+			binary.Write(keyBuffer, binary.BigEndian, &timestamp)
+			binary.Write(keyBuffer, binary.BigEndian, point.SequenceNumber)
 			pointKey := keyBuffer.Bytes()
 
 			if point.Values[fieldIndex].GetIsNull() {
 				wb.Delete(pointKey)
-				continue
+				goto check
 			}
 
-			data, err := proto.Marshal(point.Values[fieldIndex])
+			err = dataBuffer.Marshal(point.Values[fieldIndex])
 			if err != nil {
 				return err
 			}
-			wb.Put(pointKey, data)
+			wb.Put(pointKey, dataBuffer.Bytes())
+		check:
+			count++
+			if count >= SIXTY_FOUR_KILOBYTES {
+				err = self.db.Write(self.writeOptions, wb)
+				if err != nil {
+					return err
+				}
+				count = 0
+				wb.Clear()
+			}
 		}
 	}
 
@@ -160,7 +178,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 	}
 
 	fieldCount := len(fields)
-	rawColumnValues := make([]*rawColumnValue, fieldCount, fieldCount)
+	rawColumnValues := make([]rawColumnValue, fieldCount, fieldCount)
 	query := querySpec.SelectQuery()
 
 	aliases := query.GetTableAliases(seriesName)
@@ -186,12 +204,14 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 
 	// TODO: clean up, this is super gnarly
 	// optimize for the case where we're pulling back only a single column or aggregate
+	buffer := bytes.NewBuffer(nil)
+	valueBuffer := proto.NewBuffer(nil)
 	for {
 		isValid := false
 		point := &protocol.Point{Values: make([]*protocol.FieldValue, fieldCount, fieldCount)}
 
 		for i, it := range iterators {
-			if rawColumnValues[i] != nil || !it.Valid() {
+			if rawColumnValues[i].value != nil || !it.Valid() {
 				continue
 			}
 
@@ -208,8 +228,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 			sequenceNumber := key[16:]
 
 			rawTime := key[8:16]
-			rawValue := &rawColumnValue{time: rawTime, sequence: sequenceNumber, value: value}
-			rawColumnValues[i] = rawValue
+			rawColumnValues[i] = rawColumnValue{time: rawTime, sequence: sequenceNumber, value: value}
 		}
 
 		var pointTimeRaw []byte
@@ -218,7 +237,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		// and sequence number. that will become the timestamp and sequence of
 		// the next point.
 		for _, value := range rawColumnValues {
-			if value == nil {
+			if value.value == nil {
 				continue
 			}
 
@@ -229,7 +248,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		for i, iterator := range iterators {
 			// if the value is nil or doesn't match the point's timestamp and sequence number
 			// then skip it
-			if rawColumnValues[i] == nil ||
+			if rawColumnValues[i].value == nil ||
 				!bytes.Equal(rawColumnValues[i].time, pointTimeRaw) ||
 				!bytes.Equal(rawColumnValues[i].sequence, pointSequenceRaw) {
 
@@ -249,19 +268,26 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 			}
 
 			fv := &protocol.FieldValue{}
-			err := proto.Unmarshal(rawColumnValues[i].value, fv)
+			valueBuffer.SetBuf(rawColumnValues[i].value)
+			err := valueBuffer.Unmarshal(fv)
 			if err != nil {
 				return err
 			}
 			point.Values[i] = fv
-			rawColumnValues[i] = nil
+			rawColumnValues[i].value = nil
 		}
 
 		var sequence uint64
-		// set the point sequence number and timestamp
-		binary.Read(bytes.NewBuffer(pointSequenceRaw), binary.BigEndian, &sequence)
 		var t uint64
-		binary.Read(bytes.NewBuffer(pointTimeRaw), binary.BigEndian, &t)
+
+		// set the point sequence number and timestamp
+		buffer.Reset()
+		buffer.Write(pointSequenceRaw)
+		binary.Read(buffer, binary.BigEndian, &sequence)
+		buffer.Reset()
+		buffer.Write(pointTimeRaw)
+		binary.Read(buffer, binary.BigEndian, &t)
+
 		time := self.convertUintTimestampToInt64(&t)
 		point.SetTimestampInMicroseconds(time)
 		point.SequenceNumber = &sequence

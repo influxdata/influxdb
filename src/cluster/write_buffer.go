@@ -84,11 +84,15 @@ func (self *WriteBuffer) write(request *protocol.Request) {
 	attempts := 0
 	for {
 		self.shardIds[*request.ShardId] = true
-		requestNumber := *request.RequestNumber
 		err := self.writer.Write(request)
 		if err == nil {
-			self.shardCommitedRequestNumber[request.GetShardId()] = request.GetRequestNumber()
-			self.wal.Commit(requestNumber, self.serverId)
+			requestNumber := request.RequestNumber
+			if requestNumber == nil {
+				return
+			}
+
+			self.shardCommitedRequestNumber[request.GetShardId()] = *requestNumber
+			self.wal.Commit(*requestNumber, self.serverId)
 			return
 		}
 		if attempts%100 == 0 {

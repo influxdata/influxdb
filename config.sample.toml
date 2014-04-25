@@ -85,7 +85,7 @@ write-buffer-size = 10000
 # expected number of responses exceed this number then querying will
 # happen sequentially and the buffer size will be limited to this
 # number
-max-response-buffer-size = 100000
+max-response-buffer-size = 100
 
 # When queries get distributed out to shards, they go in parallel. This means that results can get buffered
 # in memory since results will come in any order, but have to be processed in the correct time order.

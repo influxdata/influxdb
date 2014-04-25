@@ -471,7 +471,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 		return common.NewAuthorizationError("Insufficient permissions to write to %s", db)
 	}
 
-	err := self.CommitSeriesData(db, series)
+	err := self.CommitSeriesData(db, series, false)
 	if err != nil {
 		return err
 	}
@@ -524,6 +524,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 	r, _ := regexp.Compile(`\[.*?\]`)
 
 	if r.MatchString(targetName) {
+		serieses := map[string]*protocol.Series{}
 		for _, point := range series.Points {
 			targetNameWithValues := r.ReplaceAllStringFunc(targetName, func(match string) string {
 				fieldName := match[1 : len(match)-1]
@@ -538,10 +539,20 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 				point.SequenceNumber = &sequenceNumber
 			}
 
-			newSeries := &protocol.Series{Name: &targetNameWithValues, Fields: series.Fields, Points: []*protocol.Point{point}}
-			if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}); e != nil {
-				log.Error("Couldn't write data for continuous query: ", e)
+			newSeries := serieses[targetNameWithValues]
+			if newSeries == nil {
+				newSeries = &protocol.Series{Name: &targetNameWithValues, Fields: series.Fields, Points: []*protocol.Point{point}}
+				serieses[targetNameWithValues] = newSeries
+				continue
 			}
+			newSeries.Points = append(newSeries.Points, point)
+		}
+		seriesSlice := make([]*protocol.Series, 0, len(serieses))
+		for _, s := range serieses {
+			seriesSlice = append(seriesSlice, s)
+		}
+		if e := self.CommitSeriesData(db, seriesSlice, true); e != nil {
+			log.Error("Couldn't write data for continuous query: ", e)
 		}
 	} else {
 		newSeries := &protocol.Series{Name: &targetName, Fields: series.Fields, Points: series.Points}
@@ -554,7 +565,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 			}
 		}
 
-		if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}); e != nil {
+		if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}, true); e != nil {
 			log.Error("Couldn't write data for continuous query: ", e)
 		}
 	}
@@ -562,7 +573,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 	return nil
 }
 
-func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Series) error {
+func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Series, sync bool) error {
 	now := common.CurrentTime()
 
 	shardToSerieses := map[uint32]map[string]*protocol.Series{}
@@ -580,6 +591,7 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 		}
 
 		// sort the points by timestamp
+		// TODO: this isn't needed anymore
 		series.SortPointsTimeDescending()
 
 		for i := 0; i < len(series.Points); {
@@ -618,7 +630,7 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 			seriesesSlice = append(seriesesSlice, s)
 		}
 
-		err := self.write(db, seriesesSlice, shard)
+		err := self.write(db, seriesesSlice, shard, sync)
 		if err != nil {
 			log.Error("COORD error writing: ", err)
 			return err
@@ -628,8 +640,11 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 	return nil
 }
 
-func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard cluster.Shard) error {
+func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
 	request := &protocol.Request{Type: &write, Database: &db, MultiSeries: series}
+	if sync {
+		return shard.SyncWrite(request)
+	}
 	return shard.Write(request)
 }
 
