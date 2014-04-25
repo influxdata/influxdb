@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 )
@@ -251,6 +252,38 @@ func (self *SelectQuery) IsValidContinuousQuery() bool {
 	}
 
 	return false
+}
+
+func (self *SelectQuery) IsNonRecursiveContinuousQuery() bool {
+	fromClause := self.GetFromClause()
+	intoClause := self.GetIntoClause()
+
+	for _, from := range fromClause.Names {
+		regex, ok := from.Name.GetCompiledRegex()
+
+		if !ok {
+			continue
+		}
+
+		regexString := regex.String()
+		intoTarget := intoClause.Target.Name
+
+		if !strings.Contains(intoTarget, ":series_name") {
+			continue
+		} else {
+			if strings.HasPrefix(regexString, "^") && !strings.HasPrefix(intoTarget, ":series_name") {
+				continue
+			}
+
+			if strings.HasSuffix(regexString, "$") && !strings.HasSuffix(intoTarget, ":series_name") {
+				continue
+			}
+
+			return false
+		}
+	}
+
+	return true
 }
 
 func (self *SelectQuery) GetIntoClause() *IntoClause {
