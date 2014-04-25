@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"math"
 	"protocol"
 	"sort"
 )
@@ -19,6 +18,8 @@ type Trie struct {
 	numStates int
 	rootNode  *Node
 }
+
+const MaxInt = int(^uint(0) >> 1)
 
 type Nodes []*Node
 
@@ -54,7 +55,7 @@ func (self *Trie) TraverseLevel(level int, f func([]*protocol.FieldValue, *Node)
 	}
 
 	if level == -1 {
-		level = math.MaxInt64
+		level = MaxInt
 	}
 	return self.rootNode.traverse(level, nil, f)
 }
