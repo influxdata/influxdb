@@ -180,6 +180,7 @@ func (self *ShardData) ServerIds() []uint32 {
 }
 
 func (self *ShardData) SyncWrite(request *p.Request) error {
+	request.ShardId = &self.id
 	if err := self.store.Write(request); err != nil {
 		return err
 	}
