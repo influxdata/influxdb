@@ -170,9 +170,29 @@ func (self *Client) GetClusterAdminList() ([]map[string]interface{}, error) {
 	return self.listSomething(url)
 }
 
-func (self *Client) CreateDatabaseUser(database, name, password string) error {
+// Creates a new database user for the given database. permissions can
+// be omitted in which case the user will be able to read and write to
+// all time series. If provided, there should be two strings, the
+// first for read and the second for write. The strings are regexes
+// that are used to match the time series name to determine whether
+// the user has the ability to read/write to the given time series.
+//
+//     client.CreateDatabaseUser("db", "user", "pass")
+//     // the following user cannot read from any series and can write
+//     // to the limited time series only
+//     client.CreateDatabaseUser("db", "limited", "pass", "^$", "limited")
+func (self *Client) CreateDatabaseUser(database, name, password string, permissions ...string) error {
+	readMatcher, writeMatcher := ".*", ".*"
+	switch len(permissions) {
+	case 0:
+	case 2:
+		readMatcher, writeMatcher = permissions[0], permissions[1]
+	default:
+		return fmt.Errorf("You have to provide two ")
+	}
+
 	url := self.getUrl("/db/" + database + "/users")
-	payload := map[string]string{"name": name, "password": password}
+	payload := map[string]string{"name": name, "password": password, "readFrom": readMatcher, "writeTo": writeMatcher}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -181,7 +201,9 @@ func (self *Client) CreateDatabaseUser(database, name, password string) error {
 	return responseToError(resp, err, true)
 }
 
-func (self *Client) updateDatabaseUserCommon(database, name string, password *string, isAdmin *bool) error {
+// See Client.CreateDatabaseUser for more info on the permissions
+// argument
+func (self *Client) updateDatabaseUserCommon(database, name string, password *string, isAdmin *bool, permissions ...string) error {
 	url := self.getUrl("/db/" + database + "/users/" + name)
 	payload := map[string]interface{}{}
 	if password != nil {
@@ -190,6 +212,14 @@ func (self *Client) updateDatabaseUserCommon(database, name string, password *st
 	if isAdmin != nil {
 		payload["admin"] = *isAdmin
 	}
+	switch len(permissions) {
+	case 0:
+	case 2:
+		payload["readFrom"] = permissions[0]
+		payload["writeTo"] = permissions[1]
+	default:
+	}
+
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -200,6 +230,10 @@ func (self *Client) updateDatabaseUserCommon(database, name string, password *st
 
 func (self *Client) UpdateDatabaseUser(database, name, password string) error {
 	return self.updateDatabaseUserCommon(database, name, &password, nil)
+}
+
+func (self *Client) UpdateDatabaseUserPermissions(database, name, readPermission, writePermissions string) error {
+	return self.updateDatabaseUserCommon(database, name, nil, nil, readPermission, writePermissions)
 }
 
 func (self *Client) DeleteDatabaseUser(database, name string) error {
@@ -213,8 +247,8 @@ func (self *Client) GetDatabaseUserList(database string) ([]map[string]interface
 	return self.listSomething(url)
 }
 
-func (self *Client) AlterDatabasePrivilege(database, name string, isAdmin bool) error {
-	return self.updateDatabaseUserCommon(database, name, nil, &isAdmin)
+func (self *Client) AlterDatabasePrivilege(database, name string, isAdmin bool, permissions ...string) error {
+	return self.updateDatabaseUserCommon(database, name, nil, &isAdmin, permissions...)
 }
 
 type TimePrecision string
