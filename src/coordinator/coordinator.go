@@ -472,7 +472,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 		return common.NewAuthorizationError("Insufficient permissions to write to %s", db)
 	}
 
-	err := self.CommitSeriesData(db, series)
+	err := self.CommitSeriesData(db, series, false)
 	if err != nil {
 		return err
 	}
@@ -552,7 +552,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 		for _, s := range serieses {
 			seriesSlice = append(seriesSlice, s)
 		}
-		if e := self.CommitSeriesData(db, seriesSlice); e != nil {
+		if e := self.CommitSeriesData(db, seriesSlice, true); e != nil {
 			log.Error("Couldn't write data for continuous query: ", e)
 		}
 	} else {
@@ -566,7 +566,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 			}
 		}
 
-		if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}); e != nil {
+		if e := self.CommitSeriesData(db, []*protocol.Series{newSeries}, true); e != nil {
 			log.Error("Couldn't write data for continuous query: ", e)
 		}
 	}
@@ -574,7 +574,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 	return nil
 }
 
-func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Series) error {
+func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Series, sync bool) error {
 	now := common.CurrentTime()
 
 	shardToSerieses := map[uint32]map[string]*protocol.Series{}
@@ -633,7 +633,7 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 			seriesesSlice = append(seriesesSlice, s)
 		}
 
-		err := self.write(db, seriesesSlice, shard)
+		err := self.write(db, seriesesSlice, shard, sync)
 		if err != nil {
 			log.Error("COORD error writing: ", err)
 			return err
@@ -643,8 +643,11 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 	return nil
 }
 
-func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard cluster.Shard) error {
+func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
 	request := &protocol.Request{Type: &write, Database: &db, MultiSeries: series}
+	if sync {
+		return shard.SyncWrite(request)
+	}
 	return shard.Write(request)
 }
 

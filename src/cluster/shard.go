@@ -23,6 +23,7 @@ type Shard interface {
 	StartTime() time.Time
 	EndTime() time.Time
 	Write(*p.Request) error
+	SyncWrite(*p.Request) error
 	Query(querySpec *parser.QuerySpec, response chan *p.Response)
 	IsMicrosecondInRange(t int64) bool
 }
@@ -176,6 +177,20 @@ func (self *ShardData) SetLocalStore(store LocalShardStore, localServerId uint32
 
 func (self *ShardData) ServerIds() []uint32 {
 	return self.serverIds
+}
+
+func (self *ShardData) SyncWrite(request *p.Request) error {
+	if err := self.store.Write(request); err != nil {
+		return err
+	}
+
+	for _, server := range self.clusterServers {
+		if err := server.Write(request); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (self *ShardData) Write(request *p.Request) error {
