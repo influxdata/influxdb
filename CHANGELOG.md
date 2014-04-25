@@ -4,6 +4,11 @@
 
 - [Issue #471](https://github.com/influxdb/influxdb/issues/471). Read and write permissions should be settable through the http api
 
+### Bugfixes
+
+- [Issue #323](https://github.com/influxdb/influxdb/issues/323). Continuous queries should guard against data loops
+- [Issue #473](https://github.com/influxdb/influxdb/issues/473). Engine memory optimization
+
 ## v0.5.10 [2014-04-22]
 
 ### Features
