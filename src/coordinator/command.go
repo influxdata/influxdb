@@ -21,6 +21,7 @@ func init() {
 		&SaveDbUserCommand{},
 		&SaveClusterAdminCommand{},
 		&ChangeDbUserPassword{},
+		&ChangeDbUserPermissions{},
 		&CreateContinuousQueryCommand{},
 		&DeleteContinuousQueryCommand{},
 		&SetContinuousQueryTimestampCommand{},
@@ -167,6 +168,32 @@ func (c *ChangeDbUserPassword) Apply(server raft.Server) (interface{}, error) {
 	log.Debug("(raft:%s) changing db user password for %s:%s", server.Name(), c.Database, c.Username)
 	config := server.Context().(*cluster.ClusterConfiguration)
 	return nil, config.ChangeDbUserPassword(c.Database, c.Username, c.Hash)
+}
+
+type ChangeDbUserPermissions struct {
+	Database         string
+	Username         string
+	ReadPermissions  string
+	WritePermissions string
+}
+
+func NewChangeDbUserPermissionsCommand(db, username, readPermissions, writePermissions string) *ChangeDbUserPermissions {
+	return &ChangeDbUserPermissions{
+		Database:         db,
+		Username:         username,
+		ReadPermissions:  readPermissions,
+		WritePermissions: writePermissions,
+	}
+}
+
+func (c *ChangeDbUserPermissions) CommandName() string {
+	return "change_db_user_password"
+}
+
+func (c *ChangeDbUserPermissions) Apply(server raft.Server) (interface{}, error) {
+	log.Debug("(raft:%s) changing db user password for %s:%s", server.Name(), c.Database, c.Username)
+	config := server.Context().(*cluster.ClusterConfiguration)
+	return nil, config.ChangeDbUserPermissions(c.Database, c.Username, c.ReadPermissions, c.WritePermissions)
 }
 
 type SaveClusterAdminCommand struct {

@@ -19,11 +19,12 @@ type UserManager interface {
 	// list cluster admins. only a cluster admin can list the other cluster admins
 	ListClusterAdmins(requester common.User) ([]string, error)
 	// Create a db user, it's an error if requester isn't a db admin or cluster admin
-	CreateDbUser(request common.User, db, username, password string) error
+	CreateDbUser(request common.User, db, username, password string, permissions ...string) error
 	// Delete a db user. Same restrictions apply as in CreateDbUser
 	DeleteDbUser(requester common.User, db, username string) error
 	// Change db user's password. It's an error if requester isn't a cluster admin or db admin
 	ChangeDbUserPassword(requester common.User, db, username, password string) error
+	ChangeDbUserPermissions(requester common.User, db, username, readPermissions, writePermissions string) error
 	// list cluster admins. only a cluster admin or the db admin can list the db users
 	ListDbUsers(requester common.User, db string) ([]common.User, error)
 	GetDbUser(requester common.User, db, username string) (common.User, error)

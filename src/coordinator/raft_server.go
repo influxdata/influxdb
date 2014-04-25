@@ -204,6 +204,12 @@ func (s *RaftServer) ChangeDbUserPassword(db, username string, hash []byte) erro
 	return err
 }
 
+func (s *RaftServer) ChangeDbUserPermissions(db, username, readPermissions, writePermissions string) error {
+	command := NewChangeDbUserPermissionsCommand(db, username, readPermissions, writePermissions)
+	_, err := s.doOrProxyCommand(command, "change_db_user_permissions")
+	return err
+}
+
 func (s *RaftServer) SaveClusterAdminUser(u *cluster.ClusterAdmin) error {
 	command := NewSaveClusterAdminCommand(u)
 	_, err := s.doOrProxyCommand(command, "save_cluster_admin_user")

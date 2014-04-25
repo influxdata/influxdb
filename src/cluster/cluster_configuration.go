@@ -401,6 +401,20 @@ func (self *ClusterConfiguration) ChangeDbUserPassword(db, username, hash string
 	return nil
 }
 
+func (self *ClusterConfiguration) ChangeDbUserPermissions(db, username, readPermissions, writePermissions string) error {
+	self.usersLock.Lock()
+	defer self.usersLock.Unlock()
+	dbUsers := self.dbUsers[db]
+	if dbUsers == nil {
+		return fmt.Errorf("Invalid database name %s", db)
+	}
+	if dbUsers[username] == nil {
+		return fmt.Errorf("Invalid username %s", username)
+	}
+	dbUsers[username].ChangePermissions(readPermissions, writePermissions)
+	return nil
+}
+
 func (self *ClusterConfiguration) GetClusterAdmins() (names []string) {
 	self.usersLock.RLock()
 	defer self.usersLock.RUnlock()

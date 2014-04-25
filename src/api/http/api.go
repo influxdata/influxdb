@@ -549,6 +549,8 @@ type NewUser struct {
 	Name     string `json:"name"`
 	Password string `json:"password"`
 	IsAdmin  bool   `json:"isAdmin"`
+	ReadFrom string `json:"readFrom"`
+	WriteTo  string `json:"writeTo"`
 }
 
 type UpdateClusterAdminUser struct {
@@ -766,8 +768,16 @@ func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
+		permissions := []string{}
+		if newUser.ReadFrom != "" || newUser.WriteTo != "" {
+			if newUser.ReadFrom == "" || newUser.WriteTo == "" {
+				return libhttp.StatusBadRequest, "You have to provide read and write permissions"
+			}
+			permissions = append(permissions, newUser.ReadFrom, newUser.WriteTo)
+		}
+
 		username := newUser.Name
-		if err := self.userManager.CreateDbUser(u, db, username, newUser.Password); err != nil {
+		if err := self.userManager.CreateDbUser(u, db, username, newUser.Password, permissions...); err != nil {
 			log.Error("Cannot create user: %s", err)
 			return errorToStatusCode(err), err.Error()
 		}
@@ -822,6 +832,17 @@ func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 			}
 
 			if err := self.userManager.ChangeDbUserPassword(u, db, newUser, newPassword); err != nil {
+				return errorToStatusCode(err), err.Error()
+			}
+		}
+
+		if readPermissions, ok := updateUser["readFrom"]; ok {
+			writePermissions, ok := updateUser["writeTo"]
+			if !ok {
+				return libhttp.StatusBadRequest, "Changing permissions requires passing readFrom and writeTo"
+			}
+
+			if err := self.userManager.ChangeDbUserPermissions(u, db, newUser, readPermissions.(string), writePermissions.(string)); err != nil {
 				return errorToStatusCode(err), err.Error()
 			}
 		}

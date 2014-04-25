@@ -126,10 +126,26 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 		if selectQuery.IsContinuousQuery() {
 			return self.CreateContinuousQuery(user, database, queryString)
 		}
-
+		if err := self.checkPermission(user, querySpec); err != nil {
+			return err
+		}
 		return self.runQuery(querySpec, seriesWriter)
 	}
 	seriesWriter.Close()
+	return nil
+}
+
+func (self *CoordinatorImpl) checkPermission(user common.User, querySpec *parser.QuerySpec) error {
+	// if this isn't a regex query do the permission check here
+	fromClause := querySpec.SelectQuery().GetFromClause()
+
+	for _, n := range fromClause.Names {
+		if _, ok := n.Name.GetCompiledRegex(); ok {
+			break
+		} else if name := n.Name.Name; !user.HasReadAccess(name) {
+			return fmt.Errorf("User doesn't have read access to %s", name)
+		}
+	}
 	return nil
 }
 
@@ -796,7 +812,7 @@ func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, u
 	return self.raftServer.SaveClusterAdminUser(user)
 }
 
-func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, password string) error {
+func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, password string, permissions ...string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
 		return common.NewAuthorizationError("Insufficient permissions")
 	}
@@ -818,13 +834,20 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, p
 	if self.clusterConfiguration.GetDbUser(db, username) != nil {
 		return fmt.Errorf("User %s already exists", username)
 	}
-	matchers := []*cluster.Matcher{&cluster.Matcher{true, ".*"}}
+	readMatcher := []*cluster.Matcher{&cluster.Matcher{true, ".*"}}
+	writeMatcher := []*cluster.Matcher{&cluster.Matcher{true, ".*"}}
+	switch len(permissions) {
+	case 0:
+	case 2:
+		readMatcher[0].Name = permissions[0]
+		writeMatcher[0].Name = permissions[0]
+	}
 	log.Debug("(raft:%s) Creating user %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
 	return self.raftServer.SaveDbUser(&cluster.DbUser{cluster.CommonUser{
 		Name:     username,
 		Hash:     string(hash),
 		CacheKey: db + "%" + username,
-	}, db, matchers, matchers, false})
+	}, db, readMatcher, writeMatcher, false})
 }
 
 func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username string) error {
@@ -871,6 +894,14 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, use
 		return err
 	}
 	return self.raftServer.ChangeDbUserPassword(db, username, hash)
+}
+
+func (self *CoordinatorImpl) ChangeDbUserPermissions(requester common.User, db, username, readPermissions, writePermissions string) error {
+	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
+		return common.NewAuthorizationError("Insufficient permissions")
+	}
+
+	return self.raftServer.ChangeDbUserPermissions(db, username, readPermissions, writePermissions)
 }
 
 func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username string, isAdmin bool) error {

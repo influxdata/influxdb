@@ -1,10 +1,11 @@
 package cluster
 
 import (
-	"code.google.com/p/go.crypto/bcrypt"
 	"common"
-	"github.com/influxdb/go-cache"
 	"regexp"
+
+	"code.google.com/p/go.crypto/bcrypt"
+	"github.com/influxdb/go-cache"
 )
 
 var userCache *cache.Cache
@@ -129,6 +130,11 @@ func (self *DbUser) HasReadAccess(name string) bool {
 
 func (self *DbUser) GetDb() string {
 	return self.Db
+}
+
+func (self *DbUser) ChangePermissions(readPermissions, writePermissions string) {
+	self.ReadFrom = []*Matcher{&Matcher{true, readPermissions}}
+	self.WriteTo = []*Matcher{&Matcher{true, writePermissions}}
 }
 
 func HashPassword(password string) ([]byte, error) {

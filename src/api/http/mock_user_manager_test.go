@@ -46,6 +46,7 @@ func (self MockDbUser) HasReadAccess(_ string) bool {
 }
 
 type MockUserManager struct {
+	UserManager
 	dbUsers       map[string]map[string]MockDbUser
 	clusterAdmins []string
 	ops           []*Operation
@@ -94,7 +95,7 @@ func (self *MockUserManager) ChangeClusterAdminPassword(requester common.User, u
 	return nil
 }
 
-func (self *MockUserManager) CreateDbUser(request common.User, db, username, password string) error {
+func (self *MockUserManager) CreateDbUser(request common.User, db, username, password string, permissions ...string) error {
 	if username == "" {
 		return fmt.Errorf("Invalid empty username")
 	}

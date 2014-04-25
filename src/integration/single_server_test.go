@@ -104,6 +104,45 @@ func (self *SingleServerSuite) TestSslOnly(c *C) {
 
 }
 
+func (self *SingleServerSuite) TestUserPermissions(c *C) {
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
+	c.Assert(err, IsNil)
+	c.Assert(client.CreateDatabaseUser("db1", "limited_user", "pass", "test_should_read", ".*"), IsNil)
+
+	data := `
+[
+  {
+    "points": [
+        [1]
+    ],
+    "name": "test_should_read",
+    "columns": ["value"]
+  },
+  {
+    "points": [
+        [2]
+    ],
+    "name": "test_should_not_read",
+    "columns": ["value"]
+  }
+]`
+	self.server.WriteData(data, c)
+
+	series := self.server.RunQueryAsUser("select value from test_should_read", "s", "limited_user", "pass", true, c)
+	c.Assert(series[0].Points, HasLen, 1)
+	c.Assert(series[0].Points[0][2], Equals, float64(1))
+
+	_ = self.server.RunQueryAsUser("select value from test_should_not_read", "s", "limited_user", "pass", false, c)
+	series = self.server.RunQueryAsUser("select value from /.*/", "s", "limited_user", "pass", true, c)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "test_should_read")
+
+	client.UpdateDatabaseUserPermissions("db1", "limited_user", ".*", ".*")
+	self.server.WaitForServerToSync()
+	series = self.server.RunQueryAsUser("select value from /.*/", "s", "limited_user", "pass", true, c)
+	c.Assert(series, HasLen, 2)
+}
+
 // Reported by Alex in the following thread
 // https://groups.google.com/forum/#!msg/influxdb/I_Ns6xYiMOc/XilTv6BDgHgJ
 func (self *SingleServerSuite) TestAdminPermissionToDeleteData(c *C) {

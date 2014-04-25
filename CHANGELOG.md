@@ -1,3 +1,9 @@
+## v0.5.11 [unreleased]
+
+### Features
+
+- [Issue #471](https://github.com/influxdb/influxdb/issues/471). Read and write permissions should be settable through the http api
+
 ## v0.5.10 [2014-04-22]
 
 ### Features
