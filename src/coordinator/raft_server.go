@@ -126,11 +126,11 @@ func (s *RaftServer) leaderConnectString() (string, bool) {
 	}
 }
 
-func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) (interface{}, error) {
+func (s *RaftServer) doOrProxyCommand(command raft.Command) (interface{}, error) {
 	var err error
 	var value interface{}
 	for i := 0; i < 3; i++ {
-		value, err = s.doOrProxyCommandOnce(command, commandType)
+		value, err = s.doOrProxyCommandOnce(command)
 		if err == nil {
 			return value, nil
 		}
@@ -142,7 +142,7 @@ func (s *RaftServer) doOrProxyCommand(command raft.Command, commandType string) 
 	return nil, err
 }
 
-func (s *RaftServer) doOrProxyCommandOnce(command raft.Command, commandType string) (interface{}, error) {
+func (s *RaftServer) doOrProxyCommandOnce(command raft.Command) (interface{}, error) {
 
 	if s.raftServer.State() == raft.Leader {
 		value, err := s.raftServer.Do(command)
@@ -158,7 +158,7 @@ func (s *RaftServer) doOrProxyCommandOnce(command raft.Command, commandType stri
 			if err := json.NewEncoder(&b).Encode(command); err != nil {
 				return nil, err
 			}
-			resp, err := http.Post(leader+"/process_command/"+commandType, "application/json", &b)
+			resp, err := http.Post(leader+"/process_command/"+command.CommandName(), "application/json", &b)
 			if err != nil {
 				return nil, err
 			}
@@ -182,37 +182,37 @@ func (s *RaftServer) CreateDatabase(name string, replicationFactor uint8) error 
 		replicationFactor = 1
 	}
 	command := NewCreateDatabaseCommand(name, replicationFactor)
-	_, err := s.doOrProxyCommand(command, "create_db")
+	_, err := s.doOrProxyCommand(command)
 	return err
 }
 
 func (s *RaftServer) DropDatabase(name string) error {
 	command := NewDropDatabaseCommand(name)
-	_, err := s.doOrProxyCommand(command, "drop_db")
+	_, err := s.doOrProxyCommand(command)
 	return err
 }
 
 func (s *RaftServer) SaveDbUser(u *cluster.DbUser) error {
 	command := NewSaveDbUserCommand(u)
-	_, err := s.doOrProxyCommand(command, "save_db_user")
+	_, err := s.doOrProxyCommand(command)
 	return err
 }
 
 func (s *RaftServer) ChangeDbUserPassword(db, username string, hash []byte) error {
 	command := NewChangeDbUserPasswordCommand(db, username, string(hash))
-	_, err := s.doOrProxyCommand(command, "change_db_user_password")
+	_, err := s.doOrProxyCommand(command)
 	return err
 }
 
 func (s *RaftServer) ChangeDbUserPermissions(db, username, readPermissions, writePermissions string) error {
 	command := NewChangeDbUserPermissionsCommand(db, username, readPermissions, writePermissions)
-	_, err := s.doOrProxyCommand(command, "change_db_user_permissions")
+	_, err := s.doOrProxyCommand(command)
 	return err
 }
 
 func (s *RaftServer) SaveClusterAdminUser(u *cluster.ClusterAdmin) error {
 	command := NewSaveClusterAdminCommand(u)
-	_, err := s.doOrProxyCommand(command, "save_cluster_admin_user")
+	_, err := s.doOrProxyCommand(command)
 	return err
 }
 
@@ -225,7 +225,7 @@ func (s *RaftServer) CreateRootUser() error {
 
 func (s *RaftServer) SetContinuousQueryTimestamp(timestamp time.Time) error {
 	command := NewSetContinuousQueryTimestampCommand(timestamp)
-	_, err := s.doOrProxyCommand(command, "set_cq_ts")
+	_, err := s.doOrProxyCommand(command)
 	return err
 }
 
@@ -254,13 +254,13 @@ func (s *RaftServer) CreateContinuousQuery(db string, query string) error {
 	}
 
 	command := NewCreateContinuousQueryCommand(db, query)
-	_, err = s.doOrProxyCommand(command, "create_cq")
+	_, err = s.doOrProxyCommand(command)
 	return err
 }
 
 func (s *RaftServer) DeleteContinuousQuery(db string, id uint32) error {
 	command := NewDeleteContinuousQueryCommand(db, id)
-	_, err := s.doOrProxyCommand(command, "delete_cq")
+	_, err := s.doOrProxyCommand(command)
 	return err
 }
 
@@ -384,7 +384,7 @@ func (s *RaftServer) startRaft() error {
 			nil,
 			s.config)
 		command := NewAddPotentialServerCommand(clusterServer)
-		_, err = s.doOrProxyCommand(command, "add_server")
+		_, err = s.doOrProxyCommand(command)
 		if err != nil {
 			return err
 		}
@@ -684,7 +684,7 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster.ShardData, error) {
 	log.Debug("RAFT: CreateShards")
 	command := NewCreateShardsCommand(shards)
-	createShardsResult, err := self.doOrProxyCommand(command, "create_shards")
+	createShardsResult, err := self.doOrProxyCommand(command)
 	if err != nil {
 		log.Error("RAFT: CreateShards: ", err)
 		return nil, err
@@ -704,6 +704,6 @@ func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster
 
 func (self *RaftServer) DropShard(id uint32, serverIds []uint32) error {
 	command := NewDropShardCommand(id, serverIds)
-	_, err := self.doOrProxyCommand(command, "drop_shard")
+	_, err := self.doOrProxyCommand(command)
 	return err
 }
