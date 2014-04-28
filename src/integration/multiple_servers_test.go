@@ -203,6 +203,37 @@ func (self *ServerSuite) TestInvalidUserNameAndDbName(c *C) {
 	c.Assert(resp.StatusCode, Not(Equals), http.StatusOK)
 }
 
+func (self *ServerSuite) TestUdpInterface(c *C) {
+	udp, err := net.Dial("udp", "localhost:60514")
+	c.Assert(err, IsNil)
+	data := `
+[
+  {
+    "points": [
+        [1]
+    ],
+    "name": "test_udp",
+    "columns": ["value"]
+  }
+]`
+	_, err = udp.Write([]byte(data))
+	c.Assert(err, IsNil)
+	// make sure the udp packet is sent
+	time.Sleep(time.Second)
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
+
+	client := self.serverProcesses[0].GetClient("udp_db", c)
+	s, err := client.Query("select value from test_udp")
+	c.Assert(err, IsNil)
+	c.Assert(s, HasLen, 1)
+	maps := ToMap(s[0])
+	c.Assert(maps, HasLen, 1)
+	// make sure the continuous query inserted two points
+	c.Assert(maps[0]["value"], Equals, 1.0)
+}
+
 func (self *ServerSuite) TestShouldNotResetRootsPassword(c *C) {
 	resp := self.serverProcesses[0].Post("/db/dummy_db/users?u=root&p=root", "{\"name\":\"root\", \"password\":\"pass\"}", c)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)

@@ -4,6 +4,7 @@ import (
 	"admin"
 	"api/graphite"
 	"api/http"
+	"api/udp"
 	"cluster"
 	"configuration"
 	"coordinator"
@@ -20,6 +21,7 @@ type Server struct {
 	ClusterConfig  *cluster.ClusterConfiguration
 	HttpApi        *http.HttpServer
 	GraphiteApi    *graphite.Server
+	UdpApi         *udp.Server
 	AdminServer    *admin.HttpServer
 	Coordinator    coordinator.Coordinator
 	Config         *configuration.Configuration
@@ -58,6 +60,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.ApiReadTimeout, config.AdminAssetsDir, coord, coord, clusterConfig, raftServer)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
 	graphiteApi := graphite.NewServer(config, coord, clusterConfig)
+	udpApi := udp.NewServer(config, coord, clusterConfig)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
 	return &Server{
@@ -66,6 +69,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		ClusterConfig:  clusterConfig,
 		HttpApi:        httpApi,
 		GraphiteApi:    graphiteApi,
+		UdpApi:         udpApi,
 		Coordinator:    coord,
 		AdminServer:    adminServer,
 		Config:         config,
@@ -122,6 +126,15 @@ func (self *Server) ListenAndServe() error {
 		} else {
 			log.Info("Starting Graphite Listener on port %d", self.Config.GraphitePort)
 			go self.GraphiteApi.ListenAndServe()
+		}
+	}
+
+	if self.Config.UdpInputEnabled {
+		if self.Config.UdpInputPort <= 0 || self.Config.UdpInputDatabase == "" {
+			log.Warn("Cannot start udp server. please check your configuration")
+		} else {
+			log.Info("Starting UDP Listener on port %d", self.Config.UdpInputPort)
+			go self.UdpApi.ListenAndServe()
 		}
 	}
 

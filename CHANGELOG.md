@@ -1,5 +1,9 @@
 ## v0.5.13 [unrelease]
 
+### Feature
+
+- [Issue #477](https://github.com/influxdb/influxdb/issues/477). Add a udp json interface
+
 ### Bugfixes
 
 - [Issue #469](https://github.com/influxdb/influxdb/issues/469). Drop continuous queries when a database is dropped

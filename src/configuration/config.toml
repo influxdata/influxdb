@@ -33,6 +33,11 @@ read-timeout = "5s"
   port = 2003
   database = ""  # store graphite data in this database
 
+  [input_plugins.udp]
+  enabled = true
+  port = 4444
+  database = "test"
+
 # Raft configuration
 [raft]
 # The raft port should be open between all servers in a cluster.

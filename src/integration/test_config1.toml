@@ -29,6 +29,11 @@ ssl-cert = "./cert.pem"
   port = 60513
   database = "graphite_db"  # store graphite data in this database
 
+  [input_plugins.udp]
+  enabled = true
+  port = 60514
+  database = "udp_db"  # store graphite data in this database
+
 # Raft configuration
 [raft]
 # The raft port should be open between all servers in a cluster.

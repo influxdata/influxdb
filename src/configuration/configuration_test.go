@@ -39,6 +39,10 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	c.Assert(config.GraphitePort, Equals, 2003)
 	c.Assert(config.GraphiteDatabase, Equals, "")
 
+	c.Assert(config.UdpInputEnabled, Equals, true)
+	c.Assert(config.UdpInputPort, Equals, 4444)
+	c.Assert(config.UdpInputDatabase, Equals, "test")
+
 	c.Assert(config.RaftDir, Equals, "/tmp/influxdb/development/raft")
 	c.Assert(config.RaftServerPort, Equals, 8090)
 	c.Assert(config.RaftTimeout.Duration, Equals, time.Second)

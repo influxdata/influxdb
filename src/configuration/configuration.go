@@ -72,6 +72,11 @@ type GraphiteConfig struct {
 	Port     int
 	Database string
 }
+type UdpInputConfig struct {
+	Enabled  bool
+	Port     int
+	Database string
+}
 
 type RaftConfig struct {
 	Port    int
@@ -171,6 +176,7 @@ type WalConfig struct {
 
 type InputPlugins struct {
 	Graphite GraphiteConfig `toml:"graphite"`
+	UdpInput UdpInputConfig `toml:"udp"`
 }
 
 type TomlConfiguration struct {
@@ -189,15 +195,21 @@ type TomlConfiguration struct {
 }
 
 type Configuration struct {
-	AdminHttpPort                int
-	AdminAssetsDir               string
-	ApiHttpSslPort               int
-	ApiHttpCertPath              string
-	ApiHttpPort                  int
-	ApiReadTimeout               time.Duration
-	GraphiteEnabled              bool
-	GraphitePort                 int
-	GraphiteDatabase             string
+	AdminHttpPort   int
+	AdminAssetsDir  string
+	ApiHttpSslPort  int
+	ApiHttpCertPath string
+	ApiHttpPort     int
+	ApiReadTimeout  time.Duration
+
+	GraphiteEnabled  bool
+	GraphitePort     int
+	GraphiteDatabase string
+
+	UdpInputEnabled  bool
+	UdpInputPort     int
+	UdpInputDatabase string
+
 	RaftServerPort               int
 	RaftTimeout                  duration
 	SeedServers                  []string
@@ -294,15 +306,21 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	}
 
 	config := &Configuration{
-		AdminHttpPort:                tomlConfiguration.Admin.Port,
-		AdminAssetsDir:               tomlConfiguration.Admin.Assets,
-		ApiHttpPort:                  tomlConfiguration.HttpApi.Port,
-		ApiHttpCertPath:              tomlConfiguration.HttpApi.SslCertPath,
-		ApiHttpSslPort:               tomlConfiguration.HttpApi.SslPort,
-		ApiReadTimeout:               apiReadTimeout,
-		GraphiteEnabled:              tomlConfiguration.InputPlugins.Graphite.Enabled,
-		GraphitePort:                 tomlConfiguration.InputPlugins.Graphite.Port,
-		GraphiteDatabase:             tomlConfiguration.InputPlugins.Graphite.Database,
+		AdminHttpPort:   tomlConfiguration.Admin.Port,
+		AdminAssetsDir:  tomlConfiguration.Admin.Assets,
+		ApiHttpPort:     tomlConfiguration.HttpApi.Port,
+		ApiHttpCertPath: tomlConfiguration.HttpApi.SslCertPath,
+		ApiHttpSslPort:  tomlConfiguration.HttpApi.SslPort,
+		ApiReadTimeout:  apiReadTimeout,
+
+		GraphiteEnabled:  tomlConfiguration.InputPlugins.Graphite.Enabled,
+		GraphitePort:     tomlConfiguration.InputPlugins.Graphite.Port,
+		GraphiteDatabase: tomlConfiguration.InputPlugins.Graphite.Database,
+
+		UdpInputEnabled:  tomlConfiguration.InputPlugins.UdpInput.Enabled,
+		UdpInputPort:     tomlConfiguration.InputPlugins.UdpInput.Port,
+		UdpInputDatabase: tomlConfiguration.InputPlugins.UdpInput.Database,
+
 		RaftServerPort:               tomlConfiguration.Raft.Port,
 		RaftTimeout:                  tomlConfiguration.Raft.Timeout,
 		RaftDir:                      tomlConfiguration.Raft.Dir,
@@ -408,6 +426,14 @@ func (self *Configuration) GraphitePortString() string {
 	}
 
 	return fmt.Sprintf("%s:%d", self.BindAddress, self.GraphitePort)
+}
+
+func (self *Configuration) UdpInputPortString() string {
+	if self.UdpInputPort <= 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.UdpInputPort)
 }
 
 func (self *Configuration) HostnameOrDetect() string {
