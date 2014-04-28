@@ -35,6 +35,11 @@ read-timeout = "5s"
   enabled = false
   # port = 2003
   # database = ""  # store graphite data in this database
+  
+  [input_plugins.udp]
+  enabled = true
+  port = 4444
+  database = "test"
 
 # Raft configuration
 [raft]
