@@ -380,18 +380,6 @@ func (s *RaftServer) startRaft() error {
 		if err != nil {
 			log.Error(err)
 		}
-
-		protobufConnectString := s.config.ProtobufConnectionString()
-		clusterServer := cluster.NewClusterServer(name,
-			connectionString,
-			protobufConnectString,
-			nil,
-			s.config)
-		command := NewAddPotentialServerCommand(clusterServer)
-		_, err = s.doOrProxyCommand(command)
-		if err != nil {
-			return err
-		}
 		err = s.CreateRootUser()
 		return err
 	}
@@ -608,6 +596,7 @@ func (s *RaftServer) retryCommand(command raft.Command, retries int) (ret interf
 }
 
 func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
+	// if this is the leader, process the command
 	if s.raftServer.State() == raft.Leader {
 		command := &InfluxJoinCommand{}
 		if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
@@ -619,34 +608,17 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		if _, err := s.raftServer.Do(command); err != nil {
 			log.Error("Can't process %v: %s", command, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
 		}
-		server := s.clusterConfig.GetServerByRaftName(command.Name)
-		// it's a new server the cluster has never seen, make it a potential
-		if server == nil {
-			log.Info("Adding new server to the cluster config %s", command.Name)
-			clusterServer := cluster.NewClusterServer(command.Name,
-				command.ConnectionString,
-				command.ProtobufConnectionString,
-				nil,
-				s.config)
-			addServer := NewAddPotentialServerCommand(clusterServer)
-			if _, err := s.raftServer.Do(addServer); err != nil {
-				log.Error("Error joining raft server: ", err, command)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-		log.Info("Server %s already exist in the cluster config", command.Name)
+		return
+	}
+
+	leader, ok := s.leaderConnectString()
+	log.Debug("Non-leader redirecting to: (%v, %v)", leader, ok)
+	if ok {
+		log.Debug("redirecting to leader to join...")
+		http.Redirect(w, req, leader+"/join", http.StatusTemporaryRedirect)
 	} else {
-		leader, ok := s.leaderConnectString()
-		log.Debug("Non-leader redirecting to: (%v, %v)", leader, ok)
-		if ok {
-			log.Debug("redirecting to leader to join...")
-			http.Redirect(w, req, leader+"/join", http.StatusTemporaryRedirect)
-		} else {
-			http.Error(w, errors.New("Couldn't find leader of the cluster to join").Error(), http.StatusInternalServerError)
-		}
+		http.Error(w, errors.New("Couldn't find leader of the cluster to join").Error(), http.StatusInternalServerError)
 	}
 }
 

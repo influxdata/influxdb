@@ -55,34 +55,35 @@ const (
   the servers in the cluster and their state, databases, users, and which continuous queries are running.
 */
 type ClusterConfiguration struct {
-	createDatabaseLock         sync.RWMutex
-	DatabaseReplicationFactors map[string]uint8
-	usersLock                  sync.RWMutex
-	clusterAdmins              map[string]*ClusterAdmin
-	dbUsers                    map[string]map[string]*DbUser
-	servers                    []*ClusterServer
-	serversLock                sync.RWMutex
-	continuousQueries          map[string][]*ContinuousQuery
-	continuousQueriesLock      sync.RWMutex
-	ParsedContinuousQueries    map[string]map[uint32]*parser.SelectQuery
-	continuousQueryTimestamp   time.Time
-	LocalServerId              uint32
-	config                     *configuration.Configuration
-	addedLocalServerWait       chan bool
-	addedLocalServer           bool
-	connectionCreator          func(string) ServerConnection
-	shardStore                 LocalShardStore
-	wal                        WAL
-	longTermShards             []*ShardData
-	shortTermShards            []*ShardData
-	random                     *rand.Rand
-	lastServerToGetShard       *ClusterServer
-	shardCreator               ShardCreator
-	shardLock                  sync.Mutex
-	shardsById                 map[uint32]*ShardData
-	shardsByIdLock             sync.RWMutex
-	LocalRaftName              string
-	writeBuffers               []*WriteBuffer
+	createDatabaseLock            sync.RWMutex
+	DatabaseReplicationFactors    map[string]uint8
+	usersLock                     sync.RWMutex
+	clusterAdmins                 map[string]*ClusterAdmin
+	dbUsers                       map[string]map[string]*DbUser
+	servers                       []*ClusterServer
+	serversLock                   sync.RWMutex
+	continuousQueries             map[string][]*ContinuousQuery
+	continuousQueriesLock         sync.RWMutex
+	ParsedContinuousQueries       map[string]map[uint32]*parser.SelectQuery
+	continuousQueryTimestamp      time.Time
+	LocalServerId                 uint32
+	LocalProtobufConnectionString string
+	config                        *configuration.Configuration
+	addedLocalServerWait          chan bool
+	addedLocalServer              bool
+	connectionCreator             func(string) ServerConnection
+	shardStore                    LocalShardStore
+	wal                           WAL
+	longTermShards                []*ShardData
+	shortTermShards               []*ShardData
+	random                        *rand.Rand
+	lastServerToGetShard          *ClusterServer
+	shardCreator                  ShardCreator
+	shardLock                     sync.Mutex
+	shardsById                    map[uint32]*ShardData
+	shardsByIdLock                sync.RWMutex
+	LocalRaftName                 string
+	writeBuffers                  []*WriteBuffer
 }
 
 type ContinuousQuery struct {
@@ -217,22 +218,33 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	server.Id = uint32(len(self.servers))
 	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
 	log.Info("Checking whether this is the local server new: %s, local: %s\n", self.config.ProtobufConnectionString(), server.ProtobufConnectionString)
-	if server.RaftName != self.LocalRaftName {
-		log.Info("Connecting to ProtobufServer: %s", server.ProtobufConnectionString, self.config.ProtobufConnectionString())
-		if server.connection == nil {
-			server.connection = self.connectionCreator(server.ProtobufConnectionString)
-			server.Connect()
-		}
-		writeBuffer := NewWriteBuffer(fmt.Sprintf("%d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize)
-		self.writeBuffers = append(self.writeBuffers, writeBuffer)
-		server.SetWriteBuffer(writeBuffer)
-		server.StartHeartbeat()
-	} else if !self.addedLocalServer {
+
+	if server.RaftName == self.LocalRaftName && self.addedLocalServer {
+		panic("how did we add the same server twice ?")
+	}
+
+	// if this is the local server unblock WaitForLocalServerLoaded()
+	// and set the local connection string and id
+	if server.RaftName == self.LocalRaftName {
 		log.Info("Added the local server")
 		self.LocalServerId = server.Id
+		self.LocalProtobufConnectionString = server.ProtobufConnectionString
 		self.addedLocalServerWait <- true
 		self.addedLocalServer = true
+		return
 	}
+
+	// if this isn't the local server, connect to it
+	log.Info("Connecting to ProtobufServer: %s", server.ProtobufConnectionString, self.config.ProtobufConnectionString())
+	if server.connection == nil {
+		server.connection = self.connectionCreator(server.ProtobufConnectionString)
+		server.Connect()
+	}
+	writeBuffer := NewWriteBuffer(fmt.Sprintf("%d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize)
+	self.writeBuffers = append(self.writeBuffers, writeBuffer)
+	server.SetWriteBuffer(writeBuffer)
+	server.StartHeartbeat()
+	return
 }
 
 func (self *ClusterConfiguration) GetDatabases() []*Database {
@@ -342,6 +354,10 @@ func (self *ClusterConfiguration) GetContinuousQueries(db string) []*ContinuousQ
 	defer self.continuousQueriesLock.Unlock()
 
 	return self.continuousQueries[db]
+}
+
+func (self *ClusterConfiguration) GetLocalConfiguration() *configuration.Configuration {
+	return self.config
 }
 
 func (self *ClusterConfiguration) GetDbUsers(db string) []common.User {
