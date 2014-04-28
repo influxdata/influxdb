@@ -2,6 +2,8 @@
 
 ### Bugfixes
 
+- [Issue #419](https://github.com/influxdb/influxdb/issues/419). Allow hostname changes in single node clusters
+
 ## v0.5.11 [2014-04-25]
 
 ### Features

@@ -95,7 +95,7 @@ func (self *Server) ListenAndServe() error {
 	}
 	log.Info("recovered")
 
-	err = self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.Config.ProtobufConnectionString())
+	err = self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.RaftServer.GetRaftName())
 	if err != nil {
 		return err
 	}

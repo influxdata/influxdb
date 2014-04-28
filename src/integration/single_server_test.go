@@ -79,7 +79,7 @@ func (self *SingleServerSuite) TestDeletesFromCapitalNames(c *C) {
 func (self *SingleServerSuite) TestSslOnly(c *C) {
 	self.server.Stop()
 	// TODO: don't hard code the path here
-	c.Assert(os.RemoveAll("/tmp/influxdb/test/1"), IsNil)
+	c.Assert(os.RemoveAll("/tmp/influxdb/development"), IsNil)
 	server := NewSslServer("src/integration/test_ssl_only.toml", c)
 	server.WaitForServerToStart()
 
@@ -102,6 +102,26 @@ func (self *SingleServerSuite) TestSslOnly(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(client.Ping(), IsNil)
 
+}
+
+func (self *SingleServerSuite) TestSingleServerHostnameChange(c *C) {
+	self.server.Stop()
+	// TODO: don't hard code the path here
+	c.Assert(os.RemoveAll("/tmp/influxdb/development"), IsNil)
+	server := NewServerWithArgs("config.sample.toml", c, "-hostname", "foo")
+	server.WaitForServerToStart()
+	server.Stop()
+	server = NewServerWithArgs("config.sample.toml", c, "-hostname", "bar")
+	server.WaitForServerToStart()
+
+	defer func() {
+		server.Stop()
+		self.server = NewServer("config.sample.toml", c)
+	}()
+
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
+	c.Assert(err, IsNil)
+	c.Assert(client.Ping(), IsNil)
 }
 
 func (self *SingleServerSuite) TestUserPermissions(c *C) {

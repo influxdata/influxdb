@@ -933,11 +933,11 @@ func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username stri
 	return nil
 }
 
-func (self *CoordinatorImpl) ConnectToProtobufServers(localConnectionString string) error {
+func (self *CoordinatorImpl) ConnectToProtobufServers(localRaftName string) error {
 	log.Info("Connecting to other nodes in the cluster")
 
 	for _, server := range self.clusterConfiguration.Servers() {
-		if server.ProtobufConnectionString != localConnectionString {
+		if server.RaftName != localRaftName {
 			server.Connect()
 		}
 	}

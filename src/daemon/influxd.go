@@ -59,6 +59,7 @@ func main() {
 	fileName := flag.String("config", "config.sample.toml", "Config file")
 	wantsVersion := flag.Bool("v", false, "Get version number")
 	resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
+	hostname := flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
 	pidFile := flag.String("pidfile", "", "the pid file")
 	repairLeveldb := flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
 
@@ -70,6 +71,12 @@ func main() {
 		return
 	}
 	config := configuration.LoadConfiguration(*fileName)
+
+	// override the hostname if it was specified on the command line
+	if hostname != nil && *hostname != "" {
+		config.Hostname = *hostname
+	}
+
 	setupLogging(config.LogLevel, config.LogFile)
 
 	if *repairLeveldb {

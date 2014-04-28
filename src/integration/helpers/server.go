@@ -25,22 +25,29 @@ type Server struct {
 	sslOnly    bool
 	apiPort    int
 	sslApiPort int
+	args       []string
 }
 
 func NewSslServer(configFile string, c *C) *Server {
-	return newServerCommon(configFile, true, c)
+	return newServerCommon(configFile, true, true, c)
+}
+
+func NewServerWithArgs(configFile string, c *C, args ...string) *Server {
+	return newServerCommon(configFile, false, false, c, args...)
 }
 
 func NewServer(configFile string, c *C) *Server {
-	return newServerCommon(configFile, false, c)
+	return newServerCommon(configFile, true, false, c)
 }
 
-func newServerCommon(configFile string, ssl bool, c *C) *Server {
+func newServerCommon(configFile string, deleteData, ssl bool, c *C, args ...string) *Server {
 	config := configuration.LoadConfiguration("../../" + configFile)
-	s := &Server{configFile: configFile, apiPort: config.ApiHttpPort, sslApiPort: config.ApiHttpSslPort, sslOnly: ssl}
-	c.Assert(os.RemoveAll(config.DataDir), IsNil)
-	c.Assert(os.RemoveAll(config.WalDir), IsNil)
-	c.Assert(os.RemoveAll(config.RaftDir), IsNil)
+	s := &Server{configFile: configFile, apiPort: config.ApiHttpPort, sslApiPort: config.ApiHttpSslPort, sslOnly: ssl, args: args}
+	if deleteData {
+		c.Assert(os.RemoveAll(config.DataDir), IsNil)
+		c.Assert(os.RemoveAll(config.WalDir), IsNil)
+		c.Assert(os.RemoveAll(config.RaftDir), IsNil)
+	}
 	err := s.Start()
 	c.Assert(err, IsNil)
 	s.WaitForServerToStart()
@@ -178,7 +185,9 @@ func (self *Server) Start() error {
 	if self.configFile == "" {
 		self.configFile = "config.sample.toml"
 	}
-	p, err := os.StartProcess(filename, []string{filename, "-config", self.configFile}, &os.ProcAttr{
+	args := []string{filename, "-config", self.configFile}
+	args = append(args, self.args...)
+	p, err := os.StartProcess(filename, args, &os.ProcAttr{
 		Dir:   root,
 		Env:   os.Environ(),
 		Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
