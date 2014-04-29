@@ -38,29 +38,9 @@ type ClusterConsensus interface {
 	SaveDbUser(user *cluster.DbUser) error
 	ChangeDbUserPassword(db, username string, hash []byte) error
 	ChangeDbUserPermissions(db, username, readPermissions, writePermissions string) error
-
-	// an insert index of -1 will append to the end of the ring
-	AddServer(server *cluster.ClusterServer, insertIndex int) error
-	// only servers that are in a Potential state can be moved around in the ring
-	MovePotentialServer(server *cluster.ClusterServer, insertIndex int) error
-	/*
-		Activate tells the cluster to start sending writes to this node.
-		The node will also make requests to the other servers to backfill any
-		  data they should have
-		Once the new node updates it state to "Running" the other servers will
-		  delete all of the data that they no longer have to keep from the ring
-	*/
-	ActivateServer(server *cluster.ClusterServer) error
-
-	// Efficient method to have a potential server take the place of a running (or downed)
-	// server. The replacement must have a state of "Potential" for this to work.
-	ReplaceServer(oldServer *cluster.ClusterServer, replacement *cluster.ClusterServer) error
-
 	AssignCoordinator(coordinator *CoordinatorImpl) error
-
 	// When a cluster is turned on for the first time.
 	CreateRootUser() error
-
 	ForceLogCompaction() error
 }
 

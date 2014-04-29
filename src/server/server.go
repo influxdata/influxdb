@@ -52,7 +52,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 
 	coord := coordinator.NewCoordinatorImpl(config, raftServer, clusterConfig)
 	requestHandler := coordinator.NewProtobufRequestHandler(coord, clusterConfig)
-	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
+	protobufServer := coordinator.NewProtobufServer(config.ProtobufListenString(), requestHandler)
 
 	raftServer.AssignCoordinator(coord)
 	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.ApiReadTimeout, config.AdminAssetsDir, coord, coord, clusterConfig, raftServer)
@@ -85,6 +85,21 @@ func (self *Server) ListenAndServe() error {
 	self.writeLog.SetServerId(self.ClusterConfig.ServerId())
 
 	time.Sleep(5 * time.Second)
+
+	// check to make sure that the raft connection string hasn't changed
+	raftConnectionString := self.Config.RaftConnectionString()
+	if self.ClusterConfig.LocalServer.ProtobufConnectionString != self.Config.ProtobufConnectionString() ||
+		self.ClusterConfig.LocalServer.RaftConnectionString != raftConnectionString {
+		err := self.RaftServer.ChangeConnectionString(
+			self.ClusterConfig.LocalRaftName,
+			self.Config.ProtobufConnectionString(),
+			self.Config.RaftConnectionString(),
+			true, // force the rename
+		)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	go self.ProtobufServer.ListenAndServe()
 

@@ -181,17 +181,17 @@ func (self *ShardData) ServerIds() []uint32 {
 
 func (self *ShardData) SyncWrite(request *p.Request) error {
 	request.ShardId = &self.id
-	if err := self.store.Write(request); err != nil {
-		return err
-	}
-
 	for _, server := range self.clusterServers {
 		if err := server.Write(request); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	if self.store == nil {
+		return nil
+	}
+
+	return self.store.Write(request)
 }
 
 func (self *ShardData) Write(request *p.Request) error {

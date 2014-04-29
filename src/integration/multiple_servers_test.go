@@ -23,37 +23,6 @@ type ServerSuite struct {
 
 var _ = Suite(&ServerSuite{})
 
-func (self *ServerSuite) precreateShards(server *Server, c *C) {
-	self.createShards(server, int64(3600), "false", c)
-	self.createShards(server, int64(86400), "true", c)
-	server.WaitForServerToSync()
-}
-
-func (self ServerSuite) createShards(server *Server, bucketSize int64, longTerm string, c *C) {
-	serverCount := 3
-	nowBucket := time.Now().Unix() / bucketSize * bucketSize
-	startIndex := 0
-
-	for i := 0; i <= 50; i++ {
-		serverId1 := startIndex%serverCount + 1
-		startIndex += 1
-		serverId2 := startIndex%serverCount + 1
-		startIndex += 1
-		data := fmt.Sprintf(`{
-			"startTime":%d,
-			"endTime":%d,
-			"longTerm": %s,
-			"shards": [{
-				"serverIds": [%d, %d]
-			}]
-		}`, nowBucket, nowBucket+bucketSize, longTerm, serverId1, serverId2)
-
-		resp := server.Post("/cluster/shards?u=root&p=root", data, c)
-		c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
-		nowBucket -= bucketSize
-	}
-}
-
 func (self *ServerSuite) SetUpSuite(c *C) {
 	err := os.RemoveAll("/tmp/influxdb/test")
 	c.Assert(err, IsNil)
@@ -76,7 +45,6 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	for _, s := range self.serverProcesses {
 		s.WaitForServerToSync()
 	}
-	self.precreateShards(self.serverProcesses[0], c)
 }
 
 func (self *ServerSuite) TearDownSuite(c *C) {
@@ -1067,6 +1035,53 @@ func (self *ServerSuite) TestContinuousQueryWithMixedGroupByOperations(c *C) {
 	c.Assert(means["/login"], Equals, 8.5)
 	c.Assert(means["/list"], Equals, 3.5)
 	c.Assert(means["/register"], Equals, 4.5)
+}
+
+func (self *ServerSuite) TestChangingRaftPort(c *C) {
+	for _, server := range self.serverProcesses {
+		server.Stop()
+	}
+
+	time.Sleep(5 * time.Second)
+
+	server1 := NewServer("src/integration/test_config1.toml", c)
+	server2 := NewServer("src/integration/test_config2.toml", c)
+
+	defer func() {
+		server1.Stop()
+		server2.Stop()
+		self.SetUpSuite(c)
+	}()
+
+	server2.Stop()
+
+	server2 = NewServerWithArgs("src/integration/test_config2.toml", c, "-raft-port", "60509", "-protobuf-port", "60510")
+
+	server1.WaitForServerToSync()
+	server2.WaitForServerToSync()
+	client := server1.GetClient("", c)
+	// make sure raft works
+	c.Assert(client.CreateDatabase("change_raft_port"), IsNil)
+
+	server1.WaitForServerToSync()
+
+	// make sure protobuf works
+	series := &influxdb.Series{
+		Name:    "test",
+		Columns: []string{"value"},
+		Points: [][]interface{}{
+			[]interface{}{1.0},
+		},
+	}
+	client = server1.GetClient("change_raft_port", c)
+	c.Assert(client.WriteSeries([]*influxdb.Series{series}), IsNil)
+
+	server1.WaitForServerToSync()
+	collection := server2.QueryWithUsername("change_raft_port", "select * from test", false, c, "root", "root")
+	c.Assert(collection.Members, HasLen, 1)
+	s := collection.GetSeries("test", c)
+	c.Assert(s.Points, HasLen, 1)
+	c.Assert(s.GetValueForPointAndColumn(0, "value", c), Equals, 1.0)
 }
 
 // fix for #305: https://github.com/influxdb/influxdb/issues/305

@@ -34,8 +34,6 @@ const (
 // server which acts as the transport.
 type RaftServer struct {
 	name                     string
-	host                     string
-	port                     int
 	path                     string
 	bind_address             string
 	router                   *mux.Router
@@ -55,6 +53,7 @@ var registeredCommands bool
 
 // Creates a new server.
 func NewRaftServer(config *configuration.Configuration, clusterConfig *cluster.ClusterConfiguration) *RaftServer {
+	// raft.SetLogLevel(raft.Debug)
 	if !registeredCommands {
 		registeredCommands = true
 		for _, command := range internalRaftCommands {
@@ -63,10 +62,7 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *cluster.C
 	}
 
 	s := &RaftServer{
-		host:          config.HostnameOrDetect(),
-		port:          config.RaftServerPort,
 		path:          config.RaftDir,
-		bind_address:  config.BindAddress,
 		clusterConfig: clusterConfig,
 		notLeader:     make(chan bool, 1),
 		router:        mux.NewRouter(),
@@ -154,27 +150,32 @@ func (s *RaftServer) doOrProxyCommandOnce(command raft.Command) (interface{}, er
 		if leader, ok := s.leaderConnectString(); !ok {
 			return nil, errors.New("Couldn't connect to the cluster leader...")
 		} else {
-			var b bytes.Buffer
-			if err := json.NewEncoder(&b).Encode(command); err != nil {
-				return nil, err
-			}
-			resp, err := http.Post(leader+"/process_command/"+command.CommandName(), "application/json", &b)
-			if err != nil {
-				return nil, err
-			}
-			defer resp.Body.Close()
-			body, err2 := ioutil.ReadAll(resp.Body)
-
-			if resp.StatusCode != 200 {
-				return nil, errors.New(strings.TrimSpace(string(body)))
-			}
-
-			var js interface{}
-			json.Unmarshal(body, &js)
-			return js, err2
+			return SendCommandToServer(leader, command)
 		}
 	}
 	return nil, nil
+}
+
+func SendCommandToServer(url string, command raft.Command) (interface{}, error) {
+	var b bytes.Buffer
+	if err := json.NewEncoder(&b).Encode(command); err != nil {
+		return nil, err
+	}
+	resp, err := http.Post(url+"/process_command/"+command.CommandName(), "application/json", &b)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err2 := ioutil.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New(strings.TrimSpace(string(body)))
+	}
+
+	var js interface{}
+	json.Unmarshal(body, &js)
+	return js, err2
+
 }
 
 func (s *RaftServer) CreateDatabase(name string, replicationFactor uint8) error {
@@ -268,29 +269,29 @@ func (s *RaftServer) DeleteContinuousQuery(db string, id uint32) error {
 	return err
 }
 
-func (s *RaftServer) ActivateServer(server *cluster.ClusterServer) error {
-	return errors.New("not implemented")
-}
+func (s *RaftServer) ChangeConnectionString(raftName, protobufConnectionString, raftConnectionString string, forced bool) error {
+	command := &InfluxChangeConnectionStringCommand{
+		Force:                    true,
+		Name:                     raftName,
+		ConnectionString:         raftConnectionString,
+		ProtobufConnectionString: protobufConnectionString,
+	}
+	for _, s := range s.raftServer.Peers() {
+		// send the command and ignore errors in case a server is down
+		SendCommandToServer(s.ConnectionString, command)
+		fmt.Printf("sent changeconnectionstring to %s\n", s.ConnectionString)
+	}
 
-func (s *RaftServer) AddServer(server *cluster.ClusterServer, insertIndex int) error {
-	return errors.New("not implemented")
-}
-
-func (s *RaftServer) MovePotentialServer(server *cluster.ClusterServer, insertIndex int) error {
-	return errors.New("not implemented")
-}
-
-func (s *RaftServer) ReplaceServer(oldServer *cluster.ClusterServer, replacement *cluster.ClusterServer) error {
-	return errors.New("not implemented")
+	// make the change permament
+	command.Force = false
+	_, err := s.doOrProxyCommand(command)
+	fmt.Printf("Running the actual command\n")
+	return err
 }
 
 func (s *RaftServer) AssignCoordinator(coordinator *CoordinatorImpl) error {
 	s.coordinator = coordinator
 	return nil
-}
-
-func (s *RaftServer) connectionString() string {
-	return fmt.Sprintf("http://%s:%d", s.host, s.port)
 }
 
 const (
@@ -332,7 +333,7 @@ func (s *RaftServer) CompactLog() {
 
 func (s *RaftServer) CommittedAllChanges() bool {
 	entries := s.raftServer.LogEntries()
-	if len(entries) == 0 {
+	if s.raftServer.CommitIndex() == 0 {
 		return false
 	}
 	lastIndex := entries[len(entries)-1].Index()
@@ -340,7 +341,7 @@ func (s *RaftServer) CommittedAllChanges() bool {
 }
 
 func (s *RaftServer) startRaft() error {
-	log.Info("Initializing Raft Server: %s %d", s.path, s.port)
+	log.Info("Initializing Raft Server: %s", s.config.RaftConnectionString())
 
 	// Initialize and start Raft server.
 	transporter := raft.NewHTTPTransporter("/raft")
@@ -370,27 +371,14 @@ func (s *RaftServer) startRaft() error {
 	if len(potentialLeaders) == 0 {
 		log.Info("Starting as new Raft leader...")
 		name := s.raftServer.Name()
-		connectionString := s.connectionString()
 		_, err := s.raftServer.Do(&InfluxJoinCommand{
 			Name:                     name,
-			ConnectionString:         connectionString,
+			ConnectionString:         s.config.RaftConnectionString(),
 			ProtobufConnectionString: s.config.ProtobufConnectionString(),
 		})
 
 		if err != nil {
 			log.Error(err)
-		}
-
-		protobufConnectString := s.config.ProtobufConnectionString()
-		clusterServer := cluster.NewClusterServer(name,
-			connectionString,
-			protobufConnectString,
-			nil,
-			s.config)
-		command := NewAddPotentialServerCommand(clusterServer)
-		_, err = s.doOrProxyCommand(command)
-		if err != nil {
-			return err
 		}
 		err = s.CreateRootUser()
 		return err
@@ -503,7 +491,7 @@ func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, st
 }
 
 func (s *RaftServer) ListenAndServe() error {
-	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.bind_address, s.port))
+	l, err := net.Listen("tcp", s.config.RaftListenString())
 	if err != nil {
 		panic(err)
 	}
@@ -511,7 +499,6 @@ func (s *RaftServer) ListenAndServe() error {
 }
 
 func (s *RaftServer) Serve(l net.Listener) error {
-	s.port = l.Addr().(*net.TCPAddr).Port
 	s.listener = l
 
 	log.Info("Initializing Raft HTTP server")
@@ -525,7 +512,7 @@ func (s *RaftServer) Serve(l net.Listener) error {
 	s.router.HandleFunc("/join", s.joinHandler).Methods("POST")
 	s.router.HandleFunc("/process_command/{command_type}", s.processCommandHandler).Methods("POST")
 
-	log.Info("Raft Server Listening at %s", s.connectionString())
+	log.Info("Raft Server Listening at %s", s.config.RaftListenString())
 
 	go func() {
 		err := s.httpServer.Serve(l)
@@ -561,7 +548,7 @@ func (s *RaftServer) HandleFunc(pattern string, handler func(http.ResponseWriter
 func (s *RaftServer) Join(leader string) error {
 	command := &InfluxJoinCommand{
 		Name:                     s.raftServer.Name(),
-		ConnectionString:         s.connectionString(),
+		ConnectionString:         s.config.RaftConnectionString(),
 		ProtobufConnectionString: s.config.ProtobufConnectionString(),
 	}
 	connectUrl := leader
@@ -608,6 +595,7 @@ func (s *RaftServer) retryCommand(command raft.Command, retries int) (ret interf
 }
 
 func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
+	// if this is the leader, process the command
 	if s.raftServer.State() == raft.Leader {
 		command := &InfluxJoinCommand{}
 		if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
@@ -619,34 +607,17 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 		if _, err := s.raftServer.Do(command); err != nil {
 			log.Error("Can't process %v: %s", command, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
 		}
-		server := s.clusterConfig.GetServerByRaftName(command.Name)
-		// it's a new server the cluster has never seen, make it a potential
-		if server == nil {
-			log.Info("Adding new server to the cluster config %s", command.Name)
-			clusterServer := cluster.NewClusterServer(command.Name,
-				command.ConnectionString,
-				command.ProtobufConnectionString,
-				nil,
-				s.config)
-			addServer := NewAddPotentialServerCommand(clusterServer)
-			if _, err := s.raftServer.Do(addServer); err != nil {
-				log.Error("Error joining raft server: ", err, command)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-		log.Info("Server %s already exist in the cluster config", command.Name)
+		return
+	}
+
+	leader, ok := s.leaderConnectString()
+	log.Debug("Non-leader redirecting to: (%v, %v)", leader, ok)
+	if ok {
+		log.Debug("redirecting to leader to join...")
+		http.Redirect(w, req, leader+"/join", http.StatusTemporaryRedirect)
 	} else {
-		leader, ok := s.leaderConnectString()
-		log.Debug("Non-leader redirecting to: (%v, %v)", leader, ok)
-		if ok {
-			log.Debug("redirecting to leader to join...")
-			http.Redirect(w, req, leader+"/join", http.StatusTemporaryRedirect)
-		} else {
-			http.Error(w, errors.New("Couldn't find leader of the cluster to join").Error(), http.StatusInternalServerError)
-		}
+		http.Error(w, errors.New("Couldn't find leader of the cluster to join").Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -662,6 +633,15 @@ func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http
 	if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
 		return nil, err
 	}
+
+	if c, ok := command.(*InfluxChangeConnectionStringCommand); ok && c.Force {
+		// if this is a forced change, just do it now and return. Note
+		// that this isn't a permanent change, since on restart the old
+		// connection strings will be used
+		fmt.Printf("Applyting change connection string and returning\n")
+		return c.Apply(s.raftServer)
+	}
+
 	if result, err := s.raftServer.Do(command); err != nil {
 		return nil, err
 	} else {
