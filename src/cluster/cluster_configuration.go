@@ -539,12 +539,6 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	self.clusterAdmins = data.Admins
 	self.dbUsers = data.DbUsers
 
-	// copy the protobuf client from the old servers
-	oldServers := map[string]ServerConnection{}
-	for _, server := range self.servers {
-		oldServers[server.ProtobufConnectionString] = server.connection
-	}
-
 	self.servers = data.Servers
 	for _, server := range self.servers {
 		if server.RaftName == self.LocalRaftName {
@@ -554,17 +548,12 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 			continue
 		}
 
-		server.connection = oldServers[server.ProtobufConnectionString]
-		if server.connection == nil {
-			server.connection = self.connectionCreator(server.ProtobufConnectionString)
-			if server.ProtobufConnectionString != self.config.ProtobufConnectionString() {
-				writeBuffer := NewWriteBuffer(fmt.Sprintf("server: %d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize)
-				self.writeBuffers = append(self.writeBuffers, writeBuffer)
-				server.SetWriteBuffer(writeBuffer)
-				server.Connect()
-				server.StartHeartbeat()
-			}
-		}
+		server.connection = self.connectionCreator(server.ProtobufConnectionString)
+		writeBuffer := NewWriteBuffer(fmt.Sprintf("server: %d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize)
+		self.writeBuffers = append(self.writeBuffers, writeBuffer)
+		server.SetWriteBuffer(writeBuffer)
+		server.Connect()
+		server.StartHeartbeat()
 	}
 
 	self.shardsByIdLock.Lock()
