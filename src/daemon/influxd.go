@@ -60,6 +60,8 @@ func main() {
 	wantsVersion := flag.Bool("v", false, "Get version number")
 	resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
 	hostname := flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
+	raftPort := flag.Int("raft-port", 0, "Override the raft port, the `raft.port` config option will be overridden")
+	protobufPort := flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
 	pidFile := flag.String("pidfile", "", "the pid file")
 	repairLeveldb := flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
 
@@ -75,6 +77,14 @@ func main() {
 	// override the hostname if it was specified on the command line
 	if hostname != nil && *hostname != "" {
 		config.Hostname = *hostname
+	}
+
+	if raftPort != nil && *raftPort != 0 {
+		config.RaftServerPort = *raftPort
+	}
+
+	if protobufPort != nil && *protobufPort != 0 {
+		config.ProtobufPort = *protobufPort
 	}
 
 	setupLogging(config.LogLevel, config.LogFile)
