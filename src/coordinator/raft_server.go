@@ -154,27 +154,32 @@ func (s *RaftServer) doOrProxyCommandOnce(command raft.Command) (interface{}, er
 		if leader, ok := s.leaderConnectString(); !ok {
 			return nil, errors.New("Couldn't connect to the cluster leader...")
 		} else {
-			var b bytes.Buffer
-			if err := json.NewEncoder(&b).Encode(command); err != nil {
-				return nil, err
-			}
-			resp, err := http.Post(leader+"/process_command/"+command.CommandName(), "application/json", &b)
-			if err != nil {
-				return nil, err
-			}
-			defer resp.Body.Close()
-			body, err2 := ioutil.ReadAll(resp.Body)
-
-			if resp.StatusCode != 200 {
-				return nil, errors.New(strings.TrimSpace(string(body)))
-			}
-
-			var js interface{}
-			json.Unmarshal(body, &js)
-			return js, err2
+			return SendCommandToServer(leader, command)
 		}
 	}
 	return nil, nil
+}
+
+func SendCommandToServer(url string, command raft.Command) (interface{}, error) {
+	var b bytes.Buffer
+	if err := json.NewEncoder(&b).Encode(command); err != nil {
+		return nil, err
+	}
+	resp, err := http.Post(url+"/process_command/"+command.CommandName(), "application/json", &b)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err2 := ioutil.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New(strings.TrimSpace(string(body)))
+	}
+
+	var js interface{}
+	json.Unmarshal(body, &js)
+	return js, err2
+
 }
 
 func (s *RaftServer) CreateDatabase(name string, replicationFactor uint8) error {
