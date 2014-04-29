@@ -1,8 +1,12 @@
-## v0.5.12 [unreleased]
+## v0.5.13 [unrelease]
 
 ### Bugfixes
 
-- [Issue #419](https://github.com/influxdb/influxdb/issues/419). Allow hostname changes in single node clusters
+## v0.5.12 [2014-04-29]
+
+### Bugfixes
+
+- [Issue #419](https://github.com/influxdb/influxdb/issues/419),[Issue #478](https://github.com/influxdb/influxdb/issues/478). Allow hostname, raft and protobuf ports to be changed, without requiring manual intervention from the user
 
 ## v0.5.11 [2014-04-25]
 
