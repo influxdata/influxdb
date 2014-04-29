@@ -18,6 +18,7 @@ import (
 	. "common"
 	"configuration"
 	"coordinator"
+	"io"
 	"net"
 	"protocol"
 	"sync"
@@ -176,7 +177,9 @@ func (self *Server) handleClient(conn net.Conn, wg sync.WaitGroup) {
 		graphiteMetric := &GraphiteMetric{}
 		err := graphiteMetric.Read(reader)
 		if err != nil {
-			log.Error(err)
+			if err != io.EOF {
+				log.Error("GraphiteServer:", err)
+			}
 			return
 		}
 		values := []*protocol.FieldValue{}
