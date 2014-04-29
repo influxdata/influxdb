@@ -23,37 +23,6 @@ type ServerSuite struct {
 
 var _ = Suite(&ServerSuite{})
 
-func (self *ServerSuite) precreateShards(server *Server, c *C) {
-	self.createShards(server, int64(3600), "false", c)
-	self.createShards(server, int64(86400), "true", c)
-	server.WaitForServerToSync()
-}
-
-func (self ServerSuite) createShards(server *Server, bucketSize int64, longTerm string, c *C) {
-	serverCount := 3
-	nowBucket := time.Now().Unix() / bucketSize * bucketSize
-	startIndex := 0
-
-	for i := 0; i <= 50; i++ {
-		serverId1 := startIndex%serverCount + 1
-		startIndex += 1
-		serverId2 := startIndex%serverCount + 1
-		startIndex += 1
-		data := fmt.Sprintf(`{
-			"startTime":%d,
-			"endTime":%d,
-			"longTerm": %s,
-			"shards": [{
-				"serverIds": [%d, %d]
-			}]
-		}`, nowBucket, nowBucket+bucketSize, longTerm, serverId1, serverId2)
-
-		resp := server.Post("/cluster/shards?u=root&p=root", data, c)
-		c.Assert(resp.StatusCode, Equals, http.StatusAccepted)
-		nowBucket -= bucketSize
-	}
-}
-
 func (self *ServerSuite) SetUpSuite(c *C) {
 	err := os.RemoveAll("/tmp/influxdb/test")
 	c.Assert(err, IsNil)
@@ -76,7 +45,6 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	for _, s := range self.serverProcesses {
 		s.WaitForServerToSync()
 	}
-	self.precreateShards(self.serverProcesses[0], c)
 }
 
 func (self *ServerSuite) TearDownSuite(c *C) {
