@@ -213,7 +213,7 @@ func (self *Server) handleClient(conn net.Conn, wg sync.WaitGroup) {
 				log.Debug("Client closed graphite connection")
 				return
 			}
-			log.Error(err)
+			log.Error("GraphiteServer:", err)
 			return
 		}
 	}
