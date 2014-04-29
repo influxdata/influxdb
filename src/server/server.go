@@ -52,7 +52,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 
 	coord := coordinator.NewCoordinatorImpl(config, raftServer, clusterConfig)
 	requestHandler := coordinator.NewProtobufRequestHandler(coord, clusterConfig)
-	protobufServer := coordinator.NewProtobufServer(config.ProtobufPortString(), requestHandler)
+	protobufServer := coordinator.NewProtobufServer(config.ProtobufListenString(), requestHandler)
 
 	raftServer.AssignCoordinator(coord)
 	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.ApiReadTimeout, config.AdminAssetsDir, coord, coord, clusterConfig, raftServer)

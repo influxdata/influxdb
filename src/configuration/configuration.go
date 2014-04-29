@@ -410,10 +410,6 @@ func (self *Configuration) GraphitePortString() string {
 	return fmt.Sprintf("%s:%d", self.BindAddress, self.GraphitePort)
 }
 
-func (self *Configuration) ProtobufPortString() string {
-	return fmt.Sprintf("%s:%d", self.BindAddress, self.ProtobufPort)
-}
-
 func (self *Configuration) HostnameOrDetect() string {
 	if self.Hostname != "" {
 		return self.Hostname
@@ -429,4 +425,16 @@ func (self *Configuration) HostnameOrDetect() string {
 
 func (self *Configuration) ProtobufConnectionString() string {
 	return fmt.Sprintf("%s:%d", self.HostnameOrDetect(), self.ProtobufPort)
+}
+
+func (self *Configuration) RaftConnectionString() string {
+	return fmt.Sprintf("http://%s:%d", self.HostnameOrDetect(), self.RaftServerPort)
+}
+
+func (self *Configuration) ProtobufListenString() string {
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.ProtobufPort)
+}
+
+func (self *Configuration) RaftListenString() string {
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.RaftServerPort)
 }
