@@ -32,7 +32,7 @@ func NewProtobufRequestHandler(coordinator Coordinator, clusterConfig *cluster.C
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
 	if *request.Type == protocol.Request_WRITE {
 		shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
-		log.Debug("HANDLE: (%d):%d:%v", self.clusterConfig.LocalServerId, request.GetId(), shard)
+		log.Debug("HANDLE: (%d):%d:%v", self.clusterConfig.LocalServer.Id, request.GetId(), shard)
 		err := shard.WriteLocalOnly(request)
 		if err != nil {
 			log.Error("ProtobufRequestHandler: error writing local shard: ", err)

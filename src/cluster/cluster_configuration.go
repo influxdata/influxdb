@@ -55,35 +55,34 @@ const (
   the servers in the cluster and their state, databases, users, and which continuous queries are running.
 */
 type ClusterConfiguration struct {
-	createDatabaseLock            sync.RWMutex
-	DatabaseReplicationFactors    map[string]uint8
-	usersLock                     sync.RWMutex
-	clusterAdmins                 map[string]*ClusterAdmin
-	dbUsers                       map[string]map[string]*DbUser
-	servers                       []*ClusterServer
-	serversLock                   sync.RWMutex
-	continuousQueries             map[string][]*ContinuousQuery
-	continuousQueriesLock         sync.RWMutex
-	ParsedContinuousQueries       map[string]map[uint32]*parser.SelectQuery
-	continuousQueryTimestamp      time.Time
-	LocalServerId                 uint32
-	LocalProtobufConnectionString string
-	config                        *configuration.Configuration
-	addedLocalServerWait          chan bool
-	addedLocalServer              bool
-	connectionCreator             func(string) ServerConnection
-	shardStore                    LocalShardStore
-	wal                           WAL
-	longTermShards                []*ShardData
-	shortTermShards               []*ShardData
-	random                        *rand.Rand
-	lastServerToGetShard          *ClusterServer
-	shardCreator                  ShardCreator
-	shardLock                     sync.Mutex
-	shardsById                    map[uint32]*ShardData
-	shardsByIdLock                sync.RWMutex
-	LocalRaftName                 string
-	writeBuffers                  []*WriteBuffer
+	createDatabaseLock         sync.RWMutex
+	DatabaseReplicationFactors map[string]uint8
+	usersLock                  sync.RWMutex
+	clusterAdmins              map[string]*ClusterAdmin
+	dbUsers                    map[string]map[string]*DbUser
+	servers                    []*ClusterServer
+	serversLock                sync.RWMutex
+	continuousQueries          map[string][]*ContinuousQuery
+	continuousQueriesLock      sync.RWMutex
+	ParsedContinuousQueries    map[string]map[uint32]*parser.SelectQuery
+	continuousQueryTimestamp   time.Time
+	LocalServer                *ClusterServer
+	config                     *configuration.Configuration
+	addedLocalServerWait       chan bool
+	addedLocalServer           bool
+	connectionCreator          func(string) ServerConnection
+	shardStore                 LocalShardStore
+	wal                        WAL
+	longTermShards             []*ShardData
+	shortTermShards            []*ShardData
+	random                     *rand.Rand
+	lastServerToGetShard       *ClusterServer
+	shardCreator               ShardCreator
+	shardLock                  sync.Mutex
+	shardsById                 map[uint32]*ShardData
+	shardsByIdLock             sync.RWMutex
+	LocalRaftName              string
+	writeBuffers               []*WriteBuffer
 }
 
 type ContinuousQuery struct {
@@ -153,7 +152,7 @@ func (self *ClusterConfiguration) automaticallyCreateFutureShard(shards []*Shard
 }
 
 func (self *ClusterConfiguration) ServerId() uint32 {
-	return self.LocalServerId
+	return self.LocalServer.Id
 }
 
 func (self *ClusterConfiguration) IsSingleServer() bool {
@@ -227,8 +226,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	// and set the local connection string and id
 	if server.RaftName == self.LocalRaftName {
 		log.Info("Added the local server")
-		self.LocalServerId = server.Id
-		self.LocalProtobufConnectionString = server.ProtobufConnectionString
+		self.LocalServer = server
 		self.addedLocalServerWait <- true
 		self.addedLocalServer = true
 		return
@@ -504,8 +502,8 @@ func (self *ClusterConfiguration) convertNewShardDataToShards(newShards []*NewSh
 		shard := NewShard(newShard.Id, newShard.StartTime, newShard.EndTime, newShard.Type, newShard.DurationSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range newShard.ServerIds {
-			if serverId == self.LocalServerId {
-				err := shard.SetLocalStore(self.shardStore, self.LocalServerId)
+			if serverId == self.LocalServer.Id {
+				err := shard.SetLocalStore(self.shardStore, self.LocalServer.Id)
 				if err != nil {
 					log.Error("CliusterConfig convertNewShardDataToShards: ", err)
 				}
@@ -542,7 +540,7 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	self.servers = data.Servers
 	for _, server := range self.servers {
 		if server.RaftName == self.LocalRaftName {
-			self.LocalServerId = server.Id
+			self.LocalServer = server
 			self.addedLocalServerWait <- true
 			self.addedLocalServer = true
 			continue
@@ -873,8 +871,8 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 		shard := NewShard(id, newShard.StartTime, newShard.EndTime, shardType, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range newShard.ServerIds {
-			if serverId == self.LocalServerId {
-				err := shard.SetLocalStore(self.shardStore, self.LocalServerId)
+			if serverId == self.LocalServer.Id {
+				err := shard.SetLocalStore(self.shardStore, self.LocalServer.Id)
 				if err != nil {
 					log.Error("AddShards: error setting local store: ", err)
 					return nil, err
@@ -917,8 +915,8 @@ func (self *ClusterConfiguration) MarshalNewShardArrayToShards(newShards []*NewS
 		shard := NewShard(s.Id, s.StartTime, s.EndTime, s.Type, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range s.ServerIds {
-			if serverId == self.LocalServerId {
-				err := shard.SetLocalStore(self.shardStore, self.LocalServerId)
+			if serverId == self.LocalServer.Id {
+				err := shard.SetLocalStore(self.shardStore, self.LocalServer.Id)
 				if err != nil {
 					log.Error("AddShards: error setting local store: ", err)
 					return nil, err
@@ -945,7 +943,7 @@ func (self *ClusterConfiguration) GetLocalShardById(id uint32) *ShardData {
 	if shard == nil {
 		shard = NewShard(id, time.Now(), time.Now(), LONG_TERM, false, self.wal)
 		shard.SetServers([]*ClusterServer{})
-		shard.SetLocalStore(self.shardStore, self.LocalServerId)
+		shard.SetLocalStore(self.shardStore, self.LocalServer.Id)
 	}
 	return shard
 }
@@ -956,7 +954,7 @@ func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) 
 
 	// now actually remove it from disk if it lives here
 	for _, serverId := range serverIds {
-		if serverId == self.LocalServerId {
+		if serverId == self.LocalServer.Id {
 			return self.shardStore.DeleteShard(shardId)
 		}
 	}
@@ -964,7 +962,7 @@ func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) 
 }
 
 func (self *ClusterConfiguration) RecoverFromWAL() error {
-	writeBuffer := NewWriteBuffer("local", self.shardStore, self.wal, self.LocalServerId, self.config.LocalStoreWriteBufferSize)
+	writeBuffer := NewWriteBuffer("local", self.shardStore, self.wal, self.LocalServer.Id, self.config.LocalStoreWriteBufferSize)
 	self.writeBuffers = append(self.writeBuffers, writeBuffer)
 	self.shardStore.SetWriteBuffer(writeBuffer)
 	var waitForAll sync.WaitGroup
@@ -972,7 +970,7 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 		server := _server
 		waitForAll.Add(1)
 		if server.RaftName == self.LocalRaftName {
-			self.LocalServerId = server.Id
+			self.LocalServer = server
 			go func(serverId uint32) {
 				log.Info("Recovering local server")
 				self.recover(serverId, self.shardStore)
