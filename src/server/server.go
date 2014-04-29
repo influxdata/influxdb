@@ -86,6 +86,21 @@ func (self *Server) ListenAndServe() error {
 
 	time.Sleep(5 * time.Second)
 
+	// check to make sure that the raft connection string hasn't changed
+	raftConnectionString := self.Config.RaftConnectionString()
+	if self.ClusterConfig.LocalServer.ProtobufConnectionString != self.Config.ProtobufConnectionString() ||
+		self.ClusterConfig.LocalServer.RaftConnectionString != raftConnectionString {
+		err := self.RaftServer.ChangeConnectionString(
+			self.ClusterConfig.LocalRaftName,
+			self.Config.ProtobufConnectionString(),
+			self.Config.RaftConnectionString(),
+			true, // force the rename
+		)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	go self.ProtobufServer.ListenAndServe()
 
 	log.Info("Recovering from log...")

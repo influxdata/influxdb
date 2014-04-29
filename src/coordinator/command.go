@@ -17,6 +17,7 @@ func init() {
 	internalRaftCommands = map[string]raft.Command{}
 	for _, command := range []raft.Command{
 		&InfluxJoinCommand{},
+		&InfluxChangeConnectionStringCommand{},
 		&CreateDatabaseCommand{},
 		&DropDatabaseCommand{},
 		&SaveDbUserCommand{},
@@ -253,6 +254,46 @@ func (c *InfluxJoinCommand) Apply(server raft.Server) (interface{}, error) {
 }
 
 func (c *InfluxJoinCommand) NodeName() string {
+	return c.Name
+}
+
+type InfluxChangeConnectionStringCommand struct {
+	Name                     string `json:"name"`
+	Force                    bool   `json:"force"`
+	ConnectionString         string `json:"connectionString"`
+	ProtobufConnectionString string `json:"protobufConnectionString"`
+}
+
+// The name of the ChangeConnectionString command in the log
+func (c *InfluxChangeConnectionStringCommand) CommandName() string {
+	return "change_connection_string"
+}
+
+func (c *InfluxChangeConnectionStringCommand) Apply(server raft.Server) (interface{}, error) {
+	if c.Name == server.Name() {
+		return nil, nil
+	}
+
+	fmt.Printf("Chaning %s:%s to %s\n", server.Name(), c.Name, c.ConnectionString)
+	server.RemovePeer(c.Name)
+	server.AddPeer(c.Name, c.ConnectionString)
+
+	clusterConfig := server.Context().(*cluster.ClusterConfiguration)
+
+	newServer := clusterConfig.GetServerByRaftName(c.Name)
+	// it's a new server the cluster has never seen, make it a potential
+	if newServer == nil {
+		return nil, fmt.Errorf("Server %s doesn't exist", c.Name)
+	}
+
+	newServer.RaftConnectionString = c.ConnectionString
+	newServer.ProtobufConnectionString = c.ProtobufConnectionString
+	server.Context().(*cluster.ClusterConfiguration).ChangeProtobufConnectionString(newServer)
+	server.FlushCommitIndex()
+	return nil, nil
+}
+
+func (c *InfluxChangeConnectionStringCommand) NodeName() string {
 	return c.Name
 }
 

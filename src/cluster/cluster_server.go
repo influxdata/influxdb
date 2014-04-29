@@ -33,6 +33,7 @@ type ClusterServer struct {
 
 type ServerConnection interface {
 	Connect()
+	Close()
 	MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error
 }
 

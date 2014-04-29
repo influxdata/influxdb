@@ -269,7 +269,24 @@ func (s *RaftServer) DeleteContinuousQuery(db string, id uint32) error {
 	return err
 }
 
+func (s *RaftServer) ChangeConnectionString(raftName, protobufConnectionString, raftConnectionString string, forced bool) error {
+	command := &InfluxChangeConnectionStringCommand{
+		Force:                    true,
+		Name:                     raftName,
+		ConnectionString:         raftConnectionString,
+		ProtobufConnectionString: protobufConnectionString,
+	}
+	for _, s := range s.raftServer.Peers() {
+		// send the command and ignore errors in case a server is down
+		SendCommandToServer(s.ConnectionString, command)
+		fmt.Printf("sent changeconnectionstring to %s\n", s.ConnectionString)
+	}
 
+	// make the change permament
+	command.Force = false
+	_, err := s.doOrProxyCommand(command)
+	fmt.Printf("Running the actual command\n")
+	return err
 }
 
 func (s *RaftServer) AssignCoordinator(coordinator *CoordinatorImpl) error {
@@ -616,6 +633,15 @@ func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http
 	if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
 		return nil, err
 	}
+
+	if c, ok := command.(*InfluxChangeConnectionStringCommand); ok && c.Force {
+		// if this is a forced change, just do it now and return. Note
+		// that this isn't a permanent change, since on restart the old
+		// connection strings will be used
+		fmt.Printf("Applyting change connection string and returning\n")
+		return c.Apply(s.raftServer)
+	}
+
 	if result, err := s.raftServer.Do(command); err != nil {
 		return nil, err
 	} else {

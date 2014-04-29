@@ -209,6 +209,14 @@ func (self *ClusterConfiguration) HasUncommitedWrites() bool {
 	return false
 }
 
+func (self *ClusterConfiguration) ChangeProtobufConnectionString(server *ClusterServer) {
+	if server.connection != nil {
+		server.connection.Close()
+	}
+	server.connection = self.connectionCreator(server.ProtobufConnectionString)
+	server.Connect()
+}
+
 func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.serversLock.Lock()
 	defer self.serversLock.Unlock()
