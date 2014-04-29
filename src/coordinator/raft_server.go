@@ -268,29 +268,12 @@ func (s *RaftServer) DeleteContinuousQuery(db string, id uint32) error {
 	return err
 }
 
-func (s *RaftServer) ActivateServer(server *cluster.ClusterServer) error {
-	return errors.New("not implemented")
-}
 
-func (s *RaftServer) AddServer(server *cluster.ClusterServer, insertIndex int) error {
-	return errors.New("not implemented")
-}
-
-func (s *RaftServer) MovePotentialServer(server *cluster.ClusterServer, insertIndex int) error {
-	return errors.New("not implemented")
-}
-
-func (s *RaftServer) ReplaceServer(oldServer *cluster.ClusterServer, replacement *cluster.ClusterServer) error {
-	return errors.New("not implemented")
 }
 
 func (s *RaftServer) AssignCoordinator(coordinator *CoordinatorImpl) error {
 	s.coordinator = coordinator
 	return nil
-}
-
-func (s *RaftServer) connectionString() string {
-	return fmt.Sprintf("http://%s:%d", s.host, s.port)
 }
 
 const (
