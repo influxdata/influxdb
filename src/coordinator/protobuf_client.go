@@ -25,6 +25,7 @@ type ProtobufClient struct {
 	lastRequestId     uint32
 	writeTimeout      time.Duration
 	attempts          int
+	stopped           bool
 }
 
 type runningRequest struct {
@@ -46,6 +47,7 @@ func NewProtobufClient(hostAndPort string, writeTimeout time.Duration) *Protobuf
 		hostAndPort:   hostAndPort,
 		requestBuffer: make(map[uint32]*runningRequest),
 		writeTimeout:  writeTimeout,
+		stopped:       false,
 	}
 }
 
@@ -68,6 +70,7 @@ func (self *ProtobufClient) Close() {
 	defer self.connLock.Unlock()
 	if self.conn != nil {
 		self.conn.Close()
+		self.stopped = true
 		self.conn = nil
 	}
 }
@@ -135,7 +138,7 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 func (self *ProtobufClient) readResponses() {
 	message := make([]byte, 0, MAX_RESPONSE_SIZE)
 	buff := bytes.NewBuffer(message)
-	for {
+	for !self.stopped {
 		buff.Reset()
 		conn := self.getConnection()
 		if conn == nil {
