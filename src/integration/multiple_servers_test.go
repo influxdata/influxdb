@@ -226,7 +226,7 @@ func (self *ServerSuite) TestDeleteFullReplication(c *C) {
 	self.serverProcesses[0].WaitForServerToSync()
 	collection := self.serverProcesses[0].Query("full_rep", "select count(val_1) from test_delete_full_replication", true, c)
 	series := collection.GetSeries("test_delete_full_replication", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, 1.0)
 	self.serverProcesses[0].Query("full_rep", "delete from test_delete_full_replication", false, c)
 
 	for _, s := range self.serverProcesses {
@@ -248,7 +248,7 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
 	self.serverProcesses[0].WaitForServerToSync()
 	collection := self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
 	series := collection.GetSeries("test_delete_replication", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, 1.0)
 
 	for _, s := range self.serverProcesses {
 		s.Query("test_rep", "delete from test_delete_replication", false, c)
@@ -272,7 +272,7 @@ func (self *ServerSuite) TestDbAdminPermissionToDeleteData(c *C) {
 	self.serverProcesses[0].WaitForServerToSync()
 	collection := self.serverProcesses[0].QueryAsRoot("test_rep", "select count(val_1) from test_delete_admin_permission", false, c)
 	series := collection.GetSeries("test_delete_admin_permission", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, 1.0)
 
 	self.serverProcesses[0].Query("test_rep", "delete from test_delete_admin_permission", false, c)
 	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_admin_permission", false, c)
@@ -292,7 +292,7 @@ func (self *ServerSuite) TestClusterAdminPermissionToDeleteData(c *C) {
 	self.serverProcesses[0].WaitForServerToSync()
 	collection := self.serverProcesses[0].QueryAsRoot("test_rep", "select count(val_1) from test_delete_admin_permission", false, c)
 	series := collection.GetSeries("test_delete_admin_permission", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, 1.0)
 
 	self.serverProcesses[0].QueryAsRoot("test_rep", "delete from test_delete_admin_permission", false, c)
 	collection = self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_admin_permission", false, c)
@@ -477,7 +477,7 @@ func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
 	collection = self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series = collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 1)
-	c.Assert(series.GetValueForPointAndColumn(0, "id", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(0, "id", c), Equals, 1.0)
 	c.Assert(series.GetValueForPointAndColumn(0, "query", c), Equals, "select * from foo into bar;")
 
 	// wait for the continuous query to run
@@ -487,9 +487,9 @@ func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
 	collection = self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series = collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 2)
-	c.Assert(series.GetValueForPointAndColumn(0, "id", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(0, "id", c), Equals, 1.0)
 	c.Assert(series.GetValueForPointAndColumn(0, "query", c), Equals, "select * from foo into bar;")
-	c.Assert(series.GetValueForPointAndColumn(1, "id", c), Equals, float64(2))
+	c.Assert(series.GetValueForPointAndColumn(1, "id", c), Equals, 2.0)
 	c.Assert(series.GetValueForPointAndColumn(1, "query", c), Equals, "select * from quu into qux;")
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
@@ -499,7 +499,7 @@ func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
 	collection = self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series = collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 1)
-	c.Assert(series.GetValueForPointAndColumn(0, "id", c), Equals, float64(2))
+	c.Assert(series.GetValueForPointAndColumn(0, "id", c), Equals, 2.0)
 	c.Assert(series.GetValueForPointAndColumn(0, "query", c), Equals, "select * from quu into qux;")
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
@@ -532,38 +532,38 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s1;", false, c)
 	series = collection.GetSeries("s1", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c1", c), Equals, float64(2))
+	c.Assert(series.GetValueForPointAndColumn(0, "c1", c), Equals, 2.0)
 	c.Assert(series.GetValueForPointAndColumn(0, "c2", c), Equals, "b")
-	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, 1.0)
 	c.Assert(series.GetValueForPointAndColumn(1, "c2", c), Equals, "a")
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s2;", false, c)
 	series = collection.GetSeries("s2", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, float64(3))
+	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, 3.0)
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from d1;", false, c)
 	series = collection.GetSeries("d1", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c1", c), Equals, float64(2))
+	c.Assert(series.GetValueForPointAndColumn(0, "c1", c), Equals, 2.0)
 	c.Assert(series.GetValueForPointAndColumn(0, "c2", c), Equals, "b")
-	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, 1.0)
 	c.Assert(series.GetValueForPointAndColumn(1, "c2", c), Equals, "a")
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from d2;", false, c)
 	series = collection.GetSeries("d2", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, float64(3))
+	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, 3.0)
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from d3;", false, c)
 	series = collection.GetSeries("d3", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, float64(3))
-	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, float64(2))
+	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, 3.0)
+	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, 2.0)
 	c.Assert(series.GetValueForPointAndColumn(1, "c2", c), Equals, "b")
-	c.Assert(series.GetValueForPointAndColumn(2, "c1", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(2, "c1", c), Equals, 1.0)
 	c.Assert(series.GetValueForPointAndColumn(2, "c2", c), Equals, "a")
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from silly_name.foo;", false, c)
 	series = collection.GetSeries("silly_name.foo", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c4", c), Equals, float64(4))
-	c.Assert(series.GetValueForPointAndColumn(0, "c5", c), Equals, float64(5))
+	c.Assert(series.GetValueForPointAndColumn(0, "c4", c), Equals, 4.0)
+	c.Assert(series.GetValueForPointAndColumn(0, "c5", c), Equals, 5.0)
 }
 
 func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
@@ -610,13 +610,13 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from d3.mean;", false, c)
 	series = collection.GetSeries("d3.mean", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "mean", c), Equals, float64(2))
-	c.Assert(series.GetValueForPointAndColumn(1, "mean", c), Equals, float64(8))
+	c.Assert(series.GetValueForPointAndColumn(0, "mean", c), Equals, 2.0)
+	c.Assert(series.GetValueForPointAndColumn(1, "mean", c), Equals, 8.0)
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from d3.count;", false, c)
 	series = collection.GetSeries("d3.count", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, float64(3))
-	c.Assert(series.GetValueForPointAndColumn(1, "count", c), Equals, float64(3))
+	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, 3.0)
+	c.Assert(series.GetValueForPointAndColumn(1, "count", c), Equals, 3.0)
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
@@ -674,7 +674,7 @@ func (self *ServerSuite) TestContinuousQueryInterpolation(c *C) {
 
 	data := `[
     {"name": "s1", "columns": ["c1", "c2"], "points": [[1, "a"], [2, "b"]]},
-    {"name": "s2", "columns": ["c3"], "points": [[3]]},
+    {"name": "s2", "columns": ["c3", "c4"], "points": [[3, 4]]},
     {"name": "s3", "columns": ["c4", "c5"], "points": [[4,5], [5,6], [6,7]]},
     {"name": "s4", "columns": ["c6", "c7", "c8"], "points": [[1, "a", 10], [2, "b", 11]]}
   ]`
@@ -692,25 +692,25 @@ func (self *ServerSuite) TestContinuousQueryInterpolation(c *C) {
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s1;", false, c)
 	series = collection.GetSeries("s1", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c1", c), Equals, float64(2))
+	c.Assert(series.GetValueForPointAndColumn(0, "c1", c), Equals, 2.0)
 	c.Assert(series.GetValueForPointAndColumn(0, "c2", c), Equals, "b")
-	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, 1.0)
 	c.Assert(series.GetValueForPointAndColumn(1, "c2", c), Equals, "a")
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s2;", false, c)
 	series = collection.GetSeries("s2", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, float64(3))
+	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, 3.0)
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s1.foo;", false, c)
 	series = collection.GetSeries("s1.foo", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c1", c), Equals, float64(2))
+	c.Assert(series.GetValueForPointAndColumn(0, "c1", c), Equals, 2.0)
 	c.Assert(series.GetValueForPointAndColumn(0, "c2", c), Equals, "b")
-	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, float64(1))
+	c.Assert(series.GetValueForPointAndColumn(1, "c1", c), Equals, 1.0)
 	c.Assert(series.GetValueForPointAndColumn(1, "c2", c), Equals, "a")
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s2.foo.3;", false, c)
 	series = collection.GetSeries("s2.foo.3", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c3", c), Equals, float64(3))
+	c.Assert(series.GetValueForPointAndColumn(0, "c4", c), Equals, 4.0)
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s4.foo.1.a;", false, c)
 	series = collection.GetSeries("s4.foo.1.a", c)
@@ -791,7 +791,7 @@ func (self *ServerSuite) TestContinuousQuerySequenceNumberAssignmentWithInterpol
 	for i := range subseries {
 		series = collection.GetSeries("points.count."+subseries[i], c)
 		c.Assert(series.Points, HasLen, 1)
-		c.Assert(series.Points[0][1], Equals, float64(1))
+		c.Assert(series.Points[0][1], Equals, 1.0)
 	}
 }
 
@@ -837,8 +837,8 @@ func (self *ServerSuite) TestCreateAndGetShards(c *C) {
 			if sh["startTime"].(float64) == float64(startSeconds) && sh["endTime"].(float64) == float64(endSeconds) {
 				servers := sh["serverIds"].([]interface{})
 				c.Assert(servers, HasLen, 2)
-				c.Assert(servers[0].(float64), Equals, float64(2))
-				c.Assert(servers[1].(float64), Equals, float64(3))
+				c.Assert(servers[0].(float64), Equals, 2.0)
+				c.Assert(servers[1].(float64), Equals, 3.0)
 				hasShard = true
 				break
 			}
@@ -917,7 +917,7 @@ func (self *ServerSuite) TestDropShard(c *C) {
 				hasShard = true
 				hasServer := false
 				for _, serverId := range sh["serverIds"].([]interface{}) {
-					if serverId.(float64) == float64(1) {
+					if serverId.(float64) == 1.0 {
 						hasServer = true
 						break
 					}
