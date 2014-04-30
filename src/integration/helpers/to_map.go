@@ -1,14 +1,13 @@
 package helpers
 
-import (
-	influxdb "github.com/influxdb/influxdb-go"
-)
+import "common"
 
-func ToMap(series *influxdb.Series) []map[string]interface{} {
-	points := make([]map[string]interface{}, 0, len(series.Points))
-	for _, p := range series.Points {
+func ToMap(series common.ApiSeries) []map[string]interface{} {
+	seriesPoints := series.GetPoints()
+	points := make([]map[string]interface{}, 0, len(seriesPoints))
+	for _, p := range seriesPoints {
 		point := map[string]interface{}{}
-		for idx, column := range series.Columns {
+		for idx, column := range series.GetColumns() {
 			point[column] = p[idx]
 		}
 		points = append(points, point)
