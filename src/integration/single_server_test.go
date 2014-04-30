@@ -1,10 +1,8 @@
 package integration
 
 import (
-	h "api/http"
 	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	. "integration/helpers"
 	"io/ioutil"
@@ -268,20 +266,12 @@ func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 
 // issue #360
 func (self *SingleServerSuite) TestContinuousQueriesAfterCompaction(c *C) {
+	defer self.server.RemoveAllContinuousQueries("db1", c)
 	resp, err := http.Post("http://localhost:8086/db/db1/continuous_queries?u=root&p=root", "application/json",
 		bytes.NewBufferString(`{"query": "select * from foo into bar"}`))
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-	resp, err = http.Get("http://localhost:8086/db/db1/continuous_queries?u=root&p=root")
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	queries := []*h.ContinuousQuery{}
-	err = json.Unmarshal(body, &queries)
-	c.Assert(err, IsNil)
-	c.Assert(queries, HasLen, 1)
+	self.server.AssertContinuousQueryCount("db1", 1, c)
 
 	resp, err = http.Post("http://localhost:8086/raft/force_compaction?u=root&p=root", "", nil)
 	c.Assert(err, IsNil)
@@ -291,16 +281,23 @@ func (self *SingleServerSuite) TestContinuousQueriesAfterCompaction(c *C) {
 	c.Assert(self.server.Start(), IsNil)
 	self.server.WaitForServerToStart()
 
-	resp, err = http.Get("http://localhost:8086/db/db1/continuous_queries?u=root&p=root")
+	self.server.AssertContinuousQueryCount("db1", 1, c)
+}
+
+// issue #469
+func (self *SingleServerSuite) TestContinuousQueriesAfterDroppingDatabase(c *C) {
+	defer self.server.RemoveAllContinuousQueries("db2", c)
+	self.server.AssertContinuousQueryCount("db2", 0, c)
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase("db2"), IsNil)
+	self.server.WaitForServerToSync()
+	resp, err := http.Post("http://localhost:8086/db/db2/continuous_queries?u=root&p=root", "application/json",
+		bytes.NewBufferString(`{"query": "select * from foo into bar"}`))
 	c.Assert(err, IsNil)
-	defer resp.Body.Close()
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
-	body, err = ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	queries = []*h.ContinuousQuery{}
-	err = json.Unmarshal(body, &queries)
-	c.Assert(err, IsNil)
-	c.Assert(queries, HasLen, 1)
+	self.server.AssertContinuousQueryCount("db2", 1, c)
+	c.Assert(client.DeleteDatabase("db2"), IsNil)
+	self.server.AssertContinuousQueryCount("db2", 0, c)
 }
 
 func (self *SingleServerSuite) TestDbUserAuthentication(c *C) {

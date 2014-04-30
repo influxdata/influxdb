@@ -285,6 +285,11 @@ func (self *ClusterConfiguration) DropDatabase(name string) error {
 
 	delete(self.DatabaseReplicationFactors, name)
 
+	self.continuousQueriesLock.Lock()
+	defer self.continuousQueriesLock.Unlock()
+	delete(self.continuousQueries, name)
+	delete(self.ParsedContinuousQueries, name)
+
 	self.usersLock.Lock()
 	defer self.usersLock.Unlock()
 
