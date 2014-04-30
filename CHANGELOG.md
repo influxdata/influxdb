@@ -2,6 +2,8 @@
 
 ### Bugfixes
 
+- [Issue #469](https://github.com/influxdb/influxdb/issues/469). Drop continuous queries when a database is dropped
+
 ## v0.5.12 [2014-04-29]
 
 ### Bugfixes
