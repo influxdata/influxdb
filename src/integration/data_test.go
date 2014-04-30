@@ -231,6 +231,30 @@ func (self *DataTestSuite) ExplainsWithPassthrough(c *C) (Fun, Fun) {
 		}
 }
 
+func (self *DataTestSuite) NegativeNumbersInWhereClause(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+  [{
+    "points": [
+        ["one", -1],
+        ["two", 3]
+    ],
+    "name": "test_negative_in_where_clause",
+    "columns": ["val_1", "val_2"]
+  }]`
+			client.WriteJsonData(data, c)
+		}, func(client Client) {
+			series := client.RunQuery("select * from test_negative_in_where_clause where val_2 = -1 limit 1", c, "m")
+			c.Assert(series, HasLen, 1)
+			c.Assert(series[0].Name, Equals, "test_negative_in_where_clause")
+			c.Assert(series[0].Columns, HasLen, 4) // 6 columns plus the time column
+			maps := ToMap(series[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["val_2"], Equals, -1.0)
+			c.Assert(maps[0]["val_1"], Equals, "one")
+		}
+}
+
 func (self *DataTestSuite) ExplainsWithPassthroughAndLimit(c *C) (Fun, Fun) {
 	return func(client Client) {
 			points := []string{}
