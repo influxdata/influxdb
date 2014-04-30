@@ -487,6 +487,7 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 func (self *LevelDbShard) compact() {
 	log.Info("Compacting shard")
 	self.db.CompactRange(levigo.Range{})
+	log.Info("Shard compaction is done")
 }
 
 func (self *LevelDbShard) deleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
