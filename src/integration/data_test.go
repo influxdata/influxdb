@@ -231,6 +231,47 @@ func (self *DataTestSuite) ExplainsWithPassthrough(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #462 (wasn't an issue, added for regression testing only)
+func (self *DataTestSuite) RegexWithDollarSign(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "points": [
+        ["one", 1]
+    ],
+    "name": "test.negative.in.where.clause.1",
+    "columns": ["val_1", "val_2"]
+  },
+  {
+    "points": [
+        ["two", 2]
+    ],
+    "name": "test.negative.in.where.clause.1.2",
+    "columns": ["val_1", "val_2"]
+  },
+  {
+    "points": [
+        ["three", 3]
+    ],
+    "name": "test.negative.in.where.clause.a",
+    "columns": ["val_1", "val_2"]
+  }
+]`
+			client.WriteJsonData(data, c)
+		}, func(client Client) {
+			series := client.RunQuery(`select * from /test\.negative\.in\.where\.clause\.\d$/ limit 1`, c, "m")
+			c.Assert(series, HasLen, 1)
+			c.Assert(series[0].Name, Equals, "test.negative.in.where.clause.1")
+			c.Assert(series[0].Columns, HasLen, 4)
+			maps := ToMap(series[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["val_1"], Equals, "one")
+			c.Assert(maps[0]["val_2"], Equals, 1.0)
+		}
+}
+
+// https://groups.google.com/forum/#!searchin/influxdb/INT_VALUE%7Csort:relevance%7Cspell:false/influxdb/9bQAuWUnDf4/cp0vtmEe65oJ
 func (self *DataTestSuite) NegativeNumbersInWhereClause(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `
