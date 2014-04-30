@@ -357,3 +357,19 @@ func (self *Server) Request(method, url, data string, c *C) *http.Response {
 	c.Assert(err, IsNil)
 	return resp
 }
+
+func (self *Server) RemoveAllContinuousQueries(db string, c *C) {
+	client := self.GetClient(db, c)
+	queries, err := client.GetContinuousQueries()
+	c.Assert(err, IsNil)
+	for _, q := range queries {
+		c.Assert(client.DeleteContinuousQueries(int(q["id"].(float64))), IsNil)
+	}
+}
+
+func (self *Server) AssertContinuousQueryCount(db string, count int, c *C) {
+	client := self.GetClient(db, c)
+	queries, err := client.GetContinuousQueries()
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, count)
+}
