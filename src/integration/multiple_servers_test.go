@@ -714,15 +714,11 @@ func (self *ServerSuite) TestContinuousQueryInterpolation(c *C) {
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s4.foo.1.a;", false, c)
 	series = collection.GetSeries("s4.foo.1.a", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c6", c), Equals, float64(1))
-	c.Assert(series.GetValueForPointAndColumn(0, "c7", c), Equals, "a")
-	c.Assert(series.GetValueForPointAndColumn(0, "c8", c), Equals, float64(10))
+	c.Assert(series.GetValueForPointAndColumn(0, "c8", c), Equals, 10.0)
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s4.foo.2.b;", false, c)
 	series = collection.GetSeries("s4.foo.2.b", c)
-	c.Assert(series.GetValueForPointAndColumn(0, "c6", c), Equals, float64(2))
-	c.Assert(series.GetValueForPointAndColumn(0, "c7", c), Equals, "b")
-	c.Assert(series.GetValueForPointAndColumn(0, "c8", c), Equals, float64(11))
+	c.Assert(series.GetValueForPointAndColumn(0, "c8", c), Equals, 11.0)
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
@@ -790,8 +786,11 @@ func (self *ServerSuite) TestContinuousQuerySequenceNumberAssignmentWithInterpol
 	subseries := []string{"a", "aa", "b", "bb"}
 	for i := range subseries {
 		series = collection.GetSeries("points.count."+subseries[i], c)
-		c.Assert(series.Points, HasLen, 1)
-		c.Assert(series.Points[0][1], Equals, 1.0)
+		maps := ToMap(series)
+		c.Assert(maps, HasLen, 1)
+		c.Assert(maps[0]["sequence_number"], Equals, 1.0)
+		// c2 shouldn't be included as a column
+		c.Assert(maps[0]["c2"], IsNil)
 	}
 }
 
