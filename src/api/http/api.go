@@ -400,7 +400,7 @@ func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Requ
 		err = self.coordinator.CreateDatabase(user, createRequest.Name, createRequest.ReplicationFactor)
 		if err != nil {
 			log.Error("Cannot create database %s. Error: %s", createRequest.Name, err)
-			return errorToStatusCode(err), err.Error()
+			return libhttp.StatusConflict, err.Error()
 		}
 		log.Debug("Created database %s with replication factor %d", createRequest.Name, createRequest.ReplicationFactor)
 		return libhttp.StatusCreated, nil
