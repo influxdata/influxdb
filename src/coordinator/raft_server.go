@@ -333,8 +333,15 @@ func (s *RaftServer) CompactLog() {
 
 func (s *RaftServer) CommittedAllChanges() bool {
 	entries := s.raftServer.LogEntries()
-	if s.raftServer.CommitIndex() == 0 {
-		return false
+	if len(entries) == 0 {
+		if s.raftServer.CommitIndex() == 0 {
+			// commit index should never be zero, we have at least one
+			// raft join command that should be committed, something is
+			// wrong, return false to be safe
+			return false
+		}
+		// may be we recovered from a snapshot ?
+		return true
 	}
 	lastIndex := entries[len(entries)-1].Index()
 	return s.raftServer.CommitIndex() == lastIndex
