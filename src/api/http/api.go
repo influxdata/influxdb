@@ -321,6 +321,8 @@ func errorToStatusCode(err error) int {
 		return libhttp.StatusUnauthorized // HTTP 401
 	case AuthorizationError:
 		return libhttp.StatusForbidden // HTTP 403
+	case DatabaseExistsError:
+		return libhttp.StatusConflict // HTTP 409
 	default:
 		return libhttp.StatusBadRequest // HTTP 400
 	}
