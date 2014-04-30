@@ -36,9 +36,15 @@ type Server struct {
 	conn          net.Listener
 	udpConn       *net.UDPConn
 	user          *cluster.ClusterAdmin
-	writeSeries   chan protocol.Series
+	writeSeries   chan Record
 	shutdown      chan bool
 	udpEnabled    bool
+}
+
+// holds a point to be added into series by Name
+type Record struct {
+	Name string
+	*protocol.Point
 }
 
 // will commit a batch of series every commit_max_wait ms or every commit_capacity datapoints,
@@ -62,7 +68,7 @@ func NewServer(config *configuration.Configuration, coord coordinator.Coordinato
 	self.listenAddress = config.GraphitePortString()
 	self.database = config.GraphiteDatabase
 	self.coordinator = coord
-	self.writeSeries = make(chan protocol.Series, max_queue)
+	self.writeSeries = make(chan Record, max_queue)
 	self.shutdown = make(chan bool, 1)
 	self.clusterConfig = clusterConfig
 	self.udpEnabled = config.GraphiteUdpEnabled
@@ -158,7 +164,11 @@ func (self *Server) committer() {
 	// has a bunch of overhead, we also want to buffer up the data, let's say
 	// up to about 1MiB of data, at 24B per record -> 43690 records, let's make it an even 40k
 
-	commit := func(commit_payload []*protocol.Series) {
+	commit := func(to_commit map[string]*protocol.Series) {
+		commit_payload := make([]*protocol.Series, len(to_commit))
+		for _, serie := range to_commit {
+			commit_payload = append(commit_payload, serie)
+		}
 		err := self.coordinator.WriteSeriesData(self.user, self.database, commit_payload)
 		if err != nil {
 			switch err.(type) {
@@ -174,30 +184,40 @@ func (self *Server) committer() {
 			}
 		}
 	}
-	commit_payload := make([]*protocol.Series, 0, commit_capacity)
+
 	timer := time.NewTimer(commit_max_wait)
+	to_commit := make(map[string]*protocol.Series)
+	points_pending := 0
 
 CommitLoop:
 	for {
 		select {
-		case serie, ok := <-self.writeSeries:
-			if len(commit_payload) == commit_capacity {
-				commit(commit_payload)
-				commit_payload = make([]*protocol.Series, 0, commit_capacity)
-				timer.Reset(commit_max_wait)
-				if !ok {
-					break CommitLoop
+		case record, ok := <-self.writeSeries:
+			if ok {
+				points_pending += 1
+				if series, seen := to_commit[record.Name]; seen {
+					series.Points = append(series.Points, record.Point)
+				} else {
+					to_commit[record.Name] = &protocol.Series{
+						Name:   &record.Name,
+						Fields: []string{"value"},
+						Points: make([]*protocol.Point, 0),
+					}
 				}
-			} else {
-				commit_payload = append(commit_payload, &serie)
-				if !ok {
-					commit(commit_payload)
+			}
+			if points_pending == commit_capacity {
+				commit(to_commit)
+				if ok {
+					to_commit = make(map[string]*protocol.Series)
+					timer.Reset(commit_max_wait)
+				} else {
 					break CommitLoop
 				}
 			}
 		case <-timer.C:
-			commit(commit_payload)
-			commit_payload = make([]*protocol.Series, 0, commit_capacity)
+			commit(to_commit)
+			to_commit = make(map[string]*protocol.Series)
+			points_pending = 0
 		}
 	}
 }
@@ -237,11 +257,7 @@ func (self *Server) handleMessage(reader *bufio.Reader) (err error) {
 		Values:         values,
 		SequenceNumber: &sn,
 	}
-	series := protocol.Series{
-		Name:   &graphiteMetric.name,
-		Fields: []string{"value"},
-		Points: []*protocol.Point{point},
-	}
-	self.writeSeries <- series
+	record := Record{graphiteMetric.name, point}
+	self.writeSeries <- record
 	return
 }
