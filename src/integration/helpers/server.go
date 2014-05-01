@@ -183,7 +183,7 @@ func (self *Server) Start() error {
 	root := filepath.Join(dir, "..", "..")
 	filename := filepath.Join(root, "daemon")
 	if self.configFile == "" {
-		self.configFile = "config.sample.toml"
+		self.configFile = "src/integration/test_config_single.toml"
 	}
 	args := []string{filename, "-config", self.configFile}
 	args = append(args, self.args...)

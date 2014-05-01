@@ -7,6 +7,7 @@
 ### Bugfixes
 
 - [Issue #469](https://github.com/influxdb/influxdb/issues/469). Drop continuous queries when a database is dropped
+- [Issue #431](https://github.com/influxdb/influxdb/issues/431). Don't log to standard output if a log file is specified in the config file
 
 ## v0.5.12 [2014-04-29]
 

@@ -33,7 +33,7 @@ func (self *SingleServerSuite) createUser(c *C) {
 }
 
 func (self *SingleServerSuite) SetUpSuite(c *C) {
-	self.server = NewServer("config.sample.toml", c)
+	self.server = NewServer("src/integration/test_config_single.toml", c)
 	self.createUser(c)
 }
 
@@ -83,7 +83,7 @@ func (self *SingleServerSuite) TestSslOnly(c *C) {
 
 	defer func() {
 		server.Stop()
-		self.server = NewServer("config.sample.toml", c)
+		self.server = NewServer("src/integration/test_config_single.toml", c)
 	}()
 
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{
@@ -106,15 +106,15 @@ func (self *SingleServerSuite) TestSingleServerHostnameChange(c *C) {
 	self.server.Stop()
 	// TODO: don't hard code the path here
 	c.Assert(os.RemoveAll("/tmp/influxdb/development"), IsNil)
-	server := NewServerWithArgs("config.sample.toml", c, "-hostname", "foo")
+	server := NewServerWithArgs("src/integration/test_config_single.toml", c, "-hostname", "foo")
 	server.WaitForServerToStart()
 	server.Stop()
-	server = NewServerWithArgs("config.sample.toml", c, "-hostname", "bar")
+	server = NewServerWithArgs("src/integration/test_config_single.toml", c, "-hostname", "bar")
 	server.WaitForServerToStart()
 
 	defer func() {
 		server.Stop()
-		self.server = NewServer("config.sample.toml", c)
+		self.server = NewServer("src/integration/test_config_single.toml", c)
 	}()
 
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{})

@@ -30,9 +30,7 @@ func setupLogging(loggingLevel, logFile string) {
 		level = log.ERROR
 	}
 
-	for _, filter := range log.Global {
-		filter.Level = level
-	}
+	log.Global = make(map[string]*log.Filter)
 
 	if logFile == "stdout" {
 		flw := log.NewConsoleLogWriter()

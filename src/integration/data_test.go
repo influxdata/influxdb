@@ -22,7 +22,7 @@ type DataTestSuite struct {
 var _ = Suite(&DataTestSuite{})
 
 func (self *DataTestSuite) SetUpSuite(c *C) {
-	self.server = NewServer("config.sample.toml", c)
+	self.server = NewServer("src/integration/test_config_single.toml", c)
 }
 
 func (self *DataTestSuite) TearDownSuite(c *C) {

@@ -8,7 +8,7 @@ hostname = "localhost"
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
 level  = "info"
-file   = "/tmp/influxdb/test/1/influxdb.log"
+file   = "stdout"
 
 # Configure the admin server
 [admin]
