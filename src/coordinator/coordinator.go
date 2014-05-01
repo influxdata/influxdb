@@ -523,14 +523,38 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 	sequenceMap := make(map[sequenceKey]int)
 	r, _ := regexp.Compile(`\[.*?\]`)
 
+	// get the fields that are used in the target name
+	fieldsInTargetName := r.FindAllString(targetName, -1)
+	fieldsIndeces := make([]int, 0, len(fieldsInTargetName))
+	for i, f := range fieldsInTargetName {
+		f = f[1 : len(f)-1]
+		fieldsIndeces = append(fieldsIndeces, series.GetFieldIndex(f))
+		fieldsInTargetName[i] = f
+	}
+
+	// remove the fields used in the target name from the series fields
+	for i, fi := range fieldsIndeces {
+		// move the fields to the left
+		copy(series.Fields[fi-i:], series.Fields[fi-i+1:])
+		series.Fields = series.Fields[:len(series.Fields)-1]
+	}
+
 	if r.MatchString(targetName) {
 		serieses := map[string]*protocol.Series{}
 		for _, point := range series.Points {
-			targetNameWithValues := r.ReplaceAllStringFunc(targetName, func(match string) string {
-				fieldName := match[1 : len(match)-1]
-				fieldIndex := series.GetFieldIndex(fieldName)
-				return point.GetFieldValueAsString(fieldIndex)
+			fieldIndex := 0
+			targetNameWithValues := r.ReplaceAllStringFunc(targetName, func(_ string) string {
+				value := point.GetFieldValueAsString(fieldsIndeces[fieldIndex])
+				fieldIndex++
+				return value
 			})
+
+			// remove the fields used in the target name from the series fields
+			for i, fi := range fieldsIndeces {
+				// move the fields to the left
+				copy(point.Values[fi-i:], point.Values[fi-i+1:])
+				point.Values = point.Values[:len(point.Values)-1]
+			}
 
 			if assignSequenceNumbers {
 				key := sequenceKey{targetNameWithValues, *point.Timestamp}
