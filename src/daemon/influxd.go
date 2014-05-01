@@ -116,7 +116,7 @@ func main() {
 	} else {
 		log.Info("Starting Influx Server bound to %s ...", config.BindAddress)
 	}
-	log.Info(`
+	fmt.Printf(`
 +---------------------------------------------+
 |  _____        __ _            _____  ____   |
 | |_   _|      / _| |          |  __ \|  _ \  |
