@@ -42,3 +42,13 @@ func (self AuthorizationError) Error() string {
 func NewAuthorizationError(formatStr string, args ...interface{}) AuthorizationError {
 	return AuthorizationError(fmt.Sprintf(formatStr, args...))
 }
+
+type DatabaseExistsError string
+
+func (self DatabaseExistsError) Error() string {
+	return string(self)
+}
+
+func NewDatabaseExistsError(db string) DatabaseExistsError {
+	return DatabaseExistsError(fmt.Sprintf("database %s exists", db))
+}

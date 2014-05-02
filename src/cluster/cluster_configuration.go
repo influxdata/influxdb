@@ -251,7 +251,7 @@ func (self *ClusterConfiguration) CreateDatabase(name string, replicationFactor 
 	defer self.createDatabaseLock.Unlock()
 
 	if _, ok := self.DatabaseReplicationFactors[name]; ok {
-		return fmt.Errorf("database %s exists", name)
+		return common.NewDatabaseExistsError(name)
 	}
 	self.DatabaseReplicationFactors[name] = replicationFactor
 	return nil
