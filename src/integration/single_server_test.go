@@ -41,6 +41,16 @@ func (self *SingleServerSuite) TearDownSuite(c *C) {
 	self.server.Stop()
 }
 
+func (self *SingleServerSuite) TestAdministrationOperation(c *C) {
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase("test_admin_operations"), IsNil)
+	c.Assert(client.CreateDatabaseUser("test_admin_operations", "user", "pass"), IsNil)
+	c.Assert(client.AuthenticateDatabaseUser("test_admin_operations", "user", "pass"), IsNil)
+	c.Assert(client.ChangeDatabaseUser("test_admin_operations", "user", "pass2", false), IsNil)
+	c.Assert(client.AuthenticateDatabaseUser("test_admin_operations", "user", "pass"), NotNil)
+	c.Assert(client.AuthenticateDatabaseUser("test_admin_operations", "user", "pass2"), IsNil)
+}
+
 // pr #483
 func (self *SingleServerSuite) TestConflictStatusCode(c *C) {
 	client := self.server.GetClient("", c)
