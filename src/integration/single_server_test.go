@@ -184,15 +184,18 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "^$", "test_should_write")
 	// write the data to test the write permissions
 	c.Assert(user.WriteSeries(series), IsNil)
+	self.server.WaitForServerToSync()
 	invalidSeries := []*influxdb.Series{}
 	content = self.server.RunQueryAsRoot("select * from test_should_write", "m", c)
 	c.Assert(content, HasLen, 1)
 	c.Assert(json.Unmarshal([]byte(invalidData), &invalidSeries), IsNil)
 	c.Assert(user.WriteSeries(invalidSeries), NotNil)
+	self.server.WaitForServerToSync()
 	content = self.server.RunQueryAsRoot("select * from test_should_not_write", "m", c)
 	c.Assert(content, HasLen, 0)
 	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "^$", "test_.*")
 	c.Assert(user.WriteSeries(invalidSeries), IsNil)
+	self.server.WaitForServerToSync()
 	content = self.server.RunQueryAsRoot("select * from test_should_not_write", "m", c)
 	c.Assert(content, HasLen, 1)
 }
@@ -222,6 +225,7 @@ func (self *SingleServerSuite) TestUserReadPermissions(c *C) {
   }
 ]`
 	self.server.WriteData(data, c)
+	self.server.WaitForServerToSync()
 
 	// test all three cases, read from one series that the user has read access to, one that the user doesn't have
 	// access to and a regex
