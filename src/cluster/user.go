@@ -99,8 +99,8 @@ func (self *ClusterAdmin) HasReadAccess(_ string) bool {
 type DbUser struct {
 	CommonUser `json:"common"`
 	Db         string     `json:"db"`
-	WriteTo    []*Matcher `json:"write_matchers"`
 	ReadFrom   []*Matcher `json:"read_matchers"`
+	WriteTo    []*Matcher `json:"write_matchers"`
 	IsAdmin    bool       `json:"is_admin"`
 }
 

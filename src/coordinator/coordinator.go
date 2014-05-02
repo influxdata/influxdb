@@ -467,8 +467,12 @@ func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
 }
 
 func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series []*protocol.Series) error {
-	if !user.HasWriteAccess(db) {
-		return common.NewAuthorizationError("Insufficient permissions to write to %s", db)
+	for _, s := range series {
+		seriesName := s.GetName()
+		if user.HasWriteAccess(seriesName) {
+			continue
+		}
+		return common.NewAuthorizationError("User %s doesn't have write permissions for %s", user.GetName(), seriesName)
 	}
 
 	err := self.CommitSeriesData(db, series, false)
@@ -879,7 +883,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, p
 	case 0:
 	case 2:
 		readMatcher[0].Name = permissions[0]
-		writeMatcher[0].Name = permissions[0]
+		writeMatcher[0].Name = permissions[1]
 	}
 	log.Debug("(raft:%s) Creating user %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
 	return self.raftServer.SaveDbUser(&cluster.DbUser{cluster.CommonUser{

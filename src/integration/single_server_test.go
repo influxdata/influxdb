@@ -3,6 +3,7 @@ package integration
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	. "integration/helpers"
 	"io/ioutil"
@@ -139,10 +140,69 @@ func (self *SingleServerSuite) TestSingleServerHostnameChange(c *C) {
 	c.Assert(client.Ping(), IsNil)
 }
 
-func (self *SingleServerSuite) TestUserPermissions(c *C) {
-	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
+func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
+	rootUser := self.server.GetClient("", c)
+
+	// create two users one that can only read and one that can only write. both can access test_should_read
+	// series only
+	c.Assert(rootUser.CreateDatabaseUser("db1", "limited_user", "pass", "^$", "^$"), IsNil)
+
+	config := &influxdb.ClientConfig{
+		Username: "limited_user",
+		Password: "pass",
+		Database: "db1",
+	}
+	user, err := influxdb.NewClient(config)
 	c.Assert(err, IsNil)
-	c.Assert(client.CreateDatabaseUser("db1", "limited_user", "pass", "test_should_read", ".*"), IsNil)
+
+	data := `
+[
+  {
+    "points": [
+        [1]
+    ],
+    "name": "test_should_write",
+    "columns": ["value"]
+  }
+]`
+	invalidData := `
+[
+  {
+    "points": [
+        [2]
+    ],
+    "name": "test_should_not_write",
+    "columns": ["value"]
+  }
+]`
+	series := []*influxdb.Series{}
+	c.Assert(json.Unmarshal([]byte(data), &series), IsNil)
+	// readUser shouldn't be able to write
+	c.Assert(user.WriteSeries(series), NotNil)
+	content := self.server.RunQueryAsRoot("select * from test_should_write", "m", c)
+	c.Assert(content, HasLen, 0)
+	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "^$", "test_should_write")
+	// write the data to test the write permissions
+	c.Assert(user.WriteSeries(series), IsNil)
+	invalidSeries := []*influxdb.Series{}
+	content = self.server.RunQueryAsRoot("select * from test_should_write", "m", c)
+	c.Assert(content, HasLen, 1)
+	c.Assert(json.Unmarshal([]byte(invalidData), &invalidSeries), IsNil)
+	c.Assert(user.WriteSeries(invalidSeries), NotNil)
+	content = self.server.RunQueryAsRoot("select * from test_should_not_write", "m", c)
+	c.Assert(content, HasLen, 0)
+	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "^$", "test_.*")
+	c.Assert(user.WriteSeries(invalidSeries), IsNil)
+	content = self.server.RunQueryAsRoot("select * from test_should_not_write", "m", c)
+	c.Assert(content, HasLen, 1)
+}
+
+func (self *SingleServerSuite) TestUserReadPermissions(c *C) {
+	rootUser := self.server.GetClient("", c)
+
+	// create two users one that can only read and one that can only write. both can access test_should_read
+	// series only
+	c.Assert(rootUser.CreateDatabaseUser("db1", "limited_user2", "pass", "test_should_read", "^$"), IsNil)
 
 	data := `
 [
@@ -163,18 +223,21 @@ func (self *SingleServerSuite) TestUserPermissions(c *C) {
 ]`
 	self.server.WriteData(data, c)
 
-	series := self.server.RunQueryAsUser("select value from test_should_read", "s", "limited_user", "pass", true, c)
-	c.Assert(series[0].Points, HasLen, 1)
-	c.Assert(series[0].Points[0][2], Equals, float64(1))
-
-	_ = self.server.RunQueryAsUser("select value from test_should_not_read", "s", "limited_user", "pass", false, c)
-	series = self.server.RunQueryAsUser("select value from /.*/", "s", "limited_user", "pass", true, c)
+	// test all three cases, read from one series that the user has read access to, one that the user doesn't have
+	// access to and a regex
+	content := self.server.RunQueryAsUser("select value from test_should_read", "s", "limited_user2", "pass", true, c)
+	c.Assert(content, HasLen, 1)
+	c.Assert(content[0].Points, HasLen, 1)
+	c.Assert(content[0].Points[0][2], Equals, float64(1))
+	// the following query should return an error
+	_ = self.server.RunQueryAsUser("select value from test_should_not_read", "s", "limited_user2", "pass", false, c)
+	series := self.server.RunQueryAsUser("select value from /.*/", "s", "limited_user2", "pass", true, c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Name, Equals, "test_should_read")
 
-	client.UpdateDatabaseUserPermissions("db1", "limited_user", ".*", ".*")
+	rootUser.UpdateDatabaseUserPermissions("db1", "limited_user2", ".*", ".*")
 	self.server.WaitForServerToSync()
-	series = self.server.RunQueryAsUser("select value from /.*/", "s", "limited_user", "pass", true, c)
+	series = self.server.RunQueryAsUser("select value from /.*/", "s", "limited_user2", "pass", true, c)
 	c.Assert(series, HasLen, 2)
 }
 

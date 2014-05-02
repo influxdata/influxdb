@@ -11,6 +11,7 @@
 - [Issue #431](https://github.com/influxdb/influxdb/issues/431). Don't log to standard output if a log file is specified in the config file
 - [Issue #483](https://github.com/influxdb/influxdb/issues/483). Return 409 if a database already exist (Thanks, Edward Muller)
 - [Issue #490](https://github.com/influxdb/influxdb/issues/490). Database user password's cannot be changed (Thanks, Edward Muller)
+- [Issue #495](https://github.com/influxdb/influxdb/issues/495). Enforce write permissions properly
 
 ## v0.5.12 [2014-04-29]
 
