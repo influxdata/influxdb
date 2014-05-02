@@ -41,6 +41,13 @@ func (self *SingleServerSuite) TearDownSuite(c *C) {
 	self.server.Stop()
 }
 
+// pr #483
+func (self *SingleServerSuite) TestConflictStatusCode(c *C) {
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase("test_conflict"), IsNil)
+	c.Assert(client.CreateDatabase("test_conflict"), ErrorMatches, "Server returned \\(409\\).*")
+}
+
 func (self *SingleServerSuite) TestLargeDeletes(c *C) {
 	numberOfPoints := 2 * 1024 * 1024
 	data := CreatePoints("test_large_deletes", 1, numberOfPoints)
