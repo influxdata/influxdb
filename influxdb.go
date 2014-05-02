@@ -201,6 +201,28 @@ func (self *Client) CreateDatabaseUser(database, name, password string, permissi
 	return responseToError(resp, err, true)
 }
 
+// Change the user password, adming flag and optionally permissions
+func (self *Client) ChangeDatabaseUser(database, name, newPassword string, isAdmin bool, newPermissions ...string) error {
+	switch len(newPermissions) {
+	case 0, 2:
+	default:
+		return fmt.Errorf("You have to provide two ")
+	}
+
+	url := self.getUrl("/db/" + database + "/users/" + name)
+	payload := map[string]interface{}{"password": newPassword, "admin": isAdmin}
+	if len(newPermissions) == 2 {
+		payload["readFrom"] = newPermissions[0]
+		payload["writeTo"] = newPermissions[1]
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
+	return responseToError(resp, err, true)
+}
+
 // See Client.CreateDatabaseUser for more info on the permissions
 // argument
 func (self *Client) updateDatabaseUserCommon(database, name string, password *string, isAdmin *bool, permissions ...string) error {
