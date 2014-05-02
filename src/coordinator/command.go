@@ -189,11 +189,11 @@ func NewChangeDbUserPermissionsCommand(db, username, readPermissions, writePermi
 }
 
 func (c *ChangeDbUserPermissions) CommandName() string {
-	return "change_db_user_password"
+	return "change_db_user_permissions"
 }
 
 func (c *ChangeDbUserPermissions) Apply(server raft.Server) (interface{}, error) {
-	log.Debug("(raft:%s) changing db user password for %s:%s", server.Name(), c.Database, c.Username)
+	log.Debug("(raft:%s) changing db user permissions for %s:%s", server.Name(), c.Database, c.Username)
 	config := server.Context().(*cluster.ClusterConfiguration)
 	return nil, config.ChangeDbUserPermissions(c.Database, c.Username, c.ReadPermissions, c.WritePermissions)
 }
