@@ -3,13 +3,14 @@
 ### Feature
 
 - [Issue #477](https://github.com/influxdb/influxdb/issues/477). Add a udp json interface
-- [Issue #491](https://github.com/influxdb/influxdb/issues/491). Make initial root password settable through env variable
+- [Issue #491](https://github.com/influxdb/influxdb/issues/491). Make initial root password settable through env variable (Thanks, Edward Muller)
 
 ### Bugfixes
 
 - [Issue #469](https://github.com/influxdb/influxdb/issues/469). Drop continuous queries when a database is dropped
 - [Issue #431](https://github.com/influxdb/influxdb/issues/431). Don't log to standard output if a log file is specified in the config file
 - [Issue #483](https://github.com/influxdb/influxdb/issues/483). Return 409 if a database already exist (Thanks, Edward Muller)
+- [Issue #490](https://github.com/influxdb/influxdb/issues/490). Database user password's cannot be changed (Thanks, Edward Muller)
 
 ## v0.5.12 [2014-04-29]
 
