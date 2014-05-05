@@ -37,6 +37,8 @@ func ParseTimeDuration(value string) (int64, error) {
 		return int64(parsedFloat * 24 * float64(time.Hour)), nil
 	case 'w':
 		return int64(parsedFloat * 7 * 24 * float64(time.Hour)), nil
+	case 'y':
+		return int64(parsedFloat * 365 * 24 * float64(time.Hour)), nil
 	}
 
 	lastChar := value[len(value)-1]

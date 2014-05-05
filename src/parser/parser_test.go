@@ -2,9 +2,9 @@ package parser
 
 import (
 	"fmt"
-	. "launchpad.net/gocheck"
 	"testing"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -419,6 +419,7 @@ func (self *QueryParserSuite) TestTimeWithNegativeEndTime(c *C) {
 func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
 	queries := map[string]time.Time{
 		"select value, time from t where time > now() - 1d and time < now() - 1m;": time.Now().Add(-time.Minute).Round(time.Minute).UTC(),
+		"select value, time from t where time > now() - 1d and time < now() - 1y;": time.Now().Add(-365 * 24 * time.Hour).Round(time.Minute).UTC(),
 		"select value, time from t where time > now() - 1d and time < now();":      time.Now().Round(time.Minute).UTC(),
 	}
 	for query, expected := range queries {
