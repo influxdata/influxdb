@@ -59,6 +59,19 @@ func (self *SingleServerSuite) TestConflictStatusCode(c *C) {
 	c.Assert(client.CreateDatabase("test_conflict"), ErrorMatches, "Server returned \\(409\\).*")
 }
 
+// issue #497
+func (self *SingleServerSuite) TestInvalidDataWrite(c *C) {
+	client := self.server.GetClient("db1", c)
+	series := &influxdb.Series{
+		Name:    "test_invalid_data",
+		Columns: []string{"foo", "bar"},
+		Points: [][]interface{}{
+			[]interface{}{1.0},
+		},
+	}
+	c.Assert(client.WriteSeries([]*influxdb.Series{series}), ErrorMatches, ".*\\(400\\).*invalid.*")
+}
+
 func (self *SingleServerSuite) TestLargeDeletes(c *C) {
 	numberOfPoints := 2 * 1024 * 1024
 	data := CreatePoints("test_large_deletes", 1, numberOfPoints)

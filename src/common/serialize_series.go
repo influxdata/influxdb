@@ -56,6 +56,10 @@ func ConvertToDataStoreSeries(s ApiSeries, precision TimePrecision) (*protocol.S
 		var sequence *uint64
 
 		for idx, field := range s.GetColumns() {
+			if idx >= len(point) {
+				return nil, fmt.Errorf("invalid payload")
+			}
+
 			value := point[idx]
 			if field == "time" {
 				switch value.(type) {

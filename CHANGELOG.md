@@ -2,6 +2,8 @@
 
 ### Bugfixes
 
+- [Issue #501](https://github.com/influxdb/influxdb/issues/501). Writes with invalid payload should be rejected
+
 ## v0.6.0 [2014-05-02]
 
 ### Feature
