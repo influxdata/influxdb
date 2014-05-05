@@ -407,11 +407,7 @@ func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, 
 }
 
 func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) {
-	if runLocalOnly {
-		self.HandleDestructiveQuery(querySpec, request, response, true)
-	}
-
-	self.HandleDestructiveQuery(querySpec, request, response, false)
+	self.HandleDestructiveQuery(querySpec, request, response, runLocalOnly)
 }
 
 func (self *ShardData) deleteDataLocally(querySpec *parser.QuerySpec) (<-chan *p.Response, error) {
