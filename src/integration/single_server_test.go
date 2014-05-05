@@ -61,7 +61,9 @@ func (self *SingleServerSuite) TestConflictStatusCode(c *C) {
 
 // issue #
 func (self *SingleServerSuite) TestListSeriesAfterDropSeries(c *C) {
-	client := self.server.GetClient("db1", c)
+	rootClient := self.server.GetClient("", c)
+	c.Assert(rootClient.CreateDatabase("test_drop_series"), IsNil)
+	client := self.server.GetClient("test_drop_series", c)
 	data := CreatePoints("test_drop_series", 1, 1)
 	data[0].Columns = append(data[0].Columns, "time")
 	data[0].Points[0] = append(data[0].Points[0], 1382819388)
