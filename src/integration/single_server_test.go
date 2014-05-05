@@ -59,6 +59,24 @@ func (self *SingleServerSuite) TestConflictStatusCode(c *C) {
 	c.Assert(client.CreateDatabase("test_conflict"), ErrorMatches, "Server returned \\(409\\).*")
 }
 
+// issue #
+func (self *SingleServerSuite) TestListSeriesAfterDropSeries(c *C) {
+	client := self.server.GetClient("db1", c)
+	data := CreatePoints("test_drop_series", 1, 1)
+	data[0].Columns = append(data[0].Columns, "time")
+	data[0].Points[0] = append(data[0].Points[0], 1382819388)
+	c.Assert(client.WriteSeriesWithTimePrecision(data, "s"), IsNil)
+	series, err := client.Query("list series")
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "test_drop_series")
+	_, err = client.Query("drop series test_drop_series")
+	c.Assert(err, IsNil)
+	series, err = client.Query("list series")
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 0)
+}
+
 // issue #497
 func (self *SingleServerSuite) TestInvalidDataWrite(c *C) {
 	client := self.server.GetClient("db1", c)

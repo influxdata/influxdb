@@ -218,6 +218,7 @@ func (self *ShardData) WriteLocalOnly(request *p.Request) error {
 }
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Response) {
+	log.Debug("QUERY: shard %d, query '%s'", self.Id(), querySpec.GetQueryString())
 	defer common.RecoverFunc(querySpec.Database(), querySpec.GetQueryString(), func(err interface{}) {
 		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(fmt.Sprintf("%s", err))}
 	})

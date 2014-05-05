@@ -23,6 +23,10 @@ func NewQuerySpec(user common.User, database string, query *Query) *QuerySpec {
 	return &QuerySpec{user: user, query: query, database: database}
 }
 
+func (self *QuerySpec) AllShardsQuery() bool {
+	return self.IsDropSeriesQuery()
+}
+
 func (self *QuerySpec) GetStartTime() time.Time {
 	if self.query.SelectQuery != nil {
 		return self.query.SelectQuery.GetStartTime()
