@@ -6,7 +6,7 @@
 
 ### Feature
 
-- [Issue #477](https://github.com/influxdb/influxdb/issues/477). Add a udp json interface
+- [Issue #477](https://github.com/influxdb/influxdb/issues/477). Add a udp json interface (Thanks, Julien Ammous)
 - [Issue #491](https://github.com/influxdb/influxdb/issues/491). Make initial root password settable through env variable (Thanks, Edward Muller)
 
 ### Bugfixes
