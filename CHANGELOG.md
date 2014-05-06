@@ -4,6 +4,7 @@
 
 - [Issue #500](https://github.com/influxdb/influxdb/issues/500). Support `y` sufix in time durations
 - [Issue #501](https://github.com/influxdb/influxdb/issues/501). Writes with invalid payload should be rejected
+- [Issue #507](https://github.com/influxdb/influxdb/issues/507). New cluster admin passwords don't propagate properly to other nodes in a cluster
 
 ## v0.6.0 [2014-05-02]
 

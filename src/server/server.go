@@ -94,6 +94,14 @@ func (self *Server) ListenAndServe() error {
 	raftConnectionString := self.Config.RaftConnectionString()
 	if self.ClusterConfig.LocalServer.ProtobufConnectionString != self.Config.ProtobufConnectionString() ||
 		self.ClusterConfig.LocalServer.RaftConnectionString != raftConnectionString {
+
+		log.Info("Sending change connection string command (%s,%s) (%s,%s)",
+			self.ClusterConfig.LocalServer.ProtobufConnectionString,
+			self.Config.ProtobufConnectionString(),
+			self.ClusterConfig.LocalServer.RaftConnectionString,
+			raftConnectionString,
+		)
+
 		err := self.RaftServer.ChangeConnectionString(
 			self.ClusterConfig.LocalRaftName,
 			self.Config.ProtobufConnectionString(),

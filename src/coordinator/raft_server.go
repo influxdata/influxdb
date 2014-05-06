@@ -284,7 +284,7 @@ func (s *RaftServer) ChangeConnectionString(raftName, protobufConnectionString, 
 	for _, s := range s.raftServer.Peers() {
 		// send the command and ignore errors in case a server is down
 		SendCommandToServer(s.ConnectionString, command)
-		log.Info("sent command to change port to %s", s.ConnectionString)
+		log.Info("sent %#v to %s", command, s.ConnectionString)
 	}
 
 	// make the change permament

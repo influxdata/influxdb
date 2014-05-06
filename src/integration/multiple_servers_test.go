@@ -53,6 +53,31 @@ func (self *ServerSuite) TearDownSuite(c *C) {
 	}
 }
 
+func (self *ServerSuite) TestChangingRootPassword(c *C) {
+	rootClient := self.serverProcesses[0].GetClient("", c)
+	c.Assert(rootClient.CreateClusterAdmin("newroot", "root"), IsNil)
+
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
+
+	for _, s := range self.serverProcesses {
+		client := s.GetClient("", c)
+		c.Assert(client.AuthenticateClusterAdmin("newroot", "root"), IsNil)
+	}
+
+	c.Assert(rootClient.ChangeClusterAdminPassword("newroot", "root2"), IsNil)
+
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
+
+	for _, s := range self.serverProcesses {
+		client := s.GetClient("", c)
+		c.Assert(client.AuthenticateClusterAdmin("newroot", "root2"), IsNil)
+	}
+}
+
 func (self *ServerSuite) TestGraphiteInterface(c *C) {
 	conn, err := net.Dial("tcp", "localhost:60513")
 	c.Assert(err, IsNil)
