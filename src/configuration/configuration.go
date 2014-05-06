@@ -128,6 +128,11 @@ type ShardConfiguration struct {
 	hasRandomSplit   bool
 }
 
+type InfluxDBVersion struct {
+	Version string	`json:"version"`
+	GitSha	string	`json:"gitSha"`
+}
+
 func (self *ShardConfiguration) ParseAndValidate(defaultShardDuration time.Duration) error {
 	var err error
 	if self.Split == 0 {
@@ -240,6 +245,7 @@ type Configuration struct {
 	PerServerWriteBufferSize     int
 	ClusterMaxResponseBufferSize int
 	ConcurrentShardQueryLimit    int
+	Version                      InfluxDBVersion
 }
 
 func LoadConfiguration(fileName string) *Configuration {

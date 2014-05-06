@@ -85,6 +85,9 @@ func main() {
 		config.ProtobufPort = *protobufPort
 	}
 
+	config.Version.Version = version
+	config.Version.GitSha = gitSha
+
 	setupLogging(config.LogLevel, config.LogFile)
 
 	if *repairLeveldb {
