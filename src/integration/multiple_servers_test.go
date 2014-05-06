@@ -652,13 +652,11 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
 	// wait for replication
 	self.serverProcesses[0].WaitForServerToSync()
 	// wait for the query to run
-	time.Sleep(time.Second)
+	time.Sleep(6 * time.Second)
 
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series := collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 2)
-
-	time.Sleep(2 * time.Second)
 
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s3;", false, c)
 	series = collection.GetSeries("s3", c)
