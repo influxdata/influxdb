@@ -1005,6 +1005,11 @@ func (self *ClusterConfiguration) RecoverFromWAL() error {
 
 func (self *ClusterConfiguration) recover(serverId uint32, writer Writer) error {
 	shardIds := self.shardIdsForServerId(serverId)
+	if len(shardIds) == 0 {
+		log.Info("No shards to recover for %d", serverId)
+		return nil
+	}
+
 	log.Debug("replaying wal for server %d and shardIds %#v", serverId, shardIds)
 	return self.wal.RecoverServerFromLastCommit(serverId, shardIds, func(request *protocol.Request, shardId uint32) error {
 		if request == nil {
@@ -1027,8 +1032,7 @@ func (self *ClusterConfiguration) shardIdsForServerId(serverId uint32) []uint32 
 	for _, shard := range self.GetAllShards() {
 		for _, id := range shard.serverIds {
 			if id == serverId {
-				sid := shard.Id()
-				shardIds = append(shardIds, sid)
+				shardIds = append(shardIds, shard.Id())
 				break
 			}
 		}

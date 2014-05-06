@@ -5,6 +5,7 @@
 - [Issue #500](https://github.com/influxdb/influxdb/issues/500). Support `y` sufix in time durations
 - [Issue #501](https://github.com/influxdb/influxdb/issues/501). Writes with invalid payload should be rejected
 - [Issue #507](https://github.com/influxdb/influxdb/issues/507). New cluster admin passwords don't propagate properly to other nodes in a cluster
+- [Issue #508](https://github.com/influxdb/influxdb/issues/508). Don't replay WAL entries for servers with no shards
 
 ## v0.6.0 [2014-05-02]
 

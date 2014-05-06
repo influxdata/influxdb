@@ -141,9 +141,12 @@ func (self *WAL) isInRange(requestNumber uint32) bool {
 	return rn >= self.state.FirstSuffix && rn <= largestRequestNumber
 }
 
-// In the case where this server is running and another one in the cluster stops responding, at some point this server will have to just write
-// requests to disk. When the downed server comes back up, it's this server's responsibility to send out any writes that were queued up. If
-// the yield function returns nil then the request is committed.
+// In the case where this server is running and another one in the
+// cluster stops responding, at some point this server will have to
+// just write requests to disk. When the downed server comes back up,
+// it's this server's responsibility to send out any writes that were
+// queued up. If the yield function returns nil then the request is
+// committed.
 func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error {
 	// don't replay if we don't have any log files yet
 	if len(self.logFiles) == 0 {
