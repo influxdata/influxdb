@@ -1,4 +1,8 @@
-## v0.6.1 [unreleased]
+## v0.6.2 [unreleased]
+
+### Bugfixes
+
+## v0.6.1 [2014-05-06]
 
 ### Bugfixes
 
