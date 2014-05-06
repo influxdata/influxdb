@@ -284,13 +284,13 @@ func (s *RaftServer) ChangeConnectionString(raftName, protobufConnectionString, 
 	for _, s := range s.raftServer.Peers() {
 		// send the command and ignore errors in case a server is down
 		SendCommandToServer(s.ConnectionString, command)
-		fmt.Printf("sent changeconnectionstring to %s\n", s.ConnectionString)
+		log.Info("sent command to change port to %s", s.ConnectionString)
 	}
 
 	// make the change permament
 	command.Force = false
 	_, err := s.doOrProxyCommand(command)
-	fmt.Printf("Running the actual command\n")
+	log.Info("Running the actual command")
 	return err
 }
 
