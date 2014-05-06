@@ -1,5 +1,9 @@
 ## v0.6.3 [unreleased]
 
+### Features
+
+- [Issue #505](https://github.com/influxdb/influxdb/issues/505). Return a version header with http the response
+
 ### Bugfixes
 
 - [Issue #516](https://github.com/influxdb/influxdb/issues/516). Close WAL log/index files when they aren't being used
@@ -7,6 +11,7 @@
 - [Issue #535](https://github.com/influxdb/influxdb/issues/535). WAL Replay hangs if response isn't received
 - [Issue #538](https://github.com/influxdb/influxdb/issues/538). Don't panic if the same series existed twice in the request with different columns
 - [Issue #536](https://github.com/influxdb/influxdb/issues/536). Joining the cluster after shards are creating shouldn't cause new nodes to panic
+
 
 ## v0.6.2 [2014-05-09]
 

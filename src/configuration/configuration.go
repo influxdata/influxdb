@@ -240,6 +240,7 @@ type Configuration struct {
 	PerServerWriteBufferSize     int
 	ClusterMaxResponseBufferSize int
 	ConcurrentShardQueryLimit    int
+	Version                      string
 }
 
 func LoadConfiguration(fileName string) *Configuration {
