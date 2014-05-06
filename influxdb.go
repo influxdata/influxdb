@@ -201,6 +201,18 @@ func (self *Client) CreateDatabaseUser(database, name, password string, permissi
 	return responseToError(resp, err, true)
 }
 
+// Change the cluster admin password
+func (self *Client) ChangeClusterAdminPassword(name, newPassword string) error {
+	url := self.getUrl("/cluster_admins/" + name)
+	payload := map[string]interface{}{"password": newPassword}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
+	return responseToError(resp, err, true)
+}
+
 // Change the user password, adming flag and optionally permissions
 func (self *Client) ChangeDatabaseUser(database, name, newPassword string, isAdmin bool, newPermissions ...string) error {
 	switch len(newPermissions) {
@@ -335,6 +347,12 @@ func (self *Client) Ping() error {
 
 func (self *Client) AuthenticateDatabaseUser(database, username, password string) error {
 	url := self.getUrlWithUserAndPass(fmt.Sprintf("/db/%s/authenticate", database), username, password)
+	resp, err := self.httpClient.Get(url)
+	return responseToError(resp, err, true)
+}
+
+func (self *Client) AuthenticateClusterAdmin(username, password string) error {
+	url := self.getUrlWithUserAndPass("/cluster_admins/authenticate", username, password)
 	resp, err := self.httpClient.Get(url)
 	return responseToError(resp, err, true)
 }
