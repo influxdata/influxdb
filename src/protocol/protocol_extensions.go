@@ -179,7 +179,7 @@ func (self *FieldValue) Equals(other *FieldValue) bool {
 		}
 		return *other.StringValue == *self.StringValue
 	}
-	return false
+	return other.GetIsNull()
 }
 
 // defines total order on FieldValue, the following is true
@@ -211,5 +211,5 @@ func (self *FieldValue) GreaterOrEqual(other *FieldValue) bool {
 		}
 		return *self.StringValue >= *other.StringValue
 	}
-	return other.BoolValue == nil && other.Int64Value == nil && other.DoubleValue == nil && other.StringValue == nil
+	return true
 }

@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [Issue #511](https://github.com/influxdb/influxdb/issues/511). Don't automatically create the database when a db user is created
+- [Issue #512](https://github.com/influxdb/influxdb/issues/512). Group by should respect null values
 - [Issue #369](https://github.com/influxdb/influxdb/issues/369). Fix some edge cases with WAL recovery
 
 ## v0.6.1 [2014-05-06]

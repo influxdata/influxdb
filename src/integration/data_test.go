@@ -96,6 +96,36 @@ func (self *DataTestSuite) TestAll(c *C) {
 
 type Fun func(client Client)
 
+// issue #512
+func (self *DataTestSuite) GroupByNullValues(c *C) (Fun, Fun) {
+	// make sure we exceed the pointBatchSize, so we force a yield to
+	// the filtering engine
+	return func(client Client) {
+			data := `
+[
+  {
+    "points": [
+        ["one", null],
+        ["one", 1],
+        ["one", null]
+    ],
+    "name": "test_null_groups",
+    "columns": ["column0", "column1"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select count(column0) from test_null_groups group by column1", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 2)
+			c.Assert(maps[0]["count"], Equals, 1.0)
+			// this is an implementation detail, but nulls come last in the
+			// trie
+			c.Assert(maps[1]["count"], Equals, 2.0)
+		}
+}
+
 // issue #389
 func (self *DataTestSuite) FilteringShouldNotStopIfAllPointsDontMatch(c *C) (Fun, Fun) {
 	// make sure we exceed the pointBatchSize, so we force a yield to
