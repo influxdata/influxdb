@@ -873,7 +873,10 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, p
 		return err
 	}
 
-	self.CreateDatabase(requester, db, uint8(1)) // ignore the error since the db may exist
+	if !self.clusterConfiguration.DatabaseExists(db) {
+		return fmt.Errorf("No such database %s", db)
+	}
+
 	if self.clusterConfiguration.GetDbUser(db, username) != nil {
 		return fmt.Errorf("User %s already exists", username)
 	}
