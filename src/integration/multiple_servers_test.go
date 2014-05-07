@@ -260,6 +260,7 @@ func (self *ServerSuite) TestUdpInterface(c *C) {
 }
 
 func (self *ServerSuite) TestShouldNotResetRootsPassword(c *C) {
+	self.serverProcesses[0].Post("/db?u=root&p=root", "{\"name\":\"dummy_db\"}", c)
 	resp := self.serverProcesses[0].Post("/db/dummy_db/users?u=root&p=root", "{\"name\":\"root\", \"password\":\"pass\"}", c)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	self.serverProcesses[0].WaitForServerToSync()
@@ -409,6 +410,7 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 		case 2:
 			resp := self.serverProcesses[0].Delete("/db/drop_series?u=root&p=root", "", c)
 			c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+			self.serverProcesses[0].Post("/db?u=root&p=root", `{"name": "drop_series"}`, c)
 			self.serverProcesses[0].Post("/db/drop_series/users?u=root&p=root", `{"name": "paul", "password": "pass"}`, c)
 		}
 
