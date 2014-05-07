@@ -323,7 +323,7 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 	return shards, processor, seriesClosed, nil
 }
 
-func (self *CoordinatorImpl) readFromResposneChannels(processor cluster.QueryProcessor,
+func (self *CoordinatorImpl) readFromResponseChannels(processor cluster.QueryProcessor,
 	writer SeriesWriter,
 	isExplainQuery bool,
 	errors chan<- error,
@@ -383,7 +383,7 @@ func (self *CoordinatorImpl) queryShards(querySpec *parser.QuerySpec, shards []*
 	defer close(responseChannels)
 
 	for i := 0; i < len(shards); i++ {
-		// readFromResposneChannels will insert an error if an error
+		// readFromResponseChannels will insert an error if an error
 		// occured while reading the response. This should immediately
 		// stop reading from shards
 		err := <-errors
@@ -433,7 +433,7 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 	}
 	responseChannels := make(chan (<-chan *protocol.Response), shardConcurrentLimit)
 
-	go self.readFromResposneChannels(processor, seriesWriter, querySpec.IsExplainQuery(), errors, responseChannels)
+	go self.readFromResponseChannels(processor, seriesWriter, querySpec.IsExplainQuery(), errors, responseChannels)
 
 	err = self.queryShards(querySpec, shards, errors, responseChannels)
 
