@@ -272,11 +272,6 @@ func (self *QueryEngine) getTimestampBucket(timestampMicroseconds uint64) int64 
 	return int64(timestampMicroseconds / multiplier * multiplier / 1000)
 }
 
-// Mapper given a point returns a group identifier as the first return
-// result and a non-time dependent group (the first group without time)
-// as the second result
-type Mapper func(*protocol.Point) Group
-
 type PointRange struct {
 	startTime int64
 	endTime   int64
