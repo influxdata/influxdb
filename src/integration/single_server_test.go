@@ -29,6 +29,7 @@ var _ = Suite(&SingleServerSuite{})
 func (self *SingleServerSuite) createUser(c *C) {
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
 	c.Assert(err, IsNil)
+	c.Assert(client.CreateDatabase("db1"), IsNil)
 	c.Assert(client.CreateDatabaseUser("db1", "user", "pass"), IsNil)
 	c.Assert(client.AlterDatabasePrivilege("db1", "user", true), IsNil)
 }
@@ -178,6 +179,7 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 
 	// create two users one that can only read and one that can only write. both can access test_should_read
 	// series only
+	/* c.Assert(rootUser.CreateDatabase("db1"), IsNil) */
 	c.Assert(rootUser.CreateDatabaseUser("db1", "limited_user", "pass", "^$", "^$"), IsNil)
 
 	config := &influxdb.ClientConfig{
@@ -238,6 +240,7 @@ func (self *SingleServerSuite) TestUserReadPermissions(c *C) {
 
 	// create two users one that can only read and one that can only write. both can access test_should_read
 	// series only
+	c.Assert(rootUser.CreateDatabase("db1"), IsNil)
 	c.Assert(rootUser.CreateDatabaseUser("db1", "limited_user2", "pass", "test_should_read", "^$"), IsNil)
 
 	data := `
@@ -306,6 +309,8 @@ func (self *SingleServerSuite) TestAdminPermissionToDeleteData(c *C) {
 func (self *SingleServerSuite) TestShortPasswords(c *C) {
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
 	c.Assert(err, IsNil)
+
+	c.Assert(client.CreateDatabase("shahid"), IsNil)
 	c.Assert(client.CreateDatabaseUser("shahid", "shahid", "1"), Not(ErrorMatches), ".*blowfish.*")
 
 	// should be able to recreate the user
@@ -529,4 +534,11 @@ func (self *SingleServerSuite) TestDeleteQuery(c *C) {
 		data = self.server.RunQuery("select val1 from test_delete_query", "m", c)
 		c.Assert(data, HasLen, 0)
 	}
+}
+
+func (self *SingleServerSuite) TestInvalidDbUserCreation(c *C) {
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
+	c.Assert(err, IsNil)
+
+	c.Assert(client.CreateDatabaseUser("db999", "user", "pass"), NotNil)
 }

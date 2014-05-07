@@ -265,6 +265,15 @@ func (self *ClusterConfiguration) GetDatabases() []*Database {
 	return dbs
 }
 
+func (self *ClusterConfiguration) DatabaseExists(name string) bool {
+	fmt.Println(self.DatabaseReplicationFactors)
+	if _, ok := self.DatabaseReplicationFactors[name]; ok {
+		return true
+	} else {
+		return false
+	}
+}
+
 func (self *ClusterConfiguration) CreateDatabase(name string, replicationFactor uint8) error {
 	self.createDatabaseLock.Lock()
 	defer self.createDatabaseLock.Unlock()
