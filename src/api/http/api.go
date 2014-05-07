@@ -80,15 +80,19 @@ func (self *HttpServer) ListenAndServe() {
 }
 
 func (self *HttpServer) registerEndpoint(p *pat.PatternServeMux, method string, pattern string, f libhttp.HandlerFunc) {
+	version := "unknown"
+	if self.clusterConfig != nil {
+		version = self.clusterConfig.GetLocalConfiguration().Version.Version + " commit " + self.clusterConfig.GetLocalConfiguration().Version.GitSha[0:10]
+	}
 	switch method {
 	case "get":
-		p.Get(pattern, CorsHeaderHandler(f))
+		p.Get(pattern, CorsHeaderHandler(f, version))
 	case "post":
-		p.Post(pattern, CorsHeaderHandler(f))
+		p.Post(pattern, CorsHeaderHandler(f, version))
 	case "del":
-		p.Del(pattern, CorsHeaderHandler(f))
+		p.Del(pattern, CorsHeaderHandler(f, version))
 	}
-	p.Options(pattern, CorsHeaderHandler(self.sendCrossOriginHeader))
+	p.Options(pattern, CorsHeaderHandler(self.sendCrossOriginHeader, version))
 }
 
 func (self *HttpServer) Serve(listener net.Listener) {
@@ -145,9 +149,6 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// return whether the cluster is in sync or not
 	self.registerEndpoint(p, "get", "/sync", self.isInSync)
-
-	// return the version
-	self.registerEndpoint(p, "get", "/version", self.getVersion)
 
 	if listener == nil {
 		self.startSsl(p)
@@ -1065,15 +1066,4 @@ func (self *HttpServer) convertShardsToMap(shards []*cluster.ShardData) []interf
 		result = append(result, s)
 	}
 	return result
-}
-
-func (self *HttpServer) getVersion(w libhttp.ResponseWriter, r *libhttp.Request) {
-	body, err := json.Marshal(self.clusterConfig.GetLocalConfiguration().Version)
-	if err == nil {
-		w.WriteHeader(libhttp.StatusOK)
-		w.Write(body)
-	} else {
-		w.WriteHeader(libhttp.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-	}
 }
