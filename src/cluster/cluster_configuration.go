@@ -266,7 +266,6 @@ func (self *ClusterConfiguration) GetDatabases() []*Database {
 }
 
 func (self *ClusterConfiguration) DatabaseExists(name string) bool {
-	fmt.Println(self.DatabaseReplicationFactors)
 	if _, ok := self.DatabaseReplicationFactors[name]; ok {
 		return true
 	} else {
