@@ -1,8 +1,6 @@
 package wal
 
 import (
-	"code.google.com/p/goprotobuf/proto"
-	logger "code.google.com/p/log4go"
 	"configuration"
 	"fmt"
 	"io"
@@ -11,6 +9,9 @@ import (
 	"protocol"
 	"strconv"
 	"strings"
+
+	"code.google.com/p/goprotobuf/proto"
+	logger "code.google.com/p/log4go"
 )
 
 type log struct {
@@ -43,7 +44,40 @@ func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
 		cachedSuffix: suffix,
 	}
 
-	return l, nil
+	return l, l.check()
+}
+
+func (self *log) check() error {
+	file, err := self.dupLogFile()
+	if err != nil {
+		return err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	size := info.Size()
+	offset, err := file.Seek(0, os.SEEK_SET)
+	if err != nil {
+		return err
+	}
+	for {
+		n, hdr, err := self.getNextHeader(file)
+		if err != nil {
+			return err
+		}
+		if n == 0 || hdr.length == 0 {
+			return self.file.Truncate(offset)
+		}
+		if offset+int64(n)+int64(hdr.length) > size {
+			// file is incomplete, truncate
+			return self.file.Truncate(offset)
+		}
+		if err := self.skipRequest(file, hdr); err != nil {
+			return err
+		}
+		offset += int64(n) + int64(hdr.length)
+	}
 }
 
 func (self *log) offset() int64 {
@@ -190,6 +224,7 @@ func (self *log) replayFromFileLocation(file *os.File,
 	stopChan chan struct{}) {
 
 	offset, err := file.Seek(0, os.SEEK_CUR)
+	logger.Info("replaying from file location %d", offset)
 	if err != nil {
 		sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 		return
@@ -224,30 +259,17 @@ func (self *log) replayFromFileLocation(file *os.File,
 
 		bytes := make([]byte, hdr.length)
 		read, err := file.Read(bytes)
-		if err == io.EOF {
-			// file ends prematurely, truncate to the previous request
-			logger.Warn("%s ends prematurely", file.Name())
-			offset, err := file.Seek(int64(-numberOfBytes), os.SEEK_CUR)
-			if err != nil {
-				sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
-				return
-			}
-			logger.Debug("truncating %s to %d", file.Name(), offset)
-			err = file.Truncate(offset)
-			if err != nil {
-				sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
-			}
-			return
-		}
 		if err != nil {
 			sendOrStop(newErrorReplayRequest(err), replayChan, stopChan)
 			return
 		}
 
 		if uint32(read) != hdr.length {
-			sendOrStop(newErrorReplayRequest(fmt.Errorf("expected to read %d but got %d instead", hdr.length, read)), replayChan, stopChan)
+			// file ends prematurely, probably a request is being written
+			logger.Debug("%s ends prematurely. Truncating to %d", file.Name(), offset)
 			return
 		}
+
 		req := &protocol.Request{}
 		err = req.Decode(bytes)
 		if err != nil {

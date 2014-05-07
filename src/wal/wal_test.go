@@ -368,10 +368,61 @@ func (_ *WalSuite) TestRecoveryFromCrash(c *C) {
 	filePath := path.Join(wal.config.WalDir, "log.1")
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	c.Assert(err, IsNil)
-	defer file.Close()
-	hdr := &entryHeader{1, 1, 10}
+	hdr := &entryHeader{1, 1, 500}
 	_, err = hdr.Write(file)
 	c.Assert(err, IsNil)
+	// write an incomplete request, 200 bytes as opposed to 500 bytes in
+	// the hdr
+	_, err = file.Write(make([]byte, 200))
+	c.Assert(err, IsNil)
+	defer file.Close()
+
+	// the WAL should trucate to just the first request
+	wal, err = NewWAL(wal.config)
+	wal.SetServerId(1)
+	c.Assert(err, IsNil)
+	requests := []*protocol.Request{}
+	wal.RecoverServerFromRequestNumber(1, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		requests = append(requests, req)
+		return nil
+	})
+	c.Assert(requests, HasLen, 1)
+
+	// make sure the file is truncated
+	info, err := file.Stat()
+	c.Assert(err, IsNil)
+	c.Assert(info.Size(), Equals, int64(69))
+	// make sure appending a new request will increase the size of the
+	// file by just that request
+	_, err = wal.AssignSequenceNumbersAndLog(req, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	info, err = file.Stat()
+	c.Assert(err, IsNil)
+	c.Assert(info.Size(), Equals, int64(69*2))
+
+	requests = []*protocol.Request{}
+	wal.RecoverServerFromRequestNumber(1, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		requests = append(requests, req)
+		return nil
+	})
+	c.Assert(requests, HasLen, 2)
+}
+
+func (_ *WalSuite) TestAnotherRecoveryFromCrash(c *C) {
+	wal := newWal(c)
+	req := generateRequest(2)
+	_, err := wal.AssignSequenceNumbersAndLog(req, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(wal.Close(), IsNil)
+	filePath := path.Join(wal.config.WalDir, "log.1")
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	c.Assert(err, IsNil)
+	hdr := &entryHeader{0, 0, 0}
+	_, err = hdr.Write(file)
+	c.Assert(err, IsNil)
+	defer file.Close()
+
+	// the WAL should trucate to just the first request
 	wal, err = NewWAL(wal.config)
 	wal.SetServerId(1)
 	c.Assert(err, IsNil)
@@ -395,6 +446,40 @@ func (_ *WalSuite) TestRecoverWithNonWriteRequests(c *C) {
 	wal, err := NewWAL(wal.config)
 	c.Assert(err, IsNil)
 	wal.SetServerId(1)
+}
+
+func (_ *WalSuite) TestAnotherSimultaneousReplay(c *C) {
+	wal := newWal(c)
+	signalChan := make(chan struct{})
+	go func() {
+		for i := 0; i < 1000; i++ {
+			request := generateRequest(1000)
+			wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+		}
+		signalChan <- struct{}{}
+	}()
+
+outer:
+	for {
+		select {
+		case <-signalChan:
+			break outer
+		default:
+			wal.RecoverServerFromRequestNumber(uint32(1), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+				return nil
+			})
+		}
+	}
+	c.Assert(wal.Close(), IsNil)
+	wal, err := NewWAL(wal.config)
+	c.Assert(err, IsNil)
+	wal.SetServerId(1)
+	requests := []*protocol.Request{}
+	wal.RecoverServerFromRequestNumber(uint32(1), []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		requests = append(requests, req)
+		return nil
+	})
+	c.Assert(len(requests), Equals, 1000)
 }
 
 func (_ *WalSuite) TestSimultaneousReplay(c *C) {
