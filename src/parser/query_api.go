@@ -244,7 +244,6 @@ func parseTimeWithoutSuffix(value string) (int64, error) {
 		f, err = strconv.ParseFloat(value, 64)
 		i = int64(f)
 	} else {
-		fmt.Printf("here %v\n", value)
 		i, err = strconv.ParseInt(value, 10, 64)
 	}
 	if err != nil {

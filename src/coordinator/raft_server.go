@@ -650,7 +650,6 @@ func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http
 		// if this is a forced change, just do it now and return. Note
 		// that this isn't a permanent change, since on restart the old
 		// connection strings will be used
-		fmt.Printf("Applyting change connection string and returning\n")
 		return c.Apply(s.raftServer)
 	}
 

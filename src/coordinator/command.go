@@ -274,7 +274,6 @@ func (c *InfluxChangeConnectionStringCommand) Apply(server raft.Server) (interfa
 		return nil, nil
 	}
 
-	fmt.Printf("Chaning %s:%s to %s\n", server.Name(), c.Name, c.ConnectionString)
 	server.RemovePeer(c.Name)
 	server.AddPeer(c.Name, c.ConnectionString)
 
