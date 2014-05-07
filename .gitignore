@@ -32,6 +32,7 @@ build/
 godef
 gosym
 gocode
+inspect-raft
 
 # dependencies
 src/code.google.com/p/log4go
