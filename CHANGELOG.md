@@ -2,6 +2,8 @@
 
 ### Bugfixes
 
+- [Issue #511](https://github.com/influxdb/influxdb/issues/511). Don't automatically create the database when a db user is created
+
 ## v0.6.1 [2014-05-06]
 
 ### Bugfixes
