@@ -49,16 +49,17 @@ type ApiSeries interface {
 }
 
 func ConvertToDataStoreSeries(s ApiSeries, precision TimePrecision) (*protocol.Series, error) {
-	points := []*protocol.Point{}
+	points := make([]*protocol.Point, 0, len(s.GetPoints()))
 	for _, point := range s.GetPoints() {
-		values := []*protocol.FieldValue{}
+		if len(point) != len(s.GetColumns()) {
+			return nil, fmt.Errorf("invalid payload")
+		}
+
+		values := make([]*protocol.FieldValue, 0, len(point))
 		var timestamp *int64
 		var sequence *uint64
 
 		for idx, field := range s.GetColumns() {
-			if idx >= len(point) {
-				return nil, fmt.Errorf("invalid payload")
-			}
 
 			value := point[idx]
 			if field == "time" {
