@@ -3,6 +3,8 @@ package common
 import (
 	"fmt"
 	"protocol"
+
+	log "code.google.com/p/log4go"
 )
 
 var (
@@ -166,7 +168,13 @@ func SerializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 					rowValues = append(rowValues, nil)
 					continue
 				}
-				rowValues = append(rowValues, value.GetValue())
+				v, ok := value.GetValue()
+				if !ok {
+					rowValues = append(rowValues, nil)
+					log.Warn("Infinite or NaN value encountered")
+					continue
+				}
+				rowValues = append(rowValues, v)
 			}
 			points = append(points, rowValues)
 		}

@@ -96,6 +96,32 @@ func (self *DataTestSuite) TestAll(c *C) {
 
 type Fun func(client Client)
 
+// issue #518
+func (self *DataTestSuite) InfiniteValues(c *C) (Fun, Fun) {
+	// make sure we exceed the pointBatchSize, so we force a yield to
+	// the filtering engine
+	return func(client Client) {
+			data := `
+[
+  {
+    "points": [
+        [1399590718, 0.0],
+        [1399590718, 0.0]
+    ],
+    "name": "test_infinite_values",
+    "columns": ["time", "value"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select derivative(value) from test_infinite_values", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["derivative"], IsNil)
+		}
+}
+
 // issue #512
 func (self *DataTestSuite) GroupByNullValues(c *C) (Fun, Fun) {
 	// make sure we exceed the pointBatchSize, so we force a yield to

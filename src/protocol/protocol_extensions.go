@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 
+	"math"
+
 	"code.google.com/p/goprotobuf/proto"
 )
 
@@ -31,25 +33,31 @@ func (self *Point) SetTimestampInMicroseconds(t int64) {
 	self.Timestamp = &t
 }
 
-func (self *FieldValue) GetValue() interface{} {
+// Returns the value as an interface and true for all values, except
+// for infinite and NaN values
+func (self *FieldValue) GetValue() (interface{}, bool) {
 	if self.StringValue != nil {
-		return *self.StringValue
+		return *self.StringValue, true
 	}
 
 	if self.DoubleValue != nil {
-		return *self.DoubleValue
+		fv := *self.DoubleValue
+		if math.IsNaN(fv) || math.IsInf(fv, 0) {
+			return 0, false
+		}
+		return fv, true
 	}
 
 	if self.Int64Value != nil {
-		return *self.Int64Value
+		return *self.Int64Value, true
 	}
 
 	if self.BoolValue != nil {
-		return *self.BoolValue
+		return *self.BoolValue, true
 	}
 
 	// TODO: should we do something here ?
-	return nil
+	return nil, true
 }
 
 func (self *Point) GetFieldValue(idx int) interface{} {
@@ -58,7 +66,8 @@ func (self *Point) GetFieldValue(idx int) interface{} {
 	if v == nil {
 		return nil
 	}
-	return v.GetValue()
+	iv, _ := v.GetValue()
+	return iv
 }
 
 func (self *Point) GetFieldValueAsString(idx int) string {
