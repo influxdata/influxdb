@@ -116,6 +116,25 @@ func (_ *WalSuite) TestRequestNumberAssignmentRecovery(c *C) {
 	c.Assert(id, Equals, uint32(3))
 }
 
+func (_ *WalSuite) TestLogFilesReplay(c *C) {
+	wal := newWal(c)
+	wal.config.WalRequestsPerLogFile = 1000
+	wal.Commit(1, 0)
+	for i := 0; i < 4000; i++ {
+		request := generateRequest(2)
+		id, err := wal.AssignSequenceNumbersAndLog(request, &MockShard{id: 1})
+		c.Assert(err, IsNil)
+		c.Assert(id, Equals, uint32(i+1))
+	}
+	requests := 0
+	err := wal.RecoverServerFromLastCommit(1, []uint32{1}, func(req *protocol.Request, shardId uint32) error {
+		requests++
+		return wal.Commit(req.GetRequestNumber(), 1)
+	})
+	c.Assert(err, IsNil)
+	c.Assert(requests, Equals, 4000)
+}
+
 func (_ *WalSuite) TestLogFilesCompaction(c *C) {
 	wal := newWal(c)
 	wal.config.WalRequestsPerLogFile = 2000

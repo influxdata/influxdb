@@ -175,9 +175,16 @@ func (self *WAL) RecoverServerFromRequestNumber(requestNumber uint32, shardIds [
 		firstIndex = len(self.logIndex) - 1
 		firstOffset = self.logIndex[firstIndex].requestOrLastOffset(requestNumber)
 	}
+
+	// issue #522. Copy the log files, otherwise a commit may cause
+	// self.logFiles to be shifted to the left and `idx` in the loop
+	// will be off by one, then by two, etc.
+	logFiles := make([]*log, len(self.logFiles))
+	copy(logFiles, self.logFiles)
+
 outer:
-	for idx := firstIndex; idx < len(self.logFiles); idx++ {
-		logFile := self.logFiles[idx]
+	for idx := firstIndex; idx < len(logFiles); idx++ {
+		logFile := logFiles[idx]
 		if idx > firstIndex {
 			firstOffset = -1
 		}
