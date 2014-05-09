@@ -1,4 +1,4 @@
-## v0.6.2 [unreleased]
+## v0.6.2 [2014-05-09]
 
 ### Bugfixes
 
@@ -12,10 +12,12 @@
 
 ### Bugfixes
 
-- [Issue #500](https://github.com/influxdb/influxdb/issues/500). Support `y` sufix in time durations
+- [Issue #500](https://github.com/influxdb/influxdb/issues/500). Support `y` suffix in time durations
 - [Issue #501](https://github.com/influxdb/influxdb/issues/501). Writes with invalid payload should be rejected
 - [Issue #507](https://github.com/influxdb/influxdb/issues/507). New cluster admin passwords don't propagate properly to other nodes in a cluster
 - [Issue #508](https://github.com/influxdb/influxdb/issues/508). Don't replay WAL entries for servers with no shards
+- [Issue #464](https://github.com/influxdb/influxdb/issues/464). Admin UI shouldn't draw graphs for string columns 
+- [Issue #480](https://github.com/influxdb/influxdb/issues/480). Large values on the y-axis get cut off
 
 ## v0.6.0 [2014-05-02]
 
