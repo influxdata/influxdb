@@ -886,11 +886,11 @@ func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 	}
 	sort.Ints(counts)
 
-	// move this to a state param
 	returnValues := [][]*protocol.FieldValue{}
 	
 	last := 0
 	for i := len(counts); i > 0; i-- {
+		// counts can contain duplicates, but we only want to append each count-set once
 		count := counts[i - 1]
 		if count == last {
 			continue
@@ -909,6 +909,7 @@ func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 					returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &v}})
 			}
 		}
+		// size is really "minimum size"
 		if len(returnValues) >= self.size {
 			break
 		}		
