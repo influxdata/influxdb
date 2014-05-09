@@ -908,11 +908,8 @@ func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 				case float64:
 					returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &v}})
 			}
-			if len(returnValues) == self.size {
-				break
-			}
 		}
-		if len(returnValues) == self.size {
+		if len(returnValues) >= self.size {
 			break
 		}		
 	}
