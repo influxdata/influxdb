@@ -1,3 +1,9 @@
+## v0.6.3 [unreleased]
+
+### Bugfixes
+
+- [Issue #516](https://github.com/influxdb/influxdb/issues/516). Close WAL log/index files when they aren't being used
+
 ## v0.6.2 [2014-05-09]
 
 ### Bugfixes
@@ -16,7 +22,7 @@
 - [Issue #501](https://github.com/influxdb/influxdb/issues/501). Writes with invalid payload should be rejected
 - [Issue #507](https://github.com/influxdb/influxdb/issues/507). New cluster admin passwords don't propagate properly to other nodes in a cluster
 - [Issue #508](https://github.com/influxdb/influxdb/issues/508). Don't replay WAL entries for servers with no shards
-- [Issue #464](https://github.com/influxdb/influxdb/issues/464). Admin UI shouldn't draw graphs for string columns 
+- [Issue #464](https://github.com/influxdb/influxdb/issues/464). Admin UI shouldn't draw graphs for string columns
 - [Issue #480](https://github.com/influxdb/influxdb/issues/480). Large values on the y-axis get cut off
 
 ## v0.6.0 [2014-05-02]
@@ -487,4 +493,3 @@
 ## v0.0.1 [2013-10-22]
 
   * Initial Release
-

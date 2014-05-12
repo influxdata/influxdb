@@ -504,6 +504,8 @@ func (self *WAL) rotateTheLogFile(nextRequestNumber uint32) (bool, error) {
 	if err := lastIndex.syncFile(); err != nil {
 		return false, err
 	}
+	lastLogFile.close()
+	lastIndex.close()
 	lastLogFile, err := self.createNewLog(nextRequestNumber + 1)
 	if err != nil {
 		return false, err
