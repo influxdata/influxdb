@@ -73,12 +73,29 @@ func (self *ProtobufClient) Close() {
 		self.stopped = true
 		self.conn = nil
 	}
+	self.ClearRequests()
 }
 
 func (self *ProtobufClient) getConnection() net.Conn {
 	self.connLock.Lock()
 	defer self.connLock.Unlock()
 	return self.conn
+}
+
+func (self *ProtobufClient) ClearRequests() {
+	self.requestBufferLock.Lock()
+	defer self.requestBufferLock.Unlock()
+
+	message := "clearing all requests"
+	for _, req := range self.requestBuffer {
+		select {
+		case req.responseChan <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}:
+		default:
+			log.Debug("Cannot send response on channel")
+		}
+	}
+
+	self.requestBuffer = map[uint32]*runningRequest{}
 }
 
 // Makes a request to the server. If the responseStream chan is not nil it will expect a response from the server

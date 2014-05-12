@@ -31,15 +31,7 @@ func NewProtobufRequestHandler(coordinator Coordinator, clusterConfig *cluster.C
 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
 	if *request.Type == protocol.Request_WRITE {
-		shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
-		log.Debug("HANDLE: (%d):%d:%v", self.clusterConfig.LocalServer.Id, request.GetId(), shard)
-		err := shard.WriteLocalOnly(request)
-		if err != nil {
-			log.Error("ProtobufRequestHandler: error writing local shard: ", err)
-			return err
-		}
-		response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk}
-		return self.WriteResponse(conn, response)
+		go self.handleWrites(request, conn)
 	} else if *request.Type == protocol.Request_DROP_DATABASE {
 		go self.handleDropDatabase(request, conn)
 		return nil
@@ -53,6 +45,21 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 		return errors.New("Unknown request type")
 	}
 	return nil
+}
+
+func (self *ProtobufRequestHandler) handleWrites(request *protocol.Request, conn net.Conn) {
+	shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
+	log.Debug("HANDLE: (%d):%d:%v", self.clusterConfig.LocalServer.Id, request.GetId(), shard)
+	err := shard.WriteLocalOnly(request)
+	var errorMsg *string
+	if err != nil {
+		log.Error("ProtobufRequestHandler: error writing local shard: %s", err)
+		errorMsg = protocol.String(err.Error())
+	}
+	response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk, ErrorMessage: errorMsg}
+	if err := self.WriteResponse(conn, response); err != nil {
+		log.Error("ProtobufRequestHandler: error writing local shard: %s", err)
+	}
 }
 
 func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn net.Conn) {

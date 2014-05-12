@@ -34,6 +34,7 @@ type ClusterServer struct {
 type ServerConnection interface {
 	Connect()
 	Close()
+	ClearRequests()
 	MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error
 }
 
@@ -94,12 +95,12 @@ func (self *ClusterServer) Connect() {
 func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) {
 	err := self.connection.MakeRequest(request, responseStream)
 	if err != nil {
-		self.isUp = false
 		message := err.Error()
 		select {
 		case responseStream <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}:
 		default:
 		}
+		self.markServerAsDown()
 	}
 }
 
@@ -178,11 +179,16 @@ func (self *ClusterServer) getHeartbeatResponse(responseChan <-chan *protocol.Re
 	return nil
 }
 
+func (self *ClusterServer) markServerAsDown() {
+	self.isUp = false
+	self.connection.ClearRequests()
+}
+
 func (self *ClusterServer) handleHeartbeatError(err error) {
 	if self.isUp {
 		log.Warn("Server marked as down. Hearbeat error for server: %d - %s: %s", self.Id, self.ProtobufConnectionString, err)
 	}
-	self.isUp = false
+	self.markServerAsDown()
 	self.Backoff *= 2
 	if self.Backoff > self.MaxBackoff {
 		self.Backoff = self.MaxBackoff
