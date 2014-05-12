@@ -498,10 +498,17 @@ func (self *DataTestSuite) ExplainsWithLocalAggregatorAndRegex(c *C) (Fun, Fun) 
 			c.Assert(series, HasLen, 1)
 			c.Assert(series[0].Name, Equals, "explain query")
 			c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
-			c.Assert(series[0].Points, HasLen, 2)
-			c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
-			c.Assert(series[0].Points[0][5], Equals, 6.0)
-			c.Assert(series[0].Points[0][6], Equals, 2.0)
+			maps := ToMap(series[0])
+			found := false
+			for _, m := range maps {
+				c.Assert(m["engine_name"], Equals, "QueryEngine")
+				if m["points_read"].(float64) != 6.0 {
+					continue
+				}
+				found = true
+				c.Assert(m["points_written"], Equals, 2.0)
+			}
+			c.Assert(found, Equals, true)
 		}
 }
 
