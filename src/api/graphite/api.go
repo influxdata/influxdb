@@ -18,6 +18,7 @@ import (
 	. "common"
 	"configuration"
 	"coordinator"
+	"io"
 	"net"
 	"protocol"
 	"time"
@@ -121,6 +122,10 @@ func (self *Server) handleClient(conn net.Conn) {
 		graphiteMetric := &GraphiteMetric{}
 		err := graphiteMetric.Read(reader)
 		if err != nil {
+			if io.EOF == err {
+				log.Debug("Client closed graphite connection")
+				return
+			}
 			log.Error(err)
 			return
 		}

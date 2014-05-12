@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [Issue #516](https://github.com/influxdb/influxdb/issues/516). Close WAL log/index files when they aren't being used
+- [Issue #532](https://github.com/influxdb/influxdb/issues/532). Don't log graphite connection EOF as an error
 
 ## v0.6.2 [2014-05-09]
 
