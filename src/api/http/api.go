@@ -80,15 +80,19 @@ func (self *HttpServer) ListenAndServe() {
 }
 
 func (self *HttpServer) registerEndpoint(p *pat.PatternServeMux, method string, pattern string, f libhttp.HandlerFunc) {
+	version := "unknown"
+	if self.clusterConfig != nil {
+		version = self.clusterConfig.GetLocalConfiguration().Version.Version + " commit " + self.clusterConfig.GetLocalConfiguration().Version.GitSha[0:10]
+	}
 	switch method {
 	case "get":
-		p.Get(pattern, CorsHeaderHandler(f))
+		p.Get(pattern, CorsHeaderHandler(f, version))
 	case "post":
-		p.Post(pattern, CorsHeaderHandler(f))
+		p.Post(pattern, CorsHeaderHandler(f, version))
 	case "del":
-		p.Del(pattern, CorsHeaderHandler(f))
+		p.Del(pattern, CorsHeaderHandler(f, version))
 	}
-	p.Options(pattern, CorsHeaderHandler(self.sendCrossOriginHeader))
+	p.Options(pattern, CorsHeaderHandler(self.sendCrossOriginHeader, version))
 }
 
 func (self *HttpServer) Serve(listener net.Listener) {
