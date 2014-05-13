@@ -808,7 +808,7 @@ func (self *ServerSuite) TestContinuousQuerySequenceNumberAssignmentWithInterpol
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select count(c1) from points group by time(5s), c2 into :series_name.count.[c2];", false, c)
 	self.serverProcesses[0].AssertContinuousQueryCount("test_cq", 1, c)
 	self.serverProcesses[0].WaitForServerToSync()
-	time.Sleep(time.Second)
+	time.Sleep(6 * time.Second)
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
 
@@ -830,7 +830,7 @@ func (self *ServerSuite) TestContinuousQuerySequenceNumberAssignmentWithInterpol
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select count(c1) from points group by time(5s), c2 into :series_name.count.[c2];", false, c)
 	self.serverProcesses[0].AssertContinuousQueryCount("test_cq", 1, c)
 	self.serverProcesses[0].WaitForServerToSync()
-	time.Sleep(time.Second)
+	time.Sleep(6 * time.Second)
 
 	collection := self.serverProcesses[0].Query("test_cq", "select * from points;", false, c)
 	series := collection.GetSeries("points", c)
