@@ -11,7 +11,7 @@
 - [Issue #535](https://github.com/influxdb/influxdb/issues/535). WAL Replay hangs if response isn't received
 - [Issue #538](https://github.com/influxdb/influxdb/issues/538). Don't panic if the same series existed twice in the request with different columns
 - [Issue #536](https://github.com/influxdb/influxdb/issues/536). Joining the cluster after shards are creating shouldn't cause new nodes to panic
-
+- [Issue #539](https://github.com/influxdb/influxdb/issues/539). count(distinct()) with fill shouldn't panic on empty groups
 
 ## v0.6.2 [2014-05-09]
 
