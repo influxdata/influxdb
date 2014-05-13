@@ -469,7 +469,7 @@ func (self *DataTestSuite) ExplainsWithLocalAggregator(c *C) (Fun, Fun) {
 		}
 }
 
-func (self *DataTestSuite) FuckedUpData(c *C) (Fun, Fun) {
+func (self *DataTestSuite) DifferentColumnsInOnePost(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `[{"name":"foo","columns":["val0", "val1"],"points":[["a", 1]]},{"name":"foo","columns":["val0"],"points":[["b"]]}]`
 			client.WriteJsonData(data, c)
