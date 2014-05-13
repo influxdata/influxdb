@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"cluster"
 	. "common"
+	"configuration"
 	"coordinator"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"net"
 	libhttp "net/http"
 	"net/url"
@@ -17,6 +17,7 @@ import (
 	"protocol"
 	"testing"
 	"time"
+	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -181,7 +182,14 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 		dbUsers:       map[string]map[string]MockDbUser{"db1": map[string]MockDbUser{"db_user1": {Name: "db_user1", IsAdmin: false}}},
 	}
 	dir := c.MkDir()
-	self.server = NewHttpServer("", 10*time.Second, dir, self.coordinator, self.manager, nil, nil)
+	self.server = NewHttpServer(
+		"",
+		10*time.Second,
+		dir,
+		self.coordinator,
+		self.manager,
+		cluster.NewClusterConfiguration(&configuration.Configuration{}, nil, nil, nil),
+		nil)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
 	c.Assert(err, IsNil)
