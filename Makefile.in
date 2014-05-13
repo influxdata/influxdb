@@ -192,7 +192,7 @@ else
 endif
 
 files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
-sha1 = $(shell sh -c "git rev-list --max-count=1 HEAD")
+sha1 = $(shell sh -c "git rev-list --max-count=1 --abbrev-commit HEAD")
 
 build_version_string:
 	@echo "package main"										 > src/daemon/version.go
