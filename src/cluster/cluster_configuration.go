@@ -225,7 +225,7 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.servers = append(self.servers, server)
 	server.Id = uint32(len(self.servers))
 	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
-	log.Info("Checking whether this is the local server new: %s, local: %s\n", self.config.ProtobufConnectionString(), server.ProtobufConnectionString)
+	log.Info("Checking whether this is the local server local: %s, new: %s\n", self.config.ProtobufConnectionString(), server.ProtobufConnectionString)
 
 	if server.RaftName == self.LocalRaftName && self.addedLocalServer {
 		panic("how did we add the same server twice ?")
