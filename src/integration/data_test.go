@@ -469,6 +469,22 @@ func (self *DataTestSuite) ExplainsWithLocalAggregator(c *C) (Fun, Fun) {
 		}
 }
 
+func (self *DataTestSuite) FuckedUpData(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `[{"name":"foo","columns":["val0", "val1"],"points":[["a", 1]]},{"name":"foo","columns":["val0"],"points":[["b"]]}]`
+			client.WriteJsonData(data, c)
+		}, func(client Client) {
+			for v0, v1 := range map[string]interface{}{"a": 1.0, "b": nil} {
+				series := client.RunQuery(fmt.Sprintf("select * from foo where val0 = '%s'", v0), c, "m")
+				c.Assert(series, HasLen, 1)
+				c.Assert(series[0].Name, Equals, "foo")
+				maps := ToMap(series[0])
+				c.Assert(maps, HasLen, 1)
+				c.Assert(maps[0]["val1"], Equals, v1)
+			}
+		}
+}
+
 func (self *DataTestSuite) ExplainsWithLocalAggregatorAndRegex(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `
