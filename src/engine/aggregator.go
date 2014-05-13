@@ -243,7 +243,10 @@ func (self *CompositeAggregator) CalculateSummaries(state interface{}) {
 }
 
 func (self *CompositeAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
-	s := state.(*CompositeAggregatorState)
+	s, ok := state.(*CompositeAggregatorState)
+	if !ok {
+		return self.left.GetValues(nil)
+	}
 	return self.left.GetValues(s.leftState)
 }
 

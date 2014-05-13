@@ -485,6 +485,23 @@ func (self *DataTestSuite) DifferentColumnsInOnePost(c *C) (Fun, Fun) {
 		}
 }
 
+func (self *DataTestSuite) FillWithCountDistinct(c *C) (Fun, Fun) {
+	return func(client Client) {
+			t1 := time.Now()
+			t2 := t1.Add(-2 * time.Hour)
+			data := fmt.Sprintf(`[{"name":"foo","columns":["time", "val0"],"points":[[%d, "a"],[%d, "b"]]}]`, t1.Unix(), t2.Unix())
+			client.WriteJsonData(data, c, "s")
+		}, func(client Client) {
+			series := client.RunQuery("select count(distinct(val0)) from foo group by time(1h) fill(0)", c, "m")
+			c.Assert(series, HasLen, 1)
+			maps := ToMap(series[0])
+			c.Assert(maps, HasLen, 3)
+			c.Assert(maps[0]["count"], Equals, 1.0)
+			c.Assert(maps[1]["count"], Equals, 0.0)
+			c.Assert(maps[2]["count"], Equals, 1.0)
+		}
+}
+
 func (self *DataTestSuite) ExplainsWithLocalAggregatorAndRegex(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `
