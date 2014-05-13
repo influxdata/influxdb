@@ -887,7 +887,10 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 		shard := NewShard(id, newShard.StartTime, newShard.EndTime, shardType, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range newShard.ServerIds {
-			if serverId == self.LocalServer.Id {
+			// if a shard is created before the local server then the local
+			// server can't be one of the servers the shard belongs to,
+			// since the shard was created before the server existed
+			if self.LocalServer != nil && serverId == self.LocalServer.Id {
 				err := shard.SetLocalStore(self.shardStore, self.LocalServer.Id)
 				if err != nil {
 					log.Error("AddShards: error setting local store: ", err)
