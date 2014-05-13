@@ -4,6 +4,7 @@
 
 - [Issue #516](https://github.com/influxdb/influxdb/issues/516). Close WAL log/index files when they aren't being used
 - [Issue #532](https://github.com/influxdb/influxdb/issues/532). Don't log graphite connection EOF as an error
+- [Issue #535](https://github.com/influxdb/influxdb/pull/535). WAL Replay hangs if response isn't received
 
 ## v0.6.2 [2014-05-09]
 
