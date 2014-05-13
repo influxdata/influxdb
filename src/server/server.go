@@ -111,6 +111,7 @@ func (self *Server) ListenAndServe() error {
 		if err != nil {
 			panic(err)
 		}
+		log.Info("Connection string changed successfully")
 	}
 
 	go self.ProtobufServer.ListenAndServe()
