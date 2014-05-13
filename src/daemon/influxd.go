@@ -115,9 +115,9 @@ func main() {
 	}
 
 	if config.BindAddress == "" {
-		log.Info("Starting Influx Server...")
+		log.Info("Starting Influx Server %s...", version)
 	} else {
-		log.Info("Starting Influx Server bound to %s ...", config.BindAddress)
+		log.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
 	}
 	fmt.Printf(`
 +---------------------------------------------+

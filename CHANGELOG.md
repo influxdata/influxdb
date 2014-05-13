@@ -3,6 +3,7 @@
 ### Features
 
 - [Issue #505](https://github.com/influxdb/influxdb/issues/505). Return a version header with http the response (Thanks, @majst01)
+- [Issue #520](https://github.com/influxdb/influxdb/issues/520). Print the version to the log file
 
 ### Bugfixes
 
