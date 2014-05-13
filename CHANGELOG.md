@@ -2,7 +2,7 @@
 
 ### Features
 
-- [Issue #505](https://github.com/influxdb/influxdb/issues/505). Return a version header with http the response
+- [Issue #505](https://github.com/influxdb/influxdb/issues/505). Return a version header with http the response (Thanks, @majst01)
 
 ### Bugfixes
 
