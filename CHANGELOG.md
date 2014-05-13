@@ -4,8 +4,9 @@
 
 - [Issue #516](https://github.com/influxdb/influxdb/issues/516). Close WAL log/index files when they aren't being used
 - [Issue #532](https://github.com/influxdb/influxdb/issues/532). Don't log graphite connection EOF as an error
-- [Issue #535](https://github.com/influxdb/influxdb/pull/535). WAL Replay hangs if response isn't received
-- [Issue #538](https://github.com/influxdb/influxdb/pull/538). Don't panic if the same series existed twice in the request with different columns
+- [Issue #535](https://github.com/influxdb/influxdb/issues/535). WAL Replay hangs if response isn't received
+- [Issue #538](https://github.com/influxdb/influxdb/issues/538). Don't panic if the same series existed twice in the request with different columns
+- [Issue #536](https://github.com/influxdb/influxdb/issues/536). Joining the cluster after shards are creating shouldn't cause new nodes to panic
 
 ## v0.6.2 [2014-05-09]
 
