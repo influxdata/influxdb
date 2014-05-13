@@ -536,11 +536,17 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 		fieldsInTargetName[i] = f
 	}
 
+	fields := make([]string, 0, len(series.Fields)-len(fieldsIndeces))
+
 	// remove the fields used in the target name from the series fields
-	for i, fi := range fieldsIndeces {
-		// move the fields to the left
-		copy(series.Fields[fi-i:], series.Fields[fi-i+1:])
-		series.Fields = series.Fields[:len(series.Fields)-1]
+nextfield:
+	for i, f := range series.Fields {
+		for _, fi := range fieldsIndeces {
+			if fi == i {
+				continue nextfield
+			}
+		}
+		fields = append(fields, f)
 	}
 
 	if r.MatchString(targetName) {
@@ -553,27 +559,37 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 				return value
 			})
 
+			p := &protocol.Point{
+				Values:         make([]*protocol.FieldValue, 0, len(point.Values)-len(fieldsIndeces)),
+				Timestamp:      point.Timestamp,
+				SequenceNumber: point.SequenceNumber,
+			}
+
 			// remove the fields used in the target name from the series fields
-			for i, fi := range fieldsIndeces {
-				// move the fields to the left
-				copy(point.Values[fi-i:], point.Values[fi-i+1:])
-				point.Values = point.Values[:len(point.Values)-1]
+		nextvalue:
+			for i, v := range point.Values {
+				for _, fi := range fieldsIndeces {
+					if fi == i {
+						continue nextvalue
+					}
+				}
+				p.Values = append(p.Values, v)
 			}
 
 			if assignSequenceNumbers {
-				key := sequenceKey{targetNameWithValues, *point.Timestamp}
+				key := sequenceKey{targetNameWithValues, *p.Timestamp}
 				sequenceMap[key] += 1
 				sequenceNumber := uint64(sequenceMap[key])
-				point.SequenceNumber = &sequenceNumber
+				p.SequenceNumber = &sequenceNumber
 			}
 
 			newSeries := serieses[targetNameWithValues]
 			if newSeries == nil {
-				newSeries = &protocol.Series{Name: &targetNameWithValues, Fields: series.Fields, Points: []*protocol.Point{point}}
+				newSeries = &protocol.Series{Name: &targetNameWithValues, Fields: fields, Points: []*protocol.Point{p}}
 				serieses[targetNameWithValues] = newSeries
 				continue
 			}
-			newSeries.Points = append(newSeries.Points, point)
+			newSeries.Points = append(newSeries.Points, p)
 		}
 		seriesSlice := make([]*protocol.Series, 0, len(serieses))
 		for _, s := range serieses {
@@ -583,7 +599,7 @@ func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string,
 			log.Error("Couldn't write data for continuous query: ", e)
 		}
 	} else {
-		newSeries := &protocol.Series{Name: &targetName, Fields: series.Fields, Points: series.Points}
+		newSeries := &protocol.Series{Name: &targetName, Fields: fields, Points: series.Points}
 
 		if assignSequenceNumbers {
 			for _, point := range newSeries.Points {

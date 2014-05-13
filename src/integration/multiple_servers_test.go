@@ -568,6 +568,7 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s1 into d1;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s2 into d2;", false, c)
+	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from s1 into d3.[c1];", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from /s\\d/ into d3;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select * from silly_name into :series_name.foo;", false, c)
 	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
@@ -577,7 +578,7 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 	self.serverProcesses[0].WaitForServerToSync()
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series := collection.GetSeries("continuous queries", c)
-	c.Assert(series.Points, HasLen, 4)
+	c.Assert(series.Points, HasLen, 5)
 
 	data := `[
     {"name": "s1", "columns": ["c1", "c2"], "points": [[1, "a"], [2, "b"]]},
@@ -622,6 +623,16 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 	series = collection.GetSeries("silly_name.foo", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "c4", c), Equals, 4.0)
 	c.Assert(series.GetValueForPointAndColumn(0, "c5", c), Equals, 5.0)
+
+	for i, v := range map[int]string{1: "a", 2: "b"} {
+		query := fmt.Sprintf("select * from d3.%d", i)
+		collection = self.serverProcesses[0].Query("test_cq", query, false, c)
+		series = collection.GetSeries(fmt.Sprintf("d3.%d", i), c)
+		c.Assert(collection.Members, HasLen, 1)
+		// time, sequence number and c2
+		c.Assert(collection.Members[0].Columns, HasLen, 3)
+		c.Assert(series.GetValueForPointAndColumn(0, "c2", c), Equals, v)
+	}
 }
 
 func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
