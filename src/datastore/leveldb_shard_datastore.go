@@ -34,11 +34,6 @@ type LevelDbShardDatastore struct {
 const (
 	ONE_KILOBYTE                    = 1024
 	ONE_MEGABYTE                    = 1024 * 1024
-	ONE_GIGABYTE                    = ONE_MEGABYTE * 1024
-	TWO_FIFTY_SIX_KILOBYTES         = 256 * 1024
-	SIXTY_FOUR_KILOBYTES            = 64 * 1024
-	MAX_SERIES_SIZE                 = ONE_MEGABYTE
-	DATABASE_DIR                    = "db"
 	SHARD_BLOOM_FILTER_BITS_PER_KEY = 10
 	SHARD_DATABASE_DIR              = "shard_db"
 )
