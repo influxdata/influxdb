@@ -20,7 +20,7 @@ func pointMaps(s *protocol.Series) (result []map[string]*protocol.FieldValue) {
 // the union of the two series columns and the values set
 // properly. will panic if the two series don't have the same name
 func MergeSeries(s1, s2 *protocol.Series) *protocol.Series {
-	if s1.GetName() != s1.GetName() {
+	if s1.GetName() != s2.GetName() {
 		panic("the two series don't have the same name")
 	}
 
