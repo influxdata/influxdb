@@ -379,6 +379,15 @@ func (l *Log) setCommitIndex(index uint64) error {
 			entry.event.returnValue = returnValue
 			entry.event.c <- err
 		}
+
+		_, isJoinCommand := command.(JoinCommand)
+
+		// we can only commit up to the most recent join command
+		// if there is a join in this batch of commands.
+		// after this commit, we need to recalculate the majority.
+		if isJoinCommand {
+			return nil
+		}
 	}
 	return nil
 }
