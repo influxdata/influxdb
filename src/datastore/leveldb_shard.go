@@ -56,54 +56,56 @@ func NewLevelDbShard(db *levigo.DB, pointBatchSize, writeBatchSize int) (*LevelD
 	}, nil
 }
 
-func (self *LevelDbShard) Write(database string, series *protocol.Series) error {
+func (self *LevelDbShard) Write(database string, series []*protocol.Series) error {
 	wb := levigo.NewWriteBatch()
 	defer wb.Close()
 
-	if series == nil || len(series.Points) == 0 {
-		return errors.New("Unable to write no data. Series was nil or had no points.")
-	}
-
-	count := 0
-	for fieldIndex, field := range series.Fields {
-		temp := field
-		id, err := self.createIdForDbSeriesColumn(&database, series.Name, &temp)
-		if err != nil {
-			return err
+	for _, s := range series {
+		if len(s.Points) == 0 {
+			return errors.New("Unable to write no data. Series was nil or had no points.")
 		}
-		keyBuffer := bytes.NewBuffer(make([]byte, 0, 24))
-		dataBuffer := proto.NewBuffer(nil)
-		for _, point := range series.Points {
-			keyBuffer.Reset()
-			dataBuffer.Reset()
 
-			keyBuffer.Write(id)
-			timestamp := self.convertTimestampToUint(point.GetTimestampInMicroseconds())
-			// pass the uint64 by reference so binary.Write() doesn't create a new buffer
-			// see the source code for intDataSize() in binary.go
-			binary.Write(keyBuffer, binary.BigEndian, &timestamp)
-			binary.Write(keyBuffer, binary.BigEndian, point.SequenceNumber)
-			pointKey := keyBuffer.Bytes()
-
-			if point.Values[fieldIndex].GetIsNull() {
-				wb.Delete(pointKey)
-				goto check
-			}
-
-			err = dataBuffer.Marshal(point.Values[fieldIndex])
+		count := 0
+		for fieldIndex, field := range s.Fields {
+			temp := field
+			id, err := self.createIdForDbSeriesColumn(&database, s.Name, &temp)
 			if err != nil {
 				return err
 			}
-			wb.Put(pointKey, dataBuffer.Bytes())
-		check:
-			count++
-			if count >= self.writeBatchSize {
-				err = self.db.Write(self.writeOptions, wb)
+			keyBuffer := bytes.NewBuffer(make([]byte, 0, 24))
+			dataBuffer := proto.NewBuffer(nil)
+			for _, point := range s.Points {
+				keyBuffer.Reset()
+				dataBuffer.Reset()
+
+				keyBuffer.Write(id)
+				timestamp := self.convertTimestampToUint(point.GetTimestampInMicroseconds())
+				// pass the uint64 by reference so binary.Write() doesn't create a new buffer
+				// see the source code for intDataSize() in binary.go
+				binary.Write(keyBuffer, binary.BigEndian, &timestamp)
+				binary.Write(keyBuffer, binary.BigEndian, point.SequenceNumber)
+				pointKey := keyBuffer.Bytes()
+
+				if point.Values[fieldIndex].GetIsNull() {
+					wb.Delete(pointKey)
+					goto check
+				}
+
+				err = dataBuffer.Marshal(point.Values[fieldIndex])
 				if err != nil {
 					return err
 				}
-				count = 0
-				wb.Clear()
+				wb.Put(pointKey, dataBuffer.Bytes())
+			check:
+				count++
+				if count >= self.writeBatchSize {
+					err = self.db.Write(self.writeOptions, wb)
+					if err != nil {
+						return err
+					}
+					count = 0
+					wb.Clear()
+				}
 			}
 		}
 	}
