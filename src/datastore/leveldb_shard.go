@@ -28,9 +28,10 @@ type LevelDbShard struct {
 	columnIdMutex  sync.Mutex
 	closed         bool
 	pointBatchSize int
+	writeBatchSize int
 }
 
-func NewLevelDbShard(db *levigo.DB, pointBatchSize int) (*LevelDbShard, error) {
+func NewLevelDbShard(db *levigo.DB, pointBatchSize, writeBatchSize int) (*LevelDbShard, error) {
 	ro := levigo.NewReadOptions()
 	lastIdBytes, err2 := db.Get(ro, NEXT_ID_KEY)
 	if err2 != nil {
@@ -51,6 +52,7 @@ func NewLevelDbShard(db *levigo.DB, pointBatchSize int) (*LevelDbShard, error) {
 		readOptions:    ro,
 		lastIdUsed:     lastId,
 		pointBatchSize: pointBatchSize,
+		writeBatchSize: writeBatchSize,
 	}, nil
 }
 
@@ -95,7 +97,7 @@ func (self *LevelDbShard) Write(database string, series *protocol.Series) error 
 			wb.Put(pointKey, dataBuffer.Bytes())
 		check:
 			count++
-			if count >= SIXTY_FOUR_KILOBYTES {
+			if count >= self.writeBatchSize {
 				err = self.db.Write(self.writeOptions, wb)
 				if err != nil {
 					return err
@@ -467,7 +469,7 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 			}
 			wb.Delete(k)
 			count++
-			if count >= SIXTY_FOUR_KILOBYTES {
+			if count >= self.writeBatchSize {
 				err = self.db.Write(self.writeOptions, wb)
 				if err != nil {
 					return err

@@ -28,6 +28,7 @@ type LevelDbShardDatastore struct {
 	writeBuffer    *cluster.WriteBuffer
 	maxOpenShards  int
 	pointBatchSize int
+	writeBatchSize int
 }
 
 const (
@@ -95,6 +96,7 @@ func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShar
 		shardRefCounts: make(map[uint32]int),
 		shardsToClose:  make(map[uint32]bool),
 		pointBatchSize: config.LevelDbPointBatchSize,
+		writeBatchSize: config.LevelDbWriteBatchSize,
 	}, nil
 }
 
@@ -127,7 +129,7 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 		return nil, err
 	}
 
-	db, err = NewLevelDbShard(ldb, self.pointBatchSize)
+	db, err = NewLevelDbShard(ldb, self.pointBatchSize, self.writeBatchSize)
 	if err != nil {
 		log.Error("Error creating shard: ", err)
 		ldb.Close()

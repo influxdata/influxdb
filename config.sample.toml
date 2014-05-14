@@ -117,6 +117,10 @@ max-open-shards = 0
 # they get flushed into backend.
 point-batch-size = 100
 
+# The number of points to batch in memory before writing them to leveldb. Lowering this number will
+# reduce the memory usage, but will result in slower writes.
+write-batch-size = 5000000
+
 # These options specify how data is sharded across the cluster. There are two
 # shard configurations that have the same knobs: short term and long term.
 # Any series that begins with a capital letter like Exceptions will be written
