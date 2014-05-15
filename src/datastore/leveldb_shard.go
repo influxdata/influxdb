@@ -447,11 +447,12 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 	ro := levigo.NewReadOptions()
 	defer ro.Close()
 	ro.SetFillCache(false)
+	wb := levigo.NewWriteBatch()
+	count := 0
+	defer wb.Close()
 	for _, field := range fields {
 		it := self.db.NewIterator(ro)
 		defer it.Close()
-		wb := levigo.NewWriteBatch()
-		defer wb.Close()
 
 		startKey := append(field.Id, startTimeBytes...)
 		it.Seek(startKey)
@@ -463,7 +464,6 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 				}
 			}
 		}
-		count := 0
 		for it = it; it.Valid(); it.Next() {
 			k := it.Key()
 			if len(k) < 16 || !bytes.Equal(k[:8], field.Id) || bytes.Compare(k[8:16], endTimeBytes) == 1 {
@@ -480,12 +480,8 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 				wb.Clear()
 			}
 		}
-		err = self.db.Write(self.writeOptions, wb)
-		if err != nil {
-			return err
-		}
 	}
-	return nil
+	return self.db.Write(self.writeOptions, wb)
 }
 
 func (self *LevelDbShard) compact() {
