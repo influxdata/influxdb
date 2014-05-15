@@ -1,6 +1,13 @@
 ## v0.6.4 [unreleased]
 
+### Features
+
+- Make the write batch size configurable (also applies to deletes)
+- Optimize writing to multiple series
+
 ### Bugfixes
+
+- Fix a bug in shard logic that caused short term shards to be clobbered with long term shards
 
 ## v0.6.3 [2014-05-13]
 
