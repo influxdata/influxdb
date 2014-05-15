@@ -190,6 +190,20 @@ func (self *DataTestSuite) SmallGroupByIntervals(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #540
+func (self *DataTestSuite) RegexMatching(c *C) (Fun, Fun) {
+	return func(client Client) {
+			serieses := CreatePoints("cpu.1", 1, 1)
+			client.WriteData(serieses, c)
+			serieses = CreatePoints("cpu-2", 1, 1)
+			client.WriteData(serieses, c)
+		}, func(client Client) {
+			serieses := client.RunQuery("select * from /cpu\\..*/ limit 1", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			c.Assert(serieses[0].Name, Equals, "cpu.1")
+		}
+}
+
 // issue #392
 func (self *DataTestSuite) DifferentColumnsAcrossShards(c *C) (Fun, Fun) {
 	return func(client Client) {
