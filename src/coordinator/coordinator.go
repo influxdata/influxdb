@@ -165,7 +165,9 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 	}
 	seriesYielded := make(map[string]bool)
 
-	shards := append(shortTermShards, longTermShards...)
+	var shards []*cluster.ShardData
+	shards = append(shards, shortTermShards...)
+	shards = append(shards, longTermShards...)
 
 	var err error
 	for _, shard := range shards {
