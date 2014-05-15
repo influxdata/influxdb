@@ -112,13 +112,13 @@ func (self *MockCoordinator) DeleteSeriesData(_ User, db string, query *parser.D
 	return nil
 }
 
-func (self *MockCoordinator) CreateDatabase(_ User, db string, _ uint8) error {
+func (self *MockCoordinator) CreateDatabase(_ User, db string) error {
 	self.db = db
 	return nil
 }
 
 func (self *MockCoordinator) ListDatabases(_ User) ([]*cluster.Database, error) {
-	return []*cluster.Database{&cluster.Database{"db1", 1}, &cluster.Database{"db2", 1}}, nil
+	return []*cluster.Database{&cluster.Database{"db1"}, &cluster.Database{"db2"}}, nil
 }
 
 func (self *MockCoordinator) DropDatabase(_ User, db string) error {
@@ -749,7 +749,7 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 		c.Assert(err, IsNil)
 		err = json.Unmarshal(body, &databases)
 		c.Assert(err, IsNil)
-		c.Assert(databases, DeepEquals, []*cluster.Database{&cluster.Database{"db1", uint8(1)}, &cluster.Database{"db2", uint8(1)}})
+		c.Assert(databases, DeepEquals, []*cluster.Database{&cluster.Database{"db1"}, &cluster.Database{"db2"}})
 	}
 }
 
@@ -768,7 +768,7 @@ func (self *ApiSuite) TestBasicAuthentication(c *C) {
 	c.Assert(err, IsNil)
 	err = json.Unmarshal(body, &databases)
 	c.Assert(err, IsNil)
-	c.Assert(databases, DeepEquals, []*cluster.Database{&cluster.Database{"db1", 1}, &cluster.Database{"db2", 1}})
+	c.Assert(databases, DeepEquals, []*cluster.Database{&cluster.Database{"db1"}, &cluster.Database{"db2"}})
 }
 
 func (self *ApiSuite) TestContinuousQueryOperations(c *C) {

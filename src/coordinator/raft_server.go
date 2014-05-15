@@ -179,11 +179,8 @@ func SendCommandToServer(url string, command raft.Command) (interface{}, error) 
 
 }
 
-func (s *RaftServer) CreateDatabase(name string, replicationFactor uint8) error {
-	if replicationFactor == 0 {
-		replicationFactor = 1
-	}
-	command := NewCreateDatabaseCommand(name, replicationFactor)
+func (s *RaftServer) CreateDatabase(name string) error {
+	command := NewCreateDatabaseCommand(name)
 	_, err := s.doOrProxyCommand(command)
 	return err
 }

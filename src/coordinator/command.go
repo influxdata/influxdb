@@ -109,12 +109,11 @@ func (c *DropDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
 }
 
 type CreateDatabaseCommand struct {
-	Name              string `json:"name"`
-	ReplicationFactor uint8  `json:"replicationFactor"`
+	Name string `json:"name"`
 }
 
-func NewCreateDatabaseCommand(name string, replicationFactor uint8) *CreateDatabaseCommand {
-	return &CreateDatabaseCommand{name, replicationFactor}
+func NewCreateDatabaseCommand(name string) *CreateDatabaseCommand {
+	return &CreateDatabaseCommand{name}
 }
 
 func (c *CreateDatabaseCommand) CommandName() string {
@@ -123,7 +122,7 @@ func (c *CreateDatabaseCommand) CommandName() string {
 
 func (c *CreateDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*cluster.ClusterConfiguration)
-	err := config.CreateDatabase(c.Name, c.ReplicationFactor)
+	err := config.CreateDatabase(c.Name)
 	return nil, err
 }
 

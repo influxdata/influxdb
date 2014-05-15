@@ -18,7 +18,7 @@ type Coordinator interface {
 	//   5. TODO: Aggregation on the nodes
 	WriteSeriesData(user common.User, db string, series []*protocol.Series) error
 	DropDatabase(user common.User, db string) error
-	CreateDatabase(user common.User, db string, replicationFactor uint8) error
+	CreateDatabase(user common.User, db string) error
 	ForceCompaction(user common.User) error
 	ListDatabases(user common.User) ([]*cluster.Database, error)
 	DeleteContinuousQuery(user common.User, db string, id uint32) error
@@ -30,7 +30,7 @@ type Coordinator interface {
 }
 
 type ClusterConsensus interface {
-	CreateDatabase(name string, replicationFactor uint8) error
+	CreateDatabase(name string) error
 	DropDatabase(name string) error
 	CreateContinuousQuery(db string, query string) error
 	DeleteContinuousQuery(db string, id uint32) error

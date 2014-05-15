@@ -57,7 +57,7 @@ const (
 */
 type ClusterConfiguration struct {
 	createDatabaseLock         sync.RWMutex
-	DatabaseReplicationFactors map[string]uint8
+	DatabaseReplicationFactors map[string]struct{}
 	usersLock                  sync.RWMutex
 	clusterAdmins              map[string]*ClusterAdmin
 	dbUsers                    map[string]map[string]*DbUser
@@ -92,8 +92,7 @@ type ContinuousQuery struct {
 }
 
 type Database struct {
-	Name              string `json:"name"`
-	ReplicationFactor uint8  `json:"replicationFactor"`
+	Name string `json:"name"`
 }
 
 func NewClusterConfiguration(
@@ -102,7 +101,7 @@ func NewClusterConfiguration(
 	shardStore LocalShardStore,
 	connectionCreator func(string) ServerConnection) *ClusterConfiguration {
 	return &ClusterConfiguration{
-		DatabaseReplicationFactors: make(map[string]uint8),
+		DatabaseReplicationFactors: make(map[string]struct{}),
 		clusterAdmins:              make(map[string]*ClusterAdmin),
 		dbUsers:                    make(map[string]map[string]*DbUser),
 		continuousQueries:          make(map[string][]*ContinuousQuery),
@@ -259,8 +258,8 @@ func (self *ClusterConfiguration) GetDatabases() []*Database {
 	defer self.createDatabaseLock.RUnlock()
 
 	dbs := make([]*Database, 0, len(self.DatabaseReplicationFactors))
-	for name, rf := range self.DatabaseReplicationFactors {
-		dbs = append(dbs, &Database{Name: name, ReplicationFactor: rf})
+	for name, _ := range self.DatabaseReplicationFactors {
+		dbs = append(dbs, &Database{Name: name})
 	}
 	return dbs
 }
@@ -273,14 +272,14 @@ func (self *ClusterConfiguration) DatabaseExists(name string) bool {
 	}
 }
 
-func (self *ClusterConfiguration) CreateDatabase(name string, replicationFactor uint8) error {
+func (self *ClusterConfiguration) CreateDatabase(name string) error {
 	self.createDatabaseLock.Lock()
 	defer self.createDatabaseLock.Unlock()
 
 	if _, ok := self.DatabaseReplicationFactors[name]; ok {
 		return common.NewDatabaseExistsError(name)
 	}
-	self.DatabaseReplicationFactors[name] = replicationFactor
+	self.DatabaseReplicationFactors[name] = struct{}{}
 	return nil
 }
 
@@ -481,7 +480,7 @@ func (self *ClusterConfiguration) SaveClusterAdmin(u *ClusterAdmin) {
 }
 
 type SavedConfiguration struct {
-	Databases         map[string]uint8
+	Databases         map[string]struct{}
 	Admins            map[string]*ClusterAdmin
 	DbUsers           map[string]map[string]*DbUser
 	Servers           []*ClusterServer

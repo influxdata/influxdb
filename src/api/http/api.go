@@ -375,8 +375,7 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 }
 
 type createDatabaseRequest struct {
-	Name              string `json:"name"`
-	ReplicationFactor uint8  `json:"replicationFactor"`
+	Name string `json:"name"`
 }
 
 func (self *HttpServer) listDatabases(w libhttp.ResponseWriter, r *libhttp.Request) {
@@ -400,12 +399,12 @@ func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Requ
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
-		err = self.coordinator.CreateDatabase(user, createRequest.Name, createRequest.ReplicationFactor)
+		err = self.coordinator.CreateDatabase(user, createRequest.Name)
 		if err != nil {
 			log.Error("Cannot create database %s. Error: %s", createRequest.Name, err)
 			return errorToStatusCode(err), err.Error()
 		}
-		log.Debug("Created database %s with replication factor %d", createRequest.Name, createRequest.ReplicationFactor)
+		log.Debug("Created database %s", createRequest.Name)
 		return libhttp.StatusCreated, nil
 	})
 }

@@ -8,6 +8,7 @@
 ### Bugfixes
 
 - Fix a bug in shard logic that caused short term shards to be clobbered with long term shards
+- [Issue #489](https://github.com/influxdb/influxdb/issues/489). Remove replication factor from CreateDatabase command
 
 ## v0.6.3 [2014-05-13]
 

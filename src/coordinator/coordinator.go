@@ -749,7 +749,7 @@ func (self *CoordinatorImpl) ListContinuousQueries(user common.User, db string) 
 	return series, nil
 }
 
-func (self *CoordinatorImpl) CreateDatabase(user common.User, db string, replicationFactor uint8) error {
+func (self *CoordinatorImpl) CreateDatabase(user common.User, db string) error {
 	if !user.IsClusterAdmin() {
 		return common.NewAuthorizationError("Insufficient permissions to create database")
 	}
@@ -758,7 +758,7 @@ func (self *CoordinatorImpl) CreateDatabase(user common.User, db string, replica
 		return fmt.Errorf("%s isn't a valid db name", db)
 	}
 
-	err := self.raftServer.CreateDatabase(db, replicationFactor)
+	err := self.raftServer.CreateDatabase(db)
 	if err != nil {
 		return err
 	}
