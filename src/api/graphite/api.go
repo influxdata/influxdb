@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"protocol"
+	"strings"
 	"time"
 
 	log "code.google.com/p/log4go"
@@ -32,8 +33,10 @@ type Server struct {
 	coordinator   coordinator.Coordinator
 	clusterConfig *cluster.ClusterConfiguration
 	conn          net.Listener
+	udpConn       *net.UDPConn
 	user          *cluster.ClusterAdmin
 	shutdown      chan bool
+	udpEnabled    bool
 }
 
 // TODO: check that database exists and create it if not
@@ -44,6 +47,8 @@ func NewServer(config *configuration.Configuration, coord coordinator.Coordinato
 	self.coordinator = coord
 	self.shutdown = make(chan bool, 1)
 	self.clusterConfig = clusterConfig
+	self.udpEnabled = config.GraphiteUdpEnabled
+
 	return self
 }
 
@@ -65,6 +70,11 @@ func (self *Server) ListenAndServe() {
 			return
 		}
 	}
+	if self.udpEnabled {
+		udpAddress, _ := net.ResolveUDPAddr("udp", self.listenAddress)
+		self.udpConn, _ = net.ListenUDP("udp", udpAddress)
+		go self.ServeUdp(self.udpConn)
+	}
 	self.Serve(self.conn)
 }
 
@@ -83,7 +93,30 @@ func (self *Server) Serve(listener net.Listener) {
 	}
 }
 
+func (self *Server) ServeUdp(conn *net.UDPConn) {
+	var buf []byte = make([]byte, 65536)
+	for {
+		n, _, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			log.Warn("Error when reading from UDP connection %s", err.Error())
+		}
+		go self.handleUdpMessage(string(buf[:n]))
+	}
+}
+
+func (self *Server) handleUdpMessage(msg string) {
+	metrics := strings.Split(msg, "\n")
+	for _, metric := range metrics {
+		reader := bufio.NewReader(strings.NewReader(metric + "\n"))
+		go self.handleMessage(reader)
+	}
+}
+
 func (self *Server) Close() {
+	if self.udpConn != nil {
+		log.Info("GraphiteService: Closing graphite UDP listener")
+		self.udpConn.Close()
+	}
 	if self.conn != nil {
 		log.Info("GraphiteServer: Closing graphite server")
 		self.conn.Close()
@@ -119,8 +152,7 @@ func (self *Server) handleClient(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 	for {
-		graphiteMetric := &GraphiteMetric{}
-		err := graphiteMetric.Read(reader)
+		err := self.handleMessage(reader)
 		if err != nil {
 			if io.EOF == err {
 				log.Debug("Client closed graphite connection")
@@ -129,26 +161,35 @@ func (self *Server) handleClient(conn net.Conn) {
 			log.Error(err)
 			return
 		}
-		values := []*protocol.FieldValue{}
-		if graphiteMetric.isInt {
-			values = append(values, &protocol.FieldValue{Int64Value: &graphiteMetric.integerValue})
-		} else {
-			values = append(values, &protocol.FieldValue{DoubleValue: &graphiteMetric.floatValue})
-		}
-		sn := uint64(1) // use same SN makes sure that we'll only keep the latest value for a given metric_id-timestamp pair
-		point := &protocol.Point{
-			Timestamp:      &graphiteMetric.timestamp,
-			Values:         values,
-			SequenceNumber: &sn,
-		}
-		series := &protocol.Series{
-			Name:   &graphiteMetric.name,
-			Fields: []string{"value"},
-			Points: []*protocol.Point{point},
-		}
-		// little inefficient for now, later we might want to add multiple series in 1 writePoints request
-		if err := self.writePoints(series); err != nil {
-			log.Error("Error in graphite plugin: %s", err)
-		}
 	}
+}
+
+func (self *Server) handleMessage(reader *bufio.Reader) error {
+	graphiteMetric := &GraphiteMetric{}
+	err := graphiteMetric.Read(reader)
+	if err != nil {
+		return err
+	}
+	values := []*protocol.FieldValue{}
+	if graphiteMetric.isInt {
+		values = append(values, &protocol.FieldValue{Int64Value: &graphiteMetric.integerValue})
+	} else {
+		values = append(values, &protocol.FieldValue{DoubleValue: &graphiteMetric.floatValue})
+	}
+	sn := uint64(1) // use same SN makes sure that we'll only keep the latest value for a given metric_id-timestamp pair
+	point := &protocol.Point{
+		Timestamp:      &graphiteMetric.timestamp,
+		Values:         values,
+		SequenceNumber: &sn,
+	}
+	series := &protocol.Series{
+		Name:   &graphiteMetric.name,
+		Fields: []string{"value"},
+		Points: []*protocol.Point{point},
+	}
+	// little inefficient for now, later we might want to add multiple series in 1 writePoints request
+	if err := self.writePoints(series); err != nil {
+		log.Error("Error in graphite plugin: %s", err)
+	}
+	return nil
 }

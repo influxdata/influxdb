@@ -104,6 +104,32 @@ func (self *ServerSuite) TestGraphiteInterface(c *C) {
 	c.Assert(series.GetValueForPointAndColumn(1, "value", c), Equals, 100.0)
 }
 
+func (self *ServerSuite) TestGraphiteUdpInterface(c *C) {
+	conn, err := net.Dial("udp", "localhost:60513")
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC().Truncate(time.Minute)
+	data := fmt.Sprintf("some_udp_metric 100 %d\nsome_udp_metric 200.5 %d\n", now.Add(-time.Minute).Unix(), now.Unix())
+
+	_, err = conn.Write([]byte(data))
+	c.Assert(err, IsNil)
+	conn.Close()
+
+	// there's no easy way to check whether the server started
+	// processing this request, unlike http requests which must return a
+	// status code
+	time.Sleep(time.Second)
+
+	self.serverProcesses[0].WaitForServerToSync()
+
+	collection := self.serverProcesses[0].QueryWithUsername("graphite_db", "select * from some_udp_metric", false, c, "root", "root")
+	c.Assert(collection.Members, HasLen, 1)
+	series := collection.GetSeries("some_udp_metric", c)
+	c.Assert(series.Points, HasLen, 2)
+	c.Assert(series.GetValueForPointAndColumn(0, "value", c), Equals, 200.5)
+	c.Assert(series.GetValueForPointAndColumn(1, "value", c), Equals, 100.0)
+}
+
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
 	data := `
   [{
