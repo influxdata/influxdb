@@ -61,3 +61,5 @@ benchmark.log
 
 # config file
 config.toml
+/admin/
+/data/

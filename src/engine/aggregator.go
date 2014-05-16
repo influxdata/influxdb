@@ -34,6 +34,7 @@ func init() {
 	registeredAggregators["count"] = NewCountAggregator
 	registeredAggregators["histogram"] = NewHistogramAggregator
 	registeredAggregators["derivative"] = NewDerivativeAggregator
+	registeredAggregators["difference"] = NewDifferenceAggregator
 	registeredAggregators["stddev"] = NewStandardDeviationAggregator
 	registeredAggregators["min"] = NewMinAggregator
 	registeredAggregators["sum"] = NewSumAggregator
@@ -415,7 +416,7 @@ func (self *DerivativeAggregator) GetValues(state interface{}) [][]*protocol.Fie
 
 	// if an old value exist, then compute the derivative and insert it in the points slice
 	deltaT := float64(*s.lastValue.Timestamp-*s.firstValue.Timestamp) / float64(time.Second/time.Microsecond)
-	deltaV := *s.lastValue.Values[0].DoubleValue - *s.lastValue.Values[0].DoubleValue
+	deltaV := *s.lastValue.Values[0].DoubleValue - *s.firstValue.Values[0].DoubleValue
 	derivative := deltaV / deltaT
 	return [][]*protocol.FieldValue{
 		[]*protocol.FieldValue{
@@ -447,6 +448,104 @@ func NewDerivativeAggregator(q *parser.SelectQuery, v *parser.Value, defaultValu
 		alias:        v.Alias,
 	}, nil
 }
+
+
+//
+// Difference Aggregator
+//
+
+type DifferenceAggregatorState struct {
+	firstValue *protocol.Point
+	lastValue  *protocol.Point
+}
+
+type DifferenceAggregator struct {
+	AbstractAggregator
+	defaultValue *protocol.FieldValue
+	alias        string
+}
+
+func (self *DifferenceAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	fieldValue, err := GetValue(self.value, self.columns, p)
+	if err != nil {
+		return nil, err
+	}
+
+	var value float64
+	if ptr := fieldValue.Int64Value; ptr != nil {
+		value = float64(*ptr)
+	} else if ptr := fieldValue.DoubleValue; ptr != nil {
+		value = *ptr
+	} else {
+		// else ignore this point
+		return state, nil
+	}
+
+	newValue := &protocol.Point{
+		Timestamp: p.Timestamp,
+		Values:    []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &value}},
+	}
+
+	s, ok := state.(*DifferenceAggregatorState)
+	if !ok {
+		s = &DifferenceAggregatorState{}
+	}
+
+	if s.firstValue == nil {
+		s.firstValue = newValue
+		return s, nil
+	}
+
+	s.lastValue = newValue
+	return s, nil
+}
+
+func (self *DifferenceAggregator) ColumnNames() []string {
+	if self.alias != "" {
+		return []string{self.alias}
+	}
+	return []string{"difference"}
+}
+
+func (self *DifferenceAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	s, ok := state.(*DifferenceAggregatorState)
+
+	if !(ok && s.firstValue != nil && s.lastValue != nil) {
+		return nil
+	}
+
+	difference := *s.lastValue.Values[0].DoubleValue - *s.firstValue.Values[0].DoubleValue
+	return [][]*protocol.FieldValue{
+		[]*protocol.FieldValue{
+			&protocol.FieldValue{DoubleValue: &difference},
+		},
+	}
+	return [][]*protocol.FieldValue{}
+}
+
+func NewDifferenceAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	if len(v.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function difference() requires exactly one argument")
+	}
+
+	if v.Elems[0].Type == parser.ValueWildcard {
+		return nil, common.NewQueryError(common.InvalidArgument, "function difference() doesn't work with wildcards")
+	}
+
+	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DifferenceAggregator{
+		AbstractAggregator: AbstractAggregator{
+			value: v.Elems[0],
+		},
+		defaultValue: wrappedDefaultValue,
+		alias:        v.Alias,
+	}, nil
+}
+
 
 //
 // Histogram Aggregator
