@@ -122,6 +122,126 @@ func (self *DataTestSuite) InfiniteValues(c *C) (Fun, Fun) {
 		}
 }
 
+// Postive case of derivative function
+func (self *DataTestSuite) DerivativeValues(c *C) (Fun, Fun) {
+	// make sure we exceed the pointBatchSize, so we force a yield to
+	// the filtering engine
+	return func(client Client) {
+			data := `
+[
+  {
+	"points": [
+	[1399590718, 10.0],
+	[1399590719, 20.0]
+	],
+	"name": "test_derivative_values",
+	"columns": ["time", "value"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select derivative(value) from test_derivative_values", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["derivative"], Equals, 10.0)
+		}
+}
+
+// Simple case of difference function
+func (self *DataTestSuite) DifferenceValues(c *C) (Fun, Fun) {
+	// make sure we exceed the pointBatchSize, so we force a yield to
+	// the filtering engine
+	return func(client Client) {
+			data := `
+[
+  {
+	"points": [
+	[1399590718, 10.0],
+	[1399590719, 20.0],
+	[1399590720, 30.0]
+	],
+	"name": "test_difference_values",
+	"columns": ["time", "value"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select difference(value) from test_difference_values order asc", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["difference"], Equals, 20.0)
+		}
+}
+
+// Difference function combined with group by
+func (self *DataTestSuite) DifferenceGroupValues(c *C) (Fun, Fun) {
+	// make sure we exceed the pointBatchSize, so we force a yield to
+	// the filtering engine
+	return func(client Client) {
+			data := `
+[
+  {
+	"points": [
+	[1399590700,   0.0],
+	[1399590710,  10.0],
+	[1399590720,  20.0],
+	[1399590730,  40.0],
+	[1399590740,  80.0],
+	[1399590750, 160.0]
+	],
+	"name": "test_difference_group_values",
+	"columns": ["time", "value"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select difference(value) from test_difference_group_values group by time(20s) order asc", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 3)			
+			c.Assert(maps[0]["difference"], Equals, 10.0)
+			c.Assert(maps[1]["difference"], Equals, 20.0)
+			c.Assert(maps[2]["difference"], Equals, 80.0)
+		}
+}
+
+// Difference and group by function using a time where clause with an interval which is equal to the time of the points
+// FIXME: This test still fails. For this case the group by function should include points with the end time for each bucket.
+//func (self *DataTestSuite) DifferenceGroupSameTimeValues(c *C) (Fun, Fun) {
+//	// make sure we exceed the pointBatchSize, so we force a yield to
+//	// the filtering engine
+//	return func(client Client) {
+//			data := `
+//[
+//  {
+//	"points": [
+//	[1399590700,   0.0],
+//	[1399590710,  10.0],
+//	[1399590720,  20.0],
+//	[1399590730,  40.0],
+//	[1399590740,  80.0],
+//	[1399590750, 160.0]
+//	],
+//	"name": "test_difference_group_same_time_values",
+//	"columns": ["time", "value"]
+//  }
+//]`
+//			client.WriteJsonData(data, c, influxdb.Second)
+//		}, func(client Client) {
+//			serieses := client.RunQuery("select range(value) from test_difference_group_same_time_values group by time(10s) order asc", c, "m")
+//			c.Assert(serieses, HasLen, 1)
+//			maps := ToMap(serieses[0])
+//			c.Assert(maps, HasLen, 6)			
+//			c.Assert(maps[0]["difference"], Equals, 10.0)
+//			c.Assert(maps[1]["difference"], Equals, 10.0)
+//			c.Assert(maps[2]["difference"], Equals, 20.0)
+//			c.Assert(maps[3]["difference"], Equals, 40.0)
+//			c.Assert(maps[4]["difference"], Equals, 80.0)
+//		}
+//}
+
 // issue #512
 func (self *DataTestSuite) GroupByNullValues(c *C) (Fun, Fun) {
 	// make sure we exceed the pointBatchSize, so we force a yield to
