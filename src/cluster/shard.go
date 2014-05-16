@@ -14,9 +14,9 @@ import (
 	log "code.google.com/p/log4go"
 )
 
-// A shard imements an interface for writing and querying data.
+// A shard implements an interface for writing and querying data.
 // It can be copied to multiple servers or the local datastore.
-// Shard contains data from [startTime, endTime)
+// Shards contains data from [startTime, endTime]
 // Ids are unique across the cluster
 type Shard interface {
 	Id() uint32
