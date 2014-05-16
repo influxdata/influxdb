@@ -68,9 +68,10 @@ type ApiConfig struct {
 }
 
 type GraphiteConfig struct {
-	Enabled  bool
-	Port     int
-	Database string
+	Enabled    bool
+	Port       int
+	Database   string
+	UdpEnabled bool    `toml:"udp_enabled"`
 }
 type UdpInputConfig struct {
 	Enabled  bool
@@ -202,9 +203,10 @@ type Configuration struct {
 	ApiHttpPort     int
 	ApiReadTimeout  time.Duration
 
-	GraphiteEnabled  bool
-	GraphitePort     int
-	GraphiteDatabase string
+	GraphiteEnabled    bool
+	GraphitePort       int
+	GraphiteDatabase   string
+	GraphiteUdpEnabled bool
 
 	UdpInputEnabled  bool
 	UdpInputPort     int
@@ -314,9 +316,10 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		ApiHttpSslPort:  tomlConfiguration.HttpApi.SslPort,
 		ApiReadTimeout:  apiReadTimeout,
 
-		GraphiteEnabled:  tomlConfiguration.InputPlugins.Graphite.Enabled,
-		GraphitePort:     tomlConfiguration.InputPlugins.Graphite.Port,
-		GraphiteDatabase: tomlConfiguration.InputPlugins.Graphite.Database,
+		GraphiteEnabled:    tomlConfiguration.InputPlugins.Graphite.Enabled,
+		GraphitePort:       tomlConfiguration.InputPlugins.Graphite.Port,
+		GraphiteDatabase:   tomlConfiguration.InputPlugins.Graphite.Database,
+		GraphiteUdpEnabled: tomlConfiguration.InputPlugins.Graphite.UdpEnabled,
 
 		UdpInputEnabled:  tomlConfiguration.InputPlugins.UdpInput.Enabled,
 		UdpInputPort:     tomlConfiguration.InputPlugins.UdpInput.Port,

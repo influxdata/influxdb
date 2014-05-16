@@ -28,6 +28,7 @@ ssl-cert = "./cert.pem"
   enabled = true
   port = 60513
   database = "graphite_db"  # store graphite data in this database
+  udp_enabled = true
 
   [input_plugins.udp]
   enabled = true
