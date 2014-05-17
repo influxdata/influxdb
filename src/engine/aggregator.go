@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"github.com/ryszard/goskiplist/skiplist"
 )
 
 type PointSlice []protocol.Point
@@ -44,6 +45,8 @@ func init() {
 	registeredAggregators["distinct"] = NewDistinctAggregator
 	registeredAggregators["first"] = NewFirstAggregator
 	registeredAggregators["last"] = NewLastAggregator
+	registeredAggregators["top"] = NewTopAggregator
+	registeredAggregators["low"] = NewLowAggregator
 }
 
 // used in testing to get a list of all aggregators
@@ -1090,4 +1093,168 @@ func NewFirstAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue
 
 func NewLastAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	return NewFirstOrLastAggregator("last", value, false, defaultValue)
+}
+
+//
+// Top, Low aggregators
+//
+func NewFloat64Map() *skiplist.SkipList {
+	return skiplist.NewCustomMap(func(l, r interface{}) bool {
+		return l.(float64) < r.(float64)
+	})
+}
+
+type TopOrLowAggregatorState struct {
+	values map[string]*skiplist.SkipList
+	counter int64
+}
+
+type TopOrLowAggregator struct {
+	AbstractAggregator
+	values   []*parser.Value
+	name string
+	isTop bool
+	defaultValue *protocol.FieldValue
+	alias        string
+	targets []string
+	count int64
+}
+
+func (self *TopOrLowAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	var s *TopOrLowAggregatorState
+
+	if state == nil {
+		s = &TopOrLowAggregatorState{}
+		s.values = make(map[string]*skiplist.SkipList, len(self.targets))
+		for _, name := range self.targets {
+			s.values[name] = NewFloat64Map()
+		}
+	} else {
+		s = state.(*TopOrLowAggregatorState)
+	}
+
+	for offset := 0; offset < len(self.targets); offset++ {
+		name := self.targets[offset]
+		// *protocol.Value
+		point, err := GetValue(self.values[offset], self.columns, p)
+		if err != nil {
+			return nil, err
+		}
+
+		var value float64
+		if point.Int64Value != nil {
+			value = float64(*point.Int64Value)
+			s.values[name].Set(value, value)
+		} else if point.DoubleValue != nil {
+			value = *point.DoubleValue
+			s.values[name].Set(value, value)
+		} else if point.BoolValue != nil {
+			//value = *point.BoolValue
+		} else if point.StringValue != nil {
+			//value = *point.StringValue
+		} else {
+			//value = nil
+		}
+	}
+
+	return s, nil
+}
+
+
+func (self *TopOrLowAggregator) ColumnNames() []string {
+	return self.targets
+}
+
+func (self *TopOrLowAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	s := interface{}(state).(*TopOrLowAggregatorState)
+
+	returnValues := [][]*protocol.FieldValue{}
+	if state == nil {
+		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
+	} else {
+		s := state.(*TopOrLowAggregatorState)
+
+		itrs := []skiplist.Iterator{}
+		for _, value := range s.values {
+			var itr skiplist.Iterator
+
+			if self.isTop {
+				itr = value.SeekToLast()
+			} else {
+				itr = value.SeekToFirst()
+			}
+			itrs = append(itrs, itr)
+			defer itr.Close()
+		}
+
+		for index := int64(0); index < self.count; index++ {
+			ok := true
+			row := []*protocol.FieldValue{}
+
+			for offset := 0; offset < len(itrs); offset++ {
+				v := itrs[offset].Value().(float64)
+				row = append(row, &protocol.FieldValue{DoubleValue: &v})
+
+				if self.isTop {
+					ok = itrs[offset].Previous()
+				} else {
+					ok = itrs[offset].Next()
+				}
+			}
+			returnValues = append(returnValues, row)
+			if !ok {
+				break
+			}
+		}
+	}
+
+	return returnValues
+}
+
+func (self *TopOrLowAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+	self.columns = series.Fields
+	return nil
+}
+
+func NewTopOrLowAggregator(name string, v *parser.Value, isTop bool, defaultValue *parser.Value) (Aggregator, error) {
+	var targets []string
+
+	if len(v.Elems) < 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function top() requires at least 2 arguments")
+	}
+
+	if v.Elems[len(v.Elems)-1].Type != parser.ValueInt {
+		return nil, common.NewQueryError(common.InvalidArgument, "function top() last parameter expect int")
+	}
+	count, _ := strconv.ParseInt(v.Elems[len(v.Elems)-1].Name, 10, 64)
+
+	for offset := 0; offset < len(v.Elems)-1; offset++ {
+		elm := v.Elems[offset]
+		targets = append(targets, elm.Name)
+	}
+
+	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TopOrLowAggregator{
+		AbstractAggregator: AbstractAggregator{
+			value: v.Elems[0],
+		},
+		values: v.Elems,
+		name: name,
+		isTop: isTop,
+		defaultValue: wrappedDefaultValue,
+		alias: v.Alias,
+		targets: targets,
+		count: count}, nil
+}
+
+func NewTopAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	return NewTopOrLowAggregator("top", value, true, defaultValue)
+}
+
+func NewLowAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	return NewTopOrLowAggregator("low", value, false, defaultValue)
 }
