@@ -1136,7 +1136,7 @@ func (self *TopOrLowAggregator) AggregatePoint(state interface{}, p *protocol.Po
 	for offset := 0; offset < len(self.targets); offset++ {
 		name := self.targets[offset]
 		// *protocol.Value
-		point, err := GetValue(self.values[offset], self.columns, p)
+		point, err := GetValue(self.values[offset+1], self.columns, p)
 		if err != nil {
 			return nil, err
 		}
@@ -1166,8 +1166,6 @@ func (self *TopOrLowAggregator) ColumnNames() []string {
 }
 
 func (self *TopOrLowAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
-	s := interface{}(state).(*TopOrLowAggregatorState)
-
 	returnValues := [][]*protocol.FieldValue{}
 	if state == nil {
 		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
@@ -1183,6 +1181,10 @@ func (self *TopOrLowAggregator) GetValues(state interface{}) [][]*protocol.Field
 			} else {
 				itr = value.SeekToFirst()
 			}
+			if itr == nil {
+				return nil
+			}
+
 			itrs = append(itrs, itr)
 			defer itr.Close()
 		}
@@ -1220,15 +1222,15 @@ func NewTopOrLowAggregator(name string, v *parser.Value, isTop bool, defaultValu
 	var targets []string
 
 	if len(v.Elems) < 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function top() requires at least 2 arguments")
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, fmt.Sprintf("function %s() requires at least 2 arguments", name))
 	}
 
-	if v.Elems[len(v.Elems)-1].Type != parser.ValueInt {
-		return nil, common.NewQueryError(common.InvalidArgument, "function top() last parameter expect int")
+	if v.Elems[0].Type != parser.ValueInt {
+		return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() first parameter expect int", name))
 	}
-	count, _ := strconv.ParseInt(v.Elems[len(v.Elems)-1].Name, 10, 64)
+	count, _ := strconv.ParseInt(v.Elems[0].Name, 10, 64)
 
-	for offset := 0; offset < len(v.Elems)-1; offset++ {
+	for offset := 1; offset < len(v.Elems); offset++ {
 		elm := v.Elems[offset]
 		targets = append(targets, elm.Name)
 	}
