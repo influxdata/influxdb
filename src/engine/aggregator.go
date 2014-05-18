@@ -46,7 +46,7 @@ func init() {
 	registeredAggregators["first"] = NewFirstAggregator
 	registeredAggregators["last"] = NewLastAggregator
 	registeredAggregators["top"] = NewTopAggregator
-	registeredAggregators["low"] = NewLowAggregator
+	registeredAggregators["bottom"] = NewBottomAggregator
 }
 
 // used in testing to get a list of all aggregators
@@ -1096,7 +1096,7 @@ func NewLastAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 }
 
 //
-// Top, Low aggregators
+// Top, Bottom aggregators
 //
 func NewFloat64Map() *skiplist.SkipList {
 	return skiplist.NewCustomMap(func(l, r interface{}) bool {
@@ -1104,12 +1104,12 @@ func NewFloat64Map() *skiplist.SkipList {
 	})
 }
 
-type TopOrLowAggregatorState struct {
+type TopOrBottomAggregatorState struct {
 	values map[string]*skiplist.SkipList
 	counter int64
 }
 
-type TopOrLowAggregator struct {
+type TopOrBottomAggregator struct {
 	AbstractAggregator
 	values   []*parser.Value
 	name string
@@ -1120,17 +1120,17 @@ type TopOrLowAggregator struct {
 	count int64
 }
 
-func (self *TopOrLowAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
-	var s *TopOrLowAggregatorState
+func (self *TopOrBottomAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	var s *TopOrBottomAggregatorState
 
 	if state == nil {
-		s = &TopOrLowAggregatorState{}
+		s = &TopOrBottomAggregatorState{}
 		s.values = make(map[string]*skiplist.SkipList, len(self.targets))
 		for _, name := range self.targets {
 			s.values[name] = NewFloat64Map()
 		}
 	} else {
-		s = state.(*TopOrLowAggregatorState)
+		s = state.(*TopOrBottomAggregatorState)
 	}
 
 	for offset := 0; offset < len(self.targets); offset++ {
@@ -1161,16 +1161,16 @@ func (self *TopOrLowAggregator) AggregatePoint(state interface{}, p *protocol.Po
 }
 
 
-func (self *TopOrLowAggregator) ColumnNames() []string {
+func (self *TopOrBottomAggregator) ColumnNames() []string {
 	return self.targets
 }
 
-func (self *TopOrLowAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
 	if state == nil {
 		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
 	} else {
-		s := state.(*TopOrLowAggregatorState)
+		s := state.(*TopOrBottomAggregatorState)
 
 		itrs := []skiplist.Iterator{}
 		for _, value := range s.values {
@@ -1213,12 +1213,12 @@ func (self *TopOrLowAggregator) GetValues(state interface{}) [][]*protocol.Field
 	return returnValues
 }
 
-func (self *TopOrLowAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
+func (self *TopOrBottomAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	self.columns = series.Fields
 	return nil
 }
 
-func NewTopOrLowAggregator(name string, v *parser.Value, isTop bool, defaultValue *parser.Value) (Aggregator, error) {
+func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultValue *parser.Value) (Aggregator, error) {
 	var targets []string
 
 	if len(v.Elems) < 1 {
@@ -1240,7 +1240,7 @@ func NewTopOrLowAggregator(name string, v *parser.Value, isTop bool, defaultValu
 		return nil, err
 	}
 
-	return &TopOrLowAggregator{
+	return &TopOrBottomAggregator{
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
 		},
@@ -1254,9 +1254,9 @@ func NewTopOrLowAggregator(name string, v *parser.Value, isTop bool, defaultValu
 }
 
 func NewTopAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
-	return NewTopOrLowAggregator("top", value, true, defaultValue)
+	return NewTopOrBottomAggregator("top", value, true, defaultValue)
 }
 
-func NewLowAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
-	return NewTopOrLowAggregator("low", value, false, defaultValue)
+func NewBottomAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	return NewTopOrBottomAggregator("bottom", value, false, defaultValue)
 }
