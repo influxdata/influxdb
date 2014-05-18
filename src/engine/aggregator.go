@@ -1108,11 +1108,11 @@ type ByPointColumnAsc struct{
 
 func (s ByPointColumnDesc) Less(i, j int) bool {
 	if s.PointsCollection[i] != nil && s.PointsCollection[j] != nil {
-		if s.PointsCollection[i].Values[s.index].Int64Value != nil {
+		if s.PointsCollection[i].Values[s.index].Int64Value != nil && s.PointsCollection[j].Values[s.index].Int64Value != nil{
 			return *s.PointsCollection[i].Values[s.index].Int64Value > *s.PointsCollection[j].Values[s.index].Int64Value
-		} else if s.PointsCollection[i].Values[s.index].DoubleValue != nil {
+		} else if s.PointsCollection[i].Values[s.index].DoubleValue != nil && s.PointsCollection[j].Values[s.index].DoubleValue != nil{
 			return *s.PointsCollection[i].Values[s.index].DoubleValue > *s.PointsCollection[j].Values[s.index].DoubleValue
-		} else if s.PointsCollection[i].Values[s.index].StringValue != nil {
+		} else if s.PointsCollection[i].Values[s.index].StringValue != nil && s.PointsCollection[j].Values[s.index].StringValue != nil {
 			return *s.PointsCollection[i].Values[s.index].StringValue > *s.PointsCollection[j].Values[s.index].StringValue
 		}
 	}
@@ -1122,11 +1122,11 @@ func (s ByPointColumnDesc) Less(i, j int) bool {
 
 func (s ByPointColumnAsc) Less(i, j int) bool {
 	if s.PointsCollection[i] != nil && s.PointsCollection[j] != nil {
-		if s.PointsCollection[i].Values[s.index].Int64Value != nil {
+		if s.PointsCollection[i].Values[s.index].Int64Value != nil && s.PointsCollection[j].Values[s.index].Int64Value != nil{
 			return *s.PointsCollection[i].Values[s.index].Int64Value < *s.PointsCollection[j].Values[s.index].Int64Value
-		} else if s.PointsCollection[i].Values[s.index].DoubleValue != nil {
+		} else if s.PointsCollection[i].Values[s.index].DoubleValue != nil && s.PointsCollection[j].Values[s.index].DoubleValue != nil{
 			return *s.PointsCollection[i].Values[s.index].DoubleValue < *s.PointsCollection[j].Values[s.index].DoubleValue
-		} else if s.PointsCollection[i].Values[s.index].StringValue != nil {
+		} else if s.PointsCollection[i].Values[s.index].StringValue != nil && s.PointsCollection[j].Values[s.index].StringValue != nil{
 			return *s.PointsCollection[i].Values[s.index].StringValue < *s.PointsCollection[j].Values[s.index].StringValue
 		}
 	}
@@ -1162,6 +1162,7 @@ func (self *TopOrBottomAggregator) comparePoint(a *protocol.Point, b *protocol.P
 		} else if a.Values[offset].StringValue != nil && b.Values[offset].StringValue != nil {
 			return *a.Values[offset].StringValue < *b.Values[offset].StringValue
 		}
+
 		return false
 	}(a, b, offset)
 
@@ -1229,6 +1230,9 @@ func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.Fi
 
 func (self *TopOrBottomAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	self.columns = series.Fields
+	// NOTE(chobie): re-initialize variable here
+	self.columnOrder = []int{}
+
 	for idx, name := range self.columns {
 		if name == self.index {
 			self.offset = idx
@@ -1241,6 +1245,7 @@ func (self *TopOrBottomAggregator) InitializeFieldsMetadata(series *protocol.Ser
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -1261,7 +1266,6 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() can't specify same column", name))
 		}
 	}
-
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
 	if err != nil {
