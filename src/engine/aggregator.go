@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/ryszard/goskiplist/skiplist"
 )
 
 type PointSlice []protocol.Point
@@ -1098,14 +1097,45 @@ func NewLastAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 //
 // Top, Bottom aggregators
 //
-func NewFloat64Map() *skiplist.SkipList {
-	return skiplist.NewCustomMap(func(l, r interface{}) bool {
-		return l.(float64) < r.(float64)
-	})
+type ByPointColumnDesc struct{
+	protocol.PointsCollection
+	index int
+}
+type ByPointColumnAsc struct{
+	protocol.PointsCollection
+	index int
+}
+
+func (s ByPointColumnDesc) Less(i, j int) bool {
+	if s.PointsCollection[i] != nil && s.PointsCollection[j] != nil {
+		if s.PointsCollection[i].Values[s.index].Int64Value != nil {
+			return *s.PointsCollection[i].Values[s.index].Int64Value > *s.PointsCollection[j].Values[s.index].Int64Value
+		} else if s.PointsCollection[i].Values[s.index].DoubleValue != nil {
+			return *s.PointsCollection[i].Values[s.index].DoubleValue > *s.PointsCollection[j].Values[s.index].DoubleValue
+		} else if s.PointsCollection[i].Values[s.index].StringValue != nil {
+			return *s.PointsCollection[i].Values[s.index].StringValue > *s.PointsCollection[j].Values[s.index].StringValue
+		}
+	}
+
+	return false
+}
+
+func (s ByPointColumnAsc) Less(i, j int) bool {
+	if s.PointsCollection[i] != nil && s.PointsCollection[j] != nil {
+		if s.PointsCollection[i].Values[s.index].Int64Value != nil {
+			return *s.PointsCollection[i].Values[s.index].Int64Value < *s.PointsCollection[j].Values[s.index].Int64Value
+		} else if s.PointsCollection[i].Values[s.index].DoubleValue != nil {
+			return *s.PointsCollection[i].Values[s.index].DoubleValue < *s.PointsCollection[j].Values[s.index].DoubleValue
+		} else if s.PointsCollection[i].Values[s.index].StringValue != nil {
+			return *s.PointsCollection[i].Values[s.index].StringValue < *s.PointsCollection[j].Values[s.index].StringValue
+		}
+	}
+
+	return false
 }
 
 type TopOrBottomAggregatorState struct {
-	values map[string]*skiplist.SkipList
+	values protocol.PointsCollection
 	counter int64
 }
 
@@ -1114,52 +1144,65 @@ type TopOrBottomAggregator struct {
 	values   []*parser.Value
 	name string
 	isTop bool
-	defaultValue *protocol.FieldValue
+	defaultValues []*protocol.FieldValue
 	alias        string
 	targets []string
-	count int64
+	limit int64
+	index string
+	offset int
+	columnOrder []int
+}
+
+func (self *TopOrBottomAggregator) comparePoint(a *protocol.Point, b *protocol.Point, offset int, greater bool) bool {
+	result := func(a *protocol.Point, b *protocol.Point, offset int) (bool) {
+		if a.Values[offset].Int64Value != nil && b.Values[offset].Int64Value != nil {
+			return *a.Values[offset].Int64Value < *b.Values[offset].Int64Value
+		} else if a.Values[offset].DoubleValue != nil && b.Values[offset].DoubleValue != nil {
+			return *a.Values[offset].DoubleValue < *b.Values[offset].DoubleValue
+		} else if a.Values[offset].StringValue != nil && b.Values[offset].StringValue != nil {
+			return *a.Values[offset].StringValue < *b.Values[offset].StringValue
+		}
+		return false
+	}(a, b, offset)
+
+	if !greater {
+		return !result
+	}  else {
+		return result
+	}
 }
 
 func (self *TopOrBottomAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
 	var s *TopOrBottomAggregatorState
 
 	if state == nil {
-		s = &TopOrBottomAggregatorState{}
-		s.values = make(map[string]*skiplist.SkipList, len(self.targets))
-		for _, name := range self.targets {
-			s.values[name] = NewFloat64Map()
-		}
+		s = &TopOrBottomAggregatorState{values: protocol.PointsCollection{}}
 	} else {
 		s = state.(*TopOrBottomAggregatorState)
 	}
 
-	for offset := 0; offset < len(self.targets); offset++ {
-		name := self.targets[offset]
-		// *protocol.Value
-		point, err := GetValue(self.values[offset+1], self.columns, p)
-		if err != nil {
-			return nil, err
-		}
-
-		var value float64
-		if point.Int64Value != nil {
-			value = float64(*point.Int64Value)
-			s.values[name].Set(value, value)
-		} else if point.DoubleValue != nil {
-			value = *point.DoubleValue
-			s.values[name].Set(value, value)
-		} else if point.BoolValue != nil {
-			//value = *point.BoolValue
-		} else if point.StringValue != nil {
-			//value = *point.StringValue
+	sorter := func(values protocol.PointsCollection, offset int, isTop bool){
+		if isTop {
+			sort.Sort(ByPointColumnDesc{values, offset})
 		} else {
-			//value = nil
+			sort.Sort(ByPointColumnAsc{values, offset})
+		}
+	}
+
+	if s.counter < self.limit {
+		s.values = append(s.values, p)
+		sorter(s.values, self.offset, self.isTop)
+		s.counter++
+	} else {
+		if self.comparePoint(s.values[s.counter-1], p, self.offset, self.isTop) {
+			s.values = append(s.values, p)
+			sorter(s.values, self.offset, self.isTop)
+			s.values = s.values[0:self.limit]
 		}
 	}
 
 	return s, nil
 }
-
 
 func (self *TopOrBottomAggregator) ColumnNames() []string {
 	return self.targets
@@ -1168,45 +1211,16 @@ func (self *TopOrBottomAggregator) ColumnNames() []string {
 func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
 	if state == nil {
-		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
+		returnValues = append(returnValues, self.defaultValues)
 	} else {
 		s := state.(*TopOrBottomAggregatorState)
-
-		itrs := []skiplist.Iterator{}
-		for _, value := range s.values {
-			var itr skiplist.Iterator
-
-			if self.isTop {
-				itr = value.SeekToLast()
-			} else {
-				itr = value.SeekToFirst()
-			}
-			if itr == nil {
-				return nil
-			}
-
-			itrs = append(itrs, itr)
-			defer itr.Close()
-		}
-
-		for index := int64(0); index < self.count; index++ {
-			ok := true
+		for _, values := range s.values {
 			row := []*protocol.FieldValue{}
-
-			for offset := 0; offset < len(itrs); offset++ {
-				v := itrs[offset].Value().(float64)
-				row = append(row, &protocol.FieldValue{DoubleValue: &v})
-
-				if self.isTop {
-					ok = itrs[offset].Previous()
-				} else {
-					ok = itrs[offset].Next()
-				}
+			// NOTE(chobie): *protocol.Values order and Elems order are different.
+			for _, idx := range self.columnOrder {
+				row = append(row, values.Values[idx])
 			}
 			returnValues = append(returnValues, row)
-			if !ok {
-				break
-			}
 		}
 	}
 
@@ -1215,12 +1229,22 @@ func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.Fi
 
 func (self *TopOrBottomAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	self.columns = series.Fields
+	for idx, name := range self.columns {
+		if name == self.index {
+			self.offset = idx
+		}
+
+		// NOTE(chobie): adjust stack order for *protocol.Values.
+		for order, name2 := range self.targets {
+			if name2 == name {
+				self.columnOrder = append(self.columnOrder, order)
+			}
+		}
+	}
 	return nil
 }
 
 func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultValue *parser.Value) (Aggregator, error) {
-	var targets []string
-
 	if len(v.Elems) < 1 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, fmt.Sprintf("function %s() requires at least 2 arguments", name))
 	}
@@ -1228,16 +1252,31 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 	if v.Elems[0].Type != parser.ValueInt {
 		return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() first parameter expect int", name))
 	}
-	count, _ := strconv.ParseInt(v.Elems[0].Name, 10, 64)
 
-	for offset := 1; offset < len(v.Elems); offset++ {
-		elm := v.Elems[offset]
-		targets = append(targets, elm.Name)
+	hash := make(map[string]int, len(v.Elems)-1)
+	for i := 1; i < len(v.Elems);i++ {
+		if hash[v.Elems[i].Name] == 0 {
+			hash[v.Elems[i].Name] = 1
+		} else {
+			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() can't specify same column", name))
+		}
 	}
+
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
 	if err != nil {
 		return nil, err
+	}
+
+	wrappedDefaultValues := []*protocol.FieldValue{}
+
+	targets := []string{}
+	limit, _ := strconv.ParseInt(v.Elems[0].Name, 10, 64)
+	index := v.Elems[1].Name
+	for offset := 1; offset < len(v.Elems); offset++ {
+		elm := v.Elems[offset]
+		targets = append(targets, elm.Name)
+		wrappedDefaultValues = append(wrappedDefaultValues, wrappedDefaultValue)
 	}
 
 	return &TopOrBottomAggregator{
@@ -1247,10 +1286,12 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 		values: v.Elems,
 		name: name,
 		isTop: isTop,
-		defaultValue: wrappedDefaultValue,
+		defaultValues: wrappedDefaultValues,
 		alias: v.Alias,
 		targets: targets,
-		count: count}, nil
+		index: index,
+		limit: limit,
+		columnOrder: []int{}}, nil
 }
 
 func NewTopAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
