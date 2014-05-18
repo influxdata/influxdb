@@ -908,6 +908,8 @@ func (self *DataTestSuite) CountWithAlias(c *C) (Fun, Fun) {
 				query := fmt.Sprintf("select %s(column0) as some_alias from test_aliasing", name)
 				if name == "percentile" {
 					query = "select percentile(column0, 90) as some_alias from test_aliasing"
+				} else if name == "top" || name == "bottom" {
+					query = fmt.Sprintf("select %s(10, column0) as some_alias from test_aliasing", name)
 				}
 				fmt.Printf("query: %s\n", query)
 				data := client.RunQuery(query, c, "m")
@@ -1630,4 +1632,175 @@ func (self *SingleServerSuite) ColumnNameWithWeirdCharacters(c *C) (Fun, Fun) {
 			c.Assert(data[0].Columns, HasLen, 1)
 			c.Assert(data[0].Columns[0], Equals, "foo.-239(*@&#$!#)(* #$@")
 		}
+}
+
+// For issue #551 - add aggregate function top and bottom - https://github.com/influxdb/influxdb/issues/551
+func (self *DataTestSuite) TopOneColumn(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 3; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_top",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10), c)
+		}
+	}, func(client Client) {
+		data := client.RunQuery("select top(5, cpu) from test_top;", c, "m")
+		c.Assert(data[0].Name, Equals, "test_top")
+		c.Assert(data[0].Columns, HasLen, 2)
+		c.Assert(data[0].Points, HasLen, 5)
+
+		tops := []float64{}
+		for _, point := range data[0].Points {
+			tops = append(tops, point[1].(float64))
+		}
+		c.Assert(tops, DeepEquals, []float64{90, 80, 80, 70, 70})
+	}
+}
+
+func (self *DataTestSuite) TopOneColumnString(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 3; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_top",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10), c)
+		}
+	}, func(client Client) {
+		data := client.RunQuery("select top(5, host) from test_top;", c, "m")
+		c.Assert(data[0].Name, Equals, "test_top")
+		c.Assert(data[0].Columns, HasLen, 2)
+		c.Assert(data[0].Points, HasLen, 5)
+
+		tops := []string{}
+		for _, point := range data[0].Points {
+			tops = append(tops, point[1].(string))
+		}
+		c.Assert(tops, DeepEquals, []string{"hostb", "hostb", "hostb", "hosta", "hosta"})
+	}
+}
+
+func (self *DataTestSuite) TopMultipleColumn(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 3; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_top",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10), c)
+		}
+	}, func(client Client) {
+		data := client.RunQuery("select top(5, cpu, host) from test_top;", c, "m")
+		c.Assert(data[0].Name, Equals, "test_top")
+		c.Assert(data[0].Columns, HasLen, 3)
+		c.Assert(data[0].Points, HasLen, 5)
+
+		type tmp struct {
+			cpu float64
+			host string
+		}
+		tops := []tmp{}
+		for _, point := range data[0].Points {
+			tops = append(tops, tmp{point[1].(float64), point[2].(string)})
+		}
+		c.Assert(tops, DeepEquals, []tmp{tmp{90, "hostb"}, tmp{80, "hosta"}, tmp{80, "hostb"}, tmp{70, "hosta"}, tmp{70, "hostb"}})
+	}
+}
+
+func (self *DataTestSuite) BottomOneColumn(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 3; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_bottom",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10), c)
+		}
+	}, func(client Client) {
+		data := client.RunQuery("select bottom(5, cpu) from test_bottom;", c, "m")
+		c.Assert(data[0].Name, Equals, "test_bottom")
+		c.Assert(data[0].Columns, HasLen, 2)
+		c.Assert(data[0].Points, HasLen, 5)
+
+		tops := []float64{}
+		for _, point := range data[0].Points {
+			tops = append(tops, point[1].(float64))
+		}
+		c.Assert(tops, DeepEquals, []float64{60, 70, 70, 80, 80})
+	}
+}
+
+func (self *DataTestSuite) BottomOneColumnString(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 3; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_bottom",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10), c)
+		}
+	}, func(client Client) {
+		data := client.RunQuery("select bottom(5, host) from test_bottom;", c, "m")
+		c.Assert(data[0].Name, Equals, "test_bottom")
+		c.Assert(data[0].Columns, HasLen, 2)
+		c.Assert(data[0].Points, HasLen, 5)
+
+		tops := []string{}
+		for _, point := range data[0].Points {
+			tops = append(tops, point[1].(string))
+		}
+		c.Assert(tops, DeepEquals, []string{"hosta", "hosta", "hosta", "hostb", "hostb"})
+	}
+}
+
+func (self *DataTestSuite) BottomMultipleColumn(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 3; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_bottom",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 60+i*10, 70+i*10), c)
+		}
+	}, func(client Client) {
+		data := client.RunQuery("select bottom(5, cpu, host) from test_bottom;", c, "m")
+		c.Assert(data[0].Name, Equals, "test_bottom")
+		c.Assert(data[0].Columns, HasLen, 3)
+		c.Assert(data[0].Points, HasLen, 5)
+
+		type tmp struct {
+			cpu float64
+			host string
+		}
+		tops := []tmp{}
+		for _, point := range data[0].Points {
+			tops = append(tops, tmp{point[1].(float64), point[2].(string)})
+		}
+		c.Assert(tops, DeepEquals, []tmp{tmp{60, "hosta"}, tmp{70, "hosta"}, tmp{70, "hostb"}, tmp{80, "hosta"}, tmp{80, "hostb"}})
+	}
 }

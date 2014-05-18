@@ -1206,7 +1206,11 @@ func (self *TopOrBottomAggregator) AggregatePoint(state interface{}, p *protocol
 }
 
 func (self *TopOrBottomAggregator) ColumnNames() []string {
-	return self.targets
+	if len(self.targets) == 1 && self.alias != "" {
+		return []string{self.alias}
+	} else {
+		return self.targets
+	}
 }
 
 func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
