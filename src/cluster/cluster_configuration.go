@@ -555,6 +555,7 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 
 	self.servers = data.Servers
 	for _, server := range self.servers {
+		log.Info("Checking whether %s is the local server %s", server.RaftName, self.LocalRaftName)
 		if server.RaftName == self.LocalRaftName {
 			self.LocalServer = server
 			self.addedLocalServerWait <- true
