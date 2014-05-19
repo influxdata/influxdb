@@ -186,7 +186,7 @@ func (self *ClusterConfiguration) GetServerById(id *uint32) *ClusterServer {
 			return server
 		}
 	}
-	log.Warn("Couldn't find server with id: ", *id, self.servers)
+	log.Warn("Couldn't find server with id %d. Cluster servers: %#v", *id, self.servers)
 	return nil
 }
 
