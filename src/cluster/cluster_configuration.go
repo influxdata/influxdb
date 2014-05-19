@@ -480,7 +480,7 @@ func (self *ClusterConfiguration) SaveClusterAdmin(u *ClusterAdmin) {
 }
 
 type SavedConfiguration struct {
-	Databases         map[string]struct{}
+	Databases         map[string]uint8
 	Admins            map[string]*ClusterAdmin
 	DbUsers           map[string]map[string]*DbUser
 	Servers           []*ClusterServer
@@ -492,13 +492,17 @@ type SavedConfiguration struct {
 func (self *ClusterConfiguration) Save() ([]byte, error) {
 	log.Debug("Dumping the cluster configuration")
 	data := &SavedConfiguration{
-		Databases:         self.DatabaseReplicationFactors,
+		Databases:         make(map[string]uint8, len(self.DatabaseReplicationFactors)),
 		Admins:            self.clusterAdmins,
 		DbUsers:           self.dbUsers,
 		Servers:           self.servers,
 		ContinuousQueries: self.continuousQueries,
 		ShortTermShards:   self.convertShardsToNewShardData(self.shortTermShards),
 		LongTermShards:    self.convertShardsToNewShardData(self.longTermShards),
+	}
+
+	for k, _ := range self.DatabaseReplicationFactors {
+		data.Databases[k] = 0
 	}
 
 	b := bytes.NewBuffer(nil)
@@ -546,14 +550,18 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 
 	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&data)
 	if err != nil {
+		log.Error("Error while decoding snapshot: %s", err)
 		return err
 	}
 
-	self.DatabaseReplicationFactors = data.Databases
+	self.DatabaseReplicationFactors = make(map[string]struct{}, len(data.Databases))
+	for k, _ := range data.Databases {
+		self.DatabaseReplicationFactors[k] = struct{}{}
+	}
 	self.clusterAdmins = data.Admins
 	self.dbUsers = data.DbUsers
-
 	self.servers = data.Servers
+
 	for _, server := range self.servers {
 		log.Info("Checking whether %s is the local server %s", server.RaftName, self.LocalRaftName)
 		if server.RaftName == self.LocalRaftName {
