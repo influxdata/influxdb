@@ -1254,16 +1254,17 @@ func (self *TopOrBottomAggregator) InitializeFieldsMetadata(series *protocol.Ser
 }
 
 func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultValue *parser.Value) (Aggregator, error) {
-	if len(v.Elems) < 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, fmt.Sprintf("function %s() requires at least 2 arguments", name))
+	if len(v.Elems) != 2 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, fmt.Sprintf("function %s() requires at exactly 2 arguments", name))
 	}
 
-	if v.Elems[0].Type != parser.ValueInt {
-		return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() first parameter expect int", name))
+	if v.Elems[1].Type != parser.ValueInt {
+		return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() second parameter expect int", name))
 	}
 
+	// TODO(chobie): fix later
 	hash := make(map[string]int, len(v.Elems)-1)
-	for i := 1; i < len(v.Elems);i++ {
+	for i := 0; i < len(v.Elems)-1;i++ {
 		if hash[v.Elems[i].Name] == 0 {
 			hash[v.Elems[i].Name] = 1
 		} else {
@@ -1279,9 +1280,9 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 	wrappedDefaultValues := []*protocol.FieldValue{}
 
 	targets := []string{}
-	limit, _ := strconv.ParseInt(v.Elems[0].Name, 10, 64)
+	limit, _ := strconv.ParseInt(v.Elems[1].Name, 10, 64)
 	index := v.Elems[1].Name
-	for offset := 1; offset < len(v.Elems); offset++ {
+	for offset := 0; offset < len(v.Elems)-1; offset++ {
 		elm := v.Elems[offset]
 		targets = append(targets, elm.Name)
 		wrappedDefaultValues = append(wrappedDefaultValues, wrappedDefaultValue)
