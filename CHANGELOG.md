@@ -1,3 +1,9 @@
+## v0.6.5 [unreleased]
+
+### Features
+
+- [Issue #551](https://github.com/influxdb/influxdb/issues/551). Add TOP and BOTTOM aggregate functions (Thanks, @chobie)
+
 ## v0.6.4 [2014-05-16]
 
 ### Features
