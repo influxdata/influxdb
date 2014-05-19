@@ -1099,21 +1099,19 @@ func NewLastAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 //
 type ByPointColumnDesc struct{
 	protocol.PointsCollection
-	index int
 }
 type ByPointColumnAsc struct{
 	protocol.PointsCollection
-	index int
 }
 
 func (s ByPointColumnDesc) Less(i, j int) bool {
 	if s.PointsCollection[i] != nil && s.PointsCollection[j] != nil {
-		if s.PointsCollection[i].Values[s.index].Int64Value != nil && s.PointsCollection[j].Values[s.index].Int64Value != nil{
-			return *s.PointsCollection[i].Values[s.index].Int64Value > *s.PointsCollection[j].Values[s.index].Int64Value
-		} else if s.PointsCollection[i].Values[s.index].DoubleValue != nil && s.PointsCollection[j].Values[s.index].DoubleValue != nil{
-			return *s.PointsCollection[i].Values[s.index].DoubleValue > *s.PointsCollection[j].Values[s.index].DoubleValue
-		} else if s.PointsCollection[i].Values[s.index].StringValue != nil && s.PointsCollection[j].Values[s.index].StringValue != nil {
-			return *s.PointsCollection[i].Values[s.index].StringValue > *s.PointsCollection[j].Values[s.index].StringValue
+		if s.PointsCollection[i].Values[0].Int64Value != nil && s.PointsCollection[j].Values[0].Int64Value != nil{
+			return *s.PointsCollection[i].Values[0].Int64Value > *s.PointsCollection[j].Values[0].Int64Value
+		} else if s.PointsCollection[i].Values[0].DoubleValue != nil && s.PointsCollection[j].Values[0].DoubleValue != nil{
+			return *s.PointsCollection[i].Values[0].DoubleValue > *s.PointsCollection[j].Values[0].DoubleValue
+		} else if s.PointsCollection[i].Values[0].StringValue != nil && s.PointsCollection[j].Values[0].StringValue != nil {
+			return *s.PointsCollection[i].Values[0].StringValue > *s.PointsCollection[j].Values[0].StringValue
 		}
 	}
 
@@ -1122,12 +1120,12 @@ func (s ByPointColumnDesc) Less(i, j int) bool {
 
 func (s ByPointColumnAsc) Less(i, j int) bool {
 	if s.PointsCollection[i] != nil && s.PointsCollection[j] != nil {
-		if s.PointsCollection[i].Values[s.index].Int64Value != nil && s.PointsCollection[j].Values[s.index].Int64Value != nil{
-			return *s.PointsCollection[i].Values[s.index].Int64Value < *s.PointsCollection[j].Values[s.index].Int64Value
-		} else if s.PointsCollection[i].Values[s.index].DoubleValue != nil && s.PointsCollection[j].Values[s.index].DoubleValue != nil{
-			return *s.PointsCollection[i].Values[s.index].DoubleValue < *s.PointsCollection[j].Values[s.index].DoubleValue
-		} else if s.PointsCollection[i].Values[s.index].StringValue != nil && s.PointsCollection[j].Values[s.index].StringValue != nil{
-			return *s.PointsCollection[i].Values[s.index].StringValue < *s.PointsCollection[j].Values[s.index].StringValue
+		if s.PointsCollection[i].Values[0].Int64Value != nil && s.PointsCollection[j].Values[0].Int64Value != nil{
+			return *s.PointsCollection[i].Values[0].Int64Value < *s.PointsCollection[j].Values[0].Int64Value
+		} else if s.PointsCollection[i].Values[0].DoubleValue != nil && s.PointsCollection[j].Values[0].DoubleValue != nil{
+			return *s.PointsCollection[i].Values[0].DoubleValue < *s.PointsCollection[j].Values[0].DoubleValue
+		} else if s.PointsCollection[i].Values[0].StringValue != nil && s.PointsCollection[j].Values[0].StringValue != nil{
+			return *s.PointsCollection[i].Values[0].StringValue < *s.PointsCollection[j].Values[0].StringValue
 		}
 	}
 
@@ -1146,22 +1144,21 @@ type TopOrBottomAggregator struct {
 	defaultValue *protocol.FieldValue
 	alias        string
 	limit int64
-	index int
 	target string
 }
 
-func (self *TopOrBottomAggregator) comparePoint(a *protocol.Point, b *protocol.Point, offset int, greater bool) bool {
-	result := func(a *protocol.Point, b *protocol.Point, offset int) (bool) {
-		if a.Values[offset].Int64Value != nil && b.Values[offset].Int64Value != nil {
-			return *a.Values[offset].Int64Value < *b.Values[offset].Int64Value
-		} else if a.Values[offset].DoubleValue != nil && b.Values[offset].DoubleValue != nil {
-			return *a.Values[offset].DoubleValue < *b.Values[offset].DoubleValue
-		} else if a.Values[offset].StringValue != nil && b.Values[offset].StringValue != nil {
-			return *a.Values[offset].StringValue < *b.Values[offset].StringValue
+func (self *TopOrBottomAggregator) comparePoint(a *protocol.Point, b *protocol.Point, greater bool) bool {
+	result := func(a *protocol.Point, b *protocol.Point) (bool) {
+		if a.Values[0].Int64Value != nil && b.Values[0].Int64Value != nil {
+			return *a.Values[0].Int64Value < *b.Values[0].Int64Value
+		} else if a.Values[0].DoubleValue != nil && b.Values[0].DoubleValue != nil {
+			return *a.Values[0].DoubleValue < *b.Values[0].DoubleValue
+		} else if a.Values[0].StringValue != nil && b.Values[0].StringValue != nil {
+			return *a.Values[0].StringValue < *b.Values[0].StringValue
 		}
 
 		return false
-	}(a, b, offset)
+	}(a, b)
 
 	if !greater {
 		return !result
@@ -1172,6 +1169,10 @@ func (self *TopOrBottomAggregator) comparePoint(a *protocol.Point, b *protocol.P
 
 func (self *TopOrBottomAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
 	var s *TopOrBottomAggregatorState
+	fieldValue, err := GetValue(self.value, self.columns, p)
+	if err != nil {
+		return nil, err
+	}	
 
 	if state == nil {
 		s = &TopOrBottomAggregatorState{values: protocol.PointsCollection{}}
@@ -1179,22 +1180,39 @@ func (self *TopOrBottomAggregator) AggregatePoint(state interface{}, p *protocol
 		s = state.(*TopOrBottomAggregatorState)
 	}
 
-	sorter := func(values protocol.PointsCollection, offset int, isTop bool){
+	sorter := func(values protocol.PointsCollection, isTop bool){
 		if isTop {
-			sort.Sort(ByPointColumnDesc{values, offset})
+			sort.Sort(ByPointColumnDesc{values})
 		} else {
-			sort.Sort(ByPointColumnAsc{values, offset})
+			sort.Sort(ByPointColumnAsc{values})
 		}
 	}
 
+	asFieldValue := func(p *protocol.Point) (*protocol.FieldValue)  {
+		pp := &protocol.FieldValue{}
+        if fieldValue.Int64Value != nil {
+            pp.Int64Value = fieldValue.Int64Value
+        } else if fieldValue.DoubleValue != nil {
+            pp.DoubleValue = fieldValue.DoubleValue
+        } else if fieldValue.StringValue != nil {
+            pp.StringValue = fieldValue.StringValue
+        }
+		return pp
+	}
 	if s.counter < self.limit {
-		s.values = append(s.values, p)
-		sorter(s.values, self.index, self.isTop)
+		newvalue := &protocol.Point{
+			Values: []*protocol.FieldValue{asFieldValue(p)},
+		}
+		s.values = append(s.values, newvalue)
+		sorter(s.values, self.isTop)
 		s.counter++
 	} else {
-		if self.comparePoint(s.values[s.counter-1], p, self.index, self.isTop) {
+        newvalue := &protocol.Point{
+            Values: []*protocol.FieldValue{asFieldValue(p)},
+        }
+		if self.comparePoint(s.values[s.counter-1], newvalue, self.isTop) {
 			s.values = append(s.values, p)
-			sorter(s.values, self.index, self.isTop)
+			sorter(s.values, self.isTop)
 			s.values = s.values[0:self.limit]
 		}
 	}
@@ -1217,7 +1235,7 @@ func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.Fi
 	} else {
 		s := state.(*TopOrBottomAggregatorState)
 		for _, values := range s.values {
-			returnValues = append(returnValues, []*protocol.FieldValue{values.Values[self.index]})
+			returnValues = append(returnValues, []*protocol.FieldValue{values.Values[0]})
 		}
 	}
 
@@ -1226,12 +1244,6 @@ func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.Fi
 
 func (self *TopOrBottomAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	self.columns = series.Fields
-	for index, name := range series.Fields {
-		if name == self.target {
-			self.index = index
-			break
-		}
-	}
 	return nil
 }
 
@@ -1249,12 +1261,11 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 		return nil, err
 	}
 
-	target := v.Elems[0].Name
 	limit, err := strconv.ParseInt(v.Elems[1].Name, 10, 64)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &TopOrBottomAggregator{
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
@@ -1263,8 +1274,7 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 		isTop: isTop,
 		defaultValue: wrappedDefaultValue,
 		alias: v.Alias,
-		limit: limit,
-		target: target}, nil
+		limit: limit}, nil
 }
 
 func NewTopAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
