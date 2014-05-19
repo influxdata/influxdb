@@ -1125,15 +1125,7 @@ func (s ByPointColumnAsc) Less(i, j int) bool {
 		return false
 	}
 
-	if s.PointsCollection[i].Values[0].Int64Value != nil && s.PointsCollection[j].Values[0].Int64Value != nil {
-		return *s.PointsCollection[i].Values[0].Int64Value < *s.PointsCollection[j].Values[0].Int64Value
-	} else if s.PointsCollection[i].Values[0].DoubleValue != nil && s.PointsCollection[j].Values[0].DoubleValue != nil {
-		return *s.PointsCollection[i].Values[0].DoubleValue < *s.PointsCollection[j].Values[0].DoubleValue
-	} else if s.PointsCollection[i].Values[0].StringValue != nil && s.PointsCollection[j].Values[0].StringValue != nil {
-		return *s.PointsCollection[i].Values[0].StringValue < *s.PointsCollection[j].Values[0].StringValue
-	}
-
-	return false
+	return comparePointValue(s.PointsCollection[i], s.PointsCollection[j])
 }
 
 type TopOrBottomAggregatorState struct {
@@ -1151,18 +1143,20 @@ type TopOrBottomAggregator struct {
 	target       string
 }
 
-func (self *TopOrBottomAggregator) comparePoint(a *protocol.Point, b *protocol.Point, greater bool) bool {
-	result := func(a *protocol.Point, b *protocol.Point) bool {
-		if a.Values[0].Int64Value != nil && b.Values[0].Int64Value != nil {
-			return *a.Values[0].Int64Value < *b.Values[0].Int64Value
-		} else if a.Values[0].DoubleValue != nil && b.Values[0].DoubleValue != nil {
-			return *a.Values[0].DoubleValue < *b.Values[0].DoubleValue
-		} else if a.Values[0].StringValue != nil && b.Values[0].StringValue != nil {
-			return *a.Values[0].StringValue < *b.Values[0].StringValue
-		}
+func comparePointValue(a, b *protocol.Point) bool {
+	if a.Values[0].Int64Value != nil && b.Values[0].Int64Value != nil {
+		return *a.Values[0].Int64Value < *b.Values[0].Int64Value
+	} else if a.Values[0].DoubleValue != nil && b.Values[0].DoubleValue != nil {
+		return *a.Values[0].DoubleValue < *b.Values[0].DoubleValue
+	} else if a.Values[0].StringValue != nil && b.Values[0].StringValue != nil {
+		return *a.Values[0].StringValue < *b.Values[0].StringValue
+	}
 
-		return false
-	}(a, b)
+	return false
+}
+
+func (self *TopOrBottomAggregator) comparePoint(a, b *protocol.Point, greater bool) bool {
+	result := comparePointValue(a, b)
 
 	if !greater {
 		return !result
