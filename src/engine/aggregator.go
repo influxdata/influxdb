@@ -1146,6 +1146,8 @@ type TopOrBottomAggregator struct {
 	defaultValue *protocol.FieldValue
 	alias        string
 	limit int64
+	index int
+	target string
 }
 
 func (self *TopOrBottomAggregator) comparePoint(a *protocol.Point, b *protocol.Point, offset int, greater bool) bool {
@@ -1187,12 +1189,12 @@ func (self *TopOrBottomAggregator) AggregatePoint(state interface{}, p *protocol
 
 	if s.counter < self.limit {
 		s.values = append(s.values, p)
-		sorter(s.values, 0, self.isTop)
+		sorter(s.values, self.index, self.isTop)
 		s.counter++
 	} else {
-		if self.comparePoint(s.values[s.counter-1], p, 0, self.isTop) {
+		if self.comparePoint(s.values[s.counter-1], p, self.index, self.isTop) {
 			s.values = append(s.values, p)
-			sorter(s.values, 0, self.isTop)
+			sorter(s.values, self.index, self.isTop)
 			s.values = s.values[0:self.limit]
 		}
 	}
@@ -1215,7 +1217,7 @@ func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.Fi
 	} else {
 		s := state.(*TopOrBottomAggregatorState)
 		for _, values := range s.values {
-			returnValues = append(returnValues, []*protocol.FieldValue{values.Values[0]})
+			returnValues = append(returnValues, []*protocol.FieldValue{values.Values[self.index]})
 		}
 	}
 
@@ -1224,6 +1226,12 @@ func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.Fi
 
 func (self *TopOrBottomAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	self.columns = series.Fields
+	for index, name := range series.Fields {
+		if name == self.target {
+			self.index = index
+			break
+		}
+	}
 	return nil
 }
 
@@ -1241,11 +1249,12 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 		return nil, err
 	}
 
+	target := v.Elems[0].Name
 	limit, err := strconv.ParseInt(v.Elems[1].Name, 10, 64)
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return &TopOrBottomAggregator{
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
@@ -1254,7 +1263,8 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 		isTop: isTop,
 		defaultValue: wrappedDefaultValue,
 		alias: v.Alias,
-		limit: limit}, nil
+		limit: limit,
+		target: target}, nil
 }
 
 func NewTopAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
