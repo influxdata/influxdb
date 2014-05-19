@@ -1141,16 +1141,11 @@ type TopOrBottomAggregatorState struct {
 
 type TopOrBottomAggregator struct {
 	AbstractAggregator
-	values   []*parser.Value
 	name string
 	isTop bool
-	defaultValues []*protocol.FieldValue
+	defaultValue *protocol.FieldValue
 	alias        string
-	targets []string
 	limit int64
-	index string
-	offset int
-	columnOrder []int
 }
 
 func (self *TopOrBottomAggregator) comparePoint(a *protocol.Point, b *protocol.Point, offset int, greater bool) bool {
@@ -1192,12 +1187,12 @@ func (self *TopOrBottomAggregator) AggregatePoint(state interface{}, p *protocol
 
 	if s.counter < self.limit {
 		s.values = append(s.values, p)
-		sorter(s.values, self.offset, self.isTop)
+		sorter(s.values, 0, self.isTop)
 		s.counter++
 	} else {
-		if self.comparePoint(s.values[s.counter-1], p, self.offset, self.isTop) {
+		if self.comparePoint(s.values[s.counter-1], p, 0, self.isTop) {
 			s.values = append(s.values, p)
-			sorter(s.values, self.offset, self.isTop)
+			sorter(s.values, 0, self.isTop)
 			s.values = s.values[0:self.limit]
 		}
 	}
@@ -1206,26 +1201,21 @@ func (self *TopOrBottomAggregator) AggregatePoint(state interface{}, p *protocol
 }
 
 func (self *TopOrBottomAggregator) ColumnNames() []string {
-	if len(self.targets) == 1 && self.alias != "" {
+	if self.alias != "" {
 		return []string{self.alias}
 	} else {
-		return self.targets
+		return []string{self.name}
 	}
 }
 
 func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
 	if state == nil {
-		returnValues = append(returnValues, self.defaultValues)
+		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
 	} else {
 		s := state.(*TopOrBottomAggregatorState)
 		for _, values := range s.values {
-			row := []*protocol.FieldValue{}
-			// NOTE(chobie): *protocol.Values order and Elems order are different.
-			for _, idx := range self.columnOrder {
-				row = append(row, values.Values[idx])
-			}
-			returnValues = append(returnValues, row)
+			returnValues = append(returnValues, []*protocol.FieldValue{values.Values[0]})
 		}
 	}
 
@@ -1234,22 +1224,6 @@ func (self *TopOrBottomAggregator) GetValues(state interface{}) [][]*protocol.Fi
 
 func (self *TopOrBottomAggregator) InitializeFieldsMetadata(series *protocol.Series) error {
 	self.columns = series.Fields
-	// NOTE(chobie): re-initialize variable here
-	self.columnOrder = []int{}
-
-	for idx, name := range self.columns {
-		if name == self.index {
-			self.offset = idx
-		}
-
-		// NOTE(chobie): adjust stack order for *protocol.Values.
-		for order, name2 := range self.targets {
-			if name2 == name {
-				self.columnOrder = append(self.columnOrder, order)
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -1262,45 +1236,25 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 		return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() second parameter expect int", name))
 	}
 
-	// TODO(chobie): fix later
-	hash := make(map[string]int, len(v.Elems)-1)
-	for i := 0; i < len(v.Elems)-1;i++ {
-		if hash[v.Elems[i].Name] == 0 {
-			hash[v.Elems[i].Name] = 1
-		} else {
-			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() can't specify same column", name))
-		}
-	}
-
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
 	if err != nil {
 		return nil, err
 	}
 
-	wrappedDefaultValues := []*protocol.FieldValue{}
-
-	targets := []string{}
-	limit, _ := strconv.ParseInt(v.Elems[1].Name, 10, 64)
-	index := v.Elems[1].Name
-	for offset := 0; offset < len(v.Elems)-1; offset++ {
-		elm := v.Elems[offset]
-		targets = append(targets, elm.Name)
-		wrappedDefaultValues = append(wrappedDefaultValues, wrappedDefaultValue)
+	limit, err := strconv.ParseInt(v.Elems[1].Name, 10, 64)
+	if err != nil {
+		return nil, err
 	}
 
 	return &TopOrBottomAggregator{
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
 		},
-		values: v.Elems,
 		name: name,
 		isTop: isTop,
-		defaultValues: wrappedDefaultValues,
+		defaultValue: wrappedDefaultValue,
 		alias: v.Alias,
-		targets: targets,
-		index: index,
-		limit: limit,
-		columnOrder: []int{}}, nil
+		limit: limit}, nil
 }
 
 func NewTopAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
