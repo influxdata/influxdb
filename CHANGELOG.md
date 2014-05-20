@@ -22,7 +22,7 @@
 
 - Make the write batch size configurable (also applies to deletes)
 - Optimize writing to multiple series
-- Add UDP support for Graphite API. Thanks @peekeri! https://github.com/influxdb/influxdb/pull/546
+- [Issue #546](https://github.com/influxdb/influxdb/issues/546). Add UDP support for Graphite API (Thanks, @peekeri)
 
 ### Bugfixes
 
