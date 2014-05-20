@@ -29,6 +29,7 @@ import (
 const (
 	DEFAULT_ROOT_PWD        = "root"
 	DEFAULT_ROOT_PWD_ENVKEY = "INFLUXDB_INIT_PWD"
+	RAFT_NAME_SIZE          = 8
 )
 
 // The raftd server is a combination of the Raft server and an HTTP
@@ -74,16 +75,16 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *cluster.C
 		s.name = string(b)
 	} else {
 		var i uint64
-		if _, err := os.Stat("/dev/random"); err == nil {
-			log.Info("Using /dev/random to initialize the raft server name")
-			f, err := os.Open("/dev/random")
+		if _, err := os.Stat("/dev/urandom"); err == nil {
+			log.Info("Using /dev/urandom to initialize the raft server name")
+			f, err := os.Open("/dev/urandom")
 			if err != nil {
 				panic(err)
 			}
 			defer f.Close()
 			readBytes := 0
-			b := make([]byte, 8)
-			for readBytes < 8 {
+			b := make([]byte, RAFT_NAME_SIZE)
+			for readBytes < RAFT_NAME_SIZE {
 				n, err := f.Read(b[readBytes:])
 				if err != nil {
 					panic(err)
@@ -99,7 +100,7 @@ func NewRaftServer(config *configuration.Configuration, clusterConfig *cluster.C
 			rand.Seed(time.Now().UnixNano())
 			i = uint64(rand.Int())
 		}
-		s.name = fmt.Sprintf("%07x", i)[0:7]
+		s.name = fmt.Sprintf("%08x", i)
 		log.Info("Setting raft name to %s", s.name)
 		if err = ioutil.WriteFile(filepath.Join(s.path, "name"), []byte(s.name), 0644); err != nil {
 			panic(err)
