@@ -8,6 +8,7 @@
 - [Issue #547](https://github.com/influxdb/influxdb/issues/547). Add difference function (Thanks, @mboelstra)
 - [Issue #550](https://github.com/influxdb/influxdb/issues/550). Fix tests on 32-bit ARM
 - [Issue #524](https://github.com/influxdb/influxdb/issues/524). Arithmetic operators and where conditions don't play nice together
+- [Issue #561](https://github.com/influxdb/influxdb/issues/561). Fix missing query in parsing errors
 
 ## v0.6.5 [2014-05-19]
 

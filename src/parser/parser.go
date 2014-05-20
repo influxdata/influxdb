@@ -556,6 +556,7 @@ func ParseQuery(query string) ([]*Query, error) {
 			lastLine:    int(q.error.last_line),
 			lastColumn:  int(q.error.last_column) - 1,
 			errorString: str,
+			queryString: query,
 		}
 	}
 

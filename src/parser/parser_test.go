@@ -911,6 +911,13 @@ func (self *QueryParserSuite) TestParseColumnWithPeriodOrDash(c *C) {
 	c.Assert(column.Alias, Equals, "count-column-a.foo")
 }
 
+func (self *QueryParserSuite) TestQueryErrorShouldHaveQueryString(c *C) {
+	query := "select ! from foo;"
+	_, err := ParseSelectQuery(query)
+	e, _ := err.(*QueryError)
+	c.Assert(e.queryString, Equals, query)
+}
+
 // TODO:
 // insert into user.events.count.per_day select count(*) from user.events where time<forever group by time(1d)
 // insert into :series_name.percentiles.95 select percentile(95,value) from stats.* where time<forever group by time(1d)
