@@ -170,6 +170,16 @@ func (self *Client) GetClusterAdminList() ([]map[string]interface{}, error) {
 	return self.listSomething(url)
 }
 
+func (self *Client) Servers() ([]map[string]interface{}, error) {
+	url := self.getUrl("/cluster/servers")
+	return self.listSomething(url)
+}
+
+func (self *Client) RemoveServer(id int) error {
+	resp, err := self.del(self.getUrl(fmt.Sprintf("/cluster/servers/%d", id)))
+	return responseToError(resp, err, true)
+}
+
 // Creates a new database user for the given database. permissions can
 // be omitted in which case the user will be able to read and write to
 // all time series. If provided, there should be two strings, the
