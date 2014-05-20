@@ -21,6 +21,13 @@ if [ ! -L /etc/init.d/influxdb ]; then
     fi
 fi
 
+if ! id influxdb; then
+    useradd --system -U -M influxdb
+fi
+
+chown -R influxdb:influxdb $influx_dir
+chmod -R a+rX $influx_dir
+
 # only restart if the service was already running
 if /etc/init.d/influxdb status; then
     service influxdb restart

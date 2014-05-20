@@ -87,11 +87,11 @@ case $1 in
         # Log the message appropriately
         cd /
         if which start-stop-daemon > /dev/null 2>&1; then
-            nohup start-stop-daemon -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config /opt/$name/shared/config.toml > /dev/null 2>> /opt/$name/shared/log.txt &
+            nohup start-stop-daemon --chuid influxdb:influxdb -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config /opt/$name/shared/config.toml > /dev/null 2>> /opt/$name/shared/log.txt &
         elif set | egrep '^start_daemon' > /dev/null 2>&1; then
-            start_daemon ${daemon}-daemon -pidfile $pidfile -config /opt/$name/shared/config.toml
+            start_daemon -u influxdb ${daemon}-daemon -pidfile $pidfile -config /opt/$name/shared/config.toml
         else
-            sudo ${daemon}-daemon -pidfile $pidfile -config /opt/$name/shared/config.toml
+            sudo -u influxdb -g influxdb ${daemon}-daemon -pidfile $pidfile -config /opt/$name/shared/config.toml
         fi
         log_success_msg "$name process was started"
         ;;
