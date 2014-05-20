@@ -1,8 +1,16 @@
-## v0.6.5 [unreleased]
+## v0.6.6 [unreleased]
+
+### Bugfixes
+
+## v0.6.5 [2014-05-19]
 
 ### Features
 
 - [Issue #551](https://github.com/influxdb/influxdb/issues/551). Add TOP and BOTTOM aggregate functions (Thanks, @chobie)
+
+### Bugfixes
+
+- [Issue #555](https://github.com/influxdb/influxdb/issues/555). Fix a regression introduced in the raft snapshot format
 
 ## v0.6.4 [2014-05-16]
 
