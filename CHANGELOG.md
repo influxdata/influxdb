@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [Issue #557](https://github.com/influxdb/influxdb/issues/557). Group by time(1y) doesn't work while time(365d) works
+- [Issue #460](https://github.com/influxdb/influxdb/issues/460). Don't start automatically after installing
 
 ## v0.6.5 [2014-05-19]
 

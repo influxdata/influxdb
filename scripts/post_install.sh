@@ -20,4 +20,8 @@ if [ ! -L /etc/init.d/influxdb ]; then
         chkconfig --add influxdb
     fi
 fi
-service influxdb restart
+
+# only restart if the service was already running
+if /etc/init.d/influxdb status; then
+    service influxdb restart
+fi
