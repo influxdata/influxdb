@@ -1921,3 +1921,21 @@ func (self *DataTestSuite) BottomWithMultipleGroupBy(c *C) (Fun, Fun) {
 			c.Assert(tops, DeepEquals, []tmp{tmp{60, "hosta"}, tmp{70, "hosta"}, tmp{70, "hostb"}, tmp{80, "hostb"}})
 		}
 }
+
+// issue #557
+func (self *DataTestSuite) GroupByYear(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `[{"points": [[4], [10], [5]], "name": "test_group_by_day", "columns": ["value"]}]`
+			client.WriteJsonData(data, c)
+			t := time.Now().Truncate(time.Hour).Add(-24 * 365 * time.Hour).Unix()
+			data = fmt.Sprintf(`[{"points": [[2, %d]], "name": "test_group_by_day", "columns": ["value", "time"]}]`, t)
+			client.WriteJsonData(data, c, "s")
+		}, func(client Client) {
+			collection := client.RunQuery("select count(value) from test_group_by_day group by time(1y)", c)
+			c.Assert(collection, HasLen, 1)
+			maps := ToMap(collection[0])
+			c.Assert(maps, HasLen, 2)
+			c.Assert(maps[0]["count"], Equals, 3.0)
+			c.Assert(maps[1]["count"], Equals, 1.0)
+		}
+}

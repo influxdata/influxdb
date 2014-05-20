@@ -175,8 +175,10 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		// because a db is distributed across the cluster, it's possible we don't have the series indexed here. ignore
 		switch err := err.(type) {
 		case FieldLookupError:
+			log.Debug("Cannot find fields %v", columns)
 			return nil
 		default:
+			log.Error("Error looking up fields for %s: %s", seriesName, err)
 			return fmt.Errorf("Error looking up fields for %s: %s", seriesName, err)
 		}
 	}
@@ -189,6 +191,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 	if querySpec.IsSinglePointQuery() {
 		series, err := self.fetchSinglePoint(querySpec, seriesName, fields)
 		if err != nil {
+			log.Error("Error reading a single point: %s", err)
 			return err
 		}
 		if len(series.Points) > 0 {
@@ -275,6 +278,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 			valueBuffer.SetBuf(rawColumnValues[i].value)
 			err := valueBuffer.Unmarshal(fv)
 			if err != nil {
+				log.Error("Error while running query: %s", err)
 				return err
 			}
 			point.Values[i] = fv
@@ -313,6 +317,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 					Points: seriesOutgoing.Points,
 				}
 				if !processor.YieldSeries(series) {
+					log.Info("Stopping processing")
 					shouldContinue = false
 				}
 			}
@@ -333,6 +338,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		}
 	}
 
+	log.Debug("Finished running query %s")
 	return nil
 }
 

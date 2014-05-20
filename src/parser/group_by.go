@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"common"
 	"fmt"
+	"strings"
 	"time"
+
+	log "code.google.com/p/log4go"
 )
 
 type GroupByClause struct {
@@ -15,13 +18,15 @@ type GroupByClause struct {
 
 func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
 	for _, groupBy := range self.Elems {
-		if groupBy.IsFunctionCall() {
+		if groupBy.IsFunctionCall() && strings.ToLower(groupBy.Name) == "time" {
 			// TODO: check the number of arguments and return an error
 			if len(groupBy.Elems) != 1 {
 				return nil, common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
 			}
-			// TODO: check the function name
-			// TODO: error checking
+
+			if groupBy.Elems[0].Type != ValueDuration {
+				log.Debug("Get a time function without a duration argument %s", groupBy.Elems[0].Type)
+			}
 			arg := groupBy.Elems[0].Name
 			durationInt, err := common.ParseTimeDuration(arg)
 			if err != nil {
