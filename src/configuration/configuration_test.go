@@ -68,7 +68,7 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 func (self *LoadConfigurationSuite) TestSizeParsing(c *C) {
 	var s size
 	c.Assert(s.UnmarshalText([]byte("200m")), IsNil)
-	c.Assert(s.int, Equals, 200*ONE_MEGABYTE)
+	c.Assert(s.int64, Equals, 200*ONE_MEGABYTE)
 	c.Assert(s.UnmarshalText([]byte("10g")), IsNil)
-	c.Assert(s.int, Equals, 10*ONE_GIGABYTE)
+	c.Assert(s.int64, Equals, 10*ONE_GIGABYTE)
 }

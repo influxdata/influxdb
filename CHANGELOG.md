@@ -6,6 +6,7 @@
 - [Issue #460](https://github.com/influxdb/influxdb/issues/460). Don't start automatically after installing
 - [Issue #529](https://github.com/influxdb/influxdb/issues/529). Don't run influxdb as root
 - [Issue #547](https://github.com/influxdb/influxdb/issues/547). Add difference function (Thanks, @mboelstra)
+- [Issue #550](https://github.com/influxdb/influxdb/issues/550). Fix tests on 32-bit ARM
 
 ## v0.6.5 [2014-05-19]
 

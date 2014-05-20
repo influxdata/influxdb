@@ -15,12 +15,15 @@ import (
 )
 
 type size struct {
-	int
+	int64
 }
 
 const (
-	ONE_MEGABYTE = 1024 * 1024
-	ONE_GIGABYTE = 1024 * ONE_MEGABYTE
+	ONE_MEGABYTE int64 = 1024 * 1024
+	ONE_GIGABYTE       = 1024 * ONE_MEGABYTE
+	// Maximum integer representable by a word (32bit or 64bit depending
+	// on the architecture)
+	MAX_INT = int64(^uint(0) >> 1)
 )
 
 func (d *size) UnmarshalText(text []byte) error {
@@ -38,7 +41,10 @@ func (d *size) UnmarshalText(text []byte) error {
 	default:
 		return fmt.Errorf("Unknown size suffix %s", suffix)
 	}
-	d.int = int(size)
+	d.int64 = size
+	if size > MAX_INT {
+		return fmt.Errorf("Size %d cannot be represented by an int", size)
+	}
 	return nil
 }
 
@@ -71,7 +77,7 @@ type GraphiteConfig struct {
 	Enabled    bool
 	Port       int
 	Database   string
-	UdpEnabled bool    `toml:"udp_enabled"`
+	UdpEnabled bool `toml:"udp_enabled"`
 }
 type UdpInputConfig struct {
 	Enabled  bool
@@ -342,7 +348,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		Hostname:                     tomlConfiguration.Hostname,
 		BindAddress:                  tomlConfiguration.BindAddress,
 		LevelDbMaxOpenFiles:          tomlConfiguration.LevelDb.MaxOpenFiles,
-		LevelDbLruCacheSize:          tomlConfiguration.LevelDb.LruCacheSize.int,
+		LevelDbLruCacheSize:          int(tomlConfiguration.LevelDb.LruCacheSize.int64),
 		LevelDbMaxOpenShards:         tomlConfiguration.LevelDb.MaxOpenShards,
 		LongTermShard:                &tomlConfiguration.Sharding.LongTerm,
 		LevelDbPointBatchSize:        tomlConfiguration.LevelDb.PointBatchSize,
@@ -378,7 +384,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 
 	// if it wasn't set, set it to 200 MB
 	if config.LevelDbLruCacheSize == 0 {
-		config.LevelDbLruCacheSize = 200 * ONE_MEGABYTE
+		config.LevelDbLruCacheSize = int(200 * ONE_MEGABYTE)
 	}
 
 	// if it wasn't set, set it to 100
