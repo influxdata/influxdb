@@ -200,7 +200,7 @@ func (self *DataTestSuite) DifferenceGroupValues(c *C) (Fun, Fun) {
 			serieses := client.RunQuery("select difference(value) from test_difference_group_values group by time(20s) order asc", c, "m")
 			c.Assert(serieses, HasLen, 1)
 			maps := ToMap(serieses[0])
-			c.Assert(maps, HasLen, 3)			
+			c.Assert(maps, HasLen, 3)
 			c.Assert(maps[0]["difference"], Equals, 10.0)
 			c.Assert(maps[1]["difference"], Equals, 20.0)
 			c.Assert(maps[2]["difference"], Equals, 80.0)
@@ -233,7 +233,7 @@ func (self *DataTestSuite) DifferenceGroupValues(c *C) (Fun, Fun) {
 //			serieses := client.RunQuery("select range(value) from test_difference_group_same_time_values group by time(10s) order asc", c, "m")
 //			c.Assert(serieses, HasLen, 1)
 //			maps := ToMap(serieses[0])
-//			c.Assert(maps, HasLen, 6)			
+//			c.Assert(maps, HasLen, 6)
 //			c.Assert(maps[0]["difference"], Equals, 10.0)
 //			c.Assert(maps[1]["difference"], Equals, 10.0)
 //			c.Assert(maps[2]["difference"], Equals, 20.0)
@@ -307,6 +307,50 @@ func (self *DataTestSuite) SmallGroupByIntervals(c *C) (Fun, Fun) {
 			c.Assert(serieses[0].Points, HasLen, 1)
 			c.Assert(serieses[0].Points[0], HasLen, 2)
 			c.Assert(serieses[0].Points[0][1], Equals, 1.0)
+		}
+}
+
+// issue #524
+func (self *DataTestSuite) WhereAndArithmetic(c *C) (Fun, Fun) {
+	return func(client Client) {
+			i := 0
+			serieses := CreatePointsFromFunc("foo", 2, 2, func(_ int) float64 { i++; return float64(i) })
+			client.WriteData(serieses, c)
+		}, func(client Client) {
+			serieses := client.RunQuery("select column1 / 2 from foo where column0 > 1", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["expr0"], Equals, 2.0)
+		}
+}
+
+// issue #524
+func (self *DataTestSuite) JoinAndArithmetic(c *C) (Fun, Fun) {
+	return func(client Client) {
+			t1 := time.Now().Truncate(time.Hour).Add(-4 * time.Hour)
+			t2 := t1.Add(time.Hour)
+			t3 := t2.Add(time.Hour)
+			t4 := t3.Add(time.Hour)
+			data := fmt.Sprintf(`[
+{
+  "name":"foo",
+  "columns":["time", "val"],
+  "points":[[%d, 1],[%d, 2]]
+},
+{
+  "name":"bar",
+  "columns":["time", "val"],
+  "points":[[%d, 3],[%d, 4]]
+
+}]`, t1.Unix(), t3.Unix(), t2.Unix(), t4.Unix())
+			client.WriteJsonData(data, c, "s")
+		}, func(client Client) {
+			serieses := client.RunQuery("select foo.val + bar.val from foo inner join bar where bar.val <> 3", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["expr0"], Equals, 6.0)
 		}
 }
 

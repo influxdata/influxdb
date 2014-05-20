@@ -104,8 +104,8 @@ func getColumns(values []*parser.Value, columns map[string]bool) {
 	}
 }
 
-func filterColumns(columns map[string]bool, fields []string, point *protocol.Point) {
-	if columns["*"] {
+func filterColumns(columns map[string]struct{}, fields []string, point *protocol.Point) {
+	if _, ok := columns["*"]; ok {
 		return
 	}
 
@@ -127,9 +127,28 @@ func Filter(query *parser.SelectQuery, series *protocol.Series) (*protocol.Serie
 		return series, nil
 	}
 
-	columns := map[string]bool{}
-	getColumns(query.GetColumnNames(), columns)
-	getColumns(query.GetGroupByClause().Elems, columns)
+	columns := map[string]struct{}{}
+	if query.GetFromClause().Type == parser.FromClauseInnerJoin {
+	outer:
+		for t, cs := range query.GetResultColumns() {
+			for _, c := range cs {
+				// if this is a wildcard select, then drop all columns and
+				// just use '*'
+				if c == "*" {
+					columns = make(map[string]struct{}, 1)
+					columns[c] = struct{}{}
+					break outer
+				}
+				columns[t.Name+"."+c] = struct{}{}
+			}
+		}
+	} else {
+		for _, cs := range query.GetResultColumns() {
+			for _, c := range cs {
+				columns[c] = struct{}{}
+			}
+		}
+	}
 
 	points := series.Points
 	series.Points = nil
@@ -141,12 +160,14 @@ func Filter(query *parser.SelectQuery, series *protocol.Series) (*protocol.Serie
 		}
 
 		if ok {
+			fmt.Printf("columns: %v, fields: %v\n", columns, series.Fields)
+
 			filterColumns(columns, series.Fields, point)
 			series.Points = append(series.Points, point)
 		}
 	}
 
-	if !columns["*"] {
+	if _, ok := columns["*"]; !ok {
 		newFields := []string{}
 		for _, f := range series.Fields {
 			if _, ok := columns[f]; !ok {

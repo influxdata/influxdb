@@ -115,6 +115,14 @@ func (self *SelectQuery) HasAggregates() bool {
 // Returns a mapping from the time series names (or regex) to the
 // column names that are references
 func (self *SelectQuery) GetReferencedColumns() map[*Value][]string {
+	return self.getColumns(true)
+}
+
+func (self *SelectQuery) GetResultColumns() map[*Value][]string {
+	return self.getColumns(false)
+}
+
+func (self *SelectQuery) getColumns(includeWhereClause bool) map[*Value][]string {
 	mapping := make(map[string][]string)
 
 	notPrefixedColumns := []string{}
@@ -126,7 +134,7 @@ func (self *SelectQuery) GetReferencedColumns() map[*Value][]string {
 	}
 
 	if !self.IsSinglePointQuery() {
-		if condition := self.GetWhereCondition(); condition != nil {
+		if condition := self.GetWhereCondition(); condition != nil && includeWhereClause {
 			notPrefixedColumns = append(notPrefixedColumns, getReferencedColumnsFromCondition(condition, mapping)...)
 		}
 
