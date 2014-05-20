@@ -139,10 +139,10 @@ func (self *Server) writePoints(series *protocol.Series) error {
 			self.getAuth()
 			err = self.coordinator.WriteSeriesData(self.user, self.database, serie)
 			if err != nil {
-				log.Warn("GraphiteServer: failed to write series after getting new auth: %s\n", err.Error())
+				log.Warn("GraphiteServer: failed to write series after getting new auth: %s", err.Error())
 			}
 		default:
-			log.Warn("GraphiteServer: failed write series: %s\n", err.Error())
+			log.Warn("GraphiteServer: failed write series: %s", err.Error())
 		}
 	}
 	return err

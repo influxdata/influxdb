@@ -245,7 +245,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 		} else {
 			query := querySpec.SelectQuery()
 			if self.ShouldAggregateLocally(querySpec) {
-				log.Debug("creating a query engine\n")
+				log.Debug("creating a query engine")
 				processor, err = engine.NewQueryEngine(query, response)
 				if err != nil {
 					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
@@ -255,11 +255,11 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 				processor.SetShardInfo(int(self.Id()), self.IsLocal)
 			} else if query.HasAggregates() {
 				maxPointsToBufferBeforeSending := 1000
-				log.Debug("creating a passthrough engine\n")
+				log.Debug("creating a passthrough engine")
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
 			} else {
 				maxPointsToBufferBeforeSending := 1000
-				log.Debug("creating a passthrough engine with limit\n")
+				log.Debug("creating a passthrough engine with limit")
 				processor = engine.NewPassthroughEngineWithLimit(response, maxPointsToBufferBeforeSending, query.Limit)
 			}
 

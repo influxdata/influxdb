@@ -582,7 +582,7 @@ func (s *RaftServer) Join(leader string) error {
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusTemporaryRedirect {
 		address := resp.Header.Get("Location")
-		log.Debug("Redirected to %s to join leader\n", address)
+		log.Debug("Redirected to %s to join leader", address)
 		return s.Join(address)
 	}
 

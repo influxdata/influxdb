@@ -21,7 +21,7 @@ func waitForSignals(stoppable Stoppable) {
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	for {
 		sig := <-ch
-		log.Info("Received signal: %s\n", sig.String())
+		log.Info("Received signal: %s", sig.String())
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
 			stoppable.Stop()

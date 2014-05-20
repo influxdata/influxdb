@@ -34,7 +34,7 @@ func waitForSignals(stoppable Stoppable, filename string, stopped <-chan bool) {
 outer:
 	for {
 		sig := <-ch
-		log.Info("Received signal: %s\n", sig.String())
+		log.Info("Received signal: %s", sig.String())
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
 			runtime.SetCPUProfileRate(0)
