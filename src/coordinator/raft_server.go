@@ -553,6 +553,26 @@ func (s *RaftServer) HandleFunc(pattern string, handler func(http.ResponseWriter
 }
 
 // Joins to the leader of an existing cluster.
+func (s *RaftServer) RemoveServer(id uint32) error {
+	command := &InfluxForceLeaveCommand{
+		Id: id,
+	}
+	for _, s := range s.raftServer.Peers() {
+		// send the command and ignore errors in case a server is down
+		SendCommandToServer(s.ConnectionString, command)
+	}
+
+	if _, err := command.Apply(s.raftServer); err != nil {
+		return err
+	}
+
+	// make the change permament
+	log.Info("Running the actual command")
+	_, err := s.doOrProxyCommand(command)
+	return err
+}
+
+// Joins to the leader of an existing cluster.
 func (s *RaftServer) Join(leader string) error {
 	command := &InfluxJoinCommand{
 		Name:                     s.raftServer.Name(),

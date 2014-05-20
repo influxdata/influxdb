@@ -17,6 +17,7 @@ func init() {
 	internalRaftCommands = map[string]raft.Command{}
 	for _, command := range []raft.Command{
 		&InfluxJoinCommand{},
+		&InfluxForceLeaveCommand{},
 		&InfluxChangeConnectionStringCommand{},
 		&CreateDatabaseCommand{},
 		&DropDatabaseCommand{},
@@ -254,6 +255,34 @@ func (c *InfluxJoinCommand) Apply(server raft.Server) (interface{}, error) {
 
 func (c *InfluxJoinCommand) NodeName() string {
 	return c.Name
+}
+
+type InfluxForceLeaveCommand struct {
+	Id uint32 `json:"id"`
+}
+
+// The name of the ForceLeave command in the log
+func (c *InfluxForceLeaveCommand) CommandName() string {
+	return "force_leave"
+}
+
+func (c *InfluxForceLeaveCommand) Apply(server raft.Server) (interface{}, error) {
+	clusterConfig := server.Context().(*cluster.ClusterConfiguration)
+	s := clusterConfig.GetServerById(&c.Id)
+
+	if s == nil {
+		return nil, nil
+	}
+
+	if err := server.RemovePeer(s.RaftName); err != nil {
+		log.Warn("Cannot remove peer: %s", err)
+	}
+
+	if err := clusterConfig.RemoveServer(s); err != nil {
+		log.Warn("Cannot remove peer from cluster config: %s", err)
+	}
+	server.FlushCommitIndex()
+	return nil, nil
 }
 
 type InfluxChangeConnectionStringCommand struct {
