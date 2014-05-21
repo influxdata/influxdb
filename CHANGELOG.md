@@ -9,6 +9,7 @@
 - [Issue #550](https://github.com/influxdb/influxdb/issues/550). Fix tests on 32-bit ARM
 - [Issue #524](https://github.com/influxdb/influxdb/issues/524). Arithmetic operators and where conditions don't play nice together
 - [Issue #561](https://github.com/influxdb/influxdb/issues/561). Fix missing query in parsing errors
+- [Issue #563](https://github.com/influxdb/influxdb/issues/563). Add sample config for graphite over upd
 
 ## v0.6.5 [2014-05-19]
 
