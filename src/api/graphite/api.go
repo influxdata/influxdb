@@ -1,6 +1,6 @@
-// package Graphite provides a tcp listener that you can use to ingest metrics into influxdb
-// via the graphite protocol.
-// it behaves as a carbon daemon, except:
+// package Graphite provides a tcp and/or udp listener that you can
+// use to ingest metrics into influxdb via the graphite protocol.  it
+// behaves as a carbon daemon, except:
 
 // no rounding of timestamps to the nearest interval.  Upon ingestion
 // of multiple datapoints for a given key within the same interval
