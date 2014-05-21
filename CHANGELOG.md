@@ -10,6 +10,7 @@
 - [Issue #524](https://github.com/influxdb/influxdb/issues/524). Arithmetic operators and where conditions don't play nice together
 - [Issue #561](https://github.com/influxdb/influxdb/issues/561). Fix missing query in parsing errors
 - [Issue #563](https://github.com/influxdb/influxdb/issues/563). Add sample config for graphite over udp
+- [Issue #537](https://github.com/influxdb/influxdb/issues/537). Incorrect query syntax causes internal error
 
 ## v0.6.5 [2014-05-19]
 

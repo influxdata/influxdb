@@ -81,6 +81,21 @@ func (self *SingleServerSuite) TestListSeriesAfterDropSeries(c *C) {
 }
 
 // issue #497
+func (self *SingleServerSuite) TestInvalidPercentile(c *C) {
+	client := self.server.GetClient("db1", c)
+	series := &influxdb.Series{
+		Name:    "test_invalid_percentile",
+		Columns: []string{"foo", "bar"},
+		Points: [][]interface{}{
+			[]interface{}{1.0, 2.0},
+		},
+	}
+	c.Assert(client.WriteSeries([]*influxdb.Series{series}), IsNil)
+	_, err := client.Query("select percentile(*,95) from test_invalid_percentile")
+	c.Assert(err, ErrorMatches, ".*wildcard.*")
+}
+
+// issue #497
 func (self *SingleServerSuite) TestInvalidDataWrite(c *C) {
 	client := self.server.GetClient("db1", c)
 	series := &influxdb.Series{

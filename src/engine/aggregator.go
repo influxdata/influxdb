@@ -449,7 +449,6 @@ func NewDerivativeAggregator(q *parser.SelectQuery, v *parser.Value, defaultValu
 	}, nil
 }
 
-
 //
 // Difference Aggregator
 //
@@ -545,7 +544,6 @@ func NewDifferenceAggregator(q *parser.SelectQuery, v *parser.Value, defaultValu
 		alias:        v.Alias,
 	}, nil
 }
-
 
 //
 // Histogram Aggregator
@@ -903,6 +901,11 @@ func NewPercentileAggregator(_ *parser.SelectQuery, value *parser.Value, default
 	if len(value.Elems) != 2 {
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function percentile() requires exactly two arguments")
 	}
+
+	if value.Elems[0].Type == parser.ValueWildcard {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "wildcard cannot be used with percentile")
+	}
+
 	percentile, err := strconv.ParseFloat(value.Elems[1].Name, 64)
 
 	if err != nil || percentile <= 0 || percentile >= 100 {
