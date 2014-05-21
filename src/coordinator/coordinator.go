@@ -66,7 +66,9 @@ func NewCoordinatorImpl(config *configuration.Configuration, raftServer ClusterC
 }
 
 func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
-	log.Info("Query: db: %s, u: %s, q: %s", database, user.GetName(), queryString)
+	defer func(t time.Time) {
+		log.Info("Query: db: %s, u: %s, q: %s, t: %f", database, user.GetName(), queryString, time.Now().Sub(t).Seconds())
+	}(time.Now())
 	// don't let a panic pass beyond RunQuery
 	defer common.RecoverFunc(database, queryString, nil)
 
