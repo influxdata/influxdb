@@ -11,6 +11,7 @@
 - [Issue #561](https://github.com/influxdb/influxdb/issues/561). Fix missing query in parsing errors
 - [Issue #563](https://github.com/influxdb/influxdb/issues/563). Add sample config for graphite over udp
 - [Issue #537](https://github.com/influxdb/influxdb/issues/537). Incorrect query syntax causes internal error
+- [Issue #565](https://github.com/influxdb/influxdb/issues/565). Empty series names shouldn't cause a panic
 
 ## v0.6.5 [2014-05-19]
 

@@ -95,6 +95,19 @@ func (self *SingleServerSuite) TestInvalidPercentile(c *C) {
 	c.Assert(err, ErrorMatches, ".*wildcard.*")
 }
 
+// issue #565
+func (self *SingleServerSuite) TestInvalidSeriesName(c *C) {
+	client := self.server.GetClient("db1", c)
+	series := &influxdb.Series{
+		Name:    "",
+		Columns: []string{"foo", "bar"},
+		Points: [][]interface{}{
+			[]interface{}{1.0, 2.0},
+		},
+	}
+	c.Assert(client.WriteSeries([]*influxdb.Series{series}), ErrorMatches, ".*\\(400\\).*empty.*")
+}
+
 // issue #497
 func (self *SingleServerSuite) TestInvalidDataWrite(c *C) {
 	client := self.server.GetClient("db1", c)

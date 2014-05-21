@@ -641,6 +641,10 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 		series.SortPointsTimeDescending()
 
 		for i := 0; i < len(series.Points); {
+			if len(series.GetName()) == 0 {
+				return fmt.Errorf("Series name cannot be empty")
+			}
+
 			shard, err := self.clusterConfiguration.GetShardToWriteToBySeriesAndTime(db, series.GetName(), series.Points[i].GetTimestamp())
 			if err != nil {
 				return err
