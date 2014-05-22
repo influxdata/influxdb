@@ -368,6 +368,48 @@ func (self *DataTestSuite) RegexMatching(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #112
+func (self *DataTestSuite) SelectFromMultipleSeries(c *C) (Fun, Fun) {
+	return func(client Client) {
+			serieses := CreatePoints("cpu1.load_one", 1, 5)
+			client.WriteData(serieses, c)
+			serieses = CreatePoints("cpu2.load_one", 1, 3)
+			client.WriteData(serieses, c)
+		}, func(client Client) {
+			results := client.RunQuery("select * from cpu1.load_one, cpu2.load_one", c, "m")
+			series := map[string][]map[string]interface{}{}
+			for _, s := range results {
+				series[s.Name] = ToMap(s)
+			}
+			c.Assert(series, HasLen, 2)
+			c.Assert(series["cpu1.load_one"], HasLen, 5)
+			c.Assert(series["cpu2.load_one"], HasLen, 3)
+		}
+}
+
+func (self *DataTestSuite) SelectFromMultipleSeriesWithLimit(c *C) (Fun, Fun) {
+	return func(client Client) {
+			i := 0.0
+			serieses := CreatePointsFromFunc("cpu1.load_one", 1, 5, func(_ int) float64 { i++; return i })
+			client.WriteData(serieses, c)
+			serieses = CreatePointsFromFunc("cpu2.load_one", 1, 3, func(_ int) float64 { i++; return i })
+			client.WriteData(serieses, c)
+		}, func(client Client) {
+			results := client.RunQuery("select * from cpu1.load_one, cpu2.load_one limit 2", c, "m")
+			series := map[string][]map[string]interface{}{}
+			for _, s := range results {
+				series[s.Name] = ToMap(s)
+			}
+			c.Assert(series, HasLen, 2)
+			c.Assert(series["cpu1.load_one"], HasLen, 2)
+			c.Assert(series["cpu2.load_one"], HasLen, 2)
+			c.Assert(series["cpu1.load_one"][0]["column0"], Equals, float64(5.0))
+			c.Assert(series["cpu1.load_one"][1]["column0"], Equals, float64(4.0))
+			c.Assert(series["cpu2.load_one"][0]["column0"], Equals, float64(8.0))
+			c.Assert(series["cpu2.load_one"][1]["column0"], Equals, float64(7.0))
+		}
+}
+
 // issue #392
 func (self *DataTestSuite) DifferentColumnsAcrossShards(c *C) (Fun, Fun) {
 	return func(client Client) {
