@@ -236,7 +236,6 @@ func (self *Server) handleClient(conn net.Conn, wg sync.WaitGroup) {
 				return
 			}
 			log.Error("GraphiteServer:", err)
-			return
 		}
 	}
 }
