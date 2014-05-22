@@ -55,6 +55,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
   drop_series_query*    drop_series_query;
   drop_query*           drop_query;
   groupby_clause*       groupby_clause;
+  table_name_array*     table_name_array;
   struct {
     int limit;
     char ascending;
@@ -94,6 +95,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %type <v>                 BOOL_EXPRESSION
 %type <value_array>       VALUES
 %type <v>                 VALUE TABLE_VALUE SIMPLE_TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE INTO_VALUE INTO_NAME_VALUE
+%type <table_name_array>  SIMPLE_TABLE_VALUES
 %type <v>                 WILDCARD REGEX_VALUE DURATION_VALUE FUNCTION_CALL
 %type <groupby_clause>    GROUP_BY_CLAUSE
 %type <integer>           LIMIT_CLAUSE
@@ -355,6 +357,13 @@ FROM_CLAUSE:
           $$->from_clause_type = FROM_ARRAY;
         }
         |
+        FROM SIMPLE_TABLE_VALUES
+        {
+          $$ = malloc(sizeof(from_clause));
+          $$->names = $2;
+          $$->from_clause_type = FROM_ARRAY;
+        }
+        |
         FROM SIMPLE_TABLE_VALUE
         {
           $$ = malloc(sizeof(from_clause));
@@ -525,6 +534,28 @@ TABLE_VALUE:
 
 SIMPLE_TABLE_VALUE:
         SIMPLE_NAME_VALUE | TABLE_NAME_VALUE
+
+SIMPLE_TABLE_VALUES:
+        SIMPLE_TABLE_VALUE
+        {
+          $$ = malloc(sizeof(table_name_array));
+          $$->size = 1;
+          $$->elems = malloc(sizeof(table_name*));
+          $$->elems[0] = malloc(sizeof(table_name));
+          $$->elems[0]->name = $1;
+          $$->elems[0]->alias = NULL;
+        }
+        |
+        SIMPLE_TABLE_VALUES ',' SIMPLE_TABLE_VALUE
+        {
+          size_t new_size = $1->size + 1;
+          $1->elems = realloc($$->elems, sizeof(table_name*) * new_size);
+          $1->elems[$1->size] = malloc(sizeof(table_name));
+          $1->elems[$1->size]->name = $3;
+          $1->elems[$1->size]->alias = NULL;
+          $1->size = new_size;
+          $$ = $1;
+        }
 
 INTO_VALUE:
         SIMPLE_NAME_VALUE | TABLE_NAME_VALUE | INTO_NAME_VALUE

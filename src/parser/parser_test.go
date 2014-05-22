@@ -2,9 +2,9 @@ package parser
 
 import (
 	"fmt"
+	. "launchpad.net/gocheck"
 	"testing"
 	"time"
-	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -334,6 +334,18 @@ func (self *QueryParserSuite) TestParseSelectWithRegexTables(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Assert(regex.MatchString("USERSFOOBAR"), Equals, false)
 	c.Assert(regex.MatchString("usersfoobar"), Equals, true)
+}
+
+func (self *QueryParserSuite) TestParseSelectWithMultipleTables(c *C) {
+	q, err := ParseSelectQuery("select email from first_series, second_series, third_series where time>now()-2d;")
+	c.Assert(err, IsNil)
+
+	fromClause := q.GetFromClause()
+	c.Assert(fromClause.Type, Equals, FromClauseArray)
+	c.Assert(fromClause.Names, HasLen, 3)
+	c.Assert(fromClause.Names[0].Name.Name, Equals, "first_series")
+	c.Assert(fromClause.Names[1].Name.Name, Equals, "second_series")
+	c.Assert(fromClause.Names[2].Name.Name, Equals, "third_series")
 }
 
 func (self *QueryParserSuite) TestMergeFromClause(c *C) {
