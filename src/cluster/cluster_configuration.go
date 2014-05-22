@@ -691,7 +691,7 @@ func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series st
 	if hasRandomSplit && splitRegex.MatchString(series) {
 		return matchingShards[self.random.Intn(len(matchingShards))], nil
 	}
-	index := self.HashDbAndSeriesToInt(db, series)
+	index := HashDbAndSeriesToInt(db, series)
 	index = index % len(matchingShards)
 	return matchingShards[index], nil
 }
@@ -841,7 +841,7 @@ func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*S
 	return shards[startIndex : endIndex+startIndex]
 }
 
-func (self *ClusterConfiguration) HashDbAndSeriesToInt(database, series string) int {
+func HashDbAndSeriesToInt(database, series string) int {
 	hasher := sha1.New()
 	hasher.Write([]byte(fmt.Sprintf("%s%s", database, series)))
 	buf := bytes.NewBuffer(hasher.Sum(nil))
