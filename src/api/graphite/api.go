@@ -198,10 +198,12 @@ CommitLoop:
 				if series, seen := to_commit[record.Name]; seen {
 					series.Points = append(series.Points, record.Point)
 				} else {
+					points := make([]*protocol.Point, 1, 1)
+					points[0] = record.Point
 					to_commit[record.Name] = &protocol.Series{
 						Name:   &record.Name,
 						Fields: []string{"value"},
-						Points: make([]*protocol.Point, 0),
+						Points: points,
 					}
 				}
 			}
