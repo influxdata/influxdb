@@ -166,6 +166,9 @@ func (self *Server) committer() {
 	// up to about 1MiB of data, at 24B per record -> 43690 records, let's make it an even 40k
 
 	commit := func(to_commit map[string]*protocol.Series) {
+		if len(to_commit) == 0 {
+			return
+		}
 		commit_payload := make([]*protocol.Series, len(to_commit))
 		for _, serie := range to_commit {
 			commit_payload = append(commit_payload, serie)
