@@ -636,6 +636,17 @@ func (self *LevelDbShard) createIdForDbSeriesColumn(db, series, column *string) 
 		return
 	}
 
+	self.columnIdMutex.Lock()
+	defer self.columnIdMutex.Unlock()
+	ret, err = self.getIdForDbSeriesColumn(db, series, column)
+	if err != nil {
+		return
+	}
+
+	if ret != nil {
+		return
+	}
+
 	ret, err = self.getNextIdForColumn(db, series, column)
 	if err != nil {
 		return
@@ -658,8 +669,6 @@ func (self *LevelDbShard) getIdForDbSeriesColumn(db, series, column *string) (re
 }
 
 func (self *LevelDbShard) getNextIdForColumn(db, series, column *string) (ret []byte, err error) {
-	self.columnIdMutex.Lock()
-	defer self.columnIdMutex.Unlock()
 	id := self.lastIdUsed + 1
 	self.lastIdUsed += 1
 	idBytes := make([]byte, 8, 8)

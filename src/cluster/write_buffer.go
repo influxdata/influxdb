@@ -58,6 +58,7 @@ func (self *WriteBuffer) Write(request *protocol.Request) {
 	self.shardLastRequestNumber[request.GetShardId()] = request.GetRequestNumber()
 	select {
 	case self.writes <- request:
+		log.Debug("Buffering %d:%d for %s", request.GetRequestNumber(), request.GetShardId(), self.writerInfo)
 		return
 	default:
 		select {
@@ -92,6 +93,7 @@ func (self *WriteBuffer) write(request *protocol.Request) {
 			}
 
 			self.shardCommitedRequestNumber[request.GetShardId()] = *requestNumber
+			log.Debug("Commiting %d:%d for %s", request.GetRequestNumber(), request.GetShardId(), self.writerInfo)
 			self.wal.Commit(*requestNumber, self.serverId)
 			return
 		}

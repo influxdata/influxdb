@@ -12,6 +12,9 @@
 - [Issue #565](https://github.com/influxdb/influxdb/issues/565). Empty series names shouldn't cause a panic
 - [Issue #575](https://github.com/influxdb/influxdb/issues/575). Single point select doesn't interpret timestamps correctly
 - [Issue #576](https://github.com/influxdb/influxdb/issues/576). We shouldn't set timestamps and sequence numbers when listing cq
+- [Issue #502](https://github.com/influxdb/influxdb/issues/502). Fix a
+  race condition in assigning id to db+series+field (Thanks @ohurvitz
+  for reporting this bug and providing a script to repro)
 
 ### Features
 
