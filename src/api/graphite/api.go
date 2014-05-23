@@ -170,9 +170,12 @@ func (self *Server) committer() {
 			return
 		}
 		commit_payload := make([]*protocol.Series, len(to_commit))
+		i := 0
 		for _, serie := range to_commit {
-			commit_payload = append(commit_payload, serie)
+			commit_payload[i] = serie
+			i++
 		}
+		log.Debug("GraphiteServer committing %d series", len(to_commit))
 		err := self.coordinator.WriteSeriesData(self.user, self.database, commit_payload)
 		if err != nil {
 			switch err.(type) {
