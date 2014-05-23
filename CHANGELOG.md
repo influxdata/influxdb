@@ -15,7 +15,7 @@
 
 ### Features
 
-- [Issue #567](https://github.com/influxdb/influxdb/issues/567). Allow selecting from multiple series names by separating them with commas
+- [Issue #567](https://github.com/influxdb/influxdb/issues/567). Allow selecting from multiple series names by separating them with commas (Thanks, @peekeri)
 
 ### Deprecated
 
