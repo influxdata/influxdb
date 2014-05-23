@@ -411,8 +411,7 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 				return condition, nil, nil
 			}
 		case "=":
-			microseconds, err := parseTime(timeExpression)
-			nanoseconds := microseconds * 1000
+			nanoseconds, err := parseTime(timeExpression)
 			if err != nil {
 				return nil, nil, err
 			}

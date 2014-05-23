@@ -3,54 +3,59 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"protocol"
-	"strconv"
-	"strings"
+
 	"time"
-	"unicode"
 )
 
 // Returns the parsed duration in nanoseconds, support 'u', 's', 'm',
 // 'h', 'd' and 'w' suffixes.
 func ParseTimeDuration(value string) (int64, error) {
-	// shortcut for nanoseconds
-	if idx := strings.IndexFunc(value, func(r rune) bool { return !unicode.IsNumber(r) }); idx == -1 {
-		return strconv.ParseInt(value, 10, 64)
+	var constant time.Duration
+	hasPrefix := true
+
+	switch value[len(value)-1] {
+	case 'u':
+		constant = time.Microsecond
+	case 's':
+		constant = time.Second
+	case 'm':
+		constant = time.Minute
+	case 'h':
+		constant = time.Hour
+	case 'd':
+		constant = 24 * time.Hour
+	case 'w':
+		constant = 7 * 24 * time.Hour
+	case 'y':
+		constant = 365 * 24 * time.Hour
+	default:
+		hasPrefix = false
 	}
 
-	parsedFloat, err := strconv.ParseFloat(value[:len(value)-1], 64)
+	t := big.Rat{}
+	timeString := value
+	if hasPrefix {
+		timeString = value[:len(value)-1]
+	}
+
+	_, err := fmt.Sscan(timeString, &t)
 	if err != nil {
 		return 0, err
 	}
 
-	switch value[len(value)-1] {
-	case 'u':
-		return int64(parsedFloat * float64(time.Microsecond)), nil
-	case 's':
-		return int64(parsedFloat * float64(time.Second)), nil
-	case 'm':
-		return int64(parsedFloat * float64(time.Minute)), nil
-	case 'h':
-		return int64(parsedFloat * float64(time.Hour)), nil
-	case 'd':
-		return int64(parsedFloat * 24 * float64(time.Hour)), nil
-	case 'w':
-		return int64(parsedFloat * 7 * 24 * float64(time.Hour)), nil
-	case 'y':
-		return int64(parsedFloat * 365 * 24 * float64(time.Hour)), nil
+	if hasPrefix {
+		c := big.Rat{}
+		c.SetFrac64(int64(constant), 1)
+		t.Mul(&t, &c)
 	}
-
-	lastChar := value[len(value)-1]
-	if !unicode.IsDigit(rune(lastChar)) && lastChar != '.' {
-		return 0, fmt.Errorf("Invalid character '%c'", lastChar)
+	if t.IsInt() {
+		return t.Num().Int64(), nil
 	}
-
-	if value[len(value)-2] != '.' {
-		extraDigit := float64(lastChar - '0')
-		parsedFloat = parsedFloat*10 + extraDigit
-	}
-	return int64(parsedFloat), nil
+	f, _ := t.Float64()
+	return int64(f), nil
 }
 
 func GetFileSize(path string) (int64, error) {
