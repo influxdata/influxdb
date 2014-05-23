@@ -24,9 +24,10 @@ func (self *GraphiteMetric) Read(reader *bufio.Reader) error {
 		if err != io.EOF {
 			return fmt.Errorf("GraphiteServer: connection closed uncleanly/broken: %s\n", err.Error())
 		}
-		if err == io.EOF && str == "" {
+		if str == "" {
 			return err
 		}
+		// else we got EOF but also data, so just try to process it as valid data
 	}
 	elements := strings.Split(str, " ")
 	if len(elements) != 3 {

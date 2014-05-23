@@ -59,7 +59,8 @@ const commit_max_wait = 100 * time.Millisecond
 
 // the write commit payload should get written in a timely fashion.
 // if not, the channel that feeds the committer will queue up to max_queue series, and then
-// block, creating backpressure to the client.
+// block, creating backpressure to the client.  This allows to keep receiving metrics while
+// a flush is ongoing, but not much more than we can actually handle.
 const max_queue = 20000
 
 // TODO: check that database exists and create it if not
@@ -177,10 +178,10 @@ func (self *Server) committer() {
 				self.getAuth()
 				err = self.coordinator.WriteSeriesData(self.user, self.database, commit_payload)
 				if err != nil {
-					log.Warn("GraphiteServer: failed to write series after getting new auth: %s\n", err.Error())
+					log.Warn("GraphiteServer: failed to write %d series after getting new auth: %s\n", len(to_commit), err.Error())
 				}
 			default:
-				log.Warn("GraphiteServer: failed write series: %s\n", err.Error())
+				log.Warn("GraphiteServer: failed write %d series: %s\n", len(to_commit), err.Error())
 			}
 		}
 	}
