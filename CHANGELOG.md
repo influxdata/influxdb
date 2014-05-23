@@ -11,7 +11,8 @@
 - [Issue #537](https://github.com/influxdb/influxdb/issues/537). Incorrect query syntax causes internal error
 - [Issue #565](https://github.com/influxdb/influxdb/issues/565). Empty series names shouldn't cause a panic
 - [Issue #575](https://github.com/influxdb/influxdb/issues/575). Single point select doesn't interpret timestamps correctly
-- [Issue #576](https://github.com/influxdb/influxdb/issues/576). We shouldn't set timestamps and sequence numbers when listing cq
+g- [Issue #576](https://github.com/influxdb/influxdb/issues/576). We shouldn't set timestamps and sequence numbers when listing cq
+- [Issue #560](https://github.com/influxdb/influxdb/issues/560). Use /dev/urandom instead of /dev/random
 - [Issue #502](https://github.com/influxdb/influxdb/issues/502). Fix a
   race condition in assigning id to db+series+field (Thanks @ohurvitz
   for reporting this bug and providing a script to repro)
