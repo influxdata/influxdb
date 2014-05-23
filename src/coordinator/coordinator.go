@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	log "code.google.com/p/log4go"
 )
@@ -733,15 +732,11 @@ func (self *CoordinatorImpl) ListContinuousQueries(user common.User, db string) 
 	for _, query := range queries {
 		queryId := int64(query.Id)
 		queryString := query.Query
-		timestamp := time.Now().Unix()
-		sequenceNumber := uint64(1)
 		points = append(points, &protocol.Point{
 			Values: []*protocol.FieldValue{
 				&protocol.FieldValue{Int64Value: &queryId},
 				&protocol.FieldValue{StringValue: &queryString},
 			},
-			Timestamp:      &timestamp,
-			SequenceNumber: &sequenceNumber,
 		})
 	}
 	seriesName := "continuous queries"
