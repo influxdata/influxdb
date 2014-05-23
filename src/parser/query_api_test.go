@@ -226,7 +226,7 @@ func (self *QueryApiSuite) TestGetStartTimeWithOr(c *C) {
 func (self *QueryApiSuite) TestErrorInStartTime(c *C) {
 	queriesAndErrors := map[string]string{
 		"select * from t where time > now() * 1d and time < now() - 1h;": ".*'\\*'.*",
-		"select * from t where time > blah * 1d and time < now() - 1h;":  ".*strconv.ParseFloat.*",
+		"select * from t where time > blah * 1d and time < now() - 1h;":  ".*invalid syntax.*",
 		"select * from t where time = now() * 1d and time < now() - 1h;": ".*Cannot use '\\*' in a time expression.*",
 		"select * from t where time > now() - 1d or time > now() - 1h;":  ".*Invalid where.*",
 		"select * from t where time > foo() - 1d or time > now() - 1h;":  ".*Invalid use of function foo.*",
