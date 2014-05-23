@@ -10,6 +10,8 @@
 - [Issue #563](https://github.com/influxdb/influxdb/issues/563). Add sample config for graphite over udp
 - [Issue #537](https://github.com/influxdb/influxdb/issues/537). Incorrect query syntax causes internal error
 - [Issue #565](https://github.com/influxdb/influxdb/issues/565). Empty series names shouldn't cause a panic
+- [Issue #575](https://github.com/influxdb/influxdb/issues/575). Single point select doesn't interpret timestamps correctly
+- [Issue #576](https://github.com/influxdb/influxdb/issues/576). We shouldn't set timestamps and sequence numbers when listing cq
 
 ### Deprecated
 
