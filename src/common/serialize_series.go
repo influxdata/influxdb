@@ -150,18 +150,25 @@ func SerializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 
 		points := [][]interface{}{}
 		for _, row := range series.Points {
-			timestamp := *row.GetTimestampInMicroseconds()
-			switch precision {
-			case SecondPrecision:
-				timestamp /= 1000
-				fallthrough
-			case MillisecondPrecision:
-				timestamp /= 1000
+			timestamp := int64(0)
+			if t := row.Timestamp; t != nil {
+				timestamp = *row.GetTimestampInMicroseconds()
+				switch precision {
+				case SecondPrecision:
+					timestamp /= 1000
+					fallthrough
+				case MillisecondPrecision:
+					timestamp /= 1000
+				}
 			}
 
 			rowValues := []interface{}{timestamp}
+			s := uint64(0)
 			if includeSequenceNumber {
-				rowValues = append(rowValues, *row.SequenceNumber)
+				if row.SequenceNumber != nil {
+					s = row.GetSequenceNumber()
+				}
+				rowValues = append(rowValues, s)
 			}
 			for _, value := range row.Values {
 				if value == nil {
