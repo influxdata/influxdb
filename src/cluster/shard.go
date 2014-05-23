@@ -305,7 +305,11 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 		log.Error(message)
 		return
 	}
-	randServerIndex := int(time.Now().UnixNano() % int64(healthyCount))
+
+	randServerIndex := 0
+	if healthyCount > 1 {
+		randServerIndex = int(time.Now().UnixNano() % int64(healthyCount))
+	}
 	server := healthyServers[randServerIndex]
 	log.Debug("Querying server %d for shard %d", server.GetId(), self.Id())
 	request := self.createRequest(querySpec)
