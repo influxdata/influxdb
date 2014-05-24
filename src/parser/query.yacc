@@ -515,6 +515,12 @@ VALUE:
           $$ = $2;
         }
         |
+        '(' VALUE ')' AS SIMPLE_NAME
+        {
+          $$ = $2;
+          $$->alias = $5;
+        }
+        |
         FUNCTION_CALL AS SIMPLE_NAME
         {
           $$ = $1;

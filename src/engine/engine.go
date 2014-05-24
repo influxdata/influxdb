@@ -615,7 +615,11 @@ func (self *QueryEngine) executeArithmeticQuery(query *parser.SelectQuery, yield
 		case parser.ValueFunctionCall:
 			names[v.Name] = v
 		case parser.ValueExpression:
-			names["expr"+strconv.Itoa(idx)] = v
+			if v.Alias != "" {
+				names[v.Alias] = v
+			} else {
+				names["expr"+strconv.Itoa(idx)] = v
+			}
 		}
 	}
 
