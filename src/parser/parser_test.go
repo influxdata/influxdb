@@ -930,6 +930,33 @@ func (self *QueryParserSuite) TestQueryErrorShouldHaveQueryString(c *C) {
 	c.Assert(e.queryString, Equals, query)
 }
 
+// For issue #496 - parentheses value should support alias https://github.com/influxdb/influxdb/issues/496
+func (self *QueryParserSuite) TestQueryParenthesesValueShouldSupportAlias(c *C) {
+	query := "select (1 + 2) as arithmetic_result from foo;"
+	q, err := ParseSelectQuery(query)
+
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), HasLen, 1)
+	column := q.GetColumnNames()[0]
+	c.Assert(column.Elems, HasLen, 2)
+	c.Assert(column.Alias, Equals, "arithmetic_result")
+}
+
+func (self *QueryParserSuite) TestQueryParenthesesValueShouldSupportAliases(c *C) {
+	query := "select (1 + 2) as arithmetic_result, (3 + 4) as arithmetic_result2 from foo;"
+	q, err := ParseSelectQuery(query)
+
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), HasLen, 2)
+	column := q.GetColumnNames()[0]
+	c.Assert(column.Elems, HasLen, 2)
+	c.Assert(column.Alias, Equals, "arithmetic_result")
+
+	column2 := q.GetColumnNames()[1]
+	c.Assert(column2.Elems, HasLen, 2)
+	c.Assert(column2.Alias, Equals, "arithmetic_result2")
+}
+
 // TODO:
 // insert into user.events.count.per_day select count(*) from user.events where time<forever group by time(1d)
 // insert into :series_name.percentiles.95 select percentile(95,value) from stats.* where time<forever group by time(1d)
