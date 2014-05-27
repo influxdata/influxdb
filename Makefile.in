@@ -243,7 +243,7 @@ protobuf: $(root)/bin/protoc-gen-go
 	rm -f api/tcp/*.pb.go
 	PATH=$(roolt)/bin:$$PATH $(PROTOC) --go_out=. api/tcp/*.proto
 	# Adjust import package name
-	bash -c "sed -i '' -e 's/protocol\/protocol\.pb/github.com\/influxdb\/influxdb\/protocol/' api/tcp/*.pb.go"
+	bash -c "sed -i -e 's/protocol\/protocol\.pb/github.com\/influxdb\/influxdb\/protocol/' api/tcp/*.pb.go"
 
 build: | dependencies protobuf parser build_version_string
 # TODO: build all packages, otherwise we won't know
