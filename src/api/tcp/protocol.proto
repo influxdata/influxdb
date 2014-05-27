@@ -1,0 +1,107 @@
+package tcp;
+
+import "src/protocol/protocol.proto";
+
+message Account {
+	optional bytes name = 1;
+	optional bytes password = 2;
+	enum AccountType {
+		CLUSTER_ADMIN = 1;
+		DB_USER = 2;
+	}
+	optional AccountType type = 3;
+}
+
+message Greeting {
+	enum GreetingType {
+		HELO  = 1;
+		RHELO = 2;
+		ACK   = 3;
+		DENY  = 4;
+	}
+	optional uint32 sequence = 1;
+	optional GreetingType type = 2;
+	optional int32 protocol_version = 3;
+
+	optional bytes agent = 4;
+
+	optional Account account = 5;
+	optional bytes database = 6;
+
+	message Configuration {
+		enum AuthenticationMethod {
+			PLAIN = 0;
+			HASH_MASK = 1;
+		}
+		enum CompressType {
+			NONE = 0;
+			SNAPPY = 1;
+			GZIP = 2;
+		}
+		optional CompressType compress_type = 1;
+		optional AuthenticationMethod authentication_method = 2;
+	}
+	optional Configuration config = 7;
+
+	optional bytes reason = 999;
+}
+
+message Command {
+	// this makes easy to debug.
+	optional uint32 sequence = 1;
+
+	enum CommandType {
+		WRITESERIES    = 1;
+		CHANGEDATABASE = 2;
+		QUERY          = 3;
+		CREATEDATABASE = 4;
+		DROPDATABASE   = 5;
+		LISTDATABASE   = 6;
+		CLOSE          = 7;
+		PING           = 8;
+		RESET          = 9;
+		UNKNOWN        = 999;
+	}
+	optional CommandType type = 2;
+
+	// this means the message comes from server.
+	enum CommandResult {
+		OK       = 1;
+		SOFTFAIL = 2;
+		FAIL     = 3;
+	}
+	optional CommandResult result = 3;
+
+	// response has more messages. please read more.
+	optional bool continue = 4;
+
+	// [Conbinations]
+	//   CHANGEDATABASE, CREATEDATABASE, DROPDATABASE, LISTDATABASE
+	message Database {
+		// CHANGEDATABASE only accepts one name.
+		repeated string name = 1;
+	}
+	optional Database database = 5;
+
+	// [Combinations]
+	//   WRITESERIES
+	message Series {
+		repeated protocol.Series series = 1;
+		optional bytes time_precision = 2 [default = "ms"];
+	}
+	optional Series series = 6;
+
+	// [Combinations]
+	//   QUERY
+	message Query {
+		optional bytes query = 1;
+
+		// set from serer
+		optional int64 count = 2;
+		optional Series series = 3;
+	}
+	optional Query query = 7;
+
+	// put error message here.
+	optional bytes reason = 999;
+}
