@@ -9,6 +9,8 @@ import (
 	"parser"
 	"code.google.com/p/goprotobuf/proto"
 	"errors"
+	log "code.google.com/p/log4go"
+
 )
 
 type RequestHandler struct {
@@ -178,13 +180,8 @@ func (self *RequestHandler) ResetConnection(conn *Connection, request *Command) 
 }
 
 func (self *RequestHandler) HandleRequest(conn *Connection) error {
-	err := conn.ReadBuffer()
-	if err != nil {
-		return err
-	}
-
 	request := &Command{}
-	err = proto.Unmarshal(conn.Buffer.ReadBuffer.Bytes(), request)
+	err := conn.ReadMessage(request)
 	if err != nil {
 		return err
 	}
@@ -223,7 +220,8 @@ func (self *RequestHandler) HandleRequest(conn *Connection) error {
 		}
 	} else {
 		// Not Supported Command
-		self.sendErrorMessage(conn, Command_UNKNOWN, "Unsupported operation received")
+		self.sendErrorMessage(conn, Command_UNKNOWN, "Unsupported operation received (illegal message)")
+		log.Debug("Unsupported operation received (illegal message): %+v", *request)
 	}
 
 	return nil

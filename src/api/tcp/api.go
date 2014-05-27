@@ -60,7 +60,10 @@ func (self *Server) SendErrorMessage(conn *Connection, t Command_CommandType, me
 }
 
 func (self *Server) handleRequest(conn *Connection) error {
-	return self.RequestHandler.HandleRequest(conn)
+	err := self.RequestHandler.HandleRequest(conn)
+	log.Debug("E: %+v", err)
+	conn.IncrementSequence()
+	return err
 }
 
 func getVersion() []byte {
@@ -163,12 +166,14 @@ func (self *Server) HandleConnection(conn *Connection) {
 			return;
 		}
 
+		log.Debug("getting in main loop")
 		for {
 			log.Debug("handle Request: %+v", *conn)
 			err := self.handleRequest(conn)
-			conn.IncrementSequence()
 			if err != nil {
+				log.Debug("Error: %s", err)
 				if _, ok := err.(*ConnectionError); ok {
+					log.Debug("ConnectionError")
 					// okay, connection was finished by client.
 					return
 				} else if _, ok := err.(*ConnectionResetError); ok {
@@ -181,6 +186,7 @@ func (self *Server) HandleConnection(conn *Connection) {
 				conn.Close()
 				return
 			}
+
 			if !conn.IsAlived() {
 				return
 			}

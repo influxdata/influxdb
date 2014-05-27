@@ -112,7 +112,7 @@ func (self *Connection) IsAlived() bool {
 	return self.Socket != nil
 }
 
-func (self *Connection) ReadBuffer() (error) {
+func (self *Connection) readBuffer() (error) {
 	var messageSizeU uint32
 	var err error
 
@@ -132,7 +132,7 @@ func (self *Connection) ReadBuffer() (error) {
 }
 
 func (self *Connection) ReadMessage(message interface{}) error {
-	err := self.ReadBuffer()
+	err := self.readBuffer()
 	if err != nil {
 		return err
 	}
