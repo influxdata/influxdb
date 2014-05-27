@@ -18,6 +18,22 @@ const (
 	STATE_AUTHENTICATED State = 2
 )
 
+type ConnectionError struct {
+	s string
+}
+
+func (e *ConnectionError) Error() string {
+	return e.s
+}
+
+type ConnectionResetError struct {
+	s string
+}
+
+func (e *ConnectionResetError) Error() string {
+	return e.s
+}
+
 type State int32
 
 type Buffer struct {
@@ -40,6 +56,16 @@ type Connection struct {
 	Ticker *time.Ticker
 	Connected time.Time
 	yield func(conn *Connection, time time.Time)
+}
+
+func (self *Connection) ResetState() {
+	self.Buffer.ReadBuffer.Reset()
+	self.Buffer.WriteBuffer.Reset()
+	self.Sequence = 0
+	self.Database = ""
+	self.User = nil
+	self.AccountType = 0
+	self.State = STATE_INITIALIZED
 }
 
 func NewConnection(socket net.Conn, yield func(conn *Connection, time time.Time)) *Connection {
@@ -74,6 +100,14 @@ func (self *Connection) IncrementSequence() {
 	self.Sequence++
 }
 
+func (self *Connection) SetSequenceFromMessage(message interface{}) {
+	if req, ok := message.(*Greeting); ok {
+		self.Sequence = req.GetSequence()
+	} else if req, ok := message.(*Command); ok {
+		self.Sequence = req.GetSequence()
+	}
+}
+
 func (self *Connection) IsAlived() bool {
 	return self.Socket != nil
 }
@@ -94,6 +128,22 @@ func (self *Connection) ReadBuffer() (error) {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (self *Connection) ReadMessage(message interface{}) error {
+	err := self.ReadBuffer()
+	if err != nil {
+		return err
+	}
+
+	if greet, ok := message.(*Greeting); ok {
+		err = proto.Unmarshal(self.Buffer.ReadBuffer.Bytes(), greet)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

@@ -172,6 +172,11 @@ func (self *RequestHandler) CloseConnection(conn *Connection, request *Command) 
 	return &ConnectionError{s: "closing connection"}
 }
 
+func (self *RequestHandler) ResetConnection(conn *Connection, request *Command) error {
+	conn.ResetState()
+	return &ConnectionResetError{s: "reset request"}
+}
+
 func (self *RequestHandler) HandleRequest(conn *Connection) error {
 	err := conn.ReadBuffer()
 	if err != nil {
@@ -209,6 +214,9 @@ func (self *RequestHandler) HandleRequest(conn *Connection) error {
 			break
 		case Command_WRITESERIES:
 			return self.WriteSeries(conn, request)
+			break
+		case Command_RESET:
+			return self.ResetConnection(conn, request)
 			break
 		default:
 			self.sendErrorMessage(conn, Command_UNKNOWN, "Unsupported operation received")

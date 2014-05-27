@@ -69,6 +69,43 @@ func getVersion() []byte {
 	return []byte(version)
 }
 
+func (self *Server) authenticate(conn *Connection, rhelo *Greeting) error {
+	var u User
+	var e error
+	var t Account_AccountType
+
+	db   := string(rhelo.GetDatabase())
+	user := string(rhelo.GetAccount().GetName())
+	pass := string(rhelo.GetAccount().GetPassword())
+
+	if db != "" {
+		u, e = self.UserManager.AuthenticateDbUser(db, user, pass)
+		if e != nil {
+			u, e = self.UserManager.AuthenticateClusterAdmin(user, pass)
+			if e != nil {
+				return e
+			}
+			t = Account_CLUSTER_ADMIN
+		} else {
+			t = Account_DB_USER
+		}
+		conn.State = STATE_AUTHENTICATED
+	} else {
+		u, e = self.UserManager.AuthenticateClusterAdmin(user, pass)
+		if e != nil {
+			return e
+		}
+
+		t = Account_CLUSTER_ADMIN
+		conn.State = STATE_AUTHENTICATED
+	}
+
+	conn.User = u
+	conn.AccountType = t
+	conn.SetSequenceFromMessage(rhelo)
+
+	return nil
+}
 
 func (self *Server) handshake(conn *Connection) error {
 	var err error
@@ -80,71 +117,27 @@ func (self *Server) handshake(conn *Connection) error {
 		Agent: getVersion(),
 		Sequence: proto.Uint32(conn.Sequence),
 	}
-
 	conn.WriteRequest(req)
 	conn.IncrementSequence()
 
 	// Wait Response
-	err = conn.ReadBuffer()
+	rhelo := &Greeting{}
+	err = conn.ReadMessage(rhelo)
 	if err != nil {
 		return err
 	}
 
-	resp := &Greeting{}
-	err = proto.Unmarshal(conn.Buffer.ReadBuffer.Bytes(), resp)
+	err = self.authenticate(conn, rhelo)
 	if err != nil {
 		return err
 	}
-
-	// Authenticate
-	var u User
-	var e error
-	var t Account_AccountType
-	db   := string(resp.GetDatabase())
-	user := string(resp.GetAccount().GetName())
-	pass := string(resp.GetAccount().GetPassword())
-
-	if db != "" {
-		u, e = self.UserManager.AuthenticateDbUser(db, user, pass)
-		if e != nil {
-			u, e = self.UserManager.AuthenticateClusterAdmin(user, pass)
-			if e != nil {
-				gtype = Greeting_DENY
-				conn.WriteRequest(&Greeting{
-					Type: &gtype,
-					Sequence: proto.Uint32(conn.Sequence),
-				})
-				return err
-			}
-			t = Account_CLUSTER_ADMIN
-		} else {
-			t = Account_DB_USER
-		}
-		conn.State = STATE_AUTHENTICATED
-	} else {
-		u, e = self.UserManager.AuthenticateClusterAdmin(user, pass)
-		if e != nil {
-			gtype = Greeting_DENY
-			conn.WriteRequest(&Greeting{
-				Type: &gtype,
-				Sequence: proto.Uint32(conn.Sequence),
-			})
-			return err
-		}
-
-		t = Account_CLUSTER_ADMIN
-		conn.State = STATE_AUTHENTICATED
-	}
-	conn.User = u
-	conn.AccountType = t
-	conn.IncrementSequence()
 
 	// Ack Response
 	gtype = Greeting_ACK
 	conn.WriteRequest(&Greeting{
 		Type: &gtype,
 		Account: &Account{
-			Type: &t,
+			Type: &conn.AccountType,
 		},
 		Sequence: proto.Uint32(conn.Sequence),
 	})
@@ -153,45 +146,44 @@ func (self *Server) handshake(conn *Connection) error {
 	return nil
 }
 
-type ConnectionError struct {
-	s string
-}
-
-func (e *ConnectionError) Error() string {
-	return e.s
-}
-
 func (self *Server) HandleConnection(conn *Connection) {
 	log.Info("Experimental ProtobufServer: client connected: %s", conn.Address.String())
 
-	err := self.handshake(conn)
-	if err != nil {
-		log.Error("handshake Failed: ", err)
-		conn.Close()
-		return;
-	}
-
-	if conn.State == STATE_INITIALIZED {
-		log.Error("Should not arrived here.")
-		conn.Close()
-		return
-	}
-
 	for {
-		log.Debug("handle Request: %+v", *conn)
-		err := self.handleRequest(conn)
-		conn.IncrementSequence()
-		if err != nil {
-			if _, ok := err.(*ConnectionError); ok {
-				// okay, connection was finished by client
+		log.Debug("Beginning handshake")
+		err := self.handshake(conn)
+		if err != nil || conn.State == STATE_INITIALIZED {
+			gtype := Greeting_DENY
+			conn.WriteRequest(&Greeting{
+				Type: &gtype,
+				Sequence: proto.Uint32(conn.Sequence),
+			})
+			log.Error("handshake Failed: ", err)
+			conn.Close()
+			return;
+		}
+
+		for {
+			log.Debug("handle Request: %+v", *conn)
+			err := self.handleRequest(conn)
+			conn.IncrementSequence()
+			if err != nil {
+				if _, ok := err.(*ConnectionError); ok {
+					// okay, connection was finished by client.
+					return
+				} else if _, ok := err.(*ConnectionResetError); ok {
+					// break current loop.
+					log.Debug("Reset Request")
+					break;
+				}
+
+				log.Debug("Error: closing connection: %s", err)
+				conn.Close()
 				return
 			}
-			log.Debug("Error, closing connection: %s", err)
-			conn.Close()
-			return
-		}
-		if !conn.IsAlived() {
-			return
+			if !conn.IsAlived() {
+				return
+			}
 		}
 	}
 }
