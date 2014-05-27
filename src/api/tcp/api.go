@@ -61,7 +61,6 @@ func (self *Server) SendErrorMessage(conn *Connection, t Command_CommandType, me
 
 func (self *Server) handleRequest(conn *Connection) error {
 	err := self.RequestHandler.HandleRequest(conn)
-	log.Debug("E: %+v", err)
 	conn.IncrementSequence()
 	return err
 }
@@ -153,7 +152,6 @@ func (self *Server) HandleConnection(conn *Connection) {
 	log.Info("Experimental ProtobufServer: client connected: %s", conn.Address.String())
 
 	for {
-		log.Debug("Beginning handshake")
 		err := self.handshake(conn)
 		if err != nil || conn.State == STATE_INITIALIZED {
 			gtype := Greeting_DENY
@@ -166,9 +164,9 @@ func (self *Server) HandleConnection(conn *Connection) {
 			return;
 		}
 
-		log.Debug("getting in main loop")
 		for {
 			log.Debug("handle Request: %+v", *conn)
+
 			err := self.handleRequest(conn)
 			if err != nil {
 				log.Debug("Error: %s", err)

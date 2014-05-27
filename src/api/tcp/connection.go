@@ -142,6 +142,11 @@ func (self *Connection) ReadMessage(message interface{}) error {
 		if err != nil {
 			return err
 		}
+	} else if command, ok := message.(*Command); ok {
+		err = proto.Unmarshal(self.Buffer.ReadBuffer.Bytes(), command)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
