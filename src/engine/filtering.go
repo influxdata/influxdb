@@ -160,8 +160,6 @@ func Filter(query *parser.SelectQuery, series *protocol.Series) (*protocol.Serie
 		}
 
 		if ok {
-			fmt.Printf("columns: %v, fields: %v\n", columns, series.Fields)
-
 			filterColumns(columns, series.Fields, point)
 			series.Points = append(series.Points, point)
 		}
