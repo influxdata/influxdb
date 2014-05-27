@@ -26,6 +26,7 @@ parser/lex.yy.c
 parser/y.tab.h
 parser/y.tab.c
 protocol/protocol.pb.go
+api/tcp/protocol.pb.go
 build/
 
 # executables
