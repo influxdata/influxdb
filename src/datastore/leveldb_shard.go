@@ -86,7 +86,7 @@ func (self *LevelDbShard) Write(database string, series []*protocol.Series) erro
 				binary.Write(keyBuffer, binary.BigEndian, point.SequenceNumber)
 				pointKey := keyBuffer.Bytes()
 
-				if point.Values[fieldIndex].GetIsNull() {
+				if len(point.Values)-1 < fieldIndex || point.Values[fieldIndex].GetIsNull() {
 					wb.Delete(pointKey)
 					goto check
 				}
