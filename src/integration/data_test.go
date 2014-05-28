@@ -207,6 +207,31 @@ func (self *DataTestSuite) DifferenceGroupValues(c *C) (Fun, Fun) {
 		}
 }
 
+// issue 578
+func (self *DataTestSuite) ParanthesesAlias(c *C) (Fun, Fun) {
+	// make sure we exceed the pointBatchSize, so we force a yield to
+	// the filtering engine
+	return func(client Client) {
+			data := `
+[
+  {
+	"points": [
+	[  0.0, 1.0]
+	],
+	"name": "test_parantheses_aliasing",
+	"columns": ["value", "one"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select (value + one) as value_plus_one from test_parantheses_aliasing", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["value_plus_one"], Equals, 1.0)
+		}
+}
+
 // Difference and group by function using a time where clause with an interval which is equal to the time of the points
 // FIXME: This test still fails. For this case the group by function should include points with the end time for each bucket.
 //func (self *DataTestSuite) DifferenceGroupSameTimeValues(c *C) (Fun, Fun) {
