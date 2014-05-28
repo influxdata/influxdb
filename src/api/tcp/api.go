@@ -104,6 +104,7 @@ func (self *Server) authenticate(conn *Connection, rhelo *Greeting) error {
 
 	conn.User = u
 	conn.AccountType = t
+	conn.Database = db
 	conn.SetSequenceFromMessage(rhelo)
 
 	return nil
