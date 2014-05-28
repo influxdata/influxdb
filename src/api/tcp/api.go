@@ -257,7 +257,7 @@ func (self *Server) unixListenAndServe() {
 }
 
 func (self *Server) ListenAndServe() {
-	if self.listenSocket != "" {
+	if self.listenAddress != "" {
 		go self.tcpListenAndServe()
 	}
 	if self.listenSocket != "" {
