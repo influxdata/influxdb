@@ -177,8 +177,6 @@ func (self *DataTestSuite) DifferenceValues(c *C) (Fun, Fun) {
 
 // Difference function combined with group by
 func (self *DataTestSuite) DifferenceGroupValues(c *C) (Fun, Fun) {
-	// make sure we exceed the pointBatchSize, so we force a yield to
-	// the filtering engine
 	return func(client Client) {
 			data := `
 [
@@ -209,8 +207,6 @@ func (self *DataTestSuite) DifferenceGroupValues(c *C) (Fun, Fun) {
 
 // issue 578
 func (self *DataTestSuite) ParanthesesAlias(c *C) (Fun, Fun) {
-	// make sure we exceed the pointBatchSize, so we force a yield to
-	// the filtering engine
 	return func(client Client) {
 			data := `
 [
@@ -229,6 +225,35 @@ func (self *DataTestSuite) ParanthesesAlias(c *C) (Fun, Fun) {
 			maps := ToMap(serieses[0])
 			c.Assert(maps, HasLen, 1)
 			c.Assert(maps[0]["value_plus_one"], Equals, 1.0)
+		}
+}
+
+func (self *DataTestSuite) WhereAndLimit(c *C) (Fun, Fun) {
+	// make sure we exceed the pointBatchSize, so we force a yield to
+	// the filtering engine
+	return func(client Client) {
+			data := `
+[
+  {
+	"points": [
+	[0.0  , "host"],
+	[10.0 , "host"],
+	[20.0 , "host"],
+	[40.0 , "host"],
+	[80.0 , "host"],
+	[160.0, "hosta"]
+	],
+	"name": "test_where_and_limit",
+	"columns": ["value", "host"]
+  }
+]`
+			client.WriteJsonData(data, c)
+		}, func(client Client) {
+			serieses := client.RunQuery("explain select * from /test_where_and_limit/ where host = 'hosta' limit 1", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["points_read"], Equals, 1.0)
 		}
 }
 
@@ -617,13 +642,14 @@ func (self *DataTestSuite) ExplainsWithPassthroughAndLimit(c *C) (Fun, Fun) {
 			c.Assert(series, HasLen, 1)
 			c.Assert(series[0].Name, Equals, "explain query")
 			c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
-			c.Assert(series[0].Points, HasLen, 1)
-			c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
+			maps := ToMap(series[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["engine_name"], Equals, "QueryEngine")
 
 			// we can read at most point-batch-size points, which is set to 100
 			// by default
-			c.Assert(series[0].Points[0][5], Equals, float64(100.0))
-			c.Assert(series[0].Points[0][6], Equals, float64(1.0))
+			c.Assert(maps[0]["points_read"], Equals, 1.0)
+			c.Assert(maps[0]["points_written"], Equals, 1.0)
 		}
 }
 

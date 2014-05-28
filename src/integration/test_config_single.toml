@@ -115,7 +115,7 @@ max-open-shards = 0
 
 # The default setting is 100. This option tells how many points will be fetched from LevelDb before
 # they get flushed into backend.
-point-batch-size = 100
+point-batch-size = 1
 
 # These options specify how data is sharded across the cluster. There are two
 # shard configurations that have the same knobs: short term and long term.
