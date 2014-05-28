@@ -5,6 +5,7 @@
 ### Features
 
 - [Issue #476](https://github.com/influxdb/influxdb/issues/476). Support ARM architecture
+- [Issue #578](https://github.com/influxdb/influxdb/issues/578). Support aliasing for expressions in parenthesis
 
 ## v0.7.0 [2014-05-23]
 
