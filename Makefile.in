@@ -210,9 +210,9 @@ ifeq ($(arch),386)
 	debian_package = packages/influxdb_$(version)_i686.deb
 	arch_args = -a i686
 else ifeq ($(arch),arm)
-	rpm_package = packages/influxdb-$(package_version)-1.armhf.rpm
-	debian_package = packages/influxdb_$(version)_armhf.deb
-	arch_args = -a armhf
+	rpm_package = packages/influxdb-$(package_version)-1.armel.rpm
+	debian_package = packages/influxdb_$(version)_armel.deb
+	arch_args = -a armel
 else
 	rpm_package = packages/influxdb-$(package_version)-1.x86_64.rpm
 	debian_package = packages/influxdb_$(version)_amd64.deb
