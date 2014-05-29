@@ -1,4 +1,4 @@
-## v0.7.1 [unreleased]
+## v0.7.1 [2014-05-29]
 
 ### Bugfixes
 
@@ -11,7 +11,7 @@
 - [Issue #578](https://github.com/influxdb/influxdb/issues/578). Support aliasing for expressions in parenthesis
 - [Issue #544](https://github.com/influxdb/influxdb/pull/544). Support forcing node removal from a cluster
 - [Issue #591](https://github.com/influxdb/influxdb/pull/591). Support multiple udp input plugins (Thanks, @tpitale)
-- [Issue #600](https://github.com/influxdb/influxdb/pull/600). Report os, arch, and raftName once per day.
+- [Issue #600](https://github.com/influxdb/influxdb/pull/600). Report version, os, arch, and raftName once per day.
 
 ## v0.7.0 [2014-05-23]
 
