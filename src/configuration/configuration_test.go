@@ -3,6 +3,7 @@ package configuration
 import (
 	"testing"
 	"time"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -39,9 +40,10 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 	c.Assert(config.GraphitePort, Equals, 2003)
 	c.Assert(config.GraphiteDatabase, Equals, "")
 
-	c.Assert(config.UdpInputEnabled, Equals, true)
-	c.Assert(config.UdpInputPort, Equals, 4444)
-	c.Assert(config.UdpInputDatabase, Equals, "test")
+	c.Assert(config.UdpServers, HasLen, 1)
+	c.Assert(config.UdpServers[0].Enabled, Equals, true)
+	c.Assert(config.UdpServers[0].Port, Equals, 4444)
+	c.Assert(config.UdpServers[0].Database, Equals, "test")
 
 	c.Assert(config.RaftDir, Equals, "/tmp/influxdb/development/raft")
 	c.Assert(config.RaftServerPort, Equals, 8090)

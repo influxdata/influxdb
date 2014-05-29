@@ -216,10 +216,7 @@ type Configuration struct {
 	GraphiteDatabase   string
 	GraphiteUdpEnabled bool
 
-	UdpInputEnabled  bool
-	UdpInputPort     int
-	UdpInputDatabase string
-	UdpServers       []UdpInputConfig
+	UdpServers []UdpInputConfig
 
 	RaftServerPort               int
 	RaftTimeout                  duration
