@@ -87,6 +87,7 @@ func main() {
 	}
 
 	config.Version = version
+	config.InfluxDBVersion = version
 
 	setupLogging(config.LogLevel, config.LogFile)
 
