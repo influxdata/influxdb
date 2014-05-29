@@ -271,6 +271,14 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	return
 }
 
+func (self *ClusterConfiguration) DatabasesExists(db string) bool {
+	self.createDatabaseLock.RLock()
+	defer self.createDatabaseLock.RUnlock()
+
+	_, ok := self.DatabaseReplicationFactors[db]
+	return ok
+}
+
 func (self *ClusterConfiguration) GetDatabases() []*Database {
 	self.createDatabaseLock.RLock()
 	defer self.createDatabaseLock.RUnlock()

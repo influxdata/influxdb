@@ -468,6 +468,11 @@ func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
 }
 
 func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series []*protocol.Series) error {
+	// make sure that the db exist
+	if !self.clusterConfiguration.DatabasesExists(db) {
+		return fmt.Errorf("Database %s doesn't exist", db)
+	}
+
 	for _, s := range series {
 		seriesName := s.GetName()
 		if user.HasWriteAccess(seriesName) {

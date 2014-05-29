@@ -2,6 +2,8 @@
 
 ### Bugfixes
 
+- [Issue #579](https://github.com/influxdb/influxdb/issues/579). Reject writes to nonexistent databases
+
 ### Features
 
 - [Issue #476](https://github.com/influxdb/influxdb/issues/476). Support ARM architecture

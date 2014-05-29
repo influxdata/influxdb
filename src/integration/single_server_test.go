@@ -43,6 +43,12 @@ func (self *SingleServerSuite) TearDownSuite(c *C) {
 	self.server.Stop()
 }
 
+func (self *SingleServerSuite) TestWritesToNonExistentDb(c *C) {
+	client := self.server.GetClient("notexistent", c)
+	s := CreatePoints("test", 1, 1)
+	c.Assert(client.WriteSeries(s), ErrorMatches, ".*doesn't exist.*")
+}
+
 func (self *SingleServerSuite) TestAdministrationOperation(c *C) {
 	client := self.server.GetClient("", c)
 	c.Assert(client.CreateDatabase("test_admin_operations"), IsNil)
