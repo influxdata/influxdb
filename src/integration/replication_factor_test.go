@@ -3,6 +3,7 @@ package integration
 import (
 	. "integration/helpers"
 	"os"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -33,7 +34,8 @@ func (self *ReplicationFactorSuite) TearDownSuite(c *C) {
 }
 
 func (self *ReplicationFactorSuite) TestReplayingWAL(c *C) {
-	rootClient := self.serverProcesses[0].GetClient("", c)
+	rootClient := self.serverProcesses[0].GetClient("test_replaying_wal", c)
+	c.Assert(rootClient.CreateDatabase("test_replaying_wal"), IsNil)
 	series := CreatePoints("test_replication_factor_1", 1, 1)
 	c.Assert(rootClient.WriteSeries(series), IsNil)
 

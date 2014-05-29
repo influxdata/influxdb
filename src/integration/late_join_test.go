@@ -3,6 +3,7 @@ package integration
 import (
 	. "integration/helpers"
 	"os"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -30,6 +31,7 @@ func (self *LateJoinSuite) TestReplayingWAL(c *C) {
 	client := s1.GetClient("", c)
 	c.Assert(client.CreateDatabase("test"), IsNil)
 	series := CreatePoints("test_replication_factor_1", 1, 1)
+	client = s1.GetClient("test", c)
 	c.Assert(client.WriteSeries(series), IsNil)
 
 	s2 := NewServer("src/integration/test_rf_2.toml", c)

@@ -33,7 +33,7 @@ func (self *ServerSuite) SetUpSuite(c *C) {
 	}
 	self.serverProcesses[0].SetSslOnly(true)
 	client := self.serverProcesses[0].GetClient("", c)
-	dbs := []string{"full_rep", "test_rep", "single_rep", "test_cq", "test_cq_null", "drop_db"}
+	dbs := []string{"full_rep", "test_rep", "single_rep", "graphite_db", "udp_db", "test_cq", "test_cq_null", "drop_db"}
 	for _, db := range dbs {
 		c.Assert(client.CreateDatabase(db), IsNil)
 	}

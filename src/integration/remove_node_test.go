@@ -3,6 +3,7 @@ package integration
 import (
 	. "integration/helpers"
 	"os"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -46,6 +47,7 @@ func (self *RemoveNodeSuite) TestRemovingNode(c *C) {
 
 	c.Assert(client.CreateDatabase("test"), IsNil)
 	series := CreatePoints("test_replication_factor_1", 1, 1)
+	client = s1.GetClient("test", c)
 	c.Assert(client.WriteSeries(series), IsNil)
 
 	s1.WaitForServerToSync()
