@@ -11,6 +11,7 @@ import (
 
 	"code.google.com/p/goprotobuf/proto"
 	"errors"
+	"fmt"
 )
 
 const (
@@ -50,7 +51,7 @@ type Connection struct {
 	Database string
 
 	User User
-	AccountType Account_AccountType
+	AccountType Greeting_Authentication_AccountType
 	State State
 
 	Ticker *time.Ticker
@@ -100,12 +101,16 @@ func (self *Connection) IncrementSequence() {
 	self.Sequence++
 }
 
-func (self *Connection) SetSequenceFromMessage(message interface{}) {
+func (self *Connection) SetSequenceFromMessage(message interface{}) error {
 	if req, ok := message.(*Greeting); ok {
 		self.Sequence = req.GetSequence()
 	} else if req, ok := message.(*Command); ok {
 		self.Sequence = req.GetSequence()
+	} else {
+		return errors.New(fmt.Sprintf("does nott supported type %+v", message))
 	}
+
+	return nil
 }
 
 func (self *Connection) IsAlived() bool {

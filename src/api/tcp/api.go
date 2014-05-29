@@ -14,6 +14,7 @@ import (
 
 	"time"
 	"code.google.com/p/goprotobuf/proto"
+	"errors"
 )
 
 const KILOBYTE = 1024
@@ -49,10 +50,14 @@ func NewServer(config *configuration.Configuration, coord coordinator.Coordinato
 
 func (self *Server) SendErrorMessage(conn *Connection, t Command_CommandType, message string) error {
 	result := Command_FAIL
+	v := Error_PERMISSION_DENIED
 	response := &Command{
 		Type: &t,
 		Result: &result,
-		Reason: []byte(message),
+		Error: &Error{
+			Code: &v,
+			Reason: []byte(message),
+		},
 	}
 
 	conn.WriteRequest(response)
@@ -71,14 +76,14 @@ func getVersion() []byte {
 	return []byte(version)
 }
 
-func (self *Server) authenticate(conn *Connection, rhelo *Greeting) error {
+func (self *Server) authenticate(conn *Connection, info *Greeting_Authentication) error {
 	var u User
 	var e error
-	var t Account_AccountType
+	var t Greeting_Authentication_AccountType
 
-	db   := string(rhelo.GetDatabase())
-	user := string(rhelo.GetAccount().GetName())
-	pass := string(rhelo.GetAccount().GetPassword())
+	db   := string(info.GetDatabase())
+	user := string(info.GetName())
+	pass := string(info.GetPassword())
 
 	if db != "" {
 		u, e = self.UserManager.AuthenticateDbUser(db, user, pass)
@@ -87,9 +92,9 @@ func (self *Server) authenticate(conn *Connection, rhelo *Greeting) error {
 			if e != nil {
 				return e
 			}
-			t = Account_CLUSTER_ADMIN
+			t = Greeting_Authentication_CLUSTER_ADMIN
 		} else {
-			t = Account_DB_USER
+			t = Greeting_Authentication_DB_USER
 		}
 		conn.State = STATE_AUTHENTICATED
 	} else {
@@ -98,50 +103,89 @@ func (self *Server) authenticate(conn *Connection, rhelo *Greeting) error {
 			return e
 		}
 
-		t = Account_CLUSTER_ADMIN
+		t = Greeting_Authentication_CLUSTER_ADMIN
 		conn.State = STATE_AUTHENTICATED
 	}
 
 	conn.User = u
 	conn.AccountType = t
 	conn.Database = db
-	conn.SetSequenceFromMessage(rhelo)
 
 	return nil
 }
 
 func (self *Server) handshake(conn *Connection) error {
 	var err error
+	auth := &Greeting_Authentication{}
 
-	gtype := Greeting_HELO
+	// First, wait client request
+	startup := &Greeting{}
+	err = conn.ReadMessage(startup)
+	if err != nil {
+		return err
+	}
+	if startup.GetType() != Greeting_STARTUP_MESSAGE {
+		return errors.New("Illegal handshake")
+	}
+
+	database := startup.GetAuthentication().GetDatabase()
+	name     := startup.GetAuthentication().GetName()
+	auth.Database = database
+	auth.Name = name
+
+	// Startup Response (Authentication)
+	gtype := Greeting_STARTUP_RESPONSE
+	ctype := Greeting_Configuration_PLAIN
+	method := Greeting_Authentication_CLEARTEXT_PASSWORD
+	ssl := Greeting_Configuration_NONE
 	req := &Greeting{
 		Type: &gtype,
 		ProtocolVersion: proto.Int32(1),
 		Agent: getVersion(),
 		Sequence: proto.Uint32(conn.Sequence),
+		Authentication: &Greeting_Authentication{
+			Method: &method,
+		},
+		Config: &Greeting_Configuration{
+			CompressType: &ctype,
+			Ssl: &ssl,
+		},
 	}
 	conn.WriteRequest(req)
 	conn.IncrementSequence()
 
-	// Wait Response
-	rhelo := &Greeting{}
-	err = conn.ReadMessage(rhelo)
+	// TODO: wait ssl greeting response.
+
+	// Authentication
+	request := &Greeting{}
+	err = conn.ReadMessage(request)
+	if err != nil {
+		return err
+	}
+	auth.Password = request.GetAuthentication().GetPassword()
+
+	err = self.authenticate(conn, auth)
 	if err != nil {
 		return err
 	}
 
-	err = self.authenticate(conn, rhelo)
-	if err != nil {
-		return err
-	}
-
-	// Ack Response
-	gtype = Greeting_ACK
+	// Authentication OK
+	gtype = Greeting_AUTHENTICATION_OK
 	conn.WriteRequest(&Greeting{
 		Type: &gtype,
-		Account: &Account{
+		Authentication: &Greeting_Authentication{
 			Type: &conn.AccountType,
 		},
+		Sequence: proto.Uint32(conn.Sequence),
+	})
+	conn.IncrementSequence()
+
+	// TODO: we might send some options here.
+
+	// Handshake finished. waiting command.
+	gtype = Greeting_COMMAND_READY
+	conn.WriteRequest(&Greeting{
+		Type: &gtype,
 		Sequence: proto.Uint32(conn.Sequence),
 	})
 	conn.IncrementSequence()
@@ -155,7 +199,7 @@ func (self *Server) HandleConnection(conn *Connection) {
 	for {
 		err := self.handshake(conn)
 		if err != nil || conn.State == STATE_INITIALIZED {
-			gtype := Greeting_DENY
+			gtype := Greeting_ERROR
 			conn.WriteRequest(&Greeting{
 				Type: &gtype,
 				Sequence: proto.Uint32(conn.Sequence),

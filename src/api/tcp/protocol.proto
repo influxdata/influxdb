@@ -2,48 +2,94 @@ package tcp;
 
 import "src/protocol/protocol.proto";
 
-message Account {
-	optional bytes name = 1;
-	optional bytes password = 2;
-	enum AccountType {
-		CLUSTER_ADMIN = 1;
-		DB_USER = 2;
+// common messages
+message Error {
+	enum ErrorCode {
+		AUTHENTICATION_FAILED = 1;
+		PERMISSION_DENIED = 2;
 	}
-	optional AccountType type = 3;
+	required ErrorCode code = 1;
+	optional bytes reason = 2;
 }
 
+// [Sequence Memo]
+//
+// handshake requires 5 steps.
+//
+// 1. Client (Greeting, database, Account, CompressType[SNAPPY, ZLIB]) -> Server
+//   - client send database, username.
+//
+// 2. Server (Greeting[RHELO, AuthenticationMethod::CLEAR_TEXT...], CompressType:[PLAIN, SNAPPY, ZLIB], SSL:None/Optional/Required) -> Client
+//   - sever send authentication method, and connection options.
+//
+// (Optional) Client (Greeting, [SSL OK]) -> Server
+//   - Client have to send SSL OK when choosing SSL connection. then begin SSL handshake immidiately
+//
+// 3. Client (Greeting, [PasswordMessage]) -> Server
+//   - (Optional) client may send multiple request. this depends authentication method.
+//
+// 4. Server (Greeting, [AuthentationOK, DENY]) -> Client
+//   - (Optional) Server may send other greeting messages (option (sharing Timezone info...))
+//
+// 5. Server (Greeting, [Command_Ready]) -> Client
+//   - okay, client can send any Command from here.
+//   - NOTE: also, compress flag enabled after this message.
+//
 message Greeting {
-	enum GreetingType {
-		HELO  = 1;
-		RHELO = 2;
-		ACK   = 3;
-		DENY  = 4;
-	}
 	optional uint32 sequence = 1;
+
+	enum GreetingType {
+		STARTUP_MESSAGE   = 1;
+		STARTUP_RESPONSE  = 2;
+		AUTHENTICATION_OK = 3;
+		MESSAGE_OPTION    = 4;
+		COMMAND_READY     = 5;
+		SSL_RESPONSE      = 6;
+		ERROR             = 7;
+	}
+
 	optional GreetingType type = 2;
+
 	optional int32 protocol_version = 3;
 
 	optional bytes agent = 4;
 
-	optional Account account = 5;
-	optional bytes database = 6;
+	message Authentication {
+		optional bytes name = 1;
+		optional bytes password = 2;
+		optional bytes database = 3;
+
+		enum AccountType {
+			CLUSTER_ADMIN = 1;
+			DB_USER = 2;
+		}
+		optional AccountType type = 4;
+
+		enum AuthenticationMethod {
+			CLEARTEXT_PASSWORD = 0;
+		}
+		optional AuthenticationMethod method = 5;
+	}
+	optional Authentication authentication = 5;
 
 	message Configuration {
-		enum AuthenticationMethod {
-			PLAIN = 0;
-			HASH_MASK = 1;
-		}
 		enum CompressType {
-			NONE = 0;
+			PLAIN = 0;
 			SNAPPY = 1;
 			GZIP = 2;
 		}
 		optional CompressType compress_type = 1;
-		optional AuthenticationMethod authentication_method = 2;
+
+		enum SSL {
+			NONE = 0;
+			REQUIRED = 1;
+			OPTIONAL = 2;
+		}
+		optional SSL ssl = 2;
 	}
 	optional Configuration config = 7;
 
-	optional bytes reason = 999;
+	optional Error error = 999;
 }
 
 message Command {
@@ -103,5 +149,5 @@ message Command {
 	optional Query query = 7;
 
 	// put error message here.
-	optional bytes reason = 999;
+	optional Error error = 999;
 }
