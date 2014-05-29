@@ -42,6 +42,16 @@ read-timeout = "5s"
   # port = 4444
   # database = ""
 
+  [[input_plugins.udp_servers]] # array of tables
+  enabled = false
+  # port = 5551
+  # database = "db1"
+
+  [[input_plugins.udp_servers]] # array of tables
+  enabled = false
+  # port = 5552
+  # database = "db2"
+
 # Raft configuration
 [raft]
 # The raft port should be open between all servers in a cluster.
