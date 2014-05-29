@@ -160,7 +160,7 @@ func (self *Server) ListenAndServe() error {
 
 	log.Debug("ReportingDisabled: %s", self.Config.ReportingDisabled)
 	if !self.Config.ReportingDisabled {
-		self.startReportingLoop()
+		go self.startReportingLoop()
 	}
 
 	// start processing continuous queries
@@ -173,25 +173,16 @@ func (self *Server) ListenAndServe() error {
 }
 
 func (self *Server) startReportingLoop() chan struct{} {
-	quit := make(chan struct{})
-
 	log.Debug("Starting Reporting Loop")
 	self.reportStats()
 
 	ticker := time.NewTicker(24 * time.Hour)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				self.reportStats()
-			case <-quit:
-				ticker.Stop()
-				return
-			}
+	for {
+		select {
+		case <-ticker.C:
+			self.reportStats()
 		}
-	}()
-
-	return quit
+	}
 }
 
 func (self *Server) reportStats() {
@@ -213,7 +204,7 @@ func (self *Server) reportStats() {
 			},
 		}
 
-		log.Info("Reporting stats: %s", series)
+		log.Info("Reporting stats: %#v", series)
 		client.WriteSeries([]*influxdb.Series{series})
 	}
 }

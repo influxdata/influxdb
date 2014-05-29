@@ -66,7 +66,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	version := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
+	v := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
 	if wantsVersion != nil && *wantsVersion {
 		fmt.Println(version)
 		return
@@ -86,7 +86,7 @@ func main() {
 		config.ProtobufPort = *protobufPort
 	}
 
-	config.Version = version
+	config.Version = v
 	config.InfluxDBVersion = version
 
 	setupLogging(config.LogLevel, config.LogFile)
