@@ -79,6 +79,7 @@ type GraphiteConfig struct {
 	Database   string
 	UdpEnabled bool `toml:"udp_enabled"`
 }
+
 type UdpInputConfig struct {
 	Enabled  bool
 	Port     int
@@ -188,18 +189,19 @@ type InputPlugins struct {
 }
 
 type TomlConfiguration struct {
-	Admin        AdminConfig
-	HttpApi      ApiConfig    `toml:"api"`
-	InputPlugins InputPlugins `toml:"input_plugins"`
-	Raft         RaftConfig
-	Storage      StorageConfig
-	Cluster      ClusterConfig
-	Logging      LoggingConfig
-	LevelDb      LevelDbConfiguration
-	Hostname     string
-	BindAddress  string             `toml:"bind-address"`
-	Sharding     ShardingDefinition `toml:"sharding"`
-	WalConfig    WalConfig          `toml:"wal"`
+	Admin             AdminConfig
+	HttpApi           ApiConfig    `toml:"api"`
+	InputPlugins      InputPlugins `toml:"input_plugins"`
+	Raft              RaftConfig
+	Storage           StorageConfig
+	Cluster           ClusterConfig
+	Logging           LoggingConfig
+	LevelDb           LevelDbConfiguration
+	Hostname          string
+	BindAddress       string             `toml:"bind-address"`
+	ReportingDisabled bool               `toml:"reporting-disabled"`
+	Sharding          ShardingDefinition `toml:"sharding"`
+	WalConfig         WalConfig          `toml:"wal"`
 }
 
 type Configuration struct {
@@ -250,6 +252,7 @@ type Configuration struct {
 	PerServerWriteBufferSize     int
 	ClusterMaxResponseBufferSize int
 	ConcurrentShardQueryLimit    int
+	ReportingDisabled            bool
 	Version                      string
 }
 
@@ -347,6 +350,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		LogLevel:                     tomlConfiguration.Logging.Level,
 		Hostname:                     tomlConfiguration.Hostname,
 		BindAddress:                  tomlConfiguration.BindAddress,
+		ReportingDisabled:            tomlConfiguration.ReportingDisabled,
 		LevelDbMaxOpenFiles:          tomlConfiguration.LevelDb.MaxOpenFiles,
 		LevelDbLruCacheSize:          int(tomlConfiguration.LevelDb.LruCacheSize.int64),
 		LevelDbMaxOpenShards:         tomlConfiguration.LevelDb.MaxOpenShards,

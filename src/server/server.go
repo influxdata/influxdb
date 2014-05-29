@@ -9,10 +9,12 @@ import (
 	"configuration"
 	"coordinator"
 	"datastore"
+	"runtime"
 	"time"
 	"wal"
 
 	log "code.google.com/p/log4go"
+	influxdb "github.com/influxdb/influxdb-go"
 )
 
 type Server struct {
@@ -147,6 +149,11 @@ func (self *Server) ListenAndServe() error {
 		}
 	}
 
+	log.Debug("ReportingDisabled: %s", self.Config.ReportingDisabled)
+	if !self.Config.ReportingDisabled {
+		self.startReportingLoop()
+	}
+
 	// start processing continuous queries
 	self.RaftServer.StartProcessingContinuousQueries()
 
@@ -154,6 +161,52 @@ func (self *Server) ListenAndServe() error {
 	self.HttpApi.ListenAndServe()
 
 	return nil
+}
+
+func (self *Server) startReportingLoop() chan struct{} {
+	quit := make(chan struct{})
+
+	log.Debug("Starting Reporting Loop")
+	self.reportStats()
+
+	ticker := time.NewTicker(24 * time.Hour)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				self.reportStats()
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+
+	return quit
+}
+
+func (self *Server) reportStats() {
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{
+		Database: "reporting",
+		Host:     "m.influxdb.com:8086",
+		Username: "reporter",
+		Password: "influxdb",
+	})
+
+	if err != nil {
+		log.Error("Couldn't create client for reporting: %s", err)
+	} else {
+		series := &influxdb.Series{
+			Name:    "reports",
+			Columns: []string{"os", "arch", "id"},
+			Points: [][]interface{}{
+				[]interface{}{runtime.GOOS, runtime.GOARCH, self.RaftServer.GetRaftName()},
+			},
+		}
+
+		log.Info("Reporting stats: %s", series)
+		client.WriteSeries([]*influxdb.Series{series})
+	}
 }
 
 func (self *Server) Stop() {
