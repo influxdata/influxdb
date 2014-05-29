@@ -217,6 +217,24 @@ func (self *ClusterConfiguration) ChangeProtobufConnectionString(server *Cluster
 	server.Connect()
 }
 
+func (self *ClusterConfiguration) RemoveServer(server *ClusterServer) error {
+	server.connection.Close()
+	i := 0
+	l := len(self.servers)
+	for i = 0; i < l; i++ {
+		if self.servers[i].Id == server.Id {
+			log.Debug("Found server %d at index %d", server.Id, i)
+			break
+		}
+	}
+	if i == l {
+		return fmt.Errorf("Cannot find server %d", server.Id)
+	}
+	self.servers[i], self.servers = self.servers[l-1], self.servers[:l-1]
+	log.Debug("Removed server %d", server.Id)
+	return nil
+}
+
 func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.serversLock.Lock()
 	defer self.serversLock.Unlock()
