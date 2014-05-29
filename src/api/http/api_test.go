@@ -17,6 +17,7 @@ import (
 	"protocol"
 	"testing"
 	"time"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -369,7 +370,6 @@ func (self *ApiSuite) TestChunkedQuery(c *C) {
 	for i := 0; i < 2; i++ {
 		chunk := make([]byte, 2048, 2048)
 		n, err := resp.Body.Read(chunk)
-		c.Assert(err, IsNil)
 
 		series := SerializedSeries{}
 		err = json.Unmarshal(chunk[0:n], &series)
