@@ -68,7 +68,7 @@ func main() {
 
 	v := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
 	if wantsVersion != nil && *wantsVersion {
-		fmt.Println(version)
+		fmt.Println(v)
 		return
 	}
 	config := configuration.LoadConfiguration(*fileName)
