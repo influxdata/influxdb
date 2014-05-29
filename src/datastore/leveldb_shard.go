@@ -391,6 +391,7 @@ func (self *LevelDbShard) executeDeleteQuery(querySpec *parser.QuerySpec, proces
 			return err
 		}
 	}
+	self.compact()
 	return nil
 }
 

@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [Issue #579](https://github.com/influxdb/influxdb/issues/579). Reject writes to nonexistent databases
+- [Issue #597](https://github.com/influxdb/influxdb/issues/597). Force compaction after deleting data
 
 ### Features
 
