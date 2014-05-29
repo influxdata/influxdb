@@ -183,8 +183,8 @@ type WalConfig struct {
 }
 
 type InputPlugins struct {
-	Graphite GraphiteConfig          `toml:"graphite"`
-	UdpInput UdpInputConfig          `toml:"udp"`
+	Graphite        GraphiteConfig   `toml:"graphite"`
+	UdpInput        UdpInputConfig   `toml:"udp"`
 	UdpServersInput []UdpInputConfig `toml:"udp_servers"`
 }
 
@@ -331,10 +331,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		GraphiteDatabase:   tomlConfiguration.InputPlugins.Graphite.Database,
 		GraphiteUdpEnabled: tomlConfiguration.InputPlugins.Graphite.UdpEnabled,
 
-		UdpInputEnabled:  tomlConfiguration.InputPlugins.UdpInput.Enabled,
-		UdpInputPort:     tomlConfiguration.InputPlugins.UdpInput.Port,
-		UdpInputDatabase: tomlConfiguration.InputPlugins.UdpInput.Database,
-		UdpServers:       tomlConfiguration.InputPlugins.UdpServersInput,
+		UdpServers: tomlConfiguration.InputPlugins.UdpServersInput,
 
 		RaftServerPort:               tomlConfiguration.Raft.Port,
 		RaftTimeout:                  tomlConfiguration.Raft.Timeout,
@@ -368,6 +365,12 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		ClusterMaxResponseBufferSize: tomlConfiguration.Cluster.MaxResponseBufferSize,
 		ConcurrentShardQueryLimit:    defaultConcurrentShardQueryLimit,
 	}
+
+	config.UdpServers = append(config.UdpServers, UdpInputConfig{
+		Enabled:  tomlConfiguration.InputPlugins.UdpInput.Enabled,
+		Database: tomlConfiguration.InputPlugins.UdpInput.Database,
+		Port:     tomlConfiguration.InputPlugins.UdpInput.Port,
+	})
 
 	if config.LocalStoreWriteBufferSize == 0 {
 		config.LocalStoreWriteBufferSize = 1000

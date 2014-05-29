@@ -137,38 +137,23 @@ func (self *Server) ListenAndServe() error {
 		}
 	}
 
-	// singular UDP input
-	if self.Config.UdpInputEnabled {
-		if self.Config.UdpInputPort <= 0 || self.Config.UdpInputDatabase == "" {
+	// UDP input
+	for _, udpInput := range self.Config.UdpServers {
+		port := udpInput.Port
+		database := udpInput.Database
+
+		if port <= 0 || database == "" {
 			log.Warn("Cannot start udp server. please check your configuration")
-		} else {
-			log.Info("Starting UDP Listener on port %d to database %s", self.Config.UdpInputPort, self.Config.UdpInputDatabase)
-			
-			self.UdpApi = udp.NewServer(self.Config.UdpInputPortString(self.Config.UdpInputPort), self.Config.UdpInputDatabase, self.Coordinator, self.ClusterConfig)
-			go self.UdpApi.ListenAndServe()
+			continue
 		}
-	}
 
-	// multiple UDP input
-	udpServersCount := len(self.Config.UdpServers)
-	if udpServersCount > 0 {
-		for i := 0; i < udpServersCount; i++ {
+		log.Info("Starting UDP Listener on port %d to database %s", port, database)
 
-			port := self.Config.UdpServers[i].Port
-			database := self.Config.UdpServers[i].Database
+		addr := self.Config.UdpInputPortString(port)
 
-			if port <= 0 || database == "" {
-				log.Warn("Cannot start udp server. please check your configuration")
-			} else {
-				log.Info("Starting UDP Listener on port %d to database %s", port, database)
-
-				listenAddress := self.Config.UdpInputPortString(port)
-
-				self.UdpServers[i] = udp.NewServer(listenAddress, database, self.Coordinator, self.ClusterConfig)
-				go self.UdpServers[i].ListenAndServe()
-			}
-
-		}
+		server := udp.NewServer(addr, database, self.Coordinator, self.ClusterConfig)
+		self.UdpServers = append(self.UdpServers, server)
+		go server.ListenAndServe()
 	}
 
 	// start processing continuous queries
