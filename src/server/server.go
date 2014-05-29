@@ -22,6 +22,7 @@ type Server struct {
 	HttpApi        *http.HttpServer
 	GraphiteApi    *graphite.Server
 	UdpApi         *udp.Server
+	UdpServers     []*udp.Server
 	AdminServer    *admin.HttpServer
 	Coordinator    coordinator.Coordinator
 	Config         *configuration.Configuration
@@ -60,7 +61,6 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.ApiReadTimeout, config.AdminAssetsDir, coord, coord, clusterConfig, raftServer)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
 	graphiteApi := graphite.NewServer(config, coord, clusterConfig)
-	udpApi := udp.NewServer(config, coord, clusterConfig)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
 	return &Server{
@@ -69,7 +69,6 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		ClusterConfig:  clusterConfig,
 		HttpApi:        httpApi,
 		GraphiteApi:    graphiteApi,
-		UdpApi:         udpApi,
 		Coordinator:    coord,
 		AdminServer:    adminServer,
 		Config:         config,
@@ -138,12 +137,37 @@ func (self *Server) ListenAndServe() error {
 		}
 	}
 
+	// singular UDP input
 	if self.Config.UdpInputEnabled {
 		if self.Config.UdpInputPort <= 0 || self.Config.UdpInputDatabase == "" {
 			log.Warn("Cannot start udp server. please check your configuration")
 		} else {
-			log.Info("Starting UDP Listener on port %d", self.Config.UdpInputPort)
+			log.Info("Starting UDP Listener on port %d to database %s", self.Config.UdpInputPort, self.Config.UdpInputDatabase)
+			
+			self.UdpApi = udp.NewServer(self.Config.UdpInputPortString(self.Config.UdpInputPort), self.Config.UdpInputDatabase, self.Coordinator, self.ClusterConfig)
 			go self.UdpApi.ListenAndServe()
+		}
+	}
+
+	// multiple UDP input
+	udpServersCount := len(self.Config.UdpServers)
+	if udpServersCount > 0 {
+		for i := 0; i < udpServersCount; i++ {
+
+			port := self.Config.UdpServers[i].Port
+			database := self.Config.UdpServers[i].Database
+
+			if port <= 0 || database == "" {
+				log.Warn("Cannot start udp server. please check your configuration")
+			} else {
+				log.Info("Starting UDP Listener on port %d to database %s", port, database)
+
+				listenAddress := self.Config.UdpInputPortString(port)
+
+				self.UdpServers[i] = udp.NewServer(listenAddress, database, self.Coordinator, self.ClusterConfig)
+				go self.UdpServers[i].ListenAndServe()
+			}
+
 		}
 	}
 
