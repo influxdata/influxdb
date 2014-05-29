@@ -7,6 +7,7 @@
 - [Issue #476](https://github.com/influxdb/influxdb/issues/476). Support ARM architecture
 - [Issue #578](https://github.com/influxdb/influxdb/issues/578). Support aliasing for expressions in parenthesis
 - [Issue #544](https://github.com/influxdb/influxdb/pull/544). Support forcing node removal from a cluster
+- [Issue #591](https://github.com/influxdb/influxdb/pull/591). Support multiple udp input plugins (Thanks, @tpitale)
 
 ## v0.7.0 [2014-05-23]
 

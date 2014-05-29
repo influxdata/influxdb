@@ -183,8 +183,9 @@ type WalConfig struct {
 }
 
 type InputPlugins struct {
-	Graphite GraphiteConfig `toml:"graphite"`
-	UdpInput UdpInputConfig `toml:"udp"`
+	Graphite GraphiteConfig          `toml:"graphite"`
+	UdpInput UdpInputConfig          `toml:"udp"`
+	UdpServersInput []UdpInputConfig `toml:"udp_servers"`
 }
 
 type TomlConfiguration struct {
@@ -218,6 +219,7 @@ type Configuration struct {
 	UdpInputEnabled  bool
 	UdpInputPort     int
 	UdpInputDatabase string
+	UdpServers       []UdpInputConfig
 
 	RaftServerPort               int
 	RaftTimeout                  duration
@@ -332,6 +334,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		UdpInputEnabled:  tomlConfiguration.InputPlugins.UdpInput.Enabled,
 		UdpInputPort:     tomlConfiguration.InputPlugins.UdpInput.Port,
 		UdpInputDatabase: tomlConfiguration.InputPlugins.UdpInput.Database,
+		UdpServers:       tomlConfiguration.InputPlugins.UdpServersInput,
 
 		RaftServerPort:               tomlConfiguration.Raft.Port,
 		RaftTimeout:                  tomlConfiguration.Raft.Timeout,
@@ -446,12 +449,12 @@ func (self *Configuration) GraphitePortString() string {
 	return fmt.Sprintf("%s:%d", self.BindAddress, self.GraphitePort)
 }
 
-func (self *Configuration) UdpInputPortString() string {
-	if self.UdpInputPort <= 0 {
+func (self *Configuration) UdpInputPortString(port int) string {
+	if port <= 0 {
 		return ""
 	}
 
-	return fmt.Sprintf("%s:%d", self.BindAddress, self.UdpInputPort)
+	return fmt.Sprintf("%s:%d", self.BindAddress, port)
 }
 
 func (self *Configuration) HostnameOrDetect() string {
