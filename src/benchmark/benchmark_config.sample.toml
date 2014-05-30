@@ -14,7 +14,7 @@ user = "user"
 password = "pass"
 is_secure = false
 skip_verify = false
-timeout = "5s"
+timeout = "10s"
 
 # A regular database, user, and password to read and write data on the cluster being benchmarked.
 [cluster_credentials]
@@ -32,6 +32,9 @@ runs_per_load_definition = 10000
 
 [[servers]]
 connection_string = "localhost:8086"
+is_secure = false
+skip_verify = false
+timeout = "10s"
 
 # Load definitions describe the reads and writes that you want to simulate.
 # The connections take writes from the load definitions as they're sent out.
