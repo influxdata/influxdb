@@ -178,6 +178,17 @@ type LoadWrite struct {
 
 const MAX_SUCCESS_REPORTS_TO_QUEUE = 100000
 
+func NewHttpClient(timeout time.Duration, skipVerify bool) *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: skipVerify},
+			ResponseHeaderTimeout: timeout,
+			Dial: func(network, address string) (net.Conn, error) {
+				return net.DialTimeout(network, address, timeout)
+			},
+		},
+	}
+}
+
 func NewBenchmarkHarness(conf *benchmarkConfig) *BenchmarkHarness {
 	rand.Seed(time.Now().UnixNano())
 	harness := &BenchmarkHarness{
@@ -212,19 +223,12 @@ func (self *BenchmarkHarness) startPostWorkers() {
 
 func (self *BenchmarkHarness) reportClient() *influxdb.Client {
 	clientConfig := &influxdb.ClientConfig{
-		Host:     self.Config.StatsServer.ConnectionString,
-		Database: self.Config.StatsServer.Database,
-		Username: self.Config.StatsServer.User,
-		Password: self.Config.StatsServer.Password,
-		IsSecure: self.Config.StatsServer.IsSecure,
-		HttpClient: &http.Client{
-			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: self.Config.StatsServer.SkipVerify},
-				ResponseHeaderTimeout: self.Config.StatsServer.Timeout.Duration,
-				Dial: func(network, address string) (net.Conn, error) {
-					return net.DialTimeout(network, address, self.Config.StatsServer.Timeout.Duration)
-				},
-			},
-		},
+		Host:       self.Config.StatsServer.ConnectionString,
+		Database:   self.Config.StatsServer.Database,
+		Username:   self.Config.StatsServer.User,
+		Password:   self.Config.StatsServer.Password,
+		IsSecure:   self.Config.StatsServer.IsSecure,
+		HttpClient: NewHttpClient(self.Config.StatsServer.Timeout.Duration, self.Config.StatsServer.SkipVerify),
 	}
 	client, _ := influxdb.NewClient(clientConfig)
 	return client
@@ -390,19 +394,12 @@ func (self *BenchmarkHarness) runQuery(loadDef *loadDefinition, seriesNames []st
 func (self *BenchmarkHarness) queryAndReport(loadDef *loadDefinition, q *query, queryString string) {
 	s := self.Config.Servers[rand.Intn(len(self.Config.Servers))]
 	clientConfig := &influxdb.ClientConfig{
-		Host:     s.ConnectionString,
-		Database: self.Config.ClusterCredentials.Database,
-		Username: self.Config.ClusterCredentials.User,
-		Password: self.Config.ClusterCredentials.Password,
-		IsSecure: s.IsSecure,
-		HttpClient: &http.Client{
-			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: s.SkipVerify},
-				ResponseHeaderTimeout: s.Timeout.Duration,
-				Dial: func(network, address string) (net.Conn, error) {
-					return net.DialTimeout(network, address, s.Timeout.Duration)
-				},
-			},
-		},
+		Host:       s.ConnectionString,
+		Database:   self.Config.ClusterCredentials.Database,
+		Username:   self.Config.ClusterCredentials.User,
+		Password:   self.Config.ClusterCredentials.Password,
+		IsSecure:   s.IsSecure,
+		HttpClient: NewHttpClient(s.Timeout.Duration, s.SkipVerify),
 	}
 	client, err := influxdb.NewClient(clientConfig)
 	if err != nil {
@@ -447,19 +444,12 @@ func (self *BenchmarkHarness) reportQuerySuccess(results []*influxdb.Series, ser
 
 func (self *BenchmarkHarness) handleWrites(s *server) {
 	clientConfig := &influxdb.ClientConfig{
-		Host:     s.ConnectionString,
-		Database: self.Config.ClusterCredentials.Database,
-		Username: self.Config.ClusterCredentials.User,
-		Password: self.Config.ClusterCredentials.Password,
-		IsSecure: s.IsSecure,
-		HttpClient: &http.Client{
-			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: s.SkipVerify},
-				ResponseHeaderTimeout: s.Timeout.Duration,
-				Dial: func(network, address string) (net.Conn, error) {
-					return net.DialTimeout(network, address, s.Timeout.Duration)
-				},
-			},
-		},
+		Host:       s.ConnectionString,
+		Database:   self.Config.ClusterCredentials.Database,
+		Username:   self.Config.ClusterCredentials.User,
+		Password:   self.Config.ClusterCredentials.Password,
+		IsSecure:   s.IsSecure,
+		HttpClient: NewHttpClient(s.Timeout.Duration, s.SkipVerify),
 	}
 	client, err := influxdb.NewClient(clientConfig)
 	if err != nil {
