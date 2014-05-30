@@ -175,6 +175,34 @@ func (self *DataTestSuite) DifferenceValues(c *C) (Fun, Fun) {
 		}
 }
 
+func (self *DataTestSuite) MergingOldData(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "name": "test_merge_1",
+    "columns": ["time", "value"],
+    "points": [
+      [315532800000, "a value"]
+    ]
+  },
+  {
+    "name": "test_merge_2",
+    "columns": ["time", "value"],
+    "points": [
+      [1401321600000, "another value"]
+    ]
+  }
+ ]`
+			client.WriteJsonData(data, c, influxdb.Millisecond)
+		}, func(client Client) {
+			serieses := client.RunQuery("select * from test_merge_1 merge test_merge_2", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 2)
+		}
+}
+
 // Difference function combined with group by
 func (self *DataTestSuite) DifferenceGroupValues(c *C) (Fun, Fun) {
 	return func(client Client) {

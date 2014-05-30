@@ -356,6 +356,11 @@ func (self *ShardData) String() string {
 }
 
 func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool {
+	f := querySpec.SelectQuery().GetFromClause()
+	if f.Type == parser.FromClauseInnerJoin || f.Type == parser.FromClauseMerge {
+		return false
+	}
+
 	if self.durationIsSplit && querySpec.ReadsFromMultipleSeries() {
 		return false
 	}
