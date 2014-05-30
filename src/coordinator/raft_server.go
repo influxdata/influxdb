@@ -710,7 +710,7 @@ func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster
 	if err != nil {
 		return nil, err
 	}
-	log.Debug("NEW SHARDS: ", newShards)
+	log.Debug("NEW SHARDS: %v", newShards)
 	return self.clusterConfig.MarshalNewShardArrayToShards(newShards)
 }
 

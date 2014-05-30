@@ -401,7 +401,7 @@ func (self *ShardData) QueryResponseBufferSize(querySpec *parser.QuerySpec, batc
 		// each response can have many points, so having a buffer of the ticks * 100 should be safe, but we'll see.
 		tickCount = tickCount * 100
 	}
-	log.Debug("BUFFER SIZE: ", tickCount)
+	log.Debug("BUFFER SIZE: %d", tickCount)
 	return tickCount
 }
 

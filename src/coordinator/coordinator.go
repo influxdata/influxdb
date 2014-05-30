@@ -68,7 +68,7 @@ func NewCoordinatorImpl(config *configuration.Configuration, raftServer ClusterC
 func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
 	log.Info("Start Query: db: %s, u: %s, q: %s", database, user.GetName(), queryString)
 	defer func(t time.Time) {
-		log.Debug("End Query: db: %s, u: %s, q: %s, t: %f", database, user.GetName(), queryString, time.Now().Sub(t))
+		log.Debug("End Query: db: %s, u: %s, q: %s, t: %s", database, user.GetName(), queryString, time.Now().Sub(t))
 	}(time.Now())
 	// don't let a panic pass beyond RunQuery
 	defer common.RecoverFunc(database, queryString, nil)
@@ -340,7 +340,7 @@ func (self *CoordinatorImpl) readFromResponseChannels(processor cluster.QueryPro
 		for response := range responseChan {
 
 			//log.Debug("GOT RESPONSE: ", response.Type, response.Series)
-			log.Debug("GOT RESPONSE: ", response.Type)
+			log.Debug("GOT RESPONSE: %v", response.Type)
 			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
 				if response.ErrorMessage == nil {
 					break
@@ -402,7 +402,7 @@ func (self *CoordinatorImpl) queryShards(querySpec *parser.QuerySpec, shards []*
 		}
 		responseChan := make(chan *protocol.Response, bufferSize)
 		// We query shards for data and stream them to query processor
-		log.Debug("QUERYING: shard: ", i, shard.String())
+		log.Debug("QUERYING: shard: %d %v", i, shard.String())
 		go shard.Query(querySpec, responseChan)
 		responseChannels <- responseChan
 	}
@@ -430,7 +430,7 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 		log.Debug("Querying shards sequentially")
 		shardConcurrentLimit = 1
 	}
-	log.Debug("Shard concurrent limit: ", shardConcurrentLimit)
+	log.Debug("Shard concurrent limit: %d", shardConcurrentLimit)
 
 	errors := make(chan error, shardConcurrentLimit)
 	for i := 0; i < shardConcurrentLimit; i++ {

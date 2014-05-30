@@ -25,7 +25,7 @@ func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
 			}
 
 			if groupBy.Elems[0].Type != ValueDuration {
-				log.Debug("Get a time function without a duration argument %s", groupBy.Elems[0].Type)
+				log.Debug("Get a time function without a duration argument %v", groupBy.Elems[0].Type)
 			}
 			arg := groupBy.Elems[0].Name
 			durationInt, err := common.ParseTimeDuration(arg)

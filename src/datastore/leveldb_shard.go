@@ -338,7 +338,7 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 		}
 	}
 
-	log.Debug("Finished running query %s")
+	log.Debug("Finished running query %s", query.GetQueryString())
 	return nil
 }
 
