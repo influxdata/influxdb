@@ -1,4 +1,12 @@
-## v0.7.2 [unreleased]
+## v0.7.3 [unreleased]
+
+### Bugfixes
+
+## v0.7.2 [2014-05-30]
+
+### Features
+
+- [Issue #521](https://github.com/influxdb/influxdb/issues/521). MODE works on all datatypes (Thanks, @richthegeek)
 
 ### Bugfixes
 
