@@ -53,6 +53,23 @@ func (self *ServerSuite) TearDownSuite(c *C) {
 	}
 }
 
+func (self *ServerSuite) TestLargeRequestSize(c *C) {
+	client := self.serverProcesses[0].GetClient("db1", c)
+	c.Assert(client.CreateDatabase("db1"), IsNil)
+	numberOfPoints := 2 * 1024 * 1024
+	data := CreatePoints("test_large_requests", 1, numberOfPoints)
+	self.serverProcesses[0].WriteData(data, c)
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
+	for _, s := range self.serverProcesses {
+		data = s.RunQuery("select count(column0) from test_large_requests", "m", c)
+		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Points, HasLen, 1)
+		c.Assert(data[0].Points[0][1], Equals, float64(numberOfPoints))
+	}
+}
+
 func (self *ServerSuite) TestChangingRootPassword(c *C) {
 	rootClient := self.serverProcesses[0].GetClient("", c)
 	c.Assert(rootClient.CreateClusterAdmin("newroot", "root"), IsNil)
