@@ -2,10 +2,13 @@ package main
 
 import (
 	crand "crypto/rand"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"sync"
@@ -26,11 +29,23 @@ type benchmarkConfig struct {
 	Log                *os.File
 }
 
+type duration struct {
+	time.Duration
+}
+
+func (d *duration) UnmarshalText(text []byte) (err error) {
+	d.Duration, err = time.ParseDuration(string(text))
+	return err
+}
+
 type statsServer struct {
-	ConnectionString string `toml:"connection_string"`
-	User             string `toml:"user"`
-	Password         string `toml:"password"`
-	Database         string `toml:"database"`
+	ConnectionString string   `toml:"connection_string"`
+	User             string   `toml:"user"`
+	Password         string   `toml:"password"`
+	Database         string   `toml:"database"`
+	IsSecure         bool     `toml:"is_secure"`
+	SkipVerify       bool     `toml:"skip_verify"`
+	Timeout          duration `toml:"timeout"`
 }
 
 type clusterCredentials struct {
@@ -40,7 +55,10 @@ type clusterCredentials struct {
 }
 
 type server struct {
-	ConnectionString string `toml:"connection_string"`
+	ConnectionString string   `toml:"connection_string"`
+	IsSecure         bool     `toml:"is_secure"`
+	SkipVerify       bool     `toml:"skip_verify"`
+	Timeout          duration `toml:"timeout"`
 }
 
 type loadSettings struct {
@@ -197,7 +215,17 @@ func (self *BenchmarkHarness) reportClient() *influxdb.Client {
 		Host:     self.Config.StatsServer.ConnectionString,
 		Database: self.Config.StatsServer.Database,
 		Username: self.Config.StatsServer.User,
-		Password: self.Config.StatsServer.Password}
+		Password: self.Config.StatsServer.Password,
+		IsSecure: self.Config.StatsServer.IsSecure,
+		HttpClient: &http.Client{
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: self.Config.StatsServer.SkipVerify},
+				ResponseHeaderTimeout: self.Config.StatsServer.Timeout.Duration,
+				Dial: func(network, address string) (net.Conn, error) {
+					return net.DialTimeout(network, address, self.Config.StatsServer.Timeout.Duration)
+				},
+			},
+		},
+	}
 	client, _ := influxdb.NewClient(clientConfig)
 	return client
 }
@@ -365,7 +393,17 @@ func (self *BenchmarkHarness) queryAndReport(loadDef *loadDefinition, q *query, 
 		Host:     s.ConnectionString,
 		Database: self.Config.ClusterCredentials.Database,
 		Username: self.Config.ClusterCredentials.User,
-		Password: self.Config.ClusterCredentials.Password}
+		Password: self.Config.ClusterCredentials.Password,
+		IsSecure: s.IsSecure,
+		HttpClient: &http.Client{
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: s.SkipVerify},
+				ResponseHeaderTimeout: s.Timeout.Duration,
+				Dial: func(network, address string) (net.Conn, error) {
+					return net.DialTimeout(network, address, s.Timeout.Duration)
+				},
+			},
+		},
+	}
 	client, err := influxdb.NewClient(clientConfig)
 	if err != nil {
 		// report query fail
@@ -412,7 +450,17 @@ func (self *BenchmarkHarness) handleWrites(s *server) {
 		Host:     s.ConnectionString,
 		Database: self.Config.ClusterCredentials.Database,
 		Username: self.Config.ClusterCredentials.User,
-		Password: self.Config.ClusterCredentials.Password}
+		Password: self.Config.ClusterCredentials.Password,
+		IsSecure: s.IsSecure,
+		HttpClient: &http.Client{
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: s.SkipVerify},
+				ResponseHeaderTimeout: s.Timeout.Duration,
+				Dial: func(network, address string) (net.Conn, error) {
+					return net.DialTimeout(network, address, s.Timeout.Duration)
+				},
+			},
+		},
+	}
 	client, err := influxdb.NewClient(clientConfig)
 	if err != nil {
 		panic(fmt.Sprintf("Error connecting to server \"%s\": %s", s.ConnectionString, err))
