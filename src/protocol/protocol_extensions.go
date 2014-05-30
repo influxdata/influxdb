@@ -89,6 +89,10 @@ func (self *Point) GetFieldValueAsString(idx int) string {
 	}
 }
 
+func (self *Request) Size() int {
+	return proto.Size(self)
+}
+
 func DecodeRequest(buff *bytes.Buffer) (request *Request, err error) {
 	request = &Request{}
 	err = proto.Unmarshal(buff.Bytes(), request)
@@ -110,6 +114,10 @@ func (self *Request) Encode() (data []byte, err error) {
 
 func (self *Request) Decode(data []byte) error {
 	return proto.Unmarshal(data, self)
+}
+
+func (self *Response) Size() int {
+	return proto.Size(self)
 }
 
 func DecodeResponse(buff *bytes.Buffer) (response *Response, err error) {

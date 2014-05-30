@@ -700,6 +700,26 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 
 func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
 	request := &protocol.Request{Type: &write, Database: &db, MultiSeries: series}
+	// break the request if it's too big
+	if request.Size() >= MAX_REQUEST_SIZE {
+		if l := len(series); l > 1 {
+			// create two requests with half the serie
+			if err := self.write(db, series[:l/2], shard, sync); err != nil {
+				return err
+			}
+			return self.write(db, series[l/2:], shard, sync)
+		}
+
+		// otherwise, split the points of the only series
+		s := series[0]
+		l := len(s.Points)
+		s1 := &protocol.Series{Name: s.Name, Fields: s.Fields, Points: s.Points[:l/2]}
+		if err := self.write(db, []*protocol.Series{s1}, shard, sync); err != nil {
+			return err
+		}
+		s2 := &protocol.Series{Name: s.Name, Fields: s.Fields, Points: s.Points[l/2:]}
+		return self.write(db, []*protocol.Series{s2}, shard, sync)
+	}
 	if sync {
 		return shard.SyncWrite(request)
 	}
