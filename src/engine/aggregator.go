@@ -1015,6 +1015,8 @@ func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 				returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{BoolValue: &v}})
 			case float64:
 				returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &v}})
+			case nil:
+				returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{IsNull: &TRUE}})
 			}
 		}
 		// size is really "minimum size"

@@ -175,6 +175,84 @@ func (self *DataTestSuite) DifferenceValues(c *C) (Fun, Fun) {
 		}
 }
 
+func (self *DataTestSuite) ModeWithInt(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "name": "test_mode",
+    "columns": ["value"],
+    "points": [
+      [1],
+      [2],
+      [2],
+      [3],
+      [4]
+    ]
+  }
+ ]`
+			client.WriteJsonData(data, c, influxdb.Millisecond)
+		}, func(client Client) {
+			serieses := client.RunQuery("select mode(value) from test_mode", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["mode"], Equals, 2.0)
+		}
+}
+
+func (self *DataTestSuite) ModeWithString(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "name": "test_mode_string",
+    "columns": ["value"],
+    "points": [
+      ["one"],
+      ["two"],
+      ["two"],
+      ["two"],
+      ["three"]
+    ]
+  }
+ ]`
+			client.WriteJsonData(data, c, influxdb.Millisecond)
+		}, func(client Client) {
+			serieses := client.RunQuery("select mode(value) from test_mode_string", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["mode"], Equals, "two")
+		}
+}
+
+func (self *DataTestSuite) ModeWithNils(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "name": "test_mode_nils",
+    "columns": ["value", "value2"],
+    "points": [
+      [1, "one"],
+      [1, null],
+      [1, null],
+      [1, null],
+      [1, "three"]
+    ]
+  }
+ ]`
+			client.WriteJsonData(data, c, influxdb.Millisecond)
+		}, func(client Client) {
+			serieses := client.RunQuery("select mode(value) as m1, mode(value2) as m2 from test_mode_nils", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["m2"], Equals, nil)
+		}
+}
+
 func (self *DataTestSuite) MergingOldData(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `
