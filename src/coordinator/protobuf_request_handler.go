@@ -115,12 +115,7 @@ func (self *ProtobufRequestHandler) handleDropDatabase(request *protocol.Request
 }
 
 func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *protocol.Response) error {
-	data, err := response.Encode()
-	if err != nil {
-		log.Error("error encoding response: %s", err)
-		return err
-	}
-	if len(data) >= MAX_RESPONSE_SIZE {
+	if response.Size() >= MAX_RESPONSE_SIZE {
 		pointCount := len(response.Series.Points)
 		firstHalfPoints := response.Series.Points[:pointCount]
 		secondHalfPoints := response.Series.Points[pointCount:]
@@ -131,6 +126,12 @@ func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *proto
 		}
 		response.Series.Points = secondHalfPoints
 		return self.WriteResponse(conn, response)
+	}
+
+	data, err := response.Encode()
+	if err != nil {
+		log.Error("error encoding response: %s", err)
+		return err
 	}
 
 	buff := bytes.NewBuffer(make([]byte, 0, len(data)+8))
