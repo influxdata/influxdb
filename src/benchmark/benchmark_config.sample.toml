@@ -12,6 +12,9 @@ connection_string = "localhost:8086"
 database = "reports"
 user = "user"
 password = "pass"
+is_secure = false
+skip_verify = false
+timeout = "5s"
 
 # A regular database, user, and password to read and write data on the cluster being benchmarked.
 [cluster_credentials]

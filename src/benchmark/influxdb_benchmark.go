@@ -2,10 +2,13 @@ package main
 
 import (
 	crand "crypto/rand"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"sync"
@@ -27,10 +30,13 @@ type benchmarkConfig struct {
 }
 
 type statsServer struct {
-	ConnectionString string `toml:"connection_string"`
-	User             string `toml:"user"`
-	Password         string `toml:"password"`
-	Database         string `toml:"database"`
+	ConnectionString string        `toml:"connection_string"`
+	User             string        `toml:"user"`
+	Password         string        `toml:"password"`
+	Database         string        `toml:"database"`
+	IsSecure         bool          `toml:"is_secure"`
+	SkipVerify       bool          `toml:"skip_verify"`
+	Timeout          time.Duration `toml:"timeout"`
 }
 
 type clusterCredentials struct {
@@ -197,7 +203,17 @@ func (self *BenchmarkHarness) reportClient() *influxdb.Client {
 		Host:     self.Config.StatsServer.ConnectionString,
 		Database: self.Config.StatsServer.Database,
 		Username: self.Config.StatsServer.User,
-		Password: self.Config.StatsServer.Password}
+		Password: self.Config.StatsServer.Password,
+		IsSecure: self.Config.StatsServer.IsSecure,
+		HttpClient: &http.Client{
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: self.Config.StatsServer.SkipVerify},
+				ResponseHeaderTimeout: self.Config.StatsServer.Timeout,
+				Dial: func(network, address string) (net.Conn, error) {
+					return net.DialTimeout(network, address, self.Config.StatsServer.Timeout)
+				},
+			},
+		},
+	}
 	client, _ := influxdb.NewClient(clientConfig)
 	return client
 }
