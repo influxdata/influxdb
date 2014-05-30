@@ -991,14 +991,15 @@ func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 		counts = append(counts, count)
 		countMap[count] = append(countMap[count], value)
 	}
-	sort.Ints(counts)
+
+	// descending sort
+	sort.Sort(sort.Reverse(sort.IntSlice(counts)))
 
 	returnValues := [][]*protocol.FieldValue{}
 
 	last := 0
-	for i := len(counts); i > 0; i-- {
+	for _, count := range counts {
 		// counts can contain duplicates, but we only want to append each count-set once
-		count := counts[i-1]
 		if count == last {
 			continue
 		}
@@ -1037,11 +1038,9 @@ func NewModeAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 	size := 1
 	if len(value.Elems) == 2 {
 		switch value.Elems[1].Type {
-		case parser.ValueInt, parser.ValueFloat:
+		case parser.ValueInt:
 			var err error
-			_size := int64(1)
-			_size, err = strconv.ParseInt(value.Elems[1].Name, 10, 32)
-			size = int(_size)
+			size, err = strconv.Atoi(value.Elems[1].Name)
 			if err != nil {
 				return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into an int", value.Elems[1].Name)
 			}
