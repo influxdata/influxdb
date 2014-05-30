@@ -4,13 +4,15 @@ import (
 	crand "crypto/rand"
 	"flag"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb-go"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"runtime"
+	"sync"
 	"time"
+
+	"github.com/BurntSushi/toml"
+	"github.com/influxdb/influxdb-go"
 )
 
 type benchmarkConfig struct {
@@ -133,12 +135,11 @@ func main() {
 }
 
 type BenchmarkHarness struct {
-	Config                  *benchmarkConfig
-	writes                  chan *LoadWrite
-	loadDefinitionCompleted chan bool
-	done                    chan bool
-	success                 chan *successResult
-	failure                 chan *failureResult
+	Config *benchmarkConfig
+	writes chan *LoadWrite
+	sync.WaitGroup
+	success chan *successResult
+	failure chan *failureResult
 }
 
 type successResult struct {
@@ -162,12 +163,9 @@ const MAX_SUCCESS_REPORTS_TO_QUEUE = 100000
 func NewBenchmarkHarness(conf *benchmarkConfig) *BenchmarkHarness {
 	rand.Seed(time.Now().UnixNano())
 	harness := &BenchmarkHarness{
-		Config:                  conf,
-		loadDefinitionCompleted: make(chan bool),
-		done:    make(chan bool),
+		Config:  conf,
 		success: make(chan *successResult, MAX_SUCCESS_REPORTS_TO_QUEUE),
 		failure: make(chan *failureResult, 1000)}
-	go harness.trackRunningLoadDefinitions()
 	harness.startPostWorkers()
 	go harness.reportResults()
 	return harness
@@ -175,12 +173,13 @@ func NewBenchmarkHarness(conf *benchmarkConfig) *BenchmarkHarness {
 
 func (self *BenchmarkHarness) Run() {
 	for _, loadDef := range self.Config.LoadDefinitions {
+		self.Add(1)
 		go func() {
 			self.runLoadDefinition(&loadDef)
-			self.loadDefinitionCompleted <- true
+			self.Done()
 		}()
 	}
-	self.waitForCompletion()
+	self.Wait()
 }
 
 func (self *BenchmarkHarness) startPostWorkers() {
@@ -248,25 +247,6 @@ func (self *BenchmarkHarness) reportResults() {
 				Columns: failureColumns,
 				Points:  [][]interface{}{{res.microseconds / 1000, res.err}}}
 			client.WriteSeries([]*influxdb.Series{s})
-		}
-	}
-}
-
-func (self *BenchmarkHarness) waitForCompletion() {
-	<-self.done
-	// TODO: fix this. Just a hack to give the reporting goroutines time to purge before the process quits.
-	time.Sleep(time.Second)
-}
-
-func (self *BenchmarkHarness) trackRunningLoadDefinitions() {
-	count := 0
-	loadDefinitionCount := len(self.Config.LoadDefinitions)
-	for {
-		<-self.loadDefinitionCompleted
-		count += 1
-		if count == loadDefinitionCount {
-			self.done <- true
-			return
 		}
 	}
 }
