@@ -63,7 +63,7 @@ func (self *ServerSuite) TestLargeRequestSize(c *C) {
 		s.WaitForServerToSync()
 	}
 	for _, s := range self.serverProcesses {
-		data = s.RunQuery("select count(column0) from test_large_requests", "m", c)
+		data = s.RunQueryAsRoot("select count(column0) from test_large_requests", "m", c)
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Points, HasLen, 1)
 		c.Assert(data[0].Points[0][1], Equals, float64(numberOfPoints))
