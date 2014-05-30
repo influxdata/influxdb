@@ -116,9 +116,9 @@ func (self *ProtobufRequestHandler) handleDropDatabase(request *protocol.Request
 
 func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *protocol.Response) error {
 	if response.Size() >= MAX_RESPONSE_SIZE {
-		pointCount := len(response.Series.Points)
-		firstHalfPoints := response.Series.Points[:pointCount]
-		secondHalfPoints := response.Series.Points[pointCount:]
+		l := len(response.Series.Points)
+		firstHalfPoints := response.Series.Points[:l/2]
+		secondHalfPoints := response.Series.Points[l/2:]
 		response.Series.Points = firstHalfPoints
 		err := self.WriteResponse(conn, response)
 		if err != nil {
