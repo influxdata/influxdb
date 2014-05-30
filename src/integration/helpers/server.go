@@ -111,8 +111,14 @@ func (self *Server) WaitForServerToSync() {
 
 // optional db
 func (self *Server) GetClient(db string, c *C) *influxdb.Client {
+	return self.GetClientWithUser(db, "", "", c)
+}
+
+func (self *Server) GetClientWithUser(db, username, password string, c *C) *influxdb.Client {
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{
 		Host:     fmt.Sprintf("localhost:%d", self.apiPort),
+		Username: username,
+		Password: password,
 		Database: db,
 	})
 	c.Assert(err, IsNil)
@@ -150,7 +156,7 @@ func (self *Server) RunQueryAsRoot(query string, precision influxdb.TimePrecisio
 }
 
 func (self *Server) RunQueryAsUser(query string, precision influxdb.TimePrecision, username, password string, isValid bool, c *C) []*influxdb.Series {
-	client := self.GetClient("db1", c)
+	client := self.GetClientWithUser("db1", username, password, c)
 	series, err := client.Query(query, precision)
 	if isValid {
 		c.Assert(err, IsNil)

@@ -272,9 +272,10 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 func (self *SingleServerSuite) TestUserReadPermissions(c *C) {
 	rootUser := self.server.GetClient("", c)
 
+	// this can fail if db1 is already created
+	rootUser.CreateDatabase("db1")
 	// create two users one that can only read and one that can only write. both can access test_should_read
 	// series only
-	c.Assert(rootUser.CreateDatabase("db1"), IsNil)
 	c.Assert(rootUser.CreateDatabaseUser("db1", "limited_user2", "pass", "test_should_read", "^$"), IsNil)
 
 	data := `
