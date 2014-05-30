@@ -1,3 +1,11 @@
+## v0.7.2 [unreleased]
+
+### Bugfixes
+
+- [Issue #418](https://github.com/influxdb/influxdb/pull/418). Requests or responses larger than MAX_REQUEST_SIZE break things.
+
+### Features
+
 ## v0.7.1 [2014-05-29]
 
 ### Bugfixes
