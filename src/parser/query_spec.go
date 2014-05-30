@@ -98,6 +98,13 @@ func (self *QuerySpec) SeriesValuesAndColumns() map[*Value][]string {
 	return self.seriesValuesAndColumns
 }
 
+func (self *QuerySpec) GetFromClause() *FromClause {
+	if q := self.query.SelectQuery; q != nil {
+		return q.GetFromClause()
+	}
+	return nil
+}
+
 func (self *QuerySpec) GetGroupByInterval() *time.Duration {
 	if self.query.SelectQuery == nil {
 		return nil
