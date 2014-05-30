@@ -120,12 +120,7 @@ func (self *Server) GetClient(db string, c *C) *influxdb.Client {
 }
 
 func (self *Server) WriteData(data interface{}, c *C, precision ...influxdb.TimePrecision) {
-	client, err := influxdb.NewClient(&influxdb.ClientConfig{
-		Username: "root",
-		Password: "root",
-		Database: "db1",
-	})
-	c.Assert(err, IsNil)
+	client := self.GetClient("db1", c)
 	var series []*influxdb.Series
 	switch x := data.(type) {
 	case string:
@@ -136,6 +131,7 @@ func (self *Server) WriteData(data interface{}, c *C, precision ...influxdb.Time
 		c.Fatalf("Unknown type: %T", x)
 	}
 
+	var err error
 	if len(precision) == 0 {
 		err = client.WriteSeries(series)
 	} else {
@@ -154,12 +150,7 @@ func (self *Server) RunQueryAsRoot(query string, precision influxdb.TimePrecisio
 }
 
 func (self *Server) RunQueryAsUser(query string, precision influxdb.TimePrecision, username, password string, isValid bool, c *C) []*influxdb.Series {
-	client, err := influxdb.NewClient(&influxdb.ClientConfig{
-		Username: username,
-		Password: password,
-		Database: "db1",
-	})
-	c.Assert(err, IsNil)
+	client := self.GetClient("db1", c)
 	series, err := client.Query(query, precision)
 	if isValid {
 		c.Assert(err, IsNil)
