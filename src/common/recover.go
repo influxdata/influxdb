@@ -1,20 +1,24 @@
 package common
 
 import (
+	"bytes"
 	"fmt"
-	"os"
 	"runtime"
+
+	log "code.google.com/p/log4go"
 )
 
 func RecoverFunc(database, query string, cleanup func(err interface{})) {
 	if err := recover(); err != nil {
-		fmt.Fprintf(os.Stderr, "********************************BUG********************************\n")
 		buf := make([]byte, 1024)
 		n := runtime.Stack(buf, false)
-		fmt.Fprintf(os.Stderr, "Database: %s\n", database)
-		fmt.Fprintf(os.Stderr, "Query: [%s]\n", query)
-		fmt.Fprintf(os.Stderr, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
-		err = NewQueryError(InternalError, "Internal Error")
+		b := bytes.NewBufferString("")
+		fmt.Fprintf(b, "********************************BUG********************************\n")
+		fmt.Fprintf(b, "Database: %s\n", database)
+		fmt.Fprintf(b, "Query: [%s]\n", query)
+		fmt.Fprintf(b, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
+		log.Error(b.String())
+		err = NewQueryError(InternalError, "Internal Error: %s", err)
 		if cleanup != nil {
 			cleanup(err)
 		}
