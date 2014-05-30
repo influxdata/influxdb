@@ -1033,8 +1033,16 @@ func NewModeAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mode() requires at least one argument")
 	}
 
-	if len(value.Elems) > 2 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mode() takes at most two arguments")
+	// TODO: Mode can in fact take two argument, the second specifies
+	// the "size", but it's not clear if size is set to 2 whether to
+	// return at least 2 elements, or return the most common values and
+	// the second most common values. The difference will be apparent if
+	// the data set is multimodel and there are two most common
+	// values. In the first case, the two most common values will be
+	// returned, but in the second case the two most common values and
+	// the second most common values will be returned
+	if len(value.Elems) > 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mode() takes at most one arguments")
 	}
 
 	size := 1
