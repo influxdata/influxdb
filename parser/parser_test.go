@@ -970,6 +970,35 @@ func (self *QueryParserSuite) TestQueryParenthesesValueShouldSupportAliases(c *C
 	c.Assert(column2.Alias, Equals, "arithmetic_result2")
 }
 
+func (self *QueryParserSuite) TestHavingClause(c *C) {
+	q, err := ParseSelectQuery("select value from t group by time(1h) having top(value, 10);")
+	c.Assert(err, IsNil)
+
+	fromClause := q.GetFromClause()
+	c.Assert(fromClause.Type, Equals, FromClauseArray)
+	c.Assert(fromClause.Names, HasLen, 1)
+	c.Assert(fromClause.Names[0].Name.Name, Equals, "t")
+
+	groupClause := q.GetGroupByClause()
+	fmt.Printf("group: %+v\n", groupClause.Condition)
+	fmt.Printf("group: %+v\n", groupClause.Condition.Left)
+}
+
+func (self *QueryParserSuite) TestHavingClauseWithCondition(c *C) {
+	q, err := ParseSelectQuery("select value from t group by time(1h) having value > 10;")
+	c.Assert(err, IsNil)
+
+	fromClause := q.GetFromClause()
+	c.Assert(fromClause.Type, Equals, FromClauseArray)
+	c.Assert(fromClause.Names, HasLen, 1)
+	c.Assert(fromClause.Names[0].Name.Name, Equals, "t")
+
+	groupClause := q.GetGroupByClause()
+	fmt.Printf("group: %+v\n", groupClause.Condition)
+	fmt.Printf("group: %+v\n", groupClause.Condition.Left)
+}
+
+
 // TODO:
 // insert into user.events.count.per_day select count(*) from user.events where time<forever group by time(1d)
 // insert into :series_name.percentiles.95 select percentile(95,value) from stats.* where time<forever group by time(1d)

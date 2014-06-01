@@ -14,6 +14,7 @@ type GroupByClause struct {
 	FillWithZero bool
 	FillValue    *Value
 	Elems        []*Value
+	Condition  *WhereCondition
 }
 
 func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
@@ -48,4 +49,8 @@ func (self *GroupByClause) GetString() string {
 		fmt.Fprintf(buffer, " fill(%s)", self.FillValue.GetString())
 	}
 	return buffer.String()
+}
+
+func (self *GroupByClause) GetCondition() *WhereCondition{
+	return self.Condition
 }

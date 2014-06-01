@@ -71,6 +71,7 @@ static int yycolumn = 1;
 "in"                      { yylval->string = strdup(yytext); return OPERATION_IN; }
 "desc"                    { return DESC; }
 "group"                   { BEGIN(INITIAL); return GROUP; }
+"having"                  { BEGIN(INITIAL); return HAVING; }
 "by"                      { return BY; }
 "into"                    { return INTO; }
 "("                       { yylval->character = *yytext; return *yytext; }

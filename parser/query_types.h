@@ -48,6 +48,7 @@ typedef struct condition_t {
 typedef struct groupby_clause_t {
   value_array *elems;
   value *fill_function;
+  condition *having;
 } groupby_clause;
 
 typedef struct {

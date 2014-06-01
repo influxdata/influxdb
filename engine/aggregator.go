@@ -1237,9 +1237,11 @@ func NewLastAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 //
 type ByPointColumnDesc struct {
 	protocol.PointsCollection
+	Index int
 }
 type ByPointColumnAsc struct {
 	protocol.PointsCollection
+	Index int
 }
 
 func (s ByPointColumnDesc) Less(i, j int) bool {
@@ -1247,12 +1249,12 @@ func (s ByPointColumnDesc) Less(i, j int) bool {
 		return false
 	}
 
-	if s.PointsCollection[i].Values[0].Int64Value != nil && s.PointsCollection[j].Values[0].Int64Value != nil {
-		return *s.PointsCollection[i].Values[0].Int64Value > *s.PointsCollection[j].Values[0].Int64Value
-	} else if s.PointsCollection[i].Values[0].DoubleValue != nil && s.PointsCollection[j].Values[0].DoubleValue != nil {
-		return *s.PointsCollection[i].Values[0].DoubleValue > *s.PointsCollection[j].Values[0].DoubleValue
-	} else if s.PointsCollection[i].Values[0].StringValue != nil && s.PointsCollection[j].Values[0].StringValue != nil {
-		return *s.PointsCollection[i].Values[0].StringValue > *s.PointsCollection[j].Values[0].StringValue
+	if s.PointsCollection[i].Values[s.Index].Int64Value != nil && s.PointsCollection[j].Values[s.Index].Int64Value != nil {
+		return *s.PointsCollection[i].Values[s.Index].Int64Value > *s.PointsCollection[j].Values[s.Index].Int64Value
+	} else if s.PointsCollection[i].Values[s.Index].DoubleValue != nil && s.PointsCollection[j].Values[s.Index].DoubleValue != nil {
+		return *s.PointsCollection[i].Values[s.Index].DoubleValue > *s.PointsCollection[j].Values[s.Index].DoubleValue
+	} else if s.PointsCollection[i].Values[s.Index].StringValue != nil && s.PointsCollection[j].Values[s.Index].StringValue != nil {
+		return *s.PointsCollection[i].Values[s.Index].StringValue > *s.PointsCollection[j].Values[s.Index].StringValue
 	}
 
 	return false
@@ -1263,7 +1265,7 @@ func (s ByPointColumnAsc) Less(i, j int) bool {
 		return false
 	}
 
-	return comparePointValue(s.PointsCollection[i], s.PointsCollection[j])
+	return comparePointValue(s.PointsCollection[i], s.PointsCollection[j], s.Index)
 }
 
 type TopOrBottomAggregatorState struct {
@@ -1281,20 +1283,20 @@ type TopOrBottomAggregator struct {
 	target       string
 }
 
-func comparePointValue(a, b *protocol.Point) bool {
-	if a.Values[0].Int64Value != nil && b.Values[0].Int64Value != nil {
-		return *a.Values[0].Int64Value < *b.Values[0].Int64Value
-	} else if a.Values[0].DoubleValue != nil && b.Values[0].DoubleValue != nil {
-		return *a.Values[0].DoubleValue < *b.Values[0].DoubleValue
-	} else if a.Values[0].StringValue != nil && b.Values[0].StringValue != nil {
-		return *a.Values[0].StringValue < *b.Values[0].StringValue
+func comparePointValue(a, b *protocol.Point, index int) bool {
+	if a.Values[index].Int64Value != nil && b.Values[index].Int64Value != nil {
+		return *a.Values[index].Int64Value < *b.Values[index].Int64Value
+	} else if a.Values[index].DoubleValue != nil && b.Values[index].DoubleValue != nil {
+		return *a.Values[index].DoubleValue < *b.Values[index].DoubleValue
+	} else if a.Values[index].StringValue != nil && b.Values[index].StringValue != nil {
+		return *a.Values[index].StringValue < *b.Values[index].StringValue
 	}
 
 	return false
 }
 
 func (self *TopOrBottomAggregator) comparePoint(a, b *protocol.Point, greater bool) bool {
-	result := comparePointValue(a, b)
+	result := comparePointValue(a, b, 0)
 
 	if !greater {
 		return !result
@@ -1318,9 +1320,9 @@ func (self *TopOrBottomAggregator) AggregatePoint(state interface{}, p *protocol
 
 	sorter := func(values protocol.PointsCollection, isTop bool) {
 		if isTop {
-			sort.Sort(ByPointColumnDesc{values})
+			sort.Sort(ByPointColumnDesc{values, 0})
 		} else {
-			sort.Sort(ByPointColumnAsc{values})
+			sort.Sort(ByPointColumnAsc{values, 0})
 		}
 	}
 

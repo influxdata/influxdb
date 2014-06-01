@@ -73,7 +73,12 @@ func matchesExpression(expr *parser.Value, fields []string, point *protocol.Poin
 
 func matches(condition *parser.WhereCondition, fields []string, point *protocol.Point) (bool, error) {
 	if expr, ok := condition.GetBoolExpression(); ok {
-		return matchesExpression(expr, fields, point)
+		if expr.Type == parser.ValueFunctionCall {
+			// For now, Don't evaluate function value.
+			return true, nil
+		} else {
+			return matchesExpression(expr, fields, point)
+		}
 	}
 
 	left, _ := condition.GetLeftWhereCondition()

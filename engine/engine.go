@@ -28,6 +28,7 @@ type QueryEngine struct {
 	// query information
 	query            *parser.SelectQuery
 	isAggregateQuery bool
+	isHavingQuery    bool
 	fields           []string
 	where            *parser.WhereCondition
 	fillWithZero     bool
@@ -107,7 +108,6 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 
 	yield := func(series *protocol.Series) error {
 		var response *protocol.Response
-
 		queryEngine.limiter.calculateLimitAndSlicePoints(series)
 		if len(series.Points) == 0 {
 			return nil
@@ -330,6 +330,11 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 	self.isAggregateQuery = true
 	self.duration = duration
 	self.aggregators = []Aggregator{}
+
+	groupByClause := query.GetGroupByClause()
+	if groupByClause.Condition != nil {
+		self.isHavingQuery = true
+	}
 
 	for _, value := range query.GetColumnNames() {
 		if !value.IsFunctionCall() {

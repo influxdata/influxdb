@@ -75,7 +75,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES EXPLAIN
+%token          SELECT DELETE FROM WHERE EQUAL GROUP BY HAVING LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES EXPLAIN
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE BOOLEAN_VALUE TABLE_NAME SIMPLE_NAME INTO_NAME REGEX_OP
 %token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
@@ -97,7 +97,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %type <v>                 VALUE TABLE_VALUE SIMPLE_TABLE_VALUE TABLE_NAME_VALUE SIMPLE_NAME_VALUE INTO_VALUE INTO_NAME_VALUE
 %type <table_name_array>  SIMPLE_TABLE_VALUES
 %type <v>                 WILDCARD REGEX_VALUE DURATION_VALUE FUNCTION_CALL
-%type <groupby_clause>    GROUP_BY_CLAUSE
+%type <groupby_clause>    GROUP_BY_AND_HAVING_CLAUSE
 %type <integer>           LIMIT_CLAUSE
 %type <character>         ORDER_CLAUSE
 %type <into_clause>       INTO_CLAUSE
@@ -217,7 +217,7 @@ EXPLAIN_QUERY:
         }
 
 SELECT_QUERY:
-        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
+        SELECT COLUMN_NAMES FROM_CLAUSE GROUP_BY_AND_HAVING_CLAUSE WHERE_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
         {
           $$ = calloc(1, sizeof(select_query));
           $$->c = $2;
@@ -230,7 +230,7 @@ SELECT_QUERY:
           $$->explain = FALSE;
         }
         |
-        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
+        SELECT COLUMN_NAMES FROM_CLAUSE WHERE_CLAUSE GROUP_BY_AND_HAVING_CLAUSE LIMIT_AND_ORDER_CLAUSES INTO_CLAUSE
         {
           $$ = calloc(1, sizeof(select_query));
           $$->c = $2;
@@ -300,12 +300,13 @@ VALUES:
           $$ = $1;
         }
 
-GROUP_BY_CLAUSE:
+GROUP_BY_AND_HAVING_CLAUSE:
         GROUP BY VALUES
         {
           $$ = malloc(sizeof(groupby_clause));
           $$->elems = $3;
           $$->fill_function = NULL;
+          $$->having = NULL;
         }
         |
         GROUP BY VALUES FUNCTION_CALL
@@ -313,6 +314,23 @@ GROUP_BY_CLAUSE:
           $$ = malloc(sizeof(groupby_clause));
           $$->elems = $3;
           $$->fill_function = $4;
+          $$->having = NULL;
+        }
+        |
+        GROUP BY VALUES HAVING CONDITION
+        {
+          $$ = malloc(sizeof(groupby_clause));
+          $$->elems = $3;
+          $$->fill_function = NULL;
+          $$->having = $5;
+        }
+        |
+        GROUP BY VALUES FUNCTION_CALL HAVING CONDITION
+        {
+          $$ = malloc(sizeof(groupby_clause));
+          $$->elems = $3;
+          $$->fill_function = $4;
+          $$->having = $6;
         }
         |
         {

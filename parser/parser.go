@@ -320,6 +320,7 @@ func GetGroupByClause(groupByClause *C.groupby_clause) (*GroupByClause, error) {
 
 	fillWithZero := false
 	var fillValue *Value
+	var having *WhereCondition
 
 	if groupByClause.fill_function != nil {
 		fun, err := GetValue(groupByClause.fill_function)
@@ -338,10 +339,15 @@ func GetGroupByClause(groupByClause *C.groupby_clause) (*GroupByClause, error) {
 		fillWithZero = true
 	}
 
+	if groupByClause.having != nil {
+		having, _ = GetWhereCondition(groupByClause.having)
+	}
+
 	return &GroupByClause{
 		Elems:        values,
 		FillWithZero: fillWithZero,
 		FillValue:    fillValue,
+		Condition:    having,
 	}, nil
 }
 

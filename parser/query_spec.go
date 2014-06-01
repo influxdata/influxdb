@@ -211,3 +211,7 @@ func (self *QuerySpec) IsDestructiveQuery() bool {
 func (self *QuerySpec) HasAggregates() bool {
 	return self.SelectQuery() != nil && self.SelectQuery().HasAggregates()
 }
+
+func (self *QuerySpec) HasHaving() bool {
+	return self.SelectQuery() != nil && self.SelectQuery().HasHaving()
+}
