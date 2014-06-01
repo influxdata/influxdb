@@ -67,6 +67,7 @@ func (self *RequestHandler) CreateDatabase(conn *Connection, request *Command) e
 		return errors.New(fmt.Sprintf("Cannot create database: at least requires 1 name parameter"))
 	}
 
+	// TODO: Verify first.
 	v := Command_CREATEDATABASE
 	result := Command_OK
 	response := &Command{
@@ -75,6 +76,8 @@ func (self *RequestHandler) CreateDatabase(conn *Connection, request *Command) e
 		Database: &Command_Database{
 		},
 	}
+
+	// TODO: remove soft fail.
 	for _, name := range database {
 		err := self.Server.Coordinator.CreateDatabase(conn.User, name)
 		if err != nil {
@@ -100,6 +103,7 @@ func (self *RequestHandler) DropDatabase(conn *Connection, request *Command) err
 		Database: &Command_Database{
 		},
 	}
+
 	for _, name := range databases {
 		err := self.Server.Coordinator.DropDatabase(conn.User, name)
 		if err != nil {
@@ -109,6 +113,7 @@ func (self *RequestHandler) DropDatabase(conn *Connection, request *Command) err
 			response.GetDatabase().Name = append(response.GetDatabase().Name, name)
 		}
 	}
+
 	response.Result = &result
 	return conn.WriteRequest(response)
 }

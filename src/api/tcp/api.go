@@ -15,6 +15,9 @@ import (
 	"time"
 	"code.google.com/p/goprotobuf/proto"
 	"errors"
+
+	"crypto/rand"
+	"crypto/tls"
 )
 
 const KILOBYTE = 1024
@@ -30,6 +33,7 @@ type Server struct {
 	clusterConfig *cluster.ClusterConfiguration
 	shutdown      chan bool
 	RequestHandler *RequestHandler
+	tlsConfig *tls.Config
 }
 
 func NewServer(config *configuration.Configuration, coord coordinator.Coordinator, um api.UserManager, clusterConfig *cluster.ClusterConfiguration) *Server {
@@ -37,6 +41,20 @@ func NewServer(config *configuration.Configuration, coord coordinator.Coordinato
 
 	self.listenAddress = config.TcpInputPortString()
 	self.listenSocket = config.TcpInputSocketString()
+
+	if config.TcpInputUseSSL {
+		cert, err := tls.LoadX509KeyPair(config.TcpInputSSLCert(), config.TcpInputSSLKey())
+		if err != nil {
+			log.Error("tcp server: loadkeys failed. disable ssl feature: %s", err)
+		} else {
+			tslConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
+			tslConfig.Rand = rand.Reader
+
+			self.tlsConfig = tslConfig
+			log.Debug("SSL Config loaded")
+		}
+	}
+
 	self.Coordinator = coord
 	self.UserManager = um
 	self.shutdown = make(chan bool, 1)
@@ -114,6 +132,20 @@ func (self *Server) authenticate(conn *Connection, info *Greeting_Authentication
 	return nil
 }
 
+func (self *Server) beginSSLHandshake(conn *Connection) error {
+	var tlsConn *tls.Conn
+
+	tlsConn = tls.Server(conn.Socket, self.tlsConfig)
+	// NOTE(chobie): Assume ssl handshake.
+	if err := tlsConn.Handshake(); err != nil {
+		log.Debug("SSL HANDSHAKE FAILED: %+v", err)
+		return err
+	}
+
+	conn.Socket = tlsConn
+	return nil
+}
+
 func (self *Server) handshake(conn *Connection) error {
 	var err error
 	auth := &Greeting_Authentication{}
@@ -137,7 +169,8 @@ func (self *Server) handshake(conn *Connection) error {
 	gtype := Greeting_STARTUP_RESPONSE
 	ctype := Greeting_Configuration_PLAIN
 	method := Greeting_Authentication_CLEARTEXT_PASSWORD
-	ssl := Greeting_Configuration_NONE
+	//ssl := Greeting_Configuration_NONE
+	ssl := Greeting_Configuration_REQUIRED
 	req := &Greeting{
 		Type: &gtype,
 		ProtocolVersion: proto.Int32(1),
@@ -155,6 +188,19 @@ func (self *Server) handshake(conn *Connection) error {
 	conn.IncrementSequence()
 
 	// TODO: wait ssl greeting response.
+	if ssl == Greeting_Configuration_REQUIRED {
+		ok := &Greeting{}
+		err = conn.ReadMessage(ok)
+		if err != nil {
+			return err
+		}
+		log.Debug("ok: %+v", ok)
+		conn.Buffer.ReadBuffer.Reset()
+		conn.Buffer.WriteBuffer.Reset()
+		if e := self.beginSSLHandshake(conn); e != nil {
+			return e
+		}
+	}
 
 	// Authentication
 	request := &Greeting{}
@@ -308,4 +354,5 @@ func (self *Server) ListenAndServe() {
 	if self.listenSocket != "" {
 		go self.unixListenAndServe()
 	}
+
 }

@@ -41,11 +41,12 @@ message Greeting {
 	enum GreetingType {
 		STARTUP_MESSAGE   = 1;
 		STARTUP_RESPONSE  = 2;
-		AUTHENTICATION_OK = 3;
-		MESSAGE_OPTION    = 4;
-		COMMAND_READY     = 5;
-		SSL_RESPONSE      = 6;
-		ERROR             = 7;
+		AUTHENTICATION    = 3;
+		AUTHENTICATION_OK = 4;
+		MESSAGE_OPTION    = 5;
+		COMMAND_READY     = 6;
+		SSL_UPGRADE       = 7;
+		ERROR             = 8;
 	}
 
 	optional GreetingType type = 2;
