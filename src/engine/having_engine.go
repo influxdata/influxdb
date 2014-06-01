@@ -12,13 +12,24 @@ import (
 	log "code.google.com/p/log4go"
 )
 
+var having_aggregators []string = []string{
+	"top",
+	"bottom",
+}
+
 type HavingEngine struct {
 	query               *parser.SelectQuery
 	responseChan        chan *protocol.Response
 	response            *protocol.Response
 	maxPointsInResponse int
-	limiter             *Limiter
 	responseType        *protocol.Response_Type
+
+	// having
+	hasAggregator bool
+	aggregatorName string
+	name string
+	aggregatorLimit int64
+	Limit int
 
 	// query statistics
 	runStartTime  float64
@@ -27,19 +38,13 @@ type HavingEngine struct {
 	pointsWritten int64
 	shardId       int
 	shardLocal    bool
-
-	// having
-	aggregator string
-	name string
-	limit int64
-
 }
 
 type conditionState struct {
 	Value *parser.Value
 }
 
-func checkCondition(condition *parser.WhereCondition, state *conditionState) error {
+func checkConditionAndCollectAggregateValue(condition *parser.WhereCondition, state *conditionState) error {
 	bool, ok:= condition.GetBoolExpression()
 	log.Debug("Name: %+v, %+v", condition, bool)
 	if ok {
@@ -62,77 +67,21 @@ func checkCondition(condition *parser.WhereCondition, state *conditionState) err
 	} else {
 		left, ok := condition.GetLeftWhereCondition()
 		if ok {
-			err := checkCondition(left, state)
+			err := checkConditionAndCollectAggregateValue(left, state)
 			if err != nil {
 				return err
 			}
 		}
 
 		if condition.Right != nil {
-			return checkCondition(condition.Right, state)
+			return checkConditionAndCollectAggregateValue(condition.Right, state)
 		}
 	}
 
 	return nil
 }
 
-
-
-func NewHavingEngine(query *parser.SelectQuery, responseChan chan *protocol.Response, maxPointsInResponse int) (*HavingEngine, error) {
-	return NewHavingEngineWithLimit(query, responseChan, maxPointsInResponse, 0)
-}
-
-func NewHavingEngineWithLimit(query *parser.SelectQuery, responseChan chan *protocol.Response, maxPointsInResponse, limit int) (*HavingEngine, error) {
-	HavingEngine := &HavingEngine{
-		query: query,
-		responseChan:        responseChan,
-		maxPointsInResponse: maxPointsInResponse,
-		limiter:             NewLimiter(limit),
-		responseType:        &queryResponse,
-		runStartTime:        0,
-		runEndTime:          0,
-		pointsRead:          0,
-		pointsWritten:       0,
-		shardId:             0,
-		shardLocal:          false, //that really doesn't matter if it is not EXPLAIN query
-	}
-
-
-	having := query.GetGroupByClause().GetCondition()
-	state := &conditionState{}
-	err := checkCondition(having, state)
-	if err != nil {
-		return nil, errors.New(fmt.Sprintf("wrong conditions: %s", err))
-	}
-
-	if state.Value != nil {
-		b := state.Value
-		if b.Name != "top" && b.Name != "bottom" {
-			return nil, errors.New(fmt.Sprintf("wrong conditions: %s function not supproted", b.Name))
-		}
-		if (len(b.Elems) != 2) {
-			return nil, errors.New(fmt.Sprintf("wrong conditions: %s requires exact 2 parameters", b.Name))
-		}
-
-		name := b.Elems[0].Name
-		l, err := strconv.ParseInt(b.Elems[1].Name, 10, 64)
-		if err != nil {
-			return nil, errors.New(fmt.Sprintf("wrong conditions: %s", err))
-		}
-		HavingEngine.aggregator = b.Name
-		HavingEngine.name = name
-		HavingEngine.limit = l
-	}
-
-	return HavingEngine, nil
-}
-
-func (self *HavingEngine) YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool {
-	series := &protocol.Series{Name: seriesName, Points: []*protocol.Point{point}, Fields: columnNames}
-	return self.YieldSeries(series)
-}
-
-func Filter2(query *parser.SelectQuery, condition *parser.WhereCondition, series *protocol.Series) (*protocol.Series, error) {
+func HavingFilter(query *parser.SelectQuery, condition *parser.WhereCondition, series *protocol.Series) (*protocol.Series, error) {
 	if condition == nil {
 		return series, nil
 	}
@@ -173,6 +122,68 @@ func Filter2(query *parser.SelectQuery, condition *parser.WhereCondition, series
 	return series, nil
 }
 
+func NewHavingEngine(query *parser.SelectQuery, responseChan chan *protocol.Response, maxPointsInResponse int) (*HavingEngine, error) {
+	return NewHavingEngineWithLimit(query, responseChan, maxPointsInResponse, 0)
+}
+
+func NewHavingEngineWithLimit(query *parser.SelectQuery, responseChan chan *protocol.Response, maxPointsInResponse, limit int) (*HavingEngine, error) {
+	HavingEngine := &HavingEngine{
+		query: query,
+		responseChan:        responseChan,
+		maxPointsInResponse: maxPointsInResponse,
+		responseType:        &queryResponse,
+		runStartTime:        0,
+		runEndTime:          0,
+		pointsRead:          0,
+		pointsWritten:       0,
+		shardId:             0,
+		shardLocal:          false, //that really doesn't matter if it is not EXPLAIN query
+		Limit:               limit,
+	}
+
+	having := query.GetGroupByClause().GetCondition()
+	state := &conditionState{}
+	err := checkConditionAndCollectAggregateValue(having, state)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("wrong conditions: %s", err))
+	}
+
+	if state.Value != nil {
+		ok := false
+		for _, name := range having_aggregators {
+			if state.Value.Name == name {
+				ok = true
+			}
+		}
+
+		if !ok{
+			return nil, errors.New(fmt.Sprintf("wrong conditions: %s function not supproted", state.Value.Name))
+		}
+
+		if (len(state.Value.Elems) != 2) {
+			return nil, errors.New(fmt.Sprintf("wrong conditions: %s requires exact 2 parameters", state.Value.Name))
+		}
+
+		name := state.Value.Elems[0].Name
+		l, err := strconv.ParseInt(state.Value.Elems[1].Name, 10, 64)
+		if err != nil {
+			return nil, errors.New(fmt.Sprintf("wrong conditions: %s", err))
+		}
+
+		HavingEngine.aggregatorName = state.Value.Name
+		HavingEngine.name = name
+		HavingEngine.aggregatorLimit = l
+		HavingEngine.hasAggregator = true
+	}
+
+	return HavingEngine, nil
+}
+
+func (self *HavingEngine) YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool {
+	series := &protocol.Series{Name: seriesName, Points: []*protocol.Point{point}, Fields: columnNames}
+	return self.YieldSeries(series)
+}
+
 func (self *HavingEngine) YieldSeries(seriesIncoming *protocol.Series) bool {
 	log.Debug("HavingEngine YieldSeries %d", len(seriesIncoming.Points))
 
@@ -202,7 +213,7 @@ func (self *HavingEngine) YieldSeries(seriesIncoming *protocol.Series) bool {
 		}
 	}
 
-	seriesIncoming , err := Filter2(self.query, self.query.GetGroupByClause().GetCondition(), seriesIncoming)
+	seriesIncoming , err := HavingFilter(self.query, self.query.GetGroupByClause().GetCondition(), seriesIncoming)
 	if err != nil {
 		log.Debug("Error: %+v", err)
 	}
@@ -216,30 +227,34 @@ func (self *HavingEngine) YieldSeries(seriesIncoming *protocol.Series) bool {
 		self.response.Series = common.MergeSeries(self.response.Series, seriesIncoming)
 	}
 
-	//	// TODO: Currently, having clause only supports top and bottom.
-	if self.aggregator == "top" {
-		log.Debug("TOP")
-		sort.Sort(ByPointColumnDesc{self.response.Series.Points, index})
-	} else if self.aggregator == "bottom" {
-		log.Debug("BOTTOM")
-		sort.Sort(ByPointColumnAsc{self.response.Series.Points, index})
-	} else {
-		log.Debug("THROUGH:")
-		//return false
-	}
+	if self.hasAggregator {
+		if self.aggregatorName == "top" {
+			sort.Sort(ByPointColumnDesc{self.response.Series.Points, index})
+		} else if self.aggregatorName == "bottom" {
+			sort.Sort(ByPointColumnAsc{self.response.Series.Points, index})
+		} else {
+			panic("never get here")
+		}
 
-	if self.limit > 0 && int64(len(self.response.Series.Points)) > self.limit {
-		self.response.Series.Points = self.response.Series.Points[0:self.limit]
+		if self.aggregatorLimit > 0 && int64(len(self.response.Series.Points)) > self.aggregatorLimit {
+			self.response.Series.Points = self.response.Series.Points[0:self.aggregatorLimit]
+		}
 	}
 
 	return true
 }
 
 func (self *HavingEngine) Close() {
+	log.Debug("LIMIT: %+v", self.response.Series.Points)
+	if self.Limit > 0 && len(self.response.Series.Points) > self.Limit {
+		self.response.Series.Points = self.response.Series.Points[0:self.Limit]
+	}
+
 	if self.response != nil && self.response.Series != nil && self.response.Series.Name != nil {
 		log.Debug("HAVING WRITING:")
 		self.responseChan <- self.response
 	}
+
 	response := &protocol.Response{Type: &endStreamResponse}
 	self.responseChan <- response
 }
