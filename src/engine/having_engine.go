@@ -87,10 +87,8 @@ func HavingFilter(query *parser.SelectQuery, condition *parser.WhereCondition, s
 	}
 
 	columns := map[string]struct{}{}
-	for _, cs := range query.GetResultColumns() {
-		for _, c := range cs {
-			columns[c] = struct{}{}
-		}
+	for _, cs := range series.Fields {
+		columns[cs] = struct{}{}
 	}
 
 	points := series.Points
@@ -108,17 +106,6 @@ func HavingFilter(query *parser.SelectQuery, condition *parser.WhereCondition, s
 		}
 	}
 
-	if _, ok := columns["*"]; !ok {
-		newFields := []string{}
-		for _, f := range series.Fields {
-			if _, ok := columns[f]; !ok {
-				continue
-			}
-
-			newFields = append(newFields, f)
-		}
-		series.Fields = newFields
-	}
 	return series, nil
 }
 
