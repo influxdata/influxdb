@@ -184,3 +184,31 @@ func Filter(query *parser.SelectQuery, series *protocol.Series) (*protocol.Serie
 	}
 	return series, nil
 }
+
+func HavingFilter(condition *parser.WhereCondition, series *protocol.Series) (*protocol.Series, error) {
+	if condition == nil {
+		return series, nil
+	}
+
+	columns := map[string]struct{}{}
+	for _, cs := range series.Fields {
+		columns[cs] = struct{}{}
+	}
+
+	points := series.Points
+	series.Points = nil
+	for _, point := range points {
+		ok, err := matches(condition , series.Fields, point)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			filterColumns(columns, series.Fields, point)
+			series.Points = append(series.Points, point)
+		}
+	}
+
+	return series, nil
+}

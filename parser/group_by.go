@@ -48,6 +48,11 @@ func (self *GroupByClause) GetString() string {
 	if self.FillWithZero {
 		fmt.Fprintf(buffer, " fill(%s)", self.FillValue.GetString())
 	}
+
+	if self.Condition != nil {
+		fmt.Fprintf(buffer, " having %s", self.Condition.GetString())
+	}
+
 	return buffer.String()
 }
 

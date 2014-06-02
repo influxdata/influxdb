@@ -283,13 +283,12 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 	selectQuery := querySpec.SelectQuery()
 	if selectQuery != nil {
 		log.Debug("ShouldAggregateLocally: %d", shouldAggregateLocally)
-		groupBy := selectQuery.GetGroupByClause()
 		if !shouldAggregateLocally {
 			// if we should aggregate in the coordinator (i.e. aggregation
 			// isn't happening locally at the shard level), create an engine
-			processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
-		} else if groupBy != nil && groupBy.GetCondition() != nil {
-			processor, err = engine.NewHavingEngineWithLimit(querySpec.SelectQuery(), responseChan, 100, selectQuery.Limit)
+			//
+			// NOTE(chobie): having flag should pass coordinator layer.
+			processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan, querySpec.HasHaving())
 		} else {
 			// if we have a query with limit, then create an engine, or we can
 			// make the passthrough limit aware

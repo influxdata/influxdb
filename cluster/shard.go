@@ -242,6 +242,7 @@ func (self *ShardData) WriteLocalOnly(request *p.Request) error {
 }
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Response) {
+	log.Debug("QUERYSPEC: %+v", querySpec)
 	log.Debug("QUERY: shard %d, query '%s'", self.Id(), querySpec.GetQueryString())
 	defer common.RecoverFunc(querySpec.Database(), querySpec.GetQueryString(), func(err interface{}) {
 		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(fmt.Sprintf("%s", err))}
@@ -269,17 +270,17 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 		} else {
 			query := querySpec.SelectQuery()
 			if self.ShouldAggregateLocally(querySpec) {
-				log.Debug("creating a query engine")
-				processor, err = engine.NewQueryEngine(query, response)
+				log.Debug("creating a query engine:")
+				processor, err = engine.NewQueryEngine(query, response, false)
 				if err != nil {
 					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
 					log.Error("Error while creating engine: %s", err)
 					return
 				}
 				processor.SetShardInfo(int(self.Id()), self.IsLocal)
-			} else if query.HasAggregates() {
+			} else if query.HasAggregates() || query.HasHaving() {
 				maxPointsToBufferBeforeSending := 1000
-				log.Debug("creating a passthrough engine")
+				log.Debug("creating a passthrough engine!")
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
 			} else {
 				maxPointsToBufferBeforeSending := 1000
@@ -299,6 +300,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 				processor = engine.NewFilteringEngine(query, processor)
 			}
 		}
+		log.Debug("processor: %T", processor)
 		shard, err := self.store.GetOrCreateShard(self.id)
 		if err != nil {
 			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
@@ -369,13 +371,12 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 		return false
 	}
 
-	if querySpec.HasHaving() {
-		return true
-	}
-
 	groupByInterval := querySpec.GetGroupByInterval()
 	if groupByInterval == nil {
 		if querySpec.HasAggregates() {
+			return false
+		}
+		if querySpec.HasHaving() {
 			return false
 		}
 		return true

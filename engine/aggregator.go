@@ -29,6 +29,12 @@ type Aggregator interface {
 type AggregatorInitializer func(*parser.SelectQuery, *parser.Value, *parser.Value) (Aggregator, error)
 
 var registeredAggregators = make(map[string]AggregatorInitializer)
+var registeredHavingAggregators = make(map[string]AggregatorInitializer)
+
+var having_aggregators []string = []string{
+	"top",
+	"bottom",
+}
 
 func init() {
 	registeredAggregators["max"] = NewMaxAggregator
@@ -48,6 +54,9 @@ func init() {
 	registeredAggregators["last"] = NewLastAggregator
 	registeredAggregators["top"] = NewTopAggregator
 	registeredAggregators["bottom"] = NewBottomAggregator
+
+	registeredHavingAggregators["top"] = NewTopAggregator
+	registeredHavingAggregators["bottom"] = NewBottomAggregator
 }
 
 // used in testing to get a list of all aggregators
