@@ -201,6 +201,24 @@ func (self *QueryEngine) Close() {
 		}
 	}
 
+	// make sure we yield an empty series for series without points
+	fromClause := self.query.GetFromClause()
+	if fromClause.Type == parser.FromClauseMerge {
+		for _, s := range []string{fromClause.Names[0].Name.Name, fromClause.Names[1].Name.Name} {
+			if _, ok := self.seriesToPoints[s]; ok {
+				continue
+			}
+
+			err := self.yield(&protocol.Series{
+				Name:   &s,
+				Fields: []string{},
+			})
+			if err != nil {
+				log.Error("Error while closing engine: %s", err)
+			}
+		}
+	}
+
 	if self.isAggregateQuery {
 		self.runAggregates()
 	}

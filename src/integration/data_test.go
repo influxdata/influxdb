@@ -278,6 +278,12 @@ func (self *DataTestSuite) MergingOldData(c *C) (Fun, Fun) {
 			c.Assert(serieses, HasLen, 1)
 			maps := ToMap(serieses[0])
 			c.Assert(maps, HasLen, 2)
+
+			serieses = client.RunQuery("select * from test_merge_1 merge test_merge_2 where time > '1980-01-01' and time < '1980-01-04'", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps = ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["value"], Equals, "a value")
 		}
 }
 
