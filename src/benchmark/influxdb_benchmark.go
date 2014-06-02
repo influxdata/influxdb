@@ -171,6 +171,10 @@ type failureResult struct {
 	microseconds int64
 }
 
+func (fr failureResult) String() string {
+	return fmt.Sprintf("%s - %d", fr.err.Error(), fr.microseconds)
+}
+
 type LoadWrite struct {
 	LoadDefinition *loadDefinition
 	Series         []*influxdb.Series
