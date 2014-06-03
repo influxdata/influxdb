@@ -278,18 +278,16 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 }
 
 func (self *QueryEngine) closeHaving() {
-	if self.shouldHaving {
-		if self.havingResponse != nil && self.havingResponse.Series != nil && self.havingResponse.Series.Points != nil {
-			self.limiter.calculateLimitAndSlicePoints(self.havingResponse.Series)
+	if self.havingResponse != nil && self.havingResponse.Series != nil && self.havingResponse.Series.Points != nil {
+		self.limiter.calculateLimitAndSlicePoints(self.havingResponse.Series)
 
-			if self.explain {
-				self.pointsWritten += int64(len(self.havingResponse.Series.Points))
-			}
-			self.responseChan <- self.havingResponse
-		} else {
-			self.responseChan <- &protocol.Response {
-				Type: &queryResponse,
-			}
+		if self.explain {
+			self.pointsWritten += int64(len(self.havingResponse.Series.Points))
+		}
+		self.responseChan <- self.havingResponse
+	} else {
+		self.responseChan <- &protocol.Response {
+			Type: &queryResponse,
 		}
 	}
 }
