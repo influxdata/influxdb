@@ -288,7 +288,7 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 			// isn't happening locally at the shard level), create an engine
 			//
 			// NOTE(chobie): having flag should pass coordinator layer.
-			processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan, querySpec.HasHaving())
+			processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
 		} else {
 			// if we have a query with limit, then create an engine, or we can
 			// make the passthrough limit aware

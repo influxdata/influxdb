@@ -271,7 +271,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 			query := querySpec.SelectQuery()
 			if self.ShouldAggregateLocally(querySpec) {
 				log.Debug("creating a query engine:")
-				processor, err = engine.NewQueryEngine(query, response, false)
+				processor, err = engine.NewQueryEngine(query, response)
 				if err != nil {
 					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
 					log.Error("Error while creating engine: %s", err)

@@ -91,7 +91,48 @@ func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*
 	return nil
 }
 
-func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Response, shouldHaving bool) (*QueryEngine, error) {
+func (self *QueryEngine) setupHavingClause() error {
+	having := self.query.GetGroupByClause().GetCondition()
+	state := &conditionState{}
+	err := checkConditionAndCollectAggregateValue(having, state)
+	if err != nil {
+		return errors.New(fmt.Sprintf("wrong conditions: %s", err))
+	}
+	if having != nil {
+		self.shouldHavingFilter = true
+	}
+
+	if state.Value != nil {
+		ok := false
+		for _, name := range having_aggregators {
+			if state.Value.Name == name {
+				ok = true
+			}
+		}
+
+		if !ok {
+			return errors.New(fmt.Sprintf("wrong conditions: %s function not supproted", state.Value.Name))
+		}
+
+		if len(state.Value.Elems) != 2 {
+			return errors.New(fmt.Sprintf("wrong conditions: %s requires exact 2 parameters", state.Value.Name))
+		}
+
+		name := state.Value.Elems[0].Name
+		limit, err := strconv.ParseInt(state.Value.Elems[1].Name, 10, 64)
+		if err != nil {
+			return errors.New(fmt.Sprintf("wrong conditions: %s", err))
+		}
+
+		self.havingAggregatorName = strings.ToLower(state.Value.Name)
+		self.havingAggregatorKey = strings.ToLower(name)
+		self.havingAggregatorLimit = limit
+		self.shouldHavingAggregate = true
+	}
+	return nil
+}
+
+func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Response) (*QueryEngine, error) {
 	limit := query.Limit
 
 	queryEngine := &QueryEngine{
@@ -110,48 +151,7 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		shardLocal:    false, //that really doesn't matter if it is not EXPLAIN query
 		duration:      nil,
 		seriesStates:  make(map[string]*SeriesState),
-		shouldHaving:  shouldHaving,
-	}
-
-	if shouldHaving {
-		having := query.GetGroupByClause().GetCondition()
-		state := &conditionState{}
-		err := checkConditionAndCollectAggregateValue(having, state)
-		if err != nil {
-			return nil, errors.New(fmt.Sprintf("wrong conditions: %s", err))
-		}
-		if having != nil {
-			queryEngine.shouldHavingFilter = true
-		}
-
-		if state.Value != nil {
-			ok := false
-			for _, name := range having_aggregators {
-				if state.Value.Name == name {
-					ok = true
-				}
-			}
-
-			if !ok {
-				return nil, errors.New(fmt.Sprintf("wrong conditions: %s function not supproted", state.Value.Name))
-			}
-
-			if len(state.Value.Elems) != 2 {
-				return nil, errors.New(fmt.Sprintf("wrong conditions: %s requires exact 2 parameters", state.Value.Name))
-			}
-
-			name := state.Value.Elems[0].Name
-			l, err := strconv.ParseInt(state.Value.Elems[1].Name, 10, 64)
-			if err != nil {
-				return nil, errors.New(fmt.Sprintf("wrong conditions: %s", err))
-			}
-
-			queryEngine.havingAggregatorName = state.Value.Name
-			queryEngine.havingAggregatorKey = name
-			queryEngine.havingAggregatorLimit = l
-			queryEngine.shouldHavingAggregate = true
-		}
-
+		shouldHaving:  query.HasHaving(),
 	}
 
 	if queryEngine.explain {
@@ -175,6 +175,12 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 
 	var err error
 	if queryEngine.shouldHaving {
+		err := queryEngine.setupHavingClause()
+		if err != nil{
+			return nil, err
+		}
+
+		// override exising yield when operating having clause.
 		yield = func(seriesIncoming *protocol.Series) error {
 			if queryEngine.shouldHavingFilter {
 				seriesIncoming , err = HavingFilter(queryEngine.query.GetGroupByClause().GetCondition(), seriesIncoming)
@@ -190,7 +196,10 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 			}
 
 			if queryEngine.shouldHavingAggregate {
+				// TODO(chobie): should check column existence.
 				index := queryEngine.findIndex(queryEngine.havingResponse.Series)
+
+				// TODO(chobie): should follow aggregator manners.
 				if queryEngine.havingAggregatorName == "top" {
 					sort.Sort(ByPointColumnDesc{queryEngine.havingResponse.Series.Points, index})
 				} else if queryEngine.havingAggregatorName == "bottom" {
@@ -269,6 +278,8 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 
 func (self *QueryEngine) closeHaving() {
 	if self.shouldHaving {
+		self.limiter.calculateLimitAndSlicePoints(self.havingResponse.Series)
+
 		if self.explain {
 			self.pointsWritten += int64(len(self.havingResponse.Series.Points))
 		}
