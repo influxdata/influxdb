@@ -252,3 +252,14 @@ func (self *QueryApiSuite) TestAliasing(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(query.GetTableAliases("user.events"), DeepEquals, []string{"user.events"})
 }
+
+func (self *QueryApiSuite) TestHaving(c *C) {
+	for _, queryStr := range []string{
+		"select * from user.events group by time(1h) having top(clicks, 10)",
+		"select * from user.events group by time(1h) having top(clicks, 10) and time > now() -1h",
+	} {
+		query, err := ParseSelectQuery(queryStr)
+		c.Assert(err, IsNil)
+		c.Assert(query.HasHaving(), Equals, true)
+	}
+}

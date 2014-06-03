@@ -2340,3 +2340,67 @@ func (self *DataTestSuite) GroupByYear(c *C) (Fun, Fun) {
 			c.Assert(maps[1]["count"], Equals, 1.0)
 		}
 }
+
+
+// Issue #661
+func (self *DataTestSuite) Having(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 5; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_having",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 40+i*10, 50+i*10), c)
+		}
+	}, func(client Client) {
+		data := client.RunQuery("select cpu, host from test_having group by host having top(cpu, 10);", c, "m")
+		c.Assert(data[0].Name, Equals, "test_having")
+		c.Assert(data[0].Columns, HasLen, 4)
+		// top collects result as possible
+		c.Assert(data[0].Points, HasLen, 10)
+
+		tops := []float64{}
+		hosts := []string{}
+		for _, point := range data[0].Points {
+			tops = append(tops, point[2].(float64))
+			hosts = append(hosts, point[3].(string))
+		}
+		c.Assert(tops, DeepEquals, []float64{90, 80, 80, 70, 70, 60, 60, 50, 50, 40})
+		c.Assert(hosts, DeepEquals, []string{"hostb", "hosta", "hostb", "hosta", "hostb", "hosta", "hostb", "hosta", "hostb", "hosta"})
+	}
+}
+
+func (self *DataTestSuite) HavingWithCondition(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 5; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_having",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 40+i*10, 50+i*10), c)
+		}
+	}, func(client Client) {
+		data := client.RunQuery("select cpu, host from test_having group by host having top(cpu, 10) and host = 'hosta';", c, "m")
+		c.Assert(data[0].Name, Equals, "test_having")
+		c.Assert(data[0].Columns, HasLen, 4)
+		// top collects result as possible
+		c.Assert(data[0].Points, HasLen, 5)
+
+		tops := []float64{}
+		hosts := []string{}
+		for _, point := range data[0].Points {
+			tops = append(tops, point[2].(float64))
+			hosts = append(hosts, point[3].(string))
+		}
+		c.Assert(tops, DeepEquals, []float64{80, 70, 60, 50, 40})
+		c.Assert(hosts, DeepEquals, []string{"hosta", "hosta", "hosta", "hosta", "hosta"})
+	}
+}

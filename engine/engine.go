@@ -278,13 +278,18 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 
 func (self *QueryEngine) closeHaving() {
 	if self.shouldHaving {
-		self.limiter.calculateLimitAndSlicePoints(self.havingResponse.Series)
+		if self.havingResponse != nil && self.havingResponse.Series != nil && self.havingResponse.Series.Points != nil {
+			self.limiter.calculateLimitAndSlicePoints(self.havingResponse.Series)
 
-		if self.explain {
-			self.pointsWritten += int64(len(self.havingResponse.Series.Points))
+			if self.explain {
+				self.pointsWritten += int64(len(self.havingResponse.Series.Points))
+			}
+			self.responseChan <- self.havingResponse
+		} else {
+			self.responseChan <- &protocol.Response {
+				Type: &queryResponse,
+			}
 		}
-
-		self.responseChan <- self.havingResponse
 	}
 }
 
@@ -811,16 +816,20 @@ func (self *QueryEngine) findHavingAggregateIndex(seriesIncoming *protocol.Serie
 
 type havingConditionState struct {
 	Value *parser.Value
+	ParentOperation *string
 }
 
 func checkConditionAndCollectAggregateValue(condition *parser.WhereCondition, state *havingConditionState) error {
 	bool, ok:= condition.GetBoolExpression()
-	log.Debug("Name: %+v, %+v", condition, bool)
 	if ok {
 		if bool.Type == parser.ValueFunctionCall {
 			if bool.Name != "top" && bool.Name != "bottom" {
 				return errors.New(fmt.Sprintf("%s aggregate function does not supported", bool.Name))
 			} else {
+				if state.ParentOperation != nil && *state.ParentOperation != "AND" {
+					return errors.New(fmt.Sprintf("having aggregator requires boolean operation or AND operator. OR does not allowed"))
+				}
+
 				if state.Value == nil {
 					state.Value = bool
 					return nil
@@ -835,6 +844,8 @@ func checkConditionAndCollectAggregateValue(condition *parser.WhereCondition, st
 		}
 	} else {
 		left, ok := condition.GetLeftWhereCondition()
+		state.ParentOperation = &condition.Operation
+
 		if ok {
 			err := checkConditionAndCollectAggregateValue(left, state)
 			if err != nil {
@@ -842,9 +853,7 @@ func checkConditionAndCollectAggregateValue(condition *parser.WhereCondition, st
 			}
 		}
 
-		if condition.Right != nil {
-			return checkConditionAndCollectAggregateValue(condition.Right, state)
-		}
+		return checkConditionAndCollectAggregateValue(condition.Right, state)
 	}
 
 	return nil
