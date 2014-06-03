@@ -158,7 +158,7 @@ func (self *ClusterServer) heartbeat() {
 		// otherwise, reset the backoff and mark the server as up
 		self.isUp = true
 		self.Backoff = self.MinBackoff
-		<-time.After(self.HeartbeatInterval)
+		time.Sleep(self.HeartbeatInterval)
 	}
 }
 
@@ -193,7 +193,7 @@ func (self *ClusterServer) handleHeartbeatError(err error) {
 	if self.Backoff > self.MaxBackoff {
 		self.Backoff = self.MaxBackoff
 	}
-	<-time.After(self.Backoff)
+	time.Sleep(self.Backoff)
 }
 
 // in the coordinator test we don't want to create protobuf servers,
