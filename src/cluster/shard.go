@@ -291,30 +291,32 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 		return
 	}
 
-	healthyServers := make([]*ClusterServer, 0, len(self.clusterServers))
-	for _, s := range self.clusterServers {
-		if !s.IsUp() {
-			continue
-		}
-		healthyServers = append(healthyServers, s)
-	}
-	healthyCount := len(healthyServers)
-	if healthyCount == 0 {
+	if server := self.randomHealthyServer(); server != nil {
+		log.Debug("Querying server %d for shard %d", server.GetId(), self.Id())
+		request := self.createRequest(querySpec)
+		server.MakeRequest(request, response)
+	} else {
 		message := fmt.Sprintf("No servers up to query shard %d", self.id)
 		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &message}
 		log.Error(message)
-		return
+	}
+}
+
+// Returns a random healthy server or nil if none currently exist
+func (self *ShardData) randomHealthyServer() *ClusterServer {
+	healthyServers := make([]*ClusterServer, 0, len(self.clusterServers))
+	for _, s := range self.clusterServers {
+		if s.IsUp() {
+			healthyServers = append(healthyServers, s)
+		}
 	}
 
-	randServerIndex := 0
-	if healthyCount > 1 {
-		randServerIndex = int(time.Now().UnixNano() % int64(healthyCount))
+	healthyCount := len(healthyServers)
+	if healthyCount > 0 {
+		randServerIndex := int(time.Now().UnixNano() % int64(healthyCount))
+		return healthyServers[randServerIndex]
 	}
-	server := healthyServers[randServerIndex]
-	log.Debug("Querying server %d for shard %d", server.GetId(), self.Id())
-	request := self.createRequest(querySpec)
-
-	server.MakeRequest(request, response)
+	return nil
 }
 
 func (self *ShardData) DropDatabase(database string, sendToServers bool) {
