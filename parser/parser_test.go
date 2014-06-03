@@ -88,6 +88,8 @@ func (self *QueryParserSuite) TestGetQueryString(c *C) {
 		"select count(value), host from t group by time(1h), host into value.hourly.[:host] backfill(F)",
 		"select count(value), host from t group by time(1h), host where time > now() - 1h into value.hourly.[:host] backfill(true)",
 		"select count(value) from t, host into value.hourly.[:host] backfill(1)",
+		"select count(value), host from t group by time(1h) having top(count, 10)",
+		"select count(value), host from t group by time(1h) having top(count, 10) and host = 'server-1'",
 		"delete from foo",
 	} {
 		fmt.Printf("testing %s\n", query)
@@ -980,8 +982,12 @@ func (self *QueryParserSuite) TestHavingClause(c *C) {
 	c.Assert(fromClause.Names[0].Name.Name, Equals, "t")
 
 	groupClause := q.GetGroupByClause()
-	fmt.Printf("group: %+v\n", groupClause.Condition)
-	fmt.Printf("group: %+v\n", groupClause.Condition.Left)
+
+	value, bool := groupClause.Condition.GetBoolExpression()
+	c.Assert(bool, Equals, true)
+	c.Assert(value.Name, Equals, "top")
+	c.Assert(value.Elems[0].Name, Equals, "value")
+	c.Assert(value.Elems[1].Name, Equals, "10")
 }
 
 func (self *QueryParserSuite) TestHavingClauseWithCondition(c *C) {
@@ -994,8 +1000,43 @@ func (self *QueryParserSuite) TestHavingClauseWithCondition(c *C) {
 	c.Assert(fromClause.Names[0].Name.Name, Equals, "t")
 
 	groupClause := q.GetGroupByClause()
-	fmt.Printf("group: %+v\n", groupClause.Condition)
-	fmt.Printf("group: %+v\n", groupClause.Condition.Left)
+	value, bool := groupClause.Condition.GetBoolExpression()
+	c.Assert(bool, Equals, true)
+	c.Assert(value.Elems[0].Name, Equals, "value")
+	c.Assert(value.Name, Equals, ">")
+	c.Assert(value.Elems[1].Name, Equals, "10")
+}
+
+func (self *QueryParserSuite) TestHavingClauseWithAggregatesAndCondition(c *C) {
+	q, err := ParseSelectQuery("select value from t group by time(1h) having top(value, 10) and value > 10;")
+	c.Assert(err, IsNil)
+
+
+	fromClause := q.GetFromClause()
+	c.Assert(fromClause.Type, Equals, FromClauseArray)
+	c.Assert(fromClause.Names, HasLen, 1)
+	c.Assert(fromClause.Names[0].Name.Name, Equals, "t")
+
+	groupClause := q.GetGroupByClause()
+	_, ok := groupClause.Condition.GetBoolExpression()
+	c.Assert(ok, Equals, false)
+
+	left, ok := groupClause.Condition.GetLeftWhereCondition()
+	c.Assert(ok, Equals, true)
+	value, ok := left.GetBoolExpression()
+
+	c.Assert(ok, Equals, true)
+	c.Assert(value.Name, Equals, "top")
+	c.Assert(value.Elems[0].Name, Equals, "value")
+	c.Assert(value.Elems[1].Name, Equals, "10")
+
+	right := groupClause.Condition.Right
+
+	value, ok = right.GetBoolExpression()
+	c.Assert(ok, Equals, true)
+	c.Assert(value.Name, Equals, ">")
+	c.Assert(value.Elems[0].Name, Equals, "value")
+	c.Assert(value.Elems[1].Name, Equals, "10")
 }
 
 
