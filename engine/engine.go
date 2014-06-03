@@ -152,6 +152,8 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		duration:      nil,
 		seriesStates:  make(map[string]*SeriesState),
 		shouldHaving:  query.HasHaving(),
+		havingAggregatorName: "",
+		havingAggregatorLimit: 0,
 	}
 
 	if queryEngine.explain {
@@ -196,7 +198,7 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 				queryEngine.havingResponse.Series = common.MergeSeries(queryEngine.havingResponse.Series, seriesIncoming)
 			}
 
-			if queryEngine.shouldHavingAggregate {
+			if queryEngine.shouldHavingAggregate && queryEngine.havingResponse != nil && queryEngine.havingResponse.Series != nil{
 				// TODO(chobie): should check column existence.
 				index := queryEngine.findHavingAggregateIndex(queryEngine.havingResponse.Series)
 
