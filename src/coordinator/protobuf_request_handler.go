@@ -30,17 +30,17 @@ func NewProtobufRequestHandler(coordinator Coordinator, clusterConfig *cluster.C
 }
 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
-	if *request.Type == protocol.Request_WRITE {
+	switch *request.Type {
+	case protocol.Request_WRITE:
 		go self.handleWrites(request, conn)
-	} else if *request.Type == protocol.Request_DROP_DATABASE {
+	case protocol.Request_DROP_DATABASE:
 		go self.handleDropDatabase(request, conn)
-		return nil
-	} else if *request.Type == protocol.Request_QUERY {
+	case protocol.Request_QUERY:
 		go self.handleQuery(request, conn)
-	} else if *request.Type == protocol.Request_HEARTBEAT {
+	case protocol.Request_HEARTBEAT:
 		response := &protocol.Response{RequestId: request.Id, Type: &heartbeatResponse}
 		return self.WriteResponse(conn, response)
-	} else {
+	default:
 		log.Error("unknown request type: %v", request)
 		return errors.New("Unknown request type")
 	}

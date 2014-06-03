@@ -291,30 +291,33 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 		return
 	}
 
-	healthyServers := make([]*ClusterServer, 0, len(self.clusterServers))
-	for _, s := range self.clusterServers {
-		if !s.IsUp() {
-			continue
-		}
-		healthyServers = append(healthyServers, s)
-	}
-	healthyCount := len(healthyServers)
-	if healthyCount == 0 {
-		message := fmt.Sprintf("No servers up to query shard %d", self.id)
-		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &message}
-		log.Error(message)
+	if server := self.randomHealthyServer(); server != nil {
+		log.Debug("Querying server %d for shard %d", server.GetId(), self.Id())
+		request := self.createRequest(querySpec)
+		server.MakeRequest(request, response)
 		return
 	}
 
-	randServerIndex := 0
-	if healthyCount > 1 {
-		randServerIndex = int(time.Now().UnixNano() % int64(healthyCount))
-	}
-	server := healthyServers[randServerIndex]
-	log.Debug("Querying server %d for shard %d", server.GetId(), self.Id())
-	request := self.createRequest(querySpec)
+	message := fmt.Sprintf("No servers up to query shard %d", self.id)
+	response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &message}
+	log.Error(message)
+}
 
-	server.MakeRequest(request, response)
+// Returns a random healthy server or nil if none currently exist
+func (self *ShardData) randomHealthyServer() *ClusterServer {
+	healthyServers := make([]*ClusterServer, 0, len(self.clusterServers))
+	for _, s := range self.clusterServers {
+		if s.IsUp() {
+			healthyServers = append(healthyServers, s)
+		}
+	}
+
+	healthyCount := len(healthyServers)
+	if healthyCount > 0 {
+		randServerIndex := int(time.Now().UnixNano() % int64(healthyCount))
+		return healthyServers[randServerIndex]
+	}
+	return nil
 }
 
 func (self *ShardData) DropDatabase(database string, sendToServers bool) {
@@ -456,7 +459,7 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 		panic("WTF islocal is false and runLocalOnly is true")
 	}
 
-	responseCahnnels := []<-chan *p.Response{}
+	responseChannels := []<-chan *p.Response{}
 	serverIds := []uint32{}
 
 	if self.IsLocal {
@@ -467,7 +470,7 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 			log.Error(msg)
 			return
 		}
-		responseCahnnels = append(responseCahnnels, channel)
+		responseChannels = append(responseChannels, channel)
 		serverIds = append(serverIds, self.localServerId)
 	}
 
@@ -475,11 +478,11 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 	if !runLocalOnly {
 		responses, ids, _ := self.forwardRequest(request)
 		serverIds = append(serverIds, ids...)
-		responseCahnnels = append(responseCahnnels, responses...)
+		responseChannels = append(responseChannels, responses...)
 	}
 
 	accessDenied := false
-	for idx, channel := range responseCahnnels {
+	for idx, channel := range responseChannels {
 		serverId := serverIds[idx]
 		log.Debug("Waiting for response to %s from %d", request.GetDescription(), serverId)
 		for {
