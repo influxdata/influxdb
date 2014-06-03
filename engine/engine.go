@@ -160,6 +160,7 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 
 	yield := func(series *protocol.Series) error {
 		var response *protocol.Response
+
 		queryEngine.limiter.calculateLimitAndSlicePoints(series)
 		if len(series.Points) == 0 {
 			return nil
