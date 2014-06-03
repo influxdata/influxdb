@@ -456,7 +456,7 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 		panic("WTF islocal is false and runLocalOnly is true")
 	}
 
-	responseCahnnels := []<-chan *p.Response{}
+	responseChannels := []<-chan *p.Response{}
 	serverIds := []uint32{}
 
 	if self.IsLocal {
@@ -467,7 +467,7 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 			log.Error(msg)
 			return
 		}
-		responseCahnnels = append(responseCahnnels, channel)
+		responseChannels = append(responseChannels, channel)
 		serverIds = append(serverIds, self.localServerId)
 	}
 
@@ -475,11 +475,11 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 	if !runLocalOnly {
 		responses, ids, _ := self.forwardRequest(request)
 		serverIds = append(serverIds, ids...)
-		responseCahnnels = append(responseCahnnels, responses...)
+		responseChannels = append(responseChannels, responses...)
 	}
 
 	accessDenied := false
-	for idx, channel := range responseCahnnels {
+	for idx, channel := range responseChannels {
 		serverId := serverIds[idx]
 		log.Debug("Waiting for response to %s from %d", request.GetDescription(), serverId)
 		for {
