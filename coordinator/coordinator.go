@@ -282,7 +282,6 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 
 	selectQuery := querySpec.SelectQuery()
 	if selectQuery != nil {
-		log.Debug("ShouldAggregateLocally: %d", shouldAggregateLocally)
 		if !shouldAggregateLocally {
 			// if we should aggregate in the coordinator (i.e. aggregation
 			// isn't happening locally at the shard level), create an engine
@@ -295,10 +294,8 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 			processor = engine.NewPassthroughEngineWithLimit(responseChan, 100, selectQuery.Limit)
 		}
 	} else if !shouldAggregateLocally {
-		log.Debug("Not should Aggregate Locally")
 		processor = engine.NewPassthroughEngine(responseChan, 100)
 	}
-	log.Debug("Parent Engine: %T, %+v", processor, processor)
 
 	if err != nil {
 		return nil, nil, nil, err

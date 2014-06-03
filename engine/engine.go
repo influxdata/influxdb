@@ -93,7 +93,7 @@ func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*
 
 func (self *QueryEngine) setupHavingClause() error {
 	having := self.query.GetGroupByClause().GetCondition()
-	state := &conditionState{}
+	state := &havingConditionState{}
 	err := checkConditionAndCollectAggregateValue(having, state)
 	if err != nil {
 		return errors.New(fmt.Sprintf("wrong conditions: %s", err))
@@ -197,7 +197,7 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 
 			if queryEngine.shouldHavingAggregate {
 				// TODO(chobie): should check column existence.
-				index := queryEngine.findIndex(queryEngine.havingResponse.Series)
+				index := queryEngine.findHavingAggregateIndex(queryEngine.havingResponse.Series)
 
 				// TODO(chobie): should follow aggregator manners.
 				if queryEngine.havingAggregatorName == "top" {
@@ -795,7 +795,7 @@ func (self *QueryEngine) GetName() string {
 	return "QueryEngine"
 }
 
-func (self *QueryEngine) findIndex(seriesIncoming *protocol.Series) int {
+func (self *QueryEngine) findHavingAggregateIndex(seriesIncoming *protocol.Series) int {
 	index := 0
 	if self.havingAggregatorKey != "" {
 		for offset, n := range seriesIncoming.GetFields() {
@@ -809,11 +809,11 @@ func (self *QueryEngine) findIndex(seriesIncoming *protocol.Series) int {
 	return index
 }
 
-type conditionState struct {
+type havingConditionState struct {
 	Value *parser.Value
 }
 
-func checkConditionAndCollectAggregateValue(condition *parser.WhereCondition, state *conditionState) error {
+func checkConditionAndCollectAggregateValue(condition *parser.WhereCondition, state *havingConditionState) error {
 	bool, ok:= condition.GetBoolExpression()
 	log.Debug("Name: %+v, %+v", condition, bool)
 	if ok {

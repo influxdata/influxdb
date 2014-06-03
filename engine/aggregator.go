@@ -29,7 +29,8 @@ type Aggregator interface {
 type AggregatorInitializer func(*parser.SelectQuery, *parser.Value, *parser.Value) (Aggregator, error)
 
 var registeredAggregators = make(map[string]AggregatorInitializer)
-var registeredHavingAggregators = make(map[string]AggregatorInitializer)
+// TODO(chobie): use same aggregator manner
+//var registeredHavingAggregators = make(map[string]AggregatorInitializer)
 
 var having_aggregators []string = []string{
 	"top",
