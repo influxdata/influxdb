@@ -2404,3 +2404,97 @@ func (self *DataTestSuite) HavingWithCondition(c *C) (Fun, Fun) {
 		c.Assert(hosts, DeepEquals, []string{"hosta", "hosta", "hosta", "hosta", "hosta"})
 	}
 }
+
+func (self *DataTestSuite) HavingWithMerge(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 5; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_having_1",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  },
+  {
+     "name": "test_having_2",
+     "columns": ["cpu", "host"],
+     "points": [[%d, "hosta"], [%d, "hostb"]]
+  }
+]
+`, 40+i*10, 50+i*10, 40+i*10, 50+i*10), c)
+		}
+	}, func(client Client) {
+		series := client.RunQuery("select cpu, host from test_having_1 merge test_having_2 group by host having top(cpu, 10);", c, "m")
+
+		c.Assert(series[0].Points[0][2:], DeepEquals, []interface{}{float64(90), "hostb", "test_having_1"})
+		c.Assert(series[0].Points[1][2:], DeepEquals, []interface{}{float64(90), "hostb", "test_having_2"})
+		c.Assert(series[0].Points[2][2:], DeepEquals, []interface{}{float64(80), "hosta", "test_having_2"})
+		c.Assert(series[0].Points[3][2:], DeepEquals, []interface{}{float64(80), "hostb", "test_having_2"})
+		c.Assert(series[0].Points[4][2:], DeepEquals, []interface{}{float64(80), "hosta", "test_having_1"})
+		c.Assert(series[0].Points[5][2:], DeepEquals, []interface{}{float64(80), "hostb", "test_having_1"})
+		c.Assert(series[0].Points[6][2:], DeepEquals, []interface{}{float64(70), "hosta", "test_having_2"})
+		c.Assert(series[0].Points[7][2:], DeepEquals, []interface{}{float64(70), "hosta", "test_having_1"})
+		c.Assert(series[0].Points[8][2:], DeepEquals, []interface{}{float64(70), "hostb", "test_having_2"})
+		c.Assert(series[0].Points[9][2:], DeepEquals, []interface{}{float64(70), "hostb", "test_having_1"})
+	}
+}
+
+func (self *DataTestSuite) HavingWithJoin(c *C) (Fun, Fun) {
+	return func(client Client) {
+		for i := 0; i < 5; i++ {
+			client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_having_1",
+     "columns": ["time", "cpu", "host"],
+     "points": [[%d, %d, "hosta"], [%d, %d, "hostb"]]
+  },
+  {
+     "name": "test_having_2",
+     "columns": ["time", "cpu", "host"],
+     "points": [[%d, %d, "hostc"], [%d, %d, "hostd"]]
+  }
+]
+`, time.Now().Unix() + int64(i * 3600), 40+i*10, time.Now().Unix() + int64(i * 3600), 50+i*10, time.Now().Unix() + int64(i * 3600), 10+i*10, time.Now().Unix() - int64((i+30) * 86400), 30+i*10), c)
+		}
+	}, func(client Client) {
+		series := client.RunQuery("select (a.cpu + b.cpu) as sumcpu from test_having_1 as a inner join test_having_2 as b group by host having top(sumcpu, 2)", c, "m")
+		c.Assert(series[0].Points[0][1], Equals, float64(140))
+		c.Assert(series[0].Points[1][1], Equals, float64(120))
+	}
+}
+
+
+func (self *DataTestSuite) HavingWithDifferentColumn(c *C) (Fun, Fun) {
+	return func(client Client) {
+		client.WriteJsonData(fmt.Sprintf(`
+[
+  {
+     "name": "test_having_1",
+     "columns": ["host", "value", "column1", "column2", "column4"],
+     "points": [
+         ["hosta", 1, "value_column1-1", "value_column2-1", "value_column4-1"],
+         ["hostb", 2, "value_column1-2", "value_column2-2", "value_column4-2"]
+     ]
+  },
+  {
+     "name": "test_having_1",
+     "columns": ["host", "value", "column1", "column2", "column4", "column3"],
+     "points": [
+          ["hosta", 3, "value_column1-3", "value_column2-3", "value_column4-3", "value_column3-3"],
+          ["hostb", 4, "value_column1-4", "value_column2-4", "value_column4-4", "value_column3-4"]
+     ]
+  }
+]
+`), c)
+
+	}, func(client Client) {
+		series := client.RunQuery("select * from test_having_1 group by host having host = 'hosta' or host = 'hostb' and top(value, 4)", c, "m")
+
+		c.Assert(series[0].Points[0][2:], DeepEquals, []interface{}{"value_column1-4", "value_column2-4", "value_column3-4", "value_column4-4", "hostb", float64(4)})
+		c.Assert(series[0].Points[1][2:], DeepEquals, []interface{}{"value_column1-3", "value_column2-3", "value_column3-3", "value_column4-3", "hosta", float64(3)})
+		c.Assert(series[0].Points[2][2:], DeepEquals, []interface{}{"value_column1-2", "value_column2-2", nil, "value_column4-2", "hostb", float64(2)})
+		c.Assert(series[0].Points[3][2:], DeepEquals, []interface{}{"value_column1-1", "value_column2-1", nil, "value_column4-1", "hosta", float64(1)})
+	}
+}
+
