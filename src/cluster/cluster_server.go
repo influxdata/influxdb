@@ -171,8 +171,9 @@ func (self *ClusterServer) getHeartbeatResponse(responseChan <-chan *protocol.Re
 		if *response.Type != protocol.Response_HEARTBEAT {
 			return fmt.Errorf("Server returned a non heartbeat response")
 		}
-	case <-time.After(HEARTBEAT_TIMEOUT):
-		return fmt.Errorf("Server failed to return heartbeat in 100ms: %d", self.Id)
+
+	case <-time.After(self.HeartbeatInterval):
+		return fmt.Errorf("Server failed to return heartbeat in %s: %d", self.HeartbeatInterval, self.Id)
 	}
 
 	return nil
