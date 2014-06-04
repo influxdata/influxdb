@@ -68,7 +68,7 @@ dir = "/tmp/influxdb/development/db"
 # How many requests to potentially buffer in memory. If the buffer gets filled then writes
 # will still be logged and once the local storage has caught up (or compacted) the writes
 # will be replayed from the WAL
-write-buffer-size = 10000
+write-buffer-size = 1
 
 [cluster]
 # A comma separated list of servers to seed

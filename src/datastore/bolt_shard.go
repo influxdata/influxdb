@@ -12,14 +12,17 @@ import (
 )
 
 type BoltShard struct {
-	dbs    map[string]*bolt.DB
-	closed bool
+	baseDir string
+	dbs     map[string]*bolt.DB
+	closed  bool
 }
 
-func (s *BoltShard) NewListmapShard() (*BoltShard, error) {
+func NewBoltShard(baseDir string) *BoltShard {
 	return &BoltShard{
-		closed: false,
-	}, nil
+		baseDir: baseDir,
+		closed:  false,
+		dbs:     make(map[string]*bolt.DB),
+	}
 }
 
 func (s *BoltShard) DropDatabase(database string) error {
@@ -27,7 +30,9 @@ func (s *BoltShard) DropDatabase(database string) error {
 }
 
 func (s *BoltShard) close() {
-	s.db.Close()
+	for _, db := range s.dbs {
+		db.Close()
+	}
 	s.closed = true
 }
 
@@ -36,34 +41,56 @@ func (s *BoltShard) IsClosed() bool {
 }
 
 func (s *BoltShard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+	if querySpec.IsListSeriesQuery() {
+		return s.executeListSeriesQuery(querySpec, processor)
+	}
+
 	return nil
 }
 
 func (s *BoltShard) Write(database string, series []*protocol.Series) error {
+	var err error
 	db, ok := s.dbs[database]
 	if !ok {
-		db = bolt.Open("/tmp/influxdb/"+database, 0666)
+		db, err = bolt.Open(s.baseDir+"/"+database, 0666)
+		if err != nil {
+			return err
+		}
+
+		s.dbs[database] = db
 	}
 
 	// transactional insert
-	db.Update(func(tx *bolt.Tx) error {
+	return db.Update(func(tx *bolt.Tx) error {
 		for _, serie := range series {
-			seriesName := series.GetName()
+			seriesName := serie.GetName()
 			if seriesName == "" {
 				continue
 			}
 
-			b, err := tx.CreateBucketIfNotExists([]byte(seriesName))
+			b, err := tx.CreateBucketIfNotExists([]byte("series"))
 			if err != nil {
 				return err
 			}
 
-			keyBuffer := bytes.NewBuffer(make([]byte, 0, 24))
+			b.Put([]byte(seriesName), []byte{0})
+
+			b, err = tx.CreateBucketIfNotExists([]byte("data"))
+			if err != nil {
+				return err
+			}
+
+			keyBuffer := bytes.NewBuffer(nil)
 			valueBuffer := proto.NewBuffer(nil)
 
 			for _, point := range serie.GetPoints() {
 				// Each point has a timestamp and sequence number.
 				timestamp := uint64(point.GetTimestamp())
+
+				// key: <series name>\x00<timestamp><sequence number>
+				keyBuffer.WriteString(seriesName)
+				keyBuffer.WriteByte(0)
+
 				binary.Write(keyBuffer, binary.BigEndian, &timestamp)
 				binary.Write(keyBuffer, binary.BigEndian, point.SequenceNumber)
 
@@ -76,9 +103,11 @@ func (s *BoltShard) Write(database string, series []*protocol.Series) error {
 						return err
 					}
 
-					b.Put(append(keyBuffer.Bytes(), []bytes(field)...), valueBuffer.Bytes())
+					b.Put(append(keyBuffer.Bytes(), []byte(field)...), valueBuffer.Bytes())
 				}
 			}
 		}
+
+		return nil
 	})
 }
