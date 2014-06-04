@@ -134,6 +134,7 @@ github.com/influxdb/go-cache \
 github.com/BurntSushi/toml \
 github.com/influxdb/influxdb-go \
 code.google.com/p/gogoprotobuf/proto \
+github.com/szferi/gomdb \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
@@ -160,6 +161,7 @@ build: | dependencies protobuf parser build_version_string
 # TODO: build all packages, otherwise we won't know
 # if there's an error
 	$(GO) build $(GO_BUILD_OPTIONS) daemon
+	$(GO) build $(GO_BUILD_OPTIONS) tools/benchmark-storage
 	$(GO) build benchmark
 
 clean:

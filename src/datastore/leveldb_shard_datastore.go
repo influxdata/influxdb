@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"datastore/storage"
+
 	log "code.google.com/p/log4go"
 	"github.com/jmhodges/levigo"
 )
@@ -117,17 +119,20 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 
 	dbDir := self.shardDir(id)
 
+	var se storage.Engine
+	var err error
 	log.Info("DATASTORE: opening or creating shard %s", dbDir)
-	ldb, err := levigo.Open(dbDir, self.levelDbOptions)
+	// TODO: pass options to the leveldb constructor
+	se, err = storage.GetEngine("leveldb", dbDir)
 	if err != nil {
 		log.Error("Error opening shard: ", err)
 		return nil, err
 	}
 
-	db, err = NewLevelDbShard(ldb, self.pointBatchSize, self.writeBatchSize)
+	db, err = NewLevelDbShard(se, self.pointBatchSize, self.writeBatchSize)
 	if err != nil {
 		log.Error("Error creating shard: ", err)
-		ldb.Close()
+		se.Close()
 		return nil, err
 	}
 	self.shards[id] = db
