@@ -41,8 +41,30 @@ func (s *BoltShard) IsClosed() bool {
 }
 
 func (s *BoltShard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
-	if querySpec.IsListSeriesQuery() {
-		return s.executeListSeriesQuery(querySpec, processor)
+	databaseName := querySpec.Database()
+
+	var (
+		db  *bolt.DB
+		ok  bool
+		err error
+	)
+
+	db, ok = s.dbs[databaseName]
+	if !ok {
+		db, err = bolt.Open(s.baseDir+"/"+databaseName, 0666)
+		if err != nil {
+			return err
+		}
+
+		s.dbs[databaseName] = db
+	}
+
+	// special case series
+	switch {
+	case querySpec.IsListSeriesQuery():
+		return s.executeListSeriesQuery(db, querySpec, processor)
+	default:
+		return s.executeSeriesQuery(db, querySpec, processor)
 	}
 
 	return nil
@@ -73,7 +95,7 @@ func (s *BoltShard) Write(database string, series []*protocol.Series) error {
 				return err
 			}
 
-			b.Put([]byte(seriesName), []byte{0})
+			b.Put([]byte(seriesName), nil)
 
 			b, err = tx.CreateBucketIfNotExists([]byte("data"))
 			if err != nil {
@@ -87,7 +109,7 @@ func (s *BoltShard) Write(database string, series []*protocol.Series) error {
 				// Each point has a timestamp and sequence number.
 				timestamp := uint64(point.GetTimestamp())
 
-				// key: <series name>\x00<timestamp><sequence number>
+				// key: <series name>\x00<timestamp><sequence number>\x00<field>
 				keyBuffer.WriteString(seriesName)
 				keyBuffer.WriteByte(0)
 
@@ -103,7 +125,12 @@ func (s *BoltShard) Write(database string, series []*protocol.Series) error {
 						return err
 					}
 
-					b.Put(append(keyBuffer.Bytes(), []byte(field)...), valueBuffer.Bytes())
+					fieldBucket, fieldBucketErr := tx.CreateBucketIfNotExists([]byte("fields"))
+					if fieldBucketErr != nil {
+						return fieldBucketErr
+					}
+					fieldBucket.Put([]byte(seriesName+"\x00"+field), nil)
+					b.Put(append(keyBuffer.Bytes(), []byte("\x00"+field)...), valueBuffer.Bytes())
 				}
 			}
 		}
