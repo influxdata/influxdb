@@ -203,6 +203,7 @@ type TomlConfiguration struct {
 	ReportingDisabled bool               `toml:"reporting-disabled"`
 	Sharding          ShardingDefinition `toml:"sharding"`
 	WalConfig         WalConfig          `toml:"wal"`
+	LeaderElectionWait duration          `toml:"leader-election-wait"`
 }
 
 type Configuration struct {
@@ -234,6 +235,7 @@ type Configuration struct {
 	LogFile                      string
 	LogLevel                     string
 	BindAddress                  string
+	LeaderElectionWait           duration
 	LevelDbMaxOpenFiles          int
 	LevelDbLruCacheSize          int
 	LevelDbMaxOpenShards         int
@@ -271,7 +273,9 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	if err != nil {
 		return nil, err
 	}
-	tomlConfiguration := &TomlConfiguration{}
+	tomlConfiguration := &TomlConfiguration{
+		LeaderElectionWait: duration{5 * time.Second},
+	}
 	_, err = toml.Decode(string(body), tomlConfiguration)
 	if err != nil {
 		return nil, err
@@ -366,6 +370,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		PerServerWriteBufferSize:     tomlConfiguration.Cluster.WriteBufferSize,
 		ClusterMaxResponseBufferSize: tomlConfiguration.Cluster.MaxResponseBufferSize,
 		ConcurrentShardQueryLimit:    defaultConcurrentShardQueryLimit,
+		LeaderElectionWait:           tomlConfiguration.LeaderElectionWait,
 	}
 
 	config.UdpServers = append(config.UdpServers, UdpInputConfig{

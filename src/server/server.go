@@ -89,7 +89,7 @@ func (self *Server) ListenAndServe() error {
 	self.ClusterConfig.WaitForLocalServerLoaded()
 	self.writeLog.SetServerId(self.ClusterConfig.ServerId())
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(self.Config.LeaderElectionWait.Duration)
 
 	// check to make sure that the raft connection string hasn't changed
 	raftConnectionString := self.Config.RaftConnectionString()
