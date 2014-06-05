@@ -31,12 +31,12 @@ type Server struct {
 	RequestHandler *coordinator.ProtobufRequestHandler
 	stopped        bool
 	writeLog       *wal.WAL
-	shardStore     *datastore.LevelDbShardDatastore
+	shardStore     *datastore.BoltShardDatastore
 }
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
 	log.Info("Opening database at %s", config.DataDir)
-	shardDb, err := datastore.NewLevelDbShardDatastore(config)
+	shardDb, err := datastore.NewBoltShardDatastore(config)
 	if err != nil {
 		return nil, err
 	}
