@@ -8,8 +8,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
@@ -120,6 +122,124 @@ func (s *BoltShard) executeSeriesQuery(db *bolt.DB, querySpec *parser.QuerySpec,
 	return nil
 }
 
+func (s *BoltShard) executeDropSeriesQuery(db *bolt.DB, querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+	series := querySpec.Query().DropSeriesQuery.GetTableName()
+
+	return db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists([]byte("data"))
+		if err != nil {
+			return err
+		}
+		c := b.Cursor()
+
+		for cKey, _ := c.Seek([]byte(series)); cKey != nil; cKey, _ = c.Next() {
+			parts, splitErr := splitKey(string(cKey))
+			if splitErr != nil {
+				log.Error(splitErr)
+				continue
+			}
+
+			if parts[0] > series {
+				break
+			}
+
+			b.Delete(cKey)
+		}
+
+		b, err = tx.CreateBucketIfNotExists([]byte("fields"))
+		if err != nil {
+			return err
+		}
+		c = b.Cursor()
+
+		for cKey, _ := c.Seek([]byte(series)); cKey != nil; cKey, _ = c.Next() {
+			parts, splitErr := splitKey(string(cKey))
+			if splitErr != nil {
+				log.Error(splitErr)
+				continue
+			}
+
+			if parts[0] > series {
+				break
+			}
+
+			b.Delete(cKey)
+		}
+
+		b, err = tx.CreateBucketIfNotExists([]byte("series"))
+		if err != nil {
+			return err
+		}
+		b.Delete([]byte(series))
+
+		return nil
+	})
+}
+
+func (s *BoltShard) executeDeleteFromSeriesQuery(db *bolt.DB, querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+	query := querySpec.DeleteQuery()
+	series := query.GetFromClause()
+
+	if series.Type != parser.FromClauseArray {
+		return fmt.Errorf("Merge and Inner joins can't be used with a delete query", series.Type)
+	}
+
+	seriesNames := s.getSeries(db)
+
+	for _, seriesSelector := range series.Names {
+		var err error
+		if regex, ok := seriesSelector.Name.GetCompiledRegex(); ok {
+			for _, matchedSeries := range getMatches(regex, seriesNames) {
+				err = deleteFromSeries(db, matchedSeries, query.GetStartTime(), query.GetEndTime())
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			err = deleteFromSeries(db, seriesSelector.Name.Name, query.GetStartTime(), query.GetEndTime())
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func deleteFromSeries(db *bolt.DB, series string, start time.Time, end time.Time) error {
+	startTime := int64ToUint64(start.UnixNano() / 1000)
+	endTime := int64ToUint64(end.UnixNano() / 1000)
+
+	keyBuffer := bytes.NewBuffer(nil)
+	keyBuffer.WriteString(series)
+	binary.Write(keyBuffer, binary.BigEndian, &startTime)
+	startKey := keyBuffer.Bytes()
+
+	keyBuffer.Reset()
+	keyBuffer.WriteString(series)
+	binary.Write(keyBuffer, binary.BigEndian, &endTime)
+	endKey := keyBuffer.Bytes()
+
+	return db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists([]byte("data"))
+		if err != nil {
+			return err
+		}
+
+		c := b.Cursor()
+
+		for cKey, _ := c.Seek(startKey); cKey != nil; cKey, _ = c.Next() {
+			if bytes.Compare(cKey, endKey) > 1 {
+				break
+			}
+
+			b.Delete(cKey)
+		}
+
+		return nil
+	})
+}
+
 func splitKey(key string) ([]string, error) {
 	parts := strings.SplitN(key, "\x00", 2)
 	if len(parts) != 2 || len(parts[1]) <= 16 {
@@ -150,8 +270,8 @@ func executeQueryForSeries(db *bolt.DB, querySpec *parser.QuerySpec, series stri
 
 	keepGoing := true
 
-	startTime := uint64(querySpec.GetStartTime().UnixNano() / 1000)
-	endTime := uint64(querySpec.GetEndTime().UnixNano() / 1000)
+	startTime := int64ToUint64(querySpec.GetStartTime().UnixNano() / 1000)
+	endTime := int64ToUint64(querySpec.GetEndTime().UnixNano() / 1000)
 
 	buf := bytes.NewBuffer(nil)
 	protoBuf := proto.NewBuffer(nil)

@@ -1,11 +1,14 @@
 package datastore
 
 import (
-	"bytes"
 	"cluster"
-	"encoding/binary"
+
 	"parser"
 	"protocol"
+
+	"bytes"
+	"encoding/binary"
+	"os"
 
 	"code.google.com/p/goprotobuf/proto"
 	"github.com/VividCortex/bolt"
@@ -26,7 +29,18 @@ func NewBoltShard(baseDir string) *BoltShard {
 }
 
 func (s *BoltShard) DropDatabase(database string) error {
-	return nil
+	var (
+		db *bolt.DB
+		ok bool
+	)
+
+	db, ok = s.dbs[database]
+	if !ok {
+		return nil
+	}
+
+	db.Close()
+	return os.Remove(s.baseDir + "/" + database)
 }
 
 func (s *BoltShard) close() {
@@ -63,6 +77,10 @@ func (s *BoltShard) Query(querySpec *parser.QuerySpec, processor cluster.QueryPr
 	switch {
 	case querySpec.IsListSeriesQuery():
 		return s.executeListSeriesQuery(db, querySpec, processor)
+	case querySpec.IsDropSeriesQuery():
+		return s.executeDropSeriesQuery(db, querySpec, processor)
+	case querySpec.IsDeleteFromSeriesQuery():
+		return s.executeDeleteFromSeriesQuery(db, querySpec, processor)
 	default:
 		return s.executeSeriesQuery(db, querySpec, processor)
 	}
