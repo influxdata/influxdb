@@ -109,7 +109,7 @@ func (s *BoltShard) Write(database string, series []*protocol.Series) error {
 				// Each point has a timestamp and sequence number.
 				timestamp := uint64(point.GetTimestamp())
 
-				// key: <series name>\x00<timestamp><sequence number>\x00<field>
+				// key: <series name>\x00<timestamp><sequence number><field>
 				keyBuffer.WriteString(seriesName)
 				keyBuffer.WriteByte(0)
 
@@ -129,8 +129,8 @@ func (s *BoltShard) Write(database string, series []*protocol.Series) error {
 					if fieldBucketErr != nil {
 						return fieldBucketErr
 					}
-					fieldBucket.Put([]byte(seriesName+"\x00"+field), nil)
-					b.Put(append(keyBuffer.Bytes(), []byte("\x00"+field)...), valueBuffer.Bytes())
+					fieldBucket.Put([]byte(seriesName+field), nil)
+					b.Put(append(keyBuffer.Bytes(), []byte(field)...), valueBuffer.Bytes())
 				}
 			}
 		}

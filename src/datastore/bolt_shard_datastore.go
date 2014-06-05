@@ -87,7 +87,5 @@ func (d *BoltShardDatastore) Write(request *protocol.Request) error {
 	if err != nil {
 		return err
 	}
-
-	//defer d.ReturnShard(*request.ShardId)
 	return shardDb.Write(*request.Database, request.MultiSeries)
 }

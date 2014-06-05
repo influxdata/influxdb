@@ -191,26 +191,34 @@ func executeQueryForSeries(db *bolt.DB, querySpec *parser.QuerySpec, series stri
 				break
 			}
 
+			// check if this key has any fields we want
+			if _, present := fieldNameIndex[parts[2]]; !present {
+				continue
+			}
+
 			if t != prevTs && s != prevSeq {
 				point = &protocol.Point{Values: make([]*protocol.FieldValue, len(fields), len(fields))}
+				seriesOutgoing.Points = append(seriesOutgoing.Points, point)
+
 				signedTimestamp := int64(t)
 				point.Timestamp = &signedTimestamp
 				point.SequenceNumber = &s
-				fv := &protocol.FieldValue{}
-				protoBuf.SetBuf(cValue)
-				err := protoBuf.Unmarshal(fv)
-				if err != nil {
-					log.Error(err)
-					return err
-				}
-
-				point.Values[fieldNameIndex[parts[2]]] = fv
-				seriesOutgoing.Points = append(seriesOutgoing.Points, point)
-				keepGoing = processor.YieldSeries(seriesOutgoing)
-				seriesOutgoing = &protocol.Series{Name: protocol.String(series), Fields: fields, Points: make([]*protocol.Point, 0)}
+				prevTs = t
+				prevSeq = s
 			}
+
+			fv := &protocol.FieldValue{}
+			protoBuf.SetBuf(cValue)
+			err := protoBuf.Unmarshal(fv)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+
+			point.Values[fieldNameIndex[parts[2]]] = fv
 		}
 
+		keepGoing = processor.YieldSeries(seriesOutgoing)
 		return nil
 	}), keepGoing
 }
