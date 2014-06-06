@@ -24,6 +24,46 @@ const KILOBYTE = 1024
 const MEGABYTE = 1024 * KILOBYTE
 const MAX_REQUEST_SIZE = MEGABYTE * 2
 
+type HandshakeState int32
+
+const (
+	HandshakeState_INITIALIZED HandshakeState = 0
+	HandshakeState_WAIT_STARTUP_RESPONSE HandshakeState = 1
+	HandshakeState_AUTHENTICATION_REQUEST HandshakeState = 2
+	HandshakeState_WAIT_AUTHENTICATION_RESPONSE HandshakeState = 3
+	HandshakeState_PROCESS_READY HandshakeState = 4
+	HandshakeState_SEND_AUTHENTICATION HandshakeState = 5
+	HandshakeState_FINISHED HandshakeState = 6
+	HandshakeState_UPGRADE_SSL HandshakeState = 7
+	HandshakeState_WAIT_STARTUP_REQUEST = 8
+	HandshakeState_RECV_AUTHENTICATION = 9
+	HandshakeState_ERROR HandshakeState = 999
+)
+
+var G_STARTUP_MESSAGE = Greeting_STARTUP_MESSAGE
+var G_AUTHENTICATION = Greeting_AUTHENTICATION
+var G_AUTHENTICATION_OK = Greeting_AUTHENTICATION_OK
+var G_Configuration_PLAIN = Greeting_Configuration_PLAIN
+var G_Authentication_CLEARTEXT_PASSWORD = Greeting_Authentication_CLEARTEXT_PASSWORD
+var G_MESSAGE_OPTION = Greeting_MESSAGE_OPTION
+var G_SSL_UPGRADE = Greeting_SSL_UPGRADE
+var G_Configuration_REQUIRED = Greeting_Configuration_REQUIRED
+var G_COMMAND_READY = Greeting_COMMAND_READY
+var G_STARTUP_RESPONSE = Greeting_STARTUP_RESPONSE
+var G_CONFIGURATION_PLAIN = Greeting_Configuration_PLAIN
+var G_CONFIGURATION_NONE = Greeting_Configuration_NONE
+var G_AUTHENTICATION_CLEARTEXT_PASSWORD = Greeting_Authentication_CLEARTEXT_PASSWORD
+var G_ERROR = Greeting_ERROR
+
+// Commands
+var C_LISTDATABASE = Command_LISTDATABASE
+var C_WRITESERIES = Command_WRITESERIES
+var C_QUERY = Command_QUERY
+var C_CLOSE = Command_CLOSE
+var C_PING = Command_PING
+var C_CREATEDATABASE = Command_CREATEDATABASE
+var C_DROPDATABASE = Command_DROPDATABASE
+
 type Server struct {
 	listenAddress string
 	listenSocket string
@@ -148,94 +188,112 @@ func (self *Server) beginSSLHandshake(conn *Connection) error {
 
 func (self *Server) handshake(conn *Connection) error {
 	var err error
+	var state HandshakeState
 	auth := &Greeting_Authentication{}
 
-	// First, wait client request
-	startup := &Greeting{}
-	err = conn.ReadMessage(startup)
-	if err != nil {
-		return err
-	}
-	if startup.GetType() != Greeting_STARTUP_MESSAGE {
-		return errors.New("Illegal handshake")
-	}
+	for {
+		switch (state) {
+		case HandshakeState_INITIALIZED:
+			// Initialize here
+			state = HandshakeState_WAIT_STARTUP_REQUEST
+			break
+		case HandshakeState_WAIT_STARTUP_REQUEST:
+			// waiting startup request
+			startup := &Greeting{}
+			err = conn.ReadMessage(startup)
+			if err != nil {
+				return err
+			}
+			if startup.GetType() != Greeting_STARTUP_MESSAGE {
+				return errors.New("Illegal handshake")
+			}
 
-	database := startup.GetAuthentication().GetDatabase()
-	name     := startup.GetAuthentication().GetName()
-	auth.Database = database
-	auth.Name = name
+			database := startup.GetAuthentication().GetDatabase()
+			name     := startup.GetAuthentication().GetName()
+			auth.Database = database
+			auth.Name = name
 
-	// Startup Response (Authentication)
-	gtype := Greeting_STARTUP_RESPONSE
-	ctype := Greeting_Configuration_PLAIN
-	method := Greeting_Authentication_CLEARTEXT_PASSWORD
-	//ssl := Greeting_Configuration_NONE
-	ssl := Greeting_Configuration_REQUIRED
-	req := &Greeting{
-		Type: &gtype,
-		ProtocolVersion: proto.Int32(1),
-		Agent: getVersion(),
-		Sequence: proto.Uint32(conn.Sequence),
-		Authentication: &Greeting_Authentication{
-			Method: &method,
-		},
-		Config: &Greeting_Configuration{
-			CompressType: &ctype,
-			Ssl: &ssl,
-		},
-	}
-	conn.WriteRequest(req)
-	conn.IncrementSequence()
+			// TODO(chobie): CHECK SSL OPTION
+			ssl := G_CONFIGURATION_NONE
+			req := &Greeting{
+				Type: &G_STARTUP_RESPONSE,
+				ProtocolVersion: proto.Int32(1),
+				Agent: getVersion(),
+				Sequence: proto.Uint32(conn.Sequence),
+				Authentication: &Greeting_Authentication{
+					Method: &G_AUTHENTICATION_CLEARTEXT_PASSWORD,
+				},
+				Config: &Greeting_Configuration{
+					CompressType: &G_CONFIGURATION_PLAIN,
+					Ssl: &ssl,
+				},
+			}
+			conn.WriteRequest(req)
+			conn.IncrementSequence()
 
-	// TODO: wait ssl greeting response.
-	if ssl == Greeting_Configuration_REQUIRED {
-		ok := &Greeting{}
-		err = conn.ReadMessage(ok)
-		if err != nil {
-			return err
+			if ssl == Greeting_Configuration_REQUIRED {
+				state = HandshakeState_UPGRADE_SSL
+			} else {
+				state = HandshakeState_RECV_AUTHENTICATION
+			}
+			break
+		case HandshakeState_UPGRADE_SSL:
+			message := &Greeting{}
+			err = conn.ReadMessage(message)
+			if err != nil {
+				return err
+			}
+			if message.GetType() != G_SSL_UPGRADE {
+				return errors.New("Illegal handshake")
+			}
+
+			conn.Buffer.ReadBuffer.Reset()
+			conn.Buffer.WriteBuffer.Reset()
+			if e := self.beginSSLHandshake(conn); e != nil {
+				return e
+			}
+			state = HandshakeState_RECV_AUTHENTICATION
+			break
+		case HandshakeState_RECV_AUTHENTICATION:
+			// waiting request
+			message := &Greeting{}
+			err = conn.ReadMessage(message)
+			if err != nil {
+				return err
+			}
+			auth.Password = message.GetAuthentication().GetPassword()
+			err = self.authenticate(conn, auth)
+			if err != nil {
+				return err
+			}
+			// Authentication OK
+			conn.WriteRequest(&Greeting{
+				Type: &G_AUTHENTICATION_OK,
+				Authentication: &Greeting_Authentication{
+					Type: &conn.AccountType,
+				},
+				Sequence: proto.Uint32(conn.Sequence),
+			})
+			conn.IncrementSequence()
+			state = HandshakeState_PROCESS_READY
+			break
+		case HandshakeState_PROCESS_READY:
+			// sends some options
+			conn.WriteRequest(&Greeting{
+				Type: &G_COMMAND_READY,
+				Sequence: proto.Uint32(conn.Sequence),
+			})
+			conn.IncrementSequence()
+			state = HandshakeState_FINISHED
+			break
+		default:
+			return errors.New(fmt.Sprintf("%s not supported. Closing Connection", state))
 		}
-		log.Debug("ok: %+v", ok)
-		conn.Buffer.ReadBuffer.Reset()
-		conn.Buffer.WriteBuffer.Reset()
-		if e := self.beginSSLHandshake(conn); e != nil {
-			return e
+
+		if state == HandshakeState_FINISHED {
+			break
 		}
 	}
-
-	// Authentication
-	request := &Greeting{}
-	err = conn.ReadMessage(request)
-	if err != nil {
-		return err
-	}
-	auth.Password = request.GetAuthentication().GetPassword()
-
-	err = self.authenticate(conn, auth)
-	if err != nil {
-		return err
-	}
-
-	// Authentication OK
-	gtype = Greeting_AUTHENTICATION_OK
-	conn.WriteRequest(&Greeting{
-		Type: &gtype,
-		Authentication: &Greeting_Authentication{
-			Type: &conn.AccountType,
-		},
-		Sequence: proto.Uint32(conn.Sequence),
-	})
-	conn.IncrementSequence()
-
-	// TODO: we might send some options here.
-
-	// Handshake finished. waiting command.
-	gtype = Greeting_COMMAND_READY
-	conn.WriteRequest(&Greeting{
-		Type: &gtype,
-		Sequence: proto.Uint32(conn.Sequence),
-	})
-	conn.IncrementSequence()
-
 	return nil
 }
 
@@ -245,9 +303,8 @@ func (self *Server) HandleConnection(conn *Connection) {
 	for {
 		err := self.handshake(conn)
 		if err != nil || conn.State == STATE_INITIALIZED {
-			gtype := Greeting_ERROR
 			conn.WriteRequest(&Greeting{
-				Type: &gtype,
+				Type: &G_ERROR,
 				Sequence: proto.Uint32(conn.Sequence),
 			})
 			log.Error("handshake Failed: ", err)
