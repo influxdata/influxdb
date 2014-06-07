@@ -109,7 +109,9 @@ func (self *ProtobufClient) ReqRespLoop() {
 			log.Info("response: ", *response.RequestId)
 			future, ok := futures[*response.RequestId]
 			if ok {
-				delete(futures, *response.RequestId)
+				if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK || *response.Type == protocol.Response_HEARTBEAT || *response.Type == protocol.Response_ACCESS_DENIED {
+					delete(futures, *response.RequestId)
+				}
 				future.responseChan <- response
 			}
 
