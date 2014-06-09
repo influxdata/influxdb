@@ -25,6 +25,7 @@ type ProtobufClient struct {
 	clear         chan struct{}
 	reconChan     chan struct{}
 	once          *sync.Once
+	reconGroup    *sync.WaitGroup
 }
 
 type encodedRequest struct {
@@ -53,6 +54,7 @@ func NewProtobufClient(hostAndPort string, writeTimeout time.Duration) *Protobuf
 		responses:    make(chan *protocol.Response),
 		clear:        make(chan struct{}),
 		reconChan:    make(chan struct{}, 1),
+		reconGroup:   new(sync.WaitGroup),
 		once:         new(sync.Once),
 		writeTimeout: writeTimeout,
 		stopped:      false,
@@ -218,11 +220,13 @@ func (self *ProtobufClient) reconnect() error {
 
 	select {
 	case <-self.reconChan:
+		self.reconGroup.Add(1)
 		defer func() {
+			self.reconGroup.Done()
 			self.reconChan <- struct{}{}
 		}()
 	default:
-		time.Sleep(100 * 100 * time.Millisecond)
+		self.reconGroup.Wait()
 		return nil
 	}
 
