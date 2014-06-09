@@ -93,7 +93,7 @@ func (self *ProtobufClient) ReqRespLoop() {
 		select {
 
 		case request := <-self.requests:
-			log.Info("request: %d len: %d", request.id, len(request.data))
+			log.Debug("request: %d len: %d", request.id, len(request.data))
 			if request.future.responseChan != nil {
 				futures[request.id] = request.future
 			}
@@ -106,7 +106,7 @@ func (self *ProtobufClient) ReqRespLoop() {
 			}
 
 		case response := <-self.responses:
-			log.Info("response: ", *response.RequestId)
+			log.Debug("response: ", *response.RequestId)
 			future, ok := futures[*response.RequestId]
 			if ok {
 				if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK || *response.Type == protocol.Response_HEARTBEAT || *response.Type == protocol.Response_ACCESS_DENIED {
