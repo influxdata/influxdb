@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"protocol"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,13 +17,14 @@ import (
 type ProtobufClient struct {
 	conn          net.Conn
 	hostAndPort   string
-	connectCalled bool
 	lastRequestId uint32
 	writeTimeout  time.Duration
 	stopped       bool
 	requests      chan encodedRequest
 	responses     chan *protocol.Response
 	clear         chan struct{}
+	reconChan     chan struct{}
+	once          *sync.Once
 }
 
 type encodedRequest struct {
@@ -50,16 +52,20 @@ func NewProtobufClient(hostAndPort string, writeTimeout time.Duration) *Protobuf
 		requests:     make(chan encodedRequest),
 		responses:    make(chan *protocol.Response),
 		clear:        make(chan struct{}),
+		reconChan:    make(chan struct{}, 1),
+		once:         new(sync.Once),
 		writeTimeout: writeTimeout,
 		stopped:      false,
 	}
 }
 
 func (self *ProtobufClient) Connect() {
-	if self.connectCalled {
-		return
-	}
-	self.connectCalled = true
+	self.once.Do(self.connect)
+}
+
+func (self *ProtobufClient) connect() {
+	log.Debug("protobuf_client connect: %s", self.hostAndPort)
+	self.reconChan <- struct{}{}
 	go self.ReqRespLoop()
 	go self.readResponses()
 }
@@ -175,14 +181,16 @@ func (self *ProtobufClient) readResponses() {
 
 	for !self.stopped {
 		if self.conn == nil {
-			time.Sleep(200 * time.Millisecond)
+			self.reconnect()
 			continue
 		}
 
 		err := binary.Read(self.conn, binary.LittleEndian, &messageSizeU)
 		if err != nil {
 			log.Error("Error while reading message: %d", err)
-			time.Sleep(200 * time.Millisecond)
+			if err == io.EOF {
+				self.reconnect()
+			}
 			continue
 		}
 
@@ -190,7 +198,9 @@ func (self *ProtobufClient) readResponses() {
 		_, err = io.CopyN(buff, self.conn, int64(messageSizeU))
 		if err != nil {
 			log.Error("Error while reading message: %d", err)
-			time.Sleep(200 * time.Millisecond)
+			if err == io.EOF {
+				self.reconnect()
+			}
 			continue
 		}
 
@@ -205,6 +215,17 @@ func (self *ProtobufClient) readResponses() {
 }
 
 func (self *ProtobufClient) reconnect() error {
+
+	select {
+	case <-self.reconChan:
+		defer func() {
+			self.reconChan <- struct{}{}
+		}()
+	default:
+		time.Sleep(100 * 100 * time.Millisecond)
+		return nil
+	}
+
 	if self.conn != nil {
 		self.conn.Close()
 	}
