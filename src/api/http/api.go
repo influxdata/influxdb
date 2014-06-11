@@ -264,7 +264,7 @@ func TimePrecisionFromString(s string) (TimePrecision, error) {
 	switch s {
 	case "u":
 		return MicrosecondPrecision, nil
-	case "m":
+	case "ms":
 		return MillisecondPrecision, nil
 	case "s":
 		return SecondPrecision, nil
