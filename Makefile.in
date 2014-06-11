@@ -189,6 +189,9 @@ endif
 timeout = 10m
 GOTEST_OPTS += -test.timeout=$(timeout)
 
+bench:
+	$(GO) test coordinator -test.bench=. -test.benchmem
+
 test: test_dependencies parser protobuf
 	$(GO) test $(packages) $(GOTEST_OPTS)
 
