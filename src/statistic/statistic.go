@@ -79,7 +79,7 @@ type StatisticGo struct {
 
 type StatisticTimeVal struct {
 	Sec  int64 `json:"sec"`
-	Usec int32 `json:"usec"`
+	Usec int64 `json:"usec"`
 }
 
 type StatisticRusage struct {
@@ -489,9 +489,9 @@ func GetStatistic(s *Statistic) {
 		s.Go.CgoCall = stat.NumCgoCall
 
 		s.Sys.Rusage.User.Sec = stat.RusageCurrent.Utime.Sec
-		s.Sys.Rusage.User.Usec = stat.RusageCurrent.Utime.Usec
+		s.Sys.Rusage.User.Usec = int64(stat.RusageCurrent.Utime.Usec)
 		s.Sys.Rusage.System.Sec = stat.RusageCurrent.Stime.Sec
-		s.Sys.Rusage.System.Usec = stat.RusageCurrent.Stime.Usec
+		s.Sys.Rusage.System.Usec = int64(stat.RusageCurrent.Stime.Usec)
 		s.Sys.SysBytes = stat.MemStats.Sys
 		s.Sys.Alloc = stat.MemStats.Alloc
 	})
