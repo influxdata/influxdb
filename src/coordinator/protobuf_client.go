@@ -15,23 +15,28 @@ import (
 )
 
 type ProtobufClient struct {
-	connLock          sync.Mutex
-	conn              net.Conn
-	hostAndPort       string
-	requestBufferLock sync.RWMutex
-	requestBuffer     map[uint32]*runningRequest
-	reconnectWait     sync.WaitGroup
-	connectCalled     bool
-	lastRequestId     uint32
-	writeTimeout      time.Duration
-	attempts          int
-	stopped           bool
+	conn          net.Conn
+	hostAndPort   string
+	lastRequestId uint32
+	writeTimeout  time.Duration
+	stopped       bool
+	requests      chan encodedRequest
+	responses     chan *protocol.Response
+	clear         chan struct{}
+	reconChan     chan struct{}
+	once          *sync.Once
+	reconGroup    *sync.WaitGroup
 }
 
-type runningRequest struct {
+type encodedRequest struct {
+	id     uint32
+	data   []byte
+	future future
+}
+
+type future struct {
 	timeMade     time.Time
 	responseChan chan *protocol.Response
-	request      *protocol.Request
 }
 
 const (
@@ -44,30 +49,102 @@ const (
 func NewProtobufClient(hostAndPort string, writeTimeout time.Duration) *ProtobufClient {
 	log.Debug("NewProtobufClient: ", hostAndPort)
 	return &ProtobufClient{
-		hostAndPort:   hostAndPort,
-		requestBuffer: make(map[uint32]*runningRequest),
-		writeTimeout:  writeTimeout,
-		stopped:       false,
+		hostAndPort:  hostAndPort,
+		requests:     make(chan encodedRequest),
+		responses:    make(chan *protocol.Response),
+		clear:        make(chan struct{}),
+		reconChan:    make(chan struct{}, 1),
+		reconGroup:   new(sync.WaitGroup),
+		once:         new(sync.Once),
+		writeTimeout: writeTimeout,
+		stopped:      false,
 	}
 }
 
 func (self *ProtobufClient) Connect() {
-	self.connLock.Lock()
-	defer self.connLock.Unlock()
-	if self.connectCalled {
-		return
+	self.once.Do(self.connect)
+}
+
+func (self *ProtobufClient) connect() {
+	log.Debug("protobuf_client connect: %s", self.hostAndPort)
+	self.reconChan <- struct{}{}
+	go self.ReqRespLoop()
+	go self.readResponses()
+}
+
+func (self *ProtobufClient) deliver(data []byte) (err error) {
+	for i := 0; i < REQUEST_RETRY_ATTEMPTS; i++ {
+		if self.conn == nil || err == io.EOF {
+			self.reconnect()
+		}
+
+		if self.writeTimeout > 0 {
+			self.conn.SetWriteDeadline(time.Now().Add(self.writeTimeout))
+		}
+		binary.Write(self.conn, binary.LittleEndian, uint32(len(data)))
+		_, err = self.conn.Write(data)
+
+		if err == nil {
+			return
+		}
 	}
-	self.connectCalled = true
-	go func() {
-		self.reconnect()
-		self.readResponses()
-	}()
-	go self.peridicallySweepTimedOutRequests()
+
+	return
+}
+
+func (self *ProtobufClient) ReqRespLoop() {
+	futures := make(map[uint32]future)
+	cleanup := time.NewTicker(time.Minute)
+	cleanupMessage := "clearing all requests"
+
+	for !self.stopped {
+		select {
+
+		case request := <-self.requests:
+			if request.future.responseChan != nil {
+				futures[request.id] = request.future
+			}
+
+			err := self.deliver(request.data)
+
+			if err != nil && request.future.responseChan != nil {
+				e := err.Error()
+				request.future.responseChan <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &e}
+			}
+
+		case response := <-self.responses:
+			future, ok := futures[*response.RequestId]
+			if ok {
+				if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK || *response.Type == protocol.Response_HEARTBEAT || *response.Type == protocol.Response_ACCESS_DENIED {
+					delete(futures, *response.RequestId)
+				}
+				future.responseChan <- response
+			}
+
+		case nowish := <-cleanup.C:
+			maxAge := nowish.Add(-MAX_REQUEST_TIME)
+			for id, future := range futures {
+				if future.timeMade.Before(maxAge) {
+					delete(futures, id)
+					log.Warn("Request timed out: ", id)
+				}
+			}
+
+		case <-self.clear:
+			for id, future := range futures {
+				select {
+				case future.responseChan <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &cleanupMessage}:
+				default:
+					log.Debug("Cannot send cleanup response on channel for request %d", id)
+				}
+				delete(futures, id)
+			}
+
+		}
+	}
 }
 
 func (self *ProtobufClient) Close() {
-	self.connLock.Lock()
-	defer self.connLock.Unlock()
 	if self.conn != nil {
 		self.conn.Close()
 		self.stopped = true
@@ -76,26 +153,8 @@ func (self *ProtobufClient) Close() {
 	self.ClearRequests()
 }
 
-func (self *ProtobufClient) getConnection() net.Conn {
-	self.connLock.Lock()
-	defer self.connLock.Unlock()
-	return self.conn
-}
-
 func (self *ProtobufClient) ClearRequests() {
-	self.requestBufferLock.Lock()
-	defer self.requestBufferLock.Unlock()
-
-	message := "clearing all requests"
-	for _, req := range self.requestBuffer {
-		select {
-		case req.responseChan <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}:
-		default:
-			log.Debug("Cannot send response on channel")
-		}
-	}
-
-	self.requestBuffer = map[uint32]*runningRequest{}
+	self.clear <- struct{}{}
 }
 
 // Makes a request to the server. If the responseStream chan is not nil it will expect a response from the server
@@ -106,134 +165,84 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 		id := atomic.AddUint32(&self.lastRequestId, uint32(1))
 		request.Id = &id
 	}
-	if responseStream != nil {
-		self.requestBufferLock.Lock()
-
-		// this should actually never happen. The sweeper should clear out dead requests
-		// before the uint32 ids roll over.
-		if oldReq, alreadyHasRequestById := self.requestBuffer[*request.Id]; alreadyHasRequestById {
-			message := "already has a request with this id, must have timed out"
-			log.Error(message)
-			oldReq.responseChan <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}
-		}
-		self.requestBuffer[*request.Id] = &runningRequest{timeMade: time.Now(), responseChan: responseStream, request: request}
-		self.requestBufferLock.Unlock()
-	}
 
 	data, err := request.Encode()
 	if err != nil {
 		return err
 	}
 
-	conn := self.getConnection()
-	if conn == nil {
-		conn = self.reconnect()
-		if conn == nil {
-			return fmt.Errorf("Failed to connect to server %s", self.hostAndPort)
-		}
-	}
-
-	if self.writeTimeout > 0 {
-		conn.SetWriteDeadline(time.Now().Add(self.writeTimeout))
-	}
-	buff := bytes.NewBuffer(make([]byte, 0, len(data)+8))
-	binary.Write(buff, binary.LittleEndian, uint32(len(data)))
-	_, err = conn.Write(append(buff.Bytes(), data...))
-
-	if err == nil {
-		return nil
-	}
-
-	// if we got here it errored out, clear out the request
-	self.requestBufferLock.Lock()
-	delete(self.requestBuffer, *request.Id)
-	self.requestBufferLock.Unlock()
-	self.reconnect()
-	return err
+	self.requests <- encodedRequest{id: *request.Id, data: data, future: future{timeMade: time.Now(), responseChan: responseStream}}
+	return nil
 }
 
 func (self *ProtobufClient) readResponses() {
-	message := make([]byte, 0, MAX_RESPONSE_SIZE)
-	buff := bytes.NewBuffer(message)
+	var messageSizeU uint32
+	buff := bytes.NewBuffer(make([]byte, 0, MAX_RESPONSE_SIZE))
+
 	for !self.stopped {
-		buff.Reset()
-		conn := self.getConnection()
-		if conn == nil {
-			time.Sleep(200 * time.Millisecond)
+		if self.conn == nil {
+			self.reconnect()
 			continue
 		}
-		var messageSizeU uint32
-		var err error
-		err = binary.Read(conn, binary.LittleEndian, &messageSizeU)
-		if err != nil {
-			log.Error("Error while reading messsage size: %d", err)
-			time.Sleep(200 * time.Millisecond)
-			continue
-		}
-		messageSize := int64(messageSizeU)
-		messageReader := io.LimitReader(conn, messageSize)
-		_, err = io.Copy(buff, messageReader)
+
+		err := binary.Read(self.conn, binary.LittleEndian, &messageSizeU)
 		if err != nil {
 			log.Error("Error while reading message: %d", err)
-			time.Sleep(200 * time.Millisecond)
+			if err == io.EOF {
+				self.reconnect()
+			}
 			continue
 		}
+
+		buff.Reset()
+		_, err = io.CopyN(buff, self.conn, int64(messageSizeU))
+		if err != nil {
+			log.Error("Error while reading message: %d", err)
+			if err == io.EOF {
+				self.reconnect()
+			}
+			continue
+		}
+
 		response, err := protocol.DecodeResponse(buff)
 		if err != nil {
 			log.Error("error unmarshaling response: %s", err)
 			time.Sleep(200 * time.Millisecond)
 		} else {
-			self.sendResponse(response)
+			self.responses <- response
 		}
 	}
 }
 
-func (self *ProtobufClient) sendResponse(response *protocol.Response) {
-	self.requestBufferLock.RLock()
-	req, ok := self.requestBuffer[*response.RequestId]
-	self.requestBufferLock.RUnlock()
-	if ok {
-		if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK || *response.Type == protocol.Response_HEARTBEAT || *response.Type == protocol.Response_ACCESS_DENIED {
-			self.requestBufferLock.Lock()
-			delete(self.requestBuffer, *response.RequestId)
-			self.requestBufferLock.Unlock()
-		}
-		req.responseChan <- response
-	}
-}
+func (self *ProtobufClient) reconnect() error {
 
-func (self *ProtobufClient) reconnect() net.Conn {
-	self.connLock.Lock()
-	defer self.connLock.Unlock()
+	select {
+	case <-self.reconChan:
+		self.reconGroup.Add(1)
+		defer func() {
+			self.reconGroup.Done()
+			self.reconChan <- struct{}{}
+		}()
+	default:
+		self.reconGroup.Wait()
+		return nil
+	}
 
 	if self.conn != nil {
 		self.conn.Close()
 	}
-	conn, err := net.DialTimeout("tcp", self.hostAndPort, self.writeTimeout)
-	if err == nil {
-		self.conn = conn
-		log.Info("connected to %s", self.hostAndPort)
-		return self.conn
-	}
-	self.attempts++
-	if self.attempts >= 100 {
-		log.Error("failed to connect to %s %d times", self.hostAndPort, self.attempts)
-		self.attempts = 0
-	}
-	return nil
-}
 
-func (self *ProtobufClient) peridicallySweepTimedOutRequests() {
-	for {
-		time.Sleep(time.Minute)
-		self.requestBufferLock.Lock()
-		maxAge := time.Now().Add(-MAX_REQUEST_TIME)
-		for k, req := range self.requestBuffer {
-			if req.timeMade.Before(maxAge) {
-				delete(self.requestBuffer, k)
-				log.Warn("Request timed out: ", req.request)
-			}
+	for i := 0; i <= 100; i++ {
+		conn, err := net.DialTimeout("tcp", self.hostAndPort, self.writeTimeout)
+		if err == nil {
+			self.conn = conn
+			log.Info("Protobuf Client connected to %s", self.hostAndPort)
+			return nil
 		}
-		self.requestBufferLock.Unlock()
+		time.Sleep(100 * time.Millisecond)
 	}
+
+	err := fmt.Errorf("failed to connect to %s 100 times", self.hostAndPort)
+	log.Error(err)
+	return err
 }
