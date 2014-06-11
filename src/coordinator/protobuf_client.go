@@ -26,6 +26,9 @@ type ProtobufClient struct {
 	writeTimeout      time.Duration
 	attempts          int
 	stopped           bool
+	reconChan         chan struct{}
+	reconGroup        *sync.WaitGroup
+	once              *sync.Once
 }
 
 type runningRequest struct {
@@ -47,17 +50,19 @@ func NewProtobufClient(hostAndPort string, writeTimeout time.Duration) *Protobuf
 		hostAndPort:   hostAndPort,
 		requestBuffer: make(map[uint32]*runningRequest),
 		writeTimeout:  writeTimeout,
+		reconChan:     make(chan struct{}, 1),
+		reconGroup:    new(sync.WaitGroup),
+		once:          new(sync.Once),
 		stopped:       false,
 	}
 }
 
 func (self *ProtobufClient) Connect() {
-	self.connLock.Lock()
-	defer self.connLock.Unlock()
-	if self.connectCalled {
-		return
-	}
-	self.connectCalled = true
+	self.once.Do(self.connect)
+}
+
+func (self *ProtobufClient) connect() {
+	self.reconChan <- struct{}{}
 	go func() {
 		self.reconnect()
 		self.readResponses()
@@ -203,24 +208,35 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 }
 
 func (self *ProtobufClient) reconnect() net.Conn {
-	self.connLock.Lock()
-	defer self.connLock.Unlock()
+	select {
+	case <-self.reconChan:
+		self.reconGroup.Add(1)
+		defer func() {
+			self.reconGroup.Done()
+			self.reconChan <- struct{}{}
+		}()
+	default:
+		self.reconGroup.Wait()
+		return self.conn
+	}
 
 	if self.conn != nil {
 		self.conn.Close()
 	}
 	conn, err := net.DialTimeout("tcp", self.hostAndPort, self.writeTimeout)
-	if err == nil {
-		self.conn = conn
-		log.Info("connected to %s", self.hostAndPort)
-		return self.conn
-	}
-	self.attempts++
-	if self.attempts >= 100 {
+	if err != nil {
+		self.attempts++
+		if self.attempts < 100 {
+			return nil
+		}
+
 		log.Error("failed to connect to %s %d times", self.hostAndPort, self.attempts)
 		self.attempts = 0
 	}
-	return nil
+
+	self.conn = conn
+	log.Info("connected to %s", self.hostAndPort)
+	return conn
 }
 
 func (self *ProtobufClient) peridicallySweepTimedOutRequests() {

@@ -67,6 +67,9 @@ daemon=/usr/bin/$name
 # pid file for the daemon
 pidfile=/opt/influxdb/shared/influxdb.pid
 
+# Configuration file
+config=/opt/$name/shared/config.toml
+
 # If the daemon is not there, then exit.
 [ -x $daemon ] || exit 5
 
@@ -87,11 +90,11 @@ case $1 in
         # Log the message appropriately
         cd /
         if which start-stop-daemon > /dev/null 2>&1; then
-            nohup start-stop-daemon --chuid influxdb:influxdb -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config /opt/$name/shared/config.toml > /dev/null 2>&1 &
+            nohup start-stop-daemon --chuid influxdb:influxdb -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config > /dev/null 2>&1 &
         elif set | egrep '^start_daemon' > /dev/null 2>&1; then
-            start_daemon -u influxdb ${daemon}-daemon -pidfile $pidfile -config /opt/$name/shared/config.toml
+            start_daemon -u influxdb ${daemon}-daemon -pidfile $pidfile -config $config
         else
-            sudo -u influxdb -g influxdb ${daemon}-daemon -pidfile $pidfile -config /opt/$name/shared/config.toml
+            sudo -u influxdb -g influxdb ${daemon}-daemon -pidfile $pidfile -config $config
         fi
         log_success_msg "$name process was started"
         ;;
