@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
+	"statistic"
+	"os"
 
 	"github.com/influxdb/influxdb/cluster"
 	. "github.com/influxdb/influxdb/common"
@@ -940,4 +942,36 @@ func (self *ApiSuite) TestContinuousQueryOperations(c *C) {
 	c.Assert(queries[0].Id, Equals, int64(1))
 	c.Assert(queries[0].Query, Equals, "select * from foo into bar;")
 	resp.Body.Close()
+}
+
+func (self *ApiSuite) TestStatisticWithoutCorrectGoroutine(c *C) {
+	url := self.formatUrl("/statistic")
+	// don't panic
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	stat := statistic.Statistic{}
+	err = json.Unmarshal(body, &stat)
+	c.Assert(err, IsNil)
+}
+
+func (self *ApiSuite) TestStatistic(c *C) {
+	statistic.InitializeInternalStatistic(os.Getpid(), &configuration.Configuration{})
+	statistic.BeginCorrect()
+	defer statistic.StopCorrect()
+
+	url := self.formatUrl("/statistic")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	stat := statistic.Statistic{}
+	err = json.Unmarshal(body, &stat)
+	c.Assert(err, IsNil)
+	c.Assert(os.Getpid(), Equals, stat.Pid)
 }

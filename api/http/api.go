@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	stat "statistic"
 
 	log "code.google.com/p/log4go"
 	"github.com/bmizerany/pat"
@@ -82,6 +83,8 @@ func (self *HttpServer) ListenAndServe() {
 		if err != nil {
 			log.Error("Listen: ", err)
 		}
+		// Trace traffic
+		self.conn = stat.TracingListener{self.conn}
 	}
 	self.Serve(self.conn)
 }
@@ -158,13 +161,16 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	// return whether the cluster is in sync or not
 	self.registerEndpoint(p, "get", "/sync", self.isInSync)
 
+	// statistic endpoint
+	self.registerEndpoint(p, "get", "/statistic", self.getStatistic)
+
 	if listener == nil {
 		self.startSsl(p)
 		return
 	}
 
 	go self.startSsl(p)
-	self.serveListener(listener, p)
+	self.serveListener(stat.TracingListener{listener}, p)
 }
 
 func (self *HttpServer) startSsl(p *pat.PatternServeMux) {
@@ -1090,6 +1096,20 @@ func (self *HttpServer) isInSync(w libhttp.ResponseWriter, r *libhttp.Request) {
 		}
 
 		return 200, "true"
+	})
+}
+
+func (self *HttpServer) getStatistic(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		result := &stat.Statistic{}
+		stat.GetStatistic(result)
+		data, err := json.MarshalIndent(result, "", "    ")
+		w.Header().Add("content-type", "application/json")
+		if err != nil {
+			log.Debug("Error: %+v", err)
+			return 500, "{}"
+		}
+		return 200, data
 	})
 }
 

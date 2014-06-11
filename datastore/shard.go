@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	stat "statistic"
 
 	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
@@ -38,7 +39,18 @@ func NewShard(db storage.Engine, pointBatchSize, writeBatchSize int, metaStore *
 }
 
 func (self *Shard) Write(database string, series []*protocol.Series) error {
+	var counter uint64 = 0
+	size := 0
 	wb := make([]storage.Write, 0)
+
+	now := time.Now()
+	defer func() {
+		stat.Prove(
+			stat.NewMetricUint64(stat.TYPE_LEVELDB_POINTS_WRITE, stat.OPERATION_INCREMENT, counter),
+			stat.NewMetricUint64(stat.TYPE_LEVELDB_BYTES_WRITTEN, stat.OPERATION_INCREMENT, uint64(size)),
+			stat.NewMetricFloat64(stat.TYPE_LEVELDB_WRITE_TIME, stat.OPERATION_APPEND, time.Now().Sub(now).Seconds()),
+		)
+	}()
 
 	for _, s := range series {
 		if len(s.Points) == 0 {
@@ -76,7 +88,9 @@ func (self *Shard) Write(database string, series []*protocol.Series) error {
 					return err
 				}
 				wb = append(wb, storage.Write{Key: pointKey, Value: dataBuffer.Bytes()})
+				size += len(dataBuffer.Bytes())
 			check:
+				counter++
 				count++
 				if count >= self.writeBatchSize {
 					err = self.db.BatchPut(wb)
@@ -172,6 +186,12 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 	// optimize for the case where we're pulling back only a single column or aggregate
 	buffer := bytes.NewBuffer(nil)
 	valueBuffer := proto.NewBuffer(nil)
+	var count uint64 = 0
+	defer func() {
+		stat.Prove(
+			stat.NewMetricUint64(stat.TYPE_LEVELDB_POINTS_READ, stat.OPERATION_INCREMENT, count),
+		)
+	}()
 	for {
 		isValid := false
 		point := &protocol.Point{Values: make([]*protocol.FieldValue, fieldCount, fieldCount)}
@@ -198,6 +218,7 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 
 			rawTime := key[8:16]
 			rawColumnValues[i] = rawColumnValue{time: rawTime, sequence: sequenceNumber, value: value}
+			count++
 		}
 
 		var pointTimeRaw []byte
@@ -392,6 +413,9 @@ func (self *Shard) deleteRangeOfSeriesCommon(database, series string, startTimeB
 }
 
 func (self *Shard) deleteRangeOfFields(fields []*metastore.Field, startTimeBytes, endTimeBytes []byte) error {
+	stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_LEVELDB_POINTS_DELETE, stat.OPERATION_INCREMENT, counter),
+	)
 	startKey := bytes.NewBuffer(nil)
 	endKey := bytes.NewBuffer(nil)
 	for _, field := range fields {
@@ -404,7 +428,6 @@ func (self *Shard) deleteRangeOfFields(fields []*metastore.Field, startTimeBytes
 		endKey.Write(idBytes)
 		endKey.Write(endTimeBytes)
 		endKey.Write([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
-
 		err := self.db.Del(startKey.Bytes(), endKey.Bytes())
 		if err != nil {
 			return err
@@ -452,6 +475,7 @@ func (self *Shard) byteArrayForTime(t time.Time) []byte {
 	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&timeMicro))
 	return timeBuffer.Bytes()
 }
+
 
 func (self *Shard) close() {
 	self.closed = true

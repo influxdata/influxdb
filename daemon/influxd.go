@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+	"statistic"
 
 	log "code.google.com/p/log4go"
 	influxdb "github.com/influxdb/influxdb/client"
@@ -53,6 +54,11 @@ func setupLogging(loggingLevel, logFile string) {
 	}
 
 	log.Info("Redirectoring logging to %s", logFile)
+}
+
+func setupInternalStatistic(pid int, config *configuration.Configuration) {
+	statistic.InitializeInternalStatistic(pid, config)
+	statistic.BeginCorrect()
 }
 
 func main() {
@@ -99,10 +105,12 @@ func main() {
 		config.ProtobufPort = *protobufPort
 	}
 
+	pid := os.Getpid()
 	config.Version = v
 	config.InfluxDBVersion = version
 
 	setupLogging(config.LogLevel, config.LogFile)
+	setupInternalStatistic(pid, config)
 
 	if *repairLeveldb {
 		log.Info("Repairing leveldb")
@@ -122,8 +130,7 @@ func main() {
 	}
 
 	if pidFile != nil && *pidFile != "" {
-		pid := strconv.Itoa(os.Getpid())
-		if err := ioutil.WriteFile(*pidFile, []byte(pid), 0644); err != nil {
+		if err := ioutil.WriteFile(*pidFile, []byte(strconv.Itoa(pid)), 0644); err != nil {
 			panic(err)
 		}
 	}

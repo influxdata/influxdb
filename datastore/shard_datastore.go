@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+	stat "statistic"
 
 	log "code.google.com/p/log4go"
 	"github.com/BurntSushi/toml"
@@ -188,6 +189,9 @@ func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, e
 		}
 	}
 
+	stat.Prove(
+	stat.NewMetricUint64(stat.TYPE_OPENING_OR_CREATING_SHARD, stat.OPERATION_INCREMENT),
+	)
 	se, err := init.Initialize(dbDir, c)
 	db, err = NewShard(se, self.pointBatchSize, self.writeBatchSize, self.metaStore)
 	if err != nil {
@@ -249,6 +253,10 @@ func (self *ShardDatastore) DeleteShard(shardId uint32) error {
 
 	dir := self.shardDir(shardId)
 	log.Info("DATASTORE: dropping shard %s", dir)
+	stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_DELETE_SHARD, stat.OPERATION_INCREMENT),
+	)
+
 	return os.RemoveAll(dir)
 }
 
