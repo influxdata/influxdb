@@ -8,6 +8,7 @@
 bind-address = "0.0.0.0"
 
 reporting-disabled = true
+leader-election-wait = "0s"
 
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
