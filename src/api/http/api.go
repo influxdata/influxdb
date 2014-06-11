@@ -265,6 +265,9 @@ func TimePrecisionFromString(s string) (TimePrecision, error) {
 	case "u":
 		return MicrosecondPrecision, nil
 	case "m":
+		log.Warn("time_precision=m will be disabled in future release, use time_precision=ms isntead")
+		fallthrough
+	case "ms":
 		return MillisecondPrecision, nil
 	case "s":
 		return SecondPrecision, nil
