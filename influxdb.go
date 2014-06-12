@@ -113,7 +113,7 @@ func (self *Client) DeleteDatabase(name string) error {
 	return responseToError(resp, err, true)
 }
 
-func (self *Client) listSomething(url string) ([]map[string]interface{}, error) {
+func (self *Client) get(url string) ([]byte, error) {
 	resp, err := self.httpClient.Get(url)
 	err = responseToError(resp, err, false)
 	if err != nil {
@@ -121,6 +121,11 @@ func (self *Client) listSomething(url string) ([]map[string]interface{}, error) 
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
+	return body, err
+}
+
+func (self *Client) listSomething(url string) ([]map[string]interface{}, error) {
+	body, err := self.get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -376,4 +381,15 @@ func (self *Client) DeleteContinuousQueries(id int) error {
 	url := self.getUrlWithUserAndPass(fmt.Sprintf("/db/%s/continuous_queries/%d", self.database, id), self.username, self.password)
 	resp, err := self.del(url)
 	return responseToError(resp, err, true)
+}
+
+func (self *Client) GetShards() (map[string]interface{}, error) {
+	url := self.getUrlWithUserAndPass("/cluster/shards", self.username, self.password)
+	body, err := self.get(url)
+	shards := map[string]interface{}{}
+	err = json.Unmarshal(body, &shards)
+	if err != nil {
+		return nil, err
+	}
+	return shards, nil
 }
