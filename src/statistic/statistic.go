@@ -190,7 +190,7 @@ type InternalStatistic struct {
 
 	NumGoroutines []int
 
-	Mutex sync.Mutex
+	Mutex sync.RWMutex
 
 	Collect chan bool
 	Run chan bool
@@ -202,6 +202,12 @@ var typemap map[MetricType]interface{}
 func (stat *InternalStatistic) Atomic(yield func()) {
 	stat.Mutex.Lock()
 	defer stat.Mutex.Unlock()
+	yield()
+}
+
+func (stat *InternalStatistic) RLock(yield func()) {
+	stat.Mutex.RLock()
+	defer stat.Mutex.RUnlock()
 	yield()
 }
 
@@ -323,7 +329,7 @@ func collectStat() {
 
 		stat.NumCgoCall = runtime.NumCgoCall()
 
-		stat.Atomic(func() {
+		stat.RLock(func() {
 			stat.HTTPApiResponseTimeMean = mean(&stat.HTTPApiResponseTime)
 			stat.HTTPApiResponseTimeMin = min(&stat.HTTPApiResponseTime)
 			stat.HTTPApiResponseTimeMax = max(&stat.HTTPApiResponseTime)
@@ -331,7 +337,8 @@ func collectStat() {
 			stat.LeveldbWriteTimeMean = mean(&stat.LeveldbWriteTime)
 			stat.LeveldbWriteTimeMin = min(&stat.LeveldbWriteTime)
 			stat.LeveldbWriteTimeMax = max(&stat.LeveldbWriteTime)
-
+		})
+		stat.Atomic(func() {
 			stat.HTTPApiResponseTime = stat.HTTPApiResponseTime[:0]
 			stat.LeveldbWriteTime = stat.LeveldbWriteTime[:0]
 		})
@@ -434,7 +441,7 @@ func GetStatistic(s *Statistic) {
 		return
 	}
 
-	stat.Atomic(func() {
+	stat.RLock(func() {
 		s.Name = stat.Name
 		s.Version = stat.Version
 		s.Pid = stat.Pid
