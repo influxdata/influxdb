@@ -100,7 +100,11 @@ func (self *Client) CreateDatabase(name string) error {
 }
 
 func (self *Client) del(url string) (*http.Response, error) {
-	req, err := http.NewRequest("DELETE", url, nil)
+	return self.delWithBody(url, nil)
+}
+
+func (self *Client) delWithBody(url string, body *bytes.Buffer) (*http.Response, error) {
+	req, err := http.NewRequest("DELETE", url, body)
 	if err != nil {
 		return nil, err
 	}
@@ -405,4 +409,15 @@ func (self *Client) GetShards() (*LongTermShortTermShards, error) {
 	}
 
 	return shards, nil
+}
+
+func (self *Client) DropShard(id uint32, serverIds []uint32) error {
+	url := self.getUrlWithUserAndPass(fmt.Sprintf("/cluster/shards/%d", id), self.username, self.password)
+	ids := map[string][]uint32{"serverIds": serverIds}
+	body, err := json.Marshal(ids)
+	if err != nil {
+		return err
+	}
+	_, err = self.delWithBody(url, bytes.NewBuffer(body))
+	return err
 }

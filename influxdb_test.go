@@ -104,4 +104,9 @@ func TestClient(t *testing.T) {
 	if shards == nil || len(shards.ShortTerm) == 0 || err != nil {
 		t.Error("There were no shards in the db: ", err)
 	}
+
+	err = client.DropShard(shards.ShortTerm[0].Id, []uint32{uint32(1)})
+	if err != nil {
+		t.Error(err)
+	}
 }
