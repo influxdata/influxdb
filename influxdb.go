@@ -383,13 +383,26 @@ func (self *Client) DeleteContinuousQueries(id int) error {
 	return responseToError(resp, err, true)
 }
 
-func (self *Client) GetShards() (map[string]interface{}, error) {
+type LongTermShortTermShards struct {
+	LongTerm  []*Shard `json:"longTerm"`
+	ShortTerm []*Shard `json:"shortTerm"`
+}
+
+type Shard struct {
+	Id        uint32   `json:"id"`
+	EndTime   int64    `json:"endTime"`
+	StartTime int64    `json:"startTime"`
+	ServerIds []uint32 `json:"serverIds"`
+}
+
+func (self *Client) GetShards() (*LongTermShortTermShards, error) {
 	url := self.getUrlWithUserAndPass("/cluster/shards", self.username, self.password)
 	body, err := self.get(url)
-	shards := map[string]interface{}{}
-	err = json.Unmarshal(body, &shards)
+	shards := &LongTermShortTermShards{}
+	err = json.Unmarshal(body, shards)
 	if err != nil {
 		return nil, err
 	}
+
 	return shards, nil
 }

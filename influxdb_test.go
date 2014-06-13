@@ -90,4 +90,18 @@ func TestClient(t *testing.T) {
 	if result[0].Points[0][2].(float64) != 1 {
 		t.Fail()
 	}
+
+	client, err = NewClient(&ClientConfig{
+		Username: "root",
+		Password: "root",
+	})
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	shards, err := client.GetShards()
+	if shards == nil || len(shards.ShortTerm) == 0 || err != nil {
+		t.Error("There were no shards in the db: ", err)
+	}
 }
