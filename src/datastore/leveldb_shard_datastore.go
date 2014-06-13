@@ -15,6 +15,7 @@ import (
 	"datastore/storage"
 
 	log "code.google.com/p/log4go"
+	"github.com/BurntSushi/toml"
 	"github.com/jmhodges/levigo"
 )
 
@@ -75,25 +76,17 @@ func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShar
 	if err != nil {
 		return nil, err
 	}
-	opts := levigo.NewOptions()
-	opts.SetCache(levigo.NewLRUCache(config.LevelDbLruCacheSize))
-	opts.SetCreateIfMissing(true)
-	opts.SetBlockSize(64 * ONE_KILOBYTE)
-	filter := levigo.NewBloomFilter(SHARD_BLOOM_FILTER_BITS_PER_KEY)
-	opts.SetFilterPolicy(filter)
-	opts.SetMaxOpenFiles(config.LevelDbMaxOpenFiles)
 
 	return &LevelDbShardDatastore{
 		baseDbDir:      baseDbDir,
 		config:         config,
 		shards:         make(map[uint32]*LevelDbShard),
-		levelDbOptions: opts,
-		maxOpenShards:  config.LevelDbMaxOpenShards,
+		maxOpenShards:  config.StorageMaxOpenShards,
 		lastAccess:     make(map[uint32]int64),
 		shardRefCounts: make(map[uint32]int),
 		shardsToClose:  make(map[uint32]bool),
-		pointBatchSize: config.LevelDbPointBatchSize,
-		writeBatchSize: config.LevelDbWriteBatchSize,
+		pointBatchSize: config.StoragePointBatchSize,
+		writeBatchSize: config.StorageWriteBatchSize,
 	}, nil
 }
 
@@ -119,16 +112,32 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 
 	dbDir := self.shardDir(id)
 
-	var se storage.Engine
-	var err error
 	log.Info("DATASTORE: opening or creating shard %s", dbDir)
-	// TODO: pass options to the leveldb constructor
-	se, err = storage.GetEngine("leveldb", dbDir)
+	defaultEngine := self.config.StorageDefaultEngine
+	init, err := storage.GetInitializer(defaultEngine)
 	if err != nil {
 		log.Error("Error opening shard: ", err)
 		return nil, err
 	}
+	c := init.NewConfig()
+	conf, ok := self.config.StorageEngineConfigs[defaultEngine]
+	if err := toml.PrimitiveDecode(conf, c); ok && err != nil {
+		return nil, err
+	}
 
+	// TODO: this is for backward compatability with the old
+	// configuration
+	if leveldbConfig, ok := c.(*storage.LevelDbConfiguration); ok {
+		if leveldbConfig.LruCacheSize == 0 {
+			leveldbConfig.LruCacheSize = configuration.Size(self.config.LevelDbLruCacheSize)
+		}
+
+		if leveldbConfig.MaxOpenFiles == 0 {
+			leveldbConfig.MaxOpenFiles = self.config.LevelDbMaxOpenFiles
+		}
+	}
+
+	se, err := init.Initialize(dbDir, c)
 	db, err = NewLevelDbShard(se, self.pointBatchSize, self.writeBatchSize)
 	if err != nil {
 		log.Error("Error creating shard: ", err)

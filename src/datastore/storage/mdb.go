@@ -2,6 +2,8 @@ package storage
 
 import (
 	"bytes"
+	"configuration"
+	"fmt"
 	"os"
 
 	mdb "github.com/szferi/gomdb"
@@ -10,56 +12,76 @@ import (
 const MDB_NAME = "lmdb"
 
 func init() {
-	registerEngine(MDB_NAME, NewMDB)
+	registerEngine(MDB_NAME, Initializer{
+		NewMDBConfiguration,
+		NewMDB,
+	})
 }
 
-type Mdb struct {
+type MDBConfiguration struct {
+	MapSize configuration.Size `toml:"map-size"`
+}
+
+type MDB struct {
 	env  *mdb.Env
 	db   mdb.DBI
 	path string
 }
 
-func NewMDB(path string) (Engine, error) {
+func NewMDBConfiguration() interface{} {
+	return &MDBConfiguration{}
+}
+
+func NewMDB(path string, config interface{}) (Engine, error) {
+	c, ok := config.(*MDBConfiguration)
+	if !ok {
+		return nil, fmt.Errorf("Got config of type %T instead of %T", config, MDBConfiguration{})
+	}
+
+	if c.MapSize == 0 {
+		c.MapSize = 10 * 1024 * 1024 * 1024
+	}
+
 	env, err := mdb.NewEnv()
 	if err != nil {
-		return Mdb{}, err
+		return MDB{}, err
 	}
 
 	// TODO: max dbs should be configurable
-	if err := env.SetMaxDBs(10); err != nil {
-		return Mdb{}, err
+	if err := env.SetMaxDBs(1); err != nil {
+		return MDB{}, err
 	}
-	if err := env.SetMapSize(10 << 30); err != nil {
-		return Mdb{}, err
+	if err := env.SetMapSize(uint64(c.MapSize)); err != nil {
+		return MDB{}, err
 	}
 
 	if _, err := os.Stat(path); err != nil {
 		err = os.MkdirAll(path, 0755)
 		if err != nil {
-			return Mdb{}, err
+			return MDB{}, err
 		}
 	}
 
 	err = env.Open(path, mdb.WRITEMAP|mdb.MAPASYNC|mdb.CREATE, 0755)
 	if err != nil {
-		return Mdb{}, err
+		return MDB{}, err
 	}
 
 	tx, err := env.BeginTxn(nil, 0)
 	if err != nil {
-		return Mdb{}, err
+		return MDB{}, err
 	}
 
 	dbi, err := tx.DBIOpen(nil, mdb.CREATE)
 	if err != nil {
-		return Mdb{}, err
+		return MDB{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return Mdb{}, err
+		return MDB{}, err
 	}
 
-	db := Mdb{
+	db := MDB{
 		env:  env,
 		db:   dbi,
 		path: path,
@@ -68,11 +90,11 @@ func NewMDB(path string) (Engine, error) {
 	return db, nil
 }
 
-func (db Mdb) Put(key, value []byte) error {
+func (db MDB) Put(key, value []byte) error {
 	return db.BatchPut([]Write{Write{key, value}})
 }
 
-func (db Mdb) BatchPut(writes []Write) error {
+func (db MDB) BatchPut(writes []Write) error {
 	tx, err := db.env.BeginTxn(nil, 0)
 	if err != nil {
 		return err
@@ -95,7 +117,7 @@ func (db Mdb) BatchPut(writes []Write) error {
 	return tx.Commit()
 }
 
-func (db Mdb) Get(key []byte) ([]byte, error) {
+func (db MDB) Get(key []byte) ([]byte, error) {
 	tx, err := db.env.BeginTxn(nil, mdb.RDONLY)
 	if err != nil {
 		return nil, err
@@ -109,7 +131,7 @@ func (db Mdb) Get(key []byte) ([]byte, error) {
 	return v, err
 }
 
-func (db Mdb) Del(start, finish []byte) error {
+func (db MDB) Del(start, finish []byte) error {
 	tx, err := db.env.BeginTxn(nil, 0)
 	if err != nil {
 		return err
@@ -137,7 +159,7 @@ func (db Mdb) Del(start, finish []byte) error {
 	return nil
 }
 
-type MdbIterator struct {
+type MDBIterator struct {
 	key   []byte
 	value []byte
 	c     *mdb.Cursor
@@ -146,42 +168,42 @@ type MdbIterator struct {
 	err   error
 }
 
-func (itr *MdbIterator) Key() []byte {
+func (itr *MDBIterator) Key() []byte {
 	return itr.key
 }
 
-func (itr *MdbIterator) Value() []byte {
+func (itr *MDBIterator) Value() []byte {
 	return itr.value
 }
 
-func (itr *MdbIterator) Valid() bool {
+func (itr *MDBIterator) Valid() bool {
 	return itr.valid
 }
 
-func (itr *MdbIterator) Error() error {
+func (itr *MDBIterator) Error() error {
 	return itr.err
 }
 
-func (itr *MdbIterator) getCurrent() {
+func (itr *MDBIterator) getCurrent() {
 	itr.key, itr.value, itr.err = itr.c.Get(nil, mdb.GET_CURRENT)
 	itr.setState()
 }
 
-func (itr *MdbIterator) Seek(key []byte) {
+func (itr *MDBIterator) Seek(key []byte) {
 	itr.key, itr.value, itr.err = itr.c.Get(key, mdb.SET_RANGE)
 	itr.setState()
 }
-func (itr *MdbIterator) Next() {
+func (itr *MDBIterator) Next() {
 	itr.key, itr.value, itr.err = itr.c.Get(nil, mdb.NEXT)
 	itr.setState()
 }
 
-func (itr *MdbIterator) Prev() {
+func (itr *MDBIterator) Prev() {
 	itr.key, itr.value, itr.err = itr.c.Get(nil, mdb.PREV)
 	itr.setState()
 }
 
-func (itr *MdbIterator) setState() {
+func (itr *MDBIterator) setState() {
 	if itr.err != nil {
 		if itr.err == mdb.NotFound {
 			itr.err = nil
@@ -190,7 +212,7 @@ func (itr *MdbIterator) setState() {
 	}
 }
 
-func (itr *MdbIterator) Close() error {
+func (itr *MDBIterator) Close() error {
 	if err := itr.c.Close(); err != nil {
 		itr.tx.Commit()
 		return err
@@ -198,41 +220,41 @@ func (itr *MdbIterator) Close() error {
 	return itr.tx.Commit()
 }
 
-func (_ Mdb) Name() string {
+func (_ MDB) Name() string {
 	return MDB_NAME
 }
 
-func (db Mdb) Path() string {
+func (db MDB) Path() string {
 	return db.path
 }
 
-func (db Mdb) Iterator() Iterator {
+func (db MDB) Iterator() Iterator {
 	return db.iterator(true)
 }
 
-func (db Mdb) Compact() {
+func (db MDB) Compact() {
 }
 
-func (db Mdb) iterator(rdonly bool) *MdbIterator {
+func (db MDB) iterator(rdonly bool) *MDBIterator {
 	flags := uint(0)
 	if rdonly {
 		flags = mdb.RDONLY
 	}
 	tx, err := db.env.BeginTxn(nil, flags)
 	if err != nil {
-		return &MdbIterator{nil, nil, nil, nil, false, err}
+		return &MDBIterator{nil, nil, nil, nil, false, err}
 	}
 
 	c, err := tx.CursorOpen(db.db)
 	if err != nil {
 		tx.Abort()
-		return &MdbIterator{nil, nil, nil, nil, false, err}
+		return &MDBIterator{nil, nil, nil, nil, false, err}
 	}
 
-	return &MdbIterator{nil, nil, c, tx, true, nil}
+	return &MDBIterator{nil, nil, c, tx, true, nil}
 }
 
-func (db Mdb) Close() {
+func (db MDB) Close() {
 	db.env.DBIClose(db.db)
 	if err := db.env.Close(); err != nil {
 		panic(err)

@@ -2,6 +2,10 @@ package storage
 
 import (
 	"bytes"
+	"fmt"
+	"sync"
+
+	"configuration"
 
 	levigo "github.com/jmhodges/levigo"
 )
@@ -9,7 +13,15 @@ import (
 const LEVELDB_NAME = "leveldb"
 
 func init() {
-	registerEngine(LEVELDB_NAME, NewLevelDb)
+	registerEngine(LEVELDB_NAME, Initializer{
+		NewLevelDBConfig,
+		NewLevelDB,
+	})
+}
+
+type LevelDbConfiguration struct {
+	MaxOpenFiles int                `toml:"max-open-files"`
+	LruCacheSize configuration.Size `toml:"lru-cache-size"`
 }
 
 type LevelDB struct {
@@ -21,12 +33,42 @@ type LevelDB struct {
 	path  string
 }
 
-func NewLevelDb(path string) (Engine, error) {
+func NewLevelDBConfig() interface{} {
+	return &LevelDbConfiguration{}
+}
+
+var cache *levigo.Cache
+var cacheLock sync.Mutex
+
+func NewLevelDB(path string, config interface{}) (Engine, error) {
+	c, ok := config.(*LevelDbConfiguration)
+	if !ok {
+		return nil, fmt.Errorf("Config is of type %T instead of %T", config, LevelDbConfiguration{})
+	}
+
+	// if it wasn't set, set it to 100
+	if c.MaxOpenFiles == 0 {
+		c.MaxOpenFiles = 100
+	}
+
+	// if it wasn't set, set it to 200 MB
+	if c.LruCacheSize == 0 {
+		c.LruCacheSize = 200 * 1024 * 1024
+	}
+
+	// initialize the global cache
+	if cache == nil {
+		cacheLock.Lock()
+		if cache == nil {
+			cache = levigo.NewLRUCache(int(c.LruCacheSize))
+		}
+		cacheLock.Unlock()
+	}
+
 	opts := levigo.NewOptions()
-	cache := levigo.NewLRUCache(100 * 1024 * 1024)
-	opts.SetCompression(levigo.NoCompression)
 	opts.SetCache(cache)
 	opts.SetCreateIfMissing(true)
+	opts.SetMaxOpenFiles(c.MaxOpenFiles)
 	db, err := levigo.Open(path, opts)
 	wopts := levigo.NewWriteOptions()
 	ropts := levigo.NewReadOptions()

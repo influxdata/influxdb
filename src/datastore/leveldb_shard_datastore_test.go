@@ -2,8 +2,9 @@ package datastore
 
 import (
 	"configuration"
-	. "launchpad.net/gocheck"
 	"os"
+
+	. "launchpad.net/gocheck"
 )
 
 const TEST_DATASTORE_SHARD_DIR = "/tmp/influxdb/leveldb_shard_datastore_test"
@@ -20,7 +21,8 @@ func (self *LevelDbShardDatastoreSuite) SetUpSuite(c *C) {
 func (self *LevelDbShardDatastoreSuite) TestWillEnforceMaxOpenShards(c *C) {
 	config := &configuration.Configuration{}
 	config.DataDir = TEST_DATASTORE_SHARD_DIR
-	config.LevelDbMaxOpenShards = 2
+	config.StorageMaxOpenShards = 2
+	config.StorageDefaultEngine = "leveldb"
 
 	store, err := NewLevelDbShardDatastore(config)
 	c.Assert(err, IsNil)

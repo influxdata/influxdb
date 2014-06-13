@@ -52,7 +52,7 @@ func NewLevelDbShard(db storage.Engine, pointBatchSize, writeBatchSize int) (*Le
 }
 
 func (self *LevelDbShard) Write(database string, series []*protocol.Series) error {
-	wb := make([]storage.Write, 0, self.writeBatchSize)
+	wb := make([]storage.Write, 0)
 
 	for _, s := range series {
 		if len(s.Points) == 0 {

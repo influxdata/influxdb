@@ -24,28 +24,18 @@ func main() {
 	os.RemoveAll("/tmp/test-ldb")
 	os.RemoveAll("/tmp/test-lmdb")
 
-	benchmarkLevelDb(Config{*points, *batchSize, *series, 0, 0, time.Now()})
-	benchmarkMdb(Config{*points, *batchSize, *series, 0, 0, time.Now()})
+	benchmark("lmdb", Config{*points, *batchSize, *series, 0, 0, time.Now()})
+	benchmark("leveldb", Config{*points, *batchSize, *series, 0, 0, time.Now()})
 }
 
-func benchmarkMdb(c Config) {
-	db, err := storage.GetEngine("lmdb", "/tmp/test-lmdb")
-
+func benchmark(name string, c Config) {
+	init, err := storage.GetInitializer(name)
 	if err != nil {
 		panic(err)
 	}
 
-	defer db.Close()
-
-	benchmarkDbCommon(db, c)
-}
-
-func benchmarkLevelDb(c Config) {
-	db, err := storage.GetEngine("leveldb", "/tmp/test-mdb")
-
-	if err != nil {
-		panic(err)
-	}
+	conf := init.NewConfig()
+	db, err := init.Initialize(fmt.Sprintf("/tmp/test-%s", name), conf)
 
 	defer db.Close()
 
