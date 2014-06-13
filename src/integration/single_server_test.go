@@ -577,3 +577,54 @@ func (self *SingleServerSuite) TestInvalidDbUserCreation(c *C) {
 
 	c.Assert(client.CreateDatabaseUser("db999", "user", "pass"), NotNil)
 }
+
+// fix for #640 https://github.com/influxdb/influxdb/issues/640 - duplicate shards
+func (self *SingleServerSuite) TestDuplicateShardsNotCreatedWhenOldShardDropped(c *C) {
+	self.server.WriteData(`
+[
+  {
+    "name": "test_duplicate_shards",
+    "columns": ["time", "val"],
+    "points":[[1307997668000, 1], [1339533664000, 1], [1402605633000, 1], [1371069620000, 1]]
+  }
+]`, c)
+	client := self.server.GetClient("", c)
+	shards, err := client.GetShards()
+	c.Assert(err, IsNil)
+	c.Assert(len(shards.ShortTerm) > 1, Equals, true)
+
+	ids := make(map[uint32]bool)
+	for _, s := range shards.ShortTerm {
+		hasId := ids[s.Id]
+		if hasId {
+			c.Error("Shard id shows up twice: ", s.Id)
+		}
+		ids[s.Id] = true
+	}
+
+	oldShardCount := len(shards.ShortTerm)
+	client.DropShard(shards.ShortTerm[0].Id, []uint32{uint32(1)})
+	shards, err = client.GetShards()
+	c.Assert(err, IsNil)
+	c.Assert(len(shards.ShortTerm), Equals, oldShardCount-1)
+	self.server.WriteData(`
+[
+  {
+    "name": "test_duplicate_shards",
+    "columns": ["time", "val"],
+    "points":[[130723342, 1]]
+  }
+]`, c)
+	shards, err = client.GetShards()
+	c.Assert(err, IsNil)
+	c.Assert(len(shards.ShortTerm), Equals, oldShardCount)
+
+	ids = make(map[uint32]bool)
+	for _, s := range shards.ShortTerm {
+		hasId := ids[s.Id]
+		if hasId {
+			c.Error("Shard id shows up twice: ", s.Id)
+		}
+		ids[s.Id] = true
+	}
+}
