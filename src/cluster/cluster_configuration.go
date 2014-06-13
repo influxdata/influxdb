@@ -76,6 +76,7 @@ type ClusterConfiguration struct {
 	wal                        WAL
 	longTermShards             []*ShardData
 	shortTermShards            []*ShardData
+	lastShardIdUsed            uint32
 	random                     *rand.Rand
 	lastServerToGetShard       *ClusterServer
 	shardCreator               ShardCreator
@@ -513,6 +514,7 @@ type SavedConfiguration struct {
 	ShortTermShards   []*NewShardData
 	LongTermShards    []*NewShardData
 	ContinuousQueries map[string][]*ContinuousQuery
+	LastShardIdUsed   uint32
 }
 
 func (self *ClusterConfiguration) Save() ([]byte, error) {
@@ -525,6 +527,7 @@ func (self *ClusterConfiguration) Save() ([]byte, error) {
 		ContinuousQueries: self.continuousQueries,
 		ShortTermShards:   self.convertShardsToNewShardData(self.shortTermShards),
 		LongTermShards:    self.convertShardsToNewShardData(self.longTermShards),
+		LastShardIdUsed:   self.lastShardIdUsed,
 	}
 
 	for k, _ := range self.DatabaseReplicationFactors {
@@ -611,13 +614,27 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	defer self.shardLock.Unlock()
 	self.shortTermShards = self.convertNewShardDataToShards(data.ShortTermShards)
 	self.longTermShards = self.convertNewShardDataToShards(data.LongTermShards)
+
+	highestShardId := uint32(0)
 	for _, s := range self.shortTermShards {
 		shard := s
 		self.shardsById[s.id] = shard
+		if s.id > highestShardId {
+			highestShardId = s.id
+		}
 	}
 	for _, s := range self.longTermShards {
 		shard := s
 		self.shardsById[s.id] = shard
+		if s.id > highestShardId {
+			highestShardId = s.id
+		}
+	}
+
+	if data.LastShardIdUsed == 0 {
+		self.lastShardIdUsed = highestShardId
+	} else {
+		self.lastShardIdUsed = data.LastShardIdUsed
 	}
 
 	for db, queries := range data.ContinuousQueries {
@@ -917,7 +934,8 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 
 	durationIsSplit := len(shards) > 1
 	for _, newShard := range shards {
-		id := uint32(len(self.GetAllShards()) + 1)
+		id := self.lastShardIdUsed + 1
+		self.lastShardIdUsed = id
 		shard := NewShard(id, newShard.StartTime, newShard.EndTime, shardType, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range newShard.ServerIds {
