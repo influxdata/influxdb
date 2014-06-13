@@ -1,5 +1,9 @@
 ## v0.7.4 [unreleased]
 
+### Features
+
+- [Issue #643](https://github.com/influxdb/influxdb/issues/643). Support pretty print json. (Thanks, @otoolep)
+
 ### Bugfixes
 
 - [Issue #651](https://github.com/influxdb/influxdb/issues/651). Change permissions of symlink which fix some installation issues. (Thanks, @Dieterbe)
