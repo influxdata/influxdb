@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -103,7 +104,7 @@ func (self *Client) del(url string) (*http.Response, error) {
 	return self.delWithBody(url, nil)
 }
 
-func (self *Client) delWithBody(url string, body *bytes.Buffer) (*http.Response, error) {
+func (self *Client) delWithBody(url string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest("DELETE", url, body)
 	if err != nil {
 		return nil, err
