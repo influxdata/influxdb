@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [Issue #637](https://github.com/influxdb/influxdb/issues/637). Truncate log files if the last request wasn't written properly
+- [Issue #646](https://github.com/influxdb/influxdb/issues/646). Keep track of last shard id used instead of relying on the length of shards
 
 ## v0.7.2 [2014-05-30]
 
