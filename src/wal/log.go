@@ -67,15 +67,29 @@ func (self *log) check() error {
 			return err
 		}
 		if n == 0 || hdr.length == 0 {
+			logger.Warn("%s was truncated to %d since the file has a zero size request", self.file.Name(), offset)
 			return self.file.Truncate(offset)
 		}
 		if offset+int64(n)+int64(hdr.length) > size {
 			// file is incomplete, truncate
+			logger.Warn("%s was truncated to %d since the file ends prematurely", self.file.Name(), offset)
 			return self.file.Truncate(offset)
 		}
-		if err := self.skipRequest(file, hdr); err != nil {
+		bytes := make([]byte, hdr.length)
+		_, err = file.Read(bytes)
+		if err != nil {
 			return err
 		}
+
+		// this request is invalid truncate file
+		req := &protocol.Request{}
+		err = req.Decode(bytes)
+		if err != nil {
+			logger.Warn("%s was truncated to %d since the end of the file contains invalid data", self.file.Name(), offset)
+			// truncate file and return
+			return self.file.Truncate(offset)
+		}
+
 		offset += int64(n) + int64(hdr.length)
 	}
 }

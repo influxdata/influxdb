@@ -378,6 +378,38 @@ func (_ *WalSuite) TestRecoveryAfterStartup(c *C) {
 	c.Assert(requests, HasLen, 0)
 }
 
+// issue #637
+func (_ *WalSuite) TestInvalidData(c *C) {
+	wal := newWal(c)
+	req := generateRequest(2)
+	_, err := wal.AssignSequenceNumbersAndLog(req, &MockShard{id: 1})
+	c.Assert(err, IsNil)
+	c.Assert(wal.Close(), IsNil)
+	filePath := path.Join(wal.config.WalDir, "log.1")
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	c.Assert(err, IsNil)
+	defer file.Close()
+	bytes := []byte{'a', 'b', 'c', 'd'}
+	hdr := &entryHeader{1, 1, 4}
+	_, err = hdr.Write(file)
+	c.Assert(err, IsNil)
+	_, err = file.Write(bytes)
+	c.Assert(err, IsNil)
+
+	// the WAL should trucate to just the first request
+	wal, err = NewWAL(wal.config)
+	c.Assert(err, IsNil)
+	wal.SetServerId(1)
+
+	count := 0
+	err = wal.RecoverServerFromRequestNumber(1, nil, func(req *protocol.Request, shardId uint32) error {
+		count++
+		return nil
+	})
+	c.Assert(count != 0, Equals, true)
+	c.Assert(err, IsNil)
+}
+
 func (_ *WalSuite) TestRecoveryFromCrash(c *C) {
 	wal := newWal(c)
 	req := generateRequest(2)
