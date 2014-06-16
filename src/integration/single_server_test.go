@@ -211,10 +211,18 @@ func (self *SingleServerSuite) TestSingleServerHostnameChange(c *C) {
 func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 	rootUser := self.server.GetClient("", c)
 
+	verifyPermissions := func(db string, readFrom string, writeTo string) {
+		users := rootUser.GetDatabaseUserList(db)
+		user := users[0]
+		c.Assert(db1.GetReadPermission(), readFrom)
+		c.Assert(db1.GetWritePermission(), writeTo)
+	}
+
 	// create two users one that can only read and one that can only write. both can access test_should_read
 	// series only
 	/* c.Assert(rootUser.CreateDatabase("db1"), IsNil) */
 	c.Assert(rootUser.CreateDatabaseUser("db1", "limited_user", "pass", "^$", "^$"), IsNil)
+	verifyPermissions("db1", "^$", "^$")
 
 	config := &influxdb.ClientConfig{
 		Username: "limited_user",
@@ -251,6 +259,7 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 	content := self.server.RunQueryAsRoot("select * from test_should_write", "m", c)
 	c.Assert(content, HasLen, 0)
 	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "^$", "test_should_write")
+	verifyPermissions("db1", "^$", "test_should_write")
 	// write the data to test the write permissions
 	c.Assert(user.WriteSeries(series), IsNil)
 	self.server.WaitForServerToSync()
@@ -263,10 +272,14 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 	content = self.server.RunQueryAsRoot("select * from test_should_not_write", "m", c)
 	c.Assert(content, HasLen, 0)
 	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "^$", "test_.*")
+	verifyPermissions("db1", "^$", "test_.*")
 	c.Assert(user.WriteSeries(invalidSeries), IsNil)
 	self.server.WaitForServerToSync()
 	content = self.server.RunQueryAsRoot("select * from test_should_not_write", "m", c)
 	c.Assert(content, HasLen, 1)
+
+	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "test_.*", "^$")
+	verifyPermissions("db1", "test_.*", "^$")
 }
 
 func (self *SingleServerSuite) TestUserReadPermissions(c *C) {
