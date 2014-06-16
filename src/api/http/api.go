@@ -568,8 +568,10 @@ type ApiUser struct {
 }
 
 type UserDetail struct {
-	Name    string `json:"name"`
-	IsAdmin bool   `json:"isAdmin"`
+	Name     string `json:"name"`
+	IsAdmin  bool   `json:"isAdmin"`
+	WriteTo  string `json:"writeTo"`
+	ReadFrom string `json:"readFrom"`
 }
 
 type ContinuousQuery struct {
@@ -733,7 +735,7 @@ func (self *HttpServer) listDbUsers(w libhttp.ResponseWriter, r *libhttp.Request
 
 		users := make([]*UserDetail, 0, len(dbUsers))
 		for _, dbUser := range dbUsers {
-			users = append(users, &UserDetail{dbUser.GetName(), dbUser.IsDbAdmin(db)})
+			users = append(users, &UserDetail{dbUser.GetName(), dbUser.IsDbAdmin(db), dbUser.GetWritePermission(), dbUser.GetReadPermission()})
 		}
 		return libhttp.StatusOK, users
 	})
@@ -749,7 +751,7 @@ func (self *HttpServer) showDbUser(w libhttp.ResponseWriter, r *libhttp.Request)
 			return errorToStatusCode(err), err.Error()
 		}
 
-		userDetail := &UserDetail{user.GetName(), user.IsDbAdmin(db)}
+		userDetail := &UserDetail{user.GetName(), user.IsDbAdmin(db), user.GetWritePermission(), user.GetReadPermission()}
 
 		return libhttp.StatusOK, userDetail
 	})
