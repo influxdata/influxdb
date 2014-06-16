@@ -25,7 +25,7 @@ if ! id influxdb; then
     useradd --system -U -M influxdb
 fi
 
-chown -R influxdb:influxdb $influx_dir
+chown -R -L influxdb:influxdb $influx_dir
 chmod -R a+rX $influx_dir
 
 # only restart if the service was already running
