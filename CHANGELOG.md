@@ -1,3 +1,9 @@
+## v0.7.4 [unreleased]
+
+### Bugfixes
+
+- [Issue #651](https://github.com/influxdb/influxdb/issues/651). Change permissions of symlink which fix some installation issues. (Thanks, @Dieterbe)
+
 ## v0.7.3 [2014-06-13]
 
 ### Bugfixes
