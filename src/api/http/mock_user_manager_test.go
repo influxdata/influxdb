@@ -41,8 +41,16 @@ func (self MockDbUser) HasWriteAccess(_ string) bool {
 	return true
 }
 
+func (self MockDbUser) GetWritePermission() string {
+	return ".*"
+}
+
 func (self MockDbUser) HasReadAccess(_ string) bool {
 	return true
+}
+
+func (self MockDbUser) GetReadPermission() string {
+	return ".*"
 }
 
 type MockUserManager struct {
