@@ -7,5 +7,7 @@ type User interface {
 	IsDbAdmin(db string) bool
 	GetDb() string
 	HasWriteAccess(name string) bool
+	GetWritePermission() string
 	HasReadAccess(name string) bool
+	GetReadPermission() string
 }
