@@ -5,8 +5,10 @@ import (
 	"cluster"
 	"configuration"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"protocol"
 	"sync"
@@ -96,6 +98,57 @@ func (self *ShardDatastore) Close() {
 	}
 }
 
+// Get the engine that was used when the shard was created if it
+// exists or set the type of the default engine type
+func (self *ShardDatastore) getEngine(dir string) (string, error) {
+	shardExist := true
+	info, err := os.Stat(dir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+
+		shardExist = false
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", err
+		}
+	} else if !info.IsDir() {
+		return "", fmt.Errorf("%s isn't a directory", dir)
+	}
+
+	f, err := os.OpenFile(path.Join(dir, "type"), os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	body, err := ioutil.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	if s := string(body); s != "" {
+		return s, nil
+	}
+
+	// If the shard existed already but the 'type' file didn't, assume
+	// it's leveldb
+	t := self.config.StorageDefaultEngine
+	if shardExist {
+		t = "leveldb"
+	}
+
+	if _, err := f.WriteString(t); err != nil {
+		return "", err
+	}
+
+	if err := f.Sync(); err != nil {
+		return "", err
+	}
+
+	return t, nil
+}
+
 func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, error) {
 	now := time.Now().Unix()
 	self.shardsLock.Lock()
@@ -111,14 +164,17 @@ func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, e
 	dbDir := self.shardDir(id)
 
 	log.Info("DATASTORE: opening or creating shard %s", dbDir)
-	defaultEngine := self.config.StorageDefaultEngine
-	init, err := storage.GetInitializer(defaultEngine)
+	engine, err := self.getEngine(dbDir)
+	if err != nil {
+		return nil, err
+	}
+	init, err := storage.GetInitializer(engine)
 	if err != nil {
 		log.Error("Error opening shard: ", err)
 		return nil, err
 	}
 	c := init.NewConfig()
-	conf, ok := self.config.StorageEngineConfigs[defaultEngine]
+	conf, ok := self.config.StorageEngineConfigs[engine]
 	if err := toml.PrimitiveDecode(conf, c); ok && err != nil {
 		return nil, err
 	}
