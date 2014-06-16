@@ -718,7 +718,7 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
 	c.Assert(users, HasLen, 1)
-	c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false})
+	c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false, ".*", ".*"})
 }
 
 func (self *ApiSuite) TestDbUserShow(c *C) {
@@ -732,7 +732,7 @@ func (self *ApiSuite) TestDbUserShow(c *C) {
 	userDetail := &UserDetail{}
 	err = json.Unmarshal(body, &userDetail)
 	c.Assert(err, IsNil)
-	c.Assert(userDetail, DeepEquals, &UserDetail{"db_user1", false})
+	c.Assert(userDetail, DeepEquals, &UserDetail{"db_user1", false, ".*", ".*"})
 }
 
 func (self *ApiSuite) TestDatabasesIndex(c *C) {
