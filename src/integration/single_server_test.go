@@ -212,10 +212,10 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 	rootUser := self.server.GetClient("", c)
 
 	verifyPermissions := func(db string, readFrom string, writeTo string) {
-		users := rootUser.GetDatabaseUserList(db)
+		users, _ := rootUser.GetDatabaseUserList(db)
 		user := users[0]
-		c.Assert(user.GetReadPermission(), readFrom.(string))
-		c.Assert(user.GetWritePermission(), writeTo.(string))
+		c.Assert(user["readFrom"], DeepEquals, readFrom)
+		c.Assert(user["writeTo"], DeepEquals, writeTo)
 	}
 
 	// create two users one that can only read and one that can only write. both can access test_should_read
