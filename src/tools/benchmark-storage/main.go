@@ -70,7 +70,7 @@ func benchmarkDbCommon(db storage.Engine, c Config) {
 		count,
 		c.batch,
 		d,
-		float64(d.Nanoseconds())/1000.0/float64(c.points),
+		float64(d.Nanoseconds())/1000.0/float64(count),
 	)
 
 	timeQuerying(db, c.series)
@@ -79,17 +79,19 @@ func benchmarkDbCommon(db storage.Engine, c Config) {
 	timeQuerying(db, c.series)
 	fmt.Printf("Size: %s\n", getSize(db.Path()))
 
+	start = time.Now()
 	count = 0
 	for p := c.points / 2; p > 0; {
 		c := writeBatch(db, &c)
 		count += c
 		p -= c
 	}
+	d = time.Now().Sub(start)
 	fmt.Printf("Writing %d points in batches of %d points took %s (%f microsecond per point)\n",
 		count,
 		c.batch,
 		d,
-		float64(d.Nanoseconds())/1000.0/float64(c.points),
+		float64(d.Nanoseconds())/1000.0/float64(count),
 	)
 	fmt.Printf("Size: %s\n", getSize(db.Path()))
 }
