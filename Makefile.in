@@ -82,6 +82,12 @@ rocksdb_dir     = /tmp/rocksdb.influxdb.$(arch)
 rocksdb_file    = rocksdb-$(rocksdb_version).tar.gz
 rocksdb_deps    = $(rocksdb_dir)/librocksdb.a
 
+# hyperleveldb variables
+hyperleveldb_version = v1.0.3
+hyperleveldb_dir     = /tmp/hyperleveldb.influxdb.$(arch)
+hyperleveldb_file    = $(hyperleveldb_version).tar.gz
+hyperleveldb_deps    = $(hyperleveldb_dir)/.libs/libhyperleveldb.a
+
 profile=off
 ifneq ($(profile),off)
 CGO_LDFLAGS += -ltcmalloc -lprofiler
@@ -90,10 +96,9 @@ endif
 
 # levigo flags
 ifeq ($(uname_S),Linux)
-CGO_CFLAGS  += -I$(leveldb_dir)/include
-CGO_LDFLAGS += $(leveldb_dir)/libleveldb.a $(snappy_dir)/.libs/libsnappy.a
-CGO_CFLAGS  += -I$(rocksdb_dir)/include
-CGO_LDFLAGS += $(rocksdb_dir)/librocksdb.a -lstdc++ -lm -lz -lbz2
+CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include -I$(rocksdb_dir)/include
+CGO_LDFLAGS += $(leveldb_deps) $(snappy_deps) $(hyperleveldb_deps) $(rocksdb_deps)
+CGO_LDFLAGS += -lstdc++ -lm -lz -lbz2
 export CGO_CFLAGS
 export CGO_LDFLAGS
 else
@@ -137,8 +142,21 @@ ifeq ($(uname_S),Linux)
 	CXXFLAGS='$(cflags)' $(MAKE) librocksdb.a"
 endif
 
+$(hyperleveldb_deps):
+ifeq ($(uname_S),Linux)
+	rm -rf $(hyperleveldb_dir)
+	mkdir -p $(hyperleveldb_dir)
+	bash -c "cd $(hyperleveldb_dir); \
+	wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file); \
+	tar --strip-components=1 -xvzf $(hyperleveldb_file); \
+  autoreconf -i; \
+	CFLAGS='$(cflags)' CXXFLAGS='$(cflags)' ./configure; \
+	$(MAKE)"
+endif
+
 levigo_dependency = github.com/jmhodges/levigo
 rocksdb_dependency = github.com/influxdb/rocksdb
+hyperleveldb_dependency = github.com/influxdb/hyperleveldb-go
 proto_dependency  = code.google.com/p/goprotobuf/protoc-gen-go
 
 dependencies = code.google.com/p/go.crypto/bcrypt \
@@ -166,10 +184,14 @@ src/$(rocksdb_dependency):
 	$(GO) get -d $(rocksdb_dependency)
 	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lrocksdb\|#cgo LDFLAGS: -lrocksdb//g'; popd"
 
+src/$(hyperleveldb_dependency):
+	$(GO) get -d $(hyperleveldb_dependency)
+	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lhyperleveldb\|#cgo LDFLAGS: -lhyperleveldb//g'; popd"
+
 $(dependencies_paths):
 	for i in $(dependencies); do $(GO) get -d $$i; done
 
-dependencies: src/$(levigo_dependency) src/$(rocksdb_dependency) $(dependencies_paths) $(leveldb_deps) $(rocksdb_deps) $(snappy_deps)
+dependencies: src/$(levigo_dependency) src/$(rocksdb_dependency) src/$(hyperleveldb_dependency) $(dependencies_paths) $(leveldb_deps) $(hyperleveldb_deps) $(rocksdb_deps) $(snappy_deps)
 
 test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck

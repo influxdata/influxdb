@@ -116,6 +116,17 @@ max-open-files = 40
 # and gigabytes, respectively.
 lru-cache-size = "200m"
 
+[storage.engines.hyperleveldb]
+
+# Maximum mmap open files, this will affect the virtual memory used by
+# the process
+max-open-files = 40
+
+# LRU cache size, LRU is used by rocksdb to store contents of the
+# uncompressed sstables. You can use `m` or `g` prefix for megabytes
+# and gigabytes, respectively.
+lru-cache-size = "200m"
+
 [storage.engines.lmdb]
 
 map-size = "100g"
