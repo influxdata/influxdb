@@ -80,7 +80,7 @@ dir = "/tmp/influxdb/development/db"
 write-buffer-size = 10000
 
 # the engine to use for new shards, old shards will continue to use the same engine
-default-engine = "lmdb"
+default-engine = "rocksdb"
 
 # The default setting on this is 0, which means unlimited. Set this to something if you want to
 # limit the max number of open files. max-open-files is per shard so this * that will be max.
@@ -101,6 +101,17 @@ write-batch-size = 5000000
 max-open-files = 40
 
 # LRU cache size, LRU is used by leveldb to store contents of the
+# uncompressed sstables. You can use `m` or `g` prefix for megabytes
+# and gigabytes, respectively.
+lru-cache-size = "200m"
+
+[storage.rocksdb]
+
+# Maximum mmap open files, this will affect the virtual memory used by
+# the process
+max-open-files = 40
+
+# LRU cache size, LRU is used by rocksdb to store contents of the
 # uncompressed sstables. You can use `m` or `g` prefix for megabytes
 # and gigabytes, respectively.
 lru-cache-size = "200m"

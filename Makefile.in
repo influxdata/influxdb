@@ -76,6 +76,12 @@ leveldb_dir     = /tmp/leveldb.influxdb.$(arch)
 leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
+# rocksdb variables
+rocksdb_version = 3.1
+rocksdb_dir     = /tmp/rocksdb.influxdb.$(arch)
+rocksdb_file    = rocksdb-$(rocksdb_version).tar.gz
+rocksdb_deps    = $(rocksdb_dir)/librocksdb.a
+
 profile=off
 ifneq ($(profile),off)
 CGO_LDFLAGS += -ltcmalloc -lprofiler
@@ -85,11 +91,13 @@ endif
 # levigo flags
 ifeq ($(uname_S),Linux)
 CGO_CFLAGS  += -I$(leveldb_dir)/include
-CGO_LDFLAGS += $(leveldb_dir)/libleveldb.a $(snappy_dir)/.libs/libsnappy.a -lstdc++
+CGO_LDFLAGS += $(leveldb_dir)/libleveldb.a $(snappy_dir)/.libs/libsnappy.a
+CGO_CFLAGS  += -I$(rocksdb_dir)/include
+CGO_LDFLAGS += $(rocksdb_dir)/librocksdb.a -lstdc++ -lm -lz -lbz2
 export CGO_CFLAGS
 export CGO_LDFLAGS
 else
-CGO_LDFLAGS += -lleveldb -lsnappy -lstdc++
+CGO_LDFLAGS += -lleveldb -lrocksdb -lsnappy -lstdc++
 export CGO_LDFLAGS
 endif
 
@@ -116,10 +124,21 @@ ifeq ($(uname_S),Linux)
 	bash -c "cd $(leveldb_dir); \
 	wget https://leveldb.googlecode.com/files/$(leveldb_file); \
 	tar --strip-components=1 -xvzf $(leveldb_file); \
-	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' make"
+	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE)"
+endif
+
+$(rocksdb_deps):
+ifeq ($(uname_S),Linux)
+	rm -rf $(rocksdb_dir)
+	mkdir -p $(rocksdb_dir)
+	bash -c "cd $(rocksdb_dir); \
+	wget https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
+	tar --strip-components=1 -xvzf $(rocksdb_file); \
+	CXXFLAGS='$(cflags)' $(MAKE) librocksdb.a"
 endif
 
 levigo_dependency = github.com/jmhodges/levigo
+rocksdb_dependency = github.com/influxdb/rocksdb
 proto_dependency  = code.google.com/p/goprotobuf/protoc-gen-go
 
 dependencies = code.google.com/p/go.crypto/bcrypt \
@@ -143,11 +162,14 @@ src/$(levigo_dependency):
 	$(GO) get -d $(levigo_dependency)
 	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'; popd"
 
+src/$(rocksdb_dependency):
+	$(GO) get -d $(rocksdb_dependency)
+	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lrocksdb\|#cgo LDFLAGS: -lrocksdb//g'; popd"
 
 $(dependencies_paths):
 	for i in $(dependencies); do $(GO) get -d $$i; done
 
-dependencies: src/$(levigo_dependency) $(dependencies_paths) $(leveldb_deps) $(snappy_deps)
+dependencies: src/$(levigo_dependency) src/$(rocksdb_dependency) $(dependencies_paths) $(leveldb_deps) $(rocksdb_deps) $(snappy_deps)
 
 test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck
