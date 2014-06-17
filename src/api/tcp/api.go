@@ -33,7 +33,6 @@ const (
 	HandshakeState_ERROR                        HandshakeState = 999
 )
 
-
 // TODO: blush up
 var G_STARTUP_MESSAGE = Greeting_STARTUP_MESSAGE
 var G_AUTHENTICATION = Greeting_AUTHENTICATION
@@ -55,6 +54,7 @@ var G_Authentication_DB_USER = Greeting_Authentication_DB_USER
 
 // Commands
 var C_OK = Command_OK
+var C_FAIL = Command_FAIL
 var C_CREATEDATABASE = Command_CREATEDATABASE
 var C_DROPDATABASE = Command_DROPDATABASE
 var C_CHANGEDATABASE = Command_CHANGEDATABASE
@@ -66,7 +66,9 @@ var C_PING = Command_PING
 
 
 func NewServer(config *configuration.Configuration, coord coordinator.Coordinator, um api.UserManager, clusterConfig *cluster.ClusterConfiguration) *TcpServer {
-	self := &TcpServer{}
+	self := &TcpServer{
+		forceSSLUsers: map[string]bool{},
+	}
 
 	self.listenAddress = config.TcpInputPortString()
 	self.listenSocket = config.TcpInputSocketString()
@@ -80,6 +82,9 @@ func NewServer(config *configuration.Configuration, coord coordinator.Coordinato
 			tslConfig.Rand = rand.Reader
 
 			self.tlsConfig = tslConfig
+			for _, name := range config.TcpInputForceSSL() {
+				self.forceSSLUsers[name] = true
+			}
 			log.Debug("SSL Config loaded")
 		}
 	}

@@ -27,10 +27,19 @@ type TcpServer struct {
 	shutdown       chan bool
 	RequestHandler *RequestHandler
 	tlsConfig      *tls.Config
+	forceSSLUsers map[string]bool
 }
 
 func (self *TcpServer) GetCoordinator() coordinator.Coordinator {
 	return self.Coordinator
+}
+
+func (self *TcpServer) IsForceSSLUser(name string) bool {
+	if v, ok := self.forceSSLUsers[name]; ok && v == true {
+		return true
+	} else {
+		return false
+	}
 }
 
 func (self *TcpServer) SendErrorMessage(conn Connection, t Command_CommandType, message string) error {

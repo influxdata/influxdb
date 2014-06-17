@@ -88,31 +88,39 @@ func (self *TcpConnection) GetAccountType() *Greeting_Authentication_AccountType
 func (self *TcpConnection) GetSocket() net.Conn {
 	return self.Socket
 }
+
 func (self *TcpConnection) SetSocket(conn net.Conn) {
 	self.Socket = conn
 }
+
 func (self *TcpConnection) ClearBuffer() {
-	self.Buffer.ReadBuffer.Reset()
-	self.Buffer.WriteBuffer.Reset()
+	self.Buffer.ClearBuffer()
 }
+
 func (self *TcpConnection) GetAddress() net.Addr {
 	return self.Address
 }
+
 func (self *TcpConnection) GetState() State {
 	return self.State
 }
+
 func (self *TcpConnection) GetDatabase() string {
 	return self.Database
 }
+
 func (self *TcpConnection) SetDatabase(database string) {
 	self.Database = database
 }
+
 func (self *TcpConnection) GetSequence() uint32 {
 	return self.Sequence
 }
+
 func (self *TcpConnection) GetUser() User {
 	return self.User
 }
+
 func (self *TcpConnection) SetUser(user User) {
 	self.User = user
 }

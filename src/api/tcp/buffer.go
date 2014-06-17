@@ -9,3 +9,7 @@ type Buffer struct {
 	WriteBuffer *bytes.Buffer
 }
 
+func (self *Buffer) ClearBuffer() {
+	self.ReadBuffer.Reset()
+	self.WriteBuffer.Reset()
+}

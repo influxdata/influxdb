@@ -10,4 +10,5 @@ type Server interface {
 	HandleConnection(conn Connection)
 	Authenticate(conn Connection, info *Greeting_Authentication) error
 	SSLAvailable() bool
+	IsForceSSLUser(name string) bool
 }

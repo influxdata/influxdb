@@ -90,6 +90,7 @@ type TcpInputConfig struct {
 	UseSSL bool `toml:"use-ssl"`
 	SSLCertPath string `toml:"ssl-cert"`
 	SSLKeyPath string `toml:"ssl-key"`
+	ForceSSLUsers []string `toml:"force-ssl-users"`
 	WriteBufferSize           int      `toml:"write-buffer-size"`
 	MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
 }
@@ -200,6 +201,7 @@ type Configuration struct {
 	TcpInputUseSSL   bool
 	TcpInputSSLCertPath string
 	TcpInputSSLKeyPath string
+	TcpInputForceSSLUsers []string
 
 	RaftServerPort               int
 	RaftTimeout                  duration
@@ -349,6 +351,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		TcpInputUseSSL:  tomlConfiguration.InputPlugins.TcpInput.UseSSL,
 		TcpInputSSLCertPath: tomlConfiguration.InputPlugins.TcpInput.SSLCertPath,
 		TcpInputSSLKeyPath: tomlConfiguration.InputPlugins.TcpInput.SSLKeyPath,
+		TcpInputForceSSLUsers: tomlConfiguration.InputPlugins.TcpInput.ForceSSLUsers,
 
 		RaftServerPort:               tomlConfiguration.Raft.Port,
 		RaftTimeout:                  tomlConfiguration.Raft.Timeout,
@@ -478,6 +481,10 @@ func (self *Configuration) TcpInputSSLKey() string {
 	}
 
 	return self.TcpInputSSLKeyPath
+}
+
+func (self *Configuration) TcpInputForceSSL() []string {
+	return self.TcpInputForceSSLUsers
 }
 
 func (self *Configuration) HostnameOrDetect() string {

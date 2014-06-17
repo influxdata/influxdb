@@ -68,6 +68,9 @@ func (self *MockServer) GetCoordinator() coordinator.Coordinator {
 func (self *MockServer) SendErrorMessage(conn tcp.Connection, t tcp.Command_CommandType, message string) error {
 	return nil
 }
+func (self *MockServer) IsForceSSLUser(name string) bool {
+	return false
+}
 
 func (self *MockServer) HandleConnection(conn tcp.Connection) {
 

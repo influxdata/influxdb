@@ -8,7 +8,6 @@ import (
 
 	"parser"
 	"code.google.com/p/goprotobuf/proto"
-	"errors"
 	log "code.google.com/p/log4go"
 
 )
@@ -25,8 +24,7 @@ func (self *RequestHandler) WriteSeries(conn Connection, request *Command) error
 	series := request.GetSeries()
 	err := self.Server.GetCoordinator().WriteSeriesData(conn.GetUser(), conn.GetDatabase(), series.GetSeries())
 	if err != nil {
-		self.sendErrorMessage(conn, Command_WRITESERIES, fmt.Sprintf("Cant insert data: %s", err))
-		return err
+		return self.sendErrorMessage(conn, Command_WRITESERIES, fmt.Sprintf("Cant insert data: %s", err))
 	}
 
 	response := &Command{
@@ -40,8 +38,7 @@ func (self *RequestHandler) WriteSeries(conn Connection, request *Command) error
 func (self *RequestHandler) ChangeDatabase(conn Connection, request *Command) error {
 	db := request.GetDatabase().GetName()
 	if len(db) != 1 {
-		self.sendErrorMessage(conn, Command_CHANGEDATABASE, fmt.Sprintf("Cannot change database: at least requires 1 name parameter"))
-		return errors.New(fmt.Sprintf("Cannot change database: at least requires 1 name parameter"))
+		return self.sendErrorMessage(conn, Command_CHANGEDATABASE, fmt.Sprintf("Cannot change database: at least requires 1 name parameter"))
 	}
 
 	// TODO: check db user permission
@@ -108,8 +105,7 @@ func (self *RequestHandler) DropDatabase(conn Connection, request *Command) erro
 func (self *RequestHandler) ListDatabase(conn Connection, request *Command) error {
 	databases, err := self.Server.GetCoordinator().ListDatabases(conn.GetUser())
 	if err != nil {
-		self.sendErrorMessage(conn, Command_LISTDATABASE, fmt.Sprintf("Cannot list database. Error: %s", err))
-		return err
+		return self.sendErrorMessage(conn, Command_LISTDATABASE, fmt.Sprintf("Cannot list database. Error: %s", err))
 	}
 
 	response := &Command{
