@@ -9,6 +9,7 @@ import (
 	log "code.google.com/p/log4go"
 )
 
+// TODO: don't define twice.
 type Writer interface {
 	yield(*protocol.Series) error
 	done()
@@ -16,27 +17,15 @@ type Writer interface {
 
 type ChunkedPointsWriter struct {
 	memSeries map[string]*protocol.Series
-	conn         *Connection
+	conn         Connection
 	precision TimePrecision
 	limit int
 	c chan *Command
 }
 
-func NewChunkedPointsWriter(conn *Connection, precision TimePrecision, limit, buffer int) *ChunkedPointsWriter {
+func NewChunkedPointsWriter(conn Connection, precision TimePrecision, limit, buffer int) *ChunkedPointsWriter {
 	writer := &ChunkedPointsWriter{map[string]*protocol.Series{}, conn, precision, limit, nil}
 	writer.c = make(chan *Command, buffer)
-
-	go func(r chan *Command, conn *Connection) {
-		for {
-			response, ok := <- r
-			if !ok {
-				return
-			}
-
-			d, _ := proto.Marshal(response)
-			conn.Write(uint32(len(d)), bytes.NewReader(d))
-		}
-	}(writer.c, conn)
 
 	return writer
 }
@@ -63,12 +52,9 @@ func (self *ChunkedPointsWriter) yield(series *protocol.Series) error {
 			}
 
 			newSeries.Points = self.memSeries[series.GetName()].Points[i*self.limit:end]
-
-			v := Command_QUERY
-			result := Command_OK
 			response := &Command{
-				Type: &v,
-				Result: &result,
+				Type: &C_QUERY,
+				Result: &C_OK,
 				Continue: proto.Bool(true),
 				Query: &Command_Query{
 					Series: &Command_Series{
@@ -78,7 +64,8 @@ func (self *ChunkedPointsWriter) yield(series *protocol.Series) error {
 			}
 			response.GetQuery().GetSeries().Series = append(response.GetQuery().GetSeries().Series, newSeries)
 
-			self.c <- response
+			d, _ := proto.Marshal(response)
+			self.conn.Write(uint32(len(d)), bytes.NewReader(d))
 		}
 	}
 
@@ -89,15 +76,14 @@ func (self *ChunkedPointsWriter) yield(series *protocol.Series) error {
 func (self *ChunkedPointsWriter) done() {
 	var rseries []*protocol.Series
 
+	// TODO: keep message as small
 	for _, series := range self.memSeries {
 		rseries = append(rseries, series)
 	}
 
-	v := Command_QUERY
-	result := Command_OK
 	response := &Command{
-		Type: &v,
-		Result: &result,
+		Type: &C_QUERY,
+		Result: &C_OK,
 		Continue: proto.Bool(false),
 		Query: &Command_Query{
 			Series: &Command_Series{
@@ -105,9 +91,11 @@ func (self *ChunkedPointsWriter) done() {
 			},
 		},
 	}
-	response.GetQuery().GetSeries().Series = rseries
-	self.c <- response
 
+	response.GetQuery().GetSeries().Series = rseries
+
+	d, _ := proto.Marshal(response)
+	self.conn.Write(uint32(len(d)), bytes.NewReader(d))
 	close(self.c)
 	log.Debug("WRITE FINISHED!")
 }

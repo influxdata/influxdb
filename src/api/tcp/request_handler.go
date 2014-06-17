@@ -14,33 +14,30 @@ import (
 )
 
 type RequestHandler struct {
-	Dummy int
-	Server *Server
+	Server Server
 }
 
-func (self *RequestHandler) sendErrorMessage(conn *Connection, t Command_CommandType, message string) error {
+func (self *RequestHandler) sendErrorMessage(conn Connection, t Command_CommandType, message string) error {
 	return self.Server.SendErrorMessage(conn, t, message)
 }
 
-func (self *RequestHandler) WriteSeries(conn *Connection, request *Command) error {
+func (self *RequestHandler) WriteSeries(conn Connection, request *Command) error {
 	series := request.GetSeries()
-	err := self.Server.Coordinator.WriteSeriesData(conn.User, conn.Database, series.GetSeries())
+	err := self.Server.GetCoordinator().WriteSeriesData(conn.GetUser(), conn.GetDatabase(), series.GetSeries())
 	if err != nil {
 		self.sendErrorMessage(conn, Command_WRITESERIES, fmt.Sprintf("Cant insert data: %s", err))
 		return err
 	}
 
-	v := Command_WRITESERIES
-	result := Command_OK
 	response := &Command{
-		Type: &v,
-		Result: &result,
-		Sequence: proto.Uint32(conn.Sequence),
+		Type: &C_WRITESERIES,
+		Result: &C_OK,
+		Sequence: proto.Uint32(conn.GetSequence()),
 	}
 	return conn.WriteRequest(response)
 }
 
-func (self *RequestHandler) ChangeDatabase(conn *Connection, request *Command) error {
+func (self *RequestHandler) ChangeDatabase(conn Connection, request *Command) error {
 	db := request.GetDatabase().GetName()
 	if len(db) != 1 {
 		self.sendErrorMessage(conn, Command_CHANGEDATABASE, fmt.Sprintf("Cannot change database: at least requires 1 name parameter"))
@@ -48,90 +45,77 @@ func (self *RequestHandler) ChangeDatabase(conn *Connection, request *Command) e
 	}
 
 	// TODO: check db user permission
-	conn.Database = db[0]
+	conn.SetDatabase(db[0])
 
-	v := Command_CHANGEDATABASE
-	result := Command_OK
 	response := &Command{
-		Type: &v,
-		Result: &result,
-		Sequence: proto.Uint32(conn.Sequence),
+		Type: &C_CHANGEDATABASE,
+		Result: &C_OK,
+		Sequence: proto.Uint32(conn.GetSequence()),
 	}
 	return conn.WriteRequest(response)
 }
 
-func (self *RequestHandler) CreateDatabase(conn *Connection, request *Command) error {
+func (self *RequestHandler) CreateDatabase(conn Connection, request *Command) error {
 	database := request.GetDatabase().GetName()
-	if len(database) < 1 {
-		self.sendErrorMessage(conn, Command_CREATEDATABASE, fmt.Sprintf("Cannot create database: at least requires 1 name parameter"))
-		return errors.New(fmt.Sprintf("Cannot create database: at least requires 1 name parameter"))
+	if len(database) != 1 {
+		return self.sendErrorMessage(conn, Command_CREATEDATABASE, fmt.Sprintf("Cannot create database: requires exactly 1 name parameter"))
 	}
 
-	// TODO: Verify first.
-	v := Command_CREATEDATABASE
 	result := Command_OK
+
 	response := &Command{
-		Type: &v,
-		Sequence: proto.Uint32(conn.Sequence),
+		Type: &C_CREATEDATABASE,
+		Sequence: proto.Uint32(conn.GetSequence()),
 		Database: &Command_Database{
 		},
 	}
-
-	// TODO: remove soft fail.
-	for _, name := range database {
-		err := self.Server.Coordinator.CreateDatabase(conn.User, name)
-		if err != nil {
-			result = Command_SOFTFAIL
-			continue
-		} else {
-			response.GetDatabase().Name = append(response.GetDatabase().Name, name)
-		}
+	err := self.Server.GetCoordinator().CreateDatabase(conn.GetUser(), database[0])
+	if err != nil {
+		result = Command_FAIL
+	} else {
+		response.GetDatabase().Name = append(response.GetDatabase().Name, database[0])
 	}
 
 	response.Result = &result
 	return conn.WriteRequest(response)
 }
 
-func (self *RequestHandler) DropDatabase(conn *Connection, request *Command) error {
-	databases := request.GetDatabase().GetName()
+func (self *RequestHandler) DropDatabase(conn Connection, request *Command) error {
+	database := request.GetDatabase().GetName()
+	if len(database) != 1 {
+		return self.sendErrorMessage(conn, Command_CREATEDATABASE, fmt.Sprintf("Cannot create database: requires exactly 1 name parameter"))
+	}
 
-	v := Command_DROPDATABASE
 	result := Command_OK
 	response := &Command{
-		Type: &v,
-		Sequence: proto.Uint32(conn.Sequence),
+		Type: &C_DROPDATABASE,
+		Sequence: proto.Uint32(conn.GetSequence()),
 		Database: &Command_Database{
 		},
 	}
 
-	for _, name := range databases {
-		err := self.Server.Coordinator.DropDatabase(conn.User, name)
-		if err != nil {
-			result = Command_SOFTFAIL
-			continue
-		} else {
-			response.GetDatabase().Name = append(response.GetDatabase().Name, name)
-		}
+	err := self.Server.GetCoordinator().DropDatabase(conn.GetUser(), database[0])
+	if err != nil {
+		result = Command_FAIL
+	} else {
+		response.GetDatabase().Name = append(response.GetDatabase().Name, database[0])
 	}
 
 	response.Result = &result
 	return conn.WriteRequest(response)
 }
 
-func (self *RequestHandler) ListDatabase(conn *Connection, request *Command) error {
-	databases, err := self.Server.Coordinator.ListDatabases(conn.User)
-
+func (self *RequestHandler) ListDatabase(conn Connection, request *Command) error {
+	databases, err := self.Server.GetCoordinator().ListDatabases(conn.GetUser())
 	if err != nil {
 		self.sendErrorMessage(conn, Command_LISTDATABASE, fmt.Sprintf("Cannot list database. Error: %s", err))
 		return err
 	}
 
-	v := Command_LISTDATABASE
-	result := Command_OK
 	response := &Command{
-		Type: &v,
-		Result: &result,
-		Sequence: proto.Uint32(conn.Sequence),
+		Type: &C_LISTDATABASE,
+		Result: &C_OK,
+		Sequence: proto.Uint32(conn.GetSequence()),
 		Database: &Command_Database{
 		},
 	}
@@ -142,49 +126,46 @@ func (self *RequestHandler) ListDatabase(conn *Connection, request *Command) err
 	return conn.WriteRequest(response)
 }
 
-func (self *RequestHandler) Query(conn *Connection, request *Command) error {
+func (self *RequestHandler) Query(conn Connection, request *Command) error {
+	// TODO: choose precision
 	precision := SecondPrecision
-	writer := NewChunkedPointsWriter(conn, precision, 500, 1000)
 
+	writer := NewChunkedPointsWriter(conn, precision, 500, 1000)
 	seriesWriter := api.NewSeriesWriter(writer.yield)
-	err := self.Server.Coordinator.RunQuery(conn.User, conn.Database, string(request.GetQuery().GetQuery()), seriesWriter)
+	err := self.Server.GetCoordinator().RunQuery(conn.GetUser(), conn.GetDatabase(), string(request.GetQuery().GetQuery()), seriesWriter)
 
 	if err != nil {
 		if e, ok := err.(*parser.QueryError); ok {
-			self.sendErrorMessage(conn, Command_QUERY, fmt.Sprintf("Query Failed: %+v", e))
-			return nil
+			return self.sendErrorMessage(conn, Command_QUERY, fmt.Sprintf("Query Failed: %+v", e))
 		}
 
-		self.sendErrorMessage(conn, Command_QUERY, fmt.Sprintf("Failed: %+v", err))
-		return nil
+		return self.sendErrorMessage(conn, Command_QUERY, fmt.Sprintf("Failed: %+v", err))
 	}
 
 	writer.done()
 	return nil
 }
 
-func (self *RequestHandler) Ping(conn *Connection, request *Command) error {
-	v := Command_PING
-	result := Command_OK
+func (self *RequestHandler) Ping(conn Connection, request *Command) error {
 	response := &Command{
-		Type: &v,
-		Sequence: proto.Uint32(conn.Sequence),
-		Result: &result,
+		Type: &C_PING,
+		Sequence: proto.Uint32(conn.GetSequence()),
+		Result: &C_OK,
 	}
 	return conn.WriteRequest(response)
 }
 
-func (self *RequestHandler) CloseConnection(conn *Connection, request *Command) error {
+func (self *RequestHandler) CloseConnection(conn Connection, request *Command) error {
 	conn.Close()
 	return &ConnectionError{s: "closing connection"}
 }
 
-func (self *RequestHandler) ResetConnection(conn *Connection, request *Command) error {
+func (self *RequestHandler) ResetConnection(conn Connection, request *Command) error {
 	conn.ResetState()
 	return &ConnectionResetError{s: "reset request"}
 }
 
-func (self *RequestHandler) HandleRequest(conn *Connection) error {
+func (self *RequestHandler) HandleRequest(conn Connection) error {
 	request := &Command{}
 	err := conn.ReadMessage(request)
 	if err != nil {

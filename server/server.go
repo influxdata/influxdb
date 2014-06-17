@@ -28,7 +28,7 @@ type Server struct {
 	GraphiteApi    *graphite.Server
 	UdpApi         *udp.Server
 	UdpServers     []*udp.Server
-	TcpApi         *tcp.Server
+	TcpApi         *tcp.TcpServer
 	AdminServer    *admin.HttpServer
 	Coordinator    *coordinator.Coordinator
 	Config         *configuration.Configuration
