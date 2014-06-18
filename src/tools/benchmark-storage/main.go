@@ -21,7 +21,7 @@ func main() {
 	series := flag.Int("series", 1, "Number of series")
 	flag.Parse()
 
-	os.RemoveAll("/tmp/test-ldb")
+	os.RemoveAll("/tmp/test-leveldb")
 	os.RemoveAll("/tmp/test-lmdb")
 	os.RemoveAll("/tmp/test-rocksdb")
 	os.RemoveAll("/tmp/test-hyperleveldb")
