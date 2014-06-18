@@ -30,7 +30,6 @@ type RocksDB struct {
 	opts  *rocksdb.Options
 	wopts *rocksdb.WriteOptions
 	ropts *rocksdb.ReadOptions
-	cache *rocksdb.Cache
 	path  string
 }
 
@@ -79,7 +78,7 @@ func NewRocksDB(path string, config interface{}) (Engine, error) {
 	db, err := rocksdb.Open(path, opts)
 	wopts := rocksdb.NewWriteOptions()
 	ropts := rocksdb.NewReadOptions()
-	return RocksDB{db, opts, wopts, ropts, rocksDBCache, path}, err
+	return RocksDB{db, opts, wopts, ropts, path}, err
 }
 
 func (db RocksDB) Compact() {
@@ -87,7 +86,6 @@ func (db RocksDB) Compact() {
 }
 
 func (db RocksDB) Close() {
-	db.cache.Close()
 	db.ropts.Close()
 	db.wopts.Close()
 	db.opts.Close()

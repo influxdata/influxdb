@@ -29,7 +29,6 @@ type HyperlevelDB struct {
 	opts  *hyperleveldb.Options
 	wopts *hyperleveldb.WriteOptions
 	ropts *hyperleveldb.ReadOptions
-	cache *hyperleveldb.Cache
 	path  string
 }
 
@@ -72,7 +71,7 @@ func NewHyperlevelDB(path string, config interface{}) (Engine, error) {
 	db, err := hyperleveldb.Open(path, opts)
 	wopts := hyperleveldb.NewWriteOptions()
 	ropts := hyperleveldb.NewReadOptions()
-	return HyperlevelDB{db, opts, wopts, ropts, hyperlevelDBCache, path}, err
+	return HyperlevelDB{db, opts, wopts, ropts, path}, err
 }
 
 func (db HyperlevelDB) Compact() {
@@ -80,7 +79,6 @@ func (db HyperlevelDB) Compact() {
 }
 
 func (db HyperlevelDB) Close() {
-	db.cache.Close()
 	db.ropts.Close()
 	db.wopts.Close()
 	db.opts.Close()

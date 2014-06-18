@@ -29,7 +29,6 @@ type LevelDB struct {
 	opts  *levigo.Options
 	wopts *levigo.WriteOptions
 	ropts *levigo.ReadOptions
-	cache *levigo.Cache
 	path  string
 }
 
@@ -72,7 +71,7 @@ func NewLevelDB(path string, config interface{}) (Engine, error) {
 	db, err := levigo.Open(path, opts)
 	wopts := levigo.NewWriteOptions()
 	ropts := levigo.NewReadOptions()
-	return LevelDB{db, opts, wopts, ropts, cache, path}, err
+	return LevelDB{db, opts, wopts, ropts, path}, err
 }
 
 func (db LevelDB) Compact() {
@@ -80,7 +79,6 @@ func (db LevelDB) Compact() {
 }
 
 func (db LevelDB) Close() {
-	db.cache.Close()
 	db.ropts.Close()
 	db.wopts.Close()
 	db.opts.Close()
@@ -177,7 +175,11 @@ func (itr *LevelDbIterator) Close() error {
 }
 
 func (db LevelDB) Iterator() Iterator {
-	itr := db.db.NewIterator(db.ropts)
+	ropts := levigo.NewReadOptions()
+	ropts.SetFillCache(false)
+	defer ropts.Close()
+
+	itr := db.db.NewIterator(ropts)
 
 	return &LevelDbIterator{itr, nil}
 }
