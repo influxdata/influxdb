@@ -11,14 +11,14 @@ import (
 
 type GlobalState struct {
 	// used for creating index entries
-	CurrentFileSuffix int
+	CurrentFileSuffix uint32
 	CurrentFileOffset int64
 
 	// keep track of the next request number
 	LargestRequestNumber uint32
 
 	// used for rollover
-	FirstSuffix int
+	FirstSuffix uint32
 
 	// last seq number used
 	ShardLastSequenceNumber map[uint32]uint64

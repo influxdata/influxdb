@@ -20,7 +20,7 @@ type log struct {
 	file                   *os.File
 	requestsSinceLastFlush int
 	config                 *configuration.Configuration
-	cachedSuffix           int
+	cachedSuffix           uint32
 }
 
 func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
@@ -31,7 +31,7 @@ func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
 
 	size := uint64(info.Size())
 	suffixString := strings.TrimLeft(path.Base(file.Name()), "log.")
-	suffix, err := strconv.Atoi(suffixString)
+	suffix, err := strconv.ParseUint(suffixString, 10, 32)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
 		fileSize:     size,
 		closed:       false,
 		config:       config,
-		cachedSuffix: suffix,
+		cachedSuffix: uint32(suffix),
 	}
 
 	return l, l.check()
@@ -99,7 +99,7 @@ func (self *log) offset() int64 {
 	return offset
 }
 
-func (self *log) suffix() int {
+func (self *log) suffix() uint32 {
 	return self.cachedSuffix
 }
 

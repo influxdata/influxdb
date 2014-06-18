@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -71,6 +72,8 @@ func (self *LoadConfigurationSuite) TestSizeParsing(c *C) {
 	var s size
 	c.Assert(s.UnmarshalText([]byte("200m")), IsNil)
 	c.Assert(s.int64, Equals, 200*ONE_MEGABYTE)
-	c.Assert(s.UnmarshalText([]byte("10g")), IsNil)
-	c.Assert(s.int64, Equals, 10*ONE_GIGABYTE)
+	if t := reflect.TypeOf(0); t.Size() > 4 {
+		c.Assert(s.UnmarshalText([]byte("10g")), IsNil)
+		c.Assert(s.int64, Equals, 10*ONE_GIGABYTE)
+	}
 }
