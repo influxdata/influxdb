@@ -2,27 +2,29 @@ package datastore
 
 import (
 	"configuration"
-	. "launchpad.net/gocheck"
 	"os"
+
+	. "launchpad.net/gocheck"
 )
 
-const TEST_DATASTORE_SHARD_DIR = "/tmp/influxdb/leveldb_shard_datastore_test"
+const TEST_DATASTORE_SHARD_DIR = "/tmp/influxdb/_shard_datastore_test"
 
-type LevelDbShardDatastoreSuite struct{}
+type ShardDatastoreSuite struct{}
 
-var _ = Suite(&LevelDbShardDatastoreSuite{})
+var _ = Suite(&ShardDatastoreSuite{})
 
-func (self *LevelDbShardDatastoreSuite) SetUpSuite(c *C) {
+func (self *ShardDatastoreSuite) SetUpSuite(c *C) {
 	err := os.RemoveAll(TEST_DATASTORE_SHARD_DIR)
 	c.Assert(err, IsNil)
 }
 
-func (self *LevelDbShardDatastoreSuite) TestWillEnforceMaxOpenShards(c *C) {
+func (self *ShardDatastoreSuite) TestWillEnforceMaxOpenShards(c *C) {
 	config := &configuration.Configuration{}
 	config.DataDir = TEST_DATASTORE_SHARD_DIR
-	config.LevelDbMaxOpenShards = 2
+	config.StorageMaxOpenShards = 2
+	config.StorageDefaultEngine = "leveldb"
 
-	store, err := NewLevelDbShardDatastore(config)
+	store, err := NewShardDatastore(config)
 	c.Assert(err, IsNil)
 
 	shard, err := store.GetOrCreateShard(uint32(2))

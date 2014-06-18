@@ -26,7 +26,7 @@ const DB_DIR = "/tmp/chronosdb/datastore_test"
 
 // func newDatastore(c *C) Datastore {
 // 	os.MkdirAll(DB_DIR, 0744)
-// 	db, err := NewLevelDbDatastore(DB_DIR, 100)
+// 	db, err := NewDatastore(DB_DIR, 100)
 // 	c.Assert(err, Equals, nil)
 // 	return db
 // }

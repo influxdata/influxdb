@@ -5,26 +5,29 @@ import (
 	"cluster"
 	"configuration"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"protocol"
 	"sync"
 	"time"
 
+	"datastore/storage"
+
 	log "code.google.com/p/log4go"
-	"github.com/jmhodges/levigo"
+	"github.com/BurntSushi/toml"
 )
 
-type LevelDbShardDatastore struct {
+type ShardDatastore struct {
 	baseDbDir      string
 	config         *configuration.Configuration
-	shards         map[uint32]*LevelDbShard
+	shards         map[uint32]*Shard
 	lastAccess     map[uint32]int64
 	shardRefCounts map[uint32]int
 	shardsToClose  map[uint32]bool
 	shardsLock     sync.RWMutex
-	levelDbOptions *levigo.Options
 	writeBuffer    *cluster.WriteBuffer
 	maxOpenShards  int
 	pointBatchSize int
@@ -67,35 +70,27 @@ type rawColumnValue struct {
 	value    []byte
 }
 
-func NewLevelDbShardDatastore(config *configuration.Configuration) (*LevelDbShardDatastore, error) {
+func NewShardDatastore(config *configuration.Configuration) (*ShardDatastore, error) {
 	baseDbDir := filepath.Join(config.DataDir, SHARD_DATABASE_DIR)
 	err := os.MkdirAll(baseDbDir, 0744)
 	if err != nil {
 		return nil, err
 	}
-	opts := levigo.NewOptions()
-	opts.SetCache(levigo.NewLRUCache(config.LevelDbLruCacheSize))
-	opts.SetCreateIfMissing(true)
-	opts.SetBlockSize(64 * ONE_KILOBYTE)
-	filter := levigo.NewBloomFilter(SHARD_BLOOM_FILTER_BITS_PER_KEY)
-	opts.SetFilterPolicy(filter)
-	opts.SetMaxOpenFiles(config.LevelDbMaxOpenFiles)
 
-	return &LevelDbShardDatastore{
+	return &ShardDatastore{
 		baseDbDir:      baseDbDir,
 		config:         config,
-		shards:         make(map[uint32]*LevelDbShard),
-		levelDbOptions: opts,
-		maxOpenShards:  config.LevelDbMaxOpenShards,
+		shards:         make(map[uint32]*Shard),
+		maxOpenShards:  config.StorageMaxOpenShards,
 		lastAccess:     make(map[uint32]int64),
 		shardRefCounts: make(map[uint32]int),
 		shardsToClose:  make(map[uint32]bool),
-		pointBatchSize: config.LevelDbPointBatchSize,
-		writeBatchSize: config.LevelDbWriteBatchSize,
+		pointBatchSize: config.StoragePointBatchSize,
+		writeBatchSize: config.StorageWriteBatchSize,
 	}, nil
 }
 
-func (self *LevelDbShardDatastore) Close() {
+func (self *ShardDatastore) Close() {
 	self.shardsLock.Lock()
 	defer self.shardsLock.Unlock()
 	for _, shard := range self.shards {
@@ -103,7 +98,58 @@ func (self *LevelDbShardDatastore) Close() {
 	}
 }
 
-func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, error) {
+// Get the engine that was used when the shard was created if it
+// exists or set the type of the default engine type
+func (self *ShardDatastore) getEngine(dir string) (string, error) {
+	shardExist := true
+	info, err := os.Stat(dir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+
+		shardExist = false
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", err
+		}
+	} else if !info.IsDir() {
+		return "", fmt.Errorf("%s isn't a directory", dir)
+	}
+
+	f, err := os.OpenFile(path.Join(dir, "type"), os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	body, err := ioutil.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	if s := string(body); s != "" {
+		return s, nil
+	}
+
+	// If the shard existed already but the 'type' file didn't, assume
+	// it's leveldb
+	t := self.config.StorageDefaultEngine
+	if shardExist {
+		t = "leveldb"
+	}
+
+	if _, err := f.WriteString(t); err != nil {
+		return "", err
+	}
+
+	if err := f.Sync(); err != nil {
+		return "", err
+	}
+
+	return t, nil
+}
+
+func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, error) {
 	now := time.Now().Unix()
 	self.shardsLock.Lock()
 	defer self.shardsLock.Unlock()
@@ -118,16 +164,38 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 	dbDir := self.shardDir(id)
 
 	log.Info("DATASTORE: opening or creating shard %s", dbDir)
-	ldb, err := levigo.Open(dbDir, self.levelDbOptions)
+	engine, err := self.getEngine(dbDir)
+	if err != nil {
+		return nil, err
+	}
+	init, err := storage.GetInitializer(engine)
 	if err != nil {
 		log.Error("Error opening shard: ", err)
 		return nil, err
 	}
+	c := init.NewConfig()
+	conf, ok := self.config.StorageEngineConfigs[engine]
+	if err := toml.PrimitiveDecode(conf, c); ok && err != nil {
+		return nil, err
+	}
 
-	db, err = NewLevelDbShard(ldb, self.pointBatchSize, self.writeBatchSize)
+	// TODO: this is for backward compatability with the old
+	// configuration
+	if leveldbConfig, ok := c.(*storage.LevelDbConfiguration); ok {
+		if leveldbConfig.LruCacheSize == 0 {
+			leveldbConfig.LruCacheSize = configuration.Size(self.config.LevelDbLruCacheSize)
+		}
+
+		if leveldbConfig.MaxOpenFiles == 0 {
+			leveldbConfig.MaxOpenFiles = self.config.LevelDbMaxOpenFiles
+		}
+	}
+
+	se, err := init.Initialize(dbDir, c)
+	db, err = NewShard(se, self.pointBatchSize, self.writeBatchSize)
 	if err != nil {
 		log.Error("Error creating shard: ", err)
-		ldb.Close()
+		se.Close()
 		return nil, err
 	}
 	self.shards[id] = db
@@ -135,7 +203,7 @@ func (self *LevelDbShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalSha
 	return db, nil
 }
 
-func (self *LevelDbShardDatastore) incrementShardRefCountAndCloseOldestIfNeeded(id uint32) {
+func (self *ShardDatastore) incrementShardRefCountAndCloseOldestIfNeeded(id uint32) {
 	self.shardRefCounts[id] += 1
 	delete(self.shardsToClose, id)
 	if self.maxOpenShards > 0 && len(self.shards) > self.maxOpenShards {
@@ -145,7 +213,7 @@ func (self *LevelDbShardDatastore) incrementShardRefCountAndCloseOldestIfNeeded(
 	}
 }
 
-func (self *LevelDbShardDatastore) ReturnShard(id uint32) {
+func (self *ShardDatastore) ReturnShard(id uint32) {
 	self.shardsLock.Lock()
 	defer self.shardsLock.Unlock()
 	self.shardRefCounts[id] -= 1
@@ -154,7 +222,7 @@ func (self *LevelDbShardDatastore) ReturnShard(id uint32) {
 	}
 }
 
-func (self *LevelDbShardDatastore) Write(request *protocol.Request) error {
+func (self *ShardDatastore) Write(request *protocol.Request) error {
 	shardDb, err := self.GetOrCreateShard(*request.ShardId)
 	if err != nil {
 		return err
@@ -163,15 +231,15 @@ func (self *LevelDbShardDatastore) Write(request *protocol.Request) error {
 	return shardDb.Write(*request.Database, request.MultiSeries)
 }
 
-func (self *LevelDbShardDatastore) BufferWrite(request *protocol.Request) {
+func (self *ShardDatastore) BufferWrite(request *protocol.Request) {
 	self.writeBuffer.Write(request)
 }
 
-func (self *LevelDbShardDatastore) SetWriteBuffer(writeBuffer *cluster.WriteBuffer) {
+func (self *ShardDatastore) SetWriteBuffer(writeBuffer *cluster.WriteBuffer) {
 	self.writeBuffer = writeBuffer
 }
 
-func (self *LevelDbShardDatastore) DeleteShard(shardId uint32) error {
+func (self *ShardDatastore) DeleteShard(shardId uint32) error {
 	self.shardsLock.Lock()
 	shardDb := self.shards[shardId]
 	delete(self.shards, shardId)
@@ -187,11 +255,11 @@ func (self *LevelDbShardDatastore) DeleteShard(shardId uint32) error {
 	return os.RemoveAll(dir)
 }
 
-func (self *LevelDbShardDatastore) shardDir(id uint32) string {
+func (self *ShardDatastore) shardDir(id uint32) string {
 	return filepath.Join(self.baseDbDir, fmt.Sprintf("%.5d", id))
 }
 
-func (self *LevelDbShardDatastore) closeOldestShard() {
+func (self *ShardDatastore) closeOldestShard() {
 	var oldestId uint32
 	oldestAccess := int64(math.MaxInt64)
 	for id, lastAccess := range self.lastAccess {
@@ -207,7 +275,7 @@ func (self *LevelDbShardDatastore) closeOldestShard() {
 	}
 }
 
-func (self *LevelDbShardDatastore) closeShard(id uint32) {
+func (self *ShardDatastore) closeShard(id uint32) {
 	shard := self.shards[id]
 	if shard != nil {
 		shard.close()

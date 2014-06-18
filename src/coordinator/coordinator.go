@@ -174,7 +174,7 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 
 	var err error
 	for _, shard := range shards {
-		responseChan := make(chan *protocol.Response, shard.QueryResponseBufferSize(querySpec, self.config.LevelDbPointBatchSize))
+		responseChan := make(chan *protocol.Response, shard.QueryResponseBufferSize(querySpec, self.config.StoragePointBatchSize))
 		go shard.Query(querySpec, responseChan)
 		for {
 			response := <-responseChan
@@ -263,7 +263,7 @@ func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData
 	}
 
 	for _, shard := range shards {
-		bufferSize := shard.QueryResponseBufferSize(querySpec, self.config.LevelDbPointBatchSize)
+		bufferSize := shard.QueryResponseBufferSize(querySpec, self.config.StoragePointBatchSize)
 		// if the number of repsonses is too big, do a sequential querying
 		if bufferSize > self.config.ClusterMaxResponseBufferSize {
 			return true
@@ -396,7 +396,7 @@ func (self *CoordinatorImpl) queryShards(querySpec *parser.QuerySpec, shards []*
 			return err
 		}
 		shard := shards[i]
-		bufferSize := shard.QueryResponseBufferSize(querySpec, self.config.LevelDbPointBatchSize)
+		bufferSize := shard.QueryResponseBufferSize(querySpec, self.config.StoragePointBatchSize)
 		if bufferSize > self.config.ClusterMaxResponseBufferSize {
 			bufferSize = self.config.ClusterMaxResponseBufferSize
 		}

@@ -64,6 +64,8 @@ endif
 packages = admin api/http api/graphite cluster common configuration	\
   checkers coordinator datastore engine parser protocol wal
 
+# Storage engines libraries
+
 # snappy variables
 snappy_version = 1.1.0
 snappy_dir     = /tmp/snappy.influxdb.$(arch)
@@ -76,6 +78,23 @@ leveldb_dir     = /tmp/leveldb.influxdb.$(arch)
 leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
+rocksdb = no
+ifeq ($(rocksdb),yes)
+# rocksdb variables
+rocksdb_version = 3.1
+rocksdb_dir     = /tmp/rocksdb.influxdb.$(arch)
+rocksdb_file    = rocksdb-$(rocksdb_version).tar.gz
+rocksdb_deps    = $(rocksdb_dir)/librocksdb.a
+GO_BUILD_OPTIONS += -tags rocksdb
+storage_engines += src/$(rocksdb_dependency)
+endif
+
+# hyperleveldb variables
+hyperleveldb_version = v1.0.3
+hyperleveldb_dir     = /tmp/hyperleveldb.influxdb.$(arch)
+hyperleveldb_file    = $(hyperleveldb_version).tar.gz
+hyperleveldb_deps    = $(hyperleveldb_dir)/.libs/libhyperleveldb.a
+
 profile=off
 ifneq ($(profile),off)
 CGO_LDFLAGS += -ltcmalloc -lprofiler
@@ -84,12 +103,17 @@ endif
 
 # levigo flags
 ifeq ($(uname_S),Linux)
-CGO_CFLAGS  += -I$(leveldb_dir)/include
-CGO_LDFLAGS += $(leveldb_dir)/libleveldb.a $(snappy_dir)/.libs/libsnappy.a -lstdc++
+ifeq ($(rocksdb),yes)
+CGO_CFLAGS +=  -I$(rocksdb_dir)/include
+CGO_LDFLAGS +=  $(rocksdb_deps)
+endif
+CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include
+CGO_LDFLAGS += $(leveldb_deps) $(snappy_deps) $(hyperleveldb_deps)
+CGO_LDFLAGS += -lstdc++ -lm -lz -lbz2
 export CGO_CFLAGS
 export CGO_LDFLAGS
 else
-CGO_LDFLAGS += -lleveldb -lsnappy -lstdc++
+CGO_LDFLAGS += -lleveldb -lrocksdb -lsnappy -lstdc++
 export CGO_LDFLAGS
 endif
 
@@ -116,10 +140,34 @@ ifeq ($(uname_S),Linux)
 	bash -c "cd $(leveldb_dir); \
 	wget https://leveldb.googlecode.com/files/$(leveldb_file); \
 	tar --strip-components=1 -xvzf $(leveldb_file); \
-	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' make"
+	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE)"
+endif
+
+$(rocksdb_deps):
+ifeq ($(uname_S),Linux)
+	rm -rf $(rocksdb_dir)
+	mkdir -p $(rocksdb_dir)
+	bash -c "cd $(rocksdb_dir); \
+	wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
+	tar --strip-components=1 -xvzf $(rocksdb_file); \
+	CXXFLAGS='$(cflags)' $(MAKE) librocksdb.a"
+endif
+
+$(hyperleveldb_deps):
+ifeq ($(uname_S),Linux)
+	rm -rf $(hyperleveldb_dir)
+	mkdir -p $(hyperleveldb_dir)
+	bash -c "cd $(hyperleveldb_dir); \
+	wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file); \
+	tar --strip-components=1 -xvzf $(hyperleveldb_file); \
+  autoreconf -i; \
+	CFLAGS='$(cflags)' CXXFLAGS='$(cflags)' ./configure; \
+	$(MAKE)"
 endif
 
 levigo_dependency = github.com/jmhodges/levigo
+rocksdb_dependency = github.com/influxdb/rocksdb
+hyperleveldb_dependency = github.com/influxdb/hyperleveldb-go
 proto_dependency  = code.google.com/p/goprotobuf/protoc-gen-go
 
 dependencies = code.google.com/p/go.crypto/bcrypt \
@@ -134,19 +182,29 @@ github.com/influxdb/go-cache \
 github.com/BurntSushi/toml \
 github.com/influxdb/influxdb-go \
 code.google.com/p/gogoprotobuf/proto \
+github.com/szferi/gomdb \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
 
-src/$(levigo_dependency):
+src/$(levigo_dependency): $(leveldb_deps) $(snappy_deps)
 	$(GO) get -d $(levigo_dependency)
 	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'; popd"
 
+src/$(rocksdb_dependency): $(rocksdb_deps)
+	$(GO) get -d $(rocksdb_dependency)
+	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lrocksdb\|#cgo LDFLAGS: -lrocksdb//g'; popd"
+
+src/$(hyperleveldb_dependency): $(hyperleveldb_deps)
+	$(GO) get -d $(hyperleveldb_dependency)
+	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lhyperleveldb\|#cgo LDFLAGS: -lhyperleveldb//g'; popd"
 
 $(dependencies_paths):
 	for i in $(dependencies); do $(GO) get -d $$i; done
 
-dependencies: src/$(levigo_dependency) $(dependencies_paths) $(leveldb_deps) $(snappy_deps)
+storage_engines += src/$(levigo_dependency) src/$(hyperleveldb_dependency)
+
+dependencies: $(storage_engines) $(dependencies_paths)
 
 test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck
@@ -160,6 +218,7 @@ build: | dependencies protobuf parser build_version_string
 # TODO: build all packages, otherwise we won't know
 # if there's an error
 	$(GO) build $(GO_BUILD_OPTIONS) daemon
+	$(GO) build $(GO_BUILD_OPTIONS) tools/benchmark-storage
 	$(GO) build benchmark
 
 clean:

@@ -29,6 +29,7 @@ build/
 /daemon
 /benchmark
 /main
+/benchmark-storage
 godef
 gosym
 gocode

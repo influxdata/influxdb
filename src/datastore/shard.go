@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cluster"
 	"common"
+	"datastore/storage"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -17,13 +18,10 @@ import (
 
 	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
-	"github.com/jmhodges/levigo"
 )
 
-type LevelDbShard struct {
-	db             *levigo.DB
-	readOptions    *levigo.ReadOptions
-	writeOptions   *levigo.WriteOptions
+type Shard struct {
+	db             storage.Engine
 	lastIdUsed     uint64
 	columnIdMutex  sync.Mutex
 	closed         bool
@@ -31,9 +29,8 @@ type LevelDbShard struct {
 	writeBatchSize int
 }
 
-func NewLevelDbShard(db *levigo.DB, pointBatchSize, writeBatchSize int) (*LevelDbShard, error) {
-	ro := levigo.NewReadOptions()
-	lastIdBytes, err2 := db.Get(ro, NEXT_ID_KEY)
+func NewShard(db storage.Engine, pointBatchSize, writeBatchSize int) (*Shard, error) {
+	lastIdBytes, err2 := db.Get(NEXT_ID_KEY)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -46,19 +43,16 @@ func NewLevelDbShard(db *levigo.DB, pointBatchSize, writeBatchSize int) (*LevelD
 		}
 	}
 
-	return &LevelDbShard{
+	return &Shard{
 		db:             db,
-		writeOptions:   levigo.NewWriteOptions(),
-		readOptions:    ro,
 		lastIdUsed:     lastId,
 		pointBatchSize: pointBatchSize,
 		writeBatchSize: writeBatchSize,
 	}, nil
 }
 
-func (self *LevelDbShard) Write(database string, series []*protocol.Series) error {
-	wb := levigo.NewWriteBatch()
-	defer wb.Close()
+func (self *Shard) Write(database string, series []*protocol.Series) error {
+	wb := make([]storage.Write, 0)
 
 	for _, s := range series {
 		if len(s.Points) == 0 {
@@ -72,9 +66,9 @@ func (self *LevelDbShard) Write(database string, series []*protocol.Series) erro
 			if err != nil {
 				return err
 			}
-			keyBuffer := bytes.NewBuffer(make([]byte, 0, 24))
-			dataBuffer := proto.NewBuffer(nil)
 			for _, point := range s.Points {
+				keyBuffer := bytes.NewBuffer(make([]byte, 0, 24))
+				dataBuffer := proto.NewBuffer(nil)
 				keyBuffer.Reset()
 				dataBuffer.Reset()
 
@@ -87,7 +81,7 @@ func (self *LevelDbShard) Write(database string, series []*protocol.Series) erro
 				pointKey := keyBuffer.Bytes()
 
 				if point.Values[fieldIndex].GetIsNull() {
-					wb.Delete(pointKey)
+					wb = append(wb, storage.Write{pointKey, nil})
 					goto check
 				}
 
@@ -95,25 +89,25 @@ func (self *LevelDbShard) Write(database string, series []*protocol.Series) erro
 				if err != nil {
 					return err
 				}
-				wb.Put(pointKey, dataBuffer.Bytes())
+				wb = append(wb, storage.Write{pointKey, dataBuffer.Bytes()})
 			check:
 				count++
 				if count >= self.writeBatchSize {
-					err = self.db.Write(self.writeOptions, wb)
+					err = self.db.BatchPut(wb)
 					if err != nil {
 						return err
 					}
 					count = 0
-					wb.Clear()
+					wb = make([]storage.Write, 0, self.writeBatchSize)
 				}
 			}
 		}
 	}
 
-	return self.db.Write(self.writeOptions, wb)
+	return self.db.BatchPut(wb)
 }
 
-func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+func (self *Shard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	if querySpec.IsListSeriesQuery() {
 		return self.executeListSeriesQuery(querySpec, processor)
 	} else if querySpec.IsDeleteFromSeriesQuery() {
@@ -150,7 +144,7 @@ func (self *LevelDbShard) Query(querySpec *parser.QuerySpec, processor cluster.Q
 	return nil
 }
 
-func (self *LevelDbShard) DropDatabase(database string) error {
+func (self *Shard) DropDatabase(database string) error {
 	seriesNames := self.getSeriesForDatabase(database)
 	for _, name := range seriesNames {
 		if err := self.dropSeries(database, name); err != nil {
@@ -158,15 +152,15 @@ func (self *LevelDbShard) DropDatabase(database string) error {
 			return err
 		}
 	}
-	self.compact()
+	self.db.Compact()
 	return nil
 }
 
-func (self *LevelDbShard) IsClosed() bool {
+func (self *Shard) IsClosed() bool {
 	return self.closed
 }
 
-func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor cluster.QueryProcessor) error {
+func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor cluster.QueryProcessor) error {
 	startTimeBytes := self.byteArrayForTime(querySpec.GetStartTime())
 	endTimeBytes := self.byteArrayForTime(querySpec.GetEndTime())
 
@@ -219,6 +213,9 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 
 		for i, it := range iterators {
 			if rawColumnValues[i].value != nil || !it.Valid() {
+				if err := it.Error(); err != nil {
+					return err
+				}
 				continue
 			}
 
@@ -342,36 +339,48 @@ func (self *LevelDbShard) executeQueryForSeries(querySpec *parser.QuerySpec, ser
 	return nil
 }
 
-func (self *LevelDbShard) executeListSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
-	it := self.db.NewIterator(self.readOptions)
-	defer it.Close()
-
-	database := querySpec.Database()
-	seekKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(querySpec.Database()+"~")...)
-	it.Seek(seekKey)
+func (self *Shard) yieldSeriesNamesForDb(db string, yield func(string) bool) error {
 	dbNameStart := len(DATABASE_SERIES_INDEX_PREFIX)
-	for it = it; it.Valid(); it.Next() {
-		key := it.Key()
-		if len(key) < dbNameStart || !bytes.Equal(key[:dbNameStart], DATABASE_SERIES_INDEX_PREFIX) {
+	pred := func(key []byte) bool {
+		return len(key) >= dbNameStart && bytes.Equal(key[:dbNameStart], DATABASE_SERIES_INDEX_PREFIX)
+	}
+
+	firstKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(db+"~")...)
+	itr := self.db.Iterator()
+	defer itr.Close()
+
+	for itr.Seek(firstKey); itr.Valid(); itr.Next() {
+		key := itr.Key()
+		if !pred(key) {
 			break
 		}
 		dbSeries := string(key[dbNameStart:])
 		parts := strings.Split(dbSeries, "~")
 		if len(parts) > 1 {
-			if parts[0] != database {
+			if parts[0] != db {
 				break
 			}
 			name := parts[1]
-			shouldContinue := processor.YieldPoint(&name, nil, nil)
+			shouldContinue := yield(name)
 			if !shouldContinue {
 				return nil
 			}
 		}
 	}
+	if err := itr.Error(); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (self *LevelDbShard) executeDeleteQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+func (self *Shard) executeListSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+	return self.yieldSeriesNamesForDb(querySpec.Database(), func(_name string) bool {
+		name := _name
+		return processor.YieldPoint(&name, nil, nil)
+	})
+}
+
+func (self *Shard) executeDeleteQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	query := querySpec.DeleteQuery()
 	series := query.GetFromClause()
 	database := querySpec.Database()
@@ -391,55 +400,55 @@ func (self *LevelDbShard) executeDeleteQuery(querySpec *parser.QuerySpec, proces
 			return err
 		}
 	}
-	self.compact()
+	self.db.Compact()
 	return nil
 }
 
-func (self *LevelDbShard) executeDropSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+func (self *Shard) executeDropSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	database := querySpec.Database()
 	series := querySpec.Query().DropSeriesQuery.GetTableName()
 	err := self.dropSeries(database, series)
 	if err != nil {
 		return err
 	}
-	self.compact()
+	self.db.Compact()
 	return nil
 }
 
-func (self *LevelDbShard) dropSeries(database, series string) error {
+func (self *Shard) dropSeries(database, series string) error {
 	startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-
-	wb := levigo.NewWriteBatch()
-	defer wb.Close()
 
 	if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
 		return err
 	}
 
+	wb := []storage.Write{}
+
 	for _, name := range self.getColumnNamesForSeries(database, series) {
 		indexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(database+"~"+series+"~"+name)...)
-		wb.Delete(indexKey)
+		wb = append(wb, storage.Write{indexKey, nil})
 	}
 
-	wb.Delete(append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~"+series)...))
+	key := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~"+series)...)
+	wb = append(wb, storage.Write{key, nil})
 
 	// remove the column indeces for this time series
-	return self.db.Write(self.writeOptions, wb)
+	return self.db.BatchPut(wb)
 }
 
-func (self *LevelDbShard) byteArrayForTimeInt(time int64) []byte {
+func (self *Shard) byteArrayForTimeInt(time int64) []byte {
 	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&time))
 	bytes := timeBuffer.Bytes()
 	return bytes
 }
 
-func (self *LevelDbShard) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
+func (self *Shard) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
 	return self.byteArrayForTimeInt(startTime), self.byteArrayForTimeInt(endTime)
 }
 
-func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, startTimeBytes, endTimeBytes []byte) error {
+func (self *Shard) deleteRangeOfSeriesCommon(database, series string, startTimeBytes, endTimeBytes []byte) error {
 	columns := self.getColumnNamesForSeries(database, series)
 	fields, err := self.getFieldsForSeries(database, series, columns)
 	if err != nil {
@@ -451,58 +460,38 @@ func (self *LevelDbShard) deleteRangeOfSeriesCommon(database, series string, sta
 			return err
 		}
 	}
-	ro := levigo.NewReadOptions()
-	defer ro.Close()
-	ro.SetFillCache(false)
-	wb := levigo.NewWriteBatch()
-	count := 0
-	defer wb.Close()
+	startKey := bytes.NewBuffer(nil)
+	endKey := bytes.NewBuffer(nil)
 	for _, field := range fields {
-		it := self.db.NewIterator(ro)
-		defer it.Close()
+		startKey.Reset()
+		startKey.Write(field.Id)
+		startKey.Write(startTimeBytes)
+		startKey.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0})
+		endKey.Reset()
+		endKey.Write(field.Id)
+		endKey.Write(endTimeBytes)
+		endKey.Write([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
 
-		startKey := append(field.Id, startTimeBytes...)
-		it.Seek(startKey)
-		if it.Valid() {
-			if !bytes.Equal(it.Key()[:8], field.Id) {
-				it.Next()
-				if it.Valid() {
-					startKey = it.Key()
-				}
-			}
-		}
-		for it = it; it.Valid(); it.Next() {
-			k := it.Key()
-			if len(k) < 16 || !bytes.Equal(k[:8], field.Id) || bytes.Compare(k[8:16], endTimeBytes) == 1 {
-				break
-			}
-			wb.Delete(k)
-			count++
-			if count >= self.writeBatchSize {
-				err = self.db.Write(self.writeOptions, wb)
-				if err != nil {
-					return err
-				}
-				count = 0
-				wb.Clear()
-			}
+		err := self.db.Del(startKey.Bytes(), endKey.Bytes())
+		if err != nil {
+			return err
 		}
 	}
-	return self.db.Write(self.writeOptions, wb)
+	return nil
 }
 
-func (self *LevelDbShard) compact() {
-	log.Info("Compacting shard")
-	self.db.CompactRange(levigo.Range{})
-	log.Info("Shard compaction is done")
-}
+// func (self *Shard) compact() {
+// 	log.Info("Compacting shard")
+// 	self.db.CompactRange(levigo.Range{})
+// 	log.Info("Shard compaction is done")
+// }
 
-func (self *LevelDbShard) deleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
+func (self *Shard) deleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
 	return self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes)
 }
 
-func (self *LevelDbShard) deleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
+func (self *Shard) deleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
 	series := self.getSeriesForDbAndRegex(database, regex)
 	for _, name := range series {
 		err := self.deleteRangeOfSeries(database, name, startTime, endTime)
@@ -513,7 +502,7 @@ func (self *LevelDbShard) deleteRangeOfRegex(database string, regex *regexp.Rege
 	return nil
 }
 
-func (self *LevelDbShard) getFieldsForSeries(db, series string, columns []string) ([]*Field, error) {
+func (self *Shard) getFieldsForSeries(db, series string, columns []string) ([]*Field, error) {
 	isCountQuery := false
 	if len(columns) > 0 && columns[0] == "*" {
 		columns = self.getColumnNamesForSeries(db, series)
@@ -547,17 +536,20 @@ func (self *LevelDbShard) getFieldsForSeries(db, series string, columns []string
 	return fields, nil
 }
 
-func (self *LevelDbShard) getColumnNamesForSeries(db, series string) []string {
-	it := self.db.NewIterator(self.readOptions)
+// TODO: WHY NO RETURN AN ERROR
+func (self *Shard) getColumnNamesForSeries(db, series string) []string {
+	dbNameStart := len(SERIES_COLUMN_INDEX_PREFIX)
+	seekKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(db+"~"+series+"~")...)
+	pred := func(key []byte) bool {
+		return len(key) >= dbNameStart && bytes.Equal(key[:dbNameStart], SERIES_COLUMN_INDEX_PREFIX)
+	}
+	it := self.db.Iterator()
 	defer it.Close()
 
-	seekKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(db+"~"+series+"~")...)
-	it.Seek(seekKey)
 	names := make([]string, 0)
-	dbNameStart := len(SERIES_COLUMN_INDEX_PREFIX)
-	for it = it; it.Valid(); it.Next() {
+	for it.Seek(seekKey); it.Valid(); it.Next() {
 		key := it.Key()
-		if len(key) < dbNameStart || !bytes.Equal(key[:dbNameStart], SERIES_COLUMN_INDEX_PREFIX) {
+		if !pred(key) {
 			break
 		}
 		dbSeriesColumn := string(key[dbNameStart:])
@@ -569,10 +561,14 @@ func (self *LevelDbShard) getColumnNamesForSeries(db, series string) []string {
 			names = append(names, parts[2])
 		}
 	}
+	if err := it.Error(); err != nil {
+		log.Error("Error while getting columns for series %s: %s", series, err)
+		return nil
+	}
 	return names
 }
 
-func (self *LevelDbShard) hasReadAccess(querySpec *parser.QuerySpec) bool {
+func (self *Shard) hasReadAccess(querySpec *parser.QuerySpec) bool {
 	for series, _ := range querySpec.SeriesValuesAndColumns() {
 		if _, isRegex := series.GetCompiledRegex(); !isRegex {
 			if !querySpec.HasReadAccess(series.Name) {
@@ -583,14 +579,14 @@ func (self *LevelDbShard) hasReadAccess(querySpec *parser.QuerySpec) bool {
 	return true
 }
 
-func (self *LevelDbShard) byteArrayForTime(t time.Time) []byte {
+func (self *Shard) byteArrayForTime(t time.Time) []byte {
 	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	timeMicro := common.TimeToMicroseconds(t)
 	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&timeMicro))
 	return timeBuffer.Bytes()
 }
 
-func (self *LevelDbShard) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
+func (self *Shard) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
 	names := []string{}
 	allSeries := self.getSeriesForDatabase(database)
 	for _, name := range allSeries {
@@ -601,33 +597,19 @@ func (self *LevelDbShard) getSeriesForDbAndRegex(database string, regex *regexp.
 	return names
 }
 
-func (self *LevelDbShard) getSeriesForDatabase(database string) []string {
-	it := self.db.NewIterator(self.readOptions)
-	defer it.Close()
-
-	seekKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~")...)
-	it.Seek(seekKey)
-	dbNameStart := len(DATABASE_SERIES_INDEX_PREFIX)
-	names := make([]string, 0)
-	for it = it; it.Valid(); it.Next() {
-		key := it.Key()
-		if len(key) < dbNameStart || !bytes.Equal(key[:dbNameStart], DATABASE_SERIES_INDEX_PREFIX) {
-			break
-		}
-		dbSeries := string(key[dbNameStart:])
-		parts := strings.Split(dbSeries, "~")
-		if len(parts) > 1 {
-			if parts[0] != database {
-				break
-			}
-			name := parts[1]
-			names = append(names, name)
-		}
+func (self *Shard) getSeriesForDatabase(database string) (series []string) {
+	err := self.yieldSeriesNamesForDb(database, func(name string) bool {
+		series = append(series, name)
+		return true
+	})
+	if err != nil {
+		log.Error("Cannot get series names for db %s: %s", database, err)
+		return nil
 	}
-	return names
+	return series
 }
 
-func (self *LevelDbShard) createIdForDbSeriesColumn(db, series, column *string) (ret []byte, err error) {
+func (self *Shard) createIdForDbSeriesColumn(db, series, column *string) (ret []byte, err error) {
 	ret, err = self.getIdForDbSeriesColumn(db, series, column)
 	if err != nil {
 		return
@@ -655,53 +637,51 @@ func (self *LevelDbShard) createIdForDbSeriesColumn(db, series, column *string) 
 	s := fmt.Sprintf("%s~%s~%s", *db, *series, *column)
 	b := []byte(s)
 	key := append(SERIES_COLUMN_INDEX_PREFIX, b...)
-	err = self.db.Put(self.writeOptions, key, ret)
+	err = self.db.Put(key, ret)
 	return
 }
 
-func (self *LevelDbShard) getIdForDbSeriesColumn(db, series, column *string) (ret []byte, err error) {
+func (self *Shard) getIdForDbSeriesColumn(db, series, column *string) (ret []byte, err error) {
 	s := fmt.Sprintf("%s~%s~%s", *db, *series, *column)
 	b := []byte(s)
 	key := append(SERIES_COLUMN_INDEX_PREFIX, b...)
-	if ret, err = self.db.Get(self.readOptions, key); err != nil {
+	if ret, err = self.db.Get(key); err != nil {
 		return nil, err
 	}
 	return ret, nil
 }
 
-func (self *LevelDbShard) getNextIdForColumn(db, series, column *string) (ret []byte, err error) {
+func (self *Shard) getNextIdForColumn(db, series, column *string) (ret []byte, err error) {
 	id := self.lastIdUsed + 1
 	self.lastIdUsed += 1
 	idBytes := make([]byte, 8, 8)
 	binary.PutUvarint(idBytes, id)
-	wb := levigo.NewWriteBatch()
-	defer wb.Close()
-	wb.Put(NEXT_ID_KEY, idBytes)
+	wb := make([]storage.Write, 0, 3)
+	wb = append(wb, storage.Write{NEXT_ID_KEY, idBytes})
 	databaseSeriesIndexKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(*db+"~"+*series)...)
-	wb.Put(databaseSeriesIndexKey, []byte{})
+	wb = append(wb, storage.Write{databaseSeriesIndexKey, []byte{}})
 	seriesColumnIndexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(*db+"~"+*series+"~"+*column)...)
-	wb.Put(seriesColumnIndexKey, idBytes)
-	if err = self.db.Write(self.writeOptions, wb); err != nil {
+	wb = append(wb, storage.Write{seriesColumnIndexKey, idBytes})
+	if err = self.db.BatchPut(wb); err != nil {
 		return nil, err
 	}
 	return idBytes, nil
 }
 
-func (self *LevelDbShard) close() {
+func (self *Shard) close() {
 	self.closed = true
-	self.readOptions.Close()
-	self.writeOptions.Close()
 	self.db.Close()
+	self.db = nil
 }
 
-func (self *LevelDbShard) convertTimestampToUint(t *int64) uint64 {
+func (self *Shard) convertTimestampToUint(t *int64) uint64 {
 	if *t < 0 {
 		return uint64(math.MaxInt64 + *t + 1)
 	}
 	return uint64(*t) + uint64(math.MaxInt64) + uint64(1)
 }
 
-func (self *LevelDbShard) fetchSinglePoint(querySpec *parser.QuerySpec, series string, fields []*Field) (*protocol.Series, error) {
+func (self *Shard) fetchSinglePoint(querySpec *parser.QuerySpec, series string, fields []*Field) (*protocol.Series, error) {
 	query := querySpec.SelectQuery()
 	fieldCount := len(fields)
 	fieldNames := make([]string, 0, fieldCount)
@@ -723,7 +703,7 @@ func (self *LevelDbShard) fetchSinglePoint(querySpec *parser.QuerySpec, series s
 	for _, field := range fields {
 		pointKey := append(field.Id, timeAndSequenceBytes...)
 
-		if data, err := self.db.Get(self.readOptions, pointKey); err != nil {
+		if data, err := self.db.Get(pointKey); err != nil {
 			return nil, err
 		} else {
 			fieldValue := &protocol.FieldValue{}
@@ -743,27 +723,35 @@ func (self *LevelDbShard) fetchSinglePoint(querySpec *parser.QuerySpec, series s
 	return result, nil
 }
 
-func (self *LevelDbShard) getIterators(fields []*Field, start, end []byte, isAscendingQuery bool) (fieldNames []string, iterators []*levigo.Iterator) {
-	iterators = make([]*levigo.Iterator, len(fields))
+func (self *Shard) getIterators(fields []*Field, start, end []byte, isAscendingQuery bool) (fieldNames []string, iterators []storage.Iterator) {
+	iterators = make([]storage.Iterator, len(fields))
 	fieldNames = make([]string, len(fields))
 
 	// start the iterators to go through the series data
 	for i, field := range fields {
 		fieldNames[i] = field.Name
-		iterators[i] = self.db.NewIterator(self.readOptions)
+		iterators[i] = self.db.Iterator()
+
 		if isAscendingQuery {
-			iterators[i].Seek(append(field.Id, start...))
+			firstKey := append(field.Id, start...)
+			iterators[i].Seek(firstKey)
 		} else {
-			iterators[i].Seek(append(append(field.Id, end...), MAX_SEQUENCE...))
+			firstKey := append(append(field.Id, end...), MAX_SEQUENCE...)
+			iterators[i].Seek(firstKey)
 			if iterators[i].Valid() {
 				iterators[i].Prev()
 			}
+		}
+
+		if err := iterators[i].Error(); err != nil {
+			log.Error("Error while getting iterators: %s", err)
+			return nil, nil
 		}
 	}
 	return
 }
 
-func (self *LevelDbShard) convertUintTimestampToInt64(t *uint64) int64 {
+func (self *Shard) convertUintTimestampToInt64(t *uint64) int64 {
 	if *t > uint64(math.MaxInt64) {
 		return int64(*t-math.MaxInt64) - int64(1)
 	}

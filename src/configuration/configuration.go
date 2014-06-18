@@ -14,9 +14,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-type size struct {
-	int64
-}
+type Size int
 
 const (
 	ONE_MEGABYTE int64 = 1024 * 1024
@@ -26,7 +24,7 @@ const (
 	MAX_INT = int64(^uint(0) >> 1)
 )
 
-func (d *size) UnmarshalText(text []byte) error {
+func (d *Size) UnmarshalText(text []byte) error {
 	str := string(text)
 	length := len(str)
 	size, err := strconv.ParseInt(string(text[:length-1]), 10, 64)
@@ -41,10 +39,10 @@ func (d *size) UnmarshalText(text []byte) error {
 	default:
 		return fmt.Errorf("Unknown size suffix %s", suffix)
 	}
-	d.int64 = size
 	if size > MAX_INT {
 		return fmt.Errorf("Size %d cannot be represented by an int", size)
 	}
+	*d = Size(size)
 	return nil
 }
 
@@ -94,7 +92,12 @@ type RaftConfig struct {
 
 type StorageConfig struct {
 	Dir             string
-	WriteBufferSize int `toml:"write-buffer-size"`
+	DefaultEngine   string `toml:"default-engine"`
+	WriteBufferSize int    `toml:"write-buffer-size"`
+	MaxOpenShards   int    `toml:"max-open-shards"`
+	PointBatchSize  int    `toml:"point-batch-size"`
+	WriteBatchSize  int    `toml:"write-batch-size"`
+	Engines         map[string]toml.Primitive
 }
 
 type ClusterConfig struct {
@@ -109,17 +112,20 @@ type ClusterConfig struct {
 	MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
 }
 
+type LevelDbConfiguration struct {
+	MaxOpenFiles int  `toml:"max-open-files"`
+	LruCacheSize Size `toml:"lru-cache-size"`
+
+	// global configuration, use these values if the values in
+	// StorageConfig aren't set
+	MaxOpenShards  int `toml:"max-open-shards"`
+	PointBatchSize int `toml:"point-batch-size"`
+	WriteBatchSize int `toml:"write-batch-size"`
+}
+
 type LoggingConfig struct {
 	File  string
 	Level string
-}
-
-type LevelDbConfiguration struct {
-	MaxOpenFiles   int  `toml:"max-open-files"`
-	LruCacheSize   size `toml:"lru-cache-size"`
-	MaxOpenShards  int  `toml:"max-open-shards"`
-	PointBatchSize int  `toml:"point-batch-size"`
-	WriteBatchSize int  `toml:"write-batch-size"`
 }
 
 type ShardingDefinition struct {
@@ -197,12 +203,12 @@ type TomlConfiguration struct {
 	Storage           StorageConfig
 	Cluster           ClusterConfig
 	Logging           LoggingConfig
-	LevelDb           LevelDbConfiguration
 	Hostname          string
 	BindAddress       string             `toml:"bind-address"`
 	ReportingDisabled bool               `toml:"reporting-disabled"`
 	Sharding          ShardingDefinition `toml:"sharding"`
 	WalConfig         WalConfig          `toml:"wal"`
+	LevelDb           LevelDbConfiguration
 }
 
 type Configuration struct {
@@ -220,6 +226,16 @@ type Configuration struct {
 
 	UdpServers []UdpInputConfig
 
+	StorageDefaultEngine  string
+	StorageMaxOpenShards  int
+	StoragePointBatchSize int
+	StorageWriteBatchSize int
+	StorageEngineConfigs  map[string]toml.Primitive
+
+	// TODO: this is for backward compatability only
+	LevelDbMaxOpenFiles int
+	LevelDbLruCacheSize int
+
 	RaftServerPort               int
 	RaftTimeout                  duration
 	SeedServers                  []string
@@ -234,11 +250,6 @@ type Configuration struct {
 	LogFile                      string
 	LogLevel                     string
 	BindAddress                  string
-	LevelDbMaxOpenFiles          int
-	LevelDbLruCacheSize          int
-	LevelDbMaxOpenShards         int
-	LevelDbPointBatchSize        int
-	LevelDbWriteBatchSize        int
 	ShortTermShard               *ShardConfiguration
 	LongTermShard                *ShardConfiguration
 	ReplicationFactor            int
@@ -283,6 +294,32 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	err = tomlConfiguration.Sharding.ShortTerm.ParseAndValidate(time.Hour * 24 * 7)
 	if err != nil {
 		return nil, err
+	}
+
+	// if it wasn't set, set it to 100
+	if tomlConfiguration.Storage.PointBatchSize == 0 {
+		if s := tomlConfiguration.LevelDb.PointBatchSize; s != 0 {
+			tomlConfiguration.Storage.PointBatchSize = s
+		} else {
+			tomlConfiguration.Storage.PointBatchSize = 100
+		}
+	}
+
+	// if it wasn't set, set it to 10M
+	if tomlConfiguration.Storage.WriteBatchSize == 0 {
+		if s := tomlConfiguration.LevelDb.WriteBatchSize; s != 0 {
+			tomlConfiguration.Storage.WriteBatchSize = s
+		} else {
+			tomlConfiguration.Storage.WriteBatchSize = 10 * 1024 * 1024
+		}
+	}
+
+	if tomlConfiguration.Storage.MaxOpenShards == 0 {
+		tomlConfiguration.Storage.MaxOpenShards = tomlConfiguration.LevelDb.MaxOpenShards
+	}
+
+	if tomlConfiguration.Storage.DefaultEngine == "" {
+		tomlConfiguration.Storage.DefaultEngine = "leveldb"
 	}
 
 	if tomlConfiguration.WalConfig.IndexAfterRequests == 0 {
@@ -334,6 +371,18 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 
 		UdpServers: tomlConfiguration.InputPlugins.UdpServersInput,
 
+		// storage configuration
+		StorageDefaultEngine:      tomlConfiguration.Storage.DefaultEngine,
+		StorageMaxOpenShards:      tomlConfiguration.Storage.MaxOpenShards,
+		StoragePointBatchSize:     tomlConfiguration.Storage.PointBatchSize,
+		StorageWriteBatchSize:     tomlConfiguration.Storage.WriteBatchSize,
+		DataDir:                   tomlConfiguration.Storage.Dir,
+		LocalStoreWriteBufferSize: tomlConfiguration.Storage.WriteBufferSize,
+		StorageEngineConfigs:      tomlConfiguration.Storage.Engines,
+
+		LevelDbMaxOpenFiles: tomlConfiguration.LevelDb.MaxOpenFiles,
+		LevelDbLruCacheSize: int(tomlConfiguration.LevelDb.LruCacheSize),
+
 		RaftServerPort:               tomlConfiguration.Raft.Port,
 		RaftTimeout:                  tomlConfiguration.Raft.Timeout,
 		RaftDir:                      tomlConfiguration.Raft.Dir,
@@ -343,18 +392,12 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		ProtobufMinBackoff:           tomlConfiguration.Cluster.MinBackoff,
 		ProtobufMaxBackoff:           tomlConfiguration.Cluster.MaxBackoff,
 		SeedServers:                  tomlConfiguration.Cluster.SeedServers,
-		DataDir:                      tomlConfiguration.Storage.Dir,
 		LogFile:                      tomlConfiguration.Logging.File,
 		LogLevel:                     tomlConfiguration.Logging.Level,
 		Hostname:                     tomlConfiguration.Hostname,
 		BindAddress:                  tomlConfiguration.BindAddress,
 		ReportingDisabled:            tomlConfiguration.ReportingDisabled,
-		LevelDbMaxOpenFiles:          tomlConfiguration.LevelDb.MaxOpenFiles,
-		LevelDbLruCacheSize:          int(tomlConfiguration.LevelDb.LruCacheSize.int64),
-		LevelDbMaxOpenShards:         tomlConfiguration.LevelDb.MaxOpenShards,
 		LongTermShard:                &tomlConfiguration.Sharding.LongTerm,
-		LevelDbPointBatchSize:        tomlConfiguration.LevelDb.PointBatchSize,
-		LevelDbWriteBatchSize:        tomlConfiguration.LevelDb.WriteBatchSize,
 		ShortTermShard:               &tomlConfiguration.Sharding.ShortTerm,
 		ReplicationFactor:            tomlConfiguration.Sharding.ReplicationFactor,
 		WalDir:                       tomlConfiguration.WalConfig.Dir,
@@ -362,7 +405,6 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		WalBookmarkAfterRequests:     tomlConfiguration.WalConfig.BookmarkAfterRequests,
 		WalIndexAfterRequests:        tomlConfiguration.WalConfig.IndexAfterRequests,
 		WalRequestsPerLogFile:        tomlConfiguration.WalConfig.RequestsPerLogFile,
-		LocalStoreWriteBufferSize:    tomlConfiguration.Storage.WriteBufferSize,
 		PerServerWriteBufferSize:     tomlConfiguration.Cluster.WriteBufferSize,
 		ClusterMaxResponseBufferSize: tomlConfiguration.Cluster.MaxResponseBufferSize,
 		ConcurrentShardQueryLimit:    defaultConcurrentShardQueryLimit,
@@ -383,26 +425,6 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 
 	if config.ClusterMaxResponseBufferSize == 0 {
 		config.ClusterMaxResponseBufferSize = 100
-	}
-
-	// if it wasn't set, set it to 100
-	if config.LevelDbMaxOpenFiles == 0 {
-		config.LevelDbMaxOpenFiles = 100
-	}
-
-	// if it wasn't set, set it to 200 MB
-	if config.LevelDbLruCacheSize == 0 {
-		config.LevelDbLruCacheSize = int(200 * ONE_MEGABYTE)
-	}
-
-	// if it wasn't set, set it to 100
-	if config.LevelDbPointBatchSize == 0 {
-		config.LevelDbPointBatchSize = 100
-	}
-
-	// if it wasn't set, set it to 10M
-	if config.LevelDbWriteBatchSize == 0 {
-		config.LevelDbWriteBatchSize = 10 * 1024 * 1024
 	}
 
 	return config, nil
