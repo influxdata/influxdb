@@ -81,6 +81,10 @@ func (self *MockServer) Authenticate(conn tcp.Connection, info *tcp.Greeting_Aut
 	return nil
 }
 
+func (self *MockServer) RemoveConnection(conn tcp.Connection) {
+}
+
+
 type MockConnection struct {
 	Socket      net.Conn
 	Address     net.Addr

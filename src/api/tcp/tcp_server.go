@@ -28,6 +28,8 @@ type TcpServer struct {
 	RequestHandler *RequestHandler
 	tlsConfig      *tls.Config
 	forceSSLUsers map[string]bool
+	Connections map[string]Connection
+	ConnectionCount int
 }
 
 func (self *TcpServer) GetCoordinator() coordinator.Coordinator {
@@ -197,11 +199,16 @@ func (self *TcpServer) acceptLoop(listener net.Listener, yield func()) {
 			log.Error("Accept Failed: ", err)
 			continue
 		}
+		if self.ConnectionCount > 100 {
+			// TODO: Send Error message and close immediately.
+		}
 
-		conn := NewTcpConnection(client, func(c Connection, time time.Time) {
+		conn := NewTcpConnection(client, self, func(c Connection, time time.Time) {
 			//log.Debug("Closing Connection")
 			//conn.Close()
 		})
+		self.Connections[client.RemoteAddr().String()] = conn
+		self.ConnectionCount++
 
 		go self.HandleConnection(conn)
 	}
@@ -225,6 +232,29 @@ func (self *TcpServer) unixListenAndServe() {
 	})
 }
 
+func (self *TcpServer) RemoveConnection(conn Connection) {
+	delete(self.Connections, conn.GetSocket().RemoteAddr().String())
+	self.ConnectionCount--
+}
+
+func (self *TcpServer) housekeeping() {
+	ticker := time.NewTicker(time.Second)
+	quit := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <- ticker.C:
+				// TODO: do manage task here.
+				// * closing connection
+			case <- quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+	select{}
+}
+
 func (self *TcpServer) ListenAndServe() {
 	defer func() { self.shutdown <- true }()
 
@@ -234,5 +264,6 @@ func (self *TcpServer) ListenAndServe() {
 	if self.listenSocket != "" {
 		go self.unixListenAndServe()
 	}
+	go self.housekeeping()
 	select {}
 }

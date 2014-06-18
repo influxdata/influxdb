@@ -29,6 +29,7 @@ type TcpConnection struct {
 	Ticker *time.Ticker
 	Connected time.Time
 	yield func(conn Connection, time time.Time)
+	Server Server
 }
 
 func (self *TcpConnection) ResetState() {
@@ -41,7 +42,7 @@ func (self *TcpConnection) ResetState() {
 	self.State = STATE_INITIALIZED
 }
 
-func NewTcpConnection(socket net.Conn, yield func(conn Connection, time time.Time)) Connection {
+func NewTcpConnection(socket net.Conn, server Server, yield func(conn Connection, time time.Time)) Connection {
 	conn := &TcpConnection{
 		Socket: socket,
 		Address: socket.RemoteAddr(),
@@ -50,6 +51,7 @@ func NewTcpConnection(socket net.Conn, yield func(conn Connection, time time.Tim
 		Connected: time.Now(),
 		Ticker:  time.NewTicker(10 * time.Second),
 		yield: yield,
+		Server: server,
 	}
 
 	readMessage := make([]byte, 0, MAX_REQUEST_SIZE)
@@ -226,4 +228,5 @@ func (self *TcpConnection) Close() {
 	log.Debug("[TcpConnection Closed]")
 	self.Ticker.Stop()
 	self.Socket.Close()
+	self.Server.RemoveConnection(self)
 }

@@ -11,4 +11,5 @@ type Server interface {
 	Authenticate(conn Connection, info *Greeting_Authentication) error
 	SSLAvailable() bool
 	IsForceSSLUser(name string) bool
+	RemoveConnection(conn Connection)
 }
