@@ -62,11 +62,12 @@ func NewTcpConnection(socket net.Conn, server Server, yield func(conn Connection
 	buffer.WriteBuffer = bytes.NewBuffer(writeMessage)
 	conn.Buffer = buffer
 
-	go func() {
-		for t := range conn.Ticker.C {
-			conn.yield(conn, t)
-		}
-	}()
+//  TODO
+//	go func() {
+//		for t := range conn.Ticker.C {
+//			conn.yield(conn, t)
+//		}
+//	}()
 
 	return conn
 }

@@ -68,6 +68,7 @@ var C_PING = Command_PING
 func NewServer(config *configuration.Configuration, coord coordinator.Coordinator, um api.UserManager, clusterConfig *cluster.ClusterConfiguration) *TcpServer {
 	self := &TcpServer{
 		forceSSLUsers: map[string]bool{},
+		Connections: map[string]Connection{},
 	}
 
 	self.listenAddress = config.TcpInputPortString()
