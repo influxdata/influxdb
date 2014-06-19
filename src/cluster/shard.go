@@ -204,8 +204,7 @@ func (self *ShardData) Write(request *p.Request) error {
 }
 
 func (self *ShardData) WriteLocalOnly(request *p.Request) error {
-	self.store.Write(request)
-	return nil
+	return self.store.Write(request)
 }
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Response) {
