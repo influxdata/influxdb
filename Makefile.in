@@ -92,7 +92,6 @@ rocksdb_dir     = /tmp/rocksdb.influxdb.$(arch)
 rocksdb_file    = rocksdb-$(rocksdb_version).tar.gz
 rocksdb_deps    = $(rocksdb_dir)/librocksdb.a
 GO_BUILD_OPTIONS += -tags rocksdb
-storage_engines += src/$(rocksdb_dependency)
 endif
 
 # hyperleveldb variables
@@ -109,7 +108,9 @@ endif
 
 # levigo flags
 ifeq ($(uname_S),Linux)
+storage_engines += src/$(hyperleveldb_dependency)
 ifeq ($(rocksdb),yes)
+storage_engines += src/$(rocksdb_dependency)
 CGO_CFLAGS +=  -I$(rocksdb_dir)/include
 CGO_LDFLAGS +=  $(rocksdb_deps)
 endif
@@ -208,7 +209,7 @@ src/$(hyperleveldb_dependency): $(hyperleveldb_deps)
 $(dependencies_paths):
 	for i in $(dependencies); do $(GO) get -d $$i; done
 
-storage_engines += src/$(levigo_dependency) src/$(hyperleveldb_dependency)
+storage_engines += src/$(levigo_dependency)
 
 dependencies: $(storage_engines) $(dependencies_paths)
 
