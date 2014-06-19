@@ -23,7 +23,6 @@ type Shard interface {
 	StartTime() time.Time
 	EndTime() time.Time
 	Write(*p.Request) error
-	SyncWrite(*p.Request) error
 	Query(querySpec *parser.QuerySpec, response chan *p.Response)
 	IsMicrosecondInRange(t int64) bool
 }
@@ -177,37 +176,31 @@ func (self *ShardData) ServerIds() []uint32 {
 	return self.serverIds
 }
 
-func (self *ShardData) SyncWrite(request *p.Request) error {
-	request.ShardId = &self.id
-	for _, server := range self.clusterServers {
-		if err := server.Write(request); err != nil {
-			return err
-		}
-	}
-
-	if self.store == nil {
-		return nil
-	}
-
-	return self.store.Write(request)
-}
-
 func (self *ShardData) Write(request *p.Request) error {
 	request.ShardId = &self.id
-	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
-	if err != nil {
-		return err
-	}
-	request.RequestNumber = &requestNumber
+	// try to send it to one server in the replication group
+
+	// TODO: we shouldn't create this slice everytime, move in the
+	// struct
+	ws := make([]Writer, 0, len(self.servers)+1)
+	// we should try writing to local storage first
 	if self.store != nil {
-		self.store.Write(request)
+		ws = append(ws, self.store)
 	}
-	for _, server := range self.clusterServers {
-		// we have to create a new reqeust object because the ID gets assigned on each server.
-		requestWithoutId := &p.Request{Type: request.Type, Database: request.Database, MultiSeries: request.MultiSeries, ShardId: &self.id, RequestNumber: request.RequestNumber}
-		server.Write(requestWithoutId)
+	for _, s := range self.clusterServers {
+		ws = append(ws, s)
 	}
-	return nil
+
+	for _, w := range ws {
+		err := w.Write(request)
+		if err == nil {
+			return nil
+		}
+
+		log.Warn("Error while writing request to %v: %s", w, err)
+	}
+
+	return fmt.Errorf("Failed to write to all writers")
 }
 
 func (self *ShardData) WriteLocalOnly(request *p.Request) error {
