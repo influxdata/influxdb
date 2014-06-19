@@ -7,6 +7,7 @@
 - [Issue #665](https://github.com/influxdb/influxdb/issues/665). Make build tmp directory configurable in the make file
 - [Issue #667](https://github.com/influxdb/influxdb/issues/667). Enable compression on all GET requests and when writing data
 
+
 ### Bugfixes
 
 - [Issue #651](https://github.com/influxdb/influxdb/issues/651). Change permissions of symlink which fix some installation issues. (Thanks, @Dieterbe)
