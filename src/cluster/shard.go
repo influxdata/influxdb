@@ -117,8 +117,6 @@ type LocalShardDb interface {
 
 type LocalShardStore interface {
 	Write(request *p.Request) error
-	SetWriteBuffer(writeBuffer *WriteBuffer)
-	BufferWrite(request *p.Request)
 	GetOrCreateShard(id uint32) (LocalShardDb, error)
 	ReturnShard(id uint32)
 	DeleteShard(shardId uint32) error
@@ -202,12 +200,12 @@ func (self *ShardData) Write(request *p.Request) error {
 	}
 	request.RequestNumber = &requestNumber
 	if self.store != nil {
-		self.store.BufferWrite(request)
+		self.store.Write(request)
 	}
 	for _, server := range self.clusterServers {
 		// we have to create a new reqeust object because the ID gets assigned on each server.
 		requestWithoutId := &p.Request{Type: request.Type, Database: request.Database, MultiSeries: request.MultiSeries, ShardId: &self.id, RequestNumber: request.RequestNumber}
-		server.BufferWrite(requestWithoutId)
+		server.Write(requestWithoutId)
 	}
 	return nil
 }

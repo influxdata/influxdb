@@ -28,7 +28,6 @@ type ShardDatastore struct {
 	shardRefCounts map[uint32]int
 	shardsToClose  map[uint32]bool
 	shardsLock     sync.RWMutex
-	writeBuffer    *cluster.WriteBuffer
 	maxOpenShards  int
 	pointBatchSize int
 	writeBatchSize int
@@ -229,14 +228,6 @@ func (self *ShardDatastore) Write(request *protocol.Request) error {
 	}
 	defer self.ReturnShard(*request.ShardId)
 	return shardDb.Write(*request.Database, request.MultiSeries)
-}
-
-func (self *ShardDatastore) BufferWrite(request *protocol.Request) {
-	self.writeBuffer.Write(request)
-}
-
-func (self *ShardDatastore) SetWriteBuffer(writeBuffer *cluster.WriteBuffer) {
-	self.writeBuffer = writeBuffer
 }
 
 func (self *ShardDatastore) DeleteShard(shardId uint32) error {
