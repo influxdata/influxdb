@@ -22,7 +22,7 @@ func (self *GraphiteMetric) Read(reader *bufio.Reader) error {
 	str := strings.TrimSpace(string(buf))
 	if err != nil {
 		if err != io.EOF {
-			return fmt.Errorf("GraphiteServer: connection closed uncleanly/broken: %s\n", err.Error())
+			return fmt.Errorf("connection closed uncleanly/broken: %s\n", err.Error())
 		}
 		if str == "" {
 			return err

@@ -130,7 +130,7 @@ func (self *Server) ServeUdp(conn *net.UDPConn) {
 	for {
 		n, _, err := conn.ReadFromUDP(buf)
 		if err != nil {
-			log.Warn("Error when reading from UDP connection %s", err.Error())
+			log.Warn("GraphiteServer: Error when reading from UDP connection %s", err.Error())
 		}
 		go self.handleUdpMessage(string(buf[:n]))
 	}
@@ -146,7 +146,7 @@ func (self *Server) handleUdpMessage(msg string) {
 
 func (self *Server) Close() {
 	if self.udpConn != nil {
-		log.Info("GraphiteService: Closing graphite UDP listener")
+		log.Info("GraphiteServer: Closing graphite UDP listener")
 		self.udpConn.Close()
 	}
 	if self.conn != nil {
@@ -241,7 +241,7 @@ func (self *Server) handleClient(conn net.Conn, wg sync.WaitGroup) {
 		err := self.handleMessage(reader)
 		if err != nil {
 			if io.EOF == err {
-				log.Debug("Client closed graphite connection")
+				log.Debug("GraphiteServer: Client closed graphite connection")
 				return
 			}
 			log.Error("GraphiteServer:", err)
