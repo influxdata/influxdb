@@ -1,3 +1,5 @@
+// +build hyperleveldb
+
 package storage
 
 import (
