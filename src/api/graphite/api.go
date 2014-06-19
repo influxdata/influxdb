@@ -47,14 +47,19 @@ type Record struct {
 	*protocol.Point
 }
 
-// will commit a batch of series every commit_max_wait ms or every commit_capacity datapoints,
-// whichever is first
+// the ingest could in theory be anything from 1 series(datapoint) every few minutes, upto millions of datapoints every second.
+// and there might be multiple connections, each delivering a certain (not necessarily equal) fraction of the total.
+// we want ingested points to be ingested (flushed) quickly (let's say at least within 100ms), but since coordinator.WriteSeriesData
+// comes with a cost, we also want to buffer up the data, the more the better (up to a limit).
+// So basically we need to trade these concepts off against each other, by committing
+
+// a batch of series every commit_max_wait ms or every commit_capacity datapoints, whichever is first.
+
 // upto how many points/series to commit in 1 go?
+// let's say buffer up to about 1MiB of data, at 24B per record -> 43690 records, let's make it an even 40k
 const commit_capacity = 40000
 
 // how long to wait max before flushing a commit payload
-// basically trade off the efficiency of a high commit_capacity with the expectation
-// to get your metrics stored in a short timeframe.
 const commit_max_wait = 100 * time.Millisecond
 
 // the write commit payload should get written in a timely fashion.
@@ -158,12 +163,6 @@ func (self *Server) Close() {
 
 func (self *Server) committer() {
 	defer func() { self.shutdown <- true }()
-
-	// the ingest could in theory be anything from 1 series(datapoint) every few minutes, upto millions of datapoints every second.
-	// and there might be multiple connections, each delivering a certain (not necessarily equal) fraction of the total.
-	// we want ingested points to be ingested quickly (let's say at least within 100ms), but since coordinator.WriteSeriesData
-	// has a bunch of overhead, we also want to buffer up the data, let's say
-	// up to about 1MiB of data, at 24B per record -> 43690 records, let's make it an even 40k
 
 	commit := func(to_commit map[string]*protocol.Series) {
 		if len(to_commit) == 0 {
