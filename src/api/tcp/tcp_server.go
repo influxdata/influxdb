@@ -250,10 +250,17 @@ func (self *TcpServer) housekeeping() {
 				//   checks all connections and kill idle connection every 10 seconds.
 				//   ConnectionState: Idle, Send, Receive, Handshake?
 				// * set deadline
+//				for _, con := range self.Connections {
+//					// if conn.ShouldKill() {
+//					// 	con.Close()
+//					// }
+//				}
+
 			case <- quit:
-				// TODO:
-				//   send quit message
 				ticker.Stop()
+				for _, con := range self.Connections {
+					con.Close()
+				}
 				return
 			}
 		}

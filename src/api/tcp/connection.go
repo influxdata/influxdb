@@ -8,9 +8,14 @@ import (
 
 type State int32
 
+//   ConnectionState: Idle, Send, Receive, Handshake?
 const (
 	STATE_INITIALIZED State = 1
 	STATE_AUTHENTICATED State = 2
+	STATE_IDLE State = 3
+	STATE_SEND State = 4
+	STATE_RECEIVE State = 5
+	STATE_SHUTDOWN State = 6
 )
 
 type ConnectionError struct {

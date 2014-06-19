@@ -149,6 +149,9 @@ func (self *TcpConnection) readBuffer() (error) {
 	var err error
 
 	self.Buffer.ReadBuffer.Reset()
+
+	// TODO: これどっしよっかなー。
+	//conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	err = binary.Read(self.Socket, binary.LittleEndian, &messageSizeU)
 	if err != nil {
 		return err
@@ -212,6 +215,8 @@ func (self *TcpConnection) Write(length uint32, reader *bytes.Reader) (error){
 		self.Buffer.WriteBuffer.Reset();
 	}()
 
+	// TODO: これどっしよっかなー。
+	//conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	binary.Write(self.Buffer.WriteBuffer, binary.LittleEndian, length)
 	_, err = io.Copy(self.Buffer.WriteBuffer, reader);
 	if err != nil {
