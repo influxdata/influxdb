@@ -79,7 +79,7 @@ leveldb_dir     = /tmp/leveldb.influxdb.$(arch)
 leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
-cpp_47 = $(shell sh -c test `g++ -dumpversion | awk '{print $1>=4.7?"1":"0"}'`)
+cpp_47 = $(shell g++ -dumpversion | gawk '{print $$1>=4.7?"1":"0"}')
 rocksdb = yes
 ifneq ($(cpp_47),1)
 rocksdb = no
@@ -119,7 +119,7 @@ CGO_LDFLAGS += -lstdc++ -lm -lz -lbz2
 export CGO_CFLAGS
 export CGO_LDFLAGS
 else
-CGO_LDFLAGS += -lleveldb -lrocksdb -lsnappy -lstdc++
+CGO_LDFLAGS += -lleveldb -lsnappy -lstdc++
 export CGO_LDFLAGS
 endif
 
