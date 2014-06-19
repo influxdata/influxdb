@@ -200,7 +200,7 @@ func (self *TcpServer) acceptLoop(listener net.Listener, yield func()) {
 			continue
 		}
 		if self.ConnectionCount > 100 {
-			// TODO: Send Error message and close immediately.
+			// TODO: Send Error message and close connection immediately.
 		}
 
 		conn := NewTcpConnection(client, self, func(c Connection, time time.Time) {
@@ -240,13 +240,19 @@ func (self *TcpServer) RemoveConnection(conn Connection) {
 func (self *TcpServer) housekeeping() {
 	ticker := time.NewTicker(time.Second)
 	quit := make(chan struct{})
+	// TODO: close this goroutine when server in shutodown state
 	go func() {
 		for {
 			select {
 			case <- ticker.C:
 				// TODO: do manage task here.
 				// * closing connection
+				//   checks all connections and kill idle connection every 10 seconds.
+				//   ConnectionState: Idle, Send, Receive, Handshake?
+				// * set deadline
 			case <- quit:
+				// TODO:
+				//   send quit message
 				ticker.Stop()
 				return
 			}
@@ -255,6 +261,7 @@ func (self *TcpServer) housekeeping() {
 	select{}
 }
 
+// TODO: add stats support
 func (self *TcpServer) ListenAndServe() {
 	defer func() { self.shutdown <- true }()
 

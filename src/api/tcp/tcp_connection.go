@@ -229,5 +229,6 @@ func (self *TcpConnection) Close() {
 	log.Debug("[TcpConnection Closed]")
 	self.Ticker.Stop()
 	self.Socket.Close()
+	// TODO
 	self.Server.RemoveConnection(self)
 }

@@ -133,7 +133,7 @@ func (self *HandshakeProcessorImpl) Handshake(conn Connection) error {
 			state = HandshakeState_PROCESS_READY
 			break
 		case HandshakeState_PROCESS_READY:
-			// sends some options
+			// TODO: sends some options (timezone, field names...)
 			conn.WriteRequest(&Greeting{
 				Type:     &G_COMMAND_READY,
 				Sequence: proto.Uint32(conn.GetSequence()),

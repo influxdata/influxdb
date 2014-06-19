@@ -9,7 +9,8 @@ import (
 	"parser"
 	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
-
+	"errors"
+	"protocol"
 )
 
 type RequestHandler struct {
@@ -20,9 +21,35 @@ func (self *RequestHandler) sendErrorMessage(conn Connection, t Command_CommandT
 	return self.Server.SendErrorMessage(conn, t, message)
 }
 
+func (self *RequestHandler) verifySeries(series []*protocol.Series) error {
+	for _, s := range series {
+		count := len(s.GetFields())
+		if count < 1 {
+			return errors.New(fmt.Sprintf("at least 1 fields required"))
+		}
+
+		for index, point := range s.GetPoints() {
+			cnt := len(point.GetValues())
+			if cnt < 1 {
+				return errors.New(fmt.Sprintf("at least 1 fields required"))
+			}
+
+			if cnt != count {
+				return errors.New(fmt.Sprintf("Fields and FiledValues are missmatched. Fields specified %d but %d at %d index", count, cnt, index))
+			}
+		}
+	}
+
+	return nil
+}
+
 func (self *RequestHandler) WriteSeries(conn Connection, request *Command) error {
-	series := request.GetSeries()
-	err := self.Server.GetCoordinator().WriteSeriesData(conn.GetUser(), conn.GetDatabase(), series.GetSeries())
+	series := request.GetSeries().GetSeries()
+	if err := self.verifySeries(series); err != nil {
+		return self.sendErrorMessage(conn, Command_WRITESERIES, fmt.Sprintf("Malformed series: %s", err))
+	}
+
+	err := self.Server.GetCoordinator().WriteSeriesData(conn.GetUser(), conn.GetDatabase(), series)
 	if err != nil {
 		return self.sendErrorMessage(conn, Command_WRITESERIES, fmt.Sprintf("Cant insert data: %s", err))
 	}
@@ -126,6 +153,7 @@ func (self *RequestHandler) Query(conn Connection, request *Command) error {
 	// TODO: choose precision
 	precision := SecondPrecision
 
+	// TODO: use configuration
 	writer := NewChunkedPointsWriter(conn, precision, 500, 1000)
 	seriesWriter := api.NewSeriesWriter(writer.yield)
 	err := self.Server.GetCoordinator().RunQuery(conn.GetUser(), conn.GetDatabase(), string(request.GetQuery().GetQuery()), seriesWriter)

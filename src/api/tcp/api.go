@@ -66,13 +66,13 @@ var C_PING = Command_PING
 
 
 func NewServer(config *configuration.Configuration, coord coordinator.Coordinator, um api.UserManager, clusterConfig *cluster.ClusterConfiguration) *TcpServer {
-	self := &TcpServer{
+	server := &TcpServer{
 		forceSSLUsers: map[string]bool{},
 		Connections: map[string]Connection{},
 	}
 
-	self.listenAddress = config.TcpInputPortString()
-	self.listenSocket = config.TcpInputSocketString()
+	server.listenAddress = config.TcpInputPortString()
+	server.listenSocket = config.TcpInputSocketString()
 
 	if config.TcpInputUseSSL {
 		cert, err := tls.LoadX509KeyPair(config.TcpInputSSLCert(), config.TcpInputSSLKey())
@@ -82,21 +82,21 @@ func NewServer(config *configuration.Configuration, coord coordinator.Coordinato
 			tslConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
 			tslConfig.Rand = rand.Reader
 
-			self.tlsConfig = tslConfig
+			server.tlsConfig = tslConfig
 			for _, name := range config.TcpInputForceSSL() {
-				self.forceSSLUsers[name] = true
+				server.forceSSLUsers[name] = true
 			}
 			log.Debug("SSL Config loaded")
 		}
 	}
 
-	self.Coordinator = coord
-	self.UserManager = um
-	self.shutdown = make(chan bool, 1)
-	self.clusterConfig = clusterConfig
-	self.RequestHandler = &RequestHandler{
-		Server: self,
+	server.Coordinator = coord
+	server.UserManager = um
+	server.shutdown = make(chan bool, 1)
+	server.clusterConfig = clusterConfig
+	server.RequestHandler = &RequestHandler{
+		Server: server,
 	}
 
-	return self
+	return server
 }
