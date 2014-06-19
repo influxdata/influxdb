@@ -157,6 +157,7 @@ func (self *Server) Close() {
 		case <-time.After(time.Second * 5):
 			log.Error("GraphiteServer: There seems to be a hanging graphite request. Closing anyway")
 		case <-self.shutdown:
+			log.Info("GraphiteServer shut down")
 		}
 	}
 }
@@ -212,15 +213,16 @@ CommitLoop:
 						Points: points,
 					}
 				}
+			} else {
+				// no more input, commit whatever we have and break
+				commit(to_commit)
+				break CommitLoop
 			}
+			// if capacity reached, commit
 			if points_pending == commit_capacity {
 				commit(to_commit)
-				if ok {
-					to_commit = make(map[string]*protocol.Series)
-					timer.Reset(commit_max_wait)
-				} else {
-					break CommitLoop
-				}
+				to_commit = make(map[string]*protocol.Series)
+				timer.Reset(commit_max_wait)
 			}
 		case <-timer.C:
 			commit(to_commit)
