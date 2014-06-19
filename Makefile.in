@@ -3,6 +3,7 @@ SHELL = /bin/bash
 PROTOC = @PROTOC@
 GO     = @GO@
 GOROOT = @GOROOT@
+AUTORECONF = @AUTORECONF@
 # or 386, arm
 arch   = amd64
 CGO_ENABLED = 1
@@ -78,7 +79,12 @@ leveldb_dir     = /tmp/leveldb.influxdb.$(arch)
 leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
+cpp_47 = $(shell sh -c test `g++ -dumpversion | awk '{print $1>=4.7?"1":"0"}'`)
+rocksdb = yes
+ifneq ($(cpp_47),1)
 rocksdb = no
+endif
+
 ifeq ($(rocksdb),yes)
 # rocksdb variables
 rocksdb_version = 3.1
@@ -160,7 +166,7 @@ ifeq ($(uname_S),Linux)
 	bash -c "cd $(hyperleveldb_dir); \
 	wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file); \
 	tar --strip-components=1 -xvzf $(hyperleveldb_file); \
-  autoreconf -i; \
+  $(AUTORECONF) -i; \
 	CFLAGS='$(cflags)' CXXFLAGS='$(cflags)' ./configure; \
 	$(MAKE)"
 endif
