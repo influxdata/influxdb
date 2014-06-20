@@ -132,13 +132,7 @@ func (db MDB) Get(key []byte) ([]byte, error) {
 }
 
 func (db MDB) Del(start, finish []byte) error {
-	tx, err := db.env.BeginTxn(nil, 0)
-	if err != nil {
-		return err
-	}
-	defer tx.Commit()
-
-	itr := db.iterator(true)
+	itr := db.iterator(false)
 	defer itr.Close()
 
 	count := 0
@@ -148,9 +142,7 @@ func (db MDB) Del(start, finish []byte) error {
 			break
 		}
 
-		// TODO: We should be using one cursor instead of two
-		// transactions, but deleting using a cursor, crashes
-		err = tx.Del(db.db, itr.key, nil)
+		err := itr.c.Del(0)
 		if err != nil {
 			return err
 		}
