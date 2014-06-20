@@ -81,7 +81,7 @@ type ShardData struct {
 	IsLocal                bool
 }
 
-func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, durationIsSplit bool, wal WAL) *ShardData {
+func CreateShardData(id uint32, startTime, endTime time.Time, shardType ShardType, durationIsSplit bool, wal WAL) *ShardData {
 	shardDuration := endTime.Sub(startTime)
 	return &ShardData{
 		id:               id,
