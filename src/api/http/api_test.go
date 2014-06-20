@@ -358,51 +358,50 @@ func (self *ApiSuite) TestNotChunkedQuery(c *C) {
 	c.Assert(int64(series[0].Points[0][0].(float64)), Equals, int64(1381346631000))
 }
 
-
 func (self *ApiSuite) TestNotChunkedPrettyQuery(c *C) {
-        query := "select * from foo where column_one == 'some_value';"
-        query = url.QueryEscape(query)
-        addr := self.formatUrl("/db/foo/series?q=%s&u=dbuser&p=password&pretty=true", query)
-        resp, err := libhttp.Get(addr)
-        c.Assert(err, IsNil)
-        defer resp.Body.Close()
-        c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-        c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-        data, err := ioutil.ReadAll(resp.Body)
-        c.Assert(err, IsNil)
-        series := []SerializedSeries{}
-        err = json.Unmarshal(data, &series)
-        c.Assert(err, IsNil)
-        c.Assert(series, HasLen, 1)
-        c.Assert(series[0].Name, Equals, "foo")
-        // time, seq, column_one, column_two
-        c.Assert(series[0].Columns, HasLen, 4)
-        c.Assert(series[0].Points, HasLen, 4)
-        // timestamp precision is milliseconds by default
-        c.Assert(int64(series[0].Points[0][0].(float64)), Equals, int64(1381346631000))
+	query := "select * from foo where column_one == 'some_value';"
+	query = url.QueryEscape(query)
+	addr := self.formatUrl("/db/foo/series?q=%s&u=dbuser&p=password&pretty=true", query)
+	resp, err := libhttp.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	series := []SerializedSeries{}
+	err = json.Unmarshal(data, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "foo")
+	// time, seq, column_one, column_two
+	c.Assert(series[0].Columns, HasLen, 4)
+	c.Assert(series[0].Points, HasLen, 4)
+	// timestamp precision is milliseconds by default
+	c.Assert(int64(series[0].Points[0][0].(float64)), Equals, int64(1381346631000))
 }
 
 func (self *ApiSuite) TestNotChunkedNotPrettyQuery(c *C) {
-        query := "select * from foo where column_one == 'some_value';"
-        query = url.QueryEscape(query)
-        addr := self.formatUrl("/db/foo/series?q=%s&u=dbuser&p=password&pretty=false", query)
-        resp, err := libhttp.Get(addr)
-        c.Assert(err, IsNil)
-        defer resp.Body.Close()
-        c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-        c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-        data, err := ioutil.ReadAll(resp.Body)
-        c.Assert(err, IsNil)
-        series := []SerializedSeries{}
-        err = json.Unmarshal(data, &series)
-        c.Assert(err, IsNil)
-        c.Assert(series, HasLen, 1)
-        c.Assert(series[0].Name, Equals, "foo")
-        // time, seq, column_one, column_two
-        c.Assert(series[0].Columns, HasLen, 4)
-        c.Assert(series[0].Points, HasLen, 4)
-        // timestamp precision is milliseconds by default
-        c.Assert(int64(series[0].Points[0][0].(float64)), Equals, int64(1381346631000))
+	query := "select * from foo where column_one == 'some_value';"
+	query = url.QueryEscape(query)
+	addr := self.formatUrl("/db/foo/series?q=%s&u=dbuser&p=password&pretty=false", query)
+	resp, err := libhttp.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	series := []SerializedSeries{}
+	err = json.Unmarshal(data, &series)
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "foo")
+	// time, seq, column_one, column_two
+	c.Assert(series[0].Columns, HasLen, 4)
+	c.Assert(series[0].Points, HasLen, 4)
+	// timestamp precision is milliseconds by default
+	c.Assert(int64(series[0].Points[0][0].(float64)), Equals, int64(1381346631000))
 }
 
 func (self *ApiSuite) TestChunkedQuery(c *C) {
@@ -430,27 +429,27 @@ func (self *ApiSuite) TestChunkedQuery(c *C) {
 }
 
 func (self *ApiSuite) TestPrettyChunkedQuery(c *C) {
-        query := "select * from foo where column_one == 'some_value';"
-        query = url.QueryEscape(query)
-        addr := self.formatUrl("/db/foo/series?q=%s&chunked=true&u=dbuser&p=password&pretty=true", query)
-        resp, err := libhttp.Get(addr)
-        c.Assert(err, IsNil)
-        defer resp.Body.Close()
-        c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	query := "select * from foo where column_one == 'some_value';"
+	query = url.QueryEscape(query)
+	addr := self.formatUrl("/db/foo/series?q=%s&chunked=true&u=dbuser&p=password&pretty=true", query)
+	resp, err := libhttp.Get(addr)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
 
-        for i := 0; i < 2; i++ {
-                chunk := make([]byte, 2048, 2048)
-                n, err := resp.Body.Read(chunk)
+	for i := 0; i < 2; i++ {
+		chunk := make([]byte, 2048, 2048)
+		n, err := resp.Body.Read(chunk)
 
-                series := SerializedSeries{}
-                err = json.Unmarshal(chunk[0:n], &series)
-                c.Assert(err, IsNil)
-                c.Assert(series.Name, Equals, "foo")
-                // time, seq, column_one, column_two
-                c.Assert(series.Columns, HasLen, 4)
-                // each chunk should have 2 points
-                c.Assert(series.Points, HasLen, 2)
-        }
+		series := SerializedSeries{}
+		err = json.Unmarshal(chunk[0:n], &series)
+		c.Assert(err, IsNil)
+		c.Assert(series.Name, Equals, "foo")
+		// time, seq, column_one, column_two
+		c.Assert(series.Columns, HasLen, 4)
+		// each chunk should have 2 points
+		c.Assert(series.Points, HasLen, 2)
+	}
 }
 
 func (self *ApiSuite) TestWriteDataWithTimeInSeconds(c *C) {
@@ -778,17 +777,17 @@ func (self *ApiSuite) TestClusterAdminsIndex(c *C) {
 }
 
 func (self *ApiSuite) TestPrettyClusterAdminsIndex(c *C) {
-        url := self.formatUrl("/cluster_admins?u=root&p=root&pretty=true")
-        resp, err := libhttp.Get(url)
-        c.Assert(err, IsNil)
-        c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-        defer resp.Body.Close()
-        body, err := ioutil.ReadAll(resp.Body)
-        c.Assert(err, IsNil)
-        users := []*ApiUser{}
-        err = json.Unmarshal(body, &users)
-        c.Assert(err, IsNil)
-        c.Assert(users, DeepEquals, []*ApiUser{&ApiUser{"root"}})
+	url := self.formatUrl("/cluster_admins?u=root&p=root&pretty=true")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	users := []*ApiUser{}
+	err = json.Unmarshal(body, &users)
+	c.Assert(err, IsNil)
+	c.Assert(users, DeepEquals, []*ApiUser{&ApiUser{"root"}})
 }
 
 func (self *ApiSuite) TestDbUsersIndex(c *C) {
@@ -807,18 +806,18 @@ func (self *ApiSuite) TestDbUsersIndex(c *C) {
 }
 
 func (self *ApiSuite) TestPrettyDbUsersIndex(c *C) {
-        url := self.formatUrl("/db/db1/users?u=root&p=root&pretty=true")
-        resp, err := libhttp.Get(url)
-        c.Assert(err, IsNil)
-        c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-        defer resp.Body.Close()
-        body, err := ioutil.ReadAll(resp.Body)
-        c.Assert(err, IsNil)
-        users := []*UserDetail{}
-        err = json.Unmarshal(body, &users)
-        c.Assert(err, IsNil)
-        c.Assert(users, HasLen, 1)
-        c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false})
+	url := self.formatUrl("/db/db1/users?u=root&p=root&pretty=true")
+	resp, err := libhttp.Get(url)
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	users := []*UserDetail{}
+	err = json.Unmarshal(body, &users)
+	c.Assert(err, IsNil)
+	c.Assert(users, HasLen, 1)
+	c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false})
 }
 
 func (self *ApiSuite) TestDbUserShow(c *C) {
