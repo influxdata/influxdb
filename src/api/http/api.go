@@ -89,7 +89,7 @@ func (self *HttpServer) registerEndpoint(p *pat.PatternServeMux, method string, 
 	version := self.clusterConfig.GetLocalConfiguration().Version
 	switch method {
 	case "get":
-		p.Get(pattern, HeaderHandler(f, version))
+		p.Get(pattern, CompressionHeaderHandler(f, version))
 	case "post":
 		p.Post(pattern, HeaderHandler(f, version))
 	case "del":
