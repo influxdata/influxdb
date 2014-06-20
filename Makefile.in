@@ -1,5 +1,10 @@
 SHELL = /bin/bash
 
+ifeq ($(TMPDIR),)
+TMPDIR=/tmp
+endif
+export TMPDIR
+
 PROTOC = @PROTOC@
 GO     = @GO@
 GOROOT = @GOROOT@
@@ -68,13 +73,13 @@ packages = admin api/http api/graphite cluster common configuration	\
 
 # snappy variables
 snappy_version = 1.1.0
-snappy_dir     = /tmp/snappy.influxdb.$(arch)
+snappy_dir     = ${TMPDIR}/snappy.influxdb.$(arch)
 snappy_file    = snappy-$(snappy_version).tar.gz
 snappy_deps    = $(snappy_dir)/.libs/libsnappy.a
 
 # leveldb variables
 leveldb_version = 1.15.0
-leveldb_dir     = /tmp/leveldb.influxdb.$(arch)
+leveldb_dir     = ${TMPDIR}/leveldb.influxdb.$(arch)
 leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
@@ -82,7 +87,7 @@ rocksdb = no
 ifeq ($(rocksdb),yes)
 # rocksdb variables
 rocksdb_version = 3.1
-rocksdb_dir     = /tmp/rocksdb.influxdb.$(arch)
+rocksdb_dir     = ${TMPDIR}/rocksdb.influxdb.$(arch)
 rocksdb_file    = rocksdb-$(rocksdb_version).tar.gz
 rocksdb_deps    = $(rocksdb_dir)/librocksdb.a
 GO_BUILD_OPTIONS += -tags rocksdb
@@ -91,7 +96,7 @@ endif
 
 # hyperleveldb variables
 hyperleveldb_version = v1.0.3
-hyperleveldb_dir     = /tmp/hyperleveldb.influxdb.$(arch)
+hyperleveldb_dir     = ${TMPDIR}/hyperleveldb.influxdb.$(arch)
 hyperleveldb_file    = $(hyperleveldb_version).tar.gz
 hyperleveldb_deps    = $(hyperleveldb_dir)/.libs/libhyperleveldb.a
 
@@ -227,8 +232,8 @@ clean:
 	rm -rf pkg/
 	rm -rf packages/
 	rm -rf src/$(levigo_dependency)
-	rm -rf /tmp/influxdb
-	rm -rf /tmp/admin.influxdb
+	rm -rf ${TMPDIR}/influxdb
+	rm -rf ${TMPDIR}/admin.influxdb
 	$(MAKE) -C src/parser clean
 
 only =
@@ -255,15 +260,15 @@ test: test_dependencies parser protobuf
 	$(GO) test $(packages) $(GOTEST_OPTS)
 
 coverage: test_dependencies
-	for i in $(packages); do $(GO) test -coverprofile /tmp/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
-   $(GO) tool cover -html=/tmp/influxdb.$${i/\//}.coverage; done
+	for i in $(packages); do $(GO) test -coverprofile ${TMPDIR}/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
+   $(GO) tool cover -html=${TMPDIR}/influxdb.$${i/\//}.coverage; done
 
 
 integration_test: test_dependencies build
 	$(GO) test integration $(GOTEST_OPTS)
 
 package_version=$(subst -,_,$(version))
-admin_dir = /tmp/admin.influxdb
+admin_dir = ${TMPDIR}/admin.influxdb
 
 source_package = packages/influxdb-$(version).src.tar.gz
 binary_package = packages/influxdb-$(version).$(arch).tar.gz
@@ -316,20 +321,20 @@ $(source_package): dependencies
 	$(GO) get -d $(levigo_dependency)
 	rm -f daemon
 	rm -f benchmark
-	git ls-files --others | egrep -v 'github|launchpad|code.google|version.go' > /tmp/influxdb.ignored
-	echo "pkg/*" >> /tmp/influxdb.ignored
-	echo "packages/*" >> /tmp/influxdb.ignored
-	echo "build/*" >> /tmp/influxdb.ignored
-	echo "out_rpm/*" >> /tmp/influxdb.ignored
+	git ls-files --others | egrep -v 'github|launchpad|code.google|version.go' > ${TMPDIR}/influxdb.ignored
+	echo "pkg/*" >> ${TMPDIR}/influxdb.ignored
+	echo "packages/*" >> ${TMPDIR}/influxdb.ignored
+	echo "build/*" >> ${TMPDIR}/influxdb.ignored
+	echo "out_rpm/*" >> ${TMPDIR}/influxdb.ignored
 	rm -rf admin
 	cp -R $(admin_dir)/build admin
-	tar -czf $(source_package) --exclude-vcs -X /tmp/influxdb.ignored *
-	rm -rf /tmp/influxdb
-	mkdir /tmp/influxdb
-	tar -xzf $(source_package) -C /tmp/influxdb
+	tar -czf $(source_package) --exclude-vcs -X ${TMPDIR}/influxdb.ignored *
+	rm -rf ${TMPDIR}/influxdb
+	mkdir ${TMPDIR}/influxdb
+	tar -xzf $(source_package) -C ${TMPDIR}/influxdb
 	rm $(source_package)
-	bash -c "pushd /tmp/; tar -czf `basename $(source_package)` influxdb; popd"
-	mv /tmp/$(shell basename $(source_package)) $(source_package)
+	bash -c "pushd ${TMPDIR}/; tar -czf `basename $(source_package)` influxdb; popd"
+	mv ${TMPDIR}/$(shell basename $(source_package)) $(source_package)
 	rm -rf src/$(levigo_dependency)
 	rm -rf admin
 
@@ -345,9 +350,9 @@ $(binary_package): $(admin_dir)/build build packages
 	cp config.sample.toml build/config.toml
 	sed -i 's/.\/admin/\/opt\/influxdb\/current\/admin/g' build/config.toml
 	sed -i 's/influxdb.log/\/opt\/influxdb\/shared\/log.txt/g' build/config.toml
-	sed -i 's/\/tmp\/influxdb\/development\/db/\/opt\/influxdb\/shared\/data\/db/g' build/config.toml
-	sed -i 's/\/tmp\/influxdb\/development\/raft/\/opt\/influxdb\/shared\/data\/raft/g' build/config.toml
-	sed -i 's/\/tmp\/influxdb\/development\/wal/\/opt\/influxdb\/shared\/data\/wal/g' build/config.toml
+	sed -i 's/\${TMPDIR}\/influxdb\/development\/db/\/opt\/influxdb\/shared\/data\/db/g' build/config.toml
+	sed -i 's/\${TMPDIR}\/influxdb\/development\/raft/\/opt\/influxdb\/shared\/data\/raft/g' build/config.toml
+	sed -i 's/\${TMPDIR}\/influxdb\/development\/wal/\/opt\/influxdb\/shared\/data\/wal/g' build/config.toml
 	rm -f build/scripts/post_install.sh.bak
 	tar -czf $(binary_package) build/*
 
