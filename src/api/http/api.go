@@ -3,6 +3,7 @@ package http
 import (
 	"cluster"
 	. "common"
+	"compress/gzip"
 	"coordinator"
 	"crypto/tls"
 	"encoding/base64"
@@ -351,7 +352,19 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 	}
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(user User) (int, interface{}) {
-		series, err := ioutil.ReadAll(r.Body)
+		reader := r.Body
+		encoding := r.Header.Get("Content-Encoding")
+		switch encoding {
+		case "gzip":
+			reader, err = gzip.NewReader(r.Body)
+			if err != nil {
+				return libhttp.StatusInternalServerError, err.Error()
+			}
+		default:
+			// assume it's plain text
+		}
+
+		series, err := ioutil.ReadAll(reader)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
