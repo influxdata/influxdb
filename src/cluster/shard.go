@@ -8,9 +8,11 @@ import (
 	p "protocol"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"wal"
 
+	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
 )
 
@@ -59,22 +61,24 @@ const (
 )
 
 type ShardData struct {
-	id               uint32
-	startTime        time.Time
-	startMicro       int64
-	endMicro         int64
-	endTime          time.Time
-	wal              WAL
-	servers          []wal.Server
-	clusterServers   []*ClusterServer
-	store            LocalShardStore
-	serverIds        []uint32
-	shardType        ShardType
-	durationIsSplit  bool
-	shardDuration    time.Duration
-	shardNanoseconds uint64
-	localServerId    uint32
-	IsLocal          bool
+	id                     uint32
+	startTime              time.Time
+	startMicro             int64
+	endMicro               int64
+	endTime                time.Time
+	wal                    WAL
+	servers                []wal.Server
+	clusterServers         []*ClusterServer
+	store                  LocalShardStore
+	serverIds              []uint32
+	shardType              ShardType
+	durationIsSplit        bool
+	shardDuration          time.Duration
+	shardNanoseconds       uint64
+	localServerId          uint32
+	lastSequenceNumber     uint64
+	lastSequenceNumberLock sync.Mutex
+	IsLocal                bool
 }
 
 func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, durationIsSplit bool, wal WAL) *ShardData {
@@ -176,28 +180,48 @@ func (self *ShardData) ServerIds() []uint32 {
 	return self.serverIds
 }
 
+// TODO: Store lastSequenceNumber somewhere so we don't reset on
+// restarts
+func (self *ShardData) reserveSequenceNumbers(n int) (seq uint64) {
+	self.lastSequenceNumberLock.Lock()
+	seq = self.lastSequenceNumber
+	self.lastSequenceNumber += uint64(n)
+	self.lastSequenceNumberLock.Unlock()
+	return
+}
+
 func (self *ShardData) Write(request *p.Request) error {
 	request.ShardId = &self.id
 	// try to send it to one server in the replication group
 
-	// TODO: we shouldn't create this slice everytime, move in the
-	// struct
-	ws := make([]Writer, 0, len(self.servers)+1)
-	// we should try writing to local storage first
-	if self.store != nil {
-		ws = append(ws, self.store)
-	}
-	for _, s := range self.clusterServers {
-		ws = append(ws, s)
+	// assign the sequence numbers
+	for _, series := range request.MultiSeries {
+		s := self.reserveSequenceNumbers(len(series.Points))
+		for _, p := range series.Points {
+			if p.SequenceNumber != nil {
+				continue
+			}
+
+			p.SequenceNumber = proto.Uint64(s)
+			s++
+		}
 	}
 
-	for _, w := range ws {
-		err := w.Write(request)
+	if self.store != nil {
+		err := self.store.Write(request)
+		if err == nil {
+			return nil
+		}
+		log.Error("Cannot write to local store: %s", err)
+	}
+
+	for _, s := range self.clusterServers {
+		err := s.Write(request)
 		if err == nil {
 			return nil
 		}
 
-		log.Warn("Error while writing request to %v: %s", w, err)
+		log.Warn("Error while writing request to %v: %s", s, err)
 	}
 
 	return fmt.Errorf("Failed to write to all writers")
