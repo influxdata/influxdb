@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,12 +12,13 @@ import (
 )
 
 type Client struct {
-	host       string
-	username   string
-	password   string
-	database   string
-	httpClient *http.Client
-	schema     string
+	host        string
+	username    string
+	password    string
+	database    string
+	httpClient  *http.Client
+	schema      string
+	compression bool
 }
 
 type ClientConfig struct {
@@ -60,7 +62,11 @@ func NewClient(config *ClientConfig) (*Client, error) {
 	if config.IsSecure {
 		schema = "https"
 	}
-	return &Client{host, username, password, database, config.HttpClient, schema}, nil
+	return &Client{host, username, password, database, config.HttpClient, schema, true}, nil
+}
+
+func (self *Client) DisableCompression() {
+	self.compression = false
 }
 
 func (self *Client) getUrl(path string) string {
@@ -330,7 +336,26 @@ func (self *Client) writeSeriesCommon(series []*Series, options map[string]strin
 	for name, value := range options {
 		url += fmt.Sprintf("&%s=%s", name, value)
 	}
-	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
+	var b *bytes.Buffer
+	if self.compression {
+		b = bytes.NewBuffer(nil)
+		w := gzip.NewWriter(b)
+		if _, err := w.Write(data); err != nil {
+			return err
+		}
+		w.Flush()
+		w.Close()
+	} else {
+		b = bytes.NewBuffer(data)
+	}
+	req, err := http.NewRequest("POST", url, b)
+	if err != nil {
+		return err
+	}
+	if self.compression {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
+	resp, err := self.httpClient.Do(req)
 	return responseToError(resp, err, true)
 }
 
@@ -341,7 +366,14 @@ func (self *Client) Query(query string, precision ...TimePrecision) ([]*Series, 
 		url += "&time_precision=" + string(precision[0])
 	}
 	url += "&q=" + escapedQuery
-	resp, err := self.httpClient.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !self.compression {
+		req.Header.Set("Accept-Encoding", "identity")
+	}
+	resp, err := self.httpClient.Do(req)
 	err = responseToError(resp, err, false)
 	if err != nil {
 		return nil, err
