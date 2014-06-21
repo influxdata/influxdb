@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	mdb "github.com/szferi/gomdb"
+	mdb "github.com/influxdb/gomdb"
 )
 
 const MDB_NAME = "lmdb"

@@ -190,7 +190,7 @@ github.com/influxdb/go-cache \
 github.com/BurntSushi/toml \
 github.com/influxdb/influxdb-go \
 code.google.com/p/gogoprotobuf/proto \
-github.com/szferi/gomdb \
+github.com/influxdb/gomdb \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
