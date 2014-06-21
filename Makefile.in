@@ -102,15 +102,15 @@ hyperleveldb_deps    = $(hyperleveldb_dir)/.libs/libhyperleveldb.a
 profile=off
 ifneq ($(profile),off)
 CGO_LDFLAGS += -ltcmalloc -lprofiler
-GO_BUILD_OPTIONS += -tags profile
+GO_BUILD_TAGS += profile
 endif
 
 # levigo flags
 ifeq ($(uname_S),Linux)
 storage_engines += src/$(hyperleveldb_dependency)
-GO_BUILD_OPTIONS += -tags hyperleveldb
+GO_BUILD_TAGS += hyperleveldb
 ifeq ($(rocksdb),yes)
-GO_BUILD_OPTIONS += -tags rocksdb
+GO_BUILD_TAGS += rocksdb
 storage_engines += src/$(rocksdb_dependency)
 CGO_CFLAGS +=  -I$(rocksdb_dir)/include
 CGO_LDFLAGS +=  $(rocksdb_deps)
@@ -123,6 +123,10 @@ export CGO_LDFLAGS
 else
 CGO_LDFLAGS += -lleveldb -lsnappy -lstdc++
 export CGO_LDFLAGS
+endif
+
+ifneq ($(GO_BUILD_TAGS),)
+GO_BUILD_OPTIONS += -tags '$(GO_BUILD_TAGS)'
 endif
 
 ifneq ($(uname_S),Linux)
