@@ -95,26 +95,25 @@ func (db MDB) Put(key, value []byte) error {
 }
 
 func (db MDB) BatchPut(writes []Write) error {
-	tx, err := db.env.BeginTxn(nil, 0)
-	if err != nil {
-		return err
-	}
+	itr := db.iterator(false)
 
 	for _, w := range writes {
-		var err error
 		if w.Value == nil {
-			err = tx.Del(db.db, w.Key, nil)
+			itr.key, itr.value, itr.err = itr.c.Get(w.Key, mdb.SET)
+			if itr.err == nil {
+				itr.err = itr.c.Del(0)
+			}
 		} else {
-			err = tx.Put(db.db, w.Key, w.Value, 0)
+			itr.err = itr.c.Put(w.Key, w.Value, 0)
 		}
 
-		if err != nil && err != mdb.NotFound {
-			tx.Abort()
-			return err
+		if itr.err != nil && itr.err != mdb.NotFound {
+			break
 		}
 	}
+	itr.setState()
 
-	return tx.Commit()
+	return itr.Close()
 }
 
 func (db MDB) Get(key []byte) ([]byte, error) {
@@ -132,13 +131,7 @@ func (db MDB) Get(key []byte) ([]byte, error) {
 }
 
 func (db MDB) Del(start, finish []byte) error {
-	tx, err := db.env.BeginTxn(nil, 0)
-	if err != nil {
-		return err
-	}
-	defer tx.Commit()
-
-	itr := db.iterator(true)
+	itr := db.iterator(false)
 	defer itr.Close()
 
 	count := 0
@@ -148,9 +141,7 @@ func (db MDB) Del(start, finish []byte) error {
 			break
 		}
 
-		// TODO: We should be using one cursor instead of two
-		// transactions, but deleting using a cursor, crashes
-		err = tx.Del(db.db, itr.key, nil)
+		err := itr.c.Del(0)
 		if err != nil {
 			return err
 		}
@@ -214,8 +205,12 @@ func (itr *MDBIterator) setState() {
 
 func (itr *MDBIterator) Close() error {
 	if err := itr.c.Close(); err != nil {
-		itr.tx.Commit()
+		itr.tx.Abort()
 		return err
+	}
+	if itr.err != nil {
+		itr.tx.Abort()
+		return itr.err
 	}
 	return itr.tx.Commit()
 }
