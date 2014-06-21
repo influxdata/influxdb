@@ -19,6 +19,7 @@ func main() {
 	points := flag.Int("points", 200000000, "Number of points")
 	batchSize := flag.Int("batch", 1000, "Batch size")
 	series := flag.Int("series", 1, "Number of series")
+	path := flag.String("path", "/tmp", "Path to DB files")
 	flag.Parse()
 
 	os.RemoveAll("/tmp/test-leveldb")
@@ -26,10 +27,10 @@ func main() {
 	os.RemoveAll("/tmp/test-rocksdb")
 	os.RemoveAll("/tmp/test-hyperleveldb")
 
-	benchmark("lmdb", Config{*points, *batchSize, *series, 0, 0, time.Now()})
-	benchmark("leveldb", Config{*points, *batchSize, *series, 0, 0, time.Now()})
-	benchmark("rocksdb", Config{*points, *batchSize, *series, 0, 0, time.Now()})
-	benchmark("hyperleveldb", Config{*points, *batchSize, *series, 0, 0, time.Now()})
+	benchmark("lmdb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path})
+	benchmark("leveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path})
+	benchmark("rocksdb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path})
+	benchmark("hyperleveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path})
 }
 
 func benchmark(name string, c Config) {
@@ -39,7 +40,7 @@ func benchmark(name string, c Config) {
 	}
 
 	conf := init.NewConfig()
-	db, err := init.Initialize(fmt.Sprintf("/tmp/test-%s", name), conf)
+	db, err := init.Initialize(fmt.Sprintf("%s/test-%s", c.path, name), conf)
 
 	defer db.Close()
 

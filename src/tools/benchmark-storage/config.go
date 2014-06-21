@@ -18,6 +18,7 @@ type Config struct {
 	nextSeriesId int
 	nextSequence int64
 	now          time.Time
+	path         string
 }
 
 func (c *Config) MakeBatch() []storage.Write {
