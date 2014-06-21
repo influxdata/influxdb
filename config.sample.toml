@@ -98,7 +98,7 @@ write-batch-size = 5000000
 
 # Maximum mmap open files, this will affect the virtual memory used by
 # the process
-max-open-files = 40
+max-open-files = 1000
 
 # LRU cache size, LRU is used by leveldb to store contents of the
 # uncompressed sstables. You can use `m` or `g` prefix for megabytes
