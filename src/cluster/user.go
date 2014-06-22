@@ -88,6 +88,10 @@ func (self *ClusterAdmin) IsClusterAdmin() bool {
 	return true
 }
 
+func (self *ClusterAdmin) IsDbAdmin(_ string) bool {
+	return true
+}
+
 func (self *ClusterAdmin) HasWriteAccess(_ string) bool {
 	return true
 }
