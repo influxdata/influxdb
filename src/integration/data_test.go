@@ -2308,3 +2308,22 @@ func (self *DataTestSuite) GroupByYear(c *C) (Fun, Fun) {
 			c.Assert(maps[1]["count"], Equals, 1.0)
 		}
 }
+
+// CumulativeArithmeticAggregator should return null when the specified column is null
+// https://groups.google.com/forum/?utm_medium=email&utm_source=footer#!msg/influxdb/QKtJtk3fanU/48dUhIiazB8J
+func (self *DataTestSuite) MinAnd(c *C) (Fun, Fun) {
+	return func(client Client) {
+			client.WriteJsonData(`
+[
+  {
+     "name": "test_min_null",
+     "columns": ["key1", "key2"],
+     "points": [[3,null],[3,null],[2,null],[1,null]]
+  }
+]
+`, c)
+	}, func(client Client) {
+		data := client.RunQuery("select sum(key1), min(key2) from test_min_null;", c, "m")
+		c.Assert(data[0].Points[0][1:], DeepEquals, []interface{}{float64(9), nil})
+	}
+}

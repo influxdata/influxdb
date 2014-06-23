@@ -86,9 +86,12 @@ func wrapDefaultValue(defaultValue *parser.Value) (*protocol.FieldValue, error) 
 	}
 }
 
-type Operation func(currentValue float64, newValue *protocol.FieldValue) float64
+type Operation func(state *CumulativeArithmeticAggregatorState, newValue *protocol.FieldValue) *CumulativeArithmeticAggregatorState
 
-type CumulativeArithmeticAggregatorState float64
+type CumulativeArithmeticAggregatorState struct {
+	value float64
+	hit bool
+}
 
 type CumulativeArithmeticAggregator struct {
 	AbstractAggregator
@@ -101,15 +104,20 @@ type CumulativeArithmeticAggregator struct {
 var count int = 0
 
 func (self *CumulativeArithmeticAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	var s *CumulativeArithmeticAggregatorState
+
 	if state == nil {
-		state = self.initialValue
+		s = &CumulativeArithmeticAggregatorState{value: self.initialValue, hit: false}
+	} else {
+		s = state.(*CumulativeArithmeticAggregatorState)
 	}
 
 	value, err := GetValue(self.value, self.columns, p)
 	if err != nil {
-		return nil, err
+		return s, err
 	}
-	return self.operation(state.(float64), value), nil
+
+	return self.operation(s, value), nil
 }
 
 func (self *CumulativeArithmeticAggregator) ColumnNames() []string {
@@ -117,20 +125,17 @@ func (self *CumulativeArithmeticAggregator) ColumnNames() []string {
 }
 
 func (self *CumulativeArithmeticAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
-	if state == nil {
-		return [][]*protocol.FieldValue{
-			[]*protocol.FieldValue{
-				&protocol.FieldValue{DoubleValue: &self.initialValue},
-			},
-		}
+	s, ok := state.(CumulativeArithmeticAggregatorState)
+
+	value := &protocol.FieldValue{}
+	if !ok || s.hit == false {
+		value.IsNull = &TRUE
+	} else {
+		value.DoubleValue = protocol.Float64(s.value)
 	}
 
 	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{
-			&protocol.FieldValue{
-				DoubleValue: protocol.Float64(state.(float64)),
-			},
-		},
+		[]*protocol.FieldValue{value},
 	}
 }
 
@@ -160,44 +165,55 @@ func NewCumulativeArithmeticAggregator(name string, value *parser.Value, initial
 }
 
 func NewMaxAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
-	return NewCumulativeArithmeticAggregator("max", value, -math.MaxFloat64, defaultValue, func(currentValue float64, p *protocol.FieldValue) float64 {
+	return NewCumulativeArithmeticAggregator("max", value, -math.MaxFloat64, defaultValue, func(current *CumulativeArithmeticAggregatorState, p *protocol.FieldValue) *CumulativeArithmeticAggregatorState {
 		if p.Int64Value != nil {
-			if fv := float64(*p.Int64Value); fv > currentValue {
-				return fv
+			if fv := float64(*p.Int64Value); fv > current.value {
+				current.hit = true
+				current.value = fv
+				return current
 			}
 		} else if p.DoubleValue != nil {
-			if fv := *p.DoubleValue; fv > currentValue {
-				return fv
+			if fv := *p.DoubleValue; fv > current.value {
+				current.hit = true
+				current.value = fv
+				return current
 			}
 		}
-		return currentValue
+		return current
 	})
 }
 
 func NewMinAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
-	return NewCumulativeArithmeticAggregator("min", value, math.MaxFloat64, defaultValue, func(currentValue float64, p *protocol.FieldValue) float64 {
+	return NewCumulativeArithmeticAggregator("min", value, math.MaxFloat64, defaultValue, func(current *CumulativeArithmeticAggregatorState, p *protocol.FieldValue) *CumulativeArithmeticAggregatorState {
 		if p.Int64Value != nil {
-			if fv := float64(*p.Int64Value); fv < currentValue {
-				return fv
+			if fv := float64(*p.Int64Value); fv < current.value {
+				current.hit = true
+				current.value = fv
+				return current
 			}
 		} else if p.DoubleValue != nil {
-			if fv := *p.DoubleValue; fv < currentValue {
-				return fv
+			if fv := *p.DoubleValue; fv < current.value {
+				current.hit = true
+				current.value = fv
+				return current
 			}
 		}
-		return currentValue
+		return current
 	})
 }
 
 func NewSumAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
-	return NewCumulativeArithmeticAggregator("sum", value, 0, defaultValue, func(currentValue float64, p *protocol.FieldValue) float64 {
+	return NewCumulativeArithmeticAggregator("sum", value, 0, defaultValue, func(current *CumulativeArithmeticAggregatorState, p *protocol.FieldValue) *CumulativeArithmeticAggregatorState {
 		var fv float64
 		if p.Int64Value != nil {
+			current.hit = true
 			fv = float64(*p.Int64Value)
 		} else if p.DoubleValue != nil {
+			current.hit = true
 			fv = *p.DoubleValue
 		}
-		return currentValue + fv
+		current.value = current.value + fv
+		return current
 	})
 }
 
