@@ -375,3 +375,9 @@ packages:
 
 package: | packages build package_version_string $(files)
 	mv -f scripts/post_install.sh.bak scripts/post_install.sh
+
+check_format:
+	git ls-files | grep '.go$$' | xargs gofmt -l
+
+format:
+	git ls-files | grep '.go$$' | xargs gofmt -w -s
