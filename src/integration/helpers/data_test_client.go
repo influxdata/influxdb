@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"bytes"
 	"encoding/json"
 
 	influxdb "github.com/influxdb/influxdb-go"
@@ -33,7 +34,9 @@ func (self *DataTestClient) WriteData(series []*influxdb.Series, c *C, timePreci
 
 func (self *DataTestClient) WriteJsonData(seriesString string, c *C, timePrecision ...influxdb.TimePrecision) {
 	series := []*influxdb.Series{}
-	err := json.Unmarshal([]byte(seriesString), &series)
+	decoder := json.NewDecoder(bytes.NewBufferString(seriesString))
+	decoder.UseNumber()
+	err := decoder.Decode(&series)
 	c.Assert(err, IsNil)
 	self.WriteData(series, c, timePrecision...)
 }
@@ -42,6 +45,14 @@ func (self *DataTestClient) RunQuery(query string, c *C, timePrecision ...influx
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{Database: self.db})
 	c.Assert(err, IsNil)
 	series, err := client.Query(query, timePrecision...)
+	c.Assert(err, IsNil)
+	return series
+}
+
+func (self *DataTestClient) RunQueryWithNumbers(query string, c *C, timePrecision ...influxdb.TimePrecision) []*influxdb.Series {
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{Database: self.db})
+	c.Assert(err, IsNil)
+	series, err := client.QueryWithNumbers(query, timePrecision...)
 	c.Assert(err, IsNil)
 	return series
 }

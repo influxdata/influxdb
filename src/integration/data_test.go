@@ -1,8 +1,10 @@
 package integration
 
 import (
+	"encoding/json"
 	"engine"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"time"
@@ -119,6 +121,35 @@ func (self *DataTestSuite) InfiniteValues(c *C) (Fun, Fun) {
 			maps := ToMap(serieses[0])
 			c.Assert(maps, HasLen, 1)
 			c.Assert(maps[0]["derivative"], IsNil)
+		}
+}
+
+// test large integer values
+func (self *DataTestSuite) LargeIntegerValues(c *C) (Fun, Fun) {
+	// make sure we exceed the pointBatchSize, so we force a yield to
+	// the filtering engine
+	i := int64(math.MaxInt64)
+	return func(client Client) {
+			data := fmt.Sprintf(`
+[
+  {
+    "points": [
+        [%d]
+    ],
+    "name": "test_large_integer_values",
+    "columns": ["value"]
+  }
+]`, i)
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQueryWithNumbers("select * from test_large_integer_values", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			n := maps[0]["value"]
+			actual, err := n.(json.Number).Int64()
+			c.Assert(err, IsNil)
+			c.Assert(actual, Equals, i)
 		}
 }
 

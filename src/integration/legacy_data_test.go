@@ -46,7 +46,7 @@ func convertFromDataStoreSeries(seriesString string, c *C) []*influxdb.Series {
 // expectedSeries must be a json array, e.g. time series must by
 // enclosed in '[' and ']'
 func runQuery(client Client, query string, c *C, expectedSeries string) {
-	result := client.RunQuery(query, c)
+	result := client.RunQueryWithNumbers(query, c)
 	var expected []*protocol.Series
 	err := json.Unmarshal([]byte(expectedSeries), &expected)
 	c.Assert(err, IsNil)

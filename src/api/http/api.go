@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"cluster"
 	. "common"
 	"compress/gzip"
@@ -368,8 +369,10 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
+		decoder := json.NewDecoder(bytes.NewBuffer(series))
+		decoder.UseNumber()
 		serializedSeries := []*SerializedSeries{}
-		err = json.Unmarshal(series, &serializedSeries)
+		err = decoder.Decode(&serializedSeries)
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
