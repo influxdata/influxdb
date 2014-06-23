@@ -81,7 +81,7 @@ func (self *Shard) Write(database string, series []*protocol.Series) error {
 				pointKey := keyBuffer.Bytes()
 
 				if point.Values[fieldIndex].GetIsNull() {
-					wb = append(wb, storage.Write{pointKey, nil})
+					wb = append(wb, storage.Write{Key: pointKey, Value: nil})
 					goto check
 				}
 
@@ -89,7 +89,7 @@ func (self *Shard) Write(database string, series []*protocol.Series) error {
 				if err != nil {
 					return err
 				}
-				wb = append(wb, storage.Write{pointKey, dataBuffer.Bytes()})
+				wb = append(wb, storage.Write{Key: pointKey, Value: dataBuffer.Bytes()})
 			check:
 				count++
 				if count >= self.writeBatchSize {
@@ -385,7 +385,7 @@ func (self *Shard) executeDeleteQuery(querySpec *parser.QuerySpec, processor clu
 	series := query.GetFromClause()
 	database := querySpec.Database()
 	if series.Type != parser.FromClauseArray {
-		return fmt.Errorf("Merge and Inner joins can't be used with a delete query", series.Type)
+		return fmt.Errorf("Merge and Inner joins can't be used with a delete query: %v", series.Type)
 	}
 
 	for _, name := range series.Names {

@@ -206,9 +206,10 @@ func NewBenchmarkHarness(conf *benchmarkConfig) *BenchmarkHarness {
 
 func (self *BenchmarkHarness) Run() {
 	for _, loadDef := range self.Config.LoadDefinitions {
+		def := loadDef
 		self.Add(1)
 		go func() {
-			self.runLoadDefinition(&loadDef)
+			self.runLoadDefinition(&def)
 			self.Done()
 		}()
 	}

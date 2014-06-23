@@ -380,5 +380,8 @@ package: | packages build package_version_string $(files)
 check:
 	./.hooks/pre-commit
 
+vet:
+	git ls-files | grep '.go$$' | while read i; do go vet $$i 2>&1; done | grep -v exit\ status | grep -v pb.go | grep -v Error\ call
+
 format:
 	git ls-files | grep '.go$$' | xargs gofmt -w -s

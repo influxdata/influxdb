@@ -191,6 +191,7 @@ outer:
 		logger.Info("Replaying from %s:%d", logFile.file.Name(), firstOffset)
 		count := 0
 		ch, stopChan := logFile.dupAndReplayFromOffset(shardIds, firstOffset, requestNumber)
+		defer close(stopChan)
 		for {
 			x := <-ch
 			if x == nil {
@@ -210,7 +211,6 @@ outer:
 			}
 			count++
 		}
-		close(stopChan)
 	}
 	return nil
 }

@@ -234,7 +234,7 @@ func (self *SeriesCollection) GetSeries(name string, c *C) *Series {
 			return &Series{s}
 		}
 	}
-	c.Fatalf("Couldn't find series '%s' in:\n", name, self)
+	c.Fatalf("Couldn't find series '%s' in: %v\n", name, self)
 	return nil
 }
 
@@ -250,11 +250,11 @@ func (self *Series) GetValueForPointAndColumn(pointIndex int, columnName string,
 		}
 	}
 	if columnIndex == -1 {
-		c.Errorf("Couldn't find column '%s' in series:\n", columnName, self)
+		c.Errorf("Couldn't find column '%s' in series: %v\n", columnName, self)
 		return nil
 	}
 	if pointIndex > len(self.Points)-1 {
-		c.Errorf("Fewer than %d points in series '%s':\n", pointIndex+1, self.Name, self)
+		c.Errorf("Fewer than %d points in series '%s': %v\n", pointIndex+1, self.Name, self)
 	}
 	return self.Points[pointIndex][columnIndex]
 }

@@ -357,7 +357,7 @@ func (self *ClusterConfiguration) addContinuousQuery(db string, query *Continuou
 
 	selectQuery, err := parser.ParseSelectQuery(query.Query)
 	if err != nil {
-		return fmt.Errorf("Failed to parse continuous query: %s", query)
+		return fmt.Errorf("Failed to parse continuous query: %s", query.Query)
 	}
 
 	if self.ParsedContinuousQueries[db] == nil {
@@ -773,7 +773,7 @@ func (self *ClusterConfiguration) createShards(microsecondsEpoch int64, shardTyp
 			rf = len(self.servers)
 		}
 
-		for rf = rf; rf > 0; rf-- {
+		for ; rf > 0; rf-- {
 			if startIndex >= len(self.servers) {
 				startIndex = 0
 			}

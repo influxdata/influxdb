@@ -155,7 +155,6 @@ func (s *RaftServer) doOrProxyCommandOnce(command raft.Command) (interface{}, er
 			return SendCommandToServer(leader, command)
 		}
 	}
-	return nil, nil
 }
 
 func SendCommandToServer(url string, command raft.Command) (interface{}, error) {
@@ -217,7 +216,7 @@ func (s *RaftServer) SaveClusterAdminUser(u *cluster.ClusterAdmin) error {
 }
 
 func (s *RaftServer) CreateRootUser() error {
-	u := &cluster.ClusterAdmin{cluster.CommonUser{"root", "", false, "root"}}
+	u := &cluster.ClusterAdmin{cluster.CommonUser{Name: "root", Hash: "", IsUserDeleted: false, CacheKey: "root"}}
 	password := os.Getenv(DEFAULT_ROOT_PWD_ENVKEY)
 	if password == "" {
 		password = DEFAULT_ROOT_PWD
@@ -406,8 +405,6 @@ func (s *RaftServer) startRaft() error {
 		log.Warn("Couldn't join any of the seeds, sleeping and retrying...")
 		time.Sleep(100 * time.Millisecond)
 	}
-
-	return nil
 }
 
 func (s *RaftServer) raftEventHandler(e raft.Event) {
@@ -612,7 +609,7 @@ func (s *RaftServer) Join(leader string) error {
 }
 
 func (s *RaftServer) retryCommand(command raft.Command, retries int) (ret interface{}, err error) {
-	for retries = retries; retries > 0; retries-- {
+	for ; retries > 0; retries-- {
 		ret, err = s.raftServer.Do(command)
 		if err == nil {
 			return ret, nil

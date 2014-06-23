@@ -503,7 +503,6 @@ func (self *SingleServerSuite) verifyWrite(series string, value, sequence interf
 	p := ToMap(data[0])
 	c.Assert(p[0]["a"], Equals, value)
 	return p[0]["sequence_number"]
-	return nil
 }
 
 func (self *SingleServerSuite) TestInvalidTimestamp(c *C) {

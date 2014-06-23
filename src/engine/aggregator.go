@@ -423,7 +423,6 @@ func (self *DerivativeAggregator) GetValues(state interface{}) [][]*protocol.Fie
 			{DoubleValue: &derivative},
 		},
 	}
-	return [][]*protocol.FieldValue{}
 }
 
 func NewDerivativeAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
@@ -519,7 +518,6 @@ func (self *DifferenceAggregator) GetValues(state interface{}) [][]*protocol.Fie
 			{DoubleValue: &difference},
 		},
 	}
-	return [][]*protocol.FieldValue{}
 }
 
 func NewDifferenceAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *parser.Value) (Aggregator, error) {

@@ -7,11 +7,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/jmhodges/levigo"
 	"math/rand"
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/jmhodges/levigo"
 )
 
 func main() {
@@ -71,7 +72,7 @@ func main() {
 		it := db.NewIterator(ro)
 		it.Seek([]byte(key))
 		var lastKey []byte
-		for it = it; it.Valid() && count < pointsToDeletePerSeries; it.Next() {
+		for ; it.Valid() && count < pointsToDeletePerSeries; it.Next() {
 			lastKey = it.Key()
 			db.Delete(writeOptions, it.Key())
 			count += 1

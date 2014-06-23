@@ -37,7 +37,7 @@ func (d *Size) UnmarshalText(text []byte) error {
 	case 'g':
 		size *= ONE_GIGABYTE
 	default:
-		return fmt.Errorf("Unknown size suffix %s", suffix)
+		return fmt.Errorf("Unknown size suffix %c", suffix)
 	}
 	if size > MAX_INT {
 		return fmt.Errorf("Size %d cannot be represented by an int", size)
