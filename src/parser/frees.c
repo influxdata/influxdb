@@ -102,6 +102,9 @@ free_select_query (select_query *q)
 
   if (q->into_clause) {
     free_value(q->into_clause->target);
+    if (q->into_clause->backfill_function) {
+        free(q->into_clause->backfill_function);
+    }
     free(q->into_clause);
   }
 

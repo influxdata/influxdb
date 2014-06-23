@@ -324,6 +324,14 @@ INTO_CLAUSE:
         {
           $$ = malloc(sizeof(into_clause));
           $$->target = $2;
+          $$->backfill_function = NULL;
+        }
+        |
+        INTO INTO_VALUE FUNCTION_CALL
+        {
+          $$ = malloc(sizeof(into_clause));
+          $$->target = $2;
+          $$->backfill_function = $3;
         }
         |
         {

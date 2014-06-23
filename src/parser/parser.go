@@ -23,7 +23,9 @@ type From struct {
 type Operation int
 
 type IntoClause struct {
-	Target *Value
+	Target        *Value
+	Backfill      bool
+	BackfillValue *Value
 }
 
 type BasicQuery struct {
@@ -84,7 +86,13 @@ type Query struct {
 }
 
 func (self *IntoClause) GetString() string {
-	return self.Target.GetString()
+	buffer := bytes.NewBufferString("")
+
+	buffer.WriteString(self.Target.GetString())
+	if self.BackfillValue != nil {
+		fmt.Fprintf(buffer, " backfill(%s)", self.BackfillValue.GetString())
+	}
+	return buffer.String()
 }
 
 func (self *Query) GetQueryString() string {
@@ -439,12 +447,39 @@ func GetIntoClause(intoClause *C.into_clause) (*IntoClause, error) {
 		return nil, nil
 	}
 
+	backfill := true
+	var backfillValue *Value = nil
+
 	target, err := GetValue(intoClause.target)
 	if err != nil {
 		return nil, err
 	}
 
-	return &IntoClause{target}, nil
+	if intoClause.backfill_function != nil {
+		fun, err := GetValue(intoClause.backfill_function)
+		if err != nil {
+			return nil, err
+		}
+		if fun.Name != "backfill" {
+			return nil, fmt.Errorf("You can't use %s with into", fun.Name)
+		}
+
+		if len(fun.Elems) != 1 {
+			return nil, fmt.Errorf("`backfill` accepts only one argument")
+		}
+
+		backfillValue = fun.Elems[0]
+		backfill, err = strconv.ParseBool(backfillValue.GetString())
+		if err != nil {
+			return nil, fmt.Errorf("`backfill` accepts only bool arguments")
+		}
+	}
+
+	return &IntoClause{
+		Target:        target,
+		Backfill:      backfill,
+		BackfillValue: backfillValue,
+	}, nil
 }
 
 func GetWhereCondition(condition *C.condition) (*WhereCondition, error) {
