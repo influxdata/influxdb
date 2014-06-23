@@ -121,7 +121,7 @@ CGO_CFLAGS +=  -I$(rocksdb_dir)/include
 CGO_LDFLAGS +=  $(rocksdb_deps)
 endif
 CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include
-CGO_LDFLAGS += $(leveldb_deps) $(snappy_deps) $(hyperleveldb_deps)
+CGO_LDFLAGS += $(leveldb_deps) $(hyperleveldb_deps) $(snappy_deps)
 CGO_LDFLAGS += -lstdc++ -lm -lz -lbz2
 export CGO_CFLAGS
 export CGO_LDFLAGS
@@ -160,17 +160,17 @@ ifeq ($(uname_S),Linux)
 	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE)"
 endif
 
-$(rocksdb_deps):
+$(rocksdb_deps): $(snappy_deps)
 ifeq ($(uname_S),Linux)
 	rm -rf $(rocksdb_dir)
 	mkdir -p $(rocksdb_dir)
 	bash -c "cd $(rocksdb_dir); \
 	wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
 	tar --strip-components=1 -xvzf $(rocksdb_file); \
-	CXXFLAGS='$(cflags)' $(MAKE) librocksdb.a"
+	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE) librocksdb.a"
 endif
 
-$(hyperleveldb_deps):
+$(hyperleveldb_deps): $(snappy_deps)
 ifeq ($(uname_S),Linux)
 	rm -rf $(hyperleveldb_dir)
 	mkdir -p $(hyperleveldb_dir)
@@ -178,7 +178,7 @@ ifeq ($(uname_S),Linux)
 	wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file); \
 	tar --strip-components=1 -xvzf $(hyperleveldb_file); \
   $(AUTORECONF) -i; \
-	CFLAGS='$(cflags)' CXXFLAGS='$(cflags)' ./configure; \
+	CXXFLAGS='-I$(snappy_dir) $(cflags) -DSNAPPY' CFLAGS='$(cflags) -DSNAPPY' LDFLAGS='-L$(snappy_dir)/.libs' ./configure --enable-snappy=no; \
 	$(MAKE)"
 endif
 
