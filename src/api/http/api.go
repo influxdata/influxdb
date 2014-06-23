@@ -3,6 +3,7 @@ package http
 import (
 	"cluster"
 	. "common"
+	"compress/gzip"
 	"coordinator"
 	"crypto/tls"
 	"encoding/base64"
@@ -52,7 +53,7 @@ func NewHttpServer(httpPort string, readTimeout time.Duration, adminAssetsDir st
 }
 
 const (
-	INVALID_CREDENTIALS_MSG = "Invalid database/username/password"
+	INVALID_CREDENTIALS_MSG  = "Invalid database/username/password"
 	JSON_PRETTY_PRINT_INDENT = "    "
 )
 
@@ -88,7 +89,7 @@ func (self *HttpServer) registerEndpoint(p *pat.PatternServeMux, method string, 
 	version := self.clusterConfig.GetLocalConfiguration().Version
 	switch method {
 	case "get":
-		p.Get(pattern, HeaderHandler(f, version))
+		p.Get(pattern, CompressionHeaderHandler(f, version))
 	case "post":
 		p.Post(pattern, HeaderHandler(f, version))
 	case "del":
@@ -351,7 +352,19 @@ func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request
 	}
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(user User) (int, interface{}) {
-		series, err := ioutil.ReadAll(r.Body)
+		reader := r.Body
+		encoding := r.Header.Get("Content-Encoding")
+		switch encoding {
+		case "gzip":
+			reader, err = gzip.NewReader(r.Body)
+			if err != nil {
+				return libhttp.StatusInternalServerError, err.Error()
+			}
+		default:
+			// assume it's plain text
+		}
+
+		series, err := ioutil.ReadAll(reader)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}

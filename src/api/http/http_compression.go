@@ -8,13 +8,19 @@ import (
 	"strings"
 )
 
+type Flusher interface {
+	Flush() error
+}
+
 type CompressedResponseWriter struct {
-	responseWriter libhttp.ResponseWriter
-	writer         io.Writer
+	responseWriter     libhttp.ResponseWriter
+	writer             io.Writer
+	compressionFlusher Flusher
+	responseFlusher    libhttp.Flusher
 }
 
 func NewCompressionResponseWriter(useCompression bool, rw libhttp.ResponseWriter, req *libhttp.Request) *CompressedResponseWriter {
-	var writer io.Writer = rw
+	responseFlusher, _ := rw.(libhttp.Flusher)
 
 	if req.Header.Get("Accept-Encoding") != "" {
 		encodings := strings.Split(req.Header.Get("Accept-Encoding"), ",")
@@ -22,16 +28,17 @@ func NewCompressionResponseWriter(useCompression bool, rw libhttp.ResponseWriter
 		for _, val := range encodings {
 			if val == "gzip" {
 				rw.Header().Set("Content-Encoding", "gzip")
-				writer, _ = gzip.NewWriterLevel(writer, gzip.BestSpeed)
-				break
+				w, _ := gzip.NewWriterLevel(rw, gzip.BestSpeed)
+				return &CompressedResponseWriter{rw, w, w, responseFlusher}
 			} else if val == "deflate" {
 				rw.Header().Set("Content-Encoding", "deflate")
-				writer, _ = zlib.NewWriterLevel(writer, zlib.BestSpeed)
-				break
+				w, _ := zlib.NewWriterLevel(rw, zlib.BestSpeed)
+				return &CompressedResponseWriter{rw, w, w, responseFlusher}
 			}
 		}
 	}
-	return &CompressedResponseWriter{rw, writer}
+
+	return &CompressedResponseWriter{rw, rw, nil, responseFlusher}
 }
 
 func (self *CompressedResponseWriter) Header() libhttp.Header {
@@ -40,6 +47,16 @@ func (self *CompressedResponseWriter) Header() libhttp.Header {
 
 func (self *CompressedResponseWriter) Write(bs []byte) (int, error) {
 	return self.writer.Write(bs)
+}
+
+func (self *CompressedResponseWriter) Flush() {
+	if self.compressionFlusher != nil {
+		self.compressionFlusher.Flush()
+	}
+
+	if self.responseFlusher != nil {
+		self.responseFlusher.Flush()
+	}
 }
 
 func (self *CompressedResponseWriter) WriteHeader(responseCode int) {
