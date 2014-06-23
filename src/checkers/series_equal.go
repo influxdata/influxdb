@@ -2,9 +2,9 @@ package checkers
 
 import (
 	"fmt"
+	. "launchpad.net/gocheck"
 	"protocol"
 	"reflect"
-	. "launchpad.net/gocheck"
 )
 
 type SeriesEqualsChecker struct {
@@ -88,7 +88,7 @@ func CheckSeriesEquality(s1, s2 *protocol.Series) bool {
 
 		firstSimplePoint := SimplePoint{}
 		secondSimplePoint := SimplePoint{}
-		for fieldIndex, _ := range s1.Fields {
+		for fieldIndex := range s1.Fields {
 			firstSimplePoint[fieldIndex], _ = point.Values[fieldIndex].GetValue()
 			secondSimplePoint[fieldIndex], _ = point.Values[fieldIndex].GetValue()
 		}

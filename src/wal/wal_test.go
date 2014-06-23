@@ -38,7 +38,7 @@ func generateSeries(numberOfPoints int) *protocol.Series {
 		points = append(points, &protocol.Point{
 			Timestamp: timestamp,
 			Values: []*protocol.FieldValue{
-				&protocol.FieldValue{Int64Value: proto.Int64(int64(i))},
+				{Int64Value: proto.Int64(int64(i))},
 			},
 		})
 	}

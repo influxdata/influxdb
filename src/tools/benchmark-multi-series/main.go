@@ -47,7 +47,7 @@ func main() {
 				Name:    name,
 				Columns: []string{"value"},
 				Points: [][]interface{}{
-					[]interface{}{rand.Float64()},
+					{rand.Float64()},
 				},
 			})
 		}

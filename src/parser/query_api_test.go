@@ -1,9 +1,9 @@
 package parser
 
 import (
+	. "launchpad.net/gocheck"
 	"math"
 	"time"
-	. "launchpad.net/gocheck"
 )
 
 type QueryApiSuite struct{}

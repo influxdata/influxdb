@@ -487,8 +487,8 @@ func (self *SelectDeleteCommonQuery) GetWhereConditionWithTime(startTime, endTim
 				Name: "<",
 				Type: ValueExpression,
 				Elems: []*Value{
-					&Value{Name: "time", Type: ValueSimpleName},
-					&Value{Name: strconv.FormatInt(endTime.UnixNano(), 10), Type: ValueInt},
+					{Name: "time", Type: ValueSimpleName},
+					{Name: strconv.FormatInt(endTime.UnixNano(), 10), Type: ValueInt},
 				},
 			},
 		},
@@ -498,8 +498,8 @@ func (self *SelectDeleteCommonQuery) GetWhereConditionWithTime(startTime, endTim
 				Name: ">",
 				Type: ValueExpression,
 				Elems: []*Value{
-					&Value{Name: "time", Type: ValueSimpleName},
-					&Value{Name: strconv.FormatInt(startTime.UnixNano(), 10), Type: ValueInt},
+					{Name: "time", Type: ValueSimpleName},
+					{Name: strconv.FormatInt(startTime.UnixNano(), 10), Type: ValueInt},
 				},
 			},
 		},
@@ -561,11 +561,11 @@ func ParseQuery(query string) ([]*Query, error) {
 	}
 
 	if q.list_series_query != 0 {
-		return []*Query{&Query{QueryString: query, ListQuery: &ListQuery{Type: Series}}}, nil
+		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: Series}}}, nil
 	}
 
 	if q.list_continuous_queries_query != 0 {
-		return []*Query{&Query{QueryString: query, ListQuery: &ListQuery{Type: ContinuousQueries}}}, nil
+		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: ContinuousQueries}}}, nil
 	}
 
 	if q.select_query != nil {
@@ -574,21 +574,21 @@ func ParseQuery(query string) ([]*Query, error) {
 			return nil, err
 		}
 
-		return []*Query{&Query{QueryString: query, SelectQuery: selectQuery}}, nil
+		return []*Query{{QueryString: query, SelectQuery: selectQuery}}, nil
 	} else if q.delete_query != nil {
 		deleteQuery, err := parseDeleteQuery(q.delete_query)
 		if err != nil {
 			return nil, err
 		}
-		return []*Query{&Query{QueryString: query, DeleteQuery: deleteQuery}}, nil
+		return []*Query{{QueryString: query, DeleteQuery: deleteQuery}}, nil
 	} else if q.drop_series_query != nil {
 		dropSeriesQuery, err := parseDropSeriesQuery(query, q.drop_series_query)
 		if err != nil {
 			return nil, err
 		}
-		return []*Query{&Query{QueryString: query, DropSeriesQuery: dropSeriesQuery}}, nil
+		return []*Query{{QueryString: query, DropSeriesQuery: dropSeriesQuery}}, nil
 	} else if q.drop_query != nil {
-		return []*Query{&Query{QueryString: query, DropQuery: &DropQuery{Id: int(q.drop_query.id)}}}, nil
+		return []*Query{{QueryString: query, DropQuery: &DropQuery{Id: int(q.drop_query.id)}}}, nil
 	}
 	return nil, fmt.Errorf("Unknown query type encountered")
 }

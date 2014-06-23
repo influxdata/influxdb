@@ -4,11 +4,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	. "launchpad.net/gocheck"
 	"net"
 	"protocol"
 	"testing"
 	"time"
-	. "launchpad.net/gocheck"
 )
 
 type ClientServerSuite struct{}

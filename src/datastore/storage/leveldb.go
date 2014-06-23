@@ -86,7 +86,7 @@ func (db LevelDB) Close() {
 }
 
 func (db LevelDB) Put(key, value []byte) error {
-	return db.BatchPut([]Write{Write{key, value}})
+	return db.BatchPut([]Write{{key, value}})
 }
 
 func (db LevelDB) Get(key []byte) ([]byte, error) {

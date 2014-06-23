@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"protocol"
 	. "launchpad.net/gocheck"
+	"protocol"
 )
 
 type TrieTestSuite struct {
@@ -14,8 +14,8 @@ func (self *TrieTestSuite) TestTrie(c *C) {
 	trie := NewTrie(2, 1)
 
 	firstValue := []*protocol.FieldValue{
-		&protocol.FieldValue{StringValue: protocol.String("some_value")},
-		&protocol.FieldValue{Int64Value: protocol.Int64(1)},
+		{StringValue: protocol.String("some_value")},
+		{Int64Value: protocol.Int64(1)},
 	}
 	firstNode := trie.GetNode(firstValue)
 	c.Assert(firstNode, NotNil)
@@ -23,8 +23,8 @@ func (self *TrieTestSuite) TestTrie(c *C) {
 	c.Assert(trie.CountLeafNodes(), Equals, 1)
 
 	secondValue := []*protocol.FieldValue{
-		&protocol.FieldValue{StringValue: protocol.String("some_value")},
-		&protocol.FieldValue{Int64Value: protocol.Int64(2)},
+		{StringValue: protocol.String("some_value")},
+		{Int64Value: protocol.Int64(2)},
 	}
 	secondNode := trie.GetNode(secondValue)
 	c.Assert(secondNode, NotNil)
@@ -32,8 +32,8 @@ func (self *TrieTestSuite) TestTrie(c *C) {
 	c.Assert(trie.CountLeafNodes(), Equals, 2)
 
 	thirdValue := []*protocol.FieldValue{
-		&protocol.FieldValue{StringValue: protocol.String("another_value")},
-		&protocol.FieldValue{Int64Value: protocol.Int64(1)},
+		{StringValue: protocol.String("another_value")},
+		{Int64Value: protocol.Int64(1)},
 	}
 	thirdNode := trie.GetNode(thirdValue)
 	c.Assert(thirdNode, NotNil)

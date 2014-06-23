@@ -51,7 +51,7 @@ func init() {
 
 // used in testing to get a list of all aggregators
 func GetRegisteredAggregators() (names []string) {
-	for n, _ := range registeredAggregators {
+	for n := range registeredAggregators {
 		names = append(names, n)
 	}
 	return
@@ -119,15 +119,15 @@ func (self *CumulativeArithmeticAggregator) ColumnNames() []string {
 func (self *CumulativeArithmeticAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	if state == nil {
 		return [][]*protocol.FieldValue{
-			[]*protocol.FieldValue{
-				&protocol.FieldValue{DoubleValue: &self.initialValue},
+			{
+				{DoubleValue: &self.initialValue},
 			},
 		}
 	}
 
 	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{
-			&protocol.FieldValue{
+		{
+			{
 				DoubleValue: protocol.Float64(state.(float64)),
 			},
 		},
@@ -322,8 +322,8 @@ func (self *StandardDeviationAggregator) GetValues(state interface{}) [][]*proto
 	standardDeviation := math.Sqrt(eX2 - eX)
 
 	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{
-			&protocol.FieldValue{DoubleValue: &standardDeviation},
+		{
+			{DoubleValue: &standardDeviation},
 		},
 	}
 }
@@ -383,7 +383,7 @@ func (self *DerivativeAggregator) AggregatePoint(state interface{}, p *protocol.
 
 	newValue := &protocol.Point{
 		Timestamp: p.Timestamp,
-		Values:    []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &value}},
+		Values:    []*protocol.FieldValue{{DoubleValue: &value}},
 	}
 
 	s, ok := state.(*DerivativeAggregatorState)
@@ -419,8 +419,8 @@ func (self *DerivativeAggregator) GetValues(state interface{}) [][]*protocol.Fie
 	deltaV := *s.lastValue.Values[0].DoubleValue - *s.firstValue.Values[0].DoubleValue
 	derivative := deltaV / deltaT
 	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{
-			&protocol.FieldValue{DoubleValue: &derivative},
+		{
+			{DoubleValue: &derivative},
 		},
 	}
 	return [][]*protocol.FieldValue{}
@@ -482,7 +482,7 @@ func (self *DifferenceAggregator) AggregatePoint(state interface{}, p *protocol.
 
 	newValue := &protocol.Point{
 		Timestamp: p.Timestamp,
-		Values:    []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &value}},
+		Values:    []*protocol.FieldValue{{DoubleValue: &value}},
 	}
 
 	s, ok := state.(*DifferenceAggregatorState)
@@ -515,8 +515,8 @@ func (self *DifferenceAggregator) GetValues(state interface{}) [][]*protocol.Fie
 
 	difference := *s.lastValue.Values[0].DoubleValue - *s.firstValue.Values[0].DoubleValue
 	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{
-			&protocol.FieldValue{DoubleValue: &difference},
+		{
+			{DoubleValue: &difference},
 		},
 	}
 	return [][]*protocol.FieldValue{}
@@ -593,8 +593,8 @@ func (self *HistogramAggregator) GetValues(state interface{}) [][]*protocol.Fiel
 		_size := int64(size)
 
 		returnValues = append(returnValues, []*protocol.FieldValue{
-			&protocol.FieldValue{DoubleValue: &_bucket},
-			&protocol.FieldValue{Int64Value: &_size},
+			{DoubleValue: &_bucket},
+			{Int64Value: &_size},
 		})
 	}
 
@@ -677,7 +677,7 @@ func (self *CountAggregator) GetValues(state interface{}) [][]*protocol.FieldVal
 	} else {
 		value := state.(int64)
 		returnValues = append(returnValues, []*protocol.FieldValue{
-			&protocol.FieldValue{Int64Value: &value},
+			{Int64Value: &value},
 		})
 	}
 
@@ -769,7 +769,7 @@ func (self *MeanAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
 	} else {
 		returnValues = append(returnValues, []*protocol.FieldValue{
-			&protocol.FieldValue{DoubleValue: &s.mean},
+			{DoubleValue: &s.mean},
 		})
 	}
 
@@ -875,11 +875,11 @@ func (self *PercentileAggregator) GetValues(state interface{}) [][]*protocol.Fie
 	s, ok := state.(*PercentileAggregatorState)
 	if !ok {
 		return [][]*protocol.FieldValue{
-			[]*protocol.FieldValue{self.defaultValue},
+			{self.defaultValue},
 		}
 	}
 	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &s.percentileValue}},
+		{{DoubleValue: &s.percentileValue}},
 	}
 }
 
@@ -1008,15 +1008,15 @@ func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 			switch v := value.(type) {
 			case int:
 				n := int64(v)
-				returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{Int64Value: &n}})
+				returnValues = append(returnValues, []*protocol.FieldValue{{Int64Value: &n}})
 			case string:
-				returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{StringValue: &v}})
+				returnValues = append(returnValues, []*protocol.FieldValue{{StringValue: &v}})
 			case bool:
-				returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{BoolValue: &v}})
+				returnValues = append(returnValues, []*protocol.FieldValue{{BoolValue: &v}})
 			case float64:
-				returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &v}})
+				returnValues = append(returnValues, []*protocol.FieldValue{{DoubleValue: &v}})
 			case nil:
-				returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{IsNull: &TRUE}})
+				returnValues = append(returnValues, []*protocol.FieldValue{{IsNull: &TRUE}})
 			}
 		}
 		// size is really "minimum size"
@@ -1131,17 +1131,17 @@ func (self *DistinctAggregator) GetValues(state interface{}) [][]*protocol.Field
 		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
 	}
 
-	for value, _ := range s.counts {
+	for value := range s.counts {
 		switch v := value.(type) {
 		case int:
 			i := int64(v)
-			returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{Int64Value: &i}})
+			returnValues = append(returnValues, []*protocol.FieldValue{{Int64Value: &i}})
 		case string:
-			returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{StringValue: &v}})
+			returnValues = append(returnValues, []*protocol.FieldValue{{StringValue: &v}})
 		case bool:
-			returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{BoolValue: &v}})
+			returnValues = append(returnValues, []*protocol.FieldValue{{BoolValue: &v}})
 		case float64:
-			returnValues = append(returnValues, []*protocol.FieldValue{&protocol.FieldValue{DoubleValue: &v}})
+			returnValues = append(returnValues, []*protocol.FieldValue{{DoubleValue: &v}})
 		}
 	}
 
@@ -1195,7 +1195,7 @@ func (self *FirstOrLastAggregator) ColumnNames() []string {
 func (self *FirstOrLastAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	s := state.(FirstOrLastAggregatorState)
 	return [][]*protocol.FieldValue{
-		[]*protocol.FieldValue{
+		{
 			s,
 		},
 	}

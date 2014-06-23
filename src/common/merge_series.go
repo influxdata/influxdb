@@ -42,7 +42,7 @@ func MergeSeries(s1, s2 *protocol.Series) *protocol.Series {
 	points := append(pointMaps(s1), pointMaps(s2)...)
 
 	fieldsSlice := make([]string, 0, len(columns))
-	for c, _ := range columns {
+	for c := range columns {
 		fieldsSlice = append(fieldsSlice, c)
 	}
 

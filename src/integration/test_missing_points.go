@@ -84,7 +84,7 @@ func (self *MissingPointsSuite) TestMissingPoints(c *C) {
 			name := fmt.Sprintf("series.%d", s)
 			i := (p*numberOfSeries + s)
 			t := (timeBase + i) * 1000
-			batch = append(batch, &influxdb.Series{name, columns, [][]interface{}{[]interface{}{p, t}}})
+			batch = append(batch, &influxdb.Series{name, columns, [][]interface{}{{p, t}}})
 			if len(batch) >= batchSize {
 				fmt.Printf("Inserting batch of %d points\n", len(batch))
 				batches <- batch

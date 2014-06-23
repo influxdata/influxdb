@@ -119,7 +119,7 @@ func (self *MockCoordinator) CreateDatabase(_ User, db string) error {
 }
 
 func (self *MockCoordinator) ListDatabases(_ User) ([]*cluster.Database, error) {
-	return []*cluster.Database{&cluster.Database{"db1"}, &cluster.Database{"db2"}}, nil
+	return []*cluster.Database{{"db1"}, {"db2"}}, nil
 }
 
 func (self *MockCoordinator) DropDatabase(_ User, db string) error {
@@ -135,8 +135,8 @@ func (self *MockCoordinator) ListContinuousQueries(_ User, db string) ([]*protoc
 		queryString := query.Query
 		points = append(points, &protocol.Point{
 			Values: []*protocol.FieldValue{
-				&protocol.FieldValue{Int64Value: &queryId},
-				&protocol.FieldValue{StringValue: &queryString},
+				{Int64Value: &queryId},
+				{StringValue: &queryString},
 			},
 			Timestamp:      nil,
 			SequenceNumber: nil,
@@ -144,7 +144,7 @@ func (self *MockCoordinator) ListContinuousQueries(_ User, db string) ([]*protoc
 	}
 
 	seriesName := "continuous queries"
-	series := []*protocol.Series{&protocol.Series{
+	series := []*protocol.Series{{
 		Name:   &seriesName,
 		Fields: []string{"id", "query"},
 		Points: points,
@@ -172,15 +172,15 @@ func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
 func (self *ApiSuite) SetUpSuite(c *C) {
 	self.coordinator = &MockCoordinator{
 		continuousQueries: map[string][]*cluster.ContinuousQuery{
-			"db1": []*cluster.ContinuousQuery{
-				&cluster.ContinuousQuery{1, "select * from foo into bar;"},
+			"db1": {
+				{1, "select * from foo into bar;"},
 			},
 		},
 	}
 
 	self.manager = &MockUserManager{
 		clusterAdmins: []string{"root"},
-		dbUsers:       map[string]map[string]MockDbUser{"db1": map[string]MockDbUser{"db_user1": {Name: "db_user1", IsAdmin: false}}},
+		dbUsers:       map[string]map[string]MockDbUser{"db1": {"db_user1": {Name: "db_user1", IsAdmin: false}}},
 	}
 	dir := c.MkDir()
 	self.server = NewHttpServer(
@@ -773,7 +773,7 @@ func (self *ApiSuite) TestClusterAdminsIndex(c *C) {
 	users := []*ApiUser{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*ApiUser{&ApiUser{"root"}})
+	c.Assert(users, DeepEquals, []*ApiUser{{"root"}})
 }
 
 func (self *ApiSuite) TestPrettyClusterAdminsIndex(c *C) {
@@ -787,7 +787,7 @@ func (self *ApiSuite) TestPrettyClusterAdminsIndex(c *C) {
 	users := []*ApiUser{}
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*ApiUser{&ApiUser{"root"}})
+	c.Assert(users, DeepEquals, []*ApiUser{{"root"}})
 }
 
 func (self *ApiSuite) TestDbUsersIndex(c *C) {
@@ -848,7 +848,7 @@ func (self *ApiSuite) TestDatabasesIndex(c *C) {
 		c.Assert(err, IsNil)
 		err = json.Unmarshal(body, &databases)
 		c.Assert(err, IsNil)
-		c.Assert(databases, DeepEquals, []*cluster.Database{&cluster.Database{"db1"}, &cluster.Database{"db2"}})
+		c.Assert(databases, DeepEquals, []*cluster.Database{{"db1"}, {"db2"}})
 	}
 }
 
@@ -867,7 +867,7 @@ func (self *ApiSuite) TestBasicAuthentication(c *C) {
 	c.Assert(err, IsNil)
 	err = json.Unmarshal(body, &databases)
 	c.Assert(err, IsNil)
-	c.Assert(databases, DeepEquals, []*cluster.Database{&cluster.Database{"db1"}, &cluster.Database{"db2"}})
+	c.Assert(databases, DeepEquals, []*cluster.Database{{"db1"}, {"db2"}})
 }
 
 func (self *ApiSuite) TestContinuousQueryOperations(c *C) {
