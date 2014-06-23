@@ -564,7 +564,7 @@ func (self *ApiSuite) TestWriteDataWithNull(c *C) {
 	c.Assert(series.Points, HasLen, 3)
 	c.Assert(*series.Points[2].Values[0].StringValue, Equals, "3")
 	c.Assert(*series.Points[2].Values[1].Int64Value, Equals, int64(3))
-	c.Assert(*series.Points[2].Values[2].Int64Value, Equals, int64(3))
+	c.Assert(*series.Points[2].Values[2].DoubleValue, Equals, 3.0)
 	c.Assert(series.Points[2].Values[3].GetIsNull(), Equals, true)
 }
 
@@ -601,7 +601,7 @@ func (self *ApiSuite) TestWriteData(c *C) {
 	c.Assert(series.Points, HasLen, 3)
 	c.Assert(*series.Points[0].Values[0].StringValue, Equals, "1")
 	c.Assert(*series.Points[0].Values[1].Int64Value, Equals, int64(1))
-	c.Assert(*series.Points[0].Values[2].Int64Value, Equals, int64(1))
+	c.Assert(*series.Points[0].Values[2].DoubleValue, Equals, 1.0)
 	c.Assert(*series.Points[0].Values[3].BoolValue, Equals, true)
 }
 
