@@ -1,6 +1,7 @@
 AC_INIT([Influxdb], [0.3.0], [support@influxdb.com], [influxdb], [http://influxdb.org/])
 AC_SUBST(PROTOC)
 AC_SUBST(GO)
+AC_SUBST(GOFMT)
 AC_SUBST(GOROOT)
 AC_SUBST(AUTORECONF)
 AC_SUBST(with_bison)
@@ -16,6 +17,10 @@ AC_ARG_WITH([goroot],
   [])
 AC_PATH_PROG(GO, go, "notfound")
 if test x"${GO}" == x"notfound"; then
+    AC_MSG_ERROR([Please install GO (or make sure it's on your path) before trying to build Influxdb])
+fi
+AC_PATH_PROG(GOFMT, gofmt, "notfound")
+if test x"${GOFMT}" == x"notfound"; then
     AC_MSG_ERROR([Please install GO (or make sure it's on your path) before trying to build Influxdb])
 fi
 AC_ARG_WITH([flex],

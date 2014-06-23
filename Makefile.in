@@ -7,6 +7,7 @@ export TMPDIR
 
 PROTOC = @PROTOC@
 GO     = @GO@
+GOFMT  = @GOFMT@
 GOROOT = @GOROOT@
 AUTORECONF = @AUTORECONF@
 # or 386, arm
@@ -200,6 +201,7 @@ github.com/BurntSushi/toml \
 github.com/influxdb/influxdb-go \
 code.google.com/p/gogoprotobuf/proto \
 github.com/influxdb/gomdb \
+go get code.google.com/p/go.tools/cmd/vet \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
@@ -381,7 +383,7 @@ check:
 	./.hooks/pre-commit
 
 vet:
-	git ls-files | grep '.go$$' | while read i; do go vet $$i 2>&1; done | grep -v exit\ status | grep -v pb.go | grep -v Error\ call
+	git ls-files | grep '.go$$' | while read i; do $(GO) vet $$i 2>&1; done | grep -v exit\ status | grep -v pb.go | grep -v Error\ call
 
 format:
-	git ls-files | grep '.go$$' | xargs gofmt -w -s
+	git ls-files | grep '.go$$' | xargs $(GOFMT) -w -s
