@@ -81,6 +81,7 @@ typedef struct {
 
 typedef struct {
   value *target;
+  value *backfill_function;
 } into_clause;
 
 typedef struct {

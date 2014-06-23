@@ -1130,6 +1130,79 @@ func (self *ServerSuite) TestContinuousQueryWithMixedGroupByOperations(c *C) {
 	c.Assert(means["/register"], Equals, 4.5)
 }
 
+func (self *ServerSuite) TestContinuousQueryBackfillOperations(c *C) {
+	defer self.serverProcesses[0].RemoveAllContinuousQueries("test_cq", c)
+
+	data := fmt.Sprintf(`[
+  {
+    "name": "cqbackfilltest",
+    "columns": ["time", "reqtime", "url"],
+    "points": [
+        [0, 8.0, "/login"],
+        [0, 3.0, "/list"],
+        [0, 4.0, "/register"],
+        [5, 9.0, "/login"],
+        [5, 4.0, "/list"],
+        [5, 5.0, "/register"]
+    ]
+  }
+  ]`)
+
+	self.serverProcesses[0].Post("/db/test_cq/series?u=paul&p=pass&time_precision=s", data, c)
+	// wait for the data to get written
+	self.serverProcesses[0].WaitForServerToSync()
+	// wait for the query to run
+	time.Sleep(time.Second)
+
+	self.serverProcesses[0].QueryAsRoot("test_cq", "select count(reqtime), url from cqbackfilltest group by time(1s), url into cqbackfill.1s", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
+	// wait for the continuous query to run
+	time.Sleep(time.Second)
+	// wait for the continuous queries to propagate
+	self.serverProcesses[0].WaitForServerToSync()
+
+	// query with backfill on
+	self.serverProcesses[0].QueryAsRoot("test_cq", "select count(reqtime), url from cqbackfilltest group by time(10s), url into cqbackfill_on.10s backfill(true)", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
+	// wait for the continuous query to run
+	time.Sleep(time.Second)
+	// wait for the continuous queries to propagate
+	self.serverProcesses[0].WaitForServerToSync()
+
+	// query with backfill off
+	self.serverProcesses[0].QueryAsRoot("test_cq", "select count(reqtime), url from cqbackfilltest group by time(10s), url into cqbackfill_off.10s backfill(false)", false, c)
+	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 3;", false, c)
+	// wait for the continuous query to run
+	time.Sleep(time.Second)
+	// wait for the continuous queries to propagate
+	self.serverProcesses[0].WaitForServerToSync()
+
+	// check continuous queries
+	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
+	series := collection.GetSeries("continuous queries", c)
+	c.Assert(series.Points, HasLen, 3)
+
+	// check backfill_on query results
+	collection = self.serverProcesses[0].QueryAsRoot("test_cq", "select * from cqbackfill_on.10s", false, c)
+	c.Assert(len(collection.Members), Equals, 1)
+	series = collection.GetSeries("cqbackfill_on.10s", c)
+
+	counts := map[string]float64{}
+	for i := 0; i < 3; i++ {
+		count := series.GetValueForPointAndColumn(i, "count", c)
+		url := series.GetValueForPointAndColumn(i, "url", c)
+		counts[url.(string)] = count.(float64)
+	}
+
+	c.Assert(counts["/login"], Equals, float64(2))
+	c.Assert(counts["/list"], Equals, float64(2))
+	c.Assert(counts["/register"], Equals, float64(2))
+
+	// check backfill_off query results
+	collection = self.serverProcesses[0].QueryAsRoot("test_cq", "select * from cqbackfill_off.10s", false, c)
+	c.Assert(len(collection.Members), Equals, 0)
+}
+
 func (self *ServerSuite) TestChangingRaftPort(c *C) {
 	for _, server := range self.serverProcesses {
 		server.Stop()
