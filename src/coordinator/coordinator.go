@@ -763,13 +763,13 @@ func (self *CoordinatorImpl) ListContinuousQueries(user common.User, db string) 
 		queryString := query.Query
 		points = append(points, &protocol.Point{
 			Values: []*protocol.FieldValue{
-				&protocol.FieldValue{Int64Value: &queryId},
-				&protocol.FieldValue{StringValue: &queryString},
+				{Int64Value: &queryId},
+				{StringValue: &queryString},
 			},
 		})
 	}
 	seriesName := "continuous queries"
-	series := []*protocol.Series{&protocol.Series{
+	series := []*protocol.Series{{
 		Name:   &seriesName,
 		Fields: []string{"id", "query"},
 		Points: points,
@@ -926,8 +926,8 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, p
 	if self.clusterConfiguration.GetDbUser(db, username) != nil {
 		return fmt.Errorf("User %s already exists", username)
 	}
-	readMatcher := []*cluster.Matcher{&cluster.Matcher{true, ".*"}}
-	writeMatcher := []*cluster.Matcher{&cluster.Matcher{true, ".*"}}
+	readMatcher := []*cluster.Matcher{{true, ".*"}}
+	writeMatcher := []*cluster.Matcher{{true, ".*"}}
 	switch len(permissions) {
 	case 0:
 	case 2:

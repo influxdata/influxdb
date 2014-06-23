@@ -42,7 +42,7 @@ func getJoinYield(query *parser.SelectQuery, yield func(*protocol.Series) error)
 			Name:   &name,
 			Fields: append(lastFields1, lastFields2...),
 			Points: []*protocol.Point{
-				&protocol.Point{
+				{
 					Values:    append(lastPoint1.Values, lastPoint2.Values...),
 					Timestamp: lastPoint2.Timestamp,
 				},

@@ -126,7 +126,7 @@ func (self *WriteBuffer) replayAndRecover(missedRequest uint32) {
 	log.Debug("%s: REPLAY: Emptied out channel", self.writerInfo)
 
 	shardIds := make([]uint32, 0)
-	for shardId, _ := range self.shardIds {
+	for shardId := range self.shardIds {
 		shardIds = append(shardIds, shardId)
 	}
 

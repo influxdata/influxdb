@@ -2,8 +2,8 @@ package cluster
 
 import (
 	"common"
-	"testing"
 	. "launchpad.net/gocheck"
+	"testing"
 )
 
 type UserSuite struct{}

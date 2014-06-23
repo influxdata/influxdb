@@ -52,7 +52,7 @@ func NewHttpServer(httpPort string, readTimeout time.Duration, adminAssetsDir st
 }
 
 const (
-	INVALID_CREDENTIALS_MSG = "Invalid database/username/password"
+	INVALID_CREDENTIALS_MSG  = "Invalid database/username/password"
 	JSON_PRETTY_PRINT_INDENT = "    "
 )
 

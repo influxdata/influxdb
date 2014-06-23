@@ -95,7 +95,7 @@ func (db RocksDB) Close() {
 }
 
 func (db RocksDB) Put(key, value []byte) error {
-	return db.BatchPut([]Write{Write{key, value}})
+	return db.BatchPut([]Write{{key, value}})
 }
 
 func (db RocksDB) Get(key []byte) ([]byte, error) {

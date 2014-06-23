@@ -672,7 +672,7 @@ func (self *QueryParserSuite) TestParseFromWithNestedFunctions2(c *C) {
 		Name:  "time",
 		Alias: "",
 		Type:  ValueFunctionCall,
-		Elems: []*Value{&Value{"15m", "", ValueDuration, nil, nil, false}},
+		Elems: []*Value{{"15m", "", ValueDuration, nil, nil, false}},
 	})
 }
 

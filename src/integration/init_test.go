@@ -1,8 +1,8 @@
 package integration
 
 import (
-	"testing"
 	. "launchpad.net/gocheck"
+	"testing"
 )
 
 // Hook up gocheck into the gotest runner.

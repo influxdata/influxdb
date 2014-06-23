@@ -19,7 +19,7 @@ func uniq(slice []string) []string {
 		uniqueMap[name] = true
 	}
 	slice = []string{}
-	for name, _ := range uniqueMap {
+	for name := range uniqueMap {
 		slice = append(slice, name)
 	}
 	sort.Strings(slice)
@@ -95,7 +95,7 @@ func (self *SelectQuery) revertAlias(mapping map[string][]string) {
 
 	for table, tableColumns := range columns {
 		mapping[table] = []string{}
-		for column, _ := range tableColumns {
+		for column := range tableColumns {
 			mapping[table] = append(mapping[table], column)
 		}
 	}

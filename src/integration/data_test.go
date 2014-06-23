@@ -67,7 +67,7 @@ func (self *DataTestSuite) TestAll(c *C) {
 
 	c.Logf("Running %d data tests", len(names))
 
-	for idx, _ := range setup {
+	for idx := range setup {
 		c.Logf("Initializing database for %s", names[idx])
 		client.CreateDatabase(fmt.Sprintf("db%d", idx), c)
 	}
@@ -626,12 +626,12 @@ func (self *DataTestSuite) DifferentColumnsAcrossShards2(c *C) (Fun, Fun) {
 func (self *DataTestSuite) NullValuesInComparison(c *C) (Fun, Fun) {
 	return func(client Client) {
 			series := []*influxdb.Series{
-				&influxdb.Series{
+				{
 					Name:    "foo",
 					Columns: []string{"foo", "bar"},
 					Points: [][]interface{}{
-						[]interface{}{1, 2},
-						[]interface{}{2, nil},
+						{1, 2},
+						{2, nil},
 					},
 				},
 			}
@@ -962,7 +962,7 @@ func (self *DataTestSuite) AscendingQueries(c *C) (Fun, Fun) {
 				Name:    "test_ascending",
 				Columns: []string{"host", "time"},
 				Points: [][]interface{}{
-					[]interface{}{"hosta", now.Add(-4 * time.Second).Unix()},
+					{"hosta", now.Add(-4 * time.Second).Unix()},
 				},
 			}
 			client.WriteData([]*influxdb.Series{series}, c, "s")
@@ -970,8 +970,8 @@ func (self *DataTestSuite) AscendingQueries(c *C) (Fun, Fun) {
 				Name:    "test_ascending",
 				Columns: []string{"host", "time", "cpu"},
 				Points: [][]interface{}{
-					[]interface{}{"hosta", now.Add(-time.Second).Unix(), 60},
-					[]interface{}{"hostb", now.Add(-time.Second).Unix(), 70},
+					{"hosta", now.Add(-time.Second).Unix(), 60},
+					{"hostb", now.Add(-time.Second).Unix(), 70},
 				},
 			}
 			client.WriteData([]*influxdb.Series{series}, c, "s")
@@ -1009,10 +1009,10 @@ func (self *DataTestSuite) FilterWithLimit(c *C) (Fun, Fun) {
 				Name:    "test_ascending",
 				Columns: []string{"host", "time", "cpu"},
 				Points: [][]interface{}{
-					[]interface{}{"hosta", now.Add(-time.Second).Unix(), 60},
-					[]interface{}{"hostb", now.Add(-time.Second).Unix(), 70},
-					[]interface{}{"hosta", now.Add(-2 * time.Second).Unix(), 70},
-					[]interface{}{"hostb", now.Add(-2 * time.Second).Unix(), 80},
+					{"hosta", now.Add(-time.Second).Unix(), 60},
+					{"hostb", now.Add(-time.Second).Unix(), 70},
+					{"hosta", now.Add(-2 * time.Second).Unix(), 70},
+					{"hostb", now.Add(-2 * time.Second).Unix(), 80},
 				},
 			}
 			client.WriteData([]*influxdb.Series{series}, c)
@@ -1032,8 +1032,8 @@ func (self *DataTestSuite) FilterWithInClause(c *C) (Fun, Fun) {
 				Name:    "test_in_clause",
 				Columns: []string{"host", "cpu"},
 				Points: [][]interface{}{
-					[]interface{}{"hosta", 60},
-					[]interface{}{"hostb", 70},
+					{"hosta", 60},
+					{"hostb", 70},
 				},
 			}
 			client.WriteData([]*influxdb.Series{series}, c)
@@ -1468,8 +1468,8 @@ func (self *DataTestSuite) ReadingWhenColumnHasDot(c *C) (Fun, Fun) {
 ]`, c)
 		}, func(client Client) {
 			for name, expected := range map[string]map[string]bool{
-				"first.name": map[string]bool{"paul": true, "john": true},
-				"last.name":  map[string]bool{"dix": true, "shahid": true},
+				"first.name": {"paul": true, "john": true},
+				"last.name":  {"dix": true, "shahid": true},
 			} {
 				q := fmt.Sprintf("select %s from test_column_names_with_dots", name)
 
@@ -1600,10 +1600,10 @@ func (self *DataTestSuite) SeriesListing(c *C) (Fun, Fun) {
 
 func (self *DataTestSuite) ArithmeticOperations(c *C) (Fun, Fun) {
 	queries := map[string][9]float64{
-		"select input + output from test_arithmetic_3.0;":       [9]float64{1, 2, 3, 4, 5, 9, 6, 7, 13},
-		"select input - output from test_arithmetic_-1.0;":      [9]float64{1, 2, -1, 4, 5, -1, 6, 7, -1},
-		"select input * output from test_arithmetic_2.0;":       [9]float64{1, 2, 2, 4, 5, 20, 6, 7, 42},
-		"select 1.0 * input / output from test_arithmetic_0.5;": [9]float64{1, 2, 0.5, 4, 5, 0.8, 6, 8, 0.75},
+		"select input + output from test_arithmetic_3.0;":       {1, 2, 3, 4, 5, 9, 6, 7, 13},
+		"select input - output from test_arithmetic_-1.0;":      {1, 2, -1, 4, 5, -1, 6, 7, -1},
+		"select input * output from test_arithmetic_2.0;":       {1, 2, 2, 4, 5, 20, 6, 7, 42},
+		"select 1.0 * input / output from test_arithmetic_0.5;": {1, 2, 0.5, 4, 5, 0.8, 6, 8, 0.75},
 	}
 
 	return func(client Client) {
@@ -1871,7 +1871,7 @@ func (self *DataTestSuite) ColumnNamesReturnInDistributedQuery(c *C) (Fun, Fun) 
 			c.Assert(collection, HasLen, 1)
 			maps := ToMap(collection[0])
 			set := map[float64]bool{}
-			for idx, _ := range maps {
+			for idx := range maps {
 				set[maps[idx]["col1"].(float64)] = true
 			}
 			c.Assert(set, DeepEquals, map[float64]bool{1: true, 2: true})
@@ -2085,7 +2085,7 @@ func (self *DataTestSuite) TopWithGroupBy(c *C) (Fun, Fun) {
 			for _, point := range data[0].Points {
 				tops = append(tops, tmp{point[1].(float64), point[2].(string)})
 			}
-			c.Assert(tops, DeepEquals, []tmp{tmp{80, "hosta"}, tmp{70, "hosta"}, tmp{90, "hostb"}, tmp{80, "hostb"}})
+			c.Assert(tops, DeepEquals, []tmp{{80, "hosta"}, {70, "hosta"}, {90, "hostb"}, {80, "hostb"}})
 		}
 }
 
@@ -2116,7 +2116,7 @@ func (self *DataTestSuite) TopWithMultipleGroupBy(c *C) (Fun, Fun) {
 			for _, point := range data[0].Points {
 				tops = append(tops, tmp{point[1].(float64), point[2].(string)})
 			}
-			c.Assert(tops, DeepEquals, []tmp{tmp{80, "hosta"}, tmp{70, "hosta"}, tmp{90, "hostb"}, tmp{80, "hostb"}})
+			c.Assert(tops, DeepEquals, []tmp{{80, "hosta"}, {70, "hosta"}, {90, "hostb"}, {80, "hostb"}})
 		}
 }
 
@@ -2228,7 +2228,7 @@ func (self *DataTestSuite) BottomWithGroupBy(c *C) (Fun, Fun) {
 			for _, point := range data[0].Points {
 				tops = append(tops, tmp{point[1].(float64), point[2].(string)})
 			}
-			c.Assert(tops, DeepEquals, []tmp{tmp{60, "hosta"}, tmp{70, "hosta"}, tmp{70, "hostb"}, tmp{80, "hostb"}})
+			c.Assert(tops, DeepEquals, []tmp{{60, "hosta"}, {70, "hosta"}, {70, "hostb"}, {80, "hostb"}})
 		}
 }
 
@@ -2287,7 +2287,7 @@ func (self *DataTestSuite) BottomWithMultipleGroupBy(c *C) (Fun, Fun) {
 			for _, point := range data[0].Points {
 				tops = append(tops, tmp{point[1].(float64), point[2].(string)})
 			}
-			c.Assert(tops, DeepEquals, []tmp{tmp{60, "hosta"}, tmp{70, "hosta"}, tmp{70, "hostb"}, tmp{80, "hostb"}})
+			c.Assert(tops, DeepEquals, []tmp{{60, "hosta"}, {70, "hosta"}, {70, "hostb"}, {80, "hostb"}})
 		}
 }
 

@@ -200,7 +200,7 @@ func (self *Server) reportStats() {
 			Name:    "reports",
 			Columns: []string{"os", "arch", "id", "version"},
 			Points: [][]interface{}{
-				[]interface{}{runtime.GOOS, runtime.GOARCH, self.RaftServer.GetRaftName(), self.Config.InfluxDBVersion},
+				{runtime.GOOS, runtime.GOARCH, self.RaftServer.GetRaftName(), self.Config.InfluxDBVersion},
 			},
 		}
 

@@ -88,7 +88,7 @@ func (db HyperlevelDB) Close() {
 }
 
 func (db HyperlevelDB) Put(key, value []byte) error {
-	return db.BatchPut([]Write{Write{key, value}})
+	return db.BatchPut([]Write{{key, value}})
 }
 
 func (db HyperlevelDB) Get(key []byte) ([]byte, error) {

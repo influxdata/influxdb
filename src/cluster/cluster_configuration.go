@@ -285,7 +285,7 @@ func (self *ClusterConfiguration) GetDatabases() []*Database {
 	defer self.createDatabaseLock.RUnlock()
 
 	dbs := make([]*Database, 0, len(self.DatabaseReplicationFactors))
-	for name, _ := range self.DatabaseReplicationFactors {
+	for name := range self.DatabaseReplicationFactors {
 		dbs = append(dbs, &Database{Name: name})
 	}
 	return dbs
@@ -412,7 +412,7 @@ func (self *ClusterConfiguration) GetDbUsers(db string) []common.User {
 
 	dbUsers := self.dbUsers[db]
 	users := make([]common.User, 0, len(dbUsers))
-	for name, _ := range dbUsers {
+	for name := range dbUsers {
 		dbUser := dbUsers[name]
 		users = append(users, dbUser)
 	}
@@ -482,7 +482,7 @@ func (self *ClusterConfiguration) GetClusterAdmins() (names []string) {
 	defer self.usersLock.RUnlock()
 
 	clusterAdmins := self.clusterAdmins
-	for name, _ := range clusterAdmins {
+	for name := range clusterAdmins {
 		names = append(names, name)
 	}
 	return
@@ -530,7 +530,7 @@ func (self *ClusterConfiguration) Save() ([]byte, error) {
 		LastShardIdUsed:   self.lastShardIdUsed,
 	}
 
-	for k, _ := range self.DatabaseReplicationFactors {
+	for k := range self.DatabaseReplicationFactors {
 		data.Databases[k] = 0
 	}
 
@@ -584,7 +584,7 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	}
 
 	self.DatabaseReplicationFactors = make(map[string]struct{}, len(data.Databases))
-	for k, _ := range data.Databases {
+	for k := range data.Databases {
 		self.DatabaseReplicationFactors[k] = struct{}{}
 	}
 	self.clusterAdmins = data.Admins
@@ -684,7 +684,7 @@ func (self *ClusterConfiguration) SetLastContinuousQueryRunTime(t time.Time) {
 func (self *ClusterConfiguration) GetMapForJsonSerialization() map[string]interface{} {
 	jsonObject := make(map[string]interface{})
 	dbs := make([]string, 0)
-	for db, _ := range self.DatabaseReplicationFactors {
+	for db := range self.DatabaseReplicationFactors {
 		dbs = append(dbs, db)
 	}
 	jsonObject["databases"] = dbs

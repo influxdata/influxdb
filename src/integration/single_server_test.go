@@ -93,7 +93,7 @@ func (self *SingleServerSuite) TestInvalidPercentile(c *C) {
 		Name:    "test_invalid_percentile",
 		Columns: []string{"foo", "bar"},
 		Points: [][]interface{}{
-			[]interface{}{1.0, 2.0},
+			{1.0, 2.0},
 		},
 	}
 	c.Assert(client.WriteSeries([]*influxdb.Series{series}), IsNil)
@@ -108,7 +108,7 @@ func (self *SingleServerSuite) TestInvalidSeriesName(c *C) {
 		Name:    "",
 		Columns: []string{"foo", "bar"},
 		Points: [][]interface{}{
-			[]interface{}{1.0, 2.0},
+			{1.0, 2.0},
 		},
 	}
 	c.Assert(client.WriteSeries([]*influxdb.Series{series}), ErrorMatches, ".*\\(400\\).*empty.*")
@@ -121,7 +121,7 @@ func (self *SingleServerSuite) TestInvalidDataWrite(c *C) {
 		Name:    "test_invalid_data",
 		Columns: []string{"foo", "bar"},
 		Points: [][]interface{}{
-			[]interface{}{1.0},
+			{1.0},
 		},
 	}
 	c.Assert(client.WriteSeries([]*influxdb.Series{series}), ErrorMatches, ".*\\(400\\).*invalid.*")

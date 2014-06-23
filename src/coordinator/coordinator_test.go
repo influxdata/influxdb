@@ -4,9 +4,9 @@ import (
 	"cluster"
 	"configuration"
 	"fmt"
+	. "launchpad.net/gocheck"
 	"parser"
 	"time"
-	. "launchpad.net/gocheck"
 )
 
 type CoordinatorSuite struct{}

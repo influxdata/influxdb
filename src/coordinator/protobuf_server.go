@@ -34,7 +34,7 @@ func (self *ProtobufServer) Close() {
 	self.listener.Close()
 	self.connectionMapLock.Lock()
 	defer self.connectionMapLock.Unlock()
-	for conn, _ := range self.connectionMap {
+	for conn := range self.connectionMap {
 		conn.Close()
 	}
 

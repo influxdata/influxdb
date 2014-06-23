@@ -91,7 +91,7 @@ func NewMDB(path string, config interface{}) (Engine, error) {
 }
 
 func (db MDB) Put(key, value []byte) error {
-	return db.BatchPut([]Write{Write{key, value}})
+	return db.BatchPut([]Write{{key, value}})
 }
 
 func (db MDB) BatchPut(writes []Write) error {

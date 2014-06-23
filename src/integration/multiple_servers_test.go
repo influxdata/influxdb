@@ -744,7 +744,7 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperationsWithNullColumns(c *
 			values = append(values, 2)
 		}
 		series := []*influxdb.Series{
-			&influxdb.Series{
+			{
 				Name:    "test_null_columns",
 				Columns: columns,
 				Points: [][]interface{}{
@@ -1163,7 +1163,7 @@ func (self *ServerSuite) TestChangingRaftPort(c *C) {
 		Name:    "test",
 		Columns: []string{"value"},
 		Points: [][]interface{}{
-			[]interface{}{1.0},
+			{1.0},
 		},
 	}
 	client = server1.GetClient("change_raft_port", c)
