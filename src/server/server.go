@@ -144,9 +144,11 @@ func (self *Server) ListenAndServe() error {
 		port := udpInput.Port
 		database := udpInput.Database
 
-		if port <= 0 || database == "" {
-			log.Warn("Cannot start udp server. please check your configuration")
+		if port <= 0 {
+			log.Warn("Cannot start udp server on port %d. please check your configuration", port)
 			continue
+		} else if database == "" {
+			log.Warn("Cannot start udp server for database=\"\".  please check your configuration")
 		}
 
 		log.Info("Starting UDP Listener on port %d to database %s", port, database)
