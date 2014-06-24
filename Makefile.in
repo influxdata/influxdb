@@ -168,7 +168,7 @@ ifeq ($(uname_S),Linux)
 	bash -c "cd $(rocksdb_dir); \
 	wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
 	tar --strip-components=1 -xvzf $(rocksdb_file); \
-	CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE) librocksdb.a"
+	CXXFLAGS='$(cflags)' CFLAGS='$(cflags)' $(MAKE) librocksdb.a librocksdb.so"
 endif
 
 $(hyperleveldb_deps): $(snappy_deps)
@@ -179,8 +179,8 @@ ifeq ($(uname_S),Linux)
 	wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file); \
 	tar --strip-components=1 -xvzf $(hyperleveldb_file); \
   $(AUTORECONF) -i; \
-	CXXFLAGS='-I$(snappy_dir) $(cflags) -DSNAPPY' CFLAGS='$(cflags) -DSNAPPY' LDFLAGS='-L$(snappy_dir)/.libs' ./configure --enable-snappy=no; \
-	$(MAKE)"
+	CXXFLAGS='$(cflags)' CFLAGS='$(cflags)' ./configure; \
+	$(MAKE) V=1"
 endif
 
 levigo_dependency = github.com/jmhodges/levigo
@@ -201,12 +201,12 @@ github.com/BurntSushi/toml \
 github.com/influxdb/influxdb-go \
 code.google.com/p/gogoprotobuf/proto \
 github.com/influxdb/gomdb \
-go get code.google.com/p/go.tools/cmd/vet \
+code.google.com/p/go.tools/cmd/vet \
 $(proto_dependency)
 
 dependencies_paths := $(addprefix src/,$(dependencies))
 
-src/$(levigo_dependency): $(leveldb_deps) $(snappy_deps)
+src/$(levigo_dependency): $(leveldb_deps)
 	$(GO) get -d $(levigo_dependency)
 	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'; popd"
 
