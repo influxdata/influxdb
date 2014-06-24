@@ -168,7 +168,7 @@ ifeq ($(uname_S),Linux)
 	bash -c "cd $(rocksdb_dir); \
 	wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
 	tar --strip-components=1 -xvzf $(rocksdb_file); \
-	CXXFLAGS='$(cflags)' CFLAGS='$(cflags)' $(MAKE) librocksdb.a librocksdb.so"
+	CXXFLAGS='$(cflags)' CFLAGS='$(cflags)' $(MAKE) librocksdb.a"
 endif
 
 $(hyperleveldb_deps): $(snappy_deps)
