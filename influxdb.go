@@ -360,6 +360,14 @@ func (self *Client) writeSeriesCommon(series []*Series, options map[string]strin
 }
 
 func (self *Client) Query(query string, precision ...TimePrecision) ([]*Series, error) {
+	return self.queryCommon(query, false, precision...)
+}
+
+func (self *Client) QueryWithNumbers(query string, precision ...TimePrecision) ([]*Series, error) {
+	return self.queryCommon(query, true, precision...)
+}
+
+func (self *Client) queryCommon(query string, useNumber bool, precision ...TimePrecision) ([]*Series, error) {
 	escapedQuery := url.QueryEscape(query)
 	url := self.getUrl("/db/" + self.database + "/series")
 	if len(precision) > 0 {
@@ -384,7 +392,11 @@ func (self *Client) Query(query string, precision ...TimePrecision) ([]*Series, 
 		return nil, err
 	}
 	series := []*Series{}
-	err = json.Unmarshal(data, &series)
+	decoder := json.NewDecoder(bytes.NewBuffer(data))
+	if useNumber {
+		decoder.UseNumber()
+	}
+	err = decoder.Decode(&series)
 	if err != nil {
 		return nil, err
 	}
