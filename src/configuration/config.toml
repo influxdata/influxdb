@@ -2,7 +2,7 @@
 
 # If hostname (on the OS) doesn't return a name that can be resolved by the other
 # systems in the cluster, you'll have to set the hostname to an IP or something
-# that can be resovled here.
+# that can be resolved here.
 # hostname = ""
 
 [logging]
@@ -20,7 +20,7 @@ assets = "./admin"
 ssl-port = 8087    # Ssl support is enabled if you set a port and cert
 ssl-cert = "../cert.pem"
 
-# connections will timeout after this amount of time. Ensures that clients that misbehave 
+# connections will timeout after this amount of time. Ensures that clients that misbehave
 # and keep alive connections they don't use won't end up connection a million times.
 # However, if a request is taking longer than this to complete, could be a problem.
 read-timeout = "5s"
@@ -90,8 +90,8 @@ write-buffer-size = 10000
 max-response-buffer-size = 5
 
 # When queries get distributed out to shards, they go in parallel. This means that results can get buffered
-# in memory since results will come in any order, but have to be processed in the correct time order. 
-# Setting this higher will give better performance, but you'll need more memory. Setting this to 1 will ensure 
+# in memory since results will come in any order, but have to be processed in the correct time order.
+# Setting this higher will give better performance, but you'll need more memory. Setting this to 1 will ensure
 # that you don't need to buffer in memory, but you won't get the best performance.
 concurrent-shard-query-limit = 10
 
