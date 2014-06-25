@@ -241,13 +241,13 @@ build: | dependencies protobuf parser build_version_string
 	$(GO) build benchmark
 
 clean:
-	rm -f daemon
-	rm -f benchmark
-	rm -rf pkg/
-	rm -rf packages/
-	rm -rf src/$(levigo_dependency)
+	git status --ignored | grep src\/ | xargs rm -rf
 	rm -rf ${TMPDIR}/influxdb
 	rm -rf ${TMPDIR}/admin.influxdb
+	rm -rf $(snappy_dir)
+	rm -rf $(leveldb_dir)
+	rm -rf $(hyperleveldb_dir)
+	rm -rf $(rocksdb_dir)
 	$(MAKE) -C src/parser clean
 
 only =
