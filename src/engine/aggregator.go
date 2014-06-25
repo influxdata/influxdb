@@ -47,6 +47,9 @@ func init() {
 	registeredAggregators["last"] = NewLastAggregator
 	registeredAggregators["top"] = NewTopAggregator
 	registeredAggregators["bottom"] = NewBottomAggregator
+	registeredAggregators["log10"] = NewLog10Aggregator
+	registeredAggregators["pow"] = NewPowAggregator
+	registeredAggregators["tolower"] = NewToLowerAggregator
 }
 
 // used in testing to get a list of all aggregators
@@ -98,7 +101,7 @@ type CumulativeArithmeticAggregator struct {
 	defaultValue *protocol.FieldValue
 }
 
-var count int = 0
+//var count int = 0
 
 func (self *CumulativeArithmeticAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
 	if state == nil {
@@ -1420,4 +1423,133 @@ func NewTopAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *
 
 func NewBottomAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	return NewTopOrBottomAggregator("bottom", value, false, defaultValue)
+}
+
+//
+// Function aggregator - applies a function to each point
+//
+
+// Function takes one parameter, performs an operation on it, and returns a new value.
+// Aggregators that use FuncAggregator should define a function that fits this
+// signature.
+type Function func(value *protocol.FieldValue) (interface{}, error)
+
+type FuncAggregatorState struct {
+	values []interface{}
+}
+
+type FuncAggregator struct {
+	AbstractAggregator
+	name         string
+	function     Function
+	initialValue interface{}
+	defaultValue *protocol.FieldValue
+}
+
+func (self *FuncAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	s, ok := state.(*FuncAggregatorState)
+	if !ok {
+		s = &FuncAggregatorState{}
+	}
+
+	value, err := GetValue(self.value, self.columns, p)
+	if err != nil {
+		return nil, err
+	}
+	newVal, err := self.function(value)
+	if err != nil {
+		return nil, err
+	}
+
+	s.values = append(s.values, newVal)
+	return s, nil
+}
+
+func (self *FuncAggregator) ColumnNames() []string {
+	return []string{self.name}
+}
+
+func (self *FuncAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	s, ok := state.(*FuncAggregatorState)
+	if !ok {
+		return nil
+	}
+
+	var values [][]*protocol.FieldValue
+
+	for _, v := range s.values {
+		value := &protocol.FieldValue{}
+		value.SetValue(v)
+		values = append(values, []*protocol.FieldValue{value})
+	}
+
+	return values
+}
+
+func NewFuncAggregator(name string, value *parser.Value, initialValue interface{}, defaultValue *parser.Value, function Function) (Aggregator, error) {
+	// TODO: figure out a way to check number of params?
+	//if len(value.Elems) != 1 {
+	//	return nil, common.NewQueryError(common.WrongNumberOfArguments, "function %s() requires only one argument", name)
+	//}
+
+	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
+	if err != nil {
+		return nil, err
+	}
+
+	if value.Alias != "" {
+		name = value.Alias
+	}
+
+	return &FuncAggregator{
+		AbstractAggregator: AbstractAggregator{
+			value: value.Elems[0],
+		},
+		name:         name,
+		function:     function,
+		initialValue: initialValue,
+		defaultValue: wrappedDefaultValue,
+	}, nil
+}
+
+func NewLog10Aggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	return NewFuncAggregator("log10", value, 0, defaultValue, func(p *protocol.FieldValue) (interface{}, error) {
+		var fv float64
+		if p.Int64Value != nil {
+			fv = float64(*p.Int64Value)
+		} else if p.DoubleValue != nil {
+			fv = *p.DoubleValue
+		} else {
+			return nil, common.NewQueryError(common.InvalidArgument, "log10 accepts only integer and float types")
+		}
+		fv = math.Log10(fv)
+
+		return fv, nil
+	})
+}
+
+func NewPowAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	return NewFuncAggregator("pow", value, 0, defaultValue, func(p *protocol.FieldValue) (interface{}, error) {
+		power, err := value.Elems[1].GetFloat64()
+		if err != nil {
+			return nil, err
+		}
+		var fv float64
+		if p.Int64Value != nil {
+			fv = float64(*p.Int64Value)
+		} else if p.DoubleValue != nil {
+			fv = *p.DoubleValue
+		} else {
+			return nil, common.NewQueryError(common.InvalidArgument, "pow accepts only integer and float types")
+		}
+		fv = math.Pow(fv, power)
+
+		return fv, nil
+	})
+}
+
+func NewToLowerAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	return NewFuncAggregator("tolower", value, 0, defaultValue, func(p *protocol.FieldValue) (interface{}, error) {
+		return strings.ToLower(p.GetValueAsString()), nil
+	})
 }
