@@ -7,8 +7,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
+)
+
+const (
+	UDPMaxMessageSize = 2048
 )
 
 type Client struct {
@@ -17,6 +22,7 @@ type Client struct {
 	password    string
 	database    string
 	httpClient  *http.Client
+	udpConn     *net.UDPConn
 	schema      string
 	compression bool
 }
@@ -28,6 +34,7 @@ type ClientConfig struct {
 	Database   string
 	HttpClient *http.Client
 	IsSecure   bool
+	IsUDP      bool
 }
 
 var defaults *ClientConfig
@@ -57,12 +64,23 @@ func NewClient(config *ClientConfig) (*Client, error) {
 	if config.HttpClient == nil {
 		config.HttpClient = defaults.HttpClient
 	}
+	var udpConn *net.UDPConn
+	if config.IsUDP {
+		serverAddr, err := net.ResolveUDPAddr("udp", host)
+		if err != nil {
+			return nil, err
+		}
+		udpConn, err = net.DialUDP("udp", nil, serverAddr)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	schema := "http"
 	if config.IsSecure {
 		schema = "https"
 	}
-	return &Client{host, username, password, database, config.HttpClient, schema, true}, nil
+	return &Client{host, username, password, database, config.HttpClient, udpConn, schema, true}, nil
 }
 
 func (self *Client) DisableCompression() {
@@ -321,6 +339,29 @@ const (
 
 func (self *Client) WriteSeries(series []*Series) error {
 	return self.writeSeriesCommon(series, nil)
+}
+
+func (self *Client) WriteSeriesOverUDP(series []*Series) error {
+	if self.udpConn == nil {
+		return fmt.Errorf("UDP isn't enabled. Make sure to set config.IsUDP to true")
+	}
+
+	data, err := json.Marshal(series)
+	if err != nil {
+		return err
+	}
+	// because max of msg over upd is 2048 bytes
+	// https://github.com/influxdb/influxdb/blob/master/src/api/udp/api.go#L65
+	if len(data) >= UDPMaxMessageSize {
+		err = fmt.Errorf("data size over limit %v limit is %v", len(data), UDPMaxMessageSize)
+		fmt.Println(err)
+		return err
+	}
+	_, err = self.udpConn.Write(data)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (self *Client) WriteSeriesWithTimePrecision(series []*Series, timePrecision TimePrecision) error {
