@@ -86,6 +86,7 @@ func (self *QueryParserSuite) TestGetQueryString(c *C) {
 		"select count(value), host from t group by time(1h), host where time > now() - 1h into value.hourly.[:host]",
 		"select count(value), host from t group by time(1h), host into value.hourly.[:host] backfill(F)",
 		"select count(value), host from t group by time(1h), host where time > now() - 1h into value.hourly.[:host] backfill(true)",
+		"select count(value) from t, host into value.hourly.[:host] backfill(1)",
 		"delete from foo",
 	} {
 		fmt.Printf("testing %s\n", query)

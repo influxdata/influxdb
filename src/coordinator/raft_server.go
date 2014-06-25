@@ -252,9 +252,13 @@ func (s *RaftServer) CreateContinuousQuery(db string, query string) error {
 	}
 
 	// if there are already-running queries, we need to initiate a backfill
-	if duration != nil && !s.clusterConfig.LastContinuousQueryRunTime().IsZero() {
+	if selectQuery.GetIntoClause().Backfill &&
+		!s.clusterConfig.LastContinuousQueryRunTime().IsZero() {
 		zeroTime := time.Time{}
-		currentBoundary := time.Now().Truncate(*duration)
+		currentBoundary := time.Now()
+		if duration != nil {
+			currentBoundary = currentBoundary.Truncate(*duration)
+		}
 		go s.runContinuousQuery(db, selectQuery, zeroTime, currentBoundary)
 	} else {
 		// TODO: make continuous queries backfill for queries that don't have a group by time
