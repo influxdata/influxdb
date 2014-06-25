@@ -1,6 +1,7 @@
 package udp
 
 import (
+	"bytes"
 	"cluster"
 	. "common"
 	"coordinator"
@@ -72,7 +73,9 @@ func (self *Server) HandleSocket(socket *net.UDPConn) {
 		}
 
 		serializedSeries := []*SerializedSeries{}
-		err = json.Unmarshal(buffer[0:n], &serializedSeries)
+		decoder := json.NewDecoder(bytes.NewBuffer(buffer[0:n]))
+		decoder.UseNumber()
+		err = decoder.Decode(&serializedSeries)
 		if err != nil {
 			log.Error("UDP json error: %s", err)
 			continue
