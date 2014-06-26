@@ -101,8 +101,6 @@ type CumulativeArithmeticAggregator struct {
 	defaultValue *protocol.FieldValue
 }
 
-//var count int = 0
-
 func (self *CumulativeArithmeticAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
 	if state == nil {
 		state = self.initialValue
