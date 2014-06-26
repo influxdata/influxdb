@@ -51,8 +51,23 @@ type ApiSeries interface {
 	GetPoints() [][]interface{}
 }
 
+func hasDuplicates(ss []string) bool {
+	m := make(map[string]struct{}, len(ss))
+	for _, s := range ss {
+		if _, ok := m[s]; ok {
+			return true
+		}
+		m[s] = struct{}{}
+	}
+	return false
+}
+
 func ConvertToDataStoreSeries(s ApiSeries, precision TimePrecision) (*protocol.Series, error) {
 	points := make([]*protocol.Point, 0, len(s.GetPoints()))
+	if hasDuplicates(s.GetColumns()) {
+		return nil, fmt.Errorf("Cannot have duplicate field names")
+	}
+
 	for _, point := range s.GetPoints() {
 		if len(point) != len(s.GetColumns()) {
 			return nil, fmt.Errorf("invalid payload")
