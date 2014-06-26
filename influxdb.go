@@ -447,6 +447,9 @@ type Shard struct {
 func (self *Client) GetShards() (*LongTermShortTermShards, error) {
 	url := self.getUrlWithUserAndPass("/cluster/shards", self.username, self.password)
 	body, err := self.get(url)
+	if err != nil {
+		return nil, err
+	}
 	shards := &LongTermShortTermShards{}
 	err = json.Unmarshal(body, shards)
 	if err != nil {
