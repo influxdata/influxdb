@@ -66,6 +66,9 @@ func ConvertToDataStoreSeries(s ApiSeries, precision TimePrecision) (*protocol.S
 
 			value := point[idx]
 			if field == "time" {
+				if timestamp != nil {
+					return nil, fmt.Errorf("duplicate time field %T (%v)", value, value)
+				}
 				switch x := value.(type) {
 				case json.Number:
 					f, err := x.Float64()
@@ -89,6 +92,9 @@ func ConvertToDataStoreSeries(s ApiSeries, precision TimePrecision) (*protocol.S
 			}
 
 			if field == "sequence_number" {
+				if sequence != nil {
+					return nil, fmt.Errorf("duplicate sequence_number field %T (%v)", value, value)
+				}
 				switch x := value.(type) {
 				case json.Number:
 					f, err := x.Float64()
