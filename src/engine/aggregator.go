@@ -1530,6 +1530,9 @@ func NewLog10Aggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue
 
 func NewPowAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	return NewFuncAggregator("pow", value, 0, defaultValue, func(p *protocol.FieldValue) (interface{}, error) {
+		if len(value.Elems) < 2 {
+			return nil, common.NewQueryError(common.InvalidArgument, "pow requires two parameters, a value and power")
+		}
 		power, err := value.Elems[1].GetFloat64()
 		if err != nil {
 			return nil, err
