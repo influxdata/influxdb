@@ -29,6 +29,6 @@ chown -R -L influxdb:influxdb $influx_dir
 chmod -R a+rX $influx_dir
 
 # only restart if the service was already running
-if /etc/init.d/influxdb status > /dev/null 2>&1; then
-    service influxdb restart
+if -e [ "/etc/init.d/influxdb" ] ;  then
+    service influxdb start
 fi
