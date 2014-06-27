@@ -51,7 +51,7 @@ endif
 export GOARCH
 export CGO_ENABLED
 
-.PHONY: all valgrind parser package replace_version_string build binary_package dependencies
+.PHONY: all valgrind parser package replace_version_string build binary_package dependencies clean
 
 all: | parser valgrind build test integration_test
 
@@ -119,10 +119,10 @@ ifeq ($(rocksdb),yes)
 GO_BUILD_TAGS += rocksdb
 storage_engines += src/$(rocksdb_dependency)
 CGO_CFLAGS +=  -I$(rocksdb_dir)/include
-CGO_LDFLAGS +=  $(rocksdb_deps)
+CGO_LDFLAGS += -L$(rocksdb_dir) -lrocksdb
 endif
 CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include
-CGO_LDFLAGS += $(leveldb_deps) $(hyperleveldb_deps) -L$(snappy_dir)/.libs -lsnappy
+CGO_LDFLAGS += -L$(leveldb_dir) -L$(hyperleveldb_dir)/.libs -L$(snappy_dir)/.libs -lleveldb -lhyperleveldb -lsnappy
 CGO_LDFLAGS += -lstdc++ -lm -lz -lbz2
 export CGO_CFLAGS
 export CGO_LDFLAGS
@@ -208,15 +208,12 @@ dependencies_paths := $(addprefix src/,$(dependencies))
 
 src/$(levigo_dependency): $(leveldb_deps)
 	$(GO) get -d $(levigo_dependency)
-	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lleveldb\|#cgo LDFLAGS: -lleveldb//g'; popd"
 
 src/$(rocksdb_dependency): $(rocksdb_deps)
 	$(GO) get -d $(rocksdb_dependency)
-	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lrocksdb\|#cgo LDFLAGS: -lrocksdb//g'; popd"
 
 src/$(hyperleveldb_dependency): $(hyperleveldb_deps)
 	$(GO) get -d $(hyperleveldb_dependency)
-	bash -c "pushd $@; find . -name \*.go | xargs sed -i 's/\/\/ #cgo LDFLAGS: -lhyperleveldb\|#cgo LDFLAGS: -lhyperleveldb//g'; popd"
 
 $(dependencies_paths):
 	for i in $(dependencies); do $(GO) get -d $$i; done
