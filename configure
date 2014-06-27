@@ -2974,7 +2974,7 @@ fi
 if test x"${with_bison}" == x"notfound"; then
    as_fn_error $? "Please install bison before trying to build Influxdb" "$LINENO" 5
 fi
-ac_config_files="$ac_config_files Makefile src/parser/Makefile"
+ac_config_files="$ac_config_files Makefile parser/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -3683,7 +3683,7 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
-    "src/parser/Makefile") CONFIG_FILES="$CONFIG_FILES src/parser/Makefile" ;;
+    "parser/Makefile") CONFIG_FILES="$CONFIG_FILES parser/Makefile" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac

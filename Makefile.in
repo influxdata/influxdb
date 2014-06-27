@@ -56,20 +56,29 @@ export CGO_ENABLED
 all: | parser valgrind build test integration_test
 
 parser:
-	$(MAKE) -C src/parser
+	$(MAKE) -C parser
 
-GOPATH := $(shell pwd)
+ifeq ($(GOPATH),)
+GOPATH := $(shell pwd)/../../../..
 export GOPATH
+endif
 uname_S = $(shell sh -c "uname -s 2>/dev/null || echo not")
 
 valgrind:
 ifeq ($(uname_S),Linux)
-	$(MAKE) -C src/parser valgrind
+	$(MAKE) -C parser valgrind
 endif
 
 # packages
-packages = admin api/http api/graphite cluster common configuration	\
+packages_base = admin api/http api/graphite cluster common configuration	\
   checkers coordinator datastore engine parser protocol wal
+build_packages = $(addprefix github.com/influxdb/influxdb/,$(packages_base))
+test_packages =
+ifneq ($(packages),)
+test_packages = $(addprefix github.com/influxdb/influxdb/,$(packages))
+else
+test_packages = $(build_packages)
+endif
 
 # Storage engines libraries
 
@@ -113,11 +122,11 @@ endif
 
 # levigo flags
 ifeq ($(uname_S),Linux)
-storage_engines += src/$(hyperleveldb_dependency)
+storage_engines += $(hyperleveldb_deps)
 GO_BUILD_TAGS += hyperleveldb
 ifeq ($(rocksdb),yes)
 GO_BUILD_TAGS += rocksdb
-storage_engines += src/$(rocksdb_dependency)
+storage_engines += $(rocksdb_deps)
 CGO_CFLAGS +=  -I$(rocksdb_dir)/include
 CGO_LDFLAGS += -L$(rocksdb_dir) -lrocksdb
 endif
@@ -183,9 +192,6 @@ ifeq ($(uname_S),Linux)
 	$(MAKE) V=1"
 endif
 
-levigo_dependency = github.com/jmhodges/levigo
-rocksdb_dependency = github.com/influxdb/rocksdb
-hyperleveldb_dependency = github.com/influxdb/hyperleveldb-go
 proto_dependency  = code.google.com/p/goprotobuf/protoc-gen-go
 
 dependencies = code.google.com/p/go.crypto/bcrypt \
@@ -195,47 +201,40 @@ github.com/bmizerany/pat \
 github.com/fitstar/falcore \
 github.com/fitstar/falcore/filter \
 github.com/gorilla/mux \
-github.com/goraft/raft \
+github.com/influxdb/influxdb/_vendor/raft \
 github.com/influxdb/go-cache \
 github.com/BurntSushi/toml \
 github.com/influxdb/influxdb-go \
 code.google.com/p/gogoprotobuf/proto \
 github.com/influxdb/gomdb \
 code.google.com/p/go.tools/cmd/vet \
+github.com/jmhodges/levigo \
+github.com/influxdb/rocksdb \
+github.com/influxdb/hyperleveldb-go \
 $(proto_dependency)
 
-dependencies_paths := $(addprefix src/,$(dependencies))
-
-src/$(levigo_dependency): $(leveldb_deps)
-	$(GO) get -d $(levigo_dependency)
-
-src/$(rocksdb_dependency): $(rocksdb_deps)
-	$(GO) get -d $(rocksdb_dependency)
-
-src/$(hyperleveldb_dependency): $(hyperleveldb_deps)
-	$(GO) get -d $(hyperleveldb_dependency)
+dependencies_paths := $(addprefix $(GOPATH)/src/,$(dependencies))
 
 $(dependencies_paths):
 	for i in $(dependencies); do $(GO) get -d $$i; done
 
-storage_engines += src/$(levigo_dependency)
+storage_engines += $(leveldb_deps)
 
 dependencies: $(storage_engines) $(dependencies_paths)
 
 test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck
 
-protobuf:
-	$(GO) get $(proto_dependency)
-	rm -f src/protocol/*.pb.go
-	PATH=$$PWD/bin:$$PATH $(PROTOC) --go_out=. src/protocol/*.proto
+protobuf: $(GOPATH)/src/$(proto_dependency)
+	rm -f protocol/*.pb.go
+	PATH=$$GOPATH/bin:$$PATH $(PROTOC) --go_out=. protocol/*.proto
 
 build: | dependencies protobuf parser build_version_string
 # TODO: build all packages, otherwise we won't know
 # if there's an error
-	$(GO) build $(GO_BUILD_OPTIONS) daemon
-	$(GO) build $(GO_BUILD_OPTIONS) tools/benchmark-storage
-	$(GO) build benchmark
+	$(GO) build -o influxdb $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/daemon
+	$(GO) build -o benchmark-storage $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/tools/benchmark-storage
+	$(GO) build -o benchmark-tool github.com/influxdb/influxdb/benchmark
 
 clean:
 	git status --ignored | grep src\/ | grep -v Makefile | xargs rm -rf
@@ -245,7 +244,7 @@ clean:
 	rm -rf $(leveldb_dir)
 	rm -rf $(hyperleveldb_dir)
 	rm -rf $(rocksdb_dir)
-	$(MAKE) -C src/parser clean
+	$(MAKE) -C parser clean
 
 only =
 verbose = off
@@ -265,18 +264,18 @@ timeout = 10m
 GOTEST_OPTS += -test.timeout=$(timeout)
 
 bench:
-	$(GO) test coordinator -test.bench=. -test.benchmem
+	$(GO) test github.com/influxdb/influxdb/coordinator -test.bench=. -test.benchmem
 
 test: test_dependencies parser protobuf
-	$(GO) test $(packages) $(GOTEST_OPTS)
+	$(GO) test $(test_packages) $(GOTEST_OPTS)
 
 coverage: test_dependencies
-	for i in $(packages); do $(GO) test -coverprofile ${TMPDIR}/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
+	for i in $(build_packages); do $(GO) test -coverprofile ${TMPDIR}/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
    $(GO) tool cover -html=${TMPDIR}/influxdb.$${i/\//}.coverage; done
 
 
 integration_test: test_dependencies build
-	$(GO) test integration $(GOTEST_OPTS)
+	$(GO) test github.com/influxdb/influxdb/integration $(GOTEST_OPTS)
 
 package_version=$(subst -,_,$(version))
 admin_dir = ${TMPDIR}/admin.influxdb
@@ -300,9 +299,9 @@ files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
 sha1 = $(shell sh -c "git rev-list --max-count=1 --abbrev-commit HEAD")
 
 build_version_string:
-	@echo "package main"										 > src/daemon/version.go
-	@echo "const version = \"$(version)\"" >> src/daemon/version.go
-	@echo "const gitSha = \"$(sha1)\""     >> src/daemon/version.go
+	@echo "package main"										 > daemon/version.go
+	@echo "const version = \"$(version)\"" >> daemon/version.go
+	@echo "const gitSha = \"$(sha1)\""     >> daemon/version.go
 
 package_version_string: build_version_string
 	sed -i.bak -e "s/REPLACE_VERSION/$(version)/" scripts/post_install.sh
@@ -328,7 +327,7 @@ $(debian_package): $(admin_dir)/build build
 	mv out_rpm/$(shell basename $(debian_package)) packages/
 
 $(source_package): dependencies
-	rm -rf src/$(levigo_dependency)
+	rm -rf $(levigo_dependency)
 	$(GO) get -d $(levigo_dependency)
 	rm -f daemon
 	rm -f benchmark
@@ -346,7 +345,7 @@ $(source_package): dependencies
 	rm $(source_package)
 	bash -c "pushd ${TMPDIR}/; tar -czf `basename $(source_package)` influxdb; popd"
 	mv ${TMPDIR}/$(shell basename $(source_package)) $(source_package)
-	rm -rf src/$(levigo_dependency)
+	rm -rf $(levigo_dependency)
 	rm -rf admin
 
 $(binary_package): $(admin_dir)/build build packages
@@ -354,7 +353,7 @@ $(binary_package): $(admin_dir)/build build packages
 	mkdir build
 	mv daemon build/influxdb
 	mv benchmark build/influxdb-benchmark
-	cp src/benchmark/benchmark_config.sample.toml build/benchmark_config.toml
+	cp benchmark/benchmark_config.sample.toml build/benchmark_config.toml
 	mkdir build/admin
 	cp -R $(admin_dir)/build/* build/admin/
 	cp -R scripts/ build/
