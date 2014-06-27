@@ -2320,3 +2320,96 @@ func (self *DataTestSuite) MeanAggregateFillWithZero(c *C) (Fun, Fun) {
 			}
 		}
 }
+
+// issue #669
+func HistogramHelper(c *C, client Client, query string, expected map[float64]float64) {
+	//Test basic histogram
+	collection := client.RunQuery(query, c)
+
+	c.Assert(collection, HasLen, 1)
+	maps := ToMap(collection[0])
+	actual := make(map[float64]float64, len(maps))
+	for key := range maps {
+		c.Logf(fmt.Sprintf(`%d: bucket_start: %f count: %f`, key, maps[key]["bucket_start"], maps[key]["count"]))
+		actual[maps[key]["bucket_start"].(float64)] = maps[key]["count"].(float64)
+	}
+	c.Assert(actual, HasLen, len(expected))
+	for bucket, count := range expected {
+		c.Assert(actual[bucket], Equals, count)
+	}
+}
+
+func (self *DataTestSuite) Histogram(c *C) (Fun, Fun) {
+	return func(client Client) {
+			c.Logf("Running Histogram test")
+			data := `[{"points": [[-3], [-2], [-1], [0], [1], [2], [3]], "name": "test_histogram", "columns": ["value"]}]`
+			client.WriteJsonData(data, c)
+		}, func(client Client) {
+			//Test basic histogram
+			expected := make(map[float64]float64, 7)
+			expected[-3.0] = 1.0
+			expected[-2.0] = 1.0
+			expected[-1.0] = 1.0
+			expected[0.0] = 1.0
+			expected[1.0] = 1.0
+			expected[2.0] = 1.0
+			expected[3.0] = 1.0
+			HistogramHelper(c, client, "select Histogram(value, 1.0) from test_histogram", expected)
+
+			// Test specifying start and stop
+			HistogramHelper(c, client, "select Histogram(value, 1.0, -3, 3) from test_histogram", expected)
+
+			// Test specifying start and stop outside domain of data
+			expected = make(map[float64]float64, 21)
+			expected[-10.0] = 0.0
+			expected[-9.0] = 0.0
+			expected[-8.0] = 0.0
+			expected[-7.0] = 0.0
+			expected[-6.0] = 0.0
+			expected[-5.0] = 0.0
+			expected[-4.0] = 0.0
+			expected[-3.0] = 1.0
+			expected[-2.0] = 1.0
+			expected[-1.0] = 1.0
+			expected[0.0] = 1.0
+			expected[1.0] = 1.0
+			expected[2.0] = 1.0
+			expected[3.0] = 1.0
+			expected[4.0] = 0.0
+			expected[5.0] = 0.0
+			expected[6.0] = 0.0
+			expected[7.0] = 0.0
+			expected[8.0] = 0.0
+			expected[9.0] = 0.0
+			expected[10.0] = 0.0
+			HistogramHelper(c, client, "select Histogram(value, 1.0, -10, 10) from test_histogram", expected)
+
+			// Test specifying start and stop inside domain of data
+			expected = make(map[float64]float64, 2)
+			expected[-1.0] = 1.0
+			expected[0.0] = 1.0
+			HistogramHelper(c, client, "select Histogram(value, 1.0, -1, 0) from test_histogram", expected)
+
+			// Test specifying step and start that don't align with 0
+			expected = make(map[float64]float64, 4)
+			expected[-3.0] = 2.0
+			expected[-1.0] = 2.0
+			expected[1.0] = 2.0
+			expected[3.0] = 1.0
+			HistogramHelper(c, client, "select Histogram(value, 2.0, -3) from test_histogram", expected)
+			HistogramHelper(c, client, "select Histogram(value, 2.0, -3, 3) from test_histogram", expected)
+
+			// Test specifying step, start and stop that don't align with 0 inside the domain
+			expected = make(map[float64]float64, 3)
+			expected[-3.0] = 2.0
+			expected[-1.0] = 2.0
+			expected[1.0] = 2.0
+			HistogramHelper(c, client, "select Histogram(value, 2.0, -3, 1) from test_histogram", expected)
+
+			// Test specifying step and start that don't align with stop
+			expected = make(map[float64]float64, 2)
+			expected[-1.0] = 2.0
+			expected[1.0] = 2.0
+			HistogramHelper(c, client, "select Histogram(value, 2.0, -1, 2) from test_histogram", expected)
+		}
+}
