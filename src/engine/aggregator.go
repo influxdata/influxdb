@@ -551,8 +551,10 @@ type HistogramAggregatorState map[int]int
 
 type HistogramAggregator struct {
 	AbstractAggregator
-	bucketSize  float64
-	columnNames []string
+	bucketSize    float64
+	bucketStart   float64
+	bucketStopIdx int
+	columnNames   []string
 }
 
 func (self *HistogramAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
@@ -573,7 +575,10 @@ func (self *HistogramAggregator) AggregatePoint(state interface{}, p *protocol.P
 		value = *ptr
 	}
 
-	bucket := int(value / self.bucketSize)
+	bucket := int(math.Floor((value - self.bucketStart)/ self.bucketSize))
+	if self.bucketStopIdx >= 0 && bucket > self.bucketStopIdx {
+		bucket = self.bucketStopIdx
+	}
 	buckets[bucket] += 1
 
 	return buckets, nil
@@ -587,13 +592,28 @@ func (self *HistogramAggregator) GetValues(state interface{}) [][]*protocol.Fiel
 	returnValues := [][]*protocol.FieldValue{}
 	buckets := state.(HistogramAggregatorState)
 	for bucket, size := range buckets {
-		_bucket := float64(bucket) * self.bucketSize
+		_bucket := float64(bucket) * self.bucketSize + self.bucketStart
 		_size := int64(size)
 
 		returnValues = append(returnValues, []*protocol.FieldValue{
 			{DoubleValue: &_bucket},
 			{Int64Value: &_size},
 		})
+	}
+
+	if self.bucketStopIdx >= 0 {
+		for i := 0; i <= self.bucketStopIdx; i++ {
+			if _, ok := buckets[i]; ! ok {
+				_bucket := float64(i) * self.bucketSize + self.bucketStart
+				_size := int64(0)
+
+				returnValues = append(returnValues, []*protocol.FieldValue{
+					{DoubleValue: &_bucket},
+					{Int64Value: &_size},
+				})
+			}
+		}
+
 	}
 
 	return returnValues
@@ -604,8 +624,8 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function histogram() requires at least one arguments")
 	}
 
-	if len(v.Elems) > 2 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function histogram() takes at most two arguments")
+	if len(v.Elems) > 4 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function histogram() takes at most four arguments")
 	}
 
 	if v.Elems[0].Type == parser.ValueWildcard {
@@ -613,8 +633,11 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 	}
 
 	bucketSize := 1.0
+	bucketStart := 0.0
+	bucketStop := 0.0
+	bucketStopIdx := -1
 
-	if len(v.Elems) == 2 {
+	if len(v.Elems) > 1 {
 		switch v.Elems[1].Type {
 		case parser.ValueInt, parser.ValueFloat:
 			var err error
@@ -625,7 +648,33 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 		default:
 			return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[1].Name)
 		}
+		if len(v.Elems) > 2 {
+			switch v.Elems[2].Type {
+			case parser.ValueInt, parser.ValueFloat:
+				var err error
+				bucketStart, err = strconv.ParseFloat(v.Elems[2].Name, 64)
+				if err != nil {
+					return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[2].Name)
+				}
+			default:
+				return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[2].Name)
+			}
+			if len(v.Elems) == 4 {
+				switch v.Elems[3].Type {
+				case parser.ValueInt, parser.ValueFloat:
+					var err error
+					bucketStop, err = strconv.ParseFloat(v.Elems[3].Name, 64)
+					bucketStopIdx = int(math.Floor((bucketStop - bucketStart) / bucketSize))
+					if err != nil {
+						return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[3].Name)
+					}
+				default:
+					return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[3].Name)
+				}
+			}
+		}
 	}
+
 
 	columnNames := []string{"bucket_start", "count"}
 	if v.Alias != "" {
@@ -637,8 +686,10 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
 		},
-		bucketSize:  bucketSize,
-		columnNames: columnNames,
+		bucketSize:    bucketSize,
+		bucketStart:   bucketStart,
+		bucketStopIdx: bucketStopIdx,
+		columnNames:   columnNames,
 	}, nil
 }
 
