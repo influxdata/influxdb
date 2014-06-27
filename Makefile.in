@@ -238,7 +238,7 @@ build: | dependencies protobuf parser build_version_string
 	$(GO) build benchmark
 
 clean:
-	git status --ignored | grep src\/ | xargs rm -rf
+	git status --ignored | grep src\/ | grep -v Makefile | xargs rm -rf
 	rm -rf ${TMPDIR}/influxdb
 	rm -rf ${TMPDIR}/admin.influxdb
 	rm -rf $(snappy_dir)
