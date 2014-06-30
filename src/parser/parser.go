@@ -74,6 +74,11 @@ type DeleteQuery struct {
 	SelectDeleteCommonQuery
 }
 
+type SubscribeQuery struct {
+    SelectDeleteCommonQuery
+    Id  int
+}
+
 type Query struct {
 	QueryString     string
 	SelectQuery     *SelectQuery
@@ -81,6 +86,7 @@ type Query struct {
 	ListQuery       *ListQuery
 	DropSeriesQuery *DropSeriesQuery
 	DropQuery       *DropQuery
+    SubscribeQuery  *SubscribeQuery
 }
 
 func (self *IntoClause) GetString() string {
@@ -589,7 +595,14 @@ func ParseQuery(query string) ([]*Query, error) {
 		return []*Query{&Query{QueryString: query, DropSeriesQuery: dropSeriesQuery}}, nil
 	} else if q.drop_query != nil {
 		return []*Query{&Query{QueryString: query, DropQuery: &DropQuery{Id: int(q.drop_query.id)}}}, nil
-	}
+	} else if q.subscribe_query != nil {
+        subscribeQuery, err := parseDeleteQuery(q.subscribe_query)
+        if err != nil {
+            return nil, err
+        }
+        // need to do something to extract the id somehow
+        return []*Query{&Query{QueryString: query, SubscribeQuery: subscribeQuery}}, nil
+    }
 	return nil, fmt.Errorf("Unknown query type encountered")
 }
 
@@ -706,5 +719,20 @@ func parseDeleteQuery(query *C.delete_query) (*DeleteQuery, error) {
 	if basicQuery.GetWhereCondition() != nil {
 		return nil, fmt.Errorf("Delete queries can't have where clause that don't reference time")
 	}
+	return goQuery, nil
+}
+
+func parseSubscribeQuery(q *C.subscribe_query) (*SubscribeQuery, error) {
+	basicQuery, err := parseSelectDeleteCommonQuery(q.from_clause, q.where_condition)
+	if err != nil {
+		return nil, err
+	}
+	goQuery := &SubscribeQuery{
+		SelectDeleteCommonQuery: basicQuery,
+	}
+	if basicQuery.GetWhereCondition() != nil {
+		return nil, fmt.Errorf("Subscribe queries can't have where clause that don't reference time")
+	}
+    // put some sort of check that there is an id associated with the thing
 	return goQuery, nil
 }

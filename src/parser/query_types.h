@@ -109,10 +109,22 @@ typedef struct {
 } drop_query;
 
 typedef struct {
+  from_clause *from_clause;
+  condition *where_condition;
+  int id;
+} subscribe_query;
+
+typedef struct {
+  int id;
+} unsubscribe_query;
+
+typedef struct {
   select_query *select_query;
   delete_query *delete_query;
   drop_series_query *drop_series_query;
   drop_query *drop_query;
+  subscribe_query *subscribe_query;
+  unsubscribe_query *unsubscribe_query;
   char list_series_query;
   char list_continuous_queries_query;
   error *error;

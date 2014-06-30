@@ -36,6 +36,7 @@ type HttpServer struct {
 	clusterConfig  *cluster.ClusterConfiguration
 	raftServer     *coordinator.RaftServer
 	readTimeout    time.Duration
+    subscription   rgm.Subscription
 }
 
 func NewHttpServer(httpPort string, readTimeout time.Duration, adminAssetsDir string, theCoordinator coordinator.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
@@ -147,6 +148,16 @@ func (self *HttpServer) Serve(listener net.Listener) {
 
 	// return whether the cluster is in sync or not
 	self.registerEndpoint(p, "get", "/sync", self.isInSync)
+
+    // rgm-specific endpoints
+    // MAY NOT NEED NEXT TWO.. COULD BE POSSIBLE TO DO ALREADY
+    self.registerEndpoint(p, "post", "/db/:db/queryCurrent/:id", self.queryCurrent)
+    self.registerEndpoint(p, "post", "/db/:db/queryFollow", self.queryFollow)
+    // MAY BE ABLE TO COMBINE THESE TWO TO A GENERAL SUBSCRIPTION THANG
+    self.registerEndpoint(p, "post", "/db/:db/subscribeCurrent", self.subscribeCurrent)
+    self.registerEndpoint(p, "post", "/db/:db/subscribeTimeSeries", self.subscribeTimeSeries)
+    self.registerEndpoint(p, "post", "/db/:db/unsubscribe", self.unsubscribe)
+    self.registerEndpoint(p, "get", "/db/:db/querySub", self.querySub)
 
 	if listener == nil {
 		self.startSsl(p)
@@ -1081,4 +1092,57 @@ func (self *HttpServer) convertShardsToMap(shards []*cluster.ShardData) []interf
 		result = append(result, s)
 	}
 	return result
+}
+
+func (self *HttpServer) queryCurrent() err {
+    self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+        id, err := strconv.ParseInt(r.URL.Query().Get(":id"), 10, 64)
+        if err != nil {
+                return libhttp.StatusInternalServerError, err.Error()
+        }
+        body, err := ioutil.ReadAll(r.Body)
+        if err != nil {
+                return libhttp.StatusInternalServerError, err.Error()
+        }
+        x
+    return nil
+}
+
+func (self *HttpServer) queryFollow() err {
+    return nil
+}
+
+type subscription struct {
+    ids         []int
+    startTm     time.Time
+    endTm       time.Time
+}
+
+func (self *HttpServer) subscribeCurrent(w libhttp.ResponseWriter, r *libhttp.Request) {
+    self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+        id, err := strconv.ParseInt(r.URL.Query().Get(":id"), 10, 64)
+        if err != nil {
+                return libhttp.StatusInternalServerError, err.Error()
+        }
+        body, err := ioutil.ReadAll(r.Body)
+        if err != nil {
+                return libhttp.StatusInternalServerError, err.Error()
+        }
+        x
+    }
+    return nil
+}
+
+func (self *HttpServer) subscribeTimeSeries() err {
+    self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+        x
+    return nil
+}
+
+func (self *HttpServer) unsubscribe() err {
+    return nil
+}
+
+func (self *HttpServer) querySub() err {
+    return nil
 }
