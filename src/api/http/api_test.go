@@ -817,7 +817,7 @@ func (self *ApiSuite) TestPrettyDbUsersIndex(c *C) {
 	err = json.Unmarshal(body, &users)
 	c.Assert(err, IsNil)
 	c.Assert(users, HasLen, 1)
-	c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false})
+	c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false, ".*", ".*"})
 }
 
 func (self *ApiSuite) TestDbUserShow(c *C) {
