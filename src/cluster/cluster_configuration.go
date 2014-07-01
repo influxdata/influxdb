@@ -69,6 +69,8 @@ type ClusterConfiguration struct {
 	continuousQueryTimestamp   time.Time
 	LocalServer                *ClusterServer
 	config                     *configuration.Configuration
+    subscriptions              map[string]*Subscription
+    subscriptionsLock          sync.RWMutex
 	addedLocalServerWait       chan bool
 	addedLocalServer           bool
 	connectionCreator          func(string) ServerConnection
@@ -85,6 +87,15 @@ type ClusterConfiguration struct {
 	shardsByIdLock             sync.RWMutex
 	LocalRaftName              string
 	writeBuffers               []*WriteBuffer
+}
+
+type Subscription struct {
+    Ids     []int
+    Start   string
+    End     string
+    StartTm string
+    EndTm   string
+    QTime   time.Time
 }
 
 type ContinuousQuery struct {
@@ -107,6 +118,7 @@ func NewClusterConfiguration(
 		dbUsers:                    make(map[string]map[string]*DbUser),
 		continuousQueries:          make(map[string][]*ContinuousQuery),
 		ParsedContinuousQueries:    make(map[string]map[uint32]*parser.SelectQuery),
+        subscriptions:              make(map[string]*Subscription),
 		servers:                    make([]*ClusterServer, 0),
 		config:                     config,
 		addedLocalServerWait:       make(chan bool, 1),
@@ -488,6 +500,22 @@ func (self *ClusterConfiguration) GetClusterAdmins() (names []string) {
 	return
 }
 
+func (self *ClusterConfiguration) GetSubscriptions() (subs []int) {
+    // Do a little thing for locking subscriptions while this happens
+    self.subscriptionsLock.RLock()
+    defer self.subscriptionsLock.RUnlock()
+
+    subscriptions := self.subscriptions
+    // I don't get why first value from range is wanted.. isn't that the index
+    fmt.Printf("subscriptions %#v", subscriptions)
+    for sub1, sub2 := range subscriptions {
+        //subs = append(subs, int(sub))
+        fmt.Println("sub1 %#v", sub1)
+        fmt.Println("sub2 %#v", sub2)
+    }
+    return
+}
+
 func (self *ClusterConfiguration) GetClusterAdmin(username string) *ClusterAdmin {
 	self.usersLock.RLock()
 	defer self.usersLock.RUnlock()
@@ -510,6 +538,7 @@ type SavedConfiguration struct {
 	Databases         map[string]uint8
 	Admins            map[string]*ClusterAdmin
 	DbUsers           map[string]map[string]*DbUser
+    Subscriptions     map[string]*Subscription
 	Servers           []*ClusterServer
 	ShortTermShards   []*NewShardData
 	LongTermShards    []*NewShardData
@@ -525,6 +554,7 @@ func (self *ClusterConfiguration) Save() ([]byte, error) {
 		DbUsers:           self.dbUsers,
 		Servers:           self.servers,
 		ContinuousQueries: self.continuousQueries,
+        Subscriptions:     self.subscriptions,
 		ShortTermShards:   self.convertShardsToNewShardData(self.shortTermShards),
 		LongTermShards:    self.convertShardsToNewShardData(self.longTermShards),
 		LastShardIdUsed:   self.lastShardIdUsed,
@@ -590,6 +620,7 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	self.clusterAdmins = data.Admins
 	self.dbUsers = data.DbUsers
 	self.servers = data.Servers
+    self.subscriptions = data.Subscriptions
 
 	for _, server := range self.servers {
 		log.Info("Checking whether %s is the local server %s", server.RaftName, self.LocalRaftName)

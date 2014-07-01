@@ -802,6 +802,27 @@ func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*cluster.Databas
 	return dbs, nil
 }
 
+func (self *CoordinatorImpl) ListSubscriptions(user common.User) error /*([]*Subscription, error)*/ {
+    if !user.IsClusterAdmin() {
+        return common.NewAuthorizationError("Insufficient permissions to list subscriptions")
+    }
+
+    fmt.Println("I reached coordinator listsubscriptions")
+    //subscriptions := self.clusterConfiguration.GetSubscriptions()
+    return nil
+    //return subscriptions, nil
+}
+
+func (self *CoordinatorImpl) SubscribeTimeSeries(user common.User) error /*([]*Subscription, error)*/ {
+    if !user.IsClusterAdmin() {
+        return common.NewAuthorizationError("Insufficient permissions to make a subscription")
+    }
+
+    //subscriptions := self.clusterConfiguration.GetSubscriptions()
+    //return subscriptions, nil
+    return nil
+}
+
 func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 	if !user.IsClusterAdmin() {
 		return common.NewAuthorizationError("Insufficient permissions to drop database")
@@ -900,6 +921,16 @@ func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, u
 	user.ChangePassword(string(hash))
 	return self.raftServer.SaveClusterAdminUser(user)
 }
+
+/*
+func (self *CoordinatorImpl) Unsubscribe(requester common.User, ids []int) error {
+    if !requester.IsClusterAdmin() {
+        return common.NewAuthorizationError("Insufficient permissions")
+    }
+
+    x
+}
+*/
 
 func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, password string, permissions ...string) error {
 	if !requester.IsClusterAdmin() && !requester.IsDbAdmin(db) {
