@@ -808,7 +808,8 @@ func (self *CoordinatorImpl) ListSubscriptions(user common.User) error /*([]*Sub
     }
 
     fmt.Println("I reached coordinator listsubscriptions")
-    //subscriptions := self.clusterConfiguration.GetSubscriptions()
+    subscriptions := self.clusterConfiguration.GetSubscriptions()
+    fmt.Println(subscriptions)
     return nil
     //return subscriptions, nil
 }
@@ -867,6 +868,15 @@ func (self *CoordinatorImpl) ListClusterAdmins(requester common.User) ([]string,
 	}
 
 	return self.clusterConfiguration.GetClusterAdmins(), nil
+}
+
+func (self *CoordinatorImpl) CreateSubscription(requester common.User, subscription *Subscription) error {
+    if !requester.IsClusterAdmin() {
+        return common.NewAuthorizationError("Insufficient permissions")
+    }
+
+    return self.raftServer.SaveSubscription()
+    return nil
 }
 
 func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, username, password string) error {

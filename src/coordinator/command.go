@@ -30,6 +30,7 @@ func init() {
 		&SetContinuousQueryTimestampCommand{},
 		&CreateShardsCommand{},
 		&DropShardCommand{},
+        &SaveSubscriptionCommand{},
 	} {
 		internalRaftCommands[command.CommandName()] = command
 	}
@@ -377,4 +378,31 @@ func (c *DropShardCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.DropShard(c.ShardId, c.ServerIds)
 	return nil, err
+}
+
+type SaveSubscriptionCommand struct {
+    Subscription []*cluster.Subscription
+}
+
+func NewSaveSubscriptionCommand(subscription []*cluster.Subscription) *SaveSubscriptionCommand {
+    return &SaveSubscriptionCommand{subscription}
+}
+
+func (c *SaveSubscriptionCommand) CommandName() string {
+    return "create_subscription"
+}
+
+func (c *SaveSubscriptionCommand) Apply(server raft.Server) (interface{}, error) {
+    config := server.Context().(*cluster.ClusterConfiguration)
+    ///createdSubscription, err := config.AddSubscription(c.Subscription)
+    fmt.Println("we are here in command.go's Apply function")
+    if err != nil {
+        return nil, err
+    }
+    //createdSubscriptionData := make(*cluster.Subscription, 0)
+    //for _, s := range createdSubscription {
+    //createdSubscriptionData = append(createdSubscriptionData, s.ToNewSubscriptionData())
+    //}
+    ///return createdSubscriptionData, nil
+    return nil, nil
 }

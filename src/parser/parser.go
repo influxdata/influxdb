@@ -76,7 +76,7 @@ type DeleteQuery struct {
 
 type SubscribeQuery struct {
     SelectDeleteCommonQuery
-    Id  int
+    Ids     []int
 }
 
 type Query struct {
@@ -596,7 +596,7 @@ func ParseQuery(query string) ([]*Query, error) {
 	} else if q.drop_query != nil {
 		return []*Query{&Query{QueryString: query, DropQuery: &DropQuery{Id: int(q.drop_query.id)}}}, nil
 	} else if q.subscribe_query != nil {
-        subscribeQuery, err := parseDeleteQuery(q.subscribe_query)
+        subscribeQuery, err := parseSubscribeQuery(q.subscribe_query)
         if err != nil {
             return nil, err
         }

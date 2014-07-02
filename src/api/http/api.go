@@ -1237,19 +1237,20 @@ func (self *HttpServer) subscribeTimeSeries(w libhttp.ResponseWriter, r *libhttp
         if err != nil {
             return libhttp.StatusInternalServerError, err.Error()
         }
-        fmt.Printf("here is z time: %#v", subscribeCurrTS.StartTm)
         subscribeCurrTS.QTime = time.Now().Unix()
         if err != nil {
                 return libhttp.StatusInternalServerError, err.Error()
         }
-        //serialMap := &SerialMap{}
-        //serialMap.Subscription = append(serialMap.Subscription, subscribeCurrTS)
+        serialMap := &SerialMap{}
+        serialMap.Subscription = append(serialMap.Subscription, subscribeCurrTS)
+        if serialMap.UniqueIds == nil {
+                serialMap.UniqueIds = make(map[int]int)
+        }
         r := rand.Intn(UNIQUE_SUBSCRIBER_LIMIT)
-        fmt.Printf("Your unique subscription Id is %v, ", r, "please append it to any querySub calls")
-        //serialMap.UniqueIds[serialMap.Counter] = r
-        //serialMap.Counter++
-        fmt.Println("chuweppe")
-        //fmt.Println(serialMap.Counter)
+        fmt.Printf("Your unique subscription Id is %v, please append it to any querySub calls\n", r)
+        // Probably want to take an argument which is the person's ID
+        serialMap.UniqueIds[serialMap.Counter] = r
+        serialMap.Counter++
         return 0, nil
     })
 }

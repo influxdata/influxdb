@@ -719,3 +719,9 @@ func (self *RaftServer) DropShard(id uint32, serverIds []uint32) error {
 	_, err := self.doOrProxyCommand(command)
 	return err
 }
+
+func (s *RaftServer) SaveSubscription(sub *cluster.Subscription) error {
+    command := NewSaveSubscriptionCommand(sub)
+    _, err := s.doOrProxyCommand(command)
+    return err
+}
