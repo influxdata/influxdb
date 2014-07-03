@@ -80,7 +80,7 @@ func NewClient(config *ClientConfig) (*Client, error) {
 	if config.IsSecure {
 		schema = "https"
 	}
-	return &Client{host, username, password, database, config.HttpClient, udpConn, schema, true}, nil
+	return &Client{host, username, password, database, config.HttpClient, udpConn, schema, false}, nil
 }
 
 func (self *Client) DisableCompression() {
