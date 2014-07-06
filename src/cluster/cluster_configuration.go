@@ -850,6 +850,23 @@ func (self *ClusterConfiguration) GetAllShards() []*ShardData {
 	return append(sh, self.longTermShards...)
 }
 
+func (self *ClusterConfiguration) GetShard(id uint32) *ShardData {
+	self.shardsByIdLock.RLock()
+	shard := self.shardsById[id]
+	self.shardsByIdLock.RUnlock()
+
+	// may not be in the map, try to get it from the list
+	if shard == nil {
+		for _, s := range self.GetAllShards() {
+			if s.id == id {
+				shard = s
+				break
+			}
+		}
+	}
+	return shard
+}
+
 func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*ShardData) []*ShardData {
 	if querySpec.AllShardsQuery() {
 		return shards
@@ -1104,21 +1121,10 @@ func (self *ClusterConfiguration) shardIdsForServerId(serverId uint32) []uint32 
 }
 
 func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds []uint32) {
-	self.shardsByIdLock.RLock()
-	shard := self.shardsById[shardId]
-	self.shardsByIdLock.RUnlock()
-
-	// may not be in the map, try to get it from the list
-	if shard == nil {
-		for _, s := range self.GetAllShards() {
-			if s.id == shardId {
-				shard = s
-				break
-			}
-		}
-	}
+	shard := self.GetShard(shardId)
 	if shard == nil {
 		log.Error("Attempted to remove shard %d, which we couldn't find. %d shards currently loaded.", shardId, len(self.GetAllShards()))
+		return
 	}
 
 	if len(shard.serverIds) == len(serverIds) {

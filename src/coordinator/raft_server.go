@@ -716,6 +716,10 @@ func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster
 }
 
 func (self *RaftServer) DropShard(id uint32, serverIds []uint32) error {
+	if self.clusterConfig.GetShard(id) == nil {
+		log.Warn("Attempted to drop shard that doesn't exist: ", id)
+		return nil
+	}
 	command := NewDropShardCommand(id, serverIds)
 	_, err := self.doOrProxyCommand(command)
 	return err

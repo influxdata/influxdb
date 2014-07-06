@@ -437,6 +437,48 @@ func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 	c.Assert(series, HasLen, 0)
 }
 
+// issue https://github.com/influxdb/influxdb/issues/702. Dropping shards can cause server crash
+// Two cases here. First is they try to drop the same shard multiple times. Second is that
+// they drop a shard and the server gets restarted so the raft log replays and tries to drop it again.
+func (self *SingleServerSuite) TestDropingShardBeforeRestart(c *C) {
+	s := CreatePoints("data_resurrection", 1, 1)
+	self.server.WriteData(s, c)
+	self.server.WaitForServerToSync()
+	client := self.server.GetClient("", c)
+	shards, err := client.GetShards()
+
+	ids := make(map[uint32]bool)
+	for _, s := range shards.ShortTerm {
+		hasId := ids[s.Id]
+		if hasId {
+			c.Error("Shard id shows up twice: ", s.Id)
+		}
+		ids[s.Id] = true
+	}
+
+	oldShardCount := len(shards.ShortTerm)
+	oldShardId := shards.ShortTerm[0].Id
+
+	client.DropShard(oldShardId, []uint32{uint32(1)})
+	shards, err = client.GetShards()
+	c.Assert(err, IsNil)
+	c.Assert(len(shards.ShortTerm), Equals, oldShardCount-1)
+
+	// drop again and don't crash
+	client.DropShard(oldShardId, []uint32{uint32(1)})
+	shards, err = client.GetShards()
+	c.Assert(err, IsNil)
+	c.Assert(len(shards.ShortTerm), Equals, oldShardCount-1)
+
+	// now try to restart
+	self.server.Stop()
+	c.Assert(self.server.Start(), IsNil)
+	self.server.WaitForServerToStart()
+	shards, err = client.GetShards()
+	c.Assert(err, IsNil)
+	c.Assert(len(shards.ShortTerm), Equals, oldShardCount-1)
+}
+
 // issue #360
 func (self *SingleServerSuite) TestContinuousQueriesAfterCompaction(c *C) {
 	defer self.server.RemoveAllContinuousQueries("db1", c)
