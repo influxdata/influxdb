@@ -1119,6 +1119,7 @@ func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds 
 	}
 	if shard == nil {
 		log.Error("Attempted to remove shard %d, which we couldn't find. %d shards currently loaded.", shardId, len(self.GetAllShards()))
+		return
 	}
 
 	if len(shard.serverIds) == len(serverIds) {
