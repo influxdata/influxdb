@@ -4,14 +4,17 @@
 
 - [Issue #643](https://github.com/influxdb/influxdb/issues/643). Support pretty print json. (Thanks, @otoolep)
 - [Issue #641](https://github.com/influxdb/influxdb/issues/641). Support multiple storage engines
-- [Issue #665](https://github.com/influxdb/influxdb/issues/665). Make build tmp directory configurable in the make file
+- [Issue #665](https://github.com/influxdb/influxdb/issues/665). Make build tmp directory configurable in the make file. (Thanks, @dgnorton)
 - [Issue #667](https://github.com/influxdb/influxdb/issues/667). Enable compression on all GET requests and when writing data
+- [Issue #648](https://github.com/influxdb/influxdb/issues/648). Return permissions when listing db users. (Thanks, @nicolai86)
+- [Issue #682](https://github.com/influxdb/influxdb/issues/682). Allow continuous queries to run without backfill
 
 ### Bugfixes
 
 - [Issue #651](https://github.com/influxdb/influxdb/issues/651). Change permissions of symlink which fix some installation issues. (Thanks, @Dieterbe)
 - [Issue #670](https://github.com/influxdb/influxdb/issues/670). Don't warn on missing influxdb user on fresh installs
 - [Issue #676](https://github.com/influxdb/influxdb/issues/676). Allow storing high precision integer values without losing any information
+- [Issue #695](https://github.com/influxdb/influxdb/issues/695). Prevent having duplicate field names in the write payload. (Thanks, @seunglee150)
 
 ## v0.7.3 [2014-06-13]
 
