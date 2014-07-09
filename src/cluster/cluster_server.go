@@ -27,7 +27,6 @@ type ClusterServer struct {
 	MinBackoff               time.Duration
 	MaxBackoff               time.Duration
 	isUp                     bool
-	writeBuffer              *WriteBuffer
 	heartbeatStarted         bool
 }
 
@@ -75,10 +74,6 @@ func (self *ClusterServer) StartHeartbeat() {
 	go self.heartbeat()
 }
 
-func (self *ClusterServer) SetWriteBuffer(writeBuffer *WriteBuffer) {
-	self.writeBuffer = writeBuffer
-}
-
 func (self *ClusterServer) GetId() uint32 {
 	return self.Id
 }
@@ -116,10 +111,6 @@ func (self *ClusterServer) Write(request *protocol.Request) error {
 		return errors.New(*response.ErrorMessage)
 	}
 	return nil
-}
-
-func (self *ClusterServer) BufferWrite(request *protocol.Request) {
-	self.writeBuffer.Write(request)
 }
 
 func (self *ClusterServer) IsUp() bool {

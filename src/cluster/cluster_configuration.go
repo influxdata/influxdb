@@ -84,7 +84,6 @@ type ClusterConfiguration struct {
 	shardsById                 map[uint32]*ShardData
 	shardsByIdLock             sync.RWMutex
 	LocalRaftName              string
-	writeBuffers               []*WriteBuffer
 }
 
 type ContinuousQuery struct {
@@ -202,11 +201,6 @@ func (self *ClusterConfiguration) GetServerByProtobufConnectionString(connection
 
 // Return per shard request numbers for the local server and all remote servers
 func (self *ClusterConfiguration) HasUncommitedWrites() bool {
-	for _, buffer := range self.writeBuffers {
-		if buffer.HasUncommitedWrites() {
-			return true
-		}
-	}
 	return false
 }
 
@@ -265,9 +259,6 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 		server.connection = self.connectionCreator(server.ProtobufConnectionString)
 		server.Connect()
 	}
-	writeBuffer := NewWriteBuffer(fmt.Sprintf("%d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize)
-	self.writeBuffers = append(self.writeBuffers, writeBuffer)
-	server.SetWriteBuffer(writeBuffer)
 	server.StartHeartbeat()
 	return
 }
@@ -554,7 +545,7 @@ func (self *ClusterConfiguration) convertShardsToNewShardData(shards []*ShardDat
 func (self *ClusterConfiguration) convertNewShardDataToShards(newShards []*NewShardData) []*ShardData {
 	shards := make([]*ShardData, len(newShards), len(newShards))
 	for i, newShard := range newShards {
-		shard := NewShard(newShard.Id, newShard.StartTime, newShard.EndTime, newShard.Type, newShard.DurationSplit, self.wal)
+		shard := CreateShardData(newShard.Id, newShard.StartTime, newShard.EndTime, newShard.Type, newShard.DurationSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range newShard.ServerIds {
 			if serverId == self.LocalServer.Id {
@@ -601,9 +592,6 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 		}
 
 		server.connection = self.connectionCreator(server.ProtobufConnectionString)
-		writeBuffer := NewWriteBuffer(fmt.Sprintf("server: %d", server.GetId()), server, self.wal, server.Id, self.config.PerServerWriteBufferSize)
-		self.writeBuffers = append(self.writeBuffers, writeBuffer)
-		server.SetWriteBuffer(writeBuffer)
 		server.Connect()
 		server.StartHeartbeat()
 	}
@@ -953,7 +941,7 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 	for _, newShard := range shards {
 		id := self.lastShardIdUsed + 1
 		self.lastShardIdUsed = id
-		shard := NewShard(id, newShard.StartTime, newShard.EndTime, shardType, durationIsSplit, self.wal)
+		shard := CreateShardData(id, newShard.StartTime, newShard.EndTime, shardType, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range newShard.ServerIds {
 			// if a shard is created before the local server then the local
@@ -1000,7 +988,7 @@ func (self *ClusterConfiguration) MarshalNewShardArrayToShards(newShards []*NewS
 	shards := make([]*ShardData, len(newShards), len(newShards))
 	durationIsSplit := len(newShards) > 1
 	for i, s := range newShards {
-		shard := NewShard(s.Id, s.StartTime, s.EndTime, s.Type, durationIsSplit, self.wal)
+		shard := CreateShardData(s.Id, s.StartTime, s.EndTime, s.Type, durationIsSplit, self.wal)
 		servers := make([]*ClusterServer, 0)
 		for _, serverId := range s.ServerIds {
 			if serverId == self.LocalServer.Id {
@@ -1029,7 +1017,7 @@ func (self *ClusterConfiguration) GetLocalShardById(id uint32) *ShardData {
 	// If it's nil it just means that it hasn't been replicated by Raft yet.
 	// Just create a fake local shard temporarily for the write.
 	if shard == nil {
-		shard = NewShard(id, time.Now(), time.Now(), LONG_TERM, false, self.wal)
+		shard = CreateShardData(id, time.Now(), time.Now(), LONG_TERM, false, self.wal)
 		shard.SetServers([]*ClusterServer{})
 		shard.SetLocalStore(self.shardStore, self.LocalServer.Id)
 	}
@@ -1050,9 +1038,6 @@ func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) 
 }
 
 func (self *ClusterConfiguration) RecoverFromWAL() error {
-	writeBuffer := NewWriteBuffer("local", self.shardStore, self.wal, self.LocalServer.Id, self.config.LocalStoreWriteBufferSize)
-	self.writeBuffers = append(self.writeBuffers, writeBuffer)
-	self.shardStore.SetWriteBuffer(writeBuffer)
 	var waitForAll sync.WaitGroup
 	for _, _server := range self.servers {
 		server := _server

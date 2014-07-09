@@ -722,9 +722,6 @@ func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard c
 		s2 := &protocol.Series{Name: s.Name, Fields: s.Fields, Points: s.Points[l/2:]}
 		return self.write(db, []*protocol.Series{s2}, shard, sync)
 	}
-	if sync {
-		return shard.SyncWrite(request)
-	}
 	return shard.Write(request)
 }
 

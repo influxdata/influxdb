@@ -9,6 +9,7 @@
 - [Issue #648](https://github.com/influxdb/influxdb/issues/648). Return permissions when listing db users. (Thanks, @nicolai86)
 - [Issue #682](https://github.com/influxdb/influxdb/issues/682). Allow continuous queries to run without backfill
 
+
 ### Bugfixes
 
 - [Issue #651](https://github.com/influxdb/influxdb/issues/651). Change permissions of symlink which fix some installation issues. (Thanks, @Dieterbe)

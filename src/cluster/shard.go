@@ -8,9 +8,11 @@ import (
 	p "protocol"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"wal"
 
+	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
 )
 
@@ -23,7 +25,6 @@ type Shard interface {
 	StartTime() time.Time
 	EndTime() time.Time
 	Write(*p.Request) error
-	SyncWrite(*p.Request) error
 	Query(querySpec *parser.QuerySpec, response chan *p.Response)
 	IsMicrosecondInRange(t int64) bool
 }
@@ -60,25 +61,27 @@ const (
 )
 
 type ShardData struct {
-	id               uint32
-	startTime        time.Time
-	startMicro       int64
-	endMicro         int64
-	endTime          time.Time
-	wal              WAL
-	servers          []wal.Server
-	clusterServers   []*ClusterServer
-	store            LocalShardStore
-	serverIds        []uint32
-	shardType        ShardType
-	durationIsSplit  bool
-	shardDuration    time.Duration
-	shardNanoseconds uint64
-	localServerId    uint32
-	IsLocal          bool
+	id                     uint32
+	startTime              time.Time
+	startMicro             int64
+	endMicro               int64
+	endTime                time.Time
+	wal                    WAL
+	servers                []wal.Server
+	clusterServers         []*ClusterServer
+	store                  LocalShardStore
+	serverIds              []uint32
+	shardType              ShardType
+	durationIsSplit        bool
+	shardDuration          time.Duration
+	shardNanoseconds       uint64
+	localServerId          uint32
+	lastSequenceNumber     uint64
+	lastSequenceNumberLock sync.Mutex
+	IsLocal                bool
 }
 
-func NewShard(id uint32, startTime, endTime time.Time, shardType ShardType, durationIsSplit bool, wal WAL) *ShardData {
+func CreateShardData(id uint32, startTime, endTime time.Time, shardType ShardType, durationIsSplit bool, wal WAL) *ShardData {
 	shardDuration := endTime.Sub(startTime)
 	return &ShardData{
 		id:               id,
@@ -117,8 +120,6 @@ type LocalShardDb interface {
 
 type LocalShardStore interface {
 	Write(request *p.Request) error
-	SetWriteBuffer(writeBuffer *WriteBuffer)
-	BufferWrite(request *p.Request)
 	GetOrCreateShard(id uint32) (LocalShardDb, error)
 	ReturnShard(id uint32)
 	DeleteShard(shardId uint32) error
@@ -179,42 +180,55 @@ func (self *ShardData) ServerIds() []uint32 {
 	return self.serverIds
 }
 
-func (self *ShardData) SyncWrite(request *p.Request) error {
-	request.ShardId = &self.id
-	for _, server := range self.clusterServers {
-		if err := server.Write(request); err != nil {
-			return err
-		}
-	}
-
-	if self.store == nil {
-		return nil
-	}
-
-	return self.store.Write(request)
+// TODO: Store lastSequenceNumber somewhere so we don't reset on
+// restarts
+func (self *ShardData) reserveSequenceNumbers(n int) (seq uint64) {
+	self.lastSequenceNumberLock.Lock()
+	seq = self.lastSequenceNumber
+	self.lastSequenceNumber += uint64(n)
+	self.lastSequenceNumberLock.Unlock()
+	return
 }
 
 func (self *ShardData) Write(request *p.Request) error {
 	request.ShardId = &self.id
-	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
-	if err != nil {
-		return err
+	// try to send it to one server in the replication group
+
+	// assign the sequence numbers
+	for _, series := range request.MultiSeries {
+		s := self.reserveSequenceNumbers(len(series.Points))
+		for _, p := range series.Points {
+			if p.SequenceNumber != nil {
+				continue
+			}
+
+			p.SequenceNumber = proto.Uint64(s)
+			s++
+		}
 	}
-	request.RequestNumber = &requestNumber
+
 	if self.store != nil {
-		self.store.BufferWrite(request)
+		err := self.store.Write(request)
+		if err == nil {
+			return nil
+		}
+		log.Error("Cannot write to local store: %s", err)
 	}
-	for _, server := range self.clusterServers {
-		// we have to create a new reqeust object because the ID gets assigned on each server.
-		requestWithoutId := &p.Request{Type: request.Type, Database: request.Database, MultiSeries: request.MultiSeries, ShardId: &self.id, RequestNumber: request.RequestNumber}
-		server.BufferWrite(requestWithoutId)
+
+	for _, s := range self.clusterServers {
+		err := s.Write(request)
+		if err == nil {
+			return nil
+		}
+
+		log.Warn("Error while writing request to %v: %s", s, err)
 	}
-	return nil
+
+	return fmt.Errorf("Failed to write to all writers")
 }
 
 func (self *ShardData) WriteLocalOnly(request *p.Request) error {
-	self.store.Write(request)
-	return nil
+	return self.store.Write(request)
 }
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Response) {
