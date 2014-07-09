@@ -479,12 +479,30 @@ type LongTermShortTermShards struct {
 }
 
 type Shard struct {
-	Id        uint32   `json:"id"`
-	EndTime   int64    `json:"endTime"`
-	StartTime int64    `json:"startTime"`
-	ServerIds []uint32 `json:"serverIds"`
+	Id         uint32   `json:"id"`
+	EndTime    int64    `json:"endTime"`
+	StartTime  int64    `json:"startTime"`
+	ServerIds  []uint32 `json:"serverIds"`
+	ShardSpace string
 }
 
+type ShardSpace struct {
+	// required, must be unique within in the cluster
+	Name string
+	// optional, if they don't set this shard space will get evaluated for every database
+	Database string
+	// this is optional, if they don't set it, we'll set to /.*/
+	Regex string
+	// a duration (24h, 365d) this is optional, if they don't set it, it will default to the storage.dir in the config
+	RetentionPolicy string
+	Shards          []Shard `json:"-"`
+}
+
+type ShardSpaceCollection struct {
+	ShardSpaces []ShardSpace
+}
+
+// Deprecated. The 0.8.0 release made a breaking change to this endpoing.
 func (self *Client) GetShards() (*LongTermShortTermShards, error) {
 	url := self.getUrlWithUserAndPass("/cluster/shards", self.username, self.password)
 	body, err := self.get(url)
@@ -498,6 +516,40 @@ func (self *Client) GetShards() (*LongTermShortTermShards, error) {
 	}
 
 	return shards, nil
+}
+
+// Added to InfluxDB in 0.8.0
+func (self *Client) GetShardSpacesAndShards() ([]ShardSpace, error) {
+	url := self.getUrlWithUserAndPass("/cluster/shard_spaces", self.username, self.password)
+	body, err := self.get(url)
+	if err != nil {
+		return nil, err
+	}
+	spaces := []ShardSpace{}
+	err = json.Unmarshal(body, spaces)
+	if err != nil {
+		return nil, err
+	}
+
+	return spaces, nil
+}
+
+// Added to InfluxDB in 0.8.0
+func (self *Client) DropShardSpace(name string) error {
+	url := self.getUrlWithUserAndPass(fmt.Sprintf("/cluster/shard_spaces/%s", name), self.username, self.password)
+	_, err := self.del(url)
+	return err
+}
+
+// Added to InfluxDB in 0.8.0
+func (self *Client) CreateShardSpace(space *ShardSpace) error {
+	url := self.getUrl("/cluster/shard_spaces")
+	data, err := json.Marshal(space)
+	if err != nil {
+		return err
+	}
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
+	return responseToError(resp, err, true)
 }
 
 func (self *Client) DropShard(id uint32, serverIds []uint32) error {
