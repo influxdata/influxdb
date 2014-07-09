@@ -313,7 +313,7 @@ func GetGroupByClause(groupByClause *C.groupby_clause) (*GroupByClause, error) {
 		return &GroupByClause{Elems: nil}, nil
 	}
 
-	values, err := GetValueArray(groupByClause.elems)
+	values, err := GetValueArray((*C.value_array)(groupByClause.elems))
 	if err != nil {
 		return nil, err
 	}
