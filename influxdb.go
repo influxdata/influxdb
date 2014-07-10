@@ -495,6 +495,7 @@ type ShardSpace struct {
 	Regex string
 	// a duration (24h, 365d) this is optional, if they don't set it, it will default to the storage.dir in the config
 	RetentionPolicy string
+	ShardDuration   string
 	Shards          []Shard `json:"-"`
 }
 
