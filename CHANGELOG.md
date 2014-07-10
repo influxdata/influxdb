@@ -8,6 +8,7 @@
 - [Issue #667](https://github.com/influxdb/influxdb/issues/667). Enable compression on all GET requests and when writing data
 - [Issue #648](https://github.com/influxdb/influxdb/issues/648). Return permissions when listing db users. (Thanks, @nicolai86)
 - [Issue #682](https://github.com/influxdb/influxdb/issues/682). Allow continuous queries to run without backfill
+- [Issue #689](https://github.com/influxdb/influxdb/issues/689). Move metadata into raft
 
 ### Bugfixes
 
@@ -15,6 +16,7 @@
 - [Issue #670](https://github.com/influxdb/influxdb/issues/670). Don't warn on missing influxdb user on fresh installs
 - [Issue #676](https://github.com/influxdb/influxdb/issues/676). Allow storing high precision integer values without losing any information
 - [Issue #695](https://github.com/influxdb/influxdb/issues/695). Prevent having duplicate field names in the write payload. (Thanks, @seunglee150)
+- [Issue #358](https://github.com/influxdb/influxdb/issues/358). **BREAKING** List series should return as a single series
 
 ## v0.7.3 [2014-06-13]
 
