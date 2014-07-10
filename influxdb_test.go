@@ -138,14 +138,11 @@ func internalTest(t *testing.T, compression bool) {
 		t.Error(err)
 	}
 
-	spaces, err := client.GetShardSpacesAndShards()
+	spaces, err := client.GetShardSpaces()
 	if err != nil || len(spaces) == 0 {
 		t.Fail()
 	}
 	if spaces[0].Name != "default" {
-		t.Fail()
-	}
-	if spaces[0].Shards[0].Id != 1 {
 		t.Fail()
 	}
 	space := &ShardSpace{Name: "foo", Database: "foobar", Regex: "/^paul_is_rad/"}
@@ -153,11 +150,12 @@ func internalTest(t *testing.T, compression bool) {
 	if err != nil {
 		t.Error(err)
 	}
-	spaces, _ = client.GetShardSpacesAndShards()
+	spaces, _ = client.GetShardSpaces()
 	if spaces[1].Name != "foo" {
 		t.Fail()
 	}
-	if len(spaces[1].Shards) != 0 {
+	shards, err := client.GetShardsV2()
+	if err != nil {
 		t.Fail()
 	}
 
@@ -173,16 +171,19 @@ func internalTest(t *testing.T, compression bool) {
 		t.Error(err)
 	}
 
-	spaces, _ = client.GetShardSpacesAndShards()
-	if len(spaces[1].Shards) != 1 {
-		t.Fail()
+	spaces, _ = client.GetShardSpaces()
+	count := 0
+	for _, s := range shards {
+		if s.ShardSpace == "foo" {
+			count++
+		}
 	}
 
 	if err := client.DropShardSpace("foo"); err != nil {
 		t.Fail()
 	}
 
-	spaces, err = client.GetShardSpacesAndShards()
+	spaces, err = client.GetShardSpaces()
 	if err != nil || len(spaces) != 1 || spaces[0].Name != "default" {
 		t.Fail()
 	}

@@ -497,7 +497,6 @@ type ShardSpace struct {
 	RetentionPolicy string
 	// this is required. Should be something like 1h, 4h, 1d, 7d, 30d. Less than the retention policy by about a factor of 10
 	ShardDuration string
-	Shards        []Shard `json:"-"`
 	// how many servers should have a copy of shards in this space
 	ReplicationFactor uint32
 	// how many shards should be created for each block of time. Series will be distributed across this split
@@ -540,7 +539,7 @@ func (self *Client) GetShardsV2() ([]*Shard, error) {
 }
 
 // Added to InfluxDB in 0.8.0
-func (self *Client) GetShardSpacesAndShards() ([]ShardSpace, error) {
+func (self *Client) GetShardSpaces() ([]ShardSpace, error) {
 	url := self.getUrlWithUserAndPass("/cluster/shard_spaces", self.username, self.password)
 	body, err := self.get(url)
 	if err != nil {
