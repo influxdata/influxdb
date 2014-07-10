@@ -539,13 +539,13 @@ func (self *Client) GetShardsV2() ([]*Shard, error) {
 }
 
 // Added to InfluxDB in 0.8.0
-func (self *Client) GetShardSpaces() ([]ShardSpace, error) {
+func (self *Client) GetShardSpaces() ([]*ShardSpace, error) {
 	url := self.getUrlWithUserAndPass("/cluster/shard_spaces", self.username, self.password)
 	body, err := self.get(url)
 	if err != nil {
 		return nil, err
 	}
-	spaces := []ShardSpace{}
+	spaces := []*ShardSpace{}
 	err = json.Unmarshal(body, spaces)
 	if err != nil {
 		return nil, err
