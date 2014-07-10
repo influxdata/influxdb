@@ -546,7 +546,7 @@ func (self *Client) GetShardSpaces() ([]*ShardSpace, error) {
 		return nil, err
 	}
 	spaces := []*ShardSpace{}
-	err = json.Unmarshal(body, spaces)
+	err = json.Unmarshal(body, &spaces)
 	if err != nil {
 		return nil, err
 	}
