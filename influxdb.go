@@ -479,11 +479,11 @@ type LongTermShortTermShards struct {
 }
 
 type Shard struct {
-	Id         uint32   `json:"id"`
-	EndTime    int64    `json:"endTime"`
-	StartTime  int64    `json:"startTime"`
-	ServerIds  []uint32 `json:"serverIds"`
-	ShardSpace string
+	Id        uint32   `json:"id"`
+	EndTime   int64    `json:"endTime"`
+	StartTime int64    `json:"startTime"`
+	ServerIds []uint32 `json:"serverIds"`
+	SpaceName string
 }
 
 type ShardSpace struct {
@@ -515,7 +515,7 @@ func (self *Client) GetShards() (*LongTermShortTermShards, error) {
 		return nil, err
 	}
 	shards := &LongTermShortTermShards{}
-	err = json.Unmarshal(body, shards)
+	err = json.Unmarshal(body, &shards)
 	if err != nil {
 		return nil, err
 	}

@@ -174,7 +174,7 @@ func internalTest(t *testing.T, compression bool) {
 	spaces, _ = client.GetShardSpaces()
 	count := 0
 	for _, s := range shards {
-		if s.ShardSpace == "foo" {
+		if s.SpaceName == "foo" {
 			count++
 		}
 	}
