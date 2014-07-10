@@ -271,7 +271,7 @@ func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData
 }
 
 func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, chan bool, error) {
-	shards := self.clusterConfiguration.GetShards(querySpec)
+	shards := self.clusterConfiguration.GetShardsForQuery(querySpec)
 	shouldAggregateLocally := self.shouldAggregateLocally(shards, querySpec)
 
 	var err error

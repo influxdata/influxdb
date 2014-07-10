@@ -2,6 +2,7 @@ package parser
 
 import (
 	"common"
+	"regexp"
 	"time"
 )
 
@@ -9,6 +10,7 @@ type QuerySpec struct {
 	query                       *Query
 	database                    string
 	isRegex                     bool
+	regex                       *regexp.Regexp
 	names                       []string
 	user                        common.User
 	startTime                   time.Time
@@ -58,25 +60,39 @@ func (self *QuerySpec) DeleteQuery() *DeleteQuery {
 }
 
 func (self *QuerySpec) TableNames() []string {
+	names, _ := self.TableNamesAndRegex()
+	return names
+}
+
+func (self *QuerySpec) TableNamesAndRegex() ([]string, *regexp.Regexp) {
 	if self.names != nil {
-		return self.names
+		return self.names, self.regex
 	}
 	if self.query.SelectQuery == nil {
-		self.names = []string{}
-		return self.names
+		if self.query.DeleteQuery != nil {
+			self.names = make([]string, 0)
+			for _, n := range self.query.DeleteQuery.GetFromClause().Names {
+				self.names = append(self.names, n.Name.Name)
+			}
+		} else {
+			self.names = []string{}
+		}
+		return self.names, nil
 	}
 
 	namesAndColumns := self.query.SelectQuery.GetReferencedColumns()
 
 	names := make([]string, 0, len(namesAndColumns))
 	for name := range namesAndColumns {
-		if _, isRegex := name.GetCompiledRegex(); isRegex {
+		if r, isRegex := name.GetCompiledRegex(); isRegex {
+			self.regex = r
 			self.isRegex = true
 		} else {
 			names = append(names, name.Name)
 		}
 	}
-	return names
+	self.names = names
+	return names, self.regex
 }
 
 func (self *QuerySpec) SeriesValuesAndColumns() map[*Value][]string {
@@ -150,22 +166,6 @@ func (self *QuerySpec) IsExplainQuery() bool {
 
 func (self *QuerySpec) SelectQuery() *SelectQuery {
 	return self.query.SelectQuery
-}
-
-func (self *QuerySpec) ShouldQueryShortTermAndLongTerm() (shouldQueryShortTerm bool, shouldQueryLongTerm bool) {
-	for val := range self.SeriesValuesAndColumns() {
-		_, isRegex := val.GetCompiledRegex()
-		if isRegex {
-			return true, true
-		}
-		firstChar := val.Name[0]
-		if firstChar < 97 {
-			shouldQueryLongTerm = true
-		} else {
-			shouldQueryShortTerm = true
-		}
-	}
-	return
 }
 
 func (self *QuerySpec) IsListSeriesQuery() bool {

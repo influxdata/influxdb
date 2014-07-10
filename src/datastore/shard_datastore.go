@@ -40,7 +40,7 @@ const (
 	ONE_KILOBYTE                    = 1024
 	ONE_MEGABYTE                    = 1024 * 1024
 	SHARD_BLOOM_FILTER_BITS_PER_KEY = 10
-	SHARD_DATABASE_DIR              = "shard_db"
+	SHARD_DATABASE_DIR              = "shard_db_v2"
 )
 
 var (

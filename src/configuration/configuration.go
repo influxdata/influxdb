@@ -1,12 +1,10 @@
 package configuration
 
 import (
-	"common"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -91,13 +89,14 @@ type RaftConfig struct {
 }
 
 type StorageConfig struct {
-	Dir             string
-	DefaultEngine   string `toml:"default-engine"`
-	WriteBufferSize int    `toml:"write-buffer-size"`
-	MaxOpenShards   int    `toml:"max-open-shards"`
-	PointBatchSize  int    `toml:"point-batch-size"`
-	WriteBatchSize  int    `toml:"write-batch-size"`
-	Engines         map[string]toml.Primitive
+	Dir                  string
+	DefaultEngine        string `toml:"default-engine"`
+	WriteBufferSize      int    `toml:"write-buffer-size"`
+	MaxOpenShards        int    `toml:"max-open-shards"`
+	PointBatchSize       int    `toml:"point-batch-size"`
+	WriteBatchSize       int    `toml:"write-batch-size"`
+	Engines              map[string]toml.Primitive
+	RetentionSweepPeriod duration `toml:"retention-sweep-period"`
 }
 
 type ClusterConfig struct {
@@ -128,59 +127,6 @@ type LoggingConfig struct {
 	Level string
 }
 
-type ShardingDefinition struct {
-	ReplicationFactor int                `toml:"replication-factor"`
-	ShortTerm         ShardConfiguration `toml:"short-term"`
-	LongTerm          ShardConfiguration `toml:"long-term"`
-}
-
-type ShardConfiguration struct {
-	Duration         string
-	parsedDuration   time.Duration
-	Split            int
-	SplitRandom      string `toml:"split-random"`
-	splitRandomRegex *regexp.Regexp
-	hasRandomSplit   bool
-}
-
-func (self *ShardConfiguration) ParseAndValidate(defaultShardDuration time.Duration) error {
-	var err error
-	if self.Split == 0 {
-		self.Split = 1
-	}
-	if self.SplitRandom == "" {
-		self.hasRandomSplit = false
-	} else {
-		self.hasRandomSplit = true
-		self.splitRandomRegex, err = regexp.Compile(self.SplitRandom)
-		if err != nil {
-			return err
-		}
-	}
-	if self.Duration == "" {
-		self.parsedDuration = defaultShardDuration
-		return nil
-	}
-	val, err := common.ParseTimeDuration(self.Duration)
-	if err != nil {
-		return err
-	}
-	self.parsedDuration = time.Duration(val)
-	return nil
-}
-
-func (self *ShardConfiguration) ParsedDuration() *time.Duration {
-	return &self.parsedDuration
-}
-
-func (self *ShardConfiguration) HasRandomSplit() bool {
-	return self.hasRandomSplit
-}
-
-func (self *ShardConfiguration) SplitRegex() *regexp.Regexp {
-	return self.splitRandomRegex
-}
-
 type WalConfig struct {
 	Dir                   string `toml:"dir"`
 	FlushAfterRequests    int    `toml:"flush-after"`
@@ -204,10 +150,9 @@ type TomlConfiguration struct {
 	Cluster           ClusterConfig
 	Logging           LoggingConfig
 	Hostname          string
-	BindAddress       string             `toml:"bind-address"`
-	ReportingDisabled bool               `toml:"reporting-disabled"`
-	Sharding          ShardingDefinition `toml:"sharding"`
-	WalConfig         WalConfig          `toml:"wal"`
+	BindAddress       string    `toml:"bind-address"`
+	ReportingDisabled bool      `toml:"reporting-disabled"`
+	WalConfig         WalConfig `toml:"wal"`
 	LevelDb           LevelDbConfiguration
 }
 
@@ -226,11 +171,12 @@ type Configuration struct {
 
 	UdpServers []UdpInputConfig
 
-	StorageDefaultEngine  string
-	StorageMaxOpenShards  int
-	StoragePointBatchSize int
-	StorageWriteBatchSize int
-	StorageEngineConfigs  map[string]toml.Primitive
+	StorageDefaultEngine        string
+	StorageMaxOpenShards        int
+	StoragePointBatchSize       int
+	StorageWriteBatchSize       int
+	StorageEngineConfigs        map[string]toml.Primitive
+	StorageRetentionSweepPeriod duration
 
 	// TODO: this is for backward compatability only
 	LevelDbMaxOpenFiles int
@@ -250,9 +196,6 @@ type Configuration struct {
 	LogFile                      string
 	LogLevel                     string
 	BindAddress                  string
-	ShortTermShard               *ShardConfiguration
-	LongTermShard                *ShardConfiguration
-	ReplicationFactor            int
 	WalDir                       string
 	WalFlushAfterRequests        int
 	WalBookmarkAfterRequests     int
@@ -287,14 +230,6 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = tomlConfiguration.Sharding.LongTerm.ParseAndValidate(time.Hour * 24 * 30)
-	if err != nil {
-		return nil, err
-	}
-	err = tomlConfiguration.Sharding.ShortTerm.ParseAndValidate(time.Hour * 24 * 7)
-	if err != nil {
-		return nil, err
-	}
 
 	// if it wasn't set, set it to 100
 	if tomlConfiguration.Storage.PointBatchSize == 0 {
@@ -320,6 +255,10 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 
 	if tomlConfiguration.Storage.DefaultEngine == "" {
 		tomlConfiguration.Storage.DefaultEngine = "leveldb"
+	}
+
+	if tomlConfiguration.Storage.RetentionSweepPeriod.Duration == 0 {
+		tomlConfiguration.Storage.RetentionSweepPeriod = duration{10 * time.Minute}
 	}
 
 	if tomlConfiguration.WalConfig.IndexAfterRequests == 0 {
@@ -372,13 +311,14 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		UdpServers: tomlConfiguration.InputPlugins.UdpServersInput,
 
 		// storage configuration
-		StorageDefaultEngine:      tomlConfiguration.Storage.DefaultEngine,
-		StorageMaxOpenShards:      tomlConfiguration.Storage.MaxOpenShards,
-		StoragePointBatchSize:     tomlConfiguration.Storage.PointBatchSize,
-		StorageWriteBatchSize:     tomlConfiguration.Storage.WriteBatchSize,
-		DataDir:                   tomlConfiguration.Storage.Dir,
-		LocalStoreWriteBufferSize: tomlConfiguration.Storage.WriteBufferSize,
-		StorageEngineConfigs:      tomlConfiguration.Storage.Engines,
+		StorageDefaultEngine:        tomlConfiguration.Storage.DefaultEngine,
+		StorageMaxOpenShards:        tomlConfiguration.Storage.MaxOpenShards,
+		StoragePointBatchSize:       tomlConfiguration.Storage.PointBatchSize,
+		StorageWriteBatchSize:       tomlConfiguration.Storage.WriteBatchSize,
+		DataDir:                     tomlConfiguration.Storage.Dir,
+		LocalStoreWriteBufferSize:   tomlConfiguration.Storage.WriteBufferSize,
+		StorageEngineConfigs:        tomlConfiguration.Storage.Engines,
+		StorageRetentionSweepPeriod: tomlConfiguration.Storage.RetentionSweepPeriod,
 
 		LevelDbMaxOpenFiles: tomlConfiguration.LevelDb.MaxOpenFiles,
 		LevelDbLruCacheSize: int(tomlConfiguration.LevelDb.LruCacheSize),
@@ -397,9 +337,6 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		Hostname:                     tomlConfiguration.Hostname,
 		BindAddress:                  tomlConfiguration.BindAddress,
 		ReportingDisabled:            tomlConfiguration.ReportingDisabled,
-		LongTermShard:                &tomlConfiguration.Sharding.LongTerm,
-		ShortTermShard:               &tomlConfiguration.Sharding.ShortTerm,
-		ReplicationFactor:            tomlConfiguration.Sharding.ReplicationFactor,
 		WalDir:                       tomlConfiguration.WalConfig.Dir,
 		WalFlushAfterRequests:        tomlConfiguration.WalConfig.FlushAfterRequests,
 		WalBookmarkAfterRequests:     tomlConfiguration.WalConfig.BookmarkAfterRequests,

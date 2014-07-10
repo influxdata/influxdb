@@ -774,3 +774,15 @@ func (self *RaftServer) DropSeries(database, series string) error {
 	}
 	return err
 }
+
+func (self *RaftServer) CreateShardSpace(shardSpace *cluster.ShardSpace) error {
+	command := NewCreateShardSpaceCommand(shardSpace)
+	_, err := self.doOrProxyCommand(command)
+	return err
+}
+
+func (self *RaftServer) DropShardSpace(database, name string) error {
+	command := NewDropShardSpaceCommand(database, name)
+	_, err := self.doOrProxyCommand(command)
+	return err
+}

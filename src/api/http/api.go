@@ -151,6 +151,9 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "post", "/cluster/shards", self.createShard)
 	self.registerEndpoint(p, "get", "/cluster/shards", self.getShards)
 	self.registerEndpoint(p, "del", "/cluster/shards/:id", self.dropShard)
+	self.registerEndpoint(p, "get", "/cluster/shard_spaces", self.getShardSpaces)
+	self.registerEndpoint(p, "post", "/cluster/shard_spaces", self.createShardSpace)
+	self.registerEndpoint(p, "del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
 
 	// return whether the cluster is in sync or not
 	self.registerEndpoint(p, "get", "/sync", self.isInSync)
@@ -1018,7 +1021,8 @@ type newShardInfo struct {
 	StartTime int64               `json:"startTime"`
 	EndTime   int64               `json:"endTime"`
 	Shards    []newShardServerIds `json:"shards"`
-	LongTerm  bool                `json:"longTerm"`
+	SpaceName string              `json:"spaceName"`
+	Database  string              `json:"database"`
 }
 
 type newShardServerIds struct {
@@ -1038,16 +1042,13 @@ func (self *HttpServer) createShard(w libhttp.ResponseWriter, r *libhttp.Request
 		}
 		shards := make([]*cluster.NewShardData, 0)
 
-		shardType := cluster.SHORT_TERM
-		if newShards.LongTerm {
-			shardType = cluster.LONG_TERM
-		}
 		for _, s := range newShards.Shards {
 			newShardData := &cluster.NewShardData{
 				StartTime: time.Unix(newShards.StartTime, 0),
 				EndTime:   time.Unix(newShards.EndTime, 0),
 				ServerIds: s.ServerIds,
-				Type:      shardType,
+				SpaceName: newShards.SpaceName,
+				Database:  newShards.Database,
 			}
 			shards = append(shards, newShardData)
 		}
@@ -1061,10 +1062,18 @@ func (self *HttpServer) createShard(w libhttp.ResponseWriter, r *libhttp.Request
 
 func (self *HttpServer) getShards(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		result := make(map[string]interface{})
-		result["shortTerm"] = self.convertShardsToMap(self.clusterConfig.GetShortTermShards())
-		result["longTerm"] = self.convertShardsToMap(self.clusterConfig.GetLongTermShards())
-		return libhttp.StatusOK, result
+		shards := self.clusterConfig.GetShards()
+		shardMaps := make([]map[string]interface{}, 0, len(shards))
+		for _, s := range shards {
+			shardMaps = append(shardMaps, map[string]interface{}{
+				"id":        s.Id(),
+				"endTime":   s.EndTime().Unix(),
+				"startTime": s.StartTime().Unix(),
+				"serverIds": s.ServerIds(),
+				"spaceName": s.SpaceName,
+				"database":  s.Database})
+		}
+		return libhttp.StatusOK, shardMaps
 	})
 }
 
@@ -1122,4 +1131,44 @@ func (self *HttpServer) convertShardsToMap(shards []*cluster.ShardData) []interf
 		result = append(result, s)
 	}
 	return result
+}
+
+func (self *HttpServer) getShardSpaces(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		return libhttp.StatusOK, self.clusterConfig.GetShardSpaces()
+	})
+}
+
+func (self *HttpServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		space := &cluster.ShardSpace{}
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		err = json.Unmarshal(body, space)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		err = space.Validate(self.clusterConfig)
+		if err != nil {
+			return libhttp.StatusBadRequest, err.Error()
+		}
+		err = self.raftServer.CreateShardSpace(space)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		return libhttp.StatusOK, nil
+	})
+}
+
+func (self *HttpServer) dropShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		name := r.URL.Query().Get(":name")
+		db := r.URL.Query().Get(":db")
+		if err := self.raftServer.DropShardSpace(db, name); err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		return libhttp.StatusOK, nil
+	})
 }
