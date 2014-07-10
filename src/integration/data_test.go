@@ -1026,7 +1026,7 @@ func (self *DataTestSuite) FilterWithInvalidCondition(c *C) (Fun, Fun) {
 			data := CreatePoints("test_invalid_where_condition", 1, 1)
 			client.WriteData(data, c)
 		}, func(client Client) {
-			data := client.RunQuery("select cpu from test_invalid_where_condition where column0 > 0.1s", c, "m")
+			data := client.RunQuery("select * from test_invalid_where_condition where column0 > 0.1s", c, "m")
 			// TODO: this should return an error
 			c.Assert(data, HasLen, 0)
 		}
@@ -1084,7 +1084,7 @@ func (self *DataTestSuite) Issue85(c *C) (Fun, Fun) {
 			data := CreatePoints("test_issue_85", 1, 1)
 			client.WriteData(data, c)
 		}, func(client Client) {
-			_ = client.RunQuery("select new_column from test_issue_85", c, "m")
+			_ = client.RunInvalidQuery("select new_column from test_issue_85", c, "m")
 			data := client.RunQuery("select * from test_issue_85", c, "m")
 			c.Assert(data, HasLen, 1)
 			c.Assert(data[0].Columns, HasLen, 3)
@@ -1552,15 +1552,16 @@ func (self *DataTestSuite) SinglePointSelectWithNullValues(c *C) (Fun, Fun) {
 
 			query := "select * from test_single_points_with_nulls where name='john';"
 			data := client.RunQuery(query, c, "u")
-			c.Assert(data[0].Points, HasLen, 1)
+			c.Assert(data, HasLen, 1)
+			maps := ToMap(data[0])
 
-			for _, point := range data[0].Points {
-				query := fmt.Sprintf("select * from test_single_points_with_nulls where time = %.0fu and sequence_number = %0.f;", point[0].(float64), point[1])
+			for _, m := range maps {
+				query := fmt.Sprintf("select * from test_single_points_with_nulls where time = %.0fu and sequence_number = %0.f;", m["time"].(float64), m["sequence_number"].(float64))
 				data := client.RunQuery(query, c, "u")
 				c.Assert(data, HasLen, 1)
-				c.Assert(data[0].Points, HasLen, 1)
-				c.Assert(data[0].Points[0], HasLen, 3)
-				c.Assert(data[0].Points[0][2], Equals, point[3])
+				actualMaps := ToMap(data[0])
+				c.Assert(actualMaps, HasLen, 1)
+				c.Assert(actualMaps[0]["name"], Equals, maps[0]["name"])
 			}
 		}
 }
@@ -1621,9 +1622,11 @@ func (self *DataTestSuite) SeriesListing(c *C) (Fun, Fun) {
 `, c)
 		}, func(client Client) {
 			data := client.RunQuery("list series", c, "m")
+			c.Assert(data, HasLen, 1)
+			maps := ToMap(data[0])
 			names := map[string]bool{}
-			for _, series := range data {
-				names[series.Name] = true
+			for _, m := range maps {
+				names[m["name"].(string)] = true
 			}
 			c.Assert(names["test_series_listing"], Equals, true)
 		}
@@ -1983,11 +1986,11 @@ func (self *DataTestSuite) ListSeries(c *C) (Fun, Fun) {
 			client.WriteJsonData(data, c, "s")
 		}, func(client Client) {
 			collection := client.RunQuery("list series", c)
-			c.Assert(collection, HasLen, 2)
+			c.Assert(collection, HasLen, 1)
+			maps := ToMap(collection[0])
 			names := map[string]bool{}
-			for _, s := range collection {
-				c.Assert(s.Points, HasLen, 0)
-				names[s.Name] = true
+			for _, m := range maps {
+				names[m["name"].(string)] = true
 			}
 			c.Assert(names["cluster_query"], Equals, true)
 			c.Assert(names["another_query"], Equals, true)

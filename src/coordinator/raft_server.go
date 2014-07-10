@@ -17,6 +17,7 @@ import (
 	"parser"
 	"path/filepath"
 	"protocol"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -173,9 +174,7 @@ func SendCommandToServer(url string, command raft.Command) (interface{}, error) 
 		return nil, errors.New(strings.TrimSpace(string(body)))
 	}
 
-	var js interface{}
-	json.Unmarshal(body, &js)
-	return js, err2
+	return body, err2
 
 }
 
@@ -188,6 +187,14 @@ func (s *RaftServer) CreateDatabase(name string) error {
 func (s *RaftServer) DropDatabase(name string) error {
 	command := NewDropDatabaseCommand(name)
 	_, err := s.doOrProxyCommand(command)
+	// TODO: Dropping database from the metastore is synchronous, but the underlying data
+	//       delete is asynchronous. If the server crashes or restarts while this is happening
+	//       there will be orphaned data sitting around. Not a huge deal, but we should fix this
+	//       at some point.
+	// force a log compaction because we don't want this replaying after a server restarts
+	if err == nil {
+		err = s.ForceLogCompaction()
+	}
 	return err
 }
 
@@ -682,9 +689,14 @@ func (s *RaftServer) processCommandHandler(w http.ResponseWriter, req *http.Requ
 	vars := mux.Vars(req)
 	value := vars["command_type"]
 	command := internalRaftCommands[value]
+	v := reflect.New(reflect.Indirect(reflect.ValueOf(command)).Type()).Interface()
+	copy, ok := v.(raft.Command)
+	if !ok {
+		panic(fmt.Sprintf("raft: Unable to copy command: %s (%v)", command.CommandName(), reflect.ValueOf(v).Kind().String()))
+	}
 
-	if result, err := s.marshalAndDoCommandFromBody(command, req); err != nil {
-		log.Error("command %T failed: %s", command, err)
+	if result, err := s.marshalAndDoCommandFromBody(copy, req); err != nil {
+		log.Error("command %T failed: %s", copy, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
 		if result != nil {
@@ -702,17 +714,20 @@ func (self *RaftServer) CreateShards(shards []*cluster.NewShardData) ([]*cluster
 		log.Error("RAFT: CreateShards: ", err)
 		return nil, err
 	}
-	js, err := json.Marshal(createShardsResult)
-	if err != nil {
-		return nil, err
+	if x, k := createShardsResult.([]byte); k {
+		newShards := make([]*cluster.NewShardData, 0)
+		err = json.Unmarshal(x, &newShards)
+		if err != nil {
+			log.Error("RAFT: error parsing new shard result: ", err)
+			return nil, err
+		}
+		return self.clusterConfig.MarshalNewShardArrayToShards(newShards)
 	}
-	newShards := make([]*cluster.NewShardData, 0)
-	err = json.Unmarshal(js, &newShards)
-	if err != nil {
-		return nil, err
+	if x, k := createShardsResult.([]*cluster.NewShardData); k {
+		return self.clusterConfig.MarshalNewShardArrayToShards(x)
 	}
-	log.Debug("NEW SHARDS: %v", newShards)
-	return self.clusterConfig.MarshalNewShardArrayToShards(newShards)
+
+	return nil, fmt.Errorf("Unable to marshal Raft AddShards result!")
 }
 
 func (self *RaftServer) DropShard(id uint32, serverIds []uint32) error {
@@ -722,5 +737,40 @@ func (self *RaftServer) DropShard(id uint32, serverIds []uint32) error {
 	}
 	command := NewDropShardCommand(id, serverIds)
 	_, err := self.doOrProxyCommand(command)
+	return err
+}
+
+func (self *RaftServer) GetOrSetFieldIdsForSeries(database string, series []*protocol.Series) ([]*protocol.Series, error) {
+	command := NewCreateSeriesFieldIdsCommand(database, series)
+	result, err := self.doOrProxyCommand(command)
+	if result == nil || err != nil {
+		return nil, err
+	}
+	if x, k := result.([]byte); k {
+		s := []*protocol.Series{}
+		err := json.Unmarshal(x, &s)
+		if err != nil {
+			return nil, err
+		}
+		return s, nil
+	}
+	if x, k := result.([]*protocol.Series); k {
+		return x, nil
+	}
+	return nil, nil
+}
+
+func (self *RaftServer) DropSeries(database, series string) error {
+	command := NewDropSeriesCommand(database, series)
+	_, err := self.doOrProxyCommand(command)
+
+	// TODO: Dropping series from the metastore is synchronous, but the underlying data
+	//       delete is asynchronous. If the server crashes or restarts while this is happening
+	//       there will be orphaned data sitting around. Not a huge deal, but we should fix this
+	//       at some point.
+	// force a log compaction because we don't want this replaying after a server restarts
+	if err == nil {
+		err = self.ForceLogCompaction()
+	}
 	return err
 }

@@ -24,7 +24,7 @@ func (self *ShardDatastoreSuite) TestWillEnforceMaxOpenShards(c *C) {
 	config.StorageMaxOpenShards = 2
 	config.StorageDefaultEngine = "leveldb"
 
-	store, err := NewShardDatastore(config)
+	store, err := NewShardDatastore(config, nil)
 	c.Assert(err, IsNil)
 
 	shard, err := store.GetOrCreateShard(uint32(2))

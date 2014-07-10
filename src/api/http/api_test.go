@@ -189,7 +189,7 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 		dir,
 		self.coordinator,
 		self.manager,
-		cluster.NewClusterConfiguration(&configuration.Configuration{}, nil, nil, nil),
+		cluster.NewClusterConfiguration(&configuration.Configuration{}, nil, nil, nil, nil),
 		nil)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")

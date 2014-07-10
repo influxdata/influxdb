@@ -9,11 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"metastore"
 	"parser"
 	"protocol"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"code.google.com/p/goprotobuf/proto"
@@ -22,32 +22,18 @@ import (
 
 type Shard struct {
 	db             storage.Engine
-	lastIdUsed     uint64
-	columnIdMutex  sync.Mutex
 	closed         bool
 	pointBatchSize int
 	writeBatchSize int
+	metaStore      *metastore.Store
 }
 
-func NewShard(db storage.Engine, pointBatchSize, writeBatchSize int) (*Shard, error) {
-	lastIdBytes, err2 := db.Get(NEXT_ID_KEY)
-	if err2 != nil {
-		return nil, err2
-	}
-
-	lastId := uint64(0)
-	if lastIdBytes != nil {
-		lastId, err2 = binary.ReadUvarint(bytes.NewBuffer(lastIdBytes))
-		if err2 != nil {
-			return nil, err2
-		}
-	}
-
+func NewShard(db storage.Engine, pointBatchSize, writeBatchSize int, metaStore *metastore.Store) (*Shard, error) {
 	return &Shard{
 		db:             db,
-		lastIdUsed:     lastId,
 		pointBatchSize: pointBatchSize,
 		writeBatchSize: writeBatchSize,
+		metaStore:      metaStore,
 	}, nil
 }
 
@@ -58,21 +44,21 @@ func (self *Shard) Write(database string, series []*protocol.Series) error {
 		if len(s.Points) == 0 {
 			return errors.New("Unable to write no data. Series was nil or had no points.")
 		}
+		if len(s.FieldIds) == 0 {
+			return errors.New("Unable to write points without fields")
+		}
 
 		count := 0
-		for fieldIndex, field := range s.Fields {
-			temp := field
-			id, err := self.createIdForDbSeriesColumn(&database, s.Name, &temp)
-			if err != nil {
-				return err
-			}
+		for fieldIndex, id := range s.FieldIds {
 			for _, point := range s.Points {
+				// keyBuffer and dataBuffer have to be recreated since we are
+				// batching the writes, otherwise new writes will override the
+				// old writes that are still in memory
 				keyBuffer := bytes.NewBuffer(make([]byte, 0, 24))
 				dataBuffer := proto.NewBuffer(nil)
-				keyBuffer.Reset()
-				dataBuffer.Reset()
+				var err error
 
-				keyBuffer.Write(id)
+				binary.Write(keyBuffer, binary.BigEndian, &id)
 				timestamp := self.convertTimestampToUint(point.GetTimestampInMicroseconds())
 				// pass the uint64 by reference so binary.Write() doesn't create a new buffer
 				// see the source code for intDataSize() in binary.go
@@ -112,8 +98,6 @@ func (self *Shard) Query(querySpec *parser.QuerySpec, processor cluster.QueryPro
 		return self.executeListSeriesQuery(querySpec, processor)
 	} else if querySpec.IsDeleteFromSeriesQuery() {
 		return self.executeDeleteQuery(querySpec, processor)
-	} else if querySpec.IsDropSeriesQuery() {
-		return self.executeDropSeriesQuery(querySpec, processor)
 	}
 
 	seriesAndColumns := querySpec.SelectQuery().GetReferencedColumns()
@@ -124,7 +108,7 @@ func (self *Shard) Query(querySpec *parser.QuerySpec, processor cluster.QueryPro
 
 	for series, columns := range seriesAndColumns {
 		if regex, ok := series.GetCompiledRegex(); ok {
-			seriesNames := self.getSeriesForDbAndRegex(querySpec.Database(), regex)
+			seriesNames := self.metaStore.GetSeriesForDatabaseAndRegex(querySpec.Database(), regex)
 			for _, name := range seriesNames {
 				if !querySpec.HasReadAccess(name) {
 					continue
@@ -144,18 +128,6 @@ func (self *Shard) Query(querySpec *parser.QuerySpec, processor cluster.QueryPro
 	return nil
 }
 
-func (self *Shard) DropDatabase(database string) error {
-	seriesNames := self.getSeriesForDatabase(database)
-	for _, name := range seriesNames {
-		if err := self.dropSeries(database, name); err != nil {
-			log.Error("DropDatabase: ", err)
-			return err
-		}
-	}
-	self.db.Compact()
-	return nil
-}
-
 func (self *Shard) IsClosed() bool {
 	return self.closed
 }
@@ -166,15 +138,8 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 
 	fields, err := self.getFieldsForSeries(querySpec.Database(), seriesName, columns)
 	if err != nil {
-		// because a db is distributed across the cluster, it's possible we don't have the series indexed here. ignore
-		switch err := err.(type) {
-		case FieldLookupError:
-			log.Debug("Cannot find fields %v", columns)
-			return nil
-		default:
-			log.Error("Error looking up fields for %s: %s", seriesName, err)
-			return fmt.Errorf("Error looking up fields for %s: %s", seriesName, err)
-		}
+		log.Error("Error looking up fields for %s: %s", seriesName, err)
+		return err
 	}
 
 	fieldCount := len(fields)
@@ -224,7 +189,7 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 				continue
 			}
 
-			if !isPointInRange(fields[i].Id, startTimeBytes, endTimeBytes, key) {
+			if !isPointInRange(fields[i].IdAsBytes(), startTimeBytes, endTimeBytes, key) {
 				continue
 			}
 
@@ -404,37 +369,10 @@ func (self *Shard) executeDeleteQuery(querySpec *parser.QuerySpec, processor clu
 	return nil
 }
 
-func (self *Shard) executeDropSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
-	database := querySpec.Database()
-	series := querySpec.Query().DropSeriesQuery.GetTableName()
-	err := self.dropSeries(database, series)
-	if err != nil {
-		return err
-	}
-	self.db.Compact()
-	return nil
-}
-
-func (self *Shard) dropSeries(database, series string) error {
+func (self *Shard) DropFields(fields []*metastore.Field) error {
 	startTimeBytes := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	endTimeBytes := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-
-	if err := self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes); err != nil {
-		return err
-	}
-
-	wb := []storage.Write{}
-
-	for _, name := range self.getColumnNamesForSeries(database, series) {
-		indexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(database+"~"+series+"~"+name)...)
-		wb = append(wb, storage.Write{indexKey, nil})
-	}
-
-	key := append(DATABASE_SERIES_INDEX_PREFIX, []byte(database+"~"+series)...)
-	wb = append(wb, storage.Write{key, nil})
-
-	// remove the column indeces for this time series
-	return self.db.BatchPut(wb)
+	return self.deleteRangeOfFields(fields, startTimeBytes, endTimeBytes)
 }
 
 func (self *Shard) byteArrayForTimeInt(time int64) []byte {
@@ -449,26 +387,21 @@ func (self *Shard) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]by
 }
 
 func (self *Shard) deleteRangeOfSeriesCommon(database, series string, startTimeBytes, endTimeBytes []byte) error {
-	columns := self.getColumnNamesForSeries(database, series)
-	fields, err := self.getFieldsForSeries(database, series, columns)
-	if err != nil {
-		// because a db is distributed across the cluster, it's possible we don't have the series indexed here. ignore
-		switch err := err.(type) {
-		case FieldLookupError:
-			return nil
-		default:
-			return err
-		}
-	}
+	fields := self.metaStore.GetFieldsForSeries(database, series)
+	return self.deleteRangeOfFields(fields, startTimeBytes, endTimeBytes)
+}
+
+func (self *Shard) deleteRangeOfFields(fields []*metastore.Field, startTimeBytes, endTimeBytes []byte) error {
 	startKey := bytes.NewBuffer(nil)
 	endKey := bytes.NewBuffer(nil)
 	for _, field := range fields {
+		idBytes := field.IdAsBytes()
 		startKey.Reset()
-		startKey.Write(field.Id)
+		startKey.Write(idBytes)
 		startKey.Write(startTimeBytes)
 		startKey.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0})
 		endKey.Reset()
-		endKey.Write(field.Id)
+		endKey.Write(idBytes)
 		endKey.Write(endTimeBytes)
 		endKey.Write([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
 
@@ -492,7 +425,7 @@ func (self *Shard) deleteRangeOfSeries(database, series string, startTime, endTi
 }
 
 func (self *Shard) deleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
-	series := self.getSeriesForDbAndRegex(database, regex)
+	series := self.metaStore.GetSeriesForDatabaseAndRegex(database, regex)
 	for _, name := range series {
 		err := self.deleteRangeOfSeries(database, name, startTime, endTime)
 		if err != nil {
@@ -502,42 +435,213 @@ func (self *Shard) deleteRangeOfRegex(database string, regex *regexp.Regexp, sta
 	return nil
 }
 
-func (self *Shard) getFieldsForSeries(db, series string, columns []string) ([]*Field, error) {
-	isCountQuery := false
-	if len(columns) > 0 && columns[0] == "*" {
-		columns = self.getColumnNamesForSeries(db, series)
-	} else if len(columns) == 0 {
-		isCountQuery = true
-		columns = self.getColumnNamesForSeries(db, series)
+func (self *Shard) hasReadAccess(querySpec *parser.QuerySpec) bool {
+	for series := range querySpec.SeriesValuesAndColumns() {
+		if _, isRegex := series.GetCompiledRegex(); !isRegex {
+			if !querySpec.HasReadAccess(series.Name) {
+				return false
+			}
+		}
 	}
-	if len(columns) == 0 {
-		return nil, FieldLookupError{"Coulnd't look up columns for series: " + series}
+	return true
+}
+
+func (self *Shard) byteArrayForTime(t time.Time) []byte {
+	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
+	timeMicro := common.TimeToMicroseconds(t)
+	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&timeMicro))
+	return timeBuffer.Bytes()
+}
+
+func (self *Shard) close() {
+	self.closed = true
+	self.db.Close()
+	self.db = nil
+}
+
+func (self *Shard) convertTimestampToUint(t *int64) uint64 {
+	if *t < 0 {
+		return uint64(math.MaxInt64 + *t + 1)
+	}
+	return uint64(*t) + uint64(math.MaxInt64) + uint64(1)
+}
+
+func (self *Shard) fetchSinglePoint(querySpec *parser.QuerySpec, series string, fields []*metastore.Field) (*protocol.Series, error) {
+	query := querySpec.SelectQuery()
+	fieldCount := len(fields)
+	fieldNames := make([]string, 0, fieldCount)
+	point := &protocol.Point{Values: make([]*protocol.FieldValue, 0, fieldCount)}
+	timestamp := common.TimeToMicroseconds(query.GetStartTime())
+	sequenceNumber, err := query.GetSinglePointQuerySequenceNumber()
+	if err != nil {
+		return nil, err
 	}
 
-	fields := make([]*Field, len(columns), len(columns))
+	timeAndSequenceBuffer := bytes.NewBuffer(make([]byte, 0, 16))
+	binary.Write(timeAndSequenceBuffer, binary.BigEndian, self.convertTimestampToUint(&timestamp))
+	binary.Write(timeAndSequenceBuffer, binary.BigEndian, sequenceNumber)
+	sequenceNumber_uint64 := uint64(sequenceNumber)
+	point.SequenceNumber = &sequenceNumber_uint64
+	point.SetTimestampInMicroseconds(timestamp)
+
+	timeAndSequenceBytes := timeAndSequenceBuffer.Bytes()
+	for _, field := range fields {
+		pointKeyBuff := bytes.NewBuffer(make([]byte, 0, 24))
+		pointKeyBuff.Write(field.IdAsBytes())
+		pointKeyBuff.Write(timeAndSequenceBytes)
+
+		if data, err := self.db.Get(pointKeyBuff.Bytes()); err != nil {
+			return nil, err
+		} else {
+			fieldValue := &protocol.FieldValue{}
+			err := proto.Unmarshal(data, fieldValue)
+			if err != nil {
+				return nil, err
+			}
+			if data != nil {
+				fieldNames = append(fieldNames, field.Name)
+				point.Values = append(point.Values, fieldValue)
+			}
+		}
+	}
+
+	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: []*protocol.Point{point}}
+
+	return result, nil
+}
+
+func (self *Shard) getIterators(fields []*metastore.Field, start, end []byte, isAscendingQuery bool) (fieldNames []string, iterators []storage.Iterator) {
+	iterators = make([]storage.Iterator, len(fields))
+	fieldNames = make([]string, len(fields))
+
+	// start the iterators to go through the series data
+	for i, field := range fields {
+		idBytes := field.IdAsBytes()
+		fieldNames[i] = field.Name
+		iterators[i] = self.db.Iterator()
+
+		if isAscendingQuery {
+			iterators[i].Seek(append(idBytes, start...))
+		} else {
+			iterators[i].Seek(append(append(idBytes, end...), MAX_SEQUENCE...))
+			if iterators[i].Valid() {
+				iterators[i].Prev()
+			}
+		}
+
+		if err := iterators[i].Error(); err != nil {
+			log.Error("Error while getting iterators: %s", err)
+			return nil, nil
+		}
+	}
+	return
+}
+
+func (self *Shard) convertUintTimestampToInt64(t *uint64) int64 {
+	if *t > uint64(math.MaxInt64) {
+		return int64(*t-math.MaxInt64) - int64(1)
+	}
+	return int64(*t) - math.MaxInt64 - int64(1)
+}
+
+func (self *Shard) getFieldsForSeries(db, series string, columns []string) ([]*metastore.Field, error) {
+	allFields := self.metaStore.GetFieldsForSeries(db, series)
+	if len(allFields) == 0 {
+		return nil, FieldLookupError{"Couldn't look up columns for series: " + series}
+	}
+	if len(columns) > 0 && columns[0] == "*" {
+		return allFields, nil
+	}
+
+	fields := make([]*metastore.Field, len(columns), len(columns))
 
 	for i, name := range columns {
-		id, errId := self.getIdForDbSeriesColumn(&db, &series, &name)
+		hasField := false
+		for _, f := range allFields {
+			if f.Name == name {
+				field := f
+				hasField = true
+				fields[i] = field
+				break
+			}
+		}
+		if !hasField {
+			return nil, FieldLookupError{"Field " + name + " doesn't exist in series " + series}
+		}
+	}
+	return fields, nil
+}
+
+/* DEPRECATED methods do not use*/
+
+// TODO: remove this on version 0.9 after people have had a chance to do migrations
+func (self *Shard) getSeriesForDbAndRegexDEPRECATED(database string, regex *regexp.Regexp) []string {
+	names := []string{}
+	allSeries := self.metaStore.GetSeriesForDatabase(database)
+	for _, name := range allSeries {
+		if regex.MatchString(name) {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// TODO: remove this on version 0.9 after people have had a chance to do migrations
+func (self *Shard) getSeriesForDatabaseDEPRECATED(database string) (series []string) {
+	err := self.yieldSeriesNamesForDb(database, func(name string) bool {
+		series = append(series, name)
+		return true
+	})
+	if err != nil {
+		log.Error("Cannot get series names for db %s: %s", database, err)
+		return nil
+	}
+	return series
+}
+
+// TODO: remove this function. I'm keeping it around for the moment since it'll probably have to be
+//       used in the DB upgrate/migration that moves metadata from the shard to Raft
+func (self *Shard) getFieldsForSeriesDEPRECATED(db, series string, columns []string) ([]*metastore.Field, error) {
+	isCountQuery := false
+	if len(columns) > 0 && columns[0] == "*" {
+		columns = self.getColumnNamesForSeriesDEPRECATED(db, series)
+	} else if len(columns) == 0 {
+		isCountQuery = true
+		columns = self.getColumnNamesForSeriesDEPRECATED(db, series)
+	}
+	if len(columns) == 0 {
+		return nil, FieldLookupError{"Couldn't look up columns for series: " + series}
+	}
+
+	fields := make([]*metastore.Field, len(columns), len(columns))
+
+	for i, name := range columns {
+		id, errId := self.getIdForDbSeriesColumnDEPRECATED(&db, &series, &name)
 		if errId != nil {
 			return nil, errId
 		}
 		if id == nil {
 			return nil, FieldLookupError{"Field " + name + " doesn't exist in series " + series}
 		}
-		fields[i] = &Field{Name: name, Id: id}
+		idInt, err := binary.ReadUvarint(bytes.NewBuffer(id))
+		if err != nil {
+			return nil, err
+		}
+		fields[i] = &metastore.Field{Name: name, Id: idInt}
 	}
 
 	// if it's a count query we just want the column that will be the most efficient to
 	// scan through. So find that and return it.
 	if isCountQuery {
 		bestField := fields[0]
-		return []*Field{bestField}, nil
+		return []*metastore.Field{bestField}, nil
 	}
 	return fields, nil
 }
 
-// TODO: WHY NO RETURN AN ERROR
-func (self *Shard) getColumnNamesForSeries(db, series string) []string {
+// TODO: remove this function. I'm keeping it around for the moment since it'll probably have to be
+//       used in the DB upgrate/migration that moves metadata from the shard to Raft
+func (self *Shard) getColumnNamesForSeriesDEPRECATED(db, series string) []string {
 	dbNameStart := len(SERIES_COLUMN_INDEX_PREFIX)
 	seekKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(db+"~"+series+"~")...)
 	pred := func(key []byte) bool {
@@ -568,80 +672,8 @@ func (self *Shard) getColumnNamesForSeries(db, series string) []string {
 	return names
 }
 
-func (self *Shard) hasReadAccess(querySpec *parser.QuerySpec) bool {
-	for series := range querySpec.SeriesValuesAndColumns() {
-		if _, isRegex := series.GetCompiledRegex(); !isRegex {
-			if !querySpec.HasReadAccess(series.Name) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func (self *Shard) byteArrayForTime(t time.Time) []byte {
-	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-	timeMicro := common.TimeToMicroseconds(t)
-	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&timeMicro))
-	return timeBuffer.Bytes()
-}
-
-func (self *Shard) getSeriesForDbAndRegex(database string, regex *regexp.Regexp) []string {
-	names := []string{}
-	allSeries := self.getSeriesForDatabase(database)
-	for _, name := range allSeries {
-		if regex.MatchString(name) {
-			names = append(names, name)
-		}
-	}
-	return names
-}
-
-func (self *Shard) getSeriesForDatabase(database string) (series []string) {
-	err := self.yieldSeriesNamesForDb(database, func(name string) bool {
-		series = append(series, name)
-		return true
-	})
-	if err != nil {
-		log.Error("Cannot get series names for db %s: %s", database, err)
-		return nil
-	}
-	return series
-}
-
-func (self *Shard) createIdForDbSeriesColumn(db, series, column *string) (ret []byte, err error) {
-	ret, err = self.getIdForDbSeriesColumn(db, series, column)
-	if err != nil {
-		return
-	}
-
-	if ret != nil {
-		return
-	}
-
-	self.columnIdMutex.Lock()
-	defer self.columnIdMutex.Unlock()
-	ret, err = self.getIdForDbSeriesColumn(db, series, column)
-	if err != nil {
-		return
-	}
-
-	if ret != nil {
-		return
-	}
-
-	ret, err = self.getNextIdForColumn(db, series, column)
-	if err != nil {
-		return
-	}
-	s := fmt.Sprintf("%s~%s~%s", *db, *series, *column)
-	b := []byte(s)
-	key := append(SERIES_COLUMN_INDEX_PREFIX, b...)
-	err = self.db.Put(key, ret)
-	return
-}
-
-func (self *Shard) getIdForDbSeriesColumn(db, series, column *string) (ret []byte, err error) {
+// TODO: remove this after a version that doesn't support migration from old non-raft metastore
+func (self *Shard) getIdForDbSeriesColumnDEPRECATED(db, series, column *string) (ret []byte, err error) {
 	s := fmt.Sprintf("%s~%s~%s", *db, *series, *column)
 	b := []byte(s)
 	key := append(SERIES_COLUMN_INDEX_PREFIX, b...)
@@ -649,111 +681,4 @@ func (self *Shard) getIdForDbSeriesColumn(db, series, column *string) (ret []byt
 		return nil, err
 	}
 	return ret, nil
-}
-
-func (self *Shard) getNextIdForColumn(db, series, column *string) (ret []byte, err error) {
-	id := self.lastIdUsed + 1
-	self.lastIdUsed += 1
-	idBytes := make([]byte, 8, 8)
-	binary.PutUvarint(idBytes, id)
-	wb := make([]storage.Write, 0, 3)
-	wb = append(wb, storage.Write{NEXT_ID_KEY, idBytes})
-	databaseSeriesIndexKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(*db+"~"+*series)...)
-	wb = append(wb, storage.Write{databaseSeriesIndexKey, []byte{}})
-	seriesColumnIndexKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(*db+"~"+*series+"~"+*column)...)
-	wb = append(wb, storage.Write{seriesColumnIndexKey, idBytes})
-	if err = self.db.BatchPut(wb); err != nil {
-		return nil, err
-	}
-	return idBytes, nil
-}
-
-func (self *Shard) close() {
-	self.closed = true
-	self.db.Close()
-	self.db = nil
-}
-
-func (self *Shard) convertTimestampToUint(t *int64) uint64 {
-	if *t < 0 {
-		return uint64(math.MaxInt64 + *t + 1)
-	}
-	return uint64(*t) + uint64(math.MaxInt64) + uint64(1)
-}
-
-func (self *Shard) fetchSinglePoint(querySpec *parser.QuerySpec, series string, fields []*Field) (*protocol.Series, error) {
-	query := querySpec.SelectQuery()
-	fieldCount := len(fields)
-	fieldNames := make([]string, 0, fieldCount)
-	point := &protocol.Point{Values: make([]*protocol.FieldValue, 0, fieldCount)}
-	timestamp := common.TimeToMicroseconds(query.GetStartTime())
-	sequenceNumber, err := query.GetSinglePointQuerySequenceNumber()
-	if err != nil {
-		return nil, err
-	}
-
-	timeAndSequenceBuffer := bytes.NewBuffer(make([]byte, 0, 16))
-	binary.Write(timeAndSequenceBuffer, binary.BigEndian, self.convertTimestampToUint(&timestamp))
-	binary.Write(timeAndSequenceBuffer, binary.BigEndian, sequenceNumber)
-	sequenceNumber_uint64 := uint64(sequenceNumber)
-	point.SequenceNumber = &sequenceNumber_uint64
-	point.SetTimestampInMicroseconds(timestamp)
-
-	timeAndSequenceBytes := timeAndSequenceBuffer.Bytes()
-	for _, field := range fields {
-		pointKey := append(field.Id, timeAndSequenceBytes...)
-
-		if data, err := self.db.Get(pointKey); err != nil {
-			return nil, err
-		} else {
-			fieldValue := &protocol.FieldValue{}
-			err := proto.Unmarshal(data, fieldValue)
-			if err != nil {
-				return nil, err
-			}
-			if data != nil {
-				fieldNames = append(fieldNames, field.Name)
-				point.Values = append(point.Values, fieldValue)
-			}
-		}
-	}
-
-	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: []*protocol.Point{point}}
-
-	return result, nil
-}
-
-func (self *Shard) getIterators(fields []*Field, start, end []byte, isAscendingQuery bool) (fieldNames []string, iterators []storage.Iterator) {
-	iterators = make([]storage.Iterator, len(fields))
-	fieldNames = make([]string, len(fields))
-
-	// start the iterators to go through the series data
-	for i, field := range fields {
-		fieldNames[i] = field.Name
-		iterators[i] = self.db.Iterator()
-
-		if isAscendingQuery {
-			firstKey := append(field.Id, start...)
-			iterators[i].Seek(firstKey)
-		} else {
-			firstKey := append(append(field.Id, end...), MAX_SEQUENCE...)
-			iterators[i].Seek(firstKey)
-			if iterators[i].Valid() {
-				iterators[i].Prev()
-			}
-		}
-
-		if err := iterators[i].Error(); err != nil {
-			log.Error("Error while getting iterators: %s", err)
-			return nil, nil
-		}
-	}
-	return
-}
-
-func (self *Shard) convertUintTimestampToInt64(t *uint64) int64 {
-	if *t > uint64(math.MaxInt64) {
-		return int64(*t-math.MaxInt64) - int64(1)
-	}
-	return int64(*t) - math.MaxInt64 - int64(1)
 }

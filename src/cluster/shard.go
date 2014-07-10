@@ -1,14 +1,16 @@
 package cluster
 
 import (
-	"common"
-	"engine"
 	"fmt"
-	"parser"
-	p "protocol"
 	"sort"
 	"strings"
 	"time"
+
+	"common"
+	"engine"
+	"metastore"
+	"parser"
+	p "protocol"
 	"wal"
 
 	log "code.google.com/p/log4go"
@@ -111,7 +113,7 @@ var (
 type LocalShardDb interface {
 	Write(database string, series []*p.Series) error
 	Query(*parser.QuerySpec, QueryProcessor) error
-	DropDatabase(database string) error
+	DropFields(fields []*metastore.Field) error
 	IsClosed() bool
 }
 
@@ -177,6 +179,17 @@ func (self *ShardData) SetLocalStore(store LocalShardStore, localServerId uint32
 
 func (self *ShardData) ServerIds() []uint32 {
 	return self.serverIds
+}
+
+func (self *ShardData) DropFields(fields []*metastore.Field) error {
+	if !self.IsLocal {
+		return nil
+	}
+	shard, err := self.store.GetOrCreateShard(self.id)
+	if err != nil {
+		return err
+	}
+	return shard.DropFields(fields)
 }
 
 func (self *ShardData) SyncWrite(request *p.Request) error {
@@ -283,10 +296,12 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 		}
 		defer self.store.ReturnShard(self.id)
 		err = shard.Query(querySpec, processor)
-		processor.Close()
+		// if we call Close() in case of an error it will mask the error
 		if err != nil {
 			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
+			return
 		}
+		processor.Close()
 		response <- &p.Response{Type: &endStreamResponse}
 		return
 	}
@@ -318,31 +333,6 @@ func (self *ShardData) randomHealthyServer() *ClusterServer {
 		return healthyServers[randServerIndex]
 	}
 	return nil
-}
-
-func (self *ShardData) DropDatabase(database string, sendToServers bool) {
-	if self.IsLocal {
-		if shard, err := self.store.GetOrCreateShard(self.id); err == nil {
-			defer self.store.ReturnShard(self.id)
-			shard.DropDatabase(database)
-		}
-	}
-
-	if !sendToServers {
-		return
-	}
-
-	responses := make([]chan *p.Response, len(self.clusterServers), len(self.clusterServers))
-	for i, server := range self.clusterServers {
-		responseChan := make(chan *p.Response, 1)
-		responses[i] = responseChan
-		request := &p.Request{Type: &dropDatabaseRequest, Database: &database, ShardId: &self.id}
-		go server.MakeRequest(request, responseChan)
-	}
-	for _, responseChan := range responses {
-		// TODO: handle error responses
-		<-responseChan
-	}
 }
 
 func (self *ShardData) String() string {

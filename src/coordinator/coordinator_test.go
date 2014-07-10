@@ -4,9 +4,10 @@ import (
 	"cluster"
 	"configuration"
 	"fmt"
-	. "launchpad.net/gocheck"
 	"parser"
 	"time"
+
+	. "launchpad.net/gocheck"
 )
 
 type CoordinatorSuite struct{}
@@ -20,7 +21,7 @@ func (self *CoordinatorSuite) TestShouldQuerySequentially(c *C) {
 	shards := []*cluster.ShardData{shard}
 	coordinator := NewCoordinatorImpl(&configuration.Configuration{
 		ClusterMaxResponseBufferSize: 1000,
-	}, nil, nil)
+	}, nil, nil, nil)
 	queries := map[string]bool{
 		"list series": false,
 		"select count(foo) from /.*bar.*/ group by time(1d)": true,

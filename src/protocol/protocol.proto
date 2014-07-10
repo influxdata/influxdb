@@ -18,6 +18,7 @@ message Series {
   repeated Point points = 1;
   required string name = 2;
   repeated string fields = 3;
+  repeated uint64 fieldIds = 4;
 }
 
 message QueryResponseChunk {

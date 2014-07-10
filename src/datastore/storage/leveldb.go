@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"sync"
 
 	"configuration"
@@ -69,8 +70,16 @@ func NewLevelDB(path string, config interface{}) (Engine, error) {
 	opts.SetCreateIfMissing(true)
 	opts.SetMaxOpenFiles(c.MaxOpenFiles)
 	db, err := levigo.Open(path, opts)
+
 	wopts := levigo.NewWriteOptions()
 	ropts := levigo.NewReadOptions()
+
+	// these sentinel values are here so that we can seek to the end of
+	// the keyspace and have the iterator still be valid.  this is for
+	// the series that is at either end of the keyspace.
+	db.Put(wopts, []byte(strings.Repeat("\x00", 24)), []byte{})
+	db.Put(wopts, []byte(strings.Repeat("\xff", 24)), []byte{})
+
 	return LevelDB{db, opts, wopts, ropts, path}, err
 }
 
