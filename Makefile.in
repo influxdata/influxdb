@@ -134,6 +134,10 @@ endif
 ifneq ($(GO_BUILD_TAGS),)
 GO_BUILD_OPTIONS += -tags '$(GO_BUILD_TAGS)'
 endif
+race = off
+ifneq ($(race),off)
+	GO_BUILD_OPTIONS += -race
+endif
 
 ifneq ($(uname_S),Linux)
 PYTHONPATH ?= /usr/local/lib/python2.7/site-packages/

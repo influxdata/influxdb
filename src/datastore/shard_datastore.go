@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"metastore"
 	"os"
 	"path"
 	"path/filepath"
@@ -32,6 +33,7 @@ type ShardDatastore struct {
 	maxOpenShards  int
 	pointBatchSize int
 	writeBatchSize int
+	metaStore      *metastore.Store
 }
 
 const (
@@ -59,18 +61,13 @@ var (
 	TRUE = true
 )
 
-type Field struct {
-	Id   []byte
-	Name string
-}
-
 type rawColumnValue struct {
 	time     []byte
 	sequence []byte
 	value    []byte
 }
 
-func NewShardDatastore(config *configuration.Configuration) (*ShardDatastore, error) {
+func NewShardDatastore(config *configuration.Configuration, metaStore *metastore.Store) (*ShardDatastore, error) {
 	baseDbDir := filepath.Join(config.DataDir, SHARD_DATABASE_DIR)
 	err := os.MkdirAll(baseDbDir, 0744)
 	if err != nil {
@@ -87,6 +84,7 @@ func NewShardDatastore(config *configuration.Configuration) (*ShardDatastore, er
 		shardsToClose:  make(map[uint32]bool),
 		pointBatchSize: config.StoragePointBatchSize,
 		writeBatchSize: config.StorageWriteBatchSize,
+		metaStore:      metaStore,
 	}, nil
 }
 
@@ -192,7 +190,7 @@ func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, e
 	}
 
 	se, err := init.Initialize(dbDir, c)
-	db, err = NewShard(se, self.pointBatchSize, self.writeBatchSize)
+	db, err = NewShard(se, self.pointBatchSize, self.writeBatchSize, self.metaStore)
 	if err != nil {
 		log.Error("Error creating shard: ", err)
 		se.Close()

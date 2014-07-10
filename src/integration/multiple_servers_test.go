@@ -156,7 +156,10 @@ func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
   }]
   `
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-	self.serverProcesses[0].WaitForServerToSync()
+
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 
 	collection := self.serverProcesses[0].Query("test_rep", "select * from test_restart_after_compaction", false, c)
 	c.Assert(collection.Members, HasLen, 1)
@@ -167,6 +170,10 @@ func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
 	self.serverProcesses[0].Stop()
 	self.serverProcesses[0].Start()
 	self.serverProcesses[0].WaitForServerToStart()
+
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 
 	collection = self.serverProcesses[0].Query("test_rep", "select * from test_restart_after_compaction", false, c)
 	c.Assert(collection.Members, HasLen, 1)
@@ -204,7 +211,9 @@ func (self *ServerSuite) TestRestartServers(c *C) {
   `
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
 
-	self.serverProcesses[0].WaitForServerToSync()
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 
 	collection := self.serverProcesses[0].Query("test_rep", "select * from test_restart", false, c)
 	c.Assert(collection.Members, HasLen, 1)
@@ -323,7 +332,9 @@ func (self *ServerSuite) TestDeleteFullReplication(c *C) {
     "columns": ["val_1", "val_2"]
   }]`
 	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
-	self.serverProcesses[0].WaitForServerToSync()
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 	collection := self.serverProcesses[0].Query("full_rep", "select count(val_1) from test_delete_full_replication", true, c)
 	series := collection.GetSeries("test_delete_full_replication", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, 1.0)
@@ -345,7 +356,9 @@ func (self *ServerSuite) TestDeleteReplication(c *C) {
     "columns": ["val_1", "val_2"]
   }]`
 	self.serverProcesses[0].Post("/db/test_rep/series?u=paul&p=pass", data, c)
-	self.serverProcesses[0].WaitForServerToSync()
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 	collection := self.serverProcesses[0].Query("test_rep", "select count(val_1) from test_delete_replication", false, c)
 	series := collection.GetSeries("test_delete_replication", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "count", c), Equals, 1.0)
@@ -416,8 +429,8 @@ func (self *ServerSuite) TestDropDatabase(c *C) {
 	}
 	for _, s := range self.serverProcesses {
 		fmt.Printf("Running query against: %d\n", s.ApiPort())
-		collection := s.Query("drop_db", "select * from cluster_query", true, c)
-		c.Assert(collection.Members, HasLen, 0)
+		error, _ := s.GetErrorBody("drop_db", "select * from cluster_query", "paul", "pass", true, c)
+		c.Assert(error, Matches, ".*Couldn't look up column.*")
 	}
 }
 
@@ -434,7 +447,9 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 		"points": [[1]]
 		}]`
 		self.serverProcesses[0].Post("/db/drop_series/series?u=paul&p=pass", data, c)
-		self.serverProcesses[0].WaitForServerToSync()
+		for _, s := range self.serverProcesses {
+			s.WaitForServerToSync()
+		}
 		for _, s := range self.serverProcesses {
 			fmt.Printf("Running query against: %d\n", s.ApiPort())
 			collection := s.Query("drop_series", "select * from cluster_query.1", true, c)
@@ -463,8 +478,8 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 
 		for _, s := range self.serverProcesses {
 			fmt.Printf("Running query against: %d\n", s.ApiPort())
-			collection := s.Query("drop_series", "select * from cluster_query.1", true, c)
-			c.Assert(collection.Members, HasLen, 0)
+			error, _ := s.GetErrorBody("drop_series", "select * from cluster_query.1", "paul", "pass", true, c)
+			c.Assert(error, Matches, ".*Couldn't look up.*")
 		}
 	}
 }
@@ -512,7 +527,9 @@ func (self *ServerSuite) TestFailureAndReplicationReplays(c *C) {
   }]`
 	self.serverProcesses[0].Post("/db/full_rep/series?u=paul&p=pass", data, c)
 
-	self.serverProcesses[0].WaitForServerToSync()
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 
 	for _, s := range self.serverProcesses {
 		collection := s.Query("full_rep", "select sum(val) from test_failure_replays;", true, c)

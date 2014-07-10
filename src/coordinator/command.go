@@ -9,6 +9,8 @@ import (
 
 	log "code.google.com/p/log4go"
 	"github.com/goraft/raft"
+
+	"protocol"
 )
 
 var internalRaftCommands map[string]raft.Command
@@ -30,6 +32,8 @@ func init() {
 		&SetContinuousQueryTimestampCommand{},
 		&CreateShardsCommand{},
 		&DropShardCommand{},
+		&CreateSeriesFieldIdsCommand{},
+		&DropSeriesCommand{},
 	} {
 		internalRaftCommands[command.CommandName()] = command
 	}
@@ -376,5 +380,55 @@ func (c *DropShardCommand) CommandName() string {
 func (c *DropShardCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.DropShard(c.ShardId, c.ServerIds)
+	return nil, err
+}
+
+type CreateSeriesFieldIdsCommand struct {
+	Database string
+	Series   []*protocol.Series
+}
+
+func NewCreateSeriesFieldIdsCommand(database string, series []*protocol.Series) *CreateSeriesFieldIdsCommand {
+	return &CreateSeriesFieldIdsCommand{Database: database, Series: series}
+}
+
+func (c *CreateSeriesFieldIdsCommand) CommandName() string {
+	return "create_series_field_ids"
+}
+
+// TODO: Encode/Decode are not needed once this pr
+// https://github.com/goraft/raft/pull/221 is merged in and our goraft
+// is updated to a commit that includes the pr
+
+func (c *CreateSeriesFieldIdsCommand) Encode(w io.Writer) error {
+	return json.NewEncoder(w).Encode(c)
+}
+
+func (c *CreateSeriesFieldIdsCommand) Decode(r io.Reader) error {
+	return json.NewDecoder(r).Decode(c)
+}
+
+func (c *CreateSeriesFieldIdsCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*cluster.ClusterConfiguration)
+	err := config.MetaStore.GetOrSetFieldIds(c.Database, c.Series)
+	return c.Series, err
+}
+
+type DropSeriesCommand struct {
+	Database string
+	Series   string
+}
+
+func NewDropSeriesCommand(database, series string) *DropSeriesCommand {
+	return &DropSeriesCommand{Database: database, Series: series}
+}
+
+func (c *DropSeriesCommand) CommandName() string {
+	return "drop_series"
+}
+
+func (c *DropSeriesCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*cluster.ClusterConfiguration)
+	err := config.DropSeries(c.Database, c.Series)
 	return nil, err
 }

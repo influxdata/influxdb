@@ -78,12 +78,29 @@ func (self *SingleServerSuite) TestListSeriesAfterDropSeries(c *C) {
 	series, err := client.Query("list series")
 	c.Assert(err, IsNil)
 	c.Assert(series, HasLen, 1)
-	c.Assert(series[0].Name, Equals, "test_drop_series")
+	c.Assert(series[0].Name, Equals, "list_series_result")
+
+	hasSeries := false
+	for _, p := range series[0].Points {
+		if p[1].(string) == "test_drop_series" {
+			hasSeries = true
+			break
+		}
+	}
+	c.Assert(hasSeries, Equals, true)
+
 	_, err = client.Query("drop series test_drop_series")
 	c.Assert(err, IsNil)
 	series, err = client.Query("list series")
-	c.Assert(err, IsNil)
-	c.Assert(series, HasLen, 0)
+
+	hasSeries = false
+	for _, p := range series[0].Points {
+		if p[1].(string) == "test_drop_series" {
+			hasSeries = true
+			break
+		}
+	}
+	c.Assert(hasSeries, Equals, false)
 }
 
 // issue #497
@@ -226,7 +243,7 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 
 	// create two users one that can only read and one that can only write. both can access test_should_read
 	// series only
-	/* c.Assert(rootUser.CreateDatabase("db1"), IsNil) */
+	rootUser.CreateDatabase("db1")
 	c.Assert(rootUser.CreateDatabaseUser("db1", "limited_user", "pass", "^$", "^$"), IsNil)
 	verifyPermissions("db1", "limited_user", "^$", "^$")
 
@@ -262,21 +279,26 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 	c.Assert(json.Unmarshal([]byte(data), &series), IsNil)
 	// readUser shouldn't be able to write
 	c.Assert(user.WriteSeries(series), NotNil)
-	content := self.server.RunQueryAsRoot("select * from test_should_write", "m", c)
-	c.Assert(content, HasLen, 0)
+	actualSeries, err := rootUser.Query("select * from test_should_write", "s")
+	// if this test ran by itself there will be no shards to query,
+	// therefore no error will be returned
+	if err != nil {
+		c.Assert(err, ErrorMatches, ".*Couldn't look up.*")
+	} else {
+		c.Assert(actualSeries, HasLen, 0)
+	}
 	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "^$", "test_should_write")
 	verifyPermissions("db1", "limited_user", "^$", "test_should_write")
 	// write the data to test the write permissions
 	c.Assert(user.WriteSeries(series), IsNil)
-	self.server.WaitForServerToSync()
-	invalidSeries := []*influxdb.Series{}
-	content = self.server.RunQueryAsRoot("select * from test_should_write", "m", c)
+	content := self.server.RunQueryAsRoot("select * from test_should_write", "m", c)
 	c.Assert(content, HasLen, 1)
+	invalidSeries := []*influxdb.Series{}
 	c.Assert(json.Unmarshal([]byte(invalidData), &invalidSeries), IsNil)
 	c.Assert(user.WriteSeries(invalidSeries), NotNil)
 	self.server.WaitForServerToSync()
-	content = self.server.RunQueryAsRoot("select * from test_should_not_write", "m", c)
-	c.Assert(content, HasLen, 0)
+	_, err = rootUser.Query("select * from test_should_not_write", "m")
+	c.Assert(err, ErrorMatches, ".*Couldn't look up.*")
 	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "^$", "test_.*")
 	verifyPermissions("db1", "limited_user", "^$", "test_.*")
 	c.Assert(user.WriteSeries(invalidSeries), IsNil)
@@ -343,16 +365,12 @@ func (self *SingleServerSuite) TestAdminPermissionToDeleteData(c *C) {
     "name": "test_delete_admin_permission",
     "columns": ["val_1", "val_2"]
   }]`
-	fmt.Println("TESTAD writing")
 	self.server.WriteData(data, c)
-	fmt.Println("TESTAD query root")
 	series := self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s", c)
 	c.Assert(series[0].Points, HasLen, 1)
 	c.Assert(series[0].Points[0][1], Equals, float64(1))
 
-	fmt.Println("TESTAD deleting")
 	_ = self.server.RunQueryAsRoot("delete from test_delete_admin_permission", "s", c)
-	fmt.Println("TESTAD query")
 	series = self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s", c)
 	c.Assert(series, HasLen, 0)
 }
@@ -379,7 +397,6 @@ func (self *SingleServerSuite) TestDeletingNewDatabase(c *C) {
 	s := CreatePoints("data_resurrection", 1, 10)
 	self.server.WriteData(s, c)
 	self.server.WaitForServerToSync()
-	fmt.Printf("wrote some data\n")
 
 	for i := 0; i < 2; i++ {
 		c.Assert(client.CreateDatabase("delete1"), IsNil)
@@ -411,7 +428,6 @@ func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 	s := CreatePoints("data_resurrection", 1, 10)
 	self.server.WriteData(s, c)
 	self.server.WaitForServerToSync()
-	fmt.Printf("wrote some data\n")
 	series := self.server.RunQuery("select count(column0) from data_resurrection", "s", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Points[0][1], Equals, 10.0)
@@ -431,10 +447,11 @@ func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 	self.server.Stop()
 	c.Assert(self.server.Start(), IsNil)
 	self.server.WaitForServerToStart()
-	series = self.server.RunQuery("select count(column0) from data_resurrection", "s", c)
-	c.Assert(series, HasLen, 0)
+	error, _ := self.server.GetErrorBody("db1", "select count(column0) from data_resurrection", "user", "pass", true, c)
+	c.Assert(error, Matches, ".*Couldn't look up.*")
 	series = self.server.RunQuery("list series", "s", c)
-	c.Assert(series, HasLen, 0)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Points, HasLen, 0)
 }
 
 // issue https://github.com/influxdb/influxdb/issues/702. Dropping shards can cause server crash
@@ -594,8 +611,8 @@ func (self *SingleServerSuite) TestDbDelete(c *C) {
 
 	self.createUser(c)
 	// this shouldn't return any data
-	data = self.server.RunQuery("select val1 from test_deletetions", "m", c)
-	c.Assert(data, HasLen, 0)
+	error, _ := self.server.GetErrorBody("db1", "select val1 from test_deletetions", "root", "root", true, c)
+	c.Assert(error, Matches, ".*Couldn't look up.*")
 }
 
 // test delete query

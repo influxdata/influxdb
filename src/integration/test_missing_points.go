@@ -51,13 +51,16 @@ func (self *MissingPointsSuite) TearDownSuite(c *C) {
 // test missing points when we have a split
 func (self *MissingPointsSuite) TestMissingPoints(c *C) {
 	numberOfSeries := 25000
-	batchSize := 5000
+	batchSize := 100
 	numberOfPoints := 5
 	parallelism := 10
 	timeBase := 1399035078
 
 	client := self.serverProcesses[0].GetClient("", c)
 	client.CreateDatabase("test_missing_points")
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 
 	batches := make(chan []*influxdb.Series)
 
@@ -86,7 +89,6 @@ func (self *MissingPointsSuite) TestMissingPoints(c *C) {
 			t := (timeBase + i) * 1000
 			batch = append(batch, &influxdb.Series{name, columns, [][]interface{}{{p, t}}})
 			if len(batch) >= batchSize {
-				fmt.Printf("Inserting batch of %d points\n", len(batch))
 				batches <- batch
 				batch = make([]*influxdb.Series, 0, batchSize)
 			}

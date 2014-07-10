@@ -11,9 +11,9 @@ import (
 	"protocol"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
+	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
 )
 
@@ -21,7 +21,12 @@ type CoordinatorImpl struct {
 	clusterConfiguration *cluster.ClusterConfiguration
 	raftServer           ClusterConsensus
 	config               *configuration.Configuration
+	metastore            Metastore
 	permissions          Permissions
+}
+
+type Metastore interface {
+	ReplaceFieldNamesWithFieldIds(database string, series []*protocol.Series) error
 }
 
 const (
@@ -56,11 +61,16 @@ type SeriesWriter interface {
 	Close()
 }
 
-func NewCoordinatorImpl(config *configuration.Configuration, raftServer ClusterConsensus, clusterConfiguration *cluster.ClusterConfiguration) *CoordinatorImpl {
+func NewCoordinatorImpl(
+	config *configuration.Configuration,
+	raftServer ClusterConsensus,
+	clusterConfiguration *cluster.ClusterConfiguration,
+	metastore Metastore) *CoordinatorImpl {
 	coordinator := &CoordinatorImpl{
 		config:               config,
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
+		metastore:            metastore,
 		permissions:          Permissions{},
 	}
 
@@ -160,43 +170,20 @@ func (self *CoordinatorImpl) runQuery(querySpec *parser.QuerySpec, seriesWriter 
 }
 
 func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	shortTermShards := self.clusterConfiguration.GetShortTermShards()
-	if len(shortTermShards) > SHARDS_TO_QUERY_FOR_LIST_SERIES {
-		shortTermShards = shortTermShards[:SHARDS_TO_QUERY_FOR_LIST_SERIES]
-	}
-	longTermShards := self.clusterConfiguration.GetLongTermShards()
-	if len(longTermShards) > SHARDS_TO_QUERY_FOR_LIST_SERIES {
-		longTermShards = longTermShards[:SHARDS_TO_QUERY_FOR_LIST_SERIES]
-	}
-	seriesYielded := make(map[string]bool)
+	series := self.clusterConfiguration.MetaStore.GetSeriesForDatabase(querySpec.Database())
+	name := "list_series_result"
+	fields := []string{"name"}
+	points := make([]*protocol.Point, len(series), len(series))
 
-	var shards []*cluster.ShardData
-	shards = append(shards, shortTermShards...)
-	shards = append(shards, longTermShards...)
-
-	var err error
-	for _, shard := range shards {
-		responseChan := make(chan *protocol.Response, shard.QueryResponseBufferSize(querySpec, self.config.StoragePointBatchSize))
-		go shard.Query(querySpec, responseChan)
-		for {
-			response := <-responseChan
-			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
-				if response.ErrorMessage != nil && err != nil {
-					log.Debug("Error when querying shard: %s", err)
-					err = common.NewQueryError(common.InvalidArgument, *response.ErrorMessage)
-				}
-				break
-			}
-			for _, series := range response.MultiSeries {
-				if !seriesYielded[*series.Name] {
-					seriesYielded[*series.Name] = true
-					seriesWriter.Write(series)
-				}
-			}
-		}
+	for i, s := range series {
+		fieldValues := []*protocol.FieldValue{{StringValue: proto.String(s)}}
+		points[i] = &protocol.Point{Values: fieldValues}
 	}
+
+	seriesResult := &protocol.Series{Name: &name, Fields: fields, Points: points}
+	seriesWriter.Write(seriesResult)
 	seriesWriter.Close()
-	return err
+	return nil
 }
 
 func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
@@ -216,8 +203,14 @@ func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, ser
 	if ok, err := self.permissions.AuthorizeDropSeries(user, db, series); !ok {
 		return err
 	}
-	querySpec.RunAgainstAllServersInShard = true
-	return self.runQuerySpec(querySpec, seriesWriter)
+	defer seriesWriter.Close()
+	fmt.Println("DROP series")
+	err := self.raftServer.DropSeries(db, series)
+	if err != nil {
+		return err
+	}
+	fmt.Println("DROP returning nil")
+	return nil
 }
 
 func (self *CoordinatorImpl) shouldAggregateLocally(shards []*cluster.ShardData, querySpec *parser.QuerySpec) bool {
@@ -334,11 +327,11 @@ func (self *CoordinatorImpl) readFromResponseChannels(processor cluster.QueryPro
 	writer SeriesWriter,
 	isExplainQuery bool,
 	errors chan<- error,
-	channels <-chan (<-chan *protocol.Response)) {
+	responseChannels <-chan (<-chan *protocol.Response)) {
 
 	defer close(errors)
 
-	for responseChan := range channels {
+	for responseChan := range responseChannels {
 		for response := range responseChan {
 
 			//log.Debug("GOT RESPONSE: ", response.Type, response.Series)
@@ -365,7 +358,7 @@ func (self *CoordinatorImpl) readFromResponseChannels(processor cluster.QueryPro
 			if processor != nil {
 				// if the data wasn't aggregated at the shard level, aggregate
 				// the data here
-				log.Debug("YIELDING: %d points with %d columns", len(response.Series.Points), len(response.Series.Fields))
+				log.Debug("YIELDING: %d points with %d columns for %s", len(response.Series.Points), len(response.Series.Fields), response.Series.GetName())
 				processor.YieldSeries(response.Series)
 				continue
 			}
@@ -701,26 +694,36 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 }
 
 func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
+	// replace all the field names, or error out if we can't assign the field ids.
+	err := self.metastore.ReplaceFieldNamesWithFieldIds(db, series)
+	if err != nil {
+		return err
+	}
+
+	return self.writeWithoutAssigningId(db, series, shard, sync)
+}
+
+func (self *CoordinatorImpl) writeWithoutAssigningId(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
 	request := &protocol.Request{Type: &write, Database: &db, MultiSeries: series}
 	// break the request if it's too big
 	if request.Size() >= MAX_REQUEST_SIZE {
 		if l := len(series); l > 1 {
 			// create two requests with half the serie
-			if err := self.write(db, series[:l/2], shard, sync); err != nil {
+			if err := self.writeWithoutAssigningId(db, series[:l/2], shard, sync); err != nil {
 				return err
 			}
-			return self.write(db, series[l/2:], shard, sync)
+			return self.writeWithoutAssigningId(db, series[l/2:], shard, sync)
 		}
 
 		// otherwise, split the points of the only series
 		s := series[0]
 		l := len(s.Points)
-		s1 := &protocol.Series{Name: s.Name, Fields: s.Fields, Points: s.Points[:l/2]}
-		if err := self.write(db, []*protocol.Series{s1}, shard, sync); err != nil {
+		s1 := &protocol.Series{Name: s.Name, FieldIds: s.FieldIds, Points: s.Points[:l/2]}
+		if err := self.writeWithoutAssigningId(db, []*protocol.Series{s1}, shard, sync); err != nil {
 			return err
 		}
-		s2 := &protocol.Series{Name: s.Name, Fields: s.Fields, Points: s.Points[l/2:]}
-		return self.write(db, []*protocol.Series{s2}, shard, sync)
+		s2 := &protocol.Series{Name: s.Name, FieldIds: s.FieldIds, Points: s.Points[l/2:]}
+		return self.writeWithoutAssigningId(db, []*protocol.Series{s2}, shard, sync)
 	}
 	if sync {
 		return shard.SyncWrite(request)
@@ -813,20 +816,7 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 		return err
 	}
 
-	if err := self.raftServer.DropDatabase(db); err != nil {
-		return err
-	}
-
-	var wait sync.WaitGroup
-	for _, shard := range self.clusterConfiguration.GetAllShards() {
-		wait.Add(1)
-		go func(shard *cluster.ShardData) {
-			shard.DropDatabase(db, true)
-			wait.Done()
-		}(shard)
-	}
-	wait.Wait()
-	return nil
+	return self.raftServer.DropDatabase(db)
 }
 
 func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {

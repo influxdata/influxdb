@@ -32,6 +32,7 @@ type Coordinator interface {
 type ClusterConsensus interface {
 	CreateDatabase(name string) error
 	DropDatabase(name string) error
+	DropSeries(database, series string) error
 	CreateContinuousQuery(db string, query string) error
 	DeleteContinuousQuery(db string, id uint32) error
 	SaveClusterAdminUser(u *cluster.ClusterAdmin) error
