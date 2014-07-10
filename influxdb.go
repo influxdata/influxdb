@@ -524,6 +524,21 @@ func (self *Client) GetShards() (*LongTermShortTermShards, error) {
 	return shards, nil
 }
 
+func (self *Client) GetShardsV2() ([]*Shard, error) {
+	url := self.getUrlWithUserAndPass("/cluster/shards", self.username, self.password)
+	body, err := self.get(url)
+	if err != nil {
+		return nil, err
+	}
+	shards := []*Shard{}
+	err = json.Unmarshal(body, shards)
+	if err != nil {
+		return nil, err
+	}
+
+	return shards, nil
+}
+
 // Added to InfluxDB in 0.8.0
 func (self *Client) GetShardSpacesAndShards() ([]ShardSpace, error) {
 	url := self.getUrlWithUserAndPass("/cluster/shard_spaces", self.username, self.password)
