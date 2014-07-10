@@ -496,8 +496,9 @@ type ShardSpace struct {
 	// a duration (24h, 365d) this is optional, if they don't set it, it will default to the storage.dir in the config
 	RetentionPolicy string
 	// this is required. Should be something like 1h, 4h, 1d, 7d, 30d. Less than the retention policy by about a factor of 10
-	ShardDuration string
-	Shards        []Shard `json:"-"`
+	ShardDuration     string
+	Shards            []Shard `json:"-"`
+	ReplicationFactor uint32
 }
 
 type ShardSpaceCollection struct {
