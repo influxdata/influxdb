@@ -551,10 +551,11 @@ type HistogramAggregatorState map[int]int
 
 type HistogramAggregator struct {
 	AbstractAggregator
-	bucketSize    float64
-	bucketStart   float64
-	bucketStopIdx int
-	columnNames   []string
+	bucketSize          float64
+	bucketStart         float64
+	explicitBucketStart bool
+	bucketStopIdx       int
+	columnNames         []string
 }
 
 func (self *HistogramAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
@@ -576,10 +577,13 @@ func (self *HistogramAggregator) AggregatePoint(state interface{}, p *protocol.P
 	}
 
 	bucket := int(math.Floor((value - self.bucketStart)/ self.bucketSize))
-	if self.bucketStopIdx >= 0 && bucket > self.bucketStopIdx {
-		bucket = self.bucketStopIdx
+	if self.bucketStopIdx >= 0 {
+		if bucket <= self.bucketStopIdx {
+			buckets[bucket] += 1
+		}
+	} else {
+		buckets[bucket] += 1
 	}
-	buckets[bucket] += 1
 
 	return buckets, nil
 }
@@ -594,6 +598,10 @@ func (self *HistogramAggregator) GetValues(state interface{}) [][]*protocol.Fiel
 	for bucket, size := range buckets {
 		_bucket := float64(bucket) * self.bucketSize + self.bucketStart
 		_size := int64(size)
+
+		if self.explicitBucketStart && _bucket < self.bucketStart {
+			continue
+		}
 
 		returnValues = append(returnValues, []*protocol.FieldValue{
 			{DoubleValue: &_bucket},
@@ -634,6 +642,7 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 
 	bucketSize := 1.0
 	bucketStart := 0.0
+	explicitBucketStart := false
 	bucketStop := 0.0
 	bucketStopIdx := -1
 
@@ -653,6 +662,7 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 			case parser.ValueInt, parser.ValueFloat:
 				var err error
 				bucketStart, err = strconv.ParseFloat(v.Elems[2].Name, 64)
+				explicitBucketStart = true
 				if err != nil {
 					return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[2].Name)
 				}
@@ -688,6 +698,7 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 		},
 		bucketSize:    bucketSize,
 		bucketStart:   bucketStart,
+		explicitBucketStart:   explicitBucketStart,
 		bucketStopIdx: bucketStopIdx,
 		columnNames:   columnNames,
 	}, nil
