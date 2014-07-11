@@ -140,6 +140,8 @@ func (self *Server) ListenAndServe() error {
 			log.Info("Starting Graphite Listener on port %d", self.Config.GraphitePort)
 			go self.GraphiteApi.ListenAndServe()
 		}
+	} else {
+		log.Info("Graphite input plugins is disabled")
 	}
 
 	// UDP input
@@ -147,11 +149,17 @@ func (self *Server) ListenAndServe() error {
 		port := udpInput.Port
 		database := udpInput.Database
 
+		if !udpInput.Enabled {
+			log.Info("UDP server is disabled")
+			continue
+		}
+
 		if port <= 0 {
 			log.Warn("Cannot start udp server on port %d. please check your configuration", port)
 			continue
 		} else if database == "" {
 			log.Warn("Cannot start udp server for database=\"\".  please check your configuration")
+			continue
 		}
 
 		log.Info("Starting UDP Listener on port %d to database %s", port, database)
