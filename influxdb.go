@@ -555,8 +555,8 @@ func (self *Client) GetShardSpaces() ([]*ShardSpace, error) {
 }
 
 // Added to InfluxDB in 0.8.0
-func (self *Client) DropShardSpace(name string) error {
-	url := self.getUrlWithUserAndPass(fmt.Sprintf("/cluster/shard_spaces/%s", name), self.username, self.password)
+func (self *Client) DropShardSpace(database, name string) error {
+	url := self.getUrlWithUserAndPass(fmt.Sprintf("/cluster/shard_spaces/%s/%s", database, name), self.username, self.password)
 	_, err := self.del(url)
 	return err
 }

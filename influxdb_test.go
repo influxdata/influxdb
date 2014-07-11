@@ -179,7 +179,7 @@ func internalTest(t *testing.T, compression bool) {
 		}
 	}
 
-	if err := client.DropShardSpace("foo"); err != nil {
+	if err := client.DropShardSpace("foobar", "foo"); err != nil {
 		t.Fail()
 	}
 
