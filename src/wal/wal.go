@@ -292,6 +292,12 @@ func (self *WAL) assignSequenceNumbers(shardId uint32, request *protocol.Request
 func (self *WAL) processAppendEntry(e *appendEntry) {
 	nextRequestNumber := self.state.getNextRequestNumber()
 	e.request.RequestNumber = proto.Uint32(nextRequestNumber)
+	self.assignSequenceNumbers(e.shardId, e.request)
+
+	if e.assignSeqOnly {
+		e.confirmation <- &confirmation{e.request.GetRequestNumber(), nil}
+		return
+	}
 
 	if len(self.logFiles) == 0 {
 		if _, err := self.createNewLog(nextRequestNumber); err != nil {
@@ -302,7 +308,6 @@ func (self *WAL) processAppendEntry(e *appendEntry) {
 	}
 
 	lastLogFile := self.logFiles[len(self.logFiles)-1]
-	self.assignSequenceNumbers(e.shardId, e.request)
 	logger.Debug("appending request %d", e.request.GetRequestNumber())
 	err := lastLogFile.appendRequest(e.request, e.shardId)
 	if err != nil {
@@ -396,7 +401,7 @@ func (self *WAL) openLog(logFileName string) (*log, *index, error) {
 // should be marked as committed for each server as it gets confirmed.
 func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Shard) (uint32, error) {
 	confirmationChan := make(chan *confirmation)
-	self.entries <- &appendEntry{confirmationChan, request, shard.Id()}
+	self.entries <- &appendEntry{confirmationChan, request, shard.Id(), false}
 	confirmation := <-confirmationChan
 
 	// we should panic if the wal cannot append the request
@@ -404,6 +409,19 @@ func (self *WAL) AssignSequenceNumbersAndLog(request *protocol.Request, shard Sh
 		panic(confirmation.err)
 	}
 	return confirmation.requestNumber, confirmation.err
+}
+
+// Assigns sequence numbers if null.
+func (self *WAL) AssignSequenceNumbers(request *protocol.Request) error {
+	confirmationChan := make(chan *confirmation)
+	self.entries <- &appendEntry{confirmationChan, request, 0, true}
+	confirmation := <-confirmationChan
+
+	// we should panic if the wal cannot append the request
+	if confirmation.err != nil {
+		panic(confirmation.err)
+	}
+	return nil
 }
 
 // returns the first log file that contains the given request number

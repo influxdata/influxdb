@@ -25,8 +25,9 @@ type Shard interface {
 	StartTime() time.Time
 	EndTime() time.Time
 	Write(*p.Request) error
-	SyncWrite(*p.Request) error
+	SyncWrite(req *p.Request, assignSeqNum bool) error
 	Query(querySpec *parser.QuerySpec, response chan *p.Response)
+	ReplicationFactor() int
 	IsMicrosecondInRange(t int64) bool
 }
 
@@ -160,6 +161,13 @@ func (self *ShardData) SetServers(servers []*ClusterServer) {
 	self.sortServerIds()
 }
 
+func (self *ShardData) ReplicationFactor() int {
+	if self.store != nil {
+		return len(self.clusterServers) + 1
+	}
+	return len(self.clusterServers)
+}
+
 func (self *ShardData) SetLocalStore(store LocalShardStore, localServerId uint32) error {
 	self.serverIds = append(self.serverIds, localServerId)
 	self.localServerId = localServerId
@@ -192,7 +200,11 @@ func (self *ShardData) DropFields(fields []*metastore.Field) error {
 	return shard.DropFields(fields)
 }
 
-func (self *ShardData) SyncWrite(request *p.Request) error {
+func (self *ShardData) SyncWrite(request *p.Request, assignSeqNum bool) error {
+	if assignSeqNum {
+		self.wal.AssignSequenceNumbers(request)
+	}
+
 	request.ShardId = &self.id
 	for _, server := range self.clusterServers {
 		if err := server.Write(request); err != nil {

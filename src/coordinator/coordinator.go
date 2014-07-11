@@ -725,8 +725,17 @@ func (self *CoordinatorImpl) writeWithoutAssigningId(db string, series []*protoc
 		s2 := &protocol.Series{Name: s.Name, FieldIds: s.FieldIds, Points: s.Points[l/2:]}
 		return self.writeWithoutAssigningId(db, []*protocol.Series{s2}, shard, sync)
 	}
+
+	// if we received a synchronous write, then this is coming from the
+	// continuous queries which have the sequence numbers assigned
 	if sync {
-		return shard.SyncWrite(request)
+		return shard.SyncWrite(request, false)
+	}
+
+	// If the shard isn't replicated do a syncrhonous write
+	if shard.ReplicationFactor() <= 1 {
+		// assign sequenceNumber and write synchronously
+		return shard.SyncWrite(request, true)
 	}
 	return shard.Write(request)
 }

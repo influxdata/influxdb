@@ -21,7 +21,8 @@ type commitEntry struct {
 }
 
 type appendEntry struct {
-	confirmation chan *confirmation
-	request      *protocol.Request
-	shardId      uint32
+	confirmation  chan *confirmation
+	request       *protocol.Request
+	shardId       uint32
+	assignSeqOnly bool
 }

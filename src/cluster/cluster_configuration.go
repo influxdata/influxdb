@@ -36,6 +36,7 @@ type QuerySpec interface {
 
 type WAL interface {
 	AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard) (uint32, error)
+	AssignSequenceNumbers(request *protocol.Request) error
 	Commit(requestNumber uint32, serverId uint32) error
 	CreateCheckpoint() error
 	RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
