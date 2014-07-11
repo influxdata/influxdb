@@ -154,7 +154,7 @@ func internalTest(t *testing.T, compression bool) {
 	if spaces[1].Name != "foo" {
 		t.Fail()
 	}
-	shards, err := client.GetShardsV2()
+	shards, err := client.GetShards()
 	if err != nil {
 		t.Fail()
 	}
@@ -173,7 +173,7 @@ func internalTest(t *testing.T, compression bool) {
 
 	spaces, _ = client.GetShardSpaces()
 	count := 0
-	for _, s := range shards {
+	for _, s := range shards.All {
 		if s.SpaceName == "foo" {
 			count++
 		}

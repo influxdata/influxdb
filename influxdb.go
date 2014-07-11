@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 const (
@@ -151,6 +152,22 @@ func (self *Client) get(url string) ([]byte, error) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	return body, err
+}
+
+func (self *Client) getWithVersion(url string) ([]byte, string, error) {
+	resp, err := self.httpClient.Get(url)
+	err = responseToError(resp, err, false)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	version := resp.Header.Get("X-Influxdb-Version")
+	fields := strings.Fields(version)
+	if len(fields) > 2 {
+		return body, fields[1], err
+	}
+	return body, "", err
 }
 
 func (self *Client) listSomething(url string) ([]map[string]interface{}, error) {
@@ -474,8 +491,12 @@ func (self *Client) DeleteContinuousQueries(id int) error {
 }
 
 type LongTermShortTermShards struct {
-	LongTerm  []*Shard `json:"longTerm"`
+	// Long term shards, (doesn't get populated for version >= 0.8.0)
+	LongTerm []*Shard `json:"longTerm"`
+	// Short term shards, (doesn't get populated for version >= 0.8.0)
 	ShortTerm []*Shard `json:"shortTerm"`
+	// All shards in the system (Long + Short term shards for version < 0.8.0)
+	All []*Shard `json:"-"`
 }
 
 type Shard struct {
@@ -507,35 +528,52 @@ type ShardSpaceCollection struct {
 	ShardSpaces []ShardSpace
 }
 
-// Deprecated. The 0.8.0 release made a breaking change to this endpoing.
 func (self *Client) GetShards() (*LongTermShortTermShards, error) {
 	url := self.getUrlWithUserAndPass("/cluster/shards", self.username, self.password)
-	body, err := self.get(url)
+	body, version, err := self.getWithVersion(url)
 	if err != nil {
 		return nil, err
 	}
+	return parseShards(body, version)
+}
+
+func isOrNewerThan(version, reference string) bool {
+	majorMinor := strings.Split(version[1:], ".")[:2]
+	refMajorMinor := strings.Split(version[1:], ".")[:2]
+	if majorMinor[0] > refMajorMinor[0] {
+		return true
+	}
+	if majorMinor[1] > refMajorMinor[1] {
+		return true
+	}
+	return majorMinor[1] == refMajorMinor[1]
+}
+
+func parseShards(body []byte, version string) (*LongTermShortTermShards, error) {
+	// strip the initial v in `v0.8.0` and split on the dots
+	if version != "" && isOrNewerThan(version, "v0.8") {
+		return parseNewShards(body)
+	}
 	shards := &LongTermShortTermShards{}
-	err = json.Unmarshal(body, &shards)
+	err := json.Unmarshal(body, &shards)
 	if err != nil {
 		return nil, err
 	}
 
+	shards.All = make([]*Shard, len(shards.LongTerm)+len(shards.ShortTerm))
+	copy(shards.All, shards.LongTerm)
+	copy(shards.All[len(shards.LongTerm):], shards.ShortTerm)
 	return shards, nil
 }
 
-func (self *Client) GetShardsV2() ([]*Shard, error) {
-	url := self.getUrlWithUserAndPass("/cluster/shards", self.username, self.password)
-	body, err := self.get(url)
-	if err != nil {
-		return nil, err
-	}
+func parseNewShards(body []byte) (*LongTermShortTermShards, error) {
 	shards := []*Shard{}
-	err = json.Unmarshal(body, shards)
+	err := json.Unmarshal(body, shards)
 	if err != nil {
 		return nil, err
 	}
 
-	return shards, nil
+	return &LongTermShortTermShards{All: shards}, nil
 }
 
 // Added to InfluxDB in 0.8.0
