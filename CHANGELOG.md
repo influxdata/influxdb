@@ -19,6 +19,7 @@
 - [Issue #358](https://github.com/influxdb/influxdb/issues/358). **BREAKING** List series should return as a single series
 - [Issue #731](https://github.com/influxdb/influxdb/issues/731). Don't enable the udp plugin if the `enabled` option is set to false
 - [Issue #733](https://github.com/influxdb/influxdb/issues/733). Print an `INFO` message when the input plugin is disabled
+- [Issue #707](https://github.com/influxdb/influxdb/issues/707). Graphite input plugin should work payload delimited by any whitespace character
 
 ## v0.7.3 [2014-06-13]
 

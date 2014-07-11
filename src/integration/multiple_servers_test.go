@@ -100,7 +100,7 @@ func (self *ServerSuite) TestGraphiteInterface(c *C) {
 	c.Assert(err, IsNil)
 
 	now := time.Now().UTC().Truncate(time.Minute)
-	data := fmt.Sprintf("some_metric 100 %d\nsome_metric 200.5 %d\n", now.Add(-time.Minute).Unix(), now.Unix())
+	data := fmt.Sprintf("some_metric 100 %d\nsome_metric\t200.5\t%d\n", now.Add(-time.Minute).Unix(), now.Unix())
 
 	_, err = conn.Write([]byte(data))
 	c.Assert(err, IsNil)
@@ -126,7 +126,7 @@ func (self *ServerSuite) TestGraphiteUdpInterface(c *C) {
 	c.Assert(err, IsNil)
 
 	now := time.Now().UTC().Truncate(time.Minute)
-	data := fmt.Sprintf("some_udp_metric 100 %d\nsome_udp_metric 200.5 %d\n", now.Add(-time.Minute).Unix(), now.Unix())
+	data := fmt.Sprintf("some_udp_metric 100 %d\nsome_udp_metric\t200.5\t%d\n", now.Add(-time.Minute).Unix(), now.Unix())
 
 	_, err = conn.Write([]byte(data))
 	c.Assert(err, IsNil)

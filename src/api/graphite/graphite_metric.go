@@ -28,7 +28,7 @@ func (self *GraphiteMetric) Read(reader *bufio.Reader) error {
 		}
 		return err
 	}
-	elements := strings.Split(str, " ")
+	elements := strings.Fields(str)
 	if len(elements) != 3 {
 		return fmt.Errorf("Received '%s' which doesn't have three fields", str)
 	}
