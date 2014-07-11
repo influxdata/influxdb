@@ -14,7 +14,7 @@ import (
 // 'h', 'd' and 'w' suffixes.
 func ParseTimeDuration(value string) (int64, error) {
 	var constant time.Duration
-	hasPrefix := true
+	prefixSize := 1
 
 	switch value[len(value)-1] {
 	case 'u':
@@ -32,13 +32,18 @@ func ParseTimeDuration(value string) (int64, error) {
 	case 'y':
 		constant = 365 * 24 * time.Hour
 	default:
-		hasPrefix = false
+		prefixSize = 0
+	}
+
+	if value[len(value)-2:] == "ms" {
+		constant = time.Millisecond
+		prefixSize = 2
 	}
 
 	t := big.Rat{}
 	timeString := value
-	if hasPrefix {
-		timeString = value[:len(value)-1]
+	if prefixSize > 0 {
+		timeString = value[:len(value)-prefixSize]
 	}
 
 	_, err := fmt.Sscan(timeString, &t)
@@ -46,7 +51,7 @@ func ParseTimeDuration(value string) (int64, error) {
 		return 0, err
 	}
 
-	if hasPrefix {
+	if prefixSize > 0 {
 		c := big.Rat{}
 		c.SetFrac64(int64(constant), 1)
 		t.Mul(&t, &c)

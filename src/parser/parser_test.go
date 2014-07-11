@@ -2,9 +2,10 @@ package parser
 
 import (
 	"fmt"
-	. "launchpad.net/gocheck"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.
@@ -429,6 +430,15 @@ func (self *QueryParserSuite) TestTimeWithNegativeEndTime(c *C) {
 	query, err := ParseSelectQuery(q)
 	c.Assert(err, IsNil)
 	c.Assert(query.GetEndTime(), Equals, time.Unix(-1, 0).UTC())
+}
+
+func (self *QueryParserSuite) TestMillisecondTimeDuration(c *C) {
+	now := time.Now().Add(-10 * time.Millisecond).UTC()
+	q, err := ParseSelectQuery(`select * from foo where time < now() - 10ms`)
+	c.Assert(err, IsNil)
+	// millisecond is too short, probably the above two statements will
+	// take ~5 ms to run
+	c.Assert(q.GetEndTime().Truncate(5*time.Millisecond), Equals, now.Truncate(5*time.Millisecond))
 }
 
 func (self *QueryParserSuite) TestParseSelectWithTimeCondition(c *C) {
