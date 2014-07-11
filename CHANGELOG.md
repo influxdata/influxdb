@@ -17,6 +17,8 @@
 - [Issue #676](https://github.com/influxdb/influxdb/issues/676). Allow storing high precision integer values without losing any information
 - [Issue #695](https://github.com/influxdb/influxdb/issues/695). Prevent having duplicate field names in the write payload. (Thanks, @seunglee150)
 - [Issue #358](https://github.com/influxdb/influxdb/issues/358). **BREAKING** List series should return as a single series
+- [Issue #731](https://github.com/influxdb/influxdb/issues/731). Don't enable the udp plugin if the `enabled` option is set to false
+- [Issue #733](https://github.com/influxdb/influxdb/issues/733). Print an `INFO` message when the input plugin is disabled
 
 ## v0.7.3 [2014-06-13]
 
