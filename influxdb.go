@@ -563,7 +563,7 @@ func (self *Client) DropShardSpace(database, name string) error {
 
 // Added to InfluxDB in 0.8.0
 func (self *Client) CreateShardSpace(space *ShardSpace) error {
-	url := self.getUrl("/cluster/shard_spaces")
+	url := self.getUrl(fmt.Sprintf("/cluster/shard_spaces/%s", space.Database))
 	data, err := json.Marshal(space)
 	if err != nil {
 		return err
