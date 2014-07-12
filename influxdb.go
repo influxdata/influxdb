@@ -538,6 +538,9 @@ func (self *Client) GetShards() (*LongTermShortTermShards, error) {
 }
 
 func isOrNewerThan(version, reference string) bool {
+	if version == "vdev" {
+		return true
+	}
 	majorMinor := strings.Split(version[1:], ".")[:2]
 	refMajorMinor := strings.Split(version[1:], ".")[:2]
 	if majorMinor[0] > refMajorMinor[0] {
