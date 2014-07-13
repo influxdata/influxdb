@@ -2340,3 +2340,108 @@ func (self *DataTestSuite) GroupByYear(c *C) (Fun, Fun) {
 			c.Assert(maps[1]["count"], Equals, 1.0)
 		}
 }
+
+// Issue #713
+// Test various fill options
+func (self *DataTestSuite) MeanAggregateNoFill(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "points": [
+    [1304378375, 10.0],
+    [1304378380, 20.0],
+    [1304378400, 60.0]
+    ],
+    "name": "test_fill_no_fill",
+    "columns": ["time", "value"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select mean(value) from test_fill_no_fill group by time(10s)", c)
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": 1304378400000.0, "mean": 60.0})
+			c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": 1304378380000.0, "mean": 20.0})
+			c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": 1304378370000.0, "mean": 10.0})
+		}
+}
+
+func (self *DataTestSuite) MeanAggregateFillWithZero(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "points": [
+    [1304378375, 10.0],
+    [1304378380, 20.0],
+    [1304378400, 60.0]
+    ],
+    "name": "test_fill_zero",
+    "columns": ["time", "value"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select mean(value) from test_fill_zero group by time(10s) fill(0)", c)
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": 1304378400000.0, "mean": 60.0})
+			c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": 1304378390000.0, "mean": 0.0})
+			c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": 1304378380000.0, "mean": 20.0})
+			c.Assert(maps[3], DeepEquals, map[string]interface{}{"time": 1304378370000.0, "mean": 10.0})
+		}
+}
+
+func (self *DataTestSuite) MeanAggregateFillWithNonZero(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "points": [
+    [1304378375, 10.0],
+    [1304378380, 20.0],
+    [1304378400, 60.0]
+    ],
+    "name": "test_fill_non_zero",
+    "columns": ["time", "value"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select mean(value) from test_fill_non_zero group by time(10s) fill(42)", c)
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": 1304378400000.0, "mean": 60.0})
+			c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": 1304378390000.0, "mean": 42.0})
+			c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": 1304378380000.0, "mean": 20.0})
+			c.Assert(maps[3], DeepEquals, map[string]interface{}{"time": 1304378370000.0, "mean": 10.0})
+		}
+}
+
+func (self *DataTestSuite) MeanAggregateFillWithNull(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "points": [
+    [1304378375, 10.0],
+    [1304378380, 20.0],
+    [1304378400, 60.0]
+    ],
+    "name": "test_fill_null",
+    "columns": ["time", "value"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			serieses := client.RunQuery("select mean(value) from test_fill_null group by time(10s) fill(null)", c)
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": 1304378400000.0, "mean": 60.0})
+			c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": 1304378390000.0, "mean": interface{}(nil)})
+			c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": 1304378380000.0, "mean": 20.0})
+			c.Assert(maps[3], DeepEquals, map[string]interface{}{"time": 1304378370000.0, "mean": 10.0})
+		}
+}
