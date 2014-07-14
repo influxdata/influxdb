@@ -8,7 +8,7 @@ import (
 
 type State int32
 
-//   ConnectionState: Idle, Send, Receive, Handshake?
+//   ConnectionState: Idle, Send, Receive and Handshake?
 const (
 	STATE_INITIALIZED State = 1
 	STATE_AUTHENTICATED State = 2

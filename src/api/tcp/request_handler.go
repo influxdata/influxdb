@@ -13,8 +13,21 @@ import (
 	"protocol"
 )
 
+type HandlerCallback func(conn Connection, request *Command) (error)
+
 type RequestHandler struct {
 	Server Server
+	HandlerFunctions map[Command_CommandType]HandlerCallback;
+}
+
+func NewRequestHandler(server Server) *RequestHandler {
+	handler := &RequestHandler{
+		Server: server,
+	}
+	handler.HandlerFunctions = make(map[Command_CommandType]HandlerCallback)
+	handler.Setup()
+
+	return handler
 }
 
 func (self *RequestHandler) sendErrorMessage(conn Connection, t Command_CommandType, message string) error {
@@ -86,7 +99,6 @@ func (self *RequestHandler) CreateDatabase(conn Connection, request *Command) er
 	}
 
 	result := Command_OK
-
 	response := &Command{
 		Type: &C_CREATEDATABASE,
 		Sequence: proto.Uint32(conn.GetSequence()),
@@ -189,6 +201,18 @@ func (self *RequestHandler) ResetConnection(conn Connection, request *Command) e
 	return &ConnectionResetError{s: "reset request"}
 }
 
+func (self *RequestHandler) Setup() {
+	self.HandlerFunctions[Command_QUERY] = self.Query
+	self.HandlerFunctions[Command_LISTDATABASE] = self.ListDatabase
+	self.HandlerFunctions[Command_PING] = self.Ping
+	self.HandlerFunctions[Command_CREATEDATABASE] = self.CreateDatabase
+	self.HandlerFunctions[Command_CHANGEDATABASE] = self.ChangeDatabase
+	self.HandlerFunctions[Command_DROPDATABASE] = self.DropDatabase
+	self.HandlerFunctions[Command_CLOSE] = self.CloseConnection
+	self.HandlerFunctions[Command_WRITESERIES] = self.WriteSeries
+	self.HandlerFunctions[Command_RESET] = self.ResetConnection
+}
+
 func (self *RequestHandler) HandleRequest(conn Connection) error {
 	request := &Command{}
 	err := conn.ReadMessage(request)
@@ -197,39 +221,13 @@ func (self *RequestHandler) HandleRequest(conn Connection) error {
 	}
 
 	if request.Type != nil {
-		switch (*request.Type) {
-		case Command_QUERY:
-			return self.Query(conn, request)
-			break
-		case Command_LISTDATABASE:
-			return self.ListDatabase(conn, request)
-			break
-		case Command_PING:
-			return self.Ping(conn, request)
-			break
-		case Command_CREATEDATABASE:
-			return self.CreateDatabase(conn, request)
-			break
-		case Command_CHANGEDATABASE:
-			return self.ChangeDatabase(conn, request)
-			break
-		case Command_DROPDATABASE:
-			return self.DropDatabase(conn, request)
-			break
-		case Command_CLOSE:
-			return self.CloseConnection(conn, request)
-			break
-		case Command_WRITESERIES:
-			return self.WriteSeries(conn, request)
-			break
-		case Command_RESET:
-			return self.ResetConnection(conn, request)
-			break
-		default:
+		if _, ok := self.HandlerFunctions[*request.Type]; ok {
+			return self.HandlerFunctions[*request.Type](conn, request)
+		} else {
 			self.sendErrorMessage(conn, Command_UNKNOWN, "Unsupported operation received")
 		}
 	} else {
-		// Not Supported Command
+		// Error
 		self.sendErrorMessage(conn, Command_UNKNOWN, "Unsupported operation received (illegal message)")
 		log.Debug("Unsupported operation received (illegal message): %+v", *request)
 	}

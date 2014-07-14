@@ -200,7 +200,7 @@ func (self *TcpServer) acceptLoop(listener net.Listener, yield func()) {
 			continue
 		}
 		if self.ConnectionCount > 100 {
-			// TODO: Send Error message and close connection immediately.
+			// TODO: Send Error message and close connection immediately as we don't won't accept new connection.
 		}
 
 		conn := NewTcpConnection(client, self, func(c Connection, time time.Time) {

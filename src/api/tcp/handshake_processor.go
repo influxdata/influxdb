@@ -145,6 +145,7 @@ func (self *HandshakeProcessorImpl) Handshake(conn Connection) error {
 		}
 
 		if state == HandshakeState_FINISHED {
+			// TODO: do something here.
 			break
 		}
 	}
