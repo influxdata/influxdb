@@ -11,6 +11,7 @@
 - [Issue #689](https://github.com/influxdb/influxdb/issues/689). **REQUIRES DATA MIGRATION** Move metadata into raft
 - [Issue #255](https://github.com/influxdb/influxdb/issues/255). Support millisecond precision using `ms` suffix
 - [Issue #95](https://github.com/influxdb/influxdb/issues/95). Drop database should not be synchronous
+- [Issue #571](https://github.com/influxdb/influxdb/issues/571). Add support for arbitrary number of shard spaces and retention policies
 
 ### Bugfixes
 
