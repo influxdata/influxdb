@@ -1715,7 +1715,7 @@ func (self *DataTestSuite) QueryWithMergedTablesWithPointsAppend(c *C) (Fun, Fun
         { "values": [{ "int64_value": 4 }, {"string_value": "foo"}], "timestamp": 1381346707000000 }
       ],
       "name": "foo_merge_bar",
-      "fields": ["a", "b", "_orig_series"]
+      "fields": ["a", "_orig_series"]
     }
   ]`)
 		}
