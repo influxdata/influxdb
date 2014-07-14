@@ -10,6 +10,7 @@
 - [Issue #682](https://github.com/influxdb/influxdb/issues/682). Allow continuous queries to run without backfill
 - [Issue #689](https://github.com/influxdb/influxdb/issues/689). **REQUIRES DATA MIGRATION** Move metadata into raft
 - [Issue #255](https://github.com/influxdb/influxdb/issues/255). Support millisecond precision using `ms` suffix
+- [Issue #95](https://github.com/influxdb/influxdb/issues/95). Drop database should not be synchronous
 
 ### Bugfixes
 
@@ -24,6 +25,8 @@
 - [Issue #465](https://github.com/influxdb/influxdb/issues/465). Recreating a currently deleting db or series doesn't bring back the old data anymore
 - [Issue #358](https://github.com/influxdb/influxdb/issues/358). **BREAKING** List series should return as a single series
 - [Issue #499](https://github.com/influxdb/influxdb/issues/499). **BREAKING** Querying non-existent database or series will return an error
+- [Issue #570](https://github.com/influxdb/influxdb/issues/570). InfluxDB crashes during delete/drop of database
+- [Issue #592](https://github.com/influxdb/influxdb/issues/592). Drop series is inefficient
 
 ## v0.7.3 [2014-06-13]
 
