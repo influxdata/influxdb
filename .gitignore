@@ -12,6 +12,9 @@ flymake.sh
 refresh_tags.sh
 a.out
 
+# vim temp files
+*.swp
+
 *.test
 /src/query/a.out*
 .DS_Store
