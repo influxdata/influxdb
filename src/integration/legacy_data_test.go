@@ -1681,39 +1681,39 @@ func (self *DataTestSuite) QueryWithMergedTablesWithPointsAppend(c *C) (Fun, Fun
 			createEngine(client, c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000000 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }], "timestamp": 1381346707000000 }
+        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000 },
+        { "values": [{ "int64_value": 4 }], "timestamp": 1381346707000000 }
       ],
       "name": "foo",
-      "fields": ["a", "b"]
+      "fields": ["a"]
     },
     {
       "points": [],
       "name": "foo",
-      "fields": ["a", "b"]
+      "fields": ["a"]
     },
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }], "timestamp": 1381346705000000 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 3 }], "timestamp": 1381346706000000 }
+        { "values": [{ "int64_value": 2 }], "timestamp": 1381346705000000 },
+        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000000 }
       ],
       "name": "bar",
-      "fields": ["a", "b"]
+      "fields": ["a"]
     },
     {
       "points": [],
       "name": "bar",
-      "fields": ["a", "b"]
+      "fields": ["a"]
     }
   ]`)
 		}, func(client Client) {
 			runQuery(client, "select * from foo merge bar order asc", c, `[
     {
       "points": [
-        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000000 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 2 }, {"string_value": "bar"}], "timestamp": 1381346705000000 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 3 }, {"string_value": "bar"}], "timestamp": 1381346706000000 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 4 }, {"string_value": "foo"}], "timestamp": 1381346707000000 }
+        { "values": [{ "int64_value": 1 }, {"string_value": "foo"}], "timestamp": 1381346701000000 },
+        { "values": [{ "int64_value": 2 }, {"string_value": "bar"}], "timestamp": 1381346705000000 },
+        { "values": [{ "int64_value": 3 }, {"string_value": "bar"}], "timestamp": 1381346706000000 },
+        { "values": [{ "int64_value": 4 }, {"string_value": "foo"}], "timestamp": 1381346707000000 }
       ],
       "name": "foo_merge_bar",
       "fields": ["a", "b", "_orig_series"]

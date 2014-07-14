@@ -2,13 +2,15 @@ package integration
 
 import (
 	"bytes"
-	"crypto/tls"
+	// "crypto/tls"
 	"encoding/json"
 	"fmt"
 	. "integration/helpers"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 
 	influxdb "github.com/influxdb/influxdb-go"
@@ -177,33 +179,33 @@ func (self *SingleServerSuite) TestDeletesFromCapitalNames(c *C) {
 	c.Assert(data, HasLen, 0)
 }
 
-func (self *SingleServerSuite) TestSslOnly(c *C) {
-	self.server.Stop()
-	// TODO: don't hard code the path here
-	c.Assert(os.RemoveAll("/tmp/influxdb/development"), IsNil)
-	server := NewSslServer("src/integration/test_ssl_only.toml", c)
-	server.WaitForServerToStart()
+// func (self *SingleServerSuite) TestSslOnly(c *C) {
+// 	self.server.Stop()
+// 	// TODO: don't hard code the path here
+// 	c.Assert(os.RemoveAll("/tmp/influxdb/development"), IsNil)
+// 	server := NewSslServer("src/integration/test_ssl_only.toml", c)
+// 	server.WaitForServerToStart()
 
-	defer func() {
-		server.Stop()
-		self.server = NewServer("src/integration/test_config_single.toml", c)
-	}()
+// 	defer func() {
+// 		server.Stop()
+// 		self.server = NewServer("src/integration/test_config_single.toml", c)
+// 	}()
 
-	client, err := influxdb.NewClient(&influxdb.ClientConfig{
-		IsSecure: true,
-		HttpClient: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-			},
-		},
-	})
+// 	client, err := influxdb.NewClient(&influxdb.ClientConfig{
+// 		IsSecure: true,
+// 		HttpClient: &http.Client{
+// 			Transport: &http.Transport{
+// 				TLSClientConfig: &tls.Config{
+// 					InsecureSkipVerify: true,
+// 				},
+// 			},
+// 		},
+// 	})
 
-	c.Assert(err, IsNil)
-	c.Assert(client.Ping(), IsNil)
+// 	c.Assert(err, IsNil)
+// 	c.Assert(client.Ping(), IsNil)
 
-}
+// }
 
 func (self *SingleServerSuite) TestSingleServerHostnameChange(c *C) {
 	self.server.Stop()
@@ -297,8 +299,8 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 	c.Assert(json.Unmarshal([]byte(invalidData), &invalidSeries), IsNil)
 	c.Assert(user.WriteSeries(invalidSeries), NotNil)
 	self.server.WaitForServerToSync()
-	_, err = rootUser.Query("select * from test_should_not_write", "m")
-	c.Assert(err, ErrorMatches, ".*Couldn't look up.*")
+	content, err = rootUser.Query("select * from test_should_not_write", "m")
+	c.Assert(content, HasLen, 0)
 	rootUser.ChangeDatabaseUser("db1", "limited_user", "pass", false, "^$", "test_.*")
 	verifyPermissions("db1", "limited_user", "^$", "test_.*")
 	c.Assert(user.WriteSeries(invalidSeries), IsNil)
@@ -372,6 +374,9 @@ func (self *SingleServerSuite) TestAdminPermissionToDeleteData(c *C) {
 
 	_ = self.server.RunQueryAsRoot("delete from test_delete_admin_permission", "s", c)
 	series = self.server.RunQueryAsRoot("select count(val_1) from test_delete_admin_permission", "s", c)
+	for _, s := range series {
+		fmt.Println("** ", s)
+	}
 	c.Assert(series, HasLen, 0)
 }
 
@@ -465,7 +470,7 @@ func (self *SingleServerSuite) TestDropingShardBeforeRestart(c *C) {
 	shards, err := client.GetShards()
 
 	ids := make(map[uint32]bool)
-	for _, s := range shards.ShortTerm {
+	for _, s := range shards.All {
 		hasId := ids[s.Id]
 		if hasId {
 			c.Error("Shard id shows up twice: ", s.Id)
@@ -473,19 +478,19 @@ func (self *SingleServerSuite) TestDropingShardBeforeRestart(c *C) {
 		ids[s.Id] = true
 	}
 
-	oldShardCount := len(shards.ShortTerm)
-	oldShardId := shards.ShortTerm[0].Id
+	oldShardCount := len(shards.All)
+	oldShardId := shards.All[0].Id
 
 	client.DropShard(oldShardId, []uint32{uint32(1)})
 	shards, err = client.GetShards()
 	c.Assert(err, IsNil)
-	c.Assert(len(shards.ShortTerm), Equals, oldShardCount-1)
+	c.Assert(len(shards.All), Equals, oldShardCount-1)
 
 	// drop again and don't crash
 	client.DropShard(oldShardId, []uint32{uint32(1)})
 	shards, err = client.GetShards()
 	c.Assert(err, IsNil)
-	c.Assert(len(shards.ShortTerm), Equals, oldShardCount-1)
+	c.Assert(len(shards.All), Equals, oldShardCount-1)
 
 	// now try to restart
 	self.server.Stop()
@@ -493,7 +498,7 @@ func (self *SingleServerSuite) TestDropingShardBeforeRestart(c *C) {
 	self.server.WaitForServerToStart()
 	shards, err = client.GetShards()
 	c.Assert(err, IsNil)
-	c.Assert(len(shards.ShortTerm), Equals, oldShardCount-1)
+	c.Assert(len(shards.All), Equals, oldShardCount-1)
 }
 
 // issue #360
@@ -665,10 +670,10 @@ func (self *SingleServerSuite) TestDuplicateShardsNotCreatedWhenOldShardDropped(
 	client := self.server.GetClient("", c)
 	shards, err := client.GetShards()
 	c.Assert(err, IsNil)
-	c.Assert(len(shards.ShortTerm) > 1, Equals, true)
+	c.Assert(len(shards.All) > 1, Equals, true)
 
 	ids := make(map[uint32]bool)
-	for _, s := range shards.ShortTerm {
+	for _, s := range shards.All {
 		hasId := ids[s.Id]
 		if hasId {
 			c.Error("Shard id shows up twice: ", s.Id)
@@ -676,11 +681,11 @@ func (self *SingleServerSuite) TestDuplicateShardsNotCreatedWhenOldShardDropped(
 		ids[s.Id] = true
 	}
 
-	oldShardCount := len(shards.ShortTerm)
-	client.DropShard(shards.ShortTerm[0].Id, []uint32{uint32(1)})
+	oldShardCount := len(shards.All)
+	client.DropShard(shards.All[0].Id, []uint32{uint32(1)})
 	shards, err = client.GetShards()
 	c.Assert(err, IsNil)
-	c.Assert(len(shards.ShortTerm), Equals, oldShardCount-1)
+	c.Assert(len(shards.All), Equals, oldShardCount-1)
 	self.server.WriteData(`
 [
   {
@@ -691,14 +696,113 @@ func (self *SingleServerSuite) TestDuplicateShardsNotCreatedWhenOldShardDropped(
 ]`, c)
 	shards, err = client.GetShards()
 	c.Assert(err, IsNil)
-	c.Assert(len(shards.ShortTerm), Equals, oldShardCount)
+	c.Assert(len(shards.All), Equals, oldShardCount)
 
 	ids = make(map[uint32]bool)
-	for _, s := range shards.ShortTerm {
+	for _, s := range shards.All {
 		hasId := ids[s.Id]
 		if hasId {
 			c.Error("Shard id shows up twice: ", s.Id)
 		}
 		ids[s.Id] = true
 	}
+}
+
+func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
+	// creates a default space
+	self.server.WriteData(`
+[
+  {
+    "name": "test_create_shard_space",
+    "columns": ["time", "val"],
+    "points":[[1307997668000, 1]]
+  }
+]`, c)
+	client := self.server.GetClient("", c)
+	spaces, err := client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(spaces, HasLen, 1)
+	c.Assert(spaces[0].Name, Equals, "default")
+
+	space := &influxdb.ShardSpace{Name: "month", RetentionPolicy: "30d", Database: "db1", Regex: "/^the_dude_abides/"}
+	err = client.CreateShardSpace(space)
+	c.Assert(err, IsNil)
+
+	self.server.WriteData(`
+[
+  {
+    "name": "the_dude_abides",
+    "columns": ["time", "val"],
+    "points":[[1307997668000, 1]]
+  }
+]`, c)
+	spaces, err = client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(self.hasSpace("db1", "month", spaces), Equals, true)
+	shards, err := client.GetShards()
+	c.Assert(err, IsNil)
+	spaceShards := self.getShardsForSpace("month", shards.All)
+	c.Assert(spaceShards, HasLen, 1)
+}
+
+func (self *SingleServerSuite) getShardsForSpace(name string, shards []*influxdb.Shard) []*influxdb.Shard {
+	filteredShards := make([]*influxdb.Shard, 0)
+	for _, s := range shards {
+		if s.SpaceName == name {
+			filteredShards = append(filteredShards, s)
+		}
+	}
+	return filteredShards
+}
+
+func (self *SingleServerSuite) hasSpace(database, name string, spaces []*influxdb.ShardSpace) bool {
+	for _, s := range spaces {
+		if s.Name == name && s.Database == database {
+			return true
+		}
+	}
+	return false
+}
+
+func (self *SingleServerSuite) TestDropShardSpace(c *C) {
+	client := self.server.GetClient("", c)
+	spaceName := "test_drop"
+	space := &influxdb.ShardSpace{Name: spaceName, RetentionPolicy: "30d", Database: "db1", Regex: "/^dont_drop_me_bro/"}
+	err := client.CreateShardSpace(space)
+	c.Assert(err, IsNil)
+
+	self.server.WriteData(`
+[
+  {
+    "name": "dont_drop_me_bro",
+    "columns": ["time", "val"],
+    "points":[[1307997668000, 1]]
+  }
+]`, c)
+	spaces, err := client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(self.hasSpace("db1", spaceName, spaces), Equals, true)
+	err = client.DropShardSpace("db1", spaceName)
+	c.Assert(err, IsNil)
+	spaces, err = client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(self.hasSpace("db1", spaceName, spaces), Equals, false)
+}
+
+func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
+	dir, err := os.Getwd()
+	if err != nil {
+		c.Error(err)
+	}
+	root := filepath.Join(dir, "..", "..")
+	filename := filepath.Join(root, "daemon")
+	configArg := "-load-database-config"
+	cmd := exec.Command(filename, configArg, "database_conf.json")
+	_, err = cmd.Output()
+	c.Assert(err, IsNil)
+	client := self.server.GetClient("", c)
+	spaces, err := client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(self.hasSpace("test_db_conf_db", "specific", spaces), Equals, true)
+	c.Assert(self.hasSpace("test_db_conf_db", "everything", spaces), Equals, true)
 }

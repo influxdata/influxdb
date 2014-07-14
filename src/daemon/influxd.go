@@ -3,6 +3,7 @@ package main
 import (
 	"configuration"
 	"coordinator"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	influxdb "github.com/influxdb/influxdb-go"
 	"github.com/jmhodges/levigo"
 
 	log "code.google.com/p/log4go"
@@ -62,6 +64,10 @@ func main() {
 	protobufPort := flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
 	pidFile := flag.String("pidfile", "", "the pid file")
 	repairLeveldb := flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
+	loadDatabaseConfig := flag.String("load-database-config", "", "Will create databases with the given shard spaces from a file.")
+	loadServer := flag.String("load-server", "localhost:8086", "If loading a database config, connects to this host/port")
+	loadUser := flag.String("load-user", "root", "If loading a database config, uses this user to auth")
+	loadPassword := flag.String("load-password", "root", "If loading a database config, use this password to auth")
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
@@ -69,6 +75,13 @@ func main() {
 	v := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
 	if wantsVersion != nil && *wantsVersion {
 		fmt.Println(v)
+		return
+	}
+	if *loadDatabaseConfig != "" {
+		err := LoadDatabaseConfig(*loadDatabaseConfig, *loadServer, *loadUser, *loadPassword)
+		if err != nil {
+			panic(err)
+		}
 		return
 	}
 	config := configuration.LoadConfiguration(*fileName)
@@ -160,4 +173,44 @@ func main() {
 	if err != nil {
 		log.Error("ListenAndServe failed: ", err)
 	}
+}
+
+type DatabaseConfig struct {
+	Database string                 `json:"database"`
+	Spaces   []*influxdb.ShardSpace `json:"spaces"`
+}
+
+func LoadDatabaseConfig(fileName, server, user, password string) error {
+	fmt.Println("Loading config from ", fileName)
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{
+		Host:     server,
+		Username: user,
+		Password: password,
+	})
+	if err != nil {
+		return err
+	}
+	content, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return err
+	}
+	configs := []*DatabaseConfig{}
+	err = json.Unmarshal(content, &configs)
+	if err != nil {
+		return err
+	}
+	for _, config := range configs {
+		err := client.CreateDatabase(config.Database)
+		if err != nil {
+			return err
+		}
+		for _, space := range config.Spaces {
+			space.Database = config.Database
+			err := client.CreateShardSpace(space)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

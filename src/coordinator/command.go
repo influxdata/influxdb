@@ -34,6 +34,8 @@ func init() {
 		&DropShardCommand{},
 		&CreateSeriesFieldIdsCommand{},
 		&DropSeriesCommand{},
+		&CreateShardSpaceCommand{},
+		&DropShardSpaceCommand{},
 	} {
 		internalRaftCommands[command.CommandName()] = command
 	}
@@ -329,11 +331,12 @@ func (c *InfluxChangeConnectionStringCommand) NodeName() string {
 }
 
 type CreateShardsCommand struct {
-	Shards []*cluster.NewShardData
+	Shards    []*cluster.NewShardData
+	SpaceName string
 }
 
 func NewCreateShardsCommand(shards []*cluster.NewShardData) *CreateShardsCommand {
-	return &CreateShardsCommand{shards}
+	return &CreateShardsCommand{Shards: shards}
 }
 
 func (c *CreateShardsCommand) CommandName() string {
@@ -430,5 +433,42 @@ func (c *DropSeriesCommand) CommandName() string {
 func (c *DropSeriesCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.DropSeries(c.Database, c.Series)
+	return nil, err
+}
+
+type CreateShardSpaceCommand struct {
+	ShardSpace *cluster.ShardSpace
+}
+
+func NewCreateShardSpaceCommand(space *cluster.ShardSpace) *CreateShardSpaceCommand {
+	return &CreateShardSpaceCommand{ShardSpace: space}
+}
+
+func (c *CreateShardSpaceCommand) CommandName() string {
+	return "add_shard_space"
+}
+
+func (c *CreateShardSpaceCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*cluster.ClusterConfiguration)
+	err := config.AddShardSpace(c.ShardSpace)
+	return nil, err
+}
+
+type DropShardSpaceCommand struct {
+	Database string
+	Name     string
+}
+
+func NewDropShardSpaceCommand(database, name string) *DropShardSpaceCommand {
+	return &DropShardSpaceCommand{Database: database, Name: name}
+}
+
+func (c *DropShardSpaceCommand) CommandName() string {
+	return "remove_shard_space"
+}
+
+func (c *DropShardSpaceCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*cluster.ClusterConfiguration)
+	err := config.RemoveShardSpace(c.Database, c.Name)
 	return nil, err
 }
