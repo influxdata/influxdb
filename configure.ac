@@ -54,4 +54,4 @@ fi
 if test x"${with_bison}" == x"notfound"; then
    AC_MSG_ERROR([Please install bison before trying to build Influxdb])
 fi
-AC_OUTPUT([Makefile src/parser/Makefile])
+AC_OUTPUT([Makefile parser/Makefile])
