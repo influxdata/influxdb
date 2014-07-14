@@ -504,7 +504,8 @@ type Shard struct {
 	EndTime   int64    `json:"endTime"`
 	StartTime int64    `json:"startTime"`
 	ServerIds []uint32 `json:"serverIds"`
-	SpaceName string
+	SpaceName string   `json:"spaceName"`
+	Database  string   `json:"database"`
 }
 
 type ShardSpace struct {
@@ -571,7 +572,7 @@ func parseShards(body []byte, version string) (*LongTermShortTermShards, error) 
 
 func parseNewShards(body []byte) (*LongTermShortTermShards, error) {
 	shards := []*Shard{}
-	err := json.Unmarshal(body, shards)
+	err := json.Unmarshal(body, &shards)
 	if err != nil {
 		return nil, err
 	}
