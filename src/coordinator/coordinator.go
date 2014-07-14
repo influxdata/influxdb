@@ -411,6 +411,10 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 		return err
 	}
 
+	if len(shards) == 0 {
+		return fmt.Errorf("Couldn't look up columns")
+	}
+
 	defer func() {
 		if processor != nil {
 			processor.Close()
