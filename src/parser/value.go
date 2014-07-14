@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strconv"
 )
 
 type ValueType int
@@ -67,4 +68,19 @@ func (self *Value) GetString() string {
 	}
 
 	return buffer.String()
+}
+
+func (self *Value) GetFloat64() (float64, error) {
+	switch self.Type {
+	case ValueInt:
+		iv, err := strconv.ParseInt(self.Name, 0, 64)
+		if err != nil {
+			return 0.0, err
+		}
+		return float64(iv), nil
+	case ValueFloat:
+		return strconv.ParseFloat(self.Name, 64)
+	}
+
+	return 0.0, fmt.Errorf("cannot convert %s to float64", self.GetString())
 }

@@ -60,6 +60,42 @@ func (self *FieldValue) GetValue() (interface{}, bool) {
 	return nil, true
 }
 
+// SetValue sets the correct member variable based on value's type.
+func (self *FieldValue) SetValue(value interface{}) error {
+	switch t := value.(type) {
+	case string:
+		v := value.(string)
+		self.StringValue = &v
+	case float64:
+		v := value.(float64)
+		self.DoubleValue = &v
+	case int, int64:
+		v := value.(int64)
+		self.Int64Value = &v
+	case bool:
+		v := value.(bool)
+		self.BoolValue = &v
+	default:
+		return fmt.Errorf("type %v isn't supported", t)
+	}
+	return nil
+}
+
+func (self *FieldValue) GetValueAsString() string {
+	if self.StringValue != nil {
+		return *self.StringValue
+	} else if self.DoubleValue != nil {
+		return strconv.FormatFloat(*self.DoubleValue, 'f', -1, 64)
+	} else if self.Int64Value != nil {
+		return strconv.FormatInt(*self.Int64Value, 10)
+	} else if self.BoolValue != nil {
+		return strconv.FormatBool(*self.BoolValue)
+	}
+
+	// TODO: should we do something here ?
+	return ""
+}
+
 func (self *Point) GetFieldValue(idx int) interface{} {
 	v := self.Values[idx]
 	// issue #27
@@ -73,20 +109,9 @@ func (self *Point) GetFieldValue(idx int) interface{} {
 func (self *Point) GetFieldValueAsString(idx int) string {
 	if idx < 0 {
 		return ""
-	} else {
-		pointValue := self.GetFieldValue(idx)
-
-		switch value := pointValue.(type) {
-		case int64:
-			return strconv.FormatInt(value, 10)
-		case float64:
-			return strconv.FormatFloat(value, 'f', -1, 64)
-		case string:
-			return value
-		default:
-			return ""
-		}
 	}
+	pointValue := self.GetFieldValue(idx).(*FieldValue)
+	return pointValue.GetValueAsString()
 }
 
 func (self *Request) Size() int {

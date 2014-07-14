@@ -1310,7 +1310,9 @@ func (self *DataTestSuite) CountWithAlias(c *C) (Fun, Fun) {
 					query = "select percentile(column0, 90) as some_alias from test_aliasing"
 				} else if name == "top" || name == "bottom" {
 					query = fmt.Sprintf("select %s(column0, 10) as some_alias from test_aliasing", name)
-				}
+				} else if name == "pow" {
+					query = "select pow(column0, 2) as some_alias from test_aliasing"
+                                }
 				fmt.Printf("query: %s\n", query)
 				data := client.RunQuery(query, c, "m")
 				c.Assert(data, HasLen, 1)
