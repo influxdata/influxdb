@@ -89,7 +89,6 @@ type ClusterConfiguration struct {
 	MetaStore                  *metastore.Store
 	// these are just the spaces organized by db and default to make write lookups faster
 	databaseShardSpaces map[string][]*ShardSpace
-	shards              []*ShardData
 }
 
 type ContinuousQuery struct {
@@ -123,7 +122,6 @@ func NewClusterConfiguration(
 		shardsById:                 make(map[uint32]*ShardData, 0),
 		MetaStore:                  metaStore,
 		databaseShardSpaces:        make(map[string][]*ShardSpace),
-		shards:                     make([]*ShardData, 0),
 	}
 }
 
@@ -149,7 +147,11 @@ func (self *ClusterConfiguration) SetShardCreator(shardCreator ShardCreator) {
 func (self *ClusterConfiguration) GetShards() []*ShardData {
 	self.shardLock.RLock()
 	defer self.shardLock.RUnlock()
-	return self.shards
+	shards := make([]*ShardData, 0, len(self.shardsById))
+	for _, shard := range self.shardsById {
+		shards = append(shards, shard)
+	}
+	return shards
 }
 
 func (self *ClusterConfiguration) GetShardSpaces() []*ShardSpace {
@@ -422,6 +424,11 @@ func (self *ClusterConfiguration) DropDatabase(name string) error {
 	if shardSpaces == nil {
 		return nil
 	}
+	for _, space := range shardSpaces {
+		for _, shard := range space.shards {
+			delete(self.shardsById, shard.id)
+		}
+	}
 	go func() {
 		for _, s := range shardSpaces {
 			for _, sh := range s.shards {
@@ -629,7 +636,7 @@ func (self *ClusterConfiguration) Save() ([]byte, error) {
 		LastShardIdUsed:     self.lastShardIdUsed,
 		MetaStore:           self.MetaStore,
 		DatabaseShardSpaces: self.databaseShardSpaces,
-		Shards:              self.convertShardsToNewShardData(self.shards),
+		Shards:              self.convertShardsToNewShardData(self.GetShards()),
 	}
 
 	for k := range self.DatabaseReplicationFactors {
@@ -717,9 +724,9 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 		server.StartHeartbeat()
 	}
 
-	self.shards = self.convertNewShardDataToShards(data.Shards)
+	shards := self.convertNewShardDataToShards(data.Shards)
 	highestShardId := uint32(0)
-	for _, s := range self.shards {
+	for _, s := range shards {
 		shard := s
 		self.shardsById[s.id] = shard
 		if s.id > highestShardId {
@@ -735,17 +742,16 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	self.databaseShardSpaces = data.DatabaseShardSpaces
 	for _, spaces := range self.databaseShardSpaces {
 		for _, space := range spaces {
-			shards := make([]*ShardData, 0)
-			for _, s := range self.shards {
+			spaceShards := make([]*ShardData, 0)
+			for _, s := range shards {
 				if s.Database == space.Database && s.SpaceName == space.Name {
-					shards = append(shards, s)
+					spaceShards = append(spaceShards, s)
 				}
 			}
-			SortShardsByTimeDescending(shards)
-			space.shards = shards
+			SortShardsByTimeDescending(spaceShards)
+			space.shards = spaceShards
 		}
 	}
-	SortShardsByTimeDescending(self.shards)
 
 	for db, queries := range data.ContinuousQueries {
 		for _, query := range queries {
@@ -961,27 +967,16 @@ func (self *ClusterConfiguration) getShardSpaceToMatchSeriesName(database, name 
 	return nil
 }
 
-func (self *ClusterConfiguration) GetAllShards() []*ShardData {
-	self.shardLock.RLock()
-	defer self.shardLock.RUnlock()
-	return self.shards
-}
-
 func (self *ClusterConfiguration) GetShard(id uint32) *ShardData {
 	self.shardLock.RLock()
 	shard := self.shardsById[id]
 	self.shardLock.RUnlock()
 
-	// may not be in the map, try to get it from the list
-	if shard == nil {
-		for _, s := range self.GetAllShards() {
-			if s.id == id {
-				shard = s
-				break
-			}
-		}
+	if shard != nil {
+		return shard
 	}
-	return shard
+
+	return nil
 }
 
 func (self *ClusterConfiguration) getShardRange(querySpec QuerySpec, shards []*ShardData) []*ShardData {
@@ -1031,6 +1026,13 @@ func HashDbAndSeriesToInt(database, series string) int {
 	return nInt
 }
 
+func areShardsEqual(s1 *ShardData, s2 *NewShardData) bool {
+	return s1.startTime.Unix() == s2.StartTime.Unix() &&
+		s1.endTime.Unix() == s2.EndTime.Unix() &&
+		s1.SpaceName == s2.SpaceName &&
+		s1.Database == s2.Database
+}
+
 // Add shards expects all shards to be of the same type (long term or short term) and have the same
 // start and end times. This is called to add the shard set for a given duration. If existing
 // shards have the same times, those are returned.
@@ -1047,12 +1049,8 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 	// first check if there are shards that match this time. If so, return those.
 	createdShards := make([]*ShardData, 0)
 
-	startTime := shards[0].StartTime
-	endTime := shards[0].EndTime
-
-	for _, s := range self.shards {
-		if s.startTime.Unix() == startTime.Unix() && s.endTime.Unix() == endTime.Unix() &&
-			s.SpaceName == spaceName && s.Database == database {
+	for _, s := range self.shardsById {
+		if areShardsEqual(s, shards[0]) {
 			createdShards = append(createdShards, s)
 		}
 	}
@@ -1103,8 +1101,6 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 	for _, s := range createdShards {
 		self.shardsById[s.id] = s
 	}
-	self.shards = append(self.shards, createdShards...)
-	SortShardsByTimeDescending(self.shards)
 
 	return createdShards, nil
 }
@@ -1167,8 +1163,7 @@ func (self *ClusterConfiguration) DropSeries(database, series string) error {
 		return err
 	}
 	go func() {
-		shards := self.GetAllShards()
-		for _, s := range shards {
+		for _, s := range self.shardsById {
 			s.DropFields(fields)
 		}
 	}()
@@ -1235,7 +1230,7 @@ func (self *ClusterConfiguration) recover(serverId uint32, writer Writer) error 
 
 func (self *ClusterConfiguration) shardIdsForServerId(serverId uint32) []uint32 {
 	shardIds := make([]uint32, 0)
-	for _, shard := range self.GetAllShards() {
+	for _, shard := range self.shardsById {
 		for _, id := range shard.serverIds {
 			if id == serverId {
 				shardIds = append(shardIds, shard.Id())
@@ -1252,7 +1247,7 @@ func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds 
 	shard := self.shardsById[shardId]
 
 	if shard == nil {
-		log.Error("Attempted to remove shard %d, which we couldn't find. %d shards currently loaded.", shardId, len(self.GetAllShards()))
+		log.Error("Attempted to remove shard %d, which we couldn't find. %d shards currently loaded.", shardId, len(self.shardsById))
 		return
 	}
 
@@ -1281,14 +1276,6 @@ func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds 
 
 func (self *ClusterConfiguration) removeShard(shard *ShardData) {
 	delete(self.shardsById, shard.id)
-	shards := make([]*ShardData, 0, len(self.shards))
-
-	for _, s := range self.shards {
-		if s.id != shard.id {
-			shards = append(shards, s)
-		}
-	}
-	self.shards = shards
 
 	// now remove it from the database shard spaces
 	space := self.getShardSpaceByDatabaseAndName(shard.Database, shard.SpaceName)
@@ -1352,6 +1339,10 @@ func (self *ClusterConfiguration) RemoveShardSpace(database, name string) error 
 	} else {
 		self.databaseShardSpaces[database] = spacesToKeep
 	}
+	for _, s := range space.shards {
+		delete(self.shardsById, s.id)
+	}
+
 	if space != nil {
 		go func() {
 			for _, s := range space.shards {
