@@ -95,6 +95,7 @@ func NewServer(config *configuration.Configuration, coord coordinator.Coordinato
 	server.shutdown = make(chan bool, 1)
 	server.clusterConfig = clusterConfig
 	server.RequestHandler = NewRequestHandler(server)
+	server.Configuration = config
 
 	return server
 }

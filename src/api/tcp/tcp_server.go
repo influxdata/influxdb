@@ -5,7 +5,6 @@ import (
 	. "common"
 	"coordinator"
 	"net"
-	"fmt"
 
 	api "api/http"
 	log "code.google.com/p/log4go"
@@ -15,6 +14,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"crypto/tls"
 	"errors"
+	"configuration"
 )
 
 type TcpServer struct {
@@ -30,6 +30,11 @@ type TcpServer struct {
 	forceSSLUsers map[string]bool
 	Connections map[string]Connection
 	ConnectionCount int
+	Configuration *configuration.Configuration
+}
+
+func (self *TcpServer) GetInfluxDBVersions() []byte {
+	return []byte(self.Configuration.Version)
 }
 
 func (self *TcpServer) GetCoordinator() coordinator.Coordinator {
@@ -64,12 +69,6 @@ func (self *TcpServer) handleRequest(conn Connection) error {
 	err := self.RequestHandler.HandleRequest(conn)
 	conn.IncrementSequence()
 	return err
-}
-
-func getVersion() []byte {
-	// TODO: how do I get current InfluxDB version
-	version := fmt.Sprintf("InfluxDB v%s (git: %s)", "dev", "0000")
-	return []byte(version)
 }
 
 func (self *TcpServer) Authenticate(conn Connection, info *Greeting_Authentication) error {

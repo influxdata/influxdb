@@ -72,7 +72,7 @@ func (self *HandshakeProcessorImpl) Handshake(conn Connection) error {
 			req := &Greeting{
 				Type:            &G_STARTUP_RESPONSE,
 				ProtocolVersion: proto.Int32(1),
-				Agent:           getVersion(),
+				Agent:           self.Server.GetInfluxDBVersions(),
 				Sequence:        proto.Uint32(conn.GetSequence()),
 				Authentication: &Greeting_Authentication{
 					Method: &G_AUTHENTICATION_CLEARTEXT_PASSWORD,

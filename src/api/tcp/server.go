@@ -12,4 +12,5 @@ type Server interface {
 	SSLAvailable() bool
 	IsForceSSLUser(name string) bool
 	RemoveConnection(conn Connection)
+	GetInfluxDBVersions() []byte
 }
