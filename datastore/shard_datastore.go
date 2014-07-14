@@ -196,7 +196,6 @@ func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, e
 		return nil, err
 	}
 	self.shards[id] = db
-	fmt.Printf("What the fuck ################\n")
 	self.incrementShardRefCountAndCloseOldestIfNeeded(id)
 	return db, nil
 }
