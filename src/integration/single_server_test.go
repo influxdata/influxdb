@@ -9,6 +9,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 
 	influxdb "github.com/influxdb/influxdb-go"
@@ -785,4 +787,22 @@ func (self *SingleServerSuite) TestDropShardSpace(c *C) {
 	spaces, err = client.GetShardSpaces()
 	c.Assert(err, IsNil)
 	c.Assert(self.hasSpace("db1", spaceName, spaces), Equals, false)
+}
+
+func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
+	dir, err := os.Getwd()
+	if err != nil {
+		c.Error(err)
+	}
+	root := filepath.Join(dir, "..", "..")
+	filename := filepath.Join(root, "daemon")
+	configArg := "-load-database-config"
+	cmd := exec.Command(filename, configArg, "database_conf.json")
+	_, err = cmd.Output()
+	c.Assert(err, IsNil)
+	client := self.server.GetClient("", c)
+	spaces, err := client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(self.hasSpace("test_db_conf_db", "specific", spaces), Equals, true)
+	c.Assert(self.hasSpace("test_db_conf_db", "everything", spaces), Equals, true)
 }
