@@ -14,6 +14,7 @@ import (
 
 	log "code.google.com/p/log4go"
 	influxdb "github.com/influxdb/influxdb/client"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"
 	"github.com/influxdb/influxdb/server"
@@ -175,8 +176,8 @@ func main() {
 }
 
 type DatabaseConfig struct {
-	Database string                 `json:"database"`
-	Spaces   []*influxdb.ShardSpace `json:"spaces"`
+	Database string                `json:"database"`
+	Spaces   []*cluster.ShardSpace `json:"spaces"`
 }
 
 func LoadDatabaseConfig(fileName, server, user, password string) error {

@@ -105,7 +105,7 @@ func internalTest(t *testing.T, compression bool) {
 		Name:    name,
 		Columns: []string{"value"},
 		Points: [][]interface{}{
-			[]interface{}{1.0},
+			{1.0},
 		},
 	}
 	if err := client.WriteSeries([]*Series{series}); err != nil {
@@ -164,7 +164,7 @@ func internalTest(t *testing.T, compression bool) {
 		Name:    "paul_is_rad",
 		Columns: []string{"value"},
 		Points: [][]interface{}{
-			[]interface{}{1.0},
+			{1.0},
 		},
 	}
 	if err := client.WriteSeries([]*Series{series}); err != nil {

@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/influxdb/influxdb/cluster"
 )
 
 const (
@@ -508,25 +510,8 @@ type Shard struct {
 	Database  string   `json:"database"`
 }
 
-type ShardSpace struct {
-	// required, must be unique within in the cluster
-	Name string
-	// optional, if they don't set this shard space will get evaluated for every database
-	Database string
-	// this is optional, if they don't set it, we'll set to /.*/
-	Regex string
-	// a duration (24h, 365d) this is optional, if they don't set it, it will default to the storage.dir in the config
-	RetentionPolicy string
-	// this is required. Should be something like 1h, 4h, 1d, 7d, 30d. Less than the retention policy by about a factor of 10
-	ShardDuration string
-	// how many servers should have a copy of shards in this space
-	ReplicationFactor uint32
-	// how many shards should be created for each block of time. Series will be distributed across this split
-	Split uint32
-}
-
 type ShardSpaceCollection struct {
-	ShardSpaces []ShardSpace
+	ShardSpaces []cluster.ShardSpace
 }
 
 func (self *Client) GetShards() (*LongTermShortTermShards, error) {
@@ -581,13 +566,13 @@ func parseNewShards(body []byte) (*LongTermShortTermShards, error) {
 }
 
 // Added to InfluxDB in 0.8.0
-func (self *Client) GetShardSpaces() ([]*ShardSpace, error) {
+func (self *Client) GetShardSpaces() ([]*cluster.ShardSpace, error) {
 	url := self.getUrlWithUserAndPass("/cluster/shard_spaces", self.username, self.password)
 	body, err := self.get(url)
 	if err != nil {
 		return nil, err
 	}
-	spaces := []*ShardSpace{}
+	spaces := []*cluster.ShardSpace{}
 	err = json.Unmarshal(body, &spaces)
 	if err != nil {
 		return nil, err
@@ -604,7 +589,7 @@ func (self *Client) DropShardSpace(database, name string) error {
 }
 
 // Added to InfluxDB in 0.8.0
-func (self *Client) CreateShardSpace(space *ShardSpace) error {
+func (self *Client) CreateShardSpace(space *cluster.ShardSpace) error {
 	url := self.getUrl(fmt.Sprintf("/cluster/shard_spaces"))
 	data, err := json.Marshal(space)
 	if err != nil {
