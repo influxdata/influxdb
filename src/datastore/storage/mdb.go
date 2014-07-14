@@ -72,7 +72,7 @@ func NewMDB(path string, config interface{}) (Engine, error) {
 		return MDB{}, err
 	}
 
-	dbi, err := tx.DBIOpen(nil, mdb.CREATE)
+	dbi, err := tx.DBIOpen(nil, mdb.CREATE|mdb.DUPSORT|mdb.DUPFIXED)
 	if err != nil {
 		return MDB{}, err
 	}
@@ -90,6 +90,34 @@ func NewMDB(path string, config interface{}) (Engine, error) {
 	return db, nil
 }
 
+// InfluxDB uses 24 byte keys and small values. The keys are of
+// the form SSSSttttssss
+// where SSSS is an 8 byte seriesID, tttt is an 8 byte timestamp,
+// and ssss is an 8 byte sequence number. We use MDB_DUPSORT and
+// reconstruct this as a 6 byte key with duplicate values:
+// key SSS
+// value SttttssssVVVV
+
+// Turn an InfluxDB KV pair to an internal KV pair
+func ImportKV(key, val[]byte) ([]byte, []byte) {
+	newk := key[0:6]
+	newv := make([]byte, len(key) - 6 + len(val))
+	copy(newv, key[6:])
+	if val != nil {
+		copy(newv[18:], val)
+	}
+	return newk, newv
+}
+
+// Turn an internal KV pair into an InfluxDB KV pair
+func ExportKV(key, val[]byte) ([]byte, []byte) {
+	newk := make([]byte, 24)
+	copy(newk, key)
+	copy(newk[6:], val[0:18])
+	newv := val[18:]
+	return newk, newv
+}
+
 func (db MDB) Put(key, value []byte) error {
 	return db.BatchPut([]Write{{key, value}})
 }
@@ -98,13 +126,14 @@ func (db MDB) BatchPut(writes []Write) error {
 	itr := db.iterator(false)
 
 	for _, w := range writes {
+		key, val := ImportKV(w.Key, w.Value)
 		if w.Value == nil {
-			itr.key, itr.value, itr.err = itr.c.Get(w.Key, mdb.SET)
-			if itr.err == nil {
+			itr.key, itr.value, itr.err = itr.c.Get(key, val, mdb.GET_RANGE)
+			if itr.err == nil && bytes.Compare(itr.key, w.Key) == 0 {
 				itr.err = itr.c.Del(0)
 			}
 		} else {
-			itr.err = itr.c.Put(w.Key, w.Value, 0)
+			itr.err = itr.c.Put(key, val, 0)
 		}
 
 		if itr.err != nil && itr.err != mdb.NotFound {
@@ -117,17 +146,19 @@ func (db MDB) BatchPut(writes []Write) error {
 }
 
 func (db MDB) Get(key []byte) ([]byte, error) {
-	tx, err := db.env.BeginTxn(nil, mdb.RDONLY)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Commit()
+	itr := db.iterator(true)
+	defer itr.Close()
 
-	v, err := tx.Get(db.db, key)
-	if err == mdb.NotFound {
+	k, v := ImportKV(key, nil)
+	k, v, err := itr.c.Get(k, v, mdb.GET_RANGE)
+	if err == nil {
+		k, v = ExportKV(k, v)
+		if bytes.Compare(k, key) == 0 {
+			return v, nil
+		}
 		return nil, nil
 	}
-	return v, err
+	return nil, err
 }
 
 func (db MDB) Del(start, finish []byte) error {
@@ -176,21 +207,46 @@ func (itr *MDBIterator) Error() error {
 }
 
 func (itr *MDBIterator) getCurrent() {
-	itr.key, itr.value, itr.err = itr.c.Get(nil, mdb.GET_CURRENT)
+	var k, v []byte
+	k, v, itr.err = itr.c.Get(nil, nil, mdb.GET_CURRENT)
+	if itr.err == nil {
+		itr.key, itr.value = ExportKV(k, v)
+	}
 	itr.setState()
 }
 
 func (itr *MDBIterator) Seek(key []byte) {
-	itr.key, itr.value, itr.err = itr.c.Get(key, mdb.SET_RANGE)
+	k, v := ImportKV(key, nil)
+	k, v, itr.err = itr.c.Get(k, v, mdb.GET_RANGE)
+	if itr.err == nil {
+		itr.key, itr.value = ExportKV(k, v)
+	} else {
+		itr.key = nil
+		itr.value = nil
+	}
 	itr.setState()
 }
 func (itr *MDBIterator) Next() {
-	itr.key, itr.value, itr.err = itr.c.Get(nil, mdb.NEXT)
+	var k, v []byte
+	k, v, itr.err = itr.c.Get(nil, nil, mdb.NEXT)
+	if itr.err == nil {
+		itr.key, itr.value = ExportKV(k, v)
+	} else {
+		itr.key = nil
+		itr.value = nil
+	}
 	itr.setState()
 }
 
 func (itr *MDBIterator) Prev() {
-	itr.key, itr.value, itr.err = itr.c.Get(nil, mdb.PREV)
+	var k, v []byte
+	k, v, itr.err = itr.c.Get(nil, nil, mdb.PREV)
+	if itr.err == nil {
+		itr.key, itr.value = ExportKV(k, v)
+	} else {
+		itr.key = nil
+		itr.value = nil
+	}
 	itr.setState()
 }
 
