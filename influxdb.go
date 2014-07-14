@@ -543,7 +543,7 @@ func isOrNewerThan(version, reference string) bool {
 		return true
 	}
 	majorMinor := strings.Split(version[1:], ".")[:2]
-	refMajorMinor := strings.Split(version[1:], ".")[:2]
+	refMajorMinor := strings.Split(reference[1:], ".")[:2]
 	if majorMinor[0] > refMajorMinor[0] {
 		return true
 	}
