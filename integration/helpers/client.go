@@ -1,7 +1,7 @@
 package helpers
 
 import (
-	influxdb "github.com/influxdb/influxdb-go"
+	influxdb "github.com/influxdb/influxdb/client"
 	. "launchpad.net/gocheck"
 )
 

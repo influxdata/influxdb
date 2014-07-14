@@ -13,7 +13,7 @@ import (
 	"time"
 
 	log "code.google.com/p/log4go"
-	influxdb "github.com/influxdb/influxdb-go"
+	influxdb "github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"
 	"github.com/influxdb/influxdb/server"

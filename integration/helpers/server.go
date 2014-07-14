@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	influxdb "github.com/influxdb/influxdb-go"
+	influxdb "github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/configuration"
 	. "launchpad.net/gocheck"

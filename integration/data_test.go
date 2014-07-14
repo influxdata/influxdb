@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	influxdb "github.com/influxdb/influxdb-go"
+	influxdb "github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/engine"
 	. "github.com/influxdb/influxdb/integration/helpers"
 	. "launchpad.net/gocheck"

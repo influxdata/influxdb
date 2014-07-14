@@ -208,7 +208,6 @@ github.com/gorilla/mux \
 github.com/influxdb/influxdb/_vendor/raft \
 github.com/influxdb/go-cache \
 github.com/BurntSushi/toml \
-github.com/influxdb/influxdb-go \
 code.google.com/p/gogoprotobuf/proto \
 github.com/influxdb/gomdb \
 code.google.com/p/go.tools/cmd/vet \

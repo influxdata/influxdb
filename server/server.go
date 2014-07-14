@@ -5,11 +5,11 @@ import (
 	"time"
 
 	log "code.google.com/p/log4go"
-	influxdb "github.com/influxdb/influxdb-go"
 	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/api/graphite"
 	"github.com/influxdb/influxdb/api/http"
 	"github.com/influxdb/influxdb/api/udp"
+	influxdb "github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	influxdb "github.com/influxdb/influxdb-go"
+	influxdb "github.com/influxdb/influxdb/client"
 )
 
 func CreatePoints(name string, numOfColumns, numOfPoints int) []*influxdb.Series {

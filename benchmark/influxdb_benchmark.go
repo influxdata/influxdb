@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb-go"
+	"github.com/influxdb/influxdb/client"
 )
 
 type benchmarkConfig struct {
