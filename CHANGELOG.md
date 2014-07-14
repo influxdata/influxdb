@@ -8,7 +8,7 @@
 - [Issue #667](https://github.com/influxdb/influxdb/issues/667). Enable compression on all GET requests and when writing data
 - [Issue #648](https://github.com/influxdb/influxdb/issues/648). Return permissions when listing db users. (Thanks, @nicolai86)
 - [Issue #682](https://github.com/influxdb/influxdb/issues/682). Allow continuous queries to run without backfill
-- [Issue #689](https://github.com/influxdb/influxdb/issues/689). Move metadata into raft
+- [Issue #689](https://github.com/influxdb/influxdb/issues/689). **REQUIRES DATA MIGRATION** Move metadata into raft
 - [Issue #255](https://github.com/influxdb/influxdb/issues/255). Support millisecond precision using `ms` suffix
 
 ### Bugfixes
