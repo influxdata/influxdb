@@ -17,7 +17,7 @@ var _ = Suite(&CoordinatorSuite{})
 func (self *CoordinatorSuite) TestShouldQuerySequentially(c *C) {
 	end := time.Now().Truncate(24 * time.Hour)
 	start := end.Add(-7 * 24 * time.Hour)
-	shard := cluster.NewShard(1, start, end, cluster.SHORT_TERM, false, nil)
+	shard := cluster.NewShard(1, start, end, "", "", nil)
 	shards := []*cluster.ShardData{shard}
 	coordinator := NewCoordinatorImpl(&configuration.Configuration{
 		ClusterMaxResponseBufferSize: 1000,

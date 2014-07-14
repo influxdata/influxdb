@@ -1,0 +1,23 @@
+[
+{
+  "database": "test_db_conf_db",
+  "spaces": [
+    {
+      "Name": "everything",
+      "RetentionPolicy": "90d",
+      "ShardDuration": "7d",
+      "Regex": "/.*/",
+      "ReplicatonFactor": 1,
+      "Split": 1
+    },
+    {
+      "Name": "specific",
+      "RetentionPolicy": "7d",
+      "ShardDuration": "1d",
+      "Regex": "/^something_specficic/",
+      "ReplicatonFactor": 1,
+      "Split": 1
+    }
+  ]
+}
+]
