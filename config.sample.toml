@@ -158,7 +158,7 @@ protobuf_max_backoff = "10s" # the maxmimum backoff after a failed heartbeat att
 # How many write requests to potentially buffer in memory per server. If the buffer gets filled then writes
 # will still be logged and once the server has caught up (or come back online) the writes
 # will be replayed from the WAL
-write-buffer-size = 10000
+write-buffer-size = 1000
 
 # the maximum number of responses to buffer from remote nodes, if the
 # expected number of responses exceed this number then querying will
