@@ -2,6 +2,8 @@ package influxdb
 
 import (
 	"testing"
+
+	"github.com/influxdb/influxdb/cluster"
 )
 
 func TestClient(t *testing.T) {
@@ -118,11 +120,11 @@ func internalTest(t *testing.T, compression bool) {
 	}
 
 	if len(result) != 1 {
-		t.Error("more than one time series returned")
+		t.Fatalf("expected one time series returned: %d", len(result))
 	}
 
 	if len(result[0].Points) != 1 {
-		t.Error("Larger time series returned")
+		t.Error("Expected one point: ", len(result[0].Points))
 	}
 
 	if result[0].Points[0][2].(float64) != 1 {
@@ -145,7 +147,7 @@ func internalTest(t *testing.T, compression bool) {
 	if spaces[0].Name != "default" {
 		t.Fail()
 	}
-	space := &ShardSpace{Name: "foo", Database: "foobar", Regex: "/^paul_is_rad/"}
+	space := &cluster.ShardSpace{Name: "foo", Database: "foobar", Regex: "/^paul_is_rad/"}
 	err = client.CreateShardSpace(space)
 	if err != nil {
 		t.Error(err)
