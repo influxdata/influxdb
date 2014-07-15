@@ -1,7 +1,7 @@
 Contributing to InfluxDB
 ========================
 
-InfluxDB follows standard GO project structure. This means that all
+InfluxDB follows standard Go project structure. This means that all
 your go development are done in $GOPATH/src. GOPATH can be any
 directory under which InfluxDB and all it's dependencies will be
 cloned. For more details on recommended go project's structure, see
