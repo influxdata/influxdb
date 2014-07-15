@@ -2983,12 +2983,10 @@ ac_res=$ac_cv_search_clock_gettime
 if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
-else
-  as_fn_error $? "\"Cannot find an implementation of clock_gettime\"" "$LINENO" 5
 fi
 
 
-if test x"${ac_cv_search_clock_gettime}" != x"none required"; then
+if test x"${ac_cv_search_clock_gettime}" != x"none required" -a x"${ac_cv_search_clock_gettime}" != x"no"; then
    LRT_LDFLAG=${ac_cv_search_clock_gettime}
 fi
 

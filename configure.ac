@@ -48,9 +48,9 @@ if test x"${AUTORECONF}" == x"notfound"; then
 fi
 AC_CHECK_LIB(z, gzdopen,,AC_MSG_ERROR("cannot find libz"))
 AC_CHECK_LIB(bz2, BZ2_bzReadOpen,,AC_MSG_ERROR("cannot find libbz2"))
-AC_SEARCH_LIBS(clock_gettime,rt,,AC_MSG_ERROR("Cannot find an implementation of clock_gettime"))
+AC_SEARCH_LIBS(clock_gettime,rt,,)
 
-if test x"${ac_cv_search_clock_gettime}" != x"none required"; then
+if test x"${ac_cv_search_clock_gettime}" != x"none required" -a x"${ac_cv_search_clock_gettime}" != x"no"; then
    LRT_LDFLAG=${ac_cv_search_clock_gettime}
 fi
 
