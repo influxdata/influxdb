@@ -447,12 +447,9 @@ func (self *Client) queryCommon(query string, useNumber bool, precision ...TimeP
 		return nil, err
 	}
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
+
 	series := []*Series{}
-	decoder := json.NewDecoder(bytes.NewBuffer(data))
+	decoder := json.NewDecoder(resp.Body)
 	if useNumber {
 		decoder.UseNumber()
 	}
