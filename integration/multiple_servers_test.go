@@ -12,6 +12,7 @@ import (
 	"time"
 
 	influxdb "github.com/influxdb/influxdb/client"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/common"
 	. "github.com/influxdb/influxdb/integration/helpers"
 	. "launchpad.net/gocheck"
@@ -944,7 +945,7 @@ func (self *ServerSuite) TestDropShard(c *C) {
 	endSeconds := startSeconds + 3600
 	client := self.serverProcesses[0].GetClient("", c)
 	c.Assert(client.CreateDatabase("test_drop_shard"), IsNil)
-	space := &influxdb.ShardSpace{Name: "test_drop", RetentionPolicy: "30d", Database: "test_drop_shard", Regex: "/^dont_drop_me_bro/"}
+	space := &cluster.ShardSpace{Name: "test_drop", RetentionPolicy: "30d", Database: "test_drop_shard", Regex: "/^dont_drop_me_bro/"}
 	c.Assert(client.CreateShardSpace(space), IsNil)
 
 	data := fmt.Sprintf(`{
