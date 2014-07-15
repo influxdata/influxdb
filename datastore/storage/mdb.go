@@ -39,7 +39,7 @@ func NewMDB(path string, config interface{}) (Engine, error) {
 	}
 
 	if c.MapSize == 0 {
-		c.MapSize = 10 * 1024 * 1024 * 1024
+		c.MapSize = 1 * 1024 * 1024 * 1024
 	}
 
 	env, err := mdb.NewEnv()
