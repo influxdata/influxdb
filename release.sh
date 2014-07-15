@@ -8,7 +8,7 @@ git checkout .
 git pull --rebase
 make clean
 git clean -dfx
-./configure --with-goroot=$HOME/bin/go/
+./configure
 
 modified=$(git ls-files --modified | wc -l)
 
