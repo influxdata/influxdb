@@ -1,6 +1,12 @@
-## v0.8.0-rc.2 [unreleased]
+## v0.8.0-rc.3
 
 ### Bugfixes
+
+## v0.8.0-rc.2 [2014-07-15]
+
+- This release is to fix a build error in rc1 which caused rocksdb to not be available
+- Bump up the `max-open-files` option to 1000 on all storage engines
+- Lower the `write-buffer-size` to 1000
 
 ## v0.8.0-rc.1 [2014-07-15]
 
