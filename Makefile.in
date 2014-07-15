@@ -239,7 +239,7 @@ build: | dependencies protobuf parser build_version_string
 # if there's an error
 	$(GO) build -o influxdb $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/daemon
 	$(GO) build -o benchmark-storage $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/tools/benchmark-storage
-	$(GO) build -o benchmark-tool github.com/influxdb/influxdb/benchmark
+	$(GO) build -o benchmark-tool github.com/influxdb/influxdb/tools/benchmark
 
 clean:
 	git status --ignored | grep src\/ | grep -v Makefile | xargs rm -rf
@@ -358,7 +358,7 @@ $(binary_package): $(admin_dir)/build build packages
 	mkdir build
 	mv influxdb build/
 	mv benchmark-tool build/influxdb-benchmark
-	cp benchmark/benchmark_config.sample.toml build/benchmark_config.toml
+	cp tools/benchmark/benchmark_config.sample.toml build/benchmark_config.toml
 	mkdir build/admin
 	cp -R $(admin_dir)/build/* build/admin/
 	cp -R scripts/ build/
