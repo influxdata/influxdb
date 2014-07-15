@@ -63,11 +63,14 @@ Build on Linux
 
 You'll need the following dependencies:
 
-    sudo apt-get install mercurial bzr protobuf-compiler flex bison valgrind g++ make autoconf libtool libz-dev libbz2-dev
+    sudo apt-get install mercurial bzr protobuf-compiler flex bison \
+      valgrind g++ make autoconf libtool libz-dev libbz2-dev curl \
+      rpm build-essential git
 
 or on Red Had-based distros:
 
-    sudo yum install hg bzr protobuf-compiler flex bison valgrind g++ make autoconf libtool zlib-dev bzip2-libs
+    sudo yum install hg bzr protobuf-compiler flex bison valgrind g++ \
+      make autoconf libtool zlib-dev bzip2-libs
 
 To build run the following:
 
