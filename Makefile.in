@@ -213,8 +213,7 @@ github.com/influxdb/gomdb \
 code.google.com/p/go.tools/cmd/vet \
 github.com/jmhodges/levigo \
 github.com/influxdb/rocksdb \
-github.com/influxdb/hyperleveldb-go \
-$(proto_dependency)
+github.com/influxdb/hyperleveldb-go
 
 dependencies_paths := $(addprefix $(GOPATH)/src/,$(dependencies))
 
@@ -228,7 +227,10 @@ dependencies: $(storage_engines) $(dependencies_paths)
 test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck
 
-protobuf: $(GOPATH)/src/$(proto_dependency)
+$(GOPATH)/bin/protoc-gen-go:
+	$(GO) get $(proto_dependency)
+
+protobuf: $(GOPATH)/bin/protoc-gen-go
 	rm -f protocol/*.pb.go
 	PATH=$$GOPATH/bin:$$PATH $(PROTOC) --go_out=. protocol/*.proto
 
