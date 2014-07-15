@@ -38,7 +38,7 @@ commit hook to guard against accidentally committing unformatted
 code. To use the pre-commit hook, run the following:
 
     cd $GOPATH/src/github.com/influxdb/influxdb
-    cp .hook/pre-commit .git/hooks/
+    cp .hooks/pre-commit .git/hooks/
 
 In case the commit is rejected because it's not formatted you can run
 the following to format the code:
