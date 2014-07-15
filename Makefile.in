@@ -10,6 +10,7 @@ GO     = @GO@
 GOFMT  = @GOFMT@
 GOROOT = @GOROOT@
 AUTORECONF = @AUTORECONF@
+LRT_LDFLAG = @LRT_LDFLAG@
 # or 386, arm
 arch   = amd64
 CGO_ENABLED = 1
@@ -128,7 +129,7 @@ ifeq ($(rocksdb),yes)
 GO_BUILD_TAGS += rocksdb
 storage_engines += $(rocksdb_deps)
 CGO_CFLAGS +=  -I$(rocksdb_dir)/include
-CGO_LDFLAGS += -L$(rocksdb_dir) -lrocksdb
+CGO_LDFLAGS += -L$(rocksdb_dir) -lrocksdb $(LRT_LDFLAG)
 endif
 CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include
 CGO_LDFLAGS += -L$(leveldb_dir) -L$(hyperleveldb_dir)/.libs -L$(snappy_dir)/.libs -lleveldb -lhyperleveldb -lsnappy
@@ -181,7 +182,7 @@ ifeq ($(uname_S),Linux)
 	bash -c "cd $(rocksdb_dir); \
 	wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
 	tar --strip-components=1 -xvzf $(rocksdb_file); \
-	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE) librocksdb.a"
+	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs $(LRT_LDFLAG)' $(MAKE) librocksdb.a"
 endif
 
 $(hyperleveldb_deps): $(snappy_deps)
