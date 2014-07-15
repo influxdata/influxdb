@@ -40,6 +40,11 @@ code. To use the pre-commit hook, run the following:
     cd $GOPATH/src/github.com/influxdb/influxdb
     cp .hook/pre-commit .git/hooks/
 
+In case the commit is rejected because it's not formatted you can run
+the following to format the code:
+
+    make format
+
 Build on OSX
 ------------
 
@@ -82,3 +87,4 @@ The following are make targets that can be used on any architecture:
   arguments as `test`. The integration tests are in the `integration`
   package.
 - `clean` Cleans all dependencies and temporary files created by the Makefile.
+- `format` Formats the entire codebase.
