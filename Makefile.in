@@ -334,8 +334,8 @@ $(debian_package): $(admin_dir)/build build
 $(source_package): dependencies
 	rm -rf $(levigo_dependency)
 	$(GO) get -d $(levigo_dependency)
-	rm -f daemon
-	rm -f benchmark
+	rm -f influxdb
+	rm -f benchmark-tool
 	git ls-files --others | egrep -v 'github|launchpad|code.google|version.go' > ${TMPDIR}/influxdb.ignored
 	echo "pkg/*" >> ${TMPDIR}/influxdb.ignored
 	echo "packages/*" >> ${TMPDIR}/influxdb.ignored
@@ -356,8 +356,8 @@ $(source_package): dependencies
 $(binary_package): $(admin_dir)/build build packages
 	rm -rf build
 	mkdir build
-	mv daemon build/influxdb
-	mv benchmark build/influxdb-benchmark
+	mv influxdb build/
+	mv benchmark-tool build/influxdb-benchmark
 	cp benchmark/benchmark_config.sample.toml build/benchmark_config.toml
 	mkdir build/admin
 	cp -R $(admin_dir)/build/* build/admin/
