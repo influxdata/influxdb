@@ -19,8 +19,8 @@ on how to install see
 After installing gvm you can install and set the default go version by
 running the following:
 
-    go install go1.2.1
-    go use go1.2.1 --default
+    gvm install go1.2.1
+    gvm use go1.2.1 --default
 
 Project structure
 -----------------
