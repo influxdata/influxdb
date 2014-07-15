@@ -189,7 +189,7 @@ ifeq ($(uname_S),Linux)
 	rm -rf $(hyperleveldb_dir)
 	mkdir -p $(hyperleveldb_dir)
 	bash -c "cd $(hyperleveldb_dir); \
-	wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file); \
+	wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file) -O $(hyperleveldb_file); \
 	tar --strip-components=1 -xvzf $(hyperleveldb_file); \
   $(AUTORECONF) -i; \
 	CXXFLAGS='-I$(snappy_dir) $(cflags)' CFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' ./configure --enable-shared=no; \
