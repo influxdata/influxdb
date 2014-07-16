@@ -4,11 +4,6 @@ set -e
 
 cd `dirname $0`
 
-# To add devtools to the build machine, run the following commands
-# cd /etc/yum.repos.d/
-# http://people.centos.org/tru/devtools/devtools.repo
-# yum --enablerepo=testing-devtools-6 install devtoolset-1.0
-export PATH=/opt/centos/devtoolset-1.0/root/usr/bin/:$PATH
 git checkout .
 git pull --rebase
 make clean
