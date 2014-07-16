@@ -103,9 +103,9 @@ endif
 
 ifeq ($(rocksdb),yes)
 # rocksdb variables
-rocksdb_version = 3.1
+rocksdb_version = d916593eadfa838001b2d2991ae182cf5f0ac01e
 rocksdb_dir     = ${TMPDIR}/rocksdb.influxdb.$(arch)
-rocksdb_file    = rocksdb-$(rocksdb_version).tar.gz
+rocksdb_file    = $(rocksdb_version).tar.gz
 rocksdb_deps    = $(rocksdb_dir)/librocksdb.a
 endif
 
@@ -133,7 +133,8 @@ CGO_LDFLAGS += -L$(rocksdb_dir) -lrocksdb $(LRT_LDFLAG)
 endif
 CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include
 CGO_LDFLAGS += -L$(leveldb_dir) -L$(hyperleveldb_dir)/.libs -L$(snappy_dir)/.libs -lleveldb -lhyperleveldb -lsnappy
-CGO_LDFLAGS += -lstdc++ -lm -lz -lbz2
+CPPLIB = $(shell g++ $(cflags) --print-file-name=libstdc++.a)
+CGO_LDFLAGS += -lm -lz -lbz2 $(CPPLIB)
 export CGO_CFLAGS
 export CGO_LDFLAGS
 else
