@@ -1,12 +1,12 @@
 	package tcp
 
 import (
-	"cluster"
-	. "common"
-	"configuration"
-	"coordinator"
+	"github.com/influxdb/influxdb/cluster"
+	. "github.com/influxdb/influxdb/common"
+	"github.com/influxdb/influxdb/configuration"
+	"github.com/influxdb/influxdb/coordinator"
 
-	api "api/http"
+	api "github.com/influxdb/influxdb/api/http"
 	log "code.google.com/p/log4go"
 
 	"crypto/rand"

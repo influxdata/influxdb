@@ -1,7 +1,7 @@
 package tcp
 
 import (
-	. "common"
+	. "github.com/influxdb/influxdb/common"
 	"net"
 	"bytes"
 )

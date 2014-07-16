@@ -1,9 +1,9 @@
 package tcp
 
 import (
-	. "common"
+	. "github.com/influxdb/influxdb/common"
 	"bytes"
-	"protocol"
+	"github.com/influxdb/influxdb/protocol"
 
 	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"

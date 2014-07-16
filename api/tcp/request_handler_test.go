@@ -4,11 +4,11 @@ import (
 	. "launchpad.net/gocheck"
 	"code.google.com/p/goprotobuf/proto"
 
-	"protocol"
-	. "common"
+	"github.com/influxdb/influxdb/protocol"
+	. "github.com/influxdb/influxdb/common"
 	"encoding/binary"
 
-	"api/tcp"
+	"github.com/influxdb/influxdb/api/tcp"
 	"bytes"
 	"fmt"
 )

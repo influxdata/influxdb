@@ -3,7 +3,7 @@ package tcp_test
 import (
 	. "launchpad.net/gocheck"
 
-	"api/tcp"
+	"github.com/influxdb/influxdb/api/tcp"
 //	"code.google.com/p/goprotobuf/proto"
 )
 

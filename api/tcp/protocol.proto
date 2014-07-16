@@ -1,6 +1,6 @@
 package tcp;
 
-import "src/protocol/protocol.proto";
+import "protocol/protocol.proto";
 
 // common messages
 message Error {

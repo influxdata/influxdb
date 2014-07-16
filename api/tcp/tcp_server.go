@@ -1,12 +1,12 @@
 package tcp
 
 import (
-	"cluster"
-	. "common"
-	"coordinator"
+	"github.com/influxdb/influxdb/cluster"
+	. "github.com/influxdb/influxdb/common"
+	"github.com/influxdb/influxdb/coordinator"
 	"net"
 
-	api "api/http"
+	api "github.com/influxdb/influxdb/api/http"
 	log "code.google.com/p/log4go"
 	"os"
 
@@ -14,7 +14,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"crypto/tls"
 	"errors"
-	"configuration"
+	"github.com/influxdb/influxdb/configuration"
 )
 
 type TcpServer struct {

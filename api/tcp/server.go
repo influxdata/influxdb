@@ -1,7 +1,7 @@
 package tcp
 
 import (
-	"coordinator"
+	"github.com/influxdb/influxdb/coordinator"
 )
 
 type Server interface {

@@ -1,16 +1,16 @@
 package tcp
 
 import (
-	. "common"
+	. "github.com/influxdb/influxdb/common"
 	"fmt"
 
-	api "api/http"
+	api "github.com/influxdb/influxdb/api/http"
 
-	"parser"
+	"github.com/influxdb/influxdb/parser"
 	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
 	"errors"
-	"protocol"
+	"github.com/influxdb/influxdb/protocol"
 )
 
 type HandlerCallback func(conn Connection, request *Command) (error)
