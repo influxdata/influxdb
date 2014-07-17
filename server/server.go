@@ -163,7 +163,7 @@ func (self *Server) ListenAndServe() error {
 			continue
 		}
 
-		if port <= 0 {
+		if port <= 0 || port >= 65536 {
 			log.Warn("Cannot start udp server on port %d. please check your configuration", port)
 			continue
 		} else if database == "" {
