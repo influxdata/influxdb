@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -135,8 +136,15 @@ func (self *Server) ListenAndServe() error {
 	log.Info("Starting admin interface on port %d", self.Config.AdminHttpPort)
 	go self.AdminServer.ListenAndServe()
 	if self.Config.GraphiteEnabled {
-		if self.Config.GraphitePort <= 0 || self.Config.GraphiteDatabase == "" {
-			log.Warn("Cannot start graphite server. please check your configuration")
+		// Helper function to DRY out error log message
+		fail_reason := func(r string) string {
+			return fmt.Sprintf("Refusing to start graphite server because %s. Please check your configuration", r)
+		}
+
+		if self.Config.GraphitePort <= 0 || self.Config.GraphitePort >= 65536 {
+			log.Warn(fail_reason(fmt.Sprintf("port %d is invalid", self.Config.GraphitePort)))
+		} else if self.Config.GraphiteDatabase == "" {
+			log.Warn(fail_reason("database name is invalid"))
 		} else {
 			log.Info("Starting Graphite Listener on port %d", self.Config.GraphitePort)
 			go self.GraphiteApi.ListenAndServe()
