@@ -98,3 +98,10 @@ The following are make targets that can be used on any architecture:
   package.
 - `clean` Cleans all dependencies and temporary files created by the Makefile.
 - `format` Formats the entire codebase.
+
+Useful links
+------------
+- [Useful techniques in Go](http://arslan.io/ten-useful-techniques-in-go)
+- [Go in production](http://peter.bourgon.org/go-in-production/)
+- [Principles of designing Go APIs with channels](https://inconshreveable.com/07-08-2014/principles-of-designing-go-apis-with-channels/)
+- [Common mistakes in Golang](http://soryy.com/blog/2014/common-mistakes-with-go-lang/). Especially this section `Loops, Closures, and Local Variables`
