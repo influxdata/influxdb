@@ -177,7 +177,7 @@ func (fr failureResult) String() string {
 
 type LoadWrite struct {
 	LoadDefinition *loadDefinition
-	Series         []*influxdb.Series
+	Series         []*client.Series
 }
 
 const MAX_SUCCESS_REPORTS_TO_QUEUE = 100000
@@ -226,8 +226,8 @@ func (self *BenchmarkHarness) startPostWorkers() {
 	}
 }
 
-func (self *BenchmarkHarness) reportClient() *influxdb.Client {
-	clientConfig := &influxdb.ClientConfig{
+func (self *BenchmarkHarness) reportClient() *client.Client {
+	clientConfig := &client.ClientConfig{
 		Host:       self.Config.StatsServer.ConnectionString,
 		Database:   self.Config.StatsServer.Database,
 		Username:   self.Config.StatsServer.User,
@@ -235,12 +235,12 @@ func (self *BenchmarkHarness) reportClient() *influxdb.Client {
 		IsSecure:   self.Config.StatsServer.IsSecure,
 		HttpClient: NewHttpClient(self.Config.StatsServer.Timeout.Duration, self.Config.StatsServer.SkipVerify),
 	}
-	client, _ := influxdb.NewClient(clientConfig)
-	return client
+	c, _ := client.New(clientConfig)
+	return c
 }
 
 func (self *BenchmarkHarness) reportResults() {
-	client := self.reportClient()
+	c := self.reportClient()
 
 	successColumns := []string{"response_time", "point_count", "series_count"}
 	failureColumns := []string{"response_time", "message"}
@@ -272,18 +272,18 @@ func (self *BenchmarkHarness) reportResults() {
 				lastReportPointCount = totalPointCount
 			}
 
-			s := &influxdb.Series{
+			s := &client.Series{
 				Name:    res.write.LoadDefinition.Name + ".ok",
 				Columns: successColumns,
 				Points:  [][]interface{}{{res.microseconds / 1000, pointCount, seriesCount}}}
-			client.WriteSeries([]*influxdb.Series{s})
+			c.WriteSeries([]*client.Series{s})
 
 		case res := <-self.failure:
-			s := &influxdb.Series{
+			s := &client.Series{
 				Name:    res.write.LoadDefinition.Name + ".ok",
 				Columns: failureColumns,
 				Points:  [][]interface{}{{res.microseconds / 1000, res.err}}}
-			client.WriteSeries([]*influxdb.Series{s})
+			c.WriteSeries([]*client.Series{s})
 		}
 	}
 }
@@ -335,9 +335,9 @@ func (self *BenchmarkHarness) runLoad(seriesNames []string, columns []string, lo
 	pointsPosted := 0
 	for j := 0; j < len(seriesNames); j += loadDef.WriteSettings.BatchSeriesSize {
 		names := seriesNames[j : j+loadDef.WriteSettings.BatchSeriesSize]
-		seriesToPost := make([]*influxdb.Series, len(names), len(names))
+		seriesToPost := make([]*client.Series, len(names), len(names))
 		for ind, name := range names {
-			s := &influxdb.Series{Name: name, Columns: columns, Points: make([][]interface{}, loadDef.WriteSettings.BatchPointsSize, loadDef.WriteSettings.BatchPointsSize)}
+			s := &client.Series{Name: name, Columns: columns, Points: make([][]interface{}, loadDef.WriteSettings.BatchPointsSize, loadDef.WriteSettings.BatchPointsSize)}
 			for pointCount := 0; pointCount < loadDef.WriteSettings.BatchPointsSize; pointCount++ {
 				pointsPosted++
 				point := make([]interface{}, 0, columnCount)
@@ -398,7 +398,7 @@ func (self *BenchmarkHarness) runQuery(loadDef *loadDefinition, seriesNames []st
 
 func (self *BenchmarkHarness) queryAndReport(loadDef *loadDefinition, q *query, queryString string) {
 	s := self.Config.Servers[rand.Intn(len(self.Config.Servers))]
-	clientConfig := &influxdb.ClientConfig{
+	clientConfig := &client.ClientConfig{
 		Host:       s.ConnectionString,
 		Database:   self.Config.ClusterCredentials.Database,
 		Username:   self.Config.ClusterCredentials.User,
@@ -406,12 +406,12 @@ func (self *BenchmarkHarness) queryAndReport(loadDef *loadDefinition, q *query, 
 		IsSecure:   self.Config.ClusterCredentials.IsSecure,
 		HttpClient: NewHttpClient(self.Config.ClusterCredentials.Timeout.Duration, self.Config.ClusterCredentials.SkipVerify),
 	}
-	client, err := influxdb.NewClient(clientConfig)
+	c, err := client.New(clientConfig)
 	if err != nil {
 		// report query fail
 	}
 	startTime := time.Now()
-	results, err := client.Query(queryString)
+	results, err := c.Query(queryString)
 	microsecondsTaken := time.Now().Sub(startTime).Nanoseconds() / 1000
 
 	if err != nil {
@@ -422,33 +422,33 @@ func (self *BenchmarkHarness) queryAndReport(loadDef *loadDefinition, q *query, 
 }
 
 func (self *BenchmarkHarness) reportQueryFailure(name, query, message string) {
-	client := self.reportClient()
-	s := &influxdb.Series{
+	c := self.reportClient()
+	s := &client.Series{
 		Name:    name + ".fail",
 		Columns: []string{"message"},
 		Points:  [][]interface{}{{message}}}
-	client.WriteSeries([]*influxdb.Series{s})
+	c.WriteSeries([]*client.Series{s})
 	self.writeMessage(fmt.Sprintf("QUERY: %s failed with: %s", query, message))
 }
 
-func (self *BenchmarkHarness) reportQuerySuccess(results []*influxdb.Series, seriesName string, microseconds int64) {
-	client := self.reportClient()
+func (self *BenchmarkHarness) reportQuerySuccess(results []*client.Series, seriesName string, microseconds int64) {
+	c := self.reportClient()
 	seriesCount := len(results)
 	pointCount := 0
 	for _, series := range results {
 		pointCount += len(series.Points)
 	}
 	millisecondsTaken := microseconds / 1000
-	s := &influxdb.Series{
+	s := &client.Series{
 		Name:    seriesName + ".ok",
 		Columns: []string{"response_time", "series_returned", "points_returned"},
 		Points:  [][]interface{}{{millisecondsTaken, seriesCount, pointCount}}}
-	client.WriteSeries([]*influxdb.Series{s})
+	c.WriteSeries([]*client.Series{s})
 	self.writeMessage(fmt.Sprintf("QUERY: %s completed in %dms", seriesName, millisecondsTaken))
 }
 
 func (self *BenchmarkHarness) handleWrites(s *server) {
-	clientConfig := &influxdb.ClientConfig{
+	clientConfig := &client.ClientConfig{
 		Host:       s.ConnectionString,
 		Database:   self.Config.ClusterCredentials.Database,
 		Username:   self.Config.ClusterCredentials.User,
@@ -456,7 +456,7 @@ func (self *BenchmarkHarness) handleWrites(s *server) {
 		IsSecure:   self.Config.ClusterCredentials.IsSecure,
 		HttpClient: NewHttpClient(self.Config.ClusterCredentials.Timeout.Duration, self.Config.ClusterCredentials.SkipVerify),
 	}
-	client, err := influxdb.NewClient(clientConfig)
+	c, err := client.New(clientConfig)
 	if err != nil {
 		panic(fmt.Sprintf("Error connecting to server \"%s\": %s", s.ConnectionString, err))
 	}
@@ -464,7 +464,7 @@ func (self *BenchmarkHarness) handleWrites(s *server) {
 		write := <-self.writes
 
 		startTime := time.Now()
-		err := client.WriteSeries(write.Series)
+		err := c.WriteSeries(write.Series)
 		microsecondsTaken := time.Now().Sub(startTime).Nanoseconds() / 1000
 
 		if err != nil {
