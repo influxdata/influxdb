@@ -39,6 +39,10 @@ First you need to setup the project structure
     cd $GOPATH/src/github.com/influxdb
     git clone git@github.com:influxdb/influxdb
 
+You can add the line `export GOPATH=$HOME/gocodez` to your bash/zsh
+file to be set for every shell instead of having to manually run it
+everytime.
+
 We have a pre commit hook to make sure code is formatted properly
 before you commit any changes. We strongly recommend using the pre
 commit hook to guard against accidentally committing unformatted
@@ -82,6 +86,14 @@ or on Red Had-based distros:
 To build run the following:
 
     ./configure && make
+
+Building with RocksDB
+---------------------
+
+RocksDB requires GCC 4.7 to get C++11 support. See
+[their installation instruction](https://github.com/facebook/rocksdb/blob/296e340753f23f213655ff1d4549c73fa0262038/INSTALL.md)
+for more information. Currently our build system runs Centos 6.4 and
+uses a compiled version of GCC 4.7
 
 Common Make targets
 -------------------
