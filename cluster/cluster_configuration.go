@@ -1290,6 +1290,12 @@ func (self *ClusterConfiguration) removeShard(shard *ShardData) {
 }
 
 func (self *ClusterConfiguration) AddShardSpace(space *ShardSpace) error {
+	if space.Name != DEFAULT_SHARD_SPACE_NAME {
+		err := space.Validate(self)
+		if err != nil {
+			return err
+		}
+	}
 	self.shardLock.Lock()
 	defer self.shardLock.Unlock()
 	databaseSpaces := self.databaseShardSpaces[space.Database]

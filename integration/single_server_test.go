@@ -740,6 +740,11 @@ func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 	spaces, err = client.GetShardSpaces()
 	c.Assert(err, IsNil)
 	c.Assert(self.hasSpace("db1", "month", spaces), Equals, true)
+	for _, s := range spaces {
+		if s.Name == "month" && s.Database == "db1" {
+			c.Assert(s.Regex, Equals, "/^the_dude_abides/")
+		}
+	}
 	shards, err := client.GetShards()
 	c.Assert(err, IsNil)
 	spaceShards := self.getShardsForSpace("month", shards.All)
