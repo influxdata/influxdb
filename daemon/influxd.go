@@ -13,8 +13,7 @@ import (
 	"time"
 
 	log "code.google.com/p/log4go"
-	influxdb "github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"
 	"github.com/influxdb/influxdb/server"
@@ -176,13 +175,13 @@ func main() {
 }
 
 type DatabaseConfig struct {
-	Database string                `json:"database"`
-	Spaces   []*cluster.ShardSpace `json:"spaces"`
+	Database string               `json:"database"`
+	Spaces   []*client.ShardSpace `json:"spaces"`
 }
 
 func LoadDatabaseConfig(fileName, server, user, password string) error {
 	fmt.Println("Loading config from ", fileName)
-	client, err := influxdb.NewClient(&influxdb.ClientConfig{
+	c, err := client.NewClient(&client.ClientConfig{
 		Host:     server,
 		Username: user,
 		Password: password,
@@ -200,13 +199,13 @@ func LoadDatabaseConfig(fileName, server, user, password string) error {
 		return err
 	}
 	for _, config := range configs {
-		err := client.CreateDatabase(config.Database)
+		err := c.CreateDatabase(config.Database)
 		if err != nil {
 			return err
 		}
 		for _, space := range config.Spaces {
 			space.Database = config.Database
-			err := client.CreateShardSpace(space)
+			err := c.CreateShardSpace(space)
 			if err != nil {
 				return err
 			}

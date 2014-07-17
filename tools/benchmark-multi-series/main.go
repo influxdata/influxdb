@@ -6,8 +6,6 @@ import (
 	"os"
 	"strconv"
 	"time"
-
-	influxdb "github.com/influxdb/influxdb/client"
 )
 
 func main() {
@@ -17,20 +15,20 @@ func main() {
 	}
 	fmt.Printf("Benchmarking writing %d series\n", numberOfSeries)
 
-	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
+	c, err := client.NewClient(&client.ClientConfig{})
 	if err != nil {
 		panic(err)
 	}
 
 	before := time.Now()
-	client.DeleteDatabase("performance")
+	c.DeleteDatabase("performance")
 	fmt.Printf("Deleting took %s\n", time.Now().Sub(before))
 	os.Exit(0)
-	if err := client.CreateDatabase("performance"); err != nil {
+	if err := c.CreateDatabase("performance"); err != nil {
 		panic(err)
 	}
 
-	client, err = influxdb.NewClient(&influxdb.ClientConfig{
+	c, err = client.NewClient(&client.ClientConfig{
 		Database: "performance",
 	})
 	if err != nil {
@@ -40,10 +38,10 @@ func main() {
 	before = time.Now()
 
 	for i := 0; i < 10; i++ {
-		series := []*influxdb.Series{}
+		series := []*client.Series{}
 		for i := 0; i < numberOfSeries; i++ {
 			name := fmt.Sprintf("series_%d", i+1)
-			series = append(series, &influxdb.Series{
+			series = append(series, &client.Series{
 				Name:    name,
 				Columns: []string{"value"},
 				Points: [][]interface{}{
@@ -51,7 +49,7 @@ func main() {
 				},
 			})
 		}
-		if err := client.WriteSeries(series); err != nil {
+		if err := c.WriteSeries(series); err != nil {
 			panic(err)
 		}
 	}
