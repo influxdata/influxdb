@@ -1,4 +1,4 @@
-package influxdb
+package client
 
 type Series struct {
 	Name    string          `json:"name"`

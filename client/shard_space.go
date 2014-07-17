@@ -1,4 +1,4 @@
-package influxdb
+package client
 
 type ShardSpace struct {
 	// required, must be unique within the database
