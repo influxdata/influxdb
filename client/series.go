@@ -1,17 +1,19 @@
 package influxdb
 
-import "github.com/influxdb/influxdb/common"
-
-type Series common.SerializedSeries
-
-func (s *Series) GetName() string {
-	return ((*common.SerializedSeries)(s)).GetName()
+type Series struct {
+	Name    string          `json:"name"`
+	Columns []string        `json:"columns"`
+	Points  [][]interface{} `json:"points"`
 }
 
-func (s *Series) GetColumns() []string {
-	return ((*common.SerializedSeries)(s)).GetColumns()
+func (self *Series) GetName() string {
+	return self.Name
 }
 
-func (s *Series) GetPoints() [][]interface{} {
-	return ((*common.SerializedSeries)(s)).GetPoints()
+func (self *Series) GetColumns() []string {
+	return self.Columns
+}
+
+func (self *Series) GetPoints() [][]interface{} {
+	return self.Points
 }
