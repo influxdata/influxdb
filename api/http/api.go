@@ -1013,8 +1013,27 @@ func (self *HttpServer) removeServers(w libhttp.ResponseWriter, r *libhttp.Reque
 		if err != nil {
 			return errorToStatusCode(err), err.Error()
 		}
+		err = self.dropServerShards(uint32(id))
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
 		return libhttp.StatusOK, nil
 	})
+}
+
+func (self *HttpServer) dropServerShards(serverId uint32) error {
+	shards := self.clusterConfig.GetShards()
+	for _, s := range shards {
+		for _, si := range s.ServerIds() {
+			if si == serverId {
+				err := self.raftServer.DropShard(uint32(s.Id()), []uint32{serverId})
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 type newShardInfo struct {
