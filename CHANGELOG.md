@@ -2,6 +2,10 @@
 
 ### Bugfixes
 
+- [Issue #758](https://github.com/influxdb/influxdb/issues/758). Clarify the reason behind graphite input plugin not starting. (Thanks, @otoolep)
+- [Issue #759](https://github.com/influxdb/influxdb/issues/759). Don't revert the regex in the shard space. (Thanks, @shugo)
+- [Issue #760](https://github.com/influxdb/influxdb/issues/760). Removing a server should remove it from the shard server ids. (Thanks, @shugo)
+
 ## v0.8.0-rc.2 [2014-07-15]
 
 - This release is to fix a build error in rc1 which caused rocksdb to not be available
