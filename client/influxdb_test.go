@@ -2,8 +2,6 @@ package influxdb
 
 import (
 	"testing"
-
-	"github.com/influxdb/influxdb/cluster"
 )
 
 func TestClient(t *testing.T) {
@@ -147,7 +145,7 @@ func internalTest(t *testing.T, compression bool) {
 	if spaces[0].Name != "default" {
 		t.Fail()
 	}
-	space := &cluster.ShardSpace{Name: "foo", Database: "foobar", Regex: "/^paul_is_rad/"}
+	space := &ShardSpace{Name: "foo", Database: "foobar", Regex: "/^paul_is_rad/"}
 	err = client.CreateShardSpace(space)
 	if err != nil {
 		t.Error(err)

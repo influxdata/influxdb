@@ -11,8 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"github.com/influxdb/influxdb/cluster"
 )
 
 const (
@@ -508,7 +506,7 @@ type Shard struct {
 }
 
 type ShardSpaceCollection struct {
-	ShardSpaces []cluster.ShardSpace
+	ShardSpaces []ShardSpace
 }
 
 func (self *Client) GetShards() (*LongTermShortTermShards, error) {
@@ -563,13 +561,13 @@ func parseNewShards(body []byte) (*LongTermShortTermShards, error) {
 }
 
 // Added to InfluxDB in 0.8.0
-func (self *Client) GetShardSpaces() ([]*cluster.ShardSpace, error) {
+func (self *Client) GetShardSpaces() ([]*ShardSpace, error) {
 	url := self.getUrlWithUserAndPass("/cluster/shard_spaces", self.username, self.password)
 	body, err := self.get(url)
 	if err != nil {
 		return nil, err
 	}
-	spaces := []*cluster.ShardSpace{}
+	spaces := []*ShardSpace{}
 	err = json.Unmarshal(body, &spaces)
 	if err != nil {
 		return nil, err
@@ -586,7 +584,7 @@ func (self *Client) DropShardSpace(database, name string) error {
 }
 
 // Added to InfluxDB in 0.8.0
-func (self *Client) CreateShardSpace(space *cluster.ShardSpace) error {
+func (self *Client) CreateShardSpace(space *ShardSpace) error {
 	url := self.getUrl(fmt.Sprintf("/cluster/shard_spaces"))
 	data, err := json.Marshal(space)
 	if err != nil {
