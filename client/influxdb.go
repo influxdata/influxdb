@@ -57,6 +57,10 @@ func getDefault(value, defaultValue string) string {
 	return value
 }
 
+func New(config *ClientConfig) (*Client, error) {
+	return NewClient(config)
+}
+
 func NewClient(config *ClientConfig) (*Client, error) {
 	host := getDefault(config.Host, defaults.Host)
 	username := getDefault(config.Username, defaults.Username)
