@@ -57,11 +57,11 @@ func (self *RemoveNodeSuite) TestRemovingNode(c *C) {
 func (self *RemoveNodeSuite) TestRemovingNodeAndShards(c *C) {
 	err := os.RemoveAll("/tmp/influxdb/test")
 	c.Assert(err, IsNil)
-	s1 := NewServer("integration/test_replication_1.toml", c)
+	s1 := NewServer("integration/test_rf_1.toml", c)
 	defer s1.Stop()
 	s1.WaitForServerToStart()
 
-	s2 := NewServer("integration/test_replication_2.toml", c)
+	s2 := NewServer("integration/test_rf_2.toml", c)
 	s2.WaitForServerToStart()
 
 	client := s1.GetClient("", c)
