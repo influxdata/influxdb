@@ -3,7 +3,7 @@ package integration
 import (
 	"os"
 
-	"github.com/influxdb/influxdb/cluster"
+	influxdb "github.com/influxdb/influxdb/client"
 	. "github.com/influxdb/influxdb/integration/helpers"
 	. "launchpad.net/gocheck"
 )
@@ -57,11 +57,11 @@ func (self *RemoveNodeSuite) TestRemovingNode(c *C) {
 func (self *RemoveNodeSuite) TestRemovingNodeAndShards(c *C) {
 	err := os.RemoveAll("/tmp/influxdb/test")
 	c.Assert(err, IsNil)
-	s1 := NewServer("integration/test_replication_1.toml", c)
+	s1 := NewServer("integration/test_rf_1.toml", c)
 	defer s1.Stop()
 	s1.WaitForServerToStart()
 
-	s2 := NewServer("integration/test_replication_2.toml", c)
+	s2 := NewServer("integration/test_rf_2.toml", c)
 	s2.WaitForServerToStart()
 
 	client := s1.GetClient("", c)
@@ -70,7 +70,7 @@ func (self *RemoveNodeSuite) TestRemovingNodeAndShards(c *C) {
 	c.Assert(servers, HasLen, 2)
 
 	c.Assert(client.CreateDatabase("test"), IsNil)
-	space := &cluster.ShardSpace{Name: "test_space", RetentionPolicy: "1h", Database: "test", Regex: "/test_removing_node_and_shards/", ReplicationFactor: 2}
+	space := &influxdb.ShardSpace{Name: "test_space", RetentionPolicy: "1h", Database: "test", Regex: "/test_removing_node_and_shards/", ReplicationFactor: 2}
 	c.Assert(client.CreateShardSpace(space), IsNil)
 
 	series := CreatePoints("test_removing_node_and_shards", 5, 10)

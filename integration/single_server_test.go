@@ -13,7 +13,6 @@ import (
 	"strconv"
 
 	influxdb "github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/cluster"
 	. "github.com/influxdb/influxdb/integration/helpers"
 	. "launchpad.net/gocheck"
 )
@@ -725,7 +724,7 @@ func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 	c.Assert(spaces, HasLen, 1)
 	c.Assert(spaces[0].Name, Equals, "default")
 
-	space := &cluster.ShardSpace{Name: "month", RetentionPolicy: "30d", Database: "db1", Regex: "/^the_dude_abides/"}
+	space := &influxdb.ShardSpace{Name: "month", RetentionPolicy: "30d", Database: "db1", Regex: "/^the_dude_abides/"}
 	err = client.CreateShardSpace(space)
 	c.Assert(err, IsNil)
 
@@ -756,7 +755,7 @@ func (self *SingleServerSuite) getShardsForSpace(name string, shards []*influxdb
 	return filteredShards
 }
 
-func (self *SingleServerSuite) hasSpace(database, name, regex string, spaces []*cluster.ShardSpace) bool {
+func (self *SingleServerSuite) hasSpace(database, name, regex string, spaces []*influxdb.ShardSpace) bool {
 	for _, s := range spaces {
 		fmt.Printf("Checking %#v\n", s)
 		if s.Name == name && s.Database == database && s.Regex == regex {
@@ -769,7 +768,7 @@ func (self *SingleServerSuite) hasSpace(database, name, regex string, spaces []*
 func (self *SingleServerSuite) TestDropShardSpace(c *C) {
 	client := self.server.GetClient("", c)
 	spaceName := "test_drop"
-	space := &cluster.ShardSpace{Name: spaceName, RetentionPolicy: "30d", Database: "db1", Regex: "/^dont_drop_me_bro/"}
+	space := &influxdb.ShardSpace{Name: spaceName, RetentionPolicy: "30d", Database: "db1", Regex: "/^dont_drop_me_bro/"}
 	err := client.CreateShardSpace(space)
 	c.Assert(err, IsNil)
 
