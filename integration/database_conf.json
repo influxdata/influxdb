@@ -7,7 +7,7 @@
       "retentionPolicy": "90d",
       "shardDuration": "7d",
       "regex": "/.*/",
-      "replicatonFactor": 1,
+      "replicationFactor": 1,
       "split": 1
     },
     {
@@ -15,7 +15,7 @@
       "retentionPolicy": "7d",
       "shardDuration": "1d",
       "regex": "/^something_specficic/",
-      "replicatonFactor": 1,
+      "replicationFactor": 1,
       "split": 1
     }
   ]
