@@ -208,10 +208,10 @@ func (self *ClusterConfiguration) getExpiredShards() []*ShardData {
 	defer self.shardLock.RUnlock()
 	shards := make([]*ShardData, 0)
 	for _, space := range self.allSpaces() {
-		if space.ParsedShardDuration() == time.Duration(uint64(0)) {
+		if space.ParsedRetentionPeriod() == time.Duration(uint64(0)) {
 			continue
 		}
-		expiredTime := time.Now().Add(-space.ParsedShardDuration())
+		expiredTime := time.Now().Add(-space.ParsedRetentionPeriod())
 		for _, shard := range space.shards {
 			if shard.endTime.Before(expiredTime) {
 				shards = append(shards, shard)
