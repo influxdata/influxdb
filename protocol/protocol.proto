@@ -1,0 +1,75 @@
+package protocol;
+
+message FieldValue {
+  optional string string_value = 1;
+  optional double double_value = 3;
+  optional bool bool_value = 4;
+  optional int64 int64_value = 5;
+  optional bool is_null = 6;
+}
+
+message Point {
+  repeated FieldValue values = 1;
+  optional int64 timestamp = 2;
+  optional uint64 sequence_number = 3;
+}
+
+message Series {
+  repeated Point points = 1;
+  required string name = 2;
+  repeated string fields = 3;
+  repeated uint64 fieldIds = 4;
+}
+
+message QueryResponseChunk {
+  optional Series series = 1;
+  optional bool done = 2;
+}
+
+message Request {
+  enum Type {
+    WRITE = 1;
+    QUERY = 2;
+    DROP_DATABASE = 3;
+    HEARTBEAT = 7;
+  }
+  optional uint32 id = 1;
+  required Type type = 2;
+  required string database = 3;
+  // only write and delete requests get sequenceNumbers assigned. These are used to
+  // ensure that the receiving server is up to date
+  repeated Series multi_series = 4;
+  optional uint64 sequence_number = 5;
+  optional uint32 shard_id = 6;
+  optional string query = 7;
+  optional string user_name = 8;
+  optional uint32 request_number = 9;
+  optional bool is_db_user = 10;
+}
+
+message Response {
+  enum Type {
+    QUERY = 1;
+    WRITE_OK = 2;
+    END_STREAM = 3;
+    REPLICATION_REPLAY = 4;
+    REPLICATION_REPLAY_END = 5;
+    SEQUENCE_NUMBER = 7;
+    // Access denied also serves as an end of stream response
+    ACCESS_DENIED = 8;
+    HEARTBEAT = 9;
+    EXPLAIN_QUERY = 10;
+  }
+  enum ErrorCode {
+    REQUEST_TOO_LARGE = 1;
+    INTERNAL_ERROR = 2;
+  }
+  required Type type = 1;
+  required uint32 request_id = 2;
+  optional Series series = 3;
+  optional ErrorCode error_code = 4;
+  optional string error_message = 5;
+  optional int64 nextPointTime = 6;
+  optional Request request = 7;
+  repeated Series multi_series = 8;
+}

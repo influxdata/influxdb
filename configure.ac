@@ -6,6 +6,7 @@ AC_SUBST(GOROOT)
 AC_SUBST(AUTORECONF)
 AC_SUBST(with_bison)
 AC_SUBST(with_flex)
+AC_SUBST(LRT_LDFLAG)
 AC_PATH_PROG(PROTOC, protoc, "notfound")
 if test x"${PROTOC}" == x"notfound"; then
     AC_MSG_ERROR([Please install protobuf before trying to build Influxdb])
@@ -13,13 +14,13 @@ fi
 AC_ARG_WITH([goroot],
   [AS_HELP_STRING([--with-goroot],
     [Set goroot to use])],
-  [GO=$withval/bin/go; GOROOT=$withval],
+  [GOROOT=$withval],
   [])
-AC_PATH_PROG(GO, go, "notfound")
+AC_PATH_PROG(GO, go, "notfound", [$PATH$PATH_SEPARATOR$withval/bin$PATH_SEPARATOR])
 if test x"${GO}" == x"notfound"; then
     AC_MSG_ERROR([Please install GO (or make sure it's on your path) before trying to build Influxdb])
 fi
-AC_PATH_PROG(GOFMT, gofmt, "notfound")
+AC_PATH_PROG(GOFMT, gofmt, "notfound", [$PATH$PATH_SEPARATOR$withval/bin$PATH_SEPARATOR])
 if test x"${GOFMT}" == x"notfound"; then
     AC_MSG_ERROR([Please install GO (or make sure it's on your path) before trying to build Influxdb])
 fi
@@ -47,6 +48,11 @@ if test x"${AUTORECONF}" == x"notfound"; then
 fi
 AC_CHECK_LIB(z, gzdopen,,AC_MSG_ERROR("cannot find libz"))
 AC_CHECK_LIB(bz2, BZ2_bzReadOpen,,AC_MSG_ERROR("cannot find libbz2"))
+AC_SEARCH_LIBS(clock_gettime,rt,,)
+
+if test x"${ac_cv_search_clock_gettime}" != x"none required" -a x"${ac_cv_search_clock_gettime}" != x"no"; then
+   LRT_LDFLAG=${ac_cv_search_clock_gettime}
+fi
 
 if test x"${with_bison}" == x""; then
    AC_PATH_PROG(with_bison, bison, "notfound")
@@ -54,4 +60,4 @@ fi
 if test x"${with_bison}" == x"notfound"; then
    AC_MSG_ERROR([Please install bison before trying to build Influxdb])
 fi
-AC_OUTPUT([Makefile src/parser/Makefile])
+AC_OUTPUT([Makefile parser/Makefile])

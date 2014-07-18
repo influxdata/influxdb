@@ -1,0 +1,79 @@
+# Welcome to the InfluxDB configuration file.
+
+# If hostname (on the OS) doesn't return a name that can be resolved by the other
+# systems in the cluster, you'll have to set the hostname to an IP or something
+# that can be resovled here.
+hostname = "localhost"
+
+reporting-disabled = true
+
+[logging]
+# logging level can be one of "debug", "info", "warn" or "error"
+level  = "info"
+file   = "stdout"
+
+# Configure the admin server
+[admin]
+port   = 60505
+assets = "./admin"
+
+# Configure the http api
+[api]
+port = 60506
+
+# Raft configuration
+[raft]
+# The raft port should be open between all servers in a cluster.
+# However, this port shouldn't be accessible from the internet.
+
+port = 60507
+
+# Where the raft logs are stored. The user running InfluxDB will need read/write access.
+dir  = "/tmp/influxdb/test/2/raft"
+
+[storage]
+dir = "/tmp/influxdb/test/2/db"
+
+[cluster]
+# A comma separated list of servers to seed
+# this server. this is only relevant when the
+# server is joining a new cluster. Otherwise
+# the server will use the list of known servers
+# prior to shutting down. Any server can be pointed to
+# as a seed. It will find the Raft leader automatically.
+
+# Here's an example. Note that the port on the host is the same as the raft port.
+seed-servers = ["localhost:60501"]
+
+# Replication happens over a TCP connection with a Protobuf protocol.
+# This port should be reachable between all servers in a cluster.
+# However, this port shouldn't be accessible from the internet.
+
+protobuf_port = 60508
+protobuf_timeout = "1200ms" # the write timeout on the protobuf conn any duration parseable by time.ParseDuration
+protobuf_heartbeat = "100ms" # the heartbeat interval between the servers. must be parseable by time.ParseDuration
+protobuf_min_backoff = "100ms" # the minimum backoff after a failed heartbeat attempt
+protobuf_max_backoff = "100ms" # the maxmimum backoff after a failed heartbeat attempt
+
+# How many write requests to potentially buffer in memory per server. If the buffer gets filled then writes
+# will still be logged and once the server has caught up (or come back online) the writes
+# will be replayed from the WAL
+write-buffer-size = 1000
+
+# When queries get distributed out, the go in parallel. However, the responses must be sent in time order.
+# This setting determines how many responses can be buffered in memory per shard before data starts gettind dropped.
+query-shard-buffer-size = 500
+
+[wal]
+
+dir   = "/tmp/influxdb/test/2/wal"
+flush-after = 0 # the number of writes after which wal will be flushed, 0 for flushing on every write
+bookmark-after = 0 # the number of writes after which a bookmark will be created
+
+# the number of writes after which an index entry is created pointing
+# to the offset of the first request, default to 1k
+index-after = 1000
+
+# the number of requests per one log file, if new requests came in a
+# new log file will be created
+requests-per-logfile = 10000

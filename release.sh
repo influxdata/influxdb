@@ -8,7 +8,7 @@ git checkout .
 git pull --rebase
 make clean
 git clean -dfx
-./configure --with-goroot=$HOME/bin/go/
+./configure
 
 modified=$(git ls-files --modified | wc -l)
 
@@ -45,7 +45,7 @@ fi
 make clean
 make package version=$version
 make package version=$version arch=386
-make arch=arm CROSS_COMPILE=arm-unknown-linux-gnueabi package version=$version PATH=$PATH:$HOME/x-tools/arm-unknown-linux-gnueabi/bin
+# make arch=arm CROSS_COMPILE=arm-unknown-linux-gnueabi package version=$version PATH=$PATH:$HOME/x-tools/arm-unknown-linux-gnueabi/bin
 # rpm convention is not to have dashes in the package, or at least
 # that's what fpm is claiming
 rpm_version=${version/-/_}
@@ -58,9 +58,15 @@ for filepath in `ls packages/*.{tar.gz,deb,rpm}`; do
     bucket=influxdb
 
     AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
-    AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://influxdb/${latest_filename} --acl public-read --region us-east-1
     AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://get.influxdb.org/$filename --acl public-read --region us-east-1
-    AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://get.influxdb.org/${latest_filename} --acl public-read --region us-east-1
+
+    case "$version" in
+        *rc*) continue;;        # don't do upload the latest file
+        *)
+            AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://influxdb/${latest_filename} --acl public-read --region us-east-1
+            AWS_CONFIG_FILE=~/aws.conf aws s3 cp $filepath s3://get.influxdb.org/${latest_filename} --acl public-read --region us-east-1
+            ;;
+    esac
 done
 
 branch=`git rev-parse --abbrev-ref HEAD`

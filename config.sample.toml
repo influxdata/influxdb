@@ -80,7 +80,7 @@ dir = "/tmp/influxdb/development/db"
 write-buffer-size = 10000
 
 # the engine to use for new shards, old shards will continue to use the same engine
-default-engine = "leveldb"
+default-engine = "rocksdb"
 
 # The default setting on this is 0, which means unlimited. Set this to something if you want to
 # limit the max number of open files. max-open-files is per shard so this * that will be max.
@@ -93,6 +93,9 @@ point-batch-size = 100
 # The number of points to batch in memory before writing them to leveldb. Lowering this number will
 # reduce the memory usage, but will result in slower writes.
 write-batch-size = 5000000
+
+# The server will check this often for shards that have expired that should be cleared.
+retention-sweep-period = "10m"
 
 [storage.engines.leveldb]
 
@@ -109,7 +112,7 @@ lru-cache-size = "200m"
 
 # Maximum mmap open files, this will affect the virtual memory used by
 # the process
-max-open-files = 40
+max-open-files = 1000
 
 # LRU cache size, LRU is used by rocksdb to store contents of the
 # uncompressed sstables. You can use `m` or `g` prefix for megabytes
@@ -120,7 +123,7 @@ lru-cache-size = "200m"
 
 # Maximum mmap open files, this will affect the virtual memory used by
 # the process
-max-open-files = 40
+max-open-files = 1000
 
 # LRU cache size, LRU is used by rocksdb to store contents of the
 # uncompressed sstables. You can use `m` or `g` prefix for megabytes
@@ -155,7 +158,7 @@ protobuf_max_backoff = "10s" # the maxmimum backoff after a failed heartbeat att
 # How many write requests to potentially buffer in memory per server. If the buffer gets filled then writes
 # will still be logged and once the server has caught up (or come back online) the writes
 # will be replayed from the WAL
-write-buffer-size = 10000
+write-buffer-size = 1000
 
 # the maximum number of responses to buffer from remote nodes, if the
 # expected number of responses exceed this number then querying will
@@ -168,47 +171,6 @@ max-response-buffer-size = 100
 # Setting this higher will give better performance, but you'll need more memory. Setting this to 1 will ensure
 # that you don't need to buffer in memory, but you won't get the best performance.
 concurrent-shard-query-limit = 10
-
-# These options specify how data is sharded across the cluster. There are two
-# shard configurations that have the same knobs: short term and long term.
-# Any series that begins with a capital letter like Exceptions will be written
-# into the long term storage. Any series beginning with a lower case letter
-# like exceptions will be written into short term. The idea being that you
-# can write high precision data into short term and drop it after a couple
-# of days. Meanwhile, continuous queries can run downsampling on the short term
-# data and write into the long term area.
-[sharding]
-  # how many servers in the cluster should have a copy of each shard.
-  # this will give you high availability and scalability on queries
-  replication-factor = 1
-
-  [sharding.short-term]
-  # each shard will have this period of time. Note that it's best to have
-  # group by time() intervals on all queries be < than this setting. If they are
-  # then the aggregate is calculated locally. Otherwise, all that data gets sent
-  # over the network when doing a query.
-  duration = "7d"
-
-  # split will determine how many shards to split each duration into. For example,
-  # if we created a shard for 2014-02-10 and split was set to 2. Then two shards
-  # would be created that have the data for 2014-02-10. By default, data will
-  # be split into those two shards deterministically by hashing the (database, serise)
-  # tuple. That means that data for a given series will be written to a single shard
-  # making querying efficient. That can be overridden with the next option.
-  split = 1
-
-  # You can override the split behavior to have the data for series that match a
-  # given regex be randomly distributed across the shards for a given interval.
-  # You can use this if you have a hot spot for a given time series writing more
-  # data than a single server can handle. Most people won't have to resort to this
-  # option. Also note that using this option means that queries will have to send
-  # all data over the network so they won't be as efficient.
-  # split-random = "/^hf.*/"
-
-  [sharding.long-term]
-  duration = "30d"
-  split = 1
-  # split-random = "/^Hf.*/"
 
 [wal]
 
