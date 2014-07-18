@@ -14,13 +14,13 @@ fi
 AC_ARG_WITH([goroot],
   [AS_HELP_STRING([--with-goroot],
     [Set goroot to use])],
-  [GO=$withval/bin/go; GOROOT=$withval],
+  [GOROOT=$withval],
   [])
-AC_PATH_PROG(GO, go, "notfound")
+AC_PATH_PROG(GO, go, "notfound", [$PATH$PATH_SEPARATOR$withval/bin$PATH_SEPARATOR])
 if test x"${GO}" == x"notfound"; then
     AC_MSG_ERROR([Please install GO (or make sure it's on your path) before trying to build Influxdb])
 fi
-AC_PATH_PROG(GOFMT, gofmt, "notfound")
+AC_PATH_PROG(GOFMT, gofmt, "notfound", [$PATH$PATH_SEPARATOR$withval/bin$PATH_SEPARATOR])
 if test x"${GOFMT}" == x"notfound"; then
     AC_MSG_ERROR([Please install GO (or make sure it's on your path) before trying to build Influxdb])
 fi

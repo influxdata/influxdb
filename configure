@@ -1846,7 +1846,7 @@ fi
 
 # Check whether --with-goroot was given.
 if test "${with_goroot+set}" = set; then :
-  withval=$with_goroot; GO=$withval/bin/go; GOROOT=$withval
+  withval=$with_goroot; GOROOT=$withval
 fi
 
 # Extract the first word of "go", so it can be a program name with args.
@@ -1862,7 +1862,7 @@ else
   ;;
   *)
   as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
+for as_dir in $PATH$PATH_SEPARATOR$withval/bin$PATH_SEPARATOR
 do
   IFS=$as_save_IFS
   test -z "$as_dir" && as_dir=.
@@ -1906,7 +1906,7 @@ else
   ;;
   *)
   as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
+for as_dir in $PATH$PATH_SEPARATOR$withval/bin$PATH_SEPARATOR
 do
   IFS=$as_save_IFS
   test -z "$as_dir" && as_dir=.
