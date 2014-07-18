@@ -58,7 +58,6 @@ func (self *DataTestSuite) TestAll(c *C) {
 			c.Logf("Skipping2 %s", method.Name)
 			continue
 		}
-
 		m := v.MethodByName(method.Name)
 		returnValues := m.Call([]reflect.Value{reflect.ValueOf(c)})
 		setup = append(setup, returnValues[0].Interface().(Fun))
