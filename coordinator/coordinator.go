@@ -285,6 +285,8 @@ func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, 
 		if !shouldAggregateLocally {
 			// if we should aggregate in the coordinator (i.e. aggregation
 			// isn't happening locally at the shard level), create an engine
+			//
+			// NOTE(chobie): having flag should pass coordinator layer.
 			processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
 		} else {
 			// if we have a query with limit, then create an engine, or we can

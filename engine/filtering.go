@@ -73,7 +73,12 @@ func matchesExpression(expr *parser.Value, fields []string, point *protocol.Poin
 
 func matches(condition *parser.WhereCondition, fields []string, point *protocol.Point) (bool, error) {
 	if expr, ok := condition.GetBoolExpression(); ok {
-		return matchesExpression(expr, fields, point)
+		if expr.Type == parser.ValueFunctionCall {
+			// For now, Don't evaluate function value.
+			return true, nil
+		} else {
+			return matchesExpression(expr, fields, point)
+		}
 	}
 
 	left, _ := condition.GetLeftWhereCondition()
@@ -177,5 +182,33 @@ func Filter(query *parser.SelectQuery, series *protocol.Series) (*protocol.Serie
 		}
 		series.Fields = newFields
 	}
+	return series, nil
+}
+
+func HavingFilter(condition *parser.WhereCondition, series *protocol.Series) (*protocol.Series, error) {
+	if condition == nil {
+		return series, nil
+	}
+
+	columns := map[string]struct{}{}
+	for _, cs := range series.Fields {
+		columns[cs] = struct{}{}
+	}
+
+	points := series.Points
+	series.Points = nil
+	for _, point := range points {
+		ok, err := matches(condition , series.Fields, point)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			filterColumns(columns, series.Fields, point)
+			series.Points = append(series.Points, point)
+		}
+	}
+
 	return series, nil
 }

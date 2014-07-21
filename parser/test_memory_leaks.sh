@@ -14,6 +14,9 @@ int main(int argc, char **argv) {
   q = parse_query("select * from foo where time < -1s");
   close_query(&q);
 
+  q = parse_query("select users.events group_by user_email,time(1h) having top(user_email, 10) where time>now()-1d;");
+  close_query(&q);
+
   // test freeing on error
   q = parse_query("select count(*) from users.events group_by user_email,time(1h) where time >> now()-1d;");
   close_query(&q);

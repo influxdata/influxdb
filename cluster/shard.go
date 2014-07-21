@@ -277,7 +277,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 					return
 				}
 				processor.SetShardInfo(int(self.Id()), self.IsLocal)
-			} else if query.HasAggregates() {
+			} else if query.HasAggregates() || query.HasHaving() {
 				maxPointsToBufferBeforeSending := 1000
 				log.Debug("creating a passthrough engine")
 				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
@@ -365,9 +365,15 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 		return false
 	}
 
+	if self.durationIsSplit && querySpec.ReadsFromMultipleSeries() {
+		return false
+	}
 	groupByInterval := querySpec.GetGroupByInterval()
 	if groupByInterval == nil {
 		if querySpec.HasAggregates() {
+			return false
+		}
+		if querySpec.HasHaving() {
 			return false
 		}
 		return true

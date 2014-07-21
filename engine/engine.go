@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"errors"
+	"sort"
 
 	log "code.google.com/p/log4go"
 	"github.com/influxdb/influxdb/common"
@@ -53,6 +55,15 @@ type QueryEngine struct {
 	pointsWritten int64
 	shardId       int
 	shardLocal    bool
+
+	// having
+	shouldHaving bool
+	shouldHavingFilter bool
+	shouldHavingAggregate bool
+	havingAggregatorName string
+	havingAggregatorKey string
+	havingAggregatorLimit int64
+	havingResponse *protocol.Response
 }
 
 var (
@@ -80,6 +91,47 @@ func (self *QueryEngine) distributeQuery(query *parser.SelectQuery, yield func(*
 	return nil
 }
 
+func (self *QueryEngine) setupHavingClause() error {
+	having := self.query.GetGroupByClause().GetCondition()
+	state := &havingConditionState{}
+	err := checkConditionAndCollectAggregateValue(having, state)
+	if err != nil {
+		return errors.New(fmt.Sprintf("wrong conditions: %s", err))
+	}
+	if having != nil {
+		self.shouldHavingFilter = true
+	}
+
+	if state.Value != nil {
+		ok := false
+		for _, name := range having_aggregators {
+			if state.Value.Name == name {
+				ok = true
+			}
+		}
+
+		if !ok {
+			return errors.New(fmt.Sprintf("wrong conditions: %s function not supproted", state.Value.Name))
+		}
+
+		if len(state.Value.Elems) != 2 {
+			return errors.New(fmt.Sprintf("wrong conditions: %s requires exact 2 parameters", state.Value.Name))
+		}
+
+		name := state.Value.Elems[0].Name
+		limit, err := strconv.ParseInt(state.Value.Elems[1].Name, 10, 64)
+		if err != nil {
+			return errors.New(fmt.Sprintf("wrong conditions: %s", err))
+		}
+
+		self.havingAggregatorName = strings.ToLower(state.Value.Name)
+		self.havingAggregatorKey = strings.ToLower(name)
+		self.havingAggregatorLimit = limit
+		self.shouldHavingAggregate = true
+	}
+	return nil
+}
+
 func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Response) (*QueryEngine, error) {
 	limit := query.Limit
 
@@ -99,6 +151,9 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 		shardLocal:    false, //that really doesn't matter if it is not EXPLAIN query
 		duration:      nil,
 		seriesStates:  make(map[string]*SeriesState),
+		shouldHaving:  query.HasHaving(),
+		havingAggregatorName: "",
+		havingAggregatorLimit: 0,
 	}
 
 	if queryEngine.explain {
@@ -122,6 +177,49 @@ func NewQueryEngine(query *parser.SelectQuery, responseChan chan *protocol.Respo
 	}
 
 	var err error
+	if queryEngine.shouldHaving {
+		err := queryEngine.setupHavingClause()
+		if err != nil{
+			return nil, err
+		}
+
+		// override exising yield when operating having clause.
+		yield = func(seriesIncoming *protocol.Series) error {
+			if queryEngine.shouldHavingFilter {
+				seriesIncoming , err = HavingFilter(queryEngine.query.GetGroupByClause().GetCondition(), seriesIncoming)
+			}
+
+			if queryEngine.havingResponse == nil {
+				queryEngine.havingResponse = &protocol.Response{
+					Type:   &queryResponse,
+					Series: seriesIncoming,
+				}
+			} else {
+				queryEngine.havingResponse.Series = common.MergeSeries(queryEngine.havingResponse.Series, seriesIncoming)
+			}
+
+			if queryEngine.shouldHavingAggregate && queryEngine.havingResponse != nil && queryEngine.havingResponse.Series != nil{
+				// TODO(chobie): should check column existence.
+				index := queryEngine.findHavingAggregateIndex(queryEngine.havingResponse.Series)
+
+				// TODO(chobie): should follow aggregator manners.
+				if queryEngine.havingAggregatorName == "top" {
+					sort.Sort(ByPointColumnDesc{queryEngine.havingResponse.Series.Points, index})
+				} else if queryEngine.havingAggregatorName == "bottom" {
+					sort.Sort(ByPointColumnAsc{queryEngine.havingResponse.Series.Points, index})
+				} else {
+					panic("never get here")
+				}
+
+				if queryEngine.havingAggregatorLimit > 0 && int64(len(queryEngine.havingResponse.Series.Points)) > queryEngine.havingAggregatorLimit {
+					queryEngine.havingResponse.Series.Points = queryEngine.havingResponse.Series.Points[0:queryEngine.havingAggregatorLimit]
+				}
+			}
+
+			return nil
+		}
+	}
+
 	if query.HasAggregates() {
 		err = queryEngine.executeCountQueryWithGroupBy(query, yield)
 	} else if containsArithmeticOperators(query) {
@@ -181,6 +279,22 @@ func (self *QueryEngine) yieldSeriesData(series *protocol.Series) bool {
 	return true
 }
 
+func (self *QueryEngine) closeHaving() {
+	if self.havingResponse != nil && self.havingResponse.Series != nil && self.havingResponse.Series.Points != nil {
+		self.limiter.calculateLimitAndSlicePoints(self.havingResponse.Series)
+
+		if self.explain {
+			self.pointsWritten += int64(len(self.havingResponse.Series.Points))
+		}
+		self.responseChan <- self.havingResponse
+	} else {
+		self.responseChan <- &protocol.Response {
+			Type: &queryResponse,
+		}
+	}
+}
+
+
 func (self *QueryEngine) Close() {
 	for _, series := range self.seriesToPoints {
 		if len(series.Points) == 0 {
@@ -221,6 +335,10 @@ func (self *QueryEngine) Close() {
 
 	if self.isAggregateQuery {
 		self.runAggregates()
+	}
+
+	if self.shouldHaving {
+		self.closeHaving()
 	}
 
 	if self.explain {
@@ -681,4 +799,63 @@ func (self *QueryEngine) executeArithmeticQuery(query *parser.SelectQuery, yield
 
 func (self *QueryEngine) GetName() string {
 	return "QueryEngine"
+}
+
+func (self *QueryEngine) findHavingAggregateIndex(seriesIncoming *protocol.Series) int {
+	index := 0
+	if self.havingAggregatorKey != "" {
+		for offset, n := range seriesIncoming.GetFields() {
+			if n == self.havingAggregatorKey {
+				index = offset
+				break
+			}
+		}
+	}
+
+	return index
+}
+
+type havingConditionState struct {
+	Value *parser.Value
+	ParentOperation *string
+}
+
+func checkConditionAndCollectAggregateValue(condition *parser.WhereCondition, state *havingConditionState) error {
+	bool, ok:= condition.GetBoolExpression()
+	if ok {
+		if bool.Type == parser.ValueFunctionCall {
+			if bool.Name != "top" && bool.Name != "bottom" {
+				return errors.New(fmt.Sprintf("%s aggregate function does not supported", bool.Name))
+			} else {
+				if state.ParentOperation != nil && *state.ParentOperation != "AND" {
+					return errors.New(fmt.Sprintf("having aggregator requires boolean operation or AND operator. OR does not allowed"))
+				}
+
+				if state.Value == nil {
+					state.Value = bool
+					return nil
+				} else {
+					return errors.New(fmt.Sprintf("having clause can't call aggregate function multiple times."))
+				}
+			}
+		} else if bool.Type == parser.ValueExpression {
+			if bool.Elems[0].Type == parser.ValueFunctionCall || bool.Elems[1].Type == parser.ValueFunctionCall {
+				return errors.New(fmt.Sprintf("having clause doesn't support calling function in expression"))
+			}
+		}
+	} else {
+		left, ok := condition.GetLeftWhereCondition()
+		state.ParentOperation = &condition.Operation
+
+		if ok {
+			err := checkConditionAndCollectAggregateValue(left, state)
+			if err != nil {
+				return err
+			}
+		}
+
+		return checkConditionAndCollectAggregateValue(condition.Right, state)
+	}
+
+	return nil
 }
