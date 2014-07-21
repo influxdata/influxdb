@@ -51,6 +51,31 @@ func (self *SingleServerSuite) TestWritesToNonExistentDb(c *C) {
 	c.Assert(client.WriteSeries(s), ErrorMatches, ".*doesn't exist.*")
 }
 
+func (self *SingleServerSuite) TestMultiplePoints(c *C) {
+	client := self.server.GetClient("test_string_columns", c)
+	c.Assert(client.CreateDatabase("test_string_columns"), IsNil)
+	err := client.WriteSeries(
+		[]*influxdb.Series{
+			{
+				Name:    "events",
+				Columns: []string{"column1", "column2"},
+				Points: [][]interface{}{
+					{"value1", "value2"},
+				},
+			},
+		},
+	)
+	c.Assert(err, IsNil)
+	s, err := client.Query("select * from events;")
+	c.Assert(err, IsNil)
+	c.Assert(s, HasLen, 1)
+	maps := ToMap(s[0])
+	c.Assert(maps, HasLen, 1)
+	fmt.Printf("WTF: %#v\n", maps)
+	c.Assert(maps[0]["column1"], Equals, "value1")
+	c.Assert(maps[0]["column2"], Equals, "value2")
+}
+
 func (self *SingleServerSuite) TestAdministrationOperation(c *C) {
 	client := self.server.GetClient("", c)
 	c.Assert(client.CreateDatabase("test_admin_operations"), IsNil)
