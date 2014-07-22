@@ -86,6 +86,28 @@ func (self *SingleServerSuite) TestAdministrationOperation(c *C) {
 	c.Assert(client.AuthenticateDatabaseUser("test_admin_operations", "user", "pass2"), IsNil)
 }
 
+// issue #736
+func (self *SingleServerSuite) TestDroppingSeries(c *C) {
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase("test_dropping_series"), IsNil)
+	c.Assert(client.CreateDatabaseUser("test_dropping_series", "user", "pass"), IsNil)
+	user := self.server.GetClientWithUser("test_dropping_series", "user", "pass", c)
+	err := user.WriteSeries([]*influxdb.Series{{
+		Name:    "foo",
+		Columns: []string{"column1"},
+		Points:  [][]interface{}{{1}},
+	}})
+	c.Assert(err, IsNil)
+	_, err = user.Query("drop series foo")
+	c.Assert(err, NotNil)
+	s, err := user.Query("select * from foo")
+	c.Assert(err, IsNil)
+	c.Assert(s, HasLen, 1)
+	maps := ToMap(s[0])
+	c.Assert(maps, HasLen, 1)
+	c.Assert(maps[0]["column1"], Equals, 1.0)
+}
+
 // pr #483
 func (self *SingleServerSuite) TestConflictStatusCode(c *C) {
 	client := self.server.GetClient("", c)
