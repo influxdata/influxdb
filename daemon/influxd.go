@@ -80,7 +80,9 @@ func main() {
 	if *loadDatabaseConfig != "" {
 		err := LoadDatabaseConfig(*loadDatabaseConfig, *loadServer, *loadUser, *loadPassword)
 		if err != nil {
-			panic(err)
+			fmt.Println("There is was an error while trying to load your configuration file.")
+			fmt.Println("Check config.sample.toml (it may not exist)")
+			os.Exit(1)
 		}
 		return
 	}
