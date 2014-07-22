@@ -2,6 +2,9 @@
 
 ### Bugfixes
 
+- [Issue #774](https://github.com/influxdb/influxdb/issues/774). Don't try to parse "inf" shard retention policy
+- [Issue #769](https://github.com/influxdb/influxdb/issues/769). Use retention duration when determining expired shards. (Thanks, @shugo)
+
 ## v0.8.0-rc.3 [2014-07-21]
 
 ### Bugfixes

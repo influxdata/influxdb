@@ -77,7 +77,7 @@ func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration) error {
 			return err
 		}
 	}
-	if s.RetentionPolicy != "" {
+	if s.RetentionPolicy != "" && s.RetentionPolicy != "inf" {
 		if _, err := common.ParseTimeDuration(s.RetentionPolicy); err != nil {
 			return err
 		}

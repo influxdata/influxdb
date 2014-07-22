@@ -11,6 +11,14 @@
       "split": 1
     },
     {
+      "name": "infinity_retention",
+      "retentionPolicy": "inf",
+      "shardDuration": "7d",
+      "regex": "/^keep_foreveer/",
+      "replicationFactor": 1,
+      "split": 1
+    },
+    {
       "name": "specific",
       "retentionPolicy": "7d",
       "shardDuration": "1d",
