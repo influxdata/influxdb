@@ -569,6 +569,7 @@ func (self *QueryParserSuite) TestParseSelectWithGroupByFillWithZero(c *C) {
 
 	groupBy := q.GetGroupByClause()
 	c.Assert(groupBy.FillWithZero, Equals, true)
+	c.Assert(groupBy.FillValue.Name, Equals, "0")
 	c.Assert(groupBy.Elems, HasLen, 2)
 	c.Assert(groupBy.Elems[0].IsFunctionCall(), Equals, false)
 	c.Assert(groupBy.Elems[0].Name, Equals, "user_email")
