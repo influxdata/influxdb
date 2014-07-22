@@ -2340,3 +2340,48 @@ func (self *DataTestSuite) GroupByYear(c *C) (Fun, Fun) {
 			c.Assert(maps[1]["count"], Equals, 1.0)
 		}
 }
+
+// Issue #713
+// Test various fill options
+func (self *DataTestSuite) MeanAggregateFillWithZero(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "points": [
+    [1304378375, 10.0],
+    [1304378380, 20.0],
+    [1304378400, 60.0]
+    ],
+    "name": "test_fill_zero",
+    "columns": ["time", "value"]
+  }
+]`
+			client.WriteJsonData(data, c, influxdb.Second)
+		}, func(client Client) {
+			queries := map[string]interface{}{
+				"select mean(value) from test_fill_zero group by time(10s)":            math.Inf(1),
+				"select mean(value) from test_fill_zero group by time(10s) fill(0)":    0.0,
+				"select mean(value) from test_fill_zero group by time(10s) fill(-42)":  -42.0,
+				"select mean(value) from test_fill_zero group by time(10s) fill(42)":   42.0,
+				"select mean(value) from test_fill_zero group by time(10s) fill(null)": nil,
+			}
+
+			for query, expectedValue := range queries {
+				serieses := client.RunQuery(query, c)
+				c.Assert(serieses, HasLen, 1)
+				maps := ToMap(serieses[0])
+				c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": 1304378400000.0, "mean": 60.0})
+				v, ok := expectedValue.(float64)
+				// we assign math.Inf for the no fill() case
+				if ok && math.IsInf(v, 1) {
+					c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": 1304378380000.0, "mean": 20.0})
+					c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": 1304378370000.0, "mean": 10.0})
+					continue
+				}
+				c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": 1304378390000.0, "mean": expectedValue})
+				c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": 1304378380000.0, "mean": 20.0})
+				c.Assert(maps[3], DeepEquals, map[string]interface{}{"time": 1304378370000.0, "mean": 10.0})
+			}
+		}
+}

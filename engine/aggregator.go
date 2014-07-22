@@ -82,6 +82,11 @@ func wrapDefaultValue(defaultValue *parser.Value) (*protocol.FieldValue, error) 
 		v, _ := strconv.Atoi(defaultValue.Name)
 		value := int64(v)
 		return &protocol.FieldValue{Int64Value: &value}, nil
+	case parser.ValueSimpleName:
+		if defaultValue.Name != "null" {
+			return nil, fmt.Errorf("Unsupported fill value %s", defaultValue.Name)
+		}
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("Unknown type %s", defaultValue.Type)
 	}
