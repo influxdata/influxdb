@@ -59,8 +59,9 @@ all: | parser valgrind build test integration_test
 parser:
 	$(MAKE) -C parser
 
+root := $(shell pwd)/../../../..
 ifeq ($(GOPATH),)
-GOPATH := $(shell pwd)/../../../..
+GOPATH := $(root)
 export GOPATH
 endif
 uname_S = $(shell sh -c "uname -s 2>/dev/null || echo not")
@@ -217,7 +218,7 @@ github.com/jmhodges/levigo \
 github.com/influxdb/rocksdb \
 github.com/influxdb/hyperleveldb-go
 
-dependencies_paths := $(addprefix $(GOPATH)/src/,$(dependencies))
+dependencies_paths := $(addprefix $(root)/src/,$(dependencies))
 
 $(dependencies_paths):
 	for i in $(dependencies); do $(GO) get -d $$i; done
@@ -229,12 +230,12 @@ dependencies: $(storage_engines) $(dependencies_paths)
 test_dependencies: dependencies
 	$(GO) get launchpad.net/gocheck
 
-$(GOPATH)/bin/protoc-gen-go:
+$(root)/bin/protoc-gen-go:
 	$(GO) get $(proto_dependency)
 
-protobuf: $(GOPATH)/bin/protoc-gen-go
+protobuf: $(root)/bin/protoc-gen-go
 	rm -f protocol/*.pb.go
-	PATH=$$GOPATH/bin:$$PATH $(PROTOC) --go_out=. protocol/*.proto
+	PATH=$(root)/bin:$$PATH $(PROTOC) --go_out=. protocol/*.proto
 
 build: | dependencies protobuf parser build_version_string
 # TODO: build all packages, otherwise we won't know
