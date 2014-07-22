@@ -67,6 +67,7 @@ func main() {
 	loadServer := flag.String("load-server", "localhost:8086", "If loading a database config, connects to this host/port")
 	loadUser := flag.String("load-user", "root", "If loading a database config, uses this user to auth")
 	loadPassword := flag.String("load-password", "root", "If loading a database config, use this password to auth")
+	stdout := flag.Bool("stdout", false, "Log to stdout overriding the configuration")
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
@@ -101,6 +102,9 @@ func main() {
 	config.Version = v
 	config.InfluxDBVersion = version
 
+	if *stdout {
+		config.LogFile = "stdout"
+	}
 	setupLogging(config.LogLevel, config.LogFile)
 
 	if *repairLeveldb {
