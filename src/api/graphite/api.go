@@ -165,49 +165,49 @@ func (self *Server) Close() {
 func (self *Server) committer() {
 	defer func() { self.shutdown <- true }()
 
-	commit := func(to_commit map[string]*protocol.Series) {
-		if len(to_commit) == 0 {
+	commit := func(toCommit map[string]*protocol.Series) {
+		if len(toCommit) == 0 {
 			return
 		}
-		commit_payload := make([]*protocol.Series, len(to_commit))
+		commitPayload := make([]*protocol.Series, len(toCommit))
 		i := 0
-		for _, serie := range to_commit {
-			commit_payload[i] = serie
+		for _, serie := range toCommit {
+			commitPayload[i] = serie
 			i++
 		}
-		log.Debug("GraphiteServer committing %d series", len(to_commit))
-		err := self.coordinator.WriteSeriesData(self.user, self.database, commit_payload)
+		log.Debug("GraphiteServer committing %d series", len(toCommit))
+		err := self.coordinator.WriteSeriesData(self.user, self.database, commitPayload)
 		if err != nil {
 			switch err.(type) {
 			case AuthorizationError:
 				// user information got stale, get a fresh one (this should happen rarely)
 				self.getAuth()
-				err = self.coordinator.WriteSeriesData(self.user, self.database, commit_payload)
+				err = self.coordinator.WriteSeriesData(self.user, self.database, commitPayload)
 				if err != nil {
-					log.Warn("GraphiteServer: failed to write %d series after getting new auth: %s\n", len(to_commit), err.Error())
+					log.Warn("GraphiteServer: failed to write %d series after getting new auth: %s\n", len(toCommit), err.Error())
 				}
 			default:
-				log.Warn("GraphiteServer: failed write %d series: %s\n", len(to_commit), err.Error())
+				log.Warn("GraphiteServer: failed write %d series: %s\n", len(toCommit), err.Error())
 			}
 		}
 	}
 
 	timer := time.NewTimer(commit_max_wait)
-	to_commit := make(map[string]*protocol.Series)
-	points_pending := 0
+	toCommit := make(map[string]*protocol.Series)
+	pointsPending := 0
 
 CommitLoop:
 	for {
 		select {
 		case record, ok := <-self.writeSeries:
 			if ok {
-				points_pending += 1
-				if series, seen := to_commit[record.Name]; seen {
+				pointsPending += 1
+				if series, seen := toCommit[record.Name]; seen {
 					series.Points = append(series.Points, record.Point)
 				} else {
 					points := make([]*protocol.Point, 1, 1)
 					points[0] = record.Point
-					to_commit[record.Name] = &protocol.Series{
+					toCommit[record.Name] = &protocol.Series{
 						Name:   &record.Name,
 						Fields: []string{"value"},
 						Points: points,
@@ -215,20 +215,20 @@ CommitLoop:
 				}
 			} else {
 				// no more input, commit whatever we have and break
-				commit(to_commit)
+				commit(toCommit)
 				break CommitLoop
 			}
 			// if capacity reached, commit
-			if points_pending == commit_capacity {
-				commit(to_commit)
-				to_commit = make(map[string]*protocol.Series)
-				points_pending = 0
+			if pointsPending == commit_capacity {
+				commit(toCommit)
+				toCommit = make(map[string]*protocol.Series)
+				pointsPending = 0
 				timer.Reset(commit_max_wait)
 			}
 		case <-timer.C:
-			commit(to_commit)
-			to_commit = make(map[string]*protocol.Series)
-			points_pending = 0
+			commit(toCommit)
+			toCommit = make(map[string]*protocol.Series)
+			pointsPending = 0
 			timer.Reset(commit_max_wait)
 		}
 	}
