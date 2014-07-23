@@ -222,6 +222,7 @@ CommitLoop:
 			if points_pending == commit_capacity {
 				commit(to_commit)
 				to_commit = make(map[string]*protocol.Series)
+				points_pending = 0
 				timer.Reset(commit_max_wait)
 			}
 		case <-timer.C:
