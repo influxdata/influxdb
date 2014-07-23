@@ -466,7 +466,7 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 			c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
 		case 1:
 			fmt.Printf("Using the drop series\n")
-			self.serverProcesses[0].Query("drop_series", "drop series cluster_query.1", false, c)
+			self.serverProcesses[0].QueryAsRoot("drop_series", "drop series cluster_query.1", false, c)
 		case 2:
 			resp := self.serverProcesses[0].Delete("/db/drop_series?u=root&p=root", "", c)
 			c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
