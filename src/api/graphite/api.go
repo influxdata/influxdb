@@ -37,8 +37,10 @@ type Server struct {
 	udpConn       *net.UDPConn
 	user          *cluster.ClusterAdmin
 	writeSeries   chan Record
-	shutdown      chan bool
+	allCommitted  chan bool
+	connClosed    chan bool // lets us break from the Accept() loop, see http://zhen.org/blog/graceful-shutdown-of-go-net-dot-listeners/ (quit channel)
 	udpEnabled    bool
+	writers       sync.WaitGroup // allows us to make sure things writing to writeSeries are done (they do blocking calls to handleMessage()) whether udp or tcp
 }
 
 // holds a point to be added into series by Name
@@ -75,7 +77,8 @@ func NewServer(config *configuration.Configuration, coord coordinator.Coordinato
 	self.database = config.GraphiteDatabase
 	self.coordinator = coord
 	self.writeSeries = make(chan Record, max_queue)
-	self.shutdown = make(chan bool, 1)
+	self.allCommitted = make(chan bool, 1)
+	self.connClosed = make(chan bool, 1)
 	self.clusterConfig = clusterConfig
 	self.udpEnabled = config.GraphiteUdpEnabled
 
@@ -110,18 +113,21 @@ func (self *Server) ListenAndServe() {
 }
 
 func (self *Server) Serve(listener net.Listener) {
-	var wg sync.WaitGroup
-
 	for {
 		conn_in, err := listener.Accept()
 		if err != nil {
 			log.Error("GraphiteServer: Accept: ", err)
+			select {
+			case <-self.connClosed:
+				return
+			default:
+			}
 			continue
 		}
-		wg.Add(1)
-		go self.handleClient(conn_in, wg)
+		self.writers.Add(1)
+		go self.handleClient(conn_in)
 	}
-	wg.Wait()
+	self.writers.Wait()
 	close(self.writeSeries)
 }
 
@@ -132,15 +138,17 @@ func (self *Server) ServeUdp(conn *net.UDPConn) {
 		if err != nil {
 			log.Warn("GraphiteServer: Error when reading from UDP connection %s", err.Error())
 		}
+		self.writers.Add(1)
 		go self.handleUdpMessage(string(buf[:n]))
 	}
 }
 
 func (self *Server) handleUdpMessage(msg string) {
+	defer self.writers.Done()
 	metrics := strings.Split(msg, "\n")
 	for _, metric := range metrics {
 		reader := bufio.NewReader(strings.NewReader(metric + "\n"))
-		go self.handleMessage(reader)
+		self.handleMessage(reader)
 	}
 }
 
@@ -151,19 +159,20 @@ func (self *Server) Close() {
 	}
 	if self.conn != nil {
 		log.Info("GraphiteServer: Closing graphite server")
+		close(self.connClosed)
 		self.conn.Close()
 		log.Info("GraphiteServer: Waiting for all graphite requests to finish before killing the process")
 		select {
 		case <-time.After(time.Second * 5):
-			log.Error("GraphiteServer: There seems to be a hanging graphite request. Closing anyway")
-		case <-self.shutdown:
-			log.Info("GraphiteServer shut down")
+			log.Error("GraphiteServer: There seems to be a hanging graphite request or data flush. Closing anyway")
+		case <-self.allCommitted:
+			log.Info("GraphiteServer shut down cleanly")
 		}
 	}
 }
 
 func (self *Server) committer() {
-	defer func() { self.shutdown <- true }()
+	defer func() { self.allCommitted <- true }()
 
 	commit := func(toCommit map[string]*protocol.Series) {
 		if len(toCommit) == 0 {
@@ -234,9 +243,9 @@ CommitLoop:
 	}
 }
 
-func (self *Server) handleClient(conn net.Conn, wg sync.WaitGroup) {
+func (self *Server) handleClient(conn net.Conn) {
 	defer conn.Close()
-	defer wg.Done()
+	defer self.writers.Done()
 	reader := bufio.NewReader(conn)
 	for {
 		err := self.handleMessage(reader)
