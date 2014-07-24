@@ -1,0 +1,31 @@
+[
+{
+  "database": "test_db_conf_db",
+  "spaces": [
+    {
+      "name": "everything",
+      "retentionPolicy": "90d",
+      "shardDuration": "7d",
+      "regex": "/.*/",
+      "replicationFactor": 1,
+      "split": 1
+    },
+    {
+      "name": "infinity_retention",
+      "retentionPolicy": "inf",
+      "shardDuration": "7d",
+      "regex": "/^keep_foreveer/",
+      "replicationFactor": 1,
+      "split": 1
+    },
+    {
+      "name": "specific",
+      "retentionPolicy": "7d",
+      "shardDuration": "1d",
+      "regex": "/^something_specficic/",
+      "replicationFactor": 1,
+      "split": 1
+    }
+  ]
+}
+]

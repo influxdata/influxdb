@@ -1,4 +1,96 @@
-## v0.6.6 [unreleased]
+## v0.8.0-rc.4 [unreleased]
+
+### Bugfixes
+
+- [Issue #774](https://github.com/influxdb/influxdb/issues/774). Don't try to parse "inf" shard retention policy
+- [Issue #769](https://github.com/influxdb/influxdb/issues/769). Use retention duration when determining expired shards. (Thanks, @shugo)
+
+## v0.8.0-rc.3 [2014-07-21]
+
+### Bugfixes
+
+- [Issue #752](https://github.com/influxdb/influxdb/issues/752). `./configure` should use goroot to find gofmt
+- [Issue #758](https://github.com/influxdb/influxdb/issues/758). Clarify the reason behind graphite input plugin not starting. (Thanks, @otoolep)
+- [Issue #759](https://github.com/influxdb/influxdb/issues/759). Don't revert the regex in the shard space. (Thanks, @shugo)
+- [Issue #760](https://github.com/influxdb/influxdb/issues/760). Removing a server should remove it from the shard server ids. (Thanks, @shugo)
+- [Issue #772](https://github.com/influxdb/influxdb/issues/772). Add sentinel values to all db. This caused the last key in the db to not be fetched properly.
+
+
+## v0.8.0-rc.2 [2014-07-15]
+
+- This release is to fix a build error in rc1 which caused rocksdb to not be available
+- Bump up the `max-open-files` option to 1000 on all storage engines
+- Lower the `write-buffer-size` to 1000
+
+## v0.8.0-rc.1 [2014-07-15]
+
+### Features
+
+- [Issue #643](https://github.com/influxdb/influxdb/issues/643). Support pretty print json. (Thanks, @otoolep)
+- [Issue #641](https://github.com/influxdb/influxdb/issues/641). Support multiple storage engines
+- [Issue #665](https://github.com/influxdb/influxdb/issues/665). Make build tmp directory configurable in the make file. (Thanks, @dgnorton)
+- [Issue #667](https://github.com/influxdb/influxdb/issues/667). Enable compression on all GET requests and when writing data
+- [Issue #648](https://github.com/influxdb/influxdb/issues/648). Return permissions when listing db users. (Thanks, @nicolai86)
+- [Issue #682](https://github.com/influxdb/influxdb/issues/682). Allow continuous queries to run without backfill (Thanks, @dhammika)
+- [Issue #689](https://github.com/influxdb/influxdb/issues/689). **REQUIRES DATA MIGRATION** Move metadata into raft
+- [Issue #255](https://github.com/influxdb/influxdb/issues/255). Support millisecond precision using `ms` suffix
+- [Issue #95](https://github.com/influxdb/influxdb/issues/95). Drop database should not be synchronous
+- [Issue #571](https://github.com/influxdb/influxdb/issues/571). Add support for arbitrary number of shard spaces and retention policies
+- Default storage engine changed to RocksDB
+
+### Bugfixes
+
+- [Issue #651](https://github.com/influxdb/influxdb/issues/651). Change permissions of symlink which fix some installation issues. (Thanks, @Dieterbe)
+- [Issue #670](https://github.com/influxdb/influxdb/issues/670). Don't warn on missing influxdb user on fresh installs
+- [Issue #676](https://github.com/influxdb/influxdb/issues/676). Allow storing high precision integer values without losing any information
+- [Issue #695](https://github.com/influxdb/influxdb/issues/695). Prevent having duplicate field names in the write payload. (Thanks, @seunglee150)
+- [Issue #731](https://github.com/influxdb/influxdb/issues/731). Don't enable the udp plugin if the `enabled` option is set to false
+- [Issue #733](https://github.com/influxdb/influxdb/issues/733). Print an `INFO` message when the input plugin is disabled
+- [Issue #707](https://github.com/influxdb/influxdb/issues/707). Graphite input plugin should work payload delimited by any whitespace character
+- [Issue #734](https://github.com/influxdb/influxdb/issues/734). Don't buffer non replicated writes
+- [Issue #465](https://github.com/influxdb/influxdb/issues/465). Recreating a currently deleting db or series doesn't bring back the old data anymore
+- [Issue #358](https://github.com/influxdb/influxdb/issues/358). **BREAKING** List series should return as a single series
+- [Issue #499](https://github.com/influxdb/influxdb/issues/499). **BREAKING** Querying non-existent database or series will return an error
+- [Issue #570](https://github.com/influxdb/influxdb/issues/570). InfluxDB crashes during delete/drop of database
+- [Issue #592](https://github.com/influxdb/influxdb/issues/592). Drop series is inefficient
+
+## v0.7.3 [2014-06-13]
+
+### Bugfixes
+
+- [Issue #637](https://github.com/influxdb/influxdb/issues/637). Truncate log files if the last request wasn't written properly
+- [Issue #646](https://github.com/influxdb/influxdb/issues/646). CRITICAL: Duplicate shard ids for new shards if old shards are deleted.
+
+## v0.7.2 [2014-05-30]
+
+### Features
+
+- [Issue #521](https://github.com/influxdb/influxdb/issues/521). MODE works on all datatypes (Thanks, @richthegeek)
+
+### Bugfixes
+
+- [Issue #418](https://github.com/influxdb/influxdb/pull/418). Requests or responses larger than MAX_REQUEST_SIZE break things.
+- [Issue #606](https://github.com/influxdb/influxdb/issues/606). InfluxDB will fail to start with invalid permission if log.txt didn't exist
+- [Issue #602](https://github.com/influxdb/influxdb/issues/602). Merge will fail to work across shards
+
+### Features
+
+## v0.7.1 [2014-05-29]
+
+### Bugfixes
+
+- [Issue #579](https://github.com/influxdb/influxdb/issues/579). Reject writes to nonexistent databases
+- [Issue #597](https://github.com/influxdb/influxdb/issues/597). Force compaction after deleting data
+
+### Features
+
+- [Issue #476](https://github.com/influxdb/influxdb/issues/476). Support ARM architecture
+- [Issue #578](https://github.com/influxdb/influxdb/issues/578). Support aliasing for expressions in parenthesis
+- [Issue #544](https://github.com/influxdb/influxdb/pull/544). Support forcing node removal from a cluster
+- [Issue #591](https://github.com/influxdb/influxdb/pull/591). Support multiple udp input plugins (Thanks, @tpitale)
+- [Issue #600](https://github.com/influxdb/influxdb/pull/600). Report version, os, arch, and raftName once per day.
+
+## v0.7.0 [2014-05-23]
 
 ### Bugfixes
 
@@ -10,6 +102,16 @@
 - [Issue #563](https://github.com/influxdb/influxdb/issues/563). Add sample config for graphite over udp
 - [Issue #537](https://github.com/influxdb/influxdb/issues/537). Incorrect query syntax causes internal error
 - [Issue #565](https://github.com/influxdb/influxdb/issues/565). Empty series names shouldn't cause a panic
+- [Issue #575](https://github.com/influxdb/influxdb/issues/575). Single point select doesn't interpret timestamps correctly
+- [Issue #576](https://github.com/influxdb/influxdb/issues/576). We shouldn't set timestamps and sequence numbers when listing cq
+- [Issue #560](https://github.com/influxdb/influxdb/issues/560). Use /dev/urandom instead of /dev/random
+- [Issue #502](https://github.com/influxdb/influxdb/issues/502). Fix a
+  race condition in assigning id to db+series+field (Thanks @ohurvitz
+  for reporting this bug and providing a script to repro)
+
+### Features
+
+- [Issue #567](https://github.com/influxdb/influxdb/issues/567). Allow selecting from multiple series names by separating them with commas (Thanks, @peekeri)
 
 ### Deprecated
 

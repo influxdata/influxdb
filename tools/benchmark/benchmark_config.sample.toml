@@ -1,0 +1,127 @@
+# This is a configuration file for the InfluxDB benchmarking tool.
+
+# High level stats for the benchmark run will be reported to this log file.
+log_file = "benchmark.log"
+
+# Output summary stats after each block of this number of points has been posted.
+output_after_count = 10000
+
+# Stats for the benchmark run will be reported to this InfluxDB server. Track it over time, friend.
+[stats_server]
+connection_string = "localhost:8086"
+database = "reports"
+user = "user"
+password = "pass"
+is_secure = false
+skip_verify = false
+timeout = "10s"
+
+# A regular database, user, and password to read and write data on the cluster being benchmarked.
+[cluster_credentials]
+database = "benchmark"
+user = "paul"
+password = "pass"
+
+[load_settings]
+# The benchmarker will make this many connections per server listed in servers.
+concurrent_connections = 100
+# If you comment out this setting, load will be simulated for as long
+# as the program runs. This is the number of times each load definition will be 
+# run for writes. Queries happen on intervals for as long as the benchmark is running.
+runs_per_load_definition = 10000
+
+[[servers]]
+connection_string = "localhost:8086"
+is_secure = false
+skip_verify = false
+timeout = "10s"
+
+# Load definitions describe the reads and writes that you want to simulate.
+# The connections take writes from the load definitions as they're sent out.
+# You can define multiple load definitions that will run in parallel.
+[[load_definitions]]
+# The name is used only for reporting purposes. Response times and point counts
+# will be reported to:
+# <name>.ok
+# <name>.fail
+# The fail time series will contain the error that was returned by the go library.
+name = "write_10_series"
+# For load definitions that will be writing many hundreds of thousands of points
+# it may be more desirable to do some sampling from successful writes. If you 
+# comment out the following line you'll get the repsonse time from every 100th
+# write reqeust reported. All failures will still be reported.
+# report_sampling_interval = 100
+
+# If you're doing sampling you'll want to report some percentiles and the max response
+# times in some window of time. In addition to the sampled report stream you can get
+# percentiles using these two variables. They would produce these series in the 
+# reporting dataabase:
+# <name>.percentiles.90, <name>.percentiles.95, <name>.percentiles.99, <name>.percentiles.max
+# percentiles = [90.0, 95.0, 99.0]
+# percentile_time_interval = "10s"
+
+# series name will start with this string
+base_series_name = "some_series"
+
+# the number of time series to create
+series_count = 100
+
+  # write settings define write load that will be run against the server
+  [load_definitions.write_settings]
+  # the number of series that will be in each POST request. if less than series
+  # count then multiple posts will be made on each 
+  batch_series_size = 10
+
+  # the number of points per series that will be in each POST
+  batch_points_size = 100
+
+  # time to wait between each POST request on each connection.
+  # can be like 10u (microseconds), 10ms, 10s
+  delay_between_posts = "0s"
+
+  # each series in this load definition can have multiple int, string, bool, or float columns.
+  [[load_definitions.int_columns]]
+  name = "value"
+  # int values will be random in [0, max_value)
+  max_value = 10
+
+  # bool values will be randomly true or false
+  [[load_definitions.bool_columns]]
+  name = "some_bool"
+
+  # floats will be a random values in [0, 1.0)
+  [[load_definitions.float_columns]]
+  name = "some_other_val"
+
+  [[load_definitions.string_columns]]
+  name = "type"
+  # values are potential column values. Each point will have one of these randomly selected
+  values = ["click", "open", "view", "delete"]
+  # if you want to simulate random string values (i.e. many possible unique strings)
+  # leave 'values' out and use this argument. Random strings of that lenght will be generated
+  # random_length = 50
+
+  # multiple queries can be run against the server at the same time
+  # the writes are happening.
+  [[load_definitions.queries]]
+  # name is for reporting purposes only. every successful query response time will get reported to:
+  # <load definition name>.query.<name>.ok
+  # <load definition name>.query.<name>.fail
+  name = "count"
+
+  # Using quer_start and query_end will execute against each time series this load definition
+  # creates. The series names will be filled in automatically. This example will execute this
+  # query against all 10 series every 10 seconds.
+  query_start = "select count(value) from "
+  query_end = " where time > now() - 30s"
+
+  # queries run periodically based on this setting
+  perform_every = "10s"
+
+  [[load_definitions.queries]]
+  name = "select_last_point_from_all"
+  # The other option is to use full_query. This is useful for specific queries you want
+  # to test out like selecting against a regex. This query won't be modified and it will
+  # be executed once for every interval (regardless of how many series the load definition creates)
+  full_query = "select * from /.*/ limit 1"
+  perform_every = "5s"

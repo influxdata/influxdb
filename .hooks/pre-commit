@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+count=`git ls-files | grep '.go$' | xargs gofmt -l | wc -l`
+if [ $count -gt 0 ]; then
+    echo "Some files aren't formatted, please run 'make format' to format your source code before committing"
+    exit 1
+fi
+exit 0
