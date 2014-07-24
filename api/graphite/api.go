@@ -120,7 +120,7 @@ func (self *Server) Serve(listener net.Listener) {
 			log.Error("GraphiteServer: Accept: ", err)
 			select {
 			case <-self.connClosed:
-				return
+				break
 			default:
 			}
 			continue
