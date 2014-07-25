@@ -51,6 +51,31 @@ func (self *SingleServerSuite) TestWritesToNonExistentDb(c *C) {
 	c.Assert(client.WriteSeries(s), ErrorMatches, ".*doesn't exist.*")
 }
 
+func (self *SingleServerSuite) TestMultiplePoints(c *C) {
+	client := self.server.GetClient("test_string_columns", c)
+	c.Assert(client.CreateDatabase("test_string_columns"), IsNil)
+	err := client.WriteSeries(
+		[]*influxdb.Series{
+			{
+				Name:    "events",
+				Columns: []string{"column1", "column2"},
+				Points: [][]interface{}{
+					{"value1", "value2"},
+				},
+			},
+		},
+	)
+	c.Assert(err, IsNil)
+	s, err := client.Query("select * from events;")
+	c.Assert(err, IsNil)
+	c.Assert(s, HasLen, 1)
+	maps := ToMap(s[0])
+	c.Assert(maps, HasLen, 1)
+	fmt.Printf("WTF: %#v\n", maps)
+	c.Assert(maps[0]["column1"], Equals, "value1")
+	c.Assert(maps[0]["column2"], Equals, "value2")
+}
+
 func (self *SingleServerSuite) TestAdministrationOperation(c *C) {
 	client := self.server.GetClient("", c)
 	c.Assert(client.CreateDatabase("test_admin_operations"), IsNil)
@@ -59,6 +84,28 @@ func (self *SingleServerSuite) TestAdministrationOperation(c *C) {
 	c.Assert(client.ChangeDatabaseUser("test_admin_operations", "user", "pass2", false), IsNil)
 	c.Assert(client.AuthenticateDatabaseUser("test_admin_operations", "user", "pass"), NotNil)
 	c.Assert(client.AuthenticateDatabaseUser("test_admin_operations", "user", "pass2"), IsNil)
+}
+
+// issue #736
+func (self *SingleServerSuite) TestDroppingSeries(c *C) {
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase("test_dropping_series"), IsNil)
+	c.Assert(client.CreateDatabaseUser("test_dropping_series", "user", "pass"), IsNil)
+	user := self.server.GetClientWithUser("test_dropping_series", "user", "pass", c)
+	err := user.WriteSeries([]*influxdb.Series{{
+		Name:    "foo",
+		Columns: []string{"column1"},
+		Points:  [][]interface{}{{1}},
+	}})
+	c.Assert(err, IsNil)
+	_, err = user.Query("drop series foo")
+	c.Assert(err, NotNil)
+	s, err := user.Query("select * from foo")
+	c.Assert(err, IsNil)
+	c.Assert(s, HasLen, 1)
+	maps := ToMap(s[0])
+	c.Assert(maps, HasLen, 1)
+	c.Assert(maps[0]["column1"], Equals, 1.0)
 }
 
 // pr #483

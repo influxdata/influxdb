@@ -1,10 +1,20 @@
-## v0.8.0-rc.3
+## v0.8.0-rc.4 [unreleased]
 
 ### Bugfixes
 
+- [Issue #774](https://github.com/influxdb/influxdb/issues/774). Don't try to parse "inf" shard retention policy
+- [Issue #769](https://github.com/influxdb/influxdb/issues/769). Use retention duration when determining expired shards. (Thanks, @shugo)
+
+## v0.8.0-rc.3 [2014-07-21]
+
+### Bugfixes
+
+- [Issue #752](https://github.com/influxdb/influxdb/issues/752). `./configure` should use goroot to find gofmt
 - [Issue #758](https://github.com/influxdb/influxdb/issues/758). Clarify the reason behind graphite input plugin not starting. (Thanks, @otoolep)
 - [Issue #759](https://github.com/influxdb/influxdb/issues/759). Don't revert the regex in the shard space. (Thanks, @shugo)
 - [Issue #760](https://github.com/influxdb/influxdb/issues/760). Removing a server should remove it from the shard server ids. (Thanks, @shugo)
+- [Issue #772](https://github.com/influxdb/influxdb/issues/772). Add sentinel values to all db. This caused the last key in the db to not be fetched properly.
+
 
 ## v0.8.0-rc.2 [2014-07-15]
 

@@ -15,7 +15,7 @@ func (self *Permissions) AuthorizeDeleteQuery(user common.User, db string) (ok b
 }
 
 func (self *Permissions) AuthorizeDropSeries(user common.User, db string, seriesName string) (ok bool, err common.AuthorizationError) {
-	if !user.IsDbAdmin(db) && !user.HasWriteAccess(seriesName) {
+	if !user.IsDbAdmin(db) {
 		return false, common.NewAuthorizationError("Insufficient permissions to drop series")
 	}
 

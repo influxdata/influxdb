@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/influxdb/influxdb/configuration"
@@ -72,12 +71,6 @@ func NewLevelDB(path string, config interface{}) (Engine, error) {
 
 	wopts := levigo.NewWriteOptions()
 	ropts := levigo.NewReadOptions()
-
-	// these sentinel values are here so that we can seek to the end of
-	// the keyspace and have the iterator still be valid.  this is for
-	// the series that is at either end of the keyspace.
-	db.Put(wopts, []byte(strings.Repeat("\x00", 24)), []byte{})
-	db.Put(wopts, []byte(strings.Repeat("\xff", 24)), []byte{})
 
 	return LevelDB{db, opts, wopts, ropts, path}, err
 }

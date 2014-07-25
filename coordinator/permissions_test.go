@@ -54,7 +54,7 @@ func (self *PermissionsSuite) TestAuthorizeDropSeries(c *C) {
 	c.Assert(ok, Equals, true)
 
 	ok, _ = self.permissions.AuthorizeDropSeries(self.commonUser, "db", "series")
-	c.Assert(ok, Equals, true)
+	c.Assert(ok, Equals, false)
 
 	ok, err = self.permissions.AuthorizeDropSeries(self.commonUserNoWrite, "db", "series")
 	c.Assert(ok, Equals, false)

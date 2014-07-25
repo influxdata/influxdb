@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"sync"
 
@@ -24,6 +25,10 @@ type Store struct {
 type Field struct {
 	Id   uint64
 	Name string
+}
+
+func (f *Field) String() string {
+	return fmt.Sprintf("Name: %s, Id: %d", f.Name, f.Id)
 }
 
 func (f *Field) IdAsBytes() []byte {
