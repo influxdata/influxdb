@@ -43,8 +43,8 @@ if ! which aws > /dev/null 2>&1; then
 fi
 
 make clean
-make -j2 package version=$version
-make -j2 package version=$version arch=386
+make package version=$version
+make package version=$version arch=386
 # make arch=arm CROSS_COMPILE=arm-unknown-linux-gnueabi package version=$version PATH=$PATH:$HOME/x-tools/arm-unknown-linux-gnueabi/bin
 # rpm convention is not to have dashes in the package, or at least
 # that's what fpm is claiming
