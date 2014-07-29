@@ -1422,6 +1422,51 @@ func (self *DataTestSuite) WhereConditionWithExpression(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #740 and #781
+func (self *DataTestSuite) JoiningDifferentFields(c *C) (Fun, Fun) {
+	return func(client Client) {
+			// TODO: why do we get a different error if we remove all but the first values
+			client.WriteJsonData(`
+[
+  { "name" : "totalThreads",
+    "columns" : ["time",
+                 "value",
+                 "hostname"],
+    "points" : [ [1405364100, 16, "serverA"],
+                 [1405364105, 20, "serverB"],
+                 [1405364115, 16, "serverA"],
+                 [1405364120, 20, "serverB"],
+                 [1405364130, 18, "serverA"],
+                 [1405364135, 15, "serverB"],
+                 [1405364145, 19, "serverA"],
+                 [1405364150, 16, "serverB"] ]
+  },
+  { "name" : "idleThreads",
+    "columns" : ["time",
+                 "value",
+                 "hostname"],
+    "points" : [ [1405364100, 12, "serverA"],
+                 [1405364105, 9, "serverB"],
+                 [1405364115, 13, "serverA"],
+                 [1405364120, 12, "serverB"],
+                 [1405364130, 8, "serverA"],
+                 [1405364135, 13, "serverB"],
+                 [1405364145, 2, "serverA"],
+                 [1405364150, 13, "serverB"] ]
+  }
+]
+`, c, "ms")
+		}, func(client Client) {
+			data := client.RunQuery("SELECT total.hostname, total.value - idle.value FROM totalThreads AS total INNER JOIN idleThreads AS idle GROUP BY time(15s);", c, "m")
+			c.Assert(data, HasLen, 1)
+			maps := ToMap(data[0])
+			expectedValues := []float64{3, 17, 2, 10, 8, 3, 11, 4}
+			for i, m := range maps {
+				c.Assert(m["expr1"], Equals, expectedValues[i])
+			}
+		}
+}
+
 func (self *DataTestSuite) AggregateWithExpression(c *C) (Fun, Fun) {
 	return func(client Client) {
 			client.WriteJsonData(`

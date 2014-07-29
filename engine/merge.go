@@ -95,17 +95,8 @@ func isLater(first *seriesMergeState, other *seriesMergeState) bool {
 
 func (self *seriesMergeState) flush(state *mergeState, yield func(*protocol.Series) error) error {
 	for _, s := range self.series {
-		points := []*protocol.Point{}
-
-		for _, p := range s.Points {
-			points = append(points, state.getPoint(s.Fields, p))
-		}
-
-		err := yield(&protocol.Series{
-			Name:   s.Name,
-			Fields: state.getFields(),
-			Points: points,
-		})
+		s := state.mergeColumnsInSeries(s)
+		err := yield(s)
 		if err != nil {
 			return err
 		}
@@ -138,26 +129,39 @@ type mergeState struct {
 	fields       map[string]int
 	left         *seriesMergeState
 	right        *seriesMergeState
-	modifyValues bool
+	mergeColumns bool
 }
 
 // set the fields of the other time series to null making sure that
 // the order of the null values match the order of the field
 // definitions, i.e. left timeseries first followed by values from the
 // right timeseries
-func (self *mergeState) getPoint(fields []string, p *protocol.Point) *protocol.Point {
-	if !self.modifyValues {
-		return p
+func (self *mergeState) mergeColumnsInSeries(s *protocol.Series) *protocol.Series {
+	if !self.mergeColumns {
+		return s
 	}
 
-	newValues := make([]*protocol.FieldValue, len(self.fields))
-	oldValues := p.Values
-	for idx, f := range fields {
-		newIdx := self.fields[f]
-		newValues[newIdx] = oldValues[idx]
+	newSeries := &protocol.Series{
+		Name:   s.Name,
+		Fields: self.getFields(),
+		Points: make([]*protocol.Point, len(s.Points)),
 	}
-	p.Values = newValues
-	return p
+
+	for idx, p := range s.Points {
+		newPoint := &protocol.Point{
+			Timestamp:      p.Timestamp,
+			SequenceNumber: p.SequenceNumber,
+		}
+		newValues := make([]*protocol.FieldValue, len(self.fields))
+		oldValues := p.Values
+		for idx, f := range s.Fields {
+			newIdx := self.fields[f]
+			newValues[newIdx] = oldValues[idx]
+		}
+		newPoint.Values = newValues
+		newSeries.Points[idx] = newPoint
+	}
+	return newSeries
 }
 
 // set the fields of the other time series to null making sure that
@@ -183,14 +187,8 @@ func (self *mergeState) yieldNextPoints(yield func(*protocol.Series) error) erro
 			next = self.left
 		}
 
-		fields, p := next.removeAndGetFirstPoint()
-		p = self.getPoint(fields, p)
-
-		err := yield(&protocol.Series{
-			Name:   &next.name,
-			Fields: self.getFields(),
-			Points: []*protocol.Point{p},
-		})
+		s := next.removeAndGetFirstPoint()
+		err := yield(self.mergeColumnsInSeries(s))
 		if err != nil {
 			return err
 		}
@@ -233,9 +231,12 @@ func (self *mergeState) updateState(p *protocol.Series) {
 	}
 }
 
-func (self *seriesMergeState) removeAndGetFirstPoint() ([]string, *protocol.Point) {
-	point := self.series[0].Points[0]
-	fields := self.series[0].Fields
+func (self *seriesMergeState) removeAndGetFirstPoint() *protocol.Series {
+	s := &protocol.Series{
+		Name:   self.series[0].Name,
+		Fields: self.series[0].Fields,
+		Points: []*protocol.Point{self.series[0].Points[0]},
+	}
 	// get rid of that point, or get rid of the entire series
 	// if this is the last point
 	if len(self.series[0].Points) == 1 {
@@ -243,12 +244,12 @@ func (self *seriesMergeState) removeAndGetFirstPoint() ([]string, *protocol.Poin
 	} else {
 		self.series[0].Points = self.series[0].Points[1:]
 	}
-	return fields, point
+	return s
 }
 
 // returns a yield function that will sort points from table1 and
 // table2 no matter what the order in which they are received.
-func mergeYield(table1, table2 string, modifyValues bool, ascending bool, yield func(*protocol.Series) error) func(*protocol.Series) error {
+func mergeYield(table1, table2 string, mergeColumns bool, ascending bool, yield func(*protocol.Series) error) func(*protocol.Series) error {
 	state1 := &seriesMergeState{
 		name: table1,
 	}
@@ -265,7 +266,7 @@ func mergeYield(table1, table2 string, modifyValues bool, ascending bool, yield 
 		left:         state1,
 		right:        state2,
 		leftGoFirst:  whoGoFirst,
-		modifyValues: modifyValues,
+		mergeColumns: mergeColumns,
 	}
 
 	return func(p *protocol.Series) error {
