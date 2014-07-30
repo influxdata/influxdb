@@ -1,4 +1,4 @@
-## v0.8.0-rc.4 [unreleased]
+## v0.8.0-rc.4 [2014-07-29]
 
 ### Bugfixes
 
