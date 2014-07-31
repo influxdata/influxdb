@@ -1,10 +1,8 @@
-[
 {
-  "database": "test_db_conf_db",
   "spaces": [
     {
       "name": "everything",
-      "retentionPolicy": "90d",
+      "retentionPolicy": "inf",
       "shardDuration": "7d",
       "regex": "/.*/",
       "replicationFactor": 1,
@@ -22,10 +20,13 @@
       "name": "specific",
       "retentionPolicy": "7d",
       "shardDuration": "1d",
-      "regex": "/^something_specficic/",
-      "replicationFactor": 1,
-      "split": 1
+      "regex": "/^something_specfic/",
+      "replicationFactor": 2,
+      "split": 3
     }
+  ],
+  "continuousQueries": [
+    "select * from events into events.[id]",
+    "select count(value) from events group by time(5m) into 5m.count.events"
   ]
 }
-]
