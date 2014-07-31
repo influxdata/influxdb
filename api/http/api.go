@@ -154,6 +154,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "get", "/cluster/shard_spaces", self.getShardSpaces)
 	self.registerEndpoint(p, "post", "/cluster/shard_spaces", self.createShardSpace)
 	self.registerEndpoint(p, "del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
+	self.registerEndpoint(p, "post", "/cluster/db_config", self.configureDatabase)
 
 	// return whether the cluster is in sync or not
 	self.registerEndpoint(p, "get", "/sync", self.isInSync)
@@ -1189,5 +1190,53 @@ func (self *HttpServer) dropShardSpace(w libhttp.ResponseWriter, r *libhttp.Requ
 			return libhttp.StatusInternalServerError, err.Error()
 		}
 		return libhttp.StatusOK, nil
+	})
+}
+
+type DatabaseConfig struct {
+	Database          string                `json:"database"`
+	Spaces            []*cluster.ShardSpace `json:"spaces"`
+	ContinuousQueries []string              `json:"continuousQueries"`
+}
+
+func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		databaseConfig := &DatabaseConfig{}
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		err = json.Unmarshal(body, databaseConfig)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		err = self.coordinator.CreateDatabase(u, databaseConfig.Database)
+		if err != nil {
+			return libhttp.StatusBadRequest, err.Error()
+		}
+		for _, space := range databaseConfig.Spaces {
+			space.Database = databaseConfig.Database
+			err = self.raftServer.CreateShardSpace(space)
+			if err != nil {
+				return libhttp.StatusInternalServerError, err.Error()
+			}
+		}
+		for _, queryString := range databaseConfig.ContinuousQueries {
+			q, err := parser.ParseQuery(queryString)
+			if err != nil {
+				return libhttp.StatusInternalServerError, err.Error()
+			}
+			for _, query := range q {
+				selectQuery := query.SelectQuery
+
+				if selectQuery.IsContinuousQuery() {
+					err := self.coordinator.CreateContinuousQuery(u, databaseConfig.Database, query.QueryString)
+					if err != nil {
+						return libhttp.StatusInternalServerError, err.Error()
+					}
+				}
+			}
+		}
+		return libhttp.StatusCreated, nil
 	})
 }
