@@ -422,12 +422,9 @@ func (self *HttpServer) listDatabases(w libhttp.ResponseWriter, r *libhttp.Reque
 
 func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(user User) (int, interface{}) {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
-		}
 		createRequest := &createDatabaseRequest{}
-		err = json.Unmarshal(body, createRequest)
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(createRequest)
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
@@ -647,14 +644,9 @@ func (self *HttpServer) authenticateClusterAdmin(w libhttp.ResponseWriter, r *li
 }
 
 func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
-	}
 	newUser := &NewUser{}
-	err = json.Unmarshal(body, newUser)
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(newUser)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -683,15 +675,14 @@ func (self *HttpServer) deleteClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 }
 
 func (self *HttpServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	updateClusterAdminUser := &UpdateClusterAdminUser{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(updateClusterAdminUser)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
 	}
-
-	updateClusterAdminUser := &UpdateClusterAdminUser{}
-	json.Unmarshal(body, updateClusterAdminUser)
 
 	newUser := r.URL.Query().Get(":user")
 
@@ -801,15 +792,9 @@ func (self *HttpServer) showDbUser(w libhttp.ResponseWriter, r *libhttp.Request)
 }
 
 func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
-	}
-
 	newUser := &NewUser{}
-	err = json.Unmarshal(body, newUser)
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(newUser)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -857,15 +842,9 @@ func (self *HttpServer) deleteDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 }
 
 func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(libhttp.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
-	}
-
 	updateUser := make(map[string]interface{})
-	err = json.Unmarshal(body, &updateUser)
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&updateUser)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -964,14 +943,13 @@ func (self *HttpServer) createDbContinuousQueries(w libhttp.ResponseWriter, r *l
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		body, err := ioutil.ReadAll(r.Body)
+		// note: id isn't used when creating a new continuous query
+		values := &ContinuousQuery{}
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(values)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
-
-		// note: id isn't used when creating a new continuous query
-		values := &ContinuousQuery{}
-		json.Unmarshal(body, values)
 
 		if err := self.coordinator.CreateContinuousQuery(u, db, values.Query); err != nil {
 			return errorToStatusCode(err), err.Error()
@@ -1052,11 +1030,8 @@ type newShardServerIds struct {
 func (self *HttpServer) createShard(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		newShards := &newShardInfo{}
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
-		}
-		err = json.Unmarshal(body, &newShards)
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(&newShards)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
@@ -1119,12 +1094,9 @@ func (self *HttpServer) dropShard(w libhttp.ResponseWriter, r *libhttp.Request) 
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
-		}
 		serverIdInfo := &newShardServerIds{}
-		err = json.Unmarshal(body, &serverIdInfo)
+		decoder := json.NewDecoder(r.Body)
+		err = decoder.Decode(&serverIdInfo)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
@@ -1162,11 +1134,8 @@ func (self *HttpServer) getShardSpaces(w libhttp.ResponseWriter, r *libhttp.Requ
 func (self *HttpServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		space := &cluster.ShardSpace{}
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
-		}
-		err = json.Unmarshal(body, space)
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(space)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
@@ -1201,11 +1170,8 @@ type DatabaseConfig struct {
 func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		databaseConfig := &DatabaseConfig{}
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
-		}
-		err = json.Unmarshal(body, databaseConfig)
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(databaseConfig)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
