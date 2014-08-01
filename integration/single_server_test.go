@@ -837,7 +837,7 @@ func (self *SingleServerSuite) TestDropShardSpace(c *C) {
 func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
 	contents, err := ioutil.ReadFile("database_conf.json")
 	c.Assert(err, IsNil)
-	resp, err := http.Post("http://localhost:8086/cluster/db_config?u=root&p=root", "application/json", bytes.NewBuffer(contents))
+	resp, err := http.Post("http://localhost:8086/cluster/database_configs/test_db_conf_db?u=root&p=root", "application/json", bytes.NewBuffer(contents))
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
 
@@ -849,4 +849,12 @@ func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
 	c.Assert(space, NotNil)
 	c.Assert(space.Split, Equals, uint32(3))
 	c.Assert(space.ReplicationFactor, Equals, uint32(2))
+
+	client.Database = "test_db_conf_db"
+	series, err := client.Query("list continuous queries;")
+	c.Assert(err, IsNil)
+	queries := series[0].Points
+	c.Assert(queries, HasLen, 2)
+	c.Assert(queries[0][2], Equals, "select * from events into events.[id]")
+	c.Assert(queries[1][2], Equals, "select count(value) from events group by time(5m) into 5m.count.events")
 }

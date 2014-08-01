@@ -1,5 +1,4 @@
 {
-  "database": "test_db_conf_db",
   "spaces": [
     {
       "name": "everything",
@@ -25,5 +24,9 @@
       "replicationFactor": 2,
       "split": 3
     }
+  ],
+  "continuousQueries": [
+    "select * from events into events.[id]",
+    "select count(value) from events group by time(5m) into 5m.count.events"
   ]
 }
