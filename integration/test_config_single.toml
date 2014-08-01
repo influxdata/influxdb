@@ -73,6 +73,9 @@ dir  = "/tmp/influxdb/development/raft"
 
 [storage]
 
+# The server will check this often for shards that have expired and should be cleared.
+retention-sweep-period = "1s"
+
 dir = "/tmp/influxdb/development/db"
 # How many requests to potentially buffer in memory. If the buffer gets filled then writes
 # will still be logged and once the local storage has caught up (or compacted) the writes
@@ -157,9 +160,6 @@ max-response-buffer-size = 100
 # Setting this higher will give better performance, but you'll need more memory. Setting this to 1 will ensure
 # that you don't need to buffer in memory, but you won't get the best performance.
 concurrent-shard-query-limit = 10
-
-# The server will check this often for shards that have expired and should be cleared.
-retention-sweep-period = "10000u"
 
 [wal]
 

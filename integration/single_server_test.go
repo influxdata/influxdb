@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	influxdb "github.com/influxdb/influxdb/client"
 	. "github.com/influxdb/influxdb/integration/helpers"
@@ -788,6 +789,46 @@ func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 	c.Assert(err, IsNil)
 	spaceShards := self.getShardsForSpace("month", shards.All)
 	c.Assert(spaceShards, HasLen, 1)
+}
+
+func (self *SingleServerSuite) TestShardExpiration(c *C) {
+	// makes sure when a shard expires due to retention policy the data
+	// is deleted as well as the metadata
+
+	client := self.server.GetClient("", c)
+	space := &influxdb.ShardSpace{Name: "short", RetentionPolicy: "5s", Database: "db1", Regex: "/^test_shard_expiration/"}
+	err := client.CreateShardSpace(space)
+	c.Assert(err, IsNil)
+
+	self.server.WriteData(`
+[
+  {
+    "name": "test_shard_expiration",
+    "columns": ["time", "val"],
+    "points":[[1307997668000, 1]]
+  }
+]`, c)
+
+	// Make sure the shard exists
+	shards, err := client.GetShards()
+	shardsInSpace := filterShardsInSpace("short", shards.All)
+	c.Assert(shardsInSpace, HasLen, 1)
+
+	time.Sleep(6 * time.Second)
+
+	// Make sure the shard is gone
+	shards, err = client.GetShards()
+	shardsInSpace = filterShardsInSpace("short", shards.All)
+	c.Assert(shardsInSpace, HasLen, 0)
+}
+
+func filterShardsInSpace(spaceName string, shards []*influxdb.Shard) (filteredShards []*influxdb.Shard) {
+	for _, s := range shards {
+		if s.SpaceName == spaceName {
+			filteredShards = append(filteredShards, s)
+		}
+	}
+	return
 }
 
 func (self *SingleServerSuite) getShardsForSpace(name string, shards []*influxdb.Shard) []*influxdb.Shard {
