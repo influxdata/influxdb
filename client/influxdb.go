@@ -21,7 +21,7 @@ type Client struct {
 	host        string
 	username    string
 	password    string
-	Database    string
+	database    string
 	httpClient  *http.Client
 	udpConn     *net.UDPConn
 	schema      string
@@ -394,7 +394,7 @@ func (self *Client) writeSeriesCommon(series []*Series, options map[string]strin
 	if err != nil {
 		return err
 	}
-	url := self.getUrl("/db/" + self.Database + "/series")
+	url := self.getUrl("/db/" + self.database + "/series")
 	for name, value := range options {
 		url += fmt.Sprintf("&%s=%s", name, value)
 	}
@@ -431,7 +431,7 @@ func (self *Client) QueryWithNumbers(query string, precision ...TimePrecision) (
 
 func (self *Client) queryCommon(query string, useNumber bool, precision ...TimePrecision) ([]*Series, error) {
 	escapedQuery := url.QueryEscape(query)
-	url := self.getUrl("/db/" + self.Database + "/series")
+	url := self.getUrl("/db/" + self.database + "/series")
 	if len(precision) > 0 {
 		url += "&time_precision=" + string(precision[0])
 	}
@@ -481,12 +481,12 @@ func (self *Client) AuthenticateClusterAdmin(username, password string) error {
 }
 
 func (self *Client) GetContinuousQueries() ([]map[string]interface{}, error) {
-	url := self.getUrlWithUserAndPass(fmt.Sprintf("/db/%s/continuous_queries", self.Database), self.username, self.password)
+	url := self.getUrlWithUserAndPass(fmt.Sprintf("/db/%s/continuous_queries", self.database), self.username, self.password)
 	return self.listSomething(url)
 }
 
 func (self *Client) DeleteContinuousQueries(id int) error {
-	url := self.getUrlWithUserAndPass(fmt.Sprintf("/db/%s/continuous_queries/%d", self.Database, id), self.username, self.password)
+	url := self.getUrlWithUserAndPass(fmt.Sprintf("/db/%s/continuous_queries/%d", self.database, id), self.username, self.password)
 	resp, err := self.del(url)
 	return responseToError(resp, err, true)
 }

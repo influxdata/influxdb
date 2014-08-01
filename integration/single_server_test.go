@@ -841,7 +841,7 @@ func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
 
-	client := self.server.GetClient("", c)
+	client := self.server.GetClient("test_db_conf_db", c)
 	spaces, err := client.GetShardSpaces()
 	c.Assert(err, IsNil)
 	c.Assert(self.getSpace("test_db_conf_db", "everything", "/.*/", spaces), NotNil)
@@ -850,7 +850,6 @@ func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
 	c.Assert(space.Split, Equals, uint32(3))
 	c.Assert(space.ReplicationFactor, Equals, uint32(2))
 
-	client.Database = "test_db_conf_db"
 	series, err := client.Query("list continuous queries;")
 	c.Assert(err, IsNil)
 	queries := series[0].Points
