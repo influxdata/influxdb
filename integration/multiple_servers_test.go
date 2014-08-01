@@ -944,6 +944,9 @@ func (self *ServerSuite) TestDropShard(c *C) {
 	endSeconds := startSeconds + 3600
 	client := self.serverProcesses[0].GetClient("", c)
 	c.Assert(client.CreateDatabase("test_drop_shard"), IsNil)
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 	space := &influxdb.ShardSpace{Name: "test_drop", RetentionPolicy: "30d", Database: "test_drop_shard", Regex: "/^dont_drop_me_bro/"}
 	c.Assert(client.CreateShardSpace(space), IsNil)
 

@@ -385,7 +385,7 @@ func GetValue(value *C.value) (*Value, error) {
 	v := &Value{}
 	v.Name = C.GoString(value.name)
 	var err error
-	v.Elems, err = GetValueArray(value.args)
+	v.Elems, err = GetValueArray((*C.value_array)(value.args))
 	if err != nil {
 		return nil, err
 	}
@@ -706,7 +706,7 @@ func parseSelectQuery(q *C.select_query) (*SelectQuery, error) {
 	}
 
 	// get the column names
-	goQuery.ColumnNames, err = GetValueArray(q.c)
+	goQuery.ColumnNames, err = GetValueArray((*C.value_array)(q.c))
 	if err != nil {
 		return nil, err
 	}

@@ -1,9 +1,14 @@
-## v0.8.0-rc.4 [unreleased]
+## v0.8.0-rc.4 [2014-07-29]
 
 ### Bugfixes
 
 - [Issue #774](https://github.com/influxdb/influxdb/issues/774). Don't try to parse "inf" shard retention policy
 - [Issue #769](https://github.com/influxdb/influxdb/issues/769). Use retention duration when determining expired shards. (Thanks, @shugo)
+- [Issue #736](https://github.com/influxdb/influxdb/issues/736). Only db admins should be able to drop a series
+- [Issue #713](https://github.com/influxdb/influxdb/issues/713). Null should be a valid fill value
+- [Issue #644](https://github.com/influxdb/influxdb/issues/644). Graphite api should write data in batches to the coordinator
+- [Issue #740](https://github.com/influxdb/influxdb/issues/740). Panic when distinct fields are selected from an inner join
+- [Issue #781](https://github.com/influxdb/influxdb/issues/781). Panic when distinct fields are added after an inner join
 
 ## v0.8.0-rc.3 [2014-07-21]
 

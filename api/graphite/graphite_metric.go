@@ -16,17 +16,18 @@ type GraphiteMetric struct {
 	timestamp    int64
 }
 
+// returns err == io.EOF when we hit EOF without any further data
 func (self *GraphiteMetric) Read(reader *bufio.Reader) error {
 	buf, err := reader.ReadBytes('\n')
 	str := strings.TrimSpace(string(buf))
 	if err != nil {
 		if err != io.EOF {
-			return fmt.Errorf("GraphiteServer: connection closed uncleanly/broken: %s\n", err.Error())
+			return fmt.Errorf("connection closed uncleanly/broken: %s\n", err.Error())
 		}
-		if len(str) > 0 {
-			return fmt.Errorf("GraphiteServer: incomplete read, line read: '%s'. neglecting line because connection closed because of %s\n", str, err.Error())
+		if str == "" {
+			return err
 		}
-		return err
+		// else we got EOF but also data, so just try to process it as valid data
 	}
 	elements := strings.Fields(str)
 	if len(elements) != 3 {

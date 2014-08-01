@@ -209,11 +209,11 @@ func (self *BasicQuery) GetEndTime() time.Time {
 // parse time that matches the following format:
 //   2006-01-02 [15[:04[:05[.000]]]]
 // notice, hour, minute and seconds are optional
-var time_regex *regexp.Regexp
+var timeRegex *regexp.Regexp
 
 func init() {
 	var err error
-	time_regex, err = regexp.Compile(
+	timeRegex, err = regexp.Compile(
 		"^([0-9]{4}|[0-9]{2})-[0-9]{1,2}-[0-9]{1,2}( [0-9]{1,2}(:[0-9]{1,2}(:[0-9]{1,2}?(\\.[0-9]+)?)?)?)?$")
 	if err != nil {
 		panic(err)
@@ -221,7 +221,7 @@ func init() {
 }
 
 func parseTimeString(t string) (*time.Time, error) {
-	submatches := time_regex.FindStringSubmatch(t)
+	submatches := timeRegex.FindStringSubmatch(t)
 	if len(submatches) == 0 {
 		return nil, fmt.Errorf("%s isn't a valid time string", t)
 	}
