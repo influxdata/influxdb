@@ -8,8 +8,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
 
 	influxdb "github.com/influxdb/influxdb/client"
@@ -785,7 +783,7 @@ func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 ]`, c)
 	spaces, err = client.GetShardSpaces()
 	c.Assert(err, IsNil)
-	c.Assert(self.hasSpace("db1", "month", "/^the_dude_abides/", spaces), Equals, true)
+	c.Assert(self.getSpace("db1", "month", "/^the_dude_abides/", spaces), NotNil)
 	shards, err := client.GetShards()
 	c.Assert(err, IsNil)
 	spaceShards := self.getShardsForSpace("month", shards.All)
@@ -802,14 +800,13 @@ func (self *SingleServerSuite) getShardsForSpace(name string, shards []*influxdb
 	return filteredShards
 }
 
-func (self *SingleServerSuite) hasSpace(database, name, regex string, spaces []*influxdb.ShardSpace) bool {
+func (self *SingleServerSuite) getSpace(database, name string, regex string, spaces []*influxdb.ShardSpace) *influxdb.ShardSpace {
 	for _, s := range spaces {
-		fmt.Printf("Checking %#v\n", s)
 		if s.Name == name && s.Database == database && s.Regex == regex {
-			return true
+			return s
 		}
 	}
-	return false
+	return nil
 }
 
 func (self *SingleServerSuite) TestDropShardSpace(c *C) {
@@ -829,28 +826,34 @@ func (self *SingleServerSuite) TestDropShardSpace(c *C) {
 ]`, c)
 	spaces, err := client.GetShardSpaces()
 	c.Assert(err, IsNil)
-	c.Assert(self.hasSpace("db1", spaceName, "/^dont_drop_me_bro/", spaces), Equals, true)
+	c.Assert(self.getSpace("db1", spaceName, "/^dont_drop_me_bro/", spaces), NotNil)
 	err = client.DropShardSpace("db1", spaceName)
 	c.Assert(err, IsNil)
 	spaces, err = client.GetShardSpaces()
 	c.Assert(err, IsNil)
-	c.Assert(self.hasSpace("db1", spaceName, "/^dont_drop_me_bro/", spaces), Equals, false)
+	c.Assert(self.getSpace("db1", spaceName, "/^dont_drop_me_bro/", spaces), IsNil)
 }
 
 func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
-	dir, err := os.Getwd()
-	if err != nil {
-		c.Error(err)
-	}
-	root := filepath.Join(dir, "..")
-	filename := filepath.Join(root, "influxdb")
-	configArg := "-load-database-config"
-	cmd := exec.Command(filename, configArg, "database_conf.json")
-	_, err = cmd.Output()
+	contents, err := ioutil.ReadFile("database_conf.json")
 	c.Assert(err, IsNil)
-	client := self.server.GetClient("", c)
+	resp, err := http.Post("http://localhost:8086/cluster/database_configs/test_db_conf_db?u=root&p=root", "application/json", bytes.NewBuffer(contents))
+	c.Assert(err, IsNil)
+	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
+
+	client := self.server.GetClient("test_db_conf_db", c)
 	spaces, err := client.GetShardSpaces()
 	c.Assert(err, IsNil)
-	c.Assert(self.hasSpace("test_db_conf_db", "specific", "/^something_specficic/", spaces), Equals, true)
-	c.Assert(self.hasSpace("test_db_conf_db", "everything", "/.*/", spaces), Equals, true)
+	c.Assert(self.getSpace("test_db_conf_db", "everything", "/.*/", spaces), NotNil)
+	space := self.getSpace("test_db_conf_db", "specific", "/^something_specfic/", spaces)
+	c.Assert(space, NotNil)
+	c.Assert(space.Split, Equals, uint32(3))
+	c.Assert(space.ReplicationFactor, Equals, uint32(2))
+
+	series, err := client.Query("list continuous queries;")
+	c.Assert(err, IsNil)
+	queries := series[0].Points
+	c.Assert(queries, HasLen, 2)
+	c.Assert(queries[0][2], Equals, "select * from events into events.[id]")
+	c.Assert(queries[1][2], Equals, "select count(value) from events group by time(5m) into 5m.count.events")
 }

@@ -184,7 +184,7 @@ func (self *ClusterConfiguration) PeriodicallyDropShardsWithRetentionPolicies() 
 	go func() {
 		for {
 			time.Sleep(self.config.StorageRetentionSweepPeriod.Duration)
-			log.Debug("Checking for shards to drop")
+			log.Info("Checking for shards to drop")
 			shards := self.getExpiredShards()
 			for _, s := range shards {
 				self.shardStore.DeleteShard(s.id)
