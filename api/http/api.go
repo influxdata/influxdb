@@ -1194,7 +1194,6 @@ func (self *HttpServer) dropShardSpace(w libhttp.ResponseWriter, r *libhttp.Requ
 }
 
 type DatabaseConfig struct {
-	Database          string                `json:"database"`
 	Spaces            []*cluster.ShardSpace `json:"spaces"`
 	ContinuousQueries []string              `json:"continuousQueries"`
 }
@@ -1210,7 +1209,7 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
-		databaseConfig.Database = r.URL.Query().Get(":db")
+		database := r.URL.Query().Get(":db")
 
 		// validate before creating anything
 		for _, queryString := range databaseConfig.ContinuousQueries {
@@ -1225,12 +1224,12 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 			}
 		}
 
-		err = self.coordinator.CreateDatabase(u, databaseConfig.Database)
+		err = self.coordinator.CreateDatabase(u, database)
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
 		for _, space := range databaseConfig.Spaces {
-			space.Database = databaseConfig.Database
+			space.Database = database
 			err = self.raftServer.CreateShardSpace(space)
 			if err != nil {
 				return libhttp.StatusInternalServerError, err.Error()
@@ -1239,7 +1238,7 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 		for _, queryString := range databaseConfig.ContinuousQueries {
 			q, _ := parser.ParseQuery(queryString)
 			for _, query := range q {
-				err := self.coordinator.CreateContinuousQuery(u, databaseConfig.Database, query.QueryString)
+				err := self.coordinator.CreateContinuousQuery(u, database, query.QueryString)
 				if err != nil {
 					return libhttp.StatusInternalServerError, err.Error()
 				}
