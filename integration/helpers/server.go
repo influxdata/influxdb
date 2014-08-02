@@ -41,7 +41,7 @@ func NewServer(configFile string, c *C) *Server {
 }
 
 func newServerCommon(configFile string, deleteData, ssl bool, c *C, args ...string) *Server {
-	config := configuration.LoadConfiguration("../" + configFile)
+	config, _ := configuration.LoadConfiguration("../" + configFile)
 	s := &Server{configFile: configFile, apiPort: config.ApiHttpPort, sslApiPort: config.ApiHttpSslPort, sslOnly: ssl, args: args}
 	if deleteData {
 		c.Assert(os.RemoveAll(config.DataDir), IsNil)
@@ -215,7 +215,7 @@ func (self *Server) SetSslOnly(sslOnly bool) {
 }
 
 func (self *Server) DoesWalExist() error {
-	config := configuration.LoadConfiguration("../" + self.configFile)
+	config, _ := configuration.LoadConfiguration("../" + self.configFile)
 	_, err := os.Stat(filepath.Join(config.WalDir, "log.1"))
 	return err
 }
