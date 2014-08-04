@@ -1,3 +1,7 @@
+## v0.8.0-rc.5 [unreleased]
+
+### Bugfixes
+
 ## v0.8.0-rc.4 [2014-07-29]
 
 ### Bugfixes
