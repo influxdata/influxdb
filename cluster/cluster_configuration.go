@@ -187,7 +187,7 @@ func (self *ClusterConfiguration) PeriodicallyDropShardsWithRetentionPolicies() 
 			log.Info("Checking for shards to drop")
 			shards := self.getExpiredShards()
 			for _, s := range shards {
-				self.shardStore.DeleteShard(s.id)
+				self.DropShard(s.id, s.serverIds)
 			}
 		}
 	}()
