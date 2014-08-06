@@ -29,8 +29,9 @@ type IntoClause struct {
 }
 
 type BasicQuery struct {
-	startTime time.Time
-	endTime   time.Time
+	startTime          time.Time
+	endTime            time.Time
+	startTimeSpecified bool
 }
 
 type SelectDeleteCommonQuery struct {
@@ -681,6 +682,7 @@ func parseSelectDeleteCommonQuery(fromClause *C.from_clause, whereCondition *C.c
 
 	if startTime != nil {
 		goQuery.startTime = *startTime
+		goQuery.startTimeSpecified = true
 	}
 
 	return goQuery, nil
