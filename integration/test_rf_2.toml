@@ -32,6 +32,10 @@ port = 60507
 dir  = "/tmp/influxdb/test/2/raft"
 
 [storage]
+
+# The server will check this often for shards that have expired and should be cleared.
+retention-sweep-period = "1s"
+
 dir = "/tmp/influxdb/test/2/db"
 
 [cluster]
