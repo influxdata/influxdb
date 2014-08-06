@@ -421,7 +421,11 @@ func (s *RaftServer) startRaft() error {
 func (s *RaftServer) raftEventHandler(e raft.Event) {
 	if e.Value() == "leader" {
 		log.Info("(raft:%s) Selected as leader. Starting leader loop.", s.raftServer.Name())
-		go s.raftLeaderLoop(time.NewTicker(1 * time.Second))
+		config := s.clusterConfig.GetLocalConfiguration()
+		retentionSweepPeriod := config.StorageRetentionSweepPeriod.Duration
+		retentionSweepTimer := time.NewTicker(retentionSweepPeriod)
+		go s.raftLeaderLoop(time.NewTicker(1*time.Second),
+			retentionSweepTimer)
 	}
 
 	if e.PrevValue() == "leader" {
@@ -430,12 +434,16 @@ func (s *RaftServer) raftEventHandler(e raft.Event) {
 	}
 }
 
-func (s *RaftServer) raftLeaderLoop(loopTimer *time.Ticker) {
+func (s *RaftServer) raftLeaderLoop(loopTimer *time.Ticker,
+	retentionSweepTimer *time.Ticker) {
 	for {
 		select {
 		case <-loopTimer.C:
 			log.Debug("(raft:%s) Executing leader loop.", s.raftServer.Name())
 			s.checkContinuousQueries()
+			break
+		case <-retentionSweepTimer.C:
+			s.dropShardsWithRetentionPolicies()
 			break
 		case <-s.notLeader:
 			log.Debug("(raft:%s) Exiting leader loop.", s.raftServer.Name())
@@ -489,6 +497,14 @@ func (s *RaftServer) checkContinuousQueries() {
 	if queriesDidRun {
 		s.clusterConfig.SetLastContinuousQueryRunTime(runTime)
 		s.SetContinuousQueryTimestamp(runTime)
+	}
+}
+
+func (s *RaftServer) dropShardsWithRetentionPolicies() {
+	log.Info("Checking for shards to drop")
+	shards := s.clusterConfig.GetExpiredShards()
+	for _, shard := range shards {
+		s.DropShard(shard.Id(), shard.ServerIds())
 	}
 }
 
