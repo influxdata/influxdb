@@ -2,6 +2,8 @@
 
 ### Bugfixes
 
+- [Issue #426](https://github.com/influxdb/influxdb/pull/426). Fill should fill the entire time range that is requested
+
 ## v0.8.0-rc.4 [2014-07-29]
 
 ### Bugfixes
