@@ -101,6 +101,13 @@ func (self *QueryParserSuite) TestGetQueryString(c *C) {
 		c.Assert(actualQuery, HasLen, 1)
 		expectedQuery[0].QueryString = ""
 		actualQuery[0].QueryString = ""
+		if expectedQuery[0].DeleteQuery != nil {
+			expectedQuery[0].DeleteQuery.startTimeSpecified = false
+			actualQuery[0].DeleteQuery.startTimeSpecified = false
+		} else if expectedQuery[0].SelectQuery != nil {
+			expectedQuery[0].SelectQuery.startTimeSpecified = false
+			actualQuery[0].SelectQuery.startTimeSpecified = false
+		}
 
 		c.Assert(actualQuery[0], DeepEquals, expectedQuery[0])
 	}

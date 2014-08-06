@@ -32,6 +32,11 @@ type QueryEngine struct {
 	where            *parser.WhereCondition
 	fillWithZero     bool
 
+	// was start time set in the query, e.g. time > now() - 1d
+	startTimeSpecified bool
+	startTime          int64
+	endTime            int64
+
 	// output fields
 	responseChan   chan *protocol.Response
 	limiter        *Limiter
@@ -356,6 +361,15 @@ func (self *QueryEngine) executeCountQueryWithGroupBy(query *parser.SelectQuery,
 
 	self.fillWithZero = query.GetGroupByClause().FillWithZero
 
+	// This is a special case for issue #426. If the start time is
+	// specified and there's a group by clause and fill with zero, then
+	// we need to fill the entire range from start time to end time
+	if query.IsStartTimeSpecified() && self.duration != nil && self.fillWithZero {
+		self.startTimeSpecified = true
+		self.startTime = query.GetStartTime().Truncate(*self.duration).UnixNano() / 1000
+		self.endTime = query.GetEndTime().Truncate(*self.duration).UnixNano() / 1000
+	}
+
 	self.initializeFields()
 
 	err = self.distributeQuery(query, func(series *protocol.Series) error {
@@ -520,6 +534,9 @@ func (self *QueryEngine) runAggregatesForTable(table string) {
 	var err error
 	if self.duration != nil && self.fillWithZero {
 		timestampRange := state.pointsRange
+		if self.startTimeSpecified {
+			timestampRange = &PointRange{startTime: self.startTime, endTime: self.endTime}
+		}
 
 		// TODO: DRY this
 		if self.query.Ascending {
