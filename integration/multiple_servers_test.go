@@ -147,6 +147,47 @@ func (self *ServerSuite) TestGraphiteUdpInterface(c *C) {
 	c.Assert(series.GetValueForPointAndColumn(1, "value", c), Equals, 100.0)
 }
 
+func (self *ServerSuite) TestShardExpiration(c *C) {
+	// makes sure when a shard expires due to retention policy the data
+	// is deleted as well as the metadata
+
+	client := self.serverProcesses[0].GetClient("", c)
+	client.CreateDatabase("db1")
+	space := &influxdb.ShardSpace{Name: "short", RetentionPolicy: "5s", Database: "db1", Regex: "/^test_shard_expiration/"}
+	err := client.CreateShardSpace(space)
+	c.Assert(err, IsNil)
+
+	self.serverProcesses[0].WriteData(`
+[
+  {
+    "name": "test_shard_expiration",
+    "columns": ["time", "val"],
+    "points":[[1307997668000, 1]]
+  }
+]`, c)
+
+	// Make sure the shard exists
+	shards, err := client.GetShards()
+	shardsInSpace := filterShardsInSpace("short", shards.All)
+	c.Assert(shardsInSpace, HasLen, 1)
+
+	time.Sleep(6 * time.Second)
+
+	// Make sure the shard is gone
+	shards, err = client.GetShards()
+	shardsInSpace = filterShardsInSpace("short", shards.All)
+	c.Assert(shardsInSpace, HasLen, 0)
+}
+
+func filterShardsInSpace(spaceName string, shards []*influxdb.Shard) (filteredShards []*influxdb.Shard) {
+	for _, s := range shards {
+		if s.SpaceName == spaceName {
+			filteredShards = append(filteredShards, s)
+		}
+	}
+	return
+}
+
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
 	data := `
   [{
