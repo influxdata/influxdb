@@ -753,6 +753,29 @@ func (self *SingleServerSuite) TestDuplicateShardsNotCreatedWhenOldShardDropped(
 	}
 }
 
+func (self *SingleServerSuite) TestShardSpaceRegex(c *C) {
+	client := self.server.GetClient("", c)
+	space := &influxdb.ShardSpace{Name: "test_regex", RetentionPolicy: "30d", Database: "db1", Regex: "/^metric\\./"}
+	err := client.CreateShardSpace(space)
+	c.Assert(err, IsNil)
+
+	self.server.WriteData(`
+[
+  {
+    "name": "metric.foobar",
+    "columns": ["time", "val"],
+    "points":[[1307997668000, 1]]
+  }
+]`, c)
+	spaces, err := client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(self.getSpace("db1", "test_regex", "/^metric\\./", spaces), NotNil)
+	shards, err := client.GetShards()
+	c.Assert(err, IsNil)
+	spaceShards := self.getShardsForSpace("test_regex", shards.All)
+	c.Assert(spaceShards, HasLen, 1)
+}
+
 func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 	// creates a default space
 	self.server.WriteData(`
