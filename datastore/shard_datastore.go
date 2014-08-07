@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,7 +23,7 @@ type ShardDatastore struct {
 	baseDbDir      string
 	config         *configuration.Configuration
 	shards         map[uint32]*Shard
-	lastAccess     map[uint32]int64
+	lastAccess     map[uint32]time.Time
 	shardRefCounts map[uint32]int
 	shardsToClose  map[uint32]bool
 	shardsLock     sync.RWMutex
@@ -78,7 +77,7 @@ func NewShardDatastore(config *configuration.Configuration, metaStore *metastore
 		config:         config,
 		shards:         make(map[uint32]*Shard),
 		maxOpenShards:  config.StorageMaxOpenShards,
-		lastAccess:     make(map[uint32]int64),
+		lastAccess:     make(map[uint32]time.Time),
 		shardRefCounts: make(map[uint32]int),
 		shardsToClose:  make(map[uint32]bool),
 		pointBatchSize: config.StoragePointBatchSize,
@@ -147,7 +146,7 @@ func (self *ShardDatastore) getEngine(dir string) (string, error) {
 }
 
 func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, error) {
-	now := time.Now().Unix()
+	now := time.Now()
 	self.shardsLock.Lock()
 	defer self.shardsLock.Unlock()
 	db := self.shards[id]
@@ -258,9 +257,9 @@ func (self *ShardDatastore) shardDir(id uint32) string {
 
 func (self *ShardDatastore) closeOldestShard() {
 	var oldestId uint32
-	oldestAccess := int64(math.MaxInt64)
+	oldestAccess := time.Now()
 	for id, lastAccess := range self.lastAccess {
-		if lastAccess < oldestAccess && self.shardsToClose[id] == false {
+		if lastAccess.Before(oldestAccess) && self.shardsToClose[id] == false {
 			oldestId = id
 			oldestAccess = lastAccess
 		}
