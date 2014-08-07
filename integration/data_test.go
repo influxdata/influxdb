@@ -205,7 +205,7 @@ func (self *DataTestSuite) DifferenceValues(c *C) (Fun, Fun) {
 }
 
 // issue #426
-func (self *DataTestSuite) FilllingEntireRange(c *C) (Fun, Fun) {
+func (self *DataTestSuite) FillingEntireRange(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `
 [
