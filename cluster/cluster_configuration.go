@@ -180,19 +180,6 @@ func (self *ClusterConfiguration) CreateFutureShardsAutomaticallyBeforeTimeComes
 	}()
 }
 
-func (self *ClusterConfiguration) PeriodicallyDropShardsWithRetentionPolicies() {
-	go func() {
-		for {
-			time.Sleep(self.config.StorageRetentionSweepPeriod.Duration)
-			log.Info("Checking for shards to drop")
-			shards := self.getExpiredShards()
-			for _, s := range shards {
-				self.shardStore.DeleteShard(s.id)
-			}
-		}
-	}()
-}
-
 func (self *ClusterConfiguration) allSpaces() []*ShardSpace {
 	self.shardLock.RLock()
 	defer self.shardLock.RUnlock()
@@ -203,7 +190,7 @@ func (self *ClusterConfiguration) allSpaces() []*ShardSpace {
 	return spaces
 }
 
-func (self *ClusterConfiguration) getExpiredShards() []*ShardData {
+func (self *ClusterConfiguration) GetExpiredShards() []*ShardData {
 	self.shardLock.RLock()
 	defer self.shardLock.RUnlock()
 	shards := make([]*ShardData, 0)

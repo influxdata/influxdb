@@ -50,6 +50,8 @@ dir  = "/tmp/influxdb/test/1/raft"
 [storage]
 dir = "/tmp/influxdb/test/1/db"
 
+retention-sweep-period = "1s"
+
 [cluster]
 # A comma separated list of servers to seed
 # this server. this is only relevant when the
