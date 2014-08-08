@@ -34,6 +34,7 @@ type Server struct {
 	stopped        bool
 	writeLog       *wal.WAL
 	shardStore     *datastore.ShardDatastore
+	DataMigrator   *DataMigrator
 }
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
@@ -70,6 +71,9 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	graphiteApi := graphite.NewServer(config, coord, clusterConfig)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
+	// upgrades from 0.7 to later versions require a migration
+	dataMigrator := NewDataMigrator(coord, clusterConfig, config, config.DataDir, "shard_db", metaStore)
+
 	return &Server{
 		RaftServer:     raftServer,
 		ProtobufServer: protobufServer,
@@ -81,7 +85,8 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		Config:         config,
 		RequestHandler: requestHandler,
 		writeLog:       writeLog,
-		shardStore:     shardDb}, nil
+		shardStore:     shardDb,
+		DataMigrator:   dataMigrator}, nil
 }
 
 func (self *Server) ListenAndServe() error {
@@ -187,6 +192,10 @@ func (self *Server) ListenAndServe() error {
 
 	// start processing continuous queries
 	self.RaftServer.StartProcessingContinuousQueries()
+
+	// version 0.7 requires a migration to the new storage format. This is a no-op if the
+	// old files have been migrated
+	go self.DataMigrator.Migrate()
 
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()

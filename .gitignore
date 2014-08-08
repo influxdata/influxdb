@@ -29,7 +29,6 @@ protocol/protocol.pb.go
 build/
 
 # executables
-/server
 /influxdb
 /benchmark-tool
 /main
@@ -58,3 +57,6 @@ config.toml
 /admin
 /admin/
 /data/
+
+# test data files
+integration/migration_data/
