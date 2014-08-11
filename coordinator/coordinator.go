@@ -170,12 +170,23 @@ func (self *CoordinatorImpl) runQuery(querySpec *parser.QuerySpec, seriesWriter 
 }
 
 func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	series := self.clusterConfiguration.MetaStore.GetSeriesForDatabase(querySpec.Database())
+	allSeries := self.clusterConfiguration.MetaStore.GetSeriesForDatabase(querySpec.Database())
+	matchingSeries := allSeries
+	if q := querySpec.Query().GetListSeriesQuery(); q.HasRegex() {
+		matchingSeries = nil
+		regex := q.GetRegex()
+		for _, s := range allSeries {
+			if !regex.MatchString(s) {
+				continue
+			}
+			matchingSeries = append(matchingSeries, s)
+		}
+	}
 	name := "list_series_result"
 	fields := []string{"name"}
-	points := make([]*protocol.Point, len(series), len(series))
+	points := make([]*protocol.Point, len(matchingSeries), len(matchingSeries))
 
-	for i, s := range series {
+	for i, s := range matchingSeries {
 		fieldValues := []*protocol.FieldValue{{StringValue: proto.String(s)}}
 		points[i] = &protocol.Point{Values: fieldValues}
 	}

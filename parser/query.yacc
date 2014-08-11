@@ -75,7 +75,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 %lex-param   {void *scanner}
 
 // define types of tokens (terminals)
-%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES EXPLAIN
+%token          SELECT DELETE FROM WHERE EQUAL GROUP BY LIMIT ORDER ASC DESC MERGE INNER JOIN AS LIST SERIES INTO CONTINUOUS_QUERIES CONTINUOUS_QUERY DROP DROP_SERIES EXPLAIN UNKNOWN
 %token <string> STRING_VALUE INT_VALUE FLOAT_VALUE BOOLEAN_VALUE TABLE_NAME SIMPLE_NAME INTO_NAME REGEX_OP
 %token <string>  NEGATION_REGEX_OP REGEX_STRING INSENSITIVE_REGEX_STRING DURATION
 
@@ -165,7 +165,15 @@ QUERY:
         LIST SERIES
         {
           $$ = calloc(1, sizeof(query));
-          $$->list_series_query = TRUE;
+          $$->list_series_query = calloc(1, sizeof(list_series_query));
+        }
+        |
+        LIST SERIES REGEX_VALUE
+        {
+          $$ = calloc(1, sizeof(query));
+          $$->list_series_query = calloc(1, sizeof(list_series_query));
+          $$->list_series_query->has_regex = TRUE;
+          $$->list_series_query->regex = $3;
         }
         |
         DROP_SERIES_QUERY
