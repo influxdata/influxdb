@@ -166,16 +166,15 @@ func (self *ServerSuite) TestShardExpiration(c *C) {
   }
 ]`, c)
 
-	// Make sure the shard exists
-	shards, err := client.GetShards()
-	shardsInSpace := filterShardsInSpace("short", shards.All)
-	c.Assert(shardsInSpace, HasLen, 1)
-
 	time.Sleep(6 * time.Second)
 
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
+
 	// Make sure the shard is gone
-	shards, err = client.GetShards()
-	shardsInSpace = filterShardsInSpace("short", shards.All)
+	shards, err := client.GetShards()
+	shardsInSpace := filterShardsInSpace("short", shards.All)
 	c.Assert(shardsInSpace, HasLen, 0)
 }
 
