@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"time"
 )
 
 // Parts from this transporter were heavily influenced by Peter Bougon's
@@ -42,7 +43,7 @@ type HTTPMuxer interface {
 //------------------------------------------------------------------------------
 
 // Creates a new HTTP transporter with the given path prefix.
-func NewHTTPTransporter(prefix string) *HTTPTransporter {
+func NewHTTPTransporter(prefix string, timeout time.Duration) *HTTPTransporter {
 	t := &HTTPTransporter{
 		DisableKeepAlives:    false,
 		prefix:               prefix,
@@ -53,6 +54,7 @@ func NewHTTPTransporter(prefix string) *HTTPTransporter {
 		Transport:            &http.Transport{DisableKeepAlives: false},
 	}
 	t.httpClient.Transport = t.Transport
+	t.Transport.ResponseHeaderTimeout = timeout
 	return t
 }
 
@@ -120,7 +122,6 @@ func (t *HTTPTransporter) SendAppendEntriesRequest(server Server, peer *Peer, re
 	url := joinPath(peer.ConnectionString, t.AppendEntriesPath())
 	traceln(server.Name(), "POST", url)
 
-	t.Transport.ResponseHeaderTimeout = server.ElectionTimeout()
 	httpResp, err := t.httpClient.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
 		traceln("transporter.ae.response.error:", err)
@@ -243,6 +244,10 @@ func (t *HTTPTransporter) appendEntriesHandler(server Server) http.HandlerFunc {
 		}
 
 		resp := server.AppendEntries(req)
+		if resp == nil {
+			http.Error(w, "Failed creating response.", http.StatusInternalServerError)
+			return
+		}
 		if _, err := resp.Encode(w); err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
 			return
@@ -262,6 +267,10 @@ func (t *HTTPTransporter) requestVoteHandler(server Server) http.HandlerFunc {
 		}
 
 		resp := server.RequestVote(req)
+		if resp == nil {
+			http.Error(w, "Failed creating response.", http.StatusInternalServerError)
+			return
+		}
 		if _, err := resp.Encode(w); err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
 			return
@@ -281,6 +290,10 @@ func (t *HTTPTransporter) snapshotHandler(server Server) http.HandlerFunc {
 		}
 
 		resp := server.RequestSnapshot(req)
+		if resp == nil {
+			http.Error(w, "Failed creating response.", http.StatusInternalServerError)
+			return
+		}
 		if _, err := resp.Encode(w); err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
 			return
@@ -300,6 +313,10 @@ func (t *HTTPTransporter) snapshotRecoveryHandler(server Server) http.HandlerFun
 		}
 
 		resp := server.SnapshotRecoveryRequest(req)
+		if resp == nil {
+			http.Error(w, "Failed creating response.", http.StatusInternalServerError)
+			return
+		}
 		if _, err := resp.Encode(w); err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
 			return

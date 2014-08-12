@@ -27,6 +27,7 @@ type Log struct {
 	mutex       sync.RWMutex
 	startIndex  uint64 // the index before the first entry in the Log entries
 	startTerm   uint64
+	initialized bool
 }
 
 // The results of the applying a log entry.
@@ -147,7 +148,9 @@ func (l *Log) open(path string) error {
 		if os.IsNotExist(err) {
 			l.file, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0600)
 			debugln("log.open.create ", path)
-
+			if err == nil {
+				l.initialized = true
+			}
 			return err
 		}
 		return err
@@ -187,6 +190,7 @@ func (l *Log) open(path string) error {
 		readBytes += int64(n)
 	}
 	debugln("open.log.recovery number of log ", len(l.entries))
+	l.initialized = true
 	return nil
 }
 
@@ -374,6 +378,15 @@ func (l *Log) setCommitIndex(index uint64) error {
 		if entry.event != nil {
 			entry.event.returnValue = returnValue
 			entry.event.c <- err
+		}
+
+		_, isJoinCommand := command.(JoinCommand)
+
+		// we can only commit up to the most recent join command
+		// if there is a join in this batch of commands.
+		// after this commit, we need to recalculate the majority.
+		if isJoinCommand {
+			return nil
 		}
 	}
 	return nil
