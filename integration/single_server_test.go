@@ -106,6 +106,42 @@ func (self *SingleServerSuite) TestDroppingSeries(c *C) {
 	c.Assert(maps[0]["column1"], Equals, 1.0)
 }
 
+// issue #376
+func (self *SingleServerSuite) TestListSeriesRegex(c *C) {
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase("test_list_series_regex"), IsNil)
+	c.Assert(client.CreateDatabaseUser("test_list_series_regex", "user", "pass"), IsNil)
+	user := self.server.GetClientWithUser("test_list_series_regex", "user", "pass", c)
+	for _, n := range []string{"foo1", "foo2", "foobar"} {
+		err := user.WriteSeries([]*influxdb.Series{{
+			Name:    n,
+			Columns: []string{"column1"},
+			Points:  [][]interface{}{{1}},
+		}})
+		c.Assert(err, IsNil)
+	}
+
+	for _, r := range []string{"/Foo\\d+/i", "/foo\\d+/"} {
+		s, err := user.Query(fmt.Sprintf("list series %s", r))
+		c.Assert(err, IsNil)
+		c.Assert(s, HasLen, 1)
+		maps := ToMap(s[0])
+		c.Assert(maps, HasLen, 2)
+		names := map[string]bool{}
+		for _, p := range maps {
+			names[p["name"].(string)] = true
+		}
+		c.Assert(names["foo1"], Equals, true)
+		c.Assert(names["foo2"], Equals, true)
+	}
+
+	s, err := user.Query("list series")
+	c.Assert(err, IsNil)
+	c.Assert(s, HasLen, 1)
+	maps := ToMap(s[0])
+	c.Assert(maps, HasLen, 3)
+}
+
 // pr #483
 func (self *SingleServerSuite) TestConflictStatusCode(c *C) {
 	client := self.server.GetClient("", c)
