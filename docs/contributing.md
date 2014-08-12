@@ -21,13 +21,14 @@ Getting go
 
 I recommend using gvm which is a go version manager. For instructions
 on how to install see
-[gvm page on github](https://github.com/moovweb/gvm)
+[gvm page on github](https://github.com/moovweb/gvm). InfluxDB
+currently works with go 1.3 and newer version only.
 
 After installing gvm you can install and set the default go version by
 running the following:
 
-    gvm install go1.2.1
-    gvm use go1.2.1 --default
+    gvm install go1.3
+    gvm use go1.3 --default
 
 Project structure
 -----------------
