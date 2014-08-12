@@ -2,34 +2,50 @@
 // source: append_entries_request.proto
 // DO NOT EDIT!
 
+/*
+	Package protobuf is a generated protocol buffer package.
+
+	It is generated from these files:
+		append_entries_request.proto
+		append_entries_responses.proto
+		log_entry.proto
+		request_vote_request.proto
+		request_vote_responses.proto
+		snapshot_recovery_request.proto
+		snapshot_recovery_response.proto
+		snapshot_request.proto
+		snapshot_response.proto
+
+	It has these top-level messages:
+		AppendEntriesRequest
+*/
 package protobuf
 
 import proto "code.google.com/p/gogoprotobuf/proto"
-import json "encoding/json"
 import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
 import io1 "io"
+import fmt4 "fmt"
 import code_google_com_p_gogoprotobuf_proto2 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt3 "fmt"
+import fmt5 "fmt"
 import strings2 "strings"
 import reflect2 "reflect"
 
-import fmt4 "fmt"
+import fmt6 "fmt"
 import strings3 "strings"
 import code_google_com_p_gogoprotobuf_proto3 "code.google.com/p/gogoprotobuf/proto"
 import sort1 "sort"
 import strconv1 "strconv"
 import reflect3 "reflect"
 
-import fmt5 "fmt"
+import fmt7 "fmt"
 import bytes1 "bytes"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type AppendEntriesRequest struct {
@@ -110,7 +126,7 @@ func (m *AppendEntriesRequest) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt4.Errorf("proto: wrong wireType = %d for field Term", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -127,7 +143,7 @@ func (m *AppendEntriesRequest) Unmarshal(data []byte) error {
 			m.Term = &v
 		case 2:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt4.Errorf("proto: wrong wireType = %d for field PrevLogIndex", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -144,7 +160,7 @@ func (m *AppendEntriesRequest) Unmarshal(data []byte) error {
 			m.PrevLogIndex = &v
 		case 3:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt4.Errorf("proto: wrong wireType = %d for field PrevLogTerm", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -161,7 +177,7 @@ func (m *AppendEntriesRequest) Unmarshal(data []byte) error {
 			m.PrevLogTerm = &v
 		case 4:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt4.Errorf("proto: wrong wireType = %d for field CommitIndex", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -178,7 +194,7 @@ func (m *AppendEntriesRequest) Unmarshal(data []byte) error {
 			m.CommitIndex = &v
 		case 5:
 			if wireType != 2 {
-				return proto.ErrWrongType
+				return fmt4.Errorf("proto: wrong wireType = %d for field LeaderName", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -201,7 +217,7 @@ func (m *AppendEntriesRequest) Unmarshal(data []byte) error {
 			index = postIndex
 		case 6:
 			if wireType != 2 {
-				return proto.ErrWrongType
+				return fmt4.Errorf("proto: wrong wireType = %d for field Entries", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -236,6 +252,9 @@ func (m *AppendEntriesRequest) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
+			if (index + skippy) > l {
+				return io1.ErrUnexpectedEOF
+			}
 			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
 			index += skippy
 		}
@@ -252,8 +271,8 @@ func (this *AppendEntriesRequest) String() string {
 		`PrevLogTerm:` + valueToStringAppendEntriesRequest(this.PrevLogTerm) + `,`,
 		`CommitIndex:` + valueToStringAppendEntriesRequest(this.CommitIndex) + `,`,
 		`LeaderName:` + valueToStringAppendEntriesRequest(this.LeaderName) + `,`,
-		`Entries:` + strings2.Replace(fmt3.Sprintf("%v", this.Entries), "LogEntry", "LogEntry", 1) + `,`,
-		`XXX_unrecognized:` + fmt3.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`Entries:` + strings2.Replace(fmt5.Sprintf("%v", this.Entries), "LogEntry", "LogEntry", 1) + `,`,
+		`XXX_unrecognized:` + fmt5.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -264,7 +283,7 @@ func valueToStringAppendEntriesRequest(v interface{}) string {
 		return "nil"
 	}
 	pv := reflect2.Indirect(rv).Interface()
-	return fmt3.Sprintf("*%v", pv)
+	return fmt5.Sprintf("*%v", pv)
 }
 func (m *AppendEntriesRequest) Size() (n int) {
 	var l int
@@ -308,7 +327,6 @@ func sovAppendEntriesRequest(x uint64) (n int) {
 	return n
 }
 func sozAppendEntriesRequest(x uint64) (n int) {
-	return sovAppendEntriesRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovAppendEntriesRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
 func NewPopulatedAppendEntriesRequest(r randyAppendEntriesRequest, easy bool) *AppendEntriesRequest {
@@ -377,7 +395,11 @@ func randFieldAppendEntriesRequest(data []byte, r randyAppendEntriesRequest, fie
 	switch wire {
 	case 0:
 		data = encodeVarintPopulateAppendEntriesRequest(data, uint64(key))
-		data = encodeVarintPopulateAppendEntriesRequest(data, uint64(r.Int63()))
+		v8 := r.Int63()
+		if r.Intn(2) == 0 {
+			v8 *= -1
+		}
+		data = encodeVarintPopulateAppendEntriesRequest(data, uint64(v8))
 	case 1:
 		data = encodeVarintPopulateAppendEntriesRequest(data, uint64(key))
 		data = append(data, byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)))
@@ -491,7 +513,7 @@ func (this *AppendEntriesRequest) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings3.Join([]string{`&protobuf.AppendEntriesRequest{` + `Term:` + valueToGoStringAppendEntriesRequest(this.Term, "uint64"), `PrevLogIndex:` + valueToGoStringAppendEntriesRequest(this.PrevLogIndex, "uint64"), `PrevLogTerm:` + valueToGoStringAppendEntriesRequest(this.PrevLogTerm, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesRequest(this.CommitIndex, "uint64"), `LeaderName:` + valueToGoStringAppendEntriesRequest(this.LeaderName, "string"), `Entries:` + fmt4.Sprintf("%#v", this.Entries), `XXX_unrecognized:` + fmt4.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings3.Join([]string{`&protobuf.AppendEntriesRequest{` + `Term:` + valueToGoStringAppendEntriesRequest(this.Term, "uint64"), `PrevLogIndex:` + valueToGoStringAppendEntriesRequest(this.PrevLogIndex, "uint64"), `PrevLogTerm:` + valueToGoStringAppendEntriesRequest(this.PrevLogTerm, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesRequest(this.CommitIndex, "uint64"), `LeaderName:` + valueToGoStringAppendEntriesRequest(this.LeaderName, "string"), `Entries:` + fmt6.Sprintf("%#v", this.Entries), `XXX_unrecognized:` + fmt6.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringAppendEntriesRequest(v interface{}, typ string) string {
@@ -500,7 +522,7 @@ func valueToGoStringAppendEntriesRequest(v interface{}, typ string) string {
 		return "nil"
 	}
 	pv := reflect3.Indirect(rv).Interface()
-	return fmt4.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	return fmt6.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
 func extensionToGoStringAppendEntriesRequest(e map[int32]code_google_com_p_gogoprotobuf_proto3.Extension) string {
 	if e == nil {
@@ -524,76 +546,76 @@ func (this *AppendEntriesRequest) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt5.Errorf("that == nil && this != nil")
+		return fmt7.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*AppendEntriesRequest)
 	if !ok {
-		return fmt5.Errorf("that is not of type *AppendEntriesRequest")
+		return fmt7.Errorf("that is not of type *AppendEntriesRequest")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt5.Errorf("that is type *AppendEntriesRequest but is nil && this != nil")
+		return fmt7.Errorf("that is type *AppendEntriesRequest but is nil && this != nil")
 	} else if this == nil {
-		return fmt5.Errorf("that is type *AppendEntriesRequestbut is not nil && this == nil")
+		return fmt7.Errorf("that is type *AppendEntriesRequestbut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
-			return fmt5.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
+			return fmt7.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
 		}
 	} else if this.Term != nil {
-		return fmt5.Errorf("this.Term == nil && that.Term != nil")
+		return fmt7.Errorf("this.Term == nil && that.Term != nil")
 	} else if that1.Term != nil {
-		return fmt5.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
+		return fmt7.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
 	}
 	if this.PrevLogIndex != nil && that1.PrevLogIndex != nil {
 		if *this.PrevLogIndex != *that1.PrevLogIndex {
-			return fmt5.Errorf("PrevLogIndex this(%v) Not Equal that(%v)", *this.PrevLogIndex, *that1.PrevLogIndex)
+			return fmt7.Errorf("PrevLogIndex this(%v) Not Equal that(%v)", *this.PrevLogIndex, *that1.PrevLogIndex)
 		}
 	} else if this.PrevLogIndex != nil {
-		return fmt5.Errorf("this.PrevLogIndex == nil && that.PrevLogIndex != nil")
+		return fmt7.Errorf("this.PrevLogIndex == nil && that.PrevLogIndex != nil")
 	} else if that1.PrevLogIndex != nil {
-		return fmt5.Errorf("PrevLogIndex this(%v) Not Equal that(%v)", this.PrevLogIndex, that1.PrevLogIndex)
+		return fmt7.Errorf("PrevLogIndex this(%v) Not Equal that(%v)", this.PrevLogIndex, that1.PrevLogIndex)
 	}
 	if this.PrevLogTerm != nil && that1.PrevLogTerm != nil {
 		if *this.PrevLogTerm != *that1.PrevLogTerm {
-			return fmt5.Errorf("PrevLogTerm this(%v) Not Equal that(%v)", *this.PrevLogTerm, *that1.PrevLogTerm)
+			return fmt7.Errorf("PrevLogTerm this(%v) Not Equal that(%v)", *this.PrevLogTerm, *that1.PrevLogTerm)
 		}
 	} else if this.PrevLogTerm != nil {
-		return fmt5.Errorf("this.PrevLogTerm == nil && that.PrevLogTerm != nil")
+		return fmt7.Errorf("this.PrevLogTerm == nil && that.PrevLogTerm != nil")
 	} else if that1.PrevLogTerm != nil {
-		return fmt5.Errorf("PrevLogTerm this(%v) Not Equal that(%v)", this.PrevLogTerm, that1.PrevLogTerm)
+		return fmt7.Errorf("PrevLogTerm this(%v) Not Equal that(%v)", this.PrevLogTerm, that1.PrevLogTerm)
 	}
 	if this.CommitIndex != nil && that1.CommitIndex != nil {
 		if *this.CommitIndex != *that1.CommitIndex {
-			return fmt5.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
+			return fmt7.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
 		}
 	} else if this.CommitIndex != nil {
-		return fmt5.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
+		return fmt7.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
 	} else if that1.CommitIndex != nil {
-		return fmt5.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
+		return fmt7.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
 	}
 	if this.LeaderName != nil && that1.LeaderName != nil {
 		if *this.LeaderName != *that1.LeaderName {
-			return fmt5.Errorf("LeaderName this(%v) Not Equal that(%v)", *this.LeaderName, *that1.LeaderName)
+			return fmt7.Errorf("LeaderName this(%v) Not Equal that(%v)", *this.LeaderName, *that1.LeaderName)
 		}
 	} else if this.LeaderName != nil {
-		return fmt5.Errorf("this.LeaderName == nil && that.LeaderName != nil")
+		return fmt7.Errorf("this.LeaderName == nil && that.LeaderName != nil")
 	} else if that1.LeaderName != nil {
-		return fmt5.Errorf("LeaderName this(%v) Not Equal that(%v)", this.LeaderName, that1.LeaderName)
+		return fmt7.Errorf("LeaderName this(%v) Not Equal that(%v)", this.LeaderName, that1.LeaderName)
 	}
 	if len(this.Entries) != len(that1.Entries) {
-		return fmt5.Errorf("Entries this(%v) Not Equal that(%v)", len(this.Entries), len(that1.Entries))
+		return fmt7.Errorf("Entries this(%v) Not Equal that(%v)", len(this.Entries), len(that1.Entries))
 	}
 	for i := range this.Entries {
 		if !this.Entries[i].Equal(that1.Entries[i]) {
-			return fmt5.Errorf("Entries this[%v](%v) Not Equal that[%v](%v)", i, this.Entries[i], i, that1.Entries[i])
+			return fmt7.Errorf("Entries this[%v](%v) Not Equal that[%v](%v)", i, this.Entries[i], i, that1.Entries[i])
 		}
 	}
 	if !bytes1.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt5.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+		return fmt7.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }

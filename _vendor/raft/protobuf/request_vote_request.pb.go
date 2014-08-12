@@ -5,31 +5,30 @@
 package protobuf
 
 import proto "code.google.com/p/gogoprotobuf/proto"
-import json "encoding/json"
 import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
 import io3 "io"
+import fmt12 "fmt"
 import code_google_com_p_gogoprotobuf_proto6 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt9 "fmt"
+import fmt13 "fmt"
 import strings6 "strings"
 import reflect6 "reflect"
 
-import fmt10 "fmt"
+import fmt14 "fmt"
 import strings7 "strings"
 import code_google_com_p_gogoprotobuf_proto7 "code.google.com/p/gogoprotobuf/proto"
 import sort3 "sort"
 import strconv3 "strconv"
 import reflect7 "reflect"
 
-import fmt11 "fmt"
+import fmt15 "fmt"
 import bytes3 "bytes"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type RequestVoteRequest struct {
@@ -94,7 +93,7 @@ func (m *RequestVoteRequest) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt12.Errorf("proto: wrong wireType = %d for field Term", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -111,7 +110,7 @@ func (m *RequestVoteRequest) Unmarshal(data []byte) error {
 			m.Term = &v
 		case 2:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt12.Errorf("proto: wrong wireType = %d for field LastLogIndex", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -128,7 +127,7 @@ func (m *RequestVoteRequest) Unmarshal(data []byte) error {
 			m.LastLogIndex = &v
 		case 3:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt12.Errorf("proto: wrong wireType = %d for field LastLogTerm", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -145,7 +144,7 @@ func (m *RequestVoteRequest) Unmarshal(data []byte) error {
 			m.LastLogTerm = &v
 		case 4:
 			if wireType != 2 {
-				return proto.ErrWrongType
+				return fmt12.Errorf("proto: wrong wireType = %d for field CandidateName", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -180,6 +179,9 @@ func (m *RequestVoteRequest) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
+			if (index + skippy) > l {
+				return io3.ErrUnexpectedEOF
+			}
 			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
 			index += skippy
 		}
@@ -195,7 +197,7 @@ func (this *RequestVoteRequest) String() string {
 		`LastLogIndex:` + valueToStringRequestVoteRequest(this.LastLogIndex) + `,`,
 		`LastLogTerm:` + valueToStringRequestVoteRequest(this.LastLogTerm) + `,`,
 		`CandidateName:` + valueToStringRequestVoteRequest(this.CandidateName) + `,`,
-		`XXX_unrecognized:` + fmt9.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt13.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -206,7 +208,7 @@ func valueToStringRequestVoteRequest(v interface{}) string {
 		return "nil"
 	}
 	pv := reflect6.Indirect(rv).Interface()
-	return fmt9.Sprintf("*%v", pv)
+	return fmt13.Sprintf("*%v", pv)
 }
 func (m *RequestVoteRequest) Size() (n int) {
 	var l int
@@ -241,7 +243,6 @@ func sovRequestVoteRequest(x uint64) (n int) {
 	return n
 }
 func sozRequestVoteRequest(x uint64) (n int) {
-	return sovRequestVoteRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovRequestVoteRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
 func NewPopulatedRequestVoteRequest(r randyRequestVoteRequest, easy bool) *RequestVoteRequest {
@@ -301,7 +302,11 @@ func randFieldRequestVoteRequest(data []byte, r randyRequestVoteRequest, fieldNu
 	switch wire {
 	case 0:
 		data = encodeVarintPopulateRequestVoteRequest(data, uint64(key))
-		data = encodeVarintPopulateRequestVoteRequest(data, uint64(r.Int63()))
+		v6 := r.Int63()
+		if r.Intn(2) == 0 {
+			v6 *= -1
+		}
+		data = encodeVarintPopulateRequestVoteRequest(data, uint64(v6))
 	case 1:
 		data = encodeVarintPopulateRequestVoteRequest(data, uint64(key))
 		data = append(data, byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)))
@@ -398,7 +403,7 @@ func (this *RequestVoteRequest) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings7.Join([]string{`&protobuf.RequestVoteRequest{` + `Term:` + valueToGoStringRequestVoteRequest(this.Term, "uint64"), `LastLogIndex:` + valueToGoStringRequestVoteRequest(this.LastLogIndex, "uint64"), `LastLogTerm:` + valueToGoStringRequestVoteRequest(this.LastLogTerm, "uint64"), `CandidateName:` + valueToGoStringRequestVoteRequest(this.CandidateName, "string"), `XXX_unrecognized:` + fmt10.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings7.Join([]string{`&protobuf.RequestVoteRequest{` + `Term:` + valueToGoStringRequestVoteRequest(this.Term, "uint64"), `LastLogIndex:` + valueToGoStringRequestVoteRequest(this.LastLogIndex, "uint64"), `LastLogTerm:` + valueToGoStringRequestVoteRequest(this.LastLogTerm, "uint64"), `CandidateName:` + valueToGoStringRequestVoteRequest(this.CandidateName, "string"), `XXX_unrecognized:` + fmt14.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringRequestVoteRequest(v interface{}, typ string) string {
@@ -407,7 +412,7 @@ func valueToGoStringRequestVoteRequest(v interface{}, typ string) string {
 		return "nil"
 	}
 	pv := reflect7.Indirect(rv).Interface()
-	return fmt10.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	return fmt14.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
 func extensionToGoStringRequestVoteRequest(e map[int32]code_google_com_p_gogoprotobuf_proto7.Extension) string {
 	if e == nil {
@@ -431,59 +436,59 @@ func (this *RequestVoteRequest) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt11.Errorf("that == nil && this != nil")
+		return fmt15.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*RequestVoteRequest)
 	if !ok {
-		return fmt11.Errorf("that is not of type *RequestVoteRequest")
+		return fmt15.Errorf("that is not of type *RequestVoteRequest")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt11.Errorf("that is type *RequestVoteRequest but is nil && this != nil")
+		return fmt15.Errorf("that is type *RequestVoteRequest but is nil && this != nil")
 	} else if this == nil {
-		return fmt11.Errorf("that is type *RequestVoteRequestbut is not nil && this == nil")
+		return fmt15.Errorf("that is type *RequestVoteRequestbut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
-			return fmt11.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
+			return fmt15.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
 		}
 	} else if this.Term != nil {
-		return fmt11.Errorf("this.Term == nil && that.Term != nil")
+		return fmt15.Errorf("this.Term == nil && that.Term != nil")
 	} else if that1.Term != nil {
-		return fmt11.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
+		return fmt15.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
 	}
 	if this.LastLogIndex != nil && that1.LastLogIndex != nil {
 		if *this.LastLogIndex != *that1.LastLogIndex {
-			return fmt11.Errorf("LastLogIndex this(%v) Not Equal that(%v)", *this.LastLogIndex, *that1.LastLogIndex)
+			return fmt15.Errorf("LastLogIndex this(%v) Not Equal that(%v)", *this.LastLogIndex, *that1.LastLogIndex)
 		}
 	} else if this.LastLogIndex != nil {
-		return fmt11.Errorf("this.LastLogIndex == nil && that.LastLogIndex != nil")
+		return fmt15.Errorf("this.LastLogIndex == nil && that.LastLogIndex != nil")
 	} else if that1.LastLogIndex != nil {
-		return fmt11.Errorf("LastLogIndex this(%v) Not Equal that(%v)", this.LastLogIndex, that1.LastLogIndex)
+		return fmt15.Errorf("LastLogIndex this(%v) Not Equal that(%v)", this.LastLogIndex, that1.LastLogIndex)
 	}
 	if this.LastLogTerm != nil && that1.LastLogTerm != nil {
 		if *this.LastLogTerm != *that1.LastLogTerm {
-			return fmt11.Errorf("LastLogTerm this(%v) Not Equal that(%v)", *this.LastLogTerm, *that1.LastLogTerm)
+			return fmt15.Errorf("LastLogTerm this(%v) Not Equal that(%v)", *this.LastLogTerm, *that1.LastLogTerm)
 		}
 	} else if this.LastLogTerm != nil {
-		return fmt11.Errorf("this.LastLogTerm == nil && that.LastLogTerm != nil")
+		return fmt15.Errorf("this.LastLogTerm == nil && that.LastLogTerm != nil")
 	} else if that1.LastLogTerm != nil {
-		return fmt11.Errorf("LastLogTerm this(%v) Not Equal that(%v)", this.LastLogTerm, that1.LastLogTerm)
+		return fmt15.Errorf("LastLogTerm this(%v) Not Equal that(%v)", this.LastLogTerm, that1.LastLogTerm)
 	}
 	if this.CandidateName != nil && that1.CandidateName != nil {
 		if *this.CandidateName != *that1.CandidateName {
-			return fmt11.Errorf("CandidateName this(%v) Not Equal that(%v)", *this.CandidateName, *that1.CandidateName)
+			return fmt15.Errorf("CandidateName this(%v) Not Equal that(%v)", *this.CandidateName, *that1.CandidateName)
 		}
 	} else if this.CandidateName != nil {
-		return fmt11.Errorf("this.CandidateName == nil && that.CandidateName != nil")
+		return fmt15.Errorf("this.CandidateName == nil && that.CandidateName != nil")
 	} else if that1.CandidateName != nil {
-		return fmt11.Errorf("CandidateName this(%v) Not Equal that(%v)", this.CandidateName, that1.CandidateName)
+		return fmt15.Errorf("CandidateName this(%v) Not Equal that(%v)", this.CandidateName, that1.CandidateName)
 	}
 	if !bytes3.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt11.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+		return fmt15.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }

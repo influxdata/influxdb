@@ -5,31 +5,30 @@
 package protobuf
 
 import proto "code.google.com/p/gogoprotobuf/proto"
-import json "encoding/json"
 import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
 import io2 "io"
+import fmt8 "fmt"
 import code_google_com_p_gogoprotobuf_proto4 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt6 "fmt"
+import fmt9 "fmt"
 import strings4 "strings"
 import reflect4 "reflect"
 
-import fmt7 "fmt"
+import fmt10 "fmt"
 import strings5 "strings"
 import code_google_com_p_gogoprotobuf_proto5 "code.google.com/p/gogoprotobuf/proto"
 import sort2 "sort"
 import strconv2 "strconv"
 import reflect5 "reflect"
 
-import fmt8 "fmt"
+import fmt11 "fmt"
 import bytes2 "bytes"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type AppendEntriesResponse struct {
@@ -94,7 +93,7 @@ func (m *AppendEntriesResponse) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt8.Errorf("proto: wrong wireType = %d for field Term", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -111,7 +110,7 @@ func (m *AppendEntriesResponse) Unmarshal(data []byte) error {
 			m.Term = &v
 		case 2:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt8.Errorf("proto: wrong wireType = %d for field Index", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -128,7 +127,7 @@ func (m *AppendEntriesResponse) Unmarshal(data []byte) error {
 			m.Index = &v
 		case 3:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt8.Errorf("proto: wrong wireType = %d for field CommitIndex", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -145,7 +144,7 @@ func (m *AppendEntriesResponse) Unmarshal(data []byte) error {
 			m.CommitIndex = &v
 		case 4:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt8.Errorf("proto: wrong wireType = %d for field Success", wireType)
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
@@ -175,6 +174,9 @@ func (m *AppendEntriesResponse) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
+			if (index + skippy) > l {
+				return io2.ErrUnexpectedEOF
+			}
 			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
 			index += skippy
 		}
@@ -190,7 +192,7 @@ func (this *AppendEntriesResponse) String() string {
 		`Index:` + valueToStringAppendEntriesResponses(this.Index) + `,`,
 		`CommitIndex:` + valueToStringAppendEntriesResponses(this.CommitIndex) + `,`,
 		`Success:` + valueToStringAppendEntriesResponses(this.Success) + `,`,
-		`XXX_unrecognized:` + fmt6.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt9.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -201,7 +203,7 @@ func valueToStringAppendEntriesResponses(v interface{}) string {
 		return "nil"
 	}
 	pv := reflect4.Indirect(rv).Interface()
-	return fmt6.Sprintf("*%v", pv)
+	return fmt9.Sprintf("*%v", pv)
 }
 func (m *AppendEntriesResponse) Size() (n int) {
 	var l int
@@ -235,7 +237,6 @@ func sovAppendEntriesResponses(x uint64) (n int) {
 	return n
 }
 func sozAppendEntriesResponses(x uint64) (n int) {
-	return sovAppendEntriesResponses(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovAppendEntriesResponses(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
 func NewPopulatedAppendEntriesResponse(r randyAppendEntriesResponses, easy bool) *AppendEntriesResponse {
@@ -295,7 +296,11 @@ func randFieldAppendEntriesResponses(data []byte, r randyAppendEntriesResponses,
 	switch wire {
 	case 0:
 		data = encodeVarintPopulateAppendEntriesResponses(data, uint64(key))
-		data = encodeVarintPopulateAppendEntriesResponses(data, uint64(r.Int63()))
+		v6 := r.Int63()
+		if r.Intn(2) == 0 {
+			v6 *= -1
+		}
+		data = encodeVarintPopulateAppendEntriesResponses(data, uint64(v6))
 	case 1:
 		data = encodeVarintPopulateAppendEntriesResponses(data, uint64(key))
 		data = append(data, byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)))
@@ -396,7 +401,7 @@ func (this *AppendEntriesResponse) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings5.Join([]string{`&protobuf.AppendEntriesResponse{` + `Term:` + valueToGoStringAppendEntriesResponses(this.Term, "uint64"), `Index:` + valueToGoStringAppendEntriesResponses(this.Index, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesResponses(this.CommitIndex, "uint64"), `Success:` + valueToGoStringAppendEntriesResponses(this.Success, "bool"), `XXX_unrecognized:` + fmt7.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings5.Join([]string{`&protobuf.AppendEntriesResponse{` + `Term:` + valueToGoStringAppendEntriesResponses(this.Term, "uint64"), `Index:` + valueToGoStringAppendEntriesResponses(this.Index, "uint64"), `CommitIndex:` + valueToGoStringAppendEntriesResponses(this.CommitIndex, "uint64"), `Success:` + valueToGoStringAppendEntriesResponses(this.Success, "bool"), `XXX_unrecognized:` + fmt10.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringAppendEntriesResponses(v interface{}, typ string) string {
@@ -405,7 +410,7 @@ func valueToGoStringAppendEntriesResponses(v interface{}, typ string) string {
 		return "nil"
 	}
 	pv := reflect5.Indirect(rv).Interface()
-	return fmt7.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	return fmt10.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
 func extensionToGoStringAppendEntriesResponses(e map[int32]code_google_com_p_gogoprotobuf_proto5.Extension) string {
 	if e == nil {
@@ -429,59 +434,59 @@ func (this *AppendEntriesResponse) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt8.Errorf("that == nil && this != nil")
+		return fmt11.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*AppendEntriesResponse)
 	if !ok {
-		return fmt8.Errorf("that is not of type *AppendEntriesResponse")
+		return fmt11.Errorf("that is not of type *AppendEntriesResponse")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt8.Errorf("that is type *AppendEntriesResponse but is nil && this != nil")
+		return fmt11.Errorf("that is type *AppendEntriesResponse but is nil && this != nil")
 	} else if this == nil {
-		return fmt8.Errorf("that is type *AppendEntriesResponsebut is not nil && this == nil")
+		return fmt11.Errorf("that is type *AppendEntriesResponsebut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
-			return fmt8.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
+			return fmt11.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
 		}
 	} else if this.Term != nil {
-		return fmt8.Errorf("this.Term == nil && that.Term != nil")
+		return fmt11.Errorf("this.Term == nil && that.Term != nil")
 	} else if that1.Term != nil {
-		return fmt8.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
+		return fmt11.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
 	}
 	if this.Index != nil && that1.Index != nil {
 		if *this.Index != *that1.Index {
-			return fmt8.Errorf("Index this(%v) Not Equal that(%v)", *this.Index, *that1.Index)
+			return fmt11.Errorf("Index this(%v) Not Equal that(%v)", *this.Index, *that1.Index)
 		}
 	} else if this.Index != nil {
-		return fmt8.Errorf("this.Index == nil && that.Index != nil")
+		return fmt11.Errorf("this.Index == nil && that.Index != nil")
 	} else if that1.Index != nil {
-		return fmt8.Errorf("Index this(%v) Not Equal that(%v)", this.Index, that1.Index)
+		return fmt11.Errorf("Index this(%v) Not Equal that(%v)", this.Index, that1.Index)
 	}
 	if this.CommitIndex != nil && that1.CommitIndex != nil {
 		if *this.CommitIndex != *that1.CommitIndex {
-			return fmt8.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
+			return fmt11.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
 		}
 	} else if this.CommitIndex != nil {
-		return fmt8.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
+		return fmt11.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
 	} else if that1.CommitIndex != nil {
-		return fmt8.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
+		return fmt11.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
 	}
 	if this.Success != nil && that1.Success != nil {
 		if *this.Success != *that1.Success {
-			return fmt8.Errorf("Success this(%v) Not Equal that(%v)", *this.Success, *that1.Success)
+			return fmt11.Errorf("Success this(%v) Not Equal that(%v)", *this.Success, *that1.Success)
 		}
 	} else if this.Success != nil {
-		return fmt8.Errorf("this.Success == nil && that.Success != nil")
+		return fmt11.Errorf("this.Success == nil && that.Success != nil")
 	} else if that1.Success != nil {
-		return fmt8.Errorf("Success this(%v) Not Equal that(%v)", this.Success, that1.Success)
+		return fmt11.Errorf("Success this(%v) Not Equal that(%v)", this.Success, that1.Success)
 	}
 	if !bytes2.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt8.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+		return fmt11.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }

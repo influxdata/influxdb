@@ -363,7 +363,7 @@ func (s *RaftServer) startRaft() error {
 	log.Info("Initializing Raft Server: %s", s.config.RaftConnectionString())
 
 	// Initialize and start Raft server.
-	transporter := raft.NewHTTPTransporter("/raft")
+	transporter := raft.NewHTTPTransporter("/raft", raft.DefaultElectionTimeout)
 	var err error
 	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, s.clusterConfig, s.clusterConfig, "")
 	if err != nil {

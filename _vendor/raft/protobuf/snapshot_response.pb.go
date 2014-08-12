@@ -5,31 +5,30 @@
 package protobuf
 
 import proto "code.google.com/p/gogoprotobuf/proto"
-import json "encoding/json"
 import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
 import io8 "io"
+import fmt32 "fmt"
 import code_google_com_p_gogoprotobuf_proto16 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt24 "fmt"
+import fmt33 "fmt"
 import strings16 "strings"
 import reflect16 "reflect"
 
-import fmt25 "fmt"
+import fmt34 "fmt"
 import strings17 "strings"
 import code_google_com_p_gogoprotobuf_proto17 "code.google.com/p/gogoprotobuf/proto"
 import sort8 "sort"
 import strconv8 "strconv"
 import reflect17 "reflect"
 
-import fmt26 "fmt"
+import fmt35 "fmt"
 import bytes8 "bytes"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type SnapshotResponse struct {
@@ -70,7 +69,7 @@ func (m *SnapshotResponse) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt32.Errorf("proto: wrong wireType = %d for field Success", wireType)
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
@@ -100,6 +99,9 @@ func (m *SnapshotResponse) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
+			if (index + skippy) > l {
+				return io8.ErrUnexpectedEOF
+			}
 			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
 			index += skippy
 		}
@@ -112,7 +114,7 @@ func (this *SnapshotResponse) String() string {
 	}
 	s := strings16.Join([]string{`&SnapshotResponse{`,
 		`Success:` + valueToStringSnapshotResponse(this.Success) + `,`,
-		`XXX_unrecognized:` + fmt24.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt33.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -123,7 +125,7 @@ func valueToStringSnapshotResponse(v interface{}) string {
 		return "nil"
 	}
 	pv := reflect16.Indirect(rv).Interface()
-	return fmt24.Sprintf("*%v", pv)
+	return fmt33.Sprintf("*%v", pv)
 }
 func (m *SnapshotResponse) Size() (n int) {
 	var l int
@@ -148,7 +150,6 @@ func sovSnapshotResponse(x uint64) (n int) {
 	return n
 }
 func sozSnapshotResponse(x uint64) (n int) {
-	return sovSnapshotResponse(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovSnapshotResponse(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
 func NewPopulatedSnapshotResponse(r randySnapshotResponse, easy bool) *SnapshotResponse {
@@ -202,7 +203,11 @@ func randFieldSnapshotResponse(data []byte, r randySnapshotResponse, fieldNumber
 	switch wire {
 	case 0:
 		data = encodeVarintPopulateSnapshotResponse(data, uint64(key))
-		data = encodeVarintPopulateSnapshotResponse(data, uint64(r.Int63()))
+		v3 := r.Int63()
+		if r.Intn(2) == 0 {
+			v3 *= -1
+		}
+		data = encodeVarintPopulateSnapshotResponse(data, uint64(v3))
 	case 1:
 		data = encodeVarintPopulateSnapshotResponse(data, uint64(key))
 		data = append(data, byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)))
@@ -288,7 +293,7 @@ func (this *SnapshotResponse) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings17.Join([]string{`&protobuf.SnapshotResponse{` + `Success:` + valueToGoStringSnapshotResponse(this.Success, "bool"), `XXX_unrecognized:` + fmt25.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings17.Join([]string{`&protobuf.SnapshotResponse{` + `Success:` + valueToGoStringSnapshotResponse(this.Success, "bool"), `XXX_unrecognized:` + fmt34.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringSnapshotResponse(v interface{}, typ string) string {
@@ -297,7 +302,7 @@ func valueToGoStringSnapshotResponse(v interface{}, typ string) string {
 		return "nil"
 	}
 	pv := reflect17.Indirect(rv).Interface()
-	return fmt25.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	return fmt34.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
 func extensionToGoStringSnapshotResponse(e map[int32]code_google_com_p_gogoprotobuf_proto17.Extension) string {
 	if e == nil {
@@ -321,32 +326,32 @@ func (this *SnapshotResponse) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt26.Errorf("that == nil && this != nil")
+		return fmt35.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*SnapshotResponse)
 	if !ok {
-		return fmt26.Errorf("that is not of type *SnapshotResponse")
+		return fmt35.Errorf("that is not of type *SnapshotResponse")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt26.Errorf("that is type *SnapshotResponse but is nil && this != nil")
+		return fmt35.Errorf("that is type *SnapshotResponse but is nil && this != nil")
 	} else if this == nil {
-		return fmt26.Errorf("that is type *SnapshotResponsebut is not nil && this == nil")
+		return fmt35.Errorf("that is type *SnapshotResponsebut is not nil && this == nil")
 	}
 	if this.Success != nil && that1.Success != nil {
 		if *this.Success != *that1.Success {
-			return fmt26.Errorf("Success this(%v) Not Equal that(%v)", *this.Success, *that1.Success)
+			return fmt35.Errorf("Success this(%v) Not Equal that(%v)", *this.Success, *that1.Success)
 		}
 	} else if this.Success != nil {
-		return fmt26.Errorf("this.Success == nil && that.Success != nil")
+		return fmt35.Errorf("this.Success == nil && that.Success != nil")
 	} else if that1.Success != nil {
-		return fmt26.Errorf("Success this(%v) Not Equal that(%v)", this.Success, that1.Success)
+		return fmt35.Errorf("Success this(%v) Not Equal that(%v)", this.Success, that1.Success)
 	}
 	if !bytes8.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt26.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+		return fmt35.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }

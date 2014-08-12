@@ -5,31 +5,30 @@
 package protobuf
 
 import proto "code.google.com/p/gogoprotobuf/proto"
-import json "encoding/json"
 import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
 import io5 "io"
+import fmt20 "fmt"
 import code_google_com_p_gogoprotobuf_proto10 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt15 "fmt"
+import fmt21 "fmt"
 import strings10 "strings"
 import reflect10 "reflect"
 
-import fmt16 "fmt"
+import fmt22 "fmt"
 import strings11 "strings"
 import code_google_com_p_gogoprotobuf_proto11 "code.google.com/p/gogoprotobuf/proto"
 import sort5 "sort"
 import strconv5 "strconv"
 import reflect11 "reflect"
 
-import fmt17 "fmt"
+import fmt23 "fmt"
 import bytes5 "bytes"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type SnapshotRecoveryRequest struct {
@@ -125,7 +124,7 @@ func (m *SnapshotRecoveryRequest) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return proto.ErrWrongType
+				return fmt20.Errorf("proto: wrong wireType = %d for field LeaderName", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -148,7 +147,7 @@ func (m *SnapshotRecoveryRequest) Unmarshal(data []byte) error {
 			index = postIndex
 		case 2:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt20.Errorf("proto: wrong wireType = %d for field LastIndex", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -165,7 +164,7 @@ func (m *SnapshotRecoveryRequest) Unmarshal(data []byte) error {
 			m.LastIndex = &v
 		case 3:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt20.Errorf("proto: wrong wireType = %d for field LastTerm", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -182,7 +181,7 @@ func (m *SnapshotRecoveryRequest) Unmarshal(data []byte) error {
 			m.LastTerm = &v
 		case 4:
 			if wireType != 2 {
-				return proto.ErrWrongType
+				return fmt20.Errorf("proto: wrong wireType = %d for field Peers", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -205,7 +204,7 @@ func (m *SnapshotRecoveryRequest) Unmarshal(data []byte) error {
 			index = postIndex
 		case 5:
 			if wireType != 2 {
-				return proto.ErrWrongType
+				return fmt20.Errorf("proto: wrong wireType = %d for field State", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -239,6 +238,9 @@ func (m *SnapshotRecoveryRequest) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
+			if (index + skippy) > l {
+				return io5.ErrUnexpectedEOF
+			}
 			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
 			index += skippy
 		}
@@ -266,7 +268,7 @@ func (m *SnapshotRecoveryRequest_Peer) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return proto.ErrWrongType
+				return fmt20.Errorf("proto: wrong wireType = %d for field Name", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -289,7 +291,7 @@ func (m *SnapshotRecoveryRequest_Peer) Unmarshal(data []byte) error {
 			index = postIndex
 		case 2:
 			if wireType != 2 {
-				return proto.ErrWrongType
+				return fmt20.Errorf("proto: wrong wireType = %d for field ConnectionString", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -324,6 +326,9 @@ func (m *SnapshotRecoveryRequest_Peer) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
+			if (index + skippy) > l {
+				return io5.ErrUnexpectedEOF
+			}
 			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
 			index += skippy
 		}
@@ -338,9 +343,9 @@ func (this *SnapshotRecoveryRequest) String() string {
 		`LeaderName:` + valueToStringSnapshotRecoveryRequest(this.LeaderName) + `,`,
 		`LastIndex:` + valueToStringSnapshotRecoveryRequest(this.LastIndex) + `,`,
 		`LastTerm:` + valueToStringSnapshotRecoveryRequest(this.LastTerm) + `,`,
-		`Peers:` + strings10.Replace(fmt15.Sprintf("%v", this.Peers), "SnapshotRecoveryRequest_Peer", "SnapshotRecoveryRequest_Peer", 1) + `,`,
+		`Peers:` + strings10.Replace(fmt21.Sprintf("%v", this.Peers), "SnapshotRecoveryRequest_Peer", "SnapshotRecoveryRequest_Peer", 1) + `,`,
 		`State:` + valueToStringSnapshotRecoveryRequest(this.State) + `,`,
-		`XXX_unrecognized:` + fmt15.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt21.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -352,7 +357,7 @@ func (this *SnapshotRecoveryRequest_Peer) String() string {
 	s := strings10.Join([]string{`&SnapshotRecoveryRequest_Peer{`,
 		`Name:` + valueToStringSnapshotRecoveryRequest(this.Name) + `,`,
 		`ConnectionString:` + valueToStringSnapshotRecoveryRequest(this.ConnectionString) + `,`,
-		`XXX_unrecognized:` + fmt15.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt21.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -363,7 +368,7 @@ func valueToStringSnapshotRecoveryRequest(v interface{}) string {
 		return "nil"
 	}
 	pv := reflect10.Indirect(rv).Interface()
-	return fmt15.Sprintf("*%v", pv)
+	return fmt21.Sprintf("*%v", pv)
 }
 func (m *SnapshotRecoveryRequest) Size() (n int) {
 	var l int
@@ -421,7 +426,6 @@ func sovSnapshotRecoveryRequest(x uint64) (n int) {
 	return n
 }
 func sozSnapshotRecoveryRequest(x uint64) (n int) {
-	return sovSnapshotRecoveryRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovSnapshotRecoveryRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
 func NewPopulatedSnapshotRecoveryRequest(r randySnapshotRecoveryRequest, easy bool) *SnapshotRecoveryRequest {
@@ -503,7 +507,11 @@ func randFieldSnapshotRecoveryRequest(data []byte, r randySnapshotRecoveryReques
 	switch wire {
 	case 0:
 		data = encodeVarintPopulateSnapshotRecoveryRequest(data, uint64(key))
-		data = encodeVarintPopulateSnapshotRecoveryRequest(data, uint64(r.Int63()))
+		v9 := r.Int63()
+		if r.Intn(2) == 0 {
+			v9 *= -1
+		}
+		data = encodeVarintPopulateSnapshotRecoveryRequest(data, uint64(v9))
 	case 1:
 		data = encodeVarintPopulateSnapshotRecoveryRequest(data, uint64(key))
 		data = append(data, byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)))
@@ -645,14 +653,14 @@ func (this *SnapshotRecoveryRequest) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings11.Join([]string{`&protobuf.SnapshotRecoveryRequest{` + `LeaderName:` + valueToGoStringSnapshotRecoveryRequest(this.LeaderName, "string"), `LastIndex:` + valueToGoStringSnapshotRecoveryRequest(this.LastIndex, "uint64"), `LastTerm:` + valueToGoStringSnapshotRecoveryRequest(this.LastTerm, "uint64"), `Peers:` + fmt16.Sprintf("%#v", this.Peers), `State:` + valueToGoStringSnapshotRecoveryRequest(this.State, "byte"), `XXX_unrecognized:` + fmt16.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings11.Join([]string{`&protobuf.SnapshotRecoveryRequest{` + `LeaderName:` + valueToGoStringSnapshotRecoveryRequest(this.LeaderName, "string"), `LastIndex:` + valueToGoStringSnapshotRecoveryRequest(this.LastIndex, "uint64"), `LastTerm:` + valueToGoStringSnapshotRecoveryRequest(this.LastTerm, "uint64"), `Peers:` + fmt22.Sprintf("%#v", this.Peers), `State:` + valueToGoStringSnapshotRecoveryRequest(this.State, "byte"), `XXX_unrecognized:` + fmt22.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func (this *SnapshotRecoveryRequest_Peer) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings11.Join([]string{`&protobuf.SnapshotRecoveryRequest_Peer{` + `Name:` + valueToGoStringSnapshotRecoveryRequest(this.Name, "string"), `ConnectionString:` + valueToGoStringSnapshotRecoveryRequest(this.ConnectionString, "string"), `XXX_unrecognized:` + fmt16.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings11.Join([]string{`&protobuf.SnapshotRecoveryRequest_Peer{` + `Name:` + valueToGoStringSnapshotRecoveryRequest(this.Name, "string"), `ConnectionString:` + valueToGoStringSnapshotRecoveryRequest(this.ConnectionString, "string"), `XXX_unrecognized:` + fmt22.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringSnapshotRecoveryRequest(v interface{}, typ string) string {
@@ -661,7 +669,7 @@ func valueToGoStringSnapshotRecoveryRequest(v interface{}, typ string) string {
 		return "nil"
 	}
 	pv := reflect11.Indirect(rv).Interface()
-	return fmt16.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	return fmt22.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
 func extensionToGoStringSnapshotRecoveryRequest(e map[int32]code_google_com_p_gogoprotobuf_proto11.Extension) string {
 	if e == nil {
@@ -685,61 +693,61 @@ func (this *SnapshotRecoveryRequest) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt17.Errorf("that == nil && this != nil")
+		return fmt23.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*SnapshotRecoveryRequest)
 	if !ok {
-		return fmt17.Errorf("that is not of type *SnapshotRecoveryRequest")
+		return fmt23.Errorf("that is not of type *SnapshotRecoveryRequest")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt17.Errorf("that is type *SnapshotRecoveryRequest but is nil && this != nil")
+		return fmt23.Errorf("that is type *SnapshotRecoveryRequest but is nil && this != nil")
 	} else if this == nil {
-		return fmt17.Errorf("that is type *SnapshotRecoveryRequestbut is not nil && this == nil")
+		return fmt23.Errorf("that is type *SnapshotRecoveryRequestbut is not nil && this == nil")
 	}
 	if this.LeaderName != nil && that1.LeaderName != nil {
 		if *this.LeaderName != *that1.LeaderName {
-			return fmt17.Errorf("LeaderName this(%v) Not Equal that(%v)", *this.LeaderName, *that1.LeaderName)
+			return fmt23.Errorf("LeaderName this(%v) Not Equal that(%v)", *this.LeaderName, *that1.LeaderName)
 		}
 	} else if this.LeaderName != nil {
-		return fmt17.Errorf("this.LeaderName == nil && that.LeaderName != nil")
+		return fmt23.Errorf("this.LeaderName == nil && that.LeaderName != nil")
 	} else if that1.LeaderName != nil {
-		return fmt17.Errorf("LeaderName this(%v) Not Equal that(%v)", this.LeaderName, that1.LeaderName)
+		return fmt23.Errorf("LeaderName this(%v) Not Equal that(%v)", this.LeaderName, that1.LeaderName)
 	}
 	if this.LastIndex != nil && that1.LastIndex != nil {
 		if *this.LastIndex != *that1.LastIndex {
-			return fmt17.Errorf("LastIndex this(%v) Not Equal that(%v)", *this.LastIndex, *that1.LastIndex)
+			return fmt23.Errorf("LastIndex this(%v) Not Equal that(%v)", *this.LastIndex, *that1.LastIndex)
 		}
 	} else if this.LastIndex != nil {
-		return fmt17.Errorf("this.LastIndex == nil && that.LastIndex != nil")
+		return fmt23.Errorf("this.LastIndex == nil && that.LastIndex != nil")
 	} else if that1.LastIndex != nil {
-		return fmt17.Errorf("LastIndex this(%v) Not Equal that(%v)", this.LastIndex, that1.LastIndex)
+		return fmt23.Errorf("LastIndex this(%v) Not Equal that(%v)", this.LastIndex, that1.LastIndex)
 	}
 	if this.LastTerm != nil && that1.LastTerm != nil {
 		if *this.LastTerm != *that1.LastTerm {
-			return fmt17.Errorf("LastTerm this(%v) Not Equal that(%v)", *this.LastTerm, *that1.LastTerm)
+			return fmt23.Errorf("LastTerm this(%v) Not Equal that(%v)", *this.LastTerm, *that1.LastTerm)
 		}
 	} else if this.LastTerm != nil {
-		return fmt17.Errorf("this.LastTerm == nil && that.LastTerm != nil")
+		return fmt23.Errorf("this.LastTerm == nil && that.LastTerm != nil")
 	} else if that1.LastTerm != nil {
-		return fmt17.Errorf("LastTerm this(%v) Not Equal that(%v)", this.LastTerm, that1.LastTerm)
+		return fmt23.Errorf("LastTerm this(%v) Not Equal that(%v)", this.LastTerm, that1.LastTerm)
 	}
 	if len(this.Peers) != len(that1.Peers) {
-		return fmt17.Errorf("Peers this(%v) Not Equal that(%v)", len(this.Peers), len(that1.Peers))
+		return fmt23.Errorf("Peers this(%v) Not Equal that(%v)", len(this.Peers), len(that1.Peers))
 	}
 	for i := range this.Peers {
 		if !this.Peers[i].Equal(that1.Peers[i]) {
-			return fmt17.Errorf("Peers this[%v](%v) Not Equal that[%v](%v)", i, this.Peers[i], i, that1.Peers[i])
+			return fmt23.Errorf("Peers this[%v](%v) Not Equal that[%v](%v)", i, this.Peers[i], i, that1.Peers[i])
 		}
 	}
 	if !bytes5.Equal(this.State, that1.State) {
-		return fmt17.Errorf("State this(%v) Not Equal that(%v)", this.State, that1.State)
+		return fmt23.Errorf("State this(%v) Not Equal that(%v)", this.State, that1.State)
 	}
 	if !bytes5.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt17.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+		return fmt23.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }
@@ -811,41 +819,41 @@ func (this *SnapshotRecoveryRequest_Peer) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt17.Errorf("that == nil && this != nil")
+		return fmt23.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*SnapshotRecoveryRequest_Peer)
 	if !ok {
-		return fmt17.Errorf("that is not of type *SnapshotRecoveryRequest_Peer")
+		return fmt23.Errorf("that is not of type *SnapshotRecoveryRequest_Peer")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt17.Errorf("that is type *SnapshotRecoveryRequest_Peer but is nil && this != nil")
+		return fmt23.Errorf("that is type *SnapshotRecoveryRequest_Peer but is nil && this != nil")
 	} else if this == nil {
-		return fmt17.Errorf("that is type *SnapshotRecoveryRequest_Peerbut is not nil && this == nil")
+		return fmt23.Errorf("that is type *SnapshotRecoveryRequest_Peerbut is not nil && this == nil")
 	}
 	if this.Name != nil && that1.Name != nil {
 		if *this.Name != *that1.Name {
-			return fmt17.Errorf("Name this(%v) Not Equal that(%v)", *this.Name, *that1.Name)
+			return fmt23.Errorf("Name this(%v) Not Equal that(%v)", *this.Name, *that1.Name)
 		}
 	} else if this.Name != nil {
-		return fmt17.Errorf("this.Name == nil && that.Name != nil")
+		return fmt23.Errorf("this.Name == nil && that.Name != nil")
 	} else if that1.Name != nil {
-		return fmt17.Errorf("Name this(%v) Not Equal that(%v)", this.Name, that1.Name)
+		return fmt23.Errorf("Name this(%v) Not Equal that(%v)", this.Name, that1.Name)
 	}
 	if this.ConnectionString != nil && that1.ConnectionString != nil {
 		if *this.ConnectionString != *that1.ConnectionString {
-			return fmt17.Errorf("ConnectionString this(%v) Not Equal that(%v)", *this.ConnectionString, *that1.ConnectionString)
+			return fmt23.Errorf("ConnectionString this(%v) Not Equal that(%v)", *this.ConnectionString, *that1.ConnectionString)
 		}
 	} else if this.ConnectionString != nil {
-		return fmt17.Errorf("this.ConnectionString == nil && that.ConnectionString != nil")
+		return fmt23.Errorf("this.ConnectionString == nil && that.ConnectionString != nil")
 	} else if that1.ConnectionString != nil {
-		return fmt17.Errorf("ConnectionString this(%v) Not Equal that(%v)", this.ConnectionString, that1.ConnectionString)
+		return fmt23.Errorf("ConnectionString this(%v) Not Equal that(%v)", this.ConnectionString, that1.ConnectionString)
 	}
 	if !bytes5.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt17.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+		return fmt23.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }
