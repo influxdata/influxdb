@@ -1,4 +1,4 @@
-package server
+package migration
 
 import (
 	"fmt"
@@ -8,8 +8,6 @@ import (
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"
-	"github.com/influxdb/influxdb/datastore"
-	// "github.com/influxdb/influxdb/datastore/storage"
 	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/metastore"
 	"github.com/influxdb/influxdb/parser"
@@ -84,7 +82,7 @@ func (dm *DataMigrator) migrateDir(name string) {
 	}
 }
 
-func (dm *DataMigrator) migrateDatabaseInShard(database string, shard *datastore.LevelDbShard) error {
+func (dm *DataMigrator) migrateDatabaseInShard(database string, shard *LevelDbShard) error {
 	log.Info("Migrating database %s for shard", database)
 	seriesNames := shard.GetSeriesForDatabase(database)
 	log.Info("Migrating %d series", len(seriesNames))
@@ -122,7 +120,7 @@ func (dm *DataMigrator) migrateDatabaseInShard(database string, shard *datastore
 	return nil
 }
 
-func (dm *DataMigrator) getShard(name string) (*datastore.LevelDbShard, error) {
+func (dm *DataMigrator) getShard(name string) (*LevelDbShard, error) {
 	dbDir := filepath.Join(dm.baseDbDir, OLD_SHARD_DIR, name)
 	cache := levigo.NewLRUCache(int(2000))
 	opts := levigo.NewOptions()
@@ -134,7 +132,7 @@ func (dm *DataMigrator) getShard(name string) (*datastore.LevelDbShard, error) {
 		return nil, err
 	}
 
-	return datastore.NewLevelDbShard(ldb, dm.config.StoragePointBatchSize, dm.config.StorageWriteBatchSize)
+	return NewLevelDbShard(ldb, dm.config.StoragePointBatchSize, dm.config.StorageWriteBatchSize)
 
 	// // old shards will only be leveldb type shards
 	// engine := "leveldb"

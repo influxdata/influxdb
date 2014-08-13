@@ -1,4 +1,4 @@
-package datastore
+package migration
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/common"
+	. "github.com/influxdb/influxdb/datastore"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 
@@ -40,6 +41,52 @@ type LevelDbShard struct {
 type Field struct {
 	Id   []byte
 	Name string
+}
+
+type rawColumnValue struct {
+	time     []byte
+	sequence []byte
+	value    []byte
+}
+
+// // returns true if the point has the correct field id and is
+// // in the given time range
+func isPointInRange(fieldId, startTime, endTime, point []byte) bool {
+	id := point[:8]
+	time := point[8:16]
+	return bytes.Equal(id, fieldId) && bytes.Compare(time, startTime) > -1 && bytes.Compare(time, endTime) < 1
+}
+
+// depending on the query order (whether it's ascending or not) returns
+// the min (or max in case of descending query) of the current
+// [timestamp,sequence] and the self's [timestamp,sequence]
+//
+// This is used to determine what the next point's timestamp
+// and sequence number should be.
+func (self *rawColumnValue) updatePointTimeAndSequence(currentTimeRaw, currentSequenceRaw []byte, isAscendingQuery bool) ([]byte, []byte) {
+	if currentTimeRaw == nil {
+		return self.time, self.sequence
+	}
+
+	compareValue := 1
+	if isAscendingQuery {
+		compareValue = -1
+	}
+
+	timeCompare := bytes.Compare(self.time, currentTimeRaw)
+	if timeCompare == compareValue {
+		return self.time, self.sequence
+	}
+
+	if timeCompare != 0 {
+		return currentTimeRaw, currentSequenceRaw
+	}
+
+	if bytes.Compare(self.sequence, currentSequenceRaw) == compareValue {
+		return currentTimeRaw, self.sequence
+	}
+
+	return currentTimeRaw, currentSequenceRaw
 }
 
 func NewLevelDbShard(db *levigo.DB, pointBatchSize, writeBatchSize int) (*LevelDbShard, error) {
@@ -533,7 +580,7 @@ func (self *LevelDbShard) getFieldsForSeries(db, series string, columns []string
 		columns = self.getColumnNamesForSeries(db, series)
 	}
 	if len(columns) == 0 {
-		return nil, FieldLookupError{"Coulnd't look up columns for series: " + series}
+		return nil, NewFieldLookupError("Coulnd't look up columns for series: " + series)
 	}
 
 	fields := make([]*Field, len(columns), len(columns))
@@ -544,7 +591,7 @@ func (self *LevelDbShard) getFieldsForSeries(db, series string, columns []string
 			return nil, errId
 		}
 		if id == nil {
-			return nil, FieldLookupError{"Field " + name + " doesn't exist in series " + series}
+			return nil, NewFieldLookupError("Field " + name + " doesn't exist in series " + series)
 		}
 		fields[i] = &Field{Name: name, Id: id}
 	}

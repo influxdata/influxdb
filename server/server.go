@@ -16,6 +16,7 @@ import (
 	"github.com/influxdb/influxdb/coordinator"
 	"github.com/influxdb/influxdb/datastore"
 	"github.com/influxdb/influxdb/metastore"
+	"github.com/influxdb/influxdb/migration"
 	"github.com/influxdb/influxdb/wal"
 )
 
@@ -34,7 +35,7 @@ type Server struct {
 	stopped        bool
 	writeLog       *wal.WAL
 	shardStore     *datastore.ShardDatastore
-	DataMigrator   *DataMigrator
+	DataMigrator   *migration.DataMigrator
 }
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
@@ -72,7 +73,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
 	// upgrades from 0.7 to later versions require a migration
-	dataMigrator := NewDataMigrator(coord, clusterConfig, config, config.DataDir, "shard_db", metaStore)
+	dataMigrator := migration.NewDataMigrator(coord, clusterConfig, config, config.DataDir, "shard_db", metaStore)
 
 	return &Server{
 		RaftServer:     raftServer,

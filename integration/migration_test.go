@@ -13,7 +13,7 @@ are up on S3 so that we can run it later. Just trust that I've run it (this is P
 // 	"time"
 
 // 	"github.com/influxdb/influxdb/datastore"
-// 	s "github.com/influxdb/influxdb/server"
+// 	"github.com/influxdb/influxdb/migration"
 
 // 	. "github.com/influxdb/influxdb/integration/helpers"
 // 	. "launchpad.net/gocheck"
@@ -32,14 +32,14 @@ are up on S3 so that we can run it later. Just trust that I've run it (this is P
 // func (self *MigrationTestSuite) TearDownSuite(c *C) {
 // 	self.server.Stop()
 // 	dataDir := "migration_data/data"
-// 	infos, err := ioutil.ReadDir(filepath.Join(dataDir, s.OLD_SHARD_DIR))
+// 	infos, err := ioutil.ReadDir(filepath.Join(dataDir, migration.OLD_SHARD_DIR))
 // 	if err != nil {
 // 		fmt.Printf("Error Clearing Migration: ", err)
 // 		return
 // 	}
 // 	for _, info := range infos {
 // 		if info.IsDir() {
-// 			os.Remove(filepath.Join(info.Name(), s.MIGRATED_MARKER))
+// 			os.Remove(filepath.Join(info.Name(), migration.MIGRATED_MARKER))
 // 		}
 // 	}
 // 	fmt.Println("ClearMigration: ", filepath.Join(dataDir, datastore.SHARD_DATABASE_DIR))
