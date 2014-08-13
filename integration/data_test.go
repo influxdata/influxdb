@@ -1820,6 +1820,20 @@ func (self *DataTestSuite) CountQueryOnSingleShard(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #714
+func (self *DataTestSuite) WhereClauseWithFunction(c *C) (Fun, Fun) {
+	return func(client Client) {
+			serieses := CreatePoints("test_where_clause_with_function", 1, 1)
+			client.WriteData(serieses, c)
+		}, func(client Client) {
+			// TODO: unfortunately the way the engine is structured causes
+			// errors to be swallowed and not returned to the user. The
+			// following should be a call to RunInvalidQuery() instead of
+			// RunQuery(), since the query is invalid.
+			client.RunQuery("select column0 from test_where_clause_with_function where empty(column0)", c)
+		}
+}
+
 func (self *DataTestSuite) GroupByDay(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `[{"points": [[4], [10], [5]], "name": "test_group_by_day", "columns": ["value"]}]`
