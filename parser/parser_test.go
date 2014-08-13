@@ -953,6 +953,19 @@ func (self *QueryParserSuite) TestParseContinuousQueryList(c *C) {
 	c.Assert(queries[0].IsListContinuousQueriesQuery(), Equals, true)
 }
 
+// For issue #768
+func (self *QueryParserSuite) TestMinusWithoutSpace(c *C) {
+	query := "select val1-val0 from foo;"
+	q, err := ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), HasLen, 1)
+	column := q.GetColumnNames()[0]
+	c.Assert(column.Type, Equals, ValueType(ValueExpression))
+	c.Assert(column.Elems[0].Name, Equals, "val1")
+	c.Assert(column.Elems[1].Name, Equals, "val0")
+	c.Assert(column.Name, Equals, "-")
+}
+
 // For issue #466 - allow all characters in column names - https://github.com/influxdb/influxdb/issues/267
 func (self *QueryParserSuite) TestParseColumnWithPeriodOrDash(c *C) {
 	query := "select count(\"column-a.foo\") as \"count-column-a.foo\" from seriesA;"
