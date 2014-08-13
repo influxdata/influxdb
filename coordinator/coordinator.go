@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	stat "statistic"
 
 	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
@@ -84,6 +85,10 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 	}(time.Now())
 	// don't let a panic pass beyond RunQuery
 	defer common.RecoverFunc(database, queryString, nil)
+	defer stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_QUERY, stat.OPERATION_INCREMENT),
+		stat.NewMetricUint64(stat.TYPE_SELECT, stat.OPERATION_INCREMENT),
+	)
 
 	q, err := parser.ParseQuery(queryString)
 	if err != nil {
@@ -194,6 +199,9 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 	seriesResult := &protocol.Series{Name: &name, Fields: fields, Points: points}
 	seriesWriter.Write(seriesResult)
 	seriesWriter.Close()
+	stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_LIST_SERIES, stat.OPERATION_INCREMENT),
+	)
 	return nil
 }
 
@@ -221,6 +229,9 @@ func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, ser
 		return err
 	}
 	fmt.Println("DROP returning nil")
+	stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_DROP_SERIES, stat.OPERATION_INCREMENT),
+	)
 	return nil
 }
 
@@ -503,6 +514,10 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	for _, s := range series {
 		self.ProcessContinuousQueries(db, s)
 	}
+
+	stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_WRITE_SERIES, stat.OPERATION_INCREMENT),
+	)
 
 	return err
 }

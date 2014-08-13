@@ -7,6 +7,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	stat "statistic"
 
 	"code.google.com/p/goprotobuf/proto"
 	logger "code.google.com/p/log4go"
@@ -227,6 +228,11 @@ func (self *WAL) closeCommon(shouldBookmark bool) error {
 	confirmationChan := make(chan *confirmation)
 	self.entries <- &closeEntry{confirmationChan, shouldBookmark}
 	confirmation := <-confirmationChan
+
+	stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_WAL_CLOSE, stat.OPERATION_INCREMENT),
+	)
+
 	return confirmation.err
 }
 
@@ -262,9 +268,15 @@ func (self *WAL) processEntries() {
 				continue
 			}
 			x.confirmation <- &confirmation{0, self.index()}
+			stat.Prove(
+				stat.NewMetricUint64(stat.TYPE_WAL_BOOKMARK_ENTRY, stat.OPERATION_INCREMENT),
+			)
 		case *closeEntry:
 			x.confirmation <- &confirmation{0, self.processClose(x.shouldBookmark)}
 			logger.Info("Closing wal")
+			stat.Prove(
+				stat.NewMetricUint64(stat.TYPE_WAL_CLOSE_ENTRY, stat.OPERATION_INCREMENT),
+			)
 			return
 		default:
 			panic(fmt.Errorf("unknown entry type %T", e))
@@ -328,10 +340,17 @@ func (self *WAL) processAppendEntry(e *appendEntry) {
 
 	self.conditionalBookmarkAndIndex()
 	e.confirmation <- &confirmation{e.request.GetRequestNumber(), nil}
+	stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_WAL_APPEND_ENTRY, stat.OPERATION_INCREMENT),
+	)
 }
 
 func (self *WAL) processCommitEntry(e *commitEntry) {
 	logger.Debug("commiting %d for server %d", e.requestNumber, e.serverId)
+	stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_WAL_COMMIT_ENTRY, stat.OPERATION_INCREMENT),
+	)
+
 	self.state.commitRequestNumber(e.serverId, e.requestNumber)
 	idx := self.firstLogFile()
 	if idx == 0 {
@@ -394,6 +413,10 @@ func (self *WAL) openLog(logFileName string) (*log, *index, error) {
 		return nil, nil, err
 	}
 	self.logIndex = append(self.logIndex, index)
+	stat.Prove(
+		stat.NewMetricUint64(stat.TYPE_WAL_OPEN, stat.OPERATION_INCREMENT),
+	)
+
 	return log, index, nil
 }
 
