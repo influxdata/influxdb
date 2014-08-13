@@ -67,6 +67,10 @@ func matchesExpression(expr *parser.Value, fields []string, point *protocol.Poin
 	}
 
 	operator := registeredOperators[expr.Name]
+	if operator == nil {
+		return false, fmt.Errorf("Invalid boolean operator %s", expr.Name)
+	}
+
 	ok, err := operator(leftValue[0], rightValue)
 	return ok == MATCH, err
 }
