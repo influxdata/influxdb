@@ -507,7 +507,7 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 }
 
 func (self *ShardData) createRequest(querySpec *parser.QuerySpec) *p.Request {
-	queryString := querySpec.GetQueryString()
+	queryString := querySpec.GetQueryStringWithTimeCondition()
 	user := querySpec.User()
 	userName := user.GetName()
 	database := querySpec.Database()
