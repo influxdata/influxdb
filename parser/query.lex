@@ -120,9 +120,9 @@ true|false                                          { yylval->string = strdup(yy
   strcat(yylval->string, yytext);
 }
 
-[a-zA-Z0-9_][a-zA-Z0-9._-]*                         { yylval->string = strdup(yytext); return TABLE_NAME; }
+[a-zA-Z0-9_][a-zA-Z0-9._]*                         { yylval->string = strdup(yytext); return TABLE_NAME; }
 
-[:\[a-zA-Z0-9_][:\[\]a-zA-Z0-9._-]*                 { yylval->string = strdup(yytext); return INTO_NAME; }
+[:\[a-zA-Z0-9_][:\[\]a-zA-Z0-9._]*                 { yylval->string = strdup(yytext); return INTO_NAME; }
 
 \'[^\']*\'                    {
   yytext[yyleng-1] = '\0';

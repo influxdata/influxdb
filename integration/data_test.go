@@ -570,6 +570,27 @@ func (self *DataTestSuite) JoinAndArithmetic(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #768
+func (self *DataTestSuite) MinusOperatorWithoutSpace(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+  [{
+    "points": [
+        [2, 3]
+    ],
+    "name": "test_minus_operator",
+    "columns": ["val1", "val2"]
+  }]`
+			client.WriteJsonData(data, c)
+		}, func(client Client) {
+			serieses := client.RunQuery("select val2-val1 from test_minus_operator ", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["expr0"], Equals, 1.0)
+		}
+}
+
 // issue #540
 func (self *DataTestSuite) RegexMatching(c *C) (Fun, Fun) {
 	return func(client Client) {
@@ -1703,7 +1724,7 @@ func (self *DataTestSuite) SeriesListing(c *C) (Fun, Fun) {
 func (self *DataTestSuite) ArithmeticOperations(c *C) (Fun, Fun) {
 	queries := map[string][9]float64{
 		"select input + output from test_arithmetic_3.0;":       {1, 2, 3, 4, 5, 9, 6, 7, 13},
-		"select input - output from test_arithmetic_-1.0;":      {1, 2, -1, 4, 5, -1, 6, 7, -1},
+		"select input - output from \"test_arithmetic_-1.0\";":  {1, 2, -1, 4, 5, -1, 6, 7, -1},
 		"select input * output from test_arithmetic_2.0;":       {1, 2, 2, 4, 5, 20, 6, 7, 42},
 		"select 1.0 * input / output from test_arithmetic_0.5;": {1, 2, 0.5, 4, 5, 0.8, 6, 8, 0.75},
 	}
