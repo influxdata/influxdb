@@ -73,7 +73,8 @@ func (self *ServerSuite) TestLargeRequestSize(c *C) {
 // issue #820
 func (self *ServerSuite) TestRemoteQueryTimeConditions(c *C) {
 	client := self.serverProcesses[0].GetClient("db1", c)
-	c.Assert(client.CreateDatabase("db1"), IsNil)
+	// this might error if we created this db in another test
+	client.CreateDatabase("db1")
 	data := CreatePoints("test_remote_time_range", 1, 1)
 	self.serverProcesses[0].WriteData(data, c)
 	for _, s := range self.serverProcesses {
