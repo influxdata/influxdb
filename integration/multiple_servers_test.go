@@ -70,6 +70,27 @@ func (self *ServerSuite) TestLargeRequestSize(c *C) {
 	}
 }
 
+// issue #820
+func (self *ServerSuite) TestRemoteQueryTimeConditions(c *C) {
+	client := self.serverProcesses[0].GetClient("db1", c)
+	c.Assert(client.CreateDatabase("db1"), IsNil)
+	data := CreatePoints("test_remote_time_range", 1, 1)
+	self.serverProcesses[0].WriteData(data, c)
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
+
+	time.Sleep(2 * time.Second)
+
+	for _, s := range self.serverProcesses {
+		data = s.RunQueryAsRoot("select * from test_remote_time_range where time > now() - 1s", "m", c)
+		// we shouldn't get any data back, the bug mentioned in issue #820
+		// will cause the query string to get sent without the time
+		// conditions, which will select all points and return some data.
+		c.Assert(data, HasLen, 0)
+	}
+}
+
 func (self *ServerSuite) TestChangingRootPassword(c *C) {
 	rootClient := self.serverProcesses[0].GetClient("", c)
 	c.Assert(rootClient.CreateClusterAdmin("newroot", "root"), IsNil)
