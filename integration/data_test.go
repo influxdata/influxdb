@@ -771,6 +771,20 @@ func (self *DataTestSuite) DistinctWithLimit(c *C) (Fun, Fun) {
 		}
 }
 
+func (self *DataTestSuite) InsensitiveRegexMatching(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `[{"name":"foo","columns":["value"],"points":[["Paul"]]}]`
+			client.WriteJsonData(data, c)
+		}, func(client Client) {
+			series := client.RunQuery("select * from foo where value =~ /paul/i", c, "m")
+			c.Assert(series, HasLen, 1)
+			c.Assert(series[0].Name, Equals, "foo")
+			maps := ToMap(series[0])
+			c.Assert(maps, HasLen, 1)
+			c.Assert(maps[0]["value"], Equals, "Paul")
+		}
+}
+
 func (self *DataTestSuite) DifferentColumnsInOnePost(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `[{"name":"foo","columns":["val0", "val1"],"points":[["a", 1]]},{"name":"foo","columns":["val0"],"points":[["b"]]}]`
