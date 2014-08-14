@@ -121,8 +121,14 @@ typedef struct {
   drop_query *drop_query;
   list_series_query *list_series_query;
   char list_continuous_queries_query;
-  error *error;
 } query;
+
+// queries is an array of query
+typedef struct {
+  size_t size;
+  query **qs;
+  error *error;
+} queries;
 
 // some funcs for freeing our types
 void free_array(array *array);
@@ -132,5 +138,6 @@ void free_condition(condition *condition);
 void free_error (error *error);
 
 // this is the api that is used in GO
-query parse_query(char *const query_s);
+queries parse_query(char *const query_s);
 void  close_query (query *q);
+void  close_queries (queries *queries);

@@ -1210,8 +1210,8 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 				return libhttp.StatusBadRequest, err.Error()
 			}
 			for _, query := range q {
-				if !query.SelectQuery.IsContinuousQuery() {
-					return libhttp.StatusBadRequest, fmt.Errorf("This query isn't a continuous query. Use 'into'. %s", query.QueryString)
+				if !query.IsContinuousQuery() {
+					return libhttp.StatusBadRequest, fmt.Errorf("This query isn't a continuous query. Use 'into'. %s", query.GetQueryString())
 				}
 			}
 		}
@@ -1238,7 +1238,7 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 		for _, queryString := range databaseConfig.ContinuousQueries {
 			q, _ := parser.ParseQuery(queryString)
 			for _, query := range q {
-				err := self.coordinator.CreateContinuousQuery(u, database, query.QueryString)
+				err := self.coordinator.CreateContinuousQuery(u, database, query.GetQueryString())
 				if err != nil {
 					return libhttp.StatusInternalServerError, err.Error()
 				}
