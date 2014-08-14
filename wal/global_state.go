@@ -32,6 +32,10 @@ type GlobalState struct {
 
 func newGlobalState(path string) (*GlobalState, error) {
 	f, err := os.Open(path)
+	if err != nil {
+		defer f.Close()
+	}
+
 	state := &GlobalState{
 		ServerLastRequestNumber: map[uint32]uint32{},
 		ShardLastSequenceNumber: map[uint32]uint64{},
@@ -51,14 +55,13 @@ func newGlobalState(path string) (*GlobalState, error) {
 }
 
 func (self *GlobalState) writeToFile() error {
-	newFile, err := os.OpenFile(self.path+".new", os.O_CREATE|os.O_RDWR, 0644)
+	newFile, err := os.OpenFile(self.path+".new", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0644)
 	if err != nil {
 		return err
 	}
 
-	if _, err := newFile.Seek(0, os.SEEK_SET); err != nil {
-		return err
-	}
+	// always close and ignore any errors on exit
+	defer newFile.Close()
 
 	if err := self.write(newFile); err != nil {
 		return err
