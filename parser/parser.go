@@ -86,6 +86,7 @@ type Query struct {
 	ListQuery       *ListQuery
 	DropSeriesQuery *DropSeriesQuery
 	DropQuery       *DropQuery
+	qType           QueryType
 }
 
 func (self *IntoClause) GetString() string {
@@ -96,6 +97,10 @@ func (self *IntoClause) GetString() string {
 		fmt.Fprintf(buffer, " backfill(%s)", self.BackfillValue.GetString())
 	}
 	return buffer.String()
+}
+
+func (self *Query) Type() QueryType {
+	return self.qType
 }
 
 func (self *Query) GetQueryString() string {
@@ -262,8 +267,8 @@ func (self *SelectQuery) GetSinglePointQuerySequenceNumber() (int64, error) {
 	return sequence_number, nil
 }
 
-func (self *SelectQuery) IsContinuousQuery() bool {
-	return self.GetIntoClause() != nil
+func (self *Query) IsContinuousQuery() bool {
+	return self.qType == Continuous
 }
 
 func (self *SelectQuery) IsValidContinuousQuery() bool {
@@ -626,11 +631,11 @@ func ParseQuery(query string) ([]*Query, error) {
 				return nil, err
 			}
 		}
-		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: t, value: value}}}, nil
+		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: t, value: value}, qType: ListSeries}}, nil
 	}
 
 	if q.list_continuous_queries_query != 0 {
-		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: ContinuousQueries}}}, nil
+		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: ContinuousQueries}, qType: ListContinuousQueries}}, nil
 	}
 
 	if q.select_query != nil {
@@ -639,21 +644,25 @@ func ParseQuery(query string) ([]*Query, error) {
 			return nil, err
 		}
 
-		return []*Query{{QueryString: query, SelectQuery: selectQuery}}, nil
+		qType := Select
+		if selectQuery.IntoClause != nil {
+			qType = Continuous
+		}
+		return []*Query{{QueryString: query, SelectQuery: selectQuery, qType: qType}}, nil
 	} else if q.delete_query != nil {
 		deleteQuery, err := parseDeleteQuery(q.delete_query)
 		if err != nil {
 			return nil, err
 		}
-		return []*Query{{QueryString: query, DeleteQuery: deleteQuery}}, nil
+		return []*Query{{QueryString: query, DeleteQuery: deleteQuery, qType: Delete}}, nil
 	} else if q.drop_series_query != nil {
 		dropSeriesQuery, err := parseDropSeriesQuery(query, q.drop_series_query)
 		if err != nil {
 			return nil, err
 		}
-		return []*Query{{QueryString: query, DropSeriesQuery: dropSeriesQuery}}, nil
+		return []*Query{{QueryString: query, DropSeriesQuery: dropSeriesQuery, qType: DropSeries}}, nil
 	} else if q.drop_query != nil {
-		return []*Query{{QueryString: query, DropQuery: &DropQuery{Id: int(q.drop_query.id)}}}, nil
+		return []*Query{{QueryString: query, DropQuery: &DropQuery{Id: int(q.drop_query.id)}, qType: DropContinuousQuery}}, nil
 	}
 	return nil, fmt.Errorf("Unknown query type encountered")
 }

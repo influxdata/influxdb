@@ -359,6 +359,9 @@ func (self *ShardData) String() string {
 	return fmt.Sprintf("[ID: %d, START: %d, END: %d, LOCAL: %s, SERVERS: [%s]]", self.id, self.startMicro, self.endMicro, local, strings.Join(serversString, ","))
 }
 
+// Returns true if we can aggregate the data locally per shard,
+// i.e. the group by interval lines up with the shard duration and
+// there are no joins or merges
 func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool {
 	f := querySpec.GetFromClause()
 	if f != nil && (f.Type == parser.FromClauseInnerJoin || f.Type == parser.FromClauseMerge) {
@@ -373,6 +376,19 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 		return true
 	}
 	return self.shardDuration%*groupByInterval == 0
+}
+
+type Shards []*ShardData
+
+// Return true iff we can aggregate locally on all the given shards,
+// false otherwise
+func (shards Shards) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool {
+	for _, s := range shards {
+		if !s.ShouldAggregateLocally(querySpec) {
+			return false
+		}
+	}
+	return true
 }
 
 func (self *ShardData) QueryResponseBufferSize(querySpec *parser.QuerySpec, batchPointSize int) int {

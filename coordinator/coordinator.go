@@ -91,63 +91,38 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 	}
 
 	for _, query := range q {
-		querySpec := parser.NewQuerySpec(user, database, query)
-
-		if query.DeleteQuery != nil {
-			if err := self.clusterConfiguration.CreateCheckpoint(); err != nil {
-				return err
-			}
-
-			if err := self.runDeleteQuery(querySpec, seriesWriter); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if query.DropQuery != nil {
-			if err := self.DeleteContinuousQuery(user, database, uint32(query.DropQuery.Id)); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if query.IsListQuery() {
-			if query.IsListSeriesQuery() {
-				self.runListSeriesQuery(querySpec, seriesWriter)
-			} else if query.IsListContinuousQueriesQuery() {
-				queries, err := self.ListContinuousQueries(user, database)
-				if err != nil {
-					return err
-				}
-				for _, q := range queries {
-					if err := seriesWriter.Write(q); err != nil {
-						return err
-					}
-				}
-			}
-			continue
-		}
-
-		if query.DropSeriesQuery != nil {
-			err := self.runDropSeriesQuery(querySpec, seriesWriter)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		selectQuery := query.SelectQuery
-
-		if selectQuery.IsContinuousQuery() {
-			return self.CreateContinuousQuery(user, database, queryString)
-		}
-		if err := self.checkPermission(user, querySpec); err != nil {
+		err := self.runSingleQuery(user, database, query, seriesWriter)
+		if err != nil {
 			return err
 		}
-		return self.runQuery(querySpec, seriesWriter)
 	}
 	seriesWriter.Close()
 	return nil
+}
+
+func (self *CoordinatorImpl) runSingleQuery(user common.User, db string, q *parser.Query, sw SeriesWriter) error {
+	querySpec := parser.NewQuerySpec(user, db, q)
+
+	switch qt := q.Type(); qt {
+	// administrative
+	case parser.DropContinuousQuery:
+		return self.runDropContinuousQuery(user, db, uint32(q.DropQuery.Id))
+	case parser.ListContinuousQueries:
+		return self.runListContinuousQueries(user, db, sw)
+	case parser.Continuous:
+		return self.runContinuousQuery(user, db, q.GetQueryString())
+	case parser.ListSeries:
+		return self.runListSeriesQuery(querySpec, sw)
+		// Data queries
+	case parser.Delete:
+		return self.runDeleteQuery(querySpec, sw)
+	case parser.DropSeries:
+		return self.runDropSeriesQuery(querySpec, sw)
+	case parser.Select:
+		return self.runSelectQuery(user, querySpec, sw)
+	default:
+		return fmt.Errorf("Can't handle query %s", qt)
+	}
 }
 
 func (self *CoordinatorImpl) checkPermission(user common.User, querySpec *parser.QuerySpec) error {
@@ -165,8 +140,24 @@ func (self *CoordinatorImpl) checkPermission(user common.User, querySpec *parser
 }
 
 // This should only get run for SelectQuery types
-func (self *CoordinatorImpl) runQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+func (self *CoordinatorImpl) runSelectQuery(user common.User, querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+	if err := self.checkPermission(user, querySpec); err != nil {
+		return err
+	}
 	return self.runQuerySpec(querySpec, seriesWriter)
+}
+
+func (self *CoordinatorImpl) runListContinuousQueries(user common.User, db string, sw SeriesWriter) error {
+	queries, err := self.ListContinuousQueries(user, db)
+	if err != nil {
+		return err
+	}
+	for _, q := range queries {
+		if err := sw.Write(q); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
@@ -198,6 +189,10 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 }
 
 func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+	if err := self.clusterConfiguration.CreateCheckpoint(); err != nil {
+		return err
+	}
+
 	user := querySpec.User()
 	db := querySpec.Database()
 	if ok, err := self.permissions.AuthorizeDeleteQuery(user, db); !ok {
@@ -222,16 +217,7 @@ func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, ser
 	return nil
 }
 
-func (self *CoordinatorImpl) shouldAggregateLocally(shards []*cluster.ShardData, querySpec *parser.QuerySpec) bool {
-	for _, s := range shards {
-		if !s.ShouldAggregateLocally(querySpec) {
-			return false
-		}
-	}
-	return true
-}
-
-func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData, querySpec *parser.QuerySpec) bool {
+func (self *CoordinatorImpl) shouldQuerySequentially(shards cluster.Shards, querySpec *parser.QuerySpec) bool {
 	// if the query isn't a select, then it doesn't matter
 	if querySpec.SelectQuery() == nil {
 		return false
@@ -262,7 +248,7 @@ func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData
 		return true
 	}
 
-	if !self.shouldAggregateLocally(shards, querySpec) {
+	if !shards.ShouldAggregateLocally(querySpec) {
 		return true
 	}
 
@@ -281,7 +267,7 @@ func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData
 
 func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, chan bool, error) {
 	shards := self.clusterConfiguration.GetShardsForQuery(querySpec)
-	shouldAggregateLocally := self.shouldAggregateLocally(shards, querySpec)
+	shouldAggregateLocally := shards.ShouldAggregateLocally(querySpec)
 
 	var err error
 	var processor cluster.QueryProcessor
@@ -753,7 +739,7 @@ func (self *CoordinatorImpl) writeWithoutAssigningId(db string, series []*protoc
 	return shard.Write(request)
 }
 
-func (self *CoordinatorImpl) CreateContinuousQuery(user common.User, db string, query string) error {
+func (self *CoordinatorImpl) runContinuousQuery(user common.User, db string, query string) error {
 	if ok, err := self.permissions.AuthorizeCreateContinuousQuery(user, db); !ok {
 		return err
 	}
@@ -765,7 +751,7 @@ func (self *CoordinatorImpl) CreateContinuousQuery(user common.User, db string, 
 	return nil
 }
 
-func (self *CoordinatorImpl) DeleteContinuousQuery(user common.User, db string, id uint32) error {
+func (self *CoordinatorImpl) runDropContinuousQuery(user common.User, db string, id uint32) error {
 	if ok, err := self.permissions.AuthorizeDeleteContinuousQuery(user, db); !ok {
 		return err
 	}

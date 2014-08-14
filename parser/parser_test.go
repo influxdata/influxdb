@@ -869,10 +869,7 @@ func (self *QueryParserSuite) TestIsSinglePointQuery(c *C) {
 }
 
 func (self *QueryParserSuite) TestParseContinuousQueryCreation(c *C) {
-	query := "select * from foo into bar;"
-	q, err := ParseSelectQuery(query)
-	c.Assert(err, IsNil)
-	c.Assert(q.IsContinuousQuery(), Equals, true)
+	q := getContinuousQuery("select * from foo into bar;", c)
 	c.Assert(q.IsValidContinuousQuery(), Equals, true)
 	clause := q.GetIntoClause()
 	c.Assert(clause.Target, DeepEquals, &Value{"bar", "", ValueSimpleName, nil, nil, false})
@@ -910,37 +907,33 @@ func (self *QueryParserSuite) TestParseRecursiveContinuousQueries(c *C) {
 	c.Assert(q.IsNonRecursiveContinuousQuery(), Equals, false)
 }
 
-func (self *QueryParserSuite) TestParseInterpolatedContinuousQueryCreation(c *C) {
-	query := "select * from foo into bar.[c4];"
-	q, err := ParseSelectQuery(query)
+func getContinuousQuery(q string, c *C) *SelectQuery {
+	queries, err := ParseQuery(q)
 	c.Assert(err, IsNil)
-	c.Assert(q.IsContinuousQuery(), Equals, true)
+	c.Assert(queries, HasLen, 1)
+	query := queries[0]
+	c.Assert(query.IsContinuousQuery(), Equals, true)
+	return query.SelectQuery
+}
+
+func (self *QueryParserSuite) TestParseInterpolatedContinuousQueryCreation(c *C) {
+	q := getContinuousQuery("select * from foo into bar.[c4];", c)
 	clause := q.GetIntoClause()
 	c.Assert(clause.Target, DeepEquals, &Value{"bar.[c4]", "", ValueIntoName, nil, nil, false})
 
-	query = "select * from foo into [c5].bar.[c4];"
-	q, err = ParseSelectQuery(query)
-	c.Assert(err, IsNil)
-	c.Assert(q.IsContinuousQuery(), Equals, true)
+	q = getContinuousQuery("select * from foo into [c5].bar.[c4];", c)
 	clause = q.GetIntoClause()
 	c.Assert(clause.Target, DeepEquals, &Value{"[c5].bar.[c4]", "", ValueIntoName, nil, nil, false})
 
-	query = "select average(c4), count(c5) from s3 group by time(1h) into [average].[count];"
-	q, err = ParseSelectQuery(query)
-	c.Assert(err, IsNil)
-	c.Assert(q.IsContinuousQuery(), Equals, true)
+	q = getContinuousQuery("select average(c4), count(c5) from s3 group by time(1h) into [average].[count];", c)
 	clause = q.GetIntoClause()
 	c.Assert(clause.Target, DeepEquals, &Value{"[average].[count]", "", ValueIntoName, nil, nil, false})
 
-	query = "select * from foo into :series_name.foo;"
-	q, err = ParseSelectQuery(query)
-	c.Assert(err, IsNil)
-	c.Assert(q.IsContinuousQuery(), Equals, true)
+	q = getContinuousQuery("select * from foo into :series_name.foo;", c)
 	clause = q.GetIntoClause()
 	c.Assert(clause.Target, DeepEquals, &Value{":series_name.foo", "", ValueIntoName, nil, nil, false})
 
-	query = "select * from foo into ]bar"
-	q, err = ParseSelectQuery(query)
+	_, err := ParseQuery("select * from foo into ]bar")
 	c.Assert(err, NotNil)
 }
 
