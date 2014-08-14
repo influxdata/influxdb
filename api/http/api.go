@@ -134,11 +134,6 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "del", "/db/:db/users/:user", self.deleteDbUser)
 	self.registerEndpoint(p, "post", "/db/:db/users/:user", self.updateDbUser)
 
-	// continuous queries management interface
-	self.registerEndpoint(p, "get", "/db/:db/continuous_queries", self.listDbContinuousQueries)
-	self.registerEndpoint(p, "post", "/db/:db/continuous_queries", self.createDbContinuousQueries)
-	self.registerEndpoint(p, "del", "/db/:db/continuous_queries/:id", self.deleteDbContinuousQueries)
-
 	// healthcheck
 	self.registerEndpoint(p, "get", "/ping", self.ping)
 
@@ -921,56 +916,6 @@ func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Requ
 	if len(body) > 0 {
 		w.Write(body)
 	}
-}
-
-func (self *HttpServer) listDbContinuousQueries(w libhttp.ResponseWriter, r *libhttp.Request) {
-	db := r.URL.Query().Get(":db")
-
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		series, err := self.coordinator.ListContinuousQueries(u, db)
-		if err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-
-		queries := make([]ContinuousQuery, 0, len(series[0].Points))
-
-		for _, point := range series[0].Points {
-			queries = append(queries, ContinuousQuery{Id: *point.Values[0].Int64Value, Query: *point.Values[1].StringValue})
-		}
-
-		return libhttp.StatusOK, queries
-	})
-}
-
-func (self *HttpServer) createDbContinuousQueries(w libhttp.ResponseWriter, r *libhttp.Request) {
-	db := r.URL.Query().Get(":db")
-
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		// note: id isn't used when creating a new continuous query
-		values := &ContinuousQuery{}
-		decoder := json.NewDecoder(r.Body)
-		err := decoder.Decode(values)
-		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
-		}
-
-		if err := self.coordinator.CreateContinuousQuery(u, db, values.Query); err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-		return libhttp.StatusOK, nil
-	})
-}
-
-func (self *HttpServer) deleteDbContinuousQueries(w libhttp.ResponseWriter, r *libhttp.Request) {
-	db := r.URL.Query().Get(":db")
-	id, _ := strconv.ParseInt(r.URL.Query().Get(":id"), 10, 64)
-
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		if err := self.coordinator.DeleteContinuousQuery(u, db, uint32(id)); err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-		return libhttp.StatusOK, nil
-	})
 }
 
 func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request) {

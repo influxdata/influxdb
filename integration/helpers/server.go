@@ -360,16 +360,25 @@ func (self *Server) Request(method, url, data string, c *C) *http.Response {
 
 func (self *Server) RemoveAllContinuousQueries(db string, c *C) {
 	client := self.GetClient(db, c)
-	queries, err := client.GetContinuousQueries()
+	queries, err := client.Query("list continuous queries")
 	c.Assert(err, IsNil)
-	for _, q := range queries {
-		c.Assert(client.DeleteContinuousQueries(int(q["id"].(float64))), IsNil)
+	c.Assert(queries, HasLen, 1)
+	maps := ToMap(queries[0])
+	buffer := bytes.NewBufferString("")
+	if len(maps) == 0 {
+		return
 	}
+	for _, m := range maps {
+		fmt.Fprintf(buffer, "drop continuous query %v;", m["id"])
+	}
+	_, err = client.Query(buffer.String())
+	c.Assert(err, IsNil)
 }
 
 func (self *Server) AssertContinuousQueryCount(db string, count int, c *C) {
 	client := self.GetClient(db, c)
-	queries, err := client.GetContinuousQueries()
+	queries, err := client.Query("list continuous queries")
 	c.Assert(err, IsNil)
-	c.Assert(queries, HasLen, count)
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].Points, HasLen, count)
 }
