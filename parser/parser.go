@@ -80,7 +80,6 @@ type DeleteQuery struct {
 }
 
 type Query struct {
-	QueryString     string
 	SelectQuery     *SelectQuery
 	DeleteQuery     *DeleteQuery
 	ListQuery       *ListQuery
@@ -112,17 +111,25 @@ func (self *Query) GetQueryStringWithTimeCondition() string {
 }
 
 func (self *Query) commonGetQueryString(withTime bool) string {
-	if self.SelectQuery != nil {
+	switch self.qType {
+	case Select, Continuous:
 		if withTime {
 			return self.SelectQuery.GetQueryStringWithTimeCondition()
 		}
 		return self.SelectQuery.GetQueryString()
-	} else if self.ListQuery != nil {
-		return "list series"
-	} else if self.DeleteQuery != nil {
+	case Delete:
 		return self.DeleteQuery.GetQueryString(withTime)
+	case DropContinuousQuery:
+		return fmt.Sprintf("drop continuous query %d", self.DropQuery.Id)
+	case ListSeries:
+		return "list series"
+	case ListContinuousQueries:
+		return "list continuous queries"
+	case DropSeries:
+		return "drop series " + self.DropSeriesQuery.tableName
+	default:
+		panic(fmt.Errorf("Unknown query type %s", self.qType))
 	}
-	return self.QueryString
 }
 
 func (self *Query) IsListQuery() bool {
@@ -602,24 +609,7 @@ func ParseSelectQuery(query string) (*SelectQuery, error) {
 	return selectQuery, nil
 }
 
-func ParseQuery(query string) ([]*Query, error) {
-	queryString := C.CString(query)
-	defer C.free(unsafe.Pointer(queryString))
-	q := C.parse_query(queryString)
-	defer C.close_query(&q)
-
-	if q.error != nil {
-		str := C.GoString(q.error.err)
-		return nil, &QueryError{
-			firstLine:   int(q.error.first_line),
-			firstColumn: int(q.error.first_column) - 1,
-			lastLine:    int(q.error.last_line),
-			lastColumn:  int(q.error.last_column) - 1,
-			errorString: str,
-			queryString: query,
-		}
-	}
-
+func parseSingleQuery(q *C.query) (*Query, error) {
 	if q.list_series_query != nil {
 		var value *Value
 		var err error
@@ -631,11 +621,11 @@ func ParseQuery(query string) ([]*Query, error) {
 				return nil, err
 			}
 		}
-		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: t, value: value}, qType: ListSeries}}, nil
+		return &Query{ListQuery: &ListQuery{Type: t, value: value}, qType: ListSeries}, nil
 	}
 
 	if q.list_continuous_queries_query != 0 {
-		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: ContinuousQueries}, qType: ListContinuousQueries}}, nil
+		return &Query{ListQuery: &ListQuery{Type: ContinuousQueries}, qType: ListContinuousQueries}, nil
 	}
 
 	if q.select_query != nil {
@@ -648,26 +638,58 @@ func ParseQuery(query string) ([]*Query, error) {
 		if selectQuery.IntoClause != nil {
 			qType = Continuous
 		}
-		return []*Query{{QueryString: query, SelectQuery: selectQuery, qType: qType}}, nil
+		return &Query{SelectQuery: selectQuery, qType: qType}, nil
 	} else if q.delete_query != nil {
 		deleteQuery, err := parseDeleteQuery(q.delete_query)
 		if err != nil {
 			return nil, err
 		}
-		return []*Query{{QueryString: query, DeleteQuery: deleteQuery, qType: Delete}}, nil
+		return &Query{DeleteQuery: deleteQuery, qType: Delete}, nil
 	} else if q.drop_series_query != nil {
-		dropSeriesQuery, err := parseDropSeriesQuery(query, q.drop_series_query)
+		dropSeriesQuery, err := parseDropSeriesQuery(q.drop_series_query)
 		if err != nil {
 			return nil, err
 		}
-		return []*Query{{QueryString: query, DropSeriesQuery: dropSeriesQuery, qType: DropSeries}}, nil
+		return &Query{DropSeriesQuery: dropSeriesQuery, qType: DropSeries}, nil
 	} else if q.drop_query != nil {
-		return []*Query{{QueryString: query, DropQuery: &DropQuery{Id: int(q.drop_query.id)}, qType: DropContinuousQuery}}, nil
+		return &Query{DropQuery: &DropQuery{Id: int(q.drop_query.id)}, qType: DropContinuousQuery}, nil
 	}
 	return nil, fmt.Errorf("Unknown query type encountered")
 }
 
-func parseDropSeriesQuery(queryStirng string, dropSeriesQuery *C.drop_series_query) (*DropSeriesQuery, error) {
+func ParseQuery(queryStr string) ([]*Query, error) {
+	queryString := C.CString(queryStr)
+	defer C.free(unsafe.Pointer(queryString))
+	q := C.parse_query(queryString)
+	defer C.close_queries(&q)
+
+	if q.error != nil {
+		str := C.GoString(q.error.err)
+		return nil, &QueryError{
+			firstLine:   int(q.error.first_line),
+			firstColumn: int(q.error.first_column) - 1,
+			lastLine:    int(q.error.last_line),
+			lastColumn:  int(q.error.last_column) - 1,
+			errorString: str,
+			queryString: queryStr,
+		}
+	}
+
+	var queries []*C.query
+	setupSlice((*reflect.SliceHeader)((unsafe.Pointer(&queries))), unsafe.Pointer(q.qs), q.size)
+
+	parsedQueries := make([]*Query, len(queries))
+	for i, query := range queries {
+		query, err := parseSingleQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		parsedQueries[i] = query
+	}
+	return parsedQueries, nil
+}
+
+func parseDropSeriesQuery(dropSeriesQuery *C.drop_series_query) (*DropSeriesQuery, error) {
 	name, err := GetValue(dropSeriesQuery.name)
 	if err != nil {
 		return nil, err

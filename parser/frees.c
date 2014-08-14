@@ -134,12 +134,24 @@ free_drop_series_query (drop_series_query *q)
 }
 
 void
+close_queries (queries *q)
+{
+  if (q->error) {
+    free_error(q->error);
+  }
+
+  while (q->size > 0) {
+    query *query = q->qs[--q->size];
+    close_query(query);
+    free(query);
+  }
+  free(q->qs);
+  q->qs = NULL;
+}
+
+void
 close_query (query *q)
 {
-   if (q->error) {
-    free_error(q->error);
-   }
-
   if (q->select_query) {
     free_select_query(q->select_query);
     free(q->select_query);

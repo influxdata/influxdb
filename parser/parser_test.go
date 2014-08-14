@@ -100,8 +100,6 @@ func (self *QueryParserSuite) TestGetQueryString(c *C) {
 		actualQuery, err := ParseQuery(queryString)
 		c.Assert(err, IsNil)
 		c.Assert(actualQuery, HasLen, 1)
-		expectedQuery[0].QueryString = ""
-		actualQuery[0].QueryString = ""
 		if expectedQuery[0].DeleteQuery != nil {
 			expectedQuery[0].DeleteQuery.startTimeSpecified = false
 			actualQuery[0].DeleteQuery.startTimeSpecified = false
@@ -972,6 +970,7 @@ func (self *QueryParserSuite) TestQueryErrorShouldHaveQueryString(c *C) {
 	query := "select ! from foo;"
 	_, err := ParseSelectQuery(query)
 	e, _ := err.(*QueryError)
+	c.Assert(e, NotNil)
 	c.Assert(e.queryString, Equals, query)
 }
 
