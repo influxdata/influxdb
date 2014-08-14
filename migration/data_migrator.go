@@ -3,6 +3,7 @@ package migration
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/influxdb/influxdb/cluster"
@@ -65,10 +66,15 @@ func (dm *DataMigrator) Migrate() {
 }
 
 func (dm *DataMigrator) migrateDir(name string) {
+	migrateMarkerFile := filepath.Join(dm.shardDir(name), MIGRATED_MARKER)
+	if _, err := os.Stat(migrateMarkerFile); err == nil {
+		log.Info("Already migrated %s. Skipping", name)
+		return
+	}
 	log.Info("Migrating %s", name)
 	shard, err := dm.getShard(name)
 	if err != nil {
-		log.Error("Error migrating: %s", err.Error())
+		log.Error("Migration error getting shard: %s", err.Error())
 		return
 	}
 	defer shard.Close()
@@ -79,6 +85,10 @@ func (dm *DataMigrator) migrateDir(name string) {
 			log.Error("Error migrating database %s: %s", database.Name, err.Error())
 			return
 		}
+	}
+	err = ioutil.WriteFile(migrateMarkerFile, []byte("done.\n"), 0644)
+	if err != nil {
+		log.Error("Problem writing migration marker for shard %s: %s", name, err.Error())
 	}
 }
 
@@ -120,8 +130,12 @@ func (dm *DataMigrator) migrateDatabaseInShard(database string, shard *LevelDbSh
 	return nil
 }
 
+func (dm *DataMigrator) shardDir(name string) string {
+	return filepath.Join(dm.baseDbDir, OLD_SHARD_DIR, name)
+}
+
 func (dm *DataMigrator) getShard(name string) (*LevelDbShard, error) {
-	dbDir := filepath.Join(dm.baseDbDir, OLD_SHARD_DIR, name)
+	dbDir := dm.shardDir(name)
 	cache := levigo.NewLRUCache(int(2000))
 	opts := levigo.NewOptions()
 	opts.SetCache(cache)

@@ -33,17 +33,17 @@ are up on S3 so that we can run it later. Just trust that I've run it (this is P
 // func (self *MigrationTestSuite) TearDownSuite(c *C) {
 // 	self.server.Stop()
 // 	dataDir := "migration_data/data"
-// 	infos, err := ioutil.ReadDir(filepath.Join(dataDir, migration.OLD_SHARD_DIR))
+// 	shardDir := filepath.Join(dataDir, migration.OLD_SHARD_DIR)
+// 	infos, err := ioutil.ReadDir(shardDir)
 // 	if err != nil {
 // 		fmt.Printf("Error Clearing Migration: ", err)
 // 		return
 // 	}
 // 	for _, info := range infos {
 // 		if info.IsDir() {
-// 			os.Remove(filepath.Join(info.Name(), migration.MIGRATED_MARKER))
+// 			os.Remove(filepath.Join(shardDir, info.Name(), migration.MIGRATED_MARKER))
 // 		}
 // 	}
-// 	fmt.Println("ClearMigration: ", filepath.Join(dataDir, datastore.SHARD_DATABASE_DIR))
 // 	os.RemoveAll(filepath.Join(dataDir, datastore.SHARD_DATABASE_DIR))
 // }
 
@@ -80,4 +80,7 @@ are up on S3 so that we can run it later. Just trust that I've run it (this is P
 // 		c.Assert(series.Points, HasLen, 1)
 // 		c.Assert(series.Points[0][1].(float64), Equals, float64(1434))
 // 	}
+// 	_, err = http.Post("http://localhost:8086/cluster/migrate_data?u=root&p=root", "application/json", nil)
+// 	c.Assert(err, IsNil)
+// 	time.Sleep(time.Second * 5)
 // }
