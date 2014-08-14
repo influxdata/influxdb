@@ -16,7 +16,6 @@ import (
 	"github.com/influxdb/influxdb/coordinator"
 	"github.com/influxdb/influxdb/datastore"
 	"github.com/influxdb/influxdb/metastore"
-	"github.com/influxdb/influxdb/migration"
 	"github.com/influxdb/influxdb/wal"
 )
 
@@ -35,7 +34,6 @@ type Server struct {
 	stopped        bool
 	writeLog       *wal.WAL
 	shardStore     *datastore.ShardDatastore
-	DataMigrator   *migration.DataMigrator
 }
 
 func NewServer(config *configuration.Configuration) (*Server, error) {
@@ -67,13 +65,10 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufListenString(), requestHandler)
 
 	raftServer.AssignCoordinator(coord)
-	httpApi := http.NewHttpServer(config.ApiHttpPortString(), config.ApiReadTimeout, config.AdminAssetsDir, coord, coord, clusterConfig, raftServer)
+	httpApi := http.NewHttpServer(config, coord, coord, clusterConfig, raftServer)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
 	graphiteApi := graphite.NewServer(config, coord, clusterConfig)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
-
-	// upgrades from 0.7 to later versions require a migration
-	dataMigrator := migration.NewDataMigrator(coord, clusterConfig, config, config.DataDir, "shard_db", metaStore)
 
 	return &Server{
 		RaftServer:     raftServer,
@@ -86,8 +81,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		Config:         config,
 		RequestHandler: requestHandler,
 		writeLog:       writeLog,
-		shardStore:     shardDb,
-		DataMigrator:   dataMigrator}, nil
+		shardStore:     shardDb}, nil
 }
 
 func (self *Server) ListenAndServe() error {
@@ -193,10 +187,6 @@ func (self *Server) ListenAndServe() error {
 
 	// start processing continuous queries
 	self.RaftServer.StartProcessingContinuousQueries()
-
-	// version 0.7 requires a migration to the new storage format. This is a no-op if the
-	// old files have been migrated
-	go self.DataMigrator.Migrate()
 
 	log.Info("Starting Http Api server on port %d", self.Config.ApiHttpPort)
 	self.HttpApi.ListenAndServe()

@@ -8,6 +8,7 @@ are up on S3 so that we can run it later. Just trust that I've run it (this is P
 // import (
 // 	"fmt"
 // 	"io/ioutil"
+// 	"net/http"
 // 	"os"
 // 	"path/filepath"
 // 	"time"
@@ -47,6 +48,12 @@ are up on S3 so that we can run it later. Just trust that I've run it (this is P
 // }
 
 // func (self *MigrationTestSuite) TestMigrationOfPreviousDb(c *C) {
+// 	_, err := http.Post("http://localhost:8086/cluster/migrate_data?u=root&p=root", "application/json", nil)
+// 	c.Assert(err, IsNil)
+// 	// make sure that it won't kick it off a second time while it's already running
+// 	resp, _ := http.Post("http://localhost:8086/cluster/migrate_data?u=root&p=root", "application/json", nil)
+// 	c.Assert(resp.StatusCode, Equals, http.StatusForbidden)
+
 // 	time.Sleep(time.Second * 60)
 // 	client := self.server.GetClient("test1", c)
 // 	s, err := client.Query("select count(value) from cpu_idle")
