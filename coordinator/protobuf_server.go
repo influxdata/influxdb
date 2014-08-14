@@ -16,7 +16,7 @@ import (
 type ProtobufServer struct {
 	listener          net.Listener
 	port              string
-	requestHandler    RequestHandler
+	requestHandler    Handler
 	connectionMapLock sync.Mutex
 	connectionMap     map[net.Conn]bool
 }
@@ -25,7 +25,7 @@ const KILOBYTE = 1024
 const MEGABYTE = 1024 * KILOBYTE
 const MAX_REQUEST_SIZE = MEGABYTE * 2
 
-func NewProtobufServer(port string, requestHandler RequestHandler) *ProtobufServer {
+func NewProtobufServer(port string, requestHandler Handler) *ProtobufServer {
 	server := &ProtobufServer{port: port, requestHandler: requestHandler, connectionMap: make(map[net.Conn]bool)}
 	return server
 }

@@ -48,7 +48,7 @@ type RaftServer struct {
 	closing                  bool
 	config                   *configuration.Configuration
 	notLeader                chan bool
-	coordinator              *CoordinatorImpl
+	coordinator              *Coordinator
 	processContinuousQueries bool
 }
 
@@ -321,7 +321,7 @@ func (s *RaftServer) ChangeConnectionString(raftName, protobufConnectionString, 
 	return err
 }
 
-func (s *RaftServer) AssignCoordinator(coordinator *CoordinatorImpl) error {
+func (s *RaftServer) AssignCoordinator(coordinator *Coordinator) error {
 	s.coordinator = coordinator
 	return nil
 }

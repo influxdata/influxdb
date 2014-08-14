@@ -15,7 +15,7 @@ import (
 )
 
 type ProtobufRequestHandler struct {
-	coordinator   Coordinator
+	coordinator   *Coordinator
 	clusterConfig *cluster.ClusterConfiguration
 	writeOk       protocol.Response_Type
 }
@@ -25,7 +25,7 @@ var (
 	accessDeniedResponse = protocol.Response_ACCESS_DENIED
 )
 
-func NewProtobufRequestHandler(coordinator Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
+func NewProtobufRequestHandler(coordinator *Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
 	return &ProtobufRequestHandler{coordinator: coordinator, writeOk: protocol.Response_WRITE_OK, clusterConfig: clusterConfig}
 }
 
