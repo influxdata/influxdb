@@ -18,6 +18,7 @@ import (
 
 	log "code.google.com/p/log4go"
 	"github.com/bmizerany/pat"
+	"github.com/influxdb/influxdb/api"
 	"github.com/influxdb/influxdb/cluster"
 	. "github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/configuration"
@@ -33,7 +34,7 @@ type HttpServer struct {
 	httpSslPort    string
 	httpSslCert    string
 	adminAssetsDir string
-	coordinator    coordinator.Coordinator
+	coordinator    api.Coordinator
 	userManager    UserManager
 	shutdown       chan bool
 	clusterConfig  *cluster.ClusterConfiguration
@@ -42,7 +43,7 @@ type HttpServer struct {
 	config         *configuration.Configuration
 }
 
-func NewHttpServer(config *configuration.Configuration, theCoordinator coordinator.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
+func NewHttpServer(config *configuration.Configuration, theCoordinator api.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
 	self := &HttpServer{}
 	self.httpPort = config.ApiHttpPortString()
 	self.adminAssetsDir = config.AdminAssetsDir
