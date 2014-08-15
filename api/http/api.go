@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	log "code.google.com/p/log4go"
@@ -23,26 +22,24 @@ import (
 	. "github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"
-	"github.com/influxdb/influxdb/migration"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
 
 type HttpServer struct {
-	conn             net.Listener
-	sslConn          net.Listener
-	httpPort         string
-	httpSslPort      string
-	httpSslCert      string
-	adminAssetsDir   string
-	coordinator      coordinator.Coordinator
-	userManager      UserManager
-	shutdown         chan bool
-	clusterConfig    *cluster.ClusterConfiguration
-	raftServer       *coordinator.RaftServer
-	readTimeout      time.Duration
-	migrationRunning uint32
-	config           *configuration.Configuration
+	conn           net.Listener
+	sslConn        net.Listener
+	httpPort       string
+	httpSslPort    string
+	httpSslCert    string
+	adminAssetsDir string
+	coordinator    coordinator.Coordinator
+	userManager    UserManager
+	shutdown       chan bool
+	clusterConfig  *cluster.ClusterConfiguration
+	raftServer     *coordinator.RaftServer
+	readTimeout    time.Duration
+	config         *configuration.Configuration
 }
 
 func NewHttpServer(config *configuration.Configuration, theCoordinator coordinator.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
@@ -62,8 +59,6 @@ func NewHttpServer(config *configuration.Configuration, theCoordinator coordinat
 const (
 	INVALID_CREDENTIALS_MSG  = "Invalid database/username/password"
 	JSON_PRETTY_PRINT_INDENT = "    "
-	MIGRATION_RUNNING        = uint32(1)
-	MIGRATION_NOT_RUNNING    = uint32(0)
 )
 
 func isPretty(r *libhttp.Request) bool {
@@ -163,9 +158,6 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "post", "/cluster/shard_spaces/:db", self.createShardSpace)
 	self.registerEndpoint(p, "del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
 	self.registerEndpoint(p, "post", "/cluster/database_configs/:db", self.configureDatabase)
-
-	// migrates leveldb data from 0.7 to 0.8 format.
-	self.registerEndpoint(p, "post", "/cluster/migrate_data", self.migrateData)
 
 	// return whether the cluster is in sync or not
 	self.registerEndpoint(p, "get", "/sync", self.isInSync)
@@ -1244,31 +1236,5 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 			}
 		}
 		return libhttp.StatusCreated, nil
-	})
-}
-
-func (self *HttpServer) migrateData(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		pauseTime := r.URL.Query().Get("pause")
-		pauseDuration := time.Millisecond * 100
-		if pauseTime != "" {
-			var err error
-			pauseDuration, err = time.ParseDuration(pauseTime)
-			if err != nil {
-				return libhttp.StatusBadRequest, fmt.Errorf("Couldn't parse pause time: ", err)
-			}
-		}
-		if !atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_NOT_RUNNING, MIGRATION_RUNNING) {
-			return libhttp.StatusForbidden, fmt.Errorf("A migration is already running")
-		}
-		go func() {
-			log.Info("Starting Migration")
-			defer atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_RUNNING, MIGRATION_NOT_RUNNING)
-			dataMigrator := migration.NewDataMigrator(
-				self.coordinator.(*coordinator.CoordinatorImpl), self.clusterConfig, self.config, self.config.DataDir, "shard_db", self.clusterConfig.MetaStore, pauseDuration)
-			dataMigrator.Migrate()
-		}()
-
-		return libhttp.StatusAccepted, nil
 	})
 }
