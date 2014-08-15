@@ -2,6 +2,7 @@
 
 ### Features
 
+- [Issue #376](https://github.com/influxdb/influxdb/pull/376). List series should support regex filtering
 - Database config loader now supports defining continuous queries
 
 ### Bugfixes
