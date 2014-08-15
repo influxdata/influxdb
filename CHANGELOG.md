@@ -1,5 +1,9 @@
 ## v0.8.0-rc.5 [2014-08-15]
 
+### Features
+
+- Database config loader now supports defining continuous queries
+
 ### Bugfixes
 
 - [Issue #809](https://github.com/influxdb/influxdb/pull/809). Migration path from 0.7 -> 0.8
