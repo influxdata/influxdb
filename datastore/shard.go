@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-	"strings"
 	"time"
 
 	"code.google.com/p/goprotobuf/proto"
@@ -95,7 +94,7 @@ func (self *Shard) Write(database string, series []*protocol.Series) error {
 
 func (self *Shard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	if querySpec.IsListSeriesQuery() {
-		return self.executeListSeriesQuery(querySpec, processor)
+		return fmt.Errorf("List series queries should never come to the shard")
 	} else if querySpec.IsDeleteFromSeriesQuery() {
 		return self.executeDeleteQuery(querySpec, processor)
 	}
@@ -279,7 +278,7 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 					Points: seriesOutgoing.Points,
 				}
 				if !processor.YieldSeries(series) {
-					log.Info("Stopping processing")
+					log.Debug("Stopping processing")
 					shouldContinue = false
 				}
 			}
@@ -302,47 +301,6 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 
 	log.Debug("Finished running query %s", query.GetQueryString())
 	return nil
-}
-
-func (self *Shard) yieldSeriesNamesForDb(db string, yield func(string) bool) error {
-	dbNameStart := len(DATABASE_SERIES_INDEX_PREFIX)
-	pred := func(key []byte) bool {
-		return len(key) >= dbNameStart && bytes.Equal(key[:dbNameStart], DATABASE_SERIES_INDEX_PREFIX)
-	}
-
-	firstKey := append(DATABASE_SERIES_INDEX_PREFIX, []byte(db+"~")...)
-	itr := self.db.Iterator()
-	defer itr.Close()
-
-	for itr.Seek(firstKey); itr.Valid(); itr.Next() {
-		key := itr.Key()
-		if !pred(key) {
-			break
-		}
-		dbSeries := string(key[dbNameStart:])
-		parts := strings.Split(dbSeries, "~")
-		if len(parts) > 1 {
-			if parts[0] != db {
-				break
-			}
-			name := parts[1]
-			shouldContinue := yield(name)
-			if !shouldContinue {
-				return nil
-			}
-		}
-	}
-	if err := itr.Error(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (self *Shard) executeListSeriesQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
-	return self.yieldSeriesNamesForDb(querySpec.Database(), func(_name string) bool {
-		name := _name
-		return processor.YieldPoint(&name, nil, nil)
-	})
 }
 
 func (self *Shard) executeDeleteQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
@@ -570,115 +528,4 @@ func (self *Shard) getFieldsForSeries(db, series string, columns []string) ([]*m
 		}
 	}
 	return fields, nil
-}
-
-/* DEPRECATED methods do not use*/
-
-// TODO: remove this on version 0.9 after people have had a chance to do migrations
-func (self *Shard) getSeriesForDbAndRegexDEPRECATED(database string, regex *regexp.Regexp) []string {
-	names := []string{}
-	allSeries := self.metaStore.GetSeriesForDatabase(database)
-	for _, name := range allSeries {
-		if regex.MatchString(name) {
-			names = append(names, name)
-		}
-	}
-	return names
-}
-
-// TODO: remove this on version 0.9 after people have had a chance to do migrations
-func (self *Shard) getSeriesForDatabaseDEPRECATED(database string) (series []string) {
-	err := self.yieldSeriesNamesForDb(database, func(name string) bool {
-		series = append(series, name)
-		return true
-	})
-	if err != nil {
-		log.Error("Cannot get series names for db %s: %s", database, err)
-		return nil
-	}
-	return series
-}
-
-// TODO: remove this function. I'm keeping it around for the moment since it'll probably have to be
-//       used in the DB upgrate/migration that moves metadata from the shard to Raft
-func (self *Shard) getFieldsForSeriesDEPRECATED(db, series string, columns []string) ([]*metastore.Field, error) {
-	isCountQuery := false
-	if len(columns) > 0 && columns[0] == "*" {
-		columns = self.getColumnNamesForSeriesDEPRECATED(db, series)
-	} else if len(columns) == 0 {
-		isCountQuery = true
-		columns = self.getColumnNamesForSeriesDEPRECATED(db, series)
-	}
-	if len(columns) == 0 {
-		return nil, FieldLookupError{"Couldn't look up columns for series: " + series}
-	}
-
-	fields := make([]*metastore.Field, len(columns), len(columns))
-
-	for i, name := range columns {
-		id, errId := self.getIdForDbSeriesColumnDEPRECATED(&db, &series, &name)
-		if errId != nil {
-			return nil, errId
-		}
-		if id == nil {
-			return nil, FieldLookupError{"Field " + name + " doesn't exist in series " + series}
-		}
-		idInt, err := binary.ReadUvarint(bytes.NewBuffer(id))
-		if err != nil {
-			return nil, err
-		}
-		fields[i] = &metastore.Field{Name: name, Id: idInt}
-	}
-
-	// if it's a count query we just want the column that will be the most efficient to
-	// scan through. So find that and return it.
-	if isCountQuery {
-		bestField := fields[0]
-		return []*metastore.Field{bestField}, nil
-	}
-	return fields, nil
-}
-
-// TODO: remove this function. I'm keeping it around for the moment since it'll probably have to be
-//       used in the DB upgrate/migration that moves metadata from the shard to Raft
-func (self *Shard) getColumnNamesForSeriesDEPRECATED(db, series string) []string {
-	dbNameStart := len(SERIES_COLUMN_INDEX_PREFIX)
-	seekKey := append(SERIES_COLUMN_INDEX_PREFIX, []byte(db+"~"+series+"~")...)
-	pred := func(key []byte) bool {
-		return len(key) >= dbNameStart && bytes.Equal(key[:dbNameStart], SERIES_COLUMN_INDEX_PREFIX)
-	}
-	it := self.db.Iterator()
-	defer it.Close()
-
-	names := make([]string, 0)
-	for it.Seek(seekKey); it.Valid(); it.Next() {
-		key := it.Key()
-		if !pred(key) {
-			break
-		}
-		dbSeriesColumn := string(key[dbNameStart:])
-		parts := strings.Split(dbSeriesColumn, "~")
-		if len(parts) > 2 {
-			if parts[0] != db || parts[1] != series {
-				break
-			}
-			names = append(names, parts[2])
-		}
-	}
-	if err := it.Error(); err != nil {
-		log.Error("Error while getting columns for series %s: %s", series, err)
-		return nil
-	}
-	return names
-}
-
-// TODO: remove this after a version that doesn't support migration from old non-raft metastore
-func (self *Shard) getIdForDbSeriesColumnDEPRECATED(db, series, column *string) (ret []byte, err error) {
-	s := fmt.Sprintf("%s~%s~%s", *db, *series, *column)
-	b := []byte(s)
-	key := append(SERIES_COLUMN_INDEX_PREFIX, b...)
-	if ret, err = self.db.Get(key); err != nil {
-		return nil, err
-	}
-	return ret, nil
 }

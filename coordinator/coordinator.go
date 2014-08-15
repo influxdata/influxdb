@@ -215,12 +215,10 @@ func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, ser
 		return err
 	}
 	defer seriesWriter.Close()
-	fmt.Println("DROP series")
 	err := self.raftServer.DropSeries(db, series)
 	if err != nil {
 		return err
 	}
-	fmt.Println("DROP returning nil")
 	return nil
 }
 
