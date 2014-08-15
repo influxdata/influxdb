@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"sync"
 
 	"github.com/influxdb/influxdb/protocol"
@@ -134,6 +135,7 @@ func (self *Store) GetSeriesForDatabaseAndRegex(database string, regex *regexp.R
 			matchingSeries = append(matchingSeries, series)
 		}
 	}
+	sort.Strings(matchingSeries)
 	return matchingSeries
 }
 
@@ -148,6 +150,7 @@ func (self *Store) GetSeriesForDatabase(database string) []string {
 	for s := range databaseSeries {
 		series = append(series, s)
 	}
+	sort.Strings(series)
 	return series
 }
 
