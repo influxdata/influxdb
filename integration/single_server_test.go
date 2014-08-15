@@ -791,8 +791,8 @@ func (self *SingleServerSuite) TestDuplicateShardsNotCreatedWhenOldShardDropped(
 
 func (self *SingleServerSuite) TestShardSpaceRegex(c *C) {
 	client := self.server.GetClient("", c)
-	space := &influxdb.ShardSpace{Name: "test_regex", RetentionPolicy: "30d", Database: "db1", Regex: "/^metric\\./"}
-	err := client.CreateShardSpace(space)
+	space := &influxdb.ShardSpace{Name: "test_regex", RetentionPolicy: "30d", Regex: "/^metric\\./"}
+	err := client.CreateShardSpace("db1", space)
 	c.Assert(err, IsNil)
 
 	self.server.WriteData(`
@@ -828,8 +828,8 @@ func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 	c.Assert(spaces, HasLen, 1)
 	c.Assert(spaces[0].Name, Equals, "default")
 
-	space := &influxdb.ShardSpace{Name: "month", RetentionPolicy: "30d", Database: "db1", Regex: "/^the_dude_abides/"}
-	err = client.CreateShardSpace(space)
+	space := &influxdb.ShardSpace{Name: "month", RetentionPolicy: "30d", Regex: "/^the_dude_abides/"}
+	err = client.CreateShardSpace("db1", space)
 	c.Assert(err, IsNil)
 
 	self.server.WriteData(`
@@ -871,8 +871,8 @@ func (self *SingleServerSuite) getSpace(database, name string, regex string, spa
 func (self *SingleServerSuite) TestDropShardSpace(c *C) {
 	client := self.server.GetClient("", c)
 	spaceName := "test_drop"
-	space := &influxdb.ShardSpace{Name: spaceName, RetentionPolicy: "30d", Database: "db1", Regex: "/^dont_drop_me_bro/"}
-	err := client.CreateShardSpace(space)
+	space := &influxdb.ShardSpace{Name: spaceName, RetentionPolicy: "30d", Regex: "/^dont_drop_me_bro/"}
+	err := client.CreateShardSpace("db1", space)
 	c.Assert(err, IsNil)
 
 	self.server.WriteData(`

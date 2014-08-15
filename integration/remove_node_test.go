@@ -71,7 +71,7 @@ func (self *RemoveNodeSuite) TestRemovingNodeAndShards(c *C) {
 
 	c.Assert(client.CreateDatabase("test"), IsNil)
 	space := &influxdb.ShardSpace{Name: "test_space", RetentionPolicy: "1h", Database: "test", Regex: "/test_removing_node_and_shards/", ReplicationFactor: 2}
-	c.Assert(client.CreateShardSpace(space), IsNil)
+	c.Assert(client.CreateShardSpace("test", space), IsNil)
 
 	series := CreatePoints("test_removing_node_and_shards", 5, 10)
 	client = s1.GetClient("test", c)
