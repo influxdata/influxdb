@@ -31,11 +31,6 @@ var (
 	write             = protocol.Request_WRITE
 )
 
-type SeriesWriter interface {
-	Write(*protocol.Series) error
-	Close()
-}
-
 func NewCoordinator(
 	config *configuration.Configuration,
 	raftServer *RaftServer,
