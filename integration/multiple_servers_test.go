@@ -176,7 +176,7 @@ func (self *ServerSuite) TestShardExpiration(c *C) {
 	client := self.serverProcesses[0].GetClient("", c)
 	client.CreateDatabase("db1")
 	space := &influxdb.ShardSpace{Name: "short", RetentionPolicy: "5s", Database: "db1", Regex: "/^test_shard_expiration/"}
-	err := client.CreateShardSpace(space)
+	err := client.CreateShardSpace("db1", space)
 	c.Assert(err, IsNil)
 
 	self.serverProcesses[0].WriteData(`
@@ -1010,7 +1010,7 @@ func (self *ServerSuite) TestDropShard(c *C) {
 		s.WaitForServerToSync()
 	}
 	space := &influxdb.ShardSpace{Name: "test_drop", RetentionPolicy: "30d", Database: "test_drop_shard", Regex: "/^dont_drop_me_bro/"}
-	c.Assert(client.CreateShardSpace(space), IsNil)
+	c.Assert(client.CreateShardSpace("test_drop_shard", space), IsNil)
 
 	data := fmt.Sprintf(`{
 		"startTime":%d,
