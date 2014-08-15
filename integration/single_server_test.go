@@ -916,3 +916,32 @@ func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
 	c.Assert(queries[0][2], Equals, "select * from events into events.[id]")
 	c.Assert(queries[1][2], Equals, "select count(value) from events group by time(5m) into 5m.count.events")
 }
+
+func (self *SingleServerSuite) TestSeriesShouldReturnSorted(c *C) {
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase("test_series_sort"), IsNil)
+	client = self.server.GetClient("test_series_sort", c)
+	for i := 1; i < 100; i++ {
+		err := client.WriteSeries([]*influxdb.Series{{
+			Name:    fmt.Sprintf("sort_%.3d", i),
+			Columns: []string{"column1"},
+			Points:  [][]interface{}{{1}},
+		}})
+		c.Assert(err, IsNil)
+	}
+	series, err := client.Query("list series")
+	c.Assert(err, IsNil)
+	for i, p := range series[0].Points {
+		c.Assert(p[1], Equals, fmt.Sprintf("sort_%.3d", i+1))
+	}
+	series, err = client.Query("list series /.*/")
+	c.Assert(err, IsNil)
+	for i, p := range series[0].Points {
+		c.Assert(p[1], Equals, fmt.Sprintf("sort_%.3d", i+1))
+	}
+	series, err = client.Query("select * from /.*/")
+	c.Assert(err, IsNil)
+	for i, s := range series {
+		c.Assert(s.Name, Equals, fmt.Sprintf("sort_%.3d", i+1))
+	}
+}
