@@ -21,12 +21,7 @@ type Coordinator struct {
 	clusterConfiguration *cluster.ClusterConfiguration
 	raftServer           *RaftServer
 	config               *configuration.Configuration
-	metastore            Metastore
 	permissions          Permissions
-}
-
-type Metastore interface {
-	ReplaceFieldNamesWithFieldIds(database string, series []*protocol.Series) error
 }
 
 const (
@@ -64,13 +59,11 @@ type SeriesWriter interface {
 func NewCoordinator(
 	config *configuration.Configuration,
 	raftServer *RaftServer,
-	clusterConfiguration *cluster.ClusterConfiguration,
-	metastore Metastore) *Coordinator {
+	clusterConfiguration *cluster.ClusterConfiguration) *Coordinator {
 	coordinator := &Coordinator{
 		config:               config,
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
-		metastore:            metastore,
 		permissions:          Permissions{},
 	}
 
@@ -694,7 +687,7 @@ func (self *Coordinator) CommitSeriesData(db string, serieses []*protocol.Series
 
 func (self *Coordinator) write(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
 	// replace all the field names, or error out if we can't assign the field ids.
-	err := self.metastore.ReplaceFieldNamesWithFieldIds(db, series)
+	err := self.clusterConfiguration.MetaStore.ReplaceFieldNamesWithFieldIds(db, series)
 	if err != nil {
 		return err
 	}

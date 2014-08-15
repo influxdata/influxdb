@@ -59,7 +59,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	clusterConfig.SetShardCreator(raftServer)
 	clusterConfig.CreateFutureShardsAutomaticallyBeforeTimeComes()
 
-	coord := coordinator.NewCoordinator(config, raftServer, clusterConfig, metaStore)
+	coord := coordinator.NewCoordinator(config, raftServer, clusterConfig)
 	requestHandler := coordinator.NewProtobufRequestHandler(coord, clusterConfig)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufListenString(), requestHandler)
 
