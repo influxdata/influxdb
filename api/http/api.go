@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -42,7 +41,6 @@ type HttpServer struct {
 	clusterConfig    *cluster.ClusterConfiguration
 	raftServer       *coordinator.RaftServer
 	readTimeout      time.Duration
-	migrationLock    sync.Mutex
 	migrationRunning uint32
 	config           *configuration.Configuration
 }
@@ -64,6 +62,8 @@ func NewHttpServer(config *configuration.Configuration, theCoordinator coordinat
 const (
 	INVALID_CREDENTIALS_MSG  = "Invalid database/username/password"
 	JSON_PRETTY_PRINT_INDENT = "    "
+	MIGRATION_RUNNING        = uint32(1)
+	MIGRATION_NOT_RUNNING    = uint32(0)
 )
 
 func isPretty(r *libhttp.Request) bool {
@@ -1227,18 +1227,12 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 
 func (self *HttpServer) migrateData(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		if self.migrationRunning == 1 {
+		if !atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_NOT_RUNNING, MIGRATION_RUNNING) {
 			return libhttp.StatusForbidden, fmt.Errorf("A migration is already running")
 		}
 		go func() {
 			log.Info("Starting Migration")
-			self.migrationLock.Lock()
-			defer self.migrationLock.Unlock()
-			if self.migrationRunning == uint32(1) {
-				return
-			}
-			atomic.StoreUint32(&self.migrationRunning, uint32(1))
-			defer atomic.StoreUint32(&self.migrationRunning, uint32(0))
+			defer atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_RUNNING, MIGRATION_NOT_RUNNING)
 			dataMigrator := migration.NewDataMigrator(
 				self.coordinator.(*coordinator.CoordinatorImpl), self.clusterConfig, self.config, self.config.DataDir, "shard_db", self.clusterConfig.MetaStore)
 			dataMigrator.Migrate()
