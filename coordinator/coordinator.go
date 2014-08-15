@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"fmt"
-	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -24,31 +23,12 @@ type Coordinator struct {
 	permissions          Permissions
 }
 
-const (
-	// this is the key used for the persistent atomic ints for sequence numbers
-	POINT_SEQUENCE_NUMBER_KEY = "p"
-
-	// actual point sequence numbers will have the first part of the number
-	// be a host id. This ensures that sequence numbers are unique across the cluster
-	HOST_ID_OFFSET = uint64(10000)
-
-	SHARDS_TO_QUERY_FOR_LIST_SERIES = 10
-)
-
-var (
-	BARRIER_TIME_MIN int64 = math.MinInt64
-	BARRIER_TIME_MAX int64 = math.MaxInt64
-)
-
 // shorter constants for readability
 var (
-	dropDatabase         = protocol.Request_DROP_DATABASE
-	queryRequest         = protocol.Request_QUERY
-	endStreamResponse    = protocol.Response_END_STREAM
-	queryResponse        = protocol.Response_QUERY
-	heartbeatResponse    = protocol.Response_HEARTBEAT
-	explainQueryResponse = protocol.Response_EXPLAIN_QUERY
-	write                = protocol.Request_WRITE
+	endStreamResponse = protocol.Response_END_STREAM
+	queryResponse     = protocol.Response_QUERY
+	heartbeatResponse = protocol.Response_HEARTBEAT
+	write             = protocol.Request_WRITE
 )
 
 type SeriesWriter interface {
