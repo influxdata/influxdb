@@ -106,6 +106,42 @@ func (self *SingleServerSuite) TestDroppingSeries(c *C) {
 	c.Assert(maps[0]["column1"], Equals, 1.0)
 }
 
+// issue #376
+func (self *SingleServerSuite) TestListSeriesRegex(c *C) {
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase("test_list_series_regex"), IsNil)
+	c.Assert(client.CreateDatabaseUser("test_list_series_regex", "user", "pass"), IsNil)
+	user := self.server.GetClientWithUser("test_list_series_regex", "user", "pass", c)
+	for _, n := range []string{"foo1", "foo2", "foobar"} {
+		err := user.WriteSeries([]*influxdb.Series{{
+			Name:    n,
+			Columns: []string{"column1"},
+			Points:  [][]interface{}{{1}},
+		}})
+		c.Assert(err, IsNil)
+	}
+
+	for _, r := range []string{"/Foo\\d+/i", "/foo\\d+/"} {
+		s, err := user.Query(fmt.Sprintf("list series %s", r))
+		c.Assert(err, IsNil)
+		c.Assert(s, HasLen, 1)
+		maps := ToMap(s[0])
+		c.Assert(maps, HasLen, 2)
+		names := map[string]bool{}
+		for _, p := range maps {
+			names[p["name"].(string)] = true
+		}
+		c.Assert(names["foo1"], Equals, true)
+		c.Assert(names["foo2"], Equals, true)
+	}
+
+	s, err := user.Query("list series")
+	c.Assert(err, IsNil)
+	c.Assert(s, HasLen, 1)
+	maps := ToMap(s[0])
+	c.Assert(maps, HasLen, 3)
+}
+
 // pr #483
 func (self *SingleServerSuite) TestConflictStatusCode(c *C) {
 	client := self.server.GetClient("", c)
@@ -753,6 +789,29 @@ func (self *SingleServerSuite) TestDuplicateShardsNotCreatedWhenOldShardDropped(
 	}
 }
 
+func (self *SingleServerSuite) TestShardSpaceRegex(c *C) {
+	client := self.server.GetClient("", c)
+	space := &influxdb.ShardSpace{Name: "test_regex", RetentionPolicy: "30d", Regex: "/^metric\\./"}
+	err := client.CreateShardSpace("db1", space)
+	c.Assert(err, IsNil)
+
+	self.server.WriteData(`
+[
+  {
+    "name": "metric.foobar",
+    "columns": ["time", "val"],
+    "points":[[1307997668000, 1]]
+  }
+]`, c)
+	spaces, err := client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(self.getSpace("db1", "test_regex", "/^metric\\./", spaces), NotNil)
+	shards, err := client.GetShards()
+	c.Assert(err, IsNil)
+	spaceShards := self.getShardsForSpace("test_regex", shards.All)
+	c.Assert(spaceShards, HasLen, 1)
+}
+
 func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 	// creates a default space
 	self.server.WriteData(`
@@ -769,8 +828,8 @@ func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 	c.Assert(spaces, HasLen, 1)
 	c.Assert(spaces[0].Name, Equals, "default")
 
-	space := &influxdb.ShardSpace{Name: "month", RetentionPolicy: "30d", Database: "db1", Regex: "/^the_dude_abides/"}
-	err = client.CreateShardSpace(space)
+	space := &influxdb.ShardSpace{Name: "month", RetentionPolicy: "30d", Regex: "/^the_dude_abides/"}
+	err = client.CreateShardSpace("db1", space)
 	c.Assert(err, IsNil)
 
 	self.server.WriteData(`
@@ -812,8 +871,8 @@ func (self *SingleServerSuite) getSpace(database, name string, regex string, spa
 func (self *SingleServerSuite) TestDropShardSpace(c *C) {
 	client := self.server.GetClient("", c)
 	spaceName := "test_drop"
-	space := &influxdb.ShardSpace{Name: spaceName, RetentionPolicy: "30d", Database: "db1", Regex: "/^dont_drop_me_bro/"}
-	err := client.CreateShardSpace(space)
+	space := &influxdb.ShardSpace{Name: spaceName, RetentionPolicy: "30d", Regex: "/^dont_drop_me_bro/"}
+	err := client.CreateShardSpace("db1", space)
 	c.Assert(err, IsNil)
 
 	self.server.WriteData(`
@@ -856,4 +915,33 @@ func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
 	c.Assert(queries, HasLen, 2)
 	c.Assert(queries[0][2], Equals, "select * from events into events.[id]")
 	c.Assert(queries[1][2], Equals, "select count(value) from events group by time(5m) into 5m.count.events")
+}
+
+func (self *SingleServerSuite) TestSeriesShouldReturnSorted(c *C) {
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase("test_series_sort"), IsNil)
+	client = self.server.GetClient("test_series_sort", c)
+	for i := 1; i < 100; i++ {
+		err := client.WriteSeries([]*influxdb.Series{{
+			Name:    fmt.Sprintf("sort_%.3d", i),
+			Columns: []string{"column1"},
+			Points:  [][]interface{}{{1}},
+		}})
+		c.Assert(err, IsNil)
+	}
+	series, err := client.Query("list series")
+	c.Assert(err, IsNil)
+	for i, p := range series[0].Points {
+		c.Assert(p[1], Equals, fmt.Sprintf("sort_%.3d", i+1))
+	}
+	series, err = client.Query("list series /.*/")
+	c.Assert(err, IsNil)
+	for i, p := range series[0].Points {
+		c.Assert(p[1], Equals, fmt.Sprintf("sort_%.3d", i+1))
+	}
+	series, err = client.Query("select * from /.*/")
+	c.Assert(err, IsNil)
+	for i, s := range series {
+		c.Assert(s.Name, Equals, fmt.Sprintf("sort_%.3d", i+1))
+	}
 }

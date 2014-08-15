@@ -200,6 +200,10 @@ func (self *BasicQuery) GetStartTime() time.Time {
 	return self.startTime
 }
 
+func (self *BasicQuery) IsStartTimeSpecified() bool {
+	return self.startTimeSpecified
+}
+
 // Returns the start time of the query. Queries can only have
 // one condition of the form time > start_time
 func (self *BasicQuery) GetEndTime() time.Time {

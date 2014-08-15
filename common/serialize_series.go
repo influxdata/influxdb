@@ -221,5 +221,6 @@ func SerializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 			Points:  points,
 		})
 	}
+	SortSerializedSeries(serializedSeries)
 	return serializedSeries
 }

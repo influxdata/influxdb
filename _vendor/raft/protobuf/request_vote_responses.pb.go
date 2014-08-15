@@ -5,31 +5,30 @@
 package protobuf
 
 import proto "code.google.com/p/gogoprotobuf/proto"
-import json "encoding/json"
 import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
 import io4 "io"
+import fmt16 "fmt"
 import code_google_com_p_gogoprotobuf_proto8 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt12 "fmt"
+import fmt17 "fmt"
 import strings8 "strings"
 import reflect8 "reflect"
 
-import fmt13 "fmt"
+import fmt18 "fmt"
 import strings9 "strings"
 import code_google_com_p_gogoprotobuf_proto9 "code.google.com/p/gogoprotobuf/proto"
 import sort4 "sort"
 import strconv4 "strconv"
 import reflect9 "reflect"
 
-import fmt14 "fmt"
+import fmt19 "fmt"
 import bytes4 "bytes"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type RequestVoteResponse struct {
@@ -78,7 +77,7 @@ func (m *RequestVoteResponse) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt16.Errorf("proto: wrong wireType = %d for field Term", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -95,7 +94,7 @@ func (m *RequestVoteResponse) Unmarshal(data []byte) error {
 			m.Term = &v
 		case 2:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt16.Errorf("proto: wrong wireType = %d for field VoteGranted", wireType)
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
@@ -125,6 +124,9 @@ func (m *RequestVoteResponse) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
+			if (index + skippy) > l {
+				return io4.ErrUnexpectedEOF
+			}
 			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
 			index += skippy
 		}
@@ -138,7 +140,7 @@ func (this *RequestVoteResponse) String() string {
 	s := strings8.Join([]string{`&RequestVoteResponse{`,
 		`Term:` + valueToStringRequestVoteResponses(this.Term) + `,`,
 		`VoteGranted:` + valueToStringRequestVoteResponses(this.VoteGranted) + `,`,
-		`XXX_unrecognized:` + fmt12.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt17.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -149,7 +151,7 @@ func valueToStringRequestVoteResponses(v interface{}) string {
 		return "nil"
 	}
 	pv := reflect8.Indirect(rv).Interface()
-	return fmt12.Sprintf("*%v", pv)
+	return fmt17.Sprintf("*%v", pv)
 }
 func (m *RequestVoteResponse) Size() (n int) {
 	var l int
@@ -177,7 +179,6 @@ func sovRequestVoteResponses(x uint64) (n int) {
 	return n
 }
 func sozRequestVoteResponses(x uint64) (n int) {
-	return sovRequestVoteResponses(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovRequestVoteResponses(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
 func NewPopulatedRequestVoteResponse(r randyRequestVoteResponses, easy bool) *RequestVoteResponse {
@@ -233,7 +234,11 @@ func randFieldRequestVoteResponses(data []byte, r randyRequestVoteResponses, fie
 	switch wire {
 	case 0:
 		data = encodeVarintPopulateRequestVoteResponses(data, uint64(key))
-		data = encodeVarintPopulateRequestVoteResponses(data, uint64(r.Int63()))
+		v4 := r.Int63()
+		if r.Intn(2) == 0 {
+			v4 *= -1
+		}
+		data = encodeVarintPopulateRequestVoteResponses(data, uint64(v4))
 	case 1:
 		data = encodeVarintPopulateRequestVoteResponses(data, uint64(key))
 		data = append(data, byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)))
@@ -324,7 +329,7 @@ func (this *RequestVoteResponse) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings9.Join([]string{`&protobuf.RequestVoteResponse{` + `Term:` + valueToGoStringRequestVoteResponses(this.Term, "uint64"), `VoteGranted:` + valueToGoStringRequestVoteResponses(this.VoteGranted, "bool"), `XXX_unrecognized:` + fmt13.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings9.Join([]string{`&protobuf.RequestVoteResponse{` + `Term:` + valueToGoStringRequestVoteResponses(this.Term, "uint64"), `VoteGranted:` + valueToGoStringRequestVoteResponses(this.VoteGranted, "bool"), `XXX_unrecognized:` + fmt18.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringRequestVoteResponses(v interface{}, typ string) string {
@@ -333,7 +338,7 @@ func valueToGoStringRequestVoteResponses(v interface{}, typ string) string {
 		return "nil"
 	}
 	pv := reflect9.Indirect(rv).Interface()
-	return fmt13.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	return fmt18.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
 func extensionToGoStringRequestVoteResponses(e map[int32]code_google_com_p_gogoprotobuf_proto9.Extension) string {
 	if e == nil {
@@ -357,41 +362,41 @@ func (this *RequestVoteResponse) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt14.Errorf("that == nil && this != nil")
+		return fmt19.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*RequestVoteResponse)
 	if !ok {
-		return fmt14.Errorf("that is not of type *RequestVoteResponse")
+		return fmt19.Errorf("that is not of type *RequestVoteResponse")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt14.Errorf("that is type *RequestVoteResponse but is nil && this != nil")
+		return fmt19.Errorf("that is type *RequestVoteResponse but is nil && this != nil")
 	} else if this == nil {
-		return fmt14.Errorf("that is type *RequestVoteResponsebut is not nil && this == nil")
+		return fmt19.Errorf("that is type *RequestVoteResponsebut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
-			return fmt14.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
+			return fmt19.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
 		}
 	} else if this.Term != nil {
-		return fmt14.Errorf("this.Term == nil && that.Term != nil")
+		return fmt19.Errorf("this.Term == nil && that.Term != nil")
 	} else if that1.Term != nil {
-		return fmt14.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
+		return fmt19.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
 	}
 	if this.VoteGranted != nil && that1.VoteGranted != nil {
 		if *this.VoteGranted != *that1.VoteGranted {
-			return fmt14.Errorf("VoteGranted this(%v) Not Equal that(%v)", *this.VoteGranted, *that1.VoteGranted)
+			return fmt19.Errorf("VoteGranted this(%v) Not Equal that(%v)", *this.VoteGranted, *that1.VoteGranted)
 		}
 	} else if this.VoteGranted != nil {
-		return fmt14.Errorf("this.VoteGranted == nil && that.VoteGranted != nil")
+		return fmt19.Errorf("this.VoteGranted == nil && that.VoteGranted != nil")
 	} else if that1.VoteGranted != nil {
-		return fmt14.Errorf("VoteGranted this(%v) Not Equal that(%v)", this.VoteGranted, that1.VoteGranted)
+		return fmt19.Errorf("VoteGranted this(%v) Not Equal that(%v)", this.VoteGranted, that1.VoteGranted)
 	}
 	if !bytes4.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt14.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+		return fmt19.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }

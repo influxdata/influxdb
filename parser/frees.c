@@ -145,6 +145,12 @@ close_query (query *q)
     free(q->select_query);
   }
 
+  if (q->list_series_query) {
+    if (q->list_series_query->has_regex)
+      free_value(q->list_series_query->regex);
+    free(q->list_series_query);
+  }
+
   if (q->drop_series_query) {
     free_drop_series_query(q->drop_series_query);
     free(q->drop_series_query);

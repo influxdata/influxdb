@@ -5,31 +5,30 @@
 package protobuf
 
 import proto "code.google.com/p/gogoprotobuf/proto"
-import json "encoding/json"
 import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
 import io6 "io"
+import fmt24 "fmt"
 import code_google_com_p_gogoprotobuf_proto12 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt18 "fmt"
+import fmt25 "fmt"
 import strings12 "strings"
 import reflect12 "reflect"
 
-import fmt19 "fmt"
+import fmt26 "fmt"
 import strings13 "strings"
 import code_google_com_p_gogoprotobuf_proto13 "code.google.com/p/gogoprotobuf/proto"
 import sort6 "sort"
 import strconv6 "strconv"
 import reflect13 "reflect"
 
-import fmt20 "fmt"
+import fmt27 "fmt"
 import bytes6 "bytes"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type SnapshotRecoveryResponse struct {
@@ -86,7 +85,7 @@ func (m *SnapshotRecoveryResponse) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt24.Errorf("proto: wrong wireType = %d for field Term", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -103,7 +102,7 @@ func (m *SnapshotRecoveryResponse) Unmarshal(data []byte) error {
 			m.Term = &v
 		case 2:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt24.Errorf("proto: wrong wireType = %d for field Success", wireType)
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
@@ -121,7 +120,7 @@ func (m *SnapshotRecoveryResponse) Unmarshal(data []byte) error {
 			m.Success = &b
 		case 3:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt24.Errorf("proto: wrong wireType = %d for field CommitIndex", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -150,6 +149,9 @@ func (m *SnapshotRecoveryResponse) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
+			if (index + skippy) > l {
+				return io6.ErrUnexpectedEOF
+			}
 			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
 			index += skippy
 		}
@@ -164,7 +166,7 @@ func (this *SnapshotRecoveryResponse) String() string {
 		`Term:` + valueToStringSnapshotRecoveryResponse(this.Term) + `,`,
 		`Success:` + valueToStringSnapshotRecoveryResponse(this.Success) + `,`,
 		`CommitIndex:` + valueToStringSnapshotRecoveryResponse(this.CommitIndex) + `,`,
-		`XXX_unrecognized:` + fmt18.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt25.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -175,7 +177,7 @@ func valueToStringSnapshotRecoveryResponse(v interface{}) string {
 		return "nil"
 	}
 	pv := reflect12.Indirect(rv).Interface()
-	return fmt18.Sprintf("*%v", pv)
+	return fmt25.Sprintf("*%v", pv)
 }
 func (m *SnapshotRecoveryResponse) Size() (n int) {
 	var l int
@@ -206,7 +208,6 @@ func sovSnapshotRecoveryResponse(x uint64) (n int) {
 	return n
 }
 func sozSnapshotRecoveryResponse(x uint64) (n int) {
-	return sovSnapshotRecoveryResponse(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovSnapshotRecoveryResponse(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
 func NewPopulatedSnapshotRecoveryResponse(r randySnapshotRecoveryResponse, easy bool) *SnapshotRecoveryResponse {
@@ -264,7 +265,11 @@ func randFieldSnapshotRecoveryResponse(data []byte, r randySnapshotRecoveryRespo
 	switch wire {
 	case 0:
 		data = encodeVarintPopulateSnapshotRecoveryResponse(data, uint64(key))
-		data = encodeVarintPopulateSnapshotRecoveryResponse(data, uint64(r.Int63()))
+		v5 := r.Int63()
+		if r.Intn(2) == 0 {
+			v5 *= -1
+		}
+		data = encodeVarintPopulateSnapshotRecoveryResponse(data, uint64(v5))
 	case 1:
 		data = encodeVarintPopulateSnapshotRecoveryResponse(data, uint64(key))
 		data = append(data, byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)))
@@ -360,7 +365,7 @@ func (this *SnapshotRecoveryResponse) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings13.Join([]string{`&protobuf.SnapshotRecoveryResponse{` + `Term:` + valueToGoStringSnapshotRecoveryResponse(this.Term, "uint64"), `Success:` + valueToGoStringSnapshotRecoveryResponse(this.Success, "bool"), `CommitIndex:` + valueToGoStringSnapshotRecoveryResponse(this.CommitIndex, "uint64"), `XXX_unrecognized:` + fmt19.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings13.Join([]string{`&protobuf.SnapshotRecoveryResponse{` + `Term:` + valueToGoStringSnapshotRecoveryResponse(this.Term, "uint64"), `Success:` + valueToGoStringSnapshotRecoveryResponse(this.Success, "bool"), `CommitIndex:` + valueToGoStringSnapshotRecoveryResponse(this.CommitIndex, "uint64"), `XXX_unrecognized:` + fmt26.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringSnapshotRecoveryResponse(v interface{}, typ string) string {
@@ -369,7 +374,7 @@ func valueToGoStringSnapshotRecoveryResponse(v interface{}, typ string) string {
 		return "nil"
 	}
 	pv := reflect13.Indirect(rv).Interface()
-	return fmt19.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	return fmt26.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
 func extensionToGoStringSnapshotRecoveryResponse(e map[int32]code_google_com_p_gogoprotobuf_proto13.Extension) string {
 	if e == nil {
@@ -393,50 +398,50 @@ func (this *SnapshotRecoveryResponse) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt20.Errorf("that == nil && this != nil")
+		return fmt27.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*SnapshotRecoveryResponse)
 	if !ok {
-		return fmt20.Errorf("that is not of type *SnapshotRecoveryResponse")
+		return fmt27.Errorf("that is not of type *SnapshotRecoveryResponse")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt20.Errorf("that is type *SnapshotRecoveryResponse but is nil && this != nil")
+		return fmt27.Errorf("that is type *SnapshotRecoveryResponse but is nil && this != nil")
 	} else if this == nil {
-		return fmt20.Errorf("that is type *SnapshotRecoveryResponsebut is not nil && this == nil")
+		return fmt27.Errorf("that is type *SnapshotRecoveryResponsebut is not nil && this == nil")
 	}
 	if this.Term != nil && that1.Term != nil {
 		if *this.Term != *that1.Term {
-			return fmt20.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
+			return fmt27.Errorf("Term this(%v) Not Equal that(%v)", *this.Term, *that1.Term)
 		}
 	} else if this.Term != nil {
-		return fmt20.Errorf("this.Term == nil && that.Term != nil")
+		return fmt27.Errorf("this.Term == nil && that.Term != nil")
 	} else if that1.Term != nil {
-		return fmt20.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
+		return fmt27.Errorf("Term this(%v) Not Equal that(%v)", this.Term, that1.Term)
 	}
 	if this.Success != nil && that1.Success != nil {
 		if *this.Success != *that1.Success {
-			return fmt20.Errorf("Success this(%v) Not Equal that(%v)", *this.Success, *that1.Success)
+			return fmt27.Errorf("Success this(%v) Not Equal that(%v)", *this.Success, *that1.Success)
 		}
 	} else if this.Success != nil {
-		return fmt20.Errorf("this.Success == nil && that.Success != nil")
+		return fmt27.Errorf("this.Success == nil && that.Success != nil")
 	} else if that1.Success != nil {
-		return fmt20.Errorf("Success this(%v) Not Equal that(%v)", this.Success, that1.Success)
+		return fmt27.Errorf("Success this(%v) Not Equal that(%v)", this.Success, that1.Success)
 	}
 	if this.CommitIndex != nil && that1.CommitIndex != nil {
 		if *this.CommitIndex != *that1.CommitIndex {
-			return fmt20.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
+			return fmt27.Errorf("CommitIndex this(%v) Not Equal that(%v)", *this.CommitIndex, *that1.CommitIndex)
 		}
 	} else if this.CommitIndex != nil {
-		return fmt20.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
+		return fmt27.Errorf("this.CommitIndex == nil && that.CommitIndex != nil")
 	} else if that1.CommitIndex != nil {
-		return fmt20.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
+		return fmt27.Errorf("CommitIndex this(%v) Not Equal that(%v)", this.CommitIndex, that1.CommitIndex)
 	}
 	if !bytes6.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt20.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+		return fmt27.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }

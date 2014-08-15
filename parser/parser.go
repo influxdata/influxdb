@@ -29,8 +29,9 @@ type IntoClause struct {
 }
 
 type BasicQuery struct {
-	startTime time.Time
-	endTime   time.Time
+	startTime          time.Time
+	endTime            time.Time
+	startTimeSpecified bool
 }
 
 type SelectDeleteCommonQuery struct {
@@ -54,10 +55,12 @@ type ListType int
 const (
 	Series ListType = iota
 	ContinuousQueries
+	SeriesWithRegex
 )
 
 type ListQuery struct {
-	Type ListType
+	Type  ListType
+	value *Value
 }
 
 type DropQuery struct {
@@ -125,12 +128,29 @@ func (self *Query) IsExplainQuery() bool {
 	return self.SelectQuery != nil && self.SelectQuery.Explain
 }
 
+func (self *Query) GetListSeriesQuery() *ListQuery {
+	return self.ListQuery
+}
+
 func (self *Query) IsListSeriesQuery() bool {
-	return self.ListQuery != nil && self.ListQuery.Type == Series
+	return self.ListQuery != nil && (self.ListQuery.Type == Series || self.ListQuery.Type == SeriesWithRegex)
 }
 
 func (self *Query) IsListContinuousQueriesQuery() bool {
 	return self.ListQuery != nil && self.ListQuery.Type == ContinuousQueries
+}
+
+func (self *ListQuery) HasRegex() bool {
+	return self.Type == SeriesWithRegex
+}
+
+func (self *ListQuery) IsCaseSensitive() bool {
+	return self.value.IsInsensitive
+}
+
+func (self *ListQuery) GetRegex() *regexp.Regexp {
+	regex, _ := self.value.GetCompiledRegex()
+	return regex
 }
 
 func (self *DeleteQuery) GetQueryString(withTime bool) string {
@@ -595,8 +615,18 @@ func ParseQuery(query string) ([]*Query, error) {
 		}
 	}
 
-	if q.list_series_query != 0 {
-		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: Series}}}, nil
+	if q.list_series_query != nil {
+		var value *Value
+		var err error
+		t := Series
+		if q.list_series_query.has_regex != 0 {
+			t = SeriesWithRegex
+			value, err = GetValue(q.list_series_query.regex)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return []*Query{{QueryString: query, ListQuery: &ListQuery{Type: t, value: value}}}, nil
 	}
 
 	if q.list_continuous_queries_query != 0 {
@@ -681,6 +711,7 @@ func parseSelectDeleteCommonQuery(fromClause *C.from_clause, whereCondition *C.c
 
 	if startTime != nil {
 		goQuery.startTime = *startTime
+		goQuery.startTimeSpecified = true
 	}
 
 	return goQuery, nil

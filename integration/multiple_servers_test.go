@@ -70,6 +70,28 @@ func (self *ServerSuite) TestLargeRequestSize(c *C) {
 	}
 }
 
+// issue #820
+func (self *ServerSuite) TestRemoteQueryTimeConditions(c *C) {
+	client := self.serverProcesses[0].GetClient("db1", c)
+	// this might error if we created this db in another test
+	client.CreateDatabase("db1")
+	data := CreatePoints("test_remote_time_range", 1, 1)
+	self.serverProcesses[0].WriteData(data, c)
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
+
+	time.Sleep(2 * time.Second)
+
+	for _, s := range self.serverProcesses {
+		data = s.RunQueryAsRoot("select * from test_remote_time_range where time > now() - 1s", "m", c)
+		// we shouldn't get any data back, the bug mentioned in issue #820
+		// will cause the query string to get sent without the time
+		// conditions, which will select all points and return some data.
+		c.Assert(data, HasLen, 0)
+	}
+}
+
 func (self *ServerSuite) TestChangingRootPassword(c *C) {
 	rootClient := self.serverProcesses[0].GetClient("", c)
 	c.Assert(rootClient.CreateClusterAdmin("newroot", "root"), IsNil)
@@ -145,6 +167,46 @@ func (self *ServerSuite) TestGraphiteUdpInterface(c *C) {
 	c.Assert(series.Points, HasLen, 2)
 	c.Assert(series.GetValueForPointAndColumn(0, "value", c), Equals, 200.5)
 	c.Assert(series.GetValueForPointAndColumn(1, "value", c), Equals, 100.0)
+}
+
+func (self *ServerSuite) TestShardExpiration(c *C) {
+	// makes sure when a shard expires due to retention policy the data
+	// is deleted as well as the metadata
+
+	client := self.serverProcesses[0].GetClient("", c)
+	client.CreateDatabase("db1")
+	space := &influxdb.ShardSpace{Name: "short", RetentionPolicy: "5s", Database: "db1", Regex: "/^test_shard_expiration/"}
+	err := client.CreateShardSpace("db1", space)
+	c.Assert(err, IsNil)
+
+	self.serverProcesses[0].WriteData(`
+[
+  {
+    "name": "test_shard_expiration",
+    "columns": ["time", "val"],
+    "points":[[1307997668000, 1]]
+  }
+]`, c)
+
+	time.Sleep(6 * time.Second)
+
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
+
+	// Make sure the shard is gone
+	shards, err := client.GetShards()
+	shardsInSpace := filterShardsInSpace("short", shards.All)
+	c.Assert(shardsInSpace, HasLen, 0)
+}
+
+func filterShardsInSpace(spaceName string, shards []*influxdb.Shard) (filteredShards []*influxdb.Shard) {
+	for _, s := range shards {
+		if s.SpaceName == spaceName {
+			filteredShards = append(filteredShards, s)
+		}
+	}
+	return
 }
 
 func (self *ServerSuite) TestRestartAfterCompaction(c *C) {
@@ -948,7 +1010,7 @@ func (self *ServerSuite) TestDropShard(c *C) {
 		s.WaitForServerToSync()
 	}
 	space := &influxdb.ShardSpace{Name: "test_drop", RetentionPolicy: "30d", Database: "test_drop_shard", Regex: "/^dont_drop_me_bro/"}
-	c.Assert(client.CreateShardSpace(space), IsNil)
+	c.Assert(client.CreateShardSpace("test_drop_shard", space), IsNil)
 
 	data := fmt.Sprintf(`{
 		"startTime":%d,

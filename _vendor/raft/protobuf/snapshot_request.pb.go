@@ -5,31 +5,30 @@
 package protobuf
 
 import proto "code.google.com/p/gogoprotobuf/proto"
-import json "encoding/json"
 import math "math"
 
 // discarding unused import gogoproto "code.google.com/p/gogoprotobuf/gogoproto/gogo.pb"
 
 import io7 "io"
+import fmt28 "fmt"
 import code_google_com_p_gogoprotobuf_proto14 "code.google.com/p/gogoprotobuf/proto"
 
-import fmt21 "fmt"
+import fmt29 "fmt"
 import strings14 "strings"
 import reflect14 "reflect"
 
-import fmt22 "fmt"
+import fmt30 "fmt"
 import strings15 "strings"
 import code_google_com_p_gogoprotobuf_proto15 "code.google.com/p/gogoprotobuf/proto"
 import sort7 "sort"
 import strconv7 "strconv"
 import reflect15 "reflect"
 
-import fmt23 "fmt"
+import fmt31 "fmt"
 import bytes7 "bytes"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type SnapshotRequest struct {
@@ -86,7 +85,7 @@ func (m *SnapshotRequest) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return proto.ErrWrongType
+				return fmt28.Errorf("proto: wrong wireType = %d for field LeaderName", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -109,7 +108,7 @@ func (m *SnapshotRequest) Unmarshal(data []byte) error {
 			index = postIndex
 		case 2:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt28.Errorf("proto: wrong wireType = %d for field LastIndex", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -126,7 +125,7 @@ func (m *SnapshotRequest) Unmarshal(data []byte) error {
 			m.LastIndex = &v
 		case 3:
 			if wireType != 0 {
-				return proto.ErrWrongType
+				return fmt28.Errorf("proto: wrong wireType = %d for field LastTerm", wireType)
 			}
 			var v uint64
 			for shift := uint(0); ; shift += 7 {
@@ -155,6 +154,9 @@ func (m *SnapshotRequest) Unmarshal(data []byte) error {
 			if err != nil {
 				return err
 			}
+			if (index + skippy) > l {
+				return io7.ErrUnexpectedEOF
+			}
 			m.XXX_unrecognized = append(m.XXX_unrecognized, data[index:index+skippy]...)
 			index += skippy
 		}
@@ -169,7 +171,7 @@ func (this *SnapshotRequest) String() string {
 		`LeaderName:` + valueToStringSnapshotRequest(this.LeaderName) + `,`,
 		`LastIndex:` + valueToStringSnapshotRequest(this.LastIndex) + `,`,
 		`LastTerm:` + valueToStringSnapshotRequest(this.LastTerm) + `,`,
-		`XXX_unrecognized:` + fmt21.Sprintf("%v", this.XXX_unrecognized) + `,`,
+		`XXX_unrecognized:` + fmt29.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -180,7 +182,7 @@ func valueToStringSnapshotRequest(v interface{}) string {
 		return "nil"
 	}
 	pv := reflect14.Indirect(rv).Interface()
-	return fmt21.Sprintf("*%v", pv)
+	return fmt29.Sprintf("*%v", pv)
 }
 func (m *SnapshotRequest) Size() (n int) {
 	var l int
@@ -212,7 +214,6 @@ func sovSnapshotRequest(x uint64) (n int) {
 	return n
 }
 func sozSnapshotRequest(x uint64) (n int) {
-	return sovSnapshotRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 	return sovSnapshotRequest(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
 func NewPopulatedSnapshotRequest(r randySnapshotRequest, easy bool) *SnapshotRequest {
@@ -270,7 +271,11 @@ func randFieldSnapshotRequest(data []byte, r randySnapshotRequest, fieldNumber i
 	switch wire {
 	case 0:
 		data = encodeVarintPopulateSnapshotRequest(data, uint64(key))
-		data = encodeVarintPopulateSnapshotRequest(data, uint64(r.Int63()))
+		v5 := r.Int63()
+		if r.Intn(2) == 0 {
+			v5 *= -1
+		}
+		data = encodeVarintPopulateSnapshotRequest(data, uint64(v5))
 	case 1:
 		data = encodeVarintPopulateSnapshotRequest(data, uint64(key))
 		data = append(data, byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)))
@@ -362,7 +367,7 @@ func (this *SnapshotRequest) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings15.Join([]string{`&protobuf.SnapshotRequest{` + `LeaderName:` + valueToGoStringSnapshotRequest(this.LeaderName, "string"), `LastIndex:` + valueToGoStringSnapshotRequest(this.LastIndex, "uint64"), `LastTerm:` + valueToGoStringSnapshotRequest(this.LastTerm, "uint64"), `XXX_unrecognized:` + fmt22.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
+	s := strings15.Join([]string{`&protobuf.SnapshotRequest{` + `LeaderName:` + valueToGoStringSnapshotRequest(this.LeaderName, "string"), `LastIndex:` + valueToGoStringSnapshotRequest(this.LastIndex, "uint64"), `LastTerm:` + valueToGoStringSnapshotRequest(this.LastTerm, "uint64"), `XXX_unrecognized:` + fmt30.Sprintf("%#v", this.XXX_unrecognized) + `}`}, ", ")
 	return s
 }
 func valueToGoStringSnapshotRequest(v interface{}, typ string) string {
@@ -371,7 +376,7 @@ func valueToGoStringSnapshotRequest(v interface{}, typ string) string {
 		return "nil"
 	}
 	pv := reflect15.Indirect(rv).Interface()
-	return fmt22.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+	return fmt30.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
 func extensionToGoStringSnapshotRequest(e map[int32]code_google_com_p_gogoprotobuf_proto15.Extension) string {
 	if e == nil {
@@ -395,50 +400,50 @@ func (this *SnapshotRequest) VerboseEqual(that interface{}) error {
 		if this == nil {
 			return nil
 		}
-		return fmt23.Errorf("that == nil && this != nil")
+		return fmt31.Errorf("that == nil && this != nil")
 	}
 
 	that1, ok := that.(*SnapshotRequest)
 	if !ok {
-		return fmt23.Errorf("that is not of type *SnapshotRequest")
+		return fmt31.Errorf("that is not of type *SnapshotRequest")
 	}
 	if that1 == nil {
 		if this == nil {
 			return nil
 		}
-		return fmt23.Errorf("that is type *SnapshotRequest but is nil && this != nil")
+		return fmt31.Errorf("that is type *SnapshotRequest but is nil && this != nil")
 	} else if this == nil {
-		return fmt23.Errorf("that is type *SnapshotRequestbut is not nil && this == nil")
+		return fmt31.Errorf("that is type *SnapshotRequestbut is not nil && this == nil")
 	}
 	if this.LeaderName != nil && that1.LeaderName != nil {
 		if *this.LeaderName != *that1.LeaderName {
-			return fmt23.Errorf("LeaderName this(%v) Not Equal that(%v)", *this.LeaderName, *that1.LeaderName)
+			return fmt31.Errorf("LeaderName this(%v) Not Equal that(%v)", *this.LeaderName, *that1.LeaderName)
 		}
 	} else if this.LeaderName != nil {
-		return fmt23.Errorf("this.LeaderName == nil && that.LeaderName != nil")
+		return fmt31.Errorf("this.LeaderName == nil && that.LeaderName != nil")
 	} else if that1.LeaderName != nil {
-		return fmt23.Errorf("LeaderName this(%v) Not Equal that(%v)", this.LeaderName, that1.LeaderName)
+		return fmt31.Errorf("LeaderName this(%v) Not Equal that(%v)", this.LeaderName, that1.LeaderName)
 	}
 	if this.LastIndex != nil && that1.LastIndex != nil {
 		if *this.LastIndex != *that1.LastIndex {
-			return fmt23.Errorf("LastIndex this(%v) Not Equal that(%v)", *this.LastIndex, *that1.LastIndex)
+			return fmt31.Errorf("LastIndex this(%v) Not Equal that(%v)", *this.LastIndex, *that1.LastIndex)
 		}
 	} else if this.LastIndex != nil {
-		return fmt23.Errorf("this.LastIndex == nil && that.LastIndex != nil")
+		return fmt31.Errorf("this.LastIndex == nil && that.LastIndex != nil")
 	} else if that1.LastIndex != nil {
-		return fmt23.Errorf("LastIndex this(%v) Not Equal that(%v)", this.LastIndex, that1.LastIndex)
+		return fmt31.Errorf("LastIndex this(%v) Not Equal that(%v)", this.LastIndex, that1.LastIndex)
 	}
 	if this.LastTerm != nil && that1.LastTerm != nil {
 		if *this.LastTerm != *that1.LastTerm {
-			return fmt23.Errorf("LastTerm this(%v) Not Equal that(%v)", *this.LastTerm, *that1.LastTerm)
+			return fmt31.Errorf("LastTerm this(%v) Not Equal that(%v)", *this.LastTerm, *that1.LastTerm)
 		}
 	} else if this.LastTerm != nil {
-		return fmt23.Errorf("this.LastTerm == nil && that.LastTerm != nil")
+		return fmt31.Errorf("this.LastTerm == nil && that.LastTerm != nil")
 	} else if that1.LastTerm != nil {
-		return fmt23.Errorf("LastTerm this(%v) Not Equal that(%v)", this.LastTerm, that1.LastTerm)
+		return fmt31.Errorf("LastTerm this(%v) Not Equal that(%v)", this.LastTerm, that1.LastTerm)
 	}
 	if !bytes7.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
-		return fmt23.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
+		return fmt31.Errorf("XXX_unrecognized this(%v) Not Equal that(%v)", this.XXX_unrecognized, that1.XXX_unrecognized)
 	}
 	return nil
 }

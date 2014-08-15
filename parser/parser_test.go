@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -101,6 +102,13 @@ func (self *QueryParserSuite) TestGetQueryString(c *C) {
 		c.Assert(actualQuery, HasLen, 1)
 		expectedQuery[0].QueryString = ""
 		actualQuery[0].QueryString = ""
+		if expectedQuery[0].DeleteQuery != nil {
+			expectedQuery[0].DeleteQuery.startTimeSpecified = false
+			actualQuery[0].DeleteQuery.startTimeSpecified = false
+		} else if expectedQuery[0].SelectQuery != nil {
+			expectedQuery[0].SelectQuery.startTimeSpecified = false
+			actualQuery[0].SelectQuery.startTimeSpecified = false
+		}
 
 		c.Assert(actualQuery[0], DeepEquals, expectedQuery[0])
 	}
@@ -262,11 +270,41 @@ func (self *QueryParserSuite) TestParseFromWithJoinedTable(c *C) {
 	c.Assert(fromClause.Names[1].Name.Name, Equals, "user.signups")
 }
 
+func (self *QueryParserSuite) TestIncompleteRegex(c *C) {
+	_, err := ParseQuery("list series /")
+	c.Assert(err, NotNil)
+}
+
 func (self *QueryParserSuite) TestParseListSeries(c *C) {
 	queries, err := ParseQuery("list series")
 	c.Assert(err, IsNil)
 	c.Assert(queries, HasLen, 1)
 	c.Assert(queries[0].IsListQuery(), Equals, true)
+	listSeriesQuery := queries[0].GetListSeriesQuery()
+	c.Assert(listSeriesQuery, NotNil)
+	c.Assert(listSeriesQuery.HasRegex(), Equals, false)
+
+	// test the case sensitive and case insensitive list series
+	for i := 0; i < 2; i++ {
+		query := "list series /^foo.*/"
+		if i == 1 {
+			query += "i"
+		}
+		queries, err = ParseQuery(query)
+		c.Assert(err, IsNil)
+		c.Assert(queries, HasLen, 1)
+		c.Assert(queries[0].IsListSeriesQuery(), Equals, true)
+		listSeriesQuery = queries[0].GetListSeriesQuery()
+		c.Assert(listSeriesQuery, NotNil)
+		c.Assert(listSeriesQuery.HasRegex(), Equals, true)
+		var regularExpression *regexp.Regexp
+		if i == 1 {
+			regularExpression, _ = regexp.Compile("(?i)^foo.*")
+		} else {
+			regularExpression, _ = regexp.Compile("^foo.*")
+		}
+		c.Assert(listSeriesQuery.GetRegex(), DeepEquals, regularExpression)
+	}
 }
 
 // issue #267

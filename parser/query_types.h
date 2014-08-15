@@ -3,7 +3,7 @@
 #define FALSE 0
 #define TRUE !FALSE
 
-// #define DEBUG
+/* #define DEBUG */
 
 typedef struct {
   size_t size;
@@ -96,6 +96,11 @@ typedef struct {
 } select_query;
 
 typedef struct {
+  char has_regex;
+  value *regex;
+} list_series_query;
+
+typedef struct {
   from_clause *from_clause;
   condition *where_condition;
   error *error;
@@ -114,7 +119,7 @@ typedef struct {
   delete_query *delete_query;
   drop_series_query *drop_series_query;
   drop_query *drop_query;
-  char list_series_query;
+  list_series_query *list_series_query;
   char list_continuous_queries_query;
   error *error;
 } query;

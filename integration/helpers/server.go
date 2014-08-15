@@ -120,6 +120,9 @@ func (self *Server) GetClientWithUser(db, username, password string, c *C) *infl
 		Username: username,
 		Password: password,
 		Database: db,
+		HttpClient: &http.Client{
+			Timeout: time.Second * 60,
+		},
 	})
 	c.Assert(err, IsNil)
 	return client

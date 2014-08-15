@@ -21,6 +21,7 @@ static int yycolumn = 1;
 %option bison-locations
 %option noyywrap
 %s FROM_CLAUSE REGEX_CONDITION
+%x LIST_SERIES
 %x IN_REGEX
 %x IN_TABLE_NAME
 %x IN_SIMPLE_NAME
@@ -30,16 +31,21 @@ static int yycolumn = 1;
 ,                         { return *yytext; }
 "merge"                   { return MERGE; }
 "list"                    { return LIST; }
-"series"                  { return SERIES; }
+"series"                  { BEGIN(LIST_SERIES); return SERIES; }
 "continuous query"        { return CONTINUOUS_QUERY; }
 "continuous queries"      { return CONTINUOUS_QUERIES; }
 "inner"                   { return INNER; }
 "join"                    { return JOIN; }
 "from"                    { BEGIN(FROM_CLAUSE); return FROM; }
-<FROM_CLAUSE,REGEX_CONDITION>\/ { BEGIN(IN_REGEX); yylval->string=calloc(1, sizeof(char)); }
+<LIST_SERIES,FROM_CLAUSE,REGEX_CONDITION>\/ { BEGIN(IN_REGEX); yylval->string=calloc(1, sizeof(char)); }
 <IN_REGEX>\\\/ {
   yylval->string = realloc(yylval->string, strlen(yylval->string) + 2);
   strcat(yylval->string, "/");
+}
+<IN_REGEX><<EOF>> {
+  free(yylval->string);
+  BEGIN(INITIAL);
+  return UNKNOWN;
 }
 <IN_REGEX>\\ {
   yylval->string = realloc(yylval->string, strlen(yylval->string) + 2);
@@ -115,20 +121,6 @@ true|false                                          { yylval->string = strdup(yy
 }
 
 [a-zA-Z0-9_][a-zA-Z0-9._-]*                         { yylval->string = strdup(yytext); return TABLE_NAME; }
-
-\" { BEGIN(IN_TABLE_NAME); yylval->string=calloc(1, sizeof(char)); }
-<IN_TABLE_NAME>\\\" {
-  yylval->string = realloc(yylval->string, strlen(yylval->string) + 1);
-  strcat(yylval->string, "\"");
-}
-<IN_TABLE_NAME>\" {
-  BEGIN(INITIAL);
-  return TABLE_NAME;
-}
-<IN_TABLE_NAME>[^\\"]* {
-  yylval->string=realloc(yylval->string, strlen(yylval->string) + strlen(yytext) + 1);
-  strcat(yylval->string, yytext);
-}
 
 [:\[a-zA-Z0-9_][:\[\]a-zA-Z0-9._-]*                 { yylval->string = strdup(yytext); return INTO_NAME; }
 

@@ -67,16 +67,13 @@ read-timeout = "5s"
 port = 8090
 
 # Where the raft logs are stored. The user running InfluxDB will need read/write access.
-dir  = "/tmp/influxdb/development/raft"
+dir  = "integration/migration_data/raft"
 
 # election-timeout = "1s"
 
 [storage]
 
-# The server will check this often for shards that have expired and should be cleared.
-retention-sweep-period = "10s"
-
-dir = "/tmp/influxdb/development/db"
+dir = "integration/migration_data/data"
 # How many requests to potentially buffer in memory. If the buffer gets filled then writes
 # will still be logged and once the local storage has caught up (or compacted) the writes
 # will be replayed from the WAL
@@ -91,37 +88,51 @@ max-open-shards = 0
 
 # The default setting is 100. This option tells how many points will be fetched from LevelDb before
 # they get flushed into backend.
-point-batch-size = 1
+point-batch-size = 100
 
 # The number of points to batch in memory before writing them to leveldb. Lowering this number will
 # reduce the memory usage, but will result in slower writes.
 write-batch-size = 5000000
 
-[storage.leveldb]
+# The server will check this often for shards that have expired that should be cleared.
+retention-sweep-period = "10m"
+
+[storage.engines.leveldb]
 
 # Maximum mmap open files, this will affect the virtual memory used by
 # the process
-max-open-files = 40
+max-open-files = 1000
 
 # LRU cache size, LRU is used by leveldb to store contents of the
 # uncompressed sstables. You can use `m` or `g` prefix for megabytes
 # and gigabytes, respectively.
 lru-cache-size = "200m"
 
-[storage.rocksdb]
+[storage.engines.rocksdb]
 
 # Maximum mmap open files, this will affect the virtual memory used by
 # the process
-max-open-files = 40
+max-open-files = 1000
 
 # LRU cache size, LRU is used by rocksdb to store contents of the
 # uncompressed sstables. You can use `m` or `g` prefix for megabytes
 # and gigabytes, respectively.
 lru-cache-size = "200m"
 
-[storage.lmdb]
+[storage.engines.hyperleveldb]
 
-map-size = "10g"
+# Maximum mmap open files, this will affect the virtual memory used by
+# the process
+max-open-files = 1000
+
+# LRU cache size, LRU is used by rocksdb to store contents of the
+# uncompressed sstables. You can use `m` or `g` prefix for megabytes
+# and gigabytes, respectively.
+lru-cache-size = "200m"
+
+[storage.engines.lmdb]
+
+map-size = "100g"
 
 [cluster]
 # A comma separated list of servers to seed
@@ -147,7 +158,7 @@ protobuf_max_backoff = "10s" # the maxmimum backoff after a failed heartbeat att
 # How many write requests to potentially buffer in memory per server. If the buffer gets filled then writes
 # will still be logged and once the server has caught up (or come back online) the writes
 # will be replayed from the WAL
-write-buffer-size = 10000
+write-buffer-size = 1000
 
 # the maximum number of responses to buffer from remote nodes, if the
 # expected number of responses exceed this number then querying will
@@ -161,12 +172,9 @@ max-response-buffer-size = 100
 # that you don't need to buffer in memory, but you won't get the best performance.
 concurrent-shard-query-limit = 10
 
-# The server will check this often for shards that have expired and should be cleared.
-retention-sweep-period = "10000u"
-
 [wal]
 
-dir   = "/tmp/influxdb/development/wal"
+dir   = "integration/migration_data/wal"
 flush-after = 1000 # the number of writes after which wal will be flushed, 0 for flushing on every write
 bookmark-after = 1000 # the number of writes after which a bookmark will be created
 

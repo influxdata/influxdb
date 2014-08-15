@@ -3,6 +3,8 @@ package helpers
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"time"
 
 	influxdb "github.com/influxdb/influxdb/client"
 	. "launchpad.net/gocheck"
@@ -23,7 +25,12 @@ func (self *DataTestClient) SetDB(db string) {
 }
 
 func (self *DataTestClient) WriteData(series []*influxdb.Series, c *C, timePrecision ...influxdb.TimePrecision) {
-	client, err := influxdb.NewClient(&influxdb.ClientConfig{Database: self.db})
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{
+		Database: self.db,
+		HttpClient: &http.Client{
+			Timeout: 60 * time.Second,
+		},
+	})
 	c.Assert(err, IsNil)
 	if len(timePrecision) == 0 {
 		c.Assert(client.WriteSeries(series), IsNil)

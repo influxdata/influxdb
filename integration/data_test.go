@@ -204,6 +204,32 @@ func (self *DataTestSuite) DifferenceValues(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #426
+func (self *DataTestSuite) FillingEntireRange(c *C) (Fun, Fun) {
+	return func(client Client) {
+			data := `
+[
+  {
+    "name": "test_filling_range",
+    "columns": ["value"],
+    "points": [
+      [1]
+    ]
+  }
+ ]`
+			client.WriteJsonData(data, c, influxdb.Millisecond)
+		}, func(client Client) {
+			serieses := client.RunQuery("select sum(value) from test_filling_range where time > now() - 1d group by time(1h) fill(0)", c, "m")
+			c.Assert(serieses, HasLen, 1)
+			maps := ToMap(serieses[0])
+			c.Assert(maps, HasLen, 25)
+			c.Assert(maps[0]["sum"], Equals, 1.0)
+			for i := 1; i < len(maps); i++ {
+				c.Assert(maps[i]["sum"], Equals, 0.0)
+			}
+		}
+}
+
 func (self *DataTestSuite) ModeWithInt(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := `
@@ -482,7 +508,6 @@ func (self *DataTestSuite) FilteringShouldNotStopIfAllPointsDontMatch(c *C) (Fun
 			client.WriteData([]*influxdb.Series{series}, c, influxdb.Second)
 		}, func(client Client) {
 			serieses := client.RunQuery("select column0 from test_filtering_shouldnt_stop where column0 < 10", c, "m")
-			fmt.Printf("serieses: %#v\n", serieses)
 			c.Assert(serieses, HasLen, 1)
 		}
 }
