@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/configuration"
@@ -56,12 +57,16 @@ func (dm *DataMigrator) Migrate() {
 		log.Error("Error Migrating: ", err)
 		return
 	}
-	//  go through in reverse order so most recently created shards will be migrated first
-	for i := len(infos) - 1; i >= 0; i-- {
-		info := infos[i]
+	names := make([]string, 0)
+	for _, info := range infos {
 		if info.IsDir() {
-			dm.migrateDir(info.Name())
+			names = append(names, info.Name())
 		}
+	}
+	sort.Strings(names)
+	//  go through in reverse order so most recently created shards will be migrated first
+	for i := len(names) - 1; i >= 0; i-- {
+		dm.migrateDir(names[i])
 	}
 }
 
@@ -147,38 +152,4 @@ func (dm *DataMigrator) getShard(name string) (*LevelDbShard, error) {
 	}
 
 	return NewLevelDbShard(ldb, dm.config.StoragePointBatchSize, dm.config.StorageWriteBatchSize)
-
-	// // old shards will only be leveldb type shards
-	// engine := "leveldb"
-	// init, err := storage.GetInitializer(engine)
-	// if err != nil {
-	// 	log.Error("Error opening shard: ", err)
-	// 	return nil, err
-	// }
-	// c := init.NewConfig()
-	// conf, ok := dm.config.StorageEngineConfigs[engine]
-	// if err := toml.PrimitiveDecode(conf, c); ok && err != nil {
-	// 	return nil, err
-	// }
-
-	// // TODO: this is for backward compatability with the old
-	// // configuration
-	// if leveldbConfig, ok := c.(*storage.LevelDbConfiguration); ok {
-	// 	if leveldbConfig.LruCacheSize == 0 {
-	// 		leveldbConfig.LruCacheSize = configuration.Size(dm.config.LevelDbLruCacheSize)
-	// 	}
-
-	// 	if leveldbConfig.MaxOpenFiles == 0 {
-	// 		leveldbConfig.MaxOpenFiles = dm.config.LevelDbMaxOpenFiles
-	// 	}
-	// }
-
-	// se, err := init.Initialize(dbDir, c)
-	// db, err := datastore.NewShard(se, dm.config.StoragePointBatchSize, dm.config.StorageWriteBatchSize, dm.metaStore)
-	// if err != nil {
-	// 	log.Error("Error creating shard: ", err)
-	// 	se.Close()
-	// 	return nil, err
-	// }
-	// return db, nil
 }
