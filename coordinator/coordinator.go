@@ -71,6 +71,10 @@ func (self *Coordinator) RunQuery(user common.User, database string, queryString
 func (self *Coordinator) runSingleQuery(user common.User, db string, q *parser.Query, sw SeriesWriter) error {
 	querySpec := parser.NewQuerySpec(user, db, q)
 
+	if ok, err := self.permissions.CheckQueryPermissions(user, db, querySpec); !ok {
+		return err
+	}
+
 	switch qt := q.Type(); qt {
 	// administrative
 	case parser.DropContinuousQuery:
@@ -87,32 +91,10 @@ func (self *Coordinator) runSingleQuery(user common.User, db string, q *parser.Q
 	case parser.DropSeries:
 		return self.runDropSeriesQuery(querySpec, sw)
 	case parser.Select:
-		return self.runSelectQuery(user, querySpec, sw)
+		return self.runQuerySpec(querySpec, sw)
 	default:
 		return fmt.Errorf("Can't handle query %s", qt)
 	}
-}
-
-func (self *Coordinator) checkPermission(user common.User, querySpec *parser.QuerySpec) error {
-	// if this isn't a regex query do the permission check here
-	fromClause := querySpec.SelectQuery().GetFromClause()
-
-	for _, n := range fromClause.Names {
-		if _, ok := n.Name.GetCompiledRegex(); ok {
-			break
-		} else if name := n.Name.Name; !user.HasReadAccess(name) {
-			return fmt.Errorf("User doesn't have read access to %s", name)
-		}
-	}
-	return nil
-}
-
-// This should only get run for SelectQuery types
-func (self *Coordinator) runSelectQuery(user common.User, querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	if err := self.checkPermission(user, querySpec); err != nil {
-		return err
-	}
-	return self.runQuerySpec(querySpec, seriesWriter)
 }
 
 func (self *Coordinator) runListContinuousQueries(user common.User, db string, sw SeriesWriter) error {
@@ -158,12 +140,6 @@ func (self *Coordinator) runListSeriesQuery(querySpec *parser.QuerySpec, seriesW
 
 func (self *Coordinator) runDeleteQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
 	if err := self.clusterConfiguration.CreateCheckpoint(); err != nil {
-		return err
-	}
-
-	user := querySpec.User()
-	db := querySpec.Database()
-	if ok, err := self.permissions.AuthorizeDeleteQuery(user, db); !ok {
 		return err
 	}
 	querySpec.RunAgainstAllServersInShard = true
@@ -233,7 +209,7 @@ func (self *Coordinator) shouldQuerySequentially(shards cluster.Shards, querySpe
 	return false
 }
 
-func (self *Coordinator) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, chan bool, error) {
+func (self *Coordinator) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, <-chan bool, error) {
 	shards := self.clusterConfiguration.GetShardsForQuery(querySpec)
 	shouldAggregateLocally := shards.ShouldAggregateLocally(querySpec)
 
@@ -368,6 +344,7 @@ func (self *Coordinator) queryShards(querySpec *parser.QuerySpec, shards []*clus
 	return nil
 }
 
+// We call this function only if we have a Select query (not continuous) or Delete query
 func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
 	shards, processor, seriesClosed, err := self.getShardsAndProcessor(querySpec, seriesWriter)
 	if err != nil {
