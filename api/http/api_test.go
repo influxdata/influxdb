@@ -183,13 +183,15 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 		dbUsers:       map[string]map[string]MockDbUser{"db1": {"db_user1": {Name: "db_user1", IsAdmin: false}}},
 	}
 	dir := c.MkDir()
+	config := &configuration.Configuration{
+		ApiReadTimeout: 10 * time.Second,
+		AdminAssetsDir: dir,
+	}
 	self.server = NewHttpServer(
-		"",
-		10*time.Second,
-		dir,
+		config,
 		self.coordinator,
 		self.manager,
-		cluster.NewClusterConfiguration(&configuration.Configuration{}, nil, nil, nil, nil),
+		cluster.NewClusterConfiguration(config, nil, nil, nil, nil),
 		nil)
 	var err error
 	self.listener, err = net.Listen("tcp4", ":8081")
