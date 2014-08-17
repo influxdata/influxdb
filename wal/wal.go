@@ -372,13 +372,7 @@ func (self *WAL) createNewLog(firstRequestNumber uint32) (*log, error) {
 }
 
 func (self *WAL) openLog(logFileName string) (*log, *index, error) {
-	logger.Info("Opening log file %s", logFileName)
-
-	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-	if err != nil {
-		return nil, nil, err
-	}
-	log, err := newLog(logFile, self.config)
+	log, err := newLog(logFileName, self.config)
 	if err != nil {
 		return nil, nil, err
 	}
