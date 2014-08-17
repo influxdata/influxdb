@@ -10,7 +10,7 @@ import (
 )
 
 func (_ *WalSuite) TestCheckLogFileIsEmpty(c *C) {
-	logfile := filepath.Join(os.TempDir(), "log.1")
+	logfile := filepath.Join(c.MkDir(), "log.1")
 	f, e := os.OpenFile(logfile, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0)
 	c.Assert(e, IsNil)
 	f.Close()
@@ -20,7 +20,7 @@ func (_ *WalSuite) TestCheckLogFileIsEmpty(c *C) {
 }
 
 func (_ *WalSuite) TestCheckLogFileIsOK(c *C) {
-	logfile := filepath.Join(os.TempDir(), "log.1")
+	logfile := filepath.Join(c.MkDir(), "log.1")
 	f, e := os.OpenFile(logfile, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0)
 	c.Assert(e, IsNil)
 
@@ -46,7 +46,7 @@ func (_ *WalSuite) TestCheckLogFileIsOK(c *C) {
 }
 
 func (_ *WalSuite) TestCheckLogFileIsErrorRequest(c *C) {
-	logfile := filepath.Join(os.TempDir(), "log.1")
+	logfile := filepath.Join(c.MkDir(), "log.1")
 	f, e := os.OpenFile(logfile, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0)
 	c.Assert(e, IsNil)
 	hdr := &entryHeader{requestNumber: 1,
@@ -62,7 +62,7 @@ func (_ *WalSuite) TestCheckLogFileIsErrorRequest(c *C) {
 }
 
 func (_ *WalSuite) TestCheckLogFileHasInvalidData(c *C) {
-	logfile := filepath.Join(os.TempDir(), "log.1")
+	logfile := filepath.Join(c.MkDir(), "log.1")
 	f, e := os.OpenFile(logfile, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0)
 	c.Assert(e, IsNil)
 
