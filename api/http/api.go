@@ -441,6 +441,11 @@ func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Requ
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
+		if !isValidDbName(createRequest.Name) {
+			m := "Unable to create database without name"
+			log.Error(m)
+			return libhttp.StatusBadRequest, m
+		}
 		err = self.coordinator.CreateDatabase(user, createRequest.Name)
 		if err != nil {
 			log.Error("Cannot create database %s. Error: %s", createRequest.Name, err)
@@ -449,6 +454,10 @@ func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Requ
 		log.Debug("Created database %s", createRequest.Name)
 		return libhttp.StatusCreated, nil
 	})
+}
+
+func isValidDbName(name string) bool {
+	return strings.TrimSpace(name) != ""
 }
 
 func (self *HttpServer) dropDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
