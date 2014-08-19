@@ -48,6 +48,22 @@ const (
 	Potential
 )
 
+func (self *ClusterServer) GetStateName() (stateName string) {
+	switch {
+	case self.State == LoadingRingData:
+		return "LoadingRingData"
+	case self.State == SendingRingData:
+		return "SendingRingData"
+	case self.State == DeletingOldData:
+		return "DeletingOldData"
+	case self.State == Running:
+		return "Running"
+	case self.State == Potential:
+		return "Potential"
+	}
+	return "UNKNOWN"
+}
+
 func NewClusterServer(raftName, raftConnectionString, protobufConnectionString string, connection ServerConnection, config *c.Configuration) *ClusterServer {
 
 	s := &ClusterServer{

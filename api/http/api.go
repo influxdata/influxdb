@@ -985,8 +985,22 @@ func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		servers := self.clusterConfig.Servers()
 		serverMaps := make([]map[string]interface{}, len(servers), len(servers))
+
+		//FIXME: GetLeaderConnectString is not consistent yet when called on different server.
+		leaderConnectString, _ := self.raftServer.GetLeaderConnectString()
+		leaderRaftName := self.raftServer.GetLeaderRaftName()
 		for i, s := range servers {
-			serverMaps[i] = map[string]interface{}{"id": s.Id, "protobufConnectString": s.ProtobufConnectionString}
+			serverMaps[i] = map[string]interface{}{
+				"id": s.Id,
+				"protobufConnectString": s.ProtobufConnectionString,
+				"isUp":                  s.IsUp(), //FIXME: IsUp is not consistent
+				"raftName":              s.RaftName,
+				"state":                 s.State,
+				"stateName":             s.GetStateName(),
+				"raftConnectionString":  s.RaftConnectionString,
+				"leaderRaftName":        leaderRaftName,
+				"leaderConnectString":   leaderConnectString,
+				"isLeader":              self.raftServer.IsLeaderByRaftName(s.RaftName)}
 		}
 		return libhttp.StatusOK, serverMaps
 	})
