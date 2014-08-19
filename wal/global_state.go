@@ -68,13 +68,14 @@ func (self *GlobalState) writeToFile() error {
 		return err
 	}
 
+	// always close and ignore any errors on exit
+	defer newFile.Close()
+
 	if err := self.write(newFile); err != nil {
-		newFile.Close()
 		return err
 	}
 
 	if err := newFile.Sync(); err != nil {
-		newFile.Close()
 		return err
 	}
 
