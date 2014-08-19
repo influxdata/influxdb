@@ -115,6 +115,19 @@ func (s *RaftServer) GetRaftName() string {
 	return s.name
 }
 
+func (s *RaftServer) GetLeaderRaftName() string {
+	return s.raftServer.Leader()
+}
+
+func (s *RaftServer) IsLeaderByRaftName(name string) bool {
+	//s.raftServer.State() == raft.Leader
+	return s.raftServer.Leader() == name
+}
+
+func (s *RaftServer) GetLeaderConnectString() (string, bool) {
+	return s.leaderConnectString()
+}
+
 func (s *RaftServer) leaderConnectString() (string, bool) {
 	leader := s.raftServer.Leader()
 	peers := s.raftServer.Peers()
