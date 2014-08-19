@@ -8,6 +8,7 @@
 ### Bugfixes
 
 - [Issue #809](https://github.com/influxdb/influxdb/pull/809). Migration path from 0.7 -> 0.8
+- [Issue #744](https://github.com/influxdb/influxdb/issues/744). Admin site should have all assets locally
 - [Issue #791](https://github.com/influxdb/influxdb/issues/791). Move database config loader to be an API endpoint
 - [Issue #811](https://github.com/influxdb/influxdb/issues/811). Gogoprotobuf removed `ErrWrongType`, which is depended on by Raft
 - [Issue #830](https://github.com/influxdb/influxdb/issues/830). Series should be in sorted order
