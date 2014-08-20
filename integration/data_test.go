@@ -6,7 +6,6 @@ import (
 	"math"
 	"net/http"
 	"reflect"
-	"strings"
 	"time"
 
 	influxdb "github.com/influxdb/influxdb/client"
@@ -395,35 +394,6 @@ func (self *DataTestSuite) ParanthesesAlias(c *C) (Fun, Fun) {
 		}
 }
 
-func (self *DataTestSuite) WhereAndLimit(c *C) (Fun, Fun) {
-	// make sure we exceed the pointBatchSize, so we force a yield to
-	// the filtering engine
-	return func(client Client) {
-			data := `
-[
-  {
-	"points": [
-	[0.0  , "host"],
-	[10.0 , "host"],
-	[20.0 , "host"],
-	[40.0 , "host"],
-	[80.0 , "host"],
-	[160.0, "hosta"]
-	],
-	"name": "test_where_and_limit",
-	"columns": ["value", "host"]
-  }
-]`
-			client.WriteJsonData(data, c)
-		}, func(client Client) {
-			serieses := client.RunQuery("explain select * from /test_where_and_limit/ where host = 'hosta' limit 1", c, "m")
-			c.Assert(serieses, HasLen, 1)
-			maps := ToMap(serieses[0])
-			c.Assert(maps, HasLen, 1)
-			c.Assert(maps[0]["points_read"], Equals, 1.0)
-		}
-}
-
 // Difference and group by function using a time where clause with an interval which is equal to the time of the points
 // FIXME: This test still fails. For this case the group by function should include points with the end time for each bucket.
 //func (self *DataTestSuite) DifferenceGroupSameTimeValues(c *C) (Fun, Fun) {
@@ -699,30 +669,6 @@ func (self *DataTestSuite) NullValuesInComparison(c *C) (Fun, Fun) {
 		}
 }
 
-func (self *DataTestSuite) ExplainsWithPassthrough(c *C) (Fun, Fun) {
-	return func(client Client) {
-			data := `
-  [{
-    "points": [
-        ["val1", 2],
-        ["val1", 3]
-    ],
-    "name": "test_explain_passthrough",
-    "columns": ["val_1", "val_2"]
-  }]`
-			client.WriteJsonData(data, c)
-		}, func(client Client) {
-			series := client.RunQuery("explain select val_1 from test_explain_passthrough where time > now() - 1h", c, "m")
-			c.Assert(series, HasLen, 1)
-			c.Assert(series[0].Name, Equals, "explain query")
-			c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
-			c.Assert(series[0].Points, HasLen, 1)
-			c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
-			c.Assert(series[0].Points[0][5], Equals, float64(2.0))
-			c.Assert(series[0].Points[0][6], Equals, float64(2.0))
-		}
-}
-
 // issue #462 (wasn't an issue, added for regression testing only)
 func (self *DataTestSuite) RegexWithDollarSign(c *C) (Fun, Fun) {
 	return func(client Client) {
@@ -788,62 +734,6 @@ func (self *DataTestSuite) NegativeNumbersInWhereClause(c *C) (Fun, Fun) {
 		}
 }
 
-func (self *DataTestSuite) ExplainsWithPassthroughAndLimit(c *C) (Fun, Fun) {
-	return func(client Client) {
-			points := []string{}
-			for i := 0; i < 101; i++ {
-				points = append(points, fmt.Sprintf(`["val1", %d]`, i))
-			}
-
-			data := fmt.Sprintf(`
-  [{
-    "points": [%s],
-    "name": "test_explain_passthrough_limit",
-    "columns": ["val_1", "val_2"]
-  }]`, strings.Join(points, ","))
-
-			client.WriteJsonData(data, c)
-		}, func(client Client) {
-			series := client.RunQuery("explain select val_1 from test_explain_passthrough_limit where time > now() - 1h limit 1", c, "m")
-			c.Assert(series, HasLen, 1)
-			c.Assert(series[0].Name, Equals, "explain query")
-			c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
-			maps := ToMap(series[0])
-			c.Assert(maps, HasLen, 1)
-			c.Assert(maps[0]["engine_name"], Equals, "QueryEngine")
-
-			// we can read at most point-batch-size points, which is set to 100
-			// by default
-			c.Assert(maps[0]["points_read"], Equals, 1.0)
-			c.Assert(maps[0]["points_written"], Equals, 1.0)
-		}
-}
-
-func (self *DataTestSuite) ExplainsWithNonLocalAggregator(c *C) (Fun, Fun) {
-	return func(client Client) {
-			data := `
-  [{
-    "points": [
-        ["val1", 2],
-        ["val1", 3],
-        ["val1", 4]
-    ],
-    "name": "test_explain_non_local",
-    "columns": ["val_1", "val_2"]
-  }]`
-			client.WriteJsonData(data, c)
-		}, func(client Client) {
-			series := client.RunQuery("explain select count(val_1) from test_explain_non_local where time > now() - 1h", c, "m")
-			c.Assert(series, HasLen, 1)
-			c.Assert(series[0].Name, Equals, "explain query")
-			c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
-			c.Assert(series[0].Points, HasLen, 1)
-			c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
-			c.Assert(series[0].Points[0][5], Equals, float64(3.0))
-			c.Assert(series[0].Points[0][6], Equals, float64(1.0))
-		}
-}
-
 func (self *DataTestSuite) DistinctWithLimit(c *C) (Fun, Fun) {
 	return func(client Client) {
 			data := CreatePoints("test_count_distinct_limit", 1, 1000)
@@ -853,56 +743,6 @@ func (self *DataTestSuite) DistinctWithLimit(c *C) (Fun, Fun) {
 			c.Assert(series, HasLen, 1)
 			c.Assert(series[0].Columns, HasLen, 2) // 6 columns plus the time column
 			c.Assert(series[0].Points, HasLen, 10)
-		}
-}
-
-func (self *DataTestSuite) ExplainsWithNonLocalAggregatorAndRegex(c *C) (Fun, Fun) {
-	return func(client Client) {
-			data := `
-  [{
-    "points": [
-        ["val1", 2],
-        ["val1", 3],
-        ["val1", 4]
-    ],
-    "name": "test_explain_non_local_regex",
-    "columns": ["val_1", "val_2"]
-  }]`
-			client.WriteJsonData(data, c)
-		}, func(client Client) {
-			series := client.RunQuery("explain select count(val_1) from /.*test_explain_non_local_regex.*/ where time > now() - 1h", c, "m")
-			c.Assert(series, HasLen, 1)
-			c.Assert(series[0].Name, Equals, "explain query")
-			c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
-			c.Assert(series[0].Points, HasLen, 1)
-			c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
-			c.Assert(series[0].Points[0][5], Equals, float64(3.0))
-			c.Assert(series[0].Points[0][6], Equals, float64(1.0))
-		}
-}
-
-func (self *DataTestSuite) ExplainsWithLocalAggregator(c *C) (Fun, Fun) {
-	return func(client Client) {
-			data := `
-  [{
-    "points": [
-        ["val1", 2],
-        ["val1", 3],
-        ["val1", 4]
-    ],
-    "name": "test_local_aggregator",
-    "columns": ["val_1", "val_2"]
-  }]`
-			client.WriteJsonData(data, c)
-		}, func(client Client) {
-			series := client.RunQuery("explain select count(val_1) from test_local_aggregator group by time(1h) where time > now() - 1h", c, "m")
-			c.Assert(series, HasLen, 1)
-			c.Assert(series[0].Name, Equals, "explain query")
-			c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
-			c.Assert(series[0].Points, HasLen, 1)
-			c.Assert(series[0].Points[0][1], Equals, "QueryEngine")
-			c.Assert(series[0].Points[0][5], Equals, float64(3.0))
-			c.Assert(series[0].Points[0][6], Equals, float64(1.0))
 		}
 }
 
@@ -936,49 +776,6 @@ func (self *DataTestSuite) FillWithCountDistinct(c *C) (Fun, Fun) {
 			c.Assert(maps[0]["count"], Equals, 1.0)
 			c.Assert(maps[1]["count"], Equals, 0.0)
 			c.Assert(maps[2]["count"], Equals, 1.0)
-		}
-}
-
-func (self *DataTestSuite) ExplainsWithLocalAggregatorAndRegex(c *C) (Fun, Fun) {
-	return func(client Client) {
-			data := `
-[
-  {
-    "points": [
-        ["val1", 2],
-        ["val1", 3],
-        ["val1", 4]
-    ],
-    "name": "test_local_aggregator_regex_1",
-    "columns": ["val_1", "val_2"]
-  },
-  {
-    "points": [
-        ["val1", 2],
-        ["val1", 3],
-        ["val1", 4]
-    ],
-    "name": "test_local_aggregator_regex_2",
-    "columns": ["val_1", "val_2"]
-  }
-]`
-			client.WriteJsonData(data, c)
-		}, func(client Client) {
-			series := client.RunQuery("explain select count(val_1) from /.*test_local_aggregator_regex.*/ group by time(1h) where time > now() - 1h", c, "m")
-			c.Assert(series, HasLen, 1)
-			c.Assert(series[0].Name, Equals, "explain query")
-			c.Assert(series[0].Columns, HasLen, 7) // 6 columns plus the time column
-			maps := ToMap(series[0])
-			found := false
-			for _, m := range maps {
-				c.Assert(m["engine_name"], Equals, "QueryEngine")
-				if m["points_read"].(float64) != 6.0 {
-					continue
-				}
-				found = true
-				c.Assert(m["points_written"], Equals, 2.0)
-			}
-			c.Assert(found, Equals, true)
 		}
 }
 
