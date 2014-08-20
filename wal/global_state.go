@@ -40,7 +40,7 @@ type oldGlobalState struct {
 
 func newGlobalState(path string) (*GlobalState, error) {
 	f, err := os.Open(path)
-	if err != nil {
+	if err == nil {
 		defer f.Close()
 	}
 
@@ -83,7 +83,9 @@ func (self *GlobalState) writeToFile() error {
 		return err
 	}
 
-	os.Remove(self.path)
+	if err := os.Remove(self.path); nil != err && !os.IsNotExist(err) {
+		return err
+	}
 	return os.Rename(self.path+".new", self.path)
 }
 
