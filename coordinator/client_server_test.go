@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/protocol"
 	. "launchpad.net/gocheck"
 )
@@ -21,8 +22,6 @@ const DB_DIR = "/tmp/influxdb/datastore_test"
 type MockRequestHandler struct {
 }
 
-var writeOk = protocol.Response_WRITE_OK
-
 func Test(t *testing.T) {
 	TestingT(t)
 }
@@ -35,7 +34,7 @@ func stringToSeries(seriesString string, c *C) *protocol.Series {
 }
 
 func (self *MockRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
-	response := &protocol.Response{RequestId: request.Id, Type: &writeOk}
+	response := &protocol.Response{RequestId: request.Id, Type: protocol.Response_END_STREAM.Enum()}
 	data, _ := response.Encode()
 	binary.Write(conn, binary.LittleEndian, uint32(len(data)))
 	conn.Write(data)
@@ -71,14 +70,14 @@ func (self *ClientServerSuite) TestClientCanMakeRequests(c *C) {
 	request := &protocol.Request{Id: &id, Type: &proxyWrite, Database: &database, MultiSeries: []*protocol.Series{series}}
 
 	time.Sleep(time.Second * 1)
-	err := protobufClient.MakeRequest(request, responseStream)
+	err := protobufClient.MakeRequest(request, cluster.NewResponseChannelWrapper(responseStream))
 	c.Assert(err, IsNil)
 	timer := time.NewTimer(time.Second)
 	select {
 	case <-timer.C:
 		c.Error("Timed out waiting for response")
 	case response := <-responseStream:
-		c.Assert(*response.Type, Equals, protocol.Response_WRITE_OK)
+		c.Assert(*response.Type, Equals, protocol.Response_END_STREAM)
 	}
 }
 

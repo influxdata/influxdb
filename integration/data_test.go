@@ -1049,9 +1049,7 @@ func (self *DataTestSuite) FilterWithInvalidCondition(c *C) (Fun, Fun) {
 			data := CreatePoints("test_invalid_where_condition", 1, 1)
 			client.WriteData(data, c)
 		}, func(client Client) {
-			data := client.RunQuery("select * from test_invalid_where_condition where column0 > 0.1s", c, "m")
-			// TODO: this should return an error
-			c.Assert(data, HasLen, 0)
+			client.RunInvalidQuery("select * from test_invalid_where_condition where column0 > 0.1s", c, "m")
 		}
 }
 

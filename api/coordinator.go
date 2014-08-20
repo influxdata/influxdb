@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/influxdb/influxdb/cluster"
 	cmn "github.com/influxdb/influxdb/common"
-	"github.com/influxdb/influxdb/coordinator"
+	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -14,7 +14,7 @@ type Coordinator interface {
 	ForceCompaction(cmn.User) error
 
 	// Data related api
-	RunQuery(cmn.User, string, string, coordinator.SeriesWriter) error
+	RunQuery(cmn.User, string, string, engine.Processor) error
 	WriteSeriesData(cmn.User, string, []*protocol.Series) error
 
 	// Administration related api

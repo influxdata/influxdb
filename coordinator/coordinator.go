@@ -45,7 +45,7 @@ func NewCoordinator(
 	return coordinator
 }
 
-func (self *Coordinator) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
+func (self *Coordinator) RunQuery(user common.User, database string, queryString string, p engine.Processor) (err error) {
 	log.Info("Start Query: db: %s, u: %s, q: %s", database, user.GetName(), queryString)
 	defer func(t time.Time) {
 		log.Debug("End Query: db: %s, u: %s, q: %s, t: %s", database, user.GetName(), queryString, time.Now().Sub(t))
@@ -59,16 +59,17 @@ func (self *Coordinator) RunQuery(user common.User, database string, queryString
 	}
 
 	for _, query := range q {
-		err := self.runSingleQuery(user, database, query, seriesWriter)
+		// runSingleQuery shouldn't close the processor in case there are
+		// other queries to be run
+		err := self.runSingleQuery(user, database, query, p)
 		if err != nil {
 			return err
 		}
 	}
-	seriesWriter.Close()
 	return nil
 }
 
-func (self *Coordinator) runSingleQuery(user common.User, db string, q *parser.Query, sw SeriesWriter) error {
+func (self *Coordinator) runSingleQuery(user common.User, db string, q *parser.Query, p engine.Processor) error {
 	querySpec := parser.NewQuerySpec(user, db, q)
 
 	if ok, err := self.permissions.CheckQueryPermissions(user, db, querySpec); !ok {
@@ -80,37 +81,37 @@ func (self *Coordinator) runSingleQuery(user common.User, db string, q *parser.Q
 	case parser.DropContinuousQuery:
 		return self.runDropContinuousQuery(user, db, uint32(q.DropQuery.Id))
 	case parser.ListContinuousQueries:
-		return self.runListContinuousQueries(user, db, sw)
+		return self.runListContinuousQueries(user, db, p)
 	case parser.Continuous:
 		return self.runContinuousQuery(user, db, q.GetQueryString())
 	case parser.ListSeries:
-		return self.runListSeriesQuery(querySpec, sw)
+		return self.runListSeriesQuery(querySpec, p)
 		// Data queries
 	case parser.Delete:
-		return self.runDeleteQuery(querySpec, sw)
+		return self.runDeleteQuery(querySpec, p)
 	case parser.DropSeries:
-		return self.runDropSeriesQuery(querySpec, sw)
+		return self.runDropSeriesQuery(querySpec)
 	case parser.Select:
-		return self.runQuerySpec(querySpec, sw)
+		return self.runQuerySpec(querySpec, p)
 	default:
 		return fmt.Errorf("Can't handle query %s", qt)
 	}
 }
 
-func (self *Coordinator) runListContinuousQueries(user common.User, db string, sw SeriesWriter) error {
+func (self *Coordinator) runListContinuousQueries(user common.User, db string, p engine.Processor) error {
 	queries, err := self.ListContinuousQueries(user, db)
 	if err != nil {
 		return err
 	}
 	for _, q := range queries {
-		if err := sw.Write(q); err != nil {
+		if ok, err := p.Yield(q); !ok || err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (self *Coordinator) runListSeriesQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+func (self *Coordinator) runListSeriesQuery(querySpec *parser.QuerySpec, p engine.Processor) error {
 	allSeries := self.clusterConfiguration.MetaStore.GetSeriesForDatabase(querySpec.Database())
 	matchingSeries := allSeries
 	if q := querySpec.Query().GetListSeriesQuery(); q.HasRegex() {
@@ -133,27 +134,25 @@ func (self *Coordinator) runListSeriesQuery(querySpec *parser.QuerySpec, seriesW
 	}
 
 	seriesResult := &protocol.Series{Name: &name, Fields: fields, Points: points}
-	seriesWriter.Write(seriesResult)
-	seriesWriter.Close()
-	return nil
+	_, err := p.Yield(seriesResult)
+	return err
 }
 
-func (self *Coordinator) runDeleteQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+func (self *Coordinator) runDeleteQuery(querySpec *parser.QuerySpec, p engine.Processor) error {
 	if err := self.clusterConfiguration.CreateCheckpoint(); err != nil {
 		return err
 	}
 	querySpec.RunAgainstAllServersInShard = true
-	return self.runQuerySpec(querySpec, seriesWriter)
+	return self.runQuerySpec(querySpec, p)
 }
 
-func (self *Coordinator) runDropSeriesQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+func (self *Coordinator) runDropSeriesQuery(querySpec *parser.QuerySpec) error {
 	user := querySpec.User()
 	db := querySpec.Database()
 	series := querySpec.Query().DropSeriesQuery.GetTableName()
 	if ok, err := self.permissions.AuthorizeDropSeries(user, db, series); !ok {
 		return err
 	}
-	defer seriesWriter.Close()
 	err := self.raftServer.DropSeries(db, series)
 	if err != nil {
 		return err
@@ -209,144 +208,58 @@ func (self *Coordinator) shouldQuerySequentially(shards cluster.Shards, querySpe
 	return false
 }
 
-func (self *Coordinator) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, <-chan bool, error) {
+func (self *Coordinator) getShardsAndProcessor(querySpec *parser.QuerySpec, writer engine.Processor) ([]*cluster.ShardData, engine.Processor, error) {
 	shards := self.clusterConfiguration.GetShardsForQuery(querySpec)
 	shouldAggregateLocally := shards.ShouldAggregateLocally(querySpec)
 
 	var err error
-	var processor cluster.QueryProcessor
-
-	responseChan := make(chan *protocol.Response)
-	seriesClosed := make(chan bool)
 
 	selectQuery := querySpec.SelectQuery()
 	if selectQuery != nil {
 		if !shouldAggregateLocally {
 			// if we should aggregate in the coordinator (i.e. aggregation
 			// isn't happening locally at the shard level), create an engine
-			processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
+			writer, err = engine.NewQueryEngine(writer, querySpec.SelectQuery())
 		} else {
 			// if we have a query with limit, then create an engine, or we can
 			// make the passthrough limit aware
-			processor = engine.NewPassthroughEngineWithLimit(responseChan, 100, selectQuery.Limit)
+			writer = engine.NewPassthroughEngineWithLimit(writer, 100, selectQuery.Limit)
 		}
 	} else if !shouldAggregateLocally {
-		processor = engine.NewPassthroughEngine(responseChan, 100)
+		writer = engine.NewPassthroughEngine(writer, 100)
 	}
 
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	if processor == nil {
-		return shards, nil, nil, nil
-	}
-
-	go func() {
-		for {
-			response := <-responseChan
-
-			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
-				writer.Close()
-				seriesClosed <- true
-				return
-			}
-			if !(*response.Type == queryResponse && querySpec.IsExplainQuery()) {
-				if response.Series != nil && len(response.Series.Points) > 0 {
-					writer.Write(response.Series)
-				}
-			}
-		}
-	}()
-
-	return shards, processor, seriesClosed, nil
+	return shards, writer, nil
 }
 
-func (self *Coordinator) readFromResponseChannels(processor cluster.QueryProcessor,
-	writer SeriesWriter,
-	isExplainQuery bool,
-	errors chan<- error,
-	responseChannels <-chan (<-chan *protocol.Response)) {
-
-	defer close(errors)
-
-	for responseChan := range responseChannels {
-		for response := range responseChan {
-
-			//log.Debug("GOT RESPONSE: ", response.Type, response.Series)
-			log.Debug("GOT RESPONSE: %v", response.Type)
-			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
-				if response.ErrorMessage == nil {
-					break
-				}
-
-				err := common.NewQueryError(common.InvalidArgument, *response.ErrorMessage)
-				log.Error("Error while executing query: %s", err)
-				errors <- err
-				return
-			}
-
-			if response.Series == nil || len(response.Series.Points) == 0 {
-				log.Debug("Series has no points, continue")
-				continue
-			}
-
-			// if we don't have a processor, yield the point to the writer
-			// this happens if shard took care of the query
-			// otherwise client will get points from passthrough engine
-			if processor != nil {
-				// if the data wasn't aggregated at the shard level, aggregate
-				// the data here
-				log.Debug("YIELDING: %d points with %d columns for %s", len(response.Series.Points), len(response.Series.Fields), response.Series.GetName())
-				processor.YieldSeries(response.Series)
-				continue
-			}
-
-			// If we have EXPLAIN query, we don't write actual points (of
-			// response.Type Query) to the client
-			if !(*response.Type == queryResponse && isExplainQuery) {
-				writer.Write(response.Series)
-			}
-		}
-
-		// once we're done with a response channel signal queryShards to
-		// start querying a new shard
-		errors <- nil
-	}
-	return
-}
-
-func (self *Coordinator) queryShards(querySpec *parser.QuerySpec, shards []*cluster.ShardData,
-	errors <-chan error,
-	responseChannels chan<- (<-chan *protocol.Response)) error {
-	defer close(responseChannels)
-
-	for i := 0; i < len(shards); i++ {
+func (self *Coordinator) queryShards(querySpec *parser.QuerySpec, shards []*cluster.ShardData, p *MergeChannelProcessor) error {
+	for i, s := range shards {
 		// readFromResponseChannels will insert an error if an error
 		// occured while reading the response. This should immediately
 		// stop reading from shards
-		err := <-errors
-		if err != nil {
-			return err
-		}
-		shard := shards[i]
-		bufferSize := shard.QueryResponseBufferSize(querySpec, self.config.StoragePointBatchSize)
+		bufferSize := s.QueryResponseBufferSize(querySpec, self.config.StoragePointBatchSize)
 		if bufferSize > self.config.ClusterMaxResponseBufferSize {
 			bufferSize = self.config.ClusterMaxResponseBufferSize
 		}
-		responseChan := make(chan *protocol.Response, bufferSize)
+		c, err := p.NextChannel(bufferSize)
+		if err != nil {
+			return err
+		}
 		// We query shards for data and stream them to query processor
-		log.Debug("QUERYING: shard: %d %v", i, shard.String())
-		go shard.Query(querySpec, responseChan)
-		responseChannels <- responseChan
+		log.Debug("QUERYING: shard: %d %v", i, s.String())
+		go s.Query(querySpec, c)
 	}
 
 	return nil
 }
 
 // We call this function only if we have a Select query (not continuous) or Delete query
-func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	shards, processor, seriesClosed, err := self.getShardsAndProcessor(querySpec, seriesWriter)
+func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, p engine.Processor) error {
+	shards, processor, err := self.getShardsAndProcessor(querySpec, p)
 	if err != nil {
 		return err
 	}
@@ -355,15 +268,6 @@ func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter 
 		return fmt.Errorf("Couldn't look up columns")
 	}
 
-	defer func() {
-		if processor != nil {
-			processor.Close()
-			<-seriesClosed
-		} else {
-			seriesWriter.Close()
-		}
-	}()
-
 	shardConcurrentLimit := self.config.ConcurrentShardQueryLimit
 	if self.shouldQuerySequentially(shards, querySpec) {
 		log.Debug("Querying shards sequentially")
@@ -371,35 +275,22 @@ func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter 
 	}
 	log.Debug("Shard concurrent limit: %d", shardConcurrentLimit)
 
-	errors := make(chan error, shardConcurrentLimit)
-	for i := 0; i < shardConcurrentLimit; i++ {
-		errors <- nil
-	}
-	responseChannels := make(chan (<-chan *protocol.Response), shardConcurrentLimit)
+	mcp := NewMergeChannelProcessor(processor, shardConcurrentLimit)
 
-	go self.readFromResponseChannels(processor, seriesWriter, querySpec.IsExplainQuery(), errors, responseChannels)
+	go mcp.ProcessChannels()
 
-	err = self.queryShards(querySpec, shards, errors, responseChannels)
-
-	// make sure we read the rest of the errors and responses
-	for _err := range errors {
-		if err == nil {
-			err = _err
-		}
+	if err := self.queryShards(querySpec, shards, mcp); err != nil {
+		log.Error("Error while querying shards: %s", err)
+		mcp.Close()
+		return err
 	}
 
-	for responsechan := range responseChannels {
-		for response := range responsechan {
-			if response.GetType() != endStreamResponse {
-				continue
-			}
-			if response.ErrorMessage != nil && err == nil {
-				err = common.NewQueryError(common.InvalidArgument, *response.ErrorMessage)
-			}
-			break
-		}
+	if err := mcp.Close(); err != nil {
+		log.Error("Error while querying shards: %s", err)
+		return err
 	}
-	return err
+
+	return processor.Close()
 }
 
 func (self *Coordinator) ForceCompaction(user common.User) error {

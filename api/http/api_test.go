@@ -16,6 +16,7 @@ import (
 	. "github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"
+	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 	. "launchpad.net/gocheck"
@@ -35,7 +36,7 @@ type ApiSuite struct {
 
 var _ = Suite(&ApiSuite{})
 
-func (self *MockCoordinator) RunQuery(_ User, _ string, query string, yield coordinator.SeriesWriter) error {
+func (self *MockCoordinator) RunQuery(_ User, _ string, query string, yield engine.Processor) error {
 	if self.returnedError != nil {
 		return self.returnedError
 	}
@@ -87,10 +88,11 @@ func (self *MockCoordinator) RunQuery(_ User, _ string, query string, yield coor
 	if err != nil {
 		return err
 	}
-	if err := yield.Write(series[0]); err != nil {
+	if _, err := yield.Yield(series[0]); err != nil {
 		return err
 	}
-	return yield.Write(series[1])
+	_, err = yield.Yield(series[1])
+	return err
 }
 
 type MockCoordinator struct {

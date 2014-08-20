@@ -14,9 +14,18 @@ func NewContinuousQueryWriter(yield func(*protocol.Series) error) *ContinuousQue
 	return &ContinuousQueryWriter{yield}
 }
 
-func (self *ContinuousQueryWriter) Write(series *protocol.Series) error {
-	return self.yield(series)
+func (self *ContinuousQueryWriter) Yield(series *protocol.Series) (bool, error) {
+	err := self.yield(series)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
-func (self *ContinuousQueryWriter) Close() {
+func (self *ContinuousQueryWriter) Close() error {
+	return nil
+}
+
+func (self *ContinuousQueryWriter) Name() string {
+	return "ContinuousQueryWriter"
 }

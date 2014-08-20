@@ -1173,7 +1173,7 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 			}
 		}
 		for _, queryString := range databaseConfig.ContinuousQueries {
-			err := self.coordinator.RunQuery(u, database, queryString, nullSeriesWriter)
+			err := self.coordinator.RunQuery(u, database, queryString, cluster.NilProcessor{})
 			if err != nil {
 				return libhttp.StatusInternalServerError, err.Error()
 			}

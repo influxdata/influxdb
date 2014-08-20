@@ -107,16 +107,12 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 
 func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *protocol.Response) error {
 	if response.Size() >= MAX_RESPONSE_SIZE {
-		l := len(response.Series.Points)
-		firstHalfPoints := response.Series.Points[:l/2]
-		secondHalfPoints := response.Series.Points[l/2:]
-		response.Series.Points = firstHalfPoints
-		err := self.WriteResponse(conn, response)
+		f, s := splitResponse(response)
+		err := self.WriteResponse(conn, f)
 		if err != nil {
 			return err
 		}
-		response.Series.Points = secondHalfPoints
-		return self.WriteResponse(conn, response)
+		return self.WriteResponse(conn, s)
 	}
 
 	data, err := response.Encode()
@@ -133,4 +129,22 @@ func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *proto
 		return err
 	}
 	return nil
+}
+
+func splitResponse(response *protocol.Response) (f, s *protocol.Response) {
+	f = &protocol.Response{}
+	s = &protocol.Response{}
+	*f = *response
+	*s = *response
+
+	if l := len(response.MultiSeries); l > 1 {
+		f.MultiSeries = f.MultiSeries[:l/2]
+		s.MultiSeries = s.MultiSeries[l/2:]
+		return
+	}
+
+	l := len(response.MultiSeries[0].Points)
+	f.MultiSeries[0].Points = f.MultiSeries[0].Points[:l/2]
+	s.MultiSeries[0].Points = s.MultiSeries[0].Points[l/2:]
+	return
 }

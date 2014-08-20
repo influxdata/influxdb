@@ -9,6 +9,7 @@ import (
 	"time"
 
 	log "code.google.com/p/log4go"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -98,7 +99,8 @@ func BenchmarkSingle(b *testing.B) {
 			Type:     &HEARTBEAT_TYPE,
 			Database: protocol.String(""),
 		}
-		client.MakeRequest(heartbeatRequest, responseChan)
+		rcw := cluster.NewResponseChannelWrapper(responseChan)
+		client.MakeRequest(heartbeatRequest, rcw)
 		<-responseChan
 	}
 }
