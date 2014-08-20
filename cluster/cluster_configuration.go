@@ -614,6 +614,17 @@ type SavedConfiguration struct {
 
 func (self *ClusterConfiguration) Save() ([]byte, error) {
 	log.Debug("Dumping the cluster configuration")
+	data := self.SerializableConfiguration()
+	b := bytes.NewBuffer(nil)
+	err := gob.NewEncoder(b).Encode(&data)
+	if err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func (self *ClusterConfiguration) SerializableConfiguration() *SavedConfiguration {
 	data := &SavedConfiguration{
 		Databases:           make(map[string]uint8, len(self.DatabaseReplicationFactors)),
 		Admins:              self.clusterAdmins,
@@ -629,14 +640,7 @@ func (self *ClusterConfiguration) Save() ([]byte, error) {
 	for k := range self.DatabaseReplicationFactors {
 		data.Databases[k] = 0
 	}
-
-	b := bytes.NewBuffer(nil)
-	err := gob.NewEncoder(b).Encode(&data)
-	if err != nil {
-		return nil, err
-	}
-
-	return b.Bytes(), nil
+	return data
 }
 
 func (self *ClusterConfiguration) convertShardsToNewShardData(shards []*ShardData) []*NewShardData {
@@ -782,18 +786,6 @@ func (self *ClusterConfiguration) LastContinuousQueryRunTime() time.Time {
 
 func (self *ClusterConfiguration) SetLastContinuousQueryRunTime(t time.Time) {
 	self.continuousQueryTimestamp = t
-}
-
-func (self *ClusterConfiguration) GetMapForJsonSerialization() map[string]interface{} {
-	jsonObject := make(map[string]interface{})
-	dbs := make([]string, 0)
-	for db := range self.DatabaseReplicationFactors {
-		dbs = append(dbs, db)
-	}
-	jsonObject["databases"] = dbs
-	jsonObject["cluster_admins"] = self.clusterAdmins
-	jsonObject["database_users"] = self.dbUsers
-	return jsonObject
 }
 
 func (self *ClusterConfiguration) createDefaultShardSpace(database string) (*ShardSpace, error) {
