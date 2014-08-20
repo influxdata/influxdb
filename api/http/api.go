@@ -149,6 +149,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint("get", "/interfaces", self.listInterfaces)
 
 	// cluster config endpoints
+	self.registerEndpoint(p, "get", "/cluster/configuration", self.getClusterConfiguration)
 	self.registerEndpoint(p, "get", "/cluster/servers", self.listServers)
 	self.registerEndpoint(p, "del", "/cluster/servers/:id", self.removeServers)
 	self.registerEndpoint(p, "post", "/cluster/shards", self.createShard)
@@ -1208,5 +1209,11 @@ func (self *HttpServer) updateShardSpace(w libhttp.ResponseWriter, r *libhttp.Re
 			return libhttp.StatusInternalServerError, err.Error()
 		}
 		return libhttp.StatusOK, nil
+	})
+}
+
+func (self *HttpServer) getClusterConfiguration(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		return libhttp.StatusOK, self.clusterConfig.SerializableConfiguration()
 	})
 }
