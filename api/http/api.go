@@ -1151,7 +1151,7 @@ func (self *HttpServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Re
 			return libhttp.StatusInternalServerError, err.Error()
 		}
 		space.Database = r.URL.Query().Get(":db")
-		err = space.Validate(self.clusterConfig)
+		err = space.Validate(self.clusterConfig, true)
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
@@ -1199,6 +1199,14 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 				if !query.SelectQuery.IsContinuousQuery() {
 					return libhttp.StatusBadRequest, fmt.Errorf("This query isn't a continuous query. Use 'into'. %s", query.QueryString)
 				}
+			}
+		}
+
+		// validate shard spaces
+		for _, space := range databaseConfig.Spaces {
+			err := space.Validate(self.clusterConfig, false)
+			if err != nil {
+				return libhttp.StatusBadRequest, err.Error()
 			}
 		}
 
