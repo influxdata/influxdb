@@ -986,21 +986,20 @@ func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request
 		servers := self.clusterConfig.Servers()
 		serverMaps := make([]map[string]interface{}, len(servers), len(servers))
 
-		//FIXME: GetLeaderConnectString is not consistent yet when called on different server.
-		leaderConnectString, _ := self.raftServer.GetLeaderConnectString()
+		leaderRaftConnectString, _ := self.raftServer.GetLeaderRaftConnectString()
 		leaderRaftName := self.raftServer.GetLeaderRaftName()
 		for i, s := range servers {
 			serverMaps[i] = map[string]interface{}{
 				"id": s.Id,
-				"protobufConnectString": s.ProtobufConnectionString,
-				"isUp":                  s.IsUp(), //FIXME: IsUp is not consistent
-				"raftName":              s.RaftName,
-				"state":                 s.State,
-				"stateName":             s.GetStateName(),
-				"raftConnectionString":  s.RaftConnectionString,
-				"leaderRaftName":        leaderRaftName,
-				"leaderConnectString":   leaderConnectString,
-				"isLeader":              self.raftServer.IsLeaderByRaftName(s.RaftName)}
+				"protobufConnectString":   s.ProtobufConnectionString,
+				"isUp":                    s.IsUp(), //FIXME: IsUp is not consistent
+				"raftName":                s.RaftName,
+				"state":                   s.State,
+				"stateName":               s.GetStateName(),
+				"raftConnectionString":    s.RaftConnectionString,
+				"leaderRaftName":          leaderRaftName,
+				"leaderRaftConnectString": leaderRaftConnectString,
+				"isLeader":                self.raftServer.IsLeaderByRaftName(s.RaftName)}
 		}
 		return libhttp.StatusOK, serverMaps
 	})
