@@ -43,9 +43,14 @@ func NewShardSpace(database, name string) *ShardSpace {
 	return s
 }
 
-func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration) error {
+func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration, checkForDb bool) error {
 	if err := clusterConfig.DoesShardSpaceExist(s); err != nil {
 		return err
+	}
+	if checkForDb {
+		if !clusterConfig.DatabaseExists(s.Database) {
+			return fmt.Errorf("Database '%s' doesn't exist.", s.Database)
+		}
 	}
 
 	if s.Name == "" {
