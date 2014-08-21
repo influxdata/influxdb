@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/configuration"
@@ -28,18 +29,20 @@ type DataMigrator struct {
 	config        *configuration.Configuration
 	clusterConfig *cluster.ClusterConfiguration
 	coord         *coordinator.CoordinatorImpl
+	pauseTime     time.Duration
 }
 
 const (
-	MIGRATED_MARKER = "MIGRATED"
-	OLD_SHARD_DIR   = "shard_db"
+	MIGRATED_MARKER      = "MIGRATED"
+	OLD_SHARD_DIR        = "shard_db"
+	POINT_COUNT_TO_PAUSE = 10000
 )
 
 var (
 	endStreamResponse = protocol.Response_END_STREAM
 )
 
-func NewDataMigrator(coord *coordinator.CoordinatorImpl, clusterConfig *cluster.ClusterConfiguration, config *configuration.Configuration, baseDbDir, newSubDir string, metaStore *metastore.Store) *DataMigrator {
+func NewDataMigrator(coord *coordinator.CoordinatorImpl, clusterConfig *cluster.ClusterConfiguration, config *configuration.Configuration, baseDbDir, newSubDir string, metaStore *metastore.Store, pauseTime time.Duration) *DataMigrator {
 	return &DataMigrator{
 		baseDbDir:     baseDbDir,
 		dbDir:         filepath.Join(baseDbDir, OLD_SHARD_DIR),
@@ -47,6 +50,7 @@ func NewDataMigrator(coord *coordinator.CoordinatorImpl, clusterConfig *cluster.
 		config:        config,
 		clusterConfig: clusterConfig,
 		coord:         coord,
+		pauseTime:     pauseTime,
 	}
 }
 
@@ -103,6 +107,7 @@ func (dm *DataMigrator) migrateDatabaseInShard(database string, shard *LevelDbSh
 	log.Info("Migrating %d series", len(seriesNames))
 
 	admin := dm.clusterConfig.GetClusterAdmin(dm.clusterConfig.GetClusterAdmins()[0])
+	pointCount := 0
 	for _, series := range seriesNames {
 		q, err := parser.ParseQuery(fmt.Sprintf("select * from \"%s\"", series))
 		if err != nil {
@@ -130,8 +135,14 @@ func (dm *DataMigrator) migrateDatabaseInShard(database string, shard *LevelDbSh
 			if err != nil {
 				log.Error("Writing Series data: %s", err.Error())
 			}
+			pointCount += len(response.Series.Points)
+			if pointCount > POINT_COUNT_TO_PAUSE {
+				pointCount = 0
+				time.Sleep(dm.pauseTime)
+			}
 		}
 	}
+	log.Info("Done migrating %s for shard", database)
 	return nil
 }
 
