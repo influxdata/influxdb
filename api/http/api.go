@@ -1250,6 +1250,15 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 
 func (self *HttpServer) migrateData(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		pauseTime := r.URL.Query().Get("pause")
+		pauseDuration := time.Millisecond * 100
+		if pauseTime != "" {
+			var err error
+			pauseDuration, err = time.ParseDuration(pauseTime)
+			if err != nil {
+				return libhttp.StatusBadRequest, fmt.Errorf("Couldn't parse pause time: ", err)
+			}
+		}
 		if !atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_NOT_RUNNING, MIGRATION_RUNNING) {
 			return libhttp.StatusForbidden, fmt.Errorf("A migration is already running")
 		}
@@ -1257,7 +1266,7 @@ func (self *HttpServer) migrateData(w libhttp.ResponseWriter, r *libhttp.Request
 			log.Info("Starting Migration")
 			defer atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_RUNNING, MIGRATION_NOT_RUNNING)
 			dataMigrator := migration.NewDataMigrator(
-				self.coordinator.(*coordinator.CoordinatorImpl), self.clusterConfig, self.config, self.config.DataDir, "shard_db", self.clusterConfig.MetaStore)
+				self.coordinator.(*coordinator.CoordinatorImpl), self.clusterConfig, self.config, self.config.DataDir, "shard_db", self.clusterConfig.MetaStore, pauseDuration)
 			dataMigrator.Migrate()
 		}()
 
