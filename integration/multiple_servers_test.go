@@ -782,15 +782,19 @@ func (self *ServerSuite) TestContinuousQueryGroupByOperations(c *C) {
 
 	self.serverProcesses[0].Post("/db/test_cq/series?u=paul&p=pass&time_precision=s", data, c)
 
-	self.serverProcesses[0].WaitForServerToSync()
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select mean(c1) from s3 group by time(5s) into d3.mean;", false, c)
 	self.serverProcesses[0].QueryAsRoot("test_cq", "select count(c2) from s3 group by time(5s) into d3.count;", false, c)
 
 	// wait for replication
-	self.serverProcesses[0].WaitForServerToSync()
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 	// wait for the query to run
-	time.Sleep(6 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series := collection.GetSeries("continuous queries", c)
@@ -1202,37 +1206,34 @@ func (self *ServerSuite) TestContinuousQueryBackfillOperations(c *C) {
 
 	self.serverProcesses[0].Post("/db/test_cq/series?u=paul&p=pass&time_precision=s", data, c)
 	// wait for the data to get written
-	self.serverProcesses[0].WaitForServerToSync()
-	// wait for the query to run
-	time.Sleep(time.Second)
 
-	self.serverProcesses[0].QueryAsRoot("test_cq", "select count(reqtime), url from cqbackfilltest group by time(1s), url into cqbackfill.1s", false, c)
-	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
+
+	cqs := []string{
+		"select count(reqtime), url from cqbackfilltest group by time(10s), url into cqbackfill_on.10s backfill(true)",
+		"select count(reqtime), url from cqbackfilltest group by time(10s), url into cqbackfill_off.10s backfill(false)",
+		"select count(reqtime), url from cqbackfilltest group by time(1s), url into cqbackfill.1s",
+	}
+
+	for _, cq := range cqs {
+		self.serverProcesses[0].QueryAsRoot("test_cq", cq, false, c)
+	}
+
 	// wait for the continuous query to run
 	time.Sleep(time.Second)
-	// wait for the continuous queries to propagate
-	self.serverProcesses[0].WaitForServerToSync()
 
-	// query with backfill on
-	self.serverProcesses[0].QueryAsRoot("test_cq", "select count(reqtime), url from cqbackfilltest group by time(10s), url into cqbackfill_on.10s backfill(true)", false, c)
-	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
-	// wait for the continuous query to run
-	time.Sleep(time.Second)
-	// wait for the continuous queries to propagate
-	self.serverProcesses[0].WaitForServerToSync()
+	self.serverProcesses[0].RemoveAllContinuousQueries("test_cq", c)
 
-	// query with backfill off
-	self.serverProcesses[0].QueryAsRoot("test_cq", "select count(reqtime), url from cqbackfilltest group by time(10s), url into cqbackfill_off.10s backfill(false)", false, c)
-	defer self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 3;", false, c)
-	// wait for the continuous query to run
-	time.Sleep(time.Second)
-	// wait for the continuous queries to propagate
-	self.serverProcesses[0].WaitForServerToSync()
+	for _, s := range self.serverProcesses {
+		s.WaitForServerToSync()
+	}
 
 	// check continuous queries
 	collection := self.serverProcesses[0].QueryAsRoot("test_cq", "list continuous queries;", false, c)
 	series := collection.GetSeries("continuous queries", c)
-	c.Assert(series.Points, HasLen, 3)
+	c.Assert(series.Points, HasLen, 0)
 
 	// check backfill_on query results
 	collection = self.serverProcesses[0].QueryAsRoot("test_cq", "select * from cqbackfill_on.10s", false, c)
@@ -1275,13 +1276,14 @@ func (self *ServerSuite) TestChangingRaftPort(c *C) {
 
 	server2 = NewServerWithArgs("integration/test_config2.toml", c, "-raft-port", "60509", "-protobuf-port", "60510")
 
-	server1.WaitForServerToSync()
-	server2.WaitForServerToSync()
+	server2.WaitForServerToStart()
 	client := server1.GetClient("", c)
 	// make sure raft works
 	c.Assert(client.CreateDatabase("change_raft_port"), IsNil)
 
-	server1.WaitForServerToSync()
+	for _, s := range self.serverProcesses[:2] {
+		s.WaitForServerToSync()
+	}
 
 	// make sure protobuf works
 	series := &influxdb.Series{
@@ -1294,7 +1296,10 @@ func (self *ServerSuite) TestChangingRaftPort(c *C) {
 	client = server1.GetClient("change_raft_port", c)
 	c.Assert(client.WriteSeries([]*influxdb.Series{series}), IsNil)
 
-	server1.WaitForServerToSync()
+	for _, s := range self.serverProcesses[:2] {
+		s.WaitForServerToSync()
+	}
+
 	collection := server2.QueryWithUsername("change_raft_port", "select * from test", false, c, "root", "root")
 	c.Assert(collection.Members, HasLen, 1)
 	s := collection.GetSeries("test", c)
