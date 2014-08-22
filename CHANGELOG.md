@@ -1,3 +1,11 @@
+## v0.8.0 [2014-08-22]
+
+### Bugfixes
+
+- [Issue #779](https://github.com/influxdb/influxdb/issues/779). Deleting expired shards isn't thread safe.
+- [Issue #862](https://github.com/influxdb/influxdb/issues/862). Data migrator should have option to set delay time.
+- [Issue #860](https://github.com/influxdb/influxdb/issues/860). Load database config should validate shard spaces.
+
 ## v0.8.0-rc.5 [2014-08-15]
 
 ### Features
