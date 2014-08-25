@@ -91,11 +91,13 @@ type RaftConfig struct {
 type StorageConfig struct {
 	Dir                  string
 	DefaultEngine        string `toml:"default-engine"`
+	DefaultSchema        string `toml:"default-schema"`
 	WriteBufferSize      int    `toml:"write-buffer-size"`
 	MaxOpenShards        int    `toml:"max-open-shards"`
 	PointBatchSize       int    `toml:"point-batch-size"`
 	WriteBatchSize       int    `toml:"write-batch-size"`
 	Engines              map[string]toml.Primitive
+	Schemas              map[string]toml.Primitive
 	RetentionSweepPeriod duration `toml:"retention-sweep-period"`
 }
 
@@ -172,10 +174,12 @@ type Configuration struct {
 	UdpServers []UdpInputConfig
 
 	StorageDefaultEngine        string
+	StorageDefaultSchema        string
 	StorageMaxOpenShards        int
 	StoragePointBatchSize       int
 	StorageWriteBatchSize       int
 	StorageEngineConfigs        map[string]toml.Primitive
+	StorageSchemaConfigs        map[string]toml.Primitive
 	StorageRetentionSweepPeriod duration
 
 	// TODO: this is for backward compatability only
@@ -312,12 +316,14 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 
 		// storage configuration
 		StorageDefaultEngine:        tomlConfiguration.Storage.DefaultEngine,
+		StorageDefaultSchema:        tomlConfiguration.Storage.DefaultSchema,
 		StorageMaxOpenShards:        tomlConfiguration.Storage.MaxOpenShards,
 		StoragePointBatchSize:       tomlConfiguration.Storage.PointBatchSize,
 		StorageWriteBatchSize:       tomlConfiguration.Storage.WriteBatchSize,
 		DataDir:                     tomlConfiguration.Storage.Dir,
 		LocalStoreWriteBufferSize:   tomlConfiguration.Storage.WriteBufferSize,
 		StorageEngineConfigs:        tomlConfiguration.Storage.Engines,
+		StorageSchemaConfigs:        tomlConfiguration.Storage.Schemas,
 		StorageRetentionSweepPeriod: tomlConfiguration.Storage.RetentionSweepPeriod,
 
 		LevelDbMaxOpenFiles: tomlConfiguration.LevelDb.MaxOpenFiles,

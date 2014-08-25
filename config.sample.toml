@@ -82,6 +82,9 @@ write-buffer-size = 10000
 # the engine to use for new shards, old shards will continue to use the same engine
 default-engine = "rocksdb"
 
+# The schema to use for new shards. Old shards will continue to use the same schema
+default-schema = "raw"
+
 # The default setting on this is 0, which means unlimited. Set this to something if you want to
 # limit the max number of open files. max-open-files is per shard so this * that will be max.
 max-open-shards = 0
@@ -96,6 +99,8 @@ write-batch-size = 5000000
 
 # The server will check this often for shards that have expired that should be cleared.
 retention-sweep-period = "10m"
+
+[storage.schemas.raw]
 
 [storage.engines.leveldb]
 
