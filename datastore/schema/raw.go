@@ -42,18 +42,9 @@ func NewRawConfig() interface{} {
 
 type Raw struct {
 	schemaBase
-	db             storage.Engine
 	pointBatchSize int
 	writeBatchSize int
 	metaStore      *metastore.Store
-}
-
-func (self *Raw) Close() {
-	self.closeLock.Lock()
-	defer self.closeLock.Unlock()
-	self.closed = true
-	self.db.Close()
-	self.db = nil
 }
 
 func NewRaw(db storage.Engine, metaStore *metastore.Store, pointBatchSize, writeBatchSize int, config interface{}) (Schema, error) {
@@ -62,8 +53,7 @@ func NewRaw(db storage.Engine, metaStore *metastore.Store, pointBatchSize, write
 		return nil, fmt.Errorf("Config is of type %T instead of %T", config, RawConfiguration{})
 	}
 	return &Raw{
-		schemaBase:     schemaBase{},
-		db:             db,
+		schemaBase:     schemaBase{db: db},
 		pointBatchSize: pointBatchSize,
 		writeBatchSize: writeBatchSize,
 		metaStore:      metaStore,
