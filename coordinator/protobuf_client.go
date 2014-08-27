@@ -161,7 +161,8 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, r cluster.Res
 	}
 	buff := bytes.NewBuffer(make([]byte, 0, len(data)+8))
 	binary.Write(buff, binary.LittleEndian, uint32(len(data)))
-	_, err = conn.Write(append(buff.Bytes(), data...))
+	buff.Write(data)
+	_, err = conn.Write(buff.Bytes())
 
 	if err == nil {
 		return nil
