@@ -41,6 +41,7 @@ type HttpServer struct {
 	raftServer     *coordinator.RaftServer
 	readTimeout    time.Duration
 	config         *configuration.Configuration
+	p              *pat.PatternServeMux
 }
 
 func NewHttpServer(config *configuration.Configuration, theCoordinator api.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
@@ -54,6 +55,7 @@ func NewHttpServer(config *configuration.Configuration, theCoordinator api.Coord
 	self.raftServer = raftServer
 	self.readTimeout = config.ApiReadTimeout
 	self.config = config
+	self.p = pat.New()
 	return self
 }
 
@@ -90,81 +92,83 @@ func (self *HttpServer) ListenAndServe() {
 	self.Serve(self.conn)
 }
 
-func (self *HttpServer) registerEndpoint(p *pat.PatternServeMux, method string, pattern string, f libhttp.HandlerFunc) {
+func (self *HttpServer) registerEndpoint(method string, pattern string, f libhttp.HandlerFunc) {
 	version := self.clusterConfig.GetLocalConfiguration().Version
 	switch method {
 	case "get":
-		p.Get(pattern, CompressionHeaderHandler(f, version))
+		self.p.Get(pattern, CompressionHeaderHandler(f, version))
 	case "post":
-		p.Post(pattern, HeaderHandler(f, version))
+		self.p.Post(pattern, HeaderHandler(f, version))
 	case "del":
-		p.Del(pattern, HeaderHandler(f, version))
+		self.p.Del(pattern, HeaderHandler(f, version))
 	}
-	p.Options(pattern, HeaderHandler(self.sendCrossOriginHeader, version))
+	self.p.Options(pattern, HeaderHandler(self.sendCrossOriginHeader, version))
 }
 
 func (self *HttpServer) Serve(listener net.Listener) {
 	defer func() { self.shutdown <- true }()
 
 	self.conn = listener
-	p := pat.New()
 
 	// Run the given query and return an array of series or a chunked response
 	// with each batch of points we get back
-	self.registerEndpoint(p, "get", "/db/:db/series", self.query)
+	self.registerEndpoint("get", "/db/:db/series", self.query)
 
 	// Write points to the given database
-	self.registerEndpoint(p, "post", "/db/:db/series", self.writePoints)
-	self.registerEndpoint(p, "del", "/db/:db/series/:series", self.dropSeries)
-	self.registerEndpoint(p, "get", "/db", self.listDatabases)
-	self.registerEndpoint(p, "post", "/db", self.createDatabase)
-	self.registerEndpoint(p, "del", "/db/:name", self.dropDatabase)
+	self.registerEndpoint("post", "/db/:db/series", self.writePoints)
+	self.registerEndpoint("del", "/db/:db/series/:series", self.dropSeries)
+	self.registerEndpoint("get", "/db", self.listDatabases)
+	self.registerEndpoint("post", "/db", self.createDatabase)
+	self.registerEndpoint("del", "/db/:name", self.dropDatabase)
 
 	// cluster admins management interface
-	self.registerEndpoint(p, "get", "/cluster_admins", self.listClusterAdmins)
-	self.registerEndpoint(p, "get", "/cluster_admins/authenticate", self.authenticateClusterAdmin)
-	self.registerEndpoint(p, "post", "/cluster_admins", self.createClusterAdmin)
-	self.registerEndpoint(p, "post", "/cluster_admins/:user", self.updateClusterAdmin)
-	self.registerEndpoint(p, "del", "/cluster_admins/:user", self.deleteClusterAdmin)
+	self.registerEndpoint("get", "/cluster_admins", self.listClusterAdmins)
+	self.registerEndpoint("get", "/cluster_admins/authenticate", self.authenticateClusterAdmin)
+	self.registerEndpoint("post", "/cluster_admins", self.createClusterAdmin)
+	self.registerEndpoint("post", "/cluster_admins/:user", self.updateClusterAdmin)
+	self.registerEndpoint("del", "/cluster_admins/:user", self.deleteClusterAdmin)
+
+	// register profiling endpoints
+	registerProfilingEndpoints(self)
 
 	// db users management interface
-	self.registerEndpoint(p, "get", "/db/:db/authenticate", self.authenticateDbUser)
-	self.registerEndpoint(p, "get", "/db/:db/users", self.listDbUsers)
-	self.registerEndpoint(p, "post", "/db/:db/users", self.createDbUser)
-	self.registerEndpoint(p, "get", "/db/:db/users/:user", self.showDbUser)
-	self.registerEndpoint(p, "del", "/db/:db/users/:user", self.deleteDbUser)
-	self.registerEndpoint(p, "post", "/db/:db/users/:user", self.updateDbUser)
+	self.registerEndpoint("get", "/db/:db/authenticate", self.authenticateDbUser)
+	self.registerEndpoint("get", "/db/:db/users", self.listDbUsers)
+	self.registerEndpoint("post", "/db/:db/users", self.createDbUser)
+	self.registerEndpoint("get", "/db/:db/users/:user", self.showDbUser)
+	self.registerEndpoint("del", "/db/:db/users/:user", self.deleteDbUser)
+	self.registerEndpoint("post", "/db/:db/users/:user", self.updateDbUser)
 
 	// healthcheck
-	self.registerEndpoint(p, "get", "/ping", self.ping)
+	self.registerEndpoint("get", "/ping", self.ping)
 
 	// force a raft log compaction
-	self.registerEndpoint(p, "post", "/raft/force_compaction", self.forceRaftCompaction)
+	self.registerEndpoint("post", "/raft/force_compaction", self.forceRaftCompaction)
 
 	// fetch current list of available interfaces
-	self.registerEndpoint(p, "get", "/interfaces", self.listInterfaces)
+	self.registerEndpoint("get", "/interfaces", self.listInterfaces)
 
 	// cluster config endpoints
-	self.registerEndpoint(p, "get", "/cluster/servers", self.listServers)
-	self.registerEndpoint(p, "del", "/cluster/servers/:id", self.removeServers)
-	self.registerEndpoint(p, "post", "/cluster/shards", self.createShard)
-	self.registerEndpoint(p, "get", "/cluster/shards", self.getShards)
-	self.registerEndpoint(p, "del", "/cluster/shards/:id", self.dropShard)
-	self.registerEndpoint(p, "get", "/cluster/shard_spaces", self.getShardSpaces)
-	self.registerEndpoint(p, "post", "/cluster/shard_spaces/:db", self.createShardSpace)
-	self.registerEndpoint(p, "del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
-	self.registerEndpoint(p, "post", "/cluster/database_configs/:db", self.configureDatabase)
+	self.registerEndpoint("get", "/cluster/servers", self.listServers)
+	self.registerEndpoint("del", "/cluster/servers/:id", self.removeServers)
+	self.registerEndpoint("post", "/cluster/shards", self.createShard)
+	self.registerEndpoint("get", "/cluster/shards", self.getShards)
+	self.registerEndpoint("del", "/cluster/shards/:id", self.dropShard)
+	self.registerEndpoint("get", "/cluster/shard_spaces", self.getShardSpaces)
+	self.registerEndpoint("post", "/cluster/shard_spaces/:db", self.createShardSpace)
+	self.registerEndpoint("del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
+	self.registerEndpoint("post", "/cluster/database_configs/:db", self.configureDatabase)
 
 	// return whether the cluster is in sync or not
-	self.registerEndpoint(p, "get", "/sync", self.isInSync)
+	self.registerEndpoint("get", "/sync", self.isInSync)
 
 	if listener == nil {
-		self.startSsl(p)
+		self.startSsl(self.p)
 		return
 	}
 
-	go self.startSsl(p)
-	self.serveListener(listener, p)
+	go self.startSsl(self.p)
+	self.serveListener(listener, self.p)
 }
 
 func (self *HttpServer) startSsl(p *pat.PatternServeMux) {
