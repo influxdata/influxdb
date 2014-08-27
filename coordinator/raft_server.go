@@ -498,6 +498,14 @@ func (s *RaftServer) checkContinuousQueries() {
 
 			currentBoundary := runTime.Truncate(*duration)
 			lastRun := s.clusterConfig.LastContinuousQueryRunTime()
+			if lastRun.IsZero() && !query.GetIntoClause().Backfill {
+				// don't backfill for this continuous query, leave it for next
+				// iteration. Otherwise, we're going to run the continuous
+				// query from lastRun which is the beginning of time until
+				// now. This is equivalent to backfilling.
+				continue
+			}
+
 			lastBoundary := lastRun.Truncate(*duration)
 
 			if currentBoundary.After(lastRun) {
