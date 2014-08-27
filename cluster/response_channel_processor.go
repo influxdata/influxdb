@@ -1,6 +1,9 @@
 package cluster
 
-import "github.com/influxdb/influxdb/protocol"
+import (
+	"code.google.com/p/log4go"
+	"github.com/influxdb/influxdb/protocol"
+)
 
 type ResponseChannelProcessor struct {
 	r ResponseChannel
@@ -16,6 +19,7 @@ func NewResponseChannelProcessor(r ResponseChannel) *ResponseChannelProcessor {
 }
 
 func (p *ResponseChannelProcessor) Yield(s *protocol.Series) (bool, error) {
+	log4go.Debug("Yielding to %s %s", p.r.Name(), s)
 	ok := p.r.Yield(&protocol.Response{
 		Type:        &QueryResponse,
 		MultiSeries: []*protocol.Series{s},

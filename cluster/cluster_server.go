@@ -113,6 +113,7 @@ func (self *ClusterServer) MakeRequest(request *protocol.Request, responseStream
 	rc := NewResponseChannelWrapper(responseStream)
 	err := self.connection.MakeRequest(request, rc)
 	if err != nil {
+		log.Error("Canceling request: %s", err)
 		self.connection.CancelRequest(request)
 		self.markServerAsDown()
 	}

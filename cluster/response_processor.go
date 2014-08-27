@@ -4,4 +4,5 @@ import "github.com/influxdb/influxdb/protocol"
 
 type ResponseChannel interface {
 	Yield(r *protocol.Response) bool
+	Name() string
 }

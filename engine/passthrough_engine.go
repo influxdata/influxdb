@@ -54,12 +54,14 @@ func (self *Passthrough) Yield(seriesIncoming *protocol.Series) (bool, error) {
 	if self.series == nil {
 		self.series = seriesIncoming
 	} else if self.series.GetName() != seriesIncoming.GetName() {
+		log.Debug("Yielding to %s: %s", self.next.Name(), self.series)
 		ok, err := self.next.Yield(self.series)
 		if !ok || err != nil {
 			return ok, err
 		}
 		self.series = seriesIncoming
 	} else if len(self.series.Points) > self.maxPointsInResponse {
+		log.Debug("Yielding to %s: %s", self.next.Name(), self.series)
 		ok, err := self.next.Yield(self.series)
 		if !ok || err != nil {
 			return ok, err
@@ -73,6 +75,7 @@ func (self *Passthrough) Yield(seriesIncoming *protocol.Series) (bool, error) {
 
 func (self *Passthrough) Close() error {
 	if self.series != nil && self.series.Name != nil {
+		log.Debug("Passthrough Yielding to %s: %s", self.next.Name(), self.series)
 		_, err := self.next.Yield(self.series)
 		if err != nil {
 			return err

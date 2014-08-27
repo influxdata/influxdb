@@ -231,6 +231,7 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 		return
 	}
 
+	log.Debug("ProtobufClient yielding to %s %s", req.r.Name(), response)
 	req.r.Yield(response)
 }
 
