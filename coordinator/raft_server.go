@@ -543,11 +543,7 @@ func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, st
 	targetName := intoClause.Target.Name
 	queryString := query.GetQueryStringWithTimesAndNoIntoClause(start, end)
 
-	f := func(series *protocol.Series) error {
-		return s.coordinator.InterpolateValuesAndCommit(query.GetQueryString(), db, series, targetName, true)
-	}
-
-	writer := NewContinuousQueryWriter(f)
+	writer := NewContinuousQueryWriter(s.coordinator, db, targetName, query)
 	s.coordinator.RunQuery(clusterAdmin, db, queryString, writer)
 }
 
