@@ -87,14 +87,6 @@ const (
 	LOCAL_WRITE_BUFFER_SIZE = 10
 )
 
-var (
-	queryResponse        = p.Response_QUERY
-	endStreamResponse    = p.Response_END_STREAM
-	accessDeniedResponse = p.Response_ACCESS_DENIED
-	queryRequest         = p.Request_QUERY
-	dropDatabaseRequest  = p.Request_DROP_DATABASE
-)
-
 type LocalShardDb interface {
 	Write(database string, series []*p.Series) error
 	Query(*parser.QuerySpec, engine.Processor) error
@@ -229,7 +221,10 @@ func (self *ShardData) WriteLocalOnly(request *p.Request) error {
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Response) {
 	log.Debug("QUERY: shard %d, query '%s'", self.Id(), querySpec.GetQueryStringWithTimeCondition())
 	defer common.RecoverFunc(querySpec.Database(), querySpec.GetQueryStringWithTimeCondition(), func(err interface{}) {
-		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(fmt.Sprintf("%s", err))}
+		response <- &p.Response{
+			Type:         p.Response_ERROR.Enum(),
+			ErrorMessage: p.String(fmt.Sprintf("%s", err)),
+		}
 	})
 
 	// This is only for queries that are deletes or drops. They need to be sent everywhere as opposed to just the local or one of the remote shards.
@@ -255,7 +250,10 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Res
 				log.Debug("creating a query engine")
 				processor, err = engine.NewQueryEngine(processor, query)
 				if err != nil {
-					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
+					response <- &p.Response{
+						Type:         p.Response_ERROR.Enum(),
+						ErrorMessage: p.String(err.Error()),
+					}
 					log.Error("Error while creating engine: %s", err)
 					return
 				}
@@ -283,7 +281,10 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Res
 		}
 		shard, err := self.store.GetOrCreateShard(self.id)
 		if err != nil {
-			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
+			response <- &p.Response{
+				Type:         p.Response_ERROR.Enum(),
+				ErrorMessage: p.String(err.Error()),
+			}
 			log.Error("Error while getting shards: %s", err)
 			return
 		}
@@ -291,11 +292,14 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Res
 		err = shard.Query(querySpec, processor)
 		// if we call Close() in case of an error it will mask the error
 		if err != nil {
-			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
+			response <- &p.Response{
+				Type:         p.Response_ERROR.Enum(),
+				ErrorMessage: p.String(err.Error()),
+			}
 			return
 		}
 		processor.Close()
-		response <- &p.Response{Type: &endStreamResponse}
+		response <- &p.Response{Type: p.Response_END_STREAM.Enum()}
 		return
 	}
 
@@ -307,7 +311,10 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Res
 	}
 
 	message := fmt.Sprintf("No servers up to query shard %d", self.id)
-	response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &message}
+	response <- &p.Response{
+		Type:         p.Response_ERROR.Enum(),
+		ErrorMessage: &message,
+	}
 	log.Error(message)
 }
 
@@ -455,8 +462,11 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 		err := self.deleteDataLocally(querySpec)
 		if err != nil {
 			msg := err.Error()
-			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &msg}
 			log.Error(msg)
+			response <- &p.Response{
+				Type:         p.Response_ERROR.Enum(),
+				ErrorMessage: &msg,
+			}
 			return
 		}
 	}
@@ -468,31 +478,32 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 		responseChannels = append(responseChannels, responses...)
 	}
 
-	accessDenied := false
+	var errorResponse *p.Response
 	for idx, channel := range responseChannels {
 		serverId := serverIds[idx]
 		log.Debug("Waiting for response to %s from %d", request.GetDescription(), serverId)
 		for {
 			res := <-channel
 			log.Debug("Received %s response from %d for %s", res.GetType(), serverId, request.GetDescription())
-			if *res.Type == endStreamResponse {
+			if res.GetType() == p.Response_END_STREAM {
 				break
 			}
 
 			// don't send the access denied response until the end so the readers don't close out before the other responses.
 			// See https://github.com/influxdb/influxdb/issues/316 for more info.
-			if *res.Type != accessDeniedResponse {
+			if res.GetType() != p.Response_ERROR {
 				response <- res
-			} else {
-				accessDenied = true
+			} else if errorResponse == nil {
+				errorResponse = res
 			}
 		}
 	}
 
-	if accessDenied {
-		response <- &p.Response{Type: &accessDeniedResponse}
+	if errorResponse != nil {
+		response <- errorResponse
+		return
 	}
-	response <- &p.Response{Type: &endStreamResponse}
+	response <- &p.Response{Type: p.Response_END_STREAM.Enum()}
 }
 
 func (self *ShardData) createRequest(querySpec *parser.QuerySpec) *p.Request {
@@ -503,7 +514,7 @@ func (self *ShardData) createRequest(querySpec *parser.QuerySpec) *p.Request {
 	isDbUser := !user.IsClusterAdmin()
 
 	return &p.Request{
-		Type:     &queryRequest,
+		Type:     p.Request_QUERY.Enum(),
 		ShardId:  &self.id,
 		Query:    &queryString,
 		UserName: &userName,

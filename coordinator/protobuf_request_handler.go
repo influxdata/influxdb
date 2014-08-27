@@ -17,16 +17,13 @@ import (
 type ProtobufRequestHandler struct {
 	coordinator   *Coordinator
 	clusterConfig *cluster.ClusterConfiguration
-	writeOk       protocol.Response_Type
 }
 
-var (
-	internalError        = protocol.Response_INTERNAL_ERROR
-	accessDeniedResponse = protocol.Response_ACCESS_DENIED
-)
-
 func NewProtobufRequestHandler(coordinator *Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
-	return &ProtobufRequestHandler{coordinator: coordinator, writeOk: protocol.Response_WRITE_OK, clusterConfig: clusterConfig}
+	return &ProtobufRequestHandler{
+		coordinator:   coordinator,
+		clusterConfig: clusterConfig,
+	}
 }
 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
@@ -49,12 +46,20 @@ func (self *ProtobufRequestHandler) handleWrites(request *protocol.Request, conn
 	shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
 	log.Debug("HANDLE: (%d):%d:%v", self.clusterConfig.LocalServer.Id, request.GetId(), shard)
 	err := shard.WriteLocalOnly(request)
-	var errorMsg *string
+	var response *protocol.Response
 	if err != nil {
 		log.Error("ProtobufRequestHandler: error writing local shard: %s", err)
-		errorMsg = protocol.String(err.Error())
+		response = &protocol.Response{
+			RequestId:    request.Id,
+			Type:         protocol.Response_ERROR.Enum(),
+			ErrorMessage: protocol.String(err.Error()),
+		}
+	} else {
+		response = &protocol.Response{
+			RequestId: request.Id,
+			Type:      protocol.Response_END_STREAM.Enum(),
+		}
 	}
-	response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk, ErrorMessage: errorMsg}
 	if err := self.WriteResponse(conn, response); err != nil {
 		log.Error("ProtobufRequestHandler: error writing local shard: %s", err)
 	}
@@ -66,7 +71,11 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	if err != nil || len(queries) < 1 {
 		log.Error("Error parsing query: ", err)
 		errorMsg := fmt.Sprintf("Cannot find user %s", *request.UserName)
-		response := &protocol.Response{Type: &endStreamResponse, ErrorMessage: &errorMsg, RequestId: request.Id}
+		response := &protocol.Response{
+			Type:         protocol.Response_ERROR.Enum(),
+			ErrorMessage: &errorMsg,
+			RequestId:    request.Id,
+		}
 		self.WriteResponse(conn, response)
 		return
 	}
@@ -80,7 +89,11 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 
 	if user == nil {
 		errorMsg := fmt.Sprintf("Cannot find user %s", *request.UserName)
-		response := &protocol.Response{Type: &accessDeniedResponse, ErrorMessage: &errorMsg, RequestId: request.Id}
+		response := &protocol.Response{
+			Type:         protocol.Response_ERROR.Enum(),
+			ErrorMessage: &errorMsg,
+			RequestId:    request.Id,
+		}
 		self.WriteResponse(conn, response)
 		return
 	}
@@ -99,8 +112,15 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 		response := <-responseChan
 		response.RequestId = request.Id
 		self.WriteResponse(conn, response)
-		if response.GetType() == protocol.Response_END_STREAM || response.GetType() == protocol.Response_ACCESS_DENIED {
+
+		switch rt := response.GetType(); rt {
+		case protocol.Response_END_STREAM,
+			protocol.Response_ERROR:
 			return
+		case protocol.Response_QUERY:
+			continue
+		default:
+			panic(fmt.Errorf("Unexpected response type: %s", rt))
 		}
 	}
 }

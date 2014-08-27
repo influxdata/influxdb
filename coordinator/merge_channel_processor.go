@@ -40,12 +40,15 @@ func (p *MergeChannelProcessor) Close() (err error) {
 	for c := range p.c {
 	nextChannel:
 		for r := range c {
-			switch r.GetType() {
+			switch rt := r.GetType(); rt {
 			case protocol.Response_END_STREAM,
-				protocol.Response_ACCESS_DENIED,
-				protocol.Response_WRITE_OK,
+				protocol.Response_ERROR,
 				protocol.Response_HEARTBEAT:
 				break nextChannel
+			case protocol.Response_QUERY:
+				continue // get the next response
+			default:
+				panic(fmt.Errorf("Unexpected response type: %s", rt))
 			}
 		}
 	}
@@ -74,18 +77,16 @@ func (p *MergeChannelProcessor) ProcessChannels() {
 		for response := range channel {
 			log4go.Debug("%s received %s", p, response)
 
-			switch response.GetType() {
+			switch rt := response.GetType(); rt {
 
 			// all these four types end the stream
-			case protocol.Response_WRITE_OK,
-				protocol.Response_HEARTBEAT,
-				protocol.Response_ACCESS_DENIED,
+			case protocol.Response_HEARTBEAT,
 				protocol.Response_END_STREAM:
+				p.e <- nil
+				break nextChannel
 
-				var err error
-				if m := response.ErrorMessage; m != nil {
-					err = common.NewQueryError(common.InvalidArgument, *m)
-				}
+			case protocol.Response_ERROR:
+				err := common.NewQueryError(common.InvalidArgument, response.GetErrorMessage())
 				p.e <- err
 				break nextChannel
 
@@ -98,6 +99,9 @@ func (p *MergeChannelProcessor) ProcessChannels() {
 						return
 					}
 				}
+
+			default:
+				panic(fmt.Errorf("Unknown response type: %s", rt))
 			}
 		}
 	}

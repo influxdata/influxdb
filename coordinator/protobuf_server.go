@@ -135,11 +135,14 @@ func (self *ProtobufServer) handleRequestTooLarge(conn net.Conn, messageSize int
 		}
 		messageSize -= MAX_REQUEST_SIZE
 	}
-	return self.sendErrorResponse(conn, protocol.Response_REQUEST_TOO_LARGE, "request too large")
+	return self.sendErrorResponse(conn, "request too large")
 }
 
-func (self *ProtobufServer) sendErrorResponse(conn net.Conn, code protocol.Response_ErrorCode, message string) error {
-	response := &protocol.Response{ErrorCode: &code, ErrorMessage: &message}
+func (self *ProtobufServer) sendErrorResponse(conn net.Conn, message string) error {
+	response := &protocol.Response{
+		Type:         protocol.Response_ERROR.Enum(),
+		ErrorMessage: protocol.String(message),
+	}
 	data, err := response.Encode()
 	if err != nil {
 		return err

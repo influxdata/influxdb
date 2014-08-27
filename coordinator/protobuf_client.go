@@ -111,7 +111,10 @@ func (self *ProtobufClient) cancelRequest(request *protocol.Request) {
 		return
 	}
 	message := "cancelling request"
-	req.r.Yield(&protocol.Response{Type: &endStreamResponse, ErrorMessage: &message})
+	req.r.Yield(&protocol.Response{
+		Type:         protocol.Response_ERROR.Enum(),
+		ErrorMessage: &message,
+	})
 	delete(self.requestBuffer, *request.Id)
 }
 
@@ -131,7 +134,10 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, r cluster.Res
 		if oldReq, alreadyHasRequestById := self.requestBuffer[*request.Id]; alreadyHasRequestById {
 			message := "already has a request with this id, must have timed out"
 			log.Error(message)
-			oldReq.r.Yield(&protocol.Response{Type: &endStreamResponse, ErrorMessage: &message})
+			oldReq.r.Yield(&protocol.Response{
+				Type:         protocol.Response_ERROR.Enum(),
+				ErrorMessage: &message,
+			})
 		}
 		self.requestBuffer[*request.Id] = &runningRequest{timeMade: time.Now(), r: r, request: request}
 		self.requestBufferLock.Unlock()
@@ -213,19 +219,23 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 		return
 	}
 
-	switch response.GetType() {
+	deleteRequest := false
+	switch rt := response.GetType(); rt {
 	case protocol.Response_END_STREAM,
-		protocol.Response_WRITE_OK,
 		protocol.Response_HEARTBEAT,
-		protocol.Response_ACCESS_DENIED:
-		// continue and delete the request
+		protocol.Response_ERROR:
+		deleteRequest = true
+	case protocol.Response_QUERY:
+		// do nothing
 	default:
-		return
+		panic(fmt.Errorf("Unknown response type: %s", rt))
 	}
 
 	self.requestBufferLock.Lock()
 	req, ok = self.requestBuffer[*response.RequestId]
-	delete(self.requestBuffer, *response.RequestId)
+	if deleteRequest {
+		delete(self.requestBuffer, *response.RequestId)
+	}
 	self.requestBufferLock.Unlock()
 	if !ok {
 		return
