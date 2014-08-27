@@ -126,14 +126,11 @@ func (self *ProtobufServer) handleRequest(conn net.Conn, messageSize int64, buff
 }
 
 func (self *ProtobufServer) handleRequestTooLarge(conn net.Conn, messageSize int64) error {
-	log.Error("request too large, dumping: %s (%d)", conn.RemoteAddr().String(), messageSize)
-	for messageSize > 0 {
-		reader := io.LimitReader(conn, MAX_REQUEST_SIZE)
-		_, err := io.Copy(ioutil.Discard, reader)
-		if err != nil {
-			return err
-		}
-		messageSize -= MAX_REQUEST_SIZE
+	log.Error("request too large, dumping: %s -> %s (%d)", conn.RemoteAddr(), conn.LocalAddr(), messageSize)
+	reader := io.LimitReader(conn, messageSize)
+	_, err := io.Copy(ioutil.Discard, reader)
+	if err != nil {
+		return err
 	}
 	return self.sendErrorResponse(conn, "request too large")
 }
