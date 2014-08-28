@@ -11,6 +11,13 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
+type SeriesState struct {
+	started       bool
+	trie          *Trie
+	pointsRange   *PointRange
+	lastTimestamp int64
+}
+
 type AggregatorEngine struct {
 	// query information
 	ascending   bool

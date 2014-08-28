@@ -2,13 +2,6 @@ package engine
 
 import "github.com/influxdb/influxdb/parser"
 
-type SeriesState struct {
-	started       bool
-	trie          *Trie
-	pointsRange   *PointRange
-	lastTimestamp int64
-}
-
 func NewQueryEngine(next Processor, query *parser.SelectQuery) (Processor, error) {
 	limit := query.Limit
 
@@ -17,7 +10,7 @@ func NewQueryEngine(next Processor, query *parser.SelectQuery) (Processor, error
 	var err error
 	if query.HasAggregates() {
 		engine, err = NewAggregatorEngine(query, engine)
-	} else if containsArithmeticOperators(query) {
+	} else if query.ContainsArithmeticOperators() {
 		engine, err = NewArithmeticEngine(query, engine)
 	}
 
@@ -32,13 +25,4 @@ func NewQueryEngine(next Processor, query *parser.SelectQuery) (Processor, error
 		return nil, err
 	}
 	return engine, nil
-}
-
-func containsArithmeticOperators(query *parser.SelectQuery) bool {
-	for _, column := range query.GetColumnNames() {
-		if column.Type == parser.ValueExpression {
-			return true
-		}
-	}
-	return false
 }
