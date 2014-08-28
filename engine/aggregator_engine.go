@@ -151,6 +151,12 @@ func (self *AggregatorEngine) aggregateValuesForSeries(series *protocol.Series) 
 		// get the group this point belongs to
 		for idx, elem := range self.elems {
 			// TODO: create an index from fieldname to index
+
+			// TODO: We shouldn't rely on GetValue() to do arithmetic
+			// operations. Instead we should cascade the arithmetic engine
+			// with the aggregator engine and possibly add another
+			// arithmetic engine to be able to do arithmetics on the
+			// resulting aggregated data.
 			value, err := GetValue(elem, series.Fields, point)
 			if err != nil {
 				return false, err
