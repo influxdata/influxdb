@@ -218,6 +218,65 @@ func (self *ShardData) WriteLocalOnly(request *p.Request) error {
 	return nil
 }
 
+func (self *ShardData) getProcessor(querySpec *parser.QuerySpec, processor engine.Processor) (engine.Processor, error) {
+	switch qt := querySpec.Query().Type(); qt {
+	case parser.Delete, parser.DropSeries:
+		return NilProcessor{}, nil
+	case parser.Select:
+		// continue
+	default:
+		panic(fmt.Errorf("Unexpected query type: %s", qt))
+	}
+
+	if querySpec.IsSinglePointQuery() {
+		return engine.NewPassthroughEngine(processor, 1), nil
+	}
+
+	query := querySpec.SelectQuery()
+
+	var err error
+	// We should aggregate at the shard level
+	if self.ShouldAggregateLocally(querySpec) {
+		log.Debug("creating a query engine")
+		processor, err = engine.NewQueryEngine(processor, query)
+		if err != nil {
+			return nil, err
+		}
+		goto addFilter
+	}
+
+	// we shouldn't limit the queries if they have aggregates and aren't
+	// aggregated locally, otherwise the aggregation result which happen
+	// in the coordinator will get partial data and will be incorrect
+	if query.HasAggregates() {
+		log.Debug("creating a passthrough engine")
+		processor = engine.NewPassthroughEngine(processor, 1000)
+		goto addFilter
+	}
+
+	// This is an optimization so we don't send more data that we should
+	// over the wire. The coordinator has its own Passthrough which does
+	// the final limit.
+	if l := query.Limit; l > 0 {
+		log.Debug("creating a passthrough engine with limit")
+		processor = engine.NewPassthroughEngineWithLimit(processor, 1000, query.Limit)
+	}
+
+addFilter:
+	if query := querySpec.SelectQuery(); query != nil && query.GetFromClause().Type != parser.FromClauseInnerJoin {
+		// Joins do their own filtering since we need to get all
+		// points before filtering. This is due to the fact that some
+		// where expressions will be difficult to compute before the
+		// points are joined together, think where clause with
+		// left.column = 'something' or right.column =
+		// 'something_else'. We can't filter the individual series
+		// separately. The filtering happens in merge.go:55
+
+		processor = engine.NewFilteringEngine(query, processor)
+	}
+	return processor, nil
+}
+
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Response) {
 	log.Debug("QUERY: shard %d, query '%s'", self.Id(), querySpec.GetQueryStringWithTimeCondition())
 	defer common.RecoverFunc(querySpec.Database(), querySpec.GetQueryStringWithTimeCondition(), func(err interface{}) {
@@ -241,44 +300,16 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Res
 		var processor engine.Processor = NewResponseChannelProcessor(NewResponseChannelWrapper(response))
 		var err error
 
-		if querySpec.IsDeleteFromSeriesQuery() || querySpec.IsDropSeriesQuery() || querySpec.IsSinglePointQuery() {
-			maxDeleteResults := 10000
-			processor = engine.NewPassthroughEngine(processor, maxDeleteResults)
-		} else {
-			query := querySpec.SelectQuery()
-			if self.ShouldAggregateLocally(querySpec) {
-				log.Debug("creating a query engine")
-				processor, err = engine.NewQueryEngine(processor, query)
-				if err != nil {
-					response <- &p.Response{
-						Type:         p.Response_ERROR.Enum(),
-						ErrorMessage: p.String(err.Error()),
-					}
-					log.Error("Error while creating engine: %s", err)
-					return
-				}
-			} else if query.HasAggregates() {
-				maxPointsToBufferBeforeSending := 1000
-				log.Debug("creating a passthrough engine")
-				processor = engine.NewPassthroughEngine(processor, maxPointsToBufferBeforeSending)
-			} else {
-				maxPointsToBufferBeforeSending := 1000
-				log.Debug("creating a passthrough engine with limit")
-				processor = engine.NewPassthroughEngineWithLimit(processor, maxPointsToBufferBeforeSending, query.Limit)
+		processor, err = self.getProcessor(querySpec, processor)
+		if err != nil {
+			response <- &p.Response{
+				Type:         p.Response_ERROR.Enum(),
+				ErrorMessage: p.String(err.Error()),
 			}
-
-			if query.GetFromClause().Type != parser.FromClauseInnerJoin {
-				// Joins do their own filtering since we need to get all
-				// points before filtering. This is due to the fact that some
-				// where expressions will be difficult to compute before the
-				// points are joined together, think where clause with
-				// left.column = 'something' or right.column =
-				// 'something_else'. We can't filter the individual series
-				// separately. The filtering happens in merge.go:55
-
-				processor = engine.NewFilteringEngine(query, processor)
-			}
+			log.Error("Error while creating engine: %s", err)
+			return
 		}
+
 		shard, err := self.store.GetOrCreateShard(self.id)
 		if err != nil {
 			response <- &p.Response{
