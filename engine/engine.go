@@ -1,9 +1,6 @@
 package engine
 
-import (
-	"github.com/influxdb/influxdb/parser"
-	"github.com/influxdb/influxdb/protocol"
-)
+import "github.com/influxdb/influxdb/parser"
 
 var (
 	TRUE = true
@@ -52,19 +49,4 @@ func containsArithmeticOperators(query *parser.SelectQuery) bool {
 		}
 	}
 	return false
-}
-
-func crossProduct(values [][][]*protocol.FieldValue) [][]*protocol.FieldValue {
-	if len(values) == 0 {
-		return [][]*protocol.FieldValue{{}}
-	}
-
-	_returnedValues := crossProduct(values[:len(values)-1])
-	returnValues := [][]*protocol.FieldValue{}
-	for _, v := range values[len(values)-1] {
-		for _, values := range _returnedValues {
-			returnValues = append(returnValues, append(values, v...))
-		}
-	}
-	return returnValues
 }

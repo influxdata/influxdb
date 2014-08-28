@@ -13,11 +13,9 @@ import (
 
 type AggregatorEngine struct {
 	// query information
-	query            *parser.SelectQuery
-	isAggregateQuery bool
-	fields           []string
-	where            *parser.WhereCondition
-	fillWithZero     bool
+	ascending   bool
+	fields      []string
+	isFillQuery bool
 
 	// was start time set in the query, e.g. time > now() - 1d
 	startTimeSpecified bool
@@ -25,8 +23,7 @@ type AggregatorEngine struct {
 	endTime            int64
 
 	// output fields
-	next    Processor
-	limiter *Limiter
+	next Processor
 
 	// variables for aggregate queries
 	aggregators  []Aggregator
@@ -39,23 +36,12 @@ func (self *AggregatorEngine) Name() string {
 	return "Aggregator Engine"
 }
 
-func (self *AggregatorEngine) yieldToNext(seriesIncoming *protocol.Series) (bool, error) {
-	if ok, err := self.next.Yield(seriesIncoming); err != nil || !ok {
-		return ok, err
-	}
-	if self.limiter.hitLimit(seriesIncoming.GetName()) {
-		return false, nil
-	}
-	return true, nil
-}
-
 func (self *AggregatorEngine) Close() error {
-	if self.isAggregateQuery {
-		if _, err := self.runAggregates(); err != nil {
+	for t := range self.seriesStates {
+		if _, err := self.runAggregatesForTable(t); err != nil {
 			return err
 		}
 	}
-
 	return self.next.Close()
 }
 
@@ -99,7 +85,7 @@ func (self *AggregatorEngine) getSeriesState(name string) *SeriesState {
 	state := self.seriesStates[name]
 	if state == nil {
 		levels := len(self.elems)
-		if self.duration != nil && self.fillWithZero {
+		if self.duration != nil && self.isFillQuery {
 			levels++
 		}
 
@@ -139,7 +125,7 @@ func (self *AggregatorEngine) aggregateValuesForSeries(series *protocol.Series) 
 	seriesState := self.getSeriesState(series.GetName())
 	currentRange := seriesState.pointsRange
 
-	includeTimestampInGroup := self.duration != nil && self.fillWithZero
+	includeTimestampInGroup := self.duration != nil && self.isFillQuery
 	var group []*protocol.FieldValue
 	if !includeTimestampInGroup {
 		group = make([]*protocol.FieldValue, len(self.elems))
@@ -152,7 +138,7 @@ func (self *AggregatorEngine) aggregateValuesForSeries(series *protocol.Series) 
 
 		// this is a groupby with time() and no fill, flush as soon as we
 		// start a new bucket
-		if self.duration != nil && !self.fillWithZero {
+		if self.duration != nil && !self.isFillQuery {
 			timestamp := self.getTimestampFromPoint(point)
 			// this is the timestamp aggregator
 			if seriesState.started && seriesState.lastTimestamp != timestamp {
@@ -192,15 +178,6 @@ func (self *AggregatorEngine) aggregateValuesForSeries(series *protocol.Series) 
 	return true, nil
 }
 
-func (self *AggregatorEngine) runAggregates() (bool, error) {
-	for t := range self.seriesStates {
-		if ok, err := self.runAggregatesForTable(t); !ok || err != nil {
-			return ok, err
-		}
-	}
-	return true, nil
-}
-
 func (self *AggregatorEngine) calculateSummariesForTable(table string) {
 	trie := self.getSeriesState(table).trie
 	err := trie.Traverse(func(group []*protocol.FieldValue, node *Node) error {
@@ -215,9 +192,6 @@ func (self *AggregatorEngine) calculateSummariesForTable(table string) {
 }
 
 func (self *AggregatorEngine) runAggregatesForTable(table string) (bool, error) {
-	// TODO: if this is a fill query, step through [start,end] in duration
-	// steps and flush the groups for the given bucket
-
 	self.calculateSummariesForTable(table)
 
 	state := self.getSeriesState(table)
@@ -229,45 +203,20 @@ func (self *AggregatorEngine) runAggregatesForTable(table string) (bool, error) 
 	}
 
 	var err error
-	if self.duration != nil && self.fillWithZero {
+	if self.duration != nil && self.isFillQuery {
 		timestampRange := state.pointsRange
 		if self.startTimeSpecified {
 			timestampRange = &PointRange{startTime: self.startTime, endTime: self.endTime}
 		}
 
-		// TODO: DRY this
-		if self.query.Ascending {
-			bucket := self.getTimestampBucket(uint64(timestampRange.startTime))
-			for bucket <= timestampRange.endTime {
-				timestamp := &protocol.FieldValue{Int64Value: protocol.Int64(bucket)}
-				defaultChildNode := &Node{states: make([]interface{}, len(self.aggregators))}
-				err = trie.TraverseLevel(len(self.elems), func(v []*protocol.FieldValue, node *Node) error {
-					childNode := node.GetChildNode(timestamp)
-					if childNode == nil {
-						childNode = defaultChildNode
-					}
-					return f(append(v, timestamp), childNode)
-				})
-				bucket += self.duration.Nanoseconds() / 1000
-			}
-		} else {
-			bucket := self.getTimestampBucket(uint64(timestampRange.endTime))
-			for {
-				timestamp := &protocol.FieldValue{Int64Value: protocol.Int64(bucket)}
-				defaultChildNode := &Node{states: make([]interface{}, len(self.aggregators))}
-				err = trie.TraverseLevel(len(self.elems), func(v []*protocol.FieldValue, node *Node) error {
-					childNode := node.GetChildNode(timestamp)
-					if childNode == nil {
-						childNode = defaultChildNode
-					}
-					return f(append(v, timestamp), childNode)
-				})
-				if bucket <= timestampRange.startTime {
-					break
-				}
-				bucket -= self.duration.Nanoseconds() / 1000
-			}
-		}
+		startBucket := self.getTimestampBucket(uint64(timestampRange.startTime))
+		endBucket := self.getTimestampBucket(uint64(timestampRange.endTime))
+		durationMicro := self.duration.Nanoseconds() / 1000
+		traverser := newBucketTraverser(trie, len(self.elems), len(self.aggregators), startBucket, endBucket, durationMicro, self.ascending)
+		// apply the function f to the nodes of the trie, such that n1 is
+		// applied before n2 iff n1's timestamp is lower (or higher in
+		// case of descending queries) than the timestamp of n2
+		err = traverser.apply(f)
 	} else {
 		err = trie.Traverse(f)
 	}
@@ -275,7 +224,7 @@ func (self *AggregatorEngine) runAggregatesForTable(table string) (bool, error) 
 		panic(err)
 	}
 	trie.Clear()
-	return self.yieldToNext(&protocol.Series{
+	return self.next.Yield(&protocol.Series{
 		Name:   &table,
 		Fields: self.fields,
 		Points: points,
@@ -288,11 +237,11 @@ func (self *AggregatorEngine) getValuesForGroup(table string, group []*protocol.
 
 	var timestamp int64
 	useTimestamp := false
-	if self.duration != nil && !self.fillWithZero {
+	if self.duration != nil && !self.isFillQuery {
 		// if there's a group by time(), then the timestamp is the lastTimestamp
 		timestamp = self.getSeriesState(table).lastTimestamp
 		useTimestamp = true
-	} else if self.duration != nil && self.fillWithZero {
+	} else if self.duration != nil && self.isFillQuery {
 		// if there's no group by time(), but a fill value was specified,
 		// the timestamp is the last value in the group
 		timestamp = group[len(group)-1].GetInt64Value()
@@ -337,64 +286,75 @@ func (self *AggregatorEngine) getValuesForGroup(table string, group []*protocol.
 	return points
 }
 
-func (self *AggregatorEngine) init() error {
-	duration, err := self.query.GetGroupByClause().GetGroupByTime()
-	if err != nil {
-		return err
+func (self *AggregatorEngine) init(query *parser.SelectQuery) error {
+	return nil
+}
+
+func NewAggregatorEngine(query *parser.SelectQuery, next Processor) (*AggregatorEngine, error) {
+	ae := &AggregatorEngine{
+		next:         next,
+		seriesStates: make(map[string]*SeriesState),
+		ascending:    query.Ascending,
 	}
 
-	self.isAggregateQuery = true
-	self.duration = duration
-	self.aggregators = []Aggregator{}
+	var err error
+	ae.duration, err = query.GetGroupByClause().GetGroupByTime()
+	if err != nil {
+		return nil, err
+	}
 
-	for _, value := range self.query.GetColumnNames() {
+	ae.aggregators = []Aggregator{}
+
+	for _, value := range query.GetColumnNames() {
 		if !value.IsFunctionCall() {
 			continue
 		}
 		lowerCaseName := strings.ToLower(value.Name)
 		initializer := registeredAggregators[lowerCaseName]
 		if initializer == nil {
-			return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", value.Name))
+			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", value.Name))
 		}
-		aggregator, err := initializer(self.query, value, self.query.GetGroupByClause().FillValue)
+		aggregator, err := initializer(query, value, query.GetGroupByClause().FillValue)
 		if err != nil {
-			return common.NewQueryError(common.InvalidArgument, fmt.Sprintf("%s", err))
+			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("%s", err))
 		}
-		self.aggregators = append(self.aggregators, aggregator)
+		ae.aggregators = append(ae.aggregators, aggregator)
 	}
 
-	for _, elem := range self.query.GetGroupByClause().Elems {
+	for _, elem := range query.GetGroupByClause().Elems {
 		if elem.IsFunctionCall() {
 			continue
 		}
-		self.elems = append(self.elems, elem)
+		ae.elems = append(ae.elems, elem)
 	}
 
-	self.fillWithZero = self.query.GetGroupByClause().FillWithZero
+	ae.isFillQuery = query.GetGroupByClause().FillWithZero
 
 	// This is a special case for issue #426. If the start time is
 	// specified and there's a group by clause and fill with zero, then
 	// we need to fill the entire range from start time to end time
-	if self.query.IsStartTimeSpecified() && self.duration != nil && self.fillWithZero {
-		self.startTimeSpecified = true
-		self.startTime = self.query.GetStartTime().Truncate(*self.duration).UnixNano() / 1000
-		self.endTime = self.query.GetEndTime().Truncate(*self.duration).UnixNano() / 1000
+	if query.IsStartTimeSpecified() && ae.duration != nil && ae.isFillQuery {
+		ae.startTimeSpecified = true
+		ae.startTime = query.GetStartTime().Truncate(*ae.duration).UnixNano() / 1000
+		ae.endTime = query.GetEndTime().Truncate(*ae.duration).UnixNano() / 1000
 	}
 
-	self.initializeFields()
-	return nil
+	ae.initializeFields()
+
+	return ae, nil
 }
 
-func NewAggregatorEngine(query *parser.SelectQuery, next Processor) (*AggregatorEngine, error) {
-	queryEngine := &AggregatorEngine{
-		query:   query,
-		where:   query.GetWhereCondition(),
-		next:    next,
-		limiter: NewLimiter(query.Limit),
-		// stats stuff
-		duration:     nil,
-		seriesStates: make(map[string]*SeriesState),
+func crossProduct(values [][][]*protocol.FieldValue) [][]*protocol.FieldValue {
+	if len(values) == 0 {
+		return [][]*protocol.FieldValue{{}}
 	}
 
-	return queryEngine, queryEngine.init()
+	_returnedValues := crossProduct(values[:len(values)-1])
+	returnValues := [][]*protocol.FieldValue{}
+	for _, v := range values[len(values)-1] {
+		for _, values := range _returnedValues {
+			returnValues = append(returnValues, append(values, v...))
+		}
+	}
+	return returnValues
 }
