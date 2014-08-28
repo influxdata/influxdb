@@ -2,20 +2,12 @@ package engine
 
 import "github.com/influxdb/influxdb/parser"
 
-var (
-	TRUE = true
-)
-
 type SeriesState struct {
 	started       bool
 	trie          *Trie
 	pointsRange   *PointRange
 	lastTimestamp int64
 }
-
-const (
-	POINT_BATCH_SIZE = 64
-)
 
 func NewQueryEngine(next Processor, query *parser.SelectQuery) (Processor, error) {
 	limit := query.Limit

@@ -23,14 +23,6 @@ type Coordinator struct {
 	permissions          Permissions
 }
 
-// shorter constants for readability
-var (
-	endStreamResponse = protocol.Response_END_STREAM
-	queryResponse     = protocol.Response_QUERY
-	heartbeatResponse = protocol.Response_HEARTBEAT
-	write             = protocol.Request_WRITE
-)
-
 func NewCoordinator(
 	config *configuration.Configuration,
 	raftServer *RaftServer,
@@ -535,7 +527,11 @@ func (self *Coordinator) write(db string, series []*protocol.Series, shard clust
 }
 
 func (self *Coordinator) writeWithoutAssigningId(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
-	request := &protocol.Request{Type: &write, Database: &db, MultiSeries: series}
+	request := &protocol.Request{
+		Type:        protocol.Request_WRITE.Enum(),
+		Database:    &db,
+		MultiSeries: series,
+	}
 	// break the request if it's too big
 	if request.Size() >= MAX_REQUEST_SIZE {
 		if l := len(series); l > 1 {

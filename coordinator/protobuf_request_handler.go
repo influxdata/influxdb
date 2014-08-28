@@ -33,7 +33,10 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 	case protocol.Request_QUERY:
 		go self.handleQuery(request, conn)
 	case protocol.Request_HEARTBEAT:
-		response := &protocol.Response{RequestId: request.Id, Type: &heartbeatResponse}
+		response := &protocol.Response{
+			RequestId: request.Id,
+			Type:      protocol.Response_HEARTBEAT.Enum(),
+		}
 		return self.WriteResponse(conn, response)
 	default:
 		log.Error("unknown request type: %v", request)

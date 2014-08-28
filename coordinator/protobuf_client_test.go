@@ -61,7 +61,7 @@ func (prs *PingResponseServer) handleConnection(conn net.Conn) {
 
 		switch *request.Type {
 		case protocol.Request_HEARTBEAT:
-			response := &protocol.Response{RequestId: request.Id, Type: &heartbeatResponse}
+			response := &protocol.Response{RequestId: request.Id, Type: protocol.Response_HEARTBEAT.Enum()}
 
 			data, err := response.Encode()
 			if err != nil {
