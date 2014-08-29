@@ -76,7 +76,7 @@ func (prs *PingResponseServer) handleConnection(conn net.Conn) {
 	conn.Close()
 }
 
-func FakeHearbeatServer() *PingResponseServer {
+func FakeHeartbeatServer() *PingResponseServer {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		panic(err)
@@ -88,7 +88,7 @@ func FakeHearbeatServer() *PingResponseServer {
 
 func BenchmarkSingle(b *testing.B) {
 	var HEARTBEAT_TYPE = protocol.Request_HEARTBEAT
-	prs := FakeHearbeatServer()
+	prs := FakeHeartbeatServer()
 	client := NewProtobufClient(prs.Listener.Addr().String(), time.Second)
 	client.Connect()
 	b.ResetTimer()

@@ -168,7 +168,7 @@ func (self *ClusterServer) heartbeat() {
 		}
 
 		if !self.isUp {
-			log.Warn("Server marked as up. Hearbeat succeeded")
+			log.Warn("Server marked as up. Heartbeat succeeded")
 		}
 		// otherwise, reset the backoff and mark the server as up
 		self.isUp = true
@@ -202,7 +202,7 @@ func (self *ClusterServer) markServerAsDown() {
 
 func (self *ClusterServer) handleHeartbeatError(err error) {
 	if self.isUp {
-		log.Warn("Server marked as down. Hearbeat error for server: %d - %s: %s", self.Id, self.ProtobufConnectionString, err)
+		log.Warn("Server marked as down. Heartbeat error for server: %d - %s: %s", self.Id, self.ProtobufConnectionString, err)
 	}
 	self.markServerAsDown()
 	self.Backoff *= 2
