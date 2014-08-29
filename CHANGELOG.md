@@ -1,18 +1,41 @@
+## v0.8.1 [unreleased]
+
+### Bugfixes
+
+## v0.8.0 [2014-08-22]
+
+### Features
+
+- [Issue #850](https://github.com/influxdb/influxdb/issues/850). Makes the server listing more informative
+
+### Bugfixes
+
+- [Issue #779](https://github.com/influxdb/influxdb/issues/779). Deleting expired shards isn't thread safe.
+- [Issue #860](https://github.com/influxdb/influxdb/issues/860). Load database config should validate shard spaces.
+- [Issue #862](https://github.com/influxdb/influxdb/issues/862). Data migrator should have option to set delay time.
+
 ## v0.8.0-rc.5 [2014-08-15]
 
 ### Features
 
-- [Issue #376](https://github.com/influxdb/influxdb/pull/376). List series should support regex filtering
-- Database config loader now supports defining continuous queries
+- [Issue #376](https://github.com/influxdb/influxdb/issues/376). List series should support regex filtering
+- [Issue #745](https://github.com/influxdb/influxdb/issues/745). Add continuous queries to the database config
+- [Issue #746](https://github.com/influxdb/influxdb/issues/746). Add data migration tool for 0.8.0
 
 ### Bugfixes
 
-- [Issue #809](https://github.com/influxdb/influxdb/pull/809). Migration path from 0.7 -> 0.8
+- [Issue #426](https://github.com/influxdb/influxdb/issues/426). Fill should fill the entire time range that is requested
+- [Issue #740](https://github.com/influxdb/influxdb/issues/740). Don't emit non existent fields when joining series with different fields
+- [Issue #744](https://github.com/influxdb/influxdb/issues/744). Admin site should have all assets locally
+- [Issue #767](https://github.com/influxdb/influxdb/issues/768). Remove shards whenever they expire
+- [Issue #781](https://github.com/influxdb/influxdb/issues/781). Don't emit non existent fields when joining series with different fields
 - [Issue #791](https://github.com/influxdb/influxdb/issues/791). Move database config loader to be an API endpoint
+- [Issue #809](https://github.com/influxdb/influxdb/issues/809). Migration path from 0.7 -> 0.8
 - [Issue #811](https://github.com/influxdb/influxdb/issues/811). Gogoprotobuf removed `ErrWrongType`, which is depended on by Raft
-- [Issue #830](https://github.com/influxdb/influxdb/issues/830). Series should be in sorted order
+- [Issue #820](https://github.com/influxdb/influxdb/issues/820). Query non-local shard with time range to avoid getting back points not in time range
+- [Issue #827](https://github.com/influxdb/influxdb/issues/827). Don't leak file descriptors in the WAL
+- [Issue #830](https://github.com/influxdb/influxdb/issues/830). List series should return series in lexicographic sorted order
 - [Issue #831](https://github.com/influxdb/influxdb/issues/831). Move create shard space to be db specific
-- [Issue #426](https://github.com/influxdb/influxdb/pull/426). Fill should fill the entire time range that is requested
 
 ## v0.8.0-rc.4 [2014-07-29]
 

@@ -128,9 +128,6 @@ func NewClusterConfiguration(
 func (self *ClusterConfiguration) DoesShardSpaceExist(space *ShardSpace) error {
 	self.shardLock.RLock()
 	defer self.shardLock.RUnlock()
-	if _, ok := self.DatabaseReplicationFactors[space.Database]; !ok {
-		return fmt.Errorf("Database %s doesn't exist", space.Database)
-	}
 	dbSpaces := self.databaseShardSpaces[space.Database]
 	for _, s := range dbSpaces {
 		if s.Name == space.Name {
@@ -1278,7 +1275,7 @@ func (self *ClusterConfiguration) removeShard(shard *ShardData) {
 
 func (self *ClusterConfiguration) AddShardSpace(space *ShardSpace) error {
 	if space.Name != DEFAULT_SHARD_SPACE_NAME {
-		err := space.Validate(self)
+		err := space.Validate(self, true)
 		if err != nil {
 			return err
 		}

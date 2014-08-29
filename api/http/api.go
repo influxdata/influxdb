@@ -985,8 +985,21 @@ func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		servers := self.clusterConfig.Servers()
 		serverMaps := make([]map[string]interface{}, len(servers), len(servers))
+
+		leaderRaftConnectString, _ := self.raftServer.GetLeaderRaftConnectString()
+		leaderRaftName := self.raftServer.GetLeaderRaftName()
 		for i, s := range servers {
-			serverMaps[i] = map[string]interface{}{"id": s.Id, "protobufConnectString": s.ProtobufConnectionString}
+			serverMaps[i] = map[string]interface{}{
+				"id": s.Id,
+				"protobufConnectString":   s.ProtobufConnectionString,
+				"isUp":                    s.IsUp(), //FIXME: IsUp is not consistent
+				"raftName":                s.RaftName,
+				"state":                   s.State,
+				"stateName":               s.GetStateName(),
+				"raftConnectionString":    s.RaftConnectionString,
+				"leaderRaftName":          leaderRaftName,
+				"leaderRaftConnectString": leaderRaftConnectString,
+				"isLeader":                self.raftServer.IsLeaderByRaftName(s.RaftName)}
 		}
 		return libhttp.StatusOK, serverMaps
 	})
@@ -1151,7 +1164,7 @@ func (self *HttpServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Re
 			return libhttp.StatusInternalServerError, err.Error()
 		}
 		space.Database = r.URL.Query().Get(":db")
-		err = space.Validate(self.clusterConfig)
+		err = space.Validate(self.clusterConfig, true)
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
@@ -1202,6 +1215,14 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 			}
 		}
 
+		// validate shard spaces
+		for _, space := range databaseConfig.Spaces {
+			err := space.Validate(self.clusterConfig, false)
+			if err != nil {
+				return libhttp.StatusBadRequest, err.Error()
+			}
+		}
+
 		err = self.coordinator.CreateDatabase(u, database)
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
@@ -1228,6 +1249,15 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 
 func (self *HttpServer) migrateData(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		pauseTime := r.URL.Query().Get("pause")
+		pauseDuration := time.Millisecond * 100
+		if pauseTime != "" {
+			var err error
+			pauseDuration, err = time.ParseDuration(pauseTime)
+			if err != nil {
+				return libhttp.StatusBadRequest, fmt.Errorf("Couldn't parse pause time: ", err)
+			}
+		}
 		if !atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_NOT_RUNNING, MIGRATION_RUNNING) {
 			return libhttp.StatusForbidden, fmt.Errorf("A migration is already running")
 		}
@@ -1235,7 +1265,7 @@ func (self *HttpServer) migrateData(w libhttp.ResponseWriter, r *libhttp.Request
 			log.Info("Starting Migration")
 			defer atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_RUNNING, MIGRATION_NOT_RUNNING)
 			dataMigrator := migration.NewDataMigrator(
-				self.coordinator.(*coordinator.CoordinatorImpl), self.clusterConfig, self.config, self.config.DataDir, "shard_db", self.clusterConfig.MetaStore)
+				self.coordinator.(*coordinator.CoordinatorImpl), self.clusterConfig, self.config, self.config.DataDir, "shard_db", self.clusterConfig.MetaStore, pauseDuration)
 			dataMigrator.Migrate()
 		}()
 

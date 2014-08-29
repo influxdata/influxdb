@@ -631,7 +631,7 @@ func (self *LevelDbShard) getColumnNamesForSeries(db, series string) []string {
 }
 
 func (self *LevelDbShard) hasReadAccess(querySpec *parser.QuerySpec) bool {
-	for series, _ := range querySpec.SeriesValuesAndColumns() {
+	for series := range querySpec.SeriesValuesAndColumns() {
 		if _, isRegex := series.GetCompiledRegex(); !isRegex {
 			if !querySpec.HasReadAccess(series.Name) {
 				return false

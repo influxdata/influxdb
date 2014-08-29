@@ -71,8 +71,12 @@ func main() {
 		fmt.Println(v)
 		return
 	}
-	config := configuration.LoadConfiguration(*fileName)
+	config, err := configuration.LoadConfiguration(*fileName)
 
+	if err != nil {
+		return
+	}
+	
 	// override the hostname if it was specified on the command line
 	if hostname != nil && *hostname != "" {
 		config.Hostname = *hostname

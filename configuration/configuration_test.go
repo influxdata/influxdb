@@ -18,7 +18,8 @@ type LoadConfigurationSuite struct{}
 var _ = Suite(&LoadConfigurationSuite{})
 
 func (self *LoadConfigurationSuite) TestConfig(c *C) {
-	config := LoadConfiguration("config.toml")
+	config, err := LoadConfiguration("config.toml")
+	c.Assert(err, Equals, nil)
 	c.Assert(config.Hostname, Equals, "")
 
 	c.Assert(config.LogFile, Equals, "influxdb.log")

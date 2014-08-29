@@ -43,29 +43,35 @@ func NewShardSpace(database, name string) *ShardSpace {
 	return s
 }
 
-func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration) error {
+func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration, checkForDb bool) error {
 	if err := clusterConfig.DoesShardSpaceExist(s); err != nil {
 		return err
+	}
+	if checkForDb {
+		if !clusterConfig.DatabaseExists(s.Database) {
+			return fmt.Errorf("Database '%s' doesn't exist.", s.Database)
+		}
 	}
 
 	if s.Name == "" {
 		return fmt.Errorf("Shard space must have a name")
 	}
-	if s.Regex != "" {
-		reg := s.Regex
-		if strings.HasPrefix(reg, "/") {
-			if strings.HasSuffix(reg, "/i") {
-				reg = fmt.Sprintf("(?i)%s", reg[1:len(reg)-2])
-			} else {
-				reg = reg[1 : len(reg)-1]
-			}
-		}
-		r, err := regexp.Compile(reg)
-		if err != nil {
-			return fmt.Errorf("Error parsing regex: %s", err)
-		}
-		s.compiledRegex = r
+	if s.Regex == "" {
+		return fmt.Errorf("A regex is required for a shard space")
 	}
+	reg := s.Regex
+	if strings.HasPrefix(reg, "/") {
+		if strings.HasSuffix(reg, "/i") {
+			reg = fmt.Sprintf("(?i)%s", reg[1:len(reg)-2])
+		} else {
+			reg = reg[1 : len(reg)-1]
+		}
+	}
+	r, err := regexp.Compile(reg)
+	if err != nil {
+		return fmt.Errorf("Error parsing regex: %s", err)
+	}
+	s.compiledRegex = r
 	if s.Split == 0 {
 		s.Split = DEFAULT_SPLIT
 	}

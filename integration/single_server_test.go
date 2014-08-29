@@ -900,6 +900,12 @@ func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
 
+	// ensure that an invalid database conf doesn't create a db
+	contents, err = ioutil.ReadFile("database_conf_invalid.json")
+	c.Assert(err, IsNil)
+	resp, _ = http.Post("http://localhost:8086/cluster/database_configs/bad_db?u=root&p=root", "application/json", bytes.NewBuffer(contents))
+	c.Assert(resp.StatusCode, Equals, http.StatusBadRequest)
+
 	client := self.server.GetClient("test_db_conf_db", c)
 	spaces, err := client.GetShardSpaces()
 	c.Assert(err, IsNil)

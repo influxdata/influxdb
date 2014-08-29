@@ -210,14 +210,15 @@ type Configuration struct {
 	InfluxDBVersion              string
 }
 
-func LoadConfiguration(fileName string) *Configuration {
+func LoadConfiguration(fileName string) (*Configuration, error) {
 	log.Info("Loading configuration file %s", fileName)
 	config, err := parseTomlConfiguration(fileName)
 	if err != nil {
-		log.Error("Couldn't parse configuration file: " + fileName)
-		panic(err)
+		fmt.Println("Couldn't parse configuration file: " + fileName)
+		fmt.Println(err)
+		return nil, err
 	}
-	return config
+	return config, nil
 }
 
 func parseTomlConfiguration(filename string) (*Configuration, error) {
