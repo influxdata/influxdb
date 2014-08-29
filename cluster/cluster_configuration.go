@@ -901,6 +901,7 @@ func (self *ClusterConfiguration) GetShardsForQuery(querySpec *parser.QuerySpec)
 	if err != nil {
 		return nil, err
 	}
+	log.Debug("Querying %d shards for query", len(shards))
 	shards = self.getShardRange(querySpec, shards)
 	if querySpec.IsAscending() {
 		SortShardsByTimeAscending(shards)

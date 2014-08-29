@@ -15,10 +15,18 @@ func NewQueryEngine(next Processor, query *parser.SelectQuery) (Processor, error
 	}
 
 	fromClause := query.GetFromClause()
-	if fromClause.Type == parser.FromClauseMerge {
-		engine = NewMergeEngine(fromClause.Names[0].Name.Name, fromClause.Names[1].Name.Name, query.Ascending, engine)
-	} else if fromClause.Type == parser.FromClauseInnerJoin {
+
+	switch fromClause.Type {
+	case parser.FromClauseInnerJoin:
 		engine = NewJoinEngine(query, engine)
+	case parser.FromClauseMerge:
+		tables := make([]string, len(fromClause.Names))
+		for i, name := range fromClause.Names {
+			tables[i] = name.Name.Name
+		}
+		engine = NewMergeEngine(tables, query.Ascending, engine)
+	case parser.FromClauseMergeFun:
+		panic("QueryEngine cannot be called with merge function")
 	}
 
 	if err != nil {

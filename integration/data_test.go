@@ -267,6 +267,53 @@ func (self *DataTestSuite) TestModeWithNils(c *C) {
 	c.Assert(maps[0]["m2"], Equals, nil)
 }
 
+func (self *DataTestSuite) TestMergeRegex(c *C) {
+	data := `
+[
+  {
+    "name": "test_merge_1",
+    "columns": ["time", "value"],
+    "points": [
+      [1401321600000, "m11"],
+      [1401321800000, "m12"]
+    ]
+  },
+  {
+    "name": "test_merge_2",
+    "columns": ["time", "value"],
+    "points": [
+      [1401321700000, "m21"],
+      [1401321900000, "m22"]
+    ]
+  },
+  {
+    "name": "test_merge_3",
+    "columns": ["time", "value"],
+    "points": [
+      [1401321500000, "m31"],
+      [1401322000000, "m32"]
+    ]
+  }
+ ]`
+	self.client.WriteJsonData(data, c, influxdb.Millisecond)
+	serieses := self.client.RunQuery("select * from merge(/.*/)", c, "m")
+	c.Assert(serieses, HasLen, 1)
+	maps := ToMap(serieses[0])
+	c.Assert(maps, HasLen, 6)
+	t := make([]float64, len(maps))
+	for i, m := range maps {
+		t[i] = m["time"].(float64)
+	}
+	c.Assert(t, DeepEquals, []float64{
+		1401322000000,
+		1401321900000,
+		1401321800000,
+		1401321700000,
+		1401321600000,
+		1401321500000,
+	})
+}
+
 func (self *DataTestSuite) TestMergingOldData(c *C) {
 	data := `
 [

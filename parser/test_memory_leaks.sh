@@ -14,6 +14,9 @@ int main(int argc, char **argv) {
   q = parse_query("select * from foo where time < -1s");
   close_queries(&q);
 
+  q = parse_query("select * from merge(/.*/) where time < -1s");
+  close_queries(&q);
+
   // test partial regex
   q = parse_query("list series /");
   close_queries(&q);

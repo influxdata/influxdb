@@ -262,6 +262,14 @@ func (self *QueryParserSuite) TestParseFromWithMergedTable(c *C) {
 	c.Assert(fromClause.Names[1].Name.Name, Equals, "user.signups")
 }
 
+func (self *QueryParserSuite) TestParseFromWithMergeRegex(c *C) {
+	q, err := ParseSelectQuery("select count(*) from merge(/.*/) where time>now()-1d;")
+	c.Assert(err, IsNil)
+	fromClause := q.GetFromClause()
+	c.Assert(fromClause.Type, Equals, FromClauseMergeFun)
+	c.Assert(fromClause.Regex, NotNil)
+}
+
 func (self *QueryParserSuite) TestMultipleAggregateFunctions(c *C) {
 	q, err := ParseSelectQuery("select first(bar), last(bar) from foo")
 	c.Assert(err, IsNil)

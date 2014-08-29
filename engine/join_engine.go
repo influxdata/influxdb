@@ -26,7 +26,7 @@ func NewJoinEngine(query *parser.SelectQuery, next Processor) Processor {
 		table2: table2,
 		query:  query,
 	}
-	mergeEngine := NewCommonMergeEngine(table1, table2, false, query.Ascending, joinEngine)
+	mergeEngine := NewCommonMergeEngine([]string{table1, table2}, false, query.Ascending, joinEngine)
 	return mergeEngine
 }
 
