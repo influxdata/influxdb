@@ -124,8 +124,15 @@ func (s *RaftServer) IsLeaderByRaftName(name string) bool {
 	return s.raftServer.Leader() == name
 }
 
-func (s *RaftServer) GetLeaderConnectString() (string, bool) {
-	return s.leaderConnectString()
+/**
+* return a consistant leader raft connection string when called on all living nodes include leader.
+ */
+func (s *RaftServer) GetLeaderRaftConnectString() (string, bool) {
+	if s.IsLeaderByRaftName(s.name) {
+		return s.config.RaftConnectionString(), true
+	} else {
+		return s.leaderConnectString()
+	}
 }
 
 func (s *RaftServer) leaderConnectString() (string, bool) {
