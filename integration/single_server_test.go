@@ -951,3 +951,24 @@ func (self *SingleServerSuite) TestSeriesShouldReturnSorted(c *C) {
 		c.Assert(s.Name, Equals, fmt.Sprintf("sort_%.3d", i+1))
 	}
 }
+
+// for issue #853 https://github.com/influxdb/influxdb/issues/853
+func (self *SingleServerSuite) TestApiReturnsClusterConfigOnlyIfAdmin(c *C) {
+	resp, err := http.Get("http://localhost:8086/cluster/configuration?u=root&p=root")
+	c.Assert(err, IsNil)
+	decoder := json.NewDecoder(resp.Body)
+	m := make(map[string]interface{})
+	err = decoder.Decode(&m)
+	c.Assert(err, IsNil)
+	c.Assert(m["Admins"], NotNil)
+	c.Assert(m["DbUsers"], NotNil)
+	c.Assert(m["Databases"], NotNil)
+	c.Assert(m["Servers"], NotNil)
+	c.Assert(m["ContinuousQueries"], NotNil)
+	c.Assert(m["MetaStore"], NotNil)
+	c.Assert(m["Shards"], NotNil)
+	c.Assert(m["DatabaseShardSpaces"], NotNil)
+
+	resp, _ = http.Get("http://localhost:8086/cluster/configuration")
+	c.Assert(resp.StatusCode, Equals, http.StatusUnauthorized)
+}

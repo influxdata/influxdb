@@ -154,6 +154,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "get", "/interfaces", self.listInterfaces)
 
 	// cluster config endpoints
+	self.registerEndpoint(p, "get", "/cluster/configuration", self.getClusterConfiguration)
 	self.registerEndpoint(p, "get", "/cluster/servers", self.listServers)
 	self.registerEndpoint(p, "del", "/cluster/servers/:id", self.removeServers)
 	self.registerEndpoint(p, "post", "/cluster/shards", self.createShard)
@@ -1270,5 +1271,11 @@ func (self *HttpServer) migrateData(w libhttp.ResponseWriter, r *libhttp.Request
 		}()
 
 		return libhttp.StatusAccepted, nil
+	})
+}
+
+func (self *HttpServer) getClusterConfiguration(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		return libhttp.StatusOK, self.clusterConfig.SerializableConfiguration()
 	})
 }

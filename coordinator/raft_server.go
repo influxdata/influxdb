@@ -561,7 +561,6 @@ func (s *RaftServer) Serve(l net.Listener) error {
 		Handler: s.router,
 	}
 
-	s.router.HandleFunc("/cluster_config", s.configHandler).Methods("GET")
 	s.router.HandleFunc("/join", s.joinHandler).Methods("POST")
 	s.router.HandleFunc("/process_command/{command_type}", s.processCommandHandler).Methods("POST")
 
@@ -692,14 +691,6 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 	} else {
 		http.Error(w, errors.New("Couldn't find leader of the cluster to join").Error(), http.StatusInternalServerError)
 	}
-}
-
-func (s *RaftServer) configHandler(w http.ResponseWriter, req *http.Request) {
-	js, err := json.Marshal(s.clusterConfig.GetMapForJsonSerialization())
-	if err != nil {
-		log.Error("ERROR marshalling config: ", err)
-	}
-	w.Write(js)
 }
 
 func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http.Request) (interface{}, error) {
