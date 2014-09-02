@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/configuration"
+	"github.com/influxdb/influxdb/datastore/schema"
 	"github.com/influxdb/influxdb/datastore/storage"
 	"github.com/influxdb/influxdb/metastore"
 	"github.com/influxdb/influxdb/protocol"
@@ -22,7 +24,7 @@ import (
 type ShardDatastore struct {
 	baseDbDir      string
 	config         *configuration.Configuration
-	shards         map[uint32]*Shard
+	shards         map[uint32]schema.Schema
 	lastAccess     map[uint32]time.Time
 	shardRefCounts map[uint32]int
 	shardsToClose  map[uint32]bool
@@ -75,7 +77,7 @@ func NewShardDatastore(config *configuration.Configuration, metaStore *metastore
 	return &ShardDatastore{
 		baseDbDir:      baseDbDir,
 		config:         config,
-		shards:         make(map[uint32]*Shard),
+		shards:         map[uint32]schema.Schema{},
 		maxOpenShards:  config.StorageMaxOpenShards,
 		lastAccess:     make(map[uint32]time.Time),
 		shardRefCounts: make(map[uint32]int),
@@ -90,41 +92,54 @@ func (self *ShardDatastore) Close() {
 	self.shardsLock.Lock()
 	defer self.shardsLock.Unlock()
 	for _, shard := range self.shards {
-		shard.close()
+		shard.Close()
 	}
 }
 
 // Get the engine that was used when the shard was created if it
 // exists or set the type of the default engine type
-func (self *ShardDatastore) getEngine(dir string) (string, error) {
+func (self *ShardDatastore) getEngine(dir string) (string, string, error) {
 	shardExist := true
 	info, err := os.Stat(dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return "", err
+			return "", "", err
 		}
 
 		shardExist = false
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return "", err
+			return "", "", err
 		}
 	} else if !info.IsDir() {
-		return "", fmt.Errorf("%s isn't a directory", dir)
+		return "", "", fmt.Errorf("%s isn't a directory", dir)
 	}
 
 	f, err := os.OpenFile(path.Join(dir, "type"), os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer f.Close()
 
 	body, err := ioutil.ReadAll(f)
 	if err != nil {
-		return "", err
+		return "", "", err
+	}
+
+	defaultSchema := self.config.StorageDefaultSchema
+	// If the shard already exists and the type file doesn't contain a
+	// schema then assume "raw"
+	if shardExist {
+		defaultSchema = schema.RAW_NAME
 	}
 
 	if s := string(body); s != "" {
-		return s, nil
+		sep := strings.Split(s, "\n")
+		if len(sep) > 1 {
+			return sep[0], sep[1], nil
+		} else {
+			// If we couldn't get the schema, make an assumption
+			return sep[0], defaultSchema, nil
+		}
 	}
 
 	// If the shard existed already but the 'type' file didn't, assume
@@ -135,14 +150,17 @@ func (self *ShardDatastore) getEngine(dir string) (string, error) {
 	}
 
 	if _, err := f.WriteString(t); err != nil {
-		return "", err
+		return "", "", err
+	}
+	if _, err = f.WriteString("\n" + defaultSchema); err != nil {
+		return "", "", err
 	}
 
 	if err := f.Sync(); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return t, nil
+	return t, defaultSchema, nil
 }
 
 func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, error) {
@@ -160,7 +178,7 @@ func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, e
 	dbDir := self.shardDir(id)
 
 	log.Info("DATASTORE: opening or creating shard %s", dbDir)
-	engine, err := self.getEngine(dbDir)
+	engine, sch, err := self.getEngine(dbDir)
 	if err != nil {
 		return nil, err
 	}
@@ -188,15 +206,28 @@ func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, e
 	}
 
 	se, err := init.Initialize(dbDir, c)
-	db, err = NewShard(se, self.pointBatchSize, self.writeBatchSize, self.metaStore)
+
+	sInit, err := schema.GetInitializer(sch)
+	if err != nil {
+		log.Error("Error opening shard schema: ", err)
+		return nil, err
+	}
+	sc := sInit.NewConfig()
+	sconf, ok := self.config.StorageSchemaConfigs[sch]
+	if err := toml.PrimitiveDecode(sconf, sc); ok && err != nil {
+		return nil, err
+	}
+
+	ss, err := sInit.Initialize(se, self.metaStore, self.pointBatchSize, self.writeBatchSize, sc)
+
 	if err != nil {
 		log.Error("Error creating shard: ", err)
 		se.Close()
 		return nil, err
 	}
-	self.shards[id] = db
+	self.shards[id] = ss
 	self.incrementShardRefCountAndCloseOldestIfNeeded(id)
-	return db, nil
+	return ss, nil
 }
 
 func (self *ShardDatastore) incrementShardRefCountAndCloseOldestIfNeeded(id uint32) {
@@ -243,7 +274,7 @@ func (self *ShardDatastore) DeleteShard(shardId uint32) error {
 	self.shardsLock.Unlock()
 
 	if shardDb != nil {
-		shardDb.close()
+		shardDb.Close()
 	}
 
 	dir := self.shardDir(shardId)
@@ -274,7 +305,7 @@ func (self *ShardDatastore) closeOldestShard() {
 func (self *ShardDatastore) closeShard(id uint32) {
 	shard := self.shards[id]
 	if shard != nil {
-		shard.close()
+		shard.Close()
 	}
 	delete(self.shardRefCounts, id)
 	delete(self.shards, id)

@@ -1,4 +1,4 @@
-package datastore
+package schema
 
 import (
 	"bytes"
@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-	"sync"
 	"time"
 
 	"code.google.com/p/goprotobuf/proto"
+
 	log "code.google.com/p/log4go"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/common"
@@ -20,25 +20,47 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
-type Shard struct {
-	db             storage.Engine
-	closed         bool
+const RAW_NAME = "raw"
+
+var (
+	MAX_SEQUENCE = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+)
+
+func init() {
+	registerSchema(RAW_NAME, initializer{
+		NewRawConfig,
+		NewRaw,
+	})
+}
+
+type RawConfiguration struct {
+}
+
+func NewRawConfig() interface{} {
+	return &RawConfiguration{}
+}
+
+type Raw struct {
+	schemaBase
 	pointBatchSize int
 	writeBatchSize int
 	metaStore      *metastore.Store
-	closeLock      sync.RWMutex
 }
 
-func NewShard(db storage.Engine, pointBatchSize, writeBatchSize int, metaStore *metastore.Store) (*Shard, error) {
-	return &Shard{
-		db:             db,
+func NewRaw(db storage.Engine, metaStore *metastore.Store, pointBatchSize, writeBatchSize int, config interface{}) (Schema, error) {
+	_, ok := config.(*RawConfiguration)
+	if !ok {
+		return nil, fmt.Errorf("Config is of type %T instead of %T", config, RawConfiguration{})
+	}
+	return &Raw{
+		schemaBase:     schemaBase{db: db},
 		pointBatchSize: pointBatchSize,
 		writeBatchSize: writeBatchSize,
 		metaStore:      metaStore,
 	}, nil
 }
 
-func (self *Shard) Write(database string, series []*protocol.Series) error {
+func (self *Raw) Write(database string, series []*protocol.Series) error {
 	self.closeLock.RLock()
 	defer self.closeLock.RUnlock()
 	if self.closed {
@@ -100,7 +122,7 @@ func (self *Shard) Write(database string, series []*protocol.Series) error {
 	return self.db.BatchPut(wb)
 }
 
-func (self *Shard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+func (self *Raw) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	self.closeLock.RLock()
 	defer self.closeLock.RUnlock()
 	if self.closed {
@@ -141,11 +163,7 @@ func (self *Shard) Query(querySpec *parser.QuerySpec, processor cluster.QueryPro
 	return nil
 }
 
-func (self *Shard) IsClosed() bool {
-	return self.closed
-}
-
-func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor cluster.QueryProcessor) error {
+func (self *Raw) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor cluster.QueryProcessor) error {
 	startTimeBytes := self.byteArrayForTime(querySpec.GetStartTime())
 	endTimeBytes := self.byteArrayForTime(querySpec.GetEndTime())
 
@@ -317,7 +335,7 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 	return nil
 }
 
-func (self *Shard) executeDeleteQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+func (self *Raw) executeDeleteQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
 	query := querySpec.DeleteQuery()
 	series := query.GetFromClause()
 	database := querySpec.Database()
@@ -341,7 +359,7 @@ func (self *Shard) executeDeleteQuery(querySpec *parser.QuerySpec, processor clu
 	return nil
 }
 
-func (self *Shard) DropFields(fields []*metastore.Field) error {
+func (self *Raw) DropFields(fields []*metastore.Field) error {
 	self.closeLock.RLock()
 	defer self.closeLock.RUnlock()
 	if self.closed {
@@ -352,23 +370,23 @@ func (self *Shard) DropFields(fields []*metastore.Field) error {
 	return self.deleteRangeOfFields(fields, startTimeBytes, endTimeBytes)
 }
 
-func (self *Shard) byteArrayForTimeInt(time int64) []byte {
+func (self *Raw) byteArrayForTimeInt(time int64) []byte {
 	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&time))
 	bytes := timeBuffer.Bytes()
 	return bytes
 }
 
-func (self *Shard) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
+func (self *Raw) byteArraysForStartAndEndTimes(startTime, endTime int64) ([]byte, []byte) {
 	return self.byteArrayForTimeInt(startTime), self.byteArrayForTimeInt(endTime)
 }
 
-func (self *Shard) deleteRangeOfSeriesCommon(database, series string, startTimeBytes, endTimeBytes []byte) error {
+func (self *Raw) deleteRangeOfSeriesCommon(database, series string, startTimeBytes, endTimeBytes []byte) error {
 	fields := self.metaStore.GetFieldsForSeries(database, series)
 	return self.deleteRangeOfFields(fields, startTimeBytes, endTimeBytes)
 }
 
-func (self *Shard) deleteRangeOfFields(fields []*metastore.Field, startTimeBytes, endTimeBytes []byte) error {
+func (self *Raw) deleteRangeOfFields(fields []*metastore.Field, startTimeBytes, endTimeBytes []byte) error {
 	startKey := bytes.NewBuffer(nil)
 	endKey := bytes.NewBuffer(nil)
 	for _, field := range fields {
@@ -390,18 +408,18 @@ func (self *Shard) deleteRangeOfFields(fields []*metastore.Field, startTimeBytes
 	return nil
 }
 
-// func (self *Shard) compact() {
+// func (self *Raw) compact() {
 // 	log.Info("Compacting shard")
 // 	self.db.CompactRange(levigo.Range{})
 // 	log.Info("Shard compaction is done")
 // }
 
-func (self *Shard) deleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
+func (self *Raw) deleteRangeOfSeries(database, series string, startTime, endTime time.Time) error {
 	startTimeBytes, endTimeBytes := self.byteArraysForStartAndEndTimes(common.TimeToMicroseconds(startTime), common.TimeToMicroseconds(endTime))
 	return self.deleteRangeOfSeriesCommon(database, series, startTimeBytes, endTimeBytes)
 }
 
-func (self *Shard) deleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
+func (self *Raw) deleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
 	series := self.metaStore.GetSeriesForDatabaseAndRegex(database, regex)
 	for _, name := range series {
 		err := self.deleteRangeOfSeries(database, name, startTime, endTime)
@@ -412,7 +430,7 @@ func (self *Shard) deleteRangeOfRegex(database string, regex *regexp.Regexp, sta
 	return nil
 }
 
-func (self *Shard) hasReadAccess(querySpec *parser.QuerySpec) bool {
+func (self *Raw) hasReadAccess(querySpec *parser.QuerySpec) bool {
 	for series := range querySpec.SeriesValuesAndColumns() {
 		if _, isRegex := series.GetCompiledRegex(); !isRegex {
 			if !querySpec.HasReadAccess(series.Name) {
@@ -423,14 +441,14 @@ func (self *Shard) hasReadAccess(querySpec *parser.QuerySpec) bool {
 	return true
 }
 
-func (self *Shard) byteArrayForTime(t time.Time) []byte {
+func (self *Raw) byteArrayForTime(t time.Time) []byte {
 	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
 	timeMicro := common.TimeToMicroseconds(t)
 	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&timeMicro))
 	return timeBuffer.Bytes()
 }
 
-func (self *Shard) close() {
+func (self *Raw) close() {
 	self.closeLock.Lock()
 	defer self.closeLock.Unlock()
 	self.closed = true
@@ -438,14 +456,14 @@ func (self *Shard) close() {
 	self.db = nil
 }
 
-func (self *Shard) convertTimestampToUint(t *int64) uint64 {
+func (self *Raw) convertTimestampToUint(t *int64) uint64 {
 	if *t < 0 {
 		return uint64(math.MaxInt64 + *t + 1)
 	}
 	return uint64(*t) + uint64(math.MaxInt64) + uint64(1)
 }
 
-func (self *Shard) fetchSinglePoint(querySpec *parser.QuerySpec, series string, fields []*metastore.Field) (*protocol.Series, error) {
+func (self *Raw) fetchSinglePoint(querySpec *parser.QuerySpec, series string, fields []*metastore.Field) (*protocol.Series, error) {
 	query := querySpec.SelectQuery()
 	fieldCount := len(fields)
 	fieldNames := make([]string, 0, fieldCount)
@@ -489,7 +507,7 @@ func (self *Shard) fetchSinglePoint(querySpec *parser.QuerySpec, series string, 
 	return result, nil
 }
 
-func (self *Shard) getIterators(fields []*metastore.Field, start, end []byte, isAscendingQuery bool) (fieldNames []string, iterators []storage.Iterator) {
+func (self *Raw) getIterators(fields []*metastore.Field, start, end []byte, isAscendingQuery bool) (fieldNames []string, iterators []storage.Iterator) {
 	iterators = make([]storage.Iterator, len(fields))
 	fieldNames = make([]string, len(fields))
 
@@ -516,17 +534,17 @@ func (self *Shard) getIterators(fields []*metastore.Field, start, end []byte, is
 	return
 }
 
-func (self *Shard) convertUintTimestampToInt64(t *uint64) int64 {
+func (self *Raw) convertUintTimestampToInt64(t *uint64) int64 {
 	if *t > uint64(math.MaxInt64) {
 		return int64(*t-math.MaxInt64) - int64(1)
 	}
 	return int64(*t) - math.MaxInt64 - int64(1)
 }
 
-func (self *Shard) getFieldsForSeries(db, series string, columns []string) ([]*metastore.Field, error) {
+func (self *Raw) getFieldsForSeries(db, series string, columns []string) ([]*metastore.Field, error) {
 	allFields := self.metaStore.GetFieldsForSeries(db, series)
 	if len(allFields) == 0 {
-		return nil, FieldLookupError{"Couldn't look up columns for series: " + series}
+		return nil, NewFieldLookupError("Couldn't look up columns for series: " + series)
 	}
 	if len(columns) > 0 && columns[0] == "*" {
 		return allFields, nil
@@ -545,8 +563,54 @@ func (self *Shard) getFieldsForSeries(db, series string, columns []string) ([]*m
 			}
 		}
 		if !hasField {
-			return nil, FieldLookupError{"Field " + name + " doesn't exist in series " + series}
+			return nil, NewFieldLookupError("Field " + name + " doesn't exist in series " + series)
 		}
 	}
 	return fields, nil
+}
+
+type rawColumnValue struct {
+	time     []byte
+	sequence []byte
+	value    []byte
+}
+
+// depending on the query order (whether it's ascending or not) returns
+// the min (or max in case of descending query) of the current
+// [timestamp,sequence] and the self's [timestamp,sequence]
+//
+// This is used to determine what the next point's timestamp
+// and sequence number should be.
+func (self *rawColumnValue) updatePointTimeAndSequence(currentTimeRaw, currentSequenceRaw []byte, isAscendingQuery bool) ([]byte, []byte) {
+	if currentTimeRaw == nil {
+		return self.time, self.sequence
+	}
+
+	compareValue := 1
+	if isAscendingQuery {
+		compareValue = -1
+	}
+
+	timeCompare := bytes.Compare(self.time, currentTimeRaw)
+	if timeCompare == compareValue {
+		return self.time, self.sequence
+	}
+
+	if timeCompare != 0 {
+		return currentTimeRaw, currentSequenceRaw
+	}
+
+	if bytes.Compare(self.sequence, currentSequenceRaw) == compareValue {
+		return currentTimeRaw, self.sequence
+	}
+
+	return currentTimeRaw, currentSequenceRaw
+}
+
+// // returns true if the point has the correct field id and is
+// // in the given time range
+func isPointInRange(fieldId, startTime, endTime, point []byte) bool {
+	id := point[:8]
+	time := point[8:16]
+	return bytes.Equal(id, fieldId) && bytes.Compare(time, startTime) > -1 && bytes.Compare(time, endTime) < 1
 }
