@@ -5,6 +5,7 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
+// A `ResponseProcessor' that wraps a go channel.
 type ResponseChannelWrapper struct {
 	c chan<- *protocol.Response
 }

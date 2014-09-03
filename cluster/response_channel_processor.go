@@ -5,14 +5,11 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
+// ResponseChannelProcessor converts Series to Responses. This is used
+// to chain `engine.Processor` with a `ResponseChannel'
 type ResponseChannelProcessor struct {
 	r ResponseChannel
 }
-
-var (
-	QueryResponse     = protocol.Response_QUERY
-	EndStreamResponse = protocol.Response_END_STREAM
-)
 
 func NewResponseChannelProcessor(r ResponseChannel) *ResponseChannelProcessor {
 	return &ResponseChannelProcessor{r}
@@ -21,7 +18,7 @@ func NewResponseChannelProcessor(r ResponseChannel) *ResponseChannelProcessor {
 func (p *ResponseChannelProcessor) Yield(s *protocol.Series) (bool, error) {
 	log4go.Debug("Yielding to %s %s", p.r.Name(), s)
 	ok := p.r.Yield(&protocol.Response{
-		Type:        &QueryResponse,
+		Type:        protocol.Response_QUERY.Enum(),
 		MultiSeries: []*protocol.Series{s},
 	})
 	return ok, nil
@@ -29,7 +26,7 @@ func (p *ResponseChannelProcessor) Yield(s *protocol.Series) (bool, error) {
 
 func (p *ResponseChannelProcessor) Close() error {
 	p.r.Yield(&protocol.Response{
-		Type: &EndStreamResponse,
+		Type: protocol.Response_END_STREAM.Enum(),
 	})
 	return nil
 }
