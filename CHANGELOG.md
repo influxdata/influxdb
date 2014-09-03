@@ -1,6 +1,15 @@
-## v0.8.1 [unreleased]
+## v0.9.0 [unreleased]
+
+### Features
+
+## v0.8.1 [2014-09-03]
 
 ### Bugfixes
+
+- [Issue #868](https://github.com/influxdb/influxdb/issues/868). Don't panic when upgrading a snapshot from 0.7.x
+- [Issue #887](https://github.com/influxdb/influxdb/issues/887). The first continuous query shouldn't trigger backfill if it had backfill disabled
+- [Issue #674](https://github.com/influxdb/influxdb/issues/674). Graceful exit when config file is invalid. (Thanks, @DavidBord)
+- [Issue #857](https://github.com/influxdb/influxdb/issues/857). More informative list servers api. (Thanks, @oliveagle)
 
 ## v0.8.0 [2014-08-22]
 
