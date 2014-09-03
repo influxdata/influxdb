@@ -2,40 +2,48 @@ package main
 
 import (
 	"errors"
-	"strings"
 	"log/syslog"
+	"strings"
 
 	log "code.google.com/p/log4go"
 )
 
-// This log writer sends output to a socket
-type SysLogWriter chan *log.LogRecord
+type sysLogWriter chan *log.LogRecord
 
-// This is the SocketLogWriter's output method
-func (w SysLogWriter) LogWrite(rec *log.LogRecord) {
+func (w sysLogWriter) LogWrite(rec *log.LogRecord) {
 	w <- rec
 }
 
-func (w SysLogWriter) Close() {
+func (w sysLogWriter) Close() {
 	close(w)
 }
 
 func GetSysLogFacility(name string) (syslog.Priority, bool) {
 	switch strings.ToLower(name) {
-	case "syslog": return syslog.LOG_SYSLOG, true
-	case "local0": return syslog.LOG_LOCAL0, true
-	case "local1": return syslog.LOG_LOCAL1, true
-	case "local2": return syslog.LOG_LOCAL2, true
-	case "local3": return syslog.LOG_LOCAL3, true
-	case "local4": return syslog.LOG_LOCAL4, true
-	case "local5": return syslog.LOG_LOCAL5, true
-	case "local6": return syslog.LOG_LOCAL6, true
-	case "local7": return syslog.LOG_LOCAL7, true
-	default: return syslog.LOG_SYSLOG, false
+	case "syslog":
+		return syslog.LOG_SYSLOG, true
+	case "local0":
+		return syslog.LOG_LOCAL0, true
+	case "local1":
+		return syslog.LOG_LOCAL1, true
+	case "local2":
+		return syslog.LOG_LOCAL2, true
+	case "local3":
+		return syslog.LOG_LOCAL3, true
+	case "local4":
+		return syslog.LOG_LOCAL4, true
+	case "local5":
+		return syslog.LOG_LOCAL5, true
+	case "local6":
+		return syslog.LOG_LOCAL6, true
+	case "local7":
+		return syslog.LOG_LOCAL7, true
+	default:
+		return syslog.LOG_SYSLOG, false
 	}
 }
 
-func GetWriter(writer *syslog.Writer, level string) func(string) error {
+func getWriter(writer *syslog.Writer, level string) func(string) error {
 	switch level {
 	case "DEBG", "TRAC", "FINE", "FNST":
 		return writer.Debug
@@ -48,11 +56,6 @@ func GetWriter(writer *syslog.Writer, level string) func(string) error {
 	default:
 		return writer.Crit
 	}
-}
-
-func Log(writer *syslog.Writer, level string, message string) {
-	m := GetWriter(writer, level)
-	m(message)
 }
 
 func connectSyslogDaemon(priority syslog.Priority) (writer *syslog.Writer, err error) {
@@ -76,13 +79,12 @@ func connectSyslogDaemon(priority syslog.Priority) (writer *syslog.Writer, err e
 	return
 }
 
-
-func NewSysLogWriter(priority syslog.Priority) (w SysLogWriter, err error) {
+func NewSysLogWriter(priority syslog.Priority) (w sysLogWriter, err error) {
 	writer, err := connectSyslogDaemon(priority)
 	if err != nil {
 		return
 	}
-	w = SysLogWriter(make(chan *log.LogRecord, log.LogBufferLength))
+	w = sysLogWriter(make(chan *log.LogRecord, log.LogBufferLength))
 	go func() {
 		defer func() {
 			if w != nil {
@@ -91,7 +93,7 @@ func NewSysLogWriter(priority syslog.Priority) (w SysLogWriter, err error) {
 		}()
 		for rec := range w {
 			m := log.FormatLogRecord("(%S) %M", rec)
-			Log(writer, rec.Level.String(), m)
+			getWriter(writer, rec.Level.String())(m)
 		}
 	}()
 	return
