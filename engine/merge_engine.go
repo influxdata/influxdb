@@ -25,8 +25,6 @@ func (me *MergeEngine) Yield(s *protocol.Series) (bool, error) {
 	return me.next.Yield(s)
 }
 
-func (_ *MergeEngine) SetShardInfo(shardId int, shardLocal bool) {}
-
 func (me *MergeEngine) Close() error {
 	return me.next.Close()
 }
