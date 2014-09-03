@@ -1,5 +1,7 @@
 ## v0.8.1 [unreleased]
 
+- [Issue #896](https://github.com/influxdb/influxdb/issues/896). Allow logging to syslog. Thanks @malthe
+
 ### Bugfixes
 
 ## v0.8.0 [2014-08-22]

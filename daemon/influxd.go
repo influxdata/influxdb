@@ -31,11 +31,18 @@ func setupLogging(loggingLevel, logFile string) {
 
 	log.Global = make(map[string]*log.Filter)
 
-	if logFile == "stdout" {
+    switch logFile {
+    case "stdout":
 		flw := log.NewConsoleLogWriter()
 		log.AddFilter("stdout", level, flw)
-
-	} else {
+	case "syslog":
+		flw, err := NewSysLogWriter(3)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "NewSysLogWriter: %s\n", err.Error())
+			return
+		}
+		log.AddFilter("syslog", level, flw)
+	default:
 		logFileDir := filepath.Dir(logFile)
 		os.MkdirAll(logFileDir, 0744)
 
@@ -62,6 +69,7 @@ func main() {
 	pidFile := flag.String("pidfile", "", "the pid file")
 	repairLeveldb := flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
 	stdout := flag.Bool("stdout", false, "Log to stdout overriding the configuration")
+	syslog := flag.Bool("syslog", false, "Log to syslog overriding the configuration")
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
@@ -96,6 +104,11 @@ func main() {
 	if *stdout {
 		config.LogFile = "stdout"
 	}
+
+	if *syslog {
+		config.LogFile = "syslog"
+	}
+
 	setupLogging(config.LogLevel, config.LogFile)
 
 	if *repairLeveldb {
