@@ -689,7 +689,11 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	self.clusterAdmins = data.Admins
 	self.dbUsers = data.DbUsers
 	self.servers = data.Servers
-	self.MetaStore.UpdateFromSnapshot(data.MetaStore)
+
+	// if recovering from a snapshot from version 0.7.x the metastore will be nil. Fix #868 https://github.com/influxdb/influxdb/issues/868
+	if data.MetaStore != nil {
+		self.MetaStore.UpdateFromSnapshot(data.MetaStore)
+	}
 
 	for _, server := range self.servers {
 		log.Info("Checking whether %s is the local server %s", server.RaftName, self.LocalRaftName)
@@ -724,6 +728,10 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	}
 	// map the shards to their spaces
 	self.databaseShardSpaces = data.DatabaseShardSpaces
+	// we need this if recovering from a snapshot from 0.7.x
+	if data.DatabaseShardSpaces == nil {
+		self.databaseShardSpaces = make(map[string][]*ShardSpace)
+	}
 	for _, spaces := range self.databaseShardSpaces {
 		for _, space := range spaces {
 			spaceShards := make([]*ShardData, 0)

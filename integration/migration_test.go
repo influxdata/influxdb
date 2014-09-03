@@ -26,13 +26,13 @@ are up on S3 so that we can run it later. Just trust that I've run it (this is P
 
 // var _ = Suite(&MigrationTestSuite{})
 
-// func (self *MigrationTestSuite) SetUpSuite(c *C) {
-// 	self.server = NewServer("integration/migration_test.toml", c)
+// func (self *MigrationTestSuite) setup(file string, c *C) {
+// 	self.server = NewServer(fmt.Sprintf("integration/%s", file), c)
 // }
 
-// func (self *MigrationTestSuite) TearDownSuite(c *C) {
+// func (self *MigrationTestSuite) teardown(dir string, c *C) {
 // 	self.server.Stop()
-// 	dataDir := "migration_data/data"
+// 	dataDir := fmt.Sprintf("./%s/data", "migration_data")
 // 	shardDir := filepath.Join(dataDir, migration.OLD_SHARD_DIR)
 // 	infos, err := ioutil.ReadDir(shardDir)
 // 	if err != nil {
@@ -41,13 +41,21 @@ are up on S3 so that we can run it later. Just trust that I've run it (this is P
 // 	}
 // 	for _, info := range infos {
 // 		if info.IsDir() {
-// 			os.Remove(filepath.Join(shardDir, info.Name(), migration.MIGRATED_MARKER))
+// 			err := os.Remove(filepath.Join(shardDir, info.Name(), migration.MIGRATED_MARKER))
+// 			if err != nil {
+// 				fmt.Printf("Error Clearing Migration: ", err)
+// 			}
 // 		}
 // 	}
-// 	os.RemoveAll(filepath.Join(dataDir, datastore.SHARD_DATABASE_DIR))
+// 	err = os.RemoveAll(filepath.Join(dataDir, datastore.SHARD_DATABASE_DIR))
+// 	if err != nil {
+// 		fmt.Printf("Error Clearing Migration: ", err)
+// 	}
 // }
 
 // func (self *MigrationTestSuite) TestMigrationOfPreviousDb(c *C) {
+// 	self.setup("migration_test.toml", c)
+// 	defer self.teardown("migration_data", c)
 // 	_, err := http.Post("http://localhost:8086/cluster/migrate_data?u=root&p=root", "application/json", nil)
 // 	c.Assert(err, IsNil)
 // 	// make sure that it won't kick it off a second time while it's already running
@@ -83,4 +91,20 @@ are up on S3 so that we can run it later. Just trust that I've run it (this is P
 // 	_, err = http.Post("http://localhost:8086/cluster/migrate_data?u=root&p=root", "application/json", nil)
 // 	c.Assert(err, IsNil)
 // 	time.Sleep(time.Second * 5)
+// }
+
+// func (self *MigrationTestSuite) TestDoesntPanicOnPreviousSnapshot(c *C) {
+// 	self.setup("migration_test2.toml", c)
+// 	defer self.teardown("migration_data2", c)
+// 	_, err := http.Post("http://localhost:8086/cluster/migrate_data?u=root&p=root", "application/json", nil)
+// 	c.Assert(err, IsNil)
+
+// 	time.Sleep(time.Second * 5)
+
+// 	client := self.server.GetClient("test", c)
+// 	s, err := client.Query("select count(value) from foo")
+// 	c.Assert(err, IsNil)
+// 	c.Assert(s, HasLen, 1)
+// 	c.Assert(s[0].Points, HasLen, 1)
+// 	c.Assert(s[0].Points[0][1].(float64), Equals, float64(1))
 // }
