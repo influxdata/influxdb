@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"code.google.com/p/goprotobuf/proto"
+
 	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
@@ -1018,7 +1020,7 @@ func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 			case float64:
 				returnValues = append(returnValues, []*protocol.FieldValue{{DoubleValue: &v}})
 			case nil:
-				returnValues = append(returnValues, []*protocol.FieldValue{{IsNull: &TRUE}})
+				returnValues = append(returnValues, []*protocol.FieldValue{{IsNull: proto.Bool(true)}})
 			}
 		}
 		// size is really "minimum size"

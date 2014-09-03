@@ -50,26 +50,26 @@ message Request {
 message Response {
   enum Type {
     QUERY = 1;
-    WRITE_OK = 2;
+    // WRITE_OK = 2;
     END_STREAM = 3;
-    REPLICATION_REPLAY = 4;
-    REPLICATION_REPLAY_END = 5;
-    SEQUENCE_NUMBER = 7;
-    // Access denied also serves as an end of stream response
-    ACCESS_DENIED = 8;
+    // REPLICATION_REPLAY = 4;
+    // REPLICATION_REPLAY_END = 5;
+    // SEQUENCE_NUMBER = 7;
+    // // Access denied also serves as an end of stream response
+    // ACCESS_DENIED = 8;
     HEARTBEAT = 9;
-    EXPLAIN_QUERY = 10;
+    // EXPLAIN_QUERY = 10;
+    ERROR = 11;
   }
-  enum ErrorCode {
-    REQUEST_TOO_LARGE = 1;
-    INTERNAL_ERROR = 2;
-  }
+  // enum ErrorCode {
+  //   REQUEST_TOO_LARGE = 1;
+  //   INTERNAL_ERROR = 2;
+  // }
   required Type type = 1;
   required uint32 request_id = 2;
-  optional Series series = 3;
-  optional ErrorCode error_code = 4;
+  repeated Series multi_series = 3;
+  // optional ErrorCode error_code = 4;
   optional string error_message = 5;
   optional int64 nextPointTime = 6;
   optional Request request = 7;
-  repeated Series multi_series = 8;
 }

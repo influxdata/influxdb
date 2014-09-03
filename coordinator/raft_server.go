@@ -48,7 +48,7 @@ type RaftServer struct {
 	closing                  bool
 	config                   *configuration.Configuration
 	notLeader                chan bool
-	coordinator              *CoordinatorImpl
+	coordinator              *Coordinator
 	processContinuousQueries bool
 }
 
@@ -321,7 +321,7 @@ func (s *RaftServer) ChangeConnectionString(raftName, protobufConnectionString, 
 	return err
 }
 
-func (s *RaftServer) AssignCoordinator(coordinator *CoordinatorImpl) error {
+func (s *RaftServer) AssignCoordinator(coordinator *Coordinator) error {
 	s.coordinator = coordinator
 	return nil
 }
@@ -543,11 +543,7 @@ func (s *RaftServer) runContinuousQuery(db string, query *parser.SelectQuery, st
 	targetName := intoClause.Target.Name
 	queryString := query.GetQueryStringWithTimesAndNoIntoClause(start, end)
 
-	f := func(series *protocol.Series) error {
-		return s.coordinator.InterpolateValuesAndCommit(query.GetQueryString(), db, series, targetName, true)
-	}
-
-	writer := NewContinuousQueryWriter(f)
+	writer := NewContinuousQueryWriter(s.coordinator, db, targetName, query)
 	s.coordinator.RunQuery(clusterAdmin, db, queryString, writer)
 }
 

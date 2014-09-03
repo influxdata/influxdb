@@ -12,9 +12,9 @@ import (
 
 	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
-	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/datastore/storage"
+	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/metastore"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
@@ -100,13 +100,12 @@ func (self *Shard) Write(database string, series []*protocol.Series) error {
 	return self.db.BatchPut(wb)
 }
 
-func (self *Shard) Query(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+func (self *Shard) Query(querySpec *parser.QuerySpec, processor engine.Processor) error {
 	self.closeLock.RLock()
 	defer self.closeLock.RUnlock()
 	if self.closed {
 		return fmt.Errorf("Shard is closed")
 	}
-
 	if querySpec.IsListSeriesQuery() {
 		return fmt.Errorf("List series queries should never come to the shard")
 	} else if querySpec.IsDeleteFromSeriesQuery() {
@@ -145,7 +144,7 @@ func (self *Shard) IsClosed() bool {
 	return self.closed
 }
 
-func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor cluster.QueryProcessor) error {
+func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor engine.Processor) error {
 	startTimeBytes := self.byteArrayForTime(querySpec.GetStartTime())
 	endTimeBytes := self.byteArrayForTime(querySpec.GetEndTime())
 
@@ -167,7 +166,8 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 			return err
 		}
 		if len(series.Points) > 0 {
-			processor.YieldPoint(series.Name, series.Fields, series.Points[0])
+			_, err := processor.Yield(series)
+			return err
 		}
 		return nil
 	}
@@ -291,9 +291,13 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 					Fields: fieldNames,
 					Points: seriesOutgoing.Points,
 				}
-				if !processor.YieldSeries(series) {
-					log.Debug("Stopping processing")
+				if ok, err := processor.Yield(series); !ok || err != nil {
+					log.Debug("Stopping processing.")
 					shouldContinue = false
+					if err != nil {
+						log.Error("Error while processing data: %v", err)
+						return err
+					}
 				}
 			}
 			seriesOutgoing = &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
@@ -308,8 +312,12 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 	for _, alias := range aliases {
 		log.Debug("Final Flush %s", alias)
 		series := &protocol.Series{Name: protocol.String(alias), Fields: seriesOutgoing.Fields, Points: seriesOutgoing.Points}
-		if !processor.YieldSeries(series) {
+		if ok, err := processor.Yield(series); !ok || err != nil {
 			log.Debug("Cancelled...")
+			if err != nil {
+				log.Error("Error while processing data: %v", err)
+				return err
+			}
 		}
 	}
 
@@ -317,7 +325,7 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 	return nil
 }
 
-func (self *Shard) executeDeleteQuery(querySpec *parser.QuerySpec, processor cluster.QueryProcessor) error {
+func (self *Shard) executeDeleteQuery(querySpec *parser.QuerySpec, processor engine.Processor) error {
 	query := querySpec.DeleteQuery()
 	series := query.GetFromClause()
 	database := querySpec.Database()

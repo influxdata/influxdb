@@ -102,6 +102,16 @@ func (self *SelectQuery) revertAlias(mapping map[string][]string) {
 	}
 }
 
+// Returns true if the query has some expression in the select clause
+func (self *SelectQuery) ContainsArithmeticOperators() bool {
+	for _, column := range self.GetColumnNames() {
+		if column.Type == ValueExpression {
+			return true
+		}
+	}
+	return false
+}
+
 // Returns true if the query has aggregate functions applied to the
 // columns
 func (self *SelectQuery) HasAggregates() bool {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	log "code.google.com/p/log4go"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -32,9 +33,9 @@ type ProtobufClient struct {
 }
 
 type runningRequest struct {
-	timeMade     time.Time
-	responseChan chan *protocol.Response
-	request      *protocol.Request
+	timeMade time.Time
+	r        cluster.ResponseChannel
+	request  *protocol.Request
 }
 
 const (
@@ -91,27 +92,41 @@ func (self *ProtobufClient) ClearRequests() {
 	self.requestBufferLock.Lock()
 	defer self.requestBufferLock.Unlock()
 
-	message := "clearing all requests"
 	for _, req := range self.requestBuffer {
-		select {
-		case req.responseChan <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}:
-		default:
-			log.Debug("Cannot send response on channel")
-		}
+		self.cancelRequest(req.request)
 	}
 
 	self.requestBuffer = map[uint32]*runningRequest{}
 }
 
+func (self *ProtobufClient) CancelRequest(request *protocol.Request) {
+	self.requestBufferLock.Lock()
+	defer self.requestBufferLock.Unlock()
+	self.cancelRequest(request)
+}
+
+func (self *ProtobufClient) cancelRequest(request *protocol.Request) {
+	req, ok := self.requestBuffer[*request.Id]
+	if !ok {
+		return
+	}
+	message := "cancelling request"
+	req.r.Yield(&protocol.Response{
+		Type:         protocol.Response_ERROR.Enum(),
+		ErrorMessage: &message,
+	})
+	delete(self.requestBuffer, *request.Id)
+}
+
 // Makes a request to the server. If the responseStream chan is not nil it will expect a response from the server
 // with a matching request.Id. The REQUEST_RETRY_ATTEMPTS constant of 3 and the RECONNECT_RETRY_WAIT of 100ms means
 // that an attempt to make a request to a downed server will take 300ms to time out.
-func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStream chan *protocol.Response) error {
+func (self *ProtobufClient) MakeRequest(request *protocol.Request, r cluster.ResponseChannel) error {
 	if request.Id == nil {
 		id := atomic.AddUint32(&self.lastRequestId, uint32(1))
 		request.Id = &id
 	}
-	if responseStream != nil {
+	if r != nil {
 		self.requestBufferLock.Lock()
 
 		// this should actually never happen. The sweeper should clear out dead requests
@@ -119,9 +134,12 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 		if oldReq, alreadyHasRequestById := self.requestBuffer[*request.Id]; alreadyHasRequestById {
 			message := "already has a request with this id, must have timed out"
 			log.Error(message)
-			oldReq.responseChan <- &protocol.Response{Type: &endStreamResponse, ErrorMessage: &message}
+			oldReq.r.Yield(&protocol.Response{
+				Type:         protocol.Response_ERROR.Enum(),
+				ErrorMessage: &message,
+			})
 		}
-		self.requestBuffer[*request.Id] = &runningRequest{timeMade: time.Now(), responseChan: responseStream, request: request}
+		self.requestBuffer[*request.Id] = &runningRequest{timeMade: time.Now(), r: r, request: request}
 		self.requestBufferLock.Unlock()
 	}
 
@@ -143,7 +161,8 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, responseStrea
 	}
 	buff := bytes.NewBuffer(make([]byte, 0, len(data)+8))
 	binary.Write(buff, binary.LittleEndian, uint32(len(data)))
-	_, err = conn.Write(append(buff.Bytes(), data...))
+	buff.Write(data)
+	_, err = conn.Write(buff.Bytes())
 
 	if err == nil {
 		return nil
@@ -197,14 +216,34 @@ func (self *ProtobufClient) sendResponse(response *protocol.Response) {
 	self.requestBufferLock.RLock()
 	req, ok := self.requestBuffer[*response.RequestId]
 	self.requestBufferLock.RUnlock()
-	if ok {
-		if *response.Type == protocol.Response_END_STREAM || *response.Type == protocol.Response_WRITE_OK || *response.Type == protocol.Response_HEARTBEAT || *response.Type == protocol.Response_ACCESS_DENIED {
-			self.requestBufferLock.Lock()
-			delete(self.requestBuffer, *response.RequestId)
-			self.requestBufferLock.Unlock()
-		}
-		req.responseChan <- response
+	if !ok {
+		return
 	}
+
+	deleteRequest := false
+	switch rt := response.GetType(); rt {
+	case protocol.Response_END_STREAM,
+		protocol.Response_HEARTBEAT,
+		protocol.Response_ERROR:
+		deleteRequest = true
+	case protocol.Response_QUERY:
+		// do nothing
+	default:
+		panic(fmt.Errorf("Unknown response type: %s", rt))
+	}
+
+	self.requestBufferLock.Lock()
+	req, ok = self.requestBuffer[*response.RequestId]
+	if deleteRequest {
+		delete(self.requestBuffer, *response.RequestId)
+	}
+	self.requestBufferLock.Unlock()
+	if !ok {
+		return
+	}
+
+	log.Debug("ProtobufClient yielding to %s %s", req.r.Name(), response)
+	req.r.Yield(response)
 }
 
 func (self *ProtobufClient) reconnect() net.Conn {
