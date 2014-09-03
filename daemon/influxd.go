@@ -76,7 +76,7 @@ func main() {
 	if err != nil {
 		return
 	}
-	
+
 	// override the hostname if it was specified on the command line
 	if hostname != nil && *hostname != "" {
 		config.Hostname = *hostname
