@@ -227,6 +227,15 @@ func (self *SingleServerSuite) TestInvalidDataWrite(c *C) {
 	c.Assert(client.WriteSeries([]*influxdb.Series{series}), ErrorMatches, ".*\\(400\\).*invalid.*")
 }
 
+func (self *SingleServerSuite) BenchmarkListSeries(c *C) {
+	s := CreateSeries("reallylongtimeseriesprefix", 700000)
+	self.server.WriteData(s, c)
+	c.ResetTimer()
+	for i := 0; i < c.N; i++ {
+		self.server.RunQuery("list series", "m", c)
+	}
+}
+
 func (self *SingleServerSuite) TestLargeDeletes(c *C) {
 	numberOfPoints := 2 * 1024 * 1024
 	data := CreatePoints("test_large_deletes", 1, numberOfPoints)
