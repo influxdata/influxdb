@@ -293,11 +293,11 @@ binary_package = packages/influxdb-$(version).$(arch).tar.gz
 ifeq ($(arch),386)
 	rpm_package = packages/influxdb-$(package_version)-1.i686.rpm
 	debian_package = packages/influxdb_$(version)_i686.deb
-	arch_args = -a i686
+	deb_args = -a i686
+	rpm_args = setarch i686
 else ifeq ($(arch),arm)
 	rpm_package = packages/influxdb-$(package_version)-1.armel.rpm
 	debian_package = packages/influxdb_$(version)_armel.deb
-	arch_args = -a armel
 else
 	rpm_package = packages/influxdb-$(package_version)-1.x86_64.rpm
 	debian_package = packages/influxdb_$(version)_amd64.deb
@@ -324,14 +324,14 @@ $(rpm_package): $(admin_dir)/build build
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
-	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t rpm $(arch_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; $(rpm_args) fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
 	mv out_rpm/$(shell basename $(rpm_package)) packages/
 
 $(debian_package): $(admin_dir)/build build
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
-	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t deb $(arch_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t deb $(deb_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
 	mv out_rpm/$(shell basename $(debian_package)) packages/
 
 $(source_package): dependencies
