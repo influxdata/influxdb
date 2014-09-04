@@ -5,8 +5,9 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
-	"testing"
 	"time"
+
+	"launchpad.net/gocheck"
 
 	log "code.google.com/p/log4go"
 	"github.com/influxdb/influxdb/cluster"
@@ -87,13 +88,17 @@ func FakeHeartbeatServer() *PingResponseServer {
 	return &prs
 }
 
-func BenchmarkSingle(b *testing.B) {
+type ProtobufClientSuite struct{}
+
+var _ = gocheck.Suite(&ProtobufClient{})
+
+func (self *ProtobufClientSuite) BenchmarkSingle(c *gocheck.C) {
 	var HEARTBEAT_TYPE = protocol.Request_HEARTBEAT
 	prs := FakeHeartbeatServer()
 	client := NewProtobufClient(prs.Listener.Addr().String(), time.Second)
 	client.Connect()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	c.ResetTimer()
+	for i := 0; i < c.N; i++ {
 		responseChan := make(chan *protocol.Response, 1)
 		heartbeatRequest := &protocol.Request{
 			Type:     &HEARTBEAT_TYPE,
