@@ -52,7 +52,10 @@ func getJoinYield(query *parser.SelectQuery, yield func(*protocol.Series) error)
 		lastPoint1 = nil
 		lastPoint2 = nil
 
-		filteredSeries, _ := Filter(query, newSeries)
+		filteredSeries, err := Filter(query, newSeries)
+		if err != nil {
+			return err
+		}
 		if len(filteredSeries.Points) > 0 {
 			return yield(newSeries)
 		}

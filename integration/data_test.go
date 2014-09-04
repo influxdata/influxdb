@@ -570,6 +570,32 @@ func (self *DataTestSuite) JoinAndArithmetic(c *C) (Fun, Fun) {
 		}
 }
 
+// issue #652
+func (self *DataTestSuite) JoinWithInvalidFilteringShouldReturnMeaningfulError(c *C) (Fun, Fun) {
+	return func(client Client) {
+			t1 := time.Now().Truncate(time.Hour).Add(-4 * time.Hour)
+			t2 := t1.Add(time.Hour)
+			t3 := t2.Add(time.Hour)
+			t4 := t3.Add(time.Hour)
+			data := fmt.Sprintf(`[
+{
+  "name":"foo",
+  "columns":["time", "val"],
+  "points":[[%d, 1],[%d, 2]]
+},
+{
+  "name":"bar",
+  "columns":["time", "val"],
+  "points":[[%d, 3],[%d, 4]]
+
+}]`, t1.Unix(), t3.Unix(), t2.Unix(), t4.Unix())
+			client.WriteJsonData(data, c, "s")
+		}, func(client Client) {
+			s := client.RunQuery("select foo.val + bar.val from foo inner join bar where val <> 3", c, "m")
+			c.Assert(s, HasLen, 0)
+		}
+}
+
 // issue #540
 func (self *DataTestSuite) RegexMatching(c *C) (Fun, Fun) {
 	return func(client Client) {
