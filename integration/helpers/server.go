@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"syscall"
+	"runtime"
 	"time"
 
 	influxdb "github.com/influxdb/influxdb/client"
@@ -182,6 +182,9 @@ func (self *Server) Start() error {
 
 	root := filepath.Join(dir, "..")
 	filename := filepath.Join(root, "influxdb")
+	if runtime.GOOS == "windows" {
+		filename += ".exe"
+	}
 	if self.configFile == "" {
 		self.configFile = "integration/test_config_single.toml"
 	}
@@ -208,7 +211,7 @@ func (self *Server) Stop() {
 		return
 	}
 
-	self.p.Signal(syscall.SIGTERM)
+	self.p.Kill()
 	self.p.Wait()
 	self.p = nil
 }
