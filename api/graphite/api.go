@@ -20,10 +20,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb/api"
 	"github.com/influxdb/influxdb/cluster"
 	. "github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/configuration"
-	"github.com/influxdb/influxdb/coordinator"
 	"github.com/influxdb/influxdb/protocol"
 
 	log "code.google.com/p/log4go"
@@ -32,7 +32,7 @@ import (
 type Server struct {
 	listenAddress string
 	database      string
-	coordinator   coordinator.Coordinator
+	coordinator   api.Coordinator
 	clusterConfig *cluster.ClusterConfiguration
 	conn          net.Listener
 	udpConn       *net.UDPConn
@@ -72,7 +72,7 @@ const commit_max_wait = 100 * time.Millisecond
 const max_queue = 20000
 
 // TODO: check that database exists and create it if not
-func NewServer(config *configuration.Configuration, coord coordinator.Coordinator, clusterConfig *cluster.ClusterConfiguration) *Server {
+func NewServer(config *configuration.Configuration, coord api.Coordinator, clusterConfig *cluster.ClusterConfiguration) *Server {
 	self := &Server{}
 	self.listenAddress = config.GraphitePortString()
 	self.database = config.GraphiteDatabase

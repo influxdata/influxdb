@@ -28,7 +28,7 @@ type Server struct {
 	UdpApi         *udp.Server
 	UdpServers     []*udp.Server
 	AdminServer    *admin.HttpServer
-	Coordinator    coordinator.Coordinator
+	Coordinator    *coordinator.Coordinator
 	Config         *configuration.Configuration
 	RequestHandler *coordinator.ProtobufRequestHandler
 	stopped        bool
@@ -59,7 +59,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	clusterConfig.SetShardCreator(raftServer)
 	clusterConfig.CreateFutureShardsAutomaticallyBeforeTimeComes()
 
-	coord := coordinator.NewCoordinatorImpl(config, raftServer, clusterConfig, metaStore)
+	coord := coordinator.NewCoordinator(config, raftServer, clusterConfig)
 	requestHandler := coordinator.NewProtobufRequestHandler(coord, clusterConfig)
 	protobufServer := coordinator.NewProtobufServer(config.ProtobufListenString(), requestHandler)
 
@@ -128,7 +128,7 @@ func (self *Server) ListenAndServe() error {
 	}
 	log.Info("recovered")
 
-	err = self.Coordinator.(*coordinator.CoordinatorImpl).ConnectToProtobufServers(self.RaftServer.GetRaftName())
+	err = self.Coordinator.ConnectToProtobufServers(self.RaftServer.GetRaftName())
 	if err != nil {
 		return err
 	}

@@ -13,12 +13,12 @@ bind-address = "0.0.0.0"
 # to track the number of instances running and the versions which
 # is very helpful for us.
 # Change this option to true to disable reporting.
-reporting-disabled = false
+reporting-disabled = true
 
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
 level  = "info"
-file   = "influxdb.log"         # stdout to log to standard out, or syslog facility
+file   = "stdout"         # stdout to log to standard out
 
 # Configure the admin server
 [admin]
@@ -67,20 +67,20 @@ read-timeout = "5s"
 port = 8090
 
 # Where the raft logs are stored. The user running InfluxDB will need read/write access.
-dir  = "/tmp/influxdb/development/raft"
+dir  = "integration/migration_data2/raft"
 
 # election-timeout = "1s"
 
 [storage]
 
-dir = "/tmp/influxdb/development/db"
+dir = "integration/migration_data2/data"
 # How many requests to potentially buffer in memory. If the buffer gets filled then writes
 # will still be logged and once the local storage has caught up (or compacted) the writes
 # will be replayed from the WAL
 write-buffer-size = 10000
 
 # the engine to use for new shards, old shards will continue to use the same engine
-default-engine = "rocksdb"
+default-engine = "leveldb"
 
 # The default setting on this is 0, which means unlimited. Set this to something if you want to
 # limit the max number of open files. max-open-files is per shard so this * that will be max.
@@ -174,7 +174,7 @@ concurrent-shard-query-limit = 10
 
 [wal]
 
-dir   = "/tmp/influxdb/development/wal"
+dir   = "integration/migration_data2/wal"
 flush-after = 1000 # the number of writes after which wal will be flushed, 0 for flushing on every write
 bookmark-after = 1000 # the number of writes after which a bookmark will be created
 

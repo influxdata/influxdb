@@ -14,9 +14,18 @@ func NewSeriesWriter(yield func(*protocol.Series) error) *SeriesWriter {
 	return &SeriesWriter{yield}
 }
 
-func (self *SeriesWriter) Write(series *protocol.Series) error {
-	return self.yield(series)
+func (self *SeriesWriter) Yield(series *protocol.Series) (bool, error) {
+	err := self.yield(series)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
-func (self *SeriesWriter) Close() {
+func (self *SeriesWriter) Close() error {
+	return nil
+}
+
+func (self *SeriesWriter) Name() string {
+	return "SeriesWriter"
 }

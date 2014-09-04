@@ -8,12 +8,11 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
-type PassthroughEngine struct {
-	responseChan        chan *protocol.Response
-	response            *protocol.Response
+type Passthrough struct {
+	next                Processor
+	series              *protocol.Series
 	maxPointsInResponse int
 	limiter             *Limiter
-	responseType        *protocol.Response_Type
 
 	// query statistics
 	runStartTime  float64
@@ -24,16 +23,15 @@ type PassthroughEngine struct {
 	shardLocal    bool
 }
 
-func NewPassthroughEngine(responseChan chan *protocol.Response, maxPointsInResponse int) *PassthroughEngine {
-	return NewPassthroughEngineWithLimit(responseChan, maxPointsInResponse, 0)
+func NewPassthroughEngine(next Processor, maxPointsInResponse int) *Passthrough {
+	return NewPassthroughEngineWithLimit(next, maxPointsInResponse, 0)
 }
 
-func NewPassthroughEngineWithLimit(responseChan chan *protocol.Response, maxPointsInResponse, limit int) *PassthroughEngine {
-	passthroughEngine := &PassthroughEngine{
-		responseChan:        responseChan,
+func NewPassthroughEngineWithLimit(next Processor, maxPointsInResponse, limit int) *Passthrough {
+	passthroughEngine := &Passthrough{
+		next:                next,
 		maxPointsInResponse: maxPointsInResponse,
 		limiter:             NewLimiter(limit),
-		responseType:        &queryResponse,
 		runStartTime:        0,
 		runEndTime:          0,
 		pointsRead:          0,
@@ -45,62 +43,47 @@ func NewPassthroughEngineWithLimit(responseChan chan *protocol.Response, maxPoin
 	return passthroughEngine
 }
 
-func (self *PassthroughEngine) YieldPoint(seriesName *string, columnNames []string, point *protocol.Point) bool {
-	series := &protocol.Series{Name: seriesName, Points: []*protocol.Point{point}, Fields: columnNames}
-	return self.YieldSeries(series)
-}
-
-func (self *PassthroughEngine) YieldSeries(seriesIncoming *protocol.Series) bool {
+func (self *Passthrough) Yield(seriesIncoming *protocol.Series) (bool, error) {
 	log.Debug("PassthroughEngine YieldSeries %d", len(seriesIncoming.Points))
-	if *seriesIncoming.Name == "explain query" {
-		self.responseType = &explainQueryResponse
-		log.Debug("Response Changed!")
-	} else {
-		self.responseType = &queryResponse
-	}
 
 	self.limiter.calculateLimitAndSlicePoints(seriesIncoming)
 	if len(seriesIncoming.Points) == 0 {
-		log.Debug("Not sent == 0")
-		return false
+		return false, nil
 	}
 
-	if self.response == nil {
-		self.response = &protocol.Response{
-			Type:   self.responseType,
-			Series: seriesIncoming,
+	if self.series == nil {
+		self.series = seriesIncoming
+	} else if self.series.GetName() != seriesIncoming.GetName() {
+		log.Debug("Yielding to %s: %s", self.next.Name(), self.series)
+		ok, err := self.next.Yield(self.series)
+		if !ok || err != nil {
+			return ok, err
 		}
-	} else if self.response.Series.GetName() != seriesIncoming.GetName() {
-		self.responseChan <- self.response
-		self.response = &protocol.Response{
-			Type:   self.responseType,
-			Series: seriesIncoming,
+		self.series = seriesIncoming
+	} else if len(self.series.Points) > self.maxPointsInResponse {
+		log.Debug("Yielding to %s: %s", self.next.Name(), self.series)
+		ok, err := self.next.Yield(self.series)
+		if !ok || err != nil {
+			return ok, err
 		}
-	} else if len(self.response.Series.Points) > self.maxPointsInResponse {
-		self.responseChan <- self.response
-		self.response = &protocol.Response{
-			Type:   self.responseType,
-			Series: seriesIncoming,
-		}
+		self.series = seriesIncoming
 	} else {
-		self.response.Series = common.MergeSeries(self.response.Series, seriesIncoming)
+		self.series = common.MergeSeries(self.series, seriesIncoming)
 	}
-	return !self.limiter.hitLimit(seriesIncoming.GetName())
-	//return true
+	return !self.limiter.hitLimit(seriesIncoming.GetName()), nil
 }
 
-func (self *PassthroughEngine) Close() {
-	if self.response != nil && self.response.Series != nil && self.response.Series.Name != nil {
-		self.responseChan <- self.response
+func (self *Passthrough) Close() error {
+	if self.series != nil && self.series.Name != nil {
+		log.Debug("Passthrough Yielding to %s: %s", self.next.Name(), self.series)
+		_, err := self.next.Yield(self.series)
+		if err != nil {
+			return err
+		}
 	}
-	response := &protocol.Response{Type: &endStreamResponse}
-	self.responseChan <- response
+	return self.next.Close()
 }
 
-func (self *PassthroughEngine) SetShardInfo(shardId int, shardLocal bool) {
-	//EXPLAIN doens't really work with this query (yet ?)
-}
-
-func (self *PassthroughEngine) GetName() string {
+func (self *Passthrough) Name() string {
 	return "PassthroughEngine"
 }

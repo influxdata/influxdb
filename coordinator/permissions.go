@@ -2,9 +2,35 @@ package coordinator
 
 import (
 	"github.com/influxdb/influxdb/common"
+	"github.com/influxdb/influxdb/parser"
 )
 
 type Permissions struct{}
+
+func (self *Permissions) CheckQueryPermissions(user common.User, db string, querySpec *parser.QuerySpec) (ok bool, err common.AuthorizationError) {
+	switch querySpec.Query().Type() {
+	case parser.Delete:
+		return self.AuthorizeDeleteQuery(user, db)
+	case parser.Select:
+		return self.AuthorizeSelectQuery(user, db, querySpec)
+	default:
+		return true, ""
+	}
+}
+
+func (self *Permissions) AuthorizeSelectQuery(user common.User, db string, querySpec *parser.QuerySpec) (ok bool, err common.AuthorizationError) {
+	// if this isn't a regex query do the permission check here
+	fromClause := querySpec.SelectQuery().GetFromClause()
+
+	for _, n := range fromClause.Names {
+		if _, ok := n.Name.GetCompiledRegex(); ok {
+			break
+		} else if name := n.Name.Name; !user.HasReadAccess(name) {
+			return false, common.NewAuthorizationError("User doesn't have read access to %s", name)
+		}
+	}
+	return true, ""
+}
 
 func (self *Permissions) AuthorizeDeleteQuery(user common.User, db string) (ok bool, err common.AuthorizationError) {
 	if !user.IsDbAdmin(db) {

@@ -585,13 +585,12 @@ func (self *SingleServerSuite) TestDropingShardBeforeRestart(c *C) {
 // issue #360
 func (self *SingleServerSuite) TestContinuousQueriesAfterCompaction(c *C) {
 	defer self.server.RemoveAllContinuousQueries("db1", c)
-	resp, err := http.Post("http://localhost:8086/db/db1/continuous_queries?u=root&p=root", "application/json",
-		bytes.NewBufferString(`{"query": "select * from foo into bar"}`))
+	client := self.server.GetClient("db1", c)
+	_, err := client.Query("select * from foo into bar")
 	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	self.server.AssertContinuousQueryCount("db1", 1, c)
 
-	resp, err = http.Post("http://localhost:8086/raft/force_compaction?u=root&p=root", "", nil)
+	resp, err := http.Post("http://localhost:8086/raft/force_compaction?u=root&p=root", "", nil)
 	c.Assert(err, IsNil)
 	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 
@@ -606,13 +605,10 @@ func (self *SingleServerSuite) TestContinuousQueriesAfterCompaction(c *C) {
 func (self *SingleServerSuite) TestContinuousQueriesAfterDroppingDatabase(c *C) {
 	defer self.server.RemoveAllContinuousQueries("db2", c)
 	self.server.AssertContinuousQueryCount("db2", 0, c)
-	client := self.server.GetClient("", c)
+	client := self.server.GetClient("db2", c)
 	c.Assert(client.CreateDatabase("db2"), IsNil)
-	self.server.WaitForServerToSync()
-	resp, err := http.Post("http://localhost:8086/db/db2/continuous_queries?u=root&p=root", "application/json",
-		bytes.NewBufferString(`{"query": "select * from foo into bar"}`))
+	_, err := client.Query("select * from foo into bar")
 	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
 	self.server.AssertContinuousQueryCount("db2", 1, c)
 	c.Assert(client.DeleteDatabase("db2"), IsNil)
 	self.server.AssertContinuousQueryCount("db2", 0, c)

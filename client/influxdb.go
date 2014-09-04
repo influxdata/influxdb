@@ -480,17 +480,6 @@ func (self *Client) AuthenticateClusterAdmin(username, password string) error {
 	return responseToError(resp, err, true)
 }
 
-func (self *Client) GetContinuousQueries() ([]map[string]interface{}, error) {
-	url := self.getUrlWithUserAndPass(fmt.Sprintf("/db/%s/continuous_queries", self.database), self.username, self.password)
-	return self.listSomething(url)
-}
-
-func (self *Client) DeleteContinuousQueries(id int) error {
-	url := self.getUrlWithUserAndPass(fmt.Sprintf("/db/%s/continuous_queries/%d", self.database, id), self.username, self.password)
-	resp, err := self.del(url)
-	return responseToError(resp, err, true)
-}
-
 type LongTermShortTermShards struct {
 	// Long term shards, (doesn't get populated for version >= 0.8.0)
 	LongTerm []*Shard `json:"longTerm"`

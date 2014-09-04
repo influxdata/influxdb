@@ -1,54 +1,42 @@
 package engine
 
 import (
-	log "code.google.com/p/log4go"
+	"fmt"
+
 	"github.com/influxdb/influxdb/parser"
 	p "github.com/influxdb/influxdb/protocol"
 )
 
 type FilteringEngine struct {
 	query        *parser.SelectQuery
-	processor    QueryProcessor
+	processor    Processor
 	shouldFilter bool
 }
 
-func NewFilteringEngine(query *parser.SelectQuery, processor QueryProcessor) *FilteringEngine {
+func NewFilteringEngine(query *parser.SelectQuery, processor Processor) *FilteringEngine {
 	shouldFilter := query.GetWhereCondition() != nil
 	return &FilteringEngine{query, processor, shouldFilter}
 }
 
-// optimize for yield series and use it here
-func (self *FilteringEngine) YieldPoint(seriesName *string, columnNames []string, point *p.Point) bool {
-	return self.YieldSeries(&p.Series{
-		Name:   seriesName,
-		Fields: columnNames,
-		Points: []*p.Point{point},
-	})
-}
-
-func (self *FilteringEngine) YieldSeries(seriesIncoming *p.Series) bool {
+func (self *FilteringEngine) Yield(seriesIncoming *p.Series) (bool, error) {
 	if !self.shouldFilter {
-		return self.processor.YieldSeries(seriesIncoming)
+		return self.processor.Yield(seriesIncoming)
 	}
 
 	series, err := Filter(self.query, seriesIncoming)
 	if err != nil {
-		log.Error("Error while filtering points: %s [query = %s]", err, self.query.GetQueryString())
-		return false
+		return false, fmt.Errorf("Error while filtering points: %s [query = %s]", err, self.query.GetQueryString())
 	}
 	if len(series.Points) == 0 {
-		return true
+		return true, nil
 	}
-	return self.processor.YieldSeries(series)
+	return self.processor.Yield(series)
 }
 
-func (self *FilteringEngine) Close() {
-	self.processor.Close()
+func (self *FilteringEngine) Close() error {
+	return self.processor.Close()
 }
 
-func (self *FilteringEngine) SetShardInfo(shardId int, shardLocal bool) {
-	self.processor.SetShardInfo(shardId, shardLocal)
-}
-func (self *FilteringEngine) GetName() string {
-	return self.processor.GetName()
+func (self *FilteringEngine) Name() string {
+	return self.processor.Name()
 }

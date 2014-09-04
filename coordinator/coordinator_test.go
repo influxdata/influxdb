@@ -19,9 +19,9 @@ func (self *CoordinatorSuite) TestShouldQuerySequentially(c *C) {
 	start := end.Add(-7 * 24 * time.Hour)
 	shard := cluster.NewShard(1, start, end, "", "", nil)
 	shards := []*cluster.ShardData{shard}
-	coordinator := NewCoordinatorImpl(&configuration.Configuration{
+	coordinator := NewCoordinator(&configuration.Configuration{
 		ClusterMaxResponseBufferSize: 1000,
-	}, nil, nil, nil)
+	}, nil, nil)
 	queries := map[string]bool{
 		"list series": false,
 		"select count(foo) from /.*bar.*/ group by time(1d)": true,

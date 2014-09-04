@@ -1,78 +1,6 @@
 package engine
 
-import (
-	"github.com/influxdb/influxdb/parser"
-	"github.com/influxdb/influxdb/protocol"
-)
-
-func getJoinYield(query *parser.SelectQuery, yield func(*protocol.Series) error) func(*protocol.Series) error {
-	var lastPoint1 *protocol.Point
-	var lastFields1 []string
-	var lastPoint2 *protocol.Point
-	var lastFields2 []string
-
-	table1 := query.GetFromClause().Names[0].GetAlias()
-	table2 := query.GetFromClause().Names[1].GetAlias()
-	name := table1 + "_join_" + table2
-
-	return mergeYield(table1, table2, false, query.Ascending, func(s *protocol.Series) error {
-		if *s.Name == table1 {
-			lastPoint1 = s.Points[len(s.Points)-1]
-			if lastFields1 == nil {
-				for _, f := range s.Fields {
-					lastFields1 = append(lastFields1, table1+"."+f)
-				}
-			}
-		}
-
-		if *s.Name == table2 {
-			lastPoint2 = s.Points[len(s.Points)-1]
-			if lastFields2 == nil {
-				for _, f := range s.Fields {
-					lastFields2 = append(lastFields2, table2+"."+f)
-				}
-			}
-		}
-
-		if lastPoint1 == nil || lastPoint2 == nil {
-			return nil
-		}
-
-		newSeries := &protocol.Series{
-			Name:   &name,
-			Fields: append(lastFields1, lastFields2...),
-			Points: []*protocol.Point{
-				{
-					Values:    append(lastPoint1.Values, lastPoint2.Values...),
-					Timestamp: lastPoint2.Timestamp,
-				},
-			},
-		}
-
-		lastPoint1 = nil
-		lastPoint2 = nil
-
-		filteredSeries, _ := Filter(query, newSeries)
-		if len(filteredSeries.Points) > 0 {
-			return yield(newSeries)
-		}
-		return nil
-	})
-}
-
-func getMergeYield(table1, table2 string, ascending bool, yield func(*protocol.Series) error) func(*protocol.Series) error {
-	name := table1 + "_merge_" + table2
-
-	return mergeYield(table1, table2, true, ascending, func(s *protocol.Series) error {
-		oldName := s.Name
-		s.Name = &name
-		s.Fields = append(s.Fields, "_orig_series")
-		for _, p := range s.Points {
-			p.Values = append(p.Values, &protocol.FieldValue{StringValue: oldName})
-		}
-		return yield(s)
-	})
-}
+import "github.com/influxdb/influxdb/protocol"
 
 type seriesMergeState struct {
 	name   string
@@ -93,16 +21,16 @@ func isLater(first *seriesMergeState, other *seriesMergeState) bool {
 	return *first.series[0].Points[0].Timestamp > *other.series[0].Points[0].Timestamp
 }
 
-func (self *seriesMergeState) flush(state *mergeState, yield func(*protocol.Series) error) error {
+func (self *seriesMergeState) flush(state *CommonMergeEngine) (bool, error) {
 	for _, s := range self.series {
 		s := state.mergeColumnsInSeries(s)
-		err := yield(s)
-		if err != nil {
-			return err
+		ok, err := state.next.Yield(s)
+		if !ok || err != nil {
+			return ok, err
 		}
 	}
 	self.series = nil
-	return nil
+	return true, nil
 }
 
 // update the state, the points belong to this seriesMergeState (i.e. the name of the timeseries matches)
@@ -124,7 +52,8 @@ func (self *seriesMergeState) updateState(p *protocol.Series) {
 	}
 }
 
-type mergeState struct {
+type CommonMergeEngine struct {
+	next         Processor
 	leftGoFirst  func(_, _ *seriesMergeState) bool
 	fields       map[string]int
 	left         *seriesMergeState
@@ -136,7 +65,7 @@ type mergeState struct {
 // the order of the null values match the order of the field
 // definitions, i.e. left timeseries first followed by values from the
 // right timeseries
-func (self *mergeState) mergeColumnsInSeries(s *protocol.Series) *protocol.Series {
+func (self *CommonMergeEngine) mergeColumnsInSeries(s *protocol.Series) *protocol.Series {
 	if !self.mergeColumns {
 		return s
 	}
@@ -168,7 +97,7 @@ func (self *mergeState) mergeColumnsInSeries(s *protocol.Series) *protocol.Serie
 // the order of the null values match the order of the field
 // definitions, i.e. left timeseries first followed by values from the
 // right timeseries
-func (self *mergeState) getFields() []string {
+func (self *CommonMergeEngine) getFields() []string {
 	fields := make([]string, len(self.fields))
 	for f, i := range self.fields {
 		fields[i] = f
@@ -176,7 +105,7 @@ func (self *mergeState) getFields() []string {
 	return fields
 }
 
-func (self *mergeState) yieldNextPoints(yield func(*protocol.Series) error) error {
+func (self *CommonMergeEngine) yieldNextPoints() (bool, error) {
 	// see which point should be returned next and remove it from the
 	// series
 	for self.left.hasPoints() && self.right.hasPoints() {
@@ -188,29 +117,33 @@ func (self *mergeState) yieldNextPoints(yield func(*protocol.Series) error) erro
 		}
 
 		s := next.removeAndGetFirstPoint()
-		err := yield(self.mergeColumnsInSeries(s))
-		if err != nil {
-			return err
+		ok, err := self.next.Yield(self.mergeColumnsInSeries(s))
+		if err != nil || !ok {
+			return ok, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // if `other` state is done (i.e. we'll receive no more points for its
 // timeseries) then we know that we won't get any points that are
 // older than what's in `self` so we can safely flush all `self`
 // points.
-func (self *mergeState) flushIfNecessary(yield func(*protocol.Series) error) error {
+func (self *CommonMergeEngine) flushIfNecessary() (bool, error) {
 	if self.left.done && len(self.left.series) == 0 {
-		self.right.flush(self, yield)
+		if ok, err := self.right.flush(self); err != nil || !ok {
+			return ok, err
+		}
 	}
 	if self.right.done && len(self.right.series) == 0 {
-		self.left.flush(self, yield)
+		if ok, err := self.left.flush(self); err != nil || !ok {
+			return ok, err
+		}
 	}
-	return nil
+	return true, nil
 }
 
-func (self *mergeState) updateState(p *protocol.Series) {
+func (self *CommonMergeEngine) updateState(p *protocol.Series) {
 	self.left.updateState(p)
 	self.right.updateState(p)
 
@@ -249,7 +182,7 @@ func (self *seriesMergeState) removeAndGetFirstPoint() *protocol.Series {
 
 // returns a yield function that will sort points from table1 and
 // table2 no matter what the order in which they are received.
-func mergeYield(table1, table2 string, mergeColumns bool, ascending bool, yield func(*protocol.Series) error) func(*protocol.Series) error {
+func NewCommonMergeEngine(table1, table2 string, mergeColumns bool, ascending bool, next Processor) *CommonMergeEngine {
 	state1 := &seriesMergeState{
 		name: table1,
 	}
@@ -262,21 +195,31 @@ func mergeYield(table1, table2 string, mergeColumns bool, ascending bool, yield 
 		whoGoFirst = isLater
 	}
 
-	state := &mergeState{
+	return &CommonMergeEngine{
+		next:         next,
 		left:         state1,
 		right:        state2,
 		leftGoFirst:  whoGoFirst,
 		mergeColumns: mergeColumns,
 	}
+}
 
-	return func(p *protocol.Series) error {
+func (e *CommonMergeEngine) Close() error {
+	e.Yield(&protocol.Series{Name: &e.left.name, Fields: []string{}})
+	e.Yield(&protocol.Series{Name: &e.right.name, Fields: []string{}})
+	return e.next.Close()
+}
 
-		state.updateState(p)
+func (e *CommonMergeEngine) Name() string {
+	return "CommonMergeEngine"
+}
 
-		if err := state.flushIfNecessary(yield); err != nil {
-			return err
-		}
+func (e *CommonMergeEngine) Yield(s *protocol.Series) (bool, error) {
+	e.updateState(s)
 
-		return state.yieldNextPoints(yield)
+	if ok, err := e.flushIfNecessary(); !ok || err != nil {
+		return ok, err
 	}
+
+	return e.yieldNextPoints()
 }

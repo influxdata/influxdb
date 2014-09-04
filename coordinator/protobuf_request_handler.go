@@ -15,18 +15,15 @@ import (
 )
 
 type ProtobufRequestHandler struct {
-	coordinator   Coordinator
+	coordinator   *Coordinator
 	clusterConfig *cluster.ClusterConfiguration
-	writeOk       protocol.Response_Type
 }
 
-var (
-	internalError        = protocol.Response_INTERNAL_ERROR
-	accessDeniedResponse = protocol.Response_ACCESS_DENIED
-)
-
-func NewProtobufRequestHandler(coordinator Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
-	return &ProtobufRequestHandler{coordinator: coordinator, writeOk: protocol.Response_WRITE_OK, clusterConfig: clusterConfig}
+func NewProtobufRequestHandler(coordinator *Coordinator, clusterConfig *cluster.ClusterConfiguration) *ProtobufRequestHandler {
+	return &ProtobufRequestHandler{
+		coordinator:   coordinator,
+		clusterConfig: clusterConfig,
+	}
 }
 
 func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, conn net.Conn) error {
@@ -36,7 +33,10 @@ func (self *ProtobufRequestHandler) HandleRequest(request *protocol.Request, con
 	case protocol.Request_QUERY:
 		go self.handleQuery(request, conn)
 	case protocol.Request_HEARTBEAT:
-		response := &protocol.Response{RequestId: request.Id, Type: &heartbeatResponse}
+		response := &protocol.Response{
+			RequestId: request.Id,
+			Type:      protocol.Response_HEARTBEAT.Enum(),
+		}
 		return self.WriteResponse(conn, response)
 	default:
 		log.Error("unknown request type: %v", request)
@@ -49,12 +49,20 @@ func (self *ProtobufRequestHandler) handleWrites(request *protocol.Request, conn
 	shard := self.clusterConfig.GetLocalShardById(*request.ShardId)
 	log.Debug("HANDLE: (%d):%d:%v", self.clusterConfig.LocalServer.Id, request.GetId(), shard)
 	err := shard.WriteLocalOnly(request)
-	var errorMsg *string
+	var response *protocol.Response
 	if err != nil {
 		log.Error("ProtobufRequestHandler: error writing local shard: %s", err)
-		errorMsg = protocol.String(err.Error())
+		response = &protocol.Response{
+			RequestId:    request.Id,
+			Type:         protocol.Response_ERROR.Enum(),
+			ErrorMessage: protocol.String(err.Error()),
+		}
+	} else {
+		response = &protocol.Response{
+			RequestId: request.Id,
+			Type:      protocol.Response_END_STREAM.Enum(),
+		}
 	}
-	response := &protocol.Response{RequestId: request.Id, Type: &self.writeOk, ErrorMessage: errorMsg}
 	if err := self.WriteResponse(conn, response); err != nil {
 		log.Error("ProtobufRequestHandler: error writing local shard: %s", err)
 	}
@@ -66,7 +74,11 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 	if err != nil || len(queries) < 1 {
 		log.Error("Error parsing query: ", err)
 		errorMsg := fmt.Sprintf("Cannot find user %s", *request.UserName)
-		response := &protocol.Response{Type: &endStreamResponse, ErrorMessage: &errorMsg, RequestId: request.Id}
+		response := &protocol.Response{
+			Type:         protocol.Response_ERROR.Enum(),
+			ErrorMessage: &errorMsg,
+			RequestId:    request.Id,
+		}
 		self.WriteResponse(conn, response)
 		return
 	}
@@ -80,7 +92,11 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 
 	if user == nil {
 		errorMsg := fmt.Sprintf("Cannot find user %s", *request.UserName)
-		response := &protocol.Response{Type: &accessDeniedResponse, ErrorMessage: &errorMsg, RequestId: request.Id}
+		response := &protocol.Response{
+			Type:         protocol.Response_ERROR.Enum(),
+			ErrorMessage: &errorMsg,
+			RequestId:    request.Id,
+		}
 		self.WriteResponse(conn, response)
 		return
 	}
@@ -99,24 +115,27 @@ func (self *ProtobufRequestHandler) handleQuery(request *protocol.Request, conn 
 		response := <-responseChan
 		response.RequestId = request.Id
 		self.WriteResponse(conn, response)
-		if response.GetType() == protocol.Response_END_STREAM || response.GetType() == protocol.Response_ACCESS_DENIED {
+
+		switch rt := response.GetType(); rt {
+		case protocol.Response_END_STREAM,
+			protocol.Response_ERROR:
 			return
+		case protocol.Response_QUERY:
+			continue
+		default:
+			panic(fmt.Errorf("Unexpected response type: %s", rt))
 		}
 	}
 }
 
 func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *protocol.Response) error {
 	if response.Size() >= MAX_RESPONSE_SIZE {
-		l := len(response.Series.Points)
-		firstHalfPoints := response.Series.Points[:l/2]
-		secondHalfPoints := response.Series.Points[l/2:]
-		response.Series.Points = firstHalfPoints
-		err := self.WriteResponse(conn, response)
+		f, s := splitResponse(response)
+		err := self.WriteResponse(conn, f)
 		if err != nil {
 			return err
 		}
-		response.Series.Points = secondHalfPoints
-		return self.WriteResponse(conn, response)
+		return self.WriteResponse(conn, s)
 	}
 
 	data, err := response.Encode()
@@ -133,4 +152,22 @@ func (self *ProtobufRequestHandler) WriteResponse(conn net.Conn, response *proto
 		return err
 	}
 	return nil
+}
+
+func splitResponse(response *protocol.Response) (f, s *protocol.Response) {
+	f = &protocol.Response{}
+	s = &protocol.Response{}
+	*f = *response
+	*s = *response
+
+	if l := len(response.MultiSeries); l > 1 {
+		f.MultiSeries = f.MultiSeries[:l/2]
+		s.MultiSeries = s.MultiSeries[l/2:]
+		return
+	}
+
+	l := len(response.MultiSeries[0].Points)
+	f.MultiSeries[0].Points = f.MultiSeries[0].Points[:l/2]
+	s.MultiSeries[0].Points = s.MultiSeries[0].Points[l/2:]
+	return
 }

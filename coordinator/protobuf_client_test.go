@@ -9,6 +9,7 @@ import (
 	"time"
 
 	log "code.google.com/p/log4go"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -60,7 +61,7 @@ func (prs *PingResponseServer) handleConnection(conn net.Conn) {
 
 		switch *request.Type {
 		case protocol.Request_HEARTBEAT:
-			response := &protocol.Response{RequestId: request.Id, Type: &heartbeatResponse}
+			response := &protocol.Response{RequestId: request.Id, Type: protocol.Response_HEARTBEAT.Enum()}
 
 			data, err := response.Encode()
 			if err != nil {
@@ -98,7 +99,8 @@ func BenchmarkSingle(b *testing.B) {
 			Type:     &HEARTBEAT_TYPE,
 			Database: protocol.String(""),
 		}
-		client.MakeRequest(heartbeatRequest, responseChan)
+		rcw := cluster.NewResponseChannelWrapper(responseChan)
+		client.MakeRequest(heartbeatRequest, rcw)
 		<-responseChan
 	}
 }

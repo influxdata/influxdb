@@ -6,23 +6,23 @@ import (
 	"net"
 
 	log "code.google.com/p/log4go"
+	"github.com/influxdb/influxdb/api"
 	"github.com/influxdb/influxdb/cluster"
 	. "github.com/influxdb/influxdb/common"
-	"github.com/influxdb/influxdb/coordinator"
 	"github.com/influxdb/influxdb/protocol"
 )
 
 type Server struct {
 	listenAddress string
 	database      string
-	coordinator   coordinator.Coordinator
+	coordinator   api.Coordinator
 	clusterConfig *cluster.ClusterConfiguration
 	conn          *net.UDPConn
 	user          *cluster.ClusterAdmin
 	shutdown      chan bool
 }
 
-func NewServer(listenAddress string, database string, coord coordinator.Coordinator, clusterConfig *cluster.ClusterConfiguration) *Server {
+func NewServer(listenAddress string, database string, coord api.Coordinator, clusterConfig *cluster.ClusterConfiguration) *Server {
 	self := &Server{}
 
 	self.listenAddress = listenAddress

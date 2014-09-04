@@ -25,24 +25,9 @@ type Shard interface {
 	EndTime() time.Time
 	Write(*p.Request) error
 	SyncWrite(req *p.Request, assignSeqNum bool) error
-	Query(querySpec *parser.QuerySpec, response chan *p.Response)
+	Query(querySpec *parser.QuerySpec, response chan<- *p.Response)
 	ReplicationFactor() int
 	IsMicrosecondInRange(t int64) bool
-}
-
-// Passed to a shard (local datastore or whatever) that gets yielded points from series.
-type QueryProcessor interface {
-	// This method returns true if the query should continue. If the query should be stopped,
-	// like maybe the limit was hit, it should return false
-	YieldPoint(seriesName *string, columnNames []string, point *p.Point) bool
-	YieldSeries(seriesIncoming *p.Series) bool
-	Close()
-
-	// Set by the shard, so EXPLAIN query can know query against which shard is being measured
-	SetShardInfo(shardId int, shardLocal bool)
-
-	// Let QueryProcessor identify itself. What if it is a spy and we can't check that?
-	GetName() string
 }
 
 type NewShardData struct {
@@ -102,17 +87,9 @@ const (
 	LOCAL_WRITE_BUFFER_SIZE = 10
 )
 
-var (
-	queryResponse        = p.Response_QUERY
-	endStreamResponse    = p.Response_END_STREAM
-	accessDeniedResponse = p.Response_ACCESS_DENIED
-	queryRequest         = p.Request_QUERY
-	dropDatabaseRequest  = p.Request_DROP_DATABASE
-)
-
 type LocalShardDb interface {
 	Write(database string, series []*p.Series) error
-	Query(*parser.QuerySpec, QueryProcessor) error
+	Query(*parser.QuerySpec, engine.Processor) error
 	DropFields(fields []*metastore.Field) error
 	IsClosed() bool
 }
@@ -241,10 +218,72 @@ func (self *ShardData) WriteLocalOnly(request *p.Request) error {
 	return nil
 }
 
-func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Response) {
-	log.Debug("QUERY: shard %d, query '%s'", self.Id(), querySpec.GetQueryString())
-	defer common.RecoverFunc(querySpec.Database(), querySpec.GetQueryString(), func(err interface{}) {
-		response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(fmt.Sprintf("%s", err))}
+func (self *ShardData) getProcessor(querySpec *parser.QuerySpec, processor engine.Processor) (engine.Processor, error) {
+	switch qt := querySpec.Query().Type(); qt {
+	case parser.Delete, parser.DropSeries:
+		return NilProcessor{}, nil
+	case parser.Select:
+		// continue
+	default:
+		panic(fmt.Errorf("Unexpected query type: %s", qt))
+	}
+
+	if querySpec.IsSinglePointQuery() {
+		return engine.NewPassthroughEngine(processor, 1), nil
+	}
+
+	query := querySpec.SelectQuery()
+
+	var err error
+	// We should aggregate at the shard level
+	if self.ShouldAggregateLocally(querySpec) {
+		log.Debug("creating a query engine")
+		processor, err = engine.NewQueryEngine(processor, query)
+		if err != nil {
+			return nil, err
+		}
+		goto addFilter
+	}
+
+	// we shouldn't limit the queries if they have aggregates and aren't
+	// aggregated locally, otherwise the aggregation result which happen
+	// in the coordinator will get partial data and will be incorrect
+	if query.HasAggregates() {
+		log.Debug("creating a passthrough engine")
+		processor = engine.NewPassthroughEngine(processor, 1000)
+		goto addFilter
+	}
+
+	// This is an optimization so we don't send more data that we should
+	// over the wire. The coordinator has its own Passthrough which does
+	// the final limit.
+	if l := query.Limit; l > 0 {
+		log.Debug("creating a passthrough engine with limit")
+		processor = engine.NewPassthroughEngineWithLimit(processor, 1000, query.Limit)
+	}
+
+addFilter:
+	if query := querySpec.SelectQuery(); query != nil && query.GetFromClause().Type != parser.FromClauseInnerJoin {
+		// Joins do their own filtering since we need to get all
+		// points before filtering. This is due to the fact that some
+		// where expressions will be difficult to compute before the
+		// points are joined together, think where clause with
+		// left.column = 'something' or right.column =
+		// 'something_else'. We can't filter the individual series
+		// separately. The filtering happens in merge.go:55
+
+		processor = engine.NewFilteringEngine(query, processor)
+	}
+	return processor, nil
+}
+
+func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Response) {
+	log.Debug("QUERY: shard %d, query '%s'", self.Id(), querySpec.GetQueryStringWithTimeCondition())
+	defer common.RecoverFunc(querySpec.Database(), querySpec.GetQueryStringWithTimeCondition(), func(err interface{}) {
+		response <- &p.Response{
+			Type:         p.Response_ERROR.Enum(),
+			ErrorMessage: p.String(fmt.Sprintf("%s", err)),
+		}
 	})
 
 	// This is only for queries that are deletes or drops. They need to be sent everywhere as opposed to just the local or one of the remote shards.
@@ -258,50 +297,25 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 	}
 
 	if self.IsLocal {
-		var processor QueryProcessor
+		var processor engine.Processor = NewResponseChannelProcessor(NewResponseChannelWrapper(response))
 		var err error
 
-		if querySpec.IsListSeriesQuery() {
-			processor = engine.NewListSeriesEngine(response)
-		} else if querySpec.IsDeleteFromSeriesQuery() || querySpec.IsDropSeriesQuery() || querySpec.IsSinglePointQuery() {
-			maxDeleteResults := 10000
-			processor = engine.NewPassthroughEngine(response, maxDeleteResults)
-		} else {
-			query := querySpec.SelectQuery()
-			if self.ShouldAggregateLocally(querySpec) {
-				log.Debug("creating a query engine")
-				processor, err = engine.NewQueryEngine(query, response)
-				if err != nil {
-					response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
-					log.Error("Error while creating engine: %s", err)
-					return
-				}
-				processor.SetShardInfo(int(self.Id()), self.IsLocal)
-			} else if query.HasAggregates() {
-				maxPointsToBufferBeforeSending := 1000
-				log.Debug("creating a passthrough engine")
-				processor = engine.NewPassthroughEngine(response, maxPointsToBufferBeforeSending)
-			} else {
-				maxPointsToBufferBeforeSending := 1000
-				log.Debug("creating a passthrough engine with limit")
-				processor = engine.NewPassthroughEngineWithLimit(response, maxPointsToBufferBeforeSending, query.Limit)
+		processor, err = self.getProcessor(querySpec, processor)
+		if err != nil {
+			response <- &p.Response{
+				Type:         p.Response_ERROR.Enum(),
+				ErrorMessage: p.String(err.Error()),
 			}
-
-			if query.GetFromClause().Type != parser.FromClauseInnerJoin {
-				// Joins do their own filtering since we need to get all
-				// points before filtering. This is due to the fact that some
-				// where expressions will be difficult to compute before the
-				// points are joined together, think where clause with
-				// left.column = 'something' or right.column =
-				// 'something_else'. We can't filter the individual series
-				// separately. The filtering happens in merge.go:55
-
-				processor = engine.NewFilteringEngine(query, processor)
-			}
+			log.Error("Error while creating engine: %s", err)
+			return
 		}
+
 		shard, err := self.store.GetOrCreateShard(self.id)
 		if err != nil {
-			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
+			response <- &p.Response{
+				Type:         p.Response_ERROR.Enum(),
+				ErrorMessage: p.String(err.Error()),
+			}
 			log.Error("Error while getting shards: %s", err)
 			return
 		}
@@ -309,11 +323,14 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 		err = shard.Query(querySpec, processor)
 		// if we call Close() in case of an error it will mask the error
 		if err != nil {
-			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: p.String(err.Error())}
+			response <- &p.Response{
+				Type:         p.Response_ERROR.Enum(),
+				ErrorMessage: p.String(err.Error()),
+			}
 			return
 		}
 		processor.Close()
-		response <- &p.Response{Type: &endStreamResponse}
+		response <- &p.Response{Type: p.Response_END_STREAM.Enum()}
 		return
 	}
 
@@ -325,7 +342,10 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan *p.Respo
 	}
 
 	message := fmt.Sprintf("No servers up to query shard %d", self.id)
-	response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &message}
+	response <- &p.Response{
+		Type:         p.Response_ERROR.Enum(),
+		ErrorMessage: &message,
+	}
 	log.Error(message)
 }
 
@@ -359,6 +379,9 @@ func (self *ShardData) String() string {
 	return fmt.Sprintf("[ID: %d, START: %d, END: %d, LOCAL: %s, SERVERS: [%s]]", self.id, self.startMicro, self.endMicro, local, strings.Join(serversString, ","))
 }
 
+// Returns true if we can aggregate the data locally per shard,
+// i.e. the group by interval lines up with the shard duration and
+// there are no joins or merges
 func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool {
 	f := querySpec.GetFromClause()
 	if f != nil && (f.Type == parser.FromClauseInnerJoin || f.Type == parser.FromClauseMerge) {
@@ -373,6 +396,19 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 		return true
 	}
 	return self.shardDuration%*groupByInterval == 0
+}
+
+type Shards []*ShardData
+
+// Return true iff we can aggregate locally on all the given shards,
+// false otherwise
+func (shards Shards) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool {
+	for _, s := range shards {
+		if !s.ShouldAggregateLocally(querySpec) {
+			return false
+		}
+	}
+	return true
 }
 
 func (self *ShardData) QueryResponseBufferSize(querySpec *parser.QuerySpec, batchPointSize int) int {
@@ -406,35 +442,28 @@ func (self *ShardData) QueryResponseBufferSize(querySpec *parser.QuerySpec, batc
 	return tickCount
 }
 
-func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan *p.Response) {
+func (self *ShardData) logAndHandleDeleteQuery(querySpec *parser.QuerySpec, response chan<- *p.Response) {
 	queryString := querySpec.GetQueryStringWithTimeCondition()
 	request := self.createRequest(querySpec)
 	request.Query = &queryString
 	self.LogAndHandleDestructiveQuery(querySpec, request, response, false)
 }
 
-func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, response chan *p.Response) {
+func (self *ShardData) logAndHandleDropSeriesQuery(querySpec *parser.QuerySpec, response chan<- *p.Response) {
 	self.LogAndHandleDestructiveQuery(querySpec, self.createRequest(querySpec), response, false)
 }
 
-func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) {
+func (self *ShardData) LogAndHandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan<- *p.Response, runLocalOnly bool) {
 	self.HandleDestructiveQuery(querySpec, request, response, runLocalOnly)
 }
 
-func (self *ShardData) deleteDataLocally(querySpec *parser.QuerySpec) (<-chan *p.Response, error) {
-	localResponses := make(chan *p.Response, 1)
-
-	// this doesn't really apply at this point since destructive queries don't output anything, but it may later
-	maxPointsFromDestructiveQuery := 1000
-	processor := engine.NewPassthroughEngine(localResponses, maxPointsFromDestructiveQuery)
+func (self *ShardData) deleteDataLocally(querySpec *parser.QuerySpec) error {
 	shard, err := self.store.GetOrCreateShard(self.id)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer self.store.ReturnShard(self.id)
-	err = shard.Query(querySpec, processor)
-	processor.Close()
-	return localResponses, err
+	return shard.Query(querySpec, NilProcessor{})
 }
 
 func (self *ShardData) forwardRequest(request *p.Request) ([]<-chan *p.Response, []uint32, error) {
@@ -452,7 +481,7 @@ func (self *ShardData) forwardRequest(request *p.Request) ([]<-chan *p.Response,
 	return responses, ids, nil
 }
 
-func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan *p.Response, runLocalOnly bool) {
+func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, request *p.Request, response chan<- *p.Response, runLocalOnly bool) {
 	if !self.IsLocal && runLocalOnly {
 		panic("WTF islocal is false and runLocalOnly is true")
 	}
@@ -461,15 +490,16 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 	serverIds := []uint32{}
 
 	if self.IsLocal {
-		channel, err := self.deleteDataLocally(querySpec)
+		err := self.deleteDataLocally(querySpec)
 		if err != nil {
 			msg := err.Error()
-			response <- &p.Response{Type: &endStreamResponse, ErrorMessage: &msg}
 			log.Error(msg)
+			response <- &p.Response{
+				Type:         p.Response_ERROR.Enum(),
+				ErrorMessage: &msg,
+			}
 			return
 		}
-		responseChannels = append(responseChannels, channel)
-		serverIds = append(serverIds, self.localServerId)
 	}
 
 	log.Debug("request %s, runLocalOnly: %v", request.GetDescription(), runLocalOnly)
@@ -479,31 +509,32 @@ func (self *ShardData) HandleDestructiveQuery(querySpec *parser.QuerySpec, reque
 		responseChannels = append(responseChannels, responses...)
 	}
 
-	accessDenied := false
+	var errorResponse *p.Response
 	for idx, channel := range responseChannels {
 		serverId := serverIds[idx]
 		log.Debug("Waiting for response to %s from %d", request.GetDescription(), serverId)
 		for {
 			res := <-channel
 			log.Debug("Received %s response from %d for %s", res.GetType(), serverId, request.GetDescription())
-			if *res.Type == endStreamResponse {
+			if res.GetType() == p.Response_END_STREAM {
 				break
 			}
 
 			// don't send the access denied response until the end so the readers don't close out before the other responses.
 			// See https://github.com/influxdb/influxdb/issues/316 for more info.
-			if *res.Type != accessDeniedResponse {
+			if res.GetType() != p.Response_ERROR {
 				response <- res
-			} else {
-				accessDenied = true
+			} else if errorResponse == nil {
+				errorResponse = res
 			}
 		}
 	}
 
-	if accessDenied {
-		response <- &p.Response{Type: &accessDeniedResponse}
+	if errorResponse != nil {
+		response <- errorResponse
+		return
 	}
-	response <- &p.Response{Type: &endStreamResponse}
+	response <- &p.Response{Type: p.Response_END_STREAM.Enum()}
 }
 
 func (self *ShardData) createRequest(querySpec *parser.QuerySpec) *p.Request {
@@ -514,7 +545,7 @@ func (self *ShardData) createRequest(querySpec *parser.QuerySpec) *p.Request {
 	isDbUser := !user.IsClusterAdmin()
 
 	return &p.Request{
-		Type:     &queryRequest,
+		Type:     p.Request_QUERY.Enum(),
 		ShardId:  &self.id,
 		Query:    &queryString,
 		UserName: &userName,

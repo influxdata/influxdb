@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"fmt"
-	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -17,67 +16,28 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
-type CoordinatorImpl struct {
+type Coordinator struct {
 	clusterConfiguration *cluster.ClusterConfiguration
-	raftServer           ClusterConsensus
+	raftServer           *RaftServer
 	config               *configuration.Configuration
-	metastore            Metastore
 	permissions          Permissions
 }
 
-type Metastore interface {
-	ReplaceFieldNamesWithFieldIds(database string, series []*protocol.Series) error
-}
-
-const (
-	// this is the key used for the persistent atomic ints for sequence numbers
-	POINT_SEQUENCE_NUMBER_KEY = "p"
-
-	// actual point sequence numbers will have the first part of the number
-	// be a host id. This ensures that sequence numbers are unique across the cluster
-	HOST_ID_OFFSET = uint64(10000)
-
-	SHARDS_TO_QUERY_FOR_LIST_SERIES = 10
-)
-
-var (
-	BARRIER_TIME_MIN int64 = math.MinInt64
-	BARRIER_TIME_MAX int64 = math.MaxInt64
-)
-
-// shorter constants for readability
-var (
-	dropDatabase         = protocol.Request_DROP_DATABASE
-	queryRequest         = protocol.Request_QUERY
-	endStreamResponse    = protocol.Response_END_STREAM
-	queryResponse        = protocol.Response_QUERY
-	heartbeatResponse    = protocol.Response_HEARTBEAT
-	explainQueryResponse = protocol.Response_EXPLAIN_QUERY
-	write                = protocol.Request_WRITE
-)
-
-type SeriesWriter interface {
-	Write(*protocol.Series) error
-	Close()
-}
-
-func NewCoordinatorImpl(
+func NewCoordinator(
 	config *configuration.Configuration,
-	raftServer ClusterConsensus,
-	clusterConfiguration *cluster.ClusterConfiguration,
-	metastore Metastore) *CoordinatorImpl {
-	coordinator := &CoordinatorImpl{
+	raftServer *RaftServer,
+	clusterConfiguration *cluster.ClusterConfiguration) *Coordinator {
+	coordinator := &Coordinator{
 		config:               config,
 		clusterConfiguration: clusterConfiguration,
 		raftServer:           raftServer,
-		metastore:            metastore,
 		permissions:          Permissions{},
 	}
 
 	return coordinator
 }
 
-func (self *CoordinatorImpl) RunQuery(user common.User, database string, queryString string, seriesWriter SeriesWriter) (err error) {
+func (self *Coordinator) RunQuery(user common.User, database string, queryString string, p engine.Processor) (err error) {
 	log.Info("Start Query: db: %s, u: %s, q: %s", database, user.GetName(), queryString)
 	defer func(t time.Time) {
 		log.Debug("End Query: db: %s, u: %s, q: %s, t: %s", database, user.GetName(), queryString, time.Now().Sub(t))
@@ -91,85 +51,59 @@ func (self *CoordinatorImpl) RunQuery(user common.User, database string, querySt
 	}
 
 	for _, query := range q {
-		querySpec := parser.NewQuerySpec(user, database, query)
-
-		if query.DeleteQuery != nil {
-			if err := self.clusterConfiguration.CreateCheckpoint(); err != nil {
-				return err
-			}
-
-			if err := self.runDeleteQuery(querySpec, seriesWriter); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if query.DropQuery != nil {
-			if err := self.DeleteContinuousQuery(user, database, uint32(query.DropQuery.Id)); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if query.IsListQuery() {
-			if query.IsListSeriesQuery() {
-				self.runListSeriesQuery(querySpec, seriesWriter)
-			} else if query.IsListContinuousQueriesQuery() {
-				queries, err := self.ListContinuousQueries(user, database)
-				if err != nil {
-					return err
-				}
-				for _, q := range queries {
-					if err := seriesWriter.Write(q); err != nil {
-						return err
-					}
-				}
-			}
-			continue
-		}
-
-		if query.DropSeriesQuery != nil {
-			err := self.runDropSeriesQuery(querySpec, seriesWriter)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		selectQuery := query.SelectQuery
-
-		if selectQuery.IsContinuousQuery() {
-			return self.CreateContinuousQuery(user, database, queryString)
-		}
-		if err := self.checkPermission(user, querySpec); err != nil {
+		// runSingleQuery shouldn't close the processor in case there are
+		// other queries to be run
+		err := self.runSingleQuery(user, database, query, p)
+		if err != nil {
 			return err
 		}
-		return self.runQuery(querySpec, seriesWriter)
 	}
-	seriesWriter.Close()
 	return nil
 }
 
-func (self *CoordinatorImpl) checkPermission(user common.User, querySpec *parser.QuerySpec) error {
-	// if this isn't a regex query do the permission check here
-	fromClause := querySpec.SelectQuery().GetFromClause()
+func (self *Coordinator) runSingleQuery(user common.User, db string, q *parser.Query, p engine.Processor) error {
+	querySpec := parser.NewQuerySpec(user, db, q)
 
-	for _, n := range fromClause.Names {
-		if _, ok := n.Name.GetCompiledRegex(); ok {
-			break
-		} else if name := n.Name.Name; !user.HasReadAccess(name) {
-			return fmt.Errorf("User doesn't have read access to %s", name)
+	if ok, err := self.permissions.CheckQueryPermissions(user, db, querySpec); !ok {
+		return err
+	}
+
+	switch qt := q.Type(); qt {
+	// administrative
+	case parser.DropContinuousQuery:
+		return self.runDropContinuousQuery(user, db, uint32(q.DropQuery.Id))
+	case parser.ListContinuousQueries:
+		return self.runListContinuousQueries(user, db, p)
+	case parser.Continuous:
+		return self.runContinuousQuery(user, db, q.GetQueryString())
+	case parser.ListSeries:
+		return self.runListSeriesQuery(querySpec, p)
+		// Data queries
+	case parser.Delete:
+		return self.runDeleteQuery(querySpec, p)
+	case parser.DropSeries:
+		return self.runDropSeriesQuery(querySpec)
+	case parser.Select:
+		return self.runQuerySpec(querySpec, p)
+	default:
+		return fmt.Errorf("Can't handle query %s", qt)
+	}
+}
+
+func (self *Coordinator) runListContinuousQueries(user common.User, db string, p engine.Processor) error {
+	queries, err := self.ListContinuousQueries(user, db)
+	if err != nil {
+		return err
+	}
+	for _, q := range queries {
+		if ok, err := p.Yield(q); !ok || err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-// This should only get run for SelectQuery types
-func (self *CoordinatorImpl) runQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	return self.runQuerySpec(querySpec, seriesWriter)
-}
-
-func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+func (self *Coordinator) runListSeriesQuery(querySpec *parser.QuerySpec, p engine.Processor) error {
 	allSeries := self.clusterConfiguration.MetaStore.GetSeriesForDatabase(querySpec.Database())
 	matchingSeries := allSeries
 	if q := querySpec.Query().GetListSeriesQuery(); q.HasRegex() {
@@ -192,29 +126,25 @@ func (self *CoordinatorImpl) runListSeriesQuery(querySpec *parser.QuerySpec, ser
 	}
 
 	seriesResult := &protocol.Series{Name: &name, Fields: fields, Points: points}
-	seriesWriter.Write(seriesResult)
-	seriesWriter.Close()
-	return nil
+	_, err := p.Yield(seriesResult)
+	return err
 }
 
-func (self *CoordinatorImpl) runDeleteQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	user := querySpec.User()
-	db := querySpec.Database()
-	if ok, err := self.permissions.AuthorizeDeleteQuery(user, db); !ok {
+func (self *Coordinator) runDeleteQuery(querySpec *parser.QuerySpec, p engine.Processor) error {
+	if err := self.clusterConfiguration.CreateCheckpoint(); err != nil {
 		return err
 	}
 	querySpec.RunAgainstAllServersInShard = true
-	return self.runQuerySpec(querySpec, seriesWriter)
+	return self.runQuerySpec(querySpec, p)
 }
 
-func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
+func (self *Coordinator) runDropSeriesQuery(querySpec *parser.QuerySpec) error {
 	user := querySpec.User()
 	db := querySpec.Database()
 	series := querySpec.Query().DropSeriesQuery.GetTableName()
 	if ok, err := self.permissions.AuthorizeDropSeries(user, db, series); !ok {
 		return err
 	}
-	defer seriesWriter.Close()
 	err := self.raftServer.DropSeries(db, series)
 	if err != nil {
 		return err
@@ -222,16 +152,7 @@ func (self *CoordinatorImpl) runDropSeriesQuery(querySpec *parser.QuerySpec, ser
 	return nil
 }
 
-func (self *CoordinatorImpl) shouldAggregateLocally(shards []*cluster.ShardData, querySpec *parser.QuerySpec) bool {
-	for _, s := range shards {
-		if !s.ShouldAggregateLocally(querySpec) {
-			return false
-		}
-	}
-	return true
-}
-
-func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData, querySpec *parser.QuerySpec) bool {
+func (self *Coordinator) shouldQuerySequentially(shards cluster.Shards, querySpec *parser.QuerySpec) bool {
 	// if the query isn't a select, then it doesn't matter
 	if querySpec.SelectQuery() == nil {
 		return false
@@ -262,7 +183,7 @@ func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData
 		return true
 	}
 
-	if !self.shouldAggregateLocally(shards, querySpec) {
+	if !shards.ShouldAggregateLocally(querySpec) {
 		return true
 	}
 
@@ -279,143 +200,54 @@ func (self *CoordinatorImpl) shouldQuerySequentially(shards []*cluster.ShardData
 	return false
 }
 
-func (self *CoordinatorImpl) getShardsAndProcessor(querySpec *parser.QuerySpec, writer SeriesWriter) ([]*cluster.ShardData, cluster.QueryProcessor, chan bool, error) {
+func (self *Coordinator) getShardsAndProcessor(querySpec *parser.QuerySpec, writer engine.Processor) ([]*cluster.ShardData, engine.Processor, error) {
 	shards := self.clusterConfiguration.GetShardsForQuery(querySpec)
-	shouldAggregateLocally := self.shouldAggregateLocally(shards, querySpec)
+	shouldAggregateLocally := shards.ShouldAggregateLocally(querySpec)
 
 	var err error
-	var processor cluster.QueryProcessor
 
-	responseChan := make(chan *protocol.Response)
-	seriesClosed := make(chan bool)
-
-	selectQuery := querySpec.SelectQuery()
-	if selectQuery != nil {
-		if !shouldAggregateLocally {
-			// if we should aggregate in the coordinator (i.e. aggregation
-			// isn't happening locally at the shard level), create an engine
-			processor, err = engine.NewQueryEngine(querySpec.SelectQuery(), responseChan)
-		} else {
-			// if we have a query with limit, then create an engine, or we can
-			// make the passthrough limit aware
-			processor = engine.NewPassthroughEngineWithLimit(responseChan, 100, selectQuery.Limit)
-		}
-	} else if !shouldAggregateLocally {
-		processor = engine.NewPassthroughEngine(responseChan, 100)
+	q := querySpec.SelectQuery()
+	if q == nil {
+		return shards, writer, nil
 	}
 
-	if err != nil {
-		return nil, nil, nil, err
+	if !shouldAggregateLocally {
+		// if we should aggregate in the coordinator (i.e. aggregation
+		// isn't happening locally at the shard level), create an engine
+		writer, err = engine.NewQueryEngine(writer, q)
+		return shards, writer, err
 	}
 
-	if processor == nil {
-		return shards, nil, nil, nil
-	}
-
-	go func() {
-		for {
-			response := <-responseChan
-
-			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
-				writer.Close()
-				seriesClosed <- true
-				return
-			}
-			if !(*response.Type == queryResponse && querySpec.IsExplainQuery()) {
-				if response.Series != nil && len(response.Series.Points) > 0 {
-					writer.Write(response.Series)
-				}
-			}
-		}
-	}()
-
-	return shards, processor, seriesClosed, nil
+	// if we have a query with limit, then create an engine, or we can
+	// make the passthrough limit aware
+	writer = engine.NewPassthroughEngineWithLimit(writer, 100, q.Limit)
+	return shards, writer, nil
 }
 
-func (self *CoordinatorImpl) readFromResponseChannels(processor cluster.QueryProcessor,
-	writer SeriesWriter,
-	isExplainQuery bool,
-	errors chan<- error,
-	responseChannels <-chan (<-chan *protocol.Response)) {
-
-	defer close(errors)
-
-	for responseChan := range responseChannels {
-		for response := range responseChan {
-
-			//log.Debug("GOT RESPONSE: ", response.Type, response.Series)
-			log.Debug("GOT RESPONSE: %v", response.Type)
-			if *response.Type == endStreamResponse || *response.Type == accessDeniedResponse {
-				if response.ErrorMessage == nil {
-					break
-				}
-
-				err := common.NewQueryError(common.InvalidArgument, *response.ErrorMessage)
-				log.Error("Error while executing query: %s", err)
-				errors <- err
-				return
-			}
-
-			if response.Series == nil || len(response.Series.Points) == 0 {
-				log.Debug("Series has no points, continue")
-				continue
-			}
-
-			// if we don't have a processor, yield the point to the writer
-			// this happens if shard took care of the query
-			// otherwise client will get points from passthrough engine
-			if processor != nil {
-				// if the data wasn't aggregated at the shard level, aggregate
-				// the data here
-				log.Debug("YIELDING: %d points with %d columns for %s", len(response.Series.Points), len(response.Series.Fields), response.Series.GetName())
-				processor.YieldSeries(response.Series)
-				continue
-			}
-
-			// If we have EXPLAIN query, we don't write actual points (of
-			// response.Type Query) to the client
-			if !(*response.Type == queryResponse && isExplainQuery) {
-				writer.Write(response.Series)
-			}
-		}
-
-		// once we're done with a response channel signal queryShards to
-		// start querying a new shard
-		errors <- nil
-	}
-	return
-}
-
-func (self *CoordinatorImpl) queryShards(querySpec *parser.QuerySpec, shards []*cluster.ShardData,
-	errors <-chan error,
-	responseChannels chan<- (<-chan *protocol.Response)) error {
-	defer close(responseChannels)
-
-	for i := 0; i < len(shards); i++ {
+func (self *Coordinator) queryShards(querySpec *parser.QuerySpec, shards []*cluster.ShardData, p *MergeChannelProcessor) error {
+	for i, s := range shards {
 		// readFromResponseChannels will insert an error if an error
 		// occured while reading the response. This should immediately
 		// stop reading from shards
-		err := <-errors
-		if err != nil {
-			return err
-		}
-		shard := shards[i]
-		bufferSize := shard.QueryResponseBufferSize(querySpec, self.config.StoragePointBatchSize)
+		bufferSize := s.QueryResponseBufferSize(querySpec, self.config.StoragePointBatchSize)
 		if bufferSize > self.config.ClusterMaxResponseBufferSize {
 			bufferSize = self.config.ClusterMaxResponseBufferSize
 		}
-		responseChan := make(chan *protocol.Response, bufferSize)
+		c, err := p.NextChannel(bufferSize)
+		if err != nil {
+			return err
+		}
 		// We query shards for data and stream them to query processor
-		log.Debug("QUERYING: shard: %d %v", i, shard.String())
-		go shard.Query(querySpec, responseChan)
-		responseChannels <- responseChan
+		log.Debug("QUERYING: shard: %d %v", i, s.String())
+		go s.Query(querySpec, c)
 	}
 
 	return nil
 }
 
-func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWriter SeriesWriter) error {
-	shards, processor, seriesClosed, err := self.getShardsAndProcessor(querySpec, seriesWriter)
+// We call this function only if we have a Select query (not continuous) or Delete query
+func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, p engine.Processor) error {
+	shards, processor, err := self.getShardsAndProcessor(querySpec, p)
 	if err != nil {
 		return err
 	}
@@ -424,15 +256,6 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 		return fmt.Errorf("Couldn't look up columns")
 	}
 
-	defer func() {
-		if processor != nil {
-			processor.Close()
-			<-seriesClosed
-		} else {
-			seriesWriter.Close()
-		}
-	}()
-
 	shardConcurrentLimit := self.config.ConcurrentShardQueryLimit
 	if self.shouldQuerySequentially(shards, querySpec) {
 		log.Debug("Querying shards sequentially")
@@ -440,38 +263,25 @@ func (self *CoordinatorImpl) runQuerySpec(querySpec *parser.QuerySpec, seriesWri
 	}
 	log.Debug("Shard concurrent limit: %d", shardConcurrentLimit)
 
-	errors := make(chan error, shardConcurrentLimit)
-	for i := 0; i < shardConcurrentLimit; i++ {
-		errors <- nil
-	}
-	responseChannels := make(chan (<-chan *protocol.Response), shardConcurrentLimit)
+	mcp := NewMergeChannelProcessor(processor, shardConcurrentLimit)
 
-	go self.readFromResponseChannels(processor, seriesWriter, querySpec.IsExplainQuery(), errors, responseChannels)
+	go mcp.ProcessChannels()
 
-	err = self.queryShards(querySpec, shards, errors, responseChannels)
-
-	// make sure we read the rest of the errors and responses
-	for _err := range errors {
-		if err == nil {
-			err = _err
-		}
+	if err := self.queryShards(querySpec, shards, mcp); err != nil {
+		log.Error("Error while querying shards: %s", err)
+		mcp.Close()
+		return err
 	}
 
-	for responsechan := range responseChannels {
-		for response := range responsechan {
-			if response.GetType() != endStreamResponse {
-				continue
-			}
-			if response.ErrorMessage != nil && err == nil {
-				err = common.NewQueryError(common.InvalidArgument, *response.ErrorMessage)
-			}
-			break
-		}
+	if err := mcp.Close(); err != nil {
+		log.Error("Error while querying shards: %s", err)
+		return err
 	}
-	return err
+
+	return processor.Close()
 }
 
-func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
+func (self *Coordinator) ForceCompaction(user common.User) error {
 	if !user.IsClusterAdmin() {
 		return fmt.Errorf("Insufficient permissions to force a log compaction")
 	}
@@ -479,7 +289,7 @@ func (self *CoordinatorImpl) ForceCompaction(user common.User) error {
 	return self.raftServer.ForceLogCompaction()
 }
 
-func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series []*protocol.Series) error {
+func (self *Coordinator) WriteSeriesData(user common.User, db string, series []*protocol.Series) error {
 	// make sure that the db exist
 	if !self.clusterConfiguration.DatabasesExists(db) {
 		return fmt.Errorf("Database %s doesn't exist", db)
@@ -505,7 +315,7 @@ func (self *CoordinatorImpl) WriteSeriesData(user common.User, db string, series
 	return err
 }
 
-func (self *CoordinatorImpl) ProcessContinuousQueries(db string, series *protocol.Series) {
+func (self *Coordinator) ProcessContinuousQueries(db string, series *protocol.Series) {
 	if self.clusterConfiguration.ParsedContinuousQueries != nil {
 		incomingSeriesName := *series.Name
 		for _, query := range self.clusterConfiguration.ParsedContinuousQueries[db] {
@@ -534,7 +344,7 @@ func (self *CoordinatorImpl) ProcessContinuousQueries(db string, series *protoco
 	}
 }
 
-func (self *CoordinatorImpl) InterpolateValuesAndCommit(query string, db string, series *protocol.Series, targetName string, assignSequenceNumbers bool) error {
+func (self *Coordinator) InterpolateValuesAndCommit(query string, db string, series *protocol.Series, targetName string, assignSequenceNumbers bool) error {
 	defer common.RecoverFunc(db, query, nil)
 
 	targetName = strings.Replace(targetName, ":series_name", *series.Name, -1)
@@ -635,7 +445,7 @@ nextfield:
 	return nil
 }
 
-func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Series, sync bool) error {
+func (self *Coordinator) CommitSeriesData(db string, serieses []*protocol.Series, sync bool) error {
 	now := common.CurrentTime()
 
 	shardToSerieses := map[uint32]map[string]*protocol.Series{}
@@ -706,9 +516,9 @@ func (self *CoordinatorImpl) CommitSeriesData(db string, serieses []*protocol.Se
 	return nil
 }
 
-func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
+func (self *Coordinator) write(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
 	// replace all the field names, or error out if we can't assign the field ids.
-	err := self.metastore.ReplaceFieldNamesWithFieldIds(db, series)
+	err := self.clusterConfiguration.MetaStore.ReplaceFieldNamesWithFieldIds(db, series)
 	if err != nil {
 		return err
 	}
@@ -716,8 +526,12 @@ func (self *CoordinatorImpl) write(db string, series []*protocol.Series, shard c
 	return self.writeWithoutAssigningId(db, series, shard, sync)
 }
 
-func (self *CoordinatorImpl) writeWithoutAssigningId(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
-	request := &protocol.Request{Type: &write, Database: &db, MultiSeries: series}
+func (self *Coordinator) writeWithoutAssigningId(db string, series []*protocol.Series, shard cluster.Shard, sync bool) error {
+	request := &protocol.Request{
+		Type:        protocol.Request_WRITE.Enum(),
+		Database:    &db,
+		MultiSeries: series,
+	}
 	// break the request if it's too big
 	if request.Size() >= MAX_REQUEST_SIZE {
 		if l := len(series); l > 1 {
@@ -753,7 +567,7 @@ func (self *CoordinatorImpl) writeWithoutAssigningId(db string, series []*protoc
 	return shard.Write(request)
 }
 
-func (self *CoordinatorImpl) CreateContinuousQuery(user common.User, db string, query string) error {
+func (self *Coordinator) runContinuousQuery(user common.User, db string, query string) error {
 	if ok, err := self.permissions.AuthorizeCreateContinuousQuery(user, db); !ok {
 		return err
 	}
@@ -765,7 +579,7 @@ func (self *CoordinatorImpl) CreateContinuousQuery(user common.User, db string, 
 	return nil
 }
 
-func (self *CoordinatorImpl) DeleteContinuousQuery(user common.User, db string, id uint32) error {
+func (self *Coordinator) runDropContinuousQuery(user common.User, db string, id uint32) error {
 	if ok, err := self.permissions.AuthorizeDeleteContinuousQuery(user, db); !ok {
 		return err
 	}
@@ -777,7 +591,7 @@ func (self *CoordinatorImpl) DeleteContinuousQuery(user common.User, db string, 
 	return nil
 }
 
-func (self *CoordinatorImpl) ListContinuousQueries(user common.User, db string) ([]*protocol.Series, error) {
+func (self *Coordinator) ListContinuousQueries(user common.User, db string) ([]*protocol.Series, error) {
 	if ok, err := self.permissions.AuthorizeListContinuousQueries(user, db); !ok {
 		return nil, err
 	}
@@ -804,7 +618,7 @@ func (self *CoordinatorImpl) ListContinuousQueries(user common.User, db string) 
 	return series, nil
 }
 
-func (self *CoordinatorImpl) CreateDatabase(user common.User, db string) error {
+func (self *Coordinator) CreateDatabase(user common.User, db string) error {
 	if ok, err := self.permissions.AuthorizeCreateDatabase(user); !ok {
 		return err
 	}
@@ -820,7 +634,7 @@ func (self *CoordinatorImpl) CreateDatabase(user common.User, db string) error {
 	return nil
 }
 
-func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*cluster.Database, error) {
+func (self *Coordinator) ListDatabases(user common.User) ([]*cluster.Database, error) {
 	if ok, err := self.permissions.AuthorizeListDatabases(user); !ok {
 		return nil, err
 	}
@@ -829,7 +643,7 @@ func (self *CoordinatorImpl) ListDatabases(user common.User) ([]*cluster.Databas
 	return dbs, nil
 }
 
-func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
+func (self *Coordinator) DropDatabase(user common.User, db string) error {
 	if ok, err := self.permissions.AuthorizeDropDatabase(user); !ok {
 		return err
 	}
@@ -841,20 +655,20 @@ func (self *CoordinatorImpl) DropDatabase(user common.User, db string) error {
 	return self.raftServer.DropDatabase(db)
 }
 
-func (self *CoordinatorImpl) AuthenticateDbUser(db, username, password string) (common.User, error) {
-	log.Debug("(raft:%s) Authenticating password for %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
+func (self *Coordinator) AuthenticateDbUser(db, username, password string) (common.User, error) {
+	log.Debug("(raft:%s) Authenticating password for %s:%s", self.raftServer.raftServer.Name(), db, username)
 	user, err := self.clusterConfiguration.AuthenticateDbUser(db, username, password)
 	if user != nil {
-		log.Debug("(raft:%s) User %s authenticated succesfully", self.raftServer.(*RaftServer).raftServer.Name(), username)
+		log.Debug("(raft:%s) User %s authenticated succesfully", self.raftServer.raftServer.Name(), username)
 	}
 	return user, err
 }
 
-func (self *CoordinatorImpl) AuthenticateClusterAdmin(username, password string) (common.User, error) {
+func (self *Coordinator) AuthenticateClusterAdmin(username, password string) (common.User, error) {
 	return self.clusterConfiguration.AuthenticateClusterAdmin(username, password)
 }
 
-func (self *CoordinatorImpl) ListClusterAdmins(requester common.User) ([]string, error) {
+func (self *Coordinator) ListClusterAdmins(requester common.User) ([]string, error) {
 	if ok, err := self.permissions.AuthorizeListClusterAdmins(requester); !ok {
 		return nil, err
 	}
@@ -862,7 +676,7 @@ func (self *CoordinatorImpl) ListClusterAdmins(requester common.User) ([]string,
 	return self.clusterConfiguration.GetClusterAdmins(), nil
 }
 
-func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, username, password string) error {
+func (self *Coordinator) CreateClusterAdminUser(requester common.User, username, password string) error {
 	if ok, err := self.permissions.AuthorizeCreateClusterAdmin(requester); !ok {
 		return err
 	}
@@ -883,7 +697,7 @@ func (self *CoordinatorImpl) CreateClusterAdminUser(requester common.User, usern
 	return self.raftServer.SaveClusterAdminUser(&cluster.ClusterAdmin{cluster.CommonUser{Name: username, CacheKey: username, Hash: string(hash)}})
 }
 
-func (self *CoordinatorImpl) DeleteClusterAdminUser(requester common.User, username string) error {
+func (self *Coordinator) DeleteClusterAdminUser(requester common.User, username string) error {
 	if ok, err := self.permissions.AuthorizeDeleteClusterAdmin(requester); !ok {
 		return err
 	}
@@ -897,7 +711,7 @@ func (self *CoordinatorImpl) DeleteClusterAdminUser(requester common.User, usern
 	return self.raftServer.SaveClusterAdminUser(user)
 }
 
-func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, username, password string) error {
+func (self *Coordinator) ChangeClusterAdminPassword(requester common.User, username, password string) error {
 	if ok, err := self.permissions.AuthorizeChangeClusterAdminPassword(requester); !ok {
 		return err
 	}
@@ -915,7 +729,7 @@ func (self *CoordinatorImpl) ChangeClusterAdminPassword(requester common.User, u
 	return self.raftServer.SaveClusterAdminUser(user)
 }
 
-func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, password string, permissions ...string) error {
+func (self *Coordinator) CreateDbUser(requester common.User, db, username, password string, permissions ...string) error {
 	if ok, err := self.permissions.AuthorizeCreateDbUser(requester, db); !ok {
 		return err
 	}
@@ -948,7 +762,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, p
 		readMatcher[0].Name = permissions[0]
 		writeMatcher[0].Name = permissions[1]
 	}
-	log.Debug("(raft:%s) Creating user %s:%s", self.raftServer.(*RaftServer).raftServer.Name(), db, username)
+	log.Debug("(raft:%s) Creating user %s:%s", self.raftServer.raftServer.Name(), db, username)
 	return self.raftServer.SaveDbUser(&cluster.DbUser{cluster.CommonUser{
 		Name:     username,
 		Hash:     string(hash),
@@ -956,7 +770,7 @@ func (self *CoordinatorImpl) CreateDbUser(requester common.User, db, username, p
 	}, db, readMatcher, writeMatcher, false})
 }
 
-func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username string) error {
+func (self *Coordinator) DeleteDbUser(requester common.User, db, username string) error {
 	if ok, err := self.permissions.AuthorizeDeleteDbUser(requester, db); !ok {
 		return err
 	}
@@ -969,7 +783,7 @@ func (self *CoordinatorImpl) DeleteDbUser(requester common.User, db, username st
 	return self.raftServer.SaveDbUser(user)
 }
 
-func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]common.User, error) {
+func (self *Coordinator) ListDbUsers(requester common.User, db string) ([]common.User, error) {
 	if ok, err := self.permissions.AuthorizeListDbUsers(requester, db); !ok {
 		return nil, err
 	}
@@ -977,7 +791,7 @@ func (self *CoordinatorImpl) ListDbUsers(requester common.User, db string) ([]co
 	return self.clusterConfiguration.GetDbUsers(db), nil
 }
 
-func (self *CoordinatorImpl) GetDbUser(requester common.User, db string, username string) (common.User, error) {
+func (self *Coordinator) GetDbUser(requester common.User, db string, username string) (common.User, error) {
 	if ok, err := self.permissions.AuthorizeGetDbUser(requester, db); !ok {
 		return nil, err
 	}
@@ -990,7 +804,7 @@ func (self *CoordinatorImpl) GetDbUser(requester common.User, db string, usernam
 	return dbUser, nil
 }
 
-func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, username, password string) error {
+func (self *Coordinator) ChangeDbUserPassword(requester common.User, db, username, password string) error {
 	if ok, err := self.permissions.AuthorizeChangeDbUserPassword(requester, db, username); !ok {
 		return err
 	}
@@ -1002,7 +816,7 @@ func (self *CoordinatorImpl) ChangeDbUserPassword(requester common.User, db, use
 	return self.raftServer.ChangeDbUserPassword(db, username, hash)
 }
 
-func (self *CoordinatorImpl) ChangeDbUserPermissions(requester common.User, db, username, readPermissions, writePermissions string) error {
+func (self *Coordinator) ChangeDbUserPermissions(requester common.User, db, username, readPermissions, writePermissions string) error {
 	if ok, err := self.permissions.AuthorizeChangeDbUserPermissions(requester, db); !ok {
 		return err
 	}
@@ -1010,7 +824,7 @@ func (self *CoordinatorImpl) ChangeDbUserPermissions(requester common.User, db, 
 	return self.raftServer.ChangeDbUserPermissions(db, username, readPermissions, writePermissions)
 }
 
-func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username string, isAdmin bool) error {
+func (self *Coordinator) SetDbAdmin(requester common.User, db, username string, isAdmin bool) error {
 	if ok, err := self.permissions.AuthorizeGrantDbUserAdmin(requester, db); !ok {
 		return err
 	}
@@ -1024,7 +838,7 @@ func (self *CoordinatorImpl) SetDbAdmin(requester common.User, db, username stri
 	return nil
 }
 
-func (self *CoordinatorImpl) ConnectToProtobufServers(localRaftName string) error {
+func (self *Coordinator) ConnectToProtobufServers(localRaftName string) error {
 	log.Info("Connecting to other nodes in the cluster")
 
 	for _, server := range self.clusterConfiguration.Servers() {

@@ -14,38 +14,37 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	log "code.google.com/p/log4go"
 	"github.com/bmizerany/pat"
+	"github.com/influxdb/influxdb/api"
 	"github.com/influxdb/influxdb/cluster"
 	. "github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"
-	"github.com/influxdb/influxdb/migration"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
 
 type HttpServer struct {
-	conn             net.Listener
-	sslConn          net.Listener
-	httpPort         string
-	httpSslPort      string
-	httpSslCert      string
-	adminAssetsDir   string
-	coordinator      coordinator.Coordinator
-	userManager      UserManager
-	shutdown         chan bool
-	clusterConfig    *cluster.ClusterConfiguration
-	raftServer       *coordinator.RaftServer
-	readTimeout      time.Duration
-	migrationRunning uint32
-	config           *configuration.Configuration
+	conn           net.Listener
+	sslConn        net.Listener
+	httpPort       string
+	httpSslPort    string
+	httpSslCert    string
+	adminAssetsDir string
+	coordinator    api.Coordinator
+	userManager    UserManager
+	shutdown       chan bool
+	clusterConfig  *cluster.ClusterConfiguration
+	raftServer     *coordinator.RaftServer
+	readTimeout    time.Duration
+	config         *configuration.Configuration
+	p              *pat.PatternServeMux
 }
 
-func NewHttpServer(config *configuration.Configuration, theCoordinator coordinator.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
+func NewHttpServer(config *configuration.Configuration, theCoordinator api.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
 	self := &HttpServer{}
 	self.httpPort = config.ApiHttpPortString()
 	self.adminAssetsDir = config.AdminAssetsDir
@@ -56,14 +55,13 @@ func NewHttpServer(config *configuration.Configuration, theCoordinator coordinat
 	self.raftServer = raftServer
 	self.readTimeout = config.ApiReadTimeout
 	self.config = config
+	self.p = pat.New()
 	return self
 }
 
 const (
 	INVALID_CREDENTIALS_MSG  = "Invalid database/username/password"
 	JSON_PRETTY_PRINT_INDENT = "    "
-	MIGRATION_RUNNING        = uint32(1)
-	MIGRATION_NOT_RUNNING    = uint32(0)
 )
 
 func isPretty(r *libhttp.Request) bool {
@@ -94,89 +92,83 @@ func (self *HttpServer) ListenAndServe() {
 	self.Serve(self.conn)
 }
 
-func (self *HttpServer) registerEndpoint(p *pat.PatternServeMux, method string, pattern string, f libhttp.HandlerFunc) {
+func (self *HttpServer) registerEndpoint(method string, pattern string, f libhttp.HandlerFunc) {
 	version := self.clusterConfig.GetLocalConfiguration().Version
 	switch method {
 	case "get":
-		p.Get(pattern, CompressionHeaderHandler(f, version))
+		self.p.Get(pattern, CompressionHeaderHandler(f, version))
 	case "post":
-		p.Post(pattern, HeaderHandler(f, version))
+		self.p.Post(pattern, HeaderHandler(f, version))
 	case "del":
-		p.Del(pattern, HeaderHandler(f, version))
+		self.p.Del(pattern, HeaderHandler(f, version))
 	}
-	p.Options(pattern, HeaderHandler(self.sendCrossOriginHeader, version))
+	self.p.Options(pattern, HeaderHandler(self.sendCrossOriginHeader, version))
 }
 
 func (self *HttpServer) Serve(listener net.Listener) {
 	defer func() { self.shutdown <- true }()
 
 	self.conn = listener
-	p := pat.New()
 
 	// Run the given query and return an array of series or a chunked response
 	// with each batch of points we get back
-	self.registerEndpoint(p, "get", "/db/:db/series", self.query)
+	self.registerEndpoint("get", "/db/:db/series", self.query)
 
 	// Write points to the given database
-	self.registerEndpoint(p, "post", "/db/:db/series", self.writePoints)
-	self.registerEndpoint(p, "del", "/db/:db/series/:series", self.dropSeries)
-	self.registerEndpoint(p, "get", "/db", self.listDatabases)
-	self.registerEndpoint(p, "post", "/db", self.createDatabase)
-	self.registerEndpoint(p, "del", "/db/:name", self.dropDatabase)
+	self.registerEndpoint("post", "/db/:db/series", self.writePoints)
+	self.registerEndpoint("del", "/db/:db/series/:series", self.dropSeries)
+	self.registerEndpoint("get", "/db", self.listDatabases)
+	self.registerEndpoint("post", "/db", self.createDatabase)
+	self.registerEndpoint("del", "/db/:name", self.dropDatabase)
 
 	// cluster admins management interface
-	self.registerEndpoint(p, "get", "/cluster_admins", self.listClusterAdmins)
-	self.registerEndpoint(p, "get", "/cluster_admins/authenticate", self.authenticateClusterAdmin)
-	self.registerEndpoint(p, "post", "/cluster_admins", self.createClusterAdmin)
-	self.registerEndpoint(p, "post", "/cluster_admins/:user", self.updateClusterAdmin)
-	self.registerEndpoint(p, "del", "/cluster_admins/:user", self.deleteClusterAdmin)
+	self.registerEndpoint("get", "/cluster_admins", self.listClusterAdmins)
+	self.registerEndpoint("get", "/cluster_admins/authenticate", self.authenticateClusterAdmin)
+	self.registerEndpoint("post", "/cluster_admins", self.createClusterAdmin)
+	self.registerEndpoint("post", "/cluster_admins/:user", self.updateClusterAdmin)
+	self.registerEndpoint("del", "/cluster_admins/:user", self.deleteClusterAdmin)
+
+	// register profiling endpoints
+	registerProfilingEndpoints(self)
 
 	// db users management interface
-	self.registerEndpoint(p, "get", "/db/:db/authenticate", self.authenticateDbUser)
-	self.registerEndpoint(p, "get", "/db/:db/users", self.listDbUsers)
-	self.registerEndpoint(p, "post", "/db/:db/users", self.createDbUser)
-	self.registerEndpoint(p, "get", "/db/:db/users/:user", self.showDbUser)
-	self.registerEndpoint(p, "del", "/db/:db/users/:user", self.deleteDbUser)
-	self.registerEndpoint(p, "post", "/db/:db/users/:user", self.updateDbUser)
-
-	// continuous queries management interface
-	self.registerEndpoint(p, "get", "/db/:db/continuous_queries", self.listDbContinuousQueries)
-	self.registerEndpoint(p, "post", "/db/:db/continuous_queries", self.createDbContinuousQueries)
-	self.registerEndpoint(p, "del", "/db/:db/continuous_queries/:id", self.deleteDbContinuousQueries)
+	self.registerEndpoint("get", "/db/:db/authenticate", self.authenticateDbUser)
+	self.registerEndpoint("get", "/db/:db/users", self.listDbUsers)
+	self.registerEndpoint("post", "/db/:db/users", self.createDbUser)
+	self.registerEndpoint("get", "/db/:db/users/:user", self.showDbUser)
+	self.registerEndpoint("del", "/db/:db/users/:user", self.deleteDbUser)
+	self.registerEndpoint("post", "/db/:db/users/:user", self.updateDbUser)
 
 	// healthcheck
-	self.registerEndpoint(p, "get", "/ping", self.ping)
+	self.registerEndpoint("get", "/ping", self.ping)
 
 	// force a raft log compaction
-	self.registerEndpoint(p, "post", "/raft/force_compaction", self.forceRaftCompaction)
+	self.registerEndpoint("post", "/raft/force_compaction", self.forceRaftCompaction)
 
 	// fetch current list of available interfaces
-	self.registerEndpoint(p, "get", "/interfaces", self.listInterfaces)
+	self.registerEndpoint("get", "/interfaces", self.listInterfaces)
 
 	// cluster config endpoints
-	self.registerEndpoint(p, "get", "/cluster/servers", self.listServers)
-	self.registerEndpoint(p, "del", "/cluster/servers/:id", self.removeServers)
-	self.registerEndpoint(p, "post", "/cluster/shards", self.createShard)
-	self.registerEndpoint(p, "get", "/cluster/shards", self.getShards)
-	self.registerEndpoint(p, "del", "/cluster/shards/:id", self.dropShard)
-	self.registerEndpoint(p, "get", "/cluster/shard_spaces", self.getShardSpaces)
-	self.registerEndpoint(p, "post", "/cluster/shard_spaces/:db", self.createShardSpace)
-	self.registerEndpoint(p, "del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
-	self.registerEndpoint(p, "post", "/cluster/database_configs/:db", self.configureDatabase)
-
-	// migrates leveldb data from 0.7 to 0.8 format.
-	self.registerEndpoint(p, "post", "/cluster/migrate_data", self.migrateData)
+	self.registerEndpoint("get", "/cluster/servers", self.listServers)
+	self.registerEndpoint("del", "/cluster/servers/:id", self.removeServers)
+	self.registerEndpoint("post", "/cluster/shards", self.createShard)
+	self.registerEndpoint("get", "/cluster/shards", self.getShards)
+	self.registerEndpoint("del", "/cluster/shards/:id", self.dropShard)
+	self.registerEndpoint("get", "/cluster/shard_spaces", self.getShardSpaces)
+	self.registerEndpoint("post", "/cluster/shard_spaces/:db", self.createShardSpace)
+	self.registerEndpoint("del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
+	self.registerEndpoint("post", "/cluster/database_configs/:db", self.configureDatabase)
 
 	// return whether the cluster is in sync or not
-	self.registerEndpoint(p, "get", "/sync", self.isInSync)
+	self.registerEndpoint("get", "/sync", self.isInSync)
 
 	if listener == nil {
-		self.startSsl(p)
+		self.startSsl(self.p)
 		return
 	}
 
-	go self.startSsl(p)
-	self.serveListener(listener, p)
+	go self.startSsl(self.p)
+	self.serveListener(listener, self.p)
 }
 
 func (self *HttpServer) startSsl(p *pat.PatternServeMux) {
@@ -931,56 +923,6 @@ func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Requ
 	}
 }
 
-func (self *HttpServer) listDbContinuousQueries(w libhttp.ResponseWriter, r *libhttp.Request) {
-	db := r.URL.Query().Get(":db")
-
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		series, err := self.coordinator.ListContinuousQueries(u, db)
-		if err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-
-		queries := make([]ContinuousQuery, 0, len(series[0].Points))
-
-		for _, point := range series[0].Points {
-			queries = append(queries, ContinuousQuery{Id: *point.Values[0].Int64Value, Query: *point.Values[1].StringValue})
-		}
-
-		return libhttp.StatusOK, queries
-	})
-}
-
-func (self *HttpServer) createDbContinuousQueries(w libhttp.ResponseWriter, r *libhttp.Request) {
-	db := r.URL.Query().Get(":db")
-
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		// note: id isn't used when creating a new continuous query
-		values := &ContinuousQuery{}
-		decoder := json.NewDecoder(r.Body)
-		err := decoder.Decode(values)
-		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
-		}
-
-		if err := self.coordinator.CreateContinuousQuery(u, db, values.Query); err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-		return libhttp.StatusOK, nil
-	})
-}
-
-func (self *HttpServer) deleteDbContinuousQueries(w libhttp.ResponseWriter, r *libhttp.Request) {
-	db := r.URL.Query().Get(":db")
-	id, _ := strconv.ParseInt(r.URL.Query().Get(":id"), 10, 64)
-
-	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
-		if err := self.coordinator.DeleteContinuousQuery(u, db, uint32(id)); err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-		return libhttp.StatusOK, nil
-	})
-}
-
 func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		servers := self.clusterConfig.Servers()
@@ -1209,8 +1151,8 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 				return libhttp.StatusBadRequest, err.Error()
 			}
 			for _, query := range q {
-				if !query.SelectQuery.IsContinuousQuery() {
-					return libhttp.StatusBadRequest, fmt.Errorf("This query isn't a continuous query. Use 'into'. %s", query.QueryString)
+				if !query.IsContinuousQuery() {
+					return libhttp.StatusBadRequest, fmt.Errorf("This query isn't a continuous query. Use 'into'. %s", query.GetQueryString())
 				}
 			}
 		}
@@ -1235,40 +1177,11 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 			}
 		}
 		for _, queryString := range databaseConfig.ContinuousQueries {
-			q, _ := parser.ParseQuery(queryString)
-			for _, query := range q {
-				err := self.coordinator.CreateContinuousQuery(u, database, query.QueryString)
-				if err != nil {
-					return libhttp.StatusInternalServerError, err.Error()
-				}
+			err := self.coordinator.RunQuery(u, database, queryString, cluster.NilProcessor{})
+			if err != nil {
+				return libhttp.StatusInternalServerError, err.Error()
 			}
 		}
 		return libhttp.StatusCreated, nil
-	})
-}
-
-func (self *HttpServer) migrateData(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		pauseTime := r.URL.Query().Get("pause")
-		pauseDuration := time.Millisecond * 100
-		if pauseTime != "" {
-			var err error
-			pauseDuration, err = time.ParseDuration(pauseTime)
-			if err != nil {
-				return libhttp.StatusBadRequest, fmt.Errorf("Couldn't parse pause time: ", err)
-			}
-		}
-		if !atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_NOT_RUNNING, MIGRATION_RUNNING) {
-			return libhttp.StatusForbidden, fmt.Errorf("A migration is already running")
-		}
-		go func() {
-			log.Info("Starting Migration")
-			defer atomic.CompareAndSwapUint32(&self.migrationRunning, MIGRATION_RUNNING, MIGRATION_NOT_RUNNING)
-			dataMigrator := migration.NewDataMigrator(
-				self.coordinator.(*coordinator.CoordinatorImpl), self.clusterConfig, self.config, self.config.DataDir, "shard_db", self.clusterConfig.MetaStore, pauseDuration)
-			dataMigrator.Migrate()
-		}()
-
-		return libhttp.StatusAccepted, nil
 	})
 }

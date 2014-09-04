@@ -70,7 +70,7 @@ value *create_expression_value(char *operator, size_t size, ...) {
 
 // declare that we want a reentrant parser
 %define      api.pure
-%parse-param {query *q}
+%parse-param {queries *q}
 %parse-param {void *scanner}
 %lex-param   {void *scanner}
 
@@ -127,20 +127,20 @@ value *create_expression_value(char *operator, size_t size, ...) {
 ALL_QUERIES:
         QUERY
         {
-          *q = *$1;
-          free($1);
+          q->qs = realloc(q->qs, (q->size + 1) * sizeof(query));
+          q->qs[q->size++] = $1;
         }
         |
         QUERY ';'
         {
-          *q = *$1;
-          free($1);
+          q->qs = realloc(q->qs, (q->size + 1) * sizeof(query));
+          q->qs[q->size++] = $1;
         }
         |
         QUERY ';' ALL_QUERIES
         {
-          *q = *$1;
-          free($1);
+          q->qs = realloc(q->qs, (q->size + 1) * sizeof(query));
+          q->qs[q->size++] = $1;
         }
 
 QUERY:
@@ -702,10 +702,10 @@ BOOL_OPERATION:
 void *yy_scan_string(char *, void *);
 void yy_delete_buffer(void *, void *);
 
-query
+queries
 parse_query(char *const query_s)
 {
-  query q = {NULL, NULL, NULL, NULL, FALSE, FALSE, NULL};
+  queries q = {0, NULL};
   void *scanner;
   yylex_init(&scanner);
 #ifdef DEBUG
@@ -719,7 +719,7 @@ parse_query(char *const query_s)
   return q;
 }
 
-int yyerror(YYLTYPE *locp, query *q, void *s, char *err) {
+int yyerror(YYLTYPE *locp, queries *q, void *s, char *err) {
   q->error = malloc(sizeof(error));
   q->error->err = strdup(err);
   q->error->first_line = locp->first_line;

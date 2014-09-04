@@ -16,7 +16,7 @@ import (
 type ProtobufServer struct {
 	listener          net.Listener
 	port              string
-	requestHandler    RequestHandler
+	requestHandler    Handler
 	connectionMapLock sync.Mutex
 	connectionMap     map[net.Conn]bool
 }
@@ -25,7 +25,7 @@ const KILOBYTE = 1024
 const MEGABYTE = 1024 * KILOBYTE
 const MAX_REQUEST_SIZE = MEGABYTE * 2
 
-func NewProtobufServer(port string, requestHandler RequestHandler) *ProtobufServer {
+func NewProtobufServer(port string, requestHandler Handler) *ProtobufServer {
 	server := &ProtobufServer{port: port, requestHandler: requestHandler, connectionMap: make(map[net.Conn]bool)}
 	return server
 }
@@ -120,26 +120,26 @@ func (self *ProtobufServer) handleRequest(conn net.Conn, messageSize int64, buff
 		return err
 	}
 
-	log.Debug("Received %s request: %d", request.GetType(), request.GetRequestNumber())
+	log.Debug("Received %s", request)
 
 	return self.requestHandler.HandleRequest(request, conn)
 }
 
 func (self *ProtobufServer) handleRequestTooLarge(conn net.Conn, messageSize int64) error {
-	log.Error("request too large, dumping: %s (%d)", conn.RemoteAddr().String(), messageSize)
-	for messageSize > 0 {
-		reader := io.LimitReader(conn, MAX_REQUEST_SIZE)
-		_, err := io.Copy(ioutil.Discard, reader)
-		if err != nil {
-			return err
-		}
-		messageSize -= MAX_REQUEST_SIZE
+	log.Error("request too large, dumping: %s -> %s (%d)", conn.RemoteAddr(), conn.LocalAddr(), messageSize)
+	reader := io.LimitReader(conn, messageSize)
+	_, err := io.Copy(ioutil.Discard, reader)
+	if err != nil {
+		return err
 	}
-	return self.sendErrorResponse(conn, protocol.Response_REQUEST_TOO_LARGE, "request too large")
+	return self.sendErrorResponse(conn, "request too large")
 }
 
-func (self *ProtobufServer) sendErrorResponse(conn net.Conn, code protocol.Response_ErrorCode, message string) error {
-	response := &protocol.Response{ErrorCode: &code, ErrorMessage: &message}
+func (self *ProtobufServer) sendErrorResponse(conn net.Conn, message string) error {
+	response := &protocol.Response{
+		Type:         protocol.Response_ERROR.Enum(),
+		ErrorMessage: protocol.String(message),
+	}
 	data, err := response.Encode()
 	if err != nil {
 		return err
