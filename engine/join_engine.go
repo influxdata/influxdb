@@ -75,7 +75,11 @@ func (je *JoinEngine) Yield(s *protocol.Series) (bool, error) {
 	je.lastPoint1 = nil
 	je.lastPoint2 = nil
 
-	filteredSeries, _ := Filter(je.query, newSeries)
+	filteredSeries, err := Filter(je.query, newSeries)
+	if err != nil {
+		return false, err
+	}
+
 	if len(filteredSeries.Points) > 0 {
 		return je.next.Yield(newSeries)
 	}
