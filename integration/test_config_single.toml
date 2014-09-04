@@ -18,7 +18,7 @@ reporting-disabled = true
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
 level  = "info"
-file   = "stdout"         # stdout to log to standard out
+file   = "stdout"         # stdout to log to standard out, or syslog
 
 # Configure the admin server
 [admin]

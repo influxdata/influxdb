@@ -18,7 +18,7 @@ reporting-disabled = false
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
 level  = "info"
-file   = "influxdb.log"         # stdout to log to standard out
+file   = "influxdb.log"         # stdout to log to standard out, or syslog facility
 
 # Configure the admin server
 [admin]
