@@ -125,16 +125,16 @@ func NewClusterConfiguration(
 	}
 }
 
-func (self *ClusterConfiguration) DoesShardSpaceExist(space *ShardSpace) error {
+func (self *ClusterConfiguration) ShardSpaceExists(space *ShardSpace) bool {
 	self.shardLock.RLock()
 	defer self.shardLock.RUnlock()
 	dbSpaces := self.databaseShardSpaces[space.Database]
 	for _, s := range dbSpaces {
 		if s.Name == space.Name {
-			return fmt.Errorf("Shard space %s exists", space.Name)
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
 func (self *ClusterConfiguration) SetShardCreator(shardCreator ShardCreator) {
@@ -1311,6 +1311,17 @@ func (self *ClusterConfiguration) AddShardSpace(space *ShardSpace) error {
 	copy(newSpaces[1:], databaseSpaces)
 	newSpaces[0] = space
 	self.databaseShardSpaces[space.Database] = newSpaces
+	return nil
+}
+
+func (self *ClusterConfiguration) UpdateShardSpace(space *ShardSpace) error {
+	self.shardLock.Lock()
+	defer self.shardLock.Unlock()
+	oldSpace := self.getShardSpaceByDatabaseAndName(space.Database, space.Name)
+	if oldSpace == nil {
+		return nil
+	}
+	oldSpace.UpdateFromSpace(space)
 	return nil
 }
 

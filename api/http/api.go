@@ -162,6 +162,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint(p, "get", "/cluster/shard_spaces", self.getShardSpaces)
 	self.registerEndpoint(p, "post", "/cluster/shard_spaces/:db", self.createShardSpace)
 	self.registerEndpoint(p, "del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
+	self.registerEndpoint(p, "post", "/cluster/shard_spaces/:db/:name", self.updateShardSpace)
 	self.registerEndpoint(p, "post", "/cluster/database_configs/:db", self.configureDatabase)
 
 	// migrates leveldb data from 0.7 to 0.8 format.
@@ -1270,5 +1271,29 @@ func (self *HttpServer) migrateData(w libhttp.ResponseWriter, r *libhttp.Request
 		}()
 
 		return libhttp.StatusAccepted, nil
+	})
+}
+
+func (self *HttpServer) updateShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
+	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
+		space := &cluster.ShardSpace{}
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(space)
+		if err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		space.Database = r.URL.Query().Get(":db")
+		space.Name = r.URL.Query().Get(":name")
+		if !self.clusterConfig.DatabaseExists(space.Database) {
+			return libhttp.StatusNotAcceptable, "Can't update a shard space for a database that doesn't exist"
+		}
+		if !self.clusterConfig.ShardSpaceExists(space) {
+			return libhttp.StatusNotAcceptable, "Can't update a shard space that doesn't exist"
+		}
+
+		if err := self.raftServer.UpdateShardSpace(space); err != nil {
+			return libhttp.StatusInternalServerError, err.Error()
+		}
+		return libhttp.StatusOK, nil
 	})
 }

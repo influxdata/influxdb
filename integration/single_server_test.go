@@ -952,10 +952,9 @@ func (self *SingleServerSuite) TestSeriesShouldReturnSorted(c *C) {
 	}
 }
 
-// fix for #886 - https://github.com/influxdb/influxdb/issues/886
-func (self *SingleServerSuite) TestShardSpacesCorrectAfterRestart(c *C) {
+func (self *SingleServerSuite) TestUpdateShardSpace(c *C) {
 	client := self.server.GetClient("", c)
-	db := "test_shard_restart"
+	db := "test_update_shard_space"
 	c.Assert(client.CreateDatabase(db), IsNil)
 	client = self.server.GetClient(db, c)
 
@@ -993,23 +992,34 @@ func (self *SingleServerSuite) TestShardSpacesCorrectAfterRestart(c *C) {
 	c.Assert(series[1].Name, Equals, "space2.foo")
 	c.Assert(series[1].Points[0][1], Equals, float64(1))
 
-	_, err = http.Post("http://localhost:8086/raft/force_compaction?u=root&p=root", "", nil)
+	space2.Regex = "/^(space2|foo).*/"
+	err = client.UpdateShardSpace(db, "space2", space2)
 	c.Assert(err, IsNil)
-
-	self.server.Stop()
-	c.Assert(self.server.Start(), IsNil)
-	self.server.WaitForServerToStart()
-
-	series, err = client.Query("select count(val) from /.*/")
-	c.Assert(err, IsNil)
-	c.Assert(series, HasLen, 2)
-	c.Assert(series[0].Name, Equals, "foo")
-	c.Assert(series[0].Points[0][1], Equals, float64(1))
-	c.Assert(series[1].Name, Equals, "space2.foo")
-	c.Assert(series[1].Points[0][1], Equals, float64(1))
 
 	spaces, err = client.GetShardSpaces()
 	c.Assert(err, IsNil)
-	c.Assert(self.getSpace(db, "space2", "/^space2.*/", spaces), NotNil)
+	c.Assert(self.getSpace(db, "space2", "/^(space2|foo).*/", spaces), NotNil)
 	c.Assert(self.getSpace(db, "space1", "/.*/", spaces), NotNil)
+
+	// foo should now be effectively hidden from us.
+	series, err = client.Query("select count(val) from /.*/")
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "space2.foo")
+	c.Assert(series[0].Points[0][1], Equals, float64(1))
+
+	self.server.WriteDataToDatabase(db, `
+[
+  {
+    "name": "foo",
+    "columns": ["val"],
+    "points":[[5]]
+  }
+]`, c)
+
+	series, err = client.Query("select * from foo")
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 1)
+	c.Assert(series[0].Name, Equals, "foo")
+	c.Assert(series[0].Points[0][2], Equals, float64(5))
 }
