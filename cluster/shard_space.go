@@ -44,8 +44,8 @@ func NewShardSpace(database, name string) *ShardSpace {
 }
 
 func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration, checkForDb bool) error {
-	if err := clusterConfig.DoesShardSpaceExist(s); err != nil {
-		return err
+	if clusterConfig.ShardSpaceExists(s) {
+		return fmt.Errorf("Shard space %s exists for db %s", s.Name, s.Database)
 	}
 	if checkForDb {
 		if !clusterConfig.DatabaseExists(s.Database) {
@@ -131,4 +131,18 @@ func (s *ShardSpace) ParsedShardDuration() time.Duration {
 		return time.Duration(d)
 	}
 	return DEFAULT_SHARD_DURATION
+}
+
+func (s *ShardSpace) UpdateFromSpace(space *ShardSpace) error {
+	r, err := s.compileRegex(space.Regex)
+	if err != nil {
+		return err
+	}
+	s.Regex = space.Regex
+	s.compiledRegex = r
+	s.RetentionPolicy = space.RetentionPolicy
+	s.ShardDuration = space.ShardDuration
+	s.ReplicationFactor = space.ReplicationFactor
+	s.Split = space.Split
+	return nil
 }

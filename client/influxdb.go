@@ -597,3 +597,14 @@ func (self *Client) DropShard(id uint32, serverIds []uint32) error {
 	_, err = self.delWithBody(url, bytes.NewBuffer(body))
 	return err
 }
+
+// Added to InfluxDB in 0.8.2
+func (self *Client) UpdateShardSpace(database, name string, space *ShardSpace) error {
+	url := self.getUrl(fmt.Sprintf("/cluster/shard_spaces/%s/%s", database, name))
+	data, err := json.Marshal(space)
+	if err != nil {
+		return err
+	}
+	resp, err := self.httpClient.Post(url, "application/json", bytes.NewBuffer(data))
+	return responseToError(resp, err, true)
+}
