@@ -129,7 +129,11 @@ func (self *Server) GetClientWithUser(db, username, password string, c *C) *infl
 }
 
 func (self *Server) WriteData(data interface{}, c *C, precision ...influxdb.TimePrecision) {
-	client := self.GetClient("db1", c)
+	self.WriteDataToDatabase("db1", data, c, precision...)
+}
+
+func (self *Server) WriteDataToDatabase(db string, data interface{}, c *C, precision ...influxdb.TimePrecision) {
+	client := self.GetClient(db, c)
 	var series []*influxdb.Series
 	switch x := data.(type) {
 	case string:

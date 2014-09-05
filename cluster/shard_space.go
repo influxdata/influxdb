@@ -59,15 +59,7 @@ func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration, checkForDb bo
 	if s.Regex == "" {
 		return fmt.Errorf("A regex is required for a shard space")
 	}
-	reg := s.Regex
-	if strings.HasPrefix(reg, "/") {
-		if strings.HasSuffix(reg, "/i") {
-			reg = fmt.Sprintf("(?i)%s", reg[1:len(reg)-2])
-		} else {
-			reg = reg[1 : len(reg)-1]
-		}
-	}
-	r, err := regexp.Compile(reg)
+	r, err := s.compileRegex(s.Regex)
 	if err != nil {
 		return fmt.Errorf("Error parsing regex: %s", err)
 	}
@@ -91,6 +83,17 @@ func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration, checkForDb bo
 	return nil
 }
 
+func (s *ShardSpace) compileRegex(reg string) (*regexp.Regexp, error) {
+	if strings.HasPrefix(reg, "/") {
+		if strings.HasSuffix(reg, "/i") {
+			reg = fmt.Sprintf("(?i)%s", reg[1:len(reg)-2])
+		} else {
+			reg = reg[1 : len(reg)-1]
+		}
+	}
+	return regexp.Compile(reg)
+}
+
 func (s *ShardSpace) SetDefaults() {
 	r, _ := regexp.Compile(".*")
 	s.compiledRegex = r
@@ -103,7 +106,7 @@ func (s *ShardSpace) SetDefaults() {
 
 func (s *ShardSpace) MatchesSeries(name string) bool {
 	if s.compiledRegex == nil {
-		s.SetDefaults()
+		s.compiledRegex, _ = s.compileRegex(s.Regex)
 	}
 	return s.compiledRegex.MatchString(name)
 }
