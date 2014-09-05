@@ -947,3 +947,65 @@ func (self *SingleServerSuite) TestSeriesShouldReturnSorted(c *C) {
 		c.Assert(s.Name, Equals, fmt.Sprintf("sort_%.3d", i+1))
 	}
 }
+
+// fix for #886 - https://github.com/influxdb/influxdb/issues/886
+func (self *SingleServerSuite) TestShardSpacesCorrectAfterRestart(c *C) {
+	client := self.server.GetClient("", c)
+	db := "test_shard_restart"
+	c.Assert(client.CreateDatabase(db), IsNil)
+	client = self.server.GetClient(db, c)
+
+	space1 := &influxdb.ShardSpace{Name: "space1", RetentionPolicy: "30d", Regex: "/.*/"}
+	err := client.CreateShardSpace(db, space1)
+	c.Assert(err, IsNil)
+	space2 := &influxdb.ShardSpace{Name: "space2", RetentionPolicy: "1d", Regex: "/^space2.*/"}
+	err = client.CreateShardSpace(db, space2)
+	c.Assert(err, IsNil)
+
+	self.server.WriteDataToDatabase(db, `
+[
+  {
+    "name": "foo",
+    "columns": ["val"],
+    "points":[[1]]
+  },
+  {
+  	"name": "space2.foo",
+  	"columns": ["val"],
+  	"points":[[2]]
+  }
+]`, c)
+
+	spaces, err := client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(self.getSpace(db, "space2", "/^space2.*/", spaces), NotNil)
+	c.Assert(self.getSpace(db, "space1", "/.*/", spaces), NotNil)
+
+	series, err := client.Query("select count(val) from /.*/")
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 2)
+	c.Assert(series[0].Name, Equals, "foo")
+	c.Assert(series[0].Points[0][1], Equals, float64(1))
+	c.Assert(series[1].Name, Equals, "space2.foo")
+	c.Assert(series[1].Points[0][1], Equals, float64(1))
+
+	_, err = http.Post("http://localhost:8086/raft/force_compaction?u=root&p=root", "", nil)
+	c.Assert(err, IsNil)
+
+	self.server.Stop()
+	c.Assert(self.server.Start(), IsNil)
+	self.server.WaitForServerToStart()
+
+	series, err = client.Query("select count(val) from /.*/")
+	c.Assert(err, IsNil)
+	c.Assert(series, HasLen, 2)
+	c.Assert(series[0].Name, Equals, "foo")
+	c.Assert(series[0].Points[0][1], Equals, float64(1))
+	c.Assert(series[1].Name, Equals, "space2.foo")
+	c.Assert(series[1].Points[0][1], Equals, float64(1))
+
+	spaces, err = client.GetShardSpaces()
+	c.Assert(err, IsNil)
+	c.Assert(self.getSpace(db, "space2", "/^space2.*/", spaces), NotNil)
+	c.Assert(self.getSpace(db, "space1", "/.*/", spaces), NotNil)
+}
