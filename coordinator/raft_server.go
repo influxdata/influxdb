@@ -826,3 +826,9 @@ func (self *RaftServer) DropShardSpace(database, name string) error {
 	_, err := self.doOrProxyCommand(command)
 	return err
 }
+
+func (self *RaftServer) UpdateShardSpace(shardSpace *cluster.ShardSpace) error {
+	command := NewUpdateShardSpaceCommand(shardSpace)
+	_, err := self.doOrProxyCommand(command)
+	return err
+}
