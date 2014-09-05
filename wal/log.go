@@ -25,7 +25,7 @@ type log struct {
 
 func newLog(logFileName string, config *configuration.Configuration) (*log, error) {
 	size, err := checkAndRepairLogFile(logFileName)
-	if nil != err {
+	if err != nil {
 		return nil, err
 	}
 	suffixString := strings.TrimLeft(path.Base(logFileName), "log.")
