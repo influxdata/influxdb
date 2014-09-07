@@ -1,6 +1,7 @@
 package raft_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -18,3 +19,6 @@ func tempfile() string {
 	os.Remove(path)
 	return path
 }
+
+func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
+func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }

@@ -740,7 +740,7 @@ Arguments:
     prevLogIndex   index of log entry immediately preceding new ones
     prevLogTerm    term of prevLogIndex entry
     entries[]      log entries to store (empty for heartbeat; may send more
-    	           than one for efficiency)
+                   than one for efficiency)
     leaderCommit   leader’s commitIndex
 
 Results:
@@ -844,3 +844,41 @@ Leaders:
 • If there exists an N such that N > commitIndex, a majority of
   matchIndex[i] ≥ N, and log[N].term == currentTerm:
   set commitIndex = N (§5.3, §5.4).
+
+
+
+---
+
+## Streaming Raft RPC (Non-standard)
+
+
+### Heartbeat
+
+Sent from the leader to the follower to establish dominance.
+
+Arguments
+
+    term         the leader's current term
+    leaderID     so follower can redirect clients
+    commitIndex  the current commit index
+
+Results
+
+    term     currentTerm, for leader to update itself.
+    index    highest index written to disk.
+
+
+
+### Stream
+
+Request from the follower to the leader.
+
+Arguments
+
+    term          the follower's current term
+    prevLogIndex  index of log entry immediately preceding new ones
+    prevLogTerm   term of prevLogIndex entry
+
+Results
+
+    none, streaming only

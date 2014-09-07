@@ -1,8 +1,10 @@
 package raft
 
 import (
+	"io"
 	"net/http"
 	"path"
+	"strconv"
 )
 
 // HTTPHandler represents an HTTP endpoint for Raft to communicate over.
@@ -17,27 +19,47 @@ func NewHTTPHandler(log *Log) *HTTPHandler {
 
 // ServeHTTP handles all incoming HTTP requests.
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// TODO(benbjohnson): Redirect request to appropriate handler.
 	switch path.Base(r.URL.Path) {
 	case "heartbeat":
-		h.serveAppendEntries(w, r)
-	case "entries":
-		h.serveAppendEntries(w, r)
+		h.heartbeat(w, r)
+	case "stream":
+		h.stream(w, r)
 	case "vote":
-		h.serveRequestVote(w, r)
+		h.vote(w, r)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-func (h *HTTPHandler) serveHeartbeat(w http.ResponseWriter, r *http.Request) {
-	// TODO(benbjohnson)
+func (h *HTTPHandler) heartbeat(w http.ResponseWriter, r *http.Request) {
+	// TODO(benbjohnson): Parse arguments.
+	// TODO(benbjohnson): Execute heartbeat on the log.
+	// TODO(benbjohnson): Return current term and index.
 }
 
-func (h *HTTPHandler) serveAppendEntries(w http.ResponseWriter, r *http.Request) {
-	// TODO(benbjohnson)
+// stream provides a streaming log endpoint.
+func (h *HTTPHandler) stream(w http.ResponseWriter, r *http.Request) {
+	// Parse arguments.
+	term, err := strconv.ParseUint(r.FormValue("term"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid term", http.StatusBadRequest)
+		return
+	}
+
+	index, err := strconv.ParseUint(r.FormValue("index"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid index", http.StatusBadRequest)
+		return
+	}
+
+	// Write to the response.
+	if err := h.log.WriteTo(w, term, index); err != nil && err != io.EOF {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
-func (h *HTTPHandler) serveRequestVote(w http.ResponseWriter, r *http.Request) {
-	// TODO(benbjohnson)
+func (h *HTTPHandler) vote(w http.ResponseWriter, r *http.Request) {
+	// TODO(benbjohnson): Parse arguments.
+	// TODO(benbjohnson): Request vote.
+	// TODO(benbjohnson): Return vote status.
 }

@@ -10,6 +10,7 @@ import (
 	"testing/quick"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/influxdb/influxdb/raft"
 )
 
@@ -18,9 +19,64 @@ func TestLog_Open(t *testing.T) {
 	l := NewUnopenedTestLog()
 	if err := l.Open(tempfile()); err != nil {
 		t.Fatal("open: ", err)
+	} else if !l.Opened() {
+		t.Fatal("expected log to be open")
 	}
 	if err := l.Close(); err != nil {
 		t.Fatal("close: ", err)
+	} else if l.Opened() {
+		t.Fatal("expected log to be closed")
+	}
+}
+
+// Ensure that a log can read entries from a stream.
+func TestLog_ReadWrite(t *testing.T) {
+	l := NewTestLog()
+	defer l.Close()
+
+	// Entries to write.
+	entries := []*raft.LogEntry{
+		&raft.LogEntry{Index: 1, Term: 1, Data: []byte{0}},
+		&raft.LogEntry{Index: 2, Term: 1, Data: []byte{1}},
+	}
+
+	// Create reader.
+	var w bytes.Buffer
+	enc := raft.NewLogEntryEncoder(&w)
+	for _, e := range entries {
+		if err := enc.Encode(e); err != nil {
+			t.Fatal("encode: ", err)
+		}
+	}
+
+	// Consume from the reader.
+	if err := l.ReadFrom(&BufferCloser{&w}); err != nil {
+		t.Fatal("read from: ", err)
+	}
+
+	// Force an election.
+	if err := l.Elect(); err != nil {
+		t.Fatal("elect: ", err)
+	}
+
+	// Read entries back out of the log.
+	var r bytes.Buffer
+	go func() {
+		if err := l.WriteTo(&BufferCloser{&r}, 0, 0); err != nil {
+			t.Fatal("write to: ", err)
+		}
+	}()
+	time.Sleep(10 * time.Millisecond) // HACK(benbjohnson)
+
+	// Verify entries.
+	dec := raft.NewLogEntryDecoder(&r)
+	for _, exp := range entries {
+		var e raft.LogEntry
+		if err := dec.Decode(&e); err != nil {
+			t.Fatal("decode(0): ", err)
+		} else if !reflect.DeepEqual(exp, &e) {
+			t.Fatalf("entry:\n\nexp: %#v\n\ngot: %#v\n\n", exp, &e)
+		}
 	}
 }
 
@@ -35,7 +91,7 @@ func TestLogEntryEncoder_Encode(t *testing.T) {
 	}
 
 	// Check that the encoded bytes match what's expected.
-	exp := []byte{0x10, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 4, 5, 6}
+	exp := []byte{0x10, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 4, 5, 6}
 	if v := buf.Bytes(); !bytes.Equal(exp, v) {
 		t.Fatalf("value:\n\nexp: %x\n\ngot: %x\n\n", exp, v)
 	}
@@ -43,7 +99,7 @@ func TestLogEntryEncoder_Encode(t *testing.T) {
 
 // Ensure that log entries can be decoded from a reader.
 func TestLogEntryDecoder_Decode(t *testing.T) {
-	buf := bytes.NewBuffer([]byte{0x10, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 4, 5, 6})
+	buf := bytes.NewBuffer([]byte{0x10, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 4, 5, 6})
 
 	// Create a blank entry and an expected result.
 	entry := &raft.LogEntry{}
@@ -162,7 +218,6 @@ func benchmarkLogEntryDecoderDecode(b *testing.B, sz int) {
 // TestLog wraps the raft.Log to provide helper test functions.
 type TestLog struct {
 	*raft.Log
-	Time *raft.MockTime
 }
 
 // NewTestLog returns a new, opened instance of TestLog.
@@ -175,15 +230,13 @@ func NewTestLog() *TestLog {
 }
 
 // NewUnopenedTestLog returns a new, unopened instance of TestLog.
-// The log uses mock time by default.
+// The log uses mock clock by default.
 func NewUnopenedTestLog() *TestLog {
-	l := &TestLog{Log: &raft.Log{}, Time: &raft.MockTime{}}
-
-	// Use a mock time implementation on the log.
-	// Set the start time to 1970-01-01T00:00:00Z.
-	l.Log.SetTime(l.Time)
-	l.Time.SetNow(time.Unix(0, 0).UTC())
-
+	l := &TestLog{
+		Log: &raft.Log{
+			Clock: clock.NewMockClock(),
+		},
+	}
 	return l
 }
 
@@ -192,3 +245,10 @@ func (t *TestLog) Close() error {
 	defer os.RemoveAll(t.Path())
 	return t.Log.Close()
 }
+
+// BufferCloser represents a bytes.Buffer that provides a no-op close.
+type BufferCloser struct {
+	*bytes.Buffer
+}
+
+func (b *BufferCloser) Close() error { return nil }
