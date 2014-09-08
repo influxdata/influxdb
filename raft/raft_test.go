@@ -66,6 +66,53 @@ func Test_Simulate_SingleNode(t *testing.T) {
 	}
 }
 
+// Ensure that a cluster of multiple nodes can maintain consensus.
+func Test_Simulate_MultiNode(t *testing.T) {
+	f := func(commands [][]byte) bool {
+		var fsm TestFSM
+		l := &raft.Log{
+			FSM:   &fsm,
+			Clock: clock.NewMockClock(),
+			Rand:  nopRand,
+		}
+		l.URL, _ = url.Parse("//node")
+		if err := l.Open(tempfile()); err != nil {
+			log.Fatal("open: ", err)
+		}
+		defer os.RemoveAll(l.Path())
+		defer l.Close()
+
+		// HACK(benbjohnson): Initialize instead.
+		if err := l.Initialize(); err != nil {
+			t.Fatalf("initialize: %s", err)
+		}
+
+		// Execute a series of commands.
+		for _, command := range commands {
+			if err := l.Apply(command); err != nil {
+				t.Fatalf("apply: %s", err)
+			}
+		}
+
+		// Verify the configuration is set.
+		if fsm.config != `{"clusterID":"00000000","peers":["//node"]}` {
+			t.Fatalf("unexpected config: %s", fsm.config)
+		}
+
+		// Verify the commands were executed against the FSM, in order.
+		for i, command := range commands {
+			if b := fsm.commands[i]; !bytes.Equal(command, b) {
+				t.Fatalf("%d. command:\n\nexp: %x\n\n got:%x\n\n", i, command, b)
+			}
+		}
+
+		return true
+	}
+	if err := quick.Check(f, nil); err != nil {
+		t.Error(err)
+	}
+}
+
 // TestFSM represents a fake state machine that simple records all commands.
 type TestFSM struct {
 	config   string

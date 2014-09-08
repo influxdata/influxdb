@@ -1,8 +1,9 @@
 package raft
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -19,8 +20,9 @@ func init() {
 // Transport represents a handler for connecting the log to another node.
 // It uses URLs to direct requests over different protocols.
 type Transport interface {
-	AppendEntries(*url.URL, *AppendEntriesRequest) (term int64, err error)
-	RequestVote(*url.URL, *VoteRequest) (term int64, err error)
+	Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (uint64, uint64, error)
+	ReadFrom(u *url.URL, term, index uint64) (io.Reader, error)
+	RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error)
 }
 
 // DefaultTransport provides support for HTTP and TCP protocols.
@@ -42,18 +44,26 @@ func (mux *TransportMux) Handle(scheme string, t Transport) {
 	mux.m[scheme] = t
 }
 
-// AppendEntries sends a list of entries to a follower.
-func (mux *TransportMux) AppendEntries(u *url.URL, r *AppendEntriesRequest) (int64, error) {
+// Heartbeat checks the status of a follower.
+func (mux *TransportMux) Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (uint64, uint64, error) {
 	if t, ok := mux.m[u.Scheme]; ok {
-		return t.AppendEntries(u, r)
+		return t.Heartbeat(u, term, commitIndex, leaderID)
 	}
-	return 0, fmt.Errorf("transport scheme not supported: %s", u.Scheme)
+	return 0, 0, fmt.Errorf("transport scheme not supported: %s", u.Scheme)
+}
+
+// ReadFrom streams the log from a leader.
+func (mux *TransportMux) ReadFrom(u *url.URL, term, index uint64) (io.Reader, error) {
+	if t, ok := mux.m[u.Scheme]; ok {
+		return t.ReadFrom(u, term, index)
+	}
+	return nil, fmt.Errorf("transport scheme not supported: %s", u.Scheme)
 }
 
 // RequestVote requests a vote for a candidate in a given term.
-func (mux *TransportMux) RequestVote(u *url.URL, r *VoteRequest) (int64, error) {
+func (mux *TransportMux) RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
 	if t, ok := mux.m[u.Scheme]; ok {
-		return t.RequestVote(u, r)
+		return t.RequestVote(u, term, candidateID, lastLogIndex, lastLogTerm)
 	}
 	return 0, fmt.Errorf("transport scheme not supported: %s", u.Scheme)
 }
@@ -61,59 +71,107 @@ func (mux *TransportMux) RequestVote(u *url.URL, r *VoteRequest) (int64, error) 
 // HTTPTransport represents a transport for sending RPCs over the HTTP protocol.
 type HTTPTransport struct{}
 
-// AppendEntries sends a list of entries to a follower.
-func (t *HTTPTransport) AppendEntries(uri *url.URL, r *AppendEntriesRequest) (int64, error) {
-	// Copy URL and append path.
-	u := uri
-	u.Path = path.Join(u.Path, "append_entries")
+// Heartbeat checks the status of a follower.
+func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint64) (uint64, uint64, error) {
+	// Construct URL.
+	u := *uri
+	u.Path = path.Join(u.Path, "heartbeat")
 
-	// Create log entry encoder.
-	var buf bytes.Buffer
-	enc := NewLogEntryEncoder(&buf)
+	// Set URL parameters.
+	v := &url.Values{}
+	v.Set("term", strconv.FormatUint(term, 10))
+	v.Set("commitIndex", strconv.FormatUint(commitIndex, 10))
+	v.Set("leaderID", strconv.FormatUint(leaderID, 10))
+	u.RawQuery = v.Encode()
 
-	// Create an HTTP request.
-	req, err := http.NewRequest("POST", u.String(), &buf)
+	// Send HTTP request.
+	resp, err := http.Get(u.String())
 	if err != nil {
-		return 0, err
+		return 0, 0, err
+	}
+	_ = resp.Body.Close()
+
+	// Parse returned index.
+	newIndexString := resp.Header.Get("X-Raft-Index")
+	newIndex, err := strconv.ParseUint(newIndexString, 10, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid index: %q", newIndexString)
 	}
 
-	// Set headers.
-	req.Header = http.Header{
-		"X-Raft-Term":         {strconv.FormatInt(r.Term, 10)},
-		"X-Raft-LeaderID":     {strconv.FormatInt(r.LeaderID, 10)},
-		"X-Raft-PrevLogIndex": {strconv.FormatInt(r.PrevLogIndex, 10)},
-		"X-Raft-PrevLogTerm":  {strconv.FormatInt(r.PrevLogTerm, 10)},
+	// Parse returned term.
+	newTermString := resp.Header.Get("X-Raft-Term")
+	newTerm, err := strconv.ParseUint(newTermString, 10, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid term: %q", newTermString)
 	}
 
-	// Write log entries.
-	for _, e := range r.Entries {
-		if err := enc.Encode(e); err != nil {
-			return 0, err
-		}
+	// Parse returned error.
+	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+		return newIndex, newTerm, errors.New(s)
 	}
 
-	return 0, nil // TODO(benbjohnson)
+	return newIndex, newTerm, nil
+}
+
+// ReadFrom streams the log from a leader.
+func (t *HTTPTransport) ReadFrom(uri *url.URL, term, index uint64) (io.Reader, error) {
+	// Construct URL.
+	u := *uri
+	u.Path = path.Join(u.Path, "stream")
+
+	// Set URL parameters.
+	v := &url.Values{}
+	v.Set("term", strconv.FormatUint(term, 10))
+	v.Set("index", strconv.FormatUint(index, 10))
+	u.RawQuery = v.Encode()
+
+	// Send HTTP request.
+	resp, err := http.Get(u.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse returned error.
+	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+		_ = resp.Body.Close()
+		return nil, errors.New(s)
+	}
+
+	return resp.Body, nil
 }
 
 // RequestVote requests a vote for a candidate in a given term.
-func (t *HTTPTransport) RequestVote(u *url.URL, r *VoteRequest) (int64, error) {
-	return 0, nil // TODO(benbjohnson)
-}
+func (t *HTTPTransport) RequestVote(uri *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+	// Construct URL.
+	u := *uri
+	u.Path = path.Join(u.Path, "vote")
 
-// AppendEntriesRequest represents the arguments for an AppendEntries RPC.
-type AppendEntriesRequest struct {
-	Term         int64
-	LeaderID     int64
-	PrevLogIndex int64
-	PrevLogTerm  int64
-	Entries      []*LogEntry
-	LeaderCommit int64
-}
+	// Set URL parameters.
+	v := &url.Values{}
+	v.Set("term", strconv.FormatUint(term, 10))
+	v.Set("candidateID", strconv.FormatUint(candidateID, 10))
+	v.Set("lastLogIndex", strconv.FormatUint(lastLogIndex, 10))
+	v.Set("lastLogTerm", strconv.FormatUint(lastLogTerm, 10))
+	u.RawQuery = v.Encode()
 
-// VoteRequest represents the arguments for a RequestVote RPC.
-type VoteRequest struct {
-	Term         int64
-	CandidateID  int64
-	LastLogIndex int64
-	LastLogTerm  int64
+	// Send HTTP request.
+	resp, err := http.Get(u.String())
+	if err != nil {
+		return 0, err
+	}
+	_ = resp.Body.Close()
+
+	// Parse returned term.
+	newTermString := resp.Header.Get("X-Raft-Term")
+	newTerm, err := strconv.ParseUint(newTermString, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid term: %q", newTermString)
+	}
+
+	// Parse returned error.
+	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+		return newTerm, errors.New(s)
+	}
+
+	return newTerm, nil
 }
