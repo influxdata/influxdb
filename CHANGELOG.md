@@ -6,6 +6,16 @@
   a meaningful error if an invalid column is used in where clause
   after joining multiple series
 
+## v0.8.2 [2014-09-08]
+
+### Features
+
+- Added API endpoint to update shard space definitions
+
+### Bugfixes
+
+- [Issue #886](https://github.com/influxdb/influxdb/issues/886). Shard space regexes reset after restart of InfluxDB
+
 ## v0.8.1 [2014-09-03]
 
 - [Issue #896](https://github.com/influxdb/influxdb/issues/896). Allow logging to syslog. Thanks @malthe
