@@ -23,73 +23,88 @@ type log struct {
 	cachedSuffix           uint32
 }
 
-func newLog(file *os.File, config *configuration.Configuration) (*log, error) {
-	info, err := file.Stat()
+func newLog(logFileName string, config *configuration.Configuration) (*log, error) {
+	size, err := checkAndRepairLogFile(logFileName)
 	if err != nil {
 		return nil, err
 	}
-
-	size := uint64(info.Size())
-	suffixString := strings.TrimLeft(path.Base(file.Name()), "log.")
+	suffixString := strings.TrimLeft(path.Base(logFileName), "log.")
 	suffix, err := strconv.ParseUint(suffixString, 10, 32)
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("Opening log file %s", logFileName)
+	file, err := os.OpenFile(logFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, err
+	}
 
-	l := &log{
+	return &log{
 		file:         file,
 		fileSize:     size,
 		closed:       false,
 		config:       config,
 		cachedSuffix: uint32(suffix),
-	}
-
-	return l, l.check()
+	}, nil
 }
 
-func (self *log) check() error {
-	file, err := self.dupLogFile()
-	if err != nil {
-		return err
+func getNextHeaderFromFile(file *os.File) (int, *entryHeader, error) {
+	hdr := &entryHeader{}
+	numberOfBytes, err := hdr.Read(file)
+	if err == io.EOF {
+		return 0, nil, nil
 	}
-	info, err := file.Stat()
+	return numberOfBytes, hdr, err
+}
+
+func checkAndRepairLogFile(logFileName string) (uint64, error) {
+	info, err := os.Stat(logFileName)
 	if err != nil {
-		return err
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
 	}
 	size := info.Size()
+	if size == 0 {
+		return 0, nil
+	}
+	file, err := os.OpenFile(logFileName, os.O_RDWR, 0)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
 	offset, err := file.Seek(0, os.SEEK_SET)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	for {
-		n, hdr, err := self.getNextHeader(file)
+		n, hdr, err := getNextHeaderFromFile(file)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if n == 0 || hdr.length == 0 {
-			logger.Warn("%s was truncated to %d since the file has a zero size request", self.file.Name(), offset)
-			return self.file.Truncate(offset)
+			logger.Warn("%s was truncated to %d:%d since the file has a zero size request", logFileName, size, offset)
+			return uint64(offset), file.Truncate(offset)
 		}
 		if offset+int64(n)+int64(hdr.length) > size {
 			// file is incomplete, truncate
-			logger.Warn("%s was truncated to %d since the file ends prematurely", self.file.Name(), offset)
-			return self.file.Truncate(offset)
+			logger.Warn("%s was truncated to %d since the file ends prematurely", logFileName, offset)
+			return uint64(offset), file.Truncate(offset)
 		}
 		bytes := make([]byte, hdr.length)
 		_, err = file.Read(bytes)
 		if err != nil {
-			return err
+			return 0, err
 		}
-
 		// this request is invalid truncate file
 		req := &protocol.Request{}
 		err = req.Decode(bytes)
 		if err != nil {
-			logger.Warn("%s was truncated to %d since the end of the file contains invalid data", self.file.Name(), offset)
+			logger.Warn("%s was truncated to %d since the end of the file contains invalid data", logFileName, offset)
 			// truncate file and return
-			return self.file.Truncate(offset)
+			return uint64(offset), file.Truncate(offset)
 		}
-
 		offset += int64(n) + int64(hdr.length)
 	}
 }
@@ -183,15 +198,6 @@ func (self *log) dupAndReplayFromOffset(shardIds []uint32, offset int64, rn uint
 	return replayChan, stopChan
 }
 
-func (self *log) getNextHeader(file *os.File) (int, *entryHeader, error) {
-	hdr := &entryHeader{}
-	numberOfBytes, err := hdr.Read(file)
-	if err == io.EOF {
-		return 0, nil, nil
-	}
-	return numberOfBytes, hdr, err
-}
-
 func (self *log) skip(file *os.File, offset int64, rn uint32) error {
 	if offset == -1 {
 		_, err := file.Seek(0, os.SEEK_SET)
@@ -212,7 +218,7 @@ func (self *log) skipRequest(file *os.File, hdr *entryHeader) (err error) {
 
 func (self *log) skipToRequest(file *os.File, requestNumber uint32) error {
 	for {
-		n, hdr, err := self.getNextHeader(file)
+		n, hdr, err := getNextHeaderFromFile(file)
 		if n == 0 {
 			// EOF
 			return nil
@@ -246,7 +252,7 @@ func (self *log) replayFromFileLocation(file *os.File,
 
 	defer func() { close(replayChan) }()
 	for {
-		numberOfBytes, hdr, err := self.getNextHeader(file)
+		numberOfBytes, hdr, err := getNextHeaderFromFile(file)
 		if numberOfBytes == 0 {
 			break
 		}
