@@ -639,6 +639,23 @@ func (self *ApiSuite) TestCreateDatabase(c *C) {
 	c.Assert(self.coordinator.db, Equals, "foo")
 }
 
+func (self *ApiSuite) TestCreateDatabaseNameFailures(c *C) {
+	data := map[string]string{
+		`{"name": ""}`: "Unable to create database without name",
+		`{}`:           "Unable to create database without name",
+		`{"not_name": "bar"}`: "Unable to create database without name",
+		`{"name": "    "}`:    "Unable to create database without name"}
+	for k, v := range data {
+		addr := self.formatUrl("/db?u=root&p=root")
+		resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(k))
+		c.Assert(err, IsNil)
+		m, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, IsNil)
+		c.Assert(v, Equals, string(m))
+		c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
+	}
+}
+
 func (self *ApiSuite) TestDropDatabase(c *C) {
 	addr := self.formatUrl("/db/foo?u=root&p=root")
 	req, err := libhttp.NewRequest("DELETE", addr, nil)

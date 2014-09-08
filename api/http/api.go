@@ -433,6 +433,11 @@ func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Requ
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
+		if strings.Replace(createRequest.Name, " ", "", -1) == "" {
+			m := "Unable to create database without name"
+			log.Error(m)
+			return libhttp.StatusBadRequest, m
+		}
 		err = self.coordinator.CreateDatabase(user, createRequest.Name)
 		if err != nil {
 			log.Error("Cannot create database %s. Error: %s", createRequest.Name, err)
