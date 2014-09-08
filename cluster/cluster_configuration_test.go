@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"fmt"
+
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/metastore"
 	. "launchpad.net/gocheck"
