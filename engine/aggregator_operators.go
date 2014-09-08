@@ -582,7 +582,7 @@ func (self *HistogramAggregator) AggregatePoint(state interface{}, p *protocol.P
 		value = *ptr
 	}
 
-	bucket := int(math.Floor((value - self.bucketStart)/ self.bucketSize))
+	bucket := int(math.Floor((value - self.bucketStart) / self.bucketSize))
 	if self.bucketStopIdx >= 0 {
 		if bucket <= self.bucketStopIdx {
 			buckets[bucket] += 1
@@ -602,7 +602,7 @@ func (self *HistogramAggregator) GetValues(state interface{}) [][]*protocol.Fiel
 	returnValues := [][]*protocol.FieldValue{}
 	buckets := state.(HistogramAggregatorState)
 	for bucket, size := range buckets {
-		_bucket := float64(bucket) * self.bucketSize + self.bucketStart
+		_bucket := float64(bucket)*self.bucketSize + self.bucketStart
 		_size := int64(size)
 
 		if self.explicitBucketStart && _bucket < self.bucketStart {
@@ -617,8 +617,8 @@ func (self *HistogramAggregator) GetValues(state interface{}) [][]*protocol.Fiel
 
 	if self.bucketStopIdx >= 0 {
 		for i := 0; i <= self.bucketStopIdx; i++ {
-			if _, ok := buckets[i]; ! ok {
-				_bucket := float64(i) * self.bucketSize + self.bucketStart
+			if _, ok := buckets[i]; !ok {
+				_bucket := float64(i)*self.bucketSize + self.bucketStart
 				_size := int64(0)
 
 				returnValues = append(returnValues, []*protocol.FieldValue{
@@ -691,7 +691,6 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 		}
 	}
 
-
 	columnNames := []string{"bucket_start", "count"}
 	if v.Alias != "" {
 		columnNames[0] = fmt.Sprintf("%s_bucket_start", v.Alias)
@@ -702,11 +701,11 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
 		},
-		bucketSize:    bucketSize,
-		bucketStart:   bucketStart,
-		explicitBucketStart:   explicitBucketStart,
-		bucketStopIdx: bucketStopIdx,
-		columnNames:   columnNames,
+		bucketSize:          bucketSize,
+		bucketStart:         bucketStart,
+		explicitBucketStart: explicitBucketStart,
+		bucketStopIdx:       bucketStopIdx,
+		columnNames:         columnNames,
 	}, nil
 }
 
