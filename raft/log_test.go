@@ -3,12 +3,12 @@ package raft_test
 import (
 	"bytes"
 	"log"
+	"net/url"
 	"os"
 	"reflect"
 	"runtime"
 	"testing"
 	"testing/quick"
-	"time"
 
 	"github.com/benbjohnson/clock"
 	"github.com/influxdb/influxdb/raft"
@@ -26,57 +26,6 @@ func TestLog_Open(t *testing.T) {
 		t.Fatal("close: ", err)
 	} else if l.Opened() {
 		t.Fatal("expected log to be closed")
-	}
-}
-
-// Ensure that a log can read entries from a stream.
-func TestLog_ReadWrite(t *testing.T) {
-	l := NewTestLog()
-	defer l.Close()
-
-	// Entries to write.
-	entries := []*raft.LogEntry{
-		&raft.LogEntry{Index: 1, Term: 1, Data: []byte{0}},
-		&raft.LogEntry{Index: 2, Term: 1, Data: []byte{1}},
-	}
-
-	// Create reader.
-	var w bytes.Buffer
-	enc := raft.NewLogEntryEncoder(&w)
-	for _, e := range entries {
-		if err := enc.Encode(e); err != nil {
-			t.Fatal("encode: ", err)
-		}
-	}
-
-	// Consume from the reader.
-	if err := l.ReadFrom(&BufferCloser{&w}); err != nil {
-		t.Fatal("read from: ", err)
-	}
-
-	// Force an election.
-	if err := l.Elect(); err != nil {
-		t.Fatal("elect: ", err)
-	}
-
-	// Read entries back out of the log.
-	var r bytes.Buffer
-	go func() {
-		if err := l.WriteTo(&BufferCloser{&r}, 0, 0); err != nil {
-			t.Fatal("write to: ", err)
-		}
-	}()
-	time.Sleep(10 * time.Millisecond) // HACK(benbjohnson)
-
-	// Verify entries.
-	dec := raft.NewLogEntryDecoder(&r)
-	for _, exp := range entries {
-		var e raft.LogEntry
-		if err := dec.Decode(&e); err != nil {
-			t.Fatal("decode(0): ", err)
-		} else if !reflect.DeepEqual(exp, &e) {
-			t.Fatalf("entry:\n\nexp: %#v\n\ngot: %#v\n\n", exp, &e)
-		}
 	}
 }
 
@@ -224,7 +173,10 @@ type TestLog struct {
 func NewTestLog() *TestLog {
 	l := NewUnopenedTestLog()
 	if err := l.Open(tempfile()); err != nil {
-		log.Fatal("open: ", err)
+		log.Fatalf("open: %s", err)
+	}
+	if err := l.Initialize(); err != nil {
+		log.Fatalf("initialize: %s", err)
 	}
 	return l
 }
@@ -234,9 +186,12 @@ func NewTestLog() *TestLog {
 func NewUnopenedTestLog() *TestLog {
 	l := &TestLog{
 		Log: &raft.Log{
+			FSM:   &TestFSM{},
 			Clock: clock.NewMockClock(),
+			Rand:  nopRand,
 		},
 	}
+	l.URL, _ = url.Parse("//node")
 	return l
 }
 
@@ -252,3 +207,6 @@ type BufferCloser struct {
 }
 
 func (b *BufferCloser) Close() error { return nil }
+
+// nopRand implements the raft.Log.Rand interface but does nothing.
+func nopRand(b []byte) (int, error) { return len(b), nil }

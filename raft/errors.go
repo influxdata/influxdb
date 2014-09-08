@@ -9,6 +9,12 @@ var (
 	// ErrAlreadyOpen is returned when opening a log that is already open.
 	ErrAlreadyOpen = errors.New("log already open")
 
+	// ErrURLRequired is returned when opening a log without a URL set.
+	ErrURLRequired = errors.New("url required")
+
+	// ErrLogExists is returned when initializing an already existing log.
+	ErrLogExists = errors.New("log exists")
+
 	// ErrNotLeader is returned performing leader operations on a non-leader.
 	ErrNotLeader = errors.New("not leader")
 
