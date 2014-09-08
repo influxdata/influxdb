@@ -44,8 +44,8 @@ func NewShardSpace(database, name string) *ShardSpace {
 }
 
 func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration, checkForDb bool) error {
-	if err := clusterConfig.DoesShardSpaceExist(s); err != nil {
-		return err
+	if clusterConfig.ShardSpaceExists(s) {
+		return fmt.Errorf("Shard space %s exists for db %s", s.Name, s.Database)
 	}
 	if checkForDb {
 		if !clusterConfig.DatabaseExists(s.Database) {
@@ -59,15 +59,7 @@ func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration, checkForDb bo
 	if s.Regex == "" {
 		return fmt.Errorf("A regex is required for a shard space")
 	}
-	reg := s.Regex
-	if strings.HasPrefix(reg, "/") {
-		if strings.HasSuffix(reg, "/i") {
-			reg = fmt.Sprintf("(?i)%s", reg[1:len(reg)-2])
-		} else {
-			reg = reg[1 : len(reg)-1]
-		}
-	}
-	r, err := regexp.Compile(reg)
+	r, err := s.compileRegex(s.Regex)
 	if err != nil {
 		return fmt.Errorf("Error parsing regex: %s", err)
 	}
@@ -91,6 +83,17 @@ func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration, checkForDb bo
 	return nil
 }
 
+func (s *ShardSpace) compileRegex(reg string) (*regexp.Regexp, error) {
+	if strings.HasPrefix(reg, "/") {
+		if strings.HasSuffix(reg, "/i") {
+			reg = fmt.Sprintf("(?i)%s", reg[1:len(reg)-2])
+		} else {
+			reg = reg[1 : len(reg)-1]
+		}
+	}
+	return regexp.Compile(reg)
+}
+
 func (s *ShardSpace) SetDefaults() {
 	r, _ := regexp.Compile(".*")
 	s.compiledRegex = r
@@ -103,7 +106,7 @@ func (s *ShardSpace) SetDefaults() {
 
 func (s *ShardSpace) MatchesSeries(name string) bool {
 	if s.compiledRegex == nil {
-		s.SetDefaults()
+		s.compiledRegex, _ = s.compileRegex(s.Regex)
 	}
 	return s.compiledRegex.MatchString(name)
 }
@@ -128,4 +131,18 @@ func (s *ShardSpace) ParsedShardDuration() time.Duration {
 		return time.Duration(d)
 	}
 	return DEFAULT_SHARD_DURATION
+}
+
+func (s *ShardSpace) UpdateFromSpace(space *ShardSpace) error {
+	r, err := s.compileRegex(space.Regex)
+	if err != nil {
+		return err
+	}
+	s.Regex = space.Regex
+	s.compiledRegex = r
+	s.RetentionPolicy = space.RetentionPolicy
+	s.ShardDuration = space.ShardDuration
+	s.ReplicationFactor = space.ReplicationFactor
+	s.Split = space.Split
+	return nil
 }
