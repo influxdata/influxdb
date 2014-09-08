@@ -149,17 +149,17 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint("get", "/interfaces", self.listInterfaces)
 
 	// cluster config endpoints
-	self.registerEndpoint(p, "get", "/cluster/configuration", self.getClusterConfiguration)
-	self.registerEndpoint(p, "get", "/cluster/servers", self.listServers)
-	self.registerEndpoint(p, "del", "/cluster/servers/:id", self.removeServers)
-	self.registerEndpoint(p, "post", "/cluster/shards", self.createShard)
-	self.registerEndpoint(p, "get", "/cluster/shards", self.getShards)
-	self.registerEndpoint(p, "del", "/cluster/shards/:id", self.dropShard)
-	self.registerEndpoint(p, "get", "/cluster/shard_spaces", self.getShardSpaces)
-	self.registerEndpoint(p, "post", "/cluster/shard_spaces/:db", self.createShardSpace)
-	self.registerEndpoint(p, "del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
-	self.registerEndpoint(p, "post", "/cluster/shard_spaces/:db/:name", self.updateShardSpace)
-	self.registerEndpoint(p, "post", "/cluster/database_configs/:db", self.configureDatabase)
+	self.registerEndpoint("get", "/cluster/configuration", self.getClusterConfiguration)
+	self.registerEndpoint("get", "/cluster/servers", self.listServers)
+	self.registerEndpoint("del", "/cluster/servers/:id", self.removeServers)
+	self.registerEndpoint("post", "/cluster/shards", self.createShard)
+	self.registerEndpoint("get", "/cluster/shards", self.getShards)
+	self.registerEndpoint("del", "/cluster/shards/:id", self.dropShard)
+	self.registerEndpoint("get", "/cluster/shard_spaces", self.getShardSpaces)
+	self.registerEndpoint("post", "/cluster/shard_spaces/:db", self.createShardSpace)
+	self.registerEndpoint("del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
+	self.registerEndpoint("post", "/cluster/shard_spaces/:db/:name", self.updateShardSpace)
+	self.registerEndpoint("post", "/cluster/database_configs/:db", self.configureDatabase)
 
 	// return whether the cluster is in sync or not
 	self.registerEndpoint("get", "/sync", self.isInSync)
