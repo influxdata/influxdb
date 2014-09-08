@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 	"regexp"
 	"sync"
 	"time"
@@ -66,7 +65,7 @@ func (self *Shard) Write(database string, series []*protocol.Series) error {
 				var err error
 
 				binary.Write(keyBuffer, binary.BigEndian, &id)
-				timestamp := self.convertTimestampToUint(point.GetTimestampInMicroseconds())
+				timestamp := convertTimestampToUint(*point.GetTimestampInMicroseconds())
 				// pass the uint64 by reference so binary.Write() doesn't create a new buffer
 				// see the source code for intDataSize() in binary.go
 				binary.Write(keyBuffer, binary.BigEndian, &timestamp)
@@ -145,8 +144,8 @@ func (self *Shard) IsClosed() bool {
 }
 
 func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor engine.Processor) error {
-	startTimeBytes := self.byteArrayForTime(querySpec.GetStartTime())
-	endTimeBytes := self.byteArrayForTime(querySpec.GetEndTime())
+	startTimeBytes := byteArrayForTime(querySpec.GetStartTime())
+	endTimeBytes := byteArrayForTime(querySpec.GetEndTime())
 
 	fields, err := self.getFieldsForSeries(querySpec.Database(), seriesName, columns)
 	if err != nil {
@@ -154,8 +153,6 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 		return err
 	}
 
-	fieldCount := len(fields)
-	rawColumnValues := make([]rawColumnValue, fieldCount, fieldCount)
 	query := querySpec.SelectQuery()
 
 	aliases := query.GetTableAliases(seriesName)
@@ -173,117 +170,13 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 	}
 
 	fieldNames, iterators := self.getIterators(fields, startTimeBytes, endTimeBytes, query.Ascending)
-	defer func() {
-		for _, it := range iterators {
-			it.Close()
-		}
-	}()
-
 	seriesOutgoing := &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
+	pi := NewPointIterator(iterators, fields, querySpec.GetStartTime(), querySpec.GetEndTime(), query.Ascending)
+	defer pi.Close()
 
-	// TODO: clean up, this is super gnarly
-	// optimize for the case where we're pulling back only a single column or aggregate
-	buffer := bytes.NewBuffer(nil)
-	valueBuffer := proto.NewBuffer(nil)
-	for {
-		isValid := false
-		point := &protocol.Point{Values: make([]*protocol.FieldValue, fieldCount, fieldCount)}
-
-		for i, it := range iterators {
-			if rawColumnValues[i].value != nil || !it.Valid() {
-				if err := it.Error(); err != nil {
-					return err
-				}
-				continue
-			}
-
-			key := it.Key()
-			if len(key) < 16 {
-				continue
-			}
-
-			if !isPointInRange(fields[i].IdAsBytes(), startTimeBytes, endTimeBytes, key) {
-				continue
-			}
-
-			value := it.Value()
-			sequenceNumber := key[16:]
-
-			rawTime := key[8:16]
-			rawColumnValues[i] = rawColumnValue{time: rawTime, sequence: sequenceNumber, value: value}
-		}
-
-		var pointTimeRaw []byte
-		var pointSequenceRaw []byte
-		// choose the highest (or lowest in case of ascending queries) timestamp
-		// and sequence number. that will become the timestamp and sequence of
-		// the next point.
-		for _, value := range rawColumnValues {
-			if value.value == nil {
-				continue
-			}
-
-			pointTimeRaw, pointSequenceRaw = value.updatePointTimeAndSequence(pointTimeRaw,
-				pointSequenceRaw, query.Ascending)
-		}
-
-		for i, iterator := range iterators {
-			// if the value is nil or doesn't match the point's timestamp and sequence number
-			// then skip it
-			if rawColumnValues[i].value == nil ||
-				!bytes.Equal(rawColumnValues[i].time, pointTimeRaw) ||
-				!bytes.Equal(rawColumnValues[i].sequence, pointSequenceRaw) {
-
-				point.Values[i] = &protocol.FieldValue{IsNull: &TRUE}
-				continue
-			}
-
-			// if we emitted at lease one column, then we should keep
-			// trying to get more points
-			isValid = true
-
-			// advance the iterator to read a new value in the next iteration
-			if query.Ascending {
-				iterator.Next()
-			} else {
-				iterator.Prev()
-			}
-
-			fv := &protocol.FieldValue{}
-			valueBuffer.SetBuf(rawColumnValues[i].value)
-			err := valueBuffer.Unmarshal(fv)
-			if err != nil {
-				log.Error("Error while running query: %s", err)
-				return err
-			}
-			point.Values[i] = fv
-			rawColumnValues[i].value = nil
-		}
-
-		var sequence uint64
-		var t uint64
-
-		// set the point sequence number and timestamp
-		buffer.Reset()
-		buffer.Write(pointSequenceRaw)
-		binary.Read(buffer, binary.BigEndian, &sequence)
-		buffer.Reset()
-		buffer.Write(pointTimeRaw)
-		binary.Read(buffer, binary.BigEndian, &t)
-
-		time := self.convertUintTimestampToInt64(&t)
-		point.SetTimestampInMicroseconds(time)
-		point.SequenceNumber = &sequence
-
-		// stop the loop if we ran out of points
-		if !isValid {
-			break
-		}
-
-		shouldContinue := true
-
-		seriesOutgoing.Points = append(seriesOutgoing.Points, point)
-
+	for pi.Valid() {
+		p := pi.Point()
+		seriesOutgoing.Points = append(seriesOutgoing.Points, p)
 		if len(seriesOutgoing.Points) >= self.pointBatchSize {
 			for _, alias := range aliases {
 				series := &protocol.Series{
@@ -293,7 +186,6 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 				}
 				if ok, err := processor.Yield(series); !ok || err != nil {
 					log.Debug("Stopping processing.")
-					shouldContinue = false
 					if err != nil {
 						log.Error("Error while processing data: %v", err)
 						return err
@@ -303,9 +195,11 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 			seriesOutgoing = &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
 		}
 
-		if !shouldContinue {
-			break
-		}
+		pi.Next()
+	}
+
+	if err := pi.Error(); err != nil {
+		return err
 	}
 
 	//Yield remaining data
@@ -362,7 +256,8 @@ func (self *Shard) DropFields(fields []*metastore.Field) error {
 
 func (self *Shard) byteArrayForTimeInt(time int64) []byte {
 	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&time))
+	uintTime := convertTimestampToUint(time)
+	binary.Write(timeBuffer, binary.BigEndian, &uintTime)
 	bytes := timeBuffer.Bytes()
 	return bytes
 }
@@ -431,26 +326,12 @@ func (self *Shard) hasReadAccess(querySpec *parser.QuerySpec) bool {
 	return true
 }
 
-func (self *Shard) byteArrayForTime(t time.Time) []byte {
-	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-	timeMicro := common.TimeToMicroseconds(t)
-	binary.Write(timeBuffer, binary.BigEndian, self.convertTimestampToUint(&timeMicro))
-	return timeBuffer.Bytes()
-}
-
 func (self *Shard) close() {
 	self.closeLock.Lock()
 	defer self.closeLock.Unlock()
 	self.closed = true
 	self.db.Close()
 	self.db = nil
-}
-
-func (self *Shard) convertTimestampToUint(t *int64) uint64 {
-	if *t < 0 {
-		return uint64(math.MaxInt64 + *t + 1)
-	}
-	return uint64(*t) + uint64(math.MaxInt64) + uint64(1)
 }
 
 func (self *Shard) fetchSinglePoint(querySpec *parser.QuerySpec, series string, fields []*metastore.Field) (*protocol.Series, error) {
@@ -465,7 +346,8 @@ func (self *Shard) fetchSinglePoint(querySpec *parser.QuerySpec, series string, 
 	}
 
 	timeAndSequenceBuffer := bytes.NewBuffer(make([]byte, 0, 16))
-	binary.Write(timeAndSequenceBuffer, binary.BigEndian, self.convertTimestampToUint(&timestamp))
+	uintTime := convertTimestampToUint(timestamp)
+	binary.Write(timeAndSequenceBuffer, binary.BigEndian, &uintTime)
 	binary.Write(timeAndSequenceBuffer, binary.BigEndian, sequenceNumber)
 	sequenceNumber_uint64 := uint64(sequenceNumber)
 	point.SequenceNumber = &sequenceNumber_uint64
@@ -522,13 +404,6 @@ func (self *Shard) getIterators(fields []*metastore.Field, start, end []byte, is
 		}
 	}
 	return
-}
-
-func (self *Shard) convertUintTimestampToInt64(t *uint64) int64 {
-	if *t > uint64(math.MaxInt64) {
-		return int64(*t-math.MaxInt64) - int64(1)
-	}
-	return int64(*t) - math.MaxInt64 - int64(1)
 }
 
 func (self *Shard) getFieldsForSeries(db, series string, columns []string) ([]*metastore.Field, error) {
