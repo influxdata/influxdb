@@ -122,11 +122,7 @@ func (self *CumulativeArithmeticAggregator) ColumnNames() []string {
 
 func (self *CumulativeArithmeticAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	if state == nil {
-		return [][]*protocol.FieldValue{
-			{
-				{DoubleValue: &self.initialValue},
-			},
-		}
+		return [][]*protocol.FieldValue{{self.defaultValue}}
 	}
 
 	return [][]*protocol.FieldValue{
@@ -317,7 +313,7 @@ func (self *StandardDeviationAggregator) ColumnNames() []string {
 func (self *StandardDeviationAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	r, ok := state.(*StandardDeviationRunning)
 	if !ok {
-		return nil
+		return [][]*protocol.FieldValue{{self.defaultValue}}
 	}
 
 	eX := r.totalX / float64(r.count)
@@ -413,8 +409,11 @@ func (self *DerivativeAggregator) ColumnNames() []string {
 
 func (self *DerivativeAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	s, ok := state.(*DerivativeAggregatorState)
+	if !ok {
+		return [][]*protocol.FieldValue{{self.defaultValue}}
+	}
 
-	if !(ok && s.firstValue != nil && s.lastValue != nil) {
+	if s.firstValue == nil || s.lastValue == nil {
 		return nil
 	}
 
@@ -511,9 +510,8 @@ func (self *DifferenceAggregator) ColumnNames() []string {
 
 func (self *DifferenceAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	s, ok := state.(*DifferenceAggregatorState)
-
 	if !(ok && s.firstValue != nil && s.lastValue != nil) {
-		return nil
+		return [][]*protocol.FieldValue{{self.defaultValue}}
 	}
 
 	difference := *s.lastValue.Values[0].DoubleValue - *s.firstValue.Values[0].DoubleValue
@@ -555,8 +553,9 @@ type HistogramAggregatorState map[int]int
 
 type HistogramAggregator struct {
 	AbstractAggregator
-	bucketSize  float64
-	columnNames []string
+	bucketSize   float64
+	columnNames  []string
+	defaultValue *protocol.FieldValue
 }
 
 func (self *HistogramAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
@@ -589,6 +588,14 @@ func (self *HistogramAggregator) ColumnNames() []string {
 
 func (self *HistogramAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
+	if state == nil {
+		_size := int64(0)
+		returnValues = append(returnValues, []*protocol.FieldValue{
+			self.defaultValue,
+			{Int64Value: &_size},
+		})
+		return returnValues
+	}
 	buckets := state.(HistogramAggregatorState)
 	for bucket, size := range buckets {
 		_bucket := float64(bucket) * self.bucketSize
@@ -876,9 +883,7 @@ func (self *PercentileAggregator) ColumnNames() []string {
 func (self *PercentileAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	s, ok := state.(*PercentileAggregatorState)
 	if !ok {
-		return [][]*protocol.FieldValue{
-			{self.defaultValue},
-		}
+		return [][]*protocol.FieldValue{{self.defaultValue}}
 	}
 	return [][]*protocol.FieldValue{
 		{{DoubleValue: &s.percentileValue}},
@@ -985,7 +990,10 @@ func (self *ModeAggregator) ColumnNames() []string {
 }
 
 func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
-	s := state.(*ModeAggregatorState)
+	s, ok := state.(*ModeAggregatorState)
+	if !ok {
+		return [][]*protocol.FieldValue{{self.defaultValue}}
+	}
 
 	counts := make([]int, len(s.counts))
 	countMap := make(map[int][]interface{}, len(s.counts))
@@ -1131,6 +1139,7 @@ func (self *DistinctAggregator) GetValues(state interface{}) [][]*protocol.Field
 	s, ok := state.(*DistinctAggregatorState)
 	if !ok || len(s.counts) == 0 {
 		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
+		return returnValues
 	}
 
 	for value := range s.counts {
@@ -1195,7 +1204,11 @@ func (self *FirstOrLastAggregator) ColumnNames() []string {
 }
 
 func (self *FirstOrLastAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
-	s := state.(FirstOrLastAggregatorState)
+	s, ok := state.(FirstOrLastAggregatorState)
+	if !ok {
+		return [][]*protocol.FieldValue{{self.defaultValue}}
+	}
+
 	return [][]*protocol.FieldValue{
 		{
 			s,
