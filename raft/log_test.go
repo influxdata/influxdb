@@ -2,11 +2,13 @@ package raft_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"net/url"
 	"os"
 	"reflect"
 	"runtime"
+	"sync"
 	"testing"
 	"testing/quick"
 
@@ -188,7 +190,7 @@ func NewUnopenedTestLog() *TestLog {
 		Log: &raft.Log{
 			FSM:   &TestFSM{},
 			Clock: clock.NewMockClock(),
-			Rand:  nopRand,
+			Rand:  seq(),
 		},
 	}
 	l.URL, _ = url.Parse("//node")
@@ -201,6 +203,47 @@ func (t *TestLog) Close() error {
 	return t.Log.Close()
 }
 
+// Ensure that the config can be marshaled and unmarshaled.
+func TestConfig_MarshalJSON(t *testing.T) {
+	tests := []struct {
+		c   *raft.Config
+		out string
+	}{
+		// 0. No nodes.
+		{
+			c:   &raft.Config{ClusterID: 100},
+			out: `{"clusterID":100}`,
+		},
+
+		// 1. One node.
+		{
+			c:   &raft.Config{ClusterID: 100, Nodes: []*raft.Node{&raft.Node{ID: 1, URL: &url.URL{Host: "localhost"}}}},
+			out: `{"clusterID":100,"nodes":[{"id":1,"url":"//localhost"}]}`,
+		},
+
+		// 1. Node without URL.
+		{
+			c:   &raft.Config{ClusterID: 100, Nodes: []*raft.Node{&raft.Node{ID: 1, URL: nil}}},
+			out: `{"clusterID":100,"nodes":[{"id":1}]}`,
+		},
+	}
+	for i, tt := range tests {
+		b, err := json.Marshal(tt.c)
+		if err != nil {
+			t.Fatalf("%d. unexpected marshaling error: %s", i, err)
+		} else if string(b) != tt.out {
+			t.Fatalf("%d. unexpected json: %s", i, b)
+		}
+
+		var config *raft.Config
+		if err := json.Unmarshal(b, &config); err != nil {
+			t.Fatalf("%d. unexpected marshaling error: %s", i, err)
+		} else if !reflect.DeepEqual(tt.c, config) {
+			t.Fatalf("%d. config:\n\nexp: %#v\n\ngot: %#v", i, tt.c, config)
+		}
+	}
+}
+
 // BufferCloser represents a bytes.Buffer that provides a no-op close.
 type BufferCloser struct {
 	*bytes.Buffer
@@ -208,5 +251,16 @@ type BufferCloser struct {
 
 func (b *BufferCloser) Close() error { return nil }
 
-// nopRand implements the raft.Log.Rand interface but does nothing.
-func nopRand(b []byte) (int, error) { return len(b), nil }
+// seq implements the raft.Log#Rand interface and returns incrementing ints.
+func seq() func() int64 {
+	var i int64
+	var mu sync.Mutex
+
+	return func() int64 {
+		mu.Lock()
+		defer mu.Unlock()
+
+		i++
+		return i
+	}
+}
