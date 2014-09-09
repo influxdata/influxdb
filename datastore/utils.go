@@ -1,31 +1,24 @@
 package datastore
 
 import (
-	"bytes"
-	"encoding/binary"
-	"math"
-	"time"
+	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/log4go"
 
-	"github.com/influxdb/influxdb/common"
+	"github.com/influxdb/influxdb/engine"
+	"github.com/influxdb/influxdb/protocol"
 )
 
-func convertTimestampToUint(t int64) uint64 {
-	if t < 0 {
-		return uint64(math.MaxInt64 + t + 1)
+func yieldToProcessor(s *protocol.Series, p engine.Processor, aliases []string) (bool, error) {
+	for _, alias := range aliases {
+		series := &protocol.Series{
+			Name:   proto.String(alias),
+			Fields: s.Fields,
+			Points: s.Points,
+		}
+		log4go.Debug("Yielding to %s %s", p.Name(), series)
+		if ok, err := p.Yield(series); !ok || err != nil {
+			return ok, err
+		}
 	}
-	return uint64(t) + uint64(math.MaxInt64) + uint64(1)
-}
-
-func convertUintTimestampToInt64(t uint64) int64 {
-	if t > uint64(math.MaxInt64) {
-		return int64(t-math.MaxInt64) - int64(1)
-	}
-	return int64(t) - math.MaxInt64 - int64(1)
-}
-
-func byteArrayForTime(t time.Time) []byte {
-	timeBuffer := bytes.NewBuffer(make([]byte, 0, 8))
-	timeMicro := common.TimeToMicroseconds(t)
-	binary.Write(timeBuffer, binary.BigEndian, convertTimestampToUint(timeMicro))
-	return timeBuffer.Bytes()
+	return true, nil
 }

@@ -1,8 +1,6 @@
 package metastore
 
 import (
-	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -30,12 +28,6 @@ type Field struct {
 
 func (f *Field) String() string {
 	return fmt.Sprintf("Name: %s, Id: %d", f.Name, f.Id)
-}
-
-func (f *Field) IdAsBytes() []byte {
-	idBytes := bytes.NewBuffer(make([]byte, 0, 8))
-	binary.Write(idBytes, binary.BigEndian, f.Id)
-	return idBytes.Bytes()
 }
 
 type ClusterConsensus interface {
