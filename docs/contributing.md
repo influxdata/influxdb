@@ -79,10 +79,10 @@ You'll need the following dependencies:
       valgrind g++ make autoconf libtool libz-dev libbz2-dev curl \
       rpm build-essential git
 
-or on Red Had-based distros:
+on Red Hat-based distros:
 
-    sudo yum install hg bzr protobuf-compiler flex bison valgrind g++ \
-      make autoconf libtool zlib-dev bzip2-libs
+    sudo yum install mercurial bzr protobuf-compiler flex bison valgrind \
+      gcc-c++ libstdc++-static make autoconf libtool zlib-dev bzip2-libs
 
 To build run the following:
 
