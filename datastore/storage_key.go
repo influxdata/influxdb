@@ -7,6 +7,8 @@ import (
 	"math"
 	"time"
 
+	"code.google.com/p/log4go"
+
 	"github.com/influxdb/influxdb/common"
 )
 
@@ -47,6 +49,7 @@ func parseKey(b []byte) (storageKey, error) {
 	sk.timestamp = convertUintTimestampToInt64(t)
 	binary.Read(buf, binary.BigEndian, &sk.seq)
 	sk.bytesBuf = b
+	log4go.Debug("Parsed %v to %v", b, sk)
 	return sk, nil
 }
 

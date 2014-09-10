@@ -344,6 +344,7 @@ func (self *Shard) getIterators(fields []*metastore.Field, start, end time.Time,
 
 		tmicro := common.TimeToMicroseconds(t)
 		sk := newStorageKey(field.Id, tmicro, seq)
+		log.Debug("Initializing iterator to %v", sk.bytes())
 		iterators[i].Seek(sk.bytes())
 
 		if !isAscendingQuery && iterators[i].Valid() {
