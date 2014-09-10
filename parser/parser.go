@@ -59,8 +59,9 @@ const (
 )
 
 type ListQuery struct {
-	Type  ListType
-	value *Value
+	Type          ListType
+	value         *Value
+	IncludeSpaces bool
 }
 
 type DropQuery struct {
@@ -621,7 +622,11 @@ func parseSingleQuery(q *C.query) (*Query, error) {
 				return nil, err
 			}
 		}
-		return &Query{ListQuery: &ListQuery{Type: t, value: value}, qType: ListSeries}, nil
+		includeSpaces := false
+		if q.list_series_query.include_spaces != 0 {
+			includeSpaces = true
+		}
+		return &Query{ListQuery: &ListQuery{Type: t, value: value, IncludeSpaces: includeSpaces}, qType: ListSeries}, nil
 	}
 
 	if q.list_continuous_queries_query != 0 {

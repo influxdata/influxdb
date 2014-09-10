@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	influxdb "github.com/influxdb/influxdb/client"
 	. "github.com/influxdb/influxdb/integration/helpers"
@@ -140,6 +141,50 @@ func (self *SingleServerSuite) TestListSeriesRegex(c *C) {
 	c.Assert(s, HasLen, 1)
 	maps := ToMap(s[0])
 	c.Assert(maps, HasLen, 3)
+}
+
+func (self *SingleServerSuite) TestListSeriesWithSpace(c *C) {
+	db := "test_list_series_with_space"
+	client := self.server.GetClient("", c)
+	c.Assert(client.CreateDatabase(db), IsNil)
+	client = self.server.GetClient(db, c)
+	space := &influxdb.ShardSpace{Name: "space1", Regex: "/^space1.*/"}
+	c.Assert(client.CreateShardSpace(db, space), IsNil)
+	space.Name = "space2"
+	space.Regex = "/^space2.*/"
+	c.Assert(client.CreateShardSpace(db, space), IsNil)
+	space.Name = "space3"
+	space.Regex = "/^space3.*/"
+	c.Assert(client.CreateShardSpace(db, space), IsNil)
+
+	user := self.server.GetClientWithUser(db, "root", "root", c)
+	series := make([]*influxdb.Series, 0)
+
+	seriesCount := 50
+	for i := 1; i <= seriesCount; i++ {
+		n := fmt.Sprintf("space%d.%d", i%3+1, i)
+		series = append(series, &influxdb.Series{Name: n, Columns: []string{"val"}, Points: [][]interface{}{{1}}})
+	}
+	c.Assert(user.WriteSeries(series), IsNil)
+
+	s, err := user.Query("list series include spaces")
+	c.Assert(err, IsNil)
+	c.Assert(s, HasLen, 1)
+	points := ToMap(s[0])
+	c.Assert(len(points), Equals, seriesCount)
+	for _, p := range points {
+		name := p["name"].(string)
+		space := p["space"].(string)
+		for _, s := range []string{"space1", "space2", "space3", "unknown"} {
+			if s == "unknown" {
+				c.Errorf("unknown name %s", name)
+			}
+			if strings.HasPrefix(name, s) {
+				c.Assert(space, Equals, s)
+				break
+			}
+		}
+	}
 }
 
 // pr #483
