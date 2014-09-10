@@ -9,6 +9,6 @@ func TimeToMicroseconds(t time.Time) int64 {
 }
 
 func TimeFromMicroseconds(t int64) time.Time {
-	t *= 1000
-	return time.Unix(t/int64(time.Second), t%int64(time.Second))
+	t *= int64(time.Microsecond)
+	return time.Unix(0, t)
 }
