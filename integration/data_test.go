@@ -66,30 +66,26 @@ func (self *DataTestSuite) TestAll(c *C) {
 
 	c.Logf("Running %d data tests", len(names))
 
-	for idx := range setup {
-		c.Logf("Initializing database for %s", names[idx])
-		client.CreateDatabase(fmt.Sprintf("db%d", idx), c)
-	}
-
-	self.server.WaitForServerToSync()
-
-	for idx, s := range setup {
-		client.SetDB(fmt.Sprintf("db%d", idx))
-		c.Logf("Writing data for %s", names[idx])
-		s(client)
-	}
-
-	self.server.WaitForServerToSync()
-
 	// make sure the tests don't use an idle connection, otherwise the
 	// server will close it
 	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 
-	for idx, t := range test {
-		client.SetDB(fmt.Sprintf("db%d", idx))
+	for idx, testFn := range test {
+		c.Logf("Creating database for %s", names[idx])
+		dbname := fmt.Sprintf("db%d", idx)
+		client.CreateDatabase(dbname, c)
+		client.SetDB(dbname)
+
+		c.Logf("Running setup for %s", names[idx])
+		setupFn := setup[idx]
+		setupFn(client)
+
 		c.Logf("Started %s", names[idx])
-		t(client)
+		testFn(client)
 		c.Logf("Finished %s", names[idx])
+
+		c.Logf("Deleting database for %s", names[idx])
+		client.DeleteDatabase(dbname, c)
 	}
 }
 

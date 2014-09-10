@@ -20,6 +20,12 @@ func (self *DataTestClient) CreateDatabase(db string, c *C) {
 	c.Assert(client.CreateDatabase(db), IsNil)
 }
 
+func (self *DataTestClient) DeleteDatabase(db string, c *C) {
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
+	c.Assert(err, IsNil)
+	c.Assert(client.DeleteDatabase(db), IsNil)
+}
+
 func (self *DataTestClient) SetDB(db string) {
 	self.db = db
 }
