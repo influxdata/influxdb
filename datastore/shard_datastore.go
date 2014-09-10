@@ -59,12 +59,6 @@ var (
 	TRUE = true
 )
 
-type rawColumnValue struct {
-	time     []byte
-	sequence []byte
-	value    []byte
-}
-
 func NewShardDatastore(config *configuration.Configuration, metaStore *metastore.Store) (*ShardDatastore, error) {
 	baseDbDir := filepath.Join(config.DataDir, SHARD_DATABASE_DIR)
 	err := os.MkdirAll(baseDbDir, 0744)
@@ -301,36 +295,4 @@ func NewFieldLookupError(message string) *FieldLookupError {
 
 func (self FieldLookupError) Error() string {
 	return self.message
-}
-
-// depending on the query order (whether it's ascending or not) returns
-// the min (or max in case of descending query) of the current
-// [timestamp,sequence] and the self's [timestamp,sequence]
-//
-// This is used to determine what the next point's timestamp
-// and sequence number should be.
-func (self *rawColumnValue) updatePointTimeAndSequence(currentTimeRaw, currentSequenceRaw []byte, isAscendingQuery bool) ([]byte, []byte) {
-	if currentTimeRaw == nil {
-		return self.time, self.sequence
-	}
-
-	compareValue := 1
-	if isAscendingQuery {
-		compareValue = -1
-	}
-
-	timeCompare := bytes.Compare(self.time, currentTimeRaw)
-	if timeCompare == compareValue {
-		return self.time, self.sequence
-	}
-
-	if timeCompare != 0 {
-		return currentTimeRaw, currentSequenceRaw
-	}
-
-	if bytes.Compare(self.sequence, currentSequenceRaw) == compareValue {
-		return currentTimeRaw, self.sequence
-	}
-
-	return currentTimeRaw, currentSequenceRaw
 }
