@@ -106,7 +106,8 @@ func (self *Coordinator) runListContinuousQueries(user common.User, db string, p
 func (self *Coordinator) runListSeriesQuery(querySpec *parser.QuerySpec, p engine.Processor) error {
 	allSeries := self.clusterConfiguration.MetaStore.GetSeriesForDatabase(querySpec.Database())
 	matchingSeries := allSeries
-	if q := querySpec.Query().GetListSeriesQuery(); q.HasRegex() {
+	q := querySpec.Query().GetListSeriesQuery()
+	if q.HasRegex() {
 		matchingSeries = nil
 		regex := q.GetRegex()
 		for _, s := range allSeries {
@@ -117,12 +118,35 @@ func (self *Coordinator) runListSeriesQuery(querySpec *parser.QuerySpec, p engin
 		}
 	}
 	name := "list_series_result"
-	fields := []string{"name"}
-	points := make([]*protocol.Point, len(matchingSeries), len(matchingSeries))
+	var fields []string
+	points := make([]*protocol.Point, len(matchingSeries))
 
-	for i, s := range matchingSeries {
-		fieldValues := []*protocol.FieldValue{{StringValue: proto.String(s)}}
-		points[i] = &protocol.Point{Values: fieldValues}
+	if q.IncludeSpaces {
+		fields = []string{"name", "space"}
+		spaces := self.clusterConfiguration.GetShardSpacesForDatabase(querySpec.Database())
+
+		for i, s := range matchingSeries {
+			spaceName := ""
+			for _, sp := range spaces {
+				if sp.MatchesSeries(s) {
+					spaceName = sp.Name
+					break
+				}
+			}
+			fieldValues := []*protocol.FieldValue{
+				{StringValue: proto.String(s)},
+				{StringValue: proto.String(spaceName)},
+			}
+			points[i] = &protocol.Point{Values: fieldValues}
+		}
+	} else {
+		fields = []string{"name"}
+		for i, s := range matchingSeries {
+			fieldValues := []*protocol.FieldValue{
+				{StringValue: proto.String(s)},
+			}
+			points[i] = &protocol.Point{Values: fieldValues}
+		}
 	}
 
 	seriesResult := &protocol.Series{Name: &name, Fields: fields, Points: points}
