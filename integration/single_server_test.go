@@ -175,15 +175,8 @@ func (self *SingleServerSuite) TestListSeriesWithSpace(c *C) {
 	for _, p := range points {
 		name := p["name"].(string)
 		space := p["space"].(string)
-		for _, s := range []string{"space1", "space2", "space3", "unknown"} {
-			if s == "unknown" {
-				c.Errorf("unknown name %s", name)
-			}
-			if strings.HasPrefix(name, s) {
-				c.Assert(space, Equals, s)
-				break
-			}
-		}
+		expectedSpace := strings.Split(name, ".")[0]
+		c.Assert(expectedSpace, Equals, space)
 	}
 }
 
