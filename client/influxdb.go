@@ -354,7 +354,7 @@ type TimePrecision string
 
 const (
 	Second      TimePrecision = "s"
-	Millisecond TimePrecision = "m"
+	Millisecond TimePrecision = "ms"
 	Microsecond TimePrecision = "u"
 )
 
