@@ -15,7 +15,7 @@ func CreateSeries(prefix string, numOfSeries int) []*influxdb.Series {
 	s := make([]*influxdb.Series, numOfSeries)
 	for i := range s {
 		s[i] = &influxdb.Series{
-			Name:    fmt.Sprintf("series%d", i),
+			Name:    fmt.Sprintf("%s%d", prefix, i),
 			Columns: []string{"column"},
 			Points:  [][]interface{}{{1}},
 		}
