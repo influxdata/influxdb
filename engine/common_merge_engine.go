@@ -4,22 +4,22 @@ import "github.com/influxdb/influxdb/protocol"
 
 type CommonMergeEngine struct {
 	merger  *Merger
-	streams map[string]StreamUpdate
+	streams map[uint32]StreamUpdate
 	next    Processor
 }
 
 // returns a yield function that will sort points from table1 and
 // table2 no matter what the order in which they are received.
-func NewCommonMergeEngine(tables []string, mergeColumns bool, ascending bool, next Processor) *CommonMergeEngine {
+func NewCommonMergeEngine(shards []uint32, mergeColumns bool, ascending bool, next Processor) *CommonMergeEngine {
 	cme := &CommonMergeEngine{
-		streams: make(map[string]StreamUpdate, len(tables)),
+		streams: make(map[uint32]StreamUpdate, len(shards)),
 		next:    next,
 	}
-	streams := make([]StreamQuery, len(tables))
-	for i, t := range tables {
+	streams := make([]StreamQuery, len(shards))
+	for i, sh := range shards {
 		s := NewStream()
 		streams[i] = s
-		cme.streams[t] = s
+		cme.streams[sh] = s
 	}
 	h := &SeriesHeap{Ascending: ascending}
 	cme.merger = NewCME("Engine", streams, h, next, mergeColumns)
@@ -39,7 +39,7 @@ func (cme *CommonMergeEngine) Close() error {
 }
 
 func (cme *CommonMergeEngine) Yield(s *protocol.Series) (bool, error) {
-	stream := cme.streams[*s.Name]
+	stream := cme.streams[s.GetShardId()]
 	stream.Yield(s)
 	return cme.merger.Update()
 }

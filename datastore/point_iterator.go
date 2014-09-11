@@ -30,7 +30,7 @@ type PointIterator struct {
 // there's no need to call Next() after the call to NewPointIterator,
 // but the user should check Valid() to make sure the iterator is
 // pointing at a valid point.
-func NewPointIterator(itrs []storage.Iterator, fields []*metastore.Field, startTime, endTime time.Time, asc bool) PointIterator {
+func NewPointIterator(itrs []storage.Iterator, fields []*metastore.Field, startTime, endTime time.Time, asc bool) *PointIterator {
 	pi := PointIterator{
 		valid:           true,
 		err:             nil,
@@ -44,7 +44,7 @@ func NewPointIterator(itrs []storage.Iterator, fields []*metastore.Field, startT
 
 	// seek to the first point
 	pi.Next()
-	return pi
+	return &pi
 }
 
 // public api

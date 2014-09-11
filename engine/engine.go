@@ -2,7 +2,7 @@ package engine
 
 import "github.com/influxdb/influxdb/parser"
 
-func NewQueryEngine(next Processor, query *parser.SelectQuery) (Processor, error) {
+func NewQueryEngine(next Processor, query *parser.SelectQuery, shards []uint32) (Processor, error) {
 	limit := query.Limit
 
 	var engine Processor = NewPassthroughEngineWithLimit(next, 1, limit)
@@ -18,14 +18,16 @@ func NewQueryEngine(next Processor, query *parser.SelectQuery) (Processor, error
 
 	switch fromClause.Type {
 	case parser.FromClauseInnerJoin:
-		engine = NewJoinEngine(query, engine)
+		engine = NewJoinEngine(shards, query, engine)
 	case parser.FromClauseMerge:
 		tables := make([]string, len(fromClause.Names))
 		for i, name := range fromClause.Names {
 			tables[i] = name.Name.Name
 		}
-		engine = NewMergeEngine(tables, query.Ascending, engine)
+		engine = NewMergeEngine(shards, query.Ascending, engine)
 	case parser.FromClauseMergeFun:
+		// At this point the regex should be expanded to the list of
+		// tables that will be queries
 		panic("QueryEngine cannot be called with merge function")
 	}
 

@@ -7,12 +7,12 @@ type MergeEngine struct {
 	next Processor
 }
 
-func NewMergeEngine(tables []string, ascending bool, next Processor) Processor {
+func NewMergeEngine(shards []uint32, ascending bool, next Processor) Processor {
 	name := "merged"
 
 	me := &MergeEngine{name: name, next: next}
 
-	return NewCommonMergeEngine(tables, true, ascending, me)
+	return NewCommonMergeEngine(shards, true, ascending, me)
 }
 
 func (me *MergeEngine) Yield(s *protocol.Series) (bool, error) {

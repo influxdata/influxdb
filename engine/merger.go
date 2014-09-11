@@ -126,6 +126,15 @@ func (cme *Merger) tryYieldNextPoint() (bool, error) {
 
 // yield as many points as we can to the Processor `n`
 func (cme *Merger) yieldNextPoint() (bool, error) {
+	// If we consumed all the input data points, return
+	// immediately. This can be the case for example if we finished
+	// initialization and the first call to yieldNextPoint() consumed
+	// all the data points. Without this check the call to the heap's
+	// Next() method will cause a panic
+	if cme.size == 0 {
+		return true, nil
+	}
+
 	for {
 		var s *protocol.Series
 		cme.lastStreamIdx, s = cme.h.Next()

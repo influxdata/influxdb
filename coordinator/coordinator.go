@@ -237,7 +237,11 @@ func (self *Coordinator) getShardsAndProcessor(querySpec *parser.QuerySpec, writ
 	if !shouldAggregateLocally {
 		// if we should aggregate in the coordinator (i.e. aggregation
 		// isn't happening locally at the shard level), create an engine
-		writer, err = engine.NewQueryEngine(writer, q)
+		shardIds := make([]uint32, len(shards))
+		for i, s := range shards {
+			shardIds[i] = s.Id()
+		}
+		writer, err = engine.NewQueryEngine(writer, q, shardIds)
 		return shards, writer, err
 	}
 

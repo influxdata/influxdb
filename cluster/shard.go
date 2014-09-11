@@ -238,7 +238,7 @@ func (self *ShardData) getProcessor(querySpec *parser.QuerySpec, processor engin
 	// We should aggregate at the shard level
 	if self.ShouldAggregateLocally(querySpec) {
 		log.Debug("creating a query engine")
-		processor, err = engine.NewQueryEngine(processor, query)
+		processor, err = engine.NewQueryEngine(processor, query, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -299,6 +299,8 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Res
 	if self.IsLocal {
 		var processor engine.Processor = NewResponseChannelProcessor(NewResponseChannelWrapper(response))
 		var err error
+
+		processor = NewShardIdInserterProcessor(self.Id(), processor)
 
 		processor, err = self.getProcessor(querySpec, processor)
 		if err != nil {

@@ -102,11 +102,56 @@ func (self *Shard) Query(querySpec *parser.QuerySpec, processor engine.Processor
 		return self.executeDeleteQuery(querySpec, processor)
 	}
 
-	seriesAndColumns := querySpec.SelectQuery().GetReferencedColumns()
-
 	if !self.hasReadAccess(querySpec) {
 		return errors.New("User does not have access to one or more of the series requested.")
 	}
+
+	switch t := querySpec.SelectQuery().FromClause.Type; t {
+	case parser.FromClauseArray:
+		log.Debug("Shard %s: running a regular query", self.db.Path())
+		return self.executeArrayQuery(querySpec, processor)
+	case parser.FromClauseMerge, parser.FromClauseInnerJoin:
+		log.Debug("Shard %s: running a merge query", self.db.Path())
+		return self.executeMergeQuery(querySpec, processor, t)
+	default:
+		panic(fmt.Errorf("Unknown from clause type %s", t))
+	}
+}
+
+func (self *Shard) IsClosed() bool {
+	return self.closed
+}
+
+func (self *Shard) executeMergeQuery(querySpec *parser.QuerySpec, processor engine.Processor, t parser.FromClauseType) error {
+	seriesAndColumns := querySpec.SelectQuery().GetReferencedColumns()
+	iterators := make([]*PointIterator, len(seriesAndColumns))
+	streams := make([]engine.StreamQuery, len(iterators))
+	i := 0
+	var err error
+	for s, c := range seriesAndColumns {
+		c, iterators[i], err = self.getPointIteratorForSeries(querySpec, s.Name, c)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		streams[i] = PointIteratorStream{
+			pi:     iterators[i],
+			name:   s.Name,
+			fields: c,
+		}
+		i++
+	}
+
+	h := &engine.SeriesHeap{Ascending: querySpec.IsAscending()}
+	merger := engine.NewCME("Shard", streams, h, processor, t == parser.FromClauseMerge)
+	if _, err := merger.Update(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (self *Shard) executeArrayQuery(querySpec *parser.QuerySpec, processor engine.Processor) error {
+	seriesAndColumns := querySpec.SelectQuery().GetReferencedColumns()
 
 	for series, columns := range seriesAndColumns {
 		if regex, ok := series.GetCompiledRegex(); ok {
@@ -127,37 +172,27 @@ func (self *Shard) Query(querySpec *parser.QuerySpec, processor engine.Processor
 			}
 		}
 	}
+
 	return nil
 }
 
-func (self *Shard) IsClosed() bool {
-	return self.closed
-}
-
-func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName string, columns []string, processor engine.Processor) error {
-	fields, err := self.getFieldsForSeries(querySpec.Database(), seriesName, columns)
+func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, name string, columns []string, processor engine.Processor) error {
+	if querySpec.IsSinglePointQuery() {
+		log.Debug("Running single query for series %s", name)
+		return self.executeSinglePointQuery(querySpec, name, columns, processor)
+	}
+	var pi *PointIterator
+	var err error
+	columns, pi, err = self.getPointIteratorForSeries(querySpec, name, columns)
 	if err != nil {
-		log.Error("Error looking up fields for %s: %s", seriesName, err)
 		return err
 	}
-
-	if querySpec.IsSinglePointQuery() {
-		log.Debug("Running single query for series %s, fields %v", seriesName, fields)
-		return self.executeSinglePointQuery(querySpec, seriesName, fields, processor)
-	}
-
-	startTime := querySpec.GetStartTime()
-	endTime := querySpec.GetEndTime()
-
-	query := querySpec.SelectQuery()
-
-	aliases := query.GetTableAliases(seriesName)
-
-	fieldNames, iterators := self.getIterators(fields, startTime, endTime, query.Ascending)
-	seriesOutgoing := &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
-	pi := NewPointIterator(iterators, fields, querySpec.GetStartTime(), querySpec.GetEndTime(), query.Ascending)
 	defer pi.Close()
 
+	query := querySpec.SelectQuery()
+	aliases := query.GetTableAliases(name)
+
+	seriesOutgoing := &protocol.Series{Name: protocol.String(name), Fields: columns, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
 	for pi.Valid() {
 		p := pi.Point()
 		seriesOutgoing.Points = append(seriesOutgoing.Points, p)
@@ -170,7 +205,7 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 					return err
 				}
 			}
-			seriesOutgoing = &protocol.Series{Name: protocol.String(seriesName), Fields: fieldNames, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
+			seriesOutgoing = &protocol.Series{Name: protocol.String(name), Fields: columns, Points: make([]*protocol.Point, 0, self.pointBatchSize)}
 		}
 
 		pi.Next()
@@ -191,6 +226,79 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, seriesName
 
 	log.Debug("Finished running query %s", query.GetQueryString())
 	return nil
+}
+
+func (self *Shard) executeSinglePointQuery(querySpec *parser.QuerySpec, name string, columns []string, p engine.Processor) error {
+	fields, err := self.getFieldsForSeries(querySpec.Database(), name, columns)
+	if err != nil {
+		log.Error("Error looking up fields for %s: %s", name, err)
+		return err
+	}
+
+	query := querySpec.SelectQuery()
+	fieldCount := len(fields)
+	fieldNames := make([]string, 0, fieldCount)
+	point := &protocol.Point{Values: make([]*protocol.FieldValue, 0, fieldCount)}
+	timestamp := common.TimeToMicroseconds(query.GetStartTime())
+	sequenceNumber, err := query.GetSinglePointQuerySequenceNumber()
+	if err != nil {
+		return err
+	}
+
+	// set the timestamp and sequence number
+	point.SequenceNumber = &sequenceNumber
+	point.SetTimestampInMicroseconds(timestamp)
+
+	for _, field := range fields {
+		sk := newStorageKey(field.Id, timestamp, sequenceNumber)
+		data, err := self.db.Get(sk.bytes())
+		if err != nil {
+			return err
+		}
+
+		if data == nil {
+			continue
+		}
+
+		fieldValue := &protocol.FieldValue{}
+		err = proto.Unmarshal(data, fieldValue)
+		if err != nil {
+			return err
+		}
+		fieldNames = append(fieldNames, field.Name)
+		point.Values = append(point.Values, fieldValue)
+	}
+
+	result := &protocol.Series{Name: &name, Fields: fieldNames, Points: []*protocol.Point{point}}
+
+	if len(result.Points) > 0 {
+		_, err := p.Yield(result)
+		return err
+	}
+	return nil
+}
+
+func (self *Shard) getPointIteratorForSeries(querySpec *parser.QuerySpec, name string, columns []string) ([]string, *PointIterator, error) {
+	fields, err := self.getFieldsForSeries(querySpec.Database(), name, columns)
+	if err != nil {
+		log.Error("Error looking up fields for %s: %s", name, err)
+		return nil, nil, err
+	}
+
+	startTime := querySpec.GetStartTime()
+	endTime := querySpec.GetEndTime()
+
+	query := querySpec.SelectQuery()
+
+	iterators := self.getIterators(fields, startTime, endTime, query.Ascending)
+	pi := NewPointIterator(iterators, fields, querySpec.GetStartTime(), querySpec.GetEndTime(), query.Ascending)
+
+	columns = make([]string, len(fields))
+	for i := range fields {
+		columns[i] = fields[i].Name
+	}
+
+	return columns, pi, nil
 }
 
 func (self *Shard) executeDeleteQuery(querySpec *parser.QuerySpec, processor engine.Processor) error {
@@ -282,57 +390,11 @@ func (self *Shard) close() {
 	self.db = nil
 }
 
-func (self *Shard) executeSinglePointQuery(querySpec *parser.QuerySpec, series string, fields []*metastore.Field, p engine.Processor) error {
-	query := querySpec.SelectQuery()
-	fieldCount := len(fields)
-	fieldNames := make([]string, 0, fieldCount)
-	point := &protocol.Point{Values: make([]*protocol.FieldValue, 0, fieldCount)}
-	timestamp := common.TimeToMicroseconds(query.GetStartTime())
-	sequenceNumber, err := query.GetSinglePointQuerySequenceNumber()
-	if err != nil {
-		return err
-	}
-
-	// set the timestamp and sequence number
-	point.SequenceNumber = &sequenceNumber
-	point.SetTimestampInMicroseconds(timestamp)
-
-	for _, field := range fields {
-		sk := newStorageKey(field.Id, timestamp, sequenceNumber)
-		data, err := self.db.Get(sk.bytes())
-		if err != nil {
-			return err
-		}
-
-		if data == nil {
-			continue
-		}
-
-		fieldValue := &protocol.FieldValue{}
-		err = proto.Unmarshal(data, fieldValue)
-		if err != nil {
-			return err
-		}
-		fieldNames = append(fieldNames, field.Name)
-		point.Values = append(point.Values, fieldValue)
-	}
-
-	result := &protocol.Series{Name: &series, Fields: fieldNames, Points: []*protocol.Point{point}}
-
-	if len(result.Points) > 0 {
-		_, err := p.Yield(result)
-		return err
-	}
-	return nil
-}
-
-func (self *Shard) getIterators(fields []*metastore.Field, start, end time.Time, isAscendingQuery bool) (fieldNames []string, iterators []storage.Iterator) {
+func (self *Shard) getIterators(fields []*metastore.Field, start, end time.Time, isAscendingQuery bool) (iterators []storage.Iterator) {
 	iterators = make([]storage.Iterator, len(fields))
-	fieldNames = make([]string, len(fields))
 
 	// start the iterators to go through the series data
 	for i, field := range fields {
-		fieldNames[i] = field.Name
 		iterators[i] = self.db.Iterator()
 
 		t := start
@@ -353,7 +415,7 @@ func (self *Shard) getIterators(fields []*metastore.Field, start, end time.Time,
 
 		if err := iterators[i].Error(); err != nil {
 			log.Error("Error while getting iterators: %s", err)
-			return nil, nil
+			return nil
 		}
 	}
 	return
