@@ -119,19 +119,13 @@ func (self *Coordinator) runListSeriesQuery(querySpec *parser.QuerySpec, p engin
 	}
 	name := "list_series_result"
 	var fields []string
+	points := make([]*protocol.Point, len(matchingSeries), len(matchingSeries))
+
 	if q.IncludeSpaces {
 		fields = []string{"name", "space"}
-	} else {
-		fields = []string{"name"}
-	}
+		spaces := self.clusterConfiguration.GetShardSpacesForDatabase(querySpec.Database())
 
-	points := make([]*protocol.Point, len(matchingSeries), len(matchingSeries))
-	spaces := self.clusterConfiguration.GetShardSpacesForDatabase(querySpec.Database())
-
-	for i, s := range matchingSeries {
-		var fieldValues []*protocol.FieldValue
-
-		if q.IncludeSpaces {
+		for i, s := range matchingSeries {
 			spaceName := ""
 			for _, sp := range spaces {
 				if sp.MatchesSeries(s) {
@@ -139,12 +133,15 @@ func (self *Coordinator) runListSeriesQuery(querySpec *parser.QuerySpec, p engin
 					break
 				}
 			}
-			fieldValues = []*protocol.FieldValue{{StringValue: proto.String(s)}, {StringValue: proto.String(spaceName)}}
-		} else {
-			fieldValues = []*protocol.FieldValue{{StringValue: proto.String(s)}}
+			fieldValues := []*protocol.FieldValue{{StringValue: proto.String(s)}, {StringValue: proto.String(spaceName)}}
+			points[i] = &protocol.Point{Values: fieldValues}
 		}
-
-		points[i] = &protocol.Point{Values: fieldValues}
+	} else {
+		fields = []string{"name"}
+		for i, s := range matchingSeries {
+			fieldValues := []*protocol.FieldValue{{StringValue: proto.String(s)}}
+			points[i] = &protocol.Point{Values: fieldValues}
+		}
 	}
 
 	seriesResult := &protocol.Series{Name: &name, Fields: fields, Points: points}
