@@ -3,11 +3,35 @@ package raft_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"testing"
 
 	"github.com/influxdb/influxdb/raft"
 )
+
+// Ensure a node can join a cluster over HTTP.
+func TestHTTPHandler_HandleJoin(t *testing.T) {
+	l := NewTestLog()
+	s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
+	defer s.Close()
+	defer l.Close()
+
+	// Send heartbeat.
+	resp, err := http.Get(s.URL + "/join?url=" + url.QueryEscape("http://localhost:1000"))
+	defer resp.Body.Close()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Raft-Error"))
+	}
+	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+		t.Fatalf("unexpected raft error: %s", s)
+	}
+	if s := resp.Header.Get("X-Raft-ID"); s != "2" {
+		t.Fatalf("unexpected raft id: %s", s)
+	}
+}
 
 // Ensure a heartbeat can be sent over HTTP.
 func TestHTTPHandler_HandleHeartbeat(t *testing.T) {
@@ -114,7 +138,7 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	// First entry should be the configuration.
 	if err := dec.Decode(&e); err != nil {
 		t.Fatalf("unexpected error: %s", err)
-	} else if e.Type != raft.LogEntryConfig {
+	} else if e.Type != raft.LogEntryInitialize {
 		t.Fatalf("unexpected entry type: %v", e.Type)
 	}
 

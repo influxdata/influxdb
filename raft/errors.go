@@ -6,8 +6,12 @@ var (
 	// ErrClosed is returned when the log is closed.
 	ErrClosed = errors.New("log closed")
 
-	// ErrAlreadyOpen is returned when opening a log that is already open.
-	ErrAlreadyOpen = errors.New("log already open")
+	// ErrOpen is returned when opening a log that is already open.
+	ErrOpen = errors.New("log already open")
+
+	// ErrInitialized is returned when initializing a log that is already a
+	// member of a cluster.
+	ErrInitialized = errors.New("log already initialized")
 
 	// ErrURLRequired is returned when opening a log without a URL set.
 	ErrURLRequired = errors.New("url required")

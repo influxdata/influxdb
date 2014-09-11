@@ -3,6 +3,7 @@ package raft
 import (
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 )
@@ -26,9 +27,63 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.HandleStream(w, r)
 	case "vote":
 		h.HandleRequestVote(w, r)
+	case "join":
+		h.HandleJoin(w, r)
+	case "leave":
+		h.HandleLeave(w, r)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// HandleJoin serves a Raft membership addition to the underlying log.
+func (h *HTTPHandler) HandleJoin(w http.ResponseWriter, r *http.Request) {
+	// Parse argument.
+	if r.FormValue("url") == "" {
+		w.Header().Set("X-Raft-Error", "url required")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Parse URL.
+	u, err := url.Parse(r.FormValue("url"))
+	if err != nil {
+		w.Header().Set("X-Raft-Error", "invalid url")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Add peer to the log.
+	id, err := h.log.AddPeer(u)
+	if err != nil {
+		w.Header().Set("X-Raft-Error", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Return member's id in the cluster.
+	w.Header().Set("X-Raft-ID", strconv.FormatUint(id, 10))
+	w.WriteHeader(http.StatusOK)
+}
+
+// HandleLeave removes a member from the cluster.
+func (h *HTTPHandler) HandleLeave(w http.ResponseWriter, r *http.Request) {
+	// Parse arguments.
+	id, err := strconv.ParseUint(r.FormValue("id"), 10, 64)
+	if err != nil {
+		w.Header().Set("X-Raft-ID", "invalid raft id")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Remove a peer from the log.
+	if err := h.log.RemovePeer(id); err != nil {
+		w.Header().Set("X-Raft-Error", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // HandleHeartbeat serves a Raft heartbeat to the underlying log.
@@ -64,7 +119,10 @@ func (h *HTTPHandler) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // HandleStream provides a streaming log endpoint.
@@ -133,5 +191,8 @@ func (h *HTTPHandler) HandleRequestVote(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
+
+	w.WriteHeader(http.StatusOK)
 }

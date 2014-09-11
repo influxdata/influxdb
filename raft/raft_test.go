@@ -2,6 +2,7 @@ package raft_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -51,14 +52,14 @@ func Test_Simulate_SingleNode(t *testing.T) {
 		}
 
 		// Verify the configuration is set.
-		if fsm.config != `{"clusterID":2,"nodes":[{"id":1,"url":"//node"}]}` {
-			t.Fatalf("unexpected config: %s", fsm.config)
+		if b, _ := json.Marshal(l.Config()); string(b) != `{"clusterID":1,"nodes":[{"id":1,"url":"//node"}],"index":1,"maxNodeID":1}` {
+			t.Fatalf("unexpected config: %s", b)
 		}
 
 		// Verify the commands were executed against the FSM, in order.
 		for i, command := range commands {
-			if b := fsm.commands[i]; !bytes.Equal(command, b) {
-				t.Fatalf("%d. command:\n\nexp: %x\n\n got:%x\n\n", i, command, b)
+			if e := fsm.entries[i]; !bytes.Equal(command, e.Data) {
+				t.Fatalf("%d. command:\n\nexp: %x\n\ngot: %x\n\n", i, command, e.Data)
 			}
 		}
 
@@ -82,19 +83,11 @@ func Test_Simulate_MultiNode(t *testing.T) {
 
 // TestFSM represents a fake state machine that simple records all commands.
 type TestFSM struct {
-	config   string
-	commands [][]byte
+	entries []*raft.LogEntry
 }
 
 func (fsm *TestFSM) Apply(entry *raft.LogEntry) error {
-	switch entry.Type {
-	case raft.LogEntryCommand:
-		fsm.commands = append(fsm.commands, entry.Data)
-	case raft.LogEntryConfig:
-		fsm.config = string(entry.Data)
-	default:
-		panic("unknown entry type")
-	}
+	fsm.entries = append(fsm.entries, entry)
 	return nil
 }
 

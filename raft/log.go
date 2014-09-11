@@ -3,6 +3,7 @@ package raft
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -90,6 +91,9 @@ type Log struct {
 // Returns an empty string if the log is closed.
 func (l *Log) Path() string { return l.path }
 
+func (l *Log) idPath() string     { return filepath.Join(l.path, "id") }
+func (l *Log) configPath() string { return filepath.Join(l.path, "config") }
+
 // Opened returns true if the log is currently open.
 func (l *Log) Opened() bool {
 	l.mu.Lock()
@@ -106,6 +110,16 @@ func (l *Log) State() State {
 	return l.state
 }
 
+// Config returns a the log's current configuration.
+func (l *Log) Config() *Config {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.config != nil {
+		return l.config.clone()
+	}
+	return nil
+}
+
 // Open initializes the log from a path.
 // If the path does not exist then it is created.
 func (l *Log) Open(path string) error {
@@ -114,7 +128,7 @@ func (l *Log) Open(path string) error {
 
 	// Validate initial log state.
 	if l.opened() {
-		return ErrAlreadyOpen
+		return ErrOpen
 	}
 
 	// Create directory, if not exists.
@@ -132,16 +146,20 @@ func (l *Log) Open(path string) error {
 	}
 
 	// Initialize log identifier.
-	if err := l.init(); err != nil {
+	id, err := l.readID()
+	if err != nil {
 		_ = l.close()
 		return err
 	}
+	l.id = id
 
 	// Read config.
-	if err := l.restoreConfig(); err != nil {
+	c, err := readConfig(l.configPath())
+	if err != nil {
 		_ = l.close()
 		return err
 	}
+	l.config = c
 
 	// TEMP(benbjohnson): Create empty log segment.
 	l.segment = &segment{
@@ -167,7 +185,9 @@ func (l *Log) close() error {
 	// TODO(benbjohnson): Shutdown all goroutines.
 
 	// Close the segments.
-	_ = l.segment.Close()
+	if l.segment != nil {
+		_ = l.segment.Close()
+	}
 
 	// Clear log info.
 	l.id = 0
@@ -176,53 +196,29 @@ func (l *Log) close() error {
 	return nil
 }
 
-// init reads the log identifier from file.
-// If the file does not exist then an identifier is generated.
-func (l *Log) init() error {
-	path := filepath.Join(l.path, "id")
-
-	// Generate identifier and write to file if it doesn't exist.
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		l.id = uint64(l.Rand())
-		return ioutil.WriteFile(path, []byte(strconv.FormatUint(l.id, 10)), 0600)
-	}
-
+// readID reads the log identifier from file.
+func (l *Log) readID() (uint64, error) {
 	// Read identifier from disk.
-	b, err := ioutil.ReadFile(path)
-	if err != nil {
-		return err
+	b, err := ioutil.ReadFile(l.idPath())
+	if os.IsNotExist(err) {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
 	}
 
 	// Parse identifier.
-	l.id, err = strconv.ParseUint(string(b), 10, 64)
+	id, err := strconv.ParseUint(string(b), 10, 64)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return id, nil
 }
 
-// restoreConfig reads the configuration from disk and marshals it into a Config.
-func (l *Log) restoreConfig() error {
-	// Read config from disk.
-	f, err := os.Open(filepath.Join(l.path, "config"))
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	// Marshal file to a config type.
-	var config *Config
-	if f != nil {
-		if err := json.NewDecoder(f).Decode(&config); err != nil {
-			return err
-		}
-	}
-
-	// Set config.
-	l.config = config
-
-	return nil
+// writeID writes the log identifier to file.
+func (l *Log) writeID(id uint64) error {
+	b := []byte(strconv.FormatUint(id, 10))
+	return ioutil.WriteFile(l.idPath(), b, 0600)
 }
 
 // Initialize a new log.
@@ -231,18 +227,28 @@ func (l *Log) Initialize() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Return error if entries already exist.
-	if l.currentIndex > 0 {
-		return ErrLogExists
-	} else if l.URL == nil {
-		return ErrURLRequired
+	// Return error if log is not open or is already a member of a cluster.
+	if !l.opened() {
+		return ErrClosed
+	} else if l.id != 0 {
+		return ErrInitialized
 	}
 
+	// Start first node at id 1.
+	id := uint64(1)
+
 	// Generate a new configuration with one node.
-	config := &Config{Nodes: []*Node{&Node{ID: l.id, URL: l.URL}}}
+	config := &Config{MaxNodeID: id}
+	config.addNode(id, l.URL)
 
 	// Generate new 8-hex digit cluster identifier.
 	config.ClusterID = uint64(l.Rand())
+
+	// Generate log id.
+	if err := l.writeID(id); err != nil {
+		return err
+	}
+	l.id = id
 
 	// Automatically promote to leader.
 	l.currentTerm = 1
@@ -250,9 +256,38 @@ func (l *Log) Initialize() error {
 
 	// Set initial configuration.
 	b, _ := json.Marshal(&config)
-	if err := l.apply(LogEntryConfig, b); err != nil {
+	if err := l.apply(LogEntryInitialize, b); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+// Join contacts a node in the cluster to request membership.
+// A log cannot join a cluster if it has already been initialized.
+func (l *Log) Join() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Check if open.
+	if !l.opened() {
+		return ErrClosed
+	}
+
+	// TODO(benbjohnson): Check that the log is uninitialized.
+	// TODO(benbjohnson): Send join request over HTTP.
+
+	return nil
+}
+
+// Leave removes the log from cluster membership and removes the log data.
+func (l *Log) Leave() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// TODO(benbjohnson): Check if open.
+	// TODO(benbjohnson): Apply remove peer command.
+	// TODO(benbjohnson): Remove underlying data.
 
 	return nil
 }
@@ -293,11 +328,136 @@ func (l *Log) apply(typ LogEntryType, command []byte) error {
 	// TODO(benbjohnson): Wait for consensus.
 
 	// Apply to FSM.
-	if err := l.FSM.Apply(&e); err != nil {
+	switch typ {
+	case LogEntryCommand:
+		if err := l.FSM.Apply(&e); err != nil {
+			return err
+		}
+
+	case LogEntryNop:
+		// nop
+
+	case LogEntryInitialize:
+		return l.applyInitialize(&e)
+
+	case LogEntryAddPeer:
+		return l.applyAddPeer(&e)
+
+	case LogEntryRemovePeer:
+		return l.applyRemovePeer(&e)
+
+	default:
+		return fmt.Errorf("unsupported command type: %d", typ)
+	}
+
+	return nil
+}
+
+// apply a log initialization command by parsing and setting the configuration.
+func (l *Log) applyInitialize(e *LogEntry) error {
+	// Parse the configuration from the log entry.
+	var config *Config
+	if err := json.Unmarshal(e.Data, &config); err != nil {
+		return fmt.Errorf("initialize: %s", err)
+	}
+
+	// Set the last update index on the configuration.
+	config.Index = e.Index
+
+	// TODO(benbjohnson): Lock the log while we update the configuration.
+
+	// Perist the configuration to disk.
+	if err := writeConfig(l.configPath(), config); err != nil {
+		return err
+	}
+	l.config = config
+
+	return nil
+}
+
+// applyAddPeer adds a node to the cluster configuration.
+func (l *Log) applyAddPeer(e *LogEntry) error {
+	// Unmarshal node from entry data.
+	var n *Node
+	if err := json.Unmarshal(e.Data, &n); err != nil {
 		return err
 	}
 
-	// TODO(benbjohnson): Add callback.
+	// Clone configuration.
+	config := l.config.clone()
+
+	// Increment the node identifier.
+	config.MaxNodeID++
+	n.ID = config.MaxNodeID
+
+	// Add node to configuration.
+	if err := config.addNode(n.ID, n.URL); err != nil {
+		return err
+	}
+
+	// Set configuration index.
+	config.Index = e.Index
+
+	// Write configuration.
+	if err := writeConfig(l.configPath(), config); err != nil {
+		return err
+	}
+	l.config = config
+
+	return nil
+}
+
+// applyRemovePeer removes a node from the cluster configuration.
+func (l *Log) applyRemovePeer(e *LogEntry) error {
+	// TODO(benbjohnson): Clone configuration.
+	// TODO(benbjohnson): Remove node from configuration.
+	// TODO(benbjohnson): Set configuration index.
+	// TODO(benbjohnson): Write configuration.
+	return nil
+}
+
+// AddPeer creates a new peer in the cluster.
+// Returns the new peer's identifier.
+func (l *Log) AddPeer(u *url.URL) (uint64, error) {
+	err := func() error {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+
+		// Validate URL.
+		if u == nil {
+			return fmt.Errorf("peer url required")
+		}
+
+		// Apply command.
+		b, _ := json.Marshal(&Node{URL: u})
+		if err := l.apply(LogEntryAddPeer, b); err != nil {
+			return err
+		}
+		return nil
+	}()
+	if err != nil {
+		return 0, err
+	}
+
+	// Lock while we look up the node.
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Look up node.
+	n := l.config.NodeByURL(u)
+	if n == nil {
+		return 0, fmt.Errorf("node not found")
+	}
+
+	return n.ID, nil
+}
+
+// RemovePeer removes an existing peer from the cluster by id.
+func (l *Log) RemovePeer(id uint64) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// TODO(benbjohnson): Apply removePeerCommand.
 
 	return nil
 }
@@ -486,7 +646,9 @@ type LogEntryType uint8
 const (
 	LogEntryCommand LogEntryType = iota
 	LogEntryNop
-	LogEntryConfig
+	LogEntryInitialize
+	LogEntryAddPeer
+	LogEntryRemovePeer
 )
 
 // LogEntry represents a single command within the log.
@@ -697,12 +859,95 @@ type Config struct {
 
 	// List of nodes in the cluster.
 	Nodes []*Node `json:"nodes,omitempty"`
+
+	// Index is the last log index when the configuration was updated.
+	Index uint64 `json:"index,omitempty"`
+
+	// MaxNodeID is the largest node identifier generated for this config.
+	MaxNodeID uint64 `json:"maxNodeID,omitempty"`
+}
+
+// NodeByID returns a node by identifier.
+func (c *Config) NodeByID(id uint64) *Node {
+	for _, n := range c.Nodes {
+		if n.ID == id {
+			return n
+		}
+	}
+	return nil
+}
+
+// NodeByULR returns a node by URL.
+func (c *Config) NodeByURL(u *url.URL) *Node {
+	for _, n := range c.Nodes {
+		if n.URL.String() == u.String() {
+			return n
+		}
+	}
+	return nil
+}
+
+// addNode adds a new node to the config.
+// Returns an error if a node with the same id or url exists.
+func (c *Config) addNode(id uint64, u *url.URL) error {
+	if id <= 0 {
+		return errors.New("invalid node id")
+	} else if u == nil {
+		return errors.New("node url required")
+	}
+
+	for _, n := range c.Nodes {
+		if n.ID == id {
+			return fmt.Errorf("node id already exists")
+		} else if n.URL.String() == u.String() {
+			return fmt.Errorf("node url already in use")
+		}
+	}
+
+	c.Nodes = append(c.Nodes, &Node{ID: id, URL: u})
+
+	return nil
+}
+
+// removeNode removes a node by id.
+// Returns an error if the node does not exist.
+func (c *Config) removeNode(id uint64) error {
+	for i, node := range c.Nodes {
+		if node.ID == id {
+			copy(c.Nodes[i:], c.Nodes[i+1:])
+			c.Nodes[len(c.Nodes)-1] = nil
+			c.Nodes = c.Nodes[:len(c.Nodes)-1]
+			return nil
+		}
+	}
+	return fmt.Errorf("node not found: %d", id)
+}
+
+// clone returns a deep copy of the configuration.
+func (c *Config) clone() *Config {
+	other := &Config{
+		ClusterID: c.ClusterID,
+		Index:     c.Index,
+		MaxNodeID: c.MaxNodeID,
+	}
+	other.Nodes = make([]*Node, len(c.Nodes))
+	for i, n := range c.Nodes {
+		other.Nodes[i] = n.clone()
+	}
+	return other
 }
 
 // Node represents a single machine in the raft cluster.
 type Node struct {
 	ID  uint64   `json:"id"`
 	URL *url.URL `json:"url,omitempty"`
+}
+
+// clone returns a deep copy of the node.
+func (n *Node) clone() *Node {
+	other := &Node{ID: n.ID, URL: &url.URL{}}
+	*other.URL = *n.URL
+	return other
 }
 
 // nodeJSONMarshaler represents the JSON serialized form of the Node type.
@@ -742,6 +987,43 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// readConfig reads the configuration from disk.
+func readConfig(path string) (*Config, error) {
+	// Read config from disk.
+	f, err := os.Open(path)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Marshal file to a config type.
+	var config *Config
+	if f != nil {
+		if err := json.NewDecoder(f).Decode(&config); err != nil {
+			return nil, err
+		}
+	}
+	return config, nil
+}
+
+// writeConfig writes the configuration to disk.
+func writeConfig(path string, config *Config) error {
+	// FIX(benbjohnson): Atomic write.
+
+	// Open file.
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Marshal config into file.
+	if err := json.NewEncoder(f).Encode(config); err != nil {
+		return err
+	}
+
+	return nil
+}
 func assert(condition bool, msg string, v ...interface{}) {
 	if !condition {
 		panic(fmt.Sprintf("asser failed: "+msg, v...))

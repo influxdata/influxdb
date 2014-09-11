@@ -20,6 +20,8 @@ func init() {
 // Transport represents a handler for connecting the log to another node.
 // It uses URLs to direct requests over different protocols.
 type Transport interface {
+	Join(u *url.URL, nodeURL *url.URL) (uint64, error)
+	Leave(u *url.URL, id uint64) error
 	Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (uint64, uint64, error)
 	ReadFrom(u *url.URL, term, index uint64) (io.Reader, error)
 	RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error)
@@ -42,6 +44,22 @@ func NewTransportMux() *TransportMux {
 // Handle registers a transport for a given scheme.
 func (mux *TransportMux) Handle(scheme string, t Transport) {
 	mux.m[scheme] = t
+}
+
+// Join requests membership into a node's cluster.
+func (mux *TransportMux) Join(u *url.URL, nodeURL *url.URL) (uint64, error) {
+	if t, ok := mux.m[u.Scheme]; ok {
+		return t.Join(u, nodeURL)
+	}
+	return 0, fmt.Errorf("transport scheme not supported: %s", u.Scheme)
+}
+
+// Leave removes a node from a cluster's membership.
+func (mux *TransportMux) Leave(u *url.URL, id uint64) error {
+	if t, ok := mux.m[u.Scheme]; ok {
+		return t.Leave(u, id)
+	}
+	return fmt.Errorf("transport scheme not supported: %s", u.Scheme)
 }
 
 // Heartbeat checks the status of a follower.
@@ -70,6 +88,16 @@ func (mux *TransportMux) RequestVote(u *url.URL, term, candidateID, lastLogIndex
 
 // HTTPTransport represents a transport for sending RPCs over the HTTP protocol.
 type HTTPTransport struct{}
+
+// Join requests membership into a node's cluster.
+func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, error) {
+	return 0, nil // TODO(benbjohnson)
+}
+
+// Leave removes a node from a cluster's membership.
+func (t *HTTPTransport) Leave(uri *url.URL, id uint64) error {
+	return nil // TODO(benbjohnson)
+}
 
 // Heartbeat checks the status of a follower.
 func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint64) (uint64, uint64, error) {
