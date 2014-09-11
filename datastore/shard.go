@@ -134,9 +134,13 @@ func (self *Shard) executeMergeQuery(querySpec *parser.QuerySpec, processor engi
 			log.Error(err)
 			return err
 		}
+		aliases := querySpec.SelectQuery().GetTableAliases(s.Name)
+		if len(aliases) > 1 {
+			return fmt.Errorf("Cannot have the same table joined more than once")
+		}
 		streams[i] = PointIteratorStream{
 			pi:     iterators[i],
-			name:   s.Name,
+			name:   aliases[0],
 			fields: c,
 		}
 		i++

@@ -1182,6 +1182,24 @@ func (self *DataTestSuite) TestWhereConditionWithExpression(c *C) {
 	c.Assert(maps[0]["b"], Equals, 1.0)
 }
 
+func (self *DataTestSuite) JoinedWithSelf(c *C) (Fun, Fun) {
+	return func(client Client) {
+			client.WriteJsonData(`
+[
+  {
+    "name": "t",
+    "columns": ["time", "value"],
+    "points":[
+		  [1381346706000, 3],
+		  [1381346701000, 1]
+	  ]
+  }
+]`, c, influxdb.Millisecond)
+		}, func(client Client) {
+			client.RunInvalidQuery("select * from t as foo inner join t as bar", c, "m")
+		}
+}
+
 // issue #740 and #781
 func (self *DataTestSuite) TestJoiningDifferentFields(c *C) {
 	// TODO: why do we get a different error if we remove all but the first values
