@@ -281,6 +281,7 @@ func (self *QueryParserSuite) TestParseListSeries(c *C) {
 	listSeriesQuery := queries[0].GetListSeriesQuery()
 	c.Assert(listSeriesQuery, NotNil)
 	c.Assert(listSeriesQuery.HasRegex(), Equals, false)
+	c.Assert(listSeriesQuery.IncludeSpaces, Equals, false)
 
 	// test the case sensitive and case insensitive list series
 	for i := 0; i < 2; i++ {
@@ -302,7 +303,30 @@ func (self *QueryParserSuite) TestParseListSeries(c *C) {
 			regularExpression, _ = regexp.Compile("^foo.*")
 		}
 		c.Assert(listSeriesQuery.GetRegex(), DeepEquals, regularExpression)
+		c.Assert(listSeriesQuery.IncludeSpaces, Equals, false)
 	}
+}
+
+func (self *QueryParserSuite) TestParseListSeriesInludeSpaces(c *C) {
+	queries, err := ParseQuery("list series include spaces")
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].IsListQuery(), Equals, true)
+	listSeriesQuery := queries[0].GetListSeriesQuery()
+	c.Assert(listSeriesQuery, NotNil)
+	c.Assert(listSeriesQuery.HasRegex(), Equals, false)
+	c.Assert(listSeriesQuery.IncludeSpaces, Equals, true)
+
+	queries, err = ParseQuery("list series /foo.*/ include spaces")
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].IsListQuery(), Equals, true)
+	listSeriesQuery = queries[0].GetListSeriesQuery()
+	c.Assert(listSeriesQuery, NotNil)
+	c.Assert(listSeriesQuery.HasRegex(), Equals, true)
+	c.Assert(listSeriesQuery.IncludeSpaces, Equals, true)
+	regularExpression, _ := regexp.Compile("foo.*")
+	c.Assert(listSeriesQuery.GetRegex(), DeepEquals, regularExpression)
 }
 
 // issue #267

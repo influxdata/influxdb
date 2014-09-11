@@ -161,6 +161,12 @@ func (self *ClusterConfiguration) GetShardSpaces() []*ShardSpace {
 	return spaces
 }
 
+func (self *ClusterConfiguration) GetShardSpacesForDatabase(database string) []*ShardSpace {
+	self.shardLock.RLock()
+	defer self.shardLock.RUnlock()
+	return self.databaseShardSpaces[database]
+}
+
 // called by the server, this will wake up every 10 mintues to see if it should
 // create a shard for the next window of time. This way shards get created before
 // a bunch of writes stream in and try to create it all at the same time.
