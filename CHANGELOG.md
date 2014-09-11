@@ -1,5 +1,9 @@
 ## v0.9.0 [unreleased]
 
+### Features
+
+- [Issue #867](https://github.com/influxdb/influxdb/issues/867). Add option to return shard space mappings in list series
+
 ### Bugfixes
 
 - [Issue #652](https://github.com/influxdb/influxdb/issues/652). Return
