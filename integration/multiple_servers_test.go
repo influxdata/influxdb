@@ -714,6 +714,9 @@ func (self *ServerSuite) TestContinuousQueryFanoutOperations(c *C) {
 		s.WaitForServerToSync()
 	}
 
+	// for the continuous queries to run
+	time.Sleep(2 * time.Second)
+
 	collection = self.serverProcesses[0].Query("test_cq", "select * from s1;", false, c)
 	series = collection.GetSeries("s1", c)
 	c.Assert(series.GetValueForPointAndColumn(0, "c1", c), Equals, 2.0)
