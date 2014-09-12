@@ -20,12 +20,6 @@ func (self *DataTestClient) CreateDatabase(db string, c *C) {
 	c.Assert(client.CreateDatabase(db), IsNil)
 }
 
-func (self *DataTestClient) DeleteDatabase(db string, c *C) {
-	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
-	c.Assert(err, IsNil)
-	c.Assert(client.DeleteDatabase(db), IsNil)
-}
-
 func (self *DataTestClient) SetDB(db string) {
 	self.db = db
 }
@@ -76,4 +70,10 @@ func (self *DataTestClient) RunInvalidQuery(query string, c *C, timePrecision ..
 	_, err = client.Query(query, timePrecision...)
 	c.Assert(err, NotNil)
 	return nil
+}
+
+func (self *DataTestClient) DeleteDatabase(db string, c *C) {
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
+	c.Assert(err, IsNil)
+	c.Assert(client.DeleteDatabase(db), IsNil)
 }
