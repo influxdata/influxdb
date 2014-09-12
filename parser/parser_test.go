@@ -73,6 +73,20 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	}
 }
 
+func (self *QueryParserSuite) TestGetQueryStringWithDoubleQuotes(c *C) {
+	q := `select dashboard from "grafana.dashboard_VWx0cmFNUg=="`
+	query, err := ParseQuery(q)
+	c.Assert(err, IsNil)
+	c.Assert(query, HasLen, 1)
+	actualQ := query[0].GetQueryStringWithTimeCondition()
+	actualQuery, err := ParseQuery(actualQ)
+	c.Assert(err, IsNil)
+	c.Assert(actualQuery, HasLen, 1)
+	query[0].SelectQuery.startTimeSpecified = false
+	actualQuery[0].SelectQuery.startTimeSpecified = false
+	c.Assert(actualQuery, DeepEquals, query)
+}
+
 func (self *QueryParserSuite) TestGetQueryString(c *C) {
 	for _, query := range []string{
 		"select value from t",
