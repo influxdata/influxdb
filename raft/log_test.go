@@ -12,7 +12,6 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/benbjohnson/clock"
 	"github.com/influxdb/influxdb/raft"
 )
 
@@ -189,7 +188,7 @@ func NewUnopenedTestLog() *TestLog {
 	l := &TestLog{
 		Log: &raft.Log{
 			FSM:   &TestFSM{},
-			Clock: clock.NewMockClock(),
+			Clock: raft.NewMockClock(),
 			Rand:  seq(),
 		},
 	}

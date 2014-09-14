@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,10 +21,10 @@ func init() {
 // Transport represents a handler for connecting the log to another node.
 // It uses URLs to direct requests over different protocols.
 type Transport interface {
-	Join(u *url.URL, nodeURL *url.URL) (uint64, error)
+	Join(u *url.URL, nodeURL *url.URL) (uint64, *Config, error)
 	Leave(u *url.URL, id uint64) error
-	Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (uint64, uint64, error)
-	ReadFrom(u *url.URL, term, index uint64) (io.Reader, error)
+	Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (lastIndex, currentTerm uint64, err error)
+	ReadFrom(u *url.URL, term, index uint64) (io.ReadCloser, error)
 	RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error)
 }
 
@@ -47,11 +48,11 @@ func (mux *TransportMux) Handle(scheme string, t Transport) {
 }
 
 // Join requests membership into a node's cluster.
-func (mux *TransportMux) Join(u *url.URL, nodeURL *url.URL) (uint64, error) {
+func (mux *TransportMux) Join(u *url.URL, nodeURL *url.URL) (uint64, *Config, error) {
 	if t, ok := mux.m[u.Scheme]; ok {
 		return t.Join(u, nodeURL)
 	}
-	return 0, fmt.Errorf("transport scheme not supported: %s", u.Scheme)
+	return 0, nil, fmt.Errorf("transport scheme not supported: %s", u.Scheme)
 }
 
 // Leave removes a node from a cluster's membership.
@@ -71,7 +72,7 @@ func (mux *TransportMux) Heartbeat(u *url.URL, term, commitIndex, leaderID uint6
 }
 
 // ReadFrom streams the log from a leader.
-func (mux *TransportMux) ReadFrom(u *url.URL, term, index uint64) (io.Reader, error) {
+func (mux *TransportMux) ReadFrom(u *url.URL, term, index uint64) (io.ReadCloser, error) {
 	if t, ok := mux.m[u.Scheme]; ok {
 		return t.ReadFrom(u, term, index)
 	}
@@ -90,8 +91,38 @@ func (mux *TransportMux) RequestVote(u *url.URL, term, candidateID, lastLogIndex
 type HTTPTransport struct{}
 
 // Join requests membership into a node's cluster.
-func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, error) {
-	return 0, nil // TODO(benbjohnson)
+func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, *Config, error) {
+	// Construct URL.
+	u := *uri
+	u.Path = path.Join(u.Path, "join")
+	u.RawQuery = (&url.Values{"url": {nodeURL.String()}}).Encode()
+
+	// Send HTTP request.
+	resp, err := http.Get(u.String())
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Parse returned id.
+	idString := resp.Header.Get("X-Raft-ID")
+	id, err := strconv.ParseUint(idString, 10, 64)
+	if err != nil {
+		return 0, nil, fmt.Errorf("invalid id: %q", idString)
+	}
+
+	// Unmarshal config.
+	var config *Config
+	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+		return 0, nil, fmt.Errorf("config unmarshal: %s", err)
+	}
+
+	// Parse returned error.
+	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+		return 0, nil, errors.New(s)
+	}
+
+	return id, config, nil
 }
 
 // Leave removes a node from a cluster's membership.
@@ -142,7 +173,7 @@ func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint
 }
 
 // ReadFrom streams the log from a leader.
-func (t *HTTPTransport) ReadFrom(uri *url.URL, term, index uint64) (io.Reader, error) {
+func (t *HTTPTransport) ReadFrom(uri *url.URL, term, index uint64) (io.ReadCloser, error) {
 	// Construct URL.
 	u := *uri
 	u.Path = path.Join(u.Path, "stream")

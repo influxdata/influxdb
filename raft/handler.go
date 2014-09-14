@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -21,16 +22,16 @@ func NewHTTPHandler(log *Log) *HTTPHandler {
 // ServeHTTP handles all incoming HTTP requests.
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch path.Base(r.URL.Path) {
+	case "join":
+		h.HandleJoin(w, r)
+	case "leave":
+		h.HandleLeave(w, r)
 	case "heartbeat":
 		h.HandleHeartbeat(w, r)
 	case "stream":
 		h.HandleStream(w, r)
 	case "vote":
 		h.HandleRequestVote(w, r)
-	case "join":
-		h.HandleJoin(w, r)
-	case "leave":
-		h.HandleLeave(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -38,6 +39,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // HandleJoin serves a Raft membership addition to the underlying log.
 func (h *HTTPHandler) HandleJoin(w http.ResponseWriter, r *http.Request) {
+	// TODO(benbjohnson): Redirect to leader.
+
 	// Parse argument.
 	if r.FormValue("url") == "" {
 		w.Header().Set("X-Raft-Error", "url required")
@@ -54,7 +57,7 @@ func (h *HTTPHandler) HandleJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add peer to the log.
-	id, err := h.log.AddPeer(u)
+	id, config, err := h.log.AddPeer(u)
 	if err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
@@ -64,10 +67,15 @@ func (h *HTTPHandler) HandleJoin(w http.ResponseWriter, r *http.Request) {
 	// Return member's id in the cluster.
 	w.Header().Set("X-Raft-ID", strconv.FormatUint(id, 10))
 	w.WriteHeader(http.StatusOK)
+
+	// Write config to the body.
+	_ = json.NewEncoder(w).Encode(config)
 }
 
 // HandleLeave removes a member from the cluster.
 func (h *HTTPHandler) HandleLeave(w http.ResponseWriter, r *http.Request) {
+	// TODO(benbjohnson): Redirect to leader.
+
 	// Parse arguments.
 	id, err := strconv.ParseUint(r.FormValue("id"), 10, 64)
 	if err != nil {
@@ -145,6 +153,8 @@ func (h *HTTPHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	// TODO(benbjohnson): Redirect to leader.
 
 	// Write to the response.
 	if err := h.log.WriteTo(w, term, index); err != nil && err != io.EOF {

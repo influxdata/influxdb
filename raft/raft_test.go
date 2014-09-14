@@ -14,8 +14,8 @@ import (
 	"reflect"
 	"testing"
 	"testing/quick"
+	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/influxdb/influxdb/raft"
 )
 
@@ -29,7 +29,7 @@ func Test_Simulate_SingleNode(t *testing.T) {
 		var fsm TestFSM
 		l := &raft.Log{
 			FSM:   &fsm,
-			Clock: clock.NewMockClock(),
+			Clock: raft.NewMockClock(),
 			Rand:  seq(),
 		}
 		l.URL, _ = url.Parse("//node")
@@ -39,7 +39,7 @@ func Test_Simulate_SingleNode(t *testing.T) {
 		defer os.RemoveAll(l.Path())
 		defer l.Close()
 
-		// HACK(benbjohnson): Initialize instead.
+		// Initialize log.
 		if err := l.Initialize(); err != nil {
 			t.Fatalf("initialize: %s", err)
 		}
@@ -73,7 +73,55 @@ func Test_Simulate_SingleNode(t *testing.T) {
 // Ensure that a cluster of multiple nodes can maintain consensus.
 func Test_Simulate_MultiNode(t *testing.T) {
 	f := func(s *Simulation) bool {
+		fmt.Print(".")
 		defer s.Close()
+
+		// Retrieve leader.
+		leader := s.Nodes[0]
+
+		// Initialize the cluster.
+		if err := s.Initialize(); err != nil {
+			t.Fatalf("initialize: %s", err)
+		}
+
+		// Validate log identifiers.
+		for i, n := range s.Nodes {
+			if id := n.Log.ID(); uint64(i+1) != id {
+				t.Fatalf("unexpected log id: exp=%d, got=%d", i+1, id)
+			}
+		}
+
+		// Apply commands to the leader.
+		for i, command := range s.Commands {
+			go func() { s.Clock.Add(150 * time.Millisecond) }()
+			if err := leader.Log.Apply(command); err != nil {
+				t.Fatalf("%d. apply: %s", i, err)
+			}
+		}
+
+		// Wait for commands to apply.
+		s.Clock.Add(100 * time.Millisecond)
+
+		// Validate logs of all nodes.
+		for i, n := range s.Nodes {
+			if id := n.Log.ID(); uint64(i+1) != id {
+				t.Fatalf("unexpected log id: exp=%d, got=%d", i+1, id)
+			}
+		}
+
+		// Verify that all entries are present on all nodes.
+		for _, n := range s.Nodes {
+			if entryN, commandN := len(n.FSM.entries), len(s.Commands); commandN != entryN {
+				t.Fatalf("unexpected entry count: node %d: exp=%d, got=%d", n.Log.ID(), commandN, entryN)
+			}
+
+			for i, command := range s.Commands {
+				if !bytes.Equal(command, n.FSM.entries[i].Data) {
+					t.Fatalf("log mismatch: node %d, i=%d\n\nexp=%x\n\ngot=%x\n\n", n.Log.ID(), i, command, n.FSM.entries[i].Data)
+				}
+			}
+		}
+
 		return true
 	}
 	if err := quick.Check(f, nil); err != nil {
@@ -97,18 +145,24 @@ func (fsm *TestFSM) Restore(r io.Reader) error  { return nil }
 // Simulation represents a collection of nodes for simulating a raft cluster.
 type Simulation struct {
 	Nodes    []*SimulationNode
-	Clock    clock.Clock
+	Clock    raft.Clock
 	Commands [][]byte
 }
 
 // Generate implements the testing/quick Generator interface.
 func (s *Simulation) Generate(rand *rand.Rand, size int) reflect.Value {
-	s = &Simulation{}
+	s = &Simulation{
+		Clock: raft.NewMockClock(),
+	}
+
+	// Generate commands.
+	s.Commands = GenerateValue(reflect.TypeOf(s.Commands), rand).([][]byte)
 
 	// Create between 1 and 9 nodes.
-	nodeN := rand.Intn(8) + 1
+	nodeN := 2 // rand.Intn(8) + 1
 	for i := 0; i < nodeN; i++ {
 		var n SimulationNode
+		n.Clock = s.Clock
 		n.Generate(rand, size)
 		s.Nodes = append(s.Nodes, &n)
 	}
@@ -118,13 +172,17 @@ func (s *Simulation) Generate(rand *rand.Rand, size int) reflect.Value {
 // Initialize initializes the first node's log and joins other nodes to the first.
 func (s *Simulation) Initialize() error {
 	// Initialize the log of the first node.
+	go func() { s.Clock.Add(100 * time.Millisecond) }()
 	if err := s.Nodes[0].Log.Initialize(); err != nil {
-		return fmt.Errorf("node(0): %s", err)
+		return fmt.Errorf("node(0): initialize: %s", err)
 	}
 
 	// All other nodes should join the first node.
-	for i := 1; i < len(s.Nodes); i++ {
-		// TODO(benbjohnson): Join first node.
+	for i, n := range s.Nodes[1:] {
+		go func() { s.Clock.Add(100 * time.Millisecond) }()
+		if err := n.Log.Join(s.Nodes[0].Log.URL); err != nil {
+			return fmt.Errorf("node(%d): join: %s", i, err)
+		}
 	}
 
 	return nil
@@ -132,8 +190,9 @@ func (s *Simulation) Initialize() error {
 
 // Close closes all the logs and servers.
 func (s *Simulation) Close() error {
-	for _, n := range s.Nodes {
-		_ = n.Close()
+	// Close nodes in reverse order.
+	for i := len(s.Nodes) - 1; i >= 0; i-- {
+		_ = s.Nodes[i].Close()
 	}
 	return nil
 }
@@ -142,15 +201,19 @@ func (s *Simulation) Close() error {
 type SimulationNode struct {
 	FSM        *TestFSM
 	Log        *raft.Log
+	Clock      raft.Clock
 	HTTPServer *httptest.Server
 }
 
 // Generate implements the testing/quick Generator interface.
 func (n *SimulationNode) Generate(rand *rand.Rand, size int) reflect.Value {
+	n.FSM = &TestFSM{}
+
 	// Create raft log.
 	n.Log = &raft.Log{
-		FSM:  &TestFSM{},
-		Rand: seq(),
+		FSM:   n.FSM,
+		Clock: n.Clock,
+		Rand:  seq(),
 	}
 
 	// Start HTTP server and set log URL.
@@ -169,8 +232,18 @@ func (n *SimulationNode) Generate(rand *rand.Rand, size int) reflect.Value {
 func (n *SimulationNode) Close() error {
 	defer func() { _ = os.RemoveAll(n.Log.Path()) }()
 	_ = n.Log.Close()
+	n.HTTPServer.CloseClientConnections()
 	n.HTTPServer.Close()
+	time.Sleep(60 * time.Second)
 	return nil
+}
+
+func GenerateValue(t reflect.Type, rand *rand.Rand) interface{} {
+	v, ok := quick.Value(t, rand)
+	if !ok {
+		panic("testing/quick value error")
+	}
+	return v.Interface()
 }
 
 // tempfile returns the path to a non-existent file in the temp directory.
