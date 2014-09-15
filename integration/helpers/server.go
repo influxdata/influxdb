@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"syscall"
+	"runtime"
 	"time"
 
 	influxdb "github.com/influxdb/influxdb/client"
@@ -129,7 +129,11 @@ func (self *Server) GetClientWithUser(db, username, password string, c *C) *infl
 }
 
 func (self *Server) WriteData(data interface{}, c *C, precision ...influxdb.TimePrecision) {
-	client := self.GetClient("db1", c)
+	self.WriteDataToDatabase("db1", data, c, precision...)
+}
+
+func (self *Server) WriteDataToDatabase(db string, data interface{}, c *C, precision ...influxdb.TimePrecision) {
+	client := self.GetClient(db, c)
 	var series []*influxdb.Series
 	switch x := data.(type) {
 	case string:
@@ -182,6 +186,9 @@ func (self *Server) Start() error {
 
 	root := filepath.Join(dir, "..")
 	filename := filepath.Join(root, "influxdb")
+	if runtime.GOOS == "windows" {
+		filename += ".exe"
+	}
 	if self.configFile == "" {
 		self.configFile = "integration/test_config_single.toml"
 	}
@@ -208,7 +215,7 @@ func (self *Server) Stop() {
 		return
 	}
 
-	self.p.Signal(syscall.SIGTERM)
+	self.p.Kill()
 	self.p.Wait()
 	self.p = nil
 }

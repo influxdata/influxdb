@@ -35,6 +35,7 @@ func init() {
 		&DropSeriesCommand{},
 		&CreateShardSpaceCommand{},
 		&DropShardSpaceCommand{},
+		&UpdateShardSpaceCommand{},
 	} {
 		internalRaftCommands[command.CommandName()] = command
 	}
@@ -469,5 +470,23 @@ func (c *DropShardSpaceCommand) CommandName() string {
 func (c *DropShardSpaceCommand) Apply(server raft.Server) (interface{}, error) {
 	config := server.Context().(*cluster.ClusterConfiguration)
 	err := config.RemoveShardSpace(c.Database, c.Name)
+	return nil, err
+}
+
+type UpdateShardSpaceCommand struct {
+	ShardSpace *cluster.ShardSpace
+}
+
+func NewUpdateShardSpaceCommand(space *cluster.ShardSpace) *UpdateShardSpaceCommand {
+	return &UpdateShardSpaceCommand{ShardSpace: space}
+}
+
+func (c *UpdateShardSpaceCommand) CommandName() string {
+	return "update_shard_space"
+}
+
+func (c *UpdateShardSpaceCommand) Apply(server raft.Server) (interface{}, error) {
+	config := server.Context().(*cluster.ClusterConfiguration)
+	err := config.UpdateShardSpace(c.ShardSpace)
 	return nil, err
 }

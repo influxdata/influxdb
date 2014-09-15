@@ -565,7 +565,6 @@ func (s *RaftServer) Serve(l net.Listener) error {
 		Handler: s.router,
 	}
 
-	s.router.HandleFunc("/cluster_config", s.configHandler).Methods("GET")
 	s.router.HandleFunc("/join", s.joinHandler).Methods("POST")
 	s.router.HandleFunc("/process_command/{command_type}", s.processCommandHandler).Methods("POST")
 
@@ -698,14 +697,6 @@ func (s *RaftServer) joinHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (s *RaftServer) configHandler(w http.ResponseWriter, req *http.Request) {
-	js, err := json.Marshal(s.clusterConfig.GetMapForJsonSerialization())
-	if err != nil {
-		log.Error("ERROR marshalling config: ", err)
-	}
-	w.Write(js)
-}
-
 func (s *RaftServer) marshalAndDoCommandFromBody(command raft.Command, req *http.Request) (interface{}, error) {
 	if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
 		return nil, err
@@ -823,6 +814,12 @@ func (self *RaftServer) CreateShardSpace(shardSpace *cluster.ShardSpace) error {
 
 func (self *RaftServer) DropShardSpace(database, name string) error {
 	command := NewDropShardSpaceCommand(database, name)
+	_, err := self.doOrProxyCommand(command)
+	return err
+}
+
+func (self *RaftServer) UpdateShardSpace(shardSpace *cluster.ShardSpace) error {
+	command := NewUpdateShardSpaceCommand(shardSpace)
 	_, err := self.doOrProxyCommand(command)
 	return err
 }

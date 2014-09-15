@@ -23,8 +23,12 @@ func getExpressionValue(values []*parser.Value, fields []string, point *protocol
 		case parser.ValueBool:
 			value, _ := strconv.ParseBool(value.Name)
 			fieldValues = append(fieldValues, &protocol.FieldValue{BoolValue: &value})
-		case parser.ValueString, parser.ValueRegex:
+		case parser.ValueString:
 			fieldValues = append(fieldValues, &protocol.FieldValue{StringValue: &value.Name})
+		case parser.ValueRegex:
+			regex, _ := value.GetCompiledRegex()
+			regexStr := regex.String()
+			fieldValues = append(fieldValues, &protocol.FieldValue{StringValue: &regexStr})
 
 		case parser.ValueTableName, parser.ValueSimpleName:
 
@@ -67,6 +71,10 @@ func matchesExpression(expr *parser.Value, fields []string, point *protocol.Poin
 	}
 
 	operator := registeredOperators[expr.Name]
+	if operator == nil {
+		return false, fmt.Errorf("Invalid boolean operator %s", expr.Name)
+	}
+
 	ok, err := operator(leftValue[0], rightValue)
 	return ok == MATCH, err
 }

@@ -73,6 +73,20 @@ func (self *QueryParserSuite) TestParseBasicSelectQuery(c *C) {
 	}
 }
 
+func (self *QueryParserSuite) TestGetQueryStringWithDoubleQuotes(c *C) {
+	q := `select dashboard from "grafana.dashboard_VWx0cmFNUg=="`
+	query, err := ParseQuery(q)
+	c.Assert(err, IsNil)
+	c.Assert(query, HasLen, 1)
+	actualQ := query[0].GetQueryStringWithTimeCondition()
+	actualQuery, err := ParseQuery(actualQ)
+	c.Assert(err, IsNil)
+	c.Assert(actualQuery, HasLen, 1)
+	query[0].SelectQuery.startTimeSpecified = false
+	actualQuery[0].SelectQuery.startTimeSpecified = false
+	c.Assert(actualQuery, DeepEquals, query)
+}
+
 func (self *QueryParserSuite) TestGetQueryString(c *C) {
 	for _, query := range []string{
 		"select value from t",
@@ -281,6 +295,7 @@ func (self *QueryParserSuite) TestParseListSeries(c *C) {
 	listSeriesQuery := queries[0].GetListSeriesQuery()
 	c.Assert(listSeriesQuery, NotNil)
 	c.Assert(listSeriesQuery.HasRegex(), Equals, false)
+	c.Assert(listSeriesQuery.IncludeSpaces, Equals, false)
 
 	// test the case sensitive and case insensitive list series
 	for i := 0; i < 2; i++ {
@@ -302,7 +317,30 @@ func (self *QueryParserSuite) TestParseListSeries(c *C) {
 			regularExpression, _ = regexp.Compile("^foo.*")
 		}
 		c.Assert(listSeriesQuery.GetRegex(), DeepEquals, regularExpression)
+		c.Assert(listSeriesQuery.IncludeSpaces, Equals, false)
 	}
+}
+
+func (self *QueryParserSuite) TestParseListSeriesInludeSpaces(c *C) {
+	queries, err := ParseQuery("list series include spaces")
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].IsListQuery(), Equals, true)
+	listSeriesQuery := queries[0].GetListSeriesQuery()
+	c.Assert(listSeriesQuery, NotNil)
+	c.Assert(listSeriesQuery.HasRegex(), Equals, false)
+	c.Assert(listSeriesQuery.IncludeSpaces, Equals, true)
+
+	queries, err = ParseQuery("list series /foo.*/ include spaces")
+	c.Assert(err, IsNil)
+	c.Assert(queries, HasLen, 1)
+	c.Assert(queries[0].IsListQuery(), Equals, true)
+	listSeriesQuery = queries[0].GetListSeriesQuery()
+	c.Assert(listSeriesQuery, NotNil)
+	c.Assert(listSeriesQuery.HasRegex(), Equals, true)
+	c.Assert(listSeriesQuery.IncludeSpaces, Equals, true)
+	regularExpression, _ := regexp.Compile("foo.*")
+	c.Assert(listSeriesQuery.GetRegex(), DeepEquals, regularExpression)
 }
 
 // issue #267
@@ -951,6 +989,19 @@ func (self *QueryParserSuite) TestParseContinuousQueryList(c *C) {
 	c.Assert(queries, HasLen, 1)
 	c.Assert(queries[0].IsListQuery(), Equals, true)
 	c.Assert(queries[0].IsListContinuousQueriesQuery(), Equals, true)
+}
+
+// For issue #768
+func (self *QueryParserSuite) TestMinusWithoutSpace(c *C) {
+	query := "select val1-val0 from foo;"
+	q, err := ParseSelectQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(q.GetColumnNames(), HasLen, 1)
+	column := q.GetColumnNames()[0]
+	c.Assert(column.Type, Equals, ValueType(ValueExpression))
+	c.Assert(column.Elems[0].Name, Equals, "val1")
+	c.Assert(column.Elems[1].Name, Equals, "val0")
+	c.Assert(column.Name, Equals, "-")
 }
 
 // For issue #466 - allow all characters in column names - https://github.com/influxdb/influxdb/issues/267

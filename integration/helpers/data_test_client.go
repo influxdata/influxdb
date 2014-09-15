@@ -71,3 +71,9 @@ func (self *DataTestClient) RunInvalidQuery(query string, c *C, timePrecision ..
 	c.Assert(err, NotNil)
 	return nil
 }
+
+func (self *DataTestClient) DeleteDatabase(db string, c *C) {
+	client, err := influxdb.NewClient(&influxdb.ClientConfig{})
+	c.Assert(err, IsNil)
+	c.Assert(client.DeleteDatabase(db), IsNil)
+}

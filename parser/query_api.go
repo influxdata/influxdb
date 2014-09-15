@@ -430,7 +430,7 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 			if err != nil {
 				return nil, nil, err
 			}
-			t := time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)).UTC()
+			t := time.Unix(0, nanoseconds).UTC()
 			return condition, &t, nil
 		default:
 			return nil, nil, fmt.Errorf("Cannot use time with '%s'", expr.Name)
@@ -440,7 +440,7 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 		if err != nil {
 			return nil, nil, err
 		}
-		t := time.Unix(nanoseconds/int64(time.Second), nanoseconds%int64(time.Second)).UTC()
+		t := time.Unix(0, nanoseconds).UTC()
 		return nil, &t, nil
 	}
 

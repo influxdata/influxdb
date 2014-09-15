@@ -97,6 +97,7 @@ typedef struct {
 
 typedef struct {
   char has_regex;
+  char include_spaces;
   value *regex;
 } list_series_query;
 

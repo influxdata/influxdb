@@ -59,8 +59,9 @@ const (
 )
 
 type ListQuery struct {
-	Type  ListType
-	value *Value
+	Type          ListType
+	value         *Value
+	IncludeSpaces bool
 }
 
 type DropQuery struct {
@@ -263,11 +264,11 @@ func (self *SelectQuery) IsSinglePointQuery() bool {
 	return true
 }
 
-func (self *SelectQuery) GetSinglePointQuerySequenceNumber() (int64, error) {
+func (self *SelectQuery) GetSinglePointQuerySequenceNumber() (uint64, error) {
 	w := self.GetWhereCondition()
 	rightBoolExpression, _ := w.Right.GetBoolExpression()
 	sequence := rightBoolExpression.Elems[1].Name
-	sequence_number, err := strconv.ParseInt(sequence, 10, 64)
+	sequence_number, err := strconv.ParseUint(sequence, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("The column sequence_number can only be queried as an integer.")
 	}
@@ -621,7 +622,11 @@ func parseSingleQuery(q *C.query) (*Query, error) {
 				return nil, err
 			}
 		}
-		return &Query{ListQuery: &ListQuery{Type: t, value: value}, qType: ListSeries}, nil
+		includeSpaces := false
+		if q.list_series_query.include_spaces != 0 {
+			includeSpaces = true
+		}
+		return &Query{ListQuery: &ListQuery{Type: t, value: value, IncludeSpaces: includeSpaces}, qType: ListSeries}, nil
 	}
 
 	if q.list_continuous_queries_query != 0 {

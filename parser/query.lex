@@ -21,7 +21,7 @@ static int yycolumn = 1;
 %option bison-locations
 %option noyywrap
 %s FROM_CLAUSE REGEX_CONDITION
-%x LIST_SERIES
+%s LIST_SERIES
 %x IN_REGEX
 %x IN_TABLE_NAME
 %x IN_SIMPLE_NAME
@@ -64,6 +64,8 @@ static int yycolumn = 1;
   strcat(yylval->string, yytext);
 }
 
+"include"                 { return INCLUDE; }
+"spaces"                  { return SPACES; }
 "where"                   { BEGIN(INITIAL); return WHERE; }
 "as"                      { return AS; }
 "select"                  { return SELECT; }
@@ -120,9 +122,9 @@ true|false                                          { yylval->string = strdup(yy
   strcat(yylval->string, yytext);
 }
 
-[a-zA-Z0-9_][a-zA-Z0-9._-]*                         { yylval->string = strdup(yytext); return TABLE_NAME; }
+[a-zA-Z0-9_][a-zA-Z0-9._]*                         { yylval->string = strdup(yytext); return TABLE_NAME; }
 
-[:\[a-zA-Z0-9_][:\[\]a-zA-Z0-9._-]*                 { yylval->string = strdup(yytext); return INTO_NAME; }
+[:\[a-zA-Z0-9_][:\[\]a-zA-Z0-9._]*                 { yylval->string = strdup(yytext); return INTO_NAME; }
 
 \'[^\']*\'                    {
   yytext[yyleng-1] = '\0';

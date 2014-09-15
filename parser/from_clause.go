@@ -57,7 +57,7 @@ func (self *FromClause) GetString() string {
 			if t.Alias != "" {
 				alias = fmt.Sprintf(" as %s", t.Alias)
 			}
-			names = append(names, fmt.Sprintf("%s%s", t.Name.GetString(), alias))
+			names = append(names, fmt.Sprintf(`"%s"%s`, t.Name.GetString(), alias))
 		}
 		buffer.WriteString(strings.Join(names, ","))
 	}

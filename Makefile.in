@@ -151,6 +151,11 @@ ifneq ($(race),off)
 	GO_BUILD_OPTIONS += -race
 endif
 
+benchmark = off
+ifneq ($(benchmark),off)
+	GOTEST_OPTS += --gocheck.b --gocheck.btime=30s
+endif
+
 ifneq ($(uname_S),Linux)
 PYTHONPATH ?= /usr/local/lib/python2.7/site-packages/
 export PYTHONPATH
@@ -257,7 +262,7 @@ clean:
 only =
 verbose = off
 ifneq ($(only),)
-	GOTEST_OPTS = -gocheck.f '$(only)'
+	GOTEST_OPTS += -gocheck.f '$(only)'
 endif
 ifneq ($(verbose),off)
 	GOTEST_OPTS += -v -gocheck.v -gocheck.vv
@@ -270,9 +275,6 @@ endif
 
 timeout = 10m
 GOTEST_OPTS += -test.timeout=$(timeout)
-
-bench:
-	$(GO) test github.com/influxdb/influxdb/coordinator -test.bench=. -test.benchmem
 
 test: test_dependencies parser protobuf
 	$(GO) test $(test_packages) $(GOTEST_OPTS)

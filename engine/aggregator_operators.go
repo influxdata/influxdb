@@ -124,11 +124,7 @@ func (self *CumulativeArithmeticAggregator) ColumnNames() []string {
 
 func (self *CumulativeArithmeticAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	if state == nil {
-		return [][]*protocol.FieldValue{
-			{
-				{DoubleValue: &self.initialValue},
-			},
-		}
+		return [][]*protocol.FieldValue{{self.defaultValue}}
 	}
 
 	return [][]*protocol.FieldValue{
@@ -319,7 +315,7 @@ func (self *StandardDeviationAggregator) ColumnNames() []string {
 func (self *StandardDeviationAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	r, ok := state.(*StandardDeviationRunning)
 	if !ok {
-		return nil
+		return [][]*protocol.FieldValue{{self.defaultValue}}
 	}
 
 	eX := r.totalX / float64(r.count)
@@ -415,8 +411,11 @@ func (self *DerivativeAggregator) ColumnNames() []string {
 
 func (self *DerivativeAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	s, ok := state.(*DerivativeAggregatorState)
+	if !ok {
+		return [][]*protocol.FieldValue{{self.defaultValue}}
+	}
 
-	if !(ok && s.firstValue != nil && s.lastValue != nil) {
+	if s.firstValue == nil || s.lastValue == nil {
 		return nil
 	}
 
@@ -513,9 +512,8 @@ func (self *DifferenceAggregator) ColumnNames() []string {
 
 func (self *DifferenceAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	s, ok := state.(*DifferenceAggregatorState)
-
 	if !(ok && s.firstValue != nil && s.lastValue != nil) {
-		return nil
+		return [][]*protocol.FieldValue{{self.defaultValue}}
 	}
 
 	difference := *s.lastValue.Values[0].DoubleValue - *s.firstValue.Values[0].DoubleValue
@@ -557,8 +555,12 @@ type HistogramAggregatorState map[int]int
 
 type HistogramAggregator struct {
 	AbstractAggregator
-	bucketSize  float64
-	columnNames []string
+	bucketSize          float64
+	bucketStart         float64
+	explicitBucketStart bool
+	bucketStopIdx       int
+	columnNames         []string
+	defaultValue        *protocol.FieldValue
 }
 
 func (self *HistogramAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
@@ -579,8 +581,14 @@ func (self *HistogramAggregator) AggregatePoint(state interface{}, p *protocol.P
 		value = *ptr
 	}
 
-	bucket := int(value / self.bucketSize)
-	buckets[bucket] += 1
+	bucket := int(math.Floor((value - self.bucketStart) / self.bucketSize))
+	if self.bucketStopIdx >= 0 {
+		if bucket <= self.bucketStopIdx {
+			buckets[bucket] += 1
+		}
+	} else {
+		buckets[bucket] += 1
+	}
 
 	return buckets, nil
 }
@@ -591,15 +599,42 @@ func (self *HistogramAggregator) ColumnNames() []string {
 
 func (self *HistogramAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	returnValues := [][]*protocol.FieldValue{}
+	if state == nil {
+		_size := int64(0)
+		returnValues = append(returnValues, []*protocol.FieldValue{
+			self.defaultValue,
+			{Int64Value: &_size},
+		})
+		return returnValues
+	}
 	buckets := state.(HistogramAggregatorState)
 	for bucket, size := range buckets {
-		_bucket := float64(bucket) * self.bucketSize
+		_bucket := float64(bucket)*self.bucketSize + self.bucketStart
 		_size := int64(size)
+
+		if self.explicitBucketStart && _bucket < self.bucketStart {
+			continue
+		}
 
 		returnValues = append(returnValues, []*protocol.FieldValue{
 			{DoubleValue: &_bucket},
 			{Int64Value: &_size},
 		})
+	}
+
+	if self.bucketStopIdx >= 0 {
+		for i := 0; i <= self.bucketStopIdx; i++ {
+			if _, ok := buckets[i]; !ok {
+				_bucket := float64(i)*self.bucketSize + self.bucketStart
+				_size := int64(0)
+
+				returnValues = append(returnValues, []*protocol.FieldValue{
+					{DoubleValue: &_bucket},
+					{Int64Value: &_size},
+				})
+			}
+		}
+
 	}
 
 	return returnValues
@@ -610,8 +645,8 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function histogram() requires at least one arguments")
 	}
 
-	if len(v.Elems) > 2 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function histogram() takes at most two arguments")
+	if len(v.Elems) > 4 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function histogram() takes at most four arguments")
 	}
 
 	if v.Elems[0].Type == parser.ValueWildcard {
@@ -619,8 +654,12 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 	}
 
 	bucketSize := 1.0
+	bucketStart := 0.0
+	explicitBucketStart := false
+	bucketStop := 0.0
+	bucketStopIdx := -1
 
-	if len(v.Elems) == 2 {
+	if len(v.Elems) > 1 {
 		switch v.Elems[1].Type {
 		case parser.ValueInt, parser.ValueFloat:
 			var err error
@@ -630,6 +669,32 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 			}
 		default:
 			return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[1].Name)
+		}
+		if len(v.Elems) > 2 {
+			switch v.Elems[2].Type {
+			case parser.ValueInt, parser.ValueFloat:
+				var err error
+				bucketStart, err = strconv.ParseFloat(v.Elems[2].Name, 64)
+				explicitBucketStart = true
+				if err != nil {
+					return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[2].Name)
+				}
+			default:
+				return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[2].Name)
+			}
+			if len(v.Elems) == 4 {
+				switch v.Elems[3].Type {
+				case parser.ValueInt, parser.ValueFloat:
+					var err error
+					bucketStop, err = strconv.ParseFloat(v.Elems[3].Name, 64)
+					bucketStopIdx = int(math.Floor((bucketStop - bucketStart) / bucketSize))
+					if err != nil {
+						return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[3].Name)
+					}
+				default:
+					return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[3].Name)
+				}
+			}
 		}
 	}
 
@@ -643,8 +708,11 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
 		},
-		bucketSize:  bucketSize,
-		columnNames: columnNames,
+		bucketSize:          bucketSize,
+		bucketStart:         bucketStart,
+		explicitBucketStart: explicitBucketStart,
+		bucketStopIdx:       bucketStopIdx,
+		columnNames:         columnNames,
 	}, nil
 }
 
@@ -878,9 +946,7 @@ func (self *PercentileAggregator) ColumnNames() []string {
 func (self *PercentileAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
 	s, ok := state.(*PercentileAggregatorState)
 	if !ok {
-		return [][]*protocol.FieldValue{
-			{self.defaultValue},
-		}
+		return [][]*protocol.FieldValue{{self.defaultValue}}
 	}
 	return [][]*protocol.FieldValue{
 		{{DoubleValue: &s.percentileValue}},
@@ -987,7 +1053,10 @@ func (self *ModeAggregator) ColumnNames() []string {
 }
 
 func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
-	s := state.(*ModeAggregatorState)
+	s, ok := state.(*ModeAggregatorState)
+	if !ok {
+		return [][]*protocol.FieldValue{{self.defaultValue}}
+	}
 
 	counts := make([]int, len(s.counts))
 	countMap := make(map[int][]interface{}, len(s.counts))
@@ -1133,6 +1202,7 @@ func (self *DistinctAggregator) GetValues(state interface{}) [][]*protocol.Field
 	s, ok := state.(*DistinctAggregatorState)
 	if !ok || len(s.counts) == 0 {
 		returnValues = append(returnValues, []*protocol.FieldValue{self.defaultValue})
+		return returnValues
 	}
 
 	for value := range s.counts {
@@ -1197,7 +1267,11 @@ func (self *FirstOrLastAggregator) ColumnNames() []string {
 }
 
 func (self *FirstOrLastAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
-	s := state.(FirstOrLastAggregatorState)
+	s, ok := state.(FirstOrLastAggregatorState)
+	if !ok {
+		return [][]*protocol.FieldValue{{self.defaultValue}}
+	}
+
 	return [][]*protocol.FieldValue{
 		{
 			s,
