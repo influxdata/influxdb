@@ -1264,7 +1264,7 @@ func (c *Config) NodeByID(id uint64) *Node {
 	return nil
 }
 
-// NodeByULR returns a node by URL.
+// NodeByURL returns a node by URL.
 func (c *Config) NodeByURL(u *url.URL) *Node {
 	for _, n := range c.Nodes {
 		if n.URL.String() == u.String() {
