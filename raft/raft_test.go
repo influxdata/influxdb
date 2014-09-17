@@ -32,6 +32,7 @@ func Test_Simulate_SingleNode(t *testing.T) {
 			Clock: raft.NewMockClock(),
 			Rand:  seq(),
 		}
+		fsm.Log = l
 		l.URL, _ = url.Parse("//node")
 		if err := l.Open(tempfile()); err != nil {
 			log.Fatal("open: ", err)
@@ -100,7 +101,8 @@ func Test_Simulate_MultiNode(t *testing.T) {
 		}
 
 		// Wait for commands to apply.
-		s.Clock.Add(100 * time.Millisecond)
+		s.Clock.Add(500 * time.Millisecond)
+		time.Sleep(1 * time.Second)
 
 		// Validate logs of all nodes.
 		for i, n := range s.Nodes {
@@ -131,6 +133,7 @@ func Test_Simulate_MultiNode(t *testing.T) {
 
 // TestFSM represents a fake state machine that simple records all commands.
 type TestFSM struct {
+	Log     *raft.Log
 	entries []*raft.LogEntry
 }
 
@@ -215,6 +218,7 @@ func (n *SimulationNode) Generate(rand *rand.Rand, size int) reflect.Value {
 		Clock: n.Clock,
 		Rand:  seq(),
 	}
+	n.FSM.Log = n.Log
 
 	// Start HTTP server and set log URL.
 	n.HTTPServer = httptest.NewServer(raft.NewHTTPHandler(n.Log))
@@ -234,7 +238,6 @@ func (n *SimulationNode) Close() error {
 	_ = n.Log.Close()
 	n.HTTPServer.CloseClientConnections()
 	n.HTTPServer.Close()
-	time.Sleep(60 * time.Second)
 	return nil
 }
 

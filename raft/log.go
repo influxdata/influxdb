@@ -623,22 +623,25 @@ func (l *Log) internalApply(typ LogEntryType, command []byte) error {
 
 	// Wait for consensus.
 	// HACK(benbjohnson): Notify via channel instead.
-	for {
-		l.mu.Lock()
-		state, appliedIndex := l.state, l.appliedIndex
-		l.mu.Unlock()
+	/*
+		for {
+			l.mu.Lock()
+			state, appliedIndex := l.state, l.appliedIndex
+			l.mu.Unlock()
 
-		// If we've changed leadership then return error.
-		// If the last applied index has moved past our index then move forward.
-		if state != Leader {
-			return ErrNotLeader
-		} else if appliedIndex >= index {
-			return nil
+			// If we've changed leadership then return error.
+			// If the last applied index has moved past our index then move forward.
+			if state != Leader {
+				return ErrNotLeader
+			} else if appliedIndex >= index {
+				return nil
+			}
+
+			// Otherwise wait.
+			l.Clock.Sleep(10 * time.Millisecond)
 		}
-
-		// Otherwise wait.
-		l.Clock.Sleep(10 * time.Millisecond)
-	}
+	*/
+	return nil
 }
 
 // applier runs in a separate goroutine and applies all entries between the
@@ -797,6 +800,9 @@ func (l *Log) AddPeer(u *url.URL) (uint64, *Config, error) {
 	if err := l.internalApply(LogEntryAddPeer, b); err != nil {
 		return 0, nil, err
 	}
+
+	// HACK(benbjohnson): Wait for command to be processed.
+	time.Sleep(100 * time.Millisecond)
 
 	// Lock while we look up the node.
 	l.mu.Lock()
@@ -1163,8 +1169,10 @@ func (s *segment) append(e *LogEntry) error {
 		}
 
 		// Flush, if possible.
-		if w, ok := w.Writer.(http.Flusher); ok {
-			w.Flush()
+		if e.Type != LogEntryCommand {
+			if w, ok := w.Writer.(http.Flusher); ok {
+				w.Flush()
+			}
 		}
 	}
 

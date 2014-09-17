@@ -10,20 +10,27 @@ import (
 	"os"
 	"time"
 
-	//"github.com/davecheney/profile"
+	"github.com/davecheney/profile"
 	"github.com/influxdb/influxdb/raft"
 )
 
-func main() {
-	//defer profile.Start(&profile.Config{CPUProfile: true, MemProfile: true, BlockProfile: true}).Stop()
+const InitializationDuration = 1 * time.Second
 
+func main() {
 	// Parse flags.
 	var (
+		prof    = flag.Bool("profile", false, "enable profiling")
 		addr    = flag.String("addr", "", "bind address")
 		joinURL = flag.String("join-url", "", "cluster to join")
+		sz      = flag.Int("size", 32, "command size")
 	)
 	flag.Parse()
 	log.SetFlags(0)
+
+	// Enable profiling.
+	if *prof {
+		defer profile.Start(&profile.Config{CPUProfile: true, MemProfile: true, BlockProfile: true}).Stop()
+	}
 
 	// Validate input.
 	if *addr == "" {
@@ -59,9 +66,7 @@ func main() {
 		}
 		log.Println("[initialized]")
 
-		for i := 0; i < 100; i++ {
-			go generator(l)
-		}
+		go generator(l, *sz)
 	} else {
 		u, err := url.Parse(*joinURL)
 		if err != nil {
@@ -73,9 +78,6 @@ func main() {
 		log.Println("[joined]")
 	}
 
-	// Log time.
-	startTime := time.Now()
-
 	// Print notice.
 	log.Printf("Listening on http://%s%s", hostname, *addr)
 	log.SetFlags(log.LstdFlags)
@@ -84,16 +86,22 @@ func main() {
 	h := raft.NewHTTPHandler(l)
 	go func() { log.Fatal(http.ListenAndServe(*addr, h)) }()
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(InitializationDuration)
+
+	startTime := time.Now()
+	time.Sleep(5 * time.Second)
 
 	entryN := fsm.EntryN
 	log.Printf("[BENCH] ops=%d; %0.03f ops/sec\n\n", entryN, float64(entryN)/time.Since(startTime).Seconds())
 }
 
 // generator is run in a separate goroutine to generate data.
-func generator(l *raft.Log) {
+func generator(l *raft.Log, sz int) {
+	time.Sleep(InitializationDuration)
+
 	for {
-		if err := l.Apply(make([]byte, 8)); err != nil {
+		command := make([]byte, sz)
+		if err := l.Apply(command); err != nil {
 			log.Fatalf("generate: %s", err)
 		}
 	}
