@@ -118,7 +118,6 @@ hyperleveldb_deps    = $(hyperleveldb_dir)/.libs/libhyperleveldb.a
 
 profile=off
 ifneq ($(profile),off)
-CGO_LDFLAGS += -ltcmalloc -lprofiler
 GO_BUILD_TAGS += profile
 endif
 
