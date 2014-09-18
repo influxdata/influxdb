@@ -398,3 +398,6 @@ vet:
 
 format:
 	git ls-files | grep '.go$$' | xargs $(GOFMT) -w -s
+
+oracle:
+	$$GOPATH/bin/oracle $(oracle_args)
