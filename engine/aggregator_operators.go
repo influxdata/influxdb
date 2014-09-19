@@ -954,7 +954,10 @@ func (self *PercentileAggregator) GetValues(state interface{}) [][]*protocol.Fie
 }
 
 func (self *PercentileAggregator) CalculateSummaries(state interface{}) {
-	s := state.(*PercentileAggregatorState)
+	s, ok := state.(*PercentileAggregatorState)
+	if !ok {
+		return
+	}
 	sort.Float64s(s.values)
 	length := len(s.values)
 	index := int(math.Floor(float64(length)*self.percentile/100.0+0.5)) - 1
