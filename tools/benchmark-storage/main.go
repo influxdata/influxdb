@@ -173,7 +173,7 @@ func query(db storage.Engine, s int64, yield func(storage.Iterator)) {
 
 func benchmarkWrites(db storage.Engine, c *Config, points int) int {
 	writesChan := make([]chan []storage.Write, c.threads)
-	for i := 0; i < c.threads; i++ {
+	for i := range writesChan {
 		writesChan[i] = make(chan []storage.Write, 1)
 	}
 
@@ -204,8 +204,8 @@ func benchmarkWrites(db storage.Engine, c *Config, points int) int {
 	wg := sync.WaitGroup{}
 	for i := 0; i < c.threads; i++ {
 		wg.Add(1)
-		defer wg.Done()
 		go func(idx int) {
+			defer wg.Done()
 			for w := range writesChan[idx] {
 				if err := db.BatchPut(w); err != nil {
 					panic(err)
