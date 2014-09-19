@@ -210,11 +210,12 @@ func benchmarkWrites(db storage.Engine, c *Config, points int) int {
 				if err := db.BatchPut(w); err != nil {
 					panic(err)
 				}
-				fmt.Print('.')
+				fmt.Print(".")
 			}
 		}(i)
 	}
 
 	wg.Wait()
+	fmt.Printf("\n")
 	return count
 }
