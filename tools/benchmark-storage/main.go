@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/influxdb/influxdb/datastore/storage"
@@ -21,17 +22,23 @@ func main() {
 	batchSize := flag.Int("batch", 1000, "Batch size")
 	series := flag.Int("series", 1, "Number of series")
 	path := flag.String("path", "/tmp", "Path to DB files")
+	threads := flag.Int("threads", 1, "Number of threads that write data")
 	flag.Parse()
+
+	if *threads < 1 {
+		fmt.Fprintf(os.Stderr, "Threads cannot be less than one. Run %s --help for more info\n", os.Args[0])
+		os.Exit(2)
+	}
 
 	os.RemoveAll("/tmp/test-leveldb")
 	os.RemoveAll("/tmp/test-lmdb")
 	os.RemoveAll("/tmp/test-rocksdb")
 	os.RemoveAll("/tmp/test-hyperleveldb")
 
-	benchmark("lmdb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path})
-	benchmark("leveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path})
-	benchmark("rocksdb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path})
-	benchmark("hyperleveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path})
+	// benchmark("lmdb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
+	// benchmark("leveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
+	benchmark("rocksdb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
+	// benchmark("hyperleveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
 }
 
 func benchmark(name string, c Config) {
@@ -60,12 +67,9 @@ func getSize(path string) string {
 func benchmarkDbCommon(db storage.Engine, c Config) {
 	fmt.Printf("################ Benchmarking: %s\n", db.Name())
 	start := time.Now()
-	count := 0
-	for p := c.points; p > 0; {
-		c := writeBatch(db, &c)
-		count += c
-		p -= c
-	}
+
+	count := benchmarkWrites(db, &c, c.points)
+
 	d := time.Now().Sub(start)
 
 	fmt.Printf("Writing %d points in batches of %d points took %s (%f microsecond per point)\n",
@@ -82,12 +86,7 @@ func benchmarkDbCommon(db storage.Engine, c Config) {
 	fmt.Printf("Size: %s\n", getSize(db.Path()))
 
 	start = time.Now()
-	count = 0
-	for p := c.points / 2; p > 0; {
-		c := writeBatch(db, &c)
-		count += c
-		p -= c
-	}
+	count = benchmarkWrites(db, &c, c.points/2)
 	d = time.Now().Sub(start)
 	fmt.Printf("Writing %d points in batches of %d points took %s (%f microsecond per point)\n",
 		count,
@@ -172,10 +171,49 @@ func query(db storage.Engine, s int64, yield func(storage.Iterator)) {
 	}
 }
 
-func writeBatch(db storage.Engine, c *Config) int {
-	ws := c.MakeBatch()
-	if err := db.BatchPut(ws); err != nil {
-		panic(err)
+func benchmarkWrites(db storage.Engine, c *Config, points int) int {
+	writesChan := make([]chan []storage.Write, c.threads)
+	for i := 0; i < c.threads; i++ {
+		writesChan[i] = make(chan []storage.Write, 1)
 	}
-	return len(ws)
+
+	count := 0
+	p := points
+
+	go func() {
+		defer func() {
+			for _, ch := range writesChan {
+				close(ch)
+			}
+		}()
+
+		for {
+			for _, ch := range writesChan {
+				w := c.MakeBatch()
+				ch <- w
+				l := len(w)
+				count += l
+				p -= l
+				if p <= 0 {
+					return
+				}
+			}
+		}
+	}()
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < c.threads; i++ {
+		wg.Add(1)
+		defer wg.Done()
+		go func(idx int) {
+			for w := range writesChan[idx] {
+				if err := db.BatchPut(w); err != nil {
+					panic(err)
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	return count
 }
