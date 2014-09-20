@@ -36,12 +36,12 @@ func TestLogEntryEncoder_Encode(t *testing.T) {
 
 	// Encode the entry to the buffer.
 	enc := raft.NewLogEntryEncoder(&buf)
-	if err := enc.Encode(&raft.LogEntry{Type: raft.LogEntryNop, Index: 2, Term: 3, Data: []byte{4, 5, 6}}); err != nil {
+	if err := enc.Encode(&raft.LogEntry{Index: 2, Term: 3, Data: []byte{4, 5, 6}}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
 	// Check that the encoded bytes match what's expected.
-	exp := []byte{0x10, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 4, 5, 6}
+	exp := []byte{0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 4, 5, 6}
 	if v := buf.Bytes(); !bytes.Equal(exp, v) {
 		t.Fatalf("value:\n\nexp: %x\n\ngot: %x\n\n", exp, v)
 	}
@@ -58,9 +58,6 @@ func TestLogEntryDecoder_Decode(t *testing.T) {
 	dec := raft.NewLogEntryDecoder(buf)
 	if err := dec.Decode(entry); err != nil {
 		t.Fatalf("unexpected error: %s", err)
-	}
-	if typ := raft.LogEntryNop; typ != entry.Type {
-		t.Fatalf("type: exp: %v, got: %v", typ, entry.Type)
 	}
 	if index := uint64(2); index != entry.Index {
 		t.Fatalf("index: exp: %v, got: %v", index, entry.Index)
@@ -79,11 +76,6 @@ func TestLogEntryEncodeDecode(t *testing.T) {
 		var buf bytes.Buffer
 		enc := raft.NewLogEntryEncoder(&buf)
 		dec := raft.NewLogEntryDecoder(&buf)
-
-		// Limit fields.
-		for i := range entries {
-			entries[i].Type = raft.LogEntryType(int(entries[i].Type) % 16)
-		}
 
 		// Encode entries.
 		for _, e := range entries {

@@ -117,8 +117,8 @@ func (fsm *FSM) Apply(e *raft.LogEntry) error {
 	return nil
 }
 
-func (fsm *FSM) Snapshot(w io.Writer) error { return nil }
-func (fsm *FSM) Restore(r io.Reader) error  { return nil }
+func (fsm *FSM) WriteTo(w io.Writer) (int, error) { return nil }
+func (fsm *FSM) Restore(r io.Reader)              { return nil }
 
 // tempfile returns the path to a non-existent file in the temp directory.
 func tempfile() string {

@@ -138,8 +138,6 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	// First entry should be the configuration.
 	if err := dec.Decode(&e); err != nil {
 		t.Fatalf("unexpected error: %s", err)
-	} else if e.Type != raft.LogEntryInitialize {
-		t.Fatalf("unexpected entry type: %v", e.Type)
 	}
 
 	// Next entry should be the command.

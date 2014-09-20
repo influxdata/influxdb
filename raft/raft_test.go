@@ -2,6 +2,7 @@ package raft_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -59,8 +60,8 @@ func Test_Simulate_SingleNode(t *testing.T) {
 
 		// Verify the commands were executed against the FSM, in order.
 		for i, command := range commands {
-			if e := fsm.entries[i]; !bytes.Equal(command, e.Data) {
-				t.Fatalf("%d. command:\n\nexp: %x\n\ngot: %x\n\n", i, command, e.Data)
+			if data := fsm.Commands[i]; !bytes.Equal(command, data) {
+				t.Fatalf("%d. command:\n\nexp: %x\n\ngot: %x\n\n", i, command, data)
 			}
 		}
 
@@ -102,7 +103,7 @@ func Test_Simulate_MultiNode(t *testing.T) {
 
 		// Wait for commands to apply.
 		s.Clock.Add(500 * time.Millisecond)
-		time.Sleep(1 * time.Second)
+		time.Sleep(100 * time.Millisecond)
 
 		// Validate logs of all nodes.
 		for i, n := range s.Nodes {
@@ -111,15 +112,15 @@ func Test_Simulate_MultiNode(t *testing.T) {
 			}
 		}
 
-		// Verify that all entries are present on all nodes.
+		// Verify that all commands are present on all nodes.
 		for _, n := range s.Nodes {
-			if entryN, commandN := len(n.FSM.entries), len(s.Commands); commandN != entryN {
+			if entryN, commandN := len(n.FSM.Commands), len(s.Commands); commandN != entryN {
 				t.Fatalf("unexpected entry count: node %d: exp=%d, got=%d", n.Log.ID(), commandN, entryN)
 			}
 
 			for i, command := range s.Commands {
-				if !bytes.Equal(command, n.FSM.entries[i].Data) {
-					t.Fatalf("log mismatch: node %d, i=%d\n\nexp=%x\n\ngot=%x\n\n", n.Log.ID(), i, command, n.FSM.entries[i].Data)
+				if !bytes.Equal(command, n.FSM.Commands[i]) {
+					t.Fatalf("log mismatch: node %d, i=%d\n\nexp=%x\n\ngot=%x\n\n", n.Log.ID(), i, command, n.FSM.Commands[i])
 				}
 			}
 		}
@@ -133,17 +134,37 @@ func Test_Simulate_MultiNode(t *testing.T) {
 
 // TestFSM represents a fake state machine that simple records all commands.
 type TestFSM struct {
-	Log     *raft.Log
-	entries []*raft.LogEntry
+	Log      *raft.Log `json:"-"`
+	MaxIndex uint64
+	Commands [][]byte
 }
 
 func (fsm *TestFSM) Apply(entry *raft.LogEntry) error {
-	fsm.entries = append(fsm.entries, entry)
+	fsm.MaxIndex = entry.Index
+	if entry.Type == raft.LogEntryCommand {
+		fsm.Commands = append(fsm.Commands, entry.Data)
+	}
 	return nil
 }
 
-func (fsm *TestFSM) Snapshot(w io.Writer) error { return nil }
-func (fsm *TestFSM) Restore(r io.Reader) error  { return nil }
+func (fsm *TestFSM) Index() (uint64, error) { return fsm.MaxIndex, nil }
+func (fsm *TestFSM) Snapshot(w io.Writer) (uint64, error) {
+	b, _ := json.Marshal(fsm)
+	binary.Write(w, binary.BigEndian, uint64(len(b)))
+	_, err := w.Write(b)
+	return fsm.MaxIndex, err
+}
+func (fsm *TestFSM) Restore(r io.Reader) error {
+	var sz uint64
+	if err := binary.Read(r, binary.BigEndian, &sz); err != nil {
+		return err
+	}
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return err
+	}
+	return json.Unmarshal(buf, &fsm)
+}
 
 // Simulation represents a collection of nodes for simulating a raft cluster.
 type Simulation struct {
