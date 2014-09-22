@@ -182,6 +182,10 @@ func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, e
 	}
 
 	se, err := init.Initialize(dbDir, c)
+	if err != nil {
+		return nil, err
+	}
+
 	db, err = NewShard(se, self.pointBatchSize, self.writeBatchSize, self.metaStore)
 	if err != nil {
 		log.Error("Error creating shard: ", err)
