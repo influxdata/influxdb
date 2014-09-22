@@ -23,6 +23,7 @@ func main() {
 	series := flag.Int("series", 1, "Number of series")
 	path := flag.String("path", "/tmp", "Path to DB files")
 	threads := flag.Int("threads", 1, "Number of threads that write data")
+	rmdir := flag.Bool("remove-dir", false, "Remove directory before running the benchmark")
 	flag.Parse()
 
 	if *threads < 1 {
@@ -30,15 +31,17 @@ func main() {
 		os.Exit(2)
 	}
 
-	os.RemoveAll("/tmp/test-leveldb")
-	os.RemoveAll("/tmp/test-lmdb")
-	os.RemoveAll("/tmp/test-rocksdb")
-	os.RemoveAll("/tmp/test-hyperleveldb")
+	if *rmdir {
+		os.RemoveAll("/tmp/test-leveldb")
+		os.RemoveAll("/tmp/test-lmdb")
+		os.RemoveAll("/tmp/test-rocksdb")
+		os.RemoveAll("/tmp/test-hyperleveldb")
+	}
 
-	// benchmark("lmdb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
-	// benchmark("leveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
+	benchmark("lmdb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
+	benchmark("leveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
 	benchmark("rocksdb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
-	// benchmark("hyperleveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
+	benchmark("hyperleveldb", Config{*points, *batchSize, *series, 0, 0, time.Now(), *path, *threads})
 }
 
 func benchmark(name string, c Config) {
