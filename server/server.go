@@ -57,7 +57,6 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	metaStore.SetClusterConsensus(raftServer)
 	clusterConfig.LocalRaftName = raftServer.GetRaftName()
 	clusterConfig.SetShardCreator(raftServer)
-	clusterConfig.CreateFutureShardsAutomaticallyBeforeTimeComes()
 
 	coord := coordinator.NewCoordinator(config, raftServer, clusterConfig)
 	requestHandler := coordinator.NewProtobufRequestHandler(coord, clusterConfig)
