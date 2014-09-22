@@ -2128,6 +2128,21 @@ var (
     "columns": ["time", "value"]
   }
 ]`
+
+	aggTstData_Issue939 = `
+[
+  {
+    "points": [
+    [300000, 30.0],
+    [240000, null],
+    [180000, "foo"],
+    [120000, 20.0],
+    [60000, 10.0]
+    ],
+    "name": "data",
+    "columns": ["time", "value"]
+  }
+]`
 )
 
 // code that's common to many of the folling Test*AggregateFillWith* tests
@@ -2218,6 +2233,16 @@ func (self *DataTestSuite) TestMedianAggregateFillWithNull(c *C) {
 // median aggregate filling with 0
 func (self *DataTestSuite) TestMedianAggregateFillWith0(c *C) {
 	self.tstAggregateFill(aggTstData, "median", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// issue #939 - median panics with null values in column
+func (self *DataTestSuite) Test_Issue939_MedianAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData_Issue939, "median", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// issue #939 - median panics with null values in column
+func (self *DataTestSuite) Test_Issue939_MedianAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData_Issue939, "median", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
 }
 
 // distinct aggregate filling with null
