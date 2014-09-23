@@ -50,10 +50,9 @@ func main() {
 	fsm := &FSM{}
 
 	// Create and open log.
-	l := &raft.Log{
-		FSM: fsm,
-		URL: &url.URL{Scheme: "http", Host: hostname + *addr},
-	}
+	l := raft.NewLog()
+	l.FSM = fsm
+	l.URL = &url.URL{Scheme: "http", Host: hostname + *addr}
 
 	if err := l.Open(path); err != nil {
 		log.Fatal(err)

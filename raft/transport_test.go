@@ -11,6 +11,15 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
+// Ensure a join on an unsupported scheme returns an error.
+func TestTransportMux_Join_ErrUnsupportedScheme(t *testing.T) {
+	u, _ := url.Parse("foo://bar")
+	_, _, err := raft.DefaultTransport.Join(u, nil)
+	if err == nil || err.Error() != `transport scheme not supported: foo` {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
 // Ensure a heartbeat on an unsupported scheme returns an error.
 func TestTransportMux_Heartbeat_ErrUnsupportedScheme(t *testing.T) {
 	u, _ := url.Parse("foo://bar")

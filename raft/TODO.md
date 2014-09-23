@@ -6,6 +6,7 @@ TODO
 - [ ] Election
 - [ ] Candidate loop
 - [ ] Save current term to disk.
+- [ ] Callback
 
 
 ## Completed

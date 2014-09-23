@@ -41,7 +41,7 @@ func TestLogEntryEncoder_Encode(t *testing.T) {
 	}
 
 	// Check that the encoded bytes match what's expected.
-	exp := []byte{0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 4, 5, 6}
+	exp := []byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 4, 5, 6}
 	if v := buf.Bytes(); !bytes.Equal(exp, v) {
 		t.Fatalf("value:\n\nexp: %x\n\ngot: %x\n\n", exp, v)
 	}
@@ -79,6 +79,10 @@ func TestLogEntryEncodeDecode(t *testing.T) {
 
 		// Encode entries.
 		for _, e := range entries {
+			if e.Type == 0xFF {
+				buf.WriteByte(0xFF)
+				continue
+			}
 			if err := enc.Encode(&e); err != nil {
 				t.Fatalf("encode: %s", err)
 			}
@@ -89,6 +93,10 @@ func TestLogEntryEncodeDecode(t *testing.T) {
 			var entry raft.LogEntry
 			if err := dec.Decode(&entry); err != nil {
 				t.Fatalf("decode: %s", err)
+			} else if entry.Type == 0xFF {
+				if !reflect.DeepEqual(&entry, &raft.LogEntry{Type: 0xFF}) {
+					t.Fatalf("invalid snapshot entry: %#v", &entry)
+				}
 			} else if !reflect.DeepEqual(e, entry) {
 				t.Fatalf("mismatch:\n\nexp: %#v\n\ngot: %#v\n\n", e, entry)
 			}
@@ -168,6 +176,7 @@ func NewTestLog() *TestLog {
 	if err := l.Open(tempfile()); err != nil {
 		log.Fatalf("open: %s", err)
 	}
+	go func() { l.Clock.Add(l.ElectionTimeout) }()
 	if err := l.Initialize(); err != nil {
 		log.Fatalf("initialize: %s", err)
 	}
@@ -177,14 +186,11 @@ func NewTestLog() *TestLog {
 // NewUnopenedTestLog returns a new, unopened instance of TestLog.
 // The log uses mock clock by default.
 func NewUnopenedTestLog() *TestLog {
-	l := &TestLog{
-		Log: &raft.Log{
-			FSM:   &TestFSM{},
-			Clock: raft.NewMockClock(),
-			Rand:  seq(),
-		},
-	}
+	l := &TestLog{Log: raft.NewLog()}
+	l.Log.FSM = &TestFSM{}
 	l.URL, _ = url.Parse("//node")
+	l.Log.Clock = raft.NewMockClock()
+	l.Log.Rand = seq()
 	return l
 }
 

@@ -26,15 +26,17 @@ func init() {
 
 // Ensure that a single node can process commands applied to the log.
 func Test_Simulate_SingleNode(t *testing.T) {
-	f := func(commands [][]byte) bool {
+	check(t, func(commands [][]byte) bool {
+		fmt.Print(".")
+
 		var fsm TestFSM
-		l := &raft.Log{
-			FSM:   &fsm,
-			Clock: raft.NewMockClock(),
-			Rand:  seq(),
-		}
-		fsm.Log = l
+		l := raft.NewLog()
+		l.FSM = &fsm
 		l.URL, _ = url.Parse("//node")
+		l.Clock = raft.NewMockClock()
+		l.Rand = seq()
+
+		fsm.Log = l
 		if err := l.Open(tempfile()); err != nil {
 			log.Fatal("open: ", err)
 		}
@@ -42,21 +44,31 @@ func Test_Simulate_SingleNode(t *testing.T) {
 		defer l.Close()
 
 		// Initialize log.
+		go func() { l.Clock.Add(150 * time.Millisecond) }()
 		if err := l.Initialize(); err != nil {
 			t.Fatalf("initialize: %s", err)
 		}
-
-		// Execute a series of commands.
-		for _, command := range commands {
-			if err := l.Apply(command); err != nil {
-				t.Fatalf("apply: %s", err)
-			}
+		if err := l.Wait(1); err != nil {
+			t.Fatalf("wait: %s", err)
 		}
 
 		// Verify the configuration is set.
 		if b, _ := json.Marshal(l.Config()); string(b) != `{"clusterID":1,"nodes":[{"id":1,"url":"//node"}],"index":1,"maxNodeID":1}` {
 			t.Fatalf("unexpected config: %s", b)
 		}
+
+		// Execute a series of commands.
+		var index uint64
+		for _, command := range commands {
+			var err error
+			index, err = l.Apply(command)
+			if err != nil {
+				t.Fatalf("apply: %s", err)
+			}
+		}
+
+		go func() { l.Clock.Add(2 * l.HeartbeatTimeout) }()
+		l.Wait(index)
 
 		// Verify the commands were executed against the FSM, in order.
 		for i, command := range commands {
@@ -65,16 +77,14 @@ func Test_Simulate_SingleNode(t *testing.T) {
 			}
 		}
 
+		go func() { l.Clock.Add(l.HeartbeatTimeout) }()
 		return true
-	}
-	if err := quick.Check(f, nil); err != nil {
-		t.Error(err)
-	}
+	})
 }
 
 // Ensure that a cluster of multiple nodes can maintain consensus.
 func Test_Simulate_MultiNode(t *testing.T) {
-	f := func(s *Simulation) bool {
+	check(t, func(s *Simulation) bool {
 		fmt.Print(".")
 		defer s.Close()
 
@@ -95,15 +105,18 @@ func Test_Simulate_MultiNode(t *testing.T) {
 
 		// Apply commands to the leader.
 		for i, command := range s.Commands {
-			go func() { s.Clock.Add(150 * time.Millisecond) }()
-			if err := leader.Log.Apply(command); err != nil {
+			if _, err := leader.Log.Apply(command); err != nil {
 				t.Fatalf("%d. apply: %s", i, err)
 			}
 		}
 
-		// Wait for commands to apply.
-		s.Clock.Add(500 * time.Millisecond)
-		time.Sleep(100 * time.Millisecond)
+		// Allow entries to be sent to the followers.
+		time.Sleep(10 * time.Millisecond)
+
+		// Wait for one heartbeat to retrieve current index.
+		// Wait for another heartbeat to send commit index.
+		s.Clock.Add(raft.DefaultHeartbeatTimeout)
+		s.Clock.Add(raft.DefaultHeartbeatTimeout)
 
 		// Validate logs of all nodes.
 		for i, n := range s.Nodes {
@@ -114,6 +127,8 @@ func Test_Simulate_MultiNode(t *testing.T) {
 
 		// Verify that all commands are present on all nodes.
 		for _, n := range s.Nodes {
+			n.Log.Wait(s.Nodes[0].FSM.MaxIndex)
+
 			if entryN, commandN := len(n.FSM.Commands), len(s.Commands); commandN != entryN {
 				t.Fatalf("unexpected entry count: node %d: exp=%d, got=%d", n.Log.ID(), commandN, entryN)
 			}
@@ -126,10 +141,7 @@ func Test_Simulate_MultiNode(t *testing.T) {
 		}
 
 		return true
-	}
-	if err := quick.Check(f, nil); err != nil {
-		t.Error(err)
-	}
+	})
 }
 
 // TestFSM represents a fake state machine that simple records all commands.
@@ -196,17 +208,18 @@ func (s *Simulation) Generate(rand *rand.Rand, size int) reflect.Value {
 // Initialize initializes the first node's log and joins other nodes to the first.
 func (s *Simulation) Initialize() error {
 	// Initialize the log of the first node.
-	go func() { s.Clock.Add(100 * time.Millisecond) }()
+	go func() { s.Clock.Add(raft.DefaultHeartbeatTimeout) }()
 	if err := s.Nodes[0].Log.Initialize(); err != nil {
 		return fmt.Errorf("node(0): initialize: %s", err)
 	}
 
 	// All other nodes should join the first node.
 	for i, n := range s.Nodes[1:] {
-		go func() { s.Clock.Add(100 * time.Millisecond) }()
+		go func() { s.Clock.Add(raft.DefaultHeartbeatTimeout) }()
 		if err := n.Log.Join(s.Nodes[0].Log.URL); err != nil {
 			return fmt.Errorf("node(%d): join: %s", i, err)
 		}
+		n.Log.Wait(uint64(i))
 	}
 
 	return nil
@@ -234,11 +247,10 @@ func (n *SimulationNode) Generate(rand *rand.Rand, size int) reflect.Value {
 	n.FSM = &TestFSM{}
 
 	// Create raft log.
-	n.Log = &raft.Log{
-		FSM:   n.FSM,
-		Clock: n.Clock,
-		Rand:  seq(),
-	}
+	n.Log = raft.NewLog()
+	n.Log.FSM = n.FSM
+	n.Log.Clock = n.Clock
+	n.Log.Rand = seq()
 	n.FSM.Log = n.Log
 
 	// Start HTTP server and set log URL.
@@ -281,3 +293,10 @@ func tempfile() string {
 
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
+
+func check(t *testing.T, fn interface{}) {
+	if err := quick.Check(fn, nil); err != nil {
+		t.Error(err)
+	}
+	fmt.Println("")
+}

@@ -13,8 +13,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -116,6 +118,19 @@ type Log struct {
 	Logger *log.Logger
 }
 
+// NewLog creates a new instance of Log with reasonable defaults.
+func NewLog() *Log {
+	return &Log{
+		Clock:  &clock{},
+		Rand:   rand.Int63,
+		Logger: log.New(os.Stderr, "[raft] ", log.LstdFlags),
+
+		HeartbeatTimeout: DefaultHeartbeatTimeout,
+		ElectionTimeout:  DefaultElectionTimeout,
+		ReconnectTimeout: DefaultReconnectTimeout,
+	}
+}
+
 // Path returns the data path of the Raft log.
 // Returns an empty string if the log is closed.
 func (l *Log) Path() string { return l.path }
@@ -173,28 +188,6 @@ func (l *Log) Open(path string) error {
 	}
 	l.path = path
 
-	// Set some defaults.
-	if l.Clock == nil {
-		l.Clock = &clock{}
-	}
-	if l.Rand == nil {
-		l.Rand = rand.Int63
-	}
-	if l.Logger == nil {
-		l.Logger = log.New(os.Stderr, "[raft] ", log.LstdFlags)
-	}
-
-	// Set default timeouts.
-	if l.HeartbeatTimeout == 0 {
-		l.HeartbeatTimeout = DefaultHeartbeatTimeout
-	}
-	if l.ElectionTimeout == 0 {
-		l.ElectionTimeout = DefaultElectionTimeout
-	}
-	if l.ReconnectTimeout == 0 {
-		l.ReconnectTimeout = DefaultReconnectTimeout
-	}
-
 	// Initialize log identifier.
 	id, err := l.readID()
 	if err != nil {
@@ -240,19 +233,35 @@ func (l *Log) Close() error {
 	return l.close()
 }
 
+// close should be called under lock.
 func (l *Log) close() error {
-	// Shutdown all goroutines.
-	for _, done := range l.done {
+	// Close the reader, if open.
+	if l.reader != nil {
+		_ = l.reader.Close()
+		l.reader = nil
+	}
+
+	// Stop the log.
+	l.setState(Stopped)
+
+	// Retrieve closing channels under lock.
+	a := l.done
+	l.done = nil
+
+	// Unlock while we shutdown all goroutines.
+	l.mu.Unlock()
+	for _, done := range a {
 		ch := make(chan struct{})
 		done <- ch
 		<-ch
 	}
-	l.done = nil
+	l.mu.Lock()
 
 	// Close the writers.
 	for _, w := range l.writers {
 		_ = w.Close()
 	}
+	l.writers = nil
 
 	// Clear log info.
 	l.id = 0
@@ -376,11 +385,13 @@ func (l *Log) Initialize() error {
 
 	// Set initial configuration.
 	b, _ := json.Marshal(&config)
-	if err := l.internalApply(LogEntryInitialize, b); err != nil {
+	index, err := l.internalApply(LogEntryInitialize, b)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	// Wait until entry is applied.
+	return l.Wait(index)
 }
 
 // Leader returns the id and URL associated with the current leader.
@@ -524,10 +535,6 @@ func (l *Log) followerLoop(done chan chan struct{}) {
 
 		// Attach the stream to the log.
 		if err := l.ReadFrom(r); err != nil {
-			if l.Opened() {
-				l.Logger.Printf("read stream: %s", err)
-				l.Clock.Sleep(l.ReconnectTimeout)
-			}
 			continue
 		}
 	}
@@ -541,13 +548,15 @@ func (l *Log) candidateLoop(done chan chan struct{}) {
 // leaderLoop periodically sends heartbeats to all followers to maintain dominance.
 func (l *Log) leaderLoop(done chan chan struct{}) {
 	ticker := l.Clock.Ticker(l.HeartbeatTimeout)
+	defer ticker.Stop()
 	for {
 		// Send hearbeat to followers.
-		l.sendHeartbeat()
+		if err := l.sendHeartbeat(done); err != nil {
+			return
+		}
 
 		select {
 		case ch := <-done: // wait for state change.
-			ticker.Stop()
 			close(ch)
 			return
 		case <-ticker.C: // wait for next heartbeat
@@ -556,9 +565,12 @@ func (l *Log) leaderLoop(done chan chan struct{}) {
 }
 
 // sendHeartbeat sends heartbeats to all the nodes.
-func (l *Log) sendHeartbeat() {
+func (l *Log) sendHeartbeat(done chan chan struct{}) error {
 	// Retrieve config and term.
 	l.mu.Lock()
+	if err := check(done); err != nil {
+		return err
+	}
 	commitIndex, localIndex := l.commitIndex, l.index
 	term, leaderID := l.term, l.id
 	config := l.config
@@ -566,7 +578,7 @@ func (l *Log) sendHeartbeat() {
 
 	// Ignore if there is no config or nodes yet.
 	if config == nil || len(config.Nodes) <= 1 {
-		return
+		return nil
 	}
 
 	// Determine node count.
@@ -597,6 +609,9 @@ func (l *Log) sendHeartbeat() {
 loop:
 	for {
 		select {
+		case ch := <-done:
+			close(ch)
+			return errDone
 		case <-after:
 			break loop
 		case index := <-ch:
@@ -611,7 +626,7 @@ loop:
 	// We don't add the +1 because the slice starts from 0.
 	quorumIndex := (nodeN / 2)
 	if quorumIndex >= len(indexes) {
-		return
+		return nil
 	}
 
 	// Determine commit index by quorum (n/2+1).
@@ -620,73 +635,77 @@ loop:
 
 	// Update the commit index, if higher.
 	l.mu.Lock()
+	if err := check(done); err != nil {
+		return err
+	}
 	if newCommitIndex > l.commitIndex {
 		l.commitIndex = newCommitIndex
 	}
 	l.mu.Unlock()
+	return nil
+}
+
+// check looks if the channel has any messages.
+// If it does then errDone is returned, otherwise nil is returned.
+func check(done chan chan struct{}) error {
+	select {
+	case ch := <-done:
+		close(ch)
+		return errDone
+	default:
+		return nil
+	}
 }
 
 // Apply executes a command against the log.
 // This function returns once the command has been committed to the log.
-func (l *Log) Apply(command []byte) error {
+func (l *Log) Apply(command []byte) (uint64, error) {
 	return l.internalApply(LogEntryCommand, command)
 }
 
-func (l *Log) internalApply(typ LogEntryType, command []byte) error {
-	var index uint64
-	err := func() error {
-		l.mu.Lock()
-		defer l.mu.Unlock()
+func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
-		// Do not apply if this node is not the leader.
-		if l.state != Leader {
-			return ErrNotLeader
-		}
-
-		// Create log entry.
-		e := LogEntry{
-			Type:  typ,
-			Index: l.index + 1,
-			Term:  l.term,
-			Data:  command,
-		}
-		index = e.Index
-
-		// Append to the log.
-		l.append(&e)
-
-		// If there is no config or only one node then move commit index forward.
-		if l.config == nil || len(l.config.Nodes) <= 1 {
-			l.commitIndex = l.index
-		}
-
-		return nil
-	}()
-	if err != nil {
-		return err
+	// Do not apply if this node is not the leader.
+	if l.state != Leader {
+		return 0, ErrNotLeader
 	}
 
-	// Wait for consensus.
-	// HACK(benbjohnson): Notify via channel instead.
-	/*
-		for {
-			l.mu.Lock()
-			state, appliedIndex := l.state, l.appliedIndex
-			l.mu.Unlock()
+	// Create log entry.
+	e := LogEntry{
+		Type:  typ,
+		Index: l.index + 1,
+		Term:  l.term,
+		Data:  command,
+	}
+	index = e.Index
 
-			// If we've changed leadership then return error.
-			// If the last applied index has moved past our index then move forward.
-			if state != Leader {
-				return ErrNotLeader
-			} else if appliedIndex >= index {
-				return nil
-			}
+	// Append to the log.
+	l.append(&e)
 
-			// Otherwise wait.
-			l.Clock.Sleep(10 * time.Millisecond)
+	// If there is no config or only one node then move commit index forward.
+	if l.config == nil || len(l.config.Nodes) <= 1 {
+		l.commitIndex = l.index
+	}
+
+	return
+}
+
+// Wait blocks until a given index is applied.
+func (l *Log) Wait(index uint64) error {
+	// TODO(benbjohnson): Check for leadership change (?).
+	// TODO(benbjohnson): Add timeout.
+	for {
+		l.mu.Lock()
+		appliedIndex := l.appliedIndex
+		l.mu.Unlock()
+
+		if appliedIndex >= index {
+			return nil
 		}
-	*/
-	return nil
+		l.Clock.Sleep(10 * time.Millisecond)
+	}
 }
 
 // append adds a log entry to the list of entries.
@@ -695,7 +714,7 @@ func (l *Log) append(e *LogEntry) {
 
 	// Encode entry to a byte slice.
 	buf := make([]byte, logEntryHeaderSize+len(e.Data))
-	copy(buf, e.EncodedHeader())
+	copy(buf, e.encodedHeader())
 	copy(buf[logEntryHeaderSize:], e.Data)
 
 	// Add to pending entries list to wait to be applied.
@@ -735,6 +754,11 @@ func (l *Log) applier(done chan chan struct{}) {
 		err := func() error {
 			l.mu.Lock()
 			defer l.mu.Unlock()
+
+			// Verify that we're not closing.
+			if err := check(done); err != nil {
+				return err
+			}
 
 			// Ignore if there are no pending entries.
 			// Ignore if all entries are applied.
@@ -799,7 +823,9 @@ func (l *Log) applier(done chan chan struct{}) {
 
 		// If error occurred then log it.
 		// The log will retry after a given timeout.
-		if err != nil {
+		if err == errDone {
+			return
+		} else if err != nil {
 			l.Logger.Printf("apply: %s", err)
 			// TODO(benbjohnson): Longer timeout before retry?
 			continue
@@ -880,12 +906,13 @@ func (l *Log) AddPeer(u *url.URL) (uint64, *Config, error) {
 
 	// Apply command.
 	b, _ := json.Marshal(&Node{URL: u})
-	if err := l.internalApply(LogEntryAddPeer, b); err != nil {
+	index, err := l.internalApply(LogEntryAddPeer, b)
+	if err != nil {
 		return 0, nil, err
 	}
-
-	// HACK(benbjohnson): Wait for command to be processed.
-	time.Sleep(100 * time.Millisecond)
+	if err := l.Wait(index); err != nil {
+		return 0, nil, err
+	}
 
 	// Lock while we look up the node.
 	l.mu.Lock()
@@ -1104,6 +1131,15 @@ func (l *Log) removeWriter(writer *logWriter) {
 	return
 }
 
+// Flush pushes out buffered data for all open writers.
+func (l *Log) Flush() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, w := range l.writers {
+		flushWriter(w.Writer)
+	}
+}
+
 // ReadFrom continually reads log entries from a reader.
 func (l *Log) ReadFrom(r io.ReadCloser) error {
 	err := func() error {
@@ -1254,8 +1290,8 @@ type LogEntry struct {
 	Data  []byte
 }
 
-// EncodedHeader returns the encoded header for the entry.
-func (e *LogEntry) EncodedHeader() []byte {
+// encodedHeader returns the encoded header for the entry.
+func (e *LogEntry) encodedHeader() []byte {
 	var b [logEntryHeaderSize]byte
 	binary.BigEndian.PutUint64(b[0:8], (uint64(e.Type)<<56)|uint64(len(e.Data)))
 	binary.BigEndian.PutUint64(b[8:16], e.Index)
@@ -1277,7 +1313,7 @@ func NewLogEntryEncoder(w io.Writer) *LogEntryEncoder {
 // Encode writes a log entry to the encoder's writer.
 func (enc *LogEntryEncoder) Encode(e *LogEntry) error {
 	// Write header.
-	if _, err := enc.w.Write(e.EncodedHeader()); err != nil {
+	if _, err := enc.w.Write(e.encodedHeader()); err != nil {
 		return err
 	}
 
@@ -1310,6 +1346,9 @@ func (dec *LogEntryDecoder) Decode(e *LogEntry) error {
 
 	// If it's a snapshot then return immediately.
 	if e.Type == logEntrySnapshot {
+		e.Index = 0
+		e.Term = 0
+		e.Data = nil
 		return nil
 	}
 
@@ -1473,6 +1512,8 @@ func (p uint64Slice) Len() int           { return len(p) }
 func (p uint64Slice) Less(i, j int) bool { return p[i] < p[j] }
 func (p uint64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
+var errDone = errors.New("done")
+
 func assert(condition bool, msg string, v ...interface{}) {
 	if !condition {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
@@ -1485,4 +1526,9 @@ func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...
 func jsonify(v interface{}) string {
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+func printstack() {
+	stack := strings.Join(strings.Split(string(debug.Stack()), "\n")[2:], "\n")
+	fmt.Fprintln(os.Stderr, stack)
 }

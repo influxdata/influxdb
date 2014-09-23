@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/raft"
 )
@@ -117,11 +118,6 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	defer s.Close()
 	defer l.Close()
 
-	// Add an entry.
-	if err := l.Apply([]byte("xyz")); err != nil {
-		t.Fatal(err)
-	}
-
 	// Connect to stream.
 	resp, err := http.Get(s.URL + "/stream?term=1")
 	if err != nil {
@@ -131,6 +127,18 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	// Ensure the stream is connected before applying a command.
+	time.Sleep(10 * time.Millisecond)
+
+	// Add an entry.
+	if _, err := l.Apply([]byte("xyz")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Move log's clock ahead & flush data.
+	l.Clock.Add(l.HeartbeatTimeout)
+	l.Flush()
+
 	// Read entries from stream.
 	var e raft.LogEntry
 	dec := raft.NewLogEntryDecoder(resp.Body)
@@ -138,6 +146,21 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	// First entry should be the configuration.
 	if err := dec.Decode(&e); err != nil {
 		t.Fatalf("unexpected error: %s", err)
+	} else if e.Type != 0xFE {
+		t.Fatalf("expected configuration type: %d", e.Type)
+	}
+
+	// Next entry should be the snapshot.
+	if err := dec.Decode(&e); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !reflect.DeepEqual(&e, &raft.LogEntry{Type: 0xFF, Data: nil}) {
+		t.Fatalf("expected snapshot type: %d", e.Type)
+	}
+
+	// Read off the snapshot.
+	var fsm TestFSM
+	if err := fsm.Restore(resp.Body); err != nil {
+		t.Fatalf("restore: %s", err)
 	}
 
 	// Next entry should be the command.
