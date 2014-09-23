@@ -4,16 +4,6 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
-type Type int
-
-const (
-	TYPE_INT = iota
-	TYPE_STRING
-	TYPE_BOOL
-	TYPE_DOUBLE
-	TYPE_UNKNOWN
-)
-
 func getValue(value *protocol.FieldValue) (interface{}, Type) {
 	if value.Int64Value != nil {
 		return value.Int64Value, TYPE_INT
