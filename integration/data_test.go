@@ -168,6 +168,36 @@ func (self *DataTestSuite) TestFillingEntireRange(c *C) {
 	}
 }
 
+func (self *DataTestSuite) TestBigInts(c *C) {
+	data := `
+[
+  {
+    "name": "test_mode",
+    "columns": ["value"],
+    "points": [
+      [7335093126128605887],
+      [15028546720250474530]
+    ]
+  }
+ ]`
+	self.client.WriteJsonData(data, c, influxdb.Millisecond)
+	for _, i := range []uint64{7335093126128605887, 15028546720250474530} {
+		q := fmt.Sprintf("select count(value) from test_mode where value = %d", i)
+		serieses := self.client.RunQuery(q, c, "m")
+		c.Assert(serieses, HasLen, 1)
+		maps := ToMap(serieses[0])
+		c.Assert(maps, HasLen, 1)
+		c.Assert(maps[0]["count"], Equals, 1.0)
+	}
+
+	q := "select count(value) from test_mode where value >= 15028546720250474530 and value <= 15028546720250474530"
+	serieses := self.client.RunQuery(q, c, "m")
+	c.Assert(serieses, HasLen, 1)
+	maps := ToMap(serieses[0])
+	c.Assert(maps, HasLen, 1)
+	c.Assert(maps[0]["count"], Equals, 1.0)
+}
+
 func (self *DataTestSuite) TestModeWithInt(c *C) {
 	data := `
 [
