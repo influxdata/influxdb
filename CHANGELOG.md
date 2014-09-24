@@ -1,6 +1,44 @@
 ## v0.9.0 [unreleased]
 
-### Features
+### Bugfixes
+
+## v0.8.3 [2014-09-24]
+
+### Bugfixes
+
+- [Issue #885](https://github.com/influxdb/influxdb/issues/885). Multiple
+  queries separated by semicolons work as expected. Queries are process
+  sequentially
+- [Issue #652](https://github.com/influxdb/influxdb/issues/652). Return an
+  error if an invalid column is used in the where clause
+- [Issue #794](https://github.com/influxdb/influxdb/issues/794). Fix case
+  insensitive regex matching
+- [Issue #853](https://github.com/influxdb/influxdb/issues/853). Move
+  cluster config from raft to API.
+- [Issue #714](https://github.com/influxdb/influxdb/issues/714). Don't
+  panic on invalid boolean operators.
+- [Issue #843](https://github.com/influxdb/influxdb/issues/843). Prevent blank database names
+- [Issue #780](https://github.com/influxdb/influxdb/issues/780). Fix
+  fill() for all aggregators
+- [Issue #923](https://github.com/influxdb/influxdb/issues/923). Enclose
+  table names in double quotes in the result of GetQueryString()
+- [Issue #923](https://github.com/influxdb/influxdb/issues/923). Enclose
+  table names in double quotes in the result of GetQueryString()
+- [Issue #967](https://github.com/influxdb/influxdb/issues/967). Return an
+  error if the storage engine can't be created
+- [Issue #954](https://github.com/influxdb/influxdb/issues/954). Don't automatically
+  create shards which was causing too many shards to be created when used with
+  grafana
+- [Issue #939](https://github.com/influxdb/influxdb/issues/939). Aggregation should
+  ignore null values and invalid values, e.g. strings with mean().
+- [Issue #964](https://github.com/influxdb/influxdb/issues/964). Parse
+  big int in queries properly.
+
+## v0.8.2 [2014-09-05]
+
+### Bugfixes
+
+- [Issue #886](https://github.com/influxdb/influxdb/issues/886). Update shard space to not set defaults
 
 - [Issue #867](https://github.com/influxdb/influxdb/issues/867). Add option to return shard space mappings in list series
 

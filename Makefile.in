@@ -272,7 +272,7 @@ ifeq ($(version),)
 	version = "dev"
 endif
 
-timeout = 10m
+timeout = 20m
 GOTEST_OPTS += -test.timeout=$(timeout)
 
 test: test_dependencies parser protobuf

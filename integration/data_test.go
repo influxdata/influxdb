@@ -1197,14 +1197,14 @@ func (self *DataTestSuite) TestAggregateWithExpression(c *C) {
 }
 
 func (self *DataTestSuite) verifyWrite(seriesName string, value interface{}, c *C) {
-	series := CreatePoints("foo", 1, 1)
+	series := CreatePoints(seriesName, 1, 1)
 	series[0].Columns = append(series[0].Columns, "time", "sequence_number")
 	now := time.Now().Truncate(time.Hour)
 	series[0].Points[0] = append(series[0].Points[0], 1.0, now.Unix())
 	self.client.WriteData(series, c, "s")
 	series[0].Points[0][0] = value
 	self.client.WriteData(series, c, "s")
-	data := self.client.RunQuery("select * from foo", c, "m")
+	data := self.client.RunQuery("select * from "+seriesName, c, "m")
 	if value == nil {
 		c.Assert(data, HasLen, 0)
 		return
@@ -1391,7 +1391,6 @@ func (self *DataTestSuite) TestArithmeticOperations(c *C) {
 	}
 
 	for query, values := range queries {
-
 		data := self.client.RunQuery(query, c, "m")
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Columns, HasLen, 3)
@@ -1437,8 +1436,8 @@ func (self *DataTestSuite) TestCountQueryOnSingleShard(c *C) {
 func (self *DataTestSuite) TestWhereClauseWithFunction(c *C) {
 	serieses := CreatePoints("test_where_clause_with_function", 1, 1)
 	self.client.WriteData(serieses, c)
+	// Make sure the query returns an error
 	self.client.RunInvalidQuery("select column0 from test_where_clause_with_function where empty(column0)", c)
-	//FIXME: Why doesn't this test have asserts?
 }
 
 func (self *DataTestSuite) TestGroupByDay(c *C) {
