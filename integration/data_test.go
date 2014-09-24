@@ -346,35 +346,6 @@ func (self *DataTestSuite) TestParanthesesAlias(c *C) {
 	c.Assert(maps[0]["value_plus_one"], Equals, 1.0)
 }
 
-func (self *DataTestSuite) WhereAndLimit(c *C) (Fun, Fun) {
-	// make sure we exceed the pointBatchSize, so we force a yield to
-	// the filtering engine
-	return func(client Client) {
-			data := `
-[
-  {
-	"points": [
-	[0.0  , "host"],
-	[10.0 , "host"],
-	[20.0 , "host"],
-	[40.0 , "host"],
-	[80.0 , "host"],
-	[160.0, "hosta"]
-	],
-	"name": "test_where_and_limit",
-	"columns": ["value", "host"]
-  }
-]`
-			client.WriteJsonData(data, c)
-		}, func(client Client) {
-			serieses := client.RunQuery("explain select * from /test_where_and_limit/ where host = 'hosta' limit 1", c, "m")
-			c.Assert(serieses, HasLen, 1)
-			maps := ToMap(serieses[0])
-			c.Assert(maps, HasLen, 1)
-			c.Assert(maps[0]["points_read"], Equals, 1.0)
-		}
-}
-
 // Difference and group by function using a time where clause with an interval which is equal to the time of the points
 // FIXME: This test still fails. For this case the group by function should include points with the end time for each bucket.
 //func (self *DataTestSuite) TestDifferenceGroupSameTimeValues(c *C) {
