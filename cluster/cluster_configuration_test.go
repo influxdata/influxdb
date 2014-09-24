@@ -26,7 +26,6 @@ func (self *ClusterConfigurationSuite) TestSerializesShardSpaces(c *C) {
 	space2.Regex = "/space2/"
 	err = clusterConfig.AddShardSpace(space2)
 	c.Assert(err, IsNil)
-	fmt.Println(clusterConfig.databaseShardSpaces)
 
 	verify := func(conf *ClusterConfiguration) {
 		spaces := conf.databaseShardSpaces["db1"]
