@@ -51,7 +51,7 @@ func (self *Coordinator) RunQuery(user common.User, database string, queryString
 	}
 
 	for _, query := range q {
-		err := self.runSingleQuery(user, database, query, seriesWriter)
+		err := self.runSingleQuery(user, database, query, p)
 		if err != nil {
 			return err
 		}
