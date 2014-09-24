@@ -7,6 +7,7 @@ TODO
 - [ ] Candidate loop
 - [ ] Save current term to disk.
 - [ ] Callback
+- [ ] Leave / RemovePeer
 
 
 ## Completed

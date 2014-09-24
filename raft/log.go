@@ -161,6 +161,13 @@ func (l *Log) State() State {
 	return l.state
 }
 
+// Term returns the current term.
+func (l *Log) Term() uint64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.term
+}
+
 // Config returns a the log's current configuration.
 func (l *Log) Config() *Config {
 	l.mu.Lock()

@@ -2,7 +2,9 @@ package raft_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -239,6 +241,40 @@ func TestConfig_MarshalJSON(t *testing.T) {
 			t.Fatalf("%d. config:\n\nexp: %#v\n\ngot: %#v", i, tt.c, config)
 		}
 	}
+}
+
+// TestFSM represents a fake state machine that simple records all commands.
+type TestFSM struct {
+	Log      *raft.Log `json:"-"`
+	MaxIndex uint64
+	Commands [][]byte
+}
+
+func (fsm *TestFSM) Apply(entry *raft.LogEntry) error {
+	fsm.MaxIndex = entry.Index
+	if entry.Type == raft.LogEntryCommand {
+		fsm.Commands = append(fsm.Commands, entry.Data)
+	}
+	return nil
+}
+
+func (fsm *TestFSM) Index() (uint64, error) { return fsm.MaxIndex, nil }
+func (fsm *TestFSM) Snapshot(w io.Writer) (uint64, error) {
+	b, _ := json.Marshal(fsm)
+	binary.Write(w, binary.BigEndian, uint64(len(b)))
+	_, err := w.Write(b)
+	return fsm.MaxIndex, err
+}
+func (fsm *TestFSM) Restore(r io.Reader) error {
+	var sz uint64
+	if err := binary.Read(r, binary.BigEndian, &sz); err != nil {
+		return err
+	}
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return err
+	}
+	return json.Unmarshal(buf, &fsm)
 }
 
 // BufferCloser represents a bytes.Buffer that provides a no-op close.
