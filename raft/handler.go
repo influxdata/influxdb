@@ -136,7 +136,14 @@ func (h *HTTPHandler) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
 // HandleStream provides a streaming log endpoint.
 func (h *HTTPHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	var err error
-	var index, term uint64
+	var id, index, term uint64
+
+	// Parse client's id.
+	if id, err = strconv.ParseUint(r.FormValue("id"), 10, 64); err != nil {
+		w.Header().Set("X-Raft-Error", "invalid id")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	// Parse client's current term.
 	if term, err = strconv.ParseUint(r.FormValue("term"), 10, 64); err != nil {
@@ -157,7 +164,7 @@ func (h *HTTPHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	// TODO(benbjohnson): Redirect to leader.
 
 	// Write to the response.
-	if err := h.log.WriteTo(w, term, index); err != nil && err != io.EOF {
+	if err := h.log.WriteTo(w, id, term, index); err != nil && err != io.EOF {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return

@@ -24,7 +24,7 @@ type Transport interface {
 	Join(u *url.URL, nodeURL *url.URL) (uint64, *Config, error)
 	Leave(u *url.URL, id uint64) error
 	Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (lastIndex, currentTerm uint64, err error)
-	ReadFrom(u *url.URL, term, index uint64) (io.ReadCloser, error)
+	ReadFrom(u *url.URL, id, term, index uint64) (io.ReadCloser, error)
 	RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error)
 }
 
@@ -72,9 +72,9 @@ func (mux *TransportMux) Heartbeat(u *url.URL, term, commitIndex, leaderID uint6
 }
 
 // ReadFrom streams the log from a leader.
-func (mux *TransportMux) ReadFrom(u *url.URL, term, index uint64) (io.ReadCloser, error) {
+func (mux *TransportMux) ReadFrom(u *url.URL, id, term, index uint64) (io.ReadCloser, error) {
 	if t, ok := mux.m[u.Scheme]; ok {
-		return t.ReadFrom(u, term, index)
+		return t.ReadFrom(u, id, term, index)
 	}
 	return nil, fmt.Errorf("transport scheme not supported: %s", u.Scheme)
 }
@@ -173,13 +173,14 @@ func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint
 }
 
 // ReadFrom streams the log from a leader.
-func (t *HTTPTransport) ReadFrom(uri *url.URL, term, index uint64) (io.ReadCloser, error) {
+func (t *HTTPTransport) ReadFrom(uri *url.URL, id, term, index uint64) (io.ReadCloser, error) {
 	// Construct URL.
 	u := *uri
 	u.Path = path.Join(u.Path, "stream")
 
 	// Set URL parameters.
 	v := &url.Values{}
+	v.Set("id", strconv.FormatUint(id, 10))
 	v.Set("term", strconv.FormatUint(term, 10))
 	v.Set("index", strconv.FormatUint(index, 10))
 	u.RawQuery = v.Encode()

@@ -32,7 +32,7 @@ func TestTransportMux_Heartbeat_ErrUnsupportedScheme(t *testing.T) {
 // Ensure a stream on an unsupported scheme returns an error.
 func TestTransportMux_ReadFrom_ErrUnsupportedScheme(t *testing.T) {
 	u, _ := url.Parse("foo://bar")
-	_, err := raft.DefaultTransport.ReadFrom(u, 0, 0)
+	_, err := raft.DefaultTransport.ReadFrom(u, 0, 0, 0)
 	if err == nil || err.Error() != `transport scheme not supported: foo` {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -131,10 +131,13 @@ func TestHTTPTransport_ReadFrom(t *testing.T) {
 		if path := r.URL.Path; path != `/stream` {
 			t.Fatalf("unexpected path: %q", path)
 		}
-		if term := r.FormValue("term"); term != `1` {
+		if term := r.FormValue("id"); term != `1` {
 			t.Fatalf("unexpected term: %q", term)
 		}
-		if index := r.FormValue("index"); index != `2` {
+		if term := r.FormValue("term"); term != `2` {
+			t.Fatalf("unexpected term: %q", term)
+		}
+		if index := r.FormValue("index"); index != `3` {
 			t.Fatalf("unexpected index: %q", index)
 		}
 		w.Write([]byte("test123"))
@@ -143,7 +146,7 @@ func TestHTTPTransport_ReadFrom(t *testing.T) {
 
 	// Execute stream against test server.
 	u, _ := url.Parse(s.URL)
-	r, err := raft.DefaultTransport.ReadFrom(u, 1, 2)
+	r, err := raft.DefaultTransport.ReadFrom(u, 1, 2, 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -163,7 +166,7 @@ func TestHTTPTransport_ReadFrom_Err(t *testing.T) {
 
 	// Execute stream against test server.
 	u, _ := url.Parse(s.URL)
-	r, err := raft.DefaultTransport.ReadFrom(u, 0, 0)
+	r, err := raft.DefaultTransport.ReadFrom(u, 0, 0, 0)
 	if err == nil {
 		t.Fatalf("expected error")
 	} else if err.Error() != `bad stream` {
@@ -176,7 +179,7 @@ func TestHTTPTransport_ReadFrom_Err(t *testing.T) {
 // Ensure an streaming over HTTP to a stopped server returns an error.
 func TestHTTPTransport_ReadFrom_ErrConnectionRefused(t *testing.T) {
 	u, _ := url.Parse("http://localhost:41932")
-	_, err := raft.DefaultTransport.ReadFrom(u, 0, 0)
+	_, err := raft.DefaultTransport.ReadFrom(u, 0, 0, 0)
 	if err == nil {
 		t.Fatal("expected error")
 	} else if !strings.Contains(err.Error(), `connection refused`) {

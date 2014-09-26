@@ -33,8 +33,7 @@ const (
 func Test_Simulate(t *testing.T) {
 	var checkN int
 	check(t, func(s *Simulation) bool {
-		fmt.Printf("%04d ", checkN)
-		defer s.Close()
+		fmt.Printf("%04d |", checkN)
 
 		// Initialize the cluster.
 		if err := s.Initialize(); err != nil {
@@ -43,9 +42,6 @@ func Test_Simulate(t *testing.T) {
 
 		// Execute events against the leader.
 		for _, e := range s.Events {
-			// Print a character to the terminal to indicate type.
-			fmt.Print(string(e.Indicator()))
-
 			// Apply the event to the simulation.
 			if err := e.Apply(s); err != nil {
 				t.Fatal(err)
@@ -57,14 +53,16 @@ func Test_Simulate(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		fmt.Print("| ")
 
-		// Wait for one heartbeat to retrieve current index.
-		// Wait for another heartbeat to send commit index.
-		s.Clock.Add(raft.DefaultHeartbeatTimeout)
-		s.Clock.Add(raft.DefaultHeartbeatTimeout)
+		// Move clock forward to resolve partitions.
+		s.Clock.Add(1 * time.Second)
 
 		// Validate logs of all nodes.
 		for i, n := range s.Nodes {
+			if n.Status != Running {
+				continue
+			}
 			if id := n.Log.ID(); uint64(i+1) != id {
 				t.Fatalf("unexpected log id: exp=%d, got=%d", i+1, id)
 			}
@@ -72,7 +70,11 @@ func Test_Simulate(t *testing.T) {
 
 		// Verify that all commands are present on all nodes.
 		for _, n := range s.Nodes {
+			if n.Status != Running {
+				continue
+			}
 			n.Log.Wait(s.Nodes[0].FSM.MaxIndex)
+			fmt.Print(n.Log.ID())
 
 			if entryN, commandN := len(n.FSM.Commands), len(s.Commands); commandN != entryN {
 				t.Fatalf("unexpected entry count: node %d: exp=%d, got=%d", n.Log.ID(), commandN, entryN)
@@ -87,6 +89,7 @@ func Test_Simulate(t *testing.T) {
 
 		fmt.Printf(" n=%d, cmd=%d\n", len(s.Nodes), len(s.Commands))
 		checkN++
+		s.Close()
 		return true
 	})
 }
@@ -97,7 +100,9 @@ type Simulation struct {
 	Events   []SimulationEvent
 	Clock    raft.Clock
 	Commands [][]byte
-	Error    error // out-of-band error
+
+	LeaderStopTime time.Time // last time the leader disconnected
+	Error          error     // out-of-band error
 }
 
 // SetError sets an out-of-band error on the simulation.
@@ -117,6 +122,14 @@ func (s *Simulation) Verify() error {
 	}
 
 	// TODO(simulation): Ensure one leader per term.
+
+	// Ensure that we have a leader after an election timeout.
+	if s.LeaderStopTime.IsZero() || s.Clock.Now().Sub(s.LeaderStopTime) > (raft.DefaultElectionTimeout*2) {
+		if s.Leader() == nil {
+			return fmt.Errorf("expected leadership after election timeout")
+		}
+	}
+
 	return nil
 }
 
@@ -153,8 +166,10 @@ func (s *Simulation) Generate(rand *rand.Rand, size int) reflect.Value {
 			s.Events[i] = (*AddTimeEvent)(nil).Generate(rand, size).Interface().(SimulationEvent)
 		} else if n >= 70 && n < 90 {
 			s.Events[i] = (*ApplyEvent)(nil).Generate(rand, size).Interface().(SimulationEvent)
-		} else if n >= 90 && n < 100 {
+		} else if n >= 90 && n < 95 {
 			s.Events[i] = (*AddPeerEvent)(nil).Generate(rand, size).Interface().(SimulationEvent)
+		} else if n >= 95 && n < 100 {
+			s.Events[i] = (*RestartEvent)(nil).Generate(rand, size).Interface().(SimulationEvent)
 		} else {
 			panic("unreachable")
 		}
@@ -178,7 +193,10 @@ func (s *Simulation) Initialize() error {
 	n.Log.URL, _ = url.Parse(n.HTTPServer.URL)
 
 	// Initialize the log of the first node.
-	go func() { s.Clock.Add(raft.DefaultHeartbeatTimeout) }()
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		s.Clock.Add(raft.DefaultHeartbeatTimeout)
+	}()
 	if err := n.Log.Initialize(); err != nil {
 		return fmt.Errorf("initialize: %s", err)
 	}
@@ -226,6 +244,11 @@ func (n *SimulationNode) Generate(rand *rand.Rand, size int) reflect.Value {
 	n.Log.Rand = seq()
 	n.FSM.Log = n.Log
 
+	// Quiet log if we're not verbosely logging.
+	if !testing.Verbose() {
+		n.Log.Logger = log.New(ioutil.Discard, "", 0)
+	}
+
 	return reflect.ValueOf(n)
 }
 
@@ -249,31 +272,29 @@ func MustGenerateValue(t reflect.Type, rand *rand.Rand) reflect.Value {
 // SimulationEvent represents an action that occurs during the simulation
 type SimulationEvent interface {
 	simulationEvent()
-	Indicator() rune
 	Apply(*Simulation) error
 }
 
 func (_ *AddTimeEvent) simulationEvent() {}
 func (_ *ApplyEvent) simulationEvent()   {}
 func (_ *AddPeerEvent) simulationEvent() {}
+func (_ *RestartEvent) simulationEvent() {}
 
 // AddTimeEvent represents a simulation event where time is added to the clock.
 type AddTimeEvent struct {
 	Duration time.Duration
 }
 
-func (e *AddTimeEvent) Indicator() rune { return '★' }
-
 func (e *AddTimeEvent) Apply(s *Simulation) error {
+	fmt.Print("➔")
 	s.Clock.Add(e.Duration)
 	return nil
 }
 
 // Generate implements the testing/quick Generator interface.
 func (e *AddTimeEvent) Generate(rand *rand.Rand, size int) reflect.Value {
-	e = &AddTimeEvent{}
-	e.Duration = time.Duration(rand.Int63n(int64(MaxSimulationInterval-MinSimulationInterval))) + MinSimulationInterval
-	return reflect.ValueOf(e)
+	//e.Duration = time.Duration(rand.Int63n(int64(MaxSimulationInterval-MinSimulationInterval))) + MinSimulationInterval
+	return reflect.ValueOf(&AddTimeEvent{Duration: 10 * time.Millisecond})
 }
 
 // ApplyEvent represents a simulation event where a command is applied.
@@ -281,11 +302,17 @@ type ApplyEvent struct {
 	Data []byte
 }
 
-func (e *ApplyEvent) Indicator() rune { return '.' }
-
 func (e *ApplyEvent) Apply(s *Simulation) error {
+	fmt.Print("•")
+
+	// TODO(election): If there's no leader then drop command?
+
 	// Write to leader.
 	leader := s.Leader()
+	if leader == nil {
+		return nil
+	}
+
 	if _, err := leader.Log.Apply(e.Data); err != nil {
 		return fmt.Errorf("apply: %s", err)
 	}
@@ -308,9 +335,16 @@ type AddPeerEvent struct {
 	Node *SimulationNode
 }
 
-func (e *AddPeerEvent) Indicator() rune { return '+' }
-
 func (e *AddPeerEvent) Apply(s *Simulation) error {
+	// Ignore if there is no leader.
+	leader := s.Leader()
+	if leader == nil {
+		return nil
+	}
+
+	// Indicate event.
+	fmt.Print("+")
+
 	// Open log.
 	e.Node.Log.Clock = s.Clock
 	if err := e.Node.Log.Open(tempfile()); err != nil {
@@ -322,12 +356,14 @@ func (e *AddPeerEvent) Apply(s *Simulation) error {
 	e.Node.Log.URL, _ = url.Parse(e.Node.HTTPServer.URL)
 
 	// Join to the leader.
-	leaderURL := s.Leader().Log.URL
+	leaderURL := leader.Log.URL
 	e.Node.Status = Joining
 	go func() {
+		fmt.Printf("X%d", len(s.Nodes))
 		if err := e.Node.Log.Join(leaderURL); err != nil {
 			s.SetError(fmt.Errorf("node: join: %s", err))
 		}
+		fmt.Printf("Y%d", len(s.Nodes))
 		e.Node.Status = Running
 	}()
 	time.Sleep(10 * time.Millisecond)
@@ -341,6 +377,58 @@ func (e *AddPeerEvent) Apply(s *Simulation) error {
 func (e *AddPeerEvent) Generate(rand *rand.Rand, size int) reflect.Value {
 	e = &AddPeerEvent{}
 	e.Node = MustGenerateValue(reflect.TypeOf(e.Node), rand).Interface().(*SimulationNode)
+	return reflect.ValueOf(e)
+}
+
+// RestartEvent represents a simulation event where a peer is stopped
+// for a period of time and then restarted.
+type RestartEvent struct {
+	Index    int
+	Duration time.Duration
+	Node     *SimulationNode
+}
+
+func (e *RestartEvent) Apply(s *Simulation) error {
+	// Select node to disconnect.
+	index := e.Index % len(s.Nodes)
+	e.Node = s.Nodes[index]
+
+	// Ignore if the node is not actively running.
+	if e.Node.Status != Running {
+		return nil
+	}
+
+	// Set the leader stop time if this is the leader.
+	if s.Leader() == e.Node {
+		s.LeaderStopTime = s.Clock.Now()
+	}
+
+	// Close log on node.
+	path := e.Node.Log.Path()
+	if err := e.Node.Log.Close(); err != nil {
+		return err
+	}
+	e.Node.Status = Stopped
+	fmt.Printf("(▼%d %v)", index, e.Duration)
+
+	// Re-open after the given duration.
+	s.Clock.AfterFunc(e.Duration, func() {
+		if err := e.Node.Log.Open(path); err != nil {
+			s.SetError(err)
+		}
+		e.Node.Status = Running
+		fmt.Printf("(▲%d)", index)
+	})
+
+	return nil
+}
+
+// Generate implements the testing/quick Generator interface.
+func (e *RestartEvent) Generate(rand *rand.Rand, size int) reflect.Value {
+	e = &RestartEvent{}
+	e.Index = rand.Int()
+	e.Duration = time.Duration(rand.Int()) % (500 * time.Millisecond)
+	e.Duration = (e.Duration / time.Millisecond) * time.Millisecond
 	return reflect.ValueOf(e)
 }
 

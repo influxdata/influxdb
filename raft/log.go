@@ -72,9 +72,10 @@ type Log struct {
 	state State              // current node state
 	ch    chan chan struct{} // state change channel
 
-	term     uint64 // current election term
-	leaderID uint64 // the current leader
-	votedFor uint64 // candidate voted for in current election term
+	term        uint64    // current election term
+	leaderID    uint64    // the current leader
+	votedFor    uint64    // candidate voted for in current election term
+	lastContact time.Time // last contact from the leader
 
 	index        uint64 // highest entry available (FSM or log)
 	commitIndex  uint64 // highest entry to be committed
@@ -136,6 +137,7 @@ func NewLog() *Log {
 func (l *Log) Path() string { return l.path }
 
 func (l *Log) idPath() string     { return filepath.Join(l.path, "id") }
+func (l *Log) termPath() string   { return filepath.Join(l.path, "term") }
 func (l *Log) configPath() string { return filepath.Join(l.path, "config") }
 
 // Opened returns true if the log is currently open.
@@ -203,13 +205,13 @@ func (l *Log) Open(path string) error {
 	}
 	l.id = id
 
-	// TODO(benjohnson): Initialize log term.
-	// term, err := l.readTerm()
-	// if err != nil {
-	// 	_ = l.close()
-	// 	return err
-	// }
-	// l.term = term
+	// Initialize log term.
+	term, err := l.readTerm()
+	if err != nil {
+		_ = l.close()
+		return err
+	}
+	l.term = term
 
 	// Read config.
 	c, err := l.readConfig()
@@ -218,6 +220,11 @@ func (l *Log) Open(path string) error {
 		return err
 	}
 	l.config = c
+
+	// If this log is the only node then promote to leader immediately.
+	if c != nil && len(c.Nodes) == 1 && c.Nodes[0].ID == l.id {
+		l.setState(Leader)
+	}
 
 	// Determine last applied index from FSM.
 	index, err := l.FSM.Index()
@@ -229,6 +236,10 @@ func (l *Log) Open(path string) error {
 	// Start goroutine to apply logs.
 	l.done = append(l.done, make(chan chan struct{}))
 	go l.applier(l.done[len(l.done)-1])
+
+	// Start goroutine to check for election timeouts.
+	l.done = append(l.done, make(chan chan struct{}))
+	go l.elector(l.done[len(l.done)-1])
 
 	return nil
 }
@@ -301,6 +312,31 @@ func (l *Log) readID() (uint64, error) {
 func (l *Log) writeID(id uint64) error {
 	b := []byte(strconv.FormatUint(id, 10))
 	return ioutil.WriteFile(l.idPath(), b, 0600)
+}
+
+// readTerm reads the log term from file.
+func (l *Log) readTerm() (uint64, error) {
+	// Read term from disk.
+	b, err := ioutil.ReadFile(l.termPath())
+	if os.IsNotExist(err) {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+
+	// Parse term.
+	id, err := strconv.ParseUint(string(b), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+
+// writeTerm writes the current log term to file.
+func (l *Log) writeTerm(term uint64) error {
+	b := []byte(strconv.FormatUint(term, 10))
+	return ioutil.WriteFile(l.termPath(), b, 0600)
 }
 
 // readConfig reads the configuration from disk.
@@ -381,7 +417,11 @@ func (l *Log) Initialize() error {
 		l.id = id
 
 		// Automatically promote to leader.
-		l.term = 1
+		term := uint64(1)
+		if err := l.writeTerm(term); err != nil {
+			return fmt.Errorf("write term: %s", err)
+		}
+		l.term = term
 		l.setState(Leader)
 
 		return nil
@@ -477,17 +517,17 @@ func (l *Log) Leave() error {
 
 // setState moves the log to a given state.
 func (l *Log) setState(state State) {
-	// Ignore if we're moving to the same state.
-	if l.state == state {
-		return
-	}
-
 	// Stop previous state.
 	if l.ch != nil {
 		ch := make(chan struct{})
 		l.ch <- ch
 		<-ch
 		l.ch = nil
+	}
+
+	// Remove previous reader, if one exists.
+	if l.reader != nil {
+		_ = l.reader.Close()
 	}
 
 	// Set the new state.
@@ -509,39 +549,44 @@ func (l *Log) setState(state State) {
 
 // followerLoop continually attempts to stream the log from the current leader.
 func (l *Log) followerLoop(done chan chan struct{}) {
+	var rch chan struct{}
 	for {
-		// Check if the loop has been closed.
+		// Retrieve the term, last index, & leader URL.
+		l.mu.Lock()
+		if err := check(done); err != nil {
+			l.mu.Unlock()
+			return
+		}
+		id, index, term := l.id, l.index, l.term
+		_, u := l.leader()
+		l.mu.Unlock()
+
+		// Begin streaming from the reader.
+		if u != nil {
+			// Connect to leader.
+			r, err := l.transport().ReadFrom(u, id, term, index)
+			if err != nil {
+				l.Logger.Printf("connect stream: %s", err)
+			}
+
+			// Stream the log in from a separate goroutine.
+			rch = make(chan struct{})
+			go func(u *url.URL, term, index uint64, rch chan struct{}) {
+				// Attach the stream to the log.
+				if err := l.ReadFrom(r); err != nil {
+					close(rch)
+				}
+			}(u, term, index, rch)
+		}
+
+		// Check if the state has changed, stream has closed, or an
+		// election timeout has passed.
 		select {
 		case ch := <-done:
 			close(ch)
 			return
-		default:
-		}
-
-		// Retrieve the term, last index, & leader URL.
-		l.mu.Lock()
-		index, term := l.index, l.term
-		_, u := l.leader()
-		l.mu.Unlock()
-
-		// If there's no leader URL then wait and try again.
-		if u == nil {
+		case <-rch:
 			l.Clock.Sleep(l.ReconnectTimeout)
-			continue
-		}
-
-		// Connect to leader.
-		r, err := l.transport().ReadFrom(u, term, index)
-		if err != nil {
-			if l.Opened() {
-				l.Logger.Printf("connect stream: %s", err)
-				l.Clock.Sleep(l.ReconnectTimeout)
-			}
-			continue
-		}
-
-		// Attach the stream to the log.
-		if err := l.ReadFrom(r); err != nil {
 			continue
 		}
 	}
@@ -550,6 +595,7 @@ func (l *Log) followerLoop(done chan chan struct{}) {
 // candidateLoop attempts to receive enough votes to become leader.
 func (l *Log) candidateLoop(done chan chan struct{}) {
 	// TODO(benbjohnson): Implement candidate loop.
+	warnf("===ELECTION(%d)===", l.id)
 }
 
 // leaderLoop periodically sends heartbeats to all followers to maintain dominance.
@@ -705,10 +751,12 @@ func (l *Log) Wait(index uint64) error {
 	// TODO(benbjohnson): Add timeout.
 	for {
 		l.mu.Lock()
-		appliedIndex := l.appliedIndex
+		state, appliedIndex := l.state, l.appliedIndex
 		l.mu.Unlock()
 
-		if appliedIndex >= index {
+		if state == Stopped {
+			return ErrClosed
+		} else if appliedIndex >= index {
 			return nil
 		}
 		l.Clock.Sleep(10 * time.Millisecond)
@@ -717,7 +765,7 @@ func (l *Log) Wait(index uint64) error {
 
 // append adds a log entry to the list of entries.
 func (l *Log) append(e *LogEntry) {
-	assert(e.Index == l.index+1, "non-contiguous log index: %d", e.Index)
+	assert(e.Index == l.index+1, "non-contiguous log index(%d): %d, prev=%d", l.id, e.Index, l.index)
 
 	// Encode entry to a byte slice.
 	buf := make([]byte, logEntryHeaderSize+len(e.Data))
@@ -729,10 +777,13 @@ func (l *Log) append(e *LogEntry) {
 	l.index = e.Index
 
 	// Write to tailing writers.
-	for _, w := range l.writers {
+	for i := 0; i < len(l.writers); i++ {
+		w := l.writers[i]
+
 		// If an error occurs then remove the writer and close it.
 		if _, err := w.Write(buf); err != nil {
 			l.removeWriter(w)
+			i--
 			continue
 		}
 
@@ -967,6 +1018,7 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex, curre
 	}
 	l.commitIndex = commitIndex
 	l.leaderID = leaderID
+	l.lastContact = l.Clock.Now()
 
 	return l.index, l.term, nil
 }
@@ -1003,11 +1055,58 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 	return l.term, nil
 }
 
+// elector runs in a separate goroutine and checks for election timeouts.
+func (l *Log) elector(done chan chan struct{}) {
+	for {
+		// Wait for a close signal or election timeout.
+		select {
+		case ch := <-done:
+			close(ch)
+			return
+		case <-l.Clock.After(l.ElectionTimeout): // TODO(election): Randomize
+		}
+
+		// If log is a follower or candidate and an election timeout has passed
+		// since a contact from a heartbeat then start a new election.
+		err := func() error {
+			l.mu.Lock()
+			defer l.mu.Unlock()
+
+			// Verify that we're not closing.
+			if err := check(done); err != nil {
+				return err
+			}
+
+			// Ignore if the last contact was less than the election timeout.
+			if l.lastContact.Sub(l.Clock.Now()) < l.ElectionTimeout {
+				return nil
+			}
+
+			// Otherwise start a new election and promote.
+			term := l.term + 1
+			if err := l.writeTerm(term); err != nil {
+				return fmt.Errorf("write term: %s", err)
+			}
+			l.term = term
+			l.setState(Candidate)
+
+			return nil
+		}()
+
+		// Check if we exited because we're closing.
+		if err == errDone {
+			return
+		} else if err != nil {
+			panic("unreachable")
+		}
+	}
+}
+
 // WriteTo attaches a writer to the log from a given index.
 // The index specified must be a committed index.
-func (l *Log) WriteTo(w io.Writer, term, index uint64) error {
+func (l *Log) WriteTo(w io.Writer, id, term, index uint64) error {
 	// Validate and initialize the writer.
-	writer, err := l.initWriter(w, term, index)
+	writer, err := l.initWriter(w, id, term, index)
 	if err != nil {
 		return err
 	}
@@ -1039,7 +1138,7 @@ func (l *Log) WriteTo(w io.Writer, term, index uint64) error {
 }
 
 // validates writer and adds it to the list of writers.
-func (l *Log) initWriter(w io.Writer, term, index uint64) (*logWriter, error) {
+func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -1059,7 +1158,7 @@ func (l *Log) initWriter(w io.Writer, term, index uint64) (*logWriter, error) {
 	//   3. Index is after the commit index.
 	if l.state != Leader {
 		return nil, ErrNotLeader
-	} else if index > l.commitIndex {
+	} else if index > l.index {
 		return nil, ErrUncommittedIndex
 	}
 
@@ -1077,6 +1176,7 @@ func (l *Log) initWriter(w io.Writer, term, index uint64) (*logWriter, error) {
 	// Wrap writer and append to log to tail.
 	writer := &logWriter{
 		Writer:        w,
+		id:            id,
 		snapshotIndex: l.appliedIndex,
 		done:          make(chan struct{}),
 	}
@@ -1233,6 +1333,7 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 // logWriter wraps writers to provide a channel for close notification.
 type logWriter struct {
 	io.Writer
+	id            uint64        // target's log id
 	snapshotIndex uint64        // snapshot index, if zero then ignored.
 	done          chan struct{} // close notification
 }
