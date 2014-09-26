@@ -333,7 +333,7 @@ $(debian_package): $(admin_dir)/build build
 	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t deb $(deb_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
 	mv out_rpm/$(shell basename $(debian_package)) packages/
 
-$(source_package): dependencies
+$(source_package): dependencies $(admin_dir)/build packages
 	rm -rf $(levigo_dependency)
 	$(GO) get -d $(levigo_dependency)
 	rm -f influxdb

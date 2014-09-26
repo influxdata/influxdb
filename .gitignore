@@ -32,7 +32,6 @@ build/
 /influxdb
 /benchmark-tool
 /main
-/benchmark-storage
 godef
 gosym
 gocode
