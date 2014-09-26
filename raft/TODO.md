@@ -3,9 +3,6 @@ TODO
 
 ## Uncompleted
 
-- [ ] Election
-- [ ] Candidate loop
-- [ ] Save current term to disk.
 - [ ] Callback
 - [ ] Leave / RemovePeer
 
@@ -19,3 +16,6 @@ TODO
 - [x] Consolidate segment into log.
 - [x] Snapshot FSM
 - [x] Initialize last log index from FSM.
+- [x] Election
+- [x] Candidate loop
+- [x] Save current term to disk.

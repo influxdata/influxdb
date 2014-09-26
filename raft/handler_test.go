@@ -119,7 +119,7 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	defer l.Close()
 
 	// Connect to stream.
-	resp, err := http.Get(s.URL + "/stream?term=1")
+	resp, err := http.Get(s.URL + "/stream?id=1&term=1")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusOK {
@@ -178,9 +178,10 @@ func TestHTTPHandler_HandleStream_Error(t *testing.T) {
 		code  int
 		err   string
 	}{
-		{query: `term=XXX&index=0`, code: http.StatusBadRequest, err: `invalid term`},
-		{query: `term=1&index=XXX`, code: http.StatusBadRequest, err: `invalid index`},
-		{query: `term=2&index=0`, code: http.StatusInternalServerError, err: `not leader`},
+		{query: `id=1&term=XXX&index=0`, code: http.StatusBadRequest, err: `invalid term`},
+		{query: `id=1&term=1&index=XXX`, code: http.StatusBadRequest, err: `invalid index`},
+		{query: `id=XXX&term=1&index=XXX`, code: http.StatusBadRequest, err: `invalid id`},
+		{query: `id=1&term=2&index=0`, code: http.StatusInternalServerError, err: `not leader`},
 	}
 	for i, tt := range tests {
 		func() {
