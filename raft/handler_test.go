@@ -2,7 +2,6 @@ package raft_test
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"testing"
@@ -13,13 +12,12 @@ import (
 
 // Ensure a node can join a cluster over HTTP.
 func TestHTTPHandler_HandleJoin(t *testing.T) {
-	l := NewTestLog()
-	s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
-	defer s.Close()
-	defer l.Close()
+	n := NewInitNode()
+	defer n.Close()
 
-	// Send heartbeat.
-	resp, err := http.Get(s.URL + "/join?url=" + url.QueryEscape("http://localhost:1000"))
+	// Send request to join cluster.
+	go func() { n.Clock().Add(n.Log.ApplyInterval) }()
+	resp, err := http.Get(n.Server.URL + "/join?url=" + url.QueryEscape("http://localhost:1000"))
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -36,13 +34,11 @@ func TestHTTPHandler_HandleJoin(t *testing.T) {
 
 // Ensure a heartbeat can be sent over HTTP.
 func TestHTTPHandler_HandleHeartbeat(t *testing.T) {
-	l := NewTestLog()
-	s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
-	defer s.Close()
-	defer l.Close()
+	n := NewInitNode()
+	defer n.Close()
 
 	// Send heartbeat.
-	resp, err := http.Get(s.URL + "/heartbeat?term=1&commitIndex=0&leaderID=1")
+	resp, err := http.Get(n.Server.URL + "/heartbeat?term=1&commitIndex=0&leaderID=1")
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -72,13 +68,11 @@ func TestHTTPHandler_HandleHeartbeat_Error(t *testing.T) {
 	}
 	for i, tt := range tests {
 		func() {
-			l := NewTestLog()
-			s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
-			defer s.Close()
-			defer l.Close()
+			n := NewInitNode()
+			defer n.Close()
 
 			// Send heartbeat.
-			resp, err := http.Get(s.URL + "/heartbeat?" + tt.query)
+			resp, err := http.Get(n.Server.URL + "/heartbeat?" + tt.query)
 			defer resp.Body.Close()
 			if err != nil {
 				t.Fatalf("%d. unexpected error: %s", i, err)
@@ -94,12 +88,12 @@ func TestHTTPHandler_HandleHeartbeat_Error(t *testing.T) {
 
 // Ensure that sending a heartbeat to a closed log returns an error.
 func TestHTTPHandler_HandleHeartbeat_ErrClosed(t *testing.T) {
-	l := NewUnopenedTestLog()
-	s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
-	defer s.Close()
+	n := NewInitNode()
+	n.Log.Close()
+	defer n.Close()
 
 	// Send heartbeat.
-	resp, err := http.Get(s.URL + "/heartbeat?term=1&commitIndex=0&leaderID=1")
+	resp, err := http.Get(n.Server.URL + "/heartbeat?term=1&commitIndex=0&leaderID=1")
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -113,13 +107,11 @@ func TestHTTPHandler_HandleHeartbeat_ErrClosed(t *testing.T) {
 
 // Ensure a stream can be retrieved over HTTP.
 func TestHTTPHandler_HandleStream(t *testing.T) {
-	l := NewTestLog()
-	s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
-	defer s.Close()
-	defer l.Close()
+	n := NewInitNode()
+	defer n.Close()
 
 	// Connect to stream.
-	resp, err := http.Get(s.URL + "/stream?id=1&term=1")
+	resp, err := http.Get(n.Server.URL + "/stream?id=1&term=1")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusOK {
@@ -131,13 +123,13 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Add an entry.
-	if _, err := l.Apply([]byte("xyz")); err != nil {
+	if _, err := n.Log.Apply([]byte("xyz")); err != nil {
 		t.Fatal(err)
 	}
 
 	// Move log's clock ahead & flush data.
-	l.Clock.Add(l.HeartbeatTimeout)
-	l.Flush()
+	n.Log.Clock.Add(n.Log.HeartbeatInterval)
+	n.Log.Flush()
 
 	// Read entries from stream.
 	var e raft.LogEntry
@@ -158,7 +150,7 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	}
 
 	// Read off the snapshot.
-	var fsm TestFSM
+	var fsm FSM
 	if err := fsm.Restore(resp.Body); err != nil {
 		t.Fatalf("restore: %s", err)
 	}
@@ -185,13 +177,11 @@ func TestHTTPHandler_HandleStream_Error(t *testing.T) {
 	}
 	for i, tt := range tests {
 		func() {
-			l := NewTestLog()
-			s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
-			defer s.Close()
-			defer l.Close()
+			n := NewInitNode()
+			defer n.Close()
 
 			// Connect to stream.
-			resp, err := http.Get(s.URL + "/stream?" + tt.query)
+			resp, err := http.Get(n.Server.URL + "/stream?" + tt.query)
 			defer resp.Body.Close()
 			if err != nil {
 				t.Fatalf("%d. unexpected error: %s", i, err)
@@ -207,13 +197,11 @@ func TestHTTPHandler_HandleStream_Error(t *testing.T) {
 
 // Ensure a vote request can be sent over HTTP.
 func TestHTTPHandler_HandleRequestVote(t *testing.T) {
-	l := NewTestLog()
-	s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
-	defer s.Close()
-	defer l.Close()
+	n := NewInitNode()
+	defer n.Close()
 
 	// Send vote request.
-	resp, err := http.Get(s.URL + "/vote?term=5&candidateID=2&lastLogIndex=3&lastLogTerm=4")
+	resp, err := http.Get(n.Server.URL + "/vote?term=5&candidateID=2&lastLogIndex=3&lastLogTerm=4")
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -243,13 +231,11 @@ func TestHTTPHandler_HandleRequestVote_Error(t *testing.T) {
 	}
 	for i, tt := range tests {
 		func() {
-			l := NewTestLog()
-			s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
-			defer s.Close()
-			defer l.Close()
+			n := NewInitNode()
+			defer n.Close()
 
 			// Send vote request.
-			resp, err := http.Get(s.URL + "/vote?" + tt.query)
+			resp, err := http.Get(n.Server.URL + "/vote?" + tt.query)
 			defer resp.Body.Close()
 			if err != nil {
 				t.Fatalf("%d. unexpected error: %s", i, err)
@@ -265,13 +251,11 @@ func TestHTTPHandler_HandleRequestVote_Error(t *testing.T) {
 
 // Ensure an invalid path returns a 404.
 func TestHTTPHandler_NotFound(t *testing.T) {
-	l := NewTestLog()
-	s := httptest.NewServer(raft.NewHTTPHandler(l.Log))
-	defer s.Close()
-	defer l.Close()
+	n := NewInitNode()
+	defer n.Close()
 
 	// Send vote request.
-	resp, err := http.Get(s.URL + "/aaaaahhhhh")
+	resp, err := http.Get(n.Server.URL + "/aaaaahhhhh")
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)

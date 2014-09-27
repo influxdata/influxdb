@@ -23,13 +23,13 @@ func TestConfig_MarshalJSON(t *testing.T) {
 
 		// 1. One node.
 		{
-			c:   &raft.Config{ClusterID: 100, Nodes: []*raft.Node{&raft.Node{ID: 1, URL: &url.URL{Host: "localhost"}}}},
+			c:   &raft.Config{ClusterID: 100, Nodes: []*raft.ConfigNode{&raft.ConfigNode{ID: 1, URL: &url.URL{Host: "localhost"}}}},
 			out: `{"clusterID":100,"nodes":[{"id":1,"url":"//localhost"}]}`,
 		},
 
 		// 1. Node without URL.
 		{
-			c:   &raft.Config{ClusterID: 100, Nodes: []*raft.Node{&raft.Node{ID: 1, URL: nil}}},
+			c:   &raft.Config{ClusterID: 100, Nodes: []*raft.ConfigNode{&raft.ConfigNode{ID: 1, URL: nil}}},
 			out: `{"clusterID":100,"nodes":[{"id":1}]}`,
 		},
 	}

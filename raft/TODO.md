@@ -5,7 +5,7 @@ TODO
 
 - [ ] Callback
 - [ ] Leave / RemovePeer
-
+- [ ] Periodic flushing
 
 ## Completed
 

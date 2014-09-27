@@ -22,14 +22,17 @@ import (
 )
 
 const (
-	// DefaultHeartbeatTimeout is the default time to wait between heartbeats.
-	DefaultHeartbeatTimeout = 50 * time.Millisecond
+	// DefaultHeartbeatInterval is the default time to wait between heartbeats.
+	DefaultHeartbeatInterval = 50 * time.Millisecond
 
 	// DefaultElectionTimeout is the default time before starting an election.
 	DefaultElectionTimeout = 150 * time.Millisecond
 
 	// DefaultReconnectTimeout is the default time to wait before reconnecting.
 	DefaultReconnectTimeout = 10 * time.Millisecond
+
+	// DefaultApplyInterval is the default time between checks to apply commands.
+	DefaultApplyInterval = 10 * time.Millisecond
 )
 
 // FSM represents the state machine that the log is applied to.
@@ -54,6 +57,21 @@ const logEntryHeaderSize = 8 + 8 + 8 // sz+index+term
 // State represents whether the log is a follower, candidate, or leader.
 type State int
 
+// String returns the string representation of the state.
+func (s State) String() string {
+	switch s {
+	case Stopped:
+		return "stopped"
+	case Follower:
+		return "follower"
+	case Candidate:
+		return "candidate"
+	case Leader:
+		return "leader"
+	}
+	return "unknown"
+}
+
 const (
 	Stopped State = iota
 	Follower
@@ -69,8 +87,8 @@ type Log struct {
 	path   string  // data directory
 	config *Config // cluster configuration
 
-	state State              // current node state
-	ch    chan chan struct{} // state change channel
+	state State         // current node state
+	ch    chan struct{} // state change channel
 
 	term        uint64    // current election term
 	leaderID    uint64    // the current leader
@@ -100,13 +118,18 @@ type Log struct {
 
 	// The amount of time between Append Entries RPC calls from the leader to
 	// its followers.
-	HeartbeatTimeout time.Duration
+	HeartbeatInterval time.Duration
 
 	// The amount of time before a follower attempts an election.
 	ElectionTimeout time.Duration
 
 	// The amount of time between stream reconnection attempts.
 	ReconnectTimeout time.Duration
+
+	// The amount of time that the log will wait between applying outstanding
+	// committed log entries. A lower interval will reduce latency but a higher
+	// interval will batch more commands together and improve throughput.
+	ApplyInterval time.Duration
 
 	// Clock is an abstraction of the time package. By default it will use
 	// a real-time clock but a mock clock can be used for testing.
@@ -126,9 +149,10 @@ func NewLog() *Log {
 		Rand:   rand.Int63,
 		Logger: log.New(os.Stderr, "[raft] ", log.LstdFlags),
 
-		HeartbeatTimeout: DefaultHeartbeatTimeout,
-		ElectionTimeout:  DefaultElectionTimeout,
-		ReconnectTimeout: DefaultReconnectTimeout,
+		HeartbeatInterval: DefaultHeartbeatInterval,
+		ElectionTimeout:   DefaultElectionTimeout,
+		ReconnectTimeout:  DefaultReconnectTimeout,
+		ApplyInterval:     DefaultApplyInterval,
 	}
 }
 
@@ -285,6 +309,7 @@ func (l *Log) close() error {
 	l.id = 0
 	l.path = ""
 	l.index, l.term = 0, 0
+	l.config = nil
 
 	return nil
 }
@@ -519,9 +544,7 @@ func (l *Log) Leave() error {
 func (l *Log) setState(state State) {
 	// Stop previous state.
 	if l.ch != nil {
-		ch := make(chan struct{})
-		l.ch <- ch
-		<-ch
+		close(l.ch)
 		l.ch = nil
 	}
 
@@ -536,19 +559,19 @@ func (l *Log) setState(state State) {
 	// Execute event loop for the given state.
 	switch state {
 	case Follower:
-		l.ch = make(chan chan struct{})
+		l.ch = make(chan struct{})
 		go l.followerLoop(l.ch)
 	case Candidate:
-		l.ch = make(chan chan struct{})
+		l.ch = make(chan struct{})
 		go l.candidateLoop(l.ch)
 	case Leader:
-		l.ch = make(chan chan struct{})
+		l.ch = make(chan struct{})
 		go l.leaderLoop(l.ch)
 	}
 }
 
 // followerLoop continually attempts to stream the log from the current leader.
-func (l *Log) followerLoop(done chan chan struct{}) {
+func (l *Log) followerLoop(done chan struct{}) {
 	var rch chan struct{}
 	for {
 		// Retrieve the term, last index, & leader URL.
@@ -582,25 +605,24 @@ func (l *Log) followerLoop(done chan chan struct{}) {
 		// Check if the state has changed, stream has closed, or an
 		// election timeout has passed.
 		select {
-		case ch := <-done:
-			close(ch)
+		case <-done:
 			return
 		case <-rch:
-			l.Clock.Sleep(l.ReconnectTimeout)
+			// FIX: l.Clock.Sleep(l.ReconnectTimeout)
 			continue
 		}
 	}
 }
 
 // candidateLoop attempts to receive enough votes to become leader.
-func (l *Log) candidateLoop(done chan chan struct{}) {
+func (l *Log) candidateLoop(done chan struct{}) {
 	// TODO(benbjohnson): Implement candidate loop.
 	warnf("===ELECTION(%d)===", l.id)
 }
 
 // leaderLoop periodically sends heartbeats to all followers to maintain dominance.
-func (l *Log) leaderLoop(done chan chan struct{}) {
-	ticker := l.Clock.Ticker(l.HeartbeatTimeout)
+func (l *Log) leaderLoop(done chan struct{}) {
+	ticker := l.Clock.Ticker(l.HeartbeatInterval)
 	defer ticker.Stop()
 	for {
 		// Send hearbeat to followers.
@@ -609,8 +631,7 @@ func (l *Log) leaderLoop(done chan chan struct{}) {
 		}
 
 		select {
-		case ch := <-done: // wait for state change.
-			close(ch)
+		case <-done: // wait for state change.
 			return
 		case <-ticker.C: // wait for next heartbeat
 		}
@@ -618,10 +639,11 @@ func (l *Log) leaderLoop(done chan chan struct{}) {
 }
 
 // sendHeartbeat sends heartbeats to all the nodes.
-func (l *Log) sendHeartbeat(done chan chan struct{}) error {
+func (l *Log) sendHeartbeat(done chan struct{}) error {
 	// Retrieve config and term.
 	l.mu.Lock()
 	if err := check(done); err != nil {
+		l.mu.Unlock()
 		return err
 	}
 	commitIndex, localIndex := l.commitIndex, l.index
@@ -641,7 +663,7 @@ func (l *Log) sendHeartbeat(done chan chan struct{}) error {
 	ch := make(chan uint64, nodeN)
 	for _, n := range config.Nodes {
 		if n.ID != l.id {
-			go func(n *Node) {
+			go func(n *ConfigNode) {
 				peerIndex, peerTerm, err := l.transport().Heartbeat(n.URL, term, commitIndex, leaderID)
 				if err != nil {
 					l.Logger.Printf("heartbeat: %s", err)
@@ -656,14 +678,13 @@ func (l *Log) sendHeartbeat(done chan chan struct{}) error {
 	}
 
 	// Wait for heartbeat responses or timeout.
-	after := l.Clock.After(l.HeartbeatTimeout)
+	after := l.Clock.After(l.HeartbeatInterval)
 	indexes := make([]uint64, 1, nodeN)
 	indexes[0] = localIndex
 loop:
 	for {
 		select {
-		case ch := <-done:
-			close(ch)
+		case <-done:
 			return errDone
 		case <-after:
 			break loop
@@ -689,6 +710,7 @@ loop:
 	// Update the commit index, if higher.
 	l.mu.Lock()
 	if err := check(done); err != nil {
+		l.mu.Unlock()
 		return err
 	}
 	if newCommitIndex > l.commitIndex {
@@ -700,10 +722,9 @@ loop:
 
 // check looks if the channel has any messages.
 // If it does then errDone is returned, otherwise nil is returned.
-func check(done chan chan struct{}) error {
+func check(done chan struct{}) error {
 	select {
-	case ch := <-done:
-		close(ch)
+	case <-done:
 		return errDone
 	default:
 		return nil
@@ -759,7 +780,7 @@ func (l *Log) Wait(index uint64) error {
 		} else if appliedIndex >= index {
 			return nil
 		}
-		l.Clock.Sleep(10 * time.Millisecond)
+		l.Clock.Sleep(l.ApplyInterval)
 	}
 }
 
@@ -804,8 +825,7 @@ func (l *Log) applier(done chan chan struct{}) {
 			close(ch)
 			return
 
-		// FIX(benbjohnson): Push notification over channel(?)
-		case <-l.Clock.After(10 * time.Millisecond):
+		case <-l.Clock.After(l.ApplyInterval):
 		}
 
 		// Apply all entries committed since the previous apply.
@@ -813,9 +833,12 @@ func (l *Log) applier(done chan chan struct{}) {
 			l.mu.Lock()
 			defer l.mu.Unlock()
 
-			// Verify that we're not closing.
-			if err := check(done); err != nil {
-				return err
+			// Verify, under lock, that we're not closing.
+			select {
+			case ch := <-done:
+				close(ch)
+				return errDone
+			default:
 			}
 
 			// Ignore if there are no pending entries.
@@ -916,7 +939,7 @@ func (l *Log) applyInitialize(e *LogEntry) error {
 // applyAddPeer adds a node to the cluster configuration.
 func (l *Log) applyAddPeer(e *LogEntry) error {
 	// Unmarshal node from entry data.
-	var n *Node
+	var n *ConfigNode
 	if err := json.Unmarshal(e.Data, &n); err != nil {
 		return err
 	}
@@ -963,7 +986,7 @@ func (l *Log) AddPeer(u *url.URL) (uint64, *Config, error) {
 	}
 
 	// Apply command.
-	b, _ := json.Marshal(&Node{URL: u})
+	b, _ := json.Marshal(&ConfigNode{URL: u})
 	index, err := l.internalApply(LogEntryAddPeer, b)
 	if err != nil {
 		return 0, nil, err
@@ -1073,8 +1096,12 @@ func (l *Log) elector(done chan chan struct{}) {
 			defer l.mu.Unlock()
 
 			// Verify that we're not closing.
-			if err := check(done); err != nil {
-				return err
+			// Verify, under lock, that we're not closing.
+			select {
+			case ch := <-done:
+				close(ch)
+				return errDone
+			default:
 			}
 
 			// Ignore if the last contact was less than the election timeout.
@@ -1249,26 +1276,7 @@ func (l *Log) Flush() {
 
 // ReadFrom continually reads log entries from a reader.
 func (l *Log) ReadFrom(r io.ReadCloser) error {
-	err := func() error {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-
-		// Check if log is closed.
-		if !l.opened() {
-			l.mu.Unlock()
-			return ErrClosed
-		}
-
-		// Remove previous reader, if one exists.
-		if l.reader != nil {
-			_ = l.reader.Close()
-		}
-
-		// Set new reader.
-		l.reader = r
-		return nil
-	}()
-	if err != nil {
+	if err := l.initReadFrom(r); err != nil {
 		return err
 	}
 
@@ -1328,6 +1336,26 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 		// Append entry to the log.
 		l.append(&e)
 	}
+}
+
+// Initializes the ReadFrom() call under a lock and swaps out the readers.
+func (l *Log) initReadFrom(r io.ReadCloser) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Check if log is closed.
+	if !l.opened() {
+		return ErrClosed
+	}
+
+	// Remove previous reader, if one exists.
+	if l.reader != nil {
+		_ = l.reader.Close()
+	}
+
+	// Set new reader.
+	l.reader = r
+	return nil
 }
 
 // logWriter wraps writers to provide a channel for close notification.
@@ -1409,11 +1437,6 @@ func assert(condition bool, msg string, v ...interface{}) {
 
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
-
-func jsonify(v interface{}) string {
-	b, _ := json.Marshal(v)
-	return string(b)
-}
 
 func printstack() {
 	stack := strings.Join(strings.Split(string(debug.Stack()), "\n")[2:], "\n")

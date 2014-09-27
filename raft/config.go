@@ -14,7 +14,7 @@ type Config struct {
 	ClusterID uint64 `json:"clusterID,omitempty"`
 
 	// List of nodes in the cluster.
-	Nodes []*Node `json:"nodes,omitempty"`
+	Nodes []*ConfigNode `json:"nodes,omitempty"`
 
 	// Index is the last log index when the configuration was updated.
 	Index uint64 `json:"index,omitempty"`
@@ -24,7 +24,7 @@ type Config struct {
 }
 
 // NodeByID returns a node by identifier.
-func (c *Config) NodeByID(id uint64) *Node {
+func (c *Config) NodeByID(id uint64) *ConfigNode {
 	for _, n := range c.Nodes {
 		if n.ID == id {
 			return n
@@ -34,7 +34,7 @@ func (c *Config) NodeByID(id uint64) *Node {
 }
 
 // NodeByURL returns a node by URL.
-func (c *Config) NodeByURL(u *url.URL) *Node {
+func (c *Config) NodeByURL(u *url.URL) *ConfigNode {
 	for _, n := range c.Nodes {
 		if n.URL.String() == u.String() {
 			return n
@@ -60,7 +60,7 @@ func (c *Config) addNode(id uint64, u *url.URL) error {
 		}
 	}
 
-	c.Nodes = append(c.Nodes, &Node{ID: id, URL: u})
+	c.Nodes = append(c.Nodes, &ConfigNode{ID: id, URL: u})
 
 	return nil
 }
@@ -86,35 +86,35 @@ func (c *Config) clone() *Config {
 		Index:     c.Index,
 		MaxNodeID: c.MaxNodeID,
 	}
-	other.Nodes = make([]*Node, len(c.Nodes))
+	other.Nodes = make([]*ConfigNode, len(c.Nodes))
 	for i, n := range c.Nodes {
 		other.Nodes[i] = n.clone()
 	}
 	return other
 }
 
-// Node represents a single machine in the raft cluster.
-type Node struct {
+// ConfigNode represents a single machine in the raft configuration.
+type ConfigNode struct {
 	ID  uint64   `json:"id"`
 	URL *url.URL `json:"url,omitempty"`
 }
 
 // clone returns a deep copy of the node.
-func (n *Node) clone() *Node {
-	other := &Node{ID: n.ID, URL: &url.URL{}}
+func (n *ConfigNode) clone() *ConfigNode {
+	other := &ConfigNode{ID: n.ID, URL: &url.URL{}}
 	*other.URL = *n.URL
 	return other
 }
 
-// nodeJSONMarshaler represents the JSON serialized form of the Node type.
-type nodeJSONMarshaler struct {
+// configNodeJSONMarshaler represents the JSON serialized form of the ConfigNode type.
+type configNodeJSONMarshaler struct {
 	ID  uint64 `json:"id"`
 	URL string `json:"url,omitempty"`
 }
 
 // MarshalJSON encodes the node into a JSON-formatted byte slice.
-func (n *Node) MarshalJSON() ([]byte, error) {
-	var o nodeJSONMarshaler
+func (n *ConfigNode) MarshalJSON() ([]byte, error) {
+	var o configNodeJSONMarshaler
 	o.ID = n.ID
 	if n.URL != nil {
 		o.URL = n.URL.String()
@@ -123,9 +123,9 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON decodes a JSON-formatted byte slice into a node.
-func (n *Node) UnmarshalJSON(data []byte) error {
+func (n *ConfigNode) UnmarshalJSON(data []byte) error {
 	// Unmarshal into temporary type.
-	var o nodeJSONMarshaler
+	var o configNodeJSONMarshaler
 	if err := json.Unmarshal(data, &o); err != nil {
 		return err
 	}
