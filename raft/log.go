@@ -563,7 +563,7 @@ func (l *Log) setState(state State) {
 		go l.followerLoop(l.ch)
 	case Candidate:
 		l.ch = make(chan struct{})
-		go l.candidateLoop(l.ch)
+		go l.elect(l.ch)
 	case Leader:
 		l.ch = make(chan struct{})
 		go l.leaderLoop(l.ch)
@@ -614,10 +614,73 @@ func (l *Log) followerLoop(done chan struct{}) {
 	}
 }
 
-// candidateLoop attempts to receive enough votes to become leader.
-func (l *Log) candidateLoop(done chan struct{}) {
-	// TODO(benbjohnson): Implement candidate loop.
-	warnf("===ELECTION(%d)===", l.id)
+// elect requests votes from other nodes in an attempt to become the new leader.
+func (l *Log) elect(done chan struct{}) {
+	// Retrieve config and term.
+	l.mu.Lock()
+	if err := check(done); err != nil {
+		l.mu.Unlock()
+		return
+	}
+	term, id := l.term, l.id
+	lastLogIndex, lastLogTerm := l.index, l.term // FIX: Find actual last index/term.
+	config := l.config
+	l.mu.Unlock()
+
+	// Determine node count.
+	nodeN := len(config.Nodes)
+
+	// Request votes from all other nodes.
+	ch := make(chan struct{}, nodeN)
+	for _, n := range config.Nodes {
+		if n.ID != id {
+			go func(n *ConfigNode) {
+				peerTerm, err := l.transport().RequestVote(n.URL, term, id, lastLogIndex, lastLogTerm)
+				if err != nil {
+					l.Logger.Printf("request vote: %s", err)
+					return
+				} else if peerTerm > term {
+					// TODO(benbjohnson): Step down.
+					return
+				}
+				ch <- struct{}{}
+			}(n)
+		}
+	}
+
+	// Wait for respones or timeout.
+	after := l.Clock.After(l.ElectionTimeout)
+	voteN := 1
+loop:
+	for {
+		select {
+		case <-done:
+			return
+		case <-after:
+			break loop
+		case <-ch:
+			voteN++
+			if voteN >= (nodeN/2)+1 {
+				break loop
+			}
+		}
+	}
+
+	// Exit if we don't have a quorum.
+	if voteN < (nodeN/2)+1 {
+		return
+	}
+
+	// Change to a leader state.
+	l.mu.Lock()
+	if err := check(done); err != nil {
+		l.mu.Unlock()
+		return
+	}
+	l.setState(Leader)
+	l.mu.Unlock()
+
+	return
 }
 
 // leaderLoop periodically sends heartbeats to all followers to maintain dominance.
@@ -1105,7 +1168,7 @@ func (l *Log) elector(done chan chan struct{}) {
 			}
 
 			// Ignore if the last contact was less than the election timeout.
-			if l.lastContact.Sub(l.Clock.Now()) < l.ElectionTimeout {
+			if l.Clock.Now().Sub(l.lastContact) < l.ElectionTimeout {
 				return nil
 			}
 

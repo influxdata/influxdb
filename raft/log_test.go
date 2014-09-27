@@ -172,6 +172,45 @@ func TestLog_Apply_Cluster(t *testing.T) {
 	}
 }
 
+// Ensure that a new leader can be elected.
+func TestLog_Elect(t *testing.T) {
+	c := NewCluster(3)
+	defer c.Close()
+	n0, n1, n2 := c.Nodes[0], c.Nodes[1], c.Nodes[2]
+
+	// Stop leader.
+	path := n0.Log.Path()
+	n0.Log.Close()
+
+	// Wait for election timeout.
+	c.Clock().Add(2 * n0.Log.ElectionTimeout)
+
+	// Ensure one node is elected in the next term.
+	if s1, s2 := n1.Log.State(), n2.Log.State(); s1 != raft.Leader && s2 != raft.Leader {
+		t.Fatalf("expected leader: n1=%s, n2=%s", s1, s2)
+	}
+	leader := c.Leader()
+	if term := leader.Log.Term(); term != 2 {
+		t.Fatalf("unexpected new term: %d", term)
+	}
+
+	// Restart leader and make sure it rejoins as a follower.
+	if err := n0.Log.Open(path); err != nil {
+		t.Fatalf("unexpected open error: %s", err)
+	}
+
+	// Wait for a heartbeat and verify the new leader is still the leader.
+	c.Clock().Add(leader.Log.HeartbeatInterval)
+	if state := leader.Log.State(); state != raft.Leader {
+		t.Fatalf("new leader deposed: %s", state)
+	}
+	if term := n0.Log.Term(); term != 2 {
+		t.Fatalf("invalid term: %d", term)
+	}
+
+	// TODO: Apply a command and ensure it's replicated.
+}
+
 // Ensure that state can be stringified.
 func TestState_String(t *testing.T) {
 	var tests = []struct {
@@ -244,6 +283,17 @@ func (c *Cluster) NewNode() *Node {
 
 // Clock returns the a clock that will slightly delay clock movement.
 func (c *Cluster) Clock() raft.Clock { return &delayClock{c.Nodes[0].Log.Clock} }
+
+// Leader returns the leader node with the highest term.
+func (c *Cluster) Leader() *Node {
+	var leader *Node
+	for _, n := range c.Nodes {
+		if n.Log.State() == raft.Leader && (leader == nil || leader.Log.Term() < n.Log.Term()) {
+			leader = n
+		}
+	}
+	return leader
+}
 
 // Node represents a log, FSM and associated HTTP server.
 type Node struct {
@@ -363,7 +413,7 @@ type MockFSM struct {
 }
 
 func (fsm *MockFSM) Apply(e *raft.LogEntry) error         { return fsm.ApplyFunc(e) }
-func (fsm *MockFSM) Index() uint64                        { return fsm.IndexFunc() }
+func (fsm *MockFSM) Index() (uint64, error)               { return fsm.IndexFunc() }
 func (fsm *MockFSM) Snapshot(w io.Writer) (uint64, error) { return fsm.SnapshotFunc(w) }
 func (fsm *MockFSM) Restore(r io.Reader) error            { return fsm.RestoreFunc(r) }
 
