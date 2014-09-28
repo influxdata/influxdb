@@ -67,8 +67,8 @@ You'll need the following dependencies:
 To build run the following command:
 
     ./configure \
-      --with-flex=/usr/local/Cellar/flex/2.5.37/bin/flex \
-      --with-bison=/usr/local/Cellar/bison/3.0.2/bin/bison && make
+      --with-flex=$(brew --prefix flex)/bin/flex \
+      --with-bison=$(brew --prefix bison)/bin/bison && make
 
 Build on Linux
 --------------
