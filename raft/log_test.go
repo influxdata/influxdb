@@ -208,7 +208,16 @@ func TestLog_Elect(t *testing.T) {
 		t.Fatalf("invalid term: %d", term)
 	}
 
-	// TODO: Apply a command and ensure it's replicated.
+	// Apply a command and ensure it's replicated.
+	index, err := leader.Log.Apply([]byte("abc"))
+	if err != nil {
+		t.Fatalf("unexpected apply error: %s", err)
+	}
+	leader.Log.Flush()
+	go func() { c.Clock().Add(2 * leader.Log.HeartbeatInterval) }()
+	if err := leader.Log.Wait(index); err != nil {
+		t.Fatalf("unexpected wait error: %s", err)
+	}
 }
 
 // Ensure that state can be stringified.

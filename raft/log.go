@@ -1167,8 +1167,11 @@ func (l *Log) elector(done chan chan struct{}) {
 			default:
 			}
 
+			// Ignore if not a follower or a candidate.
 			// Ignore if the last contact was less than the election timeout.
-			if l.Clock.Now().Sub(l.lastContact) < l.ElectionTimeout {
+			if l.state != Follower && l.state != Candidate {
+				return nil
+			} else if l.Clock.Now().Sub(l.lastContact) < l.ElectionTimeout {
 				return nil
 			}
 
