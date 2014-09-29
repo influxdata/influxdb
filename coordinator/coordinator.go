@@ -51,8 +51,6 @@ func (self *Coordinator) RunQuery(user common.User, database string, queryString
 	}
 
 	for _, query := range q {
-		// runSingleQuery shouldn't close the processor in case there are
-		// other queries to be run
 		err := self.runSingleQuery(user, database, query, p)
 		if err != nil {
 			return err

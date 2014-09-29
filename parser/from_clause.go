@@ -57,6 +57,10 @@ func (self *FromClause) GetString() string {
 			if t.Alias != "" {
 				alias = fmt.Sprintf(" as %s", t.Alias)
 			}
+			if t.Name.Type == ValueRegex {
+				names = append(names, fmt.Sprintf(`%s%s`, t.Name.GetString(), alias))
+				continue
+			}
 			names = append(names, fmt.Sprintf(`"%s"%s`, t.Name.GetString(), alias))
 		}
 		buffer.WriteString(strings.Join(names, ","))

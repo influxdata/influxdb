@@ -168,6 +168,36 @@ func (self *DataTestSuite) TestFillingEntireRange(c *C) {
 	}
 }
 
+func (self *DataTestSuite) TestBigInts(c *C) {
+	data := `
+[
+  {
+    "name": "test_mode",
+    "columns": ["value"],
+    "points": [
+      [7335093126128605887],
+      [15028546720250474530]
+    ]
+  }
+ ]`
+	self.client.WriteJsonData(data, c, influxdb.Millisecond)
+	for _, i := range []uint64{7335093126128605887, 15028546720250474530} {
+		q := fmt.Sprintf("select count(value) from test_mode where value = %d", i)
+		serieses := self.client.RunQuery(q, c, "m")
+		c.Assert(serieses, HasLen, 1)
+		maps := ToMap(serieses[0])
+		c.Assert(maps, HasLen, 1)
+		c.Assert(maps[0]["count"], Equals, 1.0)
+	}
+
+	q := "select count(value) from test_mode where value >= 15028546720250474530 and value <= 15028546720250474530"
+	serieses := self.client.RunQuery(q, c, "m")
+	c.Assert(serieses, HasLen, 1)
+	maps := ToMap(serieses[0])
+	c.Assert(maps, HasLen, 1)
+	c.Assert(maps[0]["count"], Equals, 1.0)
+}
+
 func (self *DataTestSuite) TestModeWithInt(c *C) {
 	data := `
 [
@@ -295,7 +325,7 @@ func (self *DataTestSuite) TestDifferenceGroupValues(c *C) {
 	c.Assert(maps[2]["difference"], Equals, 80.0)
 }
 
-// issue 578
+// issue #578
 func (self *DataTestSuite) TestParanthesesAlias(c *C) {
 	data := `
 [
@@ -1167,14 +1197,14 @@ func (self *DataTestSuite) TestAggregateWithExpression(c *C) {
 }
 
 func (self *DataTestSuite) verifyWrite(seriesName string, value interface{}, c *C) {
-	series := CreatePoints("foo", 1, 1)
+	series := CreatePoints(seriesName, 1, 1)
 	series[0].Columns = append(series[0].Columns, "time", "sequence_number")
 	now := time.Now().Truncate(time.Hour)
 	series[0].Points[0] = append(series[0].Points[0], 1.0, now.Unix())
 	self.client.WriteData(series, c, "s")
 	series[0].Points[0][0] = value
 	self.client.WriteData(series, c, "s")
-	data := self.client.RunQuery("select * from foo", c, "m")
+	data := self.client.RunQuery("select * from "+seriesName, c, "m")
 	if value == nil {
 		c.Assert(data, HasLen, 0)
 		return
@@ -1361,7 +1391,6 @@ func (self *DataTestSuite) TestArithmeticOperations(c *C) {
 	}
 
 	for query, values := range queries {
-
 		data := self.client.RunQuery(query, c, "m")
 		c.Assert(data, HasLen, 1)
 		c.Assert(data[0].Columns, HasLen, 3)
@@ -1407,8 +1436,8 @@ func (self *DataTestSuite) TestCountQueryOnSingleShard(c *C) {
 func (self *DataTestSuite) TestWhereClauseWithFunction(c *C) {
 	serieses := CreatePoints("test_where_clause_with_function", 1, 1)
 	self.client.WriteData(serieses, c)
+	// Make sure the query returns an error
 	self.client.RunInvalidQuery("select column0 from test_where_clause_with_function where empty(column0)", c)
-	//FIXME: Why doesn't this test have asserts?
 }
 
 func (self *DataTestSuite) TestGroupByDay(c *C) {
@@ -2093,13 +2122,14 @@ func (self *DataTestSuite) TestHistogram(c *C) {
 	HistogramHelper(c, self.client, "select Histogram(value, 2.0, -1, 2) from test_histogram", expected)
 }
 
-// code that's common to many of the folling Test*AggregateFillWith* tests
-func (self *DataTestSuite) tstAggregateFill(aggregate, fill string, aggArgs []interface{}, expVals []interface{}, c *C) {
-	data := `
+// Test data and expected result data
+var (
+	aggTstData = `
 [
   {
     "points": [
     [300000, 30.0],
+    [240000, null],
     [120000, 20.0],
     [60000, 10.0]
     ],
@@ -2107,180 +2137,14 @@ func (self *DataTestSuite) tstAggregateFill(aggregate, fill string, aggArgs []in
     "columns": ["time", "value"]
   }
 ]`
-	self.client.WriteJsonData(data, c, influxdb.Millisecond)
-	series := self.client.RunQuery(fmtFillQuery(aggregate, aggArgs, "data", fill), c)
-	c.Assert(len(series), Equals, 1)
-	maps := ToMap(series[0])
-	c.Assert(len(maps), Equals, len(expVals))
-	fmt.Println(maps)
-	c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": 300000.0, aggregate: expVals[0]})
-	c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": 240000.0, aggregate: expVals[1]})
-	c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": 180000.0, aggregate: expVals[2]})
-	c.Assert(maps[3], DeepEquals, map[string]interface{}{"time": 120000.0, aggregate: expVals[3]})
-	c.Assert(maps[4], DeepEquals, map[string]interface{}{"time": 60000.0, aggregate: expVals[4]})
-}
 
-func fmtFillQuery(aggregate string, aggArgs []interface{}, series, fill string) string {
-	args := "value"
-	for _, arg := range aggArgs {
-		args = fmt.Sprintf("%s, %v", args, arg)
-	}
-	return fmt.Sprintf("select %s(%s) from %s group by time(60s) fill(%s) where time > 60s and time < 320s", aggregate, args, series, fill)
-}
+	aggTstExpect_FillWithNil = []tv{{300000.0, 30.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, 20.0}, {60000.0, 10.0}}
+	aggTstExpect_FillWith0   = []tv{{300000.0, 30.0}, {240000.0, 0.0}, {180000.0, 0.0}, {120000.0, 20.0}, {60000.0, 10.0}}
 
-var emptyAggArgs []interface{}
+	aggTstExpect_ZerosAndFillWithNil = []tv{{300000.0, 0.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, 0.0}, {60000.0, 0.0}}
+	aggTstExpect_ZerosAndFillWith0   = []tv{{300000.0, 0.0}, {240000.0, 0.0}, {180000.0, 0.0}, {120000.0, 0.0}, {60000.0, 0.0}}
 
-// count aggregate filling with null
-func (self *DataTestSuite) TestCountAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("count", "null", emptyAggArgs, []interface{}{1.0, nil, nil, 1.0, 1.0}, c)
-}
-
-// count aggregate filling with 0
-func (self *DataTestSuite) TestCountAggregateFillWith0(c *C) {
-	self.tstAggregateFill("count", "0", emptyAggArgs, []interface{}{1.0, 0.0, 0.0, 1.0, 1.0}, c)
-}
-
-// min aggregate filling with null
-func (self *DataTestSuite) TestMinAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("min", "null", emptyAggArgs, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// min aggregate filling with 0
-func (self *DataTestSuite) TestMinAggregateFillWith0(c *C) {
-	self.tstAggregateFill("min", "0", emptyAggArgs, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// max aggregate filling with null
-func (self *DataTestSuite) TestMaxAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("max", "null", emptyAggArgs, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// max aggregate filling with 0
-func (self *DataTestSuite) TestMaxAggregateFillWith0(c *C) {
-	self.tstAggregateFill("max", "0", emptyAggArgs, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// mode aggregate filling with null
-func (self *DataTestSuite) TestModeAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("mode", "null", emptyAggArgs, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// mode aggregate filling with 0
-func (self *DataTestSuite) TestModeAggregateFillWith0(c *C) {
-	self.tstAggregateFill("mode", "0", emptyAggArgs, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// median aggregate filling with null
-func (self *DataTestSuite) TestMedianAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("median", "null", emptyAggArgs, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// median aggregate filling with 0
-func (self *DataTestSuite) TestMedianAggregateFillWith0(c *C) {
-	self.tstAggregateFill("median", "0", emptyAggArgs, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// distinct aggregate filling with null
-func (self *DataTestSuite) TestDistinctAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("distinct", "null", emptyAggArgs, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// distinct aggregate filling with 0
-func (self *DataTestSuite) TestDistinctAggregateFillWith0(c *C) {
-	self.tstAggregateFill("distinct", "0", emptyAggArgs, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// percentile aggregate filling with null
-func (self *DataTestSuite) TestPercentileAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("percentile", "null", []interface{}{10}, []interface{}{0.0, nil, nil, 0.0, 0.0}, c)
-}
-
-// percentile aggregate filling with 0
-func (self *DataTestSuite) TestPercentileAggregateFillWith0(c *C) {
-	self.tstAggregateFill("percentile", "0", []interface{}{10}, []interface{}{0.0, 0.0, 0.0, 0.0, 0.0}, c)
-}
-
-// sum aggregate filling with null
-func (self *DataTestSuite) TestSumAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("sum", "null", emptyAggArgs, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// sum aggregate filling with 0
-func (self *DataTestSuite) TestSumAggregateFillWith0(c *C) {
-	self.tstAggregateFill("sum", "0", emptyAggArgs, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// stddev aggregate filling with null
-func (self *DataTestSuite) TestStddevAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("stddev", "null", emptyAggArgs, []interface{}{0.0, nil, nil, 0.0, 0.0}, c)
-}
-
-// stddev aggregate filling with 0
-func (self *DataTestSuite) TestStddevAggregateFillWith0(c *C) {
-	self.tstAggregateFill("stddev", "0", emptyAggArgs, []interface{}{0.0, 0.0, 0.0, 0.0, 0.0}, c)
-}
-
-// first aggregate filling with null
-func (self *DataTestSuite) TestFirstAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("first", "null", emptyAggArgs, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// first aggregate filling with 0
-func (self *DataTestSuite) TestFirstAggregateFillWith0(c *C) {
-	self.tstAggregateFill("first", "0", emptyAggArgs, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// last aggregate filling with null
-func (self *DataTestSuite) TestLastAggregateFillWithNull(c *C) {
-	self.tstAggregateFill("last", "null", emptyAggArgs, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// last aggregate filling with 0
-func (self *DataTestSuite) TestLastAggregateFillWith0(c *C) {
-	self.tstAggregateFill("last", "0", emptyAggArgs, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// top 1 aggregate filling with null
-func (self *DataTestSuite) TestTop1AggregateFillWithNull(c *C) {
-	self.tstAggregateFill("top", "null", []interface{}{1}, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// top 1 aggregate filling with 0
-func (self *DataTestSuite) TestTop1AggregateFillWith0(c *C) {
-	self.tstAggregateFill("top", "0", []interface{}{1}, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// top 10 aggregate filling with null
-func (self *DataTestSuite) TestTop10AggregateFillWithNull(c *C) {
-	self.tstAggregateFill("top", "null", []interface{}{10}, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// top 10 aggregate filling with 0
-func (self *DataTestSuite) TestTop10AggregateFillWith0(c *C) {
-	self.tstAggregateFill("top", "0", []interface{}{10}, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// bottom 1 aggregate filling with null
-func (self *DataTestSuite) TestBottom1AggregateFillWithNull(c *C) {
-	self.tstAggregateFill("bottom", "null", []interface{}{1}, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// bottom 1 aggregate filling with 0
-func (self *DataTestSuite) TestBottom1AggregateFillWith0(c *C) {
-	self.tstAggregateFill("bottom", "0", []interface{}{1}, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-// bottom 10 aggregate filling with null
-func (self *DataTestSuite) TestBottom10AggregateFillWithNull(c *C) {
-	self.tstAggregateFill("bottom", "null", []interface{}{10}, []interface{}{30.0, nil, nil, 20.0, 10.0}, c)
-}
-
-// bottom 10 aggregate filling with 0
-func (self *DataTestSuite) TestBottom10AggregateFillWith0(c *C) {
-	self.tstAggregateFill("bottom", "0", []interface{}{10}, []interface{}{30.0, 0.0, 0.0, 20.0, 10.0}, c)
-}
-
-var testData = `
+	aggTstData2 = `
 [
   {
     "points": [
@@ -2294,39 +2158,249 @@ var testData = `
   }
 ]`
 
-func (self *DataTestSuite) tstAggregateFill2(aggregate, fill string, aggArgs []interface{}, expVals []interface{}, c *C) {
-	self.client.WriteJsonData(testData, c, influxdb.Millisecond)
-	series := self.client.RunQuery(fmtFillQuery(aggregate, aggArgs, "data", fill), c)
+	aggTstData_Issue939 = `
+[
+  {
+    "points": [
+    [300000, 30.0],
+    [240000, null],
+    [180000, "foo"],
+    [120000, 20.0],
+    [60000, 10.0]
+    ],
+    "name": "data",
+    "columns": ["time", "value"]
+  }
+]`
+)
+
+// code that's common to many of the folling Test*AggregateFillWith* tests
+func (self *DataTestSuite) tstAggregateFill(tstData, aggregate, fill string, aggArgs []interface{}, expVals []tv, c *C) {
+	// write test data to the database
+	self.client.WriteJsonData(tstData, c, influxdb.Millisecond)
+	// build the test query string
+	query := fmtFillQuery(aggregate, aggArgs, "data", fill)
+	// run the query
+	series := self.client.RunQuery(query, c)
+	// check that we only got one result series
 	c.Assert(len(series), Equals, 1)
+	// convert result series to a map of strings to values
 	maps := ToMap(series[0])
-	c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": 300000.0, aggregate: expVals[0]})
-	c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": 240000.0, aggregate: expVals[1]})
-	c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": 180000.0, aggregate: expVals[2]})
+	fmt.Println(maps)
+	// check that the result has the expected number of records
+	c.Assert(len(maps), Equals, len(expVals))
+	// check each result value
+	for i, ev := range expVals {
+		expVal := map[string]interface{}{"time": ev.Time, aggregate: ev.Value}
+		c.Assert(maps[i], DeepEquals, expVal)
+	}
+}
+
+func fmtFillQuery(aggregate string, aggArgs []interface{}, series, fill string) string {
+	args := "value"
+	for _, arg := range aggArgs {
+		args = fmt.Sprintf("%s, %v", args, arg)
+	}
+	return fmt.Sprintf("select %s(%s) from %s group by time(60s) fill(%s) where time > 60s and time < 320s", aggregate, args, series, fill)
+}
+
+var emptyAggArgs []interface{}
+
+// tv holds a time / value pair (at this time, the value was)
+type tv struct {
+	Time  float64
+	Value interface{}
+}
+
+// count aggregate filling with null
+func (self *DataTestSuite) TestCountAggregateFillWithNull(c *C) {
+	expVals := []tv{{300000.0, 1.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, 1.0}, {60000.0, 1.0}}
+	self.tstAggregateFill(aggTstData, "count", "null", emptyAggArgs, expVals, c)
+}
+
+// count aggregate filling with 0
+func (self *DataTestSuite) TestCountAggregateFillWith0(c *C) {
+	expVals := []tv{{300000.0, 1.0}, {240000.0, 0.0}, {180000.0, 0.0}, {120000.0, 1.0}, {60000.0, 1.0}}
+	self.tstAggregateFill(aggTstData, "count", "0", emptyAggArgs, expVals, c)
+}
+
+// min aggregate filling with null
+func (self *DataTestSuite) TestMinAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "min", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// min aggregate filling with 0
+func (self *DataTestSuite) TestMinAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "min", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// max aggregate filling with null
+func (self *DataTestSuite) TestMaxAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "max", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// max aggregate filling with 0
+func (self *DataTestSuite) TestMaxAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "max", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// mode aggregate filling with null
+func (self *DataTestSuite) TestModeAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "mode", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// mode aggregate filling with 0
+func (self *DataTestSuite) TestModeAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "mode", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// median aggregate filling with null
+func (self *DataTestSuite) TestMedianAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "median", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// median aggregate filling with 0
+func (self *DataTestSuite) TestMedianAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "median", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// issue #939 - median panics with null values in column
+func (self *DataTestSuite) Test_Issue939_MedianAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData_Issue939, "median", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// issue #939 - median panics with null values in column
+func (self *DataTestSuite) Test_Issue939_MedianAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData_Issue939, "median", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// distinct aggregate filling with null
+func (self *DataTestSuite) TestDistinctAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "distinct", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// distinct aggregate filling with 0
+func (self *DataTestSuite) TestDistinctAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "distinct", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// percentile aggregate filling with null
+func (self *DataTestSuite) TestPercentileAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "percentile", "null", []interface{}{10}, aggTstExpect_ZerosAndFillWithNil, c)
+}
+
+// percentile aggregate filling with 0
+func (self *DataTestSuite) TestPercentileAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "percentile", "0", []interface{}{10}, aggTstExpect_ZerosAndFillWith0, c)
+}
+
+// sum aggregate filling with null
+func (self *DataTestSuite) TestSumAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "sum", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// sum aggregate filling with 0
+func (self *DataTestSuite) TestSumAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "sum", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// stddev aggregate filling with null
+func (self *DataTestSuite) TestStddevAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "stddev", "null", emptyAggArgs, aggTstExpect_ZerosAndFillWithNil, c)
+}
+
+// stddev aggregate filling with 0
+func (self *DataTestSuite) TestStddevAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "stddev", "0", emptyAggArgs, aggTstExpect_ZerosAndFillWith0, c)
+}
+
+// first aggregate filling with null
+func (self *DataTestSuite) TestFirstAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "first", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// first aggregate filling with 0
+func (self *DataTestSuite) TestFirstAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "first", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// last aggregate filling with null
+func (self *DataTestSuite) TestLastAggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "last", "null", emptyAggArgs, aggTstExpect_FillWithNil, c)
+}
+
+// last aggregate filling with 0
+func (self *DataTestSuite) TestLastAggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "last", "0", emptyAggArgs, aggTstExpect_FillWith0, c)
+}
+
+// top 1 aggregate filling with null
+func (self *DataTestSuite) TestTop1AggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "top", "null", []interface{}{1}, aggTstExpect_FillWithNil, c)
+}
+
+// top 1 aggregate filling with 0
+func (self *DataTestSuite) TestTop1AggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "top", "0", []interface{}{1}, aggTstExpect_FillWith0, c)
+}
+
+// top 10 aggregate filling with null
+func (self *DataTestSuite) TestTop10AggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "top", "null", []interface{}{10}, aggTstExpect_FillWithNil, c)
+}
+
+// top 10 aggregate filling with 0
+func (self *DataTestSuite) TestTop10AggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "top", "0", []interface{}{10}, aggTstExpect_FillWith0, c)
+}
+
+// bottom 1 aggregate filling with null
+func (self *DataTestSuite) TestBottom1AggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "bottom", "null", []interface{}{1}, aggTstExpect_FillWithNil, c)
+}
+
+// bottom 1 aggregate filling with 0
+func (self *DataTestSuite) TestBottom1AggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "bottom", "0", []interface{}{1}, aggTstExpect_FillWith0, c)
+}
+
+// bottom 10 aggregate filling with null
+func (self *DataTestSuite) TestBottom10AggregateFillWithNull(c *C) {
+	self.tstAggregateFill(aggTstData, "bottom", "null", []interface{}{10}, aggTstExpect_FillWithNil, c)
+}
+
+// bottom 10 aggregate filling with 0
+func (self *DataTestSuite) TestBottom10AggregateFillWith0(c *C) {
+	self.tstAggregateFill(aggTstData, "bottom", "0", []interface{}{10}, aggTstExpect_FillWith0, c)
 }
 
 // derivative aggregate filling with null
 func (self *DataTestSuite) TestDerivativeAggregateFillWithNull(c *C) {
-	self.tstAggregateFill2("derivative", "null", emptyAggArgs, []interface{}{-1.5, nil, nil}, c)
+	expVals := []tv{{300000.0, -1.5}, {240000.0, nil}, {180000.0, nil}}
+	self.tstAggregateFill(aggTstData2, "derivative", "null", emptyAggArgs, expVals, c)
 }
 
 // derivative aggregate filling with 0
 func (self *DataTestSuite) TestDerivativeAggregateFillWith0(c *C) {
-	self.tstAggregateFill2("derivative", "0", emptyAggArgs, []interface{}{-1.5, 0.0, 0.0}, c)
+	expVals := []tv{{300000.0, -1.5}, {240000.0, 0.0}, {180000.0, 0.0}}
+	self.tstAggregateFill(aggTstData2, "derivative", "0", emptyAggArgs, expVals, c)
 }
 
 // difference aggregate filling with null
 func (self *DataTestSuite) TestDifferenceAggregateFillWithNull(c *C) {
-	self.tstAggregateFill2("difference", "null", emptyAggArgs, []interface{}{15.0, nil, nil}, c)
+	expVals := []tv{{300000.0, 15.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, nil}, {60000.0, nil}}
+	self.tstAggregateFill(aggTstData2, "difference", "null", emptyAggArgs, expVals, c)
 }
 
 // difference aggregate filling with 0
 func (self *DataTestSuite) TestDifferenceAggregateFillWith0(c *C) {
-	self.tstAggregateFill2("difference", "0", emptyAggArgs, []interface{}{15.0, 0.0, 0.0}, c)
+	expVals := []tv{{300000.0, 15.0}, {240000.0, 0.0}, {180000.0, 0.0}, {120000.0, 0.0}, {60000.0, 0.0}}
+	self.tstAggregateFill(aggTstData2, "difference", "0", emptyAggArgs, expVals, c)
 }
 
 // histogram aggregate filling with null
 func (self *DataTestSuite) TestHistogramAggregateFillWithNull(c *C) {
-	self.client.WriteJsonData(testData, c, influxdb.Millisecond)
+	self.client.WriteJsonData(aggTstData2, c, influxdb.Millisecond)
 	series := self.client.RunQuery(fmtFillQuery("histogram", []interface{}{}, "data", "null"), c)
 	c.Assert(len(series), Equals, 1)
 	maps := ToMap(series[0])
@@ -2338,7 +2412,7 @@ func (self *DataTestSuite) TestHistogramAggregateFillWithNull(c *C) {
 
 // histogram aggregate filling with 0
 func (self *DataTestSuite) TestHistogramAggregateFillWith0(c *C) {
-	self.client.WriteJsonData(testData, c, influxdb.Millisecond)
+	self.client.WriteJsonData(aggTstData2, c, influxdb.Millisecond)
 	series := self.client.RunQuery(fmtFillQuery("histogram", []interface{}{}, "data", "0"), c)
 	c.Assert(len(series), Equals, 1)
 	maps := ToMap(series[0])

@@ -5,6 +5,7 @@
 
 package main
 
+// #cgo LDFLAGS: -ltcmalloc -lprofiler
 // #include "google/heap-profiler.h"
 // #include "google/profiler.h"
 import "C"

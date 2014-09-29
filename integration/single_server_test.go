@@ -962,8 +962,8 @@ func (self *SingleServerSuite) TestLoadDatabaseConfig(c *C) {
 	c.Assert(err, IsNil)
 	queries := series[0].Points
 	c.Assert(queries, HasLen, 2)
-	c.Assert(queries[0][2], Equals, "select * from events into events.[id]")
-	c.Assert(queries[1][2], Equals, "select count(value) from events group by time(5m) into 5m.count.events")
+	c.Assert(queries[0][2], Equals, `select * from "events" into events.[id]`)
+	c.Assert(queries[1][2], Equals, `select count(value) from "events" group by time(5m) into 5m.count.events`)
 }
 
 func (self *SingleServerSuite) TestSeriesShouldReturnSorted(c *C) {

@@ -660,7 +660,7 @@ func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
 	series = collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 1)
 	c.Assert(series.GetValueForPointAndColumn(0, "id", c), Equals, 1.0)
-	c.Assert(series.GetValueForPointAndColumn(0, "query", c), Equals, "select * from foo into bar")
+	c.Assert(series.GetValueForPointAndColumn(0, "query", c), Equals, `select * from "foo" into bar`)
 
 	// wait for the continuous query to run
 	time.Sleep(time.Second)
@@ -670,9 +670,9 @@ func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
 	series = collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 2)
 	c.Assert(series.GetValueForPointAndColumn(0, "id", c), Equals, 1.0)
-	c.Assert(series.GetValueForPointAndColumn(0, "query", c), Equals, "select * from foo into bar")
+	c.Assert(series.GetValueForPointAndColumn(0, "query", c), Equals, `select * from "foo" into bar`)
 	c.Assert(series.GetValueForPointAndColumn(1, "id", c), Equals, 2.0)
-	c.Assert(series.GetValueForPointAndColumn(1, "query", c), Equals, "select * from quu into qux")
+	c.Assert(series.GetValueForPointAndColumn(1, "query", c), Equals, `select * from "quu" into qux`)
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 1;", false, c)
 	// wait for the continuous query to be dropped
@@ -682,7 +682,7 @@ func (self *ServerSuite) TestContinuousQueryManagement(c *C) {
 	series = collection.GetSeries("continuous queries", c)
 	c.Assert(series.Points, HasLen, 1)
 	c.Assert(series.GetValueForPointAndColumn(0, "id", c), Equals, 2.0)
-	c.Assert(series.GetValueForPointAndColumn(0, "query", c), Equals, "select * from quu into qux")
+	c.Assert(series.GetValueForPointAndColumn(0, "query", c), Equals, `select * from "quu" into qux`)
 
 	self.serverProcesses[0].QueryAsRoot("test_cq", "drop continuous query 2;", false, c)
 }

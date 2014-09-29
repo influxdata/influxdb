@@ -14,12 +14,17 @@ func getExpressionValue(values []*parser.Value, fields []string, point *protocol
 		switch value.Type {
 		case parser.ValueFunctionCall:
 			return nil, fmt.Errorf("Cannot process function call %s in expression", value.Name)
+		case parser.ValueInt:
+			value, err := strconv.ParseInt(value.Name, 10, 64)
+			if err == nil {
+				fieldValues = append(fieldValues, &protocol.FieldValue{Int64Value: &value})
+				continue
+			}
+			// an error will happen only if the integer is out of range
+			fallthrough
 		case parser.ValueFloat:
 			value, _ := strconv.ParseFloat(value.Name, 64)
 			fieldValues = append(fieldValues, &protocol.FieldValue{DoubleValue: &value})
-		case parser.ValueInt:
-			value, _ := strconv.ParseInt(value.Name, 10, 64)
-			fieldValues = append(fieldValues, &protocol.FieldValue{Int64Value: &value})
 		case parser.ValueBool:
 			value, _ := strconv.ParseBool(value.Name)
 			fieldValues = append(fieldValues, &protocol.FieldValue{BoolValue: &value})

@@ -118,7 +118,6 @@ hyperleveldb_deps    = $(hyperleveldb_dir)/.libs/libhyperleveldb.a
 
 profile=off
 ifneq ($(profile),off)
-CGO_LDFLAGS += -ltcmalloc -lprofiler
 GO_BUILD_TAGS += profile
 endif
 
@@ -273,7 +272,7 @@ ifeq ($(version),)
 	version = "dev"
 endif
 
-timeout = 10m
+timeout = 20m
 GOTEST_OPTS += -test.timeout=$(timeout)
 
 test: test_dependencies parser protobuf
@@ -370,9 +369,9 @@ $(binary_package): $(admin_dir)/build build packages
 	cp config.sample.toml build/config.toml
 	sed -i 's/.\/admin/\/opt\/influxdb\/current\/admin/g' build/config.toml
 	sed -i 's/influxdb.log/\/opt\/influxdb\/shared\/log.txt/g' build/config.toml
-	sed -i 's/\${TMPDIR}\/influxdb\/development\/db/\/opt\/influxdb\/shared\/data\/db/g' build/config.toml
-	sed -i 's/\${TMPDIR}\/influxdb\/development\/raft/\/opt\/influxdb\/shared\/data\/raft/g' build/config.toml
-	sed -i 's/\${TMPDIR}\/influxdb\/development\/wal/\/opt\/influxdb\/shared\/data\/wal/g' build/config.toml
+	sed -i 's:${TMPDIR}/influxdb/development/db:/opt/influxdb/shared/data/db:g' build/config.toml
+	sed -i 's:${TMPDIR}/influxdb/development/raft:/opt/influxdb/shared/data/raft:g' build/config.toml
+	sed -i 's:${TMPDIR}/influxdb/development/wal:/opt/influxdb/shared/data/wal:g' build/config.toml
 	rm -f build/scripts/post_install.sh.bak
 	tar -czf $(binary_package) build/*
 
@@ -399,3 +398,6 @@ vet:
 
 format:
 	git ls-files | grep '.go$$' | xargs $(GOFMT) -w -s
+
+oracle:
+	$$GOPATH/bin/oracle $(oracle_args)
