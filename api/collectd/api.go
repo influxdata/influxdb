@@ -105,13 +105,13 @@ func (self *Server) HandleSocket(socket *net.UDPConn) {
 			sts := strconv.FormatUint(uts, 10)
 			ts, _ := strconv.ParseInt(sts, 10, 64)
 
-			metricName := fmt.Sprintf("%s %s", packet.Plugin, packet.Type)
-
-			if len(packet.TypeInstance) > 0 {
-				metricName = fmt.Sprintf("%s %s", metricName, packet.TypeInstance)
-			}
-
 			for _, dataSet := range packet.Values {
+				metricName := fmt.Sprintf("%s %s", packet.Plugin, packet.Type)
+
+				if len(packet.TypeInstance) > 0 {
+					metricName = fmt.Sprintf("%s %s", metricName, packet.TypeInstance)
+				}
+
 				switch dataSet.Name {
 				case "value":
 					// Don't add to metric name
