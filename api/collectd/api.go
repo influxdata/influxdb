@@ -126,10 +126,19 @@ func (self *Server) HandleSocket(socket *net.UDPConn) {
 					StringValue: &packet.Hostname,
 				})
 				values = append(values, &protocol.FieldValue{
+					StringValue: &packet.Plugin,
+				})
+				values = append(values, &protocol.FieldValue{
 					StringValue: &packet.PluginInstance,
 				})
 				values = append(values, &protocol.FieldValue{
+					StringValue: &packet.Type,
+				})
+				values = append(values, &protocol.FieldValue{
 					StringValue: &packet.TypeInstance,
+				})
+				values = append(values, &protocol.FieldValue{
+					StringValue: &dataSet.Name,
 				})
 				values = append(values, &protocol.FieldValue{
 					StringValue: &dataSet.TypeName,
@@ -149,8 +158,11 @@ func (self *Server) HandleSocket(socket *net.UDPConn) {
 					Name: &metricName,
 					Fields: []string{
 						"host",
+						"plugin",
 						"plugin_instance",
+						"type",
 						"type_instance",
+						"dsname",
 						"dstype",
 						"value",
 					},
