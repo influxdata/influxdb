@@ -45,6 +45,13 @@ read-timeout = "5s"
   # database = ""  # store graphite data in this database
   # udp_enabled = true # enable udp interface on the same port as the tcp interface
 
+  # Configure the collectd api
+  [input_plugins.collectd]
+  enabled = false
+  # port = 25826
+  # database = ""
+  # typesdb = "/usr/share/collectd/types.db" # The path to the collectd types.db file
+
   # Configure the udp api
   [input_plugins.udp]
   enabled = false
