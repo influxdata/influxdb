@@ -2,11 +2,13 @@ package server
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"time"
 
 	log "code.google.com/p/log4go"
 	"github.com/influxdb/influxdb/admin"
+	"github.com/influxdb/influxdb/api/collectd"
 	"github.com/influxdb/influxdb/api/graphite"
 	"github.com/influxdb/influxdb/api/http"
 	"github.com/influxdb/influxdb/api/udp"
@@ -25,6 +27,7 @@ type Server struct {
 	ClusterConfig  *cluster.ClusterConfiguration
 	HttpApi        *http.HttpServer
 	GraphiteApi    *graphite.Server
+	CollectdApi    *collectd.Server
 	UdpApi         *udp.Server
 	UdpServers     []*udp.Server
 	AdminServer    *admin.HttpServer
@@ -66,6 +69,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	httpApi := http.NewHttpServer(config, coord, coord, clusterConfig, raftServer)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
 	graphiteApi := graphite.NewServer(config, coord, clusterConfig)
+	collectdApi := collectd.NewServer(config, coord, clusterConfig)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
 	return &Server{
@@ -74,6 +78,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		ClusterConfig:  clusterConfig,
 		HttpApi:        httpApi,
 		GraphiteApi:    graphiteApi,
+		CollectdApi:    collectdApi,
 		Coordinator:    coord,
 		AdminServer:    adminServer,
 		Config:         config,
@@ -149,6 +154,28 @@ func (self *Server) ListenAndServe() error {
 		}
 	} else {
 		log.Info("Graphite input plugins is disabled")
+	}
+
+	if self.Config.CollectdEnabled {
+		// Helper function to DRY out error log message
+		failReason := func(r string) string {
+			return fmt.Sprintf("Refusing to start collectd server because %s. Please check your configuration", r)
+		}
+
+		if self.Config.CollectdPort <= 0 || self.Config.CollectdPort >= 65536 {
+			log.Warn(failReason(fmt.Sprintf("port %d is invalid", self.Config.CollectdPort)))
+		} else if self.Config.CollectdDatabase == "" {
+			log.Warn(failReason("database name is invalid"))
+		} else if self.Config.CollectdTypesDB == "" {
+			log.Warn(failReason("typesdb name is invalid"))
+		} else if _, err := os.Stat(self.Config.CollectdTypesDB); err != nil {
+			log.Warn(failReason("types.db is invalid"))
+		} else {
+			log.Info("Starting Collectd Listener on port %d", self.Config.CollectdPort)
+			go self.CollectdApi.ListenAndServe()
+		}
+	} else {
+		log.Info("Collectd input plugins is disabled")
 	}
 
 	// UDP input
