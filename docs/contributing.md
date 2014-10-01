@@ -82,7 +82,8 @@ You'll need the following dependencies:
 on Red Hat-based distros:
 
     sudo yum install mercurial bzr protobuf-compiler flex bison valgrind \
-      gcc-c++ libstdc++-static make autoconf libtool zlib-dev bzip2-libs
+      gcc-c++ libstdc++-static make autoconf libtool zlib-devel bzip2-libs \
+      bzlib2-devel
 
 To build run the following:
 
