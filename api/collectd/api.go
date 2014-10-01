@@ -99,8 +99,8 @@ func (self *Server) HandleSocket(socket *net.UDPConn) {
 		}
 
 		for _, packet := range *packets {
-			// TimeHR is in nanoseconds
-			uts := packet.TimeHR / 1000000
+			// TimeHR is 2^-30 seconds, influx expects milliseconds
+			uts := (packet.TimeHR >> 30) * 1000
 			// TimeHR is also uint64 but influx expects int64
 			sts := strconv.FormatUint(uts, 10)
 			ts, _ := strconv.ParseInt(sts, 10, 64)
