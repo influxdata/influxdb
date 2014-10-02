@@ -3,6 +3,7 @@ TODO
 
 ## Uncompleted
 
+- [ ] Proxy Apply() to leader
 - [ ] Callback
 - [ ] Leave / RemovePeer
 - [ ] Periodic flushing (maybe in applier?)
