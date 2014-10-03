@@ -1,4 +1,4 @@
-package log
+package broker
 
 import (
 	"net/http"
@@ -7,17 +7,17 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
-// HTTPHandler represents an HTTP handler by the distributed log.
+// HTTPHandler represents an HTTP handler by the broker.
 type HTTPHandler struct {
 	*raft.HTTPHandler
-	log *Log
+	broker *Broker
 }
 
 // NewHTTPHandler returns a new instance of HTTPHandler.
-func NewHTTPHandler(l *Log) *HTTPHandler {
+func NewHTTPHandler(b *Broker) *HTTPHandler {
 	return &HTTPHandler{
-		HTTPHandler: raft.NewHTTPHandler(l.log),
-		log:         l,
+		HTTPHandler: raft.NewHTTPHandler(b.log),
+		broker:      b,
 	}
 }
 
@@ -29,7 +29,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Route all InfluxDB distributed log requests.
+	// Route all InfluxDB broker requests.
 	switch r.URL.Path {
 	case "/":
 	}
