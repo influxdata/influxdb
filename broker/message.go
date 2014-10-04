@@ -5,11 +5,16 @@ import (
 	"io"
 )
 
-// The size of the encoded message header, in bytes.
-const messageHeaderSize = 2 + 8 + 4
-
 // MessageType represents the type of message.
 type MessageType uint16
+
+const (
+	BrokerMessageType = 1 << 15
+)
+
+const (
+	createStreamMessageType = BrokerMessageType | MessageType(0)
+)
 
 // Message represents a single item in a topic.
 type Message struct {
@@ -17,6 +22,14 @@ type Message struct {
 	Index uint64
 	Data  []byte
 }
+
+// createStream creates a new named stream.
+type createStream struct {
+	Name string `json:"name"`
+}
+
+// The size of the encoded message header, in bytes.
+const messageHeaderSize = 2 + 8 + 4
 
 // MessageEncoder encodes messages to a writer.
 type MessageEncoder struct {

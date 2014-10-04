@@ -1,9 +1,12 @@
 package broker_test
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/broker"
 )
@@ -24,7 +27,34 @@ func TestBroker_Write(t *testing.T) {
 		t.Fatalf("wait error: %s", err)
 	}
 
-	// TODO: Read the message back from the broker.
+	// Create a new named stream and subscription.
+	if err := b.CreateStream("node0"); err != nil {
+		t.Fatalf("create stream: %s", err)
+	}
+
+	// Retrieve stream and subscribe.
+	s := b.Stream("node0")
+	if err := s.Subscribe("foo/bar", 0); err != nil {
+		t.Fatalf("subscribe: %s", err)
+	}
+
+	// Read message from the stream.
+	var buf bytes.Buffer
+	go func() {
+		if _, err := s.WriteTo(&buf); err != nil {
+			t.Fatalf("write to: %s", err)
+		}
+	}()
+	time.Sleep(10 * time.Millisecond)
+
+	// Read out the message.
+	var m broker.Message
+	dec := broker.NewMessageDecoder(&buf)
+	if err := dec.Decode(&m); err != nil {
+		t.Fatalf("decode: %s", err)
+	} else if !reflect.DeepEqual(&m, &broker.Message{Type: 100, Index: 2, Data: []byte("0000")}) {
+		t.Fatalf("unexpected message: %#v", &m)
+	}
 }
 
 // Broker is a wrapper for broker.Broker that creates the broker in a temporary location.
