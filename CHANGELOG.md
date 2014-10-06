@@ -2,6 +2,9 @@
 
 ### Bugfixes
 
+- [Issue #1007](https://github.com/influxdb/influxdb/issues/1007). Return the
+  right content type in the response when compression is enabled
+
 ## v0.8.3 [2014-09-24]
 
 ### Bugfixes
