@@ -25,6 +25,7 @@ func NewCompressionResponseWriter(useCompression bool, rw libhttp.ResponseWriter
 	if req.Header.Get("Accept-Encoding") != "" {
 		encodings := strings.Split(req.Header.Get("Accept-Encoding"), ",")
 
+		rw.Header().Set("Content-Type", "text/plain")
 		for _, val := range encodings {
 			if val == "gzip" {
 				rw.Header().Set("Content-Encoding", "gzip")
