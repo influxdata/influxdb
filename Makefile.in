@@ -389,6 +389,25 @@ flymake_test:
 package: | packages build package_version_string $(files)
 	mv -f scripts/post_install.sh.bak scripts/post_install.sh
 
+install: binary_package
+	rm -rf /opt/influxdb/versions/dev
+	mkdir -p /opt/influxdb/versions/dev
+	mkdir -p /opt/influxdb/shared
+	ln -sfn /opt/influxdb/versions/dev /opt/influxdb/current
+	cp -r build/* /opt/influxdb/current/
+	cp /opt/influxdb/current/config.toml /opt/influxdb/shared
+	ln -sfn /opt/influxdb/current/influxdb /usr/bin/influxdb
+	ln -sfn /opt/influxdb/current/influxdb-daemon.sh /usr/bin/influxdb-daemon
+	ln -sfn /opt/influxdb/current/scripts/init.sh /etc/init.d/influxdb
+	touch /opt/influxdb/shared/log.txt
+	chown -R -L influxdb:influxdb /opt/influxdb
+	chmod -R a+rX /opt/influxdb
+
+uninstall:
+	rm -rf /opt/influxdb
+	rm -f /usr/bin/influxdb
+	rm -f /usr/bin/influxdb-daemon
+	rm -f /etc/init.d/influxdb
 
 check:
 	./.hooks/pre-commit

@@ -4,6 +4,8 @@
 
 - [Issue #1007](https://github.com/influxdb/influxdb/issues/1007). Return the
   right content type in the response when compression is enabled
+- [Issue #722](https://github.com/influxdb/influxdb/issues/722). Add
+  an install target to the Makefile
 
 ## v0.8.3 [2014-09-24]
 
