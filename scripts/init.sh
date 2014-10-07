@@ -17,8 +17,27 @@
 # In the third case we have to define our own functions which are very dumb
 # and expect the args to be positioned correctly.
 
-if [ -e /lib/lsb/init-functions ]; then
+if [ -r /lib/lsb/init-functions ]; then
     source /lib/lsb/init-functions
+fi
+
+DEFAULT=/etc/default/influxdb
+
+if [ -r $DEFAULT ]; then
+    source $DEFAULT
+fi
+
+if [ "x$NOFILES" == "x" ]; then
+    NOFILES=0
+fi
+
+if [ $NOFILES -le 0 ]; then
+    NOFILES=4096
+fi
+
+echo "Setting ulimit -n $NOFILES"
+if ! ulimit -n $NOFILES >/dev/null 2>&1; then
+    echo -n "Cannot set the max number of open file descriptors"
 fi
 
 function pidofproc() {

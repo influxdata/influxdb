@@ -6,6 +6,8 @@
   right content type in the response when compression is enabled
 - [Issue #722](https://github.com/influxdb/influxdb/issues/722). Add
   an install target to the Makefile
+- [Issue #916](https://github.com/influxdb/influxdb/issues/916). Set
+  ulimit in the init script with a way to override it in /etc/default/influxdb
 
 ## v0.8.3 [2014-09-24]
 
