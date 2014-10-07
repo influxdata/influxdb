@@ -307,6 +307,19 @@ func (self *ApiSuite) TestQueryErrorPropagatesProperly(c *C) {
 	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
 }
 
+func (self *ApiSuite) TestUnauthorizedErrorWithCompression(c *C) {
+	addr := self.formatUrl("/cluster_admins/authenticate?u=fail_auth&p=invalidpassword")
+	req, err := libhttp.NewRequest("GET", addr, nil)
+	c.Assert(err, IsNil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := libhttp.DefaultClient.Do(req)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, libhttp.StatusUnauthorized)
+	c.Assert(resp.Header.Get("Content-Type"), Equals, "text/plain")
+	c.Assert(resp.Header.Get("Content-Encoding"), Equals, "gzip")
+}
+
 func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
 	query := "select * from foo where column_one == 'some_value';"
 	query = url.QueryEscape(query)
