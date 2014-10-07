@@ -89,6 +89,9 @@ pidfile=/opt/influxdb/shared/influxdb.pid
 # Configuration file
 config=/opt/$name/shared/config.toml
 
+# Maximum number of open files
+MAX_OPEN_FILES=32768
+
 # If the daemon is not there, then exit.
 [ -x $daemon ] || exit 5
 
@@ -105,6 +108,10 @@ case $1 in
         fi
         # Start the daemon.
         log_success_msg "Starting the process" "$name"
+        # Set default max open files in current shell env
+        if [ -n "$MAX_OPEN_FILES" ]; then
+            ulimit -n $MAX_OPEN_FILES
+        fi
         # Start the daemon with the help of start-stop-daemon
         # Log the message appropriately
         cd /
