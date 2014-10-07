@@ -8,6 +8,8 @@
   an install target to the Makefile
 - [Issue #916](https://github.com/influxdb/influxdb/issues/916). Set
   ulimit in the init script with a way to override it in /etc/default/influxdb
+- [Issue #972](https://github.com/influxdb/influxdb/issues/972). Don't
+  assign duplicate server ids
 
 ## v0.8.3 [2014-09-24]
 

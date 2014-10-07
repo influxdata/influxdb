@@ -66,6 +66,7 @@ type ClusterConfiguration struct {
 	clusterAdmins              map[string]*ClusterAdmin
 	dbUsers                    map[string]map[string]*DbUser
 	servers                    []*ClusterServer
+	lastServerIdUsed           uint32
 	serversLock                sync.RWMutex
 	continuousQueries          map[string][]*ContinuousQuery
 	continuousQueriesLock      sync.RWMutex
@@ -118,6 +119,8 @@ func NewClusterConfiguration(
 		connectionCreator:          connectionCreator,
 		shardStore:                 shardStore,
 		wal:                        wal,
+		lastServerIdUsed:           0,
+		lastShardIdUsed:            0,
 		random:                     rand.New(rand.NewSource(time.Now().UnixNano())),
 		shardsById:                 make(map[uint32]*ShardData, 0),
 		MetaStore:                  metaStore,
@@ -284,7 +287,8 @@ func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	defer self.serversLock.Unlock()
 	server.State = Potential
 	self.servers = append(self.servers, server)
-	server.Id = uint32(len(self.servers))
+	self.lastServerIdUsed++
+	server.Id = self.lastServerIdUsed
 	log.Info("Added server to cluster config: %d, %s, %s", server.Id, server.RaftConnectionString, server.ProtobufConnectionString)
 	log.Info("Checking whether this is the local server local: %s, new: %s", self.config.ProtobufConnectionString(), server.ProtobufConnectionString)
 
@@ -581,6 +585,7 @@ type SavedConfiguration struct {
 	ContinuousQueries   map[string][]*ContinuousQuery
 	MetaStore           *metastore.Store
 	LastShardIdUsed     uint32
+	LastServerIdUsed    uint32
 	DatabaseShardSpaces map[string][]*ShardSpace
 	Shards              []*NewShardData
 }
@@ -605,6 +610,7 @@ func (self *ClusterConfiguration) SerializableConfiguration() *SavedConfiguratio
 		Servers:             self.servers,
 		ContinuousQueries:   self.continuousQueries,
 		LastShardIdUsed:     self.lastShardIdUsed,
+		LastServerIdUsed:    self.lastServerIdUsed,
 		MetaStore:           self.MetaStore,
 		DatabaseShardSpaces: self.databaseShardSpaces,
 		Shards:              self.convertShardsToNewShardData(self.GetShards()),
@@ -617,7 +623,7 @@ func (self *ClusterConfiguration) SerializableConfiguration() *SavedConfiguratio
 }
 
 func (self *ClusterConfiguration) convertShardsToNewShardData(shards []*ShardData) []*NewShardData {
-	newShardData := make([]*NewShardData, len(shards), len(shards))
+	newShardData := make([]*NewShardData, len(shards))
 	for i, shard := range shards {
 		newShardData[i] = &NewShardData{
 			Id:        shard.id,
@@ -631,7 +637,7 @@ func (self *ClusterConfiguration) convertShardsToNewShardData(shards []*ShardDat
 }
 
 func (self *ClusterConfiguration) convertNewShardDataToShards(newShards []*NewShardData) []*ShardData {
-	shards := make([]*ShardData, len(newShards), len(newShards))
+	shards := make([]*ShardData, len(newShards))
 	for i, newShard := range newShards {
 		shard := NewShard(newShard.Id, newShard.StartTime, newShard.EndTime, newShard.Database, newShard.SpaceName, self.wal)
 		servers := make([]*ClusterServer, 0)
@@ -675,7 +681,12 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 		self.MetaStore.UpdateFromSnapshot(data.MetaStore)
 	}
 
+	highestServerId := uint32(0)
 	for _, server := range self.servers {
+		if highestServerId < server.Id {
+			highestServerId = server.Id
+		}
+
 		log.Info("Checking whether %s is the local server %s", server.RaftName, self.LocalRaftName)
 		if server.RaftName == self.LocalRaftName {
 			self.LocalServer = server
@@ -690,6 +701,11 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 		server.SetWriteBuffer(writeBuffer)
 		server.Connect()
 		server.StartHeartbeat()
+	}
+	if data.LastServerIdUsed == 0 {
+		self.lastServerIdUsed = highestServerId
+	} else {
+		self.lastServerIdUsed = data.LastServerIdUsed
 	}
 
 	shards := self.convertNewShardDataToShards(data.Shards)
@@ -706,6 +722,7 @@ func (self *ClusterConfiguration) Recovery(b []byte) error {
 	} else {
 		self.lastShardIdUsed = data.LastShardIdUsed
 	}
+
 	// map the shards to their spaces
 	self.databaseShardSpaces = data.DatabaseShardSpaces
 	// we need this if recovering from a snapshot from 0.7.x
@@ -1066,7 +1083,7 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 }
 
 func (self *ClusterConfiguration) MarshalNewShardArrayToShards(newShards []*NewShardData) ([]*ShardData, error) {
-	shards := make([]*ShardData, len(newShards), len(newShards))
+	shards := make([]*ShardData, len(newShards))
 	for i, s := range newShards {
 		shard := NewShard(s.Id, s.StartTime, s.EndTime, s.Database, s.SpaceName, self.wal)
 		servers := make([]*ClusterServer, 0)

@@ -52,6 +52,16 @@ func (self *RemoveNodeSuite) TestRemovingNode(c *C) {
 	c.Assert(client.WriteSeries(series), IsNil)
 
 	s1.WaitForServerToSync()
+
+	s2 = NewServer("integration/test_rf_2.toml", c)
+	s2.WaitForServerToStart()
+	defer s2.Stop()
+
+	servers, err = client.Servers()
+	c.Assert(err, IsNil)
+
+	c.Assert(servers, HasLen, 2)
+	c.Assert(servers[1]["id"], Equals, 3.0)
 }
 
 func (self *RemoveNodeSuite) TestRemovingNodeAndShards(c *C) {
