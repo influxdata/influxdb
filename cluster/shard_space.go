@@ -71,12 +71,12 @@ func (s *ShardSpace) Validate(clusterConfig *ClusterConfiguration, checkForDb bo
 		s.ReplicationFactor = DEFAULT_REPLICATION_FACTOR
 	}
 	if s.ShardDuration != "" {
-		if _, err := common.ParseTimeDuration(s.ShardDuration); err != nil {
+		if _, _, err := common.ParseTimeDuration(s.ShardDuration); err != nil {
 			return err
 		}
 	}
 	if s.RetentionPolicy != "" && s.RetentionPolicy != "inf" {
-		if _, err := common.ParseTimeDuration(s.RetentionPolicy); err != nil {
+		if _, _, err := common.ParseTimeDuration(s.RetentionPolicy); err != nil {
 			return err
 		}
 	}
@@ -121,13 +121,13 @@ func (s *ShardSpace) ParsedRetentionPeriod() time.Duration {
 	} else if s.RetentionPolicy == "inf" {
 		return time.Duration(0)
 	}
-	d, _ := common.ParseTimeDuration(s.RetentionPolicy)
+	d, _, _ := common.ParseTimeDuration(s.RetentionPolicy)
 	return time.Duration(d)
 }
 
 func (s *ShardSpace) ParsedShardDuration() time.Duration {
 	if s.ShardDuration != "" {
-		d, _ := common.ParseTimeDuration(s.ShardDuration)
+		d, _, _ := common.ParseTimeDuration(s.ShardDuration)
 		return time.Duration(d)
 	}
 	return DEFAULT_SHARD_DURATION

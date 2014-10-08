@@ -11,10 +11,14 @@ import (
 )
 
 // Returns the parsed duration in nanoseconds, support 'u', 's', 'm',
-// 'h', 'd' and 'w' suffixes.
-func ParseTimeDuration(value string) (int64, error) {
+// 'h', 'd', 'W', 'M', and 'Y' suffixes.
+// Returns true if the interval is 'irregular' - i.e. it has a variable
+// duration or boundaries, such as weeks, months, and years.
+func ParseTimeDuration(value string) (int64, bool, error) {
 	var constant time.Duration
+
 	prefixSize := 1
+	irregularInterval := false
 
 	switch value[len(value)-1] {
 	case 'u':
@@ -27,10 +31,15 @@ func ParseTimeDuration(value string) (int64, error) {
 		constant = time.Hour
 	case 'd':
 		constant = 24 * time.Hour
-	case 'w':
+	case 'w', 'W':
 		constant = 7 * 24 * time.Hour
-	case 'y':
+		irregularInterval = true
+	case 'M':
+		constant = 30 * 24 * time.Hour
+		irregularInterval = true
+	case 'y', 'Y':
 		constant = 365 * 24 * time.Hour
+		irregularInterval = true
 	default:
 		prefixSize = 0
 	}
@@ -48,7 +57,7 @@ func ParseTimeDuration(value string) (int64, error) {
 
 	_, err := fmt.Sscan(timeString, &t)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 
 	if prefixSize > 0 {
@@ -56,11 +65,12 @@ func ParseTimeDuration(value string) (int64, error) {
 		c.SetFrac64(int64(constant), 1)
 		t.Mul(&t, &c)
 	}
+
 	if t.IsInt() {
-		return t.Num().Int64(), nil
+		return t.Num().Int64(), irregularInterval, nil
 	}
 	f, _ := t.Float64()
-	return int64(f), nil
+	return int64(f), irregularInterval, nil
 }
 
 func GetFileSize(path string) (int64, error) {
