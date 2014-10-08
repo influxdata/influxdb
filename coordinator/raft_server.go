@@ -273,7 +273,7 @@ func (s *RaftServer) CreateContinuousQuery(db string, query string) error {
 		return fmt.Errorf("Continuous queries with :series_name interpolation must use a regular expression in the from clause that prevents recursion")
 	}
 
-	duration, err := selectQuery.GetGroupByClause().GetGroupByTime()
+	duration, _, err := selectQuery.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return fmt.Errorf("Couldn't get group by time for continuous query: %s", err)
 	}
@@ -497,7 +497,7 @@ func (s *RaftServer) checkContinuousQueries() {
 				continue
 			}
 
-			duration, err := query.GetGroupByClause().GetGroupByTime()
+			duration, _, err := query.GetGroupByClause().GetGroupByTime()
 			if err != nil {
 				log.Error("Couldn't get group by time for continuous query:", err)
 				continue

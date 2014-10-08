@@ -33,10 +33,11 @@ type AggregatorEngine struct {
 	next Processor
 
 	// variables for aggregate queries
-	aggregators  []Aggregator
-	elems        []*parser.Value // group by columns other than time()
-	duration     *time.Duration  // the time by duration if any
-	seriesStates map[string]*SeriesState
+	aggregators       []Aggregator
+	elems             []*parser.Value // group by columns other than time()
+	duration          *time.Duration  // the time by duration if any
+	irregularInterval bool            // group by time is week, month, or year
+	seriesStates      map[string]*SeriesState
 }
 
 func (self *AggregatorEngine) Name() string {
@@ -57,9 +58,31 @@ func (self *AggregatorEngine) getTimestampFromPoint(point *protocol.Point) int64
 }
 
 func (self *AggregatorEngine) getTimestampBucket(timestampMicroseconds uint64) int64 {
-	timestampMicroseconds *= 1000 // convert to nanoseconds
-	multiplier := uint64(*self.duration)
-	return int64(timestampMicroseconds / multiplier * multiplier / 1000)
+	timestamp := time.Unix(0, int64(timestampMicroseconds*1000))
+
+	if self.irregularInterval {
+		if *self.duration == 168*time.Hour {
+			// the duration is exactly 1 week = 168 hours
+			year, month, day := timestamp.Date()
+			weekday := timestamp.Weekday()
+			offset := day - int(weekday)
+			boundaryTime := time.Date(year, month, offset, 0, 0, 0, 0, time.UTC)
+			return boundaryTime.Unix() * 1000000
+		} else if *self.duration == 720*time.Hour {
+			// the duration is exactly 1 month = 30 days = 720 hours
+			year, month, _ := timestamp.Date()
+			boundaryTime := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
+			return boundaryTime.Unix() * 1000000
+		} else if *self.duration == 8760*time.Hour {
+			// the duration is exactly 1 year = 365 days = 8,760 hours
+			year := timestamp.Year()
+			boundaryTime := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
+			return boundaryTime.Unix() * 1000000
+		}
+	}
+
+	// the duration is a non-special interval
+	return int64(timestamp.Truncate(*self.duration).UnixNano() / 1000)
 }
 
 func (self *AggregatorEngine) Yield(s *protocol.Series) (bool, error) {
@@ -311,7 +334,7 @@ func NewAggregatorEngine(query *parser.SelectQuery, next Processor) (*Aggregator
 	}
 
 	var err error
-	ae.duration, err = query.GetGroupByClause().GetGroupByTime()
+	ae.duration, ae.irregularInterval, err = query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return nil, err
 	}
