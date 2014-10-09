@@ -291,6 +291,7 @@ admin_dir = ${TMPDIR}/admin.influxdb
 
 source_package = packages/influxdb-$(version).src.tar.gz
 binary_package = packages/influxdb-$(version).$(arch).tar.gz
+rpm_args = :
 ifeq ($(arch),386)
 	rpm_package = packages/influxdb-$(package_version)-1.i686.rpm
 	debian_package = packages/influxdb_$(version)_i686.deb
@@ -317,22 +318,21 @@ package_version_string: build_version_string
 
 $(admin_dir)/build:
 	rm -rf $(admin_dir)
-	rvm 1.9.3 do rvm gemset create influxdb
 	git clone https://github.com/influxdb/influxdb-admin.git $(admin_dir)
-	rvm 1.9.3@influxdb do bash -c "pushd $(admin_dir); bundle install; middleman build; popd"
+	( rvm use 1.9.3@influxdb --create && cd $(admin_dir) && bundle install && middleman build )
 
 $(rpm_package): $(admin_dir)/build build
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
-	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; $(rpm_args) fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	( rvm use 1.9.3@influxdb && cd out_rpm && $(rpm_args) && fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) . )
 	mv out_rpm/$(shell basename $(rpm_package)) packages/
 
 $(debian_package): $(admin_dir)/build build
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
-	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t deb $(deb_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	( rvm use 1.9.3@influxdb && cd out_rpm && fpm -s dir -t deb $(deb_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) . )
 	mv out_rpm/$(shell basename $(debian_package)) packages/
 
 $(source_package): dependencies
