@@ -148,7 +148,7 @@ case $1 in
             fi
         else
             log_failure_msg "$name Process is not running"
-            exit 1
+            exit 3
         fi
         ;;
     # reload)
