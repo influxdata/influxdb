@@ -7,6 +7,8 @@ AC_SUBST(AUTORECONF)
 AC_SUBST(with_bison)
 AC_SUBST(with_flex)
 AC_SUBST(LRT_LDFLAG)
+AC_SUBST(ROCKSDB_LIB)
+
 AC_PATH_PROG(PROTOC, protoc, "notfound")
 if test x"${PROTOC}" == x"notfound"; then
     AC_MSG_ERROR([Please install protobuf before trying to build InfluxDB])
@@ -30,6 +32,11 @@ AC_ARG_WITH([flex],
   [],
   [with_flex=])
 
+AC_ARG_WITH([rocksdb],
+  [AS_HELP_STRING([--with-rocksdb],
+    [Force building InfluxDB with rocksdb support])],
+  [ROCKSDB_LIB=yes])
+
 if test x"${with_flex}" == x""; then
    AC_PATH_PROG(with_flex, flex, "notfound")
 fi
@@ -48,6 +55,7 @@ if test x"${AUTORECONF}" == x"notfound"; then
 fi
 AC_CHECK_LIB(z, gzdopen,,AC_MSG_ERROR("cannot find libz"))
 AC_CHECK_LIB(bz2, BZ2_bzReadOpen,,AC_MSG_ERROR("cannot find libbz2"))
+
 AC_SEARCH_LIBS(clock_gettime,rt,,)
 
 if test x"${ac_cv_search_clock_gettime}" != x"none required" -a x"${ac_cv_search_clock_gettime}" != x"no"; then

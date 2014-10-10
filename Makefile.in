@@ -11,6 +11,7 @@ GOFMT  = @GOFMT@
 GOROOT = @GOROOT@
 AUTORECONF = @AUTORECONF@
 LRT_LDFLAG = @LRT_LDFLAG@
+ROCKSDB_LIB = @ROCKSDB_LIB@
 # or 386, arm
 arch   = amd64
 CGO_ENABLED = 1
@@ -97,9 +98,11 @@ leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
 cpp_47 = $(shell g++ -dumpversion | gawk '{print $$1>=4.7?"1":"0"}')
+ifneq ($(ROCKSDB_LIB),yes)
 rocksdb = yes
 ifneq ($(cpp_47),1)
 rocksdb = no
+endif
 endif
 
 ifeq ($(rocksdb),yes)
@@ -130,6 +133,11 @@ GO_BUILD_TAGS += rocksdb
 storage_engines += $(rocksdb_deps)
 CGO_CFLAGS +=  -I$(rocksdb_dir)/include
 CGO_LDFLAGS += -L$(rocksdb_dir) -lrocksdb $(LRT_LDFLAG)
+else
+ifeq ($(ROCKSDB_LIB),yes)
+GO_BUILD_TAGS += rocksdb
+CGO_LDFLAGS += -lrocksdb $(LRT_LDFLAG)
+endif
 endif
 CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include
 CGO_LDFLAGS += -L$(leveldb_dir) -L$(hyperleveldb_dir)/.libs -L$(snappy_dir)/.libs -lleveldb -lhyperleveldb -lsnappy
