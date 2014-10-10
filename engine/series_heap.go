@@ -1,9 +1,8 @@
 package engine
 
 import (
-	"sort"
+	"container/heap"
 
-	"github.com/influxdb/influxdb/common/heap"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -12,32 +11,61 @@ type Value struct {
 	s        *protocol.Series
 }
 
-type ValueSlice []Value
-
-func (vs ValueSlice) Len() int {
-	return len(vs)
+type MinValueSlice struct {
+	values []Value
 }
 
-func (vs ValueSlice) Less(i, j int) bool {
-	return vs[i].s.Points[0].GetTimestamp() < vs[j].s.Points[0].GetTimestamp()
+func (mvs *MinValueSlice) Len() int {
+	return len(mvs.values)
 }
 
-func (vs ValueSlice) Swap(i, j int) {
-	vs[i], vs[j] = vs[j], vs[i]
+func (mvs *MinValueSlice) Less(i, j int) bool {
+	return mvs.values[i].s.Points[0].GetTimestamp() < mvs.values[j].s.Points[0].GetTimestamp()
 }
 
-// A heap that keeps holds one point series' (series that have one
+func (mvs *MinValueSlice) Swap(i, j int) {
+	mvs.values[i], mvs.values[j] = mvs.values[j], mvs.values[i]
+}
+
+func (mvs *MinValueSlice) Push(x interface{}) {
+	mvs.values = append(mvs.values, x.(Value))
+}
+
+func (mvs *MinValueSlice) Pop() interface{} {
+	l := len(mvs.values)
+	var v interface{}
+	v, mvs.values = mvs.values[l-1], mvs.values[:l-1]
+	return v
+}
+
+type MaxValueSlice struct {
+	*MinValueSlice
+}
+
+func (mvs MaxValueSlice) Less(i, j int) bool {
+	return mvs.values[i].s.Points[0].GetTimestamp() >
+		mvs.values[j].s.Points[0].GetTimestamp()
+}
+
+// A heap that holds one point series' (series that have one
 // point only) and their stream ids. See http://en.wikipedia.org/wiki/Heap_(data_structure)
 // for more info on heaps. The heap is used by the Merger to emit
 // points from multiple streams in monotic order.
 type SeriesHeap struct {
 	Ascending bool
-	values    []Value
+	values    *MinValueSlice
+}
+
+func NewSeriesHeap(asc bool) SeriesHeap {
+	return SeriesHeap{
+		Ascending: asc,
+		values:    &MinValueSlice{},
+	}
 }
 
 // returns the number of values in the heap so far
-func (sh *SeriesHeap) Size() int {
-	return len(sh.values)
+func (sh SeriesHeap) Size() int {
+	return sh.values.Len()
 }
 
 // Add another one point series with the given stream id. TODO: This
@@ -45,17 +73,17 @@ func (sh *SeriesHeap) Size() int {
 // if we had a value slice we can construct the heap in O(n) instead
 // of O(n logn) which is required if we construct the heap using
 // multiple calls to Add()
-func (sh *SeriesHeap) Add(streamId int, s *protocol.Series) {
-	sh.values = append(sh.values, Value{
+func (sh SeriesHeap) Add(streamId int, s *protocol.Series) {
+	var vs heap.Interface
+	if sh.Ascending {
+		vs = sh.values
+	} else {
+		vs = MaxValueSlice{sh.values}
+	}
+	heap.Push(vs, Value{
 		s:        s,
 		streamId: streamId,
 	})
-	l := sh.Size()
-	if sh.Ascending {
-		heap.BubbleUp(ValueSlice(sh.values), l-1)
-	} else {
-		heap.BubbleUp(sort.Reverse(ValueSlice(sh.values)), l-1)
-	}
 }
 
 // Get and remove the next one point series that has smallest (or
@@ -65,15 +93,13 @@ func (sh *SeriesHeap) Add(streamId int, s *protocol.Series) {
 // the stream will be added immediately after and will cause a
 // BubbleUp. In big O() notation this step doesn't change much, it
 // only adds a contant to the upper bound.
-func (sh *SeriesHeap) Next() (int, *protocol.Series) {
-	idx := 0
-	s := sh.Size()
-	v := sh.values[idx]
-	sh.values, sh.values[0] = sh.values[:s-1], sh.values[s-1]
+func (sh SeriesHeap) Next() (int, *protocol.Series) {
+	var vs heap.Interface
 	if sh.Ascending {
-		heap.BubbleDown(ValueSlice(sh.values), 0)
+		vs = sh.values
 	} else {
-		heap.BubbleDown(sort.Reverse(ValueSlice(sh.values)), 0)
+		vs = MaxValueSlice{sh.values}
 	}
+	v := heap.Remove(vs, 0).(Value)
 	return v.streamId, v.s
 }

@@ -13,7 +13,7 @@ type Merger struct {
 	name                  string
 	s                     []StreamQuery
 	size                  int
-	h                     *SeriesHeap
+	h                     SeriesHeap
 	n                     Processor
 	lastStreamIdx         int
 	initializing          bool
@@ -34,7 +34,7 @@ type Merger struct {
 // yields `column2` and `column3` then the result time series will
 // have all 4 columns with two columns set to `nil` depending on which
 // side the point came from.
-func NewCME(name string, s []StreamQuery, h *SeriesHeap, n Processor, mergeColumns bool) *Merger {
+func NewCME(name string, s []StreamQuery, h SeriesHeap, n Processor, mergeColumns bool) *Merger {
 	log4go.Debug("%sMerger: created with %d streams", name, len(s))
 	return &Merger{
 		name:                  name,

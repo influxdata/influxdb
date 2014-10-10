@@ -146,7 +146,7 @@ func (self *Shard) executeMergeQuery(querySpec *parser.QuerySpec, processor engi
 		i++
 	}
 
-	h := &engine.SeriesHeap{Ascending: querySpec.IsAscending()}
+	h := engine.NewSeriesHeap(querySpec.IsAscending())
 	merger := engine.NewCME("Shard", streams, h, processor, t == parser.FromClauseMerge)
 	if _, err := merger.Update(); err != nil {
 		return err

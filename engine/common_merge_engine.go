@@ -21,7 +21,7 @@ func NewCommonMergeEngine(shards []uint32, mergeColumns bool, ascending bool, ne
 		streams[i] = s
 		cme.streams[sh] = s
 	}
-	h := &SeriesHeap{Ascending: ascending}
+	h := NewSeriesHeap(ascending)
 	cme.merger = NewCME("Engine", streams, h, next, mergeColumns)
 	return cme
 }
