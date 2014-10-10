@@ -104,7 +104,7 @@ endif
 
 ifeq ($(rocksdb),yes)
 # rocksdb variables
-rocksdb_version = d916593eadfa838001b2d2991ae182cf5f0ac01e
+rocksdb_version = rocksdb-3.5.1
 rocksdb_dir     = ${TMPDIR}/rocksdb.influxdb.$(arch)
 rocksdb_file    = $(rocksdb_version).tar.gz
 rocksdb_deps    = $(rocksdb_dir)/librocksdb.a

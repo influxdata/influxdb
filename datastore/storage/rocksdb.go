@@ -29,6 +29,7 @@ type RocksDBConfiguration struct {
 type RocksDB struct {
 	db    *rocksdb.DB
 	opts  *rocksdb.Options
+	bopts *rocksdb.BlockBasedOptions
 	wopts *rocksdb.WriteOptions
 	ropts *rocksdb.ReadOptions
 	path  string
@@ -73,13 +74,15 @@ func NewRocksDB(path string, config interface{}) (Engine, error) {
 	opts.SetMaxBackgroundCompactions(runtime.NumCPU()*2 - 1)
 	opts.SetMaxBackgroundFlushes(1)
 	opts.SetEnv(env)
-	opts.SetCache(rocksDBCache)
+	bopts := rocksdb.NewBlockBasedOptions()
+	bopts.SetCache(rocksDBCache)
+	opts.SetBlockBasedTableFactory(bopts)
 	opts.SetCreateIfMissing(true)
 	opts.SetMaxOpenFiles(c.MaxOpenFiles)
 	db, err := rocksdb.Open(path, opts)
 	wopts := rocksdb.NewWriteOptions()
 	ropts := rocksdb.NewReadOptions()
-	return RocksDB{db, opts, wopts, ropts, path}, err
+	return RocksDB{db, opts, bopts, wopts, ropts, path}, err
 }
 
 func (db RocksDB) Compact() {
@@ -90,6 +93,7 @@ func (db RocksDB) Close() {
 	db.ropts.Close()
 	db.wopts.Close()
 	db.opts.Close()
+	db.bopts.Close()
 	db.db.Close()
 }
 
