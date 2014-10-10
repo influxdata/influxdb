@@ -113,7 +113,7 @@ case $1 in
         elif set | egrep '^start_daemon' > /dev/null 2>&1; then
             start_daemon -u influxdb ${daemon}-daemon -pidfile $pidfile -config $config
         else
-            sudo -u influxdb -g influxdb ${daemon}-daemon -pidfile $pidfile -config $config
+            su -s /bin/sh -c "${daemon}-daemon -pidfile $pidfile -config $config" influxdb
         fi
         log_success_msg "$name process was started"
         ;;
