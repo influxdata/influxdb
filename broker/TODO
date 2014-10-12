@@ -1,0 +1,18 @@
+Broker
+======
+
+## Uncompleted
+
+- [ ] Broker FSM snapshotting
+- [ ] Topic truncation
+
+
+## Completed
+
+- [x] Message encoding
+- [x] Wrap broker over raft log
+- [x] Topic file writer
+- [x] Topic stream writers
+- [x] Broker publishing
+- [x] Config topic
+- [x] Stream topic from index

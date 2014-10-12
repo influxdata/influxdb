@@ -9,11 +9,18 @@ import (
 type MessageType uint16
 
 const (
-	BrokerMessageType = 1 << 15
+	ConfigMessageType = 1 << 15
 )
 
 const (
-	createStreamMessageType = BrokerMessageType | MessageType(0)
+	CreateTopicMessageType = ConfigMessageType | MessageType(0x00)
+	DeleteTopicMessageType = ConfigMessageType | MessageType(0x01)
+
+	CreateStreamMessageType = ConfigMessageType | MessageType(0x10)
+	DeleteStreamMessageType = ConfigMessageType | MessageType(0x11)
+
+	SubscribeMessageType   = ConfigMessageType | MessageType(0x20)
+	UnsubscribeMessageType = ConfigMessageType | MessageType(0x21)
 )
 
 // Message represents a single item in a topic.
@@ -23,41 +30,28 @@ type Message struct {
 	Data  []byte
 }
 
-// createStream creates a new named stream.
-type createStream struct {
-	Name string `json:"name"`
+// WriteTo encodes and writes the message to a writer. Implements io.WriterTo.
+func (m *Message) WriteTo(w io.Writer) (n int, err error) {
+	if n, err := w.Write(m.header()); err != nil {
+		return n, err
+	}
+	if n, err := w.Write(m.Data); err != nil {
+		return messageHeaderSize + n, err
+	}
+	return messageHeaderSize + len(m.Data), nil
+}
+
+// header returns a byte slice with the message header.
+func (m *Message) header() []byte {
+	b := make([]byte, messageHeaderSize)
+	binary.BigEndian.PutUint16(b[0:2], uint16(m.Type))
+	binary.BigEndian.PutUint64(b[2:10], m.Index)
+	binary.BigEndian.PutUint32(b[10:14], uint32(len(m.Data)))
+	return b
 }
 
 // The size of the encoded message header, in bytes.
 const messageHeaderSize = 2 + 8 + 4
-
-// MessageEncoder encodes messages to a writer.
-type MessageEncoder struct {
-	w io.Writer
-}
-
-// NewMessageEncoder returns a new instance of the MessageEncoder.
-func NewMessageEncoder(w io.Writer) *MessageEncoder {
-	return &MessageEncoder{w: w}
-}
-
-// Encode writes a message to the encoder's writer.
-func (enc *MessageEncoder) Encode(m *Message) error {
-	// Generate and write message header.
-	var b [messageHeaderSize]byte
-	binary.BigEndian.PutUint16(b[0:2], uint16(m.Type))
-	binary.BigEndian.PutUint64(b[2:10], m.Index)
-	binary.BigEndian.PutUint32(b[10:14], uint32(len(m.Data)))
-	if _, err := enc.w.Write(b[:]); err != nil {
-		return err
-	}
-
-	// Write data.
-	if _, err := enc.w.Write(m.Data); err != nil {
-		return err
-	}
-	return nil
-}
 
 // MessageDecoder decodes messages from a reader.
 type MessageDecoder struct {
