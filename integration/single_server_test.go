@@ -590,7 +590,7 @@ func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 // issue https://github.com/influxdb/influxdb/issues/702. Dropping shards can cause server crash
 // Two cases here. First is they try to drop the same shard multiple times. Second is that
 // they drop a shard and the server gets restarted so the raft log replays and tries to drop it again.
-func (self *SingleServerSuite) TestDropingShardBeforeRestart(c *C) {
+func (self *SingleServerSuite) TestDroppingShardBeforeRestart(c *C) {
 	s := CreatePoints("data_resurrection", 1, 1)
 	self.server.WriteData(s, c)
 	self.server.WaitForServerToSync()
