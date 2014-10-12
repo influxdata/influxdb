@@ -404,7 +404,8 @@ Here are some example queries
 
 ```sql
 -- see which series names exist in the default retention policy. In this new model, the number of 
--- names should be much smaller. Probably on the order of a few hundred to a few thousand
+-- names should be much smaller. Probably on the order of a few hundred to a few thousand per 
+-- retention policy
 list names
 
 -- or see the names for a given retention policy
@@ -542,6 +543,26 @@ limit 10
 -- If an order by is given, it means the entire series
 -- will be loaded into memory, so we'll have to be careful.
 ```
+
+### Queries and retention policies
+
+All of the query examples showed hitting a name, but made no mention of retention policies. Queries are directed to the default retention policy. You can override this by specifying the retention policy in query:
+
+```sql
+-- gets the raw data points from 6_month retention policy
+select 6_month.cpu_load
+
+-- or wrap in quotes if you have special characters
+select "6 month"."CPU Load"
+```
+
+So all queries are directed to an explicitly specified retention policy.
+
+#### Automatically selecting lower precision data
+
+However, the next section covers continuous queries, which will let you aggregate and downsample into other retention policies. You can have queries attempt to automatically pick which retention policy to query based on which continuous queries and aggregations have been running.
+
+Simply replace the `select` keyword in any query with `scale`.
 
 ### Continuous queries
 
