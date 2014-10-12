@@ -587,6 +587,40 @@ func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 	c.Assert(series[0].Points, HasLen, 0)
 }
 
+func (self *SingleServerSuite) TestEmptyResponseWhenNoShardsMatchQuery(c *C) {
+	rootUser := self.server.GetClient("", c)
+
+	rootUser.CreateDatabase("db")
+
+	c.Assert(rootUser.CreateDatabaseUser("db", "user", "pass"), IsNil)
+
+	config := &influxdb.ClientConfig{
+		Username: "user",
+		Password: "pass",
+		Database: "db",
+	}
+
+	user, _ := influxdb.NewClient(config)
+
+	data := `
+    [
+      {
+        "points": [
+            [1]
+        ],
+        "name": "test_should_write",
+        "columns": ["value"]
+      }
+    ]`
+
+	series := []*influxdb.Series{}
+	c.Assert(json.Unmarshal([]byte(data), &series), IsNil)
+	c.Assert(user.WriteSeries(series), IsNil)
+
+	failing_content := self.server.RunQueryAsRoot("select * from test_should_write where time > '1990-12-01' and time < '1990-12-12'", "m", c)
+	c.Assert(failing_content, HasLen, 0)
+}
+
 // issue https://github.com/influxdb/influxdb/issues/702. Dropping shards can cause server crash
 // Two cases here. First is they try to drop the same shard multiple times. Second is that
 // they drop a shard and the server gets restarted so the raft log replays and tries to drop it again.
