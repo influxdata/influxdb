@@ -4,6 +4,8 @@
 
 - [Issue #1007](https://github.com/influxdb/influxdb/issues/1007). Return the
   right content type in the response when compression is enabled
+- [Issue #1004](https://github.com/influxdb/influxdb/issues/1004). Don't throw an
+   exception when querying for non existent data
 - [Issue #722](https://github.com/influxdb/influxdb/issues/722). Add
   an install target to the Makefile
 - [Issue #916](https://github.com/influxdb/influxdb/issues/916). Set

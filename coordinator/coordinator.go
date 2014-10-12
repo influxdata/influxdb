@@ -275,7 +275,7 @@ func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, p engine.Proc
 	}
 
 	if len(shards) == 0 {
-		return fmt.Errorf("Couldn't look up columns")
+		return processor.Close()
 	}
 
 	shardConcurrentLimit := self.config.ConcurrentShardQueryLimit
