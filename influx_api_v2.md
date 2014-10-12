@@ -282,7 +282,7 @@ Throwing out some example queries to show how to answer different kinds of quest
 
 ### Getting the tags and tag values for a series
 
-#### get the list of tag names that have appeared for a series
+#### Get the list of tag names that have appeared for a series
 ```sql
 select tags(cpu_load)
 -- or limit by time
@@ -299,6 +299,7 @@ select tags(cpu_load) where time > now() - 1h
   ]
 }]
 ```
+
 #### Get the list of tag names for multiple series names.
 ```sql
 select tags(cpu_load), tags(cpu_wait)
@@ -326,38 +327,76 @@ select tags(cpu_load), tags(cpu_wait)
 ]
 ```
 
+#### Get the tag values
 ```sql
--- get the list of distinct tag names for multiple names
-
--- selects from the default retention period
-select distinct(host) from cpu_load
-
--- selects from the 6_months retention period
--- the . is a separator between the 
-select distinct(host) from 6_months.cpu_load
-
--- wrap in quotes for special characters
-select distinct(host) from "6 months"."cpu.load"
-
--- it's always better for the user to specify a time frame, otherwise we have to check every shard
-select distinct(host) from cpu_load where time > now() - 1h
-
--- filter by some other column value
-select distinct(host) from cpu_load
-where time > now() - 1h and data_center = 'USWest'
-
--- find out how many tag combinations (and thus series)
--- there are for a given name
-select count(distinct(columns())) from cpu_load
-
--- find out how many tag combinatios filtered by one tag
-select count(distinct(availability_zone, host)) from cpu_load
-where region = 'us-east'
+select tag_values(cpu_load, host)
+```
+```json
+[{
+  "name": "cpu_load",
+  "func": "tag_values",
+  "columns": ["host"],
+  "values": [
+    ["serverA"],
+    ["serverB"]
+  ],
+}]
+```
+```sql
+-- or filter by data center
+select tag_values(cpu_load, host)
+where dataCenter = 'USWest'
+```
+```json
+[{
+  "name": "cpu_load",
+  "func": "tag_values",
+  "columns": ["host"],
+  "values": [
+    ["serverA"]
+  ],
+  "tags": {
+    "dataCenter": "USWest"
+  }
+}]
+```
+```sql
+-- or get compound values
+-- tag_values takes (name, tagNames...)
+select tag_values(cpu_load, dataCenter, host)
+```
+```json
+[{
+  "name": "cpu_load",
+  "func": "tag_values",
+  "columns": ["dataCenter", host"],
+  "values": [
+    ["USWest", "serverA"],
+    ["USEast", "serverB"]
+  ]
+}]
 ```
 
-From those examples you can see that *names* and *columns* can be wrapped in double quotes in any query to make it possible to have special characters.
+```sql
+-- it's always better for the user to specify a time frame
+select tag_values(cpu_load, host) where time > now() - 1h
+```
 
-This also shows the ability to do a faceted drilldown on column values for a given series. The distinct function would need to be able to take a list of column names that is checks for uniqueness across.
+#### Get number of series for a tag combination
+```sql
+-- find out how many tag combinations (and thus series)
+-- there are for a given name
+select count(tag_values(cpu_load, tags(cpu_load)))
+```
+```json
+[{
+  "name": "cpu_load",
+  "columns": ["count"],
+  "values": [
+    [235]
+  ]
+}]
+```
 
 ### Querying series
 
@@ -557,3 +596,9 @@ As mentioned earlier in this document, to answer queries we have to look up meta
 
 We will probably want to filter this down further based on the shard size. For instance, if it's 1-7 days, have the indexes exist on a per hour basis in the shard. That way we can answer metadata queries that have time constraints. At least approximately.
 
+## Open Questions
+
+Here are some questions that we're still debating how to answer with this redesign.
+
+* Should tags be hierarchical?
+** If so, it'll change how data gets written and queried pretty significantly
