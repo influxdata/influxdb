@@ -77,7 +77,7 @@ You'll need the following dependencies:
 
     sudo apt-get install mercurial bzr protobuf-compiler flex bison \
       valgrind g++ make autoconf libtool libz-dev libbz2-dev curl \
-      rpm build-essential git
+      rpm build-essential git wget
 
 on Red Hat-based distros:
 
