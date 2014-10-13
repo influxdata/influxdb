@@ -59,7 +59,7 @@ Something these two approaches have in common is that there is only a single val
 
 These are some ideas on the design of the InfluxDB API. Note that these are just ideas for the next version of the API. Feedback and modifications are welcome!
 
-### Shard Spaces
+### Retention Policies (was Shard Spaces)
 
 I want to throw out the idea of shard spaces. Their entire purpose was to handle two things: replication factor and retention policy. Shard spaces as a user facing API concept is too close to how things are implemented under the hood. Instead, we'll simply define retention policies and their replication factors.
 
@@ -77,7 +77,7 @@ This looks very similar to the shard space definition. However, notice that we d
 
 Within a retention policy data will still be split out into shards. Shards will store a contiguous block of time. The size of the block of time they represent will be determined automatically by Influx based on the duration of the retention policy. We could always give the user the ability to override this, but I think having it be automatic is better.
 
-Split has also been removed to make things simpler for the user. It'll be determined automatically based on the size of the cluster when each new period of time gets shards created.
+Split has also been removed to make things simpler for the user. It'll be determined automatically based on the size of the cluster when each new period of time has shards created.
 
 Databases will have a default retention policy that all writes go into. A database definition:
 
@@ -110,55 +110,51 @@ Before moving onto that, I'd like to address data types, columns, and how things
 
 By watching people use Influx over the last 6 months, I've seen a number of repeated questions and we're starting to see some regular usage patterns. I'd like those represented in the structure of the database and the API. The simplicity of Graphite and OpenTSDB's single value per series makes things like graphing and monitoring easier (at least it seems that way). I'd like to do that with Influx, but still keep our flexibility to do some of the other things people do.
 
-Here are a few ideas aound how to structure things:
+Here are a few ideas around how to structure things:
 
 Every series has a single value that can be either a boolean, double, string, or bytes. The type is set when the first value is written into the series. Any future writes that try to write a different type will throw an error. 
 
 Series still have the old special columns of `time` and `sequence_number`. However, sequence number is now optional and not present by default. If users want `sequence_number` assigned, which you'd only want if there's a chance two data points could have the same `time`, it should be specified when the series is created. Generally you'd only use this for irregular event streams.
 
-Other than the single value, the series name, the time, and the optional sequence number, individual data points can have tags. That is, they're strings that will be indexed. This means each series can have only a single value and if you have unstructured data, it should be a string or bytes. Don't worry, the query language will make it easy to combine this with other series later.
+Other than the single value, the series name, the time, and the optional sequence number, individual data points can have tags. Tags are hierarchical key value pairs that will be indexed. This means each series can have only a single value and if you have unstructured data, it should be a string or bytes. Don't worry, the query language will make it easy to combine this with other series later.
 
-By default, all series will be indexed by the union of their tag values and time. Here's an example:
+Here's an example of a single data point (or measurement):
 
 ```json
 {
   "name": "cpu_load",
-  "tags": {
-    "dataCenter": "USWest",
-    "host": "serverA.influxdb.com",
-  },
+  "tags": "dataCenter/USWest/host/serverA/cpuId/1",
   "doubleValue": 68
 }
 ```
 
 Note that this series is typed to use a `doubleValue`. Other types are `stringValue`, `boolValue`, `bytesValue`. After the first write to `cpu_load` all future writes can use only the same value type.
 
-Now say we want to do a query against this data:
+The tags string is defined as `:key/:value/:key/:value/...`. You can have any character in the key or value. You'll just have to escape `"`, `/`, and `\`. In the case of `/` you'll have to double escape it so the escape character comes through. Like `has a \\/ in the key/some value`.
+
+Series will be stored in a index that is arranged by the hierarchy. However, you can add other indexes later. Say for example that we often want to query across the entire data center. We could add an index like this:
 
 ```sql
-select mean(cpu_load)
-where dataCenter = 'USWest' and 
-  host = 'serverA.influxdb.com' and
-  time > now() - 4h
-group by time(5m)
+create index "cpu_load_dataCenter"
+ON "cpu_load" ("dataCenter")
+
+-- or for each data center and host
+create index "cpu_load_dataCenter_host"
+ON "cpu_load" ("dataCenter", "host")
+
+-- or simply for each host
+create index "cpu_load_host"
+ON "cpu_load" ("host")
+
+-- and maybe drop the default index
+drop index "cpu_load_dataCenter_host_cpuId"
 ```
 
-Notice in this query that `from` is no longer a special keyword. We just put it in the function, which is closer to what we want. We also didn't have to specify a column, since there's only one value `mean` will work against. Queries that attempt to use `mean` or other numeric functions against series that have a type other than `double` should return an error.
-
-Now let's get the mean across a data center:
-
-```sql
-select mean(cpu_load)
-where dataCenter = 'USWest' and 
-  time > now() - 4h
-group by time(5m)
-```
-
-Later in this document I'll talk about the indexing structure to show how this query would be answered. Even though that's not really user facing API, it's important to know what the performance implications of different structures are.
+From those examples you can see that the tag structure is hierarchical, but you can index data to break or rearrange the hierarchies. I'll go into more depth on how data is indexed later in this document.
 
 ## Writes
 
-Now that we have the different column types defined and retention policies, we can show how to write data in. One assumption this write structure makes is that we often have a set of measurements comming from something where the metadata is the same, and the measurements are across different sensors.
+Now that we have the different column types defined and retention policies, we can show how to write data in. One assumption this write structure makes is that we often have a set of measurements coming from something where the metadata is the same, and the measurements are across different sensors.
 
 Here's the most basic non-compact representation. Post data like this:
 
@@ -169,10 +165,7 @@ Here's the most basic non-compact representation. Post data like this:
     "values" : [
       {
         "doubleValue": 89.0,
-        "tags" : {
-          "dataCenter": "USWest",
-          "host": "serverA",
-        }
+        "tags" : "dataCenter/USWest/host/serverA/cpuId/1",
         "time": 1412689241000
       }
     ]
@@ -192,10 +185,7 @@ As usual, time can be omitted and it will get assigned automatically by InfluxDB
       }
     ],
     "time": 1412689241000,
-    "tags": {
-      "dataCenter": "USWest",
-      "host": "serverA",
-    }
+    "tags": "dataCenter/USWest/host/serverA/cpuId/1",
   }
 ]
 ```
@@ -209,11 +199,7 @@ Or you can have sequence numbers assigned to ensure that you can have two events
     "values" : [
       {
         "boolValue": true,
-        "tags" : {
-          "userId": "1",
-          "type": "click",
-          "button": "someThing",
-        }
+        "tags" : "type/click/button/signup/user/paul"
       }
     ]
     "setSequenceNumber": true
@@ -241,10 +227,7 @@ Or posting to multiple series at the same time:
       }
     ],
     "time": 1412689241000,
-    "tags": {
-      "dataCenter": "USWest",
-      "host": "serverA"
-    },
+    "tags": "dataCenter/USWest/host/serverA"
   }
 ]
 ```
@@ -258,10 +241,7 @@ Or writing into a given retention policy:
     "values" : [
       {
         "stringValue": "some stack trace",
-        "tags": {
-          "controller": "Users",
-          "action": "Show",
-        } 
+        "tags": "controller/Users/action/Show"
       }
     ]
     "setSequenceNumber": true,
@@ -291,7 +271,6 @@ select tags(cpu_load) where time > now() - 1h
 ```json
 [{
   "name": "cpu_load",
-  "func": "tags",
   "columns": ["name"]
   "values": [
     ["dataCenter"],
@@ -308,7 +287,6 @@ select tags(cpu_load), tags(cpu_wait)
 [
   {
     "name": "cpu_load",
-    "func": "tags",
     "columns": ["name"]
     "values": [
       ["dataCenter"],
@@ -317,7 +295,6 @@ select tags(cpu_load), tags(cpu_wait)
   },
   {
     "name": "cpu_wait",
-    "func": "tags",
     "columns": ["name"]
     "values": [
       ["dataCenter"],
@@ -334,7 +311,6 @@ select tag_values(cpu_load, host)
 ```json
 [{
   "name": "cpu_load",
-  "func": "tag_values",
   "columns": ["host"],
   "values": [
     ["serverA"],
@@ -350,7 +326,6 @@ where dataCenter = 'USWest'
 ```json
 [{
   "name": "cpu_load",
-  "func": "tag_values",
   "columns": ["host"],
   "values": [
     ["serverA"]
@@ -413,50 +388,53 @@ list names for 6_month
 -- or with special characters
 list names for "6 month"
 
+-- list retention policies
+
 -- assume cpu_load has data_center and host and no other columns
--- get a single series
-select double from cpu_load
+-- get the raw data for a single series
+select cpu_load
 where data_center = 'us-west' and host = 'serverA' and
   time > now() - 1h
 
--- downsample on the fly from a raw series
-select mean() from cpu_load
+-- aggregate on the fly from a raw series
+select mean(cpu_load)
 where data_center = 'us-west' and host = 'serverA' and
   time > now() - 24h
 group by time(10m)
 
--- select the mean from multiple series
--- downsample on the fly from a raw series
-select mean() from cpu_load, cpu_wait
+-- select from multiple series
+select mean(cpu_load), max(cpu_wait)
 where data_center = 'us-west' and host = 'serverA' and
   time > now() - 24h
 group by time(10m)
-/* would result in two series returned
+```
+```json
 [
   {
     "name": "cpu_load",
     "columns": ["mean", "time"],
-    "values": [...]
+    "values": [...],
+    "tags": {
+      "data_center": "us-west",
+      "host": "serverA"
+    }
   },
   {
     "name": "cpu_wait",
     "columns": ["mean", "time"],
-    "values": [...]
+    "values": [...],
+    "tags": {
+      "data_center": "us-west",
+      "host": "serverA"
+    }
   }
 ]
-*/
+```
 
--- or select different aggregates from mutiple series
--- the 'double' column is the default so we don't have to specify
-select mean(cpu_load), max(cpu_load), max(cpu_wait)
-from cpu_load, cpu_wait
-where data_center = 'us-west' and host = 'serverA' and
-  time > now() - 24h
-group by time(10m)
-
--- query by regex
-select string from log_lines
-where string =~ /error/i
+#### Query by regex
+```sql
+select log_lines
+where value =~ /error/i
   and time > now() - 4h
 
 -- query against columns on regex
