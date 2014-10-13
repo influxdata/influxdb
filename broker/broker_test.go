@@ -39,12 +39,12 @@ func TestBroker_Write(t *testing.T) {
 		t.Fatalf("create topic error: %s", err)
 	}
 
-	// Create a new named stream.
-	if err := b.CreateStream("node0"); err != nil {
-		t.Fatalf("create stream: %s", err)
+	// Create a new named replica.
+	if err := b.CreateReplica("node0"); err != nil {
+		t.Fatalf("create replica: %s", err)
 	}
 
-	// Subscribe stream to the foo/bar topic.
+	// Subscribe replica to the foo/bar topic.
 	if err := b.Subscribe("node0", "foo/bar"); err != nil {
 		t.Fatalf("subscribe: %s", err)
 	}
@@ -60,10 +60,10 @@ func TestBroker_Write(t *testing.T) {
 		t.Fatalf("wait error: %s", err)
 	}
 
-	// Read message from the stream.
+	// Read message from the replica.
 	var buf bytes.Buffer
 	go func() {
-		if _, err := b.Stream("node0").WriteTo(&buf); err != nil {
+		if _, err := b.Replica("node0").WriteTo(&buf); err != nil {
 			t.Fatalf("write to: %s", err)
 		}
 	}()
@@ -72,8 +72,8 @@ func TestBroker_Write(t *testing.T) {
 	// Read out the config messages first.
 	var m broker.Message
 	dec := broker.NewMessageDecoder(&buf)
-	if err := dec.Decode(&m); err != nil || m.Type != broker.CreateStreamMessageType {
-		t.Fatalf("decode(create stream): %x (%v)", m.Type, err)
+	if err := dec.Decode(&m); err != nil || m.Type != broker.CreateReplicaMessageType {
+		t.Fatalf("decode(create replica): %x (%v)", m.Type, err)
 	}
 	if err := dec.Decode(&m); err != nil || m.Type != broker.SubscribeMessageType {
 		t.Fatalf("decode(subscribe): %x (%v)", m.Type, err)

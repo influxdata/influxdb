@@ -3,6 +3,7 @@ Broker
 
 ## Uncompleted
 
+- [ ] Segment topic files.
 - [ ] Broker FSM snapshotting
 - [ ] Topic truncation
 

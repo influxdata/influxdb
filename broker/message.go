@@ -16,8 +16,8 @@ const (
 	CreateTopicMessageType = ConfigMessageType | MessageType(0x00)
 	DeleteTopicMessageType = ConfigMessageType | MessageType(0x01)
 
-	CreateStreamMessageType = ConfigMessageType | MessageType(0x10)
-	DeleteStreamMessageType = ConfigMessageType | MessageType(0x11)
+	CreateReplicaMessageType = ConfigMessageType | MessageType(0x10)
+	DeleteReplicaMessageType = ConfigMessageType | MessageType(0x11)
 
 	SubscribeMessageType   = ConfigMessageType | MessageType(0x20)
 	UnsubscribeMessageType = ConfigMessageType | MessageType(0x21)

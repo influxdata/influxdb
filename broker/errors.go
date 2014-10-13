@@ -11,4 +11,8 @@ var (
 
 	// ErrSubscribed is returned when a stream is already subscribed to a topic.
 	ErrSubscribed = errors.New("already subscribed")
+
+	// errReplicaUnavailable is returned when writing bytes to a replica when
+	// there is no writer attached to the replica.
+	errReplicaUnavailable = errors.New("replica unavailable")
 )
