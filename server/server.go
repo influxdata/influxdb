@@ -10,6 +10,7 @@ import (
 	"github.com/influxdb/influxdb/api/graphite"
 	"github.com/influxdb/influxdb/api/http"
 	"github.com/influxdb/influxdb/api/udp"
+	"github.com/influxdb/influxdb/api/tcp"
 	influxdb "github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/configuration"
@@ -27,6 +28,7 @@ type Server struct {
 	GraphiteApi    *graphite.Server
 	UdpApi         *udp.Server
 	UdpServers     []*udp.Server
+	TcpApi         *tcp.TcpServer
 	AdminServer    *admin.HttpServer
 	Coordinator    *coordinator.Coordinator
 	Config         *configuration.Configuration
@@ -66,6 +68,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	httpApi := http.NewHttpServer(config, coord, coord, clusterConfig, raftServer)
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
 	graphiteApi := graphite.NewServer(config, coord, clusterConfig)
+	tcpApi := tcp.NewServer(config, coord, coord, clusterConfig)
 	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
 
 	return &Server{
@@ -74,6 +77,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 		ClusterConfig:  clusterConfig,
 		HttpApi:        httpApi,
 		GraphiteApi:    graphiteApi,
+		TcpApi:         tcpApi,
 		Coordinator:    coord,
 		AdminServer:    adminServer,
 		Config:         config,
@@ -181,6 +185,15 @@ func (self *Server) ListenAndServe() error {
 	log.Debug("ReportingDisabled: %s", self.Config.ReportingDisabled)
 	if !self.Config.ReportingDisabled {
 		go self.startReportingLoop()
+	}
+
+	if self.Config.TcpInputEnabled {
+		if self.Config.TcpInputPort <= 0 {
+			log.Warn("Cannot start experimental protobuf server. please check your configuration")
+		} else {
+			log.Info("Starting Experimental Protobuf Listener on port %d", self.Config.TcpInputPort)
+			go self.TcpApi.ListenAndServe()
+		}
 	}
 
 	// start processing continuous queries

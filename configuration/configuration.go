@@ -82,6 +82,19 @@ type UdpInputConfig struct {
 	Database string
 }
 
+type TcpInputConfig struct {
+	Enabled  bool
+	Port     int
+	Socket   string
+	Timeout  duration
+	UseSSL bool `toml:"use-ssl"`
+	SSLCertPath string `toml:"ssl-cert"`
+	SSLKeyPath string `toml:"ssl-key"`
+	ForceSSLUsers []string `toml:"force-ssl-users"`
+	WriteBufferSize           int      `toml:"write-buffer-size"`
+	MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
+}
+
 type RaftConfig struct {
 	Port    int
 	Dir     string
@@ -139,6 +152,7 @@ type InputPlugins struct {
 	Graphite        GraphiteConfig   `toml:"graphite"`
 	UdpInput        UdpInputConfig   `toml:"udp"`
 	UdpServersInput []UdpInputConfig `toml:"udp_servers"`
+	TcpInput TcpInputConfig `toml:"tcp"`
 }
 
 type TomlConfiguration struct {
@@ -181,6 +195,13 @@ type Configuration struct {
 	// TODO: this is for backward compatability only
 	LevelDbMaxOpenFiles int
 	LevelDbLruCacheSize int
+	TcpInputEnabled  bool
+	TcpInputPort     int
+	TcpInputSocket   string
+	TcpInputUseSSL   bool
+	TcpInputSSLCertPath string
+	TcpInputSSLKeyPath string
+	TcpInputForceSSLUsers []string
 
 	RaftServerPort               int
 	RaftTimeout                  duration
@@ -324,6 +345,14 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		LevelDbMaxOpenFiles: tomlConfiguration.LevelDb.MaxOpenFiles,
 		LevelDbLruCacheSize: int(tomlConfiguration.LevelDb.LruCacheSize),
 
+		TcpInputEnabled:  tomlConfiguration.InputPlugins.TcpInput.Enabled,
+		TcpInputPort:     tomlConfiguration.InputPlugins.TcpInput.Port,
+		TcpInputSocket:     tomlConfiguration.InputPlugins.TcpInput.Socket,
+		TcpInputUseSSL:  tomlConfiguration.InputPlugins.TcpInput.UseSSL,
+		TcpInputSSLCertPath: tomlConfiguration.InputPlugins.TcpInput.SSLCertPath,
+		TcpInputSSLKeyPath: tomlConfiguration.InputPlugins.TcpInput.SSLKeyPath,
+		TcpInputForceSSLUsers: tomlConfiguration.InputPlugins.TcpInput.ForceSSLUsers,
+
 		RaftServerPort:               tomlConfiguration.Raft.Port,
 		RaftTimeout:                  tomlConfiguration.Raft.Timeout,
 		RaftDir:                      tomlConfiguration.Raft.Dir,
@@ -420,6 +449,42 @@ func (self *Configuration) UdpInputPortString(port int) string {
 	}
 
 	return fmt.Sprintf("%s:%d", self.BindAddress, port)
+}
+
+func (self *Configuration) TcpInputPortString() string {
+	if self.TcpInputPort <= 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.TcpInputPort)
+}
+
+func (self *Configuration) TcpInputSocketString() string {
+	if self.TcpInputSocket == "" {
+		return ""
+	}
+
+	return self.TcpInputSocket
+}
+
+func (self *Configuration) TcpInputSSLCert() string {
+	if self.TcpInputSSLCertPath == "" {
+		return ""
+	}
+
+	return self.TcpInputSSLCertPath
+}
+
+func (self *Configuration) TcpInputSSLKey() string {
+	if self.TcpInputSSLKeyPath == "" {
+		return ""
+	}
+
+	return self.TcpInputSSLKeyPath
+}
+
+func (self *Configuration) TcpInputForceSSL() []string {
+	return self.TcpInputForceSSLUsers
 }
 
 func (self *Configuration) HostnameOrDetect() string {

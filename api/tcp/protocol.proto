@@ -1,0 +1,154 @@
+package tcp;
+
+import "protocol/protocol.proto";
+
+// common messages
+message Error {
+	enum ErrorCode {
+		AUTHENTICATION_FAILED = 1;
+		PERMISSION_DENIED = 2;
+	}
+	required ErrorCode code = 1;
+	optional bytes reason = 2;
+}
+
+// [Sequence Memo]
+//
+// handshake requires 5 steps.
+//
+// 1. Client (Greeting, database, Account, CompressType[SNAPPY, ZLIB]) -> Server
+//   - client send database, username.
+//
+// 2. Server (Greeting[RHELO, AuthenticationMethod::CLEAR_TEXT...], CompressType:[PLAIN, SNAPPY, ZLIB], SSL:None/Optional/Required) -> Client
+//   - sever send authentication method, and connection options.
+//
+// (Optional) Client (Greeting, [SSL OK]) -> Server
+//   - Client have to send SSL OK when choosing SSL connection. then begin SSL handshake immidiately
+//
+// 3. Client (Greeting, [PasswordMessage]) -> Server
+//   - (Optional) client may send multiple request. this depends authentication method.
+//
+// 4. Server (Greeting, [AuthentationOK, DENY]) -> Client
+//   - (Optional) Server may send other greeting messages (option (sharing Timezone info...))
+//
+// 5. Server (Greeting, [Command_Ready]) -> Client
+//   - okay, client can send any Command from here.
+//   - NOTE: also, compress flag enabled after this message.
+//
+message Greeting {
+	optional uint32 sequence = 1;
+
+	enum GreetingType {
+		STARTUP_MESSAGE   = 1;
+		STARTUP_RESPONSE  = 2;
+		AUTHENTICATION    = 3;
+		AUTHENTICATION_OK = 4;
+		MESSAGE_OPTION    = 5;
+		COMMAND_READY     = 6;
+		SSL_UPGRADE       = 7;
+		ERROR             = 8;
+	}
+
+	optional GreetingType type = 2;
+
+	optional int32 protocol_version = 3;
+
+	optional bytes agent = 4;
+
+	message Authentication {
+		optional bytes name = 1;
+		optional bytes password = 2;
+		optional bytes database = 3;
+
+		enum AccountType {
+			CLUSTER_ADMIN = 1;
+			DB_USER = 2;
+		}
+		optional AccountType type = 4;
+
+		enum AuthenticationMethod {
+			CLEARTEXT_PASSWORD = 0;
+		}
+		optional AuthenticationMethod method = 5;
+	}
+	optional Authentication authentication = 5;
+
+	message Configuration {
+		enum CompressType {
+			PLAIN = 0;
+			SNAPPY = 1;
+			GZIP = 2;
+		}
+		optional CompressType compress_type = 1;
+
+		enum SSL {
+			NONE = 0;
+			REQUIRED = 1;
+			OPTIONAL = 2;
+		}
+		optional SSL ssl = 2;
+	}
+	optional Configuration config = 7;
+
+	optional Error error = 999;
+}
+
+message Command {
+	// this makes easy to debug.
+	optional uint32 sequence = 1;
+
+	enum CommandType {
+		WRITESERIES    = 1;
+		CHANGEDATABASE = 2;
+		QUERY          = 3;
+		CREATEDATABASE = 4;
+		DROPDATABASE   = 5;
+		LISTDATABASE   = 6;
+		CLOSE          = 7;
+		PING           = 8;
+		RESET          = 9;
+		UNKNOWN        = 999;
+	}
+	optional CommandType type = 2;
+
+	// this means the message comes from server.
+	enum CommandResult {
+		OK       = 1;
+		SOFTFAIL = 2;
+		FAIL     = 3;
+	}
+	optional CommandResult result = 3;
+
+	// response has more messages. please read more.
+	optional bool continue = 4;
+
+	// [Conbinations]
+	//   CHANGEDATABASE, CREATEDATABASE, DROPDATABASE, LISTDATABASE
+	message Database {
+		// CHANGEDATABASE only accepts one name.
+		repeated string name = 1;
+	}
+	optional Database database = 5;
+
+	// [Combinations]
+	//   WRITESERIES
+	message Series {
+		repeated protocol.Series series = 1;
+		optional bytes time_precision = 2 [default = "ms"];
+	}
+	optional Series series = 6;
+
+	// [Combinations]
+	//   QUERY
+	message Query {
+		optional bytes query = 1;
+
+		// set from serer
+		optional int64 count = 2;
+		optional Series series = 3;
+	}
+	optional Query query = 7;
+
+	// put error message here.
+	optional Error error = 999;
+}
