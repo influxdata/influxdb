@@ -1,3 +1,4 @@
+[![Stories in Ready](https://badge.waffle.io/influxdb/influxdb.png?label=ready&title=Ready)](https://waffle.io/influxdb/influxdb)
 InfluxDB [![Build Status](https://travis-ci.org/influxdb/influxdb.png?branch=master)](https://travis-ci.org/influxdb/influxdb)
 =========
 
