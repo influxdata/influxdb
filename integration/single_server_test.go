@@ -588,20 +588,6 @@ func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 }
 
 func (self *SingleServerSuite) TestEmptyResponseWhenNoShardsMatchQuery(c *C) {
-	rootUser := self.server.GetClient("", c)
-
-	rootUser.CreateDatabase("db")
-
-	c.Assert(rootUser.CreateDatabaseUser("db", "user", "pass"), IsNil)
-
-	config := &influxdb.ClientConfig{
-		Username: "user",
-		Password: "pass",
-		Database: "db",
-	}
-
-	user, _ := influxdb.NewClient(config)
-
 	data := `
     [
       {
@@ -613,12 +599,10 @@ func (self *SingleServerSuite) TestEmptyResponseWhenNoShardsMatchQuery(c *C) {
       }
     ]`
 
-	series := []*influxdb.Series{}
-	c.Assert(json.Unmarshal([]byte(data), &series), IsNil)
-	c.Assert(user.WriteSeries(series), IsNil)
+	self.server.WriteData(data, c)
 
-	failing_content := self.server.RunQueryAsRoot("select * from test_should_write where time > '1990-12-01' and time < '1990-12-12'", "m", c)
-	c.Assert(failing_content, HasLen, 0)
+	failingContent := self.server.RunQueryAsRoot("select * from test_should_write where time > '1990-12-01' and time < '1990-12-12'", "m", c)
+	c.Assert(failingContent, HasLen, 0)
 }
 
 // issue https://github.com/influxdb/influxdb/issues/702. Dropping shards can cause server crash
@@ -799,6 +783,7 @@ func (self *SingleServerSuite) TestDeleteQuery(c *C) {
 ]`, c)
 		data := self.server.RunQuery("select val1 from test_delete_query", "m", c)
 		c.Assert(data, HasLen, 1)
+		c.Assert(data[0].Points, HasLen, 1)
 
 		_ = self.server.RunQuery(queryString, "m", c)
 

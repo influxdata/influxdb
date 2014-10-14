@@ -400,6 +400,7 @@ func (self *ClusterConfiguration) DropDatabase(name string) error {
 			}
 		}
 	}()
+
 	return nil
 }
 
@@ -895,25 +896,32 @@ func (self *ClusterConfiguration) getStartAndEndBasedOnDuration(microsecondsEpoc
 	return &startTime, &endTime
 }
 
-func (self *ClusterConfiguration) GetShardsForQuery(querySpec *parser.QuerySpec) Shards {
-	shards := self.getShardsToMatchQuery(querySpec)
+func (self *ClusterConfiguration) GetShardsForQuery(querySpec *parser.QuerySpec) (Shards, error) {
+	shards, err := self.getShardsToMatchQuery(querySpec)
+	if err != nil {
+		return nil, err
+	}
 	shards = self.getShardRange(querySpec, shards)
 	if querySpec.IsAscending() {
 		SortShardsByTimeAscending(shards)
 	}
-	return shards
+	return shards, nil
 }
 
-func (self *ClusterConfiguration) getShardsToMatchQuery(querySpec *parser.QuerySpec) []*ShardData {
+func (self *ClusterConfiguration) getShardsToMatchQuery(querySpec *parser.QuerySpec) ([]*ShardData, error) {
 	self.shardLock.RLock()
 	defer self.shardLock.RUnlock()
 	seriesNames, fromRegex := querySpec.TableNamesAndRegex()
+	db := querySpec.Database()
 	if fromRegex != nil {
-		seriesNames = self.MetaStore.GetSeriesForDatabaseAndRegex(querySpec.Database(), fromRegex)
+		seriesNames = self.MetaStore.GetSeriesForDatabaseAndRegex(db, fromRegex)
 	}
 	uniqueShards := make(map[uint32]*ShardData)
 	for _, name := range seriesNames {
-		space := self.getShardSpaceToMatchSeriesName(querySpec.Database(), name)
+		if fs := self.MetaStore.GetFieldsForSeries(db, name); len(fs) == 0 {
+			return nil, fmt.Errorf("Couldn't look up columns for series: %s", name)
+		}
+		space := self.getShardSpaceToMatchSeriesName(db, name)
 		if space == nil {
 			continue
 		}
@@ -926,7 +934,7 @@ func (self *ClusterConfiguration) getShardsToMatchQuery(querySpec *parser.QueryS
 		shards = append(shards, shard)
 	}
 	SortShardsByTimeDescending(shards)
-	return shards
+	return shards, nil
 }
 
 func (self *ClusterConfiguration) getShardSpaceToMatchSeriesName(database, name string) *ShardSpace {

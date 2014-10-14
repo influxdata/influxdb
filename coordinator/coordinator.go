@@ -223,10 +223,11 @@ func (self *Coordinator) shouldQuerySequentially(shards cluster.Shards, querySpe
 }
 
 func (self *Coordinator) getShardsAndProcessor(querySpec *parser.QuerySpec, writer engine.Processor) ([]*cluster.ShardData, engine.Processor, error) {
-	shards := self.clusterConfiguration.GetShardsForQuery(querySpec)
+	shards, err := self.clusterConfiguration.GetShardsForQuery(querySpec)
+	if err != nil {
+		return nil, nil, err
+	}
 	shouldAggregateLocally := shards.ShouldAggregateLocally(querySpec)
-
-	var err error
 
 	q := querySpec.SelectQuery()
 	if q == nil {
