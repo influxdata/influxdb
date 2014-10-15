@@ -2257,6 +2257,46 @@ func (self *DataTestSuite) Test_Issue334_Derivative_NonConsecutiveBuckets_FillBe
 	self.tstAggregateFill(data, "derivative", "null", emptyAggArgs, expect, c)
 }
 
+// Test Derivative with non-consecutive buckets and no fill
+func (self *DataTestSuite) Test_Issue1030_Derivative_NonConsecutiveBuckets_NoFill(c *C) {
+	data := `
+[
+  {
+	"name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [250000, 320.0],
+    [240000, 90.0],
+    [130000, 80.0],
+    [120000, 40.0],
+    [70000, 20.0],
+    [60000, 10.0]
+    ]
+  }
+]`
+	expect := []tv{{240000.0, 2.0}, {120000.0, 1.0}, {60000.0, nil}}
+	self.tstAggregateFill(data, "derivative", "", emptyAggArgs, expect, c)
+}
+
+// Test Derivative with consecutive buckets and no fill
+func (self *DataTestSuite) Test_Issue1030_Derivative_ConsecutiveBuckets_NoFill(c *C) {
+	data := `
+[
+  {
+    "name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [130000, 80.0],
+    [120000, 40.0],
+    [70000, 20.0],
+    [60000, 10.0]
+    ]
+  }
+]`
+	expect := []tv{{120000.0, 1.0}, {60000.0, nil}}
+	self.tstAggregateFill(data, "derivative", "", emptyAggArgs, expect, c)
+}
+
 // count aggregate filling with null
 func (self *DataTestSuite) TestCountAggregateFillWithNull(c *C) {
 	expVals := []tv{{300000.0, 1.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, 1.0}, {60000.0, 1.0}}
