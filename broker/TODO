@@ -3,9 +3,18 @@ Broker
 
 ## Uncompleted
 
-- [ ] Segment topic files.
+- [ ] Test coverage
+  - [x] Broker.DeleteReplica
+  - [ ] Broker.Subscribe
+  - [ ] Broker.Unsubscribe
+- [ ] Cluster configuration integration
 - [ ] Broker FSM snapshotting
+- [ ] HTTP Handler
+- [ ] Replica heartbeats
+- [ ] Segment topic files.
 - [ ] Topic truncation
+- [ ] Locking (replica & topic)
+- [ ] Remove assertions
 
 
 ## Completed

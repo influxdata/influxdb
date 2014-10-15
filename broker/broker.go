@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -111,7 +110,7 @@ func (b *Broker) Publish(topic string, m *Message) (uint64, error) {
 
 	// Ensure topic exists.
 	if t == nil {
-		return 0, errors.New("topic not found")
+		return 0, ErrTopicNotFound
 	}
 
 	return b.log.Apply(encodeTopicMessage(t.id, m))
@@ -153,7 +152,7 @@ func (b *Broker) CreateTopic(name string) error {
 	// Ensure topic doesn't already exist.
 	t := b.topicsByName[name]
 	if t != nil {
-		return errors.New("topic already exists")
+		return ErrTopicExists
 	}
 
 	// Generate the next id.
@@ -192,7 +191,7 @@ func (b *Broker) DeleteTopic(name string) error {
 
 	// Find topic.
 	if t := b.topicsByName[name]; t == nil {
-		return errors.New("topic not found")
+		return ErrTopicNotFound
 	}
 
 	// Add command to remove.
@@ -228,7 +227,7 @@ func (b *Broker) CreateReplica(name string) error {
 	// Ensure replica doesn't already exist.
 	s := b.replicas[name]
 	if s != nil {
-		return errors.New("replica already exists")
+		return ErrReplicaExists
 	}
 
 	// Add command to create replica.
@@ -240,7 +239,7 @@ func (b *Broker) CreateReplica(name string) error {
 
 // applyCreateReplica is called when the CreateReplicaCommand is applied.
 func (b *Broker) applyCreateReplica(name string) {
-	s := &Replica{
+	r := &Replica{
 		broker: b,
 		name:   name,
 		topics: make(map[string]uint64),
@@ -249,10 +248,10 @@ func (b *Broker) applyCreateReplica(name string) {
 	// Automatically subscribe to the config topic.
 	t := b.topics[configTopicID]
 	assert(t != nil, "config topic missing")
-	s.topics[configTopicName] = t.index
+	r.topics[configTopicName] = t.index
 
 	// Add replica to the broker.
-	b.replicas[name] = s
+	b.replicas[name] = r
 }
 
 // DeleteReplica deletes an existing replica by name.
@@ -262,7 +261,7 @@ func (b *Broker) DeleteReplica(name string) error {
 
 	// Ensure replica exists.
 	if s := b.replicas[name]; s == nil {
-		return errors.New("replica not found")
+		return ErrReplicaNotFound
 	}
 
 	// Issue command to remove replica.
@@ -274,7 +273,23 @@ func (b *Broker) DeleteReplica(name string) error {
 
 // applyDeleteReplica is called when the DeleteReplicaCommand is applied.
 func (b *Broker) applyDeleteReplica(name string) {
-	panic("not yet implemented")
+	// Find replica.
+	r := b.replicas[name]
+	assert(r != nil, "replica missing: %s", name)
+
+	// Remove replica from all subscribed topics.
+	for topic := range r.topics {
+		if t := b.topicsByName[topic]; t != nil {
+			delete(t.replicas, name)
+		}
+	}
+	r.topics = make(map[string]uint64)
+
+	// Close replica's writer.
+	r.closeWriter()
+
+	// Remove replica from broker.
+	delete(b.replicas, name)
 }
 
 // Subscribe adds a subscription to a topic from a replica.
@@ -284,9 +299,9 @@ func (b *Broker) Subscribe(replica string, topic string) error {
 
 	// Ensure replica & topic exist.
 	if b.replicas[replica] == nil {
-		return errors.New("replica not found")
+		return ErrReplicaNotFound
 	} else if b.topicsByName[topic] == nil {
-		return errors.New("topic not found")
+		return ErrTopicNotFound
 	}
 
 	// Issue command to subscribe to topic.
@@ -332,9 +347,9 @@ func (b *Broker) Unsubscribe(replica string, topic string) error {
 
 	// Ensure replica & topic exist.
 	if b.replicas[replica] == nil {
-		return errors.New("replica not found")
+		return ErrReplicaNotFound
 	} else if b.topicsByName[topic] == nil {
-		return errors.New("topic not found")
+		return ErrTopicNotFound
 	}
 
 	// Issue command to unsubscribe from topic.
@@ -385,44 +400,38 @@ func (fsm *brokerFSM) Apply(e *raft.LogEntry) error {
 	switch m.Type {
 	case CreateTopicMessageType:
 		var c CreateTopicCommand
-		if err := json.Unmarshal(m.Data, &c); err != nil {
-			return fmt.Errorf("unmarshal create topic: %s", err)
-		}
+		err := json.Unmarshal(m.Data, &c)
+		assert(err == nil, "unmarshal create topic: %s", err)
 		b.applyCreateTopic(c.ID, c.Name)
 
 	case DeleteTopicMessageType:
 		var c DeleteTopicCommand
-		if err := json.Unmarshal(m.Data, &c); err != nil {
-			return fmt.Errorf("unmarshal delete topic: %s", err)
-		}
+		err := json.Unmarshal(m.Data, &c)
+		assert(err == nil, "unmarshal delete topic: %s", err)
 		b.applyDeleteTopic(c.Name)
 
 	case CreateReplicaMessageType:
 		var c CreateReplicaCommand
-		if err := json.Unmarshal(m.Data, &c); err != nil {
-			return fmt.Errorf("unmarshal create replica: %s", err)
-		}
+		err := json.Unmarshal(m.Data, &c)
+		assert(err == nil, "unmarshal create replica: %s", err)
 		b.applyCreateReplica(c.Name)
 
 	case DeleteReplicaMessageType:
 		var c DeleteReplicaCommand
-		if err := json.Unmarshal(m.Data, &c); err != nil {
-			return fmt.Errorf("unmarshal delete replica: %s", err)
-		}
+		err := json.Unmarshal(m.Data, &c)
+		assert(err == nil, "unmarshal delete replica: %s", err)
 		b.applyDeleteReplica(c.Name)
 
 	case SubscribeMessageType:
 		var c SubscribeCommand
-		if err := json.Unmarshal(m.Data, &c); err != nil {
-			return fmt.Errorf("unmarshal subscribe: %s", err)
-		}
+		err := json.Unmarshal(m.Data, &c)
+		assert(err == nil, "unmarshal subscribe: %s", err)
 		b.applySubscribe(c.Replica, c.Topic)
 
 	case UnsubscribeMessageType:
 		var c UnsubscribeCommand
-		if err := json.Unmarshal(m.Data, &c); err != nil {
-			return fmt.Errorf("unmarshal unsubscribe: %s", err)
-		}
+		err := json.Unmarshal(m.Data, &c)
+		assert(err == nil, "unmarshal unsubscribe: %s", err)
 		b.applyUnsubscribe(c.Replica, c.Topic)
 	}
 
@@ -490,9 +499,7 @@ type topic struct {
 
 // open opens a topic for writing.
 func (t *topic) open() error {
-	if t.file != nil {
-		return fmt.Errorf("topic already open")
-	}
+	assert(t.file == nil, "topic already open: %s", t.name)
 
 	// Ensure the parent directory exists.
 	if err := os.MkdirAll(filepath.Dir(t.path), 0700); err != nil {
@@ -621,6 +628,16 @@ func (r *Replica) Subscribe(topic string) error { return r.broker.Subscribe(r.na
 // Unsubscribe removes a subscription from the stream.
 func (r *Replica) Unsubscribe(topic string) error { return r.broker.Unsubscribe(r.name, topic) }
 
+// Topics returns a list of topic names that the replica is subscribed to.
+func (r *Replica) Topics() []string {
+	a := make([]string, 0, len(r.topics))
+	for name := range r.topics {
+		a = append(a, name)
+	}
+	sort.Strings(a)
+	return a
+}
+
 // Write writes a byte slice to the underlying writer.
 // If no writer is available then ErrReplicaUnavailable is returned.
 func (r *Replica) Write(p []byte) (int, error) {
@@ -714,6 +731,82 @@ type SubscribeCommand struct {
 type UnsubscribeCommand struct {
 	Replica string `json:"replica"` // replica name
 	Topic   string `json:"topic"`   // topic name
+}
+
+// MessageType represents the type of message.
+type MessageType uint16
+
+const (
+	ConfigMessageType = 1 << 15
+)
+
+const (
+	CreateTopicMessageType = ConfigMessageType | MessageType(0x00)
+	DeleteTopicMessageType = ConfigMessageType | MessageType(0x01)
+
+	CreateReplicaMessageType = ConfigMessageType | MessageType(0x10)
+	DeleteReplicaMessageType = ConfigMessageType | MessageType(0x11)
+
+	SubscribeMessageType   = ConfigMessageType | MessageType(0x20)
+	UnsubscribeMessageType = ConfigMessageType | MessageType(0x21)
+)
+
+// The size of the encoded message header, in bytes.
+const messageHeaderSize = 2 + 8 + 4
+
+// Message represents a single item in a topic.
+type Message struct {
+	Type  MessageType
+	Index uint64
+	Data  []byte
+}
+
+// WriteTo encodes and writes the message to a writer. Implements io.WriterTo.
+func (m *Message) WriteTo(w io.Writer) (n int, err error) {
+	if n, err := w.Write(m.header()); err != nil {
+		return n, err
+	}
+	if n, err := w.Write(m.Data); err != nil {
+		return messageHeaderSize + n, err
+	}
+	return messageHeaderSize + len(m.Data), nil
+}
+
+// header returns a byte slice with the message header.
+func (m *Message) header() []byte {
+	b := make([]byte, messageHeaderSize)
+	binary.BigEndian.PutUint16(b[0:2], uint16(m.Type))
+	binary.BigEndian.PutUint64(b[2:10], m.Index)
+	binary.BigEndian.PutUint32(b[10:14], uint32(len(m.Data)))
+	return b
+}
+
+// MessageDecoder decodes messages from a reader.
+type MessageDecoder struct {
+	r io.Reader
+}
+
+// NewMessageDecoder returns a new instance of the MessageDecoder.
+func NewMessageDecoder(r io.Reader) *MessageDecoder {
+	return &MessageDecoder{r: r}
+}
+
+// Decode reads a message from the decoder's reader.
+func (dec *MessageDecoder) Decode(m *Message) error {
+	var b [messageHeaderSize]byte
+	if _, err := io.ReadFull(dec.r, b[:]); err != nil {
+		return err
+	}
+	m.Type = MessageType(binary.BigEndian.Uint16(b[0:2]))
+	m.Index = binary.BigEndian.Uint64(b[2:10])
+	m.Data = make([]byte, binary.BigEndian.Uint32(b[10:14]))
+
+	// Read data.
+	if _, err := io.ReadFull(dec.r, m.Data); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // jsonify marshals a value to a JSON-encoded byte slice.

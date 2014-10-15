@@ -12,6 +12,18 @@ var (
 	// ErrSubscribed is returned when a stream is already subscribed to a topic.
 	ErrSubscribed = errors.New("already subscribed")
 
+	// ErrTopicExists is returned when creating a duplicate topic.
+	ErrTopicExists = errors.New("topic already exists")
+
+	// ErrTopicNotFound is returned when publishing to a topic that doesn't exist.
+	ErrTopicNotFound = errors.New("topic not found")
+
+	// ErrReplicaExists is returned when creating a duplicate replica.
+	ErrReplicaExists = errors.New("replica already exists")
+
+	// ErrReplicaNotFound is returned when referencing a replica that doesn't exist.
+	ErrReplicaNotFound = errors.New("replica not found")
+
 	// errReplicaUnavailable is returned when writing bytes to a replica when
 	// there is no writer attached to the replica.
 	errReplicaUnavailable = errors.New("replica unavailable")
