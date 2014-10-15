@@ -344,12 +344,20 @@ $(debian_package): $(admin_dir)/build build
 	mv out_rpm/$(shell basename $(debian_package)) packages/
 
 $(source_package): dependencies
+	rm -f influxdb
+	git ls-files --others | egrep -v 'admin-ui|version.go' > ${TMPDIR}/influxdb.ignored
+	echo "pkg/*" >> ${TMPDIR}/influxdb.ignored
+	echo "bin/*" >> ${TMPDIR}/influxdb.ignored
+	echo "packages/*" >> ${TMPDIR}/influxdb.ignored
+	echo "build/*" >> ${TMPDIR}/influxdb.ignored
+	echo "out_rpm/*" >> ${TMPDIR}/influxdb.ignored
 	rm -rf ${TMPDIR}/influxdb.gopath
-	GOPATH=${TMPDIR}/influxdb.gopath $(GO) get -d github.com/influxdb/influxdb/daemon
-	cp protocol/*.pb.go ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/protocol
-	cp daemon/version.go ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/daemon
-	cp -R $(admin_dir)/build ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/admin-ui
-	tar --exclude-vcs -cvzf $(source_package) -C ${TMPDIR}/influxdb.gopath .
+	mkdir -p ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/
+	cp -R $(shell pwd) ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/
+	GOPATH=${TMPDIR}/influxdb.gopath $(MAKE) -C ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb build
+	cp -R $(admin_dir)/build admin-ui
+	tar -hcvzf $(source_package) -C ${TMPDIR}/influxdb.gopath -X ${TMPDIR}/influxdb.ignored .
+	rm -rf admin-ui
 
 $(binary_package): $(admin_dir)/build build packages
 	rm -rf build
