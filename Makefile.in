@@ -336,26 +336,12 @@ $(debian_package): $(admin_dir)/build build
 	mv out_rpm/$(shell basename $(debian_package)) packages/
 
 $(source_package): dependencies
-	rm -rf $(levigo_dependency)
-	$(GO) get -d $(levigo_dependency)
-	rm -f influxdb
-	rm -f benchmark-tool
-	git ls-files --others | egrep -v 'github|launchpad|code.google|version.go' > ${TMPDIR}/influxdb.ignored
-	echo "pkg/*" >> ${TMPDIR}/influxdb.ignored
-	echo "packages/*" >> ${TMPDIR}/influxdb.ignored
-	echo "build/*" >> ${TMPDIR}/influxdb.ignored
-	echo "out_rpm/*" >> ${TMPDIR}/influxdb.ignored
-	rm -rf admin-ui
-	cp -R $(admin_dir)/build admin-ui
-	tar -czf $(source_package) --exclude-vcs -X ${TMPDIR}/influxdb.ignored *
-	rm -rf ${TMPDIR}/influxdb
-	mkdir ${TMPDIR}/influxdb
-	tar -xzf $(source_package) -C ${TMPDIR}/influxdb
-	rm $(source_package)
-	bash -c "pushd ${TMPDIR}/; tar -czf `basename $(source_package)` influxdb; popd"
-	mv ${TMPDIR}/$(shell basename $(source_package)) $(source_package)
-	rm -rf $(levigo_dependency)
-	rm -rf admin-ui
+	rm -rf ${TMPDIR}/influxdb.gopath
+	GOPATH=${TMPDIR}/influxdb.gopath $(GO) get -d github.com/influxdb/influxdb/daemon
+	cp protocol/*.pb.go ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/protocol
+	cp daemon/version.go ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/daemon
+	cp -R $(admin_dir)/build ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/admin-ui
+	tar --exclude-vcs -cvzf $(source_package) -C ${TMPDIR}/influxdb.gopath .
 
 $(binary_package): $(admin_dir)/build build packages
 	rm -rf build
