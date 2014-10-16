@@ -216,6 +216,7 @@ proto_dependency  = code.google.com/p/goprotobuf/protoc-gen-go
 dependencies = code.google.com/p/go.crypto/bcrypt \
 code.google.com/p/goprotobuf/proto \
 code.google.com/p/log4go \
+github.com/rakyll/statik \
 github.com/bmizerany/pat \
 github.com/fitstar/falcore \
 github.com/fitstar/falcore/filter \
@@ -265,6 +266,11 @@ clean:
 	rm -rf $(hyperleveldb_dir)
 	rm -rf $(rocksdb_dir)
 	$(MAKE) -C parser clean
+
+rebuild_static_assets:
+	$(GO) build -o /Users/todd/go/src/github.com/rakyll/statik/statik $(GOPATH)/src/github.com/rakyll/statik/statik.go
+	$(GOPATH)/src/github.com/rakyll/statik/statik -src=./shared/admin
+	gofmt -w statik/statik.go
 
 only =
 verbose = off

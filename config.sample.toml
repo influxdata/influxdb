@@ -23,7 +23,6 @@ file   = "influxdb.log"         # stdout to log to standard out, or syslog facil
 # Configure the admin server
 [admin]
 port   = 8083              # binding is disabled if the port isn't set
-assets = "./admin"
 
 # Configure the http api
 [api]
