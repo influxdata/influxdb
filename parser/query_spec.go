@@ -65,24 +65,21 @@ func (self *QuerySpec) TableNames() []string {
 	return names
 }
 
-func (self *QuerySpec) TableNamesAndRegex() ([]string, *regexp.Regexp) {
-	if self.names != nil {
-		return self.names, self.regex
-	}
-	if self.query.SelectQuery == nil {
-		if self.query.DeleteQuery != nil {
-			self.names = make([]string, 0)
-			for _, n := range self.query.DeleteQuery.GetFromClause().Names {
-				self.names = append(self.names, n.Name.Name)
-			}
+func (self *QuerySpec) tableNamesForDelete(q *DeleteQuery) ([]string, *regexp.Regexp) {
+	for _, n := range self.query.DeleteQuery.GetFromClause().Names {
+		if r, ok := n.Name.GetCompiledRegex(); ok {
+			self.regex = r
+			self.isRegex = true
 		} else {
-			self.names = []string{}
+			self.names = append(self.names, n.Name.Name)
 		}
-		return self.names, nil
 	}
 
-	namesAndColumns := self.query.SelectQuery.GetReferencedColumns()
+	return self.names, self.regex
+}
 
+func (self *QuerySpec) tableNamesForSelect(q *SelectQuery) ([]string, *regexp.Regexp) {
+	namesAndColumns := self.query.SelectQuery.GetReferencedColumns()
 	names := make([]string, 0, len(namesAndColumns))
 	for name := range namesAndColumns {
 		if r, isRegex := name.GetCompiledRegex(); isRegex {
@@ -94,6 +91,21 @@ func (self *QuerySpec) TableNamesAndRegex() ([]string, *regexp.Regexp) {
 	}
 	self.names = names
 	return names, self.regex
+}
+
+func (self *QuerySpec) TableNamesAndRegex() ([]string, *regexp.Regexp) {
+	if self.names != nil {
+		return self.names, self.regex
+	}
+
+	switch t := self.query.Type(); t {
+	case Delete:
+		return self.tableNamesForDelete(self.query.DeleteQuery)
+	case Select:
+		return self.tableNamesForSelect(self.query.SelectQuery)
+	default:
+		return nil, nil
+	}
 }
 
 func (self *QuerySpec) SeriesValuesAndColumns() map[*Value][]string {

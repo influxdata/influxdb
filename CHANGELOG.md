@@ -2,6 +2,17 @@
 
 ### Bugfixes
 
+- [Issue #1007](https://github.com/influxdb/influxdb/issues/1007). Return the
+  right content type in the response when compression is enabled
+- [Issue #1004](https://github.com/influxdb/influxdb/issues/1004). Don't throw an
+   exception when querying for non existent data
+- [Issue #722](https://github.com/influxdb/influxdb/issues/722). Add
+  an install target to the Makefile
+- [Issue #916](https://github.com/influxdb/influxdb/issues/916). Set
+  ulimit in the init script with a way to override it in /etc/default/influxdb
+- [Issue #972](https://github.com/influxdb/influxdb/issues/972). Don't
+  assign duplicate server ids
+
 ## v0.8.3 [2014-09-24]
 
 ### Bugfixes

@@ -11,6 +11,7 @@ GOFMT  = @GOFMT@
 GOROOT = @GOROOT@
 AUTORECONF = @AUTORECONF@
 LRT_LDFLAG = @LRT_LDFLAG@
+ROCKSDB_LIB = @ROCKSDB_LIB@
 # or 386, arm
 arch   = amd64
 CGO_ENABLED = 1
@@ -97,14 +98,16 @@ leveldb_file    = leveldb-$(leveldb_version).tar.gz
 leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
 cpp_47 = $(shell g++ -dumpversion | gawk '{print $$1>=4.7?"1":"0"}')
+ifneq ($(ROCKSDB_LIB),yes)
 rocksdb = yes
 ifneq ($(cpp_47),1)
 rocksdb = no
 endif
+endif
 
 ifeq ($(rocksdb),yes)
 # rocksdb variables
-rocksdb_version = d916593eadfa838001b2d2991ae182cf5f0ac01e
+rocksdb_version = rocksdb-3.5.1
 rocksdb_dir     = ${TMPDIR}/rocksdb.influxdb.$(arch)
 rocksdb_file    = $(rocksdb_version).tar.gz
 rocksdb_deps    = $(rocksdb_dir)/librocksdb.a
@@ -130,6 +133,11 @@ GO_BUILD_TAGS += rocksdb
 storage_engines += $(rocksdb_deps)
 CGO_CFLAGS +=  -I$(rocksdb_dir)/include
 CGO_LDFLAGS += -L$(rocksdb_dir) -lrocksdb $(LRT_LDFLAG)
+else
+ifeq ($(ROCKSDB_LIB),yes)
+GO_BUILD_TAGS += rocksdb
+CGO_LDFLAGS += -lrocksdb $(LRT_LDFLAG)
+endif
 endif
 CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include
 CGO_LDFLAGS += -L$(leveldb_dir) -L$(hyperleveldb_dir)/.libs -L$(snappy_dir)/.libs -lleveldb -lhyperleveldb -lsnappy
@@ -291,6 +299,7 @@ admin_dir = ${TMPDIR}/admin.influxdb
 
 source_package = packages/influxdb-$(version).src.tar.gz
 binary_package = packages/influxdb-$(version).$(arch).tar.gz
+rpm_args = :
 ifeq ($(arch),386)
 	rpm_package = packages/influxdb-$(package_version)-1.i686.rpm
 	debian_package = packages/influxdb_$(version)_i686.deb
@@ -317,45 +326,30 @@ package_version_string: build_version_string
 
 $(admin_dir)/build:
 	rm -rf $(admin_dir)
-	rvm 1.9.3 do rvm gemset create influxdb
 	git clone https://github.com/influxdb/influxdb-admin.git $(admin_dir)
-	rvm 1.9.3@influxdb do bash -c "pushd $(admin_dir); bundle install; middleman build; popd"
+	( rvm use 1.9.3@influxdb --create && cd $(admin_dir) && bundle install && middleman build )
 
 $(rpm_package): $(admin_dir)/build build
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
-	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; $(rpm_args) fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	( rvm use 1.9.3@influxdb && cd out_rpm && $(rpm_args) && fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) . )
 	mv out_rpm/$(shell basename $(rpm_package)) packages/
 
 $(debian_package): $(admin_dir)/build build
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
-	rvm 1.9.3@influxdb do bash -c "pushd out_rpm; fpm -s dir -t deb $(deb_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) .; popd"
+	( rvm use 1.9.3@influxdb && cd out_rpm && fpm -s dir -t deb $(deb_args) --after-install ../scripts/post_install.sh -n influxdb -v $(version) . )
 	mv out_rpm/$(shell basename $(debian_package)) packages/
 
 $(source_package): dependencies
-	rm -rf $(levigo_dependency)
-	$(GO) get -d $(levigo_dependency)
-	rm -f influxdb
-	rm -f benchmark-tool
-	git ls-files --others | egrep -v 'github|launchpad|code.google|version.go' > ${TMPDIR}/influxdb.ignored
-	echo "pkg/*" >> ${TMPDIR}/influxdb.ignored
-	echo "packages/*" >> ${TMPDIR}/influxdb.ignored
-	echo "build/*" >> ${TMPDIR}/influxdb.ignored
-	echo "out_rpm/*" >> ${TMPDIR}/influxdb.ignored
-	rm -rf admin-ui
-	cp -R $(admin_dir)/build admin-ui
-	tar -czf $(source_package) --exclude-vcs -X ${TMPDIR}/influxdb.ignored *
-	rm -rf ${TMPDIR}/influxdb
-	mkdir ${TMPDIR}/influxdb
-	tar -xzf $(source_package) -C ${TMPDIR}/influxdb
-	rm $(source_package)
-	bash -c "pushd ${TMPDIR}/; tar -czf `basename $(source_package)` influxdb; popd"
-	mv ${TMPDIR}/$(shell basename $(source_package)) $(source_package)
-	rm -rf $(levigo_dependency)
-	rm -rf admin-ui
+	rm -rf ${TMPDIR}/influxdb.gopath
+	GOPATH=${TMPDIR}/influxdb.gopath $(GO) get -d github.com/influxdb/influxdb/daemon
+	cp protocol/*.pb.go ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/protocol
+	cp daemon/version.go ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/daemon
+	cp -R $(admin_dir)/build ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/admin-ui
+	tar --exclude-vcs -cvzf $(source_package) -C ${TMPDIR}/influxdb.gopath .
 
 $(binary_package): $(admin_dir)/build build packages
 	rm -rf build
@@ -389,6 +383,25 @@ flymake_test:
 package: | packages build package_version_string $(files)
 	mv -f scripts/post_install.sh.bak scripts/post_install.sh
 
+install: binary_package
+	rm -rf /opt/influxdb/versions/dev
+	mkdir -p /opt/influxdb/versions/dev
+	mkdir -p /opt/influxdb/shared
+	ln -sfn /opt/influxdb/versions/dev /opt/influxdb/current
+	cp -r build/* /opt/influxdb/current/
+	cp /opt/influxdb/current/config.toml /opt/influxdb/shared
+	ln -sfn /opt/influxdb/current/influxdb /usr/bin/influxdb
+	ln -sfn /opt/influxdb/current/influxdb-daemon.sh /usr/bin/influxdb-daemon
+	ln -sfn /opt/influxdb/current/scripts/init.sh /etc/init.d/influxdb
+	touch /opt/influxdb/shared/log.txt
+	chown -R -L influxdb:influxdb /opt/influxdb
+	chmod -R a+rX /opt/influxdb
+
+uninstall:
+	rm -rf /opt/influxdb
+	rm -f /usr/bin/influxdb
+	rm -f /usr/bin/influxdb-daemon
+	rm -f /etc/init.d/influxdb
 
 check:
 	./.hooks/pre-commit
