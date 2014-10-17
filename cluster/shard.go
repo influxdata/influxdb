@@ -12,7 +12,6 @@ import (
 	"github.com/influxdb/influxdb/metastore"
 	"github.com/influxdb/influxdb/parser"
 	p "github.com/influxdb/influxdb/protocol"
-	"github.com/influxdb/influxdb/wal"
 )
 
 // A shard implements an interface for writing and querying data.
@@ -52,8 +51,6 @@ type ShardData struct {
 	startMicro       int64
 	endMicro         int64
 	endTime          time.Time
-	wal              WAL
-	servers          []wal.Server
 	clusterServers   []*ClusterServer
 	store            LocalShardStore
 	serverIds        []uint32
@@ -63,15 +60,17 @@ type ShardData struct {
 	IsLocal          bool
 	SpaceName        string
 	Database         string
+
+	// REMOVE(broker): wal              WAL
+	// REMOVE(broker): servers          []wal.Server
 }
 
-func NewShard(id uint32, startTime, endTime time.Time, database, spaceName string, wal WAL) *ShardData {
+func NewShard(id uint32, startTime, endTime time.Time, database, spaceName string) *ShardData {
 	shardDuration := endTime.Sub(startTime)
 	return &ShardData{
 		id:               id,
 		startTime:        startTime,
 		endTime:          endTime,
-		wal:              wal,
 		startMicro:       common.TimeToMicroseconds(startTime),
 		endMicro:         common.TimeToMicroseconds(endTime),
 		serverIds:        make([]uint32, 0),
@@ -177,9 +176,10 @@ func (self *ShardData) DropFields(fields []*metastore.Field) error {
 }
 
 func (self *ShardData) SyncWrite(request *p.Request, assignSeqNum bool) error {
-	if assignSeqNum {
-		self.wal.AssignSequenceNumbers(request)
-	}
+	// FIX(broker):
+	//if assignSeqNum {
+	//	self.wal.AssignSequenceNumbers(request)
+	//}
 
 	request.ShardId = &self.id
 	for _, server := range self.clusterServers {

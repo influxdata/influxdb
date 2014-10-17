@@ -299,3 +299,9 @@ func tempfile() string {
 
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
+
+func ok(err error) {
+	if err != nil {
+		panic("unexpected error")
+	}
+}

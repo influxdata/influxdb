@@ -86,6 +86,11 @@ func (b *Broker) Close() error {
 
 	// TODO: Close all topics.
 
+	// Close all replicas.
+	for _, r := range b.replicas {
+		r.closeWriter()
+	}
+
 	// Close raft log.
 	_ = b.log.Close()
 
@@ -653,6 +658,11 @@ func (r *Replica) Write(p []byte) (int, error) {
 		return n, errReplicaUnavailable
 	}
 
+	// If the writer has a flush method then call it.
+	if w, ok := r.writer.(flusher); ok {
+		w.Flush()
+	}
+
 	return n, nil
 }
 
@@ -802,11 +812,16 @@ func (dec *MessageDecoder) Decode(m *Message) error {
 	m.Data = make([]byte, binary.BigEndian.Uint32(b[10:14]))
 
 	// Read data.
-	if _, err := io.ReadFull(dec.r, m.Data); err != nil {
+	if n, err := io.ReadFull(dec.r, m.Data); err != nil {
+		warn("io.2", n, len(m.Data), err)
 		return err
 	}
 
 	return nil
+}
+
+type flusher interface {
+	Flush()
 }
 
 // jsonify marshals a value to a JSON-encoded byte slice.

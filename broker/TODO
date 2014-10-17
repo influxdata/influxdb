@@ -3,10 +3,6 @@ Broker
 
 ## Uncompleted
 
-- [ ] Test coverage
-  - [x] Broker.DeleteReplica
-  - [ ] Broker.Subscribe
-  - [ ] Broker.Unsubscribe
 - [ ] Cluster configuration integration
 - [ ] Broker FSM snapshotting
 - [ ] HTTP Handler
@@ -26,3 +22,4 @@ Broker
 - [x] Broker publishing
 - [x] Config topic
 - [x] Stream topic from index
+- [x] Test coverage

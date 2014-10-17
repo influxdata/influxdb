@@ -7,30 +7,54 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
-// HTTPHandler represents an HTTP handler by the broker.
-type HTTPHandler struct {
-	*raft.HTTPHandler
-	broker *Broker
+// Handler represents an HTTP handler by the broker.
+type Handler struct {
+	raftHandler *raft.HTTPHandler
+	broker      *Broker
 }
 
-// NewHTTPHandler returns a new instance of HTTPHandler.
-func NewHTTPHandler(b *Broker) *HTTPHandler {
-	return &HTTPHandler{
-		HTTPHandler: raft.NewHTTPHandler(b.log),
+// NewHandler returns a new instance of Handler.
+func NewHandler(b *Broker) *Handler {
+	return &Handler{
+		raftHandler: raft.NewHTTPHandler(b.log),
 		broker:      b,
 	}
 }
 
 // ServeHTTP serves an HTTP request.
-func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Delegate raft requests to its own handler.
 	if strings.HasPrefix(r.URL.Path, "/raft") {
-		h.HTTPHandler.ServeHTTP(w, r)
+		h.raftHandler.ServeHTTP(w, r)
 		return
 	}
 
 	// Route all InfluxDB broker requests.
 	switch r.URL.Path {
-	case "/":
+	case "/stream":
+		h.serveStream(w, r)
 	}
+}
+
+// connects the requestor as the replica's writer.
+func (h *Handler) serveStream(w http.ResponseWriter, r *http.Request) {
+	// Retrieve the replica name.
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		w.Header().Set("X-Broker-Error", "replica name required")
+		http.Error(w, "replica name required", http.StatusBadRequest)
+		return
+	}
+
+	// Find the replica on the broker.
+	replica := h.broker.Replica(name)
+	if replica == nil {
+		w.Header().Set("X-Broker-Error", ErrReplicaNotFound.Error())
+		http.Error(w, ErrReplicaNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Connect the response writer to the replica.
+	// This will block until the replica is closed or a new writer connects.
+	_, _ = replica.WriteTo(w)
 }

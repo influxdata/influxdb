@@ -20,7 +20,6 @@ import (
 	"github.com/influxdb/influxdb/metastore"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
-	"github.com/influxdb/influxdb/wal"
 )
 
 // defined by cluster config (in cluster package)
@@ -33,15 +32,6 @@ type QuerySpec interface {
 	GetGroupByInterval() *time.Duration
 	AllShardsQuery() bool
 	IsRegex() bool
-}
-
-type WAL interface {
-	AssignSequenceNumbersAndLog(request *protocol.Request, shard wal.Shard) (uint32, error)
-	AssignSequenceNumbers(request *protocol.Request) error
-	Commit(requestNumber uint32, serverId uint32) error
-	CreateCheckpoint() error
-	RecoverServerFromRequestNumber(requestNumber uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
-	RecoverServerFromLastCommit(serverId uint32, shardIds []uint32, yield func(request *protocol.Request, shardId uint32) error) error
 }
 
 type ShardCreator interface {
@@ -78,7 +68,6 @@ type ClusterConfiguration struct {
 	addedLocalServer           bool
 	connectionCreator          func(string) ServerConnection
 	shardStore                 LocalShardStore
-	wal                        WAL
 	lastShardIdUsed            uint32
 	random                     *rand.Rand
 	lastServerToGetShard       *ClusterServer

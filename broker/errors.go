@@ -27,4 +27,13 @@ var (
 	// errReplicaUnavailable is returned when writing bytes to a replica when
 	// there is no writer attached to the replica.
 	errReplicaUnavailable = errors.New("replica unavailable")
+
+	// ErrClientOpen is returned when opening an already open client.
+	ErrClientOpen = errors.New("client already open")
+
+	// ErrClientClosed is returned when closing an already closed client.
+	ErrClientClosed = errors.New("client closed")
+
+	// ErrBrokerURLRequired is returned when opening a broker without URLs.
+	ErrBrokerURLRequired = errors.New("broker url required")
 )
