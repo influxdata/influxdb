@@ -118,14 +118,18 @@ func (b *Broker) Publish(topic string, m *Message) (uint64, error) {
 		return 0, ErrTopicNotFound
 	}
 
-	return b.log.Apply(encodeTopicMessage(t.id, m))
+	// Attach topic id to the message and encode.
+	m.TopicID = t.id
+	buf, _ := m.MarshalBinary()
+	return b.log.Apply(buf)
 }
 
 // publishConfig writes a configuration change to the config topic.
 // This always waits until the change is applied to the log.
 func (b *Broker) publishConfig(m *Message) error {
 	// Encode topic, type, and data together.
-	buf := encodeTopicMessage(configTopicID, m)
+	m.TopicID = configTopicID
+	buf, _ := m.MarshalBinary()
 
 	// Apply to the raft log.
 	index, err := b.log.Apply(buf)
@@ -393,13 +397,17 @@ func (fsm *brokerFSM) Apply(e *raft.LogEntry) error {
 		return nil
 	}
 
-	// Decode the topic message from the raft log.
-	topicID, m := decodeTopicMessage(e.Data)
+	// Decode the message from the raft log.
+	m := &Message{}
+	err := m.UnmarshalBinary(e.Data)
+	assert(err == nil, "message unmarshal: %s", err)
+
+	// Add the raft index to the message.
 	m.Index = e.Index
 
 	// Find topic by id. Ignore topic if it doesn't exist.
-	t := b.topics[topicID]
-	assert(t != nil, "topic not found: %d", topicID)
+	t := b.topics[m.TopicID]
+	assert(t != nil, "topic not found: %d", m.TopicID)
 
 	// Update the broker configuration.
 	switch m.Type {
@@ -468,25 +476,6 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 	// TODO: Read header.
 	// TODO: Read in each file.
 	return nil
-}
-
-// encodes a topic id and message together for the raft log.
-func encodeTopicMessage(topicID uint32, m *Message) []byte {
-	b := make([]byte, 4+2+len(m.Data))
-	binary.BigEndian.PutUint32(b, topicID)
-	binary.BigEndian.PutUint16(b[4:6], uint16(m.Type))
-	copy(b[6:], m.Data)
-	return b
-}
-
-// decodes a topic id and message together from the raft log.
-func decodeTopicMessage(b []byte) (topicID uint32, m *Message) {
-	topicID = binary.BigEndian.Uint32(b[0:4])
-	m = &Message{
-		Type: MessageType(binary.BigEndian.Uint16(b[4:6])),
-		Data: b[6:],
-	}
-	return
 }
 
 // topic represents a single named queue of messages.
@@ -585,7 +574,7 @@ func (t *topic) encode(m *Message) error {
 
 	// Encode message.
 	b := make([]byte, messageHeaderSize+len(m.Data))
-	copy(b, m.header())
+	copy(b, m.marshalHeader())
 	copy(b[messageHeaderSize:], m.Data)
 
 	// Write to topic file.
@@ -762,18 +751,19 @@ const (
 )
 
 // The size of the encoded message header, in bytes.
-const messageHeaderSize = 2 + 8 + 4
+const messageHeaderSize = 2 + 4 + 8 + 4
 
 // Message represents a single item in a topic.
 type Message struct {
-	Type  MessageType
-	Index uint64
-	Data  []byte
+	Type    MessageType
+	TopicID uint32
+	Index   uint64
+	Data    []byte
 }
 
 // WriteTo encodes and writes the message to a writer. Implements io.WriterTo.
 func (m *Message) WriteTo(w io.Writer) (n int, err error) {
-	if n, err := w.Write(m.header()); err != nil {
+	if n, err := w.Write(m.marshalHeader()); err != nil {
 		return n, err
 	}
 	if n, err := w.Write(m.Data); err != nil {
@@ -782,13 +772,43 @@ func (m *Message) WriteTo(w io.Writer) (n int, err error) {
 	return messageHeaderSize + len(m.Data), nil
 }
 
-// header returns a byte slice with the message header.
-func (m *Message) header() []byte {
+// MarshalBinary returns a binary representation of the message.
+// This implements encoding.BinaryMarshaler. An error cannot be returned.
+func (m *Message) MarshalBinary() ([]byte, error) {
+	b := make([]byte, messageHeaderSize+len(m.Data))
+	copy(b, m.marshalHeader())
+	copy(b[messageHeaderSize:], m.Data)
+	return b, nil
+}
+
+// UnmarshalBinary reads a message from a binary encoded slice.
+// This implements encoding.BinaryUnmarshaler.
+func (m *Message) UnmarshalBinary(b []byte) error {
+	m.unmarshalHeader(b)
+	if len(b[messageHeaderSize:]) < len(m.Data) {
+		return fmt.Errorf("message data too short: %d < %d", len(b[messageHeaderSize:]), len(m.Data))
+	}
+	copy(m.Data, b[messageHeaderSize:])
+	return nil
+}
+
+// marshalHeader returns a byte slice with the message header.
+func (m *Message) marshalHeader() []byte {
 	b := make([]byte, messageHeaderSize)
 	binary.BigEndian.PutUint16(b[0:2], uint16(m.Type))
-	binary.BigEndian.PutUint64(b[2:10], m.Index)
-	binary.BigEndian.PutUint32(b[10:14], uint32(len(m.Data)))
+	binary.BigEndian.PutUint32(b[2:6], m.TopicID)
+	binary.BigEndian.PutUint64(b[6:14], m.Index)
+	binary.BigEndian.PutUint32(b[14:18], uint32(len(m.Data)))
 	return b
+}
+
+// unmarshalHeader reads message header data from binary encoded slice.
+// The data field is appropriately sized but is not filled.
+func (m *Message) unmarshalHeader(b []byte) {
+	m.Type = MessageType(binary.BigEndian.Uint16(b[0:2]))
+	m.TopicID = binary.BigEndian.Uint32(b[2:6])
+	m.Index = binary.BigEndian.Uint64(b[6:14])
+	m.Data = make([]byte, binary.BigEndian.Uint32(b[14:18]))
 }
 
 // MessageDecoder decodes messages from a reader.
@@ -803,17 +823,15 @@ func NewMessageDecoder(r io.Reader) *MessageDecoder {
 
 // Decode reads a message from the decoder's reader.
 func (dec *MessageDecoder) Decode(m *Message) error {
+	// Read header bytes.
 	var b [messageHeaderSize]byte
 	if _, err := io.ReadFull(dec.r, b[:]); err != nil {
 		return err
 	}
-	m.Type = MessageType(binary.BigEndian.Uint16(b[0:2]))
-	m.Index = binary.BigEndian.Uint64(b[2:10])
-	m.Data = make([]byte, binary.BigEndian.Uint32(b[10:14]))
+	m.unmarshalHeader(b[:])
 
 	// Read data.
-	if n, err := io.ReadFull(dec.r, m.Data); err != nil {
-		warn("io.2", n, len(m.Data), err)
+	if _, err := io.ReadFull(dec.r, m.Data); err != nil {
 		return err
 	}
 

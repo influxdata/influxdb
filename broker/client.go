@@ -9,8 +9,9 @@ import (
 	"time"
 )
 
-// ReconnectTimeout is the time to wait between stream disconnects before retrying.
-const ReconnectTimeout = 100 * time.Millisecond
+// DefaultReconnectTimeout is the default time to wait between when a broker
+// stream disconnects and another connection is retried.
+const DefaultReconnectTimeout = 100 * time.Millisecond
 
 // Client represents a client for the broker's HTTP API.
 // Once opened, the client will stream down all messages that
@@ -20,18 +21,22 @@ type Client struct {
 	urls []*url.URL // list of URLs for all known brokers.
 
 	opened bool
-	done   chan struct{} // disconnection notification
+	done   chan chan struct{} // disconnection notification
 
 	// Channel streams messages from the broker.
 	// Messages can be duplicated so it is important to check the index
 	// of the incoming message index to make sure it has not been processed.
 	C chan *Message
+
+	// The amount of time to wait before reconnecting to a broker stream.
+	ReconnectTimeout time.Duration
 }
 
 // NewClient returns a new instance of Client.
 func NewClient(name string) *Client {
 	return &Client{
-		name: name,
+		name:             name,
+		ReconnectTimeout: DefaultReconnectTimeout,
 	}
 }
 
@@ -65,7 +70,7 @@ func (c *Client) Open(urls []*url.URL) error {
 	c.C = make(chan *Message, 0)
 
 	// Open the streamer.
-	c.done = make(chan struct{})
+	c.done = make(chan chan struct{})
 	go c.streamer(c.done)
 
 	// Set open flag.
@@ -84,13 +89,15 @@ func (c *Client) Close() error {
 		return ErrClientClosed
 	}
 
+	// Shutdown streamer.
+	ch := make(chan struct{})
+	c.done <- ch
+	<-ch
+	c.done = nil
+
 	// Close message stream.
 	close(c.C)
 	c.C = nil
-
-	// Shutdown streamer.
-	close(c.done)
-	c.done = nil
 
 	// Unset open flag.
 	c.opened = false
@@ -99,11 +106,12 @@ func (c *Client) Close() error {
 }
 
 // streamer connects to a broker server and streams the replica's messages.
-func (c *Client) streamer(done chan struct{}) {
+func (c *Client) streamer(done chan chan struct{}) {
 	for {
 		// Check for the client disconnection.
 		select {
-		case <-done:
+		case ch := <-done:
+			close(ch)
 			return
 		default:
 		}
@@ -123,38 +131,57 @@ func (c *Client) streamer(done chan struct{}) {
 }
 
 // streamFromURL connects to a broker server and streams the replica's messages.
-func (c *Client) streamFromURL(u *url.URL, done chan struct{}) error {
+func (c *Client) streamFromURL(u *url.URL, done chan chan struct{}) error {
+	// Set the replica name on the URL and open the stream.
 	u.RawQuery = url.Values{"name": {c.name}}.Encode()
 	resp, err := http.Get(u.String())
 	if err != nil {
-		time.Sleep(ReconnectTimeout)
+		time.Sleep(c.ReconnectTimeout)
 		return nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Ensure that we received a 200 OK from the server before streaming.
 	if resp.StatusCode != http.StatusOK {
-		warn("status:", resp.StatusCode)
+		time.Sleep(c.ReconnectTimeout)
+		return nil
 	}
 
-	// Continuously decode messages from request body.
-	dec := NewMessageDecoder(resp.Body)
-	for {
-		// Decode message from the stream.
-		m := &Message{}
-		if err := dec.Decode(m); err != nil {
-			return err
+	// Continuously decode messages from request body in a separate goroutine.
+	errNotify := make(chan error, 0)
+	go func() {
+		dec := NewMessageDecoder(resp.Body)
+		for {
+			// Decode message from the stream.
+			m := &Message{}
+			if err := dec.Decode(m); err != nil {
+				errNotify <- err
+				return
+			}
+
+			// Write message to streaming channel.
+			c.C <- m
 		}
+	}()
 
-		// Send message to channel.
-		c.C <- m
+	// Check for the client disconnect or error from the stream.
+	select {
+	case ch := <-done:
+		// Close body.
+		resp.Body.Close()
 
-		// Check for notification of disconnect.
+		// Clear message buffer.
 		select {
-		case <-done:
-			return errDone
+		case <-c.C:
 		default:
 		}
+
+		// Notify the close function and return marker error.
+		close(ch)
+		return errDone
+
+	case err := <-errNotify:
+		return err
 	}
 }
 

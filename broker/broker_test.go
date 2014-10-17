@@ -94,7 +94,7 @@ func TestBroker_Publish(t *testing.T) {
 	// Read out the published message.
 	if err := dec.Decode(&m); err != nil {
 		t.Fatalf("decode: %s", err)
-	} else if !reflect.DeepEqual(&m, &broker.Message{Type: 100, Index: 5, Data: []byte("0000")}) {
+	} else if !reflect.DeepEqual(&m, &broker.Message{Type: 100, TopicID: 1, Index: 5, Data: []byte("0000")}) {
 		t.Fatalf("unexpected message: %#v", &m)
 	}
 
@@ -299,9 +299,3 @@ func tempfile() string {
 
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
-
-func ok(err error) {
-	if err != nil {
-		panic("unexpected error")
-	}
-}
