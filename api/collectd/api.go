@@ -1,7 +1,6 @@
 package collectd
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 
@@ -106,20 +105,7 @@ func (self *Server) HandleSocket(socket *net.UDPConn) {
 			ts, _ := strconv.ParseInt(sts, 10, 64)
 
 			for _, dataSet := range packet.Values {
-				metricName := fmt.Sprintf("%s %s", packet.Plugin, packet.Type)
-
-				if len(packet.TypeInstance) > 0 {
-					metricName = fmt.Sprintf("%s %s", metricName, packet.TypeInstance)
-				}
-
-				switch dataSet.Name {
-				case "value":
-					// Don't add to metric name
-				case "":
-					// Don't add to metric name
-				default:
-					metricName = fmt.Sprintf("%s %s", metricName, dataSet.Name)
-				}
+				metricName := packet.FormatName()
 
 				values := []*protocol.FieldValue{}
 				values = append(values, &protocol.FieldValue{
