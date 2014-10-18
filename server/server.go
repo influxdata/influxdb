@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"time"
 
@@ -165,6 +166,10 @@ func (self *Server) ListenAndServe() error {
 			log.Warn(fail_reason(fmt.Sprintf("port %d is invalid", self.Config.CollectdPort)))
 		} else if self.Config.CollectdDatabase == "" {
 			log.Warn(fail_reason("database name is invalid"))
+		} else if self.Config.CollectdTypesDB == "" {
+			log.Warn(fail_reason("typesdb name is invalid"))
+		} else if _, err := os.Stat(self.Config.CollectdTypesDB); err != nil {
+			log.Warn(fail_reason("types.db is invalid"))
 		} else {
 			log.Info("Starting Collectd Listener on port %d", self.Config.CollectdPort)
 			go self.CollectdApi.ListenAndServe()
