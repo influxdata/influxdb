@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	mdb "github.com/influxdb/gomdb"
 	"github.com/influxdb/influxdb/configuration"
+	mdb "github.com/szferi/gomdb"
 )
 
 const MDB_NAME = "lmdb"
@@ -99,7 +99,7 @@ func (db MDB) BatchPut(writes []Write) error {
 
 	for _, w := range writes {
 		if w.Value == nil {
-			itr.key, itr.value, itr.err = itr.c.Get(w.Key, mdb.SET)
+			itr.key, itr.value, itr.err = itr.c.Get(w.Key, nil, mdb.SET)
 			if itr.err == nil {
 				itr.err = itr.c.Del(0)
 			}
@@ -176,21 +176,21 @@ func (itr *MDBIterator) Error() error {
 }
 
 func (itr *MDBIterator) getCurrent() {
-	itr.key, itr.value, itr.err = itr.c.Get(nil, mdb.GET_CURRENT)
+	itr.key, itr.value, itr.err = itr.c.Get(nil, nil, mdb.GET_CURRENT)
 	itr.setState()
 }
 
 func (itr *MDBIterator) Seek(key []byte) {
-	itr.key, itr.value, itr.err = itr.c.Get(key, mdb.SET_RANGE)
+	itr.key, itr.value, itr.err = itr.c.Get(key, nil, mdb.SET_RANGE)
 	itr.setState()
 }
 func (itr *MDBIterator) Next() {
-	itr.key, itr.value, itr.err = itr.c.Get(nil, mdb.NEXT)
+	itr.key, itr.value, itr.err = itr.c.Get(nil, nil, mdb.NEXT)
 	itr.setState()
 }
 
 func (itr *MDBIterator) Prev() {
-	itr.key, itr.value, itr.err = itr.c.Get(nil, mdb.PREV)
+	itr.key, itr.value, itr.err = itr.c.Get(nil, nil, mdb.PREV)
 	itr.setState()
 }
 
