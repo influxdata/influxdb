@@ -225,6 +225,7 @@ github.com/influxdb/go-cache \
 github.com/BurntSushi/toml \
 code.google.com/p/gogoprotobuf/proto \
 github.com/influxdb/gomdb \
+github.com/kimor79/gollectd \
 code.google.com/p/go.tools/cmd/vet \
 github.com/jmhodges/levigo \
 github.com/influxdb/rocksdb \

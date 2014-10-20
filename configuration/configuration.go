@@ -76,6 +76,13 @@ type GraphiteConfig struct {
 	UdpEnabled bool `toml:"udp_enabled"`
 }
 
+type CollectdInputConfig struct {
+	Enabled  bool
+	Port     int
+	Database string
+	TypesDB  string `toml:"typesdb"`
+}
+
 type UdpInputConfig struct {
 	Enabled  bool
 	Port     int
@@ -136,9 +143,10 @@ type WalConfig struct {
 }
 
 type InputPlugins struct {
-	Graphite        GraphiteConfig   `toml:"graphite"`
-	UdpInput        UdpInputConfig   `toml:"udp"`
-	UdpServersInput []UdpInputConfig `toml:"udp_servers"`
+	Graphite        GraphiteConfig      `toml:"graphite"`
+	CollectdInput   CollectdInputConfig `toml:"collectd"`
+	UdpInput        UdpInputConfig      `toml:"udp"`
+	UdpServersInput []UdpInputConfig    `toml:"udp_servers"`
 }
 
 type TomlConfiguration struct {
@@ -168,6 +176,11 @@ type Configuration struct {
 	GraphitePort       int
 	GraphiteDatabase   string
 	GraphiteUdpEnabled bool
+
+	CollectdEnabled  bool
+	CollectdPort     int
+	CollectdDatabase string
+	CollectdTypesDB  string
 
 	UdpServers []UdpInputConfig
 
@@ -309,6 +322,11 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		GraphiteDatabase:   tomlConfiguration.InputPlugins.Graphite.Database,
 		GraphiteUdpEnabled: tomlConfiguration.InputPlugins.Graphite.UdpEnabled,
 
+		CollectdEnabled:  tomlConfiguration.InputPlugins.CollectdInput.Enabled,
+		CollectdPort:     tomlConfiguration.InputPlugins.CollectdInput.Port,
+		CollectdDatabase: tomlConfiguration.InputPlugins.CollectdInput.Database,
+		CollectdTypesDB:  tomlConfiguration.InputPlugins.CollectdInput.TypesDB,
+
 		UdpServers: tomlConfiguration.InputPlugins.UdpServersInput,
 
 		// storage configuration
@@ -412,6 +430,14 @@ func (self *Configuration) GraphitePortString() string {
 	}
 
 	return fmt.Sprintf("%s:%d", self.BindAddress, self.GraphitePort)
+}
+
+func (self *Configuration) CollectdPortString() string {
+	if self.CollectdPort <= 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%s:%d", self.BindAddress, self.CollectdPort)
 }
 
 func (self *Configuration) UdpInputPortString(port int) string {
