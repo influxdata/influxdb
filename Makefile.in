@@ -214,7 +214,7 @@ endif
 storage_engines += $(leveldb_deps)
 
 dependencies: $(storage_engines)
-	$(GO) get -d -t github.com/influxdb/influxdb/...
+	$(GO) get $(GO_BUILD_OPTIONS) -d -t github.com/influxdb/influxdb/...
 
 $(root)/bin/protoc-gen-go:
 	$(GO) get code.google.com/p/goprotobuf/protoc-gen-go
