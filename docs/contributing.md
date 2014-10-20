@@ -5,8 +5,8 @@ InfluxDB follows standard Go project structure. This means that all
 your go development are done in $GOPATH/src. GOPATH can be any
 directory under which InfluxDB and all it's dependencies will be
 cloned. For more details on recommended go project's structure, see
-the following great posts [http://golang.org/doc/code.html] and
-[http://peter.bourgon.org/go-in-production/], or you can just follow
+[How to Write Go Code](http://golang.org/doc/code.html]) and
+[Go: Best Practices for Production Environments](http://peter.bourgon.org/go-in-production/), or you can just follow
 the steps below.
 
 Signing the CLA
@@ -67,8 +67,8 @@ You'll need the following dependencies:
 To build run the following command:
 
     ./configure \
-      --with-flex=/usr/local/Cellar/flex/2.5.37/bin/flex \
-      --with-bison=/usr/local/Cellar/bison/3.0.2/bin/bison && make
+      --with-flex=$(brew --prefix flex)/bin/flex \
+      --with-bison=$(brew --prefix bison)/bin/bison && make
 
 Build on Linux
 --------------
