@@ -394,7 +394,7 @@ func (s *RaftServer) startRaft() error {
 
 	err = s.raftServer.LoadSnapshot()
 	if err != nil {
-		panic(err)
+		log.Info(err)
 	}
 
 	s.raftServer.AddEventListener(raft.StateChangeEventType, s.raftEventHandler)
