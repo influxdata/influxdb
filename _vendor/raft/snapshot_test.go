@@ -1,12 +1,45 @@
 package raft
 
 import (
+	"fmt"
+	"os"
+	"path"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+func TestSnapshotSave(t *testing.T) {
+	tmpDir := "/tmp" // FIXME (dgnorton): what's the right way to get tmp dir for tests?
+	tstPath := path.Join(tmpDir, "goraft/test/TestSnapshotSave")
+	err := os.MkdirAll(tstPath, 0777)
+	if err != nil {
+		t.Errorf("Failed to create directory for test: %s", tstPath)
+	}
+	defer os.RemoveAll(tstPath)
+
+	index := uint64(1)
+	term := uint64(2)
+	ssfile := path.Join(tstPath, fmt.Sprintf("%v_%v.ss", term, index))
+
+	ss := &Snapshot{
+		LastIndex: index,
+		LastTerm:  term,
+		Path:      ssfile,
+	}
+
+	err = ss.save()
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if _, err := os.Stat(ssfile); os.IsNotExist(err) {
+		t.Errorf("Failed to create snapshot: %s", ssfile)
+	}
+}
 
 // Ensure that a snapshot occurs when there are existing logs.
 func TestSnapshot(t *testing.T) {
