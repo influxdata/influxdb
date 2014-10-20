@@ -158,18 +158,18 @@ func (self *Server) ListenAndServe() error {
 
 	if self.Config.CollectdEnabled {
 		// Helper function to DRY out error log message
-		fail_reason := func(r string) string {
+		failReason := func(r string) string {
 			return fmt.Sprintf("Refusing to start collectd server because %s. Please check your configuration", r)
 		}
 
 		if self.Config.CollectdPort <= 0 || self.Config.CollectdPort >= 65536 {
-			log.Warn(fail_reason(fmt.Sprintf("port %d is invalid", self.Config.CollectdPort)))
+			log.Warn(failReason(fmt.Sprintf("port %d is invalid", self.Config.CollectdPort)))
 		} else if self.Config.CollectdDatabase == "" {
-			log.Warn(fail_reason("database name is invalid"))
+			log.Warn(failReason("database name is invalid"))
 		} else if self.Config.CollectdTypesDB == "" {
-			log.Warn(fail_reason("typesdb name is invalid"))
+			log.Warn(failReason("typesdb name is invalid"))
 		} else if _, err := os.Stat(self.Config.CollectdTypesDB); err != nil {
-			log.Warn(fail_reason("types.db is invalid"))
+			log.Warn(failReason("types.db is invalid"))
 		} else {
 			log.Info("Starting Collectd Listener on port %d", self.Config.CollectdPort)
 			go self.CollectdApi.ListenAndServe()
