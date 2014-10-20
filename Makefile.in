@@ -211,40 +211,13 @@ ifeq ($(uname_S),Linux)
 	$(MAKE) V=1"
 endif
 
-proto_dependency  = code.google.com/p/goprotobuf/protoc-gen-go
-
-dependencies = code.google.com/p/go.crypto/bcrypt \
-code.google.com/p/goprotobuf/proto \
-code.google.com/p/log4go \
-github.com/bmizerany/pat \
-github.com/fitstar/falcore \
-github.com/fitstar/falcore/filter \
-github.com/gorilla/mux \
-github.com/influxdb/influxdb/_vendor/raft \
-github.com/influxdb/go-cache \
-github.com/BurntSushi/toml \
-code.google.com/p/gogoprotobuf/proto \
-github.com/influxdb/gomdb \
-github.com/kimor79/gollectd \
-code.google.com/p/go.tools/cmd/vet \
-github.com/jmhodges/levigo \
-github.com/influxdb/rocksdb \
-github.com/influxdb/hyperleveldb-go
-
-dependencies_paths := $(addprefix $(root)/src/,$(dependencies))
-
-$(dependencies_paths):
-	for i in $(dependencies); do $(GO) get -d $$i; done
-
 storage_engines += $(leveldb_deps)
 
-dependencies: $(storage_engines) $(dependencies_paths)
-
-test_dependencies: dependencies
-	$(GO) get launchpad.net/gocheck
+dependencies: $(storage_engines)
+	$(GO) get -d -t github.com/influxdb/influxdb/...
 
 $(root)/bin/protoc-gen-go:
-	$(GO) get $(proto_dependency)
+	$(GO) get code.google.com/p/goprotobuf/protoc-gen-go
 
 protobuf: $(root)/bin/protoc-gen-go
 	rm -f protocol/*.pb.go
@@ -284,15 +257,15 @@ endif
 timeout = 20m
 GOTEST_OPTS += -test.timeout=$(timeout)
 
-test: test_dependencies parser protobuf
+test: dependencies parser protobuf
 	$(GO) test $(test_packages) $(GOTEST_OPTS)
 
-coverage: test_dependencies
+coverage: dependencies
 	for i in $(build_packages); do $(GO) test -coverprofile ${TMPDIR}/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
    $(GO) tool cover -html=${TMPDIR}/influxdb.$${i/\//}.coverage; done
 
 
-integration_test: test_dependencies build
+integration_test: dependencies build
 	$(GO) test github.com/influxdb/influxdb/integration $(GOTEST_OPTS)
 
 package_version=$(subst -,_,$(version))
