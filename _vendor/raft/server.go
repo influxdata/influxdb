@@ -1342,6 +1342,8 @@ func (s *server) LoadSnapshot() error {
 	sslist, err := s.SnapshotList()
 	if err != nil {
 		return err
+	} else if len(sslist) == 0 {
+		return fmt.Errorf("no snapshots to load")
 	}
 
 	// Load most recent snapshot (falling back to older snapshots if needed)
