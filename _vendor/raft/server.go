@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -1253,6 +1253,31 @@ func (s *server) saveSnapshot() error {
 	return nil
 }
 
+// Returns a list of available snapshot names sorted newest to oldest
+func (s *server) SnapshotList() ([]string, error) {
+	// Get FileInfo for everything in the snapshot dir
+	ssdir := path.Join(s.path, "snapshot")
+	finfos, err := ioutil.ReadDir(ssdir)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a list of snapshot file names
+	var ssnames []string
+	for _, finfo := range finfos {
+		fname := finfo.Name()
+		if finfo.Mode().IsRegular() && filepath.Ext(fname) == ".ss" {
+			ssnames = append(ssnames, fname)
+		}
+	}
+
+	// Sort snapshot names from newest to oldest
+	sort.Sort(sort.Reverse(sort.StringSlice(ssnames)))
+
+	return ssnames, nil
+}
+
 // Retrieves the log path for the server.
 func (s *server) SnapshotPath(lastIndex uint64, lastTerm uint64) string {
 	return path.Join(s.path, "snapshot", fmt.Sprintf("%v_%v.ss", lastTerm, lastIndex))
@@ -1314,80 +1339,43 @@ func (s *server) processSnapshotRecoveryRequest(req *SnapshotRecoveryRequest) *S
 
 // Load a snapshot at restart
 func (s *server) LoadSnapshot() error {
-	// Open snapshot/ directory.
-	dir, err := os.OpenFile(path.Join(s.path, "snapshot"), os.O_RDONLY, 0)
-	if err != nil {
-		s.debugln("cannot.open.snapshot: ", err)
-		return err
-	}
-
-	// Retrieve a list of all snapshots.
-	filenames, err := dir.Readdirnames(-1)
-	if err != nil {
-		dir.Close()
-		panic(err)
-	}
-	dir.Close()
-
-	if len(filenames) == 0 {
-		s.debugln("no.snapshot.to.load")
-		return nil
-	}
-
-	// Grab the latest snapshot.
-	sort.Strings(filenames)
-	snapshotPath := path.Join(s.path, "snapshot", filenames[len(filenames)-1])
-
-	// Read snapshot data.
-	file, err := os.OpenFile(snapshotPath, os.O_RDONLY, 0)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Check checksum.
-	var checksum uint32
-	n, err := fmt.Fscanf(file, "%08x\n", &checksum)
-	if err != nil {
-		return err
-	} else if n != 1 {
-		return errors.New("checksum.err: bad.snapshot.file")
-	}
-
-	// Load remaining snapshot contents.
-	b, err := ioutil.ReadAll(file)
+	sslist, err := s.SnapshotList()
 	if err != nil {
 		return err
 	}
 
-	// Generate checksum.
-	byteChecksum := crc32.ChecksumIEEE(b)
-	if uint32(checksum) != byteChecksum {
-		s.debugln(checksum, " ", byteChecksum)
-		return errors.New("bad snapshot file")
+	// Load most recent snapshot (falling back to older snapshots if needed)
+	var ss *Snapshot
+	for _, ssname := range sslist {
+		ssFullPath := path.Join(s.path, "snapshot", ssname)
+		ss, err = loadSnapshot(ssFullPath)
+		if err == nil {
+			break
+		}
+		s.debugln(err)
 	}
 
-	// Decode snapshot.
-	if err = json.Unmarshal(b, &s.snapshot); err != nil {
-		s.debugln("unmarshal.snapshot.error: ", err)
-		return err
+	if err != nil {
+		return err // couldn't load any of the snapshots
 	}
+
+	s.snapshot = ss
 
 	// Recover snapshot into state machine.
-	if err = s.stateMachine.Recovery(s.snapshot.State); err != nil {
+	if err = s.stateMachine.Recovery(ss.State); err != nil {
 		s.debugln("recovery.snapshot.error: ", err)
 		return err
 	}
 
 	// Recover cluster configuration.
-	for _, peer := range s.snapshot.Peers {
+	for _, peer := range ss.Peers {
 		s.AddPeer(peer.Name, peer.ConnectionString)
 	}
 
 	// Update log state.
-	s.log.startTerm = s.snapshot.LastTerm
-	s.log.startIndex = s.snapshot.LastIndex
-	s.log.updateCommitIndex(s.snapshot.LastIndex)
+	s.log.startTerm = ss.LastTerm
+	s.log.startIndex = ss.LastIndex
+	s.log.updateCommitIndex(ss.LastIndex)
 
 	return err
 }

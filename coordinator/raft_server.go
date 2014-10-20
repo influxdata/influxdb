@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -391,7 +392,11 @@ func (s *RaftServer) startRaft() error {
 	}
 
 	s.raftServer.SetElectionTimeout(s.config.RaftTimeout.Duration)
-	s.raftServer.LoadSnapshot() // ignore errors
+
+	err = s.raftServer.LoadSnapshot()
+	if err != nil {
+		panic(err)
+	}
 
 	s.raftServer.AddEventListener(raft.StateChangeEventType, s.raftEventHandler)
 
