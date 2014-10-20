@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"code.google.com/p/log4go"
+
 	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
@@ -54,35 +56,35 @@ func (self *AggregatorEngine) Close() error {
 }
 
 func (self *AggregatorEngine) getTimestampFromPoint(point *protocol.Point) int64 {
-	return self.getTimestampBucket(uint64(*point.GetTimestampInMicroseconds()))
+	return self.getTimestampBucket(*point.GetTimestampInMicroseconds())
 }
 
-func (self *AggregatorEngine) getTimestampBucket(timestampMicroseconds uint64) int64 {
-	timestamp := time.Unix(0, int64(timestampMicroseconds*1000))
+func (self *AggregatorEngine) getTimestampBucket(timestampMicroseconds int64) int64 {
+	timestamp := time.Unix(0, timestampMicroseconds*1000)
 
 	if self.irregularInterval {
-		if *self.duration == 168*time.Hour {
-			// the duration is exactly 1 week = 168 hours
+		switch d := *self.duration; d {
+		case common.Week:
 			year, month, day := timestamp.Date()
 			weekday := timestamp.Weekday()
 			offset := day - int(weekday)
 			boundaryTime := time.Date(year, month, offset, 0, 0, 0, 0, time.UTC)
 			return boundaryTime.Unix() * 1000000
-		} else if *self.duration == 720*time.Hour {
-			// the duration is exactly 1 month = 30 days = 720 hours
+		case common.Month:
 			year, month, _ := timestamp.Date()
 			boundaryTime := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
 			return boundaryTime.Unix() * 1000000
-		} else if *self.duration == 8760*time.Hour {
-			// the duration is exactly 1 year = 365 days = 8,760 hours
+		case common.Year:
 			year := timestamp.Year()
 			boundaryTime := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
 			return boundaryTime.Unix() * 1000000
+		default:
+			log4go.Debug("Logical intervals are supported for 1w, 1m/1M and 1Y only")
 		}
 	}
 
 	// the duration is a non-special interval
-	return int64(timestamp.Truncate(*self.duration).UnixNano() / 1000)
+	return timestamp.Truncate(*self.duration).UnixNano() / 1000
 }
 
 func (self *AggregatorEngine) Yield(s *protocol.Series) (bool, error) {
@@ -245,8 +247,8 @@ func (self *AggregatorEngine) runAggregatesForTable(table string) (bool, error) 
 			timestampRange = &PointRange{startTime: self.startTime, endTime: self.endTime}
 		}
 
-		startBucket := self.getTimestampBucket(uint64(timestampRange.startTime))
-		endBucket := self.getTimestampBucket(uint64(timestampRange.endTime))
+		startBucket := self.getTimestampBucket(timestampRange.startTime)
+		endBucket := self.getTimestampBucket(timestampRange.endTime)
 		durationMicro := self.duration.Nanoseconds() / 1000
 		traverser := newBucketTraverser(trie, len(self.elems), len(self.aggregators), startBucket, endBucket, durationMicro, self.ascending)
 		// apply the function f to the nodes of the trie, such that n1 is

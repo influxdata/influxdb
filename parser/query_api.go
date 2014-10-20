@@ -294,7 +294,7 @@ func parseTime(value *Value) (int64, error) {
 			return t.UnixNano(), err
 		}
 
-		duration, _, err := common.ParseTimeDuration(value.Name)
+		duration, err := common.ParseTimeDuration(value.Name)
 
 		return duration, err
 	}

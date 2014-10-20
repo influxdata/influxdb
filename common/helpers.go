@@ -10,15 +10,19 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
+const (
+	Day   = 24 * time.Hour
+	Week  = 7 * Day
+	Month = 30 * Day
+	Year  = 365 * Day
+)
+
 // Returns the parsed duration in nanoseconds, support 'u', 's', 'm',
 // 'h', 'd', 'W', 'M', and 'Y' suffixes.
-// Returns true if the interval is 'irregular' - i.e. it has a variable
-// duration or boundaries, such as weeks, months, and years.
-func ParseTimeDuration(value string) (int64, bool, error) {
+func ParseTimeDuration(value string) (int64, error) {
 	var constant time.Duration
 
 	prefixSize := 1
-	irregularInterval := false
 
 	switch value[len(value)-1] {
 	case 'u':
@@ -32,14 +36,11 @@ func ParseTimeDuration(value string) (int64, bool, error) {
 	case 'd':
 		constant = 24 * time.Hour
 	case 'w', 'W':
-		constant = 7 * 24 * time.Hour
-		irregularInterval = true
+		constant = Week
 	case 'M':
-		constant = 30 * 24 * time.Hour
-		irregularInterval = true
+		constant = Month
 	case 'y', 'Y':
-		constant = 365 * 24 * time.Hour
-		irregularInterval = true
+		constant = Year
 	default:
 		prefixSize = 0
 	}
@@ -57,7 +58,7 @@ func ParseTimeDuration(value string) (int64, bool, error) {
 
 	_, err := fmt.Sscan(timeString, &t)
 	if err != nil {
-		return 0, false, err
+		return 0, err
 	}
 
 	if prefixSize > 0 {
@@ -67,10 +68,22 @@ func ParseTimeDuration(value string) (int64, bool, error) {
 	}
 
 	if t.IsInt() {
-		return t.Num().Int64(), irregularInterval, nil
+		return t.Num().Int64(), nil
 	}
 	f, _ := t.Float64()
-	return int64(f), irregularInterval, nil
+	return int64(f), nil
+}
+
+func IsIrregularInterval(value string) bool {
+	// Returns true if the interval is 'irregular' - i.e. it has a variable
+	// duration or boundaries, such as weeks, months, and years.
+
+	switch value[len(value)-1] {
+	case 'w', 'W', 'M', 'y', 'Y':
+		return true
+	default:
+		return false
+	}
 }
 
 func GetFileSize(path string) (int64, error) {

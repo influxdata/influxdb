@@ -28,7 +28,8 @@ func (self GroupByClause) GetGroupByTime() (*time.Duration, bool, error) {
 				log.Debug("Get a time function without a duration argument %v", groupBy.Elems[0].Type)
 			}
 			arg := groupBy.Elems[0].Name
-			durationInt, irregularInterval, err := common.ParseTimeDuration(arg)
+			durationInt, err := common.ParseTimeDuration(arg)
+			irregularInterval := common.IsIrregularInterval(arg)
 			if err != nil {
 				return nil, false, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("invalid argument %s to the time function", arg))
 			}
