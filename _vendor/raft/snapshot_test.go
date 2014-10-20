@@ -1,12 +1,44 @@
 package raft
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+func TestSnapshotSave(t *testing.T) {
+	tstPath, err := ioutil.TempDir("", "snapshot_save")
+	if err != nil {
+		t.Errorf("Failed to create a temporary directory: %s", err)
+	}
+	defer os.RemoveAll(tstPath)
+
+	index := uint64(1)
+	term := uint64(2)
+	ssfile := path.Join(tstPath, fmt.Sprintf("%v_%v.ss", term, index))
+
+	ss := &Snapshot{
+		LastIndex: index,
+		LastTerm:  term,
+		Path:      ssfile,
+	}
+
+	err = ss.save()
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if _, err := os.Stat(ssfile); os.IsNotExist(err) {
+		t.Errorf("Failed to create snapshot: %s", ssfile)
+	}
+}
 
 // Ensure that a snapshot occurs when there are existing logs.
 func TestSnapshot(t *testing.T) {
