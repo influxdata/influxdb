@@ -395,7 +395,7 @@ func (self *ShardData) ShouldAggregateLocally(querySpec *parser.QuerySpec) bool 
 		}
 		return true
 	}
-	return self.shardDuration%*groupByInterval == 0
+	return (self.shardDuration%*groupByInterval == 0) && !querySpec.GroupByIrregularInterval
 }
 
 type Shards []*ShardData
