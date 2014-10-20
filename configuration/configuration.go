@@ -166,7 +166,6 @@ type TomlConfiguration struct {
 
 type Configuration struct {
 	AdminHttpPort   int
-	AdminAssetsDir  string
 	ApiHttpSslPort  int
 	ApiHttpCertPath string
 	ApiHttpPort     int
@@ -311,7 +310,6 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 
 	config := &Configuration{
 		AdminHttpPort:   tomlConfiguration.Admin.Port,
-		AdminAssetsDir:  tomlConfiguration.Admin.Assets,
 		ApiHttpPort:     tomlConfiguration.HttpApi.Port,
 		ApiHttpCertPath: tomlConfiguration.HttpApi.SslCertPath,
 		ApiHttpSslPort:  tomlConfiguration.HttpApi.SslPort,

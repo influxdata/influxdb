@@ -70,7 +70,7 @@ func NewServer(config *configuration.Configuration) (*Server, error) {
 	httpApi.EnableSsl(config.ApiHttpSslPortString(), config.ApiHttpCertPath)
 	graphiteApi := graphite.NewServer(config, coord, clusterConfig)
 	collectdApi := collectd.NewServer(config, coord, clusterConfig)
-	adminServer := admin.NewHttpServer(config.AdminAssetsDir, config.AdminHttpPortString())
+	adminServer := admin.NewHttpServer(config.AdminHttpPortString())
 
 	return &Server{
 		RaftServer:     raftServer,

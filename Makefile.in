@@ -240,6 +240,11 @@ clean:
 	rm -rf $(rocksdb_dir)
 	$(MAKE) -C parser clean
 
+rebuild_static_assets:
+	$(GO) get github.com/rakyll/statik
+	$(GOPATH)/bin/statik -src=./shared/admin
+	$(MAKE) format
+
 only =
 verbose = off
 ifneq ($(only),)

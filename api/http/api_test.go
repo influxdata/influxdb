@@ -184,10 +184,8 @@ func (self *ApiSuite) SetUpSuite(c *C) {
 		clusterAdmins: []string{"root"},
 		dbUsers:       map[string]map[string]MockDbUser{"db1": {"db_user1": {Name: "db_user1", IsAdmin: false}}},
 	}
-	dir := c.MkDir()
 	config := &configuration.Configuration{
 		ApiReadTimeout: 10 * time.Second,
-		AdminAssetsDir: dir,
 	}
 	self.server = NewHttpServer(
 		config,

@@ -47,7 +47,6 @@ type HttpServer struct {
 func NewHttpServer(config *configuration.Configuration, theCoordinator api.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
 	self := &HttpServer{}
 	self.httpPort = config.ApiHttpPortString()
-	self.adminAssetsDir = config.AdminAssetsDir
 	self.coordinator = theCoordinator
 	self.userManager = userManager
 	self.shutdown = make(chan bool, 2)
