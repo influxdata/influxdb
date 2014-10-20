@@ -16,12 +16,12 @@ type GroupByClause struct {
 	Elems        []*Value
 }
 
-func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
+func (self GroupByClause) GetGroupByTime() (*time.Duration, bool, error) {
 	for _, groupBy := range self.Elems {
 		if groupBy.IsFunctionCall() && strings.ToLower(groupBy.Name) == "time" {
 			// TODO: check the number of arguments and return an error
 			if len(groupBy.Elems) != 1 {
-				return nil, common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
+				return nil, false, common.NewQueryError(common.WrongNumberOfArguments, "time function only accepts one argument")
 			}
 
 			if groupBy.Elems[0].Type != ValueDuration {
@@ -29,14 +29,15 @@ func (self GroupByClause) GetGroupByTime() (*time.Duration, error) {
 			}
 			arg := groupBy.Elems[0].Name
 			durationInt, err := common.ParseTimeDuration(arg)
+			irregularInterval := common.IsIrregularInterval(arg)
 			if err != nil {
-				return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("invalid argument %s to the time function", arg))
+				return nil, false, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("invalid argument %s to the time function", arg))
 			}
 			duration := time.Duration(durationInt)
-			return &duration, nil
+			return &duration, irregularInterval, nil
 		}
 	}
-	return nil, nil
+	return nil, false, nil
 }
 
 func (self *GroupByClause) GetString() string {

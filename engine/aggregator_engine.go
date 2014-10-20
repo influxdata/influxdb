@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"code.google.com/p/log4go"
+
 	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
@@ -33,10 +35,11 @@ type AggregatorEngine struct {
 	next Processor
 
 	// variables for aggregate queries
-	aggregators  []Aggregator
-	elems        []*parser.Value // group by columns other than time()
-	duration     *time.Duration  // the time by duration if any
-	seriesStates map[string]*SeriesState
+	aggregators       []Aggregator
+	elems             []*parser.Value // group by columns other than time()
+	duration          *time.Duration  // the time by duration if any
+	irregularInterval bool            // group by time is week, month, or year
+	seriesStates      map[string]*SeriesState
 }
 
 func (self *AggregatorEngine) Name() string {
@@ -53,13 +56,35 @@ func (self *AggregatorEngine) Close() error {
 }
 
 func (self *AggregatorEngine) getTimestampFromPoint(point *protocol.Point) int64 {
-	return self.getTimestampBucket(uint64(*point.GetTimestampInMicroseconds()))
+	return self.getTimestampBucket(*point.GetTimestampInMicroseconds())
 }
 
-func (self *AggregatorEngine) getTimestampBucket(timestampMicroseconds uint64) int64 {
-	timestampMicroseconds *= 1000 // convert to nanoseconds
-	multiplier := uint64(*self.duration)
-	return int64(timestampMicroseconds / multiplier * multiplier / 1000)
+func (self *AggregatorEngine) getTimestampBucket(timestampMicroseconds int64) int64 {
+	timestamp := time.Unix(0, timestampMicroseconds*1000)
+
+	if self.irregularInterval {
+		switch d := *self.duration; d {
+		case common.Week:
+			year, month, day := timestamp.Date()
+			weekday := timestamp.Weekday()
+			offset := day - int(weekday)
+			boundaryTime := time.Date(year, month, offset, 0, 0, 0, 0, time.UTC)
+			return boundaryTime.Unix() * 1000000
+		case common.Month:
+			year, month, _ := timestamp.Date()
+			boundaryTime := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
+			return boundaryTime.Unix() * 1000000
+		case common.Year:
+			year := timestamp.Year()
+			boundaryTime := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
+			return boundaryTime.Unix() * 1000000
+		default:
+			log4go.Debug("Logical intervals are supported for 1w, 1m/1M and 1Y only")
+		}
+	}
+
+	// the duration is a non-special interval
+	return timestamp.Truncate(*self.duration).UnixNano() / 1000
 }
 
 func (self *AggregatorEngine) Yield(s *protocol.Series) (bool, error) {
@@ -222,8 +247,8 @@ func (self *AggregatorEngine) runAggregatesForTable(table string) (bool, error) 
 			timestampRange = &PointRange{startTime: self.startTime, endTime: self.endTime}
 		}
 
-		startBucket := self.getTimestampBucket(uint64(timestampRange.startTime))
-		endBucket := self.getTimestampBucket(uint64(timestampRange.endTime))
+		startBucket := self.getTimestampBucket(timestampRange.startTime)
+		endBucket := self.getTimestampBucket(timestampRange.endTime)
 		durationMicro := self.duration.Nanoseconds() / 1000
 		traverser := newBucketTraverser(trie, len(self.elems), len(self.aggregators), startBucket, endBucket, durationMicro, self.ascending)
 		// apply the function f to the nodes of the trie, such that n1 is
@@ -311,7 +336,7 @@ func NewAggregatorEngine(query *parser.SelectQuery, next Processor) (*Aggregator
 	}
 
 	var err error
-	ae.duration, err = query.GetGroupByClause().GetGroupByTime()
+	ae.duration, ae.irregularInterval, err = query.GetGroupByClause().GetGroupByTime()
 	if err != nil {
 		return nil, err
 	}
