@@ -50,6 +50,8 @@ read-timeout = "5s"
   enabled = false
   # port = 25826
   # database = ""
+  # types.db can be found in a collectd installation or on github:
+  # https://github.com/collectd/collectd/blob/master/src/types.db
   # typesdb = "/usr/share/collectd/types.db" # The path to the collectd types.db file
 
   # Configure the udp api
