@@ -1340,10 +1340,15 @@ func (s *server) processSnapshotRecoveryRequest(req *SnapshotRecoveryRequest) *S
 // Load a snapshot at restart
 func (s *server) LoadSnapshot() error {
 	sslist, err := s.SnapshotList()
+
+	// if the snapshot directory doesn't exist or no snapshots exist in
+	// the directory, return immediately
+	if err != nil && os.IsNotExist(err) || err == nil && len(sslist) == 0 {
+		return nil
+	}
+
 	if err != nil {
 		return err
-	} else if len(sslist) == 0 {
-		return fmt.Errorf("no snapshots to load")
 	}
 
 	// Load most recent snapshot (falling back to older snapshots if needed)
