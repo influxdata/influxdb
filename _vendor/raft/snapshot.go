@@ -2,6 +2,7 @@ package raft
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os"
 
 	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/dgnorton/goback"
 	"github.com/influxdb/influxdb/_vendor/raft/protobuf"
 )
 
@@ -51,13 +53,60 @@ type SnapshotResponse struct {
 	Success bool `json:"success"`
 }
 
+// loadSnapshot reads a snapshot from file
+func loadSnapshot(filename string) (*Snapshot, error) {
+	file, err := os.OpenFile(filename, os.O_RDONLY, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	// Check checksum.
+	var checksum uint32
+	n, err := fmt.Fscanf(file, "%08x\n", &checksum)
+	if err != nil {
+		return nil, err
+	} else if n != 1 {
+		return nil, errors.New("checksum.err: bad.snapshot.file")
+	}
+
+	// Load remaining snapshot contents.
+	b, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate checksum.
+	byteChecksum := crc32.ChecksumIEEE(b)
+	if uint32(checksum) != byteChecksum {
+		return nil, errors.New("bad snapshot file")
+	}
+
+	// Decode snapshot.
+	var ss Snapshot
+	if err = json.Unmarshal(b, &ss); err != nil {
+		return nil, err
+	}
+
+	return &ss, nil
+}
+
 // save writes the snapshot to file.
 func (ss *Snapshot) save() error {
+	tx := goback.Begin()
+	defer tx.Rollback()
+
 	// Open the file for writing.
 	file, err := os.OpenFile(ss.Path, os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
+	tx.Exec(func() error {
+		if err := os.Remove(ss.Path); err != nil {
+			panic(err)
+		}
+		return nil
+	})
 	defer file.Close()
 
 	// Serialize to JSON.
@@ -81,6 +130,8 @@ func (ss *Snapshot) save() error {
 	if err := file.Sync(); err != nil {
 		return err
 	}
+
+	tx.Commit()
 
 	return nil
 }
