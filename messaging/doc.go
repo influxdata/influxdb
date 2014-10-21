@@ -1,5 +1,5 @@
 /*
-Package broker implements a distributed, raft-backed messaging system.
+Package messaging implements a distributed, raft-backed messaging system.
 
 Basics
 
@@ -11,4 +11,4 @@ shard's data is placed in its own topic so that it can be parallized across the
 cluster.
 
 */
-package broker
+package messaging

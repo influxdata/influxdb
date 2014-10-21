@@ -1,11 +1,11 @@
-package broker_test
+package messaging_test
 
 import (
 	"net/url"
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/broker"
+	"github.com/influxdb/influxdb/messaging"
 )
 
 // Ensure the client name can be retrieved.
@@ -32,7 +32,7 @@ func TestClient_Open(t *testing.T) {
 	}
 
 	// Receive a message from the stream.
-	if m := <-c.C; m.Type != broker.CreateReplicaMessageType {
+	if m := <-c.C; m.Type != messaging.CreateReplicaMessageType {
 		t.Fatalf("unexpected message type: %x", m.Type)
 	}
 
@@ -50,7 +50,7 @@ func TestClient_Open_ErrClientOpen(t *testing.T) {
 	// Open client to broker.
 	u, _ := url.Parse(c.Handler.HTTPServer.URL)
 	c.Open([]*url.URL{u})
-	if err := c.Open([]*url.URL{u}); err != broker.ErrClientOpen {
+	if err := c.Open([]*url.URL{u}); err != messaging.ErrClientOpen {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -59,7 +59,7 @@ func TestClient_Open_ErrClientOpen(t *testing.T) {
 func TestClient_Open_ErrBrokerURLRequired(t *testing.T) {
 	c := NewClient("node0")
 	defer c.Close()
-	if err := c.Open([]*url.URL{}); err != broker.ErrBrokerURLRequired {
+	if err := c.Open([]*url.URL{}); err != messaging.ErrBrokerURLRequired {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -87,14 +87,14 @@ func TestClient_Close(t *testing.T) {
 
 // Client represents a test wrapper for the broker client.
 type Client struct {
-	*broker.Client
+	*messaging.Client
 	Handler *Handler // test handler
 }
 
 // NewClient returns a new instance of Client.
 func NewClient(name string) *Client {
 	c := &Client{
-		Client:  broker.NewClient(name),
+		Client:  messaging.NewClient(name),
 		Handler: NewHandler(),
 	}
 	return c

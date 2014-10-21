@@ -1,4 +1,4 @@
-package broker_test
+package messaging_test
 
 import (
 	"net/http"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/broker"
+	"github.com/influxdb/influxdb/messaging"
 )
 
 // Ensure a replica can connect and stream messages.
@@ -28,11 +28,11 @@ func TestHandler_serveStream(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Decode from body.
-	var m broker.Message
-	dec := broker.NewMessageDecoder(resp.Body)
+	var m messaging.Message
+	dec := messaging.NewMessageDecoder(resp.Body)
 	if err := dec.Decode(&m); err != nil {
 		t.Fatalf("decode error: %s", err)
-	} else if m.Index != 2 && m.Type != broker.CreateReplicaMessageType {
+	} else if m.Index != 2 && m.Type != messaging.CreateReplicaMessageType {
 		t.Fatalf("unexpected index/type: %d / %x", m.Index, m.Type)
 	}
 }
@@ -61,9 +61,9 @@ func TestHandler_serveStream_ErrReplicaNotFound(t *testing.T) {
 	}
 }
 
-// Handler is a test wrapper for broker.Handler.
+// Handler is a test wrapper for messaging.Handler.
 type Handler struct {
-	*broker.Handler
+	*messaging.Handler
 	Broker     *Broker
 	HTTPServer *httptest.Server
 }
@@ -72,7 +72,7 @@ type Handler struct {
 func NewHandler() *Handler {
 	b := NewBroker()
 	h := &Handler{
-		Handler: broker.NewHandler(b.Broker),
+		Handler: messaging.NewHandler(b.Broker),
 		Broker:  b,
 	}
 	h.HTTPServer = httptest.NewServer(h.Handler)

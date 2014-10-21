@@ -1,4 +1,4 @@
-package broker
+package messaging
 
 import (
 	"bufio"
@@ -32,8 +32,8 @@ type Broker struct {
 	topicsByName map[string]*topic // topics by name
 }
 
-// New returns a new instance of a Broker with default values.
-func New() *Broker {
+// NewBroker returns a new instance of a Broker with default values.
+func NewBroker() *Broker {
 	b := &Broker{
 		log:          raft.NewLog(),
 		replicas:     make(map[string]*Replica),

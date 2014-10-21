@@ -1,4 +1,4 @@
-package broker_test
+package messaging_test
 
 import (
 	"bytes"
@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/broker"
+	"github.com/influxdb/influxdb/messaging"
 )
 
 // Ensure that opening a broker without a path returns an error.
 func TestBroker_Open_ErrPathRequired(t *testing.T) {
-	b := broker.New()
-	if err := b.Open(""); err != broker.ErrPathRequired {
+	b := messaging.NewBroker()
+	if err := b.Open(""); err != messaging.ErrPathRequired {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -25,7 +25,7 @@ func TestBroker_Open_ErrPathRequired(t *testing.T) {
 func TestBroker_Close_ErrClosed(t *testing.T) {
 	b := NewBroker()
 	b.Close()
-	if err := b.Broker.Close(); err != broker.ErrClosed {
+	if err := b.Broker.Close(); err != messaging.ErrClosed {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -51,7 +51,7 @@ func TestBroker_Publish(t *testing.T) {
 	}
 
 	// Write a message to the broker.
-	index, err := b.Publish("foo/bar", &broker.Message{Type: 100, Data: []byte("0000")})
+	index, err := b.Publish("foo/bar", &messaging.Message{Type: 100, Data: []byte("0000")})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if index != 5 {
@@ -76,30 +76,30 @@ func TestBroker_Publish(t *testing.T) {
 	}
 
 	// Write another message (that shouldn't be read).
-	if _, err := b.Publish("foo/bar", &broker.Message{Type: 101}); err != nil {
+	if _, err := b.Publish("foo/bar", &messaging.Message{Type: 101}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	time.Sleep(10 * time.Millisecond)
 
 	// Read out the config messages first.
-	var m broker.Message
-	dec := broker.NewMessageDecoder(&buf)
-	if err := dec.Decode(&m); err != nil || m.Type != broker.CreateReplicaMessageType {
+	var m messaging.Message
+	dec := messaging.NewMessageDecoder(&buf)
+	if err := dec.Decode(&m); err != nil || m.Type != messaging.CreateReplicaMessageType {
 		t.Fatalf("decode(create replica): %x (%v)", m.Type, err)
 	}
-	if err := dec.Decode(&m); err != nil || m.Type != broker.SubscribeMessageType {
+	if err := dec.Decode(&m); err != nil || m.Type != messaging.SubscribeMessageType {
 		t.Fatalf("decode(subscribe): %x (%v)", m.Type, err)
 	}
 
 	// Read out the published message.
 	if err := dec.Decode(&m); err != nil {
 		t.Fatalf("decode: %s", err)
-	} else if !reflect.DeepEqual(&m, &broker.Message{Type: 100, TopicID: 1, Index: 5, Data: []byte("0000")}) {
+	} else if !reflect.DeepEqual(&m, &messaging.Message{Type: 100, TopicID: 1, Index: 5, Data: []byte("0000")}) {
 		t.Fatalf("unexpected message: %#v", &m)
 	}
 
 	// Read unsubscribe.
-	if err := dec.Decode(&m); err != nil || m.Type != broker.UnsubscribeMessageType {
+	if err := dec.Decode(&m); err != nil || m.Type != messaging.UnsubscribeMessageType {
 		t.Fatalf("decode(unsubscribe): %x (%v)", m.Type, err)
 	}
 
@@ -115,7 +115,7 @@ func TestBroker_Publish_ErrTopicNotFound(t *testing.T) {
 	defer b.Close()
 
 	// Publish to a topic that doesn't exist.
-	if _, err := b.Publish("foo/bar", &broker.Message{}); err != broker.ErrTopicNotFound {
+	if _, err := b.Publish("foo/bar", &messaging.Message{}); err != messaging.ErrTopicNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -129,7 +129,7 @@ func TestBroker_CreateTopic_ErrTopicExists(t *testing.T) {
 	if err := b.CreateTopic("foo/bar"); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if err := b.CreateTopic("foo/bar"); err != broker.ErrTopicExists {
+	if err := b.CreateTopic("foo/bar"); err != messaging.ErrTopicExists {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -161,7 +161,7 @@ func TestBroker_DeleteTopic(t *testing.T) {
 	}
 
 	// Try to delete it again.
-	if err := b.DeleteTopic("foo/bar"); err != broker.ErrTopicNotFound {
+	if err := b.DeleteTopic("foo/bar"); err != messaging.ErrTopicNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -173,7 +173,7 @@ func TestBroker_CreateReplica_ErrReplicaExists(t *testing.T) {
 
 	// Create a replica twice.
 	b.CreateReplica("node0")
-	if err := b.CreateReplica("node0"); err != broker.ErrReplicaExists {
+	if err := b.CreateReplica("node0"); err != messaging.ErrReplicaExists {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -220,7 +220,7 @@ func TestBroker_DeleteReplica(t *testing.T) {
 func TestBroker_DeleteReplica_ErrReplicaNotFound(t *testing.T) {
 	b := NewBroker()
 	defer b.Close()
-	if err := b.DeleteReplica("no_such_replica"); err != broker.ErrReplicaNotFound {
+	if err := b.DeleteReplica("no_such_replica"); err != messaging.ErrReplicaNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -230,7 +230,7 @@ func TestBroker_Subscribe_ErrReplicaNotFound(t *testing.T) {
 	b := NewBroker()
 	defer b.Close()
 	b.CreateReplica("bar")
-	if err := b.Subscribe("foo", "bar"); err != broker.ErrReplicaNotFound {
+	if err := b.Subscribe("foo", "bar"); err != messaging.ErrReplicaNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -240,7 +240,7 @@ func TestBroker_Subscribe_ErrTopicNotFound(t *testing.T) {
 	b := NewBroker()
 	defer b.Close()
 	b.CreateReplica("foo")
-	if err := b.Subscribe("foo", "bar"); err != broker.ErrTopicNotFound {
+	if err := b.Subscribe("foo", "bar"); err != messaging.ErrTopicNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -250,7 +250,7 @@ func TestBroker_Unsubscribe_ErrReplicaNotFound(t *testing.T) {
 	b := NewBroker()
 	defer b.Close()
 	b.CreateTopic("bar")
-	if err := b.Unsubscribe("foo", "bar"); err != broker.ErrReplicaNotFound {
+	if err := b.Unsubscribe("foo", "bar"); err != messaging.ErrReplicaNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -260,19 +260,19 @@ func TestBroker_Unsubscribe_ErrTopicNotFound(t *testing.T) {
 	b := NewBroker()
 	defer b.Close()
 	b.CreateReplica("foo")
-	if err := b.Unsubscribe("foo", "bar"); err != broker.ErrTopicNotFound {
+	if err := b.Unsubscribe("foo", "bar"); err != messaging.ErrTopicNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
 
 // Broker is a wrapper for broker.Broker that creates the broker in a temporary location.
 type Broker struct {
-	*broker.Broker
+	*messaging.Broker
 }
 
 // NewBroker returns a new open tempoarary broker.
 func NewBroker() *Broker {
-	b := broker.New()
+	b := messaging.NewBroker()
 	if err := b.Open(tempfile()); err != nil {
 		panic("open: " + err.Error())
 	}
@@ -290,7 +290,7 @@ func (b *Broker) Close() {
 
 // tempfile returns a temporary path.
 func tempfile() string {
-	f, _ := ioutil.TempFile("", "influxdb-broker-")
+	f, _ := ioutil.TempFile("", "influxdb-messaging-")
 	path := f.Name()
 	f.Close()
 	os.Remove(path)

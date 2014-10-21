@@ -41,9 +41,7 @@ type ShardCreator interface {
 	CreateShardSpace(shardSpace *ShardSpace) error
 }
 
-const (
-	DEFAULT_SHARD_SPACE_NAME = "default"
-)
+const DefaultShardSpaceName = "default"
 
 /*
   This struct stores all the metadata confiugration information about a running cluster. This includes
@@ -777,7 +775,7 @@ func (self *ClusterConfiguration) SetLastContinuousQueryRunTime(t time.Time) {
 }
 
 func (self *ClusterConfiguration) createDefaultShardSpace(database string) (*ShardSpace, error) {
-	space := NewShardSpace(database, DEFAULT_SHARD_SPACE_NAME)
+	space := NewShardSpace(database, DefaultShardSpaceName)
 	err := self.shardCreator.CreateShardSpace(space)
 	if err != nil {
 		return nil, err
@@ -1264,7 +1262,7 @@ func (self *ClusterConfiguration) removeShard(shard *ShardData) {
 }
 
 func (self *ClusterConfiguration) AddShardSpace(space *ShardSpace) error {
-	if space.Name != DEFAULT_SHARD_SPACE_NAME {
+	if space.Name != DefaultShardSpaceName {
 		err := space.Validate(self, true)
 		if err != nil {
 			return err
@@ -1282,7 +1280,7 @@ func (self *ClusterConfiguration) AddShardSpace(space *ShardSpace) error {
 	for _, s := range databaseSpaces {
 		if s.Name == space.Name {
 			// this can happen if a bunch of writers are trying to go at the same time on a new db. ignore
-			if s.Name == DEFAULT_SHARD_SPACE_NAME {
+			if s.Name == DefaultShardSpaceName {
 				return nil
 			}
 			return fmt.Errorf("Space name %s isn't unique for database %s", space.Name)

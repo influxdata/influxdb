@@ -127,14 +127,6 @@ type LoggingConfig struct {
 	Level string
 }
 
-type WalConfig struct {
-	Dir                   string `toml:"dir"`
-	FlushAfterRequests    int    `toml:"flush-after"`
-	BookmarkAfterRequests int    `toml:"bookmark-after"`
-	IndexAfterRequests    int    `toml:"index-after"`
-	RequestsPerLogFile    int    `toml:"requests-per-log-file"`
-}
-
 type InputPlugins struct {
 	Graphite        GraphiteConfig   `toml:"graphite"`
 	UdpInput        UdpInputConfig   `toml:"udp"`
@@ -150,9 +142,8 @@ type TomlConfiguration struct {
 	Cluster           ClusterConfig
 	Logging           LoggingConfig
 	Hostname          string
-	BindAddress       string    `toml:"bind-address"`
-	ReportingDisabled bool      `toml:"reporting-disabled"`
-	WalConfig         WalConfig `toml:"wal"`
+	BindAddress       string `toml:"bind-address"`
+	ReportingDisabled bool   `toml:"reporting-disabled"`
 	LevelDb           LevelDbConfiguration
 }
 
@@ -196,11 +187,6 @@ type Configuration struct {
 	LogFile                      string
 	LogLevel                     string
 	BindAddress                  string
-	WalDir                       string
-	WalFlushAfterRequests        int
-	WalBookmarkAfterRequests     int
-	WalIndexAfterRequests        int
-	WalRequestsPerLogFile        int
 	LocalStoreWriteBufferSize    int
 	PerServerWriteBufferSize     int
 	ClusterMaxResponseBufferSize int
@@ -260,14 +246,6 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 
 	if tomlConfiguration.Storage.RetentionSweepPeriod.Duration == 0 {
 		tomlConfiguration.Storage.RetentionSweepPeriod = duration{10 * time.Minute}
-	}
-
-	if tomlConfiguration.WalConfig.IndexAfterRequests == 0 {
-		tomlConfiguration.WalConfig.IndexAfterRequests = 1000
-	}
-
-	if tomlConfiguration.WalConfig.RequestsPerLogFile == 0 {
-		tomlConfiguration.WalConfig.RequestsPerLogFile = 10 * tomlConfiguration.WalConfig.IndexAfterRequests
 	}
 
 	defaultConcurrentShardQueryLimit := 10
@@ -338,11 +316,6 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		Hostname:                     tomlConfiguration.Hostname,
 		BindAddress:                  tomlConfiguration.BindAddress,
 		ReportingDisabled:            tomlConfiguration.ReportingDisabled,
-		WalDir:                       tomlConfiguration.WalConfig.Dir,
-		WalFlushAfterRequests:        tomlConfiguration.WalConfig.FlushAfterRequests,
-		WalBookmarkAfterRequests:     tomlConfiguration.WalConfig.BookmarkAfterRequests,
-		WalIndexAfterRequests:        tomlConfiguration.WalConfig.IndexAfterRequests,
-		WalRequestsPerLogFile:        tomlConfiguration.WalConfig.RequestsPerLogFile,
 		PerServerWriteBufferSize:     tomlConfiguration.Cluster.WriteBufferSize,
 		ClusterMaxResponseBufferSize: tomlConfiguration.Cluster.MaxResponseBufferSize,
 		ConcurrentShardQueryLimit:    defaultConcurrentShardQueryLimit,
