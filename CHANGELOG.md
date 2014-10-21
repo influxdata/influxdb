@@ -13,6 +13,45 @@
 - [Issue #972](https://github.com/influxdb/influxdb/issues/972). Don't
   assign duplicate server ids
 
+## v0.8.4 [2014-10-21]
+
+### Bugfixes
+
+- [Issue #1040](https://github.com/influxdb/influxdb/issues/1040). Revert
+  to older raft snapshot if the latest one is corrupted
+- [Issue #1004](https://github.com/influxdb/influxdb/issues/1004). Querying
+  for data outside of existing shards returns an empty response instead of
+  throwing a `Couldn't lookup columns` error
+- [Issue #1020](https://github.com/influxdb/influxdb/issues/1020). Change
+  init script exit codes to conform to the lsb standards. (Thanks, @spuder)
+- [Issue #1011](https://github.com/influxdb/influxdb/issues/1011). Fix
+  the tarball for homebrew so that rocksdb is included and the directory
+  structure is clean
+- [Issue #1007](https://github.com/influxdb/influxdb/issues/1007). Fix
+  the content type when an error occurs and the client requests
+  compression.
+- [Issue #916](https://github.com/influxdb/influxdb/issues/916). Set
+  the ulimit in the init script with a way to override the limit
+- [Issue #742](https://github.com/influxdb/influxdb/issues/742). Fix
+  rocksdb for Mac OSX
+- [Issue #387](https://github.com/influxdb/influxdb/issues/387). Aggregations
+  with group by time(1w), time(1m) and time(1y) (for week, month and
+  year respectively) will cause the start time and end time of the bucket
+  to fall on the logical boundaries of the week, month or year.
+- [Issue #334](https://github.com/influxdb/influxdb/issues/334). Derivative
+  for queries with group by time() and fill(), will take the difference
+  between the first value in the bucket and the first value of the next
+  bucket.
+
+### Features
+
+- [Issue #1032](https://github.com/influxdb/influxdb/issues/1032). Include
+  the admin ui static assets in the binary
+- [Issue #1019](https://github.com/influxdb/influxdb/issues/1019). Upgrade
+  to rocksdb 3.5.1
+- [Issue #992](https://github.com/influxdb/influxdb/issues/992). Add
+  an input plugin for collected
+
 ## v0.8.3 [2014-09-24]
 
 ### Bugfixes
