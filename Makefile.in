@@ -53,9 +53,9 @@ endif
 export GOARCH
 export CGO_ENABLED
 
-.PHONY: all valgrind parser package replace_version_string build binary_package dependencies clean
+.PHONY: all valgrind parser package replace_version_string build build_binary build_benchmark binary_package dependencies clean
 
-all: | parser valgrind build test integration_test
+all: | parser valgrind test integration_test
 
 parser:
 	$(MAKE) -C parser
@@ -223,12 +223,16 @@ protobuf: $(root)/bin/protoc-gen-go
 	rm -f protocol/*.pb.go
 	PATH=$(root)/bin:$$PATH $(PROTOC) --go_out=. protocol/*.proto
 
-build: | dependencies protobuf parser build_version_string
-# TODO: build all packages, otherwise we won't know
-# if there's an error
-	$(GO) build -o influxdb $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/daemon
+pre_build: dependencies protobuf parser build_version_string
+
+build_benchmark: pre_build
 	$(GO) build -o benchmark-storage $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/tools/benchmark-storage
 	$(GO) build -o benchmark-tool github.com/influxdb/influxdb/tools/benchmark
+
+build_binary: pre_build
+	$(GO) build -o influxdb $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/daemon
+
+build: build_binary build_benchmark
 
 clean:
 	git status --ignored | grep src\/ | grep -v Makefile | xargs rm -rf
@@ -270,7 +274,7 @@ coverage: dependencies
    $(GO) tool cover -html=${TMPDIR}/influxdb.$${i/\//}.coverage; done
 
 
-integration_test: dependencies build
+integration_test: dependencies build_binary
 	$(GO) test github.com/influxdb/influxdb/integration $(GOTEST_OPTS)
 
 package_version=$(subst -,_,$(version))
@@ -292,13 +296,13 @@ else
 	debian_package = packages/influxdb_$(version)_amd64.deb
 endif
 
-files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
+package_files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
 sha1 = $(shell sh -c "git rev-list --max-count=1 --abbrev-commit HEAD")
 
 build_version_string:
-	@echo "package main"										 > daemon/version.go
-	@echo "const version = \"$(version)\"" >> daemon/version.go
-	@echo "const gitSha = \"$(sha1)\""     >> daemon/version.go
+	echo "package main"										 > daemon/version.go
+	echo "const version = \"$(version)\"" >> daemon/version.go
+	echo "const gitSha = \"$(sha1)\""     >> daemon/version.go
 
 package_version_string: build_version_string
 	sed -i.bak -e "s/REPLACE_VERSION/$(version)/" scripts/post_install.sh
@@ -308,14 +312,14 @@ $(admin_dir)/build:
 	git clone https://github.com/influxdb/influxdb-admin.git $(admin_dir)
 	( rvm use 1.9.3@influxdb --create && cd $(admin_dir) && bundle install && middleman build )
 
-$(rpm_package): $(admin_dir)/build build
+$(rpm_package): $(binary_package)
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
 	( rvm use 1.9.3@influxdb && cd out_rpm && $(rpm_args) && fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) . )
 	mv out_rpm/$(shell basename $(rpm_package)) packages/
 
-$(debian_package): $(admin_dir)/build build
+$(debian_package): $(binary_package)
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
@@ -358,6 +362,10 @@ $(binary_package): $(admin_dir)/build build packages
 
 binary_package: $(binary_package)
 
+source_package: $(source_package)
+
+distro_packages: $(rpm_package) $(debian_package)
+
 packages:
 	mkdir $@
 
@@ -367,7 +375,7 @@ flymake:
 flymake_test:
 	for i in $(packages); do $(GO) test -c $$i; done
 
-package: | packages build package_version_string $(files)
+package: | packages build package_version_string $(package_files)
 	mv -f scripts/post_install.sh.bak scripts/post_install.sh
 
 install: binary_package
