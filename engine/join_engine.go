@@ -14,7 +14,7 @@ type JoinEngine struct {
 	lastFields1, lastFields2 []string
 }
 
-func NewJoinEngine(query *parser.SelectQuery, next Processor) Processor {
+func NewJoinEngine(shards []uint32, query *parser.SelectQuery, next Processor) Processor {
 	table1 := query.GetFromClause().Names[0].GetAlias()
 	table2 := query.GetFromClause().Names[1].GetAlias()
 	name := table1 + "_join_" + table2
@@ -26,7 +26,7 @@ func NewJoinEngine(query *parser.SelectQuery, next Processor) Processor {
 		table2: table2,
 		query:  query,
 	}
-	mergeEngine := NewCommonMergeEngine(table1, table2, false, query.Ascending, joinEngine)
+	mergeEngine := NewCommonMergeEngine(shards, false, query.Ascending, joinEngine)
 	return mergeEngine
 }
 

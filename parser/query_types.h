@@ -72,11 +72,13 @@ typedef struct {
   enum {
     FROM_ARRAY,
     FROM_MERGE,
-    FROM_INNER_JOIN
+    FROM_INNER_JOIN,
+    FROM_MERGE_FUNCTION
   } from_clause_type;
   // in case of merge or join, it's guaranteed that the names array
   // will have two table names only and they aren't regex.
   table_name_array *names;
+  value *regex_value;                   /* regex merge */
 } from_clause;
 
 typedef struct {

@@ -19,6 +19,7 @@ message Series {
   required string name = 2;
   repeated string fields = 3;
   repeated uint64 fieldIds = 4;
+  optional uint32 shard_id = 5;
 }
 
 message QueryResponseChunk {

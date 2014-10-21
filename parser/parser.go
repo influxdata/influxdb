@@ -468,11 +468,28 @@ func GetTableNameArray(array *C.table_name_array) ([]*TableName, error) {
 }
 
 func GetFromClause(fromClause *C.from_clause) (*FromClause, error) {
-	arr, err := GetTableNameArray(fromClause.names)
-	if err != nil {
-		return nil, err
+	t := FromClauseType(fromClause.from_clause_type)
+	var arr []*TableName
+	var regex *regexp.Regexp
+
+	switch t {
+	case FromClauseMergeFun:
+		val, err := GetValue(fromClause.regex_value)
+		if err != nil {
+			return nil, err
+		}
+		if val.Type != ValueRegex {
+			return nil, fmt.Errorf("merge() accepts regex only")
+		}
+		regex = val.compiledRegex
+	default:
+		var err error
+		arr, err = GetTableNameArray(fromClause.names)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return &FromClause{FromClauseType(fromClause.from_clause_type), arr}, nil
+	return &FromClause{t, arr, regex}, nil
 }
 
 func GetIntoClause(intoClause *C.into_clause) (*IntoClause, error) {

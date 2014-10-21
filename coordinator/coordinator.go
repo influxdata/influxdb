@@ -237,7 +237,11 @@ func (self *Coordinator) getShardsAndProcessor(querySpec *parser.QuerySpec, writ
 	if !shouldAggregateLocally {
 		// if we should aggregate in the coordinator (i.e. aggregation
 		// isn't happening locally at the shard level), create an engine
-		writer, err = engine.NewQueryEngine(writer, q)
+		shardIds := make([]uint32, len(shards))
+		for i, s := range shards {
+			shardIds[i] = s.Id()
+		}
+		writer, err = engine.NewQueryEngine(writer, q, shardIds)
 		return shards, writer, err
 	}
 
@@ -268,8 +272,27 @@ func (self *Coordinator) queryShards(querySpec *parser.QuerySpec, shards []*clus
 	return nil
 }
 
+func (self *Coordinator) expandRegex(spec *parser.QuerySpec) {
+	q := spec.SelectQuery()
+	if q == nil {
+		return
+	}
+
+	if f := q.FromClause; f.Type == parser.FromClauseMergeFun {
+		series := self.clusterConfiguration.MetaStore.GetSeriesForDatabaseAndRegex(spec.Database(), q.FromClause.Regex)
+		f.Type = parser.FromClauseMerge
+		f.Regex = nil
+		for _, s := range series {
+			f.Names = append(f.Names, &parser.TableName{
+				Name: &parser.Value{Name: s, Type: parser.ValueTableName},
+			})
+		}
+	}
+}
+
 // We call this function only if we have a Select query (not continuous) or Delete query
 func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, p engine.Processor) error {
+	self.expandRegex(querySpec)
 	shards, processor, err := self.getShardsAndProcessor(querySpec, p)
 	if err != nil {
 		return err

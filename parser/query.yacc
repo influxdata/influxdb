@@ -379,7 +379,7 @@ ALIAS_CLAUSE:
 FROM_CLAUSE:
         FROM TABLE_VALUE
         {
-          $$ = malloc(sizeof(from_clause));
+          $$ = calloc(1, sizeof(from_clause));
           $$->names = malloc(sizeof(table_name_array));
           $$->names->elems = malloc(sizeof(table_name*));
           $$->names->size = 1;
@@ -391,14 +391,14 @@ FROM_CLAUSE:
         |
         FROM SIMPLE_TABLE_VALUES
         {
-          $$ = malloc(sizeof(from_clause));
+          $$ = calloc(1, sizeof(from_clause));
           $$->names = $2;
           $$->from_clause_type = FROM_ARRAY;
         }
         |
         FROM SIMPLE_TABLE_VALUE
         {
-          $$ = malloc(sizeof(from_clause));
+          $$ = calloc(1, sizeof(from_clause));
           $$->names = malloc(sizeof(table_name_array));
           $$->names->elems = malloc(sizeof(table_name*));
           $$->names->size = 1;
@@ -410,7 +410,7 @@ FROM_CLAUSE:
         |
         FROM SIMPLE_TABLE_VALUE MERGE SIMPLE_TABLE_VALUE
         {
-          $$ = malloc(sizeof(from_clause));
+          $$ = calloc(1, sizeof(from_clause));
           $$->names = malloc(sizeof(table_name_array));
           $$->names->elems = malloc(2 * sizeof(table_name*));
           $$->names->size = 2;
@@ -423,9 +423,17 @@ FROM_CLAUSE:
           $$->from_clause_type = FROM_MERGE;
         }
         |
+        FROM MERGE '(' REGEX_VALUE ')'
+        {
+          $$ = calloc(1, sizeof(from_clause));
+          $$->from_clause_type = FROM_MERGE_FUNCTION;
+          $$->regex_value = $4;
+        }
+        |
         FROM SIMPLE_TABLE_VALUE ALIAS_CLAUSE INNER JOIN SIMPLE_TABLE_VALUE ALIAS_CLAUSE
         {
-          $$ = malloc(sizeof(from_clause));
+          $$ = calloc(1, sizeof(from_clause));
+          $$->regex_value = NULL;
           $$->names = malloc(sizeof(table_name_array));
           $$->names->elems = malloc(2 * sizeof(value*));
           $$->names->size = 2;

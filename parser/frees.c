@@ -29,7 +29,10 @@ free_table_name_array(table_name_array *array)
 void
 free_from_clause(from_clause *f)
 {
-  free_table_name_array(f->names);
+  if (f->names)
+    free_table_name_array(f->names);
+  if (f->regex_value)
+    free_value(f->regex_value);
   free(f);
 }
 

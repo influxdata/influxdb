@@ -1649,32 +1649,6 @@ func (self *DataTestSuite) QueryWithJoinedTablesWithWhereClause(c *C) (Fun, Fun)
 		}
 }
 
-func (self *DataTestSuite) JoinedWithSelf(c *C) (Fun, Fun) {
-	return func(client Client) {
-			createEngine(client, c, `[
-    {
-      "points": [
-        { "values": [{ "int64_value": 3 }], "timestamp": 1381346706000000 },
-        { "values": [{ "int64_value": 1 }], "timestamp": 1381346701000000 }
-      ],
-      "name": "t",
-      "fields": ["value"]
-    }
-  ]`)
-		}, func(client Client) {
-			runQuery(client, "select * from t as foo inner join t as bar", c, `[
-    {
-      "points": [
-        { "values": [{ "int64_value": 3 }, { "int64_value": 3 }], "timestamp": 1381346706000000 },
-        { "values": [{ "int64_value": 1 }, { "int64_value": 1 }], "timestamp": 1381346701000000 }
-      ],
-      "name": "foo_join_bar",
-      "fields": ["foo.value", "bar.value"]
-    }
-  ]`)
-		}
-}
-
 func (self *DataTestSuite) QueryWithMergedTablesWithPointsAppend(c *C) (Fun, Fun) {
 	return func(client Client) {
 			createEngine(client, c, `[

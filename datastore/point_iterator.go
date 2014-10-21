@@ -24,7 +24,13 @@ type PointIterator struct {
 	asc                bool
 }
 
-func NewPointIterator(itrs []storage.Iterator, fields []*metastore.Field, startTime, endTime time.Time, asc bool) PointIterator {
+// Creates a new point iterator using the given column iterator,
+// metadata columns, start and end time as well as the ascending
+// flag. The iterator returned is already placed at the first point,
+// there's no need to call Next() after the call to NewPointIterator,
+// but the user should check Valid() to make sure the iterator is
+// pointing at a valid point.
+func NewPointIterator(itrs []storage.Iterator, fields []*metastore.Field, startTime, endTime time.Time, asc bool) *PointIterator {
 	pi := PointIterator{
 		valid:           true,
 		err:             nil,
@@ -38,9 +44,12 @@ func NewPointIterator(itrs []storage.Iterator, fields []*metastore.Field, startT
 
 	// seek to the first point
 	pi.Next()
-	return pi
+	return &pi
 }
 
+// public api
+
+// Advance the iterator to the next point
 func (pi *PointIterator) Next() {
 	valueBuffer := proto.NewBuffer(nil)
 	pi.valid = false
@@ -127,6 +136,30 @@ func (pi *PointIterator) Next() {
 	pi.point.SequenceNumber = proto.Uint64(next.sequence)
 }
 
+// Returns true if the iterator is pointing at a valid
+// location. Behavior of Point() is undefined if Valid() is false.
+func (pi *PointIterator) Valid() bool {
+	return pi.valid
+}
+
+// Returns the point that the iterator is pointing to.
+func (pi *PointIterator) Point() *protocol.Point { return pi.point }
+
+// Returns an error if the iterator became invalid due to an error as
+// opposed to reaching the end time.
+func (pi *PointIterator) Error() error { return pi.err }
+
+// Close the iterator and free any resources used by the
+// iterator. Behavior of the iterator is undefined if the iterator is
+// used after it was closed.
+func (pi *PointIterator) Close() {
+	for _, itr := range pi.itrs {
+		itr.Close()
+	}
+}
+
+// private api
+
 func (pi *PointIterator) getIteratorNextValue() error {
 	for i, it := range pi.itrs {
 		if pi.rawColumnValues[i].value != nil {
@@ -165,21 +198,7 @@ func (pi *PointIterator) getIteratorNextValue() error {
 	return nil
 }
 
-func (pi *PointIterator) Valid() bool {
-	return pi.valid
-}
-
 func (pi *PointIterator) setError(err error) {
 	pi.err = err
 	pi.valid = false
-}
-
-func (pi *PointIterator) Point() *protocol.Point { return pi.point }
-
-func (pi *PointIterator) Error() error { return pi.err }
-
-func (pi *PointIterator) Close() {
-	for _, itr := range pi.itrs {
-		itr.Close()
-	}
 }

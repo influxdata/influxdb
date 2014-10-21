@@ -5,6 +5,7 @@ package parser
 import "C"
 import (
 	"bytes"
+	"regexp"
 	"strings"
 )
 import "fmt"
@@ -15,6 +16,7 @@ const (
 	FromClauseArray     FromClauseType = C.FROM_ARRAY
 	FromClauseMerge     FromClauseType = C.FROM_MERGE
 	FromClauseInnerJoin FromClauseType = C.FROM_INNER_JOIN
+	FromClauseMergeFun  FromClauseType = C.FROM_MERGE_FUNCTION
 )
 
 func (self *TableName) GetAlias() string {
@@ -39,6 +41,7 @@ type TableName struct {
 type FromClause struct {
 	Type  FromClauseType
 	Names []*TableName
+	Regex *regexp.Regexp
 }
 
 func (self *FromClause) GetString() string {
