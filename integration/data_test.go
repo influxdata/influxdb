@@ -2309,10 +2309,10 @@ var (
 [
   {
     "points": [
+    [310000, 400.0],
     [300000, 30.0],
     [120000, 20.0],
-    [60000, 10.0],
-    [310000, 15.0]
+    [60000, 5.0]
     ],
     "name": "data",
     "columns": ["time", "value"]
@@ -2340,7 +2340,7 @@ func (self *DataTestSuite) tstAggregateFill(tstData, aggregate, fill string, agg
 	// write test data to the database
 	self.client.WriteJsonData(tstData, c, influxdb.Millisecond)
 	// build the test query string
-	query := fmtFillQuery(aggregate, aggArgs, "data", fill)
+	query := fmtQuery(aggregate, aggArgs, "data", fill)
 	// run the query
 	series := self.client.RunQuery(query, c)
 	// check that we only got one result series
@@ -2357,12 +2357,17 @@ func (self *DataTestSuite) tstAggregateFill(tstData, aggregate, fill string, agg
 	}
 }
 
-func fmtFillQuery(aggregate string, aggArgs []interface{}, series, fill string) string {
+func fmtQuery(aggregate string, aggArgs []interface{}, series, fill string) string {
 	args := "value"
 	for _, arg := range aggArgs {
 		args = fmt.Sprintf("%s, %v", args, arg)
 	}
-	return fmt.Sprintf("select %s(%s) from %s group by time(60s) fill(%s) where time > 60s and time < 320s", aggregate, args, series, fill)
+
+	if fill != "" {
+		return fmt.Sprintf("select %s(%s) from %s group by time(60s) fill(%s) where time > 60s and time < 320s", aggregate, args, series, fill)
+	}
+
+	return fmt.Sprintf("select %s(%s) from %s group by time(60s) where time > 60s and time < 320s", aggregate, args, series)
 }
 
 var emptyAggArgs []interface{}
@@ -2371,6 +2376,86 @@ var emptyAggArgs []interface{}
 type tv struct {
 	Time  float64
 	Value interface{}
+}
+
+// Test Derivative with consecutive buckets and filling later buckets
+func (self *DataTestSuite) Test_Issue334_Derivative_ConsecutiveBuckets_FillLater(c *C) {
+	data := `
+[
+  {
+	"name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [130000, 80.0],
+    [120000, 40.0],
+    [70000, 20.0],
+    [60000, 10.0]
+    ]
+  }
+]`
+	expect := []tv{{300000.0, nil}, {240000.0, nil}, {180000.0, nil}, {120000.0, 1.0}, {60000.0, nil}}
+	self.tstAggregateFill(data, "derivative", "null", emptyAggArgs, expect, c)
+}
+
+// Test Derivative with non-consecutive buckets and filling in between
+func (self *DataTestSuite) Test_Issue334_Derivative_NonConsecutiveBuckets_FillBetween(c *C) {
+	data := `
+[
+  {
+	"name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [250000, 320.0],
+    [240000, 90.0],
+    [130000, 80.0],
+    [120000, 40.0],
+    [70000, 20.0],
+    [60000, 10.0]
+    ]
+  }
+]`
+	expect := []tv{{300000.0, nil}, {240000.0, 2.0}, {180000.0, nil}, {120000.0, 1.0}, {60000.0, nil}}
+	self.tstAggregateFill(data, "derivative", "null", emptyAggArgs, expect, c)
+}
+
+// Test Derivative with non-consecutive buckets and no fill
+func (self *DataTestSuite) Test_Issue1030_Derivative_NonConsecutiveBuckets_NoFill(c *C) {
+	data := `
+[
+  {
+	"name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [250000, 320.0],
+    [240000, 90.0],
+    [130000, 80.0],
+    [120000, 40.0],
+    [70000, 20.0],
+    [60000, 10.0]
+    ]
+  }
+]`
+	expect := []tv{{240000.0, 2.0}, {120000.0, 1.0}, {60000.0, nil}}
+	self.tstAggregateFill(data, "derivative", "", emptyAggArgs, expect, c)
+}
+
+// Test Derivative with consecutive buckets and no fill
+func (self *DataTestSuite) Test_Issue1030_Derivative_ConsecutiveBuckets_NoFill(c *C) {
+	data := `
+[
+  {
+    "name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [130000, 80.0],
+    [120000, 40.0],
+    [70000, 20.0],
+    [60000, 10.0]
+    ]
+  }
+]`
+	expect := []tv{{120000.0, 1.0}, {60000.0, nil}}
+	self.tstAggregateFill(data, "derivative", "", emptyAggArgs, expect, c)
 }
 
 // count aggregate filling with null
@@ -2537,13 +2622,13 @@ func (self *DataTestSuite) TestBottom10AggregateFillWith0(c *C) {
 
 // derivative aggregate filling with null
 func (self *DataTestSuite) TestDerivativeAggregateFillWithNull(c *C) {
-	expVals := []tv{{300000.0, -1.5}, {240000.0, nil}, {180000.0, nil}}
+	expVals := []tv{{300000.0, 2.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, 0.25}}
 	self.tstAggregateFill(aggTstData2, "derivative", "null", emptyAggArgs, expVals, c)
 }
 
 // derivative aggregate filling with 0
 func (self *DataTestSuite) TestDerivativeAggregateFillWith0(c *C) {
-	expVals := []tv{{300000.0, -1.5}, {240000.0, 0.0}, {180000.0, 0.0}}
+	expVals := []tv{{300000.0, 2.0}, {240000.0, 0.0}, {180000.0, 0.0}, {120000.0, 0.25}}
 	self.tstAggregateFill(aggTstData2, "derivative", "0", emptyAggArgs, expVals, c)
 }
 
@@ -2562,7 +2647,7 @@ func (self *DataTestSuite) TestDifferenceAggregateFillWith0(c *C) {
 // histogram aggregate filling with null
 func (self *DataTestSuite) TestHistogramAggregateFillWithNull(c *C) {
 	self.client.WriteJsonData(aggTstData2, c, influxdb.Millisecond)
-	series := self.client.RunQuery(fmtFillQuery("histogram", []interface{}{}, "data", "null"), c)
+	series := self.client.RunQuery(fmtQuery("histogram", []interface{}{}, "data", "null"), c)
 	c.Assert(len(series), Equals, 1)
 	maps := ToMap(series[0])
 	c.Assert(len(maps), Equals, 6)
@@ -2574,7 +2659,7 @@ func (self *DataTestSuite) TestHistogramAggregateFillWithNull(c *C) {
 // histogram aggregate filling with 0
 func (self *DataTestSuite) TestHistogramAggregateFillWith0(c *C) {
 	self.client.WriteJsonData(aggTstData2, c, influxdb.Millisecond)
-	series := self.client.RunQuery(fmtFillQuery("histogram", []interface{}{}, "data", "0"), c)
+	series := self.client.RunQuery(fmtQuery("histogram", []interface{}{}, "data", "0"), c)
 	c.Assert(len(series), Equals, 1)
 	maps := ToMap(series[0])
 	c.Assert(len(maps), Equals, 6)
