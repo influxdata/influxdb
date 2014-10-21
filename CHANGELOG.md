@@ -50,7 +50,9 @@
 - [Issue #1019](https://github.com/influxdb/influxdb/issues/1019). Upgrade
   to rocksdb 3.5.1
 - [Issue #992](https://github.com/influxdb/influxdb/issues/992). Add
-  an input plugin for collected
+  an input plugin for collected. (Thanks, @kimor79)
+- [Issue #72](https://github.com/influxdb/influxdb/issues/72). Support merge
+  for multiple series using regex syntax
 
 ## v0.8.3 [2014-09-24]
 
