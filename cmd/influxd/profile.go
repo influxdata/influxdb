@@ -1,5 +1,4 @@
-// build this file if the profile tag is specified and we're running
-// on linux
+// build this file if the profile tag is specified and we're running on linux
 
 // +build linux,profile
 
@@ -29,7 +28,7 @@ func init() {
 	profileFilename = flag.String("profile", "", "filename prefix where cpu and memory profile data will be written")
 }
 
-func waitForSignals(stoppable Stoppable, filename string, stopped <-chan bool) {
+func waitForSignals(stopper Stopper, filename string, stopped <-chan bool) {
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 outer:
@@ -50,7 +49,7 @@ outer:
 			f.Close()
 			stopCHeapProfiler()
 			// stopCCpuProfiler()
-			stoppable.Stop()
+			stopper.Stop()
 			break outer
 			// make sure everything stopped before exiting
 		}
@@ -61,7 +60,7 @@ outer:
 	os.Exit(0)
 }
 
-func startProfiler(stoppable Stoppable) error {
+func startProfiler(stopper Stopper) error {
 	if profileFilename == nil || *profileFilename == "" {
 		log.Info("Not starting profiling since the profile prefix is not set")
 		return nil
@@ -80,7 +79,7 @@ func startProfiler(stoppable Stoppable) error {
 	runtime.SetCPUProfileRate(500)
 	stopped := make(chan bool)
 
-	go waitForSignals(stoppable, *profileFilename, stopped)
+	go waitForSignals(stopper, *profileFilename, stopped)
 
 	go func() {
 		for {

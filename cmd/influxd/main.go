@@ -18,59 +18,19 @@ import (
 	"github.com/jmhodges/levigo"
 )
 
-func setupLogging(loggingLevel, logFile string) {
-	level := log.DEBUG
-	switch loggingLevel {
-	case "info":
-		level = log.INFO
-	case "warn":
-		level = log.WARNING
-	case "error":
-		level = log.ERROR
-	}
-
-	log.Global = make(map[string]*log.Filter)
-
-	facility, ok := GetSysLogFacility(logFile)
-	if ok {
-		flw, err := NewSysLogWriter(facility)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "NewSysLogWriter: %s\n", err.Error())
-			return
-		}
-		log.AddFilter("syslog", level, flw)
-	} else if logFile == "stdout" {
-		flw := log.NewConsoleLogWriter()
-		log.AddFilter("stdout", level, flw)
-	} else {
-		logFileDir := filepath.Dir(logFile)
-		os.MkdirAll(logFileDir, 0744)
-
-		flw := log.NewFileLogWriter(logFile, false)
-		log.AddFilter("file", level, flw)
-
-		flw.SetFormat("[%D %T] [%L] (%S) %M")
-		flw.SetRotate(true)
-		flw.SetRotateSize(0)
-		flw.SetRotateLines(0)
-		flw.SetRotateDaily(true)
-	}
-
-	log.Info("Redirectoring logging to %s", logFile)
-}
-
 func main() {
-	fileName := flag.String("config", "config.sample.toml", "Config file")
-	wantsVersion := flag.Bool("v", false, "Get version number")
-	resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
-	hostname := flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
-	raftPort := flag.Int("raft-port", 0, "Override the raft port, the `raft.port` config option will be overridden")
-	protobufPort := flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
-	pidFile := flag.String("pidfile", "", "the pid file")
-	repairLeveldb := flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
-	stdout := flag.Bool("stdout", false, "Log to stdout overriding the configuration")
-	syslog := flag.String("syslog", "", "Log to syslog facility overriding the configuration")
-
+	var (
+		fileName          = flag.String("config", "config.sample.toml", "Config file")
+		wantsVersion      = flag.Bool("v", false, "Get version number")
+		resetRootPassword = flag.Bool("reset-root", false, "Reset root password")
+		hostname          = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
+		raftPort          = flag.Int("raft-port", 0, "Override the raft port, the `raft.port` config option will be overridden")
+		protobufPort      = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
+		pidFile           = flag.String("pidfile", "", "the pid file")
+		repairLeveldb     = flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
+		stdout            = flag.Bool("stdout", false, "Log to stdout overriding the configuration")
+		syslog            = flag.String("syslog", "", "Log to syslog facility overriding the configuration")
+	)
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
@@ -180,4 +140,49 @@ func main() {
 	if err != nil {
 		log.Error("ListenAndServe failed: ", err)
 	}
+}
+
+func setupLogging(loggingLevel, logFile string) {
+	level := log.DEBUG
+	switch loggingLevel {
+	case "info":
+		level = log.INFO
+	case "warn":
+		level = log.WARNING
+	case "error":
+		level = log.ERROR
+	}
+
+	log.Global = make(map[string]*log.Filter)
+
+	facility, ok := GetSysLogFacility(logFile)
+	if ok {
+		flw, err := NewSysLogWriter(facility)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "NewSysLogWriter: %s\n", err.Error())
+			return
+		}
+		log.AddFilter("syslog", level, flw)
+	} else if logFile == "stdout" {
+		flw := log.NewConsoleLogWriter()
+		log.AddFilter("stdout", level, flw)
+	} else {
+		logFileDir := filepath.Dir(logFile)
+		os.MkdirAll(logFileDir, 0744)
+
+		flw := log.NewFileLogWriter(logFile, false)
+		log.AddFilter("file", level, flw)
+
+		flw.SetFormat("[%D %T] [%L] (%S) %M")
+		flw.SetRotate(true)
+		flw.SetRotateSize(0)
+		flw.SetRotateLines(0)
+		flw.SetRotateDaily(true)
+	}
+
+	log.Info("Redirectoring logging to %s", logFile)
+}
+
+type Stopper interface {
+	Stop()
 }

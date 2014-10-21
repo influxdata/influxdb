@@ -11,12 +11,12 @@ import (
 	log "code.google.com/p/log4go"
 )
 
-func startProfiler(stoppable Stoppable) error {
-	go waitForSignals(stoppable)
+func startProfiler(stopper Stopper) error {
+	go waitForSignals(stopper)
 	return nil
 }
 
-func waitForSignals(stoppable Stoppable) {
+func waitForSignals(stopper Stopper) {
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
 	for {
@@ -24,7 +24,7 @@ func waitForSignals(stoppable Stoppable) {
 		log.Info("Received signal: %s", sig.String())
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
-			stoppable.Stop()
+			stopper.Stop()
 			time.Sleep(time.Second)
 			os.Exit(0)
 		}

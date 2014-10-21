@@ -317,9 +317,9 @@ files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
 sha1 = $(shell sh -c "git rev-list --max-count=1 --abbrev-commit HEAD")
 
 build_version_string:
-	@echo "package main"										 > daemon/version.go
-	@echo "const version = \"$(version)\"" >> daemon/version.go
-	@echo "const gitSha = \"$(sha1)\""     >> daemon/version.go
+	@echo "package main"										 > cmd/influxd/version.go
+	@echo "const version = \"$(version)\"" >> cmd/influxd/version.go
+	@echo "const gitSha = \"$(sha1)\""     >> cmd/influxd/version.go
 
 package_version_string: build_version_string
 	sed -i.bak -e "s/REPLACE_VERSION/$(version)/" scripts/post_install.sh

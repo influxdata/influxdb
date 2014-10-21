@@ -1,9 +1,119 @@
+package main_test
+
+import (
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/influxdb/influxdb/cmd/influxd"
+)
+
+// Ensure that megabyte sizes can be parsed.
+func TestSize_UnmarshalText_MB(t *testing.T) {
+	var s main.Size
+	if err := s.UnmarshalText([]byte("200m")); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if s != 200*(1<<20) {
+		t.Fatalf("unexpected size: %d", s)
+	}
+}
+
+// Ensure that gigabyte sizes can be parsed.
+func TestSize_UnmarshalText_GB(t *testing.T) {
+	if typ := reflect.TypeOf(0); typ.Size() != 8 {
+		t.Skip("large gigabyte parsing on 64-bit arch only")
+	}
+
+	var s main.Size
+	if err := s.UnmarshalText([]byte("10g")); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if s != 10*(1<<30) {
+		t.Fatalf("unexpected size: %d", s)
+	}
+}
+
+// Ensure that a TOML configuration file can be parsed into a Config.
+func TestParseConfig(t *testing.T) {
+	c, err := main.ParseConfig(testFile)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if c.Hostname != "myserver.com" {
+		t.Fatalf("hostname mismatch: %v", c.Hostname)
+	}
+
+	if c.Logging.File != "influxdb.log" {
+		t.Fatalf("logging file mismatch: %v", c.Logging.File)
+	} else if c.Logging.Level != "info" {
+		t.Fatalf("logging level mismatch: %v", c.Logging.Level)
+	}
+
+	if c.Admin.Port != 8083 {
+		t.Fatalf("admin port mismatch: %v", c.Admin.Port)
+	} else if c.Admin.Assets != "./admin" {
+		t.Fatalf("admin assets mismatch: %v", c.Admin.Assets)
+	}
+
+	if c.HTTPAPI.Port != 0 {
+		t.Fatalf("http api port mismatch: %v", c.HTTPAPI.Port)
+	} else if c.HTTPAPI.SSLPort != 8087 {
+		t.Fatalf("http api ssl port mismatch: %v", c.HTTPAPI.SSLPort)
+	} else if c.HTTPAPI.SSLCertPath != "../cert.pem" {
+		t.Fatalf("http api ssl cert path mismatch: %v", c.HTTPAPI.SSLCertPath)
+	}
+
+	if c.InputPlugins.Graphite.Enabled != false {
+		t.Fatalf("graphite enabled mismatch: %v", c.InputPlugins.Graphite.Enabled)
+	} else if c.InputPlugins.Graphite.Port != 2003 {
+		t.Fatalf("graphite port mismatch: %v", c.InputPlugins.Graphite.Enabled)
+	} else if c.InputPlugins.Graphite.Database != "" {
+		t.Fatalf("graphite database mismatch: %v", c.InputPlugins.Graphite.Database)
+	}
+
+	if c.Raft.Port != 8090 {
+		t.Fatalf("raft port mismatch: %v", c.Raft.Port)
+	} else if c.Raft.Dir != "/tmp/influxdb/development/raft" {
+		t.Fatalf("raft dir mismatch: %v", c.Raft.Dir)
+	} else if time.Duration(c.Raft.Timeout) != time.Second {
+		t.Fatalf("raft duration mismatch: %v", c.Raft.Timeout)
+	}
+
+	if c.Storage.Dir != "/tmp/influxdb/development/db" {
+		t.Fatalf("data dir mismatch: %v", c.Storage.Dir)
+	}
+
+	if c.Cluster.ProtobufPort != 8099 {
+		t.Fatalf("protobuf port mismatch: %v", c.Cluster.ProtobufPort)
+	} else if time.Duration(c.Cluster.ProtobufTimeout) != 2*time.Second {
+		t.Fatalf("protobuf timeout mismatch: %v", c.Cluster.ProtobufTimeout)
+	} else if time.Duration(c.Cluster.ProtobufHeartbeatInterval) != 200*time.Millisecond {
+		t.Fatalf("protobuf heartbeat interval mismatch: %v", c.Cluster.ProtobufHeartbeatInterval)
+	} else if time.Duration(c.Cluster.MinBackoff) != 100*time.Millisecond {
+		t.Fatalf("min backoff mismatch: %v", c.Cluster.MinBackoff)
+	} else if time.Duration(c.Cluster.MaxBackoff) != 1*time.Second {
+		t.Fatalf("max backoff mismatch: %v", c.Cluster.MaxBackoff)
+	} else if !reflect.DeepEqual(c.Cluster.SeedServers, []string{"hosta:8090", "hostb:8090"}) {
+		t.Fatalf("seed servers mismatch: %+v", c.Cluster.SeedServers)
+	} else if c.Cluster.MaxResponseBufferSize != 5 {
+		t.Fatalf("max response buffer size mismatch: %v", c.Cluster.MaxResponseBufferSize)
+	}
+
+	// TODO: UDP Servers testing.
+	/*
+		c.Assert(config.UdpServers, HasLen, 1)
+		c.Assert(config.UdpServers[0].Enabled, Equals, true)
+		c.Assert(config.UdpServers[0].Port, Equals, 4444)
+		c.Assert(config.UdpServers[0].Database, Equals, "test")
+	*/
+}
+
+// Testing configuration file.
+const testFile = `
 # Welcome to the InfluxDB configuration file.
 
 # If hostname (on the OS) doesn't return a name that can be resolved by the other
 # systems in the cluster, you'll have to set the hostname to an IP or something
 # that can be resolved here.
-# hostname = ""
+hostname = "myserver.com"
 
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
@@ -104,6 +214,7 @@ concurrent-shard-query-limit = 10
 # the process
 # max-open-files = 40
 lru-cache-size = "200m"
+
 # The default setting on this is 0, which means unlimited. Set this to
 # something if you want to limit the max number of open
 # files. max-open-files is per shard so this * that will be max.
@@ -112,17 +223,4 @@ lru-cache-size = "200m"
 # The default setting is 100. This option tells how many points will be fetched from LevelDb before
 # they get flushed into backend.
 point-batch-size = 50
-
-[wal]
-
-dir   = "/tmp/influxdb/development/wal"
-# flush-after = 0 # the number of writes after which wal will be flushed, 0 for flushing on every write
-# bookmark-after = 0 # the number of writes after which a bookmark will be created
-
-# the number of writes after which an index entry is created pointing
-# to the offset of the first request, default to 1k
-# index-after = 0
-
-# the number of requests per one log file, if new requests came in a
-# new log file will be created
-# requests-per-logfile = 10000
+`
