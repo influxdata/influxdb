@@ -237,7 +237,6 @@ build: build_binary build_benchmark
 clean:
 	git status --ignored | grep src\/ | grep -v Makefile | xargs rm -rf
 	rm -rf ${TMPDIR}/influxdb
-	rm -rf ${TMPDIR}/admin.influxdb
 	rm -rf $(snappy_dir)
 	rm -rf $(leveldb_dir)
 	rm -rf $(hyperleveldb_dir)
@@ -278,7 +277,6 @@ integration_test: dependencies build_binary
 	$(GO) test github.com/influxdb/influxdb/integration $(GOTEST_OPTS)
 
 package_version=$(subst -,_,$(version))
-admin_dir = ${TMPDIR}/admin.influxdb
 
 source_package = packages/influxdb-$(version).src.tar.gz
 binary_package = packages/influxdb-$(version).$(arch).tar.gz
@@ -307,11 +305,6 @@ build_version_string:
 package_version_string: build_version_string
 	sed -i.bak -e "s/REPLACE_VERSION/$(version)/" scripts/post_install.sh
 
-$(admin_dir)/build:
-	rm -rf $(admin_dir)
-	git clone https://github.com/influxdb/influxdb-admin.git $(admin_dir)
-	( rvm use 1.9.3@influxdb --create && cd $(admin_dir) && bundle install && middleman build )
-
 $(rpm_package): $(binary_package)
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
@@ -328,7 +321,7 @@ $(debian_package): $(binary_package)
 
 $(source_package): dependencies
 	rm -f influxdb
-	git ls-files --others | egrep -v 'admin-ui|version.go' > ${TMPDIR}/influxdb.ignored
+	git ls-files --others | egrep -v 'version.go' > ${TMPDIR}/influxdb.ignored
 	echo "pkg/*" >> ${TMPDIR}/influxdb.ignored
 	echo "bin/*" >> ${TMPDIR}/influxdb.ignored
 	echo "packages/*" >> ${TMPDIR}/influxdb.ignored
@@ -338,21 +331,16 @@ $(source_package): dependencies
 	mkdir -p ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/
 	cp -R $(shell pwd) ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/
 	GOPATH=${TMPDIR}/influxdb.gopath $(MAKE) -C ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb build
-	cp -R $(admin_dir)/build admin-ui
 	tar -hcvzf $(source_package) -C ${TMPDIR}/influxdb.gopath -X ${TMPDIR}/influxdb.ignored .
-	rm -rf admin-ui
 
-$(binary_package): $(admin_dir)/build build packages
+$(binary_package): build packages
 	rm -rf build
 	mkdir build
 	mv influxdb build/
 	mv benchmark-tool build/influxdb-benchmark
 	cp tools/benchmark/benchmark_config.sample.toml build/benchmark_config.toml
-	mkdir build/admin
-	cp -R $(admin_dir)/build/* build/admin/
 	cp -R scripts/ build/
 	cp config.sample.toml build/config.toml
-	sed -i 's/.\/admin/\/opt\/influxdb\/current\/admin/g' build/config.toml
 	sed -i 's/influxdb.log/\/opt\/influxdb\/shared\/log.txt/g' build/config.toml
 	sed -i 's:${TMPDIR}/influxdb/development/db:/opt/influxdb/shared/data/db:g' build/config.toml
 	sed -i 's:${TMPDIR}/influxdb/development/raft:/opt/influxdb/shared/data/raft:g' build/config.toml
