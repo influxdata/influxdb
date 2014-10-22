@@ -1,18 +1,3 @@
-## v0.9.0 [unreleased]
-
-### Bugfixes
-
-- [Issue #1007](https://github.com/influxdb/influxdb/issues/1007). Return the
-  right content type in the response when compression is enabled
-- [Issue #1004](https://github.com/influxdb/influxdb/issues/1004). Don't throw an
-   exception when querying for non existent data
-- [Issue #722](https://github.com/influxdb/influxdb/issues/722). Add
-  an install target to the Makefile
-- [Issue #916](https://github.com/influxdb/influxdb/issues/916). Set
-  ulimit in the init script with a way to override it in /etc/default/influxdb
-- [Issue #972](https://github.com/influxdb/influxdb/issues/972). Don't
-  assign duplicate server ids
-
 ## v0.8.4 [2014-10-21]
 
 ### Bugfixes
@@ -42,9 +27,13 @@
   for queries with group by time() and fill(), will take the difference
   between the first value in the bucket and the first value of the next
   bucket.
+- [Issue #972](https://github.com/influxdb/influxdb/issues/972). Don't
+  assign duplicate server ids
 
 ### Features
 
+- [Issue #722](https://github.com/influxdb/influxdb/issues/722). Add
+  an install target to the Makefile
 - [Issue #1032](https://github.com/influxdb/influxdb/issues/1032). Include
   the admin ui static assets in the binary
 - [Issue #1019](https://github.com/influxdb/influxdb/issues/1019). Upgrade
