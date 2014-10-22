@@ -44,7 +44,6 @@ func (self *QueryParserSuite) TestParseMergeGetString(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(qs, HasLen, 1)
 	RewriteMergeQuery(qs[0].SelectQuery, f)
-	fmt.Printf("Parsing %s\n", qs[0].GetQueryStringWithTimeCondition())
 	actualQs, err := ParseQuery(qs[0].GetQueryStringWithTimeCondition())
 	c.Assert(err, IsNil)
 	c.Assert(actualQs, HasLen, 1)

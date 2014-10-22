@@ -22,7 +22,7 @@ func RewriteMergeQuery(query *SelectQuery, rm RegexMatcher) {
 	f.Regex = nil
 	for _, s := range series {
 		f.Names = append(f.Names, &TableName{
-			Name: &Value{Name: s, Type: ValueTableName},
+			Name: &Value{Name: s, Type: ValueSimpleName},
 		})
 	}
 }
