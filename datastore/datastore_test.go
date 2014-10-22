@@ -1,7 +1,6 @@
 package datastore
 
 import (
-	// . "checkers"
 	// "common"
 	// "encoding/json"
 	// "fmt"

@@ -79,11 +79,6 @@ type ClusterConfiguration struct {
 	databaseShardSpaces map[string][]*ShardSpace
 }
 
-type ContinuousQuery struct {
-	Id    uint32
-	Query string
-}
-
 type Database struct {
 	Name string `json:"name"`
 }
@@ -1140,77 +1135,6 @@ func (self *ClusterConfiguration) DropSeries(database, series string) error {
 		}
 	}()
 	return nil
-}
-
-func (self *ClusterConfiguration) RecoverFromWAL() error {
-	writeBuffer := NewWriteBuffer("local", self.shardStore, self.wal, self.LocalServer.Id, self.config.LocalStoreWriteBufferSize)
-	self.writeBuffers = append(self.writeBuffers, writeBuffer)
-	self.shardStore.SetWriteBuffer(writeBuffer)
-	var waitForAll sync.WaitGroup
-	for _, _server := range self.servers {
-		server := _server
-		waitForAll.Add(1)
-		if server.RaftName == self.LocalRaftName {
-			self.LocalServer = server
-			go func(serverId uint32) {
-				log.Info("Recovering local server")
-				self.recover(serverId, self.shardStore)
-				log.Info("Recovered local server")
-				waitForAll.Done()
-			}(server.Id)
-		} else {
-			go func(serverId uint32) {
-				if server.connection == nil {
-					server.connection = self.connectionCreator(server.ProtobufConnectionString)
-					server.Connect()
-				}
-				log.Info("Recovering remote server %d", serverId)
-				self.recover(serverId, server)
-				log.Info("Recovered remote server %d", serverId)
-				waitForAll.Done()
-			}(server.Id)
-		}
-	}
-	log.Info("Waiting for servers to recover")
-	waitForAll.Wait()
-	return nil
-}
-
-func (self *ClusterConfiguration) recover(serverId uint32, writer Writer) error {
-	shardIds := self.shardIdsForServerId(serverId)
-	if len(shardIds) == 0 {
-		log.Info("No shards to recover for %d", serverId)
-		return nil
-	}
-
-	log.Debug("replaying wal for server %d and shardIds %#v", serverId, shardIds)
-	return self.wal.RecoverServerFromLastCommit(serverId, shardIds, func(request *protocol.Request, shardId uint32) error {
-		if request == nil {
-			log.Error("Error on recover, the wal yielded a nil request")
-			return nil
-		}
-		requestNumber := request.GetRequestNumber()
-		log.Debug("Sending request %s for shard %d to server %d", request.GetDescription(), shardId, serverId)
-		err := writer.Write(request)
-		if err != nil {
-			return err
-		}
-		log.Debug("Finished sending request %d to server %d", request.GetRequestNumber(), serverId)
-		return self.wal.Commit(requestNumber, serverId)
-	})
-}
-
-func (self *ClusterConfiguration) shardIdsForServerId(serverId uint32) []uint32 {
-	shardIds := make([]uint32, 0)
-	for _, shard := range self.shardsById {
-		for _, id := range shard.serverIds {
-			if id == serverId {
-				shardIds = append(shardIds, shard.Id())
-				break
-			}
-		}
-	}
-	return shardIds
 }
 
 func (self *ClusterConfiguration) updateOrRemoveShard(shardId uint32, serverIds []uint32) {

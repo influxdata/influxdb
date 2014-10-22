@@ -1,29 +1,20 @@
-package cluster
+package influxdb_test
 
 import (
 	"testing"
 
-	"github.com/influxdb/influxdb/common"
-	. "launchpad.net/gocheck"
+	"github.com/influxdb/influxdb"
 )
 
-type UserSuite struct{}
-
-var _ = Suite(&UserSuite{})
-
-var root common.User
-
-// Hook up gocheck into the gotest runner.
-func Test(t *testing.T) {
-	TestingT(t)
+// Ensure the user's password can be changed.
+func TestUser_ChangePassword(t *testing.T) {
+	u := &ClusterAdmin{CommonUser{"root", "", false, "root"}}
+	if err := u.ChangePassword("password"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
 }
 
-func (self *UserSuite) SetUpSuite(c *C) {
-	user := &ClusterAdmin{CommonUser{"root", "", false, "root"}}
-	c.Assert(user.ChangePassword("password"), IsNil)
-	root = user
-}
-
+/*
 func (self *UserSuite) TestProperties(c *C) {
 	u := ClusterAdmin{CommonUser{Name: "root"}}
 	c.Assert(u.IsClusterAdmin(), Equals, true)
@@ -45,3 +36,4 @@ func (self *UserSuite) TestProperties(c *C) {
 	c.Assert(dbUser.isValidPwd("password"), Equals, true)
 	c.Assert(dbUser.isValidPwd("password1"), Equals, false)
 }
+*/

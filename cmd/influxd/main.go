@@ -12,16 +12,27 @@ import (
 	"time"
 
 	log "code.google.com/p/log4go"
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"
-	"github.com/influxdb/influxdb/server"
 	"github.com/jmhodges/levigo"
 )
+
+const logo = `
++---------------------------------------------+
+|  _____        __ _            _____  ____   |
+| |_   _|      / _| |          |  __ \|  _ \  |
+|   | |  _ __ | |_| |_   ___  _| |  | | |_) | |
+|   | | | '_ \|  _| | | | \ \/ / |  | |  _ <  |
+|  _| |_| | | | | | | |_| |>  <| |__| | |_) | |
+| |_____|_| |_|_| |_|\__,_/_/\_\_____/|____/  |
++---------------------------------------------+
+`
 
 func main() {
 	var (
 		fileName          = flag.String("config", "config.sample.toml", "Config file")
-		wantsVersion      = flag.Bool("v", false, "Get version number")
+		showVersion       = flag.Bool("v", false, "Get version number")
 		resetRootPassword = flag.Bool("reset-root", false, "Reset root password")
 		hostname          = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
 		raftPort          = flag.Int("raft-port", 0, "Override the raft port, the `raft.port` config option will be overridden")
@@ -34,53 +45,49 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	v := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
-	if wantsVersion != nil && *wantsVersion {
+	c := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
+	if *showVersion {
 		fmt.Println(v)
 		return
 	}
-	config, err := configuration.LoadConfiguration(*fileName)
 
+	// Parse configuration.
+	config, err := ParseConfigFile(*fileName)
 	if err != nil {
 		return
 	}
-
-	// override the hostname if it was specified on the command line
-	if hostname != nil && *hostname != "" {
-		config.Hostname = *hostname
-	}
-
-	if raftPort != nil && *raftPort != 0 {
-		config.RaftServerPort = *raftPort
-	}
-
-	if protobufPort != nil && *protobufPort != 0 {
-		config.ProtobufPort = *protobufPort
-	}
-
 	config.Version = v
 	config.InfluxDBVersion = version
 
-	if *stdout {
-		config.LogFile = "stdout"
+	// Override config properties.
+	if *hostname != "" {
+		config.Hostname = *hostname
 	}
-
+	if *raftPort != 0 {
+		config.RaftServerPort = *raftPort
+	}
+	if *protobufPort != 0 {
+		config.ProtobufPort = *protobufPort
+	}
 	if *syslog != "" {
-		config.LogFile = *syslog
+		config.Logging.File = *syslog
+	} else if *stdout {
+		config.Logging.File = "stdout"
 	}
+	setupLogging(config.Logging.Level, config.Logging.File)
 
-	setupLogging(config.LogLevel, config.LogFile)
-
+	// Repair LevelDB.
 	if *repairLeveldb {
 		log.Info("Repairing leveldb")
-		files, err := ioutil.ReadDir(config.DataDir)
+		files, err := ioutil.ReadDir(config.Storage.Dir)
 		if err != nil {
 			panic(err)
 		}
+
 		o := levigo.NewOptions()
 		defer o.Close()
 		for _, f := range files {
-			p := path.Join(config.DataDir, f.Name())
+			p := path.Join(config.Storage.Dir, f.Name())
 			log.Info("Repairing %s", p)
 			if err := levigo.RepairDatabase(p, o); err != nil {
 				panic(err)
@@ -88,11 +95,20 @@ func main() {
 		}
 	}
 
-	if pidFile != nil && *pidFile != "" {
+	// Write pid file.
+	if *pidFile != "" {
 		pid := strconv.Itoa(os.Getpid())
 		if err := ioutil.WriteFile(*pidFile, []byte(pid), 0644); err != nil {
 			panic(err)
 		}
+	}
+
+	// Initialize directories.
+	if err := os.MkdirAll(config.Raft.Dir, 0744); err != nil {
+		panic(err)
+	}
+	if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
+		panic(err)
 	}
 
 	// TODO(benbjohnson): Start admin server.
@@ -102,27 +118,16 @@ func main() {
 	} else {
 		log.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
 	}
-	fmt.Printf(`
-+---------------------------------------------+
-|  _____        __ _            _____  ____   |
-| |_   _|      / _| |          |  __ \|  _ \  |
-|   | |  _ __ | |_| |_   ___  _| |  | | |_) | |
-|   | | | '_ \|  _| | | | \ \/ / |  | |  _ <  |
-|  _| |_| | | | | | | |_| |>  <| |__| | |_) | |
-| |_____|_| |_|_| |_|\__,_/_/\_\_____/|____/  |
-+---------------------------------------------+
+	fmt.Printf(logo)
 
-`)
-	os.MkdirAll(config.RaftDir, 0744)
-	os.MkdirAll(config.DataDir, 0744)
-	server, err := server.NewServer(config)
+	// Start server.
+	s, err := influxdb.NewServer(config)
 	if err != nil {
 		// sleep for the log to flush
 		time.Sleep(time.Second)
 		panic(err)
 	}
-
-	if err := startProfiler(server); err != nil {
+	if err := startProfiler(s); err != nil {
 		panic(err)
 	}
 
@@ -131,15 +136,13 @@ func main() {
 		// This is ghetto as hell, but it'll work for now.
 		go func() {
 			time.Sleep(2 * time.Second) // wait for the raft server to join the cluster
-
-			log.Warn("Resetting root's password to %s", coordinator.DEFAULT_ROOT_PWD)
+			log.Warn("Resetting root's password to %s", influxdb.DefaultRootPassword)
 			if err := server.RaftServer.CreateRootUser(); err != nil {
 				panic(err)
 			}
 		}()
 	}
-	err = server.ListenAndServe()
-	if err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		log.Error("ListenAndServe failed: ", err)
 	}
 }

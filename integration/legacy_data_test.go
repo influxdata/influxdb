@@ -9,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	. "github.com/influxdb/influxdb/checkers"
 	influxdb "github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/common"
 	. "github.com/influxdb/influxdb/integration/helpers"

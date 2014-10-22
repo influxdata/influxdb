@@ -24,9 +24,7 @@ type Client struct {
 	done   chan chan struct{} // disconnection notification
 
 	// Channel streams messages from the broker.
-	// Messages can be duplicated so it is important to check the index
-	// of the incoming message index to make sure it has not been processed.
-	C chan *Message
+	c chan *Message
 
 	// The amount of time to wait before reconnecting to a broker stream.
 	ReconnectTimeout time.Duration
@@ -42,6 +40,11 @@ func NewClient(name string) *Client {
 
 // Name returns the replica name that the client was opened with.
 func (c *Client) Name() string { return c.name }
+
+// C returns streaming channel.
+// Messages can be duplicated so it is important to check the index
+// of the incoming message index to make sure it has not been processed.
+func (c *Client) C() <-chan *Message { return c.c }
 
 // URLs returns a list of broker URLs to connect to.
 func (c *Client) URLs() []*url.URL {
@@ -67,7 +70,7 @@ func (c *Client) Open(urls []*url.URL) error {
 	c.urls = urls
 
 	// Create a channel for streaming messages.
-	c.C = make(chan *Message, 0)
+	c.c = make(chan *Message, 0)
 
 	// Open the streamer.
 	c.done = make(chan chan struct{})
@@ -96,8 +99,8 @@ func (c *Client) Close() error {
 	c.done = nil
 
 	// Close message stream.
-	close(c.C)
-	c.C = nil
+	close(c.c)
+	c.c = nil
 
 	// Unset open flag.
 	c.opened = false
@@ -160,7 +163,7 @@ func (c *Client) streamFromURL(u *url.URL, done chan chan struct{}) error {
 			}
 
 			// Write message to streaming channel.
-			c.C <- m
+			c.c <- m
 		}
 	}()
 
@@ -172,7 +175,7 @@ func (c *Client) streamFromURL(u *url.URL, done chan chan struct{}) error {
 
 		// Clear message buffer.
 		select {
-		case <-c.C:
+		case <-c.c:
 		default:
 		}
 

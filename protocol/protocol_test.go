@@ -2,9 +2,10 @@ package protocol
 
 import (
 	"bytes"
-	. "launchpad.net/gocheck"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the gotest runner.

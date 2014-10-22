@@ -30,6 +30,8 @@ type Config struct {
 	Hostname          string `toml:"hostname"`
 	BindAddress       string `toml:"bind-address"`
 	ReportingDisabled bool   `toml:"reporting-disabled"`
+	Version           string `toml:"-"`
+	InfluxDBVersion   string `toml:"-"`
 
 	Admin struct {
 		Port   int    `toml:"port"`

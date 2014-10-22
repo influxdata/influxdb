@@ -1,13 +1,16 @@
-package http
+package influxdb
 
+/*
 import (
 	"bytes"
 	"compress/gzip"
+	"compress/zlib"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	libhttp "net/http"
@@ -27,7 +30,7 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
-type HttpServer struct {
+type HTTPServer struct {
 	conn           net.Listener
 	sslConn        net.Listener
 	httpPort       string
@@ -44,8 +47,8 @@ type HttpServer struct {
 	p              *pat.PatternServeMux
 }
 
-func NewHttpServer(config *configuration.Configuration, theCoordinator api.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HttpServer {
-	self := &HttpServer{}
+func NewHTTPServer(config *configuration.Configuration, theCoordinator api.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HTTPServer {
+	self := &HTTPServer{}
 	self.httpPort = config.ApiHttpPortString()
 	self.adminAssetsDir = config.AdminAssetsDir
 	self.coordinator = theCoordinator
@@ -68,7 +71,7 @@ func isPretty(r *libhttp.Request) bool {
 	return r.URL.Query().Get("pretty") == "true"
 }
 
-func (self *HttpServer) EnableSsl(addr, certPath string) {
+func (self *HTTPServer) EnableSsl(addr, certPath string) {
 	if addr == "" || certPath == "" {
 		// don't enable ssl unless both the address and the certificate
 		// path aren't empty
@@ -81,7 +84,7 @@ func (self *HttpServer) EnableSsl(addr, certPath string) {
 	return
 }
 
-func (self *HttpServer) ListenAndServe() {
+func (self *HTTPServer) ListenAndServe() {
 	var err error
 	if self.httpPort != "" {
 		self.conn, err = net.Listen("tcp", self.httpPort)
@@ -92,7 +95,7 @@ func (self *HttpServer) ListenAndServe() {
 	self.Serve(self.conn)
 }
 
-func (self *HttpServer) registerEndpoint(method string, pattern string, f libhttp.HandlerFunc) {
+func (self *HTTPServer) registerEndpoint(method string, pattern string, f libhttp.HandlerFunc) {
 	version := self.clusterConfig.GetLocalConfiguration().Version
 	switch method {
 	case "get":
@@ -105,7 +108,7 @@ func (self *HttpServer) registerEndpoint(method string, pattern string, f libhtt
 	self.p.Options(pattern, HeaderHandler(self.sendCrossOriginHeader, version))
 }
 
-func (self *HttpServer) Serve(listener net.Listener) {
+func (self *HTTPServer) Serve(listener net.Listener) {
 	defer func() { self.shutdown <- true }()
 
 	self.conn = listener
@@ -173,7 +176,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.serveListener(listener, self.p)
 }
 
-func (self *HttpServer) startSsl(p *pat.PatternServeMux) {
+func (self *HTTPServer) startSsl(p *pat.PatternServeMux) {
 	defer func() { self.shutdown <- true }()
 
 	// return if the ssl port or cert weren't set
@@ -198,14 +201,14 @@ func (self *HttpServer) startSsl(p *pat.PatternServeMux) {
 	self.serveListener(self.sslConn, p)
 }
 
-func (self *HttpServer) serveListener(listener net.Listener, p *pat.PatternServeMux) {
+func (self *HTTPServer) serveListener(listener net.Listener, p *pat.PatternServeMux) {
 	srv := &libhttp.Server{Handler: p, ReadTimeout: self.readTimeout}
 	if err := srv.Serve(listener); err != nil && !strings.Contains(err.Error(), "closed network") {
 		panic(err)
 	}
 }
 
-func (self *HttpServer) Close() {
+func (self *HTTPServer) Close() {
 	if self.conn != nil {
 		log.Info("Closing http server")
 		self.conn.Close()
@@ -296,18 +299,18 @@ func TimePrecisionFromString(s string) (TimePrecision, error) {
 	return 0, fmt.Errorf("Unknown time precision %s", s)
 }
 
-func (self *HttpServer) forceRaftCompaction(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) forceRaftCompaction(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(user User) (int, interface{}) {
 		self.coordinator.ForceCompaction(user)
 		return libhttp.StatusOK, "OK"
 	})
 }
 
-func (self *HttpServer) sendCrossOriginHeader(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) sendCrossOriginHeader(w libhttp.ResponseWriter, r *libhttp.Request) {
 	w.WriteHeader(libhttp.StatusOK)
 }
 
-func (self *HttpServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
 	query := r.URL.Query().Get("q")
 	db := r.URL.Query().Get(":db")
 	pretty := isPretty(r)
@@ -352,7 +355,7 @@ func errorToStatusCode(err error) int {
 	}
 }
 
-func (self *HttpServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request) {
 	db := r.URL.Query().Get(":db")
 	precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
 	if err != nil {
@@ -415,7 +418,7 @@ type createDatabaseRequest struct {
 	Name string `json:"name"`
 }
 
-func (self *HttpServer) listDatabases(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) listDatabases(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		databases, err := self.coordinator.ListDatabases(u)
 		if err != nil {
@@ -425,7 +428,7 @@ func (self *HttpServer) listDatabases(w libhttp.ResponseWriter, r *libhttp.Reque
 	})
 }
 
-func (self *HttpServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(user User) (int, interface{}) {
 		createRequest := &createDatabaseRequest{}
 		decoder := json.NewDecoder(r.Body)
@@ -452,7 +455,7 @@ func isValidDbName(name string) bool {
 	return strings.TrimSpace(name) != ""
 }
 
-func (self *HttpServer) dropDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) dropDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(user User) (int, interface{}) {
 		name := r.URL.Query().Get(":name")
 		err := self.coordinator.DropDatabase(user, name)
@@ -463,7 +466,7 @@ func (self *HttpServer) dropDatabase(w libhttp.ResponseWriter, r *libhttp.Reques
 	})
 }
 
-func (self *HttpServer) dropSeries(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) dropSeries(w libhttp.ResponseWriter, r *libhttp.Request) {
 	db := r.URL.Query().Get(":db")
 	series := r.URL.Query().Get(":series")
 
@@ -568,7 +571,7 @@ func getUsernameAndPassword(r *libhttp.Request) (string, string, error) {
 	return fields[0], fields[1], nil
 }
 
-func (self *HttpServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(User) (int, interface{})) {
+func (self *HTTPServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(User) (int, interface{})) {
 	username, password, err := getUsernameAndPassword(r)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
@@ -639,7 +642,7 @@ type NewContinuousQuery struct {
 	Query string `json:"query"`
 }
 
-func (self *HttpServer) listClusterAdmins(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) listClusterAdmins(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		names, err := self.userManager.ListClusterAdmins(u)
 		if err != nil {
@@ -653,13 +656,13 @@ func (self *HttpServer) listClusterAdmins(w libhttp.ResponseWriter, r *libhttp.R
 	})
 }
 
-func (self *HttpServer) authenticateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) authenticateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		return libhttp.StatusOK, nil
 	})
 }
 
-func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
 	newUser := &NewUser{}
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(newUser)
@@ -679,7 +682,7 @@ func (self *HttpServer) createClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 	})
 }
 
-func (self *HttpServer) deleteClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) deleteClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
 	newUser := r.URL.Query().Get(":user")
 
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
@@ -690,7 +693,7 @@ func (self *HttpServer) deleteClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 	})
 }
 
-func (self *HttpServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request) {
 	updateClusterAdminUser := &UpdateClusterAdminUser{}
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(updateClusterAdminUser)
@@ -712,7 +715,7 @@ func (self *HttpServer) updateClusterAdmin(w libhttp.ResponseWriter, r *libhttp.
 
 // // db users management interface
 
-func (self *HttpServer) authenticateDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) authenticateDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
 	code, body := self.tryAsDbUser(w, r, func(u User) (int, interface{}) {
 		return libhttp.StatusOK, nil
 	})
@@ -722,7 +725,7 @@ func (self *HttpServer) authenticateDbUser(w libhttp.ResponseWriter, r *libhttp.
 	}
 }
 
-func (self *HttpServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request, yield func(User) (int, interface{})) (int, []byte) {
+func (self *HTTPServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request, yield func(User) (int, interface{})) (int, []byte) {
 	username, password, err := getUsernameAndPassword(r)
 	if err != nil {
 		return libhttp.StatusBadRequest, []byte(err.Error())
@@ -749,7 +752,7 @@ func (self *HttpServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request
 	return statusCode, v
 }
 
-func (self *HttpServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(User) (int, interface{})) {
+func (self *HTTPServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *libhttp.Request, yield func(User) (int, interface{})) {
 	log.Debug("Trying to auth as a db user")
 	statusCode, body := self.tryAsDbUser(w, r, yield)
 	if statusCode == libhttp.StatusUnauthorized {
@@ -774,7 +777,7 @@ func (self *HttpServer) tryAsDbUserAndClusterAdmin(w libhttp.ResponseWriter, r *
 	return
 }
 
-func (self *HttpServer) listDbUsers(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) listDbUsers(w libhttp.ResponseWriter, r *libhttp.Request) {
 	db := r.URL.Query().Get(":db")
 
 	self.tryAsDbUserAndClusterAdmin(w, r, func(u User) (int, interface{}) {
@@ -791,7 +794,7 @@ func (self *HttpServer) listDbUsers(w libhttp.ResponseWriter, r *libhttp.Request
 	})
 }
 
-func (self *HttpServer) showDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) showDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
 	db := r.URL.Query().Get(":db")
 	username := r.URL.Query().Get(":user")
 
@@ -807,7 +810,7 @@ func (self *HttpServer) showDbUser(w libhttp.ResponseWriter, r *libhttp.Request)
 	})
 }
 
-func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
 	newUser := &NewUser{}
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(newUser)
@@ -845,7 +848,7 @@ func (self *HttpServer) createDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	})
 }
 
-func (self *HttpServer) deleteDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) deleteDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
 	newUser := r.URL.Query().Get(":user")
 	db := r.URL.Query().Get(":db")
 
@@ -857,7 +860,7 @@ func (self *HttpServer) deleteDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	})
 }
 
-func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Request) {
 	updateUser := make(map[string]interface{})
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&updateUser)
@@ -907,12 +910,12 @@ func (self *HttpServer) updateDbUser(w libhttp.ResponseWriter, r *libhttp.Reques
 	})
 }
 
-func (self *HttpServer) ping(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) ping(w libhttp.ResponseWriter, r *libhttp.Request) {
 	w.WriteHeader(libhttp.StatusOK)
 	w.Write([]byte("{\"status\":\"ok\"}"))
 }
 
-func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Request) {
 	statusCode, contentType, body := yieldUser(nil, func(u User) (int, interface{}) {
 		entries, err := ioutil.ReadDir(filepath.Join(self.adminAssetsDir, "interfaces"))
 
@@ -936,7 +939,7 @@ func (self *HttpServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Requ
 	}
 }
 
-func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		servers := self.clusterConfig.Servers()
 		serverMaps := make([]map[string]interface{}, len(servers), len(servers))
@@ -960,7 +963,7 @@ func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request
 	})
 }
 
-func (self *HttpServer) removeServers(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) removeServers(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		id, err := strconv.ParseInt(r.URL.Query().Get(":id"), 10, 32)
 		if err != nil {
@@ -979,7 +982,7 @@ func (self *HttpServer) removeServers(w libhttp.ResponseWriter, r *libhttp.Reque
 	})
 }
 
-func (self *HttpServer) dropServerShards(serverId uint32) error {
+func (self *HTTPServer) dropServerShards(serverId uint32) error {
 	shards := self.clusterConfig.GetShards()
 	for _, s := range shards {
 		for _, si := range s.ServerIds() {
@@ -1006,7 +1009,7 @@ type newShardServerIds struct {
 	ServerIds []uint32 `json:"serverIds"`
 }
 
-func (self *HttpServer) createShard(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) createShard(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		newShards := &newShardInfo{}
 		decoder := json.NewDecoder(r.Body)
@@ -1034,7 +1037,7 @@ func (self *HttpServer) createShard(w libhttp.ResponseWriter, r *libhttp.Request
 	})
 }
 
-func (self *HttpServer) getShards(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) getShards(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		shards := self.clusterConfig.GetShards()
 		shardMaps := make([]map[string]interface{}, 0, len(shards))
@@ -1053,7 +1056,7 @@ func (self *HttpServer) getShards(w libhttp.ResponseWriter, r *libhttp.Request) 
 
 // Note: this is meant for testing purposes only and doesn't guarantee
 // data integrity and shouldn't be used in client code.
-func (self *HttpServer) isInSync(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) isInSync(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		if self.clusterConfig.HasUncommitedWrites() {
 			return 500, "false"
@@ -1067,7 +1070,7 @@ func (self *HttpServer) isInSync(w libhttp.ResponseWriter, r *libhttp.Request) {
 	})
 }
 
-func (self *HttpServer) dropShard(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) dropShard(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		id, err := strconv.ParseInt(r.URL.Query().Get(":id"), 10, 64)
 		if err != nil {
@@ -1091,7 +1094,7 @@ func (self *HttpServer) dropShard(w libhttp.ResponseWriter, r *libhttp.Request) 
 	})
 }
 
-func (self *HttpServer) convertShardsToMap(shards []*cluster.ShardData) []interface{} {
+func (self *HTTPServer) convertShardsToMap(shards []*cluster.ShardData) []interface{} {
 	result := make([]interface{}, 0)
 	for _, shard := range shards {
 		s := make(map[string]interface{})
@@ -1104,13 +1107,13 @@ func (self *HttpServer) convertShardsToMap(shards []*cluster.ShardData) []interf
 	return result
 }
 
-func (self *HttpServer) getShardSpaces(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) getShardSpaces(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		return libhttp.StatusOK, self.clusterConfig.GetShardSpaces()
 	})
 }
 
-func (self *HttpServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		space := &cluster.ShardSpace{}
 		decoder := json.NewDecoder(r.Body)
@@ -1131,7 +1134,7 @@ func (self *HttpServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Re
 	})
 }
 
-func (self *HttpServer) dropShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) dropShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		name := r.URL.Query().Get(":name")
 		db := r.URL.Query().Get(":db")
@@ -1147,7 +1150,7 @@ type DatabaseConfig struct {
 	ContinuousQueries []string              `json:"continuousQueries"`
 }
 
-func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		databaseConfig := &DatabaseConfig{}
 		decoder := json.NewDecoder(r.Body)
@@ -1199,7 +1202,7 @@ func (self *HttpServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 	})
 }
 
-func (self *HttpServer) updateShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) updateShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		space := &cluster.ShardSpace{}
 		decoder := json.NewDecoder(r.Body)
@@ -1223,8 +1226,120 @@ func (self *HttpServer) updateShardSpace(w libhttp.ResponseWriter, r *libhttp.Re
 	})
 }
 
-func (self *HttpServer) getClusterConfiguration(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) getClusterConfiguration(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		return libhttp.StatusOK, self.clusterConfig.SerializableConfiguration()
 	})
 }
+
+func HeaderHandler(handler libhttp.HandlerFunc, version string) libhttp.HandlerFunc {
+	return func(rw libhttp.ResponseWriter, req *libhttp.Request) {
+		rw.Header().Add("Access-Control-Allow-Origin", "*")
+		rw.Header().Add("Access-Control-Max-Age", "2592000")
+		rw.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
+		rw.Header().Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+		rw.Header().Add("X-Influxdb-Version", version)
+		handler(rw, req)
+	}
+}
+
+func CompressionHeaderHandler(handler libhttp.HandlerFunc, version string) libhttp.HandlerFunc {
+	return HeaderHandler(CompressionHandler(true, handler), version)
+}
+
+type Flusher interface {
+	Flush() error
+}
+
+type CompressedResponseWriter struct {
+	responseWriter     libhttp.ResponseWriter
+	writer             io.Writer
+	compressionFlusher Flusher
+	responseFlusher    libhttp.Flusher
+}
+
+func NewCompressionResponseWriter(useCompression bool, rw libhttp.ResponseWriter, req *libhttp.Request) *CompressedResponseWriter {
+	responseFlusher, _ := rw.(libhttp.Flusher)
+
+	if req.Header.Get("Accept-Encoding") != "" {
+		encodings := strings.Split(req.Header.Get("Accept-Encoding"), ",")
+
+		for _, val := range encodings {
+			if val == "gzip" {
+				rw.Header().Set("Content-Encoding", "gzip")
+				w, _ := gzip.NewWriterLevel(rw, gzip.BestSpeed)
+				return &CompressedResponseWriter{rw, w, w, responseFlusher}
+			} else if val == "deflate" {
+				rw.Header().Set("Content-Encoding", "deflate")
+				w, _ := zlib.NewWriterLevel(rw, zlib.BestSpeed)
+				return &CompressedResponseWriter{rw, w, w, responseFlusher}
+			}
+		}
+	}
+
+	return &CompressedResponseWriter{rw, rw, nil, responseFlusher}
+}
+
+func (self *CompressedResponseWriter) Header() libhttp.Header {
+	return self.responseWriter.Header()
+}
+
+func (self *CompressedResponseWriter) Write(bs []byte) (int, error) {
+	return self.writer.Write(bs)
+}
+
+func (self *CompressedResponseWriter) Flush() {
+	if self.compressionFlusher != nil {
+		self.compressionFlusher.Flush()
+	}
+
+	if self.responseFlusher != nil {
+		self.responseFlusher.Flush()
+	}
+}
+
+func (self *CompressedResponseWriter) WriteHeader(responseCode int) {
+	self.responseWriter.WriteHeader(responseCode)
+}
+
+func CompressionHandler(enableCompression bool, handler libhttp.HandlerFunc) libhttp.HandlerFunc {
+	if !enableCompression {
+		return handler
+	}
+
+	return func(rw libhttp.ResponseWriter, req *libhttp.Request) {
+		crw := NewCompressionResponseWriter(true, rw, req)
+		handler(crw, req)
+		switch x := crw.writer.(type) {
+		case *gzip.Writer:
+			x.Close()
+		case *zlib.Writer:
+			x.Close()
+		}
+	}
+}
+
+type SeriesWriter struct {
+	yield func(*protocol.Series) error
+}
+
+func NewSeriesWriter(yield func(*protocol.Series) error) *SeriesWriter {
+	return &SeriesWriter{yield}
+}
+
+func (self *SeriesWriter) Yield(series *protocol.Series) (bool, error) {
+	err := self.yield(series)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (self *SeriesWriter) Close() error {
+	return nil
+}
+
+func (self *SeriesWriter) Name() string {
+	return "SeriesWriter"
+}
+*/

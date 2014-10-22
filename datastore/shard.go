@@ -246,12 +246,6 @@ func (self *Shard) deleteRangeOfFields(fields []*metastore.Field, st, et int64) 
 	return nil
 }
 
-// func (self *Shard) compact() {
-// 	log.Info("Compacting shard")
-// 	self.db.CompactRange(levigo.Range{})
-// 	log.Info("Shard compaction is done")
-// }
-
 func (self *Shard) deleteRangeOfRegex(database string, regex *regexp.Regexp, startTime, endTime time.Time) error {
 	series := self.metaStore.GetSeriesForDatabaseAndRegex(database, regex)
 	for _, name := range series {
