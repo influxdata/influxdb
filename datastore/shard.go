@@ -429,7 +429,7 @@ func (self *Shard) getIterators(fields []*metastore.Field, start, end time.Time,
 func (self *Shard) getFieldsForSeries(db, series string, columns []string) ([]*metastore.Field, error) {
 	allFields := self.metaStore.GetFieldsForSeries(db, series)
 	if len(allFields) == 0 {
-		return nil, FieldLookupError{"Couldn't look up columns for series: " + series}
+		return nil, FieldLookupError{"Couldn't find series: " + series}
 	}
 	if len(columns) > 0 && columns[0] == "*" {
 		return allFields, nil

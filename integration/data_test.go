@@ -121,6 +121,12 @@ func (self *DataTestSuite) TestDerivativeValues(c *C) {
 	c.Assert(maps[0]["derivative"], Equals, 10.0)
 }
 
+func (self *DataTestSuite) TestInvalidSeriesInSelect(c *C) {
+	client := self.server.GetClient(self.dbname, c)
+	_, err := client.Query("select value from some_invalid_series_name", "m")
+	c.Assert(err, ErrorMatches, ".*Couldn't find series: some_invalid_series_name.*")
+}
+
 // Simple case of difference function
 func (self *DataTestSuite) TestDifferenceValues(c *C) {
 	// make sure we exceed the pointBatchSize, so we force a yield to
