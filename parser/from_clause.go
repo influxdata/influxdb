@@ -48,8 +48,14 @@ func (self *FromClause) GetString() string {
 	buffer := bytes.NewBufferString("")
 	switch self.Type {
 	case FromClauseMerge:
-		fmt.Fprintf(buffer, "%s%s merge %s %s", self.Names[0].Name.GetString(), self.Names[1].GetAliasString(),
-			self.Names[1].Name.GetString(), self.Names[1].GetAliasString())
+		fmt.Fprintf(buffer, "merge(")
+		for i, n := range self.Names {
+			if i > 0 {
+				buffer.WriteRune('|')
+			}
+			buffer.WriteString(n.Name.GetString())
+		}
+		buffer.WriteRune(')')
 	case FromClauseInnerJoin:
 		fmt.Fprintf(buffer, "%s%s inner join %s%s", self.Names[0].Name.GetString(), self.Names[0].GetAliasString(),
 			self.Names[1].Name.GetString(), self.Names[1].GetAliasString())
