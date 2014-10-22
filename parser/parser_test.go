@@ -32,6 +32,25 @@ func (self *QueryParserSuite) TestInvalidFromClause(c *C) {
 	c.Assert(err, ErrorMatches, ".*\\$undefined.*")
 }
 
+func (self *QueryParserSuite) TestParseMergeGetString(c *C) {
+	f := func(r *regexp.Regexp) []string {
+		return []string{"foobar"}
+	}
+
+	query := "select * from merge(/.*foo.*/)"
+	qs, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(qs, HasLen, 1)
+	RewriteMergeQuery(qs[0].SelectQuery, f)
+	fmt.Printf("Parsing %s\n", qs[0].GetQueryStringWithTimeCondition())
+	actualQs, err := ParseQuery(qs[0].GetQueryStringWithTimeCondition())
+	c.Assert(err, IsNil)
+	c.Assert(actualQs, HasLen, 1)
+	RewriteMergeQuery(actualQs[0].SelectQuery, f)
+	actualQs[0].SelectQuery.startTimeSpecified = false
+	c.Assert(actualQs[0].SelectQuery, DeepEquals, qs[0].SelectQuery)
+}
+
 func (self *QueryParserSuite) TestInvalidExplainQueries(c *C) {
 	query := "explain select foo, baz group by time(1d)"
 	_, err := ParseQuery(query)

@@ -279,14 +279,11 @@ func (self *Coordinator) expandRegex(spec *parser.QuerySpec) {
 	}
 
 	if f := q.FromClause; f.Type == parser.FromClauseMergeFun {
-		series := self.clusterConfiguration.MetaStore.GetSeriesForDatabaseAndRegex(spec.Database(), q.FromClause.Regex)
-		f.Type = parser.FromClauseMerge
-		f.Regex = nil
-		for _, s := range series {
-			f.Names = append(f.Names, &parser.TableName{
-				Name: &parser.Value{Name: s, Type: parser.ValueTableName},
-			})
+		f := func(r *regexp.Regexp) []string {
+			return self.clusterConfiguration.MetaStore.GetSeriesForDatabaseAndRegex(spec.Database(), r)
 		}
+
+		parser.RewriteMergeQuery(q, f)
 	}
 }
 
