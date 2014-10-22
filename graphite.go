@@ -1,16 +1,4 @@
-// package Graphite provides a tcp and/or udp listener that you can
-// use to ingest metrics into influxdb via the graphite protocol.  it
-// behaves as a carbon daemon, except:
-
-// no rounding of timestamps to the nearest interval.  Upon ingestion
-// of multiple datapoints for a given key within the same interval
-// (possibly but not necessarily the same timestamp), graphite would
-// use one (the latest received) value with a rounded timestamp
-// representing that interval.  We store values for every timestamp we
-// receive (only the latest value for a given metric-timestamp pair)
-// so it's up to the user to feed the data in proper intervals (and
-// use round intervals if you plan to rely on that)
-package graphite
+package influxdb
 
 import (
 	"bufio"
@@ -29,6 +17,18 @@ import (
 	log "code.google.com/p/log4go"
 )
 
+// GraphiteListener provides a tcp and/or udp listener that you can
+// use to ingest metrics into influxdb via the graphite protocol.  it
+// behaves as a carbon daemon, except:
+//
+// no rounding of timestamps to the nearest interval.  Upon ingestion
+// of multiple datapoints for a given key within the same interval
+// (possibly but not necessarily the same timestamp), graphite would
+// use one (the latest received) value with a rounded timestamp
+// representing that interval.  We store values for every timestamp we
+// receive (only the latest value for a given metric-timestamp pair)
+// so it's up to the user to feed the data in proper intervals (and
+// use round intervals if you plan to rely on that)
 type Server struct {
 	listenAddress string
 	database      string
@@ -73,107 +73,106 @@ const max_queue = 20000
 
 // TODO: check that database exists and create it if not
 func NewServer(config *configuration.Configuration, coord api.Coordinator, clusterConfig *cluster.ClusterConfiguration) *Server {
-	self := &Server{}
-	self.listenAddress = config.GraphitePortString()
-	self.database = config.GraphiteDatabase
-	self.coordinator = coord
-	self.writeSeries = make(chan Record, max_queue)
-	self.allCommitted = make(chan bool, 1)
-	self.connClosed = make(chan bool, 1)
-	self.clusterConfig = clusterConfig
-	self.udpEnabled = config.GraphiteUdpEnabled
-
-	return self
+	s := &Server{}
+	s.listenAddress = config.GraphitePortString()
+	s.database = config.GraphiteDatabase
+	s.coordinator = coord
+	s.writeSeries = make(chan Record, max_queue)
+	s.allCommitted = make(chan bool, 1)
+	s.connClosed = make(chan bool, 1)
+	s.clusterConfig = clusterConfig
+	s.udpEnabled = config.GraphiteUdpEnabled
+	return s
 }
 
 // getAuth assures that the user property is a user with access to the graphite database
 // only call this function after everything (i.e. Raft) is initialized, so that there's at least 1 admin user
-func (self *Server) getAuth() {
+func (s *Server) getAuth() {
 	// just use any (the first) of the list of admins.
-	names := self.clusterConfig.GetClusterAdmins()
-	self.user = self.clusterConfig.GetClusterAdmin(names[0])
+	names := s.clusterConfig.GetClusterAdmins()
+	s.user = s.clusterConfig.GetClusterAdmin(names[0])
 }
 
-func (self *Server) ListenAndServe() {
-	self.getAuth()
+func (s *Server) ListenAndServe() {
+	s.getAuth()
 	var err error
-	if self.listenAddress != "" {
-		self.conn, err = net.Listen("tcp", self.listenAddress)
+	if s.listenAddress != "" {
+		s.conn, err = net.Listen("tcp", s.listenAddress)
 		if err != nil {
 			log.Error("GraphiteServer: Listen: ", err)
 			return
 		}
 	}
-	if self.udpEnabled {
-		udpAddress, _ := net.ResolveUDPAddr("udp", self.listenAddress)
-		self.udpConn, _ = net.ListenUDP("udp", udpAddress)
-		go self.ServeUdp(self.udpConn)
+	if s.udpEnabled {
+		udpAddress, _ := net.ResolveUDPAddr("udp", s.listenAddress)
+		s.udpConn, _ = net.ListenUDP("udp", udpAddress)
+		go s.ServeUdp(s.udpConn)
 	}
-	go self.committer()
-	self.Serve(self.conn)
+	go s.committer()
+	s.Serve(s.conn)
 }
 
-func (self *Server) Serve(listener net.Listener) {
+func (s *Server) Serve(listener net.Listener) {
 	for {
 		conn_in, err := listener.Accept()
 		if err != nil {
 			log.Error("GraphiteServer: Accept: ", err)
 			select {
-			case <-self.connClosed:
+			case <-s.connClosed:
 				break
 			default:
 			}
 			continue
 		}
-		self.writers.Add(1)
-		go self.handleClient(conn_in)
+		s.writers.Add(1)
+		go s.handleClient(conn_in)
 	}
-	self.writers.Wait()
-	close(self.writeSeries)
+	s.writers.Wait()
+	close(s.writeSeries)
 }
 
-func (self *Server) ServeUdp(conn *net.UDPConn) {
+func (s *Server) ServeUdp(conn *net.UDPConn) {
 	var buf []byte = make([]byte, 65536)
 	for {
 		n, _, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			log.Warn("GraphiteServer: Error when reading from UDP connection %s", err.Error())
 		}
-		self.writers.Add(1)
-		go self.handleUdpMessage(string(buf[:n]))
+		s.writers.Add(1)
+		go s.handleUdpMessage(string(buf[:n]))
 	}
 }
 
-func (self *Server) handleUdpMessage(msg string) {
-	defer self.writers.Done()
+func (s *Server) handleUdpMessage(msg string) {
+	defer s.writers.Done()
 	metrics := strings.Split(msg, "\n")
 	for _, metric := range metrics {
 		reader := bufio.NewReader(strings.NewReader(metric + "\n"))
-		self.handleMessage(reader)
+		s.handleMessage(reader)
 	}
 }
 
-func (self *Server) Close() {
-	if self.udpConn != nil {
+func (s *Server) Close() {
+	if s.udpConn != nil {
 		log.Info("GraphiteServer: Closing graphite UDP listener")
-		self.udpConn.Close()
+		s.udpConn.Close()
 	}
-	if self.conn != nil {
+	if s.conn != nil {
 		log.Info("GraphiteServer: Closing graphite server")
-		close(self.connClosed)
-		self.conn.Close()
+		close(s.connClosed)
+		s.conn.Close()
 		log.Info("GraphiteServer: Waiting for all graphite requests to finish before killing the process")
 		select {
 		case <-time.After(time.Second * 5):
 			log.Error("GraphiteServer: There seems to be a hanging graphite request or data flush. Closing anyway")
-		case <-self.allCommitted:
+		case <-s.allCommitted:
 			log.Info("GraphiteServer shut down cleanly")
 		}
 	}
 }
 
-func (self *Server) committer() {
-	defer func() { self.allCommitted <- true }()
+func (s *Server) committer() {
+	defer func() { s.allCommitted <- true }()
 
 	commit := func(toCommit map[string]*protocol.Series) {
 		if len(toCommit) == 0 {
@@ -186,13 +185,13 @@ func (self *Server) committer() {
 			i++
 		}
 		log.Debug("GraphiteServer committing %d series", len(toCommit))
-		err := self.coordinator.WriteSeriesData(self.user, self.database, commitPayload)
+		err := s.coordinator.WriteSeriesData(s.user, s.database, commitPayload)
 		if err != nil {
 			switch err.(type) {
 			case AuthorizationError:
 				// user information got stale, get a fresh one (this should happen rarely)
-				self.getAuth()
-				err = self.coordinator.WriteSeriesData(self.user, self.database, commitPayload)
+				s.getAuth()
+				err = s.coordinator.WriteSeriesData(s.user, s.database, commitPayload)
 				if err != nil {
 					log.Warn("GraphiteServer: failed to write %d series after getting new auth: %s\n", len(toCommit), err.Error())
 				}
@@ -209,7 +208,7 @@ func (self *Server) committer() {
 CommitLoop:
 	for {
 		select {
-		case record, ok := <-self.writeSeries:
+		case record, ok := <-s.writeSeries:
 			if ok {
 				pointsPending += 1
 				if series, seen := toCommit[record.Name]; seen {
@@ -244,12 +243,12 @@ CommitLoop:
 	}
 }
 
-func (self *Server) handleClient(conn net.Conn) {
+func (s *Server) handleClient(conn net.Conn) {
 	defer conn.Close()
-	defer self.writers.Done()
+	defer s.writers.Done()
 	reader := bufio.NewReader(conn)
 	for {
-		err := self.handleMessage(reader)
+		err := s.handleMessage(reader)
 		if err != nil {
 			if io.EOF == err {
 				log.Debug("GraphiteServer: Client closed graphite connection")
@@ -260,7 +259,7 @@ func (self *Server) handleClient(conn net.Conn) {
 	}
 }
 
-func (self *Server) handleMessage(reader *bufio.Reader) (err error) {
+func (s *Server) handleMessage(reader *bufio.Reader) (err error) {
 	graphiteMetric := &GraphiteMetric{}
 	err = graphiteMetric.Read(reader)
 	if err != nil {
@@ -279,6 +278,48 @@ func (self *Server) handleMessage(reader *bufio.Reader) (err error) {
 		SequenceNumber: &sn,
 	}
 	record := Record{graphiteMetric.name, point}
-	self.writeSeries <- record
+	s.writeSeries <- record
 	return
+}
+
+type GraphiteMetric struct {
+	name         string
+	isInt        bool
+	integerValue int64
+	floatValue   float64
+	timestamp    int64
+}
+
+// returns err == io.EOF when we hit EOF without any further data
+func (m *GraphiteMetric) Read(reader *bufio.Reader) error {
+	buf, err := reader.ReadBytes('\n')
+	str := strings.TrimSpace(string(buf))
+	if err != nil {
+		if err != io.EOF {
+			return fmt.Errorf("connection closed uncleanly/broken: %s\n", err.Error())
+		}
+		if str == "" {
+			return err
+		}
+		// else we got EOF but also data, so just try to process it as valid data
+	}
+	elements := strings.Fields(str)
+	if len(elements) != 3 {
+		return fmt.Errorf("Received '%s' which doesn't have three fields", str)
+	}
+	m.name = elements[0]
+	m.floatValue, err = strconv.ParseFloat(elements[1], 64)
+	if err != nil {
+		return err
+	}
+	if i := int64(m.floatValue); float64(i) == m.floatValue {
+		m.isInt = true
+		m.integerValue = int64(m.floatValue)
+	}
+	timestamp, err := strconv.ParseUint(elements[2], 10, 32)
+	if err != nil {
+		return err
+	}
+	m.timestamp = int64(timestamp * 1000000)
+	return nil
 }

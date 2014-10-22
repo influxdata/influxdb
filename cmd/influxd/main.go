@@ -95,6 +95,8 @@ func main() {
 		}
 	}
 
+	// TODO(benbjohnson): Start admin server.
+
 	if config.BindAddress == "" {
 		log.Info("Starting Influx Server %s...", version)
 	} else {
