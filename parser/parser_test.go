@@ -32,6 +32,8 @@ func (self *QueryParserSuite) TestInvalidFromClause(c *C) {
 	c.Assert(err, ErrorMatches, ".*\\$undefined.*")
 }
 
+// Make sure that GetQueryStringWithTimeCondition() works for regex
+// merge queries.
 func (self *QueryParserSuite) TestParseMergeGetString(c *C) {
 	f := func(r *regexp.Regexp) []string {
 		return []string{"foobar"}
