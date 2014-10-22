@@ -25,7 +25,7 @@ func NewQueryEngine(next Processor, query *parser.SelectQuery, shards []uint32) 
 			tables[i] = name.Name.Name
 		}
 		engine = NewMergeEngine(shards, query.Ascending, engine)
-	case parser.FromClauseMergeFun:
+	case parser.FromClauseMergeRegex:
 		// At this point the regex should be expanded to the list of
 		// tables that will be queries
 		panic("QueryEngine cannot be called with merge function")

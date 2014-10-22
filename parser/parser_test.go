@@ -287,7 +287,7 @@ func (self *QueryParserSuite) TestParseFromWithMergeRegex(c *C) {
 	q, err := ParseSelectQuery("select count(*) from merge(/.*/) where time>now()-1d;")
 	c.Assert(err, IsNil)
 	fromClause := q.GetFromClause()
-	c.Assert(fromClause.Type, Equals, FromClauseMergeFun)
+	c.Assert(fromClause.Type, Equals, FromClauseMergeRegex)
 	c.Assert(fromClause.Regex, NotNil)
 }
 

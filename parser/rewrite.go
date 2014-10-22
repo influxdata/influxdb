@@ -12,7 +12,7 @@ type RegexMatcher func(r *regexp.Regexp) []string
 // the query will be rewritten to
 //     select * from merge(foobar, foobaz)
 func RewriteMergeQuery(query *SelectQuery, rm RegexMatcher) {
-	if query.FromClause.Type != FromClauseMergeFun {
+	if query.FromClause.Type != FromClauseMergeRegex {
 		return
 	}
 

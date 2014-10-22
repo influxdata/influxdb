@@ -278,13 +278,11 @@ func (self *Coordinator) expandRegex(spec *parser.QuerySpec) {
 		return
 	}
 
-	if f := q.FromClause; f.Type == parser.FromClauseMergeFun {
-		f := func(r *regexp.Regexp) []string {
-			return self.clusterConfiguration.MetaStore.GetSeriesForDatabaseAndRegex(spec.Database(), r)
-		}
-
-		parser.RewriteMergeQuery(q, f)
+	f := func(r *regexp.Regexp) []string {
+		return self.clusterConfiguration.MetaStore.GetSeriesForDatabaseAndRegex(spec.Database(), r)
 	}
+
+	parser.RewriteMergeQuery(q, f)
 }
 
 // We call this function only if we have a Select query (not continuous) or Delete query

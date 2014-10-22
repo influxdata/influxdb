@@ -13,10 +13,10 @@ import "fmt"
 type FromClauseType int
 
 const (
-	FromClauseArray     FromClauseType = C.FROM_ARRAY
-	FromClauseMerge     FromClauseType = C.FROM_MERGE
-	FromClauseInnerJoin FromClauseType = C.FROM_INNER_JOIN
-	FromClauseMergeFun  FromClauseType = C.FROM_MERGE_FUNCTION
+	FromClauseArray      FromClauseType = C.FROM_ARRAY
+	FromClauseMerge      FromClauseType = C.FROM_MERGE
+	FromClauseInnerJoin  FromClauseType = C.FROM_INNER_JOIN
+	FromClauseMergeRegex FromClauseType = C.FROM_MERGE_REGEX
 )
 
 func (self *TableName) GetAlias() string {
