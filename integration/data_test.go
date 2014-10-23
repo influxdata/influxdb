@@ -267,6 +267,28 @@ func (self *DataTestSuite) TestModeWithNils(c *C) {
 	c.Assert(maps[0]["m2"], Equals, nil)
 }
 
+func (self *DataTestSuite) TestMergeRegexOneSeries(c *C) {
+	data := `
+[
+  {
+    "name": "test_merge_1",
+    "columns": ["time", "value"],
+    "points": [
+      [1401321700000, "m11"],
+      [1401321600000, "m12"]
+    ]
+  }
+]`
+
+	self.client.WriteJsonData(data, c, influxdb.Millisecond)
+	serieses := self.client.RunQuery("select * from merge(/.*/)", c, "m")
+	c.Assert(serieses, HasLen, 1)
+	maps := ToMap(serieses[0])
+	c.Assert(maps, HasLen, 2)
+	c.Assert(maps[0]["value"], Equals, "m11")
+	c.Assert(maps[1]["value"], Equals, "m12")
+}
+
 func (self *DataTestSuite) TestMergeRegex(c *C) {
 	data := `
 [

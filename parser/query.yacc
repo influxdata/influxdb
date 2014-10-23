@@ -423,10 +423,17 @@ FROM_CLAUSE:
           $$->from_clause_type = FROM_MERGE;
         }
         |
+        FROM MERGE '(' SIMPLE_TABLE_VALUES ')'
+        {
+          $$ = calloc(1, sizeof(from_clause));
+          $$->names = $4;
+          $$->from_clause_type = FROM_MERGE;
+        }
+        |
         FROM MERGE '(' REGEX_VALUE ')'
         {
           $$ = calloc(1, sizeof(from_clause));
-          $$->from_clause_type = FROM_MERGE_FUNCTION;
+          $$->from_clause_type = FROM_MERGE_REGEX;
           $$->regex_value = $4;
         }
         |

@@ -32,6 +32,32 @@ func (self *QueryParserSuite) TestInvalidFromClause(c *C) {
 	c.Assert(err, ErrorMatches, ".*\\$undefined.*")
 }
 
+// Make sure that GetQueryStringWithTimeCondition() works for regex
+// merge queries.
+func (self *QueryParserSuite) TestMergeMultipleRegex(c *C) {
+	query := "select * from merge(/.*foo.*/, /.*bar.*/)"
+	_, err := ParseQuery(query)
+	c.Assert(err, NotNil)
+}
+
+func (self *QueryParserSuite) TestParseMergeGetString(c *C) {
+	f := func(r *regexp.Regexp) []string {
+		return []string{"foobar"}
+	}
+
+	query := "select * from merge(/.*foo.*/)"
+	qs, err := ParseQuery(query)
+	c.Assert(err, IsNil)
+	c.Assert(qs, HasLen, 1)
+	RewriteMergeQuery(qs[0].SelectQuery, f)
+	actualQs, err := ParseQuery(qs[0].GetQueryStringWithTimeCondition())
+	c.Assert(err, IsNil)
+	c.Assert(actualQs, HasLen, 1)
+	RewriteMergeQuery(actualQs[0].SelectQuery, f)
+	actualQs[0].SelectQuery.startTimeSpecified = false
+	c.Assert(actualQs[0].SelectQuery, DeepEquals, qs[0].SelectQuery)
+}
+
 func (self *QueryParserSuite) TestInvalidExplainQueries(c *C) {
 	query := "explain select foo, baz group by time(1d)"
 	_, err := ParseQuery(query)
@@ -266,7 +292,7 @@ func (self *QueryParserSuite) TestParseFromWithMergeRegex(c *C) {
 	q, err := ParseSelectQuery("select count(*) from merge(/.*/) where time>now()-1d;")
 	c.Assert(err, IsNil)
 	fromClause := q.GetFromClause()
-	c.Assert(fromClause.Type, Equals, FromClauseMergeFun)
+	c.Assert(fromClause.Type, Equals, FromClauseMergeRegex)
 	c.Assert(fromClause.Regex, NotNil)
 }
 
