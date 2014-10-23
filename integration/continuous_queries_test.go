@@ -78,5 +78,5 @@ func (self *ContinuousQueriesSuite) TestFirstBackfill(c *C) {
 
 	// check backfill_off query results
 	body, _ := self.serverProcesses[0].GetErrorBody("test_no_backfill", "select * from cqbackfill_off.10s", "root", "root", false, c)
-	c.Assert(body, Matches, "Couldn't look up columns.*")
+	c.Assert(body, Matches, "Couldn't find series.*")
 }

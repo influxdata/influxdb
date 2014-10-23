@@ -413,7 +413,7 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 	// if this test ran by itself there will be no shards to query,
 	// therefore no error will be returned
 	if err != nil {
-		c.Assert(err, ErrorMatches, ".*Couldn't look up.*")
+		c.Assert(err, ErrorMatches, ".*Couldn't find series.*")
 	} else {
 		c.Assert(actualSeries, HasLen, 0)
 	}
@@ -581,7 +581,7 @@ func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 	c.Assert(self.server.Start(), IsNil)
 	self.server.WaitForServerToStart()
 	error, _ := self.server.GetErrorBody("db1", "select count(column0) from data_resurrection", "user", "pass", true, c)
-	c.Assert(error, Matches, ".*Couldn't look up.*")
+	c.Assert(error, Matches, ".*Couldn't find series.*")
 	series = self.server.RunQuery("list series", "s", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Points, HasLen, 0)
@@ -759,7 +759,7 @@ func (self *SingleServerSuite) TestDbDelete(c *C) {
 	self.createUser(c)
 	// this shouldn't return any data
 	error, _ := self.server.GetErrorBody("db1", "select val1 from test_deletetions", "root", "root", true, c)
-	c.Assert(error, Matches, ".*Couldn't look up.*")
+	c.Assert(error, Matches, ".*Couldn't find series.*")
 }
 
 // test delete query
