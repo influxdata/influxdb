@@ -1,9 +1,26 @@
 package influxdb
 
+import (
+	"encoding/json"
+	"fmt"
+	"math/big"
+	"time"
+
+	"github.com/influxdb/influxdb/protocol"
+)
+
+type TimePrecision int
+
+const (
+	MicrosecondPrecision TimePrecision = iota
+	MillisecondPrecision
+	SecondPrecision
+)
+
 type serializedSeries struct {
-	name    string          `json:"name"`
-	columns []string        `json:"columns"`
-	points  [][]interface{} `json:"points"`
+	Name    string          `json:"name"`
+	Columns []string        `json:"columns"`
+	Points  [][]interface{} `json:"points"`
 }
 
 //func SortSerializedSeries(s []*serializedSeries) {
@@ -11,13 +28,13 @@ type serializedSeries struct {
 //}
 
 func (s serializedSeries) Series(precision TimePrecision) (*protocol.Series, error) {
-	points := make([]*protocol.Point, 0, len(s.GetPoints()))
-	if hasDuplicates(s.GetColumns()) {
+	points := make([]*protocol.Point, 0, len(s.Points))
+	if hasDuplicates(s.Columns) {
 		return nil, fmt.Errorf("Cannot have duplicate field names")
 	}
 
-	for _, point := range s.GetPoints() {
-		if len(point) != len(s.GetColumns()) {
+	for _, point := range s.Points {
+		if len(point) != len(s.Columns) {
 			return nil, fmt.Errorf("invalid payload")
 		}
 
@@ -25,8 +42,7 @@ func (s serializedSeries) Series(precision TimePrecision) (*protocol.Series, err
 		var timestamp *int64
 		var sequence *uint64
 
-		for idx, field := range s.GetColumns() {
-
+		for idx, field := range s.Columns {
 			value := point[idx]
 			if field == "time" {
 				switch x := value.(type) {
@@ -83,7 +99,8 @@ func (s serializedSeries) Series(precision TimePrecision) (*protocol.Series, err
 			case bool:
 				values = append(values, &protocol.FieldValue{BoolValue: &v})
 			case nil:
-				values = append(values, &protocol.FieldValue{IsNull: &TRUE})
+				trueValue := true
+				values = append(values, &protocol.FieldValue{IsNull: &trueValue})
 			default:
 				// if we reached this line then the dynamic type didn't match
 				return nil, fmt.Errorf("Unknown type %T", value)
@@ -96,12 +113,100 @@ func (s serializedSeries) Series(precision TimePrecision) (*protocol.Series, err
 		})
 	}
 
-	fields := removeTimestampFieldDefinition(s.GetColumns())
+	fields := removeTimestampFieldDefinition(s.Columns)
 
 	series := &protocol.Series{
-		Name:   protocol.String(s.GetName()),
+		Name:   protocol.String(s.Name),
 		Fields: fields,
 		Points: points,
 	}
 	return series, nil
+}
+
+func hasDuplicates(ss []string) bool {
+	m := make(map[string]struct{}, len(ss))
+	for _, s := range ss {
+		if _, ok := m[s]; ok {
+			return true
+		}
+		m[s] = struct{}{}
+	}
+	return false
+}
+
+func removeField(fields []string, name string) []string {
+	index := -1
+	for idx, field := range fields {
+		if field == name {
+			index = idx
+			break
+		}
+	}
+
+	if index == -1 {
+		return fields
+	}
+
+	return append(fields[:index], fields[index+1:]...)
+}
+
+func removeTimestampFieldDefinition(fields []string) []string {
+	fields = removeField(fields, "time")
+	return removeField(fields, "sequence_number")
+}
+
+// Returns the parsed duration in nanoseconds.
+// Support 'u', 's', 'm', 'h', 'd', 'W', 'M', and 'Y' suffixes.
+func parseTimeDuration(value string) (int64, error) {
+	var constant time.Duration
+	prefixSize := 1
+
+	switch value[len(value)-1] {
+	case 'u':
+		constant = time.Microsecond
+	case 's':
+		constant = time.Second
+	case 'm':
+		constant = time.Minute
+	case 'h':
+		constant = time.Hour
+	case 'd':
+		constant = 24 * time.Hour
+	case 'w', 'W':
+		constant = 7 * 24 * time.Hour
+	case 'M':
+		constant = 30 * 24 * time.Hour
+	case 'y', 'Y':
+		constant = 365 * 24 * time.Hour
+	default:
+		prefixSize = 0
+	}
+
+	if value[len(value)-2:] == "ms" {
+		constant = time.Millisecond
+		prefixSize = 2
+	}
+
+	t := big.Rat{}
+	timeString := value
+	if prefixSize > 0 {
+		timeString = value[:len(value)-prefixSize]
+	}
+
+	_, err := fmt.Sscan(timeString, &t)
+	if err != nil {
+		return 0, err
+	}
+
+	if prefixSize > 0 {
+		c := big.Rat{}
+		c.SetFrac64(int64(constant), 1)
+		t.Mul(&t, &c)
+	}
+
+	if t.IsInt() {
+		return t.Num().Int64(), nil
+	}
+	f, _ := t.Float64()
+	return int64(f), nil
 }

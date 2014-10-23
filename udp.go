@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	log "code.google.com/p/log4go"
-	"github.com/influxdb/influxdb/protocol"
 )
 
 // UDPServer
@@ -34,23 +33,23 @@ func NewUDPServer(server *Server) *UDPServer {
 }
 
 // ListenAndServe opens a UDP socket to listen for messages.
-func (s *UDPServer) ListenAndServe() {
+func (s *UDPServer) ListenAndServe() error {
 	// Validate that server has a UDP address.
-	if s.UDPAddr == nil {
+	if s.Addr == nil {
 		return ErrBindAddressRequired
 	}
 
 	// Open UDP connection.
-	conn, err := net.ListenUDP("udp", s.UDPAddr)
+	conn, err := net.ListenUDP("udp", s.Addr)
 	if err != nil {
 		return err
 	}
-	defer self.conn.Close()
+	defer conn.Close()
 
 	// Read messages off the connection and handle them.
 	buffer := make([]byte, 2048)
 	for {
-		n, _, err := socket.ReadFromUDP(buffer)
+		n, _, err := conn.ReadFromUDP(buffer)
 		if err != nil || n == 0 {
 			log.Error("UDP ReadFromUDP error: %s", err)
 			continue
@@ -62,27 +61,26 @@ func (s *UDPServer) ListenAndServe() {
 
 		// Deserialize data into series.
 		var a []*serializedSeries
-		if err := dec.Decode(&serializedSeries); err != nil {
+		if err := dec.Decode(&a); err != nil {
 			log.Error("UDP json error: %s", err)
 			continue
 		}
 
 		// Write data points to the data store.
-		for _, s := range a {
-			if len(s.Points) == 0 {
+		for _, ss := range a {
+			if len(ss.Points) == 0 {
 				continue
 			}
 
 			// Convert to the internal series format.
-			series, err := s.Series(s, SecondPrecision)
+			series, err := ss.Series(SecondPrecision)
 			if err != nil {
 				log.Error("udp cannot convert received data: %s", err)
 				continue
 			}
 
 			// Write series data to server.
-			err = s.server.WriteSeriesData(self.user, self.database, []*protocol.Series{series})
-			if err != nil {
+			if err := s.server.WriteSeries(s.User, s.Database, series); err != nil {
 				log.Error("udp cannot write data: %s", err)
 				continue
 			}

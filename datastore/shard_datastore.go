@@ -46,13 +46,17 @@ var (
 	// This datastore implements the PersistentAtomicInteger interface. All of the persistent
 	// integers start with this prefix, followed by their name
 	ATOMIC_INCREMENT_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD}
+
 	// NEXT_ID_KEY holds the next id. ids are used to "intern" timeseries and column names
 	NEXT_ID_KEY = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+
 	// SERIES_COLUMN_INDEX_PREFIX is the prefix of the series to column names index
 	SERIES_COLUMN_INDEX_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE}
+
 	// DATABASE_SERIES_INDEX_PREFIX is the prefix of the database to series names index
 	DATABASE_SERIES_INDEX_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-	MAX_SEQUENCE                 = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
+	MAX_SEQUENCE = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
 	// replicateWrite = protocol.Request_REPLICATION_WRITE
 

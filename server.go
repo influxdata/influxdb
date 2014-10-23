@@ -3,15 +3,18 @@ package influxdb
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/protocol"
 )
 
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
 	mu        sync.RWMutex
+	path      string
 	client    MessagingClient
 	databases map[string]*Database
 }
@@ -22,19 +25,37 @@ func NewServer(client MessagingClient) *Server {
 	assert(client != nil, "messaging client required")
 	return &Server{
 		client:    client,
-		databases: make(map[String]*Database),
+		databases: make(map[string]*Database),
 	}
 }
 
+// Path returns the path used when opening the server.
+// Returns an empty string when the server is closed.
+func (s *Server) Path() string { return s.path }
+
 // Open initializes the server from a given path.
 func (s *Server) Open(path string) error {
-	// TODO: Open metadata.
+	if s.opened() {
+		return ErrServerOpen
+	} else if path == "" {
+		return ErrPathRequired
+	}
+
 	return nil
 }
+
+// opened returns true when the server is open.
+func (s *Server) opened() bool { return s.path != "" }
 
 // Close shuts down the server.
 func (s *Server) Close() error {
 	// TODO: Close metadata.
+	return nil
+}
+
+// WriteSeries writes series data to the broker.
+func (s *Server) WriteSeries(u *ClusterAdmin, database string, series *protocol.Series) error {
+	// TODO:
 	return nil
 }
 
@@ -78,14 +99,14 @@ func NewShardSpace(database, name string) *ShardSpace {
 	return &ShardSpace{
 		Database:          database,
 		Name:              name,
-		Split:             DEFAULT_SPLIT,
-		ReplicationFactor: DEFAULT_REPLICATION_FACTOR,
+		Split:             DefaultSplit,
+		ReplicationFactor: DefaultReplicationFactor,
 		Regex:             "/.*/",
 		RetentionPolicy:   "inf",
 		ShardDuration:     "7d",
 
-		shards: make([]*ShardData, 0),
-		re:     re,
+		// shards: make([]*ShardData, 0),
+		re: re,
 	}
 }
 
@@ -103,30 +124,16 @@ func (s *ShardSpace) ParsedRetentionPeriod() time.Duration {
 	} else if s.RetentionPolicy == "inf" {
 		return time.Duration(0)
 	}
-	d, _ := common.ParseTimeDuration(s.RetentionPolicy)
+	d, _ := parseTimeDuration(s.RetentionPolicy)
 	return time.Duration(d)
 }
 
 func (s *ShardSpace) ParsedShardDuration() time.Duration {
 	if s.ShardDuration != "" {
-		d, _ := common.ParseTimeDuration(s.ShardDuration)
+		d, _ := parseTimeDuration(s.ShardDuration)
 		return time.Duration(d)
 	}
 	return DefaultShardDuration
-}
-
-func (s *ShardSpace) UpdateFromSpace(space *ShardSpace) error {
-	r, err := s.compileRegex(space.Regex)
-	if err != nil {
-		return err
-	}
-	s.Regex = space.Regex
-	s.compiledRegex = r
-	s.RetentionPolicy = space.RetentionPolicy
-	s.ShardDuration = space.ShardDuration
-	s.ReplicationFactor = space.ReplicationFactor
-	s.Split = space.Split
-	return nil
 }
 
 // ContinuousQuery represents a query that exists on the server and processes

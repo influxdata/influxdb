@@ -1,7 +1,16 @@
 package influxdb
 
 import (
+	"errors"
 	"fmt"
+)
+
+var (
+	// ErrServerOpen is returned when opening an already open server.
+	ErrServerOpen = errors.New("server already open")
+
+	// ErrPathRequired is returned when opening a server without a path.
+	ErrPathRequired = errors.New("path required")
 )
 
 const (

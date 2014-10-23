@@ -75,7 +75,7 @@ type DBUser struct {
 }
 
 func (u *DBUser) IsDbAdmin(db string) bool {
-	return u.IsAdmin && u.Db == db
+	return u.IsAdmin && u.DB == db
 }
 
 func (u *DBUser) HasWriteAccess(name string) bool {

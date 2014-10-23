@@ -8,7 +8,7 @@ import (
 
 // Ensure the user's password can be changed.
 func TestUser_ChangePassword(t *testing.T) {
-	u := &ClusterAdmin{CommonUser{"root", "", false, "root"}}
+	u := &influxdb.ClusterAdmin{influxdb.CommonUser{"root", "", false, "root"}}
 	if err := u.ChangePassword("password"); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

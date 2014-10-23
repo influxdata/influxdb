@@ -24,27 +24,6 @@ const (
 func init() {
 }
 
-func removeField(fields []string, name string) []string {
-	index := -1
-	for idx, field := range fields {
-		if field == name {
-			index = idx
-			break
-		}
-	}
-
-	if index == -1 {
-		return fields
-	}
-
-	return append(fields[:index], fields[index+1:]...)
-}
-
-func removeTimestampFieldDefinition(fields []string) []string {
-	fields = removeField(fields, "time")
-	return removeField(fields, "sequence_number")
-}
-
 type ApiSeries interface {
 	GetName() string
 	GetColumns() []string

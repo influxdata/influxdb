@@ -7,7 +7,7 @@ import (
 const (
 	DefaultShardSpaceName = "default"
 
-	DefaultSpaceSplit              = 1
+	DefaultSplit                   = 1
 	DefaultReplicationFactor       = 1
 	DefaultShardDuration           = 7 * (24 * time.Hour)
 	DefaultRetentionPolicyDuration = 0
