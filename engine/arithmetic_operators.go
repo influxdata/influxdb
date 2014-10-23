@@ -125,7 +125,12 @@ func DivideOperator(elems []*parser.Value, fields []string, point *protocol.Poin
 		value := left.(float64) / right.(float64)
 		return &protocol.FieldValue{DoubleValue: &value}, nil
 	case common.TYPE_INT:
-		value := left.(int64) / right.(int64)
+		r := right.(int64)
+		// prevent integer division by zero (i.e., panic)
+		if r == 0 {
+			return &protocol.FieldValue{Int64Value: nil}, nil
+		}
+		value := left.(int64) / r
 		return &protocol.FieldValue{Int64Value: &value}, nil
 	}
 	return nil, fmt.Errorf("/ operator doesn't work with %v types", valueType)
