@@ -1508,6 +1508,10 @@ func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultV
 		return nil, err
 	}
 
+	if limit < 1 {
+		return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() second parameter must be > 0", name))
+	}
+
 	return &TopOrBottomAggregator{
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
