@@ -1,4 +1,17 @@
-## v0.8.4 [2014-10-21]
+## V0.8.4-rc.2 [unreleased]
+
+### Bugfixes
+
+- [Issue #778](https://github.com/influxdb/influxdb/issues/778). Selecting
+  from a non-existent series should give a better error message indicating
+  that the series doesn't exist
+
+### Features
+
+- [Issue #1047](https://github.com/influxdb/influxdb/issues/1047). Allow
+  merge() to take a list of series (as opposed to a regex in #72)
+
+## v0.8.4-rc.1 [2014-10-21]
 
 ### Bugfixes
 
