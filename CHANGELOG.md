@@ -7,6 +7,8 @@
 
 ### Bugfixes
 
+- [Issue #1022](https://github.com/influxdb/influxdb/issues/1022). Return
+  an +Inf or NaN instead of panicing when we encounter a divide by zero
 - [Issue #821](https://github.com/influxdb/influxdb/issues/821). Don't
   scan through points when we hit the limit
 - [Issue #1051](https://github.com/influxdb/influxdb/issues/1051). Fix
