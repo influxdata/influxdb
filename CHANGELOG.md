@@ -4,6 +4,9 @@
 
 - [Issue #821](https://github.com/influxdb/influxdb/issues/821). Don't
   scan through points when we hit the limit
+- [Issue #1051](https://github.com/influxdb/influxdb/issues/1051). Fix
+  timestamps when the collectd is used and low resolution timestamps
+  is set.
 
 ## v0.8.4-rc.2 [2014-10-24]
 
