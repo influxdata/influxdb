@@ -71,6 +71,7 @@ type ApiConfig struct {
 
 type GraphiteConfig struct {
 	Enabled    bool
+	Address    string
 	Port       int
 	Database   string
 	UdpEnabled bool `toml:"udp_enabled"`
@@ -78,6 +79,7 @@ type GraphiteConfig struct {
 
 type CollectdInputConfig struct {
 	Enabled  bool
+	Address  string
 	Port     int
 	Database string
 	TypesDB  string `toml:"typesdb"`
@@ -172,11 +174,13 @@ type Configuration struct {
 	ApiReadTimeout  time.Duration
 
 	GraphiteEnabled    bool
+	GraphiteAddress    string
 	GraphitePort       int
 	GraphiteDatabase   string
 	GraphiteUdpEnabled bool
 
 	CollectdEnabled  bool
+	CollectdAddress  string
 	CollectdPort     int
 	CollectdDatabase string
 	CollectdTypesDB  string
@@ -316,11 +320,13 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		ApiReadTimeout:  apiReadTimeout,
 
 		GraphiteEnabled:    tomlConfiguration.InputPlugins.Graphite.Enabled,
+		GraphiteAddress:    tomlConfiguration.InputPlugins.Graphite.Address,
 		GraphitePort:       tomlConfiguration.InputPlugins.Graphite.Port,
 		GraphiteDatabase:   tomlConfiguration.InputPlugins.Graphite.Database,
 		GraphiteUdpEnabled: tomlConfiguration.InputPlugins.Graphite.UdpEnabled,
 
 		CollectdEnabled:  tomlConfiguration.InputPlugins.CollectdInput.Enabled,
+		CollectdAddress:  tomlConfiguration.InputPlugins.CollectdInput.Address,
 		CollectdPort:     tomlConfiguration.InputPlugins.CollectdInput.Port,
 		CollectdDatabase: tomlConfiguration.InputPlugins.CollectdInput.Database,
 		CollectdTypesDB:  tomlConfiguration.InputPlugins.CollectdInput.TypesDB,
@@ -422,20 +428,28 @@ func (self *Configuration) ApiHttpSslPortString() string {
 	return fmt.Sprintf("%s:%d", self.BindAddress, self.ApiHttpSslPort)
 }
 
-func (self *Configuration) GraphitePortString() string {
+func (self *Configuration) GraphiteBindString() string {
 	if self.GraphitePort <= 0 {
 		return ""
 	}
 
-	return fmt.Sprintf("%s:%d", self.BindAddress, self.GraphitePort)
+	if self.GraphiteAddress != "" {
+		return fmt.Sprintf("%s:%d", self.GraphiteAddress, self.GraphitePort)
+	} else {
+		return fmt.Sprintf("%s:%d", self.BindAddress, self.GraphitePort)
+	}
 }
 
-func (self *Configuration) CollectdPortString() string {
+func (self *Configuration) CollectdBindString() string {
 	if self.CollectdPort <= 0 {
 		return ""
 	}
 
-	return fmt.Sprintf("%s:%d", self.BindAddress, self.CollectdPort)
+	if self.CollectdAddress != "" {
+		return fmt.Sprintf("%s:%d", self.CollectdAddress, self.CollectdPort)
+	} else {
+		return fmt.Sprintf("%s:%d", self.BindAddress, self.CollectdPort)
+	}
 }
 
 func (self *Configuration) UdpInputPortString(port int) string {

@@ -74,7 +74,7 @@ const max_queue = 20000
 // TODO: check that database exists and create it if not
 func NewServer(config *configuration.Configuration, coord api.Coordinator, clusterConfig *cluster.ClusterConfiguration) *Server {
 	self := &Server{}
-	self.listenAddress = config.GraphitePortString()
+	self.listenAddress = config.GraphiteBindString()
 	self.database = config.GraphiteDatabase
 	self.coordinator = coord
 	self.writeSeries = make(chan Record, max_queue)

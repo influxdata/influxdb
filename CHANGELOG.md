@@ -1,5 +1,10 @@
 ## v0.8.5 [unreleased]
 
+### Features
+
+- [Issue #1055](https://github.com/influxdb/influxdb/issues/1055). Allow
+  graphite and collectd input plugins to have separate binding address
+
 ### Bugfixes
 
 - [Issue #821](https://github.com/influxdb/influxdb/issues/821). Don't

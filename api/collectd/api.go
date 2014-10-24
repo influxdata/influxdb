@@ -29,7 +29,7 @@ type Server struct {
 func NewServer(config *configuration.Configuration, coord api.Coordinator, clusterConfig *cluster.ClusterConfiguration) *Server {
 	s := &Server{}
 
-	s.listenAddress = config.CollectdPortString()
+	s.listenAddress = config.CollectdBindString()
 	s.database = config.CollectdDatabase
 	s.coordinator = coord
 	s.shutdown = make(chan bool, 1)
