@@ -40,6 +40,7 @@ read-timeout = "5s"
   # Configure the graphite api
   [input_plugins.graphite]
   enabled = false
+  # address = "0.0.0.0" # If not set, is actually set to bind-address.
   # port = 2003
   # database = ""  # store graphite data in this database
   # udp_enabled = true # enable udp interface on the same port as the tcp interface
@@ -47,6 +48,7 @@ read-timeout = "5s"
   # Configure the collectd api
   [input_plugins.collectd]
   enabled = false
+  # address = "0.0.0.0" # If not set, is actually set to bind-address.
   # port = 25826
   # database = ""
   # types.db can be found in a collectd installation or on github:

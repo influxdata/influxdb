@@ -149,7 +149,7 @@ func (self *Server) ListenAndServe() error {
 		} else if self.Config.GraphiteDatabase == "" {
 			log.Warn(fail_reason("database name is invalid"))
 		} else {
-			log.Info("Starting Graphite Listener on port %d", self.Config.GraphitePort)
+			log.Info("Starting Graphite Listener on %s", self.Config.GraphiteBindString())
 			go self.GraphiteApi.ListenAndServe()
 		}
 	} else {
@@ -171,7 +171,7 @@ func (self *Server) ListenAndServe() error {
 		} else if _, err := os.Stat(self.Config.CollectdTypesDB); err != nil {
 			log.Warn(failReason("types.db is invalid"))
 		} else {
-			log.Info("Starting Collectd Listener on port %d", self.Config.CollectdPort)
+			log.Info("Starting Collectd Listener on %s", self.Config.CollectdBindString())
 			go self.CollectdApi.ListenAndServe()
 		}
 	} else {
