@@ -15,9 +15,6 @@ var (
 	// ErrTopicExists is returned when creating a duplicate topic.
 	ErrTopicExists = errors.New("topic already exists")
 
-	// ErrTopicNotFound is returned when publishing to a topic that doesn't exist.
-	ErrTopicNotFound = errors.New("topic not found")
-
 	// ErrReplicaExists is returned when creating a duplicate replica.
 	ErrReplicaExists = errors.New("replica already exists")
 

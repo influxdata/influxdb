@@ -32,7 +32,7 @@ func TestClient_Open(t *testing.T) {
 	}
 
 	// Receive a message from the stream.
-	if m := <-c.C; m.Type != messaging.CreateReplicaMessageType {
+	if m := <-c.C(); m.Type != messaging.CreateReplicaMessageType {
 		t.Fatalf("unexpected message type: %x", m.Type)
 	}
 

@@ -35,30 +35,25 @@ func TestBroker_Publish(t *testing.T) {
 	b := NewBroker()
 	defer b.Close()
 
-	// Create a topic.
-	if err := b.CreateTopic("foo/bar"); err != nil {
-		t.Fatalf("create topic error: %s", err)
-	}
-
 	// Create a new named replica.
 	if err := b.CreateReplica("node0"); err != nil {
 		t.Fatalf("create replica: %s", err)
 	}
 
-	// Subscribe replica to the foo/bar topic.
-	if err := b.Subscribe("node0", "foo/bar"); err != nil {
+	// Subscribe replica to a topic.
+	if err := b.Subscribe("node0", 20); err != nil {
 		t.Fatalf("subscribe: %s", err)
 	}
 
 	// Write a message to the broker.
-	index, err := b.Publish("foo/bar", &messaging.Message{Type: 100, Data: []byte("0000")})
+	index, err := b.Publish(&messaging.Message{Type: 100, TopicID: 20, Data: []byte("0000")})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
-	} else if index != 5 {
+	} else if index != 4 {
 		t.Fatalf("unexpected index: %d", index)
 	}
-	if err := b.Wait(index); err != nil {
-		t.Fatalf("wait error: %s", err)
+	if err := b.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
 	}
 
 	// Read message from the replica.
@@ -68,17 +63,6 @@ func TestBroker_Publish(t *testing.T) {
 			t.Fatalf("write to: %s", err)
 		}
 	}()
-	time.Sleep(10 * time.Millisecond)
-
-	// Unsubscribe replica from the foo/bar topic.
-	if err := b.Unsubscribe("node0", "foo/bar"); err != nil {
-		t.Fatalf("unsubscribe: %s", err)
-	}
-
-	// Write another message (that shouldn't be read).
-	if _, err := b.Publish("foo/bar", &messaging.Message{Type: 101}); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
 	time.Sleep(10 * time.Millisecond)
 
 	// Read out the config messages first.
@@ -94,9 +78,20 @@ func TestBroker_Publish(t *testing.T) {
 	// Read out the published message.
 	if err := dec.Decode(&m); err != nil {
 		t.Fatalf("decode: %s", err)
-	} else if !reflect.DeepEqual(&m, &messaging.Message{Type: 100, TopicID: 1, Index: 5, Data: []byte("0000")}) {
+	} else if !reflect.DeepEqual(&m, &messaging.Message{Type: 100, TopicID: 20, Index: 4, Data: []byte("0000")}) {
 		t.Fatalf("unexpected message: %#v", &m)
 	}
+
+	// Unsubscribe replica from the topic.
+	if err := b.Unsubscribe("node0", 20); err != nil {
+		t.Fatalf("unsubscribe: %s", err)
+	}
+
+	// Write another message (that shouldn't be read).
+	if _, err := b.Publish(&messaging.Message{Type: 101, TopicID: 20}); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	time.Sleep(10 * time.Millisecond)
 
 	// Read unsubscribe.
 	if err := dec.Decode(&m); err != nil || m.Type != messaging.UnsubscribeMessageType {
@@ -106,63 +101,6 @@ func TestBroker_Publish(t *testing.T) {
 	// EOF
 	if err := dec.Decode(&m); err != io.EOF {
 		t.Fatalf("decode(eof): %x (%v)", m.Type, err)
-	}
-}
-
-// Ensure the broker returns an error when publishing to a topic that doesn't exist.
-func TestBroker_Publish_ErrTopicNotFound(t *testing.T) {
-	b := NewBroker()
-	defer b.Close()
-
-	// Publish to a topic that doesn't exist.
-	if _, err := b.Publish("foo/bar", &messaging.Message{}); err != messaging.ErrTopicNotFound {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure the broker cannot create a duplicate topic.
-func TestBroker_CreateTopic_ErrTopicExists(t *testing.T) {
-	b := NewBroker()
-	defer b.Close()
-
-	// Create a topic. And then create it again.
-	if err := b.CreateTopic("foo/bar"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if err := b.CreateTopic("foo/bar"); err != messaging.ErrTopicExists {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure the broker can delete a topic.
-func TestBroker_DeleteTopic(t *testing.T) {
-	b := NewBroker()
-	defer b.Close()
-
-	// Create a topic & replica.
-	b.CreateTopic("foo/bar")
-	b.CreateReplica("node0")
-
-	// Attach replica.
-	r := b.Replica("node0")
-	r.Subscribe("foo/bar")
-	if a := r.Topics(); !reflect.DeepEqual(a, []string{"config", "foo/bar"}) {
-		t.Fatalf("unexpected replica topics: %#v", a)
-	}
-
-	// Delete topic.
-	if err := b.DeleteTopic("foo/bar"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-
-	// Ensure topic has been removed from replica subscriptions.
-	if a := r.Topics(); !reflect.DeepEqual(a, []string{"config"}) {
-		t.Fatalf("unexpected replica topics: %#v", a)
-	}
-
-	// Try to delete it again.
-	if err := b.DeleteTopic("foo/bar"); err != messaging.ErrTopicNotFound {
-		t.Fatalf("unexpected error: %s", err)
 	}
 }
 
@@ -230,17 +168,7 @@ func TestBroker_Subscribe_ErrReplicaNotFound(t *testing.T) {
 	b := NewBroker()
 	defer b.Close()
 	b.CreateReplica("bar")
-	if err := b.Subscribe("foo", "bar"); err != messaging.ErrReplicaNotFound {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure that subscribing to a missing topic returns an error.
-func TestBroker_Subscribe_ErrTopicNotFound(t *testing.T) {
-	b := NewBroker()
-	defer b.Close()
-	b.CreateReplica("foo")
-	if err := b.Subscribe("foo", "bar"); err != messaging.ErrTopicNotFound {
+	if err := b.Subscribe("foo", 20); err != messaging.ErrReplicaNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -249,18 +177,7 @@ func TestBroker_Subscribe_ErrTopicNotFound(t *testing.T) {
 func TestBroker_Unsubscribe_ErrReplicaNotFound(t *testing.T) {
 	b := NewBroker()
 	defer b.Close()
-	b.CreateTopic("bar")
-	if err := b.Unsubscribe("foo", "bar"); err != messaging.ErrReplicaNotFound {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure that unsubscribing from a missing topic returns an error.
-func TestBroker_Unsubscribe_ErrTopicNotFound(t *testing.T) {
-	b := NewBroker()
-	defer b.Close()
-	b.CreateReplica("foo")
-	if err := b.Unsubscribe("foo", "bar"); err != messaging.ErrTopicNotFound {
+	if err := b.Unsubscribe("foo", 20); err != messaging.ErrReplicaNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

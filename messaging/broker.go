@@ -10,13 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 
 	"github.com/influxdb/influxdb/raft"
 )
 
-const configTopicID = uint32(0)
-const configTopicName = "config"
+const BroadcastTopicID = uint32(0)
 
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
@@ -27,18 +27,16 @@ type Broker struct {
 
 	replicas map[string]*Replica // replica by name
 
-	maxTopicID   uint32            // autoincrementing sequence
-	topics       map[uint32]*topic // topics by id
-	topicsByName map[string]*topic // topics by name
+	maxTopicID uint32            // autoincrementing sequence
+	topics     map[uint32]*topic // topics by id
 }
 
 // NewBroker returns a new instance of a Broker with default values.
 func NewBroker() *Broker {
 	b := &Broker{
-		log:          raft.NewLog(),
-		replicas:     make(map[string]*Replica),
-		topics:       make(map[uint32]*topic),
-		topicsByName: make(map[string]*topic),
+		log:      raft.NewLog(),
+		replicas: make(map[string]*Replica),
+		topics:   make(map[uint32]*topic),
 	}
 	b.log.FSM = (*brokerFSM)(b)
 	return b
@@ -61,9 +59,6 @@ func (b *Broker) Open(path string) error {
 		return ErrPathRequired
 	}
 	b.path = path
-
-	// Initialize config topic.
-	b.initTopic(configTopicID, configTopicName)
 
 	// Open underlying raft log.
 	if err := b.log.Open(filepath.Join(path, "raft")); err != nil {
@@ -105,44 +100,31 @@ func (b *Broker) Initialize() error {
 	return nil
 }
 
-// Publish writes a message to a topic.
+// Publish writes a message.
 // Returns the index of the message. Otherwise returns an error.
-func (b *Broker) Publish(topic string, m *Message) (uint64, error) {
-	// Retrieve topic by name.
-	b.mu.RLock()
-	t := b.topicsByName[topic]
-	b.mu.RUnlock()
-
-	// Ensure topic exists.
-	if t == nil {
-		return 0, ErrTopicNotFound
-	}
-
-	// Attach topic id to the message and encode.
-	m.TopicID = t.id
+func (b *Broker) Publish(m *Message) (uint64, error) {
 	buf, _ := m.MarshalBinary()
 	return b.log.Apply(buf)
 }
 
-// publishConfig writes a configuration change to the config topic.
-// This always waits until the change is applied to the log.
-func (b *Broker) publishConfig(m *Message) error {
-	// Encode topic, type, and data together.
-	m.TopicID = configTopicID
-	buf, _ := m.MarshalBinary()
-
-	// Apply to the raft log.
-	index, err := b.log.Apply(buf)
+// PublishSync writes a message and waits until the change is applied.
+func (b *Broker) PublishSync(m *Message) error {
+	// Publish message.
+	index, err := b.Publish(m)
 	if err != nil {
 		return err
 	}
 
-	// Wait for index.
-	return b.log.Wait(index)
+	// Wait for message to apply.
+	if err := b.Sync(index); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// Wait pauses until the given index has been applied.
-func (b *Broker) Wait(index uint64) error {
+// Sync pauses until the given index has been applied.
+func (b *Broker) Sync(index uint64) error {
 	return b.log.Wait(index)
 }
 
@@ -153,79 +135,22 @@ func (b *Broker) Replica(name string) *Replica {
 	return b.replicas[name]
 }
 
-// CreateTopic creates a new topic.
-func (b *Broker) CreateTopic(name string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// Ensure topic doesn't already exist.
-	t := b.topicsByName[name]
-	if t != nil {
-		return ErrTopicExists
-	}
-
-	// Generate the next id.
-	id := b.maxTopicID + 1
-
-	// Add command to create the topic.
-	return b.publishConfig(&Message{
-		Type: CreateTopicMessageType,
-		Data: jsonify(&CreateTopicCommand{ID: id, Name: name}),
-	})
-}
-
-// applyCreateTopic is called when the CreateTopicCommand is applied.
-func (b *Broker) applyCreateTopic(id uint32, name string) {
-	assert(b.topics[id] == nil, "duplicate topic id exists: %d", id)
-	assert(b.topicsByName[name] == nil, "duplicate topic name exists: %s", name)
-	b.initTopic(id, name)
-}
-
 // initializes a new topic object.
-func (b *Broker) initTopic(id uint32, name string) {
+func (b *Broker) createTopic(id uint32) *topic {
 	t := &topic{
 		id:       id,
-		name:     name,
-		path:     filepath.Join(b.path, name),
+		path:     filepath.Join(b.path, strconv.FormatUint(uint64(id), 10)),
 		replicas: make(map[string]*Replica),
 	}
 	b.topics[t.id] = t
-	b.topicsByName[t.name] = t
+	return t
 }
 
-// DeleteTopic deletes an existing topic.
-func (b *Broker) DeleteTopic(name string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// Find topic.
-	if t := b.topicsByName[name]; t == nil {
-		return ErrTopicNotFound
+func (b *Broker) createTopicIfNotExists(id uint32) *topic {
+	if t := b.topics[id]; t != nil {
+		return t
 	}
-
-	// Add command to remove.
-	return b.publishConfig(&Message{
-		Type: DeleteTopicMessageType,
-		Data: jsonify(&DeleteTopicCommand{Name: name}),
-	})
-}
-
-// applyDeleteTopic is called when the DeleteTopicCommand is applied.
-func (b *Broker) applyDeleteTopic(name string) {
-	t := b.topicsByName[name]
-	assert(t != nil, "topic missing: %s", name)
-
-	// Close topic.
-	_ = t.Close()
-
-	// Remove subscriptions.
-	for _, s := range b.replicas {
-		delete(s.topics, name)
-	}
-
-	// Remove from lookups.
-	delete(b.topics, t.id)
-	delete(b.topicsByName, t.name)
+	return b.createTopic(id)
 }
 
 // CreateReplica creates a new named replica.
@@ -240,27 +165,25 @@ func (b *Broker) CreateReplica(name string) error {
 	}
 
 	// Add command to create replica.
-	return b.publishConfig(&Message{
+	return b.PublishSync(&Message{
 		Type: CreateReplicaMessageType,
-		Data: jsonify(&CreateReplicaCommand{Name: name}),
+		Data: mustMarshal(&CreateReplicaCommand{Name: name}),
 	})
 }
 
-// applyCreateReplica is called when the CreateReplicaCommand is applied.
-func (b *Broker) applyCreateReplica(name string) {
-	r := &Replica{
-		broker: b,
-		name:   name,
-		topics: make(map[string]uint64),
-	}
+func (b *Broker) applyCreateReplica(m *Message) {
+	var c CreateReplicaCommand
+	mustUnmarshal(m.Data, &c)
+
+	// Create replica.
+	r := newReplica(b, c.Name)
 
 	// Automatically subscribe to the config topic.
-	t := b.topics[configTopicID]
-	assert(t != nil, "config topic missing")
-	r.topics[configTopicName] = t.index
+	t := b.createTopicIfNotExists(BroadcastTopicID)
+	r.topics[BroadcastTopicID] = t.index
 
 	// Add replica to the broker.
-	b.replicas[name] = r
+	b.replicas[c.Name] = r
 }
 
 // DeleteReplica deletes an existing replica by name.
@@ -274,113 +197,113 @@ func (b *Broker) DeleteReplica(name string) error {
 	}
 
 	// Issue command to remove replica.
-	return b.publishConfig(&Message{
+	return b.PublishSync(&Message{
 		Type: DeleteReplicaMessageType,
-		Data: jsonify(&DeleteReplicaCommand{Name: name}),
+		Data: mustMarshal(&DeleteReplicaCommand{Name: name}),
 	})
 }
 
-// applyDeleteReplica is called when the DeleteReplicaCommand is applied.
-func (b *Broker) applyDeleteReplica(name string) {
+func (b *Broker) applyDeleteReplica(m *Message) {
+	var c DeleteReplicaCommand
+	mustUnmarshal(m.Data, &c)
+
 	// Find replica.
-	r := b.replicas[name]
-	assert(r != nil, "replica missing: %s", name)
+	r := b.replicas[c.Name]
+	if r == nil {
+		return
+	}
 
 	// Remove replica from all subscribed topics.
-	for topic := range r.topics {
-		if t := b.topicsByName[topic]; t != nil {
-			delete(t.replicas, name)
+	for topicID := range r.topics {
+		if t := b.topics[topicID]; t != nil {
+			delete(t.replicas, r.name)
 		}
 	}
-	r.topics = make(map[string]uint64)
+	r.topics = make(map[uint32]uint64)
 
 	// Close replica's writer.
 	r.closeWriter()
 
 	// Remove replica from broker.
-	delete(b.replicas, name)
+	delete(b.replicas, c.Name)
 }
 
 // Subscribe adds a subscription to a topic from a replica.
-func (b *Broker) Subscribe(replica string, topic string) error {
+func (b *Broker) Subscribe(replica string, topicID uint32) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	// Ensure replica & topic exist.
 	if b.replicas[replica] == nil {
 		return ErrReplicaNotFound
-	} else if b.topicsByName[topic] == nil {
-		return ErrTopicNotFound
 	}
 
 	// Issue command to subscribe to topic.
-	return b.publishConfig(&Message{
+	return b.PublishSync(&Message{
 		Type: SubscribeMessageType,
-		Data: jsonify(&SubscribeCommand{Replica: replica, Topic: topic}),
+		Data: mustMarshal(&SubscribeCommand{Replica: replica, TopicID: topicID}),
 	})
 }
 
 // applySubscribe is called when the SubscribeCommand is applied.
-func (b *Broker) applySubscribe(replica string, topic string) error {
-	// Retrieve replica.
-	r := b.replicas[replica]
-	assert(r != nil, "replica not found: %s", replica)
+func (b *Broker) applySubscribe(m *Message) {
+	var c SubscribeCommand
+	mustUnmarshal(m.Data, &c)
 
-	// Retrieve topic.
-	t := b.topicsByName[topic]
-	assert(t != nil, "topic not found: %s", topic)
+	// Retrieve replica.
+	r := b.replicas[c.Replica]
+	if r == nil {
+		return
+	}
 
 	// Save current index on topic.
+	t := b.createTopicIfNotExists(c.TopicID)
 	index := t.index
 
 	// Ensure topic is not already subscribed to.
-	if _, ok := r.topics[t.name]; ok {
+	if _, ok := r.topics[c.TopicID]; ok {
 		warn("already subscribed to topic")
-		return nil
+		return
 	}
 
 	// Add subscription to replica.
-	r.topics[t.name] = index
-	t.replicas[r.name] = r
+	r.topics[c.TopicID] = index
+	t.replicas[c.Replica] = r
 
 	// Catch up replica.
 	t.writeTo(r, index)
-
-	return nil
 }
 
 // Unsubscribe removes a subscription for a topic from a replica.
-func (b *Broker) Unsubscribe(replica string, topic string) error {
+func (b *Broker) Unsubscribe(replica string, topicID uint32) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	// Ensure replica & topic exist.
 	if b.replicas[replica] == nil {
 		return ErrReplicaNotFound
-	} else if b.topicsByName[topic] == nil {
-		return ErrTopicNotFound
 	}
 
 	// Issue command to unsubscribe from topic.
-	return b.publishConfig(&Message{
+	return b.PublishSync(&Message{
 		Type: UnsubscribeMessageType,
-		Data: jsonify(&UnsubscribeCommand{Replica: replica, Topic: topic}),
+		Data: mustMarshal(&UnsubscribeCommand{Replica: replica, TopicID: topicID}),
 	})
 }
 
-// applyUnsubscribe is called when the UnsubscribeCommand is applied.
-func (b *Broker) applyUnsubscribe(replica string, topic string) {
-	// Retrieve replica.
-	s := b.replicas[replica]
-	assert(s != nil, "replica not found: %s", replica)
+func (b *Broker) applyUnsubscribe(m *Message) {
+	var c UnsubscribeCommand
+	mustUnmarshal(m.Data, &c)
 
-	// Retrieve topic.
-	t := b.topicsByName[topic]
-	assert(t != nil, "topic not found: %d", topic)
+	// Remove topic from replica.
+	if r := b.replicas[c.Replica]; r != nil {
+		delete(r.topics, c.TopicID)
+	}
 
-	// Remove subscription from replica and topic.
-	delete(s.topics, topic)
-	delete(t.replicas, replica)
+	// Remove replica from topic.
+	if t := b.topics[c.TopicID]; t != nil {
+		delete(t.replicas, c.Replica)
+	}
 }
 
 // brokerFSM implements the raft.FSM interface for the broker.
@@ -405,50 +328,20 @@ func (fsm *brokerFSM) Apply(e *raft.LogEntry) error {
 	// Add the raft index to the message.
 	m.Index = e.Index
 
-	// Find topic by id. Ignore topic if it doesn't exist.
-	t := b.topics[m.TopicID]
-	assert(t != nil, "topic not found: %d", m.TopicID)
-
 	// Update the broker configuration.
 	switch m.Type {
-	case CreateTopicMessageType:
-		var c CreateTopicCommand
-		err := json.Unmarshal(m.Data, &c)
-		assert(err == nil, "unmarshal create topic: %s", err)
-		b.applyCreateTopic(c.ID, c.Name)
-
-	case DeleteTopicMessageType:
-		var c DeleteTopicCommand
-		err := json.Unmarshal(m.Data, &c)
-		assert(err == nil, "unmarshal delete topic: %s", err)
-		b.applyDeleteTopic(c.Name)
-
 	case CreateReplicaMessageType:
-		var c CreateReplicaCommand
-		err := json.Unmarshal(m.Data, &c)
-		assert(err == nil, "unmarshal create replica: %s", err)
-		b.applyCreateReplica(c.Name)
-
+		b.applyCreateReplica(m)
 	case DeleteReplicaMessageType:
-		var c DeleteReplicaCommand
-		err := json.Unmarshal(m.Data, &c)
-		assert(err == nil, "unmarshal delete replica: %s", err)
-		b.applyDeleteReplica(c.Name)
-
+		b.applyDeleteReplica(m)
 	case SubscribeMessageType:
-		var c SubscribeCommand
-		err := json.Unmarshal(m.Data, &c)
-		assert(err == nil, "unmarshal subscribe: %s", err)
-		b.applySubscribe(c.Replica, c.Topic)
-
+		b.applySubscribe(m)
 	case UnsubscribeMessageType:
-		var c UnsubscribeCommand
-		err := json.Unmarshal(m.Data, &c)
-		assert(err == nil, "unmarshal unsubscribe: %s", err)
-		b.applyUnsubscribe(c.Replica, c.Topic)
+		b.applyUnsubscribe(m)
 	}
 
 	// Write to the topic.
+	t := b.createTopicIfNotExists(m.TopicID)
 	if err := t.encode(m); err != nil {
 		return fmt.Errorf("encode: %s", err)
 	}
@@ -482,7 +375,6 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 // Each topic is identified by a unique path.
 type topic struct {
 	id    uint32 // unique identifier
-	name  string // unique name
 	index uint64 // highest index written
 	path  string // on-disk path
 
@@ -493,7 +385,7 @@ type topic struct {
 
 // open opens a topic for writing.
 func (t *topic) open() error {
-	assert(t.file == nil, "topic already open: %s", t.name)
+	assert(t.file == nil, "topic already open: %d", t.id)
 
 	// Ensure the parent directory exists.
 	if err := os.MkdirAll(filepath.Dir(t.path), 0700); err != nil {
@@ -604,7 +496,16 @@ type Replica struct {
 	writer io.Writer     // currently attached writer
 	done   chan struct{} // notify when current writer is removed
 
-	topics map[string]uint64 // current index for each subscribed topic
+	topics map[uint32]uint64 // current index for each subscribed topic
+}
+
+// newReplica returns a new named Replica instance associated with a broker.
+func newReplica(b *Broker, name string) *Replica {
+	return &Replica{
+		broker: b,
+		name:   name,
+		topics: make(map[uint32]uint64),
+	}
 }
 
 // closeWriter removes the writer on the replica and closes the notify channel.
@@ -617,18 +518,18 @@ func (r *Replica) closeWriter() {
 }
 
 // Subscribe adds a subscription to a topic for the replica.
-func (r *Replica) Subscribe(topic string) error { return r.broker.Subscribe(r.name, topic) }
+func (r *Replica) Subscribe(topicID uint32) error { return r.broker.Subscribe(r.name, topicID) }
 
 // Unsubscribe removes a subscription from the stream.
-func (r *Replica) Unsubscribe(topic string) error { return r.broker.Unsubscribe(r.name, topic) }
+func (r *Replica) Unsubscribe(topicID uint32) error { return r.broker.Unsubscribe(r.name, topicID) }
 
 // Topics returns a list of topic names that the replica is subscribed to.
-func (r *Replica) Topics() []string {
-	a := make([]string, 0, len(r.topics))
-	for name := range r.topics {
-		a = append(a, name)
+func (r *Replica) Topics() []uint32 {
+	a := make([]uint32, 0, len(r.topics))
+	for topicID := range r.topics {
+		a = append(a, topicID)
 	}
-	sort.Strings(a)
+	sort.Sort(uint32Slice(a))
 	return a
 }
 
@@ -668,24 +569,21 @@ func (r *Replica) WriteTo(w io.Writer) (int, error) {
 
 	// Create a topic list with the "config" topic first.
 	// Configuration changes need to be propagated to make sure topics exist.
-	names := make([]string, 1, len(r.topics))
-	names[0] = configTopicName
-	for name := range r.topics {
-		if name != configTopicName {
-			names = append(names, name)
-		}
+	ids := make([]uint32, 0, len(r.topics))
+	for topicID := range r.topics {
+		ids = append(ids, topicID)
 	}
-	sort.Strings(names[1:])
+	sort.Sort(uint32Slice(ids))
 
 	// Catch up and attach replica to all subscribed topics.
-	for _, name := range names {
+	for _, topicID := range ids {
 		// Find topic.
-		t := r.broker.topicsByName[name]
-		assert(t != nil, "topic missing: %s", name)
+		t := r.broker.topics[topicID]
+		assert(t != nil, "topic missing: %s", topicID)
 
 		// Write topic messages from last known index.
 		// Replica machine can ignore messages it already seen.
-		index := r.topics[name]
+		index := r.topics[topicID]
 		if _, err := t.writeTo(r, index); err != nil {
 			return 0, fmt.Errorf("add stream writer: %s", err)
 		}
@@ -697,17 +595,6 @@ func (r *Replica) WriteTo(w io.Writer) (int, error) {
 	// Wait for writer to close and then return.
 	<-done
 	return 0, nil
-}
-
-// CreateTopicCommand creates a new named topic.
-type CreateTopicCommand struct {
-	ID   uint32 `json:"id"`   // topic id
-	Name string `json:"name"` // topic name
-}
-
-// DeleteTopicCommand removes a topic by ID.
-type DeleteTopicCommand struct {
-	Name string `json:"name"`
 }
 
 // CreateReplica creates a new named replica.
@@ -723,31 +610,28 @@ type DeleteReplicaCommand struct {
 // SubscribeCommand subscribes a replica to a new topic.
 type SubscribeCommand struct {
 	Replica string `json:"replica"` // replica name
-	Topic   string `json:"topic"`   // topic name
+	TopicID uint32 `json:"topicID"` // topic id
 }
 
 // UnsubscribeCommand removes a subscription for a topic from a replica.
 type UnsubscribeCommand struct {
 	Replica string `json:"replica"` // replica name
-	Topic   string `json:"topic"`   // topic name
+	TopicID uint32 `json:"topicID"` // topic id
 }
 
 // MessageType represents the type of message.
 type MessageType uint16
 
 const (
-	BrokerMessageType = 1 << 15
+	BrokerMessageType = 0x8000
 )
 
 const (
-	CreateTopicMessageType = BrokerMessageType | MessageType(0x00)
-	DeleteTopicMessageType = BrokerMessageType | MessageType(0x01)
+	CreateReplicaMessageType = BrokerMessageType | MessageType(0x00)
+	DeleteReplicaMessageType = BrokerMessageType | MessageType(0x01)
 
-	CreateReplicaMessageType = BrokerMessageType | MessageType(0x10)
-	DeleteReplicaMessageType = BrokerMessageType | MessageType(0x11)
-
-	SubscribeMessageType   = BrokerMessageType | MessageType(0x20)
-	UnsubscribeMessageType = BrokerMessageType | MessageType(0x21)
+	SubscribeMessageType   = BrokerMessageType | MessageType(0x10)
+	UnsubscribeMessageType = BrokerMessageType | MessageType(0x11)
 )
 
 // The size of the encoded message header, in bytes.
@@ -842,12 +726,31 @@ type flusher interface {
 	Flush()
 }
 
-// jsonify marshals a value to a JSON-encoded byte slice.
-// This should only be used with internal data that will not return marshal errors.
-func jsonify(v interface{}) []byte {
+// uint32Slice attaches the methods of Interface to []int, sorting in increasing order.
+type uint32Slice []uint32
+
+func (p uint32Slice) Len() int           { return len(p) }
+func (p uint32Slice) Less(i, j int) bool { return p[i] < p[j] }
+func (p uint32Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+// mustMarshal encodes a value to JSON.
+// This will panic if an error occurs. This should only be used internally when
+// an invalid marshal will cause corruption and a panic is appropriate.
+func mustMarshal(v interface{}) []byte {
 	b, err := json.Marshal(v)
-	assert(err == nil, "json marshal error: %s", err)
+	if err != nil {
+		panic("marshal: " + err.Error())
+	}
 	return b
+}
+
+// mustUnmarshal decodes a value from JSON.
+// This will panic if an error occurs. This should only be used internally when
+// an invalid unmarshal will cause corruption and a panic is appropriate.
+func mustUnmarshal(b []byte, v interface{}) {
+	if err := json.Unmarshal(b, v); err != nil {
+		panic("unmarshal: " + err.Error())
+	}
 }
 
 // assert will panic with a given formatted message if the given condition is false.
