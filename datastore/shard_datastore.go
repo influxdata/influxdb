@@ -34,37 +34,10 @@ type ShardDatastore struct {
 	metaStore      *metastore.Store
 }
 
-const (
-	ONE_KILOBYTE                    = 1024
-	ONE_MEGABYTE                    = 1024 * 1024
-	SHARD_BLOOM_FILTER_BITS_PER_KEY = 10
-	SHARD_DATABASE_DIR              = "shard_db_v2"
-)
-
-var (
-
-	// This datastore implements the PersistentAtomicInteger interface. All of the persistent
-	// integers start with this prefix, followed by their name
-	ATOMIC_INCREMENT_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD}
-
-	// NEXT_ID_KEY holds the next id. ids are used to "intern" timeseries and column names
-	NEXT_ID_KEY = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-
-	// SERIES_COLUMN_INDEX_PREFIX is the prefix of the series to column names index
-	SERIES_COLUMN_INDEX_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE}
-
-	// DATABASE_SERIES_INDEX_PREFIX is the prefix of the database to series names index
-	DATABASE_SERIES_INDEX_PREFIX = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-
-	MAX_SEQUENCE = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-
-	// replicateWrite = protocol.Request_REPLICATION_WRITE
-
-	TRUE = true
-)
+const shardDatabaseDir = "shard_db_v2"
 
 func NewShardDatastore(config *configuration.Configuration, metaStore *metastore.Store) (*ShardDatastore, error) {
-	baseDbDir := filepath.Join(config.DataDir, SHARD_DATABASE_DIR)
+	baseDbDir := filepath.Join(config.DataDir, shardDatabaseDir)
 	err := os.MkdirAll(baseDbDir, 0744)
 	if err != nil {
 		return nil, err
@@ -291,16 +264,4 @@ func isPointInRange(fieldId, startTime, endTime, point []byte) bool {
 	id := point[:8]
 	time := point[8:16]
 	return bytes.Equal(id, fieldId) && bytes.Compare(time, startTime) > -1 && bytes.Compare(time, endTime) < 1
-}
-
-type FieldLookupError struct {
-	message string
-}
-
-func NewFieldLookupError(message string) *FieldLookupError {
-	return &FieldLookupError{message}
-}
-
-func (self FieldLookupError) Error() string {
-	return self.message
 }

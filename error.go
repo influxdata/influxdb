@@ -9,6 +9,9 @@ var (
 	// ErrServerOpen is returned when opening an already open server.
 	ErrServerOpen = errors.New("server already open")
 
+	// ErrServerClosed is returned when closing an already closed server.
+	ErrServerClosed = errors.New("server already closed")
+
 	// ErrPathRequired is returned when opening a server without a path.
 	ErrPathRequired = errors.New("path required")
 )

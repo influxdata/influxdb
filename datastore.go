@@ -1,13 +1,13 @@
-package datastore
+package influxdb
 
+/*
 import (
-	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
 
 type Datastore interface {
-	ExecuteQuery(user common.User, database string,
+	ExecuteQuery(user User, database string,
 		query *parser.SelectQuery, yield func(*protocol.Series) error,
 		ringFilter func(database, series *string, time *int64) bool) error
 
@@ -28,3 +28,5 @@ type Datastore interface {
 	DropSeries(database, series string) error
 	Close()
 }
+
+*/

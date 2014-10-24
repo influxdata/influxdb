@@ -474,3 +474,15 @@ func yieldToProcessor(s *protocol.Series, p engine.Processor, aliases []string) 
 	}
 	return true, nil
 }
+
+type FieldLookupError struct {
+	message string
+}
+
+func NewFieldLookupError(message string) *FieldLookupError {
+	return &FieldLookupError{message}
+}
+
+func (self FieldLookupError) Error() string {
+	return self.message
+}

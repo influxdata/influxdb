@@ -1,7 +1,9 @@
 package messaging
 
 import (
+	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/influxdb/influxdb/raft"
@@ -32,29 +34,84 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Route all InfluxDB broker requests.
 	switch r.URL.Path {
 	case "/stream":
-		h.serveStream(w, r)
+		if r.Method == "GET" {
+			h.stream(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+
+	case "/messages":
+		if r.Method == "POST" {
+			h.publish(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
 	}
 }
 
 // connects the requestor as the replica's writer.
-func (h *Handler) serveStream(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 	// Retrieve the replica name.
 	name := r.URL.Query().Get("name")
 	if name == "" {
-		w.Header().Set("X-Broker-Error", "replica name required")
-		http.Error(w, "replica name required", http.StatusBadRequest)
+		h.error(w, ErrReplicaNameRequired, http.StatusBadRequest)
 		return
 	}
 
 	// Find the replica on the broker.
 	replica := h.broker.Replica(name)
 	if replica == nil {
-		w.Header().Set("X-Broker-Error", ErrReplicaNotFound.Error())
-		http.Error(w, ErrReplicaNotFound.Error(), http.StatusNotFound)
+		h.error(w, ErrReplicaNotFound, http.StatusNotFound)
 		return
 	}
 
 	// Connect the response writer to the replica.
 	// This will block until the replica is closed or a new writer connects.
 	_, _ = replica.WriteTo(w)
+}
+
+// publishes a message to the broker.
+func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
+	m := &Message{}
+
+	// Read the message type.
+	if n, err := strconv.ParseUint(r.URL.Query().Get("type"), 10, 16); err != nil {
+		h.error(w, ErrMessageTypeRequired, http.StatusBadRequest)
+		return
+	} else {
+		m.Type = MessageType(n)
+	}
+
+	// Read the topic ID.
+	if n, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 32); err != nil {
+		h.error(w, ErrTopicRequired, http.StatusBadRequest)
+		return
+	} else {
+		m.TopicID = uint32(n)
+	}
+
+	// Read the request body.
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		h.error(w, err, http.StatusInternalServerError)
+		return
+	}
+	m.Data = data
+
+	// Publish message to the broker.
+	index, err := h.broker.Publish(m)
+	if err != nil {
+		h.error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	// Return index.
+	w.Header().Set("X-Broker-Index", strconv.FormatUint(index, 10))
+}
+
+// error writes an error to the client and sets the status code.
+func (h *Handler) error(w http.ResponseWriter, err error, code int) {
+	s := err.Error()
+	w.Header().Set("X-Broker-Error", s)
+	http.Error(w, s, code)
 }

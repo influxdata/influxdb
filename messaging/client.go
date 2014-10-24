@@ -1,10 +1,13 @@
 package messaging
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -51,6 +54,16 @@ func (c *Client) URLs() []*url.URL {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.urls
+}
+
+// LeaderURL returns the URL of the broker leader.
+func (c *Client) LeaderURL() *url.URL {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// TODO(benbjohnson): Actually keep track of the leader.
+	// HACK(benbjohnson): For testing, just grab a url.
+	return c.urls[0]
 }
 
 // Open initializes and opens the connection to the broker cluster.
@@ -106,6 +119,31 @@ func (c *Client) Close() error {
 	c.opened = false
 
 	return nil
+}
+
+// Publish sends a message to the broker and returns an index or error.
+func (c *Client) Publish(typ MessageType, data []byte) (uint64, error) {
+	// Send the message to the messages endpoint.
+	u := c.LeaderURL()
+	u.RawQuery = url.Values{"type": {strconv.Itoa(int(typ))}}.Encode()
+	resp, err := http.Post(u.String(), "application/octet-stream", bytes.NewReader(data))
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// If a non-200 status is returned then an error occurred.
+	if resp.StatusCode != http.StatusOK {
+		return 0, errors.New(resp.Header.Get("X-Broker-Error"))
+	}
+
+	// Parse broker index.
+	index, err := strconv.ParseUint(resp.Header.Get("X-Broker-Index"), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid index: %s", err)
+	}
+
+	return index, nil
 }
 
 // streamer connects to a broker server and streams the replica's messages.

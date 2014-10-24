@@ -736,18 +736,18 @@ type UnsubscribeCommand struct {
 type MessageType uint16
 
 const (
-	ConfigMessageType = 1 << 15
+	BrokerMessageType = 1 << 15
 )
 
 const (
-	CreateTopicMessageType = ConfigMessageType | MessageType(0x00)
-	DeleteTopicMessageType = ConfigMessageType | MessageType(0x01)
+	CreateTopicMessageType = BrokerMessageType | MessageType(0x00)
+	DeleteTopicMessageType = BrokerMessageType | MessageType(0x01)
 
-	CreateReplicaMessageType = ConfigMessageType | MessageType(0x10)
-	DeleteReplicaMessageType = ConfigMessageType | MessageType(0x11)
+	CreateReplicaMessageType = BrokerMessageType | MessageType(0x10)
+	DeleteReplicaMessageType = BrokerMessageType | MessageType(0x11)
 
-	SubscribeMessageType   = ConfigMessageType | MessageType(0x20)
-	UnsubscribeMessageType = ConfigMessageType | MessageType(0x21)
+	SubscribeMessageType   = BrokerMessageType | MessageType(0x20)
+	UnsubscribeMessageType = BrokerMessageType | MessageType(0x21)
 )
 
 // The size of the encoded message header, in bytes.

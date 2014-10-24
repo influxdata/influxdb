@@ -14,10 +14,13 @@ import (
 func TestServer_Open(t *testing.T) {
 	c := NewMessagingClient()
 	s := NewServer(c)
-
 	defer s.Close()
-
-	// TODO
+	if err := s.Server.Open(tempfile()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Server.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // Server is a wrapping test struct for influxdb.Server.

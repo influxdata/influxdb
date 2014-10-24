@@ -24,6 +24,9 @@ var (
 	// ErrReplicaNotFound is returned when referencing a replica that doesn't exist.
 	ErrReplicaNotFound = errors.New("replica not found")
 
+	// ErrReplicaNameRequired is returned when finding a replica without a name.
+	ErrReplicaNameRequired = errors.New("replica name required")
+
 	// errReplicaUnavailable is returned when writing bytes to a replica when
 	// there is no writer attached to the replica.
 	errReplicaUnavailable = errors.New("replica unavailable")
@@ -36,4 +39,10 @@ var (
 
 	// ErrBrokerURLRequired is returned when opening a broker without URLs.
 	ErrBrokerURLRequired = errors.New("broker url required")
+
+	// ErrMessageTypeRequired is returned publishing a message without a type.
+	ErrMessageTypeRequired = errors.New("message type required")
+
+	// ErrTopicRequired is returned publishing a message without a topic ID.
+	ErrTopicRequired = errors.New("topic required")
 )
