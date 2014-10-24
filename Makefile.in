@@ -172,43 +172,37 @@ $(snappy_deps):
 ifeq ($(uname_S),Linux)
 	rm -rf $(snappy_dir)
 	mkdir -p $(snappy_dir)
-	bash -c "cd $(snappy_dir); \
-	wget https://snappy.googlecode.com/files/$(snappy_file); \
+	( cd $(snappy_dir);	wget https://snappy.googlecode.com/files/$(snappy_file); \
 	tar --strip-components=1 -xvzf $(snappy_file); \
-	CFLAGS='$(cflags)' CXXFLAGS='$(cflags)' ./configure --enable-shared=no $(cross_flags); \
-	$(MAKE)"
+	CFLAGS='$(cflags)' CXXFLAGS='$(cflags)' ./configure --enable-shared=no $(cross_flags) )
+	$(MAKE) -C $(snappy_dir)
 endif
 
 $(leveldb_deps): $(snappy_deps)
 ifeq ($(uname_S),Linux)
 	rm -rf $(leveldb_dir)
 	mkdir -p $(leveldb_dir)
-	bash -c "cd $(leveldb_dir); \
-	wget https://leveldb.googlecode.com/files/$(leveldb_file); \
-	tar --strip-components=1 -xvzf $(leveldb_file); \
-	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE) libleveldb.a"
+	( cd $(leveldb_dir); wget https://leveldb.googlecode.com/files/$(leveldb_file); tar --strip-components=1 -xvzf $(leveldb_file); )
+	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE) -C $(leveldb_dir) libleveldb.a
 endif
 
 $(rocksdb_deps): $(snappy_deps)
 ifeq ($(uname_S),Linux)
 	rm -rf $(rocksdb_dir)
 	mkdir -p $(rocksdb_dir)
-	bash -c "cd $(rocksdb_dir); \
-	wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
-	tar --strip-components=1 -xvzf $(rocksdb_file); \
-	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs $(LRT_LDFLAG)' $(MAKE) librocksdb.a"
+	( cd $(rocksdb_dir); wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
+	tar --strip-components=1 -xvzf $(rocksdb_file); )
+	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs $(LRT_LDFLAG)' $(MAKE) -C $(rocksdb_dir) librocksdb.a
 endif
 
 $(hyperleveldb_deps): $(snappy_deps)
 ifeq ($(uname_S),Linux)
 	rm -rf $(hyperleveldb_dir)
 	mkdir -p $(hyperleveldb_dir)
-	bash -c "cd $(hyperleveldb_dir); \
-	wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file) -O $(hyperleveldb_file); \
+	( cd $(hyperleveldb_dir); wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file) -O $(hyperleveldb_file); \
 	tar --strip-components=1 -xvzf $(hyperleveldb_file); \
-  $(AUTORECONF) -i; \
-	CXXFLAGS='-I$(snappy_dir) $(cflags)' CFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' ./configure --enable-shared=no; \
-	$(MAKE) V=1"
+  $(AUTORECONF) -i; CXXFLAGS='-I$(snappy_dir) $(cflags)' CFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' ./configure --enable-shared=no )
+	$(MAKE) -C $(hyperleveldb_dir) V=1
 endif
 
 storage_engines += $(leveldb_deps)
