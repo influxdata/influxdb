@@ -18,6 +18,9 @@ var (
 	// ErrDatabaseExists is returned when creating a database with the same
 	// name as an existing database.
 	ErrDatabaseExists = errors.New("database exists")
+
+	// ErrDatabaseNotFound is returned when dropping a non-existent database.
+	ErrDatabaseNotFound = errors.New("database not found")
 )
 
 const (

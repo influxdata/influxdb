@@ -58,16 +58,6 @@ func (c *DropDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
 	return nil, err
 }
 
-type CreateDatabaseCommand struct {
-	Name string `json:"name"`
-}
-
-func (c *CreateDatabaseCommand) Apply(server raft.Server) (interface{}, error) {
-	config := server.Context().(*cluster.ClusterConfiguration)
-	err := config.CreateDatabase(c.Name)
-	return nil, err
-}
-
 type SaveDbUserCommand struct {
 	User *cluster.DbUser `json:"user"`
 }

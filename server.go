@@ -13,14 +13,23 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
+const (
+	createDatabaseMessageType = messaging.MessageType(0x00)
+	deleteDatabaseMessageType = messaging.MessageType(0x01)
+
+	createDBUserMessageType = messaging.MessageType(0x11)
+	deleteDBUserMessageType = messaging.MessageType(0x12)
+)
+
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
 	mu   sync.RWMutex
 	path string
 	done chan struct{} // goroutine close notification
 
-	index  uint64 // highest broadcast index seen
-	client MessagingClient
+	client MessagingClient  // broker client
+	index  uint64           // highest broadcast index seen
+	errors map[uint64]error // message errors
 
 	databases map[string]*Database
 }
@@ -32,6 +41,7 @@ func NewServer(client MessagingClient) *Server {
 	return &Server{
 		client:    client,
 		databases: make(map[string]*Database),
+		errors:    make(map[uint64]error),
 	}
 }
 
@@ -102,25 +112,34 @@ func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, er
 	}
 
 	// Wait for the server to receive the message.
-	s.sync(index)
+	err = s.sync(index)
 
-	return index, nil
+	return index, err
 }
 
 // sync blocks until a given index (or a higher index) has been seen.
-func (s *Server) sync(index uint64) {
+// Returns any error associated with the command.
+func (s *Server) sync(index uint64) error {
 	for {
-		if s.Index() >= index {
-			return
+		// Check if index has occurred. If so, retrieve the error and return.
+		s.mu.RLock()
+		if s.index >= index {
+			err, ok := s.errors[index]
+			if ok {
+				delete(s.errors, index)
+			}
+			s.mu.RUnlock()
+			return err
 		}
+		s.mu.RUnlock()
+
+		// Otherwise wait momentarily and check again.
 		time.Sleep(1 * time.Millisecond)
 	}
 }
 
 // Index returns the highest broadcast index received by the server.
 func (s *Server) Index() uint64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	return s.index
 }
 
@@ -133,29 +152,52 @@ func (s *Server) Database(name string) *Database {
 
 // CreateDatabase creates a new database.
 func (s *Server) CreateDatabase(name string) error {
-	s.mu.Lock()
-	if s.databases[name] != nil {
-		s.mu.Unlock()
-		return ErrDatabaseExists
-	}
-	s.mu.Unlock()
-
 	_, err := s.broadcast(createDatabaseMessageType, &createDatabaseCommand{Name: name})
 	return err
 }
 
-func (s *Server) applyCreateDatabase(m *messaging.Message) {
+func (s *Server) applyCreateDatabase(m *messaging.Message) error {
 	var c createDatabaseCommand
 	mustUnmarshal(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.databases[c.Name] != nil {
-		return
+		return ErrDatabaseExists
 	}
 
 	// Create database entry.
 	s.databases[c.Name] = &Database{name: c.Name}
+	return nil
+}
+
+type createDatabaseCommand struct {
+	Name string `json:"name"`
+}
+
+// DeleteDatabase deletes an existing database.
+func (s *Server) DeleteDatabase(name string) error {
+	_, err := s.broadcast(deleteDatabaseMessageType, &deleteDatabaseCommand{Name: name})
+	return err
+}
+
+func (s *Server) applyDeleteDatabase(m *messaging.Message) error {
+	var c deleteDatabaseCommand
+	mustUnmarshal(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.databases[c.Name] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Delete the database entry.
+	delete(s.databases, c.Name)
+	return nil
+}
+
+type deleteDatabaseCommand struct {
+	Name string `json:"name"`
 }
 
 // WriteSeries writes series data to the broker.
@@ -177,28 +219,24 @@ func (s *Server) processor(done chan struct{}) {
 		}
 
 		// Process message.
+		var err error
 		switch m.Type {
 		case createDatabaseMessageType:
-			s.applyCreateDatabase(m)
+			err = s.applyCreateDatabase(m)
+		case deleteDatabaseMessageType:
+			err = s.applyDeleteDatabase(m)
 		}
 
-		// Sync high water mark for broadcast topic.
+		// Sync high water mark and errors for broadcast topic.
 		if m.TopicID == messaging.BroadcastTopicID {
 			s.mu.Lock()
 			s.index = m.Index
+			if err != nil {
+				s.errors[m.Index] = err
+			}
 			s.mu.Unlock()
 		}
 	}
-}
-
-const (
-	createDatabaseMessageType = messaging.MessageType(0x00)
-	deleteDatabaseMessageType = messaging.MessageType(0x01)
-)
-
-// createDatabaseCommand creates a new database.
-type createDatabaseCommand struct {
-	Name string `json:"name"`
 }
 
 // MessagingClient represents the client used to receive messages from brokers.

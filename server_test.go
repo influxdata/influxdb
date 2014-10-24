@@ -25,8 +25,7 @@ func TestServer_Open(t *testing.T) {
 
 // Ensure the server can create a database.
 func TestServer_CreateDatabase(t *testing.T) {
-	c := NewMessagingClient()
-	s := OpenServer(c)
+	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
 	// Create the "foo" database.
@@ -39,6 +38,51 @@ func TestServer_CreateDatabase(t *testing.T) {
 		t.Fatalf("database not found")
 	} else if d.Name() != "foo" {
 		t.Fatalf("name mismatch: %s", d.Name())
+	}
+}
+
+// Ensure the server returns an error when creating a duplicate database.
+func TestServer_CreateDatabase_ErrDatabaseExists(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create the "foo" database twice.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateDatabase("foo"); err != influxdb.ErrDatabaseExists {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server can drop a database.
+func TestServer_DropDatabase(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create the "foo" database and verify it exists.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	} else if d := s.Database("foo"); d == nil {
+		t.Fatalf("database not actually created")
+	}
+
+	// Drop the "foo" database and verify that it's gone.
+	if err := s.DeleteDatabase("foo"); err != nil {
+		t.Fatal(err)
+	} else if d := s.Database("foo"); d != nil {
+		t.Fatalf("database not actually dropped")
+	}
+}
+
+// Ensure the server returns an error when dropping a database that doesn't exist.
+func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Drop a database that doesn't exist.
+	if err := s.DeleteDatabase("no_such_db"); err != influxdb.ErrDatabaseNotFound {
+		t.Fatal(err)
 	}
 }
 
