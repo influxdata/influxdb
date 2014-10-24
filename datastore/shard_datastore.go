@@ -26,6 +26,7 @@ type ShardDatastore struct {
 	lastAccess     map[uint32]time.Time
 	shardRefCounts map[uint32]int
 	shardsToClose  map[uint32]bool
+	shardsToDelete map[uint32]struct{}
 	shardsLock     sync.RWMutex
 	writeBuffer    *cluster.WriteBuffer
 	maxOpenShards  int
@@ -74,6 +75,7 @@ func NewShardDatastore(config *configuration.Configuration, metaStore *metastore
 		lastAccess:     make(map[uint32]time.Time),
 		shardRefCounts: make(map[uint32]int),
 		shardsToClose:  make(map[uint32]bool),
+		shardsToDelete: make(map[uint32]struct{}),
 		pointBatchSize: config.StoragePointBatchSize,
 		writeBatchSize: config.StorageWriteBatchSize,
 		metaStore:      metaStore,
@@ -211,7 +213,16 @@ func (self *ShardDatastore) ReturnShard(id uint32) {
 	self.shardsLock.Lock()
 	defer self.shardsLock.Unlock()
 	self.shardRefCounts[id] -= 1
-	if self.shardsToClose[id] && self.shardRefCounts[id] == 0 {
+	if self.shardRefCounts[id] != 0 {
+		return
+	}
+
+	if _, ok := self.shardsToDelete[id]; ok {
+		self.deleteShard(id)
+		return
+	}
+
+	if self.shardsToClose[id] {
 		self.closeShard(id)
 	}
 }
@@ -233,20 +244,20 @@ func (self *ShardDatastore) SetWriteBuffer(writeBuffer *cluster.WriteBuffer) {
 	self.writeBuffer = writeBuffer
 }
 
-func (self *ShardDatastore) DeleteShard(shardId uint32) error {
+func (self *ShardDatastore) DeleteShard(shardId uint32) {
 	self.shardsLock.Lock()
-	shardDb := self.shards[shardId]
-	delete(self.shards, shardId)
-	delete(self.lastAccess, shardId)
-	self.shardsLock.Unlock()
-
-	if shardDb != nil {
-		shardDb.close()
+	defer self.shardsLock.Unlock()
+	// If someone has a reference to the shard we can't delete it
+	// now. We have to wait until it's returned and delete
+	// it. ReturnShard will take care of that as soon as the reference
+	// count becomes 0.
+	if self.shardRefCounts[shardId] > 0 {
+		self.shardsToDelete[shardId] = struct{}{}
+		return
 	}
 
-	dir := self.shardDir(shardId)
-	log.Info("DATASTORE: dropping shard %s", dir)
-	return os.RemoveAll(dir)
+	// otherwise, close the shard and delete it now
+	self.deleteShard(shardId)
 }
 
 func (self *ShardDatastore) shardDir(id uint32) string {
@@ -269,6 +280,17 @@ func (self *ShardDatastore) closeOldestShard() {
 	}
 }
 
+func (self *ShardDatastore) deleteShard(id uint32) {
+	self.closeShard(id)
+	dir := self.shardDir(id)
+	log.Info("DATASTORE: dropping shard %s", dir)
+	if err := os.RemoveAll(dir); err != nil {
+		// TODO: we should do some cleanup to make sure any shards left
+		// behind are deleted properly
+		log.Error("Cannot delete %s: %s", dir, err)
+	}
+}
+
 func (self *ShardDatastore) closeShard(id uint32) {
 	shard := self.shards[id]
 	if shard != nil {
@@ -278,6 +300,7 @@ func (self *ShardDatastore) closeShard(id uint32) {
 	delete(self.shards, id)
 	delete(self.lastAccess, id)
 	delete(self.shardsToClose, id)
+	delete(self.shardsToDelete, id)
 	log.Debug("DATASTORE: closing shard %s", self.shardDir(id))
 }
 

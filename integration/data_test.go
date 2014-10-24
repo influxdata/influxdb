@@ -72,6 +72,33 @@ func (self *DataTestSuite) TestInfiniteValues(c *C) {
 	c.Assert(maps[0]["derivative"], IsNil)
 }
 
+// This test tries to write a large batch of points to a shard that is
+// supposed to be dropped. This will demonstrate issue #985: while the
+// data is being written, InfluxDB will close the underlying storage
+// engine which will cause random errors to be thrown and could
+// possibly corrupt the db.
+func (self *DataTestSuite) TestWritingToExpiredShards(c *C) {
+	client := self.server.GetClient(self.dbname, c)
+	err := client.CreateShardSpace(self.dbname, &influxdb.ShardSpace{
+		Name:            "default",
+		Regex:           ".*",
+		RetentionPolicy: "7d",
+		ShardDuration:   "1y",
+	})
+	c.Assert(err, IsNil)
+
+	data := CreatePoints("test_using_deleted_shard", 1, 1000000)
+	data[0].Columns = append(data[0].Columns, "time")
+	for i, _ := range data[0].Points {
+		data[0].Points[i] = append(data[0].Points[i], 0)
+	}
+	// This test will fail randomly without the fix submitted in the
+	// same commit. 10 times is sufficient to trigger the bug.
+	for i := 0; i < 10; i++ {
+		self.client.WriteData(data, c, influxdb.Second)
+	}
+}
+
 // test large integer values
 func (self *DataTestSuite) TestLargeIntegerValues(c *C) {
 	// make sure we exceed the pointBatchSize, so we force a yield to

@@ -1137,7 +1137,8 @@ func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) 
 	// now actually remove it from disk if it lives here
 	for _, serverId := range serverIds {
 		if serverId == self.LocalServer.Id {
-			return self.shardStore.DeleteShard(shardId)
+			self.shardStore.DeleteShard(shardId)
+			return nil
 		}
 	}
 	return nil

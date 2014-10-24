@@ -100,7 +100,7 @@ type LocalShardStore interface {
 	BufferWrite(request *p.Request)
 	GetOrCreateShard(id uint32) (LocalShardDb, error)
 	ReturnShard(id uint32)
-	DeleteShard(shardId uint32) error
+	DeleteShard(shardId uint32)
 }
 
 func (self *ShardData) Id() uint32 {
