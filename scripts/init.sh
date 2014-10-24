@@ -35,6 +35,10 @@ if [ $NOFILES -le 0 ]; then
     NOFILES=4096
 fi
 
+if [ "x$STDOUT" == "x" ]; then
+    STDOUT=/dev/null
+fi
+
 echo "Setting ulimit -n $NOFILES"
 if ! ulimit -n $NOFILES >/dev/null 2>&1; then
     echo -n "Cannot set the max number of open file descriptors"
@@ -109,11 +113,11 @@ case $1 in
         # Log the message appropriately
         cd /
         if which start-stop-daemon > /dev/null 2>&1; then
-            nohup start-stop-daemon --chuid influxdb:influxdb -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config > /dev/null 2>&1 &
+            nohup start-stop-daemon --chuid influxdb:influxdb -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config >> $STDOUT 2>&1 &
         elif set | egrep '^start_daemon' > /dev/null 2>&1; then
-            start_daemon -u influxdb ${daemon}-daemon -pidfile $pidfile -config $config
+            start_daemon -u influxdb ${daemon}-daemon -pidfile $pidfile -config $config >> $STDOUT 2>&1
         else
-            sudo -u influxdb -g influxdb ${daemon}-daemon -pidfile $pidfile -config $config
+            sudo -u influxdb -g influxdb ${daemon}-daemon -pidfile $pidfile -config $config >> $STDOUT 2>&1
         fi
         log_success_msg "$name process was started"
         ;;
