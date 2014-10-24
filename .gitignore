@@ -63,3 +63,4 @@ integration/migration_data/
 
 # goide project files
 .idea
+influxdb.iml

@@ -81,7 +81,7 @@ type ClusterConfiguration struct {
 	wal                        WAL
 	lastShardIdUsed            uint32
 	random                     *rand.Rand
-	lastServerToGetShard       *ClusterServer
+	lastServerIdToGetShard     uint32
 	shardCreator               ShardCreator
 	shardLock                  sync.RWMutex
 	shardsById                 map[uint32]*ShardData
@@ -204,6 +204,19 @@ func (self *ClusterConfiguration) ServerId() uint32 {
 
 func (self *ClusterConfiguration) IsSingleServer() bool {
 	return len(self.servers) < 2
+}
+
+func (self *ClusterConfiguration) IsServerUpByRaftName(name string) bool {
+	// is localserver up
+	if self.addedLocalServer == true && self.LocalServer.RaftName == name {
+		return true
+	}
+
+	server := self.GetServerByRaftName(name)
+	if server != nil {
+		return server.IsUp()
+	}
+	return false
 }
 
 func (self *ClusterConfiguration) Servers() []*ClusterServer {
@@ -834,14 +847,23 @@ func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series st
 }
 
 func (self *ClusterConfiguration) createShards(microsecondsEpoch int64, shardSpace *ShardSpace) ([]*ShardData, error) {
-	startIndex := 0
-	if self.lastServerToGetShard != nil {
-		for i, server := range self.servers {
-			if server == self.lastServerToGetShard {
-				startIndex = i + 1
-			}
+	allUpSrvIdsAsInf := make([]interface{}, 0)
+	for _, server := range self.servers {
+		if self.IsServerUpByRaftName(server.RaftName) == true {
+			allUpSrvIdsAsInf = append(allUpSrvIdsAsInf, server.Id)
 		}
 	}
+	log.Debug("ClusterConfiguration.createShards: allUpSrvIdsAsInf: ", allUpSrvIdsAsInf)
+
+	startIndex := self.lastServerIdToGetShard
+	//	if self.lastServerToGetShard != nil {
+	//		for i, server := range self.servers {
+	//			if server == self.lastServerToGetShard {
+	//				startIndex = i + 1
+	//			}
+	//		}
+	//	}
+	log.Debug("ClusterConfiguration.createShards: startIndex", startIndex)
 
 	shards := make([]*NewShardData, 0)
 	startTime, endTime := self.getStartAndEndBasedOnDuration(microsecondsEpoch, shardSpace.SecondsOfDuration())
@@ -859,15 +881,37 @@ func (self *ClusterConfiguration) createShards(microsecondsEpoch int64, shardSpa
 			rf = len(self.servers)
 		}
 
-		for ; rf > 0; rf-- {
-			if startIndex >= len(self.servers) {
-				startIndex = 0
+		if len(allUpSrvIdsAsInf) <= rf {
+			// no enough up servers
+			for _, v := range allUpSrvIdsAsInf {
+				serverIds = append(serverIds, v.(uint32))
 			}
-			server := self.servers[startIndex]
-			self.lastServerToGetShard = server
-			serverIds = append(serverIds, server.Id)
-			startIndex += 1
+
+		} else {
+			// round robin
+			serverIdsInf, _ := common.CycleNextMany(allUpSrvIdsAsInf, uint(startIndex), uint(rf))
+			for _, v := range serverIdsInf {
+				serverIds = append(serverIds, v.(uint32))
+			}
+			//serverIdsInf, newIdx := common.CycleNextMany(allUpSrvIdsAsInf, uint(startIndex), uint(rf))
+			// [1,2], [3, 1], [2, 3], ..
+			// self.lastServerIdToGetShard = uint32(newIdx)
+
+			// [1,2], [2,3], [3,1] ...
+			self.lastServerIdToGetShard = startIndex + 1
 		}
+		log.Debug("ClusterConfiguration.createShards: serverIds", serverIds)
+
+		//		for ; rf > 0; rf-- {
+		//			if startIndex >= len(self.servers) {
+		//				startIndex = 0
+		//			}
+		//			server := self.servers[startIndex]
+		//			self.lastServerToGetShard = server
+		//			serverIds = append(serverIds, server.Id)
+		//			startIndex += 1
+		//		}
+
 		shards = append(shards, &NewShardData{
 			StartTime: *startTime,
 			EndTime:   *endTime,

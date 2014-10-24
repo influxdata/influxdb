@@ -946,7 +946,7 @@ func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request
 			serverMaps[i] = map[string]interface{}{
 				"id": s.Id,
 				"protobufConnectString":   s.ProtobufConnectionString,
-				"isUp":                    s.IsUp(), //FIXME: IsUp is not consistent
+				"isUp":                    self.clusterConfig.IsServerUpByRaftName(s.RaftName),
 				"raftName":                s.RaftName,
 				"state":                   s.State,
 				"stateName":               s.GetStateName(),
@@ -1036,6 +1036,7 @@ func (self *HttpServer) createShard(w libhttp.ResponseWriter, r *libhttp.Request
 func (self *HttpServer) getShards(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		shards := self.clusterConfig.GetShards()
+		//TODO: sort by shard id
 		shardMaps := make([]map[string]interface{}, 0, len(shards))
 		for _, s := range shards {
 			shardMaps = append(shardMaps, map[string]interface{}{
