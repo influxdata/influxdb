@@ -6,7 +6,7 @@ cd `dirname $0`
 
 git checkout .
 git pull --rebase
-make clean
+[ -f Makefile ] && make clean
 git clean -dfx
 ./configure
 

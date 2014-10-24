@@ -242,6 +242,7 @@ clean:
 	rm -rf $(hyperleveldb_dir)
 	rm -rf $(rocksdb_dir)
 	$(MAKE) -C parser clean
+	$(GO) get -u $(GO_BUILD_OPTIONS) -d -t github.com/influxdb/influxdb/...
 
 rebuild_static_assets:
 	$(GO) get github.com/rakyll/statik
