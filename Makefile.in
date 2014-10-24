@@ -304,6 +304,10 @@ $(rpm_package): $(binary_package)
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
+# `$(rpm_args)` has to follow the command directory. `rpm_args` gets set to setarch
+# which changes the output of `uname -m` to the desired architecture and runs the
+# following command. Without any commands to follow `setarch` will start an interactive
+# shell and pause the package process
 	( rvm use 1.9.3@influxdb && cd out_rpm && $(rpm_args) fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) . )
 	mv out_rpm/$(shell basename $(rpm_package)) packages/
 
