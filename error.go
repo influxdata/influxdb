@@ -14,6 +14,10 @@ var (
 
 	// ErrPathRequired is returned when opening a server without a path.
 	ErrPathRequired = errors.New("path required")
+
+	// ErrDatabaseExists is returned when creating a database with the same
+	// name as an existing database.
+	ErrDatabaseExists = errors.New("database exists")
 )
 
 const (

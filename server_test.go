@@ -23,6 +23,25 @@ func TestServer_Open(t *testing.T) {
 	}
 }
 
+// Ensure the server can create a database.
+func TestServer_CreateDatabase(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the database exists.
+	if d := s.Database("foo"); d == nil {
+		t.Fatalf("database not found")
+	} else if d.Name() != "foo" {
+		t.Fatalf("name mismatch: %s", d.Name())
+	}
+}
+
 // Server is a wrapping test struct for influxdb.Server.
 type Server struct {
 	*influxdb.Server
@@ -50,15 +69,35 @@ func (s *Server) Close() {
 
 // MessagingClient represents a test client for the messaging broker.
 type MessagingClient struct {
-	c chan *messaging.Message
+	index uint64
+	c     chan *messaging.Message
+
+	PublishFunc func(*messaging.Message) (uint64, error)
 }
 
 // NewMessagingClient returns a new instance of MessagingClient.
 func NewMessagingClient() *MessagingClient {
-	return &MessagingClient{c: make(chan *messaging.Message, 1)}
+	c := &MessagingClient{c: make(chan *messaging.Message, 1)}
+	c.PublishFunc = c.send
+	return c
 }
 
-// Returns a channel for streaming message.
+// Publish attaches an autoincrementing index to the message.
+// This function also execute's the client's PublishFunc mock function.
+func (c *MessagingClient) Publish(m *messaging.Message) (uint64, error) {
+	c.index++
+	m.Index = c.index
+	return c.PublishFunc(m)
+}
+
+// send sends the message through to the channel.
+// This is the default value of PublishFunc.
+func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
+	c.c <- m
+	return m.Index, nil
+}
+
+// C returns a channel for streaming message.
 func (c *MessagingClient) C() <-chan *messaging.Message { return c.c }
 
 // tempfile returns a temporary path.

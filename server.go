@@ -3,6 +3,7 @@ package influxdb
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -14,12 +15,14 @@ import (
 
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
-	mu        sync.RWMutex
-	path      string
-	client    MessagingClient
-	databases map[string]*Database
+	mu   sync.RWMutex
+	path string
+	done chan struct{} // goroutine close notification
 
-	done chan struct{}
+	index  uint64 // highest broadcast index seen
+	client MessagingClient
+
+	databases map[string]*Database
 }
 
 // NewServer returns a new instance of Server.
@@ -45,6 +48,9 @@ func (s *Server) Open(path string) error {
 		return ErrPathRequired
 	}
 
+	// Set the server path.
+	s.path = path
+
 	// Start goroutine to read messages from the broker.
 	s.done = make(chan struct{}, 0)
 	go s.processor(s.done)
@@ -58,7 +64,7 @@ func (s *Server) opened() bool { return s.path != "" }
 // Close shuts down the server.
 func (s *Server) Close() error {
 	s.mu.Lock()
-	defer s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if !s.opened() {
 		return ErrServerClosed
@@ -74,36 +80,55 @@ func (s *Server) Close() error {
 	return nil
 }
 
-// publish encodes a message as JSON and send it to the broker.
-// This function does not wait for the message to be processed.
+// broadcast encodes a message as JSON and send it to the broker's broadcast topic.
+// This function waits until the message has been processed by the server.
 // Returns the broker log index of the message or an error.
-func (s *Server) publish(typ *messaging.MessageType, c interface{}) (uint64, error) {
+func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, error) {
 	// Encode the command.
-	b, err := json.Marshal(c)
+	data, err := json.Marshal(c)
 	if err != nil {
 		return 0, err
 	}
 
 	// Publish the message.
-	return s.client.Publish(typ, b)
+	m := &messaging.Message{
+		Type:    typ,
+		TopicID: messaging.BroadcastTopicID,
+		Data:    data,
+	}
+	index, err := s.client.Publish(m)
+	if err != nil {
+		return 0, err
+	}
+
+	// Wait for the server to receive the message.
+	s.sync(index)
+
+	return index, nil
 }
 
-// publishSync encodes a message as JSON and send it to the broker.
-// This function will wait until the message is processed before returning.
-// Returns an error if the message could not be successfully published.
-func (s *Server) publishSync(typ *messaging.MessageType, c interface{}) error {
-	// Publish the message.
-	index, err := s.publish(typ, c)
-	if err != nil {
-		return err
+// sync blocks until a given index (or a higher index) has been seen.
+func (s *Server) sync(index uint64) {
+	for {
+		if s.Index() >= index {
+			return
+		}
+		time.Sleep(1 * time.Millisecond)
 	}
+}
 
-	// Wait for the message to be processed.
-	if err := s.client.wait(index); err != nil {
-		return err
-	}
+// Index returns the highest broadcast index received by the server.
+func (s *Server) Index() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.index
+}
 
-	return nil
+// CreateDatabase creates a new database.
+func (s *Server) Database(name string) *Database {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.databases[name]
 }
 
 // CreateDatabase creates a new database.
@@ -114,10 +139,15 @@ func (s *Server) CreateDatabase(name string) error {
 		return ErrDatabaseExists
 	}
 	s.mu.Unlock()
-	return s.publishSync(createDatabaseMessageType, &createDatabaseCommand{Name: name})
+
+	_, err := s.broadcast(createDatabaseMessageType, &createDatabaseCommand{Name: name})
+	return err
 }
 
-func (s *Server) applyCreateDatabase(c *createDatabaseCommand) {
+func (s *Server) applyCreateDatabase(m *messaging.Message) {
+	var c createDatabaseCommand
+	mustUnmarshal(m.Data, &c)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.databases[c.Name] != nil {
@@ -125,7 +155,7 @@ func (s *Server) applyCreateDatabase(c *createDatabaseCommand) {
 	}
 
 	// Create database entry.
-	s.databases[c.Name] = &Database{Name: c.Name}
+	s.databases[c.Name] = &Database{name: c.Name}
 }
 
 // WriteSeries writes series data to the broker.
@@ -149,9 +179,14 @@ func (s *Server) processor(done chan struct{}) {
 		// Process message.
 		switch m.Type {
 		case createDatabaseMessageType:
-			var c createDatabaseCommand
-			mustUnmarshal(m.Data, &c)
-			b.applyCreateDatabase(c.ID, c.Name)
+			s.applyCreateDatabase(m)
+		}
+
+		// Sync high water mark for broadcast topic.
+		if m.TopicID == messaging.BroadcastTopicID {
+			s.mu.Lock()
+			s.index = m.Index
+			s.mu.Unlock()
 		}
 	}
 }
@@ -168,6 +203,10 @@ type createDatabaseCommand struct {
 
 // MessagingClient represents the client used to receive messages from brokers.
 type MessagingClient interface {
+	// Publishes a message to the broker.
+	Publish(m *messaging.Message) (index uint64, err error)
+
+	// The streaming channel for all subscribed messages.
 	C() <-chan *messaging.Message
 }
 
@@ -176,6 +215,13 @@ type Database struct {
 	mu          sync.RWMutex
 	name        string
 	shardSpaces map[string]*ShardSpace
+}
+
+// Name returns the database name.
+func (db *Database) Name() string {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.name
 }
 
 // ShardSpace represents a policy for creating new shards in a database.
@@ -289,3 +335,6 @@ func assert(condition bool, msg string, v ...interface{}) {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
 }
+
+func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
+func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
