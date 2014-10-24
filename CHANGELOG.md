@@ -5,6 +5,16 @@
 - [Issue #778](https://github.com/influxdb/influxdb/issues/778). Selecting
   from a non-existent series should give a better error message indicating
   that the series doesn't exist
+- [Issue #988](https://github.com/influxdb/influxdb/issues/988). Check
+  the arguments of `top()` and `bottom()`
+- [Issue #1021](https://github.com/influxdb/influxdb/issues/1021). Make
+  redirecting to standard output and standard error optional instead of
+  going to `/dev/null`. This can now be configured by setting `$STDOUT`
+  in `/etc/default/influxdb`
+- [Issue #985](https://github.com/influxdb/influxdb/issues/985). Make
+  sure we drop a shard only when there's no one using it. Otherwise, the
+  shard can be closed when another goroutine is writing to it which will
+  cause random errors and possibly corruption of the database.
 
 ### Features
 
