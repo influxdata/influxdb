@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"testing"
 
+	"code.google.com/p/go.crypto/bcrypt"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/messaging"
 )
@@ -94,7 +94,7 @@ func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 }
 
 // Ensure the server can create a new user.
-func TestServer_CreateUser(t *testing.T) {
+func TestDatabase_CreateUser(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -112,13 +112,15 @@ func TestServer_CreateUser(t *testing.T) {
 	// Verify that the user exists.
 	if u := db.User("susy"); u == nil {
 		t.Fatalf("user not found")
-	} else if reflect.DeepEqual(u, nil) {
-		t.Fatalf("user mismatch: %#v", u)
+	} else if u.Name != "susy" {
+		t.Fatalf("username mismatch: %v", u.Name)
+	} else if bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte("pass")) != nil {
+		t.Fatal("invalid password")
 	}
 }
 
 // Ensure the server returns an error when creating a user without a name.
-func TestServer_CreateUser_ErrUsernameRequired(t *testing.T) {
+func TestDatabase_CreateUser_ErrUsernameRequired(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	if err := s.CreateDatabase("foo"); err != nil {
@@ -130,7 +132,7 @@ func TestServer_CreateUser_ErrUsernameRequired(t *testing.T) {
 }
 
 // Ensure the server returns an error when creating a user with an invalid name.
-func TestServer_CreateUser_ErrInvalidUsername(t *testing.T) {
+func TestDatabase_CreateUser_ErrInvalidUsername(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	if err := s.CreateDatabase("foo"); err != nil {
@@ -142,7 +144,7 @@ func TestServer_CreateUser_ErrInvalidUsername(t *testing.T) {
 }
 
 // Ensure the server returns an error when creating a user after the db is dropped.
-func TestServer_CreateUser_ErrDatabaseNotFound(t *testing.T) {
+func TestDatabase_CreateUser_ErrDatabaseNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -164,7 +166,7 @@ func TestServer_CreateUser_ErrDatabaseNotFound(t *testing.T) {
 }
 
 // Ensure the server returns an error when creating a duplicate user.
-func TestServer_CreateUser_ErrUserExists(t *testing.T) {
+func TestDatabase_CreateUser_ErrUserExists(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -184,7 +186,7 @@ func TestServer_CreateUser_ErrUserExists(t *testing.T) {
 }
 
 // Ensure the server can delete an existing user.
-func TestServer_DeleteUser(t *testing.T) {
+func TestDatabase_DeleteUser(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -206,7 +208,7 @@ func TestServer_DeleteUser(t *testing.T) {
 }
 
 // Ensure the server returns an error when delete a user without a name.
-func TestServer_DeleteUser_ErrUsernameRequired(t *testing.T) {
+func TestDatabase_DeleteUser_ErrUsernameRequired(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -216,7 +218,7 @@ func TestServer_DeleteUser_ErrUsernameRequired(t *testing.T) {
 }
 
 // Ensure the server returns an error when deleting a user after the db is dropped.
-func TestServer_DeleteUser_ErrDatabaseNotFound(t *testing.T) {
+func TestDatabase_DeleteUser_ErrDatabaseNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -232,12 +234,34 @@ func TestServer_DeleteUser_ErrDatabaseNotFound(t *testing.T) {
 }
 
 // Ensure the server returns an error when deleting a non-existent user.
-func TestServer_DeleteUser_ErrUserNotFound(t *testing.T) {
+func TestDatabase_DeleteUser_ErrUserNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
 	if err := s.Database("foo").DeleteUser("no_such_user"); err != influxdb.ErrUserNotFound {
 		t.Fatal(err)
+	}
+}
+
+// Ensure the server can change the password of a user.
+func TestDatabase_ChangePassword(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database and user.
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+	if err := db.CreateUser("susy", "pass", nil); err != nil {
+		t.Fatal(err)
+	} else if bcrypt.CompareHashAndPassword([]byte(db.User("susy").Hash), []byte("pass")) != nil {
+		t.Fatal("invalid initial password")
+	}
+
+	// Update user password.
+	if err := db.ChangePassword("susy", "newpass"); err != nil {
+		t.Fatal(err)
+	} else if bcrypt.CompareHashAndPassword([]byte(db.User("susy").Hash), []byte("newpass")) != nil {
+		t.Fatal("invalid new password")
 	}
 }
 

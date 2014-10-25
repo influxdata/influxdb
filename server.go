@@ -283,6 +283,33 @@ type deleteDBUserCommand struct {
 	Username string `json:"username"`
 }
 
+func (s *Server) applyChangePassword(m *messaging.Message) error {
+	var c changePasswordCommand
+	mustUnmarshal(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate user.
+	if c.Username == "" {
+		return ErrUsernameRequired
+	}
+
+	// Retrieve the database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	return db.changePassword(c.Username, c.Password)
+}
+
+type changePasswordCommand struct {
+	Database string `json:"database"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 // WriteSeries writes series data to the broker.
 func (s *Server) WriteSeries(u *ClusterAdmin, database string, series *protocol.Series) error {
 	// TODO:
@@ -312,6 +339,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyCreateDBUser(m)
 		case deleteDBUserMessageType:
 			err = s.applyDeleteDBUser(m)
+		case changePasswordMessageType:
+			err = s.applyChangePassword(m)
 		}
 
 		// Sync high water mark and errors for broadcast topic.
@@ -381,6 +410,13 @@ func (db *Database) CreateUser(username, password string, permissions []string) 
 	return err
 }
 
+func (db *Database) saveUser(u *DBUser) error {
+	db.mu.Lock()
+	db.users[u.Name] = u
+	db.mu.Unlock()
+	return nil
+}
+
 // DeleteUser removes a user from the database.
 func (db *Database) DeleteUser(username string) error {
 	c := &deleteDBUserCommand{
@@ -391,15 +427,6 @@ func (db *Database) DeleteUser(username string) error {
 	return err
 }
 
-// saveUser persists a user to the database.
-func (db *Database) saveUser(u *DBUser) error {
-	db.mu.Lock()
-	db.users[u.Name] = u
-	db.mu.Unlock()
-	return nil
-}
-
-// deleteUser removes a user from the database.
 func (db *Database) deleteUser(username string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -411,6 +438,39 @@ func (db *Database) deleteUser(username string) error {
 
 	// Remove user.
 	delete(db.users, username)
+	return nil
+}
+
+// ChangePassword changes the password for a user in the database.
+func (db *Database) ChangePassword(username, newPassword string) error {
+	c := &changePasswordCommand{
+		Database: db.Name(),
+		Username: username,
+		Password: newPassword,
+	}
+	_, err := db.server.broadcast(changePasswordMessageType, c)
+	return err
+}
+
+func (db *Database) changePassword(username, newPassword string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	// Check that user exists.
+	u := db.users[username]
+	if u == nil {
+		return ErrUserNotFound
+	}
+
+	// Generate the hash of the password.
+	hash, err := HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	// Update user password hash.
+	u.Hash = string(hash)
+
 	return nil
 }
 
