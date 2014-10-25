@@ -138,11 +138,6 @@ func (s *Server) sync(index uint64) error {
 	}
 }
 
-// Index returns the highest broadcast index received by the server.
-func (s *Server) Index() uint64 {
-	return s.index
-}
-
 // CreateDatabase creates a new database.
 func (s *Server) Database(name string) *Database {
 	s.mu.Lock()
@@ -214,8 +209,6 @@ func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 		return ErrUsernameRequired
 	} else if !isValidName(c.Username) {
 		return ErrInvalidUsername
-	} else if c.Database == "" {
-		return ErrDatabaseRequired
 	}
 
 	// Retrieve the database.

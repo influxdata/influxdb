@@ -24,6 +24,12 @@ func TestServer_Open(t *testing.T) {
 	}
 }
 
+// Ensure an error is returned when opening an already open server.
+func TestServer_Open_ErrServerOpen(t *testing.T) { t.Skip("pending") }
+
+// Ensure an error is returned when opening a server without a path.
+func TestServer_Open_ErrPathRequired(t *testing.T) { t.Skip("pending") }
+
 // Ensure the server can create a database.
 func TestServer_CreateDatabase(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
@@ -108,6 +114,72 @@ func TestServer_CreateUser(t *testing.T) {
 		t.Fatalf("user not found")
 	} else if reflect.DeepEqual(u, nil) {
 		t.Fatalf("user mismatch: %#v", u)
+	}
+}
+
+// Ensure the server returns an error when creating a user without a name.
+func TestServer_CreateUser_ErrUsernameRequired(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Database("foo").CreateUser("", "pass", nil); err != influxdb.ErrUsernameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when creating a user with an invalid name.
+func TestServer_CreateUser_ErrInvalidUsername(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Database("foo").CreateUser("my%user", "pass", nil); err != influxdb.ErrInvalidUsername {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when creating a user after the db is dropped.
+func TestServer_CreateUser_ErrDatabaseNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	db := s.Database("foo")
+
+	// Drop the database.
+	if err := s.DeleteDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a user using the old database reference.
+	if err := db.CreateUser("susy", "pass", nil); err != influxdb.ErrDatabaseNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when creating a duplicate user.
+func TestServer_CreateUser_ErrUserExists(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	db := s.Database("foo")
+
+	// Create a user a user. Then create the user again.
+	if err := db.CreateUser("susy", "pass", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.CreateUser("susy", "pass", nil); err != influxdb.ErrUserExists {
+		t.Fatal(err)
 	}
 }
 
