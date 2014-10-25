@@ -17,8 +17,9 @@ const (
 	createDatabaseMessageType = messaging.MessageType(0x00)
 	deleteDatabaseMessageType = messaging.MessageType(0x01)
 
-	createDBUserMessageType = messaging.MessageType(0x11)
-	deleteDBUserMessageType = messaging.MessageType(0x12)
+	createDBUserMessageType   = messaging.MessageType(0x11)
+	deleteDBUserMessageType   = messaging.MessageType(0x12)
+	changePasswordMessageType = messaging.MessageType(0x13)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -147,7 +148,8 @@ func (s *Server) Database(name string) *Database {
 
 // CreateDatabase creates a new database.
 func (s *Server) CreateDatabase(name string) error {
-	_, err := s.broadcast(createDatabaseMessageType, &createDatabaseCommand{Name: name})
+	c := &createDatabaseCommand{Name: name}
+	_, err := s.broadcast(createDatabaseMessageType, c)
 	return err
 }
 
@@ -174,7 +176,8 @@ type createDatabaseCommand struct {
 
 // DeleteDatabase deletes an existing database.
 func (s *Server) DeleteDatabase(name string) error {
-	_, err := s.broadcast(deleteDatabaseMessageType, &deleteDatabaseCommand{Name: name})
+	c := &deleteDatabaseCommand{Name: name}
+	_, err := s.broadcast(deleteDatabaseMessageType, c)
 	return err
 }
 
@@ -254,6 +257,32 @@ type createDBUserCommand struct {
 	Permissions []string `json:"permissions"`
 }
 
+func (s *Server) applyDeleteDBUser(m *messaging.Message) error {
+	var c deleteDBUserCommand
+	mustUnmarshal(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate command.
+	if c.Username == "" {
+		return ErrUsernameRequired
+	}
+
+	// Retrieve the database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	return db.deleteUser(c.Username)
+}
+
+type deleteDBUserCommand struct {
+	Database string `json:"database"`
+	Username string `json:"username"`
+}
+
 // WriteSeries writes series data to the broker.
 func (s *Server) WriteSeries(u *ClusterAdmin, database string, series *protocol.Series) error {
 	// TODO:
@@ -281,6 +310,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyDeleteDatabase(m)
 		case createDBUserMessageType:
 			err = s.applyCreateDBUser(m)
+		case deleteDBUserMessageType:
+			err = s.applyDeleteDBUser(m)
 		}
 
 		// Sync high water mark and errors for broadcast topic.
@@ -350,11 +381,36 @@ func (db *Database) CreateUser(username, password string, permissions []string) 
 	return err
 }
 
+// DeleteUser removes a user from the database.
+func (db *Database) DeleteUser(username string) error {
+	c := &deleteDBUserCommand{
+		Database: db.Name(),
+		Username: username,
+	}
+	_, err := db.server.broadcast(deleteDBUserMessageType, c)
+	return err
+}
+
 // saveUser persists a user to the database.
 func (db *Database) saveUser(u *DBUser) error {
 	db.mu.Lock()
 	db.users[u.Name] = u
 	db.mu.Unlock()
+	return nil
+}
+
+// deleteUser removes a user from the database.
+func (db *Database) deleteUser(username string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	// Check if user exists.
+	if db.users[username] == nil {
+		return ErrUserNotFound
+	}
+
+	// Remove user.
+	delete(db.users, username)
 	return nil
 }
 

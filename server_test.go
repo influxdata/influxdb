@@ -183,6 +183,64 @@ func TestServer_CreateUser_ErrUserExists(t *testing.T) {
 	}
 }
 
+// Ensure the server can delete an existing user.
+func TestServer_DeleteUser(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database and user.
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+	if err := db.CreateUser("susy", "pass", nil); err != nil {
+		t.Fatal(err)
+	} else if db.User("susy") == nil {
+		t.Fatal("user not created")
+	}
+
+	// Remove user from database.
+	if err := db.DeleteUser("susy"); err != nil {
+		t.Fatal(err)
+	} else if db.User("susy") != nil {
+		t.Fatal("user not deleted")
+	}
+}
+
+// Ensure the server returns an error when delete a user without a name.
+func TestServer_DeleteUser_ErrUsernameRequired(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	if err := s.Database("foo").DeleteUser(""); err != influxdb.ErrUsernameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when deleting a user after the db is dropped.
+func TestServer_DeleteUser_ErrDatabaseNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create & delete the database.
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+	s.DeleteDatabase("foo")
+
+	// Delete a user using the old database reference.
+	if err := db.DeleteUser("susy"); err != influxdb.ErrDatabaseNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when deleting a non-existent user.
+func TestServer_DeleteUser_ErrUserNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	if err := s.Database("foo").DeleteUser("no_such_user"); err != influxdb.ErrUserNotFound {
+		t.Fatal(err)
+	}
+}
+
 // Server is a wrapping test struct for influxdb.Server.
 type Server struct {
 	*influxdb.Server
