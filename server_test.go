@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/influxdb/influxdb"
@@ -83,6 +84,30 @@ func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 	// Drop a database that doesn't exist.
 	if err := s.DeleteDatabase("no_such_db"); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
+	}
+}
+
+// Ensure the server can create a new user.
+func TestServer_CreateUser(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	db := s.Database("foo")
+
+	// Create a user on the database.
+	if err := db.CreateUser("susy", "pass", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the user exists.
+	if u := db.User("susy"); u == nil {
+		t.Fatalf("user not found")
+	} else if reflect.DeepEqual(u, nil) {
+		t.Fatalf("user mismatch: %#v", u)
 	}
 }
 

@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"regexp"
+	"strings"
 
 	"code.google.com/p/go.crypto/bcrypt"
 	"github.com/influxdb/go-cache"
@@ -74,7 +75,7 @@ type DBUser struct {
 	IsAdmin    bool       `json:"is_admin"`
 }
 
-func (u *DBUser) IsDbAdmin(db string) bool {
+func (u *DBUser) IsDBAdmin(db string) bool {
 	return u.IsAdmin && u.DB == db
 }
 
@@ -131,4 +132,9 @@ func HashPassword(password string) ([]byte, error) {
 	// The second arg is the cost of the hashing, higher is slower but makes it harder
 	// to brute force, since it will be really slow and impractical
 	return bcrypt.GenerateFromPassword([]byte(password), 10)
+}
+
+// isValidName returns true if the name contains no invalid characters.
+func isValidName(name string) bool {
+	return !strings.Contains(name, "%")
 }

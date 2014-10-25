@@ -15,12 +15,26 @@ var (
 	// ErrPathRequired is returned when opening a server without a path.
 	ErrPathRequired = errors.New("path required")
 
-	// ErrDatabaseExists is returned when creating a database with the same
-	// name as an existing database.
+	// ErrDatabaseExists is returned when creating a duplicate database.
 	ErrDatabaseExists = errors.New("database exists")
 
 	// ErrDatabaseNotFound is returned when dropping a non-existent database.
 	ErrDatabaseNotFound = errors.New("database not found")
+
+	// ErrDatabaseRequired is returned when using a blank database name.
+	ErrDatabaseRequired = errors.New("database required")
+
+	// ErrUserExists is returned when creating a duplicate user.
+	ErrUserExists = errors.New("user exists")
+
+	// ErrUserNotFound is returned when deleting a non-existent user.
+	ErrUserNotFound = errors.New("user not found")
+
+	// ErrUsernameRequired is returned when using a blank username.
+	ErrUsernameRequired = errors.New("username required")
+
+	// ErrInvalidUsername is returned when using a username with invalid characters.
+	ErrInvalidUsername = errors.New("invalid username")
 )
 
 const (

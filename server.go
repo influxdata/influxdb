@@ -167,7 +167,9 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) error {
 	}
 
 	// Create database entry.
-	s.databases[c.Name] = &Database{name: c.Name}
+	db := newDatabase(s)
+	db.name = c.Name
+	s.databases[c.Name] = db
 	return nil
 }
 
@@ -200,6 +202,65 @@ type deleteDatabaseCommand struct {
 	Name string `json:"name"`
 }
 
+func (s *Server) applyCreateDBUser(m *messaging.Message) error {
+	var c createDBUserCommand
+	mustUnmarshal(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate user.
+	if c.Username == "" {
+		return ErrUsernameRequired
+	} else if !isValidName(c.Username) {
+		return ErrInvalidUsername
+	} else if c.Database == "" {
+		return ErrDatabaseRequired
+	}
+
+	// Retrieve the database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	} else if db.User(c.Username) != nil {
+		return ErrUserExists
+	}
+
+	// Generate the hash of the password.
+	hash, err := HashPassword(c.Password)
+	if err != nil {
+		return err
+	}
+
+	// Setup matchers.
+	rmatcher := []*Matcher{{true, ".*"}}
+	wmatcher := []*Matcher{{true, ".*"}}
+	if len(c.Permissions) == 2 {
+		rmatcher[0].Name = c.Permissions[0]
+		wmatcher[0].Name = c.Permissions[1]
+	}
+
+	// Create the user.
+	u := &DBUser{
+		CommonUser: CommonUser{
+			Name: c.Username,
+			Hash: string(hash),
+		},
+		DB:       c.Database,
+		ReadFrom: rmatcher,
+		WriteTo:  wmatcher,
+		IsAdmin:  false,
+	}
+	return db.saveUser(u)
+}
+
+type createDBUserCommand struct {
+	Database    string   `json:"database"`
+	Username    string   `json:"username"`
+	Password    string   `json:"password"`
+	Permissions []string `json:"permissions"`
+}
+
 // WriteSeries writes series data to the broker.
 func (s *Server) WriteSeries(u *ClusterAdmin, database string, series *protocol.Series) error {
 	// TODO:
@@ -225,6 +286,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyCreateDatabase(m)
 		case deleteDatabaseMessageType:
 			err = s.applyDeleteDatabase(m)
+		case createDBUserMessageType:
+			err = s.applyCreateDBUser(m)
 		}
 
 		// Sync high water mark and errors for broadcast topic.
@@ -250,9 +313,20 @@ type MessagingClient interface {
 
 // Database represents a collection of shard spaces.
 type Database struct {
-	mu          sync.RWMutex
-	name        string
-	shardSpaces map[string]*ShardSpace
+	mu     sync.RWMutex
+	server *Server
+	name   string
+	users  map[string]*DBUser
+	spaces map[string]*ShardSpace
+}
+
+// newDatabase returns an instance of Database associated with a server.
+func newDatabase(s *Server) *Database {
+	return &Database{
+		server: s,
+		users:  make(map[string]*DBUser),
+		spaces: make(map[string]*ShardSpace),
+	}
 }
 
 // Name returns the database name.
@@ -260,6 +334,35 @@ func (db *Database) Name() string {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	return db.name
+}
+
+// User returns a database user by name.
+func (db *Database) User(name string) *DBUser {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.users[name]
+}
+
+// CreateUser creates a user in the database.
+func (db *Database) CreateUser(username, password string, permissions []string) error {
+	// TODO: Authorization.
+
+	c := &createDBUserCommand{
+		Database:    db.Name(),
+		Username:    username,
+		Password:    password,
+		Permissions: permissions,
+	}
+	_, err := db.server.broadcast(createDBUserMessageType, c)
+	return err
+}
+
+// saveUser persists a user to the database.
+func (db *Database) saveUser(u *DBUser) error {
+	db.mu.Lock()
+	db.users[u.Name] = u
+	db.mu.Unlock()
+	return nil
 }
 
 // ShardSpace represents a policy for creating new shards in a database.
