@@ -1,4 +1,11 @@
-## V0.8.4-rc.2 [unreleased]
+## v0.8.5 [unreleased]
+
+### Bugfixes
+
+- [Issue #821](https://github.com/influxdb/influxdb/issues/821). Don't
+  scan through points when we hit the limit
+
+## v0.8.4-rc.2 [2014-10-24]
 
 ### Bugfixes
 
