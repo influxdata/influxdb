@@ -31,13 +31,22 @@ When querying this data the work is usually centered around either _discoverabil
 Discoverability is all about finding out what time series exist for given periods of time. Here are some example questions one might ask:
 
 * Which data centers exist?
+* For a given data center, what time series exist?
 * For a given data center, which hosts reported CPU in this hour?
 * For cpu, given data center 1, which hosts reported a load > 90%?
 * Which devices haven't reported temp in the last day?
 
+These examples are all devops focused, but sensor data ends up looking very much the same. For example, if we have buildings and we're taking measurements from different devices within those buildings:
+
+* What buildings exist?
+* For a given building, what devices or measurements exist?
+* For a given device, what buildings have it?
+
+You can do similar types of queries within the user analytics and business intelligence space.
+
 Discoverability could be a query about metadata like what hosts have I seen in the last hour, or it could be something that requires some sort of computation like, what hosts have memory usage > 80% in the last hour. The first question only looks at metadata, while the second would require meta data lookup (which hosts exist) and then a computation against all the appropriate time series.
 
-### Computation on series
+### Computation and transforms on series
 
 Computation on series could be aggregate functions like `min`, `max`, `mean`, etc. But it can also require combining or morphing series by either normalizing them with values at given time intervals, applying a function like derivative on the series, down sampling to a given number of points, merging multiple series together and performing a computation against the result, dividing one by another, or doing any number of these things on many series.
 
@@ -123,16 +132,16 @@ Here's an example of a single data point (or measurement):
 ```json
 {
   "name": "cpu_load",
-  "tags": "dataCenter/USWest/host/serverA/cpuId/1",
-  "doubleValue": 68
+  "tags": ["dataCenter/USWest/host/serverA/cpuId/1"],
+  "double": 68
 }
 ```
 
-Note that this series is typed to use a `doubleValue`. Other types are `stringValue`, `boolValue`, `bytesValue`. After the first write to `cpu_load` all future writes can use only the same value type.
+Note that this series is typed to use a `double`. Other types are `string`, `bool`, `bytes`. After the first write to `cpu_load` all future writes can use only the same value type.
 
-The tags string is defined as `:key/:value/:key/:value/...`. You can have any character in the key or value. You'll just have to escape `"`, `/`, and `\`. In the case of `/` you'll have to double escape it so the escape character comes through. Like `has a \\/ in the key/some value`.
+The tags is an array of strings defined as `:key/:value/:key/:value/...`. You can have any character in the key or value. You'll just have to escape `"`, `/`, and `\`. In the case of `/` you'll have to double escape it so the escape character comes through. Like `has a \\/ in the key/some value`.
 
-Series will be stored in a index that is arranged by the hierarchy. However, you can add other indexes later. Say for example that we often want to query across the entire data center. We could add an index like this:
+Series will be stored in a index that is arranged by the hierarchy. Note that measurements can exist in multiple hierarchies. Also, you can add other indexes later. Say for example that we often want to query across the entire data center. We could add an index like this:
 
 ```sql
 create index "cpu_load_dataCenter"
@@ -150,7 +159,7 @@ ON "cpu_load" ("host")
 drop index "cpu_load_dataCenter_host_cpuId"
 ```
 
-From those examples you can see that the tag structure is hierarchical, but you can index data to break or rearrange the hierarchies. I'll go into more depth on how data is indexed later in this document.
+What those indexes do under the hood is create new series for each of those indexes where we have the value and the tags along with it.
 
 ## Writes
 
@@ -164,8 +173,8 @@ Here's the most basic non-compact representation. Post data like this:
     "name": "cpu_load",
     "values" : [
       {
-        "doubleValue": 89.0,
-        "tags" : "dataCenter/USWest/host/serverA/cpuId/1",
+        "double": 89.0,
+        "tags" : ["dataCenter/USWest/host/serverA/cpuId/1"],
         "time": 1412689241000
       }
     ]
@@ -173,7 +182,9 @@ Here's the most basic non-compact representation. Post data like this:
 ]
 ```
 
-As usual, time can be omitted and it will get assigned automatically by InfluxDB. Any attribute that is shared across all values can be pulled out into the upper map:
+As usual, time can be omitted and it will get assigned automatically by InfluxDB.
+
+You can also write values with different tags. This essentially creates two separate series (one for each tag set).
 
 ```json
 [
@@ -181,11 +192,31 @@ As usual, time can be omitted and it will get assigned automatically by InfluxDB
     "name": "cpu_load",
     "values" : [
       {
-        "doubleValue": 89.0,
+        "double": 89.0,
+        "tags" : [
+          "dataCenter/USWest/host/serverA/cpuId/1",
+          "application/someAppThatUsesThisServer"
+        ],
+        "time": 1412689241000
+      }
+    ]
+  }
+]
+```
+
+Any attribute that is shared across all values can be pulled out into the upper map:
+
+```json
+[
+  {
+    "name": "cpu_load",
+    "values" : [
+      {
+        "double": 89.0,
       }
     ],
     "time": 1412689241000,
-    "tags": "dataCenter/USWest/host/serverA/cpuId/1",
+    "tags": ["dataCenter/USWest/host/serverA/cpuId/1"],
   }
 ]
 ```
@@ -198,8 +229,8 @@ Or you can have sequence numbers assigned to ensure that you can have two events
     "name": "events",
     "values" : [
       {
-        "boolValue": true,
-        "tags" : "type/click/button/signup/user/paul"
+        "bool": true,
+        "tags" : ["type/click/button/signup/user/paul"]
       }
     ]
     "setSequenceNumber": true
@@ -215,19 +246,19 @@ Or posting to multiple series at the same time:
     "values" : [
       {
         "name": "cpu_load",
-        "doubleValue": 89.0,
+        "double": 89.0,
       },
       {
         "name": "cpu_wait",
-        "doubleValue": 5
+        "double": 5
       },
       {
         "name": "top_output",
-        "stringValue": "stuff here..."
+        "string": "stuff here..."
       }
     ],
     "time": 1412689241000,
-    "tags": "dataCenter/USWest/host/serverA"
+    "tags": ["dataCenter/USWest/host/serverA"]
   }
 ]
 ```
@@ -240,8 +271,8 @@ Or writing into a given retention policy:
     "name": "exceptions",
     "values" : [
       {
-        "stringValue": "some stack trace",
-        "tags": "controller/Users/action/Show"
+        "string": "some stack trace",
+        "tags": ["controller/Users/action/Show"]
       }
     ]
     "setSequenceNumber": true,
@@ -254,9 +285,256 @@ The above assumes that you've created a retention policy named "forever" for the
 
 As you can see from the examples, the top level elements of the map can be pulled into the values themselves and visa-versa. This makes it easy to post many values at the same time without repeating shared tags and times.
 
-You can also post multiple values in a single request.
+## Indexes
 
-## Example Queries
+The section on indexing goes into the internals of how things are going to be put together. If you only care about the query language, feel free to skip this part.
+
+We'll have to do some performance testing to see how queries work that end up merging thousands of series. My guess is we'll want to have indexes that denormalize the data.
+
+```sql
+create index cpu_load_dataCenter
+ON cpu_load (dataCenter)
+```
+
+Now, when a write goes into `cpu_load` it will actually get expanded into writes for the default series `(cpu_load, USWest, serverA.influxdb.com)` and the index series. My thought is it would create a new series for `(cpu_load, USWest)` and that would have two ranges: one for the double values, and one for the non-indexed tag data associated with each point. For example if we wrote:
+
+```json
+{
+  "double": 68,
+  "tags": ["dataCenter/USWest/host/serverA.influxdb.com"]
+}
+```
+
+We'd have three writes occur on the underlying database: one double for the `(cpu_load, USwest, serverA.influxdb.com)` series, which will map to a given id. We'll write one double for the `(cpu_load, USWest)` series, which will have its own unique id. Finally, we'll write one tag blob for the `(cpu_load, USWest)` series where the value is a set of column and value ids: `[1, 1]` where the first is the column id 1 = host and the second is the value id 1 = serverA.influxdb.com. If the metadata is new, we'll have to do writes for that too.
+
+Of course, this is something we'll have to performance test across a number of use cases. How do queries perform when the cardinality of a column is 10, 100, 1,000, 10,000, 100,000, 1,000,000, and 10,000,000?
+
+Note that any series will end up mapping to a single server for a given period of time. This means that you could potentially have hot spots for some uses cases. For example, if you have a series like this:
+
+```json
+{
+  "name": "events"
+  "bool": true,
+  "tags": [type/click/screen/home/user/23]
+}
+```
+
+And you had the following indexes:
+
+```sql
+create index "events_types"
+ON "events" ("type")
+
+create index "events_users"
+ON "events" ("user")
+```
+
+Every time you write to the event stream like in the top example, you'd end up doing 5 writes: 1 for the full series, two for the types series (both value and tag blob), and two for the users series (again for value and tag blob). That itself isn't necessarily a hot spot since the user specific series can be sharded out to different servers.
+
+However, the type series is the one that may be of concern. If the vast majority of events are of type `click`, then all those writes will be going to the same server. The hack around this would be to have another tag called `partition` that is just a random number between 1-10. Then have the index be on the type and the partition. You can always merge them back together at query time.
+
+## Metadata Indexes
+
+The mappings of series and tag values to ids and ids back to their tag values and series will be kept in the metadata index. It'll also have to keep other index structures for answering questions about metadata. For example:
+
+* Given a series name, what top level tags exist?
+* Given a series name and tag, what tag values exist for that tag?
+* Given a series, a tag and a tag value, what other tags exist?
+* Given a tag, what series exist?
+* Given a tag and a value, what series exist?
+
+This metadata needs to be indexed so that time can be taking into account. Queries for what tags and tag values exist should be able to have time limits on them. Also, series, tags, and tag values should go away if their corresponding data is aged out through retention policies.
+
+However, we don't want to update the metadata indexes on every write, which is what we'd need for exact precision. It'll probably make sense to do something like creating buckets of time for the indexes.
+
+We'll need indexes for each retention period. For a retention period of `inf` we'll simply have a single index. But for a retention period of `365d` we'll probably want indexes for every `30d`. Or for others we can just do indexes per day.
+
+Let's take the per day example to see what those indexes will look like. Say we're writing data like this to a retention period that keeps data around for `30d`:
+
+```json
+{
+  "name": "temperature",
+  "values": [
+    {"double": 70.1}
+  ],
+  "tags": [
+    "building/1/device/23"
+  ]
+}
+```
+
+First, we'll need an id to uniquely identify this series `temperature/building/1/device/23` in the database. For that, we'll use something that isn't scoped by day. Say it's being written into a retention period named `30days`.
+
+```
+KEY: ID/30days/temperature/building/1/device/23
+VALUE: 1
+KEY: SERIES/1
+VALUE: 30days/temperature/building/1/device/23
+```
+
+In this example this is the first series we've written in so it gets an id of `1`. If we had multiple tags in that post, we would have created a separate series per tag set.
+
+We'll have to go through occasionally and clean up these IDs, but that should be done during retention cleanup periods.
+
+Let's look at how the indexes are stored. Let's say we also had writes in the `temperature` series that had tags of `building/1/device/26` and `building/2/device/38`.
+
+We'd write the following values for the day indexes
+
+```
+2014-10-25/names/30days/temperature -> temperature
+2014-10-24/series/30days/temperature/building/1/device/23 -> 1
+2014-10-24/series/30days/temperature/building/1/device/26 -> 2
+2014-10-24/series/30days/temperature/building/2/device/38 -> 3
+2014-10-25/tags/1/30days/temperature/building -> building
+2014-10-25/tags/2/30days/temperature/building/1/device -> device
+2014-10-25/tag_values/1/30days/temperature/building/1 -> 1
+2014-10-25/tag_values/1/30days/temperature/building/2 -> 2
+2014-10-24/tag_values/2/30days/temperature/building/1/device/1/23 -> 23
+2014-10-24/tag_values/2/30days/temperature/building/1/device/1/26 -> 26
+2014-10-24/tag_values/2/30days/temperature/building/2/device/2/38 -> 38
+```
+
+After those have been written once for the day, we shouldn't need to write them again for all other measurements for `30days/temperature/building/1/device/23` and the other series. The tricky part with this will be handling roll over of the index period. Because metrics are often collected at regular intervals, at the start of a new day we'd suddenly get millions of index writes all in a few seconds.
+
+We'll have to figure out how to stagger that. Also, since every write will need to check the index, we'll need to make those lookups very fast.
+
+The `tags` and `tag_values` portions of the tree have the depth of the tree immediately after then the rest of the tree after the depth i.e. `.../tag_values/2/30days...`. This keeps the ordering correct in the key space so that we can quickly scan through tag sets at a given depth.
+
+Using that structure, we can answer for a given day with efficient range scans:
+
+* What series names have shown up?
+* For a given series name, what top level tags exist?
+* For a given series name, top level tag and value, what lower levels exist?
+
+Walking the hierarchy is fast with this layout. What if we wanted to answer these queries:
+
+* For a given top level tag, what series exist?
+* For a given tag and value, what series exist?
+* What is the bottom of the tree for the temperature series?
+* Get me all the series where name = temperature and building = 1
+
+The brute force way would be to just scan the tree. Although I'm not sure this is going to scale. Also, some of these queries would be better to answer if the tagging structure weren't hierarchical. This begs the question: should tags be hierarchical or free form? I'll leave that as an open question for now.
+
+Across the cluster a copy of the meta data indexes is stored on every server. Those updates are fed through the Raft topic for cluster meta data. We'll have to test how big this gets in deployments with tens of millions of distinct series (the cardinality of names + unique tag sets).
+
+## Metadata on series
+
+We should be able to keep metadata on different series. This will help both with graphing tools, but also if we want to attempt to automatically answer queries based on the precision that is being requested.
+
+Here are the metadata fields:
+
+```json
+{
+  "units": "ms",
+  "period": "10s",
+  "type": "count|timing|gauge|other"
+  "dataType": "double|bool|string|bytes"
+}
+```
+
+Units is used only for display purposes. A period of `0` means that it's a series for irregular event style data, not something that's collected on a regular interval. This could be log lines where the value of the series is a string, or indivdual request timings where the value is a double of the number of milliseconds taken, or a stock trade where the value is the price of the trade. The type can be either a count, timing, gauge, or other. The data type is set when the first value is written into a series.
+
+One potentially interesting thing to do with the gauge type is to only store the value if it differs from the previous measurement. That way we get much more efficient storage and missing values can be filled on the fly at query time.
+
+## Example Queries (function chaining style)
+
+Here are some ideas for doing queries in a syntax other than SQL. Some of this may be inconsistent. I'm looking for feedback on which ideas work or look most readable/understandable.
+
+### Getting names, tags, tag values, series
+
+```javascript
+// names from the 30d retention period
+names("30d")
+// returns tags for this level of the tree
+tags("30d/temperature")
+// returns tags for next level of tree
+tags("30d/temperature/building/1")
+// returns values for given level of the tree
+values("30d/temperature/building")
+
+// returns the series (names and ids).
+// won't work all the way down the tree
+series("30d/temperature/building/*")
+// return for specific buildings
+series("30d/temperature/building/[1,2]")
+// will return series names and ids all the way down the tree
+series("30d/temperature/building/**")
+series("30d/temperature/building/[1,2]/**")
+
+// any of the functions can take n arguments:
+names("30d", "2year")
+tags("30d/temperature", "30d/kwusage")
+
+// any of the functions can be scoped by time
+names("30d", when: "today|yesterday|-7d")
+tags("30d/temperature", from: "-7d", to:"now")
+```
+
+### Transforming series
+
+The output of calls to series can have transformations run on them. Some examples:
+
+```javascript
+// return a separate series for every building. Assuming hierarchy of building/device:
+// first, get the series and the raw values for the last 7 days
+// then normalize and fill any missing device measurements from the previous value.
+// forces measurements for every 10 seconds.
+// then merge devices in a building into a single series per building
+// then aggregate using the mean function in 10 minute intervals
+series("30d/temp/building/**")
+  .data(when: "now - 7d")
+  .normalize(period: "10s", value: "previous")
+  .merge(tags: "device")
+  .aggregate(function: "mean", period: "10m")
+  .filterSeries(allPoints: "== 0 or < 50", anyPoint: "< 0")
+```
+
+This shows selecting many series together, normalizing them so they have the same number of data points, merging some of them together and aggregating to output a bunch of series. Finally, we drop series that have either all points in them meeting some criteria or any point in the series meeting another criteria.
+
+Let's take an example of finding the hosts in a data center with the greatest CPU utilization. Assume we have a structure of `30d/cpu_load/dataCenter/USWest/host/serverA`.
+
+```javascript
+series("30d/cpu_load/dataCenter/USWest/host/*")
+  .data(when: "now - 4h")
+  .filterSeries(top: 10)
+```
+
+And some other potential examples
+
+```javascript
+// downsampling
+series("30d/cpu_load/dataCenter/USWest/host/[serverA, serverB, serverC]")
+  .data(when: "now - 7d")
+  .sample(function: "random", period: "30m")
+
+// other transformations
+series("30d/redis_commands_processed/dataCenter/USWest/host/*")
+  .raw(when: "now - 7d")
+  .nonNegativeDerivative()
+
+// errors per minute. will ignore div by zero errors
+series("30d/errors/application/myApp", "30d/requests/application/myApp")
+  .data(when: "now - 2h")
+  .aggregate(function: "count", period: "1m")
+  .join(
+    left: "30d/requests/application/myApp",
+    right: "30d/errors/application/myApp",
+    function: "/")
+
+// getting two series over different criteria. For example, 
+// returning normalized data for the last hour and the previous hour
+(
+  series("30d/cpu_load/dataCenter/USWest/host/serverA")
+    .data(when: "now - 1h"),
+  series("30d/cpu_load/dataCenter/USWest/host/serverA")
+    .data(when: "now - 2h")
+    .timeShift("+1h")
+).normalize(period: "10s", value: "previous")
+```
+
+Those are some basic ideas around using a funcion chaining style heavily inspired by jQuery and D3. On to some more SQL-ish examples.
+
+## Example Queries (SQL style)
 
 Throwing out some example queries to show how to answer different kinds of questions.
 
@@ -563,41 +841,19 @@ expand by columns()
 continuously into "3_years"."cpu_load"
 ```
 
-## Indexes
-
-We'll have to do some performance testing to see how queries work that end up merging thousands of series. My guess is we'll want to have indexes that denormalize the data. So not totally like indexes under the hood.
-
-```sql
-create index cpu_load_dataCenter
-ON cpu_load (dataCenter)
-```
-
-Now, when a write goes into `cpu_load` it will actually get expanded into writes for the default series `(cpu_load, USWest, serverA.influxdb.com)` and the index series. My thought is it would create a new series for `(cpu_load, USWest)` and that would have two ranges: one for the double values, and one for the non-indexed column data. For example if we wrote:
-
-```json
-{
-  "double": 68,
-  "dataCenter": "USWest",
-  "host": "serverA.influxdb.com"
-}
-```
-
-We'd have three writes occur on the underlying database: one double for the `(cpu_load, USwest, serverA.influxdb.com)` series, one double for the `(cpu_load, USWest)` series, and one column blob for the `(cpu_load, USWest)` series where the value is a set of unique value ids: `[1]` where 1 = serverA.influxdb.com. If the metadata is new, we'll have to do writes for that too.
-
-Of course, this is something we'll have to performance test across a number of use cases. How do queries perform when the cardinality of a column is 10, 100, 1,000, 10,000, 100,000, 1,000,000, and 10,000,000?
-
-## Metadata Indexes
-
-As mentioned earlier in this document, to answer queries we have to look up metadata properties on series. We need to be able to answer for each shard:
-
-* Given a series name, what columns exist?
-* Given a series name and column, what values exist?
-
-We will probably want to filter this down further based on the shard size. For instance, if it's 1-7 days, have the indexes exist on a per hour basis in the shard. That way we can answer metadata queries that have time constraints. At least approximately.
-
 ## Open Questions
 
-Here are some questions that we're still debating how to answer with this redesign.
+* Which syntax style is preferred (SQL or function chaining)?
+* Should tags be strictly hierarchical or open ended?
 
-* Should tags be hierarchical?
-** If so, it'll change how data gets written and queried pretty significantly
+## Tasks
+
+Some tasks that I think are good places to break things out. The first two will probably need to be done before the others, but the rest can probably be done in parallel.
+
+- [ ] Refactor protocol with new schema style
+- [ ] Create query object/interface
+- [ ] Create metastore with tag indexes (should be backed by a disk based DB (level, bolt, etc))
+- [ ] Create query parser (should be pure Go)
+- [ ] Refactor datastore to work with new protocol
+- [ ] Refactor engine code to take new API concepts into account and work with new protocol. Should expose interfaces that make it easy to define new transformations, merge functions, join functions, and aggregates. Interface should account for doing map/reduce style computation.
+- [ ] Implement indexes
