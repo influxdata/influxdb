@@ -315,7 +315,7 @@ Note that any series will end up mapping to a single server for a given period o
 {
   "name": "events"
   "bool": true,
-  "tags": [type/click/screen/home/user/23]
+  "tags": ["type/click/screen/home/user/23"]
 }
 ```
 
@@ -467,7 +467,7 @@ tags("30d/temperature", "30d/kwusage")
 
 // any of the functions can be scoped by time
 names("30d", when: "today|yesterday|-7d")
-tags("30d/temperature", from: "-7d", to:"now")
+tags("30d/temperature", when: "now to -2d")
 ```
 
 ### Transforming series
@@ -482,7 +482,7 @@ The output of calls to series can have transformations run on them. Some example
 // then merge devices in a building into a single series per building
 // then aggregate using the mean function in 10 minute intervals
 series("30d/temp/building/**")
-  .data(when: "now - 7d")
+  .data(when: "now to -7d")
   .normalize(period: "10s", value: "previous")
   .merge(tags: "device")
   .aggregate(function: "mean", period: "10m")
@@ -495,7 +495,7 @@ Let's take an example of finding the hosts in a data center with the greatest CP
 
 ```javascript
 series("30d/cpu_load/dataCenter/USWest/host/*")
-  .data(when: "now - 4h")
+  .data(when: "now to -4h")
   .filterSeries(top: 10)
 ```
 
@@ -504,17 +504,17 @@ And some other potential examples
 ```javascript
 // downsampling
 series("30d/cpu_load/dataCenter/USWest/host/[serverA, serverB, serverC]")
-  .data(when: "now - 7d")
+  .data(when: "now to -7d")
   .sample(function: "random", period: "30m")
 
 // other transformations
 series("30d/redis_commands_processed/dataCenter/USWest/host/*")
-  .raw(when: "now - 7d")
+  .raw(when: "now to -7d")
   .nonNegativeDerivative()
 
 // errors per minute. will ignore div by zero errors
 series("30d/errors/application/myApp", "30d/requests/application/myApp")
-  .data(when: "now - 2h")
+  .data(when: "now to -2h")
   .aggregate(function: "count", period: "1m")
   .join(
     left: "30d/requests/application/myApp",
@@ -525,9 +525,9 @@ series("30d/errors/application/myApp", "30d/requests/application/myApp")
 // returning normalized data for the last hour and the previous hour
 (
   series("30d/cpu_load/dataCenter/USWest/host/serverA")
-    .data(when: "now - 1h"),
+    .data(when: "now to -1h"),
   series("30d/cpu_load/dataCenter/USWest/host/serverA")
-    .data(when: "now - 2h")
+    .data(when: "-1h to -2h")
     .timeShift("+1h")
 ).normalize(period: "10s", value: "previous")
 ```
