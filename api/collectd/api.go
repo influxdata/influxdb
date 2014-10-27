@@ -51,7 +51,7 @@ func (s *Server) ListenAndServe() {
 
 	s.getAuth()
 
-	s.typesdb, err = collectd.TypesDB(s.typesdbpath)
+	s.typesdb, err = collectd.TypesDBFile(s.typesdbpath)
 	if err != nil {
 		log.Error("CollectdServer: TypesDB: ", err)
 		return

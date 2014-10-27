@@ -1,9 +1,7 @@
 package collectd
 
 import (
-	"bufio"
 	"encoding/hex"
-	"strings"
 	"testing"
 
 	"github.com/kimor79/gollectd"
@@ -30,7 +28,7 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithUnixTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	// Get a collectd types DB
-	typesDB, err := TypesDB(typesDBText)
+	typesDB, err := gollectd.TypesDB([]byte(typesDBText))
 	c.Assert(err, IsNil)
 
 	// Use gollectd to parse raw packet data into *[]gollectd.Packet
@@ -51,7 +49,7 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithHiResTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	// Get a collectd types DB
-	typesDB, err := TypesDB(typesDBText)
+	typesDB, err := gollectd.TypesDB([]byte(typesDBText))
 	c.Assert(err, IsNil)
 
 	// Use gollectd to parse raw packet data into *[]gollectd.Packet
@@ -64,63 +62,6 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithHiResTimestamp(c *C) {
 	series := packetToSeries(packet)
 	timestamp := *series[0].Points[0].Timestamp
 	c.Assert(timestamp, Equals, int64(1414187920000))
-}
-
-// TypesDB is adapted from github.com/kimor79/gollectd
-func TypesDB(typesText string) (gollectd.Types, error) {
-	// See https://collectd.org/documentation/manpages/types.db.5.shtml
-
-	types := make(gollectd.Types)
-
-	var dsSpec gollectd.Type
-
-	scanner := bufio.NewScanner(strings.NewReader(typesText))
-	for scanner.Scan() {
-		line := strings.Replace(scanner.Text(), "\t", " ", -1)
-		fields := strings.Split(line, " ")
-
-		if len(fields) < 2 {
-			continue
-		}
-
-		if string(fields[0]) == "#" {
-			continue
-		}
-
-		dataSet := fields[0]
-		types[dataSet] = make([]gollectd.Type, 0)
-
-		for _, dataSources := range fields[1:] {
-			if len(dataSources) == 0 {
-				continue
-			}
-
-			dataSources = strings.Trim(dataSources, ",")
-
-			dataSource := strings.Split(dataSources, ":")
-
-			if len(dataSource) != 4 {
-				// set ErrorUnknownDataType somehow
-				continue
-			}
-
-			dsSpec.Name = dataSource[0]
-
-			if dsType, ok := gollectd.ValueTypeNames[strings.ToLower(dataSource[1])]; ok {
-				dsSpec.Type = dsType
-			} else {
-				// set ErrorUnknownDataType somehow
-				continue
-			}
-
-			dsSpec.Min = dataSource[2]
-			dsSpec.Max = dataSource[3]
-
-			types[dataSet] = append(types[dataSet], dsSpec)
-		}
-	}
-
-	return types, nil
 }
 
 // Taken from /usr/share/collectd/types.db on a Ubuntu system
