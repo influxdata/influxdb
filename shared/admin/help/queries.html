@@ -4,7 +4,7 @@
   <pre class="highlight sql">
     <span class="k">select</span> <span class="n">value</span> <span class="k">from</span> <span class="n">response_times</span><span class="p">;</span>
 
-    <span class="k">select</span> <span class="n">value</span> <span class="k">from</span> <span class="n">response_times</span> <span class="k">where</span> <span class="n">time</span> <span class="o">&gt;</span> <span class="s1">'2013-08-12 23:32:01.232'</span> <span class="k">and</span> <span class="n">time</span> <span class="o">&lt;</span> <span class="s1">'2013-08-13'</span><span class="p">;</span>
+    <span class="k">select</span> <span class="n">value</span> <span class="k">from</span> <span class="n">response_times</span> <span class="k">where</span> <span class="n">time</span> <span class="o">&gt;</span> <span class="s1">&#39;2013-08-12 23:32:01.232&#39;</span> <span class="k">and</span> <span class="n">time</span> <span class="o">&lt;</span> <span class="s1">&#39;2013-08-13&#39;</span><span class="p">;</span>
 
     <span class="k">select</span> <span class="k">count</span><span class="p">(</span><span class="k">type</span><span class="p">)</span> <span class="k">from</span> <span class="n">events</span> <span class="k">group</span> <span class="k">by</span> <span class="n">time</span><span class="p">(</span><span class="mi">10</span><span class="n">m</span><span class="p">);</span>
 
