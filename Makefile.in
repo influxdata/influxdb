@@ -76,11 +76,9 @@ endif
 packages_base = admin api/http api/graphite cluster common configuration	\
   checkers coordinator datastore engine parser protocol wal
 build_packages = $(addprefix github.com/influxdb/influxdb/,$(packages_base))
-test_packages =
+test_packages = $(shell sh -c "go list github.com/influxdb/influxdb/... | egrep -v 'integration|tools'")
 ifneq ($(packages),)
 test_packages = $(addprefix github.com/influxdb/influxdb/,$(packages))
-else
-test_packages = $(build_packages)
 endif
 
 # Storage engines libraries
@@ -264,9 +262,8 @@ test: dependencies parser protobuf
 	$(GO) test $(test_packages) $(GOTEST_OPTS)
 
 coverage: dependencies
-	for i in $(build_packages); do $(GO) test -coverprofile ${TMPDIR}/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
+	for i in $(test_packages); do $(GO) test -coverprofile ${TMPDIR}/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
    $(GO) tool cover -html=${TMPDIR}/influxdb.$${i/\//}.coverage; done
-
 
 integration_test: dependencies build_binary
 	$(GO) test github.com/influxdb/influxdb/integration $(GOTEST_OPTS)
