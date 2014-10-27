@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/influxdb/influxdb/client"
 )
 
 func main() {
