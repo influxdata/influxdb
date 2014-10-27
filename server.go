@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -394,6 +395,18 @@ func (db *Database) User(name string) *DBUser {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	return db.users[name]
+}
+
+// User returns a list of all database users.
+func (db *Database) Users() []*DBUser {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	var a dbUsers
+	for _, u := range db.users {
+		a = append(a, u)
+	}
+	sort.Sort(a)
+	return a
 }
 
 // CreateUser creates a user in the database.

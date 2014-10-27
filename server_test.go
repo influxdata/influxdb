@@ -265,6 +265,28 @@ func TestDatabase_ChangePassword(t *testing.T) {
 	}
 }
 
+// Ensure the database can return a list of all users.
+func TestDatabase_Users(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create two databases with users.
+	s.CreateDatabase("foo")
+	s.Database("foo").CreateUser("susy", "pass", nil)
+	s.Database("foo").CreateUser("john", "pass", nil)
+	s.CreateDatabase("bar")
+	s.Database("bar").CreateUser("jimmy", "pass", nil)
+
+	// Retrieve a list of all users for "foo" (sorted by name).
+	if a := s.Database("foo").Users(); len(a) != 2 {
+		t.Fatalf("unexpected user count: %d", len(a))
+	} else if a[0].Name != "john" {
+		t.Fatalf("unexpected user(0): %s", a[0].Name)
+	} else if a[1].Name != "susy" {
+		t.Fatalf("unexpected user(1): %s", a[1].Name)
+	}
+}
+
 // Server is a wrapping test struct for influxdb.Server.
 type Server struct {
 	*influxdb.Server

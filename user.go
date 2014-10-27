@@ -124,6 +124,13 @@ func (u *DBUser) ChangePermissions(readPermissions, writePermissions string) {
 	u.WriteTo = []*Matcher{{true, writePermissions}}
 }
 
+// dbUsers represents a list of database users, sortable by name.
+type dbUsers []*DBUser
+
+func (p dbUsers) Len() int           { return len(p) }
+func (p dbUsers) Less(i, j int) bool { return p[i].Name < p[j].Name }
+func (p dbUsers) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
 func HashPassword(password string) ([]byte, error) {
 	if length := len(password); length < 4 || length > 56 {
 		return nil, NewQueryError(InvalidArgument, "Password must be more than 4 and less than 56 characters")

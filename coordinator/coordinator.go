@@ -814,31 +814,6 @@ func (self *Coordinator) ListDbUsers(requester common.User, db string) ([]common
 	return self.clusterConfiguration.GetDbUsers(db), nil
 }
 
-func (self *Coordinator) GetDbUser(requester common.User, db string, username string) (common.User, error) {
-	if ok, err := self.permissions.AuthorizeGetDbUser(requester, db); !ok {
-		return nil, err
-	}
-
-	dbUser := self.clusterConfiguration.GetDbUser(db, username)
-	if dbUser == nil {
-		return nil, fmt.Errorf("Invalid username %s", username)
-	}
-
-	return dbUser, nil
-}
-
-func (self *Coordinator) ChangeDbUserPassword(requester common.User, db, username, password string) error {
-	if ok, err := self.permissions.AuthorizeChangeDbUserPassword(requester, db, username); !ok {
-		return err
-	}
-
-	hash, err := cluster.HashPassword(password)
-	if err != nil {
-		return err
-	}
-	return self.raftServer.ChangeDbUserPassword(db, username, hash)
-}
-
 func (self *Coordinator) ChangeDbUserPermissions(requester common.User, db, username, readPermissions, writePermissions string) error {
 	if ok, err := self.permissions.AuthorizeChangeDbUserPermissions(requester, db); !ok {
 		return err
