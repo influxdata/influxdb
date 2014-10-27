@@ -208,6 +208,8 @@ func (self *Shard) executeQueryForSeries(querySpec *parser.QuerySpec, name strin
 				if err != nil {
 					log.Error("Error while processing data: %v", err)
 					return err
+				} else {
+					return nil
 				}
 				return nil
 			}
