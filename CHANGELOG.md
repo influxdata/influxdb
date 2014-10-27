@@ -7,6 +7,9 @@
 
 ### Bugfixes
 
+- [Issue #1058](https://github.com/influxdb/influxdb/issues/1058). Use
+  the query language instead of the continuous query endpoints that
+  were removed in 0.8.4
 - [Issue #1022](https://github.com/influxdb/influxdb/issues/1022). Return
   an +Inf or NaN instead of panicing when we encounter a divide by zero
 - [Issue #821](https://github.com/influxdb/influxdb/issues/821). Don't
@@ -15,10 +18,12 @@
   timestamps when the collectd is used and low resolution timestamps
   is set.
 
-## v0.8.4-rc.2 [2014-10-24]
+## v0.8.4 [2014-10-24]
 
 ### Bugfixes
 
+- Remove the continuous query api endpoints since the query language
+  has all the features needed to list and delete continuous queries.
 - [Issue #778](https://github.com/influxdb/influxdb/issues/778). Selecting
   from a non-existent series should give a better error message indicating
   that the series doesn't exist
