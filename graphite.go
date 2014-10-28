@@ -20,10 +20,6 @@ var (
 	// without a TCP or UDP listening address.
 	ErrBindAddressRequired = errors.New("bind address required")
 
-	// ErrClusterAdminNotFound is returned when starting the GraphiteServer
-	// and a cluster admin is not found in the configuration.
-	ErrClusterAdminNotFound = errors.New("cluster admin not found")
-
 	// ErrGraphiteServerClosed return when closing an already closed graphite server.
 	ErrGraphiteServerClosed = errors.New("graphite server already closed")
 )

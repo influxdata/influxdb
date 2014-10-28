@@ -112,6 +112,26 @@ func TestServer_Databases(t *testing.T) {
 	}
 }
 
+// Ensure the server can create a new cluster admin.
+func TestDatabase_CreateClusterAdmin(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a cluster admin.
+	if err := s.CreateClusterAdmin("susy", "pass", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the admin exists.
+	if u := s.ClusterAdmin("susy"); u == nil {
+		t.Fatalf("admin not found")
+	} else if u.Name != "susy" {
+		t.Fatalf("username mismatch: %v", u.Name)
+	} else if bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte("pass")) != nil {
+		t.Fatal("invalid password")
+	}
+}
+
 // Ensure the server can create a new user.
 func TestDatabase_CreateUser(t *testing.T) {
 	s := OpenServer(NewMessagingClient())

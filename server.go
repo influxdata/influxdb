@@ -46,6 +46,7 @@ func NewServer(client MessagingClient) *Server {
 	return &Server{
 		client:    client,
 		databases: make(map[string]*Database),
+		admins:    make(map[string]*ClusterAdmin),
 		errors:    make(map[uint64]error),
 	}
 }
@@ -216,6 +217,73 @@ type deleteDatabaseCommand struct {
 	Name string `json:"name"`
 }
 
+// ClusterAdmin returns an admin by name.
+// Returns nil if the admin does not exist.
+func (s *Server) ClusterAdmin(name string) *ClusterAdmin {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.admins[name]
+}
+
+// CreateClusterAdmin creates a cluster admin on the server.
+func (s *Server) CreateClusterAdmin(username, password string, permissions []string) error {
+	c := &createClusterAdminCommand{Username: username, Password: password}
+	_, err := s.broadcast(createClusterAdminMessageType, c)
+	return err
+}
+
+func (s *Server) applyCreateClusterAdmin(m *messaging.Message) error {
+	var c createClusterAdminCommand
+	mustUnmarshal(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate admin.
+	if c.Username == "" {
+		return ErrUsernameRequired
+	} else if s.admins[c.Username] != nil {
+		return ErrClusterAdminExists
+	}
+
+	// Generate the hash of the password.
+	hash, err := HashPassword(c.Password)
+	if err != nil {
+		return err
+	}
+
+	// Create the cluster admin.
+	s.admins[c.Username] = &ClusterAdmin{
+		CommonUser: CommonUser{
+			Name: c.Username,
+			Hash: string(hash),
+		},
+	}
+
+	return nil
+}
+
+type createClusterAdminCommand struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func (s *Server) applyDBUserSetPassword(m *messaging.Message) error {
+	var c dbUserSetPasswordCommand
+	mustUnmarshal(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Retrieve the database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	return db.changePassword(c.Username, c.Password)
+}
+
 func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 	var c createDBUserCommand
 	mustUnmarshal(m.Data, &c)
@@ -260,22 +328,6 @@ type deleteDBUserCommand struct {
 	Username string `json:"username"`
 }
 
-func (s *Server) applyDBUserSetPassword(m *messaging.Message) error {
-	var c dbUserSetPasswordCommand
-	mustUnmarshal(m.Data, &c)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Retrieve the database.
-	db := s.databases[c.Database]
-	if s.databases[c.Database] == nil {
-		return ErrDatabaseNotFound
-	}
-
-	return db.changePassword(c.Username, c.Password)
-}
-
 type dbUserSetPasswordCommand struct {
 	Database string `json:"database"`
 	Username string `json:"username"`
@@ -307,6 +359,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyCreateDatabase(m)
 		case deleteDatabaseMessageType:
 			err = s.applyDeleteDatabase(m)
+		case createClusterAdminMessageType:
+			err = s.applyCreateClusterAdmin(m)
 		case createDBUserMessageType:
 			err = s.applyCreateDBUser(m)
 		case deleteDBUserMessageType:

@@ -24,6 +24,12 @@ var (
 	// ErrDatabaseRequired is returned when using a blank database name.
 	ErrDatabaseRequired = errors.New("database required")
 
+	// ErrClusterAdminExists is returned when creating a duplicate admin.
+	ErrClusterAdminExists = errors.New("cluster admin exists")
+
+	// ErrClusterAdminNotFound is returned when deleting a non-existent admin.
+	ErrClusterAdminNotFound = errors.New("cluster admin not found")
+
 	// ErrUserExists is returned when creating a duplicate user.
 	ErrUserExists = errors.New("user exists")
 
