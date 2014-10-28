@@ -1,4 +1,6 @@
+ifeq ($(SHELL),)
 SHELL = /bin/bash
+endif
 
 ifeq ($(TMPDIR),)
 TMPDIR=/tmp
@@ -67,6 +69,20 @@ export GOPATH
 endif
 uname_S = $(shell sh -c "uname -s 2>/dev/null || echo not")
 
+Nix = no
+Linux = no
+FreeBSD = no 
+
+ifeq ($(uname_S),Linux)
+  Linux = yes
+  Nix = yes
+endif
+
+ifeq ($(uname_S),Linux)
+  FreeBSD = yes
+  Nix = yes
+endif
+
 valgrind:
 ifeq ($(uname_S),Linux)
 	$(MAKE) -C parser valgrind
@@ -123,7 +139,8 @@ GO_BUILD_TAGS += profile
 endif
 
 # levigo flags
-ifeq ($(uname_S),Linux)
+ifeq ($(Nix),yes)
+ifeq ($(Linux),yes)
 storage_engines += $(hyperleveldb_deps)
 GO_BUILD_TAGS += hyperleveldb
 ifeq ($(rocksdb),yes)
@@ -137,8 +154,11 @@ GO_BUILD_TAGS += rocksdb
 CGO_LDFLAGS += -lrocksdb $(LRT_LDFLAG)
 endif
 endif
+
 CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include
 CGO_LDFLAGS += -L$(leveldb_dir) -L$(hyperleveldb_dir)/.libs -L$(snappy_dir)/.libs -lleveldb -lhyperleveldb -lsnappy
+endif
+
 CPPLIB = $(shell g++ $(cflags) --print-file-name=libstdc++.a)
 CGO_LDFLAGS += -lm -lz -lbz2 $(CPPLIB)
 export CGO_CFLAGS
