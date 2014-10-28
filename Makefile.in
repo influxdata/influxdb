@@ -73,9 +73,6 @@ ifeq ($(uname_S),Linux)
 endif
 
 # packages
-packages_base = admin api/http api/graphite cluster common configuration	\
-  checkers coordinator datastore engine parser protocol wal
-build_packages = $(addprefix github.com/influxdb/influxdb/,$(packages_base))
 test_packages = $(shell sh -c "go list github.com/influxdb/influxdb/... | egrep -v 'integration|tools'")
 ifneq ($(packages),)
 test_packages = $(addprefix github.com/influxdb/influxdb/,$(packages))
