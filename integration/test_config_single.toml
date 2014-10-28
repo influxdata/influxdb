@@ -83,7 +83,7 @@ dir = "/tmp/influxdb/development/db"
 write-buffer-size = 10000
 
 # the engine to use for new shards, old shards will continue to use the same engine
-default-engine = "leveldb"
+default-engine = "rocksdb"
 
 # The default setting on this is 0, which means unlimited. Set this to something if you want to
 # limit the max number of open files. max-open-files is per shard so this * that will be max.
