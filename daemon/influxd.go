@@ -21,6 +21,8 @@ import (
 func setupLogging(loggingLevel, logFile string) {
 	level := log.DEBUG
 	switch loggingLevel {
+	case "trace":
+		level = log.TRACE
 	case "info":
 		level = log.INFO
 	case "warn":
