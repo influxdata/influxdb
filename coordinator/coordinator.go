@@ -666,18 +666,6 @@ func (self *Coordinator) ListDatabases(user common.User) ([]*cluster.Database, e
 	return dbs, nil
 }
 
-func (self *Coordinator) DropDatabase(user common.User, db string) error {
-	if ok, err := self.permissions.AuthorizeDropDatabase(user); !ok {
-		return err
-	}
-
-	if err := self.clusterConfiguration.CreateCheckpoint(); err != nil {
-		return err
-	}
-
-	return self.raftServer.DropDatabase(db)
-}
-
 func (self *Coordinator) AuthenticateDbUser(db, username, password string) (common.User, error) {
 	log.Debug("(raft:%s) Authenticating password for %s:%s", self.raftServer.raftServer.Name(), db, username)
 	user, err := self.clusterConfiguration.AuthenticateDbUser(db, username, password)
@@ -750,68 +738,6 @@ func (self *Coordinator) ChangeClusterAdminPassword(requester common.User, usern
 	}
 	user.ChangePassword(string(hash))
 	return self.raftServer.SaveClusterAdminUser(user)
-}
-
-func (self *Coordinator) CreateDbUser(requester common.User, db, username, password string, permissions ...string) error {
-	if ok, err := self.permissions.AuthorizeCreateDbUser(requester, db); !ok {
-		return err
-	}
-
-	if username == "" {
-		return fmt.Errorf("Username cannot be empty")
-	}
-
-	if !isValidName(username) {
-		return fmt.Errorf("%s isn't a valid username", username)
-	}
-
-	hash, err := cluster.HashPassword(password)
-	if err != nil {
-		return err
-	}
-
-	if !self.clusterConfiguration.DatabaseExists(db) {
-		return fmt.Errorf("No such database %s", db)
-	}
-
-	if self.clusterConfiguration.GetDbUser(db, username) != nil {
-		return fmt.Errorf("User %s already exists", username)
-	}
-	readMatcher := []*cluster.Matcher{{true, ".*"}}
-	writeMatcher := []*cluster.Matcher{{true, ".*"}}
-	switch len(permissions) {
-	case 0:
-	case 2:
-		readMatcher[0].Name = permissions[0]
-		writeMatcher[0].Name = permissions[1]
-	}
-	log.Debug("(raft:%s) Creating user %s:%s", self.raftServer.raftServer.Name(), db, username)
-	return self.raftServer.SaveDbUser(&cluster.DbUser{cluster.CommonUser{
-		Name:     username,
-		Hash:     string(hash),
-		CacheKey: db + "%" + username,
-	}, db, readMatcher, writeMatcher, false})
-}
-
-func (self *Coordinator) DeleteDbUser(requester common.User, db, username string) error {
-	if ok, err := self.permissions.AuthorizeDeleteDbUser(requester, db); !ok {
-		return err
-	}
-
-	user := self.clusterConfiguration.GetDbUser(db, username)
-	if user == nil {
-		return fmt.Errorf("User %s doesn't exist", username)
-	}
-	user.CommonUser.IsUserDeleted = true
-	return self.raftServer.SaveDbUser(user)
-}
-
-func (self *Coordinator) ListDbUsers(requester common.User, db string) ([]common.User, error) {
-	if ok, err := self.permissions.AuthorizeListDbUsers(requester, db); !ok {
-		return nil, err
-	}
-
-	return self.clusterConfiguration.GetDbUsers(db), nil
 }
 
 func (self *Coordinator) ChangeDbUserPermissions(requester common.User, db, username, readPermissions, writePermissions string) error {

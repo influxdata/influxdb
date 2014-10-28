@@ -93,6 +93,25 @@ func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 	}
 }
 
+// Ensure the server can return a list of all databases.
+func TestServer_Databases(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create some databases.
+	s.CreateDatabase("foo")
+	s.CreateDatabase("bar")
+
+	// Return the databases.
+	if a := s.Databases(); len(a) != 2 {
+		t.Fatalf("unexpected db count: %d", len(a))
+	} else if a[0].Name() != "bar" {
+		t.Fatalf("unexpected db(0): %s", a[0].Name())
+	} else if a[1].Name() != "foo" {
+		t.Fatalf("unexpected db(1): %s", a[1].Name())
+	}
+}
+
 // Ensure the server can create a new user.
 func TestDatabase_CreateUser(t *testing.T) {
 	s := OpenServer(NewMessagingClient())

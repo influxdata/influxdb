@@ -140,11 +140,23 @@ func (s *Server) sync(index uint64) error {
 	}
 }
 
-// CreateDatabase creates a new database.
+// Database creates a new database.
 func (s *Server) Database(name string) *Database {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.databases[name]
+}
+
+// Databases returns a list of all databases, sorted by name.
+func (s *Server) Databases() []*Database {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var a databases
+	for _, db := range s.databases {
+		a = append(a, db)
+	}
+	sort.Sort(a)
+	return a
 }
 
 // CreateDatabase creates a new database.
@@ -486,6 +498,13 @@ func (db *Database) changePassword(username, newPassword string) error {
 
 	return nil
 }
+
+// databases represents a list of databases, sortable by name.
+type databases []*Database
+
+func (p databases) Len() int           { return len(p) }
+func (p databases) Less(i, j int) bool { return p[i].name < p[j].name }
+func (p databases) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // ShardSpace represents a policy for creating new shards in a database.
 type ShardSpace struct {
