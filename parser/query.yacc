@@ -450,7 +450,7 @@ FROM_CLAUSE:
           $$->names->elems[1] = malloc(sizeof(table_name));
           $$->names->elems[1]->name = $6;
           $$->names->elems[1]->alias = $7;
-          $$->from_clause_type = FROM_INNER_JOIN;
+          $$->from_clause_type = FROM_JOIN;
         }
 
 
