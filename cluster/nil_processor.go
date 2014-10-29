@@ -3,6 +3,7 @@ package cluster
 import (
 	"fmt"
 
+	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -17,5 +18,9 @@ func (np NilProcessor) Yield(s *protocol.Series) (bool, error) {
 }
 
 func (np NilProcessor) Close() error {
+	return nil
+}
+
+func (np NilProcessor) Next() engine.Processor {
 	return nil
 }

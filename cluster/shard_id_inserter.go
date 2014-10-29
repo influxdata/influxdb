@@ -29,3 +29,6 @@ func (sip ShardIdInserterProcessor) Close() error {
 func (sip ShardIdInserterProcessor) Name() string {
 	return fmt.Sprintf("ShardIdInserterProcessor (%d)", sip.id)
 }
+func (sip ShardIdInserterProcessor) Next() engine.Processor {
+	return sip.next
+}

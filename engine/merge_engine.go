@@ -32,3 +32,7 @@ func (me *MergeEngine) Close() error {
 func (me *MergeEngine) Name() string {
 	return "MergeEngine"
 }
+
+func (self *MergeEngine) Next() Processor {
+	return self.next
+}

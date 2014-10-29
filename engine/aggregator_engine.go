@@ -43,7 +43,7 @@ type AggregatorEngine struct {
 }
 
 func (self *AggregatorEngine) Name() string {
-	return "Aggregator Engine"
+	return "AggregatorEngine"
 }
 
 func (self *AggregatorEngine) Close() error {
@@ -328,6 +328,10 @@ func (self *AggregatorEngine) getValuesForGroup(table string, group []*protocol.
 
 func (self *AggregatorEngine) init(query *parser.SelectQuery) error {
 	return nil
+}
+
+func (self *AggregatorEngine) Next() Processor {
+	return self.next
 }
 
 func NewAggregatorEngine(query *parser.SelectQuery, next Processor) (*AggregatorEngine, error) {

@@ -40,3 +40,7 @@ func (self *FilteringEngine) Close() error {
 func (self *FilteringEngine) Name() string {
 	return self.processor.Name()
 }
+
+func (self *FilteringEngine) Next() Processor {
+	return self.processor.Next()
+}

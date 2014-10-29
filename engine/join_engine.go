@@ -85,3 +85,7 @@ func (je *JoinEngine) Yield(s *protocol.Series) (bool, error) {
 	}
 	return true, nil
 }
+
+func (self *JoinEngine) Next() Processor {
+	return self.next
+}

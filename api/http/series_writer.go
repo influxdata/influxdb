@@ -3,6 +3,7 @@ package http
 // This implements the SeriesWriter interface for use with the API
 
 import (
+	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -28,4 +29,8 @@ func (self *SeriesWriter) Close() error {
 
 func (self *SeriesWriter) Name() string {
 	return "SeriesWriter"
+}
+
+func (self *SeriesWriter) Next() engine.Processor {
+	return nil
 }

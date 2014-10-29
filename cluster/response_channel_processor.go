@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"code.google.com/p/log4go"
+	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -33,4 +34,8 @@ func (p *ResponseChannelProcessor) Close() error {
 
 func (p *ResponseChannelProcessor) Name() string {
 	return "ResponseChannelProcessor"
+}
+
+func (p *ResponseChannelProcessor) Next() engine.Processor {
+	return nil
 }

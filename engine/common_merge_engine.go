@@ -47,3 +47,7 @@ func (cme *CommonMergeEngine) Yield(s *protocol.Series) (bool, error) {
 func (cme *CommonMergeEngine) Name() string {
 	return "CommonMergeEngine"
 }
+
+func (self *CommonMergeEngine) Next() Processor {
+	return self.next
+}
