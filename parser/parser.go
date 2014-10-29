@@ -473,7 +473,7 @@ func GetFromClause(fromClause *C.from_clause) (*FromClause, error) {
 	var regex *regexp.Regexp
 
 	switch t {
-	case FromClauseMergeRegex:
+	case FromClauseMergeRegex, FromClauseJoinRegex:
 		val, err := GetValue(fromClause.regex_value)
 		if err != nil {
 			return nil, err
