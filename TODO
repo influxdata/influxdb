@@ -3,8 +3,6 @@ TODO
 
 ### Uncompleted
 
-- [ ] Server.ClusterAdmins()
-
 - [ ] ClusterAdmin.SetPassword()
 
 - [ ] DBUser.SetPassword()

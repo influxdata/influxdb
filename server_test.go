@@ -118,7 +118,7 @@ func TestServer_CreateClusterAdmin(t *testing.T) {
 	defer s.Close()
 
 	// Create a cluster admin.
-	if err := s.CreateClusterAdmin("susy", "pass", nil); err != nil {
+	if err := s.CreateClusterAdmin("susy", "pass"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -136,7 +136,7 @@ func TestServer_CreateClusterAdmin(t *testing.T) {
 func TestServer_CreateClusterAdmin_ErrUsernameRequired(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
-	if err := s.CreateClusterAdmin("", "pass", nil); err != influxdb.ErrUsernameRequired {
+	if err := s.CreateClusterAdmin("", "pass"); err != influxdb.ErrUsernameRequired {
 		t.Fatal(err)
 	}
 }
@@ -145,10 +145,10 @@ func TestServer_CreateClusterAdmin_ErrUsernameRequired(t *testing.T) {
 func TestServer_CreateClusterAdmin_ErrClusterAdminExists(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
-	if err := s.CreateClusterAdmin("susy", "pass", nil); err != nil {
+	if err := s.CreateClusterAdmin("susy", "pass"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateClusterAdmin("susy", "pass", nil); err != influxdb.ErrClusterAdminExists {
+	if err := s.CreateClusterAdmin("susy", "pass"); err != influxdb.ErrClusterAdminExists {
 		t.Fatal(err)
 	}
 }
@@ -159,7 +159,7 @@ func TestServer_DeleteClusterAdmin(t *testing.T) {
 	defer s.Close()
 
 	// Create a cluster admin.
-	if err := s.CreateClusterAdmin("susy", "pass", nil); err != nil {
+	if err := s.CreateClusterAdmin("susy", "pass"); err != nil {
 		t.Fatal(err)
 	} else if s.ClusterAdmin("susy") == nil {
 		t.Fatalf("admin not created")
@@ -170,6 +170,25 @@ func TestServer_DeleteClusterAdmin(t *testing.T) {
 		t.Fatal(err)
 	} else if s.ClusterAdmin("susy") != nil {
 		t.Fatalf("admin not actually deleted")
+	}
+}
+
+// Ensure the server can return a list of all admins.
+func TestServer_ClusterAdmins(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create some databases.
+	s.CreateClusterAdmin("susy", "pass")
+	s.CreateClusterAdmin("john", "pass")
+
+	// Return the databases.
+	if a := s.ClusterAdmins(); len(a) != 2 {
+		t.Fatalf("unexpected admin count: %d", len(a))
+	} else if a[0].Name != "john" {
+		t.Fatalf("unexpected admin(0): %s", a[0].Name)
+	} else if a[1].Name != "susy" {
+		t.Fatalf("unexpected admin(1): %s", a[1].Name)
 	}
 }
 

@@ -225,8 +225,20 @@ func (s *Server) ClusterAdmin(name string) *ClusterAdmin {
 	return s.admins[name]
 }
 
+// ClusterAdmins returns a list of all cluster admins, sorted by name.
+func (s *Server) ClusterAdmins() []*ClusterAdmin {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var a clusterAdmins
+	for _, u := range s.admins {
+		a = append(a, u)
+	}
+	sort.Sort(a)
+	return a
+}
+
 // CreateClusterAdmin creates a cluster admin on the server.
-func (s *Server) CreateClusterAdmin(username, password string, permissions []string) error {
+func (s *Server) CreateClusterAdmin(username, password string) error {
 	c := &createClusterAdminCommand{Username: username, Password: password}
 	_, err := s.broadcast(createClusterAdminMessageType, c)
 	return err
