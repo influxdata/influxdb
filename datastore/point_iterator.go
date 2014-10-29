@@ -96,6 +96,7 @@ func (pi *PointIterator) Next() {
 		// if the value is nil or doesn't match the point's timestamp and sequence number
 		// then skip it
 		if rcv.value == nil || rcv.time != next.time || rcv.sequence != next.sequence {
+			log4go.Trace("rcv = %#v, next = %#v", rcv, next)
 			pi.point.Values[i] = &protocol.FieldValue{IsNull: &TRUE}
 			continue
 		}
@@ -163,6 +164,7 @@ func (pi *PointIterator) Close() {
 func (pi *PointIterator) getIteratorNextValue() error {
 	for i, it := range pi.itrs {
 		if pi.rawColumnValues[i].value != nil {
+			log4go.Trace("Value in iterator isn't nil, skipping")
 			continue
 		}
 
@@ -170,6 +172,7 @@ func (pi *PointIterator) getIteratorNextValue() error {
 			if err := it.Error(); err != nil {
 				return err
 			}
+			log4go.Trace("Iterator isn't valid, skipping")
 			continue
 		}
 
@@ -181,13 +184,13 @@ func (pi *PointIterator) getIteratorNextValue() error {
 
 		// if we ran out of points for this field go to the next iterator
 		if sk.id != pi.fields[i].Id {
-			log4go.Debug("Different id reached")
+			log4go.Trace("Different id reached")
 			continue
 		}
 
 		// if the point is outside the query start and end time
 		if sk.time().Before(pi.startTime) || sk.time().After(pi.endTime) {
-			log4go.Debug("Outside time range: %s, %s", sk.time(), pi.startTime)
+			log4go.Trace("Outside time range: %s, %s", sk.time(), pi.startTime)
 			continue
 		}
 
