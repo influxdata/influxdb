@@ -9,6 +9,9 @@
 
 - [Issue #996](https://github.com/influxdb/influxdb/issues/996). Fill should
   fill the time range even if no points exists in the given time range
+- [Issue #1076](https://github.com/influxdb/influxdb/issues/1076). Fix
+  the timestamps of data points written by the collectd plugin. (Thanks,
+  @renchap for reporting this bug)
 
 ## v0.8.5 [2014-10-27]
 

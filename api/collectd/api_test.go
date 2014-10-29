@@ -40,7 +40,7 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithUnixTimestamp(c *C) {
 	packet := &(*packets)[0]
 	series := packetToSeries(packet)
 	timestamp := *series[0].Points[0].Timestamp
-	c.Assert(timestamp, Equals, int64(1414080767000))
+	c.Assert(timestamp, Equals, int64(1414080767000000))
 }
 
 func (cas *CollectdApiSuite) TestPacketToSeriesWithHiResTimestamp(c *C) {
@@ -61,7 +61,7 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithHiResTimestamp(c *C) {
 	packet := &(*packets)[0]
 	series := packetToSeries(packet)
 	timestamp := *series[0].Points[0].Timestamp
-	c.Assert(timestamp, Equals, int64(1414187920000))
+	c.Assert(timestamp, Equals, int64(1414187920000000))
 }
 
 // Taken from /usr/share/collectd/types.db on a Ubuntu system
