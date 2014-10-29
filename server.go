@@ -15,12 +15,14 @@ import (
 )
 
 const (
-	createDatabaseMessageType = messaging.MessageType(0x00)
-	deleteDatabaseMessageType = messaging.MessageType(0x01)
-
-	createDBUserMessageType   = messaging.MessageType(0x11)
-	deleteDBUserMessageType   = messaging.MessageType(0x12)
-	changePasswordMessageType = messaging.MessageType(0x13)
+	createDatabaseMessageType          = messaging.MessageType(0x00)
+	deleteDatabaseMessageType          = messaging.MessageType(0x01)
+	createClusterAdminMessageType      = messaging.MessageType(0x02)
+	deleteClusterAdminMessageType      = messaging.MessageType(0x03)
+	createDBUserMessageType            = messaging.MessageType(0x04)
+	deleteDBUserMessageType            = messaging.MessageType(0x05)
+	dbUserSetPasswordMessageType       = messaging.MessageType(0x06)
+	clusterAdminSetPasswordMessageType = messaging.MessageType(0x06)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -34,6 +36,7 @@ type Server struct {
 	errors map[uint64]error // message errors
 
 	databases map[string]*Database
+	admins    map[string]*ClusterAdmin
 }
 
 // NewServer returns a new instance of Server.
@@ -220,47 +223,13 @@ func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Validate user.
-	if c.Username == "" {
-		return ErrUsernameRequired
-	} else if !isValidName(c.Username) {
-		return ErrInvalidUsername
-	}
-
 	// Retrieve the database.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
 		return ErrDatabaseNotFound
-	} else if db.User(c.Username) != nil {
-		return ErrUserExists
 	}
 
-	// Generate the hash of the password.
-	hash, err := HashPassword(c.Password)
-	if err != nil {
-		return err
-	}
-
-	// Setup matchers.
-	rmatcher := []*Matcher{{true, ".*"}}
-	wmatcher := []*Matcher{{true, ".*"}}
-	if len(c.Permissions) == 2 {
-		rmatcher[0].Name = c.Permissions[0]
-		wmatcher[0].Name = c.Permissions[1]
-	}
-
-	// Create the user.
-	u := &DBUser{
-		CommonUser: CommonUser{
-			Name: c.Username,
-			Hash: string(hash),
-		},
-		DB:       c.Database,
-		ReadFrom: rmatcher,
-		WriteTo:  wmatcher,
-		IsAdmin:  false,
-	}
-	return db.saveUser(u)
+	return db.applyCreateUser(c.Username, c.Password, c.Permissions)
 }
 
 type createDBUserCommand struct {
@@ -277,18 +246,13 @@ func (s *Server) applyDeleteDBUser(m *messaging.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Validate command.
-	if c.Username == "" {
-		return ErrUsernameRequired
-	}
-
 	// Retrieve the database.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
 		return ErrDatabaseNotFound
 	}
 
-	return db.deleteUser(c.Username)
+	return db.applyDeleteUser(c.Username)
 }
 
 type deleteDBUserCommand struct {
@@ -296,17 +260,12 @@ type deleteDBUserCommand struct {
 	Username string `json:"username"`
 }
 
-func (s *Server) applyChangePassword(m *messaging.Message) error {
-	var c changePasswordCommand
+func (s *Server) applyDBUserSetPassword(m *messaging.Message) error {
+	var c dbUserSetPasswordCommand
 	mustUnmarshal(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	// Validate user.
-	if c.Username == "" {
-		return ErrUsernameRequired
-	}
 
 	// Retrieve the database.
 	db := s.databases[c.Database]
@@ -317,7 +276,7 @@ func (s *Server) applyChangePassword(m *messaging.Message) error {
 	return db.changePassword(c.Username, c.Password)
 }
 
-type changePasswordCommand struct {
+type dbUserSetPasswordCommand struct {
 	Database string `json:"database"`
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -352,8 +311,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyCreateDBUser(m)
 		case deleteDBUserMessageType:
 			err = s.applyDeleteDBUser(m)
-		case changePasswordMessageType:
-			err = s.applyChangePassword(m)
+		case dbUserSetPasswordMessageType:
+			err = s.applyDBUserSetPassword(m)
 		}
 
 		// Sync high water mark and errors for broadcast topic.
@@ -435,10 +394,45 @@ func (db *Database) CreateUser(username, password string, permissions []string) 
 	return err
 }
 
-func (db *Database) saveUser(u *DBUser) error {
+func (db *Database) applyCreateUser(username, password string, permissions []string) error {
 	db.mu.Lock()
-	db.users[u.Name] = u
-	db.mu.Unlock()
+	defer db.mu.Unlock()
+
+	// Validate user.
+	if username == "" {
+		return ErrUsernameRequired
+	} else if !isValidName(username) {
+		return ErrInvalidUsername
+	} else if db.users[username] != nil {
+		return ErrUserExists
+	}
+
+	// Generate the hash of the password.
+	hash, err := HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	// Setup matchers.
+	rmatcher := []*Matcher{{true, ".*"}}
+	wmatcher := []*Matcher{{true, ".*"}}
+	if len(permissions) == 2 {
+		rmatcher[0].Name = permissions[0]
+		wmatcher[0].Name = permissions[1]
+	}
+
+	// Create the user.
+	db.users[username] = &DBUser{
+		CommonUser: CommonUser{
+			Name: username,
+			Hash: string(hash),
+		},
+		DB:       db.name,
+		ReadFrom: rmatcher,
+		WriteTo:  wmatcher,
+		IsAdmin:  false,
+	}
+
 	return nil
 }
 
@@ -452,12 +446,14 @@ func (db *Database) DeleteUser(username string) error {
 	return err
 }
 
-func (db *Database) deleteUser(username string) error {
+func (db *Database) applyDeleteUser(username string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Check if user exists.
-	if db.users[username] == nil {
+	// Validate user.
+	if username == "" {
+		return ErrUsernameRequired
+	} else if db.users[username] == nil {
 		return ErrUserNotFound
 	}
 
@@ -466,14 +462,14 @@ func (db *Database) deleteUser(username string) error {
 	return nil
 }
 
-// ChangePassword changes the password for a user in the database.
+// ChangePassword changes the password for a user in the database
 func (db *Database) ChangePassword(username, newPassword string) error {
-	c := &changePasswordCommand{
+	c := &dbUserSetPasswordCommand{
 		Database: db.Name(),
 		Username: username,
 		Password: newPassword,
 	}
-	_, err := db.server.broadcast(changePasswordMessageType, c)
+	_, err := db.server.broadcast(dbUserSetPasswordMessageType, c)
 	return err
 }
 
@@ -481,9 +477,11 @@ func (db *Database) changePassword(username, newPassword string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Check that user exists.
+	// Validate user.
 	u := db.users[username]
-	if u == nil {
+	if username == "" {
+		return ErrUsernameRequired
+	} else if u == nil {
 		return ErrUserNotFound
 	}
 
