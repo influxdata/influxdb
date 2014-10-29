@@ -113,7 +113,7 @@ func TestServer_Databases(t *testing.T) {
 }
 
 // Ensure the server can create a new cluster admin.
-func TestDatabase_CreateClusterAdmin(t *testing.T) {
+func TestServer_CreateClusterAdmin(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -129,6 +129,47 @@ func TestDatabase_CreateClusterAdmin(t *testing.T) {
 		t.Fatalf("username mismatch: %v", u.Name)
 	} else if bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte("pass")) != nil {
 		t.Fatal("invalid password")
+	}
+}
+
+// Ensure the server returns an error when creating an admin without a name.
+func TestServer_CreateClusterAdmin_ErrUsernameRequired(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	if err := s.CreateClusterAdmin("", "pass", nil); err != influxdb.ErrUsernameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when creating a duplicate admin.
+func TestServer_CreateClusterAdmin_ErrClusterAdminExists(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	if err := s.CreateClusterAdmin("susy", "pass", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateClusterAdmin("susy", "pass", nil); err != influxdb.ErrClusterAdminExists {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server can delete an existing cluster admin.
+func TestServer_DeleteClusterAdmin(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a cluster admin.
+	if err := s.CreateClusterAdmin("susy", "pass", nil); err != nil {
+		t.Fatal(err)
+	} else if s.ClusterAdmin("susy") == nil {
+		t.Fatalf("admin not created")
+	}
+
+	// Delete the cluster admin.
+	if err := s.DeleteClusterAdmin("susy"); err != nil {
+		t.Fatal(err)
+	} else if s.ClusterAdmin("susy") != nil {
+		t.Fatalf("admin not actually deleted")
 	}
 }
 

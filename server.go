@@ -268,6 +268,36 @@ type createClusterAdminCommand struct {
 	Password string `json:"password"`
 }
 
+// DeleteClusterAdmin removes a cluster admin from the server.
+func (s *Server) DeleteClusterAdmin(username string) error {
+	c := &deleteClusterAdminCommand{Username: username}
+	_, err := s.broadcast(deleteClusterAdminMessageType, c)
+	return err
+}
+
+func (s *Server) applyDeleteClusterAdmin(m *messaging.Message) error {
+	var c deleteClusterAdminCommand
+	mustUnmarshal(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate admin.
+	if c.Username == "" {
+		return ErrUsernameRequired
+	} else if s.admins[c.Username] == nil {
+		return ErrClusterAdminNotFound
+	}
+
+	// Delete the cluster admin.
+	delete(s.admins, c.Username)
+	return nil
+}
+
+type deleteClusterAdminCommand struct {
+	Username string `json:"username"`
+}
+
 func (s *Server) applyDBUserSetPassword(m *messaging.Message) error {
 	var c dbUserSetPasswordCommand
 	mustUnmarshal(m.Data, &c)
@@ -361,6 +391,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyDeleteDatabase(m)
 		case createClusterAdminMessageType:
 			err = s.applyCreateClusterAdmin(m)
+		case deleteClusterAdminMessageType:
+			err = s.applyDeleteClusterAdmin(m)
 		case createDBUserMessageType:
 			err = s.applyCreateDBUser(m)
 		case deleteDBUserMessageType:

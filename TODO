@@ -3,9 +3,6 @@ TODO
 
 ### Uncompleted
 
-- [ ] Server.CreateClusterAdmin()
-- [ ] Server.DeleteClusterAdmin()
-- [ ] Server.ClusterAdmin()
 - [ ] Server.ClusterAdmins()
 
 - [ ] ClusterAdmin.SetPassword()
