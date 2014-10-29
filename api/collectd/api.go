@@ -110,13 +110,13 @@ func (s *Server) HandleSocket(socket *net.UDPConn) {
 }
 
 func packetToSeries(p *collectd.Packet) []*protocol.Series {
-	// Prefer high resolution timestamp (TimeHR is 2^-30 seconds,
-	// convert to milliseconds for influxdb)
-	uts := (p.TimeHR >> 30) * 1000
+	// Prefer high resolution timestamp.  TimeHR is 2^-30 seconds, so shift
+	// right 30 to get seconds then convert to microseconds for InfluxDB
+	uts := (p.TimeHR >> 30) * 1000 * 1000
 
 	// Fallback on unix timestamp if high res is 0
 	if uts == 0 {
-		uts = p.Time * 1000
+		uts = p.Time * 1000 * 1000
 	}
 
 	// Collectd time is uint64 but influxdb expects int64
