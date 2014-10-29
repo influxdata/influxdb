@@ -1,5 +1,10 @@
 ## v0.8.6 [unreleased]
 
+### Features
+
+- [Issue #1068](https://github.com/influxdb/influxdb/issues/1068). Print
+  the processor chain when the query is started
+
 ### Bugfixes
 
 - [Issue #996](https://github.com/influxdb/influxdb/issues/996). Fill should

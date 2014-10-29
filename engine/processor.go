@@ -1,6 +1,10 @@
 package engine
 
-import "github.com/influxdb/influxdb/protocol"
+import (
+	"fmt"
+
+	"github.com/influxdb/influxdb/protocol"
+)
 
 // Passed to a shard (local datastore or whatever) that gets yielded points from series.
 type Processor interface {
@@ -10,7 +14,17 @@ type Processor interface {
 	// needed.
 	Yield(s *protocol.Series) (bool, error)
 	Name() string
+	Next() Processor
 
 	// Flush any data that could be in the queue
 	Close() error
+}
+
+// ProcessorChain returns a string representation of the processors chained together
+func ProcessorChain(p Processor) string {
+	next := p.Next()
+	if next != nil {
+		return fmt.Sprintf("%s > %s", p.Name(), ProcessorChain(next))
+	}
+	return p.Name()
 }
