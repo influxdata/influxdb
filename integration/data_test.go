@@ -89,7 +89,7 @@ func (self *DataTestSuite) TestWritingToExpiredShards(c *C) {
 
 	data := CreatePoints("test_using_deleted_shard", 1, 1000000)
 	data[0].Columns = append(data[0].Columns, "time")
-	for i, _ := range data[0].Points {
+	for i := range data[0].Points {
 		data[0].Points[i] = append(data[0].Points[i], 0)
 	}
 	// This test will fail randomly without the fix submitted in the
@@ -2753,4 +2753,21 @@ func (self *DataTestSuite) TestHistogramAggregateFillWith0(c *C) {
 	// FIXME: Can't test return values because the order of the returned data is randomized.
 	//        Add some asserts here once engine/aggregator_operators.go
 	//        func(self *HistogramAggregator) GetValues(...) is modified to sort data.
+}
+
+// Test issue #996: fill() does not fill empty series / timespan
+func (self *DataTestSuite) TestIssue996FillEmptyTimespan(c *C) {
+	data := `
+[
+  {
+	"name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [10000, 10.0]
+    ]
+  }
+]`
+
+	expect := []tv{{300000.0, nil}, {240000.0, nil}, {180000.0, nil}, {120000.0, nil}, {60000.0, nil}}
+	self.tstAggregateFill(data, "sum", "null", emptyAggArgs, expect, c)
 }

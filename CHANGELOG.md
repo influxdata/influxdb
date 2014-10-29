@@ -1,3 +1,10 @@
+## v0.8.6 [unreleased]
+
+### Bugfixes
+
+- [Issue #996](https://github.com/influxdb/influxdb/issues/996). Fill should
+  fill the time range even if no points exists in the given time range
+
 ## v0.8.5 [2014-10-27]
 
 ### Features

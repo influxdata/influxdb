@@ -88,7 +88,8 @@ func (self *AggregatorEngine) getTimestampBucket(timestampMicroseconds int64) in
 }
 
 func (self *AggregatorEngine) Yield(s *protocol.Series) (bool, error) {
-	if len(s.Points) == 0 {
+	if len(s.Points) == 0 && !self.isFillQuery {
+		log4go.Debug("AggregatorEngine: no points in series \"%s\"", *s.Name)
 		return true, nil
 	}
 
