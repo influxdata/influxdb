@@ -331,6 +331,8 @@ const (
 )
 
 func (s *RaftServer) ForceLogCompaction() error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	err := s.raftServer.TakeSnapshot()
 	if err != nil {
 		log.Error("Cannot take snapshot: %s", err)
