@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -118,6 +119,18 @@ func TestSnapshotRequest(t *testing.T) {
 			State:      []byte("bar"),
 		})
 		assert.Equal(t, resp2.Success, true)
+	})
+}
+
+func TestTakeSnapshotWhenStateMachineSaveFails(t *testing.T) {
+	runServerWithMockStateMachine(Leader, func(s Server, m *mock.Mock) {
+		m.On("Save").Return([]byte("foo"), errors.New("test error message"))
+
+		s.Do(&testCommand1{})
+		err := s.TakeSnapshot()
+		assert.Equal(t, err.Error(), "test error message")
+		assert.Nil(t, s.(*server).pendingSnapshot)
+		s.Stop()
 	})
 }
 
