@@ -21,14 +21,18 @@ import (
 func setupLogging(loggingLevel, logFile string) {
 	level := log.DEBUG
 	switch loggingLevel {
-	case "trace":
-		level = log.TRACE
+	case "fine":
+		level = log.FINE
+	case "debug":
+		level = log.DEBUG
 	case "info":
 		level = log.INFO
 	case "warn":
 		level = log.WARNING
 	case "error":
 		level = log.ERROR
+	default:
+		log.Error("Unknown log level %s. Defaulting to DEBUG", loggingLevel)
 	}
 
 	log.Global = make(map[string]*log.Filter)

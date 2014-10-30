@@ -206,9 +206,9 @@ func (self *AggregatorEngine) aggregateValuesForSeries(series *protocol.Series) 
 		// update the state of the given group
 		node := seriesState.trie.GetNode(group)
 		var err error
-		log4go.Trace("Aggregating for group %v", group)
+		log4go.Debug("Aggregating for group %v", group)
 		for idx, aggregator := range self.aggregators {
-			log4go.Trace("Aggregating value for %T for group %v and state %v", aggregator, group, node.states[idx])
+			log4go.Debug("Aggregating value for %T for group %v and state %v", aggregator, group, node.states[idx])
 			node.states[idx], err = aggregator.AggregatePoint(node.states[idx], point)
 			if err != nil {
 				return false, err
