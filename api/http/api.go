@@ -948,8 +948,6 @@ func (self *HttpServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request
 				"protobufConnectString":   s.ProtobufConnectionString,
 				"isUp":                    s.IsUp(), //FIXME: IsUp is not consistent
 				"raftName":                s.RaftName,
-				"state":                   s.State,
-				"stateName":               s.GetStateName(),
 				"raftConnectionString":    s.RaftConnectionString,
 				"leaderRaftName":          leaderRaftName,
 				"leaderRaftConnectString": leaderRaftConnectString,

@@ -285,7 +285,6 @@ func (self *ClusterConfiguration) RemoveServer(server *ClusterServer) error {
 func (self *ClusterConfiguration) AddPotentialServer(server *ClusterServer) {
 	self.serversLock.Lock()
 	defer self.serversLock.Unlock()
-	server.State = Potential
 	self.servers = append(self.servers, server)
 	self.lastServerIdUsed++
 	server.Id = self.lastServerIdUsed

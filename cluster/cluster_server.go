@@ -18,7 +18,6 @@ const (
 type ClusterServer struct {
 	Id                       uint32
 	RaftName                 string
-	State                    ServerState
 	RaftConnectionString     string
 	ProtobufConnectionString string
 	connection               ServerConnection
@@ -37,32 +36,6 @@ type ServerConnection interface {
 	ClearRequests()
 	MakeRequest(*protocol.Request, ResponseChannel) error
 	CancelRequest(*protocol.Request)
-}
-
-type ServerState int
-
-const (
-	LoadingRingData ServerState = iota
-	SendingRingData
-	DeletingOldData
-	Running
-	Potential
-)
-
-func (self *ClusterServer) GetStateName() (stateName string) {
-	switch {
-	case self.State == LoadingRingData:
-		return "LoadingRingData"
-	case self.State == SendingRingData:
-		return "SendingRingData"
-	case self.State == DeletingOldData:
-		return "DeletingOldData"
-	case self.State == Running:
-		return "Running"
-	case self.State == Potential:
-		return "Potential"
-	}
-	return "UNKNOWN"
 }
 
 func NewClusterServer(raftName, raftConnectionString, protobufConnectionString string, connection ServerConnection, config *c.Configuration) *ClusterServer {
