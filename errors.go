@@ -41,6 +41,15 @@ var (
 
 	// ErrInvalidUsername is returned when using a username with invalid characters.
 	ErrInvalidUsername = errors.New("invalid username")
+
+	// ErrShardSpaceExists is returned when creating a duplicate shard space.
+	ErrShardSpaceExists = errors.New("shard space exists")
+
+	// ErrShardSpaceNotFound is returned when deleting a non-existent shard space.
+	ErrShardSpaceNotFound = errors.New("shard space not found")
+
+	// ErrShardSpaceNameRequired is returned using a blank shard space name.
+	ErrShardSpaceNameRequired = errors.New("shard space name required")
 )
 
 const (

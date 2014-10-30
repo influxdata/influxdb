@@ -390,6 +390,133 @@ func TestDatabase_Users(t *testing.T) {
 	}
 }
 
+// Ensure the database can create a new shard space.
+func TestDatabase_CreateShardSpace(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	db := s.Database("foo")
+
+	// Create a shard space on the database.
+	ss := &influxdb.ShardSpace{
+		Name:      "bar",
+		Regex:     regexp.MustCompile(`myseries`),
+		Duration:  time.Hour,
+		Retention: time.Minute,
+		ReplicaN:  2,
+		SplitN:    3,
+	}
+	if err := db.CreateShardSpace(ss); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the user exists.
+	if o := db.ShardSpace("bar"); o == nil {
+		t.Fatalf("shard space not found")
+	} else if !reflect.DeepEqual(ss, o) {
+		t.Fatalf("shard space mismatch: %#v", o)
+	}
+}
+
+// Ensure the server returns an error when creating a shard space after db is dropped.
+func TestDatabase_CreateShardSpace_ErrDatabaseNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database & drop it.
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+	s.DeleteDatabase("foo")
+
+	// Create a shard space on the database.
+	if err := db.CreateShardSpace(&influxdb.ShardSpace{Name: "bar"}); err != influxdb.ErrDatabaseNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when creating a shard space without a name.
+func TestDatabase_CreateShardSpace_ErrShardSpaceNameRequired(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	if err := s.Database("foo").CreateShardSpace(&influxdb.ShardSpace{Name: ""}); err != influxdb.ErrShardSpaceNameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when creating a duplicate shard space.
+func TestDatabase_CreateShardSpace_ErrShardSpaceExists(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.Database("foo").CreateShardSpace(&influxdb.ShardSpace{Name: "bar"})
+	if err := s.Database("foo").CreateShardSpace(&influxdb.ShardSpace{Name: "bar"}); err != influxdb.ErrShardSpaceExists {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server can delete an existing shard space.
+func TestDatabase_DeleteShardSpace(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database and shard space.
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+	if err := db.CreateShardSpace(&influxdb.ShardSpace{Name: "bar"}); err != nil {
+		t.Fatal(err)
+	} else if db.ShardSpace("bar") == nil {
+		t.Fatal("shard space not created")
+	}
+
+	// Remove shard space from database.
+	if err := db.DeleteShardSpace("bar"); err != nil {
+		t.Fatal(err)
+	} else if db.ShardSpace("bar") != nil {
+		t.Fatal("shard space not deleted")
+	}
+}
+
+// Ensure the server returns an error when deleting a shard space after db is dropped.
+func TestDatabase_DeleteShardSpace_ErrDatabaseNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database & drop it.
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+	s.DeleteDatabase("foo")
+
+	// Delete shard space on the database.
+	if err := db.DeleteShardSpace("bar"); err != influxdb.ErrDatabaseNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when deleting a shard space without a name.
+func TestDatabase_DeleteShardSpace_ErrShardSpaceNameRequired(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	if err := s.Database("foo").DeleteShardSpace(""); err != influxdb.ErrShardSpaceNameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when deleting a non-existent shard space.
+func TestDatabase_DeleteShardSpace_ErrShardSpaceNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	if err := s.Database("foo").DeleteShardSpace("no_such_space"); err != influxdb.ErrShardSpaceNotFound {
+		t.Fatal(err)
+	}
+}
+
 // Ensure a shard space can be unmarshaled from JSON.
 func TestShardSpace_UnmarshalJSON(t *testing.T) {
 	var tests = []struct {

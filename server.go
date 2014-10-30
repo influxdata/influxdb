@@ -38,12 +38,14 @@ const (
 const (
 	createDatabaseMessageType          = messaging.MessageType(0x00)
 	deleteDatabaseMessageType          = messaging.MessageType(0x01)
-	createClusterAdminMessageType      = messaging.MessageType(0x02)
-	deleteClusterAdminMessageType      = messaging.MessageType(0x03)
-	createDBUserMessageType            = messaging.MessageType(0x04)
-	deleteDBUserMessageType            = messaging.MessageType(0x05)
-	dbUserSetPasswordMessageType       = messaging.MessageType(0x06)
+	createShardSpaceMessageType        = messaging.MessageType(0x02)
+	deleteShardSpaceMessageType        = messaging.MessageType(0x03)
+	createClusterAdminMessageType      = messaging.MessageType(0x04)
+	deleteClusterAdminMessageType      = messaging.MessageType(0x05)
 	clusterAdminSetPasswordMessageType = messaging.MessageType(0x06)
+	createDBUserMessageType            = messaging.MessageType(0x07)
+	deleteDBUserMessageType            = messaging.MessageType(0x08)
+	dbUserSetPasswordMessageType       = messaging.MessageType(0x09)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -397,6 +399,53 @@ type dbUserSetPasswordCommand struct {
 	Password string `json:"password"`
 }
 
+func (s *Server) applyCreateShardSpace(m *messaging.Message) error {
+	var c createShardSpaceCommand
+	mustUnmarshal(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Retrieve the database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	return db.applyCreateShardSpace(c.Name, c.Regex, c.Retention, c.Duration, c.ReplicaN, c.SplitN)
+}
+
+type createShardSpaceCommand struct {
+	Database  string        `json:"database"`
+	Name      string        `json:"name"`
+	Regex     string        `json:"regex"`
+	Retention time.Duration `json:"retention"`
+	Duration  time.Duration `json:"duration"`
+	ReplicaN  uint32        `json:"replicaN"`
+	SplitN    uint32        `json:"splitN"`
+}
+
+func (s *Server) applyDeleteShardSpace(m *messaging.Message) error {
+	var c deleteShardSpaceCommand
+	mustUnmarshal(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Retrieve the database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	return db.applyDeleteShardSpace(c.Name)
+}
+
+type deleteShardSpaceCommand struct {
+	Database string `json:"database"`
+	Name     string `json:"name"`
+}
+
 // WriteSeries writes series data to the broker.
 func (s *Server) WriteSeries(u *ClusterAdmin, database string, series *protocol.Series) error {
 	// TODO:
@@ -432,6 +481,10 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyDeleteDBUser(m)
 		case dbUserSetPasswordMessageType:
 			err = s.applyDBUserSetPassword(m)
+		case createShardSpaceMessageType:
+			err = s.applyCreateShardSpace(m)
+		case deleteShardSpaceMessageType:
+			err = s.applyDeleteShardSpace(m)
 		}
 
 		// Sync high water mark and errors for broadcast topic.
@@ -613,6 +666,80 @@ func (db *Database) changePassword(username, newPassword string) error {
 	// Update user password hash.
 	u.Hash = string(hash)
 
+	return nil
+}
+
+// ShardSpace returns a shard space by name.
+func (db *Database) ShardSpace(name string) *ShardSpace {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.spaces[name]
+}
+
+// CreateShardSpace creates a shard space in the database.
+func (db *Database) CreateShardSpace(ss *ShardSpace) error {
+	c := &createShardSpaceCommand{
+		Database:  db.Name(),
+		Name:      ss.Name,
+		Retention: ss.Retention,
+		Duration:  ss.Duration,
+		ReplicaN:  ss.ReplicaN,
+		SplitN:    ss.SplitN,
+	}
+	if ss.Regex != nil {
+		c.Regex = ss.Regex.String()
+	}
+	_, err := db.server.broadcast(createShardSpaceMessageType, c)
+	return err
+}
+
+func (db *Database) applyCreateShardSpace(name, regex string, retention, duration time.Duration, replicaN, splitN uint32) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	// Validate shard space.
+	if name == "" {
+		return ErrShardSpaceNameRequired
+	} else if db.spaces[name] != nil {
+		return ErrShardSpaceExists
+	}
+
+	// Compile regex.
+	re := regexp.MustCompile(regex)
+
+	// Add space to the database.
+	db.spaces[name] = &ShardSpace{
+		Name:      name,
+		Regex:     re,
+		Retention: retention,
+		Duration:  duration,
+		ReplicaN:  replicaN,
+		SplitN:    splitN,
+	}
+
+	return nil
+}
+
+// DeleteShardSpace removes a shard space from the database.
+func (db *Database) DeleteShardSpace(name string) error {
+	c := &deleteShardSpaceCommand{Database: db.Name(), Name: name}
+	_, err := db.server.broadcast(deleteShardSpaceMessageType, c)
+	return err
+}
+
+func (db *Database) applyDeleteShardSpace(name string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	// Validate shard space.
+	if name == "" {
+		return ErrShardSpaceNameRequired
+	} else if db.spaces[name] == nil {
+		return ErrShardSpaceNotFound
+	}
+
+	// Remove shard space.
+	delete(db.spaces, name)
 	return nil
 }
 
