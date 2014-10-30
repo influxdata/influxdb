@@ -56,7 +56,6 @@ var registeredCommands bool
 
 // Creates a new server.
 func NewRaftServer(config *configuration.Configuration, clusterConfig *cluster.ClusterConfiguration) *RaftServer {
-	// raft.SetLogLevel(raft.Debug)
 	if !registeredCommands {
 		registeredCommands = true
 		for _, command := range internalRaftCommands {

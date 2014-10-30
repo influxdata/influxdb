@@ -12,6 +12,7 @@ import (
 	"time"
 
 	log "code.google.com/p/log4go"
+	"github.com/influxdb/influxdb/_vendor/raft"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/coordinator"
 	"github.com/influxdb/influxdb/server"
@@ -116,6 +117,11 @@ func main() {
 	}
 
 	setupLogging(config.LogLevel, config.LogFile)
+
+	if config.RaftDebug {
+		log.Info("Turning on raft debug logging")
+		raft.SetLogLevel(raft.Trace)
+	}
 
 	if *repairLeveldb {
 		log.Info("Repairing leveldb")

@@ -79,6 +79,8 @@ port = 8090
 # Where the raft logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/tmp/influxdb/development/raft"
 
+debug = true
+
 # election-timeout = "1s"
 
 [storage]
