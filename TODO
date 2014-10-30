@@ -3,12 +3,6 @@ TODO
 
 ### Uncompleted
 
-- [ ] ClusterAdmin.SetPassword()
-
-- [ ] DBUser.SetPassword()
-- [ ] DBUser.SetPermissions()
-- [ ] DBUser.SetDBAdmin()
-
 - [ ] Database.CreateShardSpace()
 - [ ] Database.DeleteShardSpace()
 - [ ] Database.UpdateShardSpace()
@@ -29,6 +23,13 @@ TODO
 
 - [ ] QueryAuthorizer.AuthorizeQuery(q)
 - [ ] DB.AuthorizeDropSeries(q)
+
+- [ ] ClusterAdmin.SetPassword()
+
+- [ ] DBUser.SetPassword()
+- [ ] DBUser.SetPermissions()
+- [ ] DBUser.SetDBAdmin()
+
 
 
 ### Completed

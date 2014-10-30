@@ -15,6 +15,27 @@ import (
 )
 
 const (
+	// DefaultRootPassword is the password initially set for the root user.
+	// It is also used when reseting the root user's password.
+	DefaultRootPassword = "root"
+
+	// DefaultShardSpaceName is the name of a databases's default shard space.
+	DefaultShardSpaceName = "default"
+
+	// DefaultSplitN represents the number of partitions a shard is split into.
+	DefaultSplitN = 1
+
+	// DefaultReplicaN represents the number of replicas data is written to.
+	DefaultReplicaN = 1
+
+	// DefaultShardDuration is the time period held by a shard.
+	DefaultShardDuration = 7 * (24 * time.Hour)
+
+	// DefaultShardRetention is the length of time before a shard is dropped.
+	DefaultShardRetention = time.Duration(0)
+)
+
+const (
 	createDatabaseMessageType          = messaging.MessageType(0x00)
 	deleteDatabaseMessageType          = messaging.MessageType(0x01)
 	createClusterAdminMessageType      = messaging.MessageType(0x02)
@@ -605,66 +626,86 @@ func (p databases) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // ShardSpace represents a policy for creating new shards in a database.
 type ShardSpace struct {
 	// Unique name within database. Required.
-	Name string `json:"name"`
-
-	// Name of the database the space belongs to. Required.
-	Database string `json:"database"`
+	Name string
 
 	// Expression used to match against series. Optional. Defaults to /.*/.
-	Regex string `json:"regex"`
+	Regex *regexp.Regexp
 
-	// Optional, if not set it, it will default to the storage directory.
-	RetentionPolicy string `json:"retentionPolicy"`
+	Retention time.Duration
+	Duration  time.Duration
 
-	ShardDuration     string `json:"shardDuration"`
-	ReplicationFactor uint32 `json:"replicationFactor"`
-	Split             uint32 `json:"split"`
-
-	// TODO: shards []*ShardData
-	re *regexp.Regexp // compiled regex
+	ReplicaN uint32
+	SplitN   uint32
 }
 
 // NewShardSpace returns a new instance of ShardSpace with defaults set.
-func NewShardSpace(database, name string) *ShardSpace {
-	re, _ := regexp.Compile(".*")
+func NewShardSpace() *ShardSpace {
 	return &ShardSpace{
-		Database:          database,
-		Name:              name,
-		Split:             DefaultSplit,
-		ReplicationFactor: DefaultReplicationFactor,
-		Regex:             "/.*/",
-		RetentionPolicy:   "inf",
-		ShardDuration:     "7d",
-
-		// shards: make([]*ShardData, 0),
-		re: re,
+		Regex:     regexp.MustCompile(`.*`),
+		Retention: DefaultShardRetention,
+		Duration:  DefaultShardDuration,
+		SplitN:    DefaultSplitN,
+		ReplicaN:  DefaultReplicaN,
 	}
 }
 
-// Match returns true if the string matches the space's regular expression.
-func (s *ShardSpace) Match(str string) bool {
-	//if s.re == nil {
-	//	s.re, _ = s.re(s.Regex)
-	//}
-	return s.re.MatchString(str)
+// UnmarshalJSON decodes a JSON-encoded byte slice to a shard space.
+func (s *ShardSpace) UnmarshalJSON(data []byte) error {
+	// Decode into intermediate type.
+	var o shardSpaceJSON
+	if err := json.Unmarshal(data, &o); err != nil {
+		return err
+	}
+
+	// Copy over properties from intermediate type.
+	s.Name = o.Name
+	s.ReplicaN = o.ReplicaN
+	s.SplitN = o.SplitN
+
+	// Parse regex.
+	if o.Regex != "" {
+		if regex, err := compileRegex(o.Regex); err != nil {
+			return fmt.Errorf("regex: %s", err)
+		} else {
+			s.Regex = regex
+		}
+	} else {
+		s.Regex = regexp.MustCompile(`.*`)
+	}
+
+	// Parse retention.
+	if o.Retention == "inf" || o.Retention == "" {
+		s.Retention = time.Duration(0)
+	} else {
+		retention, err := parseTimeDuration(o.Retention)
+		if err != nil {
+			return fmt.Errorf("retention policy: %s", err)
+		}
+		s.Retention = retention
+	}
+
+	// Parse duration.
+	if o.Duration == "inf" || o.Duration == "" {
+		s.Duration = time.Duration(0)
+	} else {
+		duration, err := parseTimeDuration(o.Duration)
+		if err != nil {
+			return fmt.Errorf("shard duration: %s", err)
+		}
+		s.Duration = duration
+	}
+
+	return nil
 }
 
-func (s *ShardSpace) ParsedRetentionPeriod() time.Duration {
-	if s.RetentionPolicy == "" {
-		return DefaultRetentionPolicyDuration
-	} else if s.RetentionPolicy == "inf" {
-		return time.Duration(0)
-	}
-	d, _ := parseTimeDuration(s.RetentionPolicy)
-	return time.Duration(d)
-}
-
-func (s *ShardSpace) ParsedShardDuration() time.Duration {
-	if s.ShardDuration != "" {
-		d, _ := parseTimeDuration(s.ShardDuration)
-		return time.Duration(d)
-	}
-	return DefaultShardDuration
+// shardSpaceJSON represents an intermediate struct for JSON marshaling.
+type shardSpaceJSON struct {
+	Name      string `json:"name"`
+	Regex     string `json:"regex,omitempty"`
+	Retention string `json:"retentionPolicy,omitempty"`
+	Duration  string `json:"shardDuration,omitempty"`
+	ReplicaN  uint32 `json:"replicationFactor,omitempty"`
+	SplitN    uint32 `json:"split,omitempty"`
 }
 
 // ContinuousQuery represents a query that exists on the server and processes
