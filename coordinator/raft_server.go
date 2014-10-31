@@ -384,7 +384,7 @@ func (s *RaftServer) startRaft() error {
 	// Initialize and start Raft server.
 	transporter := raft.NewHTTPTransporter("/raft", raft.DefaultElectionTimeout)
 	var err error
-	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, s.clusterConfig, s.clusterConfig, "")
+	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, s.clusterConfig, s.clusterConfig, s.config.RaftConnectionString())
 	if err != nil {
 		return err
 	}
