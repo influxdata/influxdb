@@ -510,19 +510,30 @@ func (self *Coordinator) CommitSeriesData(db string, serieses []*protocol.Series
 		// TODO: this isn't needed anymore
 		series.SortPointsTimeDescending()
 
+		sn := series.GetName()
+		// use regular for loop since we update the iteration index `i' as
+		// we batch points that have the same timestamp
 		for i := 0; i < len(series.Points); {
 			if len(series.GetName()) == 0 {
 				return fmt.Errorf("Series name cannot be empty")
 			}
 
-			shard, err := self.clusterConfiguration.GetShardToWriteToBySeriesAndTime(db, series.GetName(), series.Points[i].GetTimestamp())
+			ts := series.Points[i].GetTimestamp()
+			shard, err := self.clusterConfiguration.GetShardToWriteToBySeriesAndTime(db, sn, ts)
 			if err != nil {
 				return err
 			}
+			log.Fine("GetShardToWriteToBySeriesAndTime(%s, %s, %d) = (%s, %v)", db, sn, ts, shard, err)
 			firstIndex := i
-			timestamp := series.Points[i].GetTimestamp()
-			for ; i < len(series.Points) && series.Points[i].GetTimestamp() == timestamp; i++ {
+			for ; i < len(series.Points) && series.Points[i].GetTimestamp() == ts; i++ {
 				// add all points with the same timestamp
+			}
+
+			// if shard == nil, then the points shouldn't be writte. This
+			// will happen if the points had timestamps earlier than the
+			// retention period
+			if shard == nil {
+				continue
 			}
 			newSeries := &protocol.Series{Name: series.Name, Fields: series.Fields, Points: series.Points[firstIndex:i:i]}
 

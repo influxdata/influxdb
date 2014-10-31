@@ -795,6 +795,10 @@ func (self *ClusterConfiguration) createDefaultShardSpace(database string) (*Sha
 	return space, nil
 }
 
+// Given a db and series name and pick a shard where a point with the
+// given timestamp should be written to. If the point is outside the
+// retention period of the shard space then return nil. The returned
+// shard is always nil if err != nil
 func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series string, microsecondsEpoch int64) (*ShardData, error) {
 	shardSpace := self.getShardSpaceToMatchSeriesName(db, series)
 	if shardSpace == nil {
@@ -804,6 +808,17 @@ func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series st
 			return nil, err
 		}
 	}
+
+	// if the shard will be dropped anyway because of the shard space
+	// retention period, then return nothing. Don't try to write
+	retention := shardSpace.ParsedRetentionPeriod()
+	if retention != InfiniteRetention {
+		_, endTime := self.getStartAndEndBasedOnDuration(microsecondsEpoch, shardSpace.SecondsOfDuration())
+		if endTime.Before(time.Now().Add(-retention)) {
+			return nil, nil
+		}
+	}
+
 	matchingShards := make([]*ShardData, 0)
 	for _, s := range shardSpace.shards {
 		if s.IsMicrosecondInRange(microsecondsEpoch) {

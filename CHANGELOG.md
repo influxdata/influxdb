@@ -18,6 +18,8 @@
 - [Issue #1076](https://github.com/influxdb/influxdb/issues/1076). Fix
   the timestamps of data points written by the collectd plugin. (Thanks,
   @renchap for reporting this bug)
+- [Issue #1078](https://github.com/influxdb/influxdb/issues/1078). Make sure
+  we don't resurrect shard directories for shards that have already expired
 
 ## v0.8.5 [2014-10-27]
 
