@@ -33,6 +33,8 @@ const (
 	DEFAULT_RETENTION_POLICY_DURATION = 0
 )
 
+const InfiniteRetention = time.Duration(0)
+
 func NewShardSpace(database, name string) *ShardSpace {
 	s := &ShardSpace{
 		Database: database,
@@ -119,7 +121,7 @@ func (s *ShardSpace) ParsedRetentionPeriod() time.Duration {
 	if s.RetentionPolicy == "" {
 		return DEFAULT_RETENTION_POLICY_DURATION
 	} else if s.RetentionPolicy == "inf" {
-		return time.Duration(0)
+		return InfiniteRetention
 	}
 	d, _ := common.ParseTimeDuration(s.RetentionPolicy)
 	return time.Duration(d)

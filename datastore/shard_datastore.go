@@ -212,16 +212,19 @@ func (self *ShardDatastore) incrementShardRefCountAndCloseOldestIfNeeded(id uint
 func (self *ShardDatastore) ReturnShard(id uint32) {
 	self.shardsLock.Lock()
 	defer self.shardsLock.Unlock()
+	log.Fine("Returning shard. id = %d", id)
 	self.shardRefCounts[id] -= 1
 	if self.shardRefCounts[id] != 0 {
 		return
 	}
 
+	log.Fine("Checking if shard should be deleted. id = %d", id)
 	if _, ok := self.shardsToDelete[id]; ok {
 		self.deleteShard(id)
 		return
 	}
 
+	log.Fine("Checking if shard should be closed. id = %d", id)
 	if self.shardsToClose[id] {
 		self.closeShard(id)
 	}
@@ -251,7 +254,8 @@ func (self *ShardDatastore) DeleteShard(shardId uint32) {
 	// now. We have to wait until it's returned and delete
 	// it. ReturnShard will take care of that as soon as the reference
 	// count becomes 0.
-	if self.shardRefCounts[shardId] > 0 {
+	if refc := self.shardRefCounts[shardId]; refc > 0 {
+		log.Fine("Cannot delete shard: shardId = %d, shardRefCounts[shardId] = %d", shardId, refc)
 		self.shardsToDelete[shardId] = struct{}{}
 		return
 	}
