@@ -56,7 +56,7 @@ func PlusOperator(elems []*parser.Value, fields []string, point *protocol.Point)
 	if err != nil {
 		return nil, err
 	}
-	left, right, valueType := common.CoerceValues(leftValue, rightValues)
+	left, right, valueType := coerceValues(leftValue, rightValues)
 	switch valueType {
 	case common.TYPE_DOUBLE:
 		value := left.(float64) + right.(float64)
@@ -77,7 +77,7 @@ func MinusOperator(elems []*parser.Value, fields []string, point *protocol.Point
 	if err != nil {
 		return nil, err
 	}
-	left, right, valueType := common.CoerceValues(leftValue, rightValues)
+	left, right, valueType := coerceValues(leftValue, rightValues)
 	switch valueType {
 	case common.TYPE_DOUBLE:
 		value := left.(float64) - right.(float64)
@@ -98,7 +98,7 @@ func MultiplyOperator(elems []*parser.Value, fields []string, point *protocol.Po
 	if err != nil {
 		return nil, err
 	}
-	left, right, valueType := common.CoerceValues(leftValue, rightValues)
+	left, right, valueType := coerceValues(leftValue, rightValues)
 	switch valueType {
 	case common.TYPE_DOUBLE:
 		value := left.(float64) * right.(float64)
@@ -119,7 +119,7 @@ func DivideOperator(elems []*parser.Value, fields []string, point *protocol.Poin
 	if err != nil {
 		return nil, err
 	}
-	left, right, valueType := common.CoerceValues(leftValue, rightValues)
+	left, right, valueType := coerceValues(leftValue, rightValues)
 	switch valueType {
 	case common.TYPE_DOUBLE:
 		value := left.(float64) / right.(float64)

@@ -240,7 +240,7 @@ func (self *AllPointsWriter) yield(series *protocol.Series) error {
 		return nil
 	}
 
-	self.memSeries[series.GetName()] = MergeSeries(self.memSeries[series.GetName()], series)
+	self.memSeries[series.GetName()] = self.memSeries[series.GetName()].Merge(series)
 	return nil
 }
 
@@ -1051,22 +1051,6 @@ func (self *HTTPServer) getShards(w libhttp.ResponseWriter, r *libhttp.Request) 
 				"database":  s.Database})
 		}
 		return libhttp.StatusOK, shardMaps
-	})
-}
-
-// Note: this is meant for testing purposes only and doesn't guarantee
-// data integrity and shouldn't be used in client code.
-func (self *HTTPServer) isInSync(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		if self.clusterConfig.HasUncommitedWrites() {
-			return 500, "false"
-		}
-
-		if !self.raftServer.CommittedAllChanges() {
-			return 500, "false"
-		}
-
-		return 200, "true"
 	})
 }
 

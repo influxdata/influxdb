@@ -1,9 +1,16 @@
-package cluster
+package influxdb
 
 import (
 	"code.google.com/p/log4go"
 	"github.com/influxdb/influxdb/protocol"
 )
+
+// ResponseChannel is a processor for Responses as opposed to Series
+// like `engine.Processor'
+type ResponseChannel interface {
+	Yield(r *protocol.Response) bool
+	Name() string
+}
 
 // ResponseChannelProcessor converts Series to Responses. This is used
 // to chain `engine.Processor` with a `ResponseChannel'
@@ -33,4 +40,23 @@ func (p *ResponseChannelProcessor) Close() error {
 
 func (p *ResponseChannelProcessor) Name() string {
 	return "ResponseChannelProcessor"
+}
+
+// A `ResponseProcessor' that wraps a go channel.
+type ResponseChannelWrapper struct {
+	c chan<- *protocol.Response
+}
+
+func NewResponseChannelWrapper(c chan<- *protocol.Response) ResponseChannel {
+	return &ResponseChannelWrapper{c}
+}
+
+func (w *ResponseChannelWrapper) Yield(r *protocol.Response) bool {
+	log4go.Debug("ResponseChannelWrapper: Yielding %s", r)
+	w.c <- r
+	return true
+}
+
+func (w *ResponseChannelWrapper) Name() string {
+	return "ResponseChannelWrapper"
 }

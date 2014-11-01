@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 
@@ -229,4 +230,78 @@ func (self *FieldValue) GreaterOrEqual(other *FieldValue) bool {
 		return *self.StringValue >= *other.StringValue
 	}
 	return true
+}
+
+// merges two time series making sure that the resulting series has
+// the union of the two series columns and the values set
+// properly. will panic if the two series don't have the same name
+func (s *Series) Merge(other *Series) *Series {
+	if s.GetName() != other.GetName() {
+		panic("the two series don't have the same name")
+	}
+
+	// if the two series have the same columns and in the same order
+	// append the points and return.
+	if reflect.DeepEqual(s.Fields, other.Fields) {
+		s.Points = append(s.Points, other.Points...)
+		return s
+	}
+
+	columns := map[string]struct{}{}
+
+	for _, cs := range [][]string{s.Fields, other.Fields} {
+		for _, c := range cs {
+			columns[c] = struct{}{}
+		}
+	}
+
+	points := append(pointMaps(s), pointMaps(other)...)
+
+	fieldsSlice := make([]string, 0, len(columns))
+	for c := range columns {
+		fieldsSlice = append(fieldsSlice, c)
+	}
+
+	resultPoints := make([]*Point, 0, len(points))
+	for idx, point := range points {
+		resultPoint := &Point{}
+		for _, field := range fieldsSlice {
+			value := point[field]
+			if value == nil {
+				trueVar := true
+				value = &FieldValue{
+					IsNull: &trueVar,
+				}
+			}
+			resultPoint.Values = append(resultPoint.Values, value)
+			if idx < len(s.Points) {
+				resultPoint.Timestamp = s.Points[idx].Timestamp
+				resultPoint.SequenceNumber = s.Points[idx].SequenceNumber
+			} else {
+				resultPoint.Timestamp = other.Points[idx-len(s.Points)].Timestamp
+				resultPoint.SequenceNumber = other.Points[idx-len(s.Points)].SequenceNumber
+			}
+		}
+		resultPoints = append(resultPoints, resultPoint)
+	}
+
+	// otherwise, merge the columns
+	result := &Series{
+		Name:   s.Name,
+		Fields: fieldsSlice,
+		Points: resultPoints,
+	}
+
+	return result
+}
+
+func pointMaps(s *Series) (result []map[string]*FieldValue) {
+	for _, p := range s.Points {
+		pointMap := map[string]*FieldValue{}
+		for idx, value := range p.Values {
+			pointMap[s.Fields[idx]] = value
+		}
+		result = append(result, pointMap)
+	}
+	return
 }

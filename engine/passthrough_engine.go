@@ -68,7 +68,7 @@ func (self *Passthrough) Yield(seriesIncoming *protocol.Series) (bool, error) {
 		}
 		self.series = seriesIncoming
 	} else {
-		self.series = common.MergeSeries(self.series, seriesIncoming)
+		self.series = self.series.Merge(seriesIncoming)
 	}
 	return !self.limiter.hitLimit(seriesIncoming.GetName()), nil
 }

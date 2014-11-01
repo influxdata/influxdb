@@ -64,7 +64,7 @@ func not(op BooleanOperation) BooleanOperation {
 }
 
 func EqualityOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResult, error) {
-	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
+	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
 	case common.TYPE_STRING:
@@ -93,7 +93,7 @@ func EqualityOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResul
 }
 
 func RegexMatcherOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResult, error) {
-	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
+	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
 	case common.TYPE_STRING:
@@ -108,7 +108,7 @@ func RegexMatcherOperator(leftValue, rightValue *protocol.FieldValue) (OperatorR
 }
 
 func GreaterThanOrEqualOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResult, error) {
-	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
+	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
 	case common.TYPE_STRING:
@@ -132,7 +132,7 @@ func GreaterThanOrEqualOperator(leftValue, rightValue *protocol.FieldValue) (Ope
 }
 
 func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResult, error) {
-	v1, v2, cType := common.CoerceValues(leftValue, rightValue)
+	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
 	case common.TYPE_STRING:
@@ -157,7 +157,7 @@ func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (OperatorRe
 
 func InOperator(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValue) (OperatorResult, error) {
 	for _, v := range rightValue {
-		v1, v2, cType := common.CoerceValues(leftValue, v)
+		v1, v2, cType := coerceValues(leftValue, v)
 
 		var result bool
 

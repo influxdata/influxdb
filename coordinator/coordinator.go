@@ -483,7 +483,7 @@ func (self *Coordinator) CommitSeriesData(db string, serieses []*protocol.Series
 				shardSerieses[seriesName] = newSeries
 				continue
 			}
-			shardSerieses[seriesName] = common.MergeSeries(s, newSeries)
+			shardSerieses[seriesName] = s.Merge(newSeries)
 		}
 	}
 

@@ -23,7 +23,6 @@ type Shard interface {
 	StartTime() time.Time
 	EndTime() time.Time
 	Write(*p.Request) error
-	SyncWrite(req *p.Request, assignSeqNum bool) error
 	Query(querySpec *parser.QuerySpec, response chan<- *p.Response)
 	ReplicationFactor() int
 	IsMicrosecondInRange(t int64) bool
@@ -37,13 +36,6 @@ type NewShardData struct {
 	EndTime   time.Time
 	ServerIds []uint32
 }
-
-type ShardType int
-
-const (
-	LONG_TERM ShardType = iota
-	SHORT_TERM
-)
 
 type ShardData struct {
 	id               uint32
@@ -80,11 +72,6 @@ func NewShard(id uint32, startTime, endTime time.Time, database, spaceName strin
 		Database:         database,
 	}
 }
-
-const (
-	PER_SERVER_BUFFER_SIZE  = 10
-	LOCAL_WRITE_BUFFER_SIZE = 10
-)
 
 type LocalShardDb interface {
 	Write(database string, series []*p.Series) error
@@ -175,26 +162,6 @@ func (self *ShardData) DropFields(fields []*metastore.Field) error {
 	return shard.DropFields(fields)
 }
 
-func (self *ShardData) SyncWrite(request *p.Request, assignSeqNum bool) error {
-	// FIX(broker):
-	//if assignSeqNum {
-	//	self.wal.AssignSequenceNumbers(request)
-	//}
-
-	request.ShardId = &self.id
-	for _, server := range self.clusterServers {
-		if err := server.Write(request); err != nil {
-			return err
-		}
-	}
-
-	if self.store == nil {
-		return nil
-	}
-
-	return self.store.Write(request)
-}
-
 func (self *ShardData) Write(request *p.Request) error {
 	request.ShardId = &self.id
 	requestNumber, err := self.wal.AssignSequenceNumbersAndLog(request, self)
@@ -279,7 +246,7 @@ addFilter:
 
 func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Response) {
 	log.Debug("QUERY: shard %d, query '%s'", self.Id(), querySpec.GetQueryStringWithTimeCondition())
-	defer common.RecoverFunc(querySpec.Database(), querySpec.GetQueryStringWithTimeCondition(), func(err interface{}) {
+	defer recoverFunc(querySpec.Database(), querySpec.GetQueryStringWithTimeCondition(), func(err interface{}) {
 		response <- &p.Response{
 			Type:         p.Response_ERROR.Enum(),
 			ErrorMessage: p.String(fmt.Sprintf("%s", err)),
@@ -615,4 +582,18 @@ func (s ByShardTimeDesc) Less(i, j int) bool {
 		return iStartTime > jStartTime
 	}
 	return false
+}
+
+type NilProcessor struct{}
+
+func (np NilProcessor) Name() string {
+	return "NilProcessor"
+}
+
+func (np NilProcessor) Yield(s *protocol.Series) (bool, error) {
+	return false, fmt.Errorf("Shouldn't get any data")
+}
+
+func (np NilProcessor) Close() error {
+	return nil
 }
