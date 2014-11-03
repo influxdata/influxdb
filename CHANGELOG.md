@@ -4,6 +4,8 @@
 
 - [Issue #1068](https://github.com/influxdb/influxdb/issues/1068). Print
   the processor chain when the query is started
+- [Issue #973](https://github.com/influxdb/influxdb/issues/973). Support joining
+  using a regex or list of time series
 
 ### Bugfixes
 

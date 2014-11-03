@@ -450,9 +450,22 @@ FROM_CLAUSE:
           $$->names->elems[1] = malloc(sizeof(table_name));
           $$->names->elems[1]->name = $6;
           $$->names->elems[1]->alias = $7;
-          $$->from_clause_type = FROM_INNER_JOIN;
+          $$->from_clause_type = FROM_JOIN;
         }
-
+        |
+        FROM JOIN '(' SIMPLE_TABLE_VALUES ')'
+        {
+          $$ = calloc(1, sizeof(from_clause));
+          $$->names = $4;
+          $$->from_clause_type = FROM_JOIN;
+        }
+        |
+        FROM JOIN '(' REGEX_VALUE ')'
+        {
+          $$ = calloc(1, sizeof(from_clause));
+          $$->from_clause_type = FROM_JOIN_REGEX;
+          $$->regex_value = $4;
+        }
 
 WHERE_CLAUSE:
         WHERE CONDITION

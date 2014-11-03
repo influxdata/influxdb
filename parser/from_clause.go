@@ -15,8 +15,9 @@ type FromClauseType int
 const (
 	FromClauseArray      FromClauseType = C.FROM_ARRAY
 	FromClauseMerge      FromClauseType = C.FROM_MERGE
-	FromClauseInnerJoin  FromClauseType = C.FROM_INNER_JOIN
+	FromClauseInnerJoin  FromClauseType = C.FROM_JOIN
 	FromClauseMergeRegex FromClauseType = C.FROM_MERGE_REGEX
+	FromClauseJoinRegex  FromClauseType = C.FROM_JOIN_REGEX
 )
 
 func (self *TableName) GetAlias() string {

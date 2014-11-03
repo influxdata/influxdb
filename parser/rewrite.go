@@ -12,13 +12,18 @@ type RegexMatcher func(r *regexp.Regexp) []string
 // the query will be rewritten to
 //     select * from merge(foobar, foobaz)
 func RewriteMergeQuery(query *SelectQuery, rm RegexMatcher) {
-	if query.FromClause.Type != FromClauseMergeRegex {
+	resultFromClauseType := FromClauseMerge
+	switch query.FromClause.Type {
+	case FromClauseMergeRegex:
+	case FromClauseJoinRegex:
+		resultFromClauseType = FromClauseInnerJoin
+	default:
 		return
 	}
 
 	series := rm(query.FromClause.Regex)
 	f := query.FromClause
-	f.Type = FromClauseMerge
+	f.Type = resultFromClauseType
 	f.Regex = nil
 	for _, s := range series {
 		f.Names = append(f.Names, &TableName{
