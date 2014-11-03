@@ -9,6 +9,7 @@ AC_SUBST(with_flex)
 AC_SUBST(LRT_LDFLAG)
 AC_SUBST(ROCKSDB_LIB)
 AC_SUBST(sed_i)
+AC_SUBST(VALGRIND)
 
 AC_DEFUN([INFLUXDB_SED], [
   AC_MSG_CHECKING([sed -i])
@@ -42,6 +43,8 @@ if test x"${PROTOC}" == x"notfound"; then
     AC_MSG_ERROR([Please install protobuf before trying to build InfluxDB])
 fi
 
+AC_PATH_PROG(VALGRIND, valgrind, "notfound")
+
 AC_ARG_WITH([goroot],
   [AS_HELP_STRING([--with-goroot],
     [Set goroot to use])],
@@ -56,6 +59,11 @@ fi
 AC_PATH_PROG(GOFMT, gofmt, "notfound", [$PATH$PATH_SEPARATOR$withval/bin$PATH_SEPARATOR])
 if test x"${GOFMT}" == x"notfound"; then
     AC_MSG_ERROR([Please install GO (or make sure it's on your path) before trying to build InfluxDB])
+fi
+
+AC_PATH_PROG(HG, hg, "notfound")
+if test x"${HG}" == x"notfound"; then
+    AC_MSG_ERROR([Please install mercurial before trying to build InfluxDB])
 fi
 
 AC_ARG_WITH([flex],
