@@ -9,6 +9,8 @@
 
 ### Bugfixes
 
+- [Issue #978](https://github.com/influxdb/influxdb/issues/978). Check
+  for valgrind and mercurial in the configure script
 - [Issue #671](https://github.com/influxdb/influxdb/issues/671). Fix
   the Makefile package target for Mac OSX
 - [Issue #925](https://github.com/influxdb/influxdb/issues/925). Don't

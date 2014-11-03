@@ -70,7 +70,9 @@ uname_S = $(shell sh -c "uname -s 2>/dev/null || echo not")
 
 valgrind:
 ifeq ($(uname_S),Linux)
+ifneq ($(VALGRIND),notfound)
 	$(MAKE) -C parser valgrind
+endif
 endif
 
 # packages
