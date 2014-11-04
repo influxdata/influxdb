@@ -9,6 +9,8 @@
 
 ### Bugfixes
 
+- [Issue #1092](https://github.com/influxdb/influxdb/issues/1093). Set
+  the connection string of the local node in the raft snapshot.
 - [Issue #943](https://github.com/influxdb/influxdb/issues/943). Don't
   take two snapshots at the same time
 - [Issue #1085](https://github.com/influxdb/influxdb/issues/1085). Set
