@@ -67,6 +67,14 @@ func setupLogging(loggingLevel, logFile string) {
 }
 
 func main() {
+	if start() != nil {
+		os.Exit(1)
+	}
+
+	os.Exit(0)
+}
+
+func start() error {
 	fileName := flag.String("config", "config.sample.toml", "Config file")
 	wantsVersion := flag.Bool("v", false, "Get version number")
 	resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
@@ -84,12 +92,12 @@ func main() {
 	v := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
 	if wantsVersion != nil && *wantsVersion {
 		fmt.Println(v)
-		return
+		return nil
 	}
 	config, err := configuration.LoadConfiguration(*fileName)
 
 	if err != nil {
-		return
+		return err
 	}
 
 	// override the hostname if it was specified on the command line
@@ -192,4 +200,5 @@ func main() {
 	if err != nil {
 		log.Error("ListenAndServe failed: ", err)
 	}
+	return err
 }
