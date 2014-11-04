@@ -263,10 +263,6 @@ func (self *Server) Stop() {
 	log.Info("Stopping server")
 	self.stopped = true
 
-	log.Info("Stopping api server")
-	self.HttpApi.Close()
-	log.Info("Api server stopped")
-
 	if self.Config.GraphiteEnabled {
 		log.Info("Stopping GraphiteServer")
 		self.GraphiteApi.Close()
@@ -292,4 +288,11 @@ func (self *Server) Stop() {
 	log.Info("Stopping shard store")
 	self.shardStore.Close()
 	log.Info("shard store stopped")
+
+	// HttpApi should be the last server to be closed, otherwise
+	// server.ListenAndServe() will return causing main() to exit before
+	// the other services are properly stopped
+	log.Info("Stopping api server")
+	self.HttpApi.Close()
+	log.Info("Api server stopped")
 }

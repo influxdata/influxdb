@@ -12,6 +12,8 @@
 - [Issue #1008](https://github.com/influxdb/influxdb/issues/1008). Return
   an appropriate exit status code depending on whether the process exits
   due to an error or exits gracefully.
+- [Issue #663](https://github.com/influxdb/influxdb/issues/663). Make
+  sure all sub servies are closed when are stopping InfluxDB
 - [Issue #584](https://github.com/influxdb/influxdb/issues/584). Don't
   panic if the process died while initializing
 - [Issue #800](https://github.com/influxdb/influxdb/issues/800). Use
