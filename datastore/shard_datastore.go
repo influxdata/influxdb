@@ -185,6 +185,7 @@ func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, e
 
 	se, err := init.Initialize(dbDir, c)
 	if err != nil {
+		os.RemoveAll(dbDir)
 		return nil, err
 	}
 

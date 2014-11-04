@@ -14,10 +14,13 @@ import (
 const HYPERLEVELDB_NAME = "hyperleveldb"
 
 func init() {
-	registerEngine(HYPERLEVELDB_NAME, Initializer{
+	err := RegisterEngine(HYPERLEVELDB_NAME, Initializer{
 		NewHyperlevelDBConfig,
 		NewHyperlevelDB,
 	})
+	if err != nil {
+		panic(err)
+	}
 }
 
 type HyperlevelDBConfiguration struct {

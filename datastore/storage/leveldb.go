@@ -12,10 +12,13 @@ import (
 const LEVELDB_NAME = "leveldb"
 
 func init() {
-	registerEngine(LEVELDB_NAME, Initializer{
+	err := RegisterEngine(LEVELDB_NAME, Initializer{
 		NewLevelDBConfig,
 		NewLevelDB,
 	})
+	if err != nil {
+		panic(err)
+	}
 }
 
 type LevelDbConfiguration struct {

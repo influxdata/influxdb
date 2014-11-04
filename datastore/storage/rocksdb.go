@@ -15,10 +15,13 @@ import (
 const ROCKSDB_NAME = "rocksdb"
 
 func init() {
-	registerEngine(ROCKSDB_NAME, Initializer{
+	err := RegisterEngine(ROCKSDB_NAME, Initializer{
 		NewRocksDBConfig,
 		NewRocksDB,
 	})
+	if err != nil {
+		panic(err)
+	}
 }
 
 type RocksDBConfiguration struct {

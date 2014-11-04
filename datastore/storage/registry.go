@@ -31,11 +31,12 @@ func wrapInitializer(initializer Initializer) Initializer {
 	return init
 }
 
-func registerEngine(name string, init Initializer) {
+func RegisterEngine(name string, init Initializer) error {
 	if _, ok := engineRegistry[name]; ok {
-		panic(fmt.Errorf("Engine '%s' already exists", name))
+		return fmt.Errorf("Engine '%s' already exists", name)
 	}
 	engineRegistry[name] = wrapInitializer(init)
+	return nil
 }
 
 func GetInitializer(name string) (Initializer, error) {
