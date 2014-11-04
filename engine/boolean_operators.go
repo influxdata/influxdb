@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -67,22 +66,22 @@ func EqualityOperator(leftValue, rightValue *protocol.FieldValue) (OperatorResul
 	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
-	case common.TYPE_STRING:
+	case TYPE_STRING:
 		if v1.(string) == v2.(string) {
 			return MATCH, nil
 		}
 		return NO_MATCH, nil
-	case common.TYPE_INT:
+	case TYPE_INT:
 		if v1.(int64) == v2.(int64) {
 			return MATCH, nil
 		}
 		return NO_MATCH, nil
-	case common.TYPE_DOUBLE:
+	case TYPE_DOUBLE:
 		if v1.(float64) == v2.(float64) {
 			return MATCH, nil
 		}
 		return NO_MATCH, nil
-	case common.TYPE_BOOL:
+	case TYPE_BOOL:
 		if v1.(bool) == v2.(bool) {
 			return MATCH, nil
 		}
@@ -96,7 +95,7 @@ func RegexMatcherOperator(leftValue, rightValue *protocol.FieldValue) (OperatorR
 	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
-	case common.TYPE_STRING:
+	case TYPE_STRING:
 		// TODO: assume that the regex is valid
 		if ok, _ := regexp.MatchString(v2.(string), v1.(string)); ok {
 			return MATCH, nil
@@ -111,17 +110,17 @@ func GreaterThanOrEqualOperator(leftValue, rightValue *protocol.FieldValue) (Ope
 	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
-	case common.TYPE_STRING:
+	case TYPE_STRING:
 		if v1.(string) >= v2.(string) {
 			return MATCH, nil
 		}
 		return NO_MATCH, nil
-	case common.TYPE_INT:
+	case TYPE_INT:
 		if v1.(int64) >= v2.(int64) {
 			return MATCH, nil
 		}
 		return NO_MATCH, nil
-	case common.TYPE_DOUBLE:
+	case TYPE_DOUBLE:
 		if v1.(float64) >= v2.(float64) {
 			return MATCH, nil
 		}
@@ -135,17 +134,17 @@ func GreaterThanOperator(leftValue, rightValue *protocol.FieldValue) (OperatorRe
 	v1, v2, cType := coerceValues(leftValue, rightValue)
 
 	switch cType {
-	case common.TYPE_STRING:
+	case TYPE_STRING:
 		if v1.(string) > v2.(string) {
 			return MATCH, nil
 		}
 		return NO_MATCH, nil
-	case common.TYPE_INT:
+	case TYPE_INT:
 		if v1.(int64) > v2.(int64) {
 			return MATCH, nil
 		}
 		return NO_MATCH, nil
-	case common.TYPE_DOUBLE:
+	case TYPE_DOUBLE:
 		if v1.(float64) > v2.(float64) {
 			return MATCH, nil
 		}
@@ -162,13 +161,13 @@ func InOperator(leftValue *protocol.FieldValue, rightValue []*protocol.FieldValu
 		var result bool
 
 		switch cType {
-		case common.TYPE_STRING:
+		case TYPE_STRING:
 			result = v1.(string) == v2.(string)
-		case common.TYPE_INT:
+		case TYPE_INT:
 			result = v1.(int64) == v2.(int64)
-		case common.TYPE_DOUBLE:
+		case TYPE_DOUBLE:
 			result = v1.(float64) == v2.(float64)
-		case common.TYPE_BOOL:
+		case TYPE_BOOL:
 			result = v1.(bool) == v2.(bool)
 		default:
 			return INVALID, nil

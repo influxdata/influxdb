@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -670,7 +671,7 @@ func ParseQuery(queryStr string) ([]*Query, error) {
 
 	if q.error != nil {
 		str := C.GoString(q.error.err)
-		return nil, &QueryError{
+		return nil, &ParseError{
 			firstLine:   int(q.error.first_line),
 			firstColumn: int(q.error.first_column) - 1,
 			lastLine:    int(q.error.last_line),
@@ -809,4 +810,98 @@ func parseDeleteQuery(query *C.delete_query) (*DeleteQuery, error) {
 		return nil, fmt.Errorf("Delete queries can't have where clause that don't reference time")
 	}
 	return goQuery, nil
+}
+
+const (
+	WrongNumberOfArguments = iota
+	InvalidArgument
+	InternalError
+)
+
+// QueryError represents an error related to a query.
+type QueryError struct {
+	Code    int
+	Message string
+}
+
+// NewQueryError returns a new QueryError instance.
+func NewQueryError(code int, msg string, args ...interface{}) *QueryError {
+	return &QueryError{code, fmt.Sprintf(msg, args...)}
+}
+
+// Error returns the string representation of the error.
+func (e *QueryError) Error() string {
+	return e.Message
+}
+
+type ParseError struct {
+	queryString string
+	firstLine   int
+	firstColumn int
+	lastLine    int
+	lastColumn  int
+	errorString string
+}
+
+func (e *ParseError) Error() string {
+	return fmt.Sprintf("Error at %d:%d %d:%d. %s", e.firstLine, e.firstColumn, e.lastLine, e.lastColumn, e.errorString)
+}
+func (e *ParseError) PrettyPrint() string {
+	return fmt.Sprintf("%s\n%s\n%s%s", e.errorString, e.queryString, strings.Repeat(" ", e.firstColumn), strings.Repeat("^", e.lastColumn-e.firstColumn))
+}
+
+// Returns the parsed duration in nanoseconds.
+// Support 'u', 's', 'm', 'h', 'd', 'W', 'M', and 'Y' suffixes.
+func ParseTimeDuration(value string) (time.Duration, error) {
+	var uom time.Duration
+	prefixSize := 1
+
+	switch value[len(value)-1] {
+	case 'u':
+		uom = time.Microsecond
+	case 's':
+		uom = time.Second
+	case 'm':
+		uom = time.Minute
+	case 'h':
+		uom = time.Hour
+	case 'd':
+		uom = 24 * time.Hour
+	case 'w', 'W':
+		uom = 7 * 24 * time.Hour
+	case 'M':
+		uom = 30 * 24 * time.Hour
+	case 'y', 'Y':
+		uom = 365 * 24 * time.Hour
+	default:
+		prefixSize = 0
+	}
+
+	if value[len(value)-2:] == "ms" {
+		uom = time.Millisecond
+		prefixSize = 2
+	}
+
+	t := big.Rat{}
+	tstr := value
+	if prefixSize > 0 {
+		tstr = value[:len(value)-prefixSize]
+	}
+
+	_, err := fmt.Sscan(tstr, &t)
+	if err != nil {
+		return 0, err
+	}
+
+	if prefixSize > 0 {
+		c := big.Rat{}
+		c.SetFrac64(int64(uom), 1)
+		t.Mul(&t, &c)
+	}
+
+	if t.IsInt() {
+		return time.Duration(t.Num().Int64()), nil
+	}
+	f, _ := t.Float64()
+	return time.Duration(f), nil
 }

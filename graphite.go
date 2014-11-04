@@ -227,7 +227,17 @@ func (s *GraphiteServer) handleMessage(r *bufio.Reader) error {
 		Fields: []string{"value"},
 		Points: []*protocol.Point{p},
 	}
-	if err := s.server.WriteSeries(s.User, s.Database, series); err != nil {
+
+	// TODO: Validate user.
+
+	// Look up database.
+	db := s.server.Database(s.Database)
+	if db == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Write series data to database.
+	if err := db.WriteSeries(series); err != nil {
 		return fmt.Errorf("write series data: %s", err)
 	}
 

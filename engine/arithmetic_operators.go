@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
@@ -58,10 +57,10 @@ func PlusOperator(elems []*parser.Value, fields []string, point *protocol.Point)
 	}
 	left, right, valueType := coerceValues(leftValue, rightValues)
 	switch valueType {
-	case common.TYPE_DOUBLE:
+	case TYPE_DOUBLE:
 		value := left.(float64) + right.(float64)
 		return &protocol.FieldValue{DoubleValue: &value}, nil
-	case common.TYPE_INT:
+	case TYPE_INT:
 		value := left.(int64) + right.(int64)
 		return &protocol.FieldValue{Int64Value: &value}, nil
 	}
@@ -79,10 +78,10 @@ func MinusOperator(elems []*parser.Value, fields []string, point *protocol.Point
 	}
 	left, right, valueType := coerceValues(leftValue, rightValues)
 	switch valueType {
-	case common.TYPE_DOUBLE:
+	case TYPE_DOUBLE:
 		value := left.(float64) - right.(float64)
 		return &protocol.FieldValue{DoubleValue: &value}, nil
-	case common.TYPE_INT:
+	case TYPE_INT:
 		value := left.(int64) - right.(int64)
 		return &protocol.FieldValue{Int64Value: &value}, nil
 	}
@@ -100,10 +99,10 @@ func MultiplyOperator(elems []*parser.Value, fields []string, point *protocol.Po
 	}
 	left, right, valueType := coerceValues(leftValue, rightValues)
 	switch valueType {
-	case common.TYPE_DOUBLE:
+	case TYPE_DOUBLE:
 		value := left.(float64) * right.(float64)
 		return &protocol.FieldValue{DoubleValue: &value}, nil
-	case common.TYPE_INT:
+	case TYPE_INT:
 		value := left.(int64) * right.(int64)
 		return &protocol.FieldValue{Int64Value: &value}, nil
 	}
@@ -121,10 +120,10 @@ func DivideOperator(elems []*parser.Value, fields []string, point *protocol.Poin
 	}
 	left, right, valueType := coerceValues(leftValue, rightValues)
 	switch valueType {
-	case common.TYPE_DOUBLE:
+	case TYPE_DOUBLE:
 		value := left.(float64) / right.(float64)
 		return &protocol.FieldValue{DoubleValue: &value}, nil
-	case common.TYPE_INT:
+	case TYPE_INT:
 		value := left.(int64) / right.(int64)
 		return &protocol.FieldValue{Int64Value: &value}, nil
 	}

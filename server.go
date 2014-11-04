@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/messaging"
-	"github.com/influxdb/influxdb/protocol"
 )
 
 const (
@@ -444,12 +443,6 @@ type deleteShardSpaceCommand struct {
 	Name     string `json:"name"`
 }
 
-// WriteSeries writes series data to the broker.
-func (s *Server) WriteSeries(u *ClusterAdmin, database string, series *protocol.Series) error {
-	// TODO:
-	return nil
-}
-
 // processor runs in a separate goroutine and processes all incoming broker messages.
 func (s *Server) processor(done chan struct{}) {
 	client := s.client
@@ -504,6 +497,14 @@ type MessagingClient interface {
 
 	// The streaming channel for all subscribed messages.
 	C() <-chan *messaging.Message
+}
+
+// ContinuousQuery represents a query that exists on the server and processes
+// each incoming event.
+type ContinuousQuery struct {
+	ID    uint32
+	Query string
+	// TODO: ParsedQuery *parser.SelectQuery
 }
 
 // mustMarshal encodes a value to JSON.

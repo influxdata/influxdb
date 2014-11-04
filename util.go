@@ -3,8 +3,6 @@ package influxdb
 import (
 	"encoding/json"
 	"fmt"
-	"math/big"
-	"time"
 
 	"github.com/influxdb/influxdb/protocol"
 )
@@ -153,60 +151,4 @@ func removeField(fields []string, name string) []string {
 func removeTimestampFieldDefinition(fields []string) []string {
 	fields = removeField(fields, "time")
 	return removeField(fields, "sequence_number")
-}
-
-// Returns the parsed duration in nanoseconds.
-// Support 'u', 's', 'm', 'h', 'd', 'W', 'M', and 'Y' suffixes.
-func parseTimeDuration(value string) (time.Duration, error) {
-	var uom time.Duration
-	prefixSize := 1
-
-	switch value[len(value)-1] {
-	case 'u':
-		uom = time.Microsecond
-	case 's':
-		uom = time.Second
-	case 'm':
-		uom = time.Minute
-	case 'h':
-		uom = time.Hour
-	case 'd':
-		uom = 24 * time.Hour
-	case 'w', 'W':
-		uom = 7 * 24 * time.Hour
-	case 'M':
-		uom = 30 * 24 * time.Hour
-	case 'y', 'Y':
-		uom = 365 * 24 * time.Hour
-	default:
-		prefixSize = 0
-	}
-
-	if value[len(value)-2:] == "ms" {
-		uom = time.Millisecond
-		prefixSize = 2
-	}
-
-	t := big.Rat{}
-	tstr := value
-	if prefixSize > 0 {
-		tstr = value[:len(value)-prefixSize]
-	}
-
-	_, err := fmt.Sscan(tstr, &t)
-	if err != nil {
-		return 0, err
-	}
-
-	if prefixSize > 0 {
-		c := big.Rat{}
-		c.SetFrac64(int64(uom), 1)
-		t.Mul(&t, &c)
-	}
-
-	if t.IsInt() {
-		return time.Duration(t.Num().Int64()), nil
-	}
-	f, _ := t.Float64()
-	return time.Duration(f), nil
 }

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
@@ -325,11 +324,11 @@ func NewAggregatorEngine(query *parser.SelectQuery, next Processor) (*Aggregator
 		lowerCaseName := strings.ToLower(value.Name)
 		initializer := registeredAggregators[lowerCaseName]
 		if initializer == nil {
-			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", value.Name))
+			return nil, parser.NewQueryError(parser.InvalidArgument, fmt.Sprintf("Unknown function %s", value.Name))
 		}
 		aggregator, err := initializer(query, value, query.GetGroupByClause().FillValue)
 		if err != nil {
-			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("%s", err))
+			return nil, parser.NewQueryError(parser.InvalidArgument, fmt.Sprintf("%s", err))
 		}
 		ae.aggregators = append(ae.aggregators, aggregator)
 	}

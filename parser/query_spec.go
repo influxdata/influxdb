@@ -3,8 +3,6 @@ package parser
 import (
 	"regexp"
 	"time"
-
-	"github.com/influxdb/influxdb/common"
 )
 
 type QuerySpec struct {
@@ -13,7 +11,7 @@ type QuerySpec struct {
 	isRegex                     bool
 	regex                       *regexp.Regexp
 	names                       []string
-	user                        common.User
+	user                        User
 	startTime                   time.Time
 	endTime                     time.Time
 	seriesValuesAndColumns      map[*Value][]string
@@ -22,7 +20,7 @@ type QuerySpec struct {
 	groupByColumnCount          int
 }
 
-func NewQuerySpec(user common.User, database string, query *Query) *QuerySpec {
+func NewQuerySpec(user User, database string, query *Query) *QuerySpec {
 	return &QuerySpec{user: user, query: query, database: database}
 }
 
@@ -52,7 +50,7 @@ func (self *QuerySpec) Database() string {
 	return self.database
 }
 
-func (self *QuerySpec) User() common.User {
+func (self *QuerySpec) User() User {
 	return self.user
 }
 

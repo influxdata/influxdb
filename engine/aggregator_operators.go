@@ -10,7 +10,6 @@ import (
 
 	"code.google.com/p/goprotobuf/proto"
 
-	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
@@ -138,7 +137,7 @@ func (self *CumulativeArithmeticAggregator) GetValues(state interface{}) [][]*pr
 
 func NewCumulativeArithmeticAggregator(name string, value *parser.Value, initialValue float64, defaultValue *parser.Value, operation Operation) (Aggregator, error) {
 	if len(value.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function max() requires only one argument")
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
@@ -332,11 +331,11 @@ func (self *StandardDeviationAggregator) GetValues(state interface{}) [][]*proto
 
 func NewStandardDeviationAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function stddev() requires exactly one argument")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function stddev() requires exactly one argument")
 	}
 
 	if v.Elems[0].Type == parser.ValueWildcard {
-		return nil, common.NewQueryError(common.InvalidArgument, "function stddev() doesn't work with wildcards")
+		return nil, parser.NewQueryError(parser.InvalidArgument, "function stddev() doesn't work with wildcards")
 	}
 
 	value, err := wrapDefaultValue(defaultValue)
@@ -432,11 +431,11 @@ func (self *DerivativeAggregator) GetValues(state interface{}) [][]*protocol.Fie
 
 func NewDerivativeAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function derivative() requires exactly one argument")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function derivative() requires exactly one argument")
 	}
 
 	if v.Elems[0].Type == parser.ValueWildcard {
-		return nil, common.NewQueryError(common.InvalidArgument, "function derivative() doesn't work with wildcards")
+		return nil, parser.NewQueryError(parser.InvalidArgument, "function derivative() doesn't work with wildcards")
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
@@ -526,11 +525,11 @@ func (self *DifferenceAggregator) GetValues(state interface{}) [][]*protocol.Fie
 
 func NewDifferenceAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function difference() requires exactly one argument")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function difference() requires exactly one argument")
 	}
 
 	if v.Elems[0].Type == parser.ValueWildcard {
-		return nil, common.NewQueryError(common.InvalidArgument, "function difference() doesn't work with wildcards")
+		return nil, parser.NewQueryError(parser.InvalidArgument, "function difference() doesn't work with wildcards")
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
@@ -642,15 +641,15 @@ func (self *HistogramAggregator) GetValues(state interface{}) [][]*protocol.Fiel
 
 func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	if len(v.Elems) < 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function histogram() requires at least one arguments")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function histogram() requires at least one arguments")
 	}
 
 	if len(v.Elems) > 4 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function histogram() takes at most four arguments")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function histogram() takes at most four arguments")
 	}
 
 	if v.Elems[0].Type == parser.ValueWildcard {
-		return nil, common.NewQueryError(common.InvalidArgument, "function histogram() doesn't work with wildcards")
+		return nil, parser.NewQueryError(parser.InvalidArgument, "function histogram() doesn't work with wildcards")
 	}
 
 	bucketSize := 1.0
@@ -665,10 +664,10 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 			var err error
 			bucketSize, err = strconv.ParseFloat(v.Elems[1].Name, 64)
 			if err != nil {
-				return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[1].Name)
+				return nil, parser.NewQueryError(parser.InvalidArgument, "Cannot parse %s into a float", v.Elems[1].Name)
 			}
 		default:
-			return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[1].Name)
+			return nil, parser.NewQueryError(parser.InvalidArgument, "Cannot parse %s into a float", v.Elems[1].Name)
 		}
 		if len(v.Elems) > 2 {
 			switch v.Elems[2].Type {
@@ -677,10 +676,10 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 				bucketStart, err = strconv.ParseFloat(v.Elems[2].Name, 64)
 				explicitBucketStart = true
 				if err != nil {
-					return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[2].Name)
+					return nil, parser.NewQueryError(parser.InvalidArgument, "Cannot parse %s into a float", v.Elems[2].Name)
 				}
 			default:
-				return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[2].Name)
+				return nil, parser.NewQueryError(parser.InvalidArgument, "Cannot parse %s into a float", v.Elems[2].Name)
 			}
 			if len(v.Elems) == 4 {
 				switch v.Elems[3].Type {
@@ -689,10 +688,10 @@ func NewHistogramAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue
 					bucketStop, err = strconv.ParseFloat(v.Elems[3].Name, 64)
 					bucketStopIdx = int(math.Floor((bucketStop - bucketStart) / bucketSize))
 					if err != nil {
-						return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[3].Name)
+						return nil, parser.NewQueryError(parser.InvalidArgument, "Cannot parse %s into a float", v.Elems[3].Name)
 					}
 				default:
-					return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a float", v.Elems[3].Name)
+					return nil, parser.NewQueryError(parser.InvalidArgument, "Cannot parse %s into a float", v.Elems[3].Name)
 				}
 			}
 		}
@@ -760,11 +759,11 @@ func (self *CountAggregator) InitializeFieldsMetadata(series *protocol.Series) e
 
 func NewCountAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function count() requires exactly one argument")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function count() requires exactly one argument")
 	}
 
 	if v.Elems[0].Type == parser.ValueWildcard {
-		return nil, common.NewQueryError(common.InvalidArgument, "function count() doesn't work with wildcards")
+		return nil, parser.NewQueryError(parser.InvalidArgument, "function count() doesn't work with wildcards")
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
@@ -776,7 +775,7 @@ func NewCountAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *pa
 		innerName := strings.ToLower(v.Elems[0].Name)
 		init := registeredAggregators[innerName]
 		if init == nil {
-			return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("Unknown function %s", innerName))
+			return nil, parser.NewQueryError(parser.InvalidArgument, fmt.Sprintf("Unknown function %s", innerName))
 		}
 		inner, err := init(q, v.Elems[0], defaultValue)
 		if err != nil {
@@ -850,7 +849,7 @@ func (self *MeanAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 
 func NewMeanAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mean() requires exactly one argument")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function mean() requires exactly one argument")
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
@@ -869,7 +868,7 @@ func NewMeanAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 
 func NewMedianAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function median() requires exactly one argument")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function median() requires exactly one argument")
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
@@ -972,17 +971,17 @@ func (self *PercentileAggregator) CalculateSummaries(state interface{}) {
 
 func NewPercentileAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	if len(value.Elems) != 2 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function percentile() requires exactly two arguments")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function percentile() requires exactly two arguments")
 	}
 
 	if value.Elems[0].Type == parser.ValueWildcard {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "wildcard cannot be used with percentile")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "wildcard cannot be used with percentile")
 	}
 
 	percentile, err := strconv.ParseFloat(value.Elems[1].Name, 64)
 
 	if err != nil || percentile <= 0 || percentile >= 100 {
-		return nil, common.NewQueryError(common.InvalidArgument, "function percentile() requires a numeric second argument between 0 and 100")
+		return nil, parser.NewQueryError(parser.InvalidArgument, "function percentile() requires a numeric second argument between 0 and 100")
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
@@ -1106,7 +1105,7 @@ func (self *ModeAggregator) GetValues(state interface{}) [][]*protocol.FieldValu
 
 func NewModeAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
 	if len(value.Elems) < 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mode() requires at least one argument")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function mode() requires at least one argument")
 	}
 
 	// TODO: Mode can in fact take two argument, the second specifies
@@ -1118,7 +1117,7 @@ func NewModeAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 	// returned, but in the second case the two most common values and
 	// the second most common values will be returned
 	if len(value.Elems) > 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function mode() takes at most one arguments")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function mode() takes at most one arguments")
 	}
 
 	size := 1
@@ -1128,10 +1127,10 @@ func NewModeAggregator(_ *parser.SelectQuery, value *parser.Value, defaultValue 
 			var err error
 			size, err = strconv.Atoi(value.Elems[1].Name)
 			if err != nil {
-				return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into an int", value.Elems[1].Name)
+				return nil, parser.NewQueryError(parser.InvalidArgument, "Cannot parse %s into an int", value.Elems[1].Name)
 			}
 		default:
-			return nil, common.NewQueryError(common.InvalidArgument, "Cannot parse %s into a int", value.Elems[1].Name)
+			return nil, parser.NewQueryError(parser.InvalidArgument, "Cannot parse %s into a int", value.Elems[1].Name)
 		}
 	}
 
@@ -1284,7 +1283,7 @@ func (self *FirstOrLastAggregator) GetValues(state interface{}) [][]*protocol.Fi
 
 func NewFirstOrLastAggregator(name string, v *parser.Value, isFirst bool, defaultValue *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, "function max() requires only one argument")
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
@@ -1467,11 +1466,11 @@ func (self *TopOrBottomAggregator) InitializeFieldsMetadata(series *protocol.Ser
 
 func NewTopOrBottomAggregator(name string, v *parser.Value, isTop bool, defaultValue *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 2 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, fmt.Sprintf("function %s() requires at exactly 2 arguments", name))
+		return nil, parser.NewQueryError(parser.WrongNumberOfArguments, fmt.Sprintf("function %s() requires at exactly 2 arguments", name))
 	}
 
 	if v.Elems[1].Type != parser.ValueInt {
-		return nil, common.NewQueryError(common.InvalidArgument, fmt.Sprintf("function %s() second parameter expect int", name))
+		return nil, parser.NewQueryError(parser.InvalidArgument, fmt.Sprintf("function %s() second parameter expect int", name))
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)

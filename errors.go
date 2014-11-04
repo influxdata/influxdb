@@ -50,29 +50,11 @@ var (
 
 	// ErrShardSpaceNameRequired is returned using a blank shard space name.
 	ErrShardSpaceNameRequired = errors.New("shard space name required")
+
+	// ErrReadAccessDenied is returned when a user attempts to read
+	// data that he or she does not have permission to read.
+	ErrReadAccessDenied = errors.New("read access denied")
 )
-
-const (
-	WrongNumberOfArguments = iota
-	InvalidArgument
-	InternalError
-)
-
-// QueryError represents an error related to a query.
-type QueryError struct {
-	Code    int
-	Message string
-}
-
-// NewQueryError returns a new QueryError instance.
-func NewQueryError(code int, msg string, args ...interface{}) *QueryError {
-	return &QueryError{code, fmt.Sprintf(msg, args...)}
-}
-
-// Error returns the string representation of the error.
-func (e *QueryError) Error() string {
-	return e.Message
-}
 
 // AuthenticationError represents an error related to authentication.
 type AuthenticationError string

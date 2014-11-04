@@ -1,6 +1,7 @@
 package influxdb
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -140,7 +141,7 @@ func (p dbUsers) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 func HashPassword(password string) ([]byte, error) {
 	if length := len(password); length < 4 || length > 56 {
-		return nil, NewQueryError(InvalidArgument, "Password must be more than 4 and less than 56 characters")
+		return nil, fmt.Errorf("Password must be more than 4 and less than 56 characters")
 	}
 
 	// The second arg is the cost of the hashing, higher is slower but makes it harder

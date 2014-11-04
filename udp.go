@@ -79,9 +79,18 @@ func (s *UDPServer) ListenAndServe() error {
 				continue
 			}
 
+			// TODO: Authorization.
+
+			// Lookup database.
+			db := s.server.Database(s.Database)
+			if db == nil {
+				log.Error("udp: %s", ErrDatabaseNotFound)
+				continue
+			}
+
 			// Write series data to server.
-			if err := s.server.WriteSeries(s.User, s.Database, series); err != nil {
-				log.Error("udp cannot write data: %s", err)
+			if err := db.WriteSeries(series); err != nil {
+				log.Error("udp: write data error: %s", err)
 				continue
 			}
 		}

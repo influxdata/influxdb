@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/influxdb/influxdb/common"
 )
 
 // this file provides the high level api of the query object
@@ -276,10 +274,10 @@ func parseTimeWithoutSuffix(value string) (int64, error) {
 }
 
 // parse time expressions, e.g. now() - 1d
-func parseTime(value *Value) (int64, error) {
+func parseTime(value *Value) (time.Duration, error) {
 	if value.Type != ValueExpression {
 		if value.IsFunctionCall() && strings.ToLower(value.Name) == "now" {
-			return time.Now().UTC().UnixNano(), nil
+			return time.Duration(time.Now().UTC().UnixNano()), nil
 		}
 
 		if value.IsFunctionCall() {
@@ -291,10 +289,10 @@ func parseTime(value *Value) (int64, error) {
 			if err != nil {
 				return 0, err
 			}
-			return t.UnixNano(), err
+			return time.Duration(t.UnixNano()), err
 		}
 
-		return common.ParseTimeDuration(value.Name)
+		return ParseTimeDuration(value.Name)
 	}
 
 	leftValue, err := parseTime(value.Elems[0])
@@ -430,7 +428,7 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 			if err != nil {
 				return nil, nil, err
 			}
-			t := time.Unix(0, nanoseconds).UTC()
+			t := time.Unix(0, int64(nanoseconds)).UTC()
 			return condition, &t, nil
 		default:
 			return nil, nil, fmt.Errorf("Cannot use time with '%s'", expr.Name)
@@ -440,7 +438,7 @@ func getTime(condition *WhereCondition, isParsingStartTime bool) (*WhereConditio
 		if err != nil {
 			return nil, nil, err
 		}
-		t := time.Unix(0, nanoseconds).UTC()
+		t := time.Unix(0, int64(nanoseconds)).UTC()
 		return nil, &t, nil
 	}
 

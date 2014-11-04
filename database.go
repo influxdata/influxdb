@@ -8,6 +8,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/influxdb/influxdb/parser"
+	"github.com/influxdb/influxdb/protocol"
 )
 
 // Database represents a collection of shard spaces.
@@ -17,6 +20,7 @@ type Database struct {
 	name   string
 	users  map[string]*DBUser
 	spaces map[string]*ShardSpace
+	shards map[uint32]*shard
 }
 
 // newDatabase returns an instance of Database associated with a server.
@@ -25,6 +29,7 @@ func newDatabase(s *Server) *Database {
 		server: s,
 		users:  make(map[string]*DBUser),
 		spaces: make(map[string]*ShardSpace),
+		shards: make(map[uint32]*shard),
 	}
 }
 
@@ -245,6 +250,20 @@ func (db *Database) applyDeleteShardSpace(name string) error {
 	return nil
 }
 
+// WriteSeries writes series data to the database.
+func (db *Database) WriteSeries(series *protocol.Series) error {
+	// TODO: Split points up by shard.
+	// TODO: Issue message to broker.
+
+	panic("not yet implemented") /* TODO */
+}
+
+// Query executes a query against a database.
+func (db *Database) Query(q *parser.QuerySpec) error {
+
+	return nil
+}
+
 // databases represents a list of databases, sortable by name.
 type databases []*Database
 
@@ -306,7 +325,7 @@ func (s *ShardSpace) UnmarshalJSON(data []byte) error {
 	if o.Retention == "inf" || o.Retention == "" {
 		s.Retention = time.Duration(0)
 	} else {
-		retention, err := parseTimeDuration(o.Retention)
+		retention, err := parser.ParseTimeDuration(o.Retention)
 		if err != nil {
 			return fmt.Errorf("retention policy: %s", err)
 		}
@@ -317,7 +336,7 @@ func (s *ShardSpace) UnmarshalJSON(data []byte) error {
 	if o.Duration == "inf" || o.Duration == "" {
 		s.Duration = time.Duration(0)
 	} else {
-		duration, err := parseTimeDuration(o.Duration)
+		duration, err := parser.ParseTimeDuration(o.Duration)
 		if err != nil {
 			return fmt.Errorf("shard duration: %s", err)
 		}
@@ -335,14 +354,6 @@ type shardSpaceJSON struct {
 	Duration  string `json:"shardDuration,omitempty"`
 	ReplicaN  uint32 `json:"replicationFactor,omitempty"`
 	SplitN    uint32 `json:"split,omitempty"`
-}
-
-// ContinuousQuery represents a query that exists on the server and processes
-// each incoming event.
-type ContinuousQuery struct {
-	ID    uint32
-	Query string
-	// TODO: ParsedQuery *parser.SelectQuery
 }
 
 // compiles a regular expression. Removes leading and ending slashes.
