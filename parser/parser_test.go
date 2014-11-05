@@ -929,6 +929,14 @@ func (self *QueryParserSuite) TestParseSinglePointQuery(c *C) {
 	c.Assert(rightBoolExpression.Name, Equals, "=")
 }
 
+func (self *QueryParserSuite) TestSinglePointGetQueryString(c *C) {
+	qs := "select value from \"foo\" where (time = 999) AND (sequence_number = 1)"
+	q, err := ParseSelectQuery(qs)
+	c.Assert(err, IsNil)
+	c.Assert(q.GetQueryString(), Equals, qs)
+	c.Assert(q.GetQueryStringWithTimeCondition(), Equals, qs)
+}
+
 // TODO: test reversed order of time and sequence_number
 func (self *QueryParserSuite) TestIsSinglePointQuery(c *C) {
 	query := "select * from foo where time = 123 and sequence_number = 99"
