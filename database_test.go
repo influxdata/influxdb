@@ -20,15 +20,15 @@ func TestDatabase_CreateUser(t *testing.T) {
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
-	db := s.Database("foo")
 
 	// Create a user on the database.
-	if err := db.CreateUser("susy", "pass", nil); err != nil {
+	if err := s.Database("foo").CreateUser("susy", "pass", nil); err != nil {
 		t.Fatal(err)
 	}
+	s.Restart()
 
 	// Verify that the user exists.
-	if u := db.User("susy"); u == nil {
+	if u := s.Database("foo").User("susy"); u == nil {
 		t.Fatalf("user not found")
 	} else if u.Name != "susy" {
 		t.Fatalf("username mismatch: %v", u.Name)
@@ -123,6 +123,11 @@ func TestDatabase_DeleteUser(t *testing.T) {
 	} else if db.User("susy") != nil {
 		t.Fatal("user not deleted")
 	}
+	s.Restart()
+
+	if s.Database("foo").User("susy") != nil {
+		t.Fatal("user not deleted after restart")
+	}
 }
 
 // Ensure the server returns an error when delete a user without a name.
@@ -181,6 +186,11 @@ func TestDatabase_ChangePassword(t *testing.T) {
 	} else if bcrypt.CompareHashAndPassword([]byte(db.User("susy").Hash), []byte("newpass")) != nil {
 		t.Fatal("invalid new password")
 	}
+	s.Restart()
+
+	if bcrypt.CompareHashAndPassword([]byte(s.Database("foo").User("susy").Hash), []byte("newpass")) != nil {
+		t.Fatal("invalid new password after restart")
+	}
 }
 
 // Ensure the database can return a list of all users.
@@ -194,6 +204,7 @@ func TestDatabase_Users(t *testing.T) {
 	s.Database("foo").CreateUser("john", "pass", nil)
 	s.CreateDatabase("bar")
 	s.Database("bar").CreateUser("jimmy", "pass", nil)
+	s.Restart()
 
 	// Retrieve a list of all users for "foo" (sorted by name).
 	if a := s.Database("foo").Users(); len(a) != 2 {
@@ -214,7 +225,6 @@ func TestDatabase_CreateShardSpace(t *testing.T) {
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
-	db := s.Database("foo")
 
 	// Create a shard space on the database.
 	ss := &influxdb.ShardSpace{
@@ -225,12 +235,13 @@ func TestDatabase_CreateShardSpace(t *testing.T) {
 		ReplicaN:  2,
 		SplitN:    3,
 	}
-	if err := db.CreateShardSpace(ss); err != nil {
+	if err := s.Database("foo").CreateShardSpace(ss); err != nil {
 		t.Fatal(err)
 	}
+	s.Restart()
 
 	// Verify that the user exists.
-	if o := db.ShardSpace("bar"); o == nil {
+	if o := s.Database("foo").ShardSpace("bar"); o == nil {
 		t.Fatalf("shard space not found")
 	} else if !reflect.DeepEqual(ss, o) {
 		t.Fatalf("shard space mismatch: %#v", o)
@@ -293,6 +304,11 @@ func TestDatabase_DeleteShardSpace(t *testing.T) {
 		t.Fatal(err)
 	} else if db.ShardSpace("bar") != nil {
 		t.Fatal("shard space not deleted")
+	}
+	s.Restart()
+
+	if s.Database("foo").ShardSpace("bar") != nil {
+		t.Fatal("shard space not deleted after restart")
 	}
 }
 

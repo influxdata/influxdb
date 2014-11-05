@@ -167,13 +167,13 @@ func (b *Broker) CreateReplica(name string) error {
 	// Add command to create replica.
 	return b.PublishSync(&Message{
 		Type: CreateReplicaMessageType,
-		Data: mustMarshal(&CreateReplicaCommand{Name: name}),
+		Data: mustMarshalJSON(&CreateReplicaCommand{Name: name}),
 	})
 }
 
 func (b *Broker) applyCreateReplica(m *Message) {
 	var c CreateReplicaCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	// Create replica.
 	r := newReplica(b, c.Name)
@@ -199,13 +199,13 @@ func (b *Broker) DeleteReplica(name string) error {
 	// Issue command to remove replica.
 	return b.PublishSync(&Message{
 		Type: DeleteReplicaMessageType,
-		Data: mustMarshal(&DeleteReplicaCommand{Name: name}),
+		Data: mustMarshalJSON(&DeleteReplicaCommand{Name: name}),
 	})
 }
 
 func (b *Broker) applyDeleteReplica(m *Message) {
 	var c DeleteReplicaCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	// Find replica.
 	r := b.replicas[c.Name]
@@ -241,14 +241,14 @@ func (b *Broker) Subscribe(replica string, topicID uint32) error {
 	// Issue command to subscribe to topic.
 	return b.PublishSync(&Message{
 		Type: SubscribeMessageType,
-		Data: mustMarshal(&SubscribeCommand{Replica: replica, TopicID: topicID}),
+		Data: mustMarshalJSON(&SubscribeCommand{Replica: replica, TopicID: topicID}),
 	})
 }
 
 // applySubscribe is called when the SubscribeCommand is applied.
 func (b *Broker) applySubscribe(m *Message) {
 	var c SubscribeCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	// Retrieve replica.
 	r := b.replicas[c.Replica]
@@ -287,13 +287,13 @@ func (b *Broker) Unsubscribe(replica string, topicID uint32) error {
 	// Issue command to unsubscribe from topic.
 	return b.PublishSync(&Message{
 		Type: UnsubscribeMessageType,
-		Data: mustMarshal(&UnsubscribeCommand{Replica: replica, TopicID: topicID}),
+		Data: mustMarshalJSON(&UnsubscribeCommand{Replica: replica, TopicID: topicID}),
 	})
 }
 
 func (b *Broker) applyUnsubscribe(m *Message) {
 	var c UnsubscribeCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	// Remove topic from replica.
 	if r := b.replicas[c.Replica]; r != nil {
@@ -733,10 +733,10 @@ func (p uint32Slice) Len() int           { return len(p) }
 func (p uint32Slice) Less(i, j int) bool { return p[i] < p[j] }
 func (p uint32Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-// mustMarshal encodes a value to JSON.
+// mustMarshalJSON encodes a value to JSON.
 // This will panic if an error occurs. This should only be used internally when
 // an invalid marshal will cause corruption and a panic is appropriate.
-func mustMarshal(v interface{}) []byte {
+func mustMarshalJSON(v interface{}) []byte {
 	b, err := json.Marshal(v)
 	if err != nil {
 		panic("marshal: " + err.Error())
@@ -744,10 +744,10 @@ func mustMarshal(v interface{}) []byte {
 	return b
 }
 
-// mustUnmarshal decodes a value from JSON.
+// mustUnmarshalJSON decodes a value from JSON.
 // This will panic if an error occurs. This should only be used internally when
 // an invalid unmarshal will cause corruption and a panic is appropriate.
-func mustUnmarshal(b []byte, v interface{}) {
+func mustUnmarshalJSON(b []byte, v interface{}) {
 	if err := json.Unmarshal(b, v); err != nil {
 		panic("unmarshal: " + err.Error())
 	}

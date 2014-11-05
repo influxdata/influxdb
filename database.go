@@ -18,9 +18,10 @@ type Database struct {
 	mu     sync.RWMutex
 	server *Server
 	name   string
-	users  map[string]*DBUser
-	spaces map[string]*ShardSpace
-	shards map[uint32]*shard
+
+	users  map[string]*DBUser     // database users by name
+	spaces map[string]*ShardSpace // shard spaces by name
+	shards map[uint32]*shard      // shards by id
 }
 
 // newDatabase returns an instance of Database associated with a server.
@@ -152,7 +153,7 @@ func (db *Database) ChangePassword(username, newPassword string) error {
 	return err
 }
 
-func (db *Database) changePassword(username, newPassword string) error {
+func (db *Database) applyChangePassword(username, newPassword string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -258,10 +259,92 @@ func (db *Database) WriteSeries(series *protocol.Series) error {
 	panic("not yet implemented") /* TODO */
 }
 
-// Query executes a query against a database.
-func (db *Database) Query(q *parser.QuerySpec) error {
+// ExecuteQuery executes a query against a database.
+func (db *Database) ExecuteQuery(u parser.User, q *parser.Query) error {
+	spec := parser.NewQuerySpec(u, db.Name(), q)
+	// TODO: Check permissions.
+	//if ok, err := db.permissions.CheckQueryPermissions(u, db.Name(), spec); !ok {
+	//	return err
+	//}
+
+	// TODO: ListSeries
+	// TODO: DropSeries
+	switch q.Type() {
+	case parser.Delete:
+		return db.executeDeleteQuery(u, spec)
+	case parser.Select:
+		return db.executeSelectQuery(u, spec)
+	default:
+		return ErrInvalidQuery
+	}
+}
+
+// executeDeleteQuery executes a deletion query against the database.
+func (db *Database) executeDeleteQuery(u parser.User, spec *parser.QuerySpec) error {
+	// TODO: Execute deletion message to broker.
+	panic("not yet implemented") // TODO
+}
+
+// executeSelectQuery executes a selection query against the database.
+func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec) error {
+	panic("not yet implemented") // TODO
+}
+
+// MarshalJSON encodes a database into a JSON-encoded byte slice.
+func (db *Database) MarshalJSON() ([]byte, error) {
+	// Copy over properties to intermediate type.
+	var o databaseJSON
+	o.Name = db.name
+	for _, u := range db.users {
+		o.Users = append(o.Users, u)
+	}
+	for _, ss := range db.spaces {
+		o.Spaces = append(o.Spaces, ss)
+	}
+	for _, s := range db.shards {
+		o.Shards = append(o.Shards, s)
+	}
+	return json.Marshal(&o)
+}
+
+// UnmarshalJSON decodes a JSON-encoded byte slice to a database.
+func (db *Database) UnmarshalJSON(data []byte) error {
+	// Decode into intermediate type.
+	var o databaseJSON
+	if err := json.Unmarshal(data, &o); err != nil {
+		return err
+	}
+
+	// Copy over properties from intermediate type.
+	db.name = o.Name
+
+	// Copy users.
+	db.users = make(map[string]*DBUser)
+	for _, u := range o.Users {
+		db.users[u.Name] = u
+	}
+
+	// Copy shard spaces.
+	db.spaces = make(map[string]*ShardSpace)
+	for _, ss := range o.Spaces {
+		db.spaces[ss.Name] = ss
+	}
+
+	// Copy shards.
+	db.shards = make(map[uint32]*shard)
+	for _, s := range o.Shards {
+		db.shards[s.id] = s
+	}
 
 	return nil
+}
+
+// databaseJSON represents the JSON-serialization format for a database.
+type databaseJSON struct {
+	Name   string        `json:"name,omitempty"`
+	Users  []*DBUser     `json:"users,omitempty"`
+	Spaces []*ShardSpace `json:"spaces,omitempty"`
+	Shards []*shard      `json:"shards,omitempty"`
 }
 
 // databases represents a list of databases, sortable by name.
@@ -295,6 +378,18 @@ func NewShardSpace() *ShardSpace {
 		SplitN:    DefaultSplitN,
 		ReplicaN:  DefaultReplicaN,
 	}
+}
+
+// MarshalJSON encodes a shard space to a JSON-encoded byte slice.
+func (s *ShardSpace) MarshalJSON() ([]byte, error) {
+	var o shardSpaceJSON
+	o.Name = s.Name
+	o.ReplicaN = s.ReplicaN
+	o.SplitN = s.SplitN
+	o.Regex = s.Regex.String()
+	o.Retention = parser.FormatTimeDuration(s.Retention)
+	o.Duration = parser.FormatTimeDuration(s.Duration)
+	return json.Marshal(&o)
 }
 
 // UnmarshalJSON decodes a JSON-encoded byte slice to a shard space.

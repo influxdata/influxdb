@@ -54,6 +54,9 @@ var (
 	// ErrReadAccessDenied is returned when a user attempts to read
 	// data that he or she does not have permission to read.
 	ErrReadAccessDenied = errors.New("read access denied")
+
+	// ErrInvalidQuery is returned when executing an unknown query type.
+	ErrInvalidQuery = errors.New("invalid query")
 )
 
 // AuthenticationError represents an error related to authentication.

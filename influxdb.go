@@ -9,10 +9,17 @@ import (
 	"github.com/influxdb/influxdb/parser"
 )
 
+// Series represents a series of timeseries points.
+type Series struct {
+	ID     uint64 `json:"id,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Fields Fields `json:"fields,omitempty"`
+}
+
 // Field represents a series field.
 type Field struct {
-	ID   uint64
-	Name string
+	ID   uint64 `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 // String returns a string representation of the field.

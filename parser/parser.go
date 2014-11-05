@@ -905,3 +905,28 @@ func ParseTimeDuration(value string) (time.Duration, error) {
 	f, _ := t.Float64()
 	return time.Duration(f), nil
 }
+
+// FormatTimeDuration returns a formatted time duration.
+func FormatTimeDuration(v time.Duration) string {
+	if v == 0 {
+		return ""
+	} else if v%(365*24*time.Hour) == 0 {
+		return strconv.FormatInt(int64(v/(365*24*time.Hour)), 10) + "y"
+	} else if v%(30*24*time.Hour) == 0 {
+		return strconv.FormatInt(int64(v/(30*24*time.Hour)), 10) + "M"
+	} else if v%(7*24*time.Hour) == 0 {
+		return strconv.FormatInt(int64(v/(7*24*time.Hour)), 10) + "w"
+	} else if v%(24*time.Hour) == 0 {
+		return strconv.FormatInt(int64(v/(24*time.Hour)), 10) + "d"
+	} else if v%time.Hour == 0 {
+		return strconv.FormatInt(int64(v/time.Hour), 10) + "h"
+	} else if v%time.Minute == 0 {
+		return strconv.FormatInt(int64(v/time.Minute), 10) + "m"
+	} else if v%time.Second == 0 {
+		return strconv.FormatInt(int64(v/time.Second), 10) + "s"
+	} else if v%time.Millisecond == 0 {
+		return strconv.FormatInt(int64(v/time.Millisecond), 10) + "ms"
+	} else {
+		return strconv.FormatInt(int64(v/time.Microsecond), 10) + "u"
+	}
+}

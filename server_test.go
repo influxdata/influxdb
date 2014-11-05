@@ -39,6 +39,7 @@ func TestServer_CreateDatabase(t *testing.T) {
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
+	s.Restart()
 
 	// Verify that the database exists.
 	if d := s.Database("foo"); d == nil {
@@ -73,6 +74,7 @@ func TestServer_DropDatabase(t *testing.T) {
 	} else if d := s.Database("foo"); d == nil {
 		t.Fatalf("database not actually created")
 	}
+	s.Restart()
 
 	// Drop the "foo" database and verify that it's gone.
 	if err := s.DeleteDatabase("foo"); err != nil {
@@ -101,6 +103,7 @@ func TestServer_Databases(t *testing.T) {
 	// Create some databases.
 	s.CreateDatabase("foo")
 	s.CreateDatabase("bar")
+	s.Restart()
 
 	// Return the databases.
 	if a := s.Databases(); len(a) != 2 {
@@ -121,6 +124,7 @@ func TestServer_CreateClusterAdmin(t *testing.T) {
 	if err := s.CreateClusterAdmin("susy", "pass"); err != nil {
 		t.Fatal(err)
 	}
+	s.Restart()
 
 	// Verify that the admin exists.
 	if u := s.ClusterAdmin("susy"); u == nil {
@@ -171,6 +175,11 @@ func TestServer_DeleteClusterAdmin(t *testing.T) {
 	} else if s.ClusterAdmin("susy") != nil {
 		t.Fatalf("admin not actually deleted")
 	}
+	s.Restart()
+
+	if s.ClusterAdmin("susy") != nil {
+		t.Fatalf("admin not actually deleted after restart")
+	}
 }
 
 // Ensure the server can return a list of all admins.
@@ -181,6 +190,7 @@ func TestServer_ClusterAdmins(t *testing.T) {
 	// Create some databases.
 	s.CreateClusterAdmin("susy", "pass")
 	s.CreateClusterAdmin("john", "pass")
+	s.Restart()
 
 	// Return the databases.
 	if a := s.ClusterAdmins(); len(a) != 2 {
@@ -209,6 +219,17 @@ func OpenServer(client influxdb.MessagingClient) *Server {
 		panic(err.Error())
 	}
 	return s
+}
+
+// Restart stops and restarts the server.
+func (s *Server) Restart() {
+	path := s.Path()
+	if err := s.Server.Close(); err != nil {
+		panic("close: " + err.Error())
+	}
+	if err := s.Server.Open(path); err != nil {
+		panic("open: " + err.Error())
+	}
 }
 
 // Close shuts down the server and removes all temporary files.

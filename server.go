@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -55,8 +57,10 @@ type Server struct {
 	index  uint64           // highest broadcast index seen
 	errors map[uint64]error // message errors
 
-	databases map[string]*Database
-	admins    map[string]*ClusterAdmin
+	meta *metastore // metadata store
+
+	databases map[string]*Database     // databases by name
+	admins    map[string]*ClusterAdmin // admins by name
 }
 
 // NewServer returns a new instance of Server.
@@ -65,6 +69,7 @@ func NewServer(client MessagingClient) *Server {
 	assert(client != nil, "messaging client required")
 	return &Server{
 		client:    client,
+		meta:      &metastore{},
 		databases: make(map[string]*Database),
 		admins:    make(map[string]*ClusterAdmin),
 		errors:    make(map[uint64]error),
@@ -82,6 +87,21 @@ func (s *Server) Open(path string) error {
 		return ErrServerOpen
 	} else if path == "" {
 		return ErrPathRequired
+	}
+
+	// Create directory, if not exists.
+	if err := os.MkdirAll(path, 0700); err != nil {
+		return err
+	}
+
+	// Open metadata store.
+	if err := s.meta.open(filepath.Join(path, "meta")); err != nil {
+		return fmt.Errorf("meta: %s", err)
+	}
+
+	// Load state from metastore.
+	if err := s.load(); err != nil {
+		return fmt.Errorf("load: %s", err)
 	}
 
 	// Set the server path.
@@ -110,10 +130,33 @@ func (s *Server) Close() error {
 	close(s.done)
 	s.done = nil
 
+	// Close metastore.
+	_ = s.meta.close()
+
 	// Remove path.
 	s.path = ""
 
 	return nil
+}
+
+// load reads the state of the server from the metastore.
+func (s *Server) load() error {
+	return s.meta.view(func(tx *metatx) error {
+		// Load databases.
+		s.databases = make(map[string]*Database)
+		for _, db := range tx.databases() {
+			db.server = s
+			s.databases[db.name] = db
+		}
+
+		// Load cluster admins.
+		s.admins = make(map[string]*ClusterAdmin)
+		for _, u := range tx.clusterAdmins() {
+			s.admins[u.Name] = u
+		}
+
+		return nil
+	})
 }
 
 // broadcast encodes a message as JSON and send it to the broker's broadcast topic.
@@ -192,7 +235,7 @@ func (s *Server) CreateDatabase(name string) error {
 
 func (s *Server) applyCreateDatabase(m *messaging.Message) error {
 	var c createDatabaseCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -203,7 +246,15 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) error {
 	// Create database entry.
 	db := newDatabase(s)
 	db.name = c.Name
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	// Add to databases on server.
 	s.databases[c.Name] = db
+
 	return nil
 }
 
@@ -220,13 +271,18 @@ func (s *Server) DeleteDatabase(name string) error {
 
 func (s *Server) applyDeleteDatabase(m *messaging.Message) error {
 	var c deleteDatabaseCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.databases[c.Name] == nil {
 		return ErrDatabaseNotFound
 	}
+
+	// Remove from metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.deleteDatabase(c.Name)
+	})
 
 	// Delete the database entry.
 	delete(s.databases, c.Name)
@@ -266,7 +322,7 @@ func (s *Server) CreateClusterAdmin(username, password string) error {
 
 func (s *Server) applyCreateClusterAdmin(m *messaging.Message) error {
 	var c createClusterAdminCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -285,13 +341,19 @@ func (s *Server) applyCreateClusterAdmin(m *messaging.Message) error {
 	}
 
 	// Create the cluster admin.
-	s.admins[c.Username] = &ClusterAdmin{
+	u := &ClusterAdmin{
 		CommonUser: CommonUser{
 			Name: c.Username,
 			Hash: string(hash),
 		},
 	}
 
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveClusterAdmin(u)
+	})
+
+	s.admins[u.Name] = u
 	return nil
 }
 
@@ -309,7 +371,7 @@ func (s *Server) DeleteClusterAdmin(username string) error {
 
 func (s *Server) applyDeleteClusterAdmin(m *messaging.Message) error {
 	var c deleteClusterAdminCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -320,6 +382,11 @@ func (s *Server) applyDeleteClusterAdmin(m *messaging.Message) error {
 	} else if s.admins[c.Username] == nil {
 		return ErrClusterAdminNotFound
 	}
+
+	// Remove from metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.deleteClusterAdmin(c.Username)
+	})
 
 	// Delete the cluster admin.
 	delete(s.admins, c.Username)
@@ -332,7 +399,7 @@ type deleteClusterAdminCommand struct {
 
 func (s *Server) applyDBUserSetPassword(m *messaging.Message) error {
 	var c dbUserSetPasswordCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -343,12 +410,28 @@ func (s *Server) applyDBUserSetPassword(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	return db.changePassword(c.Username, c.Password)
+	// Update password change in database.
+	if err := db.applyChangePassword(c.Username, c.Password); err != nil {
+		return err
+	}
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
+}
+
+type dbUserSetPasswordCommand struct {
+	Database string `json:"database"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 	var c createDBUserCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -359,7 +442,16 @@ func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	return db.applyCreateUser(c.Username, c.Password, c.Permissions)
+	if err := db.applyCreateUser(c.Username, c.Password, c.Permissions); err != nil {
+		return err
+	}
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
 }
 
 type createDBUserCommand struct {
@@ -371,7 +463,7 @@ type createDBUserCommand struct {
 
 func (s *Server) applyDeleteDBUser(m *messaging.Message) error {
 	var c deleteDBUserCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -382,7 +474,17 @@ func (s *Server) applyDeleteDBUser(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	return db.applyDeleteUser(c.Username)
+	// Remove user from database.
+	if err := db.applyDeleteUser(c.Username); err != nil {
+		return err
+	}
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
 }
 
 type deleteDBUserCommand struct {
@@ -390,15 +492,9 @@ type deleteDBUserCommand struct {
 	Username string `json:"username"`
 }
 
-type dbUserSetPasswordCommand struct {
-	Database string `json:"database"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
 func (s *Server) applyCreateShardSpace(m *messaging.Message) error {
 	var c createShardSpaceCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -409,7 +505,16 @@ func (s *Server) applyCreateShardSpace(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	return db.applyCreateShardSpace(c.Name, c.Regex, c.Retention, c.Duration, c.ReplicaN, c.SplitN)
+	if err := db.applyCreateShardSpace(c.Name, c.Regex, c.Retention, c.Duration, c.ReplicaN, c.SplitN); err != nil {
+		return err
+	}
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
 }
 
 type createShardSpaceCommand struct {
@@ -424,7 +529,7 @@ type createShardSpaceCommand struct {
 
 func (s *Server) applyDeleteShardSpace(m *messaging.Message) error {
 	var c deleteShardSpaceCommand
-	mustUnmarshal(m.Data, &c)
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -435,7 +540,17 @@ func (s *Server) applyDeleteShardSpace(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	return db.applyDeleteShardSpace(c.Name)
+	// Remove shard space from database.
+	if err := db.applyDeleteShardSpace(c.Name); err != nil {
+		return err
+	}
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
 }
 
 type deleteShardSpaceCommand struct {
@@ -499,6 +614,157 @@ type MessagingClient interface {
 	C() <-chan *messaging.Message
 }
 
+// metastore represents the low-level data store for metadata.
+type metastore struct {
+	db *bolt.DB
+}
+
+// open initializes the metastore.
+func (m *metastore) open(path string) error {
+	// Open the bolt-backed database.
+	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	if err != nil {
+		return err
+	}
+	m.db = db
+
+	// Initialize the metastore.
+	if err := m.init(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// close closes the store.
+func (m *metastore) close() error {
+	if m.db != nil {
+		return m.db.Close()
+	}
+	return nil
+}
+
+// init initializes the metastore to ensure all top-level buckets are created.
+func (m *metastore) init() error {
+	return m.db.Update(func(tx *bolt.Tx) error {
+		_, _ = tx.CreateBucketIfNotExists([]byte("Databases"))
+		_, _ = tx.CreateBucketIfNotExists([]byte("Series"))
+		_, _ = tx.CreateBucketIfNotExists([]byte("ClusterAdmins"))
+		return nil
+	})
+}
+
+// view executes a function in the context of a read-only transaction.
+func (m *metastore) view(fn func(*metatx) error) error {
+	return m.db.View(func(tx *bolt.Tx) error { return fn(&metatx{tx}) })
+}
+
+// update executes a function in the context of a read-write transaction.
+func (m *metastore) update(fn func(*metatx) error) error {
+	return m.db.Update(func(tx *bolt.Tx) error { return fn(&metatx{tx}) })
+}
+
+// mustUpdate executes a function in the context of a read-write transaction.
+// Panics if update returns an error.
+func (m *metastore) mustUpdate(fn func(*metatx) error) {
+	if err := m.update(fn); err != nil {
+		panic("metastore update: " + err.Error())
+	}
+}
+
+// metatx represents a metastore transaction.
+type metatx struct {
+	*bolt.Tx
+}
+
+// database returns a database from the metastore by name.
+func (tx *metatx) database(name string) (db *Database) {
+	if v := tx.Bucket([]byte("Databases")).Get([]byte(name)); v != nil {
+		mustUnmarshalJSON(v, &db)
+	}
+	return
+}
+
+// databases returns a list of all databases from the metastore.
+func (tx *metatx) databases() (a []*Database) {
+	c := tx.Bucket([]byte("Databases")).Cursor()
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		db := newDatabase(nil)
+		mustUnmarshalJSON(v, &db)
+		a = append(a, db)
+	}
+	return
+}
+
+// saveDatabase persists a database to the metastore.
+func (tx *metatx) saveDatabase(db *Database) error {
+	return tx.Bucket([]byte("Databases")).Put([]byte(db.name), mustMarshalJSON(db))
+}
+
+// deleteDatabase removes database from the metastore.
+func (tx *metatx) deleteDatabase(name string) error {
+	return tx.Bucket([]byte("Databases")).Delete([]byte(name))
+}
+
+// series returns a series by database and name.
+func (tx *metatx) series(database, name string) (s *Series) {
+	b := tx.Bucket([]byte("Series")).Bucket([]byte(database))
+	if b == nil {
+		return nil
+	}
+	if v := b.Get([]byte(name)); v != nil {
+		mustUnmarshalJSON(v, &s)
+	}
+	return
+}
+
+// saveSeries persists a series to the metastore.
+func (tx *metatx) saveSeries(database string, s *Series) error {
+	b, err := tx.Bucket([]byte("Series")).CreateBucketIfNotExists([]byte(database))
+	if err != nil {
+		return err
+	}
+	return b.Put([]byte(s.Name), mustMarshalJSON(s))
+}
+
+// deleteSeries removes a series from the metastore.
+func (tx *metatx) deleteSeries(database, name string) error {
+	b := tx.Bucket([]byte("Series")).Bucket([]byte(database))
+	if b == nil {
+		return nil
+	}
+	return b.Delete([]byte(name))
+}
+
+// clusterAdmin returns a cluster admin from the metastore by name.
+func (tx *metatx) clusterAdmin(name string) (u *ClusterAdmin) {
+	if v := tx.Bucket([]byte("ClusterAdmins")).Get([]byte(name)); v != nil {
+		mustUnmarshalJSON(v, &u)
+	}
+	return
+}
+
+// clusterAdmins returns a list of all cluster admins from the metastore.
+func (tx *metatx) clusterAdmins() (a []*ClusterAdmin) {
+	c := tx.Bucket([]byte("ClusterAdmins")).Cursor()
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		u := &ClusterAdmin{}
+		mustUnmarshalJSON(v, &u)
+		a = append(a, u)
+	}
+	return
+}
+
+// saveClusterAdmin persists a cluster admin to the metastore.
+func (tx *metatx) saveClusterAdmin(u *ClusterAdmin) error {
+	return tx.Bucket([]byte("ClusterAdmins")).Put([]byte(u.Name), mustMarshalJSON(u))
+}
+
+// deleteClusterAdmin removes the cluster admin from the metastore.
+func (tx *metatx) deleteClusterAdmin(name string) error {
+	return tx.Bucket([]byte("ClusterAdmins")).Delete([]byte(name))
+}
+
 // ContinuousQuery represents a query that exists on the server and processes
 // each incoming event.
 type ContinuousQuery struct {
@@ -510,7 +776,7 @@ type ContinuousQuery struct {
 // mustMarshal encodes a value to JSON.
 // This will panic if an error occurs. This should only be used internally when
 // an invalid marshal will cause corruption and a panic is appropriate.
-func mustMarshal(v interface{}) []byte {
+func mustMarshalJSON(v interface{}) []byte {
 	b, err := json.Marshal(v)
 	if err != nil {
 		panic("marshal: " + err.Error())
@@ -518,10 +784,10 @@ func mustMarshal(v interface{}) []byte {
 	return b
 }
 
-// mustUnmarshal decodes a value from JSON.
+// mustUnmarshalJSON decodes a value from JSON.
 // This will panic if an error occurs. This should only be used internally when
 // an invalid unmarshal will cause corruption and a panic is appropriate.
-func mustUnmarshal(b []byte, v interface{}) {
+func mustUnmarshalJSON(b []byte, v interface{}) {
 	if err := json.Unmarshal(b, v); err != nil {
 		panic("unmarshal: " + err.Error())
 	}
