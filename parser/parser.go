@@ -190,6 +190,13 @@ func (self *SelectQuery) GetQueryString() string {
 }
 
 func (self *SelectQuery) GetQueryStringWithTimeCondition() string {
+	// if this is a single query then it already has a time (and
+	// sequence number) condition; we don't need the extra (time < ???
+	// and time > ???) condition in the query string.
+	if self.IsSinglePointQuery() {
+		return self.GetQueryString()
+	}
+
 	return self.commonGetQueryStringWithTimes(true, true, self.startTime, self.endTime)
 }
 
