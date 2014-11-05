@@ -10,7 +10,7 @@ before_install:
 
 install: ./configure
 
-script: make build && make test && make integration_test only=DataTest verbose=on
+script: make build && make valgrind && make test && make integration_test only=DataTest verbose=on
 
 notifications:
   email:
