@@ -9,6 +9,8 @@
 
 ### Bugfixes
 
+- [Issue #925](https://github.com/influxdb/influxdb/issues/925). Don't
+  generate invalid query strings for single point queries
 - [Issue #1008](https://github.com/influxdb/influxdb/issues/1008). Return
   an appropriate exit status code depending on whether the process exits
   due to an error or exits gracefully.
