@@ -1,4 +1,6 @@
+ifeq ($(SHELL),)
 SHELL = /bin/bash
+endif
 
 ifeq ($(TMPDIR),)
 TMPDIR=/tmp
@@ -12,6 +14,7 @@ GOROOT = @GOROOT@
 AUTORECONF = @AUTORECONF@
 LRT_LDFLAG = @LRT_LDFLAG@
 ROCKSDB_LIB = @ROCKSDB_LIB@
+
 # or 386, arm
 arch   = amd64
 CGO_ENABLED = 1
@@ -67,11 +70,25 @@ export GOPATH
 endif
 uname_S = $(shell sh -c "uname -s 2>/dev/null || echo not")
 
+Nix = no
+Linux = no
+FreeBSD = no 
+
+ifeq ($(uname_S),Linux)
+  Linux = yes
+  Nix = yes
+endif
+
+ifeq ($(uname_S),FreeBSD)
+  FreeBSD = yes
+  Nix = yes
+endif
+
 valgrind:
 ifeq ($(uname_S),Linux)
 	$(MAKE) -C parser valgrind
 endif
-
+ 
 # packages
 test_packages = $(shell sh -c "go list github.com/influxdb/influxdb/... | egrep -v 'integration|tools'")
 ifneq ($(packages),)
@@ -94,7 +111,7 @@ leveldb_deps    = $(leveldb_dir)/libleveldb.a
 
 cpp_47 = $(shell g++ -dumpversion | gawk '{print $$1>=4.7?"1":"0"}')
 ifneq ($(ROCKSDB_LIB),yes)
-rocksdb = yes
+rocksdb = no
 ifneq ($(cpp_47),1)
 rocksdb = no
 endif
@@ -120,9 +137,12 @@ GO_BUILD_TAGS += profile
 endif
 
 # levigo flags
-ifeq ($(uname_S),Linux)
+ifeq ($(Nix),yes)
+ifeq ($(Linux),yes)
 storage_engines += $(hyperleveldb_deps)
 GO_BUILD_TAGS += hyperleveldb
+endif
+
 ifeq ($(rocksdb),yes)
 GO_BUILD_TAGS += rocksdb
 storage_engines += $(rocksdb_deps)
@@ -133,9 +153,13 @@ ifeq ($(ROCKSDB_LIB),yes)
 GO_BUILD_TAGS += rocksdb
 CGO_LDFLAGS += -lrocksdb $(LRT_LDFLAG)
 endif
-endif
+
+ifeq ($(Linux),yes)
 CGO_CFLAGS  += -I$(leveldb_dir)/include -I$(hyperleveldb_dir)/include
 CGO_LDFLAGS += -L$(leveldb_dir) -L$(hyperleveldb_dir)/.libs -L$(snappy_dir)/.libs -lleveldb -lhyperleveldb -lsnappy
+endif
+endif
+
 CPPLIB = $(shell g++ $(cflags) --print-file-name=libstdc++.a)
 CGO_LDFLAGS += -lm -lz -lbz2 $(CPPLIB)
 export CGO_CFLAGS
@@ -167,34 +191,34 @@ $(snappy_deps):
 ifeq ($(uname_S),Linux)
 	rm -rf $(snappy_dir)
 	mkdir -p $(snappy_dir)
-	( cd $(snappy_dir);	wget https://snappy.googlecode.com/files/$(snappy_file); \
+	( cd $(snappy_dir);	wget https://snappy.googlecode.com/files/$(snappy_file) --no-check-certificate; \
 	tar --strip-components=1 -xvzf $(snappy_file); \
 	CFLAGS='$(cflags)' CXXFLAGS='$(cflags)' ./configure --enable-shared=no $(cross_flags) )
 	$(MAKE) -C $(snappy_dir)
 endif
 
 $(leveldb_deps): $(snappy_deps)
-ifeq ($(uname_S),Linux)
+ifeq ($(Nix),yes)
 	rm -rf $(leveldb_dir)
 	mkdir -p $(leveldb_dir)
-	( cd $(leveldb_dir); wget https://leveldb.googlecode.com/files/$(leveldb_file); tar --strip-components=1 -xvzf $(leveldb_file); )
+	( cd $(leveldb_dir); wget https://leveldb.googlecode.com/files/$(leveldb_file) --no-check-certificate; tar --strip-components=1 -xvzf $(leveldb_file); )
 	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE) -C $(leveldb_dir) libleveldb.a
 endif
 
 $(rocksdb_deps): $(snappy_deps)
-ifeq ($(uname_S),Linux)
+ifeq ($(Nix),yes)
 	rm -rf $(rocksdb_dir)
 	mkdir -p $(rocksdb_dir)
-	( cd $(rocksdb_dir); wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
+	( cd $(rocksdb_dir); wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file) --no-check-certificate; \
 	tar --strip-components=1 -xvzf $(rocksdb_file); )
 	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs $(LRT_LDFLAG)' $(MAKE) -C $(rocksdb_dir) librocksdb.a
 endif
 
 $(hyperleveldb_deps): $(snappy_deps)
-ifeq ($(uname_S),Linux)
+ifeq ($(Linux),yes)
 	rm -rf $(hyperleveldb_dir)
 	mkdir -p $(hyperleveldb_dir)
-	( cd $(hyperleveldb_dir); wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file) -O $(hyperleveldb_file); \
+	( cd $(hyperleveldb_dir); wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file) -O $(hyperleveldb_file) --no-check-certificate; \
 	tar --strip-components=1 -xvzf $(hyperleveldb_file); \
   $(AUTORECONF) -i; CXXFLAGS='-I$(snappy_dir) $(cflags)' CFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' ./configure --enable-shared=no )
 	$(MAKE) -C $(hyperleveldb_dir) V=1
