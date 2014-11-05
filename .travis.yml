@@ -1,7 +1,8 @@
 language: go
 
 go:
-  - 1.3
+  - 1.3.3
+  - 1.4beta1
 
 before_install:
   - sudo apt-get update
@@ -12,8 +13,6 @@ install: ./configure
 script: make build && make test && make integration_test only=DataTest verbose=on
 
 notifications:
-  hipchat:
-    on_success: change
+  email:
+    on_success: never
     on_failure: change
-    rooms:
-      secure: LE2EOq4lcGlnUseZnZKuiEd/QgqjPk10BpGVoeAVHKX81zfFtfpzTbSA6r3aNz0YBKk5nymr3zhScRhAXKOOzYBB/Xxd+Jk0wej+R7Ebigq9vZdLX1/SUfCM/smO9gdFUKch2Pb3TSIapSQRGwxDB9iT3dvWrbRVcMGdssvf3NI=
