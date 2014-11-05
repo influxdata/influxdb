@@ -9,6 +9,9 @@
 
 ### Bugfixes
 
+- [Issue #800](https://github.com/influxdb/influxdb/issues/800). Use
+  su instead of sudo in the init script. This fixes the startup problem
+  on RHEL 6.
 - [Issue #1092](https://github.com/influxdb/influxdb/issues/1093). Set
   the connection string of the local node in the raft snapshot.
 - [Issue #943](https://github.com/influxdb/influxdb/issues/943). Don't
