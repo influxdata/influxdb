@@ -9,6 +9,8 @@
 
 ### Bugfixes
 
+- [Issue #584](https://github.com/influxdb/influxdb/issues/584). Don't
+  panic if the process died while initializing
 - [Issue #800](https://github.com/influxdb/influxdb/issues/800). Use
   su instead of sudo in the init script. This fixes the startup problem
   on RHEL 6.

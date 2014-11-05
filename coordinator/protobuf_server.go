@@ -31,6 +31,10 @@ func NewProtobufServer(port string, requestHandler Handler) *ProtobufServer {
 }
 
 func (self *ProtobufServer) Close() {
+	if self.listener == nil {
+		return
+	}
+
 	self.listener.Close()
 	self.connectionMapLock.Lock()
 	defer self.connectionMapLock.Unlock()
