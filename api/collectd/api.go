@@ -127,7 +127,7 @@ func packetToSeries(p *collectd.Packet) []*protocol.Series {
 
 	series := make([]*protocol.Series, len(p.Values))
 
-	for i, dataSet := range p.Values {
+	for i, _ := range p.Values {
 		metricName := p.FormatName()
 
 		values := []*protocol.FieldValue{}
@@ -147,13 +147,13 @@ func packetToSeries(p *collectd.Packet) []*protocol.Series {
 			StringValue: &p.TypeInstance,
 		})
 		values = append(values, &protocol.FieldValue{
-			StringValue: &dataSet.Name,
+			StringValue: &p.Values[i].Name,
 		})
 		values = append(values, &protocol.FieldValue{
-			StringValue: &dataSet.TypeName,
+			StringValue: &p.Values[i].TypeName,
 		})
 		values = append(values, &protocol.FieldValue{
-			DoubleValue: &dataSet.Value,
+			DoubleValue: &p.Values[i].Value,
 		})
 
 		points := []*protocol.Point{
