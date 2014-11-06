@@ -15,28 +15,45 @@ import (
 	"github.com/influxdb/influxdb/protocol"
 )
 
-// shard represents the physical storage for a given time range.
-type shard struct {
-	id    uint32
-	tmin  int64
-	tmax  int64
-	hosts []uint32 // server ids
+// Shard represents the physical storage for a given time range.
+type Shard struct {
+	ID        uint32    `json:"id,omitempty"`
+	StartTime time.Time `json:"startTime,omitempty"`
+	EndTime   time.Time `json:"endTime,omitempty"`
+
 	store *bolt.DB
 }
 
+// Duration returns the duration between the shard's start and end time.
+func (s *Shard) Duration() time.Duration { return s.EndTime.Sub(s.StartTime) }
+
+// MatchInterval return true if an interval lines up with the shard's duration.
+func (s *Shard) MatchInterval(d time.Duration) bool {
+	return s.Duration()%d == 0
+
+	groupByInterval := querySpec.GetGroupByInterval()
+	if groupByInterval == nil {
+		if querySpec.HasAggregates() {
+			return false
+		}
+		return true
+	}
+	return (self.shardDuration%*groupByInterval == 0) && !querySpec.GroupByIrregularInterval
+}
+
 // write writes series data to a shard.
-func (s *shard) write(series *protocol.Series) error {
+func (s *Shard) write(series *protocol.Series) error {
 	return s.store.Update(func(tx *bolt.Tx) error {
 		// TODO: Write data.
 		return nil
 	})
 }
 
-func (s *shard) deleteSeries(name string) error {
+func (s *Shard) deleteSeries(name string) error {
 	panic("not yet implemented") // TODO
 }
 
-func (s *shard) query(q *parser.QuerySpec, name string, fields Fields, processor engine.Processor) error {
+func (s *Shard) query(q *parser.QuerySpec, name string, fields Fields, processor engine.Processor) error {
 	// TODO? Single point query.
 	/*
 		if q.IsSinglePointQuery() {
@@ -80,7 +97,7 @@ func (s *shard) query(q *parser.QuerySpec, name string, fields Fields, processor
 }
 
 // iterator returns a new iterator for a set of fields.
-func (s *shard) iterator(fields []*Field) (*iterator, error) {
+func (s *Shard) iterator(fields []*Field) (*iterator, error) {
 	// Open a read-only transaction.
 	// This transaction must be closed separately by the iterator.
 	tx, err := s.store.Begin(false)
@@ -102,6 +119,20 @@ func (s *shard) iterator(fields []*Field) (*iterator, error) {
 
 	return i, nil
 }
+
+// shardsAsc represents a list of shards, sortable in ascending order.
+type shardsAsc []*Shard
+
+func (p shardsAsc) Len() int           { return len(p) }
+func (p shardsAsc) Less(i, j int) bool { return !p[i].StartTime.Before(p[j].StartTime) }
+func (p shardsAsc) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+// shardsDesc represents a list of shards, sortable in descending order.
+type shardsDesc []*Shard
+
+func (p shardsDesc) Len() int           { return len(p) }
+func (p shardsDesc) Less(i, j int) bool { return p[i].StartTime.Before(p[j].StartTime) }
+func (p shardsDesc) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // storageKey is the key that we use to store values in our key/value
 // store engine. The key contains the field id, timestamp and sequence

@@ -1,7 +1,6 @@
 package influxdb_test
 
 import (
-	"encoding/json"
 	"reflect"
 	"regexp"
 	"testing"
@@ -345,66 +344,5 @@ func TestDatabase_DeleteShardSpace_ErrShardSpaceNotFound(t *testing.T) {
 	s.CreateDatabase("foo")
 	if err := s.Database("foo").DeleteShardSpace("no_such_space"); err != influxdb.ErrShardSpaceNotFound {
 		t.Fatal(err)
-	}
-}
-
-// Ensure a shard space can be unmarshaled from JSON.
-func TestShardSpace_UnmarshalJSON(t *testing.T) {
-	var tests = []struct {
-		data string
-		ss   *influxdb.ShardSpace
-		err  string
-	}{
-		// 0. Simple shard space definition.
-		{
-			data: `{"name":"space0","retentionPolicy":"1m","shardDuration":"7d","regex":"/^keep_forever/","replicationFactor":1,"split":2}`,
-			ss:   &influxdb.ShardSpace{Name: "space0", Regex: regexp.MustCompile(`^keep_forever`), Retention: 1 * time.Minute, Duration: 7 * 24 * time.Hour, ReplicaN: 1, SplitN: 2},
-		},
-
-		// 1. Shard space w/ infinite retention.
-		{
-			data: `{"retentionPolicy":"inf"}`,
-			ss:   &influxdb.ShardSpace{Regex: regexp.MustCompile(`.*`), Retention: 0},
-		},
-
-		// 2. Shard space w/ infinite duration.
-		{
-			data: `{"shardDuration":"inf"}`,
-			ss:   &influxdb.ShardSpace{Regex: regexp.MustCompile(`.*`), Duration: 0},
-		},
-
-		// 3. Shard space w/ invalid retention.
-		{
-			data: `{"retentionPolicy":"foo"}`,
-			err:  `retention policy: Rat.Scan: invalid syntax`,
-		},
-
-		// 4. Shard space w/ invalid duration.
-		{
-			data: `{"shardDuration":"foo"}`,
-			err:  `shard duration: Rat.Scan: invalid syntax`,
-		},
-
-		// 4. Shard space w/ invalid regex.
-		{
-			data: `{"regex":"/foo[as/"}`,
-			err:  "regex: error parsing regexp: missing closing ]: `[as`",
-		},
-
-		// 4. Shard space w/ invalid JSON.
-		{
-			data: `{"nooooooo`,
-			err:  "unexpected end of JSON input",
-		},
-	}
-
-	for i, tt := range tests {
-		// Decode JSON to shard space.
-		ss := influxdb.NewShardSpace()
-		if err := json.Unmarshal([]byte(tt.data), ss); tt.err != errstr(err) {
-			t.Errorf("%d. mismatch(error):\n\nexp=%s\n\ngot=%s", i, tt.err, errstr(err))
-		} else if tt.err == "" && !reflect.DeepEqual(tt.ss, ss) {
-			t.Errorf("%d. mismatch(unmarshal):\n\nexp=%#v\n\ngot=%#v", i, tt.ss, ss)
-		}
 	}
 }

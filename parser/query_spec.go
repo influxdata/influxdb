@@ -221,3 +221,20 @@ func (self *QuerySpec) IsDestructiveQuery() bool {
 func (self *QuerySpec) HasAggregates() bool {
 	return self.SelectQuery() != nil && self.SelectQuery().HasAggregates()
 }
+
+// CanAggregateLocally returns true if query can be aggregated locally with the shard duration.
+func (self *QuerySpec) CanAggregateLocally(d time.Duration) bool {
+	f := self.GetFromClause()
+	if f != nil && (f.Type == FromClauseInnerJoin || f.Type == FromClauseMerge) {
+		return false
+	}
+
+	groupByInterval := self.GetGroupByInterval()
+	if groupByInterval == nil {
+		if self.HasAggregates() {
+			return false
+		}
+		return true
+	}
+	return (d%*groupByInterval == 0) && !self.GroupByIrregularInterval
+}

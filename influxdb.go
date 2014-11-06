@@ -9,36 +9,6 @@ import (
 	"github.com/influxdb/influxdb/parser"
 )
 
-// Series represents a series of timeseries points.
-type Series struct {
-	ID     uint64 `json:"id,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Fields Fields `json:"fields,omitempty"`
-}
-
-// Field represents a series field.
-type Field struct {
-	ID   uint64 `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-}
-
-// String returns a string representation of the field.
-func (f *Field) String() string {
-	return fmt.Sprintf("Name: %s, ID: %d", f.Name, f.ID)
-}
-
-// Fields represents a list of fields.
-type Fields []*Field
-
-// Names returns a list of all field names.
-func (a Fields) Names() []string {
-	names := make([]string, len(a))
-	for i, f := range a {
-		names[i] = f.Name
-	}
-	return names
-}
-
 // recoverFunc handles recovery in the event of a panic.
 func recoverFunc(database, query string, cleanup func(err interface{})) {
 	if err := recover(); err != nil {

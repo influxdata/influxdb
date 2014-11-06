@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +20,8 @@ type Database struct {
 
 	users  map[string]*DBUser     // database users by name
 	spaces map[string]*ShardSpace // shard spaces by name
-	shards map[uint32]*shard      // shards by id
+	shards map[uint32]*Shard      // shards by id
+	series map[string]*Series     // series by name
 }
 
 // newDatabase returns an instance of Database associated with a server.
@@ -30,7 +30,8 @@ func newDatabase(s *Server) *Database {
 		server: s,
 		users:  make(map[string]*DBUser),
 		spaces: make(map[string]*ShardSpace),
-		shards: make(map[uint32]*shard),
+		shards: make(map[uint32]*Shard),
+		series: make(map[string]*Series),
 	}
 }
 
@@ -270,23 +271,111 @@ func (db *Database) ExecuteQuery(u parser.User, q *parser.Query) error {
 	// TODO: ListSeries
 	// TODO: DropSeries
 	switch q.Type() {
-	case parser.Delete:
-		return db.executeDeleteQuery(u, spec)
 	case parser.Select:
 		return db.executeSelectQuery(u, spec)
+	case parser.Delete:
+		return db.executeDeleteQuery(u, spec)
 	default:
 		return ErrInvalidQuery
 	}
 }
 
+// executeSelectQuery executes a selection query against the database.
+func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec) error {
+	q := spec.SelectQuery()
+
+	// Find series matching query.
+	series := db.seriesByTableNames(q.FromClause.Names)
+
+	// Find a list of spaces matching the series.
+	spaces := db.spacesBySeries(series)
+	shards := ShardSpaces(spaces).Shards()
+
+	// Select subset of shards matching date range.
+	shards = shardsInRange(shards, spec.GetStartTime(), spec.GetEndTime())
+
+	// Sort shards in appropriate order based on query.
+	if querySpec.IsAscending() {
+		sort.Sort(shardsAsc(shards))
+	} else {
+		sort.Sort(shardsDesc(shards))
+	}
+
+	// If "group by" interval lines up with shard duration and from clause
+	// is not "inner join" or "merge" then we can aggregate locally.
+	local := true
+	for _, s := range shards {
+		if !spec.CanAggregateLocally(s.Duration()) {
+			local = false
+			break
+		}
+	}
+
+	// TODO: If aggregating locally then use PassthroughWithLimit processor.
+	// TODO: If not aggregating locally then use QueryEngine.
+	// TODO: If no shards are found then close the processor.
+	// TODO: Limit concurrent shard limit to 1 if we must run sequentially.
+	// TODO: Create MergeChannelProcessor.
+	// TODO: Loop over shards, create response channel, kick off querying.
+	// TODO: Return data (?).
+
+	return nil
+}
+
+// seriesByTableNames returns a list of series that match a set of table names.
+func (db *Database) seriesByTableNames(names []*parser.TableName) (a []*Series) {
+	for _, s := range db.series {
+		for _, name := range names {
+			if re, ok := name.Name.GetCompiledRegex(); ok {
+				if re.MatchString(s.Name) {
+					a = append(a, s)
+				}
+			} else if name.Name.Name == s.Name {
+				a = append(a, s)
+			}
+		}
+	}
+	return
+}
+
+// spacesBySeries returns a list of unique shard spaces that match a set of series.
+func (db *Database) spacesBySeries(series []*Series) (a []*ShardSpace) {
+	m := make(map[*ShardSpace]struct{})
+	for _, s := range series {
+		for _, ss := range db.spaces {
+			// Check if we've already matched the space with a previous series.
+			if _, ok := m[ss]; ok {
+				continue
+			}
+
+			// Add shard space shards that match.
+			if ss.Regex.MatchString(s.Name) {
+				a = append(a, ss)
+				m[ss] = struct{}{}
+			}
+		}
+	}
+	return
+}
+
+// shardsInRange returns a subset of shards that are in the range of tmin and tmax.
+func shardsInRange(shards []*Shard, tmin, tmax time.Time) (a []*Shard) {
+	for _, s := range shards {
+		if timeBetween(s.StartTime, tmin, tmax) && timeBetween(s.EndTime, tmin, tmax) {
+			a = append(a, s)
+		}
+	}
+	return
+}
+
+// timeBetween returns true if t is between min and max, inclusive.
+func timeBetween(t, min, max time.Time) bool {
+	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
+}
+
 // executeDeleteQuery executes a deletion query against the database.
 func (db *Database) executeDeleteQuery(u parser.User, spec *parser.QuerySpec) error {
 	// TODO: Execute deletion message to broker.
-	panic("not yet implemented") // TODO
-}
-
-// executeSelectQuery executes a selection query against the database.
-func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec) error {
 	panic("not yet implemented") // TODO
 }
 
@@ -331,9 +420,9 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 	}
 
 	// Copy shards.
-	db.shards = make(map[uint32]*shard)
+	db.shards = make(map[uint32]*Shard)
 	for _, s := range o.Shards {
-		db.shards[s.id] = s
+		db.shards[s.ID] = s
 	}
 
 	return nil
@@ -344,7 +433,7 @@ type databaseJSON struct {
 	Name   string        `json:"name,omitempty"`
 	Users  []*DBUser     `json:"users,omitempty"`
 	Spaces []*ShardSpace `json:"spaces,omitempty"`
-	Shards []*shard      `json:"shards,omitempty"`
+	Shards []*Shard      `json:"shards,omitempty"`
 }
 
 // databases represents a list of databases, sortable by name.
@@ -367,29 +456,31 @@ type ShardSpace struct {
 
 	ReplicaN uint32
 	SplitN   uint32
+
+	Shards []*Shard
 }
 
 // NewShardSpace returns a new instance of ShardSpace with defaults set.
 func NewShardSpace() *ShardSpace {
 	return &ShardSpace{
 		Regex:     regexp.MustCompile(`.*`),
+		ReplicaN:  DefaultReplicaN,
+		SplitN:    DefaultSplitN,
 		Retention: DefaultShardRetention,
 		Duration:  DefaultShardDuration,
-		SplitN:    DefaultSplitN,
-		ReplicaN:  DefaultReplicaN,
 	}
 }
 
 // MarshalJSON encodes a shard space to a JSON-encoded byte slice.
 func (s *ShardSpace) MarshalJSON() ([]byte, error) {
-	var o shardSpaceJSON
-	o.Name = s.Name
-	o.ReplicaN = s.ReplicaN
-	o.SplitN = s.SplitN
-	o.Regex = s.Regex.String()
-	o.Retention = parser.FormatTimeDuration(s.Retention)
-	o.Duration = parser.FormatTimeDuration(s.Duration)
-	return json.Marshal(&o)
+	return json.Marshal(&shardSpaceJSON{
+		Name:      s.Name,
+		Regex:     s.Regex.String(),
+		Retention: s.Retention,
+		Duration:  s.Duration,
+		ReplicaN:  s.ReplicaN,
+		SplitN:    s.SplitN,
+	})
 }
 
 // UnmarshalJSON decodes a JSON-encoded byte slice to a shard space.
@@ -404,38 +495,13 @@ func (s *ShardSpace) UnmarshalJSON(data []byte) error {
 	s.Name = o.Name
 	s.ReplicaN = o.ReplicaN
 	s.SplitN = o.SplitN
+	s.Retention = o.Retention
+	s.Duration = o.Duration
+	s.Shards = o.Shards
 
-	// Parse regex.
-	if o.Regex != "" {
-		if regex, err := compileRegex(o.Regex); err != nil {
-			return fmt.Errorf("regex: %s", err)
-		} else {
-			s.Regex = regex
-		}
-	} else {
+	s.Regex, _ = regexp.Compile(o.Regex)
+	if s.Regex == nil {
 		s.Regex = regexp.MustCompile(`.*`)
-	}
-
-	// Parse retention.
-	if o.Retention == "inf" || o.Retention == "" {
-		s.Retention = time.Duration(0)
-	} else {
-		retention, err := parser.ParseTimeDuration(o.Retention)
-		if err != nil {
-			return fmt.Errorf("retention policy: %s", err)
-		}
-		s.Retention = retention
-	}
-
-	// Parse duration.
-	if o.Duration == "inf" || o.Duration == "" {
-		s.Duration = time.Duration(0)
-	} else {
-		duration, err := parser.ParseTimeDuration(o.Duration)
-		if err != nil {
-			return fmt.Errorf("shard duration: %s", err)
-		}
-		s.Duration = duration
 	}
 
 	return nil
@@ -443,22 +509,53 @@ func (s *ShardSpace) UnmarshalJSON(data []byte) error {
 
 // shardSpaceJSON represents an intermediate struct for JSON marshaling.
 type shardSpaceJSON struct {
-	Name      string `json:"name"`
-	Regex     string `json:"regex,omitempty"`
-	Retention string `json:"retentionPolicy,omitempty"`
-	Duration  string `json:"shardDuration,omitempty"`
-	ReplicaN  uint32 `json:"replicationFactor,omitempty"`
-	SplitN    uint32 `json:"split,omitempty"`
+	Name      string        `json:"name"`
+	Regex     string        `json:"regex,omitempty"`
+	ReplicaN  uint32        `json:"replicaN,omitempty"`
+	SplitN    uint32        `json:"splitN,omitempty"`
+	Retention time.Duration `json:"retention,omitempty"`
+	Duration  time.Duration `json:"duration,omitempty"`
+	Shards    []*Shard      `json:"shards,omitempty"`
 }
 
-// compiles a regular expression. Removes leading and ending slashes.
-func compileRegex(s string) (*regexp.Regexp, error) {
-	if strings.HasPrefix(s, "/") {
-		if strings.HasSuffix(s, "/i") {
-			s = fmt.Sprintf("(?i)%s", s[1:len(s)-2])
-		} else {
-			s = s[1 : len(s)-1]
-		}
+// ShardSpaces represents a list of shard spaces.
+type ShardSpaces []*ShardSpace
+
+// Shards returns a list of all shards for all spaces.
+func (a ShardSpaces) Shards() []*Shard {
+	var shards []*Shard
+	for _, ss := range a {
+		shards = append(shards, ss.Shards...)
 	}
-	return regexp.Compile(s)
+	return shards
+}
+
+// Series represents a series of timeseries points.
+type Series struct {
+	ID     uint64 `json:"id,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Fields Fields `json:"fields,omitempty"`
+}
+
+// Field represents a series field.
+type Field struct {
+	ID   uint64 `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+}
+
+// String returns a string representation of the field.
+func (f *Field) String() string {
+	return fmt.Sprintf("Name: %s, ID: %d", f.Name, f.ID)
+}
+
+// Fields represents a list of fields.
+type Fields []*Field
+
+// Names returns a list of all field names.
+func (a Fields) Names() []string {
+	names := make([]string, len(a))
+	for i, f := range a {
+		names[i] = f.Name
+	}
+	return names
 }
