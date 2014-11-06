@@ -15,6 +15,7 @@ ROCKSDB_LIB = @ROCKSDB_LIB@
 # or 386, arm
 arch   = amd64
 CGO_ENABLED = 1
+sed_i = @sed_i@
 
 ifneq ($(GOROOT),)
 export GOROOT
@@ -53,9 +54,9 @@ endif
 export GOARCH
 export CGO_ENABLED
 
-.PHONY: all valgrind parser package replace_version_string build binary_package dependencies clean
+.PHONY: all valgrind parser package replace_version_string build build_binary build_benchmark binary_package dependencies clean
 
-all: | parser valgrind build test integration_test
+all: | parser valgrind test integration_test
 
 parser:
 	$(MAKE) -C parser
@@ -69,18 +70,15 @@ uname_S = $(shell sh -c "uname -s 2>/dev/null || echo not")
 
 valgrind:
 ifeq ($(uname_S),Linux)
+ifneq ($(VALGRIND),notfound)
 	$(MAKE) -C parser valgrind
+endif
 endif
 
 # packages
-packages_base = admin api/http api/graphite cluster common configuration	\
-  checkers coordinator datastore engine parser protocol wal
-build_packages = $(addprefix github.com/influxdb/influxdb/,$(packages_base))
-test_packages =
+test_packages = $(shell sh -c "go list github.com/influxdb/influxdb/... | egrep -v 'integration|tools'")
 ifneq ($(packages),)
 test_packages = $(addprefix github.com/influxdb/influxdb/,$(packages))
-else
-test_packages = $(build_packages)
 endif
 
 # Storage engines libraries
@@ -172,99 +170,76 @@ $(snappy_deps):
 ifeq ($(uname_S),Linux)
 	rm -rf $(snappy_dir)
 	mkdir -p $(snappy_dir)
-	bash -c "cd $(snappy_dir); \
-	wget https://snappy.googlecode.com/files/$(snappy_file); \
+	( cd $(snappy_dir);	wget https://snappy.googlecode.com/files/$(snappy_file); \
 	tar --strip-components=1 -xvzf $(snappy_file); \
-	CFLAGS='$(cflags)' CXXFLAGS='$(cflags)' ./configure --enable-shared=no $(cross_flags); \
-	$(MAKE)"
+	CFLAGS='$(cflags)' CXXFLAGS='$(cflags)' ./configure --enable-shared=no $(cross_flags) )
+	$(MAKE) -C $(snappy_dir)
 endif
 
 $(leveldb_deps): $(snappy_deps)
 ifeq ($(uname_S),Linux)
 	rm -rf $(leveldb_dir)
 	mkdir -p $(leveldb_dir)
-	bash -c "cd $(leveldb_dir); \
-	wget https://leveldb.googlecode.com/files/$(leveldb_file); \
-	tar --strip-components=1 -xvzf $(leveldb_file); \
-	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE) libleveldb.a"
+	( cd $(leveldb_dir); wget https://leveldb.googlecode.com/files/$(leveldb_file); tar --strip-components=1 -xvzf $(leveldb_file); )
+	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' $(MAKE) -C $(leveldb_dir) libleveldb.a
 endif
 
 $(rocksdb_deps): $(snappy_deps)
 ifeq ($(uname_S),Linux)
 	rm -rf $(rocksdb_dir)
 	mkdir -p $(rocksdb_dir)
-	bash -c "cd $(rocksdb_dir); \
-	wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
-	tar --strip-components=1 -xvzf $(rocksdb_file); \
-	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs $(LRT_LDFLAG)' $(MAKE) librocksdb.a"
+	( cd $(rocksdb_dir); wget -O $(rocksdb_file) https://github.com/facebook/rocksdb/archive/$(rocksdb_file); \
+	tar --strip-components=1 -xvzf $(rocksdb_file); )
+	CFLAGS='-I$(snappy_dir) $(cflags)' CXXFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs $(LRT_LDFLAG)' $(MAKE) -C $(rocksdb_dir) librocksdb.a
 endif
 
 $(hyperleveldb_deps): $(snappy_deps)
 ifeq ($(uname_S),Linux)
 	rm -rf $(hyperleveldb_dir)
 	mkdir -p $(hyperleveldb_dir)
-	bash -c "cd $(hyperleveldb_dir); \
-	wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file) -O $(hyperleveldb_file); \
+	( cd $(hyperleveldb_dir); wget https://github.com/influxdb/HyperLevelDB/archive/$(hyperleveldb_file) -O $(hyperleveldb_file); \
 	tar --strip-components=1 -xvzf $(hyperleveldb_file); \
-  $(AUTORECONF) -i; \
-	CXXFLAGS='-I$(snappy_dir) $(cflags)' CFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' ./configure --enable-shared=no; \
-	$(MAKE) V=1"
+  $(AUTORECONF) -i; CXXFLAGS='-I$(snappy_dir) $(cflags)' CFLAGS='-I$(snappy_dir) $(cflags)' LDFLAGS='-L$(snappy_dir)/.libs' ./configure --enable-shared=no )
+	$(MAKE) -C $(hyperleveldb_dir) V=1
 endif
-
-proto_dependency  = code.google.com/p/goprotobuf/protoc-gen-go
-
-dependencies = code.google.com/p/go.crypto/bcrypt \
-code.google.com/p/goprotobuf/proto \
-code.google.com/p/log4go \
-github.com/bmizerany/pat \
-github.com/fitstar/falcore \
-github.com/fitstar/falcore/filter \
-github.com/gorilla/mux \
-github.com/influxdb/influxdb/_vendor/raft \
-github.com/influxdb/go-cache \
-github.com/BurntSushi/toml \
-code.google.com/p/gogoprotobuf/proto \
-github.com/influxdb/gomdb \
-code.google.com/p/go.tools/cmd/vet \
-github.com/jmhodges/levigo \
-github.com/influxdb/rocksdb \
-github.com/influxdb/hyperleveldb-go
-
-dependencies_paths := $(addprefix $(root)/src/,$(dependencies))
-
-$(dependencies_paths):
-	for i in $(dependencies); do $(GO) get -d $$i; done
 
 storage_engines += $(leveldb_deps)
 
-dependencies: $(storage_engines) $(dependencies_paths)
-
-test_dependencies: dependencies
-	$(GO) get launchpad.net/gocheck
+dependencies: $(storage_engines)
+	$(GO) get $(GO_BUILD_OPTIONS) -d -t github.com/influxdb/influxdb/...
 
 $(root)/bin/protoc-gen-go:
-	$(GO) get $(proto_dependency)
+	$(GO) get code.google.com/p/goprotobuf/protoc-gen-go
 
 protobuf: $(root)/bin/protoc-gen-go
 	rm -f protocol/*.pb.go
 	PATH=$(root)/bin:$$PATH $(PROTOC) --go_out=. protocol/*.proto
 
-build: | dependencies protobuf parser build_version_string
-# TODO: build all packages, otherwise we won't know
-# if there's an error
-	$(GO) build -o influxdb $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/daemon
+pre_build: dependencies protobuf parser build_version_string
+
+build_benchmark: pre_build
 	$(GO) build -o benchmark-storage $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/cmd/benchmark-storage
 	$(GO) build -o benchmark-tool github.com/influxdb/influxdb/cmd/benchmark
+
+build_binary: pre_build
+	$(GO) build -o influxdb $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/daemon
+
+build: build_binary build_benchmark
 
 clean:
 	git status --ignored | grep src\/ | grep -v Makefile | xargs rm -rf
 	rm -rf ${TMPDIR}/influxdb
-	rm -rf ${TMPDIR}/admin.influxdb
 	rm -rf $(snappy_dir)
 	rm -rf $(leveldb_dir)
 	rm -rf $(hyperleveldb_dir)
 	rm -rf $(rocksdb_dir)
 	$(MAKE) -C parser clean
+	$(GO) get -u $(GO_BUILD_OPTIONS) -d -t github.com/influxdb/influxdb/...
+
+rebuild_static_assets:
+	$(GO) get github.com/rakyll/statik
+	$(GOPATH)/bin/statik -src=./shared/admin
+	$(MAKE) format
 
 only =
 verbose = off
@@ -283,23 +258,21 @@ endif
 timeout = 20m
 GOTEST_OPTS += -test.timeout=$(timeout)
 
-test: test_dependencies parser protobuf
+test: dependencies parser protobuf
 	$(GO) test $(test_packages) $(GOTEST_OPTS)
 
-coverage: test_dependencies
-	for i in $(build_packages); do $(GO) test -coverprofile ${TMPDIR}/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
+coverage: dependencies
+	for i in $(test_packages); do $(GO) test -coverprofile ${TMPDIR}/influxdb.$${i/\//}.coverage $$i $(GOTEST_OPTS); \
    $(GO) tool cover -html=${TMPDIR}/influxdb.$${i/\//}.coverage; done
 
-
-integration_test: test_dependencies build
+integration_test: dependencies build_binary
 	$(GO) test github.com/influxdb/influxdb/integration $(GOTEST_OPTS)
 
 package_version=$(subst -,_,$(version))
-admin_dir = ${TMPDIR}/admin.influxdb
 
 source_package = packages/influxdb-$(version).src.tar.gz
 binary_package = packages/influxdb-$(version).$(arch).tar.gz
-rpm_args = :
+rpm_args =
 ifeq ($(arch),386)
 	rpm_package = packages/influxdb-$(package_version)-1.i686.rpm
 	debian_package = packages/influxdb_$(version)_i686.deb
@@ -313,30 +286,29 @@ else
 	debian_package = packages/influxdb_$(version)_amd64.deb
 endif
 
-files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
+package_files = $(binary_package) $(debian_package) $(rpm_package) $(source_package)
 sha1 = $(shell sh -c "git rev-list --max-count=1 --abbrev-commit HEAD")
 
 build_version_string:
-	@echo "package main"										 > cmd/influxd/version.go
-	@echo "const version = \"$(version)\"" >> cmd/influxd/version.go
-	@echo "const gitSha = \"$(sha1)\""     >> cmd/influxd/version.go
+	echo "package main"										 > cmd/influxd/version.go
+	echo "const version = \"$(version)\"" >> cmd/influxd/version.go
+	echo "const gitSha = \"$(sha1)\""     >> cmd/influxd/version.go
 
 package_version_string: build_version_string
 	sed -i.bak -e "s/REPLACE_VERSION/$(version)/" scripts/post_install.sh
 
-$(admin_dir)/build:
-	rm -rf $(admin_dir)
-	git clone https://github.com/influxdb/influxdb-admin.git $(admin_dir)
-	( rvm use 1.9.3@influxdb --create && cd $(admin_dir) && bundle install && middleman build )
-
-$(rpm_package): $(admin_dir)/build build
+$(rpm_package): $(binary_package)
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
-	( rvm use 1.9.3@influxdb && cd out_rpm && $(rpm_args) && fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) . )
+# `$(rpm_args)` has to follow the command directory. `rpm_args` gets set to setarch
+# which changes the output of `uname -m` to the desired architecture and runs the
+# following command. Without any commands to follow `setarch` will start an interactive
+# shell and pause the package process
+	( rvm use 1.9.3@influxdb && cd out_rpm && $(rpm_args) fpm -s dir -t rpm --after-install ../scripts/post_install.sh -n influxdb -v $(version) . )
 	mv out_rpm/$(shell basename $(rpm_package)) packages/
 
-$(debian_package): $(admin_dir)/build build
+$(debian_package): $(binary_package)
 	rm -rf out_rpm
 	mkdir -p out_rpm/opt/influxdb/versions/$(version)
 	cp -r build/* out_rpm/opt/influxdb/versions/$(version)
@@ -344,32 +316,39 @@ $(debian_package): $(admin_dir)/build build
 	mv out_rpm/$(shell basename $(debian_package)) packages/
 
 $(source_package): dependencies
+	rm -f influxdb
+	git ls-files --others | egrep -v 'version.go' > ${TMPDIR}/influxdb.ignored
+	echo "pkg/*" >> ${TMPDIR}/influxdb.ignored
+	echo "bin/*" >> ${TMPDIR}/influxdb.ignored
+	echo "packages/*" >> ${TMPDIR}/influxdb.ignored
+	echo "build/*" >> ${TMPDIR}/influxdb.ignored
+	echo "out_rpm/*" >> ${TMPDIR}/influxdb.ignored
 	rm -rf ${TMPDIR}/influxdb.gopath
-	GOPATH=${TMPDIR}/influxdb.gopath $(GO) get -d github.com/influxdb/influxdb/daemon
-	cp protocol/*.pb.go ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/protocol
-	cp daemon/version.go ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/daemon
-	cp -R $(admin_dir)/build ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb/admin-ui
-	tar --exclude-vcs -cvzf $(source_package) -C ${TMPDIR}/influxdb.gopath .
+	mkdir -p ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/
+	cp -R $(shell pwd) ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/
+	GOPATH=${TMPDIR}/influxdb.gopath $(MAKE) -C ${TMPDIR}/influxdb.gopath/src/github.com/influxdb/influxdb build
+	tar -hcvzf $(source_package) -C ${TMPDIR}/influxdb.gopath -X ${TMPDIR}/influxdb.ignored .
 
-$(binary_package): $(admin_dir)/build build packages
+$(binary_package): build packages
 	rm -rf build
 	mkdir build
 	mv influxdb build/
 	mv benchmark-tool build/influxdb-benchmark
 	cp cmd/benchmark/benchmark_config.sample.toml build/benchmark_config.toml
-	mkdir build/admin
-	cp -R $(admin_dir)/build/* build/admin/
 	cp -R scripts/ build/
 	cp config.sample.toml build/config.toml
-	sed -i 's/.\/admin/\/opt\/influxdb\/current\/admin/g' build/config.toml
-	sed -i 's/influxdb.log/\/opt\/influxdb\/shared\/log.txt/g' build/config.toml
-	sed -i 's:${TMPDIR}/influxdb/development/db:/opt/influxdb/shared/data/db:g' build/config.toml
-	sed -i 's:${TMPDIR}/influxdb/development/raft:/opt/influxdb/shared/data/raft:g' build/config.toml
-	sed -i 's:${TMPDIR}/influxdb/development/wal:/opt/influxdb/shared/data/wal:g' build/config.toml
+	sed_i 's/influxdb.log/\/opt\/influxdb\/shared\/log.txt/g' build/config.toml
+	sed_i 's:${TMPDIR}/influxdb/development/db:/opt/influxdb/shared/data/db:g' build/config.toml
+	sed_i 's:${TMPDIR}/influxdb/development/raft:/opt/influxdb/shared/data/raft:g' build/config.toml
+	sed_i 's:${TMPDIR}/influxdb/development/wal:/opt/influxdb/shared/data/wal:g' build/config.toml
 	rm -f build/scripts/post_install.sh.bak
 	tar -czf $(binary_package) build/*
 
 binary_package: $(binary_package)
+
+source_package: $(source_package)
+
+distro_packages: $(rpm_package) $(debian_package)
 
 packages:
 	mkdir $@
@@ -380,7 +359,7 @@ flymake:
 flymake_test:
 	for i in $(packages); do $(GO) test -c $$i; done
 
-package: | packages build package_version_string $(files)
+package: | packages build package_version_string $(package_files)
 	mv -f scripts/post_install.sh.bak scripts/post_install.sh
 
 install: binary_package

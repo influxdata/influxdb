@@ -78,3 +78,7 @@ func (self *ArithmeticEngine) Close() error {
 func (self *ArithmeticEngine) Name() string {
 	return "Arithmetic Engine"
 }
+
+func (self *ArithmeticEngine) Next() Processor {
+	return self.next
+}

@@ -4,6 +4,7 @@ package coordinator
 // queries to write their output back into the db
 
 import (
+	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
@@ -47,4 +48,8 @@ func (self *ContinuousQueryWriter) Close() error {
 
 func (self *ContinuousQueryWriter) Name() string {
 	return "ContinuousQueryWriter"
+}
+
+func (self *ContinuousQueryWriter) Next() engine.Processor {
+	return nil
 }

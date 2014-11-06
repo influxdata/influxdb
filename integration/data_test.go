@@ -72,6 +72,33 @@ func (self *DataTestSuite) TestInfiniteValues(c *C) {
 	c.Assert(maps[0]["derivative"], IsNil)
 }
 
+// This test tries to write a large batch of points to a shard that is
+// supposed to be dropped. This will demonstrate issue #985: while the
+// data is being written, InfluxDB will close the underlying storage
+// engine which will cause random errors to be thrown and could
+// possibly corrupt the db.
+func (self *DataTestSuite) TestWritingToExpiredShards(c *C) {
+	client := self.server.GetClient(self.dbname, c)
+	err := client.CreateShardSpace(self.dbname, &influxdb.ShardSpace{
+		Name:            "default",
+		Regex:           ".*",
+		RetentionPolicy: "7d",
+		ShardDuration:   "1y",
+	})
+	c.Assert(err, IsNil)
+
+	data := CreatePoints("test_using_deleted_shard", 1, 1000000)
+	data[0].Columns = append(data[0].Columns, "time")
+	for i := range data[0].Points {
+		data[0].Points[i] = append(data[0].Points[i], 0)
+	}
+	// This test will fail randomly without the fix submitted in the
+	// same commit. 10 times is sufficient to trigger the bug.
+	for i := 0; i < 10; i++ {
+		self.client.WriteData(data, c, influxdb.Second)
+	}
+}
+
 // test large integer values
 func (self *DataTestSuite) TestLargeIntegerValues(c *C) {
 	// make sure we exceed the pointBatchSize, so we force a yield to
@@ -119,6 +146,12 @@ func (self *DataTestSuite) TestDerivativeValues(c *C) {
 	maps := ToMap(serieses[0])
 	c.Assert(maps, HasLen, 1)
 	c.Assert(maps[0]["derivative"], Equals, 10.0)
+}
+
+func (self *DataTestSuite) TestInvalidSeriesInSelect(c *C) {
+	client := self.server.GetClient(self.dbname, c)
+	_, err := client.Query("select value from some_invalid_series_name", "m")
+	c.Assert(err, ErrorMatches, ".*Couldn't find series: some_invalid_series_name.*")
 }
 
 // Simple case of difference function
@@ -265,6 +298,75 @@ func (self *DataTestSuite) TestModeWithNils(c *C) {
 	maps := ToMap(serieses[0])
 	c.Assert(maps, HasLen, 1)
 	c.Assert(maps[0]["m2"], Equals, nil)
+}
+
+func (self *DataTestSuite) TestMergeRegexOneSeries(c *C) {
+	data := `
+[
+  {
+    "name": "test_merge_1",
+    "columns": ["time", "value"],
+    "points": [
+      [1401321700000, "m11"],
+      [1401321600000, "m12"]
+    ]
+  }
+]`
+
+	self.client.WriteJsonData(data, c, influxdb.Millisecond)
+	serieses := self.client.RunQuery("select * from merge(/.*/)", c, "m")
+	c.Assert(serieses, HasLen, 1)
+	maps := ToMap(serieses[0])
+	c.Assert(maps, HasLen, 2)
+	c.Assert(maps[0]["value"], Equals, "m11")
+	c.Assert(maps[1]["value"], Equals, "m12")
+}
+
+func (self *DataTestSuite) TestMergeRegex(c *C) {
+	data := `
+[
+  {
+    "name": "test_merge_1",
+    "columns": ["time", "value"],
+    "points": [
+      [1401321600000, "m11"],
+      [1401321800000, "m12"]
+    ]
+  },
+  {
+    "name": "test_merge_2",
+    "columns": ["time", "value"],
+    "points": [
+      [1401321700000, "m21"],
+      [1401321900000, "m22"]
+    ]
+  },
+  {
+    "name": "test_merge_3",
+    "columns": ["time", "value"],
+    "points": [
+      [1401321500000, "m31"],
+      [1401322000000, "m32"]
+    ]
+  }
+ ]`
+	self.client.WriteJsonData(data, c, influxdb.Millisecond)
+	serieses := self.client.RunQuery("select * from merge(/.*/)", c, "m")
+	c.Assert(serieses, HasLen, 1)
+	maps := ToMap(serieses[0])
+	c.Assert(maps, HasLen, 6)
+	t := make([]float64, len(maps))
+	for i, m := range maps {
+		t[i] = m["time"].(float64)
+	}
+	c.Assert(t, DeepEquals, []float64{
+		1401322000000,
+		1401321900000,
+		1401321800000,
+		1401321700000,
+		1401321600000,
+		1401321500000,
+	})
 }
 
 func (self *DataTestSuite) TestMergingOldData(c *C) {
@@ -445,6 +547,41 @@ func (self *DataTestSuite) TestWhereAndArithmetic(c *C) {
 	maps := ToMap(serieses[0])
 	c.Assert(maps, HasLen, 1)
 	c.Assert(maps[0]["expr0"], Equals, 2.0)
+}
+
+// issue #524
+func (self *DataTestSuite) TestJoinRegex(c *C) {
+	t1 := time.Now().Truncate(time.Hour).Add(-4 * time.Hour)
+	t2 := t1.Add(time.Hour)
+	data := fmt.Sprintf(`[
+{
+  "name":"foo1",
+  "columns":["time", "val"],
+  "points":[[%d, 1],[%d, 2]]
+},
+{
+  "name":"foo2",
+  "columns":["time", "val"],
+  "points":[[%d, 3],[%d, 4]]
+
+},
+{
+  "name":"foo3",
+  "columns":["time", "val"],
+  "points":[[%d, 5],[%d, 6]]
+
+}]`, t1.Unix(), t2.Unix(), t1.Unix(), t2.Unix(), t1.Unix(), t2.Unix())
+	self.client.WriteJsonData(data, c, "s")
+	serieses := self.client.RunQuery("select * from join(/foo\\d+/)", c, "m")
+	c.Assert(serieses, HasLen, 1)
+	maps := ToMap(serieses[0])
+	c.Assert(maps, HasLen, 2)
+	c.Assert(maps[0]["foo1.val"], Equals, 2.0)
+	c.Assert(maps[0]["foo2.val"], Equals, 4.0)
+	c.Assert(maps[0]["foo3.val"], Equals, 6.0)
+	c.Assert(maps[1]["foo1.val"], Equals, 1.0)
+	c.Assert(maps[1]["foo2.val"], Equals, 3.0)
+	c.Assert(maps[1]["foo3.val"], Equals, 5.0)
 }
 
 // issue #524
@@ -1135,6 +1272,24 @@ func (self *DataTestSuite) TestWhereConditionWithExpression(c *C) {
 	c.Assert(maps[0]["b"], Equals, 1.0)
 }
 
+func (self *DataTestSuite) JoinedWithSelf(c *C) (Fun, Fun) {
+	return func(client Client) {
+			client.WriteJsonData(`
+[
+  {
+    "name": "t",
+    "columns": ["time", "value"],
+    "points":[
+		  [1381346706000, 3],
+		  [1381346701000, 1]
+	  ]
+  }
+]`, c, influxdb.Millisecond)
+		}, func(client Client) {
+			client.RunInvalidQuery("select * from t as foo inner join t as bar", c, "m")
+		}
+}
+
 // issue #740 and #781
 func (self *DataTestSuite) TestJoiningDifferentFields(c *C) {
 	// TODO: why do we get a different error if we remove all but the first values
@@ -1452,6 +1607,167 @@ func (self *DataTestSuite) TestGroupByDay(c *C) {
 	c.Assert(maps, HasLen, 2)
 	c.Assert(maps[0]["count"], Equals, 3.0)
 	c.Assert(maps[1]["count"], Equals, 1.0)
+}
+
+func (self *DataTestSuite) TestLogicalGroupByBoundariesForWeek(c *C) {
+	tueSep30 := time.Date(2014, 9, 30, 12, 0, 0, 0, time.UTC).Unix()
+	friOct03 := time.Date(2014, 10, 3, 12, 0, 0, 0, time.UTC).Unix()
+	monOct06 := time.Date(2014, 10, 6, 12, 0, 0, 0, time.UTC).Unix()
+
+	sunSep28 := time.Date(2014, 9, 28, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+	sunOct05 := time.Date(2014, 10, 5, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+	data := fmt.Sprintf(`
+  [{
+    "name": "test_group_by_week",
+    "columns": ["value", "time"],
+    "points": [
+      [1, %d],
+      [2, %d],
+      [3, %d],
+
+      [4, %d],
+      [5, %d],
+      [6, %d],
+      [7, %d],
+
+      [8, %d],
+      [9, %d]
+    ]
+  }]`, tueSep30, tueSep30, tueSep30, friOct03, friOct03, friOct03, friOct03, monOct06, monOct06)
+
+	self.client.WriteJsonData(data, c, "s")
+	collection := self.client.RunQuery("select count(value) from test_group_by_week group by time(1w)", c)
+	c.Assert(collection, HasLen, 1)
+	maps := ToMap(collection[0])
+	c.Assert(maps, HasLen, 2)
+	c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": float64(sunOct05), "count": 2.0})
+	c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": float64(sunSep28), "count": 7.0})
+}
+
+func (self *DataTestSuite) TestLogicalGroupByBoundariesForMonth(c *C) {
+	aug30 := time.Date(2014, 8, 30, 12, 0, 0, 0, time.UTC).Unix()
+	aug31 := time.Date(2014, 8, 31, 12, 0, 0, 0, time.UTC).Unix()
+	sep01 := time.Date(2014, 9, 1, 12, 0, 0, 0, time.UTC).Unix()
+	sep30 := time.Date(2014, 9, 30, 12, 0, 0, 0, time.UTC).Unix()
+	oct01 := time.Date(2014, 10, 1, 12, 0, 0, 0, time.UTC).Unix()
+
+	aug := time.Date(2014, 8, 1, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+	sep := time.Date(2014, 9, 1, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+	oct := time.Date(2014, 10, 1, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+
+	data := fmt.Sprintf(`
+  [{
+    "name": "test_group_by_month",
+    "columns": ["value", "time"],
+    "points": [
+      [1, %d],
+      [2, %d],
+      [3, %d],
+
+      [4, %d],
+      [5, %d],
+      [6, %d],
+      [7, %d],
+      [8, %d],
+      [9, %d],
+
+      [10, %d],
+      [11, %d]
+    ]
+  }]`, aug30, aug31, aug31, sep01, sep01, sep01, sep01, sep30, sep30, oct01, oct01)
+
+	self.client.WriteJsonData(data, c, "s")
+	collection := self.client.RunQuery("select count(value) from test_group_by_month group by time(1M)", c)
+	c.Assert(collection, HasLen, 1)
+	maps := ToMap(collection[0])
+	c.Assert(maps, HasLen, 3)
+	c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": float64(oct), "count": 2.0})
+	c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": float64(sep), "count": 6.0})
+	c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": float64(aug), "count": 3.0})
+}
+
+func (self *DataTestSuite) TestLogicalGroupByBoundariesForMonthDuringLeapYear(c *C) {
+	jan31 := time.Date(2012, 1, 31, 12, 0, 0, 0, time.UTC).Unix()
+	feb01 := time.Date(2012, 2, 1, 12, 0, 0, 0, time.UTC).Unix()
+	feb28 := time.Date(2012, 2, 28, 12, 0, 0, 0, time.UTC).Unix()
+	feb29 := time.Date(2012, 2, 29, 12, 0, 0, 0, time.UTC).Unix()
+	mar01 := time.Date(2012, 3, 1, 12, 0, 0, 0, time.UTC).Unix()
+
+	jan := time.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+	feb := time.Date(2012, 2, 1, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+	mar := time.Date(2012, 3, 1, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+
+	data := fmt.Sprintf(`
+  [{
+    "name": "test_group_by_month",
+    "columns": ["value", "time"],
+    "points": [
+      [1, %d],
+      [2, %d],
+      [3, %d],
+
+      [4, %d],
+      [5, %d],
+      [6, %d],
+      [7, %d],
+      [8, %d],
+      [9, %d],
+
+      [10, %d],
+      [11, %d]
+    ]
+  }]`, jan31, jan31, jan31, feb01, feb01, feb28, feb28, feb28, feb29, mar01, mar01)
+
+	self.client.WriteJsonData(data, c, "s")
+	collection := self.client.RunQuery("select count(value) from test_group_by_month group by time(1M)", c)
+	c.Assert(collection, HasLen, 1)
+	maps := ToMap(collection[0])
+	c.Assert(maps, HasLen, 3)
+	c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": float64(mar), "count": 2.0})
+	c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": float64(feb), "count": 6.0})
+	c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": float64(jan), "count": 3.0})
+}
+
+func (self *DataTestSuite) TestLogicalGroupByBoundariesForYear(c *C) {
+	dec31of2012 := time.Date(2012, 12, 31, 12, 0, 0, 0, time.UTC).Unix()
+	jan01of2013 := time.Date(2013, 1, 1, 12, 0, 0, 0, time.UTC).Unix()
+	feb01of2013 := time.Date(2013, 2, 1, 12, 0, 0, 0, time.UTC).Unix()
+	dec31of2013 := time.Date(2013, 12, 31, 12, 0, 0, 0, time.UTC).Unix()
+	jan01of2014 := time.Date(2014, 1, 1, 12, 0, 0, 0, time.UTC).Unix()
+
+	year2012 := time.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+	year2013 := time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+	year2014 := time.Date(2014, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano() / int64(time.Millisecond)
+
+	data := fmt.Sprintf(`
+  [{
+    "name": "test_group_by_month",
+    "columns": ["value", "time"],
+    "points": [
+      [1, %d],
+
+      [2, %d],
+      [3, %d],
+      [4, %d],
+      [5, %d],
+      [6, %d],
+      [7, %d],
+      [8, %d],
+      [9, %d],
+
+      [10, %d],
+      [11, %d]
+    ]
+  }]`, dec31of2012, jan01of2013, jan01of2013, feb01of2013, feb01of2013, feb01of2013, feb01of2013, dec31of2013, dec31of2013, jan01of2014, jan01of2014)
+
+	self.client.WriteJsonData(data, c, "s")
+	collection := self.client.RunQuery("select count(value) from test_group_by_month group by time(1Y)", c)
+	c.Assert(collection, HasLen, 1)
+	maps := ToMap(collection[0])
+	c.Assert(maps, HasLen, 3)
+	c.Assert(maps[0], DeepEquals, map[string]interface{}{"time": float64(year2014), "count": 2.0})
+	c.Assert(maps[1], DeepEquals, map[string]interface{}{"time": float64(year2013), "count": 8.0})
+	c.Assert(maps[2], DeepEquals, map[string]interface{}{"time": float64(year2012), "count": 1.0})
 }
 
 func (self *DataTestSuite) TestLimitQueryOnSingleShard(c *C) {
@@ -2148,10 +2464,10 @@ var (
 [
   {
     "points": [
+    [310000, 400.0],
     [300000, 30.0],
     [120000, 20.0],
-    [60000, 10.0],
-    [310000, 15.0]
+    [60000, 5.0]
     ],
     "name": "data",
     "columns": ["time", "value"]
@@ -2179,7 +2495,7 @@ func (self *DataTestSuite) tstAggregateFill(tstData, aggregate, fill string, agg
 	// write test data to the database
 	self.client.WriteJsonData(tstData, c, influxdb.Millisecond)
 	// build the test query string
-	query := fmtFillQuery(aggregate, aggArgs, "data", fill)
+	query := fmtQuery(aggregate, aggArgs, "data", fill)
 	// run the query
 	series := self.client.RunQuery(query, c)
 	// check that we only got one result series
@@ -2196,12 +2512,17 @@ func (self *DataTestSuite) tstAggregateFill(tstData, aggregate, fill string, agg
 	}
 }
 
-func fmtFillQuery(aggregate string, aggArgs []interface{}, series, fill string) string {
+func fmtQuery(aggregate string, aggArgs []interface{}, series, fill string) string {
 	args := "value"
 	for _, arg := range aggArgs {
 		args = fmt.Sprintf("%s, %v", args, arg)
 	}
-	return fmt.Sprintf("select %s(%s) from %s group by time(60s) fill(%s) where time > 60s and time < 320s", aggregate, args, series, fill)
+
+	if fill != "" {
+		return fmt.Sprintf("select %s(%s) from %s group by time(60s) fill(%s) where time > 60s and time < 320s", aggregate, args, series, fill)
+	}
+
+	return fmt.Sprintf("select %s(%s) from %s group by time(60s) where time > 60s and time < 320s", aggregate, args, series)
 }
 
 var emptyAggArgs []interface{}
@@ -2210,6 +2531,53 @@ var emptyAggArgs []interface{}
 type tv struct {
 	Time  float64
 	Value interface{}
+}
+
+// Test Derivative with consecutive buckets and filling later buckets
+func (self *DataTestSuite) TestIssue334DerivativeConsecutiveBucketsFillLater(c *C) {
+	data := `
+[
+  {
+	"name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [130000, 80.0],
+    [120000, 40.0],
+    [70000, 20.0],
+    [60000, 10.0]
+    ]
+  }
+]`
+	// the 120000 bucket includes the points 80.0, 40.0 and the new value from the next bucket 20.0
+	// the 60000 bucket includes two points only 20.0 and 10.0
+	expect := []tv{{300000.0, nil}, {240000.0, nil}, {180000.0, nil}, {120000.0, 1.0}, {60000.0, nil}}
+	self.tstAggregateFill(data, "derivative", "null", emptyAggArgs, expect, c)
+}
+
+// Test Derivative with non-consecutive buckets and filling in between
+func (self *DataTestSuite) TestIssue334DerivativeNonConsecutiveBucketsFillBetween(c *C) {
+	data := `
+[
+  {
+	"name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [250000, 320.0],
+    [240000, 90.0],
+    [130000, 80.0],
+    [120000, 40.0],
+    [70000, 20.0],
+    [60000, 10.0]
+    ]
+  }
+]`
+	// The 300000 bucket includes no points
+	// the 240000 bucket includes 320.0, 90.0 and 80.0 from the following bucket  (240.0 / 120 = 2)
+	// the 180000 bucket includes no points
+	// the 120000 bucket includes 80.0, 40.0 and 20.0 from the next bucket (60.0 / 60 = 1)
+	// the  60000 bucket includes 20.0 and 10.0 (10 / 10 = 1)
+	expect := []tv{{300000.0, nil}, {240000.0, 2.0}, {180000.0, nil}, {120000.0, 1.0}, {60000.0, nil}}
+	self.tstAggregateFill(data, "derivative", "null", emptyAggArgs, expect, c)
 }
 
 // count aggregate filling with null
@@ -2376,32 +2744,32 @@ func (self *DataTestSuite) TestBottom10AggregateFillWith0(c *C) {
 
 // derivative aggregate filling with null
 func (self *DataTestSuite) TestDerivativeAggregateFillWithNull(c *C) {
-	expVals := []tv{{300000.0, -1.5}, {240000.0, nil}, {180000.0, nil}}
+	expVals := []tv{{300000.0, 2.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, 0.25}}
 	self.tstAggregateFill(aggTstData2, "derivative", "null", emptyAggArgs, expVals, c)
 }
 
 // derivative aggregate filling with 0
 func (self *DataTestSuite) TestDerivativeAggregateFillWith0(c *C) {
-	expVals := []tv{{300000.0, -1.5}, {240000.0, 0.0}, {180000.0, 0.0}}
+	expVals := []tv{{300000.0, 2.0}, {240000.0, 0.0}, {180000.0, 0.0}, {120000.0, 0.25}}
 	self.tstAggregateFill(aggTstData2, "derivative", "0", emptyAggArgs, expVals, c)
 }
 
 // difference aggregate filling with null
 func (self *DataTestSuite) TestDifferenceAggregateFillWithNull(c *C) {
-	expVals := []tv{{300000.0, 15.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, nil}, {60000.0, nil}}
+	expVals := []tv{{300000.0, -370.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, nil}, {60000.0, nil}}
 	self.tstAggregateFill(aggTstData2, "difference", "null", emptyAggArgs, expVals, c)
 }
 
 // difference aggregate filling with 0
 func (self *DataTestSuite) TestDifferenceAggregateFillWith0(c *C) {
-	expVals := []tv{{300000.0, 15.0}, {240000.0, 0.0}, {180000.0, 0.0}, {120000.0, 0.0}, {60000.0, 0.0}}
+	expVals := []tv{{300000.0, -370.0}, {240000.0, 0.0}, {180000.0, 0.0}, {120000.0, 0.0}, {60000.0, 0.0}}
 	self.tstAggregateFill(aggTstData2, "difference", "0", emptyAggArgs, expVals, c)
 }
 
 // histogram aggregate filling with null
 func (self *DataTestSuite) TestHistogramAggregateFillWithNull(c *C) {
 	self.client.WriteJsonData(aggTstData2, c, influxdb.Millisecond)
-	series := self.client.RunQuery(fmtFillQuery("histogram", []interface{}{}, "data", "null"), c)
+	series := self.client.RunQuery(fmtQuery("histogram", []interface{}{}, "data", "null"), c)
 	c.Assert(len(series), Equals, 1)
 	maps := ToMap(series[0])
 	c.Assert(len(maps), Equals, 6)
@@ -2413,11 +2781,28 @@ func (self *DataTestSuite) TestHistogramAggregateFillWithNull(c *C) {
 // histogram aggregate filling with 0
 func (self *DataTestSuite) TestHistogramAggregateFillWith0(c *C) {
 	self.client.WriteJsonData(aggTstData2, c, influxdb.Millisecond)
-	series := self.client.RunQuery(fmtFillQuery("histogram", []interface{}{}, "data", "0"), c)
+	series := self.client.RunQuery(fmtQuery("histogram", []interface{}{}, "data", "0"), c)
 	c.Assert(len(series), Equals, 1)
 	maps := ToMap(series[0])
 	c.Assert(len(maps), Equals, 6)
 	// FIXME: Can't test return values because the order of the returned data is randomized.
 	//        Add some asserts here once engine/aggregator_operators.go
 	//        func(self *HistogramAggregator) GetValues(...) is modified to sort data.
+}
+
+// Test issue #996: fill() does not fill empty series / timespan
+func (self *DataTestSuite) TestIssue996FillEmptyTimespan(c *C) {
+	data := `
+[
+  {
+	"name": "data",
+    "columns": ["time", "value"],
+    "points": [
+    [10000, 10.0]
+    ]
+  }
+]`
+
+	expect := []tv{{300000.0, nil}, {240000.0, nil}, {180000.0, nil}, {120000.0, nil}, {60000.0, nil}}
+	self.tstAggregateFill(data, "sum", "null", emptyAggArgs, expect, c)
 }

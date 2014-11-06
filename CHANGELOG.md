@@ -1,17 +1,133 @@
-## v0.9.0 [unreleased]
+## v0.8.6 [unreleased]
+
+### Features
+
+- [Issue #1068](https://github.com/influxdb/influxdb/issues/1068). Print
+  the processor chain when the query is started
+- [Issue #973](https://github.com/influxdb/influxdb/issues/973). Support joining
+  using a regex or list of time series
 
 ### Bugfixes
 
-- [Issue #1007](https://github.com/influxdb/influxdb/issues/1007). Return the
-  right content type in the response when compression is enabled
-- [Issue #1004](https://github.com/influxdb/influxdb/issues/1004). Don't throw an
-   exception when querying for non existent data
-- [Issue #722](https://github.com/influxdb/influxdb/issues/722). Add
-  an install target to the Makefile
+- [Issue #978](https://github.com/influxdb/influxdb/issues/978). Check
+  for valgrind and mercurial in the configure script
+- [Issue #671](https://github.com/influxdb/influxdb/issues/671). Fix
+  the Makefile package target for Mac OSX
+- [Issue #925](https://github.com/influxdb/influxdb/issues/925). Don't
+  generate invalid query strings for single point queries
+- [Issue #1008](https://github.com/influxdb/influxdb/issues/1008). Return
+  an appropriate exit status code depending on whether the process exits
+  due to an error or exits gracefully.
+- [Issue #663](https://github.com/influxdb/influxdb/issues/663). Make
+  sure all sub servies are closed when are stopping InfluxDB
+- [Issue #584](https://github.com/influxdb/influxdb/issues/584). Don't
+  panic if the process died while initializing
+- [Issue #800](https://github.com/influxdb/influxdb/issues/800). Use
+  su instead of sudo in the init script. This fixes the startup problem
+  on RHEL 6.
+- [Issue #1092](https://github.com/influxdb/influxdb/issues/1093). Set
+  the connection string of the local node in the raft snapshot.
+- [Issue #943](https://github.com/influxdb/influxdb/issues/943). Don't
+  take two snapshots at the same time
+- [Issue #1085](https://github.com/influxdb/influxdb/issues/1085). Set
+  the connection string of the local raft node
+- [Issue #996](https://github.com/influxdb/influxdb/issues/996). Fill should
+  fill the time range even if no points exists in the given time range
+- [Issue #1076](https://github.com/influxdb/influxdb/issues/1076). Fix
+  the timestamps of data points written by the collectd plugin. (Thanks,
+  @renchap for reporting this bug)
+- [Issue #1078](https://github.com/influxdb/influxdb/issues/1078). Make sure
+  we don't resurrect shard directories for shards that have already expired
+
+## v0.8.5 [2014-10-27]
+
+### Features
+
+- [Issue #1055](https://github.com/influxdb/influxdb/issues/1055). Allow
+  graphite and collectd input plugins to have separate binding address
+
+### Bugfixes
+
+- [Issue #1058](https://github.com/influxdb/influxdb/issues/1058). Use
+  the query language instead of the continuous query endpoints that
+  were removed in 0.8.4
+- [Issue #1022](https://github.com/influxdb/influxdb/issues/1022). Return
+  an +Inf or NaN instead of panicing when we encounter a divide by zero
+- [Issue #821](https://github.com/influxdb/influxdb/issues/821). Don't
+  scan through points when we hit the limit
+- [Issue #1051](https://github.com/influxdb/influxdb/issues/1051). Fix
+  timestamps when the collectd is used and low resolution timestamps
+  is set.
+
+## v0.8.4 [2014-10-24]
+
+### Bugfixes
+
+- Remove the continuous query api endpoints since the query language
+  has all the features needed to list and delete continuous queries.
+- [Issue #778](https://github.com/influxdb/influxdb/issues/778). Selecting
+  from a non-existent series should give a better error message indicating
+  that the series doesn't exist
+- [Issue #988](https://github.com/influxdb/influxdb/issues/988). Check
+  the arguments of `top()` and `bottom()`
+- [Issue #1021](https://github.com/influxdb/influxdb/issues/1021). Make
+  redirecting to standard output and standard error optional instead of
+  going to `/dev/null`. This can now be configured by setting `$STDOUT`
+  in `/etc/default/influxdb`
+- [Issue #985](https://github.com/influxdb/influxdb/issues/985). Make
+  sure we drop a shard only when there's no one using it. Otherwise, the
+  shard can be closed when another goroutine is writing to it which will
+  cause random errors and possibly corruption of the database.
+
+### Features
+
+- [Issue #1047](https://github.com/influxdb/influxdb/issues/1047). Allow
+  merge() to take a list of series (as opposed to a regex in #72)
+
+## v0.8.4-rc.1 [2014-10-21]
+
+### Bugfixes
+
+- [Issue #1040](https://github.com/influxdb/influxdb/issues/1040). Revert
+  to older raft snapshot if the latest one is corrupted
+- [Issue #1004](https://github.com/influxdb/influxdb/issues/1004). Querying
+  for data outside of existing shards returns an empty response instead of
+  throwing a `Couldn't lookup columns` error
+- [Issue #1020](https://github.com/influxdb/influxdb/issues/1020). Change
+  init script exit codes to conform to the lsb standards. (Thanks, @spuder)
+- [Issue #1011](https://github.com/influxdb/influxdb/issues/1011). Fix
+  the tarball for homebrew so that rocksdb is included and the directory
+  structure is clean
+- [Issue #1007](https://github.com/influxdb/influxdb/issues/1007). Fix
+  the content type when an error occurs and the client requests
+  compression.
 - [Issue #916](https://github.com/influxdb/influxdb/issues/916). Set
-  ulimit in the init script with a way to override it in /etc/default/influxdb
+  the ulimit in the init script with a way to override the limit
+- [Issue #742](https://github.com/influxdb/influxdb/issues/742). Fix
+  rocksdb for Mac OSX
+- [Issue #387](https://github.com/influxdb/influxdb/issues/387). Aggregations
+  with group by time(1w), time(1m) and time(1y) (for week, month and
+  year respectively) will cause the start time and end time of the bucket
+  to fall on the logical boundaries of the week, month or year.
+- [Issue #334](https://github.com/influxdb/influxdb/issues/334). Derivative
+  for queries with group by time() and fill(), will take the difference
+  between the first value in the bucket and the first value of the next
+  bucket.
 - [Issue #972](https://github.com/influxdb/influxdb/issues/972). Don't
   assign duplicate server ids
+
+### Features
+
+- [Issue #722](https://github.com/influxdb/influxdb/issues/722). Add
+  an install target to the Makefile
+- [Issue #1032](https://github.com/influxdb/influxdb/issues/1032). Include
+  the admin ui static assets in the binary
+- [Issue #1019](https://github.com/influxdb/influxdb/issues/1019). Upgrade
+  to rocksdb 3.5.1
+- [Issue #992](https://github.com/influxdb/influxdb/issues/992). Add
+  an input plugin for collectd. (Thanks, @kimor79)
+- [Issue #72](https://github.com/influxdb/influxdb/issues/72). Support merge
+  for multiple series using regex syntax
 
 ## v0.8.3 [2014-09-24]
 

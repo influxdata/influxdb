@@ -191,6 +191,13 @@ func (self *SelectQuery) GetQueryString() string {
 }
 
 func (self *SelectQuery) GetQueryStringWithTimeCondition() string {
+	// if this is a single point query then it already has a time (and
+	// sequence number) condition; we don't need the extra (time < ???
+	// and time > ???) condition in the query string.
+	if self.IsSinglePointQuery() {
+		return self.GetQueryString()
+	}
+
 	return self.commonGetQueryStringWithTimes(true, true, self.startTime, self.endTime)
 }
 
@@ -469,11 +476,28 @@ func GetTableNameArray(array *C.table_name_array) ([]*TableName, error) {
 }
 
 func GetFromClause(fromClause *C.from_clause) (*FromClause, error) {
-	arr, err := GetTableNameArray(fromClause.names)
-	if err != nil {
-		return nil, err
+	t := FromClauseType(fromClause.from_clause_type)
+	var arr []*TableName
+	var regex *regexp.Regexp
+
+	switch t {
+	case FromClauseMergeRegex, FromClauseJoinRegex:
+		val, err := GetValue(fromClause.regex_value)
+		if err != nil {
+			return nil, err
+		}
+		if val.Type != ValueRegex {
+			return nil, fmt.Errorf("merge() accepts regex only")
+		}
+		regex = val.compiledRegex
+	default:
+		var err error
+		arr, err = GetTableNameArray(fromClause.names)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return &FromClause{FromClauseType(fromClause.from_clause_type), arr}, nil
+	return &FromClause{t, arr, regex}, nil
 }
 
 func GetIntoClause(intoClause *C.into_clause) (*IntoClause, error) {
@@ -928,5 +952,16 @@ func FormatTimeDuration(v time.Duration) string {
 		return strconv.FormatInt(int64(v/time.Millisecond), 10) + "ms"
 	} else {
 		return strconv.FormatInt(int64(v/time.Microsecond), 10) + "u"
+	}
+}
+
+// Returns true if the interval is 'irregular' - i.e. it has a variable
+// duration or boundaries, such as weeks, months, and years.
+func IsIrregularInterval(value string) bool {
+	switch value[len(value)-1] {
+	case 'w', 'W', 'M', 'y', 'Y':
+		return true
+	default:
+		return false
 	}
 }

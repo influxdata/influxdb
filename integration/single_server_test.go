@@ -8,10 +8,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	influxdb "github.com/influxdb/influxdb/client"
+	"github.com/influxdb/influxdb/datastore"
 	. "github.com/influxdb/influxdb/integration/helpers"
 	. "launchpad.net/gocheck"
 )
@@ -141,6 +144,36 @@ func (self *SingleServerSuite) TestListSeriesRegex(c *C) {
 	c.Assert(s, HasLen, 1)
 	maps := ToMap(s[0])
 	c.Assert(maps, HasLen, 3)
+}
+
+func (self *SingleServerSuite) TestDeleteExpiredShards(c *C) {
+	db := "delete_expired_shards"
+	client := self.server.GetClient(db, c)
+	c.Assert(client.CreateDatabase(db), IsNil)
+	err := client.CreateShardSpace(db, &influxdb.ShardSpace{
+		Name:            "default",
+		Regex:           ".*",
+		RetentionPolicy: "7d",
+		ShardDuration:   "1y",
+	})
+	c.Assert(err, IsNil)
+
+	data := CreatePoints("test_using_deleted_shard", 1, 1000000)
+	data[0].Columns = append(data[0].Columns, "time")
+	for i := range data[0].Points {
+		data[0].Points[i] = append(data[0].Points[i], 0)
+	}
+	for i := 0; i < 2; i++ {
+		err = client.WriteSeriesWithTimePrecision(data, influxdb.Second)
+		c.Assert(err, IsNil)
+	}
+	// wait for the retention sweep to kick in
+	time.Sleep(self.server.RetentionSweepPeriod() + time.Second)
+	f, err := os.Open(path.Join(self.server.DataDir(), datastore.SHARD_DATABASE_DIR))
+	c.Assert(err, IsNil)
+	dirs, err := f.Readdirnames(0)
+	c.Assert(err, IsNil)
+	c.Assert(dirs, HasLen, 0)
 }
 
 func (self *SingleServerSuite) TestListSeriesWithSpace(c *C) {
@@ -413,7 +446,7 @@ func (self *SingleServerSuite) TestUserWritePermissions(c *C) {
 	// if this test ran by itself there will be no shards to query,
 	// therefore no error will be returned
 	if err != nil {
-		c.Assert(err, ErrorMatches, ".*Couldn't look up.*")
+		c.Assert(err, ErrorMatches, ".*Couldn't find series.*")
 	} else {
 		c.Assert(actualSeries, HasLen, 0)
 	}
@@ -581,7 +614,7 @@ func (self *SingleServerSuite) TestDataResurrectionAfterRestart(c *C) {
 	c.Assert(self.server.Start(), IsNil)
 	self.server.WaitForServerToStart()
 	error, _ := self.server.GetErrorBody("db1", "select count(column0) from data_resurrection", "user", "pass", true, c)
-	c.Assert(error, Matches, ".*Couldn't look up.*")
+	c.Assert(error, Matches, ".*Couldn't find series.*")
 	series = self.server.RunQuery("list series", "s", c)
 	c.Assert(series, HasLen, 1)
 	c.Assert(series[0].Points, HasLen, 0)
@@ -759,7 +792,7 @@ func (self *SingleServerSuite) TestDbDelete(c *C) {
 	self.createUser(c)
 	// this shouldn't return any data
 	error, _ := self.server.GetErrorBody("db1", "select val1 from test_deletetions", "root", "root", true, c)
-	c.Assert(error, Matches, ".*Couldn't look up.*")
+	c.Assert(error, Matches, ".*Couldn't find series.*")
 }
 
 // test delete query

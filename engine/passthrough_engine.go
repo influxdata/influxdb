@@ -86,3 +86,7 @@ func (self *Passthrough) Close() error {
 func (self *Passthrough) Name() string {
 	return "PassthroughEngine"
 }
+
+func (self *Passthrough) Next() Processor {
+	return self.next
+}

@@ -1,0 +1,27 @@
+
+<div class="modal-content help">
+  <h3>Example Queries</h3>
+  <pre class="highlight sql">
+    <span class="k">select</span> <span class="n">value</span> <span class="k">from</span> <span class="n">response_times</span><span class="p">;</span>
+
+    <span class="k">select</span> <span class="n">value</span> <span class="k">from</span> <span class="n">response_times</span> <span class="k">where</span> <span class="n">time</span> <span class="o">&gt;</span> <span class="s1">&#39;2013-08-12 23:32:01.232&#39;</span> <span class="k">and</span> <span class="n">time</span> <span class="o">&lt;</span> <span class="s1">&#39;2013-08-13&#39;</span><span class="p">;</span>
+
+    <span class="k">select</span> <span class="k">count</span><span class="p">(</span><span class="k">type</span><span class="p">)</span> <span class="k">from</span> <span class="n">events</span> <span class="k">group</span> <span class="k">by</span> <span class="n">time</span><span class="p">(</span><span class="mi">10</span><span class="n">m</span><span class="p">);</span>
+
+    <span class="c1">-- 95th percentile of response times in 30 second intervals
+</span>    <span class="k">select</span> <span class="n">percentile</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="mi">95</span><span class="p">)</span> <span class="k">from</span> <span class="n">response_times</span> <span class="k">group</span> <span class="k">by</span> <span class="n">time</span><span class="p">(</span><span class="mi">30</span><span class="n">s</span><span class="p">);</span>
+
+    <span class="c1">-- count the number of distinct users who make api requests
+</span>    <span class="k">select</span> <span class="k">count</span><span class="p">(</span><span class="k">distinct</span><span class="p">(</span><span class="n">user_id</span><span class="p">))</span> <span class="k">from</span> <span class="n">api</span><span class="o">-</span><span class="n">requests</span><span class="p">;</span>
+  </pre>
+
+  <p>
+    InfluxDB supports the following aggregate functions:
+    <p><pre>count(), min(), max(), mean(), mode(), median(), distinct(), percentile(), histogram(), derivative(), sum(), stddev(), first(), last().</pre></p>
+  </p>
+
+  <p>
+    For more information see the <a href="http://influxdb.org/docs/query_language" target="_new">Query Language Documentation</a>.
+  </p>
+
+</div>

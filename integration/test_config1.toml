@@ -47,6 +47,8 @@ port = 60501
 # Where the raft logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/tmp/influxdb/test/1/raft"
 
+debug = false
+
 [storage]
 dir = "/tmp/influxdb/test/1/db"
 

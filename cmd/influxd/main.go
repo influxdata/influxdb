@@ -30,6 +30,13 @@ const logo = `
 `
 
 func main() {
+	if err := start(); err != nil {
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func start() error {
 	var (
 		fileName          = flag.String("config", "config.sample.toml", "Config file")
 		showVersion       = flag.Bool("v", false, "Get version number")
@@ -48,13 +55,13 @@ func main() {
 	c := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
 	if *showVersion {
 		fmt.Println(v)
-		return
+		return nil
 	}
 
 	// Parse configuration.
 	config, err := ParseConfigFile(*fileName)
 	if err != nil {
-		return
+		return err
 	}
 	config.Version = v
 	config.InfluxDBVersion = version
@@ -75,25 +82,6 @@ func main() {
 		config.Logging.File = "stdout"
 	}
 	setupLogging(config.Logging.Level, config.Logging.File)
-
-	// Repair LevelDB.
-	if *repairLeveldb {
-		log.Info("Repairing leveldb")
-		files, err := ioutil.ReadDir(config.Storage.Dir)
-		if err != nil {
-			panic(err)
-		}
-
-		o := levigo.NewOptions()
-		defer o.Close()
-		for _, f := range files {
-			p := path.Join(config.Storage.Dir, f.Name())
-			log.Info("Repairing %s", p)
-			if err := levigo.RepairDatabase(p, o); err != nil {
-				panic(err)
-			}
-		}
-	}
 
 	// Write pid file.
 	if *pidFile != "" {
@@ -145,17 +133,24 @@ func main() {
 	if err := server.ListenAndServe(); err != nil {
 		log.Error("ListenAndServe failed: ", err)
 	}
+	return err
 }
 
 func setupLogging(loggingLevel, logFile string) {
 	level := log.DEBUG
 	switch loggingLevel {
+	case "trace":
+		level = log.TRACE
+	case "fine":
+		level = log.FINE
 	case "info":
 		level = log.INFO
 	case "warn":
 		level = log.WARNING
 	case "error":
 		level = log.ERROR
+	default:
+		log.Error("Unknown log level %s. Defaulting to DEBUG", loggingLevel)
 	}
 
 	log.Global = make(map[string]*log.Filter)

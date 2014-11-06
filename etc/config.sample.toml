@@ -16,14 +16,13 @@ bind-address = "0.0.0.0"
 reporting-disabled = false
 
 [logging]
-# logging level can be one of "debug", "info", "warn" or "error"
+# logging level can be one of "fine", "debug", "info", "warn" or "error"
 level  = "info"
 file   = "influxdb.log"         # stdout to log to standard out, or syslog facility
 
 # Configure the admin server
 [admin]
 port   = 8083              # binding is disabled if the port isn't set
-assets = "./admin"
 
 # Configure the http api
 [api]
@@ -41,9 +40,20 @@ read-timeout = "5s"
   # Configure the graphite api
   [input_plugins.graphite]
   enabled = false
+  # address = "0.0.0.0" # If not set, is actually set to bind-address.
   # port = 2003
   # database = ""  # store graphite data in this database
   # udp_enabled = true # enable udp interface on the same port as the tcp interface
+
+  # Configure the collectd api
+  [input_plugins.collectd]
+  enabled = false
+  # address = "0.0.0.0" # If not set, is actually set to bind-address.
+  # port = 25826
+  # database = ""
+  # types.db can be found in a collectd installation or on github:
+  # https://github.com/collectd/collectd/blob/master/src/types.db
+  # typesdb = "/usr/share/collectd/types.db" # The path to the collectd types.db file
 
   # Configure the udp api
   [input_plugins.udp]
@@ -68,6 +78,8 @@ port = 8090
 
 # Where the raft logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/tmp/influxdb/development/raft"
+
+debug = false
 
 # election-timeout = "1s"
 

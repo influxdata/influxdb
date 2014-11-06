@@ -1,3 +1,5 @@
+// +build !windows,!nacl,!plan9
+
 package main
 
 import (
@@ -60,7 +62,10 @@ func getWriter(writer *syslog.Writer, level string) func(string) error {
 
 func connectSyslogDaemon(priority syslog.Priority) (writer *syslog.Writer, err error) {
 	logTypes := []string{"unixgram", "unix"}
-	logPaths := []string{"/dev/log", "/var/run/syslog"}
+	logPaths := []string{
+		"/dev/log",        // unix socket for syslog on linux
+		"/var/run/syslog", // unix socket for syslog on osx
+	}
 	var raddr string
 	for _, network := range logTypes {
 		for _, path := range logPaths {

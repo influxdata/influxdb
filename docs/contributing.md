@@ -5,8 +5,8 @@ InfluxDB follows standard Go project structure. This means that all
 your go development are done in $GOPATH/src. GOPATH can be any
 directory under which InfluxDB and all it's dependencies will be
 cloned. For more details on recommended go project's structure, see
-the following great posts [http://golang.org/doc/code.html] and
-[http://peter.bourgon.org/go-in-production/], or you can just follow
+[How to Write Go Code](http://golang.org/doc/code.html]) and
+[Go: Best Practices for Production Environments](http://peter.bourgon.org/go-in-production/), or you can just follow
 the steps below.
 
 Signing the CLA
@@ -16,8 +16,8 @@ If you are going to be contributing back to InfluxDB please take a
 second to sign our CLA, which can be found
 [on our website](http://influxdb.com/community/cla.html)
 
-Getting go
-----------
+Installing go
+-------------
 
 I recommend using gvm which is a go version manager. For instructions
 on how to install see
@@ -60,15 +60,21 @@ the following to format the code:
 Build on OSX
 ------------
 
-You'll need the following dependencies:
+Make sure you've got the latest version of XCode intalled, and then run:
 
-    brew install protobuf bison flex leveldb hg bzr
+    xcode-select --install
 
-To build run the following command:
+You will likely be prompted to agree to Apple's TOS before you can continue.
+
+Then, you'll need the following dependencies (via homebrew):
+
+    brew install autoconf gawk protobuf bison flex leveldb rocksdb hg bzr
+
+Finally, to build the binary, run the following command:
 
     ./configure \
-      --with-flex=/usr/local/Cellar/flex/2.5.37/bin/flex \
-      --with-bison=/usr/local/Cellar/bison/3.0.2/bin/bison && make
+      --with-flex=$(brew --prefix flex)/bin/flex \
+      --with-bison=$(brew --prefix bison)/bin/bison && make build
 
 Build on Linux
 --------------

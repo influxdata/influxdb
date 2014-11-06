@@ -5,6 +5,7 @@ package parser
 import "C"
 import (
 	"bytes"
+	"regexp"
 	"strings"
 )
 import "fmt"
@@ -12,9 +13,11 @@ import "fmt"
 type FromClauseType int
 
 const (
-	FromClauseArray     FromClauseType = C.FROM_ARRAY
-	FromClauseMerge     FromClauseType = C.FROM_MERGE
-	FromClauseInnerJoin FromClauseType = C.FROM_INNER_JOIN
+	FromClauseArray      FromClauseType = C.FROM_ARRAY
+	FromClauseMerge      FromClauseType = C.FROM_MERGE
+	FromClauseInnerJoin  FromClauseType = C.FROM_JOIN
+	FromClauseMergeRegex FromClauseType = C.FROM_MERGE_REGEX
+	FromClauseJoinRegex  FromClauseType = C.FROM_JOIN_REGEX
 )
 
 func (self *TableName) GetAlias() string {
@@ -39,14 +42,21 @@ type TableName struct {
 type FromClause struct {
 	Type  FromClauseType
 	Names []*TableName
+	Regex *regexp.Regexp
 }
 
 func (self *FromClause) GetString() string {
 	buffer := bytes.NewBufferString("")
 	switch self.Type {
 	case FromClauseMerge:
-		fmt.Fprintf(buffer, "%s%s merge %s %s", self.Names[0].Name.GetString(), self.Names[1].GetAliasString(),
-			self.Names[1].Name.GetString(), self.Names[1].GetAliasString())
+		fmt.Fprintf(buffer, "merge(")
+		for i, n := range self.Names {
+			if i > 0 {
+				buffer.WriteRune(',')
+			}
+			buffer.WriteString(n.Name.GetString())
+		}
+		buffer.WriteString(")")
 	case FromClauseInnerJoin:
 		fmt.Fprintf(buffer, "%s%s inner join %s%s", self.Names[0].Name.GetString(), self.Names[0].GetAliasString(),
 			self.Names[1].Name.GetString(), self.Names[1].GetAliasString())

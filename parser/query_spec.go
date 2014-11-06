@@ -16,6 +16,7 @@ type QuerySpec struct {
 	endTime                     time.Time
 	seriesValuesAndColumns      map[*Value][]string
 	RunAgainstAllServersInShard bool
+	GroupByIrregularInterval    bool
 	groupByInterval             *time.Duration
 	groupByColumnCount          int
 }
@@ -137,7 +138,7 @@ func (self *QuerySpec) GetGroupByInterval() *time.Duration {
 		return nil
 	}
 	if self.groupByInterval == nil {
-		self.groupByInterval, _ = self.query.SelectQuery.GetGroupByClause().GetGroupByTime()
+		self.groupByInterval, self.GroupByIrregularInterval, _ = self.query.SelectQuery.GetGroupByClause().GetGroupByTime()
 	}
 	return self.groupByInterval
 }

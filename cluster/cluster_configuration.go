@@ -79,6 +79,17 @@ func (self *ClusterConfiguration) GetShardToWriteToBySeriesAndTime(db, series st
 			return nil, err
 		}
 	}
+
+	// if the shard will be dropped anyway because of the shard space
+	// retention period, then return nothing. Don't try to write
+	retention := shardSpace.ParsedRetentionPeriod()
+	if retention != InfiniteRetention {
+		_, endTime := self.getStartAndEndBasedOnDuration(microsecondsEpoch, shardSpace.SecondsOfDuration())
+		if endTime.Before(time.Now().Add(-retention)) {
+			return nil, nil
+		}
+	}
+
 	matchingShards := make([]*ShardData, 0)
 	for _, s := range shardSpace.shards {
 		if s.IsMicrosecondInRange(microsecondsEpoch) {
@@ -171,6 +182,7 @@ func (self *ClusterConfiguration) GetShardsForQuery(querySpec *parser.QuerySpec)
 	if err != nil {
 		return nil, err
 	}
+	log.Debug("Querying %d shards for query", len(shards))
 	shards = self.getShardRange(querySpec, shards)
 	if querySpec.IsAscending() {
 		SortShardsByTimeAscending(shards)
@@ -189,7 +201,7 @@ func (self *ClusterConfiguration) getShardsToMatchQuery(querySpec *parser.QueryS
 	uniqueShards := make(map[uint32]*ShardData)
 	for _, name := range seriesNames {
 		if fs := self.MetaStore.GetFieldsForSeries(db, name); len(fs) == 0 {
-			return nil, fmt.Errorf("Couldn't look up columns for series: %s", name)
+			return nil, fmt.Errorf("Couldn't find series: %s", name)
 		}
 		space := self.getShardSpaceToMatchSeriesName(db, name)
 		if space == nil {
@@ -394,7 +406,8 @@ func (self *ClusterConfiguration) DropShard(shardId uint32, serverIds []uint32) 
 	// now actually remove it from disk if it lives here
 	for _, serverId := range serverIds {
 		if serverId == self.LocalServer.Id {
-			return self.shardStore.DeleteShard(shardId)
+			self.shardStore.DeleteShard(shardId)
+			return nil
 		}
 	}
 	return nil

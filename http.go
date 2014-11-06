@@ -50,7 +50,6 @@ type HTTPServer struct {
 func NewHTTPServer(config *configuration.Configuration, theCoordinator api.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HTTPServer {
 	self := &HTTPServer{}
 	self.httpPort = config.ApiHttpPortString()
-	self.adminAssetsDir = config.AdminAssetsDir
 	self.coordinator = theCoordinator
 	self.userManager = userManager
 	self.shutdown = make(chan bool, 2)
@@ -952,8 +951,6 @@ func (self *HTTPServer) listServers(w libhttp.ResponseWriter, r *libhttp.Request
 				"protobufConnectString":   s.ProtobufConnectionString,
 				"isUp":                    s.IsUp(), //FIXME: IsUp is not consistent
 				"raftName":                s.RaftName,
-				"state":                   s.State,
-				"stateName":               s.GetStateName(),
 				"raftConnectionString":    s.RaftConnectionString,
 				"leaderRaftName":          leaderRaftName,
 				"leaderRaftConnectString": leaderRaftConnectString,

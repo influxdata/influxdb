@@ -23,8 +23,7 @@ type Server struct {
 	p          *os.Process
 	configFile string
 	sslOnly    bool
-	apiPort    int
-	sslApiPort int
+	config     *configuration.Configuration
 	args       []string
 }
 
@@ -42,7 +41,7 @@ func NewServer(configFile string, c *C) *Server {
 
 func newServerCommon(configFile string, deleteData, ssl bool, c *C, args ...string) *Server {
 	config, _ := configuration.LoadConfiguration("../" + configFile)
-	s := &Server{configFile: configFile, apiPort: config.ApiHttpPort, sslApiPort: config.ApiHttpSslPort, sslOnly: ssl, args: args}
+	s := &Server{configFile: configFile, config: config, sslOnly: ssl, args: args}
 	if deleteData {
 		c.Assert(os.RemoveAll(config.DataDir), IsNil)
 		c.Assert(os.RemoveAll(config.WalDir), IsNil)
@@ -55,9 +54,9 @@ func newServerCommon(configFile string, deleteData, ssl bool, c *C, args ...stri
 }
 
 func (self *Server) WaitForServerToStart() {
-	url := fmt.Sprintf("http://localhost:%d/ping", self.apiPort)
+	url := fmt.Sprintf("http://localhost:%d/ping", self.ApiPort())
 	if self.sslOnly {
-		url = fmt.Sprintf("https://localhost:%d/ping", self.sslApiPort)
+		url = fmt.Sprintf("https://localhost:%d/ping", self.SslApiPort())
 	}
 
 	client := http.Client{
@@ -91,7 +90,7 @@ func (self *Server) WaitForServerToStart() {
 
 func (self *Server) WaitForServerToSync() {
 	for i := 0; i < 600; i++ {
-		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/sync?u=root&p=root", self.apiPort))
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/sync?u=root&p=root", self.ApiPort()))
 		if err != nil {
 			panic(err)
 		}
@@ -116,7 +115,7 @@ func (self *Server) GetClient(db string, c *C) *influxdb.Client {
 
 func (self *Server) GetClientWithUser(db, username, password string, c *C) *influxdb.Client {
 	client, err := influxdb.NewClient(&influxdb.ClientConfig{
-		Host:     fmt.Sprintf("localhost:%d", self.apiPort),
+		Host:     fmt.Sprintf("localhost:%d", self.ApiPort()),
 		Username: username,
 		Password: password,
 		Database: db,
@@ -206,8 +205,20 @@ func (self *Server) Start() error {
 	return nil
 }
 
+func (self *Server) RetentionSweepPeriod() time.Duration {
+	return self.config.StorageRetentionSweepPeriod.Duration
+}
+
+func (self *Server) DataDir() string {
+	return self.config.DataDir
+}
+
 func (self *Server) ApiPort() int {
-	return self.apiPort
+	return self.config.ApiHttpPort
+}
+
+func (self *Server) SslApiPort() int {
+	return self.config.ApiHttpSslPort
 }
 
 func (self *Server) Stop() {
@@ -283,7 +294,7 @@ func (self *Server) QueryAsRoot(database, query string, onlyLocal bool, c *C) *S
 
 func (self *Server) GetResponse(database, query, username, password string, onlyLocal bool, c *C) *http.Response {
 	encodedQuery := url.QueryEscape(query)
-	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=%s&p=%s&q=%s", self.apiPort, database, username, password, encodedQuery)
+	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=%s&p=%s&q=%s", self.ApiPort(), database, username, password, encodedQuery)
 	if onlyLocal {
 		fullUrl = fullUrl + "&force_local=true"
 	}
@@ -318,7 +329,7 @@ func (self *Server) QueryWithUsername(database, query string, onlyLocal bool, c 
 
 func (self *Server) VerifyForbiddenQuery(database, query string, onlyLocal bool, c *C, username, password string) string {
 	encodedQuery := url.QueryEscape(query)
-	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=%s&p=%s&q=%s", self.apiPort, database, username, password, encodedQuery)
+	fullUrl := fmt.Sprintf("http://localhost:%d/db/%s/series?u=%s&p=%s&q=%s", self.ApiPort(), database, username, password, encodedQuery)
 	if onlyLocal {
 		fullUrl = fullUrl + "&force_local=true"
 	}
@@ -357,7 +368,7 @@ func (self *Server) Get(url string, c *C) []byte {
 }
 
 func (self *Server) Request(method, url, data string, c *C) *http.Response {
-	fullUrl := fmt.Sprintf("http://localhost:%d%s", self.apiPort, url)
+	fullUrl := fmt.Sprintf("http://localhost:%d%s", self.ApiPort(), url)
 	req, err := http.NewRequest(method, fullUrl, bytes.NewBufferString(data))
 	c.Assert(err, IsNil)
 	resp, err := http.DefaultClient.Do(req)

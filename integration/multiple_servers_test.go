@@ -494,7 +494,7 @@ func (self *ServerSuite) TestDropDatabase(c *C) {
 	for _, s := range self.serverProcesses {
 		fmt.Printf("Running query against: %d\n", s.ApiPort())
 		error, _ := s.GetErrorBody("drop_db", "select * from cluster_query", "paul", "pass", true, c)
-		c.Assert(error, Matches, ".*Couldn't look up.*")
+		c.Assert(error, Matches, ".*Couldn't find series.*")
 	}
 }
 
@@ -543,7 +543,7 @@ func (self *ServerSuite) TestDropSeries(c *C) {
 		for _, s := range self.serverProcesses {
 			fmt.Printf("Running query against: %d\n", s.ApiPort())
 			error, _ := s.GetErrorBody("drop_series", "select * from cluster_query.1", "paul", "pass", true, c)
-			c.Assert(error, Matches, ".*Couldn't look up.*")
+			c.Assert(error, Matches, ".*Couldn't find series.*")
 		}
 	}
 }
@@ -1256,7 +1256,7 @@ func (self *ServerSuite) TestContinuousQueryBackfillOperations(c *C) {
 
 	// check backfill_off query results
 	body, _ := self.serverProcesses[0].GetErrorBody("test_cq", "select * from cqbackfill_off.10s", "root", "root", false, c)
-	c.Assert(body, Matches, "Couldn't look up columns for series: cqbackfill_off.10s")
+	c.Assert(body, Matches, "Couldn't find series: cqbackfill_off.10s")
 }
 
 func (self *ServerSuite) TestChangingRaftPort(c *C) {
