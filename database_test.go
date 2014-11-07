@@ -346,3 +346,6 @@ func TestDatabase_DeleteShardSpace_ErrShardSpaceNotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Ensure the database can execute a query and return the correct results.
+func TestDatabase_ExecuteQuery(t *testing.T) { t.Skip("pending") }

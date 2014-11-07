@@ -1,4 +1,4 @@
-package coordinator
+package influxdb
 
 import (
 	"errors"
@@ -6,10 +6,69 @@ import (
 
 	"code.google.com/p/log4go"
 
-	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/engine"
+	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
+
+// ResponseChannel is a processor for Responses as opposed to Series like `engine.Processor'
+type ResponseChannel interface {
+	Yield(r *protocol.Response) bool
+	Name() string
+}
+
+// ResponseChannelProcessor converts Series to Responses. This is used
+// to chain `engine.Processor` with a `ResponseChannel'
+type ResponseChannelProcessor struct {
+	r ResponseChannel
+}
+
+func NewResponseChannelProcessor(r ResponseChannel) *ResponseChannelProcessor {
+	return &ResponseChannelProcessor{r}
+}
+
+func (p *ResponseChannelProcessor) Yield(s *protocol.Series) (bool, error) {
+	log4go.Debug("Yielding to %s %s", p.r.Name(), s)
+	ok := p.r.Yield(&protocol.Response{
+		Type:        protocol.Response_QUERY.Enum(),
+		MultiSeries: []*protocol.Series{s},
+	})
+	return ok, nil
+}
+
+func (p *ResponseChannelProcessor) Close() error {
+	p.r.Yield(&protocol.Response{
+		Type: protocol.Response_END_STREAM.Enum(),
+	})
+	return nil
+}
+
+func (p *ResponseChannelProcessor) Name() string {
+	return "ResponseChannelProcessor"
+}
+
+func (p *ResponseChannelProcessor) Next() engine.Processor {
+	return nil
+}
+
+// A `ResponseProcessor' that wraps a go channel.
+type ResponseChannelWrapper struct {
+	c chan<- *protocol.Response
+}
+
+func NewResponseChannelWrapper(c chan<- *protocol.Response) ResponseChannel {
+	return &ResponseChannelWrapper{c}
+}
+
+func (w *ResponseChannelWrapper) Yield(r *protocol.Response) bool {
+	log4go.Debug("ResponseChannelWrapper: Yielding %s", r)
+	w.c <- r
+	return true
+}
+
+func (w *ResponseChannelWrapper) Name() string {
+	return "ResponseChannelWrapper"
+}
 
 // This struct is responsible for merging responses from multiple
 // response channels and controlling the concurrency of querying by
@@ -136,7 +195,7 @@ func (p *MergeChannelProcessor) processChannel(channel <-chan *protocol.Response
 			return false
 
 		case protocol.Response_ERROR:
-			err := common.NewQueryError(common.InvalidArgument, response.GetErrorMessage())
+			err := parser.NewQueryError(parser.InvalidArgument, response.GetErrorMessage())
 			p.e <- err
 			return false
 
@@ -156,3 +215,25 @@ func (p *MergeChannelProcessor) processChannel(channel <-chan *protocol.Response
 	}
 	panic(errors.New("Reached end of method"))
 }
+
+// A processor to set the ShardId on the series to `id`
+type ShardIdInserterProcessor struct {
+	id   uint32
+	next engine.Processor
+}
+
+func NewShardIdInserterProcessor(id uint32, next engine.Processor) *ShardIdInserterProcessor {
+	return &ShardIdInserterProcessor{id, next}
+}
+
+func (p *ShardIdInserterProcessor) Yield(s *protocol.Series) (bool, error) {
+	s.ShardId = &p.id
+	return p.next.Yield(s)
+}
+
+func (p *ShardIdInserterProcessor) Close() error { return p.next.Close() }
+
+func (p *ShardIdInserterProcessor) Name() string {
+	return fmt.Sprintf("ShardIdInserterProcessor (%d)", p.id)
+}
+func (p *ShardIdInserterProcessor) Next() engine.Processor { return p.next }

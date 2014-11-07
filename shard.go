@@ -27,20 +27,6 @@ type Shard struct {
 // Duration returns the duration between the shard's start and end time.
 func (s *Shard) Duration() time.Duration { return s.EndTime.Sub(s.StartTime) }
 
-// MatchInterval return true if an interval lines up with the shard's duration.
-func (s *Shard) MatchInterval(d time.Duration) bool {
-	return s.Duration()%d == 0
-
-	groupByInterval := querySpec.GetGroupByInterval()
-	if groupByInterval == nil {
-		if querySpec.HasAggregates() {
-			return false
-		}
-		return true
-	}
-	return (self.shardDuration%*groupByInterval == 0) && !querySpec.GroupByIrregularInterval
-}
-
 // write writes series data to a shard.
 func (s *Shard) write(series *protocol.Series) error {
 	return s.store.Update(func(tx *bolt.Tx) error {
@@ -53,7 +39,101 @@ func (s *Shard) deleteSeries(name string) error {
 	panic("not yet implemented") // TODO
 }
 
-func (s *Shard) query(q *parser.QuerySpec, name string, fields Fields, processor engine.Processor) error {
+// query executes a query against the shard and returns results to a channel.
+func (s *Shard) query(spec *parser.QuerySpec, resp chan<- *protocol.Response) {
+	log4go.Debug("QUERY: shard %d, query '%s'", s.ID, spec.GetQueryStringWithTimeCondition())
+	defer recoverFunc(spec.Database(), spec.GetQueryStringWithTimeCondition(), func(err interface{}) {
+		resp <- &protocol.Response{
+			Type:         protocol.Response_ERROR.Enum(),
+			ErrorMessage: protocol.String(fmt.Sprintf("%s", err)),
+		}
+	})
+
+	var err error
+	var p engine.Processor
+	p = NewResponseChannelProcessor(NewResponseChannelWrapper(resp))
+	p = NewShardIdInserterProcessor(s.ID, p)
+
+	if p, err = s.processor(spec, p); err != nil {
+		resp <- &protocol.Response{
+			Type:         protocol.Response_ERROR.Enum(),
+			ErrorMessage: protocol.String(err.Error()),
+		}
+		log4go.Error("error while creating engine: %s", err)
+		return
+	}
+	log4go.Info("processor chain:  %s\n", engine.ProcessorChain(p))
+
+	// Execute by type of query.
+	switch t := spec.SelectQuery().FromClause.Type; t {
+	case parser.FromClauseArray:
+		log4go.Debug("shard %s: running a regular query")
+		panic("shard.executArrayQuery(): not yet implemented")
+		// TODO: err = s.executeArrayQuery(spec, processor)
+
+	// TODO
+	//case parser.FromClauseMerge, parser.FromClauseInnerJoin:
+	//	log4go.Debug("shard %s: running a merge query")
+	//	err = s.executeMergeQuery(querySpec, processor, t)
+
+	default:
+		panic(fmt.Errorf("unknown from clause type %s", t))
+	}
+	if err != nil {
+		resp <- &protocol.Response{
+			Type:         protocol.Response_ERROR.Enum(),
+			ErrorMessage: protocol.String(err.Error()),
+		}
+		return
+	}
+
+	_ = p.Close()
+	resp <- &protocol.Response{Type: protocol.Response_END_STREAM.Enum()}
+}
+
+func (s *Shard) processor(spec *parser.QuerySpec, p engine.Processor) (engine.Processor, error) {
+	//if spec.IsSinglePointQuery() {
+	//	return engine.NewPassthroughEngine(p, 1), nil
+	//}
+
+	// We should aggregate at the shard level.
+	q := spec.SelectQuery()
+	if spec.CanAggregateLocally(s.Duration()) {
+		log4go.Debug("creating a query engine")
+		var err error
+		if p, err = engine.NewQueryEngine(p, q, nil); err != nil {
+			return nil, err
+		}
+		if q != nil && q.GetFromClause().Type != parser.FromClauseInnerJoin {
+			p = engine.NewFilteringEngine(q, p)
+		}
+		return p, nil
+	}
+
+	// We shouldn't limit the queries if they have aggregates and aren't
+	// aggregated locally, otherwise the aggregation result which happen
+	// in the coordinator will get partial data and will be incorrect
+	if q.HasAggregates() {
+		log4go.Debug("creating a passthrough engine")
+		p = engine.NewPassthroughEngine(p, 1000)
+		if q != nil && q.GetFromClause().Type != parser.FromClauseInnerJoin {
+			p = engine.NewFilteringEngine(q, p)
+		}
+		return p, nil
+	}
+
+	// This is an optimization so we don't send more data that we should
+	// over the wire. The coordinator has its own Passthrough which does
+	// the final limit.
+	if q.Limit > 0 {
+		log4go.Debug("creating a passthrough engine with limit")
+		p = engine.NewPassthroughEngineWithLimit(p, 1000, q.Limit)
+	}
+
+	return p, nil
+}
+
+func (s *Shard) executeArrayQuery(q *parser.QuerySpec, name string, fields Fields, processor engine.Processor) error {
 	// TODO? Single point query.
 	/*
 		if q.IsSinglePointQuery() {
@@ -118,6 +198,18 @@ func (s *Shard) iterator(fields []*Field) (*iterator, error) {
 	//}
 
 	return i, nil
+}
+
+// Shards represents a list of shards.
+type Shards []*Shard
+
+// IDs returns a slice of all shard ids.
+func (p Shards) IDs() []uint32 {
+	ids := make([]uint32, len(p))
+	for i, s := range p {
+		ids[i] = s.ID
+	}
+	return ids
 }
 
 // shardsAsc represents a list of shards, sortable in ascending order.

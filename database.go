@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"code.google.com/p/log4go"
+	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
@@ -261,7 +263,7 @@ func (db *Database) WriteSeries(series *protocol.Series) error {
 }
 
 // ExecuteQuery executes a query against a database.
-func (db *Database) ExecuteQuery(u parser.User, q *parser.Query) error {
+func (db *Database) ExecuteQuery(u parser.User, q *parser.Query, p engine.Processor) error {
 	spec := parser.NewQuerySpec(u, db.Name(), q)
 	// TODO: Check permissions.
 	//if ok, err := db.permissions.CheckQueryPermissions(u, db.Name(), spec); !ok {
@@ -272,7 +274,7 @@ func (db *Database) ExecuteQuery(u parser.User, q *parser.Query) error {
 	// TODO: DropSeries
 	switch q.Type() {
 	case parser.Select:
-		return db.executeSelectQuery(u, spec)
+		return db.executeSelectQuery(u, spec, p)
 	case parser.Delete:
 		return db.executeDeleteQuery(u, spec)
 	default:
@@ -281,7 +283,7 @@ func (db *Database) ExecuteQuery(u parser.User, q *parser.Query) error {
 }
 
 // executeSelectQuery executes a selection query against the database.
-func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec) error {
+func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec, p engine.Processor) error {
 	q := spec.SelectQuery()
 
 	// Find series matching query.
@@ -292,10 +294,14 @@ func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec) er
 	shards := ShardSpaces(spaces).Shards()
 
 	// Select subset of shards matching date range.
+	// If no shards are available then close the processor and return.
 	shards = shardsInRange(shards, spec.GetStartTime(), spec.GetEndTime())
+	if len(shards) == 0 {
+		return p.Close()
+	}
 
 	// Sort shards in appropriate order based on query.
-	if querySpec.IsAscending() {
+	if spec.IsAscending() {
 		sort.Sort(shardsAsc(shards))
 	} else {
 		sort.Sort(shardsDesc(shards))
@@ -311,15 +317,41 @@ func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec) er
 		}
 	}
 
-	// TODO: If aggregating locally then use PassthroughWithLimit processor.
-	// TODO: If not aggregating locally then use QueryEngine.
-	// TODO: If no shards are found then close the processor.
-	// TODO: Limit concurrent shard limit to 1 if we must run sequentially.
-	// TODO: Create MergeChannelProcessor.
-	// TODO: Loop over shards, create response channel, kick off querying.
-	// TODO: Return data (?).
+	// If aggregating locally then use PassthroughEngineWithLimit processor.
+	// Otherwise create a new query engine with a list of shard ids.
+	if local {
+		p = engine.NewPassthroughEngineWithLimit(p, 100, q.Limit)
+	} else {
+		var err error
+		if p, err = engine.NewQueryEngine(p, q, Shards(shards).IDs()); err != nil {
+			return fmt.Errorf("new query engine: %s", err)
+		}
+	}
 
-	return nil
+	// Create MergeChannelProcessor.
+	mcp := NewMergeChannelProcessor(p, 1)
+	go mcp.ProcessChannels()
+
+	// Loop over shards, create response channel, kick off querying.
+	for i, s := range shards {
+		c, err := mcp.NextChannel(1000)
+		if err != nil {
+			mcp.Close()
+			return fmt.Errorf("next channel: %s", err)
+		}
+
+		// We query shards for data and stream them to query processor
+		log4go.Debug("QUERYING: shard: %d", i)
+		go s.query(spec, c)
+	}
+
+	// Close merge channel processor.
+	if err := mcp.Close(); err != nil {
+		log4go.Error("Error while querying shards: %s", err)
+		return err
+	}
+
+	return p.Close()
 }
 
 // seriesByTableNames returns a list of series that match a set of table names.
