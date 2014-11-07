@@ -1357,11 +1357,11 @@ func (self *ClusterConfiguration) RemoveShardSpace(database, name string) error 
 	} else {
 		self.databaseShardSpaces[database] = spacesToKeep
 	}
-	for _, s := range space.shards {
-		delete(self.shardsById, s.id)
-	}
-
 	if space != nil {
+		for _, s := range space.shards {
+			delete(self.shardsById, s.id)
+		}
+
 		go func() {
 			for _, s := range space.shards {
 				self.shardStore.DeleteShard(s.id)
