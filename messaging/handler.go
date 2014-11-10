@@ -87,7 +87,7 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 		h.error(w, ErrTopicRequired, http.StatusBadRequest)
 		return
 	} else {
-		m.TopicID = uint32(n)
+		m.TopicID = uint64(n)
 	}
 
 	// Read the request body.

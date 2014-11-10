@@ -16,7 +16,7 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
-const BroadcastTopicID = uint32(0)
+const BroadcastTopicID = uint64(0)
 
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
@@ -27,8 +27,8 @@ type Broker struct {
 
 	replicas map[string]*Replica // replica by name
 
-	maxTopicID uint32            // autoincrementing sequence
-	topics     map[uint32]*topic // topics by id
+	maxTopicID uint64            // autoincrementing sequence
+	topics     map[uint64]*topic // topics by id
 }
 
 // NewBroker returns a new instance of a Broker with default values.
@@ -36,7 +36,7 @@ func NewBroker() *Broker {
 	b := &Broker{
 		log:      raft.NewLog(),
 		replicas: make(map[string]*Replica),
-		topics:   make(map[uint32]*topic),
+		topics:   make(map[uint64]*topic),
 	}
 	b.log.FSM = (*brokerFSM)(b)
 	return b
@@ -136,7 +136,7 @@ func (b *Broker) Replica(name string) *Replica {
 }
 
 // initializes a new topic object.
-func (b *Broker) createTopic(id uint32) *topic {
+func (b *Broker) createTopic(id uint64) *topic {
 	t := &topic{
 		id:       id,
 		path:     filepath.Join(b.path, strconv.FormatUint(uint64(id), 10)),
@@ -146,7 +146,7 @@ func (b *Broker) createTopic(id uint32) *topic {
 	return t
 }
 
-func (b *Broker) createTopicIfNotExists(id uint32) *topic {
+func (b *Broker) createTopicIfNotExists(id uint64) *topic {
 	if t := b.topics[id]; t != nil {
 		return t
 	}
@@ -219,7 +219,7 @@ func (b *Broker) applyDeleteReplica(m *Message) {
 			delete(t.replicas, r.name)
 		}
 	}
-	r.topics = make(map[uint32]uint64)
+	r.topics = make(map[uint64]uint64)
 
 	// Close replica's writer.
 	r.closeWriter()
@@ -229,7 +229,7 @@ func (b *Broker) applyDeleteReplica(m *Message) {
 }
 
 // Subscribe adds a subscription to a topic from a replica.
-func (b *Broker) Subscribe(replica string, topicID uint32) error {
+func (b *Broker) Subscribe(replica string, topicID uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -275,7 +275,7 @@ func (b *Broker) applySubscribe(m *Message) {
 }
 
 // Unsubscribe removes a subscription for a topic from a replica.
-func (b *Broker) Unsubscribe(replica string, topicID uint32) error {
+func (b *Broker) Unsubscribe(replica string, topicID uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -374,7 +374,7 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 // topic represents a single named queue of messages.
 // Each topic is identified by a unique path.
 type topic struct {
-	id    uint32 // unique identifier
+	id    uint64 // unique identifier
 	index uint64 // highest index written
 	path  string // on-disk path
 
@@ -496,7 +496,7 @@ type Replica struct {
 	writer io.Writer     // currently attached writer
 	done   chan struct{} // notify when current writer is removed
 
-	topics map[uint32]uint64 // current index for each subscribed topic
+	topics map[uint64]uint64 // current index for each subscribed topic
 }
 
 // newReplica returns a new named Replica instance associated with a broker.
@@ -504,7 +504,7 @@ func newReplica(b *Broker, name string) *Replica {
 	return &Replica{
 		broker: b,
 		name:   name,
-		topics: make(map[uint32]uint64),
+		topics: make(map[uint64]uint64),
 	}
 }
 
@@ -518,18 +518,18 @@ func (r *Replica) closeWriter() {
 }
 
 // Subscribe adds a subscription to a topic for the replica.
-func (r *Replica) Subscribe(topicID uint32) error { return r.broker.Subscribe(r.name, topicID) }
+func (r *Replica) Subscribe(topicID uint64) error { return r.broker.Subscribe(r.name, topicID) }
 
 // Unsubscribe removes a subscription from the stream.
-func (r *Replica) Unsubscribe(topicID uint32) error { return r.broker.Unsubscribe(r.name, topicID) }
+func (r *Replica) Unsubscribe(topicID uint64) error { return r.broker.Unsubscribe(r.name, topicID) }
 
 // Topics returns a list of topic names that the replica is subscribed to.
-func (r *Replica) Topics() []uint32 {
-	a := make([]uint32, 0, len(r.topics))
+func (r *Replica) Topics() []uint64 {
+	a := make([]uint64, 0, len(r.topics))
 	for topicID := range r.topics {
 		a = append(a, topicID)
 	}
-	sort.Sort(uint32Slice(a))
+	sort.Sort(uint64Slice(a))
 	return a
 }
 
@@ -569,11 +569,11 @@ func (r *Replica) WriteTo(w io.Writer) (int, error) {
 
 	// Create a topic list with the "config" topic first.
 	// Configuration changes need to be propagated to make sure topics exist.
-	ids := make([]uint32, 0, len(r.topics))
+	ids := make([]uint64, 0, len(r.topics))
 	for topicID := range r.topics {
 		ids = append(ids, topicID)
 	}
-	sort.Sort(uint32Slice(ids))
+	sort.Sort(uint64Slice(ids))
 
 	// Catch up and attach replica to all subscribed topics.
 	for _, topicID := range ids {
@@ -610,13 +610,13 @@ type DeleteReplicaCommand struct {
 // SubscribeCommand subscribes a replica to a new topic.
 type SubscribeCommand struct {
 	Replica string `json:"replica"` // replica name
-	TopicID uint32 `json:"topicID"` // topic id
+	TopicID uint64 `json:"topicID"` // topic id
 }
 
 // UnsubscribeCommand removes a subscription for a topic from a replica.
 type UnsubscribeCommand struct {
 	Replica string `json:"replica"` // replica name
-	TopicID uint32 `json:"topicID"` // topic id
+	TopicID uint64 `json:"topicID"` // topic id
 }
 
 // MessageType represents the type of message.
@@ -635,12 +635,12 @@ const (
 )
 
 // The size of the encoded message header, in bytes.
-const messageHeaderSize = 2 + 4 + 8 + 4
+const messageHeaderSize = 2 + 8 + 8 + 4
 
 // Message represents a single item in a topic.
 type Message struct {
 	Type    MessageType
-	TopicID uint32
+	TopicID uint64
 	Index   uint64
 	Data    []byte
 }
@@ -680,9 +680,9 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 func (m *Message) marshalHeader() []byte {
 	b := make([]byte, messageHeaderSize)
 	binary.BigEndian.PutUint16(b[0:2], uint16(m.Type))
-	binary.BigEndian.PutUint32(b[2:6], m.TopicID)
-	binary.BigEndian.PutUint64(b[6:14], m.Index)
-	binary.BigEndian.PutUint32(b[14:18], uint32(len(m.Data)))
+	binary.BigEndian.PutUint64(b[2:10], m.TopicID)
+	binary.BigEndian.PutUint64(b[10:18], m.Index)
+	binary.BigEndian.PutUint32(b[18:22], uint32(len(m.Data)))
 	return b
 }
 
@@ -690,9 +690,9 @@ func (m *Message) marshalHeader() []byte {
 // The data field is appropriately sized but is not filled.
 func (m *Message) unmarshalHeader(b []byte) {
 	m.Type = MessageType(binary.BigEndian.Uint16(b[0:2]))
-	m.TopicID = binary.BigEndian.Uint32(b[2:6])
-	m.Index = binary.BigEndian.Uint64(b[6:14])
-	m.Data = make([]byte, binary.BigEndian.Uint32(b[14:18]))
+	m.TopicID = binary.BigEndian.Uint64(b[2:10])
+	m.Index = binary.BigEndian.Uint64(b[10:18])
+	m.Data = make([]byte, binary.BigEndian.Uint32(b[18:22]))
 }
 
 // MessageDecoder decodes messages from a reader.
@@ -726,12 +726,12 @@ type flusher interface {
 	Flush()
 }
 
-// uint32Slice attaches the methods of Interface to []int, sorting in increasing order.
-type uint32Slice []uint32
+// uint64Slice attaches the methods of Interface to []int, sorting in increasing order.
+type uint64Slice []uint64
 
-func (p uint32Slice) Len() int           { return len(p) }
-func (p uint32Slice) Less(i, j int) bool { return p[i] < p[j] }
-func (p uint32Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p uint64Slice) Len() int           { return len(p) }
+func (p uint64Slice) Less(i, j int) bool { return p[i] < p[j] }
+func (p uint64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // mustMarshalJSON encodes a value to JSON.
 // This will panic if an error occurs. This should only be used internally when

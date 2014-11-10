@@ -3,6 +3,7 @@ package influxdb
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -17,20 +18,88 @@ import (
 
 // Shard represents the physical storage for a given time range.
 type Shard struct {
-	ID        uint32    `json:"id,omitempty"`
+	ID        uint64    `json:"id,omitempty"`
 	StartTime time.Time `json:"startTime,omitempty"`
 	EndTime   time.Time `json:"endTime,omitempty"`
 
 	store *bolt.DB
 }
 
+// newShard returns a new initialized Shard instance.
+func newShard() *Shard { return &Shard{} }
+
 // Duration returns the duration between the shard's start and end time.
 func (s *Shard) Duration() time.Duration { return s.EndTime.Sub(s.StartTime) }
 
-// write writes series data to a shard.
-func (s *Shard) write(series *protocol.Series) error {
+// open initializes and opens the shard's store.
+func (s *Shard) open(path string) error {
+	// Return an error if the shard is already open.
+	if s.store != nil {
+		return errors.New("shard already open")
+	}
+
+	// Open store on shard.
+	store, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	if err != nil {
+		return err
+	}
+	s.store = store
+
+	// Initialize store.
+	if err := s.init(); err != nil {
+		_ = s.close()
+		return fmt.Errorf("init: %s", err)
+	}
+
+	return nil
+}
+
+// init creates top-level buckets in the datastore.
+func (s *Shard) init() error {
 	return s.store.Update(func(tx *bolt.Tx) error {
-		// TODO: Write data.
+		_, _ = tx.CreateBucketIfNotExists([]byte("values"))
+		return nil
+	})
+}
+
+// close shuts down the shard's store.
+func (s *Shard) close() error {
+	return s.store.Close()
+}
+
+// write writes series data to a shard.
+func (s *Shard) writeSeries(series *protocol.Series) error {
+	assert(len(series.GetFieldIds()) > 0, "field ids required for write")
+
+	return s.store.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("values"))
+
+		for i, fieldID := range series.FieldIds {
+			for _, p := range series.Points {
+				// Convert the storage key to a byte slice.
+				k := marshalStorageKey(newStorageKey(fieldID, p.GetTimestamp(), p.GetSequenceNumber()))
+
+				// If value is null then delete it.
+				if p.Values[i].GetIsNull() {
+					if err := b.Delete(k); err != nil {
+						return fmt.Errorf("del: %s", err)
+					}
+					continue
+				}
+
+				// Marshal the value via protobuf.
+				buf := proto.NewBuffer(nil)
+				if err := buf.Marshal(p.Values[i]); err != nil {
+					return err
+				}
+
+				// Write to the bucket.
+				if err := b.Put(k, buf.Bytes()); err != nil {
+					return fmt.Errorf("put: %s", err)
+				}
+			}
+		}
+
 		return nil
 	})
 }
@@ -40,7 +109,7 @@ func (s *Shard) deleteSeries(name string) error {
 }
 
 // query executes a query against the shard and returns results to a channel.
-func (s *Shard) query(spec *parser.QuerySpec, resp chan<- *protocol.Response) {
+func (s *Shard) query(spec *parser.QuerySpec, name string, fields []*Field, resp chan<- *protocol.Response) {
 	log4go.Debug("QUERY: shard %d, query '%s'", s.ID, spec.GetQueryStringWithTimeCondition())
 	defer recoverFunc(spec.Database(), spec.GetQueryStringWithTimeCondition(), func(err interface{}) {
 		resp <- &protocol.Response{
@@ -68,8 +137,7 @@ func (s *Shard) query(spec *parser.QuerySpec, resp chan<- *protocol.Response) {
 	switch t := spec.SelectQuery().FromClause.Type; t {
 	case parser.FromClauseArray:
 		log4go.Debug("shard %s: running a regular query")
-		panic("shard.executArrayQuery(): not yet implemented")
-		// TODO: err = s.executeArrayQuery(spec, processor)
+		err = s.executeArrayQuery(spec, name, fields, p)
 
 	// TODO
 	//case parser.FromClauseMerge, parser.FromClauseInnerJoin:
@@ -92,10 +160,6 @@ func (s *Shard) query(spec *parser.QuerySpec, resp chan<- *protocol.Response) {
 }
 
 func (s *Shard) processor(spec *parser.QuerySpec, p engine.Processor) (engine.Processor, error) {
-	//if spec.IsSinglePointQuery() {
-	//	return engine.NewPassthroughEngine(p, 1), nil
-	//}
-
 	// We should aggregate at the shard level.
 	q := spec.SelectQuery()
 	if spec.CanAggregateLocally(s.Duration()) {
@@ -133,24 +197,20 @@ func (s *Shard) processor(spec *parser.QuerySpec, p engine.Processor) (engine.Pr
 	return p, nil
 }
 
-func (s *Shard) executeArrayQuery(q *parser.QuerySpec, name string, fields Fields, processor engine.Processor) error {
-	// TODO? Single point query.
-	/*
-		if q.IsSinglePointQuery() {
-			log4go.Debug("Running single query for series %s, fields %v", name, fields)
-			return s.executeSinglePointQuery(q, name, fields, processor)
-		}
-	*/
-
-	fnames := fields.Names()
-	aliases := q.SelectQuery().GetTableAliases(name)
+func (s *Shard) executeArrayQuery(spec *parser.QuerySpec, name string, fields []*Field, processor engine.Processor) error {
+	fnames := Fields(fields).Names()
+	aliases := spec.SelectQuery().GetTableAliases(name)
 
 	// Create a new iterator.
-	i, _ := s.iterator(fields) // TODO: check error
-	i.startTime = q.GetStartTime()
-	i.endTime = q.GetEndTime()
-	i.ascending = q.SelectQuery().Ascending
+	i, err := s.iterator(fields)
+	if err != nil {
+		return fmt.Errorf("iterator: %s", err)
+	}
 	defer func() { _ = i.close() }()
+
+	i.startTime = spec.GetStartTime()
+	i.endTime = spec.GetEndTime()
+	i.ascending = spec.SelectQuery().Ascending
 
 	// Iterate over each point and yield to the processor for each alias.
 	for p := i.first(); p != nil; p = i.next() {
@@ -172,7 +232,7 @@ func (s *Shard) executeArrayQuery(q *parser.QuerySpec, name string, fields Field
 		}
 	}
 
-	log4go.Debug("Finished running query %s", q.GetQueryString())
+	log4go.Debug("Finished running query %s", spec.GetQueryString())
 	return nil
 }
 
@@ -187,15 +247,16 @@ func (s *Shard) iterator(fields []*Field) (*iterator, error) {
 
 	// Initialize cursor.
 	i := &iterator{
-		tx:     tx,
-		fields: fields,
-		values: make([]rawValue, len(fields)),
+		tx:      tx,
+		fields:  fields,
+		cursors: make([]*bolt.Cursor, len(fields)),
+		values:  make([]rawValue, len(fields)),
 	}
 
 	// Open a cursor for each field.
-	//for _, f := range fields {
-	// TODO: Open field cursor.
-	//}
+	for j := range fields {
+		i.cursors[j] = tx.Bucket([]byte("values")).Cursor()
+	}
 
 	return i, nil
 }
@@ -204,8 +265,8 @@ func (s *Shard) iterator(fields []*Field) (*iterator, error) {
 type Shards []*Shard
 
 // IDs returns a slice of all shard ids.
-func (p Shards) IDs() []uint32 {
-	ids := make([]uint32, len(p))
+func (p Shards) IDs() []uint64 {
+	ids := make([]uint64, len(p))
 	for i, s := range p {
 		ids[i] = s.ID
 	}
@@ -248,7 +309,7 @@ func newStorageKey(id uint64, timestamp int64, seq uint64) storageKey {
 }
 
 // Parse the given byte slice into a storageKey
-func parseKey(b []byte) (storageKey, error) {
+func unmarshalStorageKey(b []byte) (storageKey, error) {
 	if len(b) != 8*3 {
 		return storageKey{}, fmt.Errorf("Expected %d fields, found %d", 8*3, len(b))
 	}
@@ -264,31 +325,28 @@ func parseKey(b []byte) (storageKey, error) {
 	return sk, nil
 }
 
-// mustParseKey parses a storage key and panics if cannot be parsed.
-func mustParseKey(b []byte) storageKey {
-	sk, err := parseKey(b)
+// mustUnmarshalStorageKey parses a storage key and panics if cannot be parsed.
+func mustUnmarshalStorageKey(b []byte) storageKey {
+	sk, err := unmarshalStorageKey(b)
 	if err != nil {
 		panic(err)
 	}
 	return sk
 }
 
-// Return a byte representation of the storage key. If the given byte
-// representation was to be lexicographic sorted, then b1 < b2 iff
-// id1 < id2 (b1 is a byte representation of a storageKey with a smaller
-// id) or id1 == id2 and t1 < t2, or id1 == id2 and t1 == t2 and
-// seq1 < seq2. This means that the byte representation has the same
-// sort properties as the tuple (id, time, sequence)
-func (sk storageKey) bytes() []byte {
+// marshalStorageKey converts a storage key to a byte slice.
+// Byte slice is cached for reuse.
+func marshalStorageKey(sk storageKey) []byte {
 	if sk.bytesBuf != nil {
 		return sk.bytesBuf
 	}
 
 	buf := bytes.NewBuffer(nil)
 	binary.Write(buf, binary.BigEndian, sk.id)
-	t := convertTimestampToUint(sk.timestamp)
-	binary.Write(buf, binary.BigEndian, t)
+	binary.Write(buf, binary.BigEndian, convertTimestampToUint(sk.timestamp))
 	binary.Write(buf, binary.BigEndian, sk.seq)
+
+	// Cache key on the storage key.
 	sk.bytesBuf = buf.Bytes()
 	return sk.bytesBuf
 }
@@ -341,19 +399,69 @@ func (i *iterator) close() (err error) {
 
 // first moves the iterator to the first point.
 func (i *iterator) first() *protocol.Point {
-	panic("not yet implemented") // TODO
+	i.valid = false
+
+	for j, c := range i.cursors {
+		// Read next key/value.
+		k, v := c.Seek(marshalStorageKey(newStorageKey(i.fields[j].ID, convertUintTimestampToInt64(uint64(i.startTime.UnixNano())), 0)))
+		if k == nil {
+			continue
+		}
+
+		sk := mustUnmarshalStorageKey(k)
+		if sk.id != i.fields[j].ID {
+			log4go.Debug("first: different id reached")
+			continue
+		} else if sk.time().Before(i.startTime) || sk.time().After(i.endTime) {
+			log4go.Debug("first: outside time range: %s, %s", sk.time(), i.startTime)
+			continue
+		}
+
+		// Set the value for the field.
+		i.values[j] = rawValue{time: sk.timestamp, sequence: sk.seq, value: v}
+	}
+
+	return i.materialize()
 }
 
 // next moves the cursor to the next point.
 func (i *iterator) next() *protocol.Point {
-	// Create a new point.
-	buf := proto.NewBuffer(nil)
 	i.valid = false
-	point := &protocol.Point{Values: make([]*protocol.FieldValue, len(i.fields))}
 
 	// Move the cursors to the next value.
-	i.nextValue()
+	for j, c := range i.cursors {
+		// Ignore cursors which already have a value.
+		if i.values[j].value != nil {
+			continue
+		}
 
+		// Read next key/value.
+		k, v := c.Next()
+		if k == nil {
+			continue
+		}
+
+		// Move to the next iterator if different field reached.
+		// Move to the next iterator if outside of time range.
+		sk := mustUnmarshalStorageKey(k)
+		if sk.id != i.fields[j].ID {
+			log4go.Debug("different id reached")
+			continue
+		} else if sk.time().Before(i.startTime) || sk.time().After(i.endTime) {
+			log4go.Debug("Outside time range: %s, %s", sk.time(), i.startTime)
+			continue
+		}
+
+		// Set the value for the field.
+		i.values[j] = rawValue{time: sk.timestamp, sequence: sk.seq, value: v}
+		log4go.Debug("Iterator next value: %v", i.values[j])
+	}
+
+	return i.materialize()
+}
+
+// materialize creates a point from the current values and move the cursors forward.
+func (i *iterator) materialize() *protocol.Point {
 	// choose the highest (or lowest in case of ascending queries) timestamp
 	// and sequence number. that will become the timestamp and sequence of
 	// the next point.
@@ -376,6 +484,8 @@ func (i *iterator) next() *protocol.Point {
 	}
 
 	// Set values to point that match the timestamp & sequence number.
+	buf := proto.NewBuffer(nil)
+	point := &protocol.Point{Values: make([]*protocol.FieldValue, len(i.fields))}
 	for j, c := range i.cursors {
 		value := &i.values[j]
 		log4go.Debug("Column value: %s", value)
@@ -423,34 +533,6 @@ func (i *iterator) next() *protocol.Point {
 	point.SequenceNumber = proto.Uint64(next.sequence)
 
 	return point
-}
-
-// nextValue moves cursors forward that don't have a value.
-func (i *iterator) nextValue() {
-	for j, c := range i.cursors {
-		// Ignore cursors which already have a value.
-		if i.values[j].value != nil {
-			continue
-		}
-
-		// Read next key/value.
-		k, v := c.Next()
-
-		// Move to the next iterator if different field reached.
-		// Move to the next iterator if outside of time range.
-		sk := mustParseKey(k)
-		if sk.id != i.fields[j].ID {
-			log4go.Debug("different id reached")
-			continue
-		} else if sk.time().Before(i.startTime) || sk.time().After(i.endTime) {
-			log4go.Debug("Outside time range: %s, %s", sk.time(), i.startTime)
-			continue
-		}
-
-		// Set the value for the field.
-		i.values[j] = rawValue{time: sk.timestamp, sequence: sk.seq, value: v}
-		log4go.Debug("Iterator next value: %v", i.values[j])
-	}
 }
 
 // rawValue represents the value for a field at a given time and sequence id.

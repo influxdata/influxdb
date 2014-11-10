@@ -8,8 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"code.google.com/p/goprotobuf/proto"
 	"code.google.com/p/log4go"
 	"github.com/influxdb/influxdb/engine"
+	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
@@ -22,8 +24,10 @@ type Database struct {
 
 	users  map[string]*DBUser     // database users by name
 	spaces map[string]*ShardSpace // shard spaces by name
-	shards map[uint32]*Shard      // shards by id
+	shards map[uint64]*Shard      // shards by id
 	series map[string]*Series     // series by name
+
+	maxFieldID uint64 // largest field id in use
 }
 
 // newDatabase returns an instance of Database associated with a server.
@@ -32,7 +36,7 @@ func newDatabase(s *Server) *Database {
 		server: s,
 		users:  make(map[string]*DBUser),
 		spaces: make(map[string]*ShardSpace),
-		shards: make(map[uint32]*Shard),
+		shards: make(map[uint64]*Shard),
 		series: make(map[string]*Series),
 	}
 }
@@ -187,6 +191,16 @@ func (db *Database) ShardSpace(name string) *ShardSpace {
 	return db.spaces[name]
 }
 
+// shardSpaceBySeries returns a shard space that matches a series name.
+func (db *Database) shardSpaceBySeries(name string) *ShardSpace {
+	for _, ss := range db.spaces {
+		if ss.Regex.MatchString(name) {
+			return ss
+		}
+	}
+	return nil
+}
+
 // CreateShardSpace creates a shard space in the database.
 func (db *Database) CreateShardSpace(ss *ShardSpace) error {
 	c := &createShardSpaceCommand{
@@ -254,12 +268,177 @@ func (db *Database) applyDeleteShardSpace(name string) error {
 	return nil
 }
 
+// shard returns a shard by id.
+func (db *Database) shard(id uint64) *Shard {
+	for _, ss := range db.spaces {
+		for _, s := range ss.Shards {
+			if s.ID == id {
+				return s
+			}
+		}
+	}
+	return nil
+}
+
+// CreateShardIfNotExists creates a shard for a shard space for a given timestamp.
+func (db *Database) CreateShardIfNotExists(space string, timestamp time.Time) error {
+	c := &createShardIfNotExistsSpaceCommand{Database: db.name, Space: space, Timestamp: timestamp}
+	_, err := db.server.broadcast(createShardIfNotExistsMessageType, c)
+	return err
+}
+
+func (db *Database) applyCreateShardIfNotExists(id uint64, space string, timestamp time.Time) (error, bool) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	// Validate shard space.
+	ss := db.spaces[space]
+	if ss == nil {
+		return ErrShardSpaceNotFound, false
+	}
+
+	// If we can match to an existing shard date range then just ignore request.
+	for _, s := range ss.Shards {
+		if timeBetween(timestamp, s.StartTime, s.EndTime) {
+			return nil, false
+		}
+	}
+
+	// If no shards match then create a new one.
+	startTime := timestamp.Truncate(ss.Duration).UTC()
+	endTime := startTime.Add(ss.Duration).UTC()
+	s := newShard()
+	s.ID, s.StartTime, s.EndTime = id, startTime, endTime
+
+	// Open shard.
+	if err := s.open(db.server.shardPath(s.ID)); err != nil {
+		panic("unable to open shard: " + err.Error())
+	}
+
+	// Append to shard space.
+	ss.Shards = append(ss.Shards, s)
+
+	return nil, true
+}
+
 // WriteSeries writes series data to the database.
 func (db *Database) WriteSeries(series *protocol.Series) error {
-	// TODO: Split points up by shard.
-	// TODO: Issue message to broker.
+	// Find shard space matching the series and split points by shard.
+	db.mu.Lock()
+	name := db.name
+	space := db.shardSpaceBySeries(series.GetName())
+	db.mu.Unlock()
 
-	panic("not yet implemented") /* TODO */
+	// Ensure there is a space available.
+	if space == nil {
+		return ErrShardSpaceNotFound
+	}
+
+	// Group points by shard.
+	pointsByShard, unassigned := space.Split(series.Points)
+
+	// Request shard creation for timestamps for missing shards.
+	for _, p := range unassigned {
+		timestamp := time.Unix(0, p.GetTimestamp())
+		if err := db.CreateShardIfNotExists(space.Name, timestamp); err != nil {
+			return fmt.Errorf("create shard(%s/%d): %s", space.Name, timestamp.Format(time.RFC3339Nano), err)
+		}
+	}
+
+	// Try to split the points again. Fail if it doesn't work this time.
+	pointsByShard, unassigned = space.Split(series.Points)
+	if len(unassigned) > 0 {
+		return fmt.Errorf("unmatched points in space(%s): %#v", unassigned)
+	}
+
+	// Publish each group of points.
+	for shardID, points := range pointsByShard {
+		// Marshal series into protobuf format.
+		req := &protocol.WriteSeriesRequest{
+			Database: proto.String(name),
+			Series: &protocol.Series{
+				Name:     series.Name,
+				Fields:   series.Fields,
+				FieldIds: series.FieldIds,
+				ShardId:  proto.Uint64(shardID),
+				Points:   points,
+			},
+		}
+		data, err := proto.Marshal(req)
+		if err != nil {
+			return err
+		}
+
+		// Publish "write series" message on shard's topic to broker.
+		m := &messaging.Message{
+			Type:    writeSeriesMessageType,
+			TopicID: shardID,
+			Data:    data,
+		}
+		index, err := db.server.client.Publish(m)
+		if err != nil {
+			return err
+		}
+		if err := db.server.sync(index); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (db *Database) applyWriteSeries(s *protocol.Series) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	shard := db.shard(s.GetShardId())
+
+	// Find shard.
+	if s == nil {
+		return ErrShardNotFound
+	}
+
+	// Find or create series.
+	var changed bool
+	var series *Series
+	if series = db.series[s.GetName()]; series == nil {
+		series = &Series{Name: s.GetName()}
+		db.series[s.GetName()] = series
+		changed = true
+	}
+
+	// Assign field ids.
+	s.FieldIds = nil
+	for _, name := range s.GetFields() {
+		// Find field on series.
+		var fieldID uint64
+		for _, f := range series.Fields {
+			if f.Name == name {
+				fieldID = f.ID
+				break
+			}
+		}
+
+		// Create a new field, if not exists.
+		if fieldID == 0 {
+			db.maxFieldID++
+			fieldID = db.maxFieldID
+			series.Fields = append(series.Fields, &Field{ID: fieldID, Name: name})
+			changed = true
+		}
+
+		// Append the field id.
+		s.FieldIds = append(s.FieldIds, fieldID)
+	}
+
+	// Perist to metastore if changed.
+	if changed {
+		db.server.meta.mustUpdate(func(tx *metatx) error {
+			return tx.saveDatabase(db)
+		})
+	}
+
+	// Write to shard.
+	return shard.writeSeries(s)
 }
 
 // ExecuteQuery executes a query against a database.
@@ -272,11 +451,11 @@ func (db *Database) ExecuteQuery(u parser.User, q *parser.Query, p engine.Proces
 
 	// TODO: ListSeries
 	// TODO: DropSeries
+	// TODO: DeleteQuery
+
 	switch q.Type() {
 	case parser.Select:
 		return db.executeSelectQuery(u, spec, p)
-	case parser.Delete:
-		return db.executeDeleteQuery(u, spec)
 	default:
 		return ErrInvalidQuery
 	}
@@ -287,7 +466,7 @@ func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec, p 
 	q := spec.SelectQuery()
 
 	// Find series matching query.
-	series := db.seriesByTableNames(q.FromClause.Names)
+	series := db.seriesByValues(parser.TableNames(q.FromClause.Names).Names())
 
 	// Find a list of spaces matching the series.
 	spaces := db.spacesBySeries(series)
@@ -334,15 +513,26 @@ func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec, p 
 
 	// Loop over shards, create response channel, kick off querying.
 	for i, s := range shards {
-		c, err := mcp.NextChannel(1000)
-		if err != nil {
-			mcp.Close()
-			return fmt.Errorf("next channel: %s", err)
-		}
+		for value, columns := range q.GetReferencedColumns() {
+			for _, series := range db.seriesByValue(value) {
+				// Find fields.
+				fields := series.FieldsByNames(columns)
+				if len(fields) == 0 {
+					continue
+				}
 
-		// We query shards for data and stream them to query processor
-		log4go.Debug("QUERYING: shard: %d", i)
-		go s.query(spec, c)
+				// If we have a set of matching fields then create a channel.
+				c, err := mcp.NextChannel(1000)
+				if err != nil {
+					mcp.Close()
+					return fmt.Errorf("next channel: %s", err)
+				}
+
+				// We query shards for data and stream them to query processor
+				log4go.Debug("QUERYING: shard: %d", i)
+				go s.query(spec, series.Name, fields, c)
+			}
+		}
 	}
 
 	// Close merge channel processor.
@@ -354,17 +544,23 @@ func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec, p 
 	return p.Close()
 }
 
-// seriesByTableNames returns a list of series that match a set of table names.
-func (db *Database) seriesByTableNames(names []*parser.TableName) (a []*Series) {
+// seriesByValues returns a list of series that match a set of parser values.
+func (db *Database) seriesByValues(values []*parser.Value) (a []*Series) {
+	for _, value := range values {
+		a = append(a, db.seriesByValue(value)...)
+	}
+	return
+}
+
+// seriesByValue returns a list of series that match a parser value.
+func (db *Database) seriesByValue(value *parser.Value) (a []*Series) {
 	for _, s := range db.series {
-		for _, name := range names {
-			if re, ok := name.Name.GetCompiledRegex(); ok {
-				if re.MatchString(s.Name) {
-					a = append(a, s)
-				}
-			} else if name.Name.Name == s.Name {
+		if re, ok := value.GetCompiledRegex(); ok {
+			if re.MatchString(s.Name) {
 				a = append(a, s)
 			}
+		} else if value.Name == s.Name {
+			a = append(a, s)
 		}
 	}
 	return
@@ -405,17 +601,12 @@ func timeBetween(t, min, max time.Time) bool {
 	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
 }
 
-// executeDeleteQuery executes a deletion query against the database.
-func (db *Database) executeDeleteQuery(u parser.User, spec *parser.QuerySpec) error {
-	// TODO: Execute deletion message to broker.
-	panic("not yet implemented") // TODO
-}
-
 // MarshalJSON encodes a database into a JSON-encoded byte slice.
 func (db *Database) MarshalJSON() ([]byte, error) {
 	// Copy over properties to intermediate type.
 	var o databaseJSON
 	o.Name = db.name
+	o.MaxFieldID = db.maxFieldID
 	for _, u := range db.users {
 		o.Users = append(o.Users, u)
 	}
@@ -424,6 +615,9 @@ func (db *Database) MarshalJSON() ([]byte, error) {
 	}
 	for _, s := range db.shards {
 		o.Shards = append(o.Shards, s)
+	}
+	for _, s := range db.series {
+		o.Series = append(o.Series, s)
 	}
 	return json.Marshal(&o)
 }
@@ -438,6 +632,7 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 
 	// Copy over properties from intermediate type.
 	db.name = o.Name
+	db.maxFieldID = o.MaxFieldID
 
 	// Copy users.
 	db.users = make(map[string]*DBUser)
@@ -452,9 +647,15 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 	}
 
 	// Copy shards.
-	db.shards = make(map[uint32]*Shard)
+	db.shards = make(map[uint64]*Shard)
 	for _, s := range o.Shards {
 		db.shards[s.ID] = s
+	}
+
+	// Copy series.
+	db.series = make(map[string]*Series)
+	for _, s := range o.Series {
+		db.series[s.Name] = s
 	}
 
 	return nil
@@ -462,10 +663,12 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 
 // databaseJSON represents the JSON-serialization format for a database.
 type databaseJSON struct {
-	Name   string        `json:"name,omitempty"`
-	Users  []*DBUser     `json:"users,omitempty"`
-	Spaces []*ShardSpace `json:"spaces,omitempty"`
-	Shards []*Shard      `json:"shards,omitempty"`
+	Name       string        `json:"name,omitempty"`
+	MaxFieldID uint64        `json:"maxFieldID,omitempty"`
+	Users      []*DBUser     `json:"users,omitempty"`
+	Spaces     []*ShardSpace `json:"spaces,omitempty"`
+	Shards     []*Shard      `json:"shards,omitempty"`
+	Series     []*Series     `json:"series,omitempty"`
 }
 
 // databases represents a list of databases, sortable by name.
@@ -501,6 +704,31 @@ func NewShardSpace() *ShardSpace {
 		Retention: DefaultShardRetention,
 		Duration:  DefaultShardDuration,
 	}
+}
+
+// SplitPoints groups a set of points by shard id.
+// Also returns a list of timestamps that did not match an existing shard.
+func (ss *ShardSpace) Split(a []*protocol.Point) (points map[uint64][]*protocol.Point, unassigned []*protocol.Point) {
+	points = make(map[uint64][]*protocol.Point)
+	for _, p := range a {
+		if s := ss.ShardByTimestamp(time.Unix(0, p.GetTimestamp())); s != nil {
+			points[s.ID] = append(points[s.ID], p)
+		} else {
+			unassigned = append(unassigned, p)
+		}
+	}
+	return
+}
+
+// ShardByTimestamp returns the shard in the space that owns a given timestamp.
+// Returns nil if the shard does not exist.
+func (ss *ShardSpace) ShardByTimestamp(timestamp time.Time) *Shard {
+	for _, s := range ss.Shards {
+		if timeBetween(timestamp, s.StartTime, s.EndTime) {
+			return s
+		}
+	}
+	return nil
 }
 
 // MarshalJSON encodes a shard space to a JSON-encoded byte slice.
@@ -564,9 +792,19 @@ func (a ShardSpaces) Shards() []*Shard {
 
 // Series represents a series of timeseries points.
 type Series struct {
-	ID     uint64 `json:"id,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Fields Fields `json:"fields,omitempty"`
+	Name   string   `json:"name,omitempty"`
+	Fields []*Field `json:"fields,omitempty"`
+}
+
+func (s *Series) FieldsByNames(names []string) (a []*Field) {
+	for _, f := range s.Fields {
+		for _, name := range names {
+			if f.Name == name {
+				a = append(a, f)
+			}
+		}
+	}
+	return
 }
 
 // Field represents a series field.

@@ -6,11 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
+	"code.google.com/p/goprotobuf/proto"
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/protocol"
 )
 
 const (
@@ -35,6 +38,7 @@ const (
 )
 
 const (
+	// broadcast messages
 	createDatabaseMessageType          = messaging.MessageType(0x00)
 	deleteDatabaseMessageType          = messaging.MessageType(0x01)
 	createShardSpaceMessageType        = messaging.MessageType(0x02)
@@ -45,6 +49,10 @@ const (
 	createDBUserMessageType            = messaging.MessageType(0x07)
 	deleteDBUserMessageType            = messaging.MessageType(0x08)
 	dbUserSetPasswordMessageType       = messaging.MessageType(0x09)
+	createShardIfNotExistsMessageType  = messaging.MessageType(0x0a)
+
+	// per-topic messages
+	writeSeriesMessageType = messaging.MessageType(0x80)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -80,6 +88,14 @@ func NewServer(client MessagingClient) *Server {
 // Returns an empty string when the server is closed.
 func (s *Server) Path() string { return s.path }
 
+// shardPath returns the path for a shard.
+func (s *Server) shardPath(id uint64) string {
+	if s.path == "" {
+		return ""
+	}
+	return filepath.Join(s.path, "shards", strconv.FormatUint(id, 10))
+}
+
 // Open initializes the server from a given path.
 func (s *Server) Open(path string) error {
 	// Ensure the server isn't already open and there's a path provided.
@@ -89,8 +105,11 @@ func (s *Server) Open(path string) error {
 		return ErrPathRequired
 	}
 
-	// Create directory, if not exists.
+	// Create required directories.
 	if err := os.MkdirAll(path, 0700); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(path, "shards"), 0700); err != nil {
 		return err
 	}
 
@@ -291,6 +310,38 @@ func (s *Server) applyDeleteDatabase(m *messaging.Message) error {
 
 type deleteDatabaseCommand struct {
 	Name string `json:"name"`
+}
+
+func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) error {
+	var c createShardIfNotExistsSpaceCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Check if a matching shard already exists.
+	if err, ok := db.applyCreateShardIfNotExists(m.Index, c.Space, c.Timestamp); err != nil {
+		return err
+	} else if !ok {
+		return nil
+	}
+
+	// Persist to metastore if a shard was created.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
+}
+
+type createShardIfNotExistsSpaceCommand struct {
+	Database  string    `json:"name"`
+	Space     string    `json:"space"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // ClusterAdmin returns an admin by name.
@@ -558,6 +609,28 @@ type deleteShardSpaceCommand struct {
 	Name     string `json:"name"`
 }
 
+func (s *Server) applyWriteSeries(m *messaging.Message) error {
+	req := &protocol.WriteSeriesRequest{}
+	if err := proto.Unmarshal(m.Data, req); err != nil {
+		panic("unmarshal request: " + err.Error())
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Retrieve the database.
+	db := s.databases[req.GetDatabase()]
+	if db == nil {
+		return ErrDatabaseNotFound
+	}
+
+	if err := db.applyWriteSeries(req.GetSeries()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // processor runs in a separate goroutine and processes all incoming broker messages.
 func (s *Server) processor(done chan struct{}) {
 	client := s.client
@@ -591,17 +664,19 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyCreateShardSpace(m)
 		case deleteShardSpaceMessageType:
 			err = s.applyDeleteShardSpace(m)
+		case createShardIfNotExistsMessageType:
+			err = s.applyCreateShardIfNotExists(m)
+		case writeSeriesMessageType:
+			err = s.applyWriteSeries(m)
 		}
 
-		// Sync high water mark and errors for broadcast topic.
-		if m.TopicID == messaging.BroadcastTopicID {
-			s.mu.Lock()
-			s.index = m.Index
-			if err != nil {
-				s.errors[m.Index] = err
-			}
-			s.mu.Unlock()
+		// Sync high water mark and errors.
+		s.mu.Lock()
+		s.index = m.Index
+		if err != nil {
+			s.errors[m.Index] = err
 		}
+		s.mu.Unlock()
 	}
 }
 

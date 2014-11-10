@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"code.google.com/p/log4go"
-	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
@@ -63,17 +62,17 @@ func (self *AggregatorEngine) getTimestampBucket(timestampMicroseconds int64) in
 
 	if self.irregularInterval {
 		switch d := *self.duration; d {
-		case common.Week:
+		case 7 * 24 * time.Hour:
 			year, month, day := timestamp.Date()
 			weekday := timestamp.Weekday()
 			offset := day - int(weekday)
 			boundaryTime := time.Date(year, month, offset, 0, 0, 0, 0, time.UTC)
 			return boundaryTime.Unix() * 1000000
-		case common.Month:
+		case 30 * 24 * time.Hour:
 			year, month, _ := timestamp.Date()
 			boundaryTime := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
 			return boundaryTime.Unix() * 1000000
-		case common.Year:
+		case 365 * 24 * time.Hour:
 			year := timestamp.Year()
 			boundaryTime := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
 			return boundaryTime.Unix() * 1000000

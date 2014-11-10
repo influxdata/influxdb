@@ -7,7 +7,7 @@ type MergeEngine struct {
 	next Processor
 }
 
-func NewMergeEngine(shards []uint32, ascending bool, next Processor) Processor {
+func NewMergeEngine(shards []uint64, ascending bool, next Processor) Processor {
 	name := "merged"
 
 	me := &MergeEngine{name: name, next: next}

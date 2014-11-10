@@ -51,6 +51,9 @@ var (
 	// ErrShardSpaceNameRequired is returned using a blank shard space name.
 	ErrShardSpaceNameRequired = errors.New("shard space name required")
 
+	// ErrShardNotFound is returned writing to a non-existent shard.
+	ErrShardNotFound = errors.New("shard not found")
+
 	// ErrReadAccessDenied is returned when a user attempts to read
 	// data that he or she does not have permission to read.
 	ErrReadAccessDenied = errors.New("read access denied")

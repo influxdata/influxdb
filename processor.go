@@ -218,11 +218,11 @@ func (p *MergeChannelProcessor) processChannel(channel <-chan *protocol.Response
 
 // A processor to set the ShardId on the series to `id`
 type ShardIdInserterProcessor struct {
-	id   uint32
+	id   uint64
 	next engine.Processor
 }
 
-func NewShardIdInserterProcessor(id uint32, next engine.Processor) *ShardIdInserterProcessor {
+func NewShardIdInserterProcessor(id uint64, next engine.Processor) *ShardIdInserterProcessor {
 	return &ShardIdInserterProcessor{id, next}
 }
 

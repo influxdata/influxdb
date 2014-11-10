@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"code.google.com/p/go.crypto/bcrypt"
 	"github.com/influxdb/influxdb"
@@ -278,6 +279,21 @@ func tempfile() string {
 	f.Close()
 	os.Remove(path)
 	return path
+}
+
+// mustParseTime parses an IS0-8601 string. Panic on error.
+func mustParseTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic(err.Error())
+	}
+	return t
+}
+
+// mustParseMicroTime parses an IS0-8601 string into microseconds since epoch.
+// Panic on error.
+func mustParseMicroTime(s string) int64 {
+	return mustParseTime(s).UnixNano() / int64(time.Microsecond)
 }
 
 // errstr is an ease-of-use function to convert an error to a string.
