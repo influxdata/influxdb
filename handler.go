@@ -1,469 +1,605 @@
 package influxdb
 
-/*
 import (
 	"bytes"
 	"compress/gzip"
-	"compress/zlib"
-	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"net"
-	libhttp "net/http"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
+	"net/http"
+	"sort"
 
-	log "code.google.com/p/log4go"
+	"code.google.com/p/log4go"
 	"github.com/bmizerany/pat"
-	"github.com/influxdb/influxdb/api"
-	"github.com/influxdb/influxdb/cluster"
-	. "github.com/influxdb/influxdb/common"
-	"github.com/influxdb/influxdb/configuration"
-	"github.com/influxdb/influxdb/coordinator"
+	"github.com/influxdb/influxdb/engine"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
 
-type HTTPServer struct {
-	conn           net.Listener
-	sslConn        net.Listener
-	httpPort       string
-	httpSslPort    string
-	httpSslCert    string
-	adminAssetsDir string
-	coordinator    api.Coordinator
-	userManager    UserManager
-	shutdown       chan bool
-	clusterConfig  *cluster.ClusterConfiguration
-	raftServer     *coordinator.RaftServer
-	readTimeout    time.Duration
-	config         *configuration.Configuration
-	p              *pat.PatternServeMux
+// TODO: Standard response headers (see: HeaderHandler)
+// TODO: Compression (see: CompressionHeaderHandler)
+
+// TODO: Check HTTP response codes: 400, 401, 403, 409.
+
+// Handler represents an HTTP handler for the InfluxDB server.
+type Handler struct {
+	server *Server
+	mux    *pat.PatternServeMux
+
+	// The InfluxDB verion returned by the HTTP response header.
+	Version string
 }
 
-func NewHTTPServer(config *configuration.Configuration, theCoordinator api.Coordinator, userManager UserManager, clusterConfig *cluster.ClusterConfiguration, raftServer *coordinator.RaftServer) *HTTPServer {
-	self := &HTTPServer{}
-	self.httpPort = config.ApiHttpPortString()
-	self.coordinator = theCoordinator
-	self.userManager = userManager
-	self.shutdown = make(chan bool, 2)
-	self.clusterConfig = clusterConfig
-	self.raftServer = raftServer
-	self.readTimeout = config.ApiReadTimeout
-	self.config = config
-	self.p = pat.New()
-	return self
+// NewHandler returns a new instance of Handler.
+func NewHandler(s *Server) *Handler {
+	h := &Handler{
+		server: s,
+		mux:    pat.New(),
+	}
+
+	// Series routes.
+	h.mux.Get("/db/:db/series", http.HandlerFunc(h.serveQuery))
+	h.mux.Post("/db/:db/series", http.HandlerFunc(h.serveWriteSeries))
+	h.mux.Del("/db/:db/series/:series", http.HandlerFunc(h.serveDeleteSeries))
+	h.mux.Get("/db", http.HandlerFunc(h.serveDatabases))
+	h.mux.Post("/db", http.HandlerFunc(h.serveCreateDatabase))
+	h.mux.Del("/db/:name", http.HandlerFunc(h.serveDeleteDatabase))
+
+	// Cluster admins routes.
+	h.mux.Get("/cluster_admins/authenticate", http.HandlerFunc(h.serveAuthenticateClusterAdmin))
+	h.mux.Get("/cluster_admins", http.HandlerFunc(h.serveClusterAdmins))
+	h.mux.Post("/cluster_admins", http.HandlerFunc(h.serveCreateClusterAdmin))
+	h.mux.Post("/cluster_admins/:user", http.HandlerFunc(h.serveUpdateClusterAdmin))
+	h.mux.Del("/cluster_admins/:user", http.HandlerFunc(h.serveDeleteClusterAdmin))
+
+	// Database users routes.
+	h.mux.Get("/db/:db/authenticate", http.HandlerFunc(h.serveAuthenticateDBUser))
+	h.mux.Get("/db/:db/users", http.HandlerFunc(h.serveDBUsers))
+	h.mux.Post("/db/:db/users", http.HandlerFunc(h.serveCreateDBUser))
+	h.mux.Get("/db/:db/users/:user", http.HandlerFunc(h.serveDBUser))
+	h.mux.Post("/db/:db/users/:user", http.HandlerFunc(h.serveUpdateDBUser))
+	h.mux.Del("/db/:db/users/:user", http.HandlerFunc(h.serveDeleteDBUser))
+
+	// Utilities
+	h.mux.Get("/ping", http.HandlerFunc(h.servePing))
+	h.mux.Get("/interfaces", http.HandlerFunc(h.serveInterfaces))
+
+	// Shard routes.
+	h.mux.Get("/cluster/shards", http.HandlerFunc(h.serveShards))
+	h.mux.Post("/cluster/shards", http.HandlerFunc(h.serveCreateShard))
+	h.mux.Del("/cluster/shards/:id", http.HandlerFunc(h.serveDeleteShard))
+
+	// Shard space routes.
+	h.mux.Get("/cluster/shard_spaces", http.HandlerFunc(h.serveShardSpaces))
+	h.mux.Post("/cluster/shard_spaces/:db", http.HandlerFunc(h.serveCreateShardSpace))
+	h.mux.Post("/cluster/shard_spaces/:db/:name", http.HandlerFunc(h.serveUpdateShardSpace))
+	h.mux.Del("/cluster/shard_spaces/:db/:name", http.HandlerFunc(h.serveDeleteShardSpace))
+
+	// Cluster config endpoints
+	h.mux.Get("/cluster/servers", http.HandlerFunc(h.serveServers))
+	h.mux.Del("/cluster/servers/:id", http.HandlerFunc(h.serveDeleteServer))
+
+	return h
 }
 
-const (
-	INVALID_CREDENTIALS_MSG  = "Invalid database/username/password"
-	JSON_PRETTY_PRINT_INDENT = "    "
-)
+// ServeHTTP responds to HTTP request to the handler.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Add("Access-Control-Max-Age", "2592000")
+	w.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
+	w.Header().Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+	w.Header().Add("X-Influxdb-Version", h.Version)
 
-func isPretty(r *libhttp.Request) bool {
-	return r.URL.Query().Get("pretty") == "true"
-}
-
-func (self *HTTPServer) EnableSsl(addr, certPath string) {
-	if addr == "" || certPath == "" {
-		// don't enable ssl unless both the address and the certificate
-		// path aren't empty
-		log.Info("Ssl will be disabled since the ssl port or certificate path weren't set")
+	// If this is a CORS OPTIONS request then send back okie-dokie.
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	self.httpSslPort = addr
-	self.httpSslCert = certPath
-	return
+	// Otherwise handle it via pat.
+	h.mux.ServeHTTP(w, r)
 }
 
-func (self *HTTPServer) ListenAndServe() {
-	var err error
-	if self.httpPort != "" {
-		self.conn, err = net.Listen("tcp", self.httpPort)
-		if err != nil {
-			log.Error("Listen: ", err)
+// serveQuery parses an incoming query and returns the results.
+func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication.
+
+	// Parse query from query string.
+	values := r.URL.Query()
+	queries, err := parser.ParseQuery(values.Get("q"))
+	if err != nil {
+		h.error(w, "parse error: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Retrieve database from server.
+	db := h.server.Database(values.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Parse the time precision from the query params.
+	precision, err := parseTimePrecision(values.Get("time_precision"))
+	if err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Create processor for writing data out.
+	var p engine.Processor
+	if r.URL.Query().Get("chunked") == "true" {
+		p = &chunkWriterProcessor{w, precision, false, (values.Get("pretty") == "true")}
+	} else {
+		p = &pointsWriterProcessor{make(map[string]*protocol.Series), w, precision, (values.Get("pretty") == "true")}
+	}
+
+	// Execute query against the database.
+	for _, q := range queries {
+		if err := db.ExecuteQuery(nil, q, p); err != nil {
+			h.error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
-	self.Serve(self.conn)
-}
 
-func (self *HTTPServer) registerEndpoint(method string, pattern string, f libhttp.HandlerFunc) {
-	version := self.clusterConfig.GetLocalConfiguration().Version
-	switch method {
-	case "get":
-		self.p.Get(pattern, CompressionHeaderHandler(f, version))
-	case "post":
-		self.p.Post(pattern, HeaderHandler(f, version))
-	case "del":
-		self.p.Del(pattern, HeaderHandler(f, version))
+	// Mark processor as complete. Print error, if applicable.
+	if err := p.Close(); err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
 	}
-	self.p.Options(pattern, HeaderHandler(self.sendCrossOriginHeader, version))
 }
 
-func (self *HTTPServer) Serve(listener net.Listener) {
-	defer func() { self.shutdown <- true }()
+// serveWriteSeries receives incoming series data and writes it to the database.
+func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication.
 
-	self.conn = listener
-
-	// Run the given query and return an array of series or a chunked response
-	// with each batch of points we get back
-	self.registerEndpoint("get", "/db/:db/series", self.query)
-
-	// Write points to the given database
-	self.registerEndpoint("post", "/db/:db/series", self.writePoints)
-	self.registerEndpoint("del", "/db/:db/series/:series", self.dropSeries)
-	self.registerEndpoint("get", "/db", self.listDatabases)
-	self.registerEndpoint("post", "/db", self.createDatabase)
-	self.registerEndpoint("del", "/db/:name", self.dropDatabase)
-
-	// cluster admins management interface
-	self.registerEndpoint("get", "/cluster_admins", self.listClusterAdmins)
-	self.registerEndpoint("get", "/cluster_admins/authenticate", self.authenticateClusterAdmin)
-	self.registerEndpoint("post", "/cluster_admins", self.createClusterAdmin)
-	self.registerEndpoint("post", "/cluster_admins/:user", self.updateClusterAdmin)
-	self.registerEndpoint("del", "/cluster_admins/:user", self.deleteClusterAdmin)
-
-	// register profiling endpoints
-	registerProfilingEndpoints(self)
-
-	// db users management interface
-	self.registerEndpoint("get", "/db/:db/authenticate", self.authenticateDbUser)
-	self.registerEndpoint("get", "/db/:db/users", self.listDbUsers)
-	self.registerEndpoint("post", "/db/:db/users", self.createDbUser)
-	self.registerEndpoint("get", "/db/:db/users/:user", self.showDbUser)
-	self.registerEndpoint("del", "/db/:db/users/:user", self.deleteDbUser)
-	self.registerEndpoint("post", "/db/:db/users/:user", self.updateDbUser)
-
-	// healthcheck
-	self.registerEndpoint("get", "/ping", self.ping)
-
-	// force a raft log compaction
-	self.registerEndpoint("post", "/raft/force_compaction", self.forceRaftCompaction)
-
-	// fetch current list of available interfaces
-	self.registerEndpoint("get", "/interfaces", self.listInterfaces)
-
-	// cluster config endpoints
-	self.registerEndpoint("get", "/cluster/configuration", self.getClusterConfiguration)
-	self.registerEndpoint("get", "/cluster/servers", self.listServers)
-	self.registerEndpoint("del", "/cluster/servers/:id", self.removeServers)
-	self.registerEndpoint("post", "/cluster/shards", self.createShard)
-	self.registerEndpoint("get", "/cluster/shards", self.getShards)
-	self.registerEndpoint("del", "/cluster/shards/:id", self.dropShard)
-	self.registerEndpoint("get", "/cluster/shard_spaces", self.getShardSpaces)
-	self.registerEndpoint("post", "/cluster/shard_spaces/:db", self.createShardSpace)
-	self.registerEndpoint("del", "/cluster/shard_spaces/:db/:name", self.dropShardSpace)
-	self.registerEndpoint("post", "/cluster/shard_spaces/:db/:name", self.updateShardSpace)
-	self.registerEndpoint("post", "/cluster/database_configs/:db", self.configureDatabase)
-
-	// return whether the cluster is in sync or not
-	self.registerEndpoint("get", "/sync", self.isInSync)
-
-	if listener == nil {
-		self.startSsl(self.p)
+	// Retrieve database from server.
+	db := h.server.Database(r.URL.Query().Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
 		return
 	}
 
-	go self.startSsl(self.p)
-	self.serveListener(listener, self.p)
-}
-
-func (self *HTTPServer) startSsl(p *pat.PatternServeMux) {
-	defer func() { self.shutdown <- true }()
-
-	// return if the ssl port or cert weren't set
-	if self.httpSslPort == "" || self.httpSslCert == "" {
+	// Parse time precision from query parameters.
+	precision, err := parseTimePrecision(r.URL.Query().Get("time_precision"))
+	if err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	log.Info("Starting SSL api on port %s using certificate in %s", self.httpSslPort, self.httpSslCert)
+	// Setup HTTP request reader. Wrap in a gzip reader if encoding set in header.
+	reader := r.Body
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		if reader, err = gzip.NewReader(r.Body); err != nil {
+			h.error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 
-	cert, err := tls.LoadX509KeyPair(self.httpSslCert, self.httpSslCert)
+	// Decode series from reader.
+	ss := []*serializedSeries{}
+	dec := json.NewDecoder(reader)
+	dec.UseNumber()
+	if err := dec.Decode(&ss); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Convert the wire format to the internal representation of the time series.
+	series, err := serializedSeriesSlice(ss).series(precision)
 	if err != nil {
-		panic(err)
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
-	self.sslConn, err = tls.Listen("tcp", self.httpSslPort, &tls.Config{
-		Certificates: []tls.Certificate{cert},
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	self.serveListener(self.sslConn, p)
-}
-
-func (self *HTTPServer) serveListener(listener net.Listener, p *pat.PatternServeMux) {
-	srv := &libhttp.Server{Handler: p, ReadTimeout: self.readTimeout}
-	if err := srv.Serve(listener); err != nil && !strings.Contains(err.Error(), "closed network") {
-		panic(err)
-	}
-}
-
-func (self *HTTPServer) Close() {
-	if self.conn != nil {
-		log.Info("Closing http server")
-		self.conn.Close()
-		log.Info("Waiting for all requests to finish before killing the process")
-		select {
-		case <-time.After(time.Second * 5):
-			log.Error("There seems to be a hanging request. Closing anyway")
-		case <-self.shutdown:
+	// Write series data to the database.
+	// TODO: Allow multiple series written to DB at once.
+	for _, s := range series {
+		if err := db.WriteSeries(s); err != nil {
+			h.error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
 }
 
-type Writer interface {
-	yield(*protocol.Series) error
-	done()
+// serveDeleteSeries deletes a given series.
+func (h *Handler) serveDeleteSeries(w http.ResponseWriter, r *http.Request) {}
+
+// serveDatabases returns a list of all databases on the server.
+func (h *Handler) serveDatabases(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	// Retrieve databases from the server.
+	databases := h.server.Databases()
+
+	// JSON encode databases to the response.
+	w.Header().Add("content-type", "application/json")
+	_ = json.NewEncoder(w).Encode(databases)
 }
 
-type AllPointsWriter struct {
-	memSeries map[string]*protocol.Series
-	w         libhttp.ResponseWriter
+// serveCreateDatabase creates a new database on the server.
+func (h *Handler) serveCreateDatabase(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+
+	// TODO: Authentication
+
+	// Decode the request from the body.
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Create the database.
+	if err := h.server.CreateDatabase(req.Name); err == ErrDatabaseExists {
+		h.error(w, err.Error(), http.StatusConflict)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+// serveDeleteDatabase deletes an existing database on the server.
+func (h *Handler) serveDeleteDatabase(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get(":name")
+	if err := h.server.DeleteDatabase(name); err != ErrDatabaseNotFound {
+		h.error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// serveAuthenticateClusterAdmin authenticates a user as a ClusterAdmin.
+func (h *Handler) serveAuthenticateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
+
+// serveClusterAdmins returns data about a single cluster admin.
+func (h *Handler) serveClusterAdmins(w http.ResponseWriter, r *http.Request) {}
+
+// serveCreateClusterAdmin creates a new cluster admin.
+func (h *Handler) serveCreateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
+
+// serveUpdateClusterAdmin updates an existing cluster admin.
+func (h *Handler) serveUpdateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
+
+// serveDeleteClusterAdmin removes an existing cluster admin.
+func (h *Handler) serveDeleteClusterAdmin(w http.ResponseWriter, r *http.Request) {}
+
+// serveAuthenticateDBUser authenticates a user as a database user.
+func (h *Handler) serveAuthenticateDBUser(w http.ResponseWriter, r *http.Request) {}
+
+// serveDBUsers returns data about a single database user.
+func (h *Handler) serveDBUsers(w http.ResponseWriter, r *http.Request) {}
+
+// serveCreateDBUser creates a new database user.
+func (h *Handler) serveCreateDBUser(w http.ResponseWriter, r *http.Request) {}
+
+// serveDBUser returns data about a single database user.
+func (h *Handler) serveDBUser(w http.ResponseWriter, r *http.Request) {}
+
+// serveUpdateDBUser updates an existing database user.
+func (h *Handler) serveUpdateDBUser(w http.ResponseWriter, r *http.Request) {}
+
+// serveDeleteDBUser removes an existing database user.
+func (h *Handler) serveDeleteDBUser(w http.ResponseWriter, r *http.Request) {}
+
+// servePing returns a simple response to let the client know the server is running.
+func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {}
+
+// serveInterfaces returns a list of available interfaces.
+func (h *Handler) serveInterfaces(w http.ResponseWriter, r *http.Request) {}
+
+// serveShards returns a list of shards.
+func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {}
+
+// serveCreateShard creates a new shard.
+func (h *Handler) serveCreateShard(w http.ResponseWriter, r *http.Request) {}
+
+// serveDeleteShard removes an existing shard.
+func (h *Handler) serveDeleteShard(w http.ResponseWriter, r *http.Request) {}
+
+// serveShardSpaces returns a list of shard spaces.
+func (h *Handler) serveShardSpaces(w http.ResponseWriter, r *http.Request) {}
+
+// serveCreateShardSpace creates a new shard space.
+func (h *Handler) serveCreateShardSpace(w http.ResponseWriter, r *http.Request) {}
+
+// serveUpdateShardSpace updates an existing shard space.
+func (h *Handler) serveUpdateShardSpace(w http.ResponseWriter, r *http.Request) {}
+
+// serveDeleteShardSpace removes an existing shard space.
+func (h *Handler) serveDeleteShardSpace(w http.ResponseWriter, r *http.Request) {}
+
+// serveServers returns a list of servers in the cluster.
+func (h *Handler) serveServers(w http.ResponseWriter, r *http.Request) {}
+
+// serveDeleteServer removes a server from the cluster.
+func (h *Handler) serveDeleteServer(w http.ResponseWriter, r *http.Request) {}
+
+// error returns an error to the client in a standard format.
+func (h *Handler) error(w http.ResponseWriter, error string, code int) {
+	// TODO: Return error as JSON.
+	http.Error(w, error, code)
+}
+
+// pointsWriterProcessor writes series data at once at the end.
+type pointsWriterProcessor struct {
+	m         map[string]*protocol.Series
+	w         http.ResponseWriter
 	precision TimePrecision
 	pretty    bool
 }
 
-func (self *AllPointsWriter) yield(series *protocol.Series) error {
-	oldSeries := self.memSeries[*series.Name]
-	if oldSeries == nil {
-		self.memSeries[*series.Name] = series
-		return nil
+func (p *pointsWriterProcessor) Yield(s *protocol.Series) (bool, error) {
+	if p.m[*s.Name] == nil {
+		p.m[*s.Name] = s
+	} else {
+		p.m[s.GetName()] = p.m[s.GetName()].Merge(s)
+	}
+	return true, nil
+}
+
+func (p *pointsWriterProcessor) Name() string           { return "PointsWriter" }
+func (p *pointsWriterProcessor) Next() engine.Processor { return nil }
+
+func (p *pointsWriterProcessor) Close() error {
+	// Marshal series to JSON.
+	b, err := json.Marshal(serializeSeries(p.m, p.precision))
+	if err != nil {
+		return err
 	}
 
-	self.memSeries[series.GetName()] = self.memSeries[series.GetName()].Merge(series)
+	// Indent if pretty print specified.
+	if p.pretty {
+		var buf bytes.Buffer
+		if err := json.Indent(&buf, b, "", "    "); err != nil {
+			return err
+		}
+		b = buf.Bytes()
+	}
+
+	// Write header and data.
+	p.w.Header().Add("content-type", "application/json")
+	p.w.WriteHeader(http.StatusOK)
+	p.w.Write(b)
 	return nil
 }
 
-func (self *AllPointsWriter) done() {
-	data, err := serializeMultipleSeries(self.memSeries, self.precision, self.pretty)
-	if err != nil {
-		self.w.WriteHeader(libhttp.StatusInternalServerError)
-		self.w.Write([]byte(err.Error()))
-		return
-	}
-	self.w.Header().Add("content-type", "application/json")
-	self.w.WriteHeader(libhttp.StatusOK)
-	self.w.Write(data)
-}
-
-type ChunkWriter struct {
-	w                libhttp.ResponseWriter
+// chunkWriterProcessor writes individual series as they're yielded.
+type chunkWriterProcessor struct {
+	w                http.ResponseWriter
 	precision        TimePrecision
 	wroteContentType bool
 	pretty           bool
 }
 
-func (self *ChunkWriter) yield(series *protocol.Series) error {
-	data, err := serializeSingleSeries(series, self.precision, self.pretty)
+func (p *chunkWriterProcessor) Yield(s *protocol.Series) (bool, error) {
+	// Marshal series to JSON.
+	b, err := json.Marshal(serializeSeries(map[string]*protocol.Series{"": s}, p.precision))
 	if err != nil {
-		return err
-	}
-	if !self.wroteContentType {
-		self.wroteContentType = true
-		self.w.Header().Add("content-type", "application/json")
-	}
-	self.w.WriteHeader(libhttp.StatusOK)
-	self.w.Write(data)
-	self.w.(libhttp.Flusher).Flush()
-	return nil
-}
-
-func (self *ChunkWriter) done() {
-}
-
-func TimePrecisionFromString(s string) (TimePrecision, error) {
-	switch s {
-	case "u":
-		return MicrosecondPrecision, nil
-	case "m":
-		log.Warn("time_precision=m will be disabled in future release, use time_precision=ms instead")
-		fallthrough
-	case "ms":
-		return MillisecondPrecision, nil
-	case "s":
-		return SecondPrecision, nil
-	case "":
-		return MillisecondPrecision, nil
+		return true, err
 	}
 
-	return 0, fmt.Errorf("Unknown time precision %s", s)
-}
-
-func (self *HTTPServer) forceRaftCompaction(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(user User) (int, interface{}) {
-		self.coordinator.ForceCompaction(user)
-		return libhttp.StatusOK, "OK"
-	})
-}
-
-func (self *HTTPServer) sendCrossOriginHeader(w libhttp.ResponseWriter, r *libhttp.Request) {
-	w.WriteHeader(libhttp.StatusOK)
-}
-
-func (self *HTTPServer) query(w libhttp.ResponseWriter, r *libhttp.Request) {
-	query := r.URL.Query().Get("q")
-	db := r.URL.Query().Get(":db")
-	pretty := isPretty(r)
-
-	self.tryAsDbUserAndClusterAdmin(w, r, func(user User) (int, interface{}) {
-
-		precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
-		if err != nil {
-			return libhttp.StatusBadRequest, err.Error()
+	// Indent if pretty print specified.
+	if p.pretty {
+		var buf bytes.Buffer
+		if err := json.Indent(&buf, b, "", "    "); err != nil {
+			return true, err
 		}
-
-		var writer Writer
-		if r.URL.Query().Get("chunked") == "true" {
-			writer = &ChunkWriter{w, precision, false, pretty}
-		} else {
-			writer = &AllPointsWriter{map[string]*protocol.Series{}, w, precision, pretty}
-		}
-		seriesWriter := NewSeriesWriter(writer.yield)
-		err = self.coordinator.RunQuery(user, db, query, seriesWriter)
-		if err != nil {
-			if e, ok := err.(*parser.QueryError); ok {
-				return errorToStatusCode(err), e.PrettyPrint()
-			}
-			return errorToStatusCode(err), err.Error()
-		}
-
-		writer.done()
-		return -1, nil
-	})
-}
-
-func errorToStatusCode(err error) int {
-	switch err.(type) {
-	case AuthenticationError:
-		return libhttp.StatusUnauthorized // HTTP 401
-	case AuthorizationError:
-		return libhttp.StatusForbidden // HTTP 403
-	case DatabaseExistsError:
-		return libhttp.StatusConflict // HTTP 409
-	default:
-		return libhttp.StatusBadRequest // HTTP 400
-	}
-}
-
-func (self *HTTPServer) writePoints(w libhttp.ResponseWriter, r *libhttp.Request) {
-	db := r.URL.Query().Get(":db")
-	precision, err := TimePrecisionFromString(r.URL.Query().Get("time_precision"))
-	if err != nil {
-		w.WriteHeader(libhttp.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-		return
+		b = buf.Bytes()
 	}
 
-	self.tryAsDbUserAndClusterAdmin(w, r, func(user User) (int, interface{}) {
-		reader := r.Body
-		encoding := r.Header.Get("Content-Encoding")
-		switch encoding {
-		case "gzip":
-			reader, err = gzip.NewReader(r.Body)
-			if err != nil {
-				return libhttp.StatusInternalServerError, err.Error()
-			}
-		default:
-			// assume it's plain text
+	// Write content type.
+	if !p.wroteContentType {
+		p.wroteContentType = true
+		p.w.Header().Set("content-type", "application/json")
+		p.w.WriteHeader(http.StatusOK)
+	}
+
+	// Write data and flush immediately.
+	p.w.Write(b)
+	p.w.(http.Flusher).Flush()
+
+	return true, nil
+}
+
+func (p *chunkWriterProcessor) Name() string           { return "ChunkWriter" }
+func (p *chunkWriterProcessor) Next() engine.Processor { return nil }
+func (p *chunkWriterProcessor) Close() error           { return nil }
+
+func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecision) []*serializedSeries {
+	a := []*serializedSeries{}
+
+	for _, series := range memSeries {
+		includeSequenceNumber := true
+		if len(series.Points) > 0 && series.Points[0].SequenceNumber == nil {
+			includeSequenceNumber = false
 		}
 
-		series, err := ioutil.ReadAll(reader)
-		if err != nil {
-			return libhttp.StatusInternalServerError, err.Error()
+		columns := []string{"time"}
+		if includeSequenceNumber {
+			columns = append(columns, "sequence_number")
 		}
-		decoder := json.NewDecoder(bytes.NewBuffer(series))
-		decoder.UseNumber()
-		serializedSeries := []*SerializedSeries{}
-		err = decoder.Decode(&serializedSeries)
-		if err != nil {
-			return libhttp.StatusBadRequest, err.Error()
+		for _, field := range series.Fields {
+			columns = append(columns, field)
 		}
 
-		// convert the wire format to the internal representation of the time series
-		dataStoreSeries := make([]*protocol.Series, 0, len(serializedSeries))
-		for _, s := range serializedSeries {
-			if len(s.Points) == 0 {
-				continue
+		points := [][]interface{}{}
+		for _, row := range series.Points {
+			timestamp := int64(0)
+			if t := row.Timestamp; t != nil {
+				timestamp = *row.GetTimestampInMicroseconds()
+				switch precision {
+				case SecondPrecision:
+					timestamp /= 1000
+					fallthrough
+				case MillisecondPrecision:
+					timestamp /= 1000
+				}
 			}
 
-			series, err := ConvertToDataStoreSeries(s, precision)
-			if err != nil {
-				return libhttp.StatusBadRequest, err.Error()
+			rowValues := []interface{}{timestamp}
+			s := uint64(0)
+			if includeSequenceNumber {
+				if row.SequenceNumber != nil {
+					s = row.GetSequenceNumber()
+				}
+				rowValues = append(rowValues, s)
+			}
+			for _, value := range row.Values {
+				if value == nil {
+					rowValues = append(rowValues, nil)
+					continue
+				}
+				v, ok := value.GetValue()
+				if !ok {
+					rowValues = append(rowValues, nil)
+					log4go.Warn("Infinite or NaN value encountered")
+					continue
+				}
+				rowValues = append(rowValues, v)
+			}
+			points = append(points, rowValues)
+		}
+
+		a = append(a, &serializedSeries{
+			Name:    *series.Name,
+			Columns: columns,
+			Points:  points,
+		})
+	}
+	sort.Sort(serializedSeriesByName(a))
+	return a
+}
+
+type serializedSeries struct {
+	Name    string          `json:"name"`
+	Columns []string        `json:"columns"`
+	Points  [][]interface{} `json:"points"`
+}
+
+func (s *serializedSeries) series(precision TimePrecision) (*protocol.Series, error) {
+	points := make([]*protocol.Point, 0, len(s.Points))
+	if hasDuplicates(s.Columns) {
+		return nil, fmt.Errorf("Cannot have duplicate field names")
+	}
+
+	for _, point := range s.Points {
+		if len(point) != len(s.Columns) {
+			return nil, fmt.Errorf("invalid payload")
+		}
+
+		values := make([]*protocol.FieldValue, 0, len(point))
+		var timestamp *int64
+		var sequence *uint64
+
+		for idx, field := range s.Columns {
+			value := point[idx]
+			if field == "time" {
+				switch x := value.(type) {
+				case json.Number:
+					f, err := x.Float64()
+					if err != nil {
+						return nil, err
+					}
+					_timestamp := int64(f)
+					switch precision {
+					case SecondPrecision:
+						_timestamp *= 1000
+						fallthrough
+					case MillisecondPrecision:
+						_timestamp *= 1000
+					}
+
+					timestamp = &_timestamp
+					continue
+				default:
+					return nil, fmt.Errorf("time field must be float but is %T (%v)", value, value)
+				}
 			}
 
-			dataStoreSeries = append(dataStoreSeries, series)
+			if field == "sequence_number" {
+				switch x := value.(type) {
+				case json.Number:
+					f, err := x.Float64()
+					if err != nil {
+						return nil, err
+					}
+					_sequenceNumber := uint64(f)
+					sequence = &_sequenceNumber
+					continue
+				default:
+					return nil, fmt.Errorf("sequence_number field must be float but is %T (%v)", value, value)
+				}
+			}
+
+			switch v := value.(type) {
+			case string:
+				values = append(values, &protocol.FieldValue{StringValue: &v})
+			case json.Number:
+				i, err := v.Int64()
+				if err == nil {
+					values = append(values, &protocol.FieldValue{Int64Value: &i})
+					break
+				}
+				f, err := v.Float64()
+				if err != nil {
+					return nil, err
+				}
+				values = append(values, &protocol.FieldValue{DoubleValue: &f})
+			case bool:
+				values = append(values, &protocol.FieldValue{BoolValue: &v})
+			case nil:
+				trueValue := true
+				values = append(values, &protocol.FieldValue{IsNull: &trueValue})
+			default:
+				// if we reached this line then the dynamic type didn't match
+				return nil, fmt.Errorf("Unknown type %T", value)
+			}
 		}
+		points = append(points, &protocol.Point{
+			Values:         values,
+			Timestamp:      timestamp,
+			SequenceNumber: sequence,
+		})
+	}
 
-		err = self.coordinator.WriteSeriesData(user, db, dataStoreSeries)
+	fields := removeTimestampFieldDefinition(s.Columns)
 
+	series := &protocol.Series{
+		Name:   protocol.String(s.Name),
+		Fields: fields,
+		Points: points,
+	}
+	return series, nil
+}
+
+type serializedSeriesSlice []*serializedSeries
+
+func (a serializedSeriesSlice) series(precision TimePrecision) ([]*protocol.Series, error) {
+	var series []*protocol.Series
+	for _, s := range a {
+		p, err := s.series(precision)
 		if err != nil {
-			return errorToStatusCode(err), err.Error()
+			return nil, err
 		}
-
-		return libhttp.StatusOK, nil
-	})
+		series = append(series, p)
+	}
+	return series, nil
 }
 
-type createDatabaseRequest struct {
-	Name string `json:"name"`
+type serializedSeriesByName []*serializedSeries
+
+func (p serializedSeriesByName) Len() int      { return len(p) }
+func (p serializedSeriesByName) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
+func (p serializedSeriesByName) Less(i, j int) bool {
+	return p[i] != nil && p[j] != nil && p[i].Name < p[j].Name
 }
 
-func (self *HTTPServer) listDatabases(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		databases, err := self.coordinator.ListDatabases(u)
-		if err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-		return libhttp.StatusOK, databases
-	})
-}
-
-func (self *HTTPServer) createDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(user User) (int, interface{}) {
-		createRequest := &createDatabaseRequest{}
-		decoder := json.NewDecoder(r.Body)
-		err := decoder.Decode(createRequest)
-		if err != nil {
-			return libhttp.StatusBadRequest, err.Error()
-		}
-		if !isValidDbName(createRequest.Name) {
-			m := "Unable to create database without name"
-			log.Error(m)
-			return libhttp.StatusBadRequest, m
-		}
-		err = self.coordinator.CreateDatabase(user, createRequest.Name)
-		if err != nil {
-			log.Error("Cannot create database %s. Error: %s", createRequest.Name, err)
-			return errorToStatusCode(err), err.Error()
-		}
-		log.Debug("Created database %s", createRequest.Name)
-		return libhttp.StatusCreated, nil
-	})
-}
-
-func isValidDbName(name string) bool {
-	return strings.TrimSpace(name) != ""
-}
-
-func (self *HTTPServer) dropDatabase(w libhttp.ResponseWriter, r *libhttp.Request) {
-	self.tryAsClusterAdmin(w, r, func(user User) (int, interface{}) {
-		name := r.URL.Query().Get(":name")
-		err := self.coordinator.DropDatabase(user, name)
-		if err != nil {
-			return errorToStatusCode(err), err.Error()
-		}
-		return libhttp.StatusNoContent, nil
-	})
-}
+/*
 
 func (self *HTTPServer) dropSeries(w libhttp.ResponseWriter, r *libhttp.Request) {
 	db := r.URL.Query().Get(":db")
@@ -488,23 +624,6 @@ type Point struct {
 	Values         []interface{} `json:"values"`
 }
 
-func serializeSingleSeries(series *protocol.Series, precision TimePrecision, pretty bool) ([]byte, error) {
-	arg := map[string]*protocol.Series{"": series}
-	if pretty {
-		return json.MarshalIndent(SerializeSeries(arg, precision)[0], "", JSON_PRETTY_PRINT_INDENT)
-	} else {
-		return json.Marshal(SerializeSeries(arg, precision)[0])
-	}
-}
-
-func serializeMultipleSeries(series map[string]*protocol.Series, precision TimePrecision, pretty bool) ([]byte, error) {
-	if pretty {
-		return json.MarshalIndent(SerializeSeries(series, precision), "", JSON_PRETTY_PRINT_INDENT)
-	} else {
-		return json.Marshal(SerializeSeries(series, precision))
-	}
-}
-
 // // cluster admins management interface
 
 func toBytes(body interface{}, pretty bool) ([]byte, string, error) {
@@ -521,7 +640,7 @@ func toBytes(body interface{}, pretty bool) ([]byte, string, error) {
 		var b []byte
 		var e error
 		if pretty {
-			b, e = json.MarshalIndent(body, "", JSON_PRETTY_PRINT_INDENT)
+			b, e = json.MarshalIndent(body, "", "    ")
 		} else {
 			b, e = json.Marshal(body)
 		}
@@ -582,7 +701,7 @@ func (self *HTTPServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
 		w.Header().Add("Content-Type", "text/plain")
 		w.WriteHeader(libhttp.StatusUnauthorized)
-		w.Write([]byte(INVALID_CREDENTIALS_MSG))
+		w.Write([]byte("Invalid database/username/password"))
 		return
 	}
 
@@ -594,7 +713,7 @@ func (self *HTTPServer) tryAsClusterAdmin(w libhttp.ResponseWriter, r *libhttp.R
 		w.Write([]byte(err.Error()))
 		return
 	}
-	statusCode, contentType, body := yieldUser(user, yield, isPretty(r))
+	statusCode, contentType, body := yieldUser(user, yield, (r.URL.Query().Get("pretty") == "true"))
 	if statusCode < 0 {
 		return
 	}
@@ -734,7 +853,7 @@ func (self *HTTPServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request
 
 	if username == "" {
 		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
-		return libhttp.StatusUnauthorized, []byte(INVALID_CREDENTIALS_MSG)
+		return libhttp.StatusUnauthorized, []byte("Invalid database/username/password")
 	}
 
 	user, err := self.userManager.AuthenticateDbUser(db, username, password)
@@ -743,7 +862,7 @@ func (self *HTTPServer) tryAsDbUser(w libhttp.ResponseWriter, r *libhttp.Request
 		return libhttp.StatusUnauthorized, []byte(err.Error())
 	}
 
-	statusCode, contentType, v := yieldUser(user, yield, isPretty(r))
+	statusCode, contentType, v := yieldUser(user, yield, (r.URL.Query().Get("pretty") == "true"))
 	if statusCode == libhttp.StatusUnauthorized {
 		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
 	}
@@ -929,7 +1048,7 @@ func (self *HTTPServer) listInterfaces(w libhttp.ResponseWriter, r *libhttp.Requ
 			}
 		}
 		return libhttp.StatusOK, directories
-	}, isPretty(r))
+	}, (r.URL.Query().Get("pretty") == "true"))
 
 	w.Header().Add("content-type", contentType)
 	w.WriteHeader(statusCode)
@@ -1300,27 +1419,4 @@ func CompressionHandler(enableCompression bool, handler libhttp.HandlerFunc) lib
 	}
 }
 
-type SeriesWriter struct {
-	yield func(*protocol.Series) error
-}
-
-func NewSeriesWriter(yield func(*protocol.Series) error) *SeriesWriter {
-	return &SeriesWriter{yield}
-}
-
-func (self *SeriesWriter) Yield(series *protocol.Series) (bool, error) {
-	err := self.yield(series)
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func (self *SeriesWriter) Close() error {
-	return nil
-}
-
-func (self *SeriesWriter) Name() string {
-	return "SeriesWriter"
-}
 */

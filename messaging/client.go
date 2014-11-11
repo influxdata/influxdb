@@ -122,11 +122,14 @@ func (c *Client) Close() error {
 }
 
 // Publish sends a message to the broker and returns an index or error.
-func (c *Client) Publish(typ MessageType, data []byte) (uint64, error) {
+func (c *Client) Publish(m *Message) (uint64, error) {
 	// Send the message to the messages endpoint.
 	u := c.LeaderURL()
-	u.RawQuery = url.Values{"type": {strconv.Itoa(int(typ))}}.Encode()
-	resp, err := http.Post(u.String(), "application/octet-stream", bytes.NewReader(data))
+	u.RawQuery = url.Values{
+		"type":    {strconv.FormatUint(uint64(m.Type), 10)},
+		"topicID": {strconv.FormatUint(m.TopicID, 10)},
+	}.Encode()
+	resp, err := http.Post(u.String(), "application/octet-stream", bytes.NewReader(m.Data))
 	if err != nil {
 		return 0, err
 	}

@@ -73,7 +73,7 @@ func (s *UDPServer) ListenAndServe() error {
 			}
 
 			// Convert to the internal series format.
-			series, err := ss.Series(SecondPrecision)
+			series, err := ss.series(SecondPrecision)
 			if err != nil {
 				log.Error("udp cannot convert received data: %s", err)
 				continue

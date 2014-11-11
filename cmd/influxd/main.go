@@ -4,18 +4,17 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"net/http"
+	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"time"
 
-	log "code.google.com/p/log4go"
+	"code.google.com/p/log4go"
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/configuration"
-	"github.com/influxdb/influxdb/coordinator"
-	"github.com/jmhodges/levigo"
+	"github.com/influxdb/influxdb/messaging"
 )
 
 const logo = `
@@ -38,21 +37,18 @@ func main() {
 
 func start() error {
 	var (
-		fileName          = flag.String("config", "config.sample.toml", "Config file")
-		showVersion       = flag.Bool("v", false, "Get version number")
-		resetRootPassword = flag.Bool("reset-root", false, "Reset root password")
-		hostname          = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
-		raftPort          = flag.Int("raft-port", 0, "Override the raft port, the `raft.port` config option will be overridden")
-		protobufPort      = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
-		pidFile           = flag.String("pidfile", "", "the pid file")
-		repairLeveldb     = flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
-		stdout            = flag.Bool("stdout", false, "Log to stdout overriding the configuration")
-		syslog            = flag.String("syslog", "", "Log to syslog facility overriding the configuration")
+		fileName     = flag.String("config", "config.sample.toml", "Config file")
+		showVersion  = flag.Bool("v", false, "Get version number")
+		hostname     = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
+		protobufPort = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
+		pidFile      = flag.String("pidfile", "", "the pid file")
+		stdout       = flag.Bool("stdout", false, "Log to stdout overriding the configuration")
+		syslog       = flag.String("syslog", "", "Log to syslog facility overriding the configuration")
 	)
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	c := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
+	v := fmt.Sprintf("InfluxDB v%s (git: %s)", version, gitSha)
 	if *showVersion {
 		fmt.Println(v)
 		return nil
@@ -70,11 +66,8 @@ func start() error {
 	if *hostname != "" {
 		config.Hostname = *hostname
 	}
-	if *raftPort != 0 {
-		config.RaftServerPort = *raftPort
-	}
 	if *protobufPort != 0 {
-		config.ProtobufPort = *protobufPort
+		config.Cluster.ProtobufPort = *protobufPort
 	}
 	if *syslog != "" {
 		config.Logging.File = *syslog
@@ -92,9 +85,6 @@ func start() error {
 	}
 
 	// Initialize directories.
-	if err := os.MkdirAll(config.Raft.Dir, 0744); err != nil {
-		panic(err)
-	}
 	if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
 		panic(err)
 	}
@@ -102,58 +92,64 @@ func start() error {
 	// TODO(benbjohnson): Start admin server.
 
 	if config.BindAddress == "" {
-		log.Info("Starting Influx Server %s...", version)
+		log4go.Info("Starting Influx Server %s...", version)
 	} else {
-		log.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
+		log4go.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
 	}
 	fmt.Printf(logo)
 
-	// Start server.
-	s, err := influxdb.NewServer(config)
-	if err != nil {
-		// sleep for the log to flush
-		time.Sleep(time.Second)
-		panic(err)
+	// Parse broker URLs from seed servers.
+	var brokerURLs []*url.URL
+	for _, s := range config.Cluster.SeedServers {
+		u, err := url.Parse(s)
+		if err != nil {
+			panic(err)
+		}
+		brokerURLs = append(brokerURLs, u)
 	}
-	if err := startProfiler(s); err != nil {
+
+	// Create messaging client for broker.
+	client := messaging.NewClient("XXX-CHANGEME-XXX")
+	if err := client.Open(brokerURLs); err != nil {
 		panic(err)
 	}
 
-	if *resetRootPassword {
-		// TODO: make this not suck
-		// This is ghetto as hell, but it'll work for now.
-		go func() {
-			time.Sleep(2 * time.Second) // wait for the raft server to join the cluster
-			log.Warn("Resetting root's password to %s", influxdb.DefaultRootPassword)
-			if err := server.RaftServer.CreateRootUser(); err != nil {
-				panic(err)
-			}
-		}()
-	}
-	if err := server.ListenAndServe(); err != nil {
-		log.Error("ListenAndServe failed: ", err)
-	}
-	return err
+	// Start server.
+	s := influxdb.NewServer(client)
+
+	// TODO: startProfiler()
+	// TODO: -reset-root
+
+	// Initialize HTTP handler.
+	h := influxdb.NewHandler(s)
+
+	// Start HTTP server.
+	func() { log.Fatal(http.ListenAndServe(":8086", h)) }() // TODO: Change HTTP port.
+	// TODO: Start HTTPS server.
+
+	// Wait indefinitely.
+	<-(chan struct{})(nil)
+	return nil
 }
 
 func setupLogging(loggingLevel, logFile string) {
-	level := log.DEBUG
+	level := log4go.DEBUG
 	switch loggingLevel {
 	case "trace":
-		level = log.TRACE
+		level = log4go.TRACE
 	case "fine":
-		level = log.FINE
+		level = log4go.FINE
 	case "info":
-		level = log.INFO
+		level = log4go.INFO
 	case "warn":
-		level = log.WARNING
+		level = log4go.WARNING
 	case "error":
-		level = log.ERROR
+		level = log4go.ERROR
 	default:
-		log.Error("Unknown log level %s. Defaulting to DEBUG", loggingLevel)
+		log4go.Error("Unknown log level %s. Defaulting to DEBUG", loggingLevel)
 	}
 
-	log.Global = make(map[string]*log.Filter)
+	log4go.Global = make(map[string]*log4go.Filter)
 
 	facility, ok := GetSysLogFacility(logFile)
 	if ok {
@@ -162,16 +158,16 @@ func setupLogging(loggingLevel, logFile string) {
 			fmt.Fprintf(os.Stderr, "NewSysLogWriter: %s\n", err.Error())
 			return
 		}
-		log.AddFilter("syslog", level, flw)
+		log4go.AddFilter("syslog", level, flw)
 	} else if logFile == "stdout" {
-		flw := log.NewConsoleLogWriter()
-		log.AddFilter("stdout", level, flw)
+		flw := log4go.NewConsoleLogWriter()
+		log4go.AddFilter("stdout", level, flw)
 	} else {
 		logFileDir := filepath.Dir(logFile)
 		os.MkdirAll(logFileDir, 0744)
 
-		flw := log.NewFileLogWriter(logFile, false)
-		log.AddFilter("file", level, flw)
+		flw := log4go.NewFileLogWriter(logFile, false)
+		log4go.AddFilter("file", level, flw)
 
 		flw.SetFormat("[%D %T] [%L] (%S) %M")
 		flw.SetRotate(true)
@@ -180,7 +176,7 @@ func setupLogging(loggingLevel, logFile string) {
 		flw.SetRotateDaily(true)
 	}
 
-	log.Info("Redirectoring logging to %s", logFile)
+	log4go.Info("Redirectoring logging to %s", logFile)
 }
 
 type Stopper interface {
