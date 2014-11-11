@@ -22,6 +22,9 @@ type Processor interface {
 
 // ProcessorChain returns a string representation of the processors chained together
 func ProcessorChain(p Processor) string {
+	if p == nil {
+		return "<nil>"
+	}
 	next := p.Next()
 	if next != nil {
 		return fmt.Sprintf("%s > %s", p.Name(), ProcessorChain(next))
