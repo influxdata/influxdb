@@ -52,11 +52,23 @@ cross_flags = --host=$(arch)
 endif
 
 export GOARCH
+# This has to be exposed when cross compiling to another architecutre
 export CGO_ENABLED
 
-.PHONY: all valgrind parser package replace_version_string build build_binary build_benchmark binary_package dependencies clean
+.PHONY: all valgrind parser package replace_version_string build build_binary build_benchmark binary_package dependencies clean help
 
 all: | parser valgrind test integration_test
+
+help:
+	@echo "build:         builds all binaries (benchmark and daemon)"
+	@echo "build_binary:  builds the daemon binary only"
+	@echo "test:          Runs the unit tests (verbose=on to be verbose, packages=pkg for specific package, only=test for specific test)"
+	@echo "package:       Creates the source, binary and distro packages. Must run with version=x.y.z"
+	@echo "install:       installs the binaries on a linux system"
+	@echo "uninstall:     removes files installed by the 'install' target"
+	@echo "format:        formats all source code in the repo"
+	@echo "rebuild_static_assets: rebuild the static assets. must run after updating 'shared/admin'"
+	@echo "integration_test: Runs the integration tests (the integration package). accepts verbose and only (see 'test' above)"
 
 parser:
 	$(MAKE) -C parser
