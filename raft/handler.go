@@ -23,22 +23,22 @@ func NewHTTPHandler(log *Log) *HTTPHandler {
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch path.Base(r.URL.Path) {
 	case "join":
-		h.HandleJoin(w, r)
+		h.serveJoin(w, r)
 	case "leave":
-		h.HandleLeave(w, r)
+		h.serveLeave(w, r)
 	case "heartbeat":
-		h.HandleHeartbeat(w, r)
+		h.serveHeartbeat(w, r)
 	case "stream":
-		h.HandleStream(w, r)
+		h.serveStream(w, r)
 	case "vote":
-		h.HandleRequestVote(w, r)
+		h.serveRequestVote(w, r)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-// HandleJoin serves a Raft membership addition to the underlying log.
-func (h *HTTPHandler) HandleJoin(w http.ResponseWriter, r *http.Request) {
+// serveJoin serves a Raft membership addition to the underlying log.
+func (h *HTTPHandler) serveJoin(w http.ResponseWriter, r *http.Request) {
 	// TODO(benbjohnson): Redirect to leader.
 
 	// Parse argument.
@@ -72,8 +72,8 @@ func (h *HTTPHandler) HandleJoin(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(config)
 }
 
-// HandleLeave removes a member from the cluster.
-func (h *HTTPHandler) HandleLeave(w http.ResponseWriter, r *http.Request) {
+// serveLeave removes a member from the cluster.
+func (h *HTTPHandler) serveLeave(w http.ResponseWriter, r *http.Request) {
 	// TODO(benbjohnson): Redirect to leader.
 
 	// Parse arguments.
@@ -94,8 +94,8 @@ func (h *HTTPHandler) HandleLeave(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// HandleHeartbeat serves a Raft heartbeat to the underlying log.
-func (h *HTTPHandler) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
+// serveHeartbeat serves a Raft heartbeat to the underlying log.
+func (h *HTTPHandler) serveHeartbeat(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var term, commitIndex, leaderID uint64
 
@@ -133,8 +133,8 @@ func (h *HTTPHandler) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// HandleStream provides a streaming log endpoint.
-func (h *HTTPHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
+// serveStream provides a streaming log endpoint.
+func (h *HTTPHandler) serveStream(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var id, index, term uint64
 
@@ -171,8 +171,8 @@ func (h *HTTPHandler) HandleStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleRequestVote serves a vote request to the underlying log.
-func (h *HTTPHandler) HandleRequestVote(w http.ResponseWriter, r *http.Request) {
+// serveRequestVote serves a vote request to the underlying log.
+func (h *HTTPHandler) serveRequestVote(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var term, candidateID, lastLogIndex, lastLogTerm uint64
 

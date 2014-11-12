@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -376,7 +377,8 @@ func (l *Log) readConfig() (*Config, error) {
 	// Marshal file to a config type.
 	var config *Config
 	if f != nil {
-		if err := json.NewDecoder(f).Decode(&config); err != nil {
+		config := &Config{}
+		if err := NewConfigDecoder(f).Decode(config); err != nil {
 			return nil, err
 		}
 	}
@@ -395,7 +397,7 @@ func (l *Log) writeConfig(config *Config) error {
 	defer func() { _ = f.Close() }()
 
 	// Marshal config into file.
-	if err := json.NewEncoder(f).Encode(config); err != nil {
+	if err := NewConfigEncoder(f).Encode(config); err != nil {
 		return err
 	}
 
@@ -456,8 +458,9 @@ func (l *Log) Initialize() error {
 	}
 
 	// Set initial configuration.
-	b, _ := json.Marshal(&config)
-	index, err := l.internalApply(LogEntryInitialize, b)
+	var buf bytes.Buffer
+	_ = NewConfigEncoder(&buf).Encode(config)
+	index, err := l.internalApply(LogEntryInitialize, buf.Bytes())
 	if err != nil {
 		return err
 	}
@@ -980,8 +983,8 @@ func (l *Log) applier(done chan chan struct{}) {
 // apply a log initialization command by parsing and setting the configuration.
 func (l *Log) applyInitialize(e *LogEntry) error {
 	// Parse the configuration from the log entry.
-	var config *Config
-	if err := json.Unmarshal(e.Data, &config); err != nil {
+	config := &Config{}
+	if err := NewConfigDecoder(bytes.NewReader(e.Data)).Decode(config); err != nil {
 		return fmt.Errorf("initialize: %s", err)
 	}
 
@@ -1258,10 +1261,11 @@ func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error
 	// OPTIMIZE(benbjohnson): Create buffered output to prevent blocking.
 
 	// Write configuration.
-	b, err := json.Marshal(l.config)
+	var buf bytes.Buffer
+	err := NewConfigEncoder(&buf).Encode(l.config)
 	assert(err == nil, "marshal config error: %s", err)
 	enc := NewLogEntryEncoder(w)
-	if err := enc.Encode(&LogEntry{Type: logEntryConfig, Data: b}); err != nil {
+	if err := enc.Encode(&LogEntry{Type: logEntryConfig, Data: buf.Bytes()}); err != nil {
 		return nil, err
 	}
 	flushWriter(w)
@@ -1364,8 +1368,8 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 
 		// If this is a config entry then update the config.
 		if e.Type == logEntryConfig {
-			var config *Config
-			if err := json.Unmarshal(e.Data, &config); err != nil {
+			config := &Config{}
+			if err := NewConfigDecoder(bytes.NewReader(e.Data)).Decode(config); err != nil {
 				return err
 			}
 
