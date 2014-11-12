@@ -35,4 +35,19 @@ var (
 	// ErrAlreadyVoted is returned when a vote has already been cast for
 	// a different candidate in the same election term.
 	ErrAlreadyVoted = errors.New("already voted")
+
+	// ErrNodeNotFound is returned when referencing a non-existent node.
+	ErrNodeNotFound = errors.New("node not found")
+
+	// ErrInvalidNodeID is returned when using a node id of zero.
+	ErrInvalidNodeID = errors.New("invalid node id")
+
+	// ErrNodeURLRequired is returned a node config has no URL set.
+	ErrNodeURLRequired = errors.New("node url required")
+
+	// ErrDuplicateNodeID is returned when adding a node with an existing id.
+	ErrDuplicateNodeID = errors.New("duplicate node id")
+
+	// ErrDuplicateNodeURL is returned when adding a node with an existing URL.
+	ErrDuplicateNodeURL = errors.New("duplicate node url")
 )

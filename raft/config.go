@@ -2,8 +2,7 @@ package raft
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
+	"io"
 	"net/url"
 )
 
@@ -11,16 +10,16 @@ import (
 type Config struct {
 	// Cluster identifier. Used to prevent separate clusters from
 	// accidentally communicating with one another.
-	ClusterID uint64 `json:"clusterID,omitempty"`
-
-	// List of nodes in the cluster.
-	Nodes []*ConfigNode `json:"nodes,omitempty"`
+	ClusterID uint64
 
 	// Index is the last log index when the configuration was updated.
-	Index uint64 `json:"index,omitempty"`
+	Index uint64
 
 	// MaxNodeID is the largest node identifier generated for this config.
-	MaxNodeID uint64 `json:"maxNodeID,omitempty"`
+	MaxNodeID uint64
+
+	// List of nodes in the cluster.
+	Nodes []*ConfigNode
 }
 
 // NodeByID returns a node by identifier.
@@ -44,29 +43,31 @@ func (c *Config) NodeByURL(u *url.URL) *ConfigNode {
 }
 
 // addNode adds a new node to the config.
-// Returns an error if a node with the same id or url exists.
 func (c *Config) addNode(id uint64, u *url.URL) error {
-	if id <= 0 {
-		return errors.New("invalid node id")
+	// Validate that the id is non-zero and the url exists.
+	if id == 0 {
+		return ErrInvalidNodeID
 	} else if u == nil {
-		return errors.New("node url required")
+		return ErrNodeURLRequired
 	}
 
+	// Validate that no other nodes in the config have the same id or URL.
 	for _, n := range c.Nodes {
 		if n.ID == id {
-			return fmt.Errorf("node id already exists")
+			return ErrDuplicateNodeID
 		} else if n.URL.String() == u.String() {
-			return fmt.Errorf("node url already in use")
+			return ErrDuplicateNodeURL
 		}
 	}
 
+	// Add the node to the config.
 	c.Nodes = append(c.Nodes, &ConfigNode{ID: id, URL: u})
 
 	return nil
 }
 
 // removeNode removes a node by id.
-// Returns an error if the node does not exist.
+// Returns ErrNodeNotFound if the node does not exist.
 func (c *Config) removeNode(id uint64) error {
 	for i, node := range c.Nodes {
 		if node.ID == id {
@@ -76,7 +77,7 @@ func (c *Config) removeNode(id uint64) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("node not found: %d", id)
+	return ErrNodeNotFound
 }
 
 // clone returns a deep copy of the configuration.
@@ -95,8 +96,8 @@ func (c *Config) clone() *Config {
 
 // ConfigNode represents a single machine in the raft configuration.
 type ConfigNode struct {
-	ID  uint64   `json:"id"`
-	URL *url.URL `json:"url,omitempty"`
+	ID  uint64
+	URL *url.URL
 }
 
 // clone returns a deep copy of the node.
@@ -106,39 +107,83 @@ func (n *ConfigNode) clone() *ConfigNode {
 	return other
 }
 
-// configNodeJSONMarshaler represents the JSON serialized form of the ConfigNode type.
-type configNodeJSONMarshaler struct {
-	ID  uint64 `json:"id"`
-	URL string `json:"url,omitempty"`
+// ConfigEncoder encodes a config to a writer.
+type ConfigEncoder struct {
+	w io.Writer
 }
 
-// MarshalJSON encodes the node into a JSON-formatted byte slice.
-func (n *ConfigNode) MarshalJSON() ([]byte, error) {
-	var o configNodeJSONMarshaler
-	o.ID = n.ID
-	if n.URL != nil {
-		o.URL = n.URL.String()
+// NewConfigEncoder returns a new instance of ConfigEncoder attached to a writer.
+func NewConfigEncoder(w io.Writer) *ConfigEncoder {
+	return &ConfigEncoder{w}
+}
+
+// Encode marshals the configuration to the encoder's writer.
+func (enc *ConfigEncoder) Encode(c *Config) error {
+	// Copy properties to intermediate type.
+	var o configJSON
+	o.ClusterID = c.ClusterID
+	o.Index = c.Index
+	o.MaxNodeID = c.MaxNodeID
+	for _, n := range c.Nodes {
+		o.Nodes = append(o.Nodes, &configNodeJSON{ID: n.ID, URL: n.URL.String()})
 	}
-	return json.Marshal(&o)
+
+	// Encode intermediate type as JSON.
+	return json.NewEncoder(enc.w).Encode(&o)
 }
 
-// UnmarshalJSON decodes a JSON-formatted byte slice into a node.
-func (n *ConfigNode) UnmarshalJSON(data []byte) error {
-	// Unmarshal into temporary type.
-	var o configNodeJSONMarshaler
-	if err := json.Unmarshal(data, &o); err != nil {
+// ConfigDecoder decodes a config from a reader.
+type ConfigDecoder struct {
+	r io.Reader
+}
+
+// NewConfigDecoder returns a new instance of ConfigDecoder attached to a reader.
+func NewConfigDecoder(r io.Reader) *ConfigDecoder {
+	return &ConfigDecoder{r}
+}
+
+// Decode marshals the configuration to the decoder's reader.
+func (dec *ConfigDecoder) Decode(c *Config) error {
+	// Decode into intermediate type.
+	var o configJSON
+	if err := json.NewDecoder(dec.r).Decode(&o); err != nil {
 		return err
 	}
 
-	// Convert values to a node.
-	n.ID = o.ID
-	if o.URL != "" {
-		u, err := url.Parse(o.URL)
+	// Copy properties to config.
+	c.ClusterID = o.ClusterID
+	c.Index = o.Index
+	c.MaxNodeID = o.MaxNodeID
+
+	// Validate and append nodes.
+	for _, n := range o.Nodes {
+		// Parse node URL.
+		u, err := url.Parse(n.URL)
 		if err != nil {
 			return err
+		} else if n.URL == "" {
+			u = nil
 		}
-		n.URL = u
+
+		// Append node to config.
+		if err := c.addNode(n.ID, u); err != nil {
+			return err
+		}
 	}
 
 	return nil
+}
+
+// configJSON represents an intermediate struct used for JSON encoding.
+type configJSON struct {
+	ClusterID uint64            `json:"clusterID,omitempty"`
+	Index     uint64            `json:"index,omitempty"`
+	MaxNodeID uint64            `json:"maxNodeID,omitempty"`
+	Nodes     []*configNodeJSON `json:"nodes,omitempty"`
+}
+
+// configNodeJSON represents the JSON serialized form of the ConfigNode type.
+type configNodeJSON struct {
+	ID  uint64 `json:"id"`
+	URL string `json:"url,omitempty"`
 }

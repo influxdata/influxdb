@@ -6,9 +6,6 @@ import (
 	"time"
 )
 
-// goschedTimeout is the amount of wall time to sleep during goroutine scheduling.
-var goschedTimeout = 1 * time.Millisecond
-
 // Clock represents an interface to the functions in the standard library time
 // package. Two implementations are available in the clock package. The first
 // is a real-time clock which simply wraps the time package's functions. The
@@ -273,6 +270,9 @@ func (t *internalTicker) Tick(now time.Time) {
 	t.next = now.Add(t.d)
 	gosched()
 }
+
+// goschedTimeout is the amount of wall time to sleep during goroutine scheduling.
+var goschedTimeout = 1 * time.Millisecond
 
 // Sleep momentarily so that other goroutines can process.
 func gosched() {
