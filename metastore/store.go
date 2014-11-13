@@ -225,3 +225,29 @@ func (self *Store) setFieldIdsFromCache(database string, series []*protocol.Seri
 	}
 	return true
 }
+
+func (self *Store) SeriesHasField(database string, series []string, field string) bool {
+	self.fieldsLock.RLock()
+	defer self.fieldsLock.RUnlock()
+
+	dbseries, ok := self.StringsToIds[database]
+	if !ok {
+		return false
+	}
+
+	// Iterate through the list of series passed by the caller.
+	for _, ser := range series {
+		// Is the series in the database?
+		s, ok := dbseries[ser]
+		if !ok {
+			continue
+		}
+		// The series is in the database.  Does it contain the field?
+		_, ok = s[field]
+		if ok {
+			return true
+		}
+	}
+
+	return false
+}

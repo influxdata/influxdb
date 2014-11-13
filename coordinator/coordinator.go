@@ -288,6 +288,32 @@ func (self *Coordinator) expandRegex(spec *parser.QuerySpec) {
 	parser.RewriteMergeQuery(q, f)
 }
 
+// checkGroupBy returns an error if the group by clause has invalid parameters
+func (c *Coordinator) checkGroupBy(qs *parser.QuerySpec) error {
+	selectQuery := qs.SelectQuery()
+	groupBy := selectQuery.GetGroupByClause()
+
+	if groupBy == nil {
+		return nil
+	}
+
+	db := qs.Database()
+	series := selectQuery.FromClause.GetTableNames()
+	mstore := c.clusterConfiguration.MetaStore
+
+	for _, elem := range groupBy.Elems {
+		if elem.Name == "time" {
+			continue
+		}
+
+		if !mstore.SeriesHasField(db, series, elem.Name) {
+			return fmt.Errorf("invalid group by column: %s", elem.Name)
+		}
+	}
+
+	return nil
+}
+
 // We call this function only if we have a Select query (not continuous) or Delete query
 func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, p engine.Processor) error {
 	self.expandRegex(querySpec)
@@ -298,6 +324,11 @@ func (self *Coordinator) runQuerySpec(querySpec *parser.QuerySpec, p engine.Proc
 
 	if len(shards) == 0 {
 		return processor.Close()
+	}
+
+	err = self.checkGroupBy(querySpec)
+	if err != nil {
+		return err
 	}
 
 	shardConcurrentLimit := self.config.ConcurrentShardQueryLimit
