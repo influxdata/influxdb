@@ -77,3 +77,11 @@ func (self *FromClause) GetString() string {
 	}
 	return buffer.String()
 }
+
+func (fc *FromClause) GetTableNames() []string {
+	names := make([]string, len(fc.Names))
+	for i, name := range fc.Names {
+		names[i] = name.Name.Name
+	}
+	return names
+}
