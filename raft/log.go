@@ -807,8 +807,11 @@ func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	// Do not apply if this node is closed.
 	// Do not apply if this node is not the leader.
-	if l.state != Leader {
+	if l.state == Stopped {
+		return 0, ErrClosed
+	} else if l.state != Leader {
 		return 0, ErrNotLeader
 	}
 

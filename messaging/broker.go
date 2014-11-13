@@ -16,6 +16,7 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
+// BroadcastTopicID is the topic used to communicate with all replicas.
 const BroadcastTopicID = uint64(0)
 
 // Broker represents distributed messaging system segmented into topics.
@@ -271,7 +272,7 @@ func (b *Broker) applySubscribe(m *Message) {
 	t.replicas[c.Replica] = r
 
 	// Catch up replica.
-	t.writeTo(r, index)
+	_, _ = t.writeTo(r, index)
 }
 
 // Unsubscribe removes a subscription for a topic from a replica.
@@ -418,8 +419,11 @@ func (t *topic) writeTo(r *Replica, index uint64) (int, error) {
 	// TODO: If index is too old then return an error.
 
 	// Open topic file for reading.
+	// If it doesn't exist then just exit immediately.
 	f, err := os.Open(t.path)
-	if err != nil {
+	if os.IsNotExist(err) {
+		return 0, nil
+	} else if err != nil {
 		return 0, err
 	}
 	defer func() { _ = f.Close() }()
@@ -517,12 +521,6 @@ func (r *Replica) closeWriter() {
 	}
 }
 
-// Subscribe adds a subscription to a topic for the replica.
-func (r *Replica) Subscribe(topicID uint64) error { return r.broker.Subscribe(r.name, topicID) }
-
-// Unsubscribe removes a subscription from the stream.
-func (r *Replica) Unsubscribe(topicID uint64) error { return r.broker.Unsubscribe(r.name, topicID) }
-
 // Topics returns a list of topic names that the replica is subscribed to.
 func (r *Replica) Topics() []uint64 {
 	a := make([]uint64, 0, len(r.topics))
@@ -585,6 +583,7 @@ func (r *Replica) WriteTo(w io.Writer) (int, error) {
 		// Replica machine can ignore messages it already seen.
 		index := r.topics[topicID]
 		if _, err := t.writeTo(r, index); err != nil {
+			r.closeWriter()
 			return 0, fmt.Errorf("add stream writer: %s", err)
 		}
 

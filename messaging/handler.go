@@ -23,6 +23,9 @@ func NewHandler(b *Broker) *Handler {
 	}
 }
 
+// Broker returns the broker on the handler.
+func (h *Handler) Broker() *Broker { return h.broker }
+
 // ServeHTTP serves an HTTP request.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Delegate raft requests to its own handler.
@@ -33,19 +36,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Route all InfluxDB broker requests.
 	switch r.URL.Path {
-	case "/stream":
+	case "/messages":
 		if r.Method == "GET" {
 			h.stream(w, r)
-		} else {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		}
-
-	case "/messages":
-		if r.Method == "POST" {
+		} else if r.Method == "POST" {
 			h.publish(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
+	default:
+		http.NotFound(w, r)
 	}
 }
 

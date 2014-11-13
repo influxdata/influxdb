@@ -32,6 +32,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveStream(w, r)
 	case "vote":
 		h.serveRequestVote(w, r)
+	case "ping":
+		w.WriteHeader(http.StatusOK)
 	default:
 		http.NotFound(w, r)
 	}

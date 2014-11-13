@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -31,6 +33,9 @@ type Client struct {
 
 	// The amount of time to wait before reconnecting to a broker stream.
 	ReconnectTimeout time.Duration
+
+	// The logging interface used by the client for out-of-band errors.
+	Logger *log.Logger
 }
 
 // NewClient returns a new instance of Client.
@@ -38,6 +43,7 @@ func NewClient(name string) *Client {
 	return &Client{
 		name:             name,
 		ReconnectTimeout: DefaultReconnectTimeout,
+		Logger:           log.New(os.Stderr, "[messaging] ", log.LstdFlags),
 	}
 }
 
@@ -124,7 +130,8 @@ func (c *Client) Close() error {
 // Publish sends a message to the broker and returns an index or error.
 func (c *Client) Publish(m *Message) (uint64, error) {
 	// Send the message to the messages endpoint.
-	u := c.LeaderURL()
+	u := *c.LeaderURL()
+	u.Path = "/messages"
 	u.RawQuery = url.Values{
 		"type":    {strconv.FormatUint(uint64(m.Type), 10)},
 		"topicID": {strconv.FormatUint(m.TopicID, 10)},
@@ -167,9 +174,11 @@ func (c *Client) streamer(done chan chan struct{}) {
 		u := *urls[rand.Intn(len(urls))]
 
 		// Connect to broker and stream.
-		u.Path = "/stream"
+		u.Path = "/messages"
 		if err := c.streamFromURL(&u, done); err == errDone {
 			return
+		} else if err != nil {
+			c.Logger.Print(err)
 		}
 	}
 }
@@ -212,7 +221,7 @@ func (c *Client) streamFromURL(u *url.URL, done chan chan struct{}) error {
 	select {
 	case ch := <-done:
 		// Close body.
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		// Clear message buffer.
 		select {
