@@ -54,6 +54,9 @@ func setupLogging(loggingLevel, logFile string) {
 		os.MkdirAll(logFileDir, 0744)
 
 		flw := log.NewFileLogWriter(logFile, false)
+		if flw == nil {
+			os.Exit(1)
+		}
 		log.AddFilter("file", level, flw)
 
 		flw.SetFormat("[%D %T] [%L] (%S) %M")
