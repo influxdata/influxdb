@@ -1308,7 +1308,7 @@ func (self *FirstOrLastAggregator) GetValues(state interface{}) [][]*protocol.Fi
 
 func NewFirstOrLastAggregator(name string, v *parser.Value, isFirst bool, defaultValue *parser.Value) (Aggregator, error) {
 	if len(v.Elems) != 1 {
-		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function max() requires only one argument")
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, fmt.Sprintf("function %s() requires exactly one argument", name))
 	}
 
 	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
