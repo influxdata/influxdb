@@ -46,7 +46,7 @@ const (
 )
 
 func NewProtobufClient(hostAndPort string, writeTimeout time.Duration) *ProtobufClient {
-	log.Debug("NewProtobufClient: ", hostAndPort)
+	log.Debug("NewProtobufClient: %s", hostAndPort)
 	return &ProtobufClient{
 		hostAndPort:   hostAndPort,
 		requestBuffer: make(map[uint32]*runningRequest),
@@ -179,6 +179,14 @@ func (self *ProtobufClient) MakeRequest(request *protocol.Request, r cluster.Res
 func (self *ProtobufClient) readResponses() {
 	message := make([]byte, 0, MAX_RESPONSE_SIZE)
 	buff := bytes.NewBuffer(message)
+
+	connErrFn := func(err error) {
+		log.Error("Error while reading messsage: %s", err.Error())
+		self.conn.Close()
+		self.conn = nil
+		time.Sleep(200 * time.Millisecond)
+	}
+
 	for !self.stopped {
 		buff.Reset()
 		conn := self.getConnection()
@@ -190,21 +198,19 @@ func (self *ProtobufClient) readResponses() {
 		var err error
 		err = binary.Read(conn, binary.LittleEndian, &messageSizeU)
 		if err != nil {
-			log.Error("Error while reading messsage size: %d", err)
-			time.Sleep(200 * time.Millisecond)
+			connErrFn(err)
 			continue
 		}
 		messageSize := int64(messageSizeU)
 		messageReader := io.LimitReader(conn, messageSize)
 		_, err = io.Copy(buff, messageReader)
 		if err != nil {
-			log.Error("Error while reading message: %d", err)
-			time.Sleep(200 * time.Millisecond)
+			connErrFn(err)
 			continue
 		}
 		response, err := protocol.DecodeResponse(buff)
 		if err != nil {
-			log.Error("error unmarshaling response: %s", err)
+			log.Error("error unmarshaling response: %s", err.Error())
 			time.Sleep(200 * time.Millisecond)
 		} else {
 			self.sendResponse(response)
@@ -273,6 +279,7 @@ func (self *ProtobufClient) reconnect() net.Conn {
 		self.attempts = 0
 	}
 
+	self.attempts = 0
 	self.conn = conn
 	log.Info("connected to %s", self.hostAndPort)
 	return conn
@@ -286,7 +293,7 @@ func (self *ProtobufClient) peridicallySweepTimedOutRequests() {
 		for k, req := range self.requestBuffer {
 			if req.timeMade.Before(maxAge) {
 				delete(self.requestBuffer, k)
-				log.Warn("Request timed out: ", req.request)
+				log.Warn("Request timed out: %v", req.request)
 			}
 		}
 		self.requestBufferLock.Unlock()

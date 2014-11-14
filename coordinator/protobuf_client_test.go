@@ -90,7 +90,7 @@ func FakeHeartbeatServer() *PingResponseServer {
 
 type ProtobufClientSuite struct{}
 
-var _ = gocheck.Suite(&ProtobufClient{})
+var _ = gocheck.Suite(&ProtobufClientSuite{})
 
 func (self *ProtobufClientSuite) BenchmarkSingle(c *gocheck.C) {
 	var HEARTBEAT_TYPE = protocol.Request_HEARTBEAT
@@ -108,4 +108,50 @@ func (self *ProtobufClientSuite) BenchmarkSingle(c *gocheck.C) {
 		client.MakeRequest(heartbeatRequest, rcw)
 		<-responseChan
 	}
+}
+
+func (pcs *ProtobufClientSuite) TestReadResponsesWhenRemoteClosesConnection(c *gocheck.C) {
+	// Channel used to kill the remote connection
+	dieCh := make(chan struct{})
+	// Channel for remote client to notify test that ProtobufClient connected
+	connectedCh := make(chan struct{})
+	// Channel the remote client will use to tell the test that it has closed
+	connClosedCh := make(chan struct{})
+
+	// Remote connection (talking to a ProtobufClient)
+	handleConnFn := func(conn net.Conn) {
+		connectedCh <- struct{}{}
+		<-dieCh
+		conn.Close()
+		close(connClosedCh)
+	}
+
+	// Remote server listening for ProtobufClient connection requests
+	l, _ := net.Listen("tcp", "127.0.0.1:0")
+	go func() {
+		for {
+			conn, _ := l.Accept()
+			go handleConnFn(conn)
+		}
+	}()
+
+	// Create a ProtobufClient and connect to the remote server we just setup
+	client := NewProtobufClient(l.Addr().String(), time.Second)
+	client.Connect()
+	select {
+	case <-connectedCh:
+	case <-time.After(500 * time.Millisecond):
+		c.Errorf("Waiting for ProtobufClient to connect timed out")
+		return
+	}
+	c.Assert(client, gocheck.NotNil)
+	c.Assert(client.conn, gocheck.NotNil)
+
+	// Tell remote side to close the connection
+	dieCh <- struct{}{}
+
+	// Make sure ProtobufClient set the connection to nil
+	<-connClosedCh
+	time.Sleep(100 * time.Millisecond)
+	c.Assert(client.conn, gocheck.IsNil)
 }
