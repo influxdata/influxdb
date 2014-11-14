@@ -12,10 +12,13 @@ import (
 const MDB_NAME = "lmdb"
 
 func init() {
-	registerEngine(MDB_NAME, Initializer{
+	err := RegisterEngine(MDB_NAME, Initializer{
 		NewMDBConfiguration,
 		NewMDB,
 	})
+	if err != nil {
+		panic(err)
+	}
 }
 
 type MDBConfiguration struct {
