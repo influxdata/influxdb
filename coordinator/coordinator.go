@@ -243,7 +243,7 @@ func (self *Coordinator) getShardsAndProcessor(querySpec *parser.QuerySpec, writ
 		}
 		writer, err = engine.NewQueryEngine(writer, q, shardIds)
 		if err != nil {
-			log.Info("Coordinator processor chain: %s", engine.ProcessorChain(writer))
+			log.Debug("Coordinator processor chain: %s", engine.ProcessorChain(writer))
 		}
 		return shards, writer, err
 	}
