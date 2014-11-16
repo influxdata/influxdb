@@ -3,6 +3,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	log "code.google.com/p/log4go"
 	"github.com/influxdb/influxdb/protocol"
@@ -83,20 +84,12 @@ func ConvertToDataStoreSeries(s ApiSeries, precision TimePrecision) (*protocol.S
 			if field == "time" {
 				switch x := value.(type) {
 				case json.Number:
-					f, err := x.Float64()
+					i, err := numberToInt64(x)
 					if err != nil {
 						return nil, err
 					}
-					_timestamp := int64(f)
-					switch precision {
-					case SecondPrecision:
-						_timestamp *= 1000
-						fallthrough
-					case MillisecondPrecision:
-						_timestamp *= 1000
-					}
-
-					timestamp = &_timestamp
+					timestamp = &i
+					scaleToMicroseconds(timestamp, precision)
 					continue
 				default:
 					return nil, fmt.Errorf("time field must be float but is %T (%v)", value, value)
@@ -106,12 +99,11 @@ func ConvertToDataStoreSeries(s ApiSeries, precision TimePrecision) (*protocol.S
 			if field == "sequence_number" {
 				switch x := value.(type) {
 				case json.Number:
-					f, err := x.Float64()
+					i, err := numberToUint64(x)
 					if err != nil {
 						return nil, err
 					}
-					_sequenceNumber := uint64(f)
-					sequence = &_sequenceNumber
+					sequence = &i
 					continue
 				default:
 					return nil, fmt.Errorf("sequence_number field must be float but is %T (%v)", value, value)
@@ -223,4 +215,40 @@ func SerializeSeries(memSeries map[string]*protocol.Series, precision TimePrecis
 	}
 	SortSerializedSeries(serializedSeries)
 	return serializedSeries
+}
+
+func scaleToMicroseconds(n *int64, precision TimePrecision) {
+	switch precision {
+	case SecondPrecision:
+		*n *= 1000
+		fallthrough
+	case MillisecondPrecision:
+		*n *= 1000
+	}
+}
+
+func numberToInt64(n json.Number) (int64, error) {
+	if i, err := strconv.ParseInt(n.String(), 10, 64); err == nil {
+		return i, nil
+	}
+
+	f, err := strconv.ParseFloat(n.String(), 64)
+	if err != nil {
+		return 0, err
+	}
+	i := int64(f)
+	return i, nil
+}
+
+func numberToUint64(n json.Number) (uint64, error) {
+	if i, err := strconv.ParseUint(n.String(), 10, 64); err == nil {
+		return i, nil
+	}
+
+	f, err := strconv.ParseFloat(n.String(), 64)
+	if err != nil {
+		return 0, err
+	}
+	i := uint64(f)
+	return i, nil
 }
