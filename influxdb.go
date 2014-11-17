@@ -1,28 +1,63 @@
 package influxdb
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
-	"runtime"
-
-	log "code.google.com/p/log4go"
-	"github.com/influxdb/influxdb/parser"
 )
 
-// recoverFunc handles recovery in the event of a panic.
-func recoverFunc(database, query string, cleanup func(err interface{})) {
-	if err := recover(); err != nil {
-		buf := make([]byte, 1024)
-		n := runtime.Stack(buf, false)
-		b := bytes.NewBufferString("")
-		fmt.Fprintf(b, "********************************BUG********************************\n")
-		fmt.Fprintf(b, "Database: %s\n", database)
-		fmt.Fprintf(b, "Query: [%s]\n", query)
-		fmt.Fprintf(b, "Error: %s. Stacktrace: %s\n", err, string(buf[:n]))
-		log.Error(b.String())
-		err = parser.NewQueryError(parser.InternalError, "Internal Error: %s", err)
-		if cleanup != nil {
-			cleanup(err)
-		}
-	}
-}
+var (
+	// ErrServerOpen is returned when opening an already open server.
+	ErrServerOpen = errors.New("server already open")
+
+	// ErrServerClosed is returned when closing an already closed server.
+	ErrServerClosed = errors.New("server already closed")
+
+	// ErrPathRequired is returned when opening a server without a path.
+	ErrPathRequired = errors.New("path required")
+
+	// ErrDatabaseExists is returned when creating a duplicate database.
+	ErrDatabaseExists = errors.New("database exists")
+
+	// ErrDatabaseNotFound is returned when dropping a non-existent database.
+	ErrDatabaseNotFound = errors.New("database not found")
+
+	// ErrDatabaseRequired is returned when using a blank database name.
+	ErrDatabaseRequired = errors.New("database required")
+
+	// ErrClusterAdminExists is returned when creating a duplicate admin.
+	ErrClusterAdminExists = errors.New("cluster admin exists")
+
+	// ErrClusterAdminNotFound is returned when deleting a non-existent admin.
+	ErrClusterAdminNotFound = errors.New("cluster admin not found")
+
+	// ErrUserExists is returned when creating a duplicate user.
+	ErrUserExists = errors.New("user exists")
+
+	// ErrUserNotFound is returned when deleting a non-existent user.
+	ErrUserNotFound = errors.New("user not found")
+
+	// ErrUsernameRequired is returned when using a blank username.
+	ErrUsernameRequired = errors.New("username required")
+
+	// ErrInvalidUsername is returned when using a username with invalid characters.
+	ErrInvalidUsername = errors.New("invalid username")
+
+	// ErrShardSpaceExists is returned when creating a duplicate shard space.
+	ErrShardSpaceExists = errors.New("shard space exists")
+
+	// ErrShardSpaceNotFound is returned when deleting a non-existent shard space.
+	ErrShardSpaceNotFound = errors.New("shard space not found")
+
+	// ErrShardSpaceNameRequired is returned using a blank shard space name.
+	ErrShardSpaceNameRequired = errors.New("shard space name required")
+
+	// ErrShardNotFound is returned writing to a non-existent shard.
+	ErrShardNotFound = errors.New("shard not found")
+
+	// ErrReadAccessDenied is returned when a user attempts to read
+	// data that he or she does not have permission to read.
+	ErrReadAccessDenied = errors.New("read access denied")
+
+	// ErrInvalidQuery is returned when executing an unknown query type.
+	ErrInvalidQuery = errors.New("invalid query")
+)

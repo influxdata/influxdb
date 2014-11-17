@@ -9,10 +9,8 @@ import (
 	"time"
 
 	"code.google.com/p/goprotobuf/proto"
-	"code.google.com/p/log4go"
-	"github.com/influxdb/influxdb/engine"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
-	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -442,158 +440,8 @@ func (db *Database) applyWriteSeries(s *protocol.Series) error {
 }
 
 // ExecuteQuery executes a query against a database.
-func (db *Database) ExecuteQuery(u parser.User, q *parser.Query, p engine.Processor) error {
-	spec := parser.NewQuerySpec(u, db.Name(), q)
-	// TODO: Check permissions.
-	//if ok, err := db.permissions.CheckQueryPermissions(u, db.Name(), spec); !ok {
-	//	return err
-	//}
-
-	// TODO: ListSeries
-	// TODO: DropSeries
-	// TODO: DeleteQuery
-
-	switch q.Type() {
-	case parser.Select:
-		return db.executeSelectQuery(u, spec, p)
-	default:
-		return ErrInvalidQuery
-	}
-}
-
-// executeSelectQuery executes a selection query against the database.
-func (db *Database) executeSelectQuery(u parser.User, spec *parser.QuerySpec, p engine.Processor) error {
-	q := spec.SelectQuery()
-
-	// Find series matching query.
-	series := db.seriesByValues(parser.TableNames(q.FromClause.Names).Names())
-
-	// Find a list of spaces matching the series.
-	spaces := db.spacesBySeries(series)
-	shards := ShardSpaces(spaces).Shards()
-
-	// Select subset of shards matching date range.
-	// If no shards are available then close the processor and return.
-	shards = shardsInRange(shards, spec.GetStartTime(), spec.GetEndTime())
-	if len(shards) == 0 {
-		return p.Close()
-	}
-
-	// Sort shards in appropriate order based on query.
-	if spec.IsAscending() {
-		sort.Sort(shardsAsc(shards))
-	} else {
-		sort.Sort(shardsDesc(shards))
-	}
-
-	// If "group by" interval lines up with shard duration and from clause
-	// is not "inner join" or "merge" then we can aggregate locally.
-	local := true
-	for _, s := range shards {
-		if !spec.CanAggregateLocally(s.Duration()) {
-			local = false
-			break
-		}
-	}
-
-	// If aggregating locally then use PassthroughEngineWithLimit processor.
-	// Otherwise create a new query engine with a list of shard ids.
-	if local {
-		p = engine.NewPassthroughEngineWithLimit(p, 100, q.Limit)
-	} else {
-		var err error
-		if p, err = engine.NewQueryEngine(p, q, Shards(shards).IDs()); err != nil {
-			return fmt.Errorf("new query engine: %s", err)
-		}
-	}
-
-	// Create MergeChannelProcessor.
-	mcp := NewMergeChannelProcessor(p, 1)
-	go mcp.ProcessChannels()
-
-	// Loop over shards, create response channel, kick off querying.
-	for i, s := range shards {
-		for value, columns := range q.GetReferencedColumns() {
-			for _, series := range db.seriesByValue(value) {
-				// Find fields.
-				fields := series.FieldsByNames(columns)
-				if len(fields) == 0 {
-					continue
-				}
-
-				// If we have a set of matching fields then create a channel.
-				c, err := mcp.NextChannel(1000)
-				if err != nil {
-					mcp.Close()
-					return fmt.Errorf("next channel: %s", err)
-				}
-
-				// We query shards for data and stream them to query processor
-				log4go.Debug("QUERYING: shard: %d", i)
-				go s.query(spec, series.Name, fields, c)
-			}
-		}
-	}
-
-	// Close merge channel processor.
-	if err := mcp.Close(); err != nil {
-		log4go.Error("Error while querying shards: %s", err)
-		return err
-	}
-
-	return p.Close()
-}
-
-// seriesByValues returns a list of series that match a set of parser values.
-func (db *Database) seriesByValues(values []*parser.Value) (a []*Series) {
-	for _, value := range values {
-		a = append(a, db.seriesByValue(value)...)
-	}
-	return
-}
-
-// seriesByValue returns a list of series that match a parser value.
-func (db *Database) seriesByValue(value *parser.Value) (a []*Series) {
-	for _, s := range db.series {
-		if re, ok := value.GetCompiledRegex(); ok {
-			if re.MatchString(s.Name) {
-				a = append(a, s)
-			}
-		} else if value.Name == s.Name {
-			a = append(a, s)
-		}
-	}
-	return
-}
-
-// spacesBySeries returns a list of unique shard spaces that match a set of series.
-func (db *Database) spacesBySeries(series []*Series) (a []*ShardSpace) {
-	m := make(map[*ShardSpace]struct{})
-	for _, s := range series {
-		for _, ss := range db.spaces {
-			// Check if we've already matched the space with a previous series.
-			if _, ok := m[ss]; ok {
-				continue
-			}
-
-			// Add shard space shards that match.
-			if ss.Regex.MatchString(s.Name) {
-				a = append(a, ss)
-				m[ss] = struct{}{}
-			}
-		}
-	}
-	return
-}
-
-// shardsInRange returns a subset of shards that are in the range of tmin and tmax.
-func shardsInRange(shards []*Shard, tmin, tmax time.Time) (a []*Shard) {
-	for _, s := range shards {
-		if timeBetween(s.StartTime, tmin, tmax) && timeBetween(s.EndTime, tmin, tmax) {
-			a = append(a, s)
-		}
-	}
-	return
+func (db *Database) ExecuteQuery(q influxql.Query) error {
+	panic("not yet implemented: Database.ExecuteQuery()") // TODO
 }
 
 // timeBetween returns true if t is between min and max, inclusive.
