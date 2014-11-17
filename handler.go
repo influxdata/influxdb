@@ -1,7 +1,6 @@
 package influxdb
 
 import (
-	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -10,8 +9,7 @@ import (
 
 	"code.google.com/p/log4go"
 	"github.com/bmizerany/pat"
-	"github.com/influxdb/influxdb/engine"
-	"github.com/influxdb/influxdb/parser"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -105,7 +103,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query from query string.
 	values := r.URL.Query()
-	queries, err := parser.ParseQuery(values.Get("q"))
+	q, err := influxql.Parse(values.Get("q"))
 	if err != nil {
 		h.error(w, "parse error: "+err.Error(), http.StatusBadRequest)
 		return
@@ -119,31 +117,18 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse the time precision from the query params.
-	precision, err := parseTimePrecision(values.Get("time_precision"))
-	if err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Create processor for writing data out.
-	var p engine.Processor
-	if r.URL.Query().Get("chunked") == "true" {
-		p = &chunkWriterProcessor{w, precision, false, (values.Get("pretty") == "true")}
-	} else {
-		p = &pointsWriterProcessor{make(map[string]*protocol.Series), w, precision, (values.Get("pretty") == "true")}
-	}
-
-	// Execute query against the database.
-	for _, q := range queries {
-		if err := db.ExecuteQuery(nil, q, p); err != nil {
-			h.error(w, err.Error(), http.StatusInternalServerError)
+	/*
+		precision, err := parseTimePrecision(values.Get("time_precision"))
+		if err != nil {
+			h.error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-	}
+	*/
 
-	// Mark processor as complete. Print error, if applicable.
-	if err := p.Close(); err != nil {
+	// Execute query against the database.
+	if err := db.ExecuteQuery(q); err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -341,74 +326,6 @@ func (p *pointsWriterProcessor) Yield(s *protocol.Series) (bool, error) {
 	}
 	return true, nil
 }
-
-func (p *pointsWriterProcessor) Name() string           { return "PointsWriter" }
-func (p *pointsWriterProcessor) Next() engine.Processor { return nil }
-
-func (p *pointsWriterProcessor) Close() error {
-	// Marshal series to JSON.
-	b, err := json.Marshal(serializeSeries(p.m, p.precision))
-	if err != nil {
-		return err
-	}
-
-	// Indent if pretty print specified.
-	if p.pretty {
-		var buf bytes.Buffer
-		if err := json.Indent(&buf, b, "", "    "); err != nil {
-			return err
-		}
-		b = buf.Bytes()
-	}
-
-	// Write header and data.
-	p.w.Header().Add("content-type", "application/json")
-	p.w.WriteHeader(http.StatusOK)
-	p.w.Write(b)
-	return nil
-}
-
-// chunkWriterProcessor writes individual series as they're yielded.
-type chunkWriterProcessor struct {
-	w                http.ResponseWriter
-	precision        TimePrecision
-	wroteContentType bool
-	pretty           bool
-}
-
-func (p *chunkWriterProcessor) Yield(s *protocol.Series) (bool, error) {
-	// Marshal series to JSON.
-	b, err := json.Marshal(serializeSeries(map[string]*protocol.Series{"": s}, p.precision))
-	if err != nil {
-		return true, err
-	}
-
-	// Indent if pretty print specified.
-	if p.pretty {
-		var buf bytes.Buffer
-		if err := json.Indent(&buf, b, "", "    "); err != nil {
-			return true, err
-		}
-		b = buf.Bytes()
-	}
-
-	// Write content type.
-	if !p.wroteContentType {
-		p.wroteContentType = true
-		p.w.Header().Set("content-type", "application/json")
-		p.w.WriteHeader(http.StatusOK)
-	}
-
-	// Write data and flush immediately.
-	p.w.Write(b)
-	p.w.(http.Flusher).Flush()
-
-	return true, nil
-}
-
-func (p *chunkWriterProcessor) Name() string           { return "ChunkWriter" }
-func (p *chunkWriterProcessor) Next() engine.Processor { return nil }
-func (p *chunkWriterProcessor) Close() error           { return nil }
 
 func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecision) []*serializedSeries {
 	a := []*serializedSeries{}
