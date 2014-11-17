@@ -1,43 +1,55 @@
-## v0.8.6 [unreleased]
+## v0.8.6 [2014-11-15]
 
 ### Features
 
+- [Issue #973](https://github.com/influxdb/influxdb/issues/973). Support
+  joining using a regex or list of time series
 - [Issue #1068](https://github.com/influxdb/influxdb/issues/1068). Print
   the processor chain when the query is started
-- [Issue #973](https://github.com/influxdb/influxdb/issues/973). Support joining
-  using a regex or list of time series
 
 ### Bugfixes
 
-- [Issue #978](https://github.com/influxdb/influxdb/issues/978). Check
-  for valgrind and mercurial in the configure script
-- [Issue #671](https://github.com/influxdb/influxdb/issues/671). Fix
-  the Makefile package target for Mac OSX
-- [Issue #925](https://github.com/influxdb/influxdb/issues/925). Don't
-  generate invalid query strings for single point queries
-- [Issue #1008](https://github.com/influxdb/influxdb/issues/1008). Return
-  an appropriate exit status code depending on whether the process exits
-  due to an error or exits gracefully.
-- [Issue #663](https://github.com/influxdb/influxdb/issues/663). Make
-  sure all sub servies are closed when are stopping InfluxDB
 - [Issue #584](https://github.com/influxdb/influxdb/issues/584). Don't
   panic if the process died while initializing
+- [Issue #663](https://github.com/influxdb/influxdb/issues/663). Make
+  sure all sub servies are closed when are stopping InfluxDB
+- [Issue #671](https://github.com/influxdb/influxdb/issues/671). Fix
+  the Makefile package target for Mac OSX
 - [Issue #800](https://github.com/influxdb/influxdb/issues/800). Use
   su instead of sudo in the init script. This fixes the startup problem
   on RHEL 6.
-- [Issue #1092](https://github.com/influxdb/influxdb/issues/1093). Set
-  the connection string of the local node in the raft snapshot.
+- [Issue #925](https://github.com/influxdb/influxdb/issues/925). Don't
+  generate invalid query strings for single point queries
 - [Issue #943](https://github.com/influxdb/influxdb/issues/943). Don't
   take two snapshots at the same time
-- [Issue #1085](https://github.com/influxdb/influxdb/issues/1085). Set
-  the connection string of the local raft node
+- [Issue #947](https://github.com/influxdb/influxdb/issues/947). Exit
+  nicely if the daemon doesn't have permission to write to the log.
+- [Issue #959](https://github.com/influxdb/influxdb/issues/959). Stop using
+  closed connections in the protobuf client.
+- [Issue #978](https://github.com/influxdb/influxdb/issues/978). Check
+  for valgrind and mercurial in the configure script
 - [Issue #996](https://github.com/influxdb/influxdb/issues/996). Fill should
   fill the time range even if no points exists in the given time range
+- [Issue #1008](https://github.com/influxdb/influxdb/issues/1008). Return
+  an appropriate exit status code depending on whether the process exits
+  due to an error or exits gracefully.
+- [Issue #1024](https://github.com/influxdb/influxdb/issues/1024). Hitting
+  open files limit causes influxdb to create shards in loop.
+- [Issue #1069](https://github.com/influxdb/influxdb/issues/1069). Fix
+  deprecated interface endpoint in Admin UI.
 - [Issue #1076](https://github.com/influxdb/influxdb/issues/1076). Fix
   the timestamps of data points written by the collectd plugin. (Thanks,
   @renchap for reporting this bug)
 - [Issue #1078](https://github.com/influxdb/influxdb/issues/1078). Make sure
   we don't resurrect shard directories for shards that have already expired
+- [Issue #1085](https://github.com/influxdb/influxdb/issues/1085). Set
+  the connection string of the local raft node
+- [Issue #1092](https://github.com/influxdb/influxdb/issues/1093). Set
+  the connection string of the local node in the raft snapshot.
+- [Issue #1100](https://github.com/influxdb/influxdb/issues/1100). Removing
+  a non-existent shard space causes the cluster to panic.
+- [Issue #1113](https://github.com/influxdb/influxdb/issues/1113). A nil
+  engine.ProcessorChain causes a panic.
 
 ## v0.8.5 [2014-10-27]
 
