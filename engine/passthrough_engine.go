@@ -4,7 +4,6 @@ package engine
 // that can't be aggregated locally or queries that don't require it like deletes and drops.
 import (
 	log "code.google.com/p/log4go"
-	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/protocol"
 )
 
@@ -68,7 +67,7 @@ func (self *Passthrough) Yield(seriesIncoming *protocol.Series) (bool, error) {
 		}
 		self.series = seriesIncoming
 	} else {
-		self.series = common.MergeSeries(self.series, seriesIncoming)
+		self.series = self.series.Merge(seriesIncoming)
 	}
 	return !self.limiter.hitLimit(seriesIncoming.GetName()), nil
 }

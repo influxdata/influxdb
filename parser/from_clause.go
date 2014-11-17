@@ -39,6 +39,15 @@ type TableName struct {
 	Alias string
 }
 
+type TableNames []*TableName
+
+func (a TableNames) Names() (names []*Value) {
+	for _, name := range a {
+		names = append(names, name.Name)
+	}
+	return
+}
+
 type FromClause struct {
 	Type  FromClauseType
 	Names []*TableName

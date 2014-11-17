@@ -3,8 +3,6 @@ package parser
 import (
 	"regexp"
 	"time"
-
-	"github.com/influxdb/influxdb/common"
 )
 
 type QuerySpec struct {
@@ -13,7 +11,7 @@ type QuerySpec struct {
 	isRegex                     bool
 	regex                       *regexp.Regexp
 	names                       []string
-	user                        common.User
+	user                        User
 	startTime                   time.Time
 	endTime                     time.Time
 	seriesValuesAndColumns      map[*Value][]string
@@ -23,7 +21,7 @@ type QuerySpec struct {
 	groupByColumnCount          int
 }
 
-func NewQuerySpec(user common.User, database string, query *Query) *QuerySpec {
+func NewQuerySpec(user User, database string, query *Query) *QuerySpec {
 	return &QuerySpec{user: user, query: query, database: database}
 }
 
@@ -53,7 +51,7 @@ func (self *QuerySpec) Database() string {
 	return self.database
 }
 
-func (self *QuerySpec) User() common.User {
+func (self *QuerySpec) User() User {
 	return self.user
 }
 
@@ -223,4 +221,21 @@ func (self *QuerySpec) IsDestructiveQuery() bool {
 
 func (self *QuerySpec) HasAggregates() bool {
 	return self.SelectQuery() != nil && self.SelectQuery().HasAggregates()
+}
+
+// CanAggregateLocally returns true if query can be aggregated locally with the shard duration.
+func (self *QuerySpec) CanAggregateLocally(d time.Duration) bool {
+	f := self.GetFromClause()
+	if f != nil && (f.Type == FromClauseInnerJoin || f.Type == FromClauseMerge) {
+		return false
+	}
+
+	groupByInterval := self.GetGroupByInterval()
+	if groupByInterval == nil {
+		if self.HasAggregates() {
+			return false
+		}
+		return true
+	}
+	return (d%*groupByInterval == 0) && !self.GroupByIrregularInterval
 }

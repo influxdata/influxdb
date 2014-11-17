@@ -7,15 +7,15 @@ import (
 
 type CommonMergeEngine struct {
 	merger  *Merger
-	streams map[uint32]StreamUpdate
+	streams map[uint64]StreamUpdate
 	next    Processor
 }
 
 // returns a yield function that will sort points from table1 and
 // table2 no matter what the order in which they are received.
-func NewCommonMergeEngine(shards []uint32, mergeColumns bool, ascending bool, next Processor) *CommonMergeEngine {
+func NewCommonMergeEngine(shards []uint64, mergeColumns bool, ascending bool, next Processor) *CommonMergeEngine {
 	cme := &CommonMergeEngine{
-		streams: make(map[uint32]StreamUpdate, len(shards)),
+		streams: make(map[uint64]StreamUpdate, len(shards)),
 		next:    next,
 	}
 	streams := make([]StreamQuery, len(shards))

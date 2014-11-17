@@ -19,7 +19,7 @@ message Series {
   required string name = 2;
   repeated string fields = 3;
   repeated uint64 fieldIds = 4;
-  optional uint32 shard_id = 5;
+  optional uint64 shard_id = 5;
 }
 
 message QueryResponseChunk {
@@ -41,7 +41,7 @@ message Request {
   // ensure that the receiving server is up to date
   repeated Series multi_series = 4;
   optional uint64 sequence_number = 5;
-  optional uint32 shard_id = 6;
+  optional uint64 shard_id = 6;
   optional string query = 7;
   optional string user_name = 8;
   optional uint32 request_number = 9;
@@ -73,4 +73,9 @@ message Response {
   optional string error_message = 5;
   optional int64 nextPointTime = 6;
   optional Request request = 7;
+}
+
+message WriteSeriesRequest {
+  required string database = 1;
+  required Series series = 2;
 }

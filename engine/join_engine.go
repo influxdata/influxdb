@@ -18,7 +18,7 @@ type JoinEngine struct {
 
 // Create and return a new JoinEngine given the shards that will be
 // processed and the query
-func NewJoinEngine(shards []uint32, query *parser.SelectQuery, next Processor) Processor {
+func NewJoinEngine(shards []uint64, query *parser.SelectQuery, next Processor) Processor {
 	tableNames := query.GetFromClause().Names
 	name := query.GetFromClause().GetString()
 	log4go.Debug("NewJoinEngine: shards=%v, query=%s, next=%s, tableNames=%v, name=%s",

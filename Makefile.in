@@ -230,8 +230,8 @@ protobuf: $(root)/bin/protoc-gen-go
 pre_build: dependencies protobuf parser build_version_string
 
 build_benchmark: pre_build
-	$(GO) build -o benchmark-storage $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/tools/benchmark-storage
-	$(GO) build -o benchmark-tool github.com/influxdb/influxdb/tools/benchmark
+	$(GO) build -o benchmark-storage $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/cmd/benchmark-storage
+	$(GO) build -o benchmark-tool github.com/influxdb/influxdb/cmd/benchmark
 
 build_binary: pre_build
 	$(GO) build -o influxdb $(GO_BUILD_OPTIONS) github.com/influxdb/influxdb/daemon
@@ -302,9 +302,9 @@ package_files = $(binary_package) $(debian_package) $(rpm_package) $(source_pack
 sha1 = $(shell sh -c "git rev-list --max-count=1 --abbrev-commit HEAD")
 
 build_version_string:
-	echo "package main"										 > daemon/version.go
-	echo "const version = \"$(version)\"" >> daemon/version.go
-	echo "const gitSha = \"$(sha1)\""     >> daemon/version.go
+	echo "package main"										 > cmd/influxd/version.go
+	echo "const version = \"$(version)\"" >> cmd/influxd/version.go
+	echo "const gitSha = \"$(sha1)\""     >> cmd/influxd/version.go
 
 package_version_string: build_version_string
 	sed -i.bak -e "s/REPLACE_VERSION/$(version)/" scripts/post_install.sh
@@ -346,7 +346,7 @@ $(binary_package): build packages
 	mkdir build
 	mv influxdb build/
 	mv benchmark-tool build/influxdb-benchmark
-	cp tools/benchmark/benchmark_config.sample.toml build/benchmark_config.toml
+	cp cmd/benchmark/benchmark_config.sample.toml build/benchmark_config.toml
 	cp -R scripts/ build/
 	cp config.sample.toml build/config.toml
 	$(sed_i) 's/influxdb.log/\/opt\/influxdb\/shared\/log.txt/g' build/config.toml

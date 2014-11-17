@@ -2,7 +2,7 @@ package engine
 
 import "github.com/influxdb/influxdb/parser"
 
-func NewQueryEngine(next Processor, query *parser.SelectQuery, shards []uint32) (Processor, error) {
+func NewQueryEngine(next Processor, query *parser.SelectQuery, shards []uint64) (Processor, error) {
 	limit := query.Limit
 
 	var engine Processor = NewPassthroughEngineWithLimit(next, 1, limit)
