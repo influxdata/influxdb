@@ -102,6 +102,7 @@ RocksDB requires GCC 4.7 to get C++11 support. See
 [their installation instruction](https://github.com/facebook/rocksdb/blob/296e340753f23f213655ff1d4549c73fa0262038/INSTALL.md)
 for more information. Currently our build system runs Centos 6.4 and
 uses a compiled version of GCC 4.7
+gawk is also required to be installed or the Makefile silently skips building rocksdb even if GCC 4.7 is present.
 
 Common Make targets
 -------------------
