@@ -187,9 +187,22 @@ func (self *Client) listSomething(url string) ([]map[string]interface{}, error) 
 	return somethings, nil
 }
 
-func (self *Client) GetDatabaseList() ([]map[string]interface{}, error) {
+// Returns a list of database names
+func (self *Client) GetDatabaseList() (map[string]struct{}, error) {
+	dbList := make(map[string]struct{})
 	url := self.getUrl("/db")
-	return self.listSomething(url)
+	somethings, err := self.listSomething(url)
+	if err != nil {
+		return dbList, err
+	}
+	for i, _ := range somethings {
+		if val, ok := somethings[i]["name"]; ok {
+			if name, ok := val.(string); ok {
+				dbList[name] = struct{}{}
+			}
+		}
+	}
+	return dbList, nil
 }
 
 func (self *Client) CreateClusterAdmin(name, password string) error {
