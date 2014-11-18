@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/influxdb/influxdb/protocol"
 )
 
 // Shard represents the physical storage for a given time range.
@@ -61,9 +60,7 @@ func (s *Shard) close() error {
 }
 
 // write writes series data to a shard.
-func (s *Shard) writeSeries(series *protocol.Series) error {
-	assert(len(series.GetFieldIds()) > 0, "field ids required for write")
-
+func (s *Shard) writeSeries(name string, tags map[string]string, value interface{}) error {
 	return s.store.Update(func(tx *bolt.Tx) error {
 		// TODO
 		return nil

@@ -3,16 +3,12 @@ package influxdb
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"net"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	log "code.google.com/p/log4go"
-	"github.com/influxdb/influxdb/protocol"
 )
 
 var (
@@ -197,104 +193,108 @@ func (s *GraphiteServer) Close() error {
 // handleMessage decodes a graphite message from the reader and sends it to the
 // committer goroutine.
 func (s *GraphiteServer) handleMessage(r *bufio.Reader) error {
-	// Decode graphic metric.
-	m, err := decodeGraphiteMetric(r)
-	if err != nil {
-		return err
-	}
-
-	// Convert metric to a field value.
-	v := &protocol.FieldValue{}
-	if m.isInt {
-		v.Int64Value = &m.integerValue
-	} else {
-		v.DoubleValue = &m.floatValue
-	}
-
-	// Use a single sequence number to make sure last write wins.
-	sn := uint64(1)
-
-	// Send data point to committer.
-	p := &protocol.Point{
-		Timestamp:      &m.timestamp,
-		Values:         []*protocol.FieldValue{v},
-		SequenceNumber: &sn,
-	}
-
-	// Write data to server.
-	series := &protocol.Series{
-		Name:   &m.name,
-		Fields: []string{"value"},
-		Points: []*protocol.Point{p},
-	}
-
-	// TODO: Validate user.
-
-	// Look up database.
-	db := s.server.Database(s.Database)
-	if db == nil {
-		return ErrDatabaseNotFound
-	}
-
-	// Write series data to database.
-	if err := db.WriteSeries(series); err != nil {
-		return fmt.Errorf("write series data: %s", err)
-	}
-
-	return nil
-}
-
-type graphiteMetric struct {
-	name         string
-	isInt        bool
-	integerValue int64
-	floatValue   float64
-	timestamp    int64
-}
-
-// returns err == io.EOF when we hit EOF without any further data
-func decodeGraphiteMetric(r *bufio.Reader) (*graphiteMetric, error) {
-	// Read up to the next newline.
-	buf, err := r.ReadBytes('\n')
-	str := strings.TrimSpace(string(buf))
-	if err != nil {
-		if err != io.EOF {
-			return nil, fmt.Errorf("connection closed uncleanly/broken: %s\n", err.Error())
+	panic("not yet implemented: GraphiteServer.handleMessage()")
+	/* TEMPORARILY REMOVED FOR PROTOBUFS.
+		// Decode graphic metric.
+		m, err := decodeGraphiteMetric(r)
+		if err != nil {
+			return err
 		}
-		if str == "" {
+
+
+		// Convert metric to a field value.
+		v := &protocol.FieldValue{}
+		if m.isInt {
+			v.Int64Value = &m.integerValue
+		} else {
+			v.DoubleValue = &m.floatValue
+		}
+
+		// Use a single sequence number to make sure last write wins.
+		sn := uint64(1)
+
+		// Send data point to committer.
+		p := &protocol.Point{
+			Timestamp:      &m.timestamp,
+			Values:         []*protocol.FieldValue{v},
+			SequenceNumber: &sn,
+		}
+
+		// Write data to server.
+		series := &protocol.Series{
+			Name:   &m.name,
+			Fields: []string{"value"},
+			Points: []*protocol.Point{p},
+		}
+
+		// TODO: Validate user.
+
+		// Look up database.
+		db := s.server.Database(s.Database)
+		if db == nil {
+			return ErrDatabaseNotFound
+		}
+
+		// Write series data to database.
+		if err := db.WriteSeries(series); err != nil {
+			return fmt.Errorf("write series data: %s", err)
+		}
+
+		return nil
+	}
+
+	type graphiteMetric struct {
+		name         string
+		isInt        bool
+		integerValue int64
+		floatValue   float64
+		timestamp    int64
+	}
+
+	// returns err == io.EOF when we hit EOF without any further data
+	func decodeGraphiteMetric(r *bufio.Reader) (*graphiteMetric, error) {
+		// Read up to the next newline.
+		buf, err := r.ReadBytes('\n')
+		str := strings.TrimSpace(string(buf))
+		if err != nil {
+			if err != io.EOF {
+				return nil, fmt.Errorf("connection closed uncleanly/broken: %s\n", err.Error())
+			}
+			if str == "" {
+				return nil, err
+			}
+			// else we got EOF but also data, so just try to process it as valid data
+		}
+
+		// Break into 3 fields (name, value, timestamp).
+		fields := strings.Fields(str)
+		if len(fields) != 3 {
+			return nil, fmt.Errorf("received '%s' which doesn't have three fields", str)
+		}
+
+		// Create a metric.
+		m := &graphiteMetric{name: fields[0]}
+
+		// Parse value.
+		v, err := strconv.ParseFloat(fields[1], 64)
+		if err != nil {
 			return nil, err
 		}
-		// else we got EOF but also data, so just try to process it as valid data
-	}
 
-	// Break into 3 fields (name, value, timestamp).
-	fields := strings.Fields(str)
-	if len(fields) != 3 {
-		return nil, fmt.Errorf("received '%s' which doesn't have three fields", str)
-	}
+		// Determine if value is a float or an int.
+		if i := int64(v); float64(i) == v {
+			m.integerValue, m.isInt = int64(v), true
+		} else {
+			m.floatValue = v
+		}
 
-	// Create a metric.
-	m := &graphiteMetric{name: fields[0]}
+		// Parse timestamp.
+		timestamp, err := strconv.ParseUint(fields[2], 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		m.timestamp = int64(timestamp) * int64(time.Millisecond)
 
-	// Parse value.
-	v, err := strconv.ParseFloat(fields[1], 64)
-	if err != nil {
-		return nil, err
-	}
-
-	// Determine if value is a float or an int.
-	if i := int64(v); float64(i) == v {
-		m.integerValue, m.isInt = int64(v), true
-	} else {
-		m.floatValue = v
-	}
-
-	// Parse timestamp.
-	timestamp, err := strconv.ParseUint(fields[2], 10, 32)
-	if err != nil {
-		return nil, err
-	}
-	m.timestamp = int64(timestamp) * int64(time.Millisecond)
-
-	return m, nil
+		return m, nil
+	*/
 }

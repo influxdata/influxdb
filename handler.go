@@ -1,16 +1,11 @@
 package influxdb
 
 import (
-	"compress/gzip"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"sort"
 
-	"code.google.com/p/log4go"
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/protocol"
 )
 
 // TODO: Standard response headers (see: HeaderHandler)
@@ -136,6 +131,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authentication.
 
+	/* TEMPORARILY REMOVED FOR PROTOBUFS.
 	// Retrieve database from server.
 	db := h.server.Database(r.URL.Query().Get(":db"))
 	if db == nil {
@@ -183,6 +179,7 @@ func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	*/
 }
 
 // serveDeleteSeries deletes a given series.
@@ -308,212 +305,6 @@ func (h *Handler) serveDeleteServer(w http.ResponseWriter, r *http.Request) {}
 func (h *Handler) error(w http.ResponseWriter, error string, code int) {
 	// TODO: Return error as JSON.
 	http.Error(w, error, code)
-}
-
-// pointsWriterProcessor writes series data at once at the end.
-type pointsWriterProcessor struct {
-	m         map[string]*protocol.Series
-	w         http.ResponseWriter
-	precision TimePrecision
-	pretty    bool
-}
-
-func (p *pointsWriterProcessor) Yield(s *protocol.Series) (bool, error) {
-	if p.m[*s.Name] == nil {
-		p.m[*s.Name] = s
-	} else {
-		p.m[s.GetName()] = p.m[s.GetName()].Merge(s)
-	}
-	return true, nil
-}
-
-func serializeSeries(memSeries map[string]*protocol.Series, precision TimePrecision) []*serializedSeries {
-	a := []*serializedSeries{}
-
-	for _, series := range memSeries {
-		includeSequenceNumber := true
-		if len(series.Points) > 0 && series.Points[0].SequenceNumber == nil {
-			includeSequenceNumber = false
-		}
-
-		columns := []string{"time"}
-		if includeSequenceNumber {
-			columns = append(columns, "sequence_number")
-		}
-		for _, field := range series.Fields {
-			columns = append(columns, field)
-		}
-
-		points := [][]interface{}{}
-		for _, row := range series.Points {
-			timestamp := int64(0)
-			if t := row.Timestamp; t != nil {
-				timestamp = *row.GetTimestampInMicroseconds()
-				switch precision {
-				case SecondPrecision:
-					timestamp /= 1000
-					fallthrough
-				case MillisecondPrecision:
-					timestamp /= 1000
-				}
-			}
-
-			rowValues := []interface{}{timestamp}
-			s := uint64(0)
-			if includeSequenceNumber {
-				if row.SequenceNumber != nil {
-					s = row.GetSequenceNumber()
-				}
-				rowValues = append(rowValues, s)
-			}
-			for _, value := range row.Values {
-				if value == nil {
-					rowValues = append(rowValues, nil)
-					continue
-				}
-				v, ok := value.GetValue()
-				if !ok {
-					rowValues = append(rowValues, nil)
-					log4go.Warn("Infinite or NaN value encountered")
-					continue
-				}
-				rowValues = append(rowValues, v)
-			}
-			points = append(points, rowValues)
-		}
-
-		a = append(a, &serializedSeries{
-			Name:    *series.Name,
-			Columns: columns,
-			Points:  points,
-		})
-	}
-	sort.Sort(serializedSeriesByName(a))
-	return a
-}
-
-type serializedSeries struct {
-	Name    string          `json:"name"`
-	Columns []string        `json:"columns"`
-	Points  [][]interface{} `json:"points"`
-}
-
-func (s *serializedSeries) series(precision TimePrecision) (*protocol.Series, error) {
-	points := make([]*protocol.Point, 0, len(s.Points))
-	if hasDuplicates(s.Columns) {
-		return nil, fmt.Errorf("Cannot have duplicate field names")
-	}
-
-	for _, point := range s.Points {
-		if len(point) != len(s.Columns) {
-			return nil, fmt.Errorf("invalid payload")
-		}
-
-		values := make([]*protocol.FieldValue, 0, len(point))
-		var timestamp *int64
-		var sequence *uint64
-
-		for idx, field := range s.Columns {
-			value := point[idx]
-			if field == "time" {
-				switch x := value.(type) {
-				case json.Number:
-					f, err := x.Float64()
-					if err != nil {
-						return nil, err
-					}
-					_timestamp := int64(f)
-					switch precision {
-					case SecondPrecision:
-						_timestamp *= 1000
-						fallthrough
-					case MillisecondPrecision:
-						_timestamp *= 1000
-					}
-
-					timestamp = &_timestamp
-					continue
-				default:
-					return nil, fmt.Errorf("time field must be float but is %T (%v)", value, value)
-				}
-			}
-
-			if field == "sequence_number" {
-				switch x := value.(type) {
-				case json.Number:
-					f, err := x.Float64()
-					if err != nil {
-						return nil, err
-					}
-					_sequenceNumber := uint64(f)
-					sequence = &_sequenceNumber
-					continue
-				default:
-					return nil, fmt.Errorf("sequence_number field must be float but is %T (%v)", value, value)
-				}
-			}
-
-			switch v := value.(type) {
-			case string:
-				values = append(values, &protocol.FieldValue{StringValue: &v})
-			case json.Number:
-				i, err := v.Int64()
-				if err == nil {
-					values = append(values, &protocol.FieldValue{Int64Value: &i})
-					break
-				}
-				f, err := v.Float64()
-				if err != nil {
-					return nil, err
-				}
-				values = append(values, &protocol.FieldValue{DoubleValue: &f})
-			case bool:
-				values = append(values, &protocol.FieldValue{BoolValue: &v})
-			case nil:
-				trueValue := true
-				values = append(values, &protocol.FieldValue{IsNull: &trueValue})
-			default:
-				// if we reached this line then the dynamic type didn't match
-				return nil, fmt.Errorf("Unknown type %T", value)
-			}
-		}
-		points = append(points, &protocol.Point{
-			Values:         values,
-			Timestamp:      timestamp,
-			SequenceNumber: sequence,
-		})
-	}
-
-	fields := removeTimestampFieldDefinition(s.Columns)
-
-	series := &protocol.Series{
-		Name:   protocol.String(s.Name),
-		Fields: fields,
-		Points: points,
-	}
-	return series, nil
-}
-
-type serializedSeriesSlice []*serializedSeries
-
-func (a serializedSeriesSlice) series(precision TimePrecision) ([]*protocol.Series, error) {
-	var series []*protocol.Series
-	for _, s := range a {
-		p, err := s.series(precision)
-		if err != nil {
-			return nil, err
-		}
-		series = append(series, p)
-	}
-	return series, nil
-}
-
-type serializedSeriesByName []*serializedSeries
-
-func (p serializedSeriesByName) Len() int      { return len(p) }
-func (p serializedSeriesByName) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
-func (p serializedSeriesByName) Less(i, j int) bool {
-	return p[i] != nil && p[j] != nil && p[i].Name < p[j].Name
 }
 
 /*

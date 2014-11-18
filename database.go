@@ -8,10 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/messaging"
-	"github.com/influxdb/influxdb/protocol"
+	// "github.com/influxdb/influxdb/messaging"
 )
 
 // Database represents a collection of shard spaces.
@@ -320,7 +318,10 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, space string, timesta
 }
 
 // WriteSeries writes series data to the database.
-func (db *Database) WriteSeries(series *protocol.Series) error {
+func (db *Database) WriteSeries(name string, tags map[string]string, value interface{}) error {
+	panic("not yet implemented: Database.WriteSeries()")
+
+	/* TEMPORARILY REMOVED FOR PROTOBUFS.
 	// Find shard space matching the series and split points by shard.
 	db.mu.Lock()
 	name := db.name
@@ -383,8 +384,10 @@ func (db *Database) WriteSeries(series *protocol.Series) error {
 	}
 
 	return nil
+	*/
 }
 
+/* TEMPORARILY REMOVED FOR PROTOBUFS.
 func (db *Database) applyWriteSeries(s *protocol.Series) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -438,6 +441,7 @@ func (db *Database) applyWriteSeries(s *protocol.Series) error {
 	// Write to shard.
 	return shard.writeSeries(s)
 }
+*/
 
 // ExecuteQuery executes a query against a database.
 func (db *Database) ExecuteQuery(q influxql.Query) error {
@@ -554,6 +558,7 @@ func NewShardSpace() *ShardSpace {
 	}
 }
 
+/*
 // SplitPoints groups a set of points by shard id.
 // Also returns a list of timestamps that did not match an existing shard.
 func (ss *ShardSpace) Split(a []*protocol.Point) (points map[uint64][]*protocol.Point, unassigned []*protocol.Point) {
@@ -567,6 +572,7 @@ func (ss *ShardSpace) Split(a []*protocol.Point) (points map[uint64][]*protocol.
 	}
 	return
 }
+*/
 
 // ShardByTimestamp returns the shard in the space that owns a given timestamp.
 // Returns nil if the shard does not exist.
