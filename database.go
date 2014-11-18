@@ -318,7 +318,7 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, space string, timesta
 }
 
 // WriteSeries writes series data to the database.
-func (db *Database) WriteSeries(name string, tags map[string]string, value interface{}) error {
+func (db *Database) WriteSeries(name string, tags map[string]string, values map[string]interface{}) error {
 	panic("not yet implemented: Database.WriteSeries()")
 
 	/* TEMPORARILY REMOVED FOR PROTOBUFS.
