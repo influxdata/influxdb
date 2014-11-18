@@ -55,15 +55,26 @@ code. To use the pre-commit hook, run the following:
 In case the commit is rejected because it's not formatted you can run
 the following to format the code:
 
-Build
+Build and Test
 -----
 
-Make sure you have Go installed. Here are some common things you'd want to run:
+Make sure you have Go installed. To build the project, execute the following commands
 
 ```bash
+cd $GOPATH/src/github.com/influxdb
+go get -u ./...
+go build ./...
+```
+
+Once compilation completes, the binaries can be found in `$GOPATH/bin`.
+
+To run the test, execute the following command:
+
+```bash
+cd $GOPATH/src/github.com/influxdb
 go test -v
 
-# run tests that match some pattern 
+# run tests that match some pattern
 go test -run=TestDatabase . -v
 
 # run tests and show coverage
