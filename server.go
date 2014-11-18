@@ -623,7 +623,7 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	if err := db.applyWriteSeries(req.GetSeries()); err != nil {
+	if err := db.applyWriteSeries(id, t, values); err != nil {
 		return err
 	}
 
