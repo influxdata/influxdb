@@ -55,69 +55,20 @@ code. To use the pre-commit hook, run the following:
 In case the commit is rejected because it's not formatted you can run
 the following to format the code:
 
-    make format
+Build
+-----
 
-Build on OSX
-------------
+Make sure you have Go installed. Here are some common things you'd want to run:
 
-Make sure you've got the latest version of XCode intalled, and then run:
+```bash
+go test -v
 
-    xcode-select --install
+# run tests that match some pattern 
+go test -run=TestDatabase . -v
 
-You will likely be prompted to agree to Apple's TOS before you can continue.
-
-Then, you'll need the following dependencies (via homebrew):
-
-    brew install autoconf gawk protobuf bison flex leveldb rocksdb hg bzr
-
-Finally, to build the binary, run the following command:
-
-    ./configure \
-      --with-flex=$(brew --prefix flex)/bin/flex \
-      --with-bison=$(brew --prefix bison)/bin/bison && make build
-
-Build on Linux
---------------
-
-You'll need the following dependencies:
-
-    sudo apt-get install mercurial bzr protobuf-compiler flex bison \
-      valgrind g++ make autoconf libtool libz-dev libbz2-dev curl \
-      rpm build-essential git wget
-
-on Red Hat-based distros:
-
-    sudo yum install mercurial bzr protobuf-compiler flex bison valgrind \
-      gcc-c++ libstdc++-static make autoconf libtool zlib-devel bzip2-libs \
-      bzlib2-devel
-
-To build run the following:
-
-    ./configure && make
-
-Building with RocksDB
----------------------
-
-RocksDB requires GCC 4.7 to get C++11 support. See
-[their installation instruction](https://github.com/facebook/rocksdb/blob/296e340753f23f213655ff1d4549c73fa0262038/INSTALL.md)
-for more information. Currently our build system runs Centos 6.4 and
-uses a compiled version of GCC 4.7
-
-Common Make targets
--------------------
-
-The following are make targets that can be used on any architecture:
-
-- `build` Builds the binaries. This target generates `influxdb` binary
-  in the root of the repo
-- `test` Runs the unit tests in all packages. Can be run with
-  `verbose=on` to increase verbosity and `only=<test-name>` to only
-  run certain tests.
-- `integration_test` Runs the integration test suite. Accepts tha same
-  arguments as `test`. The integration tests are in the `integration`
-  package.
-- `clean` Cleans all dependencies and temporary files created by the Makefile.
-- `format` Formats the entire codebase.
+# run tests and show coverage
+go test -coverprofile /tmp/cover . && go tool cover -html /tmp/cover
+```
 
 Useful links
 ------------
