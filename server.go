@@ -10,10 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/messaging"
-	"github.com/influxdb/influxdb/protocol"
 )
 
 const (
@@ -609,6 +607,7 @@ type deleteShardSpaceCommand struct {
 	Name     string `json:"name"`
 }
 
+/* TEMPORARILY REMOVED FOR PROTOBUFS.
 func (s *Server) applyWriteSeries(m *messaging.Message) error {
 	req := &protocol.WriteSeriesRequest{}
 	if err := proto.Unmarshal(m.Data, req); err != nil {
@@ -624,12 +623,13 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	if err := db.applyWriteSeries(req.GetSeries()); err != nil {
+	if err := db.applyWriteSeries(id, t, values); err != nil {
 		return err
 	}
 
 	return nil
 }
+*/
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
 func (s *Server) processor(done chan struct{}) {
@@ -667,7 +667,9 @@ func (s *Server) processor(done chan struct{}) {
 		case createShardIfNotExistsMessageType:
 			err = s.applyCreateShardIfNotExists(m)
 		case writeSeriesMessageType:
+			/* TEMPORARILY REMOVED FOR PROTOBUFS.
 			err = s.applyWriteSeries(m)
+			*/
 		}
 
 		// Sync high water mark and errors.

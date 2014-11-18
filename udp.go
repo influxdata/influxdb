@@ -1,12 +1,8 @@
 package influxdb
 
 import (
-	"bytes"
-	"encoding/json"
 	"net"
 	"sync"
-
-	log "code.google.com/p/log4go"
 )
 
 // UDPServer
@@ -34,6 +30,9 @@ func NewUDPServer(server *Server) *UDPServer {
 
 // ListenAndServe opens a UDP socket to listen for messages.
 func (s *UDPServer) ListenAndServe() error {
+	panic("not yet implemented: UDPServer.ListenAndServe()")
+
+	/* TEMPORARILY REMOVED FOR PROTOBUFS.
 	// Validate that server has a UDP address.
 	if s.Addr == nil {
 		return ErrBindAddressRequired
@@ -96,5 +95,5 @@ func (s *UDPServer) ListenAndServe() error {
 		}
 
 	}
-
+	*/
 }
