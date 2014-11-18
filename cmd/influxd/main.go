@@ -28,6 +28,12 @@ const logo = `
 +---------------------------------------------+
 `
 
+// These variables are populated via the Go linker.
+var (
+	version string
+	commit  string
+)
+
 func main() {
 	if err := start(); err != nil {
 		os.Exit(1)
@@ -48,7 +54,7 @@ func start() error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	v := fmt.Sprintf("InfluxDB v%s (git: %s)", version, gitSha)
+	v := fmt.Sprintf("InfluxDB v%s (git: %s)", version, commit)
 	if *showVersion {
 		fmt.Println(v)
 		return nil
