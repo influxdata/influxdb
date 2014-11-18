@@ -37,17 +37,18 @@ const (
 
 const (
 	// broadcast messages
-	createDatabaseMessageType          = messaging.MessageType(0x00)
-	deleteDatabaseMessageType          = messaging.MessageType(0x01)
-	createRetentionPolicyMessageType   = messaging.MessageType(0x02)
-	deleteRetentionPolicyMessageType   = messaging.MessageType(0x03)
-	createClusterAdminMessageType      = messaging.MessageType(0x04)
-	deleteClusterAdminMessageType      = messaging.MessageType(0x05)
-	clusterAdminSetPasswordMessageType = messaging.MessageType(0x06)
-	createDBUserMessageType            = messaging.MessageType(0x07)
-	deleteDBUserMessageType            = messaging.MessageType(0x08)
-	dbUserSetPasswordMessageType       = messaging.MessageType(0x09)
-	createShardIfNotExistsMessageType  = messaging.MessageType(0x0a)
+	createDatabaseMessageType            = messaging.MessageType(0x00)
+	deleteDatabaseMessageType            = messaging.MessageType(0x01)
+	createRetentionPolicyMessageType     = messaging.MessageType(0x02)
+	deleteRetentionPolicyMessageType     = messaging.MessageType(0x03)
+	createClusterAdminMessageType        = messaging.MessageType(0x04)
+	deleteClusterAdminMessageType        = messaging.MessageType(0x05)
+	clusterAdminSetPasswordMessageType   = messaging.MessageType(0x06)
+	createDBUserMessageType              = messaging.MessageType(0x07)
+	deleteDBUserMessageType              = messaging.MessageType(0x08)
+	dbUserSetPasswordMessageType         = messaging.MessageType(0x09)
+	createShardIfNotExistsMessageType    = messaging.MessageType(0x0a)
+	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x0b)
 
 	// per-topic messages
 	writeSeriesMessageType = messaging.MessageType(0x80)
@@ -605,6 +606,27 @@ type deleteRetentionPolicyCommand struct {
 	Name     string `json:"name"`
 }
 
+func (s *Server) applySetDefaultRetentionPolicy(m *messaging.Message) error {
+	var c setDefaultRetentionPolicyCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Retrieve the database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	return db.applySetDefaultRetentionPolicy(c.Name)
+}
+
+type setDefaultRetentionPolicyCommand struct {
+	Database string `json:"database"`
+	Name     string `json:"name"`
+}
+
 /* TEMPORARILY REMOVED FOR PROTOBUFS.
 func (s *Server) applyWriteSeries(m *messaging.Message) error {
 	req := &protocol.WriteSeriesRequest{}
@@ -664,6 +686,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyDeleteRetentionPolicy(m)
 		case createShardIfNotExistsMessageType:
 			err = s.applyCreateShardIfNotExists(m)
+		case setDefaultRetentionPolicyMessageType:
+			err = s.applySetDefaultRetentionPolicy(m)
 		case writeSeriesMessageType:
 			/* TEMPORARILY REMOVED FOR PROTOBUFS.
 			err = s.applyWriteSeries(m)

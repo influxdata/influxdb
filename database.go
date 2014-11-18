@@ -22,7 +22,8 @@ type Database struct {
 	shards   map[uint64]*Shard           // shards by id
 	series   map[string]*Series          // series by name
 
-	maxFieldID uint64 // largest field id in use
+	defaultRetentionPolicy string
+	maxFieldID             uint64 // largest field id in use
 }
 
 // newDatabase returns an instance of Database associated with a server.
@@ -41,6 +42,13 @@ func (db *Database) Name() string {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	return db.name
+}
+
+// DefaultRetentionPolicy returns the retention policy that writes and queries will default to or nil if not set.
+func (db *Database) DefaultRetentionPolicy() *RetentionPolicy {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.policies[db.defaultRetentionPolicy]
 }
 
 // User returns a database user by name.
@@ -179,14 +187,14 @@ func (db *Database) applyChangePassword(username, newPassword string) error {
 	return nil
 }
 
-// RetentionPolicy returns a shard space by name.
+// RetentionPolicy returns a retention policy by name.
 func (db *Database) RetentionPolicy(name string) *RetentionPolicy {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	return db.policies[name]
 }
 
-// CreateRetentionPolicy creates a shard space in the database.
+// CreateRetentionPolicy creates a retention policy in the database.
 func (db *Database) CreateRetentionPolicy(ss *RetentionPolicy) error {
 	c := &createRetentionPolicyCommand{
 		Database: db.Name(),
@@ -203,7 +211,7 @@ func (db *Database) applyCreateRetentionPolicy(name string, duration time.Durati
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Validate shard space.
+	// Validate retention policy.
 	if name == "" {
 		return ErrRetentionPolicyNameRequired
 	} else if db.policies[name] != nil {
@@ -221,7 +229,7 @@ func (db *Database) applyCreateRetentionPolicy(name string, duration time.Durati
 	return nil
 }
 
-// DeleteRetentionPolicy removes a shard space from the database.
+// DeleteRetentionPolicy removes a retention policy from the database.
 func (db *Database) DeleteRetentionPolicy(name string) error {
 	c := &deleteRetentionPolicyCommand{Database: db.Name(), Name: name}
 	_, err := db.server.broadcast(deleteRetentionPolicyMessageType, c)
@@ -232,15 +240,35 @@ func (db *Database) applyDeleteRetentionPolicy(name string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Validate shard space.
+	// Validate retention policy.
 	if name == "" {
 		return ErrRetentionPolicyNameRequired
 	} else if db.policies[name] == nil {
 		return ErrRetentionPolicyNotFound
 	}
 
-	// Remove shard space.
+	// Remove retention policy.
 	delete(db.policies, name)
+	return nil
+}
+
+// SetDefaultRetentionPolicy sets the default policy to write data into and query from on a database.
+func (db *Database) SetDefaultRetentionPolicy(name string) error {
+	c := &setDefaultRetentionPolicyCommand{Database: db.Name(), Name: name}
+	_, err := db.server.broadcast(setDefaultRetentionPolicyMessageType, c)
+	return err
+}
+
+func (db *Database) applySetDefaultRetentionPolicy(name string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	// Check the retention policy exists
+	if db.policies[name] == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	db.defaultRetentionPolicy = name
 	return nil
 }
 
@@ -256,7 +284,7 @@ func (db *Database) shard(id uint64) *Shard {
 	return nil
 }
 
-// CreateShardIfNotExists creates a shard for a shard space for a given timestamp.
+// CreateShardIfNotExists creates a shard for a retention policy for a given timestamp.
 func (db *Database) CreateShardIfNotExists(space string, timestamp time.Time) error {
 	c := &createShardIfNotExistsSpaceCommand{Database: db.name, Space: space, Timestamp: timestamp}
 	_, err := db.server.broadcast(createShardIfNotExistsMessageType, c)
@@ -267,7 +295,7 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Validate shard space.
+	// Validate retention policy.
 	ss := db.policies[policy]
 	if ss == nil {
 		return ErrRetentionPolicyNotFound, false
@@ -291,7 +319,7 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 		panic("unable to open shard: " + err.Error())
 	}
 
-	// Append to shard space.
+	// Append to retention policy.
 	ss.Shards = append(ss.Shards, s)
 
 	return nil, true
@@ -302,7 +330,7 @@ func (db *Database) WriteSeries(name string, tags map[string]string, timestamp t
 	panic("not yet implemented: Database.WriteSeries()")
 
 	/* TEMPORARILY REMOVED FOR PROTOBUFS.
-	// Find shard space matching the series and split points by shard.
+	// Find retention policy matching the series and split points by shard.
 	db.mu.Lock()
 	name := db.name
 	space := db.retentionPolicyBySeries(series.GetName())
@@ -560,7 +588,7 @@ func (ss *RetentionPolicy) ShardByTimestamp(timestamp time.Time) *Shard {
 	return nil
 }
 
-// MarshalJSON encodes a shard space to a JSON-encoded byte slice.
+// MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
 func (s *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&retentionPolicyJSON{
 		Name:     s.Name,
@@ -570,7 +598,7 @@ func (s *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON decodes a JSON-encoded byte slice to a shard space.
+// UnmarshalJSON decodes a JSON-encoded byte slice to a retention policy.
 func (s *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	// Decode into intermediate type.
 	var o retentionPolicyJSON
