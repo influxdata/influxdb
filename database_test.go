@@ -2,7 +2,6 @@ package influxdb_test
 
 import (
 	"reflect"
-	"regexp"
 	"testing"
 	"time"
 
@@ -217,7 +216,7 @@ func TestDatabase_Users(t *testing.T) {
 }
 
 // Ensure the database can create a new shard space.
-func TestDatabase_CreateShardSpace(t *testing.T) {
+func TestDatabase_CreateRetentionPolicy(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -227,21 +226,19 @@ func TestDatabase_CreateShardSpace(t *testing.T) {
 	}
 
 	// Create a shard space on the database.
-	ss := &influxdb.ShardSpace{
-		Name:      "bar",
-		Regex:     regexp.MustCompile(`myseries`),
-		Duration:  time.Hour,
-		Retention: time.Minute,
-		ReplicaN:  2,
-		SplitN:    3,
+	ss := &influxdb.RetentionPolicy{
+		Name:     "bar",
+		Duration: time.Hour,
+		ReplicaN: 2,
+		SplitN:   3,
 	}
-	if err := s.Database("foo").CreateShardSpace(ss); err != nil {
+	if err := s.Database("foo").CreateRetentionPolicy(ss); err != nil {
 		t.Fatal(err)
 	}
 	s.Restart()
 
 	// Verify that the user exists.
-	if o := s.Database("foo").ShardSpace("bar"); o == nil {
+	if o := s.Database("foo").RetentionPolicy("bar"); o == nil {
 		t.Fatalf("shard space not found")
 	} else if !reflect.DeepEqual(ss, o) {
 		t.Fatalf("shard space mismatch: %#v", o)
@@ -249,7 +246,7 @@ func TestDatabase_CreateShardSpace(t *testing.T) {
 }
 
 // Ensure the server returns an error when creating a shard space after db is dropped.
-func TestDatabase_CreateShardSpace_ErrDatabaseNotFound(t *testing.T) {
+func TestDatabase_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -259,61 +256,61 @@ func TestDatabase_CreateShardSpace_ErrDatabaseNotFound(t *testing.T) {
 	s.DeleteDatabase("foo")
 
 	// Create a shard space on the database.
-	if err := db.CreateShardSpace(&influxdb.ShardSpace{Name: "bar"}); err != influxdb.ErrDatabaseNotFound {
+	if err := db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
 }
 
 // Ensure the server returns an error when creating a shard space without a name.
-func TestDatabase_CreateShardSpace_ErrShardSpaceNameRequired(t *testing.T) {
+func TestDatabase_CreateRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	if err := s.Database("foo").CreateShardSpace(&influxdb.ShardSpace{Name: ""}); err != influxdb.ErrShardSpaceNameRequired {
+	if err := s.Database("foo").CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: ""}); err != influxdb.ErrRetentionPolicyNameRequired {
 		t.Fatal(err)
 	}
 }
 
 // Ensure the server returns an error when creating a duplicate shard space.
-func TestDatabase_CreateShardSpace_ErrShardSpaceExists(t *testing.T) {
+func TestDatabase_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	s.Database("foo").CreateShardSpace(&influxdb.ShardSpace{Name: "bar"})
-	if err := s.Database("foo").CreateShardSpace(&influxdb.ShardSpace{Name: "bar"}); err != influxdb.ErrShardSpaceExists {
+	s.Database("foo").CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"})
+	if err := s.Database("foo").CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != influxdb.ErrRetentionPolicyExists {
 		t.Fatal(err)
 	}
 }
 
 // Ensure the server can delete an existing shard space.
-func TestDatabase_DeleteShardSpace(t *testing.T) {
+func TestDatabase_DeleteRetentionPolicy(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
 	// Create a database and shard space.
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	if err := db.CreateShardSpace(&influxdb.ShardSpace{Name: "bar"}); err != nil {
+	if err := db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != nil {
 		t.Fatal(err)
-	} else if db.ShardSpace("bar") == nil {
+	} else if db.RetentionPolicy("bar") == nil {
 		t.Fatal("shard space not created")
 	}
 
 	// Remove shard space from database.
-	if err := db.DeleteShardSpace("bar"); err != nil {
+	if err := db.DeleteRetentionPolicy("bar"); err != nil {
 		t.Fatal(err)
-	} else if db.ShardSpace("bar") != nil {
+	} else if db.RetentionPolicy("bar") != nil {
 		t.Fatal("shard space not deleted")
 	}
 	s.Restart()
 
-	if s.Database("foo").ShardSpace("bar") != nil {
+	if s.Database("foo").RetentionPolicy("bar") != nil {
 		t.Fatal("shard space not deleted after restart")
 	}
 }
 
 // Ensure the server returns an error when deleting a shard space after db is dropped.
-func TestDatabase_DeleteShardSpace_ErrDatabaseNotFound(t *testing.T) {
+func TestDatabase_DeleteRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -323,27 +320,27 @@ func TestDatabase_DeleteShardSpace_ErrDatabaseNotFound(t *testing.T) {
 	s.DeleteDatabase("foo")
 
 	// Delete shard space on the database.
-	if err := db.DeleteShardSpace("bar"); err != influxdb.ErrDatabaseNotFound {
+	if err := db.DeleteRetentionPolicy("bar"); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
 }
 
 // Ensure the server returns an error when deleting a shard space without a name.
-func TestDatabase_DeleteShardSpace_ErrShardSpaceNameRequired(t *testing.T) {
+func TestDatabase_DeleteRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	if err := s.Database("foo").DeleteShardSpace(""); err != influxdb.ErrShardSpaceNameRequired {
+	if err := s.Database("foo").DeleteRetentionPolicy(""); err != influxdb.ErrRetentionPolicyNameRequired {
 		t.Fatal(err)
 	}
 }
 
 // Ensure the server returns an error when deleting a non-existent shard space.
-func TestDatabase_DeleteShardSpace_ErrShardSpaceNotFound(t *testing.T) {
+func TestDatabase_DeleteRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	if err := s.Database("foo").DeleteShardSpace("no_such_space"); err != influxdb.ErrShardSpaceNotFound {
+	if err := s.Database("foo").DeleteRetentionPolicy("no_such_space"); err != influxdb.ErrRetentionPolicyNotFound {
 		t.Fatal(err)
 	}
 }
@@ -357,7 +354,7 @@ func TestDatabase_WriteSeries(t *testing.T) {
 	defer s.Close()
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	db.CreateShardSpace(&influxdb.ShardSpace{Name: "myspace", Duration: 1 * time.Hour})
+	db.CreateRetentionPolicys(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
 	db.CreateUser("susy", "pass", nil)
 
 	// Write series with one point to the database.
