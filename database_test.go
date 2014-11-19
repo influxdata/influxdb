@@ -226,13 +226,13 @@ func TestDatabase_CreateRetentionPolicy(t *testing.T) {
 	}
 
 	// Create a retention policy on the database.
-	ss := &influxdb.RetentionPolicy{
+	rp := &influxdb.RetentionPolicy{
 		Name:     "bar",
 		Duration: time.Hour,
 		ReplicaN: 2,
 		SplitN:   3,
 	}
-	if err := s.Database("foo").CreateRetentionPolicy(ss); err != nil {
+	if err := s.Database("foo").CreateRetentionPolicy(rp); err != nil {
 		t.Fatal(err)
 	}
 	s.Restart()
@@ -240,7 +240,7 @@ func TestDatabase_CreateRetentionPolicy(t *testing.T) {
 	// Verify that the policy exists.
 	if o := s.Database("foo").RetentionPolicy("bar"); o == nil {
 		t.Fatalf("retention policy not found")
-	} else if !reflect.DeepEqual(ss, o) {
+	} else if !reflect.DeepEqual(rp, o) {
 		t.Fatalf("retention policy mismatch: %#v", o)
 	}
 }
@@ -352,7 +352,8 @@ func TestDatabase_SetDefaultRetentionPolicy(t *testing.T) {
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
 
-	if err := db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+	rp := &influxdb.RetentionPolicy{Name: "bar"}
+	if err := db.CreateRetentionPolicy(rp); err != nil {
 		t.Fatal(err)
 	} else if db.RetentionPolicy("bar") == nil {
 		t.Fatal("retention policy not created")
@@ -363,20 +364,20 @@ func TestDatabase_SetDefaultRetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rp := db.DefaultRetentionPolicy()
-	if rp == nil {
+	o := db.DefaultRetentionPolicy()
+	if o == nil {
 		t.Fatal("default policy not set")
-	} else if !reflect.DeepEqual(db.RetentionPolicy("bar"), rp) {
-		t.Fatalf("retention policy mismatch: %#v", rp)
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Fatalf("retention policy mismatch: %#v", o)
 	}
 
 	s.Restart()
 
-	rp = db.DefaultRetentionPolicy()
-	if rp == nil {
+	o = s.Database("foo").DefaultRetentionPolicy()
+	if o == nil {
 		t.Fatal("default policy not kept after restart")
-	} else if !reflect.DeepEqual(db.RetentionPolicy("bar"), rp) {
-		t.Fatalf("retention policy mismatch after restart: %#v", rp)
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Fatalf("retention policy mismatch after restart: %#v", o)
 	}
 }
 

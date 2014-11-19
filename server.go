@@ -619,7 +619,16 @@ func (s *Server) applySetDefaultRetentionPolicy(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	return db.applySetDefaultRetentionPolicy(c.Name)
+	if err := db.applySetDefaultRetentionPolicy(c.Name); err != nil {
+		return err
+	}
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
 }
 
 type setDefaultRetentionPolicyCommand struct {

@@ -466,6 +466,7 @@ func (db *Database) MarshalJSON() ([]byte, error) {
 	// Copy over properties to intermediate type.
 	var o databaseJSON
 	o.Name = db.name
+	o.DefaultRetentionPolicy = db.defaultRetentionPolicy
 	o.MaxFieldID = db.maxFieldID
 	for _, u := range db.users {
 		o.Users = append(o.Users, u)
@@ -492,6 +493,7 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 
 	// Copy over properties from intermediate type.
 	db.name = o.Name
+	db.defaultRetentionPolicy = o.DefaultRetentionPolicy
 	db.maxFieldID = o.MaxFieldID
 
 	// Copy users.
@@ -523,12 +525,13 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 
 // databaseJSON represents the JSON-serialization format for a database.
 type databaseJSON struct {
-	Name       string             `json:"name,omitempty"`
-	MaxFieldID uint64             `json:"maxFieldID,omitempty"`
-	Users      []*DBUser          `json:"users,omitempty"`
-	Policies   []*RetentionPolicy `json:"policies,omitempty"`
-	Shards     []*Shard           `json:"shards,omitempty"`
-	Series     []*Series          `json:"series,omitempty"`
+	Name                   string             `json:"name,omitempty"`
+	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
+	MaxFieldID             uint64             `json:"maxFieldID,omitempty"`
+	Users                  []*DBUser          `json:"users,omitempty"`
+	Policies               []*RetentionPolicy `json:"policies,omitempty"`
+	Shards                 []*Shard           `json:"shards,omitempty"`
+	Series                 []*Series          `json:"series,omitempty"`
 }
 
 // databases represents a list of databases, sortable by name.
