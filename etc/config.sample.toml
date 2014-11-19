@@ -91,9 +91,6 @@ dir = "/tmp/influxdb/development/db"
 # will be replayed from the WAL
 write-buffer-size = 10000
 
-# the engine to use for new shards, old shards will continue to use the same engine
-default-engine = "rocksdb"
-
 # The default setting on this is 0, which means unlimited. Set this to something if you want to
 # limit the max number of open files. max-open-files is per shard so this * that will be max.
 max-open-shards = 0
@@ -108,43 +105,6 @@ write-batch-size = 5000000
 
 # The server will check this often for shards that have expired that should be cleared.
 retention-sweep-period = "10m"
-
-[storage.engines.leveldb]
-
-# Maximum mmap open files, this will affect the virtual memory used by
-# the process
-max-open-files = 1000
-
-# LRU cache size, LRU is used by leveldb to store contents of the
-# uncompressed sstables. You can use `m` or `g` prefix for megabytes
-# and gigabytes, respectively.
-lru-cache-size = "200m"
-
-[storage.engines.rocksdb]
-
-# Maximum mmap open files, this will affect the virtual memory used by
-# the process
-max-open-files = 1000
-
-# LRU cache size, LRU is used by rocksdb to store contents of the
-# uncompressed sstables. You can use `m` or `g` prefix for megabytes
-# and gigabytes, respectively.
-lru-cache-size = "200m"
-
-[storage.engines.hyperleveldb]
-
-# Maximum mmap open files, this will affect the virtual memory used by
-# the process
-max-open-files = 1000
-
-# LRU cache size, LRU is used by rocksdb to store contents of the
-# uncompressed sstables. You can use `m` or `g` prefix for megabytes
-# and gigabytes, respectively.
-lru-cache-size = "200m"
-
-[storage.engines.lmdb]
-
-map-size = "100g"
 
 [cluster]
 # A comma separated list of servers to seed
