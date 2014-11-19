@@ -117,7 +117,7 @@ func start() error {
 	// Create messaging client for broker.
 	client := messaging.NewClient("XXX-CHANGEME-XXX")
 	if err := client.Open(brokerURLs); err != nil {
-		panic(err)
+		log4go.Error("Error opening Messaging Client: %s", err.Error())
 	}
 
 	// Start server.
