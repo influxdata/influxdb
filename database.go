@@ -11,7 +11,7 @@ import (
 	// "github.com/influxdb/influxdb/messaging"
 )
 
-// Database represents a collection of shard policies.
+// Database represents a collection of retention policies.
 type Database struct {
 	mu     sync.RWMutex
 	server *Server

@@ -237,7 +237,7 @@ func TestDatabase_CreateRetentionPolicy(t *testing.T) {
 	}
 	s.Restart()
 
-	// Verify that the user exists.
+	// Verify that the policy exists.
 	if o := s.Database("foo").RetentionPolicy("bar"); o == nil {
 		t.Fatalf("retention policy not found")
 	} else if !reflect.DeepEqual(ss, o) {

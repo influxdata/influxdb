@@ -42,13 +42,13 @@ var (
 	ErrInvalidUsername = errors.New("invalid username")
 
 	// ErrRetentionPolicyExists is returned when creating a duplicate shard space.
-	ErrRetentionPolicyExists = errors.New("shard space exists")
+	ErrRetentionPolicyExists = errors.New("retention policy exists")
 
 	// ErrRetentionPolicyNotFound is returned when deleting a non-existent shard space.
-	ErrRetentionPolicyNotFound = errors.New("shard space not found")
+	ErrRetentionPolicyNotFound = errors.New("retention policy not found")
 
 	// ErrRetentionPolicyNameRequired is returned using a blank shard space name.
-	ErrRetentionPolicyNameRequired = errors.New("shard space name required")
+	ErrRetentionPolicyNameRequired = errors.New("retention policy name required")
 
 	// ErrShardNotFound is returned writing to a non-existent shard.
 	ErrShardNotFound = errors.New("shard not found")
