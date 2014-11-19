@@ -6,6 +6,16 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
+const (
+	dbUsername    = "dbuser"
+	dbPassword    = "pass"
+	dbName        = "foobar"
+	adminUsername = "admin"
+	adminPassword = "password"
+	rootUsername  = "root"
+	rootPassword  = "root"
+)
+
 func main() {
 	TestClient()
 }
@@ -30,7 +40,7 @@ func internalTest(compression bool) {
 	}
 
 	if len(admins) == 1 {
-		if err := c.CreateClusterAdmin("admin", "password"); err != nil {
+		if err := c.CreateClusterAdmin(adminUsername, adminPassword); err != nil {
 			panic(err)
 		}
 	}
@@ -50,7 +60,7 @@ func internalTest(compression bool) {
 	}
 
 	if len(dbs) == 0 {
-		if err := c.CreateDatabase("foobar"); err != nil {
+		if err := c.CreateDatabase(dbName); err != nil {
 			panic(err)
 		}
 	}
@@ -60,26 +70,26 @@ func internalTest(compression bool) {
 		panic(err)
 	}
 
-	if len(dbs) != 1 && dbs[0]["foobar"] == nil {
+	if len(dbs) != 1 && dbs[0][dbName] == nil {
 		panic("List of databases don't match")
 	}
 
-	users, err := c.GetDatabaseUserList("foobar")
+	users, err := c.GetDatabaseUserList(dbName)
 	if err != nil {
 		panic(err)
 	}
 
 	if len(users) == 0 {
-		if err := c.CreateDatabaseUser("foobar", "dbuser", "pass"); err != nil {
+		if err := c.CreateDatabaseUser(dbName, dbUsername, dbPassword); err != nil {
 			panic(err)
 		}
 
-		if err := c.AlterDatabasePrivilege("foobar", "dbuser", true); err != nil {
+		if err := c.AlterDatabasePrivilege(dbName, dbUsername, true); err != nil {
 			panic(err)
 		}
 	}
 
-	users, err = c.GetDatabaseUserList("foobar")
+	users, err = c.GetDatabaseUserList(dbName)
 	if err != nil {
 		panic(err)
 	}
@@ -89,9 +99,9 @@ func internalTest(compression bool) {
 	}
 
 	c, err = client.NewClient(&client.ClientConfig{
-		Username: "dbuser",
-		Password: "pass",
-		Database: "foobar",
+		Username: dbUsername,
+		Password: dbPassword,
+		Database: dbName,
 	})
 
 	if !compression {
@@ -136,8 +146,8 @@ func internalTest(compression bool) {
 	}
 
 	c, err = client.NewClient(&client.ClientConfig{
-		Username: "root",
-		Password: "root",
+		Username: rootUsername,
+		Password: rootPassword,
 	})
 
 	if err != nil {
@@ -166,8 +176,8 @@ func internalTest(compression bool) {
 	}
 
 	c, err = client.NewClient(&client.ClientConfig{
-		Username: "root",
-		Password: "root",
+		Username: rootUsername,
+		Password: rootPassword,
 		Database: "",
 	})
 	series = &client.Series{
@@ -189,7 +199,7 @@ func internalTest(compression bool) {
 		}
 	}
 
-	if err := c.DropShardSpace("foobar", "foo"); err != nil {
+	if err := c.DropShardSpace(dbName, "foo"); err != nil {
 		panic(fmt.Errorf("Error: %s", err))
 	}
 
