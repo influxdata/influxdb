@@ -274,14 +274,7 @@ func (db *Database) applySetDefaultRetentionPolicy(name string) error {
 
 // shard returns a shard by id.
 func (db *Database) shard(id uint64) *Shard {
-	for _, ss := range db.policies {
-		for _, s := range ss.Shards {
-			if s.ID == id {
-				return s
-			}
-		}
-	}
-	return nil
+	return db.shards[id]
 }
 
 // CreateShardIfNotExists creates a shard for a retention policy for a given timestamp.
