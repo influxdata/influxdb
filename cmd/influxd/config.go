@@ -72,7 +72,6 @@ type Config struct {
 
 	Storage struct {
 		Dir                  string                    `toml:"dir"`
-		DefaultEngine        string                    `toml:"default-engine"`
 		WriteBufferSize      int                       `toml:"write-buffer-size"`
 		MaxOpenShards        int                       `toml:"max-open-shards"`
 		PointBatchSize       int                       `toml:"point-batch-size"`
@@ -97,22 +96,11 @@ type Config struct {
 		File  string `toml:"file"`
 		Level string `toml:"level"`
 	} `toml:"logging"`
-
-	LevelDB struct {
-		MaxOpenFiles int  `toml:"max-open-files"`
-		LruCacheSize Size `toml:"lru-cache-size"`
-
-		// Global configuration, use storage config values not set.
-		MaxOpenShards  int `toml:"max-open-shards"`
-		PointBatchSize int `toml:"point-batch-size"`
-		WriteBatchSize int `toml:"write-batch-size"`
-	} `toml:"leveldb"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
 	c := &Config{}
-	c.Storage.DefaultEngine = "leveldb"
 	c.Storage.RetentionSweepPeriod = Duration(10 * time.Minute)
 	c.Cluster.ConcurrentShardQueryLimit = DefaultConcurrentShardQueryLimit
 	c.Raft.Timeout = Duration(1 * time.Second)
@@ -145,8 +133,6 @@ func NewConfig() *Config {
 func (c *Config) PointBatchSize() int {
 	if c.Storage.PointBatchSize != 0 {
 		return c.Storage.PointBatchSize
-	} else if c.LevelDB.PointBatchSize != 0 {
-		return c.LevelDB.PointBatchSize
 	}
 	return DefaultPointBatchSize
 }
@@ -157,18 +143,13 @@ func (c *Config) PointBatchSize() int {
 func (c *Config) WriteBatchSize() int {
 	if c.Storage.WriteBatchSize != 0 {
 		return c.Storage.WriteBatchSize
-	} else if c.LevelDB.WriteBatchSize != 0 {
-		return c.LevelDB.WriteBatchSize
 	}
 	return DefaultWriteBatchSize
 }
 
 // MaxOpenShards returns the maximum number of shards to keep open at once.
 func (c *Config) MaxOpenShards() int {
-	if c.Storage.MaxOpenShards != 0 {
-		return c.Storage.MaxOpenShards
-	}
-	return c.LevelDB.MaxOpenShards
+	return c.Storage.MaxOpenShards
 }
 
 // Size represents a TOML parseable file size.
