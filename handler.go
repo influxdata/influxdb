@@ -57,15 +57,15 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Get("/interfaces", http.HandlerFunc(h.serveInterfaces))
 
 	// Shard routes.
-	h.mux.Get("/cluster/shards", http.HandlerFunc(h.serveShards))
-	h.mux.Post("/cluster/shards", http.HandlerFunc(h.serveCreateShard))
-	h.mux.Del("/cluster/shards/:id", http.HandlerFunc(h.serveDeleteShard))
+	h.mux.Get("/db/:db/shards", http.HandlerFunc(h.serveShards))
+	h.mux.Del("/db/:db/shards/:id", http.HandlerFunc(h.serveDeleteShard))
 
-	// Shard space routes.
-	h.mux.Get("/cluster/shard_spaces", http.HandlerFunc(h.serveShardSpaces))
-	h.mux.Post("/cluster/shard_spaces/:db", http.HandlerFunc(h.serveCreateShardSpace))
-	h.mux.Post("/cluster/shard_spaces/:db/:name", http.HandlerFunc(h.serveUpdateShardSpace))
-	h.mux.Del("/cluster/shard_spaces/:db/:name", http.HandlerFunc(h.serveDeleteShardSpace))
+	// retention policy routes.
+	h.mux.Get("/db/:db/retention_policies", http.HandlerFunc(h.serveRetentionPolicys))
+	h.mux.Get("/db/:db/retention_policies/:name/shards", http.HandlerFunc(h.serveShardsByRetentionPolicy))
+	h.mux.Post("/db/:db/retention_policies", http.HandlerFunc(h.serveCreateRetentionPolicy))
+	h.mux.Post("/db/:db/retention_policies/:name", http.HandlerFunc(h.serveUpdateRetentionPolicy))
+	h.mux.Del("/db/:db/retention_policies/:name", http.HandlerFunc(h.serveDeleteRetentionPolicy))
 
 	// Cluster config endpoints
 	h.mux.Get("/cluster/servers", http.HandlerFunc(h.serveServers))
@@ -277,23 +277,23 @@ func (h *Handler) serveInterfaces(w http.ResponseWriter, r *http.Request) {}
 // serveShards returns a list of shards.
 func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {}
 
-// serveCreateShard creates a new shard.
-func (h *Handler) serveCreateShard(w http.ResponseWriter, r *http.Request) {}
+// serveShardsByRetentionPolicy returns a list of shards for a given retention policy.
+func (h *Handler) serveShardsByRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
 
 // serveDeleteShard removes an existing shard.
 func (h *Handler) serveDeleteShard(w http.ResponseWriter, r *http.Request) {}
 
-// serveShardSpaces returns a list of shard spaces.
-func (h *Handler) serveShardSpaces(w http.ResponseWriter, r *http.Request) {}
+// serveRetentionPolicys returns a list of retention policys.
+func (h *Handler) serveRetentionPolicys(w http.ResponseWriter, r *http.Request) {}
 
-// serveCreateShardSpace creates a new shard space.
-func (h *Handler) serveCreateShardSpace(w http.ResponseWriter, r *http.Request) {}
+// serveCreateRetentionPolicy creates a new retention policy.
+func (h *Handler) serveCreateRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
 
-// serveUpdateShardSpace updates an existing shard space.
-func (h *Handler) serveUpdateShardSpace(w http.ResponseWriter, r *http.Request) {}
+// serveUpdateRetentionPolicy updates an existing retention policy.
+func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
 
-// serveDeleteShardSpace removes an existing shard space.
-func (h *Handler) serveDeleteShardSpace(w http.ResponseWriter, r *http.Request) {}
+// serveDeleteRetentionPolicy removes an existing retention policy.
+func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
 
 // serveServers returns a list of servers in the cluster.
 func (h *Handler) serveServers(w http.ResponseWriter, r *http.Request) {}
@@ -915,15 +915,15 @@ func (self *HTTPServer) convertShardsToMap(shards []*cluster.ShardData) []interf
 	return result
 }
 
-func (self *HTTPServer) getShardSpaces(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) getRetentionPolicys(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		return libhttp.StatusOK, self.clusterConfig.GetShardSpaces()
+		return libhttp.StatusOK, self.clusterConfig.GetRetentionPolicys()
 	})
 }
 
-func (self *HTTPServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) createRetentionPolicy(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		space := &cluster.ShardSpace{}
+		space := &cluster.RetentionPolicy{}
 		decoder := json.NewDecoder(r.Body)
 		err := decoder.Decode(space)
 		if err != nil {
@@ -934,7 +934,7 @@ func (self *HTTPServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Re
 		if err != nil {
 			return libhttp.StatusBadRequest, err.Error()
 		}
-		err = self.raftServer.CreateShardSpace(space)
+		err = self.raftServer.CreateRetentionPolicy(space)
 		if err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
@@ -942,11 +942,11 @@ func (self *HTTPServer) createShardSpace(w libhttp.ResponseWriter, r *libhttp.Re
 	})
 }
 
-func (self *HTTPServer) dropShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) dropRetentionPolicy(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		name := r.URL.Query().Get(":name")
 		db := r.URL.Query().Get(":db")
-		if err := self.raftServer.DropShardSpace(db, name); err != nil {
+		if err := self.raftServer.DropRetentionPolicy(db, name); err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
 		return libhttp.StatusOK, nil
@@ -954,7 +954,7 @@ func (self *HTTPServer) dropShardSpace(w libhttp.ResponseWriter, r *libhttp.Requ
 }
 
 type DatabaseConfig struct {
-	Spaces            []*cluster.ShardSpace `json:"spaces"`
+	Spaces            []*cluster.RetentionPolicy `json:"spaces"`
 	ContinuousQueries []string              `json:"continuousQueries"`
 }
 
@@ -981,7 +981,7 @@ func (self *HTTPServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 			}
 		}
 
-		// validate shard spaces
+		// validate retention policys
 		for _, space := range databaseConfig.Spaces {
 			err := space.Validate(self.clusterConfig, false)
 			if err != nil {
@@ -995,7 +995,7 @@ func (self *HTTPServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 		}
 		for _, space := range databaseConfig.Spaces {
 			space.Database = database
-			err = self.raftServer.CreateShardSpace(space)
+			err = self.raftServer.CreateRetentionPolicy(space)
 			if err != nil {
 				return libhttp.StatusInternalServerError, err.Error()
 			}
@@ -1010,9 +1010,9 @@ func (self *HTTPServer) configureDatabase(w libhttp.ResponseWriter, r *libhttp.R
 	})
 }
 
-func (self *HTTPServer) updateShardSpace(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) updateRetentionPolicy(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		space := &cluster.ShardSpace{}
+		space := &cluster.RetentionPolicy{}
 		decoder := json.NewDecoder(r.Body)
 		err := decoder.Decode(space)
 		if err != nil {
@@ -1021,13 +1021,13 @@ func (self *HTTPServer) updateShardSpace(w libhttp.ResponseWriter, r *libhttp.Re
 		space.Database = r.URL.Query().Get(":db")
 		space.Name = r.URL.Query().Get(":name")
 		if !self.clusterConfig.DatabaseExists(space.Database) {
-			return libhttp.StatusNotAcceptable, "Can't update a shard space for a database that doesn't exist"
+			return libhttp.StatusNotAcceptable, "Can't update a retention policy for a database that doesn't exist"
 		}
-		if !self.clusterConfig.ShardSpaceExists(space) {
-			return libhttp.StatusNotAcceptable, "Can't update a shard space that doesn't exist"
+		if !self.clusterConfig.RetentionPolicyExists(space) {
+			return libhttp.StatusNotAcceptable, "Can't update a retention policy that doesn't exist"
 		}
 
-		if err := self.raftServer.UpdateShardSpace(space); err != nil {
+		if err := self.raftServer.UpdateRetentionPolicy(space); err != nil {
 			return libhttp.StatusInternalServerError, err.Error()
 		}
 		return libhttp.StatusOK, nil

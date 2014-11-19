@@ -1,3 +1,10 @@
+## v0.9.0-rc.1 [unreleased]
+
+## Features
+
+- Renamed shard spaces to retention policies
+- Deprecated matching against regex in favor of explicit writing and querying on retention policies
+
 ## v0.8.6 [2014-11-15]
 
 ### Features

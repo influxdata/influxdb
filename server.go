@@ -19,8 +19,8 @@ const (
 	// It is also used when reseting the root user's password.
 	DefaultRootPassword = "root"
 
-	// DefaultShardSpaceName is the name of a databases's default shard space.
-	DefaultShardSpaceName = "default"
+	// DefaultRetentionPolicyName is the name of a databases's default shard space.
+	DefaultRetentionPolicyName = "default"
 
 	// DefaultSplitN represents the number of partitions a shard is split into.
 	DefaultSplitN = 1
@@ -37,17 +37,18 @@ const (
 
 const (
 	// broadcast messages
-	createDatabaseMessageType          = messaging.MessageType(0x00)
-	deleteDatabaseMessageType          = messaging.MessageType(0x01)
-	createShardSpaceMessageType        = messaging.MessageType(0x02)
-	deleteShardSpaceMessageType        = messaging.MessageType(0x03)
-	createClusterAdminMessageType      = messaging.MessageType(0x04)
-	deleteClusterAdminMessageType      = messaging.MessageType(0x05)
-	clusterAdminSetPasswordMessageType = messaging.MessageType(0x06)
-	createDBUserMessageType            = messaging.MessageType(0x07)
-	deleteDBUserMessageType            = messaging.MessageType(0x08)
-	dbUserSetPasswordMessageType       = messaging.MessageType(0x09)
-	createShardIfNotExistsMessageType  = messaging.MessageType(0x0a)
+	createDatabaseMessageType            = messaging.MessageType(0x00)
+	deleteDatabaseMessageType            = messaging.MessageType(0x01)
+	createRetentionPolicyMessageType     = messaging.MessageType(0x02)
+	deleteRetentionPolicyMessageType     = messaging.MessageType(0x03)
+	createClusterAdminMessageType        = messaging.MessageType(0x04)
+	deleteClusterAdminMessageType        = messaging.MessageType(0x05)
+	clusterAdminSetPasswordMessageType   = messaging.MessageType(0x06)
+	createDBUserMessageType              = messaging.MessageType(0x07)
+	deleteDBUserMessageType              = messaging.MessageType(0x08)
+	dbUserSetPasswordMessageType         = messaging.MessageType(0x09)
+	createShardIfNotExistsMessageType    = messaging.MessageType(0x0a)
+	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x0b)
 
 	// per-topic messages
 	writeSeriesMessageType = messaging.MessageType(0x80)
@@ -541,8 +542,8 @@ type deleteDBUserCommand struct {
 	Username string `json:"username"`
 }
 
-func (s *Server) applyCreateShardSpace(m *messaging.Message) error {
-	var c createShardSpaceCommand
+func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
+	var c createRetentionPolicyCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
@@ -554,7 +555,7 @@ func (s *Server) applyCreateShardSpace(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	if err := db.applyCreateShardSpace(c.Name, c.Regex, c.Retention, c.Duration, c.ReplicaN, c.SplitN); err != nil {
+	if err := db.applyCreateRetentionPolicy(c.Name, c.Duration, c.ReplicaN, c.SplitN); err != nil {
 		return err
 	}
 
@@ -566,18 +567,16 @@ func (s *Server) applyCreateShardSpace(m *messaging.Message) error {
 	return nil
 }
 
-type createShardSpaceCommand struct {
-	Database  string        `json:"database"`
-	Name      string        `json:"name"`
-	Regex     string        `json:"regex"`
-	Retention time.Duration `json:"retention"`
-	Duration  time.Duration `json:"duration"`
-	ReplicaN  uint32        `json:"replicaN"`
-	SplitN    uint32        `json:"splitN"`
+type createRetentionPolicyCommand struct {
+	Database string        `json:"database"`
+	Name     string        `json:"name"`
+	Duration time.Duration `json:"duration"`
+	ReplicaN uint32        `json:"replicaN"`
+	SplitN   uint32        `json:"splitN"`
 }
 
-func (s *Server) applyDeleteShardSpace(m *messaging.Message) error {
-	var c deleteShardSpaceCommand
+func (s *Server) applyDeleteRetentionPolicy(m *messaging.Message) error {
+	var c deleteRetentionPolicyCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
@@ -590,7 +589,7 @@ func (s *Server) applyDeleteShardSpace(m *messaging.Message) error {
 	}
 
 	// Remove shard space from database.
-	if err := db.applyDeleteShardSpace(c.Name); err != nil {
+	if err := db.applyDeleteRetentionPolicy(c.Name); err != nil {
 		return err
 	}
 
@@ -602,7 +601,37 @@ func (s *Server) applyDeleteShardSpace(m *messaging.Message) error {
 	return nil
 }
 
-type deleteShardSpaceCommand struct {
+type deleteRetentionPolicyCommand struct {
+	Database string `json:"database"`
+	Name     string `json:"name"`
+}
+
+func (s *Server) applySetDefaultRetentionPolicy(m *messaging.Message) error {
+	var c setDefaultRetentionPolicyCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Retrieve the database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	if err := db.applySetDefaultRetentionPolicy(c.Name); err != nil {
+		return err
+	}
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
+}
+
+type setDefaultRetentionPolicyCommand struct {
 	Database string `json:"database"`
 	Name     string `json:"name"`
 }
@@ -660,12 +689,14 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyDeleteDBUser(m)
 		case dbUserSetPasswordMessageType:
 			err = s.applyDBUserSetPassword(m)
-		case createShardSpaceMessageType:
-			err = s.applyCreateShardSpace(m)
-		case deleteShardSpaceMessageType:
-			err = s.applyDeleteShardSpace(m)
+		case createRetentionPolicyMessageType:
+			err = s.applyCreateRetentionPolicy(m)
+		case deleteRetentionPolicyMessageType:
+			err = s.applyDeleteRetentionPolicy(m)
 		case createShardIfNotExistsMessageType:
 			err = s.applyCreateShardIfNotExists(m)
+		case setDefaultRetentionPolicyMessageType:
+			err = s.applySetDefaultRetentionPolicy(m)
 		case writeSeriesMessageType:
 			/* TEMPORARILY REMOVED FOR PROTOBUFS.
 			err = s.applyWriteSeries(m)
