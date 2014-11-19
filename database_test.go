@@ -401,7 +401,7 @@ func TestDatabase_WriteSeries(t *testing.T) {
 	defer s.Close()
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	db.CreateRetentionPolicys(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
+	db.CreateRetentionPolicies(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
 	db.CreateUser("susy", "pass", nil)
 
 	// Write series with one point to the database.
@@ -435,4 +435,25 @@ func mustParseQuery(s string) *influxql.Query {
 		panic(err.Error())
 	}
 	return q
+}
+
+func TestDatabase_CreateShardIfNotExist(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+
+	rp := &influxdb.RetentionPolicy{Name: "bar"}
+	if err := db.CreateRetentionPolicy(rp); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.CreateShardIfNotExists("bar", time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	ss := db.Shards()
+	if len(ss) != 1 {
+		t.Fatalf("expected 1 shard but found %d", len(ss))
+	}
 }

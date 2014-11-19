@@ -288,8 +288,8 @@ func (db *Database) shard(id uint64) *Shard {
 	return db.shards[id]
 }
 
-// RetentionPolicys returns a list of retention polocies for the database
-func (db *Database) RetentionPolicys() []*RetentionPolicy {
+// RetentionPolicies returns a list of retention polocies for the database
+func (db *Database) RetentionPolicies() []*RetentionPolicy {
 	policies := make([]*RetentionPolicy, len(db.policies))
 	i := 0
 	for _, p := range db.policies {
@@ -336,6 +336,8 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 
 	// Append to retention policy.
 	ss.Shards = append(ss.Shards, s)
+	// Add to db's map of shards
+	db.shards[s.ID] = s
 
 	return nil, true
 }
@@ -571,8 +573,9 @@ type RetentionPolicy struct {
 }
 
 // NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
-func NewRetentionPolicy() *RetentionPolicy {
+func NewRetentionPolicy(name string) *RetentionPolicy {
 	return &RetentionPolicy{
+		Name: name,
 		ReplicaN: DefaultReplicaN,
 		SplitN:   DefaultSplitN,
 		Duration: DefaultShardRetention,
@@ -643,11 +646,11 @@ type retentionPolicyJSON struct {
 	Shards   []*Shard      `json:"shards,omitempty"`
 }
 
-// RetentionPolicys represents a list of shard policies.
-type RetentionPolicys []*RetentionPolicy
+// RetentionPolicies represents a list of shard policies.
+type RetentionPolicies []*RetentionPolicy
 
 // Shards returns a list of all shards for all policies.
-func (a RetentionPolicys) Shards() []*Shard {
+func (a RetentionPolicies) Shards() []*Shard {
 	var shards []*Shard
 	for _, ss := range a {
 		shards = append(shards, ss.Shards...)
