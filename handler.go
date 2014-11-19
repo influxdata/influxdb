@@ -278,7 +278,20 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {}
 func (h *Handler) serveInterfaces(w http.ResponseWriter, r *http.Request) {}
 
 // serveShards returns a list of shards.
-func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {
+	values := r.URL.Query()
+
+	db := h.server.Database(values.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	shards := db.Shards()
+
+	w.Header().Add("content-type", "application/json")
+	_ = json.NewEncoder(w).Encode(shards)
+}
 
 // serveShardsByRetentionPolicy returns a list of shards for a given retention policy.
 func (h *Handler) serveShardsByRetentionPolicy(w http.ResponseWriter, r *http.Request) {}

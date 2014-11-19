@@ -272,6 +272,17 @@ func (db *Database) applySetDefaultRetentionPolicy(name string) error {
 	return nil
 }
 
+// Shards returns a list of all shards in the database
+func (db *Database) Shards() []*Shard {
+	shards := make([]*Shard, len(db.shards))
+	i := 0
+	for _, v := range db.shards {
+		shards[i] = v
+		i++
+	}
+	return shards
+}
+
 // shard returns a shard by id.
 func (db *Database) shard(id uint64) *Shard {
 	return db.shards[id]
