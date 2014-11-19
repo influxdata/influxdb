@@ -2,7 +2,6 @@ package influxdb_test
 
 import (
 	"reflect"
-	"regexp"
 	"testing"
 	"time"
 
@@ -216,8 +215,8 @@ func TestDatabase_Users(t *testing.T) {
 	}
 }
 
-// Ensure the database can create a new shard space.
-func TestDatabase_CreateShardSpace(t *testing.T) {
+// Ensure the database can create a new retention policy.
+func TestDatabase_CreateRetentionPolicy(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -226,30 +225,28 @@ func TestDatabase_CreateShardSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a shard space on the database.
-	ss := &influxdb.ShardSpace{
-		Name:      "bar",
-		Regex:     regexp.MustCompile(`myseries`),
-		Duration:  time.Hour,
-		Retention: time.Minute,
-		ReplicaN:  2,
-		SplitN:    3,
+	// Create a retention policy on the database.
+	rp := &influxdb.RetentionPolicy{
+		Name:     "bar",
+		Duration: time.Hour,
+		ReplicaN: 2,
+		SplitN:   3,
 	}
-	if err := s.Database("foo").CreateShardSpace(ss); err != nil {
+	if err := s.Database("foo").CreateRetentionPolicy(rp); err != nil {
 		t.Fatal(err)
 	}
 	s.Restart()
 
-	// Verify that the user exists.
-	if o := s.Database("foo").ShardSpace("bar"); o == nil {
-		t.Fatalf("shard space not found")
-	} else if !reflect.DeepEqual(ss, o) {
-		t.Fatalf("shard space mismatch: %#v", o)
+	// Verify that the policy exists.
+	if o := s.Database("foo").RetentionPolicy("bar"); o == nil {
+		t.Fatalf("retention policy not found")
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Fatalf("retention policy mismatch: %#v", o)
 	}
 }
 
-// Ensure the server returns an error when creating a shard space after db is dropped.
-func TestDatabase_CreateShardSpace_ErrDatabaseNotFound(t *testing.T) {
+// Ensure the server returns an error when creating a retention policy after db is dropped.
+func TestDatabase_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -258,62 +255,62 @@ func TestDatabase_CreateShardSpace_ErrDatabaseNotFound(t *testing.T) {
 	db := s.Database("foo")
 	s.DeleteDatabase("foo")
 
-	// Create a shard space on the database.
-	if err := db.CreateShardSpace(&influxdb.ShardSpace{Name: "bar"}); err != influxdb.ErrDatabaseNotFound {
+	// Create a retention policy on the database.
+	if err := db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
 }
 
-// Ensure the server returns an error when creating a shard space without a name.
-func TestDatabase_CreateShardSpace_ErrShardSpaceNameRequired(t *testing.T) {
+// Ensure the server returns an error when creating a retention policy without a name.
+func TestDatabase_CreateRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	if err := s.Database("foo").CreateShardSpace(&influxdb.ShardSpace{Name: ""}); err != influxdb.ErrShardSpaceNameRequired {
+	if err := s.Database("foo").CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: ""}); err != influxdb.ErrRetentionPolicyNameRequired {
 		t.Fatal(err)
 	}
 }
 
-// Ensure the server returns an error when creating a duplicate shard space.
-func TestDatabase_CreateShardSpace_ErrShardSpaceExists(t *testing.T) {
+// Ensure the server returns an error when creating a duplicate retention policy.
+func TestDatabase_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	s.Database("foo").CreateShardSpace(&influxdb.ShardSpace{Name: "bar"})
-	if err := s.Database("foo").CreateShardSpace(&influxdb.ShardSpace{Name: "bar"}); err != influxdb.ErrShardSpaceExists {
+	s.Database("foo").CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"})
+	if err := s.Database("foo").CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != influxdb.ErrRetentionPolicyExists {
 		t.Fatal(err)
 	}
 }
 
-// Ensure the server can delete an existing shard space.
-func TestDatabase_DeleteShardSpace(t *testing.T) {
+// Ensure the server can delete an existing retention policy.
+func TestDatabase_DeleteRetentionPolicy(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
-	// Create a database and shard space.
+	// Create a database and retention policy.
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	if err := db.CreateShardSpace(&influxdb.ShardSpace{Name: "bar"}); err != nil {
+	if err := db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != nil {
 		t.Fatal(err)
-	} else if db.ShardSpace("bar") == nil {
-		t.Fatal("shard space not created")
+	} else if db.RetentionPolicy("bar") == nil {
+		t.Fatal("retention policy not created")
 	}
 
-	// Remove shard space from database.
-	if err := db.DeleteShardSpace("bar"); err != nil {
+	// Remove retention policy from database.
+	if err := db.DeleteRetentionPolicy("bar"); err != nil {
 		t.Fatal(err)
-	} else if db.ShardSpace("bar") != nil {
-		t.Fatal("shard space not deleted")
+	} else if db.RetentionPolicy("bar") != nil {
+		t.Fatal("retention policy not deleted")
 	}
 	s.Restart()
 
-	if s.Database("foo").ShardSpace("bar") != nil {
-		t.Fatal("shard space not deleted after restart")
+	if s.Database("foo").RetentionPolicy("bar") != nil {
+		t.Fatal("retention policy not deleted after restart")
 	}
 }
 
-// Ensure the server returns an error when deleting a shard space after db is dropped.
-func TestDatabase_DeleteShardSpace_ErrDatabaseNotFound(t *testing.T) {
+// Ensure the server returns an error when deleting a retention policy after db is dropped.
+func TestDatabase_DeleteRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -322,28 +319,74 @@ func TestDatabase_DeleteShardSpace_ErrDatabaseNotFound(t *testing.T) {
 	db := s.Database("foo")
 	s.DeleteDatabase("foo")
 
-	// Delete shard space on the database.
-	if err := db.DeleteShardSpace("bar"); err != influxdb.ErrDatabaseNotFound {
+	// Delete retention policy on the database.
+	if err := db.DeleteRetentionPolicy("bar"); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
 }
 
-// Ensure the server returns an error when deleting a shard space without a name.
-func TestDatabase_DeleteShardSpace_ErrShardSpaceNameRequired(t *testing.T) {
+// Ensure the server returns an error when deleting a retention policy without a name.
+func TestDatabase_DeleteRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	if err := s.Database("foo").DeleteShardSpace(""); err != influxdb.ErrShardSpaceNameRequired {
+	if err := s.Database("foo").DeleteRetentionPolicy(""); err != influxdb.ErrRetentionPolicyNameRequired {
 		t.Fatal(err)
 	}
 }
 
-// Ensure the server returns an error when deleting a non-existent shard space.
-func TestDatabase_DeleteShardSpace_ErrShardSpaceNotFound(t *testing.T) {
+// Ensure the server returns an error when deleting a non-existent retention policy.
+func TestDatabase_DeleteRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	if err := s.Database("foo").DeleteShardSpace("no_such_space"); err != influxdb.ErrShardSpaceNotFound {
+	if err := s.Database("foo").DeleteRetentionPolicy("no_such_policy"); err != influxdb.ErrRetentionPolicyNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server can set the default retention policy
+func TestDatabase_SetDefaultRetentionPolicy(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+
+	rp := &influxdb.RetentionPolicy{Name: "bar"}
+	if err := db.CreateRetentionPolicy(rp); err != nil {
+		t.Fatal(err)
+	} else if db.RetentionPolicy("bar") == nil {
+		t.Fatal("retention policy not created")
+	}
+
+	// Set bar as default
+	if err := db.SetDefaultRetentionPolicy("bar"); err != nil {
+		t.Fatal(err)
+	}
+
+	o := db.DefaultRetentionPolicy()
+	if o == nil {
+		t.Fatal("default policy not set")
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Fatalf("retention policy mismatch: %#v", o)
+	}
+
+	s.Restart()
+
+	o = s.Database("foo").DefaultRetentionPolicy()
+	if o == nil {
+		t.Fatal("default policy not kept after restart")
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Fatalf("retention policy mismatch after restart: %#v", o)
+	}
+}
+
+// Ensure the server returns an error when setting the deafult retention policy to a non-existant one.
+func TestDatabase_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	if err := s.Database("foo").SetDefaultRetentionPolicy("no_such_policy"); err != influxdb.ErrRetentionPolicyNotFound {
 		t.Fatal(err)
 	}
 }
@@ -357,7 +400,7 @@ func TestDatabase_WriteSeries(t *testing.T) {
 	defer s.Close()
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	db.CreateShardSpace(&influxdb.ShardSpace{Name: "myspace", Duration: 1 * time.Hour})
+	db.CreateRetentionPolicys(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
 	db.CreateUser("susy", "pass", nil)
 
 	// Write series with one point to the database.

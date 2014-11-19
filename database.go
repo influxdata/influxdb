@@ -3,7 +3,6 @@ package influxdb
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -12,28 +11,29 @@ import (
 	// "github.com/influxdb/influxdb/messaging"
 )
 
-// Database represents a collection of shard spaces.
+// Database represents a collection of retention policies.
 type Database struct {
 	mu     sync.RWMutex
 	server *Server
 	name   string
 
-	users  map[string]*DBUser     // database users by name
-	spaces map[string]*ShardSpace // shard spaces by name
-	shards map[uint64]*Shard      // shards by id
-	series map[string]*Series     // series by name
+	users    map[string]*DBUser          // database users by name
+	policies map[string]*RetentionPolicy // retention policies by name
+	shards   map[uint64]*Shard           // shards by id
+	series   map[string]*Series          // series by name
 
-	maxFieldID uint64 // largest field id in use
+	defaultRetentionPolicy string
+	maxFieldID             uint64 // largest field id in use
 }
 
 // newDatabase returns an instance of Database associated with a server.
 func newDatabase(s *Server) *Database {
 	return &Database{
-		server: s,
-		users:  make(map[string]*DBUser),
-		spaces: make(map[string]*ShardSpace),
-		shards: make(map[uint64]*Shard),
-		series: make(map[string]*Series),
+		server:   s,
+		users:    make(map[string]*DBUser),
+		policies: make(map[string]*RetentionPolicy),
+		shards:   make(map[uint64]*Shard),
+		series:   make(map[string]*Series),
 	}
 }
 
@@ -42,6 +42,13 @@ func (db *Database) Name() string {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	return db.name
+}
+
+// DefaultRetentionPolicy returns the retention policy that writes and queries will default to or nil if not set.
+func (db *Database) DefaultRetentionPolicy() *RetentionPolicy {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.policies[db.defaultRetentionPolicy]
 }
 
 // User returns a database user by name.
@@ -180,93 +187,94 @@ func (db *Database) applyChangePassword(username, newPassword string) error {
 	return nil
 }
 
-// ShardSpace returns a shard space by name.
-func (db *Database) ShardSpace(name string) *ShardSpace {
+// RetentionPolicy returns a retention policy by name.
+func (db *Database) RetentionPolicy(name string) *RetentionPolicy {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	return db.spaces[name]
+	return db.policies[name]
 }
 
-// shardSpaceBySeries returns a shard space that matches a series name.
-func (db *Database) shardSpaceBySeries(name string) *ShardSpace {
-	for _, ss := range db.spaces {
-		if ss.Regex.MatchString(name) {
-			return ss
-		}
+// CreateRetentionPolicy creates a retention policy in the database.
+func (db *Database) CreateRetentionPolicy(ss *RetentionPolicy) error {
+	c := &createRetentionPolicyCommand{
+		Database: db.Name(),
+		Name:     ss.Name,
+		Duration: ss.Duration,
+		ReplicaN: ss.ReplicaN,
+		SplitN:   ss.SplitN,
 	}
-	return nil
-}
-
-// CreateShardSpace creates a shard space in the database.
-func (db *Database) CreateShardSpace(ss *ShardSpace) error {
-	c := &createShardSpaceCommand{
-		Database:  db.Name(),
-		Name:      ss.Name,
-		Retention: ss.Retention,
-		Duration:  ss.Duration,
-		ReplicaN:  ss.ReplicaN,
-		SplitN:    ss.SplitN,
-	}
-	if ss.Regex != nil {
-		c.Regex = ss.Regex.String()
-	}
-	_, err := db.server.broadcast(createShardSpaceMessageType, c)
+	_, err := db.server.broadcast(createRetentionPolicyMessageType, c)
 	return err
 }
 
-func (db *Database) applyCreateShardSpace(name, regex string, retention, duration time.Duration, replicaN, splitN uint32) error {
+func (db *Database) applyCreateRetentionPolicy(name string, duration time.Duration, replicaN, splitN uint32) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Validate shard space.
+	// Validate retention policy.
 	if name == "" {
-		return ErrShardSpaceNameRequired
-	} else if db.spaces[name] != nil {
-		return ErrShardSpaceExists
+		return ErrRetentionPolicyNameRequired
+	} else if db.policies[name] != nil {
+		return ErrRetentionPolicyExists
 	}
-
-	// Compile regex.
-	re := regexp.MustCompile(regex)
 
 	// Add space to the database.
-	db.spaces[name] = &ShardSpace{
-		Name:      name,
-		Regex:     re,
-		Retention: retention,
-		Duration:  duration,
-		ReplicaN:  replicaN,
-		SplitN:    splitN,
+	db.policies[name] = &RetentionPolicy{
+		Name:     name,
+		Duration: duration,
+		ReplicaN: replicaN,
+		SplitN:   splitN,
 	}
 
 	return nil
 }
 
-// DeleteShardSpace removes a shard space from the database.
-func (db *Database) DeleteShardSpace(name string) error {
-	c := &deleteShardSpaceCommand{Database: db.Name(), Name: name}
-	_, err := db.server.broadcast(deleteShardSpaceMessageType, c)
+// DeleteRetentionPolicy removes a retention policy from the database.
+func (db *Database) DeleteRetentionPolicy(name string) error {
+	c := &deleteRetentionPolicyCommand{Database: db.Name(), Name: name}
+	_, err := db.server.broadcast(deleteRetentionPolicyMessageType, c)
 	return err
 }
 
-func (db *Database) applyDeleteShardSpace(name string) error {
+func (db *Database) applyDeleteRetentionPolicy(name string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Validate shard space.
+	// Validate retention policy.
 	if name == "" {
-		return ErrShardSpaceNameRequired
-	} else if db.spaces[name] == nil {
-		return ErrShardSpaceNotFound
+		return ErrRetentionPolicyNameRequired
+	} else if db.policies[name] == nil {
+		return ErrRetentionPolicyNotFound
 	}
 
-	// Remove shard space.
-	delete(db.spaces, name)
+	// Remove retention policy.
+	delete(db.policies, name)
+	return nil
+}
+
+// SetDefaultRetentionPolicy sets the default policy to write data into and query from on a database.
+func (db *Database) SetDefaultRetentionPolicy(name string) error {
+	c := &setDefaultRetentionPolicyCommand{Database: db.Name(), Name: name}
+	_, err := db.server.broadcast(setDefaultRetentionPolicyMessageType, c)
+	return err
+}
+
+func (db *Database) applySetDefaultRetentionPolicy(name string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	// Check the retention policy exists
+	if db.policies[name] == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	db.defaultRetentionPolicy = name
 	return nil
 }
 
 // shard returns a shard by id.
 func (db *Database) shard(id uint64) *Shard {
-	for _, ss := range db.spaces {
+	for _, ss := range db.policies {
 		for _, s := range ss.Shards {
 			if s.ID == id {
 				return s
@@ -276,21 +284,21 @@ func (db *Database) shard(id uint64) *Shard {
 	return nil
 }
 
-// CreateShardIfNotExists creates a shard for a shard space for a given timestamp.
+// CreateShardIfNotExists creates a shard for a retention policy for a given timestamp.
 func (db *Database) CreateShardIfNotExists(space string, timestamp time.Time) error {
 	c := &createShardIfNotExistsSpaceCommand{Database: db.name, Space: space, Timestamp: timestamp}
 	_, err := db.server.broadcast(createShardIfNotExistsMessageType, c)
 	return err
 }
 
-func (db *Database) applyCreateShardIfNotExists(id uint64, space string, timestamp time.Time) (error, bool) {
+func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timestamp time.Time) (error, bool) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Validate shard space.
-	ss := db.spaces[space]
+	// Validate retention policy.
+	ss := db.policies[policy]
 	if ss == nil {
-		return ErrShardSpaceNotFound, false
+		return ErrRetentionPolicyNotFound, false
 	}
 
 	// If we can match to an existing shard date range then just ignore request.
@@ -311,7 +319,7 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, space string, timesta
 		panic("unable to open shard: " + err.Error())
 	}
 
-	// Append to shard space.
+	// Append to retention policy.
 	ss.Shards = append(ss.Shards, s)
 
 	return nil, true
@@ -322,15 +330,15 @@ func (db *Database) WriteSeries(name string, tags map[string]string, timestamp t
 	panic("not yet implemented: Database.WriteSeries()")
 
 	/* TEMPORARILY REMOVED FOR PROTOBUFS.
-	// Find shard space matching the series and split points by shard.
+	// Find retention policy matching the series and split points by shard.
 	db.mu.Lock()
 	name := db.name
-	space := db.shardSpaceBySeries(series.GetName())
+	space := db.retentionPolicyBySeries(series.GetName())
 	db.mu.Unlock()
 
 	// Ensure there is a space available.
 	if space == nil {
-		return ErrShardSpaceNotFound
+		return ErrRetentionPolicyNotFound
 	}
 
 	// Group points by shard.
@@ -458,12 +466,13 @@ func (db *Database) MarshalJSON() ([]byte, error) {
 	// Copy over properties to intermediate type.
 	var o databaseJSON
 	o.Name = db.name
+	o.DefaultRetentionPolicy = db.defaultRetentionPolicy
 	o.MaxFieldID = db.maxFieldID
 	for _, u := range db.users {
 		o.Users = append(o.Users, u)
 	}
-	for _, ss := range db.spaces {
-		o.Spaces = append(o.Spaces, ss)
+	for _, ss := range db.policies {
+		o.Policies = append(o.Policies, ss)
 	}
 	for _, s := range db.shards {
 		o.Shards = append(o.Shards, s)
@@ -484,6 +493,7 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 
 	// Copy over properties from intermediate type.
 	db.name = o.Name
+	db.defaultRetentionPolicy = o.DefaultRetentionPolicy
 	db.maxFieldID = o.MaxFieldID
 
 	// Copy users.
@@ -492,10 +502,10 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 		db.users[u.Name] = u
 	}
 
-	// Copy shard spaces.
-	db.spaces = make(map[string]*ShardSpace)
-	for _, ss := range o.Spaces {
-		db.spaces[ss.Name] = ss
+	// Copy shard policies.
+	db.policies = make(map[string]*RetentionPolicy)
+	for _, ss := range o.Policies {
+		db.policies[ss.Name] = ss
 	}
 
 	// Copy shards.
@@ -515,12 +525,13 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 
 // databaseJSON represents the JSON-serialization format for a database.
 type databaseJSON struct {
-	Name       string        `json:"name,omitempty"`
-	MaxFieldID uint64        `json:"maxFieldID,omitempty"`
-	Users      []*DBUser     `json:"users,omitempty"`
-	Spaces     []*ShardSpace `json:"spaces,omitempty"`
-	Shards     []*Shard      `json:"shards,omitempty"`
-	Series     []*Series     `json:"series,omitempty"`
+	Name                   string             `json:"name,omitempty"`
+	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
+	MaxFieldID             uint64             `json:"maxFieldID,omitempty"`
+	Users                  []*DBUser          `json:"users,omitempty"`
+	Policies               []*RetentionPolicy `json:"policies,omitempty"`
+	Shards                 []*Shard           `json:"shards,omitempty"`
+	Series                 []*Series          `json:"series,omitempty"`
 }
 
 // databases represents a list of databases, sortable by name.
@@ -530,16 +541,13 @@ func (p databases) Len() int           { return len(p) }
 func (p databases) Less(i, j int) bool { return p[i].name < p[j].name }
 func (p databases) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-// ShardSpace represents a policy for creating new shards in a database.
-type ShardSpace struct {
+// RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
+type RetentionPolicy struct {
 	// Unique name within database. Required.
 	Name string
 
-	// Expression used to match against series. Optional. Defaults to /.*/.
-	Regex *regexp.Regexp
-
-	Retention time.Duration
-	Duration  time.Duration
+	// Length of time to keep data around
+	Duration time.Duration
 
 	ReplicaN uint32
 	SplitN   uint32
@@ -547,21 +555,19 @@ type ShardSpace struct {
 	Shards []*Shard
 }
 
-// NewShardSpace returns a new instance of ShardSpace with defaults set.
-func NewShardSpace() *ShardSpace {
-	return &ShardSpace{
-		Regex:     regexp.MustCompile(`.*`),
-		ReplicaN:  DefaultReplicaN,
-		SplitN:    DefaultSplitN,
-		Retention: DefaultShardRetention,
-		Duration:  DefaultShardDuration,
+// NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
+func NewRetentionPolicy() *RetentionPolicy {
+	return &RetentionPolicy{
+		ReplicaN: DefaultReplicaN,
+		SplitN:   DefaultSplitN,
+		Duration: DefaultShardRetention,
 	}
 }
 
 /*
 // SplitPoints groups a set of points by shard id.
 // Also returns a list of timestamps that did not match an existing shard.
-func (ss *ShardSpace) Split(a []*protocol.Point) (points map[uint64][]*protocol.Point, unassigned []*protocol.Point) {
+func (ss *RetentionPolicy) Split(a []*protocol.Point) (points map[uint64][]*protocol.Point, unassigned []*protocol.Point) {
 	points = make(map[uint64][]*protocol.Point)
 	for _, p := range a {
 		if s := ss.ShardByTimestamp(time.Unix(0, p.GetTimestamp())); s != nil {
@@ -576,7 +582,7 @@ func (ss *ShardSpace) Split(a []*protocol.Point) (points map[uint64][]*protocol.
 
 // ShardByTimestamp returns the shard in the space that owns a given timestamp.
 // Returns nil if the shard does not exist.
-func (ss *ShardSpace) ShardByTimestamp(timestamp time.Time) *Shard {
+func (ss *RetentionPolicy) ShardByTimestamp(timestamp time.Time) *Shard {
 	for _, s := range ss.Shards {
 		if timeBetween(timestamp, s.StartTime, s.EndTime) {
 			return s
@@ -585,22 +591,20 @@ func (ss *ShardSpace) ShardByTimestamp(timestamp time.Time) *Shard {
 	return nil
 }
 
-// MarshalJSON encodes a shard space to a JSON-encoded byte slice.
-func (s *ShardSpace) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&shardSpaceJSON{
-		Name:      s.Name,
-		Regex:     s.Regex.String(),
-		Retention: s.Retention,
-		Duration:  s.Duration,
-		ReplicaN:  s.ReplicaN,
-		SplitN:    s.SplitN,
+// MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
+func (s *RetentionPolicy) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&retentionPolicyJSON{
+		Name:     s.Name,
+		Duration: s.Duration,
+		ReplicaN: s.ReplicaN,
+		SplitN:   s.SplitN,
 	})
 }
 
-// UnmarshalJSON decodes a JSON-encoded byte slice to a shard space.
-func (s *ShardSpace) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON decodes a JSON-encoded byte slice to a retention policy.
+func (s *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	// Decode into intermediate type.
-	var o shardSpaceJSON
+	var o retentionPolicyJSON
 	if err := json.Unmarshal(data, &o); err != nil {
 		return err
 	}
@@ -609,34 +613,26 @@ func (s *ShardSpace) UnmarshalJSON(data []byte) error {
 	s.Name = o.Name
 	s.ReplicaN = o.ReplicaN
 	s.SplitN = o.SplitN
-	s.Retention = o.Retention
 	s.Duration = o.Duration
 	s.Shards = o.Shards
-
-	s.Regex, _ = regexp.Compile(o.Regex)
-	if s.Regex == nil {
-		s.Regex = regexp.MustCompile(`.*`)
-	}
 
 	return nil
 }
 
-// shardSpaceJSON represents an intermediate struct for JSON marshaling.
-type shardSpaceJSON struct {
-	Name      string        `json:"name"`
-	Regex     string        `json:"regex,omitempty"`
-	ReplicaN  uint32        `json:"replicaN,omitempty"`
-	SplitN    uint32        `json:"splitN,omitempty"`
-	Retention time.Duration `json:"retention,omitempty"`
-	Duration  time.Duration `json:"duration,omitempty"`
-	Shards    []*Shard      `json:"shards,omitempty"`
+// retentionPolicyJSON represents an intermediate struct for JSON marshaling.
+type retentionPolicyJSON struct {
+	Name     string        `json:"name"`
+	ReplicaN uint32        `json:"replicaN,omitempty"`
+	SplitN   uint32        `json:"splitN,omitempty"`
+	Duration time.Duration `json:"duration,omitempty"`
+	Shards   []*Shard      `json:"shards,omitempty"`
 }
 
-// ShardSpaces represents a list of shard spaces.
-type ShardSpaces []*ShardSpace
+// RetentionPolicys represents a list of shard policies.
+type RetentionPolicys []*RetentionPolicy
 
-// Shards returns a list of all shards for all spaces.
-func (a ShardSpaces) Shards() []*Shard {
+// Shards returns a list of all shards for all policies.
+func (a RetentionPolicys) Shards() []*Shard {
 	var shards []*Shard
 	for _, ss := range a {
 		shards = append(shards, ss.Shards...)
