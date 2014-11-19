@@ -68,11 +68,11 @@ go build ./...
 
 Once compilation completes, the binaries can be found in `$GOPATH/bin`.
 
-To run the test, execute the following command:
+To run the tests, execute the following command:
 
 ```bash
-cd $GOPATH/src/github.com/influxdb
-go test -v
+cd $GOPATH/src/github.com/influxdb/influxdb
+go test -v ./...
 
 # run tests that match some pattern
 go test -run=TestDatabase . -v
