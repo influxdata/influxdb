@@ -288,6 +288,17 @@ func (db *Database) shard(id uint64) *Shard {
 	return db.shards[id]
 }
 
+// RetentionPolicys returns a list of retention polocies for the database
+func (db *Database) RetentionPolicys() []*RetentionPolicy {
+	policies := make([]*RetentionPolicy, len(db.policies))
+	i := 0
+	for _, p := range db.policies {
+		policies[i] = p
+		i++
+	}
+	return policies
+}
+
 // CreateShardIfNotExists creates a shard for a retention policy for a given timestamp.
 func (db *Database) CreateShardIfNotExists(space string, timestamp time.Time) error {
 	c := &createShardIfNotExistsSpaceCommand{Database: db.name, Space: space, Timestamp: timestamp}

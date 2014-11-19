@@ -300,7 +300,20 @@ func (h *Handler) serveShardsByRetentionPolicy(w http.ResponseWriter, r *http.Re
 func (h *Handler) serveDeleteShard(w http.ResponseWriter, r *http.Request) {}
 
 // serveRetentionPolicys returns a list of retention policys.
-func (h *Handler) serveRetentionPolicys(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveRetentionPolicys(w http.ResponseWriter, r *http.Request) {
+	values := r.URL.Query()
+
+	db := h.server.Database(values.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	policies := db.RetentionPolicys()
+	policies = append(policies, &RetentionPolicy{Name: "TestPolicy"})
+	w.Header().Add("content-type", "application/json")
+	_ = json.NewEncoder(w).Encode(policies)
+}
 
 // serveCreateRetentionPolicy creates a new retention policy.
 func (h *Handler) serveCreateRetentionPolicy(w http.ResponseWriter, r *http.Request) {}

@@ -18,6 +18,16 @@ func TestHandler_Shards(t *testing.T) {
 	}
 }
 
+func TestHandler_RetentionPolicys(t *testing.T) {
+	s := NewTestHTTPServer()
+	defer s.Close()
+	resp, _ := http.Get(s.URL + `/db/foo/retention_policies`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	}
+}
+
 // Server is a test HTTP server that wraps a handler
 type TestHTTPServer struct {
 	*httptest.Server
@@ -28,8 +38,6 @@ func NewTestHTTPServer() *TestHTTPServer {
 	s := OpenServer(NewMessagingClient())
 	s.CreateDatabase("foo")
 	s.Restart()
-	// c := NewMessagingClient()
-	// s := influxdb.NewServer(c)
 	h := influxdb.NewHandler(s.Server)
 	return &TestHTTPServer{httptest.NewServer(h), h}
 }
