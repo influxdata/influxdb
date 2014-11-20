@@ -62,7 +62,7 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Del("/db/:db/shards/:id", http.HandlerFunc(h.serveDeleteShard))
 
 	// retention policy routes.
-	h.mux.Get("/db/:db/retention_policies", http.HandlerFunc(h.serveRetentionPolicys))
+	h.mux.Get("/db/:db/retention_policies", http.HandlerFunc(h.serveRetentionPolicies))
 	h.mux.Get("/db/:db/retention_policies/:name/shards", http.HandlerFunc(h.serveShardsByRetentionPolicy))
 	h.mux.Post("/db/:db/retention_policies", http.HandlerFunc(h.serveCreateRetentionPolicy))
 	h.mux.Post("/db/:db/retention_policies/:name", http.HandlerFunc(h.serveUpdateRetentionPolicy))
@@ -299,8 +299,8 @@ func (h *Handler) serveShardsByRetentionPolicy(w http.ResponseWriter, r *http.Re
 // serveDeleteShard removes an existing shard.
 func (h *Handler) serveDeleteShard(w http.ResponseWriter, r *http.Request) {}
 
-// serveRetentionPolicys returns a list of retention policys.
-func (h *Handler) serveRetentionPolicys(w http.ResponseWriter, r *http.Request) {
+// serveRetentionPolicies returns a list of retention policys.
+func (h *Handler) serveRetentionPolicies(w http.ResponseWriter, r *http.Request) {
 	values := r.URL.Query()
 
 	db := h.server.Database(values.Get(":db"))
@@ -309,8 +309,8 @@ func (h *Handler) serveRetentionPolicys(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	policies := db.RetentionPolicys()
-	policies = append(policies, &RetentionPolicy{Name: "TestPolicy"})
+	policies := db.RetentionPolicies()
+
 	w.Header().Add("content-type", "application/json")
 	_ = json.NewEncoder(w).Encode(policies)
 }
@@ -944,9 +944,9 @@ func (self *HTTPServer) convertShardsToMap(shards []*cluster.ShardData) []interf
 	return result
 }
 
-func (self *HTTPServer) getRetentionPolicys(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) getRetentionPolicies(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		return libhttp.StatusOK, self.clusterConfig.GetRetentionPolicys()
+		return libhttp.StatusOK, self.clusterConfig.GetRetentionPolicies()
 	})
 }
 

@@ -1,31 +1,58 @@
 package influxdb_test
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
-
+	"time"
+//"fmt"
 	"github.com/influxdb/influxdb"
 )
 
 func TestHandler_Shards(t *testing.T) {
-	s := NewTestHTTPServer()
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	db.CreateShardIfNotExists("bar", time.Time{})
+	s := NewTestHTTPServer(srvr)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + `/db/foo/shards`)
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	status, body := MustGetHTTP(s.URL + `/db/foo/shards`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `[{"id":3,"startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z"}]` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
-func TestHandler_RetentionPolicys(t *testing.T) {
-	s := NewTestHTTPServer()
+func TestHandler_RetentionPolicies(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	s := NewTestHTTPServer(srvr)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + `/db/foo/retention_policies`)
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	status, body := MustGetHTTP(s.URL + `/db/foo/retention_policies`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
 	}
+	if body != `[{"name":"bar","replicaN":1,"splitN":1}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func MustGetHTTP(url string) (int, string) {
+  resp, err := http.Get(url)
+  if err != nil {
+    panic("http get error: " + err.Error())
+  }
+  status := resp.StatusCode
+  body, _ := ioutil.ReadAll(resp.Body)
+  resp.Body.Close()
+  return status, strings.TrimRight(string(body), "\n")
 }
 
 // Server is a test HTTP server that wraps a handler
@@ -34,10 +61,7 @@ type TestHTTPServer struct {
 	Handler *influxdb.Handler
 }
 
-func NewTestHTTPServer() *TestHTTPServer {
-	s := OpenServer(NewMessagingClient())
-	s.CreateDatabase("foo")
-	s.Restart()
+func NewTestHTTPServer(s *Server) *TestHTTPServer {
 	h := influxdb.NewHandler(s.Server)
 	return &TestHTTPServer{httptest.NewServer(h), h}
 }
