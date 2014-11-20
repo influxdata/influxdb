@@ -20,7 +20,7 @@ func TestHandler_Shards(t *testing.T) {
 	db.CreateShardIfNotExists("bar", time.Time{})
 	s := NewHTTPServer(srvr)
 	defer s.Close()
-	status, body := MustGetHTTP(s.URL + `/db/foo/shards`)
+	status, body := MustHTTP("GET", s.URL + `/db/foo/shards`, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -36,7 +36,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
-	status, body := MustGetHTTP(s.URL + `/db/foo/retention_policies`)
+	status, body := MustHTTP("GET", s.URL + `/db/foo/retention_policies`, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -51,7 +51,7 @@ func TestHandler_CreateRetentionPolicy(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustPostHTTP(s.URL + `/db/foo/retention_policies`, policy)
+	status, body := MustHTTP("POST", s.URL + `/db/foo/retention_policies`, policy)
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -66,8 +66,8 @@ func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	MustPostHTTP(s.URL + `/db/foo/retention_policies`, policy)
-	status, body := MustPostHTTP(s.URL + `/db/foo/retention_policies`, policy)
+	MustHTTP("POST", s.URL + `/db/foo/retention_policies`, policy)
+	status, body := MustHTTP("POST", s.URL + `/db/foo/retention_policies`, policy)
 	if status != http.StatusConflict {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -82,7 +82,7 @@ func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 	policy := `{"name": "bar", "duration": "**BAD**", "replicaN": 1, "splitN": 2}`
-	status, body := MustPostHTTP(s.URL + `/db/foo/retention_policies`, policy)
+	status, body := MustHTTP("POST", s.URL + `/db/foo/retention_policies`, policy)
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -91,22 +91,38 @@ func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
 	}
 }
 
-func MustGetHTTP(url string) (int, string) {
-  resp, err := http.Get(url)
-  if err != nil {
-    panic("http get error: " + err.Error())
-  }
-  defer resp.Body.Close()
-  status := resp.StatusCode
-  body, err := ioutil.ReadAll(resp.Body)
-  if err != nil {
-	panic(err)
-  }
-  return status, strings.TrimRight(string(body), "\n")
+func TestHandler_DeleteRetentionPolicy(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL + `/db/foo/retention_policies/bar`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
 }
 
-func MustPostHTTP(url, body string) (int, string) {
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
+func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL + `/db/foo/retention_policies/bar`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "retention policy not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func MustHTTP(verb, url, body string) (int, string) {
+	req, err := http.NewRequest(verb, url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		panic(err)
 	}

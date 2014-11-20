@@ -301,6 +301,8 @@ func (h *Handler) serveDeleteShard(w http.ResponseWriter, r *http.Request) {}
 
 // serveRetentionPolicies returns a list of retention policys.
 func (h *Handler) serveRetentionPolicies(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
 	urlQry := r.URL.Query()
 
 	db := h.server.Database(urlQry.Get(":db"))
@@ -349,7 +351,25 @@ func (h *Handler) serveCreateRetentionPolicy(w http.ResponseWriter, r *http.Requ
 func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
 
 // serveDeleteRetentionPolicy removes an existing retention policy.
-func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	if err := db.DeleteRetentionPolicy(urlQry.Get(":name")); err == ErrRetentionPolicyNotFound {
+		h.error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
 
 // serveServers returns a list of servers in the cluster.
 func (h *Handler) serveServers(w http.ResponseWriter, r *http.Request) {}
