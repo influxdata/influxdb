@@ -47,11 +47,7 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	case '/':
 		return DIV, pos, ""
 	case '=':
-		if ch1, _ := s.r.read(); ch1 == '=' {
-			return EQ, pos, ""
-		}
-		s.r.unread()
-		return ILLEGAL, pos, string(ch0)
+		return EQ, pos, ""
 	case '!':
 		if ch1, _ := s.r.read(); ch1 == '=' {
 			return NEQ, pos, ""

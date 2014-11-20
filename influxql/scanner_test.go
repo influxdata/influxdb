@@ -41,8 +41,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `OR`, tok: influxql.OR},
 		{s: `or`, tok: influxql.OR},
 
-		{s: `==`, tok: influxql.EQ},
-		{s: `= `, tok: influxql.ILLEGAL, lit: "="},
+		{s: `=`, tok: influxql.EQ},
 		{s: `!=`, tok: influxql.NEQ},
 		{s: `! `, tok: influxql.ILLEGAL, lit: "!"},
 		{s: `<`, tok: influxql.LT},
@@ -151,13 +150,13 @@ func TestScanner_Scan_Multi(t *testing.T) {
 		{tok: influxql.IDENT, pos: influxql.Pos{Line: 0, Char: 33}, lit: "a"},
 		{tok: influxql.WS, pos: influxql.Pos{Line: 0, Char: 34}, lit: " "},
 		{tok: influxql.EQ, pos: influxql.Pos{Line: 0, Char: 35}, lit: ""},
-		{tok: influxql.WS, pos: influxql.Pos{Line: 0, Char: 37}, lit: " "},
-		{tok: influxql.STRING, pos: influxql.Pos{Line: 0, Char: 38}, lit: "b"},
-		{tok: influxql.EOF, pos: influxql.Pos{Line: 0, Char: 41}, lit: ""},
+		{tok: influxql.WS, pos: influxql.Pos{Line: 0, Char: 36}, lit: " "},
+		{tok: influxql.STRING, pos: influxql.Pos{Line: 0, Char: 37}, lit: "b"},
+		{tok: influxql.EOF, pos: influxql.Pos{Line: 0, Char: 40}, lit: ""},
 	}
 
 	// Create a scanner.
-	v := `SELECT value from myseries WHERE a == "b"`
+	v := `SELECT value from myseries WHERE a = "b"`
 	s := influxql.NewScanner(strings.NewReader(v))
 
 	// Continually scan until we reach the end.
@@ -178,7 +177,7 @@ func TestScanner_Scan_Multi(t *testing.T) {
 	// Verify each token matches.
 	for i := range exp {
 		if !reflect.DeepEqual(exp[i], act[i]) {
-			t.Fatalf("%d. token mismatch: exp=%#v\n\ngot=%#v", exp[i], act[i])
+			t.Fatalf("%d. token mismatch:\n\nexp=%#v\n\ngot=%#v", i, exp[i], act[i])
 		}
 	}
 }
