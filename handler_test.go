@@ -65,7 +65,7 @@ func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
-	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	policy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
 	MustHTTP("POST", s.URL + `/db/foo/retention_policies`, policy)
 	status, body := MustHTTP("POST", s.URL + `/db/foo/retention_policies`, policy)
 	if status != http.StatusConflict {
@@ -87,6 +87,45 @@ func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	if body != "json: cannot unmarshal string into Go value of type time.Duration" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_UpdateRetentionPolicy(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	policy := influxdb.NewRetentionPolicy("bar")
+	db.CreateRetentionPolicy(policy)
+	policy = db.RetentionPolicy("bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL + `/db/foo/retention_policies/bar`, newPolicy)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+	if policy.Name != "newName" {
+		t.Fatalf("unexpected policy name: %s", policy.Name)
+	}
+}
+
+func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL + `/db/foo/retention_policies/bar`, newPolicy)
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `policy "bar" not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }

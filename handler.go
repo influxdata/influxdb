@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -348,7 +349,37 @@ func (h *Handler) serveCreateRetentionPolicy(w http.ResponseWriter, r *http.Requ
 }
 
 // serveUpdateRetentionPolicy updates an existing retention policy.
-func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Get the policy to be updated
+	name := urlQry.Get(":name")
+	policy := db.RetentionPolicy(name)
+	if policy == nil {
+		h.error(w, fmt.Sprintf(`policy "%s" not found`, name), http.StatusNotFound)
+		return
+	}
+
+	// Decode the new policy values from the body.
+	newPolicy := &RetentionPolicy{}
+	if err := json.NewDecoder(r.Body).Decode(newPolicy); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Update the policy
+	*policy = *newPolicy
+
+	w.WriteHeader(http.StatusOK)
+}
 
 // serveDeleteRetentionPolicy removes an existing retention policy.
 func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Request) {
