@@ -1,5 +1,9 @@
 package influxql
 
+import (
+	"strings"
+)
+
 // Token is a lexical token of the InfluxQL language.
 type Token int
 
@@ -7,15 +11,18 @@ const (
 	// Special tokens
 	ILLEGAL Token = iota
 	EOF
+	WS
 
 	literal_beg
 	// Literals
-	IDENT   // main
-	INTEGER // 12345
-	FLOAT   // 123.45
-	STRING  // "abc"
-	TRUE    // true
-	FALSE   // false
+	IDENT     // main
+	NUMBER    // 12345.67
+	DURATION  // 13h
+	STRING    // "abc"
+	BADSTRING // "abc
+	BADESCAPE // \q
+	TRUE      // true
+	FALSE     // false
 	literal_end
 
 	operator_beg
@@ -28,17 +35,18 @@ const (
 	AND // AND
 	OR  // OR
 
-	EQ // ==
-	NE // !=
-	LT // <
-	LE // <=
-	GT // >
-	GE // >=
+	EQ  // ==
+	NEQ // !=
+	LT  // <
+	LTE // <=
+	GT  // >
+	GTE // >=
 	operator_end
 
-	LPAREN // (
-	RPAREN // )
-	COMMA  // ,
+	LPAREN    // (
+	RPAREN    // )
+	COMMA     // ,
+	SEMICOLON // ;
 
 	keyword_beg
 	// Keywords
@@ -52,6 +60,8 @@ const (
 	EXPLAIN
 	FROM
 	INNER
+	INSERT
+	INTO
 	JOIN
 	LIMIT
 	LIST
@@ -66,15 +76,14 @@ const (
 
 var tokens = [...]string{
 	ILLEGAL: "ILLEGAL",
+	EOF:     "EOF",
+	WS:      "WS",
 
-	EOF: "EOF",
-
-	IDENT:   "IDENT",
-	INTEGER: "INTEGER",
-	FLOAT:   "FLOAT",
-	STRING:  "STRING",
-	TRUE:    "TRUE",
-	FALSE:   "FALSE",
+	IDENT:  "IDENT",
+	NUMBER: "NUMBER",
+	STRING: "STRING",
+	TRUE:   "TRUE",
+	FALSE:  "FALSE",
 
 	ADD: "+",
 	SUB: "-",
@@ -84,16 +93,17 @@ var tokens = [...]string{
 	AND: "AND",
 	OR:  "OR",
 
-	EQ: "==",
-	NE: "!=",
-	LT: "<",
-	LE: "<=",
-	GT: ">",
-	GE: ">=",
+	EQ:  "==",
+	NEQ: "!=",
+	LT:  "<",
+	LTE: "<=",
+	GT:  ">",
+	GTE: ">=",
 
-	LPAREN: "(",
-	RPAREN: ")",
-	COMMA:  ",",
+	LPAREN:    "(",
+	RPAREN:    ")",
+	COMMA:     ",",
+	SEMICOLON: ";",
 
 	AS:         "AS",
 	ASC:        "ASC",
@@ -105,6 +115,8 @@ var tokens = [...]string{
 	EXPLAIN:    "EXPLAIN",
 	FROM:       "FROM",
 	INNER:      "INNER",
+	INSERT:     "INSERT",
+	INTO:       "INTO",
 	JOIN:       "JOIN",
 	LIMIT:      "LIMIT",
 	LIST:       "LIST",
@@ -120,11 +132,14 @@ var keywords map[string]Token
 
 func init() {
 	keywords = make(map[string]Token)
-	for i := keyword_beg + 1; i < keyword_end; i++ {
-		keywords[tokens[i]] = i
+	for tok := keyword_beg + 1; tok < keyword_end; tok++ {
+		keywords[strings.ToUpper(tokens[tok])] = tok
+		keywords[strings.ToLower(tokens[tok])] = tok
 	}
-	keywords[tokens[AND]] = AND
-	keywords[tokens[OR]] = OR
+	for _, tok := range []Token{AND, OR} {
+		keywords[strings.ToUpper(tokens[tok])] = tok
+		keywords[strings.ToLower(tokens[tok])] = tok
+	}
 	keywords["true"] = TRUE
 	keywords["false"] = FALSE
 }
@@ -144,7 +159,7 @@ func (tok Token) Precedence() int {
 		return 1
 	case AND:
 		return 2
-	case EQ, NE, LT, LE, GT, GE:
+	case EQ, NEQ, LT, LTE, GT, GTE:
 		return 3
 	case ADD, SUB:
 		return 4
