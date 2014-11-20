@@ -125,7 +125,7 @@ func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
 	}
-	if body != `policy "bar" not found` {
+	if body != "retention policy not found" {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -152,6 +152,51 @@ func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 	status, body := MustHTTP("DELETE", s.URL + `/db/foo/retention_policies/bar`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "retention policy not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_ShardsByRetentionPolicy(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	policy := db.RetentionPolicy("bar")
+	policy.Shards = append(policy.Shards, &influxdb.Shard{ID: 42})
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL + `/db/foo/retention_policies/bar/shards`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `[{"id":42,"startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z"}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_ShardsByRetentionPolicy_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL + `/db/foo/retention_policies/bar/shards`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_ShardsByRetentionPolicy_PolicyNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL + `/db/foo/retention_policies/bar/shards`, "")
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
 	}

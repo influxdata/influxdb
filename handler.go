@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -295,7 +294,29 @@ func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveShardsByRetentionPolicy returns a list of shards for a given retention policy.
-func (h *Handler) serveShardsByRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveShardsByRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	policy := db.RetentionPolicy(urlQry.Get(":name"))
+	if policy == nil {
+		h.error(w, ErrRetentionPolicyNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Add("content-type", "application/json")
+	err := json.NewEncoder(w).Encode(policy.Shards)
+	if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
 
 // serveDeleteShard removes an existing shard.
 func (h *Handler) serveDeleteShard(w http.ResponseWriter, r *http.Request) {}
@@ -364,7 +385,7 @@ func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Requ
 	name := urlQry.Get(":name")
 	policy := db.RetentionPolicy(name)
 	if policy == nil {
-		h.error(w, fmt.Sprintf(`policy "%s" not found`, name), http.StatusNotFound)
+		h.error(w, ErrRetentionPolicyNotFound.Error(), http.StatusNotFound)
 		return
 	}
 
