@@ -17,7 +17,7 @@ func TestHandler_Shards(t *testing.T) {
 	db := srvr.Database("foo")
 	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
 	db.CreateShardIfNotExists("bar", time.Time{})
-	s := NewTestHTTPServer(srvr)
+	s := NewHTTPServer(srvr)
 	defer s.Close()
 	status, body := MustGetHTTP(s.URL + `/db/foo/shards`)
 	if status != http.StatusOK {
@@ -33,7 +33,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 	srvr.CreateDatabase("foo")
 	db := srvr.Database("foo")
 	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
-	s := NewTestHTTPServer(srvr)
+	s := NewHTTPServer(srvr)
 	defer s.Close()
 	status, body := MustGetHTTP(s.URL + `/db/foo/retention_policies`)
 	if status != http.StatusOK {
@@ -56,17 +56,17 @@ func MustGetHTTP(url string) (int, string) {
 }
 
 // Server is a test HTTP server that wraps a handler
-type TestHTTPServer struct {
+type HTTPServer struct {
 	*httptest.Server
 	Handler *influxdb.Handler
 }
 
-func NewTestHTTPServer(s *Server) *TestHTTPServer {
+func NewHTTPServer(s *Server) *HTTPServer {
 	h := influxdb.NewHandler(s.Server)
-	return &TestHTTPServer{httptest.NewServer(h), h}
+	return &HTTPServer{httptest.NewServer(h), h}
 }
 
-func (s *TestHTTPServer) Close() {
+func (s *HTTPServer) Close() {
 	s.Server.Close()
 }
 
