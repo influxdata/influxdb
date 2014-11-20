@@ -53,6 +53,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `(`, tok: influxql.LPAREN},
 		{s: `)`, tok: influxql.RPAREN},
 		{s: `,`, tok: influxql.COMMA},
+		{s: `;`, tok: influxql.SEMICOLON},
 
 		// Identifiers
 		{s: `foo`, tok: influxql.IDENT, lit: `foo`},
@@ -104,6 +105,8 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `EXPLAIN`, tok: influxql.EXPLAIN},
 		{s: `FROM`, tok: influxql.FROM},
 		{s: `INNER`, tok: influxql.INNER},
+		{s: `INSERT`, tok: influxql.INSERT},
+		{s: `INTO`, tok: influxql.INTO},
 		{s: `JOIN`, tok: influxql.JOIN},
 		{s: `LIMIT`, tok: influxql.LIMIT},
 		{s: `LIST`, tok: influxql.LIST},

@@ -73,6 +73,8 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return RPAREN, pos, ""
 	case ',':
 		return COMMA, pos, ""
+	case ';':
+		return SEMICOLON, pos, ""
 	}
 
 	return ILLEGAL, pos, string(ch0)

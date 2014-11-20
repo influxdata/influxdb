@@ -43,9 +43,10 @@ const (
 	GTE // >=
 	operator_end
 
-	LPAREN // (
-	RPAREN // )
-	COMMA  // ,
+	LPAREN    // (
+	RPAREN    // )
+	COMMA     // ,
+	SEMICOLON // ;
 
 	keyword_beg
 	// Keywords
@@ -59,6 +60,8 @@ const (
 	EXPLAIN
 	FROM
 	INNER
+	INSERT
+	INTO
 	JOIN
 	LIMIT
 	LIST
@@ -97,9 +100,10 @@ var tokens = [...]string{
 	GT:  ">",
 	GTE: ">=",
 
-	LPAREN: "(",
-	RPAREN: ")",
-	COMMA:  ",",
+	LPAREN:    "(",
+	RPAREN:    ")",
+	COMMA:     ",",
+	SEMICOLON: ";",
 
 	AS:         "AS",
 	ASC:        "ASC",
@@ -111,6 +115,8 @@ var tokens = [...]string{
 	EXPLAIN:    "EXPLAIN",
 	FROM:       "FROM",
 	INNER:      "INNER",
+	INSERT:     "INSERT",
+	INTO:       "INTO",
 	JOIN:       "JOIN",
 	LIMIT:      "LIMIT",
 	LIST:       "LIST",
