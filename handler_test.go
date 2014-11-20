@@ -205,6 +205,16 @@ func TestHandler_ShardsByRetentionPolicy_PolicyNotFound(t *testing.T) {
 	}
 }
 
+func TestHandler_Ping(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, _ := MustHTTP("GET", s.URL+`/ping`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
 func MustHTTP(verb, url, body string) (int, string) {
 	req, err := http.NewRequest(verb, url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
