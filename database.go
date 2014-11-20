@@ -274,11 +274,9 @@ func (db *Database) applySetDefaultRetentionPolicy(name string) error {
 
 // Shards returns a list of all shards in the database
 func (db *Database) Shards() []*Shard {
-	shards := make([]*Shard, len(db.shards))
-	i := 0
+	shards := make([]*Shard, 0, len(db.shards))
 	for _, v := range db.shards {
-		shards[i] = v
-		i++
+		shards = append(shards, v)
 	}
 	return shards
 }
@@ -290,11 +288,9 @@ func (db *Database) shard(id uint64) *Shard {
 
 // RetentionPolicies returns a list of retention polocies for the database
 func (db *Database) RetentionPolicies() []*RetentionPolicy {
-	policies := make([]*RetentionPolicy, len(db.policies))
-	i := 0
+	policies := make([]*RetentionPolicy, 0, len(db.policies))
 	for _, p := range db.policies {
-		policies[i] = p
-		i++
+		policies = append(policies, p)
 	}
 	return policies
 }
