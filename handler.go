@@ -106,7 +106,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Retrieve database from server.
-	db := h.server.Database(values.Get(":db"))
+	db := h.server.Database(urlQry.Get(":db"))
 	if db == nil {
 		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
 		return
@@ -114,7 +114,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 
 	// Parse the time precision from the query params.
 	/*
-		precision, err := parseTimePrecision(values.Get("time_precision"))
+		precision, err := parseTimePrecision(urlQry.Get("time_precision"))
 		if err != nil {
 			h.error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -279,9 +279,9 @@ func (h *Handler) serveInterfaces(w http.ResponseWriter, r *http.Request) {}
 
 // serveShards returns a list of shards.
 func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {
-	values := r.URL.Query()
+	urlQry := r.URL.Query()
 
-	db := h.server.Database(values.Get(":db"))
+	db := h.server.Database(urlQry.Get(":db"))
 	if db == nil {
 		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
 		return
@@ -301,9 +301,9 @@ func (h *Handler) serveDeleteShard(w http.ResponseWriter, r *http.Request) {}
 
 // serveRetentionPolicies returns a list of retention policys.
 func (h *Handler) serveRetentionPolicies(w http.ResponseWriter, r *http.Request) {
-	values := r.URL.Query()
+	urlQry := r.URL.Query()
 
-	db := h.server.Database(values.Get(":db"))
+	db := h.server.Database(urlQry.Get(":db"))
 	if db == nil {
 		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
 		return
@@ -316,7 +316,34 @@ func (h *Handler) serveRetentionPolicies(w http.ResponseWriter, r *http.Request)
 }
 
 // serveCreateRetentionPolicy creates a new retention policy.
-func (h *Handler) serveCreateRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveCreateRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Decode the policy from the body.
+	policy := &RetentionPolicy{}
+	if err := json.NewDecoder(r.Body).Decode(policy); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Create the retention policy.
+	if err := db.CreateRetentionPolicy(policy); err == ErrRetentionPolicyExists {
+		h.error(w, err.Error(), http.StatusConflict)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
 
 // serveUpdateRetentionPolicy updates an existing retention policy.
 func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) {}

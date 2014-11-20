@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -44,15 +45,81 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 	}
 }
 
+func TestHandler_CreateRetentionPolicy(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustPostHTTP(s.URL + `/db/foo/retention_policies`, policy)
+	if status != http.StatusCreated {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	MustPostHTTP(s.URL + `/db/foo/retention_policies`, policy)
+	status, body := MustPostHTTP(s.URL + `/db/foo/retention_policies`, policy)
+	if status != http.StatusConflict {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "retention policy exists" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	policy := `{"name": "bar", "duration": "**BAD**", "replicaN": 1, "splitN": 2}`
+	status, body := MustPostHTTP(s.URL + `/db/foo/retention_policies`, policy)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "json: cannot unmarshal string into Go value of type time.Duration" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func MustGetHTTP(url string) (int, string) {
   resp, err := http.Get(url)
   if err != nil {
     panic("http get error: " + err.Error())
   }
+  defer resp.Body.Close()
   status := resp.StatusCode
-  body, _ := ioutil.ReadAll(resp.Body)
-  resp.Body.Close()
+  body, err := ioutil.ReadAll(resp.Body)
+  if err != nil {
+	panic(err)
+  }
   return status, strings.TrimRight(string(body), "\n")
+}
+
+func MustPostHTTP(url, body string) (int, string) {
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
+	if err != nil {
+		panic(err)
+	}
+	req.Header.Set("Content-Type", "applicaton/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	status := resp.StatusCode
+	respBody, err := ioutil.ReadAll(resp.Body)
+	return status, strings.TrimRight(string(respBody), "\n")
 }
 
 // Server is a test HTTP server that wraps a handler
