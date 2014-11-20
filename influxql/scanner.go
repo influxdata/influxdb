@@ -18,8 +18,9 @@ func NewScanner(r io.Reader) *Scanner {
 	return &Scanner{r: &reader{r: bufio.NewReader(r)}}
 }
 
-// Scan returns the next token from the underlying reader.
-// Also returns the position and literal string text read for the token.
+// Scan returns the next token and position from the underlying reader.
+// Also returns the literal text read for strings, numbers, and duration tokens
+// since these token types can have different literal representations.
 func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	// Read next code point.
 	ch0, pos := s.r.read()
