@@ -81,7 +81,6 @@ type Config struct {
 	} `toml:"storage"`
 
 	Cluster struct {
-		SeedServers               []string `toml:"seed-servers"`
 		ProtobufPort              int      `toml:"protobuf_port"`
 		ProtobufTimeout           Duration `toml:"protobuf_timeout"`
 		ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
