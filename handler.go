@@ -205,12 +205,15 @@ func (h *Handler) serveCreateDatabase(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
-
 	// TODO: Authentication
 
 	// Decode the request from the body.
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
 		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	} else if req.Name == "" {
+		h.error(w, ErrDatabaseNameRequired.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -228,8 +231,8 @@ func (h *Handler) serveCreateDatabase(w http.ResponseWriter, r *http.Request) {
 // serveDeleteDatabase deletes an existing database on the server.
 func (h *Handler) serveDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get(":name")
-	if err := h.server.DeleteDatabase(name); err != ErrDatabaseNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
+	if err := h.server.DeleteDatabase(name); err == ErrDatabaseNotFound {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
@@ -421,6 +424,8 @@ func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Requ
 		h.error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // serveServers returns a list of servers in the cluster.

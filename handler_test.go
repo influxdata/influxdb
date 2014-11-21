@@ -12,6 +12,101 @@ import (
 	"github.com/influxdb/influxdb"
 )
 
+func TestHandler_Databases(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateDatabase("bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `[{"name":"bar"},{"name":"foo"}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDatabase(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("POST", s.URL+`/db`, `{"name": "foo"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDatabase_BadRequest_NoName(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("POST", s.URL+`/db`, `{"BadRequest": 1}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database name required` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDatabase_BadRequest_InvalidJSON(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("POST", s.URL+`/db`, `"BadRequest": 1`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `json: cannot unmarshal string into Go value of type struct { Name string "json:\"name\"" }` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDatabase_Conflict(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("POST", s.URL+`/db`, `{"name": "foo"}`)
+	if status != http.StatusConflict {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database exists` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteDatabase(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, "")
+	if status != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database not found` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_Shards(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -25,6 +120,19 @@ func TestHandler_Shards(t *testing.T) {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	if body != `[{"id":3,"startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z"}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_Shards_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/shards`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -45,6 +153,19 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 	}
 }
 
+func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database not found` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_CreateRetentionPolicy(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -56,6 +177,20 @@ func TestHandler_CreateRetentionPolicy(t *testing.T) {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -114,6 +249,41 @@ func TestHandler_UpdateRetentionPolicy(t *testing.T) {
 	}
 }
 
+func TestHandler_UpdateRetentionPolicy_BadRequest(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	policy := influxdb.NewRetentionPolicy("bar")
+	db.CreateRetentionPolicy(policy)
+	policy = db.RetentionPolicy("bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newPolicy := `{"name": "newName", "duration": "BadRequest", "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "json: cannot unmarshal string into Go value of type time.Duration" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -138,10 +308,23 @@ func TestHandler_DeleteRetentionPolicy(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, "")
-	if status != http.StatusOK {
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }

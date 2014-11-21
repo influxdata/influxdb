@@ -14,6 +14,9 @@ var (
 	// ErrPathRequired is returned when opening a server without a path.
 	ErrPathRequired = errors.New("path required")
 
+	// ErrDatabaseNameRequired is returned when creating a database without a name.
+	ErrDatabaseNameRequired = errors.New("database name required")
+
 	// ErrDatabaseExists is returned when creating a duplicate database.
 	ErrDatabaseExists = errors.New("database exists")
 
