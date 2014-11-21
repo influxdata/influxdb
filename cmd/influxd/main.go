@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"code.google.com/p/log4go"
 	"github.com/influxdb/influxdb"
@@ -44,6 +45,7 @@ func main() {
 func start() error {
 	var (
 		fileName     = flag.String("config", "config.sample.toml", "Config file")
+		seedServers  = flag.String("seedservers", "", "Comma-separated list of seed servers in the form host:port")
 		showVersion  = flag.Bool("v", false, "Get version number")
 		hostname     = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
 		protobufPort = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
@@ -51,6 +53,7 @@ func start() error {
 		stdout       = flag.Bool("stdout", false, "Log to stdout overriding the configuration")
 		syslog       = flag.String("syslog", "", "Log to syslog facility overriding the configuration")
 	)
+	var brokerURLs []*url.URL
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
@@ -69,6 +72,15 @@ func start() error {
 	config.InfluxDBVersion = version
 
 	// Override config properties.
+	if *seedServers != "" {
+		for _, s := range strings.Split(*seedServers, ",") {
+			u, err := url.Parse(s)
+			if err != nil {
+				panic(err)
+			}
+			brokerURLs = append(brokerURLs, u)
+		}
+	}
 	if *hostname != "" {
 		config.Hostname = *hostname
 	}
@@ -104,20 +116,17 @@ func start() error {
 	}
 	fmt.Printf(logo)
 
-	// Parse broker URLs from seed servers.
-	var brokerURLs []*url.URL
-	for _, s := range config.Cluster.SeedServers {
-		u, err := url.Parse(s)
-		if err != nil {
-			panic(err)
+	var client *messaging.Client
+	if len(brokerURLs) != 0 {
+		log4go.Info("Attempting to join cluster via seed servers %v", brokerURLs)
+		// Create messaging client for broker.
+		client = messaging.NewClient("XXX-CHANGEME-XXX")
+		if err := client.Open(brokerURLs); err != nil {
+			log4go.Error("Error opening Messaging Client: %s", err.Error())
 		}
-		brokerURLs = append(brokerURLs, u)
-	}
-
-	// Create messaging client for broker.
-	client := messaging.NewClient("XXX-CHANGEME-XXX")
-	if err := client.Open(brokerURLs); err != nil {
-		log4go.Error("Error opening Messaging Client: %s", err.Error())
+	} else {
+		log4go.Info("No seed servers specified, running in local mode")
+		// Create a client in "local" mode
 	}
 
 	// Start server.
