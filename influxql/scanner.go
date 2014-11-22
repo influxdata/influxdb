@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 // Scanner represents a lexical scanner for InfluxQL.
@@ -217,20 +218,23 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 		s.r.unread()
 	}
 
-	// If the next rune is a duration unit (u,µ,ms,s) then return a duration token
-	if ch0, _ := s.r.read(); ch0 == 'u' || ch0 == 'µ' || ch0 == 's' || ch0 == 'h' || ch0 == 'd' || ch0 == 'w' {
-		_, _ = buf.WriteRune(ch0)
-		return DURATION, pos, buf.String()
-	} else if ch0 == 'm' {
-		_, _ = buf.WriteRune(ch0)
-		if ch1, _ := s.r.read(); ch1 == 's' {
-			_, _ = buf.WriteRune(ch1)
-		} else {
-			s.r.unread()
+	// Attempt to read as a duration if it doesn't have a fractional part.
+	if !strings.Contains(buf.String(), ".") {
+		// If the next rune is a duration unit (u,µ,ms,s) then return a duration token
+		if ch0, _ := s.r.read(); ch0 == 'u' || ch0 == 'µ' || ch0 == 's' || ch0 == 'h' || ch0 == 'd' || ch0 == 'w' {
+			_, _ = buf.WriteRune(ch0)
+			return DURATION, pos, buf.String()
+		} else if ch0 == 'm' {
+			_, _ = buf.WriteRune(ch0)
+			if ch1, _ := s.r.read(); ch1 == 's' {
+				_, _ = buf.WriteRune(ch1)
+			} else {
+				s.r.unread()
+			}
+			return DURATION, pos, buf.String()
 		}
-		return DURATION, pos, buf.String()
+		s.r.unread()
 	}
-	s.r.unread()
 
 	return NUMBER, pos, buf.String()
 }
@@ -294,13 +298,6 @@ func (s *bufScanner) Scan() (tok Token, pos Pos, lit string) {
 
 // Unscan pushes the previously token back onto the buffer.
 func (s *bufScanner) Unscan() { s.n++ }
-
-// Peek reads the next token from the scanner and immediately unscans it.
-func (s *bufScanner) Peek() (tok Token, pos Pos, lit string) {
-	tok, pos, lit = s.Scan()
-	s.Unscan()
-	return
-}
 
 // curr returns the last read token.
 func (s *bufScanner) curr() (tok Token, pos Pos, lit string) {

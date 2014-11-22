@@ -19,13 +19,51 @@ func NewParser(r io.Reader) *Parser {
 	return &Parser{s: newBufScanner(r)}
 }
 
+// ParseQuery parses an InfluxQL string and returns a Query AST object.
+func (p *Parser) ParseQuery() (*Query, error) {
+	var statements Statements
+	for {
+		// Read statements until we reach the end.
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok == EOF {
+			break
+		}
+		p.unscan()
+
+		// Read the next statement.
+		s, err := p.ParseStatement()
+		if err != nil {
+			return nil, err
+		}
+		statements = append(statements, s)
+	}
+	return &Query{Statements: statements}, nil
+}
+
 // ParseStatement parses an InfluxQL string and returns a Statement AST object.
 func (p *Parser) ParseStatement() (Statement, error) {
 	// Inspect the first token.
-	tok, pos, lit := p.scan()
+	tok, pos, lit := p.scanIgnoreWhitespace()
 	switch tok {
 	case SELECT:
 		return p.parseSelectStatement()
+	case DELETE:
+		return p.parseDeleteStatement()
+	case LIST:
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SERIES {
+			return p.parseListSeriesStatement()
+		} else if tok == CONTINUOUS {
+			return p.parseListContinuousQueriesStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
+		}
+	case DROP:
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SERIES {
+			return p.parseDropSeriesStatement()
+		} else if tok == CONTINUOUS {
+			return p.parseDropContinuousQueryStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
+		}
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
 	}
@@ -77,6 +115,116 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 		return nil, err
 	}
 	stmt.Ascending = ascending
+
+	// Expect a semicolon or EOF at the end
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
+		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
+	}
+
+	return stmt, nil
+}
+
+// parseDeleteStatement parses a delete string and returns a DeleteStatement.
+// This function assumes the DELETE token has already been consumed.
+func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
+	stmt := &DeleteStatement{}
+
+	// Parse source: "FROM IDENT".
+	source, err := p.parseSource()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Source = source
+
+	// Parse condition: "WHERE EXPR".
+	condition, err := p.parseCondition()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Condition = condition
+
+	// Expect a semicolon or EOF at the end
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
+		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
+	}
+
+	return stmt, nil
+}
+
+// parseListSeriesStatement parses a string and returns a ListSeriesStatement.
+// This function assumes the "LIST SERIES" tokens have already been consumed.
+func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
+	stmt := &ListSeriesStatement{}
+
+	// Expect a semicolon or EOF at the end
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
+		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
+	}
+
+	return stmt, nil
+}
+
+// parseDropSeriesStatement parses a string and returns a DropSeriesStatement.
+// This function assumes the "DROP SERIES" tokens have already been consumed.
+func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
+	stmt := &DropSeriesStatement{}
+
+	// Read the name of the series to drop.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.Name = lit
+
+	// Expect a semicolon or EOF at the end
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
+		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
+	}
+
+	return stmt, nil
+}
+
+// parseListContinuousQueriesStatement parses a string and returns a ListContinuousQueriesStatement.
+// This function assumes the "LIST CONTINUOUS" tokens have already been consumed.
+func (p *Parser) parseListContinuousQueriesStatement() (*ListContinuousQueriesStatement, error) {
+	stmt := &ListContinuousQueriesStatement{}
+
+	// Expect a "QUERIES" token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != QUERIES {
+		return nil, newParseError(tokstr(tok, lit), []string{"QUERIES"}, pos)
+	}
+
+	// Expect a semicolon or EOF at the end
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
+		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
+	}
+
+	return stmt, nil
+}
+
+// parseDropContinuousQueriesStatement parses a string and returns a DropContinuousQueryStatement.
+// This function assumes the "DROP CONTINUOUS" tokens have already been consumed.
+func (p *Parser) parseDropContinuousQueryStatement() (*DropContinuousQueryStatement, error) {
+	stmt := &DropContinuousQueryStatement{}
+
+	// Expect a "QUERY" token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != QUERY {
+		return nil, newParseError(tokstr(tok, lit), []string{"QUERY"}, pos)
+	}
+
+	// Read the id of the query to drop.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != NUMBER {
+		return nil, newParseError(tokstr(tok, lit), []string{"integer"}, pos)
+	} else if strings.Contains(lit, ".") {
+		return nil, &ParseError{Message: "continuous query id must be an integer", Pos: pos}
+	}
+	stmt.ID, _ = strconv.Atoi(lit)
+
+	// Expect a semicolon or EOF at the end
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
+		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
+	}
 
 	return stmt, nil
 }
@@ -243,10 +391,7 @@ func (p *Parser) parseLimit() (int, error) {
 	}
 
 	// Parse number.
-	n, err := strconv.ParseInt(lit, 10, 64)
-	if err != nil {
-		return 0, &ParseError{Message: "unable to parse limit", Pos: pos}
-	}
+	n, _ := strconv.ParseInt(lit, 10, 64)
 
 	return int(n), nil
 }
@@ -286,7 +431,7 @@ func (p *Parser) ParseExpr() (Expr, error) {
 	for {
 		// If the next token is NOT an operator then return the expression.
 		op, _, _ := p.scanIgnoreWhitespace()
-		if !op.IsOperator() {
+		if !op.isOperator() {
 			p.unscan()
 			return expr, nil
 		}
@@ -328,10 +473,7 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case TRUE, FALSE:
 		return &BooleanLiteral{Val: (tok == TRUE)}, nil
 	case DURATION:
-		v, err := ParseDuration(lit)
-		if err != nil {
-			return nil, &ParseError{Message: err.Error(), Pos: pos}
-		}
+		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
@@ -356,9 +498,6 @@ func (p *Parser) consumeWhitespace() {
 		p.unscan()
 	}
 }
-
-// curr returns the last read token from the underlying scanner.
-func (p *Parser) curr() (tok Token, pos Pos, lit string) { return p.s.curr() }
 
 // unscan pushes the previously read token back onto the buffer.
 func (p *Parser) unscan() { p.s.Unscan() }

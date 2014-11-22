@@ -82,12 +82,13 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `.`, tok: influxql.ILLEGAL, lit: `.`},
 		{s: `-.`, tok: influxql.SUB, lit: ``},
 		{s: `+.`, tok: influxql.ADD, lit: ``},
+		{s: `10.3s`, tok: influxql.NUMBER, lit: `10.3`},
 
 		// Durations
 		{s: `10u`, tok: influxql.DURATION, lit: `10u`},
 		{s: `10µ`, tok: influxql.DURATION, lit: `10µ`},
-		{s: `10.3ms`, tok: influxql.DURATION, lit: `10.3ms`},
-		{s: `-.1s`, tok: influxql.DURATION, lit: `-.1s`},
+		{s: `10ms`, tok: influxql.DURATION, lit: `10ms`},
+		{s: `-1s`, tok: influxql.DURATION, lit: `-1s`},
 		{s: `10m`, tok: influxql.DURATION, lit: `10m`},
 		{s: `10h`, tok: influxql.DURATION, lit: `10h`},
 		{s: `10d`, tok: influxql.DURATION, lit: `10d`},

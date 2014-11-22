@@ -9,6 +9,35 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+// Ensure the parser can parse a multi-statement query.
+func TestParser_ParseQuery(t *testing.T) {
+	s := `SELECT a FROM b; SELECT c FROM d`
+	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if len(q.Statements) != 2 {
+		t.Fatalf("unexpected statement count: %d", len(q.Statements))
+	}
+}
+
+// Ensure the parser can parse an empty query.
+func TestParser_ParseQuery_Empty(t *testing.T) {
+	q, err := influxql.NewParser(strings.NewReader(``)).ParseQuery()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if len(q.Statements) != 0 {
+		t.Fatalf("unexpected statement count: %d", len(q.Statements))
+	}
+}
+
+// Ensure the parser can return an error from an malformed statement.
+func TestParser_ParseQuery_ParseError(t *testing.T) {
+	_, err := influxql.NewParser(strings.NewReader(`SELECT`)).ParseQuery()
+	if err == nil || err.Error() != `found EOF, expected identifier, string, number, bool at line 1, char 8` {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
 // Ensure the parser can parse strings into Statement ASTs.
 func TestParser_ParseStatement(t *testing.T) {
 	var tests = []struct {
@@ -16,9 +45,9 @@ func TestParser_ParseStatement(t *testing.T) {
 		stmt influxql.Statement
 		err  string
 	}{
-		// SELECT statements
+		// SELECT statement
 		{
-			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h LIMIT 20 ORDER BY ASC`,
+			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h LIMIT 20 ORDER BY ASC;`,
 			stmt: &influxql.SelectStatement{
 				Fields: influxql.Fields{
 					&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}},
@@ -39,9 +68,74 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// DELETE statement
+		{
+			s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
+			stmt: &influxql.DeleteStatement{
+				Source: &influxql.Series{Name: "myseries"},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "host"},
+					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+				},
+			},
+		},
+
+		// LIST SERIES statement
+		{
+			s:    `LIST SERIES`,
+			stmt: &influxql.ListSeriesStatement{},
+		},
+
+		// DROP SERIES statement
+		{
+			s:    `DROP SERIES myseries`,
+			stmt: &influxql.DropSeriesStatement{Name: "myseries"},
+		},
+
+		// LIST CONTINUOUS QUERIES statement
+		{
+			s:    `LIST CONTINUOUS QUERIES`,
+			stmt: &influxql.ListContinuousQueriesStatement{},
+		},
+
+		// DROP CONTINUOUS QUERY statement
+		{
+			s:    `DROP CONTINUOUS QUERY 12`,
+			stmt: &influxql.DropContinuousQueryStatement{ID: 12},
+		},
+
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
+		{s: `SELECT field X`, err: `found X, expected FROM at line 1, char 14`},
+		{s: `SELECT field FROM "series" WHERE X Y`, err: `found Y, expected ;, EOF at line 1, char 36`},
+		{s: `SELECT field FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 37`},
+		{s: `SELECT field FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 34`},
+		{s: `SELECT field FROM myseries LIMIT`, err: `found EOF, expected number at line 1, char 34`},
+		{s: `SELECT field FROM myseries LIMIT 10.5`, err: `fractional parts not allowed in limit at line 1, char 34`},
+		{s: `SELECT field FROM myseries ORDER`, err: `found EOF, expected BY at line 1, char 34`},
+		{s: `SELECT field FROM myseries ORDER BY /`, err: `found /, expected ASC, DESC at line 1, char 37`},
+		{s: `SELECT field AS`, err: `found EOF, expected identifier, string at line 1, char 17`},
+		{s: `SELECT field FROM 12`, err: `found 12, expected identifier, string at line 1, char 19`},
+		{s: `SELECT field FROM myseries GROUP BY *`, err: `found *, expected identifier, string, number, bool at line 1, char 37`},
+		{s: `SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 FROM myseries`, err: `unable to parse number at line 1, char 8`},
+		{s: `SELECT 10.5h FROM myseries`, err: `found h, expected FROM at line 1, char 12`},
+		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
+		{s: `DELETE FROM`, err: `found EOF, expected identifier, string at line 1, char 13`},
+		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
+		{s: `DELETE FROM myseries 123`, err: `found 123, expected ;, EOF at line 1, char 22`},
+		{s: `LIST SERIES x`, err: `found x, expected ;, EOF at line 1, char 13`},
+		{s: `DROP SERIES`, err: `found EOF, expected identifier, string at line 1, char 13`},
+		{s: `DROP SERIES myseries X`, err: `found X, expected ;, EOF at line 1, char 22`},
+		{s: `LIST CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
+		{s: `LIST CONTINUOUS QUERIES x`, err: `found x, expected ;, EOF at line 1, char 25`},
+		{s: `LIST FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
+		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
+		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected integer at line 1, char 23`},
+		{s: `DROP CONTINUOUS QUERY 12.5`, err: `continuous query id must be an integer at line 1, char 23`},
+		{s: `DROP CONTINUOUS QUERY 12 X`, err: `found X, expected ;, EOF at line 1, char 26`},
+		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
 	}
 
 	for i, tt := range tests {

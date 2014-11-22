@@ -69,6 +69,7 @@ const (
 	MERGE
 	ORDER
 	QUERIES
+	QUERY
 	SELECT
 	SERIES
 	WHERE
@@ -125,6 +126,7 @@ var tokens = [...]string{
 	MERGE:      "MERGE",
 	ORDER:      "ORDER",
 	QUERIES:    "QUERIES",
+	QUERY:      "QUERY",
 	SELECT:     "SELECT",
 	SERIES:     "SERIES",
 	WHERE:      "WHERE",
@@ -171,17 +173,8 @@ func (tok Token) Precedence() int {
 	return 0
 }
 
-// IsLiteral returns true for literal tokens.
-func (tok Token) IsLiteral() bool { return tok > literal_beg && tok < literal_end }
-
-// IsOperator returns true for operator tokens.
-func (tok Token) IsOperator() bool { return tok > operator_beg && tok < operator_end }
-
-// IsKeyword returns true for keyword tokens.
-func (tok Token) IsKeyword() bool { return tok > keyword_beg && tok < keyword_end }
-
-// MarshalJSON converts the token to JSON.
-func (tok Token) MarshalJSON() ([]byte, error) { return []byte(`"` + tok.String() + `"`), nil }
+// isOperator returns true for operator tokens.
+func (tok Token) isOperator() bool { return tok > operator_beg && tok < operator_end }
 
 // tokstr returns a literal if provided, otherwise returns the token string.
 func tokstr(tok Token, lit string) string {

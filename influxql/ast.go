@@ -20,10 +20,16 @@ type Node interface {
 	node()
 }
 
-func (_ *Query) node()           {}
-func (_ Statements) node()       {}
-func (_ *SelectStatement) node() {}
-func (_ *DeleteStatement) node() {}
+func (_ *Query) node()     {}
+func (_ Statements) node() {}
+
+func (_ *SelectStatement) node()                {}
+func (_ *DeleteStatement) node()                {}
+func (_ *ListSeriesStatement) node()            {}
+func (_ *DropSeriesStatement) node()            {}
+func (_ *ListContinuousQueriesStatement) node() {}
+func (_ *DropContinuousQueryStatement) node()   {}
+
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
 func (_ Dimensions) node()       {}
@@ -54,8 +60,12 @@ type Statement interface {
 	stmt()
 }
 
-func (_ *SelectStatement) stmt() {}
-func (_ *DeleteStatement) stmt() {}
+func (_ *SelectStatement) stmt()                {}
+func (_ *DeleteStatement) stmt()                {}
+func (_ *ListSeriesStatement) stmt()            {}
+func (_ *DropSeriesStatement) stmt()            {}
+func (_ *ListContinuousQueriesStatement) stmt() {}
+func (_ *DropContinuousQueryStatement) stmt()   {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -111,6 +121,22 @@ type DeleteStatement struct {
 
 	// An expression evaluated on data point.
 	Condition Expr
+}
+
+// ListSeriesStatement represents a command for listing series in the database.
+type ListSeriesStatement struct{}
+
+// DropSeriesStatement represents a command for removing a series from the database.
+type DropSeriesStatement struct {
+	Name string
+}
+
+// ListContinuousQueriesStatement represents a command for listing continuous queries.
+type ListContinuousQueriesStatement struct{}
+
+// ListContinuousQueriesStatement represents a command for removing a continuous query.
+type DropContinuousQueryStatement struct {
+	ID int
 }
 
 // Fields represents a list of fields.
