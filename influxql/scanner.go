@@ -258,6 +258,56 @@ func isLetter(ch rune) bool { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && c
 // isDigit returns true if the rune is a digit.
 func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
 
+// bufScanner represents a wrapper for scanner to add a buffer.
+// It provides a fixed-length circular buffer that can be unread.
+type bufScanner struct {
+	s   *Scanner
+	i   int // buffer index
+	n   int // buffer size
+	buf [3]struct {
+		tok Token
+		pos Pos
+		lit string
+	}
+}
+
+// newBufScanner returns a new buffered scanner for a reader.
+func newBufScanner(r io.Reader) *bufScanner {
+	return &bufScanner{s: NewScanner(r)}
+}
+
+// Scan reads the next token from the scanner.
+func (s *bufScanner) Scan() (tok Token, pos Pos, lit string) {
+	// If we have unread tokens then read them off the buffer first.
+	if s.n > 0 {
+		s.n--
+		return s.curr()
+	}
+
+	// Move buffer position forward and save the token.
+	s.i = (s.i + 1) % len(s.buf)
+	buf := &s.buf[s.i]
+	buf.tok, buf.pos, buf.lit = s.s.Scan()
+
+	return s.curr()
+}
+
+// Unscan pushes the previously token back onto the buffer.
+func (s *bufScanner) Unscan() { s.n++ }
+
+// Peek reads the next token from the scanner and immediately unscans it.
+func (s *bufScanner) Peek() (tok Token, pos Pos, lit string) {
+	tok, pos, lit = s.Scan()
+	s.Unscan()
+	return
+}
+
+// curr returns the last read token.
+func (s *bufScanner) curr() (tok Token, pos Pos, lit string) {
+	buf := &s.buf[(s.i-s.n+len(s.buf))%len(s.buf)]
+	return buf.tok, buf.pos, buf.lit
+}
+
 // reader represents a buffered rune reader used by the scanner.
 // It provides a fixed-length circular buffer that can be unread.
 type reader struct {

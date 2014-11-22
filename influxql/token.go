@@ -59,6 +59,7 @@ const (
 	DROP
 	EXPLAIN
 	FROM
+	GROUP
 	INNER
 	INSERT
 	INTO
@@ -114,6 +115,7 @@ var tokens = [...]string{
 	DROP:       "DROP",
 	EXPLAIN:    "EXPLAIN",
 	FROM:       "FROM",
+	GROUP:      "GROUP",
 	INNER:      "INNER",
 	INSERT:     "INSERT",
 	INTO:       "INTO",
@@ -177,6 +179,17 @@ func (tok Token) IsOperator() bool { return tok > operator_beg && tok < operator
 
 // IsKeyword returns true for keyword tokens.
 func (tok Token) IsKeyword() bool { return tok > keyword_beg && tok < keyword_end }
+
+// MarshalJSON converts the token to JSON.
+func (tok Token) MarshalJSON() ([]byte, error) { return []byte(`"` + tok.String() + `"`), nil }
+
+// tokstr returns a literal if provided, otherwise returns the token string.
+func tokstr(tok Token, lit string) string {
+	if lit != "" {
+		return lit
+	}
+	return tok.String()
+}
 
 // Lookup returns the token associated with a given string.
 func Lookup(ident string) Token {

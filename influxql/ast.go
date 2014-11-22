@@ -8,8 +8,7 @@ import (
 type DataType string
 
 const (
-	Integer  = DataType("integer")
-	Float    = DataType("float")
+	Number   = DataType("number")
 	Boolean  = DataType("boolean")
 	String   = DataType("string")
 	Time     = DataType("time")
@@ -21,32 +20,42 @@ type Node interface {
 	node()
 }
 
-func (_ *SelectQuery) node()     {}
-func (_ *DeleteQuery) node()     {}
+func (_ *Query) node()           {}
+func (_ Statements) node()       {}
+func (_ *SelectStatement) node() {}
+func (_ *DeleteStatement) node() {}
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
 func (_ Dimensions) node()       {}
 func (_ *Dimension) node()       {}
-func (_ *ImplicitJoin) node()    {}
+func (_ *Series) node()          {}
 func (_ *InnerJoin) node()       {}
-func (_ *MergeJoin) node()       {}
+func (_ *Merge) node()           {}
 func (_ *VarRef) node()          {}
 func (_ *Call) node()            {}
-func (_ *IntegerLiteral) node()  {}
-func (_ *FloatLiteral) node()    {}
+func (_ *NumberLiteral) node()   {}
 func (_ *StringLiteral) node()   {}
 func (_ *BooleanLiteral) node()  {}
 func (_ *TimeLiteral) node()     {}
 func (_ *DurationLiteral) node() {}
 func (_ *BinaryExpr) node()      {}
 
-// Query represents a top-level query object.
-type Query interface {
-	query()
+// Query represents a collection of order statements.
+type Query struct {
+	Statements Statements
 }
 
-func (_ *SelectQuery) query() {}
-func (_ *DeleteQuery) query() {}
+// Statements represents a list of statements.
+type Statements []Statement
+
+// Statement represents a single command in InfluxQL.
+type Statement interface {
+	Node
+	stmt()
+}
+
+func (_ *SelectStatement) stmt() {}
+func (_ *DeleteStatement) stmt() {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -56,26 +65,25 @@ type Expr interface {
 
 func (_ *VarRef) expr()          {}
 func (_ *Call) expr()            {}
-func (_ *IntegerLiteral) expr()  {}
-func (_ *FloatLiteral) expr()    {}
+func (_ *NumberLiteral) expr()   {}
 func (_ *StringLiteral) expr()   {}
 func (_ *BooleanLiteral) expr()  {}
 func (_ *TimeLiteral) expr()     {}
 func (_ *DurationLiteral) expr() {}
 func (_ *BinaryExpr) expr()      {}
 
-// Join represents a join between one or more series.
-type Join interface {
+// Source represents a source of data for a statement.
+type Source interface {
 	Node
-	join()
+	source()
 }
 
-func (_ *ImplicitJoin) join() {}
-func (_ *InnerJoin) join()    {}
-func (_ *MergeJoin) join()    {}
+func (_ *Series) source()    {}
+func (_ *InnerJoin) source() {}
+func (_ *Merge) source()     {}
 
-// SelectQuery represents a query for extracting data from the database.
-type SelectQuery struct {
+// SelectStatement represents a command for extracting data from the database.
+type SelectStatement struct {
 	// Expressions returned from the selection.
 	Fields Fields
 
@@ -83,7 +91,7 @@ type SelectQuery struct {
 	Dimensions Dimensions
 
 	// Data source that fields are extracted from.
-	Source Join
+	Source Source
 
 	// An expression evaluated on data point.
 	Condition Expr
@@ -96,10 +104,10 @@ type SelectQuery struct {
 	Ascending bool
 }
 
-// DeleteQuery represents a query for removing data from the database.
-type DeleteQuery struct {
+// DeleteStatement represents a command for removing data from the database.
+type DeleteStatement struct {
 	// Data source that values are removed from.
-	Source Join
+	Source Source
 
 	// An expression evaluated on data point.
 	Condition Expr
@@ -108,7 +116,7 @@ type DeleteQuery struct {
 // Fields represents a list of fields.
 type Fields []*Field
 
-// Field represents an expression retrieved from a select query.
+// Field represents an expression retrieved from a select statement.
 type Field struct {
 	Expr  Expr
 	Alias string
@@ -117,30 +125,31 @@ type Field struct {
 // Dimensions represents a list of dimensions.
 type Dimensions []*Dimension
 
-// Dimension represents an expression that a select query is grouped by.
+// Dimension represents an expression that a select statement is grouped by.
 type Dimension struct {
-	Expr  Expr
-	Alias string
+	Expr Expr
 }
 
-// ImplicitJoin represents a list of tables to join on time.
-type ImplicitJoin struct {
-	// TODO: Add sources.
+// Series represents a single series used as a datasource.
+type Series struct {
+	Name string
 }
 
-// InnerJoin represents a join between two series.
+// InnerJoin represents two datasources joined together.
 type InnerJoin struct {
-	// TODO: Add sources.
+	LHS       Source
+	RHS       Source
 	Condition Expr
 }
 
-// MergeJoin represents a merging join between two series.
-type MergeJoin struct {
-	// TODO: Add sources.
+// Merge represents a datasource created by merging two datasources.
+type Merge struct {
+	LHS       Source
+	RHS       Source
 	Condition Expr
 }
 
-// VarRef represents a reference to a variable in the query.
+// VarRef represents a reference to a variable.
 type VarRef struct {
 	Val string
 }
@@ -151,32 +160,27 @@ type Call struct {
 	Expr Expr
 }
 
-// IntegerLiteral represents an integer literal in the query.
-type IntegerLiteral struct {
-	Val int64
-}
-
-// FloatLiteral represents a floating-point literal in the query.
-type FloatLiteral struct {
+// NumberLiteral represents a numeric literal.
+type NumberLiteral struct {
 	Val float64
 }
 
-// BooleanLiteral represents a boolean literal in the query.
+// BooleanLiteral represents a boolean literal.
 type BooleanLiteral struct {
 	Val bool
 }
 
-// StringLiteral represents a string literal in the query.
+// StringLiteral represents a string literal.
 type StringLiteral struct {
 	Val string
 }
 
-// TimeLiteral represents a point-in-time literal in the query.
+// TimeLiteral represents a point-in-time literal.
 type TimeLiteral struct {
 	Val time.Time
 }
 
-// DurationLiteral represents a duration literal in the query.
+// DurationLiteral represents a duration literal.
 type DurationLiteral struct {
 	Val time.Duration
 }
@@ -201,13 +205,19 @@ func Walk(v Visitor, node Node) {
 	}
 
 	switch n := node.(type) {
-	case *SelectQuery:
-		if n != nil {
-			Walk(v, n.Fields)
-			Walk(v, n.Dimensions)
-			Walk(v, n.Source)
-			Walk(v, n.Condition)
+	case *Query:
+		Walk(v, n.Statements)
+
+	case Statements:
+		for _, s := range n {
+			Walk(v, s)
 		}
+
+	case *SelectStatement:
+		Walk(v, n.Fields)
+		Walk(v, n.Dimensions)
+		Walk(v, n.Source)
+		Walk(v, n.Condition)
 
 	case Fields:
 		for _, c := range n {
