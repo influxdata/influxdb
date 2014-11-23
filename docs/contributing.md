@@ -58,7 +58,7 @@ the following to format the code:
 Build and Test
 -----
 
-Make sure you have Go installed. To build the project, execute the following commands
+Make sure you have Go installed. To build the project, execute the following commands:
 
 ```bash
 cd $GOPATH/src/github.com/influxdb
@@ -66,7 +66,13 @@ go get -u ./...
 go build ./...
 ```
 
-Once compilation completes, the binaries can be found in `$GOPATH/bin`.
+Once compilation completes, the binaries can be found in `$GOPATH/bin`. To set the version and commit flags pass the following to the build command:
+
+```bash
+-ldflags="-X main.version $VERSION -X main.commit $COMMIT"
+```
+
+where $VERSION is the version, and $COMMIT is the git commit hash.
 
 To run the tests, execute the following command:
 
