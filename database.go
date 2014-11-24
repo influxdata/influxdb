@@ -326,73 +326,112 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 }
 
 // WriteSeries writes series data to the database.
-func (db *Database) WriteSeries(name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
-	panic("not yet implemented: Database.WriteSeries()")
-
-	/* TEMPORARILY REMOVED FOR PROTOBUFS.
+func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
 	// Find retention policy matching the series and split points by shard.
 	db.mu.Lock()
-	name := db.name
-	space := db.retentionPolicyBySeries(series.GetName())
+	_, ok := db.policies[retentionPolicy]
 	db.mu.Unlock()
 
-	// Ensure there is a space available.
-	if space == nil {
+	// Ensure the policy was found
+	if !ok {
 		return ErrRetentionPolicyNotFound
 	}
 
-	// Group points by shard.
-	pointsByShard, unassigned := space.Split(series.Points)
-
-	// Request shard creation for timestamps for missing shards.
-	for _, p := range unassigned {
-		timestamp := time.Unix(0, p.GetTimestamp())
-		if err := db.CreateShardIfNotExists(space.Name, timestamp); err != nil {
-			return fmt.Errorf("create shard(%s/%d): %s", space.Name, timestamp.Format(time.RFC3339Nano), err)
-		}
-	}
-
-	// Try to split the points again. Fail if it doesn't work this time.
-	pointsByShard, unassigned = space.Split(series.Points)
-	if len(unassigned) > 0 {
-		return fmt.Errorf("unmatched points in space(%s): %#v", unassigned)
-	}
-
-	// Publish each group of points.
-	for shardID, points := range pointsByShard {
-		// Marshal series into protobuf format.
-		req := &protocol.WriteSeriesRequest{
-			Database: proto.String(name),
-			Series: &protocol.Series{
-				Name:     series.Name,
-				Fields:   series.Fields,
-				FieldIds: series.FieldIds,
-				ShardId:  proto.Uint64(shardID),
-				Points:   points,
-			},
-		}
-		data, err := proto.Marshal(req)
-		if err != nil {
-			return err
-		}
-
-		// Publish "write series" message on shard's topic to broker.
-		m := &messaging.Message{
-			Type:    writeSeriesMessageType,
-			TopicID: shardID,
-			Data:    data,
-		}
-		index, err := db.server.client.Publish(m)
-		if err != nil {
-			return err
-		}
-		if err := db.server.sync(index); err != nil {
+	// get the id for the series and tagset
+	id, ok := db.getSeriesId(name, tags)
+	if !ok {
+		var err error
+		if id, err = db.setSeriesId(name, tags); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	// TODO: now write it in
+	fmt.Println(id)
+
+	/*
+		// Group points by shard.
+		pointsByShard, unassigned := space.Split(series.Points)
+
+		// Request shard creation for timestamps for missing shards.
+		for _, p := range unassigned {
+			timestamp := time.Unix(0, p.GetTimestamp())
+			if err := db.CreateShardIfNotExists(space.Name, timestamp); err != nil {
+				return fmt.Errorf("create shard(%s/%d): %s", space.Name, timestamp.Format(time.RFC3339Nano), err)
+			}
+		}
+
+		// Try to split the points again. Fail if it doesn't work this time.
+		pointsByShard, unassigned = space.Split(series.Points)
+		if len(unassigned) > 0 {
+			return fmt.Errorf("unmatched points in space(%s): %#v", unassigned)
+		}
+
+		// Publish each group of points.
+		for shardID, points := range pointsByShard {
+			// Marshal series into protobuf format.
+			req := &protocol.WriteSeriesRequest{
+				Database: proto.String(name),
+				Series: &protocol.Series{
+					Name:     series.Name,
+					Fields:   series.Fields,
+					FieldIds: series.FieldIds,
+					ShardId:  proto.Uint64(shardID),
+					Points:   points,
+				},
+			}
+			data, err := proto.Marshal(req)
+			if err != nil {
+				return err
+			}
+
+			// Publish "write series" message on shard's topic to broker.
+			m := &messaging.Message{
+				Type:    writeSeriesMessageType,
+				TopicID: shardID,
+				Data:    data,
+			}
+			index, err := db.server.client.Publish(m)
+			if err != nil {
+				return err
+			}
+			if err := db.server.sync(index); err != nil {
+				return err
+			}
+		}
 	*/
+	return nil
+}
+
+// getSeriesId returns the unique id of a series and tagset and a bool indicating if it was found
+func (db *Database) getSeriesId(name string, tags map[string]string) (uint32, bool) {
+	var id uint32
+	var err error
+	db.server.meta.view(func(tx *metatx) error {
+		id, err = tx.getSeriesId(db.name, name, tags)
+		return nil
+	})
+	if err != nil {
+		return uint32(0), false
+	}
+	return id, true
+}
+
+func (db *Database) setSeriesId(name string, tags map[string]string) (uint32, error) {
+	c := &setSeriesIdCommand{
+		Database: db.Name(),
+		Name:     name,
+		Tags:     tags,
+	}
+	_, err := db.server.broadcast(setSeriesIdMessageType, c)
+	if err != nil {
+		return uint32(0), err
+	}
+	id, ok := db.getSeriesId(name, tags)
+	if !ok {
+		return uint32(0), ErrSeriesNotFound
+	}
+	return id, nil
 }
 
 /* TEMPORARILY REMOVED FOR PROTOBUFS.
@@ -564,29 +603,17 @@ func NewRetentionPolicy() *RetentionPolicy {
 	}
 }
 
-/*
-// SplitPoints groups a set of points by shard id.
-// Also returns a list of timestamps that did not match an existing shard.
-func (ss *RetentionPolicy) Split(a []*protocol.Point) (points map[uint64][]*protocol.Point, unassigned []*protocol.Point) {
-	points = make(map[uint64][]*protocol.Point)
-	for _, p := range a {
-		if s := ss.ShardByTimestamp(time.Unix(0, p.GetTimestamp())); s != nil {
-			points[s.ID] = append(points[s.ID], p)
-		} else {
-			unassigned = append(unassigned, p)
-		}
-	}
-	return
-}
-*/
-
-// ShardByTimestamp returns the shard in the space that owns a given timestamp.
+// ShardBySeriesTimestamp returns the shard in the space that owns a given timestamp for a given series id.
 // Returns nil if the shard does not exist.
-func (ss *RetentionPolicy) ShardByTimestamp(timestamp time.Time) *Shard {
+func (ss *RetentionPolicy) ShardBySeriesTimestamp(id uint32, timestamp time.Time) *Shard {
+	shards := make([]*Shard, 0, ss.SplitN)
 	for _, s := range ss.Shards {
 		if timeBetween(timestamp, s.StartTime, s.EndTime) {
-			return s
+			shards = append(shards, s)
 		}
+	}
+	if len(shards) > 0 {
+		return shards[int(id)%len(shards)]
 	}
 	return nil
 }

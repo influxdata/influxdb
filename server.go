@@ -1,6 +1,7 @@
 package influxdb
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/messaging"
@@ -49,6 +51,7 @@ const (
 	dbUserSetPasswordMessageType         = messaging.MessageType(0x09)
 	createShardIfNotExistsMessageType    = messaging.MessageType(0x0a)
 	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x0b)
+	setSeriesIdMessageType               = messaging.MessageType(0x0c)
 
 	// per-topic messages
 	writeSeriesMessageType = messaging.MessageType(0x80)
@@ -636,6 +639,29 @@ type setDefaultRetentionPolicyCommand struct {
 	Name     string `json:"name"`
 }
 
+func (s *Server) applySetSeriesId(m *messaging.Message) error {
+	var c setSeriesIdCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	db := s.databases[c.Database]
+	s.mu.Unlock()
+
+	if db == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// TODO: finish this up
+
+	return nil
+}
+
+type setSeriesIdCommand struct {
+	Database string            `json:"database"`
+	Name     string            `json:"name"`
+	Tags     map[string]string `json:"tags"`
+}
+
 /* TEMPORARILY REMOVED FOR PROTOBUFS.
 func (s *Server) applyWriteSeries(m *messaging.Message) error {
 	req := &protocol.WriteSeriesRequest{}
@@ -697,6 +723,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyCreateShardIfNotExists(m)
 		case setDefaultRetentionPolicyMessageType:
 			err = s.applySetDefaultRetentionPolicy(m)
+		case setSeriesIdMessageType:
+			err = s.applySetSeriesId(m)
 		case writeSeriesMessageType:
 			/* TEMPORARILY REMOVED FOR PROTOBUFS.
 			err = s.applyWriteSeries(m)
@@ -812,6 +840,57 @@ func (tx *metatx) saveDatabase(db *Database) error {
 // deleteDatabase removes database from the metastore.
 func (tx *metatx) deleteDatabase(name string) error {
 	return tx.Bucket([]byte("Databases")).Delete([]byte(name))
+}
+
+// returns a unique series id by database, name and tags. Returns ErrSeriesNotFound
+func (tx *metatx) getSeriesId(database, name string, tags map[string]string) (uint32, error) {
+	// get the bucket that holds series data for the database
+	b := tx.Bucket([]byte("Series")).Bucket([]byte(database))
+	if b == nil {
+		return uint32(0), ErrSeriesNotFound
+	}
+
+	// get the bucket that holds tag data for the series name
+	b = b.Bucket([]byte(name))
+	if b == nil {
+		return uint32(0), ErrSeriesNotFound
+	}
+
+	// look up the id of the tagset
+	tagBytes, err := tagsToBytes(tags)
+	if err != nil {
+		return uint32(0), err
+	}
+	v := b.Get(tagBytes)
+	if v == nil {
+		return uint32(0), ErrSeriesNotFound
+	}
+
+	// the value is the bytes for a uint32, return it
+	x := (*uint32)(unsafe.Pointer(&v[0]))
+	return *x, nil
+}
+
+// used to convert the tag set to bytes for use as a key in bolt
+func tagsToBytes(tags map[string]string) ([]byte, error) {
+	// don't want to resize the byte buffer, so assume that tag key/values are less than 500 bytes
+	defaultTagLength := 500
+	b := make([]byte, 0, len(tags)*defaultTagLength)
+
+	buf := bytes.NewBuffer(b)
+
+	for k, v := range tags {
+		_, err := buf.Write([]byte(k))
+		if err != nil {
+			return nil, err
+		}
+		_, err = buf.Write([]byte(v))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return buf.Bytes(), nil
 }
 
 // series returns a series by database and name.

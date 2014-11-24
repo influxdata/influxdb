@@ -394,38 +394,29 @@ func TestDatabase_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testin
 
 // Ensure the database can write data to the database.
 func TestDatabase_WriteSeries(t *testing.T) {
-	t.Skip("pending")
-
-	/* TEMPORARILY REMOVED FOR PROTOBUFS.
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	db.CreateRetentionPolicys(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
+	db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
 	db.CreateUser("susy", "pass", nil)
 
 	// Write series with one point to the database.
-	timestamp := mustParseMicroTime("2000-01-01T00:00:00Z")
-	series := &protocol.Series{
-		Name:   proto.String("cpu_load"),
-		Fields: []string{"myval"},
-		Points: []*protocol.Point{
-			{
-				Values:    []*protocol.FieldValue{{Int64Value: proto.Int64(100)}},
-				Timestamp: proto.Int64(timestamp),
-			},
-		},
-	}
-	if err := db.WriteSeries(series); err != nil {
+	timestamp := mustParseTime("2000-01-01T00:00:00Z")
+
+	name := "cpu_load"
+	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
+	values := map[string]interface{}{"value": 23.2}
+
+	if err := db.WriteSeries("myspace", name, tags, timestamp, values); err != nil {
 		t.Fatal(err)
 	}
 
 	// Execute a query and record all series found.
-		q := mustParseQuery(`select myval from cpu_load`)
-		if err := db.ExecuteQuery(q); err != nil {
-			t.Fatal(err)
-		}
-	*/
+	q := mustParseQuery(`select myval from cpu_load`)
+	if err := db.ExecuteQuery(q); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // mustParseQuery parses a query string into a query object. Panic on error.
