@@ -122,6 +122,10 @@ func start() error {
 
 	// Start server.
 	s := influxdb.NewServer(client)
+	err = s.Open(config.Storage.Dir)
+	if err != nil {
+		panic(err)
+	}
 
 	// TODO: startProfiler()
 	// TODO: -reset-root
