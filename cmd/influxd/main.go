@@ -36,6 +36,7 @@ var (
 
 func main() {
 	if err := start(); err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 	os.Exit(0)
