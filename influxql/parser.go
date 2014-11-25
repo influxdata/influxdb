@@ -605,17 +605,20 @@ func ParseDuration(s string) (time.Duration, error) {
 		}
 	}
 
+	// Split string into individual runes.
+	a := split(s)
+
 	// Extract the unit of measure.
 	// If the last character is a digit then parse the whole string as microseconds.
 	// If the last two characters are "ms" the parse as milliseconds.
 	// Otherwise just use the last character as the unit of measure.
 	var num, uom string
-	if isDigit(rune(s[len(s)-1])) {
+	if isDigit(rune(a[len(a)-1])) {
 		num, uom = s, "u"
 	} else if len(s) > 2 && s[len(s)-2:] == "ms" {
-		num, uom = s[:len(s)-2], "ms"
+		num, uom = string(a[:len(a)-2]), "ms"
 	} else {
-		num, uom = s[:len(s)-1], s[len(s)-1:]
+		num, uom = string(a[:len(a)-1]), string(a[len(a)-1:])
 	}
 
 	// Parse the numeric part.
@@ -626,7 +629,7 @@ func ParseDuration(s string) (time.Duration, error) {
 
 	// Multiply by the unit of measure.
 	switch uom {
-	case "u":
+	case "u", "µ":
 		return time.Duration(n) * time.Microsecond, nil
 	case "ms":
 		return time.Duration(n) * time.Millisecond, nil
@@ -643,6 +646,14 @@ func ParseDuration(s string) (time.Duration, error) {
 	default:
 		return 0, ErrInvalidDuration
 	}
+}
+
+// split splits a string into a slice of runes.
+func split(s string) (a []rune) {
+	for _, ch := range s {
+		a = append(a, ch)
+	}
+	return
 }
 
 // ErrInvalidDuration is returned when parsing a malformatted duration.

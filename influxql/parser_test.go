@@ -303,6 +303,7 @@ func TestParseDuration(t *testing.T) {
 		{s: `3`, d: 3 * time.Microsecond},
 		{s: `1000`, d: 1000 * time.Microsecond},
 		{s: `10u`, d: 10 * time.Microsecond},
+		{s: `10µ`, d: 10 * time.Microsecond},
 		{s: `15ms`, d: 15 * time.Millisecond},
 		{s: `100s`, d: 100 * time.Second},
 		{s: `2m`, d: 2 * time.Minute},
