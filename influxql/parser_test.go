@@ -9,17 +9,6 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-// Ensure the parser can parse a SELECT * query.
-func TestParser_ParseQuery_SelectStar(t *testing.T) {
-	s := `SELECT * FROM b; SELECT c FROM d`
-	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if len(q.Statements) != 2 {
-		t.Fatalf("unexpected statement count: %d", len(q.Statements))
-	}
-}
-
 // Ensure the parser can parse a multi-statement query.
 func TestParser_ParseQuery(t *testing.T) {
 	s := `SELECT a FROM b; SELECT c FROM d`
@@ -56,6 +45,17 @@ func TestParser_ParseStatement(t *testing.T) {
 		stmt influxql.Statement
 		err  string
 	}{
+		// SELECT * statement
+		{
+			s: `SELECT * FROM myseries`,
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields{
+					&influxql.Field{Expr: &influxql.Wildcard{}},
+				},
+				Source: &influxql.Series{Name: "myseries"},
+			},
+		},
+
 		// SELECT statement
 		{
 			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h LIMIT 20 ORDER BY ASC;`,

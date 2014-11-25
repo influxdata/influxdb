@@ -47,7 +47,7 @@ func (_ *TimeLiteral) node()     {}
 func (_ *DurationLiteral) node() {}
 func (_ *BinaryExpr) node()      {}
 func (_ *ParenExpr) node()       {}
-func (_ *Wild) node()            {}
+func (_ *Wildcard) node()        {}
 
 // Query represents a collection of order statements.
 type Query struct {
@@ -86,7 +86,7 @@ func (_ *TimeLiteral) expr()     {}
 func (_ *DurationLiteral) expr() {}
 func (_ *BinaryExpr) expr()      {}
 func (_ *ParenExpr) expr()       {}
-func (_ *Wild) expr()            {}
+func (_ *Wildcard) expr()        {}
 
 // Source represents a source of data for a statement.
 type Source interface {
@@ -236,9 +236,8 @@ type ParenExpr struct {
 	Expr Expr
 }
 
-// Wild represents a wild card expression.
-type Wild struct {
-	Val string
+// Wildcard represents a wild card expression.
+type Wildcard struct {
 }
 
 // Visitor can be called by Walk to traverse an AST hierarchy.

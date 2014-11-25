@@ -265,7 +265,7 @@ func (p *Parser) parseFields() (Fields, error) {
 
 	// Check for "*" (i.e., "all fields")
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == MUL {
-		fields = append(fields, &Field{&Wild{"*"}, ""})
+		fields = append(fields, &Field{&Wildcard{}, ""})
 		return fields, nil
 	}
 	p.unscan()
