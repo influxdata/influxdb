@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"code.google.com/p/log4go"
 	"github.com/influxdb/influxdb"
@@ -36,6 +37,7 @@ var (
 
 func main() {
 	if err := start(); err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 	os.Exit(0)
@@ -44,6 +46,7 @@ func main() {
 func start() error {
 	var (
 		fileName     = flag.String("config", "config.sample.toml", "Config file")
+		seedServers  = flag.String("join", "", "Comma-separated list of servers, for joining existing cluster, in form host:port")
 		showVersion  = flag.Bool("v", false, "Get version number")
 		hostname     = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
 		protobufPort = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
@@ -106,7 +109,7 @@ func start() error {
 
 	// Parse broker URLs from seed servers.
 	var brokerURLs []*url.URL
-	for _, s := range config.Cluster.SeedServers {
+	for _, s := range strings.Split(*seedServers, ",") {
 		u, err := url.Parse(s)
 		if err != nil {
 			panic(err)
@@ -114,10 +117,19 @@ func start() error {
 		brokerURLs = append(brokerURLs, u)
 	}
 
-	// Create messaging client for broker.
-	client := messaging.NewClient("XXX-CHANGEME-XXX")
-	if err := client.Open(brokerURLs); err != nil {
-		log4go.Error("Error opening Messaging Client: %s", err.Error())
+	var client influxdb.MessagingClient
+	if len(brokerURLs) > 1 {
+		// Create messaging client for broker.
+		c := messaging.NewClient("XXX-CHANGEME-XXX")
+		if err := c.Open(brokerURLs); err != nil {
+			log4go.Error("Error opening Messaging Client: %s", err.Error())
+		}
+		defer c.Close()
+		client = c
+		log4go.Info("Cluster messaging client created")
+	} else {
+		client = messaging.NewLoopbackClient()
+		log4go.Info("Local messaging client created")
 	}
 
 	// Start server.
