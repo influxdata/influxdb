@@ -53,12 +53,14 @@ const (
 	AS
 	ASC
 	BY
+	CREATE
 	CONTINUOUS
 	DELETE
 	DESC
 	DROP
 	EXPLAIN
 	FROM
+	GROUP
 	INNER
 	INSERT
 	INTO
@@ -68,6 +70,7 @@ const (
 	MERGE
 	ORDER
 	QUERIES
+	QUERY
 	SELECT
 	SERIES
 	WHERE
@@ -108,12 +111,14 @@ var tokens = [...]string{
 	AS:         "AS",
 	ASC:        "ASC",
 	BY:         "BY",
+	CREATE:     "CREATE",
 	CONTINUOUS: "CONTINUOUS",
 	DELETE:     "DELETE",
 	DESC:       "DESC",
 	DROP:       "DROP",
 	EXPLAIN:    "EXPLAIN",
 	FROM:       "FROM",
+	GROUP:      "GROUP",
 	INNER:      "INNER",
 	INSERT:     "INSERT",
 	INTO:       "INTO",
@@ -123,6 +128,7 @@ var tokens = [...]string{
 	MERGE:      "MERGE",
 	ORDER:      "ORDER",
 	QUERIES:    "QUERIES",
+	QUERY:      "QUERY",
 	SELECT:     "SELECT",
 	SERIES:     "SERIES",
 	WHERE:      "WHERE",
@@ -169,14 +175,16 @@ func (tok Token) Precedence() int {
 	return 0
 }
 
-// IsLiteral returns true for literal tokens.
-func (tok Token) IsLiteral() bool { return tok > literal_beg && tok < literal_end }
+// isOperator returns true for operator tokens.
+func (tok Token) isOperator() bool { return tok > operator_beg && tok < operator_end }
 
-// IsOperator returns true for operator tokens.
-func (tok Token) IsOperator() bool { return tok > operator_beg && tok < operator_end }
-
-// IsKeyword returns true for keyword tokens.
-func (tok Token) IsKeyword() bool { return tok > keyword_beg && tok < keyword_end }
+// tokstr returns a literal if provided, otherwise returns the token string.
+func tokstr(tok Token, lit string) string {
+	if lit != "" {
+		return lit
+	}
+	return tok.String()
+}
 
 // Lookup returns the token associated with a given string.
 func Lookup(ident string) Token {
