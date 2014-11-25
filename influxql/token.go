@@ -53,6 +53,7 @@ const (
 	AS
 	ASC
 	BY
+	CREATE
 	CONTINUOUS
 	DELETE
 	DESC
@@ -110,6 +111,7 @@ var tokens = [...]string{
 	AS:         "AS",
 	ASC:        "ASC",
 	BY:         "BY",
+	CREATE:     "CREATE",
 	CONTINUOUS: "CONTINUOUS",
 	DELETE:     "DELETE",
 	DESC:       "DESC",

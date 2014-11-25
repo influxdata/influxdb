@@ -21,13 +21,15 @@ func NewParser(r io.Reader) *Parser {
 
 // ParseQuery parses an InfluxQL string and returns a Query AST object.
 func (p *Parser) ParseQuery() (*Query, error) {
+	// If there's only whitespace then return no statements.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == EOF {
+		return &Query{}, nil
+	}
+	p.unscan()
+
+	// Otherwise parse statements until EOF.
 	var statements Statements
 	for {
-		// Read statements until we reach the end.
-		if tok, _, _ := p.scanIgnoreWhitespace(); tok == EOF {
-			break
-		}
-		p.unscan()
 
 		// Read the next statement.
 		s, err := p.ParseStatement()
@@ -35,7 +37,15 @@ func (p *Parser) ParseQuery() (*Query, error) {
 			return nil, err
 		}
 		statements = append(statements, s)
+
+		// Expect a semicolon or EOF after the statement.
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
+			return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
+		} else if tok == EOF {
+			break
+		}
 	}
+
 	return &Query{Statements: statements}, nil
 }
 
@@ -55,6 +65,12 @@ func (p *Parser) ParseStatement() (Statement, error) {
 			return p.parseListContinuousQueriesStatement()
 		} else {
 			return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
+		}
+	case CREATE:
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == CONTINUOUS {
+			return p.parseCreateContinuousQueryStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS"}, pos)
 		}
 	case DROP:
 		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SERIES {
@@ -116,11 +132,6 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 	}
 	stmt.Ascending = ascending
 
-	// Expect a semicolon or EOF at the end
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
-		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
-	}
-
 	return stmt, nil
 }
 
@@ -143,11 +154,6 @@ func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 	}
 	stmt.Condition = condition
 
-	// Expect a semicolon or EOF at the end
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
-		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
-	}
-
 	return stmt, nil
 }
 
@@ -155,12 +161,6 @@ func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 // This function assumes the "LIST SERIES" tokens have already been consumed.
 func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
 	stmt := &ListSeriesStatement{}
-
-	// Expect a semicolon or EOF at the end
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
-		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
-	}
-
 	return stmt, nil
 }
 
@@ -176,11 +176,6 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	}
 	stmt.Name = lit
 
-	// Expect a semicolon or EOF at the end
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
-		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
-	}
-
 	return stmt, nil
 }
 
@@ -194,10 +189,52 @@ func (p *Parser) parseListContinuousQueriesStatement() (*ListContinuousQueriesSt
 		return nil, newParseError(tokstr(tok, lit), []string{"QUERIES"}, pos)
 	}
 
-	// Expect a semicolon or EOF at the end
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
-		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
+	return stmt, nil
+}
+
+// parseCreateContinuousQueriesStatement parses a string and returns a CreateContinuousQueryStatement.
+// This function assumes the "CREATE CONTINUOUS" tokens have already been consumed.
+func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQueryStatement, error) {
+	stmt := &CreateContinuousQueryStatement{}
+
+	// Expect a "QUERY" token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != QUERY {
+		return nil, newParseError(tokstr(tok, lit), []string{"QUERY"}, pos)
 	}
+
+	// Read the id of the query to create.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.Name = lit
+
+	// Expect an "AS SELECT" keyword.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != AS {
+		return nil, newParseError(tokstr(tok, lit), []string{"AS"}, pos)
+	}
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SELECT {
+		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
+	}
+
+	// Read the select statement to be used as the source.
+	source, err := p.parseSelectStatement()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Source = source
+
+	// Expect an INTO keyword.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != INTO {
+		return nil, newParseError(tokstr(tok, lit), []string{"INTO"}, pos)
+	}
+
+	// Read the target of the query.
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.Target = lit
 
 	return stmt, nil
 }
@@ -218,11 +255,6 @@ func (p *Parser) parseDropContinuousQueryStatement() (*DropContinuousQueryStatem
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
 	}
 	stmt.Name = lit
-
-	// Expect a semicolon or EOF at the end
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
-		return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
-	}
 
 	return stmt, nil
 }

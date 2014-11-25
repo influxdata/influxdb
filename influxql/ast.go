@@ -28,6 +28,7 @@ func (_ *DeleteStatement) node()                {}
 func (_ *ListSeriesStatement) node()            {}
 func (_ *DropSeriesStatement) node()            {}
 func (_ *ListContinuousQueriesStatement) node() {}
+func (_ *CreateContinuousQueryStatement) node() {}
 func (_ *DropContinuousQueryStatement) node()   {}
 
 func (_ Fields) node()           {}
@@ -65,6 +66,7 @@ func (_ *DeleteStatement) stmt()                {}
 func (_ *ListSeriesStatement) stmt()            {}
 func (_ *DropSeriesStatement) stmt()            {}
 func (_ *ListContinuousQueriesStatement) stmt() {}
+func (_ *CreateContinuousQueryStatement) stmt() {}
 func (_ *DropContinuousQueryStatement) stmt()   {}
 
 // Expr represents an expression that can be evaluated to a value.
@@ -133,6 +135,13 @@ type DropSeriesStatement struct {
 
 // ListContinuousQueriesStatement represents a command for listing continuous queries.
 type ListContinuousQueriesStatement struct{}
+
+// CreateContinuousQueriesStatement represents a command for creating a continuous query.
+type CreateContinuousQueryStatement struct {
+	Name   string
+	Source *SelectStatement
+	Target string
+}
 
 // DropContinuousQueriesStatement represents a command for removing a continuous query.
 type DropContinuousQueryStatement struct {

@@ -108,6 +108,19 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ListContinuousQueriesStatement{},
 		},
 
+		// CREATE CONTINUOUS QUERY statement
+		{
+			s: `CREATE CONTINUOUS QUERY myquery AS SELECT count() FROM myseries INTO foo`,
+			stmt: &influxql.CreateContinuousQueryStatement{
+				Name: "myquery",
+				Source: &influxql.SelectStatement{
+					Fields: influxql.Fields{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Source: &influxql.Series{Name: "myseries"},
+				},
+				Target: "foo",
+			},
+		},
+
 		// DROP CONTINUOUS QUERY statement
 		{
 			s:    `DROP CONTINUOUS QUERY myquery`,
@@ -119,7 +132,6 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
 		{s: `blah blah`, err: `found blah, expected SELECT at line 1, char 1`},
 		{s: `SELECT field X`, err: `found X, expected FROM at line 1, char 14`},
-		{s: `SELECT field FROM "series" WHERE X Y`, err: `found Y, expected ;, EOF at line 1, char 36`},
 		{s: `SELECT field FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 37`},
 		{s: `SELECT field FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 34`},
 		{s: `SELECT field FROM myseries LIMIT`, err: `found EOF, expected number at line 1, char 34`},
@@ -134,16 +146,11 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier, string at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
-		{s: `DELETE FROM myseries 123`, err: `found 123, expected ;, EOF at line 1, char 22`},
-		{s: `LIST SERIES x`, err: `found x, expected ;, EOF at line 1, char 13`},
 		{s: `DROP SERIES`, err: `found EOF, expected identifier, string at line 1, char 13`},
-		{s: `DROP SERIES myseries X`, err: `found X, expected ;, EOF at line 1, char 22`},
 		{s: `LIST CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
-		{s: `LIST CONTINUOUS QUERIES x`, err: `found x, expected ;, EOF at line 1, char 25`},
 		{s: `LIST FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier, string at line 1, char 23`},
-		{s: `DROP CONTINUOUS QUERY myseries X`, err: `found X, expected ;, EOF at line 1, char 32`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
 	}
 
