@@ -90,6 +90,8 @@ func (p *Parser) ParseStatement() (Statement, error) {
 func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 	stmt := &SelectStatement{}
 
+	// TODO: handle SELECT *
+
 	// Parse fields: "SELECT FIELD+".
 	fields, err := p.parseFields()
 	if err != nil {
