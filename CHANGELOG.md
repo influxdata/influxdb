@@ -5,6 +5,7 @@
 - Renamed shard spaces to retention policies
 - Deprecated matching against regex in favor of explicit writing and querying on retention policies
 - Pure Go InfluxQL scanner
+- [Added Loopback client for single-node systems](https://github.com/influxdb/influxdb/pull/1157)
 
 ## v0.8.6 [2014-11-15]
 
