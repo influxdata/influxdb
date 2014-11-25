@@ -117,6 +117,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
+		{s: `blah blah`, err: `found blah, expected SELECT at line 1, char 1`},
 		{s: `SELECT field X`, err: `found X, expected FROM at line 1, char 14`},
 		{s: `SELECT field FROM "series" WHERE X Y`, err: `found Y, expected ;, EOF at line 1, char 36`},
 		{s: `SELECT field FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 37`},
