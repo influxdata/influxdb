@@ -68,6 +68,15 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement (lowercase)
+		{
+			s: `select my_field from myseries`,
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields{&influxql.Field{Expr: &influxql.VarRef{Val: "my_field"}}},
+				Source: &influxql.Series{Name: "myseries"},
+			},
+		},
+
 		// DELETE statement
 		{
 			s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
