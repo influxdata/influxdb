@@ -32,7 +32,7 @@ if [ "x$NOFILES" == "x" ]; then
 fi
 
 if [ $NOFILES -le 0 ]; then
-    NOFILES=4096
+    NOFILES=65536
 fi
 
 if [ "x$STDOUT" == "x" ]; then
