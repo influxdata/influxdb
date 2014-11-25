@@ -91,8 +91,6 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("min backoff mismatch: %v", c.Cluster.MinBackoff)
 	} else if time.Duration(c.Cluster.MaxBackoff) != 1*time.Second {
 		t.Fatalf("max backoff mismatch: %v", c.Cluster.MaxBackoff)
-	} else if !reflect.DeepEqual(c.Cluster.SeedServers, []string{"hosta:8090", "hostb:8090"}) {
-		t.Fatalf("seed servers mismatch: %+v", c.Cluster.SeedServers)
 	} else if c.Cluster.MaxResponseBufferSize != 5 {
 		t.Fatalf("max response buffer size mismatch: %v", c.Cluster.MaxResponseBufferSize)
 	}
