@@ -234,6 +234,30 @@ func TestParser_ParseExpr(t *testing.T) {
 				RHS: &influxql.BooleanLiteral{Val: true},
 			},
 		},
+
+		// 9. Function call (empty)
+		{
+			s: `my_func()`,
+			expr: &influxql.Call{
+				Name: "my_func",
+			},
+		},
+
+		// 10. Function call (multi-arg)
+		{
+			s: `my_func(1, 2 + 3)`,
+			expr: &influxql.Call{
+				Name: "my_func",
+				Args: []influxql.Expr{
+					&influxql.NumberLiteral{Val: 1},
+					&influxql.BinaryExpr{
+						Op:  influxql.ADD,
+						LHS: &influxql.NumberLiteral{Val: 2},
+						RHS: &influxql.NumberLiteral{Val: 3},
+					},
+				},
+			},
+		},
 	}
 
 	for i, tt := range tests {

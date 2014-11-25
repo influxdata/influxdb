@@ -183,7 +183,7 @@ type VarRef struct {
 // Call represents a function call.
 type Call struct {
 	Name string
-	Expr Expr
+	Args []Expr
 }
 
 // NumberLiteral represents a numeric literal.
@@ -266,7 +266,9 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.RHS)
 
 	case *Call:
-		Walk(v, n.Expr)
+		for _, expr := range n.Args {
+			Walk(v, expr)
+		}
 	}
 }
 

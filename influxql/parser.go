@@ -459,7 +459,14 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	switch tok {
 	case IDENT:
-		return &VarRef{Val: lit}, nil
+		// If the next immediate token is a left parentheses, parse as function call.
+		// Otherwise parse as a variable reference.
+		if tok0, _, _ := p.scan(); tok0 == LPAREN {
+			return p.parseCall(lit)
+		} else {
+			p.unscan()
+			return &VarRef{Val: lit}, nil
+		}
 	case STRING:
 		return &StringLiteral{Val: lit}, nil
 	case NUMBER:
@@ -476,6 +483,40 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}
+}
+
+// parseCall parses a function call.
+// This function assumes the function name and LPAREN have been consumed.
+func (p *Parser) parseCall(name string) (*Call, error) {
+	// If there's a right paren then just return immediately.
+	if tok, _, _ := p.scan(); tok == RPAREN {
+		return &Call{Name: name}, nil
+	}
+	p.unscan()
+
+	// Otherwise parse function call arguments.
+	var args []Expr
+	for {
+		// Parse an expression argument.
+		arg, err := p.ParseExpr()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, arg)
+
+		// If there's not a comma next then stop parsing arguments.
+		if tok, _, _ := p.scan(); tok != COMMA {
+			p.unscan()
+			break
+		}
+	}
+
+	// There should be a right parentheses at the end.
+	if tok, pos, lit := p.scan(); tok != RPAREN {
+		return nil, newParseError(tokstr(tok, lit), []string{")"}, pos)
+	}
+
+	return &Call{Name: name, Args: args}, nil
 }
 
 // scan returns the next token from the underlying scanner.
