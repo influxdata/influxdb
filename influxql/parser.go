@@ -487,6 +487,22 @@ func (p *Parser) ParseExpr() (Expr, error) {
 
 // parseUnaryExpr parses an non-binary expression.
 func (p *Parser) parseUnaryExpr() (Expr, error) {
+	// If the first token is a LPAREN then parse it as its own grouped expression.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == LPAREN {
+		expr, err := p.ParseExpr()
+		if err != nil {
+			return nil, err
+		}
+
+		// Expect an RPAREN at the end.
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != RPAREN {
+			return nil, newParseError(tokstr(tok, lit), []string{")"}, pos)
+		}
+
+		return &ParenExpr{Expr: expr}, nil
+	}
+	p.unscan()
+
 	// Read next token.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	switch tok {

@@ -216,7 +216,23 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// 8. Complex binary expression.
+		// 8. Binary expression with LHS paren group.
+		{
+			s: `(1 + 2) * 3`,
+			expr: &influxql.BinaryExpr{
+				Op: influxql.MUL,
+				LHS: &influxql.ParenExpr{
+					Expr: &influxql.BinaryExpr{
+						Op:  influxql.ADD,
+						LHS: &influxql.NumberLiteral{Val: 1},
+						RHS: &influxql.NumberLiteral{Val: 2},
+					},
+				},
+				RHS: &influxql.NumberLiteral{Val: 3},
+			},
+		},
+
+		// 9. Complex binary expression.
 		{
 			s: `value + 3 < 30 AND 1 + 2 OR true`,
 			expr: &influxql.BinaryExpr{
@@ -242,7 +258,7 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// 9. Function call (empty)
+		// 10. Function call (empty)
 		{
 			s: `my_func()`,
 			expr: &influxql.Call{
@@ -250,7 +266,7 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// 10. Function call (multi-arg)
+		// 11. Function call (multi-arg)
 		{
 			s: `my_func(1, 2 + 3)`,
 			expr: &influxql.Call{

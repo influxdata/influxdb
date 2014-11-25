@@ -46,6 +46,7 @@ func (_ *BooleanLiteral) node()  {}
 func (_ *TimeLiteral) node()     {}
 func (_ *DurationLiteral) node() {}
 func (_ *BinaryExpr) node()      {}
+func (_ *ParenExpr) node()       {}
 
 // Query represents a collection of order statements.
 type Query struct {
@@ -83,6 +84,7 @@ func (_ *BooleanLiteral) expr()  {}
 func (_ *TimeLiteral) expr()     {}
 func (_ *DurationLiteral) expr() {}
 func (_ *BinaryExpr) expr()      {}
+func (_ *ParenExpr) expr()       {}
 
 // Source represents a source of data for a statement.
 type Source interface {
@@ -227,6 +229,11 @@ type BinaryExpr struct {
 	RHS Expr
 }
 
+// ParenExpr represents a parenthesized expression.
+type ParenExpr struct {
+	Expr Expr
+}
+
 // Visitor can be called by Walk to traverse an AST hierarchy.
 // The Visit() function is called once per node.
 type Visitor interface {
@@ -273,6 +280,9 @@ func Walk(v Visitor, node Node) {
 	case *BinaryExpr:
 		Walk(v, n.LHS)
 		Walk(v, n.RHS)
+
+	case *ParenExpr:
+		Walk(v, n.Expr)
 
 	case *Call:
 		for _, expr := range n.Args {
