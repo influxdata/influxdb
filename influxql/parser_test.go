@@ -101,8 +101,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// DROP CONTINUOUS QUERY statement
 		{
-			s:    `DROP CONTINUOUS QUERY 12`,
-			stmt: &influxql.DropContinuousQueryStatement{ID: 12},
+			s:    `DROP CONTINUOUS QUERY myquery`,
+			stmt: &influxql.DropContinuousQueryStatement{Name: "myquery"},
 		},
 
 		// Errors
@@ -132,9 +132,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `LIST CONTINUOUS QUERIES x`, err: `found x, expected ;, EOF at line 1, char 25`},
 		{s: `LIST FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
-		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected integer at line 1, char 23`},
-		{s: `DROP CONTINUOUS QUERY 12.5`, err: `continuous query id must be an integer at line 1, char 23`},
-		{s: `DROP CONTINUOUS QUERY 12 X`, err: `found X, expected ;, EOF at line 1, char 26`},
+		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier, string at line 1, char 23`},
+		{s: `DROP CONTINUOUS QUERY myseries X`, err: `found X, expected ;, EOF at line 1, char 32`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
 	}
 
@@ -268,6 +267,19 @@ func TestParseDuration(t *testing.T) {
 			t.Errorf("%d. %q\n\nduration mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.d, d)
 		}
 	}
+}
+
+func BenchmarkParserParseStatement(b *testing.B) {
+	b.ReportAllocs()
+	s := `SELECT field FROM "series" WHERE value > 10`
+	for i := 0; i < b.N; i++ {
+		if stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement(); err != nil {
+			b.Fatalf("unexpected error: %s", err)
+		} else if stmt == nil {
+			b.Fatalf("expected statement", stmt)
+		}
+	}
+	b.SetBytes(int64(len(s)))
 }
 
 // errstring converts an error to its string representation.

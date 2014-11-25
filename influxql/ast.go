@@ -134,9 +134,9 @@ type DropSeriesStatement struct {
 // ListContinuousQueriesStatement represents a command for listing continuous queries.
 type ListContinuousQueriesStatement struct{}
 
-// ListContinuousQueriesStatement represents a command for removing a continuous query.
+// DropContinuousQueriesStatement represents a command for removing a continuous query.
 type DropContinuousQueryStatement struct {
-	ID int
+	Name string
 }
 
 // Fields represents a list of fields.

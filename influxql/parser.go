@@ -214,12 +214,10 @@ func (p *Parser) parseDropContinuousQueryStatement() (*DropContinuousQueryStatem
 
 	// Read the id of the query to drop.
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != NUMBER {
-		return nil, newParseError(tokstr(tok, lit), []string{"integer"}, pos)
-	} else if strings.Contains(lit, ".") {
-		return nil, &ParseError{Message: "continuous query id must be an integer", Pos: pos}
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
 	}
-	stmt.ID, _ = strconv.Atoi(lit)
+	stmt.Name = lit
 
 	// Expect a semicolon or EOF at the end
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
