@@ -3,6 +3,7 @@ package influxdb
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb/influxql"
@@ -98,7 +99,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query from query string.
 	values := r.URL.Query()
-	q, err := influxql.Parse(values.Get("q"))
+	_, err := influxql.NewParser(strings.NewReader(values.Get("q"))).ParseQuery()
 	if err != nil {
 		h.error(w, "parse error: "+err.Error(), http.StatusBadRequest)
 		return
@@ -121,10 +122,12 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 	*/
 
 	// Execute query against the database.
-	if err := db.ExecuteQuery(q); err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	/*
+		if err := db.ExecuteQuery(q); err != nil {
+			h.error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	*/
 }
 
 // serveWriteSeries receives incoming series data and writes it to the database.

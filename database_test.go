@@ -2,6 +2,7 @@ package influxdb_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -428,8 +429,8 @@ func TestDatabase_WriteSeries(t *testing.T) {
 }
 
 // mustParseQuery parses a query string into a query object. Panic on error.
-func mustParseQuery(s string) influxql.Query {
-	q, err := influxql.Parse(s)
+func mustParseQuery(s string) *influxql.Query {
+	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
 	if err != nil {
 		panic(err.Error())
 	}
