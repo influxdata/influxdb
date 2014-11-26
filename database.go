@@ -71,20 +71,21 @@ func (db *Database) Users() []*DBUser {
 }
 
 // CreateUser creates a user in the database.
-func (db *Database) CreateUser(username, password string, permissions []string) error {
+func (db *Database) CreateUser(username, password string, read, write []*Matcher) error {
 	// TODO: Authorization.
 
 	c := &createDBUserCommand{
 		Database:    db.Name(),
 		Username:    username,
 		Password:    password,
-		Permissions: permissions,
+		ReadFrom: read,
+		WriteTo: write,
 	}
 	_, err := db.server.broadcast(createDBUserMessageType, c)
 	return err
 }
 
-func (db *Database) applyCreateUser(username, password string, permissions []string) error {
+func (db *Database) applyCreateUser(username, password string, read, write []*Matcher) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -103,14 +104,6 @@ func (db *Database) applyCreateUser(username, password string, permissions []str
 		return err
 	}
 
-	// Setup matchers.
-	rmatcher := []*Matcher{{true, ".*"}}
-	wmatcher := []*Matcher{{true, ".*"}}
-	if len(permissions) == 2 {
-		rmatcher[0].Name = permissions[0]
-		wmatcher[0].Name = permissions[1]
-	}
-
 	// Create the user.
 	db.users[username] = &DBUser{
 		CommonUser: CommonUser{
@@ -118,8 +111,8 @@ func (db *Database) applyCreateUser(username, password string, permissions []str
 			Hash: string(hash),
 		},
 		DB:       db.name,
-		ReadFrom: rmatcher,
-		WriteTo:  wmatcher,
+		ReadFrom: read,
+		WriteTo:  write,
 		IsAdmin:  false,
 	}
 

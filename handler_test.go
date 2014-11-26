@@ -404,7 +404,7 @@ func TestHandler_CreateDBUser(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newUser := `{"name": "jdoe", "password": "1337", "isAdmin": false, "readPerm": "???", "writePerm": "???"}`
+	newUser := `{"name":"jdoe","password":"1337","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
 	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -419,7 +419,7 @@ func TestHandler_CreateDBUser_DatabaseNotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newUser := `{"name": "jdoe", "password": "1337", "isAdmin": false, "readPerm": "???", "writePerm": "???"}`
+	newUser := `{"name":"jdoe","password":"1337","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
 	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -429,34 +429,83 @@ func TestHandler_CreateDBUser_DatabaseNotFound(t *testing.T) {
 	}
 }
 
-func TestHandler_CreateDBUser_BadRequest_ReadPerm(t *testing.T) {
+func TestHandler_CreateDBUser_BadRequest(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newUser := `{"name": "jdoe", "password": "1337", "isAdmin": false, "readPerm": "", "writePerm": "???"}`
+	newUser := `{"name":0xBAD,"password":"1337","isAdmin":true,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
 	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	}
-	if body != "read/write permissions required" {
+	if body != `invalid character 'x' after object key:value pair` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
-func TestHandler_CreateDBUser_BadRequest_WritePerm(t *testing.T) {
+func TestHandler_CreateDBUser_InternalServerError(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newUser := `{"name": "jdoe", "password": "1337", "isAdmin": false, "readPerm": "???", "writePerm": ""}`
+	newUser := `{"name":"","password":"1337","isAdmin":true,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
 	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
-	if status != http.StatusBadRequest {
+	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
 	}
-	if body != "read/write permissions required" {
+	if body != `username required` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DBUser(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/users/jdoe`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `{"name":"jdoe","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DBUser_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/users/jdoe`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database not found` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DBUser_UserNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/users/jane`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `user not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }

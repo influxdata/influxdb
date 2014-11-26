@@ -262,12 +262,21 @@ func (h *Handler) serveAuthenticateDBUser(w http.ResponseWriter, r *http.Request
 // serveDBUsers returns data about a single database user.
 func (h *Handler) serveDBUsers(w http.ResponseWriter, r *http.Request) {}
 
-type newUser struct {
-	Name      string `json:"name"`
-	Password  string `json:"password"`
-	IsAdmin   bool   `json:"isAdmin"`
-	ReadPerm  string `json:"readPerm"`
-	WritePerm string `json:"writePerm"`
+type userJSON struct {
+	Name     string `json:"name"`
+	Password string `json:"password"`
+	IsAdmin  bool   `json:"isAdmin"`
+	ReadFrom []*Matcher `json:"readFrom"`
+	WriteTo  []*Matcher `json:"writeTo"`
+}
+
+func newUserJSONFromDBUser(dbu *DBUser) *userJSON {
+	return &userJSON{
+		Name:     dbu.Name,
+		IsAdmin:  dbu.IsAdmin,
+		WriteTo:  dbu.WriteTo,
+		ReadFrom: dbu.ReadFrom,
+	}
 }
 
 // serveCreateDBUser creates a new database user.
@@ -282,19 +291,13 @@ func (h *Handler) serveCreateDBUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nu := &newUser{}
+	nu := &userJSON{}
 	if err := json.NewDecoder(r.Body).Decode(nu); err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
+		h.error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if nu.ReadPerm == "" || nu.WritePerm == "" {
-		h.error(w, ErrReadWritePermissionsRequired.Error(), http.StatusBadRequest)
-	}
-
-	permissions := []string{nu.ReadPerm, nu.WritePerm}
-
-	if err := db.CreateUser(nu.Name, nu.Password, permissions); err != nil {
+	if err := db.CreateUser(nu.Name, nu.Password, nu.ReadFrom, nu.WriteTo); err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -303,7 +306,32 @@ func (h *Handler) serveCreateDBUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveDBUser returns data about a single database user.
-func (h *Handler) serveDBUser(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveDBUser(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	dbUser := db.User(urlQry.Get(":user"))
+	if dbUser == nil {
+		h.error(w, ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	userJSON := newUserJSONFromDBUser(dbUser)
+
+	w.Header().Add("content-type", "application/json")
+	err := json.NewEncoder(w).Encode(userJSON)
+	if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
 
 // serveUpdateDBUser updates an existing database user.
 func (h *Handler) serveUpdateDBUser(w http.ResponseWriter, r *http.Request) {}
