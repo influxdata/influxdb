@@ -571,7 +571,7 @@ type RetentionPolicy struct {
 // NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
 func NewRetentionPolicy(name string) *RetentionPolicy {
 	return &RetentionPolicy{
-		Name: name,
+		Name:     name,
 		ReplicaN: DefaultReplicaN,
 		SplitN:   DefaultSplitN,
 		Duration: DefaultShardRetention,

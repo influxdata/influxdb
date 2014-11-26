@@ -60,6 +60,9 @@ var (
 	// data that he or she does not have permission to read.
 	ErrReadAccessDenied = errors.New("read access denied")
 
+	// ErrReadWritePermissionsRequired is returned when required read/write permissions aren't provided.
+	ErrReadWritePermissionsRequired = errors.New("read/write permissions required")
+
 	// ErrInvalidQuery is returned when executing an unknown query type.
 	ErrInvalidQuery = errors.New("invalid query")
 )

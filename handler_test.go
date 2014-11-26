@@ -398,6 +398,69 @@ func TestHandler_Ping(t *testing.T) {
 	}
 }
 
+func TestHandler_CreateDBUser(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newUser := `{"name": "jdoe", "password": "1337", "isAdmin": false, "readPerm": "???", "writePerm": "???"}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDBUser_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newUser := `{"name": "jdoe", "password": "1337", "isAdmin": false, "readPerm": "???", "writePerm": "???"}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDBUser_BadRequest_ReadPerm(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newUser := `{"name": "jdoe", "password": "1337", "isAdmin": false, "readPerm": "", "writePerm": "???"}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "read/write permissions required" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDBUser_BadRequest_WritePerm(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newUser := `{"name": "jdoe", "password": "1337", "isAdmin": false, "readPerm": "???", "writePerm": ""}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "read/write permissions required" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func MustHTTP(verb, url, body string) (int, string) {
 	req, err := http.NewRequest(verb, url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
