@@ -326,7 +326,7 @@ func NewNode() *Node {
 func NewInitNode() *Node {
 	n := NewNode()
 	n.Open()
-	go func() { n.Clock().Add(2 * n.Log.ApplyInterval) }()
+	go func() { n.Clock().Add(3 * n.Log.ApplyInterval) }()
 	if err := n.Log.Initialize(); err != nil {
 		panic("initialize: " + err.Error())
 	}
