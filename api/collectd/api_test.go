@@ -40,7 +40,12 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithUnixTimestamp(c *C) {
 	packet := &(*packets)[0]
 	series := packetToSeries(packet)
 	timestamp := *series[0].Points[0].Timestamp
+	values := series[0].Points[0].Values
+	dsname := values[5].GetStringValue()
+	dsval := values[7].GetDoubleValue()
 	c.Assert(timestamp, Equals, int64(1414080767000000))
+	c.Assert(dsname, Equals, "value")
+	c.Assert(dsval, Equals, float64(288))
 }
 
 func (cas *CollectdApiSuite) TestPacketToSeriesWithHiResTimestamp(c *C) {
@@ -61,7 +66,47 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithHiResTimestamp(c *C) {
 	packet := &(*packets)[0]
 	series := packetToSeries(packet)
 	timestamp := *series[0].Points[0].Timestamp
+	values := series[0].Points[0].Values
+	dsname := values[5].GetStringValue()
+	dsval := values[7].GetDoubleValue()
 	c.Assert(timestamp, Equals, int64(1414187920000000))
+	c.Assert(dsname, Equals, "value")
+	c.Assert(dsval, Equals, float64(1))
+}
+
+func (cas *CollectdApiSuite) TestPacketToSeriesWithMultiDataSet(c *C) {
+	// Raw data from a Wireshark capture
+	buf, err := hex.DecodeString("0000001a7377697463682d3137322e31362e3233312e323530000008000c15160fd86fdb575500020009736e6d70000004000e69665f6f637465747300000500184769676162697445746865726e6574305f3138000006001800020202000000000fae0fb7000000000e7d8ac3")
+	c.Assert(err, IsNil)
+
+	// Get a collectd types DB
+	typesDB, err := gollectd.TypesDB([]byte(typesDBText))
+	c.Assert(err, IsNil)
+
+	// Use gollectd to parse raw packet data into *[]gollectd.Packet
+	packets, err := gollectd.Packets(buf, typesDB)
+	c.Assert(err, IsNil)
+	c.Assert(len(*packets), Equals, 1)
+
+	// Test InfluxDB collectd API's packetToSeries function
+	packet := &(*packets)[0]
+	series := packetToSeries(packet)
+
+	timestamp0 := *series[0].Points[0].Timestamp
+	values0 := series[0].Points[0].Values
+	dsname0 := values0[5].GetStringValue()
+	dsval0 := values0[7].GetDoubleValue()
+	c.Assert(timestamp0, Equals, int64(1415069537000000))
+	c.Assert(dsname0, Equals, "rx")
+	c.Assert(dsval0, Equals, float64(263065527))
+
+	timestamp1 := *series[1].Points[0].Timestamp
+	values1 := series[1].Points[0].Values
+	dsname1 := values1[5].GetStringValue()
+	dsval1 := values1[7].GetDoubleValue()
+	c.Assert(timestamp1, Equals, int64(1415069537000000))
+	c.Assert(dsname1, Equals, "tx")
+	c.Assert(dsval1, Equals, float64(243108547))
 }
 
 // Taken from /usr/share/collectd/types.db on a Ubuntu system
