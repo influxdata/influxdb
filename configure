@@ -1819,7 +1819,7 @@ $as_echo_n "checking sed -i... " >&6; }
 else
 
     f=/tmp/sed_$RANDOM
-    echo -n 'version' > $f
+    $as_echo_n 'version' > $f
     if sed -i 's/version/0.1/g' $f; then
       if test `cat $f` == "0.1"; then
         sed_i="sed -i"
