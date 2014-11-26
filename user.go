@@ -10,6 +10,7 @@ import (
 )
 
 var userCache = cache.New(0, 0)
+var BcryptCost = 10
 
 type Matcher struct {
 	IsRegex bool
@@ -139,14 +140,14 @@ func (p dbUsers) Len() int           { return len(p) }
 func (p dbUsers) Less(i, j int) bool { return p[i].Name < p[j].Name }
 func (p dbUsers) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-func HashPassword(password string) ([]byte, error) {
+var HashPassword = func(password string) ([]byte, error) {
 	if length := len(password); length < 4 || length > 56 {
 		return nil, fmt.Errorf("Password must be more than 4 and less than 56 characters")
 	}
 
 	// The second arg is the cost of the hashing, higher is slower but makes it harder
 	// to brute force, since it will be really slow and impractical
-	return bcrypt.GenerateFromPassword([]byte(password), 10)
+	return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
 }
 
 // isValidName returns true if the name contains no invalid characters.

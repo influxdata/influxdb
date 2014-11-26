@@ -232,7 +232,7 @@ func (h *Handler) serveCreateDatabase(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) serveDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get(":name")
 	if err := h.server.DeleteDatabase(name); err == ErrDatabaseNotFound {
-		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		h.error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
@@ -291,13 +291,13 @@ func (h *Handler) serveCreateDBUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nu := &userJSON{}
-	if err := json.NewDecoder(r.Body).Decode(nu); err != nil {
+	u := &userJSON{}
+	if err := json.NewDecoder(r.Body).Decode(u); err != nil {
 		h.error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if err := db.CreateUser(nu.Name, nu.Password, nu.ReadFrom, nu.WriteTo); err != nil {
+	if err := db.CreateUser(u.Name, u.Password, u.ReadFrom, u.WriteTo); err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -334,7 +334,84 @@ func (h *Handler) serveDBUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveUpdateDBUser updates an existing database user.
-func (h *Handler) serveUpdateDBUser(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveUpdateDBUser(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	dbUser := db.User(urlQry.Get(":user"))
+	if dbUser == nil {
+		h.error(w, ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	uu := make(map[string]interface{})
+	if err := json.NewDecoder(r.Body).Decode(&uu); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if pwd, ok := uu["password"]; ok {
+		newPwd, ok := pwd.(string);
+		if !ok {
+			h.error(w, "password must be a string", http.StatusBadRequest)
+			return
+		}
+
+		if err := db.ChangePassword(dbUser.Name, newPwd); err != nil {
+			h.error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if rd, ok := uu["readFrom"]; ok {
+		rdstr, ok := rd.(string)
+		if !ok {
+			h.error(w, "readFrom must be a string", http.StatusBadRequest)
+			return
+		}
+
+		var matchers []*Matcher
+		if err := json.NewDecoder(strings.NewReader(rdstr)).Decode(&matchers); err != nil {
+			h.error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		dbUser.ReadFrom = matchers
+	}
+
+	if wr, ok := uu["writeTo"]; ok {
+		wrstr, ok := wr.(string)
+		if !ok {
+			h.error(w, "writeTo must be a string", http.StatusBadRequest)
+			return
+		}
+
+		var matchers []*Matcher
+		if err := json.NewDecoder(strings.NewReader(wrstr)).Decode(&matchers); err != nil {
+			h.error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		dbUser.WriteTo = matchers
+	}
+
+	if admin, ok := uu["isAdmin"]; ok {
+		isAdmin, ok := admin.(bool)
+		if !ok {
+			h.error(w, "isAdmin must be a bool", http.StatusBadRequest)
+			return
+		}
+
+		dbUser.IsAdmin = isAdmin
+	}
+}
 
 // serveDeleteDBUser removes an existing database user.
 func (h *Handler) serveDeleteDBUser(w http.ResponseWriter, r *http.Request) {}
@@ -469,8 +546,6 @@ func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Requ
 
 	// Update the policy
 	*policy = *newPolicy
-
-	w.WriteHeader(http.StatusOK)
 }
 
 // serveDeleteRetentionPolicy removes an existing retention policy.
