@@ -363,8 +363,6 @@ type DerivativeAggregatorState struct {
 
 type DerivativeAggregator struct {
 	AbstractAggregator
-	duration     *time.Duration // if it's group by time()
-	lastState    *DerivativeAggregatorState
 	defaultValue *protocol.FieldValue
 	alias        string
 }
@@ -395,26 +393,12 @@ func (self *DerivativeAggregator) AggregatePoint(state interface{}, p *protocol.
 		s = &DerivativeAggregatorState{}
 	}
 
-	// starting a new bucket?  (only for group by time())
-	if s != self.lastState && self.duration != nil {
-		// if there was a previous bucket, update its lastValue
-		if self.lastState != nil {
-			self.lastState.lastValue = newValue
-		}
-		// save the current state as the last
-		self.lastState = s
-	}
-
 	if s.firstValue == nil {
 		s.firstValue = newValue
 		return s, nil
 	}
 
-	if self.duration == nil {
-		s.lastValue = newValue
-	} else {
-		s.lastValue = s.firstValue
-	}
+	s.lastValue = newValue
 
 	return s, nil
 }
@@ -467,11 +451,6 @@ func NewDerivativeAggregator(q *parser.SelectQuery, v *parser.Value, defaultValu
 		},
 		defaultValue: wrappedDefaultValue,
 		alias:        v.Alias,
-	}
-
-	da.duration, _, err = q.GetGroupByClause().GetGroupByTime()
-	if err != nil {
-		return nil, err
 	}
 
 	return da, nil

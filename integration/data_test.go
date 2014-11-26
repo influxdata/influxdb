@@ -2533,53 +2533,6 @@ type tv struct {
 	Value interface{}
 }
 
-// Test Derivative with consecutive buckets and filling later buckets
-func (self *DataTestSuite) TestIssue334DerivativeConsecutiveBucketsFillLater(c *C) {
-	data := `
-[
-  {
-	"name": "data",
-    "columns": ["time", "value"],
-    "points": [
-    [130000, 80.0],
-    [120000, 40.0],
-    [70000, 20.0],
-    [60000, 10.0]
-    ]
-  }
-]`
-	// the 120000 bucket includes the points 80.0, 40.0 and the new value from the next bucket 20.0
-	// the 60000 bucket includes two points only 20.0 and 10.0
-	expect := []tv{{300000.0, nil}, {240000.0, nil}, {180000.0, nil}, {120000.0, 1.0}, {60000.0, nil}}
-	self.tstAggregateFill(data, "derivative", "null", emptyAggArgs, expect, c)
-}
-
-// Test Derivative with non-consecutive buckets and filling in between
-func (self *DataTestSuite) TestIssue334DerivativeNonConsecutiveBucketsFillBetween(c *C) {
-	data := `
-[
-  {
-	"name": "data",
-    "columns": ["time", "value"],
-    "points": [
-    [250000, 320.0],
-    [240000, 90.0],
-    [130000, 80.0],
-    [120000, 40.0],
-    [70000, 20.0],
-    [60000, 10.0]
-    ]
-  }
-]`
-	// The 300000 bucket includes no points
-	// the 240000 bucket includes 320.0, 90.0 and 80.0 from the following bucket  (240.0 / 120 = 2)
-	// the 180000 bucket includes no points
-	// the 120000 bucket includes 80.0, 40.0 and 20.0 from the next bucket (60.0 / 60 = 1)
-	// the  60000 bucket includes 20.0 and 10.0 (10 / 10 = 1)
-	expect := []tv{{300000.0, nil}, {240000.0, 2.0}, {180000.0, nil}, {120000.0, 1.0}, {60000.0, nil}}
-	self.tstAggregateFill(data, "derivative", "null", emptyAggArgs, expect, c)
-}
-
 // count aggregate filling with null
 func (self *DataTestSuite) TestCountAggregateFillWithNull(c *C) {
 	expVals := []tv{{300000.0, 1.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, 1.0}, {60000.0, 1.0}}
@@ -2744,13 +2697,13 @@ func (self *DataTestSuite) TestBottom10AggregateFillWith0(c *C) {
 
 // derivative aggregate filling with null
 func (self *DataTestSuite) TestDerivativeAggregateFillWithNull(c *C) {
-	expVals := []tv{{300000.0, 2.0}, {240000.0, nil}, {180000.0, nil}, {120000.0, 0.25}}
+	expVals := []tv{{300000.0, 37.0}, {240000.0, nil}, {180000.0, nil}}
 	self.tstAggregateFill(aggTstData2, "derivative", "null", emptyAggArgs, expVals, c)
 }
 
 // derivative aggregate filling with 0
 func (self *DataTestSuite) TestDerivativeAggregateFillWith0(c *C) {
-	expVals := []tv{{300000.0, 2.0}, {240000.0, 0.0}, {180000.0, 0.0}, {120000.0, 0.25}}
+	expVals := []tv{{300000.0, 37.0}, {240000.0, 0.0}, {180000.0, 0.0}}
 	self.tstAggregateFill(aggTstData2, "derivative", "0", emptyAggArgs, expVals, c)
 }
 
