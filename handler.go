@@ -98,8 +98,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authentication.
 
 	// Parse query from query string.
-	values := r.URL.Query()
-	_, err := influxql.NewParser(strings.NewReader(values.Get("q"))).ParseQuery()
+	urlQry := r.URL.Query()
+	_, err := influxql.NewParser(strings.NewReader(urlQry.Get("q"))).ParseQuery()
 	if err != nil {
 		h.error(w, "parse error: "+err.Error(), http.StatusBadRequest)
 		return
@@ -293,7 +293,10 @@ func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {
 	shards := db.Shards()
 
 	w.Header().Add("content-type", "application/json")
-	_ = json.NewEncoder(w).Encode(shards)
+	err := json.NewEncoder(w).Encode(shards)
+	if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // serveShardsByRetentionPolicy returns a list of shards for a given retention policy.
