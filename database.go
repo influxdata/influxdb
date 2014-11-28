@@ -23,7 +23,7 @@ type Database struct {
 	series   map[string]*Series          // series by name
 
 	defaultRetentionPolicy string
-	maxFieldID             uint64 // largest field id in use
+	maxFieldID             uint32 // largest field id in use
 }
 
 // newDatabase returns an instance of Database associated with a server.
@@ -325,6 +325,20 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 	return nil, true
 }
 
+func (db *Database) applySetSeriesId(name string, tags map[string]string) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	id := db.maxFieldID
+	// TODO: we need to save the db maxFieldId after this
+	db.maxFieldID += uint32(1)
+	var err error
+	db.server.meta.mustUpdate(func(tx *metatx) error {
+		err = tx.setSeriesId(id, db.name, name, tags)
+		return err
+	})
+	return err
+}
+
 // WriteSeries writes series data to the database.
 func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
 	// Find retention policy matching the series and split points by shard.
@@ -491,7 +505,7 @@ func (db *Database) applyWriteSeries(id uint64, t int64, values map[uint8]interf
 */
 
 // ExecuteQuery executes a query against a database.
-func (db *Database) ExecuteQuery(q influxql.Query) error {
+func (db *Database) ExecuteQuery(q *influxql.Query) error {
 	panic("not yet implemented: Database.ExecuteQuery()") // TODO
 }
 
@@ -566,7 +580,7 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 type databaseJSON struct {
 	Name                   string             `json:"name,omitempty"`
 	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
-	MaxFieldID             uint64             `json:"maxFieldID,omitempty"`
+	MaxFieldID             uint32             `json:"maxFieldID,omitempty"`
 	Users                  []*DBUser          `json:"users,omitempty"`
 	Policies               []*RetentionPolicy `json:"policies,omitempty"`
 	Shards                 []*Shard           `json:"shards,omitempty"`

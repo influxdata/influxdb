@@ -651,9 +651,7 @@ func (s *Server) applySetSeriesId(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	// TODO: finish this up
-
-	return nil
+	return db.applySetSeriesId(c.Name, c.Tags)
 }
 
 type setSeriesIdCommand struct {
@@ -834,6 +832,11 @@ func (tx *metatx) databases() (a []*Database) {
 
 // saveDatabase persists a database to the metastore.
 func (tx *metatx) saveDatabase(db *Database) error {
+	// TODO: ask ben how to make these two operations occur in a single atomic transaction
+	_, err := tx.Bucket([]byte("Series")).CreateBucketIfNotExists([]byte(db.name))
+	if err != nil {
+		return err
+	}
 	return tx.Bucket([]byte("Databases")).Put([]byte(db.name), mustMarshalJSON(db))
 }
 
@@ -867,8 +870,24 @@ func (tx *metatx) getSeriesId(database, name string, tags map[string]string) (ui
 	}
 
 	// the value is the bytes for a uint32, return it
-	x := (*uint32)(unsafe.Pointer(&v[0]))
-	return *x, nil
+	return *(*uint32)(unsafe.Pointer(&v[0])), nil
+}
+
+// sets the series id for the database, name, and tags.
+func (tx *metatx) setSeriesId(id uint32, database, name string, tags map[string]string) error {
+	b, err := tx.Bucket([]byte("Series")).Bucket([]byte(database)).CreateBucketIfNotExists([]byte(name))
+	if err != nil {
+		return err
+	}
+
+	tagBytes, err := tagsToBytes(tags)
+	if err != nil {
+		return err
+	}
+
+	idBytes := make([]byte, 4)
+	*(*uint32)(unsafe.Pointer(&idBytes[0])) = id
+	return b.Put(tagBytes, idBytes)
 }
 
 // used to convert the tag set to bytes for use as a key in bolt
