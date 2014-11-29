@@ -23,7 +23,6 @@ type Database struct {
 	series   map[string]*Series          // series by name
 
 	defaultRetentionPolicy string
-	maxFieldID             uint32 // largest field id in use
 }
 
 // newDatabase returns an instance of Database associated with a server.
@@ -325,18 +324,13 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 	return nil, true
 }
 
-func (db *Database) applySetSeriesId(name string, tags map[string]string) error {
+func (db *Database) applyCreateSeriesIfNotExists(name string, tags map[string]string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	id := db.maxFieldID
-	// TODO: we need to save the db maxFieldId after this
-	db.maxFieldID += uint32(1)
-	var err error
 	db.server.meta.mustUpdate(func(tx *metatx) error {
-		err = tx.setSeriesId(id, db.name, name, tags)
-		return err
+		return tx.createSeriesIfNotExists(db.name, name, tags)
 	})
-	return err
+	return nil
 }
 
 // WriteSeries writes series data to the database.
@@ -355,7 +349,7 @@ func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]st
 	id, ok := db.getSeriesId(name, tags)
 	if !ok {
 		var err error
-		if id, err = db.setSeriesId(name, tags); err != nil {
+		if id, err = db.createSeriesIfNotExists(name, tags); err != nil {
 			return err
 		}
 	}
@@ -431,13 +425,13 @@ func (db *Database) getSeriesId(name string, tags map[string]string) (uint32, bo
 	return id, true
 }
 
-func (db *Database) setSeriesId(name string, tags map[string]string) (uint32, error) {
-	c := &setSeriesIdCommand{
+func (db *Database) createSeriesIfNotExists(name string, tags map[string]string) (uint32, error) {
+	c := &createSeriesIfNotExistsCommand{
 		Database: db.Name(),
 		Name:     name,
 		Tags:     tags,
 	}
-	_, err := db.server.broadcast(setSeriesIdMessageType, c)
+	_, err := db.server.broadcast(createSeriesIfNotExistsMessageType, c)
 	if err != nil {
 		return uint32(0), err
 	}
@@ -520,7 +514,6 @@ func (db *Database) MarshalJSON() ([]byte, error) {
 	var o databaseJSON
 	o.Name = db.name
 	o.DefaultRetentionPolicy = db.defaultRetentionPolicy
-	o.MaxFieldID = db.maxFieldID
 	for _, u := range db.users {
 		o.Users = append(o.Users, u)
 	}
@@ -547,7 +540,6 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 	// Copy over properties from intermediate type.
 	db.name = o.Name
 	db.defaultRetentionPolicy = o.DefaultRetentionPolicy
-	db.maxFieldID = o.MaxFieldID
 
 	// Copy users.
 	db.users = make(map[string]*DBUser)
@@ -580,7 +572,6 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 type databaseJSON struct {
 	Name                   string             `json:"name,omitempty"`
 	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
-	MaxFieldID             uint32             `json:"maxFieldID,omitempty"`
 	Users                  []*DBUser          `json:"users,omitempty"`
 	Policies               []*RetentionPolicy `json:"policies,omitempty"`
 	Shards                 []*Shard           `json:"shards,omitempty"`

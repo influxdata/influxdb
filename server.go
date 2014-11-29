@@ -1,13 +1,13 @@
 package influxdb
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -51,7 +51,7 @@ const (
 	dbUserSetPasswordMessageType         = messaging.MessageType(0x09)
 	createShardIfNotExistsMessageType    = messaging.MessageType(0x0a)
 	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x0b)
-	setSeriesIdMessageType               = messaging.MessageType(0x0c)
+	createSeriesIfNotExistsMessageType   = messaging.MessageType(0x0c)
 
 	// per-topic messages
 	writeSeriesMessageType = messaging.MessageType(0x80)
@@ -639,8 +639,8 @@ type setDefaultRetentionPolicyCommand struct {
 	Name     string `json:"name"`
 }
 
-func (s *Server) applySetSeriesId(m *messaging.Message) error {
-	var c setSeriesIdCommand
+func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
+	var c createSeriesIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
@@ -651,10 +651,10 @@ func (s *Server) applySetSeriesId(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	return db.applySetSeriesId(c.Name, c.Tags)
+	return db.applyCreateSeriesIfNotExists(c.Name, c.Tags)
 }
 
-type setSeriesIdCommand struct {
+type createSeriesIfNotExistsCommand struct {
 	Database string            `json:"database"`
 	Name     string            `json:"name"`
 	Tags     map[string]string `json:"tags"`
@@ -721,8 +721,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyCreateShardIfNotExists(m)
 		case setDefaultRetentionPolicyMessageType:
 			err = s.applySetDefaultRetentionPolicy(m)
-		case setSeriesIdMessageType:
-			err = s.applySetSeriesId(m)
+		case createSeriesIfNotExistsMessageType:
+			err = s.applyCreateSeriesIfNotExists(m)
 		case writeSeriesMessageType:
 			/* TEMPORARILY REMOVED FOR PROTOBUFS.
 			err = s.applyWriteSeries(m)
@@ -860,10 +860,7 @@ func (tx *metatx) getSeriesId(database, name string, tags map[string]string) (ui
 	}
 
 	// look up the id of the tagset
-	tagBytes, err := tagsToBytes(tags)
-	if err != nil {
-		return uint32(0), err
-	}
+	tagBytes := tagsToBytes(tags)
 	v := b.Get(tagBytes)
 	if v == nil {
 		return uint32(0), ErrSeriesNotFound
@@ -874,42 +871,32 @@ func (tx *metatx) getSeriesId(database, name string, tags map[string]string) (ui
 }
 
 // sets the series id for the database, name, and tags.
-func (tx *metatx) setSeriesId(id uint32, database, name string, tags map[string]string) error {
-	b, err := tx.Bucket([]byte("Series")).Bucket([]byte(database)).CreateBucketIfNotExists([]byte(name))
+func (tx *metatx) createSeriesIfNotExists(database, name string, tags map[string]string) error {
+	db := tx.Bucket([]byte("Series")).Bucket([]byte(database))
+	b, err := db.CreateBucketIfNotExists([]byte(name))
 	if err != nil {
 		return err
 	}
 
-	tagBytes, err := tagsToBytes(tags)
-	if err != nil {
-		return err
-	}
+	id, _ := db.NextSequence()
+
+	tagBytes := tagsToBytes(tags)
 
 	idBytes := make([]byte, 4)
-	*(*uint32)(unsafe.Pointer(&idBytes[0])) = id
+	*(*uint32)(unsafe.Pointer(&idBytes[0])) = uint32(id)
+
 	return b.Put(tagBytes, idBytes)
 }
 
 // used to convert the tag set to bytes for use as a key in bolt
-func tagsToBytes(tags map[string]string) ([]byte, error) {
-	// don't want to resize the byte buffer, so assume that tag key/values are less than 500 bytes
-	defaultTagLength := 500
-	b := make([]byte, 0, len(tags)*defaultTagLength)
-
-	buf := bytes.NewBuffer(b)
-
+func tagsToBytes(tags map[string]string) []byte {
+	s := make([]string, 0, len(tags)*2)
 	for k, v := range tags {
-		_, err := buf.Write([]byte(k))
-		if err != nil {
-			return nil, err
-		}
-		_, err = buf.Write([]byte(v))
-		if err != nil {
-			return nil, err
-		}
+		s = append(s, k, v)
 	}
-
-	return buf.Bytes(), nil
+	// always sort since the key order in maps aren't guaranteed
+	sort.Strings(s)
+	return []byte(strings.Join(s, "|"))
 }
 
 // series returns a series by database and name.
