@@ -6,9 +6,10 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/influxdb/influxdb/influxql"
-	// "github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/messaging"
 )
 
 // Database represents a collection of retention policies.
@@ -271,21 +272,9 @@ func (db *Database) applySetDefaultRetentionPolicy(name string) error {
 	return nil
 }
 
-// shard returns a shard by id.
-func (db *Database) shard(id uint64) *Shard {
-	for _, ss := range db.policies {
-		for _, s := range ss.Shards {
-			if s.ID == id {
-				return s
-			}
-		}
-	}
-	return nil
-}
-
 // CreateShardIfNotExists creates a shard for a retention policy for a given timestamp.
-func (db *Database) CreateShardIfNotExists(space string, timestamp time.Time) error {
-	c := &createShardIfNotExistsSpaceCommand{Database: db.name, Space: space, Timestamp: timestamp}
+func (db *Database) CreateShardIfNotExists(policy string, timestamp time.Time) error {
+	c := &createShardIfNotExistsCommand{Database: db.name, Policy: policy, Timestamp: timestamp}
 	_, err := db.server.broadcast(createShardIfNotExistsMessageType, c)
 	return err
 }
@@ -320,6 +309,7 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 
 	// Append to retention policy.
 	ss.Shards = append(ss.Shards, s)
+	db.shards[s.ID] = s
 
 	return nil, true
 }
@@ -336,9 +326,9 @@ func (db *Database) applyCreateSeriesIfNotExists(name string, tags map[string]st
 // WriteSeries writes series data to the database.
 func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
 	// Find retention policy matching the series and split points by shard.
-	db.mu.Lock()
-	_, ok := db.policies[retentionPolicy]
-	db.mu.Unlock()
+	db.mu.RLock()
+	rp, ok := db.policies[retentionPolicy]
+	db.mu.RUnlock()
 
 	// Ensure the policy was found
 	if !ok {
@@ -355,60 +345,54 @@ func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]st
 	}
 
 	// TODO: now write it in
-	fmt.Println(id)
-
-	/*
-		// Group points by shard.
-		pointsByShard, unassigned := space.Split(series.Points)
-
-		// Request shard creation for timestamps for missing shards.
-		for _, p := range unassigned {
-			timestamp := time.Unix(0, p.GetTimestamp())
-			if err := db.CreateShardIfNotExists(space.Name, timestamp); err != nil {
-				return fmt.Errorf("create shard(%s/%d): %s", space.Name, timestamp.Format(time.RFC3339Nano), err)
-			}
+	s := rp.ShardBySeriesTimestamp(id, timestamp)
+	if s == nil {
+		if err := db.CreateShardIfNotExists(retentionPolicy, timestamp); err != nil {
+			return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 		}
+		s = rp.ShardBySeriesTimestamp(id, timestamp)
+	}
 
-		// Try to split the points again. Fail if it doesn't work this time.
-		pointsByShard, unassigned = space.Split(series.Points)
-		if len(unassigned) > 0 {
-			return fmt.Errorf("unmatched points in space(%s): %#v", unassigned)
-		}
+	data, err := marshalPoint(id, timestamp, values)
+	if err != nil {
+		return err
+	}
 
-		// Publish each group of points.
-		for shardID, points := range pointsByShard {
-			// Marshal series into protobuf format.
-			req := &protocol.WriteSeriesRequest{
-				Database: proto.String(name),
-				Series: &protocol.Series{
-					Name:     series.Name,
-					Fields:   series.Fields,
-					FieldIds: series.FieldIds,
-					ShardId:  proto.Uint64(shardID),
-					Points:   points,
-				},
-			}
-			data, err := proto.Marshal(req)
-			if err != nil {
-				return err
-			}
+	// Publish "write series" message on shard's topic to broker.
+	m := &messaging.Message{
+		Type:    writeSeriesMessageType,
+		TopicID: s.ID,
+		Data:    data,
+	}
+	index, err := db.server.client.Publish(m)
+	if err != nil {
+		return err
+	}
 
-			// Publish "write series" message on shard's topic to broker.
-			m := &messaging.Message{
-				Type:    writeSeriesMessageType,
-				TopicID: shardID,
-				Data:    data,
-			}
-			index, err := db.server.client.Publish(m)
-			if err != nil {
-				return err
-			}
-			if err := db.server.sync(index); err != nil {
-				return err
-			}
-		}
-	*/
-	return nil
+	// TODO: I don't think we should block until replication?
+	return db.server.sync(index)
+}
+
+func marshalPoint(seriesID uint32, timestamp time.Time, values map[string]interface{}) ([]byte, error) {
+	b := make([]byte, 12)
+	*(*uint32)(unsafe.Pointer(&b[0])) = seriesID
+	*(*int64)(unsafe.Pointer(&b[4])) = timestamp.UnixNano()
+
+	d, err := json.Marshal(values)
+	if err != nil {
+		return nil, err
+	}
+	return append(b, d...), err
+}
+
+func unmarshalPoint(data []byte) (uint32, time.Time, map[string]interface{}, error) {
+	id := *(*uint32)(unsafe.Pointer(&data[0]))
+	ts := *(*int64)(unsafe.Pointer(&data[4]))
+	timestamp := time.Unix(0, ts)
+	var v map[string]interface{}
+
+	err := json.Unmarshal(data[12:], &v)
+	return id, timestamp, v, err
 }
 
 // getSeriesId returns the unique id of a series and tagset and a bool indicating if it was found
@@ -442,61 +426,19 @@ func (db *Database) createSeriesIfNotExists(name string, tags map[string]string)
 	return id, nil
 }
 
-/* TEMPORARILY REMOVED FOR PROTOBUFS.
-func (db *Database) applyWriteSeries(id uint64, t int64, values map[uint8]interface{}) error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	shard := db.shard(s.GetShardId())
+func (db *Database) applyWriteSeries(shardID uint64, overwrite bool, data []byte) error {
+	db.mu.RLock()
+	s := db.shards[shardID]
+	db.mu.RUnlock()
 
 	// Find shard.
 	if s == nil {
 		return ErrShardNotFound
 	}
 
-	// Find or create series.
-	var changed bool
-	var series *Series
-	if series = db.series[s.GetName()]; series == nil {
-		series = &Series{Name: s.GetName()}
-		db.series[s.GetName()] = series
-		changed = true
-	}
-
-	// Assign field ids.
-	s.FieldIds = nil
-	for _, name := range s.GetFields() {
-		// Find field on series.
-		var fieldID uint64
-		for _, f := range series.Fields {
-			if f.Name == name {
-				fieldID = f.ID
-				break
-			}
-		}
-
-		// Create a new field, if not exists.
-		if fieldID == 0 {
-			db.maxFieldID++
-			fieldID = db.maxFieldID
-			series.Fields = append(series.Fields, &Field{ID: fieldID, Name: name})
-			changed = true
-		}
-
-		// Append the field id.
-		s.FieldIds = append(s.FieldIds, fieldID)
-	}
-
-	// Perist to metastore if changed.
-	if changed {
-		db.server.meta.mustUpdate(func(tx *metatx) error {
-			return tx.saveDatabase(db)
-		})
-	}
-
 	// Write to shard.
-	return shard.writeSeries(s)
+	return s.writeSeries(overwrite, data)
 }
-*/
 
 // ExecuteQuery executes a query against a database.
 func (db *Database) ExecuteQuery(q *influxql.Query) error {

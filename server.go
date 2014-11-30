@@ -69,8 +69,9 @@ type Server struct {
 
 	meta *metastore // metadata store
 
-	databases map[string]*Database     // databases by name
-	admins    map[string]*ClusterAdmin // admins by name
+	databases        map[string]*Database     // databases by name
+	databasesByShard map[uint64]*Database     // databases by shard id
+	admins           map[string]*ClusterAdmin // admins by name
 }
 
 // NewServer returns a new instance of Server.
@@ -78,11 +79,12 @@ type Server struct {
 func NewServer(client MessagingClient) *Server {
 	assert(client != nil, "messaging client required")
 	return &Server{
-		client:    client,
-		meta:      &metastore{},
-		databases: make(map[string]*Database),
-		admins:    make(map[string]*ClusterAdmin),
-		errors:    make(map[uint64]error),
+		client:           client,
+		meta:             &metastore{},
+		databases:        make(map[string]*Database),
+		databasesByShard: make(map[uint64]*Database),
+		admins:           make(map[string]*ClusterAdmin),
+		errors:           make(map[uint64]error),
 	}
 }
 
@@ -168,6 +170,10 @@ func (s *Server) load() error {
 		for _, db := range tx.databases() {
 			db.server = s
 			s.databases[db.name] = db
+
+			for sh, _ := range db.shards {
+				s.databasesByShard[sh] = db
+			}
 		}
 
 		// Load cluster admins.
@@ -315,7 +321,7 @@ type deleteDatabaseCommand struct {
 }
 
 func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) error {
-	var c createShardIfNotExistsSpaceCommand
+	var c createShardIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
@@ -325,8 +331,10 @@ func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
+	shardID := m.Index
+
 	// Check if a matching shard already exists.
-	if err, ok := db.applyCreateShardIfNotExists(m.Index, c.Space, c.Timestamp); err != nil {
+	if err, ok := db.applyCreateShardIfNotExists(shardID, c.Policy, c.Timestamp); err != nil {
 		return err
 	} else if !ok {
 		return nil
@@ -337,12 +345,14 @@ func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) error {
 		return tx.saveDatabase(db)
 	})
 
+	s.databasesByShard[shardID] = db
+
 	return nil
 }
 
-type createShardIfNotExistsSpaceCommand struct {
+type createShardIfNotExistsCommand struct {
 	Database  string    `json:"name"`
-	Space     string    `json:"space"`
+	Policy    string    `json:"policy"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
@@ -660,29 +670,20 @@ type createSeriesIfNotExistsCommand struct {
 	Tags     map[string]string `json:"tags"`
 }
 
-/* TEMPORARILY REMOVED FOR PROTOBUFS.
 func (s *Server) applyWriteSeries(m *messaging.Message) error {
-	req := &protocol.WriteSeriesRequest{}
-	if err := proto.Unmarshal(m.Data, req); err != nil {
-		panic("unmarshal request: " + err.Error())
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Retrieve the database.
-	db := s.databases[req.GetDatabase()]
+	s.mu.RLock()
+	db := s.databasesByShard[m.TopicID]
+	s.mu.RUnlock()
+
 	if db == nil {
 		return ErrDatabaseNotFound
 	}
 
-	if err := db.applyWriteSeries(id, t, values); err != nil {
-		return err
-	}
-
-	return nil
+	// TODO: enable some way to specify if the data should be overwritten
+	overwrite := true
+	return db.applyWriteSeries(m.TopicID, overwrite, m.Data)
 }
-*/
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
 func (s *Server) processor(done chan struct{}) {
@@ -699,6 +700,8 @@ func (s *Server) processor(done chan struct{}) {
 		// Process message.
 		var err error
 		switch m.Type {
+		case writeSeriesMessageType:
+			err = s.applyWriteSeries(m)
 		case createDatabaseMessageType:
 			err = s.applyCreateDatabase(m)
 		case deleteDatabaseMessageType:
@@ -723,10 +726,6 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applySetDefaultRetentionPolicy(m)
 		case createSeriesIfNotExistsMessageType:
 			err = s.applyCreateSeriesIfNotExists(m)
-		case writeSeriesMessageType:
-			/* TEMPORARILY REMOVED FOR PROTOBUFS.
-			err = s.applyWriteSeries(m)
-			*/
 		}
 
 		// Sync high water mark and errors.
