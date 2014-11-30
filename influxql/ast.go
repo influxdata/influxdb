@@ -118,6 +118,17 @@ type SelectStatement struct {
 	Ascending bool
 }
 
+// Aggregated returns true if the statement uses aggregate functions.
+func (s *SelectStatement) Aggregated() bool {
+	var v bool
+	WalkFunc(s.Fields, func(n Node) {
+		if _, ok := n.(*Call); ok {
+			v = true
+		}
+	})
+	return v
+}
+
 // DeleteStatement represents a command for removing data from the database.
 type DeleteStatement struct {
 	// Data source that values are removed from.

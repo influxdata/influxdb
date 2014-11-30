@@ -436,3 +436,12 @@ func mustParseQuery(s string) *influxql.Query {
 	}
 	return q
 }
+
+// mustParseSelectStatement parses a single select statement.
+func mustParseSelectStatement(s string) *influxql.SelectStatement {
+	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
+	if err != nil {
+		panic(err.Error())
+	}
+	return stmt.(*influxql.SelectStatement)
+}
