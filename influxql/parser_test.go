@@ -45,6 +45,17 @@ func TestParser_ParseStatement(t *testing.T) {
 		stmt influxql.Statement
 		err  string
 	}{
+		// SELECT * statement
+		{
+			s: `SELECT * FROM myseries`,
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields{
+					&influxql.Field{Expr: &influxql.Wildcard{}},
+				},
+				Source: &influxql.Series{Name: "myseries"},
+			},
+		},
+
 		// SELECT statement
 		{
 			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h LIMIT 20 ORDER BY ASC;`,
