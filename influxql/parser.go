@@ -90,8 +90,6 @@ func (p *Parser) ParseStatement() (Statement, error) {
 func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 	stmt := &SelectStatement{}
 
-	// TODO: handle SELECT *
-
 	// Parse fields: "SELECT FIELD+".
 	fields, err := p.parseFields()
 	if err != nil {
@@ -264,6 +262,14 @@ func (p *Parser) parseDropContinuousQueryStatement() (*DropContinuousQueryStatem
 // parseFields parses a list of one or more fields.
 func (p *Parser) parseFields() (Fields, error) {
 	var fields Fields
+
+	// Check for "*" (i.e., "all fields")
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == MUL {
+		fields = append(fields, &Field{&Wildcard{}, ""})
+		return fields, nil
+	}
+	p.unscan()
+
 	for {
 		// Parse the field.
 		f, err := p.parseField()
