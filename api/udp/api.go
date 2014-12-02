@@ -37,6 +37,9 @@ func NewServer(listenAddress string, database string, coord api.Coordinator, clu
 func (self *Server) getAuth() {
 	// just use any (the first) of the list of admins.
 	names := self.clusterConfig.GetClusterAdmins()
+	if len(names) == 0 {
+		panic("UDP Plugin: No cluster admins found - couldn't initialize.")
+	}
 	self.user = self.clusterConfig.GetClusterAdmin(names[0])
 }
 

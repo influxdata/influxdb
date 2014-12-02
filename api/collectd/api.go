@@ -43,6 +43,9 @@ func NewServer(config *configuration.Configuration, coord api.Coordinator, clust
 func (s *Server) getAuth() {
 	// just use any (the first) of the list of admins.
 	names := s.clusterConfig.GetClusterAdmins()
+	if len(names) == 0 {
+		panic("Collectd Plugin: No cluster admins found - couldn't initialize.")
+	}
 	s.user = s.clusterConfig.GetClusterAdmin(names[0])
 }
 
