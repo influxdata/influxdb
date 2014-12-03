@@ -171,7 +171,7 @@ func (s *Server) load() error {
 			db.server = s
 			s.databases[db.name] = db
 
-			for sh, _ := range db.shards {
+			for sh := range db.shards {
 				s.databasesByShard[sh] = db
 			}
 		}
@@ -505,7 +505,7 @@ func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	if err := db.applyCreateUser(c.Username, c.Password, c.Permissions); err != nil {
+	if err := db.applyCreateUser(c.Username, c.Password, c.ReadFrom, c.WriteTo); err != nil {
 		return err
 	}
 
@@ -518,10 +518,11 @@ func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 }
 
 type createDBUserCommand struct {
-	Database    string   `json:"database"`
-	Username    string   `json:"username"`
-	Password    string   `json:"password"`
-	Permissions []string `json:"permissions"`
+	Database string     `json:"database"`
+	Username string     `json:"username"`
+	Password string     `json:"password"`
+	ReadFrom []*Matcher `json:"readFrom"`
+	WriteTo  []*Matcher `json:"writeTo"`
 }
 
 func (s *Server) applyDeleteDBUser(m *messaging.Message) error {
@@ -890,7 +891,7 @@ func (tx *metatx) createSeriesIfNotExists(database, name string, tags map[string
 func tagsToBytes(tags map[string]string) []byte {
 	s := make([]string, 0, len(tags))
 	// pull out keys to sort
-	for k, _ := range tags {
+	for k := range tags {
 		s = append(s, k)
 	}
 	sort.Strings(s)

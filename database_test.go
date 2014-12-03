@@ -22,7 +22,7 @@ func TestDatabase_CreateUser(t *testing.T) {
 	}
 
 	// Create a user on the database.
-	if err := s.Database("foo").CreateUser("susy", "pass", nil); err != nil {
+	if err := s.Database("foo").CreateUser("susy", "pass", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	s.Restart()
@@ -44,7 +44,7 @@ func TestDatabase_CreateUser_ErrUsernameRequired(t *testing.T) {
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Database("foo").CreateUser("", "pass", nil); err != influxdb.ErrUsernameRequired {
+	if err := s.Database("foo").CreateUser("", "pass", nil, nil); err != influxdb.ErrUsernameRequired {
 		t.Fatal(err)
 	}
 }
@@ -56,7 +56,7 @@ func TestDatabase_CreateUser_ErrInvalidUsername(t *testing.T) {
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Database("foo").CreateUser("my%user", "pass", nil); err != influxdb.ErrInvalidUsername {
+	if err := s.Database("foo").CreateUser("my%user", "pass", nil, nil); err != influxdb.ErrInvalidUsername {
 		t.Fatal(err)
 	}
 }
@@ -78,7 +78,7 @@ func TestDatabase_CreateUser_ErrDatabaseNotFound(t *testing.T) {
 	}
 
 	// Create a user using the old database reference.
-	if err := db.CreateUser("susy", "pass", nil); err != influxdb.ErrDatabaseNotFound {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
 }
@@ -95,10 +95,10 @@ func TestDatabase_CreateUser_ErrUserExists(t *testing.T) {
 	db := s.Database("foo")
 
 	// Create a user a user. Then create the user again.
-	if err := db.CreateUser("susy", "pass", nil); err != nil {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.CreateUser("susy", "pass", nil); err != influxdb.ErrUserExists {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != influxdb.ErrUserExists {
 		t.Fatal(err)
 	}
 }
@@ -111,7 +111,7 @@ func TestDatabase_DeleteUser(t *testing.T) {
 	// Create a database and user.
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	if err := db.CreateUser("susy", "pass", nil); err != nil {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != nil {
 		t.Fatal(err)
 	} else if db.User("susy") == nil {
 		t.Fatal("user not created")
@@ -174,7 +174,7 @@ func TestDatabase_ChangePassword(t *testing.T) {
 	// Create a database and user.
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	if err := db.CreateUser("susy", "pass", nil); err != nil {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != nil {
 		t.Fatal(err)
 	} else if bcrypt.CompareHashAndPassword([]byte(db.User("susy").Hash), []byte("pass")) != nil {
 		t.Fatal("invalid initial password")
@@ -200,10 +200,10 @@ func TestDatabase_Users(t *testing.T) {
 
 	// Create two databases with users.
 	s.CreateDatabase("foo")
-	s.Database("foo").CreateUser("susy", "pass", nil)
-	s.Database("foo").CreateUser("john", "pass", nil)
+	s.Database("foo").CreateUser("susy", "pass", nil, nil)
+	s.Database("foo").CreateUser("john", "pass", nil, nil)
 	s.CreateDatabase("bar")
-	s.Database("bar").CreateUser("jimmy", "pass", nil)
+	s.Database("bar").CreateUser("jimmy", "pass", nil, nil)
 	s.Restart()
 
 	// Retrieve a list of all users for "foo" (sorted by name).
@@ -399,7 +399,7 @@ func TestDatabase_WriteSeries(t *testing.T) {
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
 	db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
-	db.CreateUser("susy", "pass", nil)
+	db.CreateUser("susy", "pass", nil, nil)
 
 	// Write series with one point to the database.
 	timestamp := mustParseTime("2000-01-01T00:00:00Z")
@@ -427,4 +427,25 @@ func mustParseQuery(s string) *influxql.Query {
 		panic(err.Error())
 	}
 	return q
+}
+
+func TestDatabase_CreateShardIfNotExist(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+
+	rp := &influxdb.RetentionPolicy{Name: "bar"}
+	if err := db.CreateRetentionPolicy(rp); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := db.CreateShardIfNotExists(rp, uint32(1), time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	ss := db.Shards()
+	if len(ss) != 1 {
+		t.Fatalf("expected 1 shard but found %d", len(ss))
+	}
 }
