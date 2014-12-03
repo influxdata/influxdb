@@ -435,12 +435,11 @@ func TestDatabase_CreateShardIfNotExist(t *testing.T) {
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
 
-	rp := &influxdb.RetentionPolicy{Name: "bar"}
-	if err := db.CreateRetentionPolicy(rp); err != nil {
+	if err := db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := db.CreateShardsIfNotExists(rp, time.Time{}); err != nil {
+	if _, err := db.CreateShardsIfNotExists("bar", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 

@@ -289,20 +289,20 @@ func (db *Database) RetentionPolicies() []*RetentionPolicy {
 }
 
 // CreateShardsIfNotExist creates all the shards for a retention policy for the interval a timestamp falls into. Note that multiple shards can be created for each bucket of time.
-func (db *Database) CreateShardsIfNotExists(policy *RetentionPolicy, timestamp time.Time) ([]*Shard, error) {
+func (db *Database) CreateShardsIfNotExists(policy string, timestamp time.Time) ([]*Shard, error) {
 	db.mu.RLock()
-	p := db.policies[policy.Name]
+	p := db.policies[policy]
 	db.mu.RUnlock()
 	if p == nil {
 		return nil, ErrRetentionPolicyNotFound
 	}
 
-	c := &createShardIfNotExistsCommand{Database: db.name, Policy: policy.Name, Timestamp: timestamp}
+	c := &createShardIfNotExistsCommand{Database: db.name, Policy: policy, Timestamp: timestamp}
 	if _, err := db.server.broadcast(createShardIfNotExistsMessageType, c); err != nil {
 		return nil, err
 	}
 
-	return policy.shardsByTimestamp(timestamp), nil
+	return p.shardsByTimestamp(timestamp), nil
 }
 
 // createShardIfNotExists returns the shard for a given retention policy, series, and timestamp. If it doesn't exist, it will create all shards for the given timestamp
@@ -311,7 +311,7 @@ func (db *Database) createShardIfNotExists(policy *RetentionPolicy, id uint32, t
 		return s, nil
 	}
 
-	if _, err := db.CreateShardsIfNotExists(policy, timestamp); err != nil {
+	if _, err := db.CreateShardsIfNotExists(policy.Name, timestamp); err != nil {
 		return nil, err
 	}
 
