@@ -339,12 +339,9 @@ func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]st
 	}
 
 	// get the id for the series and tagset
-	id, ok := db.getSeriesId(name, tags)
-	if !ok {
-		var err error
-		if id, err = db.createSeriesIfNotExists(name, tags); err != nil {
-			return err
-		}
+	id, err := db.createSeriesIfNotExists(name, tags)
+	if err != nil {
+		return err
 	}
 
 	// now write it into the shard
@@ -410,6 +407,10 @@ func (db *Database) getSeriesId(name string, tags map[string]string) (uint32, bo
 }
 
 func (db *Database) createSeriesIfNotExists(name string, tags map[string]string) (uint32, error) {
+	if id, ok := db.getSeriesId(name, tags); ok {
+		return id, nil
+	}
+
 	c := &createSeriesIfNotExistsCommand{
 		Database: db.Name(),
 		Name:     name,
