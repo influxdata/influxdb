@@ -888,12 +888,17 @@ func (tx *metatx) createSeriesIfNotExists(database, name string, tags map[string
 
 // used to convert the tag set to bytes for use as a key in bolt
 func tagsToBytes(tags map[string]string) []byte {
-	s := make([]string, 0, len(tags)*2)
-	for k, v := range tags {
-		s = append(s, k, v)
+	s := make([]string, 0, len(tags))
+	// pull out keys to sort
+	for k, _ := range tags {
+		s = append(s, k)
 	}
-	// always sort since the key order in maps aren't guaranteed
 	sort.Strings(s)
+
+	// now append on the key values in key sorted order
+	for _, k := range s {
+		s = append(s, tags[k])
+	}
 	return []byte(strings.Join(s, "|"))
 }
 
