@@ -274,7 +274,7 @@ func (db *Database) applySetDefaultRetentionPolicy(name string) error {
 
 // CreateShardIfNotExists creates a shard for a retention policy for a given timestamp and returns the shard for the series
 func (db *Database) CreateShardIfNotExists(policy *RetentionPolicy, id uint32, timestamp time.Time) (*Shard, error) {
-	if s := policy.ShardBySeriesTimestamp(id, timestamp); s != nil {
+	if s := policy.shardBySeriesTimestamp(id, timestamp); s != nil {
 		return s, nil
 	}
 
@@ -283,7 +283,7 @@ func (db *Database) CreateShardIfNotExists(policy *RetentionPolicy, id uint32, t
 		return nil, err
 	}
 
-	return policy.ShardBySeriesTimestamp(id, timestamp), nil
+	return policy.shardBySeriesTimestamp(id, timestamp), nil
 }
 
 func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timestamp time.Time) (error, bool) {
@@ -551,9 +551,9 @@ func NewRetentionPolicy() *RetentionPolicy {
 	}
 }
 
-// ShardBySeriesTimestamp returns the shard in the space that owns a given timestamp for a given series id.
+// shardBySeriesTimestamp returns the shard in the space that owns a given timestamp for a given series id.
 // Returns nil if the shard does not exist.
-func (ss *RetentionPolicy) ShardBySeriesTimestamp(id uint32, timestamp time.Time) *Shard {
+func (ss *RetentionPolicy) shardBySeriesTimestamp(id uint32, timestamp time.Time) *Shard {
 	shards := make([]*Shard, 0, ss.SplitN)
 	for _, s := range ss.Shards {
 		if timeBetween(timestamp, s.StartTime, s.EndTime) {
