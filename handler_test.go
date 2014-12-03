@@ -113,7 +113,7 @@ func TestHandler_Shards(t *testing.T) {
 	db := srvr.Database("foo")
 	rp := influxdb.NewRetentionPolicy("bar")
 	db.CreateRetentionPolicy(rp)
-	db.CreateShardIfNotExists(rp, uint32(1), time.Time{})
+	db.CreateShardsIfNotExists(rp, time.Time{})
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 	status, body := MustHTTP("GET", s.URL+`/db/foo/shards`, "")

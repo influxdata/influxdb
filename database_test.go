@@ -440,7 +440,7 @@ func TestDatabase_CreateShardIfNotExist(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := db.CreateShardIfNotExists(rp, uint32(1), time.Time{}); err != nil {
+	if _, err := db.CreateShardsIfNotExists(rp, time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 

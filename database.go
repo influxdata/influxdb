@@ -288,14 +288,30 @@ func (db *Database) RetentionPolicies() []*RetentionPolicy {
 	return policies
 }
 
-// CreateShardIfNotExists creates a shard for a retention policy for a given timestamp and returns the shard for the series
-func (db *Database) CreateShardIfNotExists(policy *RetentionPolicy, id uint32, timestamp time.Time) (*Shard, error) {
-	if s := policy.shardBySeriesTimestamp(id, timestamp); s != nil {
-		return s, nil
+// CreateShardsIfNotExist creates all the shards for a retention policy for the interval a timestamp falls into. Note that multiple shards can be created for each bucket of time.
+func (db *Database) CreateShardsIfNotExists(policy *RetentionPolicy, timestamp time.Time) ([]*Shard, error) {
+	db.mu.RLock()
+	p := db.policies[policy.Name]
+	db.mu.RUnlock()
+	if p == nil {
+		return nil, ErrRetentionPolicyNotFound
 	}
 
 	c := &createShardIfNotExistsCommand{Database: db.name, Policy: policy.Name, Timestamp: timestamp}
 	if _, err := db.server.broadcast(createShardIfNotExistsMessageType, c); err != nil {
+		return nil, err
+	}
+
+	return policy.shardsByTimestamp(timestamp), nil
+}
+
+// createShardIfNotExists returns the shard for a given retention policy, series, and timestamp. If it doesn't exist, it will create all shards for the given timestamp
+func (db *Database) createShardIfNotExists(policy *RetentionPolicy, id uint32, timestamp time.Time) (*Shard, error) {
+	if s := policy.shardBySeriesTimestamp(id, timestamp); s != nil {
+		return s, nil
+	}
+
+	if _, err := db.CreateShardsIfNotExists(policy, timestamp); err != nil {
 		return nil, err
 	}
 
@@ -366,7 +382,7 @@ func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]st
 	}
 
 	// now write it into the shard
-	s, err := db.CreateShardIfNotExists(rp, id, timestamp)
+	s, err := db.createShardIfNotExists(rp, id, timestamp)
 	if err != nil {
 		return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
@@ -572,16 +588,21 @@ func NewRetentionPolicy(name string) *RetentionPolicy {
 // shardBySeriesTimestamp returns the shard in the space that owns a given timestamp for a given series id.
 // Returns nil if the shard does not exist.
 func (rp *RetentionPolicy) shardBySeriesTimestamp(id uint32, timestamp time.Time) *Shard {
+	shards := rp.shardsByTimestamp(timestamp)
+	if len(shards) > 0 {
+		return shards[int(id)%len(shards)]
+	}
+	return nil
+}
+
+func (rp *RetentionPolicy) shardsByTimestamp(timestamp time.Time) []*Shard {
 	shards := make([]*Shard, 0, rp.SplitN)
 	for _, s := range rp.Shards {
 		if timeBetween(timestamp, s.StartTime, s.EndTime) {
 			shards = append(shards, s)
 		}
 	}
-	if len(shards) > 0 {
-		return shards[int(id)%len(shards)]
-	}
-	return nil
+	return shards
 }
 
 // MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
