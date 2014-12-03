@@ -62,7 +62,7 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Del("/db/:db/shards/:id", http.HandlerFunc(h.serveDeleteShard))
 
 	// retention policy routes.
-	h.mux.Get("/db/:db/retention_policies", http.HandlerFunc(h.serveRetentionPolicys))
+	h.mux.Get("/db/:db/retention_policies", http.HandlerFunc(h.serveRetentionPolicies))
 	h.mux.Get("/db/:db/retention_policies/:name/shards", http.HandlerFunc(h.serveShardsByRetentionPolicy))
 	h.mux.Post("/db/:db/retention_policies", http.HandlerFunc(h.serveCreateRetentionPolicy))
 	h.mux.Post("/db/:db/retention_policies/:name", http.HandlerFunc(h.serveUpdateRetentionPolicy))
@@ -98,15 +98,15 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authentication.
 
 	// Parse query from query string.
-	values := r.URL.Query()
-	_, err := influxql.NewParser(strings.NewReader(values.Get("q"))).ParseQuery()
+	urlQry := r.URL.Query()
+	_, err := influxql.NewParser(strings.NewReader(urlQry.Get("q"))).ParseQuery()
 	if err != nil {
 		h.error(w, "parse error: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Retrieve database from server.
-	db := h.server.Database(values.Get(":db"))
+	db := h.server.Database(urlQry.Get(":db"))
 	if db == nil {
 		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
 		return
@@ -114,7 +114,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 
 	// Parse the time precision from the query params.
 	/*
-		precision, err := parseTimePrecision(values.Get("time_precision"))
+		precision, err := parseTimePrecision(urlQry.Get("time_precision"))
 		if err != nil {
 			h.error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -205,12 +205,15 @@ func (h *Handler) serveCreateDatabase(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
-
 	// TODO: Authentication
 
 	// Decode the request from the body.
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
 		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	} else if req.Name == "" {
+		h.error(w, ErrDatabaseNameRequired.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -228,8 +231,8 @@ func (h *Handler) serveCreateDatabase(w http.ResponseWriter, r *http.Request) {
 // serveDeleteDatabase deletes an existing database on the server.
 func (h *Handler) serveDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get(":name")
-	if err := h.server.DeleteDatabase(name); err != ErrDatabaseNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
+	if err := h.server.DeleteDatabase(name); err == ErrDatabaseNotFound {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
@@ -259,11 +262,76 @@ func (h *Handler) serveAuthenticateDBUser(w http.ResponseWriter, r *http.Request
 // serveDBUsers returns data about a single database user.
 func (h *Handler) serveDBUsers(w http.ResponseWriter, r *http.Request) {}
 
+type userJSON struct {
+	Name     string `json:"name"`
+	Password string `json:"password"`
+	IsAdmin  bool   `json:"isAdmin"`
+	ReadFrom []*Matcher `json:"readFrom"`
+	WriteTo  []*Matcher `json:"writeTo"`
+}
+
+func newUserJSONFromDBUser(dbu *DBUser) *userJSON {
+	return &userJSON{
+		Name:     dbu.Name,
+		IsAdmin:  dbu.IsAdmin,
+		WriteTo:  dbu.WriteTo,
+		ReadFrom: dbu.ReadFrom,
+	}
+}
+
 // serveCreateDBUser creates a new database user.
-func (h *Handler) serveCreateDBUser(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveCreateDBUser(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	nu := &userJSON{}
+	if err := json.NewDecoder(r.Body).Decode(nu); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := db.CreateUser(nu.Name, nu.Password, nu.ReadFrom, nu.WriteTo); err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// TODO: handle IsAdmin
+}
 
 // serveDBUser returns data about a single database user.
-func (h *Handler) serveDBUser(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveDBUser(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	dbUser := db.User(urlQry.Get(":user"))
+	if dbUser == nil {
+		h.error(w, ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	userJSON := newUserJSONFromDBUser(dbUser)
+
+	w.Header().Add("content-type", "application/json")
+	err := json.NewEncoder(w).Encode(userJSON)
+	if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
 
 // serveUpdateDBUser updates an existing database user.
 func (h *Handler) serveUpdateDBUser(w http.ResponseWriter, r *http.Request) {}
@@ -278,25 +346,155 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {}
 func (h *Handler) serveInterfaces(w http.ResponseWriter, r *http.Request) {}
 
 // serveShards returns a list of shards.
-func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	shards := db.Shards()
+
+	w.Header().Add("content-type", "application/json")
+	err := json.NewEncoder(w).Encode(shards)
+	if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
 
 // serveShardsByRetentionPolicy returns a list of shards for a given retention policy.
-func (h *Handler) serveShardsByRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveShardsByRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	policy := db.RetentionPolicy(urlQry.Get(":name"))
+	if policy == nil {
+		h.error(w, ErrRetentionPolicyNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Add("content-type", "application/json")
+	err := json.NewEncoder(w).Encode(policy.Shards)
+	if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
 
 // serveDeleteShard removes an existing shard.
 func (h *Handler) serveDeleteShard(w http.ResponseWriter, r *http.Request) {}
 
-// serveRetentionPolicys returns a list of retention policys.
-func (h *Handler) serveRetentionPolicys(w http.ResponseWriter, r *http.Request) {}
+// serveRetentionPolicies returns a list of retention policys.
+func (h *Handler) serveRetentionPolicies(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	policies := db.RetentionPolicies()
+
+	w.Header().Add("content-type", "application/json")
+	_ = json.NewEncoder(w).Encode(policies)
+}
 
 // serveCreateRetentionPolicy creates a new retention policy.
-func (h *Handler) serveCreateRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveCreateRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Decode the policy from the body.
+	policy := &RetentionPolicy{}
+	if err := json.NewDecoder(r.Body).Decode(policy); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Create the retention policy.
+	if err := db.CreateRetentionPolicy(policy); err == ErrRetentionPolicyExists {
+		h.error(w, err.Error(), http.StatusConflict)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
 
 // serveUpdateRetentionPolicy updates an existing retention policy.
-func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Get the policy to be updated
+	name := urlQry.Get(":name")
+	policy := db.RetentionPolicy(name)
+	if policy == nil {
+		h.error(w, ErrRetentionPolicyNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Decode the new policy values from the body.
+	newPolicy := &RetentionPolicy{}
+	if err := json.NewDecoder(r.Body).Decode(newPolicy); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Update the policy
+	*policy = *newPolicy
+
+	w.WriteHeader(http.StatusOK)
+}
 
 // serveDeleteRetentionPolicy removes an existing retention policy.
-func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	if err := db.DeleteRetentionPolicy(urlQry.Get(":name")); err == ErrRetentionPolicyNotFound {
+		h.error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
 
 // serveServers returns a list of servers in the cluster.
 func (h *Handler) serveServers(w http.ResponseWriter, r *http.Request) {}
@@ -918,9 +1116,9 @@ func (self *HTTPServer) convertShardsToMap(shards []*cluster.ShardData) []interf
 	return result
 }
 
-func (self *HTTPServer) getRetentionPolicys(w libhttp.ResponseWriter, r *libhttp.Request) {
+func (self *HTTPServer) getRetentionPolicies(w libhttp.ResponseWriter, r *libhttp.Request) {
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
-		return libhttp.StatusOK, self.clusterConfig.GetRetentionPolicys()
+		return libhttp.StatusOK, self.clusterConfig.GetRetentionPolicies()
 	})
 }
 

@@ -1,4 +1,546 @@
-package influxdb
+package influxdb_test
+
+import (
+	"bytes"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+	//"fmt"
+	"github.com/influxdb/influxdb"
+)
+
+func TestHandler_Databases(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateDatabase("bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `[{"name":"bar"},{"name":"foo"}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDatabase(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("POST", s.URL+`/db`, `{"name": "foo"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDatabase_BadRequest_NoName(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("POST", s.URL+`/db`, `{"BadRequest": 1}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database name required` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDatabase_BadRequest_InvalidJSON(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("POST", s.URL+`/db`, `"BadRequest": 1`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `json: cannot unmarshal string into Go value of type struct { Name string "json:\"name\"" }` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDatabase_Conflict(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("POST", s.URL+`/db`, `{"name": "foo"}`)
+	if status != http.StatusConflict {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database exists` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteDatabase(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, "")
+	if status != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database not found` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_Shards(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	db.CreateShardIfNotExists("bar", time.Time{})
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/shards`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `[{"id":3,"startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z"}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_Shards_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/shards`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database not found` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_RetentionPolicies(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `[{"name":"bar","replicaN":1,"splitN":1}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database not found` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateRetentionPolicy(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	if status != http.StatusCreated {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	policy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	if status != http.StatusConflict {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "retention policy exists" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	policy := `{"name": "bar", "duration": "**BAD**", "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "json: cannot unmarshal string into Go value of type time.Duration" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_UpdateRetentionPolicy(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	policy := influxdb.NewRetentionPolicy("bar")
+	db.CreateRetentionPolicy(policy)
+	policy = db.RetentionPolicy("bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+	if policy.Name != "newName" {
+		t.Fatalf("unexpected policy name: %s", policy.Name)
+	}
+}
+
+func TestHandler_UpdateRetentionPolicy_BadRequest(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	policy := influxdb.NewRetentionPolicy("bar")
+	db.CreateRetentionPolicy(policy)
+	policy = db.RetentionPolicy("bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newPolicy := `{"name": "newName", "duration": "BadRequest", "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "json: cannot unmarshal string into Go value of type time.Duration" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "retention policy not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteRetentionPolicy(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, "")
+	if status != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "retention policy not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_ShardsByRetentionPolicy(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	policy := db.RetentionPolicy("bar")
+	policy.Shards = append(policy.Shards, &influxdb.Shard{ID: 42})
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies/bar/shards`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `[{"id":42,"startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z"}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_ShardsByRetentionPolicy_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies/bar/shards`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_ShardsByRetentionPolicy_PolicyNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies/bar/shards`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "retention policy not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_Ping(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, _ := MustHTTP("GET", s.URL+`/ping`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
+func TestHandler_CreateDBUser(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newUser := `{"name":"jdoe","password":"1337","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDBUser_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newUser := `{"name":"jdoe","password":"1337","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != "database not found" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDBUser_BadRequest(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newUser := `{"name":0xBAD,"password":"1337","isAdmin":true,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `invalid character 'x' after object key:value pair` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateDBUser_InternalServerError(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	newUser := `{"name":"","password":"1337","isAdmin":true,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
+	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
+	if status != http.StatusInternalServerError {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `username required` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DBUser(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/users/jdoe`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `{"name":"jdoe","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DBUser_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/users/jdoe`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `database not found` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DBUser_UserNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/users/jane`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `user not found` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func MustHTTP(verb, url, body string) (int, string) {
+	req, err := http.NewRequest(verb, url, bytes.NewBuffer([]byte(body)))
+	if err != nil {
+		panic(err)
+	}
+	req.Header.Set("Content-Type", "applicaton/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	status := resp.StatusCode
+	respBody, err := ioutil.ReadAll(resp.Body)
+	return status, strings.TrimRight(string(respBody), "\n")
+}
+
+// Server is a test HTTP server that wraps a handler
+type HTTPServer struct {
+	*httptest.Server
+	Handler *influxdb.Handler
+}
+
+func NewHTTPServer(s *Server) *HTTPServer {
+	h := influxdb.NewHandler(s.Server)
+	return &HTTPServer{httptest.NewServer(h), h}
+}
+
+func (s *HTTPServer) Close() {
+	s.Server.Close()
+}
 
 /*
 import (

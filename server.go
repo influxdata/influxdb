@@ -492,7 +492,7 @@ func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	if err := db.applyCreateUser(c.Username, c.Password, c.Permissions); err != nil {
+	if err := db.applyCreateUser(c.Username, c.Password, c.ReadFrom, c.WriteTo); err != nil {
 		return err
 	}
 
@@ -505,10 +505,11 @@ func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 }
 
 type createDBUserCommand struct {
-	Database    string   `json:"database"`
-	Username    string   `json:"username"`
-	Password    string   `json:"password"`
-	Permissions []string `json:"permissions"`
+	Database string     `json:"database"`
+	Username string     `json:"username"`
+	Password string     `json:"password"`
+	ReadFrom []*Matcher `json:"readFrom"`
+	WriteTo  []*Matcher `json:"writeTo"`
 }
 
 func (s *Server) applyDeleteDBUser(m *messaging.Message) error {

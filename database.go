@@ -71,20 +71,21 @@ func (db *Database) Users() []*DBUser {
 }
 
 // CreateUser creates a user in the database.
-func (db *Database) CreateUser(username, password string, permissions []string) error {
+func (db *Database) CreateUser(username, password string, read, write []*Matcher) error {
 	// TODO: Authorization.
 
 	c := &createDBUserCommand{
 		Database:    db.Name(),
 		Username:    username,
 		Password:    password,
-		Permissions: permissions,
+		ReadFrom: read,
+		WriteTo: write,
 	}
 	_, err := db.server.broadcast(createDBUserMessageType, c)
 	return err
 }
 
-func (db *Database) applyCreateUser(username, password string, permissions []string) error {
+func (db *Database) applyCreateUser(username, password string, read, write []*Matcher) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -103,14 +104,6 @@ func (db *Database) applyCreateUser(username, password string, permissions []str
 		return err
 	}
 
-	// Setup matchers.
-	rmatcher := []*Matcher{{true, ".*"}}
-	wmatcher := []*Matcher{{true, ".*"}}
-	if len(permissions) == 2 {
-		rmatcher[0].Name = permissions[0]
-		wmatcher[0].Name = permissions[1]
-	}
-
 	// Create the user.
 	db.users[username] = &DBUser{
 		CommonUser: CommonUser{
@@ -118,8 +111,8 @@ func (db *Database) applyCreateUser(username, password string, permissions []str
 			Hash: string(hash),
 		},
 		DB:       db.name,
-		ReadFrom: rmatcher,
-		WriteTo:  wmatcher,
+		ReadFrom: read,
+		WriteTo:  write,
 		IsAdmin:  false,
 	}
 
@@ -195,13 +188,13 @@ func (db *Database) RetentionPolicy(name string) *RetentionPolicy {
 }
 
 // CreateRetentionPolicy creates a retention policy in the database.
-func (db *Database) CreateRetentionPolicy(ss *RetentionPolicy) error {
+func (db *Database) CreateRetentionPolicy(rp *RetentionPolicy) error {
 	c := &createRetentionPolicyCommand{
 		Database: db.Name(),
-		Name:     ss.Name,
-		Duration: ss.Duration,
-		ReplicaN: ss.ReplicaN,
-		SplitN:   ss.SplitN,
+		Name:     rp.Name,
+		Duration: rp.Duration,
+		ReplicaN: rp.ReplicaN,
+		SplitN:   rp.SplitN,
 	}
 	_, err := db.server.broadcast(createRetentionPolicyMessageType, c)
 	return err
@@ -272,16 +265,27 @@ func (db *Database) applySetDefaultRetentionPolicy(name string) error {
 	return nil
 }
 
+// Shards returns a list of all shards in the database
+func (db *Database) Shards() []*Shard {
+	shards := make([]*Shard, 0, len(db.shards))
+	for _, v := range db.shards {
+		shards = append(shards, v)
+	}
+	return shards
+}
+
 // shard returns a shard by id.
 func (db *Database) shard(id uint64) *Shard {
-	for _, ss := range db.policies {
-		for _, s := range ss.Shards {
-			if s.ID == id {
-				return s
-			}
-		}
+	return db.shards[id]
+}
+
+// RetentionPolicies returns a list of retention polocies for the database
+func (db *Database) RetentionPolicies() []*RetentionPolicy {
+	policies := make([]*RetentionPolicy, 0, len(db.policies))
+	for _, p := range db.policies {
+		policies = append(policies, p)
 	}
-	return nil
+	return policies
 }
 
 // CreateShardIfNotExists creates a shard for a retention policy for a given timestamp.
@@ -296,21 +300,21 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 	defer db.mu.Unlock()
 
 	// Validate retention policy.
-	ss := db.policies[policy]
-	if ss == nil {
+	rp := db.policies[policy]
+	if rp == nil {
 		return ErrRetentionPolicyNotFound, false
 	}
 
 	// If we can match to an existing shard date range then just ignore request.
-	for _, s := range ss.Shards {
+	for _, s := range rp.Shards {
 		if timeBetween(timestamp, s.StartTime, s.EndTime) {
 			return nil, false
 		}
 	}
 
 	// If no shards match then create a new one.
-	startTime := timestamp.Truncate(ss.Duration).UTC()
-	endTime := startTime.Add(ss.Duration).UTC()
+	startTime := timestamp.Truncate(rp.Duration).UTC()
+	endTime := startTime.Add(rp.Duration).UTC()
 	s := newShard()
 	s.ID, s.StartTime, s.EndTime = id, startTime, endTime
 
@@ -320,7 +324,9 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 	}
 
 	// Append to retention policy.
-	ss.Shards = append(ss.Shards, s)
+	rp.Shards = append(rp.Shards, s)
+	// Add to db's map of shards
+	db.shards[s.ID] = s
 
 	return nil, true
 }
@@ -471,8 +477,8 @@ func (db *Database) MarshalJSON() ([]byte, error) {
 	for _, u := range db.users {
 		o.Users = append(o.Users, u)
 	}
-	for _, ss := range db.policies {
-		o.Policies = append(o.Policies, ss)
+	for _, rp := range db.policies {
+		o.Policies = append(o.Policies, rp)
 	}
 	for _, s := range db.shards {
 		o.Shards = append(o.Shards, s)
@@ -504,8 +510,8 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 
 	// Copy shard policies.
 	db.policies = make(map[string]*RetentionPolicy)
-	for _, ss := range o.Policies {
-		db.policies[ss.Name] = ss
+	for _, rp := range o.Policies {
+		db.policies[rp.Name] = rp
 	}
 
 	// Copy shards.
@@ -556,8 +562,9 @@ type RetentionPolicy struct {
 }
 
 // NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
-func NewRetentionPolicy() *RetentionPolicy {
+func NewRetentionPolicy(name string) *RetentionPolicy {
 	return &RetentionPolicy{
+		Name:     name,
 		ReplicaN: DefaultReplicaN,
 		SplitN:   DefaultSplitN,
 		Duration: DefaultShardRetention,
@@ -567,10 +574,10 @@ func NewRetentionPolicy() *RetentionPolicy {
 /*
 // SplitPoints groups a set of points by shard id.
 // Also returns a list of timestamps that did not match an existing shard.
-func (ss *RetentionPolicy) Split(a []*protocol.Point) (points map[uint64][]*protocol.Point, unassigned []*protocol.Point) {
+func (rp *RetentionPolicy) Split(a []*protocol.Point) (points map[uint64][]*protocol.Point, unassigned []*protocol.Point) {
 	points = make(map[uint64][]*protocol.Point)
 	for _, p := range a {
-		if s := ss.ShardByTimestamp(time.Unix(0, p.GetTimestamp())); s != nil {
+		if s := rp.ShardByTimestamp(time.Unix(0, p.GetTimestamp())); s != nil {
 			points[s.ID] = append(points[s.ID], p)
 		} else {
 			unassigned = append(unassigned, p)
@@ -582,8 +589,8 @@ func (ss *RetentionPolicy) Split(a []*protocol.Point) (points map[uint64][]*prot
 
 // ShardByTimestamp returns the shard in the space that owns a given timestamp.
 // Returns nil if the shard does not exist.
-func (ss *RetentionPolicy) ShardByTimestamp(timestamp time.Time) *Shard {
-	for _, s := range ss.Shards {
+func (rp *RetentionPolicy) ShardByTimestamp(timestamp time.Time) *Shard {
+	for _, s := range rp.Shards {
 		if timeBetween(timestamp, s.StartTime, s.EndTime) {
 			return s
 		}
@@ -592,17 +599,17 @@ func (ss *RetentionPolicy) ShardByTimestamp(timestamp time.Time) *Shard {
 }
 
 // MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
-func (s *RetentionPolicy) MarshalJSON() ([]byte, error) {
+func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&retentionPolicyJSON{
-		Name:     s.Name,
-		Duration: s.Duration,
-		ReplicaN: s.ReplicaN,
-		SplitN:   s.SplitN,
+		Name:     rp.Name,
+		Duration: rp.Duration,
+		ReplicaN: rp.ReplicaN,
+		SplitN:   rp.SplitN,
 	})
 }
 
 // UnmarshalJSON decodes a JSON-encoded byte slice to a retention policy.
-func (s *RetentionPolicy) UnmarshalJSON(data []byte) error {
+func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	// Decode into intermediate type.
 	var o retentionPolicyJSON
 	if err := json.Unmarshal(data, &o); err != nil {
@@ -610,11 +617,11 @@ func (s *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	}
 
 	// Copy over properties from intermediate type.
-	s.Name = o.Name
-	s.ReplicaN = o.ReplicaN
-	s.SplitN = o.SplitN
-	s.Duration = o.Duration
-	s.Shards = o.Shards
+	rp.Name = o.Name
+	rp.ReplicaN = o.ReplicaN
+	rp.SplitN = o.SplitN
+	rp.Duration = o.Duration
+	rp.Shards = o.Shards
 
 	return nil
 }
@@ -628,14 +635,14 @@ type retentionPolicyJSON struct {
 	Shards   []*Shard      `json:"shards,omitempty"`
 }
 
-// RetentionPolicys represents a list of shard policies.
-type RetentionPolicys []*RetentionPolicy
+// RetentionPolicies represents a list of shard policies.
+type RetentionPolicies []*RetentionPolicy
 
 // Shards returns a list of all shards for all policies.
-func (a RetentionPolicys) Shards() []*Shard {
+func (rps RetentionPolicies) Shards() []*Shard {
 	var shards []*Shard
-	for _, ss := range a {
-		shards = append(shards, ss.Shards...)
+	for _, rp := range rps {
+		shards = append(shards, rp.Shards...)
 	}
 	return shards
 }
