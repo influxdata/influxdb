@@ -263,9 +263,9 @@ func (h *Handler) serveAuthenticateDBUser(w http.ResponseWriter, r *http.Request
 func (h *Handler) serveDBUsers(w http.ResponseWriter, r *http.Request) {}
 
 type userJSON struct {
-	Name     string `json:"name"`
-	Password string `json:"password"`
-	IsAdmin  bool   `json:"isAdmin"`
+	Name     string     `json:"name"`
+	Password string     `json:"password"`
+	IsAdmin  bool       `json:"isAdmin"`
 	ReadFrom []*Matcher `json:"readFrom"`
 	WriteTo  []*Matcher `json:"writeTo"`
 }
