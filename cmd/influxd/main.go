@@ -45,14 +45,16 @@ func main() {
 
 func start() error {
 	var (
-		fileName     = flag.String("config", "config.sample.toml", "Config file")
-		seedServers  = flag.String("join", "", "Comma-separated list of servers, for joining existing cluster, in form host:port")
-		showVersion  = flag.Bool("v", false, "Get version number")
-		hostname     = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
-		protobufPort = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
-		pidFile      = flag.String("pidfile", "", "the pid file")
-		stdout       = flag.Bool("stdout", false, "Log to stdout overriding the configuration")
-		syslog       = flag.String("syslog", "", "Log to syslog facility overriding the configuration")
+		fileName      = flag.String("config", "config.sample.toml", "Config file")
+		createCluster = flag.Bool("create-cluster", false, "Create a new cluster, ready for other nodes to join")
+		seedServers   = flag.String("join", "", "Comma-separated list of servers, for joining existing cluster, in form host:port")
+		role          = flag.String("role", "combined", "Role for this node. Applicable only to cluster deployments")
+		showVersion   = flag.Bool("v", false, "Get version number")
+		hostname      = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
+		protobufPort  = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
+		pidFile       = flag.String("pidfile", "", "the pid file")
+		stdout        = flag.Bool("stdout", false, "Log to stdout overriding the configuration")
+		syslog        = flag.String("syslog", "", "Log to syslog facility overriding the configuration")
 	)
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
@@ -61,6 +63,14 @@ func start() error {
 	if *showVersion {
 		fmt.Println(v)
 		return nil
+	}
+
+	// Validate command-line options.
+	if len(strings.Split(*seedServers, ",")) > 0 && *createCluster {
+		return fmt.Errorf("Creating a cluster, and also specifying a cluster to join, is not supported")
+	}
+	if *role != "combined" && *role != "broker" && *role != "data" {
+		return fmt.Errorf("Only the roles 'combined', 'broker', and 'data' are supported")
 	}
 
 	// Parse configuration.
