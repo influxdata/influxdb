@@ -61,8 +61,8 @@ var (
 	ErrInvalidQuery = errors.New("invalid query")
 
 	// ErrSeriesNotFound is returned when looking up a non-existent series by database, name and tags
-	ErrSeriesNotFound = errors.New("Series not found")
+	ErrSeriesNotFound = errors.New("series not found")
 
 	// ErrSeriesExists is returned when attempting to set the id of a series by database, name and tags that already exists
-	ErrSeriesExists = errors.New("Series already exists")
+	ErrSeriesExists = errors.New("series already exists")
 )
