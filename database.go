@@ -272,11 +272,14 @@ func (db *Database) applySetDefaultRetentionPolicy(name string) error {
 	return nil
 }
 
-// CreateShardIfNotExists creates a shard for a retention policy for a given timestamp.
-func (db *Database) CreateShardIfNotExists(policy string, timestamp time.Time) error {
-	c := &createShardIfNotExistsCommand{Database: db.name, Policy: policy, Timestamp: timestamp}
-	_, err := db.server.broadcast(createShardIfNotExistsMessageType, c)
-	return err
+// CreateShardIfNotExists creates a shard for a retention policy for a given timestamp and returns the shard for the series
+func (db *Database) CreateShardIfNotExists(policy *RetentionPolicy, id uint32, timestamp time.Time) (*Shard, error) {
+	c := &createShardIfNotExistsCommand{Database: db.name, Policy: policy.Name, Timestamp: timestamp}
+	if _, err := db.server.broadcast(createShardIfNotExistsMessageType, c); err != nil {
+		return nil, err
+	}
+
+	return policy.ShardBySeriesTimestamp(id, timestamp), nil
 }
 
 func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timestamp time.Time) (error, bool) {
@@ -344,13 +347,14 @@ func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]st
 		}
 	}
 
-	// TODO: now write it in
+	// now write it into the shard
 	s := rp.ShardBySeriesTimestamp(id, timestamp)
 	if s == nil {
-		if err := db.CreateShardIfNotExists(retentionPolicy, timestamp); err != nil {
+		var err error
+		s, err = db.CreateShardIfNotExists(rp, id, timestamp)
+		if err != nil {
 			return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 		}
-		s = rp.ShardBySeriesTimestamp(id, timestamp)
 	}
 
 	data, err := marshalPoint(id, timestamp, values)
@@ -364,13 +368,9 @@ func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]st
 		TopicID: s.ID,
 		Data:    data,
 	}
-	index, err := db.server.client.Publish(m)
-	if err != nil {
-		return err
-	}
 
-	// TODO: I don't think we should block until replication?
-	return db.server.sync(index)
+	_, err = db.server.client.Publish(m)
+	return err
 }
 
 func marshalPoint(seriesID uint32, timestamp time.Time, values map[string]interface{}) ([]byte, error) {
