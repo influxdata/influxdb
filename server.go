@@ -831,7 +831,6 @@ func (tx *metatx) databases() (a []*Database) {
 
 // saveDatabase persists a database to the metastore.
 func (tx *metatx) saveDatabase(db *Database) error {
-	// TODO: ask ben how to make these two operations occur in a single atomic transaction
 	_, err := tx.Bucket([]byte("Series")).CreateBucketIfNotExists([]byte(db.name))
 	if err != nil {
 		return err
