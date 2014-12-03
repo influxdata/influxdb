@@ -392,12 +392,12 @@ func unmarshalPoint(data []byte) (uint32, time.Time, map[string]interface{}, err
 	return id, timestamp, v, err
 }
 
-// getSeriesId returns the unique id of a series and tagset and a bool indicating if it was found
-func (db *Database) getSeriesId(name string, tags map[string]string) (uint32, bool) {
+// seriesID returns the unique id of a series and tagset and a bool indicating if it was found
+func (db *Database) seriesID(name string, tags map[string]string) (uint32, bool) {
 	var id uint32
 	var err error
 	db.server.meta.view(func(tx *metatx) error {
-		id, err = tx.getSeriesId(db.name, name, tags)
+		id, err = tx.seriesID(db.name, name, tags)
 		return nil
 	})
 	if err != nil {
@@ -407,7 +407,7 @@ func (db *Database) getSeriesId(name string, tags map[string]string) (uint32, bo
 }
 
 func (db *Database) createSeriesIfNotExists(name string, tags map[string]string) (uint32, error) {
-	if id, ok := db.getSeriesId(name, tags); ok {
+	if id, ok := db.seriesID(name, tags); ok {
 		return id, nil
 	}
 
@@ -420,7 +420,7 @@ func (db *Database) createSeriesIfNotExists(name string, tags map[string]string)
 	if err != nil {
 		return uint32(0), err
 	}
-	id, ok := db.getSeriesId(name, tags)
+	id, ok := db.seriesID(name, tags)
 	if !ok {
 		return uint32(0), ErrSeriesNotFound
 	}

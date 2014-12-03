@@ -845,7 +845,7 @@ func (tx *metatx) deleteDatabase(name string) error {
 }
 
 // returns a unique series id by database, name and tags. Returns ErrSeriesNotFound
-func (tx *metatx) getSeriesId(database, name string, tags map[string]string) (uint32, error) {
+func (tx *metatx) seriesID(database, name string, tags map[string]string) (uint32, error) {
 	// get the bucket that holds series data for the database
 	b := tx.Bucket([]byte("Series")).Bucket([]byte(database))
 	if b == nil {
