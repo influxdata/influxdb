@@ -322,7 +322,7 @@ func (self *ShardData) Query(querySpec *parser.QuerySpec, response chan<- *p.Res
 		}
 		defer self.store.ReturnShard(self.id)
 
-		log.Info("Processor chain:  %s\n", engine.ProcessorChain(processor))
+		log.Debug("Processor chain:  %s\n", engine.ProcessorChain(processor))
 
 		err = shard.Query(querySpec, processor)
 		// if we call Close() in case of an error it will mask the error
