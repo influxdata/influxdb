@@ -414,7 +414,25 @@ func (h *Handler) serveUpdateDBUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveDeleteDBUser removes an existing database user.
-func (h *Handler) serveDeleteDBUser(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveDeleteDBUser(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	if err := db.DeleteUser(urlQry.Get(":user")); err == ErrUserNotFound {
+		h.error(w, err.Error(), http.StatusNotFound)
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {}

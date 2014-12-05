@@ -2,7 +2,6 @@ package influxdb_test
 
 import (
 	"bytes"
-	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -693,6 +692,48 @@ func TestHandler_UpdateDBUser_WriteTo_BadRequest_Data(t *testing.T) {
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `json: cannot unmarshal number into Go value of type string` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteDBUser(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/users/jdoe`, "")
+	if status != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteDBUser_DatabaseNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/users/jdoe`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `database not found` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteDBUser_UserNotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/users/jdoe`, "")
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `user not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
