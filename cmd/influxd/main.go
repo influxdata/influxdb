@@ -78,10 +78,10 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] [COMMAND] [<arg>]\n\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "Commands:\n")
 	fmt.Fprintf(os.Stderr, "  run: Start with existing cluster configuration. If none, run in local mode.\n")
-	fmt.Fprintf(os.Stderr, "  create-cluster: Create a cluster that other nodes can join\n")
-	fmt.Fprintf(os.Stderr, "  join-cluster <seed servers>: Prepare to join an existing cluster using seed-servers\n")
-	fmt.Fprintf(os.Stderr, "  version: Display server version\n")
-	fmt.Fprintf(os.Stderr, "\n If no command is specified, 'run' is the default\n")
+	fmt.Fprintf(os.Stderr, "  create-cluster: Create a cluster that other nodes can join.\n")
+	fmt.Fprintf(os.Stderr, "  join-cluster <seed servers>: Prepare to join an existing cluster using seed-servers.\n")
+	fmt.Fprintf(os.Stderr, "  version: Display server version.\n")
+	fmt.Fprintf(os.Stderr, "\n If no command is specified, 'run' is the default.\n")
 	fmt.Fprintf(os.Stderr, "\nOptions:\n")
 	flag.PrintDefaults()
 }
@@ -99,7 +99,6 @@ func validateCommand() error {
 		if !found {
 			return fmt.Errorf("'%s' is not a valid command", flag.Arg(0))
 		}
-
 	}
 	for _, c := range []string{"create-cluster", "run", "version"} {
 		if getCommandIndex(c) > -1 && flag.NArg() != 1 {
@@ -149,6 +148,11 @@ func start() error {
 	config.Version = v
 	config.InfluxDBVersion = version
 
+	// Override config properties.
+	if *hostname != "" {
+		config.Hostname = *hostname
+	}
+
 	// Check for create-cluster request.
 	if getCommandIndex("create-cluster") > -1 {
 		if !roleBrokerRequired(*role) {
@@ -175,22 +179,23 @@ func start() error {
 	j := getCommandIndex("join-cluster")
 	if j > -1 {
 		if roleBrokerRequired(*role) {
-			// Broker required -- but don't initialize it.
+			// Broker required -- but don't initialize it. Joining a cluster will
+			// do that.
 			b := messaging.NewBroker()
 			if err := b.Open(config.Raft.Dir); err != nil {
 				return fmt.Errorf("Failed to prepare to join cluster", err.Error())
-				// Join the seed servers here, using flags.Args[j+1]
+				// Join the seed servers here, using flag.Args[j+1]
 			}
 		} else if roleDataRequired(*role) {
 			// do any required data-node stuff.
 		}
+		fmt.Println("Joined cluster at", flag.Arg(j+1))
 		return nil
 	}
 
-	// Override config properties.
-	if *hostname != "" {
-		config.Hostname = *hostname
-	}
+	// Process the only remaining command -- 'run'
+
+	// Logging required from here on.
 	setupLogging(config.Logging.Level, config.Logging.File)
 
 	// Write pid file.
@@ -199,11 +204,6 @@ func start() error {
 		if err := ioutil.WriteFile(*pidFile, []byte(pid), 0644); err != nil {
 			panic(err)
 		}
-	}
-
-	// Initialize directories.
-	if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
-		panic(err)
 	}
 
 	// TODO(benbjohnson): Start admin server.
@@ -215,9 +215,17 @@ func start() error {
 	}
 	fmt.Printf(logo)
 
+	// If the Broker directory exists, open a Broker.
+	if _, err := os.Stat(config.Raft.Dir); err == nil {
+		b := messaging.NewBroker()
+		if err := b.Open(config.Raft.Dir); err != nil {
+			return fmt.Errorf("Failed to open Broker", err.Error())
+		}
+	}
+
 	// Parse broker URLs from seed servers.
 	var brokerURLs []*url.URL
-	for _, s := range strings.Split(*seedServers, ",") {
+	for _, s := range strings.Split("hosta:8080,hostb:8080", ",") {
 		u, err := url.Parse(s)
 		if err != nil {
 			panic(err)
