@@ -3,19 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
-	"path/filepath"
-	"runtime"
-	"strconv"
 	"strings"
-
-	"code.google.com/p/log4go"
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/messaging"
 )
 
 const logo = `
@@ -31,186 +21,97 @@ const logo = `
 
 // These variables are populated via the Go linker.
 var (
-	version string
+	version string = "0.9"
 	commit  string
 )
 
 func main() {
-	if err := start(); err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	os.Exit(0)
-}
+	log.SetFlags(0)
 
-func start() error {
-	var (
-		fileName      = flag.String("config", "config.sample.toml", "Config file")
-		createCluster = flag.Bool("create-cluster", false, "Create a new cluster, ready for other nodes to join")
-		seedServers   = flag.String("join", "", "Comma-separated list of servers, for joining existing cluster, in form host:port")
-		role          = flag.String("role", "combined", "Role for this node. Applicable only to cluster deployments")
-		showVersion   = flag.Bool("v", false, "Get version number")
-		hostname      = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
-		protobufPort  = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
-		pidFile       = flag.String("pidfile", "", "the pid file")
-		stdout        = flag.Bool("stdout", false, "Log to stdout overriding the configuration")
-		syslog        = flag.String("syslog", "", "Log to syslog facility overriding the configuration")
-	)
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	flag.Parse()
+	// Shift binary name off argument list.
+	args := os.Args[1:]
 
-	v := fmt.Sprintf("InfluxDB v%s (git: %s)", version, commit)
-	if *showVersion {
-		fmt.Println(v)
-		return nil
+	// Retrieve command name as first argument.
+	var cmd string
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		cmd = args[0]
 	}
 
-	// Validate command-line options.
-	if len(strings.Split(*seedServers, ",")) > 0 && *createCluster {
-		return fmt.Errorf("Creating a cluster, and also specifying a cluster to join, is not supported")
-	}
-	if *role != "combined" && *role != "broker" && *role != "data" {
-		return fmt.Errorf("Only the roles 'combined', 'broker', and 'data' are supported")
+	// Special case -h immediately following binary name
+	if args[0] == "-h" {
+		cmd = "help"
 	}
 
-	// Parse configuration.
-	config, err := ParseConfigFile(*fileName)
-	if err != nil {
-		return err
-	}
-	config.Version = v
-	config.InfluxDBVersion = version
-
-	// Override config properties.
-	if *hostname != "" {
-		config.Hostname = *hostname
-	}
-	if *protobufPort != 0 {
-		config.Cluster.ProtobufPort = *protobufPort
-	}
-	if *syslog != "" {
-		config.Logging.File = *syslog
-	} else if *stdout {
-		config.Logging.File = "stdout"
-	}
-	setupLogging(config.Logging.Level, config.Logging.File)
-
-	// Write pid file.
-	if *pidFile != "" {
-		pid := strconv.Itoa(os.Getpid())
-		if err := ioutil.WriteFile(*pidFile, []byte(pid), 0644); err != nil {
-			panic(err)
-		}
+	// If command is "help" and has an argument then rewrite args to use "-h".
+	if cmd == "help" && len(args) > 1 {
+		args[0], args[1] = args[1], "-h"
+		cmd = args[0]
 	}
 
-	// Initialize directories.
-	if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
-		panic(err)
-	}
-
-	// TODO(benbjohnson): Start admin server.
-
-	if config.BindAddress == "" {
-		log4go.Info("Starting Influx Server %s...", version)
-	} else {
-		log4go.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
-	}
-	fmt.Printf(logo)
-
-	// Parse broker URLs from seed servers.
-	var brokerURLs []*url.URL
-	for _, s := range strings.Split(*seedServers, ",") {
-		u, err := url.Parse(s)
-		if err != nil {
-			panic(err)
-		}
-		brokerURLs = append(brokerURLs, u)
-	}
-
-	var client influxdb.MessagingClient
-	if len(brokerURLs) > 1 {
-		// Create messaging client for broker.
-		c := messaging.NewClient("XXX-CHANGEME-XXX")
-		if err := c.Open(brokerURLs); err != nil {
-			log4go.Error("Error opening Messaging Client: %s", err.Error())
-		}
-		defer c.Close()
-		client = c
-		log4go.Info("Cluster messaging client created")
-	} else {
-		client = messaging.NewLoopbackClient()
-		log4go.Info("Local messaging client created")
-	}
-
-	// Start server.
-	s := influxdb.NewServer(client)
-	err = s.Open(config.Storage.Dir)
-	if err != nil {
-		panic(err)
-	}
-
-	// TODO: startProfiler()
-	// TODO: -reset-root
-
-	// Initialize HTTP handler.
-	h := influxdb.NewHandler(s)
-
-	// Start HTTP server.
-	func() { log.Fatal(http.ListenAndServe(":8086", h)) }() // TODO: Change HTTP port.
-	// TODO: Start HTTPS server.
-
-	// Wait indefinitely.
-	<-(chan struct{})(nil)
-	return nil
-}
-
-func setupLogging(loggingLevel, logFile string) {
-	level := log4go.DEBUG
-	switch loggingLevel {
-	case "trace":
-		level = log4go.TRACE
-	case "fine":
-		level = log4go.FINE
-	case "info":
-		level = log4go.INFO
-	case "warn":
-		level = log4go.WARNING
-	case "error":
-		level = log4go.ERROR
+	// Extract name from args.
+	switch cmd {
+	case "create-cluster":
+		execCreateCluster(args[1:])
+	case "join-cluster":
+		execJoinCluster(args[1:])
+	case "run":
+		execRun(args[1:])
+	case "":
+		execRun(args)
+	case "version":
+		execVersion(args[1:])
+	case "help":
+		execHelp(args[1:])
 	default:
-		log4go.Error("Unknown log level %s. Defaulting to DEBUG", loggingLevel)
+		log.Fatalf(`influxd: unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", cmd)
 	}
+}
 
-	log4go.Global = make(map[string]*log4go.Filter)
+// execVersion runs the "version" command.
+// Prints the commit SHA1 if set by the build process.
+func execVersion(args []string) {
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	fs.Usage = func() {
+		log.Println(`usage: version
 
-	facility, ok := GetSysLogFacility(logFile)
-	if ok {
-		flw, err := NewSysLogWriter(facility)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "NewSysLogWriter: %s\n", err.Error())
-			return
-		}
-		log4go.AddFilter("syslog", level, flw)
-	} else if logFile == "stdout" {
-		flw := log4go.NewConsoleLogWriter()
-		log4go.AddFilter("stdout", level, flw)
-	} else {
-		logFileDir := filepath.Dir(logFile)
-		os.MkdirAll(logFileDir, 0744)
-
-		flw := log4go.NewFileLogWriter(logFile, false)
-		log4go.AddFilter("file", level, flw)
-
-		flw.SetFormat("[%D %T] [%L] (%S) %M")
-		flw.SetRotate(true)
-		flw.SetRotateSize(0)
-		flw.SetRotateLines(0)
-		flw.SetRotateDaily(true)
+	version displays the InfluxDB version and build git commit hash
+	`)
 	}
+	fs.Parse(args)
 
-	log4go.Info("Redirectoring logging to %s", logFile)
+	s := fmt.Sprintf("InfluxDB v%s", version)
+	if commit != "" {
+		s += fmt.Sprintf(" (git: %s)", commit)
+	}
+	log.Print(s)
+}
+
+// execHelp runs the "help" command.
+func execHelp(args []string) {
+	fmt.Println(`
+Configure and start an InfluxDB server.
+
+Usage:
+
+	influxd [[command] [arguments]]
+
+The commands are:
+
+    create-cluster       create a new node that other nodes can join to form a new cluster
+    join-cluster         create a new node that will join an existing cluster
+    run                  run node with existing configuration
+    version              displays the InfluxDB version
+
+"run" is the default command.
+
+Use "influxd help [command]" for more information about a command.
+`)
 }
 
 type Stopper interface {
 	Stop()
+}
+
+type State struct {
+	Mode string `json:"mode"`
 }
