@@ -35,7 +35,7 @@ const (
 	AND // AND
 	OR  // OR
 
-	EQ  // ==
+	EQ  // =
 	NEQ // !=
 	LT  // <
 	LTE // <=
@@ -96,7 +96,7 @@ var tokens = [...]string{
 	AND: "AND",
 	OR:  "OR",
 
-	EQ:  "==",
+	EQ:  "=",
 	NEQ: "!=",
 	LT:  "<",
 	LTE: "<=",

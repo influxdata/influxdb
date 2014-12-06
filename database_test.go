@@ -22,7 +22,7 @@ func TestDatabase_CreateUser(t *testing.T) {
 	}
 
 	// Create a user on the database.
-	if err := s.Database("foo").CreateUser("susy", "pass", nil); err != nil {
+	if err := s.Database("foo").CreateUser("susy", "pass", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	s.Restart()
@@ -44,7 +44,7 @@ func TestDatabase_CreateUser_ErrUsernameRequired(t *testing.T) {
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Database("foo").CreateUser("", "pass", nil); err != influxdb.ErrUsernameRequired {
+	if err := s.Database("foo").CreateUser("", "pass", nil, nil); err != influxdb.ErrUsernameRequired {
 		t.Fatal(err)
 	}
 }
@@ -56,7 +56,7 @@ func TestDatabase_CreateUser_ErrInvalidUsername(t *testing.T) {
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Database("foo").CreateUser("my%user", "pass", nil); err != influxdb.ErrInvalidUsername {
+	if err := s.Database("foo").CreateUser("my%user", "pass", nil, nil); err != influxdb.ErrInvalidUsername {
 		t.Fatal(err)
 	}
 }
@@ -78,7 +78,7 @@ func TestDatabase_CreateUser_ErrDatabaseNotFound(t *testing.T) {
 	}
 
 	// Create a user using the old database reference.
-	if err := db.CreateUser("susy", "pass", nil); err != influxdb.ErrDatabaseNotFound {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
 }
@@ -95,10 +95,10 @@ func TestDatabase_CreateUser_ErrUserExists(t *testing.T) {
 	db := s.Database("foo")
 
 	// Create a user a user. Then create the user again.
-	if err := db.CreateUser("susy", "pass", nil); err != nil {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.CreateUser("susy", "pass", nil); err != influxdb.ErrUserExists {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != influxdb.ErrUserExists {
 		t.Fatal(err)
 	}
 }
@@ -111,7 +111,7 @@ func TestDatabase_DeleteUser(t *testing.T) {
 	// Create a database and user.
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	if err := db.CreateUser("susy", "pass", nil); err != nil {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != nil {
 		t.Fatal(err)
 	} else if db.User("susy") == nil {
 		t.Fatal("user not created")
@@ -174,7 +174,7 @@ func TestDatabase_ChangePassword(t *testing.T) {
 	// Create a database and user.
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	if err := db.CreateUser("susy", "pass", nil); err != nil {
+	if err := db.CreateUser("susy", "pass", nil, nil); err != nil {
 		t.Fatal(err)
 	} else if bcrypt.CompareHashAndPassword([]byte(db.User("susy").Hash), []byte("pass")) != nil {
 		t.Fatal("invalid initial password")
@@ -200,10 +200,10 @@ func TestDatabase_Users(t *testing.T) {
 
 	// Create two databases with users.
 	s.CreateDatabase("foo")
-	s.Database("foo").CreateUser("susy", "pass", nil)
-	s.Database("foo").CreateUser("john", "pass", nil)
+	s.Database("foo").CreateUser("susy", "pass", nil, nil)
+	s.Database("foo").CreateUser("john", "pass", nil, nil)
 	s.CreateDatabase("bar")
-	s.Database("bar").CreateUser("jimmy", "pass", nil)
+	s.Database("bar").CreateUser("jimmy", "pass", nil, nil)
 	s.Restart()
 
 	// Retrieve a list of all users for "foo" (sorted by name).
@@ -394,38 +394,128 @@ func TestDatabase_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testin
 
 // Ensure the database can write data to the database.
 func TestDatabase_WriteSeries(t *testing.T) {
-	t.Skip("pending")
-
-	/* TEMPORARILY REMOVED FOR PROTOBUFS.
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
 	db := s.Database("foo")
-	db.CreateRetentionPolicys(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
-	db.CreateUser("susy", "pass", nil)
+	db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
+	db.CreateUser("susy", "pass", nil, nil)
 
 	// Write series with one point to the database.
-	timestamp := mustParseMicroTime("2000-01-01T00:00:00Z")
-	series := &protocol.Series{
-		Name:   proto.String("cpu_load"),
-		Fields: []string{"myval"},
-		Points: []*protocol.Point{
-			{
-				Values:    []*protocol.FieldValue{{Int64Value: proto.Int64(100)}},
-				Timestamp: proto.Int64(timestamp),
-			},
-		},
-	}
-	if err := db.WriteSeries(series); err != nil {
+	timestamp := mustParseTime("2000-01-01T00:00:00Z")
+
+	name := "cpu_load"
+	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
+	values := map[string]interface{}{"value": 23.2}
+
+	if err := db.WriteSeries("myspace", name, tags, timestamp, values); err != nil {
 		t.Fatal(err)
 	}
 
-	// Execute a query and record all series found.
-		q := mustParseQuery(`select myval from cpu_load`)
-		if err := db.ExecuteQuery(q); err != nil {
-			t.Fatal(err)
+	t.Skip("pending")
+	// TODO: Execute a query and record all series found.
+	// q := mustParseQuery(`select myval from cpu_load`)
+	// if err := db.ExecuteQuery(q); err != nil {
+	// 	t.Fatal(err)
+	// }
+}
+
+func TestDatabase_CreateShardIfNotExist(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+
+	if err := db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := db.CreateShardsIfNotExists("bar", time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	ss := db.Shards()
+	if len(ss) != 1 {
+		t.Fatalf("expected 1 shard but found %d", len(ss))
+	}
+}
+
+// Ensure the database can plan and execute a SELECT statement.
+func TestDatabase_Execute(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create database.
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+	db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
+	db.CreateUser("susy", "pass", nil, nil)
+
+	// Seed database with data.
+	for i, p := range []struct {
+		name      string
+		timestamp time.Time
+		tags      map[string]string
+		values    map[string]interface{}
+	}{
+		{"cpu", mustParseTime("2000-01-01T00:00:00Z"), {"host": "influxdb.org"}, {"value": 100}},
+	} {
+		if err := db.WriteSeries("myspace", p.name, p.tags, p.timestamp, p.values); err != nil {
+			t.Fatalf("%d. write series: %s", i, err)
 		}
-	*/
+	}
+
+	// Set up a list of example queries with their expected result set.
+	var tests = []struct {
+		q   string
+		res []*influxdb.Row
+	}{
+		// 0. Simple count.
+		{
+			q: `SELECT count(value) FROM cpu`,
+			res: []*influxdb.Row{
+				{Name: "cpu", Tags: {"host": "influxdb.org"}, Values: {"value": 100}},
+			},
+		},
+
+		/*
+			// 1. Sum grouped by time.
+			{
+				q:   `SELECT sum(value) FROM cpu GROUP BY time(1m)`,
+				res: [][]interface{}{{-1}},
+			},
+
+			// 2. Mean grouped by tag.
+			{
+				q:   `SELECT mean(value) from cpu where region = 'uswest'`,
+				res: [][]interface{}{{-1}},
+			},
+		*/
+	}
+
+	// Iterate over each test, parse the query, plan & execute the statement.
+	// Retrieve all the result rows and compare with the expected result.
+	for i, tt := range tests {
+		// Plan and execute.
+		q := mustParseSelectStatement(tt.q)
+		ch, err := p.Plan(q).Execute()
+		if err != nil {
+			t.Errorf("%d. %q: execute error: %s", i, tt.q, err)
+			continue
+		}
+
+		// Collect all the results.
+		var res [][]interface{}
+		for row := range ch {
+			res = append(res, row)
+		}
+
+		// Compare the results to what is expected.
+		if !reflect.DeepEqual(tt.res, res) {
+			t.Errorf("%d. %q: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.res, res)
+			continue
+		}
+	}
 }
 
 // mustParseQuery parses a query string into a query object. Panic on error.
@@ -435,13 +525,4 @@ func mustParseQuery(s string) *influxql.Query {
 		panic(err.Error())
 	}
 	return q
-}
-
-// mustParseSelectStatement parses a single select statement.
-func mustParseSelectStatement(s string) *influxql.SelectStatement {
-	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
-	if err != nil {
-		panic(err.Error())
-	}
-	return stmt.(*influxql.SelectStatement)
 }

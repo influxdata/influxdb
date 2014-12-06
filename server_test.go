@@ -290,12 +290,6 @@ func mustParseTime(s string) time.Time {
 	return t
 }
 
-// mustParseMicroTime parses an IS0-8601 string into microseconds since epoch.
-// Panic on error.
-func mustParseMicroTime(s string) int64 {
-	return mustParseTime(s).UnixNano() / int64(time.Microsecond)
-}
-
 // errstr is an ease-of-use function to convert an error to a string.
 func errstr(err error) string {
 	if err != nil {

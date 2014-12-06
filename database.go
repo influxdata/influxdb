@@ -6,9 +6,10 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/influxdb/influxdb/influxql"
-	// "github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/messaging"
 )
 
 // Database represents a collection of retention policies.
@@ -23,7 +24,6 @@ type Database struct {
 	series   map[string]*Series          // series by name
 
 	defaultRetentionPolicy string
-	maxFieldID             uint64 // largest field id in use
 }
 
 // newDatabase returns an instance of Database associated with a server.
@@ -71,20 +71,21 @@ func (db *Database) Users() []*DBUser {
 }
 
 // CreateUser creates a user in the database.
-func (db *Database) CreateUser(username, password string, permissions []string) error {
+func (db *Database) CreateUser(username, password string, read, write []*Matcher) error {
 	// TODO: Authorization.
 
 	c := &createDBUserCommand{
-		Database:    db.Name(),
-		Username:    username,
-		Password:    password,
-		Permissions: permissions,
+		Database: db.Name(),
+		Username: username,
+		Password: password,
+		ReadFrom: read,
+		WriteTo:  write,
 	}
 	_, err := db.server.broadcast(createDBUserMessageType, c)
 	return err
 }
 
-func (db *Database) applyCreateUser(username, password string, permissions []string) error {
+func (db *Database) applyCreateUser(username, password string, read, write []*Matcher) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -103,14 +104,6 @@ func (db *Database) applyCreateUser(username, password string, permissions []str
 		return err
 	}
 
-	// Setup matchers.
-	rmatcher := []*Matcher{{true, ".*"}}
-	wmatcher := []*Matcher{{true, ".*"}}
-	if len(permissions) == 2 {
-		rmatcher[0].Name = permissions[0]
-		wmatcher[0].Name = permissions[1]
-	}
-
 	// Create the user.
 	db.users[username] = &DBUser{
 		CommonUser: CommonUser{
@@ -118,8 +111,8 @@ func (db *Database) applyCreateUser(username, password string, permissions []str
 			Hash: string(hash),
 		},
 		DB:       db.name,
-		ReadFrom: rmatcher,
-		WriteTo:  wmatcher,
+		ReadFrom: read,
+		WriteTo:  write,
 		IsAdmin:  false,
 	}
 
@@ -195,13 +188,13 @@ func (db *Database) RetentionPolicy(name string) *RetentionPolicy {
 }
 
 // CreateRetentionPolicy creates a retention policy in the database.
-func (db *Database) CreateRetentionPolicy(ss *RetentionPolicy) error {
+func (db *Database) CreateRetentionPolicy(rp *RetentionPolicy) error {
 	c := &createRetentionPolicyCommand{
 		Database: db.Name(),
-		Name:     ss.Name,
-		Duration: ss.Duration,
-		ReplicaN: ss.ReplicaN,
-		SplitN:   ss.SplitN,
+		Name:     rp.Name,
+		Duration: rp.Duration,
+		ReplicaN: rp.ReplicaN,
+		SplitN:   rp.SplitN,
 	}
 	_, err := db.server.broadcast(createRetentionPolicyMessageType, c)
 	return err
@@ -272,23 +265,57 @@ func (db *Database) applySetDefaultRetentionPolicy(name string) error {
 	return nil
 }
 
-// shard returns a shard by id.
-func (db *Database) shard(id uint64) *Shard {
-	for _, ss := range db.policies {
-		for _, s := range ss.Shards {
-			if s.ID == id {
-				return s
-			}
-		}
+// Shards returns a list of all shards in the database
+func (db *Database) Shards() []*Shard {
+	shards := make([]*Shard, 0, len(db.shards))
+	for _, v := range db.shards {
+		shards = append(shards, v)
 	}
-	return nil
+	return shards
 }
 
-// CreateShardIfNotExists creates a shard for a retention policy for a given timestamp.
-func (db *Database) CreateShardIfNotExists(space string, timestamp time.Time) error {
-	c := &createShardIfNotExistsSpaceCommand{Database: db.name, Space: space, Timestamp: timestamp}
-	_, err := db.server.broadcast(createShardIfNotExistsMessageType, c)
-	return err
+// shard returns a shard by id.
+func (db *Database) shard(id uint64) *Shard {
+	return db.shards[id]
+}
+
+// RetentionPolicies returns a list of retention polocies for the database
+func (db *Database) RetentionPolicies() []*RetentionPolicy {
+	policies := make([]*RetentionPolicy, 0, len(db.policies))
+	for _, p := range db.policies {
+		policies = append(policies, p)
+	}
+	return policies
+}
+
+// CreateShardsIfNotExist creates all the shards for a retention policy for the interval a timestamp falls into. Note that multiple shards can be created for each bucket of time.
+func (db *Database) CreateShardsIfNotExists(policy string, timestamp time.Time) ([]*Shard, error) {
+	db.mu.RLock()
+	p := db.policies[policy]
+	db.mu.RUnlock()
+	if p == nil {
+		return nil, ErrRetentionPolicyNotFound
+	}
+
+	c := &createShardIfNotExistsCommand{Database: db.name, Policy: policy, Timestamp: timestamp}
+	if _, err := db.server.broadcast(createShardIfNotExistsMessageType, c); err != nil {
+		return nil, err
+	}
+
+	return p.shardsByTimestamp(timestamp), nil
+}
+
+// createShardIfNotExists returns the shard for a given retention policy, series, and timestamp. If it doesn't exist, it will create all shards for the given timestamp
+func (db *Database) createShardIfNotExists(policy *RetentionPolicy, id uint32, timestamp time.Time) (*Shard, error) {
+	if s := policy.shardBySeriesTimestamp(id, timestamp); s != nil {
+		return s, nil
+	}
+
+	if _, err := db.CreateShardsIfNotExists(policy.Name, timestamp); err != nil {
+		return nil, err
+	}
+
+	return policy.shardBySeriesTimestamp(id, timestamp), nil
 }
 
 func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timestamp time.Time) (error, bool) {
@@ -296,21 +323,21 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 	defer db.mu.Unlock()
 
 	// Validate retention policy.
-	ss := db.policies[policy]
-	if ss == nil {
+	rp := db.policies[policy]
+	if rp == nil {
 		return ErrRetentionPolicyNotFound, false
 	}
 
 	// If we can match to an existing shard date range then just ignore request.
-	for _, s := range ss.Shards {
+	for _, s := range rp.Shards {
 		if timeBetween(timestamp, s.StartTime, s.EndTime) {
 			return nil, false
 		}
 	}
 
 	// If no shards match then create a new one.
-	startTime := timestamp.Truncate(ss.Duration).UTC()
-	endTime := startTime.Add(ss.Duration).UTC()
+	startTime := timestamp.Truncate(rp.Duration).UTC()
+	endTime := startTime.Add(rp.Duration).UTC()
 	s := newShard()
 	s.ID, s.StartTime, s.EndTime = id, startTime, endTime
 
@@ -320,140 +347,335 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 	}
 
 	// Append to retention policy.
-	ss.Shards = append(ss.Shards, s)
+	rp.Shards = append(rp.Shards, s)
+	// Add to db's map of shards
+	db.shards[s.ID] = s
 
 	return nil, true
 }
 
-// WriteSeries writes series data to the database.
-func (db *Database) WriteSeries(name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
-	panic("not yet implemented: Database.WriteSeries()")
-
-	/* TEMPORARILY REMOVED FOR PROTOBUFS.
-	// Find retention policy matching the series and split points by shard.
+func (db *Database) applyCreateSeriesIfNotExists(name string, tags map[string]string) error {
 	db.mu.Lock()
-	name := db.name
-	space := db.retentionPolicyBySeries(series.GetName())
-	db.mu.Unlock()
+	defer db.mu.Unlock()
+	db.server.meta.mustUpdate(func(tx *metatx) error {
+		return tx.createSeriesIfNotExists(db.name, name, tags)
+	})
+	return nil
+}
 
-	// Ensure there is a space available.
-	if space == nil {
+// WriteSeries writes series data to the database.
+func (db *Database) WriteSeries(retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
+	// Find retention policy matching the series and split points by shard.
+	db.mu.RLock()
+	rp, ok := db.policies[retentionPolicy]
+	db.mu.RUnlock()
+
+	// Ensure the policy was found
+	if !ok {
 		return ErrRetentionPolicyNotFound
 	}
 
-	// Group points by shard.
-	pointsByShard, unassigned := space.Split(series.Points)
-
-	// Request shard creation for timestamps for missing shards.
-	for _, p := range unassigned {
-		timestamp := time.Unix(0, p.GetTimestamp())
-		if err := db.CreateShardIfNotExists(space.Name, timestamp); err != nil {
-			return fmt.Errorf("create shard(%s/%d): %s", space.Name, timestamp.Format(time.RFC3339Nano), err)
-		}
+	// get the id for the series and tagset
+	id, err := db.createSeriesIfNotExists(name, tags)
+	if err != nil {
+		return err
 	}
 
-	// Try to split the points again. Fail if it doesn't work this time.
-	pointsByShard, unassigned = space.Split(series.Points)
-	if len(unassigned) > 0 {
-		return fmt.Errorf("unmatched points in space(%s): %#v", unassigned)
+	// now write it into the shard
+	s, err := db.createShardIfNotExists(rp, id, timestamp)
+	if err != nil {
+		return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
 
-	// Publish each group of points.
-	for shardID, points := range pointsByShard {
-		// Marshal series into protobuf format.
-		req := &protocol.WriteSeriesRequest{
-			Database: proto.String(name),
-			Series: &protocol.Series{
-				Name:     series.Name,
-				Fields:   series.Fields,
-				FieldIds: series.FieldIds,
-				ShardId:  proto.Uint64(shardID),
-				Points:   points,
-			},
-		}
-		data, err := proto.Marshal(req)
-		if err != nil {
-			return err
-		}
-
-		// Publish "write series" message on shard's topic to broker.
-		m := &messaging.Message{
-			Type:    writeSeriesMessageType,
-			TopicID: shardID,
-			Data:    data,
-		}
-		index, err := db.server.client.Publish(m)
-		if err != nil {
-			return err
-		}
-		if err := db.server.sync(index); err != nil {
-			return err
-		}
+	data, err := marshalPoint(id, timestamp, values)
+	if err != nil {
+		return err
 	}
 
-	return nil
-	*/
+	// Publish "write series" message on shard's topic to broker.
+	m := &messaging.Message{
+		Type:    writeSeriesMessageType,
+		TopicID: s.ID,
+		Data:    data,
+	}
+
+	_, err = db.server.client.Publish(m)
+	return err
 }
 
-/* TEMPORARILY REMOVED FOR PROTOBUFS.
-func (db *Database) applyWriteSeries(id uint64, t int64, values map[uint8]interface{}) error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	shard := db.shard(s.GetShardId())
+func marshalPoint(seriesID uint32, timestamp time.Time, values map[string]interface{}) ([]byte, error) {
+	b := make([]byte, 12)
+	*(*uint32)(unsafe.Pointer(&b[0])) = seriesID
+	*(*int64)(unsafe.Pointer(&b[4])) = timestamp.UnixNano()
+
+	d, err := json.Marshal(values)
+	if err != nil {
+		return nil, err
+	}
+	return append(b, d...), err
+}
+
+func unmarshalPoint(data []byte) (uint32, time.Time, map[string]interface{}, error) {
+	id := *(*uint32)(unsafe.Pointer(&data[0]))
+	ts := *(*int64)(unsafe.Pointer(&data[4]))
+	timestamp := time.Unix(0, ts)
+	var v map[string]interface{}
+
+	err := json.Unmarshal(data[12:], &v)
+	return id, timestamp, v, err
+}
+
+// seriesID returns the unique id of a series and tagset and a bool indicating if it was found
+func (db *Database) seriesID(name string, tags map[string]string) (uint32, bool) {
+	var id uint32
+	var err error
+	db.server.meta.view(func(tx *metatx) error {
+		id, err = tx.seriesID(db.name, name, tags)
+		return nil
+	})
+	if err != nil {
+		return uint32(0), false
+	}
+	return id, true
+}
+
+func (db *Database) createSeriesIfNotExists(name string, tags map[string]string) (uint32, error) {
+	if id, ok := db.seriesID(name, tags); ok {
+		return id, nil
+	}
+
+	c := &createSeriesIfNotExistsCommand{
+		Database: db.Name(),
+		Name:     name,
+		Tags:     tags,
+	}
+	_, err := db.server.broadcast(createSeriesIfNotExistsMessageType, c)
+	if err != nil {
+		return uint32(0), err
+	}
+	id, ok := db.seriesID(name, tags)
+	if !ok {
+		return uint32(0), ErrSeriesNotFound
+	}
+	return id, nil
+}
+
+func (db *Database) applyWriteSeries(shardID uint64, overwrite bool, data []byte) error {
+	db.mu.RLock()
+	s := db.shards[shardID]
+	db.mu.RUnlock()
 
 	// Find shard.
 	if s == nil {
 		return ErrShardNotFound
 	}
 
-	// Find or create series.
-	var changed bool
-	var series *Series
-	if series = db.series[s.GetName()]; series == nil {
-		series = &Series{Name: s.GetName()}
-		db.series[s.GetName()] = series
-		changed = true
-	}
-
-	// Assign field ids.
-	s.FieldIds = nil
-	for _, name := range s.GetFields() {
-		// Find field on series.
-		var fieldID uint64
-		for _, f := range series.Fields {
-			if f.Name == name {
-				fieldID = f.ID
-				break
-			}
-		}
-
-		// Create a new field, if not exists.
-		if fieldID == 0 {
-			db.maxFieldID++
-			fieldID = db.maxFieldID
-			series.Fields = append(series.Fields, &Field{ID: fieldID, Name: name})
-			changed = true
-		}
-
-		// Append the field id.
-		s.FieldIds = append(s.FieldIds, fieldID)
-	}
-
-	// Perist to metastore if changed.
-	if changed {
-		db.server.meta.mustUpdate(func(tx *metatx) error {
-			return tx.saveDatabase(db)
-		})
-	}
-
 	// Write to shard.
-	return shard.writeSeries(s)
+	return s.writeSeries(overwrite, data)
 }
-*/
 
-// ExecuteQuery executes a query against a database.
-func (db *Database) ExecuteQuery(q influxql.Query) error {
-	panic("not yet implemented: Database.ExecuteQuery()") // TODO
+// Plan generates an executable plan for a SELECT statement.
+
+// list series ->
+/*
+[
+	{
+		"name": "cpu",
+		"columns": ["id", "region", "host"],
+		"values": [
+			1, "uswest", "servera",
+			2, "uswest", "serverb"
+		]
+	},
+	{
+		""
+	}
+]
+
+list series where region = 'uswest'
+
+list tags where name = 'cpu'
+
+list tagKeys where name = 'cpu'
+
+list series where name = 'cpu' and region = 'uswest'
+
+select distinct(region) from cpu
+
+list names
+list tagKeys
+
+list tagValeus where tagKey = 'region' and time > now() -1h
+
+select a.value, b.value from a join b where a.user_id == 100
+  select a.value from a where a.user_id == 100
+  select b.value from b
+
+          3                1              2
+select sum(a.value) + (sum(b.value) / min(b.value)) from a join b group by region
+
+	select suM(a.value) from a group by time(5m)
+	select sum(b.value) from b group by time(5m)
+
+execute sum MR on series [23, 65, 88, 99, 101, 232]
+
+map -> 1 tick per 5m
+reduce -> combines ticks per 5m interval -> outputs
+
+planner -> take reduce output per 5m interval from the two reducers
+           and combine with the join function, which is +
+
+[1,/,2,+,3]
+
+
+
+for v := s[0].Next(); v != nil; v = 2[0].Next() {
+	var result interface{}
+	for i := 1; i < len(s); i += 2 {
+		/ it's an operator
+		if i % 2 == 1 {
+
+		}
+	}
+}
+
+select count(distinct(host)) from cpu where time > now() - 5m
+
+type mapper interface {
+	Map(iterator)
+}
+
+type floatCountMapper struct {}
+func(m *floatCountMapper) Map(i Iterator) {
+	itr := i.(*floatIterator)
+}
+
+type Iterator interface {
+	itr()
+}
+
+type iterator struct {
+	cursor *bolt.Cursor
+	timeBucket time.Time
+	name string
+	seriesID uint32
+	tags map[string]string
+	fieldID uint8
+	where *WhereClause
+}
+
+func (i *intIterator) itr() {}
+func (i *intIterator) Next() (k int64, v float64) {
+	// loop through bolt cursor applying where clause and yield next point
+	// if cursor is at end or time is out of range, yield nil
+}
+
+*/
+func (db *Database) Plan(stmt *influxql.SelectStatement) (*Executor, error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	// Create the executor.
+	e := &Executor{
+		statement:  stmt,
+		processors: make([]processor, len(stmt.Fields)),
+	}
+
+	// Generate a processor for each field.
+	for i, f := range stmt.Fields {
+		p, err := db.planField(stmt, f)
+		if err != nil {
+			return err
+		}
+		e.processors[i] = p
+	}
+
+	return e
+}
+
+// TODO: Walk field expressions to extract subqueries.
+// TODO: Resolve subqueries to series ids.
+// TODO: send query with all ids to executor (knows to run locally or remote server)
+// TODO: executor creates mapper for each series id.
+// TODO: Create
+
+// planField returns a processor for field.
+func (db *Database) planField(stmt *influxql.SelectStatement, f *influxql.Field) (processor, error) {
+	return db.planExpr(stmt, f.Expr)
+}
+
+// planExpr returns a processor for an expression.
+func (db *Database) planExpr(stmt *influxql.SelectStatement, expr *influxql.Expr) (processor, error) {
+	switch expr := expr.(type) {
+	case *VarRef:
+		return nil, errors.New("non-aggregated fields not supported") // TODO
+	case *Call:
+		return db.planCall(stmt, expr)
+	case *BinaryExpr:
+		return db.planBinaryExpr(stmt, expr)
+	case *ParenExpr:
+		return db.planExpr(stmt, expr.Expr)
+	case *NumberLiteral:
+		return &numberProcessor{value: expr.Val}, nil
+	case *StringLiteral:
+		return &stringProcessor{value: expr.Val}, nil
+	case *BooleanLiteral:
+		return &booleanProcessor{value: expr.Val}, nil
+	case *TimeLiteral:
+		return &timeProcessor{value: expr.Val}, nil
+	case *DurationLiteral:
+		return &durationProcessor{value: expr.Val}, nil
+	case *Wildcard:
+		return nil, errors.New("wildcard not supported") // TODO
+	default:
+		return nil, fmt.Errorf("invalid expression: %T", expr)
+	}
+}
+
+// planCall generates a processor for a function call.
+func (db *Database) planCall(stmt *influxql.SelectStatement, c *influxql.Call) (processor, error) {
+	// Ensure there is a single argument.
+	if len(c.Args) != 1 {
+		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
+	}
+
+	// Ensure the argument is a variable reference.
+	ref, ok := c.Args[0].(*VarRef)
+	if !ok {
+		return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+	}
+
+	// Extract the substatement for the call.
+	sub, err := stmt.SubstatementByVarRef(ref)
+	if err == "" {
+
+	}
+
+	// TODO: Generate substatement.
+	stmt = extractSubstatement(stmt)
+
+	// Generate a processor for the given function.
+	switch strings.ToLower(expr.Name) {
+	case "count":
+		return &countReducer{}
+	default:
+		return nil, fmt.Errorf("function not found: %q", c.Name)
+	}
+}
+
+// planCall generates a processor for a function call.
+func (db *Database) planCall(stmt *influxql.SelectStatement, c *influxql.Call) (processor, error) {
+	switch strings.ToLower(expr.Name) {
+	case "count":
+		return db.planCount(stmt, c)
+	default:
+		return nil, fmt.Errorf("function not found: %q", c.Name)
+	}
+}
+
+type processor interface {
+	process()
+	c() <-chan map[int64]interface{}
 }
 
 // timeBetween returns true if t is between min and max, inclusive.
@@ -467,12 +689,11 @@ func (db *Database) MarshalJSON() ([]byte, error) {
 	var o databaseJSON
 	o.Name = db.name
 	o.DefaultRetentionPolicy = db.defaultRetentionPolicy
-	o.MaxFieldID = db.maxFieldID
 	for _, u := range db.users {
 		o.Users = append(o.Users, u)
 	}
-	for _, ss := range db.policies {
-		o.Policies = append(o.Policies, ss)
+	for _, rp := range db.policies {
+		o.Policies = append(o.Policies, rp)
 	}
 	for _, s := range db.shards {
 		o.Shards = append(o.Shards, s)
@@ -494,7 +715,6 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 	// Copy over properties from intermediate type.
 	db.name = o.Name
 	db.defaultRetentionPolicy = o.DefaultRetentionPolicy
-	db.maxFieldID = o.MaxFieldID
 
 	// Copy users.
 	db.users = make(map[string]*DBUser)
@@ -504,8 +724,8 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 
 	// Copy shard policies.
 	db.policies = make(map[string]*RetentionPolicy)
-	for _, ss := range o.Policies {
-		db.policies[ss.Name] = ss
+	for _, rp := range o.Policies {
+		db.policies[rp.Name] = rp
 	}
 
 	// Copy shards.
@@ -527,7 +747,6 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 type databaseJSON struct {
 	Name                   string             `json:"name,omitempty"`
 	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
-	MaxFieldID             uint64             `json:"maxFieldID,omitempty"`
 	Users                  []*DBUser          `json:"users,omitempty"`
 	Policies               []*RetentionPolicy `json:"policies,omitempty"`
 	Shards                 []*Shard           `json:"shards,omitempty"`
@@ -556,53 +775,47 @@ type RetentionPolicy struct {
 }
 
 // NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
-func NewRetentionPolicy() *RetentionPolicy {
+func NewRetentionPolicy(name string) *RetentionPolicy {
 	return &RetentionPolicy{
+		Name:     name,
 		ReplicaN: DefaultReplicaN,
 		SplitN:   DefaultSplitN,
 		Duration: DefaultShardRetention,
 	}
 }
 
-/*
-// SplitPoints groups a set of points by shard id.
-// Also returns a list of timestamps that did not match an existing shard.
-func (ss *RetentionPolicy) Split(a []*protocol.Point) (points map[uint64][]*protocol.Point, unassigned []*protocol.Point) {
-	points = make(map[uint64][]*protocol.Point)
-	for _, p := range a {
-		if s := ss.ShardByTimestamp(time.Unix(0, p.GetTimestamp())); s != nil {
-			points[s.ID] = append(points[s.ID], p)
-		} else {
-			unassigned = append(unassigned, p)
-		}
-	}
-	return
-}
-*/
-
-// ShardByTimestamp returns the shard in the space that owns a given timestamp.
+// shardBySeriesTimestamp returns the shard in the space that owns a given timestamp for a given series id.
 // Returns nil if the shard does not exist.
-func (ss *RetentionPolicy) ShardByTimestamp(timestamp time.Time) *Shard {
-	for _, s := range ss.Shards {
-		if timeBetween(timestamp, s.StartTime, s.EndTime) {
-			return s
-		}
+func (rp *RetentionPolicy) shardBySeriesTimestamp(id uint32, timestamp time.Time) *Shard {
+	shards := rp.shardsByTimestamp(timestamp)
+	if len(shards) > 0 {
+		return shards[int(id)%len(shards)]
 	}
 	return nil
 }
 
+func (rp *RetentionPolicy) shardsByTimestamp(timestamp time.Time) []*Shard {
+	shards := make([]*Shard, 0, rp.SplitN)
+	for _, s := range rp.Shards {
+		if timeBetween(timestamp, s.StartTime, s.EndTime) {
+			shards = append(shards, s)
+		}
+	}
+	return shards
+}
+
 // MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
-func (s *RetentionPolicy) MarshalJSON() ([]byte, error) {
+func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&retentionPolicyJSON{
-		Name:     s.Name,
-		Duration: s.Duration,
-		ReplicaN: s.ReplicaN,
-		SplitN:   s.SplitN,
+		Name:     rp.Name,
+		Duration: rp.Duration,
+		ReplicaN: rp.ReplicaN,
+		SplitN:   rp.SplitN,
 	})
 }
 
 // UnmarshalJSON decodes a JSON-encoded byte slice to a retention policy.
-func (s *RetentionPolicy) UnmarshalJSON(data []byte) error {
+func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	// Decode into intermediate type.
 	var o retentionPolicyJSON
 	if err := json.Unmarshal(data, &o); err != nil {
@@ -610,11 +823,11 @@ func (s *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	}
 
 	// Copy over properties from intermediate type.
-	s.Name = o.Name
-	s.ReplicaN = o.ReplicaN
-	s.SplitN = o.SplitN
-	s.Duration = o.Duration
-	s.Shards = o.Shards
+	rp.Name = o.Name
+	rp.ReplicaN = o.ReplicaN
+	rp.SplitN = o.SplitN
+	rp.Duration = o.Duration
+	rp.Shards = o.Shards
 
 	return nil
 }
@@ -628,14 +841,14 @@ type retentionPolicyJSON struct {
 	Shards   []*Shard      `json:"shards,omitempty"`
 }
 
-// RetentionPolicys represents a list of shard policies.
-type RetentionPolicys []*RetentionPolicy
+// RetentionPolicies represents a list of shard policies.
+type RetentionPolicies []*RetentionPolicy
 
 // Shards returns a list of all shards for all policies.
-func (a RetentionPolicys) Shards() []*Shard {
+func (rps RetentionPolicies) Shards() []*Shard {
 	var shards []*Shard
-	for _, ss := range a {
-		shards = append(shards, ss.Shards...)
+	for _, rp := range rps {
+		shards = append(shards, rp.Shards...)
 	}
 	return shards
 }

@@ -60,7 +60,14 @@ func (s *Shard) close() error {
 }
 
 // write writes series data to a shard.
-func (s *Shard) writeSeries(name string, tags map[string]string, value interface{}) error {
+func (s *Shard) writeSeries(overwrite bool, data []byte) error {
+	id, timestamp, values, err := unmarshalPoint(data)
+	if err != nil {
+		return err
+	}
+
+	// TODO: make this work
+	fmt.Println("writeSeries: ", id, timestamp, values)
 	return s.store.Update(func(tx *bolt.Tx) error {
 		// TODO
 		return nil

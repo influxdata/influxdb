@@ -14,6 +14,9 @@ var (
 	// ErrPathRequired is returned when opening a server without a path.
 	ErrPathRequired = errors.New("path required")
 
+	// ErrDatabaseNameRequired is returned when creating a database without a name.
+	ErrDatabaseNameRequired = errors.New("database name required")
+
 	// ErrDatabaseExists is returned when creating a duplicate database.
 	ErrDatabaseExists = errors.New("database exists")
 
@@ -57,6 +60,15 @@ var (
 	// data that he or she does not have permission to read.
 	ErrReadAccessDenied = errors.New("read access denied")
 
+	// ErrReadWritePermissionsRequired is returned when required read/write permissions aren't provided.
+	ErrReadWritePermissionsRequired = errors.New("read/write permissions required")
+
 	// ErrInvalidQuery is returned when executing an unknown query type.
 	ErrInvalidQuery = errors.New("invalid query")
+
+	// ErrSeriesNotFound is returned when looking up a non-existent series by database, name and tags
+	ErrSeriesNotFound = errors.New("series not found")
+
+	// ErrSeriesExists is returned when attempting to set the id of a series by database, name and tags that already exists
+	ErrSeriesExists = errors.New("series already exists")
 )

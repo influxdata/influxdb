@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/messaging"
@@ -49,6 +51,7 @@ const (
 	dbUserSetPasswordMessageType         = messaging.MessageType(0x09)
 	createShardIfNotExistsMessageType    = messaging.MessageType(0x0a)
 	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x0b)
+	createSeriesIfNotExistsMessageType   = messaging.MessageType(0x0c)
 
 	// per-topic messages
 	writeSeriesMessageType = messaging.MessageType(0x80)
@@ -66,8 +69,9 @@ type Server struct {
 
 	meta *metastore // metadata store
 
-	databases map[string]*Database     // databases by name
-	admins    map[string]*ClusterAdmin // admins by name
+	databases        map[string]*Database     // databases by name
+	databasesByShard map[uint64]*Database     // databases by shard id
+	admins           map[string]*ClusterAdmin // admins by name
 }
 
 // NewServer returns a new instance of Server.
@@ -75,11 +79,12 @@ type Server struct {
 func NewServer(client MessagingClient) *Server {
 	assert(client != nil, "messaging client required")
 	return &Server{
-		client:    client,
-		meta:      &metastore{},
-		databases: make(map[string]*Database),
-		admins:    make(map[string]*ClusterAdmin),
-		errors:    make(map[uint64]error),
+		client:           client,
+		meta:             &metastore{},
+		databases:        make(map[string]*Database),
+		databasesByShard: make(map[uint64]*Database),
+		admins:           make(map[string]*ClusterAdmin),
+		errors:           make(map[uint64]error),
 	}
 }
 
@@ -165,6 +170,10 @@ func (s *Server) load() error {
 		for _, db := range tx.databases() {
 			db.server = s
 			s.databases[db.name] = db
+
+			for sh := range db.shards {
+				s.databasesByShard[sh] = db
+			}
 		}
 
 		// Load cluster admins.
@@ -312,7 +321,7 @@ type deleteDatabaseCommand struct {
 }
 
 func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) error {
-	var c createShardIfNotExistsSpaceCommand
+	var c createShardIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
@@ -322,8 +331,10 @@ func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
+	shardID := m.Index
+
 	// Check if a matching shard already exists.
-	if err, ok := db.applyCreateShardIfNotExists(m.Index, c.Space, c.Timestamp); err != nil {
+	if err, ok := db.applyCreateShardIfNotExists(shardID, c.Policy, c.Timestamp); err != nil {
 		return err
 	} else if !ok {
 		return nil
@@ -334,12 +345,14 @@ func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) error {
 		return tx.saveDatabase(db)
 	})
 
+	s.databasesByShard[shardID] = db
+
 	return nil
 }
 
-type createShardIfNotExistsSpaceCommand struct {
+type createShardIfNotExistsCommand struct {
 	Database  string    `json:"name"`
-	Space     string    `json:"space"`
+	Policy    string    `json:"policy"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
@@ -492,7 +505,7 @@ func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	if err := db.applyCreateUser(c.Username, c.Password, c.Permissions); err != nil {
+	if err := db.applyCreateUser(c.Username, c.Password, c.ReadFrom, c.WriteTo); err != nil {
 		return err
 	}
 
@@ -505,10 +518,11 @@ func (s *Server) applyCreateDBUser(m *messaging.Message) error {
 }
 
 type createDBUserCommand struct {
-	Database    string   `json:"database"`
-	Username    string   `json:"username"`
-	Password    string   `json:"password"`
-	Permissions []string `json:"permissions"`
+	Database string     `json:"database"`
+	Username string     `json:"username"`
+	Password string     `json:"password"`
+	ReadFrom []*Matcher `json:"readFrom"`
+	WriteTo  []*Matcher `json:"writeTo"`
 }
 
 func (s *Server) applyDeleteDBUser(m *messaging.Message) error {
@@ -636,29 +650,41 @@ type setDefaultRetentionPolicyCommand struct {
 	Name     string `json:"name"`
 }
 
-/* TEMPORARILY REMOVED FOR PROTOBUFS.
-func (s *Server) applyWriteSeries(m *messaging.Message) error {
-	req := &protocol.WriteSeriesRequest{}
-	if err := proto.Unmarshal(m.Data, req); err != nil {
-		panic("unmarshal request: " + err.Error())
-	}
+func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
+	var c createSeriesIfNotExistsCommand
+	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	db := s.databases[c.Database]
+	s.mu.Unlock()
 
-	// Retrieve the database.
-	db := s.databases[req.GetDatabase()]
 	if db == nil {
 		return ErrDatabaseNotFound
 	}
 
-	if err := db.applyWriteSeries(id, t, values); err != nil {
-		return err
+	return db.applyCreateSeriesIfNotExists(c.Name, c.Tags)
+}
+
+type createSeriesIfNotExistsCommand struct {
+	Database string            `json:"database"`
+	Name     string            `json:"name"`
+	Tags     map[string]string `json:"tags"`
+}
+
+func (s *Server) applyWriteSeries(m *messaging.Message) error {
+	// Retrieve the database.
+	s.mu.RLock()
+	db := s.databasesByShard[m.TopicID]
+	s.mu.RUnlock()
+
+	if db == nil {
+		return ErrDatabaseNotFound
 	}
 
-	return nil
+	// TODO: enable some way to specify if the data should be overwritten
+	overwrite := true
+	return db.applyWriteSeries(m.TopicID, overwrite, m.Data)
 }
-*/
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
 func (s *Server) processor(done chan struct{}) {
@@ -675,6 +701,8 @@ func (s *Server) processor(done chan struct{}) {
 		// Process message.
 		var err error
 		switch m.Type {
+		case writeSeriesMessageType:
+			err = s.applyWriteSeries(m)
 		case createDatabaseMessageType:
 			err = s.applyCreateDatabase(m)
 		case deleteDatabaseMessageType:
@@ -697,10 +725,8 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyCreateShardIfNotExists(m)
 		case setDefaultRetentionPolicyMessageType:
 			err = s.applySetDefaultRetentionPolicy(m)
-		case writeSeriesMessageType:
-			/* TEMPORARILY REMOVED FOR PROTOBUFS.
-			err = s.applyWriteSeries(m)
-			*/
+		case createSeriesIfNotExistsMessageType:
+			err = s.applyCreateSeriesIfNotExists(m)
 		}
 
 		// Sync high water mark and errors.
@@ -806,12 +832,75 @@ func (tx *metatx) databases() (a []*Database) {
 
 // saveDatabase persists a database to the metastore.
 func (tx *metatx) saveDatabase(db *Database) error {
+	_, err := tx.Bucket([]byte("Series")).CreateBucketIfNotExists([]byte(db.name))
+	if err != nil {
+		return err
+	}
 	return tx.Bucket([]byte("Databases")).Put([]byte(db.name), mustMarshalJSON(db))
 }
 
 // deleteDatabase removes database from the metastore.
 func (tx *metatx) deleteDatabase(name string) error {
 	return tx.Bucket([]byte("Databases")).Delete([]byte(name))
+}
+
+// returns a unique series id by database, name and tags. Returns ErrSeriesNotFound
+func (tx *metatx) seriesID(database, name string, tags map[string]string) (uint32, error) {
+	// get the bucket that holds series data for the database
+	b := tx.Bucket([]byte("Series")).Bucket([]byte(database))
+	if b == nil {
+		return uint32(0), ErrSeriesNotFound
+	}
+
+	// get the bucket that holds tag data for the series name
+	b = b.Bucket([]byte(name))
+	if b == nil {
+		return uint32(0), ErrSeriesNotFound
+	}
+
+	// look up the id of the tagset
+	tagBytes := tagsToBytes(tags)
+	v := b.Get(tagBytes)
+	if v == nil {
+		return uint32(0), ErrSeriesNotFound
+	}
+
+	// the value is the bytes for a uint32, return it
+	return *(*uint32)(unsafe.Pointer(&v[0])), nil
+}
+
+// sets the series id for the database, name, and tags.
+func (tx *metatx) createSeriesIfNotExists(database, name string, tags map[string]string) error {
+	db := tx.Bucket([]byte("Series")).Bucket([]byte(database))
+	b, err := db.CreateBucketIfNotExists([]byte(name))
+	if err != nil {
+		return err
+	}
+
+	id, _ := db.NextSequence()
+
+	tagBytes := tagsToBytes(tags)
+
+	idBytes := make([]byte, 4)
+	*(*uint32)(unsafe.Pointer(&idBytes[0])) = uint32(id)
+
+	return b.Put(tagBytes, idBytes)
+}
+
+// used to convert the tag set to bytes for use as a key in bolt
+func tagsToBytes(tags map[string]string) []byte {
+	s := make([]string, 0, len(tags))
+	// pull out keys to sort
+	for k := range tags {
+		s = append(s, k)
+	}
+	sort.Strings(s)
+
+	// now append on the key values in key sorted order
+	for _, k := range s {
+		s = append(s, tags[k])
+	}
+	return []byte(strings.Join(s, "|"))
 }
 
 // series returns a series by database and name.
