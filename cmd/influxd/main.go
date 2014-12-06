@@ -43,44 +43,102 @@ func main() {
 	os.Exit(0)
 }
 
-func Usage() {
+// getCommandIndex returns the index of the given command, if present
+// in the command-line arguments. If not present, it returns -1.
+func getCommandIndex(needle string) int {
+	for i, n := range flag.Args() {
+		if needle == n {
+			return i
+		}
+	}
+	return -1
+}
+
+// roleBrokerRequire returns true if the role requires creating a broker, false
+// otherwise.
+func roleBrokerRequired(role string) bool {
+	if role == "combined" || role == "broker" {
+		return true
+	}
+	return false
+}
+
+// roleDataRequire returns true if the role requires creating a data node, false
+// otherwise.
+func roleDataRequired(role string) bool {
+	if role == "combined" || role == "data" {
+		return true
+	}
+	return false
+}
+
+// usage displays the help message for the user.
+func usage() {
 	fmt.Fprintf(os.Stderr, "\nConfigure and start the InfluxDB server.\n\n")
-	fmt.Fprintf(os.Stderr, "Usage: influxd [OPTIONS] [COMMAND] [<arg>]\n\n")
+	fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] [COMMAND] [<arg>]\n\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "Commands:\n")
 	fmt.Fprintf(os.Stderr, "  run: Start with existing cluster configuration. If none, run in local mode.\n")
 	fmt.Fprintf(os.Stderr, "  create-cluster: Create a cluster that other nodes can join\n")
 	fmt.Fprintf(os.Stderr, "  join-cluster <seed servers>: Prepare to join an existing cluster using seed-servers\n")
-	fmt.Fprintf(os.Stderr, "\n If no command is specified, `run` is the default\n")
+	fmt.Fprintf(os.Stderr, "  version: Display server version\n")
+	fmt.Fprintf(os.Stderr, "\n If no command is specified, 'run' is the default\n")
 	fmt.Fprintf(os.Stderr, "\nOptions:\n")
 	flag.PrintDefaults()
 }
 
+// validateCommand ensure the command is acceptable, and includes any required
+// arguments. Return nil if the command is OK, a standard error otherwise.
+func validateCommand() error {
+	if flag.NArg() > 0 {
+		found := false
+		for _, c := range []string{"create-cluster", "join-cluster", "run", "version"} {
+			if flag.Arg(0) == c {
+				found = true
+			}
+		}
+		if !found {
+			return fmt.Errorf("'%s' is not a valid command", flag.Arg(0))
+		}
+
+	}
+	for _, c := range []string{"create-cluster", "run", "version"} {
+		if getCommandIndex(c) > -1 && flag.NArg() != 1 {
+			return fmt.Errorf("'%s' must not be specified with other commands", c)
+		}
+	}
+	if getCommandIndex("join-cluster") > -1 && flag.NArg() != 2 {
+		return fmt.Errorf("'join' must be specified with at least 1 seed-server")
+	}
+
+	return nil
+}
+
 func start() error {
+	// Add command-line options, and set custom "usage" function.
 	var (
-		fileName    = flag.String("config", "config.sample.toml", "Config file")
-		seedServers = flag.String("join", "", "Comma-separated list of servers, for joining existing cluster, in form host:port")
-		role        = flag.String("role", "combined", "Role for this node. Applicable only to cluster deployments")
-		showVersion = flag.Bool("v", false, "Get version number")
-		hostname    = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
-		pidFile     = flag.String("pidfile", "", "the pid file")
+		fileName = flag.String("config", "config.sample.toml", "Config file")
+		role     = flag.String("role", "combined", "Role for this node. Applicable only to cluster deployments")
+		hostname = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
+		pidFile  = flag.String("pidfile", "", "the pid file")
 	)
-	flag.Usage = Usage
+	flag.Usage = usage
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	v := fmt.Sprintf("InfluxDB v%s (git: %s)", version, commit)
-	if *showVersion {
-		fmt.Println(v)
-		return nil
-	}
-
-	// Validate command-line options.
-	if len(strings.Split(*seedServers, ",")) > 0 && *createCluster {
-		return fmt.Errorf("Creating a cluster, and also specifying a cluster to join, is not supported")
+	// Ensure that command passed in at the command-line is valid.
+	if err := validateCommand(); err != nil {
+		return err
 	}
 	if *role != "combined" && *role != "broker" && *role != "data" {
 		return fmt.Errorf("Only the roles 'combined', 'broker', and 'data' are supported")
+	}
+
+	// Check for "version" command
+	v := fmt.Sprintf("InfluxDB v%s (git: %s)", version, commit)
+	if getCommandIndex("version") > -1 {
+		fmt.Println(v)
+		return nil
 	}
 
 	// Parse configuration.
@@ -90,6 +148,44 @@ func start() error {
 	}
 	config.Version = v
 	config.InfluxDBVersion = version
+
+	// Check for create-cluster request.
+	if getCommandIndex("create-cluster") > -1 {
+		if !roleBrokerRequired(*role) {
+			return fmt.Errorf("Cluster must be created as 'combined' or 'broker' role")
+		}
+
+		// Broker required -- and it must be initialized since we're creating a cluster.
+		b := messaging.NewBroker()
+		if err := b.Open(config.Raft.Dir); err != nil {
+			return fmt.Errorf("Failed to create cluster", err.Error())
+		}
+		if err := b.Initialize(); err != nil {
+			return fmt.Errorf("Failed to initialize cluster", err.Error())
+		}
+
+		if roleDataRequired(*role) {
+			// Do any required data node stuff.
+		}
+		fmt.Println("Cluster node created as", *role, "in", config.Raft.Dir)
+		return nil
+	}
+
+	// Check for join-cluster request.
+	j := getCommandIndex("join-cluster")
+	if j > -1 {
+		if roleBrokerRequired(*role) {
+			// Broker required -- but don't initialize it.
+			b := messaging.NewBroker()
+			if err := b.Open(config.Raft.Dir); err != nil {
+				return fmt.Errorf("Failed to prepare to join cluster", err.Error())
+				// Join the seed servers here, using flags.Args[j+1]
+			}
+		} else if roleDataRequired(*role) {
+			// do any required data-node stuff.
+		}
+		return nil
+	}
 
 	// Override config properties.
 	if *hostname != "" {
