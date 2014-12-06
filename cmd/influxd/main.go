@@ -53,8 +53,6 @@ func start() error {
 		hostname      = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
 		protobufPort  = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
 		pidFile       = flag.String("pidfile", "", "the pid file")
-		stdout        = flag.Bool("stdout", false, "Log to stdout overriding the configuration")
-		syslog        = flag.String("syslog", "", "Log to syslog facility overriding the configuration")
 	)
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
@@ -87,11 +85,6 @@ func start() error {
 	}
 	if *protobufPort != 0 {
 		config.Cluster.ProtobufPort = *protobufPort
-	}
-	if *syslog != "" {
-		config.Logging.File = *syslog
-	} else if *stdout {
-		config.Logging.File = "stdout"
 	}
 	setupLogging(config.Logging.Level, config.Logging.File)
 
