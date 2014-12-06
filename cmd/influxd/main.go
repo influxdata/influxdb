@@ -43,16 +43,29 @@ func main() {
 	os.Exit(0)
 }
 
+func Usage() {
+	fmt.Fprintf(os.Stderr, "\nConfigure and start the InfluxDB server.\n\n")
+	fmt.Fprintf(os.Stderr, "Usage: influxd [OPTIONS] [COMMAND] [<arg>]\n\n")
+	fmt.Fprintf(os.Stderr, "Commands:\n")
+	fmt.Fprintf(os.Stderr, "  run: Start with existing cluster configuration. If none, run in local mode.\n")
+	fmt.Fprintf(os.Stderr, "  create-cluster: Create a cluster that other nodes can join\n")
+	fmt.Fprintf(os.Stderr, "  join-cluster <seed servers>: Prepare to join an existing cluster using seed-servers\n")
+	fmt.Fprintf(os.Stderr, "\n If no command is specified, `run` is the default\n")
+	fmt.Fprintf(os.Stderr, "\nOptions:\n")
+	flag.PrintDefaults()
+}
+
 func start() error {
 	var (
-		fileName      = flag.String("config", "config.sample.toml", "Config file")
-		createCluster = flag.Bool("create-cluster", false, "Create a new cluster, ready for other nodes to join")
-		seedServers   = flag.String("join", "", "Comma-separated list of servers, for joining existing cluster, in form host:port")
-		role          = flag.String("role", "combined", "Role for this node. Applicable only to cluster deployments")
-		showVersion   = flag.Bool("v", false, "Get version number")
-		hostname      = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
-		pidFile       = flag.String("pidfile", "", "the pid file")
+		fileName    = flag.String("config", "config.sample.toml", "Config file")
+		seedServers = flag.String("join", "", "Comma-separated list of servers, for joining existing cluster, in form host:port")
+		role        = flag.String("role", "combined", "Role for this node. Applicable only to cluster deployments")
+		showVersion = flag.Bool("v", false, "Get version number")
+		hostname    = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
+		pidFile     = flag.String("pidfile", "", "the pid file")
 	)
+	flag.Usage = Usage
+
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
