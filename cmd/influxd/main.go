@@ -51,7 +51,6 @@ func start() error {
 		role          = flag.String("role", "combined", "Role for this node. Applicable only to cluster deployments")
 		showVersion   = flag.Bool("v", false, "Get version number")
 		hostname      = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
-		protobufPort  = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
 		pidFile       = flag.String("pidfile", "", "the pid file")
 	)
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -82,9 +81,6 @@ func start() error {
 	// Override config properties.
 	if *hostname != "" {
 		config.Hostname = *hostname
-	}
-	if *protobufPort != 0 {
-		config.Cluster.ProtobufPort = *protobufPort
 	}
 	setupLogging(config.Logging.Level, config.Logging.File)
 
