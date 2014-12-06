@@ -3,19 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"net/http"
-	"net/url"
 	"os"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
-
-	"code.google.com/p/log4go"
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/messaging"
 )
 
 const logo = `
@@ -43,172 +31,71 @@ func main() {
 	os.Exit(0)
 }
 
+var usageMessageHeader = `
+Configure and start an InfluxDB server.
+
+Usage:
+
+	influxd [[command] [arguments]]
+
+The commands are:
+
+`
+
+func usage() {
+	fmt.Fprintf(os.Stderr, usageMessageHeader)
+	for _, c := range commands {
+		fmt.Fprintf(os.Stderr, "    %-20s %-10s\n", c.Name, c.Terse)
+	}
+	fmt.Fprintf(os.Stderr, "\n\"run\" is the default command.\n")
+	fmt.Fprintf(os.Stderr, "\nUse \"influxd help [command]\" for more information about a command.\n\n")
+	os.Exit(2)
+}
+
+func help(args []string) {
+	if len(args) == 0 {
+		usage()
+		return // Succeeded already at 'influxd help'
+	}
+	if len(args) != 1 {
+		fmt.Fprintf(os.Stderr, "usage: influxd help command\n\nToo many arguments given.\n")
+		os.Exit(2)
+	}
+
+	for _, cmd := range commands {
+		if cmd.Name == args[0] {
+			fmt.Fprintf(os.Stderr, "usage: %s %s\n", cmd.Name, cmd.Options)
+			fmt.Fprintf(os.Stderr, "%s\n", cmd.Long)
+			return // succeeded at 'influxd help command'
+		}
+	}
+
+}
+
 func start() error {
-	var (
-		fileName      = flag.String("config", "config.sample.toml", "Config file")
-		createCluster = flag.Bool("create-cluster", false, "Create a new cluster, ready for other nodes to join")
-		seedServers   = flag.String("join", "", "Comma-separated list of servers, for joining existing cluster, in form host:port")
-		role          = flag.String("role", "combined", "Role for this node. Applicable only to cluster deployments")
-		showVersion   = flag.Bool("v", false, "Get version number")
-		hostname      = flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
-		protobufPort  = flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
-		pidFile       = flag.String("pidfile", "", "the pid file")
-		stdout        = flag.Bool("stdout", false, "Log to stdout overriding the configuration")
-		syslog        = flag.String("syslog", "", "Log to syslog facility overriding the configuration")
-	)
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	flag.Usage = usage
 	flag.Parse()
 
-	v := fmt.Sprintf("InfluxDB v%s (git: %s)", version, commit)
-	if *showVersion {
-		fmt.Println(v)
+	args := flag.Args()
+	if len(args) < 1 {
+		args = append(args, "run")
+	}
+
+	if args[0] == "help" {
+		help(args[1:])
 		return nil
 	}
 
-	// Validate command-line options.
-	if len(strings.Split(*seedServers, ",")) > 0 && *createCluster {
-		return fmt.Errorf("Creating a cluster, and also specifying a cluster to join, is not supported")
-	}
-	if *role != "combined" && *role != "broker" && *role != "data" {
-		return fmt.Errorf("Only the roles 'combined', 'broker', and 'data' are supported")
-	}
-
-	// Parse configuration.
-	config, err := ParseConfigFile(*fileName)
-	if err != nil {
-		return err
-	}
-	config.Version = v
-	config.InfluxDBVersion = version
-
-	// Override config properties.
-	if *hostname != "" {
-		config.Hostname = *hostname
-	}
-	if *protobufPort != 0 {
-		config.Cluster.ProtobufPort = *protobufPort
-	}
-	if *syslog != "" {
-		config.Logging.File = *syslog
-	} else if *stdout {
-		config.Logging.File = "stdout"
-	}
-	setupLogging(config.Logging.Level, config.Logging.File)
-
-	// Write pid file.
-	if *pidFile != "" {
-		pid := strconv.Itoa(os.Getpid())
-		if err := ioutil.WriteFile(*pidFile, []byte(pid), 0644); err != nil {
-			panic(err)
+	for _, cmd := range commands {
+		if cmd.Name == args[0] {
+			cmd.Flag.Usage = func() { cmd.Usage() }
+			cmd.Flag.Parse(args[1:])
+			args = cmd.Flag.Args()
+			return cmd.Exec(cmd, args)
 		}
 	}
 
-	// Initialize directories.
-	if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
-		panic(err)
-	}
-
-	// TODO(benbjohnson): Start admin server.
-
-	if config.BindAddress == "" {
-		log4go.Info("Starting Influx Server %s...", version)
-	} else {
-		log4go.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
-	}
-	fmt.Printf(logo)
-
-	// Parse broker URLs from seed servers.
-	var brokerURLs []*url.URL
-	for _, s := range strings.Split(*seedServers, ",") {
-		u, err := url.Parse(s)
-		if err != nil {
-			panic(err)
-		}
-		brokerURLs = append(brokerURLs, u)
-	}
-
-	var client influxdb.MessagingClient
-	if len(brokerURLs) > 1 {
-		// Create messaging client for broker.
-		c := messaging.NewClient("XXX-CHANGEME-XXX")
-		if err := c.Open(brokerURLs); err != nil {
-			log4go.Error("Error opening Messaging Client: %s", err.Error())
-		}
-		defer c.Close()
-		client = c
-		log4go.Info("Cluster messaging client created")
-	} else {
-		client = messaging.NewLoopbackClient()
-		log4go.Info("Local messaging client created")
-	}
-
-	// Start server.
-	s := influxdb.NewServer(client)
-	err = s.Open(config.Storage.Dir)
-	if err != nil {
-		panic(err)
-	}
-
-	// TODO: startProfiler()
-	// TODO: -reset-root
-
-	// Initialize HTTP handler.
-	h := influxdb.NewHandler(s)
-
-	// Start HTTP server.
-	func() { log.Fatal(http.ListenAndServe(":8086", h)) }() // TODO: Change HTTP port.
-	// TODO: Start HTTPS server.
-
-	// Wait indefinitely.
-	<-(chan struct{})(nil)
-	return nil
-}
-
-func setupLogging(loggingLevel, logFile string) {
-	level := log4go.DEBUG
-	switch loggingLevel {
-	case "trace":
-		level = log4go.TRACE
-	case "fine":
-		level = log4go.FINE
-	case "info":
-		level = log4go.INFO
-	case "warn":
-		level = log4go.WARNING
-	case "error":
-		level = log4go.ERROR
-	default:
-		log4go.Error("Unknown log level %s. Defaulting to DEBUG", loggingLevel)
-	}
-
-	log4go.Global = make(map[string]*log4go.Filter)
-
-	facility, ok := GetSysLogFacility(logFile)
-	if ok {
-		flw, err := NewSysLogWriter(facility)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "NewSysLogWriter: %s\n", err.Error())
-			return
-		}
-		log4go.AddFilter("syslog", level, flw)
-	} else if logFile == "stdout" {
-		flw := log4go.NewConsoleLogWriter()
-		log4go.AddFilter("stdout", level, flw)
-	} else {
-		logFileDir := filepath.Dir(logFile)
-		os.MkdirAll(logFileDir, 0744)
-
-		flw := log4go.NewFileLogWriter(logFile, false)
-		log4go.AddFilter("file", level, flw)
-
-		flw.SetFormat("[%D %T] [%L] (%S) %M")
-		flw.SetRotate(true)
-		flw.SetRotateSize(0)
-		flw.SetRotateLines(0)
-		flw.SetRotateDaily(true)
-	}
-
-	log4go.Info("Redirectoring logging to %s", logFile)
+	return fmt.Errorf("influxd: unknown command %q\nRun 'influxd help' for usage", args[0])
 }
 
 type Stopper interface {
