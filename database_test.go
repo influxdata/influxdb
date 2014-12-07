@@ -440,6 +440,71 @@ func TestDatabase_CreateShardIfNotExist(t *testing.T) {
 	}
 }
 
+func TestDatabase_Series(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	db := s.Database("foo")
+	db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
+	db.CreateUser("susy", "pass", nil, nil)
+
+	// Write series with one point to the database.
+	timestamp := mustParseTime("2000-01-01T00:00:00Z")
+
+	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
+	values := map[string]interface{}{"value": 23.2}
+
+	if err := db.WriteSeries("myspace", "cpu_load", tags, timestamp, values); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := db.Series()
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultContains(r, t, "cpu_load", tags)
+}
+
+func resultContains(result []*influxdb.Measurement, t *testing.T, name string, tags map[string]string) {
+	if len(result) == 0 {
+		t.Fatal("No results")
+	}
+	for _, m := range result {
+		if m.Name == name {
+			for _, s := range m.Series {
+				if reflect.DeepEqual(s.Tags, tags) {
+					return
+				}
+			}
+		}
+	}
+	t.Fatalf("Result didn't contain name %s with tags: %s", name, tags)
+}
+
+func TestDatabaseSeriesByTagNames(t *testing.T) {
+	t.Skip("pending")
+}
+
+func TestDatabaseSeriesByTagValues(t *testing.T) {
+	t.Skip("pending")
+}
+
+func TestDatabase_TagNames(t *testing.T) {
+	t.Skip("pending")
+}
+
+func TestDatabase_TagNamesBySeries(t *testing.T) {
+	t.Skip("pending")
+}
+
+func TestDatabase_TagValues(t *testing.T) {
+	t.Skip("pending")
+}
+
+func TestDatabase_TagValuesBySeries(t *testing.T) {
+	t.Skip("pending")
+}
+
 // mustParseQuery parses a query string into a query object. Panic on error.
 func mustParseQuery(s string) *influxql.Query {
 	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()

@@ -527,6 +527,32 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (db *Database) Series() ([]*Measurement, error) {
+	db.mu.RLock()
+	m := db.server.meta
+	db.mu.RUnlock()
+
+	var measurements []*Measurement
+	m.view(func(tx *metatx) error {
+		measurements = tx.series(db.name)
+		return nil
+	})
+
+	return measurements, nil
+}
+
+// Measurement represents a collection of time series in a database
+type Measurement struct {
+	Name   string
+	Series []*Series
+}
+
+// Series belong to a Measurement and represent unique time series in a database
+type Series struct {
+	ID   uint32
+	Tags map[string]string
+}
+
 // databaseJSON represents the JSON-serialization format for a database.
 type databaseJSON struct {
 	Name                   string             `json:"name,omitempty"`
