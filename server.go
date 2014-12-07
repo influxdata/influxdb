@@ -903,36 +903,6 @@ func tagsToBytes(tags map[string]string) []byte {
 	return []byte(strings.Join(s, "|"))
 }
 
-// series returns a series by database and name.
-func (tx *metatx) series(database, name string) (s *Series) {
-	b := tx.Bucket([]byte("Series")).Bucket([]byte(database))
-	if b == nil {
-		return nil
-	}
-	if v := b.Get([]byte(name)); v != nil {
-		mustUnmarshalJSON(v, &s)
-	}
-	return
-}
-
-// saveSeries persists a series to the metastore.
-func (tx *metatx) saveSeries(database string, s *Series) error {
-	b, err := tx.Bucket([]byte("Series")).CreateBucketIfNotExists([]byte(database))
-	if err != nil {
-		return err
-	}
-	return b.Put([]byte(s.Name), mustMarshalJSON(s))
-}
-
-// deleteSeries removes a series from the metastore.
-func (tx *metatx) deleteSeries(database, name string) error {
-	b := tx.Bucket([]byte("Series")).Bucket([]byte(database))
-	if b == nil {
-		return nil
-	}
-	return b.Delete([]byte(name))
-}
-
 // clusterAdmin returns a cluster admin from the metastore by name.
 func (tx *metatx) clusterAdmin(name string) (u *ClusterAdmin) {
 	if v := tx.Bucket([]byte("ClusterAdmins")).Get([]byte(name)); v != nil {
