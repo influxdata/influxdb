@@ -752,6 +752,45 @@ func TestHandler_ClusterAdmins(t *testing.T) {
 	}
 }
 
+func TestHandler_CreateClusterAdmin(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	newAdmin := `{"name":"jdoe","password":"1337"}`
+	status, body := MustHTTP("POST", s.URL+`/cluster_admins`, newAdmin)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateClusterAdmin_BadRequest(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	newAdmin := `{BadRequest:"jdoe","password":"1337"}`
+	status, body := MustHTTP("POST", s.URL+`/cluster_admins`, newAdmin)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `invalid character 'B' looking for beginning of object key string` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateClusterAdmin_InternalServerError(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	newAdmin := `{"name":"jdoe","password":""}`
+	status, body := MustHTTP("POST", s.URL+`/cluster_admins`, newAdmin)
+	if status != http.StatusInternalServerError {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `Password must be more than 4 and less than 56 characters` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func MustHTTP(verb, url, body string) (int, string) {
 	req, err := http.NewRequest(verb, url, bytes.NewBuffer([]byte(body)))
 	if err != nil {

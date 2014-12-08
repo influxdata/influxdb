@@ -261,7 +261,20 @@ func (h *Handler) serveClusterAdmins(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveCreateClusterAdmin creates a new cluster admin.
-func (h *Handler) serveCreateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveCreateClusterAdmin(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	u := &userJSON{}
+	if err := json.NewDecoder(r.Body).Decode(u); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.server.CreateClusterAdmin(u.Name, u.Password); err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
 
 // serveUpdateClusterAdmin updates an existing cluster admin.
 func (h *Handler) serveUpdateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
@@ -310,12 +323,12 @@ func (h *Handler) serveCreateDBUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := db.CreateUser(u.Name, u.Password, u.ReadFrom, u.WriteTo); err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
+	if err := db.CreateUser(u.Name, u.Password, u.ReadFrom, u.WriteTo); err == ErrClusterAdminExists {
+		h.error(w, err.Error(), http.StatusConflict)
 		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
 	}
-
-	// TODO: handle IsAdmin
 }
 
 // serveDBUser returns data about a single database user.
