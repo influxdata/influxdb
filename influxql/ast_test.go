@@ -43,7 +43,7 @@ func TestSelectStatement_Substatement(t *testing.T) {
 			sub:  `SELECT bb.value FROM bb WHERE bb.host = "serverb"`,
 		},
 
-		// 4. Join with complete condition
+		// 4. Join with complex condition
 		{
 			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa JOIN bb WHERE aa.host = "servera" AND (bb.host = "serverb" OR bb.host = "serverc") AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},

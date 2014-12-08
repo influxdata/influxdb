@@ -442,6 +442,15 @@ func BenchmarkParserParseStatement(b *testing.B) {
 	b.SetBytes(int64(len(s)))
 }
 
+// MustParseSelectStatement parses a select statement. Panic on error.
+func MustParseSelectStatement(s string) *influxql.SelectStatement {
+	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
+	if err != nil {
+		panic(err.Error())
+	}
+	return stmt.(*influxql.SelectStatement)
+}
+
 // errstring converts an error to its string representation.
 func errstring(err error) string {
 	if err != nil {

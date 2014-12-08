@@ -347,6 +347,26 @@ type Field struct {
 	Alias string
 }
 
+// Name returns the name of the field. Returns alias, if set.
+// Otherwise uses the function name or variable name.
+func (f *Field) Name() string {
+	// Return alias, if set.
+	if f.Alias != "" {
+		return f.Alias
+	}
+
+	// Return the function name or variable name, if available.
+	switch expr := f.Expr.(type) {
+	case *Call:
+		return expr.Name
+	case *VarRef:
+		return expr.Val
+	}
+
+	// Otherwise return a blank name.
+	return ""
+}
+
 // String returns a string representation of the field.
 func (f *Field) String() string {
 	if f.Alias == "" {
