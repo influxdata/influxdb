@@ -371,7 +371,7 @@ func (h *Handler) serveUpdateDBUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if pwd, ok := uu["password"]; ok {
-		newPwd, ok := pwd.(string);
+		newPwd, ok := pwd.(string)
 		if !ok {
 			h.error(w, "password must be a string", http.StatusBadRequest)
 			return

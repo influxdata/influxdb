@@ -541,7 +541,7 @@ func TestHandler_UpdateDBUser_Password(t *testing.T) {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `` {
 		t.Fatalf("unexpected body: %s", body)
-	} else if (newHash == origHash) {
+	} else if newHash == origHash {
 		t.Fatalf("expected password hash to change")
 	}
 }
