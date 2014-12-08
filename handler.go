@@ -284,8 +284,6 @@ func (h *Handler) serveUpdateClusterAdmin(w http.ResponseWriter, r *http.Request
 func (h *Handler) serveDeleteClusterAdmin(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authentication
 
-	// DELETE /cluster_admins/:user
-
 	urlQry := r.URL.Query()
 
 	if err := h.server.DeleteClusterAdmin(urlQry.Get(":user")); err == ErrClusterAdminNotFound {
@@ -303,7 +301,27 @@ func (h *Handler) serveDeleteClusterAdmin(w http.ResponseWriter, r *http.Request
 func (h *Handler) serveAuthenticateDBUser(w http.ResponseWriter, r *http.Request) {}
 
 // serveDBUsers returns data about a single database user.
-func (h *Handler) serveDBUsers(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveDBUsers(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	dbUsers := db.Users()
+	jsonUsers := make([]*userJSON, 0, len(dbUsers))
+	for _, dbUser := range dbUsers {
+		jsonUsers = append(jsonUsers, newUserJSONFromDBUser(dbUser))
+	}
+
+	if err := json.NewEncoder(w).Encode(jsonUsers); err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
 
 type userJSON struct {
 	Name     string     `json:"name"`

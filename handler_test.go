@@ -376,6 +376,55 @@ func TestHandler_Ping(t *testing.T) {
 	}
 }
 
+func TestHandler_Users_NoUsers(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/users`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != "[]" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_Users_OneUser(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/users`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `[{"name":"jdoe","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_Users_MultipleUsers(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	db := srvr.Database("foo")
+	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
+	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	db.CreateUser("mclark", "1337", readFrom, writeTo)
+	db.CreateUser("csmith", "1337", readFrom, writeTo)
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/db/foo/users`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `[{"name":"csmith","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]},{"name":"jdoe","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]},{"name":"mclark","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_CreateDBUser(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
