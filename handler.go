@@ -270,9 +270,10 @@ func (h *Handler) serveCreateClusterAdmin(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.server.CreateClusterAdmin(u.Name, u.Password); err != nil {
+	if err := h.server.CreateClusterAdmin(u.Name, u.Password); err == ErrClusterAdminExists {
+		h.error(w, err.Error(), http.StatusConflict)
+	} else if err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
 }
 
@@ -280,7 +281,23 @@ func (h *Handler) serveCreateClusterAdmin(w http.ResponseWriter, r *http.Request
 func (h *Handler) serveUpdateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
 
 // serveDeleteClusterAdmin removes an existing cluster admin.
-func (h *Handler) serveDeleteClusterAdmin(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveDeleteClusterAdmin(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	// DELETE /cluster_admins/:user
+
+	urlQry := r.URL.Query()
+
+	if err := h.server.DeleteClusterAdmin(urlQry.Get(":user")); err == ErrClusterAdminNotFound {
+		h.error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
 
 // serveAuthenticateDBUser authenticates a user as a database user.
 func (h *Handler) serveAuthenticateDBUser(w http.ResponseWriter, r *http.Request) {}
@@ -323,7 +340,7 @@ func (h *Handler) serveCreateDBUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := db.CreateUser(u.Name, u.Password, u.ReadFrom, u.WriteTo); err == ErrClusterAdminExists {
+	if err := db.CreateUser(u.Name, u.Password, u.ReadFrom, u.WriteTo); err == ErrUserExists {
 		h.error(w, err.Error(), http.StatusConflict)
 		return
 	} else if err != nil {

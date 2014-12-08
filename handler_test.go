@@ -778,6 +778,20 @@ func TestHandler_CreateClusterAdmin_BadRequest(t *testing.T) {
 	}
 }
 
+func TestHandler_CreateClusterAdmin_Conflict(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateClusterAdmin("jdoe", "1337")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	newAdmin := `{"name":"jdoe","password":"1337"}`
+	status, body := MustHTTP("POST", s.URL+`/cluster_admins`, newAdmin)
+	if status != http.StatusConflict {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `cluster admin exists` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_CreateClusterAdmin_InternalServerError(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
@@ -787,6 +801,31 @@ func TestHandler_CreateClusterAdmin_InternalServerError(t *testing.T) {
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `Password must be more than 4 and less than 56 characters` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteClusterAdmin(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateClusterAdmin("jdoe", "1337")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/cluster_admins/jdoe`, ``)
+	if status != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DeleteClusterAdmin_NotFound(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("DELETE", s.URL+`/cluster_admins/jdoe`, ``)
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `cluster admin not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
