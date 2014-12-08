@@ -245,7 +245,20 @@ func (h *Handler) serveDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) serveAuthenticateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
 
 // serveClusterAdmins returns data about a single cluster admin.
-func (h *Handler) serveClusterAdmins(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveClusterAdmins(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	// clear user hash codes before serialzing response
+	admins := h.server.ClusterAdmins()
+	for _, admin := range admins {
+		admin.Hash = ""
+	}
+
+	w.Header().Add("content-type", "application/json")
+	if err := json.NewEncoder(w).Encode(admins); err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
 
 // serveCreateClusterAdmin creates a new cluster admin.
 func (h *Handler) serveCreateClusterAdmin(w http.ResponseWriter, r *http.Request) {}

@@ -738,6 +738,20 @@ func TestHandler_DeleteDBUser_UserNotFound(t *testing.T) {
 	}
 }
 
+func TestHandler_ClusterAdmins(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateClusterAdmin("jdoe", "1337")
+	srvr.CreateClusterAdmin("mclark", "7331")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+	status, body := MustHTTP("GET", s.URL+`/cluster_admins`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `[{"common":{"name":"jdoe","hash":"","is_deleted":false,"cache_key":""}},{"common":{"name":"mclark","hash":"","is_deleted":false,"cache_key":""}}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func MustHTTP(verb, url, body string) (int, string) {
 	req, err := http.NewRequest(verb, url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
