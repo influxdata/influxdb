@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -26,6 +27,8 @@ const logo = `
 | |_____|_| |_|_| |_|\__,_/_/\_\_____/|____/  |
 +---------------------------------------------+
 `
+
+const modeFilename = "mode.json"
 
 // These variables are populated via the Go linker.
 var (
@@ -145,7 +148,12 @@ func run(args []string, config *Config) error {
 		server     *influxdb.Server
 	)
 
-	if true { // Hardcode local mode for now
+	state, err := createStateIfNotExists(filepath.Join(config.Cluster.Dir, modeFilename))
+	if err != nil {
+		return err
+	}
+
+	if state.Mode == "local" {
 		client = messaging.NewLoopbackClient()
 		log4go.Info("Local messaging client created")
 
@@ -195,6 +203,9 @@ func run(args []string, config *Config) error {
 		// TODO: Start HTTPS server.
 	}
 
+	// Wait indefinitely.
+	<-(chan struct{})(nil)
+
 	return nil
 }
 
@@ -227,6 +238,9 @@ func start() error {
 	if *hostname != "" {
 		config.Hostname = *hostname
 	}
+
+	// Ensure always-required directories exist.
+	os.MkdirAll(config.Cluster.Dir, 0744)
 
 	var cmd string
 	var args []string
@@ -305,6 +319,36 @@ func setupLogging(loggingLevel, logFile string) {
 	log4go.Info("Redirectoring logging to %s", logFile)
 }
 
+// createStateIfNotExists returns the cluster state, from the file at path. If no file exists
+// at path, the default state is created, and written to the path.
+func createStateIfNotExists(path string) (State, error) {
+	var s State
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = nil
+			s.Mode = "local"
+
+			g, err := os.Create(path)
+			if err != nil {
+				return s, err
+			}
+			enc := json.NewEncoder(g)
+			err = enc.Encode(&s)
+			g.Close()
+		}
+		return s, err
+	}
+
+	dec := json.NewDecoder(f)
+	err = dec.Decode(&s)
+	return s, err
+}
+
 type Stopper interface {
 	Stop()
+}
+
+type State struct {
+	Mode string `json:"mode"`
 }
