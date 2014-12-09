@@ -1,13 +1,11 @@
 # Select
 
-## Having
-
 ```sql
-SELECT COUNT(value) FROM some_series GROUP BY TIME(5m) HAVING COUNT(value) > 23
+-- get the top 10 host measurements for the last hour (same host can appear multiple times)
+SELECT top(10, value), host FROM cpu WHERE time > now() - 1h
 
-SELECT top(10, value, host),  host FROM cpu WHERE time > now() - 1h
-
-SELECT MAX(value) AS max_value, host FROM cpu GROUP BY TIME(1h), host HAVING TOP(max_value, 13)
+-- get the top 10 unique hosts for the last hour
+SELECT top(10, value), distinct(host) FROM cpu WHERE time > now() - 1h
 ```
 
 ## Group By
