@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"code.google.com/p/log4go"
 	"github.com/influxdb/influxdb/messaging"
@@ -38,8 +40,10 @@ func main() {
 // createCluster creates a new bode, ready to be joined by other nodes. It is also
 // responsible for displaying help for this command.
 func createCluster(args []string, config *Config) error {
-	clusterFlags := flag.NewFlagSet("cluster", flag.ExitOnError)
-	role := clusterFlags.String("role", "combined", "Role for this node, must be 'combined' or 'broker'.")
+	var (
+		clusterFlags = flag.NewFlagSet("cluster", flag.ExitOnError)
+		role         = clusterFlags.String("role", "combined", "Role for this node, must be 'combined' or 'broker'.")
+	)
 	clusterFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "\nUsage: %s create-cluster [options]\n\n", os.Args[0])
 		clusterFlags.PrintDefaults()
@@ -69,8 +73,10 @@ func createCluster(args []string, config *Config) error {
 // joinCluster creates a new bode, ready to be joined by other nodes. It is also
 // responsible for displaying help for this command.
 func joinCluster(args []string, config *Config) error {
-	joinFlags := flag.NewFlagSet("join", flag.ExitOnError)
-	role := joinFlags.String("role", "combined", "Role for this node, must be 'combined', 'broker', or 'data'.")
+	var (
+		joinFlags = flag.NewFlagSet("join", flag.ExitOnError)
+		role      = joinFlags.String("role", "combined", "Role for this node, must be 'combined', 'broker', or 'data'.")
+	)
 	joinFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "\nUsage: %s join-cluster <servers> [options]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, " servers: Comma-separated list of servers, for joining existing cluster, in form host:port\n")
@@ -100,13 +106,37 @@ func joinCluster(args []string, config *Config) error {
 }
 
 func run(args []string, config *Config) error {
-	fmt.Println("here is run!")
+	var (
+		runFlags = flag.NewFlagSet("run", flag.ExitOnError)
+		pidFile  = runFlags.String("pidfile", "", "the pid file")
+	)
+
+	setupLogging(config.Logging.Level, config.Logging.File)
+
+	// Write pid file.
+	if *pidFile != "" {
+		pid := strconv.Itoa(os.Getpid())
+		if err := ioutil.WriteFile(*pidFile, []byte(pid), 0644); err != nil {
+			panic(err)
+		}
+	}
+
+	// TODO(benbjohnson): Start admin server.
+
+	if config.BindAddress == "" {
+		log4go.Info("Starting Influx Server %s...", version)
+	} else {
+		log4go.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
+	}
+	fmt.Printf(logo)
+
 	return nil
 }
 
 func start() error {
 	generalFlags := flag.NewFlagSet("general", flag.ExitOnError)
 	fileName := generalFlags.String("config", "config.sample.toml", "Configuration file")
+	hostname := generalFlags.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
 	generalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "\nConfigure and start the InfluxDB server.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] [[command] [arguments]]\n\n", os.Args[0])
@@ -126,6 +156,11 @@ func start() error {
 	config, err := ParseConfigFile(*fileName)
 	if err != nil {
 		return err
+	}
+
+	// Override config properties.
+	if *hostname != "" {
+		config.Hostname = *hostname
 	}
 
 	var cmd string
