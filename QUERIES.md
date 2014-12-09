@@ -1,3 +1,5 @@
+The top level name is called a measurement. These names can contain any characters. Then there are field names, field values, tag keys and tag values, which can also contain any characters. Because of this, anywhere a measurement name, field name, field value, tag name, or tag value appears should be able to get wrapped in double quotes to deal with special characters.
+
 # Select
 
 ```sql
@@ -16,7 +18,10 @@ SELECT top(10, value), distinct(host) FROM cpu WHERE time > now() - 1h
 
 ## Destroy
 
-    DROP SERIES <name>
+```sql
+DROP MEASUREMENT <name>
+DROP MEASUREMENT cpu WHERE region = 'uswest'
+```
 
 ## List
 
@@ -33,22 +38,15 @@ LIST SERIES WHERE region = 'uswest'
 LIST KEYS
 
 -- list all the tag keys for a given measurement
-LIST KEYS WHERE measurement = 'cpu'
-LIST KEYS WHERE measurement = 'temperature' or measurement = 'wind_speed'
+LIST KEYS FROM cpu
+LIST KEYS FROM temperature, wind_speed
 
 -- list all the tag values. note that at least one WHERE key = '...' clause is required
 LIST VALUES WHERE key = 'region'
-LIST VALUES WHERE measurement = 'cpu' and region = 'uswest' and key = 'host'
-
--- or maybe like this?
-LIST VALUES("host") WHERE measurement = 'cpu'
--- or?
-LIST host WHERE measurement = 'cpu'
--- or just use the select syntax
-SELECT DISTINCT("host") from cpu
--- but then it would be tricky to show all values of host across 
--- all measurements, which we need to be able to do
+LIST VALUES FROM cpu WHERE region = 'uswest' and key = 'host'
 ```
+
+Note that `FROM` and `WHERE` are optional clauses in all of the list series queries.
 
 And the list series output looks like this:
 
