@@ -22,7 +22,57 @@ SELECT MAX(value) AS max_value, host FROM cpu GROUP BY TIME(1h), host HAVING TOP
 
 ## List
 
-    LIST SERIES
+List series queries are for pulling out individual series from measurement names and tag data. They're useful for discovery.
+
+```sql
+-- list all series across all measurements/tagsets
+LIST SERIES
+
+-- get a list of all series for any measurements where tag key region = tak value 'uswest'
+LIST SERIES WHERE region = 'uswest'
+
+-- get a list of all tag keys across all measurements
+LIST KEYS
+
+-- list all the tag keys for a given measurement
+LIST KEYS WHERE measurement = 'cpu'
+LIST KEYS WHERE measurement = 'temperature' or measurement = 'wind_speed'
+
+-- list all the tag values. note that at least one WHERE key = '...' clause is required
+LIST VALUES WHERE key = 'region'
+LIST VALUES WHERE measurement = 'cpu' and region = 'uswest' and key = 'host'
+
+-- or maybe like this?
+LIST VALUES("host") WHERE measurement = 'cpu'
+-- or?
+LIST host WHERE measurement = 'cpu'
+-- or just use the select syntax
+SELECT DISTINCT("host") from cpu
+-- but then it would be tricky to show all values of host across 
+-- all measurements, which we need to be able to do
+```
+
+And the list series output looks like this:
+
+```json
+[
+    {
+        "name": "cpu",
+        "columns": ["id", "region", "host"],
+        "values": [
+            1, "uswest", "servera",
+            2, "uswest", "serverb"
+        ]
+    },
+    {
+        "name": "reponse_time",
+        "columns": ["id", "application", "host"],
+        "values": [
+            3, "myRailsApp", "servera"
+        ]
+    }
+]
+```
 
 # Continuous Queries
 
