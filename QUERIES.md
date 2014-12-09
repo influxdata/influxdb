@@ -2,11 +2,13 @@
 
 ## Having
 
-    SELECT COUNT(value) FROM some_series GROUP BY TIME(5m) HAVING COUNT(value) > 23
+```sql
+SELECT COUNT(value) FROM some_series GROUP BY TIME(5m) HAVING COUNT(value) > 23
 
-    SELECT * FROM cpu GROUP BY TIME(1h), host HAVING TOP(value, 10) WHERE time > NOW()
+SELECT top(10, value, host),  host FROM cpu WHERE time > now() - 1h
 
-    SELECT MAX(value) AS max_value, host FROM cpu GROUP BY TIME(1h), host HAVING TOP(max_value, 13)
+SELECT MAX(value) AS max_value, host FROM cpu GROUP BY TIME(1h), host HAVING TOP(max_value, 13)
+```
 
 ## Group By
 
