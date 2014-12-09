@@ -99,7 +99,7 @@ func joinCluster(args []string, config *Config) error {
 	return nil
 }
 
-func run(args []string) error {
+func run(args []string, config *Config) error {
 	fmt.Println("here is run!")
 	return nil
 }
@@ -143,7 +143,7 @@ func start() error {
 
 	switch cmd {
 	case "run":
-		return run(args)
+		return run(args, config)
 	case "create-cluster":
 		return createCluster(args, config)
 	case "join-cluster":
