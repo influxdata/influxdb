@@ -140,7 +140,7 @@ func (p dbUsers) Len() int           { return len(p) }
 func (p dbUsers) Less(i, j int) bool { return p[i].Name < p[j].Name }
 func (p dbUsers) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-var HashPassword = func(password string) ([]byte, error) {
+func HashPassword(password string) ([]byte, error) {
 	if length := len(password); length < 4 || length > 56 {
 		return nil, fmt.Errorf("Password must be more than 4 and less than 56 characters")
 	}
