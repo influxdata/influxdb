@@ -35,21 +35,6 @@ func main() {
 	os.Exit(0)
 }
 
-// generalUsage displays general help to the user.
-func generalUsage() {
-	fmt.Fprintf(os.Stderr, "\nConfigure and start the InfluxDB server.\n\n")
-	fmt.Fprintf(os.Stderr, "Usage: %s [COMMAND] [arguments]\n\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "Commands:\n")
-	fmt.Fprintf(os.Stderr, "  run:            Start with existing cluster configuration. If none, run in local mode.\n")
-	fmt.Fprintf(os.Stderr, "  create-cluster: Create a new node that other nodes can join to form a new cluster.\n")
-	fmt.Fprintf(os.Stderr, "  join-cluster:   Prepare a new node to join a cluster.\n")
-	fmt.Fprintf(os.Stderr, "  version:        Display server version.\n")
-	fmt.Fprintf(os.Stderr, "\n If no command is specified, 'run' is the default.\n")
-	fmt.Fprintf(os.Stderr, "\nUse \"%s [command] -h\" for more information about a command.\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "\nOptions:\n")
-	flag.PrintDefaults()
-}
-
 // createCluster creates a new bode, ready to be joined by other nodes. It is also
 // responsible for displaying help for this command.
 func createCluster(args []string, config *Config) error {
@@ -61,7 +46,7 @@ func createCluster(args []string, config *Config) error {
 	}
 	clusterFlags.Parse(args)
 
-	if *role != "combined" || *role != "broker" {
+	if *role != "combined" && *role != "broker" {
 		return fmt.Errorf("New cluster node must be created as 'combined' or 'broker' role")
 	}
 
@@ -98,7 +83,7 @@ func joinCluster(args []string, config *Config) error {
 		return fmt.Errorf("'join-cluster' requires seed servers")
 	}
 
-	if *role == "combined" || *role == "broker" {
+	if *role == "combined" && *role == "broker" {
 		// Broker required -- but don't initialize it. Joining a cluster will
 		// do that.
 		b := messaging.NewBroker()
@@ -114,16 +99,31 @@ func joinCluster(args []string, config *Config) error {
 	return nil
 }
 
-func run(args []string) {
+func run(args []string) error {
 	fmt.Println("here is run!")
+	return nil
 }
 
 func start() error {
 	generalFlags := flag.NewFlagSet("general", flag.ExitOnError)
-	generalFlags.Usage = generalUsage
+	fileName := generalFlags.String("config", "config.sample.toml", "Configuration file")
+	generalFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "\nConfigure and start the InfluxDB server.\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] [[command] [arguments]]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Commands:\n")
+		fmt.Fprintf(os.Stderr, "  run:            Start with existing cluster configuration. If none, run in local mode.\n")
+		fmt.Fprintf(os.Stderr, "  create-cluster: Create a new node that other nodes can join to form a new cluster.\n")
+		fmt.Fprintf(os.Stderr, "  join-cluster:   Prepare a new node to join a cluster.\n")
+		fmt.Fprintf(os.Stderr, "  version:        Display server version.\n")
+		fmt.Fprintf(os.Stderr, "\n If no command is specified, 'run' is the default.\n")
+		fmt.Fprintf(os.Stderr, "\n Use \"%s [command] -h\" for more information about a command.\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		generalFlags.PrintDefaults()
+	}
+
 	generalFlags.Parse(os.Args[1:])
 
-	config, err := ParseConfigFile("ssss")
+	config, err := ParseConfigFile(*fileName)
 	if err != nil {
 		return err
 	}
@@ -132,19 +132,22 @@ func start() error {
 	var args []string
 	if generalFlags.NArg() == 0 {
 		cmd = "run"
-		args = os.Args[1:]
 	} else {
-		cmd = generalFlags.Args()[0]
-		args = os.Args[2:]
+		// There is an explicit command.
+		cmd = generalFlags.Arg(0)
+		if generalFlags.NArg() > 1 {
+			// And it has arguments
+			args = generalFlags.Args()[1:]
+		}
 	}
 
 	switch cmd {
 	case "run":
-		run(args)
+		return run(args)
 	case "create-cluster":
-		createCluster(args, config)
+		return createCluster(args, config)
 	case "join-cluster":
-		joinCluster(args, config)
+		return joinCluster(args, config)
 	case "version":
 		v := fmt.Sprintf("InfluxDB v%s (git: %s)", version, commit)
 		fmt.Println(v)
@@ -152,9 +155,6 @@ func start() error {
 	default:
 		return fmt.Errorf("unknown command: %s. '%s -h' for usage", cmd, flag.Arg(0))
 	}
-
-	// Wait indefinitely.
-	<-(chan struct{})(nil)
 	return nil
 }
 
