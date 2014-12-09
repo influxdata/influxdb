@@ -28,6 +28,10 @@ DROP MEASUREMENT cpu WHERE region = 'uswest'
 List series queries are for pulling out individual series from measurement names and tag data. They're useful for discovery.
 
 ```sql
+-- list measurement names
+LIST MEASUREMENTS
+LIST MEASUREMENTS WHERE service = 'redis'
+
 -- list all series across all measurements/tagsets
 LIST SERIES
 
@@ -35,15 +39,22 @@ LIST SERIES
 LIST SERIES WHERE region = 'uswest'
 
 -- get a list of all tag keys across all measurements
-LIST KEYS
+LIST TAG KEYS
 
 -- list all the tag keys for a given measurement
-LIST KEYS FROM cpu
-LIST KEYS FROM temperature, wind_speed
+LIST TAG KEYS FROM cpu
+LIST TAG KEYS FROM temperature, wind_speed
 
 -- list all the tag values. note that at least one WHERE key = '...' clause is required
-LIST VALUES WHERE key = 'region'
-LIST VALUES FROM cpu WHERE region = 'uswest' and key = 'host'
+LIST TAG VALUES WHERE key = 'region'
+LIST TAG VALUES FROM cpu WHERE region = 'uswest' and key = 'host'
+
+-- and you can do stuff against fields
+LIST FIELD KEYS FROM cpu
+
+-- but you can't do this
+LIST FIELD VALUES
+-- we don't index field values, so this query should be invalid.
 ```
 
 Note that `FROM` and `WHERE` are optional clauses in all of the list series queries.
