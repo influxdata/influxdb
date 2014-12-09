@@ -81,6 +81,7 @@ type Config struct {
 	} `toml:"storage"`
 
 	Cluster struct {
+		Dir                       string   `toml:"dir"`
 		ProtobufPort              int      `toml:"protobuf_port"`
 		ProtobufTimeout           Duration `toml:"protobuf_timeout"`
 		ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
