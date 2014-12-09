@@ -4,11 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"code.google.com/p/log4go"
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -133,6 +137,63 @@ func run(args []string, config *Config) error {
 		log4go.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
 	}
 	fmt.Printf(logo)
+
+	// Bring up the node in the state as is on disk.
+	var (
+		brokerURLs []*url.URL
+		client     influxdb.MessagingClient
+		server     *influxdb.Server
+	)
+
+	if true { // Hardcode local mode for now
+		client = messaging.NewLoopbackClient()
+		log4go.Info("Local messaging client created")
+
+		server = influxdb.NewServer(client)
+		err := server.Open(config.Storage.Dir)
+		if err != nil {
+			return fmt.Errorf("failed to open local Server", err.Error())
+		}
+	} else {
+		// If the Broker directory exists, open a Broker on this node.
+		if _, err := os.Stat(config.Raft.Dir); err == nil {
+			b := messaging.NewBroker()
+			if err := b.Open(config.Raft.Dir); err != nil {
+				return fmt.Errorf("failed to open Broker", err.Error())
+			}
+		} else {
+			return fmt.Errorf("failed to check for Broker directory", err.Error())
+		}
+
+		// If a Data directory exists, open a Data node.
+		if _, err := os.Stat(config.Storage.Dir); err == nil {
+			// Create correct client here for connecting to Broker.
+			c := messaging.NewClient("XXX-CHANGEME-XXX")
+			if err := c.Open(brokerURLs); err != nil {
+				log4go.Error("Error opening Messaging Client: %s", err.Error())
+			}
+			defer c.Close()
+			client = c
+			log4go.Info("Cluster messaging client created")
+
+			server = influxdb.NewServer(client)
+			err = server.Open(config.Storage.Dir)
+			if err != nil {
+				return fmt.Errorf("failed to open data Server", err.Error())
+			}
+		} else {
+			return fmt.Errorf("failed to check for Broker directory", err.Error())
+		}
+
+		// TODO: startProfiler()
+		// TODO: -reset-root
+
+		// Start up HTTP server with correct endpoints. TODO
+		h := influxdb.NewHandler(server)
+
+		func() { log.Fatal(http.ListenAndServe(":8086", h)) }() // TODO: Change HTTP port.
+		// TODO: Start HTTPS server.
+	}
 
 	return nil
 }
