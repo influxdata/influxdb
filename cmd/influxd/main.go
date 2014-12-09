@@ -41,7 +41,7 @@ func main() {
 	os.Exit(0)
 }
 
-// createCluster creates a new bode, ready to be joined by other nodes. It is also
+// createCluster creates a new node, ready to be joined by other nodes. It is also
 // responsible for displaying help for this command.
 func createCluster(args []string, config *Config) error {
 	var (
@@ -74,7 +74,7 @@ func createCluster(args []string, config *Config) error {
 	return nil
 }
 
-// joinCluster creates a new bode, ready to be joined by other nodes. It is also
+// joinCluster creates a new node, ready to be joined by other nodes. It is also
 // responsible for displaying help for this command.
 func joinCluster(args []string, config *Config) error {
 	var (
