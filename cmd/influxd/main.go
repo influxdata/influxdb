@@ -339,6 +339,7 @@ func createStateIfNotExists(path string) (State, error) {
 		}
 		return s, err
 	}
+	defer f.Close()
 
 	dec := json.NewDecoder(f)
 	err = dec.Decode(&s)
