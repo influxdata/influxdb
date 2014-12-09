@@ -85,11 +85,15 @@ func joinCluster(args []string, config *Config) error {
 	}
 	joinFlags.Parse(args)
 
+	if *role != "combined" && *role != "broker" && *role != "data" {
+		return fmt.Errorf("Node must join as 'combined', 'broker', or 'data'")
+	}
+
 	if joinFlags.NArg() < 1 {
 		return fmt.Errorf("'join-cluster' requires seed servers")
 	}
 
-	if *role == "combined" && *role == "broker" {
+	if *role == "combined" || *role == "broker" {
 		// Broker required -- but don't initialize it. Joining a cluster will
 		// do that.
 		b := messaging.NewBroker()
