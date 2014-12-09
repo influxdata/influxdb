@@ -111,8 +111,8 @@ type DB interface {
 	// Returns the id and data type for a series field.
 	Field(name, field string) (fieldID uint8, typ DataType)
 
-	// Returns an iterator given a series data id and field id.
-	CreateIterator(id uint32, fieldID uint8) Iterator
+	// Returns an iterator given a series data id, field id, & field data type.
+	CreateIterator(id uint32, fieldID uint8, typ DataType) Iterator
 }
 
 // Planner represents an object for creating execution plans.
@@ -130,7 +130,7 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 
 	// Generate a processor for each field.
 	for i, f := range stmt.Fields {
-		p, err := p.planField(stmt, f)
+		p, err := p.planField(e, f)
 		if err != nil {
 			return nil, err
 		}
@@ -141,21 +141,21 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 }
 
 // planField returns a processor for field.
-func (p *Planner) planField(stmt *SelectStatement, f *Field) (processor, error) {
-	return p.planExpr(stmt, f.Expr)
+func (p *Planner) planField(e *Executor, f *Field) (processor, error) {
+	return p.planExpr(e, f.Expr)
 }
 
 // planExpr returns a processor for an expression.
-func (p *Planner) planExpr(stmt *SelectStatement, expr Expr) (processor, error) {
+func (p *Planner) planExpr(e *Executor, expr Expr) (processor, error) {
 	switch expr := expr.(type) {
 	case *VarRef:
 		panic("TODO")
 	case *Call:
-		return p.planCall(stmt, expr)
+		return p.planCall(e, expr)
 	case *BinaryExpr:
-		return p.planBinaryExpr(stmt, expr)
+		return p.planBinaryExpr(e, expr)
 	case *ParenExpr:
-		return p.planExpr(stmt, expr.Expr)
+		return p.planExpr(e, expr.Expr)
 	case *NumberLiteral:
 		return newLiteralProcessor(expr.Val), nil
 	case *StringLiteral:
@@ -171,7 +171,7 @@ func (p *Planner) planExpr(stmt *SelectStatement, expr Expr) (processor, error) 
 }
 
 // planCall generates a processor for a function call.
-func (p *Planner) planCall(stmt *SelectStatement, c *Call) (processor, error) {
+func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 	// Ensure there is a single argument.
 	if len(c.Args) != 1 {
 		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
@@ -184,24 +184,31 @@ func (p *Planner) planCall(stmt *SelectStatement, c *Call) (processor, error) {
 	}
 
 	// Extract the substatement for the call.
-	sub, err := stmt.Substatement(ref)
+	sub, err := e.stmt.Substatement(ref)
 	if err != nil {
 		return nil, err
 	}
 	name := sub.Source.(*Series).Name
 	tags := make(map[string]string) // TODO: Extract tags.
 
+	// Find field.
+	fname := strings.TrimPrefix(ref.Val, name)
+	fieldID, typ := e.db.Field(name, fname)
+	if fieldID == 0 {
+		return nil, fmt.Errorf("field not found: %s.%s", name, fname)
+	}
+
 	// Generate a reducer for the given function.
-	r := newReducer()
+	r := newReducer(e)
 	r.stmt = sub
 
 	// Retrieve a list of series data ids.
-	ids := p.DB.MatchSeries(name, tags)
+	seriesIDs := p.DB.MatchSeries(name, tags)
 
 	// Generate mappers for each id.
-	r.mappers = make([]*mapper, len(ids))
-	for i, id := range ids {
-		r.mappers[i] = newMapper(p.DB, id)
+	r.mappers = make([]*mapper, len(seriesIDs))
+	for i, seriesID := range seriesIDs {
+		r.mappers[i] = newMapper(e, seriesID, fieldID, typ)
 	}
 
 	// Set the appropriate reducer function.
@@ -220,7 +227,7 @@ func (p *Planner) planCall(stmt *SelectStatement, c *Call) (processor, error) {
 
 // planBinaryExpr generates a processor for a binary expression.
 // A binary expression represents a join operator between two processors.
-func (p *Planner) planBinaryExpr(stmt *SelectStatement, e *BinaryExpr) (processor, error) {
+func (p *Planner) planBinaryExpr(e *Executor, expr *BinaryExpr) (processor, error) {
 	panic("TODO")
 }
 
@@ -236,7 +243,7 @@ type Executor struct {
 func (e *Executor) Execute() (<-chan *Row, error) {
 	// Initialize processors.
 	for _, p := range e.processors {
-		p.open()
+		p.start()
 	}
 
 	// Create output channel and stream data in a separate goroutine.
@@ -252,7 +259,9 @@ func (e *Executor) execute(out chan *Row) {
 
 	// Combine values from each processor.
 	row := &Row{}
-	row.Values = make([]map[string]interface{}, 1)
+	row.Values = []map[string]interface{}{
+		make(map[string]interface{}),
+	}
 	for i, p := range e.processors {
 		f := e.stmt.Fields[i]
 
@@ -263,7 +272,11 @@ func (e *Executor) execute(out chan *Row) {
 		}
 
 		// Set values on returned row.
-		for _, v := range m {
+		row.Name = p.name()
+		for k, v := range m {
+			if k != 0 {
+				row.Values[0]["timestamp"] = time.Unix(0, k).UTC().Format(time.RFC3339Nano)
+			}
 			row.Values[0][f.Name()] = v
 		}
 	}
@@ -279,29 +292,37 @@ func (e *Executor) execute(out chan *Row) {
 
 // mapper represents an object for processing iterators.
 type mapper struct {
-	db   DB
-	id   uint32
-	itr  Iterator
-	fn   mapFunc
+	executor *Executor // parent executor
+	seriesID uint32    // series id
+	fieldID  uint8     // field id
+	typ      DataType  // field data type
+	itr      Iterator  // series iterator
+	fn       mapFunc   // map function
+
 	c    chan map[int64]interface{}
 	done chan chan struct{}
 }
 
 // newMapper returns a new instance of mapper.
-func newMapper(db DB, id uint32) *mapper {
+func newMapper(e *Executor, seriesID uint32, fieldID uint8, typ DataType) *mapper {
 	return &mapper{
-		db:   db,
-		id:   id,
-		c:    make(chan map[int64]interface{}, 0),
-		done: make(chan chan struct{}, 0),
+		executor: e,
+		seriesID: seriesID,
+		fieldID:  fieldID,
+		typ:      typ,
+		c:        make(chan map[int64]interface{}, 0),
+		done:     make(chan chan struct{}, 0),
 	}
 }
 
-// open begins processing the iterator.
-func (m *mapper) open() { go m.run() }
+// start begins processing the iterator.
+func (m *mapper) start() {
+	m.itr = m.executor.db.CreateIterator(m.seriesID, m.fieldID, m.typ)
+	go m.run()
+}
 
-// close stops the mapper.
-func (m *mapper) close() { syncClose(m.done) }
+// stop stops the mapper.
+func (m *mapper) stop() { syncClose(m.done) }
 
 // C returns the streaming data channel.
 func (m *mapper) C() <-chan map[int64]interface{} { return m.c }
@@ -332,39 +353,45 @@ func mapCount(itr Iterator, m *mapper) {
 // reducer represents an object for processing mapper output.
 // Implements processor.
 type reducer struct {
-	stmt    *SelectStatement
-	mappers []*mapper
-	fn      reduceFunc
-	c       chan map[int64]interface{}
-	done    chan chan struct{}
+	executor *Executor        // parent executor
+	stmt     *SelectStatement // substatement
+	mappers  []*mapper        // child mappers
+	fn       reduceFunc       // reduce function
+
+	c    chan map[int64]interface{}
+	done chan chan struct{}
 }
 
 // newReducer returns a new instance of reducer.
-func newReducer() *reducer {
+func newReducer(e *Executor) *reducer {
 	return &reducer{
-		c:    make(chan map[int64]interface{}, 0),
-		done: make(chan chan struct{}, 0),
+		executor: e,
+		c:        make(chan map[int64]interface{}, 0),
+		done:     make(chan chan struct{}, 0),
 	}
 }
 
-// open begins streaming values from the mappers and reducing them.
-func (r *reducer) open() {
+// start begins streaming values from the mappers and reducing them.
+func (r *reducer) start() {
 	for _, m := range r.mappers {
-		m.open()
+		m.start()
 	}
 	go r.run()
 }
 
-// close stops the reducer.
-func (r *reducer) close() {
+// stop stops the reducer.
+func (r *reducer) stop() {
 	for _, m := range r.mappers {
-		m.close()
+		m.stop()
 	}
 	syncClose(r.done)
 }
 
 // C returns the streaming data channel.
 func (r *reducer) C() <-chan map[int64]interface{} { return r.c }
+
+// name returns the source name.
+func (r *reducer) name() string { return r.stmt.Source.(*Series).Name }
 
 // run runs the reducer loop to read mapper output and reduce it.
 func (r *reducer) run() {
@@ -401,8 +428,9 @@ func reduceCount(key int64, values []interface{}, r *reducer) {
 
 // processor represents an object for joining reducer output.
 type processor interface {
-	open()
-	close()
+	start()
+	stop()
+	name() string
 	C() <-chan map[int64]interface{}
 }
 
@@ -426,7 +454,7 @@ func newLiteralProcessor(val interface{}) *literalProcessor {
 func (p *literalProcessor) C() <-chan map[int64]interface{} { return p.c }
 
 // process continually returns a literal value with a "0" key.
-func (p *literalProcessor) open() { go p.run() }
+func (p *literalProcessor) start() { go p.run() }
 
 // run executes the processor loop.
 func (p *literalProcessor) run() {
@@ -440,8 +468,11 @@ func (p *literalProcessor) run() {
 	}
 }
 
-// close stops the processor from sending values.
-func (p *literalProcessor) close() { syncClose(p.done) }
+// stop stops the processor from sending values.
+func (p *literalProcessor) stop() { syncClose(p.done) }
+
+// name returns the source name.
+func (p *literalProcessor) name() string { return "" }
 
 // syncClose closes a "done" channel and waits for a response.
 func syncClose(done chan chan struct{}) {
@@ -464,10 +495,10 @@ type Iterator interface {
 
 // Row represents a single row returned from the execution of a statement.
 type Row struct {
-	Name   string
-	Tags   map[string]string
-	Values []map[string]interface{}
-	Err    error
+	Name   string                   `json:"name,omitempty"`
+	Tags   map[string]string        `json:"tags,omitempty"`
+	Values []map[string]interface{} `json:"values,omitempty"`
+	Err    error                    `json:"err,omitempty"`
 }
 
 // TODO: Walk field expressions to extract subqueries.

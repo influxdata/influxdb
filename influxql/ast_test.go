@@ -7,6 +7,21 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+// Ensure a value's data type can be retrieved.
+func TestInspectDataType(t *testing.T) {
+	for i, tt := range []struct {
+		v   interface{}
+		typ influxql.DataType
+	}{
+		{float64(100), influxql.Number},
+	} {
+		if typ := influxql.InspectDataType(tt.v); tt.typ != typ {
+			t.Errorf("%d. %v (%s): unexpected type: %s", i, tt.v, tt.typ, typ)
+			continue
+		}
+	}
+}
+
 // Ensure the SELECT statement can extract substatements.
 func TestSelectStatement_Substatement(t *testing.T) {
 	var tests = []struct {

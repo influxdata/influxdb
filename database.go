@@ -8,7 +8,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 )
 

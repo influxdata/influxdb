@@ -1,9 +1,11 @@
 package influxql_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -26,7 +28,7 @@ func TestPlanner_Plan(t *testing.T) {
 					Name: "cpu",
 					Tags: map[string]string{},
 					Values: []map[string]interface{}{
-						{"timestamp": mustParseTime("2000-01-01T00:00:00Z"), "count": 1},
+						{"count": 1},
 					},
 				},
 			},
@@ -54,8 +56,8 @@ func TestPlanner_Plan(t *testing.T) {
 		}
 
 		// Compare resultset.
-		if !reflect.DeepEqual(tt.rs, rs) {
-			t.Errorf("%d. %s: resultset mismatch:\n\nexp=%+v\n\ngot=%+v\n\n", i, tt.q, tt.rs, rs)
+		if b0, b1 := mustMarshalJSON(tt.rs), mustMarshalJSON(rs); string(b0) != string(b1) {
+			t.Errorf("%d. %s: resultset mismatch:\n\nexp=%s\n\ngot=%s\n\n", i, tt.q, b0, b1)
 			continue
 		}
 	}
@@ -63,53 +65,112 @@ func TestPlanner_Plan(t *testing.T) {
 
 // DB represents an in-memory test database that implements methods for Planner.
 type DB struct {
-	series map[string]*Series
-	data   map[uint32]*SeriesData
+	measurements map[string]*Measurement
+	series       map[uint32]*Series
 }
 
 // NewDB returns a new instance of DB.
 func NewDB() *DB {
-	return &DB{}
+	return &DB{
+		measurements: make(map[string]*Measurement),
+		series:       make(map[uint32]*Series),
+	}
 }
 
 // WriteSeries writes a series
 func (db *DB) WriteSeries(name string, tags map[string]string, timestamp string, values map[string]interface{}) {
+	// Find or create measurement & series.
+	m, s := db.CreateSeriesIfNotExists(name, tags)
 
+	// Create point.
+	p := &point{
+		timestamp: mustParseTime(timestamp).UTC().UnixNano(),
+		values:    make(map[uint8]interface{}),
+	}
+
+	// Map field names to field ids.
+	for k, v := range values {
+		f := m.CreateFieldIfNotExists(k, influxql.InspectDataType(v))
+		p.values[f.id] = v
+	}
+
+	// Add point to series.
+	s.points = append(s.points, p)
+
+	// Sort series points by time.
+	sort.Sort(points(s.points))
 }
 
-// SeriesData returns the series data identifier for a given name & tag set.
-func (db *DB) SeriesData(name string, tags map[string]string) uint32 {
-	// Find series.
-	series := db.series[name]
-	if series == nil {
-		return 0
+// CreateSeriesIfNotExists returns a measurement & series by name/tagset.
+// Creates them if they don't exist.
+func (db *DB) CreateSeriesIfNotExists(name string, tags map[string]string) (*Measurement, *Series) {
+	// Find or create meaurement
+	m := db.measurements[name]
+	if m == nil {
+		m = NewMeasurement(name)
+		db.measurements[name] = m
 	}
 
-	// Normalize tags
+	// Normalize tags and try to match against existing series.
 	if tags == nil {
-		tags = map[string]string{}
+		tags = make(map[string]string)
 	}
-
-	// Find series data.
-	for _, data := range series.data {
-		if reflect.DeepEqual(data.tags, tags) {
-			return data.id
+	for _, s := range m.series {
+		if reflect.DeepEqual(s.tags, tags) {
+			return m, s
 		}
 	}
 
-	return 0
+	// Create new series.
+	m.maxSeriesID++
+	s := &Series{id: m.maxSeriesID, tags: tags}
+
+	// Add series to DB and measurement.
+	db.series[s.id] = s
+	m.series[s.id] = s
+
+	return m, s
 }
 
-// FieldID returns the field identifier for a given series name and field name.
-func (db *DB) Field(series, field string) (fieldID uint8, typ influxql.DataType) {
-	// Find series.
-	s := db.series[series]
-	if s == nil {
+// MatchSeries returns the series ids that match a name and tagset.
+func (db *DB) MatchSeries(name string, tags map[string]string) []uint32 {
+	// Find measurement.
+	m := db.measurements[name]
+	if m == nil {
+		return nil
+	}
+
+	// Compare tagsets against each series.
+	var ids []uint32
+	for _, s := range m.series {
+		// Check that each tag value matches the series' tag values.
+		matched := true
+		for k, v := range tags {
+			if s.tags[k] != v {
+				matched = false
+				break
+			}
+		}
+
+		// Append series if all tags match.
+		if matched {
+			ids = append(ids, s.id)
+		}
+	}
+
+	return ids
+}
+
+// FieldID returns the field identifier for a given measurement name and field name.
+func (db *DB) Field(name, field string) (fieldID uint8, typ influxql.DataType) {
+	// Find measurement.
+	m := db.measurements[name]
+	if m == nil {
 		return
 	}
 
 	// Find field.
-	f := s.fields[field]
+	f := m.fields[field]
 	if f == nil {
 		return
 	}
@@ -118,15 +179,97 @@ func (db *DB) Field(series, field string) (fieldID uint8, typ influxql.DataType)
 }
 
 // CreateIterator returns a new iterator for a given field.
-func (db *DB) CreateIterator(seriesDataID uint32, fieldID uint8) influxql.Iterator { panic("TODO") }
+func (db *DB) CreateIterator(seriesID uint32, fieldID uint8, typ influxql.DataType) influxql.Iterator {
+	s := db.series[seriesID]
+	if s == nil {
+		panic(fmt.Sprintf("series not found: %d", seriesID))
+	}
 
-type Series struct {
-	name   string
-	fields map[string]*Field
-	data   map[uint32]*SeriesData
+	// Return iterator.
+	return &iterator{
+		points:   s.points,
+		fieldID:  fieldID,
+		typ:      typ,
+		time:     time.Unix(0, 0).UTC(),
+		duration: 0,
+	}
 }
 
-type SeriesData struct {
+// iterator represents an implementation of Iterator over a set of points.
+type iterator struct {
+	fieldID uint8
+	typ     influxql.DataType
+
+	index  int
+	points points
+
+	time     time.Time     // bucket start time
+	duration time.Duration // bucket duration
+}
+
+// Next returns the next point's timestamp and field value.
+func (i *iterator) Next() (int64, interface{}) {
+	for {
+		// If index is beyond points range then return nil.
+		if i.index > len(i.points)-1 {
+			return 0, nil
+		}
+
+		// Retrieve point and extract value.
+		p := i.points[i.index]
+		v := p.values[i.fieldID]
+
+		// Move cursor forward.
+		i.index++
+
+		// Return value if it is non-nil.
+		// Otherwise loop again and try the next point.
+		if v != nil {
+			return p.timestamp, v
+		}
+	}
+}
+
+// Time returns start time of the current interval.
+func (i *iterator) Time() int64 { return i.time.UnixNano() }
+
+// Duration returns the group by duration.
+func (i *iterator) Duration() time.Duration { return i.duration }
+
+type Measurement struct {
+	name string
+
+	maxFieldID uint8
+	fields     map[string]*Field
+
+	maxSeriesID uint32
+	series      map[uint32]*Series
+}
+
+// NewMeasurement returns a new instance of Measurement.
+func NewMeasurement(name string) *Measurement {
+	return &Measurement{
+		name:   name,
+		fields: make(map[string]*Field),
+		series: make(map[uint32]*Series),
+	}
+}
+
+// CreateFieldIfNotExists returns a field by name & data type.
+// Creates it if it doesn't exist.
+func (m *Measurement) CreateFieldIfNotExists(name string, typ influxql.DataType) *Field {
+	f := m.fields[name]
+	if f != nil && f.typ != typ {
+		panic("field data type mismatch: " + name)
+	} else if f == nil {
+		m.maxFieldID++
+		f = &Field{id: m.maxFieldID, name: name, typ: typ}
+		m.fields[name] = f
+	}
+	return f
+}
+
+type Series struct {
 	id     uint32
 	tags   map[string]string
 	points points
@@ -159,4 +302,13 @@ func mustParseTime(s string) time.Time {
 		panic(err.Error())
 	}
 	return t
+}
+
+// mustMarshalJSON encodes a value to JSON.
+func mustMarshalJSON(v interface{}) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("marshal json: " + err.Error())
+	}
+	return b
 }
