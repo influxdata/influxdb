@@ -8,7 +8,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -472,11 +471,6 @@ func (db *Database) applyWriteSeries(shardID uint64, overwrite bool, data []byte
 
 	// Write to shard.
 	return s.writeSeries(overwrite, data)
-}
-
-// ExecuteQuery executes a query against a database.
-func (db *Database) ExecuteQuery(q *influxql.Query) error {
-	panic("not yet implemented: Database.ExecuteQuery()") // TODO
 }
 
 // timeBetween returns true if t is between min and max, inclusive.

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -97,7 +98,10 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 	}
 	stmt.Fields = fields
 
-	// Parse source: "FROM IDENT".
+	// Parse source.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	}
 	source, err := p.parseSource()
 	if err != nil {
 		return nil, err
@@ -140,7 +144,10 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 	stmt := &DeleteStatement{}
 
-	// Parse source: "FROM IDENT".
+	// Parse source
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	}
 	source, err := p.parseSource()
 	if err != nil {
 		return nil, err
@@ -331,18 +338,30 @@ func (p *Parser) parseAlias() (string, error) {
 
 // parseSource parses the "FROM" clause of the query.
 func (p *Parser) parseSource() (Source, error) {
-	// Ensure the FROM token exists.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
-		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
-	}
-
-	// Scan the identifier for the source.
+	// Scan the identifier for the series.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != IDENT && tok != STRING {
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
 	}
+	lhs := &Series{Name: lit}
 
-	return &Series{Name: lit}, nil
+	// Check if the next token is JOIN or MERGE.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == JOIN {
+		rhs, err := p.parseSource()
+		if err != nil {
+			return nil, err
+		}
+		return &Join{LHS: lhs, RHS: rhs}, nil
+	} else if tok == MERGE {
+		rhs, err := p.parseSource()
+		if err != nil {
+			return nil, err
+		}
+		return &Merge{LHS: lhs, RHS: rhs}, nil
+	}
+	p.unscan()
+
+	return lhs, nil
 }
 
 // parseCondition parses the "WHERE" clause of the query, if it exists.
@@ -654,6 +673,39 @@ func ParseDuration(s string) (time.Duration, error) {
 	default:
 		return 0, ErrInvalidDuration
 	}
+}
+
+// FormatDuration formats a duration to a string.
+func FormatDuration(d time.Duration) string {
+	if d%(7*24*time.Hour) == 0 {
+		return fmt.Sprintf("%dw", d/(7*24*time.Hour))
+	} else if d%(24*time.Hour) == 0 {
+		return fmt.Sprintf("%dd", d/(24*time.Hour))
+	} else if d%time.Hour == 0 {
+		return fmt.Sprintf("%dh", d/time.Hour)
+	} else if d%time.Minute == 0 {
+		return fmt.Sprintf("%dm", d/time.Minute)
+	} else if d%time.Second == 0 {
+		return fmt.Sprintf("%ds", d/time.Second)
+	} else if d%time.Millisecond == 0 {
+		return fmt.Sprintf("%dms", d/time.Millisecond)
+	} else {
+		return fmt.Sprintf("%d", d/time.Microsecond)
+	}
+}
+
+// Quote returns a quoted string.
+func Quote(s string) string {
+	return `"` + strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`).Replace(s) + `"`
+}
+
+// QuoteIdent returns a quoted identifier if the identifier requires quoting.
+// Otherwise returns the original string passed in.
+func QuoteIdent(s string) string {
+	if s == "" || regexp.MustCompile(`[^a-zA-Z_.]`).MatchString(s) {
+		return Quote(s)
+	}
+	return s
 }
 
 // split splits a string into a slice of runes.

@@ -79,6 +79,36 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with JOIN
+		{
+			s: `SELECT field1 FROM aa JOIN bb JOIN cc`,
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
+				Source: &influxql.Join{
+					LHS: &influxql.Series{Name: "aa"},
+					RHS: &influxql.Join{
+						LHS: &influxql.Series{Name: "bb"},
+						RHS: &influxql.Series{Name: "cc"},
+					},
+				},
+			},
+		},
+
+		// SELECT statement with MERGE
+		{
+			s: `SELECT field1 FROM aa MERGE bb MERGE cc`,
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
+				Source: &influxql.Merge{
+					LHS: &influxql.Series{Name: "aa"},
+					RHS: &influxql.Merge{
+						LHS: &influxql.Series{Name: "bb"},
+						RHS: &influxql.Series{Name: "cc"},
+					},
+				},
+			},
+		},
+
 		// SELECT statement (lowercase)
 		{
 			s: `select my_field from myseries`,
@@ -338,6 +368,67 @@ func TestParseDuration(t *testing.T) {
 	}
 }
 
+// Ensure a time duration can be formatted.
+func TestFormatDuration(t *testing.T) {
+	var tests = []struct {
+		d time.Duration
+		s string
+	}{
+		{d: 3 * time.Microsecond, s: `3`},
+		{d: 1001 * time.Microsecond, s: `1001`},
+		{d: 15 * time.Millisecond, s: `15ms`},
+		{d: 100 * time.Second, s: `100s`},
+		{d: 2 * time.Minute, s: `2m`},
+		{d: 2 * time.Hour, s: `2h`},
+		{d: 2 * 24 * time.Hour, s: `2d`},
+		{d: 2 * 7 * 24 * time.Hour, s: `2w`},
+	}
+
+	for i, tt := range tests {
+		s := influxql.FormatDuration(tt.d)
+		if tt.s != s {
+			t.Errorf("%d. %v: mismatch: %s != %s", i, tt.d, tt.s, s)
+		}
+	}
+}
+
+// Ensure a string can be quoted.
+func TestQuote(t *testing.T) {
+	for i, tt := range []struct {
+		in  string
+		out string
+	}{
+		{``, `""`},
+		{`foo`, `"foo"`},
+		{"foo\nbar", `"foo\nbar"`},
+		{`foo bar\\`, `"foo bar\\\\"`},
+		{`"foo"`, `"\"foo\""`},
+	} {
+		if out := influxql.Quote(tt.in); tt.out != out {
+			t.Errorf("%d. %s: mismatch: %s != %s", i, tt.in, tt.out, out)
+		}
+	}
+}
+
+// Ensure an identifier can be quoted when appropriate.
+func TestQuoteIdent(t *testing.T) {
+	for i, tt := range []struct {
+		ident string
+		s     string
+	}{
+		{``, `""`},
+		{`foo`, `foo`},
+		{`foo.bar.baz`, `foo.bar.baz`},
+		{`my var`, `"my var"`},
+		{`my-var`, `"my-var"`},
+		{`my_var`, `my_var`},
+	} {
+		if s := influxql.QuoteIdent(tt.ident); tt.s != s {
+			t.Errorf("%d. %s: mismatch: %s != %s", i, tt.ident, tt.s, s)
+		}
+	}
+}
+
 func BenchmarkParserParseStatement(b *testing.B) {
 	b.ReportAllocs()
 	s := `SELECT field FROM "series" WHERE value > 10`
@@ -349,6 +440,15 @@ func BenchmarkParserParseStatement(b *testing.B) {
 		}
 	}
 	b.SetBytes(int64(len(s)))
+}
+
+// MustParseSelectStatement parses a select statement. Panic on error.
+func MustParseSelectStatement(s string) *influxql.SelectStatement {
+	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
+	if err != nil {
+		panic(err.Error())
+	}
+	return stmt.(*influxql.SelectStatement)
 }
 
 // errstring converts an error to its string representation.

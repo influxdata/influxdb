@@ -420,15 +420,6 @@ func TestDatabase_WriteSeries(t *testing.T) {
 	// }
 }
 
-// mustParseQuery parses a query string into a query object. Panic on error.
-func mustParseQuery(s string) *influxql.Query {
-	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
-	if err != nil {
-		panic(err.Error())
-	}
-	return q
-}
-
 func TestDatabase_CreateShardIfNotExist(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
@@ -447,4 +438,13 @@ func TestDatabase_CreateShardIfNotExist(t *testing.T) {
 	if len(ss) != 1 {
 		t.Fatalf("expected 1 shard but found %d", len(ss))
 	}
+}
+
+// mustParseQuery parses a query string into a query object. Panic on error.
+func mustParseQuery(s string) *influxql.Query {
+	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
+	if err != nil {
+		panic(err.Error())
+	}
+	return q
 }

@@ -118,7 +118,7 @@ func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
 		ch, _ = s.r.read()
 		if ch == eof {
 			break
-		} else if !isLetter(ch) && !isDigit(ch) && ch != '_' {
+		} else if !isLetter(ch) && !isDigit(ch) && ch != '_' && ch != '.' {
 			s.r.unread()
 			break
 		} else {
@@ -154,6 +154,8 @@ func (s *Scanner) scanString() (tok Token, pos Pos, lit string) {
 				_, _ = buf.WriteRune('\n')
 			} else if ch1 == '\\' {
 				_, _ = buf.WriteRune('\\')
+			} else if ch1 == '"' {
+				_, _ = buf.WriteRune('"')
 			} else {
 				return BADESCAPE, pos0, string(ch0) + string(ch1)
 			}
