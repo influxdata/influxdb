@@ -290,6 +290,49 @@ func (e *Executor) execute(out chan *Row) {
 	close(out)
 }
 
+/*
+select derivative(mean(value))
+from cpu
+group by time(5m)
+
+select mean(value) from cpu group by time(5m)
+select top(10, value) from cpu group by host where time > now() - 1h
+
+this query uses this type of cycle
+-------REMOTE HOST ------------- -----HOST THAT GOT QUERY ---
+map -> reduce -> combine -> map  -> reduce -> combine -> user
+
+select mean(value) cpu group by time(5m), host where time > now() -4h
+map -> reduce -> combine -> user
+map -> reduce -> map -> reduce -> combine -> user
+map -> reduce -> combine -> map -> reduce -> combine -> user
+
+
+select value from
+(
+	select mean(value) AS value FROM cpu GROUP BY time(5m)
+)
+
+[
+{
+	name: cpu,
+	tags: {
+		host: servera,
+	},
+	columns: [time, mean],
+	values : [
+		[23423423, 88.8]
+	]
+},
+{
+	name: cpu,
+	tags: {
+		host: serverb,
+	}
+}
+]
+*/
+
 // mapper represents an object for processing iterators.
 type mapper struct {
 	executor *Executor // parent executor

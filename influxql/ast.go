@@ -191,6 +191,38 @@ func (s *SelectStatement) Aggregated() bool {
 	return v
 }
 
+/*
+
+BinaryExpr
+
+SELECT mean(xxx.value) + avg(yyy.value) FROM xxx JOIN yyy WHERE xxx.host = 123
+
+from xxx where host = 123
+select avg(value) from yyy where host = 123
+
+SELECT xxx.value FROM xxx WHERE xxx.host = 123
+SELECT yyy.value FROM yyy
+
+---
+
+SELECT MEAN(xxx.value) + MEAN(cpu.load.value)
+FROM xxx JOIN yyy
+GROUP BY host
+WHERE (xxx.region == "uswest" OR yyy.region == "uswest") AND xxx.otherfield == "XXX"
+
+select * from (
+	select mean + mean from xxx join yyy
+	group by time(5m), host
+) (xxx.region == "uswest" OR yyy.region == "uswest") AND xxx.otherfield == "XXX"
+
+(seriesIDS for xxx.region = 'uswest' union seriesIDs for yyy.regnion = 'uswest') | seriesIDS xxx.otherfield = 'XXX'
+
+WHERE xxx.region == "uswest" AND xxx.otherfield == "XXX"
+WHERE yyy.region == "uswest"
+
+
+*/
+
 // Substatement returns a single-series statement for a given variable reference.
 func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	// Copy dimensions and properties to new statement.
