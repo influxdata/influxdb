@@ -339,7 +339,14 @@ func (s *DeleteStatement) String() string {
 }
 
 // ListSeriesStatement represents a command for listing series in the database.
-type ListSeriesStatement struct{}
+type ListSeriesStatement struct{
+	// An expression evaluated on a series name or tag.
+	Condition Expr
+
+	// Maximum number of rows to be returned.
+	// Unlimited if zero.
+	Limit int
+}
 
 // String returns a string representation of the list series statement.
 func (s *ListSeriesStatement) String() string { return "LIST SERIES" }

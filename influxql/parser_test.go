@@ -137,6 +137,19 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ListSeriesStatement{},
 		},
 
+		// LIST SERIES WHERE statement
+		{
+			s:    `LIST SERIES WHERE region = 'uswest' LIMIT 10`,
+			stmt: &influxql.ListSeriesStatement{
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
+				},
+				Limit: 10,
+			},
+		},
+
 		// DROP SERIES statement
 		{
 			s:    `DROP SERIES myseries`,

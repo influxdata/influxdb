@@ -168,6 +168,21 @@ func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 // This function assumes the "LIST SERIES" tokens have already been consumed.
 func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
 	stmt := &ListSeriesStatement{}
+
+	// Parse condition: "WHERE EXPR".
+	condition, err := p.parseCondition()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Condition = condition
+
+	// Parse limit: "LIMIT INT".
+	limit, err := p.parseLimit()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Limit = limit
+
 	return stmt, nil
 }
 
