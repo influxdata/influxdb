@@ -67,9 +67,12 @@ func execRun(args []string) {
 		log.Fatal(err)
 	}
 
-	// Open
+	// Start up the node.
 	var client influxdb.MessagingClient
 	var server *influxdb.Server
+	var brokerHandler *messaging.Handler
+	var serverHandler *influxdb.Handler
+
 	if state.Mode == "local" {
 		client = messaging.NewLoopbackClient()
 		log.Printf("Local messaging client created")
@@ -78,6 +81,7 @@ func execRun(args []string) {
 		if err != nil {
 			log.Fatalf("failed to open local Server", err.Error())
 		}
+		serverHandler = influxdb.NewHandler(server)
 	} else {
 		// If the Broker directory exists, open a Broker on this node.
 		if _, err := os.Stat(config.Raft.Dir); err == nil {
@@ -85,9 +89,11 @@ func execRun(args []string) {
 			if err := b.Open(config.Raft.Dir); err != nil {
 				log.Fatalf("failed to open Broker", err.Error())
 			}
+			brokerHandler = messaging.NewHandler(b)
 		} else {
 			log.Fatalf("failed to check for Broker directory", err.Error())
 		}
+
 		// If a Data directory exists, open a Data node.
 		if _, err := os.Stat(config.Storage.Dir); err == nil {
 			// Create correct client here for connecting to Broker.
@@ -104,6 +110,7 @@ func execRun(args []string) {
 			if err != nil {
 				log.Fatalf("failed to open data Server", err.Error())
 			}
+			serverHandler = influxdb.NewHandler(server)
 		} else {
 			log.Fatalf("failed to check for Broker directory", err.Error())
 		}
@@ -112,8 +119,8 @@ func execRun(args []string) {
 	// TODO: startProfiler()
 	// TODO: -reset-root
 
-	// Start up HTTP server with correct endpoints.
-	h := influxdb.NewHandler(server)
+	// Start up HTTP server
+	h := NewHandler(brokerHandler, serverHandler)
 	func() { log.Fatal(http.ListenAndServe(":8086", h)) }()
 
 	// Wait indefinitely.
