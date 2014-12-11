@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
 
 	"github.com/influxdb/influxdb/messaging"
 )
@@ -44,7 +45,9 @@ func execJoinCluster(args []string) {
 
 	// If joining as a data node then create a data directory.
 	if *role == "combined" || *role == "data" {
-		// TODO: do any required data-node stuff.
+		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	log.Printf("joined cluster at %s", *seedServers)
