@@ -108,6 +108,9 @@ retention-sweep-period = "10m"
 
 [cluster]
 
+# Location for cluster state storage. For storing state persistently across restarts.
+dir = "/tmp/influxdb/development/state"
+
 # Replication happens over a TCP connection with a Protobuf protocol.
 # This port should be reachable between all servers in a cluster.
 # However, this port shouldn't be accessible from the internet.
