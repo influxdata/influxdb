@@ -537,7 +537,9 @@ type TimeLiteral struct {
 }
 
 // String returns a string representation of the literal.
-func (l *TimeLiteral) String() string { return l.Val.UTC().Format("2006-01-02 15:04:05.999") }
+func (l *TimeLiteral) String() string {
+	return `"` + l.Val.UTC().Format("2006-01-02 15:04:05.999999") + `"`
+}
 
 // DurationLiteral represents a duration literal.
 type DurationLiteral struct {
@@ -572,6 +574,221 @@ type Wildcard struct{}
 
 // String returns a string representation of the wildcard.
 func (e *Wildcard) String() string { return "*" }
+
+// Fold performs constant folding on an expression.
+// The function, "now()", is expanded into the current time during folding.
+func Fold(expr Expr, now time.Time) Expr {
+	switch expr := expr.(type) {
+	case *Call:
+		// Replace "now()" with current time.
+		if strings.ToLower(expr.Name) == "now" {
+			return &TimeLiteral{Val: now}
+		}
+
+		// Fold call arguments.
+		for i, arg := range expr.Args {
+			expr.Args[i] = Fold(arg, now)
+		}
+		return expr
+
+	case *BinaryExpr:
+		// Fold and evaluate binary expression.
+		return foldBinaryExpr(expr, now)
+
+	case *ParenExpr:
+		// Fold inside expression.
+		// Return inside expression if not a binary expression.
+		expr.Expr = Fold(expr.Expr, now)
+		if _, ok := expr.Expr.(*BinaryExpr); !ok {
+			return expr.Expr
+		}
+		return expr
+
+	default:
+		return expr
+	}
+}
+
+// foldBinaryExpr performs constant folding if the binary expression has two literals.
+func foldBinaryExpr(expr *BinaryExpr, now time.Time) Expr {
+	// Fold both sides of binary expression first.
+	expr.LHS = Fold(expr.LHS, now)
+	expr.RHS = Fold(expr.RHS, now)
+
+	// Evaluate operations if both sides are the same type.
+	switch lhs := expr.LHS.(type) {
+	case *NumberLiteral:
+		if _, ok := expr.RHS.(*NumberLiteral); ok {
+			return foldNumberLiterals(expr)
+		}
+	case *BooleanLiteral:
+		if _, ok := expr.RHS.(*BooleanLiteral); ok {
+			return foldBooleanLiterals(expr)
+		}
+	case *TimeLiteral:
+		switch expr.RHS.(type) {
+		case *TimeLiteral:
+			return foldTimeLiterals(expr)
+		case *DurationLiteral:
+			return foldTimeDurationLiterals(expr)
+		}
+	case *DurationLiteral:
+		switch rhs := expr.RHS.(type) {
+		case *DurationLiteral:
+			return foldDurationLiterals(expr)
+		case *NumberLiteral:
+			return foldDurationNumberLiterals(expr)
+		case *TimeLiteral:
+			if expr.Op == ADD {
+				return &TimeLiteral{Val: rhs.Val.Add(lhs.Val)}
+			}
+		}
+	case *StringLiteral:
+		if rhs, ok := expr.RHS.(*StringLiteral); ok && expr.Op == ADD {
+			return &StringLiteral{Val: lhs.Val + rhs.Val}
+		}
+	}
+
+	return expr
+}
+
+// foldNumberLiterals performs constant folding on two number literals.
+func foldNumberLiterals(expr *BinaryExpr) Expr {
+	lhs := expr.LHS.(*NumberLiteral)
+	rhs := expr.RHS.(*NumberLiteral)
+
+	switch expr.Op {
+	case ADD:
+		return &NumberLiteral{Val: lhs.Val + rhs.Val}
+	case SUB:
+		return &NumberLiteral{Val: lhs.Val - rhs.Val}
+	case MUL:
+		return &NumberLiteral{Val: lhs.Val * rhs.Val}
+	case DIV:
+		if rhs.Val == 0 {
+			return &NumberLiteral{Val: 0}
+		}
+		return &NumberLiteral{Val: lhs.Val / rhs.Val}
+	case EQ:
+		return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+	case NEQ:
+		return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+	case GT:
+		return &BooleanLiteral{Val: lhs.Val > rhs.Val}
+	case GTE:
+		return &BooleanLiteral{Val: lhs.Val >= rhs.Val}
+	case LT:
+		return &BooleanLiteral{Val: lhs.Val < rhs.Val}
+	case LTE:
+		return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
+	default:
+		return expr
+	}
+}
+
+// foldBooleanLiterals performs constant folding on two boolean literals.
+func foldBooleanLiterals(expr *BinaryExpr) Expr {
+	lhs := expr.LHS.(*BooleanLiteral)
+	rhs := expr.RHS.(*BooleanLiteral)
+
+	switch expr.Op {
+	case EQ:
+		return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+	case NEQ:
+		return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+	case AND:
+		return &BooleanLiteral{Val: lhs.Val && rhs.Val}
+	case OR:
+		return &BooleanLiteral{Val: lhs.Val || rhs.Val}
+	default:
+		return expr
+	}
+}
+
+// foldTimeLiterals performs constant folding on two time literals.
+func foldTimeLiterals(expr *BinaryExpr) Expr {
+	lhs := expr.LHS.(*TimeLiteral)
+	rhs := expr.RHS.(*TimeLiteral)
+
+	switch expr.Op {
+	case SUB:
+		return &DurationLiteral{Val: lhs.Val.Sub(rhs.Val)}
+	case EQ:
+		return &BooleanLiteral{Val: lhs.Val.Equal(rhs.Val)}
+	case NEQ:
+		return &BooleanLiteral{Val: !lhs.Val.Equal(rhs.Val)}
+	case GT:
+		return &BooleanLiteral{Val: lhs.Val.After(rhs.Val)}
+	case GTE:
+		return &BooleanLiteral{Val: lhs.Val.After(rhs.Val) || lhs.Val.Equal(rhs.Val)}
+	case LT:
+		return &BooleanLiteral{Val: lhs.Val.Before(rhs.Val)}
+	case LTE:
+		return &BooleanLiteral{Val: lhs.Val.Before(rhs.Val) || lhs.Val.Equal(rhs.Val)}
+	default:
+		return expr
+	}
+}
+
+// foldTimeDurationLiterals performs constant folding on a time and duration literal.
+func foldTimeDurationLiterals(expr *BinaryExpr) Expr {
+	lhs := expr.LHS.(*TimeLiteral)
+	rhs := expr.RHS.(*DurationLiteral)
+
+	switch expr.Op {
+	case ADD:
+		return &TimeLiteral{Val: lhs.Val.Add(rhs.Val)}
+	case SUB:
+		return &TimeLiteral{Val: lhs.Val.Add(-rhs.Val)}
+	default:
+		return expr
+	}
+}
+
+// foldDurationLiterals performs constant folding on two duration literals.
+func foldDurationLiterals(expr *BinaryExpr) Expr {
+	lhs := expr.LHS.(*DurationLiteral)
+	rhs := expr.RHS.(*DurationLiteral)
+
+	switch expr.Op {
+	case ADD:
+		return &DurationLiteral{Val: lhs.Val + rhs.Val}
+	case SUB:
+		return &DurationLiteral{Val: lhs.Val - rhs.Val}
+	case EQ:
+		return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+	case NEQ:
+		return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+	case GT:
+		return &BooleanLiteral{Val: lhs.Val > rhs.Val}
+	case GTE:
+		return &BooleanLiteral{Val: lhs.Val >= rhs.Val}
+	case LT:
+		return &BooleanLiteral{Val: lhs.Val < rhs.Val}
+	case LTE:
+		return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
+	default:
+		return expr
+	}
+}
+
+// foldDurationNumberLiterals performs constant folding on duration and number literal.
+func foldDurationNumberLiterals(expr *BinaryExpr) Expr {
+	lhs := expr.LHS.(*DurationLiteral)
+	rhs := expr.RHS.(*NumberLiteral)
+
+	switch expr.Op {
+	case MUL:
+		return &DurationLiteral{Val: lhs.Val * time.Duration(rhs.Val)}
+	case DIV:
+		if rhs.Val == 0 {
+			return &DurationLiteral{Val: 0}
+		}
+		return &DurationLiteral{Val: lhs.Val / time.Duration(rhs.Val)}
+	default:
+		return expr
+	}
+}
 
 // Visitor can be called by Walk to traverse an AST hierarchy.
 // The Visit() function is called once per node.

@@ -12,9 +12,15 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+// Ensure the planner can plan and execute a query.
 func TestPlanner_Plan(t *testing.T) {
 	db := NewDB()
 	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:00Z", map[string]interface{}{"value": float64(100)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:10Z", map[string]interface{}{"value": float64(90)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:20Z", map[string]interface{}{"value": float64(80)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:30Z", map[string]interface{}{"value": float64(70)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:40Z", map[string]interface{}{"value": float64(60)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:50Z", map[string]interface{}{"value": float64(50)})
 
 	for i, tt := range []struct {
 		q  string          // querystring
@@ -25,17 +31,18 @@ func TestPlanner_Plan(t *testing.T) {
 			q: `SELECT count(value) FROM cpu`,
 			rs: []*influxql.Row{
 				{
-					Name: "cpu",
-					Tags: map[string]string{},
-					Values: []map[string]interface{}{
-						{"count": 1},
+					Name:    "cpu",
+					Tags:    map[string]string{},
+					Columns: []string{"count"},
+					Values: [][]interface{}{
+						{6},
 					},
 				},
 			},
 		},
 	} {
 		// Plan statement.
-		var p = influxql.Planner{DB: db}
+		var p = influxql.NewPlanner(db)
 		e, err := p.Plan(MustParseSelectStatement(tt.q))
 		if err != nil {
 			t.Errorf("%d. %s: plan error: %s", i, tt.q, err)
@@ -57,7 +64,7 @@ func TestPlanner_Plan(t *testing.T) {
 
 		// Compare resultset.
 		if b0, b1 := mustMarshalJSON(tt.rs), mustMarshalJSON(rs); string(b0) != string(b1) {
-			t.Errorf("%d. %s: resultset mismatch:\n\nexp=%s\n\ngot=%s\n\n", i, tt.q, b0, b1)
+			t.Errorf("%d. resultset mismatch:\n\n%s\n\nexp=%s\n\ngot=%s\n\n", i, tt.q, b0, b1)
 			continue
 		}
 	}
@@ -208,7 +215,7 @@ type iterator struct {
 }
 
 // Next returns the next point's timestamp and field value.
-func (i *iterator) Next() (int64, interface{}) {
+func (i *iterator) Next() (timestamp int64, value interface{}) {
 	for {
 		// If index is beyond points range then return nil.
 		if i.index > len(i.points)-1 {
