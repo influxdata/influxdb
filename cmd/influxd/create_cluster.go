@@ -48,7 +48,7 @@ func execCreateCluster(args []string) {
 		}
 
 		// Now create the storage directory.
-		if err := os.MkdirAll(config.Cluster.Dir, 0744); err != nil {
+		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
 			log.Fatal(err)
 		}
 	}
