@@ -23,7 +23,7 @@ func execRun(args []string) {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	var (
-		configPath = fs.String("config", "config.sample.toml", "")
+		configPath = fs.String("config", configDefaultPath, "")
 		pidPath    = fs.String("pidfile", "", "")
 		hostname   = fs.String("hostname", "", "")
 	)
@@ -128,20 +128,20 @@ func execRun(args []string) {
 }
 
 func printRunUsage() {
-	log.Println(`usage: run [flags]
+	log.Printf(`usage: run [flags]
 
 run starts the node with any existing cluster configuration. If no cluster configuration is
 found, then the node runs in "local" mode. "Local" mode 
 
         -config <path>
-                                Set the path to the configuration file.
+                                Set the path to the configuration file. Defaults to %s.
 
         -hostname <name>
                                 Override the hostname, the 'hostname' configuration option will be overridden.
 
         -pidfile <path>
                                 Write process ID to a file.
-`)
+\n`, configDefaultPath)
 }
 
 // createStateIfNotExists returns the cluster state, from the file at path.

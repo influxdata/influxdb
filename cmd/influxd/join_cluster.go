@@ -12,7 +12,7 @@ func execJoinCluster(args []string) {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	var (
-		configPath  = fs.String("config", "", "")
+		configPath  = fs.String("config", configDefaultPath, "")
 		role        = fs.String("role", "combined", "")
 		seedServers = fs.String("seed-servers", "", "")
 	)
@@ -51,9 +51,11 @@ func execJoinCluster(args []string) {
 }
 
 func printJoinClusterUsage() {
-	log.Println(`usage: join-cluster [flags]
+	log.Printf(`usage: join-cluster [flags]
 
 join-cluster creates a completely new node that will attempt to join an existing cluster.
+        -config <path>
+                        Set the path to the configuration file. Defaults to %s.
 
         -role <role>
                         Set the role to be 'combined', 'broker' or 'data'. broker' means it will take
@@ -65,5 +67,5 @@ join-cluster creates a completely new node that will attempt to join an existing
                         Set the list of servers the node should contact, to join the cluster. This
                         should be comma-delimited list of servers, in the form host:port. This option
                         is REQUIRED.
-`)
+\n`, configDefaultPath)
 }
