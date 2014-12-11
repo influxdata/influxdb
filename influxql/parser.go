@@ -677,7 +677,9 @@ func ParseDuration(s string) (time.Duration, error) {
 
 // FormatDuration formats a duration to a string.
 func FormatDuration(d time.Duration) string {
-	if d%(7*24*time.Hour) == 0 {
+	if d == 0 {
+		return "0s"
+	} else if d%(7*24*time.Hour) == 0 {
 		return fmt.Sprintf("%dw", d/(7*24*time.Hour))
 	} else if d%(24*time.Hour) == 0 {
 		return fmt.Sprintf("%dd", d/(24*time.Hour))

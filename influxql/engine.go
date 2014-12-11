@@ -117,7 +117,16 @@ type DB interface {
 
 // Planner represents an object for creating execution plans.
 type Planner struct {
-	DB DB
+	DB  DB
+	Now func() time.Time
+}
+
+// NewPlanner returns a new instance of Planner.
+func NewPlanner(db DB) *Planner {
+	return &Planner{
+		DB:  db,
+		Now: time.Now,
+	}
 }
 
 func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
@@ -192,7 +201,7 @@ func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 	tags := make(map[string]string) // TODO: Extract tags.
 
 	// Find field.
-	fname := strings.TrimPrefix(ref.Val, name)
+	fname := strings.TrimPrefix(ref.Val, name+".")
 	fieldID, typ := e.db.Field(name, fname)
 	if fieldID == 0 {
 		return nil, fmt.Errorf("field not found: %s.%s", name, fname)
@@ -257,14 +266,21 @@ func (e *Executor) Execute() (<-chan *Row, error) {
 func (e *Executor) execute(out chan *Row) {
 	// TODO: Support multi-value rows.
 
-	// Combine values from each processor.
 	row := &Row{}
-	row.Values = []map[string]interface{}{
-		make(map[string]interface{}),
-	}
-	for i, p := range e.processors {
-		f := e.stmt.Fields[i]
 
+	// Create column names.
+	row.Columns = make([]string, len(e.stmt.Fields))
+	for i, f := range e.stmt.Fields {
+		name := f.Name()
+		if name == "" {
+			name = fmt.Sprintf("col%d", i)
+		}
+		row.Columns[i] = name
+	}
+
+	// Combine values from each processor.
+	row.Values = [][]interface{}{make([]interface{}, 1, len(e.processors))}
+	for i, p := range e.processors {
 		// Retrieve data from the processor.
 		m, ok := <-p.C()
 		if !ok {
@@ -273,11 +289,8 @@ func (e *Executor) execute(out chan *Row) {
 
 		// Set values on returned row.
 		row.Name = p.name()
-		for k, v := range m {
-			if k != 0 {
-				row.Values[0]["timestamp"] = time.Unix(0, k).UTC().Format(time.RFC3339Nano)
-			}
-			row.Values[0][f.Name()] = v
+		for _, v := range m {
+			row.Values[0][i] = v
 		}
 	}
 
@@ -466,7 +479,11 @@ type reduceFunc func(int64, []interface{}, *reducer)
 
 // reduceCount computes the number of values for each key.
 func reduceCount(key int64, values []interface{}, r *reducer) {
-	r.emit(key, len(values))
+	var n float64
+	for _, v := range values {
+		n += v.(float64)
+	}
+	r.emit(key, n)
 }
 
 // processor represents an object for joining reducer output.
@@ -538,10 +555,11 @@ type Iterator interface {
 
 // Row represents a single row returned from the execution of a statement.
 type Row struct {
-	Name   string                   `json:"name,omitempty"`
-	Tags   map[string]string        `json:"tags,omitempty"`
-	Values []map[string]interface{} `json:"values,omitempty"`
-	Err    error                    `json:"err,omitempty"`
+	Name    string            `json:"name,omitempty"`
+	Tags    map[string]string `json:"tags,omitempty"`
+	Columns []string          `json:"columns"`
+	Values  [][]interface{}   `json:"values,omitempty"`
+	Err     error             `json:"err,omitempty"`
 }
 
 // TODO: Walk field expressions to extract subqueries.
