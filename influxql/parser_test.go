@@ -451,6 +451,15 @@ func MustParseSelectStatement(s string) *influxql.SelectStatement {
 	return stmt.(*influxql.SelectStatement)
 }
 
+// MustParseExpr parses an expression. Panic on error.
+func MustParseExpr(s string) influxql.Expr {
+	expr, err := influxql.NewParser(strings.NewReader(s)).ParseExpr()
+	if err != nil {
+		panic(err.Error())
+	}
+	return expr
+}
+
 // errstring converts an error to its string representation.
 func errstring(err error) string {
 	if err != nil {

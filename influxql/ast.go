@@ -577,12 +577,12 @@ func (e *Wildcard) String() string { return "*" }
 
 // Fold performs constant folding on an expression.
 // The function, "now()", is expanded into the current time during folding.
-func Fold(expr Expr, now time.Time) Expr {
+func Fold(expr Expr, now *time.Time) Expr {
 	switch expr := expr.(type) {
 	case *Call:
 		// Replace "now()" with current time.
-		if strings.ToLower(expr.Name) == "now" {
-			return &TimeLiteral{Val: now}
+		if strings.ToLower(expr.Name) == "now" && now != nil {
+			return &TimeLiteral{Val: *now}
 		}
 
 		// Fold call arguments.
@@ -610,7 +610,7 @@ func Fold(expr Expr, now time.Time) Expr {
 }
 
 // foldBinaryExpr performs constant folding if the binary expression has two literals.
-func foldBinaryExpr(expr *BinaryExpr, now time.Time) Expr {
+func foldBinaryExpr(expr *BinaryExpr, now *time.Time) Expr {
 	// Fold both sides of binary expression first.
 	expr.LHS = Fold(expr.LHS, now)
 	expr.RHS = Fold(expr.RHS, now)

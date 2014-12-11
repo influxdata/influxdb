@@ -141,20 +141,22 @@ func TestFold(t *testing.T) {
 		// String literals.
 		{`"foo" + 'bar'`, `"foobar"`},
 	} {
-		// Parse incoming expression.
-		expr, err := influxql.NewParser(strings.NewReader(tt.in)).ParseExpr()
-		if err != nil {
-			t.Errorf("%d. %s: parse error: %s", i, tt.in, err)
-			continue
-		}
-
 		// Fold expression.
-		expr = influxql.Fold(expr, mustParseTime("2000-01-01T00:00:00Z"))
+		now := mustParseTime("2000-01-01T00:00:00Z")
+		expr := influxql.Fold(MustParseExpr(tt.in), &now)
 
 		// Compare with expected output.
 		if out := expr.String(); tt.out != out {
 			t.Errorf("%d. %s: unexpected expr:\n\nexp=%s\n\ngot=%s\n\n", i, tt.in, tt.out, out)
 			continue
 		}
+	}
+}
+
+// Ensure an a "now()" call is not folded when now is not passed in.
+func TestFold_WithoutNow(t *testing.T) {
+	expr := influxql.Fold(MustParseExpr(`now()`), nil)
+	if s := expr.String(); s != `now()` {
+		t.Fatalf("unexpected expr: %s", s)
 	}
 }
