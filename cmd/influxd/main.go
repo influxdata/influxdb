@@ -43,7 +43,7 @@ func main() {
 	}
 
 	// Special case -h immediately following binary name
-	if args[0] == "-h" {
+	if len(args) > 0 && args[0] == "-h" {
 		cmd = "help"
 	}
 
