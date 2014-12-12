@@ -25,6 +25,11 @@ var (
 	commit  string
 )
 
+// Various constants used by the main package.
+const (
+	configDefaultPath string = "/etc/influxdb.conf"
+)
+
 func main() {
 	log.SetFlags(0)
 

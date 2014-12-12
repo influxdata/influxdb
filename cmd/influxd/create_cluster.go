@@ -13,7 +13,7 @@ func execCreateCluster(args []string) {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	var (
-		configPath = fs.String("config", "", "")
+		configPath = fs.String("config", configDefaultPath, "")
 		role       = fs.String("role", "combined", "")
 	)
 	fs.Usage = printCreateClusterUsage
@@ -48,7 +48,7 @@ func execCreateCluster(args []string) {
 		}
 
 		// Now create the storage directory.
-		if err := os.MkdirAll(config.Cluster.Dir, 0744); err != nil {
+		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -57,15 +57,18 @@ func execCreateCluster(args []string) {
 }
 
 func printCreateClusterUsage() {
-	log.Println(`usage: create-cluster [flags]
+	log.Printf(`usage: create-cluster [flags]
 
 create-cluster creates a completely new node that can act as the first node of a new
 cluster. This node must be created as a 'combined' or 'broker' node.
+
+        -config <path>
+                        Set the path to the configuration file. Defaults to %s.
 
         -role <role>
                         Set the role to be 'combined' or 'broker'. 'broker' means it will take part
                         in Raft Distributed Consensus. 'combined' means it take part in Raft and
                         store time-series data. The default role is 'combined'. Any other role other
                         than these two is invalid.
-`)
+\n`, configDefaultPath)
 }
