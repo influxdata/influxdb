@@ -490,6 +490,10 @@ func (p *Parser) parseLimit() (int, error) {
 	// Parse number.
 	n, _ := strconv.ParseInt(lit, 10, 64)
 
+	if n < 1 {
+		return 0, &ParseError{Message: "limit must be > 0", Pos: pos}
+	}
+
 	return int(n), nil
 }
 
