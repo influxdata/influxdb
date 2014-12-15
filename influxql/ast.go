@@ -72,8 +72,10 @@ func (_ *DurationLiteral) node() {}
 func (_ *BinaryExpr) node()      {}
 func (_ *ParenExpr) node()       {}
 func (_ *Wildcard) node()        {}
+func (_ SortFields) node()    {}
+func (_ *SortField) node()    {}
 
-// Query represents a collection of order statements.
+// Query represents a collection of ordered statements.
 type Query struct {
 	Statements Statements
 }
@@ -84,7 +86,7 @@ func (q *Query) String() string { return q.Statements.String() }
 // Statements represents a list of statements.
 type Statements []Statement
 
-// String returns a string representation of the statements
+// String returns a string representation of the statements.
 func (a Statements) String() string {
 	var str []string
 	for _, stmt := range a {
@@ -134,6 +136,36 @@ func (_ *Series) source() {}
 func (_ *Join) source()   {}
 func (_ *Merge) source()  {}
 
+// SortField represens a field to sort results by.
+type SortField struct {
+	// Name of the field
+	Name string
+
+	// Sort order.
+	Ascending bool
+}
+
+// String returns a string representation of a sort field
+func (field *SortField) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString(field.Name)
+	_, _ = buf.WriteString(" ")
+	_, _ = buf.WriteString(strconv.FormatBool(field.Ascending))
+	return buf.String()
+}
+
+// SortFields represents an ordered list of ORDER BY fields
+type SortFields []*SortField
+
+// String returns a string representation of sort fields
+func (a SortFields) String() string {
+	fields := make([]string, 0, len(a))
+	for _, field := range a {
+		fields = append(fields, field.String())
+	}
+	return strings.Join(fields, ", ")
+}
+
 // SelectStatement represents a command for extracting data from the database.
 type SelectStatement struct {
 	// Expressions returned from the selection.
@@ -148,12 +180,12 @@ type SelectStatement struct {
 	// An expression evaluated on data point.
 	Condition Expr
 
+	// Fields to sort results by
+	SortFields SortFields
+
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
-
-	// Sort order.
-	Ascending bool
 }
 
 // String returns a string representation of the select statement.
@@ -174,8 +206,9 @@ func (s *SelectStatement) String() string {
 	if s.Limit > 0 {
 		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
 	}
-	if s.Ascending {
-		_, _ = buf.WriteString(" ORDER BY ASC")
+	if len(s.SortFields) > 0 {
+		_, _ = buf.WriteString(" ORDER BY ")
+		_, _ = buf.WriteString(s.SortFields.String())
 	}
 	return buf.String()
 }
@@ -230,7 +263,7 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 		Fields:     Fields{{Expr: ref}},
 		Dimensions: s.Dimensions,
 		Limit:      s.Limit,
-		Ascending:  s.Ascending,
+		SortFields:    s.SortFields,
 	}
 
 	// If there is only one series source then return it with the whole condition.
@@ -346,6 +379,9 @@ type ListSeriesStatement struct{
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Fields to sort results by
+	SortFields SortFields
 }
 
 // String returns a string representation of the list series statement.

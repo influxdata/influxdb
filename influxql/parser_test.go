@@ -58,7 +58,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement
 		{
-			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h LIMIT 20 ORDER BY ASC;`,
+			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h ORDER BY ASC LIMIT 20;`,
 			stmt: &influxql.SelectStatement{
 				Fields: influxql.Fields{
 					&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}},
@@ -75,7 +75,9 @@ func TestParser_ParseStatement(t *testing.T) {
 					&influxql.Dimension{Expr: &influxql.DurationLiteral{Val: 10 * time.Hour}},
 				},
 				Limit:     20,
-				Ascending: true,
+				SortFields: influxql.SortFields{
+					&influxql.SortField{Ascending: true},
+				},
 			},
 		},
 
@@ -118,6 +120,21 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with multiple ORDER BY fields
+		{
+			s: `SELECT field1 FROM myseries ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
+				Source: &influxql.Series{Name: "myseries"},
+				SortFields: influxql.SortFields{
+					&influxql.SortField{Ascending: true,},
+					&influxql.SortField{Name: "field1",},
+					&influxql.SortField{Name: "field2",},
+				},
+				Limit: 10,
+			},
+		},
+
 		// DELETE statement
 		{
 			s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
@@ -137,14 +154,19 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ListSeriesStatement{},
 		},
 
-		// LIST SERIES WHERE statement
+		// LIST SERIES WHERE with ORDER BY and LIMIT
 		{
-			s:    `LIST SERIES WHERE region = 'uswest' LIMIT 10`,
+			s:    `LIST SERIES WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ListSeriesStatement{
 				Condition: &influxql.BinaryExpr{
 					Op: influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
+				},
+				SortFields: influxql.SortFields{
+					&influxql.SortField{Ascending: true,},
+					&influxql.SortField{Name: "field1",},
+					&influxql.SortField{Name: "field2",},
 				},
 				Limit: 10,
 			},
@@ -185,16 +207,17 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: ``, err: `found EOF, expected SELECT at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
 		{s: `blah blah`, err: `found blah, expected SELECT at line 1, char 1`},
-		{s: `SELECT field X`, err: `found X, expected FROM at line 1, char 14`},
-		{s: `SELECT field FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 37`},
-		{s: `SELECT field FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 34`},
-		{s: `SELECT field FROM myseries LIMIT`, err: `found EOF, expected number at line 1, char 34`},
-		{s: `SELECT field FROM myseries LIMIT 10.5`, err: `fractional parts not allowed in limit at line 1, char 34`},
-		{s: `SELECT field FROM myseries ORDER`, err: `found EOF, expected BY at line 1, char 34`},
-		{s: `SELECT field FROM myseries ORDER BY /`, err: `found /, expected ASC, DESC at line 1, char 37`},
-		{s: `SELECT field AS`, err: `found EOF, expected identifier, string at line 1, char 17`},
-		{s: `SELECT field FROM 12`, err: `found 12, expected identifier, string at line 1, char 19`},
-		{s: `SELECT field FROM myseries GROUP BY *`, err: `found *, expected identifier, string, number, bool at line 1, char 37`},
+		{s: `SELECT field1 X`, err: `found X, expected FROM at line 1, char 15`},
+		{s: `SELECT field1 FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 38`},
+		{s: `SELECT field1 FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 35`},
+		{s: `SELECT field1 FROM myseries LIMIT`, err: `found EOF, expected number at line 1, char 35`},
+		{s: `SELECT field1 FROM myseries LIMIT 10.5`, err: `fractional parts not allowed in limit at line 1, char 35`},
+		{s: `SELECT field1 FROM myseries ORDER`, err: `found EOF, expected BY at line 1, char 35`},
+		{s: `SELECT field1 FROM myseries ORDER BY /`, err: `found /, expected identifier, ASC, or DESC at line 1, char 38`},
+		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `found 1, expected identifier, ASC, or DESC at line 1, char 38`},
+		{s: `SELECT field1 AS`, err: `found EOF, expected identifier, string at line 1, char 18`},
+		{s: `SELECT field1 FROM 12`, err: `found 12, expected identifier, string at line 1, char 20`},
+		{s: `SELECT field1 FROM myseries GROUP BY *`, err: `found *, expected identifier, string, number, bool at line 1, char 38`},
 		{s: `SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 FROM myseries`, err: `unable to parse number at line 1, char 8`},
 		{s: `SELECT 10.5h FROM myseries`, err: `found h, expected FROM at line 1, char 12`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},

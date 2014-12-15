@@ -122,19 +122,28 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 	}
 	stmt.Dimensions = dimensions
 
+	// Parse sort: "ORDER BY FIELD+".
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
+			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
+		}
+
+		sortFields, err := p.parseSortFields()
+		if err != nil {
+			return nil, err
+		}
+
+		stmt.SortFields = sortFields
+	} else {
+		p.unscan()
+	}
+
 	// Parse limit: "LIMIT INT".
 	limit, err := p.parseLimit()
 	if err != nil {
 		return nil, err
 	}
 	stmt.Limit = limit
-
-	// Parse ordering: "ORDER BY (ASC|DESC)".
-	ascending, err := p.parseOrderBy()
-	if err != nil {
-		return nil, err
-	}
-	stmt.Ascending = ascending
 
 	return stmt, nil
 }
@@ -175,6 +184,22 @@ func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
 		return nil, err
 	}
 	stmt.Condition = condition
+
+	// Parse sort: "ORDER BY FIELD+".
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
+			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
+		}
+
+		sortFields, err := p.parseSortFields()
+		if err != nil {
+			return nil, err
+		}
+
+		stmt.SortFields = sortFields
+	} else {
+		p.unscan()
+	}
 
 	// Parse limit: "LIMIT INT".
 	limit, err := p.parseLimit()
@@ -468,26 +493,58 @@ func (p *Parser) parseLimit() (int, error) {
 	return int(n), nil
 }
 
-// parseOrderBy parses the "ORDER BY" clause of the query, if it exists.
-func (p *Parser) parseOrderBy() (bool, error) {
-	// Check if the ORDER token exists.
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok != ORDER {
-		p.unscan()
-		return false, nil
+// parseSortFields parses all fields of and ORDER BY clause.
+func (p *Parser) parseSortFields() (SortFields, error) {
+	var fields SortFields
+
+	// At least one field is required.
+	field, err := p.parseSortField()
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, field)
+
+	// Parse additional fields.
+	for {
+		tok, _, _ := p.scanIgnoreWhitespace()
+		
+		if tok != COMMA {
+			p.unscan()
+			break
+		}
+
+		field, err := p.parseSortField()
+		if err != nil {
+			return nil, err
+		}
+
+		fields = append(fields, field)
 	}
 
-	// Ensure the next token is BY.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
-		return false, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
-	}
+	return fields, nil
+}
 
-	// Ensure the next token is ASC OR DESC.
+// parseSortField parses one field of an ORDER BY clause.
+func (p *Parser) parseSortField() (*SortField, error) {
+	field := &SortField{}
+
+	// Next token should be ASC, DESC, or IDENT | STRING.
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != ASC && tok != DESC {
-		return false, newParseError(tokstr(tok, lit), []string{"ASC", "DESC"}, pos)
+	if tok == IDENT || tok == STRING {
+		field.Name = lit
+		// Check for optional ASC or DESC token.
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != ASC && tok != DESC {
+			p.unscan()
+			return field, nil
+		}
+	} else if tok != ASC && tok != DESC {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier, ASC, or DESC"}, pos)
 	}
 
-	return tok == ASC, nil
+	field.Ascending = (tok == ASC)
+
+	return field, nil
 }
 
 // ParseExpr parses an expression.
