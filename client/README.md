@@ -1,4 +1,5 @@
 #Influxdb Go Client
+>WARNING: The client api will be changing significantly for version 0.9 the example may not exactly represent the current usage. However we will try to keep this readme up2date while the api is changing.
 
 This pkg contains a simple client written in go for influxdb. You can review the godocs [here](http://godoc.org/github.com/influxdb/influxdb/client). We have created afew examples to help you get started.
 
