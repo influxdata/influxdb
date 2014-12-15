@@ -1,20 +1,22 @@
 package influxql_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 )
 
-// Ensure the planner can plan and execute a query.
-func TestPlanner_Plan(t *testing.T) {
-	db := NewDB()
+// Ensure the planner can plan and execute a simple count query.
+func TestPlanner_Plan_Count(t *testing.T) {
+	db := NewDB("2000-01-01T12:00:00Z")
 	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:00Z", map[string]interface{}{"value": float64(100)})
 	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:10Z", map[string]interface{}{"value": float64(90)})
 	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:20Z", map[string]interface{}{"value": float64(80)})
@@ -22,51 +24,50 @@ func TestPlanner_Plan(t *testing.T) {
 	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:40Z", map[string]interface{}{"value": float64(60)})
 	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:50Z", map[string]interface{}{"value": float64(50)})
 
-	for i, tt := range []struct {
-		q  string          // querystring
-		rs []*influxql.Row // resultset
-	}{
-		// 0. Simple count
-		{
-			q: `SELECT count(value) FROM cpu`,
-			rs: []*influxql.Row{
-				{
-					Name:    "cpu",
-					Tags:    map[string]string{},
-					Columns: []string{"count"},
-					Values: [][]interface{}{
-						{6},
-					},
-				},
-			},
-		},
-	} {
-		// Plan statement.
-		var p = influxql.NewPlanner(db)
-		e, err := p.Plan(MustParseSelectStatement(tt.q))
-		if err != nil {
-			t.Errorf("%d. %s: plan error: %s", i, tt.q, err)
-			continue
-		}
+	// Expected resultset.
+	exp := minify(`[{"name":"cpu","columns":["count"],"values":[[6]]}]`)
 
-		// Execute plan.
-		ch, err := e.Execute()
-		if err != nil {
-			t.Errorf("%d. %s: execute error: %s", i, tt.q, err)
-			continue
-		}
+	// Execute and compare.
+	rs := db.MustPlanAndExecute(`SELECT count(value) FROM cpu`)
+	if act := minify(jsonify(rs)); exp != act {
+		t.Fatalf("unexpected resultset: %s", act)
+	}
+}
 
-		// Collect resultset.
-		var rs []*influxql.Row
-		for row := range ch {
-			rs = append(rs, row)
-		}
+// Ensure the planner can plan and execute a count query grouped by hour.
+func TestPlanner_Plan_CountByHour(t *testing.T) {
+	db := NewDB("2000-01-01T12:00:00Z")
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T09:00:00Z", map[string]interface{}{"value": float64(100)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T09:00:00Z", map[string]interface{}{"value": float64(90)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T09:30:00Z", map[string]interface{}{"value": float64(80)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T11:00:00Z", map[string]interface{}{"value": float64(70)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T11:00:00Z", map[string]interface{}{"value": float64(60)})
+	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T11:30:00Z", map[string]interface{}{"value": float64(50)})
 
-		// Compare resultset.
-		if b0, b1 := mustMarshalJSON(tt.rs), mustMarshalJSON(rs); string(b0) != string(b1) {
-			t.Errorf("%d. resultset mismatch:\n\n%s\n\nexp=%s\n\ngot=%s\n\n", i, tt.q, b0, b1)
-			continue
-		}
+	// Expected resultset.
+	exp := minify(`[{
+		"name":"cpu",
+		"columns":["time","sum"],
+		"values":[
+			[946717200000000,190],
+			[946719000000000,80],
+			[946720800000000,0],
+			[946722600000000,0],
+			[946724400000000,130],
+			[946726200000000,50]
+		]
+	}]`)
+
+	// Query for data since 3 hours ago until now, grouped every 30 minutes.
+	rs := db.MustPlanAndExecute(`
+		SELECT sum(value)
+		FROM cpu
+		WHERE time >= now() - 3h
+		GROUP BY time(30m)`)
+
+	// Compare resultsets.
+	if act := jsonify(rs); exp != act {
+		t.Fatalf("unexpected resultset: %s", indent(act))
 	}
 }
 
@@ -74,14 +75,51 @@ func TestPlanner_Plan(t *testing.T) {
 type DB struct {
 	measurements map[string]*Measurement
 	series       map[uint32]*Series
+
+	Now time.Time
 }
 
-// NewDB returns a new instance of DB.
-func NewDB() *DB {
+// NewDB returns a new instance of DB at a given time.
+func NewDB(now string) *DB {
 	return &DB{
 		measurements: make(map[string]*Measurement),
 		series:       make(map[uint32]*Series),
+		Now:          mustParseTime(now),
 	}
+}
+
+// PlanAndExecute plans, executes, and retrieves all rows.
+func (db *DB) PlanAndExecute(querystring string) ([]*influxql.Row, error) {
+	// Plan statement.
+	p := influxql.NewPlanner(db)
+	p.Now = func() time.Time { return db.Now }
+	e, err := p.Plan(MustParseSelectStatement(querystring))
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute plan.
+	ch, err := e.Execute()
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect resultset.
+	var rs []*influxql.Row
+	for row := range ch {
+		rs = append(rs, row)
+	}
+
+	return rs, nil
+}
+
+// MustPlanAndExecute plans, executes, and retrieves all rows. Panic on error.
+func (db *DB) MustPlanAndExecute(querystring string) []*influxql.Row {
+	rs, err := db.PlanAndExecute(querystring)
+	if err != nil {
+		panic(err.Error())
+	}
+	return rs
 }
 
 // WriteSeries writes a series
@@ -186,20 +224,29 @@ func (db *DB) Field(name, field string) (fieldID uint8, typ influxql.DataType) {
 }
 
 // CreateIterator returns a new iterator for a given field.
-func (db *DB) CreateIterator(seriesID uint32, fieldID uint8, typ influxql.DataType) influxql.Iterator {
+func (db *DB) CreateIterator(seriesID uint32, fieldID uint8, typ influxql.DataType, min, max time.Time, interval time.Duration) influxql.Iterator {
 	s := db.series[seriesID]
 	if s == nil {
 		panic(fmt.Sprintf("series not found: %d", seriesID))
 	}
 
-	// Return iterator.
-	return &iterator{
+	// Create iterator.
+	i := &iterator{
 		points:   s.points,
 		fieldID:  fieldID,
 		typ:      typ,
-		time:     time.Unix(0, 0).UTC(),
-		duration: 0,
+		imin:     -1,
+		interval: int64(interval),
 	}
+
+	if !min.IsZero() {
+		i.min = min.UnixNano()
+	}
+	if !max.IsZero() {
+		i.max = max.UnixNano()
+	}
+
+	return i
 }
 
 // iterator represents an implementation of Iterator over a set of points.
@@ -210,8 +257,39 @@ type iterator struct {
 	index  int
 	points points
 
-	time     time.Time     // bucket start time
-	duration time.Duration // bucket duration
+	min, max   int64 // time range
+	imin, imax int64 // interval time range
+	interval   int64 // interval duration
+}
+
+// NextIterval moves the iterator to the next available interval.
+// Returns true if another iterval is available.
+func (i *iterator) NextIterval() bool {
+	// Initialize interval start time if not set.
+	// If there's no duration then there's only one interval.
+	// Otherwise increment it by the interval.
+	if i.imin == -1 {
+		i.imin = i.min
+	} else if i.interval == 0 {
+		return false
+	} else {
+		// Update interval start time if it's before iterator end time.
+		// Otherwise return false.
+		if imin := i.imin + i.interval; i.max == 0 || imin < i.max {
+			i.imin = imin
+		} else {
+			return false
+		}
+	}
+
+	// Interval end time should be the start time plus interval duration.
+	// If the end time is beyond the iterator end time then shorten it.
+	i.imax = i.imin + i.interval
+	if max := i.max; i.imax > max {
+		i.imax = max
+	}
+
+	return true
 }
 
 // Next returns the next point's timestamp and field value.
@@ -229,6 +307,13 @@ func (i *iterator) Next() (timestamp int64, value interface{}) {
 		// Move cursor forward.
 		i.index++
 
+		// If timestamp is beyond bucket time range then move index back and exit.
+		timestamp := p.timestamp
+		if timestamp >= i.imax && i.imax != 0 {
+			i.index--
+			return 0, nil
+		}
+
 		// Return value if it is non-nil.
 		// Otherwise loop again and try the next point.
 		if v != nil {
@@ -238,10 +323,10 @@ func (i *iterator) Next() (timestamp int64, value interface{}) {
 }
 
 // Time returns start time of the current interval.
-func (i *iterator) Time() int64 { return i.time.UnixNano() }
+func (i *iterator) Time() int64 { return i.imin }
 
-// Duration returns the group by duration.
-func (i *iterator) Duration() time.Duration { return i.duration }
+// Interval returns the group by duration.
+func (i *iterator) Interval() time.Duration { return time.Duration(i.interval) }
 
 type Measurement struct {
 	name string
@@ -319,3 +404,16 @@ func mustMarshalJSON(v interface{}) []byte {
 	}
 	return b
 }
+
+// jsonify encodes a value to JSON and returns as a string.
+func jsonify(v interface{}) string { return string(mustMarshalJSON(v)) }
+
+// ident indents a JSON string.
+func indent(s string) string {
+	var buf bytes.Buffer
+	json.Indent(&buf, []byte(s), "", "  ")
+	return buf.String()
+}
+
+// minify removes tabs and newlines.
+func minify(s string) string { return strings.NewReplacer("\n", "", "\t", "").Replace(s) }

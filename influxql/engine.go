@@ -1,109 +1,13 @@
 package influxql
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 )
 
-// Plan generates an executable plan for a SELECT statement.
-
-// list series ->
-/*
-[
-	{
-		"name": "cpu",
-		"columns": ["id", "region", "host"],
-		"values": [
-			1, "uswest", "servera",
-			2, "uswest", "serverb"
-		]
-	},
-	{
-		""
-	}
-]
-
-list series where region = 'uswest'
-
-list tags where name = 'cpu'
-
-list tagKeys where name = 'cpu'
-
-list series where name = 'cpu' and region = 'uswest'
-
-select distinct(region) from cpu
-
-list names
-list tagKeys
-
-list tagValeus where tagKey = 'region' and time > now() -1h
-
-select a.value, b.value from a join b where a.user_id == 100
-  select a.value from a where a.user_id == 100
-  select b.value from b
-
-          3                1              2
-select sum(a.value) + (sum(b.value) / min(b.value)) from a join b group by region
-
-	select suM(a.value) from a group by time(5m)
-	select sum(b.value) from b group by time(5m)
-
-execute sum MR on series [23, 65, 88, 99, 101, 232]
-
-map -> 1 tick per 5m
-reduce -> combines ticks per 5m interval -> outputs
-
-planner -> take reduce output per 5m interval from the two reducers
-           and combine with the join function, which is +
-
-[1,/,2,+,3]
-
-
-
-for v := s[0].Next(); v != nil; v = 2[0].Next() {
-	var result interface{}
-	for i := 1; i < len(s); i += 2 {
-		/ it's an operator
-		if i % 2 == 1 {
-
-		}
-	}
-}
-
-select count(distinct(host)) from cpu where time > now() - 5m
-
-type mapper interface {
-	Map(iterator)
-}
-
-type floatCountMapper struct {}
-func(m *floatCountMapper) Map(i Iterator) {
-	itr := i.(*floatIterator)
-}
-
-type Iterator interface {
-	itr()
-}
-
-type iterator struct {
-	cursor *bolt.Cursor
-	timeBucket time.Time
-	name string
-	seriesID uint32
-	tags map[string]string
-	fieldID uint8
-	where *WhereClause
-}
-
-func (i *intIterator) itr() {}
-func (i *intIterator) Next() (k int64, v float64) {
-	// loop through bolt cursor applying where clause and yield next point
-	// if cursor is at end or time is out of range, yield nil
-}
-
-*/
-
+// DB represents an interface to the underlying storage.
 type DB interface {
 	// Returns a list of series data ids matching a name and tags.
 	MatchSeries(name string, tags map[string]string) []uint32
@@ -112,12 +16,15 @@ type DB interface {
 	Field(name, field string) (fieldID uint8, typ DataType)
 
 	// Returns an iterator given a series data id, field id, & field data type.
-	CreateIterator(id uint32, fieldID uint8, typ DataType) Iterator
+	CreateIterator(id uint32, fieldID uint8, typ DataType, min, max time.Time, duration time.Duration) Iterator
 }
 
 // Planner represents an object for creating execution plans.
 type Planner struct {
-	DB  DB
+	// The underlying storage that holds series and field meta data.
+	DB DB
+
+	// Returns the current time. Defaults to time.Now().
 	Now func() time.Time
 }
 
@@ -137,6 +44,27 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 		processors: make([]processor, len(stmt.Fields)),
 	}
 
+	// Fold conditional.
+	now := p.Now()
+	stmt.Condition = Fold(stmt.Condition, &now)
+
+	// Extract the time range.
+	min, max := TimeRange(stmt.Condition)
+	if max.IsZero() {
+		max = now
+	}
+	if max.Before(min) {
+		return nil, fmt.Errorf("invalid time range: %s - %s", min.Format(TimeFormat), max.Format(TimeFormat))
+	}
+	e.min, e.max = min, max
+
+	// Determine group by interval.
+	interval, dimensions, err := p.normalizeDimensions(stmt.Dimensions)
+	if err != nil {
+		return nil, err
+	}
+	e.interval, e.dimensions = interval, dimensions
+
 	// Generate a processor for each field.
 	for i, f := range stmt.Fields {
 		p, err := p.planField(e, f)
@@ -147,6 +75,32 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	}
 
 	return e, nil
+}
+
+// normalizeDimensions extacts the time interval, if specified.
+// Returns all remaining dimensions.
+func (p *Planner) normalizeDimensions(dimensions Dimensions) (time.Duration, Dimensions, error) {
+	// Ignore if there are no dimensions.
+	if len(dimensions) == 0 {
+		return 0, nil, nil
+	}
+
+	// If the first dimension is a "time(duration)" then extract the duration.
+	if call, ok := dimensions[0].Expr.(*Call); ok && strings.ToLower(call.Name) == "time" {
+		// Make sure there is exactly one argument.
+		if len(call.Args) != 1 {
+			return 0, nil, errors.New("time dimension expected one argument")
+		}
+
+		// Ensure the argument is a duration.
+		lit, ok := call.Args[0].(*DurationLiteral)
+		if !ok {
+			return 0, nil, errors.New("time dimension must have one duration argument")
+		}
+		return lit.Val, dimensions[1:], nil
+	}
+
+	return 0, dimensions, nil
 }
 
 // planField returns a processor for field.
@@ -217,15 +171,23 @@ func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 	// Generate mappers for each id.
 	r.mappers = make([]*mapper, len(seriesIDs))
 	for i, seriesID := range seriesIDs {
-		r.mappers[i] = newMapper(e, seriesID, fieldID, typ)
+		m := newMapper(e, seriesID, fieldID, typ)
+		m.min, m.max = e.min.UnixNano(), e.max.UnixNano()
+		m.interval = int64(e.interval)
+		r.mappers[i] = m
 	}
 
 	// Set the appropriate reducer function.
 	switch strings.ToLower(c.Name) {
 	case "count":
-		r.fn = reduceCount
+		r.fn = reduceSum
 		for _, m := range r.mappers {
 			m.fn = mapCount
+		}
+	case "sum":
+		r.fn = reduceSum
+		for _, m := range r.mappers {
+			m.fn = mapSum
 		}
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
@@ -243,9 +205,12 @@ func (p *Planner) planBinaryExpr(e *Executor, expr *BinaryExpr) (processor, erro
 // Executor represents the implementation of Executor.
 // It executes all reducers and combines their result into a row.
 type Executor struct {
-	db         DB
-	stmt       *SelectStatement
-	processors []processor
+	db         DB               // source database
+	stmt       *SelectStatement // original statement
+	processors []processor      // per-field processors
+	min, max   time.Time        // time range
+	interval   time.Duration    // group by duration
+	dimensions Dimensions       // non-interval dimensions
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
@@ -266,85 +231,55 @@ func (e *Executor) Execute() (<-chan *Row, error) {
 func (e *Executor) execute(out chan *Row) {
 	// TODO: Support multi-value rows.
 
+	// Initialize row.
 	row := &Row{}
+	row.Name = e.processors[0].name()
 
 	// Create column names.
-	row.Columns = make([]string, len(e.stmt.Fields))
+	row.Columns = make([]string, 0)
+	if e.interval != 0 {
+		row.Columns = append(row.Columns, "time")
+	}
 	for i, f := range e.stmt.Fields {
 		name := f.Name()
 		if name == "" {
 			name = fmt.Sprintf("col%d", i)
 		}
-		row.Columns[i] = name
+		row.Columns = append(row.Columns, name)
 	}
 
 	// Combine values from each processor.
-	row.Values = [][]interface{}{make([]interface{}, 1, len(e.processors))}
-	for i, p := range e.processors {
-		// Retrieve data from the processor.
-		m, ok := <-p.C()
-		if !ok {
-			continue
+loop:
+	for {
+		values := make([]interface{}, len(e.processors)+1)
+
+		for i, p := range e.processors {
+			// Retrieve data from the processor.
+			m, ok := <-p.C()
+			if !ok {
+				break loop
+			}
+
+			// Set values on returned row.
+			for k, v := range m {
+				values[0] = k / int64(time.Microsecond) // TODO: Set once per row.
+				values[i+1] = v
+			}
 		}
 
-		// Set values on returned row.
-		row.Name = p.name()
-		for _, v := range m {
-			row.Values[0][i] = v
+		// Remove timestamp if there is no group by interval.
+		if e.interval == 0 {
+			values = values[1:]
 		}
+		row.Values = append(row.Values, values)
 	}
 
 	// Send row to the channel.
-	if len(row.Values[0]) != 0 {
-		out <- row
-	}
+	out <- row
 
 	// Mark the end of the output channel.
 	close(out)
 }
-
-/*
-select derivative(mean(value))
-from cpu
-group by time(5m)
-
-select mean(value) from cpu group by time(5m)
-select top(10, value) from cpu group by host where time > now() - 1h
-
-this query uses this type of cycle
--------REMOTE HOST ------------- -----HOST THAT GOT QUERY ---
-map -> reduce -> combine -> map  -> reduce -> combine -> user
-
-select mean(value) cpu group by time(5m), host where time > now() -4h
-map -> reduce -> combine -> user
-map -> reduce -> map -> reduce -> combine -> user
-map -> reduce -> combine -> map -> reduce -> combine -> user
-
-
-select value from
-(
-	select mean(value) AS value FROM cpu GROUP BY time(5m)
-)
-
-[
-{
-	name: cpu,
-	tags: {
-		host: servera,
-	},
-	columns: [time, mean],
-	values : [
-		[23423423, 88.8]
-	]
-},
-{
-	name: cpu,
-	tags: {
-		host: serverb,
-	}
-}
-]
-*/
 
 // mapper represents an object for processing iterators.
 type mapper struct {
@@ -353,6 +288,8 @@ type mapper struct {
 	fieldID  uint8     // field id
 	typ      DataType  // field data type
 	itr      Iterator  // series iterator
+	min, max int64     // time range
+	interval int64     // group by interval
 	fn       mapFunc   // map function
 
 	c    chan map[int64]interface{}
@@ -373,7 +310,8 @@ func newMapper(e *Executor, seriesID uint32, fieldID uint8, typ DataType) *mappe
 
 // start begins processing the iterator.
 func (m *mapper) start() {
-	m.itr = m.executor.db.CreateIterator(m.seriesID, m.fieldID, m.typ)
+	m.itr = m.executor.db.CreateIterator(m.seriesID, m.fieldID, m.typ,
+		m.executor.min, m.executor.max, m.executor.interval)
 	go m.run()
 }
 
@@ -385,7 +323,9 @@ func (m *mapper) C() <-chan map[int64]interface{} { return m.c }
 
 // run executes the map function against the iterator.
 func (m *mapper) run() {
-	m.fn(m.itr, m)
+	for m.itr.NextIterval() {
+		m.fn(m.itr, m)
+	}
 	close(m.c)
 }
 
@@ -404,6 +344,15 @@ func mapCount(itr Iterator, m *mapper) {
 		n++
 	}
 	m.emit(itr.Time(), float64(n))
+}
+
+// mapSum computes the summation of values in an iterator.
+func mapSum(itr Iterator, m *mapper) {
+	n := float64(0)
+	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		n += v.(float64)
+	}
+	m.emit(itr.Time(), n)
 }
 
 // reducer represents an object for processing mapper output.
@@ -451,18 +400,24 @@ func (r *reducer) name() string { return r.stmt.Source.(*Series).Name }
 
 // run runs the reducer loop to read mapper output and reduce it.
 func (r *reducer) run() {
-	// Combine all data from the mappers.
-	data := make(map[int64][]interface{})
-	for _, m := range r.mappers {
-		kv := <-m.C()
-		for k, v := range kv {
-			data[k] = append(data[k], v)
+loop:
+	for {
+		// Combine all data from the mappers.
+		data := make(map[int64][]interface{})
+		for _, m := range r.mappers {
+			kv, ok := <-m.C()
+			if !ok {
+				break loop
+			}
+			for k, v := range kv {
+				data[k] = append(data[k], v)
+			}
 		}
-	}
 
-	// Reduce each key.
-	for k, v := range data {
-		r.fn(k, v, r)
+		// Reduce each key.
+		for k, v := range data {
+			r.fn(k, v, r)
+		}
 	}
 
 	// Mark the channel as complete.
@@ -477,8 +432,8 @@ func (r *reducer) emit(key int64, value interface{}) {
 // reduceFunc represents a function used for reducing mapper output.
 type reduceFunc func(int64, []interface{}, *reducer)
 
-// reduceCount computes the number of values for each key.
-func reduceCount(key int64, values []interface{}, r *reducer) {
+// reduceSum computes the sum of values for each key.
+func reduceSum(key int64, values []interface{}, r *reducer) {
 	var n float64
 	for _, v := range values {
 		n += v.(float64)
@@ -542,15 +497,19 @@ func syncClose(done chan chan struct{}) {
 }
 
 // Iterator represents a forward-only iterator over a set of points.
+// The iterator groups points together in interval sets.
 type Iterator interface {
 	// Next returns the next value from the iterator.
 	Next() (key int64, value interface{})
 
+	// NextIterval moves to the next iterval. Returns true unless EOF.
+	NextIterval() bool
+
 	// Time returns start time of the current interval.
 	Time() int64
 
-	// Duration returns the group by duration.
-	Duration() time.Duration
+	// Interval returns the group by duration.
+	Interval() time.Duration
 }
 
 // Row represents a single row returned from the execution of a statement.

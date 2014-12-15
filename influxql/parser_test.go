@@ -212,14 +212,16 @@ func TestParser_ParseExpr(t *testing.T) {
 		expr influxql.Expr
 		err  string
 	}{
-		// 0-4. Primitives
+		// Primitives
 		{s: `100`, expr: &influxql.NumberLiteral{Val: 100}},
 		{s: `"foo bar"`, expr: &influxql.StringLiteral{Val: "foo bar"}},
 		{s: `true`, expr: &influxql.BooleanLiteral{Val: true}},
 		{s: `false`, expr: &influxql.BooleanLiteral{Val: false}},
 		{s: `my_ident`, expr: &influxql.VarRef{Val: "my_ident"}},
+		{s: `"2000-01-01 00:00:00"`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00Z")}},
+		{s: `"2000-01-32 00:00:00"`, err: `unable to parse time at line 1, char 1`},
 
-		// 5. Simple binary expression
+		// Simple binary expression
 		{
 			s: `1 + 2`,
 			expr: &influxql.BinaryExpr{
@@ -229,7 +231,7 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// 6. Binary expression with LHS precedence
+		// Binary expression with LHS precedence
 		{
 			s: `1 * 2 + 3`,
 			expr: &influxql.BinaryExpr{
@@ -243,7 +245,7 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// 7. Binary expression with RHS precedence
+		// Binary expression with RHS precedence
 		{
 			s: `1 + 2 * 3`,
 			expr: &influxql.BinaryExpr{
@@ -257,7 +259,7 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// 8. Binary expression with LHS paren group.
+		// Binary expression with LHS paren group.
 		{
 			s: `(1 + 2) * 3`,
 			expr: &influxql.BinaryExpr{
@@ -273,7 +275,7 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// 9. Complex binary expression.
+		// Complex binary expression.
 		{
 			s: `value + 3 < 30 AND 1 + 2 OR true`,
 			expr: &influxql.BinaryExpr{
@@ -299,7 +301,7 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// 10. Function call (empty)
+		// Function call (empty)
 		{
 			s: `my_func()`,
 			expr: &influxql.Call{
@@ -307,7 +309,7 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// 11. Function call (multi-arg)
+		// Function call (multi-arg)
 		{
 			s: `my_func(1, 2 + 3)`,
 			expr: &influxql.Call{
