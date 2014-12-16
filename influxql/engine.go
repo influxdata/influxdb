@@ -16,7 +16,7 @@ type DB interface {
 	Field(name, field string) (fieldID uint8, typ DataType)
 
 	// Returns an iterator given a series data id, field id, & field data type.
-	CreateIterator(id uint32, fieldID uint8, typ DataType, min, max time.Time, duration time.Duration) Iterator
+	CreateIterator(id uint32, fieldID uint8, typ DataType, min, max time.Time, interval time.Duration) Iterator
 }
 
 // Planner represents an object for creating execution plans.

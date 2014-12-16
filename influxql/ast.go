@@ -797,7 +797,7 @@ type Visitor interface {
 }
 
 // TimeRange returns the minimum and maximum times specified by an expression.
-// Returns zero times for if there is no bound.
+// Returns zero times if there is no bound.
 func TimeRange(expr Expr) (min, max time.Time) {
 	WalkFunc(expr, func(n Node) {
 		if n, ok := n.(*BinaryExpr); ok {
