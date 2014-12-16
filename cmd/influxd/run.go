@@ -75,6 +75,8 @@ func execRun(args []string) {
 		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
 			log.Fatal(err)
 		}
+		storageDirExists = true
+
 		// Flag that local mode is required.
 		ioutil.WriteFile(filepath.Join(config.Storage.Dir, "local"), nil, 0644)
 	}
