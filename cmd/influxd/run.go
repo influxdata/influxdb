@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/messaging"
@@ -19,9 +20,10 @@ func execRun(args []string) {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	var (
-		configPath = fs.String("config", configDefaultPath, "")
-		pidPath    = fs.String("pidfile", "", "")
-		hostname   = fs.String("hostname", "", "")
+		configPath  = fs.String("config", configDefaultPath, "")
+		pidPath     = fs.String("pidfile", "", "")
+		hostname    = fs.String("hostname", "", "")
+		seedServers = fs.String("seed-servers", "", "")
 	)
 	fs.Usage = printRunUsage
 	fs.Parse(args)
@@ -53,8 +55,6 @@ func execRun(args []string) {
 	} else {
 		log.Printf("Starting Influx Server %s bound to %s...", version, config.BindAddress)
 	}
-
-	var brokerURLs []*url.URL
 
 	// Start up the node.
 	var brokerHandler *messaging.Handler
@@ -98,7 +98,15 @@ func execRun(args []string) {
 			client = messaging.NewLoopbackClient()
 			log.Printf("Local messaging client created")
 		} else {
-			// Create correct client here for connecting to Broker.
+			var brokerURLs []*url.URL
+			for _, s := range strings.Split(*seedServers, ",") {
+				u, err := url.Parse(s)
+				if err != nil {
+					log.Fatalf("seed server", err)
+				}
+				brokerURLs = append(brokerURLs, u)
+			}
+
 			c := messaging.NewClient("XXX-CHANGEME-XXX")
 			if err := c.Open(brokerURLs); err != nil {
 				log.Fatalf("Error opening Messaging Client: %s", err.Error())
@@ -131,7 +139,8 @@ func printRunUsage() {
 	log.Printf(`usage: run [flags]
 
 run starts the node with any existing cluster configuration. If no cluster configuration is
-found, then the node runs in "local" mode. "Local" mode 
+found, then the node runs in "local" mode. "Local" mode is a single-node mode that does not
+use Distributed Consensus, but is otherwise fully-functional.
 
         -config <path>
                                 Set the path to the configuration file. Defaults to %s.
@@ -139,7 +148,11 @@ found, then the node runs in "local" mode. "Local" mode
         -hostname <name>
                                 Override the hostname, the 'hostname' configuration option will be overridden.
 
+        -seedservers <servers>
+                                If joining a cluster, overrides any previously configured or discovered
+                                Data node seed servers.
+
         -pidfile <path>
                                 Write process ID to a file.
-\n`, configDefaultPath)
+`, configDefaultPath)
 }
