@@ -64,6 +64,24 @@ func (p *Parser) ParseStatement() (Statement, error) {
 			return p.parseListSeriesStatement()
 		} else if tok == CONTINUOUS {
 			return p.parseListContinuousQueriesStatement()
+		} else if tok == MEASUREMENTS {
+			return p.parseListMeasurementsStatement()
+		} else if tok == TAG {
+			if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
+				return p.parseListTagKeysStatement()
+			} else if tok == VALUES {
+				return p.parseListTagValuesStatement()
+			} else {
+				return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
+			}
+		} else if tok == FIELD {
+			if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
+				return p.parseListFieldKeysStatement()
+			} else if tok == VALUES {
+				return p.parseListFieldValuesStatement()
+			} else {
+				return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
+			}
 		} else {
 			return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
 		}
@@ -177,6 +195,236 @@ func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 // This function assumes the "LIST SERIES" tokens have already been consumed.
 func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
 	stmt := &ListSeriesStatement{}
+
+	// Parse condition: "WHERE EXPR".
+	condition, err := p.parseCondition()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Condition = condition
+
+	// Parse sort: "ORDER BY FIELD+".
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
+			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
+		}
+
+		sortFields, err := p.parseSortFields()
+		if err != nil {
+			return nil, err
+		}
+
+		stmt.SortFields = sortFields
+	} else {
+		p.unscan()
+	}
+
+	// Parse limit: "LIMIT INT".
+	limit, err := p.parseLimit()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Limit = limit
+
+	return stmt, nil
+}
+
+// parseListMeasurementsStatement parses a string and returns a ListSeriesStatement.
+// This function assumes the "LIST MEASUREMENTS" tokens have already been consumed.
+func (p *Parser) parseListMeasurementsStatement() (*ListMeasurementsStatement, error) {
+	stmt := &ListMeasurementsStatement{}
+
+	// Parse condition: "WHERE EXPR".
+	condition, err := p.parseCondition()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Condition = condition
+
+	// Parse sort: "ORDER BY FIELD+".
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
+			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
+		}
+
+		sortFields, err := p.parseSortFields()
+		if err != nil {
+			return nil, err
+		}
+
+		stmt.SortFields = sortFields
+	} else {
+		p.unscan()
+	}
+
+	// Parse limit: "LIMIT INT".
+	limit, err := p.parseLimit()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Limit = limit
+
+	return stmt, nil
+}
+
+// parseListTagKeysStatement parses a string and returns a ListSeriesStatement.
+// This function assumes the "LIST TAG KEYS" tokens have already been consumed.
+func (p *Parser) parseListTagKeysStatement() (*ListTagKeysStatement, error) {
+	stmt := &ListTagKeysStatement{}
+
+	// Parse source.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	}
+	source, err := p.parseSource()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Source = source
+
+	// Parse condition: "WHERE EXPR".
+	condition, err := p.parseCondition()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Condition = condition
+
+	// Parse sort: "ORDER BY FIELD+".
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
+			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
+		}
+
+		sortFields, err := p.parseSortFields()
+		if err != nil {
+			return nil, err
+		}
+
+		stmt.SortFields = sortFields
+	} else {
+		p.unscan()
+	}
+
+	// Parse limit: "LIMIT INT".
+	limit, err := p.parseLimit()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Limit = limit
+
+	return stmt, nil
+}
+
+// parseListTagValuesStatement parses a string and returns a ListSeriesStatement.
+// This function assumes the "LIST TAG VALUES" tokens have already been consumed.
+func (p *Parser) parseListTagValuesStatement() (*ListTagValuesStatement, error) {
+	stmt := &ListTagValuesStatement{}
+
+	// Parse source.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	}
+	source, err := p.parseSource()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Source = source
+
+	// Parse condition: "WHERE EXPR".
+	condition, err := p.parseCondition()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Condition = condition
+
+	// Parse sort: "ORDER BY FIELD+".
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
+			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
+		}
+
+		sortFields, err := p.parseSortFields()
+		if err != nil {
+			return nil, err
+		}
+
+		stmt.SortFields = sortFields
+	} else {
+		p.unscan()
+	}
+
+	// Parse limit: "LIMIT INT".
+	limit, err := p.parseLimit()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Limit = limit
+
+	return stmt, nil
+}
+
+// parseListFieldKeysStatement parses a string and returns a ListSeriesStatement.
+// This function assumes the "LIST FIELD KEYS" tokens have already been consumed.
+func (p *Parser) parseListFieldKeysStatement() (*ListFieldKeysStatement, error) {
+	stmt := &ListFieldKeysStatement{}
+
+	// Parse source.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	}
+	source, err := p.parseSource()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Source = source
+
+	// Parse condition: "WHERE EXPR".
+	condition, err := p.parseCondition()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Condition = condition
+
+	// Parse sort: "ORDER BY FIELD+".
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
+			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
+		}
+
+		sortFields, err := p.parseSortFields()
+		if err != nil {
+			return nil, err
+		}
+
+		stmt.SortFields = sortFields
+	} else {
+		p.unscan()
+	}
+
+	// Parse limit: "LIMIT INT".
+	limit, err := p.parseLimit()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Limit = limit
+
+	return stmt, nil
+}
+
+// parseListFieldValuesStatement parses a string and returns a ListSeriesStatement.
+// This function assumes the "LIST FIELD VALUES" tokens have already been consumed.
+func (p *Parser) parseListFieldValuesStatement() (*ListFieldValuesStatement, error) {
+	stmt := &ListFieldValuesStatement{}
+
+	// Parse source.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	}
+	source, err := p.parseSource()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
 	condition, err := p.parseCondition()

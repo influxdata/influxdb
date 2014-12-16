@@ -50,6 +50,11 @@ func (_ Statements) node() {}
 func (_ *SelectStatement) node()                {}
 func (_ *DeleteStatement) node()                {}
 func (_ *ListSeriesStatement) node()            {}
+func (_ *ListMeasurementsStatement) node()      {}
+func (_ *ListTagKeysStatement) node()           {}
+func (_ *ListTagValuesStatement) node()         {}
+func (_ *ListFieldKeysStatement) node()         {}
+func (_ *ListFieldValuesStatement) node()       {}
 func (_ *DropSeriesStatement) node()            {}
 func (_ *ListContinuousQueriesStatement) node() {}
 func (_ *CreateContinuousQueryStatement) node() {}
@@ -108,6 +113,11 @@ func (_ *DropSeriesStatement) stmt()            {}
 func (_ *ListContinuousQueriesStatement) stmt() {}
 func (_ *CreateContinuousQueryStatement) stmt() {}
 func (_ *DropContinuousQueryStatement) stmt()   {}
+func (_ *ListMeasurementsStatement) stmt()      {}
+func (_ *ListTagKeysStatement) stmt()           {}
+func (_ *ListTagValuesStatement) stmt()         {}
+func (_ *ListFieldKeysStatement) stmt()         {}
+func (_ *ListFieldValuesStatement) stmt()       {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -203,12 +213,12 @@ func (s *SelectStatement) String() string {
 		_, _ = buf.WriteString(" GROUP BY ")
 		_, _ = buf.WriteString(s.Dimensions.String())
 	}
-	if s.Limit > 0 {
-		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
-	}
 	if len(s.SortFields) > 0 {
 		_, _ = buf.WriteString(" ORDER BY ")
 		_, _ = buf.WriteString(s.SortFields.String())
+	}
+	if s.Limit > 0 {
+		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
 	}
 	return buf.String()
 }
@@ -376,16 +386,33 @@ type ListSeriesStatement struct{
 	// An expression evaluated on a series name or tag.
 	Condition Expr
 
+	// Fields to sort results by
+	SortFields SortFields
+
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
-
-	// Fields to sort results by
-	SortFields SortFields
 }
 
 // String returns a string representation of the list series statement.
-func (s *ListSeriesStatement) String() string { return "LIST SERIES" }
+func (s *ListSeriesStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("LIST SERIES")
+
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.SortFields) > 0 {
+		_, _ = buf.WriteString(" ORDER BY ")
+		_, _ = buf.WriteString(s.SortFields.String())
+	}
+	if s.Limit > 0 {
+		_, _ = buf.WriteString(" LIMIT ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	return buf.String()
+}
 
 // DropSeriesStatement represents a command for removing a series from the database.
 type DropSeriesStatement struct {
@@ -423,6 +450,198 @@ func (s *DropContinuousQueryStatement) String() string {
 	return fmt.Sprintf("DROP CONTINUOUS QUERY %s", s.Name)
 }
 
+// ListMeasurementsStatement represents a command for listing measurements.
+type ListMeasurementsStatement struct {
+	// An expression evaluated on data point.
+	Condition Expr
+
+	// Fields to sort results by
+	SortFields SortFields
+
+	// Maximum number of rows to be returned.
+	// Unlimited if zero.
+	Limit int
+}
+
+// String returns a string representation of the statement.
+func (s *ListMeasurementsStatement) String() string {
+		var buf bytes.Buffer
+	_, _ = buf.WriteString("LIST MEASUREMENTS")
+
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.SortFields) > 0 {
+		_, _ = buf.WriteString(" ORDER BY ")
+		_, _ = buf.WriteString(s.SortFields.String())
+	}
+	if s.Limit > 0 {
+		_, _ = buf.WriteString(" LIMIT ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	return buf.String()
+}
+
+// ListTagKeysStatement represents a command for listing tag keys.
+type ListTagKeysStatement struct {
+	// Data source that fields are extracted from.
+	Source Source
+
+	// An expression evaluated on data point.
+	Condition Expr
+
+	// Fields to sort results by
+	SortFields SortFields
+
+	// Maximum number of rows to be returned.
+	// Unlimited if zero.
+	Limit int
+}
+
+// String returns a string representation of the statement.
+func (s *ListTagKeysStatement) String() string {
+		var buf bytes.Buffer
+	_, _ = buf.WriteString("LIST TAG KEYS")
+
+	if s.Source != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Source.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.SortFields) > 0 {
+		_, _ = buf.WriteString(" ORDER BY ")
+		_, _ = buf.WriteString(s.SortFields.String())
+	}
+	if s.Limit > 0 {
+		_, _ = buf.WriteString(" LIMIT ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	return buf.String()
+}
+
+// ListTagValuesStatement represents a command for listing tag values.
+type ListTagValuesStatement struct {
+	// Data source that fields are extracted from.
+	Source Source
+
+	// An expression evaluated on data point.
+	Condition Expr
+
+	// Fields to sort results by
+	SortFields SortFields
+
+	// Maximum number of rows to be returned.
+	// Unlimited if zero.
+	Limit int
+}
+
+// String returns a string representation of the statement.
+func (s *ListTagValuesStatement) String() string {
+		var buf bytes.Buffer
+	_, _ = buf.WriteString("LIST TAG VALUES")
+
+	if s.Source != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Source.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.SortFields) > 0 {
+		_, _ = buf.WriteString(" ORDER BY ")
+		_, _ = buf.WriteString(s.SortFields.String())
+	}
+	if s.Limit > 0 {
+		_, _ = buf.WriteString(" LIMIT ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	return buf.String()
+}
+
+// ListFieldKeyStatement represents a command for listing field keys.
+type ListFieldKeysStatement struct {
+	// Data source that fields are extracted from.
+	Source Source
+
+	// An expression evaluated on data point.
+	Condition Expr
+
+	// Fields to sort results by
+	SortFields SortFields
+
+	// Maximum number of rows to be returned.
+	// Unlimited if zero.
+	Limit int
+}
+
+// String returns a string representation of the statement.
+func (s *ListFieldKeysStatement) String() string {
+		var buf bytes.Buffer
+	_, _ = buf.WriteString("LIST FIELD KEYS")
+
+	if s.Source != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Source.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.SortFields) > 0 {
+		_, _ = buf.WriteString(" ORDER BY ")
+		_, _ = buf.WriteString(s.SortFields.String())
+	}
+	if s.Limit > 0 {
+		_, _ = buf.WriteString(" LIMIT ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	return buf.String()
+}
+
+// ListFieldValuesStatement represents a command for listing field values.
+type ListFieldValuesStatement struct {
+	// Data source that fields are extracted from.
+	Source Source
+
+	// An expression evaluated on data point.
+	Condition Expr
+
+	// Fields to sort results by
+	SortFields SortFields
+
+	// Maximum number of rows to be returned.
+	// Unlimited if zero.
+	Limit int
+}
+
+// String returns a string representation of the statement.
+func (s *ListFieldValuesStatement) String() string {
+		var buf bytes.Buffer
+	_, _ = buf.WriteString("LIST FIELD VALUES")
+
+	if s.Source != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Source.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.SortFields) > 0 {
+		_, _ = buf.WriteString(" ORDER BY ")
+		_, _ = buf.WriteString(s.SortFields.String())
+	}
+	if s.Limit > 0 {
+		_, _ = buf.WriteString(" LIMIT ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	return buf.String()
+}
 // Fields represents a list of fields.
 type Fields []*Field
 

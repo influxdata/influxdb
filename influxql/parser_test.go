@@ -172,6 +172,100 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// LIST MEASUREMENTS WHERE with ORDER BY and LIMIT
+		{
+			s:    `LIST MEASUREMENTS WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ListMeasurementsStatement{
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
+				},
+				SortFields: influxql.SortFields{
+					&influxql.SortField{Ascending: true,},
+					&influxql.SortField{Name: "field1",},
+					&influxql.SortField{Name: "field2",},
+				},
+				Limit: 10,
+			},
+		},
+
+		// LIST TAG KEYS
+		{
+			s:    `LIST TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ListTagKeysStatement{
+				Source: &influxql.Series{Name: "src"},
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
+				},
+				SortFields: influxql.SortFields{
+					&influxql.SortField{Ascending: true,},
+					&influxql.SortField{Name: "field1",},
+					&influxql.SortField{Name: "field2",},
+				},
+				Limit: 10,
+			},
+		},
+
+		// LIST TAG VALUES
+		{
+			s:    `LIST TAG VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ListTagValuesStatement{
+				Source: &influxql.Series{Name: "src"},
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
+				},
+				SortFields: influxql.SortFields{
+					&influxql.SortField{Ascending: true,},
+					&influxql.SortField{Name: "field1",},
+					&influxql.SortField{Name: "field2",},
+				},
+				Limit: 10,
+			},
+		},
+
+		// LIST FIELD KEYS
+		{
+			s:    `LIST FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ListFieldKeysStatement{
+				Source: &influxql.Series{Name: "src"},
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
+				},
+				SortFields: influxql.SortFields{
+					&influxql.SortField{Ascending: true,},
+					&influxql.SortField{Name: "field1",},
+					&influxql.SortField{Name: "field2",},
+				},
+				Limit: 10,
+			},
+		},
+
+		// LIST FIELD VALUES
+		{
+			s:    `LIST FIELD VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ListFieldValuesStatement{
+				Source: &influxql.Series{Name: "src"},
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
+				},
+				SortFields: influxql.SortFields{
+					&influxql.SortField{Ascending: true,},
+					&influxql.SortField{Name: "field1",},
+					&influxql.SortField{Name: "field2",},
+				},
+				Limit: 10,
+			},
+		},
+
 		// DROP SERIES statement
 		{
 			s:    `DROP SERIES myseries`,
