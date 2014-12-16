@@ -59,20 +59,26 @@ const (
 	DESC
 	DROP
 	EXPLAIN
+	FIELD
 	FROM
 	GROUP
 	INNER
 	INSERT
 	INTO
 	JOIN
+	KEYS
 	LIMIT
 	LIST
+	MEASUREMENT
+	MEASUREMENTS
 	MERGE
 	ORDER
 	QUERIES
 	QUERY
 	SELECT
 	SERIES
+	TAG
+	VALUES
 	WHERE
 	keyword_end
 )
@@ -108,30 +114,36 @@ var tokens = [...]string{
 	COMMA:     ",",
 	SEMICOLON: ";",
 
-	AS:         "AS",
-	ASC:        "ASC",
-	BY:         "BY",
-	CREATE:     "CREATE",
-	CONTINUOUS: "CONTINUOUS",
-	DELETE:     "DELETE",
-	DESC:       "DESC",
-	DROP:       "DROP",
-	EXPLAIN:    "EXPLAIN",
-	FROM:       "FROM",
-	GROUP:      "GROUP",
-	INNER:      "INNER",
-	INSERT:     "INSERT",
-	INTO:       "INTO",
-	JOIN:       "JOIN",
-	LIMIT:      "LIMIT",
-	LIST:       "LIST",
-	MERGE:      "MERGE",
-	ORDER:      "ORDER",
-	QUERIES:    "QUERIES",
-	QUERY:      "QUERY",
-	SELECT:     "SELECT",
-	SERIES:     "SERIES",
-	WHERE:      "WHERE",
+	AS:           "AS",
+	ASC:          "ASC",
+	BY:           "BY",
+	CREATE:       "CREATE",
+	CONTINUOUS:   "CONTINUOUS",
+	DELETE:       "DELETE",
+	DESC:         "DESC",
+	DROP:         "DROP",
+	EXPLAIN:      "EXPLAIN",
+	FIELD:        "FIELD",
+	FROM:         "FROM",
+	GROUP:        "GROUP",
+	INNER:        "INNER",
+	INSERT:       "INSERT",
+	INTO:         "INTO",
+	JOIN:         "JOIN",
+	KEYS:         "KEYS",
+	LIMIT:        "LIMIT",
+	LIST:         "LIST",
+	MEASUREMENT:  "MEASUREMENT",
+	MEASUREMENTS: "MEASUREMENTS",
+	MERGE:        "MERGE",
+	ORDER:        "ORDER",
+	QUERIES:      "QUERIES",
+	QUERY:        "QUERY",
+	SELECT:       "SELECT",
+	SERIES:       "SERIES",
+	TAG:          "TAG",
+	VALUES:       "VALUES",
+	WHERE:        "WHERE",
 }
 
 var keywords map[string]Token
