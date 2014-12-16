@@ -141,20 +141,11 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 	stmt.Dimensions = dimensions
 
 	// Parse sort: "ORDER BY FIELD+".
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
-			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
-		}
-
-		sortFields, err := p.parseSortFields()
-		if err != nil {
-			return nil, err
-		}
-
-		stmt.SortFields = sortFields
-	} else {
-		p.unscan()
+	sortFields, err := p.parseOrderBy()
+	if err != nil {
+		return nil, err
 	}
+	stmt.SortFields = sortFields
 
 	// Parse limit: "LIMIT INT".
 	limit, err := p.parseLimit()
@@ -204,20 +195,11 @@ func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
 	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
-			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
-		}
-
-		sortFields, err := p.parseSortFields()
-		if err != nil {
-			return nil, err
-		}
-
-		stmt.SortFields = sortFields
-	} else {
-		p.unscan()
+	sortFields, err := p.parseOrderBy()
+	if err != nil {
+		return nil, err
 	}
+	stmt.SortFields = sortFields
 
 	// Parse limit: "LIMIT INT".
 	limit, err := p.parseLimit()
@@ -242,20 +224,11 @@ func (p *Parser) parseListMeasurementsStatement() (*ListMeasurementsStatement, e
 	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
-			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
-		}
-
-		sortFields, err := p.parseSortFields()
-		if err != nil {
-			return nil, err
-		}
-
-		stmt.SortFields = sortFields
-	} else {
-		p.unscan()
+	sortFields, err := p.parseOrderBy()
+	if err != nil {
+		return nil, err
 	}
+	stmt.SortFields = sortFields
 
 	// Parse limit: "LIMIT INT".
 	limit, err := p.parseLimit()
@@ -290,20 +263,11 @@ func (p *Parser) parseListTagKeysStatement() (*ListTagKeysStatement, error) {
 	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
-			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
-		}
-
-		sortFields, err := p.parseSortFields()
-		if err != nil {
-			return nil, err
-		}
-
-		stmt.SortFields = sortFields
-	} else {
-		p.unscan()
+	sortFields, err := p.parseOrderBy()
+	if err != nil {
+		return nil, err
 	}
+	stmt.SortFields = sortFields
 
 	// Parse limit: "LIMIT INT".
 	limit, err := p.parseLimit()
@@ -338,20 +302,11 @@ func (p *Parser) parseListTagValuesStatement() (*ListTagValuesStatement, error) 
 	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
-			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
-		}
-
-		sortFields, err := p.parseSortFields()
-		if err != nil {
-			return nil, err
-		}
-
-		stmt.SortFields = sortFields
-	} else {
-		p.unscan()
+	sortFields, err := p.parseOrderBy()
+	if err != nil {
+		return nil, err
 	}
+	stmt.SortFields = sortFields
 
 	// Parse limit: "LIMIT INT".
 	limit, err := p.parseLimit()
@@ -386,20 +341,11 @@ func (p *Parser) parseListFieldKeysStatement() (*ListFieldKeysStatement, error) 
 	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
-			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
-		}
-
-		sortFields, err := p.parseSortFields()
-		if err != nil {
-			return nil, err
-		}
-
-		stmt.SortFields = sortFields
-	} else {
-		p.unscan()
+	sortFields, err := p.parseOrderBy()
+	if err != nil {
+		return nil, err
 	}
+	stmt.SortFields = sortFields
 
 	// Parse limit: "LIMIT INT".
 	limit, err := p.parseLimit()
@@ -434,20 +380,11 @@ func (p *Parser) parseListFieldValuesStatement() (*ListFieldValuesStatement, err
 	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ORDER {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
-			return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
-		}
-
-		sortFields, err := p.parseSortFields()
-		if err != nil {
-			return nil, err
-		}
-
-		stmt.SortFields = sortFields
-	} else {
-		p.unscan()
+	sortFields, err := p.parseOrderBy()
+	if err != nil {
+		return nil, err
 	}
+	stmt.SortFields = sortFields
 
 	// Parse limit: "LIMIT INT".
 	limit, err := p.parseLimit()
@@ -743,6 +680,28 @@ func (p *Parser) parseLimit() (int, error) {
 	}
 
 	return int(n), nil
+}
+
+// parseOrderBy parses the "ORDER BY" clause of a query, if it exists.
+func (p *Parser) parseOrderBy() (SortFields, error) {
+	// Return nil result and nil error if no ORDER token at this position.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok != ORDER {
+		p.unscan()
+		return nil, nil
+	}
+
+	// Parse the required BY token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != BY {
+		return nil, newParseError(tokstr(tok, lit), []string{"BY"}, pos)
+	}
+
+	// Parse the ORDER BY fields.
+	fields, err := p.parseSortFields()
+	if err != nil {
+		return nil, err
+	}
+
+	return fields, nil
 }
 
 // parseSortFields parses all fields of and ORDER BY clause.
