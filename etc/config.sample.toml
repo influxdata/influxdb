@@ -26,7 +26,7 @@ port   = 8083              # binding is disabled if the port isn't set
 
 # Configure the http api
 [api]
-port     = 8086    # binding is disabled if the port isn't set
+port     = 8086    # binding is disabled if the node is not a Data node.
 # ssl-port = 8084    # Ssl support is enabled if you set a port and cert
 # ssl-cert = /path/to/cert.pem
 
@@ -74,7 +74,7 @@ read-timeout = "5s"
 # The raft port should be open between all servers in a cluster.
 # However, this port shouldn't be accessible from the internet.
 
-port = 8090
+port = 8090 # Binding is disabled if node is not a Broker.
 
 # Where the raft logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/tmp/influxdb/development/raft"

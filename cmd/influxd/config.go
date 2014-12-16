@@ -152,6 +152,16 @@ func (c *Config) MaxOpenShards() int {
 	return c.Storage.MaxOpenShards
 }
 
+// ApiHTTPListenAddr returns the binding address the API HTTP server
+func (c *Config) ApiHTTPListenAddr() string {
+	return fmt.Sprintf("%s:%d", c.BindAddress, c.HTTPAPI.Port)
+}
+
+// RaftListenAddr returns the binding address the Raft server
+func (c *Config) RaftListenAddr() string {
+	return fmt.Sprintf("%s:%d", c.BindAddress, c.Raft.Port)
+}
+
 // Size represents a TOML parseable file size.
 // Users can specify size using "m" for megabytes and "g" for gigabytes.
 type Size int
@@ -231,14 +241,6 @@ func (c *Config) AdminHTTPPortString() string {
 	return fmt.Sprintf("%s:%d", c.BindAddress, c.AdminHTTPPort)
 }
 
-func (c *Config) ApiHTTPPortString() string {
-	if c.HTTPAPI.Port <= 0 {
-		return ""
-	}
-
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.HTTPAPI.Port)
-}
-
 func (c *Config) APIHTTPSPortString() string {
 	return fmt.Sprintf("%s:%d", c.BindAddress, c.APIHTTPSPort)
 }
@@ -269,9 +271,6 @@ func (c *Config) ProtobufListenString() string {
 	return fmt.Sprintf("%s:%d", c.BindAddress, c.ProtobufPort)
 }
 
-func (c *Config) RaftListenString() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.RaftServerPort)
-}
 */
 
 // maxInt is the largest integer representable by a word (architeture dependent).
