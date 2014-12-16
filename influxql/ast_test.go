@@ -160,3 +160,52 @@ func TestFold_WithoutNow(t *testing.T) {
 		t.Fatalf("unexpected expr: %s", s)
 	}
 }
+
+// Ensure the time range of an expression can be extracted.
+func TestTimeRange(t *testing.T) {
+	for i, tt := range []struct {
+		expr     string
+		min, max string
+	}{
+		// LHS VarRef
+		{expr: `time > "2000-01-01 00:00:00"`, min: `2000-01-01 00:00:00.000001`, max: `0001-01-01 00:00:00`},
+		{expr: `time >= "2000-01-01 00:00:00"`, min: `2000-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `time < "2000-01-01 00:00:00"`, min: `0001-01-01 00:00:00`, max: `1999-12-31 23:59:59.999999`},
+		{expr: `time <= "2000-01-01 00:00:00"`, min: `0001-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
+
+		// RHS VarRef
+		{expr: `"2000-01-01 00:00:00" > time`, min: `0001-01-01 00:00:00`, max: `1999-12-31 23:59:59.999999`},
+		{expr: `"2000-01-01 00:00:00" >= time`, min: `0001-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
+		{expr: `"2000-01-01 00:00:00" < time`, min: `2000-01-01 00:00:00.000001`, max: `0001-01-01 00:00:00`},
+		{expr: `"2000-01-01 00:00:00" <= time`, min: `2000-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+
+		// Equality
+		{expr: `time = "2000-01-01 00:00:00"`, min: `2000-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
+
+		// Multiple time expressions.
+		{expr: `time >= "2000-01-01 00:00:00" AND time < "2000-01-02 00:00:00"`, min: `2000-01-01 00:00:00`, max: `2000-01-01 23:59:59.999999`},
+
+		// Min/max crossover
+		{expr: `time >= "2000-01-01 00:00:00" AND time <= "1999-01-01 00:00:00"`, min: `2000-01-01 00:00:00`, max: `1999-01-01 00:00:00`},
+
+		// Non-comparative expressions.
+		{expr: `time`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `time + 2`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `time - "2000-01-01 00:00:00"`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `time AND "2000-01-01 00:00:00"`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+	} {
+		// Extract time range.
+		expr := MustParseExpr(tt.expr)
+		min, max := influxql.TimeRange(expr)
+
+		// Compare with expected min/max.
+		if min := min.Format(influxql.TimeFormat); tt.min != min {
+			t.Errorf("%d. %s: unexpected min:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.min, min)
+			continue
+		}
+		if max := max.Format(influxql.TimeFormat); tt.max != max {
+			t.Errorf("%d. %s: unexpected max:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.max, max)
+			continue
+		}
+	}
+}

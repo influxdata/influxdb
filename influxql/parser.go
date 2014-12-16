@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// TimeFormat represents the format for time literals.
+const TimeFormat = "2006-01-02 15:04:05.999999"
+
 // Parser represents an InfluxQL parser.
 type Parser struct {
 	s *bufScanner
@@ -826,6 +829,14 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 			return &VarRef{Val: lit}, nil
 		}
 	case STRING:
+		// If literal looks like a date time then parse it as a time literal.
+		if isTimeString(lit) {
+			t, err := time.Parse(TimeFormat, lit)
+			if err != nil {
+				return nil, &ParseError{Message: "unable to parse time", Pos: pos}
+			}
+			return &TimeLiteral{Val: t}, nil
+		}
 		return &StringLiteral{Val: lit}, nil
 	case NUMBER:
 		v, err := strconv.ParseFloat(lit, 64)
@@ -1000,6 +1011,11 @@ func split(s string) (a []rune) {
 	}
 	return
 }
+
+// isTimeString returns true if the string looks like a time literal.
+func isTimeString(s string) bool { return timeStringRegexp.MatchString(s) }
+
+var timeStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$`)
 
 // ErrInvalidDuration is returned when parsing a malformatted duration.
 var ErrInvalidDuration = errors.New("invalid duration")

@@ -801,7 +801,7 @@ type TimeLiteral struct {
 
 // String returns a string representation of the literal.
 func (l *TimeLiteral) String() string {
-	return `"` + l.Val.UTC().Format("2006-01-02 15:04:05.999999") + `"`
+	return `"` + l.Val.UTC().Format(TimeFormat) + `"`
 }
 
 // DurationLiteral represents a duration literal.
@@ -1057,6 +1057,72 @@ func foldDurationNumberLiterals(expr *BinaryExpr) Expr {
 // The Visit() function is called once per node.
 type Visitor interface {
 	Visit(Node) Visitor
+}
+
+// TimeRange returns the minimum and maximum times specified by an expression.
+// Returns zero times if there is no bound.
+func TimeRange(expr Expr) (min, max time.Time) {
+	WalkFunc(expr, func(n Node) {
+		if n, ok := n.(*BinaryExpr); ok {
+			// Extract literal expression & operator on LHS.
+			// Check for "time" on the left-hand side first.
+			// Otherwise check for for the right-hand side and flip the operator.
+			value, op := timeExprValue(n.LHS, n.RHS), n.Op
+			if value.IsZero() {
+				if value = timeExprValue(n.RHS, n.LHS); value.IsZero() {
+					return
+				} else if op == LT {
+					op = GT
+				} else if op == LTE {
+					op = GTE
+				} else if op == GT {
+					op = LT
+				} else if op == GTE {
+					op = LTE
+				}
+			}
+
+			// Update the min/max depending on the operator.
+			// The GT & LT update the value by +/- 1µs not make them "not equal".
+			switch op {
+			case GT:
+				if min.IsZero() || value.After(min) {
+					min = value.Add(time.Microsecond)
+				}
+			case GTE:
+				if min.IsZero() || value.After(min) {
+					min = value
+				}
+			case LT:
+				if max.IsZero() || value.Before(max) {
+					max = value.Add(-time.Microsecond)
+				}
+			case LTE:
+				if max.IsZero() || value.Before(max) {
+					max = value
+				}
+			case EQ:
+				if min.IsZero() || value.After(min) {
+					min = value
+				}
+				if max.IsZero() || value.Before(max) {
+					max = value
+				}
+			}
+		}
+	})
+	return
+}
+
+// timeExprValue returns the time literal value of a "time == <TimeLiteral>" expression.
+// Returns zero time if the expression is not a time expression.
+func timeExprValue(ref Expr, lit Expr) time.Time {
+	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
+		if lit, ok := lit.(*TimeLiteral); ok {
+			return lit.Val
+		}
+	}
+	return time.Time{}
 }
 
 // Walk traverses a node hierarchy in depth-first order.
