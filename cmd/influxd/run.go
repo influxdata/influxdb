@@ -76,9 +76,6 @@ func execRun(args []string) {
 			log.Fatal(err)
 		}
 		storageDirExists = true
-
-		// Flag that local mode is required.
-		ioutil.WriteFile(filepath.Join(config.Storage.Dir, "local"), nil, 0644)
 	}
 
 	// If the Broker directory exists, open a Broker on this node.
@@ -94,10 +91,10 @@ func execRun(args []string) {
 	if storageDirExists {
 		var client influxdb.MessagingClient
 		var server *influxdb.Server
-		if _, err := os.Stat(filepath.Join(config.Storage.Dir, "local")); err == nil {
-			client = messaging.NewLoopbackClient()
-			log.Printf("Local messaging client created")
-		} else {
+
+		clientFilePath := filepath.Join(config.Storage.Dir, messagingClientFile)
+
+		if _, err := os.Stat(clientFilePath); err == nil {
 			var brokerURLs []*url.URL
 			for _, s := range strings.Split(*seedServers, ",") {
 				u, err := url.Parse(s)
@@ -108,12 +105,15 @@ func execRun(args []string) {
 			}
 
 			c := messaging.NewClient("XXX-CHANGEME-XXX")
-			if err := c.Open(brokerURLs); err != nil {
+			if err := c.Open(clientFilePath, brokerURLs); err != nil {
 				log.Fatalf("Error opening Messaging Client: %s", err.Error())
 			}
 			defer c.Close()
 			client = c
 			log.Printf("Cluster messaging client created")
+		} else {
+			client = messaging.NewLoopbackClient()
+			log.Printf("Local messaging client created")
 		}
 
 		server = influxdb.NewServer(client)

@@ -2,8 +2,10 @@ package messaging
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -17,6 +19,19 @@ import (
 // DefaultReconnectTimeout is the default time to wait between when a broker
 // stream disconnects and another connection is retried.
 const DefaultReconnectTimeout = 100 * time.Millisecond
+
+// ClientConfig represents the Client configuration that must be persisted
+// across restarts.
+type ClientConfig struct {
+	Brokers []*url.URL `json:"brokers"`
+}
+
+// NewClientConfig returns a new instance of ClientConfig.
+func NewClientConfig(u []*url.URL) *ClientConfig {
+	return &ClientConfig{
+		Brokers: u,
+	}
+}
 
 // Client represents a client for the broker's HTTP API.
 // Once opened, the client will stream down all messages that
@@ -72,21 +87,58 @@ func (c *Client) LeaderURL() *url.URL {
 	return c.urls[0]
 }
 
-// Open initializes and opens the connection to the broker cluster.
-func (c *Client) Open(urls []*url.URL) error {
+// Open initializes and opens the connection to the cluster. The
+// URLs used to contact the cluster are either those supplied to
+// the function, or if none are supplied, are read from the file
+// at "path". These URLs do need to be URLs of actual Brokers.
+// Regardless of URL source, at least 1 URL must be available
+// for the client to be successfully opened.
+func (c *Client) Open(path string, urls []*url.URL) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// Return error if the client is already open.
-	// Require at least one broker URL.
 	if c.opened {
 		return ErrClientOpen
-	} else if len(urls) == 0 {
+	}
+
+	var seedUrls []*url.URL
+	var config ClientConfig
+
+	// Determine which seed URLs to use.
+	if len(urls) > 0 {
+		seedUrls = urls
+	} else {
+		// Read URLs from config file. There is no guarantee
+		// that the Brokers URLs in the config file are still
+		// the Brokers, so we're going to double-check.
+		b, err := ioutil.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(b, &config); err != nil {
+			return err
+		}
+		seedUrls = config.Brokers
+	}
+
+	if len(seedUrls) < 1 {
 		return ErrBrokerURLRequired
 	}
 
-	// Set the URLs to connect to on the client.
-	c.urls = urls
+	// Now that we have the seed URLs, actually use these to
+	// get the actual Broker URLs. Do that here.
+	config.Brokers = seedUrls // Let's pretend they are the same
+
+	// Record our Broker URLs.
+	b, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(path, b, 0644); err != nil {
+		return err
+	}
 
 	// Create a channel for streaming messages.
 	c.c = make(chan *Message, 0)

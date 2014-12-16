@@ -3,7 +3,10 @@ package main
 import (
 	"flag"
 	"log"
+	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/influxdb/influxdb/messaging"
 )
@@ -28,9 +31,9 @@ func execJoinCluster(args []string) {
 
 	// Validate command line arguments.
 	if *seedServers == "" {
-		log.Fatal("at least one seed server must be supplied")
+		log.Fatalf("at least one seed server must be supplied")
 	} else if *role != "combined" && *role != "broker" && *role != "data" {
-		log.Fatal("node must join as 'combined', 'broker', or 'data'")
+		log.Fatalf("node must join as 'combined', 'broker', or 'data'")
 	}
 
 	// If joining as broker then create broker.
@@ -45,9 +48,33 @@ func execJoinCluster(args []string) {
 
 	// If joining as a data node then create a data directory.
 	if *role == "combined" || *role == "data" {
-		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
-			log.Fatal(err)
+		if _, err := os.Stat(config.Storage.Dir); err == nil {
+			log.Fatalf("join-cluster: storage directory already exists")
 		}
+
+		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
+			log.Fatalf("join-cluster storage: %s", err.Error())
+		}
+
+		// Configure the Messaging Client.
+		var seedURLs []*url.URL
+
+		for _, s := range strings.Split(*seedServers, ",") {
+			u, err := url.Parse(s)
+			if err != nil {
+				log.Fatalf("seed server: %s", err)
+			}
+			seedURLs = append(seedURLs, u)
+		}
+
+		c := messaging.NewClient("XXX-CHANGEME-XXX")
+		if err := c.Open(filepath.Join(config.Storage.Dir, messagingClientFile), seedURLs); err != nil {
+			log.Fatalf("join-cluster open client: %s", err.Error())
+		}
+		if err := c.Close(); err != nil {
+			log.Fatalf("join-cluster close client: %s", err.Error())
+		}
+
 	}
 
 	log.Printf("joined cluster at %s", *seedServers)

@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"log"
+	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/influxdb/influxdb/messaging"
 )
@@ -44,13 +46,31 @@ func execCreateCluster(args []string) {
 	// If the node is a broker and data node then create the data directory.
 	if *role == "combined" {
 		if _, err := os.Stat(config.Cluster.Dir); err == nil {
-			log.Fatal("data directory already exists")
+			log.Fatalf("create-cluster: data directory already exists")
 		}
 
 		// Now create the storage directory.
 		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
-			log.Fatal(err)
+			log.Fatalf("create-cluster storage: %s", err.Error())
 		}
+
+		// Configure the Messaging Client such that this node connects to itself.
+		var seedUrls []*url.URL
+
+		u, err := url.Parse(config.RaftListenAddr())
+		if err != nil {
+			log.Fatalf("create-cluster seed URLs: %s", err.Error())
+		}
+		seedUrls = append(seedUrls, u)
+
+		c := messaging.NewClient("XXX-CHANGEME-XXX")
+		if err := c.Open(filepath.Join(config.Storage.Dir, messagingClientFile), seedUrls); err != nil {
+			log.Fatalf("create-cluster open client: %s", err.Error())
+		}
+		if err := c.Close(); err != nil {
+			log.Fatalf("create-cluster close client: %s", err.Error())
+		}
+
 	}
 
 	log.Println("new cluster node created as", *role, "in", config.Raft.Dir)
