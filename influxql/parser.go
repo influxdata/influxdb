@@ -759,7 +759,7 @@ func (p *Parser) parseSortFields() (SortFields, error) {
 	// Parse additional fields.
 	for {
 		tok, _, _ := p.scanIgnoreWhitespace()
-		
+
 		if tok != COMMA {
 			p.unscan()
 			break

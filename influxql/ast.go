@@ -77,8 +77,8 @@ func (_ *DurationLiteral) node() {}
 func (_ *BinaryExpr) node()      {}
 func (_ *ParenExpr) node()       {}
 func (_ *Wildcard) node()        {}
-func (_ SortFields) node()    {}
-func (_ *SortField) node()    {}
+func (_ SortFields) node()       {}
+func (_ *SortField) node()       {}
 
 // Query represents a collection of ordered statements.
 type Query struct {
@@ -273,7 +273,7 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 		Fields:     Fields{{Expr: ref}},
 		Dimensions: s.Dimensions,
 		Limit:      s.Limit,
-		SortFields:    s.SortFields,
+		SortFields: s.SortFields,
 	}
 
 	// If there is only one series source then return it with the whole condition.
@@ -382,7 +382,7 @@ func (s *DeleteStatement) String() string {
 }
 
 // ListSeriesStatement represents a command for listing series in the database.
-type ListSeriesStatement struct{
+type ListSeriesStatement struct {
 	// An expression evaluated on a series name or tag.
 	Condition Expr
 
@@ -465,7 +465,7 @@ type ListMeasurementsStatement struct {
 
 // String returns a string representation of the statement.
 func (s *ListMeasurementsStatement) String() string {
-		var buf bytes.Buffer
+	var buf bytes.Buffer
 	_, _ = buf.WriteString("LIST MEASUREMENTS")
 
 	if s.Condition != nil {
@@ -501,7 +501,7 @@ type ListTagKeysStatement struct {
 
 // String returns a string representation of the statement.
 func (s *ListTagKeysStatement) String() string {
-		var buf bytes.Buffer
+	var buf bytes.Buffer
 	_, _ = buf.WriteString("LIST TAG KEYS")
 
 	if s.Source != nil {
@@ -541,7 +541,7 @@ type ListTagValuesStatement struct {
 
 // String returns a string representation of the statement.
 func (s *ListTagValuesStatement) String() string {
-		var buf bytes.Buffer
+	var buf bytes.Buffer
 	_, _ = buf.WriteString("LIST TAG VALUES")
 
 	if s.Source != nil {
@@ -581,7 +581,7 @@ type ListFieldKeysStatement struct {
 
 // String returns a string representation of the statement.
 func (s *ListFieldKeysStatement) String() string {
-		var buf bytes.Buffer
+	var buf bytes.Buffer
 	_, _ = buf.WriteString("LIST FIELD KEYS")
 
 	if s.Source != nil {
@@ -621,7 +621,7 @@ type ListFieldValuesStatement struct {
 
 // String returns a string representation of the statement.
 func (s *ListFieldValuesStatement) String() string {
-		var buf bytes.Buffer
+	var buf bytes.Buffer
 	_, _ = buf.WriteString("LIST FIELD VALUES")
 
 	if s.Source != nil {
@@ -642,6 +642,7 @@ func (s *ListFieldValuesStatement) String() string {
 	}
 	return buf.String()
 }
+
 // Fields represents a list of fields.
 type Fields []*Field
 

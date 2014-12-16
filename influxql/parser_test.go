@@ -74,7 +74,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Dimensions: influxql.Dimensions{
 					&influxql.Dimension{Expr: &influxql.DurationLiteral{Val: 10 * time.Hour}},
 				},
-				Limit:     20,
+				Limit: 20,
 				SortFields: influxql.SortFields{
 					&influxql.SortField{Ascending: true},
 				},
@@ -127,9 +127,9 @@ func TestParser_ParseStatement(t *testing.T) {
 				Fields: influxql.Fields{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Series{Name: "myseries"},
 				SortFields: influxql.SortFields{
-					&influxql.SortField{Ascending: true,},
-					&influxql.SortField{Name: "field1",},
-					&influxql.SortField{Name: "field2",},
+					&influxql.SortField{Ascending: true},
+					&influxql.SortField{Name: "field1"},
+					&influxql.SortField{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -156,17 +156,17 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// LIST SERIES WHERE with ORDER BY and LIMIT
 		{
-			s:    `LIST SERIES WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `LIST SERIES WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ListSeriesStatement{
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.EQ,
+					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: influxql.SortFields{
-					&influxql.SortField{Ascending: true,},
-					&influxql.SortField{Name: "field1",},
-					&influxql.SortField{Name: "field2",},
+					&influxql.SortField{Ascending: true},
+					&influxql.SortField{Name: "field1"},
+					&influxql.SortField{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -174,17 +174,17 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// LIST MEASUREMENTS WHERE with ORDER BY and LIMIT
 		{
-			s:    `LIST MEASUREMENTS WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `LIST MEASUREMENTS WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ListMeasurementsStatement{
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.EQ,
+					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: influxql.SortFields{
-					&influxql.SortField{Ascending: true,},
-					&influxql.SortField{Name: "field1",},
-					&influxql.SortField{Name: "field2",},
+					&influxql.SortField{Ascending: true},
+					&influxql.SortField{Name: "field1"},
+					&influxql.SortField{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -192,18 +192,18 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// LIST TAG KEYS
 		{
-			s:    `LIST TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `LIST TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ListTagKeysStatement{
 				Source: &influxql.Series{Name: "src"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.EQ,
+					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: influxql.SortFields{
-					&influxql.SortField{Ascending: true,},
-					&influxql.SortField{Name: "field1",},
-					&influxql.SortField{Name: "field2",},
+					&influxql.SortField{Ascending: true},
+					&influxql.SortField{Name: "field1"},
+					&influxql.SortField{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -211,18 +211,18 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// LIST TAG VALUES
 		{
-			s:    `LIST TAG VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `LIST TAG VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ListTagValuesStatement{
 				Source: &influxql.Series{Name: "src"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.EQ,
+					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: influxql.SortFields{
-					&influxql.SortField{Ascending: true,},
-					&influxql.SortField{Name: "field1",},
-					&influxql.SortField{Name: "field2",},
+					&influxql.SortField{Ascending: true},
+					&influxql.SortField{Name: "field1"},
+					&influxql.SortField{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -230,18 +230,18 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// LIST FIELD KEYS
 		{
-			s:    `LIST FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `LIST FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ListFieldKeysStatement{
 				Source: &influxql.Series{Name: "src"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.EQ,
+					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: influxql.SortFields{
-					&influxql.SortField{Ascending: true,},
-					&influxql.SortField{Name: "field1",},
-					&influxql.SortField{Name: "field2",},
+					&influxql.SortField{Ascending: true},
+					&influxql.SortField{Name: "field1"},
+					&influxql.SortField{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -249,18 +249,18 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// LIST FIELD VALUES
 		{
-			s:    `LIST FIELD VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `LIST FIELD VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ListFieldValuesStatement{
 				Source: &influxql.Series{Name: "src"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.EQ,
+					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: influxql.SortFields{
-					&influxql.SortField{Ascending: true,},
-					&influxql.SortField{Name: "field1",},
-					&influxql.SortField{Name: "field2",},
+					&influxql.SortField{Ascending: true},
+					&influxql.SortField{Name: "field1"},
+					&influxql.SortField{Name: "field2"},
 				},
 				Limit: 10,
 			},
