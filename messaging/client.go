@@ -130,7 +130,7 @@ func (c *Client) Open(path string, urls []*url.URL) error {
 	// get the actual Broker URLs. Do that here.
 	config.Brokers = seedUrls // Let's pretend they are the same
 
-	// Record our Broker URLs.
+	// Write the Broker URLs to disk.
 	b, err := json.Marshal(config)
 	if err != nil {
 		return err
@@ -139,6 +139,9 @@ func (c *Client) Open(path string, urls []*url.URL) error {
 	if err := ioutil.WriteFile(path, b, 0644); err != nil {
 		return err
 	}
+
+	//  Actually use the URLs for connection from now on.
+	c.urls = config.Brokers
 
 	// Create a channel for streaming messages.
 	c.c = make(chan *Message, 0)
