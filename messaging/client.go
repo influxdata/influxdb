@@ -36,9 +36,9 @@ func NewClientConfig(u []*url.URL) *ClientConfig {
 // Client represents a client for the broker's HTTP API.
 // Once opened, the client will stream down all messages that
 type Client struct {
-	mu   sync.Mutex
-	name string     // the name of the client connecting.
-	urls []*url.URL // list of URLs for all known brokers.
+	mu     sync.Mutex
+	name   string       // the name of the client connecting.
+	config ClientConfig // The Client state that must be persisted to disk.
 
 	opened bool
 	done   chan chan struct{} // disconnection notification
@@ -74,7 +74,7 @@ func (c *Client) C() <-chan *Message { return c.c }
 func (c *Client) URLs() []*url.URL {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.urls
+	return c.config.Brokers
 }
 
 // LeaderURL returns the URL of the broker leader.
@@ -84,7 +84,7 @@ func (c *Client) LeaderURL() *url.URL {
 
 	// TODO(benbjohnson): Actually keep track of the leader.
 	// HACK(benbjohnson): For testing, just grab a url.
-	return c.urls[0]
+	return c.config.Brokers[0]
 }
 
 // Open initializes and opens the connection to the cluster. The
@@ -103,7 +103,6 @@ func (c *Client) Open(path string, urls []*url.URL) error {
 	}
 
 	var seedUrls []*url.URL
-	var config ClientConfig
 
 	// Determine which seed URLs to use.
 	if len(urls) > 0 {
@@ -116,10 +115,10 @@ func (c *Client) Open(path string, urls []*url.URL) error {
 		if err != nil {
 			return err
 		}
-		if err := json.Unmarshal(b, &config); err != nil {
+		if err := json.Unmarshal(b, &c.config); err != nil {
 			return err
 		}
-		seedUrls = config.Brokers
+		seedUrls = c.config.Brokers
 	}
 
 	if len(seedUrls) < 1 {
@@ -128,10 +127,10 @@ func (c *Client) Open(path string, urls []*url.URL) error {
 
 	// Now that we have the seed URLs, actually use these to
 	// get the actual Broker URLs. Do that here.
-	config.Brokers = seedUrls // Let's pretend they are the same
+	c.config.Brokers = seedUrls // Let's pretend they are the same
 
 	// Write the Broker URLs to disk.
-	b, err := json.Marshal(config)
+	b, err := json.Marshal(c.config.Brokers)
 	if err != nil {
 		return err
 	}
@@ -139,9 +138,6 @@ func (c *Client) Open(path string, urls []*url.URL) error {
 	if err := ioutil.WriteFile(path, b, 0644); err != nil {
 		return err
 	}
-
-	//  Actually use the URLs for connection from now on.
-	c.urls = config.Brokers
 
 	// Create a channel for streaming messages.
 	c.c = make(chan *Message, 0)
