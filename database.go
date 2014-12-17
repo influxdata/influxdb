@@ -353,10 +353,9 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 
 func (db *Database) applyCreateSeriesIfNotExists(name string, tags map[string]string) error {
 	db.mu.RLock()
-	dbName := db.name
-	db.mu.RUnlock()
+	defer db.mu.RUnlock()
 	return db.server.meta.mustUpdate(func(tx *metatx) error {
-		return tx.createSeriesIfNotExists(dbName, name, tags)
+		return tx.createSeriesIfNotExists(db.name, name, tags)
 	})
 }
 
@@ -527,7 +526,7 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (db *Database) Series() (a []*Measurement) {
+func (db *Database) Measurements() (a []*Measurement) {
 	db.mu.RLock()
 	m := db.server.meta
 	db.mu.RUnlock()
