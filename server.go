@@ -798,11 +798,15 @@ func (m *metastore) update(fn func(*metatx) error) error {
 }
 
 // mustUpdate executes a function in the context of a read-write transaction.
-// Panics if update returns an error.
-func (m *metastore) mustUpdate(fn func(*metatx) error) {
-	if err := m.update(fn); err != nil {
+// Panics if a disk or system error occurs. Return error from the fn for validation errors.
+func (m *metastore) mustUpdate(fn func(*metatx) error) (err error) {
+	if e := m.update(func(tx *metatx) error {
+		err = fn(tx)
+		return nil
+	}); e != nil {
 		panic("metastore update: " + err.Error())
 	}
+	return
 }
 
 // metatx represents a metastore transaction.
@@ -841,7 +845,7 @@ func (tx *metatx) saveDatabase(db *Database) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.CreateBucketIfNotExists([]byte("SeriesIDToTags"))
+	_, err = b.CreateBucketIfNotExists([]byte("Series"))
 	if err != nil {
 		return err
 	}
@@ -901,18 +905,19 @@ func (tx *metatx) createSeriesIfNotExists(database, name string, tags map[string
 	}
 
 	// store the tag map for the series
-	b, err = db.Bucket([]byte("SeriesIDToTags")).CreateBucketIfNotExists([]byte(name))
+	b, err = db.Bucket([]byte("Series")).CreateBucketIfNotExists([]byte(name))
 	if err != nil {
 		return err
 	}
 
-	return b.Put(idBytes, mustMarshalJSON(tags))
+	s := &Series{ID: uint32(id), Tags: tags}
+	return b.Put(idBytes, mustMarshalJSON(s))
 }
 
 // series returns all the measurements and series in a database
-func (tx *metatx) series(database string) []*Measurement {
+func (tx *metatx) measurements(database string) []*Measurement {
 	// get the bucket that holds series data for the database
-	b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("SeriesIDToTags"))
+	b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series"))
 
 	measurements := make([]*Measurement, 0)
 	c := b.Cursor()
@@ -920,9 +925,9 @@ func (tx *metatx) series(database string) []*Measurement {
 		mc := b.Bucket(k).Cursor()
 		m := &Measurement{Name: string(k), Series: make([]*Series, 0)}
 		for id, v := mc.First(); id != nil; id, v = mc.Next() {
-			var t map[string]string
-			mustUnmarshalJSON(v, &t)
-			m.Series = append(m.Series, &Series{ID: *(*uint32)(unsafe.Pointer(&id[0])), Tags: t})
+			var s *Series
+			mustUnmarshalJSON(v, &s)
+			m.Series = append(m.Series, s)
 		}
 		measurements = append(measurements, m)
 	}

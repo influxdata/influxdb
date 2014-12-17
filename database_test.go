@@ -458,10 +458,7 @@ func TestDatabase_Series(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := db.Series()
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := db.Series()
 	resultContains(r, t, "cpu_load", tags)
 }
 

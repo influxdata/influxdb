@@ -352,12 +352,12 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 }
 
 func (db *Database) applyCreateSeriesIfNotExists(name string, tags map[string]string) error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	db.server.meta.mustUpdate(func(tx *metatx) error {
-		return tx.createSeriesIfNotExists(db.name, name, tags)
+	db.mu.RLock()
+	dbName := db.name
+	db.mu.RUnlock()
+	return db.server.meta.mustUpdate(func(tx *metatx) error {
+		return tx.createSeriesIfNotExists(dbName, name, tags)
 	})
-	return nil
 }
 
 // WriteSeries writes series data to the database.
@@ -527,25 +527,49 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (db *Database) Series() ([]*Measurement, error) {
+func (db *Database) Series() (a []*Measurement) {
 	db.mu.RLock()
 	m := db.server.meta
 	db.mu.RUnlock()
 
-	var measurements []*Measurement
 	m.view(func(tx *metatx) error {
-		measurements = tx.series(db.name)
+		a = tx.measurements(db.name)
 		return nil
 	})
-
-	return measurements, nil
+	return
 }
 
 // Measurement represents a collection of time series in a database
 type Measurement struct {
 	Name   string
 	Series []*Series
+	Fields []*Fields
 }
+
+// Field represents a series field.
+type Field struct {
+	ID   uint8  `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+	Type FieldType
+}
+
+type FieldType int
+
+const (
+	Int64 FieldType = iota
+	Float64
+	String
+	Boolean
+	Binary
+)
+
+// String returns a string representation of the field.
+func (f *Field) String() string {
+	return fmt.Sprintf("Name: %s, ID: %d", f.Name, f.ID)
+}
+
+// Fields represents a list of fields.
+type Fields []*Field
 
 // Series belong to a Measurement and represent unique time series in a database
 type Series struct {
