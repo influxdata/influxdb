@@ -2,8 +2,10 @@ package messaging
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -18,12 +20,25 @@ import (
 // stream disconnects and another connection is retried.
 const DefaultReconnectTimeout = 100 * time.Millisecond
 
+// ClientConfig represents the Client configuration that must be persisted
+// across restarts.
+type ClientConfig struct {
+	Brokers []*url.URL `json:"brokers"`
+}
+
+// NewClientConfig returns a new instance of ClientConfig.
+func NewClientConfig(u []*url.URL) *ClientConfig {
+	return &ClientConfig{
+		Brokers: u,
+	}
+}
+
 // Client represents a client for the broker's HTTP API.
 // Once opened, the client will stream down all messages that
 type Client struct {
-	mu   sync.Mutex
-	name string     // the name of the client connecting.
-	urls []*url.URL // list of URLs for all known brokers.
+	mu     sync.Mutex
+	name   string       // the name of the client connecting.
+	config ClientConfig // The Client state that must be persisted to disk.
 
 	opened bool
 	done   chan chan struct{} // disconnection notification
@@ -59,7 +74,7 @@ func (c *Client) C() <-chan *Message { return c.c }
 func (c *Client) URLs() []*url.URL {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.urls
+	return c.config.Brokers
 }
 
 // LeaderURL returns the URL of the broker leader.
@@ -69,24 +84,60 @@ func (c *Client) LeaderURL() *url.URL {
 
 	// TODO(benbjohnson): Actually keep track of the leader.
 	// HACK(benbjohnson): For testing, just grab a url.
-	return c.urls[0]
+	return c.config.Brokers[0]
 }
 
-// Open initializes and opens the connection to the broker cluster.
-func (c *Client) Open(urls []*url.URL) error {
+// Open initializes and opens the connection to the cluster. The
+// URLs used to contact the cluster are either those supplied to
+// the function, or if none are supplied, are read from the file
+// at "path". These URLs do need to be URLs of actual Brokers.
+// Regardless of URL source, at least 1 URL must be available
+// for the client to be successfully opened.
+func (c *Client) Open(path string, urls []*url.URL) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// Return error if the client is already open.
-	// Require at least one broker URL.
 	if c.opened {
 		return ErrClientOpen
-	} else if len(urls) == 0 {
+	}
+
+	var seedUrls []*url.URL
+
+	// Determine which seed URLs to use.
+	if len(urls) > 0 {
+		seedUrls = urls
+	} else {
+		// Read URLs from config file. There is no guarantee
+		// that the Brokers URLs in the config file are still
+		// the Brokers, so we're going to double-check.
+		b, err := ioutil.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(b, &c.config); err != nil {
+			return err
+		}
+		seedUrls = c.config.Brokers
+	}
+
+	if len(seedUrls) < 1 {
 		return ErrBrokerURLRequired
 	}
 
-	// Set the URLs to connect to on the client.
-	c.urls = urls
+	// Now that we have the seed URLs, actually use these to
+	// get the actual Broker URLs. Do that here.
+	c.config.Brokers = seedUrls // Let's pretend they are the same
+
+	// Write the Broker URLs to disk.
+	b, err := json.Marshal(c.config.Brokers)
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(path, b, 0644); err != nil {
+		return err
+	}
 
 	// Create a channel for streaming messages.
 	c.c = make(chan *Message, 0)

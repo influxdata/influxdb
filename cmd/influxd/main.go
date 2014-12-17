@@ -27,7 +27,8 @@ var (
 
 // Various constants used by the main package.
 const (
-	configDefaultPath string = "/etc/influxdb.conf"
+	configDefaultPath   string = "/etc/influxdb.conf"
+	messagingClientFile string = "messaging"
 )
 
 func main() {
