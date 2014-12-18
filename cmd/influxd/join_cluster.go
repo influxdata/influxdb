@@ -36,6 +36,15 @@ func execJoinCluster(args []string) {
 		log.Fatalf("node must join as 'combined', 'broker', or 'data'")
 	}
 
+	var seedURLs []*url.URL
+	for _, s := range strings.Split(*seedServers, ",") {
+		u, err := url.Parse(s)
+		if err != nil {
+			log.Fatalf("seed server: %s", err)
+		}
+		seedURLs = append(seedURLs, u)
+	}
+
 	// If joining as broker then create broker.
 	if *role == "combined" || *role == "broker" {
 		// Broker required -- but don't initialize it.
@@ -72,15 +81,6 @@ func execJoinCluster(args []string) {
 		}
 
 		// Configure the Messaging Client.
-		var seedURLs []*url.URL
-
-		for _, s := range strings.Split(*seedServers, ",") {
-			u, err := url.Parse(s)
-			if err != nil {
-				log.Fatalf("seed server: %s", err)
-			}
-			seedURLs = append(seedURLs, u)
-		}
 
 		c := messaging.NewClient("XXX-CHANGEME-XXX")
 		if err := c.Open(filepath.Join(config.Storage.Dir, messagingClientFile), seedURLs); err != nil {

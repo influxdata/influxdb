@@ -101,6 +101,14 @@ func (b *Broker) Initialize() error {
 	return nil
 }
 
+// Join joins an existing cluster.
+func (b *Broker) Join(u *url.URL) error {
+	if err := b.log.Join(u); err != nil {
+		return fmt.Errorf("raft: %s", err)
+	}
+	return nil
+}
+
 // Publish writes a message.
 // Returns the index of the message. Otherwise returns an error.
 func (b *Broker) Publish(m *Message) (uint64, error) {
