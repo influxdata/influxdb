@@ -44,6 +44,21 @@ func execJoinCluster(args []string) {
 		if err := b.Open(config.Raft.Dir); err != nil {
 			log.Fatalf("join: %s", err)
 		}
+
+		// Loop through each, connecting to one must succeed.
+		joined := false
+		for _, s := range seedURLs {
+			if err := b.Join(s); err == nil {
+				log.Println("join: connected successfully to", s)
+				joined = true
+				break
+			}
+			log.Println("error: join failed to connect to", s)
+		}
+
+		if !joined {
+			log.Fatalf("join: failed to connect to any seed server")
+		}
 	}
 
 	// If joining as a data node then create a data directory.

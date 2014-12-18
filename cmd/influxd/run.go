@@ -110,10 +110,8 @@ func execRun(args []string) {
 			}
 			defer c.Close()
 			client = c
-			log.Printf("Cluster messaging client created")
 		} else {
 			client = messaging.NewLoopbackClient()
-			log.Printf("Local messaging client created")
 		}
 
 		server = influxdb.NewServer(client)
