@@ -93,7 +93,7 @@ join-cluster creates a completely new node that will attempt to join an existing
                         'combined' means it will do both. The default is 'combined'. In role other than
                         these three is invalid.
 
-        -seedservers <servers>
+        -seed-servers <servers>
                         Set the list of servers the node should contact, to join the cluster. This
                         should be comma-delimited list of servers, in the form host:port. This option
                         is REQUIRED.

@@ -157,7 +157,7 @@ use Distributed Consensus, but is otherwise fully-functional.
         -hostname <name>
                                 Override the hostname, the 'hostname' configuration option will be overridden.
 
-        -seedservers <servers>
+        -seed-servers <servers>
                                 If joining a cluster, overrides any previously configured or discovered
                                 Data node seed servers.
 
