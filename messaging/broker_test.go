@@ -16,7 +16,18 @@ import (
 // Ensure that opening a broker without a path returns an error.
 func TestBroker_Open_ErrPathRequired(t *testing.T) {
 	b := messaging.NewBroker()
-	if err := b.Open(""); err != messaging.ErrPathRequired {
+	if err := b.Open("", "http://127.0.0.1:8080"); err != messaging.ErrPathRequired {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure that opening a broker without a connection address returns an error.
+func TestBroker_Open_ErrAddressRequired(t *testing.T) {
+	b := messaging.NewBroker()
+	f := tempfile()
+	defer os.Remove(f)
+
+	if err := b.Open(f, ""); err != messaging.ErrConnectionAddressRequired {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -190,7 +201,7 @@ type Broker struct {
 // NewBroker returns a new open tempoarary broker.
 func NewBroker() *Broker {
 	b := messaging.NewBroker()
-	if err := b.Open(tempfile()); err != nil {
+	if err := b.Open(tempfile(), "http://127.0.0.1:8080"); err != nil {
 		panic("open: " + err.Error())
 	}
 	if err := b.Initialize(); err != nil {

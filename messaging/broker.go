@@ -61,6 +61,11 @@ func (b *Broker) Open(path string, addr string) error {
 	}
 	b.path = path
 
+	// Require a non-blank connection address.
+	if addr == "" {
+		return ErrConnectionAddressRequired
+	}
+
 	// Open underlying raft log and set its connection URL.
 	if err := b.log.Open(filepath.Join(path, "raft")); err != nil {
 		return fmt.Errorf("raft: %s", err)
