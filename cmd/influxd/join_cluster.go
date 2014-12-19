@@ -36,13 +36,39 @@ func execJoinCluster(args []string) {
 		log.Fatalf("node must join as 'combined', 'broker', or 'data'")
 	}
 
+	var seedURLs []*url.URL
+	for _, s := range strings.Split(*seedServers, ",") {
+		u, err := url.Parse(s)
+		if err != nil {
+			log.Fatalf("seed server: %s", err)
+		}
+		seedURLs = append(seedURLs, u)
+	}
+
 	// If joining as broker then create broker.
 	if *role == "combined" || *role == "broker" {
 		// Broker required -- but don't initialize it.
 		// Joining a cluster will do that.
 		b := messaging.NewBroker()
-		if err := b.Open(config.Raft.Dir); err != nil {
+		if err := b.Open(config.Raft.Dir, config.RaftConnectionString()); err != nil {
 			log.Fatalf("join: %s", err)
+		}
+
+		// Loop through each, connecting to one must succeed.
+		joined := false
+		for _, s := range seedURLs {
+			err := b.Join(s)
+			if err != nil {
+				log.Println("error: join failed to connect to", s, err)
+			} else {
+				log.Println("join: connected successfully to", s)
+				joined = true
+				break
+			}
+		}
+
+		if !joined {
+			log.Fatalf("join: failed to connect to any seed server")
 		}
 	}
 
@@ -57,15 +83,6 @@ func execJoinCluster(args []string) {
 		}
 
 		// Configure the Messaging Client.
-		var seedURLs []*url.URL
-
-		for _, s := range strings.Split(*seedServers, ",") {
-			u, err := url.Parse(s)
-			if err != nil {
-				log.Fatalf("seed server: %s", err)
-			}
-			seedURLs = append(seedURLs, u)
-		}
 
 		c := messaging.NewClient("XXX-CHANGEME-XXX")
 		if err := c.Open(filepath.Join(config.Storage.Dir, messagingClientFile), seedURLs); err != nil {
@@ -77,7 +94,7 @@ func execJoinCluster(args []string) {
 
 	}
 
-	log.Printf("joined cluster at %s", *seedServers)
+	log.Printf("joined cluster as '%s' at %s", *role, *seedServers)
 }
 
 func printJoinClusterUsage() {

@@ -81,7 +81,7 @@ func execRun(args []string) {
 	// If the Broker directory exists, open a Broker on this node.
 	if brokerDirExists {
 		b := messaging.NewBroker()
-		if err := b.Open(config.Raft.Dir); err != nil {
+		if err := b.Open(config.Raft.Dir, config.RaftConnectionString()); err != nil {
 			log.Fatalf("failed to open Broker", err.Error())
 		}
 		brokerHandler = messaging.NewHandler(b)
@@ -110,10 +110,8 @@ func execRun(args []string) {
 			}
 			defer c.Close()
 			client = c
-			log.Printf("Cluster messaging client created")
 		} else {
 			client = messaging.NewLoopbackClient()
-			log.Printf("Local messaging client created")
 		}
 
 		server = influxdb.NewServer(client)

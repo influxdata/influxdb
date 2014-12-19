@@ -94,7 +94,7 @@ type HTTPTransport struct{}
 func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, *Config, error) {
 	// Construct URL.
 	u := *uri
-	u.Path = path.Join(u.Path, "join")
+	u.Path = path.Join(u.Path, "raft/join")
 	u.RawQuery = (&url.Values{"url": {nodeURL.String()}}).Encode()
 
 	// Send HTTP request.
@@ -134,7 +134,7 @@ func (t *HTTPTransport) Leave(uri *url.URL, id uint64) error {
 func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint64) (uint64, uint64, error) {
 	// Construct URL.
 	u := *uri
-	u.Path = path.Join(u.Path, "heartbeat")
+	u.Path = path.Join(u.Path, "raft/heartbeat")
 
 	// Set URL parameters.
 	v := &url.Values{}
@@ -176,7 +176,7 @@ func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint
 func (t *HTTPTransport) ReadFrom(uri *url.URL, id, term, index uint64) (io.ReadCloser, error) {
 	// Construct URL.
 	u := *uri
-	u.Path = path.Join(u.Path, "stream")
+	u.Path = path.Join(u.Path, "raft/stream")
 
 	// Set URL parameters.
 	v := &url.Values{}
@@ -204,7 +204,7 @@ func (t *HTTPTransport) ReadFrom(uri *url.URL, id, term, index uint64) (io.ReadC
 func (t *HTTPTransport) RequestVote(uri *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
 	// Construct URL.
 	u := *uri
-	u.Path = path.Join(u.Path, "vote")
+	u.Path = path.Join(u.Path, "raft/vote")
 
 	// Set URL parameters.
 	v := &url.Values{}

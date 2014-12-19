@@ -162,6 +162,11 @@ func (c *Config) RaftListenAddr() string {
 	return fmt.Sprintf("%s:%d", c.BindAddress, c.Raft.Port)
 }
 
+// RaftConnectionString returns the address required to contact the Raft server
+func (c *Config) RaftConnectionString() string {
+	return fmt.Sprintf("http://%s:%d", c.Hostname, c.Raft.Port)
+}
+
 // Size represents a TOML parseable file size.
 // Users can specify size using "m" for megabytes and "g" for gigabytes.
 type Size int
@@ -261,10 +266,6 @@ func (c *Config) UDPInputPortString(port int) string {
 
 func (c *Config) ProtobufConnectionString() string {
 	return fmt.Sprintf("%s:%d", c.Hostname, c.ProtobufPort)
-}
-
-func (c *Config) RaftConnectionString() string {
-	return fmt.Sprintf("http://%s:%d", c.Hostname, c.RaftServerPort)
 }
 
 func (c *Config) ProtobufListenString() string {

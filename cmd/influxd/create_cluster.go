@@ -34,7 +34,7 @@ func execCreateCluster(args []string) {
 
 	// Create the broker.
 	b := messaging.NewBroker()
-	if err := b.Open(config.Raft.Dir); err != nil {
+	if err := b.Open(config.Raft.Dir, config.RaftConnectionString()); err != nil {
 		log.Fatalf("broker: %s", err.Error())
 	}
 
