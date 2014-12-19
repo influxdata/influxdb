@@ -130,14 +130,14 @@ func execRun(args []string) {
 	// Start up HTTP server(s)
 	if config.ApiHTTPListenAddr() != config.RaftListenAddr() {
 		if serverHandler != nil {
-			func() { log.Fatal(http.ListenAndServe(config.ApiHTTPListenAddr(), serverHandler)) }()
+			go func() { log.Fatal(http.ListenAndServe(config.ApiHTTPListenAddr(), serverHandler)) }()
 		}
 		if brokerHandler != nil {
-			func() { log.Fatal(http.ListenAndServe(config.RaftListenAddr(), brokerHandler)) }()
+			go func() { log.Fatal(http.ListenAndServe(config.RaftListenAddr(), brokerHandler)) }()
 		}
 	} else {
 		h := NewHandler(brokerHandler, serverHandler)
-		func() { log.Fatal(http.ListenAndServe(config.ApiHTTPListenAddr(), h)) }()
+		go func() { log.Fatal(http.ListenAndServe(config.ApiHTTPListenAddr(), h)) }()
 	}
 
 	// Wait indefinitely.
