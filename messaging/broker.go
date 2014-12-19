@@ -51,7 +51,7 @@ func (b *Broker) opened() bool { return b.path != "" }
 
 // Open initializes the log.
 // The broker then must be initialized or join a cluster before it can be used.
-func (b *Broker) Open(path string, connectionAddr string) error {
+func (b *Broker) Open(path string, addr string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -65,7 +65,7 @@ func (b *Broker) Open(path string, connectionAddr string) error {
 	if err := b.log.Open(filepath.Join(path, "raft")); err != nil {
 		return fmt.Errorf("raft: %s", err)
 	}
-	u, err := url.Parse(connectionAddr)
+	u, err := url.Parse(addr)
 	if err != nil {
 		return fmt.Errorf("broker: %s", err)
 	}
