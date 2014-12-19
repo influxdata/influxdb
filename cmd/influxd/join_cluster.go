@@ -50,19 +50,21 @@ func execJoinCluster(args []string) {
 		// Broker required -- but don't initialize it.
 		// Joining a cluster will do that.
 		b := messaging.NewBroker()
-		if err := b.Open(config.Raft.Dir); err != nil {
+		if err := b.Open(config.Raft.Dir, config.RaftConnectionString()); err != nil {
 			log.Fatalf("join: %s", err)
 		}
 
 		// Loop through each, connecting to one must succeed.
 		joined := false
 		for _, s := range seedURLs {
-			if err := b.Join(s); err == nil {
+			err := b.Join(s)
+			if err != nil {
+				log.Println("error: join failed to connect to", s, err)
+			} else {
 				log.Println("join: connected successfully to", s)
 				joined = true
 				break
 			}
-			log.Println("error: join failed to connect to", s)
 		}
 
 		if !joined {
@@ -92,7 +94,7 @@ func execJoinCluster(args []string) {
 
 	}
 
-	log.Printf("joined cluster at %s", *seedServers)
+	log.Printf("joined cluster as '%s' at %s", *role, *seedServers)
 }
 
 func printJoinClusterUsage() {
