@@ -377,7 +377,7 @@ func (l *Log) readConfig() (*Config, error) {
 	// Marshal file to a config type.
 	var config *Config
 	if f != nil {
-		config := &Config{}
+		config = &Config{}
 		if err := NewConfigDecoder(f).Decode(config); err != nil {
 			return nil, err
 		}
