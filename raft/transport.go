@@ -94,7 +94,7 @@ type HTTPTransport struct{}
 func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, *Config, error) {
 	// Construct URL.
 	u := *uri
-	u.Path = path.Join(u.Path, "join")
+	u.Path = path.Join(u.Path, "raft/join")
 	u.RawQuery = (&url.Values{"url": {nodeURL.String()}}).Encode()
 
 	// Send HTTP request.
