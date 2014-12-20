@@ -136,10 +136,49 @@ func TestPlanner_Plan_GroupByIntervalAndTag(t *testing.T) {
 	}
 }
 
+// Ensure the planner can plan and execute a joined query.
+func TestPlanner_Plan_Join(t *testing.T) {
+	db := NewDB("2000-01-01T12:00:00Z")
+	db.WriteSeries("cpu.0", map[string]string{}, "2000-01-01T00:00:00Z", map[string]interface{}{"value": float64(1)})
+	db.WriteSeries("cpu.0", map[string]string{}, "2000-01-01T00:00:10Z", map[string]interface{}{"value": float64(2)})
+	db.WriteSeries("cpu.0", map[string]string{}, "2000-01-01T00:00:20Z", map[string]interface{}{"value": float64(3)})
+	db.WriteSeries("cpu.0", map[string]string{}, "2000-01-01T00:00:30Z", map[string]interface{}{"value": float64(4)})
+
+	db.WriteSeries("cpu.1", map[string]string{}, "2000-01-01T00:00:00Z", map[string]interface{}{"value": float64(10)})
+	db.WriteSeries("cpu.1", map[string]string{}, "2000-01-01T00:00:10Z", map[string]interface{}{"value": float64(20)})
+	db.WriteSeries("cpu.1", map[string]string{}, "2000-01-01T00:00:30Z", map[string]interface{}{"value": float64(40)})
+
+	// Query must join the series and sum the values.
+	rs := db.MustPlanAndExecute(`
+		SELECT sum(cpu.0.value) + sum(cpu.1.value) AS "sum"
+		FROM JOIN(cpu.0, cpu.1)
+		WHERE time >= "2000-01-01 00:00:00" AND time < "2000-01-01 00:01:00"
+		GROUP BY time(10s)`)
+
+	// Expected resultset.
+	exp := minify(`[{
+		"columns":["time","sum"],
+		"values":[
+			[946684800000000,11],
+			[946684810000000,22],
+			[946684820000000,3],
+			[946684830000000,44],
+			[946684840000000,0],
+			[946684850000000,0]
+		]
+	}]`)
+
+	// Compare resultsets.
+	if act := jsonify(rs); exp != act {
+		t.Fatalf("unexpected resultset: %s", indent(act))
+	}
+}
+
 // DB represents an in-memory test database that implements methods for Planner.
 type DB struct {
 	measurements map[string]*Measurement
 	series       map[uint32]*Series
+	maxSeriesID  uint32
 
 	Now time.Time
 }
@@ -232,8 +271,8 @@ func (db *DB) CreateSeriesIfNotExists(name string, tags map[string]string) (*Mea
 	}
 
 	// Create new series.
-	m.maxSeriesID++
-	s := &Series{id: m.maxSeriesID, tags: tags}
+	db.maxSeriesID++
+	s := &Series{id: db.maxSeriesID, tags: tags}
 
 	// Add series to DB and measurement.
 	db.series[s.id] = s
@@ -416,8 +455,7 @@ type Measurement struct {
 	maxFieldID uint8
 	fields     map[string]*Field
 
-	maxSeriesID uint32
-	series      map[uint32]*Series
+	series map[uint32]*Series
 }
 
 // NewMeasurement returns a new instance of Measurement.

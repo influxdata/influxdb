@@ -157,7 +157,7 @@ func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := sub.Source.(*Series).Name
+	name := sub.Source.(*Measurement).Name
 	tags := make(map[string]string) // TODO: Extract tags.
 
 	// Find field.
@@ -206,7 +206,20 @@ func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 // planBinaryExpr generates a processor for a binary expression.
 // A binary expression represents a join operator between two processors.
 func (p *Planner) planBinaryExpr(e *Executor, expr *BinaryExpr) (processor, error) {
-	panic("TODO")
+	// Create processor for LHS.
+	lhs, err := p.planExpr(e, expr.LHS)
+	if err != nil {
+		return nil, fmt.Errorf("lhs: %s", err)
+	}
+
+	// Create processor for RHS.
+	rhs, err := p.planExpr(e, expr.RHS)
+	if err != nil {
+		return nil, fmt.Errorf("rhs: %s", err)
+	}
+
+	// Combine processors.
+	return newBinaryExprEvaluator(e, expr.Op, lhs, rhs), nil
 }
 
 // Executor represents the implementation of Executor.
@@ -414,6 +427,14 @@ func mapSum(itr Iterator, m *mapper) {
 	m.emit(itr.Time(), n)
 }
 
+// processor represents an object for joining reducer output.
+type processor interface {
+	start()
+	stop()
+	name() string
+	C() <-chan map[string]interface{}
+}
+
 // reducer represents an object for processing mapper output.
 // Implements processor.
 type reducer struct {
@@ -455,7 +476,7 @@ func (r *reducer) stop() {
 func (r *reducer) C() <-chan map[string]interface{} { return r.c }
 
 // name returns the source name.
-func (r *reducer) name() string { return r.stmt.Source.(*Series).Name }
+func (r *reducer) name() string { return r.stmt.Source.(*Measurement).Name }
 
 // run runs the reducer loop to read mapper output and reduce it.
 func (r *reducer) run() {
@@ -500,12 +521,103 @@ func reduceSum(key string, values []interface{}, r *reducer) {
 	r.emit(key, n)
 }
 
-// processor represents an object for joining reducer output.
-type processor interface {
-	start()
-	stop()
-	name() string
-	C() <-chan map[string]interface{}
+// binaryExprEvaluator represents a processor for combining two processors.
+type binaryExprEvaluator struct {
+	executor *Executor // parent executor
+	lhs, rhs processor // processors
+	op       Token     // operation
+
+	c    chan map[string]interface{}
+	done chan chan struct{}
+}
+
+// newBinaryExprEvaluator returns a new instance of binaryExprEvaluator.
+func newBinaryExprEvaluator(e *Executor, op Token, lhs, rhs processor) *binaryExprEvaluator {
+	return &binaryExprEvaluator{
+		executor: e,
+		op:       op,
+		lhs:      lhs,
+		rhs:      rhs,
+		c:        make(chan map[string]interface{}, 0),
+		done:     make(chan chan struct{}, 0),
+	}
+}
+
+// start begins streaming values from the lhs/rhs processors
+func (e *binaryExprEvaluator) start() {
+	e.lhs.start()
+	e.rhs.start()
+	go e.run()
+}
+
+// stop stops the processor.
+func (e *binaryExprEvaluator) stop() {
+	e.lhs.stop()
+	e.rhs.stop()
+	syncClose(e.done)
+}
+
+// C returns the streaming data channel.
+func (e *binaryExprEvaluator) C() <-chan map[string]interface{} { return e.c }
+
+// name returns the source name.
+func (e *binaryExprEvaluator) name() string { return "" }
+
+// run runs the processor loop to read subprocessor output and combine it.
+func (e *binaryExprEvaluator) run() {
+	for {
+		// Read LHS value.
+		lhs, ok := <-e.lhs.C()
+		if !ok {
+			break
+		}
+
+		// Read RHS value.
+		rhs, ok := <-e.rhs.C()
+		if !ok {
+			break
+		}
+
+		// Merge maps.
+		m := make(map[string]interface{})
+		for k, v := range lhs {
+			m[k] = e.eval(v, rhs[k])
+		}
+		for k, v := range rhs {
+			// Skip value if already processed in lhs loop.
+			if _, ok := m[k]; ok {
+				continue
+			}
+			m[k] = e.eval(float64(0), v)
+		}
+
+		// Return value.
+		e.c <- m
+	}
+
+	// Mark the channel as complete.
+	close(e.c)
+}
+
+// eval evaluates two values using the evaluator's operation.
+func (e *binaryExprEvaluator) eval(lhs, rhs interface{}) interface{} {
+	switch e.op {
+	case ADD:
+		return lhs.(float64) + rhs.(float64)
+	case SUB:
+		return lhs.(float64) - rhs.(float64)
+	case MUL:
+		return lhs.(float64) * rhs.(float64)
+	case DIV:
+		rhs := rhs.(float64)
+		if rhs == 0 {
+			return float64(0)
+		}
+		return lhs.(float64) / rhs
+	default:
+		// TODO: Validate operation & data types.
+		panic("invalid operation: " + e.op.String())
+	}
 }
 
 // literalProcessor represents a processor that continually sends a literal value.
@@ -648,9 +760,3 @@ func unmarshalStrings(b []byte) (ret []string) {
 		b = b[n+2:]
 	}
 }
-
-// TODO: Walk field expressions to extract subqueries.
-// TODO: Resolve subqueries to series ids.
-// TODO: send query with all ids to executor (knows to run locally or remote server)
-// TODO: executor creates mapper for each series id.
-// TODO: Create

@@ -64,7 +64,8 @@ func (_ Fields) node()           {}
 func (_ *Field) node()           {}
 func (_ Dimensions) node()       {}
 func (_ *Dimension) node()       {}
-func (_ *Series) node()          {}
+func (_ *Measurement) node()     {}
+func (_ Measurements) node()     {}
 func (_ *Join) node()            {}
 func (_ *Merge) node()           {}
 func (_ *VarRef) node()          {}
@@ -142,9 +143,9 @@ type Source interface {
 	source()
 }
 
-func (_ *Series) source() {}
-func (_ *Join) source()   {}
-func (_ *Merge) source()  {}
+func (_ *Measurement) source() {}
+func (_ *Join) source()        {}
+func (_ *Merge) source()       {}
 
 // SortField represens a field to sort results by.
 type SortField struct {
@@ -277,7 +278,7 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	}
 
 	// If there is only one series source then return it with the whole condition.
-	if _, ok := s.Source.(*Series); ok {
+	if _, ok := s.Source.(*Measurement); ok {
 		other.Source = s.Source
 		other.Condition = s.Condition
 		return other, nil
@@ -288,7 +289,7 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	if name == "" {
 		return nil, fmt.Errorf("field source not found: %s", ref.Val)
 	}
-	other.Source = &Series{Name: name}
+	other.Source = &Measurement{Name: name}
 
 	// Filter out conditions.
 	if s.Condition != nil {
@@ -338,23 +339,21 @@ func filterExprBySource(name string, expr Expr) Expr {
 // Returns a blank string if no sources match.
 func MatchSource(src Source, name string) string {
 	switch src := src.(type) {
-	case *Series:
+	case *Measurement:
 		if strings.HasPrefix(name, src.Name) {
 			return src.Name
 		}
 	case *Join:
-		if str := MatchSource(src.LHS, name); str != "" {
-			return str
-		}
-		if str := MatchSource(src.RHS, name); str != "" {
-			return str
+		for _, m := range src.Measurements {
+			if strings.HasPrefix(name, m.Name) {
+				return m.Name
+			}
 		}
 	case *Merge:
-		if str := MatchSource(src.LHS, name); str != "" {
-			return str
-		}
-		if str := MatchSource(src.RHS, name); str != "" {
-			return str
+		for _, m := range src.Measurements {
+			if strings.HasPrefix(name, m.Name) {
+				return m.Name
+			}
 		}
 	}
 	return ""
@@ -709,34 +708,44 @@ type Dimension struct {
 // String returns a string representation of the dimension.
 func (d *Dimension) String() string { return d.Expr.String() }
 
-// Series represents a single series used as a datasource.
-type Series struct {
+// Measurements represents a list of measurements.
+type Measurements []*Measurement
+
+// String returns a string representation of the measurements.
+func (a Measurements) String() string {
+	var str []string
+	for _, m := range a {
+		str = append(str, m.String())
+	}
+	return strings.Join(str, ", ")
+}
+
+// Measurement represents a single measurement used as a datasource.
+type Measurement struct {
 	Name string
 }
 
-// String returns a string representation of the series.
-func (s *Series) String() string { return s.Name }
+// String returns a string representation of the measurement.
+func (s *Measurement) String() string { return QuoteIdent(s.Name) }
 
 // Join represents two datasources joined together.
 type Join struct {
-	LHS Source
-	RHS Source
+	Measurements Measurements
 }
 
 // String returns a string representation of the join.
 func (j *Join) String() string {
-	return fmt.Sprintf("%s JOIN %s", j.LHS.String(), j.RHS.String())
+	return fmt.Sprintf("join(%s)", j.Measurements.String())
 }
 
 // Merge represents a datasource created by merging two datasources.
 type Merge struct {
-	LHS Source
-	RHS Source
+	Measurements Measurements
 }
 
 // String returns a string representation of the merge.
 func (m *Merge) String() string {
-	return fmt.Sprintf("%s JOIN %s", m.LHS.String(), m.RHS.String())
+	return fmt.Sprintf("merge(%s)", m.Measurements.String())
 }
 
 // VarRef represents a reference to a variable.

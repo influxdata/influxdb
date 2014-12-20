@@ -65,13 +65,11 @@ const (
 	INNER
 	INSERT
 	INTO
-	JOIN
 	KEYS
 	LIMIT
 	LIST
 	MEASUREMENT
 	MEASUREMENTS
-	MERGE
 	ORDER
 	QUERIES
 	QUERY
@@ -129,13 +127,11 @@ var tokens = [...]string{
 	INNER:        "INNER",
 	INSERT:       "INSERT",
 	INTO:         "INTO",
-	JOIN:         "JOIN",
 	KEYS:         "KEYS",
 	LIMIT:        "LIMIT",
 	LIST:         "LIST",
 	MEASUREMENT:  "MEASUREMENT",
 	MEASUREMENTS: "MEASUREMENTS",
-	MERGE:        "MERGE",
 	ORDER:        "ORDER",
 	QUERIES:      "QUERIES",
 	QUERY:        "QUERY",

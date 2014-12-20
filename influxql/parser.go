@@ -566,30 +566,52 @@ func (p *Parser) parseAlias() (string, error) {
 
 // parseSource parses the "FROM" clause of the query.
 func (p *Parser) parseSource() (Source, error) {
-	// Scan the identifier for the series.
+	// The first token can either be the series name or a join/merge call.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != IDENT && tok != STRING {
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
 	}
-	lhs := &Series{Name: lit}
 
-	// Check if the next token is JOIN or MERGE.
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == JOIN {
-		rhs, err := p.parseSource()
-		if err != nil {
-			return nil, err
-		}
-		return &Join{LHS: lhs, RHS: rhs}, nil
-	} else if tok == MERGE {
-		rhs, err := p.parseSource()
-		if err != nil {
-			return nil, err
-		}
-		return &Merge{LHS: lhs, RHS: rhs}, nil
+	// If the token is a string or the next token is not an LPAREN then return a measurement.
+	if next, _, _ := p.scan(); tok == STRING || (tok == IDENT && next != LPAREN) {
+		p.unscan()
+		return &Measurement{Name: lit}, nil
 	}
-	p.unscan()
 
-	return lhs, nil
+	// Verify the source type is join/merge.
+	sourceType := strings.ToLower(lit)
+	if sourceType != "join" && sourceType != "merge" {
+		return nil, &ParseError{Message: "unknown merge type: " + sourceType, Pos: pos}
+	}
+
+	// Parse measurement list.
+	var measurements []*Measurement
+	for {
+		// Scan the measurement name.
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		if tok != IDENT && tok != STRING {
+			return nil, newParseError(tokstr(tok, lit), []string{"measurement name"}, pos)
+		}
+		measurements = append(measurements, &Measurement{Name: lit})
+
+		// If there's not a comma next then stop parsing measurements.
+		if tok, _, _ := p.scan(); tok != COMMA {
+			p.unscan()
+			break
+		}
+	}
+
+	// Expect a closing right paren.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != RPAREN {
+		return nil, newParseError(tokstr(tok, lit), []string{")"}, pos)
+	}
+
+	// Return the appropriate source type.
+	if sourceType == "join" {
+		return &Join{Measurements: measurements}, nil
+	} else {
+		return &Merge{Measurements: measurements}, nil
+	}
 }
 
 // parseCondition parses the "WHERE" clause of the query, if it exists.
