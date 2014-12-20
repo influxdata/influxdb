@@ -51,7 +51,7 @@ func (b *Broker) opened() bool { return b.path != "" }
 
 // Open initializes the log.
 // The broker then must be initialized or join a cluster before it can be used.
-func (b *Broker) Open(path string) error {
+func (b *Broker) Open(path string, addr string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -61,10 +61,20 @@ func (b *Broker) Open(path string) error {
 	}
 	b.path = path
 
-	// Open underlying raft log.
+	// Require a non-blank connection address.
+	if addr == "" {
+		return ErrConnectionAddressRequired
+	}
+
+	// Open underlying raft log and set its connection URL.
 	if err := b.log.Open(filepath.Join(path, "raft")); err != nil {
 		return fmt.Errorf("raft: %s", err)
 	}
+	u, err := url.Parse(addr)
+	if err != nil {
+		return fmt.Errorf("broker: %s", err)
+	}
+	b.log.URL = u
 
 	return nil
 }
@@ -96,6 +106,14 @@ func (b *Broker) Close() error {
 // Initialize creates a new cluster.
 func (b *Broker) Initialize() error {
 	if err := b.log.Initialize(); err != nil {
+		return fmt.Errorf("raft: %s", err)
+	}
+	return nil
+}
+
+// Join joins an existing cluster.
+func (b *Broker) Join(u *url.URL) error {
+	if err := b.log.Join(u); err != nil {
 		return fmt.Errorf("raft: %s", err)
 	}
 	return nil

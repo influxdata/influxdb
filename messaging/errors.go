@@ -6,6 +6,9 @@ var (
 	// ErrPathRequired is returned when opening a broker without a path.
 	ErrPathRequired = errors.New("path required")
 
+	// ErrPathRequired is returned when opening a broker without a connection address.
+	ErrConnectionAddressRequired = errors.New("connection address required")
+
 	// ErrClosed is returned when closing a broker that's already closed.
 	ErrClosed = errors.New("broker already closed")
 

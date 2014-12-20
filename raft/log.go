@@ -248,6 +248,7 @@ func (l *Log) Open(path string) error {
 
 	// If this log is the only node then promote to leader immediately.
 	if c != nil && len(c.Nodes) == 1 && c.Nodes[0].ID == l.id {
+		l.Logger.Println("log open: promoting to leader immediately")
 		l.setState(Leader)
 	}
 
@@ -265,6 +266,9 @@ func (l *Log) Open(path string) error {
 	// Start goroutine to check for election timeouts.
 	l.done = append(l.done, make(chan chan struct{}))
 	go l.elector(l.done[len(l.done)-1])
+
+	l.Logger.Printf("log open: created at %s, with ID %d, term %d, last applied index of %d",
+		path, l.id, l.term, l.index)
 
 	return nil
 }
@@ -451,6 +455,9 @@ func (l *Log) Initialize() error {
 		l.term = term
 		l.setState(Leader)
 
+		l.Logger.Printf("log initialize: promoted to 'leader' with cluster ID %d, log ID %d, term %d",
+			config.ClusterID, l.id, l.term)
+
 		return nil
 	}()
 	if err != nil {
@@ -527,6 +534,7 @@ func (l *Log) Join(u *url.URL) error {
 
 	// Change to a follower state.
 	l.setState(Follower)
+	l.Logger.Println("log join: entered 'follower' state for cluster at", u, " with log ID", l.id)
 
 	return nil
 }
