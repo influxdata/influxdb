@@ -310,7 +310,7 @@ func (db *DB) MatchSeries(name string, tags map[string]string) []uint32 {
 	return ids
 }
 
-// SeriesTagValues returns a slice of tag values for a given series.
+// SeriesTagValues returns a slice of tag values for a given series and tag keys.
 func (db *DB) SeriesTagValues(seriesID uint32, keys []string) (values []string) {
 	values = make([]string, len(keys))
 
