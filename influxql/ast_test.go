@@ -212,3 +212,23 @@ func TestTimeRange(t *testing.T) {
 		}
 	}
 }
+
+// Ensure an AST node can be rewritten.
+func TestRewrite(t *testing.T) {
+	expr := MustParseExpr(`time > 1 OR foo = 2`)
+
+	// Flip LHS & RHS in all binary expressions.
+	act := influxql.RewriteFunc(expr, func(n influxql.Node) influxql.Node {
+		switch n := n.(type) {
+		case *influxql.BinaryExpr:
+			return &influxql.BinaryExpr{Op: n.Op, LHS: n.RHS, RHS: n.LHS}
+		default:
+			return n
+		}
+	})
+
+	// Verify that everything is flipped.
+	if act := act.String(); act != `2.000 = foo OR 1.000 > time` {
+		t.Fatalf("unexpected result: %s", act)
+	}
+}
