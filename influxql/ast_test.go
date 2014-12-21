@@ -188,6 +188,9 @@ func TestTimeRange(t *testing.T) {
 		// Min/max crossover
 		{expr: `time >= "2000-01-01 00:00:00" AND time <= "1999-01-01 00:00:00"`, min: `2000-01-01 00:00:00`, max: `1999-01-01 00:00:00`},
 
+		// Absolute time
+		{expr: `time = 1388534400s`, min: `2014-01-01 00:00:00`, max: `2014-01-01 00:00:00`},
+
 		// Non-comparative expressions.
 		{expr: `time`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
 		{expr: `time + 2`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
