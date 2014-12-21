@@ -724,7 +724,9 @@ func (p Rows) Less(i, j int) bool {
 		return p[i].Name < p[j].Name
 	}
 
-	// Sort by tag set hash.
+	// Sort by tag set hash. Tags don't have a meaningful sort order so we
+	// just compute a hash and sort by that instead. This allows the tests
+	// to receive rows in a predictable order every time.
 	return p[i].tagsHash() < p[j].tagsHash()
 }
 

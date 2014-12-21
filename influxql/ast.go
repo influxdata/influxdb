@@ -726,7 +726,7 @@ type Measurement struct {
 }
 
 // String returns a string representation of the measurement.
-func (s *Measurement) String() string { return QuoteIdent(s.Name) }
+func (m *Measurement) String() string { return QuoteIdent(s.Name) }
 
 // Join represents two datasources joined together.
 type Join struct {
