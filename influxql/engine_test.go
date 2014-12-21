@@ -25,7 +25,27 @@ func TestPlanner_Plan_Count(t *testing.T) {
 	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T00:00:50Z", map[string]interface{}{"value": float64(50)})
 
 	// Expected resultset.
-	exp := minify(`[{"name":"cpu","columns":["count"],"values":[[6]]}]`)
+	exp := minify(`[{"name":"cpu","columns":["time","count"],"values":[[0,6]]}]`)
+
+	// Execute and compare.
+	rs := db.MustPlanAndExecute(`SELECT count(value) FROM cpu`)
+	if act := minify(jsonify(rs)); exp != act {
+		t.Fatalf("unexpected resultset: %s", act)
+	}
+}
+
+// Ensure the planner can plan and execute a count query across multiple series.
+func TestPlanner_Plan_Count_Multiseries(t *testing.T) {
+	db := NewDB("2000-01-01T12:00:00Z")
+	db.WriteSeries("cpu", map[string]string{"host": "servera"}, "2000-01-01T00:00:00Z", map[string]interface{}{"value": float64(100)})
+	db.WriteSeries("cpu", map[string]string{"host": "serverb"}, "2000-01-01T00:00:10Z", map[string]interface{}{"value": float64(90)})
+	db.WriteSeries("cpu", map[string]string{"host": "serverb"}, "2000-01-01T00:00:20Z", map[string]interface{}{"value": float64(80)})
+	db.WriteSeries("cpu", map[string]string{"host": "servera"}, "2000-01-01T00:00:30Z", map[string]interface{}{"value": float64(70)})
+	db.WriteSeries("cpu", map[string]string{"host": "serverb"}, "2000-01-01T00:00:40Z", map[string]interface{}{"value": float64(60)})
+	db.WriteSeries("cpu", map[string]string{"host": "servera", "region": "us-west"}, "2000-01-01T00:00:50Z", map[string]interface{}{"value": float64(50)})
+
+	// Expected resultset.
+	exp := minify(`[{"name":"cpu","columns":["time","count"],"values":[[0,6]]}]`)
 
 	// Execute and compare.
 	rs := db.MustPlanAndExecute(`SELECT count(value) FROM cpu`)
@@ -35,7 +55,7 @@ func TestPlanner_Plan_Count(t *testing.T) {
 }
 
 // Ensure the planner can plan and execute a count query grouped by hour.
-func TestPlanner_Plan_CountByHour(t *testing.T) {
+func TestPlanner_Plan_GroupByInterval(t *testing.T) {
 	db := NewDB("2000-01-01T12:00:00Z")
 	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T09:00:00Z", map[string]interface{}{"value": float64(100)})
 	db.WriteSeries("cpu", map[string]string{}, "2000-01-01T09:00:00Z", map[string]interface{}{"value": float64(90)})
@@ -71,10 +91,94 @@ func TestPlanner_Plan_CountByHour(t *testing.T) {
 	}
 }
 
+// Ensure the planner can plan and execute a query grouped by interval and tag.
+func TestPlanner_Plan_GroupByIntervalAndTag(t *testing.T) {
+	db := NewDB("2000-01-01T12:00:00Z")
+	db.WriteSeries("cpu", map[string]string{"host": "servera"}, "2000-01-01T09:00:00Z", map[string]interface{}{"value": float64(10)})
+	db.WriteSeries("cpu", map[string]string{"host": "servera"}, "2000-01-01T09:30:00Z", map[string]interface{}{"value": float64(20)})
+	db.WriteSeries("cpu", map[string]string{"host": "servera"}, "2000-01-01T11:00:00Z", map[string]interface{}{"value": float64(30)})
+	db.WriteSeries("cpu", map[string]string{"host": "servera"}, "2000-01-01T11:30:00Z", map[string]interface{}{"value": float64(40)})
+
+	db.WriteSeries("cpu", map[string]string{"host": "serverb"}, "2000-01-01T09:00:00Z", map[string]interface{}{"value": float64(1)})
+	db.WriteSeries("cpu", map[string]string{"host": "serverb"}, "2000-01-01T11:00:00Z", map[string]interface{}{"value": float64(2)})
+
+	// Query for data since 3 hours ago until now, grouped every 30 minutes.
+	rs := db.MustPlanAndExecute(`
+		SELECT sum(value)
+		FROM cpu
+		WHERE time >= now() - 3h
+		GROUP BY time(1h), host`)
+
+	// Expected resultset.
+	exp := minify(`[{
+		"name":"cpu",
+		"tags":{"host":"servera"},
+		"columns":["time","sum"],
+		"values":[
+			[946717200000000,30],
+			[946720800000000,0],
+			[946724400000000,70]
+		]
+	},{
+		"name":"cpu",
+		"tags":{"host":"serverb"},
+		"columns":["time","sum"],
+		"values":[
+			[946717200000000,1],
+			[946720800000000,0],
+			[946724400000000,2]
+		]
+	}]`)
+
+	// Compare resultsets.
+	if act := jsonify(rs); exp != act {
+		t.Fatalf("unexpected resultset: \n\n%s\n\n%s\n\n", exp, act)
+	}
+}
+
+// Ensure the planner can plan and execute a joined query.
+func TestPlanner_Plan_Join(t *testing.T) {
+	db := NewDB("2000-01-01T12:00:00Z")
+	db.WriteSeries("cpu.0", map[string]string{}, "2000-01-01T00:00:00Z", map[string]interface{}{"value": float64(1)})
+	db.WriteSeries("cpu.0", map[string]string{}, "2000-01-01T00:00:10Z", map[string]interface{}{"value": float64(2)})
+	db.WriteSeries("cpu.0", map[string]string{}, "2000-01-01T00:00:20Z", map[string]interface{}{"value": float64(3)})
+	db.WriteSeries("cpu.0", map[string]string{}, "2000-01-01T00:00:30Z", map[string]interface{}{"value": float64(4)})
+
+	db.WriteSeries("cpu.1", map[string]string{}, "2000-01-01T00:00:00Z", map[string]interface{}{"value": float64(10)})
+	db.WriteSeries("cpu.1", map[string]string{}, "2000-01-01T00:00:10Z", map[string]interface{}{"value": float64(20)})
+	db.WriteSeries("cpu.1", map[string]string{}, "2000-01-01T00:00:30Z", map[string]interface{}{"value": float64(40)})
+
+	// Query must join the series and sum the values.
+	rs := db.MustPlanAndExecute(`
+		SELECT sum(cpu.0.value) + sum(cpu.1.value) AS "sum"
+		FROM JOIN(cpu.0, cpu.1)
+		WHERE time >= "2000-01-01 00:00:00" AND time < "2000-01-01 00:01:00"
+		GROUP BY time(10s)`)
+
+	// Expected resultset.
+	exp := minify(`[{
+		"columns":["time","sum"],
+		"values":[
+			[946684800000000,11],
+			[946684810000000,22],
+			[946684820000000,3],
+			[946684830000000,44],
+			[946684840000000,0],
+			[946684850000000,0]
+		]
+	}]`)
+
+	// Compare resultsets.
+	if act := jsonify(rs); exp != act {
+		t.Fatalf("unexpected resultset: %s", indent(act))
+	}
+}
+
 // DB represents an in-memory test database that implements methods for Planner.
 type DB struct {
 	measurements map[string]*Measurement
 	series       map[uint32]*Series
+	maxSeriesID  uint32
 
 	Now time.Time
 }
@@ -167,8 +271,8 @@ func (db *DB) CreateSeriesIfNotExists(name string, tags map[string]string) (*Mea
 	}
 
 	// Create new series.
-	m.maxSeriesID++
-	s := &Series{id: m.maxSeriesID, tags: tags}
+	db.maxSeriesID++
+	s := &Series{id: db.maxSeriesID, tags: tags}
 
 	// Add series to DB and measurement.
 	db.series[s.id] = s
@@ -204,6 +308,23 @@ func (db *DB) MatchSeries(name string, tags map[string]string) []uint32 {
 	}
 
 	return ids
+}
+
+// SeriesTagValues returns a slice of tag values for a given series and tag keys.
+func (db *DB) SeriesTagValues(seriesID uint32, keys []string) (values []string) {
+	values = make([]string, len(keys))
+
+	// Find series.
+	s := db.series[seriesID]
+	if s == nil {
+		return
+	}
+
+	// Loop over keys and set values.
+	for i, key := range keys {
+		values[i] = s.tags[key]
+	}
+	return
 }
 
 // FieldID returns the field identifier for a given measurement name and field name.
@@ -334,8 +455,7 @@ type Measurement struct {
 	maxFieldID uint8
 	fields     map[string]*Field
 
-	maxSeriesID uint32
-	series      map[uint32]*Series
+	series map[uint32]*Series
 }
 
 // NewMeasurement returns a new instance of Measurement.

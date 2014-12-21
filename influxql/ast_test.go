@@ -39,28 +39,28 @@ func TestSelectStatement_Substatement(t *testing.T) {
 
 		// 1. Simple join
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa JOIN bb`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa,bb)`,
 			expr: &influxql.VarRef{Val: "aa.value"},
 			sub:  `SELECT aa.value FROM aa`,
 		},
 
 		// 2. Simple merge
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa MERGE bb`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM merge(aa, bb)`,
 			expr: &influxql.VarRef{Val: "bb.value"},
 			sub:  `SELECT bb.value FROM bb`,
 		},
 
 		// 3. Join with condition
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa JOIN bb WHERE aa.host = "servera" AND bb.host = "serverb"`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE aa.host = "servera" AND bb.host = "serverb"`,
 			expr: &influxql.VarRef{Val: "bb.value"},
 			sub:  `SELECT bb.value FROM bb WHERE bb.host = "serverb"`,
 		},
 
 		// 4. Join with complex condition
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa JOIN bb WHERE aa.host = "servera" AND (bb.host = "serverb" OR bb.host = "serverc") AND 1 = 2`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE aa.host = "servera" AND (bb.host = "serverb" OR bb.host = "serverc") AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},
 			sub:  `SELECT bb.value FROM bb WHERE (bb.host = "serverb" OR bb.host = "serverc") AND 1.000 = 2.000`,
 		},

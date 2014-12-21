@@ -1,8 +1,11 @@
 package influxql
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"sort"
 	"strings"
 	"time"
 )
@@ -11,6 +14,9 @@ import (
 type DB interface {
 	// Returns a list of series data ids matching a name and tags.
 	MatchSeries(name string, tags map[string]string) []uint32
+
+	// Returns a slice of tag values for a series.
+	SeriesTagValues(seriesID uint32, keys []string) []string
 
 	// Returns the id and data type for a series field.
 	Field(name, field string) (fieldID uint8, typ DataType)
@@ -59,11 +65,11 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	e.min, e.max = min, max
 
 	// Determine group by interval.
-	interval, dimensions, err := p.normalizeDimensions(stmt.Dimensions)
+	interval, tags, err := p.normalizeDimensions(stmt.Dimensions)
 	if err != nil {
 		return nil, err
 	}
-	e.interval, e.dimensions = interval, dimensions
+	e.interval, e.tags = interval, tags
 
 	// Generate a processor for each field.
 	for i, f := range stmt.Fields {
@@ -79,7 +85,7 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 
 // normalizeDimensions extacts the time interval, if specified.
 // Returns all remaining dimensions.
-func (p *Planner) normalizeDimensions(dimensions Dimensions) (time.Duration, Dimensions, error) {
+func (p *Planner) normalizeDimensions(dimensions Dimensions) (time.Duration, []string, error) {
 	// Ignore if there are no dimensions.
 	if len(dimensions) == 0 {
 		return 0, nil, nil
@@ -97,10 +103,10 @@ func (p *Planner) normalizeDimensions(dimensions Dimensions) (time.Duration, Dim
 		if !ok {
 			return 0, nil, errors.New("time dimension must have one duration argument")
 		}
-		return lit.Val, dimensions[1:], nil
+		return lit.Val, dimensionKeys(dimensions[1:]), nil
 	}
 
-	return 0, dimensions, nil
+	return 0, dimensionKeys(dimensions), nil
 }
 
 // planField returns a processor for field.
@@ -151,7 +157,7 @@ func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := sub.Source.(*Series).Name
+	name := sub.Source.(*Measurement).Name
 	tags := make(map[string]string) // TODO: Extract tags.
 
 	// Find field.
@@ -174,6 +180,7 @@ func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 		m := newMapper(e, seriesID, fieldID, typ)
 		m.min, m.max = e.min.UnixNano(), e.max.UnixNano()
 		m.interval = int64(e.interval)
+		m.key = append(make([]byte, 8), marshalStrings(p.DB.SeriesTagValues(seriesID, e.tags))...)
 		r.mappers[i] = m
 	}
 
@@ -199,7 +206,20 @@ func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 // planBinaryExpr generates a processor for a binary expression.
 // A binary expression represents a join operator between two processors.
 func (p *Planner) planBinaryExpr(e *Executor, expr *BinaryExpr) (processor, error) {
-	panic("TODO")
+	// Create processor for LHS.
+	lhs, err := p.planExpr(e, expr.LHS)
+	if err != nil {
+		return nil, fmt.Errorf("lhs: %s", err)
+	}
+
+	// Create processor for RHS.
+	rhs, err := p.planExpr(e, expr.RHS)
+	if err != nil {
+		return nil, fmt.Errorf("rhs: %s", err)
+	}
+
+	// Combine processors.
+	return newBinaryExprEvaluator(e, expr.Op, lhs, rhs), nil
 }
 
 // Executor represents the implementation of Executor.
@@ -210,7 +230,7 @@ type Executor struct {
 	processors []processor      // per-field processors
 	min, max   time.Time        // time range
 	interval   time.Duration    // group by duration
-	dimensions Dimensions       // non-interval dimensions
+	tags       []string         // group by tag keys
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
@@ -231,28 +251,14 @@ func (e *Executor) Execute() (<-chan *Row, error) {
 func (e *Executor) execute(out chan *Row) {
 	// TODO: Support multi-value rows.
 
-	// Initialize row.
-	row := &Row{}
-	row.Name = e.processors[0].name()
-
-	// Create column names.
-	row.Columns = make([]string, 0)
-	if e.interval != 0 {
-		row.Columns = append(row.Columns, "time")
-	}
-	for i, f := range e.stmt.Fields {
-		name := f.Name()
-		if name == "" {
-			name = fmt.Sprintf("col%d", i)
-		}
-		row.Columns = append(row.Columns, name)
-	}
+	// Initialize map of rows by encoded tagset.
+	rows := make(map[string]*Row)
 
 	// Combine values from each processor.
 loop:
 	for {
-		values := make([]interface{}, len(e.processors)+1)
-
+		// Retrieve values from processors and write them to the approprite
+		// row based on their tagset.
 		for i, p := range e.processors {
 			// Retrieve data from the processor.
 			m, ok := <-p.C()
@@ -262,23 +268,84 @@ loop:
 
 			// Set values on returned row.
 			for k, v := range m {
-				values[0] = k / int64(time.Microsecond) // TODO: Set once per row.
+				// Extract timestamp and tag values from key.
+				b := []byte(k)
+				timestamp := int64(binary.BigEndian.Uint64(b[0:8]))
+
+				// Lookup row values and populate data.
+				values := e.createRowValuesIfNotExists(rows, e.processors[0].name(), b[8:], timestamp)
 				values[i+1] = v
 			}
 		}
-
-		// Remove timestamp if there is no group by interval.
-		if e.interval == 0 {
-			values = values[1:]
-		}
-		row.Values = append(row.Values, values)
 	}
 
-	// Send row to the channel.
-	out <- row
+	// Normalize rows and values.
+	// This converts the timestamps from nanoseconds to microseconds.
+	a := make(Rows, 0, len(rows))
+	for _, row := range rows {
+		for _, values := range row.Values {
+			values[0] = values[0].(int64) / int64(time.Microsecond)
+		}
+		a = append(a, row)
+	}
+	sort.Sort(a)
+
+	// Send rows to the channel.
+	for _, row := range a {
+		out <- row
+	}
 
 	// Mark the end of the output channel.
 	close(out)
+}
+
+// creates a new value set if one does not already exist for a given tagset + timestamp.
+func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string, tagset []byte, timestamp int64) []interface{} {
+	// TODO: Add "name" to lookup key.
+
+	// Find row by tagset.
+	var row *Row
+	if row = rows[string(tagset)]; row == nil {
+		row = &Row{Name: name}
+
+		// Create tag map.
+		row.Tags = make(map[string]string)
+		for i, v := range unmarshalStrings(tagset) {
+			row.Tags[e.tags[i]] = v
+		}
+
+		// Create column names.
+		row.Columns = make([]string, 1, len(e.stmt.Fields)+1)
+		row.Columns[0] = "time"
+		for i, f := range e.stmt.Fields {
+			name := f.Name()
+			if name == "" {
+				name = fmt.Sprintf("col%d", i)
+			}
+			row.Columns = append(row.Columns, name)
+		}
+
+		// Save to lookup.
+		rows[string(tagset)] = row
+	}
+
+	// If no values exist or last value doesn't match the timestamp then create new.
+	if len(row.Values) == 0 || row.Values[len(row.Values)-1][0] != timestamp {
+		values := make([]interface{}, len(e.processors)+1)
+		values[0] = timestamp
+		row.Values = append(row.Values, values)
+	}
+
+	return row.Values[len(row.Values)-1]
+}
+
+// dimensionKeys returns a list of tag key names for the dimensions.
+// Each dimension must be a VarRef.
+func dimensionKeys(dimensions Dimensions) (a []string) {
+	for _, d := range dimensions {
+		a = append(a, d.Expr.(*VarRef).Val)
+	}
+	return
 }
 
 // mapper represents an object for processing iterators.
@@ -290,9 +357,10 @@ type mapper struct {
 	itr      Iterator  // series iterator
 	min, max int64     // time range
 	interval int64     // group by interval
+	key      []byte    // encoded timestamp + dimensional values
 	fn       mapFunc   // map function
 
-	c    chan map[int64]interface{}
+	c    chan map[string]interface{}
 	done chan chan struct{}
 }
 
@@ -303,7 +371,7 @@ func newMapper(e *Executor, seriesID uint32, fieldID uint8, typ DataType) *mappe
 		seriesID: seriesID,
 		fieldID:  fieldID,
 		typ:      typ,
-		c:        make(chan map[int64]interface{}, 0),
+		c:        make(chan map[string]interface{}, 0),
 		done:     make(chan chan struct{}, 0),
 	}
 }
@@ -319,7 +387,7 @@ func (m *mapper) start() {
 func (m *mapper) stop() { syncClose(m.done) }
 
 // C returns the streaming data channel.
-func (m *mapper) C() <-chan map[int64]interface{} { return m.c }
+func (m *mapper) C() <-chan map[string]interface{} { return m.c }
 
 // run executes the map function against the iterator.
 func (m *mapper) run() {
@@ -329,9 +397,13 @@ func (m *mapper) run() {
 	close(m.c)
 }
 
-// emit sends a value to the reducer's output channel.
+// emit sends a value to the mapper's output channel.
 func (m *mapper) emit(key int64, value interface{}) {
-	m.c <- map[int64]interface{}{key: value}
+	// Encode the timestamp to the beginning of the key.
+	binary.BigEndian.PutUint64(m.key, uint64(key))
+
+	// OPTIMIZE: Collect emit calls and flush all at once.
+	m.c <- map[string]interface{}{string(m.key): value}
 }
 
 // mapFunc represents a function used for mapping iterators.
@@ -355,6 +427,14 @@ func mapSum(itr Iterator, m *mapper) {
 	m.emit(itr.Time(), n)
 }
 
+// processor represents an object for joining reducer output.
+type processor interface {
+	start()
+	stop()
+	name() string
+	C() <-chan map[string]interface{}
+}
+
 // reducer represents an object for processing mapper output.
 // Implements processor.
 type reducer struct {
@@ -363,7 +443,7 @@ type reducer struct {
 	mappers  []*mapper        // child mappers
 	fn       reduceFunc       // reduce function
 
-	c    chan map[int64]interface{}
+	c    chan map[string]interface{}
 	done chan chan struct{}
 }
 
@@ -371,7 +451,7 @@ type reducer struct {
 func newReducer(e *Executor) *reducer {
 	return &reducer{
 		executor: e,
-		c:        make(chan map[int64]interface{}, 0),
+		c:        make(chan map[string]interface{}, 0),
 		done:     make(chan chan struct{}, 0),
 	}
 }
@@ -393,17 +473,17 @@ func (r *reducer) stop() {
 }
 
 // C returns the streaming data channel.
-func (r *reducer) C() <-chan map[int64]interface{} { return r.c }
+func (r *reducer) C() <-chan map[string]interface{} { return r.c }
 
 // name returns the source name.
-func (r *reducer) name() string { return r.stmt.Source.(*Series).Name }
+func (r *reducer) name() string { return r.stmt.Source.(*Measurement).Name }
 
 // run runs the reducer loop to read mapper output and reduce it.
 func (r *reducer) run() {
 loop:
 	for {
 		// Combine all data from the mappers.
-		data := make(map[int64][]interface{})
+		data := make(map[string][]interface{})
 		for _, m := range r.mappers {
 			kv, ok := <-m.C()
 			if !ok {
@@ -425,15 +505,15 @@ loop:
 }
 
 // emit sends a value to the reducer's output channel.
-func (r *reducer) emit(key int64, value interface{}) {
-	r.c <- map[int64]interface{}{key: value}
+func (r *reducer) emit(key string, value interface{}) {
+	r.c <- map[string]interface{}{key: value}
 }
 
 // reduceFunc represents a function used for reducing mapper output.
-type reduceFunc func(int64, []interface{}, *reducer)
+type reduceFunc func(string, []interface{}, *reducer)
 
 // reduceSum computes the sum of values for each key.
-func reduceSum(key int64, values []interface{}, r *reducer) {
+func reduceSum(key string, values []interface{}, r *reducer) {
 	var n float64
 	for _, v := range values {
 		n += v.(float64)
@@ -441,18 +521,109 @@ func reduceSum(key int64, values []interface{}, r *reducer) {
 	r.emit(key, n)
 }
 
-// processor represents an object for joining reducer output.
-type processor interface {
-	start()
-	stop()
-	name() string
-	C() <-chan map[int64]interface{}
+// binaryExprEvaluator represents a processor for combining two processors.
+type binaryExprEvaluator struct {
+	executor *Executor // parent executor
+	lhs, rhs processor // processors
+	op       Token     // operation
+
+	c    chan map[string]interface{}
+	done chan chan struct{}
+}
+
+// newBinaryExprEvaluator returns a new instance of binaryExprEvaluator.
+func newBinaryExprEvaluator(e *Executor, op Token, lhs, rhs processor) *binaryExprEvaluator {
+	return &binaryExprEvaluator{
+		executor: e,
+		op:       op,
+		lhs:      lhs,
+		rhs:      rhs,
+		c:        make(chan map[string]interface{}, 0),
+		done:     make(chan chan struct{}, 0),
+	}
+}
+
+// start begins streaming values from the lhs/rhs processors
+func (e *binaryExprEvaluator) start() {
+	e.lhs.start()
+	e.rhs.start()
+	go e.run()
+}
+
+// stop stops the processor.
+func (e *binaryExprEvaluator) stop() {
+	e.lhs.stop()
+	e.rhs.stop()
+	syncClose(e.done)
+}
+
+// C returns the streaming data channel.
+func (e *binaryExprEvaluator) C() <-chan map[string]interface{} { return e.c }
+
+// name returns the source name.
+func (e *binaryExprEvaluator) name() string { return "" }
+
+// run runs the processor loop to read subprocessor output and combine it.
+func (e *binaryExprEvaluator) run() {
+	for {
+		// Read LHS value.
+		lhs, ok := <-e.lhs.C()
+		if !ok {
+			break
+		}
+
+		// Read RHS value.
+		rhs, ok := <-e.rhs.C()
+		if !ok {
+			break
+		}
+
+		// Merge maps.
+		m := make(map[string]interface{})
+		for k, v := range lhs {
+			m[k] = e.eval(v, rhs[k])
+		}
+		for k, v := range rhs {
+			// Skip value if already processed in lhs loop.
+			if _, ok := m[k]; ok {
+				continue
+			}
+			m[k] = e.eval(float64(0), v)
+		}
+
+		// Return value.
+		e.c <- m
+	}
+
+	// Mark the channel as complete.
+	close(e.c)
+}
+
+// eval evaluates two values using the evaluator's operation.
+func (e *binaryExprEvaluator) eval(lhs, rhs interface{}) interface{} {
+	switch e.op {
+	case ADD:
+		return lhs.(float64) + rhs.(float64)
+	case SUB:
+		return lhs.(float64) - rhs.(float64)
+	case MUL:
+		return lhs.(float64) * rhs.(float64)
+	case DIV:
+		rhs := rhs.(float64)
+		if rhs == 0 {
+			return float64(0)
+		}
+		return lhs.(float64) / rhs
+	default:
+		// TODO: Validate operation & data types.
+		panic("invalid operation: " + e.op.String())
+	}
 }
 
 // literalProcessor represents a processor that continually sends a literal value.
 type literalProcessor struct {
 	val  interface{}
-	c    chan map[int64]interface{}
+	c    chan map[string]interface{}
 	done chan chan struct{}
 }
 
@@ -460,13 +631,13 @@ type literalProcessor struct {
 func newLiteralProcessor(val interface{}) *literalProcessor {
 	return &literalProcessor{
 		val:  val,
-		c:    make(chan map[int64]interface{}, 0),
+		c:    make(chan map[string]interface{}, 0),
 		done: make(chan chan struct{}, 0),
 	}
 }
 
 // C returns the streaming data channel.
-func (p *literalProcessor) C() <-chan map[int64]interface{} { return p.c }
+func (p *literalProcessor) C() <-chan map[string]interface{} { return p.c }
 
 // process continually returns a literal value with a "0" key.
 func (p *literalProcessor) start() { go p.run() }
@@ -478,7 +649,7 @@ func (p *literalProcessor) run() {
 		case ch := <-p.done:
 			close(ch)
 			return
-		case p.c <- map[int64]interface{}{0: p.val}:
+		case p.c <- map[string]interface{}{"": p.val}:
 		}
 	}
 }
@@ -521,8 +692,73 @@ type Row struct {
 	Err     error             `json:"err,omitempty"`
 }
 
-// TODO: Walk field expressions to extract subqueries.
-// TODO: Resolve subqueries to series ids.
-// TODO: send query with all ids to executor (knows to run locally or remote server)
-// TODO: executor creates mapper for each series id.
-// TODO: Create
+// tagsHash returns a hash of tag key/value pairs.
+func (r *Row) tagsHash() uint64 {
+	h := fnv.New64a()
+	keys := r.tagsKeys()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte(r.Tags[k]))
+	}
+	return h.Sum64()
+}
+
+// tagKeys returns a sorted list of tag keys.
+func (r *Row) tagsKeys() []string {
+	a := make([]string, len(r.Tags))
+	for k := range r.Tags {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
+}
+
+// Rows represents a list of rows that can be sorted consistently by name/tag.
+type Rows []*Row
+
+func (p Rows) Len() int { return len(p) }
+
+func (p Rows) Less(i, j int) bool {
+	// Sort by name first.
+	if p[i].Name != p[j].Name {
+		return p[i].Name < p[j].Name
+	}
+
+	// Sort by tag set hash. Tags don't have a meaningful sort order so we
+	// just compute a hash and sort by that instead. This allows the tests
+	// to receive rows in a predictable order every time.
+	return p[i].tagsHash() < p[j].tagsHash()
+}
+
+func (p Rows) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
+
+// marshalStrings encodes an array of strings into a byte slice.
+func marshalStrings(a []string) (ret []byte) {
+	for _, s := range a {
+		// Create a slice for len+data
+		b := make([]byte, 2+len(s))
+		binary.BigEndian.PutUint16(b[0:2], uint16(len(s)))
+		copy(b[2:], s)
+
+		// Append it to the full byte slice.
+		ret = append(ret, b...)
+	}
+	return
+}
+
+// unmarshalStrings decodes a byte slice into an array of strings.
+func unmarshalStrings(b []byte) (ret []string) {
+	for {
+		// If there's no more data then exit.
+		if len(b) == 0 {
+			return
+		}
+
+		// Decode size + data.
+		n := binary.BigEndian.Uint16(b[0:2])
+		ret = append(ret, string(b[2:n+2]))
+
+		// Move the byte slice forward and retry.
+		b = b[n+2:]
+	}
+}
