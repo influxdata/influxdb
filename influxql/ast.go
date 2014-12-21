@@ -1127,8 +1127,11 @@ func TimeRange(expr Expr) (min, max time.Time) {
 // Returns zero time if the expression is not a time expression.
 func timeExprValue(ref Expr, lit Expr) time.Time {
 	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
-		if lit, ok := lit.(*TimeLiteral); ok {
+		switch lit := lit.(type) {
+		case *TimeLiteral:
 			return lit.Val
+		case *DurationLiteral:
+			return time.Unix(0, int64(lit.Val)).UTC()
 		}
 	}
 	return time.Time{}
