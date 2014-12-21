@@ -42,7 +42,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `or`, tok: influxql.OR},
 
 		{s: `=`, tok: influxql.EQ},
-		{s: `!=`, tok: influxql.NEQ},
+		{s: `<>`, tok: influxql.NEQ},
 		{s: `! `, tok: influxql.ILLEGAL, lit: "!"},
 		{s: `<`, tok: influxql.LT},
 		{s: `<=`, tok: influxql.LTE},
