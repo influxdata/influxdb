@@ -1045,10 +1045,10 @@ func split(s string) (a []rune) {
 	return
 }
 
-// isDateString returns true if the string looks like a datetime literal.
+// isDateString returns true if the string looks like a date-only time literal.
 func isDateString(s string) bool { return dateStringRegexp.MatchString(s) }
 
-// isDateTimeString returns true if the string looks like a datetime literal.
+// isDateTimeString returns true if the string looks like a date+time time literal.
 func isDateTimeString(s string) bool { return dateTimeStringRegexp.MatchString(s) }
 
 var dateStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
