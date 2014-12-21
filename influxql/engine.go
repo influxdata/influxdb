@@ -60,7 +60,7 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 		max = now
 	}
 	if max.Before(min) {
-		return nil, fmt.Errorf("invalid time range: %s - %s", min.Format(TimeFormat), max.Format(TimeFormat))
+		return nil, fmt.Errorf("invalid time range: %s - %s", min.Format(DateTimeFormat), max.Format(DateTimeFormat))
 	}
 	e.min, e.max = min, max
 

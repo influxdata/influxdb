@@ -199,11 +199,11 @@ func TestTimeRange(t *testing.T) {
 		min, max := influxql.TimeRange(expr)
 
 		// Compare with expected min/max.
-		if min := min.Format(influxql.TimeFormat); tt.min != min {
+		if min := min.Format(influxql.DateTimeFormat); tt.min != min {
 			t.Errorf("%d. %s: unexpected min:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.min, min)
 			continue
 		}
-		if max := max.Format(influxql.TimeFormat); tt.max != max {
+		if max := max.Format(influxql.DateTimeFormat); tt.max != max {
 			t.Errorf("%d. %s: unexpected max:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.max, max)
 			continue
 		}

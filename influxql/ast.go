@@ -810,7 +810,7 @@ type TimeLiteral struct {
 
 // String returns a string representation of the literal.
 func (l *TimeLiteral) String() string {
-	return `"` + l.Val.UTC().Format(TimeFormat) + `"`
+	return `"` + l.Val.UTC().Format(DateTimeFormat) + `"`
 }
 
 // DurationLiteral represents a duration literal.
