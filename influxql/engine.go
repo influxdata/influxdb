@@ -19,6 +19,7 @@ type DB interface {
 	SeriesTagValues(seriesID uint32, keys []string) []string
 
 	// Returns the id and data type for a series field.
+	// Returns id of zero if not a field.
 	Field(name, field string) (fieldID uint8, typ DataType)
 
 	// Returns an iterator given a series data id, field id, & field data type.
@@ -158,7 +159,14 @@ func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 		return nil, err
 	}
 	name := sub.Source.(*Measurement).Name
-	tags := make(map[string]string) // TODO: Extract tags.
+
+	// Extract tags from conditional.
+	tags := make(map[string]string)
+	condition, err := p.extractTags(name, sub.Condition, tags)
+	if err != nil {
+		return nil, err
+	}
+	sub.Condition = condition
 
 	// Find field.
 	fname := strings.TrimPrefix(ref.Val, name+".")
@@ -220,6 +228,74 @@ func (p *Planner) planBinaryExpr(e *Executor, expr *BinaryExpr) (processor, erro
 
 	// Combine processors.
 	return newBinaryExprEvaluator(e, expr.Op, lhs, rhs), nil
+}
+
+// extractTags extracts a tag key/value map from a statement.
+// Extracted tags are removed from the statement.
+func (p *Planner) extractTags(name string, expr Expr, tags map[string]string) (Expr, error) {
+	// TODO: Refactor into a walk-like Replace().
+	switch expr := expr.(type) {
+	case *BinaryExpr:
+		// If the LHS is a variable ref then check for tag equality.
+		if lhs, ok := expr.LHS.(*VarRef); ok && expr.Op == EQ {
+			return p.extractBinaryExprTags(name, expr, lhs, expr.RHS, tags)
+		}
+
+		// If the RHS is a variable ref then check for tag equality.
+		if rhs, ok := expr.RHS.(*VarRef); ok && expr.Op == EQ {
+			return p.extractBinaryExprTags(name, expr, rhs, expr.LHS, tags)
+		}
+
+		// Recursively process LHS.
+		lhs, err := p.extractTags(name, expr.LHS, tags)
+		if err != nil {
+			return nil, err
+		}
+		expr.LHS = lhs
+
+		// Recursively process RHS.
+		rhs, err := p.extractTags(name, expr.RHS, tags)
+		if err != nil {
+			return nil, err
+		}
+		expr.RHS = rhs
+
+		return expr, nil
+
+	case *ParenExpr:
+		e, err := p.extractTags(name, expr.Expr, tags)
+		if err != nil {
+			return nil, err
+		}
+		expr.Expr = e
+		return expr, nil
+
+	default:
+		return expr, nil
+	}
+}
+
+// extractBinaryExprTags extracts a tag key/value map from a statement.
+func (p *Planner) extractBinaryExprTags(name string, expr Expr, ref *VarRef, value Expr, tags map[string]string) (Expr, error) {
+	// Ignore if the value is not a string literal.
+	lit, ok := value.(*StringLiteral)
+	if !ok {
+		return expr, nil
+	}
+
+	// Extract the key and remove the measurement prefix.
+	key := strings.TrimPrefix(ref.Val, name+".")
+
+	// If tag is already filtered then return error.
+	if _, ok := tags[key]; ok {
+		return nil, fmt.Errorf("duplicate tag filter: %s.%s", name, key)
+	}
+
+	// Add tag to the filter.
+	tags[key] = lit.Val
+
+	// Return nil to remove the expression.
+	return nil, nil
 }
 
 // Executor represents the implementation of Executor.

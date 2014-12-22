@@ -136,6 +136,54 @@ func TestPlanner_Plan_GroupByIntervalAndTag(t *testing.T) {
 	}
 }
 
+// Ensure the planner can plan and execute a query filtered by tag.
+func TestPlanner_Plan_FilterByTag(t *testing.T) {
+	db := NewDB("2000-01-01T12:00:00Z")
+	db.WriteSeries("cpu", map[string]string{"host": "servera", "region": "us-west"}, "2000-01-01T09:00:00Z", map[string]interface{}{"value": float64(1)})
+	db.WriteSeries("cpu", map[string]string{"host": "servera", "region": "us-west"}, "2000-01-01T09:30:00Z", map[string]interface{}{"value": float64(2)})
+	db.WriteSeries("cpu", map[string]string{"host": "servera", "region": "us-west"}, "2000-01-01T11:00:00Z", map[string]interface{}{"value": float64(3)})
+	db.WriteSeries("cpu", map[string]string{"host": "servera", "region": "us-west"}, "2000-01-01T11:30:00Z", map[string]interface{}{"value": float64(4)})
+
+	db.WriteSeries("cpu", map[string]string{"host": "serverb", "region": "us-east"}, "2000-01-01T09:00:00Z", map[string]interface{}{"value": float64(10)})
+	db.WriteSeries("cpu", map[string]string{"host": "serverb", "region": "us-east"}, "2000-01-01T11:00:00Z", map[string]interface{}{"value": float64(20)})
+
+	db.WriteSeries("cpu", map[string]string{"host": "serverc", "region": "us-west"}, "2000-01-01T09:00:00Z", map[string]interface{}{"value": float64(100)})
+	db.WriteSeries("cpu", map[string]string{"host": "serverc", "region": "us-west"}, "2000-01-01T11:00:00Z", map[string]interface{}{"value": float64(200)})
+
+	// Query for data since 3 hours ago until now, grouped every 30 minutes.
+	rs := db.MustPlanAndExecute(`
+		SELECT sum(value)
+		FROM cpu
+		WHERE time >= now() - 3h AND region = 'us-west'
+		GROUP BY time(1h), host`)
+
+	// Expected resultset.
+	exp := minify(`[{
+		"name":"cpu",
+		"tags":{"host":"servera"},
+		"columns":["time","sum"],
+		"values":[
+			[946717200000000,3],
+			[946720800000000,0],
+			[946724400000000,7]
+		]
+	},{
+		"name":"cpu",
+		"tags":{"host":"serverc"},
+		"columns":["time","sum"],
+		"values":[
+			[946717200000000,100],
+			[946720800000000,0],
+			[946724400000000,200]
+		]
+	}]`)
+
+	// Compare resultsets.
+	if act := jsonify(rs); exp != act {
+		t.Fatalf("unexpected resultset: %s", indent(act))
+	}
+}
+
 // Ensure the planner can plan and execute a joined query.
 func TestPlanner_Plan_Join(t *testing.T) {
 	db := NewDB("2000-01-01T12:00:00Z")
