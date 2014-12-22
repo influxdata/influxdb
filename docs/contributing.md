@@ -5,7 +5,7 @@ InfluxDB follows standard Go project structure. This means that all
 your go development are done in $GOPATH/src. GOPATH can be any
 directory under which InfluxDB and all it's dependencies will be
 cloned. For more details on recommended go project's structure, see
-[How to Write Go Code](http://golang.org/doc/code.html]) and
+[How to Write Go Code](http://golang.org/doc/code.html) and
 [Go: Best Practices for Production Environments](http://peter.bourgon.org/go-in-production/), or you can just follow
 the steps below.
 
