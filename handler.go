@@ -232,7 +232,7 @@ func (h *Handler) serveCreateDatabase(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) serveDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get(":name")
 	if err := h.server.DeleteDatabase(name); err == ErrDatabaseNotFound {
-		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		h.error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
@@ -245,37 +245,146 @@ func (h *Handler) serveDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) serveAuthenticateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
 
 // serveClusterAdmins returns data about a single cluster admin.
-func (h *Handler) serveClusterAdmins(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveClusterAdmins(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	type adminPublic struct {
+		Name          string `json:"name"`
+		IsUserDeleted bool   `json:"isUserDeleted"`
+	}
+
+	// Get the cluster admins from the server.
+	admins := h.server.ClusterAdmins()
+
+	// Create a list of cluster admins containing only the fields
+	// we want to publish.
+	adminsPublic := make([]*adminPublic, 0, len(admins))
+	for _, admin := range admins {
+		adminPublic := &adminPublic{
+			Name:          admin.Name,
+			IsUserDeleted: admin.IsUserDeleted,
+		}
+		adminsPublic = append(adminsPublic, adminPublic)
+	}
+
+	w.Header().Add("content-type", "application/json")
+	if err := json.NewEncoder(w).Encode(adminsPublic); err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
 
 // serveCreateClusterAdmin creates a new cluster admin.
-func (h *Handler) serveCreateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveCreateClusterAdmin(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	u := &dbUserPub{}
+	if err := json.NewDecoder(r.Body).Decode(u); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.server.CreateClusterAdmin(u.Name, u.Password); err == ErrClusterAdminExists {
+		h.error(w, err.Error(), http.StatusConflict)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
 
 // serveUpdateClusterAdmin updates an existing cluster admin.
 func (h *Handler) serveUpdateClusterAdmin(w http.ResponseWriter, r *http.Request) {}
 
 // serveDeleteClusterAdmin removes an existing cluster admin.
-func (h *Handler) serveDeleteClusterAdmin(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveDeleteClusterAdmin(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	if err := h.server.DeleteClusterAdmin(urlQry.Get(":user")); err == ErrClusterAdminNotFound {
+		h.error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
 
 // serveAuthenticateDBUser authenticates a user as a database user.
 func (h *Handler) serveAuthenticateDBUser(w http.ResponseWriter, r *http.Request) {}
 
-// serveDBUsers returns data about a single database user.
-func (h *Handler) serveDBUsers(w http.ResponseWriter, r *http.Request) {}
-
-type userJSON struct {
-	Name     string     `json:"name"`
-	Password string     `json:"password"`
-	IsAdmin  bool       `json:"isAdmin"`
-	ReadFrom []*Matcher `json:"readFrom"`
-	WriteTo  []*Matcher `json:"writeTo"`
+// dbUserPub represents the externally available DB user fields.
+type dbUserPub struct {
+	Name     string     `json:"name",omitempty`
+	Password string     `json:"password",omitempty`
+	IsAdmin  bool       `json:"isAdmin",omitempty`
+	ReadFrom []*Matcher `json:"readFrom",omitempty`
+	WriteTo  []*Matcher `json:"writeTo",omitempty`
 }
 
-func newUserJSONFromDBUser(dbu *DBUser) *userJSON {
-	return &userJSON{
+// newDBUserPubFromDBUser takes a DBUser and returns a dbUserPub, which
+// contains only whitelisted fields.
+func newDBUserPubFromDBUser(dbu *DBUser) *dbUserPub {
+	return &dbUserPub{
 		Name:     dbu.Name,
 		IsAdmin:  dbu.IsAdmin,
 		WriteTo:  dbu.WriteTo,
 		ReadFrom: dbu.ReadFrom,
+	}
+}
+
+// serveDBUsers returns data about a single database user.
+func (h *Handler) serveDBUsers(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	users := db.Users()
+	usersPub := make([]*dbUserPub, 0, len(users))
+	for _, user := range users {
+		usersPub = append(usersPub, newDBUserPubFromDBUser(user))
+	}
+
+	if err := json.NewEncoder(w).Encode(usersPub); err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// serveDBUser returns data about a single database user.
+func (h *Handler) serveDBUser(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	user := db.User(urlQry.Get(":user"))
+	if user == nil {
+		h.error(w, ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	userPub := newDBUserPubFromDBUser(user)
+
+	w.Header().Add("content-type", "application/json")
+	err := json.NewEncoder(w).Encode(userPub)
+	if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -291,22 +400,23 @@ func (h *Handler) serveCreateDBUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nu := &userJSON{}
-	if err := json.NewDecoder(r.Body).Decode(nu); err != nil {
+	u := &dbUserPub{}
+	if err := json.NewDecoder(r.Body).Decode(u); err != nil {
 		h.error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if err := db.CreateUser(nu.Name, nu.Password, nu.ReadFrom, nu.WriteTo); err != nil {
+	if err := db.CreateUser(u.Name, u.Password, u.ReadFrom, u.WriteTo); err == ErrUserExists {
+		h.error(w, err.Error(), http.StatusConflict)
+		return
+	} else if err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	// TODO: handle IsAdmin
 }
 
-// serveDBUser returns data about a single database user.
-func (h *Handler) serveDBUser(w http.ResponseWriter, r *http.Request) {
+// serveUpdateDBUser updates an existing database user.
+func (h *Handler) serveUpdateDBUser(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authentication
 
 	urlQry := r.URL.Query()
@@ -317,27 +427,66 @@ func (h *Handler) serveDBUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbUser := db.User(urlQry.Get(":user"))
-	if dbUser == nil {
+	user := db.User(urlQry.Get(":user"))
+	if user == nil {
 		h.error(w, ErrUserNotFound.Error(), http.StatusNotFound)
 		return
 	}
 
-	userJSON := newUserJSONFromDBUser(dbUser)
+	var update struct {
+		Password *string     `json:"password"`
+		ReadFrom *[]*Matcher `json:"readFrom"`
+		WriteTo  *[]*Matcher `json:"writeTo"`
+		IsAdmin  *bool       `json:"isAdmin"`
+	}
 
-	w.Header().Add("content-type", "application/json")
-	err := json.NewEncoder(w).Encode(userJSON)
-	if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
+	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	if update.Password != nil {
+		if err := db.ChangePassword(user.Name, *update.Password); err != nil {
+			h.error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if update.ReadFrom != nil {
+		user.ReadFrom = *update.ReadFrom
+	}
+
+	if update.WriteTo != nil {
+		user.WriteTo = *update.WriteTo
+	}
+
+	if update.IsAdmin != nil {
+		user.IsAdmin = *update.IsAdmin
 	}
 }
 
-// serveUpdateDBUser updates an existing database user.
-func (h *Handler) serveUpdateDBUser(w http.ResponseWriter, r *http.Request) {}
-
 // serveDeleteDBUser removes an existing database user.
-func (h *Handler) serveDeleteDBUser(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) serveDeleteDBUser(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authentication
+
+	urlQry := r.URL.Query()
+
+	db := h.server.Database(urlQry.Get(":db"))
+	if db == nil {
+		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
+		return
+	}
+
+	if err := db.DeleteUser(urlQry.Get(":user")); err == ErrUserNotFound {
+		h.error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {}
@@ -361,6 +510,7 @@ func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {
 	err := json.NewEncoder(w).Encode(shards)
 	if err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -386,6 +536,7 @@ func (h *Handler) serveShardsByRetentionPolicy(w http.ResponseWriter, r *http.Re
 	err := json.NewEncoder(w).Encode(policy.Shards)
 	if err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -469,8 +620,6 @@ func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Requ
 
 	// Update the policy
 	*policy = *newPolicy
-
-	w.WriteHeader(http.StatusOK)
 }
 
 // serveDeleteRetentionPolicy removes an existing retention policy.

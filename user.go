@@ -10,6 +10,7 @@ import (
 )
 
 var userCache = cache.New(0, 0)
+var BcryptCost = 10
 
 type Matcher struct {
 	IsRegex bool
@@ -146,7 +147,7 @@ func HashPassword(password string) ([]byte, error) {
 
 	// The second arg is the cost of the hashing, higher is slower but makes it harder
 	// to brute force, since it will be really slow and impractical
-	return bcrypt.GenerateFromPassword([]byte(password), 10)
+	return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
 }
 
 // isValidName returns true if the name contains no invalid characters.
