@@ -526,7 +526,7 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (db *Database) Measurements() (a []*Measurement) {
+func (db *Database) Measurements() (a Measurements) {
 	db.mu.RLock()
 	m := db.server.meta
 	db.mu.RUnlock()
@@ -540,16 +540,22 @@ func (db *Database) Measurements() (a []*Measurement) {
 
 // Measurement represents a collection of time series in a database
 type Measurement struct {
-	Name   string
-	Series []*Series
-	Fields []*Fields
+	Name   string    `json:"name,omitempty"`
+	Series []*Series `json:"series,omitempty"`
+	Fields []*Fields `json:"fields,omitempty"`
+}
+
+type Measurements []*Measurement
+
+func (m Measurement) String() string {
+	return string(mustMarshalJSON(m))
 }
 
 // Field represents a series field.
 type Field struct {
-	ID   uint8  `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-	Type FieldType
+	ID   uint8     `json:"id,omitempty"`
+	Name string    `json:"name,omitempty"`
+	Type FieldType `json:"field"`
 }
 
 type FieldType int
@@ -561,11 +567,6 @@ const (
 	Boolean
 	Binary
 )
-
-// String returns a string representation of the field.
-func (f *Field) String() string {
-	return fmt.Sprintf("Name: %s, ID: %d", f.Name, f.ID)
-}
 
 // Fields represents a list of fields.
 type Fields []*Field

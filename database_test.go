@@ -440,7 +440,7 @@ func TestDatabase_CreateShardIfNotExist(t *testing.T) {
 	}
 }
 
-func TestDatabase_Series(t *testing.T) {
+func TestDatabase_Measurements(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -458,24 +458,29 @@ func TestDatabase_Series(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := db.Series()
-	resultContains(r, t, "cpu_load", tags)
+	r := db.Measurements()
+	m := []*influxdb.Measurement{
+		&influxdb.Measurement{
+			Name: "cpu_load",
+			Series: []*influxdb.Series{
+				&influxdb.Series{
+					ID:   uint32(1),
+					Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"}}}}}
+	if !measurementsEqual(r, m) {
+		t.Fatalf("Mesurements not the same:\n%s\n%s", r, m)
+	}
 }
 
-func resultContains(result []*influxdb.Measurement, t *testing.T, name string, tags map[string]string) {
-	if len(result) == 0 {
-		t.Fatal("No results")
+func measurementsEqual(l influxdb.Measurements, r influxdb.Measurements) bool {
+	if len(l) != len(r) {
+		return false
 	}
-	for _, m := range result {
-		if m.Name == name {
-			for _, s := range m.Series {
-				if reflect.DeepEqual(s.Tags, tags) {
-					return
-				}
-			}
+	for i, ll := range l {
+		if !reflect.DeepEqual(ll, r[i]) {
+			return false
 		}
 	}
-	t.Fatalf("Result didn't contain name %s with tags: %s", name, tags)
+	return true
 }
 
 func TestDatabaseSeriesByTagNames(t *testing.T) {
