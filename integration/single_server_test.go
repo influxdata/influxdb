@@ -894,8 +894,8 @@ func (self *SingleServerSuite) TestShardSpaceRegex(c *C) {
 [
   {
     "name": "metric.foobar",
-    "columns": ["time", "val"],
-    "points":[[1307997668000, 1]]
+    "columns": ["val"],
+    "points":[[1]]
   }
 ]`, c)
 	spaces, err := client.GetShardSpaces()
@@ -913,8 +913,8 @@ func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 [
   {
     "name": "test_create_shard_space",
-    "columns": ["time", "val"],
-    "points":[[1307997668000, 1]]
+    "columns": ["val"],
+    "points":[[1]]
   }
 ]`, c)
 	client := self.server.GetClient("", c)
@@ -931,8 +931,8 @@ func (self *SingleServerSuite) TestCreateShardSpace(c *C) {
 [
   {
     "name": "the_dude_abides",
-    "columns": ["time", "val"],
-    "points":[[1307997668000, 1]]
+    "columns": ["val"],
+    "points":[[1]]
   }
 ]`, c)
 	spaces, err = client.GetShardSpaces()
