@@ -895,7 +895,7 @@ func TestHandler_ClusterAdmins(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"Name":"jdoe","IsUserDeleted":false},{"Name":"mclark","IsUserDeleted":false}]` {
+	} else if body != `[{"name":"jdoe","isUserDeleted":false},{"name":"mclark","isUserDeleted":false}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }

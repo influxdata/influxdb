@@ -249,8 +249,8 @@ func (h *Handler) serveClusterAdmins(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authentication
 
 	type adminPublic struct {
-		Name          string
-		IsUserDeleted bool
+		Name          string `json:"name"`
+		IsUserDeleted bool   `json:"isUserDeleted"`
 	}
 
 	// Get the cluster admins from the server.
