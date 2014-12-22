@@ -20,7 +20,6 @@ type Database struct {
 	users    map[string]*DBUser          // database users by name
 	policies map[string]*RetentionPolicy // retention policies by name
 	shards   map[uint64]*Shard           // shards by id
-	series   map[string]*Series          // series by name
 
 	defaultRetentionPolicy string
 }
@@ -32,7 +31,6 @@ func newDatabase(s *Server) *Database {
 		users:    make(map[string]*DBUser),
 		policies: make(map[string]*RetentionPolicy),
 		shards:   make(map[uint64]*Shard),
-		series:   make(map[string]*Series),
 	}
 }
 
@@ -354,12 +352,11 @@ func (db *Database) applyCreateShardIfNotExists(id uint64, policy string, timest
 }
 
 func (db *Database) applyCreateSeriesIfNotExists(name string, tags map[string]string) error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	db.server.meta.mustUpdate(func(tx *metatx) error {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	return db.server.meta.mustUpdate(func(tx *metatx) error {
 		return tx.createSeriesIfNotExists(db.name, name, tags)
 	})
-	return nil
 }
 
 // WriteSeries writes series data to the database.
@@ -493,9 +490,6 @@ func (db *Database) MarshalJSON() ([]byte, error) {
 	for _, s := range db.shards {
 		o.Shards = append(o.Shards, s)
 	}
-	for _, s := range db.series {
-		o.Series = append(o.Series, s)
-	}
 	return json.Marshal(&o)
 }
 
@@ -529,13 +523,58 @@ func (db *Database) UnmarshalJSON(data []byte) error {
 		db.shards[s.ID] = s
 	}
 
-	// Copy series.
-	db.series = make(map[string]*Series)
-	for _, s := range o.Series {
-		db.series[s.Name] = s
-	}
-
 	return nil
+}
+
+func (db *Database) Measurements() (a Measurements) {
+	db.mu.RLock()
+	m := db.server.meta
+	db.mu.RUnlock()
+
+	m.view(func(tx *metatx) error {
+		a = tx.measurements(db.name)
+		return nil
+	})
+	return
+}
+
+// Measurement represents a collection of time series in a database
+type Measurement struct {
+	Name   string    `json:"name,omitempty"`
+	Series []*Series `json:"series,omitempty"`
+	Fields []*Fields `json:"fields,omitempty"`
+}
+
+type Measurements []*Measurement
+
+func (m Measurement) String() string {
+	return string(mustMarshalJSON(m))
+}
+
+// Field represents a series field.
+type Field struct {
+	ID   uint8     `json:"id,omitempty"`
+	Name string    `json:"name,omitempty"`
+	Type FieldType `json:"field"`
+}
+
+type FieldType int
+
+const (
+	Int64 FieldType = iota
+	Float64
+	String
+	Boolean
+	Binary
+)
+
+// Fields represents a list of fields.
+type Fields []*Field
+
+// Series belong to a Measurement and represent unique time series in a database
+type Series struct {
+	ID   uint32
+	Tags map[string]string
 }
 
 // databaseJSON represents the JSON-serialization format for a database.
@@ -545,7 +584,6 @@ type databaseJSON struct {
 	Users                  []*DBUser          `json:"users,omitempty"`
 	Policies               []*RetentionPolicy `json:"policies,omitempty"`
 	Shards                 []*Shard           `json:"shards,omitempty"`
-	Series                 []*Series          `json:"series,omitempty"`
 }
 
 // databases represents a list of databases, sortable by name.
@@ -646,44 +684,4 @@ func (rps RetentionPolicies) Shards() []*Shard {
 		shards = append(shards, rp.Shards...)
 	}
 	return shards
-}
-
-// Series represents a series of timeseries points.
-type Series struct {
-	Name   string   `json:"name,omitempty"`
-	Fields []*Field `json:"fields,omitempty"`
-}
-
-func (s *Series) FieldsByNames(names []string) (a []*Field) {
-	for _, f := range s.Fields {
-		for _, name := range names {
-			if f.Name == name {
-				a = append(a, f)
-			}
-		}
-	}
-	return
-}
-
-// Field represents a series field.
-type Field struct {
-	ID   uint64 `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-}
-
-// String returns a string representation of the field.
-func (f *Field) String() string {
-	return fmt.Sprintf("Name: %s, ID: %d", f.Name, f.ID)
-}
-
-// Fields represents a list of fields.
-type Fields []*Field
-
-// Names returns a list of all field names.
-func (a Fields) Names() []string {
-	names := make([]string, len(a))
-	for i, f := range a {
-		names[i] = f.Name
-	}
-	return names
 }
