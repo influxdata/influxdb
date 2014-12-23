@@ -1,7 +1,10 @@
 package influxdb
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 )
 
 var (
@@ -72,3 +75,33 @@ var (
 	// ErrSeriesExists is returned when attempting to set the id of a series by database, name and tags that already exists
 	ErrSeriesExists = errors.New("series already exists")
 )
+
+// mustMarshal encodes a value to JSON.
+// This will panic if an error occurs. This should only be used internally when
+// an invalid marshal will cause corruption and a panic is appropriate.
+func mustMarshalJSON(v interface{}) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("marshal: " + err.Error())
+	}
+	return b
+}
+
+// mustUnmarshalJSON decodes a value from JSON.
+// This will panic if an error occurs. This should only be used internally when
+// an invalid unmarshal will cause corruption and a panic is appropriate.
+func mustUnmarshalJSON(b []byte, v interface{}) {
+	if err := json.Unmarshal(b, v); err != nil {
+		panic("unmarshal: " + err.Error())
+	}
+}
+
+// assert will panic with a given formatted message if the given condition is false.
+func assert(condition bool, msg string, v ...interface{}) {
+	if !condition {
+		panic(fmt.Sprintf("assert failed: "+msg, v...))
+	}
+}
+
+func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
+func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }

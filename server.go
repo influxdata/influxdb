@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
-	"github.com/boltdb/bolt"
+	"code.google.com/p/go.crypto/bcrypt"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -39,19 +38,21 @@ const (
 
 const (
 	// broadcast messages
-	createDatabaseMessageType            = messaging.MessageType(0x00)
-	deleteDatabaseMessageType            = messaging.MessageType(0x01)
-	createRetentionPolicyMessageType     = messaging.MessageType(0x02)
-	deleteRetentionPolicyMessageType     = messaging.MessageType(0x03)
-	createClusterAdminMessageType        = messaging.MessageType(0x04)
-	deleteClusterAdminMessageType        = messaging.MessageType(0x05)
-	clusterAdminSetPasswordMessageType   = messaging.MessageType(0x06)
-	createDBUserMessageType              = messaging.MessageType(0x07)
-	deleteDBUserMessageType              = messaging.MessageType(0x08)
-	dbUserSetPasswordMessageType         = messaging.MessageType(0x09)
-	createShardIfNotExistsMessageType    = messaging.MessageType(0x0a)
-	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x0b)
-	createSeriesIfNotExistsMessageType   = messaging.MessageType(0x0c)
+	createDatabaseMessageType = messaging.MessageType(0x00)
+	deleteDatabaseMessageType = messaging.MessageType(0x01)
+
+	createRetentionPolicyMessageType     = messaging.MessageType(0x10)
+	updateRetentionPolicyMessageType     = messaging.MessageType(0x11)
+	deleteRetentionPolicyMessageType     = messaging.MessageType(0x12)
+	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x13)
+
+	createUserMessageType = messaging.MessageType(0x20)
+	updateUserMessageType = messaging.MessageType(0x21)
+	deleteUserMessageType = messaging.MessageType(0x22)
+
+	createShardIfNotExistsMessageType = messaging.MessageType(0x30)
+
+	createSeriesIfNotExistsMessageType = messaging.MessageType(0x40)
 
 	// per-topic messages
 	writeSeriesMessageType = messaging.MessageType(0x80)
@@ -69,9 +70,9 @@ type Server struct {
 
 	meta *metastore // metadata store
 
-	databases        map[string]*Database     // databases by name
-	databasesByShard map[uint64]*Database     // databases by shard id
-	admins           map[string]*ClusterAdmin // admins by name
+	databases        map[string]*database // databases by name
+	databasesByShard map[uint64]*database // databases by shard id
+	users            map[string]*User     // user by name
 }
 
 // NewServer returns a new instance of Server.
@@ -81,9 +82,9 @@ func NewServer(client MessagingClient) *Server {
 	return &Server{
 		client:           client,
 		meta:             &metastore{},
-		databases:        make(map[string]*Database),
-		databasesByShard: make(map[uint64]*Database),
-		admins:           make(map[string]*ClusterAdmin),
+		databases:        make(map[string]*database),
+		databasesByShard: make(map[uint64]*database),
+		users:            make(map[string]*User),
 		errors:           make(map[uint64]error),
 	}
 }
@@ -166,9 +167,8 @@ func (s *Server) Close() error {
 func (s *Server) load() error {
 	return s.meta.view(func(tx *metatx) error {
 		// Load databases.
-		s.databases = make(map[string]*Database)
+		s.databases = make(map[string]*database)
 		for _, db := range tx.databases() {
-			db.server = s
 			s.databases[db.name] = db
 
 			for sh := range db.shards {
@@ -176,10 +176,10 @@ func (s *Server) load() error {
 			}
 		}
 
-		// Load cluster admins.
-		s.admins = make(map[string]*ClusterAdmin)
-		for _, u := range tx.clusterAdmins() {
-			s.admins[u.Name] = u
+		// Load users.
+		s.users = make(map[string]*User)
+		for _, u := range tx.users() {
+			s.users[u.Name] = u
 		}
 
 		return nil
@@ -234,23 +234,22 @@ func (s *Server) sync(index uint64) error {
 	}
 }
 
-// Database creates a new database.
-func (s *Server) Database(name string) *Database {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.databases[name]
+// DatabaseExists returns true if a database exists.
+func (s *Server) DatabaseExists(name string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.databases[name] != nil
 }
 
-// Databases returns a list of all databases, sorted by name.
-func (s *Server) Databases() []*Database {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var a databases
+// Databases returns a sorted list of all database names.
+func (s *Server) Databases() (a []string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, db := range s.databases {
-		a = append(a, db)
+		a = append(a, db.name)
 	}
-	sort.Sort(a)
-	return a
+	sort.Strings(a)
+	return
 }
 
 // CreateDatabase creates a new database.
@@ -260,7 +259,7 @@ func (s *Server) CreateDatabase(name string) error {
 	return err
 }
 
-func (s *Server) applyCreateDatabase(m *messaging.Message) error {
+func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 	var c createDatabaseCommand
 	mustUnmarshalJSON(m.Data, &c)
 
@@ -271,18 +270,16 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) error {
 	}
 
 	// Create database entry.
-	db := newDatabase(s)
+	db := newDatabase()
 	db.name = c.Name
 
 	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
-		return tx.saveDatabase(db)
-	})
+	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.saveDatabase(db) })
 
 	// Add to databases on server.
 	s.databases[c.Name] = db
 
-	return nil
+	return
 }
 
 type createDatabaseCommand struct {
@@ -296,7 +293,7 @@ func (s *Server) DeleteDatabase(name string) error {
 	return err
 }
 
-func (s *Server) applyDeleteDatabase(m *messaging.Message) error {
+func (s *Server) applyDeleteDatabase(m *messaging.Message) (err error) {
 	var c deleteDatabaseCommand
 	mustUnmarshalJSON(m.Data, &c)
 
@@ -307,47 +304,134 @@ func (s *Server) applyDeleteDatabase(m *messaging.Message) error {
 	}
 
 	// Remove from metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
-		return tx.deleteDatabase(c.Name)
-	})
+	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteDatabase(c.Name) })
 
 	// Delete the database entry.
 	delete(s.databases, c.Name)
-	return nil
+	return
 }
 
 type deleteDatabaseCommand struct {
 	Name string `json:"name"`
 }
 
-func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) error {
+// shardByTimestamp returns a shard that owns a given timestamp for a database.
+func (s *Server) shardByTimestamp(database, policy string, id uint32, timestamp time.Time) (*Shard, error) {
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
+	}
+	return db.shardByTimestamp(policy, id, timestamp)
+}
+
+// Shards returns a list of all shards for a database.
+// Returns an error if the database doesn't exist.
+func (s *Server) Shards(database string) ([]*Shard, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Lookup database.
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
+	}
+
+	// Retrieve shards from database.
+	shards := make([]*Shard, 0, len(db.shards))
+	for _, shard := range db.shards {
+		shards = append(shards, shard)
+	}
+	return shards, nil
+}
+
+// shardsByTimestamp returns all shards that own a given timestamp for a database.
+func (s *Server) shardsByTimestamp(database, policy string, timestamp time.Time) ([]*Shard, error) {
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
+	}
+	return db.shardsByTimestamp(policy, timestamp)
+}
+
+// CreateShardsIfNotExist creates all the shards for a retention policy for the interval a timestamp falls into.
+// Note that multiple shards can be created for each bucket of time.
+func (s *Server) CreateShardsIfNotExists(database, policy string, timestamp time.Time) error {
+	c := &createShardIfNotExistsCommand{Database: database, Policy: policy, Timestamp: timestamp}
+	_, err := s.broadcast(createShardIfNotExistsMessageType, c)
+	return err
+}
+
+// createShardIfNotExists returns the shard for a given retention policy, series, and timestamp.
+// If it doesn't exist, it will create all shards for the given timestamp
+func (s *Server) createShardIfNotExists(database, policy string, id uint32, timestamp time.Time) (*Shard, error) {
+	// Check if shard exists first.
+	sh, err := s.shardByTimestamp(database, policy, id, timestamp)
+	if err != nil {
+		return nil, err
+	} else if sh != nil {
+		return sh, nil
+	}
+
+	// If the shard doesn't exist then create it.
+	if err := s.CreateShardsIfNotExists(database, policy, timestamp); err != nil {
+		return nil, err
+	}
+
+	// Lookup the shard again.
+	return s.shardByTimestamp(database, policy, id, timestamp)
+}
+
+func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) (err error) {
 	var c createShardIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Retrieve database.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
 		return ErrDatabaseNotFound
 	}
 
-	shardID := m.Index
+	// Validate retention policy.
+	rp := db.policies[c.Policy]
+	if rp == nil {
+		return ErrRetentionPolicyNotFound
+	}
 
-	// Check if a matching shard already exists.
-	if err, ok := db.applyCreateShardIfNotExists(shardID, c.Policy, c.Timestamp); err != nil {
-		return err
-	} else if !ok {
-		return nil
+	// If we can match to an existing shard date range then just ignore request.
+	for _, sh := range rp.Shards {
+		if timeBetweenInclusive(c.Timestamp, sh.StartTime, sh.EndTime) {
+			return nil
+		}
+	}
+
+	// If no shards match then create a new one.
+	sh := newShard()
+	sh.ID = m.Index
+	sh.StartTime = c.Timestamp.Truncate(rp.Duration).UTC()
+	sh.EndTime = sh.StartTime.Add(rp.Duration).UTC()
+
+	// Open shard.
+	if err := sh.open(s.shardPath(sh.ID)); err != nil {
+		panic("unable to open shard: " + err.Error())
 	}
 
 	// Persist to metastore if a shard was created.
-	s.meta.mustUpdate(func(tx *metatx) error {
+	if err = s.meta.mustUpdate(func(tx *metatx) error {
 		return tx.saveDatabase(db)
-	})
+	}); err != nil {
+		_ = sh.close()
+		return
+	}
 
-	s.databasesByShard[shardID] = db
+	// Add to lookups.
+	s.databasesByShard[sh.ID] = db
+	db.shards[sh.ID] = sh
+	rp.Shards = append(rp.Shards, sh)
 
-	return nil
+	return
 }
 
 type createShardIfNotExistsCommand struct {
@@ -356,45 +440,44 @@ type createShardIfNotExistsCommand struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// ClusterAdmin returns an admin by name.
-// Returns nil if the admin does not exist.
-func (s *Server) ClusterAdmin(name string) *ClusterAdmin {
+// User returns a user by username
+// Returns nil if the user does not exist.
+func (s *Server) User(name string) *User {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.admins[name]
+	return s.users[name]
 }
 
-// ClusterAdmins returns a list of all cluster admins, sorted by name.
-func (s *Server) ClusterAdmins() []*ClusterAdmin {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var a clusterAdmins
-	for _, u := range s.admins {
+// Users returns a list of all users, sorted by name.
+func (s *Server) Users() (a []*User) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, u := range s.users {
 		a = append(a, u)
 	}
-	sort.Sort(a)
+	sort.Sort(users(a))
 	return a
 }
 
-// CreateClusterAdmin creates a cluster admin on the server.
-func (s *Server) CreateClusterAdmin(username, password string) error {
-	c := &createClusterAdminCommand{Username: username, Password: password}
-	_, err := s.broadcast(createClusterAdminMessageType, c)
+// CreateUser creates a user on the server.
+func (s *Server) CreateUser(username, password string, admin bool) error {
+	c := &createUserCommand{Username: username, Password: password, Admin: admin}
+	_, err := s.broadcast(createUserMessageType, c)
 	return err
 }
 
-func (s *Server) applyCreateClusterAdmin(m *messaging.Message) error {
-	var c createClusterAdminCommand
+func (s *Server) applyCreateUser(m *messaging.Message) (err error) {
+	var c createUserCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Validate admin.
+	// Validate user.
 	if c.Username == "" {
 		return ErrUsernameRequired
-	} else if s.admins[c.Username] != nil {
-		return ErrClusterAdminExists
+	} else if s.users[c.Username] != nil {
+		return ErrUserExists
 	}
 
 	// Generate the hash of the password.
@@ -403,157 +486,164 @@ func (s *Server) applyCreateClusterAdmin(m *messaging.Message) error {
 		return err
 	}
 
-	// Create the cluster admin.
-	u := &ClusterAdmin{
-		CommonUser: CommonUser{
-			Name: c.Username,
-			Hash: string(hash),
-		},
+	// Create the user.
+	u := &User{
+		Name:  c.Username,
+		Hash:  string(hash),
+		Admin: c.Admin,
 	}
 
 	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
-		return tx.saveClusterAdmin(u)
+	err = s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveUser(u)
 	})
 
-	s.admins[u.Name] = u
-	return nil
+	s.users[u.Name] = u
+	return
 }
 
-type createClusterAdminCommand struct {
+type createUserCommand struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Admin    bool   `json:"admin,omitempty"`
 }
 
-// DeleteClusterAdmin removes a cluster admin from the server.
-func (s *Server) DeleteClusterAdmin(username string) error {
-	c := &deleteClusterAdminCommand{Username: username}
-	_, err := s.broadcast(deleteClusterAdminMessageType, c)
+// UpdateUser updates an existing user on the server.
+func (s *Server) UpdateUser(username, password string) error {
+	c := &updateUserCommand{Username: username, Password: password}
+	_, err := s.broadcast(updateUserMessageType, c)
 	return err
 }
 
-func (s *Server) applyDeleteClusterAdmin(m *messaging.Message) error {
-	var c deleteClusterAdminCommand
+func (s *Server) applyUpdateUser(m *messaging.Message) (err error) {
+	var c updateUserCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Validate admin.
+	// Validate command.
+	u := s.users[c.Username]
+	if u == nil {
+		return ErrUserNotFound
+	}
+
+	// Update the user's password, if set.
+	if c.Password != "" {
+		hash, err := HashPassword(c.Password)
+		if err != nil {
+			return err
+		}
+		u.Hash = string(hash)
+	}
+
+	// Persist to metastore.
+	return s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveUser(u)
+	})
+}
+
+type updateUserCommand struct {
+	Username string `json:"username"`
+	Password string `json:"password,omitempty"`
+}
+
+// DeleteUser removes a user from the server.
+func (s *Server) DeleteUser(username string) error {
+	c := &deleteUserCommand{Username: username}
+	_, err := s.broadcast(deleteUserMessageType, c)
+	return err
+}
+
+func (s *Server) applyDeleteUser(m *messaging.Message) error {
+	var c deleteUserCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate user.
 	if c.Username == "" {
 		return ErrUsernameRequired
-	} else if s.admins[c.Username] == nil {
-		return ErrClusterAdminNotFound
+	} else if s.users[c.Username] == nil {
+		return ErrUserNotFound
 	}
 
 	// Remove from metastore.
 	s.meta.mustUpdate(func(tx *metatx) error {
-		return tx.deleteClusterAdmin(c.Username)
+		return tx.deleteUser(c.Username)
 	})
 
-	// Delete the cluster admin.
-	delete(s.admins, c.Username)
+	// Delete the user.
+	delete(s.users, c.Username)
 	return nil
 }
 
-type deleteClusterAdminCommand struct {
+type deleteUserCommand struct {
 	Username string `json:"username"`
 }
 
-func (s *Server) applyDBUserSetPassword(m *messaging.Message) error {
-	var c dbUserSetPasswordCommand
-	mustUnmarshalJSON(m.Data, &c)
-
+// RetentionPolicy returns a retention policy by name.
+// Returns an error if the database doesn't exist.
+func (s *Server) RetentionPolicy(database, name string) (*RetentionPolicy, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Retrieve the database.
-	db := s.databases[c.Database]
-	if s.databases[c.Database] == nil {
-		return ErrDatabaseNotFound
+	// Lookup database.
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
 	}
 
-	// Update password change in database.
-	if err := db.applyChangePassword(c.Username, c.Password); err != nil {
-		return err
-	}
-
-	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
-		return tx.saveDatabase(db)
-	})
-
-	return nil
+	return db.policies[name], nil
 }
 
-type dbUserSetPasswordCommand struct {
-	Database string `json:"database"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-func (s *Server) applyCreateDBUser(m *messaging.Message) error {
-	var c createDBUserCommand
-	mustUnmarshalJSON(m.Data, &c)
-
+// DefaultRetentionPolicy returns the default retention policy for a database.
+// Returns an error if the database doesn't exist.
+func (s *Server) DefaultRetentionPolicy(database string) (*RetentionPolicy, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Retrieve the database.
-	db := s.databases[c.Database]
-	if s.databases[c.Database] == nil {
-		return ErrDatabaseNotFound
+	// Lookup database.
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
 	}
 
-	if err := db.applyCreateUser(c.Username, c.Password, c.ReadFrom, c.WriteTo); err != nil {
-		return err
-	}
-
-	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
-		return tx.saveDatabase(db)
-	})
-
-	return nil
+	return db.policies[db.defaultRetentionPolicy], nil
 }
 
-type createDBUserCommand struct {
-	Database string     `json:"database"`
-	Username string     `json:"username"`
-	Password string     `json:"password"`
-	ReadFrom []*Matcher `json:"readFrom"`
-	WriteTo  []*Matcher `json:"writeTo"`
-}
+// RetentionPolicies returns a list of retention polocies for a database.
+// Returns an error if the database doesn't exist.
+func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-func (s *Server) applyDeleteDBUser(m *messaging.Message) error {
-	var c deleteDBUserCommand
-	mustUnmarshalJSON(m.Data, &c)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Retrieve the database.
-	db := s.databases[c.Database]
-	if s.databases[c.Database] == nil {
-		return ErrDatabaseNotFound
+	// Lookup database.
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
 	}
 
-	// Remove user from database.
-	if err := db.applyDeleteUser(c.Username); err != nil {
-		return err
+	// Retrieve the policies.
+	a := make([]*RetentionPolicy, 0, len(db.policies))
+	for _, p := range db.policies {
+		a = append(a, p)
 	}
-
-	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
-		return tx.saveDatabase(db)
-	})
-
-	return nil
+	return a, nil
 }
 
-type deleteDBUserCommand struct {
-	Database string `json:"database"`
-	Username string `json:"username"`
+// CreateRetentionPolicy creates a retention policy for a database.
+func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) error {
+	c := &createRetentionPolicyCommand{
+		Database: database,
+		Name:     rp.Name,
+		Duration: rp.Duration,
+		ReplicaN: rp.ReplicaN,
+		SplitN:   rp.SplitN,
+	}
+	_, err := s.broadcast(createRetentionPolicyMessageType, c)
+	return err
 }
 
 func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
@@ -567,10 +657,18 @@ func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
 		return ErrDatabaseNotFound
+	} else if c.Name == "" {
+		return ErrRetentionPolicyNameRequired
+	} else if db.policies[c.Name] != nil {
+		return ErrRetentionPolicyExists
 	}
 
-	if err := db.applyCreateRetentionPolicy(c.Name, c.Duration, c.ReplicaN, c.SplitN); err != nil {
-		return err
+	// Add policy to the database.
+	db.policies[c.Name] = &RetentionPolicy{
+		Name:     c.Name,
+		Duration: c.Duration,
+		ReplicaN: c.ReplicaN,
+		SplitN:   c.SplitN,
 	}
 
 	// Persist to metastore.
@@ -589,7 +687,63 @@ type createRetentionPolicyCommand struct {
 	SplitN   uint32        `json:"splitN"`
 }
 
-func (s *Server) applyDeleteRetentionPolicy(m *messaging.Message) error {
+// UpdateRetentionPolicy updates an existing retention policy on a database.
+func (s *Server) UpdateRetentionPolicy(database, name string, rp *RetentionPolicy) error {
+	c := &updateRetentionPolicyCommand{Database: database, Name: name, NewName: rp.Name}
+	_, err := s.broadcast(updateRetentionPolicyMessageType, c)
+	return err
+}
+
+type updateRetentionPolicyCommand struct {
+	Database string `json:"database"`
+	Name     string `json:"name"`
+	NewName  string `json:"newName"`
+}
+
+func (s *Server) applyUpdateRetentionPolicy(m *messaging.Message) (err error) {
+	var c updateRetentionPolicyCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate command.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	} else if c.Name == "" {
+		return ErrRetentionPolicyNameRequired
+	}
+
+	// Retrieve the policy.
+	p := db.policies[c.Name]
+	if db.policies[c.Name] == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	// Update the policy name, if not blank.
+	if c.NewName != c.Name && c.NewName != "" {
+		delete(db.policies, p.Name)
+		p.Name = c.NewName
+		db.policies[p.Name] = p
+	}
+
+	// Persist to metastore.
+	err = s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return
+}
+
+// DeleteRetentionPolicy removes a retention policy from a database.
+func (s *Server) DeleteRetentionPolicy(database, name string) error {
+	c := &deleteRetentionPolicyCommand{Database: database, Name: name}
+	_, err := s.broadcast(deleteRetentionPolicyMessageType, c)
+	return err
+}
+
+func (s *Server) applyDeleteRetentionPolicy(m *messaging.Message) (err error) {
 	var c deleteRetentionPolicyCommand
 	mustUnmarshalJSON(m.Data, &c)
 
@@ -600,19 +754,21 @@ func (s *Server) applyDeleteRetentionPolicy(m *messaging.Message) error {
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
 		return ErrDatabaseNotFound
+	} else if c.Name == "" {
+		return ErrRetentionPolicyNameRequired
+	} else if db.policies[c.Name] == nil {
+		return ErrRetentionPolicyNotFound
 	}
 
-	// Remove shard space from database.
-	if err := db.applyDeleteRetentionPolicy(c.Name); err != nil {
-		return err
-	}
+	// Remove retention policy.
+	delete(db.policies, c.Name)
 
 	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
+	err = s.meta.mustUpdate(func(tx *metatx) error {
 		return tx.saveDatabase(db)
 	})
 
-	return nil
+	return
 }
 
 type deleteRetentionPolicyCommand struct {
@@ -620,29 +776,37 @@ type deleteRetentionPolicyCommand struct {
 	Name     string `json:"name"`
 }
 
-func (s *Server) applySetDefaultRetentionPolicy(m *messaging.Message) error {
+// SetDefaultRetentionPolicy sets the default policy to write data into and query from on a database.
+func (s *Server) SetDefaultRetentionPolicy(database, name string) error {
+	c := &setDefaultRetentionPolicyCommand{Database: database, Name: name}
+	_, err := s.broadcast(setDefaultRetentionPolicyMessageType, c)
+	return err
+}
+
+func (s *Server) applySetDefaultRetentionPolicy(m *messaging.Message) (err error) {
 	var c setDefaultRetentionPolicyCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Retrieve the database.
+	// Validate command.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
 		return ErrDatabaseNotFound
+	} else if db.policies[c.Name] == nil {
+		return ErrRetentionPolicyNotFound
 	}
 
-	if err := db.applySetDefaultRetentionPolicy(c.Name); err != nil {
-		return err
-	}
+	// Update default policy.
+	db.defaultRetentionPolicy = c.Name
 
 	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
+	err = s.meta.mustUpdate(func(tx *metatx) error {
 		return tx.saveDatabase(db)
 	})
 
-	return nil
+	return
 }
 
 type setDefaultRetentionPolicyCommand struct {
@@ -655,14 +819,17 @@ func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
-	db := s.databases[c.Database]
-	s.mu.Unlock()
+	defer s.mu.Unlock()
 
+	// Validate command.
+	db := s.databases[c.Database]
 	if db == nil {
 		return ErrDatabaseNotFound
 	}
 
-	return db.applyCreateSeriesIfNotExists(c.Name, c.Tags)
+	return s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.createSeriesIfNotExists(db.name, c.Name, c.Tags)
+	})
 }
 
 type createSeriesIfNotExistsCommand struct {
@@ -672,18 +839,97 @@ type createSeriesIfNotExistsCommand struct {
 }
 
 func (s *Server) applyWriteSeries(m *messaging.Message) error {
-	// Retrieve the database.
 	s.mu.RLock()
-	db := s.databasesByShard[m.TopicID]
-	s.mu.RUnlock()
 
+	// Retrieve the database.
+	db := s.databasesByShard[m.TopicID]
 	if db == nil {
+		s.mu.RUnlock()
 		return ErrDatabaseNotFound
 	}
 
+	// Retrieve the shard.
+	sh := db.shards[m.TopicID]
+	if sh == nil {
+		s.mu.RUnlock()
+		return ErrShardNotFound
+	}
+	s.mu.RUnlock()
+
 	// TODO: enable some way to specify if the data should be overwritten
 	overwrite := true
-	return db.applyWriteSeries(m.TopicID, overwrite, m.Data)
+
+	// Write to shard.
+	return sh.writeSeries(overwrite, m.Data)
+}
+
+// WriteSeries writes series data to the database.
+func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
+	// Find the id for the series and tagset
+	id, err := s.createSeriesIfNotExists(database, name, tags)
+	if err != nil {
+		return err
+	}
+
+	// Now write it into the shard.
+	sh, err := s.createShardIfNotExists(database, retentionPolicy, id, timestamp)
+	if err != nil {
+		return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
+	}
+
+	// Encode point to a byte slice.
+	data, err := marshalPoint(id, timestamp, values)
+	if err != nil {
+		return err
+	}
+
+	// Publish "write series" message on shard's topic to broker.
+	m := &messaging.Message{
+		Type:    writeSeriesMessageType,
+		TopicID: sh.ID,
+		Data:    data,
+	}
+
+	_, err = s.client.Publish(m)
+	return err
+}
+
+// seriesID returns the unique id of a series and tagset and a bool indicating if it was found
+func (s *Server) seriesID(database, name string, tags map[string]string) (id uint32) {
+	s.meta.view(func(tx *metatx) error {
+		id, _ = tx.seriesID(database, name, tags)
+		return nil
+	})
+	return
+}
+
+func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]string) (uint32, error) {
+	// Try to find series locally first.
+	if id := s.seriesID(database, name, tags); id != 0 {
+		return id, nil
+	}
+
+	// If it doesn't exist then create a message and broadcast.
+	c := &createSeriesIfNotExistsCommand{Database: database, Name: name, Tags: tags}
+	_, err := s.broadcast(createSeriesIfNotExistsMessageType, c)
+	if err != nil {
+		return 0, err
+	}
+
+	// Lookup series again.
+	id := s.seriesID(database, name, tags)
+	if id == 0 {
+		return 0, ErrSeriesNotFound
+	}
+	return id, nil
+}
+
+func (s *Server) Measurements(database string) (a Measurements) {
+	s.meta.view(func(tx *metatx) error {
+		a = tx.measurements(database)
+		return nil
+	})
+	return
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
@@ -707,18 +953,16 @@ func (s *Server) processor(done chan struct{}) {
 			err = s.applyCreateDatabase(m)
 		case deleteDatabaseMessageType:
 			err = s.applyDeleteDatabase(m)
-		case createClusterAdminMessageType:
-			err = s.applyCreateClusterAdmin(m)
-		case deleteClusterAdminMessageType:
-			err = s.applyDeleteClusterAdmin(m)
-		case createDBUserMessageType:
-			err = s.applyCreateDBUser(m)
-		case deleteDBUserMessageType:
-			err = s.applyDeleteDBUser(m)
-		case dbUserSetPasswordMessageType:
-			err = s.applyDBUserSetPassword(m)
+		case createUserMessageType:
+			err = s.applyCreateUser(m)
+		case updateUserMessageType:
+			err = s.applyUpdateUser(m)
+		case deleteUserMessageType:
+			err = s.applyDeleteUser(m)
 		case createRetentionPolicyMessageType:
 			err = s.applyCreateRetentionPolicy(m)
+		case updateRetentionPolicyMessageType:
+			err = s.applyUpdateRetentionPolicy(m)
 		case deleteRetentionPolicyMessageType:
 			err = s.applyDeleteRetentionPolicy(m)
 		case createShardIfNotExistsMessageType:
@@ -748,235 +992,271 @@ type MessagingClient interface {
 	C() <-chan *messaging.Message
 }
 
-// metastore represents the low-level data store for metadata.
-type metastore struct {
-	db *bolt.DB
+// database represents a collection of retention policies.
+type database struct {
+	name string
+
+	policies map[string]*RetentionPolicy // retention policies by name
+	shards   map[uint64]*Shard           // shards by id
+
+	defaultRetentionPolicy string
 }
 
-// open initializes the metastore.
-func (m *metastore) open(path string) error {
-	// Open the bolt-backed database.
-	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
+// newDatabase returns an instance of database.
+func newDatabase() *database {
+	return &database{
+		policies: make(map[string]*RetentionPolicy),
+		shards:   make(map[uint64]*Shard),
+	}
+}
+
+// shardByTimestamp returns a shard that owns a given timestamp.
+func (db *database) shardByTimestamp(policy string, id uint32, timestamp time.Time) (*Shard, error) {
+	p := db.policies[policy]
+	if p == nil {
+		return nil, ErrRetentionPolicyNotFound
+	}
+	return p.shardByTimestamp(id, timestamp), nil
+}
+
+// shardsByTimestamp returns all shards that own a given timestamp.
+func (db *database) shardsByTimestamp(policy string, timestamp time.Time) ([]*Shard, error) {
+	p := db.policies[policy]
+	if p == nil {
+		return nil, ErrRetentionPolicyNotFound
+	}
+	return p.shardsByTimestamp(timestamp), nil
+}
+
+// timeBetweenInclusive returns true if t is between min and max, inclusive.
+func timeBetweenInclusive(t, min, max time.Time) bool {
+	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
+}
+
+// MarshalJSON encodes a database into a JSON-encoded byte slice.
+func (db *database) MarshalJSON() ([]byte, error) {
+	// Copy over properties to intermediate type.
+	var o databaseJSON
+	o.Name = db.name
+	o.DefaultRetentionPolicy = db.defaultRetentionPolicy
+	for _, rp := range db.policies {
+		o.Policies = append(o.Policies, rp)
+	}
+	for _, s := range db.shards {
+		o.Shards = append(o.Shards, s)
+	}
+	return json.Marshal(&o)
+}
+
+// UnmarshalJSON decodes a JSON-encoded byte slice to a database.
+func (db *database) UnmarshalJSON(data []byte) error {
+	// Decode into intermediate type.
+	var o databaseJSON
+	if err := json.Unmarshal(data, &o); err != nil {
 		return err
 	}
-	m.db = db
 
-	// Initialize the metastore.
-	if err := m.init(); err != nil {
-		return err
+	// Copy over properties from intermediate type.
+	db.name = o.Name
+	db.defaultRetentionPolicy = o.DefaultRetentionPolicy
+
+	// Copy shard policies.
+	db.policies = make(map[string]*RetentionPolicy)
+	for _, rp := range o.Policies {
+		db.policies[rp.Name] = rp
+	}
+
+	// Copy shards.
+	db.shards = make(map[uint64]*Shard)
+	for _, s := range o.Shards {
+		db.shards[s.ID] = s
 	}
 
 	return nil
 }
 
-// close closes the store.
-func (m *metastore) close() error {
-	if m.db != nil {
-		return m.db.Close()
+// databaseJSON represents the JSON-serialization format for a database.
+type databaseJSON struct {
+	Name                   string             `json:"name,omitempty"`
+	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
+	Policies               []*RetentionPolicy `json:"policies,omitempty"`
+	Shards                 []*Shard           `json:"shards,omitempty"`
+}
+
+// Measurement represents a collection of time series in a database
+type Measurement struct {
+	Name   string    `json:"name,omitempty"`
+	Series []*Series `json:"series,omitempty"`
+	Fields []*Fields `json:"fields,omitempty"`
+}
+
+type Measurements []*Measurement
+
+func (m Measurement) String() string { return string(mustMarshalJSON(m)) }
+
+// Field represents a series field.
+type Field struct {
+	ID   uint8     `json:"id,omitempty"`
+	Name string    `json:"name,omitempty"`
+	Type FieldType `json:"field"`
+}
+
+type FieldType int
+
+const (
+	Int64 FieldType = iota
+	Float64
+	String
+	Boolean
+	Binary
+)
+
+// Fields represents a list of fields.
+type Fields []*Field
+
+// Series belong to a Measurement and represent unique time series in a database
+type Series struct {
+	ID   uint32
+	Tags map[string]string
+}
+
+// RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
+type RetentionPolicy struct {
+	// Unique name within database. Required.
+	Name string
+
+	// Length of time to keep data around
+	Duration time.Duration
+
+	ReplicaN uint32
+	SplitN   uint32
+
+	Shards []*Shard
+}
+
+// NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
+func NewRetentionPolicy(name string) *RetentionPolicy {
+	return &RetentionPolicy{
+		Name:     name,
+		ReplicaN: DefaultReplicaN,
+		SplitN:   DefaultSplitN,
+		Duration: DefaultShardRetention,
+	}
+}
+
+// shardByTimestamp returns the shard in the space that owns a given timestamp for a given series id.
+// Returns nil if the shard does not exist.
+func (rp *RetentionPolicy) shardByTimestamp(id uint32, timestamp time.Time) *Shard {
+	shards := rp.shardsByTimestamp(timestamp)
+	if len(shards) > 0 {
+		return shards[int(id)%len(shards)]
 	}
 	return nil
 }
 
-// init initializes the metastore to ensure all top-level buckets are created.
-func (m *metastore) init() error {
-	return m.db.Update(func(tx *bolt.Tx) error {
-		_, _ = tx.CreateBucketIfNotExists([]byte("Databases"))
-		_, _ = tx.CreateBucketIfNotExists([]byte("ClusterAdmins"))
-		return nil
+func (rp *RetentionPolicy) shardsByTimestamp(timestamp time.Time) []*Shard {
+	shards := make([]*Shard, 0, rp.SplitN)
+	for _, s := range rp.Shards {
+		if timeBetweenInclusive(timestamp, s.StartTime, s.EndTime) {
+			shards = append(shards, s)
+		}
+	}
+	return shards
+}
+
+// MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
+func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&retentionPolicyJSON{
+		Name:     rp.Name,
+		Duration: rp.Duration,
+		ReplicaN: rp.ReplicaN,
+		SplitN:   rp.SplitN,
 	})
 }
 
-// view executes a function in the context of a read-only transaction.
-func (m *metastore) view(fn func(*metatx) error) error {
-	return m.db.View(func(tx *bolt.Tx) error { return fn(&metatx{tx}) })
-}
-
-// update executes a function in the context of a read-write transaction.
-func (m *metastore) update(fn func(*metatx) error) error {
-	return m.db.Update(func(tx *bolt.Tx) error { return fn(&metatx{tx}) })
-}
-
-// mustUpdate executes a function in the context of a read-write transaction.
-// Panics if a disk or system error occurs. Return error from the fn for validation errors.
-func (m *metastore) mustUpdate(fn func(*metatx) error) (err error) {
-	if e := m.update(func(tx *metatx) error {
-		err = fn(tx)
-		return nil
-	}); e != nil {
-		panic("metastore update: " + err.Error())
-	}
-	return
-}
-
-// metatx represents a metastore transaction.
-type metatx struct {
-	*bolt.Tx
-}
-
-// database returns a database from the metastore by name.
-func (tx *metatx) database(name string) (db *Database) {
-	if b := tx.Bucket([]byte("Databases")).Bucket([]byte(name)); b != nil {
-		mustUnmarshalJSON(b.Get([]byte("meta")), &db)
-	}
-	return
-}
-
-// databases returns a list of all databases from the metastore.
-func (tx *metatx) databases() (a []*Database) {
-	c := tx.Bucket([]byte("Databases")).Cursor()
-	for k, _ := c.First(); k != nil; k, _ = c.Next() {
-		b := c.Bucket().Bucket(k)
-		v := b.Get([]byte("meta"))
-		db := newDatabase(nil)
-		mustUnmarshalJSON(v, &db)
-		a = append(a, db)
-	}
-	return
-}
-
-// saveDatabase persists a database to the metastore.
-func (tx *metatx) saveDatabase(db *Database) error {
-	b, err := tx.Bucket([]byte("Databases")).CreateBucketIfNotExists([]byte(db.name))
-	if err != nil {
-		return err
-	}
-	_, err = b.CreateBucketIfNotExists([]byte("TagBytesToID"))
-	if err != nil {
-		return err
-	}
-	_, err = b.CreateBucketIfNotExists([]byte("Series"))
-	if err != nil {
-		return err
-	}
-	return b.Put([]byte("meta"), mustMarshalJSON(db))
-}
-
-// deleteDatabase removes database from the metastore.
-func (tx *metatx) deleteDatabase(name string) error {
-	return tx.Bucket([]byte("Databases")).DeleteBucket([]byte(name))
-}
-
-// returns a unique series id by database, name and tags. Returns ErrSeriesNotFound
-func (tx *metatx) seriesID(database, name string, tags map[string]string) (uint32, error) {
-	// get the bucket that holds series data for the database
-	b := tx.Bucket([]byte("Databases")).Bucket([]byte(database))
-	if b == nil {
-		return uint32(0), ErrDatabaseNotFound
-	}
-
-	// get the bucket that holds tag data for the series name
-	b = b.Bucket([]byte("TagBytesToID")).Bucket([]byte(name))
-	if b == nil {
-		return uint32(0), ErrSeriesNotFound
-	}
-
-	// look up the id of the tagset
-	tagBytes := tagsToBytes(tags)
-	v := b.Get(tagBytes)
-	if v == nil {
-		return uint32(0), ErrSeriesNotFound
-	}
-
-	// the value is the bytes for a uint32, return it
-	return *(*uint32)(unsafe.Pointer(&v[0])), nil
-}
-
-// sets the series id for the database, name, and tags.
-func (tx *metatx) createSeriesIfNotExists(database, name string, tags map[string]string) error {
-	// create the buckets to store tag indexes for the series and give it a unique ID in the DB
-	db := tx.Bucket([]byte("Databases")).Bucket([]byte(database))
-	t := db.Bucket([]byte("TagBytesToID"))
-	b, err := t.CreateBucketIfNotExists([]byte(name))
-	if err != nil {
+// UnmarshalJSON decodes a JSON-encoded byte slice to a retention policy.
+func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
+	// Decode into intermediate type.
+	var o retentionPolicyJSON
+	if err := json.Unmarshal(data, &o); err != nil {
 		return err
 	}
 
-	// give the series a unique ID
-	id, _ := t.NextSequence()
+	// Copy over properties from intermediate type.
+	rp.Name = o.Name
+	rp.ReplicaN = o.ReplicaN
+	rp.SplitN = o.SplitN
+	rp.Duration = o.Duration
+	rp.Shards = o.Shards
 
-	tagBytes := tagsToBytes(tags)
-
-	idBytes := make([]byte, 4)
-	*(*uint32)(unsafe.Pointer(&idBytes[0])) = uint32(id)
-
-	if err := b.Put(tagBytes, idBytes); err != nil {
-		return err
-	}
-
-	// store the tag map for the series
-	b, err = db.Bucket([]byte("Series")).CreateBucketIfNotExists([]byte(name))
-	if err != nil {
-		return err
-	}
-
-	s := &Series{ID: uint32(id), Tags: tags}
-	return b.Put(idBytes, mustMarshalJSON(s))
+	return nil
 }
 
-// series returns all the measurements and series in a database
-func (tx *metatx) measurements(database string) []*Measurement {
-	// get the bucket that holds series data for the database
-	b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series"))
-
-	measurements := make([]*Measurement, 0)
-	c := b.Cursor()
-	for k, _ := c.First(); k != nil; k, _ = c.Next() {
-		mc := b.Bucket(k).Cursor()
-		m := &Measurement{Name: string(k), Series: make([]*Series, 0)}
-		for id, v := mc.First(); id != nil; id, v = mc.Next() {
-			var s *Series
-			mustUnmarshalJSON(v, &s)
-			m.Series = append(m.Series, s)
-		}
-		measurements = append(measurements, m)
-	}
-	return measurements
+// retentionPolicyJSON represents an intermediate struct for JSON marshaling.
+type retentionPolicyJSON struct {
+	Name     string        `json:"name"`
+	ReplicaN uint32        `json:"replicaN,omitempty"`
+	SplitN   uint32        `json:"splitN,omitempty"`
+	Duration time.Duration `json:"duration,omitempty"`
+	Shards   []*Shard      `json:"shards,omitempty"`
 }
 
-// used to convert the tag set to bytes for use as a key in bolt
-func tagsToBytes(tags map[string]string) []byte {
-	s := make([]string, 0, len(tags))
-	// pull out keys to sort
-	for k := range tags {
-		s = append(s, k)
-	}
-	sort.Strings(s)
+// RetentionPolicies represents a list of shard policies.
+type RetentionPolicies []*RetentionPolicy
 
-	// now append on the key values in key sorted order
-	for _, k := range s {
-		s = append(s, tags[k])
+// Shards returns a list of all shards for all policies.
+func (rps RetentionPolicies) Shards() []*Shard {
+	var shards []*Shard
+	for _, rp := range rps {
+		shards = append(shards, rp.Shards...)
 	}
-	return []byte(strings.Join(s, "|"))
+	return shards
 }
 
-// clusterAdmin returns a cluster admin from the metastore by name.
-func (tx *metatx) clusterAdmin(name string) (u *ClusterAdmin) {
-	if v := tx.Bucket([]byte("ClusterAdmins")).Get([]byte(name)); v != nil {
-		mustUnmarshalJSON(v, &u)
+// BcryptCost is the cost associated with generating password with Bcrypt.
+// This setting is lowered during testing to improve test suite performance.
+var BcryptCost = 10
+
+// User represents a user account on the system.
+// It can be given read/write permissions to individual databases.
+type User struct {
+	Name  string `json:"name"`
+	Hash  string `json:"hash"`
+	Admin bool   `json:"admin,omitempty"`
+}
+
+// Authenticate returns nil if the password matches the user's password.
+// Returns an error if the password was incorrect.
+func (u *User) Authenticate(password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password))
+}
+
+// users represents a list of users, sortable by name.
+type users []*User
+
+func (p users) Len() int           { return len(p) }
+func (p users) Less(i, j int) bool { return p[i].Name < p[j].Name }
+func (p users) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+type Matcher struct {
+	IsRegex bool
+	Name    string
+}
+
+func (m *Matcher) Matches(name string) bool {
+	if m.IsRegex {
+		matches, _ := regexp.MatchString(m.Name, name)
+		return matches
 	}
-	return
+	return m.Name == name
 }
 
-// clusterAdmins returns a list of all cluster admins from the metastore.
-func (tx *metatx) clusterAdmins() (a []*ClusterAdmin) {
-	c := tx.Bucket([]byte("ClusterAdmins")).Cursor()
-	for k, v := c.First(); k != nil; k, v = c.Next() {
-		u := &ClusterAdmin{}
-		mustUnmarshalJSON(v, &u)
-		a = append(a, u)
-	}
-	return
-}
-
-// saveClusterAdmin persists a cluster admin to the metastore.
-func (tx *metatx) saveClusterAdmin(u *ClusterAdmin) error {
-	return tx.Bucket([]byte("ClusterAdmins")).Put([]byte(u.Name), mustMarshalJSON(u))
-}
-
-// deleteClusterAdmin removes the cluster admin from the metastore.
-func (tx *metatx) deleteClusterAdmin(name string) error {
-	return tx.Bucket([]byte("ClusterAdmins")).Delete([]byte(name))
+// HashPassword generates a cryptographically secure hash for password.
+// Returns an error if the password is invalid or a hash cannot be generated.
+func HashPassword(password string) ([]byte, error) {
+	// The second arg is the cost of the hashing, higher is slower but makes
+	// it harder to brute force, since it will be really slow and impractical
+	return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
 }
 
 // ContinuousQuery represents a query that exists on the server and processes
@@ -986,33 +1266,3 @@ type ContinuousQuery struct {
 	Query string
 	// TODO: ParsedQuery *parser.SelectQuery
 }
-
-// mustMarshal encodes a value to JSON.
-// This will panic if an error occurs. This should only be used internally when
-// an invalid marshal will cause corruption and a panic is appropriate.
-func mustMarshalJSON(v interface{}) []byte {
-	b, err := json.Marshal(v)
-	if err != nil {
-		panic("marshal: " + err.Error())
-	}
-	return b
-}
-
-// mustUnmarshalJSON decodes a value from JSON.
-// This will panic if an error occurs. This should only be used internally when
-// an invalid unmarshal will cause corruption and a panic is appropriate.
-func mustUnmarshalJSON(b []byte, v interface{}) {
-	if err := json.Unmarshal(b, v); err != nil {
-		panic("unmarshal: " + err.Error())
-	}
-}
-
-// assert will panic with a given formatted message if the given condition is false.
-func assert(condition bool, msg string, v ...interface{}) {
-	if !condition {
-		panic(fmt.Sprintf("assert failed: "+msg, v...))
-	}
-}
-
-func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
-func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }

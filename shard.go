@@ -1,9 +1,11 @@
 package influxdb
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
+	"unsafe"
 
 	"github.com/boltdb/bolt"
 )
@@ -88,4 +90,26 @@ func (p Shards) IDs() []uint64 {
 		ids[i] = s.ID
 	}
 	return ids
+}
+
+func marshalPoint(seriesID uint32, timestamp time.Time, values map[string]interface{}) ([]byte, error) {
+	b := make([]byte, 12)
+	*(*uint32)(unsafe.Pointer(&b[0])) = seriesID
+	*(*int64)(unsafe.Pointer(&b[4])) = timestamp.UnixNano()
+
+	d, err := json.Marshal(values)
+	if err != nil {
+		return nil, err
+	}
+	return append(b, d...), err
+}
+
+func unmarshalPoint(data []byte) (uint32, time.Time, map[string]interface{}, error) {
+	id := *(*uint32)(unsafe.Pointer(&data[0]))
+	ts := *(*int64)(unsafe.Pointer(&data[4]))
+	timestamp := time.Unix(0, ts)
+	var v map[string]interface{}
+
+	err := json.Unmarshal(data[12:], &v)
+	return id, timestamp, v, err
 }
