@@ -19,8 +19,8 @@ type UDPServer struct {
 	// The name of the database to insert data into.
 	Database string
 
-	// The cluster admin authorized to insert the data.
-	User *ClusterAdmin
+	// The user authorized to insert the data.
+	User *User
 }
 
 // NewUDPServer returns an instance of UDPServer attached to a Server.

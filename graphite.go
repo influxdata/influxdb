@@ -49,7 +49,7 @@ type GraphiteServer struct {
 	Database string
 
 	// The cluster admin authorized to insert the data.
-	User *ClusterAdmin
+	User *User
 }
 
 // NewGraphiteServer returns an instance of GraphiteServer attached to a Server.
@@ -64,7 +64,7 @@ func (s *GraphiteServer) ListenAndServe() error {
 	if s.TCPAddr == nil && s.UDPAddr == nil {
 		return ErrBindAddressRequired
 	} else if s.User != nil {
-		return ErrClusterAdminNotFound
+		return ErrUserNotFound
 	}
 
 	// Create a new close notification channel.

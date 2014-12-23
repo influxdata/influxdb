@@ -27,7 +27,7 @@ func TestHandler_Databases(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"name":"bar"},{"name":"foo"}]` {
+	} else if body != `["bar","foo"]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -121,14 +121,12 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 func TestHandler_Shards(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
-	db.CreateShardsIfNotExists("bar", time.Time{})
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.CreateShardsIfNotExists("foo", "bar", time.Time{})
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/db/foo/shards`, "")
-
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `[{"id":3,"startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z"}]` {
@@ -153,8 +151,7 @@ func TestHandler_Shards_DatabaseNotFound(t *testing.T) {
 func TestHandler_RetentionPolicies(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -248,38 +245,35 @@ func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
 func TestHandler_UpdateRetentionPolicy(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	policy := influxdb.NewRetentionPolicy("bar")
-	db.CreateRetentionPolicy(policy)
-	policy = db.RetentionPolicy("bar")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`,
+		`{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`)
 
-	if status != http.StatusOK {
+	// Verify updated policy.
+	p, _ := srvr.RetentionPolicy("foo", "newName")
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != "" {
 		t.Fatalf("unexpected body: %s", body)
-	} else if policy.Name != "newName" {
-		t.Fatalf("unexpected policy name: %s", policy.Name)
+	} else if p.Name != "newName" {
+		t.Fatalf("unexpected policy name: %s", p.Name)
 	}
 }
 
 func TestHandler_UpdateRetentionPolicy_BadRequest(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	policy := influxdb.NewRetentionPolicy("bar")
-	db.CreateRetentionPolicy(policy)
-	policy = db.RetentionPolicy("bar")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
 	newPolicy := `{"name": "newName", "duration": "BadRequest", "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
 
+	// Verify response.
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != "json: cannot unmarshal string into Go value of type time.Duration" {
@@ -293,7 +287,7 @@ func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	defer s.Close()
 
 	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
 
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -309,7 +303,7 @@ func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
 	defer s.Close()
 
 	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
 
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -321,13 +315,11 @@ func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
 func TestHandler_DeleteRetentionPolicy(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, "")
-
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != "" {
@@ -364,54 +356,6 @@ func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
 	}
 }
 
-func TestHandler_ShardsByRetentionPolicy(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	db.CreateRetentionPolicy(influxdb.NewRetentionPolicy("bar"))
-	policy := db.RetentionPolicy("bar")
-	policy.Shards = append(policy.Shards, &influxdb.Shard{ID: 42})
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies/bar/shards`, "")
-
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"id":42,"startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z"}]` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_ShardsByRetentionPolicy_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies/bar/shards`, "")
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != "database not found" {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_ShardsByRetentionPolicy_PolicyNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies/bar/shards`, "")
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != "retention policy not found" {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
 func TestHandler_Ping(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
@@ -430,7 +374,7 @@ func TestHandler_Users_NoUsers(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db/foo/users`, "")
+	status, body := MustHTTP("GET", s.URL+`/users`, "")
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -441,53 +385,41 @@ func TestHandler_Users_NoUsers(t *testing.T) {
 
 func TestHandler_Users_OneUser(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	srvr.CreateUser("jdoe", "1337", true)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db/foo/users`, "")
-
+	status, body := MustHTTP("GET", s.URL+`/users`, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"name":"jdoe","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}]` {
+	} else if body != `[{"name":"jdoe","admin":true}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
 func TestHandler_Users_MultipleUsers(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	db.CreateUser("mclark", "1337", readFrom, writeTo)
-	db.CreateUser("csmith", "1337", readFrom, writeTo)
+	srvr.CreateUser("jdoe", "1337", false)
+	srvr.CreateUser("mclark", "1337", true)
+	srvr.CreateUser("csmith", "1337", false)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db/foo/users`, "")
-
+	status, body := MustHTTP("GET", s.URL+`/users`, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"name":"csmith","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]},{"name":"jdoe","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]},{"name":"mclark","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}]` {
+	} else if body != `[{"name":"csmith"},{"name":"jdoe"},{"name":"mclark","admin":true}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
-func TestHandler_CreateDBUser(t *testing.T) {
+func TestHandler_CreateUser(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newUser := `{"name":"jdoe","password":"1337","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
-
+	status, body := MustHTTP("POST", s.URL+`/users`, `{"name":"jdoe","password":"1337"}`)
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != "" {
@@ -495,30 +427,13 @@ func TestHandler_CreateDBUser(t *testing.T) {
 	}
 }
 
-func TestHandler_CreateDBUser_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	newUser := `{"name":"jdoe","password":"1337","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != "database not found" {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateDBUser_BadRequest(t *testing.T) {
+func TestHandler_CreateUser_BadRequest(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newUser := `{"name":0xBAD,"password":"1337","isAdmin":true,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
-
+	status, body := MustHTTP("POST", s.URL+`/users`, `{"name":0xBAD,"password":"1337"}`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `invalid character 'x' after object key:value pair` {
@@ -526,15 +441,12 @@ func TestHandler_CreateDBUser_BadRequest(t *testing.T) {
 	}
 }
 
-func TestHandler_CreateDBUser_InternalServerError(t *testing.T) {
+func TestHandler_CreateUser_InternalServerError(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newUser := `{"name":"","password":"1337","isAdmin":true,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users`, newUser)
-
+	status, body := MustHTTP("POST", s.URL+`/users`, `{"name":""}`)
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `username required` {
@@ -542,144 +454,33 @@ func TestHandler_CreateDBUser_InternalServerError(t *testing.T) {
 	}
 }
 
-func TestHandler_DBUser(t *testing.T) {
+func TestHandler_UpdateUser(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	srvr.CreateUser("jdoe", "1337", false)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db/foo/users/jdoe`, "")
+	// Save original password hash.
+	hash := srvr.User("jdoe").Hash
 
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"name":"jdoe","password":"","isAdmin":false,"readFrom":[{"IsRegex":true,"Name":".*"}],"writeTo":[{"IsRegex":true,"Name":".*"}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DBUser_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/db/foo/users/jdoe`, "")
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database not found` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DBUser_UserNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/db/foo/users/jane`, "")
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `user not found` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_UpdateDBUser_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, "")
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database not found` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_UpdateDBUser_UserNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, "")
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `user not found` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_UpdateDBUser_BadRequest(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	badRequest := `{10: "7331"}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, badRequest)
-
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `invalid character '1' looking for beginning of object key string` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_UpdateDBUser_Password(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	origHash := db.User("jdoe").Hash
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	updatedUser := `{"password": "7331"}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, updatedUser)
-
-	newHash := db.User("jdoe").Hash
-	if status != http.StatusOK {
+	// Update user password.
+	status, body := MustHTTP("PUT", s.URL+`/users/jdoe`, `{"password": "7331"}`)
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `` {
 		t.Fatalf("unexpected body: %s", body)
-	} else if newHash == origHash {
+	} else if srvr.User("jdoe").Hash == hash {
 		t.Fatalf("expected password hash to change")
 	}
 }
 
-func TestHandler_UpdateDBUser_PasswordBadRequest(t *testing.T) {
+func TestHandler_UpdateUser_PasswordBadRequest(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	srvr.CreateUser("jdoe", "1337", false)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	updatedUser := `{"password": 10}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, updatedUser)
-
+	status, body := MustHTTP("PUT", s.URL+`/users/jdoe`, `{"password": 10}`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `json: cannot unmarshal number into Go value of type string` {
@@ -687,167 +488,13 @@ func TestHandler_UpdateDBUser_PasswordBadRequest(t *testing.T) {
 	}
 }
 
-func TestHandler_UpdateDBUser_Password_InternalServerError(t *testing.T) {
+func TestHandler_DeleteUser(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
+	srvr.CreateUser("jdoe", "1337", false)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	updatedUser := `{"password": ""}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, updatedUser)
-
-	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `Password must be more than 4 and less than 56 characters` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_UpdateDBUser_ReadFrom(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	updatedUser := `{"readFrom":[{"IsRegex":true,"Name":"changed"}]}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, updatedUser)
-	newReadFrom := db.User("jdoe").ReadFrom[0].Name
-
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `` {
-		t.Fatalf("unexpected body: %s", body)
-	} else if newReadFrom != "changed" {
-		t.Fatalf("unexpected readFrom: %s", newReadFrom)
-	}
-}
-
-func TestHandler_UpdateDBUser_ReadFrom_BadRequest(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	badRequest := `{"readFrom":10}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, badRequest)
-
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `json: cannot unmarshal number into Go value of type []*influxdb.Matcher` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_UpdateDBUser_WriteTo(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	updatedUser := `{"writeTo":[{"IsRegex":true,"Name":"changed"}]}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, updatedUser)
-
-	newWriteTo := db.User("jdoe").WriteTo[0].Name
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `` {
-		t.Fatalf("unexpected body: %s", body)
-	} else if newWriteTo != "changed" {
-		t.Fatalf("unexpected writeTo: %s", newWriteTo)
-	}
-}
-
-func TestHandler_UpdateDBUser_WriteTo_BadRequest(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	badRequest := `{"writeTo":10}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, badRequest)
-
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `json: cannot unmarshal number into Go value of type []*influxdb.Matcher` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_UpdateDBUser_IsAdmin(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	updatedUser := `{"isAdmin": true}]}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, updatedUser)
-
-	newIsAdmin := db.User("jdoe").IsAdmin
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `` {
-		t.Fatalf("unexpected body: %s", body)
-	} else if newIsAdmin == false {
-		t.Fatalf("unexpected newIsAdmin: %s", newIsAdmin)
-	}
-}
-
-func TestHandler_UpdateDBUser_IsAdmin_BadRequest(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	badRequest := `{"isAdmin": "BadRequest"}]}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/users/jdoe`, badRequest)
-
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `json: cannot unmarshal string into Go value of type bool` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DeleteDBUser(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	db := srvr.Database("foo")
-	readFrom := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	writeTo := []*influxdb.Matcher{{IsRegex: true, Name: ".*"}}
-	db.CreateUser("jdoe", "1337", readFrom, writeTo)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo/users/jdoe`, "")
-
+	status, body := MustHTTP("DELETE", s.URL+`/users/jdoe`, "")
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `` {
@@ -855,137 +502,16 @@ func TestHandler_DeleteDBUser(t *testing.T) {
 	}
 }
 
-func TestHandler_DeleteDBUser_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo/users/jdoe`, "")
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database not found` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DeleteDBUser_UserNotFound(t *testing.T) {
+func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo/users/jdoe`, "")
-
+	status, body := MustHTTP("DELETE", s.URL+`/users/jdoe`, "")
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `user not found` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_ClusterAdmins(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateClusterAdmin("jdoe", "1337")
-	srvr.CreateClusterAdmin("mclark", "7331")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/cluster_admins`, "")
-
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"name":"jdoe","isUserDeleted":false},{"name":"mclark","isUserDeleted":false}]` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateClusterAdmin(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	newAdmin := `{"name":"jdoe","password":"1337"}`
-	status, body := MustHTTP("POST", s.URL+`/cluster_admins`, newAdmin)
-
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateClusterAdmin_BadRequest(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	newAdmin := `{BadRequest:"jdoe","password":"1337"}`
-	status, body := MustHTTP("POST", s.URL+`/cluster_admins`, newAdmin)
-
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `invalid character 'B' looking for beginning of object key string` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateClusterAdmin_Conflict(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateClusterAdmin("jdoe", "1337")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	newAdmin := `{"name":"jdoe","password":"1337"}`
-	status, body := MustHTTP("POST", s.URL+`/cluster_admins`, newAdmin)
-
-	if status != http.StatusConflict {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `cluster admin exists` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateClusterAdmin_InternalServerError(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	newAdmin := `{"name":"jdoe","password":""}`
-	status, body := MustHTTP("POST", s.URL+`/cluster_admins`, newAdmin)
-
-	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `Password must be more than 4 and less than 56 characters` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DeleteClusterAdmin(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateClusterAdmin("jdoe", "1337")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("DELETE", s.URL+`/cluster_admins/jdoe`, ``)
-
-	if status != http.StatusNoContent {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DeleteClusterAdmin_NotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("DELETE", s.URL+`/cluster_admins/jdoe`, ``)
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `cluster admin not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -996,15 +522,16 @@ func MustHTTP(verb, url, body string) (int, string) {
 		panic(err)
 	}
 	req.Header.Set("Content-Type", "applicaton/json")
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		panic(err)
 	}
 	defer resp.Body.Close()
-	status := resp.StatusCode
-	respBody, err := ioutil.ReadAll(resp.Body)
-	return status, strings.TrimRight(string(respBody), "\n")
+
+	b, err := ioutil.ReadAll(resp.Body)
+	return resp.StatusCode, strings.TrimRight(string(b), "\n")
 }
 
 // Server is a test HTTP server that wraps a handler
@@ -1021,907 +548,3 @@ func NewHTTPServer(s *Server) *HTTPServer {
 func (s *HTTPServer) Close() {
 	s.Server.Close()
 }
-
-/*
-import (
-	"bytes"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net"
-	libhttp "net/http"
-	"net/url"
-	"testing"
-	"time"
-
-	"github.com/influxdb/influxdb/cluster"
-	. "github.com/influxdb/influxdb/common"
-	"github.com/influxdb/influxdb/configuration"
-	"github.com/influxdb/influxdb/coordinator"
-	"github.com/influxdb/influxdb/engine"
-	"github.com/influxdb/influxdb/parser"
-	"github.com/influxdb/influxdb/protocol"
-	. "launchpad.net/gocheck"
-)
-
-// Hook up gocheck into the gotest runner.
-func Test(t *testing.T) {
-	TestingT(t)
-}
-
-type ApiSuite struct {
-	listener    net.Listener
-	server      *HttpServer
-	coordinator *MockCoordinator
-	manager     *MockUserManager
-}
-
-var _ = Suite(&ApiSuite{})
-
-func (self *MockCoordinator) RunQuery(_ User, _ string, query string, yield engine.Processor) error {
-	if self.returnedError != nil {
-		return self.returnedError
-	}
-
-	series, err := StringToSeriesArray(`
-[
-  {
-    "points": [
-      {
-        "values": [
-				  { "string_value": "some_value"},{"is_null": true}
-        ],
-        "timestamp": 1381346631000000,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-				  {"string_value": "some_value"},{"int64_value": 2}
-				],
-        "timestamp": 1381346632000000,
-        "sequence_number": 2
-      }
-    ],
-    "name": "foo",
-    "fields": ["column_one", "column_two"]
-  },
-  {
-    "points": [
-      {
-        "values": [
-				  { "string_value": "some_value"},{"int64_value": 3}
-        ],
-        "timestamp": 1381346633000000,
-        "sequence_number": 1
-      },
-      {
-        "values": [
-				  {"string_value": "some_value"},{"int64_value": 4}
-				],
-        "timestamp": 1381346634000000,
-        "sequence_number": 2
-      }
-    ],
-    "name": "foo",
-    "fields": ["column_one", "column_two"]
-  }
-]
-`)
-	if err != nil {
-		return err
-	}
-	if _, err := yield.Yield(series[0]); err != nil {
-		return err
-	}
-	_, err = yield.Yield(series[1])
-	return err
-}
-
-type MockCoordinator struct {
-	coordinator.Coordinator
-	series            []*protocol.Series
-	continuousQueries map[string][]*cluster.ContinuousQuery
-	deleteQueries     []*parser.DeleteQuery
-	db                string
-	droppedDb         string
-	returnedError     error
-}
-
-func (self *MockCoordinator) WriteSeriesData(_ User, db string, series []*protocol.Series) error {
-	self.series = append(self.series, series...)
-	return nil
-}
-
-func (self *MockCoordinator) DeleteSeriesData(_ User, db string, query *parser.DeleteQuery, localOnly bool) error {
-	self.deleteQueries = append(self.deleteQueries, query)
-	return nil
-}
-
-func (self *MockCoordinator) CreateDatabase(_ User, db string) error {
-	self.db = db
-	return nil
-}
-
-func (self *MockCoordinator) ListDatabases(_ User) ([]*cluster.Database, error) {
-	return []*cluster.Database{{"db1"}, {"db2"}}, nil
-}
-
-func (self *MockCoordinator) DropDatabase(_ User, db string) error {
-	self.droppedDb = db
-	return nil
-}
-
-func (self *MockCoordinator) ListContinuousQueries(_ User, db string) ([]*protocol.Series, error) {
-	points := []*protocol.Point{}
-
-	for _, query := range self.continuousQueries[db] {
-		queryId := int64(query.Id)
-		queryString := query.Query
-		points = append(points, &protocol.Point{
-			Values: []*protocol.FieldValue{
-				{Int64Value: &queryId},
-				{StringValue: &queryString},
-			},
-			Timestamp:      nil,
-			SequenceNumber: nil,
-		})
-	}
-
-	seriesName := "continuous queries"
-	series := []*protocol.Series{{
-		Name:   &seriesName,
-		Fields: []string{"id", "query"},
-		Points: points,
-	}}
-	return series, nil
-}
-
-func (self *MockCoordinator) CreateContinuousQuery(_ User, db string, query string) error {
-	self.continuousQueries[db] = append(self.continuousQueries[db], &cluster.ContinuousQuery{2, query})
-	return nil
-}
-
-func (self *MockCoordinator) DeleteContinuousQuery(_ User, db string, id uint32) error {
-	length := len(self.continuousQueries[db])
-	_, self.continuousQueries[db] = self.continuousQueries[db][length-1], self.continuousQueries[db][:length-1]
-	return nil
-}
-
-func (self *ApiSuite) formatUrl(path string, args ...interface{}) string {
-	path = fmt.Sprintf(path, args...)
-	port := self.listener.Addr().(*net.TCPAddr).Port
-	return fmt.Sprintf("http://localhost:%d%s", port, path)
-}
-
-func (self *ApiSuite) SetUpSuite(c *C) {
-	self.coordinator = &MockCoordinator{
-		continuousQueries: map[string][]*cluster.ContinuousQuery{
-			"db1": {
-				{1, "select * from foo into bar;"},
-			},
-		},
-	}
-
-	self.manager = &MockUserManager{
-		clusterAdmins: []string{"root"},
-		dbUsers:       map[string]map[string]MockDbUser{"db1": {"db_user1": {Name: "db_user1", IsAdmin: false}}},
-	}
-	config := &configuration.Configuration{
-		ApiReadTimeout: 10 * time.Second,
-	}
-	self.server = NewHttpServer(
-		config,
-		self.coordinator,
-		self.manager,
-		cluster.NewClusterConfiguration(config, nil, nil, nil, nil),
-		nil)
-	var err error
-	self.listener, err = net.Listen("tcp4", ":8081")
-	c.Assert(err, IsNil)
-	go func() {
-		self.server.Serve(self.listener)
-	}()
-	time.Sleep(1 * time.Second)
-}
-
-func (self *ApiSuite) TearDownSuite(c *C) {
-	self.server.Close()
-}
-
-func (self *ApiSuite) SetUpTest(c *C) {
-	self.coordinator.series = nil
-	self.coordinator.returnedError = nil
-	self.manager.ops = nil
-}
-
-func (self *ApiSuite) TestHealthCheck(c *C) {
-	url := self.formatUrl("/ping")
-	resp, err := libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	resp.Body.Close()
-}
-
-func (self *ApiSuite) TestClusterAdminAuthentication(c *C) {
-	url := self.formatUrl("/cluster_admins/authenticate?u=root&p=root")
-	resp, err := libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	resp.Body.Close()
-
-	url = self.formatUrl("/cluster_admins/authenticate?u=fail_auth&p=anypass")
-	resp, err = libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusUnauthorized)
-	c.Assert(resp.Header.Get("WWW-Authenticate"), Equals, "Basic realm=\"influxdb\"")
-	resp.Body.Close()
-}
-
-func (self *ApiSuite) TestDbUserAuthentication(c *C) {
-	url := self.formatUrl("/db/foo/authenticate?u=dbuser&p=password")
-	resp, err := libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	resp.Body.Close()
-
-	url = self.formatUrl("/db/foo/authenticate?u=fail_auth&p=anypass")
-	resp, err = libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusUnauthorized)
-	c.Assert(resp.Header.Get("WWW-Authenticate"), Equals, "Basic realm=\"influxdb\"")
-	resp.Body.Close()
-}
-
-func (self *ApiSuite) TestDbUserBasicAuthentication(c *C) {
-	url := self.formatUrl("/db/foo/authenticate")
-	req, err := libhttp.NewRequest("GET", url, nil)
-	auth := base64.StdEncoding.EncodeToString([]byte("dbuser:password"))
-	req.Header.Add("Authorization", "Basic "+auth)
-	c.Assert(err, IsNil)
-	resp, err := libhttp.DefaultClient.Do(req)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	resp.Body.Close()
-}
-
-func (self *ApiSuite) TestQueryAsClusterAdmin(c *C) {
-	query := "select * from foo;"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&u=root&p=root", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-}
-
-func (self *ApiSuite) TestQueryWithNullColumns(c *C) {
-	query := "select * from foo;"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=s&u=dbuser&p=password", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	series := []SerializedSeries{}
-	err = json.Unmarshal(data, &series)
-	c.Assert(err, IsNil)
-	c.Assert(series, HasLen, 1)
-	c.Assert(series[0].Name, Equals, "foo")
-	// time, seq, column_one, column_two
-	c.Assert(series[0].Columns, HasLen, 4)
-	c.Assert(series[0].Points, HasLen, 4)
-	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631)
-	c.Assert(series[0].Points[0][3], Equals, nil)
-}
-
-func (self *ApiSuite) TestQueryErrorPropagatesProperly(c *C) {
-	self.coordinator.returnedError = fmt.Errorf("some error")
-	query := "select * from does_not_exist;"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=s&u=dbuser&p=password", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
-}
-
-func (self *ApiSuite) TestUnauthorizedErrorWithCompression(c *C) {
-	addr := self.formatUrl("/cluster_admins/authenticate?u=fail_auth&p=invalidpassword")
-	req, err := libhttp.NewRequest("GET", addr, nil)
-	c.Assert(err, IsNil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	resp, err := libhttp.DefaultClient.Do(req)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusUnauthorized)
-	c.Assert(resp.Header.Get("Content-Type"), Equals, "text/plain")
-	c.Assert(resp.Header.Get("Content-Encoding"), Equals, "gzip")
-}
-
-func (self *ApiSuite) TestQueryWithSecondsPrecision(c *C) {
-	query := "select * from foo where column_one == 'some_value';"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=s&u=dbuser&p=password", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	series := []SerializedSeries{}
-	err = json.Unmarshal(data, &series)
-	c.Assert(err, IsNil)
-	c.Assert(series, HasLen, 1)
-	c.Assert(series[0].Name, Equals, "foo")
-	// time, seq, column_one, column_two
-	c.Assert(series[0].Columns, HasLen, 4)
-	c.Assert(series[0].Points, HasLen, 4)
-	c.Assert(int(series[0].Points[0][0].(float64)), Equals, 1381346631)
-}
-
-func (self *ApiSuite) TestQueryWithInvalidPrecision(c *C) {
-	query := "select * from foo where column_one == 'some_value';"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&time_precision=foo&u=dbuser&p=password", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
-	c.Assert(resp.Header.Get("content-type"), Equals, "text/plain")
-}
-
-func (self *ApiSuite) TestNotChunkedQuery(c *C) {
-	query := "select * from foo where column_one == 'some_value';"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&u=dbuser&p=password", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	series := []SerializedSeries{}
-	err = json.Unmarshal(data, &series)
-	c.Assert(err, IsNil)
-	c.Assert(series, HasLen, 1)
-	c.Assert(series[0].Name, Equals, "foo")
-	// time, seq, column_one, column_two
-	c.Assert(series[0].Columns, HasLen, 4)
-	c.Assert(series[0].Points, HasLen, 4)
-	// timestamp precision is milliseconds by default
-	c.Assert(int64(series[0].Points[0][0].(float64)), Equals, int64(1381346631000))
-}
-
-func (self *ApiSuite) TestNotChunkedPrettyQuery(c *C) {
-	query := "select * from foo where column_one == 'some_value';"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&u=dbuser&p=password&pretty=true", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	series := []SerializedSeries{}
-	err = json.Unmarshal(data, &series)
-	c.Assert(err, IsNil)
-	c.Assert(series, HasLen, 1)
-	c.Assert(series[0].Name, Equals, "foo")
-	// time, seq, column_one, column_two
-	c.Assert(series[0].Columns, HasLen, 4)
-	c.Assert(series[0].Points, HasLen, 4)
-	// timestamp precision is milliseconds by default
-	c.Assert(int64(series[0].Points[0][0].(float64)), Equals, int64(1381346631000))
-}
-
-func (self *ApiSuite) TestNotChunkedNotPrettyQuery(c *C) {
-	query := "select * from foo where column_one == 'some_value';"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&u=dbuser&p=password&pretty=false", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	series := []SerializedSeries{}
-	err = json.Unmarshal(data, &series)
-	c.Assert(err, IsNil)
-	c.Assert(series, HasLen, 1)
-	c.Assert(series[0].Name, Equals, "foo")
-	// time, seq, column_one, column_two
-	c.Assert(series[0].Columns, HasLen, 4)
-	c.Assert(series[0].Points, HasLen, 4)
-	// timestamp precision is milliseconds by default
-	c.Assert(int64(series[0].Points[0][0].(float64)), Equals, int64(1381346631000))
-}
-
-func (self *ApiSuite) TestChunkedQuery(c *C) {
-	query := "select * from foo where column_one == 'some_value';"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&chunked=true&u=dbuser&p=password", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-
-	for i := 0; i < 2; i++ {
-		chunk := make([]byte, 2048, 2048)
-		n, err := resp.Body.Read(chunk)
-
-		series := SerializedSeries{}
-		err = json.Unmarshal(chunk[0:n], &series)
-		c.Assert(err, IsNil)
-		c.Assert(series.Name, Equals, "foo")
-		// time, seq, column_one, column_two
-		c.Assert(series.Columns, HasLen, 4)
-		// each chunk should have 2 points
-		c.Assert(series.Points, HasLen, 2)
-	}
-}
-
-func (self *ApiSuite) TestPrettyChunkedQuery(c *C) {
-	query := "select * from foo where column_one == 'some_value';"
-	query = url.QueryEscape(query)
-	addr := self.formatUrl("/db/foo/series?q=%s&chunked=true&u=dbuser&p=password&pretty=true", query)
-	resp, err := libhttp.Get(addr)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-
-	for i := 0; i < 2; i++ {
-		chunk := make([]byte, 2048, 2048)
-		n, err := resp.Body.Read(chunk)
-
-		series := SerializedSeries{}
-		err = json.Unmarshal(chunk[0:n], &series)
-		c.Assert(err, IsNil)
-		c.Assert(series.Name, Equals, "foo")
-		// time, seq, column_one, column_two
-		c.Assert(series.Columns, HasLen, 4)
-		// each chunk should have 2 points
-		c.Assert(series.Points, HasLen, 2)
-	}
-}
-
-func (self *ApiSuite) TestWriteDataWithTimeInSeconds(c *C) {
-	data := `
-[
-  {
-    "points": [
-				[1382131686, "1"]
-    ],
-    "name": "foo",
-    "columns": ["time", "column_one"]
-  }
-]
-`
-
-	addr := self.formatUrl("/db/foo/series?time_precision=s&u=dbuser&p=password")
-	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.coordinator.series, HasLen, 1)
-	series := self.coordinator.series[0]
-
-	// check the types
-	c.Assert(series.Fields, HasLen, 1)
-	c.Assert(series.Fields[0], Equals, "column_one")
-
-	// check the values
-	c.Assert(series.Points, HasLen, 1)
-	c.Assert(*series.Points[0].Values[0].StringValue, Equals, "1")
-	c.Assert(*series.Points[0].GetTimestampInMicroseconds(), Equals, int64(1382131686000000))
-}
-
-func (self *ApiSuite) TestWriteDataWithTime(c *C) {
-	data := `
-[
-  {
-    "points": [
-				[1382131686000, "1"]
-    ],
-    "name": "foo",
-    "columns": ["time", "column_one"]
-  }
-]
-`
-
-	addr := self.formatUrl("/db/foo/series?u=dbuser&p=password")
-	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.coordinator.series, HasLen, 1)
-	series := self.coordinator.series[0]
-
-	// check the types
-	c.Assert(series.Fields, HasLen, 1)
-	c.Assert(series.Fields[0], Equals, "column_one")
-
-	// check the values
-	c.Assert(series.Points, HasLen, 1)
-	c.Assert(*series.Points[0].Values[0].StringValue, Equals, "1")
-	c.Assert(*series.Points[0].GetTimestampInMicroseconds(), Equals, int64(1382131686000000))
-}
-
-func (self *ApiSuite) TestWriteDataWithInvalidTime(c *C) {
-	data := `
-[
-  {
-    "points": [
-				["foo", "1"]
-    ],
-    "name": "foo",
-    "columns": ["time", "column_one"]
-  }
-]
-`
-
-	addr := self.formatUrl("/db/foo/series?u=dbuser&p=password")
-	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
-}
-
-func (self *ApiSuite) TestWriteDataWithNull(c *C) {
-	data := `
-[
-  {
-    "points": [
-				["1", 1, 1.0, true],
-				["2", 2, 2.0, false],
-				["3", 3, 3.0, null]
-    ],
-    "name": "foo",
-    "columns": ["column_one", "column_two", "column_three", "column_four"]
-  }
-]
-`
-
-	addr := self.formatUrl("/db/foo/series?u=dbuser&p=password")
-	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.coordinator.series, HasLen, 1)
-	series := self.coordinator.series[0]
-	c.Assert(series.Fields, HasLen, 4)
-
-	// check the types
-	c.Assert(series.Fields[0], Equals, "column_one")
-	c.Assert(series.Fields[1], Equals, "column_two")
-	c.Assert(series.Fields[2], Equals, "column_three")
-	c.Assert(series.Fields[3], Equals, "column_four")
-
-	// check the values
-	c.Assert(series.Points, HasLen, 3)
-	c.Assert(*series.Points[2].Values[0].StringValue, Equals, "3")
-	c.Assert(*series.Points[2].Values[1].Int64Value, Equals, int64(3))
-	c.Assert(*series.Points[2].Values[2].DoubleValue, Equals, 3.0)
-	c.Assert(series.Points[2].Values[3].GetIsNull(), Equals, true)
-}
-
-func (self *ApiSuite) TestWriteData(c *C) {
-	data := `
-[
-  {
-    "points": [
-				["1", 1, 1.0, true],
-				["2", 2, 2.0, false],
-				["3", 3, 3.0, true]
-    ],
-    "name": "foo",
-    "columns": ["column_one", "column_two", "column_three", "column_four"]
-  }
-]
-`
-
-	addr := self.formatUrl("/db/foo/series?u=dbuser&p=password")
-	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.coordinator.series, HasLen, 1)
-	series := self.coordinator.series[0]
-	c.Assert(series.Fields, HasLen, 4)
-
-	// check the types
-	c.Assert(series.Fields[0], Equals, "column_one")
-	c.Assert(series.Fields[1], Equals, "column_two")
-	c.Assert(series.Fields[2], Equals, "column_three")
-	c.Assert(series.Fields[3], Equals, "column_four")
-
-	// check the values
-	c.Assert(series.Points, HasLen, 3)
-	c.Assert(*series.Points[0].Values[0].StringValue, Equals, "1")
-	c.Assert(*series.Points[0].Values[1].Int64Value, Equals, int64(1))
-	c.Assert(*series.Points[0].Values[2].DoubleValue, Equals, 1.0)
-	c.Assert(*series.Points[0].Values[3].BoolValue, Equals, true)
-}
-
-func (self *ApiSuite) TestWriteDataAsClusterAdmin(c *C) {
-	data := `
-[
-  {
-    "points": [
-				["1", true]
-    ],
-    "name": "foo",
-    "columns": ["column_one", "column_two"]
-  }
-]
-`
-
-	addr := self.formatUrl("/db/foo/series?u=root&p=root")
-	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-}
-
-func (self *ApiSuite) TestCreateDatabase(c *C) {
-	data := `{"name": "foo", "apiKey": "bar"}`
-	addr := self.formatUrl("/db?api_key=asdf&u=root&p=root")
-	resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(data))
-	c.Assert(err, IsNil)
-	_, err = ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusCreated)
-	c.Assert(self.coordinator.db, Equals, "foo")
-}
-
-func (self *ApiSuite) TestCreateDatabaseNameFailures(c *C) {
-	data := map[string]string{
-		`{"name": ""}`: "Unable to create database without name",
-		`{}`:           "Unable to create database without name",
-		`{"not_name": "bar"}`: "Unable to create database without name",
-		`{"name": "    "}`:    "Unable to create database without name"}
-	for k, v := range data {
-		addr := self.formatUrl("/db?u=root&p=root")
-		resp, err := libhttp.Post(addr, "application/json", bytes.NewBufferString(k))
-		c.Assert(err, IsNil)
-		m, err := ioutil.ReadAll(resp.Body)
-		c.Assert(err, IsNil)
-		c.Assert(v, Equals, string(m))
-		c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
-	}
-}
-
-func (self *ApiSuite) TestDropDatabase(c *C) {
-	addr := self.formatUrl("/db/foo?u=root&p=root")
-	req, err := libhttp.NewRequest("DELETE", addr, nil)
-	c.Assert(err, IsNil)
-	resp, err := libhttp.DefaultClient.Do(req)
-	c.Assert(err, IsNil)
-	_, err = ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusNoContent)
-	c.Assert(self.coordinator.droppedDb, Equals, "foo")
-}
-
-func (self *ApiSuite) TestClusterAdminOperations(c *C) {
-	url := self.formatUrl("/cluster_admins?u=root&p=root")
-	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"name":"", "password": "new_pass"}`))
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
-
-	url = self.formatUrl("/cluster_admins?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"name":"new_user", "password": "new_pass"}`))
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "cluster_admin_add")
-	c.Assert(self.manager.ops[0].username, Equals, "new_user")
-	c.Assert(self.manager.ops[0].password, Equals, "new_pass")
-	self.manager.ops = nil
-
-	url = self.formatUrl("/cluster_admins/new_user?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"password":"new_password"}`))
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "cluster_admin_passwd")
-	c.Assert(self.manager.ops[0].username, Equals, "new_user")
-	c.Assert(self.manager.ops[0].password, Equals, "new_password")
-	self.manager.ops = nil
-
-	req, _ := libhttp.NewRequest("DELETE", url, nil)
-	resp, err = libhttp.DefaultClient.Do(req)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "cluster_admin_del")
-	c.Assert(self.manager.ops[0].username, Equals, "new_user")
-}
-
-func (self *ApiSuite) TestDbUserOperations(c *C) {
-	// create user using the `name` field
-	url := self.formatUrl("/db/db1/users?u=root&p=root")
-	resp, err := libhttp.Post(url, "", bytes.NewBufferString(`{"name":"dbuser", "password": "password"}`))
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "db_user_add")
-	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[0].password, Equals, "password")
-	self.manager.ops = nil
-
-	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"password":"new_password"}`))
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "db_user_passwd")
-	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[0].password, Equals, "new_password")
-	self.manager.ops = nil
-
-	// empty usernames aren't valid
-	url = self.formatUrl("/db/db1/users?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"name":"", "password": "password"}`))
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusBadRequest)
-
-	// Fix #477 - Username should support @ character - https://github.com/influxdb/influxdb/issues/447
-	url = self.formatUrl("/db/db1/users?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"name":"paul@influxdb.com", "password": "password"}`))
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "db_user_add")
-	c.Assert(self.manager.ops[0].username, Equals, "paul@influxdb.com")
-	c.Assert(self.manager.ops[0].password, Equals, "password")
-	self.manager.ops = nil
-
-	// set and unset the db admin flag
-	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"admin": true}`))
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
-	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[0].isAdmin, Equals, true)
-	self.manager.ops = nil
-	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
-	resp, err = libhttp.Post(url, "", bytes.NewBufferString(`{"admin": false}`))
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "db_user_admin")
-	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
-	c.Assert(self.manager.ops[0].isAdmin, Equals, false)
-	self.manager.ops = nil
-
-	url = self.formatUrl("/db/db1/users/dbuser?u=root&p=root")
-	req, _ := libhttp.NewRequest("DELETE", url, nil)
-	resp, err = libhttp.DefaultClient.Do(req)
-	c.Assert(err, IsNil)
-	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	c.Assert(self.manager.ops, HasLen, 1)
-	c.Assert(self.manager.ops[0].operation, Equals, "db_user_del")
-	c.Assert(self.manager.ops[0].username, Equals, "dbuser")
-}
-
-func (self *ApiSuite) TestClusterAdminsIndex(c *C) {
-	url := self.formatUrl("/cluster_admins?u=root&p=root")
-	resp, err := libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	users := []*ApiUser{}
-	err = json.Unmarshal(body, &users)
-	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*ApiUser{{"root"}})
-}
-
-func (self *ApiSuite) TestPrettyClusterAdminsIndex(c *C) {
-	url := self.formatUrl("/cluster_admins?u=root&p=root&pretty=true")
-	resp, err := libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	users := []*ApiUser{}
-	err = json.Unmarshal(body, &users)
-	c.Assert(err, IsNil)
-	c.Assert(users, DeepEquals, []*ApiUser{{"root"}})
-}
-
-func (self *ApiSuite) TestDbUsersIndex(c *C) {
-	url := self.formatUrl("/db/db1/users?u=root&p=root")
-	resp, err := libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	users := []*UserDetail{}
-	err = json.Unmarshal(body, &users)
-	c.Assert(err, IsNil)
-	c.Assert(users, HasLen, 1)
-	c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false, ".*", ".*"})
-}
-
-func (self *ApiSuite) TestPrettyDbUsersIndex(c *C) {
-	url := self.formatUrl("/db/db1/users?u=root&p=root&pretty=true")
-	resp, err := libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	users := []*UserDetail{}
-	err = json.Unmarshal(body, &users)
-	c.Assert(err, IsNil)
-	c.Assert(users, HasLen, 1)
-	c.Assert(users[0], DeepEquals, &UserDetail{"db_user1", false, ".*", ".*"})
-}
-
-func (self *ApiSuite) TestDbUserShow(c *C) {
-	url := self.formatUrl("/db/db1/users/db_user1?u=root&p=root")
-	resp, err := libhttp.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	userDetail := &UserDetail{}
-	err = json.Unmarshal(body, &userDetail)
-	c.Assert(err, IsNil)
-	c.Assert(userDetail, DeepEquals, &UserDetail{"db_user1", false, ".*", ".*"})
-}
-
-func (self *ApiSuite) TestDatabasesIndex(c *C) {
-	for _, path := range []string{"/db?u=root&p=root", "/db?u=root&p=root"} {
-		url := self.formatUrl(path)
-		resp, err := libhttp.Get(url)
-		c.Assert(err, IsNil)
-		c.Assert(resp.Header.Get("content-type"), Equals, "application/json")
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		c.Assert(err, IsNil)
-		databases := []*cluster.Database{}
-		err = json.Unmarshal(body, &databases)
-		c.Assert(err, IsNil)
-		err = json.Unmarshal(body, &databases)
-		c.Assert(err, IsNil)
-		c.Assert(databases, DeepEquals, []*cluster.Database{{"db1"}, {"db2"}})
-	}
-}
-
-func (self *ApiSuite) TestBasicAuthentication(c *C) {
-	url := self.formatUrl("/db")
-	req, err := libhttp.NewRequest("GET", url, nil)
-	c.Assert(err, IsNil)
-	auth := base64.StdEncoding.EncodeToString([]byte("root:root"))
-	req.Header.Add("Authorization", "Basic "+auth)
-	resp, err := libhttp.DefaultClient.Do(req)
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, libhttp.StatusOK)
-	databases := []*cluster.Database{}
-	c.Assert(err, IsNil)
-	err = json.Unmarshal(body, &databases)
-	c.Assert(err, IsNil)
-	c.Assert(databases, DeepEquals, []*cluster.Database{{"db1"}, {"db2"}})
-}
-*/
