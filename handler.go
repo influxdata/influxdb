@@ -47,7 +47,6 @@ func NewHandler(s *Server) *Handler {
 	// Series routes.
 	h.mux.Get("/db/:db/series", http.HandlerFunc(h.serveQuery))
 	h.mux.Post("/db/:db/series", http.HandlerFunc(h.serveWriteSeries))
-	h.mux.Del("/db/:db/series/:series", http.HandlerFunc(h.serveDeleteSeries))
 
 	// Shard routes.
 	h.mux.Get("/db/:db/shards", http.HandlerFunc(h.serveShards))
@@ -61,7 +60,6 @@ func NewHandler(s *Server) *Handler {
 
 	// Utilities
 	h.mux.Get("/ping", http.HandlerFunc(h.servePing))
-	h.mux.Get("/interfaces", http.HandlerFunc(h.serveInterfaces))
 
 	// Cluster config endpoints
 	h.mux.Get("/cluster/servers", http.HandlerFunc(h.serveServers))
@@ -181,9 +179,6 @@ func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request) {
 	}
 	*/
 }
-
-// serveDeleteSeries deletes a given series.
-func (h *Handler) serveDeleteSeries(w http.ResponseWriter, r *http.Request) {}
 
 // serveDatabases returns a list of all databases on the server.
 func (h *Handler) serveDatabases(w http.ResponseWriter, r *http.Request) {
@@ -316,9 +311,6 @@ func (h *Handler) serveDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {}
-
-// serveInterfaces returns a list of available interfaces.
-func (h *Handler) serveInterfaces(w http.ResponseWriter, r *http.Request) {}
 
 // serveShards returns a list of shards.
 func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request) {

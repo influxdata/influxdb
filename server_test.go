@@ -395,18 +395,18 @@ func TestServer_CreateShardIfNotExist(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	db := s.Database("foo")
 
-	if err := db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := db.CreateShardsIfNotExists("bar", time.Time{}); err != nil {
+	if err := s.CreateShardsIfNotExists("foo", "bar", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 
-	ss := db.Shards()
-	if len(ss) != 1 {
+	if ss, err := s.Shards("foo"); err != nil {
+		t.Fatal(err)
+	} else if len(ss) != 1 {
 		t.Fatalf("expected 1 shard but found %d", len(ss))
 	}
 }
@@ -415,9 +415,8 @@ func TestServer_Measurements(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	db := s.Database("foo")
-	db.CreateRetentionPolicy(&influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
-	db.CreateUser("susy", "pass", nil, nil)
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
+	s.CreateUser("susy", "pass", false)
 
 	// Write series with one point to the database.
 	timestamp := mustParseTime("2000-01-01T00:00:00Z")
@@ -425,11 +424,11 @@ func TestServer_Measurements(t *testing.T) {
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	values := map[string]interface{}{"value": 23.2}
 
-	if err := db.WriteSeries("myspace", "cpu_load", tags, timestamp, values); err != nil {
+	if err := s.WriteSeries("foo", "myspace", "cpu_load", tags, timestamp, values); err != nil {
 		t.Fatal(err)
 	}
 
-	r := db.Measurements()
+	r := s.Measurements("foo")
 	m := []*influxdb.Measurement{
 		&influxdb.Measurement{
 			Name: "cpu_load",

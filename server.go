@@ -402,7 +402,7 @@ func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) (err error) {
 
 	// If we can match to an existing shard date range then just ignore request.
 	for _, sh := range rp.Shards {
-		if timeBetween(c.Timestamp, sh.StartTime, sh.EndTime) {
+		if timeBetweenInclusive(c.Timestamp, sh.StartTime, sh.EndTime) {
 			return nil
 		}
 	}
@@ -660,7 +660,7 @@ func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
 		return ErrRetentionPolicyExists
 	}
 
-	// Add space to the database.
+	// Add policy to the database.
 	db.policies[c.Name] = &RetentionPolicy{
 		Name:     c.Name,
 		Duration: c.Duration,
@@ -862,33 +862,19 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 
 // WriteSeries writes series data to the database.
 func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
-	s.mu.RLock()
-
-	// Find database.
-	db := s.databases[database]
-	if !ok {
-		return ErrDatabaseNotFound
-	}
-
-	// Find policy.
-	rp := db.policies[retentionPolicy]
-	if !ok {
-		return ErrRetentionPolicyNotFound
-	}
-	s.mu.RUnlock()
-
-	// get the id for the series and tagset
-	id, err := db.createSeriesIfNotExists(name, tags)
+	// Find the id for the series and tagset
+	id, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {
 		return err
 	}
 
-	// now write it into the shard
-	sh, err := db.createShardIfNotExists(rp, id, timestamp)
+	// Now write it into the shard.
+	sh, err := s.createShardIfNotExists(database, retentionPolicy, id, timestamp)
 	if err != nil {
 		return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
 
+	// Encode point to a byte slice.
 	data, err := marshalPoint(id, timestamp, values)
 	if err != nil {
 		return err
@@ -901,52 +887,43 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 		Data:    data,
 	}
 
-	_, err = db.server.client.Publish(m)
+	_, err = s.client.Publish(m)
 	return err
 }
 
 // seriesID returns the unique id of a series and tagset and a bool indicating if it was found
-func (s *Server) seriesID(database, name string, tags map[string]string) (uint32, bool) {
-	var id uint32
-	var err error
+func (s *Server) seriesID(database, name string, tags map[string]string) (id uint32) {
 	s.meta.view(func(tx *metatx) error {
-		id, err = tx.seriesID(database, name, tags)
+		id, _ = tx.seriesID(database, name, tags)
 		return nil
 	})
-	if err != nil {
-		return uint32(0), false
-	}
-	return id, true
+	return
 }
 
-func (db *Database) createSeriesIfNotExists(name string, tags map[string]string) (uint32, error) {
-	if id, ok := db.seriesID(name, tags); ok {
+func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]string) (uint32, error) {
+	// Try to find series locally first.
+	if id := s.seriesID(database, name, tags); id != 0 {
 		return id, nil
 	}
 
-	c := &createSeriesIfNotExistsCommand{
-		Database: db.Name(),
-		Name:     name,
-		Tags:     tags,
-	}
-	_, err := db.server.broadcast(createSeriesIfNotExistsMessageType, c)
+	// If it doesn't exist then create a message and broadcast.
+	c := &createSeriesIfNotExistsCommand{Database: database, Name: name, Tags: tags}
+	_, err := s.broadcast(createSeriesIfNotExistsMessageType, c)
 	if err != nil {
-		return uint32(0), err
+		return 0, err
 	}
-	id, ok := db.seriesID(name, tags)
-	if !ok {
-		return uint32(0), ErrSeriesNotFound
+
+	// Lookup series again.
+	id := s.seriesID(database, name, tags)
+	if id == 0 {
+		return 0, ErrSeriesNotFound
 	}
 	return id, nil
 }
 
-func (db *Database) Measurements() (a Measurements) {
-	db.mu.RLock()
-	m := db.server.meta
-	db.mu.RUnlock()
-
-	m.view(func(tx *metatx) error {
-		a = tx.measurements(db.name)
+func (s *Server) Measurements(database string) (a Measurements) {
+	s.meta.view(func(tx *metatx) error {
+		a = tx.measurements(database)
 		return nil
 	})
 	return
@@ -1048,8 +1025,8 @@ func (db *database) shardsByTimestamp(policy string, timestamp time.Time) ([]*Sh
 	return p.shardsByTimestamp(timestamp), nil
 }
 
-// timeBetween returns true if t is between min and max, inclusive.
-func timeBetween(t, min, max time.Time) bool {
+// timeBetweenInclusive returns true if t is between min and max, inclusive.
+func timeBetweenInclusive(t, min, max time.Time) bool {
 	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
 }
 
@@ -1177,7 +1154,7 @@ func (rp *RetentionPolicy) shardByTimestamp(id uint32, timestamp time.Time) *Sha
 func (rp *RetentionPolicy) shardsByTimestamp(timestamp time.Time) []*Shard {
 	shards := make([]*Shard, 0, rp.SplitN)
 	for _, s := range rp.Shards {
-		if timeBetween(timestamp, s.StartTime, s.EndTime) {
+		if timeBetweenInclusive(timestamp, s.StartTime, s.EndTime) {
 			shards = append(shards, s)
 		}
 	}
