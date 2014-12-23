@@ -419,16 +419,19 @@ func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) (err error) {
 	}
 
 	// Persist to metastore if a shard was created.
-	err = s.meta.mustUpdate(func(tx *metatx) error {
+	if err = s.meta.mustUpdate(func(tx *metatx) error {
 		return tx.saveDatabase(db)
-	})
+	}); err != nil {
+		_ = sh.close()
+		return
+	}
 
 	// Add to lookups.
 	s.databasesByShard[sh.ID] = db
 	db.shards[sh.ID] = sh
 	rp.Shards = append(rp.Shards, sh)
 
-	return nil
+	return
 }
 
 type createShardIfNotExistsCommand struct {
