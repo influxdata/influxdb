@@ -51,15 +51,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // connects the requestor as the replica's writer.
 func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
-	// Retrieve the replica name.
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		h.error(w, ErrReplicaNameRequired, http.StatusBadRequest)
+	// Read the replica ID.
+	var replicaID uint64
+	if n, err := strconv.ParseUint(r.URL.Query().Get("replicaID"), 10, 64); err != nil {
+		h.error(w, ErrReplicaRequired, http.StatusBadRequest)
 		return
+	} else {
+		replicaID = uint64(n)
 	}
 
 	// Find the replica on the broker.
-	replica := h.broker.Replica(name)
+	replica := h.broker.Replica(replicaID)
 	if replica == nil {
 		h.error(w, ErrReplicaNotFound, http.StatusNotFound)
 		return
@@ -83,7 +85,7 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read the topic ID.
-	if n, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 32); err != nil {
+	if n, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 64); err != nil {
 		h.error(w, ErrTopicRequired, http.StatusBadRequest)
 		return
 	} else {

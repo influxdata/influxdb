@@ -838,31 +838,6 @@ type createSeriesIfNotExistsCommand struct {
 	Tags     map[string]string `json:"tags"`
 }
 
-func (s *Server) applyWriteSeries(m *messaging.Message) error {
-	s.mu.RLock()
-
-	// Retrieve the database.
-	db := s.databasesByShard[m.TopicID]
-	if db == nil {
-		s.mu.RUnlock()
-		return ErrDatabaseNotFound
-	}
-
-	// Retrieve the shard.
-	sh := db.shards[m.TopicID]
-	if sh == nil {
-		s.mu.RUnlock()
-		return ErrShardNotFound
-	}
-	s.mu.RUnlock()
-
-	// TODO: enable some way to specify if the data should be overwritten
-	overwrite := true
-
-	// Write to shard.
-	return sh.writeSeries(overwrite, m.Data)
-}
-
 // WriteSeries writes series data to the database.
 func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
 	// Find the id for the series and tagset
@@ -892,6 +867,31 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 
 	_, err = s.client.Publish(m)
 	return err
+}
+
+func (s *Server) applyWriteSeries(m *messaging.Message) error {
+	s.mu.RLock()
+
+	// Retrieve the database.
+	db := s.databasesByShard[m.TopicID]
+	if db == nil {
+		s.mu.RUnlock()
+		return ErrDatabaseNotFound
+	}
+
+	// Retrieve the shard.
+	sh := db.shards[m.TopicID]
+	if sh == nil {
+		s.mu.RUnlock()
+		return ErrShardNotFound
+	}
+	s.mu.RUnlock()
+
+	// TODO: enable some way to specify if the data should be overwritten
+	overwrite := true
+
+	// Write to shard.
+	return sh.writeSeries(overwrite, m.Data)
 }
 
 // seriesID returns the unique id of a series and tagset and a bool indicating if it was found

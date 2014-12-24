@@ -11,22 +11,22 @@ import (
 	"github.com/influxdb/influxdb/messaging"
 )
 
-// Ensure the client name can be retrieved.
-func TestClient_Name(t *testing.T) {
-	c := NewClient("node0")
+// Ensure the client replica id can be retrieved.
+func TestClient_ReplicaID(t *testing.T) {
+	c := NewClient(1000)
 	defer c.Close()
-	if name := c.Name(); name != "node0" {
-		t.Fatalf("unexpected name: %s", name)
+	if replicaID := c.ReplicaID(); replicaID != 1000 {
+		t.Fatalf("unexpected replica id: %s", replicaID)
 	}
 }
 
 // Ensure that a client can open a connect to the broker.
 func TestClient_Open(t *testing.T) {
-	c := NewClient("node0")
+	c := NewClient(1000)
 	defer c.Close()
 
 	// Create replica on broker.
-	c.Server.Handler.Broker().CreateReplica("node0")
+	c.Server.Handler.Broker().CreateReplica(1000)
 
 	// Open client to broker.
 	f := NewTempFile()
@@ -49,7 +49,7 @@ func TestClient_Open(t *testing.T) {
 
 // Ensure that opening an already open client returns an error.
 func TestClient_Open_ErrClientOpen(t *testing.T) {
-	c := NewClient("node0")
+	c := NewClient(1000)
 	defer c.Close()
 
 	// Open client to broker.
@@ -65,7 +65,7 @@ func TestClient_Open_ErrClientOpen(t *testing.T) {
 // Ensure that opening a client without a broker URL returns an error.
 func TestClient_Open_ErrBrokerURLRequired(t *testing.T) {
 	t.Skip()
-	c := NewClient("node0")
+	c := NewClient(1000)
 	defer c.Close()
 	f := NewTempFile()
 	defer os.Remove(f)
@@ -76,11 +76,11 @@ func TestClient_Open_ErrBrokerURLRequired(t *testing.T) {
 
 // Ensure that a client can close while a message is pending.
 func TestClient_Close(t *testing.T) {
-	c := NewClient("node0")
+	c := NewClient(1000)
 	defer c.Close()
 
 	// Create replica on broker.
-	c.Server.Handler.Broker().CreateReplica("node0")
+	c.Server.Handler.Broker().CreateReplica(1000)
 
 	// Open client to broker.
 	f := NewTempFile()
@@ -99,7 +99,7 @@ func TestClient_Close(t *testing.T) {
 
 // Ensure that a client can publish messages to the broker.
 func TestClient_Publish(t *testing.T) {
-	c := OpenClient("node0")
+	c := OpenClient(1000)
 	defer c.Close()
 
 	// Publish message to the broker.
@@ -112,7 +112,7 @@ func TestClient_Publish(t *testing.T) {
 
 // Ensure that a client receives an error when publishing to a stopped server.
 func TestClient_Publish_ErrConnectionRefused(t *testing.T) {
-	c := OpenClient("node0")
+	c := OpenClient(1000)
 	c.Server.Close()
 	defer c.Close()
 
@@ -124,7 +124,7 @@ func TestClient_Publish_ErrConnectionRefused(t *testing.T) {
 
 // Ensure that a client receives an error when publishing to a closed broker.
 func TestClient_Publish_ErrLogClosed(t *testing.T) {
-	c := OpenClient("node0")
+	c := OpenClient(1000)
 	c.Server.Handler.Broker().Close()
 	defer c.Close()
 
@@ -142,19 +142,18 @@ type Client struct {
 }
 
 // NewClient returns a new instance of Client.
-func NewClient(name string) *Client {
-	c := &Client{
+func NewClient(replicaID uint64) *Client {
+	return &Client{
 		clientConfig: "", // Not all tests with NewClient require automatic temp file creation.
-		Client:       messaging.NewClient(name),
+		Client:       messaging.NewClient(replicaID),
 		Server:       NewServer(),
 	}
-	return c
 }
 
 // OpenClient returns a new, open instance of Client.
-func OpenClient(name string) *Client {
-	c := NewClient(name)
-	c.Server.Handler.Broker().CreateReplica(name)
+func OpenClient(replicaID uint64) *Client {
+	c := NewClient(replicaID)
+	c.Server.Handler.Broker().CreateReplica(replicaID)
 
 	// Open client to broker.
 	c.clientConfig = NewTempFile()

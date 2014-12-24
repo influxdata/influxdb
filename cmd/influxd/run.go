@@ -104,7 +104,7 @@ func execRun(args []string) {
 				brokerURLs = append(brokerURLs, u)
 			}
 
-			c := messaging.NewClient("XXX-CHANGEME-XXX")
+			c := messaging.NewClient(0) // TODO: Set replica id.
 			if err := c.Open(clientFilePath, brokerURLs); err != nil {
 				log.Fatalf("Error opening Messaging Client: %s", err.Error())
 			}

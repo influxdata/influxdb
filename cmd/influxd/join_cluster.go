@@ -83,8 +83,7 @@ func execJoinCluster(args []string) {
 		}
 
 		// Configure the Messaging Client.
-
-		c := messaging.NewClient("XXX-CHANGEME-XXX")
+		c := messaging.NewClient(0) // TODO: Set replica id.
 		if err := c.Open(filepath.Join(config.Storage.Dir, messagingClientFile), seedURLs); err != nil {
 			log.Fatalf("join-cluster open client: %s", err.Error())
 		}

@@ -24,8 +24,8 @@ var (
 	// ErrReplicaNotFound is returned when referencing a replica that doesn't exist.
 	ErrReplicaNotFound = errors.New("replica not found")
 
-	// ErrReplicaNameRequired is returned when finding a replica without a name.
-	ErrReplicaNameRequired = errors.New("replica name required")
+	// ErrReplicaRequired is returned when finding a replica without an id.
+	ErrReplicaRequired = errors.New("replica required")
 
 	// errReplicaUnavailable is returned when writing bytes to a replica when
 	// there is no writer attached to the replica.

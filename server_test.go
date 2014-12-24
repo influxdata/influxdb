@@ -374,7 +374,6 @@ func TestServer_WriteSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	timestamp := mustParseTime("2000-01-01T00:00:00Z")
-
 	name := "cpu_load"
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	values := map[string]interface{}{"value": 23.2}
@@ -384,6 +383,7 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 
 	t.Skip("pending")
+
 	// TODO: Execute a query and record all series found.
 	// q := mustParseQuery(`select myval from cpu_load`)
 	// if err := db.ExecuteQuery(q); err != nil {
