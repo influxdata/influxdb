@@ -63,7 +63,7 @@ func execCreateCluster(args []string) {
 		}
 		seedUrls = append(seedUrls, u)
 
-		c := messaging.NewClient("XXX-CHANGEME-XXX")
+		c := messaging.NewClient(0) // TODO: Set replica id.
 		if err := c.Open(filepath.Join(config.Storage.Dir, messagingClientFile), seedUrls); err != nil {
 			log.Fatalf("create-cluster open client: %s", err.Error())
 		}

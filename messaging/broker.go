@@ -26,17 +26,15 @@ type Broker struct {
 	path string    // data directory
 	log  *raft.Log // internal raft log
 
-	replicas map[string]*Replica // replica by name
-
-	maxTopicID uint64            // autoincrementing sequence
-	topics     map[uint64]*topic // topics by id
+	replicas map[uint64]*Replica // replica by id
+	topics   map[uint64]*topic   // topics by id
 }
 
 // NewBroker returns a new instance of a Broker with default values.
 func NewBroker() *Broker {
 	b := &Broker{
 		log:      raft.NewLog(),
-		replicas: make(map[string]*Replica),
+		replicas: make(map[uint64]*Replica),
 		topics:   make(map[uint64]*topic),
 	}
 	b.log.FSM = (*brokerFSM)(b)
@@ -147,11 +145,11 @@ func (b *Broker) Sync(index uint64) error {
 	return b.log.Wait(index)
 }
 
-// Replica returns a replica by name.
-func (b *Broker) Replica(name string) *Replica {
+// Replica returns a replica by id.
+func (b *Broker) Replica(id uint64) *Replica {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.replicas[name]
+	return b.replicas[id]
 }
 
 // initializes a new topic object.
@@ -159,7 +157,7 @@ func (b *Broker) createTopic(id uint64) *topic {
 	t := &topic{
 		id:       id,
 		path:     filepath.Join(b.path, strconv.FormatUint(uint64(id), 10)),
-		replicas: make(map[string]*Replica),
+		replicas: make(map[uint64]*Replica),
 	}
 	b.topics[t.id] = t
 	return t
@@ -173,12 +171,12 @@ func (b *Broker) createTopicIfNotExists(id uint64) *topic {
 }
 
 // CreateReplica creates a new named replica.
-func (b *Broker) CreateReplica(name string) error {
+func (b *Broker) CreateReplica(id uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	// Ensure replica doesn't already exist.
-	s := b.replicas[name]
+	s := b.replicas[id]
 	if s != nil {
 		return ErrReplicaExists
 	}
@@ -186,7 +184,7 @@ func (b *Broker) CreateReplica(name string) error {
 	// Add command to create replica.
 	return b.PublishSync(&Message{
 		Type: CreateReplicaMessageType,
-		Data: mustMarshalJSON(&CreateReplicaCommand{Name: name}),
+		Data: mustMarshalJSON(&CreateReplicaCommand{ID: id}),
 	})
 }
 
@@ -195,30 +193,30 @@ func (b *Broker) applyCreateReplica(m *Message) {
 	mustUnmarshalJSON(m.Data, &c)
 
 	// Create replica.
-	r := newReplica(b, c.Name)
+	r := newReplica(b, c.ID)
 
 	// Automatically subscribe to the config topic.
 	t := b.createTopicIfNotExists(BroadcastTopicID)
 	r.topics[BroadcastTopicID] = t.index
 
 	// Add replica to the broker.
-	b.replicas[c.Name] = r
+	b.replicas[c.ID] = r
 }
 
-// DeleteReplica deletes an existing replica by name.
-func (b *Broker) DeleteReplica(name string) error {
+// DeleteReplica deletes an existing replica by id.
+func (b *Broker) DeleteReplica(id uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	// Ensure replica exists.
-	if s := b.replicas[name]; s == nil {
+	if s := b.replicas[id]; s == nil {
 		return ErrReplicaNotFound
 	}
 
 	// Issue command to remove replica.
 	return b.PublishSync(&Message{
 		Type: DeleteReplicaMessageType,
-		Data: mustMarshalJSON(&DeleteReplicaCommand{Name: name}),
+		Data: mustMarshalJSON(&DeleteReplicaCommand{ID: id}),
 	})
 }
 
@@ -227,7 +225,7 @@ func (b *Broker) applyDeleteReplica(m *Message) {
 	mustUnmarshalJSON(m.Data, &c)
 
 	// Find replica.
-	r := b.replicas[c.Name]
+	r := b.replicas[c.ID]
 	if r == nil {
 		return
 	}
@@ -235,7 +233,7 @@ func (b *Broker) applyDeleteReplica(m *Message) {
 	// Remove replica from all subscribed topics.
 	for topicID := range r.topics {
 		if t := b.topics[topicID]; t != nil {
-			delete(t.replicas, r.name)
+			delete(t.replicas, r.id)
 		}
 	}
 	r.topics = make(map[uint64]uint64)
@@ -244,23 +242,23 @@ func (b *Broker) applyDeleteReplica(m *Message) {
 	r.closeWriter()
 
 	// Remove replica from broker.
-	delete(b.replicas, c.Name)
+	delete(b.replicas, c.ID)
 }
 
 // Subscribe adds a subscription to a topic from a replica.
-func (b *Broker) Subscribe(replica string, topicID uint64) error {
+func (b *Broker) Subscribe(replicaID, topicID uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	// Ensure replica & topic exist.
-	if b.replicas[replica] == nil {
+	if b.replicas[replicaID] == nil {
 		return ErrReplicaNotFound
 	}
 
 	// Issue command to subscribe to topic.
 	return b.PublishSync(&Message{
 		Type: SubscribeMessageType,
-		Data: mustMarshalJSON(&SubscribeCommand{Replica: replica, TopicID: topicID}),
+		Data: mustMarshalJSON(&SubscribeCommand{ReplicaID: replicaID, TopicID: topicID}),
 	})
 }
 
@@ -270,7 +268,7 @@ func (b *Broker) applySubscribe(m *Message) {
 	mustUnmarshalJSON(m.Data, &c)
 
 	// Retrieve replica.
-	r := b.replicas[c.Replica]
+	r := b.replicas[c.ReplicaID]
 	if r == nil {
 		return
 	}
@@ -287,26 +285,26 @@ func (b *Broker) applySubscribe(m *Message) {
 
 	// Add subscription to replica.
 	r.topics[c.TopicID] = index
-	t.replicas[c.Replica] = r
+	t.replicas[c.ReplicaID] = r
 
 	// Catch up replica.
 	_, _ = t.writeTo(r, index)
 }
 
 // Unsubscribe removes a subscription for a topic from a replica.
-func (b *Broker) Unsubscribe(replica string, topicID uint64) error {
+func (b *Broker) Unsubscribe(replicaID, topicID uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	// Ensure replica & topic exist.
-	if b.replicas[replica] == nil {
+	if b.replicas[replicaID] == nil {
 		return ErrReplicaNotFound
 	}
 
 	// Issue command to unsubscribe from topic.
 	return b.PublishSync(&Message{
 		Type: UnsubscribeMessageType,
-		Data: mustMarshalJSON(&UnsubscribeCommand{Replica: replica, TopicID: topicID}),
+		Data: mustMarshalJSON(&UnsubscribeCommand{ReplicaID: replicaID, TopicID: topicID}),
 	})
 }
 
@@ -315,13 +313,13 @@ func (b *Broker) applyUnsubscribe(m *Message) {
 	mustUnmarshalJSON(m.Data, &c)
 
 	// Remove topic from replica.
-	if r := b.replicas[c.Replica]; r != nil {
+	if r := b.replicas[c.ReplicaID]; r != nil {
 		delete(r.topics, c.TopicID)
 	}
 
 	// Remove replica from topic.
 	if t := b.topics[c.TopicID]; t != nil {
-		delete(t.replicas, c.Replica)
+		delete(t.replicas, c.ReplicaID)
 	}
 }
 
@@ -399,7 +397,7 @@ type topic struct {
 
 	file *os.File // on-disk representation
 
-	replicas map[string]*Replica // replicas subscribed to topic
+	replicas map[uint64]*Replica // replicas subscribed to topic
 }
 
 // open opens a topic for writing.
@@ -511,7 +509,7 @@ func (t *topic) encode(m *Message) error {
 // The replica maintains the highest index read for each topic so that the
 // broker can use this high water mark for trimming the topic logs.
 type Replica struct {
-	name   string
+	id     uint64
 	url    *url.URL // TODO
 	broker *Broker
 
@@ -521,11 +519,11 @@ type Replica struct {
 	topics map[uint64]uint64 // current index for each subscribed topic
 }
 
-// newReplica returns a new named Replica instance associated with a broker.
-func newReplica(b *Broker, name string) *Replica {
+// newReplica returns a new Replica instance associated with a broker.
+func newReplica(b *Broker, id uint64) *Replica {
 	return &Replica{
 		broker: b,
-		name:   name,
+		id:     id,
 		topics: make(map[uint64]uint64),
 	}
 }
@@ -606,7 +604,7 @@ func (r *Replica) WriteTo(w io.Writer) (int, error) {
 		}
 
 		// Attach replica to topic to tail new messages.
-		t.replicas[r.name] = r
+		t.replicas[r.id] = r
 	}
 
 	// Wait for writer to close and then return.
@@ -614,26 +612,26 @@ func (r *Replica) WriteTo(w io.Writer) (int, error) {
 	return 0, nil
 }
 
-// CreateReplica creates a new named replica.
+// CreateReplica creates a new replica.
 type CreateReplicaCommand struct {
-	Name string `json:"name"`
+	ID uint64 `json:"id"`
 }
 
-// DeleteReplicaCommand removes a replica by name.
+// DeleteReplicaCommand removes a replica.
 type DeleteReplicaCommand struct {
-	Name string `json:"name"`
+	ID uint64 `json:"id"`
 }
 
 // SubscribeCommand subscribes a replica to a new topic.
 type SubscribeCommand struct {
-	Replica string `json:"replica"` // replica name
-	TopicID uint64 `json:"topicID"` // topic id
+	ReplicaID uint64 `json:"replicaID"` // replica id
+	TopicID   uint64 `json:"topicID"`   // topic id
 }
 
 // UnsubscribeCommand removes a subscription for a topic from a replica.
 type UnsubscribeCommand struct {
-	Replica string `json:"replica"` // replica name
-	TopicID uint64 `json:"topicID"` // topic id
+	ReplicaID uint64 `json:"replicaID"` // replica id
+	TopicID   uint64 `json:"topicID"`   // topic id
 }
 
 // MessageType represents the type of message.
