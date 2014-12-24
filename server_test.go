@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -439,18 +440,27 @@ func TestServer_Measurements(t *testing.T) {
 	if !measurementsEqual(r, m) {
 		t.Fatalf("Mesurements not the same:\n%s\n%s", r, m)
 	}
+
+	s.Restart()
+	r = s.Measurements("foo")
+	if !measurementsEqual(r, m) {
+		t.Fatalf("Mesurements not the same:\n%s\n%s", r, m)
+	}
+}
+
+func mustMarshalJSON(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("marshal: " + err.Error())
+	}
+	return string(b)
 }
 
 func measurementsEqual(l influxdb.Measurements, r influxdb.Measurements) bool {
-	if len(l) != len(r) {
-		return false
+	if mustMarshalJSON(l) == mustMarshalJSON(r) {
+		return true
 	}
-	for i, ll := range l {
-		if !reflect.DeepEqual(ll, r[i]) {
-			return false
-		}
-	}
-	return true
+	return false
 }
 
 func TestServer_SeriesByTagNames(t *testing.T)  { t.Skip("pending") }

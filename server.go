@@ -3,6 +3,7 @@ package influxdb
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -68,7 +69,8 @@ type Server struct {
 	index  uint64           // highest broadcast index seen
 	errors map[uint64]error // message errors
 
-	meta *metastore // metadata store
+	meta        *metastore           // metadata store
+	metaIndexes map[string]*TagIndex // metadata in-memory index
 
 	databases        map[string]*database // databases by name
 	databasesByShard map[uint64]*database // databases by shard id
@@ -82,6 +84,7 @@ func NewServer(client MessagingClient) *Server {
 	return &Server{
 		client:           client,
 		meta:             &metastore{},
+		metaIndexes:      make(map[string]*TagIndex),
 		databases:        make(map[string]*database),
 		databasesByShard: make(map[uint64]*database),
 		users:            make(map[string]*User),
@@ -165,7 +168,7 @@ func (s *Server) Close() error {
 
 // load reads the state of the server from the metastore.
 func (s *Server) load() error {
-	return s.meta.view(func(tx *metatx) error {
+	err := s.meta.view(func(tx *metatx) error {
 		// Load databases.
 		s.databases = make(map[string]*database)
 		for _, db := range tx.databases() {
@@ -184,6 +187,28 @@ func (s *Server) load() error {
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	for db := range s.databases {
+		log.Printf("Loading metadata index for %d\n", db)
+		var measurements []*Measurement
+		err := s.meta.view(func(tx *metatx) error {
+			measurements = tx.measurements(db)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		idx := NewTagIndex()
+		s.metaIndexes[db] = idx
+		for _, m := range measurements {
+			for _, ss := range m.Series {
+				idx.AddSeries(m.Name, ss)
+			}
+		}
+	}
+	return nil
 }
 
 // broadcast encodes a message as JSON and send it to the broker's broadcast topic.
@@ -278,6 +303,7 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 
 	// Add to databases on server.
 	s.databases[c.Name] = db
+	s.metaIndexes[c.Name] = NewTagIndex()
 
 	return
 }
@@ -308,6 +334,7 @@ func (s *Server) applyDeleteDatabase(m *messaging.Message) (err error) {
 
 	// Delete the database entry.
 	delete(s.databases, c.Name)
+	delete(s.metaIndexes, c.Name)
 	return
 }
 
@@ -827,9 +854,25 @@ func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	return s.meta.mustUpdate(func(tx *metatx) error {
-		return tx.createSeriesIfNotExists(db.name, c.Name, c.Tags)
+	// make sure another thread didn't add it first
+	idx := s.metaIndexes[c.Database]
+	if _, series := idx.MeasurementAndSeries(c.Name, c.Tags); series != nil {
+		return nil
+	}
+
+	// save to the metastore and add it to the in memory index
+	var series *Series
+	err := s.meta.mustUpdate(func(tx *metatx) error {
+		var err error
+		series, err = tx.createSeries(db.name, c.Name, c.Tags)
+		return err
 	})
+	if err != nil {
+		return err
+	}
+	idx.AddSeries(c.Name, series)
+
+	return nil
 }
 
 type createSeriesIfNotExistsCommand struct {
@@ -894,19 +937,13 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	return err
 }
 
-// seriesID returns the unique id of a series and tagset and a bool indicating if it was found
-func (s *Server) seriesID(database, name string, tags map[string]string) (id uint32) {
-	s.meta.view(func(tx *metatx) error {
-		id, _ = tx.seriesID(database, name, tags)
-		return nil
-	})
-	return
-}
-
 func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]string) (uint32, error) {
 	// Try to find series locally first.
-	if id := s.seriesID(database, name, tags); id != 0 {
-		return id, nil
+	s.mu.RLock()
+	idx := s.metaIndexes[database]
+	s.mu.RUnlock()
+	if _, series := idx.MeasurementAndSeries(name, tags); series != nil {
+		return series.ID, nil
 	}
 
 	// If it doesn't exist then create a message and broadcast.
@@ -917,19 +954,19 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	}
 
 	// Lookup series again.
-	id := s.seriesID(database, name, tags)
-	if id == 0 {
+	_, series := idx.MeasurementAndSeries(name, tags)
+	if series == nil {
 		return 0, ErrSeriesNotFound
 	}
-	return id, nil
+	return series.ID, nil
 }
 
 func (s *Server) Measurements(database string) (a Measurements) {
-	s.meta.view(func(tx *metatx) error {
-		a = tx.measurements(database)
-		return nil
-	})
-	return
+	s.mu.RLock()
+	idx := s.metaIndexes[database]
+	s.mu.RUnlock()
+
+	return idx.Measurements(nil)
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
@@ -1088,6 +1125,14 @@ type Measurement struct {
 	Name   string    `json:"name,omitempty"`
 	Series []*Series `json:"series,omitempty"`
 	Fields []*Fields `json:"fields,omitempty"`
+}
+
+func NewMeasurement(name string) *Measurement {
+	return &Measurement{
+		Name:   name,
+		Series: make([]*Series, 0),
+		Fields: make([]*Fields, 0),
+	}
 }
 
 type Measurements []*Measurement

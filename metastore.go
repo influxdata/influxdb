@@ -1,8 +1,6 @@
 package influxdb
 
 import (
-	"sort"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -130,61 +128,33 @@ func (tx *metatx) deleteDatabase(name string) error {
 	return tx.Bucket([]byte("Databases")).DeleteBucket([]byte(name))
 }
 
-// returns a unique series id by database, name and tags. Returns ErrSeriesNotFound
-func (tx *metatx) seriesID(database, name string, tags map[string]string) (uint32, error) {
-	// get the bucket that holds series data for the database
-	b := tx.Bucket([]byte("Databases")).Bucket([]byte(database))
-	if b == nil {
-		return uint32(0), ErrDatabaseNotFound
-	}
-
-	// get the bucket that holds tag data for the series name
-	b = b.Bucket([]byte("TagBytesToID")).Bucket([]byte(name))
-	if b == nil {
-		return uint32(0), ErrSeriesNotFound
-	}
-
-	// look up the id of the tagset
-	tagBytes := tagsToBytes(tags)
-	v := b.Get(tagBytes)
-	if v == nil {
-		return uint32(0), ErrSeriesNotFound
-	}
-
-	// the value is the bytes for a uint32, return it
-	return *(*uint32)(unsafe.Pointer(&v[0])), nil
-}
-
 // sets the series id for the database, name, and tags.
-func (tx *metatx) createSeriesIfNotExists(database, name string, tags map[string]string) error {
+func (tx *metatx) createSeries(database, name string, tags map[string]string) (*Series, error) {
 	// create the buckets to store tag indexes for the series and give it a unique ID in the DB
 	db := tx.Bucket([]byte("Databases")).Bucket([]byte(database))
-	t := db.Bucket([]byte("TagBytesToID"))
+	t := db.Bucket([]byte("Series"))
 	b, err := t.CreateBucketIfNotExists([]byte(name))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// give the series a unique ID
 	id, _ := t.NextSequence()
 
-	tagBytes := tagsToBytes(tags)
-
-	idBytes := make([]byte, 4)
-	*(*uint32)(unsafe.Pointer(&idBytes[0])) = uint32(id)
-
-	if err := b.Put(tagBytes, idBytes); err != nil {
-		return err
-	}
-
 	// store the tag map for the series
 	b, err = db.Bucket([]byte("Series")).CreateBucketIfNotExists([]byte(name))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s := &Series{ID: uint32(id), Tags: tags}
-	return b.Put(idBytes, mustMarshalJSON(s))
+	idBytes := make([]byte, 4)
+	*(*uint32)(unsafe.Pointer(&idBytes[0])) = uint32(id)
+
+	if err := b.Put(idBytes, mustMarshalJSON(s)); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 // series returns all the measurements and series in a database
@@ -205,22 +175,6 @@ func (tx *metatx) measurements(database string) []*Measurement {
 		measurements = append(measurements, m)
 	}
 	return measurements
-}
-
-// used to convert the tag set to bytes for use as a key in bolt
-func tagsToBytes(tags map[string]string) []byte {
-	s := make([]string, 0, len(tags))
-	// pull out keys to sort
-	for k := range tags {
-		s = append(s, k)
-	}
-	sort.Strings(s)
-
-	// now append on the key values in key sorted order
-	for _, k := range s {
-		s = append(s, tags[k])
-	}
-	return []byte(strings.Join(s, "|"))
 }
 
 // user returns a user from the metastore by name.
