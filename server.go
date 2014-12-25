@@ -70,7 +70,7 @@ type Server struct {
 	errors map[uint64]error // message errors
 
 	meta        *metastore           // metadata store
-	metaIndexes map[string]*TagIndex // metadata in-memory index
+	metaIndexes map[string]*TagIndex // map databases to tag indexes
 
 	databases        map[string]*database // databases by name
 	databasesByShard map[uint64]*database // databases by shard id
@@ -942,6 +942,7 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	s.mu.RLock()
 	idx := s.metaIndexes[database]
 	s.mu.RUnlock()
+
 	if _, series := idx.MeasurementAndSeries(name, tags); series != nil {
 		return series.ID, nil
 	}

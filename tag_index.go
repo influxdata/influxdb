@@ -11,9 +11,9 @@ import (
 // and series within a database.
 type TagIndex struct {
 	mu                  sync.RWMutex
-	measurementIndex    map[string]*measurementIndex
-	seriesToMeasurement map[uint32]*Measurement
-	series              map[uint32]*Series
+	measurementIndex    map[string]*measurementIndex // map measurement name to its tag index
+	seriesToMeasurement map[uint32]*Measurement      // map series id to its measurement
+	series              map[uint32]*Series           // map series id to the Series object
 }
 
 func NewTagIndex() *TagIndex {
