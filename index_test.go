@@ -380,3 +380,60 @@ func TestIndex_SeriesIDsIntersect(t *testing.T) {
 		}
 	}
 }
+
+func TestIndex_SeriesIDsUnion(t *testing.T) {
+	var tests = []struct {
+		expected []uint32
+		left     []uint32
+		right    []uint32
+	}{
+		// both sets empty
+		{
+			expected: []uint32{},
+			left:     []uint32{},
+			right:    []uint32{},
+		},
+
+		// right set empty
+		{
+			expected: []uint32{uint32(1)},
+			left:     []uint32{uint32(1)},
+			right:    []uint32{},
+		},
+
+		// left set empty
+		{
+			expected: []uint32{uint32(1)},
+			left:     []uint32{},
+			right:    []uint32{uint32(1)},
+		},
+
+		// both sides same size
+		{
+			expected: []uint32{uint32(1), uint32(2), uint32(3), uint32(4), uint32(5), uint32(7)},
+			left:     []uint32{uint32(1), uint32(2), uint32(4), uint32(5)},
+			right:    []uint32{uint32(1), uint32(3), uint32(4), uint32(7)},
+		},
+
+		// left side bigger
+		{
+			expected: []uint32{uint32(1), uint32(2), uint32(3)},
+			left:     []uint32{uint32(1), uint32(2), uint32(3)},
+			right:    []uint32{uint32(2)},
+		},
+
+		// right side bigger
+		{
+			expected: []uint32{uint32(1), uint32(2), uint32(3), uint32(4), uint32(7), uint32(8), uint32(9)},
+			left:     []uint32{uint32(2), uint32(3), uint32(4), uint32(8)},
+			right:    []uint32{uint32(1), uint32(4), uint32(7), uint32(8), uint32(9)},
+		},
+	}
+
+	for i, tt := range tests {
+		a := influxdb.SeriesIDs(tt.left).Union(tt.right)
+		if !a.Equals(tt.expected) {
+			t.Fatalf("%d: %s intersect %s: result mismatch:\n  exp=%s\n  got=%s", i, influxdb.SeriesIDs(tt.left), influxdb.SeriesIDs(tt.right), influxdb.SeriesIDs(tt.expected), influxdb.SeriesIDs(a))
+		}
+	}
+}

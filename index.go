@@ -60,7 +60,7 @@ func (p SeriesIDs) Equals(s SeriesIDs) bool {
 	return true
 }
 
-// Intersect returns a new collection of series ids that is the intersection of the two.
+// Intersect returns a new collection of series ids in sorted order that is the intersection of the two.
 // The two collections must already be sorted.
 func (s SeriesIDs) Intersect(a SeriesIDs) SeriesIDs {
 	l := s
@@ -90,6 +90,38 @@ func (s SeriesIDs) Intersect(a SeriesIDs) SeriesIDs {
 	}
 
 	return SeriesIDs(ids)
+}
+
+// Union returns a new collection of series ids in sorted order that is the union of the two.
+// The two collections must already be sorted.
+func (s SeriesIDs) Union(a SeriesIDs) SeriesIDs {
+	l := s
+	r := a
+
+	ids := make([]uint32, 0, len(l)+len(r))
+	var i, j int
+	for i < len(l) && j < len(r) {
+		if l[i] == r[j] {
+			ids = append(ids, l[i])
+			i += 1
+			j += 1
+		} else if l[i] < r[j] {
+			ids = append(ids, l[i])
+			i += 1
+		} else {
+			ids = append(ids, r[j])
+			j += 1
+		}
+	}
+
+	// now append the remainder
+	if i < len(l) {
+		ids = append(ids, l[i:]...)
+	} else if j < len(r) {
+		ids = append(ids, r[j:]...)
+	}
+
+	return ids
 }
 
 // Convenience method to output something during tests
