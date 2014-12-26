@@ -6,6 +6,7 @@ import (
 	"github.com/influxdb/influxdb"
 )
 
+// Ensure that we can get the measurement by the series ID.
 func TestIndex_MeasurementBySeriesID(t *testing.T) {
 	idx := influxdb.NewIndex()
 	m := &influxdb.Measurement{
@@ -40,10 +41,12 @@ func TestIndex_MeasurementBySeriesID(t *testing.T) {
 	}
 }
 
+// Ensure that we can get an array of unique measurements by a collection of series IDs.
 func TestIndex_MeasurementsBySeriesIDs(t *testing.T) {
 	t.Skip("pending")
 }
 
+// Ensure that we can get the series object by the series ID.
 func TestIndex_SeriesBySeriesID(t *testing.T) {
 	idx := influxdb.NewIndex()
 
@@ -59,6 +62,7 @@ func TestIndex_SeriesBySeriesID(t *testing.T) {
 	}
 }
 
+// Ensure that we can get the measurement and series objects out based on measurement and tags.
 func TestIndex_MeasurementAndSeries(t *testing.T) {
 	idx := influxdb.NewIndex()
 	m := &influxdb.Measurement{
@@ -93,6 +97,7 @@ func TestIndex_MeasurementAndSeries(t *testing.T) {
 	}
 }
 
+// Ensure that we can get the series IDs for measurements without any filters.
 func TestIndex_SeriesIDs(t *testing.T) {
 	idx := influxdb.NewIndex()
 	s := &influxdb.Series{
@@ -175,13 +180,48 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 			result: []uint32{uint32(1), uint32(2)},
 		},
 
-		// partial match against one tag
-
-		// partial match against two tags
+		// match against one tag, single result
+		{
+			names: []string{"cpu_load"},
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "host", Value: "servera.influx.com"},
+			},
+			result: []uint32{uint32(1)},
+		},
 
 		// query against tag key that doesn't exist returns empty
+		{
+			names: []string{"cpu_load"},
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "foo", Value: "bar"},
+			},
+			result: []uint32{},
+		},
 
 		// query against tag value that doesn't exist returns empty
+		{
+			names: []string{"cpu_load"},
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "host", Value: "foo"},
+			},
+			result: []uint32{},
+		},
+
+		// query against a tag NOT value
+
+		// query against a tag NOT null
+
+		// query against a tag value and a NOT value on the same key
+
+		// query against a tag value and another tag NOT value
+
+		// query against a tag value matching regex
+
+		// query against a tag value matching regex and other tag value matching value
+
+		// query against a tag value NOT matching regex
+
+		// query against a tag value NOT matching regex and other tag value matching value
 	}
 
 	for i, tt := range tests {
@@ -191,18 +231,6 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 			t.Fatalf("%d: filters: %s: result mismatch:\n  exp=%s\n  got=%s", i, influxdb.Filters(tt.filters), expectedIDs, r)
 		}
 	}
-}
-
-func TestIndex_SeriesIDsWhereFilterMultiple(t *testing.T) {
-	t.Skip("pending")
-}
-
-func TestIndex_SeriesIDsWhereNot(t *testing.T) {
-	t.Skip("pending")
-}
-
-func TestIndex_SeriesIDsWhereFilterAndNot(t *testing.T) {
-	t.Skip("pending")
 }
 
 func TestIndex_FieldKeys(t *testing.T) {
@@ -294,4 +322,61 @@ func indexWithFixtureData() *influxdb.Index {
 	}
 
 	return idx
+}
+
+func TestIndex_SeriesIDsIntersect(t *testing.T) {
+	var tests = []struct {
+		expected []uint32
+		left     []uint32
+		right    []uint32
+	}{
+		// both sets empty
+		{
+			expected: []uint32{},
+			left:     []uint32{},
+			right:    []uint32{},
+		},
+
+		// right set empty
+		{
+			expected: []uint32{},
+			left:     []uint32{uint32(1)},
+			right:    []uint32{},
+		},
+
+		// left set empty
+		{
+			expected: []uint32{},
+			left:     []uint32{},
+			right:    []uint32{uint32(1)},
+		},
+
+		// both sides same size
+		{
+			expected: []uint32{uint32(1), uint32(4)},
+			left:     []uint32{uint32(1), uint32(2), uint32(4), uint32(5)},
+			right:    []uint32{uint32(1), uint32(3), uint32(4), uint32(7)},
+		},
+
+		// left side bigger
+		{
+			expected: []uint32{uint32(2)},
+			left:     []uint32{uint32(1), uint32(2), uint32(3)},
+			right:    []uint32{uint32(2)},
+		},
+
+		// right side bigger
+		{
+			expected: []uint32{uint32(4), uint32(8)},
+			left:     []uint32{uint32(2), uint32(3), uint32(4), uint32(8)},
+			right:    []uint32{uint32(1), uint32(4), uint32(7), uint32(8), uint32(9)},
+		},
+	}
+
+	for i, tt := range tests {
+		a := influxdb.SeriesIDs(tt.left).Intersect(tt.right)
+		if !a.Equals(tt.expected) {
+			t.Fatalf("%d: %s intersect %s: result mismatch:\n  exp=%s\n  got=%s", i, influxdb.SeriesIDs(tt.left), influxdb.SeriesIDs(tt.right), influxdb.SeriesIDs(tt.expected), influxdb.SeriesIDs(a))
+		}
+	}
 }
