@@ -155,7 +155,12 @@ func (t *Index) AddSeries(name string, s *Series) bool {
 			ids = make([]uint32, 0)
 		}
 		ids = append(ids, s.ID)
-		ids.Sort()
+
+		// most of the time the series ID will be higher than all others because it's a new
+		// series. So don't do the sort if we don't have to.
+		if len(ids) > 1 && ids[len(ids)-1] < ids[len(ids)-2] {
+			ids.Sort()
+		}
 		valueMap[v] = ids
 	}
 
