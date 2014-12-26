@@ -124,6 +124,32 @@ func (s SeriesIDs) Union(a SeriesIDs) SeriesIDs {
 	return ids
 }
 
+// Reject returns a new collection of series ids in sorted order with the passed in set removed from the original. This is useful for the NOT operator.
+// The two collections must already be sorted.
+func (l SeriesIDs) Reject(r SeriesIDs) SeriesIDs {
+	var i, j int
+
+	ids := make([]uint32, 0, len(l))
+	for i < len(l) && j < len(r) {
+		if l[i] == r[j] {
+			i += 1
+			j += 1
+		} else if l[i] < r[j] {
+			ids = append(ids, l[i])
+			i += 1
+		} else {
+			j += 1
+		}
+	}
+
+	// append the remainder
+	if i < len(l) {
+		ids = append(ids, l[i:]...)
+	}
+
+	return SeriesIDs(ids)
+}
+
 // Convenience method to output something during tests
 func (s SeriesIDs) String() string {
 	return string(mustMarshalJSON(s))
@@ -134,53 +160,32 @@ type measurementIndex struct {
 	series       map[string]*Series // sorted tag string to the series object
 	measurement  *Measurement
 	tagsToSeries map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
+	ids          SeriesIDs                       // sorted list of series IDs in this measurement
 }
 
 // addSeries will add a series to the measurementIndex. Returns false if already present
 func (m measurementIndex) addSeries(s *Series) bool {
 	id := string(tagsToBytes(s.Tags))
 	if _, ok := m.series[id]; ok {
+		warn("already added: ", s)
 		return false
 	}
 	m.series[id] = s
-	return true
-}
-
-// seriesByTags returns the Series that matches the given tagset.
-func (m measurementIndex) seriesByTags(tags map[string]string) *Series {
-	return m.series[string(tagsToBytes(tags))]
-}
-
-// AddSeries adds the series for the given measurement to the index. Returns false if already present
-func (t *Index) AddSeries(name string, s *Series) bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	// if there is a measurement for this id, it's already been added
-	if t.seriesToMeasurement[s.ID] != nil {
-		return false
+	m.ids = append(m.ids, s.ID)
+	warn("add: ", m.ids)
+	// the series ID should always be higher than all others because it's a new
+	// series. So don't do the sort if we don't have to.
+	if len(m.ids) > 1 && m.ids[len(m.ids)-1] < m.ids[len(m.ids)-2] {
+		warn("sort")
+		m.ids.Sort()
 	}
-
-	// get or create the measurement index
-	idx := t.measurementIndex[name]
-	if idx == nil {
-		idx = &measurementIndex{
-			series:       make(map[string]*Series),
-			measurement:  NewMeasurement(name),
-			tagsToSeries: make(map[string]map[string]SeriesIDs),
-		}
-		t.measurementIndex[name] = idx
-	}
-	idx.measurement.Series = append(idx.measurement.Series, s)
-	t.seriesToMeasurement[s.ID] = idx.measurement
-	t.series[s.ID] = s
 
 	// add this series id to the tag index on the measurement
 	for k, v := range s.Tags {
-		valueMap := idx.tagsToSeries[k]
+		valueMap := m.tagsToSeries[k]
 		if valueMap == nil {
 			valueMap = make(map[string]SeriesIDs)
-			idx.tagsToSeries[k] = valueMap
+			m.tagsToSeries[k] = valueMap
 		}
 		ids := valueMap[v]
 		if ids == nil {
@@ -196,9 +201,62 @@ func (t *Index) AddSeries(name string, s *Series) bool {
 		valueMap[v] = ids
 	}
 
+	warn("end of add: ", m.ids)
+	return true
+}
+
+// seriesByTags returns the Series that matches the given tagset.
+func (m measurementIndex) seriesByTags(tags map[string]string) *Series {
+	return m.series[string(tagsToBytes(tags))]
+}
+
+// sereisIDs returns the series ids for a given filter
+func (m measurementIndex) seriesIDs(filter *Filter) (ids SeriesIDs) {
+	values := m.tagsToSeries[filter.Key]
+	if values != nil {
+		ids = SeriesIDs(values[filter.Value])
+		warn(ids)
+		if filter.Not {
+			warn("IDS:", m.ids)
+			ids = m.ids.Reject(ids)
+			warn("NOT:", ids)
+		}
+	}
+	return
+}
+
+// AddSeries adds the series for the given measurement to the index. Returns false if already present
+func (t *Index) AddSeries(name string, s *Series) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// if there is a measurement for this id, it's already been added
+	if t.seriesToMeasurement[s.ID] != nil {
+		return false
+	}
+
+	// get or create the measurement index
+	idx := t.measurementIndex[name]
+	if idx == nil {
+		warn("NEW: ", name)
+		idx = &measurementIndex{
+			series:       make(map[string]*Series),
+			measurement:  NewMeasurement(name),
+			tagsToSeries: make(map[string]map[string]SeriesIDs),
+			ids:          SeriesIDs(make([]uint32, 0)),
+		}
+		t.measurementIndex[name] = idx
+	}
+	idx.measurement.Series = append(idx.measurement.Series, s)
+	t.seriesToMeasurement[s.ID] = idx.measurement
+	t.series[s.ID] = s
+
 	// TODO: add this series to the global tag index
 
-	return idx.addSeries(s)
+	warn("begin addSeries")
+	b := idx.addSeries(s)
+	warn("AddSeries: ", idx.ids)
+	return b
 }
 
 // AddField adds a field to the measurement name. Returns false if already present
@@ -207,7 +265,9 @@ func (t *Index) AddField(name string, f *Field) bool {
 	return false
 }
 
-// SeriesIDs returns an array of series ids for the given measurements and filters to be applied to all
+// SeriesIDs returns an array of series ids for the given measurements and filters to be applied to all.
+// Filters are equivalent to and AND operation. If you want to do an OR, get the series IDs for one set,
+// then get the series IDs for another set and use the SeriesIDs.Union to combine the two.
 func (t *Index) SeriesIDs(names []string, filters Filters) SeriesIDs {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -228,10 +288,16 @@ func (t *Index) SeriesIDs(names []string, filters Filters) SeriesIDs {
 	for _, n := range names {
 		ids = append(ids, t.seriesIDsForName(n, filters)...)
 	}
-	ids.Sort()
+
+	// if it's just one name, they'll already be sorted so don't waste the time
+	if len(names) > 1 {
+		ids.Sort()
+	}
+
 	return ids
 }
 
+//seriesIDsForName is the same as SeriesIDs, but for a specific measurement.
 func (t *Index) seriesIDsForName(name string, filters Filters) SeriesIDs {
 	idx := t.measurementIndex[name]
 	if idx == nil {
@@ -241,12 +307,7 @@ func (t *Index) seriesIDsForName(name string, filters Filters) SeriesIDs {
 	// process the filters one at a time to get the list of ids they return
 	idsPerFilter := make([]SeriesIDs, len(filters), len(filters))
 	for i, filter := range filters {
-		var ids SeriesIDs
-		values := idx.tagsToSeries[filter.Key]
-		if values != nil {
-			ids = SeriesIDs(values[filter.Value])
-		}
-		idsPerFilter[i] = ids
+		idsPerFilter[i] = idx.seriesIDs(filter)
 	}
 
 	// collapse the set of ids
