@@ -266,20 +266,14 @@ func (t *Index) SeriesIDs(names []string, filters Filters) SeriesIDs {
 	if len(filters) == 0 {
 		ids := SeriesIDs(make([]uint32, 0))
 		for _, idx := range t.measurementIndex {
-			ids = append(ids, idx.ids...)
+			ids = ids.Union(idx.ids)
 		}
-		ids.Sort()
 		return ids
 	}
 
 	ids := SeriesIDs(make([]uint32, 0))
 	for _, n := range names {
-		ids = append(ids, t.seriesIDsForName(n, filters)...)
-	}
-
-	// if it's just one name, they'll already be sorted so don't waste the time
-	if len(names) > 1 {
-		ids.Sort()
+		ids = ids.Union(t.seriesIDsForName(n, filters))
 	}
 
 	return ids
