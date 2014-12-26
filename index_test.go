@@ -6,8 +6,8 @@ import (
 	"github.com/influxdb/influxdb"
 )
 
-func TestTagIndex_MeasurementBySeriesID(t *testing.T) {
-	idx := influxdb.NewTagIndex()
+func TestIndex_MeasurementBySeriesID(t *testing.T) {
+	idx := influxdb.NewIndex()
 	m := &influxdb.Measurement{
 		Name: "cpu_load",
 		Series: []*influxdb.Series{
@@ -40,12 +40,12 @@ func TestTagIndex_MeasurementBySeriesID(t *testing.T) {
 	}
 }
 
-func TestTagIndex_MeasurementsBySeriesIDs(t *testing.T) {
+func TestIndex_MeasurementsBySeriesIDs(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_SeriesBySeriesID(t *testing.T) {
-	idx := influxdb.NewTagIndex()
+func TestIndex_SeriesBySeriesID(t *testing.T) {
+	idx := influxdb.NewIndex()
 
 	// now test that we can add another
 	s := &influxdb.Series{
@@ -59,8 +59,8 @@ func TestTagIndex_SeriesBySeriesID(t *testing.T) {
 	}
 }
 
-func TestTagIndex_MeasurementAndSeries(t *testing.T) {
-	idx := influxdb.NewTagIndex()
+func TestIndex_MeasurementAndSeries(t *testing.T) {
+	idx := influxdb.NewIndex()
 	m := &influxdb.Measurement{
 		Name: "cpu_load",
 		Series: []*influxdb.Series{
@@ -93,8 +93,8 @@ func TestTagIndex_MeasurementAndSeries(t *testing.T) {
 	}
 }
 
-func TestTagIndex_SeriesIDs(t *testing.T) {
-	idx := influxdb.NewTagIndex()
+func TestIndex_SeriesIDs(t *testing.T) {
+	idx := influxdb.NewIndex()
 	s := &influxdb.Series{
 		ID:   uint32(1),
 		Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"}}
@@ -142,7 +142,7 @@ func TestTagIndex_SeriesIDs(t *testing.T) {
 	}
 }
 
-func TestTagIndex_SeriesIDsWhereFilter(t *testing.T) {
+func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 	idx := indexWithFixtureData()
 
 	var tests = []struct {
@@ -193,61 +193,61 @@ func TestTagIndex_SeriesIDsWhereFilter(t *testing.T) {
 	}
 }
 
-func TestTagIndex_SeriesIDsWhereFilterMultiple(t *testing.T) {
+func TestIndex_SeriesIDsWhereFilterMultiple(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_SeriesIDsWhereNot(t *testing.T) {
+func TestIndex_SeriesIDsWhereNot(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_SeriesIDsWhereFilterAndNot(t *testing.T) {
+func TestIndex_SeriesIDsWhereFilterAndNot(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_FieldKeys(t *testing.T) {
+func TestIndex_FieldKeys(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_TagKeys(t *testing.T) {
+func TestIndex_TagKeys(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_TagKeysForMeasurement(t *testing.T) {
+func TestIndex_TagKeysForMeasurement(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_TagValuesWhereFilter(t *testing.T) {
+func TestIndex_TagValuesWhereFilter(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_TagValuesWhereFilterMultiple(t *testing.T) {
+func TestIndex_TagValuesWhereFilterMultiple(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_TagValuesWhereNot(t *testing.T) {
+func TestIndex_TagValuesWhereNot(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_TagValuesWhereFilterAndNot(t *testing.T) {
+func TestIndex_TagValuesWhereFilterAndNot(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_MeasurementsWhereFilter(t *testing.T) {
+func TestIndex_MeasurementsWhereFilter(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_DropSeries(t *testing.T) {
+func TestIndex_DropSeries(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestTagIndex_DropMeasurement(t *testing.T) {
+func TestIndex_DropMeasurement(t *testing.T) {
 	t.Skip("pending")
 }
 
-// indexWithFixtureData returns a populated TagIndex for use in many of the filtering tests
-func indexWithFixtureData() *influxdb.TagIndex {
-	idx := influxdb.NewTagIndex()
+// indexWithFixtureData returns a populated Index for use in many of the filtering tests
+func indexWithFixtureData() *influxdb.Index {
+	idx := influxdb.NewIndex()
 	s := &influxdb.Series{
 		ID:   uint32(1),
 		Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"}}

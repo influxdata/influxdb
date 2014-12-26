@@ -69,8 +69,8 @@ type Server struct {
 	index  uint64           // highest broadcast index seen
 	errors map[uint64]error // message errors
 
-	meta        *metastore           // metadata store
-	metaIndexes map[string]*TagIndex // map databases to tag indexes
+	meta        *metastore        // metadata store
+	metaIndexes map[string]*Index // map databases to tag indexes
 
 	databases        map[string]*database // databases by name
 	databasesByShard map[uint64]*database // databases by shard id
@@ -84,7 +84,7 @@ func NewServer(client MessagingClient) *Server {
 	return &Server{
 		client:           client,
 		meta:             &metastore{},
-		metaIndexes:      make(map[string]*TagIndex),
+		metaIndexes:      make(map[string]*Index),
 		databases:        make(map[string]*database),
 		databasesByShard: make(map[uint64]*database),
 		users:            make(map[string]*User),
@@ -200,7 +200,7 @@ func (s *Server) load() error {
 		if err != nil {
 			return err
 		}
-		idx := NewTagIndex()
+		idx := NewIndex()
 		s.metaIndexes[db] = idx
 		for _, m := range measurements {
 			for _, ss := range m.Series {
@@ -303,7 +303,7 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 
 	// Add to databases on server.
 	s.databases[c.Name] = db
-	s.metaIndexes[c.Name] = NewTagIndex()
+	s.metaIndexes[c.Name] = NewIndex()
 
 	return
 }

@@ -7,17 +7,17 @@ import (
 	"sync"
 )
 
-// TagIndex is the in memory index structure for answering queries about measurements, tags
+// Index is the in memory index structure for answering queries about measurements, tags
 // and series within a database.
-type TagIndex struct {
+type Index struct {
 	mu                  sync.RWMutex
 	measurementIndex    map[string]*measurementIndex // map measurement name to its tag index
 	seriesToMeasurement map[uint32]*Measurement      // map series id to its measurement
 	series              map[uint32]*Series           // map series id to the Series object
 }
 
-func NewTagIndex() *TagIndex {
-	return &TagIndex{
+func NewIndex() *Index {
+	return &Index{
 		measurementIndex:    make(map[string]*measurementIndex),
 		seriesToMeasurement: make(map[uint32]*Measurement),
 		series:              make(map[uint32]*Series),
@@ -120,7 +120,7 @@ func (m measurementIndex) seriesByTags(tags map[string]string) *Series {
 }
 
 // AddSeries adds the series for the given measurement to the index. Returns false if already present
-func (t *TagIndex) AddSeries(name string, s *Series) bool {
+func (t *Index) AddSeries(name string, s *Series) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -165,13 +165,13 @@ func (t *TagIndex) AddSeries(name string, s *Series) bool {
 }
 
 // AddField adds a field to the measurement name. Returns false if already present
-func (t *TagIndex) AddField(name string, f *Field) bool {
+func (t *Index) AddField(name string, f *Field) bool {
 	panic("not implemented")
 	return false
 }
 
 // SeriesIDs returns an array of series ids for the given measurements and filters to be applied to all
-func (t *TagIndex) SeriesIDs(names []string, filters Filters) SeriesIDs {
+func (t *Index) SeriesIDs(names []string, filters Filters) SeriesIDs {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -195,7 +195,7 @@ func (t *TagIndex) SeriesIDs(names []string, filters Filters) SeriesIDs {
 	return ids
 }
 
-func (t *TagIndex) seriesIDsForName(name string, filters Filters) SeriesIDs {
+func (t *Index) seriesIDsForName(name string, filters Filters) SeriesIDs {
 	idx := t.measurementIndex[name]
 	if idx == nil {
 		return nil
@@ -222,14 +222,14 @@ func (t *TagIndex) seriesIDsForName(name string, filters Filters) SeriesIDs {
 }
 
 // MeasurementBySeriesID returns the Measurement that is the parent of the given series id.
-func (t *TagIndex) MeasurementBySeriesID(id uint32) *Measurement {
+func (t *Index) MeasurementBySeriesID(id uint32) *Measurement {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.seriesToMeasurement[id]
 }
 
 // MeasurementAndSeries returns the Measurement and the Series for a given measurement name and tag set.
-func (t *TagIndex) MeasurementAndSeries(name string, tags map[string]string) (*Measurement, *Series) {
+func (t *Index) MeasurementAndSeries(name string, tags map[string]string) (*Measurement, *Series) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	idx := t.measurementIndex[name]
@@ -240,12 +240,12 @@ func (t *TagIndex) MeasurementAndSeries(name string, tags map[string]string) (*M
 }
 
 // SereiesByID returns the Series that has the given id.
-func (t *TagIndex) SeriesByID(id uint32) *Series {
+func (t *Index) SeriesByID(id uint32) *Series {
 	return t.series[id]
 }
 
 // Measurements returns all measurements that match the given filters.
-func (t *TagIndex) Measurements(filters []*Filter) []*Measurement {
+func (t *Index) Measurements(filters []*Filter) []*Measurement {
 	measurements := make([]*Measurement, 0, len(t.measurementIndex))
 	for _, idx := range t.measurementIndex {
 		measurements = append(measurements, idx.measurement)
@@ -254,12 +254,12 @@ func (t *TagIndex) Measurements(filters []*Filter) []*Measurement {
 }
 
 // DropSeries will clear the index of all references to a series.
-func (t *TagIndex) DropSeries(id uint32) {
+func (t *Index) DropSeries(id uint32) {
 	panic("not implemented")
 }
 
 // DropMeasurement will clear the index of all references to a measurement and its child series.
-func (t *TagIndex) DropMeasurement(name string) {
+func (t *Index) DropMeasurement(name string) {
 	panic("not implemented")
 }
 
