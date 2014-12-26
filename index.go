@@ -164,19 +164,16 @@ type measurementIndex struct {
 }
 
 // addSeries will add a series to the measurementIndex. Returns false if already present
-func (m measurementIndex) addSeries(s *Series) bool {
+func (m *measurementIndex) addSeries(s *Series) bool {
 	id := string(tagsToBytes(s.Tags))
 	if _, ok := m.series[id]; ok {
-		warn("already added: ", s)
 		return false
 	}
 	m.series[id] = s
 	m.ids = append(m.ids, s.ID)
-	warn("add: ", m.ids)
 	// the series ID should always be higher than all others because it's a new
 	// series. So don't do the sort if we don't have to.
 	if len(m.ids) > 1 && m.ids[len(m.ids)-1] < m.ids[len(m.ids)-2] {
-		warn("sort")
 		m.ids.Sort()
 	}
 
@@ -201,7 +198,6 @@ func (m measurementIndex) addSeries(s *Series) bool {
 		valueMap[v] = ids
 	}
 
-	warn("end of add: ", m.ids)
 	return true
 }
 
@@ -215,11 +211,8 @@ func (m measurementIndex) seriesIDs(filter *Filter) (ids SeriesIDs) {
 	values := m.tagsToSeries[filter.Key]
 	if values != nil {
 		ids = SeriesIDs(values[filter.Value])
-		warn(ids)
 		if filter.Not {
-			warn("IDS:", m.ids)
 			ids = m.ids.Reject(ids)
-			warn("NOT:", ids)
 		}
 	}
 	return
@@ -238,7 +231,6 @@ func (t *Index) AddSeries(name string, s *Series) bool {
 	// get or create the measurement index
 	idx := t.measurementIndex[name]
 	if idx == nil {
-		warn("NEW: ", name)
 		idx = &measurementIndex{
 			series:       make(map[string]*Series),
 			measurement:  NewMeasurement(name),
@@ -253,9 +245,7 @@ func (t *Index) AddSeries(name string, s *Series) bool {
 
 	// TODO: add this series to the global tag index
 
-	warn("begin addSeries")
 	b := idx.addSeries(s)
-	warn("AddSeries: ", idx.ids)
 	return b
 }
 
@@ -276,9 +266,7 @@ func (t *Index) SeriesIDs(names []string, filters Filters) SeriesIDs {
 	if len(filters) == 0 {
 		ids := SeriesIDs(make([]uint32, 0))
 		for _, idx := range t.measurementIndex {
-			for _, s := range idx.series {
-				ids = append(ids, s.ID)
-			}
+			ids = append(ids, idx.ids...)
 		}
 		ids.Sort()
 		return ids
