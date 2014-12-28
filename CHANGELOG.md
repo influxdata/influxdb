@@ -1,3 +1,23 @@
+## v0.8.8 [2014-12-28]
+
+### Bugfixes
+
+- Change the default datastore to LevelDB instead of RocksDB
+- Change the default SSL port to 8087
+- Change some extraneous log lines to be DEBUG instead of INFO
+- [Issue #1087](https://github.com/influxdb/influxdb/issues/1087). Make
+  sure we ensure the existence of cluster admins in the collectd plugin
+
+## v0.8.7 [2014-11-26]
+
+### Bugfixes
+
+- Increase the default maximum number of open files to 65536.
+- [Issue #1086](https://github.com/influxdb/influxdb/issues/1086). Grab
+  the correct dataset information in the collectd plugin
+- [Pull #1182](https://github.com/influxdb/influxdb/pull/1172). Revert
+  a derivative change introduced in v0.8.4
+
 ## v0.8.6 [2014-11-15]
 
 ### Features
