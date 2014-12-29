@@ -158,7 +158,7 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// match against no tags
 		{
 			names:  []string{"cpu_load", "redis"},
-			result: []uint32{uint32(1), uint32(2), uint32(3), uint32(4), uint32(5), uint32(6)},
+			result: []uint32{uint32(1), uint32(2), uint32(3), uint32(4), uint32(5), uint32(6), uint32(7)},
 		},
 
 		// match against all tags
@@ -225,9 +225,15 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 			result: []uint32{uint32(6)},
 		},
 
-		// query against a tag value and a NOT value on the same key
-
 		// query against a tag value and another tag NOT value
+		{
+			names: []string{"queue_depth"},
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "name", Value: "high priority"},
+				&influxdb.Filter{Key: "app", Value: "paultown", Not: true},
+			},
+			result: []uint32{uint32(5), uint32(7)},
+		},
 
 		// query against a tag value matching regex
 
@@ -340,6 +346,15 @@ func indexWithFixtureData() *influxdb.Index {
 	s = &influxdb.Series{
 		ID:   uint32(6),
 		Tags: map[string]string{"name": "high priority", "app": "paultown"}}
+
+	added = idx.AddSeries("queue_depth", s)
+	if !added {
+		return nil
+	}
+
+	s = &influxdb.Series{
+		ID:   uint32(7),
+		Tags: map[string]string{"name": "high priority", "app": "paulcountry"}}
 
 	added = idx.AddSeries("queue_depth", s)
 	if !added {
