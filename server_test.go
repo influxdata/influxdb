@@ -3,6 +3,7 @@ package influxdb_test
 import (
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"reflect"
 	"testing"
@@ -31,6 +32,66 @@ func TestServer_Open_ErrServerOpen(t *testing.T) { t.Skip("pending") }
 
 // Ensure an error is returned when opening a server without a path.
 func TestServer_Open_ErrPathRequired(t *testing.T) { t.Skip("pending") }
+
+// Ensure the server can create a new data node.
+func TestServer_CreateNode(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a new node.
+	u, _ := url.Parse("http://localhost:80000")
+	if err := s.CreateNode(u); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Verify that the node exists.
+	if n := s.NodeByURL(u); n == nil {
+		t.Fatalf("node not found")
+	} else if n.URL.String() != "http://localhost:80000" {
+		t.Fatalf("unexpected url: %s", n.URL)
+	} else if n.ID == 0 {
+		t.Fatalf("unexpected id: %d", n.ID)
+	}
+}
+
+// Ensure the server returns an error when creating a duplicate node.
+func TestServer_CreateDatabase_ErrNodeExists(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a node with the same URL twice.
+	u, _ := url.Parse("http://localhost:80000")
+	if err := s.CreateNode(u); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateNode(u); err != influxdb.ErrNodeExists {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server can delete a node.
+func TestServer_DeleteNode(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a node and verify it exists.
+	u, _ := url.Parse("http://localhost:80000")
+	if err := s.CreateNode(u); err != nil {
+		t.Fatal(err)
+	} else if s.NodeByURL(u) == nil {
+		t.Fatalf("node not actually created")
+	}
+	s.Restart()
+
+	// Drop the node and verify that it's gone.
+	n := s.NodeByURL(u)
+	if err := s.DeleteNode(n.ID); err != nil {
+		t.Fatal(err)
+	} else if s.Node(n.ID) != nil {
+		t.Fatalf("node not actually dropped")
+	}
+}
 
 // Ensure the server can create a database.
 func TestServer_CreateDatabase(t *testing.T) {

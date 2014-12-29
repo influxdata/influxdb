@@ -3,6 +3,7 @@ package influxdb
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -37,30 +38,39 @@ const (
 )
 
 const (
-	// broadcast messages
-	createDatabaseMessageType = messaging.MessageType(0x00)
-	deleteDatabaseMessageType = messaging.MessageType(0x01)
+	// Node messages
+	createNodeMessageType = messaging.MessageType(0x00)
+	deleteNodeMessageType = messaging.MessageType(0x01)
 
-	createRetentionPolicyMessageType     = messaging.MessageType(0x10)
-	updateRetentionPolicyMessageType     = messaging.MessageType(0x11)
-	deleteRetentionPolicyMessageType     = messaging.MessageType(0x12)
-	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x13)
+	// Database messages
+	createDatabaseMessageType = messaging.MessageType(0x10)
+	deleteDatabaseMessageType = messaging.MessageType(0x11)
 
-	createUserMessageType = messaging.MessageType(0x20)
-	updateUserMessageType = messaging.MessageType(0x21)
-	deleteUserMessageType = messaging.MessageType(0x22)
+	// Retention policy messages
+	createRetentionPolicyMessageType     = messaging.MessageType(0x20)
+	updateRetentionPolicyMessageType     = messaging.MessageType(0x21)
+	deleteRetentionPolicyMessageType     = messaging.MessageType(0x22)
+	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x23)
 
-	createShardIfNotExistsMessageType = messaging.MessageType(0x30)
+	// User messages
+	createUserMessageType = messaging.MessageType(0x30)
+	updateUserMessageType = messaging.MessageType(0x31)
+	deleteUserMessageType = messaging.MessageType(0x32)
 
-	createSeriesIfNotExistsMessageType = messaging.MessageType(0x40)
+	// Shard messages
+	createShardIfNotExistsMessageType = messaging.MessageType(0x40)
 
-	// per-topic messages
+	// Series messages
+	createSeriesIfNotExistsMessageType = messaging.MessageType(0x50)
+
+	// Write raw data messages (per-topic)
 	writeSeriesMessageType = messaging.MessageType(0x80)
 )
 
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
 	mu   sync.RWMutex
+	id   uint64
 	path string
 	done chan struct{} // goroutine close notification
 
@@ -69,6 +79,9 @@ type Server struct {
 	errors map[uint64]error // message errors
 
 	meta *metastore // metadata store
+
+	nodes      map[uint64]*Node // server nodes by id
+	nodesByURL map[string]*Node // server nodes by url
 
 	databases        map[string]*database // databases by name
 	databasesByShard map[uint64]*database // databases by shard id
@@ -82,6 +95,8 @@ func NewServer(client MessagingClient) *Server {
 	return &Server{
 		client:           client,
 		meta:             &metastore{},
+		nodes:            make(map[uint64]*Node),
+		nodesByURL:       make(map[string]*Node),
 		databases:        make(map[string]*database),
 		databasesByShard: make(map[uint64]*database),
 		users:            make(map[string]*User),
@@ -166,6 +181,9 @@ func (s *Server) Close() error {
 // load reads the state of the server from the metastore.
 func (s *Server) load() error {
 	return s.meta.view(func(tx *metatx) error {
+		// Read server id.
+		s.id = tx.id()
+
 		// Load databases.
 		s.databases = make(map[string]*database)
 		for _, db := range tx.databases() {
@@ -232,6 +250,107 @@ func (s *Server) sync(index uint64) error {
 		// Otherwise wait momentarily and check again.
 		time.Sleep(1 * time.Millisecond)
 	}
+}
+
+// Node returns a node by id.
+func (s *Server) Node(id uint64) *Node {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.nodes[id]
+}
+
+// NodeByURL returns a node by url.
+func (s *Server) NodeByURL(u *url.URL) *Node {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.nodesByURL[u.String()]
+}
+
+// Nodes returns a list of nodes.
+func (s *Server) Nodes() (a []*Node) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, n := range s.nodes {
+		a = append(a, n)
+	}
+	sort.Sort(nodes(a))
+	return
+}
+
+// CreateNode creates a new node with a given URL.
+func (s *Server) CreateNode(u *url.URL) error {
+	c := &createNodeCommand{URL: u.String()}
+	_, err := s.broadcast(createNodeMessageType, c)
+	return err
+}
+
+func (s *Server) applyCreateNode(m *messaging.Message) (err error) {
+	var c createNodeCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate parameters.
+	if c.URL == "" {
+		return ErrNodeURLRequired
+	}
+
+	// Check that another node doesn't already exist.
+	u, _ := url.Parse(c.URL)
+	if s.nodesByURL[u.String()] != nil {
+		return ErrNodeExists
+	}
+
+	// Create node.
+	n := newNode()
+	n.ID = m.Index
+	n.URL = u
+
+	// Persist to metastore.
+	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.saveNode(n) })
+
+	// Add to node on server.
+	s.nodes[n.ID] = n
+	s.nodesByURL[n.URL.String()] = n
+
+	return
+}
+
+type createNodeCommand struct {
+	URL string `json:"url"`
+}
+
+// DeleteNode deletes an existing node.
+func (s *Server) DeleteNode(id uint64) error {
+	c := &deleteNodeCommand{ID: id}
+	_, err := s.broadcast(deleteNodeMessageType, c)
+	return err
+}
+
+func (s *Server) applyDeleteNode(m *messaging.Message) (err error) {
+	var c deleteNodeCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.nodes[c.ID]
+	if n == nil {
+		return ErrNodeNotFound
+	}
+
+	// Remove from metastore.
+	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteNode(c.ID) })
+
+	// Delete the node.
+	delete(s.nodes, n.ID)
+	delete(s.nodesByURL, n.URL.String())
+
+	return
+}
+
+type deleteNodeCommand struct {
+	ID uint64 `json:"id"`
 }
 
 // DatabaseExists returns true if a database exists.
@@ -430,6 +549,8 @@ func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) (err error) {
 	s.databasesByShard[sh.ID] = db
 	db.shards[sh.ID] = sh
 	rp.Shards = append(rp.Shards, sh)
+
+	// TODO: Subscribe to shard if it matches the server's index.
 
 	return
 }
@@ -949,6 +1070,10 @@ func (s *Server) processor(done chan struct{}) {
 		switch m.Type {
 		case writeSeriesMessageType:
 			err = s.applyWriteSeries(m)
+		case createNodeMessageType:
+			err = s.applyCreateNode(m)
+		case deleteNodeMessageType:
+			err = s.applyDeleteNode(m)
 		case createDatabaseMessageType:
 			err = s.applyCreateDatabase(m)
 		case deleteDatabaseMessageType:
@@ -991,6 +1116,21 @@ type MessagingClient interface {
 	// The streaming channel for all subscribed messages.
 	C() <-chan *messaging.Message
 }
+
+// Node represents a data node in the cluster.
+type Node struct {
+	ID  uint64
+	URL *url.URL
+}
+
+// newNode returns an instance of Node.
+func newNode() *Node { return &Node{} }
+
+type nodes []*Node
+
+func (p nodes) Len() int           { return len(p) }
+func (p nodes) Less(i, j int) bool { return p[i].ID < p[j].ID }
+func (p nodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // database represents a collection of retention policies.
 type database struct {

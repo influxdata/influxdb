@@ -17,6 +17,18 @@ var (
 	// ErrPathRequired is returned when opening a server without a path.
 	ErrPathRequired = errors.New("path required")
 
+	// ErrNodeURLRequired is returned when creating a node without a URL.
+	ErrNodeURLRequired = errors.New("node url required")
+
+	// ErrNodeExists is returned when creating a duplicate node.
+	ErrNodeExists = errors.New("node exists")
+
+	// ErrNodeNotFound is returned when dropping a non-existent node.
+	ErrNodeNotFound = errors.New("node not found")
+
+	// ErrNodeRequired is returned when using a blank node id.
+	ErrNodeRequired = errors.New("node required")
+
 	// ErrDatabaseNameRequired is returned when creating a database without a name.
 	ErrDatabaseNameRequired = errors.New("database name required")
 

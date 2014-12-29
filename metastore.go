@@ -1,6 +1,7 @@
 package influxdb
 
 import (
+	"encoding/binary"
 	"sort"
 	"strings"
 	"time"
@@ -42,6 +43,8 @@ func (m *metastore) close() error {
 // init initializes the metastore to ensure all top-level buckets are created.
 func (m *metastore) init() error {
 	return m.db.Update(func(tx *bolt.Tx) error {
+		_, _ = tx.CreateBucketIfNotExists([]byte("Server"))
+		_, _ = tx.CreateBucketIfNotExists([]byte("Nodes"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("Databases"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("Users"))
 		return nil
@@ -87,12 +90,39 @@ type metatx struct {
 	*bolt.Tx
 }
 
-// database returns a database from the metastore by name.
-func (tx *metatx) database(name string) (db *database) {
-	if b := tx.Bucket([]byte("Databases")).Bucket([]byte(name)); b != nil {
-		mustUnmarshalJSON(b.Get([]byte("meta")), &db)
+// id returns the server id.
+func (tx *metatx) id() (id uint64) {
+	if v := tx.Bucket([]byte("Server")).Get([]byte("id")); v != nil {
+		id = btou64(v)
 	}
 	return
+}
+
+// setID sets the server id.
+func (tx *metatx) setID(v uint64) error {
+	return tx.Bucket([]byte("Server")).Put([]byte("id"), u64tob(v))
+}
+
+// databases returns a list of all nodes from the metastore.
+func (tx *metatx) nodes() (a []*Node) {
+	c := tx.Bucket([]byte("Nodes")).Cursor()
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		n := newNode()
+		mustUnmarshalJSON(v, &n)
+		a = append(a, n)
+	}
+	sort.Sort(nodes(a))
+	return
+}
+
+// saveNode persists a node to the metastore.
+func (tx *metatx) saveNode(n *Node) error {
+	return tx.Bucket([]byte("Nodes")).Put(u64tob(n.ID), mustMarshalJSON(n))
+}
+
+// deleteNode removes node from the metastore.
+func (tx *metatx) deleteNode(id uint64) error {
+	return tx.Bucket([]byte("Nodes")).Delete(u64tob(id))
 }
 
 // databases returns a list of all databases from the metastore.
@@ -251,3 +281,13 @@ func (tx *metatx) saveUser(u *User) error {
 func (tx *metatx) deleteUser(name string) error {
 	return tx.Bucket([]byte("Users")).Delete([]byte(name))
 }
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+// btou64 converts an 8-byte slice into an int64.
+func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
