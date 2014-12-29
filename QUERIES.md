@@ -1,5 +1,31 @@
 The top level name is called a measurement. These names can contain any characters. Then there are field names, field values, tag keys and tag values, which can also contain any characters. Because of this, anywhere a measurement name, field name, field value, tag name, or tag value appears should be able to get wrapped in double quotes to deal with special characters.
 
+# Databases
+
+```sql
+-- create a database
+CREATE DATABASE <name>
+```
+
+# Users and permissions
+
+```sql
+-- create user
+CREATE USER <name> <password>
+
+-- grant DB read privileges
+GRANT READ ON <db> TO <user>
+
+-- grant DB write privileges
+GRANT WRITE ON <db> TO <user>
+
+-- grant all privileges for a DB
+GRANT ALL [PRIVILEGES] ON <db> TO <user>
+
+-- grant cluster admin privileges
+GRANT ALL [PRIVILEGES] TO <user>
+```
+
 # Select
 
 ```sql
