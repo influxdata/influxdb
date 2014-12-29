@@ -224,6 +224,9 @@ func (m measurementIndex) seriesIDs(filter *Filter) (ids SeriesIDs) {
 				}
 			}
 		}
+		if filter.Not {
+			ids = m.ids.Reject(ids)
+		}
 		return
 	}
 
