@@ -50,18 +50,22 @@ const (
 
 	keyword_beg
 	// Keywords
+	ALL
 	AS
 	ASC
 	BY
 	CREATE
 	CONTINUOUS
+	DATABASE
 	DELETE
 	DESC
 	DROP
+	EXISTS
 	EXPLAIN
 	FIELD
 	FROM
 	GROUP
+	IF
 	INNER
 	INSERT
 	INTO
@@ -70,14 +74,25 @@ const (
 	LIST
 	MEASUREMENT
 	MEASUREMENTS
+	ON
 	ORDER
+	PASSWORD
+	POLICY
+	PRIVILEGES
 	QUERIES
 	QUERY
+	READ
+	RETENTION
+	REVOKE
 	SELECT
 	SERIES
 	TAG
+	TO
+	USER
 	VALUES
 	WHERE
+	WITH
+	WRITE
 	keyword_end
 )
 
@@ -112,18 +127,22 @@ var tokens = [...]string{
 	COMMA:     ",",
 	SEMICOLON: ";",
 
+	ALL:          "ALL",
 	AS:           "AS",
 	ASC:          "ASC",
 	BY:           "BY",
 	CREATE:       "CREATE",
 	CONTINUOUS:   "CONTINUOUS",
+	DATABASE:     "DATABASE",
 	DELETE:       "DELETE",
 	DESC:         "DESC",
 	DROP:         "DROP",
+	EXISTS:       "EXISTS",
 	EXPLAIN:      "EXPLAIN",
 	FIELD:        "FIELD",
 	FROM:         "FROM",
 	GROUP:        "GROUP",
+	IF:           "IF",
 	INNER:        "INNER",
 	INSERT:       "INSERT",
 	INTO:         "INTO",
@@ -132,14 +151,25 @@ var tokens = [...]string{
 	LIST:         "LIST",
 	MEASUREMENT:  "MEASUREMENT",
 	MEASUREMENTS: "MEASUREMENTS",
+	ON:           "ON",
 	ORDER:        "ORDER",
+	PASSWORD:     "PASSWORD",
+	POLICY:       "POLICY",
+	PRIVILEGES:   "PRIVILEGES",
 	QUERIES:      "QUERIES",
 	QUERY:        "QUERY",
+	READ:         "READ",
+	RETENTION:    "RETENTION",
+	REVOKE:       "REVOKE",
 	SELECT:       "SELECT",
 	SERIES:       "SERIES",
 	TAG:          "TAG",
+	TO:           "TO",
+	USER:         "USER",
 	VALUES:       "VALUES",
 	WHERE:        "WHERE",
+	WITH:         "WITH",
+	WRITE:        "WRITE",
 }
 
 var keywords map[string]Token
