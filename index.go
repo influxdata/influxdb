@@ -210,7 +210,22 @@ func (m measurementIndex) seriesByTags(tags map[string]string) *Series {
 func (m measurementIndex) seriesIDs(filter *Filter) (ids SeriesIDs) {
 	values := m.tagsToSeries[filter.Key]
 	if values != nil {
+		// this is for the value is not null query
+		if filter.Not && filter.Value == "" {
+			for _, v := range values {
+				if ids == nil {
+					ids = v
+				} else {
+					ids.Intersect(v)
+				}
+			}
+			return
+		}
+
+		// get the ids that have the given key/value tag pair
 		ids = SeriesIDs(values[filter.Value])
+
+		// filter out these ids from the entire set if it's a not query
 		if filter.Not {
 			ids = m.ids.Reject(ids)
 		}
