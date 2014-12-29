@@ -64,6 +64,13 @@ func TestSelectStatement_Substatement(t *testing.T) {
 			expr: &influxql.VarRef{Val: "bb.value"},
 			sub:  `SELECT bb.value FROM bb WHERE (bb.host = "serverb" OR bb.host = "serverc") AND 1.000 = 2.000`,
 		},
+
+		// 5. 4 with different condition order
+		{
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE (bb.host = "serverb" OR bb.host = "serverc") AND aa.host = "servera" AND 1 = 2`,
+			expr: &influxql.VarRef{Val: "bb.value"},
+			sub:  `SELECT bb.value FROM bb WHERE (bb.host = "serverb" OR bb.host = "serverc") AND 1.000 = 2.000`,
+		},
 	}
 
 	for i, tt := range tests {
