@@ -4,14 +4,14 @@ The top level name is called a measurement. These names can contain any characte
 
 ```sql
 -- create a database
-CREATE DATABASE <name>
+CREATE DATABASE <name> (WITH [DEFAULT] RETENTION POLICY <rp-name> ...)+
 ```
 
 # Users and permissions
 
 ```sql
 -- create user
-CREATE USER <name> <password>
+CREATE USER <name> WITH PASSWORD <password>
 
 -- grant DB read privileges
 GRANT READ ON <db> TO <user>
