@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/influxdb/influxdb"
@@ -236,6 +237,13 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		},
 
 		// query against a tag value matching regex
+		{
+			names: []string{"queue_depth"},
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "app", Regex: regexp.MustCompile("paul.*")},
+			},
+			result: []uint32{uint32(6), uint32(7)},
+		},
 
 		// query against a tag value matching regex and other tag value matching value
 

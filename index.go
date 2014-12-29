@@ -29,7 +29,7 @@ type Filter struct {
 	Not   bool
 	Key   string
 	Value string
-	Regex regexp.Regexp
+	Regex *regexp.Regexp
 }
 
 type Filters []*Filter
@@ -209,27 +209,44 @@ func (m measurementIndex) seriesByTags(tags map[string]string) *Series {
 // sereisIDs returns the series ids for a given filter
 func (m measurementIndex) seriesIDs(filter *Filter) (ids SeriesIDs) {
 	values := m.tagsToSeries[filter.Key]
-	if values != nil {
-		// this is for the value is not null query
-		if filter.Not && filter.Value == "" {
-			for _, v := range values {
+	if values == nil {
+		return
+	}
+
+	// hanlde regex filters
+	if filter.Regex != nil {
+		for k, v := range values {
+			if filter.Regex.MatchString(k) {
 				if ids == nil {
 					ids = v
 				} else {
-					ids.Intersect(v)
+					ids = ids.Union(v)
 				}
 			}
-			return
 		}
-
-		// get the ids that have the given key/value tag pair
-		ids = SeriesIDs(values[filter.Value])
-
-		// filter out these ids from the entire set if it's a not query
-		if filter.Not {
-			ids = m.ids.Reject(ids)
-		}
+		return
 	}
+
+	// this is for the value is not null query
+	if filter.Not && filter.Value == "" {
+		for _, v := range values {
+			if ids == nil {
+				ids = v
+			} else {
+				ids.Intersect(v)
+			}
+		}
+		return
+	}
+
+	// get the ids that have the given key/value tag pair
+	ids = SeriesIDs(values[filter.Value])
+
+	// filter out these ids from the entire set if it's a not query
+	if filter.Not {
+		ids = m.ids.Reject(ids)
+	}
+
 	return
 }
 
