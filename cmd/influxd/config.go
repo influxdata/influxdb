@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -33,77 +35,82 @@ const (
 )
 
 // Config represents the configuration format for the influxd binary.
-type Config struct {
-	Hostname          string `toml:"hostname"`
-	BindAddress       string `toml:"bind-address"`
-	ReportingDisabled bool   `toml:"reporting-disabled"`
-	Version           string `toml:"-"`
-	InfluxDBVersion   string `toml:"-"`
+type (
+	Graphite struct {
+		Address  string `toml:"address"`
+		Database string `toml:"database"`
+		Enabled  bool   `toml:"enabled"`
+		Port     int    `toml:"port"`
+		Protocol string `toml:"protocol"`
+	}
 
-	Admin struct {
-		Port   int    `toml:"port"`
-		Assets string `toml:"assets"`
-	} `toml:"admin"`
+	Config struct {
+		Hostname          string `toml:"hostname"`
+		BindAddress       string `toml:"bind-address"`
+		ReportingDisabled bool   `toml:"reporting-disabled"`
+		Version           string `toml:"-"`
+		InfluxDBVersion   string `toml:"-"`
 
-	HTTPAPI struct {
-		Port        int      `toml:"port"`
-		SSLPort     int      `toml:"ssl-port"`
-		SSLCertPath string   `toml:"ssl-cert"`
-		ReadTimeout Duration `toml:"read-timeout"`
-	} `toml:"api"`
+		Admin struct {
+			Port   int    `toml:"port"`
+			Assets string `toml:"assets"`
+		} `toml:"admin"`
 
-	InputPlugins struct {
-		Graphite struct {
-			Enabled    bool   `toml:"enabled"`
-			Port       int    `toml:"port"`
-			Database   string `toml:"database"`
-			UDPEnabled bool   `toml:"udp_enabled"`
-		} `toml:"graphite"`
-		UDPInput struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
-		} `toml:"udp"`
-		UDPServersInput []struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
-		} `toml:"udp_servers"`
-	} `toml:"input_plugins"`
+		HTTPAPI struct {
+			Port        int      `toml:"port"`
+			SSLPort     int      `toml:"ssl-port"`
+			SSLCertPath string   `toml:"ssl-cert"`
+			ReadTimeout Duration `toml:"read-timeout"`
+		} `toml:"api"`
+
+		InputPlugins struct {
+			Graphites []Graphite `toml:"graphites"`
+			UDPInput  struct {
+				Enabled  bool   `toml:"enabled"`
+				Port     int    `toml:"port"`
+				Database string `toml:"database"`
+			} `toml:"udp"`
+			UDPServersInput []struct {
+				Enabled  bool   `toml:"enabled"`
+				Port     int    `toml:"port"`
+				Database string `toml:"database"`
+			} `toml:"udp_servers"`
+		} `toml:"input_plugins"`
 
 	Broker struct {
-		Port    int      `toml:"port"`
-		Dir     string   `toml:"dir"`
-		Timeout Duration `toml:"election-timeout"`
+			Port    int      `toml:"port"`
+			Dir     string   `toml:"dir"`
+			Timeout Duration `toml:"election-timeout"`
 	} `toml:"broker"`
 
 	Data struct {
-		Dir                  string                    `toml:"dir"`
-		WriteBufferSize      int                       `toml:"write-buffer-size"`
-		MaxOpenShards        int                       `toml:"max-open-shards"`
-		PointBatchSize       int                       `toml:"point-batch-size"`
-		WriteBatchSize       int                       `toml:"write-batch-size"`
-		Engines              map[string]toml.Primitive `toml:"engines"`
-		RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
+			Dir                  string                    `toml:"dir"`
+			WriteBufferSize      int                       `toml:"write-buffer-size"`
+			MaxOpenShards        int                       `toml:"max-open-shards"`
+			PointBatchSize       int                       `toml:"point-batch-size"`
+			WriteBatchSize       int                       `toml:"write-batch-size"`
+			Engines              map[string]toml.Primitive `toml:"engines"`
+			RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
 	} `toml:"data"`
 
-	Cluster struct {
-		Dir                       string   `toml:"dir"`
-		ProtobufPort              int      `toml:"protobuf_port"`
-		ProtobufTimeout           Duration `toml:"protobuf_timeout"`
-		ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
-		MinBackoff                Duration `toml:"protobuf_min_backoff"`
-		MaxBackoff                Duration `toml:"protobuf_max_backoff"`
-		WriteBufferSize           int      `toml:"write-buffer-size"`
-		ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
-		MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
-	} `toml:"cluster"`
+		Cluster struct {
+			Dir                       string   `toml:"dir"`
+			ProtobufPort              int      `toml:"protobuf_port"`
+			ProtobufTimeout           Duration `toml:"protobuf_timeout"`
+			ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
+			MinBackoff                Duration `toml:"protobuf_min_backoff"`
+			MaxBackoff                Duration `toml:"protobuf_max_backoff"`
+			WriteBufferSize           int      `toml:"write-buffer-size"`
+			ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
+			MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
+		} `toml:"cluster"`
 
-	Logging struct {
-		File  string `toml:"file"`
-		Level string `toml:"level"`
-	} `toml:"logging"`
-}
+		Logging struct {
+			File  string `toml:"file"`
+			Level string `toml:"level"`
+		} `toml:"logging"`
+	}
+)
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
@@ -249,6 +256,54 @@ func ParseConfig(s string) (*Config, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+func (g Graphite) TCPAddr(c *Config) *net.TCPAddr {
+
+	if !g.Enabled || strings.ToLower(g.Protocol) != "tcp" {
+		return nil
+	}
+
+	var a *net.TCPAddr
+
+	// Did we specify a port?  If not, use the default port
+	if g.Address != "" {
+		a.IP = net.ParseIP(g.Address)
+	} else {
+		a.IP = net.ParseIP(c.BindAddress)
+	}
+
+	// Did we specify an IP address?  If not, use the top level BindAddress
+	if g.Port > 0 {
+		a.Port = g.Port
+	} else {
+		a.Port = 2004 // Default carbon port per http://graphite.readthedocs.org/en/1.0/feeding-carbon.html
+	}
+	return a
+}
+
+func (g Graphite) UDPAddr(c *Config) *net.UDPAddr {
+
+	if !g.Enabled || strings.ToLower(g.Protocol) != "udp" {
+		return nil
+	}
+
+	var a *net.UDPAddr
+
+	// Did we specify a port?  If not, use the default port
+	if g.Address != "" {
+		a.IP = net.ParseIP(g.Address)
+	} else {
+		a.IP = net.ParseIP(c.BindAddress)
+	}
+
+	// Did we specify an IP address?  If not, use the top level BindAddress
+	if g.Port > 0 {
+		a.Port = g.Port
+	} else {
+		a.Port = 2004 // Default carbon port per http://graphite.readthedocs.org/en/1.0/feeding-carbon.html
+	}
+	return a
 }
 
 /*

@@ -169,6 +169,24 @@ func initServer(s *influxdb.Server, b *messaging.Broker) {
 		log.Fatalf("server initialization error: %s", err)
 			log.Fatalf("failed to open data Server %v", err.Error())
 	}
+
+		// Spin up any grahite servers
+		for _, g := range config.InputPlugins.Graphites {
+			// Get a new server
+			s := influxdb.NewGraphiteServer(server)
+
+			// Set database
+			s.Database = g.Database
+
+			// Set the addresses up
+			s.TCPAddr = g.TCPAddr(config)
+			s.UDPAddr = g.UDPAddr(config)
+
+			// Spin it up
+			go func() { log.Fatal(s.ListenAndServe) }()
+
+		}
+
 }
 
 // opens the messaging client and attaches it to the server.
