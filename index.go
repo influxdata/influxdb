@@ -11,15 +11,15 @@ import (
 // and series within a database.
 type Index struct {
 	mu                  sync.RWMutex
-	measurementIndex    map[string]*measurementIndex // map measurement name to its tag index
-	seriesToMeasurement map[uint32]*Measurement      // map series id to its measurement
-	series              map[uint32]*Series           // map series id to the Series object
-	names               []string                     // sorted list of the measurement names
+	measurements        map[string]*Measurement // measurement name to object and index
+	seriesToMeasurement map[uint32]*Measurement // map series id to its measurement
+	series              map[uint32]*Series      // map series id to the Series object
+	names               []string                // sorted list of the measurement names
 }
 
 func NewIndex() *Index {
 	return &Index{
-		measurementIndex:    make(map[string]*measurementIndex),
+		measurements:        make(map[string]*Measurement),
 		seriesToMeasurement: make(map[uint32]*Measurement),
 		series:              make(map[uint32]*Series),
 		names:               make([]string, 0),
@@ -144,101 +144,6 @@ func (l SeriesIDs) Reject(r SeriesIDs) SeriesIDs {
 	return SeriesIDs(ids)
 }
 
-// Keeps a mapping of the series in a measurement
-type measurementIndex struct {
-	series         map[string]*Series // sorted tag string to the series object
-	measurement    *Measurement
-	seriesByTagset map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
-	ids            SeriesIDs                       // sorted list of series IDs in this measurement
-}
-
-// addSeries will add a series to the measurementIndex. Returns false if already present
-func (m *measurementIndex) addSeries(s *Series) bool {
-	tagset := string(marshalTags(s.Tags))
-	if _, ok := m.series[tagset]; ok {
-		return false
-	}
-	m.series[tagset] = s
-	m.ids = append(m.ids, s.ID)
-	// the series ID should always be higher than all others because it's a new
-	// series. So don't do the sort if we don't have to.
-	if len(m.ids) > 1 && m.ids[len(m.ids)-1] < m.ids[len(m.ids)-2] {
-		sort.Sort(m.ids)
-	}
-
-	// add this series id to the tag index on the measurement
-	for k, v := range s.Tags {
-		valueMap := m.seriesByTagset[k]
-		if valueMap == nil {
-			valueMap = make(map[string]SeriesIDs)
-			m.seriesByTagset[k] = valueMap
-		}
-		ids := valueMap[v]
-		ids = append(ids, s.ID)
-
-		// most of the time the series ID will be higher than all others because it's a new
-		// series. So don't do the sort if we don't have to.
-		if len(ids) > 1 && ids[len(ids)-1] < ids[len(ids)-2] {
-			sort.Sort(ids)
-		}
-		valueMap[v] = ids
-	}
-
-	return true
-}
-
-// seriesByTags returns the Series that matches the given tagset.
-func (m *measurementIndex) seriesByTags(tags map[string]string) *Series {
-	return m.series[string(marshalTags(tags))]
-}
-
-// sereisIDs returns the series ids for a given filter
-func (m measurementIndex) seriesIDs(filter *Filter) (ids SeriesIDs) {
-	values := m.seriesByTagset[filter.Key]
-	if values == nil {
-		return
-	}
-
-	// hanlde regex filters
-	if filter.Regex != nil {
-		for k, v := range values {
-			if filter.Regex.MatchString(k) {
-				if ids == nil {
-					ids = v
-				} else {
-					ids = ids.Union(v)
-				}
-			}
-		}
-		if filter.Not {
-			ids = m.ids.Reject(ids)
-		}
-		return
-	}
-
-	// this is for the value is not null query
-	if filter.Not && filter.Value == "" {
-		for _, v := range values {
-			if ids == nil {
-				ids = v
-			} else {
-				ids.Intersect(v)
-			}
-		}
-		return
-	}
-
-	// get the ids that have the given key/value tag pair
-	ids = SeriesIDs(values[filter.Value])
-
-	// filter out these ids from the entire set if it's a not query
-	if filter.Not {
-		ids = m.ids.Reject(ids)
-	}
-
-	return
-}
-
 // AddSeries adds the series for the given measurement to the index. Returns false if already present
 func (t *Index) AddSeries(name string, s *Series) bool {
 	t.mu.Lock()
@@ -249,27 +154,27 @@ func (t *Index) AddSeries(name string, s *Series) bool {
 		return false
 	}
 
-	// get or create the measurement index
-	idx := t.measurementIndex[name]
-	if idx == nil {
-		idx = &measurementIndex{
-			series:         make(map[string]*Series),
-			measurement:    NewMeasurement(name),
-			seriesByTagset: make(map[string]map[string]SeriesIDs),
-			ids:            SeriesIDs(make([]uint32, 0)),
-		}
-		t.measurementIndex[name] = idx
-		t.names = append(t.names, name)
-		sort.Strings(t.names)
-	}
-	idx.measurement.Series = append(idx.measurement.Series, s)
-	t.seriesToMeasurement[s.ID] = idx.measurement
+	// get or create the measurement index and index it globally and in the measurement
+	idx := t.createMeasurementIfNotExists(name)
+
+	t.seriesToMeasurement[s.ID] = idx
 	t.series[s.ID] = s
 
 	// TODO: add this series to the global tag index
 
-	b := idx.addSeries(s)
-	return b
+	return idx.addSeries(s)
+}
+
+// createMeasurementIfNotExists will either add a measurement object to the index or return the existing one.
+func (t *Index) createMeasurementIfNotExists(name string) *Measurement {
+	idx := t.measurements[name]
+	if idx == nil {
+		idx = NewMeasurement(name)
+		t.measurements[name] = idx
+		t.names = append(t.names, name)
+		sort.Strings(t.names)
+	}
+	return idx
 }
 
 // AddField adds a field to the measurement name. Returns false if already present
@@ -288,7 +193,7 @@ func (t *Index) SeriesIDs(names []string, filters Filters) SeriesIDs {
 	// they want all ids if no filters are specified
 	if len(filters) == 0 {
 		ids := SeriesIDs(make([]uint32, 0))
-		for _, idx := range t.measurementIndex {
+		for _, idx := range t.measurements {
 			ids = ids.Union(idx.ids)
 		}
 		return ids
@@ -313,9 +218,9 @@ func (t *Index) TagKeys(names []string) []string {
 
 	keys := make(map[string]bool)
 	for _, n := range names {
-		idx := t.measurementIndex[n]
+		idx := t.measurements[n]
 		if idx != nil {
-			for k, _ := range idx.seriesByTagset {
+			for k, _ := range idx.seriesByTagKeyValue {
 				keys[k] = true
 			}
 		}
@@ -332,7 +237,7 @@ func (t *Index) TagKeys(names []string) []string {
 
 //seriesIDsForName is the same as SeriesIDs, but for a specific measurement.
 func (t *Index) seriesIDsForName(name string, filters Filters) SeriesIDs {
-	idx := t.measurementIndex[name]
+	idx := t.measurements[name]
 	if idx == nil {
 		return nil
 	}
@@ -363,11 +268,11 @@ func (t *Index) MeasurementBySeriesID(id uint32) *Measurement {
 func (t *Index) MeasurementAndSeries(name string, tags map[string]string) (*Measurement, *Series) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	idx := t.measurementIndex[name]
+	idx := t.measurements[name]
 	if idx == nil {
 		return nil, nil
 	}
-	return idx.measurement, idx.seriesByTags(tags)
+	return idx, idx.seriesByTags(tags)
 }
 
 // SereiesByID returns the Series that has the given id.
@@ -377,8 +282,8 @@ func (t *Index) SeriesByID(id uint32) *Series {
 
 // Measurements returns all measurements that match the given filters.
 func (t *Index) Measurements(filters []*Filter) []*Measurement {
-	measurements := make([]*Measurement, 0, len(t.measurementIndex))
-	for _, idx := range t.measurementIndex {
+	measurements := make([]*Measurement, 0, len(t.measurements))
+	for _, idx := range t.measurements {
 		measurements = append(measurements, idx.measurement)
 	}
 	return measurements

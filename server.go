@@ -192,21 +192,15 @@ func (s *Server) load() error {
 	}
 	for db := range s.databases {
 		log.Printf("Loading metadata index for %d\n", db)
-		var measurements []*Measurement
+		var idx *Index
 		err := s.meta.view(func(tx *metatx) error {
-			measurements = tx.measurements(db)
+			idx = tx.measurementIndex(db)
 			return nil
 		})
 		if err != nil {
 			return err
 		}
-		idx := NewIndex()
 		s.metaIndexes[db] = idx
-		for _, m := range measurements {
-			for _, ss := range m.Series {
-				idx.AddSeries(m.Name, ss)
-			}
-		}
 	}
 	return nil
 }
@@ -962,12 +956,20 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	return series.ID, nil
 }
 
-func (s *Server) Measurements(database string) (a Measurements) {
+func (s *Server) MeasurementNames(database string) []string {
 	s.mu.RLock()
 	idx := s.metaIndexes[database]
 	s.mu.RUnlock()
 
-	return idx.Measurements(nil)
+	return idx.names
+}
+
+func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
+	s.mu.RLock()
+	idx := s.metaIndexes[database]
+	s.mu.RUnlock()
+
+	return idx.SeriesIDs([]string{measurement}, nil)
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
@@ -1124,16 +1126,111 @@ type databaseJSON struct {
 // Measurement represents a collection of time series in a database
 type Measurement struct {
 	Name   string    `json:"name,omitempty"`
-	Series []*Series `json:"series,omitempty"`
 	Fields []*Fields `json:"fields,omitempty"`
+
+	// in memory index fields
+	series              map[string]*Series // sorted tagset string to the series object
+	measurement         *Measurement
+	seriesByTagKeyValue map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
+	ids                 SeriesIDs                       // sorted list of series IDs in this measurement
 }
 
 func NewMeasurement(name string) *Measurement {
 	return &Measurement{
 		Name:   name,
-		Series: make([]*Series, 0),
 		Fields: make([]*Fields, 0),
+
+		series:              make(map[string]*Series),
+		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
+		ids:                 SeriesIDs(make([]uint32, 0)),
 	}
+}
+
+// addSeries will add a series to the measurementIndex. Returns false if already present
+func (m *Measurement) addSeries(s *Series) bool {
+	tagset := string(marshalTags(s.Tags))
+	if _, ok := m.series[tagset]; ok {
+		return false
+	}
+	m.series[tagset] = s
+	m.ids = append(m.ids, s.ID)
+	// the series ID should always be higher than all others because it's a new
+	// series. So don't do the sort if we don't have to.
+	if len(m.ids) > 1 && m.ids[len(m.ids)-1] < m.ids[len(m.ids)-2] {
+		sort.Sort(m.ids)
+	}
+
+	// add this series id to the tag index on the measurement
+	for k, v := range s.Tags {
+		valueMap := m.seriesByTagKeyValue[k]
+		if valueMap == nil {
+			valueMap = make(map[string]SeriesIDs)
+			m.seriesByTagKeyValue[k] = valueMap
+		}
+		ids := valueMap[v]
+		ids = append(ids, s.ID)
+
+		// most of the time the series ID will be higher than all others because it's a new
+		// series. So don't do the sort if we don't have to.
+		if len(ids) > 1 && ids[len(ids)-1] < ids[len(ids)-2] {
+			sort.Sort(ids)
+		}
+		valueMap[v] = ids
+	}
+
+	return true
+}
+
+// seriesByTags returns the Series that matches the given tagset.
+func (m *Measurement) seriesByTags(tags map[string]string) *Series {
+	return m.series[string(marshalTags(tags))]
+}
+
+// sereisIDs returns the series ids for a given filter
+func (m *Measurement) seriesIDs(filter *Filter) (ids SeriesIDs) {
+	values := m.seriesByTagKeyValue[filter.Key]
+	if values == nil {
+		return
+	}
+
+	// hanlde regex filters
+	if filter.Regex != nil {
+		for k, v := range values {
+			if filter.Regex.MatchString(k) {
+				if ids == nil {
+					ids = v
+				} else {
+					ids = ids.Union(v)
+				}
+			}
+		}
+		if filter.Not {
+			ids = m.ids.Reject(ids)
+		}
+		return
+	}
+
+	// this is for the value is not null query
+	if filter.Not && filter.Value == "" {
+		for _, v := range values {
+			if ids == nil {
+				ids = v
+			} else {
+				ids.Intersect(v)
+			}
+		}
+		return
+	}
+
+	// get the ids that have the given key/value tag pair
+	ids = SeriesIDs(values[filter.Value])
+
+	// filter out these ids from the entire set if it's a not query
+	if filter.Not {
+		ids = m.ids.Reject(ids)
+	}
+
+	return
 }
 
 type Measurements []*Measurement

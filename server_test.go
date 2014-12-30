@@ -429,22 +429,26 @@ func TestServer_Measurements(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := s.Measurements("foo")
-	m := []*influxdb.Measurement{
-		&influxdb.Measurement{
-			Name: "cpu_load",
-			Series: []*influxdb.Series{
-				&influxdb.Series{
-					ID:   uint32(1),
-					Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"}}}}}
-	if !measurementsEqual(r, m) {
-		t.Fatalf("Mesurements not the same:\n%s\n%s", r, m)
+	expectedMeasurementNames := []string{"foo"}
+	expectedSeriesIDs := influxdb.SeriesIDs([]uint32{uint32(1)})
+	names := s.MeasurementNames("foo")
+	if !reflect.DeepEqual(names, expectedMeasurementNames) {
+		t.Fatalf("Mesurements not the same:\n  exp: %s\n  got: %s", expectedMeasurementNames, names)
+	}
+	ids := s.MeasurementSeriesIDs("foo", "foo")
+	if !ids.Equals(expectedSeriesIDs) {
+		t.Fatalf("Series IDs not the same:\n  exp: %s\n  got: %s", expectedSeriesIDs, ids)
 	}
 
 	s.Restart()
-	r = s.Measurements("foo")
-	if !measurementsEqual(r, m) {
-		t.Fatalf("Mesurements not the same:\n%s\n%s", r, m)
+
+	names = s.MeasurementNames("foo")
+	if !reflect.DeepEqual(names, expectedMeasurementNames) {
+		t.Fatalf("Mesurements not the same:\n  exp: %s\n  got: %s", expectedMeasurementNames, names)
+	}
+	ids = s.MeasurementSeriesIDs("foo", "foo")
+	if !ids.Equals(expectedSeriesIDs) {
+		t.Fatalf("Series IDs not the same:\n  exp: %s\n  got: %s", expectedSeriesIDs, ids)
 	}
 }
 

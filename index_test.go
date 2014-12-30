@@ -24,23 +24,23 @@ func TestIndex_MeasurementBySeriesID(t *testing.T) {
 	idx := influxdb.NewIndex()
 	m := &influxdb.Measurement{
 		Name: "cpu_load",
-		Series: []*influxdb.Series{
-			&influxdb.Series{
-				ID:   uint32(1),
-				Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"}}}}
+	}
+	s := &influxdb.Series{
+		ID:   uint32(1),
+		Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"},
+	}
 
 	// add it and see if we can look it up
-	idx.AddSeries(m.Name, m.Series[0])
+	idx.AddSeries(m.Name, s)
 	mm := idx.MeasurementBySeriesID(uint32(1))
 	if mustMarshalJSON(m) != mustMarshalJSON(mm) {
 		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
 	}
 
 	// now test that we can add another
-	s := &influxdb.Series{
+	s = &influxdb.Series{
 		ID:   uint32(2),
 		Tags: map[string]string{"host": "serverb.influx.com", "region": "uswest"}}
-	m.Series = append(m.Series, s)
 
 	idx.AddSeries(m.Name, s)
 	mm = idx.MeasurementBySeriesID(uint32(2))
@@ -80,11 +80,11 @@ func TestIndex_MeasurementAndSeries(t *testing.T) {
 	idx := influxdb.NewIndex()
 	m := &influxdb.Measurement{
 		Name: "cpu_load",
-		Series: []*influxdb.Series{
-			&influxdb.Series{
-				ID:   uint32(1),
-				Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"}}}}
-	s := m.Series[0]
+	}
+	s := &influxdb.Series{
+		ID:   uint32(1),
+		Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"},
+	}
 
 	// add it and see if we can look it up by name and tags
 	idx.AddSeries(m.Name, s)
@@ -99,7 +99,6 @@ func TestIndex_MeasurementAndSeries(t *testing.T) {
 	s = &influxdb.Series{
 		ID:   uint32(2),
 		Tags: map[string]string{"host": "serverb.influx.com", "region": "uswest"}}
-	m.Series = append(m.Series, s)
 
 	idx.AddSeries(m.Name, s)
 	mm, ss = idx.MeasurementAndSeries(m.Name, s.Tags)
