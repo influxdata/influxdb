@@ -59,14 +59,14 @@ func (a SeriesIDs) Equals(seriesIDs SeriesIDs) bool {
 
 // Intersect returns a new collection of series ids in sorted order that is the intersection of the two.
 // The two collections must already be sorted.
-func (s SeriesIDs) Intersect(a SeriesIDs) SeriesIDs {
-	l := s
-	r := a
+func (a SeriesIDs) Intersect(seriesIDs SeriesIDs) SeriesIDs {
+	l := a
+	r := seriesIDs
 
 	// we want to iterate through the shortest one and stop
-	if len(a) < len(s) {
-		l = a
-		r = s
+	if len(seriesIDs) < len(a) {
+		l = seriesIDs
+		r = a
 	}
 
 	// they're in sorted order so advance the counter as needed.
@@ -91,10 +91,7 @@ func (s SeriesIDs) Intersect(a SeriesIDs) SeriesIDs {
 
 // Union returns a new collection of series ids in sorted order that is the union of the two.
 // The two collections must already be sorted.
-func (s SeriesIDs) Union(a SeriesIDs) SeriesIDs {
-	l := s
-	r := a
-
+func (l SeriesIDs) Union(r SeriesIDs) SeriesIDs {
 	ids := make([]uint32, 0, len(l)+len(r))
 	var i, j int
 	for i < len(l) && j < len(r) {
