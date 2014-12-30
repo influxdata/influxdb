@@ -120,6 +120,24 @@ func execRun(args []string) {
 			log.Fatalf("failed to open data Server %v", err.Error())
 		}
 		serverHandler = influxdb.NewHandler(server)
+
+		// Spin up any grahite servers
+		for _, g := range config.InputPlugins.Graphites {
+			// Get a new server
+			s := influxdb.NewGraphiteServer(server)
+
+			// Set database
+			s.Database = g.Database
+
+			// Set the addresses up
+			s.TCPAddr = g.TCPAddr(config)
+			s.UDPAddr = g.UDPAddr(config)
+
+			// Spin it up
+			go func() { log.Fatal(s.ListenAndServe) }()
+
+		}
+
 	}
 
 	// TODO: startProfiler()
