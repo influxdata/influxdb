@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"reflect"
 	"testing"
@@ -32,6 +33,66 @@ func TestServer_Open_ErrServerOpen(t *testing.T) { t.Skip("pending") }
 
 // Ensure an error is returned when opening a server without a path.
 func TestServer_Open_ErrPathRequired(t *testing.T) { t.Skip("pending") }
+
+// Ensure the server can create a new data node.
+func TestServer_CreateDataNode(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a new node.
+	u, _ := url.Parse("http://localhost:80000")
+	if err := s.CreateDataNode(u); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Verify that the node exists.
+	if n := s.DataNodeByURL(u); n == nil {
+		t.Fatalf("data node not found")
+	} else if n.URL.String() != "http://localhost:80000" {
+		t.Fatalf("unexpected url: %s", n.URL)
+	} else if n.ID == 0 {
+		t.Fatalf("unexpected id: %d", n.ID)
+	}
+}
+
+// Ensure the server returns an error when creating a duplicate node.
+func TestServer_CreateDatabase_ErrDataNodeExists(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a node with the same URL twice.
+	u, _ := url.Parse("http://localhost:80000")
+	if err := s.CreateDataNode(u); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateDataNode(u); err != influxdb.ErrDataNodeExists {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server can delete a node.
+func TestServer_DeleteDataNode(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a data node and verify it exists.
+	u, _ := url.Parse("http://localhost:80000")
+	if err := s.CreateDataNode(u); err != nil {
+		t.Fatal(err)
+	} else if s.DataNodeByURL(u) == nil {
+		t.Fatalf("data node not actually created")
+	}
+	s.Restart()
+
+	// Drop the node and verify that it's gone.
+	n := s.DataNodeByURL(u)
+	if err := s.DeleteDataNode(n.ID); err != nil {
+		t.Fatal(err)
+	} else if s.DataNode(n.ID) != nil {
+		t.Fatalf("data node not actually dropped")
+	}
+}
 
 // Ensure the server can create a database.
 func TestServer_CreateDatabase(t *testing.T) {
@@ -375,7 +436,6 @@ func TestServer_WriteSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	timestamp := mustParseTime("2000-01-01T00:00:00Z")
-
 	name := "cpu_load"
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	values := map[string]interface{}{"value": 23.2}
@@ -385,6 +445,7 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 
 	t.Skip("pending")
+
 	// TODO: Execute a query and record all series found.
 	// q := mustParseQuery(`select myval from cpu_load`)
 	// if err := db.ExecuteQuery(q); err != nil {
@@ -429,7 +490,7 @@ func TestServer_Measurements(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedMeasurementNames := []string{"foo"}
+	expectedMeasurementNames := []string{"cpu_load"}
 	expectedSeriesIDs := influxdb.SeriesIDs([]uint32{uint32(1)})
 	names := s.MeasurementNames("foo")
 	if !reflect.DeepEqual(names, expectedMeasurementNames) {

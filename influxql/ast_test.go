@@ -64,6 +64,13 @@ func TestSelectStatement_Substatement(t *testing.T) {
 			expr: &influxql.VarRef{Val: "bb.value"},
 			sub:  `SELECT bb.value FROM bb WHERE (bb.host = "serverb" OR bb.host = "serverc") AND 1.000 = 2.000`,
 		},
+
+		// 5. 4 with different condition order
+		{
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE (bb.host = "serverb" OR bb.host = "serverc") AND aa.host = "servera" AND 1 = 2`,
+			expr: &influxql.VarRef{Val: "bb.value"},
+			sub:  `SELECT bb.value FROM bb WHERE (bb.host = "serverb" OR bb.host = "serverc") AND 1.000 = 2.000`,
+		},
 	}
 
 	for i, tt := range tests {
@@ -94,7 +101,7 @@ func TestFold(t *testing.T) {
 	}{
 		// Number literals.
 		{`1 + 2`, `3.000`},
-		{`(foo*2) + (4/2) + (3 * 5) - 0.5`, `(foo * 2.000) + 16.500`},
+		{`(foo*2) + ( (4/2) + (3 * 5) - 0.5 )`, `(foo * 2.000) + 16.500`},
 		{`foo(bar(2 + 3), 4)`, `foo(bar(5.000), 4.000)`},
 		{`4 / 0`, `0.000`},
 		{`4 = 4`, `true`},

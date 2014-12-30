@@ -36,9 +36,9 @@ func NewClientConfig(u []*url.URL) *ClientConfig {
 // Client represents a client for the broker's HTTP API.
 // Once opened, the client will stream down all messages that
 type Client struct {
-	mu     sync.Mutex
-	name   string       // the name of the client connecting.
-	config ClientConfig // The Client state that must be persisted to disk.
+	mu        sync.Mutex
+	replicaID uint64       // the replica that the client is connecting as.
+	config    ClientConfig // The Client state that must be persisted to disk.
 
 	opened bool
 	done   chan chan struct{} // disconnection notification
@@ -54,16 +54,16 @@ type Client struct {
 }
 
 // NewClient returns a new instance of Client.
-func NewClient(name string) *Client {
+func NewClient(replicaID uint64) *Client {
 	return &Client{
-		name:             name,
+		replicaID:        replicaID,
 		ReconnectTimeout: DefaultReconnectTimeout,
 		Logger:           log.New(os.Stderr, "[messaging] ", log.LstdFlags),
 	}
 }
 
-// Name returns the replica name that the client was opened with.
-func (c *Client) Name() string { return c.name }
+// ReplicaID returns the replica id that the client was opened with.
+func (c *Client) ReplicaID() uint64 { return c.replicaID }
 
 // C returns streaming channel.
 // Messages can be duplicated so it is important to check the index
@@ -236,8 +236,8 @@ func (c *Client) streamer(done chan chan struct{}) {
 
 // streamFromURL connects to a broker server and streams the replica's messages.
 func (c *Client) streamFromURL(u *url.URL, done chan chan struct{}) error {
-	// Set the replica name on the URL and open the stream.
-	u.RawQuery = url.Values{"name": {c.name}}.Encode()
+	// Set the replica id on the URL and open the stream.
+	u.RawQuery = url.Values{"replicaID": {strconv.FormatUint(c.replicaID, 10)}}.Encode()
 	resp, err := http.Get(u.String())
 	if err != nil {
 		time.Sleep(c.ReconnectTimeout)

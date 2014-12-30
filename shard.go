@@ -16,6 +16,9 @@ type Shard struct {
 	StartTime time.Time `json:"startTime,omitempty"`
 	EndTime   time.Time `json:"endTime,omitempty"`
 
+	replicaN    []uint64 // replication factor
+	dataNodeIDs []uint64 // owner nodes
+
 	store *bolt.DB
 }
 
@@ -61,7 +64,7 @@ func (s *Shard) close() error {
 	return s.store.Close()
 }
 
-// write writes series data to a shard.
+// writeSeries writes series data to a shard.
 func (s *Shard) writeSeries(overwrite bool, data []byte) error {
 	id, timestamp, values, err := unmarshalPoint(data)
 	if err != nil {
@@ -71,8 +74,7 @@ func (s *Shard) writeSeries(overwrite bool, data []byte) error {
 	// TODO: make this work
 	fmt.Println("writeSeries: ", id, timestamp, values)
 	return s.store.Update(func(tx *bolt.Tx) error {
-		// TODO
-		return nil
+		return nil // TODO
 	})
 }
 

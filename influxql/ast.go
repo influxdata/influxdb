@@ -326,11 +326,14 @@ func filterExprBySource(name string, expr Expr) Expr {
 				return nil
 			}
 		}
+		return &BinaryExpr{Op: expr.Op, LHS: lhs, RHS: rhs}
 
 	case *ParenExpr:
-		if filterExprBySource(name, expr.Expr) == nil {
+		exp := filterExprBySource(name, expr.Expr)
+		if exp == nil {
 			return nil
 		}
+		return &ParenExpr{Expr: exp}
 	}
 	return expr
 }

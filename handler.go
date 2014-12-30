@@ -3,6 +3,8 @@ package influxdb
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/bmizerany/pat"
@@ -58,12 +60,13 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Put("/db/:db/retention_policies/:name", http.HandlerFunc(h.serveUpdateRetentionPolicy))
 	h.mux.Del("/db/:db/retention_policies/:name", http.HandlerFunc(h.serveDeleteRetentionPolicy))
 
+	// Data node routes.
+	h.mux.Get("/data_nodes", http.HandlerFunc(h.serveDataNodes))
+	h.mux.Post("/data_nodes", http.HandlerFunc(h.serveCreateDataNode))
+	h.mux.Del("/data_nodes/:id", http.HandlerFunc(h.serveDeleteDataNode))
+
 	// Utilities
 	h.mux.Get("/ping", http.HandlerFunc(h.servePing))
-
-	// Cluster config endpoints
-	h.mux.Get("/cluster/servers", http.HandlerFunc(h.serveServers))
-	h.mux.Del("/cluster/servers/:id", http.HandlerFunc(h.serveDeleteServer))
 
 	return h
 }
@@ -413,11 +416,78 @@ func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// serveServers returns a list of servers in the cluster.
-func (h *Handler) serveServers(w http.ResponseWriter, r *http.Request) {}
+// serveDataNodes returns a list of all data nodes in the cluster.
+func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request) {
+	// Generate a list of objects for encoding to the API.
+	a := make([]*dataNodeJSON, 0)
+	for _, n := range h.server.DataNodes() {
+		a = append(a, &dataNodeJSON{
+			ID:  n.ID,
+			URL: n.URL.String(),
+		})
+	}
 
-// serveDeleteServer removes a server from the cluster.
-func (h *Handler) serveDeleteServer(w http.ResponseWriter, r *http.Request) {}
+	w.Header().Add("content-type", "application/json")
+	_ = json.NewEncoder(w).Encode(a)
+}
+
+// serveCreateDataNode creates a new data node in the cluster.
+func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
+	// Read in data node from request body.
+	var n dataNodeJSON
+	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
+		h.error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Parse the URL.
+	u, err := url.Parse(n.URL)
+	if err != nil {
+		h.error(w, "invalid data node url", http.StatusBadRequest)
+		return
+	}
+
+	// Create the data node.
+	if err := h.server.CreateDataNode(u); err == ErrDataNodeExists {
+		h.error(w, err.Error(), http.StatusConflict)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Write new node back to client.
+	node := h.server.DataNodeByURL(u)
+	w.WriteHeader(http.StatusCreated)
+	w.Header().Add("content-type", "application/json")
+	_ = json.NewEncoder(w).Encode(&dataNodeJSON{ID: node.ID, URL: node.URL.String()})
+}
+
+// serveDeleteDataNode removes an existing node.
+func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
+	// Parse node id.
+	nodeID, err := strconv.ParseUint(r.URL.Query().Get(":id"), 10, 64)
+	if err != nil {
+		h.error(w, "invalid node id", http.StatusBadRequest)
+		return
+	}
+
+	// Delete the node.
+	if err := h.server.DeleteDataNode(nodeID); err == ErrDataNodeNotFound {
+		h.error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type dataNodeJSON struct {
+	ID  uint64 `json:"id"`
+	URL string `json:"url"`
+}
 
 // error returns an error to the client in a standard format.
 func (h *Handler) error(w http.ResponseWriter, error string, code int) {

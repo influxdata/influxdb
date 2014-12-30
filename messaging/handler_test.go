@@ -17,10 +17,10 @@ func TestHandler_stream(t *testing.T) {
 	defer s.Close()
 
 	// Create replica.
-	s.Handler.Broker().CreateReplica("foo")
+	s.Handler.Broker().CreateReplica(2000)
 
 	// Send request to stream the replica.
-	resp, err := http.Get(s.URL + `/messages?name=foo`)
+	resp, err := http.Get(s.URL + `/messages?replicaID=2000`)
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -39,14 +39,14 @@ func TestHandler_stream(t *testing.T) {
 	}
 }
 
-// Ensure an error is returned when requesting a stream without a replica name.
-func TestHandler_stream_ErrReplicaNameRequired(t *testing.T) {
+// Ensure an error is returned when requesting a stream without a replica id.
+func TestHandler_stream_ErrReplicaRequired(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
 
 	resp, _ := http.Get(s.URL + `/messages`)
 	defer resp.Body.Close()
-	if msg := resp.Header.Get("X-Broker-Error"); resp.StatusCode != http.StatusBadRequest || msg != "replica name required" {
+	if msg := resp.Header.Get("X-Broker-Error"); resp.StatusCode != http.StatusBadRequest || msg != "replica required" {
 		t.Fatalf("unexpected status/error: %d/%s", resp.StatusCode, msg)
 	}
 }
@@ -56,7 +56,7 @@ func TestHandler_stream_ErrReplicaNotFound(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
 
-	resp, _ := http.Get(s.URL + `/messages?name=no_such_replica`)
+	resp, _ := http.Get(s.URL + `/messages?replicaID=0`)
 	defer resp.Body.Close()
 	if msg := resp.Header.Get("X-Broker-Error"); resp.StatusCode != http.StatusNotFound || msg != "replica not found" {
 		t.Fatalf("unexpected status/error: %d/%s", resp.StatusCode, msg)
@@ -82,10 +82,10 @@ func TestHandler_publish(t *testing.T) {
 
 	// Stream subscription for a replica.
 	var m messaging.Message
-	s.Handler.Broker().CreateReplica("replica0")
-	s.Handler.Broker().Subscribe("replica0", 200)
+	s.Handler.Broker().CreateReplica(2000)
+	s.Handler.Broker().Subscribe(2000, 200)
 	go func() {
-		resp, _ := http.Get(s.URL + `/messages?name=replica0`)
+		resp, _ := http.Get(s.URL + `/messages?replicaID=2000`)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("unexpected response code: %d", resp.StatusCode)
