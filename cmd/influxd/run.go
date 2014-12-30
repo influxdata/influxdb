@@ -82,7 +82,7 @@ func execRun(args []string) {
 	if brokerDirExists {
 		b := messaging.NewBroker()
 		if err := b.Open(config.Raft.Dir, config.RaftConnectionString()); err != nil {
-			log.Fatalf("failed to open Broker", err.Error())
+			log.Fatalf("failed to open Broker: %v", err.Error())
 		}
 		brokerHandler = messaging.NewHandler(b)
 	}
@@ -99,7 +99,7 @@ func execRun(args []string) {
 			for _, s := range strings.Split(*seedServers, ",") {
 				u, err := url.Parse(s)
 				if err != nil {
-					log.Fatalf("seed server", err)
+					log.Fatalf("seed server %v", err)
 				}
 				brokerURLs = append(brokerURLs, u)
 			}
@@ -117,7 +117,7 @@ func execRun(args []string) {
 		server = influxdb.NewServer(client)
 		err = server.Open(config.Storage.Dir)
 		if err != nil {
-			log.Fatalf("failed to open data Server", err.Error())
+			log.Fatalf("failed to open data Server %v", err.Error())
 		}
 		serverHandler = influxdb.NewHandler(server)
 	}
