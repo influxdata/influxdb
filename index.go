@@ -14,6 +14,7 @@ type Index struct {
 	measurementIndex    map[string]*measurementIndex // map measurement name to its tag index
 	seriesToMeasurement map[uint32]*Measurement      // map series id to its measurement
 	series              map[uint32]*Series           // map series id to the Series object
+	names               []string                     // sorted list of the measurement names
 }
 
 func NewIndex() *Index {
@@ -21,6 +22,7 @@ func NewIndex() *Index {
 		measurementIndex:    make(map[string]*measurementIndex),
 		seriesToMeasurement: make(map[uint32]*Measurement),
 		series:              make(map[uint32]*Series),
+		names:               make([]string, 0),
 	}
 }
 
@@ -273,6 +275,8 @@ func (t *Index) AddSeries(name string, s *Series) bool {
 			ids:          SeriesIDs(make([]uint32, 0)),
 		}
 		t.measurementIndex[name] = idx
+		t.names = append(t.names, name)
+		sort.Strings(t.names)
 	}
 	idx.measurement.Series = append(idx.measurement.Series, s)
 	t.seriesToMeasurement[s.ID] = idx.measurement
@@ -312,6 +316,34 @@ func (t *Index) SeriesIDs(names []string, filters Filters) SeriesIDs {
 	}
 
 	return ids
+}
+
+// TagKeys returns a sorted array of unique tag keys for the given measurements.
+func (t *Index) TagKeys(names []string) []string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if len(names) == 0 {
+		names = t.names
+	}
+
+	keys := make(map[string]bool)
+	for _, n := range names {
+		idx := t.measurementIndex[n]
+		if idx != nil {
+			for k, _ := range idx.tagsToSeries {
+				keys[k] = true
+			}
+		}
+	}
+
+	sortedKeys := make([]string, 0, len(keys))
+	for k, _ := range keys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	return sortedKeys
 }
 
 //seriesIDsForName is the same as SeriesIDs, but for a specific measurement.
@@ -366,6 +398,13 @@ func (t *Index) Measurements(filters []*Filter) []*Measurement {
 		measurements = append(measurements, idx.measurement)
 	}
 	return measurements
+}
+
+// Names returns all measuremet names in sorted order.
+func (t *Index) Names() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.names
 }
 
 // DropSeries will clear the index of all references to a series.

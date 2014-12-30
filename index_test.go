@@ -1,11 +1,23 @@
 package influxdb_test
 
 import (
+	"reflect"
 	"regexp"
 	"testing"
 
 	"github.com/influxdb/influxdb"
 )
+
+// Ensure that the index will return a sorted array of measurement names.
+func TestIndex_Names(t *testing.T) {
+	idx := indexWithFixtureData()
+
+	r := idx.Names()
+	exp := []string{"another_thing", "cpu_load", "key_count", "queue_depth"}
+	if !reflect.DeepEqual(r, exp) {
+		t.Fatalf("Names not equal:\n  got: %s\n  exp: %s", r, exp)
+	}
+}
 
 // Ensure that we can get the measurement by the series ID.
 func TestIndex_MeasurementBySeriesID(t *testing.T) {
@@ -159,7 +171,7 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// match against no tags
 		{
 			names:  []string{"cpu_load", "redis"},
-			result: []uint32{uint32(1), uint32(2), uint32(3), uint32(4), uint32(5), uint32(6), uint32(7)},
+			result: []uint32{uint32(1), uint32(2), uint32(3), uint32(4), uint32(5), uint32(6), uint32(7), uint32(8)},
 		},
 
 		// match against all tags
@@ -298,11 +310,32 @@ func TestIndex_FieldKeys(t *testing.T) {
 }
 
 func TestIndex_TagKeys(t *testing.T) {
-	t.Skip("pending")
-}
+	idx := indexWithFixtureData()
 
-func TestIndex_TagKeysForMeasurement(t *testing.T) {
-	t.Skip("pending")
+	var tests = []struct {
+		names  []string
+		result []string
+	}{
+		{
+			names:  nil,
+			result: []string{"a", "app", "host", "name", "region", "service"},
+		},
+		{
+			names:  []string{"cpu_load"},
+			result: []string{"host", "region"},
+		},
+		{
+			names:  []string{"key_count", "queue_depth"},
+			result: []string{"app", "host", "name", "region", "service"},
+		},
+	}
+
+	for i, tt := range tests {
+		r := idx.TagKeys(tt.names)
+		if !reflect.DeepEqual(r, tt.result) {
+			t.Fatalf("%d: names: %s: result mismatch:\n  exp=%s\n  got=%s", i, tt.names, tt.result, r)
+		}
+	}
 }
 
 func TestIndex_TagValuesWhereFilter(t *testing.T) {
@@ -395,6 +428,15 @@ func indexWithFixtureData() *influxdb.Index {
 		Tags: map[string]string{"name": "high priority", "app": "paulcountry"}}
 
 	added = idx.AddSeries("queue_depth", s)
+	if !added {
+		return nil
+	}
+
+	s = &influxdb.Series{
+		ID:   uint32(8),
+		Tags: map[string]string{"a": "b"}}
+
+	added = idx.AddSeries("another_thing", s)
 	if !added {
 		return nil
 	}
