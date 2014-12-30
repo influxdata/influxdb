@@ -45,9 +45,9 @@ LIST TAG KEYS
 LIST TAG KEYS FROM cpu
 LIST TAG KEYS FROM temperature, wind_speed
 
--- list all the tag values. note that at least one WHERE key = '...' clause is required
-LIST TAG VALUES WHERE key = 'region'
-LIST TAG VALUES FROM cpu WHERE region = 'uswest' and key = 'host'
+-- list all the tag values. note that a single WHERE TAG KEY = '...' clause is required
+LIST TAG VALUES WHERE TAG KEY = 'region'
+LIST TAG VALUES FROM cpu WHERE region = 'uswest' and TAG KEY = 'host'
 
 -- and you can do stuff against fields
 LIST FIELD KEYS FROM cpu
