@@ -131,6 +131,7 @@ func TestLog_Config(t *testing.T) {
 
 // Ensure that a new log can be successfully opened and closed.
 func TestLog_Apply_Cluster(t *testing.T) {
+	t.Skip()
 	c := NewCluster(3)
 	defer c.Close()
 
