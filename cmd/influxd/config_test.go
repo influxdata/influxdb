@@ -69,16 +69,16 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("graphite database mismatch: %v", c.InputPlugins.Graphite.Database)
 	}
 
-	if c.Raft.Port != 8090 {
-		t.Fatalf("raft port mismatch: %v", c.Raft.Port)
-	} else if c.Raft.Dir != "/tmp/influxdb/development/raft" {
-		t.Fatalf("raft dir mismatch: %v", c.Raft.Dir)
-	} else if time.Duration(c.Raft.Timeout) != time.Second {
-		t.Fatalf("raft duration mismatch: %v", c.Raft.Timeout)
+	if c.Broker.Port != 8090 {
+		t.Fatalf("broker port mismatch: %v", c.Broker.Port)
+	} else if c.Broker.Dir != "/tmp/influxdb/development/broker" {
+		t.Fatalf("broker dir mismatch: %v", c.Broker.Dir)
+	} else if time.Duration(c.Broker.Timeout) != time.Second {
+		t.Fatalf("broker duration mismatch: %v", c.Broker.Timeout)
 	}
 
-	if c.Storage.Dir != "/tmp/influxdb/development/db" {
-		t.Fatalf("data dir mismatch: %v", c.Storage.Dir)
+	if c.Data.Dir != "/tmp/influxdb/development/db" {
+		t.Fatalf("data dir mismatch: %v", c.Data.Dir)
 	}
 
 	if c.Cluster.ProtobufPort != 8099 {
@@ -146,20 +146,21 @@ read-timeout = "5s"
   port = 4444
   database = "test"
 
-# Raft configuration
-[raft]
-# The raft port should be open between all servers in a cluster.
+# Broker configuration
+[broker]
+# The broker port should be open between all servers in a cluster.
 # However, this port shouldn't be accessible from the internet.
 
 port = 8090
 
-# Where the raft logs are stored. The user running InfluxDB will need read/write access.
-dir  = "/tmp/influxdb/development/raft"
+# Where the broker logs are stored. The user running InfluxDB will need read/write access.
+dir  = "/tmp/influxdb/development/broker"
 
 # election-timeout = "2s"
 
-[storage]
+[data]
 dir = "/tmp/influxdb/development/db"
+
 # How many requests to potentially buffer in memory. If the buffer gets filled then writes
 # will still be logged and once the local storage has caught up (or compacted) the writes
 # will be replayed from the WAL
@@ -176,7 +177,7 @@ retention-sweep-period = "10m"
 # prior to shutting down. Any server can be pointed to
 # as a seed. It will find the Raft leader automatically.
 
-# Here's an example. Note that the port on the host is the same as the raft port.
+# Here's an example. Note that the port on the host is the same as the broker port.
 seed-servers = ["hosta:8090", "hostb:8090"]
 
 # Replication happens over a TCP connection with a Protobuf protocol.

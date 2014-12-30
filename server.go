@@ -88,11 +88,8 @@ type Server struct {
 }
 
 // NewServer returns a new instance of Server.
-// The server requires a client to the messaging broker to be passed in.
-func NewServer(client MessagingClient) *Server {
-	assert(client != nil, "messaging client required")
+func NewServer() *Server {
 	return &Server{
-		client:           client,
 		meta:             &metastore{},
 		dataNodes:        make(map[uint64]*DataNode),
 		databases:        make(map[string]*database),
@@ -102,9 +99,21 @@ func NewServer(client MessagingClient) *Server {
 	}
 }
 
+// ID returns the data node id for the server.
+// Returns zero if the server is closed or the server has not joined a cluster.
+func (s *Server) ID() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.id
+}
+
 // Path returns the path used when opening the server.
 // Returns an empty string when the server is closed.
-func (s *Server) Path() string { return s.path }
+func (s *Server) Path() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.path
+}
 
 // shardPath returns the path for a shard.
 func (s *Server) shardPath(id uint64) string {
@@ -144,10 +153,6 @@ func (s *Server) Open(path string) error {
 	// Set the server path.
 	s.path = path
 
-	// Start goroutine to read messages from the broker.
-	s.done = make(chan struct{}, 0)
-	go s.processor(s.done)
-
 	return nil
 }
 
@@ -163,9 +168,8 @@ func (s *Server) Close() error {
 		return ErrServerClosed
 	}
 
-	// Close notification.
-	close(s.done)
-	s.done = nil
+	// Close message processing.
+	s.setClient(nil)
 
 	// Close metastore.
 	_ = s.meta.close()
@@ -200,6 +204,44 @@ func (s *Server) load() error {
 
 		return nil
 	})
+}
+
+// Client retrieves the current messaging client.
+func (s *Server) Client() MessagingClient {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.client
+}
+
+// SetClient sets the messaging client on the server.
+func (s *Server) SetClient(client MessagingClient) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.setClient(client)
+}
+
+func (s *Server) setClient(client MessagingClient) error {
+	// Ensure the server is open.
+	if !s.opened() {
+		return ErrServerClosed
+	}
+
+	// Stop previous processor, if running.
+	if s.done != nil {
+		close(s.done)
+		s.done = nil
+	}
+
+	// Set the messaging client.
+	s.client = client
+
+	// Start goroutine to read messages from the broker.
+	if client != nil {
+		s.done = make(chan struct{}, 0)
+		go s.processor(client, s.done)
+	}
+
+	return nil
 }
 
 // broadcast encodes a message as JSON and send it to the broker's broadcast topic.
@@ -1059,8 +1101,7 @@ func (s *Server) Measurements(database string) (a Measurements) {
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
-func (s *Server) processor(done chan struct{}) {
-	client := s.client
+func (s *Server) processor(client MessagingClient, done chan struct{}) {
 	for {
 		// Read incoming message.
 		var m *messaging.Message

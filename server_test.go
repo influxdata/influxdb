@@ -16,8 +16,7 @@ import (
 
 // Ensure the server can be successfully opened and closed.
 func TestServer_Open(t *testing.T) {
-	c := NewMessagingClient()
-	s := NewServer(c)
+	s := NewServer()
 	defer s.Close()
 	if err := s.Server.Open(tempfile()); err != nil {
 		t.Fatal(err)
@@ -527,14 +526,17 @@ type Server struct {
 }
 
 // NewServer returns a new test server instance.
-func NewServer(client influxdb.MessagingClient) *Server {
-	return &Server{influxdb.NewServer(client)}
+func NewServer() *Server {
+	return &Server{influxdb.NewServer()}
 }
 
 // OpenServer returns a new, open test server instance.
 func OpenServer(client influxdb.MessagingClient) *Server {
-	s := NewServer(client)
+	s := NewServer()
 	if err := s.Open(tempfile()); err != nil {
+		panic(err.Error())
+	}
+	if err := s.SetClient(client); err != nil {
 		panic(err.Error())
 	}
 	return s
@@ -542,12 +544,19 @@ func OpenServer(client influxdb.MessagingClient) *Server {
 
 // Restart stops and restarts the server.
 func (s *Server) Restart() {
-	path := s.Path()
+	path, client := s.Path(), s.Client()
+
+	// Stop the server.
 	if err := s.Server.Close(); err != nil {
 		panic("close: " + err.Error())
 	}
+
+	// Open and reset the client.
 	if err := s.Server.Open(path); err != nil {
 		panic("open: " + err.Error())
+	}
+	if err := s.Server.SetClient(client); err != nil {
+		panic("client: " + err.Error())
 	}
 }
 
