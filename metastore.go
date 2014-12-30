@@ -103,7 +103,7 @@ func (tx *metatx) setID(v uint64) error {
 	return tx.Bucket([]byte("Server")).Put([]byte("id"), u64tob(v))
 }
 
-// databases returns a list of all data nodes from the metastore.
+// dataNodes returns a list of all data nodes from the metastore.
 func (tx *metatx) dataNodes() (a []*DataNode) {
 	c := tx.Bucket([]byte("DataNodes")).Cursor()
 	for k, v := c.First(); k != nil; k, v = c.Next() {
@@ -111,7 +111,6 @@ func (tx *metatx) dataNodes() (a []*DataNode) {
 		mustUnmarshalJSON(v, &n)
 		a = append(a, n)
 	}
-	sort.Sort(dataNodes(a))
 	return
 }
 
