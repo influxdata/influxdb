@@ -300,7 +300,7 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		r := idx.SeriesIDs(tt.names, tt.filters)
 		expectedIDs := influxdb.SeriesIDs(tt.result)
 		if !r.Equals(expectedIDs) {
-			t.Fatalf("%d: filters: %s: result mismatch:\n  exp=%s\n  got=%s", i, influxdb.Filters(tt.filters), expectedIDs, r)
+			t.Fatalf("%d: filters: %s: result mismatch:\n  exp=%s\n  got=%s", i, mustMarshalJSON(tt.filters), mustMarshalJSON(expectedIDs), mustMarshalJSON(r))
 		}
 	}
 }

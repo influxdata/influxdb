@@ -36,10 +36,6 @@ type Filter struct {
 
 type Filters []*Filter
 
-func (f Filters) String() string {
-	return string(mustMarshalJSON(f))
-}
-
 // SeriesIDs is a convenience type for sorting, checking equality, and doing union and
 // intersection of collections of series ids.
 type SeriesIDs []uint32
@@ -47,15 +43,14 @@ type SeriesIDs []uint32
 func (p SeriesIDs) Len() int           { return len(p) }
 func (p SeriesIDs) Less(i, j int) bool { return p[i] < p[j] }
 func (p SeriesIDs) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-func (p SeriesIDs) Sort()              { sort.Sort(p) }
 
 // Equals assumes that both are sorted. This is by design, no touchy!
-func (p SeriesIDs) Equals(s SeriesIDs) bool {
-	if len(p) != len(s) {
+func (a SeriesIDs) Equals(seriesIDs SeriesIDs) bool {
+	if len(a) != len(seriesIDs) {
 		return false
 	}
-	for i, pp := range p {
-		if s[i] != pp {
+	for i, s := range seriesIDs {
+		if a[i] != s {
 			return false
 		}
 	}
@@ -152,50 +147,42 @@ func (l SeriesIDs) Reject(r SeriesIDs) SeriesIDs {
 	return SeriesIDs(ids)
 }
 
-// Convenience method to output something during tests
-func (s SeriesIDs) String() string {
-	return string(mustMarshalJSON(s))
-}
-
 // Keeps a mapping of the series in a measurement
 type measurementIndex struct {
-	series       map[string]*Series // sorted tag string to the series object
-	measurement  *Measurement
-	tagsToSeries map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
-	ids          SeriesIDs                       // sorted list of series IDs in this measurement
+	series         map[string]*Series // sorted tag string to the series object
+	measurement    *Measurement
+	seriesByTagset map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
+	ids            SeriesIDs                       // sorted list of series IDs in this measurement
 }
 
 // addSeries will add a series to the measurementIndex. Returns false if already present
 func (m *measurementIndex) addSeries(s *Series) bool {
-	id := string(tagsToBytes(s.Tags))
-	if _, ok := m.series[id]; ok {
+	tagset := string(marshalTags(s.Tags))
+	if _, ok := m.series[tagset]; ok {
 		return false
 	}
-	m.series[id] = s
+	m.series[tagset] = s
 	m.ids = append(m.ids, s.ID)
 	// the series ID should always be higher than all others because it's a new
 	// series. So don't do the sort if we don't have to.
 	if len(m.ids) > 1 && m.ids[len(m.ids)-1] < m.ids[len(m.ids)-2] {
-		m.ids.Sort()
+		sort.Sort(m.ids)
 	}
 
 	// add this series id to the tag index on the measurement
 	for k, v := range s.Tags {
-		valueMap := m.tagsToSeries[k]
+		valueMap := m.seriesByTagset[k]
 		if valueMap == nil {
 			valueMap = make(map[string]SeriesIDs)
-			m.tagsToSeries[k] = valueMap
+			m.seriesByTagset[k] = valueMap
 		}
 		ids := valueMap[v]
-		if ids == nil {
-			ids = make([]uint32, 0)
-		}
 		ids = append(ids, s.ID)
 
 		// most of the time the series ID will be higher than all others because it's a new
 		// series. So don't do the sort if we don't have to.
 		if len(ids) > 1 && ids[len(ids)-1] < ids[len(ids)-2] {
-			ids.Sort()
+			sort.Sort(ids)
 		}
 		valueMap[v] = ids
 	}
@@ -204,13 +191,13 @@ func (m *measurementIndex) addSeries(s *Series) bool {
 }
 
 // seriesByTags returns the Series that matches the given tagset.
-func (m measurementIndex) seriesByTags(tags map[string]string) *Series {
-	return m.series[string(tagsToBytes(tags))]
+func (m *measurementIndex) seriesByTags(tags map[string]string) *Series {
+	return m.series[string(marshalTags(tags))]
 }
 
 // sereisIDs returns the series ids for a given filter
 func (m measurementIndex) seriesIDs(filter *Filter) (ids SeriesIDs) {
-	values := m.tagsToSeries[filter.Key]
+	values := m.seriesByTagset[filter.Key]
 	if values == nil {
 		return
 	}
@@ -269,10 +256,10 @@ func (t *Index) AddSeries(name string, s *Series) bool {
 	idx := t.measurementIndex[name]
 	if idx == nil {
 		idx = &measurementIndex{
-			series:       make(map[string]*Series),
-			measurement:  NewMeasurement(name),
-			tagsToSeries: make(map[string]map[string]SeriesIDs),
-			ids:          SeriesIDs(make([]uint32, 0)),
+			series:         make(map[string]*Series),
+			measurement:    NewMeasurement(name),
+			seriesByTagset: make(map[string]map[string]SeriesIDs),
+			ids:            SeriesIDs(make([]uint32, 0)),
 		}
 		t.measurementIndex[name] = idx
 		t.names = append(t.names, name)
@@ -331,7 +318,7 @@ func (t *Index) TagKeys(names []string) []string {
 	for _, n := range names {
 		idx := t.measurementIndex[n]
 		if idx != nil {
-			for k, _ := range idx.tagsToSeries {
+			for k, _ := range idx.seriesByTagset {
 				keys[k] = true
 			}
 		}
@@ -418,7 +405,7 @@ func (t *Index) DropMeasurement(name string) {
 }
 
 // used to convert the tag set to bytes for use as a lookup key
-func tagsToBytes(tags map[string]string) []byte {
+func marshalTags(tags map[string]string) []byte {
 	s := make([]string, 0, len(tags))
 	// pull out keys to sort
 	for k := range tags {
