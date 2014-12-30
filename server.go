@@ -309,11 +309,13 @@ func (s *Server) applyCreateDataNode(m *messaging.Message) (err error) {
 
 	// Create data node.
 	n := newDataNode()
-	n.ID = m.Index
 	n.URL = u
 
 	// Persist to metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.saveDataNode(n) })
+	err = s.meta.mustUpdate(func(tx *metatx) error {
+		n.ID = tx.nextDataNodeID()
+		return tx.saveDataNode(n)
+	})
 
 	// Add to node on server.
 	s.dataNodes[n.ID] = n

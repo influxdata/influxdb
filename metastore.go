@@ -114,6 +114,12 @@ func (tx *metatx) dataNodes() (a []*DataNode) {
 	return
 }
 
+// nextDataNodeID returns a autoincrementing id.
+func (tx *metatx) nextDataNodeID() uint64 {
+	id, _ := tx.Bucket([]byte("DataNodes")).NextSequence()
+	return id
+}
+
 // saveDataNode persists a data node to the metastore.
 func (tx *metatx) saveDataNode(n *DataNode) error {
 	return tx.Bucket([]byte("DataNodes")).Put(u64tob(n.ID), mustMarshalJSON(n))
