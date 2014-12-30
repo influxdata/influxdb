@@ -44,7 +44,7 @@ func (m *metastore) close() error {
 func (m *metastore) init() error {
 	return m.db.Update(func(tx *bolt.Tx) error {
 		_, _ = tx.CreateBucketIfNotExists([]byte("Server"))
-		_, _ = tx.CreateBucketIfNotExists([]byte("Nodes"))
+		_, _ = tx.CreateBucketIfNotExists([]byte("DataNodes"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("Databases"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("Users"))
 		return nil
@@ -103,26 +103,26 @@ func (tx *metatx) setID(v uint64) error {
 	return tx.Bucket([]byte("Server")).Put([]byte("id"), u64tob(v))
 }
 
-// databases returns a list of all nodes from the metastore.
-func (tx *metatx) nodes() (a []*Node) {
-	c := tx.Bucket([]byte("Nodes")).Cursor()
+// databases returns a list of all data nodes from the metastore.
+func (tx *metatx) dataNodes() (a []*DataNode) {
+	c := tx.Bucket([]byte("DataNodes")).Cursor()
 	for k, v := c.First(); k != nil; k, v = c.Next() {
-		n := newNode()
+		n := newDataNode()
 		mustUnmarshalJSON(v, &n)
 		a = append(a, n)
 	}
-	sort.Sort(nodes(a))
+	sort.Sort(dataNodes(a))
 	return
 }
 
-// saveNode persists a node to the metastore.
-func (tx *metatx) saveNode(n *Node) error {
-	return tx.Bucket([]byte("Nodes")).Put(u64tob(n.ID), mustMarshalJSON(n))
+// saveDataNode persists a data node to the metastore.
+func (tx *metatx) saveDataNode(n *DataNode) error {
+	return tx.Bucket([]byte("DataNodes")).Put(u64tob(n.ID), mustMarshalJSON(n))
 }
 
-// deleteNode removes node from the metastore.
-func (tx *metatx) deleteNode(id uint64) error {
-	return tx.Bucket([]byte("Nodes")).Delete(u64tob(id))
+// deleteDataNode removes data node from the metastore.
+func (tx *metatx) deleteDataNode(id uint64) error {
+	return tx.Bucket([]byte("DataNodes")).Delete(u64tob(id))
 }
 
 // databases returns a list of all databases from the metastore.

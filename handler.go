@@ -60,10 +60,10 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Put("/db/:db/retention_policies/:name", http.HandlerFunc(h.serveUpdateRetentionPolicy))
 	h.mux.Del("/db/:db/retention_policies/:name", http.HandlerFunc(h.serveDeleteRetentionPolicy))
 
-	// Node routes.
-	h.mux.Get("/nodes", http.HandlerFunc(h.serveNodes))
-	h.mux.Post("/nodes", http.HandlerFunc(h.serveCreateNode))
-	h.mux.Del("/nodes/:id", http.HandlerFunc(h.serveDeleteNode))
+	// Data node routes.
+	h.mux.Get("/data_nodes", http.HandlerFunc(h.serveDataNodes))
+	h.mux.Post("/data_nodes", http.HandlerFunc(h.serveCreateDataNode))
+	h.mux.Del("/data_nodes/:id", http.HandlerFunc(h.serveDeleteDataNode))
 
 	// Utilities
 	h.mux.Get("/ping", http.HandlerFunc(h.servePing))
@@ -416,12 +416,12 @@ func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// serveNodes returns a list of all data nodes in the cluster.
-func (h *Handler) serveNodes(w http.ResponseWriter, r *http.Request) {
+// serveDataNodes returns a list of all data nodes in the cluster.
+func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request) {
 	// Generate a list of objects for encoding to the API.
-	a := make([]*nodeJSON, 0)
-	for _, n := range h.server.Nodes() {
-		a = append(a, &nodeJSON{
+	a := make([]*dataNodeJSON, 0)
+	for _, n := range h.server.DataNodes() {
+		a = append(a, &dataNodeJSON{
 			ID:  n.ID,
 			URL: n.URL.String(),
 		})
@@ -431,10 +431,10 @@ func (h *Handler) serveNodes(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(a)
 }
 
-// serveCreateNode creates a new node in the cluster.
-func (h *Handler) serveCreateNode(w http.ResponseWriter, r *http.Request) {
-	// Read in node from request body.
-	var n nodeJSON
+// serveCreateDataNode creates a new data node in the cluster.
+func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
+	// Read in data node from request body.
+	var n dataNodeJSON
 	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
 		h.error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -443,12 +443,12 @@ func (h *Handler) serveCreateNode(w http.ResponseWriter, r *http.Request) {
 	// Parse the URL.
 	u, err := url.Parse(n.URL)
 	if err != nil {
-		h.error(w, "invalid node url", http.StatusBadRequest)
+		h.error(w, "invalid data node url", http.StatusBadRequest)
 		return
 	}
 
-	// Create the node.
-	if err := h.server.CreateNode(u); err == ErrNodeExists {
+	// Create the data node.
+	if err := h.server.CreateDataNode(u); err == ErrDataNodeExists {
 		h.error(w, err.Error(), http.StatusConflict)
 		return
 	} else if err != nil {
@@ -457,14 +457,14 @@ func (h *Handler) serveCreateNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write new node back to client.
-	node := h.server.NodeByURL(u)
+	node := h.server.DataNodeByURL(u)
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Add("content-type", "application/json")
-	_ = json.NewEncoder(w).Encode(&nodeJSON{ID: node.ID, URL: node.URL.String()})
+	_ = json.NewEncoder(w).Encode(&dataNodeJSON{ID: node.ID, URL: node.URL.String()})
 }
 
-// serveDeleteNode removes an existing node.
-func (h *Handler) serveDeleteNode(w http.ResponseWriter, r *http.Request) {
+// serveDeleteDataNode removes an existing node.
+func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
 	// Parse node id.
 	nodeID, err := strconv.ParseUint(r.URL.Query().Get(":id"), 10, 64)
 	if err != nil {
@@ -473,7 +473,7 @@ func (h *Handler) serveDeleteNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete the node.
-	if err := h.server.DeleteNode(nodeID); err == ErrNodeNotFound {
+	if err := h.server.DeleteDataNode(nodeID); err == ErrDataNodeNotFound {
 		h.error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -484,7 +484,7 @@ func (h *Handler) serveDeleteNode(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-type nodeJSON struct {
+type dataNodeJSON struct {
 	ID  uint64 `json:"id"`
 	URL string `json:"url"`
 }

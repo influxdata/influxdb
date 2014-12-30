@@ -38,9 +38,9 @@ const (
 )
 
 const (
-	// Node messages
-	createNodeMessageType = messaging.MessageType(0x00)
-	deleteNodeMessageType = messaging.MessageType(0x01)
+	// Data node messages
+	createDataNodeMessageType = messaging.MessageType(0x00)
+	deleteDataNodeMessageType = messaging.MessageType(0x01)
 
 	// Database messages
 	createDatabaseMessageType = messaging.MessageType(0x10)
@@ -80,8 +80,7 @@ type Server struct {
 
 	meta *metastore // metadata store
 
-	nodes      map[uint64]*Node // server nodes by id
-	nodesByURL map[string]*Node // server nodes by url
+	dataNodes map[uint64]*DataNode // data nodes by id
 
 	databases        map[string]*database // databases by name
 	databasesByShard map[uint64]*database // databases by shard id
@@ -95,8 +94,7 @@ func NewServer(client MessagingClient) *Server {
 	return &Server{
 		client:           client,
 		meta:             &metastore{},
-		nodes:            make(map[uint64]*Node),
-		nodesByURL:       make(map[string]*Node),
+		dataNodes:        make(map[uint64]*DataNode),
 		databases:        make(map[string]*database),
 		databasesByShard: make(map[uint64]*database),
 		users:            make(map[string]*User),
@@ -252,40 +250,45 @@ func (s *Server) sync(index uint64) error {
 	}
 }
 
-// Node returns a node by id.
-func (s *Server) Node(id uint64) *Node {
+// DataNode returns a data node by id.
+func (s *Server) DataNode(id uint64) *DataNode {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.nodes[id]
+	return s.dataNodes[id]
 }
 
-// NodeByURL returns a node by url.
-func (s *Server) NodeByURL(u *url.URL) *Node {
+// DataNodeByURL returns a data node by url.
+func (s *Server) DataNodeByURL(u *url.URL) *DataNode {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.nodesByURL[u.String()]
+	for _, n := range s.dataNodes {
+		if n.URL.String() == u.String() {
+			return n
+		}
+	}
+	return nil
 }
 
-// Nodes returns a list of nodes.
-func (s *Server) Nodes() (a []*Node) {
+// DataNodes returns a list of data nodes.
+func (s *Server) DataNodes() (a []*DataNode) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, n := range s.nodes {
+	for _, n := range s.dataNodes {
 		a = append(a, n)
 	}
-	sort.Sort(nodes(a))
+	sort.Sort(dataNodes(a))
 	return
 }
 
-// CreateNode creates a new node with a given URL.
-func (s *Server) CreateNode(u *url.URL) error {
-	c := &createNodeCommand{URL: u.String()}
-	_, err := s.broadcast(createNodeMessageType, c)
+// CreateDataNode creates a new data node with a given URL.
+func (s *Server) CreateDataNode(u *url.URL) error {
+	c := &createDataNodeCommand{URL: u.String()}
+	_, err := s.broadcast(createDataNodeMessageType, c)
 	return err
 }
 
-func (s *Server) applyCreateNode(m *messaging.Message) (err error) {
-	var c createNodeCommand
+func (s *Server) applyCreateDataNode(m *messaging.Message) (err error) {
+	var c createDataNodeCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
@@ -293,63 +296,63 @@ func (s *Server) applyCreateNode(m *messaging.Message) (err error) {
 
 	// Validate parameters.
 	if c.URL == "" {
-		return ErrNodeURLRequired
+		return ErrDataNodeURLRequired
 	}
 
-	// Check that another node doesn't already exist.
+	// Check that another node with the same URL doesn't already exist.
 	u, _ := url.Parse(c.URL)
-	if s.nodesByURL[u.String()] != nil {
-		return ErrNodeExists
+	for _, n := range s.dataNodes {
+		if n.URL.String() == u.String() {
+			return ErrDataNodeExists
+		}
 	}
 
-	// Create node.
-	n := newNode()
+	// Create data node.
+	n := newDataNode()
 	n.ID = m.Index
 	n.URL = u
 
 	// Persist to metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.saveNode(n) })
+	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.saveDataNode(n) })
 
 	// Add to node on server.
-	s.nodes[n.ID] = n
-	s.nodesByURL[n.URL.String()] = n
+	s.dataNodes[n.ID] = n
 
 	return
 }
 
-type createNodeCommand struct {
+type createDataNodeCommand struct {
 	URL string `json:"url"`
 }
 
-// DeleteNode deletes an existing node.
-func (s *Server) DeleteNode(id uint64) error {
-	c := &deleteNodeCommand{ID: id}
-	_, err := s.broadcast(deleteNodeMessageType, c)
+// DeleteDataNode deletes an existing data node.
+func (s *Server) DeleteDataNode(id uint64) error {
+	c := &deleteDataNodeCommand{ID: id}
+	_, err := s.broadcast(deleteDataNodeMessageType, c)
 	return err
 }
 
-func (s *Server) applyDeleteNode(m *messaging.Message) (err error) {
-	var c deleteNodeCommand
+func (s *Server) applyDeleteDataNode(m *messaging.Message) (err error) {
+	var c deleteDataNodeCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	n := s.nodes[c.ID]
+	n := s.dataNodes[c.ID]
 	if n == nil {
-		return ErrNodeNotFound
+		return ErrDataNodeNotFound
 	}
 
 	// Remove from metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteNode(c.ID) })
+	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteDataNode(c.ID) })
 
 	// Delete the node.
-	delete(s.nodes, n.ID)
-	delete(s.nodesByURL, n.URL.String())
+	delete(s.dataNodes, n.ID)
 
 	return
 }
 
-type deleteNodeCommand struct {
+type deleteDataNodeCommand struct {
 	ID uint64 `json:"id"`
 }
 
@@ -1070,10 +1073,10 @@ func (s *Server) processor(done chan struct{}) {
 		switch m.Type {
 		case writeSeriesMessageType:
 			err = s.applyWriteSeries(m)
-		case createNodeMessageType:
-			err = s.applyCreateNode(m)
-		case deleteNodeMessageType:
-			err = s.applyDeleteNode(m)
+		case createDataNodeMessageType:
+			err = s.applyCreateDataNode(m)
+		case deleteDataNodeMessageType:
+			err = s.applyDeleteDataNode(m)
 		case createDatabaseMessageType:
 			err = s.applyCreateDatabase(m)
 		case deleteDatabaseMessageType:
@@ -1117,20 +1120,20 @@ type MessagingClient interface {
 	C() <-chan *messaging.Message
 }
 
-// Node represents a data node in the cluster.
-type Node struct {
+// DataNode represents a data node in the cluster.
+type DataNode struct {
 	ID  uint64
 	URL *url.URL
 }
 
-// newNode returns an instance of Node.
-func newNode() *Node { return &Node{} }
+// newDataNode returns an instance of DataNode.
+func newDataNode() *DataNode { return &DataNode{} }
 
-type nodes []*Node
+type dataNodes []*DataNode
 
-func (p nodes) Len() int           { return len(p) }
-func (p nodes) Less(i, j int) bool { return p[i].ID < p[j].ID }
-func (p nodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p dataNodes) Len() int           { return len(p) }
+func (p dataNodes) Less(i, j int) bool { return p[i].ID < p[j].ID }
+func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // database represents a collection of retention policies.
 type database struct {

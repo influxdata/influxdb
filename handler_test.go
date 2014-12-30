@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-	//"fmt"
+
 	"github.com/influxdb/influxdb"
 )
 
@@ -517,15 +517,15 @@ func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
 	}
 }
 
-func TestHandler_Nodes(t *testing.T) {
+func TestHandler_DataNodes(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateNode(MustParseURL("http://localhost:1000"))
-	srvr.CreateNode(MustParseURL("http://localhost:2000"))
-	srvr.CreateNode(MustParseURL("http://localhost:3000"))
+	srvr.CreateDataNode(MustParseURL("http://localhost:1000"))
+	srvr.CreateDataNode(MustParseURL("http://localhost:2000"))
+	srvr.CreateDataNode(MustParseURL("http://localhost:3000"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/nodes`, "")
+	status, body := MustHTTP("GET", s.URL+`/data_nodes`, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `[{"id":1,"url":"http://localhost:1000"},{"id":2,"url":"http://localhost:2000"},{"id":3,"url":"http://localhost:3000"}]` {
@@ -533,12 +533,12 @@ func TestHandler_Nodes(t *testing.T) {
 	}
 }
 
-func TestHandler_CreateNode(t *testing.T) {
+func TestHandler_CreateDataNode(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/nodes`, `{"url":"http://localhost:1000"}`)
+	status, body := MustHTTP("POST", s.URL+`/data_nodes`, `{"url":"http://localhost:1000"}`)
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `{"id":1,"url":"http://localhost:1000"}` {
@@ -546,12 +546,12 @@ func TestHandler_CreateNode(t *testing.T) {
 	}
 }
 
-func TestHandler_CreateNode_BadRequest(t *testing.T) {
+func TestHandler_CreateDataNode_BadRequest(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/nodes`, `{"name":`)
+	status, body := MustHTTP("POST", s.URL+`/data_nodes`, `{"name":`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `unexpected EOF` {
@@ -559,26 +559,26 @@ func TestHandler_CreateNode_BadRequest(t *testing.T) {
 	}
 }
 
-func TestHandler_CreateNode_InternalServerError(t *testing.T) {
+func TestHandler_CreateDataNode_InternalServerError(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/nodes`, `{"url":""}`)
+	status, body := MustHTTP("POST", s.URL+`/data_nodes`, `{"url":""}`)
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status, body)
-	} else if body != `node url required` {
+	} else if body != `data node url required` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
-func TestHandler_DeleteNode(t *testing.T) {
+func TestHandler_DeleteDataNode(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateNode(MustParseURL("http://localhost:1000"))
+	srvr.CreateDataNode(MustParseURL("http://localhost:1000"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/nodes/1`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/data_nodes/1`, "")
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `` {
@@ -586,15 +586,15 @@ func TestHandler_DeleteNode(t *testing.T) {
 	}
 }
 
-func TestHandler_DeleteUser_NodeNotFound(t *testing.T) {
+func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/nodes/10000`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/data_nodes/10000`, "")
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `node not found` {
+	} else if body != `data node not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }

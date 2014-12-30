@@ -34,20 +34,20 @@ func TestServer_Open_ErrServerOpen(t *testing.T) { t.Skip("pending") }
 func TestServer_Open_ErrPathRequired(t *testing.T) { t.Skip("pending") }
 
 // Ensure the server can create a new data node.
-func TestServer_CreateNode(t *testing.T) {
+func TestServer_CreateDataNode(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
 	// Create a new node.
 	u, _ := url.Parse("http://localhost:80000")
-	if err := s.CreateNode(u); err != nil {
+	if err := s.CreateDataNode(u); err != nil {
 		t.Fatal(err)
 	}
 	s.Restart()
 
 	// Verify that the node exists.
-	if n := s.NodeByURL(u); n == nil {
-		t.Fatalf("node not found")
+	if n := s.DataNodeByURL(u); n == nil {
+		t.Fatalf("data node not found")
 	} else if n.URL.String() != "http://localhost:80000" {
 		t.Fatalf("unexpected url: %s", n.URL)
 	} else if n.ID == 0 {
@@ -56,40 +56,40 @@ func TestServer_CreateNode(t *testing.T) {
 }
 
 // Ensure the server returns an error when creating a duplicate node.
-func TestServer_CreateDatabase_ErrNodeExists(t *testing.T) {
+func TestServer_CreateDatabase_ErrDataNodeExists(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
 	// Create a node with the same URL twice.
 	u, _ := url.Parse("http://localhost:80000")
-	if err := s.CreateNode(u); err != nil {
+	if err := s.CreateDataNode(u); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateNode(u); err != influxdb.ErrNodeExists {
+	if err := s.CreateDataNode(u); err != influxdb.ErrDataNodeExists {
 		t.Fatal(err)
 	}
 }
 
 // Ensure the server can delete a node.
-func TestServer_DeleteNode(t *testing.T) {
+func TestServer_DeleteDataNode(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
-	// Create a node and verify it exists.
+	// Create a data node and verify it exists.
 	u, _ := url.Parse("http://localhost:80000")
-	if err := s.CreateNode(u); err != nil {
+	if err := s.CreateDataNode(u); err != nil {
 		t.Fatal(err)
-	} else if s.NodeByURL(u) == nil {
-		t.Fatalf("node not actually created")
+	} else if s.DataNodeByURL(u) == nil {
+		t.Fatalf("data node not actually created")
 	}
 	s.Restart()
 
 	// Drop the node and verify that it's gone.
-	n := s.NodeByURL(u)
-	if err := s.DeleteNode(n.ID); err != nil {
+	n := s.DataNodeByURL(u)
+	if err := s.DeleteDataNode(n.ID); err != nil {
 		t.Fatal(err)
-	} else if s.Node(n.ID) != nil {
-		t.Fatalf("node not actually dropped")
+	} else if s.DataNode(n.ID) != nil {
+		t.Fatalf("data node not actually dropped")
 	}
 }
 
