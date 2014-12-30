@@ -16,8 +16,8 @@ type Shard struct {
 	StartTime time.Time `json:"startTime,omitempty"`
 	EndTime   time.Time `json:"endTime,omitempty"`
 
-	replicaN []uint64 // replication factor
-	nodeIDs  []uint64 // owner nodes
+	replicaN    []uint64 // replication factor
+	dataNodeIDs []uint64 // owner nodes
 
 	store *bolt.DB
 }
