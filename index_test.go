@@ -265,8 +265,23 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		},
 
 		// query against a tag value NOT matching regex and other tag value matching value
+		{
+			names: []string{"queue_depth"},
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "app", Regex: regexp.MustCompile("paul.*"), Not: true},
+				&influxdb.Filter{Key: "name", Value: "high priority"},
+			},
+			result: []uint32{uint32(5)},
+		},
 
 		// query against multiple measurements
+		{
+			names: []string{"cpu_load", "key_count"},
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "region", Value: "uswest"},
+			},
+			result: []uint32{uint32(1), uint32(2), uint32(3)},
+		},
 	}
 
 	for i, tt := range tests {
