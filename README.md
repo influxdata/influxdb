@@ -3,7 +3,7 @@ InfluxDB [![Build Status](https://travis-ci.org/influxdb/influxdb.png?branch=mas
 
 > NOTE: The master branch of InfluxDB is undergoing a significant refactor for
 > v0.9.0. If you need to build a working copy of InfluxDB, please use the
-> [`0.8.7`](https://github.com/influxdb/influxdb/releases/tag/v0.8.7) tag.
+> [`0.8.8`](https://github.com/influxdb/influxdb/releases/tag/v0.8.8) tag.
 
 InfluxDB is an open source **distributed time series database** with
 **no external dependencies**. It's useful for recording metrics,
