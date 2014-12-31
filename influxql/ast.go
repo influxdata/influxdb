@@ -299,7 +299,7 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	return other, nil
 }
 
-// filters an expression to exclude expressions related to a source.
+// filters an expression to exclude expressions unrelated to a source.
 func filterExprBySource(name string, expr Expr) Expr {
 	switch expr := expr.(type) {
 	case *VarRef:
