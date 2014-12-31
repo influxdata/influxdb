@@ -1264,13 +1264,17 @@ type databaseJSON struct {
 	Shards                 []*Shard           `json:"shards,omitempty"`
 }
 
-// Measurement represents a collection of time series in a database
+// Measurement represents a collection of time series in a database. It also contains in memory
+// structures for indexing tags. These structures are accessed through private methods on the Measurement
+// object. Generally these methods are only accessed from Index, which is responsible for ensuring
+// go routine safe access.
 type Measurement struct {
 	Name   string    `json:"name,omitempty"`
 	Fields []*Fields `json:"fields,omitempty"`
 
 	// in memory index fields
 	series              map[string]*Series // sorted tagset string to the series object
+	seriesByID          map[uint32]*Series // lookup table for series by their id
 	measurement         *Measurement
 	seriesByTagKeyValue map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
 	ids                 SeriesIDs                       // sorted list of series IDs in this measurement
@@ -1282,6 +1286,7 @@ func NewMeasurement(name string) *Measurement {
 		Fields: make([]*Fields, 0),
 
 		series:              make(map[string]*Series),
+		seriesByID:          make(map[uint32]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
 		ids:                 SeriesIDs(make([]uint32, 0)),
 	}
@@ -1289,10 +1294,11 @@ func NewMeasurement(name string) *Measurement {
 
 // addSeries will add a series to the measurementIndex. Returns false if already present
 func (m *Measurement) addSeries(s *Series) bool {
-	tagset := string(marshalTags(s.Tags))
-	if _, ok := m.series[tagset]; ok {
+	if _, ok := m.seriesByID[s.ID]; ok {
 		return false
 	}
+	m.seriesByID[s.ID] = s
+	tagset := string(marshalTags(s.Tags))
 	m.series[tagset] = s
 	m.ids = append(m.ids, s.ID)
 	// the series ID should always be higher than all others because it's a new
@@ -1374,9 +1380,17 @@ func (m *Measurement) seriesIDs(filter *Filter) (ids SeriesIDs) {
 	return
 }
 
-type Measurements []*Measurement
+// tagValues returns an array of unique tag values for the given key
+func (m *Measurement) tagValues(key string) TagValues {
+	tags := m.seriesByTagKeyValue[key]
+	values := make(map[string]bool, len(tags))
+	for k, _ := range tags {
+		values[k] = true
+	}
+	return TagValues(values)
+}
 
-func (m Measurement) String() string { return string(mustMarshalJSON(m)) }
+type Measurements []*Measurement
 
 // Field represents a series field.
 type Field struct {

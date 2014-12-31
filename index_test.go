@@ -338,7 +338,81 @@ func TestIndex_TagKeys(t *testing.T) {
 }
 
 func TestIndex_TagValuesWhereFilter(t *testing.T) {
-	t.Skip("pending")
+	idx := indexWithFixtureData()
+
+	var tests = []struct {
+		names   []string
+		key     string
+		filters []*influxdb.Filter
+		result  []string
+	}{
+		// get the tag values across multiple measurements
+
+		// get the tag values for a single measurement
+		{
+			names:  []string{"key_count"},
+			key:    "region",
+			result: []string{"useast", "uswest"},
+		},
+
+		// get the tag values for a single measurement with where filter
+		{
+			names: []string{"key_count"},
+			key:   "region",
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "host", Value: "serverc.influx.com"},
+			},
+			result: []string{"uswest"},
+		},
+
+		// get the tag values for a single measurement with a not where filter
+		{
+			names: []string{"key_count"},
+			key:   "region",
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "host", Value: "serverc.influx.com", Not: true},
+			},
+			result: []string{"useast"},
+		},
+
+		// get the tag values for a single measurement with multiple where filters
+		{
+			names: []string{"key_count"},
+			key:   "region",
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "host", Value: "serverc.influx.com"},
+				&influxdb.Filter{Key: "service", Value: "redis"},
+			},
+			result: []string{"uswest"},
+		},
+
+		// get the tag values for a single measurement with regex filter
+		{
+			names: []string{"queue_depth"},
+			key:   "name",
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "app", Regex: regexp.MustCompile("paul.*")},
+			},
+			result: []string{"high priority"},
+		},
+
+		// get the tag values for a single measurement with a not regex filter
+		{
+			names: []string{"key_count"},
+			key:   "region",
+			filters: []*influxdb.Filter{
+				&influxdb.Filter{Key: "host", Regex: regexp.MustCompile("serverd.*"), Not: true},
+			},
+			result: []string{"uswest"},
+		},
+	}
+
+	for i, tt := range tests {
+		r := idx.TagValues(tt.names, tt.key, tt.filters).ToSlice()
+		if !reflect.DeepEqual(r, tt.result) {
+			t.Fatalf("%d: filters: %s: result mismatch:\n  exp=%s\n  got=%s", i, mustMarshalJSON(tt.filters), tt.result, r)
+		}
+	}
 }
 
 func TestIndex_TagValuesWhereFilterMultiple(t *testing.T) {

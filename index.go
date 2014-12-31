@@ -235,6 +235,75 @@ func (t *Index) TagKeys(names []string) []string {
 	return sortedKeys
 }
 
+// TagValues returns a map of unique tag values for the given measurements and key with the given filters applied.
+// Call .ToSlice() on the result to convert it into a sorted slice of strings.
+// Filters are equivalent to and AND operation. If you want to do an OR, get the tag values for one set,
+// then get the tag values for another set and do a union of the two.
+func (t *Index) TagValues(names []string, key string, filters []*Filter) TagValues {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	values := TagValues(make(map[string]bool))
+
+	// see if they just want all the tag values for this key
+	if len(filters) == 0 {
+		for _, n := range names {
+			idx := t.measurements[n]
+			if idx != nil {
+				values.Union(idx.tagValues(key))
+			}
+		}
+		return values
+	}
+
+	// they have filters so just get a set of series ids matching them and then get the tag values from those
+	seriesIDs := t.SeriesIDs(names, filters)
+	return t.tagValuesForSeries(key, seriesIDs)
+}
+
+// tagValuesForSeries will return a TagValues map of all the unique tag values for a collection of series.
+func (t *Index) tagValuesForSeries(key string, seriesIDs SeriesIDs) TagValues {
+	values := make(map[string]bool)
+	for _, id := range seriesIDs {
+		s := t.series[id]
+		if s == nil {
+			continue
+		}
+		if v, ok := s.Tags[key]; ok {
+			values[v] = true
+		}
+	}
+	return TagValues(values)
+}
+
+type TagValues map[string]bool
+
+// ToSlice returns a sorted slice of the TagValues
+func (t TagValues) ToSlice() []string {
+	a := make([]string, 0, len(t))
+	for v, _ := range t {
+		a = append(a, v)
+	}
+	sort.Strings(a)
+	return a
+}
+
+// Union will modify the receiver by merging in the passed in values.
+func (l TagValues) Union(r TagValues) {
+	for v, _ := range r {
+		l[v] = true
+	}
+}
+
+// Intersect will modify the receiver by keeping only the keys that exist in the passed in values
+func (l TagValues) Intersect(r TagValues) {
+	for v, _ := range l {
+		if _, ok := r[v]; !ok {
+			delete(l, v)
+		}
+	}
+}
+
 //seriesIDsForName is the same as SeriesIDs, but for a specific measurement.
 func (t *Index) seriesIDsForName(name string, filters Filters) SeriesIDs {
 	idx := t.measurements[name]
