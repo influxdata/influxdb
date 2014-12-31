@@ -22,11 +22,17 @@ func execRun(args []string) {
 	var (
 		configPath  = fs.String("config", configDefaultPath, "")
 		pidPath     = fs.String("pidfile", "", "")
+		role        = fs.String("role", "combined", "")
 		hostname    = fs.String("hostname", "", "")
 		seedServers = fs.String("seed-servers", "", "")
 	)
 	fs.Usage = printRunUsage
 	fs.Parse(args)
+
+	// Validate CLI flags.
+	if *role != "combined" && *role != "broker" && *role != "data" {
+		log.Fatalf("role must be 'combined', 'broker', or 'data'")
+	}
 
 	// Parse broker urls from seed servers.
 	brokerURLs := parseSeedServers(*seedServers)
@@ -44,7 +50,7 @@ func execRun(args []string) {
 	// Open broker if it exists or if we're initializing for the first time.
 	var b *messaging.Broker
 	var h *Handler
-	if hasBroker || initializing {
+	if hasBroker || (initializing && (*role == "combined" || *role == "broker")) {
 		b = openBroker(config.Broker.Dir, config.BrokerConnectionString())
 
 		// If this is the first time running then initialize a broker.
@@ -63,7 +69,7 @@ func execRun(args []string) {
 
 	// Open server if it exists or we're initializing for the first time.
 	var s *influxdb.Server
-	if hasServer || initializing {
+	if hasServer || (initializing && (*role == "combined" || *role == "data")) {
 		s = openServer(config.Data.Dir)
 
 		// If the server is uninitialized then initialize it with the broker.
@@ -140,6 +146,9 @@ func openServer(path string) *influxdb.Server {
 
 // initializes a new server that does not yet have an ID.
 func initServer(s *influxdb.Server, b *messaging.Broker) {
+	// TODO: Change messaging client to not require a ReplicaID so we can create
+	// a replica without already being a replica.
+
 	// Create replica on broker.
 	if err := b.CreateReplica(1); err != nil {
 		log.Fatalf("replica creation error: %d", err)
@@ -200,6 +209,12 @@ use Distributed Consensus, but is otherwise fully-functional.
 
         -config <path>
                                 Set the path to the configuration file. Defaults to %s.
+
+        -role <role>
+                                Set the role to be 'combined', 'broker' or 'data'. broker' means it will take
+                                part in Raft Distributed Consensus. 'data' means it will store time-series data.
+                                'combined' means it will do both. The default is 'combined'. In role other than
+                                these three is invalid.
 
         -hostname <name>
                                 Override the hostname, the 'hostname' configuration option will be overridden.
