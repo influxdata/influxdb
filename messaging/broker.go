@@ -101,6 +101,11 @@ func (b *Broker) Close() error {
 	return nil
 }
 
+// URL returns the connection url for the broker.
+func (b *Broker) URL() *url.URL {
+	return b.log.URL
+}
+
 // Initialize creates a new cluster.
 func (b *Broker) Initialize() error {
 	if err := b.log.Initialize(); err != nil {

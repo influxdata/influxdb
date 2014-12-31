@@ -22,25 +22,74 @@ func execRun(args []string) {
 	var (
 		configPath  = fs.String("config", configDefaultPath, "")
 		pidPath     = fs.String("pidfile", "", "")
+		role        = fs.String("role", "combined", "")
 		hostname    = fs.String("hostname", "", "")
 		seedServers = fs.String("seed-servers", "", "")
 	)
 	fs.Usage = printRunUsage
 	fs.Parse(args)
 
+	// Validate CLI flags.
+	if *role != "combined" && *role != "broker" && *role != "data" {
+		log.Fatalf("role must be 'combined', 'broker', or 'data'")
+	}
+
+	// Parse broker urls from seed servers.
+	brokerURLs := parseSeedServers(*seedServers)
+
 	// Print sweet InfluxDB logo and write the process id to file.
 	log.Print(logo)
 	writePIDFile(*pidPath)
 
-	// Parse the configuration and open the broker & server, if applicable.
+	// Parse the configuration and determine if a broker and/or server exist.
 	config := parseConfig(*configPath, *hostname)
-	b := openBroker(config.Broker.Dir, config.BrokerConnectionString())
-	s := openServer(config.Data.Dir, strings.Split(*seedServers, ","))
+	hasBroker := fileExists(config.Broker.Dir)
+	hasServer := fileExists(config.Data.Dir)
+	initializing := !hasBroker && !hasServer
 
-	// Start the HTTP service(s).
-	listenAndServe(b, s, config.BrokerListenAddr(), config.ApiHTTPListenAddr())
+	// Open broker if it exists or if we're initializing for the first time.
+	var b *messaging.Broker
+	var h *Handler
+	if hasBroker || (initializing && (*role == "combined" || *role == "broker")) {
+		b = openBroker(config.Broker.Dir, config.BrokerConnectionString())
 
-	// TODO: Initialize, if necessary.
+		// If this is the first time running then initialize a broker.
+		// Update the seed server so the server can connect locally.
+		if initializing {
+			if err := b.Initialize(); err != nil {
+				log.Fatalf("initialize: %s", err)
+			}
+		}
+
+		// Start the broker handler.
+		h = &Handler{brokerHandler: messaging.NewHandler(b)}
+		go func() { log.Fatal(http.ListenAndServe(config.BrokerListenAddr(), h)) }()
+		log.Printf("Broker running on %s", config.BrokerListenAddr())
+	}
+
+	// Open server if it exists or we're initializing for the first time.
+	var s *influxdb.Server
+	if hasServer || (initializing && (*role == "combined" || *role == "data")) {
+		s = openServer(config.Data.Dir)
+
+		// If the server is uninitialized then initialize it with the broker.
+		// Otherwise simply create a messaging client with the server id.
+		if s.ID() == 0 {
+			initServer(s, b)
+		} else {
+			openServerClient(s, brokerURLs)
+		}
+
+		// Start the server handler.
+		// If it uses the same port as the broker then simply attach it.
+		sh := influxdb.NewHandler(s)
+		if config.BrokerListenAddr() == config.ApiHTTPListenAddr() {
+			h.serverHandler = sh
+		} else {
+			go func() { log.Fatal(http.ListenAndServe(config.ApiHTTPListenAddr(), sh)) }()
+		}
+		log.Printf("DataNode#%d running on %s", s.ID(), config.ApiHTTPListenAddr())
+	}
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)
@@ -63,7 +112,9 @@ func writePIDFile(path string) {
 func parseConfig(path, hostname string) *Config {
 	// Parse configuration.
 	config, err := ParseConfigFile(path)
-	if err != nil {
+	if os.IsNotExist(err) {
+		config = NewConfig()
+	} else if err != nil {
 		log.Fatalf("config: %s", err)
 	}
 
@@ -76,91 +127,77 @@ func parseConfig(path, hostname string) *Config {
 }
 
 // creates and initializes a broker at a given path.
-// Ignored if there is no broker directory.
 func openBroker(path, addr string) *messaging.Broker {
-	// Ignore if there's no broker directory.
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil
-	}
-
-	// If the Broker directory exists, open a Broker on this node.
 	b := messaging.NewBroker()
 	if err := b.Open(path, addr); err != nil {
-		log.Fatalf("failed to open Broker", err.Error())
+		log.Fatalf("failed to open broker: %s", err)
 	}
 	return b
 }
 
 // creates and initializes a server at a given path.
-// Ignored if there is no data directory.
-func openServer(path string, seedServers []string) *influxdb.Server {
-	// Ignore if the data directory doesn't exists.
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil
-	}
-
-	// Create and open server
+func openServer(path string) *influxdb.Server {
 	s := influxdb.NewServer()
 	if err := s.Open(path); err != nil {
 		log.Fatalf("failed to open data server", err.Error())
 	}
-
-	// Open messaging client to communicate with the brokers.
-	var brokerURLs []*url.URL
-	for _, s := range seedServers {
-		u, err := url.Parse(s)
-		if err != nil {
-			log.Fatalf("cannot parse seed server: %s", err)
-		}
-		brokerURLs = append(brokerURLs, u)
-	}
-
-	// Initialize the messaging client.
-	c := messaging.NewClient(s.ID())
-	if err := c.Open(filepath.Join(path, messagingClientFile), brokerURLs); err != nil {
-		log.Fatalf("error opening messaging client: %s", err)
-	}
-
-	// Assign the client to the server.
-	if err := s.SetClient(c); err != nil {
-		log.Fatalf("set messaging client: %s", err)
-	}
-
 	return s
 }
 
-// starts handlers for the broker and server.
-// If the broker and server are running on the same port then combine them.
-func listenAndServe(b *messaging.Broker, s *influxdb.Server, brokerAddr, serverAddr string) {
-	// Initialize handlers.
-	var bh, sh http.Handler
-	if b != nil {
-		bh = messaging.NewHandler(b)
-	}
-	if s != nil {
-		sh = influxdb.NewHandler(s)
+// initializes a new server that does not yet have an ID.
+func initServer(s *influxdb.Server, b *messaging.Broker) {
+	// TODO: Change messaging client to not require a ReplicaID so we can create
+	// a replica without already being a replica.
+
+	// Create replica on broker.
+	if err := b.CreateReplica(1); err != nil {
+		log.Fatalf("replica creation error: %d", err)
 	}
 
-	// Combine handlers if they are using the same bind address.
-	if brokerAddr == serverAddr {
-		go func() { log.Fatal(http.ListenAndServe(brokerAddr, NewHandler(bh, sh))) }()
-	} else {
-		// Otherwise start the handlers on separate ports.
-		if sh != nil {
-			go func() { log.Fatal(http.ListenAndServe(serverAddr, sh)) }()
+	// Initialize messaging client.
+	c := messaging.NewClient(1)
+	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), []*url.URL{b.URL()}); err != nil {
+		log.Fatalf("messaging client error: %s", err)
+	}
+	if err := s.SetClient(c); err != nil {
+		log.Fatalf("set client error: %s", err)
+	}
+
+	// Initialize the server.
+	if err := s.Initialize(b.URL()); err != nil {
+		log.Fatalf("server initialization error: %s", err)
+	}
+}
+
+// opens the messaging client and attaches it to the server.
+func openServerClient(s *influxdb.Server, brokerURLs []*url.URL) {
+	c := messaging.NewClient(s.ID())
+	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), brokerURLs); err != nil {
+		log.Fatalf("messaging client error: %s", err)
+	}
+	if err := s.SetClient(c); err != nil {
+		log.Fatalf("set client error: %s", err)
+	}
+}
+
+// parses a comma-delimited list of URLs.
+func parseSeedServers(s string) (a []*url.URL) {
+	for _, s := range strings.Split(s, ",") {
+		u, err := url.Parse(s)
+		if err != nil {
+			log.Fatalf("cannot parse seed servers: %s", err)
 		}
-		if bh != nil {
-			go func() { log.Fatal(http.ListenAndServe(brokerAddr, bh)) }()
-		}
+		a = append(a, u)
 	}
+	return
+}
 
-	// Log the handlers starting up.
-	if serverAddr == "" {
-		log.Printf("Starting Influx Server %s...", version)
-	} else {
-		log.Printf("Starting Influx Server %s bound to %s...", version, serverAddr)
+// returns true if the file exists.
+func fileExists(path string) bool {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return false
 	}
-
+	return true
 }
 
 func printRunUsage() {
@@ -172,6 +209,12 @@ use Distributed Consensus, but is otherwise fully-functional.
 
         -config <path>
                                 Set the path to the configuration file. Defaults to %s.
+
+        -role <role>
+                                Set the role to be 'combined', 'broker' or 'data'. broker' means it will take
+                                part in Raft Distributed Consensus. 'data' means it will store time-series data.
+                                'combined' means it will do both. The default is 'combined'. In role other than
+                                these three is invalid.
 
         -hostname <name>
                                 Override the hostname, the 'hostname' configuration option will be overridden.

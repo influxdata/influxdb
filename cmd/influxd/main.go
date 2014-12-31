@@ -56,8 +56,6 @@ func main() {
 
 	// Extract name from args.
 	switch cmd {
-	case "create-cluster":
-		execCreateCluster(args[1:])
 	case "join-cluster":
 		execJoinCluster(args[1:])
 	case "run":
@@ -103,7 +101,6 @@ Usage:
 
 The commands are:
 
-    create-cluster       create a new node that other nodes can join to form a new cluster
     join-cluster         create a new node that will join an existing cluster
     run                  run node with existing configuration
     version              displays the InfluxDB version
