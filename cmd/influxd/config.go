@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,9 +24,14 @@ const (
 	// can be queried concurrently at one time.
 	DefaultConcurrentShardQueryLimit = 10
 
-	// DefaultAPIReadTimeout represents the amount time before an API request
-	// times out.
+	// DefaultAPIReadTimeout represents the duration before an API request times out.
 	DefaultAPIReadTimeout = 5 * time.Second
+
+	// DefaultBrokerPort represents the default port the broker runs on.
+	DefaultBrokerPort = 8086
+
+	// DefaultHTTPAPIPort represents the default port the HTTP API runs on.
+	DefaultHTTPAPIPort = 8086
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -61,13 +68,13 @@ type Config struct {
 		} `toml:"udp_servers"`
 	} `toml:"input_plugins"`
 
-	Raft struct {
+	Broker struct {
 		Port    int      `toml:"port"`
 		Dir     string   `toml:"dir"`
 		Timeout Duration `toml:"election-timeout"`
-	} `toml:"raft"`
+	} `toml:"broker"`
 
-	Storage struct {
+	Data struct {
 		Dir                  string                    `toml:"dir"`
 		WriteBufferSize      int                       `toml:"write-buffer-size"`
 		MaxOpenShards        int                       `toml:"max-open-shards"`
@@ -75,7 +82,7 @@ type Config struct {
 		WriteBatchSize       int                       `toml:"write-batch-size"`
 		Engines              map[string]toml.Primitive `toml:"engines"`
 		RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
-	} `toml:"storage"`
+	} `toml:"data"`
 
 	Cluster struct {
 		Dir                       string   `toml:"dir"`
@@ -97,15 +104,21 @@ type Config struct {
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
+	u, _ := user.Current()
+
 	c := &Config{}
-	c.Storage.RetentionSweepPeriod = Duration(10 * time.Minute)
+	c.Data.RetentionSweepPeriod = Duration(10 * time.Minute)
 	c.Cluster.ConcurrentShardQueryLimit = DefaultConcurrentShardQueryLimit
-	c.Raft.Timeout = Duration(1 * time.Second)
+	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
+	c.Broker.Port = DefaultBrokerPort
+	c.Broker.Timeout = Duration(1 * time.Second)
+	c.HTTPAPI.Port = DefaultHTTPAPIPort
 	c.HTTPAPI.ReadTimeout = Duration(DefaultAPIReadTimeout)
 	c.Cluster.MinBackoff = Duration(1 * time.Second)
 	c.Cluster.MaxBackoff = Duration(10 * time.Second)
 	c.Cluster.ProtobufHeartbeatInterval = Duration(10 * time.Millisecond)
-	c.Storage.WriteBufferSize = 1000
+	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
+	c.Data.WriteBufferSize = 1000
 	c.Cluster.WriteBufferSize = 1000
 	c.Cluster.MaxResponseBufferSize = 100
 
@@ -124,29 +137,29 @@ func NewConfig() *Config {
 	return c
 }
 
-// PointBatchSize returns the storage point batch size, if set.
+// PointBatchSize returns the data point batch size, if set.
 // If not set, the LevelDB point batch size is returned.
 // If that is not set then the default point batch size is returned.
 func (c *Config) PointBatchSize() int {
-	if c.Storage.PointBatchSize != 0 {
-		return c.Storage.PointBatchSize
+	if c.Data.PointBatchSize != 0 {
+		return c.Data.PointBatchSize
 	}
 	return DefaultPointBatchSize
 }
 
-// WriteBatchSize returns the storage write batch size, if set.
+// WriteBatchSize returns the data write batch size, if set.
 // If not set, the LevelDB write batch size is returned.
 // If that is not set then the default write batch size is returned.
 func (c *Config) WriteBatchSize() int {
-	if c.Storage.WriteBatchSize != 0 {
-		return c.Storage.WriteBatchSize
+	if c.Data.WriteBatchSize != 0 {
+		return c.Data.WriteBatchSize
 	}
 	return DefaultWriteBatchSize
 }
 
 // MaxOpenShards returns the maximum number of shards to keep open at once.
 func (c *Config) MaxOpenShards() int {
-	return c.Storage.MaxOpenShards
+	return c.Data.MaxOpenShards
 }
 
 // ApiHTTPListenAddr returns the binding address the API HTTP server
@@ -154,14 +167,14 @@ func (c *Config) ApiHTTPListenAddr() string {
 	return fmt.Sprintf("%s:%d", c.BindAddress, c.HTTPAPI.Port)
 }
 
-// RaftListenAddr returns the binding address the Raft server
-func (c *Config) RaftListenAddr() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.Raft.Port)
+// BrokerListenAddr returns the binding address the Broker server
+func (c *Config) BrokerListenAddr() string {
+	return fmt.Sprintf("%s:%d", c.BindAddress, c.Broker.Port)
 }
 
-// RaftConnectionString returns the address required to contact the Raft server
-func (c *Config) RaftConnectionString() string {
-	return fmt.Sprintf("http://%s:%d", c.Hostname, c.Raft.Port)
+// BrokerConnectionString returns the address required to contact the Broker server
+func (c *Config) BrokerConnectionString() string {
+	return fmt.Sprintf("http://%s:%d", c.Hostname, c.Broker.Port)
 }
 
 // Size represents a TOML parseable file size.

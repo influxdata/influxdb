@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -23,142 +22,182 @@ func execRun(args []string) {
 	var (
 		configPath  = fs.String("config", configDefaultPath, "")
 		pidPath     = fs.String("pidfile", "", "")
+		role        = fs.String("role", "combined", "")
 		hostname    = fs.String("hostname", "", "")
 		seedServers = fs.String("seed-servers", "", "")
 	)
 	fs.Usage = printRunUsage
 	fs.Parse(args)
 
-	// Write pid file.
-	if *pidPath != "" {
-		pid := strconv.Itoa(os.Getpid())
-		if err := ioutil.WriteFile(*pidPath, []byte(pid), 0644); err != nil {
-			log.Fatal(err)
-		}
+	// Validate CLI flags.
+	if *role != "combined" && *role != "broker" && *role != "data" {
+		log.Fatalf("role must be 'combined', 'broker', or 'data'")
 	}
 
-	// Parse configuration.
-	config, err := ParseConfigFile(*configPath)
-	if err != nil {
-		log.Fatalf("config: %s", err)
-	}
+	// Parse broker urls from seed servers.
+	brokerURLs := parseSeedServers(*seedServers)
 
-	// Override config properties.
-	if *hostname != "" {
-		config.Hostname = *hostname
-	}
-
-	// TODO(benbjohnson): Start admin server.
-
+	// Print sweet InfluxDB logo and write the process id to file.
 	log.Print(logo)
-	if config.BindAddress == "" {
-		log.Printf("Starting Influx Server %s...", version)
-	} else {
-		log.Printf("Starting Influx Server %s bound to %s...", version, config.BindAddress)
-	}
+	writePIDFile(*pidPath)
 
-	// Start up the node.
-	var brokerHandler *messaging.Handler
-	var serverHandler *influxdb.Handler
-	var brokerDirExists bool
-	var storageDirExists bool
+	// Parse the configuration and determine if a broker and/or server exist.
+	config := parseConfig(*configPath, *hostname)
+	hasBroker := fileExists(config.Broker.Dir)
+	hasServer := fileExists(config.Data.Dir)
+	initializing := !hasBroker && !hasServer
 
-	if _, err := os.Stat(config.Raft.Dir); err == nil {
-		brokerDirExists = true
-	}
-	if _, err := os.Stat(config.Storage.Dir); err == nil {
-		storageDirExists = true
-	}
+	// Open broker if it exists or if we're initializing for the first time.
+	var b *messaging.Broker
+	var h *Handler
+	if hasBroker || (initializing && (*role == "combined" || *role == "broker")) {
+		b = openBroker(config.Broker.Dir, config.BrokerConnectionString())
 
-	if !brokerDirExists && !storageDirExists {
-		// Node is completely new, so create the minimum needed, which
-		// is a storage directory.
-		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
-			log.Fatal(err)
-		}
-		storageDirExists = true
-	}
-
-	// If the Broker directory exists, open a Broker on this node.
-	if brokerDirExists {
-		b := messaging.NewBroker()
-		if err := b.Open(config.Raft.Dir, config.RaftConnectionString()); err != nil {
-			log.Fatalf("failed to open Broker: %v", err.Error())
-		}
-		brokerHandler = messaging.NewHandler(b)
-	}
-
-	// If the storage directory exists, open a Data node.
-	if storageDirExists {
-		var client influxdb.MessagingClient
-		var server *influxdb.Server
-
-		clientFilePath := filepath.Join(config.Storage.Dir, messagingClientFile)
-
-		if _, err := os.Stat(clientFilePath); err == nil {
-			var brokerURLs []*url.URL
-			for _, s := range strings.Split(*seedServers, ",") {
-				u, err := url.Parse(s)
-				if err != nil {
-					log.Fatalf("seed server %v", err)
-				}
-				brokerURLs = append(brokerURLs, u)
+		// If this is the first time running then initialize a broker.
+		// Update the seed server so the server can connect locally.
+		if initializing {
+			if err := b.Initialize(); err != nil {
+				log.Fatalf("initialize: %s", err)
 			}
+		}
 
-			c := messaging.NewClient(0) // TODO: Set replica id.
-			if err := c.Open(clientFilePath, brokerURLs); err != nil {
-				log.Fatalf("Error opening Messaging Client: %s", err.Error())
-			}
-			defer c.Close()
-			client = c
+		// Start the broker handler.
+		h = &Handler{brokerHandler: messaging.NewHandler(b)}
+		go func() { log.Fatal(http.ListenAndServe(config.BrokerListenAddr(), h)) }()
+		log.Printf("Broker running on %s", config.BrokerListenAddr())
+	}
+
+	// Open server if it exists or we're initializing for the first time.
+	var s *influxdb.Server
+	if hasServer || (initializing && (*role == "combined" || *role == "data")) {
+		s = openServer(config.Data.Dir)
+
+		// If the server is uninitialized then initialize it with the broker.
+		// Otherwise simply create a messaging client with the server id.
+		if s.ID() == 0 {
+			initServer(s, b)
 		} else {
-			client = messaging.NewLoopbackClient()
+			openServerClient(s, brokerURLs)
 		}
 
-		server = influxdb.NewServer(client)
-		err = server.Open(config.Storage.Dir)
-		if err != nil {
-			log.Fatalf("failed to open data Server %v", err.Error())
+		// Start the server handler.
+		// If it uses the same port as the broker then simply attach it.
+		sh := influxdb.NewHandler(s)
+		if config.BrokerListenAddr() == config.ApiHTTPListenAddr() {
+			h.serverHandler = sh
+		} else {
+			go func() { log.Fatal(http.ListenAndServe(config.ApiHTTPListenAddr(), sh)) }()
 		}
-		serverHandler = influxdb.NewHandler(server)
-
-		// Spin up any grahite servers
-		for _, g := range config.Graphite {
-			// Get a new server
-			s := graphite.Server{Server: server}
-
-			// Set database
-			s.Database = g.Database
-
-			// Set the addresses up
-			s.TCPAddr = g.TCPAddr(config.BindAddress)
-			s.UDPAddr = g.UDPAddr(config.BindAddress)
-
-			// Spin it up
-			go func() { log.Fatal(s.ListenAndServe) }()
-
-		}
-
-	}
-
-	// TODO: startProfiler()
-	// TODO: -reset-root
-
-	// Start up HTTP server(s)
-	if config.ApiHTTPListenAddr() != config.RaftListenAddr() {
-		if serverHandler != nil {
-			go func() { log.Fatal(http.ListenAndServe(config.ApiHTTPListenAddr(), serverHandler)) }()
-		}
-		if brokerHandler != nil {
-			go func() { log.Fatal(http.ListenAndServe(config.RaftListenAddr(), brokerHandler)) }()
-		}
-	} else {
-		h := NewHandler(brokerHandler, serverHandler)
-		go func() { log.Fatal(http.ListenAndServe(config.ApiHTTPListenAddr(), h)) }()
+		log.Printf("DataNode#%d running on %s", s.ID(), config.ApiHTTPListenAddr())
 	}
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)
+}
+
+// write the current process id to a file specified by path.
+func writePIDFile(path string) {
+	if path == "" {
+		return
+	}
+
+	// Retrieve the PID and write it.
+	pid := strconv.Itoa(os.Getpid())
+	if err := ioutil.WriteFile(path, []byte(pid), 0644); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// parses the configuration from a given path. Sets overrides as needed.
+func parseConfig(path, hostname string) *Config {
+	// Parse configuration.
+	config, err := ParseConfigFile(path)
+	if os.IsNotExist(err) {
+		config = NewConfig()
+	} else if err != nil {
+		log.Fatalf("config: %s", err)
+	}
+
+	// Override config properties.
+	if hostname != "" {
+		config.Hostname = hostname
+	}
+
+	return config
+}
+
+// creates and initializes a broker at a given path.
+func openBroker(path, addr string) *messaging.Broker {
+	b := messaging.NewBroker()
+	if err := b.Open(path, addr); err != nil {
+		log.Fatalf("failed to open broker: %s", err)
+	}
+	return b
+}
+
+// creates and initializes a server at a given path.
+func openServer(path string) *influxdb.Server {
+	s := influxdb.NewServer()
+	if err := s.Open(path); err != nil {
+		log.Fatalf("failed to open data server: %v", err.Error())
+	}
+	return s
+}
+
+// initializes a new server that does not yet have an ID.
+func initServer(s *influxdb.Server, b *messaging.Broker) {
+	// TODO: Change messaging client to not require a ReplicaID so we can create
+	// a replica without already being a replica.
+
+	// Create replica on broker.
+	if err := b.CreateReplica(1); err != nil {
+		log.Fatalf("replica creation error: %s", err)
+	}
+
+	// Initialize messaging client.
+	c := messaging.NewClient(1)
+	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), []*url.URL{b.URL()}); err != nil {
+		log.Fatalf("messaging client error: %s", err)
+	}
+	if err := s.SetClient(c); err != nil {
+		log.Fatalf("set client error: %s", err)
+	}
+
+	// Initialize the server.
+	if err := s.Initialize(b.URL()); err != nil {
+		log.Fatalf("server initialization error: %s", err)
+	}
+}
+
+// opens the messaging client and attaches it to the server.
+func openServerClient(s *influxdb.Server, brokerURLs []*url.URL) {
+	c := messaging.NewClient(s.ID())
+	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), brokerURLs); err != nil {
+		log.Fatalf("messaging client error: %s", err)
+	}
+	if err := s.SetClient(c); err != nil {
+		log.Fatalf("set client error: %s", err)
+	}
+}
+
+// parses a comma-delimited list of URLs.
+func parseSeedServers(s string) (a []*url.URL) {
+	for _, s := range strings.Split(s, ",") {
+		u, err := url.Parse(s)
+		if err != nil {
+			log.Fatalf("cannot parse seed servers: %s", err)
+		}
+		a = append(a, u)
+	}
+	return
+}
+
+// returns true if the file exists.
+func fileExists(path string) bool {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return false
+	}
+	return true
 }
 
 func printRunUsage() {
@@ -170,6 +209,12 @@ use Distributed Consensus, but is otherwise fully-functional.
 
         -config <path>
                                 Set the path to the configuration file. Defaults to %s.
+
+        -role <role>
+                                Set the role to be 'combined', 'broker' or 'data'. broker' means it will take
+                                part in Raft Distributed Consensus. 'data' means it will store time-series data.
+                                'combined' means it will do both. The default is 'combined'. In role other than
+                                these three is invalid.
 
         -hostname <name>
                                 Override the hostname, the 'hostname' configuration option will be overridden.

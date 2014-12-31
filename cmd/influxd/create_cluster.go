@@ -34,7 +34,7 @@ func execCreateCluster(args []string) {
 
 	// Create the broker.
 	b := messaging.NewBroker()
-	if err := b.Open(config.Raft.Dir, config.RaftConnectionString()); err != nil {
+	if err := b.Open(config.Broker.Dir, config.BrokerConnectionString()); err != nil {
 		log.Fatalf("broker: %s", err.Error())
 	}
 
@@ -49,22 +49,22 @@ func execCreateCluster(args []string) {
 			log.Fatalf("create-cluster: data directory already exists")
 		}
 
-		// Now create the storage directory.
-		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
-			log.Fatalf("create-cluster storage: %s", err.Error())
+		// Now create the data directory.
+		if err := os.MkdirAll(config.Data.Dir, 0744); err != nil {
+			log.Fatalf("create-cluster data dir: %s", err.Error())
 		}
 
 		// Configure the Messaging Client such that this node connects to itself.
 		var seedUrls []*url.URL
 
-		u, err := url.Parse(config.RaftListenAddr())
+		u, err := url.Parse(config.BrokerListenAddr())
 		if err != nil {
 			log.Fatalf("create-cluster seed URLs: %s", err.Error())
 		}
 		seedUrls = append(seedUrls, u)
 
 		c := messaging.NewClient(0) // TODO: Set replica id.
-		if err := c.Open(filepath.Join(config.Storage.Dir, messagingClientFile), seedUrls); err != nil {
+		if err := c.Open(filepath.Join(config.Data.Dir, messagingClientFile), seedUrls); err != nil {
 			log.Fatalf("create-cluster open client: %s", err.Error())
 		}
 		if err := c.Close(); err != nil {
@@ -73,7 +73,7 @@ func execCreateCluster(args []string) {
 
 	}
 
-	log.Println("new cluster node created as", *role, "in", config.Raft.Dir)
+	log.Println("new cluster node created as", *role, "in", config.Broker.Dir)
 }
 
 func printCreateClusterUsage() {

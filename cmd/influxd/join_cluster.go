@@ -50,7 +50,7 @@ func execJoinCluster(args []string) {
 		// Broker required -- but don't initialize it.
 		// Joining a cluster will do that.
 		b := messaging.NewBroker()
-		if err := b.Open(config.Raft.Dir, config.RaftConnectionString()); err != nil {
+		if err := b.Open(config.Broker.Dir, config.BrokerConnectionString()); err != nil {
 			log.Fatalf("join: %s", err)
 		}
 
@@ -74,17 +74,17 @@ func execJoinCluster(args []string) {
 
 	// If joining as a data node then create a data directory.
 	if *role == "combined" || *role == "data" {
-		if _, err := os.Stat(config.Storage.Dir); err == nil {
-			log.Fatalf("join-cluster: storage directory already exists")
+		if _, err := os.Stat(config.Data.Dir); err == nil {
+			log.Fatalf("join-cluster: data directory already exists")
 		}
 
-		if err := os.MkdirAll(config.Storage.Dir, 0744); err != nil {
-			log.Fatalf("join-cluster storage: %s", err.Error())
+		if err := os.MkdirAll(config.Data.Dir, 0744); err != nil {
+			log.Fatalf("join-cluster data dir: %s", err.Error())
 		}
 
 		// Configure the Messaging Client.
 		c := messaging.NewClient(0) // TODO: Set replica id.
-		if err := c.Open(filepath.Join(config.Storage.Dir, messagingClientFile), seedURLs); err != nil {
+		if err := c.Open(filepath.Join(config.Data.Dir, messagingClientFile), seedURLs); err != nil {
 			log.Fatalf("join-cluster open client: %s", err.Error())
 		}
 		if err := c.Close(); err != nil {
