@@ -493,52 +493,6 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 	}
 	stmt.Name = lit
 
-	// Require at least one retention policy.
-	tok, pos, lit = p.scanIgnoreWhitespace()
-	if tok != WITH {
-		return nil, newParseError(tokstr(tok, lit), []string{"WITH"}, pos)
-	}
-
-	policy, dfault, err := p.parseRetentionPolicy()
-	if err != nil {
-		return nil, err
-	}
-
-	stmt.Policies = append(stmt.Policies, policy)
-
-	if dfault {
-		stmt.DefaultPolicy = policy
-	}
-
-	// Parse any additional retention policies.
-	for {
-		tok, pos, lit = p.scanIgnoreWhitespace()
-		if tok != WITH {
-			p.unscan()
-			break
-		}
-
-		// Make sure there aren't multiple default policies.
-		tok, pos, lit = p.scanIgnoreWhitespace()
-		if tok == DEFAULT && stmt.DefaultPolicy != "" {
-			err := newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
-			err.Message = "multiple default retention policies not allowed"
-			return nil, err
-		}
-		p.unscan()
-
-		policy, dfault, err := p.parseRetentionPolicy()
-		if err != nil {
-			return nil, err
-		}
-
-		stmt.Policies = append(stmt.Policies, policy)
-
-		if dfault {
-			stmt.DefaultPolicy = policy
-		}
-	}
-
 	return stmt, nil
 }
 

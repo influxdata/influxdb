@@ -292,20 +292,9 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE DATABASE statement
 		{
-			s: `CREATE DATABASE testdb WITH RETENTION POLICY policy1`,
+			s: `CREATE DATABASE testdb`,
 			stmt: &influxql.CreateDatabaseStatement{
 				Name: "testdb",
-				Policies: []string{"policy1"},
-			},
-		},
-
-		// CREATE DATABASE statement with multiple retention policies
-		{
-			s: `CREATE DATABASE testdb WITH DEFAULT RETENTION POLICY policy1 WITH RETENTION POLICY policy2`,
-			stmt: &influxql.CreateDatabaseStatement{
-				Name: "testdb",
-				Policies: []string{"policy1", "policy2"},
-				DefaultPolicy: "policy1",
 			},
 		},
 

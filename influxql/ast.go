@@ -183,12 +183,6 @@ func (a SortFields) String() string {
 type CreateDatabaseStatement struct {
 	// Name of the database to be created.
 	Name string
-
-	// List of retention policies.
-	Policies []string
-
-	// Default retention policy.
-	DefaultPolicy string
 }
 
 // String returns a string representation of the create database statement.
@@ -196,14 +190,6 @@ func (s *CreateDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE DATABASE ")
 	_, _ = buf.WriteString(s.Name)
-	for _, policy := range s.Policies {
-		_, _ = buf.WriteString(" WITH ")
-		if policy == s.DefaultPolicy {
-			_, _ = buf.WriteString("DEFAULT ")
-		}
-		_, _ = buf.WriteString("RETENTION POLICY ")
-		_, _ = buf.WriteString(policy)
-	}
 	return buf.String()
 }
 
