@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -171,16 +172,16 @@ func initServer(s *influxdb.Server, b *messaging.Broker) {
 	}
 
 		// Spin up any grahite servers
-		for _, g := range config.InputPlugins.Graphites {
+		for _, g := range config.Graphite {
 			// Get a new server
-			s := influxdb.NewGraphiteServer(server)
+			s := graphite.Server{Server: server}
 
 			// Set database
 			s.Database = g.Database
 
 			// Set the addresses up
-			s.TCPAddr = g.TCPAddr(config)
-			s.UDPAddr = g.UDPAddr(config)
+			s.TCPAddr = g.TCPAddr(config.BindAddress)
+			s.UDPAddr = g.UDPAddr(config.BindAddress)
 
 			// Spin it up
 			go func() { log.Fatal(s.ListenAndServe) }()

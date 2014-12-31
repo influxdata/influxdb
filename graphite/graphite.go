@@ -1,4 +1,4 @@
-package influxdb
+package graphite
 
 import (
 	"bufio"
@@ -11,22 +11,27 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
+
 	log "code.google.com/p/log4go"
 )
 
 var (
-	// ErrBindAddressRequired is returned when starting the GraphiteServer
+	// ErrBindAddressRequired is returned when starting the Server
 	// without a TCP or UDP listening address.
 	ErrBindAddressRequired = errors.New("bind address required")
 
-	// ErrGraphiteServerClosed return when closing an already closed graphite server.
-	ErrGraphiteServerClosed = errors.New("graphite server already closed")
+	// ErrServerClosed return when closing an already closed graphite server.
+	ErrServerClosed = errors.New("server already closed")
 
-	ErrGraphiteDatabaseNotSpecified = errors.New("graphite database was not specified in config")
-	ErrGraphiteServerNotSpecified   = errors.New("graphite server was not present")
+	// ErrDatabaseNotSpecified retuned when no database was specified in the config file
+	ErrDatabaseNotSpecified = errors.New("database was not specified in config")
+
+	// ErrServerNotSpecified returned when Server is not specified.
+	ErrServerNotSpecified = errors.New("server not present")
 )
 
-// GraphiteListener provides a tcp and/or udp listener that you can
+// Graphite Server provides a tcp and/or udp listener that you can
 // use to ingest metrics into influxdb via the graphite protocol.  it
 // behaves as a carbon daemon, except:
 //
@@ -38,45 +43,36 @@ var (
 // receive (only the latest value for a given metric-timestamp pair)
 // so it's up to the user to feed the data in proper intervals (and
 // use round intervals if you plan to rely on that)
-type (
-	seriesWriter interface {
-		DefaultRetentionPolicy(database string) (*RetentionPolicy, error)
+type Server struct {
+	mu   sync.Mutex
+	wg   sync.WaitGroup
+	done chan struct{} // close notification
+
+	Server interface {
 		WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
+		DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error)
 	}
 
-	GraphiteServer struct {
-		server seriesWriter
+	// The TCP address to listen on.
+	TCPAddr *net.TCPAddr
 
-		mu   sync.Mutex
-		wg   sync.WaitGroup
-		done chan struct{} // close notification
+	// The UDP address to listen on.
+	UDPAddr *net.UDPAddr
 
-		// The TCP address to listen on.
-		TCPAddr *net.TCPAddr
-
-		// The UDP address to listen on.
-		UDPAddr *net.UDPAddr
-
-		// The name of the database to insert data into.
-		Database string
-	}
-)
-
-// NewGraphiteServer returns an instance of GraphiteServer attached to a Server.
-func NewGraphiteServer(server seriesWriter) *GraphiteServer {
-	return &GraphiteServer{server: server}
+	// The name of the database to insert data into.
+	Database string
 }
 
 // ListenAndServe opens TCP (and optionally a UDP) socket to listen for messages.
-func (s *GraphiteServer) ListenAndServe() error {
+func (s *Server) ListenAndServe() error {
 	// Make sure we have either a TCP address or a UDP address.
 	// Make sure they have a database
 	if s.TCPAddr == nil && s.UDPAddr == nil {
 		return ErrBindAddressRequired
 	} else if s.Database == "" {
-		return ErrGraphiteDatabaseNotSpecified
-	} else if s.server == nil {
-		return ErrGraphiteServerNotSpecified
+		return ErrDatabaseNotSpecified
+	} else if s.Server == nil {
+		return ErrServerNotSpecified
 	}
 
 	// Create a new close notification channel.
@@ -111,7 +107,7 @@ func (s *GraphiteServer) ListenAndServe() error {
 }
 
 // serveTCP handles incoming TCP connection requests.
-func (s *GraphiteServer) serveTCP(l *net.TCPListener, done chan struct{}) {
+func (s *Server) serveTCP(l *net.TCPListener, done chan struct{}) {
 	defer s.wg.Done()
 
 	// Listen for server close.
@@ -125,7 +121,7 @@ func (s *GraphiteServer) serveTCP(l *net.TCPListener, done chan struct{}) {
 		c, err := l.Accept()
 		if err != nil {
 			// TODO(benbjohnson): Check for connection closed.
-			log.Error("GraphiteServer: Accept: ", err)
+			log.Error("graphite.Server: Accept: ", err)
 			continue
 		}
 
@@ -134,7 +130,7 @@ func (s *GraphiteServer) serveTCP(l *net.TCPListener, done chan struct{}) {
 	}
 }
 
-func (s *GraphiteServer) handleTCPConn(conn net.Conn) {
+func (s *Server) handleTCPConn(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
 
@@ -143,16 +139,16 @@ func (s *GraphiteServer) handleTCPConn(conn net.Conn) {
 		err := s.handleMessage(reader)
 		if err != nil {
 			if io.EOF == err {
-				log.Debug("GraphiteServer: Client closed graphite connection")
+				log.Debug("graphite.Server: Client closed graphite connection")
 				return
 			}
-			log.Error("GraphiteServer:", err)
+			log.Error("graphite.Server:", err)
 		}
 	}
 }
 
 // serveUDP handles incoming UDP messages.
-func (s *GraphiteServer) serveUDP(conn *net.UDPConn, done chan struct{}) {
+func (s *Server) serveUDP(conn *net.UDPConn, done chan struct{}) {
 	defer s.wg.Done()
 
 	// Listen for server close.
@@ -168,7 +164,7 @@ func (s *GraphiteServer) serveUDP(conn *net.UDPConn, done chan struct{}) {
 		if err == io.EOF {
 			return
 		} else if err != nil {
-			log.Warn("GraphiteServer: Error when reading from UDP connection %s", err.Error())
+			log.Warn("Server: Error when reading from UDP connection %s", err.Error())
 		}
 
 		// Read in data in a separate goroutine.
@@ -178,7 +174,7 @@ func (s *GraphiteServer) serveUDP(conn *net.UDPConn, done chan struct{}) {
 }
 
 // handleUDPMessage splits a UDP packet by newlines and processes each message.
-func (s *GraphiteServer) handleUDPMessage(msg string) {
+func (s *Server) handleUDPMessage(msg string) {
 	defer s.wg.Done()
 	for _, metric := range strings.Split(msg, "\n") {
 		s.handleMessage(bufio.NewReader(strings.NewReader(metric + "\n")))
@@ -186,12 +182,12 @@ func (s *GraphiteServer) handleUDPMessage(msg string) {
 }
 
 // Close shuts down the server's listeners.
-func (s *GraphiteServer) Close() error {
+func (s *Server) Close() error {
 	// Notify other goroutines of shutdown.
 	s.mu.Lock()
 	if s.done == nil {
 		s.mu.Unlock()
-		return ErrGraphiteServerClosed
+		return ErrServerClosed
 	}
 	close(s.done)
 	s.done = nil
@@ -204,33 +200,33 @@ func (s *GraphiteServer) Close() error {
 
 // handleMessage decodes a graphite message from the reader and sends it to the
 // committer goroutine.
-func (s *GraphiteServer) handleMessage(r *bufio.Reader) error {
+func (s *Server) handleMessage(r *bufio.Reader) error {
 	// Decode graphic metric.
-	m, err := decodeGraphiteMetric(r)
+	m, err := DecodeMetric(r)
 	if err != nil {
 		return err
 	}
 
 	// Convert metric to a field value.
 	var values = make(map[string]interface{})
-	if m.isInt {
-		values[m.name] = &m.integerValue
+	if m.IsInt {
+		values[m.Name] = &m.IntegerValue
 	} else {
-		values[m.name] = &m.floatValue
+		values[m.Name] = &m.FloatValue
 	}
 
-	retentionPolicy, err := s.server.DefaultRetentionPolicy(s.Database)
+	retentionPolicy, err := s.Server.DefaultRetentionPolicy(s.Database)
 
 	if err != nil {
 		return fmt.Errorf("error looking up default database retention policy: %s", err)
 	}
 
-	if err := s.server.WriteSeries(
+	if err := s.Server.WriteSeries(
 		s.Database,
 		retentionPolicy.Name,
-		m.name,
-		m.tags,
-		m.timestamp,
+		m.Name,
+		m.Tags,
+		m.Timestamp,
 		values,
 	); err != nil {
 		return fmt.Errorf("write series data: %s", err)
@@ -238,46 +234,44 @@ func (s *GraphiteServer) handleMessage(r *bufio.Reader) error {
 	return nil
 }
 
-type graphiteMetric struct {
-	name         string
-	tags         map[string]string
-	isInt        bool
-	integerValue int64
-	floatValue   float64
-	timestamp    time.Time
+type Metric struct {
+	Name         string
+	Tags         map[string]string
+	IsInt        bool
+	IntegerValue int64
+	FloatValue   float64
+	Timestamp    time.Time
 }
 
 // returns err == io.EOF when we hit EOF without any further data
-func decodeGraphiteMetric(r *bufio.Reader) (*graphiteMetric, error) {
+func DecodeMetric(r *bufio.Reader) (*Metric, error) {
 	// Read up to the next newline.
 	buf, err := r.ReadBytes('\n')
-	str := strings.TrimSpace(string(buf))
-	if err != nil {
-		if err != io.EOF {
-			return nil, fmt.Errorf("connection closed uncleanly/broken: %s\n", err.Error())
-		}
-		if str == "" {
-			return nil, err
-		}
-		// else we got EOF but also data, so just try to process it as valid data
+	if err != nil && err != io.EOF {
+		// it's possible to get EOF but also data
+		return nil, fmt.Errorf("connection closed uncleanly/broken: %s\n", err.Error())
 	}
-
+	// Trim the buffer, even though there should be no padding
+	str := strings.TrimSpace(string(buf))
 	// Remove line return
 	str = strings.TrimSuffix(str, `\n`)
+	if str == "" {
+		return nil, err
+	}
 	// Break into 3 fields (name, value, timestamp).
 	fields := strings.Fields(str)
 	if len(fields) != 3 {
 		return nil, fmt.Errorf("received %q which doesn't have three fields", str)
 	}
 
-	var m = new(graphiteMetric)
+	m := new(Metric)
 	// decode the name and tags
-	if name, tags, err := decodeGraphiteNameAndTags(fields[0]); err != nil {
+	name, tags, err := DecodeNameAndTags(fields[0])
+	if err != nil {
 		return nil, err
-	} else {
-		m.name = name
-		m.tags = tags
 	}
+	m.Name = name
+	m.Tags = tags
 
 	// Parse value.
 	v, err := strconv.ParseFloat(fields[1], 64)
@@ -287,9 +281,9 @@ func decodeGraphiteMetric(r *bufio.Reader) (*graphiteMetric, error) {
 
 	// Determine if value is a float or an int.
 	if i := int64(v); float64(i) == v {
-		m.integerValue, m.isInt = int64(v), true
+		m.IntegerValue, m.IsInt = int64(v), true
 	} else {
-		m.floatValue = v
+		m.FloatValue = v
 	}
 
 	// Parse timestamp.
@@ -298,12 +292,12 @@ func decodeGraphiteMetric(r *bufio.Reader) (*graphiteMetric, error) {
 		return nil, err
 	}
 
-	m.timestamp = time.Unix(0, unixTime*int64(time.Millisecond))
+	m.Timestamp = time.Unix(0, unixTime*int64(time.Millisecond))
 
 	return m, nil
 }
 
-func decodeGraphiteNameAndTags(field string) (string, map[string]string, error) {
+func DecodeNameAndTags(field string) (string, map[string]string, error) {
 	var (
 		name string
 		tags = make(map[string]string)
@@ -312,9 +306,8 @@ func decodeGraphiteNameAndTags(field string) (string, map[string]string, error) 
 	// decode the name and tags
 	values := strings.Split(field, `.`)
 	if len(values)%2 != 1 {
-		/* There should always be an odd number of fields to map a metric name and tags
-		ex: region.us-west.hostname.server01.cpu -> tags -> region: us-west, hostname: server01, metric name -> cpu
-		*/
+		// There should always be an odd number of fields to map a metric name and tags
+		// ex: region.us-west.hostname.server01.cpu -> tags -> region: us-west, hostname: server01, metric name -> cpu
 		return name, tags, fmt.Errorf("received %q which doesn't conform to format of key.value.key.value.metric or metric", field)
 	}
 

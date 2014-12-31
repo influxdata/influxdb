@@ -62,33 +62,35 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("http api ssl cert path mismatch: %v", c.HTTPAPI.SSLCertPath)
 	}
 
-	if len(c.InputPlugins.Graphites) != 2 {
-		t.Fatalf("graphites  mismatch.  expected %v, got: %v", 2, len(c.InputPlugins.Graphites))
+	if len(c.Graphite) != 2 {
+		t.Fatalf("graphites  mismatch.  expected %v, got: %v", 2, len(c.Graphite))
 	}
 
-	tcpGraphite := c.InputPlugins.Graphites[0]
-	if tcpGraphite.Enabled != true {
+	tcpGraphite := c.Graphite[0]
+	switch {
+	case tcpGraphite.Enabled != true:
 		t.Fatalf("graphite tcp enabled mismatch: expected: %v, got %v", true, tcpGraphite.Enabled)
-	} else if tcpGraphite.Address != "192.168.0.1" {
+	case tcpGraphite.Address != "192.168.0.1":
 		t.Fatalf("graphite tcp address mismatch: expected %v, got  %v", "192.168.0.1", tcpGraphite.Address)
-	} else if tcpGraphite.Port != 2003 {
+	case tcpGraphite.Port != 2003:
 		t.Fatalf("graphite tcp port mismatch: expected %v, got %v", 2003, tcpGraphite.Port)
-	} else if tcpGraphite.Database != "graphite_tcp" {
+	case tcpGraphite.Database != "graphite_tcp":
 		t.Fatalf("graphite tcp database mismatch: expected %v, got %v", "graphite_tcp", tcpGraphite.Database)
-	} else if strings.ToLower(tcpGraphite.Protocol) != "tcp" {
+	case strings.ToLower(tcpGraphite.Protocol) != "tcp":
 		t.Fatalf("graphite tcp protocol mismatch: expected %v, got %v", "tcp", strings.ToLower(tcpGraphite.Protocol))
 	}
 
-	udpGraphite := c.InputPlugins.Graphites[1]
-	if udpGraphite.Enabled != true {
+	udpGraphite := c.Graphite[1]
+	switch {
+	case udpGraphite.Enabled != true:
 		t.Fatalf("graphite udp enabled mismatch: expected: %v, got %v", true, udpGraphite.Enabled)
-	} else if udpGraphite.Address != "192.168.0.2" {
+	case udpGraphite.Address != "192.168.0.2":
 		t.Fatalf("graphite udp address mismatch: expected %v, got  %v", "192.168.0.2", udpGraphite.Address)
-	} else if udpGraphite.Port != 2005 {
+	case udpGraphite.Port != 2005:
 		t.Fatalf("graphite udp port mismatch: expected %v, got %v", 2005, udpGraphite.Port)
-	} else if udpGraphite.Database != "graphite_udp" {
+	case udpGraphite.Database != "graphite_udp":
 		t.Fatalf("graphite database mismatch: expected %v, got %v", "graphite_udp", udpGraphite.Database)
-	} else if strings.ToLower(udpGraphite.Protocol) != "udp" {
+	case strings.ToLower(udpGraphite.Protocol) != "udp":
 		t.Fatalf("graphite udp protocol mismatch: expected %v, got %v", "udp", strings.ToLower(udpGraphite.Protocol))
 	}
 
@@ -158,25 +160,26 @@ read-timeout = "5s"
 
 [input_plugins]
 
-  # Configure the graphite api
-  [[input_plugins.graphites]]
-	protocol = "TCP"
-  enabled = true
-	address = "192.168.0.1"
-  port = 2003
-  database = "graphite_tcp"  # store graphite data in this database
-
-  [[input_plugins.graphites]]
-	protocol = "udP"
-  enabled = true
-	address = "192.168.0.2"
-  port = 2005
-  database = "graphite_udp"  # store graphite data in this database
-
   [input_plugins.udp]
   enabled = true
   port = 4444
   database = "test"
+
+# Configure the graphite api
+[[graphite]]
+protocol = "TCP"
+enabled = true
+address = "192.168.0.1"
+port = 2003
+database = "graphite_tcp"  # store graphite data in this database
+
+[[graphite]]
+protocol = "udP"
+enabled = true
+address = "192.168.0.2"
+port = 2005
+database = "graphite_udp"  # store graphite data in this database
+
 
 # Broker configuration
 [broker]
