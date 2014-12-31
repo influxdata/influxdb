@@ -298,6 +298,15 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// CREATE USER statement
+		{
+			s: `CREATE USER testuser WITH PASSWORD pwd1337`,
+			stmt: &influxql.CreateUserStatement{
+				Name:     "testuser",
+				Password: "pwd1337",
+			},
+		},
+
 		// DROP CONTINUOUS QUERY statement
 		{
 			s:    `DROP CONTINUOUS QUERY myquery`,
@@ -331,6 +340,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier, string at line 1, char 23`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
+		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
 	}
 
 	for i, tt := range tests {

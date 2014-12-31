@@ -60,6 +60,7 @@ func (_ *ListContinuousQueriesStatement) node() {}
 func (_ *CreateContinuousQueryStatement) node() {}
 func (_ *DropContinuousQueryStatement) node()   {}
 func (_ *CreateDatabaseStatement) node()        {}
+func (_ *CreateUserStatement) node()            {}
 
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
@@ -121,6 +122,7 @@ func (_ *ListTagValuesStatement) stmt()         {}
 func (_ *ListFieldKeysStatement) stmt()         {}
 func (_ *ListFieldValuesStatement) stmt()       {}
 func (_ *CreateDatabaseStatement) stmt()        {}
+func (_ *CreateUserStatement) stmt()            {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -190,6 +192,25 @@ func (s *CreateDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE DATABASE ")
 	_, _ = buf.WriteString(s.Name)
+	return buf.String()
+}
+
+// CreateUserStatement represents a command for creating a new user.
+type CreateUserStatement struct {
+	// Name of the user to be created.
+	Name string
+
+	// User's password
+	Password string
+}
+
+// String returns a string representation of the create user statement.
+func (s *CreateUserStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("CREATE USER ")
+	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(" WITH PASSWORD ")
+	_, _ = buf.WriteString(s.Password)
 	return buf.String()
 }
 

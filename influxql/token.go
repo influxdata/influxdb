@@ -135,7 +135,7 @@ var tokens = [...]string{
 	CREATE:       "CREATE",
 	CONTINUOUS:   "CONTINUOUS",
 	DATABASE:     "DATABASE",
-	DEFAULT:	"DEFAULT",
+	DEFAULT:      "DEFAULT",
 	DELETE:       "DELETE",
 	DESC:         "DESC",
 	DROP:         "DROP",

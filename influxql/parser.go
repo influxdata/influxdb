@@ -98,8 +98,10 @@ func (p *Parser) ParseStatement() (Statement, error) {
 			return p.parseCreateContinuousQueryStatement()
 		} else if tok == DATABASE {
 			return p.parseCreateDatabaseStatement()
+		} else if tok == USER {
+			return p.parseCreateUserStatement()
 		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS"}, pos)
+			return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASE", "USER"}, pos)
 		}
 	case DROP:
 		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SERIES {
@@ -494,6 +496,48 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 	stmt.Name = lit
 
 	return stmt, nil
+}
+
+// parseCreateUserStatement parses a string and returns a CreateUserStatement.
+// This function assumes the "CREATE USER" tokens have already been consumed.
+func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
+	stmt := &CreateUserStatement{}
+
+	// Parse name of the user to be created.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.Name = lit
+
+	// Consume "WITH PASSWORD" tokens
+	if err := p.parseTokens([]Token{WITH, PASSWORD}); err != nil {
+		return nil, err
+	}
+
+	// Parse new user's password
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.Password = lit
+
+	// if tok, pos, lit = p.scanIgnoreWhitespace(); tok != WITH {
+	// 	return nil, newParseError(tokstr(tok, lit), []string{"WITH"}, pos)
+	// } else if tok, pos, lit = p.scanIgnoreWhitespace(); tok != PASSWORD {
+	// 	return nil, newParseError(tokstr(tok, lit), []string{"PASSWORD"}, pos)
+	// }
+	return stmt, nil
+}
+
+// parseTokens consumes an expected sequence of tokens.
+func (p *Parser) parseTokens(toks []Token) error {
+	for _, expected := range toks {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != expected {
+			return newParseError(tokstr(tok, lit), []string{tokens[expected]}, pos)
+		}
+	}
+	return nil
 }
 
 // parseRetentionPolicy parses a string and returns a retention policy name.
