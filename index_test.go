@@ -3,6 +3,7 @@ package influxdb_test
 import (
 	"reflect"
 	"regexp"
+	"sort"
 	"testing"
 
 	"github.com/influxdb/influxdb"
@@ -56,7 +57,18 @@ func TestIndex_MeasurementBySeriesID(t *testing.T) {
 
 // Ensure that we can get an array of unique measurements by a collection of series IDs.
 func TestIndex_MeasurementsBySeriesIDs(t *testing.T) {
-	t.Skip("pending")
+	idx := indexWithFixtureData()
+
+	ids := influxdb.SeriesIDs([]uint32{uint32(1), uint32(4)})
+	names := make([]string, 0)
+	for _, m := range idx.MeasurementsForSeriesIDs(ids) {
+		names = append(names, m.Name)
+	}
+	sort.Strings(names)
+	expected := []string{"cpu_load", "key_count"}
+	if !reflect.DeepEqual(names, expected) {
+		t.Fatalf("wrong measurements:\n  exp: %s\n  got: %s", expected, names)
+	}
 }
 
 // Ensure that we can get the series object by the series ID.
@@ -304,10 +316,6 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 	}
 }
 
-func TestIndex_FieldKeys(t *testing.T) {
-	t.Skip("pending")
-}
-
 func TestIndex_TagKeys(t *testing.T) {
 	idx := indexWithFixtureData()
 
@@ -415,27 +423,15 @@ func TestIndex_TagValuesWhereFilter(t *testing.T) {
 	}
 }
 
-func TestIndex_TagValuesWhereFilterMultiple(t *testing.T) {
-	t.Skip("pending")
-}
-
-func TestIndex_TagValuesWhereNot(t *testing.T) {
-	t.Skip("pending")
-}
-
-func TestIndex_TagValuesWhereFilterAndNot(t *testing.T) {
-	t.Skip("pending")
-}
-
-func TestIndex_MeasurementsWhereFilter(t *testing.T) {
-	t.Skip("pending")
-}
-
 func TestIndex_DropSeries(t *testing.T) {
 	t.Skip("pending")
 }
 
 func TestIndex_DropMeasurement(t *testing.T) {
+	t.Skip("pending")
+}
+
+func TestIndex_FieldKeys(t *testing.T) {
 	t.Skip("pending")
 }
 

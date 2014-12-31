@@ -183,6 +183,22 @@ func (t *Index) AddField(name string, f *Field) bool {
 	return false
 }
 
+// MeasurementsForSeriesIDs returns a collection of unique Measurements for the passed in SeriesIDs.
+func (t *Index) MeasurementsForSeriesIDs(seriesIDs SeriesIDs) []*Measurement {
+	measurements := make(map[*Measurement]bool)
+
+	for _, id := range seriesIDs {
+		measurements[t.seriesToMeasurement[id]] = true
+	}
+
+	values := make([]*Measurement, 0, len(measurements))
+	for m, _ := range measurements {
+		values = append(values, m)
+	}
+
+	return values
+}
+
 // SeriesIDs returns an array of series ids for the given measurements and filters to be applied to all.
 // Filters are equivalent to and AND operation. If you want to do an OR, get the series IDs for one set,
 // then get the series IDs for another set and use the SeriesIDs.Union to combine the two.
