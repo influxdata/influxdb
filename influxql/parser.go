@@ -96,6 +96,8 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	case CREATE:
 		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == CONTINUOUS {
 			return p.parseCreateContinuousQueryStatement()
+		} else if tok == DATABASE {
+			return p.parseCreateDatabaseStatement()
 		} else {
 			return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS"}, pos)
 		}
@@ -477,6 +479,99 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	stmt.Target = lit
 
 	return stmt, nil
+}
+
+// parseCreateDatabaseStatement parses a string and returns a CreateDatabaseStatement.
+// This function assumes the "CREATE DATABASE" tokens have already been consumed.
+func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error) {
+	stmt := &CreateDatabaseStatement{}
+
+	// Read the name of the database to be created.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.Name = lit
+
+	// Require at least one retention policy.
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok != WITH {
+		return nil, newParseError(tokstr(tok, lit), []string{"WITH"}, pos)
+	}
+
+	policy, dfault, err := p.parseRetentionPolicy()
+	if err != nil {
+		return nil, err
+	}
+
+	stmt.Policies = append(stmt.Policies, policy)
+
+	if dfault {
+		stmt.DefaultPolicy = policy
+	}
+
+	// Parse any additional retention policies.
+	for {
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != WITH {
+			p.unscan()
+			break
+		}
+
+		// Make sure there aren't multiple default policies.
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok == DEFAULT && stmt.DefaultPolicy != "" {
+			err := newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
+			err.Message = "multiple default retention policies not allowed"
+			return nil, err
+		}
+		p.unscan()
+
+		policy, dfault, err := p.parseRetentionPolicy()
+		if err != nil {
+			return nil, err
+		}
+
+		stmt.Policies = append(stmt.Policies, policy)
+
+		if dfault {
+			stmt.DefaultPolicy = policy
+		}
+	}
+
+	return stmt, nil
+}
+
+// parseRetentionPolicy parses a string and returns a retention policy name.
+// This function assumes the "WITH" token has already been consumed.
+func (p *Parser) parseRetentionPolicy() (name string, dfault bool, err error) {
+	// Check for optional DEFAULT token.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == DEFAULT {
+		dfault = true
+		tok, pos, lit = p.scanIgnoreWhitespace()
+	}
+
+	// Check for required RETENTION token.
+	if tok != RETENTION {
+		err = newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
+		return
+	}
+
+	// Check of required POLICY token.
+	if tok, pos, lit = p.scanIgnoreWhitespace(); tok != POLICY {
+		err = newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
+		return
+	}
+
+	// Parse retention policy name.
+	tok, pos, name = p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		err = newParseError(tokstr(tok, name), []string{"identifier"}, pos)
+		return
+	}
+
+	return
 }
 
 // parseDropContinuousQueriesStatement parses a string and returns a DropContinuousQueryStatement.

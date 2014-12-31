@@ -59,6 +59,7 @@ func (_ *DropSeriesStatement) node()            {}
 func (_ *ListContinuousQueriesStatement) node() {}
 func (_ *CreateContinuousQueryStatement) node() {}
 func (_ *DropContinuousQueryStatement) node()   {}
+func (_ *CreateDatabaseStatement) node()        {}
 
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
@@ -119,6 +120,7 @@ func (_ *ListTagKeysStatement) stmt()           {}
 func (_ *ListTagValuesStatement) stmt()         {}
 func (_ *ListFieldKeysStatement) stmt()         {}
 func (_ *ListFieldValuesStatement) stmt()       {}
+func (_ *CreateDatabaseStatement) stmt()        {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -175,6 +177,34 @@ func (a SortFields) String() string {
 		fields = append(fields, field.String())
 	}
 	return strings.Join(fields, ", ")
+}
+
+// CreateDatabaseStatement represents a command for creating a new database.
+type CreateDatabaseStatement struct {
+	// Name of the database to be created.
+	Name string
+
+	// List of retention policies.
+	Policies []string
+
+	// Default retention policy.
+	DefaultPolicy string
+}
+
+// String returns a string representation of the create database statement.
+func (s *CreateDatabaseStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("CREATE DATABASE ")
+	_, _ = buf.WriteString(s.Name)
+	for _, policy := range s.Policies {
+		_, _ = buf.WriteString(" WITH ")
+		if policy == s.DefaultPolicy {
+			_, _ = buf.WriteString("DEFAULT ")
+		}
+		_, _ = buf.WriteString("RETENTION POLICY ")
+		_, _ = buf.WriteString(policy)
+	}
+	return buf.String()
 }
 
 // SelectStatement represents a command for extracting data from the database.
