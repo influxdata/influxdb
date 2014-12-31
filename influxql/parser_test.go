@@ -407,6 +407,20 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
+		// Binary expression with no precedence, tests left associativity.
+		{
+			s: `1 * 2 * 3`,
+			expr: &influxql.BinaryExpr{
+				Op: influxql.MUL,
+				LHS: &influxql.BinaryExpr{
+					Op:  influxql.MUL,
+					LHS: &influxql.NumberLiteral{Val: 1},
+					RHS: &influxql.NumberLiteral{Val: 2},
+				},
+				RHS: &influxql.NumberLiteral{Val: 3},
+			},
+		},
+
 		// Complex binary expression.
 		{
 			s: `value + 3 < 30 AND 1 + 2 OR true`,
