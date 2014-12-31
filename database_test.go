@@ -1,17 +1,15 @@
-package influxdb_test
+package influxdb
 
 import (
 	"reflect"
 	"regexp"
 	"sort"
 	"testing"
-
-	"github.com/influxdb/influxdb"
 )
 
 // Ensure that the index will return a sorted array of measurement names.
-func TestIndex_Names(t *testing.T) {
-	idx := indexWithFixtureData()
+func TestDatabase_Names(t *testing.T) {
+	idx := databaseWithFixtureData()
 
 	r := idx.Names()
 	exp := []string{"another_thing", "cpu_load", "key_count", "queue_depth"}
@@ -21,12 +19,12 @@ func TestIndex_Names(t *testing.T) {
 }
 
 // Ensure that we can get the measurement by the series ID.
-func TestIndex_MeasurementBySeriesID(t *testing.T) {
-	idx := influxdb.NewIndex()
-	m := &influxdb.Measurement{
+func TestDatabase_MeasurementBySeriesID(t *testing.T) {
+	idx := newDatabase()
+	m := &Measurement{
 		Name: "cpu_load",
 	}
-	s := &influxdb.Series{
+	s := &Series{
 		ID:   uint32(1),
 		Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"},
 	}
@@ -34,32 +32,32 @@ func TestIndex_MeasurementBySeriesID(t *testing.T) {
 	// add it and see if we can look it up
 	idx.AddSeries(m.Name, s)
 	mm := idx.MeasurementBySeriesID(uint32(1))
-	if mustMarshalJSON(m) != mustMarshalJSON(mm) {
+	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
 		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
 	}
 
 	// now test that we can add another
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(2),
 		Tags: map[string]string{"host": "serverb.influx.com", "region": "uswest"}}
 
 	idx.AddSeries(m.Name, s)
 	mm = idx.MeasurementBySeriesID(uint32(2))
-	if mustMarshalJSON(m) != mustMarshalJSON(mm) {
+	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
 		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
 	}
 
 	mm = idx.MeasurementBySeriesID(uint32(1))
-	if mustMarshalJSON(m) != mustMarshalJSON(mm) {
+	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
 		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
 	}
 }
 
 // Ensure that we can get an array of unique measurements by a collection of series IDs.
-func TestIndex_MeasurementsBySeriesIDs(t *testing.T) {
-	idx := indexWithFixtureData()
+func TestDatabase_MeasurementsBySeriesIDs(t *testing.T) {
+	idx := databaseWithFixtureData()
 
-	ids := influxdb.SeriesIDs([]uint32{uint32(1), uint32(4)})
+	ids := SeriesIDs([]uint32{uint32(1), uint32(4)})
 	names := make([]string, 0)
 	for _, m := range idx.MeasurementsForSeriesIDs(ids) {
 		names = append(names, m.Name)
@@ -72,28 +70,28 @@ func TestIndex_MeasurementsBySeriesIDs(t *testing.T) {
 }
 
 // Ensure that we can get the series object by the series ID.
-func TestIndex_SeriesBySeriesID(t *testing.T) {
-	idx := influxdb.NewIndex()
+func TestDatabase_SeriesBySeriesID(t *testing.T) {
+	idx := newDatabase()
 
 	// now test that we can add another
-	s := &influxdb.Series{
+	s := &Series{
 		ID:   uint32(2),
 		Tags: map[string]string{"host": "serverb.influx.com", "region": "uswest"}}
 
 	idx.AddSeries("foo", s)
 	ss := idx.SeriesByID(uint32(2))
-	if mustMarshalJSON(s) != mustMarshalJSON(ss) {
+	if string(mustMarshalJSON(s)) != string(mustMarshalJSON(ss)) {
 		t.Fatalf("series not equal:\n%s\n%s", s, ss)
 	}
 }
 
 // Ensure that we can get the measurement and series objects out based on measurement and tags.
-func TestIndex_MeasurementAndSeries(t *testing.T) {
-	idx := influxdb.NewIndex()
-	m := &influxdb.Measurement{
+func TestDatabase_MeasurementAndSeries(t *testing.T) {
+	idx := newDatabase()
+	m := &Measurement{
 		Name: "cpu_load",
 	}
-	s := &influxdb.Series{
+	s := &Series{
 		ID:   uint32(1),
 		Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"},
 	}
@@ -101,30 +99,30 @@ func TestIndex_MeasurementAndSeries(t *testing.T) {
 	// add it and see if we can look it up by name and tags
 	idx.AddSeries(m.Name, s)
 	mm, ss := idx.MeasurementAndSeries(m.Name, s.Tags)
-	if mustMarshalJSON(m) != mustMarshalJSON(mm) {
+	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
 		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
-	} else if mustMarshalJSON(s) != mustMarshalJSON(ss) {
+	} else if string(mustMarshalJSON(s)) != string(mustMarshalJSON(ss)) {
 		t.Fatalf("series not equal:\n%s\n%s", s, ss)
 	}
 
 	// now test that we can add another
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(2),
 		Tags: map[string]string{"host": "serverb.influx.com", "region": "uswest"}}
 
 	idx.AddSeries(m.Name, s)
 	mm, ss = idx.MeasurementAndSeries(m.Name, s.Tags)
-	if mustMarshalJSON(m) != mustMarshalJSON(mm) {
+	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
 		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
-	} else if mustMarshalJSON(s) != mustMarshalJSON(ss) {
+	} else if string(mustMarshalJSON(s)) != string(mustMarshalJSON(ss)) {
 		t.Fatalf("series not equal:\n%s\n%s", s, ss)
 	}
 }
 
 // Ensure that we can get the series IDs for measurements without any filters.
-func TestIndex_SeriesIDs(t *testing.T) {
-	idx := influxdb.NewIndex()
-	s := &influxdb.Series{
+func TestDatabase_SeriesIDs(t *testing.T) {
+	idx := newDatabase()
+	s := &Series{
 		ID:   uint32(1),
 		Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"}}
 
@@ -141,7 +139,7 @@ func TestIndex_SeriesIDs(t *testing.T) {
 	}
 
 	// now test that we can add another
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(2),
 		Tags: map[string]string{"host": "serverb.influx.com", "region": "uswest"}}
 	added = idx.AddSeries("cpu_load", s)
@@ -156,7 +154,7 @@ func TestIndex_SeriesIDs(t *testing.T) {
 	}
 
 	// now add another in a different measurement
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(3),
 		Tags: map[string]string{"host": "serverb.influx.com", "region": "uswest"}}
 	added = idx.AddSeries("network_in", s)
@@ -171,12 +169,12 @@ func TestIndex_SeriesIDs(t *testing.T) {
 	}
 }
 
-func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
-	idx := indexWithFixtureData()
+func TestDatabase_SeriesIDsWhereFilter(t *testing.T) {
+	idx := databaseWithFixtureData()
 
 	var tests = []struct {
 		names   []string
-		filters []*influxdb.Filter
+		filters []*Filter
 		result  []uint32
 	}{
 		// match against no tags
@@ -188,9 +186,9 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// match against all tags
 		{
 			names: []string{"cpu_load"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "host", Value: "servera.influx.com"},
-				&influxdb.Filter{Key: "region", Value: "uswest"},
+			filters: []*Filter{
+				&Filter{Key: "host", Value: "servera.influx.com"},
+				&Filter{Key: "region", Value: "uswest"},
 			},
 			result: []uint32{uint32(1)},
 		},
@@ -198,8 +196,8 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// match against one tag
 		{
 			names: []string{"cpu_load"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "region", Value: "uswest"},
+			filters: []*Filter{
+				&Filter{Key: "region", Value: "uswest"},
 			},
 			result: []uint32{uint32(1), uint32(2)},
 		},
@@ -207,8 +205,8 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// match against one tag, single result
 		{
 			names: []string{"cpu_load"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "host", Value: "servera.influx.com"},
+			filters: []*Filter{
+				&Filter{Key: "host", Value: "servera.influx.com"},
 			},
 			result: []uint32{uint32(1)},
 		},
@@ -216,8 +214,8 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against tag key that doesn't exist returns empty
 		{
 			names: []string{"cpu_load"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "foo", Value: "bar"},
+			filters: []*Filter{
+				&Filter{Key: "foo", Value: "bar"},
 			},
 			result: []uint32{},
 		},
@@ -225,8 +223,8 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against tag value that doesn't exist returns empty
 		{
 			names: []string{"cpu_load"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "host", Value: "foo"},
+			filters: []*Filter{
+				&Filter{Key: "host", Value: "foo"},
 			},
 			result: []uint32{},
 		},
@@ -234,8 +232,8 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against a tag NOT value
 		{
 			names: []string{"key_count"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "region", Value: "useast", Not: true},
+			filters: []*Filter{
+				&Filter{Key: "region", Value: "useast", Not: true},
 			},
 			result: []uint32{uint32(3)},
 		},
@@ -243,8 +241,8 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against a tag NOT null
 		{
 			names: []string{"queue_depth"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "app", Value: "", Not: true},
+			filters: []*Filter{
+				&Filter{Key: "app", Value: "", Not: true},
 			},
 			result: []uint32{uint32(6)},
 		},
@@ -252,9 +250,9 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against a tag value and another tag NOT value
 		{
 			names: []string{"queue_depth"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "name", Value: "high priority"},
-				&influxdb.Filter{Key: "app", Value: "paultown", Not: true},
+			filters: []*Filter{
+				&Filter{Key: "name", Value: "high priority"},
+				&Filter{Key: "app", Value: "paultown", Not: true},
 			},
 			result: []uint32{uint32(5), uint32(7)},
 		},
@@ -262,8 +260,8 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against a tag value matching regex
 		{
 			names: []string{"queue_depth"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "app", Regex: regexp.MustCompile("paul.*")},
+			filters: []*Filter{
+				&Filter{Key: "app", Regex: regexp.MustCompile("paul.*")},
 			},
 			result: []uint32{uint32(6), uint32(7)},
 		},
@@ -271,9 +269,9 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against a tag value matching regex and other tag value matching value
 		{
 			names: []string{"queue_depth"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "name", Value: "high priority"},
-				&influxdb.Filter{Key: "app", Regex: regexp.MustCompile("paul.*")},
+			filters: []*Filter{
+				&Filter{Key: "name", Value: "high priority"},
+				&Filter{Key: "app", Regex: regexp.MustCompile("paul.*")},
 			},
 			result: []uint32{uint32(6), uint32(7)},
 		},
@@ -281,8 +279,8 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against a tag value NOT matching regex
 		{
 			names: []string{"queue_depth"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "app", Regex: regexp.MustCompile("paul.*"), Not: true},
+			filters: []*Filter{
+				&Filter{Key: "app", Regex: regexp.MustCompile("paul.*"), Not: true},
 			},
 			result: []uint32{uint32(5)},
 		},
@@ -290,9 +288,9 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against a tag value NOT matching regex and other tag value matching value
 		{
 			names: []string{"queue_depth"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "app", Regex: regexp.MustCompile("paul.*"), Not: true},
-				&influxdb.Filter{Key: "name", Value: "high priority"},
+			filters: []*Filter{
+				&Filter{Key: "app", Regex: regexp.MustCompile("paul.*"), Not: true},
+				&Filter{Key: "name", Value: "high priority"},
 			},
 			result: []uint32{uint32(5)},
 		},
@@ -300,8 +298,8 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 		// query against multiple measurements
 		{
 			names: []string{"cpu_load", "key_count"},
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "region", Value: "uswest"},
+			filters: []*Filter{
+				&Filter{Key: "region", Value: "uswest"},
 			},
 			result: []uint32{uint32(1), uint32(2), uint32(3)},
 		},
@@ -309,15 +307,15 @@ func TestIndex_SeriesIDsWhereFilter(t *testing.T) {
 
 	for i, tt := range tests {
 		r := idx.SeriesIDs(tt.names, tt.filters)
-		expectedIDs := influxdb.SeriesIDs(tt.result)
+		expectedIDs := SeriesIDs(tt.result)
 		if !r.Equals(expectedIDs) {
 			t.Fatalf("%d: filters: %s: result mismatch:\n  exp=%s\n  got=%s", i, mustMarshalJSON(tt.filters), mustMarshalJSON(expectedIDs), mustMarshalJSON(r))
 		}
 	}
 }
 
-func TestIndex_TagKeys(t *testing.T) {
-	idx := indexWithFixtureData()
+func TestDatabase_TagKeys(t *testing.T) {
+	idx := databaseWithFixtureData()
 
 	var tests = []struct {
 		names  []string
@@ -345,13 +343,13 @@ func TestIndex_TagKeys(t *testing.T) {
 	}
 }
 
-func TestIndex_TagValuesWhereFilter(t *testing.T) {
-	idx := indexWithFixtureData()
+func TestDatabase_TagValuesWhereFilter(t *testing.T) {
+	idx := databaseWithFixtureData()
 
 	var tests = []struct {
 		names   []string
 		key     string
-		filters []*influxdb.Filter
+		filters []*Filter
 		result  []string
 	}{
 		// get the tag values across multiple measurements
@@ -367,8 +365,8 @@ func TestIndex_TagValuesWhereFilter(t *testing.T) {
 		{
 			names: []string{"key_count"},
 			key:   "region",
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "host", Value: "serverc.influx.com"},
+			filters: []*Filter{
+				&Filter{Key: "host", Value: "serverc.influx.com"},
 			},
 			result: []string{"uswest"},
 		},
@@ -377,8 +375,8 @@ func TestIndex_TagValuesWhereFilter(t *testing.T) {
 		{
 			names: []string{"key_count"},
 			key:   "region",
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "host", Value: "serverc.influx.com", Not: true},
+			filters: []*Filter{
+				&Filter{Key: "host", Value: "serverc.influx.com", Not: true},
 			},
 			result: []string{"useast"},
 		},
@@ -387,9 +385,9 @@ func TestIndex_TagValuesWhereFilter(t *testing.T) {
 		{
 			names: []string{"key_count"},
 			key:   "region",
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "host", Value: "serverc.influx.com"},
-				&influxdb.Filter{Key: "service", Value: "redis"},
+			filters: []*Filter{
+				&Filter{Key: "host", Value: "serverc.influx.com"},
+				&Filter{Key: "service", Value: "redis"},
 			},
 			result: []string{"uswest"},
 		},
@@ -398,8 +396,8 @@ func TestIndex_TagValuesWhereFilter(t *testing.T) {
 		{
 			names: []string{"queue_depth"},
 			key:   "name",
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "app", Regex: regexp.MustCompile("paul.*")},
+			filters: []*Filter{
+				&Filter{Key: "app", Regex: regexp.MustCompile("paul.*")},
 			},
 			result: []string{"high priority"},
 		},
@@ -408,8 +406,8 @@ func TestIndex_TagValuesWhereFilter(t *testing.T) {
 		{
 			names: []string{"key_count"},
 			key:   "region",
-			filters: []*influxdb.Filter{
-				&influxdb.Filter{Key: "host", Regex: regexp.MustCompile("serverd.*"), Not: true},
+			filters: []*Filter{
+				&Filter{Key: "host", Regex: regexp.MustCompile("serverd.*"), Not: true},
 			},
 			result: []string{"uswest"},
 		},
@@ -423,22 +421,22 @@ func TestIndex_TagValuesWhereFilter(t *testing.T) {
 	}
 }
 
-func TestIndex_DropSeries(t *testing.T) {
+func TestDatabase_DropSeries(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestIndex_DropMeasurement(t *testing.T) {
+func TestDatabase_DropMeasurement(t *testing.T) {
 	t.Skip("pending")
 }
 
-func TestIndex_FieldKeys(t *testing.T) {
+func TestDatabase_FieldKeys(t *testing.T) {
 	t.Skip("pending")
 }
 
-// indexWithFixtureData returns a populated Index for use in many of the filtering tests
-func indexWithFixtureData() *influxdb.Index {
-	idx := influxdb.NewIndex()
-	s := &influxdb.Series{
+// databaseWithFixtureData returns a populated Index for use in many of the filtering tests
+func databaseWithFixtureData() *database {
+	idx := newDatabase()
+	s := &Series{
 		ID:   uint32(1),
 		Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"}}
 
@@ -447,7 +445,7 @@ func indexWithFixtureData() *influxdb.Index {
 		return nil
 	}
 
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(2),
 		Tags: map[string]string{"host": "serverb.influx.com", "region": "uswest"}}
 
@@ -456,7 +454,7 @@ func indexWithFixtureData() *influxdb.Index {
 		return nil
 	}
 
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(3),
 		Tags: map[string]string{"host": "serverc.influx.com", "region": "uswest", "service": "redis"}}
 
@@ -465,7 +463,7 @@ func indexWithFixtureData() *influxdb.Index {
 		return nil
 	}
 
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(4),
 		Tags: map[string]string{"host": "serverd.influx.com", "region": "useast", "service": "redis"}}
 
@@ -474,7 +472,7 @@ func indexWithFixtureData() *influxdb.Index {
 		return nil
 	}
 
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(5),
 		Tags: map[string]string{"name": "high priority"}}
 
@@ -483,7 +481,7 @@ func indexWithFixtureData() *influxdb.Index {
 		return nil
 	}
 
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(6),
 		Tags: map[string]string{"name": "high priority", "app": "paultown"}}
 
@@ -492,7 +490,7 @@ func indexWithFixtureData() *influxdb.Index {
 		return nil
 	}
 
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(7),
 		Tags: map[string]string{"name": "high priority", "app": "paulcountry"}}
 
@@ -501,7 +499,7 @@ func indexWithFixtureData() *influxdb.Index {
 		return nil
 	}
 
-	s = &influxdb.Series{
+	s = &Series{
 		ID:   uint32(8),
 		Tags: map[string]string{"a": "b"}}
 
@@ -513,7 +511,7 @@ func indexWithFixtureData() *influxdb.Index {
 	return idx
 }
 
-func TestIndex_SeriesIDsIntersect(t *testing.T) {
+func TestDatabase_SeriesIDsIntersect(t *testing.T) {
 	var tests = []struct {
 		expected []uint32
 		left     []uint32
@@ -563,14 +561,14 @@ func TestIndex_SeriesIDsIntersect(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		a := influxdb.SeriesIDs(tt.left).Intersect(tt.right)
+		a := SeriesIDs(tt.left).Intersect(tt.right)
 		if !a.Equals(tt.expected) {
-			t.Fatalf("%d: %s intersect %s: result mismatch:\n  exp=%s\n  got=%s", i, influxdb.SeriesIDs(tt.left), influxdb.SeriesIDs(tt.right), influxdb.SeriesIDs(tt.expected), influxdb.SeriesIDs(a))
+			t.Fatalf("%d: %s intersect %s: result mismatch:\n  exp=%s\n  got=%s", i, SeriesIDs(tt.left), SeriesIDs(tt.right), SeriesIDs(tt.expected), SeriesIDs(a))
 		}
 	}
 }
 
-func TestIndex_SeriesIDsUnion(t *testing.T) {
+func TestDatabase_SeriesIDsUnion(t *testing.T) {
 	var tests = []struct {
 		expected []uint32
 		left     []uint32
@@ -620,14 +618,14 @@ func TestIndex_SeriesIDsUnion(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		a := influxdb.SeriesIDs(tt.left).Union(tt.right)
+		a := SeriesIDs(tt.left).Union(tt.right)
 		if !a.Equals(tt.expected) {
-			t.Fatalf("%d: %s union %s: result mismatch:\n  exp=%s\n  got=%s", i, influxdb.SeriesIDs(tt.left), influxdb.SeriesIDs(tt.right), influxdb.SeriesIDs(tt.expected), influxdb.SeriesIDs(a))
+			t.Fatalf("%d: %s union %s: result mismatch:\n  exp=%s\n  got=%s", i, SeriesIDs(tt.left), SeriesIDs(tt.right), SeriesIDs(tt.expected), SeriesIDs(a))
 		}
 	}
 }
 
-func TestIndex_SeriesIDsReject(t *testing.T) {
+func TestDatabase_SeriesIDsReject(t *testing.T) {
 	var tests = []struct {
 		expected []uint32
 		left     []uint32
@@ -677,9 +675,9 @@ func TestIndex_SeriesIDsReject(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		a := influxdb.SeriesIDs(tt.left).Reject(tt.right)
+		a := SeriesIDs(tt.left).Reject(tt.right)
 		if !a.Equals(tt.expected) {
-			t.Fatalf("%d: %s reject %s: result mismatch:\n  exp=%s\n  got=%s", i, influxdb.SeriesIDs(tt.left), influxdb.SeriesIDs(tt.right), influxdb.SeriesIDs(tt.expected), influxdb.SeriesIDs(a))
+			t.Fatalf("%d: %s reject %s: result mismatch:\n  exp=%s\n  got=%s", i, SeriesIDs(tt.left), SeriesIDs(tt.right), SeriesIDs(tt.expected), SeriesIDs(a))
 		}
 	}
 }

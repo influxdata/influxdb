@@ -79,8 +79,7 @@ type Server struct {
 	index  uint64           // highest broadcast index seen
 	errors map[uint64]error // message errors
 
-	meta        *metastore        // metadata store
-	metaIndexes map[string]*Index // map databases to tag indexes
+	meta *metastore // metadata store
 
 	dataNodes map[uint64]*DataNode // data nodes by id
 
@@ -96,7 +95,6 @@ func NewServer(client MessagingClient) *Server {
 	return &Server{
 		client:           client,
 		meta:             &metastore{},
-		metaIndexes:      make(map[string]*Index),
 		dataNodes:        make(map[uint64]*DataNode),
 		databases:        make(map[string]*database),
 		databasesByShard: make(map[uint64]*database),
@@ -196,15 +194,13 @@ func (s *Server) load() error {
 
 			// load the index
 			log.Printf("Loading metadata index for %s\n", db.name)
-			var idx *Index
 			err := s.meta.view(func(tx *metatx) error {
-				idx = tx.measurementIndex(db.name)
+				tx.indexDatabase(db)
 				return nil
 			})
 			if err != nil {
 				return err
 			}
-			s.metaIndexes[db.name] = idx
 		}
 
 		// Load users.
@@ -417,7 +413,6 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 
 	// Add to databases on server.
 	s.databases[c.Name] = db
-	s.metaIndexes[c.Name] = NewIndex()
 
 	return
 }
@@ -448,7 +443,6 @@ func (s *Server) applyDeleteDatabase(m *messaging.Message) (err error) {
 
 	// Delete the database entry.
 	delete(s.databases, c.Name)
-	delete(s.metaIndexes, c.Name)
 	return
 }
 
@@ -970,9 +964,7 @@ func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	// make sure another thread didn't add it first
-	idx := s.metaIndexes[c.Database]
-	if _, series := idx.MeasurementAndSeries(c.Name, c.Tags); series != nil {
+	if _, series := db.MeasurementAndSeries(c.Name, c.Tags); series != nil {
 		return nil
 	}
 
@@ -986,7 +978,7 @@ func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
 	if err != nil {
 		return err
 	}
-	idx.AddSeries(c.Name, series)
+	db.AddSeries(c.Name, series)
 
 	return nil
 }
@@ -1056,12 +1048,13 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]string) (uint32, error) {
 	// Try to find series locally first.
 	s.mu.RLock()
-	idx := s.metaIndexes[database]
-	s.mu.RUnlock()
-
+	idx := s.databases[database]
 	if _, series := idx.MeasurementAndSeries(name, tags); series != nil {
+		s.mu.RUnlock()
 		return series.ID, nil
 	}
+	// release the read lock so the broadcast can actually go through and acquire the write lock
+	s.mu.RUnlock()
 
 	// If it doesn't exist then create a message and broadcast.
 	c := &createSeriesIfNotExistsCommand{Database: database, Name: name, Tags: tags}
@@ -1080,18 +1073,26 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 
 func (s *Server) MeasurementNames(database string) []string {
 	s.mu.RLock()
-	idx := s.metaIndexes[database]
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
-	return idx.names
+	db := s.databases[database]
+	if db == nil {
+		return nil
+	}
+
+	return db.names
 }
 
 func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
 	s.mu.RLock()
-	idx := s.metaIndexes[database]
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
-	return idx.SeriesIDs([]string{measurement}, nil)
+	db := s.databases[database]
+	if db == nil {
+		return nil
+	}
+
+	return db.SeriesIDs([]string{measurement}, nil)
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
@@ -1172,344 +1173,6 @@ type dataNodes []*DataNode
 func (p dataNodes) Len() int           { return len(p) }
 func (p dataNodes) Less(i, j int) bool { return p[i].ID < p[j].ID }
 func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
-// database represents a collection of retention policies.
-type database struct {
-	name string
-
-	policies map[string]*RetentionPolicy // retention policies by name
-	shards   map[uint64]*Shard           // shards by id
-
-	defaultRetentionPolicy string
-}
-
-// newDatabase returns an instance of database.
-func newDatabase() *database {
-	return &database{
-		policies: make(map[string]*RetentionPolicy),
-		shards:   make(map[uint64]*Shard),
-	}
-}
-
-// shardByTimestamp returns a shard that owns a given timestamp.
-func (db *database) shardByTimestamp(policy string, id uint32, timestamp time.Time) (*Shard, error) {
-	p := db.policies[policy]
-	if p == nil {
-		return nil, ErrRetentionPolicyNotFound
-	}
-	return p.shardByTimestamp(id, timestamp), nil
-}
-
-// shardsByTimestamp returns all shards that own a given timestamp.
-func (db *database) shardsByTimestamp(policy string, timestamp time.Time) ([]*Shard, error) {
-	p := db.policies[policy]
-	if p == nil {
-		return nil, ErrRetentionPolicyNotFound
-	}
-	return p.shardsByTimestamp(timestamp), nil
-}
-
-// timeBetweenInclusive returns true if t is between min and max, inclusive.
-func timeBetweenInclusive(t, min, max time.Time) bool {
-	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
-}
-
-// MarshalJSON encodes a database into a JSON-encoded byte slice.
-func (db *database) MarshalJSON() ([]byte, error) {
-	// Copy over properties to intermediate type.
-	var o databaseJSON
-	o.Name = db.name
-	o.DefaultRetentionPolicy = db.defaultRetentionPolicy
-	for _, rp := range db.policies {
-		o.Policies = append(o.Policies, rp)
-	}
-	for _, s := range db.shards {
-		o.Shards = append(o.Shards, s)
-	}
-	return json.Marshal(&o)
-}
-
-// UnmarshalJSON decodes a JSON-encoded byte slice to a database.
-func (db *database) UnmarshalJSON(data []byte) error {
-	// Decode into intermediate type.
-	var o databaseJSON
-	if err := json.Unmarshal(data, &o); err != nil {
-		return err
-	}
-
-	// Copy over properties from intermediate type.
-	db.name = o.Name
-	db.defaultRetentionPolicy = o.DefaultRetentionPolicy
-
-	// Copy shard policies.
-	db.policies = make(map[string]*RetentionPolicy)
-	for _, rp := range o.Policies {
-		db.policies[rp.Name] = rp
-	}
-
-	// Copy shards.
-	db.shards = make(map[uint64]*Shard)
-	for _, s := range o.Shards {
-		db.shards[s.ID] = s
-	}
-
-	return nil
-}
-
-// databaseJSON represents the JSON-serialization format for a database.
-type databaseJSON struct {
-	Name                   string             `json:"name,omitempty"`
-	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
-	Policies               []*RetentionPolicy `json:"policies,omitempty"`
-	Shards                 []*Shard           `json:"shards,omitempty"`
-}
-
-// Measurement represents a collection of time series in a database. It also contains in memory
-// structures for indexing tags. These structures are accessed through private methods on the Measurement
-// object. Generally these methods are only accessed from Index, which is responsible for ensuring
-// go routine safe access.
-type Measurement struct {
-	Name   string    `json:"name,omitempty"`
-	Fields []*Fields `json:"fields,omitempty"`
-
-	// in memory index fields
-	series              map[string]*Series // sorted tagset string to the series object
-	seriesByID          map[uint32]*Series // lookup table for series by their id
-	measurement         *Measurement
-	seriesByTagKeyValue map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
-	ids                 SeriesIDs                       // sorted list of series IDs in this measurement
-}
-
-func NewMeasurement(name string) *Measurement {
-	return &Measurement{
-		Name:   name,
-		Fields: make([]*Fields, 0),
-
-		series:              make(map[string]*Series),
-		seriesByID:          make(map[uint32]*Series),
-		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
-		ids:                 SeriesIDs(make([]uint32, 0)),
-	}
-}
-
-// addSeries will add a series to the measurementIndex. Returns false if already present
-func (m *Measurement) addSeries(s *Series) bool {
-	if _, ok := m.seriesByID[s.ID]; ok {
-		return false
-	}
-	m.seriesByID[s.ID] = s
-	tagset := string(marshalTags(s.Tags))
-	m.series[tagset] = s
-	m.ids = append(m.ids, s.ID)
-	// the series ID should always be higher than all others because it's a new
-	// series. So don't do the sort if we don't have to.
-	if len(m.ids) > 1 && m.ids[len(m.ids)-1] < m.ids[len(m.ids)-2] {
-		sort.Sort(m.ids)
-	}
-
-	// add this series id to the tag index on the measurement
-	for k, v := range s.Tags {
-		valueMap := m.seriesByTagKeyValue[k]
-		if valueMap == nil {
-			valueMap = make(map[string]SeriesIDs)
-			m.seriesByTagKeyValue[k] = valueMap
-		}
-		ids := valueMap[v]
-		ids = append(ids, s.ID)
-
-		// most of the time the series ID will be higher than all others because it's a new
-		// series. So don't do the sort if we don't have to.
-		if len(ids) > 1 && ids[len(ids)-1] < ids[len(ids)-2] {
-			sort.Sort(ids)
-		}
-		valueMap[v] = ids
-	}
-
-	return true
-}
-
-// seriesByTags returns the Series that matches the given tagset.
-func (m *Measurement) seriesByTags(tags map[string]string) *Series {
-	return m.series[string(marshalTags(tags))]
-}
-
-// sereisIDs returns the series ids for a given filter
-func (m *Measurement) seriesIDs(filter *Filter) (ids SeriesIDs) {
-	values := m.seriesByTagKeyValue[filter.Key]
-	if values == nil {
-		return
-	}
-
-	// hanlde regex filters
-	if filter.Regex != nil {
-		for k, v := range values {
-			if filter.Regex.MatchString(k) {
-				if ids == nil {
-					ids = v
-				} else {
-					ids = ids.Union(v)
-				}
-			}
-		}
-		if filter.Not {
-			ids = m.ids.Reject(ids)
-		}
-		return
-	}
-
-	// this is for the value is not null query
-	if filter.Not && filter.Value == "" {
-		for _, v := range values {
-			if ids == nil {
-				ids = v
-			} else {
-				ids.Intersect(v)
-			}
-		}
-		return
-	}
-
-	// get the ids that have the given key/value tag pair
-	ids = SeriesIDs(values[filter.Value])
-
-	// filter out these ids from the entire set if it's a not query
-	if filter.Not {
-		ids = m.ids.Reject(ids)
-	}
-
-	return
-}
-
-// tagValues returns an array of unique tag values for the given key
-func (m *Measurement) tagValues(key string) TagValues {
-	tags := m.seriesByTagKeyValue[key]
-	values := make(map[string]bool, len(tags))
-	for k, _ := range tags {
-		values[k] = true
-	}
-	return TagValues(values)
-}
-
-type Measurements []*Measurement
-
-// Field represents a series field.
-type Field struct {
-	ID   uint8     `json:"id,omitempty"`
-	Name string    `json:"name,omitempty"`
-	Type FieldType `json:"field"`
-}
-
-type FieldType int
-
-const (
-	Int64 FieldType = iota
-	Float64
-	String
-	Boolean
-	Binary
-)
-
-// Fields represents a list of fields.
-type Fields []*Field
-
-// Series belong to a Measurement and represent unique time series in a database
-type Series struct {
-	ID   uint32
-	Tags map[string]string
-}
-
-// RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
-type RetentionPolicy struct {
-	// Unique name within database. Required.
-	Name string
-
-	// Length of time to keep data around
-	Duration time.Duration
-
-	ReplicaN uint32
-	SplitN   uint32
-
-	Shards []*Shard
-}
-
-// NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
-func NewRetentionPolicy(name string) *RetentionPolicy {
-	return &RetentionPolicy{
-		Name:     name,
-		ReplicaN: DefaultReplicaN,
-		SplitN:   DefaultSplitN,
-		Duration: DefaultShardRetention,
-	}
-}
-
-// shardByTimestamp returns the shard in the space that owns a given timestamp for a given series id.
-// Returns nil if the shard does not exist.
-func (rp *RetentionPolicy) shardByTimestamp(id uint32, timestamp time.Time) *Shard {
-	shards := rp.shardsByTimestamp(timestamp)
-	if len(shards) > 0 {
-		return shards[int(id)%len(shards)]
-	}
-	return nil
-}
-
-func (rp *RetentionPolicy) shardsByTimestamp(timestamp time.Time) []*Shard {
-	shards := make([]*Shard, 0, rp.SplitN)
-	for _, s := range rp.Shards {
-		if timeBetweenInclusive(timestamp, s.StartTime, s.EndTime) {
-			shards = append(shards, s)
-		}
-	}
-	return shards
-}
-
-// MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
-func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&retentionPolicyJSON{
-		Name:     rp.Name,
-		Duration: rp.Duration,
-		ReplicaN: rp.ReplicaN,
-		SplitN:   rp.SplitN,
-	})
-}
-
-// UnmarshalJSON decodes a JSON-encoded byte slice to a retention policy.
-func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
-	// Decode into intermediate type.
-	var o retentionPolicyJSON
-	if err := json.Unmarshal(data, &o); err != nil {
-		return err
-	}
-
-	// Copy over properties from intermediate type.
-	rp.Name = o.Name
-	rp.ReplicaN = o.ReplicaN
-	rp.SplitN = o.SplitN
-	rp.Duration = o.Duration
-	rp.Shards = o.Shards
-
-	return nil
-}
-
-// retentionPolicyJSON represents an intermediate struct for JSON marshaling.
-type retentionPolicyJSON struct {
-	Name     string        `json:"name"`
-	ReplicaN uint32        `json:"replicaN,omitempty"`
-	SplitN   uint32        `json:"splitN,omitempty"`
-	Duration time.Duration `json:"duration,omitempty"`
-	Shards   []*Shard      `json:"shards,omitempty"`
-}
-
-// RetentionPolicies represents a list of shard policies.
-type RetentionPolicies []*RetentionPolicy
-
-// Shards returns a list of all shards for all policies.
-func (rps RetentionPolicies) Shards() []*Shard {
-	var shards []*Shard
-	for _, rp := range rps {
-		shards = append(shards, rp.Shards...)
-	}
-	return shards
-}
 
 // BcryptCost is the cost associated with generating password with Bcrypt.
 // This setting is lowered during testing to improve test suite performance.

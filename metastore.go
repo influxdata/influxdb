@@ -193,13 +193,10 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 }
 
 // loops through all the measurements and series in a database
-func (tx *metatx) measurementIndex(database string) *Index {
+func (tx *metatx) indexDatabase(db *database) {
 	// get the bucket that holds series data for the database
-	b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series"))
+	b := tx.Bucket([]byte("Databases")).Bucket([]byte(db.name)).Bucket([]byte("Series"))
 	c := b.Cursor()
-
-	// create the index and populate it from the series data
-	idx := NewIndex()
 
 	for k, _ := c.First(); k != nil; k, _ = c.Next() {
 		mc := b.Bucket(k).Cursor()
@@ -207,11 +204,9 @@ func (tx *metatx) measurementIndex(database string) *Index {
 		for id, v := mc.First(); id != nil; id, v = mc.Next() {
 			var s *Series
 			mustUnmarshalJSON(v, &s)
-			idx.AddSeries(name, s)
+			db.AddSeries(name, s)
 		}
 	}
-
-	return idx
 }
 
 // user returns a user from the metastore by name.
