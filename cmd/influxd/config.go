@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -20,9 +22,14 @@ const (
 	// can be queried concurrently at one time.
 	DefaultConcurrentShardQueryLimit = 10
 
-	// DefaultAPIReadTimeout represents the amount time before an API request
-	// times out.
+	// DefaultAPIReadTimeout represents the duration before an API request times out.
 	DefaultAPIReadTimeout = 5 * time.Second
+
+	// DefaultBrokerPort represents the default port the broker runs on.
+	DefaultBrokerPort = 8086
+
+	// DefaultHTTPAPIPort represents the default port the HTTP API runs on.
+	DefaultHTTPAPIPort = 8086
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -100,14 +107,20 @@ type Config struct {
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
+	u, _ := user.Current()
+
 	c := &Config{}
 	c.Data.RetentionSweepPeriod = Duration(10 * time.Minute)
 	c.Cluster.ConcurrentShardQueryLimit = DefaultConcurrentShardQueryLimit
+	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
+	c.Broker.Port = DefaultBrokerPort
 	c.Broker.Timeout = Duration(1 * time.Second)
+	c.HTTPAPI.Port = DefaultHTTPAPIPort
 	c.HTTPAPI.ReadTimeout = Duration(DefaultAPIReadTimeout)
 	c.Cluster.MinBackoff = Duration(1 * time.Second)
 	c.Cluster.MaxBackoff = Duration(10 * time.Second)
 	c.Cluster.ProtobufHeartbeatInterval = Duration(10 * time.Millisecond)
+	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
 	c.Data.WriteBufferSize = 1000
 	c.Cluster.WriteBufferSize = 1000
 	c.Cluster.MaxResponseBufferSize = 100

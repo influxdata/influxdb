@@ -53,7 +53,7 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("admin assets mismatch: %v", c.Admin.Assets)
 	}
 
-	if c.HTTPAPI.Port != 0 {
+	if c.HTTPAPI.Port != 8086 {
 		t.Fatalf("http api port mismatch: %v", c.HTTPAPI.Port)
 	} else if c.HTTPAPI.SSLPort != 8087 {
 		t.Fatalf("http api ssl port mismatch: %v", c.HTTPAPI.SSLPort)

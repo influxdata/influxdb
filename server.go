@@ -292,6 +292,32 @@ func (s *Server) sync(index uint64) error {
 	}
 }
 
+// Initialize creates a new data node and initializes the server's id to 1.
+func (s *Server) Initialize(u *url.URL) error {
+	// Create a new data node.
+	if err := s.CreateDataNode(u); err != nil {
+		return err
+	}
+
+	// Ensure the data node returns with an ID of 1.
+	// If it doesn't then something went really wrong. We have to panic because
+	// the messaging client relies on the first server being assigned ID 1.
+	n := s.DataNodeByURL(u)
+	assert(n != nil && n.ID == 1, "invalid initial server id: %d", n.ID)
+
+	// Set the ID on the metastore.
+	if err := s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.setID(n.ID)
+	}); err != nil {
+		return err
+	}
+
+	// Set the ID on the server.
+	s.id = 1
+
+	return nil
+}
+
 // DataNode returns a data node by id.
 func (s *Server) DataNode(id uint64) *DataNode {
 	s.mu.RLock()
