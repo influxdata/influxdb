@@ -261,16 +261,15 @@ const defaultGrahitePort = 2004
 
 // TCPAddr returns the TCP address to connect on.
 // If port is not specified in the config file, it will default to defaultGraphitePort (2004)
-// If address is not specified,it will default to the top level BindAddress
+// If address is not specified,it will default to the defaultBindAddress passed in
 func (g Graphite) TCPAddr(defaultBindAddress string) *net.TCPAddr {
-
 	if !g.Enabled || strings.ToLower(g.Protocol) != "tcp" {
 		return nil
 	}
 
 	a := net.TCPAddr{}
 
-	// Did we specify an IP address?  If not, use the top level BindAddress
+	// Did we specify an IP address?  If not, use the defaultBindAddress passed in
 	if g.Address != "" {
 		a.IP = net.ParseIP(g.Address)
 	} else {
@@ -288,16 +287,15 @@ func (g Graphite) TCPAddr(defaultBindAddress string) *net.TCPAddr {
 
 // UDPAddr returns the UDP address to connect on.
 // If port is not specified in the config file, it will default to defaultGraphitePort (2004)
-// If address is not specified,it will default to the top level BindAddress
+// If address is not specified,it will default to the defaultBindAddress passed in
 func (g Graphite) UDPAddr(defaultBindAddress string) *net.UDPAddr {
-
 	if !g.Enabled || strings.ToLower(g.Protocol) != "udp" {
 		return nil
 	}
 
 	a := net.UDPAddr{}
 
-	// Did we specify an IP address?  If not, use the top level BindAddress
+	// Did we specify an IP address?  If not, use the defaultBindAddress passed in
 	if g.Address != "" {
 		a.IP = net.ParseIP(g.Address)
 	} else {
