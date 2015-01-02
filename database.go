@@ -21,21 +21,19 @@ type database struct {
 	defaultRetentionPolicy string
 
 	// in memory indexing structures
-	measurements        map[string]*Measurement // measurement name to object and index
-	seriesToMeasurement map[uint32]*Measurement // map series id to its measurement
-	series              map[uint32]*Series      // map series id to the Series object
-	names               []string                // sorted list of the measurement names
+	measurements map[string]*Measurement // measurement name to object and index
+	series       map[uint32]*Series      // map series id to the Series object
+	names        []string                // sorted list of the measurement names
 }
 
 // newDatabase returns an instance of database.
 func newDatabase() *database {
 	return &database{
-		policies:            make(map[string]*RetentionPolicy),
-		shards:              make(map[uint64]*Shard),
-		measurements:        make(map[string]*Measurement),
-		seriesToMeasurement: make(map[uint32]*Measurement),
-		series:              make(map[uint32]*Series),
-		names:               make([]string, 0),
+		policies:     make(map[string]*RetentionPolicy),
+		shards:       make(map[uint64]*Shard),
+		measurements: make(map[string]*Measurement),
+		series:       make(map[uint32]*Series),
+		names:        make([]string, 0),
 	}
 }
 
@@ -264,6 +262,8 @@ type Fields []*Field
 type Series struct {
 	ID   uint32
 	Tags map[string]string
+
+	measurement *Measurement
 }
 
 // RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
@@ -478,14 +478,14 @@ func (l SeriesIDs) Reject(r SeriesIDs) SeriesIDs {
 // addSeriesToIndex adds the series for the given measurement to the index. Returns false if already present
 func (d *database) addSeriesToIndex(measurementName string, s *Series) bool {
 	// if there is a measurement for this id, it's already been added
-	if d.seriesToMeasurement[s.ID] != nil {
+	if d.series[s.ID] != nil {
 		return false
 	}
 
 	// get or create the measurement index and index it globally and in the measurement
 	idx := d.createMeasurementIfNotExists(measurementName)
 
-	d.seriesToMeasurement[s.ID] = idx
+	s.measurement = idx
 	d.series[s.ID] = s
 
 	// TODO: add this series to the global tag index
@@ -516,7 +516,8 @@ func (d *database) MeasurementsBySeriesIDs(seriesIDs SeriesIDs) []*Measurement {
 	measurements := make(map[*Measurement]bool)
 
 	for _, id := range seriesIDs {
-		measurements[d.seriesToMeasurement[id]] = true
+		m := d.series[id].measurement
+		measurements[m] = true
 	}
 
 	values := make([]*Measurement, 0, len(measurements))
@@ -664,7 +665,10 @@ func (d *database) seriesIDsByName(name string, filters []*TagFilter) SeriesIDs 
 
 // MeasurementBySeriesID returns the Measurement that is the parent of the given series id.
 func (d *database) MeasurementBySeriesID(id uint32) *Measurement {
-	return d.seriesToMeasurement[id]
+	if s, ok := d.series[id]; ok {
+		return s.measurement
+	}
+	return nil
 }
 
 // MeasurementAndSeries returns the Measurement and the Series for a given measurement name and tag set.
