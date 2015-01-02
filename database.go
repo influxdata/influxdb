@@ -476,17 +476,17 @@ func (l SeriesIDs) Reject(r SeriesIDs) SeriesIDs {
 }
 
 // addSeriesToIndex adds the series for the given measurement to the index. Returns false if already present
-func (t *database) addSeriesToIndex(measurementName string, s *Series) bool {
+func (d *database) addSeriesToIndex(measurementName string, s *Series) bool {
 	// if there is a measurement for this id, it's already been added
-	if t.seriesToMeasurement[s.ID] != nil {
+	if d.seriesToMeasurement[s.ID] != nil {
 		return false
 	}
 
 	// get or create the measurement index and index it globally and in the measurement
-	idx := t.createMeasurementIfNotExists(measurementName)
+	idx := d.createMeasurementIfNotExists(measurementName)
 
-	t.seriesToMeasurement[s.ID] = idx
-	t.series[s.ID] = s
+	d.seriesToMeasurement[s.ID] = idx
+	d.series[s.ID] = s
 
 	// TODO: add this series to the global tag index
 
@@ -494,29 +494,29 @@ func (t *database) addSeriesToIndex(measurementName string, s *Series) bool {
 }
 
 // createMeasurementIfNotExists will either add a measurement object to the index or return the existing one.
-func (t *database) createMeasurementIfNotExists(name string) *Measurement {
-	idx := t.measurements[name]
+func (d *database) createMeasurementIfNotExists(name string) *Measurement {
+	idx := d.measurements[name]
 	if idx == nil {
 		idx = NewMeasurement(name)
-		t.measurements[name] = idx
-		t.names = append(t.names, name)
-		sort.Strings(t.names)
+		d.measurements[name] = idx
+		d.names = append(d.names, name)
+		sort.Strings(d.names)
 	}
 	return idx
 }
 
 // AddField adds a field to the measurement name. Returns false if already present
-func (t *database) AddField(name string, f *Field) bool {
+func (d *database) AddField(name string, f *Field) bool {
 	panic("not implemented")
 	return false
 }
 
 // MeasurementsBySeriesIDs returns a collection of unique Measurements for the passed in SeriesIDs.
-func (t *database) MeasurementsBySeriesIDs(seriesIDs SeriesIDs) []*Measurement {
+func (d *database) MeasurementsBySeriesIDs(seriesIDs SeriesIDs) []*Measurement {
 	measurements := make(map[*Measurement]bool)
 
 	for _, id := range seriesIDs {
-		measurements[t.seriesToMeasurement[id]] = true
+		measurements[d.seriesToMeasurement[id]] = true
 	}
 
 	values := make([]*Measurement, 0, len(measurements))
@@ -528,13 +528,13 @@ func (t *database) MeasurementsBySeriesIDs(seriesIDs SeriesIDs) []*Measurement {
 }
 
 // SeriesIDs returns an array of series ids for the given measurements and filters to be applied to all.
-// Filters are equivalent to and AND operation. If you want to do an OR, get the series IDs for one set,
+// Filters are equivalent to an AND operation. If you want to do an OR, get the series IDs for one set,
 // then get the series IDs for another set and use the SeriesIDs.Union to combine the two.
-func (t *database) SeriesIDs(names []string, filters []*TagFilter) SeriesIDs {
+func (d *database) SeriesIDs(names []string, filters []*TagFilter) SeriesIDs {
 	// they want all ids if no filters are specified
 	if len(filters) == 0 {
 		ids := SeriesIDs(make([]uint32, 0))
-		for _, idx := range t.measurements {
+		for _, idx := range d.measurements {
 			ids = ids.Union(idx.ids)
 		}
 		return ids
@@ -542,21 +542,22 @@ func (t *database) SeriesIDs(names []string, filters []*TagFilter) SeriesIDs {
 
 	ids := SeriesIDs(make([]uint32, 0))
 	for _, n := range names {
-		ids = ids.Union(t.seriesIDsByName(n, filters))
+		ids = ids.Union(d.seriesIDsByName(n, filters))
 	}
 
 	return ids
 }
 
 // TagKeys returns a sorted array of unique tag keys for the given measurements.
-func (t *database) TagKeys(names []string) []string {
+// If an empty or nil slice is passed in, the tag keys for the entire database will be returned.
+func (d *database) TagKeys(names []string) []string {
 	if len(names) == 0 {
-		names = t.names
+		names = d.names
 	}
 
 	keys := make(map[string]bool)
 	for _, n := range names {
-		idx := t.measurements[n]
+		idx := d.measurements[n]
 		if idx != nil {
 			for k, _ := range idx.seriesByTagKeyValue {
 				keys[k] = true
@@ -577,13 +578,13 @@ func (t *database) TagKeys(names []string) []string {
 // Call .ToSlice() on the result to convert it into a sorted slice of strings.
 // Filters are equivalent to and AND operation. If you want to do an OR, get the tag values for one set,
 // then get the tag values for another set and do a union of the two.
-func (t *database) TagValues(names []string, key string, filters []*TagFilter) TagValues {
+func (d *database) TagValues(names []string, key string, filters []*TagFilter) TagValues {
 	values := TagValues(make(map[string]bool))
 
 	// see if they just want all the tag values for this key
 	if len(filters) == 0 {
 		for _, n := range names {
-			idx := t.measurements[n]
+			idx := d.measurements[n]
 			if idx != nil {
 				values.Union(idx.tagValues(key))
 			}
@@ -592,15 +593,15 @@ func (t *database) TagValues(names []string, key string, filters []*TagFilter) T
 	}
 
 	// they have filters so just get a set of series ids matching them and then get the tag values from those
-	seriesIDs := t.SeriesIDs(names, filters)
-	return t.tagValuesBySeries(key, seriesIDs)
+	seriesIDs := d.SeriesIDs(names, filters)
+	return d.tagValuesBySeries(key, seriesIDs)
 }
 
 // tagValuesBySeries will return a TagValues map of all the unique tag values for a collection of series.
-func (t *database) tagValuesBySeries(key string, seriesIDs SeriesIDs) TagValues {
+func (d *database) tagValuesBySeries(key string, seriesIDs SeriesIDs) TagValues {
 	values := make(map[string]bool)
 	for _, id := range seriesIDs {
-		s := t.series[id]
+		s := d.series[id]
 		if s == nil {
 			continue
 		}
@@ -640,8 +641,8 @@ func (l TagValues) Intersect(r TagValues) {
 }
 
 //seriesIDsByName is the same as SeriesIDs, but for a specific measurement.
-func (t *database) seriesIDsByName(name string, filters []*TagFilter) SeriesIDs {
-	idx := t.measurements[name]
+func (d *database) seriesIDsByName(name string, filters []*TagFilter) SeriesIDs {
+	idx := d.measurements[name]
 	if idx == nil {
 		return nil
 	}
@@ -662,13 +663,13 @@ func (t *database) seriesIDsByName(name string, filters []*TagFilter) SeriesIDs 
 }
 
 // MeasurementBySeriesID returns the Measurement that is the parent of the given series id.
-func (t *database) MeasurementBySeriesID(id uint32) *Measurement {
-	return t.seriesToMeasurement[id]
+func (d *database) MeasurementBySeriesID(id uint32) *Measurement {
+	return d.seriesToMeasurement[id]
 }
 
 // MeasurementAndSeries returns the Measurement and the Series for a given measurement name and tag set.
-func (t *database) MeasurementAndSeries(name string, tags map[string]string) (*Measurement, *Series) {
-	idx := t.measurements[name]
+func (d *database) MeasurementAndSeries(name string, tags map[string]string) (*Measurement, *Series) {
+	idx := d.measurements[name]
 	if idx == nil {
 		return nil, nil
 	}
@@ -676,31 +677,31 @@ func (t *database) MeasurementAndSeries(name string, tags map[string]string) (*M
 }
 
 // SereiesByID returns the Series that has the given id.
-func (t *database) SeriesByID(id uint32) *Series {
-	return t.series[id]
+func (d *database) SeriesByID(id uint32) *Series {
+	return d.series[id]
 }
 
 // Measurements returns all measurements that match the given filters.
-func (t *database) Measurements(filters []*TagFilter) []*Measurement {
-	measurements := make([]*Measurement, 0, len(t.measurements))
-	for _, idx := range t.measurements {
+func (d *database) Measurements(filters []*TagFilter) []*Measurement {
+	measurements := make([]*Measurement, 0, len(d.measurements))
+	for _, idx := range d.measurements {
 		measurements = append(measurements, idx.measurement)
 	}
 	return measurements
 }
 
-// Names returns all measuremet names in sorted order.
-func (t *database) Names() []string {
-	return t.names
+// Names returns all measurement names in sorted order.
+func (d *database) Names() []string {
+	return d.names
 }
 
 // DropSeries will clear the index of all references to a series.
-func (t *database) DropSeries(id uint32) {
+func (d *database) DropSeries(id uint32) {
 	panic("not implemented")
 }
 
 // DropMeasurement will clear the index of all references to a measurement and its child series.
-func (t *database) DropMeasurement(name string) {
+func (d *database) DropMeasurement(name string) {
 	panic("not implemented")
 }
 
