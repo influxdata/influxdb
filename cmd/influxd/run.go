@@ -140,7 +140,7 @@ func openBroker(path, addr string) *messaging.Broker {
 func openServer(path string) *influxdb.Server {
 	s := influxdb.NewServer()
 	if err := s.Open(path); err != nil {
-		log.Fatalf("failed to open data server", err.Error())
+		log.Fatalf("failed to open data server: %v", err.Error())
 					log.Fatalf("seed server %v", err)
 	}
 	return s
@@ -153,7 +153,7 @@ func initServer(s *influxdb.Server, b *messaging.Broker) {
 
 	// Create replica on broker.
 	if err := b.CreateReplica(1); err != nil {
-		log.Fatalf("replica creation error: %d", err)
+		log.Fatalf("replica creation error: %s", err)
 	}
 
 	// Initialize messaging client.

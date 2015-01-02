@@ -181,6 +181,25 @@ port = 2005
 database = "graphite_udp"  # store graphite data in this database
 
 
+# Configure the graphite api
+[[graphite]]
+protocol = "TCP"
+enabled = true
+address = "192.168.0.1"
+port = 2003
+database = "graphite_tcp"  # store graphite data in this database
+
+[[graphite]]
+protocol = "udP"
+enabled = true
+address = "192.168.0.2"
+port = 2005
+database = "graphite_udp"  # store graphite data in this database
+
+
+# Raft configuration
+[raft]
+# The raft port should be open between all servers in a cluster.
 # Broker configuration
 [broker]
 # The broker port should be open between all servers in a cluster.
