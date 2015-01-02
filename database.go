@@ -40,12 +40,12 @@ func newDatabase() *database {
 }
 
 // shardByTimestamp returns a shard that owns a given timestamp.
-func (db *database) shardByTimestamp(policy string, id uint32, timestamp time.Time) (*Shard, error) {
+func (db *database) shardByTimestamp(policy string, seriesID uint32, timestamp time.Time) (*Shard, error) {
 	p := db.policies[policy]
 	if p == nil {
 		return nil, ErrRetentionPolicyNotFound
 	}
-	return p.shardByTimestamp(id, timestamp), nil
+	return p.shardByTimestamp(seriesID, timestamp), nil
 }
 
 // shardsByTimestamp returns all shards that own a given timestamp.
@@ -182,13 +182,13 @@ func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 }
 
 // sereisIDs returns the series ids for a given filter
-func (m *Measurement) seriesIDs(filter *Filter) (ids SeriesIDs) {
+func (m *Measurement) seriesIDs(filter *TagFilter) (ids SeriesIDs) {
 	values := m.seriesByTagKeyValue[filter.Key]
 	if values == nil {
 		return
 	}
 
-	// hanlde regex filters
+	// handle regex filters
 	if filter.Regex != nil {
 		for k, v := range values {
 			if filter.Regex.MatchString(k) {
@@ -228,7 +228,7 @@ func (m *Measurement) seriesIDs(filter *Filter) (ids SeriesIDs) {
 	return
 }
 
-// tagValues returns an array of unique tag values for the given key
+// tagValues returns a map of unique tag values for the given key
 func (m *Measurement) tagValues(key string) TagValues {
 	tags := m.seriesByTagKeyValue[key]
 	values := make(map[string]bool, len(tags))
@@ -292,10 +292,10 @@ func NewRetentionPolicy(name string) *RetentionPolicy {
 
 // shardByTimestamp returns the shard in the space that owns a given timestamp for a given series id.
 // Returns nil if the shard does not exist.
-func (rp *RetentionPolicy) shardByTimestamp(id uint32, timestamp time.Time) *Shard {
+func (rp *RetentionPolicy) shardByTimestamp(seriesID uint32, timestamp time.Time) *Shard {
 	shards := rp.shardsByTimestamp(timestamp)
 	if len(shards) > 0 {
-		return shards[int(id)%len(shards)]
+		return shards[int(seriesID)%len(shards)]
 	}
 	return nil
 }
@@ -359,15 +359,13 @@ func (rps RetentionPolicies) Shards() []*Shard {
 	return shards
 }
 
-// Filter represents a tag filter when looking up other tags or measurements.
-type Filter struct {
+// TagFilter represents a tag filter when looking up other tags or measurements.
+type TagFilter struct {
 	Not   bool
 	Key   string
 	Value string
 	Regex *regexp.Regexp
 }
-
-type Filters []*Filter
 
 // SeriesIDs is a convenience type for sorting, checking equality, and doing union and
 // intersection of collections of series ids.
@@ -477,15 +475,15 @@ func (l SeriesIDs) Reject(r SeriesIDs) SeriesIDs {
 	return SeriesIDs(ids)
 }
 
-// AddSeries adds the series for the given measurement to the index. Returns false if already present
-func (t *database) AddSeries(name string, s *Series) bool {
+// addSeriesToIndex adds the series for the given measurement to the index. Returns false if already present
+func (t *database) addSeriesToIndex(measurementName string, s *Series) bool {
 	// if there is a measurement for this id, it's already been added
 	if t.seriesToMeasurement[s.ID] != nil {
 		return false
 	}
 
 	// get or create the measurement index and index it globally and in the measurement
-	idx := t.createMeasurementIfNotExists(name)
+	idx := t.createMeasurementIfNotExists(measurementName)
 
 	t.seriesToMeasurement[s.ID] = idx
 	t.series[s.ID] = s
@@ -513,8 +511,8 @@ func (t *database) AddField(name string, f *Field) bool {
 	return false
 }
 
-// MeasurementsForSeriesIDs returns a collection of unique Measurements for the passed in SeriesIDs.
-func (t *database) MeasurementsForSeriesIDs(seriesIDs SeriesIDs) []*Measurement {
+// MeasurementsBySeriesIDs returns a collection of unique Measurements for the passed in SeriesIDs.
+func (t *database) MeasurementsBySeriesIDs(seriesIDs SeriesIDs) []*Measurement {
 	measurements := make(map[*Measurement]bool)
 
 	for _, id := range seriesIDs {
@@ -532,7 +530,7 @@ func (t *database) MeasurementsForSeriesIDs(seriesIDs SeriesIDs) []*Measurement 
 // SeriesIDs returns an array of series ids for the given measurements and filters to be applied to all.
 // Filters are equivalent to and AND operation. If you want to do an OR, get the series IDs for one set,
 // then get the series IDs for another set and use the SeriesIDs.Union to combine the two.
-func (t *database) SeriesIDs(names []string, filters Filters) SeriesIDs {
+func (t *database) SeriesIDs(names []string, filters []*TagFilter) SeriesIDs {
 	// they want all ids if no filters are specified
 	if len(filters) == 0 {
 		ids := SeriesIDs(make([]uint32, 0))
@@ -544,7 +542,7 @@ func (t *database) SeriesIDs(names []string, filters Filters) SeriesIDs {
 
 	ids := SeriesIDs(make([]uint32, 0))
 	for _, n := range names {
-		ids = ids.Union(t.seriesIDsForName(n, filters))
+		ids = ids.Union(t.seriesIDsByName(n, filters))
 	}
 
 	return ids
@@ -579,7 +577,7 @@ func (t *database) TagKeys(names []string) []string {
 // Call .ToSlice() on the result to convert it into a sorted slice of strings.
 // Filters are equivalent to and AND operation. If you want to do an OR, get the tag values for one set,
 // then get the tag values for another set and do a union of the two.
-func (t *database) TagValues(names []string, key string, filters []*Filter) TagValues {
+func (t *database) TagValues(names []string, key string, filters []*TagFilter) TagValues {
 	values := TagValues(make(map[string]bool))
 
 	// see if they just want all the tag values for this key
@@ -595,11 +593,11 @@ func (t *database) TagValues(names []string, key string, filters []*Filter) TagV
 
 	// they have filters so just get a set of series ids matching them and then get the tag values from those
 	seriesIDs := t.SeriesIDs(names, filters)
-	return t.tagValuesForSeries(key, seriesIDs)
+	return t.tagValuesBySeries(key, seriesIDs)
 }
 
-// tagValuesForSeries will return a TagValues map of all the unique tag values for a collection of series.
-func (t *database) tagValuesForSeries(key string, seriesIDs SeriesIDs) TagValues {
+// tagValuesBySeries will return a TagValues map of all the unique tag values for a collection of series.
+func (t *database) tagValuesBySeries(key string, seriesIDs SeriesIDs) TagValues {
 	values := make(map[string]bool)
 	for _, id := range seriesIDs {
 		s := t.series[id]
@@ -641,8 +639,8 @@ func (l TagValues) Intersect(r TagValues) {
 	}
 }
 
-//seriesIDsForName is the same as SeriesIDs, but for a specific measurement.
-func (t *database) seriesIDsForName(name string, filters Filters) SeriesIDs {
+//seriesIDsByName is the same as SeriesIDs, but for a specific measurement.
+func (t *database) seriesIDsByName(name string, filters []*TagFilter) SeriesIDs {
 	idx := t.measurements[name]
 	if idx == nil {
 		return nil
@@ -683,7 +681,7 @@ func (t *database) SeriesByID(id uint32) *Series {
 }
 
 // Measurements returns all measurements that match the given filters.
-func (t *database) Measurements(filters []*Filter) []*Measurement {
+func (t *database) Measurements(filters []*TagFilter) []*Measurement {
 	measurements := make([]*Measurement, 0, len(t.measurements))
 	for _, idx := range t.measurements {
 		measurements = append(measurements, idx.measurement)

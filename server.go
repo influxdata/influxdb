@@ -978,7 +978,7 @@ func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
 	if err != nil {
 		return err
 	}
-	db.AddSeries(c.Name, series)
+	db.addSeriesToIndex(c.Name, series)
 
 	return nil
 }

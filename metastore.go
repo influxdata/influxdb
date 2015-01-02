@@ -204,7 +204,7 @@ func (tx *metatx) indexDatabase(db *database) {
 		for id, v := mc.First(); id != nil; id, v = mc.Next() {
 			var s *Series
 			mustUnmarshalJSON(v, &s)
-			db.AddSeries(name, s)
+			db.addSeriesToIndex(name, s)
 		}
 	}
 }
