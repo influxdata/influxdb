@@ -664,6 +664,16 @@ func (s *Server) Users() (a []*User) {
 	return a
 }
 
+// AdminUserExists returns whether at least 1 admin-level user exists.
+func (s *Server) AdminUserExists() bool {
+	for _, u := range s.users {
+		if u.Admin {
+			return true
+		}
+	}
+	return false
+}
+
 // CreateUser creates a user on the server.
 func (s *Server) CreateUser(username, password string, admin bool) error {
 	c := &createUserCommand{Username: username, Password: password, Admin: admin}

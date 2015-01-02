@@ -199,6 +199,35 @@ func TestServer_CreateUser(t *testing.T) {
 	}
 }
 
+// Ensure the server correctly detects when there is an admin user.
+func TestServer_AdminUserExists(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// A server should start up without any admin user.
+	if s.AdminUserExists() {
+		t.Fatalf("admin user unexpectedly exists at start-up")
+	}
+
+	// Create a non-admin user and verify Server agrees there is no admin user.
+	if err := s.CreateUser("bert", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	if s.AdminUserExists() {
+		t.Fatalf("admin user unexpectedly exists")
+	}
+
+	// Next, create an admin user, and ensure the Server agrees there is an admin user.
+	if err := s.CreateUser("ernie", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	if !s.AdminUserExists() {
+		t.Fatalf("admin user does not exist")
+	}
+}
+
 // Ensure the server returns an error when creating an user without a name.
 func TestServer_CreateUser_ErrUsernameRequired(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
