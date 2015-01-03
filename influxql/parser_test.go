@@ -313,7 +313,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.DropContinuousQueryStatement{Name: "myquery"},
 		},
 
-		// GRANT READ statement
+		// GRANT READ
 		{
 			s: `GRANT READ ON testdb TO jdoe`,
 			stmt: &influxql.GrantStatement{
@@ -323,7 +323,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// GRANT WRITE statement
+		// GRANT WRITE
 		{
 			s: `GRANT WRITE ON testdb TO jdoe`,
 			stmt: &influxql.GrantStatement{
@@ -333,7 +333,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// GRANT ALL statement
+		// GRANT ALL
 		{
 			s: `GRANT ALL ON testdb TO jdoe`,
 			stmt: &influxql.GrantStatement{
@@ -343,12 +343,70 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// GRANT ALL PRIVILEGES statement
+		// GRANT ALL PRIVILEGES
 		{
 			s: `GRANT ALL PRIVILEGES ON testdb TO jdoe`,
 			stmt: &influxql.GrantStatement{
 				Privilege: influxql.AllPrivileges,
 				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// GRANT cluster admin
+		{
+			s: `GRANT ALL PRIVILEGES TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.AllPrivileges,
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE READ
+		{
+			s: `REVOKE READ on testdb FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.ReadPrivilege,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE WRITE
+		{
+			s: `REVOKE WRITE ON testdb FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.WritePrivilege,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE ALL
+		{
+			s: `REVOKE ALL ON testdb FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.AllPrivileges,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE ALL PRIVILEGES
+		{
+			s: `REVOKE ALL PRIVILEGES ON testdb FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.AllPrivileges,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE cluster admin
+		{
+			s: `REVOKE ALL FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.AllPrivileges,
 				User:      "jdoe",
 			},
 		},
@@ -384,9 +442,16 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT READ`, err: `found EOF, expected ON at line 1, char 12`},
+		{s: `GRANT READ TO jdoe`, err: `found TO, expected ON at line 1, char 12`},
 		{s: `GRANT READ ON`, err: `found EOF, expected identifier, string at line 1, char 15`},
 		{s: `GRANT READ ON testdb`, err: `found EOF, expected TO at line 1, char 22`},
-		{s: `GRANT READ ON testdb TO`, err: `found EOF, expected identifier, string at line 1, char 25`},
+		{s: `GRANT READ ON testdb TO`, err: `found EOF, expected identifier, string at line 1, char 25`}, {s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
+		{s: `REVOKE BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 8`},
+		{s: `REVOKE READ`, err: `found EOF, expected ON at line 1, char 13`},
+		{s: `REVOKE READ TO jdoe`, err: `found TO, expected ON at line 1, char 13`},
+		{s: `REVOKE READ ON`, err: `found EOF, expected identifier, string at line 1, char 16`},
+		{s: `REVOKE READ ON testdb`, err: `found EOF, expected FROM at line 1, char 23`},
+		{s: `REVOKE READ ON testdb FROM`, err: `found EOF, expected identifier, string at line 1, char 28`},
 	}
 
 	for i, tt := range tests {

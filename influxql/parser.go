@@ -113,9 +113,55 @@ func (p *Parser) ParseStatement() (Statement, error) {
 		}
 	case GRANT:
 		return p.parseGrantStatement()
+	case REVOKE:
+		return p.parseRevokeStatement()
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
 	}
+}
+
+// parseRevokeStatement parses a string and returns a revoke statement.
+// This function assumes the REVOKE token has already been consumend.
+func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
+	stmt := &RevokeStatement{}
+
+	// Parse the privilege to be granted.
+	priv, err := p.parsePrivilege()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Privilege = priv
+
+	// Parse ON clause.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == ON {
+		// Parse the name of the thing we're granting a privilege to use.
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != IDENT && tok != STRING {
+			return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+		}
+		stmt.On = lit
+
+		tok, pos, lit = p.scanIgnoreWhitespace()
+	} else if priv != AllPrivileges {
+		// ALL PRIVILEGES is the only privilege allowed cluster-wide.
+		// No ON clause means query is requesting cluster-wide.
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Check for required FROM token.
+	if tok != FROM {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	}
+
+	// // Parse the name of the user we're granting the privilege to.
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.User = lit
+
+	return stmt, nil
 }
 
 // parseGrantStatement parses a string and returns a grant statement.
@@ -130,24 +176,29 @@ func (p *Parser) parseGrantStatement() (*GrantStatement, error) {
 	}
 	stmt.Privilege = priv
 
-	// Consume required ON token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+	// Parse ON clause.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == ON {
+		// Parse the name of the thing we're granting a privilege to use.
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != IDENT && tok != STRING {
+			return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+		}
+		stmt.On = lit
+
+		tok, pos, lit = p.scanIgnoreWhitespace()
+	} else if priv != AllPrivileges {
+		// ALL PRIVILEGES is the only privilege allowed cluster-wide.
+		// No ON clause means query is requesting cluster-wide.
 		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
 	}
 
-	// Parse the name of the thing we're granting a privilege to use.
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != IDENT && tok != STRING {
-		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
-	}
-	stmt.On = lit
-
-	// Consume the required TO token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != TO {
+	// Check for required TO token.
+	if tok != TO {
 		return nil, newParseError(tokstr(tok, lit), []string{"TO"}, pos)
 	}
 
-	// Parse the name of the thing we're granting a privilege to use.
+	// Parse the name of the user we're granting the privilege to.
 	tok, pos, lit = p.scanIgnoreWhitespace()
 	if tok != IDENT && tok != STRING {
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
