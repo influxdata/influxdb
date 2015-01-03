@@ -111,9 +111,69 @@ func (p *Parser) ParseStatement() (Statement, error) {
 		} else {
 			return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
 		}
+	case GRANT:
+		return p.parseGrantStatement()
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
 	}
+}
+
+// parseGrantStatement parses a string and returns a grant statement.
+// This function assumes the GRANT token has already been consumed.
+func (p *Parser) parseGrantStatement() (*GrantStatement, error) {
+	stmt := &GrantStatement{}
+
+	// Parse the privilege to be granted.
+	priv, err := p.parsePrivilege()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Privilege = priv
+
+	// Consume required ON token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Parse the name of the thing we're granting a privilege to use.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.On = lit
+
+	// Consume the required TO token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != TO {
+		return nil, newParseError(tokstr(tok, lit), []string{"TO"}, pos)
+	}
+
+	// Parse the name of the thing we're granting a privilege to use.
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.User = lit
+
+	return stmt, nil
+}
+
+// parsePrivilege parses a string and returns a Privilege
+func (p *Parser) parsePrivilege() (Privilege, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	switch tok {
+	case READ:
+		return ReadPrivilege, nil
+	case WRITE:
+		return WritePrivilege, nil
+	case ALL:
+		// Consume optional PRIVILEGES token
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != PRIVILEGES {
+			p.unscan()
+		}
+		return AllPrivileges, nil
+	}
+	return 0, newParseError(tokstr(tok, lit), []string{"READ", "WRITE", "ALL [PRIVILEGES]"}, pos)
 }
 
 // parseSelectStatement parses a select string and returns a Statement AST object.
@@ -528,16 +588,6 @@ func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
 	// 	return nil, newParseError(tokstr(tok, lit), []string{"PASSWORD"}, pos)
 	// }
 	return stmt, nil
-}
-
-// parseTokens consumes an expected sequence of tokens.
-func (p *Parser) parseTokens(toks []Token) error {
-	for _, expected := range toks {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != expected {
-			return newParseError(tokstr(tok, lit), []string{tokens[expected]}, pos)
-		}
-	}
-	return nil
 }
 
 // parseRetentionPolicy parses a string and returns a retention policy name.
@@ -1114,6 +1164,16 @@ func FormatDuration(d time.Duration) string {
 	} else {
 		return fmt.Sprintf("%d", d/time.Microsecond)
 	}
+}
+
+// parseTokens consumes an expected sequence of tokens.
+func (p *Parser) parseTokens(toks []Token) error {
+	for _, expected := range toks {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != expected {
+			return newParseError(tokstr(tok, lit), []string{tokens[expected]}, pos)
+		}
+	}
+	return nil
 }
 
 // Quote returns a quoted string.

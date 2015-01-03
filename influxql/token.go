@@ -65,6 +65,7 @@ const (
 	EXPLAIN
 	FIELD
 	FROM
+	GRANT
 	GROUP
 	IF
 	INNER
@@ -143,6 +144,7 @@ var tokens = [...]string{
 	EXPLAIN:      "EXPLAIN",
 	FIELD:        "FIELD",
 	FROM:         "FROM",
+	GRANT:        "GRANT",
 	GROUP:        "GROUP",
 	IF:           "IF",
 	INNER:        "INNER",

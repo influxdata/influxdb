@@ -109,6 +109,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `EXPLAIN`, tok: influxql.EXPLAIN},
 		{s: `FIELD`, tok: influxql.FIELD},
 		{s: `FROM`, tok: influxql.FROM},
+		{s: `GRANT`, tok: influxql.GRANT},
 		{s: `GROUP`, tok: influxql.GROUP},
 		{s: `IF`, tok: influxql.IF},
 		{s: `INNER`, tok: influxql.INNER},

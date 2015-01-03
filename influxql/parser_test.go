@@ -313,6 +313,46 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.DropContinuousQueryStatement{Name: "myquery"},
 		},
 
+		// GRANT READ statement
+		{
+			s: `GRANT READ ON testdb TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.ReadPrivilege,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// GRANT WRITE statement
+		{
+			s: `GRANT WRITE ON testdb TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.WritePrivilege,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// GRANT ALL statement
+		{
+			s: `GRANT ALL ON testdb TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.AllPrivileges,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// GRANT ALL PRIVILEGES statement
+		{
+			s: `GRANT ALL PRIVILEGES ON testdb TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.AllPrivileges,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
@@ -341,6 +381,12 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier, string at line 1, char 23`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
 		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
+		{s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
+		{s: `GRANT BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
+		{s: `GRANT READ`, err: `found EOF, expected ON at line 1, char 12`},
+		{s: `GRANT READ ON`, err: `found EOF, expected identifier, string at line 1, char 15`},
+		{s: `GRANT READ ON testdb`, err: `found EOF, expected TO at line 1, char 22`},
+		{s: `GRANT READ ON testdb TO`, err: `found EOF, expected identifier, string at line 1, char 25`},
 	}
 
 	for i, tt := range tests {

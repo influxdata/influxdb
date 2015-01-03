@@ -61,6 +61,7 @@ func (_ *CreateContinuousQueryStatement) node() {}
 func (_ *DropContinuousQueryStatement) node()   {}
 func (_ *CreateDatabaseStatement) node()        {}
 func (_ *CreateUserStatement) node()            {}
+func (_ *GrantStatement) node()                 {}
 
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
@@ -123,6 +124,7 @@ func (_ *ListFieldKeysStatement) stmt()         {}
 func (_ *ListFieldValuesStatement) stmt()       {}
 func (_ *CreateDatabaseStatement) stmt()        {}
 func (_ *CreateUserStatement) stmt()            {}
+func (_ *GrantStatement) stmt()                 {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -211,6 +213,52 @@ func (s *CreateUserStatement) String() string {
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" WITH PASSWORD ")
 	_, _ = buf.WriteString(s.Password)
+	return buf.String()
+}
+
+// Privilege is a type of action a user can be granted the right to use.
+type Privilege int
+
+const (
+	ReadPrivilege Privilege = iota
+	WritePrivilege
+	AllPrivileges
+)
+
+// String returns a string representation of a Privilege.
+func (p Privilege) String() string {
+	switch p {
+	case ReadPrivilege:
+		return "READ"
+	case WritePrivilege:
+		return "WRITE"
+	case AllPrivileges:
+		return "ALL PRIVILEGES"
+	}
+	return ""
+}
+
+// GrantStatement represents a command for granting a privilege.
+type GrantStatement struct {
+	// The privilege to be granted.
+	Privilege Privilege
+
+	// Thing to grant privilege on (e.g., a DB).
+	On string
+
+	// Who to grant the privilege to.
+	User string
+}
+
+// String returns a string representation of the grant statement.
+func (s *GrantStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("GRANT ")
+	_, _ = buf.WriteString(s.Privilege.String())
+	_, _ = buf.WriteString(" ON ")
+	_, _ = buf.WriteString(s.On)
+	_, _ = buf.WriteString(" TO ")
+	_, _ = buf.WriteString(s.User)
 	return buf.String()
 }
 
