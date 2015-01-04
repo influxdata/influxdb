@@ -4,7 +4,14 @@ This document lays out continuous queries and a proposed architecture for how th
 
 ## Definition of Continuous Queries
 
-Continuous queries serve two purposes in InfluxDB: denormalizing data into many series or into a single series and aggregating and downsampling data. We refer to these as `fan-out`, `fan-in`, or `aggregation`. Before we get to the continuous query examples, we need to define the `INTO` syntax of queries.
+Continuous queries serve two purposes in InfluxDB:
+
+1. Combining many series into a single series (i.e. removing 1 or more tag dimensions to make queries more efficient)
+2. Aggregating and downsampling series
+
+The purpose of both types of continuous queries is to duplicate or downsample data automatically in the background to make querying thier results fast and efficient. Think of them as another way to create indexes on data.
+
+Before we get to the continuous query examples, we need to define the `INTO` syntax of queries.
 
 ### INTO
 
@@ -56,6 +63,7 @@ ON database_name
 BEGIN
   SELECT count(value)
   INTO 10m.events
+  FROM events
   GROUP BY time(10m)
 END
 
@@ -65,28 +73,29 @@ ON database_name
 BEGIN
   SELECT sum(count) as count
   INTO 1h.events
+  FROM events
   GROUP BY time(1h)
 END
 ```
 
-Or aggregation in different intervals from all series in a measurement. This example assumes you have a retention policy named for each time interval that you're doing a `GROUP BY` on. e.g. one policy named `10m` and one `1h`.
+Or multiple aggregations from all series in a measurement. This example assumes you have a retention policy named `1h`.
 
 ```sql
-CREATE CONTINUOUS QUERY cpu_aggregation
+CREATE CONTINUOUS QUERY 1h_cpu_aggregation
 ON database_name
 BEGIN
   SELECT mean(value), percentile(80, value) as percentile_80, percentile(95, value) as percentile_95
-  INTO time().events
-  GROUP BY time(10m), time(1h), *
+  INTO 1h.events
+  GROUP BY time(1h), *
 END
 ```
 
-The `GROUP BY *` indicates that we want to group by the tagset of the points written in. The same tags will be written to the output series. The multiple aggregates in the `SELECT` clause (percentile, mean) will be written in as fields to the resulting series. The time specifies that we want multiple aggregation windows.
+The `GROUP BY *` indicates that we want to group by the tagset of the points written in. The same tags will be written to the output series. The multiple aggregates in the `SELECT` clause (percentile, mean) will be written in as fields to the resulting series.
 
 Showing what continuous queries we have:
 
 ```sql
-SHOW CONTINUOUS QUERIES
+LIST CONTINUOUS QUERIES
 ```
 
 Dropping continuous queries:
