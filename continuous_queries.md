@@ -83,11 +83,12 @@ END
 Or multiple aggregations from all series in a measurement. This example assumes you have a retention policy named `1h`.
 
 ```sql
-CREATE CONTINUOUS QUERY 1h_cpu_aggregation
+CREATE CONTINUOUS QUERY 1h_cpu_load
 ON database_name
 BEGIN
   SELECT mean(value), percentile(80, value) as percentile_80, percentile(95, value) as percentile_95
-  INTO 1h.events
+  INTO 1h.cpu_load
+  FROM cpu_load
   GROUP BY time(1h), *
 END
 ```
