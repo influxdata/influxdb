@@ -11,6 +11,8 @@ Continuous queries serve two purposes in InfluxDB:
 
 The purpose of both types of continuous queries is to duplicate or downsample data automatically in the background to make querying thier results fast and efficient. Think of them as another way to create indexes on data.
 
+Generally, there are continuous queries that create copyies of data into another measurement or tagset and queries that downsample and aggregate data. The only difference between the two types is if the query has a `GROUP BY time` clause.
+
 Before we get to the continuous query examples, we need to define the `INTO` syntax of queries.
 
 ### INTO
@@ -107,7 +109,7 @@ ON <database>
 
 ### Security
 
-To create a continuous query, the user must have both read and write access to the database that is being queried from and written into.
+To create a continuous query or drp a continuous query, the user must be an admin.
 
 ## Proposed Architecture
 
