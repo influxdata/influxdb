@@ -653,6 +653,22 @@ func (s *Server) User(name string) *User {
 	return s.users[name]
 }
 
+// AuthenticatedUser returns an authenticated user by username. If any error occurs,
+// or the authentication credentials are invalid, an error is returned.
+func (s *Server) AuthenticatedUser(username, password string) (*User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.users[username]
+	if u == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	err := u.Authenticate(password)
+	if err != nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+	return u, nil
+}
+
 // Users returns a list of all users, sorted by name.
 func (s *Server) Users() (a []*User) {
 	s.mu.RLock()
