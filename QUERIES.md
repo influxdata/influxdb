@@ -1,12 +1,19 @@
 The top level name is called a measurement. These names can contain any characters. Then there are field names, field values, tag keys and tag values, which can also contain any characters. Because of this, anywhere a measurement name, field name, field value, tag name, or tag value appears should be able to get wrapped in double quotes to deal with special characters.
 
-# Databases
+# Databases & retention policies
 
 ```sql
 -- create a database
-CREATE DATABASE <name> (WITH [DEFAULT] RETENTION POLICY <rp-name> ...)+
+CREATE DATABASE <name>
 
-DROP DATABASE [IF EXISTS] <name>
+-- create a retention policy
+CREATE RETENTION POLICY <rp-name> ON <db-name> DURATION <duration> REPLICATION <n> [DEFAULT]
+
+-- alter retention policy
+ALTER RETENTION POLICY <rp-name> ON <db-name> (DURATION <duration> | REPLICATION <n> | DEFAULT)+
+
+-- drop a database
+DROP DATABASE <name>
 ```
 
 # Users and permissions
@@ -15,20 +22,14 @@ DROP DATABASE [IF EXISTS] <name>
 -- create user
 CREATE USER <name> WITH PASSWORD <password>
 
--- grant DB read privileges
-GRANT READ ON <db> TO <user>
-
--- grant DB write privileges
-GRANT WRITE ON <db> TO <user>
-
--- grant all privileges for a DB
-GRANT ALL [PRIVILEGES] ON <db> TO <user>
+-- grant privilege on a database
+GRANT <privilege> ON <db> TO <user>
 
 -- grant cluster admin privileges
 GRANT ALL [PRIVILEGES] TO <user>
 
--- revoke DB read privileges
-REVOKE READ ON <db> FROM <user>
+-- revoke privilege
+REVOKE <privilege> ON <db> FROM <user>
 
 -- revoke all privileges for a DB
 REVOKE ALL [PRIVILEGES] ON <db> FROM <user>
@@ -37,8 +38,9 @@ REVOKE ALL [PRIVILEGES] ON <db> FROM <user>
 REVOKE ALL [PRIVILEGES] FROM <user>
 
 -- delete a user
-DROP USER [IF EXISTS] <name> [, <name>] ...
+DROP USER <name>
 ```
+<privilege> := READ | WRITE | All [PRIVILEGES]
 
 # Select
 
