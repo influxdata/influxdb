@@ -55,17 +55,18 @@ func (_ *ListTagKeysStatement) node()           {}
 func (_ *ListTagValuesStatement) node()         {}
 func (_ *ListFieldKeysStatement) node()         {}
 func (_ *ListFieldValuesStatement) node()       {}
-func (_ *DropSeriesStatement) node()            {}
 func (_ *ListContinuousQueriesStatement) node() {}
-func (_ *CreateContinuousQueryStatement) node() {}
+func (_ *DropSeriesStatement) node()            {}
 func (_ *DropContinuousQueryStatement) node()   {}
-func (_ *CreateDatabaseStatement) node()        {}
-func (_ *CreateUserStatement) node()            {}
-func (_ *GrantStatement) node()                 {}
-func (_ *RevokeStatement) node()                {}
-func (_ *CreateRetentionPolicyStatement) node() {}
 func (_ *DropDatabaseStatement) node()          {}
 func (_ *DropUserStatement) node()              {}
+func (_ *CreateContinuousQueryStatement) node() {}
+func (_ *CreateDatabaseStatement) node()        {}
+func (_ *CreateUserStatement) node()            {}
+func (_ *CreateRetentionPolicyStatement) node() {}
+func (_ *GrantStatement) node()                 {}
+func (_ *RevokeStatement) node()                {}
+func (_ *AlterRetentionPolicyStatement) node()  {}
 
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
@@ -133,6 +134,7 @@ func (_ *RevokeStatement) stmt()                {}
 func (_ *CreateRetentionPolicyStatement) stmt() {}
 func (_ *DropDatabaseStatement) stmt()          {}
 func (_ *DropUserStatement) stmt()              {}
+func (_ *AlterRetentionPolicyStatement) stmt()  {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -331,7 +333,7 @@ type CreateRetentionPolicyStatement struct {
 	// Name of policy to create.
 	Name string
 
-	// Name of DB this policy belongs to.
+	// Name of database this policy belongs to.
 	DB string
 
 	// Duration data written to this policy will be retained.
@@ -340,7 +342,7 @@ type CreateRetentionPolicyStatement struct {
 	// Replication factor for data written to this policy.
 	Replication int
 
-	// Should this policy be set as default for the DB?
+	// Should this policy be set as default for the database?
 	Default bool
 }
 
@@ -349,16 +351,59 @@ func (s *CreateRetentionPolicyStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE RETENTION POLICY ")
 	_, _ = buf.WriteString(s.Name)
-	_, _ = buf.WriteString(" ON DATABASE ")
+	_, _ = buf.WriteString(" ON ")
 	_, _ = buf.WriteString(s.DB)
 	_, _ = buf.WriteString(" DURATION ")
-	_, _ = buf.WriteString(s.Duration.String())
+	_, _ = buf.WriteString(FormatDuration(s.Duration))
 	_, _ = buf.WriteString(" REPLICATION ")
 	r := int64(s.Replication)
 	_, _ = buf.WriteString(strconv.FormatInt(r, 10))
 	if s.Default {
 		_, _ = buf.WriteString(" DEFAULT")
 	}
+	return buf.String()
+}
+
+// AlterRetentionPolicyStatement represents a command to alter an existing retention policy.
+type AlterRetentionPolicyStatement struct {
+	// Name of policy to alter.
+	Name string
+
+	// Name of the database this policy belongs to.
+	DB string
+
+	// Duration data written to this policy will be retained.
+	Duration *time.Duration
+
+	// Replication factor for data written to this policy.
+	Replication *int
+
+	// Should this policy be set as defalut for the database?
+	Default bool
+}
+
+// String returns a string representation of the alter retention policy statement.
+func (s *AlterRetentionPolicyStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("ALTER RETENTION POLICY ")
+	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(" ON ")
+	_, _ = buf.WriteString(s.DB)
+
+	if s.Duration != nil {
+		_, _ = buf.WriteString(" DURATION ")
+		_, _ = buf.WriteString(FormatDuration(*s.Duration))
+	}
+
+	if s.Replication != nil {
+		_, _ = buf.WriteString(" REPLICATION ")
+		_, _ = buf.WriteString(strconv.Itoa(*s.Replication))
+	}
+
+	if s.Default {
+		_, _ = buf.WriteString(" DEFAULT")
+	}
+
 	return buf.String()
 }
 

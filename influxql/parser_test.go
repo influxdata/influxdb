@@ -446,6 +446,36 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// ALTER RETENTION POLICY
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DURATION 1m REPLICATION 4 DEFAULT`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", time.Minute, 4, true),
+		},
+
+		// ALTER RETENTION POLICY with options in reverse order
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT REPLICATION 4 DURATION 1m`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", time.Minute, 4, true),
+		},
+
+		// ALTER RETENTION POLICY without optional DURATION
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT REPLICATION 4`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, 4, true),
+		},
+
+		// ALTER RETENTION POLICY without optional REPLICATION
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, -1, true),
+		},
+
+		// ALTER RETENTION POLICY without optional DEFAULT
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb REPLICATION 4`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, 4, false),
+		},
+
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
@@ -498,9 +528,15 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION bad`, err: `found bad, expected duration at line 1, char 52`},
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h`, err: `found EOF, expected REPLICATION at line 1, char 54`},
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION`, err: `found EOF, expected number at line 1, char 67`},
-		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 3.14`, err: `REPLICATION must be an integer at line 1, char 67`},
-		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 0`, err: `REPLICATION must be > 0 at line 1, char 67`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 3.14`, err: `number must be an integer at line 1, char 67`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 0`, err: `invlaid value 0: must be 1 <= n <= 2147483647 at line 1, char 67`},
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION bad`, err: `found bad, expected number at line 1, char 67`},
+		{s: `ALTER`, err: `found EOF, expected RETENTION at line 1, char 7`},
+		{s: `ALTER RETENTION`, err: `found EOF, expected POLICY at line 1, char 17`},
+		{s: `ALTER RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 24`},
+		{s: `ALTER RETENTION POLICY policy1`, err: `found EOF, expected ON at line 1, char 32`},
+		{s: `ALTER RETENTION POLICY policy1 ON`, err: `found EOF, expected identifier at line 1, char 35`},
+		{s: `ALTER RETENTION POLICY policy1 ON testdb`, err: `found EOF, expected DURATION, RETENTION, DEFAULT at line 1, char 42`},
 	}
 
 	for i, tt := range tests {
@@ -792,4 +828,23 @@ func errstring(err error) string {
 		return err.Error()
 	}
 	return ""
+}
+
+// newAlterRetentionPolicyStatement creates an initialized AlterRetentionPolicyStatement.
+func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, replication int, dfault bool) *influxql.AlterRetentionPolicyStatement {
+	stmt := &influxql.AlterRetentionPolicyStatement{
+		Name:    name,
+		DB:      DB,
+		Default: dfault,
+	}
+
+	if d > -1 {
+		stmt.Duration = &d
+	}
+
+	if replication > -1 {
+		stmt.Replication = &replication
+	}
+
+	return stmt
 }

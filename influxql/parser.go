@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -77,6 +78,8 @@ func (p *Parser) ParseStatement() (Statement, error) {
 		return p.parseGrantStatement()
 	case REVOKE:
 		return p.parseRevokeStatement()
+	case ALTER:
+		return p.parseAlterStatement()
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
 	}
@@ -151,6 +154,20 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
 }
 
+// parseAlterStatement parses a string and returns an alter statement.
+// This function assumes the ALTER token has already been consumed.
+func (p *Parser) parseAlterStatement() (Statement, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == RETENTION {
+		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != POLICY {
+			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
+		}
+		return p.parseAlterRetentionPolicyStatement()
+	}
+
+	return nil, newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
+}
+
 // parseCreateRetentionPolicyStatement parses a string and returns a create retention policy statement.
 // This function assumes the CREATE RETENTION POLICY tokens have already been consumed.
 func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicyStatement, error) {
@@ -182,12 +199,9 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	}
 
 	// Parse duration value
-	if tok, pos, lit = p.scanIgnoreWhitespace(); tok != DURATION_VAL {
-		return nil, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
-	}
-	d, err := ParseDuration(lit)
+	d, err := p.parseDuration()
 	if err != nil {
-		return nil, &ParseError{Message: err.Error(), Pos: pos}
+		return nil, err
 	}
 	stmt.Duration = d
 
@@ -197,24 +211,11 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	}
 
 	// Parse replication value.
-	if tok, pos, lit = p.scanIgnoreWhitespace(); tok != NUMBER {
-		return nil, newParseError(tokstr(tok, lit), []string{"number"}, pos)
-	}
-
-	// Return an error if the number has a fractional part.
-	if strings.Contains(lit, ".") {
-		return nil, &ParseError{Message: "REPLICATION must be an integer", Pos: pos}
-	}
-
-	// Parse number.
-	n, err := strconv.ParseInt(lit, 10, 32)
-
+	n, err := p.parseInt(1, math.MaxInt32)
 	if err != nil {
-		return nil, &ParseError{Message: err.Error(), Pos: pos}
-	} else if n < 1 {
-		return nil, &ParseError{Message: "REPLICATION must be > 0", Pos: pos}
+		return nil, err
 	}
-	stmt.Replication = int(n)
+	stmt.Replication = n
 
 	// Parse optional DEFAULT token.
 	if tok, pos, lit = p.scanIgnoreWhitespace(); tok == DEFAULT {
@@ -224,6 +225,103 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	}
 
 	return stmt, nil
+}
+
+// parseAlterRetentionPolicyStatement parses a string and returns an alter retention policy statement.
+// This function assumes the ALTER RETENTION POLICY tokens have already been consumned.
+func (p *Parser) parseAlterRetentionPolicyStatement() (*AlterRetentionPolicyStatement, error) {
+	stmt := &AlterRetentionPolicyStatement{}
+
+	// Parse the retention policy name.
+	ident, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = ident
+
+	// Consume the required ON token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Parse the database name.
+	ident, err = p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	stmt.DB = ident
+
+	// Loop through option tokens (DURATION, RETENTION, DEFAULT, etc.).
+	maxNumOptions := 3
+Loop:
+	for i := 0; i < maxNumOptions; i++ {
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		switch tok {
+		case DURATION:
+			d, err := p.parseDuration()
+			if err != nil {
+				return nil, err
+			}
+			stmt.Duration = &d
+		case REPLICATION:
+			n, err := p.parseInt(1, math.MaxInt32)
+			if err != nil {
+				return nil, err
+			}
+			stmt.Replication = &n
+		case DEFAULT:
+			stmt.Default = true
+		default:
+			if i < 1 {
+				return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "RETENTION", "DEFAULT"}, pos)
+			}
+			p.unscan()
+			break Loop
+		}
+	}
+
+	return stmt, nil
+}
+
+// parseInt parses a string and returns an integer literal.
+func (p *Parser) parseInt(min, max int) (int, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != NUMBER {
+		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
+	}
+
+	// Return an error if the number has a fractional part.
+	if strings.Contains(lit, ".") {
+		return 0, &ParseError{Message: "number must be an integer", Pos: pos}
+	}
+
+	// Convert string to int.
+	n, err := strconv.ParseInt(lit, 10, 32)
+	if err != nil {
+		return 0, &ParseError{Message: err.Error(), Pos: pos}
+	} else if int64(min) > n || n > int64(max) {
+		return 0, &ParseError{
+			Message: fmt.Sprintf("invlaid value %d: must be %d <= n <= %d", n, min, max),
+			Pos:     pos,
+		}
+	}
+
+	return int(n), nil
+}
+
+// parseDuration parses a string and returns a duration literal.
+// This function assumes the DURATION token has already been consumed.
+func (p *Parser) parseDuration() (time.Duration, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != DURATION_VAL {
+		return 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
+	}
+	d, err := ParseDuration(lit)
+	if err != nil {
+		return 0, &ParseError{Message: err.Error(), Pos: pos}
+	}
+
+	return d, nil
 }
 
 // parserIdentifier parses a string and returns an identifier.

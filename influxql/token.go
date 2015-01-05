@@ -51,6 +51,7 @@ const (
 	keyword_beg
 	// Keywords
 	ALL
+	ALTER
 	AS
 	ASC
 	BY
@@ -133,6 +134,7 @@ var tokens = [...]string{
 	SEMICOLON: ";",
 
 	ALL:          "ALL",
+	ALTER:        "ALTER",
 	AS:           "AS",
 	ASC:          "ASC",
 	BY:           "BY",

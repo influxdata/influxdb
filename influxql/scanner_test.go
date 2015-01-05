@@ -97,14 +97,18 @@ func TestScanner_Scan(t *testing.T) {
 
 		// Keywords
 		{s: `ALL`, tok: influxql.ALL},
+		{s: `ALTER`, tok: influxql.ALTER},
 		{s: `AS`, tok: influxql.AS},
 		{s: `ASC`, tok: influxql.ASC},
 		{s: `BY`, tok: influxql.BY},
+		{s: `CREATE`, tok: influxql.CREATE},
 		{s: `CONTINUOUS`, tok: influxql.CONTINUOUS},
 		{s: `DATABASE`, tok: influxql.DATABASE},
+		{s: `DEFAULT`, tok: influxql.DEFAULT},
 		{s: `DELETE`, tok: influxql.DELETE},
 		{s: `DESC`, tok: influxql.DESC},
 		{s: `DROP`, tok: influxql.DROP},
+		{s: `DURATION`, tok: influxql.DURATION},
 		{s: `EXISTS`, tok: influxql.EXISTS},
 		{s: `EXPLAIN`, tok: influxql.EXPLAIN},
 		{s: `FIELD`, tok: influxql.FIELD},
