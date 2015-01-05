@@ -2,6 +2,8 @@ package influxdb_test
 
 import (
 	"bytes"
+	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -599,10 +601,87 @@ func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 	}
 }
 
+// Perform a subset of endpoint testing, with authentication enabled.
+
+func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	// Attempting to create a non-admin user should fail.
+	status, _ := MustHTTP("POST", s.URL+`/users`, `{"name": "maeve", "password": "pass", "Admin": false}`)
+	if status != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	// Creating the first admin user, without supplying authentication
+	// credentials should be OK.
+	status, _ = MustHTTP("POST", s.URL+`/users`, `{"name": "orla", "password": "pass", "Admin": true}`)
+	if status != http.StatusCreated {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	// Creating a second admin user, without supplying authentication
+	// credentials should fail.
+	status, _ = MustHTTP("POST", s.URL+`/users`, `{"name": "louise", "password": "pass", "Admin": true}`)
+	if status != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+}
+
+func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/db`, "")
+	if status != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
+func TestHandler_AuthenticatedDatabases_AuthorizedQueryParams(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateUser("lisa", "password", true)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/db?u=lisa&p=password`, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
+func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateUser("lisa", "password", true)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	fmt.Println(auth)
+	status, _ := MustHTTPWithHeaders("GET", s.URL+`/db`, auth, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
+// Utility functions for this test suite.
+
 func MustHTTP(verb, url, body string) (int, string) {
+	return MustHTTPWithHeaders(verb, url, nil, body)
+}
+
+func MustHTTPWithHeaders(verb, url string, headers map[string]string, body string) (int, string) {
 	req, err := http.NewRequest(verb, url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		panic(err)
+	}
+
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
@@ -634,6 +713,12 @@ type HTTPServer struct {
 
 func NewHTTPServer(s *Server) *HTTPServer {
 	h := influxdb.NewHandler(s.Server)
+	return &HTTPServer{httptest.NewServer(h), h}
+}
+
+func NewAuthenticatedHTTPServer(s *Server) *HTTPServer {
+	h := influxdb.NewHandler(s.Server)
+	h.AuthenticationEnabled = true
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
