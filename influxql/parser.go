@@ -296,17 +296,17 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 	}
 
 	// Convert string to int.
-	n, err := strconv.ParseInt(lit, 10, 32)
+	n, err := strconv.Atoi(lit)
 	if err != nil {
 		return 0, &ParseError{Message: err.Error(), Pos: pos}
-	} else if int64(min) > n || n > int64(max) {
+	} else if min > n || n > max {
 		return 0, &ParseError{
 			Message: fmt.Sprintf("invlaid value %d: must be %d <= n <= %d", n, min, max),
 			Pos:     pos,
 		}
 	}
 
-	return int(n), nil
+	return n, nil
 }
 
 // parseDuration parses a string and returns a duration literal.
