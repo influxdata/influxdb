@@ -411,6 +411,29 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// CREATE RETENTION POLICY
+		{
+			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 2`,
+			stmt: &influxql.CreateRetentionPolicyStatement{
+				Name:        "policy1",
+				DB:          "testdb",
+				Duration:    time.Hour,
+				Replication: 2,
+			},
+		},
+
+		// CREATE RETENTION POLICY ... DEFAULT
+		{
+			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 2m REPLICATION 4 DEFAULT`,
+			stmt: &influxql.CreateRetentionPolicyStatement{
+				Name:        "policy1",
+				DB:          "testdb",
+				Duration:    2 * time.Minute,
+				Replication: 4,
+				Default:     true,
+			},
+		},
+
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
@@ -452,6 +475,18 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `REVOKE READ ON`, err: `found EOF, expected identifier, string at line 1, char 16`},
 		{s: `REVOKE READ ON testdb`, err: `found EOF, expected FROM at line 1, char 23`},
 		{s: `REVOKE READ ON testdb FROM`, err: `found EOF, expected identifier, string at line 1, char 28`},
+		{s: `CREATE RETENTION`, err: `found EOF, expected POLICY at line 1, char 18`},
+		{s: `CREATE RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 25`},
+		{s: `CREATE RETENTION POLICY policy1`, err: `found EOF, expected ON at line 1, char 33`},
+		{s: `CREATE RETENTION POLICY policy1 ON`, err: `found EOF, expected identifier at line 1, char 36`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb`, err: `found EOF, expected DURATION at line 1, char 43`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION`, err: `found EOF, expected duration at line 1, char 52`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION bad`, err: `found bad, expected duration at line 1, char 52`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h`, err: `found EOF, expected REPLICATION at line 1, char 54`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION`, err: `found EOF, expected number at line 1, char 67`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 3.14`, err: `REPLICATION must be an integer at line 1, char 67`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 0`, err: `REPLICATION must be > 0 at line 1, char 67`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION bad`, err: `found bad, expected number at line 1, char 67`},
 	}
 
 	for i, tt := range tests {

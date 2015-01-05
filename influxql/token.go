@@ -15,14 +15,14 @@ const (
 
 	literal_beg
 	// Literals
-	IDENT     // main
-	NUMBER    // 12345.67
-	DURATION  // 13h
-	STRING    // "abc"
-	BADSTRING // "abc
-	BADESCAPE // \q
-	TRUE      // true
-	FALSE     // false
+	IDENT        // main
+	NUMBER       // 12345.67
+	DURATION_VAL // 13h
+	STRING       // "abc"
+	BADSTRING    // "abc
+	BADESCAPE    // \q
+	TRUE         // true
+	FALSE        // false
 	literal_end
 
 	operator_beg
@@ -61,6 +61,7 @@ const (
 	DELETE
 	DESC
 	DROP
+	DURATION
 	EXISTS
 	EXPLAIN
 	FIELD
@@ -84,6 +85,7 @@ const (
 	QUERIES
 	QUERY
 	READ
+	REPLICATION
 	RETENTION
 	REVOKE
 	SELECT
@@ -103,11 +105,12 @@ var tokens = [...]string{
 	EOF:     "EOF",
 	WS:      "WS",
 
-	IDENT:  "IDENT",
-	NUMBER: "NUMBER",
-	STRING: "STRING",
-	TRUE:   "TRUE",
-	FALSE:  "FALSE",
+	IDENT:        "IDENT",
+	NUMBER:       "NUMBER",
+	DURATION_VAL: "DURATION_VAL",
+	STRING:       "STRING",
+	TRUE:         "TRUE",
+	FALSE:        "FALSE",
 
 	ADD: "+",
 	SUB: "-",
@@ -140,6 +143,7 @@ var tokens = [...]string{
 	DELETE:       "DELETE",
 	DESC:         "DESC",
 	DROP:         "DROP",
+	DURATION:     "DURATION",
 	EXISTS:       "EXISTS",
 	EXPLAIN:      "EXPLAIN",
 	FIELD:        "FIELD",
@@ -163,6 +167,7 @@ var tokens = [...]string{
 	QUERIES:      "QUERIES",
 	QUERY:        "QUERY",
 	READ:         "READ",
+	REPLICATION:  "REPLICATION",
 	RETENTION:    "RETENTION",
 	REVOKE:       "REVOKE",
 	SELECT:       "SELECT",

@@ -63,6 +63,7 @@ func (_ *CreateDatabaseStatement) node()        {}
 func (_ *CreateUserStatement) node()            {}
 func (_ *GrantStatement) node()                 {}
 func (_ *RevokeStatement) node()                {}
+func (_ *CreateRetentionPolicyStatement) node() {}
 
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
@@ -127,6 +128,7 @@ func (_ *CreateDatabaseStatement) stmt()        {}
 func (_ *CreateUserStatement) stmt()            {}
 func (_ *GrantStatement) stmt()                 {}
 func (_ *RevokeStatement) stmt()                {}
+func (_ *CreateRetentionPolicyStatement) stmt() {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -289,6 +291,42 @@ func (s *RevokeStatement) String() string {
 	}
 	_, _ = buf.WriteString(" FROM ")
 	_, _ = buf.WriteString(s.User)
+	return buf.String()
+}
+
+// CreateRetentionPolicyStatement represents a command to create a retention policy.
+type CreateRetentionPolicyStatement struct {
+	// Name of policy to create.
+	Name string
+
+	// Name of DB this policy belongs to.
+	DB string
+
+	// Duration data written to this policy will be retained.
+	Duration time.Duration
+
+	// Replication factor for data written to this policy.
+	Replication int
+
+	// Should this policy be set as default for the DB?
+	Default bool
+}
+
+// String returns a string representation of the create retention policy.
+func (s *CreateRetentionPolicyStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("CREATE RETENTION POLICY ")
+	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(" ON DATABASE ")
+	_, _ = buf.WriteString(s.DB)
+	_, _ = buf.WriteString(" DURATION ")
+	_, _ = buf.WriteString(s.Duration.String())
+	_, _ = buf.WriteString(" REPLICATION ")
+	r := int64(s.Replication)
+	_, _ = buf.WriteString(strconv.FormatInt(r, 10))
+	if s.Default {
+		_, _ = buf.WriteString(" DEFAULT")
+	}
 	return buf.String()
 }
 
