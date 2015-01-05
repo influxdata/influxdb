@@ -64,7 +64,8 @@ func (_ *CreateUserStatement) node()            {}
 func (_ *GrantStatement) node()                 {}
 func (_ *RevokeStatement) node()                {}
 func (_ *CreateRetentionPolicyStatement) node() {}
-func (_ *DropDatabaseStatement) node() {}
+func (_ *DropDatabaseStatement) node()          {}
+func (_ *DropUserStatement) node()              {}
 
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
@@ -130,7 +131,8 @@ func (_ *CreateUserStatement) stmt()            {}
 func (_ *GrantStatement) stmt()                 {}
 func (_ *RevokeStatement) stmt()                {}
 func (_ *CreateRetentionPolicyStatement) stmt() {}
-func (_ *DropDatabaseStatement) stmt() {}
+func (_ *DropDatabaseStatement) stmt()          {}
+func (_ *DropUserStatement) stmt()              {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -233,6 +235,20 @@ func (s *CreateUserStatement) String() string {
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" WITH PASSWORD ")
 	_, _ = buf.WriteString(s.Password)
+	return buf.String()
+}
+
+// DropUserStatement represents a command for dropping a user.
+type DropUserStatement struct {
+	// Name of the user to drop.
+	Name string
+}
+
+// String returns a string representation of the drop user statement.
+func (s *DropUserStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP USER ")
+	_, _ = buf.WriteString(s.Name)
 	return buf.String()
 }
 

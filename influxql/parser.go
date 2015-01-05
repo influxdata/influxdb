@@ -139,14 +139,16 @@ func (p *Parser) parseCreateStatement() (Statement, error) {
 func (p *Parser) parseDropStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == SERIES {
-			return p.parseDropSeriesStatement()
-		} else if tok == CONTINUOUS {
-			return p.parseDropContinuousQueryStatement()
-		} else if tok == DATABASE {
-			return p.parseDropDatabaseStatement()
-		}
+		return p.parseDropSeriesStatement()
+	} else if tok == CONTINUOUS {
+		return p.parseDropContinuousQueryStatement()
+	} else if tok == DATABASE {
+		return p.parseDropDatabaseStatement()
+	} else if tok == USER {
+		return p.parseDropUserStatement()
+	}
 
-		return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
+	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
 }
 
 // parseCreateRetentionPolicyStatement parses a string and returns a create retention policy statement.
@@ -761,11 +763,21 @@ func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
 	}
 	stmt.Password = lit
 
-	// if tok, pos, lit = p.scanIgnoreWhitespace(); tok != WITH {
-	// 	return nil, newParseError(tokstr(tok, lit), []string{"WITH"}, pos)
-	// } else if tok, pos, lit = p.scanIgnoreWhitespace(); tok != PASSWORD {
-	// 	return nil, newParseError(tokstr(tok, lit), []string{"PASSWORD"}, pos)
-	// }
+	return stmt, nil
+}
+
+// parseDropUserStatement parses a string and returns a DropUserStatement.
+// This function assumes the DROP USER tokens have already been consumed.
+func (p *Parser) parseDropUserStatement() (*DropUserStatement, error) {
+	stmt := &DropUserStatement{}
+
+	// Parse the name of the user to be dropped.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	}
+	stmt.Name = lit
+
 	return stmt, nil
 }
 
