@@ -197,6 +197,19 @@ func TestServer_CreateUser(t *testing.T) {
 	} else if bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte("pass")) != nil {
 		t.Fatal("invalid password")
 	}
+
+	// Verify that the authenticated user exists.
+	u, err := s.AuthenticatedUser("susy", "pass")
+	if err != nil {
+		t.Fatalf("error fetching authenticated user")
+	} else if u.Name != "susy" {
+		t.Fatalf("username mismatch: %v", u.Name)
+	} else if !u.Admin {
+		t.Fatalf("admin mismatch: %v", u.Admin)
+	} else if bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte("pass")) != nil {
+		t.Fatal("invalid password")
+	}
+
 }
 
 // Ensure the server correctly detects when there is an admin user.
@@ -291,6 +304,27 @@ func TestServer_Users(t *testing.T) {
 		t.Fatalf("unexpected user(0): %s", a[0].Name)
 	} else if a[1].Name != "susy" {
 		t.Fatalf("unexpected user(1): %s", a[1].Name)
+	}
+}
+
+// Ensure the server does not return non-existent users
+func TestServer_NonExistingUsers(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create some users.
+	s.CreateUser("susy", "pass", false)
+	s.CreateUser("john", "pass2", false)
+	s.Restart()
+
+	// Ask for users that should not be returned.
+	u := s.User("bob")
+	if u != nil {
+		t.Fatalf("unexpected user found")
+	}
+	u, err := s.AuthenticatedUser("susy", "wrong_password")
+	if err == nil {
+		t.Fatalf("unexpected authenticated user found")
 	}
 }
 
