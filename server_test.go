@@ -250,12 +250,12 @@ func TestServer_Users(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
-	// Create some databases.
+	// Create some users.
 	s.CreateUser("susy", "pass", false)
 	s.CreateUser("john", "pass", false)
 	s.Restart()
 
-	// Return the databases.
+	// Return the users.
 	if a := s.Users(); len(a) != 2 {
 		t.Fatalf("unexpected user count: %d", len(a))
 	} else if a[0].Name != "john" {

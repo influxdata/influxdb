@@ -287,7 +287,7 @@ func (h *Handler) serveUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create the user.
+	// Update the user.
 	if err := h.server.UpdateUser(r.URL.Query().Get(":user"), u.Password); err == ErrUserNotFound {
 		h.error(w, err.Error(), http.StatusNotFound)
 		return
