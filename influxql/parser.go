@@ -301,7 +301,7 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 		return 0, &ParseError{Message: err.Error(), Pos: pos}
 	} else if min > n || n > max {
 		return 0, &ParseError{
-			Message: fmt.Sprintf("invlaid value %d: must be %d <= n <= %d", n, min, max),
+			Message: fmt.Sprintf("invalid value %d: must be %d <= n <= %d", n, min, max),
 			Pos:     pos,
 		}
 	}
@@ -367,7 +367,7 @@ func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
 
-	// // Parse the name of the user we're granting the privilege to.
+	// Parse the name of the user we're granting the privilege to.
 	tok, pos, lit = p.scanIgnoreWhitespace()
 	if tok != IDENT && tok != STRING {
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
