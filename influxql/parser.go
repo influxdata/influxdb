@@ -68,47 +68,9 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	case DELETE:
 		return p.parseDeleteStatement()
 	case LIST:
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SERIES {
-			return p.parseListSeriesStatement()
-		} else if tok == CONTINUOUS {
-			return p.parseListContinuousQueriesStatement()
-		} else if tok == MEASUREMENTS {
-			return p.parseListMeasurementsStatement()
-		} else if tok == TAG {
-			if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
-				return p.parseListTagKeysStatement()
-			} else if tok == VALUES {
-				return p.parseListTagValuesStatement()
-			} else {
-				return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
-			}
-		} else if tok == FIELD {
-			if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
-				return p.parseListFieldKeysStatement()
-			} else if tok == VALUES {
-				return p.parseListFieldValuesStatement()
-			} else {
-				return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
-			}
-		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
-		}
+		return p.parseListStatement()
 	case CREATE:
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == CONTINUOUS {
-			return p.parseCreateContinuousQueryStatement()
-		} else if tok == DATABASE {
-			return p.parseCreateDatabaseStatement()
-		} else if tok == USER {
-			return p.parseCreateUserStatement()
-		} else if tok == RETENTION {
-			tok, pos, lit = p.scanIgnoreWhitespace()
-			if tok != POLICY {
-				return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
-			}
-			return p.parseCreateRetentionPolicyStatement()
-		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASE", "USER"}, pos)
-		}
+		return p.parseCreateStatement()
 	case DROP:
 		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SERIES {
 			return p.parseDropSeriesStatement()
@@ -124,6 +86,58 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
 	}
+}
+
+// parseListStatement parses a string and returns a list statement.
+// This function assumes the LIST token has already been consumed.
+func (p *Parser) parseListStatement() (Statement, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == SERIES {
+		return p.parseListSeriesStatement()
+	} else if tok == CONTINUOUS {
+		return p.parseListContinuousQueriesStatement()
+	} else if tok == MEASUREMENTS {
+		return p.parseListMeasurementsStatement()
+	} else if tok == TAG {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
+			return p.parseListTagKeysStatement()
+		} else if tok == VALUES {
+			return p.parseListTagValuesStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
+		}
+	} else if tok == FIELD {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
+			return p.parseListFieldKeysStatement()
+		} else if tok == VALUES {
+			return p.parseListFieldValuesStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
+		}
+	}
+
+	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENTS", "TAG", "FIELD"}, pos)
+}
+
+// parseCreateStatement parses a string and returns a create statement.
+// This function assumes the CREATE token has already been consumned.
+func (p *Parser) parseCreateStatement() (Statement, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == CONTINUOUS {
+		return p.parseCreateContinuousQueryStatement()
+	} else if tok == DATABASE {
+		return p.parseCreateDatabaseStatement()
+	} else if tok == USER {
+		return p.parseCreateUserStatement()
+	} else if tok == RETENTION {
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != POLICY {
+			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
+		}
+		return p.parseCreateRetentionPolicyStatement()
+	}
+
+	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASE", "USER", "RETENTION"}, pos)
 }
 
 // parseCreateRetentionPolicyStatement parses a string and returns a create retention policy statement.
