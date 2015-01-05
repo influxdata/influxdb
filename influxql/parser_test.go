@@ -313,6 +313,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.DropContinuousQueryStatement{Name: "myquery"},
 		},
 
+		// DROP DATABASE statement
+		{
+			s: `DROP DATABASE testdb`,
+			stmt: &influxql.DropDatabaseStatement{Name: "testdb"},
+		},
+
 		// GRANT READ
 		{
 			s: `GRANT READ ON testdb TO jdoe`,
@@ -461,6 +467,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier, string at line 1, char 23`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
+		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
 		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
 		{s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},

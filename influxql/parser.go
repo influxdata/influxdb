@@ -72,13 +72,7 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	case CREATE:
 		return p.parseCreateStatement()
 	case DROP:
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SERIES {
-			return p.parseDropSeriesStatement()
-		} else if tok == CONTINUOUS {
-			return p.parseDropContinuousQueryStatement()
-		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
-		}
+		return p.parseDropStatement()
 	case GRANT:
 		return p.parseGrantStatement()
 	case REVOKE:
@@ -138,6 +132,21 @@ func (p *Parser) parseCreateStatement() (Statement, error) {
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASE", "USER", "RETENTION"}, pos)
+}
+
+// parseDropStatement parses a string and returns a drop statement.
+// This function assumes the DROP token has already been consumed.
+func (p *Parser) parseDropStatement() (Statement, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == SERIES {
+			return p.parseDropSeriesStatement()
+		} else if tok == CONTINUOUS {
+			return p.parseDropContinuousQueryStatement()
+		} else if tok == DATABASE {
+			return p.parseDropDatabaseStatement()
+		}
+
+		return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
 }
 
 // parseCreateRetentionPolicyStatement parses a string and returns a create retention policy statement.
@@ -703,10 +712,25 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error) {
 	stmt := &CreateDatabaseStatement{}
 
-	// Read the name of the database to be created.
+	// Parse the name of the database to be created.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != IDENT && tok != STRING {
-		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	}
+	stmt.Name = lit
+
+	return stmt, nil
+}
+
+// parseDropDatabaseStatement parses a string and returns a DropDatabaseStatement.
+// This function assumes the DROP DATABASE tokens have already been consumed.
+func (p *Parser) parseDropDatabaseStatement() (*DropDatabaseStatement, error) {
+	stmt := &DropDatabaseStatement{}
+
+	// Parse the name of the database to be dropped.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
 	}
 	stmt.Name = lit
 

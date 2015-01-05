@@ -64,6 +64,7 @@ func (_ *CreateUserStatement) node()            {}
 func (_ *GrantStatement) node()                 {}
 func (_ *RevokeStatement) node()                {}
 func (_ *CreateRetentionPolicyStatement) node() {}
+func (_ *DropDatabaseStatement) node() {}
 
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
@@ -129,6 +130,7 @@ func (_ *CreateUserStatement) stmt()            {}
 func (_ *GrantStatement) stmt()                 {}
 func (_ *RevokeStatement) stmt()                {}
 func (_ *CreateRetentionPolicyStatement) stmt() {}
+func (_ *DropDatabaseStatement) stmt() {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -197,6 +199,20 @@ type CreateDatabaseStatement struct {
 func (s *CreateDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE DATABASE ")
+	_, _ = buf.WriteString(s.Name)
+	return buf.String()
+}
+
+// DropDatabaseStatement represents a command to drop a database.
+type DropDatabaseStatement struct {
+	// Name of the database to be dropped.
+	Name string
+}
+
+// String returns a string representation of the drop database statement.
+func (s *DropDatabaseStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP DATABASE ")
 	_, _ = buf.WriteString(s.Name)
 	return buf.String()
 }
