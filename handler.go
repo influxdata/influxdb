@@ -276,6 +276,7 @@ func (h *Handler) serveCreateUser(w http.ResponseWriter, r *http.Request) {
 		h.error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(http.StatusCreated)
 }
 
 // serveUpdateUser updates an existing user.
