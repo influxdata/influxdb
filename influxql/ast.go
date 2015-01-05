@@ -356,8 +356,7 @@ func (s *CreateRetentionPolicyStatement) String() string {
 	_, _ = buf.WriteString(" DURATION ")
 	_, _ = buf.WriteString(FormatDuration(s.Duration))
 	_, _ = buf.WriteString(" REPLICATION ")
-	r := int64(s.Replication)
-	_, _ = buf.WriteString(strconv.FormatInt(r, 10))
+	_, _ = buf.WriteString(strconv.Itoa(s.Replication))
 	if s.Default {
 		_, _ = buf.WriteString(" DEFAULT")
 	}
