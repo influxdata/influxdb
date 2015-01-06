@@ -15,14 +15,14 @@ const (
 
 	literal_beg
 	// Literals
-	IDENT     // main
-	NUMBER    // 12345.67
-	DURATION  // 13h
-	STRING    // "abc"
-	BADSTRING // "abc
-	BADESCAPE // \q
-	TRUE      // true
-	FALSE     // false
+	IDENT        // main
+	NUMBER       // 12345.67
+	DURATION_VAL // 13h
+	STRING       // "abc"
+	BADSTRING    // "abc
+	BADESCAPE    // \q
+	TRUE         // true
+	FALSE        // false
 	literal_end
 
 	operator_beg
@@ -50,18 +50,26 @@ const (
 
 	keyword_beg
 	// Keywords
+	ALL
+	ALTER
 	AS
 	ASC
 	BY
 	CREATE
 	CONTINUOUS
+	DATABASE
+	DEFAULT
 	DELETE
 	DESC
 	DROP
+	DURATION
+	EXISTS
 	EXPLAIN
 	FIELD
 	FROM
+	GRANT
 	GROUP
+	IF
 	INNER
 	INSERT
 	INTO
@@ -70,14 +78,26 @@ const (
 	LIST
 	MEASUREMENT
 	MEASUREMENTS
+	ON
 	ORDER
+	PASSWORD
+	POLICY
+	PRIVILEGES
 	QUERIES
 	QUERY
+	READ
+	REPLICATION
+	RETENTION
+	REVOKE
 	SELECT
 	SERIES
 	TAG
+	TO
+	USER
 	VALUES
 	WHERE
+	WITH
+	WRITE
 	keyword_end
 )
 
@@ -86,11 +106,12 @@ var tokens = [...]string{
 	EOF:     "EOF",
 	WS:      "WS",
 
-	IDENT:  "IDENT",
-	NUMBER: "NUMBER",
-	STRING: "STRING",
-	TRUE:   "TRUE",
-	FALSE:  "FALSE",
+	IDENT:        "IDENT",
+	NUMBER:       "NUMBER",
+	DURATION_VAL: "DURATION_VAL",
+	STRING:       "STRING",
+	TRUE:         "TRUE",
+	FALSE:        "FALSE",
 
 	ADD: "+",
 	SUB: "-",
@@ -112,18 +133,26 @@ var tokens = [...]string{
 	COMMA:     ",",
 	SEMICOLON: ";",
 
+	ALL:          "ALL",
+	ALTER:        "ALTER",
 	AS:           "AS",
 	ASC:          "ASC",
 	BY:           "BY",
 	CREATE:       "CREATE",
 	CONTINUOUS:   "CONTINUOUS",
+	DATABASE:     "DATABASE",
+	DEFAULT:      "DEFAULT",
 	DELETE:       "DELETE",
 	DESC:         "DESC",
 	DROP:         "DROP",
+	DURATION:     "DURATION",
+	EXISTS:       "EXISTS",
 	EXPLAIN:      "EXPLAIN",
 	FIELD:        "FIELD",
 	FROM:         "FROM",
+	GRANT:        "GRANT",
 	GROUP:        "GROUP",
+	IF:           "IF",
 	INNER:        "INNER",
 	INSERT:       "INSERT",
 	INTO:         "INTO",
@@ -132,14 +161,26 @@ var tokens = [...]string{
 	LIST:         "LIST",
 	MEASUREMENT:  "MEASUREMENT",
 	MEASUREMENTS: "MEASUREMENTS",
+	ON:           "ON",
 	ORDER:        "ORDER",
+	PASSWORD:     "PASSWORD",
+	POLICY:       "POLICY",
+	PRIVILEGES:   "PRIVILEGES",
 	QUERIES:      "QUERIES",
 	QUERY:        "QUERY",
+	READ:         "READ",
+	REPLICATION:  "REPLICATION",
+	RETENTION:    "RETENTION",
+	REVOKE:       "REVOKE",
 	SELECT:       "SELECT",
 	SERIES:       "SERIES",
 	TAG:          "TAG",
+	TO:           "TO",
+	USER:         "USER",
 	VALUES:       "VALUES",
 	WHERE:        "WHERE",
+	WITH:         "WITH",
+	WRITE:        "WRITE",
 }
 
 var keywords map[string]Token
