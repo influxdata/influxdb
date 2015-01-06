@@ -293,7 +293,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE CONTINUOUS QUERY ... INTO <retention-policy>.<measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1":cpu.load FROM myseries END`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1"."cpu.load" FROM myseries END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name: "myquery",
 				DB:   "testdb",

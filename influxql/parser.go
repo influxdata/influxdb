@@ -528,7 +528,7 @@ func (p *Parser) parseTarget(tr targetRequirement) (*Target, error) {
 	target := &Target{}
 
 	tok, _, _ := p.scanIgnoreWhitespace()
-	if tok == COLON {
+	if tok == DOT {
 		// Previous identifier was retention policy name.
 		target.RetentionPolicy = ident
 

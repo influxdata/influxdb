@@ -47,8 +47,7 @@ const (
 	RPAREN    // )
 	COMMA     // ,
 	SEMICOLON // ;
-	COLON     // :
-	//DOT       // .
+	DOT       // .
 
 	keyword_beg
 	// Keywords
@@ -136,7 +135,7 @@ var tokens = [...]string{
 	RPAREN:    ")",
 	COMMA:     ",",
 	SEMICOLON: ";",
-	COLON:     ":",
+	DOT:       ".",
 
 	ALL:          "ALL",
 	ALTER:        "ALTER",

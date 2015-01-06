@@ -54,6 +54,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `)`, tok: influxql.RPAREN},
 		{s: `,`, tok: influxql.COMMA},
 		{s: `;`, tok: influxql.SEMICOLON},
+		{s: `.`, tok: influxql.DOT},
 
 		// Identifiers
 		{s: `foo`, tok: influxql.IDENT, lit: `foo`},
@@ -79,7 +80,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `.23`, tok: influxql.NUMBER, lit: `.23`},
 		{s: `+.23`, tok: influxql.NUMBER, lit: `+.23`},
 		{s: `-.23`, tok: influxql.NUMBER, lit: `-.23`},
-		{s: `.`, tok: influxql.ILLEGAL, lit: `.`},
+		//{s: `.`, tok: influxql.ILLEGAL, lit: `.`},
 		{s: `-.`, tok: influxql.SUB, lit: ``},
 		{s: `+.`, tok: influxql.ADD, lit: ``},
 		{s: `10.3s`, tok: influxql.NUMBER, lit: `10.3`},
@@ -108,7 +109,6 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `DEFAULT`, tok: influxql.DEFAULT},
 		{s: `DELETE`, tok: influxql.DELETE},
 		{s: `DESC`, tok: influxql.DESC},
-		//{s: `DOT`, tok: influxql.DOT},
 		{s: `DROP`, tok: influxql.DROP},
 		{s: `DURATION`, tok: influxql.DURATION},
 		{s: `END`, tok: influxql.END},
