@@ -5,11 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
-	"net"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/influxdb/influxdb"
@@ -30,203 +27,32 @@ var (
 	ErrServerNotSpecified = errors.New("server not present")
 )
 
-// Graphite Server provides a tcp and/or udp listener that you can
-// use to ingest metrics into influxdb via the graphite protocol.  it
-// behaves as a carbon daemon, except:
-//
-// no rounding of timestamps to the nearest interval.  Upon ingestion
-// of multiple datapoints for a given key within the same interval
-// (possibly but not necessarily the same timestamp), graphite would
-// use one (the latest received) value with a rounded timestamp
-// representing that interval.  We store values for every timestamp we
-// receive (only the latest value for a given metric-timestamp pair)
-// so it's up to the user to feed the data in proper intervals (and
-// use round intervals if you plan to rely on that)
-type Server struct {
-	mu   sync.Mutex
-	wg   sync.WaitGroup
-	done chan struct{} // close notification
-
-	Server influxdbServer
-
-	tcpListener *net.TCPListener
-	udpConn     *net.UDPConn
-
-	// The name of the database to insert data into.
-	Database string
-	// Position of name to be parsed from metric_path
-	NamePosition string
-	// sperator to parse metric_path with to get name and series
-	NameSeparator string
-}
-
-type influxdbServer interface {
+type dataSink interface {
 	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
 	DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error)
 }
 
-func NewServer(is influxdbServer) *Server {
-	s := Server{Server: is}
-	return &s
-}
+// GraphiteServer represents a server that can process Graphite data recieved over
+// the network.
+type GraphiteServer interface {
+	// Start starts the server listening on the given interface. iface
+	// should be in the form address:port
+	Start(iface string) error
 
-// ListenAndServe opens TCP (and optionally a UDP) socket to listen for messages.
-func (s *Server) ListenAndServeTCP(addr *net.TCPAddr) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Sink is the destination for processed Graphite data.
+	sink dataSink
 
-	if addr == nil { // Make sure we have a TCP address
-		return ErrBindAddressRequired
-	} else if s.Database == "" { // Make sure they have a database
-		return ErrDatabaseNotSpecified
-	} else if s.Server == nil { // Make sure they specified a server
-		return ErrServerNotSpecified
-	}
-
-	// Create a new close notification channel.
-	done := make(chan struct{}, 0)
-	s.done = done
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return err
-	}
-	s.tcpListener = l
-
-	s.wg.Add(1)
-	go s.serveTCP(l, done)
-
-	return nil
-}
-
-// serveTCP handles incoming TCP connection requests.
-func (s *Server) serveTCP(l *net.TCPListener, done chan struct{}) {
-	defer s.wg.Done()
-
-	// Listen for new TCP connections.
-	for {
-		c, err := l.Accept()
-		if err != nil {
-			//log.Println("graphite.Server: Accept: ", err)
-			return
-		}
-
-		s.wg.Add(1)
-		go s.handleTCPConn(c)
-	}
-}
-
-func (s *Server) handleTCPConn(conn net.Conn) {
-	defer conn.Close()
-	defer s.wg.Done()
-
-	reader := bufio.NewReader(conn)
-	for {
-		err := s.handleMessage(reader)
-		if err != nil {
-			if io.EOF == err {
-				//log.Println("graphite.Server: Client closed graphite connection")
-				return
-			}
-			log.Println("graphite.Server:", err) // this never shows up in my buffer for testing
-		}
-	}
-}
-
-func (s *Server) ListenAndServeUDP(addr *net.UDPAddr) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if addr == nil { // Make sure we have a TCP address
-		return ErrBindAddressRequired
-	} else if s.Database == "" { // Make sure they have a database
-		return ErrDatabaseNotSpecified
-	} else if s.Server == nil { // Make sure they specified a server
-		return ErrServerNotSpecified
-	}
-
-	// Create a new close notification channel.
-	done := make(chan struct{}, 0)
-	s.done = done
-
-	//Open the UDP connection.
-	c, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		return err
-	}
-	s.udpConn = c
-
-	s.wg.Add(1)
-	go s.serveUDP(c, done)
-
-	return nil
-}
-
-// serveUDP handles incoming UDP messages.
-func (s *Server) serveUDP(conn *net.UDPConn, done chan struct{}) {
-	defer s.wg.Done()
-
-	// Listen for server close.
-	go func() {
-		<-done
-		conn.Close()
-	}()
-
-	buf := make([]byte, 65536)
-	for {
-		// Read from connection.
-		n, _, err := conn.ReadFromUDP(buf)
-		if err == io.EOF {
-			return
-		} else if err != nil {
-			log.Printf("Server: Error when reading from UDP connection %s\n", err.Error())
-		}
-
-		// Read in data in a separate goroutine.
-		s.wg.Add(1)
-		go s.handleUDPMessage(string(buf[:n]))
-	}
-}
-
-// handleUDPMessage splits a UDP packet by newlines and processes each message.
-func (s *Server) handleUDPMessage(msg string) {
-	defer s.wg.Done()
-	for _, metric := range strings.Split(msg, "\n") {
-		s.handleMessage(bufio.NewReader(strings.NewReader(metric + "\n")))
-	}
-}
-
-// Close shuts down the server's listeners.
-func (s *Server) Close() error {
-	// Notify other goroutines of shutdown.
-	s.mu.Lock()
-	if s.done == nil {
-		s.mu.Unlock()
-		return ErrServerClosed
-	}
-	close(s.done)
-	s.done = nil
-
-	if s.tcpListener != nil {
-		_ = s.tcpListener.Close()
-	}
-	s.tcpListener = nil
-
-	if s.udpConn != nil {
-		_ = s.udpConn.Close()
-	}
-	s.udpConn = nil
-
-	s.mu.Unlock()
-
-	// Wait for all goroutines to shutdown.
-	s.wg.Wait()
-	return nil
+	// Database is the name of the database to insert data into.
+	Database string
+	// NamePosition is the position of name to be parsed from metric_path
+	NamePosition string
+	// NameSeparator is separator to parse metric_path with to get name and series
+	NameSeparator string
 }
 
 // handleMessage decodes a graphite message from the reader and sends it to the
 // committer goroutine.
-func (s *Server) handleMessage(r *bufio.Reader) error {
+func (s *server) handleMessage(r *bufio.Reader) error {
 	// Decode graphic metric.
 	m, err := DecodeMetric(r, s.NamePosition, s.NameSeparator)
 	if err != nil {
@@ -237,13 +63,13 @@ func (s *Server) handleMessage(r *bufio.Reader) error {
 	var values = make(map[string]interface{})
 	values[m.Name] = m.Value
 
-	retentionPolicy, err := s.Server.DefaultRetentionPolicy(s.Database)
+	retentionPolicy, err := s.sink.DefaultRetentionPolicy(s.Database)
 
 	if err != nil {
 		return fmt.Errorf("error looking up default database retention policy: %s", err)
 	}
 
-	if err := s.Server.WriteSeries(
+	if err := s.sink.WriteSeries(
 		s.Database,
 		retentionPolicy.Name,
 		m.Name,

@@ -91,26 +91,28 @@ func execRun(args []string) {
 		}
 		log.Printf("DataNode#%d running on %s", s.ID(), config.ApiHTTPListenAddr())
 
-		// Spin up any grahite servers
-		for _, g := range config.Graphite {
-			// Get a new server
-			s := graphite.Server{Server: s}
+		// Spin up any Graphite servers
+		for _, c := range config.Graphite {
+			if !c.Enabled {
+				continue
+			}
+
+			var g graphite.GraphiteServer
+			if strings.ToLower(g.Protocol) == "tcp" {
+				g = graphite.NewTcpGraphiteServer(s)
+			} else {
+				g = graphite.NewUdpGraphiteServer(s)
+			}
 
 			// Set options
-			s.Database = g.Database
-			s.NamePosition = g.NamePosition
-			s.NameSeparator = g.NameSeparator
+			g.Database = g.Database
+			g.NamePosition = g.NamePosition
+			g.NameSeparator = g.NameSeparator
 
-			// Set the addresses up
-			if strings.ToLower(g.Protocol) == "tcp" {
-				addr := g.TCPAddr(config.BindAddress)
-				log.Printf("Starting Graphite listener on tcp://%s:%d writing to database %q.\n", addr.IP, addr.Port, s.Database)
-				go func() { log.Fatal(s.ListenAndServeTCP(addr)) }()
-
-			} else {
-				addr := g.UDPAddr(config.BindAddress)
-				log.Printf("Starting Graphite listener on udp://%s:%d writing to database %q.\n", addr.IP, addr.Port, s.Database)
-				go func() { log.Fatal(s.ListenAndServeUDP(addr)) }()
+			// Start the Graphite Server.
+			err := g.Start(c.ConnectionString(config.BindAddress))
+			if err != nil {
+				log.Println("failed to start Graphite Server", err.Error())
 			}
 		}
 	}
