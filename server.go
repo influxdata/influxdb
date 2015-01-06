@@ -1094,7 +1094,7 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	// Now write it into the shard.
 	sh, err := s.createShardIfNotExists(database, retentionPolicy, id, timestamp)
 	if err != nil {
-		return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
+		return fmt.Errorf("create shard(%s/%s): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
 
 	// Encode point to a byte slice.

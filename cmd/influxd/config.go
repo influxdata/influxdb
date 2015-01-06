@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -56,13 +58,8 @@ type Config struct {
 		ReadTimeout Duration `toml:"read-timeout"`
 	} `toml:"api"`
 
+	Graphite     []Graphite `toml:"graphite"`
 	InputPlugins struct {
-		Graphite struct {
-			Enabled    bool   `toml:"enabled"`
-			Port       int    `toml:"port"`
-			Database   string `toml:"database"`
-			UDPEnabled bool   `toml:"udp_enabled"`
-		} `toml:"graphite"`
 		UDPInput struct {
 			Enabled  bool   `toml:"enabled"`
 			Port     int    `toml:"port"`
@@ -253,6 +250,71 @@ func ParseConfig(s string) (*Config, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+type Graphite struct {
+	Address       string `toml:"address"`
+	Database      string `toml:"database"`
+	Enabled       bool   `toml:"enabled"`
+	Port          int    `toml:"port"`
+	Protocol      string `toml:"protocol"`
+	NamePosition  string `toml:"name-position"`
+	NameSeparator string `toml:"name-separator"`
+}
+
+// Default carbon port per http://graphite.readthedocs.org/en/1.0/feeding-carbon.html
+const defaultGrahitePort = 2004
+
+// TCPAddr returns the TCP address to connect on.
+// If port is not specified in the config file, it will default to defaultGraphitePort (2004)
+// If address is not specified,it will default to the defaultBindAddress passed in
+func (g Graphite) TCPAddr(defaultBindAddress string) *net.TCPAddr {
+	if !g.Enabled || strings.ToLower(g.Protocol) != "tcp" {
+		return nil
+	}
+
+	a := net.TCPAddr{}
+
+	// Did we specify an IP address?  If not, use the defaultBindAddress passed in
+	if g.Address != "" {
+		a.IP = net.ParseIP(g.Address)
+	} else {
+		a.IP = net.ParseIP(defaultBindAddress)
+	}
+
+	// Did we specify a port?  If not, use the default port
+	if g.Port > 0 {
+		a.Port = g.Port
+	} else {
+		a.Port = defaultGrahitePort
+	}
+	return &a
+}
+
+// UDPAddr returns the UDP address to connect on.
+// If port is not specified in the config file, it will default to defaultGraphitePort (2004)
+// If address is not specified,it will default to the defaultBindAddress passed in
+func (g Graphite) UDPAddr(defaultBindAddress string) *net.UDPAddr {
+	if !g.Enabled || strings.ToLower(g.Protocol) != "udp" {
+		return nil
+	}
+
+	a := net.UDPAddr{}
+
+	// Did we specify an IP address?  If not, use the defaultBindAddress passed in
+	if g.Address != "" {
+		a.IP = net.ParseIP(g.Address)
+	} else {
+		a.IP = net.ParseIP(defaultBindAddress)
+	}
+
+	// Did we specify a port?  If not, use the default port
+	if g.Port > 0 {
+		a.Port = g.Port
+	} else {
+		a.Port = defaultGrahitePort
+	}
+	return &a
 }
 
 /*

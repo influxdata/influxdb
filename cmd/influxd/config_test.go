@@ -2,10 +2,11 @@ package main_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/cmd/influxd"
+	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
 // Ensure that megabyte sizes can be parsed.
@@ -65,12 +66,40 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("http api ssl cert path mismatch: %v", c.HTTPAPI.SSLCertPath)
 	}
 
-	if c.InputPlugins.Graphite.Enabled != false {
-		t.Fatalf("graphite enabled mismatch: %v", c.InputPlugins.Graphite.Enabled)
-	} else if c.InputPlugins.Graphite.Port != 2003 {
-		t.Fatalf("graphite port mismatch: %v", c.InputPlugins.Graphite.Enabled)
-	} else if c.InputPlugins.Graphite.Database != "" {
-		t.Fatalf("graphite database mismatch: %v", c.InputPlugins.Graphite.Database)
+	if len(c.Graphite) != 2 {
+		t.Fatalf("graphites  mismatch.  expected %v, got: %v", 2, len(c.Graphite))
+	}
+
+	tcpGraphite := c.Graphite[0]
+	switch {
+	case tcpGraphite.Enabled != true:
+		t.Fatalf("graphite tcp enabled mismatch: expected: %v, got %v", true, tcpGraphite.Enabled)
+	case tcpGraphite.Address != "192.168.0.1":
+		t.Fatalf("graphite tcp address mismatch: expected %v, got  %v", "192.168.0.1", tcpGraphite.Address)
+	case tcpGraphite.Port != 2003:
+		t.Fatalf("graphite tcp port mismatch: expected %v, got %v", 2003, tcpGraphite.Port)
+	case tcpGraphite.Database != "graphite_tcp":
+		t.Fatalf("graphite tcp database mismatch: expected %v, got %v", "graphite_tcp", tcpGraphite.Database)
+	case strings.ToLower(tcpGraphite.Protocol) != "tcp":
+		t.Fatalf("graphite tcp protocol mismatch: expected %v, got %v", "tcp", strings.ToLower(tcpGraphite.Protocol))
+	case tcpGraphite.NamePosition != "last":
+		t.Fatalf("graphite tcp name-position mismatch: expected %v, got %v", "last", tcpGraphite.NamePosition)
+	case tcpGraphite.NameSeparator != "-":
+		t.Fatalf("graphite tcp name-separator mismatch: expected %v, got %v", "-", tcpGraphite.NameSeparator)
+	}
+
+	udpGraphite := c.Graphite[1]
+	switch {
+	case udpGraphite.Enabled != true:
+		t.Fatalf("graphite udp enabled mismatch: expected: %v, got %v", true, udpGraphite.Enabled)
+	case udpGraphite.Address != "192.168.0.2":
+		t.Fatalf("graphite udp address mismatch: expected %v, got  %v", "192.168.0.2", udpGraphite.Address)
+	case udpGraphite.Port != 2005:
+		t.Fatalf("graphite udp port mismatch: expected %v, got %v", 2005, udpGraphite.Port)
+	case udpGraphite.Database != "graphite_udp":
+		t.Fatalf("graphite database mismatch: expected %v, got %v", "graphite_udp", udpGraphite.Database)
+	case strings.ToLower(udpGraphite.Protocol) != "udp":
+		t.Fatalf("graphite udp protocol mismatch: expected %v, got %v", "udp", strings.ToLower(udpGraphite.Protocol))
 	}
 
 	if c.Broker.Port != 8090 {
@@ -143,17 +172,31 @@ read-timeout = "5s"
 
 [input_plugins]
 
-  # Configure the graphite api
-  [input_plugins.graphite]
-  enabled = false
-  port = 2003
-  database = ""  # store graphite data in this database
-
   [input_plugins.udp]
   enabled = true
   port = 4444
   database = "test"
 
+# Configure the graphite api
+[[graphite]]
+protocol = "TCP"
+enabled = true
+address = "192.168.0.1"
+port = 2003
+database = "graphite_tcp"  # store graphite data in this database
+name-position = "last"
+name-separator = "-"
+
+[[graphite]]
+protocol = "udP"
+enabled = true
+address = "192.168.0.2"
+port = 2005
+database = "graphite_udp"  # store graphite data in this database
+
+# Raft configuration
+[raft]
+# The raft port should be open between all servers in a cluster.
 # Broker configuration
 [broker]
 # The broker port should be open between all servers in a cluster.

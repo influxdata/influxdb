@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -91,6 +92,29 @@ func execRun(args []string) {
 			go func() { log.Fatal(http.ListenAndServe(config.ApiHTTPListenAddr(), sh)) }()
 		}
 		log.Printf("DataNode#%d running on %s", s.ID(), config.ApiHTTPListenAddr())
+
+		// Spin up any grahite servers
+		for _, g := range config.Graphite {
+			// Get a new server
+			s := graphite.Server{Server: s}
+
+			// Set options
+			s.Database = g.Database
+			s.NamePosition = g.NamePosition
+			s.NameSeparator = g.NameSeparator
+
+			// Set the addresses up
+			if strings.ToLower(g.Protocol) == "tcp" {
+				addr := g.TCPAddr(config.BindAddress)
+				log.Printf("Starting Graphite listener on tcp://%s:%d writing to database %q.\n", addr.IP, addr.Port, s.Database)
+				go func() { log.Fatal(s.ListenAndServeTCP(addr)) }()
+
+			} else {
+				addr := g.UDPAddr(config.BindAddress)
+				log.Printf("Starting Graphite listener on udp://%s:%d writing to database %q.\n", addr.IP, addr.Port, s.Database)
+				go func() { log.Fatal(s.ListenAndServeUDP(addr)) }()
+			}
+		}
 	}
 
 	// Wait indefinitely.
@@ -141,7 +165,8 @@ func openBroker(path, addr string) *messaging.Broker {
 func openServer(path string) *influxdb.Server {
 	s := influxdb.NewServer()
 	if err := s.Open(path); err != nil {
-		log.Fatalf("failed to open data server", err.Error())
+		log.Fatalf("failed to open data server: %v", err.Error())
+		log.Fatalf("seed server %v", err)
 	}
 	return s
 }
@@ -153,7 +178,7 @@ func initServer(s *influxdb.Server, b *messaging.Broker) {
 
 	// Create replica on broker.
 	if err := b.CreateReplica(1); err != nil {
-		log.Fatalf("replica creation error: %d", err)
+		log.Fatalf("replica creation error: %s", err)
 	}
 
 	// Initialize messaging client.
@@ -168,7 +193,9 @@ func initServer(s *influxdb.Server, b *messaging.Broker) {
 	// Initialize the server.
 	if err := s.Initialize(b.URL()); err != nil {
 		log.Fatalf("server initialization error: %s", err)
+		log.Fatalf("failed to open data Server %v", err.Error())
 	}
+
 }
 
 // opens the messaging client and attaches it to the server.
