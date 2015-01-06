@@ -604,7 +604,7 @@ func MustHTTP(verb, url, body string) (int, string) {
 	if err != nil {
 		panic(err)
 	}
-	req.Header.Set("Content-Type", "applicaton/json")
+	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
