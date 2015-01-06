@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -12,8 +13,6 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
-
-	log "code.google.com/p/log4go"
 )
 
 var (
@@ -48,30 +47,39 @@ type Server struct {
 	wg   sync.WaitGroup
 	done chan struct{} // close notification
 
-	Server interface {
-		WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
-		DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error)
-	}
+	Server influxdbServer
 
-	// The TCP address to listen on.
-	TCPAddr *net.TCPAddr
-
-	// The UDP address to listen on.
-	UDPAddr *net.UDPAddr
+	tcpListener *net.TCPListener
+	udpConn     *net.UDPConn
 
 	// The name of the database to insert data into.
 	Database string
+	// Position of name to be parsed from metric_path
+	NamePosition string
+	// sperator to parse metric_path with to get name and series
+	NameSeperator string
+}
+
+type influxdbServer interface {
+	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
+	DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error)
+}
+
+func NewServer(is influxdbServer) *Server {
+	s := Server{Server: is}
+	return &s
 }
 
 // ListenAndServe opens TCP (and optionally a UDP) socket to listen for messages.
-func (s *Server) ListenAndServe() error {
-	// Make sure we have either a TCP address or a UDP address.
-	// Make sure they have a database
-	if s.TCPAddr == nil && s.UDPAddr == nil {
+func (s *Server) ListenAndServeTCP(addr *net.TCPAddr) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if addr == nil { // Make sure we have a TCP address
 		return ErrBindAddressRequired
-	} else if s.Database == "" {
+	} else if s.Database == "" { // Make sure they have a database
 		return ErrDatabaseNotSpecified
-	} else if s.Server == nil {
+	} else if s.Server == nil { // Make sure they specified a server
 		return ErrServerNotSpecified
 	}
 
@@ -79,29 +87,14 @@ func (s *Server) ListenAndServe() error {
 	done := make(chan struct{}, 0)
 	s.done = done
 
-	// Open the TCP connection.
-	if s.TCPAddr != nil {
-		l, err := net.ListenTCP("tcp", s.TCPAddr)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = l.Close() }()
-
-		s.wg.Add(1)
-		go s.serveTCP(l, done)
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return err
 	}
+	s.tcpListener = l
 
-	// Open the UDP connection.
-	if s.UDPAddr != nil {
-		l, err := net.ListenUDP("udp", s.UDPAddr)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = l.Close() }()
-
-		s.wg.Add(1)
-		go s.serveUDP(l, done)
-	}
+	s.wg.Add(1)
+	go s.serveTCP(l, done)
 
 	return nil
 }
@@ -110,19 +103,12 @@ func (s *Server) ListenAndServe() error {
 func (s *Server) serveTCP(l *net.TCPListener, done chan struct{}) {
 	defer s.wg.Done()
 
-	// Listen for server close.
-	go func() {
-		<-done
-		l.Close()
-	}()
-
 	// Listen for new TCP connections.
 	for {
 		c, err := l.Accept()
 		if err != nil {
-			// TODO(benbjohnson): Check for connection closed.
-			log.Error("graphite.Server: Accept: ", err)
-			continue
+			//log.Println("graphite.Server: Accept: ", err)
+			return
 		}
 
 		s.wg.Add(1)
@@ -139,12 +125,41 @@ func (s *Server) handleTCPConn(conn net.Conn) {
 		err := s.handleMessage(reader)
 		if err != nil {
 			if io.EOF == err {
-				log.Debug("graphite.Server: Client closed graphite connection")
+				//log.Println("graphite.Server: Client closed graphite connection")
 				return
 			}
-			log.Error("graphite.Server:", err)
+			log.Println("graphite.Server:", err) // this never shows up in my buffer for testing
 		}
 	}
+}
+
+func (s *Server) ListenAndServeUDP(addr *net.UDPAddr) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if addr == nil { // Make sure we have a TCP address
+		return ErrBindAddressRequired
+	} else if s.Database == "" { // Make sure they have a database
+		return ErrDatabaseNotSpecified
+	} else if s.Server == nil { // Make sure they specified a server
+		return ErrServerNotSpecified
+	}
+
+	// Create a new close notification channel.
+	done := make(chan struct{}, 0)
+	s.done = done
+
+	//Open the UDP connection.
+	c, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		return err
+	}
+	s.udpConn = c
+
+	s.wg.Add(1)
+	go s.serveUDP(c, done)
+
+	return nil
 }
 
 // serveUDP handles incoming UDP messages.
@@ -164,7 +179,7 @@ func (s *Server) serveUDP(conn *net.UDPConn, done chan struct{}) {
 		if err == io.EOF {
 			return
 		} else if err != nil {
-			log.Warn("Server: Error when reading from UDP connection %s", err.Error())
+			log.Printf("Server: Error when reading from UDP connection %s\n", err.Error())
 		}
 
 		// Read in data in a separate goroutine.
@@ -191,9 +206,20 @@ func (s *Server) Close() error {
 	}
 	close(s.done)
 	s.done = nil
+
+	if s.tcpListener != nil {
+		_ = s.tcpListener.Close()
+	}
+	s.tcpListener = nil
+
+	if s.udpConn != nil {
+		_ = s.udpConn.Close()
+	}
+	s.udpConn = nil
+
 	s.mu.Unlock()
 
-	// Wait for all goroutines to shutdown.
+	//// Wait for all goroutines to shutdown.
 	s.wg.Wait()
 	return nil
 }
@@ -202,18 +228,19 @@ func (s *Server) Close() error {
 // committer goroutine.
 func (s *Server) handleMessage(r *bufio.Reader) error {
 	// Decode graphic metric.
-	m, err := DecodeMetric(r)
+	m, err := DecodeMetric(r, s.NamePosition, s.NameSeperator)
 	if err != nil {
 		return err
 	}
 
 	// Convert metric to a field value.
 	var values = make(map[string]interface{})
-	if m.IsInt {
-		values[m.Name] = &m.IntegerValue
-	} else {
-		values[m.Name] = &m.FloatValue
-	}
+	values[m.Name] = m.Value
+	//if m.IsInt {
+	//values[m.Name] = &m.IntegerValue
+	//} else {
+	//values[m.Name] = &m.FloatValue
+	//}
 
 	retentionPolicy, err := s.Server.DefaultRetentionPolicy(s.Database)
 
@@ -235,16 +262,14 @@ func (s *Server) handleMessage(r *bufio.Reader) error {
 }
 
 type Metric struct {
-	Name         string
-	Tags         map[string]string
-	IsInt        bool
-	IntegerValue int64
-	FloatValue   float64
-	Timestamp    time.Time
+	Name      string
+	Tags      map[string]string
+	Value     interface{}
+	Timestamp time.Time
 }
 
 // returns err == io.EOF when we hit EOF without any further data
-func DecodeMetric(r *bufio.Reader) (*Metric, error) {
+func DecodeMetric(r *bufio.Reader, position, seperator string) (*Metric, error) {
 	// Read up to the next newline.
 	buf, err := r.ReadBytes('\n')
 	if err != nil && err != io.EOF {
@@ -266,7 +291,7 @@ func DecodeMetric(r *bufio.Reader) (*Metric, error) {
 
 	m := new(Metric)
 	// decode the name and tags
-	name, tags, err := DecodeNameAndTags(fields[0])
+	name, tags, err := DecodeNameAndTags(fields[0], position, seperator)
 	if err != nil {
 		return nil, err
 	}
@@ -281,9 +306,9 @@ func DecodeMetric(r *bufio.Reader) (*Metric, error) {
 
 	// Determine if value is a float or an int.
 	if i := int64(v); float64(i) == v {
-		m.IntegerValue, m.IsInt = int64(v), true
+		m.Value = int64(v)
 	} else {
-		m.FloatValue = v
+		m.Value = v
 	}
 
 	// Parse timestamp.
@@ -297,27 +322,39 @@ func DecodeMetric(r *bufio.Reader) (*Metric, error) {
 	return m, nil
 }
 
-func DecodeNameAndTags(field string) (string, map[string]string, error) {
+func DecodeNameAndTags(field, position, seperator string) (string, map[string]string, error) {
 	var (
 		name string
 		tags = make(map[string]string)
 	)
 
+	if len(seperator) == 0 {
+		seperator = "."
+	}
+
 	// decode the name and tags
-	values := strings.Split(field, `.`)
+	values := strings.Split(field, seperator)
 	if len(values)%2 != 1 {
 		// There should always be an odd number of fields to map a metric name and tags
 		// ex: region.us-west.hostname.server01.cpu -> tags -> region: us-west, hostname: server01, metric name -> cpu
 		return name, tags, fmt.Errorf("received %q which doesn't conform to format of key.value.key.value.metric or metric", field)
 	}
 
-	// Name is the last field
-	name = values[len(values)-1]
+	np := strings.ToLower(strings.TrimSpace(position))
+	switch np {
+	case "last":
+		name = values[len(values)-1]
+		values = values[0 : len(values)-1]
+	case "first":
+		name = values[0]
+		values = values[1:len(values)]
+	default:
+		name = values[0]
+		values = values[1:len(values)]
+	}
 	if name == "" {
 		return name, tags, fmt.Errorf("no name specified for metric. %q", field)
 	}
-
-	values = values[0 : len(values)-1]
 
 	// Grab the pairs and throw them in the map
 	for i := 0; i < len(values); i += 2 {

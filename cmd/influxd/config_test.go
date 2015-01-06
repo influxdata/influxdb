@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/cmd/influxd"
+	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
 // Ensure that megabyte sizes can be parsed.
@@ -78,6 +78,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("graphite tcp database mismatch: expected %v, got %v", "graphite_tcp", tcpGraphite.Database)
 	case strings.ToLower(tcpGraphite.Protocol) != "tcp":
 		t.Fatalf("graphite tcp protocol mismatch: expected %v, got %v", "tcp", strings.ToLower(tcpGraphite.Protocol))
+	case tcpGraphite.NamePosition != "last":
+		t.Fatalf("graphite tcp name-position mismatch: expected %v, got %v", "last", tcpGraphite.NamePosition)
+	case tcpGraphite.NameSeperator != "-":
+		t.Fatalf("graphite tcp name-seperator mismatch: expected %v, got %v", "-", tcpGraphite.NameSeperator)
 	}
 
 	udpGraphite := c.Graphite[1]
@@ -172,6 +176,8 @@ enabled = true
 address = "192.168.0.1"
 port = 2003
 database = "graphite_tcp"  # store graphite data in this database
+name-position = "last"
+name-seperator = "-"
 
 [[graphite]]
 protocol = "udP"

@@ -96,18 +96,23 @@ func execRun(args []string) {
 			// Get a new server
 			s := graphite.Server{Server: s}
 
-			// Set database
+			// Set options
 			s.Database = g.Database
+			s.NamePosition = g.NamePosition
+			s.NameSeperator = g.NameSeperator
 
 			// Set the addresses up
-			s.TCPAddr = g.TCPAddr(config.BindAddress)
-			s.UDPAddr = g.UDPAddr(config.BindAddress)
+			if strings.ToLower(g.Protocol) == "tcp" {
+				addr := g.TCPAddr(config.BindAddress)
+				log.Printf("Starting Graphite listener on tcp://%s:%d writing to database %q.\n", addr.IP, addr.Port, s.Database)
+				go func() { log.Fatal(s.ListenAndServeTCP(addr)) }()
 
-			// Spin it up
-			go func() { log.Fatal(s.ListenAndServe) }()
-
+			} else {
+				addr := g.UDPAddr(config.BindAddress)
+				log.Printf("Starting Graphite listener on udp://%s:%d writing to database %q.\n", addr.IP, addr.Port, s.Database)
+				go func() { log.Fatal(s.ListenAndServeUDP(addr)) }()
+			}
 		}
-
 	}
 
 	// Wait indefinitely.

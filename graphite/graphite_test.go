@@ -15,22 +15,24 @@ import (
 
 func Test_DecodeNameAndTags(t *testing.T) {
 	var tests = []struct {
-		test string
-		str  string
-		name string
-		tags map[string]string
-		err  string
+		test      string
+		str       string
+		name      string
+		tags      map[string]string
+		position  string
+		seperator string
+		err       string
 	}{
 		{test: "metric only", str: "cpu", name: "cpu"},
-		{test: "metric with single series", str: "hostname.server01.cpu", name: "cpu", tags: map[string]string{"hostname": "server01"}},
-		{test: "metric with multiple series", str: "region.us-west.hostname.server01.cpu", name: "cpu", tags: map[string]string{"hostname": "server01", "region": "us-west"}},
+		{test: "metric with single series", str: "cpu.hostname.server01", name: "cpu", tags: map[string]string{"hostname": "server01"}},
+		{test: "metric with multiple series", str: "cpu.region.us-west.hostname.server01", name: "cpu", tags: map[string]string{"hostname": "server01", "region": "us-west"}},
 		{test: "no metric", tags: make(map[string]string), err: `no name specified for metric. ""`},
 		{test: "wrong metric format", str: "foo.cpu", tags: make(map[string]string), err: `received "foo.cpu" which doesn't conform to format of key.value.key.value.metric or metric`},
 	}
 
 	for _, test := range tests {
 		t.Logf("testing %q...", test.test)
-		name, tags, err := graphite.DecodeNameAndTags(test.str)
+		name, tags, err := graphite.DecodeNameAndTags(test.str, test.position, test.seperator)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}
@@ -54,19 +56,109 @@ func Test_DecodeMetric(t *testing.T) {
 	strTime := strconv.FormatInt(epochTime, 10)
 
 	var tests = []struct {
-		test      string
-		reader    *bufio.Reader
-		name      string
-		tags      map[string]string
-		isInt     bool
-		iv        int64
-		fv        float64
-		timestamp time.Time
-		err       string
+		test                string
+		reader              *bufio.Reader
+		name                string
+		tags                map[string]string
+		isInt               bool
+		iv                  int64
+		fv                  float64
+		timestamp           time.Time
+		position, seperator string
+		err                 string
 	}{
 		{
-			test:      "series + metric + integer value",
+			test:      "position first by default",
+			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu.foo.bar 50 ` + strTime + `\n`))),
+			name:      "cpu",
+			tags:      map[string]string{"foo": "bar"},
+			isInt:     true,
+			iv:        50,
+			timestamp: testTime,
+		},
+		{
+			test:      "position first if unable to determine",
+			position:  "foo",
+			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu.foo.bar 50 ` + strTime + `\n`))),
+			name:      "cpu",
+			tags:      map[string]string{"foo": "bar"},
+			isInt:     true,
+			iv:        50,
+			timestamp: testTime,
+		},
+		{
+			test:      "position last if specified",
+			position:  "last",
 			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`foo.bar.cpu 50 ` + strTime + `\n`))),
+			name:      "cpu",
+			tags:      map[string]string{"foo": "bar"},
+			isInt:     true,
+			iv:        50,
+			timestamp: testTime,
+		},
+		{
+			test:      "position first if specified with no series",
+			position:  "first",
+			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu 50 ` + strTime + `\n`))),
+			name:      "cpu",
+			tags:      map[string]string{},
+			isInt:     true,
+			iv:        50,
+			timestamp: testTime,
+		},
+		{
+			test:      "position last if specified with no series",
+			position:  "last",
+			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu 50 ` + strTime + `\n`))),
+			name:      "cpu",
+			tags:      map[string]string{},
+			isInt:     true,
+			iv:        50,
+			timestamp: testTime,
+		},
+		{
+			test:      "sepeartor is . by default",
+			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu.foo.bar 50 ` + strTime + `\n`))),
+			name:      "cpu",
+			tags:      map[string]string{"foo": "bar"},
+			isInt:     true,
+			iv:        50,
+			timestamp: testTime,
+		},
+		{
+			test:      "sepeartor is . if specified",
+			seperator: ".",
+			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu.foo.bar 50 ` + strTime + `\n`))),
+			name:      "cpu",
+			tags:      map[string]string{"foo": "bar"},
+			isInt:     true,
+			iv:        50,
+			timestamp: testTime,
+		},
+		{
+			test:      "sepeartor is - if specified",
+			seperator: "-",
+			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu-foo-bar 50 ` + strTime + `\n`))),
+			name:      "cpu",
+			tags:      map[string]string{"foo": "bar"},
+			isInt:     true,
+			iv:        50,
+			timestamp: testTime,
+		},
+		{
+			test:      "sepeartor is boo if specified",
+			seperator: "boo",
+			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpuboofooboobar 50 ` + strTime + `\n`))),
+			name:      "cpu",
+			tags:      map[string]string{"foo": "bar"},
+			isInt:     true,
+			iv:        50,
+			timestamp: testTime,
+		},
+
+		{
+			test:      "series + metric + integer value",
+			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu.foo.bar 50 ` + strTime + `\n`))),
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			isInt:     true,
@@ -115,7 +207,7 @@ func Test_DecodeMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Logf("testing %q...", test.test)
-		g, err := graphite.DecodeMetric(test.reader)
+		g, err := graphite.DecodeMetric(test.reader, test.position, test.seperator)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}
@@ -129,14 +221,16 @@ func Test_DecodeMetric(t *testing.T) {
 		if len(g.Tags) != len(test.tags) {
 			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(g.Tags))
 		}
-		if g.IsInt != test.isInt {
-			t.Fatalf("isInt value mismatch.  expected %v, got %v", test.isInt, g.IsInt)
-		}
-		if g.IsInt && g.IntegerValue != test.iv {
-			t.Fatalf("integerValue value mismatch.  expected %v, got %v", test.iv, g.IntegerValue)
-		}
-		if g.IsInt != true && g.FloatValue != test.fv {
-			t.Fatalf("floatValue value mismatch.  expected %v, got %v", test.fv, g.FloatValue)
+		if test.isInt {
+			i := g.Value.(int64)
+			if i != test.iv {
+				t.Fatalf("integerValue value mismatch.  expected %v, got %v", test.iv, g.Value)
+			}
+		} else {
+			f := g.Value.(float64)
+			if g.Value != f {
+				t.Fatalf("floatValue value mismatch.  expected %v, got %v", test.fv, f)
+			}
 		}
 		if g.Timestamp.UnixNano()/1000000 != test.timestamp.UnixNano()/1000000 {
 			t.Fatalf("timestamp value mismatch.  expected %v, got %v", test.timestamp.UnixNano(), g.Timestamp.UnixNano())
@@ -171,133 +265,122 @@ func (testServerFailedWrite) WriteSeries(database, retentionPolicy, name string,
 	return fmt.Errorf("failed write")
 }
 
-func TestServer_HandleMessage(t *testing.T) {
-	//TODO bring back testing as an actual client
-	t.Skip()
-	/*
-		var ts testServer
-		var tsfr testServerFailedRetention
-		var tsfw testServerFailedWrite
-
-		var tests = []struct {
-			test   string
-			server interface {
-				WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
-				DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error)
-			}
-			reader *bufio.Reader
-			err    string
-		}{
-			{
-				test:   "should successfuly write valid data",
-				server: ts,
-				reader: bufio.NewReader(bytes.NewBuffer([]byte(`cpu 50.554 1419972457825\n`))),
-			},
-			{
-				test:   "should fail decoding invalid data",
-				server: ts,
-				reader: bufio.NewReader(bytes.NewBuffer([]byte(` 50.554 1419972457825\n`))),
-				err:    `received "50.554 1419972457825" which doesn't have three fields`,
-			},
-			{
-				test:   "should fail if we can't retrieve a valid retention policy",
-				server: tsfr,
-				reader: bufio.NewReader(bytes.NewBuffer([]byte(`cpu 50.554 1419972457825\n`))),
-				err:    `error looking up default database retention policy: no retention policy`,
-			},
-			{
-				test:   "should fail if we can't write to the database",
-				server: tsfw,
-				reader: bufio.NewReader(bytes.NewBuffer([]byte(`cpu 50.554 1419972457825\n`))),
-				err:    `write series data: failed write`,
-			},
-		}
-
-		for _, test := range tests {
-			t.Logf("testing %q...", test.test)
-			s := graphite.GraphiteServer{Server: test.server}
-			err := s.handleMessage(test.reader)
-			if err != nil && err.Error() != test.err {
-				t.Fatalf("err does not match.  expected %v, got %v", test.err, err.Error())
-			} else if err == nil && test.err != "" {
-				t.Fatalf("err does not match.  expected %v, got %v", test.err, err.Error())
-			}
-		}
-	*/
-}
-
-func TestServer_ListenAndServe_ErrBindAddressRequired(t *testing.T) {
+func TestServer_ListenAndServeTCP_ErrBindAddressRequired(t *testing.T) {
 	var (
-		test = "should fail if no address specified"
 		ts   testServer
 		s    = graphite.Server{Server: ts}
 		err  = graphite.ErrBindAddressRequired
+		addr *net.TCPAddr
 	)
 
-	t.Logf("testing %q...", test)
-	e := s.ListenAndServe()
+	e := s.ListenAndServeTCP(addr)
 	defer s.Close()
 	if e != err {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
 }
 
-func TestServer_ListenAndServe_ErrDatabaseNotSpecified(t *testing.T) {
+func TestServer_ListenAndServeTCP_ErrDatabaseNotSpecified(t *testing.T) {
 	var (
-		test = "should fail if no database"
-		ts   testServer
-		s    = graphite.Server{Server: ts}
-		err  = graphite.ErrDatabaseNotSpecified
+		ts  testServer
+		s   = graphite.Server{Server: ts}
+		err = graphite.ErrDatabaseNotSpecified
 	)
 
-	s.TCPAddr = &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}
+	addr := &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}
 
-	t.Logf("testing %q...", test)
-	e := s.ListenAndServe()
+	e := s.ListenAndServeTCP(addr)
 	defer s.Close()
 	if e != err {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
 }
 
-func TestServer_ListenAndServe_ErrServerNotSpecified(t *testing.T) {
+func TestServer_ListenAndServeTCP_ErrServerNotSpecified(t *testing.T) {
 	var (
-		test = "should fail if no server"
-		s    = graphite.Server{}
-		err  = graphite.ErrServerNotSpecified
+		s   = graphite.Server{}
+		err = graphite.ErrServerNotSpecified
 	)
 
 	s.Database = "foo"
-	s.TCPAddr = &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}
+	addr := &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}
 
-	t.Logf("testing %q...", test)
-	e := s.ListenAndServe()
+	e := s.ListenAndServeTCP(addr)
 	defer s.Close()
 	if e != err {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
 }
 
-// TODO look at what it will take to test successful listen and serve.
-func TestServer_ListenAndServe_ValidRequest(t *testing.T) {
-	t.Skip()
+func TestServer_ListenAndServeTCP_ValidRequest(t *testing.T) {
 	var (
-		test = "should work for tcp"
 		ts   testServer
 		s    = graphite.Server{Server: ts}
-		err  string
+		addr = &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 2004}
+	)
+	s.Database = "foo"
+
+	s.ListenAndServeTCP(addr)
+	defer s.Close()
+
+	// Connect to the graphite endpoint we just spun up
+	conn, err := net.Dial("tcp", addr.String())
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	_, err = conn.Write([]byte(`cpu 50.554 1419972457825\n`))
+	defer conn.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+}
+
+func TestServer_ListenAndServeUDP_ErrBindAddressRequired(t *testing.T) {
+	var (
+		ts   testServer
+		s    = graphite.Server{Server: ts}
+		err  = graphite.ErrBindAddressRequired
+		addr *net.UDPAddr
+	)
+
+	e := s.ListenAndServeUDP(addr)
+	defer s.Close()
+	if e != err {
+		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	}
+}
+
+func TestServer_ListenAndServeUDP_ErrDatabaseNotSpecified(t *testing.T) {
+	var (
+		ts  testServer
+		s   = graphite.Server{Server: ts}
+		err = graphite.ErrDatabaseNotSpecified
+	)
+
+	addr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1")}
+
+	e := s.ListenAndServeUDP(addr)
+	defer s.Close()
+	if e != err {
+		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	}
+}
+
+func TestServer_ListenAndServeUDP_ErrServerNotSpecified(t *testing.T) {
+	var (
+		s   = graphite.Server{}
+		err = graphite.ErrServerNotSpecified
 	)
 
 	s.Database = "foo"
-	s.TCPAddr = &net.TCPAddr{IP: net.ParseIP("127.0.0.1, Port: 2004")}
+	addr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1")}
 
-	t.Logf("testing %q...", test)
-	e := s.ListenAndServe()
+	e := s.ListenAndServeUDP(addr)
 	defer s.Close()
-	if e != nil && e.Error() != err {
-		t.Fatalf("err does not match.  expected %v, got %v", err, e.Error())
-	} else if e == nil && err != "" {
-		t.Fatalf("err does not match.  expected %v, got %v", err, e.Error())
+	if e != err {
+		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
 }
 
