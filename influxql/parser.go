@@ -65,7 +65,7 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	switch tok {
 	case SELECT:
-		return p.parseSelectStatement()
+		return p.parseSelectStatement(targetNotRequired)
 	case DELETE:
 		return p.parseDeleteStatement()
 	case LIST:
@@ -442,7 +442,7 @@ func (p *Parser) parsePrivilege() (Privilege, error) {
 
 // parseSelectStatement parses a select string and returns a Statement AST object.
 // This function assumes the SELECT token has already been consumed.
-func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
+func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, error) {
 	stmt := &SelectStatement{}
 
 	// Parse fields: "SELECT FIELD+".
@@ -451,6 +451,14 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 		return nil, err
 	}
 	stmt.Fields = fields
+
+	// Parse target: "INTO"
+	target, err := p.parseTarget(tr)
+	if err != nil {
+		return nil, err
+	} else if target != nil {
+		stmt.Target = target
+	}
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
@@ -491,6 +499,63 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 	stmt.Limit = limit
 
 	return stmt, nil
+}
+
+// targetRequirement specifies whether or not a target clause is required.
+type targetRequirement int
+
+const (
+	targetRequired targetRequirement = iota
+	targetNotRequired
+)
+
+// parseTarget parses a string and returns a Target.
+func (p *Parser) parseTarget(tr targetRequirement) (*Target, error) {
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != INTO {
+		if tr == targetRequired {
+			return nil, newParseError(tokstr(tok, lit), []string{"INTO"}, pos)
+		}
+		p.unscan()
+		return nil, nil
+	}
+
+	// Parse identifier.  Could be policy or measurement name.
+	ident, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+
+	target := &Target{}
+
+	tok, _, _ := p.scanIgnoreWhitespace()
+	if tok == COLON {
+		// Previous identifier was retention policy name.
+		target.RetentionPolicy = ident
+
+		// Parse required measurement.
+		ident, err = p.parseIdentifier()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
+
+	target.Measurement = ident
+
+	// Parse optional ON.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok != ON {
+		p.unscan()
+		return target, nil
+	}
+
+	// Found an ON token so parse required identifier.
+	if ident, err = p.parseIdentifier(); err != nil {
+		return nil, err
+	}
+	target.DB = ident
+
+	return target, nil
 }
 
 // parseDeleteStatement parses a delete string and returns a DeleteStatement.
@@ -771,38 +836,41 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	}
 
 	// Read the id of the query to create.
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != IDENT && tok != STRING {
-		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	ident, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
 	}
-	stmt.Name = lit
+	stmt.Name = ident
 
-	// Expect an "AS SELECT" keyword.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != AS {
-		return nil, newParseError(tokstr(tok, lit), []string{"AS"}, pos)
+	// Expect an "ON" keyword.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
 	}
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SELECT {
-		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
+
+	// Read the name of the database to create the query on.
+	if ident, err = p.parseIdentifier(); err != nil {
+		return nil, err
+	}
+	stmt.DB = ident
+
+	// Expect a "BEGIN SELECT" tokens.
+	if err := p.parseTokens([]Token{BEGIN, SELECT}); err != nil {
+		return nil, err
 	}
 
 	// Read the select statement to be used as the source.
-	source, err := p.parseSelectStatement()
+	source, err := p.parseSelectStatement(targetRequired)
 	if err != nil {
 		return nil, err
 	}
 	stmt.Source = source
 
-	// Expect an INTO keyword.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != INTO {
-		return nil, newParseError(tokstr(tok, lit), []string{"INTO"}, pos)
+	// Expect a "END" keyword.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != END {
+		return nil, newParseError(tokstr(tok, lit), []string{"END"}, pos)
 	}
 
-	// Read the target of the query.
-	tok, pos, lit = p.scanIgnoreWhitespace()
-	if tok != IDENT && tok != STRING {
-		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
-	}
-	stmt.Target = lit
+	fmt.Println(stmt.String())
 
 	return stmt, nil
 }

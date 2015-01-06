@@ -47,6 +47,8 @@ const (
 	RPAREN    // )
 	COMMA     // ,
 	SEMICOLON // ;
+	COLON     // :
+	//DOT       // .
 
 	keyword_beg
 	// Keywords
@@ -54,6 +56,7 @@ const (
 	ALTER
 	AS
 	ASC
+	BEGIN
 	BY
 	CREATE
 	CONTINUOUS
@@ -63,6 +66,7 @@ const (
 	DESC
 	DROP
 	DURATION
+	END
 	EXISTS
 	EXPLAIN
 	FIELD
@@ -132,11 +136,13 @@ var tokens = [...]string{
 	RPAREN:    ")",
 	COMMA:     ",",
 	SEMICOLON: ";",
+	COLON:     ":",
 
 	ALL:          "ALL",
 	ALTER:        "ALTER",
 	AS:           "AS",
 	ASC:          "ASC",
+	BEGIN:        "BEGIN",
 	BY:           "BY",
 	CREATE:       "CREATE",
 	CONTINUOUS:   "CONTINUOUS",
@@ -146,6 +152,7 @@ var tokens = [...]string{
 	DESC:         "DESC",
 	DROP:         "DROP",
 	DURATION:     "DURATION",
+	END:          "END",
 	EXISTS:       "EXISTS",
 	EXPLAIN:      "EXPLAIN",
 	FIELD:        "FIELD",

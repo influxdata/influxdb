@@ -42,6 +42,14 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return EOF, pos, ""
 	case '"', '\'':
 		return s.scanString()
+	// case '.':
+	// 	ch1, _ := s.r.read()
+	// 	s.r.unread()
+	// 	if isDigit(ch1) {
+	// 		s.r.unread()
+	// 		return s.scanNumber()
+	// 	}
+	// 	return DOT, pos, ""
 	case '.', '+', '-':
 		return s.scanNumber()
 	case '*':
@@ -72,6 +80,8 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return COMMA, pos, ""
 	case ';':
 		return SEMICOLON, pos, ""
+	case ':':
+		return COLON, pos, ""
 	}
 
 	return ILLEGAL, pos, string(ch0)

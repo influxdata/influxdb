@@ -277,16 +277,34 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ListContinuousQueriesStatement{},
 		},
 
-		// CREATE CONTINUOUS QUERY statement
+		// CREATE CONTINUOUS QUERY ... INTO <measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery AS SELECT count() FROM myseries INTO foo`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO measure1 FROM myseries END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name: "myquery",
+				DB:   "testdb",
 				Source: &influxql.SelectStatement{
 					Fields: influxql.Fields{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Target: &influxql.Target{Measurement: "measure1"},
 					Source: &influxql.Measurement{Name: "myseries"},
 				},
-				Target: "foo",
+			},
+		},
+
+		// CREATE CONTINUOUS QUERY ... INTO <retention-policy>.<measurement>
+		{
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1":cpu.load FROM myseries END`,
+			stmt: &influxql.CreateContinuousQueryStatement{
+				Name: "myquery",
+				DB:   "testdb",
+				Source: &influxql.SelectStatement{
+					Fields: influxql.Fields{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Target: &influxql.Target{
+						RetentionPolicy: "1h.policy1",
+						Measurement:     "cpu.load",
+					},
+					Source: &influxql.Measurement{Name: "myseries"},
+				},
 			},
 		},
 
@@ -545,6 +563,10 @@ func TestParser_ParseStatement(t *testing.T) {
 			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.stmt, stmt) {
 			t.Errorf("%d. %q\n\nstmt mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt)
+			exp := tt.stmt.(*influxql.CreateContinuousQueryStatement).Source.Target
+			got := stmt.(*influxql.CreateContinuousQueryStatement).Source.Target
+			t.Errorf("exp.String() = %#v\n", *exp)
+			t.Errorf("got.String() = %#v\n", *got)
 		}
 	}
 }

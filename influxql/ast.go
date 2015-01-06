@@ -88,6 +88,7 @@ func (_ *ParenExpr) node()       {}
 func (_ *Wildcard) node()        {}
 func (_ SortFields) node()       {}
 func (_ *SortField) node()       {}
+func (_ *Target) node()          {}
 
 // Query represents a collection of ordered statements.
 type Query struct {
@@ -411,6 +412,9 @@ type SelectStatement struct {
 	// Expressions returned from the selection.
 	Fields Fields
 
+	// Target (destination) for the result of the select.
+	Target *Target
+
 	// Expressions used for grouping the selection.
 	Dimensions Dimensions
 
@@ -433,6 +437,11 @@ func (s *SelectStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SELECT ")
 	_, _ = buf.WriteString(s.Fields.String())
+
+	if s.Target != nil {
+		_, _ = buf.WriteString(" ")
+		_, _ = buf.WriteString(s.Target.String())
+	}
 	_, _ = buf.WriteString(" FROM ")
 	_, _ = buf.WriteString(s.Source.String())
 	if s.Condition != nil {
@@ -591,6 +600,38 @@ func MatchSource(src Source, name string) string {
 	return ""
 }
 
+// Target represents a target (destination) policy, measurment, and DB.
+type Target struct {
+	// Retention policy to write into.
+	RetentionPolicy string
+
+	// Measurement to write into.
+	Measurement string
+
+	// Database to write into.
+	DB string
+}
+
+// String returns a string representation of the Target.
+func (t *Target) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("INTO ")
+
+	if t.RetentionPolicy != "" {
+		_, _ = buf.WriteString(t.RetentionPolicy)
+		_, _ = buf.WriteString(".")
+	}
+
+	_, _ = buf.WriteString(t.Measurement)
+
+	if t.DB != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(t.DB)
+	}
+
+	return buf.String()
+}
+
 // DeleteStatement represents a command for removing data from the database.
 type DeleteStatement struct {
 	// Data source that values are removed from.
@@ -661,14 +702,19 @@ func (s *ListContinuousQueriesStatement) String() string { return "LIST CONTINUO
 
 // CreateContinuousQueriesStatement represents a command for creating a continuous query.
 type CreateContinuousQueryStatement struct {
-	Name   string
+	// Name of the continuous query to be created.
+	Name string
+
+	// Name of the database to create the continuous query on.
+	DB string
+
+	// Source of data (SELECT statement).
 	Source *SelectStatement
-	Target string
 }
 
 // String returns a string representation of the statement.
 func (s *CreateContinuousQueryStatement) String() string {
-	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s AS %s INTO %s", s.Name, s.Source.String(), s.Target)
+	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", s.Name, s.DB, s.Source.String())
 }
 
 // DropContinuousQueriesStatement represents a command for removing a continuous query.
