@@ -664,6 +664,32 @@ func (s *Server) Users() (a []*User) {
 	return a
 }
 
+// AdminUserExists returns whether at least 1 admin-level user exists.
+func (s *Server) AdminUserExists() bool {
+	for _, u := range s.users {
+		if u.Admin {
+			return true
+		}
+	}
+	return false
+}
+
+// Authenticate returns an authenticated user by username. If any error occurs,
+// or the authentication credentials are invalid, an error is returned.
+func (s *Server) Authenticate(username, password string) (*User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.users[username]
+	if u == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	err := u.Authenticate(password)
+	if err != nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+	return u, nil
+}
+
 // CreateUser creates a user on the server.
 func (s *Server) CreateUser(username, password string, admin bool) error {
 	c := &createUserCommand{Username: username, Password: password, Admin: admin}

@@ -47,6 +47,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("logging level mismatch: %v", c.Logging.Level)
 	}
 
+	if !c.Authentication.Enabled {
+		t.Fatalf("authentication enabled mismatch: %v", c.Authentication.Enabled)
+	}
+
 	if c.Admin.Port != 8083 {
 		t.Fatalf("admin port mismatch: %v", c.Admin.Port)
 	} else if c.Admin.Assets != "./admin" {
@@ -112,6 +116,10 @@ const testFile = `
 # systems in the cluster, you'll have to set the hostname to an IP or something
 # that can be resolved here.
 hostname = "myserver.com"
+
+# Control authentication
+[authentication]
+enabled = true
 
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
