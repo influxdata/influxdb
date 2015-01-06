@@ -27,18 +27,13 @@ var (
 	ErrServerNotSpecified = errors.New("server not present")
 )
 
-type dataSink interface {
+type ProcessorSink interface {
 	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
 	DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error)
 }
 
-// GraphiteServer represents a server that can process Graphite data recieved over
-// the network.
-type GraphiteServer interface {
-	// Start starts the server listening on the given interface. iface
-	// should be in the form address:port
-	Start(iface string) error
-
+// Processor performs processing of Graphite data, and writes it to a sink.
+type Processor struct {
 	// Sink is the destination for processed Graphite data.
 	sink dataSink
 
@@ -50,9 +45,14 @@ type GraphiteServer interface {
 	NameSeparator string
 }
 
+func NewProcessor(sink *ProcessorSink) *Processor {
+	p = Processor{}
+	return &p
+}
+
 // handleMessage decodes a graphite message from the reader and sends it to the
 // committer goroutine.
-func (s *server) handleMessage(r *bufio.Reader) error {
+func (p *processor) handleMessage(r *bufio.Reader) error {
 	// Decode graphic metric.
 	m, err := DecodeMetric(r, s.NamePosition, s.NameSeparator)
 	if err != nil {
