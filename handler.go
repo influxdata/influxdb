@@ -141,7 +141,7 @@ func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.R
 				return
 			}
 
-			user, err = h.server.AuthenticatedUser(username, password)
+			user, err = h.server.Authenticate(username, password)
 			if err != nil {
 				h.error(w, err.Error(), http.StatusUnauthorized)
 				return
@@ -340,7 +340,7 @@ func (h *Handler) serveCreateUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, err = h.server.AuthenticatedUser(username, password)
+		_, err = h.server.Authenticate(username, password)
 		if err != nil {
 			h.error(w, err.Error(), http.StatusUnauthorized)
 			return

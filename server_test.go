@@ -199,7 +199,7 @@ func TestServer_CreateUser(t *testing.T) {
 	}
 
 	// Verify that the authenticated user exists.
-	u, err := s.AuthenticatedUser("susy", "pass")
+	u, err := s.Authenticate("susy", "pass")
 	if err != nil {
 		t.Fatalf("error fetching authenticated user")
 	} else if u.Name != "susy" {
@@ -322,7 +322,7 @@ func TestServer_NonExistingUsers(t *testing.T) {
 	if u != nil {
 		t.Fatalf("unexpected user found")
 	}
-	u, err := s.AuthenticatedUser("susy", "wrong_password")
+	u, err := s.Authenticate("susy", "wrong_password")
 	if err == nil {
 		t.Fatalf("unexpected authenticated user found")
 	}
