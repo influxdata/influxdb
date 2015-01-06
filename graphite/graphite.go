@@ -219,7 +219,7 @@ func (s *Server) Close() error {
 
 	s.mu.Unlock()
 
-	//// Wait for all goroutines to shutdown.
+	// Wait for all goroutines to shutdown.
 	s.wg.Wait()
 	return nil
 }
@@ -236,11 +236,6 @@ func (s *Server) handleMessage(r *bufio.Reader) error {
 	// Convert metric to a field value.
 	var values = make(map[string]interface{})
 	values[m.Name] = m.Value
-	//if m.IsInt {
-	//values[m.Name] = &m.IntegerValue
-	//} else {
-	//values[m.Name] = &m.FloatValue
-	//}
 
 	retentionPolicy, err := s.Server.DefaultRetentionPolicy(s.Database)
 
