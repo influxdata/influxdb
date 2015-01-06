@@ -421,7 +421,7 @@ func TestHandler_CreateUser(t *testing.T) {
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/users`, `{"name":"jdoe","password":"1337"}`)
-	if status != http.StatusOK {
+	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != "" {
 		t.Fatalf("unexpected body: %s", body)
