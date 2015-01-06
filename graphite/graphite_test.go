@@ -20,7 +20,7 @@ func Test_DecodeNameAndTags(t *testing.T) {
 		name      string
 		tags      map[string]string
 		position  string
-		seperator string
+		separator string
 		err       string
 	}{
 		{test: "metric only", str: "cpu", name: "cpu"},
@@ -32,7 +32,7 @@ func Test_DecodeNameAndTags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Logf("testing %q...", test.test)
-		name, tags, err := graphite.DecodeNameAndTags(test.str, test.position, test.seperator)
+		name, tags, err := graphite.DecodeNameAndTags(test.str, test.position, test.separator)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}
@@ -64,7 +64,7 @@ func Test_DecodeMetric(t *testing.T) {
 		iv                  int64
 		fv                  float64
 		timestamp           time.Time
-		position, seperator string
+		position, separator string
 		err                 string
 	}{
 		{
@@ -127,7 +127,7 @@ func Test_DecodeMetric(t *testing.T) {
 		},
 		{
 			test:      "sepeartor is . if specified",
-			seperator: ".",
+			separator: ".",
 			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu.foo.bar 50 ` + strTime + `\n`))),
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
@@ -137,7 +137,7 @@ func Test_DecodeMetric(t *testing.T) {
 		},
 		{
 			test:      "sepeartor is - if specified",
-			seperator: "-",
+			separator: "-",
 			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpu-foo-bar 50 ` + strTime + `\n`))),
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
@@ -147,7 +147,7 @@ func Test_DecodeMetric(t *testing.T) {
 		},
 		{
 			test:      "sepeartor is boo if specified",
-			seperator: "boo",
+			separator: "boo",
 			reader:    bufio.NewReader(bytes.NewBuffer([]byte(`cpuboofooboobar 50 ` + strTime + `\n`))),
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
@@ -207,7 +207,7 @@ func Test_DecodeMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Logf("testing %q...", test.test)
-		g, err := graphite.DecodeMetric(test.reader, test.position, test.seperator)
+		g, err := graphite.DecodeMetric(test.reader, test.position, test.separator)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}

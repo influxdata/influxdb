@@ -255,7 +255,7 @@ type Graphite struct {
 	Port          int    `toml:"port"`
 	Protocol      string `toml:"protocol"`
 	NamePosition  string `toml:"name-position"`
-	NameSeperator string `toml:"name-seperator"`
+	NameSeparator string `toml:"name-separator"`
 }
 
 // Default carbon port per http://graphite.readthedocs.org/en/1.0/feeding-carbon.html

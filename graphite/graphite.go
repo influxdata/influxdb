@@ -57,7 +57,7 @@ type Server struct {
 	// Position of name to be parsed from metric_path
 	NamePosition string
 	// sperator to parse metric_path with to get name and series
-	NameSeperator string
+	NameSeparator string
 }
 
 type influxdbServer interface {
@@ -228,7 +228,7 @@ func (s *Server) Close() error {
 // committer goroutine.
 func (s *Server) handleMessage(r *bufio.Reader) error {
 	// Decode graphic metric.
-	m, err := DecodeMetric(r, s.NamePosition, s.NameSeperator)
+	m, err := DecodeMetric(r, s.NamePosition, s.NameSeparator)
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ type Metric struct {
 }
 
 // returns err == io.EOF when we hit EOF without any further data
-func DecodeMetric(r *bufio.Reader, position, seperator string) (*Metric, error) {
+func DecodeMetric(r *bufio.Reader, position, separator string) (*Metric, error) {
 	// Read up to the next newline.
 	buf, err := r.ReadBytes('\n')
 	if err != nil && err != io.EOF {
@@ -286,7 +286,7 @@ func DecodeMetric(r *bufio.Reader, position, seperator string) (*Metric, error) 
 
 	m := new(Metric)
 	// decode the name and tags
-	name, tags, err := DecodeNameAndTags(fields[0], position, seperator)
+	name, tags, err := DecodeNameAndTags(fields[0], position, separator)
 	if err != nil {
 		return nil, err
 	}
@@ -317,18 +317,18 @@ func DecodeMetric(r *bufio.Reader, position, seperator string) (*Metric, error) 
 	return m, nil
 }
 
-func DecodeNameAndTags(field, position, seperator string) (string, map[string]string, error) {
+func DecodeNameAndTags(field, position, separator string) (string, map[string]string, error) {
 	var (
 		name string
 		tags = make(map[string]string)
 	)
 
-	if seperator == "" {
-		seperator = "."
+	if separator == "" {
+		separator = "."
 	}
 
 	// decode the name and tags
-	values := strings.Split(field, seperator)
+	values := strings.Split(field, separator)
 	if len(values)%2 != 1 {
 		// There should always be an odd number of fields to map a metric name and tags
 		// ex: region.us-west.hostname.server01.cpu -> tags -> region: us-west, hostname: server01, metric name -> cpu

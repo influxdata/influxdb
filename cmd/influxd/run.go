@@ -99,7 +99,7 @@ func execRun(args []string) {
 			// Set options
 			s.Database = g.Database
 			s.NamePosition = g.NamePosition
-			s.NameSeperator = g.NameSeperator
+			s.NameSeparator = g.NameSeparator
 
 			// Set the addresses up
 			if strings.ToLower(g.Protocol) == "tcp" {

@@ -80,8 +80,8 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("graphite tcp protocol mismatch: expected %v, got %v", "tcp", strings.ToLower(tcpGraphite.Protocol))
 	case tcpGraphite.NamePosition != "last":
 		t.Fatalf("graphite tcp name-position mismatch: expected %v, got %v", "last", tcpGraphite.NamePosition)
-	case tcpGraphite.NameSeperator != "-":
-		t.Fatalf("graphite tcp name-seperator mismatch: expected %v, got %v", "-", tcpGraphite.NameSeperator)
+	case tcpGraphite.NameSeparator != "-":
+		t.Fatalf("graphite tcp name-separator mismatch: expected %v, got %v", "-", tcpGraphite.NameSeparator)
 	}
 
 	udpGraphite := c.Graphite[1]
@@ -177,7 +177,7 @@ address = "192.168.0.1"
 port = 2003
 database = "graphite_tcp"  # store graphite data in this database
 name-position = "last"
-name-seperator = "-"
+name-separator = "-"
 
 [[graphite]]
 protocol = "udP"
