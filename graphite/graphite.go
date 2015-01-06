@@ -323,7 +323,7 @@ func DecodeNameAndTags(field, position, seperator string) (string, map[string]st
 		tags = make(map[string]string)
 	)
 
-	if len(seperator) == 0 {
+	if seperator == "" {
 		seperator = "."
 	}
 
