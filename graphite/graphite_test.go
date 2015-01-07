@@ -70,7 +70,7 @@ func Test_DecodeMetric(t *testing.T) {
 	}{
 		{
 			test:      "position first by default",
-			line:      `cpu.foo.bar 50 ` + strTime + `\n`,
+			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			isInt:     true,
@@ -80,7 +80,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test:      "position first if unable to determine",
 			position:  "foo",
-			line:      `cpu.foo.bar 50 ` + strTime + `\n`,
+			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			isInt:     true,
@@ -90,7 +90,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test:      "position last if specified",
 			position:  "last",
-			line:      `foo.bar.cpu 50 ` + strTime + `\n`,
+			line:      `foo.bar.cpu 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			isInt:     true,
@@ -100,7 +100,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test:      "position first if specified with no series",
 			position:  "first",
-			line:      `cpu 50 ` + strTime + `\n`,
+			line:      `cpu 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{},
 			isInt:     true,
@@ -110,7 +110,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test:      "position last if specified with no series",
 			position:  "last",
-			line:      `cpu 50 ` + strTime + `\n`,
+			line:      `cpu 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{},
 			isInt:     true,
@@ -119,7 +119,7 @@ func Test_DecodeMetric(t *testing.T) {
 		},
 		{
 			test:      "sepeartor is . by default",
-			line:      `cpu.foo.bar 50 ` + strTime + `\n`,
+			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			isInt:     true,
@@ -129,7 +129,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test:      "sepeartor is . if specified",
 			separator: ".",
-			line:      `cpu.foo.bar 50 ` + strTime + `\n`,
+			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			isInt:     true,
@@ -139,7 +139,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test:      "sepeartor is - if specified",
 			separator: "-",
-			line:      `cpu-foo-bar 50 ` + strTime + `\n`,
+			line:      `cpu-foo-bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			isInt:     true,
@@ -149,7 +149,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test:      "sepeartor is boo if specified",
 			separator: "boo",
-			line:      `cpuboofooboobar 50 ` + strTime + `\n`,
+			line:      `cpuboofooboobar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			isInt:     true,
@@ -159,7 +159,7 @@ func Test_DecodeMetric(t *testing.T) {
 
 		{
 			test:      "series + metric + integer value",
-			line:      `cpu.foo.bar 50 ` + strTime + `\n`,
+			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			isInt:     true,
@@ -168,7 +168,7 @@ func Test_DecodeMetric(t *testing.T) {
 		},
 		{
 			test:      "metric only with float value",
-			line:      `cpu 50.554 ` + strTime + `\n`,
+			line:      `cpu 50.554 ` + strTime,
 			name:      "cpu",
 			isInt:     false,
 			fv:        50.554,
@@ -176,32 +176,27 @@ func Test_DecodeMetric(t *testing.T) {
 		},
 		{
 			test: "missing metric",
-			line: `50.554 1419972457825\n`,
+			line: `50.554 1419972457825`,
 			err:  `received "50.554 1419972457825" which doesn't have three fields`,
 		},
 		{
-			test: "should fail on eof",
-			line: ``,
-			err:  `EOF`,
-		},
-		{
 			test: "should fail on invalid key",
-			line: `foo.cpu 50.554 1419972457825\n`,
+			line: `foo.cpu 50.554 1419972457825`,
 			err:  `received "foo.cpu" which doesn't conform to format of key.value.key.value.metric or metric`,
 		},
 		{
 			test: "should fail parsing invalid float",
-			line: `cpu 50.554z 1419972457825\n`,
+			line: `cpu 50.554z 1419972457825`,
 			err:  `strconv.ParseFloat: parsing "50.554z": invalid syntax`,
 		},
 		{
 			test: "should fail parsing invalid int",
-			line: `cpu 50z 1419972457825\n`,
+			line: `cpu 50z 1419972457825`,
 			err:  `strconv.ParseFloat: parsing "50z": invalid syntax`,
 		},
 		{
 			test: "should fail parsing invalid time",
-			line: `cpu 50.554 14199724z57825\n`,
+			line: `cpu 50.554 14199724z57825`,
 			err:  `strconv.ParseInt: parsing "14199724z57825": invalid syntax`,
 		},
 	}
