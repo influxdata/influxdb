@@ -39,7 +39,7 @@ func NewParser() *Parser {
 }
 
 // returns err == io.EOF when we hit EOF without any further data
-func (p *Parser) parse(line string) (*metric, error) {
+func (p *Parser) Parse(line string) (*metric, error) {
 	// Break into 3 fields (name, value, timestamp).
 	fields := strings.Fields(line)
 	if len(fields) != 3 {
@@ -48,7 +48,7 @@ func (p *Parser) parse(line string) (*metric, error) {
 
 	m := new(metric)
 	// decode the name and tags
-	name, tags, err := p.decodeNameAndTags(fields[0])
+	name, tags, err := p.DecodeNameAndTags(fields[0])
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (p *Parser) parse(line string) (*metric, error) {
 	return m, nil
 }
 
-func (p *Parser) decodeNameAndTags(field string) (string, map[string]string, error) {
+func (p *Parser) DecodeNameAndTags(field string) (string, map[string]string, error) {
 	var (
 		name string
 		tags = make(map[string]string)

@@ -53,7 +53,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				return
 			}
 			for _, line := range strings.Split(string(buf[:n]), "\n") {
-				m, err := u.parser.parse(line)
+				m, err := u.parser.Parse(line)
 				if err != nil {
 					continue
 				}

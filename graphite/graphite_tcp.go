@@ -64,7 +64,7 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		line := strings.TrimSpace(string(buf))
 
 		// Parse it.
-		metric, err := t.parser.parse(line)
+		metric, err := t.parser.Parse(line)
 		if err != nil {
 			continue
 		}
