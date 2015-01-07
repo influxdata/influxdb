@@ -57,7 +57,6 @@ func execRun(args []string) {
 	}
 
 	// Open server, initialize or join as necessary.
-	log.Println("?", config.DataURL())
 	s := openServer(config.Data.Dir, config.DataURL(), b, initializing, joinURLs)
 
 	// Start the server handler. Attach to broker if running on the same port.

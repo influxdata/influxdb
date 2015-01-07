@@ -355,7 +355,6 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 
 	// Check if created.
 	if resp.StatusCode != http.StatusCreated {
-		warn("STATUS>", resp.StatusCode)
 		return ErrUnableToJoin
 	}
 
