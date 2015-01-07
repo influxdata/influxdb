@@ -30,6 +30,9 @@ const (
 
 	// DefaultHTTPAPIPort represents the default port the HTTP API runs on.
 	DefaultHTTPAPIPort = 8086
+
+	// DefaultGraphitePort represents the default Graphite (Carbon) plaintext port.
+	DefaultGraphitePort = 2003
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -52,7 +55,7 @@ type Config struct {
 		ReadTimeout Duration `toml:"read-timeout"`
 	} `toml:"api"`
 
-	Graphite     []Graphite `toml:"graphite"`
+	Graphites    []Graphite `toml:"graphite"`
 	InputPlugins struct {
 		UDPInput struct {
 			Enabled  bool   `toml:"enabled"`
@@ -247,7 +250,7 @@ func ParseConfig(s string) (*Config, error) {
 }
 
 type Graphite struct {
-	Address       string `toml:"address"`
+	Addr          string `toml:"address"`
 	Database      string `toml:"database"`
 	Enabled       bool   `toml:"enabled"`
 	Port          uint16 `toml:"port"`
@@ -256,23 +259,19 @@ type Graphite struct {
 	NameSeparator string `toml:"name-separator"`
 }
 
-// Default carbon port per http://graphite.readthedocs.org/en/1.0/feeding-carbon.html
-const defaultGrahitePort = 2004
-
-// ConnnectionString returns the connection string for this Graphite config in the form
-// host:port.
+// ConnnectionString returns the connection string for this Graphite config in the form host:port.
 func (g Graphite) ConnectionString(defaultBindAddr string) string {
 	var addr string
 	var port uint16
 
 	// If no address specified, use default.
-	if g.Address != "" {
+	if g.Addr != "" {
 		addr = defaultBindAddr
 	}
 
 	// If no port specified, use default.
-	if g.Port < 1 {
-		port = 2004
+	if g.Port <= 0 {
+		port = DefaultGraphitePort
 	}
 
 	return fmt.Sprintf("%s:%u", addr, port)

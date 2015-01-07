@@ -41,7 +41,7 @@ read-timeout = "5s"
   [input_plugins.graphite]
   enabled = false
   # address = "0.0.0.0" # If not set, is actually set to bind-address.
-  # port = 2004
+  # port = 2003
   # database = ""  # store graphite data in this database
   # udp_enabled = true # enable udp interface on the same port as the tcp interface
 

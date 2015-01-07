@@ -92,7 +92,7 @@ func execRun(args []string) {
 		log.Printf("DataNode#%d running on %s", s.ID(), config.ApiHTTPListenAddr())
 
 		// Spin up any Graphite servers
-		for _, c := range config.Graphite {
+		for _, c := range config.Graphites {
 			if !c.Enabled {
 				continue
 			}
@@ -169,7 +169,6 @@ func openServer(path string) *influxdb.Server {
 	s := influxdb.NewServer()
 	if err := s.Open(path); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
-		log.Fatalf("seed server %v", err)
 	}
 	return s
 }
@@ -196,7 +195,6 @@ func initServer(s *influxdb.Server, b *messaging.Broker) {
 	// Initialize the server.
 	if err := s.Initialize(b.URL()); err != nil {
 		log.Fatalf("server initialization error: %s", err)
-		log.Fatalf("failed to open data Server %v", err.Error())
 	}
 
 }

@@ -62,16 +62,16 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("http api ssl cert path mismatch: %v", c.HTTPAPI.SSLCertPath)
 	}
 
-	if len(c.Graphite) != 2 {
-		t.Fatalf("graphites  mismatch.  expected %v, got: %v", 2, len(c.Graphite))
+	if len(c.Graphites) != 2 {
+		t.Fatalf("graphites  mismatch.  expected %v, got: %v", 2, len(c.Graphites))
 	}
 
-	tcpGraphite := c.Graphite[0]
+	tcpGraphite := c.Graphites[0]
 	switch {
 	case tcpGraphite.Enabled != true:
 		t.Fatalf("graphite tcp enabled mismatch: expected: %v, got %v", true, tcpGraphite.Enabled)
-	case tcpGraphite.Address != "192.168.0.1":
-		t.Fatalf("graphite tcp address mismatch: expected %v, got  %v", "192.168.0.1", tcpGraphite.Address)
+	case tcpGraphite.Addr != "192.168.0.1":
+		t.Fatalf("graphite tcp address mismatch: expected %v, got  %v", "192.168.0.1", tcpGraphite.Addr)
 	case tcpGraphite.Port != 2003:
 		t.Fatalf("graphite tcp port mismatch: expected %v, got %v", 2003, tcpGraphite.Port)
 	case tcpGraphite.Database != "graphite_tcp":
@@ -84,12 +84,12 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("graphite tcp name-separator mismatch: expected %v, got %v", "-", tcpGraphite.NameSeparator)
 	}
 
-	udpGraphite := c.Graphite[1]
+	udpGraphite := c.Graphites[1]
 	switch {
 	case udpGraphite.Enabled != true:
 		t.Fatalf("graphite udp enabled mismatch: expected: %v, got %v", true, udpGraphite.Enabled)
-	case udpGraphite.Address != "192.168.0.2":
-		t.Fatalf("graphite udp address mismatch: expected %v, got  %v", "192.168.0.2", udpGraphite.Address)
+	case udpGraphite.Addr != "192.168.0.2":
+		t.Fatalf("graphite udp address mismatch: expected %v, got  %v", "192.168.0.2", udpGraphite.Addr)
 	case udpGraphite.Port != 2005:
 		t.Fatalf("graphite udp port mismatch: expected %v, got %v", 2005, udpGraphite.Port)
 	case udpGraphite.Database != "graphite_udp":
