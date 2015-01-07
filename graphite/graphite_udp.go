@@ -1,9 +1,6 @@
 package graphite
 
 import (
-	"bufio"
-	"io"
-	"log"
 	"net"
 	"strings"
 )
@@ -12,27 +9,30 @@ const (
 	udpBufferSize = 65536
 )
 
-// UdpGraphiteServer processes Graphite data received via UDP packets.
-type UdpGraphiteServer struct {
-	GrpahiteServer
+// UDPerver processes Graphite data received via UDP.
+type UDPServer struct {
+	writer SeriesWriter
+	parser *Parser
+
+	Database string
 }
 
-// NewUdpGraphiteServer returns a new instance of a UdpGraphiteServer.
-func NewUdpGraphiteServer(d dataSink) *UdpGraphiteServer {
-	u := UdpGraphiteServer{}
-	u.sink = d
+// NewUDPServer returns a new instance of a UDPServer
+func NewUDPServer(p *Parser, w SeriesWriter) *UDPServer {
+	u := UDPServer{
+		parser: p,
+		writer: w,
+	}
 	return &u
 }
 
 // Start instructs the UdpGraphiteServer to start processing Graphite data
 // on the given interface. iface must be in the form host:port
-func (u *UdpGraphiteServer) Start(iface string) error {
+func (u *UDPServer) ListenAndServe(iface string) error {
 	if iface == "" { // Make sure we have an address
 		return ErrBindAddressRequired
 	} else if u.Database == "" { // Make sure they have a database
 		return ErrDatabaseNotSpecified
-	} else if u.sink == nil { // Make sure they specified a backend sink
-		return ErrServerNotSpecified
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", iface)
@@ -50,14 +50,20 @@ func (u *UdpGraphiteServer) Start(iface string) error {
 		for {
 			n, _, err := conn.ReadFromUDP(buf)
 			if err != nil {
-				if err == io.EOF {
-					return
-				} else {
-					log.Println("ignoring error reading Graphite data over UDP", err.Error())
-				}
+				return
 			}
-			for _, metric := range strings.Split(string(buf[:n]), "\n") {
-				u.handleMessage(bufio.NewReader(strings.NewReader(metric + "\n")))
+			for _, line := range strings.Split(string(buf[:n]), "\n") {
+				m, err := u.parser.parse(line)
+				if err != nil {
+					continue
+				}
+
+				// Convert metric to a field value.
+				var values = make(map[string]interface{})
+				values[m.Name] = m.Value
+
+				// Send the data to database
+				u.writer.WriteSeries(u.Database, "", m.Name, m.Tags, m.Timestamp, values)
 			}
 		}
 	}()

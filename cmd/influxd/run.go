@@ -97,22 +97,25 @@ func execRun(args []string) {
 				continue
 			}
 
-			var g graphite.GraphiteServer
-			if strings.ToLower(g.Protocol) == "tcp" {
-				g = graphite.NewTcpGraphiteServer(s)
+			// Configure Graphite parsing.
+			parser := graphite.NewParser()
+			parser.Separator = c.NameSeparator
+			parser.LastEnabled = (c.NamePosition == "last")
+
+			if strings.ToLower(c.Protocol) == "tcp" {
+				g := graphite.NewTCPServer(parser, s)
+				g.Database = c.Database
+				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
+				if err != nil {
+					log.Println("failed to start TCP Graphite Server", err.Error())
+				}
 			} else {
-				g = graphite.NewUdpGraphiteServer(s)
-			}
-
-			// Set options
-			g.Database = g.Database
-			g.NamePosition = g.NamePosition
-			g.NameSeparator = g.NameSeparator
-
-			// Start the Graphite Server.
-			err := g.Start(c.ConnectionString(config.BindAddress))
-			if err != nil {
-				log.Println("failed to start Graphite Server", err.Error())
+				g := graphite.NewUDPServer(parser, s)
+				g.Database = c.Database
+				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
+				if err != nil {
+					log.Println("failed to start UDP Graphite Server", err.Error())
+				}
 			}
 		}
 	}

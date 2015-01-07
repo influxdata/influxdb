@@ -1,15 +1,11 @@
 package graphite
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/influxdb/influxdb"
 )
 
 var (
@@ -27,92 +23,32 @@ var (
 	ErrServerNotSpecified = errors.New("server not present")
 )
 
-type ProcessorSink interface {
+type SeriesWriter interface {
 	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
-	DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error)
 }
 
-// Processor performs processing of Graphite data, and writes it to a sink.
-type Processor struct {
-	// Sink is the destination for processed Graphite data.
-	sink dataSink
-
-	// Database is the name of the database to insert data into.
-	Database string
-	// NamePosition is the position of name to be parsed from metric_path
-	NamePosition string
-	// NameSeparator is separator to parse metric_path with to get name and series
-	NameSeparator string
+type Parser struct {
+	Separator   string
+	LastEnabled bool
 }
 
-func NewProcessor(sink *ProcessorSink) *Processor {
-	p = Processor{}
+func NewParser() *Parser {
+	p := Parser{}
+	p.Separator = "."
 	return &p
 }
 
-// handleMessage decodes a graphite message from the reader and sends it to the
-// committer goroutine.
-func (p *processor) handleMessage(r *bufio.Reader) error {
-	// Decode graphic metric.
-	m, err := DecodeMetric(r, s.NamePosition, s.NameSeparator)
-	if err != nil {
-		return err
-	}
-
-	// Convert metric to a field value.
-	var values = make(map[string]interface{})
-	values[m.Name] = m.Value
-
-	retentionPolicy, err := s.sink.DefaultRetentionPolicy(s.Database)
-
-	if err != nil {
-		return fmt.Errorf("error looking up default database retention policy: %s", err)
-	}
-
-	if err := s.sink.WriteSeries(
-		s.Database,
-		retentionPolicy.Name,
-		m.Name,
-		m.Tags,
-		m.Timestamp,
-		values,
-	); err != nil {
-		return fmt.Errorf("write series data: %s", err)
-	}
-	return nil
-}
-
-type Metric struct {
-	Name      string
-	Tags      map[string]string
-	Value     interface{}
-	Timestamp time.Time
-}
-
 // returns err == io.EOF when we hit EOF without any further data
-func DecodeMetric(r *bufio.Reader, position, separator string) (*Metric, error) {
-	// Read up to the next newline.
-	buf, err := r.ReadBytes('\n')
-	if err != nil && err != io.EOF {
-		// it's possible to get EOF but also data
-		return nil, fmt.Errorf("connection closed uncleanly/broken: %s\n", err.Error())
-	}
-	// Trim the buffer, even though there should be no padding
-	str := strings.TrimSpace(string(buf))
-	// Remove line return
-	str = strings.TrimSuffix(str, `\n`)
-	if str == "" {
-		return nil, err
-	}
+func (p *Parser) parse(line string) (*metric, error) {
 	// Break into 3 fields (name, value, timestamp).
-	fields := strings.Fields(str)
+	fields := strings.Fields(line)
 	if len(fields) != 3 {
-		return nil, fmt.Errorf("received %q which doesn't have three fields", str)
+		return nil, fmt.Errorf("received %q which doesn't have three fields", line)
 	}
 
-	m := new(Metric)
+	m := new(metric)
 	// decode the name and tags
-	name, tags, err := DecodeNameAndTags(fields[0], position, separator)
+	name, tags, err := p.decodeNameAndTags(fields[0])
 	if err != nil {
 		return nil, err
 	}
@@ -143,36 +79,28 @@ func DecodeMetric(r *bufio.Reader, position, separator string) (*Metric, error) 
 	return m, nil
 }
 
-func DecodeNameAndTags(field, position, separator string) (string, map[string]string, error) {
+func (p *Parser) decodeNameAndTags(field string) (string, map[string]string, error) {
 	var (
 		name string
 		tags = make(map[string]string)
 	)
 
-	if separator == "" {
-		separator = "."
-	}
-
 	// decode the name and tags
-	values := strings.Split(field, separator)
+	values := strings.Split(field, p.Separator)
 	if len(values)%2 != 1 {
 		// There should always be an odd number of fields to map a metric name and tags
 		// ex: region.us-west.hostname.server01.cpu -> tags -> region: us-west, hostname: server01, metric name -> cpu
 		return name, tags, fmt.Errorf("received %q which doesn't conform to format of key.value.key.value.metric or metric", field)
 	}
 
-	np := strings.ToLower(strings.TrimSpace(position))
-	switch np {
-	case "last":
+	if p.LastEnabled {
 		name = values[len(values)-1]
 		values = values[0 : len(values)-1]
-	case "first":
-		name = values[0]
-		values = values[1:len(values)]
-	default:
+	} else {
 		name = values[0]
 		values = values[1:len(values)]
 	}
+
 	if name == "" {
 		return name, tags, fmt.Errorf("no name specified for metric. %q", field)
 	}
@@ -185,4 +113,11 @@ func DecodeNameAndTags(field, position, separator string) (string, map[string]st
 	}
 
 	return name, tags, nil
+}
+
+type metric struct {
+	Name      string
+	Tags      map[string]string
+	Value     interface{}
+	Timestamp time.Time
 }
