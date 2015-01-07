@@ -102,6 +102,7 @@ func execRun(args []string) {
 			parser.Separator = c.NameSeparator
 			parser.LastEnabled = (c.NamePosition == "last")
 
+			// Start the relevant server.
 			if strings.ToLower(c.Protocol) == "tcp" {
 				g := graphite.NewTCPServer(parser, s)
 				g.Database = c.Database
