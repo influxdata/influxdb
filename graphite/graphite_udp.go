@@ -26,8 +26,8 @@ func NewUDPServer(p *Parser, w SeriesWriter) *UDPServer {
 	return &u
 }
 
-// Start instructs the UdpGraphiteServer to start processing Graphite data
-// on the given interface. iface must be in the form host:port
+// ListenAndServer instructs the UDPServer to start processing Graphite data
+// on the given interface. iface must be in the form host:port.
 func (u *UDPServer) ListenAndServe(iface string) error {
 	if iface == "" { // Make sure we have an address
 		return ErrBindAddressRequired

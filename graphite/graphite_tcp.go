@@ -49,6 +49,8 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 	}()
 	return nil
 }
+
+// handleConnection services an individual TCP connection.
 func (t *TCPServer) handleConnection(conn net.Conn) {
 	defer conn.Close()
 

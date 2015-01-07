@@ -197,7 +197,6 @@ func initServer(s *influxdb.Server, b *messaging.Broker) {
 	if err := s.Initialize(b.URL()); err != nil {
 		log.Fatalf("server initialization error: %s", err)
 	}
-
 }
 
 // opens the messaging client and attaches it to the server.

@@ -23,22 +23,25 @@ var (
 	ErrServerNotSpecified = errors.New("server not present")
 )
 
+// SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
 	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
 }
 
+// Parser encapulates a Graphite Parser.
 type Parser struct {
 	Separator   string
 	LastEnabled bool
 }
 
+// NewParser returns a GraphiteParser instance.
 func NewParser() *Parser {
 	p := Parser{}
 	p.Separator = "."
 	return &p
 }
 
-// returns err == io.EOF when we hit EOF without any further data
+// Parse performs Graphite parsing of a single line.
 func (p *Parser) Parse(line string) (*metric, error) {
 	// Break into 3 fields (name, value, timestamp).
 	fields := strings.Fields(line)
@@ -79,6 +82,7 @@ func (p *Parser) Parse(line string) (*metric, error) {
 	return m, nil
 }
 
+// DecodeNameAndTags parses the name and tags of a single field of a Graphite datum.
 func (p *Parser) DecodeNameAndTags(field string) (string, map[string]string, error) {
 	var (
 		name string
@@ -115,6 +119,7 @@ func (p *Parser) DecodeNameAndTags(field string) (string, map[string]string, err
 	return name, tags, nil
 }
 
+// metric is a an internal type, used by the Graphite system.
 type metric struct {
 	Name      string
 	Tags      map[string]string
