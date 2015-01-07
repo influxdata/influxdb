@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -22,12 +23,15 @@ const BroadcastTopicID = uint64(0)
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
 type Broker struct {
-	mu   sync.RWMutex
-	path string    // data directory
-	log  *raft.Log // internal raft log
+	mu    sync.RWMutex
+	path  string    // data directory
+	index uint64    // highest applied index
+	log   *raft.Log // internal raft log
 
 	replicas map[uint64]*Replica // replica by id
 	topics   map[uint64]*topic   // topics by id
+
+	Logger *log.Logger
 }
 
 // NewBroker returns a new instance of a Broker with default values.
@@ -36,6 +40,7 @@ func NewBroker() *Broker {
 		log:      raft.NewLog(),
 		replicas: make(map[uint64]*Replica),
 		topics:   make(map[uint64]*topic),
+		Logger:   log.New(os.Stderr, "[broker] ", log.LstdFlags),
 	}
 	b.log.FSM = (*brokerFSM)(b)
 	return b
@@ -49,7 +54,7 @@ func (b *Broker) opened() bool { return b.path != "" }
 
 // Open initializes the log.
 // The broker then must be initialized or join a cluster before it can be used.
-func (b *Broker) Open(path string, addr string) error {
+func (b *Broker) Open(path string, u *url.URL) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -60,19 +65,18 @@ func (b *Broker) Open(path string, addr string) error {
 	b.path = path
 
 	// Require a non-blank connection address.
-	if addr == "" {
+	if u == nil {
 		return ErrConnectionAddressRequired
 	}
 
-	// Open underlying raft log and set its connection URL.
+	// Open underlying raft log.
 	if err := b.log.Open(filepath.Join(path, "raft")); err != nil {
 		return fmt.Errorf("raft: %s", err)
 	}
-	u, err := url.Parse(addr)
-	if err != nil {
-		return fmt.Errorf("broker: %s", err)
-	}
-	b.log.URL = u
+
+	// Copy connection URL.
+	b.log.URL = &url.URL{}
+	*b.log.URL = *u
 
 	return nil
 }
@@ -88,17 +92,30 @@ func (b *Broker) Close() error {
 	}
 	b.path = ""
 
-	// TODO: Close all topics.
-
-	// Close all replicas.
-	for _, r := range b.replicas {
-		r.closeWriter()
-	}
+	// Close all topics & replicas.
+	b.closeTopics()
+	b.closeReplicas()
 
 	// Close raft log.
 	_ = b.log.Close()
 
 	return nil
+}
+
+// closeTopics closes all topic files and clears the topics map.
+func (b *Broker) closeTopics() {
+	for _, t := range b.topics {
+		_ = t.Close()
+	}
+	b.topics = make(map[uint64]*topic)
+}
+
+// closeReplicas closes all replica writers and clears the replica map.
+func (b *Broker) closeReplicas() {
+	for _, r := range b.replicas {
+		r.closeWriter()
+	}
+	b.replicas = make(map[uint64]*Replica)
 }
 
 // URL returns the connection url for the broker.
@@ -193,7 +210,7 @@ func (b *Broker) CreateReplica(id uint64) error {
 	})
 }
 
-func (b *Broker) applyCreateReplica(m *Message) {
+func (b *Broker) mustApplyCreateReplica(m *Message) {
 	var c CreateReplicaCommand
 	mustUnmarshalJSON(m.Data, &c)
 
@@ -225,7 +242,7 @@ func (b *Broker) DeleteReplica(id uint64) error {
 	})
 }
 
-func (b *Broker) applyDeleteReplica(m *Message) {
+func (b *Broker) mustApplyDeleteReplica(m *Message) {
 	var c DeleteReplicaCommand
 	mustUnmarshalJSON(m.Data, &c)
 
@@ -267,8 +284,7 @@ func (b *Broker) Subscribe(replicaID, topicID uint64) error {
 	})
 }
 
-// applySubscribe is called when the SubscribeCommand is applied.
-func (b *Broker) applySubscribe(m *Message) {
+func (b *Broker) mustApplySubscribe(m *Message) {
 	var c SubscribeCommand
 	mustUnmarshalJSON(m.Data, &c)
 
@@ -284,7 +300,7 @@ func (b *Broker) applySubscribe(m *Message) {
 
 	// Ensure topic is not already subscribed to.
 	if _, ok := r.topics[c.TopicID]; ok {
-		warn("already subscribed to topic")
+		b.Logger.Printf("already subscribed to topic: replica=%d, topic=%d", r.id, c.TopicID)
 		return
 	}
 
@@ -313,7 +329,7 @@ func (b *Broker) Unsubscribe(replicaID, topicID uint64) error {
 	})
 }
 
-func (b *Broker) applyUnsubscribe(m *Message) {
+func (b *Broker) mustApplyUnsubscribe(m *Message) {
 	var c UnsubscribeCommand
 	mustUnmarshalJSON(m.Data, &c)
 
@@ -332,65 +348,247 @@ func (b *Broker) applyUnsubscribe(m *Message) {
 // This is implemented as a separate type because it is not meant to be exported.
 type brokerFSM Broker
 
-// Apply executes a raft log entry against the broker.
-func (fsm *brokerFSM) Apply(e *raft.LogEntry) error {
+// MustApply executes a raft log entry against the broker.
+// Non-repeatable errors such as system or disk errors must panic.
+func (fsm *brokerFSM) MustApply(e *raft.LogEntry) {
 	b := (*Broker)(fsm)
 
-	// Ignore internal raft entries.
-	if e.Type != raft.LogEntryCommand {
-		// TODO: Save index.
-		return nil
-	}
+	// Save highest applied index.
+	// TODO: Persist to disk for raft commands.
+	b.index = e.Index
 
-	// Decode the message from the raft log.
+	// Create a message with the same index as Raft.
 	m := &Message{}
-	err := m.UnmarshalBinary(e.Data)
-	assert(err == nil, "message unmarshal: %s", err)
 
-	// Add the raft index to the message.
-	m.Index = e.Index
+	// Decode commands into messages.
+	// Convert internal raft entries to no-ops to move the index forward.
+	if e.Type == raft.LogEntryCommand {
+		// Decode the message from the raft log.
+		err := m.UnmarshalBinary(e.Data)
+		assert(err == nil, "message unmarshal: %s", err)
 
-	// Update the broker configuration.
-	switch m.Type {
-	case CreateReplicaMessageType:
-		b.applyCreateReplica(m)
-	case DeleteReplicaMessageType:
-		b.applyDeleteReplica(m)
-	case SubscribeMessageType:
-		b.applySubscribe(m)
-	case UnsubscribeMessageType:
-		b.applyUnsubscribe(m)
+		// Update the broker configuration.
+		switch m.Type {
+		case CreateReplicaMessageType:
+			b.mustApplyCreateReplica(m)
+		case DeleteReplicaMessageType:
+			b.mustApplyDeleteReplica(m)
+		case SubscribeMessageType:
+			b.mustApplySubscribe(m)
+		case UnsubscribeMessageType:
+			b.mustApplyUnsubscribe(m)
+		}
+	} else {
+		// Internal raft commands should be broadcast out as no-ops.
+		m.TopicID = BroadcastTopicID
+		m.Type = InternalMessageType
 	}
+
+	// Set the raft index.
+	m.Index = e.Index
 
 	// Write to the topic.
 	t := b.createTopicIfNotExists(m.TopicID)
 	if err := t.encode(m); err != nil {
-		return fmt.Errorf("encode: %s", err)
+		panic("encode: " + err.Error())
+	}
+}
+
+// Index returns the highest index that the broker has seen.
+func (fsm *brokerFSM) Index() (uint64, error) {
+	b := (*Broker)(fsm)
+	return b.index, nil
+}
+
+// Snapshot streams the current state of the broker and returns the index.
+func (fsm *brokerFSM) Snapshot(w io.Writer) (uint64, error) {
+	b := (*Broker)(fsm)
+
+	// TODO: Prevent truncation during snapshot.
+
+	// Calculate header under lock.
+	b.mu.RLock()
+	s, err := fsm.createSnapshot()
+	b.mu.RUnlock()
+	if err != nil {
+		return 0, fmt.Errorf("create snapshot: %s", err)
+	}
+
+	// Encode snapshot header.
+	buf, err := json.Marshal(&s)
+	if err != nil {
+		return 0, fmt.Errorf("encode snapshot header: %s", err)
+	}
+
+	// Write header frame.
+	if err := binary.Write(w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return 0, fmt.Errorf("write header size: %s", err)
+	}
+	if _, err := w.Write(buf); err != nil {
+		return 0, fmt.Errorf("write header: %s", err)
+	}
+
+	// Stream each topic sequentially.
+	for _, t := range s.Topics {
+		if _, err := copyFileN(w, t.path, t.Size); err != nil {
+			return 0, err
+		}
+	}
+
+	// Return the snapshot and its current index.
+	return s.maxIndex(), nil
+}
+
+// createSnapshot creates a snapshot header.
+func (fsm *brokerFSM) createSnapshot() (*snapshot, error) {
+	b := (*Broker)(fsm)
+
+	// Create parent header.
+	s := &snapshot{}
+
+	// Append topics.
+	for _, t := range b.topics {
+		// Retrieve current topic file size.
+		fi, err := t.file.Stat()
+		if err != nil {
+			return nil, err
+		}
+
+		// Append topic to the snapshot.
+		s.Topics = append(s.Topics, &snapshotTopic{
+			ID:    t.id,
+			Index: t.index,
+			Size:  fi.Size(),
+			path:  t.path,
+		})
+	}
+
+	// Append replicas and the current index for each topic.
+	for _, r := range b.replicas {
+		sr := &snapshotReplica{ID: r.id}
+
+		for topicID, index := range r.topics {
+			sr.Topics = append(sr.Topics, &snapshotReplicaTopic{
+				TopicID: topicID,
+				Index:   index,
+			})
+		}
+
+		s.Replicas = append(s.Replicas, sr)
+	}
+
+	return s, nil
+}
+
+// Restore reads the broker state.
+func (fsm *brokerFSM) Restore(r io.Reader) error {
+	b := (*Broker)(fsm)
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Read header frame.
+	var sz uint32
+	if err := binary.Read(r, binary.BigEndian, &sz); err != nil {
+		return fmt.Errorf("read header size: %s", err)
+	}
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return fmt.Errorf("read header: %s", err)
+	}
+
+	// Decode header.
+	s := &snapshot{}
+	if err := json.Unmarshal(buf, &s); err != nil {
+		return fmt.Errorf("decode header: %s", err)
+	}
+
+	// Close any topics and replicas which might be open and clear them out.
+	b.closeTopics()
+	b.closeReplicas()
+
+	// Copy topic files from snapshot to local disk.
+	for _, st := range s.Topics {
+		t := b.createTopic(st.ID)
+		t.index = st.Index
+
+		// Remove existing file if it exists.
+		if err := os.Remove(t.path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+
+		// Open new empty topic file.
+		if err := t.open(); err != nil {
+			return fmt.Errorf("open topic: %s", err)
+		}
+
+		// Copy data from snapshot into file.
+		if _, err := io.CopyN(t.file, r, st.Size); err != nil {
+			return fmt.Errorf("copy topic: %s", err)
+		}
+	}
+
+	// Update the replicas.
+	for _, sr := range s.Replicas {
+		// Create replica.
+		r := newReplica(b, sr.ID)
+		b.replicas[r.id] = r
+
+		// Append replica's topics.
+		for _, srt := range sr.Topics {
+			r.topics[srt.TopicID] = srt.Index
+		}
 	}
 
 	return nil
 }
 
-// Index returns the highest index that the broker has seen.
-func (fsm *brokerFSM) Index() (uint64, error) {
-	// TODO: Retrieve index.
-	return 0, nil
+// copyFileN copies n bytes from a path to a writer.
+func copyFileN(w io.Writer, path string, n int64) (int64, error) {
+	// Open file for reading.
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Copy file up to n bytes.
+	return io.CopyN(w, f, n)
 }
 
-// Snapshot streams the current state of the broker and returns the index.
-func (fsm *brokerFSM) Snapshot(w io.Writer) (uint64, error) {
-	// TODO: Prevent truncation during snapshot.
-	// TODO: Lock and calculate header.
-	// TODO: Retrieve snapshot index.
-	// TODO: Stream each topic.
-	return 0, nil
+// snapshot represents the header of a snapshot.
+type snapshot struct {
+	Replicas []*snapshotReplica `json:"replicas"`
+	Topics   []*snapshotTopic   `json:"topics"`
 }
 
-// Restore reads the broker state.
-func (fsm *brokerFSM) Restore(r io.Reader) error {
-	// TODO: Read header.
-	// TODO: Read in each file.
-	return nil
+// maxIndex returns the highest index across all topics.
+func (s *snapshot) maxIndex() uint64 {
+	var idx uint64
+	for _, t := range s.Topics {
+		if t.Index > idx {
+			idx = t.Index
+		}
+	}
+	return idx
+}
+
+type snapshotReplica struct {
+	ID     uint64                  `json:"id"`
+	Topics []*snapshotReplicaTopic `json:"topics"`
+}
+
+type snapshotTopic struct {
+	ID    uint64 `json:"id"`
+	Index uint64 `json:"index"`
+	Size  int64  `json:"size"`
+
+	path string
+}
+
+type snapshotReplicaTopic struct {
+	TopicID uint64 `json:"topicID"`
+	Index   uint64 `json:"index"`
 }
 
 // topic represents a single named queue of messages.
@@ -647,11 +845,13 @@ const (
 )
 
 const (
-	CreateReplicaMessageType = BrokerMessageType | MessageType(0x00)
-	DeleteReplicaMessageType = BrokerMessageType | MessageType(0x01)
+	InternalMessageType = BrokerMessageType | MessageType(0x00)
 
-	SubscribeMessageType   = BrokerMessageType | MessageType(0x10)
-	UnsubscribeMessageType = BrokerMessageType | MessageType(0x11)
+	CreateReplicaMessageType = BrokerMessageType | MessageType(0x10)
+	DeleteReplicaMessageType = BrokerMessageType | MessageType(0x11)
+
+	SubscribeMessageType   = BrokerMessageType | MessageType(0x20)
+	UnsubscribeMessageType = BrokerMessageType | MessageType(0x21)
 )
 
 // The size of the encoded message header, in bytes.

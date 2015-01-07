@@ -1,8 +1,11 @@
 package influxdb
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -316,6 +319,74 @@ func (s *Server) Initialize(u *url.URL) error {
 	s.id = 1
 
 	return nil
+}
+
+// Join creates a new data node in an existing cluster, copies the metastore,
+// and initializes the ID.
+func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Encode data node request.
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(&dataNodeJSON{URL: u.String()}); err != nil {
+		return err
+	}
+
+	// Send request.
+	joinURL = copyURL(joinURL)
+	joinURL.Path = "/data_nodes"
+	resp, err := http.Post(joinURL.String(), "application/octet-stream", &buf)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check if created.
+	if resp.StatusCode != http.StatusCreated {
+		warn("STATUS>", resp.StatusCode)
+		return ErrUnableToJoin
+	}
+
+	// Decode response.
+	var n dataNodeJSON
+	if err := json.NewDecoder(resp.Body).Decode(&n); err != nil {
+		return err
+	}
+	assert(n.ID > 0, "invalid join node id returned: %d", n.ID)
+
+	// Download the metastore from joining server.
+	joinURL.Path = "/metastore"
+	resp, err = http.Post(joinURL.String(), "application/octet-stream", &buf)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Update the ID on the metastore.
+	if err := s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.setID(n.ID)
+	}); err != nil {
+		return err
+	}
+
+	// Set the ID on the server.
+	s.id = n.ID
+
+	return nil
+}
+
+// CopyMetastore writes the underlying metastore data file to a writer.
+func (s *Server) CopyMetastore(w io.Writer) error {
+	return s.meta.mustView(func(tx *metatx) error {
+		// Set content lengh if this is a HTTP connection.
+		if w, ok := w.(http.ResponseWriter); ok {
+			w.Header().Set("Content-Length", strconv.Itoa(int(tx.Size())))
+		}
+
+		// Write entire database to the writer.
+		return tx.Copy(w)
+	})
 }
 
 // DataNode returns a data node by id.
@@ -1185,6 +1256,12 @@ type MessagingClient interface {
 	// Publishes a message to the broker.
 	Publish(m *messaging.Message) (index uint64, err error)
 
+	// Creates a new replica with a given ID on the broker.
+	CreateReplica(id uint64) error
+
+	// Deletes an existing replica with a given ID from the broker.
+	DeleteReplica(id uint64) error
+
 	// The streaming channel for all subscribed messages.
 	C() <-chan *messaging.Message
 }
@@ -1477,4 +1554,11 @@ type ContinuousQuery struct {
 	ID    uint32
 	Query string
 	// TODO: ParsedQuery *parser.SelectQuery
+}
+
+// copyURL returns a copy of the the URL.
+func copyURL(u *url.URL) *url.URL {
+	other := &url.URL{}
+	*other = *u
+	return other
 }

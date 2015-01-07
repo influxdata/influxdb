@@ -66,6 +66,7 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Del("/data_nodes/:id", http.HandlerFunc(h.serveDeleteDataNode))
 
 	// Utilities
+	h.mux.Get("/metastore", http.HandlerFunc(h.serveMetastore))
 	h.mux.Get("/ping", http.HandlerFunc(h.servePing))
 
 	return h
@@ -312,6 +313,18 @@ func (h *Handler) serveDeleteUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// serveMetastore returns a copy of the metastore.
+func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
+	// Set headers.
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
+
+	// Write metastore to response body.
+	if err := h.server.CopyMetastore(w); err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {}
 
@@ -448,6 +461,7 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the data node.
+	warn(">", u.String())
 	if err := h.server.CreateDataNode(u); err == ErrDataNodeExists {
 		h.error(w, err.Error(), http.StatusConflict)
 		return
@@ -456,8 +470,16 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Write new node back to client.
+	// Retrieve data node reference.
 	node := h.server.DataNodeByURL(u)
+
+	// Create a new replica on the broker.
+	if err := h.server.client.CreateReplica(node.ID); err != nil {
+		h.error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	// Write new node back to client.
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Add("content-type", "application/json")
 	_ = json.NewEncoder(w).Encode(&dataNodeJSON{ID: node.ID, URL: node.URL.String()})

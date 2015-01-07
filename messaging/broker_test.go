@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"reflect"
 	"testing"
@@ -16,7 +17,7 @@ import (
 // Ensure that opening a broker without a path returns an error.
 func TestBroker_Open_ErrPathRequired(t *testing.T) {
 	b := messaging.NewBroker()
-	if err := b.Open("", "http://127.0.0.1:8080"); err != messaging.ErrPathRequired {
+	if err := b.Open("", &url.URL{Host: "127.0.0.1:8080"}); err != messaging.ErrPathRequired {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -27,14 +28,14 @@ func TestBroker_Open_ErrAddressRequired(t *testing.T) {
 	f := tempfile()
 	defer os.Remove(f)
 
-	if err := b.Open(f, ""); err != messaging.ErrConnectionAddressRequired {
+	if err := b.Open(f, nil); err != messaging.ErrConnectionAddressRequired {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
 
 // Ensure that closing an already closed broker returns an error.
 func TestBroker_Close_ErrClosed(t *testing.T) {
-	b := NewBroker()
+	b := NewBroker(nil)
 	b.Close()
 	if err := b.Broker.Close(); err != messaging.ErrClosed {
 		t.Fatalf("unexpected error: %s", err)
@@ -43,7 +44,7 @@ func TestBroker_Close_ErrClosed(t *testing.T) {
 
 // Ensure the broker can write messages to the appropriate topics.
 func TestBroker_Publish(t *testing.T) {
-	b := NewBroker()
+	b := NewBroker(nil)
 	defer b.Close()
 
 	// Create a new named replica.
@@ -117,7 +118,7 @@ func TestBroker_Publish(t *testing.T) {
 
 // Ensure that creating a duplicate replica will return an error.
 func TestBroker_CreateReplica_ErrReplicaExists(t *testing.T) {
-	b := NewBroker()
+	b := NewBroker(nil)
 	defer b.Close()
 
 	// Create a replica twice.
@@ -129,7 +130,7 @@ func TestBroker_CreateReplica_ErrReplicaExists(t *testing.T) {
 
 // Ensure the broker can remove an existing replica.
 func TestBroker_DeleteReplica(t *testing.T) {
-	b := NewBroker()
+	b := NewBroker(nil)
 	defer b.Close()
 
 	// Create a new named replica.
@@ -167,7 +168,7 @@ func TestBroker_DeleteReplica(t *testing.T) {
 
 // Ensure an error is returned when deleting a non-existent replica.
 func TestBroker_DeleteReplica_ErrReplicaNotFound(t *testing.T) {
-	b := NewBroker()
+	b := NewBroker(nil)
 	defer b.Close()
 	if err := b.DeleteReplica(0); err != messaging.ErrReplicaNotFound {
 		t.Fatalf("unexpected error: %s", err)
@@ -176,7 +177,7 @@ func TestBroker_DeleteReplica_ErrReplicaNotFound(t *testing.T) {
 
 // Ensure that subscribing to a missing replica returns an error.
 func TestBroker_Subscribe_ErrReplicaNotFound(t *testing.T) {
-	b := NewBroker()
+	b := NewBroker(nil)
 	defer b.Close()
 	b.CreateReplica(2000)
 	if err := b.Subscribe(3000, 20); err != messaging.ErrReplicaNotFound {
@@ -186,7 +187,7 @@ func TestBroker_Subscribe_ErrReplicaNotFound(t *testing.T) {
 
 // Ensure that unsubscribing from a missing replica returns an error.
 func TestBroker_Unsubscribe_ErrReplicaNotFound(t *testing.T) {
-	b := NewBroker()
+	b := NewBroker(nil)
 	defer b.Close()
 	if err := b.Unsubscribe(0, 20); err != messaging.ErrReplicaNotFound {
 		t.Fatalf("unexpected error: %s", err)
@@ -199,13 +200,25 @@ type Broker struct {
 }
 
 // NewBroker returns a new open tempoarary broker.
-func NewBroker() *Broker {
-	b := messaging.NewBroker()
-	if err := b.Open(tempfile(), "http://127.0.0.1:8080"); err != nil {
-		panic("open: " + err.Error())
-	}
+func NewBroker(u *url.URL) *Broker {
+	b := NewUninitializedBroker(u)
 	if err := b.Initialize(); err != nil {
 		panic("initialize: " + err.Error())
+	}
+	return b
+}
+
+// NewUninitializedBroker returns a new broker that has not been initialized.
+func NewUninitializedBroker(u *url.URL) *Broker {
+	// Default the broker URL if not passed in.
+	if u == nil {
+		u = &url.URL{Scheme: "http", Host: "127.0.0.1:8080"}
+	}
+
+	// Open a new broker.
+	b := messaging.NewBroker()
+	if err := b.Open(tempfile(), u); err != nil {
+		panic("open: " + err.Error())
 	}
 	return &Broker{b}
 }
@@ -214,6 +227,71 @@ func NewBroker() *Broker {
 func (b *Broker) Close() {
 	defer os.RemoveAll(b.Path())
 	b.Broker.Close()
+}
+
+// ReadAll reads all available messages for a replica. Panic on error.
+func (b *Broker) MustReadAll(replicaID uint64) (a []*messaging.Message) {
+	// Read message from the replica.
+	var buf bytes.Buffer
+	go func() {
+		if _, err := b.Replica(replicaID).WriteTo(&buf); err != nil {
+			panic("write to: " + err.Error())
+		}
+	}()
+	time.Sleep(10 * time.Millisecond)
+
+	// Read out the config messages first.
+	dec := messaging.NewMessageDecoder(&buf)
+	for {
+		m := &messaging.Message{}
+		if err := dec.Decode(m); err == io.EOF {
+			break
+		} else if err != nil {
+			panic("decode: " + err.Error())
+		}
+		a = append(a, m)
+	}
+	return
+}
+
+// Messages represents a collection of messages.
+// This type provides helper functions.
+type Messages []*messaging.Message
+
+// First returns the first message in the collection.
+func (a Messages) First() *messaging.Message {
+	if len(a) == 0 {
+		return nil
+	}
+	return a[0]
+}
+
+// Last returns the last message in the collection.
+func (a Messages) Last() *messaging.Message {
+	if len(a) == 0 {
+		return nil
+	}
+	return a[len(a)-1]
+}
+
+// Broadcasted returns a filtered list of all broadcasted messages.
+func (a Messages) Broadcasted() (other Messages) {
+	for _, m := range a {
+		if m.TopicID == 0 {
+			other = append(other, m)
+		}
+	}
+	return
+}
+
+// Unicasted returns a filtered list of all non-broadcasted messages.
+func (a Messages) Unicasted() (other Messages) {
+	for _, m := range a {
+		if m.TopicID != 0 {
+			other = append(other, m)
+		}
+	}
+	return
 }
 
 // tempfile returns a temporary path.

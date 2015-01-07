@@ -40,7 +40,8 @@ const (
 // The FSM must maintain the highest index that it has seen.
 type FSM interface {
 	// Executes a log entry against the state machine.
-	Apply(*LogEntry) error
+	// Non-repeatable errors such as system and disk errors must panic.
+	MustApply(*LogEntry)
 
 	// Returns the highest index saved to the state machine.
 	Index() (uint64, error)
@@ -595,23 +596,26 @@ func (l *Log) followerLoop(done chan struct{}) {
 		_, u := l.leader()
 		l.mu.Unlock()
 
-		// Begin streaming from the reader.
-		if u != nil {
-			// Connect to leader.
-			r, err := l.transport().ReadFrom(u, id, term, index)
-			if err != nil {
-				l.Logger.Printf("connect stream: %s", err)
-			}
-
-			// Stream the log in from a separate goroutine.
-			rch = make(chan struct{})
-			go func(u *url.URL, term, index uint64, rch chan struct{}) {
-				// Attach the stream to the log.
-				if err := l.ReadFrom(r); err != nil {
-					close(rch)
-				}
-			}(u, term, index, rch)
+		// If no leader exists then wait momentarily and retry.
+		if u == nil {
+			time.Sleep(1 * time.Millisecond)
+			continue
 		}
+
+		// Connect to leader.
+		r, err := l.transport().ReadFrom(u, id, term, index)
+		if err != nil {
+			l.Logger.Printf("connect stream: %s", err)
+		}
+
+		// Stream the log in from a separate goroutine.
+		rch = make(chan struct{})
+		go func(u *url.URL, term, index uint64, rch chan struct{}) {
+			// Attach the stream to the log.
+			if err := l.ReadFrom(r); err != nil {
+				close(rch)
+			}
+		}(u, term, index, rch)
 
 		// Check if the state has changed, stream has closed, or an
 		// election timeout has passed.
@@ -847,6 +851,7 @@ func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err
 func (l *Log) Wait(index uint64) error {
 	// TODO(benbjohnson): Check for leadership change (?).
 	// TODO(benbjohnson): Add timeout.
+
 	for {
 		l.mu.Lock()
 		state, appliedIndex := l.state, l.appliedIndex
@@ -863,7 +868,7 @@ func (l *Log) Wait(index uint64) error {
 
 // append adds a log entry to the list of entries.
 func (l *Log) append(e *LogEntry) {
-	assert(e.Index == l.index+1, "non-contiguous log index(%d): %d, prev=%d", l.id, e.Index, l.index)
+	assert(e.Index == l.index+1, "non-contiguous log index(%d): idx=%d, prev=%d", l.id, e.Index, l.index)
 
 	// Encode entry to a byte slice.
 	buf := make([]byte, logEntryHeaderSize+len(e.Data))
@@ -886,9 +891,7 @@ func (l *Log) append(e *LogEntry) {
 		}
 
 		// Flush, if possible.
-		if e.Type != LogEntryCommand {
-			flushWriter(w.Writer)
-		}
+		flushWriter(w.Writer)
 	}
 }
 
@@ -950,26 +953,18 @@ func (l *Log) applier(done chan chan struct{}) {
 				switch e.Type {
 				case LogEntryCommand, LogEntryNop:
 				case LogEntryInitialize:
-					if err := l.applyInitialize(e); err != nil {
-						return err
-					}
+					l.mustApplyInitialize(e)
 				case LogEntryAddPeer:
-					if err := l.applyAddPeer(e); err != nil {
-						return err
-					}
+					l.mustApplyAddPeer(e)
 				case LogEntryRemovePeer:
-					if err := l.applyRemovePeer(e); err != nil {
-						return err
-					}
+					l.mustApplyRemovePeer(e)
 				default:
-					return fmt.Errorf("unsupported command type: %d", e.Type)
+					panic("unsupported command type: " + strconv.Itoa(int(e.Type)))
 				}
 
 				// Apply to FSM.
 				if e.Index > 0 {
-					if err := l.FSM.Apply(e); err != nil {
-						return err
-					}
+					l.FSM.MustApply(e)
 				}
 
 				// Increment applied index.
@@ -991,12 +986,12 @@ func (l *Log) applier(done chan chan struct{}) {
 	}
 }
 
-// apply a log initialization command by parsing and setting the configuration.
-func (l *Log) applyInitialize(e *LogEntry) error {
+// mustApplyInitialize a log initialization command by parsing and setting the configuration.
+func (l *Log) mustApplyInitialize(e *LogEntry) {
 	// Parse the configuration from the log entry.
 	config := &Config{}
 	if err := NewConfigDecoder(bytes.NewReader(e.Data)).Decode(config); err != nil {
-		return fmt.Errorf("initialize: %s", err)
+		panic("decode: " + err.Error())
 	}
 
 	// Set the last update index on the configuration.
@@ -1006,19 +1001,17 @@ func (l *Log) applyInitialize(e *LogEntry) error {
 
 	// Perist the configuration to disk.
 	if err := l.writeConfig(config); err != nil {
-		return err
+		panic("write config: " + err.Error())
 	}
 	l.config = config
-
-	return nil
 }
 
-// applyAddPeer adds a node to the cluster configuration.
-func (l *Log) applyAddPeer(e *LogEntry) error {
+// mustApplyAddPeer adds a node to the cluster configuration.
+func (l *Log) mustApplyAddPeer(e *LogEntry) {
 	// Unmarshal node from entry data.
 	var n *ConfigNode
 	if err := json.Unmarshal(e.Data, &n); err != nil {
-		return err
+		panic("unmarshal: " + err.Error())
 	}
 
 	// Clone configuration.
@@ -1030,7 +1023,7 @@ func (l *Log) applyAddPeer(e *LogEntry) error {
 
 	// Add node to configuration.
 	if err := config.addNode(n.ID, n.URL); err != nil {
-		return err
+		l.Logger.Panicf("apply: add node: %s", err)
 	}
 
 	// Set configuration index.
@@ -1038,15 +1031,13 @@ func (l *Log) applyAddPeer(e *LogEntry) error {
 
 	// Write configuration.
 	if err := l.writeConfig(config); err != nil {
-		return err
+		panic("write config: " + err.Error())
 	}
 	l.config = config
-
-	return nil
 }
 
-// applyRemovePeer removes a node from the cluster configuration.
-func (l *Log) applyRemovePeer(e *LogEntry) error {
+// mustApplyRemovePeer removes a node from the cluster configuration.
+func (l *Log) mustApplyRemovePeer(e *LogEntry) error {
 	// TODO(benbjohnson): Clone configuration.
 	// TODO(benbjohnson): Remove node from configuration.
 	// TODO(benbjohnson): Set configuration index.
@@ -1116,6 +1107,7 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex, curre
 		l.term = term
 		l.setState(Follower)
 	}
+
 	l.commitIndex = commitIndex
 	l.leaderID = leaderID
 	l.lastContact = l.Clock.Now()
@@ -1185,7 +1177,7 @@ func (l *Log) elector(done chan chan struct{}) {
 			// Ignore if the last contact was less than the election timeout.
 			if l.state != Follower && l.state != Candidate {
 				return nil
-			} else if l.Clock.Now().Sub(l.lastContact) < l.ElectionTimeout {
+			} else if l.lastContact.IsZero() || l.Clock.Now().Sub(l.lastContact) < l.ElectionTimeout {
 				return nil
 			}
 
@@ -1218,21 +1210,9 @@ func (l *Log) WriteTo(w io.Writer, id, term, index uint64) error {
 		return err
 	}
 
-	// Write snapshot marker byte and begin streaming snapshot.
-	if _, err := w.Write([]byte{logEntrySnapshot}); err != nil {
-		// FIX(benbjohnson): Remove writer on error.
-		return err
-	}
-	snapshotIndex, err := l.FSM.Snapshot(w)
-	if err != nil {
-		l.mu.Lock()
-		l.removeWriter(writer)
-		l.mu.Unlock()
-		return err
-	}
-
-	// Write entries since the snapshot occurred and begin tailing writer.
-	if err := l.advanceWriter(writer, snapshotIndex); err != nil {
+	// Write the snapshot and advance the writer through the log.
+	// If an error occurs then remove the writer.
+	if err := l.writeTo(writer, id, term, index); err != nil {
 		l.mu.Lock()
 		l.removeWriter(writer)
 		l.mu.Unlock()
@@ -1241,6 +1221,35 @@ func (l *Log) WriteTo(w io.Writer, id, term, index uint64) error {
 
 	// Wait for writer to finish.
 	<-writer.done
+	return nil
+}
+
+func (l *Log) writeTo(writer *logWriter, id, term, index uint64) error {
+	// Extract the underlying writer.
+	w := writer.Writer
+
+	// Write snapshot marker byte.
+	if _, err := w.Write([]byte{logEntrySnapshot}); err != nil {
+		return err
+	}
+
+	// Begin streaming the snapshot.
+	snapshotIndex, err := l.FSM.Snapshot(w)
+	if err != nil {
+		return err
+	}
+
+	// Write snapshot index at the end and flush.
+	if err := binary.Write(w, binary.BigEndian, snapshotIndex); err != nil {
+		return fmt.Errorf("write snapshot index: %s", err)
+	}
+	flushWriter(w)
+
+	// Write entries since the snapshot occurred and begin tailing writer.
+	if err := l.advanceWriter(writer, snapshotIndex); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -1400,17 +1409,20 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 				return err
 			}
 
-			// Update the current index.
-			index, err := l.FSM.Index()
-			if err != nil {
-				return fmt.Errorf("fsm index: %s", err)
+			// Read the snapshot index off the end of the snapshot.
+			var index uint64
+			if err := binary.Read(r, binary.BigEndian, &index); err != nil {
+				return fmt.Errorf("read snapshot index: %s", err)
 			}
+
+			// Update the indicies.
 			l.index = index
 			l.commitIndex = index
 			l.appliedIndex = index
 
 			// Clear entries.
 			l.entries = nil
+
 			continue
 		}
 
@@ -1450,10 +1462,10 @@ type logWriter struct {
 // Write writes bytes to the underlying writer.
 // The write is ignored if the writer is currently snapshotting.
 func (w *logWriter) Write(p []byte) (int, error) {
-	if w.snapshotIndex == 0 {
-		return w.Writer.Write(p)
+	if w.snapshotIndex != 0 {
+		return 0, nil
 	}
-	return 0, nil
+	return w.Writer.Write(p)
 }
 
 func (w *logWriter) Close() error {

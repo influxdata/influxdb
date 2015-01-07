@@ -53,12 +53,8 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("admin assets mismatch: %v", c.Admin.Assets)
 	}
 
-	if c.HTTPAPI.Port != main.DefaultBrokerPort {
-		t.Fatalf("http api port mismatch: %v", c.HTTPAPI.Port)
-	} else if c.HTTPAPI.SSLPort != 8087 {
-		t.Fatalf("http api ssl port mismatch: %v", c.HTTPAPI.SSLPort)
-	} else if c.HTTPAPI.SSLCertPath != "../cert.pem" {
-		t.Fatalf("http api ssl cert path mismatch: %v", c.HTTPAPI.SSLCertPath)
+	if c.Data.Port != main.DefaultBrokerPort {
+		t.Fatalf("data port mismatch: %v", c.Data.Port)
 	}
 
 	if c.InputPlugins.Graphite.Enabled != false {

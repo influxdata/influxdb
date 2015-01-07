@@ -3,6 +3,7 @@ package messaging_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -20,7 +21,7 @@ func TestHandler_stream(t *testing.T) {
 	s.Handler.Broker().CreateReplica(2000)
 
 	// Send request to stream the replica.
-	resp, err := http.Get(s.URL + `/messages?replicaID=2000`)
+	resp, err := http.Get(s.URL + `/messaging/messages?replicaID=2000`)
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -40,13 +41,13 @@ func TestHandler_stream(t *testing.T) {
 }
 
 // Ensure an error is returned when requesting a stream without a replica id.
-func TestHandler_stream_ErrReplicaRequired(t *testing.T) {
+func TestHandler_stream_ErrReplicaIDRequired(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
 
-	resp, _ := http.Get(s.URL + `/messages`)
+	resp, _ := http.Get(s.URL + `/messaging/messages`)
 	defer resp.Body.Close()
-	if msg := resp.Header.Get("X-Broker-Error"); resp.StatusCode != http.StatusBadRequest || msg != "replica required" {
+	if msg := resp.Header.Get("X-Broker-Error"); resp.StatusCode != http.StatusBadRequest || msg != "replica id required" {
 		t.Fatalf("unexpected status/error: %d/%s", resp.StatusCode, msg)
 	}
 }
@@ -56,7 +57,7 @@ func TestHandler_stream_ErrReplicaNotFound(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
 
-	resp, _ := http.Get(s.URL + `/messages?replicaID=0`)
+	resp, _ := http.Get(s.URL + `/messaging/messages?replicaID=0`)
 	defer resp.Body.Close()
 	if msg := resp.Header.Get("X-Broker-Error"); resp.StatusCode != http.StatusNotFound || msg != "replica not found" {
 		t.Fatalf("unexpected status/error: %d/%s", resp.StatusCode, msg)
@@ -68,7 +69,7 @@ func TestHandler_stream_ErrMethodNotAllowed(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
 
-	resp, _ := http.Head(s.URL + `/messages`)
+	resp, _ := http.Head(s.URL + `/messaging/messages`)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
@@ -85,7 +86,7 @@ func TestHandler_publish(t *testing.T) {
 	s.Handler.Broker().CreateReplica(2000)
 	s.Handler.Broker().Subscribe(2000, 200)
 	go func() {
-		resp, _ := http.Get(s.URL + `/messages?replicaID=2000`)
+		resp, _ := http.Get(s.URL + `/messaging/messages?replicaID=2000`)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("unexpected response code: %d", resp.StatusCode)
@@ -100,7 +101,7 @@ func TestHandler_publish(t *testing.T) {
 	}()
 
 	// Send request to the broker.
-	resp, _ := http.Post(s.URL+`/messages?type=100&topicID=200`, "application/octet-stream", strings.NewReader(`abc`))
+	resp, _ := http.Post(s.URL+`/messaging/messages?type=100&topicID=200`, "application/octet-stream", strings.NewReader(`abc`))
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
@@ -120,7 +121,7 @@ func TestHandler_publish_ErrMessageTypeRequired(t *testing.T) {
 	defer s.Close()
 
 	// Send request to the broker.
-	resp, _ := http.Post(s.URL+`/messages?topicID=200`, "application/octet-stream", strings.NewReader(`foo`))
+	resp, _ := http.Post(s.URL+`/messaging/messages?topicID=200`, "application/octet-stream", strings.NewReader(`foo`))
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
@@ -135,7 +136,7 @@ func TestHandler_publish_ErrTopicRequired(t *testing.T) {
 	defer s.Close()
 
 	// Send request to the broker.
-	resp, _ := http.Post(s.URL+`/messages?type=100`, "application/octet-stream", strings.NewReader(`foo`))
+	resp, _ := http.Post(s.URL+`/messaging/messages?type=100`, "application/octet-stream", strings.NewReader(`foo`))
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
@@ -151,7 +152,7 @@ func TestHandler_publish_ErrClosed(t *testing.T) {
 	defer s.Close()
 
 	// Send request to the broker.
-	resp, _ := http.Post(s.URL+`/messages?type=100&topicID=200`, "application/octet-stream", strings.NewReader(`foo`))
+	resp, _ := http.Post(s.URL+`/messaging/messages?type=100&topicID=200`, "application/octet-stream", strings.NewReader(`foo`))
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
@@ -182,6 +183,91 @@ func TestHandler_ErrNotFound(t *testing.T) {
 	}
 }
 
+// Ensure a handler can correctly create a replica.
+func TestHandler_createReplica(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+
+	// Send request to the broker.
+	resp, _ := http.Post(s.URL+`/messaging/replicas?id=200`, "application/octet-stream", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	}
+
+	// Verify replica was created.
+	if r := s.Handler.Broker().Replica(200); r == nil {
+		t.Fatalf("replica not created")
+	}
+}
+
+// Ensure a handler returns an error when creating a replica without an id.
+func TestHandler_createReplica_ErrReplicaIDRequired(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+
+	// Send request to the broker.
+	resp, _ := http.Post(s.URL+`/messaging/replicas`, "application/octet-stream", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "replica id required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+}
+
+// Ensure a handler returns an error when creating a replica that already exists.
+func TestHandler_createReplica_ErrReplicaExists(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	s.Handler.Broker().CreateReplica(200)
+
+	// Send request to the broker.
+	resp, _ := http.Post(s.URL+`/messaging/replicas?id=200`, "application/octet-stream", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "replica already exists" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+}
+
+// Ensure a handler can correctly delete a replica.
+func TestHandler_deleteReplica(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	s.Handler.Broker().CreateReplica(200)
+
+	// Send request to the broker.
+	req, _ := http.NewRequest("DELETE", s.URL+`/messaging/replicas?id=200`, nil)
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d (%s)", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
+	}
+
+	// Verify replica was deleted.
+	if r := s.Handler.Broker().Replica(200); r != nil {
+		t.Fatalf("replica not deleted")
+	}
+}
+
+// Ensure a handler returns an error when deleting a replica without an id.
+func TestHandler_deleteReplica_ErrReplicaIDRequired(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+
+	// Send request to the broker.
+	req, _ := http.NewRequest("DELETE", s.URL+`/messaging/replicas`, nil)
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "replica id required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+}
+
 // Server is an test HTTP server that wraps a handler and broker.
 type Server struct {
 	*httptest.Server
@@ -190,12 +276,34 @@ type Server struct {
 
 // NewServer returns a test server.
 func NewServer() *Server {
-	h := messaging.NewHandler(NewBroker().Broker)
-	return &Server{httptest.NewServer(h), h}
+	h := messaging.NewHandler(nil)
+	s := httptest.NewServer(h)
+	h.SetBroker(NewBroker(MustParseURL(s.URL)).Broker)
+	return &Server{s, h}
+}
+
+// NewUninitializedServer returns a test server with an uninitialized broker.
+func NewUninitializedServer() *Server {
+	h := messaging.NewHandler(nil)
+	s := httptest.NewServer(h)
+	h.SetBroker(NewUninitializedBroker(MustParseURL(s.URL)).Broker)
+	return &Server{s, h}
 }
 
 // Close stops the server and broker and removes all temp data.
 func (s *Server) Close() {
-	(&Broker{s.Handler.Broker()}).Close()
+	s.Broker().Close()
 	s.Server.Close()
+}
+
+// Broker returns a reference to the broker attached to the handler.
+func (s *Server) Broker() *Broker { return &Broker{s.Handler.Broker()} }
+
+// MustParseURL parses a string into a URL. Panic on error.
+func MustParseURL(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err.Error())
+	}
+	return u
 }

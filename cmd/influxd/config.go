@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -28,8 +30,8 @@ const (
 	// DefaultBrokerPort represents the default port the broker runs on.
 	DefaultBrokerPort = 8086
 
-	// DefaultHTTPAPIPort represents the default port the HTTP API runs on.
-	DefaultHTTPAPIPort = 8086
+	// DefaultDataPort represents the default port the data server runs on.
+	DefaultDataPort = 8086
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -44,13 +46,6 @@ type Config struct {
 		Port   int    `toml:"port"`
 		Assets string `toml:"assets"`
 	} `toml:"admin"`
-
-	HTTPAPI struct {
-		Port        int      `toml:"port"`
-		SSLPort     int      `toml:"ssl-port"`
-		SSLCertPath string   `toml:"ssl-cert"`
-		ReadTimeout Duration `toml:"read-timeout"`
-	} `toml:"api"`
 
 	InputPlugins struct {
 		Graphite struct {
@@ -79,6 +74,7 @@ type Config struct {
 
 	Data struct {
 		Dir                  string                    `toml:"dir"`
+		Port                 int                       `toml:"port"`
 		WriteBufferSize      int                       `toml:"write-buffer-size"`
 		MaxOpenShards        int                       `toml:"max-open-shards"`
 		PointBatchSize       int                       `toml:"point-batch-size"`
@@ -115,12 +111,11 @@ func NewConfig() *Config {
 	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
 	c.Broker.Port = DefaultBrokerPort
 	c.Broker.Timeout = Duration(1 * time.Second)
-	c.HTTPAPI.Port = DefaultHTTPAPIPort
-	c.HTTPAPI.ReadTimeout = Duration(DefaultAPIReadTimeout)
 	c.Cluster.MinBackoff = Duration(1 * time.Second)
 	c.Cluster.MaxBackoff = Duration(10 * time.Second)
 	c.Cluster.ProtobufHeartbeatInterval = Duration(10 * time.Millisecond)
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
+	c.Data.Port = DefaultDataPort
 	c.Data.WriteBufferSize = 1000
 	c.Cluster.WriteBufferSize = 1000
 	c.Cluster.MaxResponseBufferSize = 100
@@ -165,19 +160,30 @@ func (c *Config) MaxOpenShards() int {
 	return c.Data.MaxOpenShards
 }
 
-// ApiHTTPListenAddr returns the binding address the API HTTP server
-func (c *Config) ApiHTTPListenAddr() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.HTTPAPI.Port)
+// DataAddr returns the binding address the data server
+func (c *Config) DataAddr() string {
+	return fmt.Sprintf("%s:%d", c.BindAddress, c.Data.Port)
 }
 
-// BrokerListenAddr returns the binding address the Broker server
-func (c *Config) BrokerListenAddr() string {
+// DataURL returns the URL required to contact the data server.
+func (c *Config) DataURL() *url.URL {
+	return &url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Data.Port)),
+	}
+}
+
+// BrokerAddr returns the binding address the Broker server
+func (c *Config) BrokerAddr() string {
 	return fmt.Sprintf("%s:%d", c.BindAddress, c.Broker.Port)
 }
 
-// BrokerConnectionString returns the address required to contact the Broker server
-func (c *Config) BrokerConnectionString() string {
-	return fmt.Sprintf("http://%s:%d", c.Hostname, c.Broker.Port)
+// BrokerURL returns the URL required to contact the Broker server.
+func (c *Config) BrokerURL() *url.URL {
+	return &url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Broker.Port)),
+	}
 }
 
 // Size represents a TOML parseable file size.
@@ -250,42 +256,6 @@ func ParseConfig(s string) (*Config, error) {
 	}
 	return c, nil
 }
-
-/*
-func (c *Config) AdminHTTPPortString() string {
-	if c.AdminHTTPPort <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.AdminHTTPPort)
-}
-
-func (c *Config) APIHTTPSPortString() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.APIHTTPSPort)
-}
-
-func (c *Config) GraphitePortString() string {
-	if c.GraphitePort <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.GraphitePort)
-}
-
-func (c *Config) UDPInputPortString(port int) string {
-	if port <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("%s:%d", c.BindAddress, port)
-}
-
-func (c *Config) ProtobufConnectionString() string {
-	return fmt.Sprintf("%s:%d", c.Hostname, c.ProtobufPort)
-}
-
-func (c *Config) ProtobufListenString() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.ProtobufPort)
-}
-
-*/
 
 // maxInt is the largest integer representable by a word (architeture dependent).
 const maxInt = int64(^uint(0) >> 1)
