@@ -46,7 +46,6 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		ch1, _ := s.r.read()
 		s.r.unread()
 		if isDigit(ch1) {
-			s.r.unread()
 			return s.scanNumber()
 		}
 		return DOT, pos, ""
@@ -241,7 +240,6 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 		}
 		s.r.unread()
 	}
-
 	return NUMBER, pos, buf.String()
 }
 
