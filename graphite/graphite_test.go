@@ -1,12 +1,10 @@
 package graphite_test
 
 import (
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/graphite"
 )
 
@@ -246,33 +244,6 @@ func Test_DecodeMetric(t *testing.T) {
 			t.Fatalf("timestamp value mismatch.  expected %v, got %v", test.timestamp.UnixNano(), m.Timestamp.UnixNano())
 		}
 	}
-}
-
-type testServer string
-
-func (testServer) DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error) {
-	return &influxdb.RetentionPolicy{}, nil
-}
-func (testServer) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
-	return nil
-}
-
-type testServerFailedRetention string
-
-func (testServerFailedRetention) DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error) {
-	return &influxdb.RetentionPolicy{}, fmt.Errorf("no retention policy")
-}
-func (testServerFailedRetention) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
-	return nil
-}
-
-type testServerFailedWrite string
-
-func (testServerFailedWrite) DefaultRetentionPolicy(database string) (*influxdb.RetentionPolicy, error) {
-	return &influxdb.RetentionPolicy{}, nil
-}
-func (testServerFailedWrite) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
-	return fmt.Errorf("failed write")
 }
 
 // Test Helpers
