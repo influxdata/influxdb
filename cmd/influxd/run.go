@@ -63,6 +63,7 @@ func execRun(args []string) {
 	// Start the server handler. Attach to broker if running on the same port.
 	if s != nil {
 		sh := influxdb.NewHandler(s)
+		sh.AuthenticationEnabled = config.Authentication.Enabled
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
 			h.serverHandler = sh
 		} else {

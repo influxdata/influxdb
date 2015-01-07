@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -196,6 +197,16 @@ func (s *Server) load() error {
 
 			for sh := range db.shards {
 				s.databasesByShard[sh] = db
+			}
+
+			// load the index
+			log.Printf("Loading metadata index for %s\n", db.name)
+			err := s.meta.view(func(tx *metatx) error {
+				tx.indexDatabase(db)
+				return nil
+			})
+			if err != nil {
+				return err
 			}
 		}
 
@@ -724,6 +735,32 @@ func (s *Server) Users() (a []*User) {
 	return a
 }
 
+// AdminUserExists returns whether at least 1 admin-level user exists.
+func (s *Server) AdminUserExists() bool {
+	for _, u := range s.users {
+		if u.Admin {
+			return true
+		}
+	}
+	return false
+}
+
+// Authenticate returns an authenticated user by username. If any error occurs,
+// or the authentication credentials are invalid, an error is returned.
+func (s *Server) Authenticate(username, password string) (*User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.users[username]
+	if u == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	err := u.Authenticate(password)
+	if err != nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+	return u, nil
+}
+
 // CreateUser creates a user on the server.
 func (s *Server) CreateUser(username, password string, admin bool) error {
 	c := &createUserCommand{Username: username, Password: password, Admin: admin}
@@ -1092,9 +1129,23 @@ func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	return s.meta.mustUpdate(func(tx *metatx) error {
-		return tx.createSeriesIfNotExists(db.name, c.Name, c.Tags)
+	if _, series := db.MeasurementAndSeries(c.Name, c.Tags); series != nil {
+		return nil
+	}
+
+	// save to the metastore and add it to the in memory index
+	var series *Series
+	err := s.meta.mustUpdate(func(tx *metatx) error {
+		var err error
+		series, err = tx.createSeries(db.name, c.Name, c.Tags)
+		return err
 	})
+	if err != nil {
+		return err
+	}
+	db.addSeriesToIndex(c.Name, series)
+
+	return nil
 }
 
 type createSeriesIfNotExistsCommand struct {
@@ -1159,20 +1210,16 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 	return sh.writeSeries(overwrite, m.Data)
 }
 
-// seriesID returns the unique id of a series and tagset and a bool indicating if it was found
-func (s *Server) seriesID(database, name string, tags map[string]string) (id uint32) {
-	s.meta.view(func(tx *metatx) error {
-		id, _ = tx.seriesID(database, name, tags)
-		return nil
-	})
-	return
-}
-
 func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]string) (uint32, error) {
 	// Try to find series locally first.
-	if id := s.seriesID(database, name, tags); id != 0 {
-		return id, nil
+	s.mu.RLock()
+	idx := s.databases[database]
+	if _, series := idx.MeasurementAndSeries(name, tags); series != nil {
+		s.mu.RUnlock()
+		return series.ID, nil
 	}
+	// release the read lock so the broadcast can actually go through and acquire the write lock
+	s.mu.RUnlock()
 
 	// If it doesn't exist then create a message and broadcast.
 	c := &createSeriesIfNotExistsCommand{Database: database, Name: name, Tags: tags}
@@ -1182,19 +1229,35 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	}
 
 	// Lookup series again.
-	id := s.seriesID(database, name, tags)
-	if id == 0 {
+	_, series := idx.MeasurementAndSeries(name, tags)
+	if series == nil {
 		return 0, ErrSeriesNotFound
 	}
-	return id, nil
+	return series.ID, nil
 }
 
-func (s *Server) Measurements(database string) (a Measurements) {
-	s.meta.view(func(tx *metatx) error {
-		a = tx.measurements(database)
+func (s *Server) MeasurementNames(database string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	db := s.databases[database]
+	if db == nil {
 		return nil
-	})
-	return
+	}
+
+	return db.names
+}
+
+func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	db := s.databases[database]
+	if db == nil {
+		return nil
+	}
+
+	return db.SeriesIDs([]string{measurement}, nil)
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
@@ -1280,227 +1343,6 @@ type dataNodes []*DataNode
 func (p dataNodes) Len() int           { return len(p) }
 func (p dataNodes) Less(i, j int) bool { return p[i].ID < p[j].ID }
 func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
-// database represents a collection of retention policies.
-type database struct {
-	name string
-
-	policies map[string]*RetentionPolicy // retention policies by name
-	shards   map[uint64]*Shard           // shards by id
-
-	defaultRetentionPolicy string
-}
-
-// newDatabase returns an instance of database.
-func newDatabase() *database {
-	return &database{
-		policies: make(map[string]*RetentionPolicy),
-		shards:   make(map[uint64]*Shard),
-	}
-}
-
-// shardByTimestamp returns a shard that owns a given timestamp.
-func (db *database) shardByTimestamp(policy string, id uint32, timestamp time.Time) (*Shard, error) {
-	p := db.policies[policy]
-	if p == nil {
-		return nil, ErrRetentionPolicyNotFound
-	}
-	return p.shardByTimestamp(id, timestamp), nil
-}
-
-// shardsByTimestamp returns all shards that own a given timestamp.
-func (db *database) shardsByTimestamp(policy string, timestamp time.Time) ([]*Shard, error) {
-	p := db.policies[policy]
-	if p == nil {
-		return nil, ErrRetentionPolicyNotFound
-	}
-	return p.shardsByTimestamp(timestamp), nil
-}
-
-// timeBetweenInclusive returns true if t is between min and max, inclusive.
-func timeBetweenInclusive(t, min, max time.Time) bool {
-	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
-}
-
-// MarshalJSON encodes a database into a JSON-encoded byte slice.
-func (db *database) MarshalJSON() ([]byte, error) {
-	// Copy over properties to intermediate type.
-	var o databaseJSON
-	o.Name = db.name
-	o.DefaultRetentionPolicy = db.defaultRetentionPolicy
-	for _, rp := range db.policies {
-		o.Policies = append(o.Policies, rp)
-	}
-	for _, s := range db.shards {
-		o.Shards = append(o.Shards, s)
-	}
-	return json.Marshal(&o)
-}
-
-// UnmarshalJSON decodes a JSON-encoded byte slice to a database.
-func (db *database) UnmarshalJSON(data []byte) error {
-	// Decode into intermediate type.
-	var o databaseJSON
-	if err := json.Unmarshal(data, &o); err != nil {
-		return err
-	}
-
-	// Copy over properties from intermediate type.
-	db.name = o.Name
-	db.defaultRetentionPolicy = o.DefaultRetentionPolicy
-
-	// Copy shard policies.
-	db.policies = make(map[string]*RetentionPolicy)
-	for _, rp := range o.Policies {
-		db.policies[rp.Name] = rp
-	}
-
-	// Copy shards.
-	db.shards = make(map[uint64]*Shard)
-	for _, s := range o.Shards {
-		db.shards[s.ID] = s
-	}
-
-	return nil
-}
-
-// databaseJSON represents the JSON-serialization format for a database.
-type databaseJSON struct {
-	Name                   string             `json:"name,omitempty"`
-	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
-	Policies               []*RetentionPolicy `json:"policies,omitempty"`
-	Shards                 []*Shard           `json:"shards,omitempty"`
-}
-
-// Measurement represents a collection of time series in a database
-type Measurement struct {
-	Name   string    `json:"name,omitempty"`
-	Series []*Series `json:"series,omitempty"`
-	Fields []*Fields `json:"fields,omitempty"`
-}
-
-type Measurements []*Measurement
-
-func (m Measurement) String() string { return string(mustMarshalJSON(m)) }
-
-// Field represents a series field.
-type Field struct {
-	ID   uint8     `json:"id,omitempty"`
-	Name string    `json:"name,omitempty"`
-	Type FieldType `json:"field"`
-}
-
-type FieldType int
-
-const (
-	Int64 FieldType = iota
-	Float64
-	String
-	Boolean
-	Binary
-)
-
-// Fields represents a list of fields.
-type Fields []*Field
-
-// Series belong to a Measurement and represent unique time series in a database
-type Series struct {
-	ID   uint32
-	Tags map[string]string
-}
-
-// RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
-type RetentionPolicy struct {
-	// Unique name within database. Required.
-	Name string
-
-	// Length of time to keep data around
-	Duration time.Duration
-
-	ReplicaN uint32
-	SplitN   uint32
-
-	Shards []*Shard
-}
-
-// NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
-func NewRetentionPolicy(name string) *RetentionPolicy {
-	return &RetentionPolicy{
-		Name:     name,
-		ReplicaN: DefaultReplicaN,
-		SplitN:   DefaultSplitN,
-		Duration: DefaultShardRetention,
-	}
-}
-
-// shardByTimestamp returns the shard in the space that owns a given timestamp for a given series id.
-// Returns nil if the shard does not exist.
-func (rp *RetentionPolicy) shardByTimestamp(id uint32, timestamp time.Time) *Shard {
-	shards := rp.shardsByTimestamp(timestamp)
-	if len(shards) > 0 {
-		return shards[int(id)%len(shards)]
-	}
-	return nil
-}
-
-func (rp *RetentionPolicy) shardsByTimestamp(timestamp time.Time) []*Shard {
-	shards := make([]*Shard, 0, rp.SplitN)
-	for _, s := range rp.Shards {
-		if timeBetweenInclusive(timestamp, s.StartTime, s.EndTime) {
-			shards = append(shards, s)
-		}
-	}
-	return shards
-}
-
-// MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
-func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&retentionPolicyJSON{
-		Name:     rp.Name,
-		Duration: rp.Duration,
-		ReplicaN: rp.ReplicaN,
-		SplitN:   rp.SplitN,
-	})
-}
-
-// UnmarshalJSON decodes a JSON-encoded byte slice to a retention policy.
-func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
-	// Decode into intermediate type.
-	var o retentionPolicyJSON
-	if err := json.Unmarshal(data, &o); err != nil {
-		return err
-	}
-
-	// Copy over properties from intermediate type.
-	rp.Name = o.Name
-	rp.ReplicaN = o.ReplicaN
-	rp.SplitN = o.SplitN
-	rp.Duration = o.Duration
-	rp.Shards = o.Shards
-
-	return nil
-}
-
-// retentionPolicyJSON represents an intermediate struct for JSON marshaling.
-type retentionPolicyJSON struct {
-	Name     string        `json:"name"`
-	ReplicaN uint32        `json:"replicaN,omitempty"`
-	SplitN   uint32        `json:"splitN,omitempty"`
-	Duration time.Duration `json:"duration,omitempty"`
-	Shards   []*Shard      `json:"shards,omitempty"`
-}
-
-// RetentionPolicies represents a list of shard policies.
-type RetentionPolicies []*RetentionPolicy
-
-// Shards returns a list of all shards for all policies.
-func (rps RetentionPolicies) Shards() []*Shard {
-	var shards []*Shard
-	for _, rp := range rps {
-		shards = append(shards, rp.Shards...)
-	}
-	return shards
-}
 
 // BcryptCost is the cost associated with generating password with Bcrypt.
 // This setting is lowered during testing to improve test suite performance.

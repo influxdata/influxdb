@@ -55,10 +55,18 @@ func (_ *ListTagKeysStatement) node()           {}
 func (_ *ListTagValuesStatement) node()         {}
 func (_ *ListFieldKeysStatement) node()         {}
 func (_ *ListFieldValuesStatement) node()       {}
-func (_ *DropSeriesStatement) node()            {}
 func (_ *ListContinuousQueriesStatement) node() {}
-func (_ *CreateContinuousQueryStatement) node() {}
+func (_ *DropSeriesStatement) node()            {}
 func (_ *DropContinuousQueryStatement) node()   {}
+func (_ *DropDatabaseStatement) node()          {}
+func (_ *DropUserStatement) node()              {}
+func (_ *CreateContinuousQueryStatement) node() {}
+func (_ *CreateDatabaseStatement) node()        {}
+func (_ *CreateUserStatement) node()            {}
+func (_ *CreateRetentionPolicyStatement) node() {}
+func (_ *GrantStatement) node()                 {}
+func (_ *RevokeStatement) node()                {}
+func (_ *AlterRetentionPolicyStatement) node()  {}
 
 func (_ Fields) node()           {}
 func (_ *Field) node()           {}
@@ -119,6 +127,14 @@ func (_ *ListTagKeysStatement) stmt()           {}
 func (_ *ListTagValuesStatement) stmt()         {}
 func (_ *ListFieldKeysStatement) stmt()         {}
 func (_ *ListFieldValuesStatement) stmt()       {}
+func (_ *CreateDatabaseStatement) stmt()        {}
+func (_ *CreateUserStatement) stmt()            {}
+func (_ *GrantStatement) stmt()                 {}
+func (_ *RevokeStatement) stmt()                {}
+func (_ *CreateRetentionPolicyStatement) stmt() {}
+func (_ *DropDatabaseStatement) stmt()          {}
+func (_ *DropUserStatement) stmt()              {}
+func (_ *AlterRetentionPolicyStatement) stmt()  {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -175,6 +191,219 @@ func (a SortFields) String() string {
 		fields = append(fields, field.String())
 	}
 	return strings.Join(fields, ", ")
+}
+
+// CreateDatabaseStatement represents a command for creating a new database.
+type CreateDatabaseStatement struct {
+	// Name of the database to be created.
+	Name string
+}
+
+// String returns a string representation of the create database statement.
+func (s *CreateDatabaseStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("CREATE DATABASE ")
+	_, _ = buf.WriteString(s.Name)
+	return buf.String()
+}
+
+// DropDatabaseStatement represents a command to drop a database.
+type DropDatabaseStatement struct {
+	// Name of the database to be dropped.
+	Name string
+}
+
+// String returns a string representation of the drop database statement.
+func (s *DropDatabaseStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP DATABASE ")
+	_, _ = buf.WriteString(s.Name)
+	return buf.String()
+}
+
+// CreateUserStatement represents a command for creating a new user.
+type CreateUserStatement struct {
+	// Name of the user to be created.
+	Name string
+
+	// User's password
+	Password string
+}
+
+// String returns a string representation of the create user statement.
+func (s *CreateUserStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("CREATE USER ")
+	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(" WITH PASSWORD ")
+	_, _ = buf.WriteString(s.Password)
+	return buf.String()
+}
+
+// DropUserStatement represents a command for dropping a user.
+type DropUserStatement struct {
+	// Name of the user to drop.
+	Name string
+}
+
+// String returns a string representation of the drop user statement.
+func (s *DropUserStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP USER ")
+	_, _ = buf.WriteString(s.Name)
+	return buf.String()
+}
+
+// Privilege is a type of action a user can be granted the right to use.
+type Privilege int
+
+const (
+	ReadPrivilege Privilege = iota
+	WritePrivilege
+	AllPrivileges
+)
+
+// String returns a string representation of a Privilege.
+func (p Privilege) String() string {
+	switch p {
+	case ReadPrivilege:
+		return "READ"
+	case WritePrivilege:
+		return "WRITE"
+	case AllPrivileges:
+		return "ALL PRIVILEGES"
+	}
+	return ""
+}
+
+// GrantStatement represents a command for granting a privilege.
+type GrantStatement struct {
+	// The privilege to be granted.
+	Privilege Privilege
+
+	// Thing to grant privilege on (e.g., a DB).
+	On string
+
+	// Who to grant the privilege to.
+	User string
+}
+
+// String returns a string representation of the grant statement.
+func (s *GrantStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("GRANT ")
+	_, _ = buf.WriteString(s.Privilege.String())
+	if s.On != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(s.On)
+	}
+	_, _ = buf.WriteString(" TO ")
+	_, _ = buf.WriteString(s.User)
+	return buf.String()
+}
+
+// RevokeStatement represents a command to revoke a privilege from a user.
+type RevokeStatement struct {
+	// Privilege to be revoked.
+	Privilege Privilege
+
+	// Thing to revoke privilege to (e.g., a DB)
+	On string
+
+	// Who to revoke privilege from.
+	User string
+}
+
+// String returns a string representation of the revoke statement.
+func (s *RevokeStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("REVOKE ")
+	_, _ = buf.WriteString(s.Privilege.String())
+	if s.On != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(s.On)
+	}
+	_, _ = buf.WriteString(" FROM ")
+	_, _ = buf.WriteString(s.User)
+	return buf.String()
+}
+
+// CreateRetentionPolicyStatement represents a command to create a retention policy.
+type CreateRetentionPolicyStatement struct {
+	// Name of policy to create.
+	Name string
+
+	// Name of database this policy belongs to.
+	DB string
+
+	// Duration data written to this policy will be retained.
+	Duration time.Duration
+
+	// Replication factor for data written to this policy.
+	Replication int
+
+	// Should this policy be set as default for the database?
+	Default bool
+}
+
+// String returns a string representation of the create retention policy.
+func (s *CreateRetentionPolicyStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("CREATE RETENTION POLICY ")
+	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(" ON ")
+	_, _ = buf.WriteString(s.DB)
+	_, _ = buf.WriteString(" DURATION ")
+	_, _ = buf.WriteString(FormatDuration(s.Duration))
+	_, _ = buf.WriteString(" REPLICATION ")
+	_, _ = buf.WriteString(strconv.Itoa(s.Replication))
+	if s.Default {
+		_, _ = buf.WriteString(" DEFAULT")
+	}
+	return buf.String()
+}
+
+// AlterRetentionPolicyStatement represents a command to alter an existing retention policy.
+type AlterRetentionPolicyStatement struct {
+	// Name of policy to alter.
+	Name string
+
+	// Name of the database this policy belongs to.
+	DB string
+
+	// Duration data written to this policy will be retained.
+	Duration *time.Duration
+
+	// Replication factor for data written to this policy.
+	Replication *int
+
+	// Should this policy be set as defalut for the database?
+	Default bool
+}
+
+// String returns a string representation of the alter retention policy statement.
+func (s *AlterRetentionPolicyStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("ALTER RETENTION POLICY ")
+	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(" ON ")
+	_, _ = buf.WriteString(s.DB)
+
+	if s.Duration != nil {
+		_, _ = buf.WriteString(" DURATION ")
+		_, _ = buf.WriteString(FormatDuration(*s.Duration))
+	}
+
+	if s.Replication != nil {
+		_, _ = buf.WriteString(" REPLICATION ")
+		_, _ = buf.WriteString(strconv.Itoa(*s.Replication))
+	}
+
+	if s.Default {
+		_, _ = buf.WriteString(" DEFAULT")
+	}
+
+	return buf.String()
 }
 
 // SelectStatement represents a command for extracting data from the database.
@@ -299,7 +528,7 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	return other, nil
 }
 
-// filters an expression to exclude expressions related to a source.
+// filters an expression to exclude expressions unrelated to a source.
 func filterExprBySource(name string, expr Expr) Expr {
 	switch expr := expr.(type) {
 	case *VarRef:

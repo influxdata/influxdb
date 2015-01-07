@@ -290,10 +290,190 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// CREATE DATABASE statement
+		{
+			s: `CREATE DATABASE testdb`,
+			stmt: &influxql.CreateDatabaseStatement{
+				Name: "testdb",
+			},
+		},
+
+		// CREATE USER statement
+		{
+			s: `CREATE USER testuser WITH PASSWORD pwd1337`,
+			stmt: &influxql.CreateUserStatement{
+				Name:     "testuser",
+				Password: "pwd1337",
+			},
+		},
+
 		// DROP CONTINUOUS QUERY statement
 		{
 			s:    `DROP CONTINUOUS QUERY myquery`,
 			stmt: &influxql.DropContinuousQueryStatement{Name: "myquery"},
+		},
+
+		// DROP DATABASE statement
+		{
+			s:    `DROP DATABASE testdb`,
+			stmt: &influxql.DropDatabaseStatement{Name: "testdb"},
+		},
+
+		// DROP USER statement
+		{
+			s:    `DROP USER jdoe`,
+			stmt: &influxql.DropUserStatement{Name: "jdoe"},
+		},
+
+		// GRANT READ
+		{
+			s: `GRANT READ ON testdb TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.ReadPrivilege,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// GRANT WRITE
+		{
+			s: `GRANT WRITE ON testdb TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.WritePrivilege,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// GRANT ALL
+		{
+			s: `GRANT ALL ON testdb TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.AllPrivileges,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// GRANT ALL PRIVILEGES
+		{
+			s: `GRANT ALL PRIVILEGES ON testdb TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.AllPrivileges,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// GRANT cluster admin
+		{
+			s: `GRANT ALL PRIVILEGES TO jdoe`,
+			stmt: &influxql.GrantStatement{
+				Privilege: influxql.AllPrivileges,
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE READ
+		{
+			s: `REVOKE READ on testdb FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.ReadPrivilege,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE WRITE
+		{
+			s: `REVOKE WRITE ON testdb FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.WritePrivilege,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE ALL
+		{
+			s: `REVOKE ALL ON testdb FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.AllPrivileges,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE ALL PRIVILEGES
+		{
+			s: `REVOKE ALL PRIVILEGES ON testdb FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.AllPrivileges,
+				On:        "testdb",
+				User:      "jdoe",
+			},
+		},
+
+		// REVOKE cluster admin
+		{
+			s: `REVOKE ALL FROM jdoe`,
+			stmt: &influxql.RevokeStatement{
+				Privilege: influxql.AllPrivileges,
+				User:      "jdoe",
+			},
+		},
+
+		// CREATE RETENTION POLICY
+		{
+			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 2`,
+			stmt: &influxql.CreateRetentionPolicyStatement{
+				Name:        "policy1",
+				DB:          "testdb",
+				Duration:    time.Hour,
+				Replication: 2,
+			},
+		},
+
+		// CREATE RETENTION POLICY ... DEFAULT
+		{
+			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 2m REPLICATION 4 DEFAULT`,
+			stmt: &influxql.CreateRetentionPolicyStatement{
+				Name:        "policy1",
+				DB:          "testdb",
+				Duration:    2 * time.Minute,
+				Replication: 4,
+				Default:     true,
+			},
+		},
+
+		// ALTER RETENTION POLICY
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DURATION 1m REPLICATION 4 DEFAULT`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", time.Minute, 4, true),
+		},
+
+		// ALTER RETENTION POLICY with options in reverse order
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT REPLICATION 4 DURATION 1m`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", time.Minute, 4, true),
+		},
+
+		// ALTER RETENTION POLICY without optional DURATION
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT REPLICATION 4`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, 4, true),
+		},
+
+		// ALTER RETENTION POLICY without optional REPLICATION
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, -1, true),
+		},
+
+		// ALTER RETENTION POLICY without optional DEFAULT
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb REPLICATION 4`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, 4, false),
 		},
 
 		// Errors
@@ -319,10 +499,44 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `DROP SERIES`, err: `found EOF, expected identifier, string at line 1, char 13`},
 		{s: `LIST CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
-		{s: `LIST FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
+		{s: `LIST FOO`, err: `found FOO, expected SERIES, CONTINUOUS, MEASUREMENTS, TAG, FIELD at line 1, char 6`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier, string at line 1, char 23`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
+		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
+		{s: `DROP USER`, err: `found EOF, expected identifier at line 1, char 11`},
+		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
+		{s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
+		{s: `GRANT BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
+		{s: `GRANT READ`, err: `found EOF, expected ON at line 1, char 12`},
+		{s: `GRANT READ TO jdoe`, err: `found TO, expected ON at line 1, char 12`},
+		{s: `GRANT READ ON`, err: `found EOF, expected identifier, string at line 1, char 15`},
+		{s: `GRANT READ ON testdb`, err: `found EOF, expected TO at line 1, char 22`},
+		{s: `GRANT READ ON testdb TO`, err: `found EOF, expected identifier, string at line 1, char 25`}, {s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
+		{s: `REVOKE BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 8`},
+		{s: `REVOKE READ`, err: `found EOF, expected ON at line 1, char 13`},
+		{s: `REVOKE READ TO jdoe`, err: `found TO, expected ON at line 1, char 13`},
+		{s: `REVOKE READ ON`, err: `found EOF, expected identifier, string at line 1, char 16`},
+		{s: `REVOKE READ ON testdb`, err: `found EOF, expected FROM at line 1, char 23`},
+		{s: `REVOKE READ ON testdb FROM`, err: `found EOF, expected identifier, string at line 1, char 28`},
+		{s: `CREATE RETENTION`, err: `found EOF, expected POLICY at line 1, char 18`},
+		{s: `CREATE RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 25`},
+		{s: `CREATE RETENTION POLICY policy1`, err: `found EOF, expected ON at line 1, char 33`},
+		{s: `CREATE RETENTION POLICY policy1 ON`, err: `found EOF, expected identifier at line 1, char 36`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb`, err: `found EOF, expected DURATION at line 1, char 43`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION`, err: `found EOF, expected duration at line 1, char 52`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION bad`, err: `found bad, expected duration at line 1, char 52`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h`, err: `found EOF, expected REPLICATION at line 1, char 54`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION`, err: `found EOF, expected number at line 1, char 67`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 3.14`, err: `number must be an integer at line 1, char 67`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 0`, err: `invalid value 0: must be 1 <= n <= 2147483647 at line 1, char 67`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION bad`, err: `found bad, expected number at line 1, char 67`},
+		{s: `ALTER`, err: `found EOF, expected RETENTION at line 1, char 7`},
+		{s: `ALTER RETENTION`, err: `found EOF, expected POLICY at line 1, char 17`},
+		{s: `ALTER RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 24`},
+		{s: `ALTER RETENTION POLICY policy1`, err: `found EOF, expected ON at line 1, char 32`},
+		{s: `ALTER RETENTION POLICY policy1 ON`, err: `found EOF, expected identifier at line 1, char 35`},
+		{s: `ALTER RETENTION POLICY policy1 ON testdb`, err: `found EOF, expected DURATION, RETENTION, DEFAULT at line 1, char 42`},
 	}
 
 	for i, tt := range tests {
@@ -402,6 +616,20 @@ func TestParser_ParseExpr(t *testing.T) {
 						LHS: &influxql.NumberLiteral{Val: 1},
 						RHS: &influxql.NumberLiteral{Val: 2},
 					},
+				},
+				RHS: &influxql.NumberLiteral{Val: 3},
+			},
+		},
+
+		// Binary expression with no precedence, tests left associativity.
+		{
+			s: `1 * 2 * 3`,
+			expr: &influxql.BinaryExpr{
+				Op: influxql.MUL,
+				LHS: &influxql.BinaryExpr{
+					Op:  influxql.MUL,
+					LHS: &influxql.NumberLiteral{Val: 1},
+					RHS: &influxql.NumberLiteral{Val: 2},
 				},
 				RHS: &influxql.NumberLiteral{Val: 3},
 			},
@@ -600,4 +828,23 @@ func errstring(err error) string {
 		return err.Error()
 	}
 	return ""
+}
+
+// newAlterRetentionPolicyStatement creates an initialized AlterRetentionPolicyStatement.
+func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, replication int, dfault bool) *influxql.AlterRetentionPolicyStatement {
+	stmt := &influxql.AlterRetentionPolicyStatement{
+		Name:    name,
+		DB:      DB,
+		Default: dfault,
+	}
+
+	if d > -1 {
+		stmt.Duration = &d
+	}
+
+	if replication > -1 {
+		stmt.Replication = &replication
+	}
+
+	return stmt
 }

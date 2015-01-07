@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -196,6 +197,48 @@ func TestServer_CreateUser(t *testing.T) {
 	} else if bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte("pass")) != nil {
 		t.Fatal("invalid password")
 	}
+
+	// Verify that the authenticated user exists.
+	u, err := s.Authenticate("susy", "pass")
+	if err != nil {
+		t.Fatalf("error fetching authenticated user")
+	} else if u.Name != "susy" {
+		t.Fatalf("username mismatch: %v", u.Name)
+	} else if !u.Admin {
+		t.Fatalf("admin mismatch: %v", u.Admin)
+	} else if bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte("pass")) != nil {
+		t.Fatal("invalid password")
+	}
+
+}
+
+// Ensure the server correctly detects when there is an admin user.
+func TestServer_AdminUserExists(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// A server should start up without any admin user.
+	if s.AdminUserExists() {
+		t.Fatalf("admin user unexpectedly exists at start-up")
+	}
+
+	// Create a non-admin user and verify Server agrees there is no admin user.
+	if err := s.CreateUser("bert", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	if s.AdminUserExists() {
+		t.Fatalf("admin user unexpectedly exists")
+	}
+
+	// Next, create an admin user, and ensure the Server agrees there is an admin user.
+	if err := s.CreateUser("ernie", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	if !s.AdminUserExists() {
+		t.Fatalf("admin user does not exist")
+	}
 }
 
 // Ensure the server returns an error when creating an user without a name.
@@ -249,18 +292,39 @@ func TestServer_Users(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
-	// Create some databases.
+	// Create some users.
 	s.CreateUser("susy", "pass", false)
 	s.CreateUser("john", "pass", false)
 	s.Restart()
 
-	// Return the databases.
+	// Return the users.
 	if a := s.Users(); len(a) != 2 {
 		t.Fatalf("unexpected user count: %d", len(a))
 	} else if a[0].Name != "john" {
 		t.Fatalf("unexpected user(0): %s", a[0].Name)
 	} else if a[1].Name != "susy" {
 		t.Fatalf("unexpected user(1): %s", a[1].Name)
+	}
+}
+
+// Ensure the server does not return non-existent users
+func TestServer_NonExistingUsers(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create some users.
+	s.CreateUser("susy", "pass", false)
+	s.CreateUser("john", "pass2", false)
+	s.Restart()
+
+	// Ask for users that should not be returned.
+	u := s.User("bob")
+	if u != nil {
+		t.Fatalf("unexpected user found")
+	}
+	u, err := s.Authenticate("susy", "wrong_password")
+	if err == nil {
+		t.Fatalf("unexpected authenticated user found")
 	}
 }
 
@@ -488,29 +552,42 @@ func TestServer_Measurements(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := s.Measurements("foo")
-	m := []*influxdb.Measurement{
-		&influxdb.Measurement{
-			Name: "cpu_load",
-			Series: []*influxdb.Series{
-				&influxdb.Series{
-					ID:   uint32(1),
-					Tags: map[string]string{"host": "servera.influx.com", "region": "uswest"}}}}}
-	if !measurementsEqual(r, m) {
-		t.Fatalf("Mesurements not the same:\n%s\n%s", r, m)
+	expectedMeasurementNames := []string{"cpu_load"}
+	expectedSeriesIDs := influxdb.SeriesIDs([]uint32{uint32(1)})
+	names := s.MeasurementNames("foo")
+	if !reflect.DeepEqual(names, expectedMeasurementNames) {
+		t.Fatalf("Mesurements not the same:\n  exp: %s\n  got: %s", expectedMeasurementNames, names)
+	}
+	ids := s.MeasurementSeriesIDs("foo", "foo")
+	if !ids.Equals(expectedSeriesIDs) {
+		t.Fatalf("Series IDs not the same:\n  exp: %s\n  got: %s", expectedSeriesIDs, ids)
+	}
+
+	s.Restart()
+
+	names = s.MeasurementNames("foo")
+	if !reflect.DeepEqual(names, expectedMeasurementNames) {
+		t.Fatalf("Mesurements not the same:\n  exp: %s\n  got: %s", expectedMeasurementNames, names)
+	}
+	ids = s.MeasurementSeriesIDs("foo", "foo")
+	if !ids.Equals(expectedSeriesIDs) {
+		t.Fatalf("Series IDs not the same:\n  exp: %s\n  got: %s", expectedSeriesIDs, ids)
 	}
 }
 
+func mustMarshalJSON(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("marshal: " + err.Error())
+	}
+	return string(b)
+}
+
 func measurementsEqual(l influxdb.Measurements, r influxdb.Measurements) bool {
-	if len(l) != len(r) {
-		return false
+	if mustMarshalJSON(l) == mustMarshalJSON(r) {
+		return true
 	}
-	for i, ll := range l {
-		if !reflect.DeepEqual(ll, r[i]) {
-			return false
-		}
-	}
-	return true
+	return false
 }
 
 func TestServer_SeriesByTagNames(t *testing.T)  { t.Skip("pending") }
