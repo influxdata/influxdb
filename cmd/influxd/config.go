@@ -288,6 +288,7 @@ func (g *Graphite) NameSeparatorString() string {
 	return g.NameSeparator
 }
 
+// LastEnabled returns whether the Graphite Server shoudl intepret the last field as "name".
 func (g *Graphite) LastEnabled() bool {
 	return g.NamePosition == strings.ToLower("last")
 }
