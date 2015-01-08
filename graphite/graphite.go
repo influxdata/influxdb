@@ -34,6 +34,14 @@ type Parser struct {
 	LastEnabled bool
 }
 
+// metric represents a Metric as processed by the Graphite parser.
+type Metric struct {
+	Name      string
+	Tags      map[string]string
+	Value     interface{}
+	Timestamp time.Time
+}
+
 // NewParser returns a GraphiteParser instance.
 func NewParser() *Parser {
 	p := Parser{}
@@ -42,14 +50,14 @@ func NewParser() *Parser {
 }
 
 // Parse performs Graphite parsing of a single line.
-func (p *Parser) Parse(line string) (*metric, error) {
+func (p *Parser) Parse(line string) (*Metric, error) {
 	// Break into 3 fields (name, value, timestamp).
 	fields := strings.Fields(line)
 	if len(fields) != 3 {
 		return nil, fmt.Errorf("received %q which doesn't have three fields", line)
 	}
 
-	m := new(metric)
+	m := new(Metric)
 	// decode the name and tags
 	name, tags, err := p.DecodeNameAndTags(fields[0])
 	if err != nil {
@@ -117,12 +125,4 @@ func (p *Parser) DecodeNameAndTags(field string) (string, map[string]string, err
 	}
 
 	return name, tags, nil
-}
-
-// metric is a an internal type, used by the Graphite system.
-type metric struct {
-	Name      string
-	Tags      map[string]string
-	Value     interface{}
-	Timestamp time.Time
 }
