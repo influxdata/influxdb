@@ -27,7 +27,7 @@ func Unmarshal(data *gollectd.Packet) []Metric {
 		timeStamp = time.Unix(int64(sec), int64(nsec)).UTC().Round(time.Microsecond)
 	} else {
 		// If we don't have high resolution time, fall back to basic unix time
-		timeStamp = time.Unix(int64(data.Time), 0).UTC().Round(time.Microsecond)
+		timeStamp = time.Unix(int64(data.Time), 0).UTC()
 	}
 
 	var m []Metric
