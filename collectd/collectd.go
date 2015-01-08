@@ -35,6 +35,7 @@ func Unmarshal(data *gollectd.Packet) []Metric {
 		metric := Metric{Name: fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)}
 		metric.Value = data.Values[i].Value
 		metric.Timestamp = timeStamp
+		metric.Tags = make(map[string]string)
 
 		if data.Hostname != "" {
 			metric.Tags["host"] = data.Hostname
