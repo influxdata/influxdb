@@ -53,6 +53,10 @@ type (
 		Version           string `toml:"-"`
 		InfluxDBVersion   string `toml:"-"`
 
+		Authentication struct {
+			Enabled bool `toml:"enabled"`
+		} `toml:"authentication"`
+
 		Admin struct {
 			Port   int    `toml:"port"`
 			Assets string `toml:"assets"`
