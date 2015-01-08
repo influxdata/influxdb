@@ -19,7 +19,7 @@ func Unmarshal(data *gollectd.Packet) []Metric {
 	// Prefer high resolution timestamp.
 	var timeStamp time.Time
 	if data.TimeHR > 0 {
-		// TimeHR is "near" nanoseconde measurement, but not exactly nanasecond time
+		// TimeHR is "near" nanosecond measurement, but not exactly nanasecond time
 		// Since we store time in microseconds, we round here (mostly so tests will work easier)
 		sec := data.TimeHR >> 30
 		// Shifting, masking, and dividing by 1 billion to get nanoseconds.
