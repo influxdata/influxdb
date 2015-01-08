@@ -65,9 +65,10 @@ type (
 			ReadTimeout Duration `toml:"read-timeout"`
 		} `toml:"api"`
 
+		Graphites []Graphite `toml:"graphite"`
+
 		InputPlugins struct {
-			Graphites []Graphite `toml:"graphite"`
-			UDPInput  struct {
+			UDPInput struct {
 				Enabled  bool   `toml:"enabled"`
 				Port     uint16 `toml:"port"`
 				Database string `toml:"database"`

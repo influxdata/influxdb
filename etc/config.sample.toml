@@ -37,14 +37,6 @@ read-timeout = "5s"
 
 [input_plugins]
 
-  # Configure the Graphite plugins.
-  [[input_plugins.graphite]] # 1 or more of these sections may be present.
-  enabled = false
-  # protocol = "" # Set to "tcp" or "udp"
-  # address = "0.0.0.0" # If not set, is actually set to bind-address.
-  # port = 2003
-  # database = ""  # store graphite data in this database
-
   # Configure the collectd api
   [input_plugins.collectd]
   enabled = false
@@ -68,6 +60,14 @@ read-timeout = "5s"
   enabled = false
   # port = 5551
   # database = "db1"
+
+# Configure the Graphite plugins.
+[[graphite]] # 1 or more of these sections may be present.
+enabled = false
+# protocol = "" # Set to "tcp" or "udp"
+# address = "0.0.0.0" # If not set, is actually set to bind-address.
+# port = 2003
+# database = ""  # store graphite data in this database
 
 # Raft configuration
 [raft]
