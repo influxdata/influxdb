@@ -259,32 +259,22 @@ func ParseConfig(s string) (*Config, error) {
 	return c, nil
 }
 
-type Graphite struct {
-	Addr          string `toml:"address"`
-	Database      string `toml:"database"`
-	Enabled       bool   `toml:"enabled"`
-	Port          uint16 `toml:"port"`
-	Protocol      string `toml:"protocol"`
-	NamePosition  string `toml:"name-position"`
-	NameSeparator string `toml:"name-separator"`
-}
-
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
 func (g *Graphite) ConnectionString(defaultBindAddr string) string {
 
-	var addr string
+	addr := g.Addr
 	// If no address specified, use default.
-	if g.Addr != "" {
+	if addr == "" {
 		addr = defaultBindAddr
 	}
 
-	var port uint16
+	port := g.Port
 	// If no port specified, use default.
-	if g.Port <= 0 {
+	if port == 0 {
 		port = graphite.DefaultGraphitePort
 	}
 
-	return fmt.Sprintf("%s:%u", addr, port)
+	return fmt.Sprintf("%s:%d", addr, port)
 }
 
 // NameSeparatorString returns the character separating fields for Graphite data, or the default
