@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -68,48 +69,375 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	case DELETE:
 		return p.parseDeleteStatement()
 	case LIST:
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SERIES {
-			return p.parseListSeriesStatement()
-		} else if tok == CONTINUOUS {
-			return p.parseListContinuousQueriesStatement()
-		} else if tok == MEASUREMENTS {
-			return p.parseListMeasurementsStatement()
-		} else if tok == TAG {
-			if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
-				return p.parseListTagKeysStatement()
-			} else if tok == VALUES {
-				return p.parseListTagValuesStatement()
-			} else {
-				return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
-			}
-		} else if tok == FIELD {
-			if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
-				return p.parseListFieldKeysStatement()
-			} else if tok == VALUES {
-				return p.parseListFieldValuesStatement()
-			} else {
-				return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
-			}
-		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
-		}
+		return p.parseListStatement()
 	case CREATE:
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == CONTINUOUS {
-			return p.parseCreateContinuousQueryStatement()
-		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS"}, pos)
-		}
+		return p.parseCreateStatement()
 	case DROP:
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SERIES {
-			return p.parseDropSeriesStatement()
-		} else if tok == CONTINUOUS {
-			return p.parseDropContinuousQueryStatement()
-		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
-		}
+		return p.parseDropStatement()
+	case GRANT:
+		return p.parseGrantStatement()
+	case REVOKE:
+		return p.parseRevokeStatement()
+	case ALTER:
+		return p.parseAlterStatement()
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
 	}
+}
+
+// parseListStatement parses a string and returns a list statement.
+// This function assumes the LIST token has already been consumed.
+func (p *Parser) parseListStatement() (Statement, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == SERIES {
+		return p.parseListSeriesStatement()
+	} else if tok == CONTINUOUS {
+		return p.parseListContinuousQueriesStatement()
+	} else if tok == MEASUREMENTS {
+		return p.parseListMeasurementsStatement()
+	} else if tok == TAG {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
+			return p.parseListTagKeysStatement()
+		} else if tok == VALUES {
+			return p.parseListTagValuesStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
+		}
+	} else if tok == FIELD {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
+			return p.parseListFieldKeysStatement()
+		} else if tok == VALUES {
+			return p.parseListFieldValuesStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
+		}
+	}
+
+	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENTS", "TAG", "FIELD"}, pos)
+}
+
+// parseCreateStatement parses a string and returns a create statement.
+// This function assumes the CREATE token has already been consumned.
+func (p *Parser) parseCreateStatement() (Statement, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == CONTINUOUS {
+		return p.parseCreateContinuousQueryStatement()
+	} else if tok == DATABASE {
+		return p.parseCreateDatabaseStatement()
+	} else if tok == USER {
+		return p.parseCreateUserStatement()
+	} else if tok == RETENTION {
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != POLICY {
+			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
+		}
+		return p.parseCreateRetentionPolicyStatement()
+	}
+
+	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASE", "USER", "RETENTION"}, pos)
+}
+
+// parseDropStatement parses a string and returns a drop statement.
+// This function assumes the DROP token has already been consumed.
+func (p *Parser) parseDropStatement() (Statement, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == SERIES {
+		return p.parseDropSeriesStatement()
+	} else if tok == CONTINUOUS {
+		return p.parseDropContinuousQueryStatement()
+	} else if tok == DATABASE {
+		return p.parseDropDatabaseStatement()
+	} else if tok == USER {
+		return p.parseDropUserStatement()
+	}
+
+	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
+}
+
+// parseAlterStatement parses a string and returns an alter statement.
+// This function assumes the ALTER token has already been consumed.
+func (p *Parser) parseAlterStatement() (Statement, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == RETENTION {
+		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != POLICY {
+			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
+		}
+		return p.parseAlterRetentionPolicyStatement()
+	}
+
+	return nil, newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
+}
+
+// parseCreateRetentionPolicyStatement parses a string and returns a create retention policy statement.
+// This function assumes the CREATE RETENTION POLICY tokens have already been consumed.
+func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicyStatement, error) {
+	stmt := &CreateRetentionPolicyStatement{}
+
+	// Parse the retention policy name.
+	ident, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = ident
+
+	// Consume the required ON token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Parse the database name.
+	ident, err = p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	stmt.DB = ident
+
+	// Parse required DURATION token.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != DURATION {
+		return nil, newParseError(tokstr(tok, lit), []string{"DURATION"}, pos)
+	}
+
+	// Parse duration value
+	d, err := p.parseDuration()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Duration = d
+
+	// Parse required REPLICATION token.
+	if tok, pos, lit = p.scanIgnoreWhitespace(); tok != REPLICATION {
+		return nil, newParseError(tokstr(tok, lit), []string{"REPLICATION"}, pos)
+	}
+
+	// Parse replication value.
+	n, err := p.parseInt(1, math.MaxInt32)
+	if err != nil {
+		return nil, err
+	}
+	stmt.Replication = n
+
+	// Parse optional DEFAULT token.
+	if tok, pos, lit = p.scanIgnoreWhitespace(); tok == DEFAULT {
+		stmt.Default = true
+	} else {
+		p.unscan()
+	}
+
+	return stmt, nil
+}
+
+// parseAlterRetentionPolicyStatement parses a string and returns an alter retention policy statement.
+// This function assumes the ALTER RETENTION POLICY tokens have already been consumned.
+func (p *Parser) parseAlterRetentionPolicyStatement() (*AlterRetentionPolicyStatement, error) {
+	stmt := &AlterRetentionPolicyStatement{}
+
+	// Parse the retention policy name.
+	ident, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = ident
+
+	// Consume the required ON token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Parse the database name.
+	ident, err = p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	stmt.DB = ident
+
+	// Loop through option tokens (DURATION, RETENTION, DEFAULT, etc.).
+	maxNumOptions := 3
+Loop:
+	for i := 0; i < maxNumOptions; i++ {
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		switch tok {
+		case DURATION:
+			d, err := p.parseDuration()
+			if err != nil {
+				return nil, err
+			}
+			stmt.Duration = &d
+		case REPLICATION:
+			n, err := p.parseInt(1, math.MaxInt32)
+			if err != nil {
+				return nil, err
+			}
+			stmt.Replication = &n
+		case DEFAULT:
+			stmt.Default = true
+		default:
+			if i < 1 {
+				return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "RETENTION", "DEFAULT"}, pos)
+			}
+			p.unscan()
+			break Loop
+		}
+	}
+
+	return stmt, nil
+}
+
+// parseInt parses a string and returns an integer literal.
+func (p *Parser) parseInt(min, max int) (int, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != NUMBER {
+		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
+	}
+
+	// Return an error if the number has a fractional part.
+	if strings.Contains(lit, ".") {
+		return 0, &ParseError{Message: "number must be an integer", Pos: pos}
+	}
+
+	// Convert string to int.
+	n, err := strconv.Atoi(lit)
+	if err != nil {
+		return 0, &ParseError{Message: err.Error(), Pos: pos}
+	} else if min > n || n > max {
+		return 0, &ParseError{
+			Message: fmt.Sprintf("invalid value %d: must be %d <= n <= %d", n, min, max),
+			Pos:     pos,
+		}
+	}
+
+	return n, nil
+}
+
+// parseDuration parses a string and returns a duration literal.
+// This function assumes the DURATION token has already been consumed.
+func (p *Parser) parseDuration() (time.Duration, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != DURATION_VAL {
+		return 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
+	}
+	d, err := ParseDuration(lit)
+	if err != nil {
+		return 0, &ParseError{Message: err.Error(), Pos: pos}
+	}
+
+	return d, nil
+}
+
+// parserIdentifier parses a string and returns an identifier.
+func (p *Parser) parseIdentifier() (string, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return "", newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	}
+	return lit, nil
+}
+
+// parseRevokeStatement parses a string and returns a revoke statement.
+// This function assumes the REVOKE token has already been consumend.
+func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
+	stmt := &RevokeStatement{}
+
+	// Parse the privilege to be granted.
+	priv, err := p.parsePrivilege()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Privilege = priv
+
+	// Parse ON clause.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == ON {
+		// Parse the name of the thing we're granting a privilege to use.
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != IDENT && tok != STRING {
+			return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+		}
+		stmt.On = lit
+
+		tok, pos, lit = p.scanIgnoreWhitespace()
+	} else if priv != AllPrivileges {
+		// ALL PRIVILEGES is the only privilege allowed cluster-wide.
+		// No ON clause means query is requesting cluster-wide.
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Check for required FROM token.
+	if tok != FROM {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	}
+
+	// Parse the name of the user we're granting the privilege to.
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.User = lit
+
+	return stmt, nil
+}
+
+// parseGrantStatement parses a string and returns a grant statement.
+// This function assumes the GRANT token has already been consumed.
+func (p *Parser) parseGrantStatement() (*GrantStatement, error) {
+	stmt := &GrantStatement{}
+
+	// Parse the privilege to be granted.
+	priv, err := p.parsePrivilege()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Privilege = priv
+
+	// Parse ON clause.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == ON {
+		// Parse the name of the thing we're granting a privilege to use.
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != IDENT && tok != STRING {
+			return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+		}
+		stmt.On = lit
+
+		tok, pos, lit = p.scanIgnoreWhitespace()
+	} else if priv != AllPrivileges {
+		// ALL PRIVILEGES is the only privilege allowed cluster-wide.
+		// No ON clause means query is requesting cluster-wide.
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Check for required TO token.
+	if tok != TO {
+		return nil, newParseError(tokstr(tok, lit), []string{"TO"}, pos)
+	}
+
+	// Parse the name of the user we're granting the privilege to.
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.User = lit
+
+	return stmt, nil
+}
+
+// parsePrivilege parses a string and returns a Privilege
+func (p *Parser) parsePrivilege() (Privilege, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	switch tok {
+	case READ:
+		return ReadPrivilege, nil
+	case WRITE:
+		return WritePrivilege, nil
+	case ALL:
+		// Consume optional PRIVILEGES token
+		tok, pos, lit = p.scanIgnoreWhitespace()
+		if tok != PRIVILEGES {
+			p.unscan()
+		}
+		return AllPrivileges, nil
+	}
+	return 0, newParseError(tokstr(tok, lit), []string{"READ", "WRITE", "ALL [PRIVILEGES]"}, pos)
 }
 
 // parseSelectStatement parses a select string and returns a Statement AST object.
@@ -477,6 +805,110 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	stmt.Target = lit
 
 	return stmt, nil
+}
+
+// parseCreateDatabaseStatement parses a string and returns a CreateDatabaseStatement.
+// This function assumes the "CREATE DATABASE" tokens have already been consumed.
+func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error) {
+	stmt := &CreateDatabaseStatement{}
+
+	// Parse the name of the database to be created.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	}
+	stmt.Name = lit
+
+	return stmt, nil
+}
+
+// parseDropDatabaseStatement parses a string and returns a DropDatabaseStatement.
+// This function assumes the DROP DATABASE tokens have already been consumed.
+func (p *Parser) parseDropDatabaseStatement() (*DropDatabaseStatement, error) {
+	stmt := &DropDatabaseStatement{}
+
+	// Parse the name of the database to be dropped.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	}
+	stmt.Name = lit
+
+	return stmt, nil
+}
+
+// parseCreateUserStatement parses a string and returns a CreateUserStatement.
+// This function assumes the "CREATE USER" tokens have already been consumed.
+func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
+	stmt := &CreateUserStatement{}
+
+	// Parse name of the user to be created.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.Name = lit
+
+	// Consume "WITH PASSWORD" tokens
+	if err := p.parseTokens([]Token{WITH, PASSWORD}); err != nil {
+		return nil, err
+	}
+
+	// Parse new user's password
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	}
+	stmt.Password = lit
+
+	return stmt, nil
+}
+
+// parseDropUserStatement parses a string and returns a DropUserStatement.
+// This function assumes the DROP USER tokens have already been consumed.
+func (p *Parser) parseDropUserStatement() (*DropUserStatement, error) {
+	stmt := &DropUserStatement{}
+
+	// Parse the name of the user to be dropped.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	}
+	stmt.Name = lit
+
+	return stmt, nil
+}
+
+// parseRetentionPolicy parses a string and returns a retention policy name.
+// This function assumes the "WITH" token has already been consumed.
+func (p *Parser) parseRetentionPolicy() (name string, dfault bool, err error) {
+	// Check for optional DEFAULT token.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == DEFAULT {
+		dfault = true
+		tok, pos, lit = p.scanIgnoreWhitespace()
+	}
+
+	// Check for required RETENTION token.
+	if tok != RETENTION {
+		err = newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
+		return
+	}
+
+	// Check of required POLICY token.
+	if tok, pos, lit = p.scanIgnoreWhitespace(); tok != POLICY {
+		err = newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
+		return
+	}
+
+	// Parse retention policy name.
+	tok, pos, name = p.scanIgnoreWhitespace()
+	if tok != IDENT && tok != STRING {
+		err = newParseError(tokstr(tok, name), []string{"identifier"}, pos)
+		return
+	}
+
+	return
 }
 
 // parseDropContinuousQueriesStatement parses a string and returns a DropContinuousQueryStatement.
@@ -879,7 +1311,7 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		return &NumberLiteral{Val: v}, nil
 	case TRUE, FALSE:
 		return &BooleanLiteral{Val: (tok == TRUE)}, nil
-	case DURATION:
+	case DURATION_VAL:
 		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
 	default:
@@ -1021,6 +1453,16 @@ func FormatDuration(d time.Duration) string {
 	} else {
 		return fmt.Sprintf("%d", d/time.Microsecond)
 	}
+}
+
+// parseTokens consumes an expected sequence of tokens.
+func (p *Parser) parseTokens(toks []Token) error {
+	for _, expected := range toks {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != expected {
+			return newParseError(tokstr(tok, lit), []string{tokens[expected]}, pos)
+		}
+	}
+	return nil
 }
 
 // Quote returns a quoted string.

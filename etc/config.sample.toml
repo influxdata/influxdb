@@ -15,6 +15,14 @@ bind-address = "0.0.0.0"
 # Change this option to true to disable reporting.
 reporting-disabled = false
 
+# Control authentication
+# If not set authetication is DISABLED. Be sure to explicitly set this flag to
+# true if you want authentication. If authentication is enabled, and no administrative
+# user exists in the system, the system will allow one administrative user to be
+# created without requiring any authentication.
+[authentication]
+enabled = false
+
 [logging]
 # logging level can be one of "fine", "debug", "info", "warn" or "error"
 level  = "info"
