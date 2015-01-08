@@ -78,7 +78,7 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("graphite tcp database mismatch: expected %v, got %v", "graphite_tcp", tcpGraphite.Database)
 	case strings.ToLower(tcpGraphite.Protocol) != "tcp":
 		t.Fatalf("graphite tcp protocol mismatch: expected %v, got %v", "tcp", strings.ToLower(tcpGraphite.Protocol))
-	case tcpGraphite.NamePosition != "last":
+	case tcpGraphite.LastEnabled() != true:
 		t.Fatalf("graphite tcp name-position mismatch: expected %v, got %v", "last", tcpGraphite.NamePosition)
 	case tcpGraphite.NameSeparatorString() != "-":
 		t.Fatalf("graphite tcp name-separator mismatch: expected %v, got %v", "-", tcpGraphite.NameSeparatorString())

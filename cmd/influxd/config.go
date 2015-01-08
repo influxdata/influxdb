@@ -6,6 +6,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -284,6 +285,10 @@ func (g *Graphite) NameSeparatorString() string {
 		return graphite.DefaultGraphiteNameSeparator
 	}
 	return g.NameSeparator
+}
+
+func (g *Graphite) LastEnabled() bool {
+	return g.NamePosition == strings.ToLower("last")
 }
 
 /*
