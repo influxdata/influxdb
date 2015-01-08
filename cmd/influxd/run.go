@@ -92,7 +92,7 @@ func execRun(args []string) {
 		log.Printf("DataNode#%d running on %s", s.ID(), config.ApiHTTPListenAddr())
 
 		// Spin up any Graphite servers
-		for _, c := range config.Graphites {
+		for _, c := range config.InputPlugins.Graphites {
 			if !c.Enabled {
 				continue
 			}

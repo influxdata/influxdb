@@ -62,11 +62,11 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("http api ssl cert path mismatch: %v", c.HTTPAPI.SSLCertPath)
 	}
 
-	if len(c.Graphites) != 2 {
-		t.Fatalf("graphites  mismatch.  expected %v, got: %v", 2, len(c.Graphites))
+	if len(c.InputPlugins.Graphites) != 2 {
+		t.Fatalf("graphites  mismatch.  expected %v, got: %v", 2, len(c.InputPlugins.Graphites))
 	}
 
-	tcpGraphite := c.Graphites[0]
+	tcpGraphite := c.InputPlugins.Graphites[0]
 	switch {
 	case tcpGraphite.Enabled != true:
 		t.Fatalf("graphite tcp enabled mismatch: expected: %v, got %v", true, tcpGraphite.Enabled)
@@ -84,7 +84,7 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("graphite tcp name-separator mismatch: expected %v, got %v", "-", tcpGraphite.NameSeparatorString())
 	}
 
-	udpGraphite := c.Graphites[1]
+	udpGraphite := c.InputPlugins.Graphites[1]
 	switch {
 	case udpGraphite.Enabled != true:
 		t.Fatalf("graphite udp enabled mismatch: expected: %v, got %v", true, udpGraphite.Enabled)
@@ -169,22 +169,22 @@ read-timeout = "5s"
   port = 4444
   database = "test"
 
-# Configure the graphite api
-[[graphite]]
-protocol = "TCP"
-enabled = true
-address = "192.168.0.1"
-port = 2003
-database = "graphite_tcp"  # store graphite data in this database
-name-position = "last"
-name-separator = "-"
+  # Configure the graphite api
+  [[input_plugins.graphite]]
+  protocol = "TCP"
+  enabled = true
+  address = "192.168.0.1"
+  port = 2003
+  database = "graphite_tcp"  # store graphite data in this database
+  name-position = "last"
+  name-separator = "-"
 
-[[graphite]]
-protocol = "udP"
-enabled = true
-address = "192.168.0.2"
-port = 2005
-database = "graphite_udp"  # store graphite data in this database
+  [[input_plugins.graphite]]
+  protocol = "udP"
+  enabled = true
+  address = "192.168.0.2"
+  port = 2005
+  database = "graphite_udp"  # store graphite data in this database
 
 # Raft configuration
 [raft]

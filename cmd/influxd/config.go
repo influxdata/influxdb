@@ -53,9 +53,9 @@ type Config struct {
 		ReadTimeout Duration `toml:"read-timeout"`
 	} `toml:"api"`
 
-	Graphites    []Graphite `toml:"graphite"`
 	InputPlugins struct {
-		UDPInput struct {
+		Graphites []Graphite `toml:"graphite"`
+		UDPInput  struct {
 			Enabled  bool   `toml:"enabled"`
 			Port     int    `toml:"port"`
 			Database string `toml:"database"`
