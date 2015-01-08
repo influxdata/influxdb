@@ -1,8 +1,8 @@
 package collectd_test
 
 import (
-	"log"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/kimor79/gollectd"
@@ -30,39 +30,66 @@ This is a sample of what data can be represented like in json
 */
 
 func Test_UnmarshalPacket(t *testing.T) {
-	t.Skip()
-	var (
-		//overflowTimeHR uint64 = (((math.MaxInt64 + 1) / 1000) / 1000) << 30
-		//overflowTime   uint64 = (((math.MaxInt64 + 1) / 1000) / 1000) << 30
-		overflowTimeHR uint64
-		overflowTime   uint64
-	)
+	testTime := time.Now().UTC().Round(time.Microsecond)
+	var timeHR = func(tm time.Time) uint64 {
+		sec, nsec := tm.Unix(), tm.UnixNano()%1000000000
+		hr := (sec << 30) + (nsec * 1000000000 / 1073741824)
+		return uint64(hr)
+	}
 
 	var tests = []struct {
 		name    string
 		packet  gollectd.Packet
-		metrics collectd.Metrics
-		err     error
+		metrics []collectd.Metric
 	}{
 		{
-			name: "Should error out if time is to large",
+			name: "Should parse timeHR properly",
 			packet: gollectd.Packet{
-				Time:   overflowTime,
-				TimeHR: overflowTimeHR,
+				TimeHR: timeHR(testTime),
+				Values: []gollectd.Value{
+					gollectd.Value{
+						TypeName: "cpu",
+						Value:    1,
+					},
+				},
 			},
-			metrics: collectd.Metrics{},
-			err:     collectd.ErrTimeOutOfBounds,
+			metrics: []collectd.Metric{
+				collectd.Metric{Timestamp: testTime},
+			},
+		},
+		{
+			name: "Should parse time properly",
+			packet: gollectd.Packet{
+				Time: uint64(testTime.Round(time.Second).Unix()),
+				Values: []gollectd.Value{
+					gollectd.Value{
+						TypeName: "cpu",
+						Value:    1,
+					},
+				},
+			},
+			metrics: []collectd.Metric{
+				collectd.Metric{
+					Timestamp: testTime.Round(time.Second),
+				},
+			},
 		},
 	}
 
 	for _, test := range tests {
-		log.Printf("%+v", test)
-		m, err := collectd.Unmarshal(&test.packet)
-		if err != test.err {
-			t.Errorf("error mismatch, expected %v, got %v", test.err, err)
+		t.Logf("testing %q", test.name)
+		metrics := collectd.Unmarshal(&test.packet)
+		if len(metrics) != len(test.metrics) {
+			t.Errorf("metric len mismatch. expected %d, got %d", len(test.metrics), len(metrics))
 		}
-		_ = m
-
+		for _, m := range metrics {
+			if test.packet.TimeHR > 0 {
+				if m.Timestamp.Format(time.RFC3339Nano) != testTime.Format(time.RFC3339Nano) {
+					t.Errorf("timestamp mis-match, got %v, expected %v", m.Timestamp.Format(time.RFC3339Nano), testTime.Format(time.RFC3339Nano))
+				} else if m.Timestamp.Format(time.RFC3339) != testTime.Format(time.RFC3339) {
+					t.Errorf("timestamp mis-match, got %v, expected %v", m.Timestamp.Format(time.RFC3339), testTime.Format(time.RFC3339))
+				}
+			}
+		}
 	}
-
 }
