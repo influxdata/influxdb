@@ -110,13 +110,15 @@ func execRun(args []string) {
 				if err != nil {
 					log.Println("failed to start TCP Graphite Server", err.Error())
 				}
-			} else {
+			} else if strings.ToLower(c.Protocol) == "udp" {
 				g := graphite.NewUDPServer(parser, s)
 				g.Database = c.Database
 				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
 				if err != nil {
 					log.Println("failed to start UDP Graphite Server", err.Error())
 				}
+			} else {
+				log.Fatalf("unrecognized Graphite Server prototcol", c.Protocol)
 			}
 		}
 	}

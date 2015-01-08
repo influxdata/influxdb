@@ -17,11 +17,10 @@ type TCPServer struct {
 
 // NewTCPServer returns a new instance of a TCPServer.
 func NewTCPServer(p *Parser, w SeriesWriter) *TCPServer {
-	t := TCPServer{
+	return &TCPServer{
 		parser: p,
 		writer: w,
 	}
-	return &t
 }
 
 // ListenAndServe instructs the TCPServer to start processing Graphite data

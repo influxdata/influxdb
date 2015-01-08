@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+const (
+	// DefaultGraphitePort represents the default Graphite (Carbon) plaintext port.
+	DefaultGraphitePort = 2003
+
+	// DefaultGraphiteNameSeparator represents the default Graphite field separator.
+	DefaultGraphiteNameSeparator = "."
+)
+
 var (
 	// ErrBindAddressRequired is returned when starting the Server
 	// without a TCP or UDP listening address.
@@ -28,13 +36,7 @@ type SeriesWriter interface {
 	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
 }
 
-// Parser encapulates a Graphite Parser.
-type Parser struct {
-	Separator   string
-	LastEnabled bool
-}
-
-// metric represents a Metric as processed by the Graphite parser.
+// Metric represents a metric as processed by the Graphite parser.
 type Metric struct {
 	Name      string
 	Tags      map[string]string
@@ -42,10 +44,15 @@ type Metric struct {
 	Timestamp time.Time
 }
 
+// Parser encapulates a Graphite Parser.
+type Parser struct {
+	Separator   string
+	LastEnabled bool
+}
+
 // NewParser returns a GraphiteParser instance.
 func NewParser() *Parser {
-	p := Parser{}
-	return &p
+	return &Parser{Separator: DefaultGraphiteNameSeparator}
 }
 
 // Parse performs Graphite parsing of a single line.

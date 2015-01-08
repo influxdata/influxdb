@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/influxdb/influxdb/graphite"
 )
 
 const (
@@ -30,12 +31,6 @@ const (
 
 	// DefaultHTTPAPIPort represents the default port the HTTP API runs on.
 	DefaultHTTPAPIPort = 8086
-
-	// DefaultGraphitePort represents the default Graphite (Carbon) plaintext port.
-	DefaultGraphitePort = 2003
-
-	// DefaultGraphiteNameSeparator represents the default Graphite field separator.
-	DefaultGraphiteNameSeparator = "."
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -264,27 +259,27 @@ type Graphite struct {
 
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
 func (g *Graphite) ConnectionString(defaultBindAddr string) string {
-	var addr string
-	var port uint16
 
+	var addr string
 	// If no address specified, use default.
 	if g.Addr != "" {
 		addr = defaultBindAddr
 	}
 
+	var port uint16
 	// If no port specified, use default.
 	if g.Port <= 0 {
-		port = DefaultGraphitePort
+		port = graphite.DefaultGraphitePort
 	}
 
 	return fmt.Sprintf("%s:%u", addr, port)
 }
 
-// NameSeparator returns the character separating fields for Graphite data, or the default
+// NameSeparatorString returns the character separating fields for Graphite data, or the default
 // if no separator is set.
 func (g *Graphite) NameSeparatorString() string {
 	if g.NameSeparator == "" {
-		return DefaultGraphiteNameSeparator
+		return graphite.DefaultGraphiteNameSeparator
 	}
 	return g.NameSeparator
 }

@@ -1069,7 +1069,7 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	if retentionPolicy == "" {
 		rp, err := s.DefaultRetentionPolicy(database)
 		if err != nil {
-			return fmt.Errorf("failed to determine default Retention Policy", err.Error())
+			return fmt.Errorf("failed to determine default retention policy", err.Error())
 		}
 		retentionPolicy = rp.Name
 	}
