@@ -6,9 +6,11 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/influxdb/influxdb/graphite"
 )
 
 const (
@@ -33,81 +35,89 @@ const (
 )
 
 // Config represents the configuration format for the influxd binary.
-type Config struct {
-	Hostname          string `toml:"hostname"`
-	BindAddress       string `toml:"bind-address"`
-	ReportingDisabled bool   `toml:"reporting-disabled"`
-	Version           string `toml:"-"`
-	InfluxDBVersion   string `toml:"-"`
+type (
+	Graphite struct {
+		Addr          string `toml:"address"`
+		Database      string `toml:"database"`
+		Enabled       bool   `toml:"enabled"`
+		Port          uint16 `toml:"port"`
+		Protocol      string `toml:"protocol"`
+		NamePosition  string `toml:"name-position"`
+		NameSeparator string `toml:"name-separator"`
+	}
 
-	Authentication struct {
-		Enabled bool `toml:"enabled"`
-	} `toml:"authentication"`
+	Config struct {
+		Hostname          string `toml:"hostname"`
+		BindAddress       string `toml:"bind-address"`
+		ReportingDisabled bool   `toml:"reporting-disabled"`
+		Version           string `toml:"-"`
+		InfluxDBVersion   string `toml:"-"`
 
-	Admin struct {
-		Port   int    `toml:"port"`
-		Assets string `toml:"assets"`
-	} `toml:"admin"`
+		Authentication struct {
+			Enabled bool `toml:"enabled"`
+		} `toml:"authentication"`
 
-	HTTPAPI struct {
-		Port        int      `toml:"port"`
-		SSLPort     int      `toml:"ssl-port"`
-		SSLCertPath string   `toml:"ssl-cert"`
-		ReadTimeout Duration `toml:"read-timeout"`
-	} `toml:"api"`
+		Admin struct {
+			Port   int    `toml:"port"`
+			Assets string `toml:"assets"`
+		} `toml:"admin"`
 
-	InputPlugins struct {
-		Graphite struct {
-			Enabled    bool   `toml:"enabled"`
-			Port       int    `toml:"port"`
-			Database   string `toml:"database"`
-			UDPEnabled bool   `toml:"udp_enabled"`
-		} `toml:"graphite"`
-		UDPInput struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
-		} `toml:"udp"`
-		UDPServersInput []struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
-		} `toml:"udp_servers"`
-	} `toml:"input_plugins"`
+		HTTPAPI struct {
+			Port        int      `toml:"port"`
+			SSLPort     int      `toml:"ssl-port"`
+			SSLCertPath string   `toml:"ssl-cert"`
+			ReadTimeout Duration `toml:"read-timeout"`
+		} `toml:"api"`
 
-	Broker struct {
-		Port    int      `toml:"port"`
-		Dir     string   `toml:"dir"`
-		Timeout Duration `toml:"election-timeout"`
-	} `toml:"broker"`
+		Graphites []Graphite `toml:"graphite"`
 
-	Data struct {
-		Dir                  string                    `toml:"dir"`
-		WriteBufferSize      int                       `toml:"write-buffer-size"`
-		MaxOpenShards        int                       `toml:"max-open-shards"`
-		PointBatchSize       int                       `toml:"point-batch-size"`
-		WriteBatchSize       int                       `toml:"write-batch-size"`
-		Engines              map[string]toml.Primitive `toml:"engines"`
-		RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
-	} `toml:"data"`
+		InputPlugins struct {
+			UDPInput struct {
+				Enabled  bool   `toml:"enabled"`
+				Port     uint16 `toml:"port"`
+				Database string `toml:"database"`
+			} `toml:"udp"`
+			UDPServersInput []struct {
+				Enabled  bool   `toml:"enabled"`
+				Port     int    `toml:"port"`
+				Database string `toml:"database"`
+			} `toml:"udp_servers"`
+		} `toml:"input_plugins"`
 
-	Cluster struct {
-		Dir                       string   `toml:"dir"`
-		ProtobufPort              int      `toml:"protobuf_port"`
-		ProtobufTimeout           Duration `toml:"protobuf_timeout"`
-		ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
-		MinBackoff                Duration `toml:"protobuf_min_backoff"`
-		MaxBackoff                Duration `toml:"protobuf_max_backoff"`
-		WriteBufferSize           int      `toml:"write-buffer-size"`
-		ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
-		MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
-	} `toml:"cluster"`
+		Broker struct {
+			Port    int      `toml:"port"`
+			Dir     string   `toml:"dir"`
+			Timeout Duration `toml:"election-timeout"`
+		} `toml:"broker"`
 
-	Logging struct {
-		File  string `toml:"file"`
-		Level string `toml:"level"`
-	} `toml:"logging"`
-}
+		Data struct {
+			Dir                  string                    `toml:"dir"`
+			WriteBufferSize      int                       `toml:"write-buffer-size"`
+			MaxOpenShards        int                       `toml:"max-open-shards"`
+			PointBatchSize       int                       `toml:"point-batch-size"`
+			WriteBatchSize       int                       `toml:"write-batch-size"`
+			Engines              map[string]toml.Primitive `toml:"engines"`
+			RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
+		} `toml:"data"`
+
+		Cluster struct {
+			Dir                       string   `toml:"dir"`
+			ProtobufPort              int      `toml:"protobuf_port"`
+			ProtobufTimeout           Duration `toml:"protobuf_timeout"`
+			ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
+			MinBackoff                Duration `toml:"protobuf_min_backoff"`
+			MaxBackoff                Duration `toml:"protobuf_max_backoff"`
+			WriteBufferSize           int      `toml:"write-buffer-size"`
+			ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
+			MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
+		} `toml:"cluster"`
+
+		Logging struct {
+			File  string `toml:"file"`
+			Level string `toml:"level"`
+		} `toml:"logging"`
+	}
+)
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
@@ -253,6 +263,38 @@ func ParseConfig(s string) (*Config, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+// ConnnectionString returns the connection string for this Graphite config in the form host:port.
+func (g *Graphite) ConnectionString(defaultBindAddr string) string {
+
+	addr := g.Addr
+	// If no address specified, use default.
+	if addr == "" {
+		addr = defaultBindAddr
+	}
+
+	port := g.Port
+	// If no port specified, use default.
+	if port == 0 {
+		port = graphite.DefaultGraphitePort
+	}
+
+	return fmt.Sprintf("%s:%d", addr, port)
+}
+
+// NameSeparatorString returns the character separating fields for Graphite data, or the default
+// if no separator is set.
+func (g *Graphite) NameSeparatorString() string {
+	if g.NameSeparator == "" {
+		return graphite.DefaultGraphiteNameSeparator
+	}
+	return g.NameSeparator
+}
+
+// LastEnabled returns whether the Graphite Server shoudl intepret the last field as "name".
+func (g *Graphite) LastEnabled() bool {
+	return g.NamePosition == strings.ToLower("last")
 }
 
 /*

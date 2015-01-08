@@ -1091,10 +1091,19 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 		return err
 	}
 
+	// If the retention policy is not set, use the default for this database.
+	if retentionPolicy == "" {
+		rp, err := s.DefaultRetentionPolicy(database)
+		if err != nil {
+			return fmt.Errorf("failed to determine default retention policy", err.Error())
+		}
+		retentionPolicy = rp.Name
+	}
+
 	// Now write it into the shard.
 	sh, err := s.createShardIfNotExists(database, retentionPolicy, id, timestamp)
 	if err != nil {
-		return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
+		return fmt.Errorf("create shard(%s/%s): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
 
 	// Encode point to a byte slice.
