@@ -33,6 +33,9 @@ const (
 
 	// DefaultGraphitePort represents the default Graphite (Carbon) plaintext port.
 	DefaultGraphitePort = 2003
+
+	// DefaultGraphiteNameSeparator represents the default Graphite field separator.
+	DefaultGraphiteNameSeparator = "."
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -260,7 +263,7 @@ type Graphite struct {
 }
 
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
-func (g Graphite) ConnectionString(defaultBindAddr string) string {
+func (g *Graphite) ConnectionString(defaultBindAddr string) string {
 	var addr string
 	var port uint16
 
@@ -275,6 +278,15 @@ func (g Graphite) ConnectionString(defaultBindAddr string) string {
 	}
 
 	return fmt.Sprintf("%s:%u", addr, port)
+}
+
+// NameSeparator returns the character separating fields for Graphite data, or the default
+// if no separator is set.
+func (g *Graphite) NameSeparatorString() string {
+	if g.NameSeparator == "" {
+		return DefaultGraphiteNameSeparator
+	}
+	return g.NameSeparator
 }
 
 /*

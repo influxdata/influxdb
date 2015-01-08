@@ -99,7 +99,7 @@ func execRun(args []string) {
 
 			// Configure Graphite parsing.
 			parser := graphite.NewParser()
-			parser.Separator = c.NameSeparator
+			parser.Separator = c.NameSeparatorString()
 			parser.LastEnabled = (c.NamePosition == "last")
 
 			// Start the relevant server.

@@ -45,7 +45,6 @@ type Metric struct {
 // NewParser returns a GraphiteParser instance.
 func NewParser() *Parser {
 	p := Parser{}
-	p.Separator = "."
 	return &p
 }
 
