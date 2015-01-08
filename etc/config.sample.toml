@@ -37,13 +37,13 @@ read-timeout = "5s"
 
 [input_plugins]
 
-  # Configure the graphite api
-  [input_plugins.graphite]
+  # Configure the Graphite plugins.
+  [[input_plugins.graphite]] # 1 or more of these sections may be present.
   enabled = false
+  # protocol = "" # Set to "tcp" or "udp"
   # address = "0.0.0.0" # If not set, is actually set to bind-address.
   # port = 2003
   # database = ""  # store graphite data in this database
-  # udp_enabled = true # enable udp interface on the same port as the tcp interface
 
   # Configure the collectd api
   [input_plugins.collectd]

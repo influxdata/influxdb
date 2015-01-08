@@ -34,72 +34,84 @@ const (
 )
 
 // Config represents the configuration format for the influxd binary.
-type Config struct {
-	Hostname          string `toml:"hostname"`
-	BindAddress       string `toml:"bind-address"`
-	ReportingDisabled bool   `toml:"reporting-disabled"`
-	Version           string `toml:"-"`
-	InfluxDBVersion   string `toml:"-"`
+type (
+	Graphite struct {
+		Addr          string `toml:"address"`
+		Database      string `toml:"database"`
+		Enabled       bool   `toml:"enabled"`
+		Port          uint16 `toml:"port"`
+		Protocol      string `toml:"protocol"`
+		NamePosition  string `toml:"name-position"`
+		NameSeparator string `toml:"name-separator"`
+	}
 
-	Admin struct {
-		Port   int    `toml:"port"`
-		Assets string `toml:"assets"`
-	} `toml:"admin"`
+	Config struct {
+		Hostname          string `toml:"hostname"`
+		BindAddress       string `toml:"bind-address"`
+		ReportingDisabled bool   `toml:"reporting-disabled"`
+		Version           string `toml:"-"`
+		InfluxDBVersion   string `toml:"-"`
 
-	HTTPAPI struct {
-		Port        int      `toml:"port"`
-		SSLPort     int      `toml:"ssl-port"`
-		SSLCertPath string   `toml:"ssl-cert"`
-		ReadTimeout Duration `toml:"read-timeout"`
-	} `toml:"api"`
+		Admin struct {
+			Port   int    `toml:"port"`
+			Assets string `toml:"assets"`
+		} `toml:"admin"`
 
-	InputPlugins struct {
-		Graphites []Graphite `toml:"graphite"`
-		UDPInput  struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
-		} `toml:"udp"`
-		UDPServersInput []struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
-		} `toml:"udp_servers"`
-	} `toml:"input_plugins"`
+		HTTPAPI struct {
+			Port        int      `toml:"port"`
+			SSLPort     int      `toml:"ssl-port"`
+			SSLCertPath string   `toml:"ssl-cert"`
+			ReadTimeout Duration `toml:"read-timeout"`
+		} `toml:"api"`
 
-	Broker struct {
-		Port    int      `toml:"port"`
-		Dir     string   `toml:"dir"`
-		Timeout Duration `toml:"election-timeout"`
-	} `toml:"broker"`
+		InputPlugins struct {
+			Graphites []Graphite `toml:"graphite"`
+			UDPInput  struct {
+				Enabled  bool   `toml:"enabled"`
+				Port     uint16 `toml:"port"`
+				Database string `toml:"database"`
+			} `toml:"udp"`
+			UDPServersInput []struct {
+				Enabled  bool   `toml:"enabled"`
+				Port     int    `toml:"port"`
+				Database string `toml:"database"`
+			} `toml:"udp_servers"`
+		} `toml:"input_plugins"`
 
-	Data struct {
-		Dir                  string                    `toml:"dir"`
-		WriteBufferSize      int                       `toml:"write-buffer-size"`
-		MaxOpenShards        int                       `toml:"max-open-shards"`
-		PointBatchSize       int                       `toml:"point-batch-size"`
-		WriteBatchSize       int                       `toml:"write-batch-size"`
-		Engines              map[string]toml.Primitive `toml:"engines"`
-		RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
-	} `toml:"data"`
+		Broker struct {
+			Port    int      `toml:"port"`
+			Dir     string   `toml:"dir"`
+			Timeout Duration `toml:"election-timeout"`
+		} `toml:"broker"`
 
-	Cluster struct {
-		Dir                       string   `toml:"dir"`
-		ProtobufPort              int      `toml:"protobuf_port"`
-		ProtobufTimeout           Duration `toml:"protobuf_timeout"`
-		ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
-		MinBackoff                Duration `toml:"protobuf_min_backoff"`
-		MaxBackoff                Duration `toml:"protobuf_max_backoff"`
-		WriteBufferSize           int      `toml:"write-buffer-size"`
-		ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
-		MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
-	} `toml:"cluster"`
+		Data struct {
+			Dir                  string                    `toml:"dir"`
+			WriteBufferSize      int                       `toml:"write-buffer-size"`
+			MaxOpenShards        int                       `toml:"max-open-shards"`
+			PointBatchSize       int                       `toml:"point-batch-size"`
+			WriteBatchSize       int                       `toml:"write-batch-size"`
+			Engines              map[string]toml.Primitive `toml:"engines"`
+			RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
+		} `toml:"data"`
 
-	Logging struct {
-		File  string `toml:"file"`
-		Level string `toml:"level"`
-	} `toml:"logging"`
-}
+		Cluster struct {
+			Dir                       string   `toml:"dir"`
+			ProtobufPort              int      `toml:"protobuf_port"`
+			ProtobufTimeout           Duration `toml:"protobuf_timeout"`
+			ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
+			MinBackoff                Duration `toml:"protobuf_min_backoff"`
+			MaxBackoff                Duration `toml:"protobuf_max_backoff"`
+			WriteBufferSize           int      `toml:"write-buffer-size"`
+			ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
+			MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
+		} `toml:"cluster"`
+
+		Logging struct {
+			File  string `toml:"file"`
+			Level string `toml:"level"`
+		} `toml:"logging"`
+	}
+)
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
