@@ -193,12 +193,13 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		case *influxql.CreateRetentionPolicyStatement:
 			rp := NewRetentionPolicy(c.Name)
 			rp.Duration = c.Duration
-			rp.ReplicaN = c.Replication
-			err = h.server.CreateRetentionPolicy(c.Database, rp)
+			rp.ReplicaN = uint32(c.Replication)
+			err = h.server.CreateRetentionPolicy(c.DB, rp)
 		case *influxql.AlterRetentionPolicyStatement:
-			rp := NewRetentionPolicy(c.Name) // Not going to work.
-			err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp)
-			continue
+			rp := NewRetentionPolicy(c.Name)
+			rp.Duration = *c.Duration // Why is this a pointer, and the next?
+			rp.ReplicaN = uint32(*c.Replication)
+			err = h.server.UpdateRetentionPolicy(c.DB, c.Name, rp)
 
 		case *influxql.CreateContinuousQueryStatement:
 			continue
