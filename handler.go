@@ -195,12 +195,12 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			rp := NewRetentionPolicy(c.Name)
 			rp.Duration = c.Duration
 			rp.ReplicaN = uint32(c.Replication)
-			err = h.server.CreateRetentionPolicy(c.DB, rp)
+			err = h.server.CreateRetentionPolicy(c.Database, rp)
 		case *influxql.AlterRetentionPolicyStatement:
 			rp := NewRetentionPolicy(c.Name)
 			rp.Duration = *c.Duration // Why is this a pointer, and the next?
 			rp.ReplicaN = uint32(*c.Replication)
-			err = h.server.UpdateRetentionPolicy(c.DB, c.Name, rp)
+			err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp)
 
 		case *influxql.CreateContinuousQueryStatement:
 			continue
@@ -277,7 +277,6 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, u *User
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
 
-	// Write metastore to response body.
 	if err := h.server.CopyMetastore(w); err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
 	}
