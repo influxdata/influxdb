@@ -231,6 +231,9 @@ type CreateUserStatement struct {
 
 	// User's password
 	Password string
+
+	// User's privilege level.
+	Privilege *Privilege
 }
 
 // String returns a string representation of the create user statement.
@@ -240,6 +243,12 @@ func (s *CreateUserStatement) String() string {
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" WITH PASSWORD ")
 	_, _ = buf.WriteString(s.Password)
+
+	if s.Privilege != nil {
+		_, _ = buf.WriteString(" WITH ")
+		_, _ = buf.WriteString(s.Privilege.String())
+	}
+
 	return buf.String()
 }
 
@@ -265,6 +274,9 @@ const (
 	WritePrivilege
 	AllPrivileges
 )
+
+// NewPrivilege returns an initialized *Privilege.
+func NewPrivilege(p Privilege) *Privilege { return &p }
 
 // String returns a string representation of a Privilege.
 func (p Privilege) String() string {
@@ -337,7 +349,7 @@ type CreateRetentionPolicyStatement struct {
 	Name string
 
 	// Name of database this policy belongs to.
-	DB string
+	Database string
 
 	// Duration data written to this policy will be retained.
 	Duration time.Duration
@@ -355,7 +367,7 @@ func (s *CreateRetentionPolicyStatement) String() string {
 	_, _ = buf.WriteString("CREATE RETENTION POLICY ")
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.DB)
+	_, _ = buf.WriteString(s.Database)
 	_, _ = buf.WriteString(" DURATION ")
 	_, _ = buf.WriteString(FormatDuration(s.Duration))
 	_, _ = buf.WriteString(" REPLICATION ")
@@ -372,7 +384,7 @@ type AlterRetentionPolicyStatement struct {
 	Name string
 
 	// Name of the database this policy belongs to.
-	DB string
+	Database string
 
 	// Duration data written to this policy will be retained.
 	Duration *time.Duration
@@ -390,7 +402,7 @@ func (s *AlterRetentionPolicyStatement) String() string {
 	_, _ = buf.WriteString("ALTER RETENTION POLICY ")
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.DB)
+	_, _ = buf.WriteString(s.Database)
 
 	if s.Duration != nil {
 		_, _ = buf.WriteString(" DURATION ")
@@ -611,7 +623,7 @@ type Target struct {
 	Measurement string
 
 	// Database to write into.
-	DB string
+	Database string
 }
 
 // String returns a string representation of the Target.
@@ -626,9 +638,9 @@ func (t *Target) String() string {
 
 	_, _ = buf.WriteString(t.Measurement)
 
-	if t.DB != "" {
+	if t.Database != "" {
 		_, _ = buf.WriteString(" ON ")
-		_, _ = buf.WriteString(t.DB)
+		_, _ = buf.WriteString(t.Database)
 	}
 
 	return buf.String()
@@ -714,7 +726,7 @@ type CreateContinuousQueryStatement struct {
 	Name string
 
 	// Name of the database to create the continuous query on.
-	DB string
+	Database string
 
 	// Source of data (SELECT statement).
 	Source *SelectStatement
@@ -722,7 +734,7 @@ type CreateContinuousQueryStatement struct {
 
 // String returns a string representation of the statement.
 func (s *CreateContinuousQueryStatement) String() string {
-	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", s.Name, s.DB, s.Source.String())
+	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", s.Name, s.Database, s.Source.String())
 }
 
 // DropContinuousQueriesStatement represents a command for removing a continuous query.

@@ -221,13 +221,19 @@ CREATE RETENTION POLICY "10m.events" ON somedb DURATION 10m REPLICATION 2 DEFAUL
 ### CREATE USER
 
 ```
-create_user_stmt = "CREATE USER" user_name "WITH PASSWORD" password .
+create_user_stmt = "CREATE USER" user_name "WITH PASSWORD" password
+                   [ "WITH ALL PRIVILEGES" ] .
 ```
 
-#### Example:
+#### Examples:
 
 ```sql
+-- Create a normal database user.
 CREATE USER jdoe WITH PASSWORD "1337password";
+
+-- Create a cluster admin.
+-- Note: Unlike the GRANT statement, the "PRIVILEGES" keyword is required here.
+CREATE USER jdoe WITH PASSWORD "1337password" WITH ALL PRIVILEGES;
 ```
 
 ### DELETE
@@ -239,7 +245,7 @@ delete_stmt  = "DELETE" from_clause where_clause .
 #### Example:
 
 ```sql
-DELETE FROM 
+DELETE FROM cpu WHERE region = 'uswest'
 ```
 
 ### GRANT
@@ -258,12 +264,12 @@ GRANT ALL TO jdoe;
 GRANT READ ON mydb TO jdoe;
 ```
 
-## Clauses (sadly, we haven't implemented `SANTA` yet)
+## Clauses
 
 ```
 from_clause  = "FROM" measurements .
 
-where_clause = "WHERE" 
+where_clause = "WHERE" expr .
 
 on_clause    = db_name .
 
@@ -273,6 +279,8 @@ to_clause    = user_name .
 ## Other
 
 ```
+expr =
+
 measurements =
 
 user_name        = identifier .

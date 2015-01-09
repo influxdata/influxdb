@@ -192,7 +192,7 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	if err != nil {
 		return nil, err
 	}
-	stmt.DB = ident
+	stmt.Database = ident
 
 	// Parse required DURATION token.
 	tok, pos, lit := p.scanIgnoreWhitespace()
@@ -251,7 +251,7 @@ func (p *Parser) parseAlterRetentionPolicyStatement() (*AlterRetentionPolicyStat
 	if err != nil {
 		return nil, err
 	}
-	stmt.DB = ident
+	stmt.Database = ident
 
 	// Loop through option tokens (DURATION, REPLICATION, DEFAULT, etc.).
 	maxNumOptions := 3
@@ -555,7 +555,7 @@ func (p *Parser) parseTarget(tr targetRequirement) (*Target, error) {
 	if ident, err = p.parseIdentifier(); err != nil {
 		return nil, err
 	}
-	target.DB = ident
+	target.Database = ident
 
 	return target, nil
 }
@@ -860,7 +860,7 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	if ident, err = p.parseIdentifier(); err != nil {
 		return nil, err
 	}
-	stmt.DB = ident
+	stmt.Database = ident
 
 	// Expect a "BEGIN SELECT" tokens.
 	if err := p.parseTokens([]Token{BEGIN, SELECT}); err != nil {
@@ -918,11 +918,11 @@ func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
 	stmt := &CreateUserStatement{}
 
 	// Parse name of the user to be created.
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != IDENT && tok != STRING {
-		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	ident, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
 	}
-	stmt.Name = lit
+	stmt.Name = ident
 
 	// Consume "WITH PASSWORD" tokens
 	if err := p.parseTokens([]Token{WITH, PASSWORD}); err != nil {
@@ -930,11 +930,23 @@ func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
 	}
 
 	// Parse new user's password
-	tok, pos, lit = p.scanIgnoreWhitespace()
-	if tok != IDENT && tok != STRING {
-		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string"}, pos)
+	if ident, err = p.parseIdentifier(); err != nil {
+		return nil, err
 	}
-	stmt.Password = lit
+	stmt.Password = ident
+
+	// Check for option WITH clause.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok != WITH {
+		p.unscan()
+		return stmt, nil
+	}
+
+	// We only allow granting of "ALL PRIVILEGES" during CREATE USER.
+	// All other privileges must be granted using a GRANT statement.
+	if err := p.parseTokens([]Token{ALL, PRIVILEGES}); err != nil {
+		return nil, err
+	}
+	stmt.Privilege = NewPrivilege(AllPrivileges)
 
 	return stmt, nil
 }

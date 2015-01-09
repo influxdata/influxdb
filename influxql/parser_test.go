@@ -287,8 +287,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO measure1 FROM myseries END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
-				Name: "myquery",
-				DB:   "testdb",
+				Name:     "myquery",
+				Database: "testdb",
 				Source: &influxql.SelectStatement{
 					Fields: influxql.Fields{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{Measurement: "measure1"},
@@ -301,8 +301,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1"."cpu.load" FROM myseries END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
-				Name: "myquery",
-				DB:   "testdb",
+				Name:     "myquery",
+				Database: "testdb",
 				Source: &influxql.SelectStatement{
 					Fields: influxql.Fields{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{
@@ -328,6 +328,16 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateUserStatement{
 				Name:     "testuser",
 				Password: "pwd1337",
+			},
+		},
+
+		// CREATE USER ... WITH ALL PRIVILEGES
+		{
+			s: `CREATE USER testuser WITH PASSWORD pwd1337 WITH ALL PRIVILEGES`,
+			stmt: &influxql.CreateUserStatement{
+				Name:     "testuser",
+				Password: "pwd1337",
+				Privilege: influxql.NewPrivilege(influxql.AllPrivileges),
 			},
 		},
 
@@ -452,7 +462,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 2`,
 			stmt: &influxql.CreateRetentionPolicyStatement{
 				Name:        "policy1",
-				DB:          "testdb",
+				Database:    "testdb",
 				Duration:    time.Hour,
 				Replication: 2,
 			},
@@ -463,7 +473,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 2m REPLICATION 4 DEFAULT`,
 			stmt: &influxql.CreateRetentionPolicyStatement{
 				Name:        "policy1",
-				DB:          "testdb",
+				Database:    "testdb",
 				Duration:    2 * time.Minute,
 				Replication: 4,
 				Default:     true,
@@ -530,6 +540,10 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
 		{s: `DROP USER`, err: `found EOF, expected identifier at line 1, char 11`},
 		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
+		{s: `CREATE USER testuser WITH`, err: `found EOF, expected PASSWORD at line 1, char 27`},
+		{s: `CREATE USER testuser WITH PASSWORD`, err: `found EOF, expected identifier at line 1, char 36`},
+		{s: `CREATE USER testuser WITH PASSWORD "pwd" WITH`, err: `found EOF, expected ALL at line 1, char 47`},
+		{s: `CREATE USER testuser WITH PASSWORD "pwd" WITH ALL`, err: `found EOF, expected PRIVILEGES at line 1, char 51`},
 		{s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT READ`, err: `found EOF, expected ON at line 1, char 12`},
@@ -861,9 +875,9 @@ func errstring(err error) string {
 // newAlterRetentionPolicyStatement creates an initialized AlterRetentionPolicyStatement.
 func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, replication int, dfault bool) *influxql.AlterRetentionPolicyStatement {
 	stmt := &influxql.AlterRetentionPolicyStatement{
-		Name:    name,
-		DB:      DB,
-		Default: dfault,
+		Name:     name,
+		Database: DB,
+		Default:  dfault,
 	}
 
 	if d > -1 {
