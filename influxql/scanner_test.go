@@ -106,6 +106,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `CREATE`, tok: influxql.CREATE},
 		{s: `CONTINUOUS`, tok: influxql.CONTINUOUS},
 		{s: `DATABASE`, tok: influxql.DATABASE},
+		{s: `DATABASES`, tok: influxql.DATABASES},
 		{s: `DEFAULT`, tok: influxql.DEFAULT},
 		{s: `DELETE`, tok: influxql.DELETE},
 		{s: `DESC`, tok: influxql.DESC},

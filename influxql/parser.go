@@ -93,6 +93,8 @@ func (p *Parser) parseListStatement() (Statement, error) {
 		return p.parseListSeriesStatement()
 	} else if tok == CONTINUOUS {
 		return p.parseListContinuousQueriesStatement()
+	} else if tok == DATABASES {
+		return p.parseListDatabasesStatement()
 	} else if tok == MEASUREMENTS {
 		return p.parseListMeasurementsStatement()
 	} else if tok == TAG {
@@ -825,6 +827,13 @@ func (p *Parser) parseListContinuousQueriesStatement() (*ListContinuousQueriesSt
 	return stmt, nil
 }
 
+// parseListDatabasesStatement parses a string and returns a ListDatabasesStatement.
+// This function assumes the "LIST DATABASE" tokens have already been consumed.
+func (p *Parser) parseListDatabasesStatement() (*ListDatabasesStatement, error) {
+	stmt := &ListDatabasesStatement{}
+	return stmt, nil
+}
+
 // parseCreateContinuousQueriesStatement parses a string and returns a CreateContinuousQueryStatement.
 // This function assumes the "CREATE CONTINUOUS" tokens have already been consumed.
 func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQueryStatement, error) {
@@ -869,8 +878,6 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != END {
 		return nil, newParseError(tokstr(tok, lit), []string{"END"}, pos)
 	}
-
-	fmt.Println(stmt.String())
 
 	return stmt, nil
 }

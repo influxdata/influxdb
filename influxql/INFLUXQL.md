@@ -103,7 +103,7 @@ A query is composed of one or more statements separated by a semicolon.
 query               = statement { ; statement } .
 
 statement           = alter_retention_policy_stmt |
-					  create_continuous_query_stmt |
+					            create_continuous_query_stmt |
                       create_database_stmt |
                       create_retention_policy_stmt |
                       create_user_stmt |
@@ -114,6 +114,7 @@ statement           = alter_retention_policy_stmt |
                       drop_user_stmt |
                       grant_stmt |
                       list_continuous_queries_stmt |
+                      list_databases_stmt |
                       list_field_key_stmt |
                       list_field_value_stmt |
                       list_measurements_stmt |

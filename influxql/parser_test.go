@@ -147,6 +147,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// LIST DATABASES
+		{
+			s:    `LIST DATABASES`,
+			stmt: &influxql.ListDatabasesStatement{},
+		},
+
 		// LIST SERIES statement
 		{
 			s:    `LIST SERIES`,

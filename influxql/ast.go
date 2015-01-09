@@ -59,6 +59,7 @@ func (_ *DropSeriesStatement) node()            {}
 func (_ *DropUserStatement) node()              {}
 func (_ *GrantStatement) node()                 {}
 func (_ *ListContinuousQueriesStatement) node() {}
+func (_ *ListDatabasesStatement) node()         {}
 func (_ *ListFieldKeysStatement) node()         {}
 func (_ *ListFieldValuesStatement) node()       {}
 func (_ *ListMeasurementsStatement) node()      {}
@@ -128,6 +129,7 @@ func (_ *DropSeriesStatement) stmt()            {}
 func (_ *DropUserStatement) stmt()              {}
 func (_ *GrantStatement) stmt()                 {}
 func (_ *ListContinuousQueriesStatement) stmt() {}
+func (_ *ListDatabasesStatement) stmt()         {}
 func (_ *ListFieldKeysStatement) stmt()         {}
 func (_ *ListFieldValuesStatement) stmt()       {}
 func (_ *ListMeasurementsStatement) stmt()      {}
@@ -699,6 +701,12 @@ type ListContinuousQueriesStatement struct{}
 
 // String returns a string representation of the list continuous queries statement.
 func (s *ListContinuousQueriesStatement) String() string { return "LIST CONTINUOUS QUERIES" }
+
+// ListDatabasesStatement represents a command for listing all databases in the cluster.
+type ListDatabasesStatement struct{}
+
+// String returns a string representation of the list databases command.
+func (s *ListDatabasesStatement) String() string { return "LIST DATABASES" }
 
 // CreateContinuousQueriesStatement represents a command for creating a continuous query.
 type CreateContinuousQueryStatement struct {

@@ -60,6 +60,7 @@ const (
 	CREATE
 	CONTINUOUS
 	DATABASE
+	DATABASES
 	DEFAULT
 	DELETE
 	DESC
@@ -146,6 +147,7 @@ var tokens = [...]string{
 	CREATE:       "CREATE",
 	CONTINUOUS:   "CONTINUOUS",
 	DATABASE:     "DATABASE",
+	DATABASES:    "DATABASES",
 	DEFAULT:      "DEFAULT",
 	DELETE:       "DELETE",
 	DESC:         "DESC",
