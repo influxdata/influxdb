@@ -221,8 +221,6 @@ CREATE RETENTION POLICY "10m.events" ON somedb DURATION 10m REPLICATION 2 DEFAUL
 
 ```
 create_user_stmt = "CREATE USER" user_name "WITH PASSWORD" password .
-user_name        = identifier
-password         = identifier
 ```
 
 #### Example:
@@ -243,16 +241,42 @@ delete_stmt  = "DELETE" from_clause where_clause .
 DELETE FROM 
 ```
 
+### GRANT
+
+```
+grant_stmt = "GRANT" privilege [ on_clause ] to_clause
+```
+
+#### Examples:
+
+```sql
+-- grant cluster admin privileges
+GRANT ALL TO jdoe;
+
+-- grant read access to a database
+GRANT READ ON mydb TO jdoe;
+```
+
 ## Clauses (sadly, we haven't implemented `SANTA` yet)
 
 ```
 from_clause  = "FROM" measurements .
 
 where_clause = "WHERE" 
+
+on_clause    = db_name .
+
+to_clause    = user_name .
 ```
 
 ## Other
 
 ```
 measurements =
+
+user_name        = identifier .
+
+password         = identifier .
+
+privilege        = "ALL" [ "PRIVILEGES" ] | "READ" | "WRITE" .
 ```
