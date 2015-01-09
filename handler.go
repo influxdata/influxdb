@@ -136,21 +136,56 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 	p := influxql.NewParser(strings.NewReader(q.Get("q")))
 
 	// Parse query from query string.
-	stmts, err := p.ParseQuery()
+	query, err := p.ParseQuery()
 	if err != nil {
 		h.error(w, "error parsing query: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	for _, s := range stmts {
-		switch s.Type {
-		case influxql.CreateDatabaseStatement:
-			err = h.server.CreateDatabase(s.Name)
-		case influxql.DropDatabaseStatement:
-			err = h.server.DeleteDatabase(s.name)
-		case influxql.CreateUserStatement:
-			err = h.server.CreateUser(s.Name, s.Password, s.Admin)
+	// Bootstrapping a secured cluster involves a non-standard authentication policy.
+	// Until an admin-level user exists on the cluster only one operation is
+	// permitted -- the creation of the first user. This user is also automatically
+	// granted admin-level access.
+	if h.AuthenticationEnabled && !h.server.AdminUserExists() {
+		if len(query.Statements) != 1 {
+			_, ok := query.Statements[0].(*influxql.CreateUserStatement)
+			if !ok {
+				h.error(w, "initial admin user does not exist", http.StatusUnauthorized)
+				return
+			}
 		}
+	}
+
+	for _, s := range query.Statements {
+		switch c := s.(type) {
+		case *influxql.CreateDatabaseStatement:
+			err = h.server.CreateDatabase(c.Name)
+		case *influxql.DropDatabaseStatement:
+			err = h.server.DeleteDatabase(c.Name)
+
+		case *influxql.CreateUserStatement:
+			err = h.server.CreateUser(c.Name, c.Password, !h.server.AdminUserExists()) // XXX This is obviously broken.
+		case *influxql.DropUserStatement:
+			err = h.server.DeleteUser(c.Name)
+
+		case *influxql.GrantStatement:
+			continue
+		case *influxql.RevokeStatement:
+			continue
+
+		case *influxql.CreateRetentionPolicyStatement:
+			continue
+		case *influxql.AlterRetentionPolicyStatement:
+			continue
+
+		case *influxql.CreateContinuousQueryStatement:
+			continue
+		case *influxql.DropContinuousQueryStatement:
+			continue
+		case *influxql.ListContinuousQueriesStatement:
+			continue
+		}
+
 		if err != nil {
 			h.error(w, "error executing query: "+err.Error(), http.StatusBadRequest)
 		}
