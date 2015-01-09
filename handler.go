@@ -108,8 +108,8 @@ func NewHandler(s *Server) *Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	w.Header().Add("Access-Control-Max-Age", "2592000")
-	w.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
-	w.Header().Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+	w.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
 	w.Header().Add("X-Influxdb-Version", h.Version)
 
 	// If this is a CORS OPTIONS request then send back okie-dokie.
