@@ -9,28 +9,89 @@ import (
 	"github.com/kimor79/gollectd"
 )
 
-/*
-This is a sample of what data can be represented like in json
-[
-   {
-     "values": [197141504, 175136768],
-     "dstypes": ["counter", "counter"],
-     "dsnames": ["read", "write"],
-     "time": 1251533299,
-     "interval": 10,
-     "host": "leeloo.lan.home.verplant.org",
-     "plugin": "disk",
-     "plugin_instance": "sda",
-     "type": "disk_octets",
-     "type_instance": ""
-   },
-   …
- ]
+type testServer string
 
+func (testServer) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
+	return nil
+}
 
-*/
+func TestServer_ListenAndServe_ErrBindAddressRequired(t *testing.T) {
+	var (
+		ts  testServer
+		s   = collectd.NewServer(ts, "foo")
+		err = collectd.ErrBindAddressRequired
+	)
+
+	e := s.ListenAndServe("")
+	if e != err {
+		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	}
+}
+
+func TestServer_ListenAndServe_ErrDatabaseNotSpecified(t *testing.T) {
+	var (
+		ts  testServer
+		s   = collectd.NewServer(ts, "foo")
+		err = collectd.ErrDatabaseNotSpecified
+	)
+
+	e := s.ListenAndServe("127.0.0.1:25826")
+	if e != err {
+		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	}
+}
+
+func TestServer_ListenAndServe_ErrCouldNotParseTypesDBFile(t *testing.T) {
+	var (
+		ts  testServer
+		s   = collectd.NewServer(ts, "foo")
+		err = collectd.ErrCouldNotParseTypesDBFile
+	)
+
+	s.Database = "foo"
+	e := s.ListenAndServe("127.0.0.1:25829")
+	if e != err {
+		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	}
+}
+
+func TestServer_ListenAndServe_Success(t *testing.T) {
+	var (
+		ts testServer
+		// You can typically find this on your mac here: "/usr/local/Cellar/collectd/5.4.1/share/collectd/types.db"
+		//s   = collectd.NewServer(ts, "/usr/local/Cellar/collectd/5.4.1/share/collectd/types.db")
+		s   = collectd.NewServer(ts, "./collectd_test.conf")
+		err error
+	)
+
+	s.Database = "counter"
+	e := s.ListenAndServe("127.0.0.1:25830")
+	defer s.Close()
+	if e != err {
+		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	}
+}
 
 func Test_Unmarshal_Metrics(t *testing.T) {
+	/*
+	   This is a sample of what data can be represented like in json
+	   [
+	      {
+	        "values": [197141504, 175136768],
+	        "dstypes": ["counter", "counter"],
+	        "dsnames": ["read", "write"],
+	        "time": 1251533299,
+	        "interval": 10,
+	        "host": "leeloo.lan.home.verplant.org",
+	        "plugin": "disk",
+	        "plugin_instance": "sda",
+	        "type": "disk_octets",
+	        "type_instance": ""
+	      },
+	      …
+	    ]
+	*/
+
 	var tests = []struct {
 		name    string
 		packet  gollectd.Packet
@@ -120,6 +181,10 @@ func Test_Unmarshal_Metrics(t *testing.T) {
 }
 
 func Test_Unmarshal_Time(t *testing.T) {
+	// Its important to remember that collectd stores high resolution time
+	// as "near" nanoseconds (2^30) so we have to take that into account
+	// when feeding time into the test.
+	// Since we only store microseconds, we round it off (mostly to make testing easier)
 	testTime := time.Now().UTC().Round(time.Microsecond)
 	var timeHR = func(tm time.Time) uint64 {
 		sec, nsec := tm.Unix(), tm.UnixNano()%1000000000

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/kimor79/gollectd"
@@ -24,6 +25,9 @@ var (
 
 	// ErrCouldNotParseTypesDBFile returned when unable to parse the typesDBfile passed in
 	ErrCouldNotParseTypesDBFile = errors.New("could not parse typesDBFile")
+
+	// ErrServerClosed return when closing an already closed graphite server.
+	ErrServerClosed = errors.New("server already closed")
 )
 
 // SeriesWriter defines the interface for the destination of the data.
@@ -32,6 +36,11 @@ type SeriesWriter interface {
 }
 
 type Server struct {
+	mu   sync.Mutex
+	wg   sync.WaitGroup
+	done chan struct{} // close notification
+	conn *net.UDPConn
+
 	writer      SeriesWriter
 	Database    string
 	typesdb     gollectd.Types
@@ -49,10 +58,19 @@ func NewServer(w SeriesWriter, typesDBPath string) *Server {
 }
 
 func (s *Server) ListenAndServe(iface string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if iface == "" { // Make sure we have an address
 		return ErrBindAddressRequired
 	} else if s.Database == "" { // Make sure they have a database
 		return ErrDatabaseNotSpecified
+	}
+
+	var err error
+	s.typesdb, err = gollectd.TypesDBFile(s.typesdbpath)
+	if err != nil {
+		return ErrCouldNotParseTypesDBFile
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", iface)
@@ -64,18 +82,21 @@ func (s *Server) ListenAndServe(iface string) error {
 	if err != nil {
 		return err
 	}
+	s.conn = conn
 
-	s.typesdb, err = gollectd.TypesDBFile(s.typesdbpath)
-	if err != nil {
-		return ErrCouldNotParseTypesDBFile
-	}
+	// Create a new close notification channel.
+	done := make(chan struct{}, 0)
+	s.done = done
 
-	defer conn.Close()
-	s.HandleSocket(conn)
+	s.wg.Add(1)
+	go s.serve(conn)
+
 	return nil
 }
 
-func (s *Server) HandleSocket(socket *net.UDPConn) {
+func (s *Server) serve(conn *net.UDPConn) {
+	defer s.wg.Done()
+
 	// From https://collectd.org/wiki/index.php/Binary_protocol
 	//   1024 bytes (payload only, not including UDP / IP headers)
 	//   In versions 4.0 through 4.7, the receive buffer has a fixed size
@@ -87,33 +108,67 @@ func (s *Server) HandleSocket(socket *net.UDPConn) {
 	buffer := make([]byte, 1452)
 
 	for {
-		n, _, err := socket.ReadFromUDP(buffer)
-		if err != nil || n == 0 {
-			log.Printf("Collectd ReadFromUDP error: %s", err)
-			continue
+		select {
+		case <-s.done:
+			s.mu.Lock()
+			s.conn.Close()
+			s.mu.Unlock()
+			return
+		default:
+			n, _, err := conn.ReadFromUDP(buffer)
+			if err != nil || n == 0 {
+				log.Printf("Collectd ReadFromUDP error: %s", err)
+				return
+			}
+
+			// Read in data in a separate goroutine.
+			s.wg.Add(1)
+			go s.handleMessage(buffer[:n])
 		}
+	}
+}
 
-		packets, err := gollectd.Packets(buffer[:n], s.typesdb)
-		if err != nil {
-			log.Printf("Collectd parse error: %s", err)
-			continue
-		}
+func (s *Server) handleMessage(buffer []byte) {
+	defer s.wg.Done()
 
-		for _, packet := range *packets {
-			metrics := Unmarshal(&packet)
-			for _, m := range metrics {
-				// Convert metric to a field value.
-				var values = make(map[string]interface{})
-				values[m.Name] = m.Value
+	packets, err := gollectd.Packets(buffer, s.typesdb)
+	if err != nil {
+		log.Printf("Collectd parse error: %s", err)
+		return
+	}
 
-				err := s.writer.WriteSeries(s.Database, "", m.Name, m.Tags, m.Timestamp, values)
-				if err != nil {
-					log.Printf("Collectd cannot write data: %s", err)
-					continue
-				}
+	for _, packet := range *packets {
+		metrics := Unmarshal(&packet)
+		for _, m := range metrics {
+			// Convert metric to a field value.
+			var values = make(map[string]interface{})
+			values[m.Name] = m.Value
+
+			err := s.writer.WriteSeries(s.Database, "", m.Name, m.Tags, m.Timestamp, values)
+			if err != nil {
+				log.Printf("Collectd cannot write data: %s", err)
+				continue
 			}
 		}
 	}
+}
+
+// Close shuts down the server's listeners.
+func (s *Server) Close() error {
+	// Notify other goroutines of shutdown.
+	s.mu.Lock()
+	if s.done == nil {
+		s.mu.Unlock()
+		return ErrServerClosed
+	}
+
+	s.mu.Unlock()
+	close(s.done)
+
+	// Wait for all goroutines to shutdown.
+	s.wg.Wait()
+
+	return nil
 }
 
 // TODO corylanou: This needs to be made a public `main.Point` so we can share this across packages.
