@@ -47,48 +47,48 @@ type Node interface {
 func (_ *Query) node()     {}
 func (_ Statements) node() {}
 
-func (_ *SelectStatement) node()                {}
-func (_ *DeleteStatement) node()                {}
-func (_ *ListSeriesStatement) node()            {}
-func (_ *ListMeasurementsStatement) node()      {}
-func (_ *ListTagKeysStatement) node()           {}
-func (_ *ListTagValuesStatement) node()         {}
-func (_ *ListFieldKeysStatement) node()         {}
-func (_ *ListFieldValuesStatement) node()       {}
-func (_ *ListContinuousQueriesStatement) node() {}
-func (_ *DropSeriesStatement) node()            {}
-func (_ *DropContinuousQueryStatement) node()   {}
-func (_ *DropDatabaseStatement) node()          {}
-func (_ *DropUserStatement) node()              {}
+func (_ *AlterRetentionPolicyStatement) node()  {}
 func (_ *CreateContinuousQueryStatement) node() {}
 func (_ *CreateDatabaseStatement) node()        {}
-func (_ *CreateUserStatement) node()            {}
 func (_ *CreateRetentionPolicyStatement) node() {}
+func (_ *CreateUserStatement) node()            {}
+func (_ *DeleteStatement) node()                {}
+func (_ *DropContinuousQueryStatement) node()   {}
+func (_ *DropDatabaseStatement) node()          {}
+func (_ *DropSeriesStatement) node()            {}
+func (_ *DropUserStatement) node()              {}
 func (_ *GrantStatement) node()                 {}
+func (_ *ListContinuousQueriesStatement) node() {}
+func (_ *ListFieldKeysStatement) node()         {}
+func (_ *ListFieldValuesStatement) node()       {}
+func (_ *ListMeasurementsStatement) node()      {}
+func (_ *ListSeriesStatement) node()            {}
+func (_ *ListTagKeysStatement) node()           {}
+func (_ *ListTagValuesStatement) node()         {}
 func (_ *RevokeStatement) node()                {}
-func (_ *AlterRetentionPolicyStatement) node()  {}
+func (_ *SelectStatement) node()                {}
 
-func (_ Fields) node()           {}
-func (_ *Field) node()           {}
-func (_ Dimensions) node()       {}
+func (_ *BinaryExpr) node()      {}
+func (_ *BooleanLiteral) node()  {}
+func (_ *Call) node()            {}
 func (_ *Dimension) node()       {}
+func (_ Dimensions) node()       {}
+func (_ *DurationLiteral) node() {}
+func (_ *Field) node()           {}
+func (_ Fields) node()           {}
+func (_ *Join) node()            {}
 func (_ *Measurement) node()     {}
 func (_ Measurements) node()     {}
-func (_ *Join) node()            {}
 func (_ *Merge) node()           {}
-func (_ *VarRef) node()          {}
-func (_ *Call) node()            {}
 func (_ *NumberLiteral) node()   {}
-func (_ *StringLiteral) node()   {}
-func (_ *BooleanLiteral) node()  {}
-func (_ *TimeLiteral) node()     {}
-func (_ *DurationLiteral) node() {}
-func (_ *BinaryExpr) node()      {}
 func (_ *ParenExpr) node()       {}
-func (_ *Wildcard) node()        {}
-func (_ SortFields) node()       {}
 func (_ *SortField) node()       {}
+func (_ SortFields) node()       {}
+func (_ *StringLiteral) node()   {}
 func (_ *Target) node()          {}
+func (_ *TimeLiteral) node()     {}
+func (_ *VarRef) node()          {}
+func (_ *Wildcard) node()        {}
 
 // Query represents a collection of ordered statements.
 type Query struct {
@@ -116,26 +116,26 @@ type Statement interface {
 	stmt()
 }
 
-func (_ *SelectStatement) stmt()                {}
-func (_ *DeleteStatement) stmt()                {}
-func (_ *ListSeriesStatement) stmt()            {}
-func (_ *DropSeriesStatement) stmt()            {}
-func (_ *ListContinuousQueriesStatement) stmt() {}
+func (_ *AlterRetentionPolicyStatement) stmt()  {}
 func (_ *CreateContinuousQueryStatement) stmt() {}
+func (_ *CreateDatabaseStatement) stmt()        {}
+func (_ *CreateRetentionPolicyStatement) stmt() {}
+func (_ *CreateUserStatement) stmt()            {}
+func (_ *DeleteStatement) stmt()                {}
 func (_ *DropContinuousQueryStatement) stmt()   {}
-func (_ *ListMeasurementsStatement) stmt()      {}
-func (_ *ListTagKeysStatement) stmt()           {}
-func (_ *ListTagValuesStatement) stmt()         {}
+func (_ *DropDatabaseStatement) stmt()          {}
+func (_ *DropSeriesStatement) stmt()            {}
+func (_ *DropUserStatement) stmt()              {}
+func (_ *GrantStatement) stmt()                 {}
+func (_ *ListContinuousQueriesStatement) stmt() {}
 func (_ *ListFieldKeysStatement) stmt()         {}
 func (_ *ListFieldValuesStatement) stmt()       {}
-func (_ *CreateDatabaseStatement) stmt()        {}
-func (_ *CreateUserStatement) stmt()            {}
-func (_ *GrantStatement) stmt()                 {}
+func (_ *ListMeasurementsStatement) stmt()      {}
+func (_ *ListSeriesStatement) stmt()            {}
+func (_ *ListTagKeysStatement) stmt()           {}
+func (_ *ListTagValuesStatement) stmt()         {}
 func (_ *RevokeStatement) stmt()                {}
-func (_ *CreateRetentionPolicyStatement) stmt() {}
-func (_ *DropDatabaseStatement) stmt()          {}
-func (_ *DropUserStatement) stmt()              {}
-func (_ *AlterRetentionPolicyStatement) stmt()  {}
+func (_ *SelectStatement) stmt()                {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -143,15 +143,15 @@ type Expr interface {
 	expr()
 }
 
-func (_ *VarRef) expr()          {}
-func (_ *Call) expr()            {}
-func (_ *NumberLiteral) expr()   {}
-func (_ *StringLiteral) expr()   {}
-func (_ *BooleanLiteral) expr()  {}
-func (_ *TimeLiteral) expr()     {}
-func (_ *DurationLiteral) expr() {}
 func (_ *BinaryExpr) expr()      {}
+func (_ *BooleanLiteral) expr()  {}
+func (_ *Call) expr()            {}
+func (_ *DurationLiteral) expr() {}
+func (_ *NumberLiteral) expr()   {}
 func (_ *ParenExpr) expr()       {}
+func (_ *StringLiteral) expr()   {}
+func (_ *TimeLiteral) expr()     {}
+func (_ *VarRef) expr()          {}
 func (_ *Wildcard) expr()        {}
 
 // Source represents a source of data for a statement.
@@ -160,8 +160,8 @@ type Source interface {
 	source()
 }
 
-func (_ *Measurement) source() {}
 func (_ *Join) source()        {}
+func (_ *Measurement) source() {}
 func (_ *Merge) source()       {}
 
 // SortField represens a field to sort results by.
