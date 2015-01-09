@@ -251,7 +251,7 @@ func (p *Parser) parseAlterRetentionPolicyStatement() (*AlterRetentionPolicyStat
 	}
 	stmt.DB = ident
 
-	// Loop through option tokens (DURATION, RETENTION, DEFAULT, etc.).
+	// Loop through option tokens (DURATION, REPLICATION, DEFAULT, etc.).
 	maxNumOptions := 3
 Loop:
 	for i := 0; i < maxNumOptions; i++ {
