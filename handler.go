@@ -191,8 +191,13 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			continue
 
 		case *influxql.CreateRetentionPolicyStatement:
-			continue
+			rp := NewRetentionPolicy(c.Name)
+			rp.Duration = c.Duration
+			rp.ReplicaN = c.Replication
+			err = h.server.CreateRetentionPolicy(c.Database, rp)
 		case *influxql.AlterRetentionPolicyStatement:
+			rp := NewRetentionPolicy(c.Name) // Not going to work.
+			err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp)
 			continue
 
 		case *influxql.CreateContinuousQueryStatement:
