@@ -42,7 +42,14 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return EOF, pos, ""
 	case '"', '\'':
 		return s.scanString()
-	case '.', '+', '-':
+	case '.':
+		ch1, _ := s.r.read()
+		s.r.unread()
+		if isDigit(ch1) {
+			return s.scanNumber()
+		}
+		return DOT, pos, ""
+	case '+', '-':
 		return s.scanNumber()
 	case '*':
 		return MUL, pos, ""
@@ -233,7 +240,6 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 		}
 		s.r.unread()
 	}
-
 	return NUMBER, pos, buf.String()
 }
 

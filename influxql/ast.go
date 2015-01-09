@@ -47,47 +47,49 @@ type Node interface {
 func (_ *Query) node()     {}
 func (_ Statements) node() {}
 
-func (_ *SelectStatement) node()                {}
-func (_ *DeleteStatement) node()                {}
-func (_ *ListSeriesStatement) node()            {}
-func (_ *ListMeasurementsStatement) node()      {}
-func (_ *ListTagKeysStatement) node()           {}
-func (_ *ListTagValuesStatement) node()         {}
-func (_ *ListFieldKeysStatement) node()         {}
-func (_ *ListFieldValuesStatement) node()       {}
-func (_ *ListContinuousQueriesStatement) node() {}
-func (_ *DropSeriesStatement) node()            {}
-func (_ *DropContinuousQueryStatement) node()   {}
-func (_ *DropDatabaseStatement) node()          {}
-func (_ *DropUserStatement) node()              {}
+func (_ *AlterRetentionPolicyStatement) node()  {}
 func (_ *CreateContinuousQueryStatement) node() {}
 func (_ *CreateDatabaseStatement) node()        {}
-func (_ *CreateUserStatement) node()            {}
 func (_ *CreateRetentionPolicyStatement) node() {}
+func (_ *CreateUserStatement) node()            {}
+func (_ *DeleteStatement) node()                {}
+func (_ *DropContinuousQueryStatement) node()   {}
+func (_ *DropDatabaseStatement) node()          {}
+func (_ *DropSeriesStatement) node()            {}
+func (_ *DropUserStatement) node()              {}
 func (_ *GrantStatement) node()                 {}
+func (_ *ListContinuousQueriesStatement) node() {}
+func (_ *ListDatabasesStatement) node()         {}
+func (_ *ListFieldKeysStatement) node()         {}
+func (_ *ListFieldValuesStatement) node()       {}
+func (_ *ListMeasurementsStatement) node()      {}
+func (_ *ListSeriesStatement) node()            {}
+func (_ *ListTagKeysStatement) node()           {}
+func (_ *ListTagValuesStatement) node()         {}
 func (_ *RevokeStatement) node()                {}
-func (_ *AlterRetentionPolicyStatement) node()  {}
+func (_ *SelectStatement) node()                {}
 
-func (_ Fields) node()           {}
-func (_ *Field) node()           {}
-func (_ Dimensions) node()       {}
+func (_ *BinaryExpr) node()      {}
+func (_ *BooleanLiteral) node()  {}
+func (_ *Call) node()            {}
 func (_ *Dimension) node()       {}
+func (_ Dimensions) node()       {}
+func (_ *DurationLiteral) node() {}
+func (_ *Field) node()           {}
+func (_ Fields) node()           {}
+func (_ *Join) node()            {}
 func (_ *Measurement) node()     {}
 func (_ Measurements) node()     {}
-func (_ *Join) node()            {}
 func (_ *Merge) node()           {}
-func (_ *VarRef) node()          {}
-func (_ *Call) node()            {}
 func (_ *NumberLiteral) node()   {}
-func (_ *StringLiteral) node()   {}
-func (_ *BooleanLiteral) node()  {}
-func (_ *TimeLiteral) node()     {}
-func (_ *DurationLiteral) node() {}
-func (_ *BinaryExpr) node()      {}
 func (_ *ParenExpr) node()       {}
-func (_ *Wildcard) node()        {}
-func (_ SortFields) node()       {}
 func (_ *SortField) node()       {}
+func (_ SortFields) node()       {}
+func (_ *StringLiteral) node()   {}
+func (_ *Target) node()          {}
+func (_ *TimeLiteral) node()     {}
+func (_ *VarRef) node()          {}
+func (_ *Wildcard) node()        {}
 
 // Query represents a collection of ordered statements.
 type Query struct {
@@ -115,26 +117,27 @@ type Statement interface {
 	stmt()
 }
 
-func (_ *SelectStatement) stmt()                {}
-func (_ *DeleteStatement) stmt()                {}
-func (_ *ListSeriesStatement) stmt()            {}
-func (_ *DropSeriesStatement) stmt()            {}
-func (_ *ListContinuousQueriesStatement) stmt() {}
+func (_ *AlterRetentionPolicyStatement) stmt()  {}
 func (_ *CreateContinuousQueryStatement) stmt() {}
+func (_ *CreateDatabaseStatement) stmt()        {}
+func (_ *CreateRetentionPolicyStatement) stmt() {}
+func (_ *CreateUserStatement) stmt()            {}
+func (_ *DeleteStatement) stmt()                {}
 func (_ *DropContinuousQueryStatement) stmt()   {}
-func (_ *ListMeasurementsStatement) stmt()      {}
-func (_ *ListTagKeysStatement) stmt()           {}
-func (_ *ListTagValuesStatement) stmt()         {}
+func (_ *DropDatabaseStatement) stmt()          {}
+func (_ *DropSeriesStatement) stmt()            {}
+func (_ *DropUserStatement) stmt()              {}
+func (_ *GrantStatement) stmt()                 {}
+func (_ *ListContinuousQueriesStatement) stmt() {}
+func (_ *ListDatabasesStatement) stmt()         {}
 func (_ *ListFieldKeysStatement) stmt()         {}
 func (_ *ListFieldValuesStatement) stmt()       {}
-func (_ *CreateDatabaseStatement) stmt()        {}
-func (_ *CreateUserStatement) stmt()            {}
-func (_ *GrantStatement) stmt()                 {}
+func (_ *ListMeasurementsStatement) stmt()      {}
+func (_ *ListSeriesStatement) stmt()            {}
+func (_ *ListTagKeysStatement) stmt()           {}
+func (_ *ListTagValuesStatement) stmt()         {}
 func (_ *RevokeStatement) stmt()                {}
-func (_ *CreateRetentionPolicyStatement) stmt() {}
-func (_ *DropDatabaseStatement) stmt()          {}
-func (_ *DropUserStatement) stmt()              {}
-func (_ *AlterRetentionPolicyStatement) stmt()  {}
+func (_ *SelectStatement) stmt()                {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -142,15 +145,15 @@ type Expr interface {
 	expr()
 }
 
-func (_ *VarRef) expr()          {}
-func (_ *Call) expr()            {}
-func (_ *NumberLiteral) expr()   {}
-func (_ *StringLiteral) expr()   {}
-func (_ *BooleanLiteral) expr()  {}
-func (_ *TimeLiteral) expr()     {}
-func (_ *DurationLiteral) expr() {}
 func (_ *BinaryExpr) expr()      {}
+func (_ *BooleanLiteral) expr()  {}
+func (_ *Call) expr()            {}
+func (_ *DurationLiteral) expr() {}
+func (_ *NumberLiteral) expr()   {}
 func (_ *ParenExpr) expr()       {}
+func (_ *StringLiteral) expr()   {}
+func (_ *TimeLiteral) expr()     {}
+func (_ *VarRef) expr()          {}
 func (_ *Wildcard) expr()        {}
 
 // Source represents a source of data for a statement.
@@ -159,8 +162,8 @@ type Source interface {
 	source()
 }
 
-func (_ *Measurement) source() {}
 func (_ *Join) source()        {}
+func (_ *Measurement) source() {}
 func (_ *Merge) source()       {}
 
 // SortField represens a field to sort results by.
@@ -228,6 +231,9 @@ type CreateUserStatement struct {
 
 	// User's password
 	Password string
+
+	// User's privilege level.
+	Privilege *Privilege
 }
 
 // String returns a string representation of the create user statement.
@@ -237,6 +243,12 @@ func (s *CreateUserStatement) String() string {
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" WITH PASSWORD ")
 	_, _ = buf.WriteString(s.Password)
+
+	if s.Privilege != nil {
+		_, _ = buf.WriteString(" WITH ")
+		_, _ = buf.WriteString(s.Privilege.String())
+	}
+
 	return buf.String()
 }
 
@@ -262,6 +274,9 @@ const (
 	WritePrivilege
 	AllPrivileges
 )
+
+// NewPrivilege returns an initialized *Privilege.
+func NewPrivilege(p Privilege) *Privilege { return &p }
 
 // String returns a string representation of a Privilege.
 func (p Privilege) String() string {
@@ -334,7 +349,7 @@ type CreateRetentionPolicyStatement struct {
 	Name string
 
 	// Name of database this policy belongs to.
-	DB string
+	Database string
 
 	// Duration data written to this policy will be retained.
 	Duration time.Duration
@@ -352,7 +367,7 @@ func (s *CreateRetentionPolicyStatement) String() string {
 	_, _ = buf.WriteString("CREATE RETENTION POLICY ")
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.DB)
+	_, _ = buf.WriteString(s.Database)
 	_, _ = buf.WriteString(" DURATION ")
 	_, _ = buf.WriteString(FormatDuration(s.Duration))
 	_, _ = buf.WriteString(" REPLICATION ")
@@ -369,7 +384,7 @@ type AlterRetentionPolicyStatement struct {
 	Name string
 
 	// Name of the database this policy belongs to.
-	DB string
+	Database string
 
 	// Duration data written to this policy will be retained.
 	Duration *time.Duration
@@ -387,7 +402,7 @@ func (s *AlterRetentionPolicyStatement) String() string {
 	_, _ = buf.WriteString("ALTER RETENTION POLICY ")
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.DB)
+	_, _ = buf.WriteString(s.Database)
 
 	if s.Duration != nil {
 		_, _ = buf.WriteString(" DURATION ")
@@ -411,6 +426,9 @@ type SelectStatement struct {
 	// Expressions returned from the selection.
 	Fields Fields
 
+	// Target (destination) for the result of the select.
+	Target *Target
+
 	// Expressions used for grouping the selection.
 	Dimensions Dimensions
 
@@ -433,6 +451,11 @@ func (s *SelectStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SELECT ")
 	_, _ = buf.WriteString(s.Fields.String())
+
+	if s.Target != nil {
+		_, _ = buf.WriteString(" ")
+		_, _ = buf.WriteString(s.Target.String())
+	}
 	_, _ = buf.WriteString(" FROM ")
 	_, _ = buf.WriteString(s.Source.String())
 	if s.Condition != nil {
@@ -591,6 +614,38 @@ func MatchSource(src Source, name string) string {
 	return ""
 }
 
+// Target represents a target (destination) policy, measurment, and DB.
+type Target struct {
+	// Retention policy to write into.
+	RetentionPolicy string
+
+	// Measurement to write into.
+	Measurement string
+
+	// Database to write into.
+	Database string
+}
+
+// String returns a string representation of the Target.
+func (t *Target) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("INTO ")
+
+	if t.RetentionPolicy != "" {
+		_, _ = buf.WriteString(t.RetentionPolicy)
+		_, _ = buf.WriteString(".")
+	}
+
+	_, _ = buf.WriteString(t.Measurement)
+
+	if t.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(t.Database)
+	}
+
+	return buf.String()
+}
+
 // DeleteStatement represents a command for removing data from the database.
 type DeleteStatement struct {
 	// Data source that values are removed from.
@@ -659,16 +714,27 @@ type ListContinuousQueriesStatement struct{}
 // String returns a string representation of the list continuous queries statement.
 func (s *ListContinuousQueriesStatement) String() string { return "LIST CONTINUOUS QUERIES" }
 
+// ListDatabasesStatement represents a command for listing all databases in the cluster.
+type ListDatabasesStatement struct{}
+
+// String returns a string representation of the list databases command.
+func (s *ListDatabasesStatement) String() string { return "LIST DATABASES" }
+
 // CreateContinuousQueriesStatement represents a command for creating a continuous query.
 type CreateContinuousQueryStatement struct {
-	Name   string
+	// Name of the continuous query to be created.
+	Name string
+
+	// Name of the database to create the continuous query on.
+	Database string
+
+	// Source of data (SELECT statement).
 	Source *SelectStatement
-	Target string
 }
 
 // String returns a string representation of the statement.
 func (s *CreateContinuousQueryStatement) String() string {
-	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s AS %s INTO %s", s.Name, s.Source.String(), s.Target)
+	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", s.Name, s.Database, s.Source.String())
 }
 
 // DropContinuousQueriesStatement represents a command for removing a continuous query.
