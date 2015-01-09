@@ -201,7 +201,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			rp.Duration = *c.Duration // Why is this a pointer, and the next?
 			rp.ReplicaN = uint32(*c.Replication)
 			err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp)
-
+			continue
 		case *influxql.CreateContinuousQueryStatement:
 			continue
 		case *influxql.DropContinuousQueryStatement:

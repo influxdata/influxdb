@@ -127,38 +127,6 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 	}
 }
 
-func TestHandler_Shards(t *testing.T) {
-	t.Skip()
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.CreateShardsIfNotExists("foo", "bar", time.Time{})
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/db/foo/shards`, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"id":3,"startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z"}]` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_Shards_DatabaseNotFound(t *testing.T) {
-	t.Skip()
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/db/foo/shards`, "")
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database not found` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
 func TestHandler_RetentionPolicies(t *testing.T) {
 	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
