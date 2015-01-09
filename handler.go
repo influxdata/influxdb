@@ -102,14 +102,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // makeAuthenticationHandler takes a custom handler and returns a standard handler, ensuring that
-// the system's standard authentication policies have been applied before the custom handler is called.
+// if user credentials are passed in, an attempt is made to authenticate that user. If authentication
+// fails, an error is returned to the user.
 //
-// The standard policy is if authentication is disabled, all operations are allowed and no user credentials
-// are required. If authentication is enabled, valid user credentials must be supplied.
+// There is one exception: if there are no users in the system, authentication is not required. This
+// is to facilitate bootstrapping of a system with authentication enabled.
 func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.Request, *User)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var user *User
-		if h.AuthenticationEnabled {
+		if h.AuthenticationEnabled && len(h.server.Users()) > 0 {
 			username, password, err := getUsernameAndPassword(r)
 			if err != nil {
 				h.error(w, err.Error(), http.StatusUnauthorized)
@@ -142,11 +143,11 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		return
 	}
 
-	// Bootstrapping a secured cluster involves a non-standard authentication policy.
-	// Until an admin-level user exists on the cluster only one operation is
-	// permitted -- the creation of the first user. This user is also automatically
-	// granted admin-level access.
-	if h.AuthenticationEnabled && !h.server.AdminUserExists() {
+	// Bootstrapping a secured cluster involves a special authentication policy.
+	// Until an admin-level user exists on the cluster one, and only one operation
+	// is permitted without authentication -- the creation of the first user.
+	// This user is also automatically granted admin-level access.
+	if h.AuthenticationEnabled && len(h.server.Users()) > 0 {
 		if len(query.Statements) != 1 {
 			_, ok := query.Statements[0].(*influxql.CreateUserStatement)
 			if !ok {
