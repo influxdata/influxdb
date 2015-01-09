@@ -168,6 +168,23 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		case *influxql.DropUserStatement:
 			err = h.server.DeleteUser(c.Name)
 
+		case *influxql.SelectStatement:
+			continue
+		case *influxql.DropSeriesStatement:
+			continue
+		case *influxql.ListSeriesStatement:
+			continue
+		case *influxql.ListMeasurementsStatement:
+			continue
+		case *influxql.ListTagKeysStatement:
+			continue
+		case *influxql.ListTagValuesStatement:
+			continue
+		case *influxql.ListFieldKeysStatement:
+			continue
+		case *influxql.ListFieldValuesStatement:
+			continue
+
 		case *influxql.GrantStatement:
 			continue
 		case *influxql.RevokeStatement:
