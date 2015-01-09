@@ -102,6 +102,19 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("graphite udp protocol mismatch: expected %v, got %v", "udp", strings.ToLower(udpGraphite.Protocol))
 	}
 
+	switch {
+	case c.Collectd.Enabled != true:
+		t.Errorf("collectd enabled mismatch: expected: %v, got %v", true, c.Collectd.Enabled)
+	case c.Collectd.Addr != "192.168.0.3":
+		t.Errorf("collectd address mismatch: expected %v, got  %v", "192.168.0.3", c.Collectd.Addr)
+	case c.Collectd.Port != 25827:
+		t.Errorf("collectd port mismatch: expected %v, got %v", 2005, c.Collectd.Port)
+	case c.Collectd.Database != "collectd_database":
+		t.Errorf("collectdabase mismatch: expected %v, got %v", "collectd_database", c.Collectd.Database)
+	case c.Collectd.TypesDB != "foo-db-type":
+		t.Errorf("collectd typesdb mismatch: expected %v, got %v", "foo-db-type", c.Collectd.TypesDB)
+	}
+
 	if c.Broker.Port != 8090 {
 		t.Fatalf("broker port mismatch: %v", c.Broker.Port)
 	} else if c.Broker.Dir != "/tmp/influxdb/development/broker" {
@@ -194,6 +207,14 @@ address = "192.168.0.2"
 port = 2005
 database = "graphite_udp"  # store graphite data in this database
 
+# Configure collectd server
+[collectd]
+enabled = true
+address = "192.168.0.3"
+port = 25827
+database = "collectd_database"
+typesdb = "foo-db-type"
+
 # Raft configuration
 [raft]
 # The raft port should be open between all servers in a cluster.
@@ -274,3 +295,45 @@ lru-cache-size = "200m"
 # they get flushed into backend.
 point-batch-size = 50
 `
+
+func Test_Collectd_ConnectionString(t *testing.T) {
+	var tests = []struct {
+		name             string
+		defaultBindAddr  string
+		connectionString string
+		config           main.Collectd
+	}{
+		{
+			name:             "No address or port provided from config",
+			defaultBindAddr:  "192.168.0.1",
+			connectionString: "192.168.0.1:25826",
+			config:           main.Collectd{},
+		},
+		{
+			name:             "address provide, no port provided from config",
+			defaultBindAddr:  "192.168.0.1",
+			connectionString: "192.168.0.2:25826",
+			config:           main.Collectd{Addr: "192.168.0.2"},
+		},
+		{
+			name:             "no address provides, port provided from config",
+			defaultBindAddr:  "192.168.0.1",
+			connectionString: "192.168.0.1:25827",
+			config:           main.Collectd{Port: 25827},
+		},
+		{
+			name:             "both address and port provided from config",
+			defaultBindAddr:  "192.168.0.1",
+			connectionString: "192.168.0.2:25827",
+			config:           main.Collectd{Addr: "192.168.0.2", Port: 25827},
+		},
+	}
+
+	for _, test := range tests {
+		t.Logf("test: %q", test.name)
+		s := test.config.ConnectionString(test.defaultBindAddr)
+		if s != test.connectionString {
+			t.Errorf("connectection string mistmatch, expected: %q, got: %q", test.connectionString, s)
+		}
+	}
+}
