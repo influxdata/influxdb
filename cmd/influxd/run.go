@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/messaging"
 )
@@ -93,6 +94,16 @@ func execRun(args []string) {
 		}
 		log.Printf("DataNode#%d running on %s", s.ID(), config.ApiHTTPListenAddr())
 
+		// Spin up the collectd server
+		if config.Collectd.Enabled {
+			c := config.Collectd
+			s := collectd.NewServer(s, c.TypesDB)
+			s.Database = c.Database
+			err := s.ListenAndServe(c.ConnectionString(config.BindAddress))
+			if err != nil {
+				log.Println("failed to start collectd Server", err.Error())
+			}
+		}
 		// Spin up any Graphite servers
 		for _, c := range config.Graphites {
 			if !c.Enabled {
@@ -120,7 +131,7 @@ func execRun(args []string) {
 					log.Println("failed to start UDP Graphite Server", err.Error())
 				}
 			} else {
-				log.Fatalf("unrecognized Graphite Server prototcol", c.Protocol)
+				log.Fatalf("unrecognized Graphite Server prototcol %v", c.Protocol)
 			}
 		}
 	}

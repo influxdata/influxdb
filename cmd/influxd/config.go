@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
 )
 
@@ -36,6 +37,14 @@ const (
 
 // Config represents the configuration format for the influxd binary.
 type (
+	Collectd struct {
+		Addr     string `toml:"address"`
+		Database string `toml:"database"`
+		Enabled  bool   `toml:"enabled"`
+		Port     uint16 `toml:"port"`
+		TypesDB  string `toml:"typesdb"`
+	}
+
 	Graphite struct {
 		Addr          string `toml:"address"`
 		Database      string `toml:"database"`
@@ -70,6 +79,7 @@ type (
 		} `toml:"api"`
 
 		Graphites []Graphite `toml:"graphite"`
+		Collectd  Collectd   `toml:"collectd"`
 
 		InputPlugins struct {
 			UDPInput struct {
@@ -263,6 +273,24 @@ func ParseConfig(s string) (*Config, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+// ConnnectionString returns the connection string for this collectd config in the form host:port.
+func (c *Collectd) ConnectionString(defaultBindAddr string) string {
+
+	addr := c.Addr
+	// If no address specified, use default.
+	if addr == "" {
+		addr = defaultBindAddr
+	}
+
+	port := c.Port
+	// If no port specified, use default.
+	if port == 0 {
+		port = collectd.DefaultPort
+	}
+
+	return fmt.Sprintf("%s:%d", addr, port)
 }
 
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
