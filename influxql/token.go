@@ -47,6 +47,7 @@ const (
 	RPAREN    // )
 	COMMA     // ,
 	SEMICOLON // ;
+	DOT       // .
 
 	keyword_beg
 	// Keywords
@@ -54,15 +55,18 @@ const (
 	ALTER
 	AS
 	ASC
+	BEGIN
 	BY
 	CREATE
 	CONTINUOUS
 	DATABASE
+	DATABASES
 	DEFAULT
 	DELETE
 	DESC
 	DROP
 	DURATION
+	END
 	EXISTS
 	EXPLAIN
 	FIELD
@@ -132,20 +136,24 @@ var tokens = [...]string{
 	RPAREN:    ")",
 	COMMA:     ",",
 	SEMICOLON: ";",
+	DOT:       ".",
 
 	ALL:          "ALL",
 	ALTER:        "ALTER",
 	AS:           "AS",
 	ASC:          "ASC",
+	BEGIN:        "BEGIN",
 	BY:           "BY",
 	CREATE:       "CREATE",
 	CONTINUOUS:   "CONTINUOUS",
 	DATABASE:     "DATABASE",
+	DATABASES:    "DATABASES",
 	DEFAULT:      "DEFAULT",
 	DELETE:       "DELETE",
 	DESC:         "DESC",
 	DROP:         "DROP",
 	DURATION:     "DURATION",
+	END:          "END",
 	EXISTS:       "EXISTS",
 	EXPLAIN:      "EXPLAIN",
 	FIELD:        "FIELD",

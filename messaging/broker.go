@@ -355,10 +355,6 @@ type brokerFSM Broker
 func (fsm *brokerFSM) MustApply(e *raft.LogEntry) {
 	b := (*Broker)(fsm)
 
-	// Save highest applied index.
-	// TODO: Persist to disk for raft commands.
-	b.index = e.Index
-
 	// Create a message with the same index as Raft.
 	m := &Message{}
 
@@ -394,6 +390,10 @@ func (fsm *brokerFSM) MustApply(e *raft.LogEntry) {
 	if err := t.encode(m); err != nil {
 		panic("encode: " + err.Error())
 	}
+
+	// Save highest applied index.
+	// TODO: Persist to disk for raft commands.
+	b.index = e.Index
 }
 
 // Index returns the highest index that the broker has seen.
@@ -410,14 +410,14 @@ func (fsm *brokerFSM) Snapshot(w io.Writer) (uint64, error) {
 
 	// Calculate header under lock.
 	b.mu.RLock()
-	s, err := fsm.createSnapshot()
+	hdr, err := fsm.createSnapshotHeader()
 	b.mu.RUnlock()
 	if err != nil {
 		return 0, fmt.Errorf("create snapshot: %s", err)
 	}
 
 	// Encode snapshot header.
-	buf, err := json.Marshal(&s)
+	buf, err := json.Marshal(&hdr)
 	if err != nil {
 		return 0, fmt.Errorf("encode snapshot header: %s", err)
 	}
@@ -431,22 +431,22 @@ func (fsm *brokerFSM) Snapshot(w io.Writer) (uint64, error) {
 	}
 
 	// Stream each topic sequentially.
-	for _, t := range s.Topics {
+	for _, t := range hdr.Topics {
 		if _, err := copyFileN(w, t.path, t.Size); err != nil {
 			return 0, err
 		}
 	}
 
-	// Return the snapshot and its current index.
-	return s.maxIndex(), nil
+	// Return the snapshot and its last applied index.
+	return hdr.maxIndex(), nil
 }
 
-// createSnapshot creates a snapshot header.
-func (fsm *brokerFSM) createSnapshot() (*snapshot, error) {
+// createSnapshotHeader creates a snapshot header.
+func (fsm *brokerFSM) createSnapshotHeader() (*snapshotHeader, error) {
 	b := (*Broker)(fsm)
 
 	// Create parent header.
-	s := &snapshot{}
+	s := &snapshotHeader{}
 
 	// Append topics.
 	for _, t := range b.topics {
@@ -500,7 +500,7 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 	}
 
 	// Decode header.
-	s := &snapshot{}
+	s := &snapshotHeader{}
 	if err := json.Unmarshal(buf, &s); err != nil {
 		return fmt.Errorf("decode header: %s", err)
 	}
@@ -558,14 +558,14 @@ func copyFileN(w io.Writer, path string, n int64) (int64, error) {
 	return io.CopyN(w, f, n)
 }
 
-// snapshot represents the header of a snapshot.
-type snapshot struct {
+// snapshotHeader represents the header of a snapshot.
+type snapshotHeader struct {
 	Replicas []*snapshotReplica `json:"replicas"`
 	Topics   []*snapshotTopic   `json:"topics"`
 }
 
-// maxIndex returns the highest index across all topics.
-func (s *snapshot) maxIndex() uint64 {
+// maxIndex returns the highest applied index across all topics.
+func (s *snapshotHeader) maxIndex() uint64 {
 	var idx uint64
 	for _, t := range s.Topics {
 		if t.Index > idx {

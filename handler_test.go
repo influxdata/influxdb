@@ -537,7 +537,7 @@ func TestHandler_CreateDataNode_InternalServerError(t *testing.T) {
 
 	status, body := MustHTTP("POST", s.URL+`/data_nodes`, `{"url":""}`)
 	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: %d", status, body)
+		t.Fatalf("unexpected status: %d, %s", status, body)
 	} else if body != `data node url required` {
 		t.Fatalf("unexpected body: %s", body)
 	}

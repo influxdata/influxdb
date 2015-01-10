@@ -1211,6 +1211,15 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 		return err
 	}
 
+	// If the retention policy is not set, use the default for this database.
+	if retentionPolicy == "" {
+		rp, err := s.DefaultRetentionPolicy(database)
+		if err != nil {
+			return fmt.Errorf("failed to determine default retention policy: %s", err.Error())
+		}
+		retentionPolicy = rp.Name
+	}
+
 	// Retrieve measurement.
 	m, err := s.measurement(database, name)
 	if err != nil {
