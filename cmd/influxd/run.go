@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -69,6 +70,37 @@ func execRun(args []string) {
 			go func() { log.Fatal(http.ListenAndServe(config.DataAddr(), sh)) }()
 		}
 		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
+
+		// Spin up any Graphite servers
+		for _, c := range config.Graphites {
+			if !c.Enabled {
+				continue
+			}
+
+			// Configure Graphite parsing.
+			parser := graphite.NewParser()
+			parser.Separator = c.NameSeparatorString()
+			parser.LastEnabled = c.LastEnabled()
+
+			// Start the relevant server.
+			if strings.ToLower(c.Protocol) == "tcp" {
+				g := graphite.NewTCPServer(parser, s)
+				g.Database = c.Database
+				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
+				if err != nil {
+					log.Println("failed to start TCP Graphite Server", err.Error())
+				}
+			} else if strings.ToLower(c.Protocol) == "udp" {
+				g := graphite.NewUDPServer(parser, s)
+				g.Database = c.Database
+				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
+				if err != nil {
+					log.Println("failed to start UDP Graphite Server", err.Error())
+				}
+			} else {
+				log.Fatalf("unrecognized Graphite Server prototcol", c.Protocol)
+			}
+		}
 	}
 
 	// Wait indefinitely.
@@ -164,7 +196,7 @@ func openServer(path string, u *url.URL, b *messaging.Broker, initializing bool,
 	// Create and open the server.
 	s := influxdb.NewServer()
 	if err := s.Open(path); err != nil {
-		log.Fatalf("failed to open data server", err.Error())
+		log.Fatalf("failed to open data server: %v", err.Error())
 	}
 
 	// If the server is uninitialized then initialize or join it.
@@ -188,7 +220,7 @@ func initializeServer(s *influxdb.Server, b *messaging.Broker) {
 
 	// Create replica on broker.
 	if err := b.CreateReplica(1); err != nil {
-		log.Fatalf("replica creation error: %d", err)
+		log.Fatalf("replica creation error: %s", err)
 	}
 
 	// Create messaging client.

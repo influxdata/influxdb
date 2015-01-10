@@ -8,9 +8,11 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/influxdb/influxdb/graphite"
 )
 
 const (
@@ -51,13 +53,9 @@ type Config struct {
 		Assets string `toml:"assets"`
 	} `toml:"admin"`
 
+	Graphites []Graphite `toml:"graphite"`
+
 	InputPlugins struct {
-		Graphite struct {
-			Enabled    bool   `toml:"enabled"`
-			Port       int    `toml:"port"`
-			Database   string `toml:"database"`
-			UDPEnabled bool   `toml:"udp_enabled"`
-		} `toml:"graphite"`
 		UDPInput struct {
 			Enabled  bool   `toml:"enabled"`
 			Port     int    `toml:"port"`
@@ -103,6 +101,16 @@ type Config struct {
 		File  string `toml:"file"`
 		Level string `toml:"level"`
 	} `toml:"logging"`
+}
+
+type Graphite struct {
+	Addr          string `toml:"address"`
+	Database      string `toml:"database"`
+	Enabled       bool   `toml:"enabled"`
+	Port          uint16 `toml:"port"`
+	Protocol      string `toml:"protocol"`
+	NamePosition  string `toml:"name-position"`
+	NameSeparator string `toml:"name-separator"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -259,6 +267,38 @@ func ParseConfig(s string) (*Config, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+// ConnnectionString returns the connection string for this Graphite config in the form host:port.
+func (g *Graphite) ConnectionString(defaultBindAddr string) string {
+
+	addr := g.Addr
+	// If no address specified, use default.
+	if addr == "" {
+		addr = defaultBindAddr
+	}
+
+	port := g.Port
+	// If no port specified, use default.
+	if port == 0 {
+		port = graphite.DefaultGraphitePort
+	}
+
+	return fmt.Sprintf("%s:%d", addr, port)
+}
+
+// NameSeparatorString returns the character separating fields for Graphite data, or the default
+// if no separator is set.
+func (g *Graphite) NameSeparatorString() string {
+	if g.NameSeparator == "" {
+		return graphite.DefaultGraphiteNameSeparator
+	}
+	return g.NameSeparator
+}
+
+// LastEnabled returns whether the Graphite Server shoudl intepret the last field as "name".
+func (g *Graphite) LastEnabled() bool {
+	return g.NamePosition == strings.ToLower("last")
 }
 
 // maxInt is the largest integer representable by a word (architeture dependent).
