@@ -33,7 +33,7 @@ func TestDatabase_MeasurementBySeriesID(t *testing.T) {
 	idx.addSeriesToIndex(m.Name, s)
 	mm := idx.MeasurementBySeriesID(uint32(1))
 	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
-		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
+		t.Fatalf("mesurement not equal:\n%v\n%v", m, mm)
 	}
 
 	// now test that we can add another
@@ -44,12 +44,12 @@ func TestDatabase_MeasurementBySeriesID(t *testing.T) {
 	idx.addSeriesToIndex(m.Name, s)
 	mm = idx.MeasurementBySeriesID(uint32(2))
 	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
-		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
+		t.Fatalf("mesurement not equal:\n%v\n%v", m, mm)
 	}
 
 	mm = idx.MeasurementBySeriesID(uint32(1))
 	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
-		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
+		t.Fatalf("mesurement not equal:\n%v\n%v", m, mm)
 	}
 }
 
@@ -81,7 +81,7 @@ func TestDatabase_SeriesBySeriesID(t *testing.T) {
 	idx.addSeriesToIndex("foo", s)
 	ss := idx.SeriesByID(uint32(2))
 	if string(mustMarshalJSON(s)) != string(mustMarshalJSON(ss)) {
-		t.Fatalf("series not equal:\n%s\n%s", s, ss)
+		t.Fatalf("series not equal:\n%v\n%v", s, ss)
 	}
 }
 
@@ -100,9 +100,9 @@ func TestDatabase_MeasurementAndSeries(t *testing.T) {
 	idx.addSeriesToIndex(m.Name, s)
 	mm, ss := idx.MeasurementAndSeries(m.Name, s.Tags)
 	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
-		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
+		t.Fatalf("mesurement not equal:\n%v\n%v", m, mm)
 	} else if string(mustMarshalJSON(s)) != string(mustMarshalJSON(ss)) {
-		t.Fatalf("series not equal:\n%s\n%s", s, ss)
+		t.Fatalf("series not equal:\n%v\n%v", s, ss)
 	}
 
 	// now test that we can add another
@@ -113,9 +113,9 @@ func TestDatabase_MeasurementAndSeries(t *testing.T) {
 	idx.addSeriesToIndex(m.Name, s)
 	mm, ss = idx.MeasurementAndSeries(m.Name, s.Tags)
 	if string(mustMarshalJSON(m)) != string(mustMarshalJSON(mm)) {
-		t.Fatalf("mesurement not equal:\n%s\n%s", m, mm)
+		t.Fatalf("mesurement not equal:\n%v\n%v", m, mm)
 	} else if string(mustMarshalJSON(s)) != string(mustMarshalJSON(ss)) {
-		t.Fatalf("series not equal:\n%s\n%s", s, ss)
+		t.Fatalf("series not equal:\n%v\n%v", s, ss)
 	}
 }
 
@@ -150,7 +150,7 @@ func TestDatabase_SeriesIDs(t *testing.T) {
 	l := idx.SeriesIDs([]string{"cpu_load"}, nil)
 	r := []uint32{1, 2}
 	if !l.Equals(r) {
-		t.Fatalf("series IDs not the same:\n%s\n%s", l, r)
+		t.Fatalf("series IDs not the same:\n%d\n%d", l, r)
 	}
 
 	// now add another in a different measurement
@@ -165,7 +165,7 @@ func TestDatabase_SeriesIDs(t *testing.T) {
 	l = idx.SeriesIDs([]string{"cpu_load"}, nil)
 	r = []uint32{1, 2, 3}
 	if !l.Equals(r) {
-		t.Fatalf("series IDs not the same:\n%s\n%s", l, r)
+		t.Fatalf("series IDs not the same:\n%d\n%d", l, r)
 	}
 }
 
@@ -563,7 +563,7 @@ func TestDatabase_SeriesIDsIntersect(t *testing.T) {
 	for i, tt := range tests {
 		a := SeriesIDs(tt.left).Intersect(tt.right)
 		if !a.Equals(tt.expected) {
-			t.Fatalf("%d: %s intersect %s: result mismatch:\n  exp=%s\n  got=%s", i, SeriesIDs(tt.left), SeriesIDs(tt.right), SeriesIDs(tt.expected), SeriesIDs(a))
+			t.Fatalf("%d: %v intersect %v: result mismatch:\n  exp=%v\n  got=%v", i, SeriesIDs(tt.left), SeriesIDs(tt.right), SeriesIDs(tt.expected), SeriesIDs(a))
 		}
 	}
 }
@@ -620,7 +620,7 @@ func TestDatabase_SeriesIDsUnion(t *testing.T) {
 	for i, tt := range tests {
 		a := SeriesIDs(tt.left).Union(tt.right)
 		if !a.Equals(tt.expected) {
-			t.Fatalf("%d: %s union %s: result mismatch:\n  exp=%s\n  got=%s", i, SeriesIDs(tt.left), SeriesIDs(tt.right), SeriesIDs(tt.expected), SeriesIDs(a))
+			t.Fatalf("%d: %v union %v: result mismatch:\n  exp=%v\n  got=%v", i, SeriesIDs(tt.left), SeriesIDs(tt.right), SeriesIDs(tt.expected), SeriesIDs(a))
 		}
 	}
 }
@@ -677,7 +677,7 @@ func TestDatabase_SeriesIDsReject(t *testing.T) {
 	for i, tt := range tests {
 		a := SeriesIDs(tt.left).Reject(tt.right)
 		if !a.Equals(tt.expected) {
-			t.Fatalf("%d: %s reject %s: result mismatch:\n  exp=%s\n  got=%s", i, SeriesIDs(tt.left), SeriesIDs(tt.right), SeriesIDs(tt.expected), SeriesIDs(a))
+			t.Fatalf("%d: %v reject %v: result mismatch:\n  exp=%v\n  got=%v", i, SeriesIDs(tt.left), SeriesIDs(tt.right), SeriesIDs(tt.expected), SeriesIDs(a))
 		}
 	}
 }

@@ -507,7 +507,7 @@ func (d *database) createMeasurementIfNotExists(name string) *Measurement {
 
 // AddField adds a field to the measurement name. Returns false if already present
 func (d *database) AddField(name string, f *Field) bool {
-	panic("not implemented")
+	if true { panic("not implemented") }
 	return false
 }
 
