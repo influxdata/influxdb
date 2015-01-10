@@ -275,6 +275,9 @@ func (b *Broker) LeaderURL() *url.URL {
 	return u
 }
 
+// IsLeader returns true if the broker is the current leader.
+func (b *Broker) IsLeader() bool { return b.log.State() == raft.Leader }
+
 // Initialize creates a new cluster.
 func (b *Broker) Initialize() error {
 	if err := b.log.Initialize(); err != nil {
