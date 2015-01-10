@@ -310,13 +310,13 @@ func Test_Collectd_ConnectionString(t *testing.T) {
 			config:           main.Collectd{},
 		},
 		{
-			name:             "address provide, no port provided from config",
+			name:             "address provided, no port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.2:25826",
 			config:           main.Collectd{Addr: "192.168.0.2"},
 		},
 		{
-			name:             "no address provides, port provided from config",
+			name:             "no address provided, port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.1:25827",
 			config:           main.Collectd{Port: 25827},
@@ -333,7 +333,7 @@ func Test_Collectd_ConnectionString(t *testing.T) {
 		t.Logf("test: %q", test.name)
 		s := test.config.ConnectionString(test.defaultBindAddr)
 		if s != test.connectionString {
-			t.Errorf("connectection string mistmatch, expected: %q, got: %q", test.connectionString, s)
+			t.Errorf("connection string mismatch, expected: %q, got: %q", test.connectionString, s)
 		}
 	}
 }

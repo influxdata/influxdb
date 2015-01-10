@@ -2,6 +2,7 @@ package collectd_test
 
 import (
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -67,6 +68,39 @@ func TestServer_ListenAndServe_Success(t *testing.T) {
 	s.Database = "counter"
 	e := s.ListenAndServe("127.0.0.1:25830")
 	defer s.Close()
+	if e != err {
+		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	}
+}
+
+func TestServer_ListenAndServe_ErrResolveUDPAddr(t *testing.T) {
+	var (
+		ts  testServer
+		s   = collectd.NewServer(ts, "./collectd_test.conf")
+		err = collectd.ErrResolveUDPAddr
+	)
+
+	s.Database = "counter"
+	e := s.ListenAndServe("foo")
+	if e != err {
+		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	}
+}
+
+func TestServer_ListenAndServe_ErrListenUDP(t *testing.T) {
+	var (
+		ts  testServer
+		s   = collectd.NewServer(ts, "./collectd_test.conf")
+		err = collectd.ErrListenUDP
+	)
+
+	//Open a udp listener on the port prior to force it to err
+	addr, _ := net.ResolveUDPAddr("udp", "127.0.0.1:25826")
+	conn, _ := net.ListenUDP("udp", addr)
+	defer conn.Close()
+
+	s.Database = "counter"
+	e := s.ListenAndServe("127.0.0.1:25826")
 	if e != err {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}

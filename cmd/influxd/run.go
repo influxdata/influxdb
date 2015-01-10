@@ -97,9 +97,9 @@ func execRun(args []string) {
 		// Spin up the collectd server
 		if config.Collectd.Enabled {
 			c := config.Collectd
-			s := collectd.NewServer(s, c.TypesDB)
-			s.Database = c.Database
-			err := s.ListenAndServe(c.ConnectionString(config.BindAddress))
+			cs := collectd.NewServer(s, c.TypesDB)
+			cs.Database = c.Database
+			err := cs.ListenAndServe(c.ConnectionString(config.BindAddress))
 			if err != nil {
 				log.Println("failed to start collectd Server", err.Error())
 			}

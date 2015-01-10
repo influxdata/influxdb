@@ -38,18 +38,20 @@ const (
 // Config represents the configuration format for the influxd binary.
 type (
 	Collectd struct {
-		Addr     string `toml:"address"`
+		Addr string `toml:"address"`
+		Port uint16 `toml:"port"`
+
 		Database string `toml:"database"`
 		Enabled  bool   `toml:"enabled"`
-		Port     uint16 `toml:"port"`
 		TypesDB  string `toml:"typesdb"`
 	}
 
 	Graphite struct {
-		Addr          string `toml:"address"`
+		Addr string `toml:"address"`
+		Port uint16 `toml:"port"`
+
 		Database      string `toml:"database"`
 		Enabled       bool   `toml:"enabled"`
-		Port          uint16 `toml:"port"`
 		Protocol      string `toml:"protocol"`
 		NamePosition  string `toml:"name-position"`
 		NameSeparator string `toml:"name-separator"`

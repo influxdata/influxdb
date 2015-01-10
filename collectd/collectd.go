@@ -28,6 +28,12 @@ var (
 
 	// ErrServerClosed return when closing an already closed graphite server.
 	ErrServerClosed = errors.New("server already closed")
+
+	// ErrResolveUDPAddr returned when we are unable to resolve a udp address
+	ErrResolveUDPAddr = errors.New("Unable to resolve UDP address")
+
+	// ErrListenUDP returned when we are unable to resolve a udp address
+	ErrListenUDP = errors.New("Unable to listen on UDP")
 )
 
 // SeriesWriter defines the interface for the destination of the data.
@@ -58,9 +64,6 @@ func NewServer(w SeriesWriter, typesDBPath string) *Server {
 }
 
 func (s *Server) ListenAndServe(iface string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if iface == "" { // Make sure we have an address
 		return ErrBindAddressRequired
 	} else if s.Database == "" { // Make sure they have a database
@@ -75,12 +78,12 @@ func (s *Server) ListenAndServe(iface string) error {
 
 	addr, err := net.ResolveUDPAddr("udp", iface)
 	if err != nil {
-		return nil
+		return ErrResolveUDPAddr
 	}
 
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return err
+		return ErrListenUDP
 	}
 	s.conn = conn
 
@@ -110,9 +113,7 @@ func (s *Server) serve(conn *net.UDPConn) {
 	for {
 		select {
 		case <-s.done:
-			s.mu.Lock()
 			s.conn.Close()
-			s.mu.Unlock()
 			return
 		default:
 			n, _, err := conn.ReadFromUDP(buffer)
