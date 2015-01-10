@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"encoding/json"
+	"math"
 	"regexp"
 	"sort"
 	"strings"
@@ -94,8 +95,8 @@ type databaseJSON struct {
 // object. Generally these methods are only accessed from Index, which is responsible for ensuring
 // go routine safe access.
 type Measurement struct {
-	Name   string    `json:"name,omitempty"`
-	Fields []*Fields `json:"fields,omitempty"`
+	Name   string   `json:"name,omitempty"`
+	Fields []*Field `json:"fields,omitempty"`
 
 	// in memory index fields
 	series              map[string]*Series // sorted tagset string to the series object
@@ -108,13 +109,57 @@ type Measurement struct {
 func NewMeasurement(name string) *Measurement {
 	return &Measurement{
 		Name:   name,
-		Fields: make([]*Fields, 0),
+		Fields: make([]*Field, 0),
 
 		series:              make(map[string]*Series),
 		seriesByID:          make(map[uint32]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
 		ids:                 SeriesIDs(make([]uint32, 0)),
 	}
+}
+
+// CreateFieldIfNotExists creates a new field with an autoincrementing ID.
+// Returns an error if 255 fields have already been created on the measurement.
+func (m *Measurement) createFieldIfNotExists(name string, typ FieldType) (*Field, error) {
+	// Ignore if the field already exists.
+	if f := m.FieldByName(name); f != nil {
+		return f, nil
+	}
+
+	// Only 255 fields are allowed. If we go over that then return an error.
+	if len(m.Fields) > math.MaxUint8 {
+		return nil, ErrFieldOverflow
+	}
+
+	// Create and append a new field.
+	f := &Field{
+		ID:   uint8(len(m.Fields)),
+		Name: name,
+		Type: typ,
+	}
+	m.Fields = append(m.Fields, f)
+
+	return f, nil
+}
+
+// Field returns a field by id.
+func (m *Measurement) Field(id uint8) *Field {
+	for _, f := range m.Fields {
+		if f.ID == id {
+			return f
+		}
+	}
+	return nil
+}
+
+// FieldByName returns a field by name.
+func (m *Measurement) FieldByName(name string) *Field {
+	for _, f := range m.Fields {
+		if f.Name == name {
+			return f
+		}
+	}
+	return nil
 }
 
 // addSeries will add a series to the measurementIndex. Returns false if already present
@@ -220,6 +265,8 @@ func (m *Measurement) tagValues(key string) TagValues {
 func (m *Measurement) mapValues(values map[string]interface{}) map[uint8]interface{} {
 	other := make(map[uint8]interface{}, len(values))
 	for k, v := range values {
+		// TODO: Cast value to original field type.
+
 		f := m.FieldByName(k)
 		if f == nil {
 			return nil
@@ -475,12 +522,6 @@ func (d *database) createMeasurementIfNotExists(name string) *Measurement {
 		sort.Strings(d.names)
 	}
 	return idx
-}
-
-// AddField adds a field to the measurement name. Returns false if already present
-func (d *database) AddField(name string, f *Field) bool {
-	if true { panic("not implemented") }
-	return false
 }
 
 // MeasurementsBySeriesIDs returns a collection of unique Measurements for the passed in SeriesIDs.

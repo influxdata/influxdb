@@ -67,8 +67,9 @@ const (
 	// Series messages
 	createSeriesIfNotExistsMessageType = messaging.MessageType(0x50)
 
-	// Write raw data messages (per-topic)
-	writeSeriesMessageType = messaging.MessageType(0x80)
+	// Write series data messages (per-topic)
+	writeRawSeriesMessageType = messaging.MessageType(0x80)
+	writeSeriesMessageType    = messaging.MessageType(0x81)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -85,7 +86,6 @@ type Server struct {
 	meta *metastore // metadata store
 
 	dataNodes map[uint64]*DataNode // data nodes by id
-
 	databases map[string]*database // databases by name
 	shards    map[uint64]*Shard    // shards by id
 	users     map[string]*User     // user by name
@@ -95,11 +95,11 @@ type Server struct {
 func NewServer() *Server {
 	return &Server{
 		meta:      &metastore{},
+		errors:    make(map[uint64]error),
 		dataNodes: make(map[uint64]*DataNode),
 		databases: make(map[string]*database),
 		shards:    make(map[uint64]*Shard),
 		users:     make(map[string]*User),
-		errors:    make(map[uint64]error),
 	}
 }
 
@@ -204,6 +204,7 @@ func (s *Server) load() error {
 			if err != nil {
 				return err
 			}
+
 		}
 
 		// Load users.
@@ -582,6 +583,13 @@ func (s *Server) applyDeleteDatabase(m *messaging.Message) (err error) {
 
 type deleteDatabaseCommand struct {
 	Name string `json:"name"`
+}
+
+// Shard returns a shard by ID.
+func (s *Server) Shard(id uint64) *Shard {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shards[id]
 }
 
 // shardGroupByTimestamp returns a shard that owns a given timestamp for a database.
@@ -1184,14 +1192,14 @@ func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
 
 	// save to the metastore and add it to the in memory index
 	var series *Series
-	err := s.meta.mustUpdate(func(tx *metatx) error {
+	if err := s.meta.mustUpdate(func(tx *metatx) error {
 		var err error
 		series, err = tx.createSeries(db.name, c.Name, c.Tags)
 		return err
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
+
 	db.addSeriesToIndex(c.Name, series)
 
 	return nil
@@ -1223,9 +1231,9 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	// Retrieve measurement.
 	m, err := s.measurement(database, name)
 	if err != nil {
-		return nil, err
+		return err
 	} else if m == nil {
-		return nil, ErrMeasurementNotFound
+		return ErrMeasurementNotFound
 	}
 
 	// Retrieve shard group.
@@ -1242,54 +1250,135 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 		return nil
 	}
 
-	// Attempt to convert value keys to field ids.
+	// Convert string-key/values to fieldID-key/values.
+	// If not all fields can be converted then send as a non-raw write series.
 	rawValues := m.mapValues(values)
+	if rawValues == nil {
+		// Encode the command.
+		data := mustMarshalJSON(&writeSeriesCommand{
+			Database:    database,
+			Measurement: name,
+			SeriesID:    seriesID,
+			Timestamp:   timestamp.UnixNano(),
+			Values:      values,
+		})
+
+		// Publish "write series" message on shard's topic to broker.
+		_, err = s.client.Publish(&messaging.Message{
+			Type:    writeSeriesMessageType,
+			TopicID: sh.ID,
+			Data:    data,
+		})
+		return err
+	}
+
+	// If we can successfully encode the string keys to raw field ids then
+	// we can send a raw write series message which is much smaller and faster.
 
 	// Encode point header.
-	var flags pointHeaderFlag
-	if rawValues != nil {
-		flags |= pointHeaderRawFlag
-	}
-	data := marshalPointHeader(seriesID, timestamp.UnixNano(), flags)
+	data := marshalPointHeader(seriesID, timestamp.UnixNano())
+	data = append(data, marshalValues(rawValues)...)
 
-	// Encode raw data if available.
-	// Otherwise encode as JSON.
-	if (flags & pointHeaderRawFlag) != 0 {
-		data = append(data, marshalValues(rawValues)...)
-	} else {
-		buf, err := json.Marshal(values)
-		if err != nil {
-			return err
-		}
-		data = append(data, buf...)
-	}
-
-	// Publish "write series" message on shard's topic to broker.
+	// Publish "raw write series" message on shard's topic to broker.
 	_, err = s.client.Publish(&messaging.Message{
-		Type:    writeSeriesMessageType,
+		Type:    writeRawSeriesMessageType,
 		TopicID: sh.ID,
 		Data:    data,
 	})
 	return err
 }
 
+type writeSeriesCommand struct {
+	Database    string                 `json:"database"`
+	Measurement string                 `json:"measurement"`
+	SeriesID    uint32                 `json:"seriesID"`
+	Timestamp   int64                  `json:"timestamp"`
+	Values      map[string]interface{} `json:"values"`
+}
+
+// applyWriteSeries writes "non-raw" series data to the database.
+// Non-raw data occurs when fields have not been created yet so the field
+// names cannot be converted to field ids.
 func (s *Server) applyWriteSeries(m *messaging.Message) error {
-	s.mu.RLock()
+	var c writeSeriesCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// Retrieve the shard.
 	sh := s.shards[m.TopicID]
 	if sh == nil {
-		s.mu.RUnlock()
 		return ErrShardNotFound
 	}
-	s.mu.RUnlock()
+
+	// Retrieve the database.
+	db := s.databases[c.Database]
+	if db == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Retrieve the measurement.
+	mm := db.measurements[c.Measurement]
+	if mm == nil {
+		return ErrMeasurementNotFound
+	}
+
+	// Encode value map and create fields as needed.
+	rawValues := make(map[uint8]interface{}, len(c.Values))
+	for k, v := range c.Values {
+		// TODO: Support non-float types.
+
+		// Find or create fields.
+		// If too many fields are on the measurement then log the issue.
+		// If any other error occurs then exit.
+		f, err := mm.createFieldIfNotExists(k, Float64)
+		if err == ErrFieldOverflow {
+			log.Printf("no more fields allowed: %s::%s", mm.Name, k)
+			continue
+		} else if err != nil {
+			return err
+		}
+		rawValues[f.ID] = v
+	}
+
+	// Update metastore.
+	if err := s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	}); err != nil {
+		return err
+	}
+
+	// Encode the values into a binary format.
+	data := marshalValues(rawValues)
 
 	// TODO: Enable some way to specify if the data should be overwritten
 	overwrite := true
 
 	// Write to shard.
-	warn("WRITING!")
-	return sh.writeSeries(overwrite, m.Data)
+	return sh.writeSeries(c.SeriesID, c.Timestamp, data, overwrite)
+}
+
+// applyRawWriteSeries writes raw series data to the database.
+// Raw series data has already converted field names to ids so the
+// representation is fast and compact.
+func (s *Server) applyRawWriteSeries(m *messaging.Message) error {
+	// Retrieve the shard.
+	sh := s.Shard(m.TopicID)
+	if sh == nil {
+		return ErrShardNotFound
+	}
+
+	// Extract the series id and timestamp from the header.
+	// Everything after the header is the marshalled value.
+	seriesID, timestamp := unmarshalPointHeader(m.Data[:pointHeaderSize])
+	data := m.Data[pointHeaderSize:]
+
+	// TODO: Enable some way to specify if the data should be overwritten
+	overwrite := true
+
+	// Write to shard.
+	return sh.writeSeries(seriesID, timestamp, data, overwrite)
 }
 
 func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]string) (uint32, error) {
@@ -1320,7 +1409,67 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 
 // ReadSeries reads a single point from a series in the database.
 func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time) (map[string]interface{}, error) {
-	panic("TODO")
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Find database.
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
+	}
+
+	// Find series.
+	mm, series := db.MeasurementAndSeries(name, tags)
+	if mm == nil {
+		return nil, ErrMeasurementNotFound
+	} else if series == nil {
+		return nil, ErrSeriesNotFound
+	}
+
+	// If the retention policy is not specified, use the default for this database.
+	if retentionPolicy == "" {
+		retentionPolicy = db.defaultRetentionPolicy
+	}
+
+	// Retrieve retention policy.
+	rp := db.policies[retentionPolicy]
+	if rp == nil {
+		return nil, ErrRetentionPolicyNotFound
+	}
+
+	// Retrieve shard group.
+	g, err := s.shardGroupByTimestamp(database, retentionPolicy, timestamp)
+	if err != nil {
+		return nil, err
+	} else if g == nil {
+		return nil, nil
+	}
+
+	// TODO: Verify that server owns shard.
+
+	// Find appropriate shard within the shard group.
+	sh := g.Shards[int(series.ID)%len(g.Shards)]
+
+	// Read raw encoded series data.
+	data, err := sh.readSeries(series.ID, timestamp.UnixNano())
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode into a raw value map.
+	rawValues := unmarshalValues(data)
+
+	// Decode into a string-key value map.
+	values := make(map[string]interface{}, len(rawValues))
+	for fieldID, value := range rawValues {
+		f := mm.Field(fieldID)
+		if f == nil {
+			continue
+		}
+		values[f.Name] = value
+	}
+
+	return values, nil
 }
 
 func (s *Server) MeasurementNames(database string) []string {
@@ -1347,6 +1496,16 @@ func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
 	return db.SeriesIDs([]string{measurement}, nil)
 }
 
+// measurement returns a measurement by database and name.
+func (s *Server) measurement(database, name string) (*Measurement, error) {
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
+	}
+
+	return db.measurements[name], nil
+}
+
 // processor runs in a separate goroutine and processes all incoming broker messages.
 func (s *Server) processor(client MessagingClient, done chan struct{}) {
 	for {
@@ -1363,6 +1522,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 		switch m.Type {
 		case writeSeriesMessageType:
 			err = s.applyWriteSeries(m)
+		case writeRawSeriesMessageType:
+			err = s.applyRawWriteSeries(m)
 		case createDataNodeMessageType:
 			err = s.applyCreateDataNode(m)
 		case deleteDataNodeMessageType:

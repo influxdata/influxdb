@@ -271,5 +271,15 @@ func u64tob(v uint64) []byte {
 	return b
 }
 
-// btou64 converts an 8-byte slice into an int64.
+// btou64 converts an 8-byte slice into an uint64.
 func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
+
+// u32tob converts a uint32 into a 4-byte slice.
+func u32tob(v uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, v)
+	return b
+}
+
+// btou32 converts an 4-byte slice into an uint32.
+func btou32(b []byte) uint32 { return binary.BigEndian.Uint32(b) }

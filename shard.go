@@ -2,12 +2,11 @@ package influxdb
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"time"
-	"unsafe"
 
 	"github.com/boltdb/bolt"
 )
@@ -88,24 +87,33 @@ func (s *Shard) HasDataNodeID(id uint64) bool {
 	return false
 }
 
-// writeSeries writes series data to a shard.
-func (s *Shard) writeSeries(overwrite bool, data []byte) error {
-	// Extract the series id and timestamp from the header.
-	// Everything after the header is the marshalled value.
-	seriesID, timestamp := unmarshalPointHeader(data)
-	values := data[pointHeaderSize:]
+// readSeries reads encoded series data from a shard.
+func (s *Shard) readSeries(seriesID uint32, timestamp int64) (values []byte, err error) {
+	err = s.store.View(func(tx *bolt.Tx) error {
+		// Find series bucket.
+		b := tx.Bucket(u32tob(seriesID))
+		if b == nil {
+			return nil
+		}
 
-	// Write series to the shard store.
+		// Retrieve encoded series data.
+		values = b.Get(u64tob(uint64(timestamp)))
+		return nil
+	})
+	return
+}
+
+// writeSeries writes series data to a shard.
+func (s *Shard) writeSeries(seriesID uint32, timestamp int64, values []byte, overwrite bool) error {
 	return s.store.Update(func(tx *bolt.Tx) error {
 		// Create a bucket for the series.
-		b, err := tx.CreateBucketIfNotExists(u64tob(seriesID))
+		b, err := tx.CreateBucketIfNotExists(u32tob(seriesID))
 		if err != nil {
 			return err
 		}
 
 		// Insert the values by timestamp.
-		key := u64tob(timestamp.UnixNano())
-		if err := b.Put(key, value); err != nil {
+		if err := b.Put(u64tob(uint64(timestamp)), values); err != nil {
 			return err
 		}
 
@@ -124,27 +132,19 @@ type Shards []*Shard
 const pointHeaderSize = 4 + 12 // seriesID + timestamp
 
 // marshalPointHeader encodes a series id, timestamp, & flagset into a byte slice.
-func marshalPointHeader(seriesID uint32, timestamp int64, flag pointHeaderFlag) []byte {
-	b := make([]byte, 13)
+func marshalPointHeader(seriesID uint32, timestamp int64) []byte {
+	b := make([]byte, 12)
 	binary.BigEndian.PutUint32(b[0:4], seriesID)
 	binary.BigEndian.PutUint64(b[4:12], uint64(timestamp))
-	b[13] = byte(flag)
 	return b
 }
 
 // unmarshalPointHeader decodes a byte slice into a series id, timestamp & flagset.
-func unmarshalPointHeader(b []byte) (seriesID uint32, timestamp int64, flag pointHeaderFlag) {
+func unmarshalPointHeader(b []byte) (seriesID uint32, timestamp int64) {
 	seriesID = binary.BigEndian.Uint32(b[0:4])
-	timestamp = binary.BigEndian.Uint64(b[4:12])
-	flag = pointHeaderFlag(b[13])
+	timestamp = int64(binary.BigEndian.Uint64(b[4:12]))
 	return
 }
-
-type pointHeaderFlag uint8
-
-const (
-	pointHeaderRawFlag = writeSeriesFlag(0x01)
-)
 
 // marshalValues encodes a set of field ids and values to a byte slice.
 func marshalValues(values map[uint8]interface{}) []byte {
@@ -169,7 +169,7 @@ func marshalValues(values map[uint8]interface{}) []byte {
 		// TODO: Support non-float types.
 		switch v := values[fieldID].(type) {
 		case float64:
-			binary.BigEndian.PutUint64(b[1:9], math.Float64bits(v))
+			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(v))
 		default:
 			panic(fmt.Sprintf("unsupported value type: %T", v))
 		}
@@ -179,6 +179,33 @@ func marshalValues(values map[uint8]interface{}) []byte {
 	}
 
 	return b
+}
+
+// unmarshalValues decodes a byte slice into a set of field ids and values.
+func unmarshalValues(b []byte) map[uint8]interface{} {
+	// Read the field count from the field byte.
+	n := int(b[0])
+
+	// Create a map to hold the decoded data.
+	values := make(map[uint8]interface{}, n)
+
+	// Start from the second byte and iterate over until we're done decoding.
+	b = b[1:]
+	for i := 0; i < n; i++ {
+		// First byte is the field identifier.
+		fieldID := b[0]
+
+		// Decode value.
+		// TODO: Support non-float types.
+		value := math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+
+		values[fieldID] = value
+
+		// Move bytes forward.
+		b = b[9:]
+	}
+
+	return values
 }
 
 type uint8Slice []uint8

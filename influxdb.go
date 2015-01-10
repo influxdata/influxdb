@@ -84,6 +84,12 @@ var (
 	// ErrInvalidQuery is returned when executing an unknown query type.
 	ErrInvalidQuery = errors.New("invalid query")
 
+	// ErrMeasurementNotFound is returned when a measurement does not exist.
+	ErrMeasurementNotFound = errors.New("measurement not found")
+
+	// ErrFieldOverflow is returned when too many fields are created on a measurement.
+	ErrFieldOverflow = errors.New("field overflow")
+
 	// ErrSeriesNotFound is returned when looking up a non-existent series by database, name and tags
 	ErrSeriesNotFound = errors.New("series not found")
 
