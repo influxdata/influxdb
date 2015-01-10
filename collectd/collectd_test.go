@@ -60,15 +60,13 @@ func TestServer_ListenAndServe_Success(t *testing.T) {
 	var (
 		ts testServer
 		// You can typically find this on your mac here: "/usr/local/Cellar/collectd/5.4.1/share/collectd/types.db"
-		//s   = collectd.NewServer(ts, "/usr/local/Cellar/collectd/5.4.1/share/collectd/types.db")
-		s   = collectd.NewServer(ts, "./collectd_test.conf")
-		err error
+		s = collectd.NewServer(ts, "./collectd_test.conf")
 	)
 
 	s.Database = "counter"
 	e := s.ListenAndServe("127.0.0.1:25830")
 	defer s.Close()
-	if e != err {
+	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
 }
