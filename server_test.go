@@ -673,6 +673,12 @@ func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
 	return m.Index, nil
 }
 
+// Creates a new replica with a given ID on the broker.
+func (c *MessagingClient) CreateReplica(id uint64) error { return nil }
+
+// Deletes an existing replica with a given ID from the broker.
+func (c *MessagingClient) DeleteReplica(id uint64) error { return nil }
+
 // C returns a channel for streaming message.
 func (c *MessagingClient) C() <-chan *messaging.Message { return c.c }
 

@@ -380,13 +380,12 @@ type FSM struct {
 	Commands [][]byte
 }
 
-// Apply updates the max index and appends the command.
-func (fsm *FSM) Apply(entry *raft.LogEntry) error {
+// MustApply updates the max index and appends the command.
+func (fsm *FSM) MustApply(entry *raft.LogEntry) {
 	fsm.MaxIndex = entry.Index
 	if entry.Type == raft.LogEntryCommand {
 		fsm.Commands = append(fsm.Commands, entry.Data)
 	}
-	return nil
 }
 
 // Index returns the highest applied index.

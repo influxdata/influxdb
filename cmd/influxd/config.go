@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -30,94 +32,86 @@ const (
 	// DefaultBrokerPort represents the default port the broker runs on.
 	DefaultBrokerPort = 8086
 
-	// DefaultHTTPAPIPort represents the default port the HTTP API runs on.
-	DefaultHTTPAPIPort = 8086
+	// DefaultDataPort represents the default port the data server runs on.
+	DefaultDataPort = 8086
 )
 
 // Config represents the configuration format for the influxd binary.
-type (
-	Graphite struct {
-		Addr          string `toml:"address"`
-		Database      string `toml:"database"`
-		Enabled       bool   `toml:"enabled"`
-		Port          uint16 `toml:"port"`
-		Protocol      string `toml:"protocol"`
-		NamePosition  string `toml:"name-position"`
-		NameSeparator string `toml:"name-separator"`
-	}
+type Config struct {
+	Hostname          string `toml:"hostname"`
+	BindAddress       string `toml:"bind-address"`
+	ReportingDisabled bool   `toml:"reporting-disabled"`
+	Version           string `toml:"-"`
+	InfluxDBVersion   string `toml:"-"`
 
-	Config struct {
-		Hostname          string `toml:"hostname"`
-		BindAddress       string `toml:"bind-address"`
-		ReportingDisabled bool   `toml:"reporting-disabled"`
-		Version           string `toml:"-"`
-		InfluxDBVersion   string `toml:"-"`
+	Authentication struct {
+		Enabled bool `toml:"enabled"`
+	} `toml:"authentication"`
 
-		Authentication struct {
-			Enabled bool `toml:"enabled"`
-		} `toml:"authentication"`
+	Admin struct {
+		Port   int    `toml:"port"`
+		Assets string `toml:"assets"`
+	} `toml:"admin"`
 
-		Admin struct {
-			Port   int    `toml:"port"`
-			Assets string `toml:"assets"`
-		} `toml:"admin"`
+	Graphites []Graphite `toml:"graphite"`
 
-		HTTPAPI struct {
-			Port        int      `toml:"port"`
-			SSLPort     int      `toml:"ssl-port"`
-			SSLCertPath string   `toml:"ssl-cert"`
-			ReadTimeout Duration `toml:"read-timeout"`
-		} `toml:"api"`
+	InputPlugins struct {
+		UDPInput struct {
+			Enabled  bool   `toml:"enabled"`
+			Port     int    `toml:"port"`
+			Database string `toml:"database"`
+		} `toml:"udp"`
+		UDPServersInput []struct {
+			Enabled  bool   `toml:"enabled"`
+			Port     int    `toml:"port"`
+			Database string `toml:"database"`
+		} `toml:"udp_servers"`
+	} `toml:"input_plugins"`
 
-		Graphites []Graphite `toml:"graphite"`
+	Broker struct {
+		Port    int      `toml:"port"`
+		Dir     string   `toml:"dir"`
+		Timeout Duration `toml:"election-timeout"`
+	} `toml:"broker"`
 
-		InputPlugins struct {
-			UDPInput struct {
-				Enabled  bool   `toml:"enabled"`
-				Port     uint16 `toml:"port"`
-				Database string `toml:"database"`
-			} `toml:"udp"`
-			UDPServersInput []struct {
-				Enabled  bool   `toml:"enabled"`
-				Port     int    `toml:"port"`
-				Database string `toml:"database"`
-			} `toml:"udp_servers"`
-		} `toml:"input_plugins"`
+	Data struct {
+		Dir                  string                    `toml:"dir"`
+		Port                 int                       `toml:"port"`
+		WriteBufferSize      int                       `toml:"write-buffer-size"`
+		MaxOpenShards        int                       `toml:"max-open-shards"`
+		PointBatchSize       int                       `toml:"point-batch-size"`
+		WriteBatchSize       int                       `toml:"write-batch-size"`
+		Engines              map[string]toml.Primitive `toml:"engines"`
+		RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
+	} `toml:"data"`
 
-		Broker struct {
-			Port    int      `toml:"port"`
-			Dir     string   `toml:"dir"`
-			Timeout Duration `toml:"election-timeout"`
-		} `toml:"broker"`
+	Cluster struct {
+		Dir                       string   `toml:"dir"`
+		ProtobufPort              int      `toml:"protobuf_port"`
+		ProtobufTimeout           Duration `toml:"protobuf_timeout"`
+		ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
+		MinBackoff                Duration `toml:"protobuf_min_backoff"`
+		MaxBackoff                Duration `toml:"protobuf_max_backoff"`
+		WriteBufferSize           int      `toml:"write-buffer-size"`
+		ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
+		MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
+	} `toml:"cluster"`
 
-		Data struct {
-			Dir                  string                    `toml:"dir"`
-			WriteBufferSize      int                       `toml:"write-buffer-size"`
-			MaxOpenShards        int                       `toml:"max-open-shards"`
-			PointBatchSize       int                       `toml:"point-batch-size"`
-			WriteBatchSize       int                       `toml:"write-batch-size"`
-			Engines              map[string]toml.Primitive `toml:"engines"`
-			RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
-		} `toml:"data"`
+	Logging struct {
+		File  string `toml:"file"`
+		Level string `toml:"level"`
+	} `toml:"logging"`
+}
 
-		Cluster struct {
-			Dir                       string   `toml:"dir"`
-			ProtobufPort              int      `toml:"protobuf_port"`
-			ProtobufTimeout           Duration `toml:"protobuf_timeout"`
-			ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
-			MinBackoff                Duration `toml:"protobuf_min_backoff"`
-			MaxBackoff                Duration `toml:"protobuf_max_backoff"`
-			WriteBufferSize           int      `toml:"write-buffer-size"`
-			ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
-			MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
-		} `toml:"cluster"`
-
-		Logging struct {
-			File  string `toml:"file"`
-			Level string `toml:"level"`
-		} `toml:"logging"`
-	}
-)
+type Graphite struct {
+	Addr          string `toml:"address"`
+	Database      string `toml:"database"`
+	Enabled       bool   `toml:"enabled"`
+	Port          uint16 `toml:"port"`
+	Protocol      string `toml:"protocol"`
+	NamePosition  string `toml:"name-position"`
+	NameSeparator string `toml:"name-separator"`
+}
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
@@ -129,12 +123,11 @@ func NewConfig() *Config {
 	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
 	c.Broker.Port = DefaultBrokerPort
 	c.Broker.Timeout = Duration(1 * time.Second)
-	c.HTTPAPI.Port = DefaultHTTPAPIPort
-	c.HTTPAPI.ReadTimeout = Duration(DefaultAPIReadTimeout)
 	c.Cluster.MinBackoff = Duration(1 * time.Second)
 	c.Cluster.MaxBackoff = Duration(10 * time.Second)
 	c.Cluster.ProtobufHeartbeatInterval = Duration(10 * time.Millisecond)
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
+	c.Data.Port = DefaultDataPort
 	c.Data.WriteBufferSize = 1000
 	c.Cluster.WriteBufferSize = 1000
 	c.Cluster.MaxResponseBufferSize = 100
@@ -179,19 +172,30 @@ func (c *Config) MaxOpenShards() int {
 	return c.Data.MaxOpenShards
 }
 
-// ApiHTTPListenAddr returns the binding address the API HTTP server
-func (c *Config) ApiHTTPListenAddr() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.HTTPAPI.Port)
+// DataAddr returns the binding address the data server
+func (c *Config) DataAddr() string {
+	return net.JoinHostPort(c.BindAddress, strconv.Itoa(c.Data.Port))
 }
 
-// BrokerListenAddr returns the binding address the Broker server
-func (c *Config) BrokerListenAddr() string {
+// DataURL returns the URL required to contact the data server.
+func (c *Config) DataURL() *url.URL {
+	return &url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Data.Port)),
+	}
+}
+
+// BrokerAddr returns the binding address the Broker server
+func (c *Config) BrokerAddr() string {
 	return fmt.Sprintf("%s:%d", c.BindAddress, c.Broker.Port)
 }
 
-// BrokerConnectionString returns the address required to contact the Broker server
-func (c *Config) BrokerConnectionString() string {
-	return fmt.Sprintf("http://%s:%d", c.Hostname, c.Broker.Port)
+// BrokerURL returns the URL required to contact the Broker server.
+func (c *Config) BrokerURL() *url.URL {
+	return &url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Broker.Port)),
+	}
 }
 
 // Size represents a TOML parseable file size.
@@ -296,42 +300,6 @@ func (g *Graphite) NameSeparatorString() string {
 func (g *Graphite) LastEnabled() bool {
 	return g.NamePosition == strings.ToLower("last")
 }
-
-/*
-func (c *Config) AdminHTTPPortString() string {
-	if c.AdminHTTPPort <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.AdminHTTPPort)
-}
-
-func (c *Config) APIHTTPSPortString() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.APIHTTPSPort)
-}
-
-func (c *Config) GraphitePortString() string {
-	if c.GraphitePort <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.GraphitePort)
-}
-
-func (c *Config) UDPInputPortString(port int) string {
-	if port <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("%s:%d", c.BindAddress, port)
-}
-
-func (c *Config) ProtobufConnectionString() string {
-	return fmt.Sprintf("%s:%d", c.Hostname, c.ProtobufPort)
-}
-
-func (c *Config) ProtobufListenString() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.ProtobufPort)
-}
-
-*/
 
 // maxInt is the largest integer representable by a word (architeture dependent).
 const maxInt = int64(^uint(0) >> 1)

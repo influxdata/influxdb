@@ -1,6 +1,7 @@
 package raft_test
 
 import (
+	"encoding/binary"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -153,6 +154,14 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	var fsm FSM
 	if err := fsm.Restore(resp.Body); err != nil {
 		t.Fatalf("restore: %s", err)
+	}
+
+	// Read off the snapshot index.
+	var index uint64
+	if err := binary.Read(resp.Body, binary.BigEndian, &index); err != nil {
+		t.Fatalf("read snapshot index: %s", err)
+	} else if index != 1 {
+		t.Fatalf("unexpected snapshot index: %d", index)
 	}
 
 	// Next entry should be the command.

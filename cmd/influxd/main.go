@@ -56,8 +56,6 @@ func main() {
 
 	// Extract name from args.
 	switch cmd {
-	case "join-cluster":
-		execJoinCluster(args[1:])
 	case "run":
 		execRun(args[1:])
 	case "":

@@ -23,7 +23,7 @@ func NewHandler(bh, sh http.Handler) *Handler {
 // ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Route raft and messaging paths to the broker.
-	if strings.HasPrefix(r.URL.Path, "/raft") || strings.HasPrefix(r.URL.Path, "/messages") {
+	if strings.HasPrefix(r.URL.Path, "/raft") || strings.HasPrefix(r.URL.Path, "/messaging") {
 		if h.brokerHandler == nil {
 			http.NotFound(w, r)
 			return
