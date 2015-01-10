@@ -52,6 +52,8 @@ func (b *Broker) Path() string { return b.path }
 
 func (b *Broker) opened() bool { return b.path != "" }
 
+func (b *Broker) IsLeader() bool { return b.log.State() == raft.Leader }
+
 // Open initializes the log.
 // The broker then must be initialized or join a cluster before it can be used.
 func (b *Broker) Open(path string, u *url.URL) error {

@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/influxdb/influxdb"
 )
@@ -121,36 +120,6 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 	}
 }
 
-func TestHandler_Shards(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.CreateShardsIfNotExists("foo", "bar", time.Time{})
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/db/foo/shards`, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"id":3,"startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z"}]` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_Shards_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/db/foo/shards`, "")
-
-	if status != http.StatusNotFound {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database not found` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
 func TestHandler_RetentionPolicies(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -162,7 +131,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"name":"bar","replicaN":1,"splitN":1}]` {
+	} else if body != `[{"name":"bar","replicaN":1}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -520,7 +489,7 @@ func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
 }
 
 func TestHandler_DataNodes(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
+	srvr := OpenUninitializedServer(NewMessagingClient())
 	srvr.CreateDataNode(MustParseURL("http://localhost:1000"))
 	srvr.CreateDataNode(MustParseURL("http://localhost:2000"))
 	srvr.CreateDataNode(MustParseURL("http://localhost:3000"))
@@ -536,7 +505,7 @@ func TestHandler_DataNodes(t *testing.T) {
 }
 
 func TestHandler_CreateDataNode(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient())
+	srvr := OpenUninitializedServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 

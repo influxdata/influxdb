@@ -343,7 +343,6 @@ func TestServer_CreateRetentionPolicy(t *testing.T) {
 		Name:     "bar",
 		Duration: time.Hour,
 		ReplicaN: 2,
-		SplitN:   3,
 	}
 	if err := s.CreateRetentionPolicy("foo", rp); err != nil {
 		t.Fatal(err)
@@ -490,32 +489,43 @@ func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.
 
 // Ensure the database can write data to the database.
 func TestServer_WriteSeries(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := NewMessagingClient()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "myspace", Duration: 1 * time.Hour})
 	s.CreateUser("susy", "pass", false)
 
-	// Write series with one point to the database.
-	timestamp := mustParseTime("2000-01-01T00:00:00Z")
-	name := "cpu_load"
-	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
-	values := map[string]interface{}{"value": 23.2}
-
-	if err := s.WriteSeries("foo", "myspace", name, tags, timestamp, values); err != nil {
-		t.Fatal(err)
+	// Check if a topic is being subscribed to.
+	var subscribed bool
+	c.SubscribeFunc = func(replicaID, topicID uint64) error {
+		subscribed = true
+		return nil
 	}
 
-	t.Skip("pending")
+	// Write series with one point to the database.
+	timestamp := mustParseTime("2000-01-01T00:00:00Z")
+	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
+	values := map[string]interface{}{"value": 23.2}
+	if err := s.WriteSeries("foo", "myspace", "cpu_load", tags, timestamp, values); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1 * time.Second) // TEMP
 
-	// TODO: Execute a query and record all series found.
-	// q := mustParseQuery(`select myval from cpu_load`)
-	// if err := db.ExecuteQuery(q); err != nil {
-	// 	t.Fatal(err)
-	// }
+	// Verify a subscription was made.
+	if !subscribed {
+		t.Fatal("expected subscription")
+	}
+
+	// Retrieve series data point.
+	if v, err := s.ReadSeries("foo", "myspace", "cpu_load", tags, timestamp); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(v, values) {
+		t.Fatalf("values mismatch: %#v", v)
+	}
 }
 
-func TestServer_CreateShardIfNotExist(t *testing.T) {
+func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -524,14 +534,14 @@ func TestServer_CreateShardIfNotExist(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.CreateShardsIfNotExists("foo", "bar", time.Time{}); err != nil {
+	if err := s.CreateShardGroupIfNotExists("foo", "bar", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 
-	if ss, err := s.Shards("foo"); err != nil {
+	if a, err := s.ShardGroups("foo"); err != nil {
 		t.Fatal(err)
-	} else if len(ss) != 1 {
-		t.Fatalf("expected 1 shard but found %d", len(ss))
+	} else if len(a) != 1 {
+		t.Fatalf("expected 1 shard group but found %d", len(a))
 	}
 }
 
@@ -609,6 +619,15 @@ func NewServer() *Server {
 
 // OpenServer returns a new, open test server instance.
 func OpenServer(client influxdb.MessagingClient) *Server {
+	s := OpenUninitializedServer(client)
+	if err := s.Initialize(&url.URL{Host: "127.0.0.1:8080"}); err != nil {
+		panic(err.Error())
+	}
+	return s
+}
+
+// OpenUninitializedServer returns a new, uninitialized, open test server instance.
+func OpenUninitializedServer(client influxdb.MessagingClient) *Server {
 	s := NewServer()
 	if err := s.Open(tempfile()); err != nil {
 		panic(err.Error())
@@ -648,13 +667,21 @@ type MessagingClient struct {
 	index uint64
 	c     chan *messaging.Message
 
-	PublishFunc func(*messaging.Message) (uint64, error)
+	PublishFunc       func(*messaging.Message) (uint64, error)
+	CreateReplicaFunc func(replicaID uint64) error
+	DeleteReplicaFunc func(replicaID uint64) error
+	SubscribeFunc     func(replicaID, topicID uint64) error
+	UnsubscribeFunc   func(replicaID, topicID uint64) error
 }
 
 // NewMessagingClient returns a new instance of MessagingClient.
 func NewMessagingClient() *MessagingClient {
 	c := &MessagingClient{c: make(chan *messaging.Message, 1)}
 	c.PublishFunc = c.send
+	c.CreateReplicaFunc = func(replicaID uint64) error { return nil }
+	c.DeleteReplicaFunc = func(replicaID uint64) error { return nil }
+	c.SubscribeFunc = func(replicaID, topicID uint64) error { return nil }
+	c.UnsubscribeFunc = func(replicaID, topicID uint64) error { return nil }
 	return c
 }
 
@@ -674,10 +701,24 @@ func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
 }
 
 // Creates a new replica with a given ID on the broker.
-func (c *MessagingClient) CreateReplica(id uint64) error { return nil }
+func (c *MessagingClient) CreateReplica(replicaID uint64) error {
+	return c.CreateReplicaFunc(replicaID)
+}
 
 // Deletes an existing replica with a given ID from the broker.
-func (c *MessagingClient) DeleteReplica(id uint64) error { return nil }
+func (c *MessagingClient) DeleteReplica(replicaID uint64) error {
+	return c.DeleteReplicaFunc(replicaID)
+}
+
+// Subscribe adds a subscription to a replica for a topic on the broker.
+func (c *MessagingClient) Subscribe(replicaID, topicID uint64) error {
+	return c.SubscribeFunc(replicaID, topicID)
+}
+
+// Unsubscribe removes a subscrition from a replica for a topic on the broker.
+func (c *MessagingClient) Unsubscribe(replicaID, topicID uint64) error {
+	return c.UnsubscribeFunc(replicaID, topicID)
+}
 
 // C returns a channel for streaming message.
 func (c *MessagingClient) C() <-chan *messaging.Message { return c.c }

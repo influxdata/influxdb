@@ -62,7 +62,7 @@ const (
 	deleteUserMessageType = messaging.MessageType(0x32)
 
 	// Shard messages
-	createShardIfNotExistsMessageType = messaging.MessageType(0x40)
+	createShardGroupIfNotExistsMessageType = messaging.MessageType(0x40)
 
 	// Series messages
 	createSeriesIfNotExistsMessageType = messaging.MessageType(0x50)
@@ -86,20 +86,20 @@ type Server struct {
 
 	dataNodes map[uint64]*DataNode // data nodes by id
 
-	databases        map[string]*database // databases by name
-	databasesByShard map[uint64]*database // databases by shard id
-	users            map[string]*User     // user by name
+	databases map[string]*database // databases by name
+	shards    map[uint64]*Shard    // shards by id
+	users     map[string]*User     // user by name
 }
 
 // NewServer returns a new instance of Server.
 func NewServer() *Server {
 	return &Server{
-		meta:             &metastore{},
-		dataNodes:        make(map[uint64]*DataNode),
-		databases:        make(map[string]*database),
-		databasesByShard: make(map[uint64]*database),
-		users:            make(map[string]*User),
-		errors:           make(map[uint64]error),
+		meta:      &metastore{},
+		dataNodes: make(map[uint64]*DataNode),
+		databases: make(map[string]*database),
+		shards:    make(map[uint64]*Shard),
+		users:     make(map[string]*User),
+		errors:    make(map[uint64]error),
 	}
 }
 
@@ -195,10 +195,6 @@ func (s *Server) load() error {
 		for _, db := range tx.databases() {
 			s.databases[db.name] = db
 
-			for sh := range db.shards {
-				s.databasesByShard[sh] = db
-			}
-
 			// load the index
 			log.Printf("Loading metadata index for %s\n", db.name)
 			err := s.meta.view(func(tx *metatx) error {
@@ -280,14 +276,14 @@ func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, er
 	}
 
 	// Wait for the server to receive the message.
-	err = s.sync(index)
+	err = s.Sync(index)
 
 	return index, err
 }
 
-// sync blocks until a given index (or a higher index) has been seen.
+// Sync blocks until a given index (or a higher index) has been applied.
 // Returns any error associated with the command.
-func (s *Server) sync(index uint64) error {
+func (s *Server) Sync(index uint64) error {
 	for {
 		// Check if index has occurred. If so, retrieve the error and return.
 		s.mu.RLock()
@@ -588,18 +584,18 @@ type deleteDatabaseCommand struct {
 	Name string `json:"name"`
 }
 
-// shardByTimestamp returns a shard that owns a given timestamp for a database.
-func (s *Server) shardByTimestamp(database, policy string, id uint32, timestamp time.Time) (*Shard, error) {
+// shardGroupByTimestamp returns a shard that owns a given timestamp for a database.
+func (s *Server) shardGroupByTimestamp(database, policy string, timestamp time.Time) (*ShardGroup, error) {
 	db := s.databases[database]
 	if db == nil {
 		return nil, ErrDatabaseNotFound
 	}
-	return db.shardByTimestamp(policy, id, timestamp)
+	return db.shardGroupByTimestamp(policy, timestamp)
 }
 
-// Shards returns a list of all shards for a database.
+// ShardGroups returns a list of all shard groups for a database.
 // Returns an error if the database doesn't exist.
-func (s *Server) Shards(database string) ([]*Shard, error) {
+func (s *Server) ShardGroups(database string) ([]*ShardGroup, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -609,53 +605,45 @@ func (s *Server) Shards(database string) ([]*Shard, error) {
 		return nil, ErrDatabaseNotFound
 	}
 
-	// Retrieve shards from database.
-	shards := make([]*Shard, 0, len(db.shards))
-	for _, shard := range db.shards {
-		shards = append(shards, shard)
+	// Retrieve groups from database.
+	var a []*ShardGroup
+	for _, rp := range db.policies {
+		for _, g := range rp.groups {
+			a = append(a, g)
+		}
 	}
-	return shards, nil
+	return a, nil
 }
 
-// shardsByTimestamp returns all shards that own a given timestamp for a database.
-func (s *Server) shardsByTimestamp(database, policy string, timestamp time.Time) ([]*Shard, error) {
-	db := s.databases[database]
-	if db == nil {
-		return nil, ErrDatabaseNotFound
-	}
-	return db.shardsByTimestamp(policy, timestamp)
-}
-
-// CreateShardsIfNotExist creates all the shards for a retention policy for the interval a timestamp falls into.
-// Note that multiple shards can be created for each bucket of time.
-func (s *Server) CreateShardsIfNotExists(database, policy string, timestamp time.Time) error {
-	c := &createShardIfNotExistsCommand{Database: database, Policy: policy, Timestamp: timestamp}
-	_, err := s.broadcast(createShardIfNotExistsMessageType, c)
+// CreateShardGroupIfNotExist creates the shard group for a retention policy for the interval a timestamp falls into.
+func (s *Server) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) error {
+	c := &createShardGroupIfNotExistsCommand{Database: database, Policy: policy, Timestamp: timestamp}
+	_, err := s.broadcast(createShardGroupIfNotExistsMessageType, c)
 	return err
 }
 
 // createShardIfNotExists returns the shard for a given retention policy, series, and timestamp.
 // If it doesn't exist, it will create all shards for the given timestamp
-func (s *Server) createShardIfNotExists(database, policy string, id uint32, timestamp time.Time) (*Shard, error) {
-	// Check if shard exists first.
-	sh, err := s.shardByTimestamp(database, policy, id, timestamp)
+func (s *Server) createShardGroupIfNotExists(database, policy string, timestamp time.Time) (*ShardGroup, error) {
+	// Check if shard group exists first.
+	g, err := s.shardGroupByTimestamp(database, policy, timestamp)
 	if err != nil {
 		return nil, err
-	} else if sh != nil {
-		return sh, nil
+	} else if g != nil {
+		return g, nil
 	}
 
 	// If the shard doesn't exist then create it.
-	if err := s.CreateShardsIfNotExists(database, policy, timestamp); err != nil {
+	if err := s.CreateShardGroupIfNotExists(database, policy, timestamp); err != nil {
 		return nil, err
 	}
 
 	// Lookup the shard again.
-	return s.shardByTimestamp(database, policy, id, timestamp)
+	return s.shardGroupByTimestamp(database, policy, timestamp)
 }
 
-func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) (err error) {
-	var c createShardIfNotExistsCommand
+func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err error) {
+	var c createShardGroupIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
@@ -673,44 +661,108 @@ func (s *Server) applyCreateShardIfNotExists(m *messaging.Message) (err error) {
 		return ErrRetentionPolicyNotFound
 	}
 
-	// If we can match to an existing shard date range then just ignore request.
-	for _, sh := range rp.Shards {
-		if timeBetweenInclusive(c.Timestamp, sh.StartTime, sh.EndTime) {
-			return nil
-		}
+	// If we can match to an existing shard group date range then just ignore request.
+	if g := rp.shardGroupByTimestamp(c.Timestamp); g != nil {
+		return nil
 	}
 
 	// If no shards match then create a new one.
-	sh := newShard()
-	sh.ID = m.Index
-	sh.StartTime = c.Timestamp.Truncate(rp.Duration).UTC()
-	sh.EndTime = sh.StartTime.Add(rp.Duration).UTC()
+	g := newShardGroup()
+	g.StartTime = c.Timestamp.Truncate(rp.Duration).UTC()
+	g.EndTime = g.StartTime.Add(rp.Duration).UTC()
 
-	// Open shard.
-	if err := sh.open(s.shardPath(sh.ID)); err != nil {
-		panic("unable to open shard: " + err.Error())
+	// Sort nodes so they're consistently assigned to the shards.
+	nodes := make([]*DataNode, 0, len(s.dataNodes))
+	for _, n := range s.dataNodes {
+		nodes = append(nodes, n)
+	}
+	sort.Sort(dataNodes(nodes))
+
+	// Require at least one replica but no more replicas than nodes.
+	replicaN := int(rp.ReplicaN)
+	if replicaN == 0 {
+		replicaN = 1
+	} else if replicaN > len(nodes) {
+		replicaN = len(nodes)
+	}
+
+	// Determine shard count by node count divided by replication factor.
+	// This will ensure nodes will get distributed across nodes evenly and
+	// replicated the correct number of times.
+	shardN := len(nodes) / replicaN
+
+	// Create a shard for each current data node.
+	g.Shards = make([]*Shard, shardN)
+	for i := range g.Shards {
+		g.Shards[i] = newShard()
 	}
 
 	// Persist to metastore if a shard was created.
 	if err = s.meta.mustUpdate(func(tx *metatx) error {
+		// Generate an ID for the group.
+		g.ID = tx.nextShardGroupID()
+
+		// Generate an ID for each shard.
+		for _, sh := range g.Shards {
+			sh.ID = tx.nextShardID()
+		}
+
+		// Assign data nodes to shards via round robin.
+		// Start from a repeatably "random" place in the node list.
+		nodeIndex := int(m.Index % uint64(len(nodes)))
+		for _, sh := range g.Shards {
+			for i := 0; i < replicaN; i++ {
+				node := nodes[nodeIndex%len(nodes)]
+				sh.DataNodeIDs = append(sh.DataNodeIDs, node.ID)
+				nodeIndex++
+			}
+		}
+
 		return tx.saveDatabase(db)
 	}); err != nil {
-		_ = sh.close()
+		g.close()
 		return
 	}
 
-	// Add to lookups.
-	s.databasesByShard[sh.ID] = db
-	db.shards[sh.ID] = sh
-	rp.Shards = append(rp.Shards, sh)
+	// Open shards assigned to this server.
+	for _, sh := range g.Shards {
+		// Ignore if this server is not assigned.
+		if !sh.HasDataNodeID(s.id) {
+			continue
+		}
 
-	// TODO: Subscribe to shard if it matches the server's index.
+		// Open shard store. Panic if an error occurs and we can retry.
+		if err := sh.open(s.shardPath(sh.ID)); err != nil {
+			panic("unable to open shard: " + err.Error())
+		}
+	}
+
+	// Add to lookups.
+	for _, sh := range g.Shards {
+		s.shards[sh.ID] = sh
+	}
+	rp.groups = append(rp.groups, g)
+
+	// Subscribe to shard if it matches the server's index.
+	// TODO: Move subscription outside of command processing.
+	// TODO: Retry subscriptions on failure.
+	for _, sh := range g.Shards {
+		// Ignore if this server is not assigned.
+		if !sh.HasDataNodeID(s.id) {
+			continue
+		}
+
+		// Subscribe on the broker.
+		if err := s.client.Subscribe(s.id, sh.ID); err != nil {
+			log.Printf("unable to subscribe: replica=%d, topic=%d, err=%s", s.id, sh.ID, err)
+		}
+	}
 
 	return
 }
 
-type createShardIfNotExistsCommand struct {
-	Database  string    `json:"name"`
+type createShardGroupIfNotExistsCommand struct {
+	Database  string    `json:"database"`
 	Policy    string    `json:"policy"`
 	Timestamp time.Time `json:"timestamp"`
 }
@@ -941,7 +993,6 @@ func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) err
 		Name:     rp.Name,
 		Duration: rp.Duration,
 		ReplicaN: rp.ReplicaN,
-		SplitN:   rp.SplitN,
 	}
 	_, err := s.broadcast(createRetentionPolicyMessageType, c)
 	return err
@@ -969,7 +1020,6 @@ func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
 		Name:     c.Name,
 		Duration: c.Duration,
 		ReplicaN: c.ReplicaN,
-		SplitN:   c.SplitN,
 	}
 
 	// Persist to metastore.
@@ -1156,56 +1206,80 @@ type createSeriesIfNotExistsCommand struct {
 // WriteSeries writes series data to the database.
 func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
 	// Find the id for the series and tagset
-	id, err := s.createSeriesIfNotExists(database, name, tags)
+	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {
 		return err
 	}
 
-	// Now write it into the shard.
-	sh, err := s.createShardIfNotExists(database, retentionPolicy, id, timestamp)
+	// Retrieve measurement.
+	m, err := s.measurement(database, name)
+	if err != nil {
+		return nil, err
+	} else if m == nil {
+		return nil, ErrMeasurementNotFound
+	}
+
+	// Retrieve shard group.
+	g, err := s.createShardGroupIfNotExists(database, retentionPolicy, timestamp)
 	if err != nil {
 		return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
 
-	// Encode point to a byte slice.
-	data, err := marshalPoint(id, timestamp, values)
-	if err != nil {
-		return err
+	// Find appropriate shard within the shard group.
+	sh := g.Shards[int(seriesID)%len(g.Shards)]
+
+	// Ignore requests that have no values.
+	if len(values) == 0 {
+		return nil
+	}
+
+	// Attempt to convert value keys to field ids.
+	rawValues := m.mapValues(values)
+
+	// Encode point header.
+	var flags pointHeaderFlag
+	if rawValues != nil {
+		flags |= pointHeaderRawFlag
+	}
+	data := marshalPointHeader(seriesID, timestamp.UnixNano(), flags)
+
+	// Encode raw data if available.
+	// Otherwise encode as JSON.
+	if (flags & pointHeaderRawFlag) != 0 {
+		data = append(data, marshalValues(rawValues)...)
+	} else {
+		buf, err := json.Marshal(values)
+		if err != nil {
+			return err
+		}
+		data = append(data, buf...)
 	}
 
 	// Publish "write series" message on shard's topic to broker.
-	m := &messaging.Message{
+	_, err = s.client.Publish(&messaging.Message{
 		Type:    writeSeriesMessageType,
 		TopicID: sh.ID,
 		Data:    data,
-	}
-
-	_, err = s.client.Publish(m)
+	})
 	return err
 }
 
 func (s *Server) applyWriteSeries(m *messaging.Message) error {
 	s.mu.RLock()
 
-	// Retrieve the database.
-	db := s.databasesByShard[m.TopicID]
-	if db == nil {
-		s.mu.RUnlock()
-		return ErrDatabaseNotFound
-	}
-
 	// Retrieve the shard.
-	sh := db.shards[m.TopicID]
+	sh := s.shards[m.TopicID]
 	if sh == nil {
 		s.mu.RUnlock()
 		return ErrShardNotFound
 	}
 	s.mu.RUnlock()
 
-	// TODO: enable some way to specify if the data should be overwritten
+	// TODO: Enable some way to specify if the data should be overwritten
 	overwrite := true
 
 	// Write to shard.
+	warn("WRITING!")
 	return sh.writeSeries(overwrite, m.Data)
 }
 
@@ -1233,6 +1307,11 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 		return 0, ErrSeriesNotFound
 	}
 	return series.ID, nil
+}
+
+// ReadSeries reads a single point from a series in the database.
+func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time) (map[string]interface{}, error) {
+	panic("TODO")
 }
 
 func (s *Server) MeasurementNames(database string) []string {
@@ -1295,8 +1374,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applyUpdateRetentionPolicy(m)
 		case deleteRetentionPolicyMessageType:
 			err = s.applyDeleteRetentionPolicy(m)
-		case createShardIfNotExistsMessageType:
-			err = s.applyCreateShardIfNotExists(m)
+		case createShardGroupIfNotExistsMessageType:
+			err = s.applyCreateShardGroupIfNotExists(m)
 		case setDefaultRetentionPolicyMessageType:
 			err = s.applySetDefaultRetentionPolicy(m)
 		case createSeriesIfNotExistsMessageType:
@@ -1319,10 +1398,16 @@ type MessagingClient interface {
 	Publish(m *messaging.Message) (index uint64, err error)
 
 	// Creates a new replica with a given ID on the broker.
-	CreateReplica(id uint64) error
+	CreateReplica(replicaID uint64) error
 
 	// Deletes an existing replica with a given ID from the broker.
-	DeleteReplica(id uint64) error
+	DeleteReplica(replicaID uint64) error
+
+	// Creates a subscription for a replica to a topic.
+	Subscribe(replicaID, topicID uint64) error
+
+	// Removes a subscription from the replica for a topic.
+	Unsubscribe(replicaID, topicID uint64) error
 
 	// The streaming channel for all subscribed messages.
 	C() <-chan *messaging.Message
