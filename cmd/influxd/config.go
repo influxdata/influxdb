@@ -166,7 +166,7 @@ func (c *Config) MaxOpenShards() int {
 
 // DataAddr returns the binding address the data server
 func (c *Config) DataAddr() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.Data.Port)
+	return net.JoinHostPort(c.BindAddress, strconv.Itoa(c.Data.Port))
 }
 
 // DataURL returns the URL required to contact the data server.

@@ -22,7 +22,7 @@ func execRun(args []string) {
 	var (
 		configPath = fs.String("config", configDefaultPath, "")
 		pidPath    = fs.String("pidfile", "", "")
-		role       = fs.String("role", "combined", "")
+		role       = fs.String("role", "", "")
 		hostname   = fs.String("hostname", "", "")
 		join       = fs.String("join", "", "")
 	)
@@ -30,8 +30,8 @@ func execRun(args []string) {
 	fs.Parse(args)
 
 	// Validate CLI flags.
-	if *role != "combined" && *role != "broker" && *role != "data" {
-		log.Fatalf("role must be 'combined', 'broker', or 'data'")
+	if *role != "" && *role != "broker" && *role != "data" {
+		log.Fatalf("role must be '', 'broker', or 'data'")
 	}
 
 	// Parse join urls from the --join flag.
@@ -53,13 +53,13 @@ func execRun(args []string) {
 	if b != nil {
 		h = &Handler{brokerHandler: messaging.NewHandler(b)}
 		go func() { log.Fatal(http.ListenAndServe(config.BrokerAddr(), h)) }()
-		log.Printf("broker running on %s", config.BrokerAddr())
+		log.Printf("broker listening on %s", config.BrokerAddr())
 	}
 
 	// Open server, initialize or join as necessary.
 	s := openServer(config.Data.Dir, config.DataURL(), b, initializing, joinURLs)
 
-	// Start the server handler. Attach to broker if running on the same port.
+	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		sh := influxdb.NewHandler(s)
 		sh.AuthenticationEnabled = config.Authentication.Enabled
@@ -68,7 +68,7 @@ func execRun(args []string) {
 		} else {
 			go func() { log.Fatal(http.ListenAndServe(config.DataAddr(), sh)) }()
 		}
-		log.Printf("data node #%d running on %s", s.ID(), config.DataAddr())
+		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
 	}
 
 	// Wait indefinitely.
@@ -260,27 +260,26 @@ func fileExists(path string) bool {
 func printRunUsage() {
 	log.Printf(`usage: run [flags]
 
-run starts the node with any existing cluster configuration. If no cluster
-configuration is found, then the node runs in "local" mode. "Local" mode is a
-single-node mode that does not use Distributed Consensus, but is otherwise
-fully-functional.
+run starts the broker and data node server. If this is the first time running
+the command then a new cluster will be initialized unless the -join argument
+is used.
 
         -config <path>
                           Set the path to the configuration file.
                           Defaults to %s.
 
         -role <role>
-                          Set the role to be 'combined', 'broker' or 'data'.
-                          'broker' means it will take part in Raft distributed
-                          consensus. 'data' means it will store time-series
-                          data. 'combined' means it will do both. The default is
-                          'combined'. A role other than these three is invalid.
+                          Set the role to 'broker' or 'data'.  'broker' means
+                          it will take part in Raft distributed consensus.
+                          'data' means it will store time-series data.
+                          If neither 'broker' or 'data' is specified then
+                          the server will run as both a broker and data node.
 
         -hostname <name>
                           Override the hostname, the 'hostname' configuration
                           option will be overridden.
 
-        -join <servers>
+        -join <url>
                           Joins the server to an existing cluster.
 
         -pidfile <path>
