@@ -147,6 +147,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// LIST DATABASES
+		{
+			s:    `LIST DATABASES`,
+			stmt: &influxql.ListDatabasesStatement{},
+		},
+
 		// LIST SERIES statement
 		{
 			s:    `LIST SERIES`,
@@ -277,16 +283,34 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ListContinuousQueriesStatement{},
 		},
 
-		// CREATE CONTINUOUS QUERY statement
+		// CREATE CONTINUOUS QUERY ... INTO <measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery AS SELECT count() FROM myseries INTO foo`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO measure1 FROM myseries END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
-				Name: "myquery",
+				Name:     "myquery",
+				Database: "testdb",
 				Source: &influxql.SelectStatement{
 					Fields: influxql.Fields{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Target: &influxql.Target{Measurement: "measure1"},
 					Source: &influxql.Measurement{Name: "myseries"},
 				},
-				Target: "foo",
+			},
+		},
+
+		// CREATE CONTINUOUS QUERY ... INTO <retention-policy>.<measurement>
+		{
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1"."cpu.load" FROM myseries END`,
+			stmt: &influxql.CreateContinuousQueryStatement{
+				Name:     "myquery",
+				Database: "testdb",
+				Source: &influxql.SelectStatement{
+					Fields: influxql.Fields{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Target: &influxql.Target{
+						RetentionPolicy: "1h.policy1",
+						Measurement:     "cpu.load",
+					},
+					Source: &influxql.Measurement{Name: "myseries"},
+				},
 			},
 		},
 
@@ -304,6 +328,16 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateUserStatement{
 				Name:     "testuser",
 				Password: "pwd1337",
+			},
+		},
+
+		// CREATE USER ... WITH ALL PRIVILEGES
+		{
+			s: `CREATE USER testuser WITH PASSWORD pwd1337 WITH ALL PRIVILEGES`,
+			stmt: &influxql.CreateUserStatement{
+				Name:     "testuser",
+				Password: "pwd1337",
+				Privilege: influxql.NewPrivilege(influxql.AllPrivileges),
 			},
 		},
 
@@ -428,7 +462,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 2`,
 			stmt: &influxql.CreateRetentionPolicyStatement{
 				Name:        "policy1",
-				DB:          "testdb",
+				Database:    "testdb",
 				Duration:    time.Hour,
 				Replication: 2,
 			},
@@ -439,7 +473,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 2m REPLICATION 4 DEFAULT`,
 			stmt: &influxql.CreateRetentionPolicyStatement{
 				Name:        "policy1",
-				DB:          "testdb",
+				Database:    "testdb",
 				Duration:    2 * time.Minute,
 				Replication: 4,
 				Default:     true,
@@ -506,6 +540,10 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
 		{s: `DROP USER`, err: `found EOF, expected identifier at line 1, char 11`},
 		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
+		{s: `CREATE USER testuser WITH`, err: `found EOF, expected PASSWORD at line 1, char 27`},
+		{s: `CREATE USER testuser WITH PASSWORD`, err: `found EOF, expected identifier at line 1, char 36`},
+		{s: `CREATE USER testuser WITH PASSWORD "pwd" WITH`, err: `found EOF, expected ALL at line 1, char 47`},
+		{s: `CREATE USER testuser WITH PASSWORD "pwd" WITH ALL`, err: `found EOF, expected PRIVILEGES at line 1, char 51`},
 		{s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT READ`, err: `found EOF, expected ON at line 1, char 12`},
@@ -545,6 +583,10 @@ func TestParser_ParseStatement(t *testing.T) {
 			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.stmt, stmt) {
 			t.Errorf("%d. %q\n\nstmt mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt)
+			exp := tt.stmt.(*influxql.CreateContinuousQueryStatement).Source.Target
+			got := stmt.(*influxql.CreateContinuousQueryStatement).Source.Target
+			t.Errorf("exp.String() = %#v\n", *exp)
+			t.Errorf("got.String() = %#v\n", *got)
 		}
 	}
 }
@@ -833,9 +875,9 @@ func errstring(err error) string {
 // newAlterRetentionPolicyStatement creates an initialized AlterRetentionPolicyStatement.
 func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, replication int, dfault bool) *influxql.AlterRetentionPolicyStatement {
 	stmt := &influxql.AlterRetentionPolicyStatement{
-		Name:    name,
-		DB:      DB,
-		Default: dfault,
+		Name:     name,
+		Database: DB,
+		Default:  dfault,
 	}
 
 	if d > -1 {
