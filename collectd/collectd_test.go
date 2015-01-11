@@ -41,7 +41,7 @@ func TestServer_ListenAndServe_ErrBindAddressRequired(t *testing.T) {
 		err = collectd.ErrBindAddressRequired
 	)
 
-	e := s.ListenAndServe("")
+	e := collectd.ListenAndServe(s, "")
 	if e != err {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
@@ -54,7 +54,7 @@ func TestServer_ListenAndServe_ErrDatabaseNotSpecified(t *testing.T) {
 		err = collectd.ErrDatabaseNotSpecified
 	)
 
-	e := s.ListenAndServe("127.0.0.1:25826")
+	e := collectd.ListenAndServe(s, "127.0.0.1:25826")
 	if e != err {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
@@ -68,7 +68,7 @@ func TestServer_ListenAndServe_ErrCouldNotParseTypesDBFile(t *testing.T) {
 	)
 
 	s.Database = "foo"
-	e := s.ListenAndServe("127.0.0.1:25829")
+	e := collectd.ListenAndServe(s, "127.0.0.1:25829")
 	if e != err {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
@@ -82,7 +82,7 @@ func TestServer_ListenAndServe_Success(t *testing.T) {
 	)
 
 	s.Database = "counter"
-	e := s.ListenAndServe("127.0.0.1:25830")
+	e := collectd.ListenAndServe(s, "127.0.0.1:25830")
 	defer s.Close()
 	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
@@ -98,7 +98,7 @@ func TestServer_Close_ErrServerClosed(t *testing.T) {
 	)
 
 	s.Database = "counter"
-	e := s.ListenAndServe("127.0.0.1:25830")
+	e := collectd.ListenAndServe(s, "127.0.0.1:25830")
 	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
@@ -117,7 +117,7 @@ func TestServer_ListenAndServe_ErrResolveUDPAddr(t *testing.T) {
 	)
 
 	s.Database = "counter"
-	e := s.ListenAndServe("foo")
+	e := collectd.ListenAndServe(s, "foo")
 	if e != err {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
@@ -136,7 +136,7 @@ func TestServer_ListenAndServe_ErrListenUDP(t *testing.T) {
 	defer conn.Close()
 
 	s.Database = "counter"
-	e := s.ListenAndServe("127.0.0.1:25826")
+	e := collectd.ListenAndServe(s, "127.0.0.1:25826")
 	if e != err {
 		t.Fatalf("err does not match.  expected %v, got %v", err, e)
 	}
@@ -154,7 +154,7 @@ func TestServer_Serve_Success(t *testing.T) {
 	)
 
 	s.Database = "counter"
-	e := s.ListenAndServe(addr)
+	e := collectd.ListenAndServe(s, addr)
 	defer s.Close()
 	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)

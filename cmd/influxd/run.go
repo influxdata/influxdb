@@ -99,9 +99,9 @@ func execRun(args []string) {
 			c := config.Collectd
 			cs := collectd.NewServer(s, c.TypesDB)
 			cs.Database = c.Database
-			err := cs.ListenAndServe(c.ConnectionString(config.BindAddress))
+			err := collectd.ListenAndServe(cs, c.ConnectionString(config.BindAddress))
 			if err != nil {
-				log.Println("failed to start collectd Server", err.Error())
+				log.Printf("failed to start collectd Server: %v\n", err.Error())
 			}
 		}
 		// Spin up any Graphite servers
@@ -121,14 +121,14 @@ func execRun(args []string) {
 				g.Database = c.Database
 				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
 				if err != nil {
-					log.Println("failed to start TCP Graphite Server", err.Error())
+					log.Printf("failed to start TCP Graphite Server: %v\n", err.Error())
 				}
 			} else if strings.ToLower(c.Protocol) == "udp" {
 				g := graphite.NewUDPServer(parser, s)
 				g.Database = c.Database
 				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
 				if err != nil {
-					log.Println("failed to start UDP Graphite Server", err.Error())
+					log.Printf("failed to start UDP Graphite Server: %v\n", err.Error())
 				}
 			} else {
 				log.Fatalf("unrecognized Graphite Server prototcol %v", c.Protocol)

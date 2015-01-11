@@ -41,9 +41,8 @@ type SeriesWriter interface {
 }
 
 type Server struct {
-	mu      sync.Mutex
-	wg      sync.WaitGroup
-	closing bool
+	mu sync.Mutex
+	wg sync.WaitGroup
 
 	conn *net.UDPConn
 
@@ -54,35 +53,40 @@ type Server struct {
 }
 
 func NewServer(w SeriesWriter, typesDBPath string) *Server {
-	s := &Server{}
+	s := Server{
+		writer:      w,
+		typesdbpath: typesDBPath,
+		typesdb:     make(gollectd.Types),
+	}
 
-	s.writer = w
-	s.typesdbpath = typesDBPath
-	s.typesdb = make(gollectd.Types)
-
-	return s
+	return &s
 }
 
-func (s *Server) ListenAndServe(iface string) error {
+func ListenAndServe(s *Server, iface string) error {
 	if iface == "" { // Make sure we have an address
 		return ErrBindAddressRequired
 	} else if s.Database == "" { // Make sure they have a database
 		return ErrDatabaseNotSpecified
 	}
 
-	var err error
-	s.typesdb, err = gollectd.TypesDBFile(s.typesdbpath)
-	if err != nil {
-		return ErrCouldNotParseTypesDBFile
-	}
-
 	addr, err := net.ResolveUDPAddr("udp", iface)
 	if err != nil {
+		// Should be something more like this, but testing becomes brittle
+		//return fmt.Errorf("unable to resolve UDP address: %v", err)
 		return ErrResolveUDPAddr
+	}
+
+	s.typesdb, err = gollectd.TypesDBFile(s.typesdbpath)
+	if err != nil {
+		// Should be something more like this, but testing becomes brittle
+		// return fmt.Errorf("unable to parse typesDBFile: %v", err)
+		return ErrCouldNotParseTypesDBFile
 	}
 
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
+		// Should be something more like this, but testing becomes brittle
+		//return fmt.Errorf("unable to listen on UDP: %v", err)
 		return ErrListenUDP
 	}
 	s.conn = conn
@@ -109,7 +113,8 @@ func (s *Server) serve(conn *net.UDPConn) {
 	for {
 		n, _, err := conn.ReadFromUDP(buffer)
 		if err != nil {
-			if s.closing {
+			if s.conn == nil {
+				// This error occured becase we closed the connection and this is expected behavior
 				return
 			}
 			log.Printf("Collectd ReadFromUDP error: %s", err)
@@ -154,7 +159,6 @@ func (s *Server) Close() error {
 	if s.conn == nil {
 		return ErrServerClosed
 	}
-	s.closing = true
 	s.conn.Close()
 	s.conn = nil
 
