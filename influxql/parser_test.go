@@ -335,8 +335,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE USER testuser WITH PASSWORD pwd1337 WITH ALL PRIVILEGES`,
 			stmt: &influxql.CreateUserStatement{
-				Name:     "testuser",
-				Password: "pwd1337",
+				Name:      "testuser",
+				Password:  "pwd1337",
 				Privilege: influxql.NewPrivilege(influxql.AllPrivileges),
 			},
 		},
@@ -840,7 +840,7 @@ func BenchmarkParserParseStatement(b *testing.B) {
 		if stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement(); err != nil {
 			b.Fatalf("unexpected error: %s", err)
 		} else if stmt == nil {
-			b.Fatalf("expected statement", stmt)
+			b.Fatalf("expected statement: %s", stmt)
 		}
 	}
 	b.SetBytes(int64(len(s)))

@@ -98,7 +98,7 @@ func execRun(args []string) {
 					log.Println("failed to start UDP Graphite Server", err.Error())
 				}
 			} else {
-				log.Fatalf("unrecognized Graphite Server prototcol", c.Protocol)
+				log.Fatalf("unrecognized Graphite Server prototcol %s", c.Protocol)
 			}
 		}
 	}

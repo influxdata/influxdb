@@ -560,7 +560,7 @@ func TestServer_Measurements(t *testing.T) {
 	}
 	ids := s.MeasurementSeriesIDs("foo", "foo")
 	if !ids.Equals(expectedSeriesIDs) {
-		t.Fatalf("Series IDs not the same:\n  exp: %s\n  got: %s", expectedSeriesIDs, ids)
+		t.Fatalf("Series IDs not the same:\n  exp: %v\n  got: %v", expectedSeriesIDs, ids)
 	}
 
 	s.Restart()
@@ -571,7 +571,7 @@ func TestServer_Measurements(t *testing.T) {
 	}
 	ids = s.MeasurementSeriesIDs("foo", "foo")
 	if !ids.Equals(expectedSeriesIDs) {
-		t.Fatalf("Series IDs not the same:\n  exp: %s\n  got: %s", expectedSeriesIDs, ids)
+		t.Fatalf("Series IDs not the same:\n  exp: %v\n  got: %v", expectedSeriesIDs, ids)
 	}
 }
 
