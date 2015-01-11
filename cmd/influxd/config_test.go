@@ -296,7 +296,7 @@ lru-cache-size = "200m"
 point-batch-size = 50
 `
 
-func Test_Collectd_ConnectionString(t *testing.T) {
+func TestCollectd_ConnectionString(t *testing.T) {
 	var tests = []struct {
 		name             string
 		defaultBindAddr  string
