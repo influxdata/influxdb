@@ -17,14 +17,24 @@ type Handler struct {
 
 // NewHandler returns a new instance of Handler.
 func NewHandler(b *Broker) *Handler {
-	return &Handler{
-		raftHandler: raft.NewHTTPHandler(b.log),
-		broker:      b,
-	}
+	h := &Handler{}
+	h.SetBroker(b)
+	return h
 }
 
 // Broker returns the broker on the handler.
 func (h *Handler) Broker() *Broker { return h.broker }
+
+// SetBroker sets the broker on the handler.
+func (h *Handler) SetBroker(b *Broker) {
+	h.broker = b
+
+	if b != nil {
+		h.raftHandler = raft.NewHTTPHandler(b.log)
+	} else {
+		h.raftHandler = nil
+	}
+}
 
 // ServeHTTP serves an HTTP request.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -36,11 +46,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Route all InfluxDB broker requests.
 	switch r.URL.Path {
-	case "/messages":
+	case "/messaging/messages":
 		if r.Method == "GET" {
 			h.stream(w, r)
 		} else if r.Method == "POST" {
 			h.publish(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	case "/messaging/replicas":
+		if r.Method == "POST" {
+			h.createReplica(w, r)
+		} else if r.Method == "DELETE" {
+			h.deleteReplica(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
@@ -54,7 +72,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 	// Read the replica ID.
 	var replicaID uint64
 	if n, err := strconv.ParseUint(r.URL.Query().Get("replicaID"), 10, 64); err != nil {
-		h.error(w, ErrReplicaRequired, http.StatusBadRequest)
+		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
 		return
 	} else {
 		replicaID = uint64(n)
@@ -109,6 +127,47 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 
 	// Return index.
 	w.Header().Set("X-Broker-Index", strconv.FormatUint(index, 10))
+}
+
+// createReplica creates a new replica with a given ID.
+func (h *Handler) createReplica(w http.ResponseWriter, r *http.Request) {
+	// Read the replica ID.
+	var replicaID uint64
+	if n, err := strconv.ParseUint(r.URL.Query().Get("id"), 10, 64); err != nil {
+		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
+		return
+	} else {
+		replicaID = uint64(n)
+	}
+
+	// Create a new replica on the broker.
+	if err := h.broker.CreateReplica(replicaID); err == ErrReplicaExists {
+		h.error(w, err, http.StatusConflict)
+		return
+	} else if err != nil {
+		h.error(w, err, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+// deleteReplica deletes an existing replica by ID.
+func (h *Handler) deleteReplica(w http.ResponseWriter, r *http.Request) {
+	// Read the replica ID.
+	var replicaID uint64
+	if n, err := strconv.ParseUint(r.URL.Query().Get("id"), 10, 64); err != nil {
+		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
+		return
+	} else {
+		replicaID = uint64(n)
+	}
+
+	// Delete the replica on the broker.
+	if err := h.broker.DeleteReplica(replicaID); err != nil {
+		h.error(w, err, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // error writes an error to the client and sets the status code.

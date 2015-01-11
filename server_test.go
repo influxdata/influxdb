@@ -560,7 +560,7 @@ func TestServer_Measurements(t *testing.T) {
 	}
 	ids := s.MeasurementSeriesIDs("foo", "foo")
 	if !ids.Equals(expectedSeriesIDs) {
-		t.Fatalf("Series IDs not the same:\n  exp: %s\n  got: %s", expectedSeriesIDs, ids)
+		t.Fatalf("Series IDs not the same:\n  exp: %v\n  got: %v", expectedSeriesIDs, ids)
 	}
 
 	s.Restart()
@@ -571,7 +571,7 @@ func TestServer_Measurements(t *testing.T) {
 	}
 	ids = s.MeasurementSeriesIDs("foo", "foo")
 	if !ids.Equals(expectedSeriesIDs) {
-		t.Fatalf("Series IDs not the same:\n  exp: %s\n  got: %s", expectedSeriesIDs, ids)
+		t.Fatalf("Series IDs not the same:\n  exp: %v\n  got: %v", expectedSeriesIDs, ids)
 	}
 }
 
@@ -672,6 +672,12 @@ func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
 	c.c <- m
 	return m.Index, nil
 }
+
+// Creates a new replica with a given ID on the broker.
+func (c *MessagingClient) CreateReplica(id uint64) error { return nil }
+
+// Deletes an existing replica with a given ID from the broker.
+func (c *MessagingClient) DeleteReplica(id uint64) error { return nil }
 
 // C returns a channel for streaming message.
 func (c *MessagingClient) C() <-chan *messaging.Message { return c.c }

@@ -17,6 +17,9 @@ var (
 	// ErrPathRequired is returned when opening a server without a path.
 	ErrPathRequired = errors.New("path required")
 
+	// ErrUnableToJoin is returned when a server cannot join a cluster.
+	ErrUnableToJoin = errors.New("unable to join")
+
 	// ErrDataNodeURLRequired is returned when creating a data node without a URL.
 	ErrDataNodeURLRequired = errors.New("data node url required")
 

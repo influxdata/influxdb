@@ -105,7 +105,7 @@ func TestHTTPTransport_Heartbeat_Err(t *testing.T) {
 		u, _ := url.Parse(s.URL)
 		_, _, err := raft.DefaultTransport.Heartbeat(u, 1, 2, 3)
 		if err == nil {
-			t.Errorf("%d. expected error")
+			t.Errorf("%d. expected error", i)
 		} else if tt.err != err.Error() {
 			t.Errorf("%d. error:\n\nexp: %s\n\ngot: %s", i, tt.err, err.Error())
 		}
