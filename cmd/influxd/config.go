@@ -36,100 +36,78 @@ const (
 )
 
 // Config represents the configuration format for the influxd binary.
-type (
-	Collectd struct {
-		Addr string `toml:"address"`
-		Port uint16 `toml:"port"`
+type Config struct {
+	Hostname          string `toml:"hostname"`
+	BindAddress       string `toml:"bind-address"`
+	ReportingDisabled bool   `toml:"reporting-disabled"`
+	Version           string `toml:"-"`
+	InfluxDBVersion   string `toml:"-"`
 
-		Database string `toml:"database"`
-		Enabled  bool   `toml:"enabled"`
-		TypesDB  string `toml:"typesdb"`
-	}
+	Authentication struct {
+		Enabled bool `toml:"enabled"`
+	} `toml:"authentication"`
 
-	Graphite struct {
-		Addr string `toml:"address"`
-		Port uint16 `toml:"port"`
+	Admin struct {
+		Port   int    `toml:"port"`
+		Assets string `toml:"assets"`
+	} `toml:"admin"`
 
-		Database      string `toml:"database"`
-		Enabled       bool   `toml:"enabled"`
-		Protocol      string `toml:"protocol"`
-		NamePosition  string `toml:"name-position"`
-		NameSeparator string `toml:"name-separator"`
-	}
+	HTTPAPI struct {
+		Port        int      `toml:"port"`
+		SSLPort     int      `toml:"ssl-port"`
+		SSLCertPath string   `toml:"ssl-cert"`
+		ReadTimeout Duration `toml:"read-timeout"`
+	} `toml:"api"`
 
-	Config struct {
-		Hostname          string `toml:"hostname"`
-		BindAddress       string `toml:"bind-address"`
-		ReportingDisabled bool   `toml:"reporting-disabled"`
-		Version           string `toml:"-"`
-		InfluxDBVersion   string `toml:"-"`
+	Graphites []Graphite `toml:"graphite"`
+	Collectd  Collectd   `toml:"collectd"`
 
-		Authentication struct {
-			Enabled bool `toml:"enabled"`
-		} `toml:"authentication"`
+	InputPlugins struct {
+		UDPInput struct {
+			Enabled  bool   `toml:"enabled"`
+			Port     uint16 `toml:"port"`
+			Database string `toml:"database"`
+		} `toml:"udp"`
+		UDPServersInput []struct {
+			Enabled  bool   `toml:"enabled"`
+			Port     int    `toml:"port"`
+			Database string `toml:"database"`
+		} `toml:"udp_servers"`
+	} `toml:"input_plugins"`
 
-		Admin struct {
-			Port   int    `toml:"port"`
-			Assets string `toml:"assets"`
-		} `toml:"admin"`
+	Broker struct {
+		Port    int      `toml:"port"`
+		Dir     string   `toml:"dir"`
+		Timeout Duration `toml:"election-timeout"`
+	} `toml:"broker"`
 
-		HTTPAPI struct {
-			Port        int      `toml:"port"`
-			SSLPort     int      `toml:"ssl-port"`
-			SSLCertPath string   `toml:"ssl-cert"`
-			ReadTimeout Duration `toml:"read-timeout"`
-		} `toml:"api"`
+	Data struct {
+		Dir                  string                    `toml:"dir"`
+		WriteBufferSize      int                       `toml:"write-buffer-size"`
+		MaxOpenShards        int                       `toml:"max-open-shards"`
+		PointBatchSize       int                       `toml:"point-batch-size"`
+		WriteBatchSize       int                       `toml:"write-batch-size"`
+		Engines              map[string]toml.Primitive `toml:"engines"`
+		RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
+	} `toml:"data"`
 
-		Graphites []Graphite `toml:"graphite"`
-		Collectd  Collectd   `toml:"collectd"`
+	Cluster struct {
+		Dir                       string   `toml:"dir"`
+		ProtobufPort              int      `toml:"protobuf_port"`
+		ProtobufTimeout           Duration `toml:"protobuf_timeout"`
+		ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
+		MinBackoff                Duration `toml:"protobuf_min_backoff"`
+		MaxBackoff                Duration `toml:"protobuf_max_backoff"`
+		WriteBufferSize           int      `toml:"write-buffer-size"`
+		ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
+		MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
+	} `toml:"cluster"`
 
-		InputPlugins struct {
-			UDPInput struct {
-				Enabled  bool   `toml:"enabled"`
-				Port     uint16 `toml:"port"`
-				Database string `toml:"database"`
-			} `toml:"udp"`
-			UDPServersInput []struct {
-				Enabled  bool   `toml:"enabled"`
-				Port     int    `toml:"port"`
-				Database string `toml:"database"`
-			} `toml:"udp_servers"`
-		} `toml:"input_plugins"`
-
-		Broker struct {
-			Port    int      `toml:"port"`
-			Dir     string   `toml:"dir"`
-			Timeout Duration `toml:"election-timeout"`
-		} `toml:"broker"`
-
-		Data struct {
-			Dir                  string                    `toml:"dir"`
-			WriteBufferSize      int                       `toml:"write-buffer-size"`
-			MaxOpenShards        int                       `toml:"max-open-shards"`
-			PointBatchSize       int                       `toml:"point-batch-size"`
-			WriteBatchSize       int                       `toml:"write-batch-size"`
-			Engines              map[string]toml.Primitive `toml:"engines"`
-			RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
-		} `toml:"data"`
-
-		Cluster struct {
-			Dir                       string   `toml:"dir"`
-			ProtobufPort              int      `toml:"protobuf_port"`
-			ProtobufTimeout           Duration `toml:"protobuf_timeout"`
-			ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
-			MinBackoff                Duration `toml:"protobuf_min_backoff"`
-			MaxBackoff                Duration `toml:"protobuf_max_backoff"`
-			WriteBufferSize           int      `toml:"write-buffer-size"`
-			ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
-			MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
-		} `toml:"cluster"`
-
-		Logging struct {
-			File  string `toml:"file"`
-			Level string `toml:"level"`
-		} `toml:"logging"`
-	}
-)
+	Logging struct {
+		File  string `toml:"file"`
+		Level string `toml:"level"`
+	} `toml:"logging"`
+}
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
@@ -277,9 +255,17 @@ func ParseConfig(s string) (*Config, error) {
 	return c, nil
 }
 
+type Collectd struct {
+	Addr string `toml:"address"`
+	Port uint16 `toml:"port"`
+
+	Database string `toml:"database"`
+	Enabled  bool   `toml:"enabled"`
+	TypesDB  string `toml:"typesdb"`
+}
+
 // ConnnectionString returns the connection string for this collectd config in the form host:port.
 func (c *Collectd) ConnectionString(defaultBindAddr string) string {
-
 	addr := c.Addr
 	// If no address specified, use default.
 	if addr == "" {
@@ -293,6 +279,17 @@ func (c *Collectd) ConnectionString(defaultBindAddr string) string {
 	}
 
 	return fmt.Sprintf("%s:%d", addr, port)
+}
+
+type Graphite struct {
+	Addr string `toml:"address"`
+	Port uint16 `toml:"port"`
+
+	Database      string `toml:"database"`
+	Enabled       bool   `toml:"enabled"`
+	Protocol      string `toml:"protocol"`
+	NamePosition  string `toml:"name-position"`
+	NameSeparator string `toml:"name-separator"`
 }
 
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
