@@ -1,17 +1,11 @@
 language: go
 
 go:
-  - 1.3.3
   - 1.4
 
 install:
   - go get -d -v ./... && go build -v ./...
-  - if [ $TRAVIS_GO_VERSION == "go1.3.3" ]; then
-    go get -u code.google.com/p/go.tools/cmd/vet;
-    fi
-  - if [ $TRAVIS_GO_VERSION == "go1.4" ]; then
-    go get -u golang.org/x/tools/cmd/vet;
-    fi
+  - go get -u golang.org/x/tools/cmd/vet;
 
 script: go test -v . ./messaging ./influxql; go vet ./...
 
