@@ -11,9 +11,8 @@ import (
 	"github.com/kimor79/gollectd"
 )
 
-const (
-	DefaultPort = 25826
-)
+// DefaultPort for colletd is 25826
+const DefaultPort = 25826
 
 var (
 	// ErrBindAddressRequired is returned when starting the Server
@@ -30,10 +29,10 @@ var (
 	ErrServerClosed = errors.New("server already closed")
 
 	// ErrResolveUDPAddr returned when we are unable to resolve a udp address
-	ErrResolveUDPAddr = errors.New("Unable to resolve UDP address")
+	ErrResolveUDPAddr = errors.New("unable to resolve UDP address")
 
 	// ErrListenUDP returned when we are unable to resolve a udp address
-	ErrListenUDP = errors.New("Unable to listen on UDP")
+	ErrListenUDP = errors.New("unable to listen on UDP")
 )
 
 // SeriesWriter defines the interface for the destination of the data.
@@ -42,9 +41,10 @@ type SeriesWriter interface {
 }
 
 type Server struct {
-	mu   sync.Mutex
-	wg   sync.WaitGroup
-	done chan struct{} // close notification
+	mu      sync.Mutex
+	wg      sync.WaitGroup
+	closing bool
+
 	conn *net.UDPConn
 
 	writer      SeriesWriter
@@ -87,10 +87,6 @@ func (s *Server) ListenAndServe(iface string) error {
 	}
 	s.conn = conn
 
-	// Create a new close notification channel.
-	done := make(chan struct{}, 0)
-	s.done = done
-
 	s.wg.Add(1)
 	go s.serve(conn)
 
@@ -111,21 +107,17 @@ func (s *Server) serve(conn *net.UDPConn) {
 	buffer := make([]byte, 1452)
 
 	for {
-		select {
-		case <-s.done:
-			s.conn.Close()
-			return
-		default:
-			n, _, err := conn.ReadFromUDP(buffer)
-			if err != nil || n == 0 {
-				log.Printf("Collectd ReadFromUDP error: %s", err)
+		n, _, err := conn.ReadFromUDP(buffer)
+		if err != nil {
+			if s.closing {
 				return
 			}
-
-			// Read in data in a separate goroutine.
-			s.wg.Add(1)
-			go s.handleMessage(buffer[:n])
+			log.Printf("Collectd ReadFromUDP error: %s", err)
 		}
+
+		// Read in data in a separate goroutine.
+		s.wg.Add(1)
+		go s.handleMessage(buffer[:n])
 	}
 }
 
@@ -158,13 +150,13 @@ func (s *Server) handleMessage(buffer []byte) {
 func (s *Server) Close() error {
 	// Notify other goroutines of shutdown.
 	s.mu.Lock()
-	if s.done == nil {
-		s.mu.Unlock()
+	defer s.mu.Unlock()
+	if s.conn == nil {
 		return ErrServerClosed
 	}
-
-	s.mu.Unlock()
-	close(s.done)
+	s.closing = true
+	s.conn.Close()
+	s.conn = nil
 
 	// Wait for all goroutines to shutdown.
 	s.wg.Wait()
