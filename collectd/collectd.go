@@ -148,24 +148,24 @@ type Metric struct {
 
 func Unmarshal(data *gollectd.Packet) []Metric {
 	// Prefer high resolution timestamp.
-	var timeStamp time.Time
+	var timestamp time.Time
 	if data.TimeHR > 0 {
 		// TimeHR is "near" nanosecond measurement, but not exactly nanasecond time
 		// Since we store time in microseconds, we round here (mostly so tests will work easier)
 		sec := data.TimeHR >> 30
 		// Shifting, masking, and dividing by 1 billion to get nanoseconds.
 		nsec := ((data.TimeHR & 0x3FFFFFFF) << 30) / 1000 / 1000 / 1000
-		timeStamp = time.Unix(int64(sec), int64(nsec)).UTC().Round(time.Microsecond)
+		timestamp = time.Unix(int64(sec), int64(nsec)).UTC().Round(time.Microsecond)
 	} else {
 		// If we don't have high resolution time, fall back to basic unix time
-		timeStamp = time.Unix(int64(data.Time), 0).UTC()
+		timestamp = time.Unix(int64(data.Time), 0).UTC()
 	}
 
 	var m []Metric
 	for i, _ := range data.Values {
 		metric := Metric{Name: fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)}
 		metric.Value = data.Values[i].Value
-		metric.Timestamp = timeStamp
+		metric.Timestamp = timestamp
 		metric.Tags = make(map[string]string)
 
 		if data.Hostname != "" {
