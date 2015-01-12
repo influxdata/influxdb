@@ -11,29 +11,8 @@ import (
 	"github.com/kimor79/gollectd"
 )
 
-// DefaultPort for colletd is 25826
+// DefaultPort for collectd is 25826
 const DefaultPort = 25826
-
-var (
-	// ErrBindAddressRequired is returned when starting the Server
-	// without a TCP or UDP listening address.
-	ErrBindAddressRequired = errors.New("bind address required")
-
-	// ErrDatabaseNotSpecified retuned when no database was specified in the config file
-	ErrDatabaseNotSpecified = errors.New("database was not specified in config")
-
-	// ErrCouldNotParseTypesDBFile returned when unable to parse the typesDBfile passed in
-	ErrCouldNotParseTypesDBFile = errors.New("could not parse typesDBFile")
-
-	// ErrServerClosed return when closing an already closed graphite server.
-	ErrServerClosed = errors.New("server already closed")
-
-	// ErrResolveUDPAddr returned when we are unable to resolve a udp address
-	ErrResolveUDPAddr = errors.New("unable to resolve UDP address")
-
-	// ErrListenUDP returned when we are unable to resolve a udp address
-	ErrListenUDP = errors.New("unable to listen on UDP")
-)
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
@@ -64,30 +43,24 @@ func NewServer(w SeriesWriter, typesDBPath string) *Server {
 
 func ListenAndServe(s *Server, iface string) error {
 	if iface == "" { // Make sure we have an address
-		return ErrBindAddressRequired
+		return errors.New("bind address required")
 	} else if s.Database == "" { // Make sure they have a database
-		return ErrDatabaseNotSpecified
+		return errors.New("database was not specified in config")
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", iface)
 	if err != nil {
-		// Should be something more like this, but testing becomes brittle
-		//return fmt.Errorf("unable to resolve UDP address: %v", err)
-		return ErrResolveUDPAddr
+		return fmt.Errorf("unable to resolve UDP address: %v", err)
 	}
 
 	s.typesdb, err = gollectd.TypesDBFile(s.typesdbpath)
 	if err != nil {
-		// Should be something more like this, but testing becomes brittle
-		// return fmt.Errorf("unable to parse typesDBFile: %v", err)
-		return ErrCouldNotParseTypesDBFile
+		return fmt.Errorf("unable to parse typesDBFile: %v", err)
 	}
 
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		// Should be something more like this, but testing becomes brittle
-		//return fmt.Errorf("unable to listen on UDP: %v", err)
-		return ErrListenUDP
+		return fmt.Errorf("unable to listen on UDP: %v", err)
 	}
 	s.conn = conn
 
@@ -121,14 +94,11 @@ func (s *Server) serve(conn *net.UDPConn) {
 		}
 
 		// Read in data in a separate goroutine.
-		s.wg.Add(1)
-		go s.handleMessage(buffer[:n])
+		s.handleMessage(buffer[:n])
 	}
 }
 
 func (s *Server) handleMessage(buffer []byte) {
-	defer s.wg.Done()
-
 	packets, err := gollectd.Packets(buffer, s.typesdb)
 	if err != nil {
 		log.Printf("Collectd parse error: %s", err)
@@ -157,7 +127,7 @@ func (s *Server) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.conn == nil {
-		return ErrServerClosed
+		return errors.New("server already closed")
 	}
 	s.conn.Close()
 	s.conn = nil

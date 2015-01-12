@@ -36,41 +36,38 @@ func (testServer) WriteSeries(database, retentionPolicy, name string, tags map[s
 
 func TestServer_ListenAndServe_ErrBindAddressRequired(t *testing.T) {
 	var (
-		ts  testServer
-		s   = collectd.NewServer(ts, "foo")
-		err = collectd.ErrBindAddressRequired
+		ts testServer
+		s  = collectd.NewServer(ts, "foo")
 	)
 
 	e := collectd.ListenAndServe(s, "")
-	if e != err {
-		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	if e == nil {
+		t.Fatalf("expected an error, got %v", e)
 	}
 }
 
 func TestServer_ListenAndServe_ErrDatabaseNotSpecified(t *testing.T) {
 	var (
-		ts  testServer
-		s   = collectd.NewServer(ts, "foo")
-		err = collectd.ErrDatabaseNotSpecified
+		ts testServer
+		s  = collectd.NewServer(ts, "foo")
 	)
 
 	e := collectd.ListenAndServe(s, "127.0.0.1:25826")
-	if e != err {
-		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	if e == nil {
+		t.Fatalf("expected an error, got %v", e)
 	}
 }
 
 func TestServer_ListenAndServe_ErrCouldNotParseTypesDBFile(t *testing.T) {
 	var (
-		ts  testServer
-		s   = collectd.NewServer(ts, "foo")
-		err = collectd.ErrCouldNotParseTypesDBFile
+		ts testServer
+		s  = collectd.NewServer(ts, "foo")
 	)
 
 	s.Database = "foo"
 	e := collectd.ListenAndServe(s, "127.0.0.1:25829")
-	if e != err {
-		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	if e == nil {
+		t.Fatalf("expected an error, got %v", e)
 	}
 }
 
@@ -93,8 +90,7 @@ func TestServer_Close_ErrServerClosed(t *testing.T) {
 	var (
 		ts testServer
 		// You can typically find this on your mac here: "/usr/local/Cellar/collectd/5.4.1/share/collectd/types.db"
-		s   = collectd.NewServer(ts, "./collectd_test.conf")
-		err = collectd.ErrServerClosed
+		s = collectd.NewServer(ts, "./collectd_test.conf")
 	)
 
 	s.Database = "counter"
@@ -104,30 +100,28 @@ func TestServer_Close_ErrServerClosed(t *testing.T) {
 	}
 	s.Close()
 	e = s.Close()
-	if e != err {
-		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	if e == nil {
+		t.Fatalf("expected an error, got %v", e)
 	}
 }
 
 func TestServer_ListenAndServe_ErrResolveUDPAddr(t *testing.T) {
 	var (
-		ts  testServer
-		s   = collectd.NewServer(ts, "./collectd_test.conf")
-		err = collectd.ErrResolveUDPAddr
+		ts testServer
+		s  = collectd.NewServer(ts, "./collectd_test.conf")
 	)
 
 	s.Database = "counter"
 	e := collectd.ListenAndServe(s, "foo")
-	if e != err {
-		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	if e == nil {
+		t.Fatalf("expected an error, got %v", e)
 	}
 }
 
 func TestServer_ListenAndServe_ErrListenUDP(t *testing.T) {
 	var (
-		ts  testServer
-		s   = collectd.NewServer(ts, "./collectd_test.conf")
-		err = collectd.ErrListenUDP
+		ts testServer
+		s  = collectd.NewServer(ts, "./collectd_test.conf")
 	)
 
 	//Open a udp listener on the port prior to force it to err
@@ -137,8 +131,8 @@ func TestServer_ListenAndServe_ErrListenUDP(t *testing.T) {
 
 	s.Database = "counter"
 	e := collectd.ListenAndServe(s, "127.0.0.1:25826")
-	if e != err {
-		t.Fatalf("err does not match.  expected %v, got %v", err, e)
+	if e == nil {
+		t.Fatalf("expected an error, got %v", e)
 	}
 }
 
