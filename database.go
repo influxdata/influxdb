@@ -36,7 +36,7 @@ func newDatabase() *database {
 	}
 }
 
-// shardGroupByTimestamp returns a shard that owns a given timestamp.
+// shardGroupByTimestamp returns a shard group that owns a given timestamp.
 func (db *database) shardGroupByTimestamp(policy string, timestamp time.Time) (*ShardGroup, error) {
 	p := db.policies[policy]
 	if p == nil {
@@ -329,8 +329,8 @@ func NewRetentionPolicy(name string) *RetentionPolicy {
 	}
 }
 
-// shardGroupByTimestamp returns the shard group in the space that owns a given timestamp for a given series id.
-// Returns nil if the shard group does not exist.
+// shardGroupByTimestamp returns the group in the policy that owns a timestamp.
+// Returns nil group does not exist.
 func (rp *RetentionPolicy) shardGroupByTimestamp(timestamp time.Time) *ShardGroup {
 	for _, g := range rp.groups {
 		if timeBetweenInclusive(timestamp, g.StartTime, g.EndTime) {

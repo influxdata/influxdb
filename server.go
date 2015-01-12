@@ -204,7 +204,6 @@ func (s *Server) load() error {
 			if err != nil {
 				return err
 			}
-
 		}
 
 		// Load users.
@@ -592,7 +591,7 @@ func (s *Server) Shard(id uint64) *Shard {
 	return s.shards[id]
 }
 
-// shardGroupByTimestamp returns a shard that owns a given timestamp for a database.
+// shardGroupByTimestamp returns a group for a database, policy & timestamp.
 func (s *Server) shardGroupByTimestamp(database, policy string, timestamp time.Time) (*ShardGroup, error) {
 	db := s.databases[database]
 	if db == nil {
@@ -699,7 +698,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	// replicated the correct number of times.
 	shardN := len(nodes) / replicaN
 
-	// Create a shard for each current data node.
+	// Create a shard based on the node count and replication factor.
 	g.Shards = make([]*Shard, shardN)
 	for i := range g.Shards {
 		g.Shards[i] = newShard()

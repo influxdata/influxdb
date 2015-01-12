@@ -26,7 +26,9 @@ func (g *ShardGroup) close() {
 	}
 }
 
-// Shard represents the physical storage for a given time range.
+// Shard represents the logical storage for a given time range.
+// The instance on a local server may contain the raw data in "store" if the
+// shard is assigned to the server's data node id.
 type Shard struct {
 	ID          uint64   `json:"id,omitempty"`
 	DataNodeIDs []uint64 `json:"nodeIDs,omitempty"` // owners
