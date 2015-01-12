@@ -629,8 +629,8 @@ func (s *Server) CreateShardGroupIfNotExists(database, policy string, timestamp 
 	return err
 }
 
-// createShardIfNotExists returns the shard for a given retention policy, series, and timestamp.
-// If it doesn't exist, it will create all shards for the given timestamp
+// createShardIfNotExists returns the shard group for a database, policy, and timestamp.
+// If the group doesn't exist then one will be created automatically.
 func (s *Server) createShardGroupIfNotExists(database, policy string, timestamp time.Time) (*ShardGroup, error) {
 	// Check if shard group exists first.
 	g, err := s.shardGroupByTimestamp(database, policy, timestamp)
