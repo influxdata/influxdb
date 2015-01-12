@@ -85,16 +85,17 @@ func (s *Server) serve(conn *net.UDPConn) {
 
 	for {
 		n, _, err := conn.ReadFromUDP(buffer)
-		if err != nil {
-			if s.conn == nil {
-				// This error occured becase we closed the connection and this is expected behavior
-				return
-			}
+		if err != nil && s.conn != nil {
 			log.Printf("Collectd ReadFromUDP error: %s", err)
+			continue
 		}
-
-		// Read in data in a separate goroutine.
-		s.handleMessage(buffer[:n])
+		if n > 0 {
+			s.handleMessage(buffer[:n])
+		}
+		if s.conn == nil {
+			// we closed the connection, time to go
+			return
+		}
 	}
 }
 
@@ -134,6 +135,7 @@ func (s *Server) Close() error {
 
 	// Wait for all goroutines to shutdown.
 	s.wg.Wait()
+	log.Printf("all waitgroups finished")
 
 	return nil
 }
