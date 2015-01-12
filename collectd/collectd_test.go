@@ -3,7 +3,6 @@ package collectd_test
 import (
 	"encoding/hex"
 	"fmt"
-	"log"
 	"net"
 	"testing"
 	"time"
@@ -21,17 +20,17 @@ type serverResponse struct {
 	values                          map[string]interface{}
 }
 
-var responses serverResponses
+var responses = make(chan *serverResponse, 1024)
 
 func (testServer) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
-	responses = append(responses, serverResponse{
+	responses <- &serverResponse{
 		database:        database,
 		retentionPolicy: retentionPolicy,
 		name:            name,
 		tags:            tags,
 		timestamp:       timestamp,
 		values:          values,
-	})
+	}
 	return nil
 }
 
@@ -139,33 +138,22 @@ func TestServer_ListenAndServe_ErrListenUDP(t *testing.T) {
 
 func TestServer_Serve_Success(t *testing.T) {
 	// clear any previous responses
-	responses = serverResponses{}
 	var (
 		ts testServer
 		// You can typically find this on your mac here: "/usr/local/Cellar/collectd/5.4.1/share/collectd/types.db"
-		s = collectd.NewServer(ts, "./collectd_test.conf")
+		s    = collectd.NewServer(ts, "./collectd_test.conf")
+		addr = "127.0.0.1:25830"
 	)
 
 	s.Database = "counter"
-	e := collectd.ListenAndServe(s, ":10001")
+	e := collectd.ListenAndServe(s, addr)
 	defer s.Close()
 	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
 
-	serverAddr, e := net.ResolveUDPAddr("udp", "127.0.0.1:10001")
-	if e != nil {
-		t.Fatalf("error resoulving UDP addr: %v", e)
-	}
-	localAddr, e := net.ResolveUDPAddr("udp", "127.0.0.1:0")
-	if e != nil {
-		t.Fatalf("error resoulving UDP addr: %v", e)
-	}
-
-	conn, e := net.DialUDP("udp", localAddr, serverAddr)
-	if e != nil {
-		t.Fatalf("error resoulving UDP addr: %v", e)
-	}
+	conn, e := net.Dial("udp", addr)
+	defer conn.Close()
 	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
@@ -173,23 +161,24 @@ func TestServer_Serve_Success(t *testing.T) {
 	if e != nil {
 		t.Fatalf("err from hex.DecodeString does not match.  expected %v, got %v", nil, e)
 	}
-	n, e := conn.Write(buf)
-	// This should be waiting for all wait groups before continuing...
-	e = conn.Close()
-	log.Println("test closed conn")
+	_, e = conn.Write(buf)
 	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
-	t.Log(e)
-	t.Logf("Write %d bytes", n)
-	// Adding this line makes the test pass... I shouldn't have to sleep
-	//time.Sleep(time.Second * 2)
-	if e != nil {
-		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
-	}
-	if len(responses) < 1 {
-		t.Errorf("expected one result, got %d", len(responses))
-		t.Errorf("%v", responses)
+
+	expectedRespCnt := 33
+	var resps []*serverResponse
+	for {
+		select {
+		case r := <-responses:
+			resps = append(resps, r)
+			if len(resps) == expectedRespCnt {
+				return
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out after %d of %d expected responses", len(resps), expectedRespCnt)
+			return
+		}
 	}
 }
 
