@@ -102,7 +102,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.SelectStatement{
 				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Merge{
-					Measurements: influxql.Measurements{
+					Measurements: []*influxql.Measurement{
 						{Name: "aa"},
 						{Name: "b.b"},
 					},
