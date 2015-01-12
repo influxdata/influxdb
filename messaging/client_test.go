@@ -17,7 +17,7 @@ func TestClient_ReplicaID(t *testing.T) {
 	c := NewClient(1000)
 	defer c.Close()
 	if replicaID := c.ReplicaID(); replicaID != 1000 {
-		t.Fatalf("unexpected replica id: %s", replicaID)
+		t.Fatalf("unexpected replica id: %d", replicaID)
 	}
 }
 
