@@ -80,6 +80,8 @@ LIST SERIES
 -- get a list of all series for any measurements where tag key region = tak value 'uswest'
 LIST SERIES WHERE region = 'uswest'
 
+LIST SERIES FROM cpu_load WHERE region = 'uswest' LIMIT 10
+
 -- get a list of all tag keys across all measurements
 LIST TAG KEYS
 
