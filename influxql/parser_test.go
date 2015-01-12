@@ -71,11 +71,11 @@ func TestParser_ParseStatement(t *testing.T) {
 					LHS: &influxql.VarRef{Val: "host"},
 					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
 				},
-				Dimensions: influxql.Dimensions{
+				Dimensions: []*influxql.Dimension{
 					&influxql.Dimension{Expr: &influxql.DurationLiteral{Val: 10 * time.Hour}},
 				},
 				Limit: 20,
-				SortFields: influxql.SortFields{
+				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 				},
 			},
@@ -87,7 +87,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.SelectStatement{
 				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Join{
-					Measurements: influxql.Measurements{
+					Measurements: []*influxql.Measurement{
 						{Name: "aa"},
 						{Name: "bb"},
 						{Name: "cc"},
@@ -125,7 +125,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.SelectStatement{
 				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Measurement{Name: "myseries"},
-				SortFields: influxql.SortFields{
+				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 					&influxql.SortField{Name: "field1"},
 					&influxql.SortField{Name: "field2"},
@@ -168,7 +168,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
-				SortFields: influxql.SortFields{
+				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 					&influxql.SortField{Name: "field1"},
 					&influxql.SortField{Name: "field2"},
@@ -186,7 +186,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
-				SortFields: influxql.SortFields{
+				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 					&influxql.SortField{Name: "field1"},
 					&influxql.SortField{Name: "field2"},
@@ -205,7 +205,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
-				SortFields: influxql.SortFields{
+				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 					&influxql.SortField{Name: "field1"},
 					&influxql.SortField{Name: "field2"},
@@ -224,7 +224,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
-				SortFields: influxql.SortFields{
+				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 					&influxql.SortField{Name: "field1"},
 					&influxql.SortField{Name: "field2"},
@@ -243,7 +243,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
-				SortFields: influxql.SortFields{
+				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 					&influxql.SortField{Name: "field1"},
 					&influxql.SortField{Name: "field2"},
@@ -262,7 +262,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
-				SortFields: influxql.SortFields{
+				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 					&influxql.SortField{Name: "field1"},
 					&influxql.SortField{Name: "field2"},
