@@ -49,7 +49,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SELECT * FROM myseries`,
 			stmt: &influxql.SelectStatement{
-				Fields: influxql.Fields{
+				Fields: []*influxql.Field{
 					&influxql.Field{Expr: &influxql.Wildcard{}},
 				},
 				Source: &influxql.Measurement{Name: "myseries"},
@@ -60,7 +60,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h ORDER BY ASC LIMIT 20;`,
 			stmt: &influxql.SelectStatement{
-				Fields: influxql.Fields{
+				Fields: []*influxql.Field{
 					&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}},
 					&influxql.Field{Expr: &influxql.VarRef{Val: "field2"}},
 					&influxql.Field{Expr: &influxql.VarRef{Val: "field3"}, Alias: "field_x"},
@@ -85,7 +85,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SELECT field1 FROM join(aa,"bb", cc) JOIN cc`,
 			stmt: &influxql.SelectStatement{
-				Fields: influxql.Fields{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
+				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Join{
 					Measurements: influxql.Measurements{
 						{Name: "aa"},
@@ -100,7 +100,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SELECT field1 FROM merge(aa,b.b)`,
 			stmt: &influxql.SelectStatement{
-				Fields: influxql.Fields{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
+				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Merge{
 					Measurements: influxql.Measurements{
 						{Name: "aa"},
@@ -114,7 +114,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `select my_field from myseries`,
 			stmt: &influxql.SelectStatement{
-				Fields: influxql.Fields{&influxql.Field{Expr: &influxql.VarRef{Val: "my_field"}}},
+				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "my_field"}}},
 				Source: &influxql.Measurement{Name: "myseries"},
 			},
 		},
@@ -123,7 +123,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SELECT field1 FROM myseries ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.SelectStatement{
-				Fields: influxql.Fields{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
+				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Measurement{Name: "myseries"},
 				SortFields: influxql.SortFields{
 					&influxql.SortField{Ascending: true},
@@ -290,7 +290,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields: influxql.Fields{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{Measurement: "measure1"},
 					Source: &influxql.Measurement{Name: "myseries"},
 				},
@@ -304,7 +304,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields: influxql.Fields{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{
 						RetentionPolicy: "1h.policy1",
 						Measurement:     "cpu.load",
