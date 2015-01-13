@@ -157,12 +157,20 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		}
 	}
 
+	statusCodeSuccess := http.StatusOK
+	statusCodeFail := http.StatusBadRequest
 	for _, s := range query.Statements {
 		switch c := s.(type) {
 		case *influxql.CreateDatabaseStatement:
-			err = h.server.CreateDatabase(c.Name)
+			statusCodeSuccess = http.StatusCreated
+			if err = h.server.CreateDatabase(c.Name); err == ErrDatabaseExists {
+				statusCodeFail = http.StatusConflict
+			}
 		case *influxql.DropDatabaseStatement:
-			err = h.server.DeleteDatabase(c.Name)
+			statusCodeSuccess = http.StatusNoContent
+			if err = h.server.DeleteDatabase(c.Name); err == ErrDatabaseNotFound {
+				statusCodeFail = http.StatusNotFound
+			}
 
 		case *influxql.CreateUserStatement:
 			err = h.server.CreateUser(c.Name, c.Password, !h.server.AdminUserExists()) // XXX This is obviously broken.
@@ -211,7 +219,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		}
 
 		if err != nil {
-			h.error(w, "error executing query: "+err.Error(), http.StatusBadRequest)
+			h.error(w, "error executing query: "+err.Error(), statusCodeFail)
+		} else {
+			w.WriteHeader(statusCodeSuccess)
 		}
 	}
 }

@@ -36,13 +36,11 @@ func TestHandler_Databases(t *testing.T) {
 }
 
 func TestHandler_CreateDatabase(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/query?q="CREATE DATABASE foo`, nil, nil, "")
-
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `` {
@@ -97,14 +95,12 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 }
 
 func TestHandler_DeleteDatabase(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, nil, nil, "")
-
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE foo"}, nil, "")
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != "" {
@@ -680,10 +676,18 @@ func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
 
 // Utility functions for this test suite.
 
-func MustHTTP(verb, url string, params, headers map[string]string, body string) (int, string) {
-	req, err := http.NewRequest(verb, url, bytes.NewBuffer([]byte(body)))
+func MustHTTP(verb, path string, params, headers map[string]string, body string) (int, string) {
+	req, err := http.NewRequest(verb, path, bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		panic(err)
+	}
+
+	if params != nil {
+		q := url.Values{}
+		for k, v := range params {
+			q.Set(k, v)
+		}
+		req.URL.RawQuery = q.Encode()
 	}
 
 	for k, v := range headers {
