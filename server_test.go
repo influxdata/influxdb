@@ -505,28 +505,45 @@ func TestServer_WriteSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
-	values := map[string]interface{}{"value": 23.2}
-	if err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:00Z"), values); err != nil {
+	index, err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:00Z"), map[string]interface{}{"value": 23.2})
+	if err != nil {
 		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
 	}
-	time.Sleep(1 * time.Second) // TEMP
 
 	// Write another point 10 seconds later so it goes through "raw series".
-	if err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:10Z"), values); err != nil {
+	index, err = s.WriteSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:10Z"), map[string]interface{}{"value": 100})
+	if err != nil {
 		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
 	}
-	time.Sleep(1 * time.Second) // TEMP
 
 	// Verify a subscription was made.
 	if !subscribed {
 		t.Fatal("expected subscription")
 	}
 
-	// Retrieve series data point.
+	// Retrieve first series data point.
 	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:00Z")); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(v, values) {
+	} else if !reflect.DeepEqual(v, map[string]interface{}{"value": 23.2}) {
 		t.Fatalf("values mismatch: %#v", v)
+	}
+
+	// Retrieve second series data point.
+	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:10Z")); err != nil {
+		t.Fatal(err)
+	} else if mustMarshalJSON(v) != mustMarshalJSON(map[string]interface{}{"value": 100}) {
+		t.Fatalf("values mismatch: %#v", mustMarshalJSON(v))
+	}
+
+	// Retrieve non-existent series data point.
+	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:01:00Z")); err != nil {
+		t.Fatal(err)
+	} else if v != nil {
+		t.Fatalf("expected nil values: %#v", v)
 	}
 }
 
@@ -563,8 +580,11 @@ func TestServer_Measurements(t *testing.T) {
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	values := map[string]interface{}{"value": 23.2}
 
-	if err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, timestamp, values); err != nil {
+	index, err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, timestamp, values)
+	if err != nil {
 		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatal("sync error: %s", err)
 	}
 
 	expectedMeasurementNames := []string{"cpu_load"}

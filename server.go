@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"code.google.com/p/go.crypto/bcrypt"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -247,8 +248,9 @@ func (s *Server) setClient(client MessagingClient) error {
 
 	// Start goroutine to read messages from the broker.
 	if client != nil {
-		s.done = make(chan struct{}, 0)
-		go s.processor(client, s.done)
+		done := make(chan struct{}, 0)
+		s.done = done
+		go s.processor(client, done)
 	}
 
 	return nil
@@ -1211,18 +1213,18 @@ type createSeriesIfNotExistsCommand struct {
 }
 
 // WriteSeries writes series data to the database.
-func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
+func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error) {
 	// Find the id for the series and tagset
 	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// If the retention policy is not set, use the default for this database.
 	if retentionPolicy == "" {
 		rp, err := s.DefaultRetentionPolicy(database)
 		if err != nil {
-			return fmt.Errorf("failed to determine default retention policy: %s", err.Error())
+			return 0, fmt.Errorf("failed to determine default retention policy: %s", err.Error())
 		}
 		retentionPolicy = rp.Name
 	}
@@ -1230,15 +1232,15 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	// Retrieve measurement.
 	m, err := s.measurement(database, name)
 	if err != nil {
-		return err
+		return 0, err
 	} else if m == nil {
-		return ErrMeasurementNotFound
+		return 0, ErrMeasurementNotFound
 	}
 
 	// Retrieve shard group.
 	g, err := s.createShardGroupIfNotExists(database, retentionPolicy, timestamp)
 	if err != nil {
-		return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
+		return 0, fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
 
 	// Find appropriate shard within the shard group.
@@ -1246,7 +1248,7 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 
 	// Ignore requests that have no values.
 	if len(values) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	// Convert string-key/values to fieldID-key/values.
@@ -1268,7 +1270,7 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 			TopicID: sh.ID,
 			Data:    data,
 		})
-		return err
+		return 0, err
 	}
 
 	// If we can successfully encode the string keys to raw field ids then
@@ -1279,12 +1281,11 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	data = append(data, marshalValues(rawValues)...)
 
 	// Publish "raw write series" message on shard's topic to broker.
-	_, err = s.client.Publish(&messaging.Message{
+	return s.client.Publish(&messaging.Message{
 		Type:    writeRawSeriesMessageType,
 		TopicID: sh.ID,
 		Data:    data,
 	})
-	return err
 }
 
 type writeSeriesCommand struct {
@@ -1331,7 +1332,7 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 		// Find or create fields.
 		// If too many fields are on the measurement then log the issue.
 		// If any other error occurs then exit.
-		f, err := mm.createFieldIfNotExists(k, Float64)
+		f, err := mm.createFieldIfNotExists(k, influxql.Number)
 		if err == ErrFieldOverflow {
 			log.Printf("no more fields allowed: %s::%s", mm.Name, k)
 			continue
@@ -1505,6 +1506,70 @@ func (s *Server) measurement(database, name string) (*Measurement, error) {
 	return db.measurements[name], nil
 }
 
+// ExecuteQuery executes an InfluxQL query against the server.
+// Returns a resultset for each statement in the query.
+// Stops on first execution error that occurs.
+func (s *Server) Execute(q *influxql.Query, database string) []*Result {
+	// Build empty resultsets.
+	results := make([]*Result, len(q.Statements))
+
+	// Execute each statement.
+	for i, st := range q.Statements {
+		switch st := st.(type) {
+		case *influxql.SelectStatement:
+			results[i] = s.executeSelectStatement(st, database)
+		}
+	}
+
+	// Fill any empty results after error.
+	for i, res := range results {
+		if res == nil {
+			results[i] = &Result{Error: ErrNotExecuted}
+		}
+	}
+
+	return results
+}
+
+// plans and executes a select statement against a database.
+func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database string) *Result {
+	// Plan statement execution.
+	e, err := s.planSelectStatement(stmt, database)
+	if err != nil {
+		return &Result{Error: err}
+	}
+
+	// Execute plan.
+	ch, err := e.Execute()
+	if err != nil {
+		return &Result{Error: err}
+	}
+
+	// Read all rows from channel.
+	res := &Result{Rows: make([]*influxql.Row, 0)}
+	for row := range ch {
+		res.Rows = append(res.Rows, row)
+	}
+
+	return res
+}
+
+// plans a selection statement under lock.
+func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database string) (*influxql.Executor, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Find database.
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
+	}
+
+	// Plan query.
+	p := influxql.NewPlanner(&dbi{server: s, db: db})
+	return p.Plan(stmt)
+}
+
 // processor runs in a separate goroutine and processes all incoming broker messages.
 func (s *Server) processor(client MessagingClient, done chan struct{}) {
 	for {
@@ -1559,6 +1624,12 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 		}
 		s.mu.Unlock()
 	}
+}
+
+// Result represents a resultset returned from a single statement.
+type Result struct {
+	Rows  []*influxql.Row `json:"rows"`
+	Error error           `json:"error"`
 }
 
 // MessagingClient represents the client used to receive messages from brokers.

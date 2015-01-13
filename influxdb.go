@@ -95,6 +95,10 @@ var (
 
 	// ErrSeriesExists is returned when attempting to set the id of a series by database, name and tags that already exists
 	ErrSeriesExists = errors.New("series already exists")
+
+	// ErrNotExecuted is returned when a statement is not executed in a query.
+	// This can occur when a previous statement in the same query has errorred.
+	ErrNotExecuted = errors.New("not executed")
 )
 
 // mustMarshal encodes a value to JSON.

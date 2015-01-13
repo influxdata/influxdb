@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/influxdb/influxdb/influxql"
 )
 
 // database is a collection of retention policies and shards. It also has methods
@@ -120,7 +122,7 @@ func NewMeasurement(name string) *Measurement {
 
 // CreateFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement.
-func (m *Measurement) createFieldIfNotExists(name string, typ FieldType) (*Field, error) {
+func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType) (*Field, error) {
 	// Ignore if the field already exists.
 	if f := m.FieldByName(name); f != nil {
 		return f, nil
@@ -280,20 +282,10 @@ type Measurements []*Measurement
 
 // Field represents a series field.
 type Field struct {
-	ID   uint8     `json:"id,omitempty"`
-	Name string    `json:"name,omitempty"`
-	Type FieldType `json:"field"`
+	ID   uint8             `json:"id,omitempty"`
+	Name string            `json:"name,omitempty"`
+	Type influxql.DataType `json:"type,omitempty"`
 }
-
-type FieldType int
-
-const (
-	Int64 FieldType = iota
-	Float64
-	String
-	Boolean
-	Binary
-)
 
 // Fields represents a list of fields.
 type Fields []*Field
@@ -304,6 +296,16 @@ type Series struct {
 	Tags map[string]string
 
 	measurement *Measurement
+}
+
+// match returns true if all tags match the series' tags.
+func (s *Series) match(tags map[string]string) bool {
+	for k, v := range tags {
+		if s.Tags[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
@@ -736,4 +738,68 @@ func marshalTags(tags map[string]string) []byte {
 		s = append(s, tags[k])
 	}
 	return []byte(strings.Join(s, "|"))
+}
+
+// dbi is an interface the query engine to communicate with the database during planning.
+type dbi struct {
+	server *Server
+	db     *database
+}
+
+// MatchSeries returns a list of series data ids matching a name and tags.
+func (dbi *dbi) MatchSeries(name string, tags map[string]string) (a []uint32) {
+	// Find measurement by name.
+	m := dbi.db.measurements[name]
+	if m == nil {
+		return nil
+	}
+
+	// Match each series on the measurement by tagset.
+	// TODO: Use paul's fancy index.
+	for _, s := range m.seriesByID {
+		if s.match(tags) {
+			a = append(a, s.ID)
+		}
+	}
+	return
+}
+
+// SeriesTagValues returns a slice of tag values for a series.
+func (dbi *dbi) SeriesTagValues(seriesID uint32, keys []string) []string {
+	// Find series by id.
+	s := dbi.db.series[seriesID]
+
+	// Lookup value for each key.
+	values := make([]string, len(keys))
+	for i, keys := range keys {
+		values[i] = s.Tags[keys]
+	}
+	return values
+}
+
+// Field returns the id and data type for a series field.
+// Returns id of zero if not a field.
+func (dbi *dbi) Field(name, field string) (fieldID uint8, typ influxql.DataType) {
+	// Find measurement by name.
+	m := dbi.db.measurements[name]
+	if m == nil {
+		return 0, influxql.Unknown
+	}
+
+	// Find field by name.
+	f := m.FieldByName(name)
+	if f == nil {
+		return 0, influxql.Unknown
+	}
+
+	return f.ID, f.Type
+}
+
+// CreateIterator returns an iterator given a series data id, field id, & field data type.
+func (dbi *dbi) CreateIterator(seriesID uint32, fieldID uint8, typ influxql.DataType, min, max time.Time, interval time.Duration) influxql.Iterator {
+	// TODO: Find shard group.
+	// TODO: Find shard for series.
+	// TODO: Open bolt cursor.
+	// TODO: Return wrapper cursor.
+	panic("TODO")
 }

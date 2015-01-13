@@ -185,6 +185,10 @@ func marshalValues(values map[uint8]interface{}) []byte {
 
 // unmarshalValues decodes a byte slice into a set of field ids and values.
 func unmarshalValues(b []byte) map[uint8]interface{} {
+	if len(b) == 0 {
+		return nil
+	}
+
 	// Read the field count from the field byte.
 	n := int(b[0])
 
