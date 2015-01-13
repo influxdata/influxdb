@@ -66,7 +66,7 @@ func (m *metastore) mustView(fn func(*metatx) error) (err error) {
 		err = fn(tx)
 		return nil
 	}); e != nil {
-		panic("metastore view: " + err.Error())
+		panic("metastore view: " + e.Error())
 	}
 	return
 }
@@ -78,7 +78,7 @@ func (m *metastore) mustUpdate(fn func(*metatx) error) (err error) {
 		err = fn(tx)
 		return nil
 	}); e != nil {
-		panic("metastore update: " + err.Error())
+		panic("metastore update: " + e.Error())
 	}
 	return
 }
