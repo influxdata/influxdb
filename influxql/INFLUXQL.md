@@ -264,6 +264,19 @@ GRANT ALL TO jdoe;
 GRANT READ ON mydb TO jdoe;
 ```
 
+### LIST DATABASES
+
+```
+list_databases_stmt = "LIST DATABASES"
+```
+
+#### Example:
+
+```sql
+-- list all databases
+LIST DATABASES;
+```
+
 ## Clauses
 
 ```

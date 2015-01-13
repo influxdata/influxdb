@@ -70,6 +70,9 @@ DROP MEASUREMENT cpu WHERE region = 'uswest'
 List series queries are for pulling out individual series from measurement names and tag data. They're useful for discovery.
 
 ```sql
+-- list all databases
+LIST DATABASES
+
 -- list measurement names
 LIST MEASUREMENTS
 LIST MEASUREMENTS WHERE service = 'redis'
