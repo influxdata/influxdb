@@ -91,7 +91,7 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE bar"}, nil, "")
-	if status != http.StatusNotFound {
+	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `database not found` {
 		t.Fatalf("unexpected body: %s", body)
@@ -131,14 +131,13 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 }
 
 func TestHandler_CreateRetentionPolicy(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
+	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
@@ -148,53 +147,45 @@ func TestHandler_CreateRetentionPolicy(t *testing.T) {
 }
 
 func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
+	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusNotFound {
+	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "database not found" {
-		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
 func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
-	policy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
 
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
+	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
+	MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusConflict {
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "retention policy exists" {
-		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
 func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	policy := `{"name": "bar", "duration": "**BAD**", "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
+	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION ***BAD*** REPLICATION 1"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "json: cannot unmarshal string into Go value of type time.Duration" {
-		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -221,54 +212,48 @@ func TestHandler_UpdateRetentionPolicy(t *testing.T) {
 }
 
 func TestHandler_UpdateRetentionPolicy_BadRequest(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newPolicy := `{"name": "newName", "duration": "BadRequest", "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, nil, nil, newPolicy)
+	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo DURATION ***BAD*** REPLICATION 1"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	// Verify response.
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "json: cannot unmarshal string into Go value of type time.Duration" {
-		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
 func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, nil, nil, newPolicy)
+	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusNotFound {
+	// Verify response.
+	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "database not found" {
-		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
 func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, nil, nil, newPolicy)
+	query := map[string]string{"q": "ALTER RETENTION POLICY qux ON foo DURATION 1h REPLICATION 1"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusNotFound {
+	// Verify response.
+	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "retention policy not found" {
-		t.Fatalf("unexpected body: %s", body)
 	}
 }
 

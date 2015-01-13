@@ -165,7 +165,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 				if err == ErrDatabaseExists {
 					h.error(w, "database exists", http.StatusConflict)
 				} else {
-					h.error(w, "error executing query: "+err.Error(), http.StatusBadRequest)
+					h.error(w, "error executing query: "+err.Error(), http.StatusInternalServerError)
 				}
 			} else {
 				w.WriteHeader(http.StatusCreated)
@@ -174,9 +174,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			err = h.server.DeleteDatabase(c.Name)
 			if err != nil {
 				if err == ErrDatabaseNotFound {
-					h.error(w, "database not found", http.StatusNotFound)
+					h.error(w, "database not found", http.StatusInternalServerError)
 				} else {
-					h.error(w, "error executing query: "+err.Error(), http.StatusBadRequest)
+					h.error(w, "error executing query: "+err.Error(), http.StatusInternalServerError)
 				}
 			} else {
 				w.WriteHeader(http.StatusNoContent)
@@ -217,13 +217,21 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			rp := NewRetentionPolicy(c.Name)
 			rp.Duration = c.Duration
 			rp.ReplicaN = uint32(c.Replication)
-			err = h.server.CreateRetentionPolicy(c.Database, rp)
+			if err = h.server.CreateRetentionPolicy(c.Database, rp); err != nil {
+				h.error(w, "error executing query: "+err.Error(), http.StatusInternalServerError)
+			} else {
+				w.WriteHeader(http.StatusCreated)
+			}
 		case *influxql.AlterRetentionPolicyStatement:
 			rp := NewRetentionPolicy(c.Name)
 			rp.Duration = *c.Duration // Why is this a pointer, and the next?
 			rp.ReplicaN = uint32(*c.Replication)
-			err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp)
-			continue
+			if err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp); err != nil {
+				h.error(w, "error executing query: "+err.Error(), http.StatusInternalServerError)
+			} else {
+				w.WriteHeader(http.StatusCreated)
+			}
+
 		case *influxql.CreateContinuousQueryStatement:
 			continue
 		case *influxql.DropContinuousQueryStatement:
