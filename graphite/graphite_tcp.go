@@ -5,6 +5,8 @@ import (
 	"log"
 	"net"
 	"strings"
+
+	"github.com/influxdb/influxdb"
 )
 
 // TCPServer processes Graphite data received over TCP connections.
@@ -65,16 +67,13 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		line := strings.TrimSpace(string(buf))
 
 		// Parse it.
-		metric, err := t.parser.Parse(line)
+		point, err := t.parser.Parse(line)
 		if err != nil {
+			log.Printf("unable to parse data: %s", err)
 			continue
 		}
 
-		// Convert metric to a field value.
-		var values = make(map[string]interface{})
-		values[metric.Name] = metric.Value
-
 		// Send the data to database
-		t.writer.WriteSeries(t.Database, "", metric.Name, metric.Tags, metric.Timestamp, values)
+		t.writer.WriteSeries(t.Database, "", []influxdb.Point{point})
 	}
 }

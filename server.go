@@ -3,6 +3,7 @@ package influxdb
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -1210,9 +1211,23 @@ type createSeriesIfNotExistsCommand struct {
 	Tags     map[string]string `json:"tags"`
 }
 
+// Point defines the values that will be written to the database
+type Point struct {
+	Name      string
+	Tags      map[string]string
+	Timestamp time.Time
+	Values    map[string]interface{}
+}
+
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
-func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error) {
+func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
+	// TODO corylanou: implement batch writing
+	if len(points) != 1 {
+		return 0, errors.New("batching WriteSeries has not been implemented yet")
+	}
+	name, tags, timestamp, values := points[0].Name, points[0].Tags, points[0].Timestamp, points[0].Values
+
 	// Find the id for the series and tagset
 	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {

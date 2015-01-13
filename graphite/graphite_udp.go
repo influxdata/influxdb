@@ -3,6 +3,8 @@ package graphite
 import (
 	"net"
 	"strings"
+
+	"github.com/influxdb/influxdb"
 )
 
 const (
@@ -53,17 +55,13 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				return
 			}
 			for _, line := range strings.Split(string(buf[:n]), "\n") {
-				m, err := u.parser.Parse(line)
+				point, err := u.parser.Parse(line)
 				if err != nil {
 					continue
 				}
 
-				// Convert metric to a field value.
-				var values = make(map[string]interface{})
-				values[m.Name] = m.Value
-
 				// Send the data to database
-				u.writer.WriteSeries(u.Database, "", m.Name, m.Tags, m.Timestamp, values)
+				u.writer.WriteSeries(u.Database, "", []influxdb.Point{point})
 			}
 		}
 	}()

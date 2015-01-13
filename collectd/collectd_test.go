@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/kimor79/gollectd"
 )
@@ -14,22 +15,18 @@ import (
 type testServer string
 type serverResponses []serverResponse
 type serverResponse struct {
-	database, retentionPolicy, name string
-	tags                            map[string]string
-	timestamp                       time.Time
-	values                          map[string]interface{}
+	database        string
+	retentionPolicy string
+	points          []influxdb.Point
 }
 
 var responses = make(chan *serverResponse, 1024)
 
-func (testServer) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error) {
+func (testServer) WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error) {
 	responses <- &serverResponse{
 		database:        database,
 		retentionPolicy: retentionPolicy,
-		name:            name,
-		tags:            tags,
-		timestamp:       timestamp,
-		values:          values,
+		points:          points,
 	}
 	return 0, nil
 }
@@ -186,7 +183,7 @@ func TestServer_Serve_Success(t *testing.T) {
 	}
 }
 
-func TestUnmarshal_Metrics(t *testing.T) {
+func TestUnmarshal_Points(t *testing.T) {
 	/*
 	   This is a sample of what data can be represented like in json
 	   [
@@ -207,14 +204,14 @@ func TestUnmarshal_Metrics(t *testing.T) {
 	*/
 
 	var tests = []struct {
-		name    string
-		packet  gollectd.Packet
-		metrics []collectd.Metric
+		name   string
+		packet gollectd.Packet
+		points []influxdb.Point
 	}{
 		{
 			name: "single value",
-			metrics: []collectd.Metric{
-				collectd.Metric{Name: "disk_read", Value: float64(1)},
+			points: []influxdb.Point{
+				influxdb.Point{Name: "disk_read", Values: map[string]interface{}{"disk_read": float64(1)}},
 			},
 			packet: gollectd.Packet{
 				Plugin: "disk",
@@ -225,9 +222,9 @@ func TestUnmarshal_Metrics(t *testing.T) {
 		},
 		{
 			name: "multi value",
-			metrics: []collectd.Metric{
-				collectd.Metric{Name: "disk_read", Value: float64(1)},
-				collectd.Metric{Name: "disk_write", Value: float64(5)},
+			points: []influxdb.Point{
+				influxdb.Point{Name: "disk_read", Values: map[string]interface{}{"disk_read": float64(1)}},
+				influxdb.Point{Name: "disk_write", Values: map[string]interface{}{"disk_write": float64(5)}},
 			},
 			packet: gollectd.Packet{
 				Plugin: "disk",
@@ -239,11 +236,11 @@ func TestUnmarshal_Metrics(t *testing.T) {
 		},
 		{
 			name: "tags",
-			metrics: []collectd.Metric{
-				collectd.Metric{
-					Name:  "disk_read",
-					Value: float64(1),
-					Tags:  map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
+			points: []influxdb.Point{
+				influxdb.Point{
+					Name:   "disk_read",
+					Tags:   map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
+					Values: map[string]interface{}{"disk_read": float64(1)},
 				},
 			},
 			packet: gollectd.Packet{
@@ -261,34 +258,34 @@ func TestUnmarshal_Metrics(t *testing.T) {
 
 	for _, test := range tests {
 		t.Logf("testing %q", test.name)
-		metrics := collectd.Unmarshal(&test.packet)
-		if len(metrics) != len(test.metrics) {
-			t.Errorf("metric len mismatch. expected %d, got %d", len(test.metrics), len(metrics))
+		points := collectd.Unmarshal(&test.packet)
+		if len(points) != len(test.points) {
+			t.Errorf("points len mismatch. expected %d, got %d", len(test.points), len(points))
 		}
-		for i, m := range test.metrics {
+		for i, m := range test.points {
 			// test name
 			name := fmt.Sprintf("%s_%s", test.packet.Plugin, test.packet.Values[i].Name)
 			if m.Name != name {
-				t.Errorf("metric name mismatch. expected %q, got %q", name, m.Name)
+				t.Errorf("point name mismatch. expected %q, got %q", name, m.Name)
 			}
 			// test value
-			mv := m.Value.(float64)
+			mv := m.Values[m.Name].(float64)
 			pv := test.packet.Values[i].Value
 			if mv != pv {
-				t.Errorf("metric value mismatch. expected %v, got %v", pv, mv)
+				t.Errorf("point value mismatch. expected %v, got %v", pv, mv)
 			}
 			// test tags
 			if test.packet.Hostname != m.Tags["host"] {
-				t.Errorf(`metric tags["host"] mismatch. expected %q, got %q`, test.packet.Hostname, m.Tags["host"])
+				t.Errorf(`point tags["host"] mismatch. expected %q, got %q`, test.packet.Hostname, m.Tags["host"])
 			}
 			if test.packet.PluginInstance != m.Tags["instance"] {
-				t.Errorf(`metric tags["instance"] mismatch. expected %q, got %q`, test.packet.PluginInstance, m.Tags["instance"])
+				t.Errorf(`point tags["instance"] mismatch. expected %q, got %q`, test.packet.PluginInstance, m.Tags["instance"])
 			}
 			if test.packet.Type != m.Tags["type"] {
-				t.Errorf(`metric tags["type"] mismatch. expected %q, got %q`, test.packet.Type, m.Tags["type"])
+				t.Errorf(`point tags["type"] mismatch. expected %q, got %q`, test.packet.Type, m.Tags["type"])
 			}
 			if test.packet.TypeInstance != m.Tags["type_instance"] {
-				t.Errorf(`metric tags["type_instance"] mismatch. expected %q, got %q`, test.packet.TypeInstance, m.Tags["type_instance"])
+				t.Errorf(`point tags["type_instance"] mismatch. expected %q, got %q`, test.packet.TypeInstance, m.Tags["type_instance"])
 			}
 		}
 	}
@@ -307,9 +304,9 @@ func TestUnmarshal_Time(t *testing.T) {
 	}
 
 	var tests = []struct {
-		name    string
-		packet  gollectd.Packet
-		metrics []collectd.Metric
+		name   string
+		packet gollectd.Packet
+		points []influxdb.Point
 	}{
 		{
 			name: "Should parse timeHR properly",
@@ -321,8 +318,8 @@ func TestUnmarshal_Time(t *testing.T) {
 					},
 				},
 			},
-			metrics: []collectd.Metric{
-				collectd.Metric{Timestamp: testTime},
+			points: []influxdb.Point{
+				influxdb.Point{Timestamp: testTime},
 			},
 		},
 		{
@@ -335,26 +332,24 @@ func TestUnmarshal_Time(t *testing.T) {
 					},
 				},
 			},
-			metrics: []collectd.Metric{
-				collectd.Metric{
-					Timestamp: testTime.Round(time.Second),
-				},
+			points: []influxdb.Point{
+				influxdb.Point{Timestamp: testTime.Round(time.Second)},
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Logf("testing %q", test.name)
-		metrics := collectd.Unmarshal(&test.packet)
-		if len(metrics) != len(test.metrics) {
-			t.Errorf("metric len mismatch. expected %d, got %d", len(test.metrics), len(metrics))
+		points := collectd.Unmarshal(&test.packet)
+		if len(points) != len(test.points) {
+			t.Errorf("point len mismatch. expected %d, got %d", len(test.points), len(points))
 		}
-		for _, m := range metrics {
+		for _, p := range points {
 			if test.packet.TimeHR > 0 {
-				if m.Timestamp.Format(time.RFC3339Nano) != testTime.Format(time.RFC3339Nano) {
-					t.Errorf("timestamp mis-match, got %v, expected %v", m.Timestamp.Format(time.RFC3339Nano), testTime.Format(time.RFC3339Nano))
-				} else if m.Timestamp.Format(time.RFC3339) != testTime.Format(time.RFC3339) {
-					t.Errorf("timestamp mis-match, got %v, expected %v", m.Timestamp.Format(time.RFC3339), testTime.Format(time.RFC3339))
+				if p.Timestamp.Format(time.RFC3339Nano) != testTime.Format(time.RFC3339Nano) {
+					t.Errorf("timestamp mis-match, got %v, expected %v", p.Timestamp.Format(time.RFC3339Nano), testTime.Format(time.RFC3339Nano))
+				} else if p.Timestamp.Format(time.RFC3339) != testTime.Format(time.RFC3339) {
+					t.Errorf("timestamp mis-match, got %v, expected %v", p.Timestamp.Format(time.RFC3339), testTime.Format(time.RFC3339))
 				}
 			}
 		}
