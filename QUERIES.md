@@ -14,6 +14,9 @@ ALTER RETENTION POLICY <rp-name> ON <db-name> (DURATION <duration> | REPLICATION
 
 -- drop a database
 DROP DATABASE <name>
+
+-- drop a retention policy
+DROP RETENTION POLICY <rp-name> ON <db.name>
 ```
 
 # Users and permissions
