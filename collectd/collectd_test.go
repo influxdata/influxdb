@@ -34,6 +34,21 @@ func (testServer) WriteSeries(database, retentionPolicy, name string, tags map[s
 	return 0, nil
 }
 
+func (testServer) ResponseN(n int) ([]*serverResponse, error) {
+	var a []*serverResponse
+	for {
+		select {
+		case r := <-responses:
+			a = append(a, r)
+			if len(a) == n {
+				return a, nil
+			}
+		case <-time.After(time.Second):
+			return a, fmt.Errorf("unexpected response count: %d", len(a))
+		}
+	}
+}
+
 func TestServer_ListenAndServe_ErrBindAddressRequired(t *testing.T) {
 	var (
 		ts testServer
@@ -166,19 +181,8 @@ func TestServer_Serve_Success(t *testing.T) {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
 
-	expectedRespCnt := 33
-	var resps []*serverResponse
-	for {
-		select {
-		case r := <-responses:
-			resps = append(resps, r)
-			if len(resps) == expectedRespCnt {
-				return
-			}
-		case <-time.After(time.Second):
-			t.Fatalf("timed out after %d of %d expected responses", len(resps), expectedRespCnt)
-			return
-		}
+	if _, err := ts.ResponseN(33); err != nil {
+		t.Fatal(err)
 	}
 }
 
