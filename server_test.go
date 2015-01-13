@@ -510,7 +510,7 @@ func TestServer_WriteSeries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
-		t.Fatal("sync error: %s", err)
+		t.Fatalf("sync error: %s", err)
 	}
 
 	// Write another point 10 seconds later so it goes through "raw series".
@@ -518,7 +518,7 @@ func TestServer_WriteSeries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
-		t.Fatal("sync error: %s", err)
+		t.Fatalf("sync error: %s", err)
 	}
 
 	// Verify a subscription was made.
@@ -571,7 +571,7 @@ func TestServer_Measurements(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
-		t.Fatal("sync error: %s", err)
+		t.Fatalf("sync error: %s", err)
 	}
 
 	expectedMeasurementNames := []string{"cpu_load"}

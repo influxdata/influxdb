@@ -1239,7 +1239,7 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	// Retrieve shard group.
 	g, err := s.createShardGroupIfNotExists(database, retentionPolicy, timestamp)
 	if err != nil {
-		return 0, fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
+		return 0, fmt.Errorf("create shard(%s/%s): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
 
 	// Find appropriate shard within the shard group.
