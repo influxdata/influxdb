@@ -634,7 +634,7 @@ func (t *topic) Close() error {
 
 // writeTo writes the topic to a replica since a given index.
 // Returns an error if the starting index is unavailable.
-func (t *topic) writeTo(r *Replica, index uint64) (int, error) {
+func (t *topic) writeTo(r *Replica, index uint64) (int64, error) {
 	// TODO: If index is too old then return an error.
 
 	// Open topic file for reading.
@@ -648,7 +648,7 @@ func (t *topic) writeTo(r *Replica, index uint64) (int, error) {
 	defer func() { _ = f.Close() }()
 
 	// Stream out all messages until EOF.
-	total := 0
+	var total int64
 	dec := NewMessageDecoder(bufio.NewReader(f))
 	for {
 		// Decode message.
@@ -775,7 +775,7 @@ func (r *Replica) Write(p []byte) (int, error) {
 
 // WriteTo begins writing messages to a named stream.
 // Only one writer is allowed on a stream at a time.
-func (r *Replica) WriteTo(w io.Writer) (int, error) {
+func (r *Replica) WriteTo(w io.Writer) (int64, error) {
 	// Close previous writer, if set.
 	r.closeWriter()
 
@@ -866,14 +866,14 @@ type Message struct {
 }
 
 // WriteTo encodes and writes the message to a writer. Implements io.WriterTo.
-func (m *Message) WriteTo(w io.Writer) (n int, err error) {
+func (m *Message) WriteTo(w io.Writer) (n int64, err error) {
 	if n, err := w.Write(m.marshalHeader()); err != nil {
-		return n, err
+		return int64(n), err
 	}
 	if n, err := w.Write(m.Data); err != nil {
-		return messageHeaderSize + n, err
+		return int64(messageHeaderSize + n), err
 	}
-	return messageHeaderSize + len(m.Data), nil
+	return int64(messageHeaderSize + len(m.Data)), nil
 }
 
 // MarshalBinary returns a binary representation of the message.
