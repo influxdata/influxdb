@@ -19,15 +19,13 @@ func init() {
 }
 
 func TestHandler_Databases(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateDatabase("bar")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db`, nil, nil, "")
-
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST DATABASES"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `["bar","foo"]` {
@@ -49,44 +47,23 @@ func TestHandler_CreateDatabase(t *testing.T) {
 }
 
 func TestHandler_CreateDatabase_BadRequest_NoName(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/db`, nil, nil, `{"BadRequest": 1}`)
-
+	status, _ := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE"}, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database name required` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateDatabase_BadRequest_InvalidJSON(t *testing.T) {
-	t.Skip()
-	srvr := OpenServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("POST", s.URL+`/db`, nil, nil, `"BadRequest": 1`)
-
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `json: cannot unmarshal string into Go value of type struct { Name string "json:\"name\"" }` {
-		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
 func TestHandler_CreateDatabase_Conflict(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/db`, nil, nil, `{"name": "foo"}`)
-
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
 	if status != http.StatusConflict {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `database exists` {
@@ -109,13 +86,11 @@ func TestHandler_DeleteDatabase(t *testing.T) {
 }
 
 func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, nil, nil, "")
-
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE bar"}, nil, "")
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `database not found` {

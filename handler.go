@@ -157,20 +157,34 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		}
 	}
 
-	statusCodeSuccess := http.StatusOK
-	statusCodeFail := http.StatusBadRequest
 	for _, s := range query.Statements {
 		switch c := s.(type) {
 		case *influxql.CreateDatabaseStatement:
-			statusCodeSuccess = http.StatusCreated
-			if err = h.server.CreateDatabase(c.Name); err == ErrDatabaseExists {
-				statusCodeFail = http.StatusConflict
+			err = h.server.CreateDatabase(c.Name)
+			if err != nil {
+				if err == ErrDatabaseExists {
+					h.error(w, "database exists", http.StatusConflict)
+				} else {
+					h.error(w, "error executing query: "+err.Error(), http.StatusBadRequest)
+				}
+			} else {
+				w.WriteHeader(http.StatusCreated)
 			}
 		case *influxql.DropDatabaseStatement:
-			statusCodeSuccess = http.StatusNoContent
-			if err = h.server.DeleteDatabase(c.Name); err == ErrDatabaseNotFound {
-				statusCodeFail = http.StatusNotFound
+			err = h.server.DeleteDatabase(c.Name)
+			if err != nil {
+				if err == ErrDatabaseNotFound {
+					h.error(w, "database not found", http.StatusNotFound)
+				} else {
+					h.error(w, "error executing query: "+err.Error(), http.StatusBadRequest)
+				}
+			} else {
+				w.WriteHeader(http.StatusNoContent)
 			}
+		case *influxql.ListDatabasesStatement:
+			databases := h.server.Databases()
+			w.Header().Add("content-type", "application/json")
+			_ = json.NewEncoder(w).Encode(&databases)
 
 		case *influxql.CreateUserStatement:
 			err = h.server.CreateUser(c.Name, c.Password, !h.server.AdminUserExists()) // XXX This is obviously broken.
@@ -216,12 +230,6 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			continue
 		case *influxql.ListContinuousQueriesStatement:
 			continue
-		}
-
-		if err != nil {
-			h.error(w, "error executing query: "+err.Error(), statusCodeFail)
-		} else {
-			w.WriteHeader(statusCodeSuccess)
 		}
 	}
 }
