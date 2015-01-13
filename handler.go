@@ -83,10 +83,6 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Get("/db/:db/series", h.makeAuthenticationHandler(h.serveQuery))
 	h.mux.Post("/db/:db/series", h.makeAuthenticationHandler(h.serveWriteSeries))
 
-	// Shard routes.
-	h.mux.Get("/db/:db/shards", h.makeAuthenticationHandler(h.serveShards))
-	h.mux.Del("/db/:db/shards/:id", h.makeAuthenticationHandler(h.serveDeleteShard))
-
 	// Retention policy routes.
 	h.mux.Get("/db/:db/retention_policies", h.makeAuthenticationHandler(h.serveRetentionPolicies))
 	h.mux.Post("/db/:db/retention_policies", h.makeAuthenticationHandler(h.serveCreateRetentionPolicy))
@@ -407,28 +403,6 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, u *User
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request, u *User) {}
-
-// serveShards returns a list of shards.
-func (h *Handler) serveShards(w http.ResponseWriter, r *http.Request, u *User) {
-	q := r.URL.Query()
-
-	// Retrieves shards for the database.
-	shards, err := h.server.Shards(q.Get(":db"))
-	if err == ErrDatabaseNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Write data to the response.
-	w.Header().Add("content-type", "application/json")
-	_ = json.NewEncoder(w).Encode(shards)
-}
-
-// serveDeleteShard removes an existing shard.
-func (h *Handler) serveDeleteShard(w http.ResponseWriter, r *http.Request, u *User) {}
 
 // serveRetentionPolicies returns a list of retention policys.
 func (h *Handler) serveRetentionPolicies(w http.ResponseWriter, r *http.Request, u *User) {

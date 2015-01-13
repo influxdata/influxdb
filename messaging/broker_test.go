@@ -229,7 +229,7 @@ func (b *Broker) Close() {
 	b.Broker.Close()
 }
 
-// ReadAll reads all available messages for a replica. Panic on error.
+// MustReadAll reads all available messages for a replica. Panic on error.
 func (b *Broker) MustReadAll(replicaID uint64) (a []*messaging.Message) {
 	// Read message from the replica.
 	var buf bytes.Buffer

@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -174,6 +175,59 @@ func TestClient_DeleteReplica(t *testing.T) {
 	// Verify replica was deleted.
 	if r := c.Server.Handler.Broker().Replica(123); r != nil {
 		t.Fatalf("replica not deleted")
+	}
+}
+
+// Ensure that a client can create a subscription.
+func TestClient_Subscribe(t *testing.T) {
+	c := OpenClient(0)
+	defer c.Close()
+	c.Server.Broker().CreateReplica(100)
+
+	// Create subscription through client.
+	if err := c.Subscribe(100, 200); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify subscription was created.
+	if a := c.Server.Handler.Broker().Replica(100).Topics(); !reflect.DeepEqual([]uint64{0, 200}, a) {
+		t.Fatalf("topics mismatch: %v", a)
+	}
+}
+
+// Ensure that a client can passthrough an error while creating a subscription.
+func TestClient_Subscribe_Err(t *testing.T) {
+	c := OpenClient(0)
+	defer c.Close()
+	if err := c.Subscribe(123, 100); err == nil || err.Error() != `replica not found` {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// Ensure that a client can remove a subscription.
+func TestClient_Unsubscribe(t *testing.T) {
+	c := OpenClient(0)
+	defer c.Close()
+	c.Server.Broker().CreateReplica(100)
+	c.Server.Broker().Subscribe(100, 200)
+
+	// Remove subscription through client.
+	if err := c.Unsubscribe(100, 200); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify subscription was removed.
+	if a := c.Server.Handler.Broker().Replica(100).Topics(); !reflect.DeepEqual([]uint64{0}, a) {
+		t.Fatalf("topics mismatch: %v", a)
+	}
+}
+
+// Ensure that a client can passthrough an error while removing a subscription.
+func TestClient_Unsubscribe_Err(t *testing.T) {
+	c := OpenClient(0)
+	defer c.Close()
+	if err := c.Unsubscribe(123, 100); err == nil || err.Error() != `replica not found` {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

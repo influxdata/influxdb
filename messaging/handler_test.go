@@ -268,6 +268,127 @@ func TestHandler_deleteReplica_ErrReplicaIDRequired(t *testing.T) {
 	}
 }
 
+// Ensure a handler can add a subscription for a replica/topic.
+func TestHandler_subscribe(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	s.Broker().CreateReplica(100)
+
+	// Send request to the broker.
+	resp, _ := http.Post(s.URL+`/messaging/subscriptions?replicaID=100&topicID=200`, "application/octet-stream", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	}
+
+	// Verify subscription was created.
+	if a := s.Handler.Broker().Replica(100).Topics(); !reflect.DeepEqual([]uint64{0, 200}, a) {
+		t.Fatalf("topics mismatch: %v", a)
+	}
+}
+
+// Ensure a handler returns an error when subscribing without a replica id.
+func TestHandler_subscribe_ErrReplicaIDRequired(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	resp, _ := http.Post(s.URL+`/messaging/subscriptions?topicID=200`, "application/octet-stream", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "replica id required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+}
+
+// Ensure a handler returns an error when subscribing without a topic id.
+func TestHandler_subscribe_ErrTopicRequired(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	resp, _ := http.Post(s.URL+`/messaging/subscriptions?replicaID=200`, "application/octet-stream", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "topic required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+}
+
+// Ensure a handler returns an error when subscribing to a replica that doesn't exist.
+func TestHandler_subscribe_ErrReplicaNotFound(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	resp, _ := http.Post(s.URL+`/messaging/subscriptions?replicaID=200&topicID=100`, "application/octet-stream", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "replica not found" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+}
+
+// Ensure a handler can unsubscribe a replica from a topic.
+func TestHandler_unsubscribe(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	s.Handler.Broker().CreateReplica(200)
+	s.Handler.Broker().Subscribe(200, 100)
+
+	// Send request to the broker.
+	req, _ := http.NewRequest("DELETE", s.URL+`/messaging/subscriptions?replicaID=200&topicID=100`, nil)
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d (%s)", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
+	}
+
+	// Verify subscription was removed.
+	if a := s.Handler.Broker().Replica(200).Topics(); !reflect.DeepEqual([]uint64{0}, a) {
+		t.Fatalf("topics mismatch: %v", a)
+	}
+}
+
+// Ensure a handler returns an error when unsubscribing without a replica id.
+func TestHandler_unsubscribe_ErrReplicaIDRequired(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	req, _ := http.NewRequest("DELETE", s.URL+`/messaging/subscriptions?topicID=100`, nil)
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "replica id required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+}
+
+// Ensure a handler returns an error when unsubscribing without a topic id.
+func TestHandler_unsubscribe_ErrTopicRequired(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	req, _ := http.NewRequest("DELETE", s.URL+`/messaging/subscriptions?replicaID=100`, nil)
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "topic required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+}
+
+// Ensure a handler returns an error when unsubscribing to a replica that doesn't exist.
+func TestHandler_unsubscribe_ErrReplicaNotFound(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	req, _ := http.NewRequest("DELETE", s.URL+`/messaging/subscriptions?replicaID=100&topicID=200`, nil)
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "replica not found" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+}
+
 // Server is an test HTTP server that wraps a handler and broker.
 type Server struct {
 	*httptest.Server
