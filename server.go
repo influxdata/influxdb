@@ -1211,6 +1211,7 @@ type createSeriesIfNotExistsCommand struct {
 	Tags     map[string]string `json:"tags"`
 }
 
+// Point defines the values that will be written to the database
 type Point struct {
 	Name      string
 	Tags      map[string]string
@@ -1220,7 +1221,7 @@ type Point struct {
 
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
-func (s *Server) WriteSeries(database, retentionPolicy string, points ...Point) (uint64, error) {
+func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
 	// TODO corylanou: implement batch writing
 	if len(points) != 1 {
 		return 0, errors.New("batching WriteSeries has not been implemented yet")

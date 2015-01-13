@@ -35,7 +35,7 @@ var (
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points ...influxdb.Point) (uint64, error)
+	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
 }
 
 // Parser encapulates a Graphite Parser.

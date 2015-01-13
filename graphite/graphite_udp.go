@@ -3,6 +3,8 @@ package graphite
 import (
 	"net"
 	"strings"
+
+	"github.com/influxdb/influxdb"
 )
 
 const (
@@ -59,7 +61,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				}
 
 				// Send the data to database
-				u.writer.WriteSeries(u.Database, "", point)
+				u.writer.WriteSeries(u.Database, "", []influxdb.Point{point})
 			}
 		}
 	}()

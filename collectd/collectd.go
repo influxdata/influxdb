@@ -17,7 +17,7 @@ const DefaultPort = 25826
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points ...influxdb.Point) (uint64, error)
+	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
 }
 
 type Server struct {
@@ -112,7 +112,7 @@ func (s *Server) handleMessage(buffer []byte) {
 	for _, packet := range *packets {
 		points := Unmarshal(&packet)
 		for _, p := range points {
-			_, err := s.writer.WriteSeries(s.Database, "", p)
+			_, err := s.writer.WriteSeries(s.Database, "", []influxdb.Point{p})
 			if err != nil {
 				log.Printf("Collectd cannot write data: %s", err)
 				continue

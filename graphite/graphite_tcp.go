@@ -5,6 +5,8 @@ import (
 	"log"
 	"net"
 	"strings"
+
+	"github.com/influxdb/influxdb"
 )
 
 // TCPServer processes Graphite data received over TCP connections.
@@ -72,6 +74,6 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		}
 
 		// Send the data to database
-		t.writer.WriteSeries(t.Database, "", point)
+		t.writer.WriteSeries(t.Database, "", []influxdb.Point{point})
 	}
 }

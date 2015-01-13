@@ -22,7 +22,7 @@ type serverResponse struct {
 
 var responses = make(chan *serverResponse, 1024)
 
-func (testServer) WriteSeries(database, retentionPolicy string, points ...influxdb.Point) (uint64, error) {
+func (testServer) WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error) {
 	responses <- &serverResponse{
 		database:        database,
 		retentionPolicy: retentionPolicy,
