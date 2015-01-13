@@ -195,6 +195,14 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// LIST RETENTION POLICIES
+		{
+			s: `LIST RETENTION POLICIES mydb`,
+			stmt: &influxql.ListRetentionPoliciesStatement{
+				Database: "mydb",
+			},
+		},
+
 		// LIST TAG KEYS
 		{
 			s: `LIST TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
@@ -533,7 +541,9 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `DROP SERIES`, err: `found EOF, expected identifier, string at line 1, char 13`},
 		{s: `LIST CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
-		{s: `LIST FOO`, err: `found FOO, expected SERIES, CONTINUOUS, MEASUREMENTS, TAG, FIELD at line 1, char 6`},
+		{s: `LIST RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
+		{s: `LIST RETENTION POLICIES`, err: `found EOF, expected identifier at line 1, char 25`},
+		{s: `LIST FOO`, err: `found FOO, expected SERIES, CONTINUOUS, MEASUREMENTS, TAG, FIELD, RETENTION at line 1, char 6`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier, string at line 1, char 23`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
