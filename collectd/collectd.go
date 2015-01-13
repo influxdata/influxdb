@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/kimor79/gollectd"
 )
 
@@ -16,7 +17,7 @@ const DefaultPort = 25826
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error)
+	WriteSeries(database, retentionPolicy string, points ...influxdb.Point) (uint64, error)
 }
 
 type Server struct {
@@ -109,13 +110,9 @@ func (s *Server) handleMessage(buffer []byte) {
 	}
 
 	for _, packet := range *packets {
-		metrics := Unmarshal(&packet)
-		for _, m := range metrics {
-			// Convert metric to a field value.
-			var values = make(map[string]interface{})
-			values[m.Name] = m.Value
-
-			_, err := s.writer.WriteSeries(s.Database, "", m.Name, m.Tags, m.Timestamp, values)
+		points := Unmarshal(&packet)
+		for _, p := range points {
+			_, err := s.writer.WriteSeries(s.Database, "", p)
 			if err != nil {
 				log.Printf("Collectd cannot write data: %s", err)
 				continue
@@ -142,15 +139,7 @@ func (s *Server) Close() error {
 	return nil
 }
 
-// TODO corylanou: This needs to be made a public `main.Point` so we can share this across packages.
-type Metric struct {
-	Name      string
-	Tags      map[string]string
-	Value     interface{}
-	Timestamp time.Time
-}
-
-func Unmarshal(data *gollectd.Packet) []Metric {
+func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 	// Prefer high resolution timestamp.
 	var timestamp time.Time
 	if data.TimeHR > 0 {
@@ -165,26 +154,34 @@ func Unmarshal(data *gollectd.Packet) []Metric {
 		timestamp = time.Unix(int64(data.Time), 0).UTC()
 	}
 
-	var m []Metric
+	var points []influxdb.Point
 	for i, _ := range data.Values {
-		metric := Metric{Name: fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)}
-		metric.Value = data.Values[i].Value
-		metric.Timestamp = timestamp
-		metric.Tags = make(map[string]string)
+		name := fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)
+		tags := make(map[string]string)
+		values := make(map[string]interface{})
+
+		values[name] = data.Values[i].Value
 
 		if data.Hostname != "" {
-			metric.Tags["host"] = data.Hostname
+			tags["host"] = data.Hostname
 		}
 		if data.PluginInstance != "" {
-			metric.Tags["instance"] = data.PluginInstance
+			tags["instance"] = data.PluginInstance
 		}
 		if data.Type != "" {
-			metric.Tags["type"] = data.Type
+			tags["type"] = data.Type
 		}
 		if data.TypeInstance != "" {
-			metric.Tags["type_instance"] = data.TypeInstance
+			tags["type_instance"] = data.TypeInstance
 		}
-		m = append(m, metric)
+		p := influxdb.Point{
+			Name:      name,
+			Tags:      tags,
+			Timestamp: timestamp,
+			Values:    values,
+		}
+
+		points = append(points, p)
 	}
-	return m
+	return points
 }

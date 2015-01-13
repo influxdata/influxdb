@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/influxdb/influxdb"
 )
 
 const (
@@ -33,15 +35,7 @@ var (
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error)
-}
-
-// Metric represents a metric as processed by the Graphite parser.
-type Metric struct {
-	Name      string
-	Tags      map[string]string
-	Value     interface{}
-	Timestamp time.Time
+	WriteSeries(database, retentionPolicy string, points ...influxdb.Point) (uint64, error)
 }
 
 // Parser encapulates a Graphite Parser.
@@ -56,44 +50,49 @@ func NewParser() *Parser {
 }
 
 // Parse performs Graphite parsing of a single line.
-func (p *Parser) Parse(line string) (*Metric, error) {
+func (p *Parser) Parse(line string) (influxdb.Point, error) {
 	// Break into 3 fields (name, value, timestamp).
 	fields := strings.Fields(line)
 	if len(fields) != 3 {
-		return nil, fmt.Errorf("received %q which doesn't have three fields", line)
+		return influxdb.Point{}, fmt.Errorf("received %q which doesn't have three fields", line)
 	}
 
-	m := new(Metric)
 	// decode the name and tags
 	name, tags, err := p.DecodeNameAndTags(fields[0])
 	if err != nil {
-		return nil, err
+		return influxdb.Point{}, err
 	}
-	m.Name = name
-	m.Tags = tags
 
 	// Parse value.
 	v, err := strconv.ParseFloat(fields[1], 64)
 	if err != nil {
-		return nil, err
+		return influxdb.Point{}, err
 	}
 
+	values := make(map[string]interface{})
 	// Determine if value is a float or an int.
 	if i := int64(v); float64(i) == v {
-		m.Value = int64(v)
+		values[name] = int64(v)
 	} else {
-		m.Value = v
+		values[name] = v
 	}
 
 	// Parse timestamp.
 	unixTime, err := strconv.ParseInt(fields[2], 10, 64)
 	if err != nil {
-		return nil, err
+		return influxdb.Point{}, err
 	}
 
-	m.Timestamp = time.Unix(0, unixTime*int64(time.Millisecond))
+	timestamp := time.Unix(0, unixTime*int64(time.Millisecond))
 
-	return m, nil
+	point := influxdb.Point{
+		Name:      name,
+		Tags:      tags,
+		Values:    values,
+		Timestamp: timestamp,
+	}
+
+	return point, nil
 }
 
 // DecodeNameAndTags parses the name and tags of a single field of a Graphite datum.
@@ -106,9 +105,9 @@ func (p *Parser) DecodeNameAndTags(field string) (string, map[string]string, err
 	// decode the name and tags
 	values := strings.Split(field, p.Separator)
 	if len(values)%2 != 1 {
-		// There should always be an odd number of fields to map a metric name and tags
-		// ex: region.us-west.hostname.server01.cpu -> tags -> region: us-west, hostname: server01, metric name -> cpu
-		return name, tags, fmt.Errorf("received %q which doesn't conform to format of key.value.key.value.metric or metric", field)
+		// There should always be an odd number of fields to map a point name and tags
+		// ex: region.us-west.hostname.server01.cpu -> tags -> region: us-west, hostname: server01, point name -> cpu
+		return name, tags, fmt.Errorf("received %q which doesn't conform to format of key.value.key.value.name or name", field)
 	}
 
 	if p.LastEnabled {
