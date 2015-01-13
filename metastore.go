@@ -41,7 +41,7 @@ func (m *metastore) close() error {
 // init initializes the metastore to ensure all top-level buckets are created.
 func (m *metastore) init() error {
 	return m.db.Update(func(tx *bolt.Tx) error {
-		_, _ = tx.CreateBucketIfNotExists([]byte("Server"))
+		_, _ = tx.CreateBucketIfNotExists([]byte("Meta"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("DataNodes"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("Databases"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("Users"))
@@ -66,7 +66,7 @@ func (m *metastore) mustView(fn func(*metatx) error) (err error) {
 		err = fn(tx)
 		return nil
 	}); e != nil {
-		panic("metastore view: " + err.Error())
+		panic("metastore view: " + e.Error())
 	}
 	return
 }
@@ -78,7 +78,7 @@ func (m *metastore) mustUpdate(fn func(*metatx) error) (err error) {
 		err = fn(tx)
 		return nil
 	}); e != nil {
-		panic("metastore update: " + err.Error())
+		panic("metastore update: " + e.Error())
 	}
 	return
 }
@@ -90,7 +90,7 @@ type metatx struct {
 
 // id returns the server id.
 func (tx *metatx) id() (id uint64) {
-	if v := tx.Bucket([]byte("Server")).Get([]byte("id")); v != nil {
+	if v := tx.Bucket([]byte("Meta")).Get([]byte("id")); v != nil {
 		id = btou64(v)
 	}
 	return
@@ -98,7 +98,33 @@ func (tx *metatx) id() (id uint64) {
 
 // setID sets the server id.
 func (tx *metatx) setID(v uint64) error {
-	return tx.Bucket([]byte("Server")).Put([]byte("id"), u64tob(v))
+	return tx.Bucket([]byte("Meta")).Put([]byte("id"), u64tob(v))
+}
+
+// mustNextSequence generates a new sequence for a key in the meta bucket.
+func (tx *metatx) mustNextSequence(key []byte) (id uint64) {
+	// Retrieve the previous value, if it exists.
+	if v := tx.Bucket([]byte("Meta")).Get(key); v != nil {
+		id = btou64(v)
+	}
+	id++
+
+	// Save the new value.
+	// This panics on error because keys are hardcoded this shouldn't fail.
+	if err := tx.Bucket([]byte("Meta")).Put(key, u64tob(id)); err != nil {
+		panic("next seq: " + err.Error())
+	}
+	return
+}
+
+// nextShardID generates a new sequence id for a shard.
+func (tx *metatx) nextShardID() (id uint64) {
+	return tx.mustNextSequence([]byte("shardID"))
+}
+
+// nextShardGroupID generates a new sequence id for a shard group.
+func (tx *metatx) nextShardGroupID() (id uint64) {
+	return tx.mustNextSequence([]byte("shardGroupID"))
 }
 
 // dataNodes returns a list of all data nodes from the metastore.
@@ -245,5 +271,15 @@ func u64tob(v uint64) []byte {
 	return b
 }
 
-// btou64 converts an 8-byte slice into an int64.
+// btou64 converts an 8-byte slice into an uint64.
 func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
+
+// u32tob converts a uint32 into a 4-byte slice.
+func u32tob(v uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, v)
+	return b
+}
+
+// btou32 converts an 4-byte slice into an uint32.
+func btou32(b []byte) uint32 { return binary.BigEndian.Uint32(b) }

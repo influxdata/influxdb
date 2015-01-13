@@ -62,6 +62,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
+	case "/messaging/subscriptions":
+		if r.Method == "POST" {
+			h.subscribe(w, r)
+		} else if r.Method == "DELETE" {
+			h.unsubscribe(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
 	default:
 		http.NotFound(w, r)
 	}
@@ -164,6 +172,68 @@ func (h *Handler) deleteReplica(w http.ResponseWriter, r *http.Request) {
 
 	// Delete the replica on the broker.
 	if err := h.broker.DeleteReplica(replicaID); err != nil {
+		h.error(w, err, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// subscribe creates a new subscription for a replica on a topic.
+func (h *Handler) subscribe(w http.ResponseWriter, r *http.Request) {
+	// Read the replica ID.
+	var replicaID uint64
+	if n, err := strconv.ParseUint(r.URL.Query().Get("replicaID"), 10, 64); err != nil {
+		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
+		return
+	} else {
+		replicaID = uint64(n)
+	}
+
+	// Read the topic ID.
+	var topicID uint64
+	if n, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 64); err != nil {
+		h.error(w, ErrTopicRequired, http.StatusBadRequest)
+		return
+	} else {
+		topicID = uint64(n)
+	}
+
+	// Subscribe a replica to a topic.
+	if err := h.broker.Subscribe(replicaID, topicID); err == ErrReplicaNotFound {
+		h.error(w, err, http.StatusNotFound)
+		return
+	} else if err != nil {
+		h.error(w, err, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+// unsubscribe removes a subscription from a replica for a topic.
+func (h *Handler) unsubscribe(w http.ResponseWriter, r *http.Request) {
+	// Read the replica ID.
+	var replicaID uint64
+	if n, err := strconv.ParseUint(r.URL.Query().Get("replicaID"), 10, 64); err != nil {
+		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
+		return
+	} else {
+		replicaID = uint64(n)
+	}
+
+	// Read the topic ID.
+	var topicID uint64
+	if n, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 64); err != nil {
+		h.error(w, ErrTopicRequired, http.StatusBadRequest)
+		return
+	} else {
+		topicID = uint64(n)
+	}
+
+	// Unsubscribe the replica from the topic.
+	if err := h.broker.Unsubscribe(replicaID, topicID); err == ErrReplicaNotFound {
+		h.error(w, err, http.StatusNotFound)
+		return
+	} else if err != nil {
 		h.error(w, err, http.StatusInternalServerError)
 		return
 	}

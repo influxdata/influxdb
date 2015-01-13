@@ -241,6 +241,53 @@ func (c *Client) DeleteReplica(id uint64) error {
 	return nil
 }
 
+// Subscribe subscribes a replica to a topic on the broker.
+func (c *Client) Subscribe(replicaID, topicID uint64) error {
+	// Send request to the last known leader.
+	u := *c.LeaderURL()
+	u.Path = "/messaging/subscriptions"
+	u.RawQuery = url.Values{
+		"replicaID": {strconv.FormatUint(replicaID, 10)},
+		"topicID":   {strconv.FormatUint(topicID, 10)},
+	}.Encode()
+	resp, err := http.Post(u.String(), "application/octet-stream", nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// If a non-201 status is returned then an error occurred.
+	if resp.StatusCode != http.StatusCreated {
+		return errors.New(resp.Header.Get("X-Broker-Error"))
+	}
+
+	return nil
+}
+
+// Unsubscribe unsubscribes a replica from a topic on the broker.
+func (c *Client) Unsubscribe(replicaID, topicID uint64) error {
+	// Send request to the last known leader.
+	u := *c.LeaderURL()
+	u.Path = "/messaging/subscriptions"
+	u.RawQuery = url.Values{
+		"replicaID": {strconv.FormatUint(replicaID, 10)},
+		"topicID":   {strconv.FormatUint(topicID, 10)},
+	}.Encode()
+	req, _ := http.NewRequest("DELETE", u.String(), nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// If a non-204 status is returned then an error occurred.
+	if resp.StatusCode != http.StatusNoContent {
+		return errors.New(resp.Header.Get("X-Broker-Error"))
+	}
+
+	return nil
+}
+
 // streamer connects to a broker server and streams the replica's messages.
 func (c *Client) streamer(done chan chan struct{}) {
 	for {

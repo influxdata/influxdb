@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"encoding/json"
+	"math"
 	"regexp"
 	"sort"
 	"strings"
@@ -16,7 +17,6 @@ type database struct {
 	name string
 
 	policies map[string]*RetentionPolicy // retention policies by name
-	shards   map[uint64]*Shard           // shards by id
 
 	defaultRetentionPolicy string
 
@@ -30,29 +30,19 @@ type database struct {
 func newDatabase() *database {
 	return &database{
 		policies:     make(map[string]*RetentionPolicy),
-		shards:       make(map[uint64]*Shard),
 		measurements: make(map[string]*Measurement),
 		series:       make(map[uint32]*Series),
 		names:        make([]string, 0),
 	}
 }
 
-// shardByTimestamp returns a shard that owns a given timestamp.
-func (db *database) shardByTimestamp(policy string, seriesID uint32, timestamp time.Time) (*Shard, error) {
+// shardGroupByTimestamp returns a shard group that owns a given timestamp.
+func (db *database) shardGroupByTimestamp(policy string, timestamp time.Time) (*ShardGroup, error) {
 	p := db.policies[policy]
 	if p == nil {
 		return nil, ErrRetentionPolicyNotFound
 	}
-	return p.shardByTimestamp(seriesID, timestamp), nil
-}
-
-// shardsByTimestamp returns all shards that own a given timestamp.
-func (db *database) shardsByTimestamp(policy string, timestamp time.Time) ([]*Shard, error) {
-	p := db.policies[policy]
-	if p == nil {
-		return nil, ErrRetentionPolicyNotFound
-	}
-	return p.shardsByTimestamp(timestamp), nil
+	return p.shardGroupByTimestamp(timestamp), nil
 }
 
 // timeBetweenInclusive returns true if t is between min and max, inclusive.
@@ -68,9 +58,6 @@ func (db *database) MarshalJSON() ([]byte, error) {
 	o.DefaultRetentionPolicy = db.defaultRetentionPolicy
 	for _, rp := range db.policies {
 		o.Policies = append(o.Policies, rp)
-	}
-	for _, s := range db.shards {
-		o.Shards = append(o.Shards, s)
 	}
 	return json.Marshal(&o)
 }
@@ -93,12 +80,6 @@ func (db *database) UnmarshalJSON(data []byte) error {
 		db.policies[rp.Name] = rp
 	}
 
-	// Copy shards.
-	db.shards = make(map[uint64]*Shard)
-	for _, s := range o.Shards {
-		db.shards[s.ID] = s
-	}
-
 	return nil
 }
 
@@ -107,7 +88,6 @@ type databaseJSON struct {
 	Name                   string             `json:"name,omitempty"`
 	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
 	Policies               []*RetentionPolicy `json:"policies,omitempty"`
-	Shards                 []*Shard           `json:"shards,omitempty"`
 }
 
 // Measurement represents a collection of time series in a database. It also contains in memory
@@ -115,8 +95,8 @@ type databaseJSON struct {
 // object. Generally these methods are only accessed from Index, which is responsible for ensuring
 // go routine safe access.
 type Measurement struct {
-	Name   string    `json:"name,omitempty"`
-	Fields []*Fields `json:"fields,omitempty"`
+	Name   string   `json:"name,omitempty"`
+	Fields []*Field `json:"fields,omitempty"`
 
 	// in memory index fields
 	series              map[string]*Series // sorted tagset string to the series object
@@ -129,13 +109,57 @@ type Measurement struct {
 func NewMeasurement(name string) *Measurement {
 	return &Measurement{
 		Name:   name,
-		Fields: make([]*Fields, 0),
+		Fields: make([]*Field, 0),
 
 		series:              make(map[string]*Series),
 		seriesByID:          make(map[uint32]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
 		ids:                 SeriesIDs(make([]uint32, 0)),
 	}
+}
+
+// CreateFieldIfNotExists creates a new field with an autoincrementing ID.
+// Returns an error if 255 fields have already been created on the measurement.
+func (m *Measurement) createFieldIfNotExists(name string, typ FieldType) (*Field, error) {
+	// Ignore if the field already exists.
+	if f := m.FieldByName(name); f != nil {
+		return f, nil
+	}
+
+	// Only 255 fields are allowed. If we go over that then return an error.
+	if len(m.Fields) > math.MaxUint8 {
+		return nil, ErrFieldOverflow
+	}
+
+	// Create and append a new field.
+	f := &Field{
+		ID:   uint8(len(m.Fields)),
+		Name: name,
+		Type: typ,
+	}
+	m.Fields = append(m.Fields, f)
+
+	return f, nil
+}
+
+// Field returns a field by id.
+func (m *Measurement) Field(id uint8) *Field {
+	for _, f := range m.Fields {
+		if f.ID == id {
+			return f
+		}
+	}
+	return nil
+}
+
+// FieldByName returns a field by name.
+func (m *Measurement) FieldByName(name string) *Field {
+	for _, f := range m.Fields {
+		if f.Name == name {
+			return f
+		}
+	}
+	return nil
 }
 
 // addSeries will add a series to the measurementIndex. Returns false if already present
@@ -179,7 +203,7 @@ func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 	return m.series[string(marshalTags(tags))]
 }
 
-// sereisIDs returns the series ids for a given filter
+// seriesIDs returns the series ids for a given filter
 func (m *Measurement) seriesIDs(filter *TagFilter) (ids SeriesIDs) {
 	values := m.seriesByTagKeyValue[filter.Key]
 	if values == nil {
@@ -236,6 +260,22 @@ func (m *Measurement) tagValues(key string) TagValues {
 	return TagValues(values)
 }
 
+// mapValues converts a map of values with string keys to field id keys.
+// Returns nil if any field doesn't exist.
+func (m *Measurement) mapValues(values map[string]interface{}) map[uint8]interface{} {
+	other := make(map[uint8]interface{}, len(values))
+	for k, v := range values {
+		// TODO: Cast value to original field type.
+
+		f := m.FieldByName(k)
+		if f == nil {
+			return nil
+		}
+		other[f.ID] = v
+	}
+	return other
+}
+
 type Measurements []*Measurement
 
 // Field represents a series field.
@@ -274,10 +314,10 @@ type RetentionPolicy struct {
 	// Length of time to keep data around
 	Duration time.Duration
 
+	// The number of copies to make of each shard.
 	ReplicaN uint32
-	SplitN   uint32
 
-	Shards []*Shard
+	groups []*ShardGroup
 }
 
 // NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
@@ -285,39 +325,31 @@ func NewRetentionPolicy(name string) *RetentionPolicy {
 	return &RetentionPolicy{
 		Name:     name,
 		ReplicaN: DefaultReplicaN,
-		SplitN:   DefaultSplitN,
 		Duration: DefaultShardRetention,
 	}
 }
 
-// shardByTimestamp returns the shard in the space that owns a given timestamp for a given series id.
-// Returns nil if the shard does not exist.
-func (rp *RetentionPolicy) shardByTimestamp(seriesID uint32, timestamp time.Time) *Shard {
-	shards := rp.shardsByTimestamp(timestamp)
-	if len(shards) > 0 {
-		return shards[int(seriesID)%len(shards)]
+// shardGroupByTimestamp returns the group in the policy that owns a timestamp.
+// Returns nil group does not exist.
+func (rp *RetentionPolicy) shardGroupByTimestamp(timestamp time.Time) *ShardGroup {
+	for _, g := range rp.groups {
+		if timeBetweenInclusive(timestamp, g.StartTime, g.EndTime) {
+			return g
+		}
 	}
 	return nil
 }
 
-func (rp *RetentionPolicy) shardsByTimestamp(timestamp time.Time) []*Shard {
-	shards := make([]*Shard, 0, rp.SplitN)
-	for _, s := range rp.Shards {
-		if timeBetweenInclusive(timestamp, s.StartTime, s.EndTime) {
-			shards = append(shards, s)
-		}
-	}
-	return shards
-}
-
 // MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
 func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&retentionPolicyJSON{
-		Name:     rp.Name,
-		Duration: rp.Duration,
-		ReplicaN: rp.ReplicaN,
-		SplitN:   rp.SplitN,
-	})
+	var o retentionPolicyJSON
+	o.Name = rp.Name
+	o.Duration = rp.Duration
+	o.ReplicaN = rp.ReplicaN
+	for _, g := range rp.groups {
+		o.Groups = append(o.Groups, g)
+	}
+	return json.Marshal(&o)
 }
 
 // UnmarshalJSON decodes a JSON-encoded byte slice to a retention policy.
@@ -331,9 +363,8 @@ func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	// Copy over properties from intermediate type.
 	rp.Name = o.Name
 	rp.ReplicaN = o.ReplicaN
-	rp.SplitN = o.SplitN
 	rp.Duration = o.Duration
-	rp.Shards = o.Shards
+	rp.groups = o.Groups
 
 	return nil
 }
@@ -344,19 +375,7 @@ type retentionPolicyJSON struct {
 	ReplicaN uint32        `json:"replicaN,omitempty"`
 	SplitN   uint32        `json:"splitN,omitempty"`
 	Duration time.Duration `json:"duration,omitempty"`
-	Shards   []*Shard      `json:"shards,omitempty"`
-}
-
-// RetentionPolicies represents a list of shard policies.
-type RetentionPolicies []*RetentionPolicy
-
-// Shards returns a list of all shards for all policies.
-func (rps RetentionPolicies) Shards() []*Shard {
-	var shards []*Shard
-	for _, rp := range rps {
-		shards = append(shards, rp.Shards...)
-	}
-	return shards
+	Groups   []*ShardGroup `json:"groups,omitempty"`
 }
 
 // TagFilter represents a tag filter when looking up other tags or measurements.
@@ -503,12 +522,6 @@ func (d *database) createMeasurementIfNotExists(name string) *Measurement {
 		sort.Strings(d.names)
 	}
 	return idx
-}
-
-// AddField adds a field to the measurement name. Returns false if already present
-func (d *database) AddField(name string, f *Field) bool {
-	if true { panic("not implemented") }
-	return false
 }
 
 // MeasurementsBySeriesIDs returns a collection of unique Measurements for the passed in SeriesIDs.
