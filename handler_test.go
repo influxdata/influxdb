@@ -26,7 +26,7 @@ func TestHandler_Databases(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db`, "")
+	status, body := MustHTTP("GET", s.URL+`/db`, nil, nil, "")
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -41,7 +41,7 @@ func TestHandler_CreateDatabase(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/query?q="CREATE DATABASE foo`, "")
+	status, body := MustHTTP("GET", s.URL+`/query?q="CREATE DATABASE foo`, nil, nil, "")
 
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
@@ -56,7 +56,7 @@ func TestHandler_CreateDatabase_BadRequest_NoName(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/db`, `{"BadRequest": 1}`)
+	status, body := MustHTTP("POST", s.URL+`/db`, nil, nil, `{"BadRequest": 1}`)
 
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
@@ -71,7 +71,7 @@ func TestHandler_CreateDatabase_BadRequest_InvalidJSON(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/db`, `"BadRequest": 1`)
+	status, body := MustHTTP("POST", s.URL+`/db`, nil, nil, `"BadRequest": 1`)
 
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
@@ -87,7 +87,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/db`, `{"name": "foo"}`)
+	status, body := MustHTTP("POST", s.URL+`/db`, nil, nil, `{"name": "foo"}`)
 
 	if status != http.StatusConflict {
 		t.Fatalf("unexpected status: %d", status)
@@ -103,7 +103,7 @@ func TestHandler_DeleteDatabase(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, nil, nil, "")
 
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
@@ -118,7 +118,7 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo`, nil, nil, "")
 
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -135,7 +135,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies`, "")
+	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies`, nil, nil, "")
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -150,7 +150,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies`, "")
+	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies`, nil, nil, "")
 
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -167,7 +167,7 @@ func TestHandler_CreateRetentionPolicy(t *testing.T) {
 	defer s.Close()
 
 	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
 
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
@@ -183,7 +183,7 @@ func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	defer s.Close()
 
 	policy := `{"name": "bar", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
 
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -199,9 +199,9 @@ func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 	policy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
 
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
 
 	if status != http.StatusConflict {
 		t.Fatalf("unexpected status: %d", status)
@@ -218,7 +218,7 @@ func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
 	defer s.Close()
 
 	policy := `{"name": "bar", "duration": "**BAD**", "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, policy)
+	status, body := MustHTTP("POST", s.URL+`/db/foo/retention_policies`, nil, nil, policy)
 
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
@@ -235,7 +235,7 @@ func TestHandler_UpdateRetentionPolicy(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`,
+	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, nil, nil,
 		`{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`)
 
 	// Verify updated policy.
@@ -258,7 +258,7 @@ func TestHandler_UpdateRetentionPolicy_BadRequest(t *testing.T) {
 	defer s.Close()
 
 	newPolicy := `{"name": "newName", "duration": "BadRequest", "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, nil, nil, newPolicy)
 
 	// Verify response.
 	if status != http.StatusBadRequest {
@@ -275,7 +275,7 @@ func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	defer s.Close()
 
 	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, nil, nil, newPolicy)
 
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -292,7 +292,7 @@ func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
 	defer s.Close()
 
 	newPolicy := `{"name": "newName", "duration": 1000000, "replicaN": 1, "splitN": 2}`
-	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, newPolicy)
+	status, body := MustHTTP("PUT", s.URL+`/db/foo/retention_policies/bar`, nil, nil, newPolicy)
 
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -309,7 +309,7 @@ func TestHandler_DeleteRetentionPolicy(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, nil, nil, "")
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != "" {
@@ -323,7 +323,7 @@ func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, nil, nil, "")
 
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -339,7 +339,7 @@ func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/db/foo/retention_policies/bar`, nil, nil, "")
 
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
@@ -354,7 +354,7 @@ func TestHandler_Ping(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("GET", s.URL+`/ping`, "")
+	status, _ := MustHTTP("GET", s.URL+`/ping`, nil, nil, "")
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -368,7 +368,7 @@ func TestHandler_Users_NoUsers(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/users`, "")
+	status, body := MustHTTP("GET", s.URL+`/users`, nil, nil, "")
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -384,7 +384,7 @@ func TestHandler_Users_OneUser(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/users`, "")
+	status, body := MustHTTP("GET", s.URL+`/users`, nil, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `[{"name":"jdoe","admin":true}]` {
@@ -401,7 +401,7 @@ func TestHandler_Users_MultipleUsers(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/users`, "")
+	status, body := MustHTTP("GET", s.URL+`/users`, nil, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `[{"name":"csmith"},{"name":"jdoe"},{"name":"mclark","admin":true}]` {
@@ -416,7 +416,7 @@ func TestHandler_CreateUser(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/users`, `{"name":"jdoe","password":"1337"}`)
+	status, body := MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name":"jdoe","password":"1337"}`)
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != "" {
@@ -431,7 +431,7 @@ func TestHandler_CreateUser_BadRequest(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/users`, `{"name":0xBAD,"password":"1337"}`)
+	status, body := MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name":0xBAD,"password":"1337"}`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `invalid character 'x' after object key:value pair` {
@@ -445,7 +445,7 @@ func TestHandler_CreateUser_InternalServerError(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/users`, `{"name":""}`)
+	status, body := MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name":""}`)
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `username required` {
@@ -464,7 +464,7 @@ func TestHandler_UpdateUser(t *testing.T) {
 	hash := srvr.User("jdoe").Hash
 
 	// Update user password.
-	status, body := MustHTTP("PUT", s.URL+`/users/jdoe`, `{"password": "7331"}`)
+	status, body := MustHTTP("PUT", s.URL+`/users/jdoe`, nil, nil, `{"password": "7331"}`)
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `` {
@@ -481,7 +481,7 @@ func TestHandler_UpdateUser_PasswordBadRequest(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("PUT", s.URL+`/users/jdoe`, `{"password": 10}`)
+	status, body := MustHTTP("PUT", s.URL+`/users/jdoe`, nil, nil, `{"password": 10}`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `json: cannot unmarshal number into Go value of type string` {
@@ -496,7 +496,7 @@ func TestHandler_DeleteUser(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/users/jdoe`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/users/jdoe`, nil, nil, "")
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `` {
@@ -511,7 +511,7 @@ func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/users/jdoe`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/users/jdoe`, nil, nil, "")
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `user not found` {
@@ -528,7 +528,7 @@ func TestHandler_DataNodes(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/data_nodes`, "")
+	status, body := MustHTTP("GET", s.URL+`/data_nodes`, nil, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `[{"id":1,"url":"http://localhost:1000"},{"id":2,"url":"http://localhost:2000"},{"id":3,"url":"http://localhost:3000"}]` {
@@ -542,7 +542,7 @@ func TestHandler_CreateDataNode(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/data_nodes`, `{"url":"http://localhost:1000"}`)
+	status, body := MustHTTP("POST", s.URL+`/data_nodes`, nil, nil, `{"url":"http://localhost:1000"}`)
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `{"id":1,"url":"http://localhost:1000"}` {
@@ -556,7 +556,7 @@ func TestHandler_CreateDataNode_BadRequest(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/data_nodes`, `{"name":`)
+	status, body := MustHTTP("POST", s.URL+`/data_nodes`, nil, nil, `{"name":`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `unexpected EOF` {
@@ -570,7 +570,7 @@ func TestHandler_CreateDataNode_InternalServerError(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/data_nodes`, `{"url":""}`)
+	status, body := MustHTTP("POST", s.URL+`/data_nodes`, nil, nil, `{"url":""}`)
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d, %s", status, body)
 	} else if body != `data node url required` {
@@ -585,7 +585,7 @@ func TestHandler_DeleteDataNode(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/data_nodes/1`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/data_nodes/1`, nil, nil, "")
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `` {
@@ -599,7 +599,7 @@ func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/data_nodes/10000`, "")
+	status, body := MustHTTP("DELETE", s.URL+`/data_nodes/10000`, nil, nil, "")
 	if status != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `data node not found` {
@@ -616,21 +616,21 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 	defer s.Close()
 
 	// Attempting to create a non-admin user should fail.
-	status, _ := MustHTTP("POST", s.URL+`/users`, `{"name": "maeve", "password": "pass", "Admin": false}`)
+	status, _ := MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name": "maeve", "password": "pass", "Admin": false}`)
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
 	}
 
 	// Creating the first admin user, without supplying authentication
 	// credentials should be OK.
-	status, _ = MustHTTP("POST", s.URL+`/users`, `{"name": "orla", "password": "pass", "Admin": true}`)
+	status, _ = MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name": "orla", "password": "pass", "Admin": true}`)
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	}
 
 	// Creating a second admin user, without supplying authentication
 	// credentials should fail.
-	status, _ = MustHTTP("POST", s.URL+`/users`, `{"name": "louise", "password": "pass", "Admin": true}`)
+	status, _ = MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name": "louise", "password": "pass", "Admin": true}`)
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -643,7 +643,7 @@ func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("GET", s.URL+`/db`, "")
+	status, _ := MustHTTP("GET", s.URL+`/db`, nil, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -656,7 +656,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedQueryParams(t *testing.T) {
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("GET", s.URL+`/db?u=lisa&p=password`, "")
+	status, _ := MustHTTP("GET", s.URL+`/db?u=lisa&p=password`, nil, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -672,7 +672,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
 	auth := make(map[string]string)
 	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
 	fmt.Println(auth)
-	status, _ := MustHTTPWithHeaders("GET", s.URL+`/db`, auth, "")
+	status, _ := MustHTTP("GET", s.URL+`/db`, nil, auth, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -680,11 +680,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
 
 // Utility functions for this test suite.
 
-func MustHTTP(verb, url, body string) (int, string) {
-	return MustHTTPWithHeaders(verb, url, nil, body)
-}
-
-func MustHTTPWithHeaders(verb, url string, headers map[string]string, body string) (int, string) {
+func MustHTTP(verb, url string, params, headers map[string]string, body string) (int, string) {
 	req, err := http.NewRequest(verb, url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		panic(err)
