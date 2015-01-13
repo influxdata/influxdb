@@ -113,9 +113,15 @@ func (p *Parser) parseListStatement() (Statement, error) {
 		} else {
 			return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
 		}
+	} else if tok == RETENTION {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == POLICIES {
+			return p.parseListRetentionPoliciesStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"POLICIES"}, pos)
+		}
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENTS", "TAG", "FIELD"}, pos)
+	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENTS", "TAG", "FIELD", "RETENTION"}, pos)
 }
 
 // parseCreateStatement parses a string and returns a create statement.
@@ -639,6 +645,20 @@ func (p *Parser) parseListMeasurementsStatement() (*ListMeasurementsStatement, e
 		return nil, err
 	}
 	stmt.Limit = limit
+
+	return stmt, nil
+}
+
+// parseListRetentionPoliciesStatement parses a string and returns a ListRetentionPoliciesStatement.
+// This function assumes the "LIST RETENTION POLICIES" tokens have been consumed.
+func (p *Parser) parseListRetentionPoliciesStatement() (*ListRetentionPoliciesStatement, error) {
+	stmt := &ListRetentionPoliciesStatement{}
+
+	ident, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Database = ident
 
 	return stmt, nil
 }

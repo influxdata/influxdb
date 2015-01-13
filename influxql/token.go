@@ -86,6 +86,7 @@ const (
 	ORDER
 	PASSWORD
 	POLICY
+	POLICIES
 	PRIVILEGES
 	QUERIES
 	QUERY
@@ -173,6 +174,7 @@ var tokens = [...]string{
 	ORDER:        "ORDER",
 	PASSWORD:     "PASSWORD",
 	POLICY:       "POLICY",
+	POLICIES:     "POLICIES",
 	PRIVILEGES:   "PRIVILEGES",
 	QUERIES:      "QUERIES",
 	QUERY:        "QUERY",

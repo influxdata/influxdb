@@ -132,6 +132,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `ORDER`, tok: influxql.ORDER},
 		{s: `PASSWORD`, tok: influxql.PASSWORD},
 		{s: `POLICY`, tok: influxql.POLICY},
+		{s: `POLICIES`, tok: influxql.POLICIES},
 		{s: `PRIVILEGES`, tok: influxql.PRIVILEGES},
 		{s: `QUERIES`, tok: influxql.QUERIES},
 		{s: `QUERY`, tok: influxql.QUERY},

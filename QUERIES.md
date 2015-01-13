@@ -85,6 +85,9 @@ LIST SERIES WHERE region = 'uswest'
 
 LIST SERIES FROM cpu_load WHERE region = 'uswest' LIMIT 10
 
+-- list all retention policies on a database
+LIST RETENTION POLICIES mydb
+
 -- get a list of all tag keys across all measurements
 LIST TAG KEYS
 
