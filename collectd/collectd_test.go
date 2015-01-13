@@ -44,7 +44,7 @@ func (testServer) ResponseN(n int) ([]*serverResponse, error) {
 				return a, nil
 			}
 		case <-time.After(time.Second):
-			return a, fmt.Errorf("unexpected response count: expected: %d, actual: ", n, len(a))
+			return a, fmt.Errorf("unexpected response count: expected: %d, actual: %d", n, len(a))
 		}
 	}
 }
