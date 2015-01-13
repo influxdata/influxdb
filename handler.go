@@ -187,9 +187,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			_ = json.NewEncoder(w).Encode(&databases)
 
 		case *influxql.CreateUserStatement:
-			err = h.server.CreateUser(c.Name, c.Password, !h.server.AdminUserExists()) // XXX This is obviously broken.
+			continue
 		case *influxql.DropUserStatement:
-			err = h.server.DeleteUser(c.Name)
+			continue
 
 		case *influxql.SelectStatement:
 			continue
