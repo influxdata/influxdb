@@ -172,14 +172,14 @@ func (s *Server) Close() error {
 		return ErrServerClosed
 	}
 
+	// Remove path.
+	s.path = ""
+
 	// Close message processing.
 	s.setClient(nil)
 
 	// Close metastore.
 	_ = s.meta.close()
-
-	// Remove path.
-	s.path = ""
 
 	return nil
 }
@@ -1211,18 +1211,19 @@ type createSeriesIfNotExistsCommand struct {
 }
 
 // WriteSeries writes series data to the database.
-func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
+// Returns the messaging index the data was written to.
+func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error) {
 	// Find the id for the series and tagset
 	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// If the retention policy is not set, use the default for this database.
 	if retentionPolicy == "" {
 		rp, err := s.DefaultRetentionPolicy(database)
 		if err != nil {
-			return fmt.Errorf("failed to determine default retention policy: %s", err.Error())
+			return 0, fmt.Errorf("failed to determine default retention policy: %s", err.Error())
 		}
 		retentionPolicy = rp.Name
 	}
@@ -1230,15 +1231,15 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	// Retrieve measurement.
 	m, err := s.measurement(database, name)
 	if err != nil {
-		return err
+		return 0, err
 	} else if m == nil {
-		return ErrMeasurementNotFound
+		return 0, ErrMeasurementNotFound
 	}
 
 	// Retrieve shard group.
 	g, err := s.createShardGroupIfNotExists(database, retentionPolicy, timestamp)
 	if err != nil {
-		return fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
+		return 0, fmt.Errorf("create shard(%s/%s): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
 
 	// Find appropriate shard within the shard group.
@@ -1246,7 +1247,7 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 
 	// Ignore requests that have no values.
 	if len(values) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	// Convert string-key/values to fieldID-key/values.
@@ -1268,7 +1269,7 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 			TopicID: sh.ID,
 			Data:    data,
 		})
-		return err
+		return 0, err
 	}
 
 	// If we can successfully encode the string keys to raw field ids then
@@ -1279,12 +1280,11 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	data = append(data, marshalValues(rawValues)...)
 
 	// Publish "raw write series" message on shard's topic to broker.
-	_, err = s.client.Publish(&messaging.Message{
+	return s.client.Publish(&messaging.Message{
 		Type:    writeRawSeriesMessageType,
 		TopicID: sh.ID,
 		Data:    data,
 	})
-	return err
 }
 
 type writeSeriesCommand struct {
@@ -1510,10 +1510,20 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 	for {
 		// Read incoming message.
 		var m *messaging.Message
+		var ok bool
 		select {
 		case <-done:
 			return
-		case m = <-client.C():
+		case m, ok = <-client.C():
+			if !ok {
+				return
+			}
+		}
+
+		// Exit if closed.
+		// TODO: Wrap this check in a lock with the apply itself.
+		if !s.opened() {
+			continue
 		}
 
 		// Process message.

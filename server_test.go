@@ -506,16 +506,20 @@ func TestServer_WriteSeries(t *testing.T) {
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	values := map[string]interface{}{"value": 23.2}
-	if err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:00Z"), values); err != nil {
+	index, err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:00Z"), values)
+	if err != nil {
 		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
 	}
-	time.Sleep(1 * time.Second) // TEMP
 
 	// Write another point 10 seconds later so it goes through "raw series".
-	if err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:10Z"), values); err != nil {
+	index, err = s.WriteSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:10Z"), values)
+	if err != nil {
 		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
 	}
-	time.Sleep(1 * time.Second) // TEMP
 
 	// Verify a subscription was made.
 	if !subscribed {
@@ -563,8 +567,11 @@ func TestServer_Measurements(t *testing.T) {
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	values := map[string]interface{}{"value": 23.2}
 
-	if err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, timestamp, values); err != nil {
+	index, err := s.WriteSeries("foo", "mypolicy", "cpu_load", tags, timestamp, values)
+	if err != nil {
 		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
 	}
 
 	expectedMeasurementNames := []string{"cpu_load"}
