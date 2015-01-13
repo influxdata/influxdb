@@ -22,7 +22,7 @@ type serverResponse struct {
 
 var responses = make(chan *serverResponse, 1024)
 
-func (testServer) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error {
+func (testServer) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error) {
 	responses <- &serverResponse{
 		database:        database,
 		retentionPolicy: retentionPolicy,
@@ -31,7 +31,7 @@ func (testServer) WriteSeries(database, retentionPolicy, name string, tags map[s
 		timestamp:       timestamp,
 		values:          values,
 	}
-	return nil
+	return 0, nil
 }
 
 func TestServer_ListenAndServe_ErrBindAddressRequired(t *testing.T) {

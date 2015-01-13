@@ -16,7 +16,7 @@ const DefaultPort = 25826
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
+	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error)
 }
 
 type Server struct {
@@ -115,7 +115,7 @@ func (s *Server) handleMessage(buffer []byte) {
 			var values = make(map[string]interface{})
 			values[m.Name] = m.Value
 
-			err := s.writer.WriteSeries(s.Database, "", m.Name, m.Tags, m.Timestamp, values)
+			_, err := s.writer.WriteSeries(s.Database, "", m.Name, m.Tags, m.Timestamp, values)
 			if err != nil {
 				log.Printf("Collectd cannot write data: %s", err)
 				continue
