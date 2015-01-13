@@ -118,6 +118,7 @@ statement           = alter_retention_policy_stmt |
                       list_field_key_stmt |
                       list_field_value_stmt |
                       list_measurements_stmt |
+                      list_retention_policies |
                       list_series_stmt |
                       list_tag_key_stmt |
                       list_tag_value_stmt |
@@ -262,6 +263,32 @@ GRANT ALL TO jdoe;
 
 -- grant read access to a database
 GRANT READ ON mydb TO jdoe;
+```
+
+### LIST DATABASES
+
+```
+list_databases_stmt = "LIST DATABASES"
+```
+
+#### Example:
+
+```sql
+-- list all databases
+LIST DATABASES;
+```
+
+### LIST RETENTION POLICIES
+
+```
+list_retention_policies = "LIST RETENTION POLICIES" db_name
+```
+
+#### Example:
+
+```sql
+-- list all retention policies on a database
+LIST RETENTION POLICIES mydb;
 ```
 
 ## Clauses
