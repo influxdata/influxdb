@@ -57,6 +57,7 @@ the following to format the code:
 
 ```
 go fmt ./...
+go vet ./...
 ```
 
 To install go vet, run the following command:
