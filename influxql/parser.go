@@ -155,6 +155,12 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropContinuousQueryStatement()
 	} else if tok == DATABASE {
 		return p.parseDropDatabaseStatement()
+	} else if tok == RETENTION {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == POLICY {
+			return p.parseDropRetentionPolicyStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
+		}
 	} else if tok == USER {
 		return p.parseDropUserStatement()
 	}
@@ -928,6 +934,31 @@ func (p *Parser) parseDropDatabaseStatement() (*DropDatabaseStatement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
 	}
 	stmt.Name = lit
+
+	return stmt, nil
+}
+
+// parseDropRetentionPolicyStatement parses a string and returns a DropRetentionPolicyStatement.
+// This function assumes the DROP RETENTION POLICY tokens have been consumed.
+func (p *Parser) parseDropRetentionPolicyStatement() (*DropRetentionPolicyStatement, error) {
+	stmt := &DropRetentionPolicyStatement{}
+
+	// Parse the policy name.
+	ident, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = ident
+
+	// Consume the required ON token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Parse the database name.
+	if stmt.Database, err = p.parseIdentifier(); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
