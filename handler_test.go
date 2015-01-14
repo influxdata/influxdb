@@ -66,7 +66,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database exists` {
+	} else if body != `error creating database: database exists` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -93,7 +93,7 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE bar"}, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database not found` {
+	} else if body != `error deleting database: database not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
