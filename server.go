@@ -1213,10 +1213,10 @@ type createSeriesIfNotExistsCommand struct {
 
 // Point defines the values that will be written to the database
 type Point struct {
-	Name      string                 `json:"name"`
-	Tags      map[string]string      `json:"tags"`
-	Timestamp time.Time              `json:"timestamp"`
-	Values    map[string]interface{} `json:"values"`
+	Name      string
+	Tags      map[string]string
+	Timestamp time.Time
+	Values    map[string]interface{}
 }
 
 // WriteSeries writes series data to the database.

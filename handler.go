@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb/influxql"
@@ -187,23 +188,41 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 	*/
 }
 
+type batchWrite struct {
+	Points          []Point           `json:"points"`
+	Database        string            `json:"database"`
+	RetentionPolicy string            `json:"retentionPolicy"`
+	Tags            map[string]string `json:"tags"`
+	Timestamp       time.Time         `json:"timestamp"`
+}
+
 // serveWriteSeries receives incoming series data and writes it to the database.
 func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *User) {
-	database := r.URL.Query().Get(":db")
-	retentionPolicy := r.URL.Query().Get("retentionPolicy")
+	var br batchWrite
 
-	//Read from the request body.
 	dec := json.NewDecoder(r.Body)
 	dec.UseNumber()
+
 	for {
-		var point Point
-		if err := dec.Decode(&point); err != nil {
+		if err := dec.Decode(&br); err != nil {
 			h.error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if _, err := h.server.WriteSeries(database, retentionPolicy, []Point{point}); err != nil {
-			h.error(w, err.Error(), http.StatusInternalServerError)
-			return
+		for _, p := range br.Points {
+			if p.Timestamp.IsZero() {
+				p.Timestamp = br.Timestamp
+			}
+			if len(br.Tags) > 0 {
+				for k, _ := range br.Tags {
+					if p.Tags[k] == "" {
+						p.Tags[k] = br.Tags[k]
+					}
+				}
+			}
+			if _, err := h.server.WriteSeries(br.Database, br.RetentionPolicy, []Point{p}); err != nil {
+				h.error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 }
