@@ -1491,16 +1491,16 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 	for _, stmt := range q.Statements {
 		switch c := stmt.(type) {
 		case *influxql.CreateDatabaseStatement:
-			return s.executeCreateDatabaseCommand(c, user)
+			return s.executeCreateDatabaseStatement(c, user)
 		case *influxql.DropDatabaseStatement:
-			return s.executeDropDatabaseCommand(c, user)
+			return s.executeDropDatabaseStatement(c, user)
 		case *influxql.ListDatabasesStatement:
-			return s.executeListDatabasesCommand(c, user)
+			return s.executeListDatabasesStatement(c, user)
 
 		case *influxql.CreateUserStatement:
-			return s.executeCreateUserCommand(c, user)
+			return s.executeCreateUserStatement(c, user)
 		case *influxql.DropUserStatement:
-			return s.executeDropUserCommand(c, user)
+			return s.executeDropUserStatement(c, user)
 
 		case *influxql.SelectStatement:
 			continue
@@ -1525,13 +1525,13 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 			continue
 
 		case *influxql.CreateRetentionPolicyStatement:
-			return s.executeCreateRetentionPolicyCommand(c, user)
+			return s.executeCreateRetentionPolicyStatement(c, user)
 		case *influxql.AlterRetentionPolicyStatement:
-			return s.executeAlterRetentionPolicyCommand(c, user)
+			return s.executeAlterRetentionPolicyStatement(c, user)
 		case *influxql.DropRetentionPolicyStatement:
-			return s.executeDropRetentionPolicyCommand(c, user)
+			return s.executeDropRetentionPolicyStatement(c, user)
 		case *influxql.ListRetentionPoliciesStatement:
-			return s.executeListRetentionPoliciesCommand(c, user)
+			return s.executeListRetentionPoliciesStatement(c, user)
 
 		case *influxql.CreateContinuousQueryStatement:
 			continue
@@ -1544,19 +1544,19 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 	return nil, nil
 }
 
-func (s *Server) executeCreateDatabaseCommand(q *influxql.CreateDatabaseStatement, user *User) (interface{}, error) {
+func (s *Server) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement, user *User) (interface{}, error) {
 	return nil, s.CreateDatabase(q.Name)
 }
 
-func (s *Server) executeDropDatabaseCommand(q *influxql.DropDatabaseStatement, user *User) (interface{}, error) {
+func (s *Server) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement, user *User) (interface{}, error) {
 	return nil, s.DeleteDatabase(q.Name)
 }
 
-func (s *Server) executeListDatabasesCommand(q *influxql.ListDatabasesStatement, user *User) (interface{}, error) {
+func (s *Server) executeListDatabasesStatement(q *influxql.ListDatabasesStatement, user *User) (interface{}, error) {
 	return s.Databases(), nil
 }
 
-func (s *Server) executeCreateUserCommand(q *influxql.CreateUserStatement, user *User) (interface{}, error) {
+func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, user *User) (interface{}, error) {
 	isAdmin := false
 	if q.Privilege != nil {
 		isAdmin = *q.Privilege == influxql.AllPrivileges
@@ -1567,11 +1567,11 @@ func (s *Server) executeCreateUserCommand(q *influxql.CreateUserStatement, user 
 	return nil, nil
 }
 
-func (s *Server) executeDropUserCommand(q *influxql.DropUserStatement, user *User) (interface{}, error) {
+func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) (interface{}, error) {
 	return nil, s.DeleteUser(q.Name)
 }
 
-func (s *Server) executeCreateRetentionPolicyCommand(q *influxql.CreateRetentionPolicyStatement, user *User) (interface{}, error) {
+func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) (interface{}, error) {
 	rp := NewRetentionPolicy(q.Name)
 	rp.Duration = q.Duration
 	rp.ReplicaN = uint32(q.Replication)
@@ -1581,7 +1581,7 @@ func (s *Server) executeCreateRetentionPolicyCommand(q *influxql.CreateRetention
 	return nil, nil
 }
 
-func (s *Server) executeAlterRetentionPolicyCommand(q *influxql.AlterRetentionPolicyStatement, user *User) (interface{}, error) {
+func (s *Server) executeAlterRetentionPolicyStatement(q *influxql.AlterRetentionPolicyStatement, user *User) (interface{}, error) {
 	rp := NewRetentionPolicy(q.Name)
 	if q.Duration != nil {
 		rp.Duration = *q.Duration
@@ -1595,11 +1595,11 @@ func (s *Server) executeAlterRetentionPolicyCommand(q *influxql.AlterRetentionPo
 	return nil, nil
 }
 
-func (s *Server) executeDropRetentionPolicyCommand(q *influxql.DropRetentionPolicyStatement, user *User) (interface{}, error) {
+func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement, user *User) (interface{}, error) {
 	return nil, s.DeleteRetentionPolicy(q.Database, q.Name)
 }
 
-func (s *Server) executeListRetentionPoliciesCommand(q *influxql.ListRetentionPoliciesStatement, user *User) (interface{}, error) {
+func (s *Server) executeListRetentionPoliciesStatement(q *influxql.ListRetentionPoliciesStatement, user *User) (interface{}, error) {
 	return s.RetentionPolicies(q.Database)
 }
 
