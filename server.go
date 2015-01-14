@@ -1501,25 +1501,25 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 		case *influxql.DropUserStatement:
 			return s.executeDropUserStatement(c, user)
 		case *influxql.SelectStatement:
-			continue
+			return s.executeSelectStatement(c, database, user)
 		case *influxql.DropSeriesStatement:
-			continue
+			return s.executeDropSeriesStatement(c, database, user)
 		case *influxql.ListSeriesStatement:
-			continue
+			return s.executeListSeriesStatement(c, database, user)
 		case *influxql.ListMeasurementsStatement:
-			continue
+			return s.executeListMeasurementsStatement(c, database, user)
 		case *influxql.ListTagKeysStatement:
-			continue
+			return s.executeListTagKeysStatement(c, database, user)
 		case *influxql.ListTagValuesStatement:
-			continue
+			return s.executeListTagValuesStatement(c, database, user)
 		case *influxql.ListFieldKeysStatement:
-			continue
+			return s.executeListFieldKeysStatement(c, database, user)
 		case *influxql.ListFieldValuesStatement:
-			continue
+			return s.executeListFieldValuesStatement(c, database, user)
 		case *influxql.GrantStatement:
-			continue
+			return s.executeGrantStatement(c, user)
 		case *influxql.RevokeStatement:
-			continue
+			return s.executeRevokeStatement(c, user)
 		case *influxql.CreateRetentionPolicyStatement:
 			return s.executeCreateRetentionPolicyStatement(c, user)
 		case *influxql.AlterRetentionPolicyStatement:
@@ -1529,11 +1529,11 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 		case *influxql.ListRetentionPoliciesStatement:
 			return s.executeListRetentionPoliciesStatement(c, user)
 		case *influxql.CreateContinuousQueryStatement:
-			continue
+			return s.executeCreateContinuousQueryStatement(c, database, user)
 		case *influxql.DropContinuousQueryStatement:
-			continue
+			return s.executeDropContinuousQueryStatement(c, database, user)
 		case *influxql.ListContinuousQueriesStatement:
-			continue
+			return s.executeListContinuousQueriesStatement(c, database, user)
 		}
 	}
 	return nil, nil
@@ -1596,6 +1596,58 @@ func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPo
 
 func (s *Server) executeListRetentionPoliciesStatement(q *influxql.ListRetentionPoliciesStatement, user *User) (interface{}, error) {
 	return s.RetentionPolicies(q.Database)
+}
+
+func (s *Server) executeSelectStatement(q *influxql.SelectStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeDropSeriesStatement(q *influxql.DropSeriesStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeListSeriesStatement(q *influxql.ListSeriesStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeListMeasurementsStatement(q *influxql.ListMeasurementsStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeListTagKeysStatement(q *influxql.ListTagKeysStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeListTagValuesStatement(q *influxql.ListTagValuesStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeListFieldKeysStatement(q *influxql.ListFieldKeysStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeListFieldValuesStatement(q *influxql.ListFieldValuesStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeGrantStatement(q *influxql.GrantStatement, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeRevokeStatement(q *influxql.RevokeStatement, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeDropContinuousQueryStatement(q *influxql.DropContinuousQueryStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
+}
+
+func (s *Server) executeListContinuousQueriesStatement(q *influxql.ListContinuousQueriesStatement, database string, user *User) (interface{}, error) {
+	return nil, nil
 }
 
 func (s *Server) MeasurementNames(database string) []string {
