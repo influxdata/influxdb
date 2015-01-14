@@ -189,57 +189,23 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 
 // serveWriteSeries receives incoming series data and writes it to the database.
 func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *User) {
-	// TODO: Authentication.
+	database := r.URL.Query().Get(":db")
+	retentionPolicy := r.URL.Query().Get("retentionPolicy")
 
-	/* TEMPORARILY REMOVED FOR PROTOBUFS.
-	// Retrieve database from server.
-	db := h.server.Database(r.URL.Query().Get(":db"))
-	if db == nil {
-		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
-		return
-	}
-
-	// Parse time precision from query parameters.
-	precision, err := parseTimePrecision(r.URL.Query().Get("time_precision"))
-	if err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Setup HTTP request reader. Wrap in a gzip reader if encoding set in header.
-	reader := r.Body
-	if r.Header.Get("Content-Encoding") == "gzip" {
-		if reader, err = gzip.NewReader(r.Body); err != nil {
-			h.error(w, err.Error(), http.StatusBadRequest)
+	//Read from the request body.
+	dec := json.NewDecoder(r.Body)
+	dec.UserNumber()
+	for {
+		var point Point
+		if err := dec.Decode(&point); err != nil {
+			h.error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	}
-
-	// Decode series from reader.
-	ss := []*serializedSeries{}
-	dec := json.NewDecoder(reader)
-	dec.UseNumber()
-	if err := dec.Decode(&ss); err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Convert the wire format to the internal representation of the time series.
-	series, err := serializedSeriesSlice(ss).series(precision)
-	if err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Write series data to the database.
-	// TODO: Allow multiple series written to DB at once.
-	for _, s := range series {
-		if err := db.WriteSeries(s); err != nil {
+		if _, err := h.server.WriteSeries(database, retentionPolicy, []Point{point}); err != nil {
 			h.error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
-	*/
 }
 
 // serveDatabases returns a list of all databases on the server.
