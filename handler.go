@@ -144,16 +144,18 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 	}
 
 	// Bootstrapping a secured cluster involves a special authentication policy.
-	// Until an admin-level user exists on the cluster one, and only one operation
-	// is permitted without authentication -- the creation of the first user.
-	// This user is also automatically granted admin-level access.
-	if h.AuthenticationEnabled && len(h.server.Users()) > 0 {
-		if len(query.Statements) != 1 {
-			_, ok := query.Statements[0].(*influxql.CreateUserStatement)
-			if !ok {
+	// Until a user exists on the cluster one, and only one operation is permitted
+	// without authentication -- the creation of the first admin user.
+	if h.AuthenticationEnabled && len(h.server.Users()) == 0 {
+		if len(query.Statements) == 1 {
+			c, ok := query.Statements[0].(*influxql.CreateUserStatement)
+			if !ok || c.Privilege == nil || (c.Privilege != nil && *c.Privilege != influxql.AllPrivileges) {
 				h.error(w, "initial admin user does not exist", http.StatusUnauthorized)
 				return
 			}
+		} else {
+			h.error(w, "initial admin user must be created", http.StatusUnauthorized)
+			return
 		}
 	}
 

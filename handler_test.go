@@ -3,7 +3,6 @@ package influxdb_test
 import (
 	"bytes"
 	"encoding/base64"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -575,27 +574,29 @@ func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 // Perform a subset of endpoint testing, with authentication enabled.
 
 func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
 	// Attempting to create a non-admin user should fail.
-	status, _ := MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name": "maeve", "password": "pass", "Admin": false}`)
+	query := map[string]string{"q": "CREATE USER maeve WITH PASSWORD pass"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
 	}
 
 	// Creating the first admin user, without supplying authentication
 	// credentials should be OK.
-	status, _ = MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name": "orla", "password": "pass", "Admin": true}`)
+	query = map[string]string{"q": "CREATE USER orla WITH PASSWORD pass WITH ALL PRIVILEGES"}
+	status, _ = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	}
 
 	// Creating a second admin user, without supplying authentication
 	// credentials should fail.
-	status, _ = MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name": "louise", "password": "pass", "Admin": true}`)
+	query = map[string]string{"q": "CREATE USER louise WITH PASSWORD pass WITH ALL PRIVILEGES"}
+	status, _ = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -603,32 +604,43 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 }
 
 func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("GET", s.URL+`/db`, nil, nil, "")
+	status, _ := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST DATABASES"}, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
 
 func TestHandler_AuthenticatedDatabases_AuthorizedQueryParams(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateUser("lisa", "password", true)
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("GET", s.URL+`/db?u=lisa&p=password`, nil, nil, "")
+	query := map[string]string{"q": "LIST DATABASES", "u": "lisa", "p": "password"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
 
+func TestHandler_AuthenticatedDatabases_UnauthorizedQueryParams(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateUser("lisa", "password", true)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	query := map[string]string{"q": "LIST DATABASES", "u": "lisa", "p": "wrong"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
 func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateUser("lisa", "password", true)
 	s := NewAuthenticatedHTTPServer(srvr)
@@ -636,9 +648,24 @@ func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
 
 	auth := make(map[string]string)
 	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
-	fmt.Println(auth)
-	status, _ := MustHTTP("GET", s.URL+`/db`, nil, auth, "")
+	query := map[string]string{"q": "LIST DATABASES"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
 	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
+func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateUser("lisa", "password", true)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:wrong"))
+	query := map[string]string{"q": "LIST DATABASES"}
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
