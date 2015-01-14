@@ -99,14 +99,13 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 }
 
 func TestHandler_RetentionPolicies(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies`, nil, nil, "")
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST RETENTION POLICIES foo"}, nil, "")
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -116,16 +115,15 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 }
 
 func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/db/foo/retention_policies`, nil, nil, "")
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST RETENTION POLICIES foo"}, nil, "")
 
-	if status != http.StatusNotFound {
+	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database not found` {
+	} else if body != `error listing retention policies: database not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
