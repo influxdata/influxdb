@@ -123,6 +123,7 @@ statement           = alter_retention_policy_stmt |
                       list_series_stmt |
                       list_tag_key_stmt |
                       list_tag_value_stmt |
+                      list_users_stmt |
                       revoke_stmt |
                       select_stmt .
 ```
@@ -305,6 +306,19 @@ list_retention_policies = "LIST RETENTION POLICIES" db_name .
 ```sql
 -- list all retention policies on a database
 LIST RETENTION POLICIES mydb;
+```
+
+### LIST USERS
+
+```
+list_users_stmt = "LIST USERES" .
+```
+
+#### Example:
+
+```sql
+-- list all users
+LIST USERS;
 ```
 
 ## Clauses

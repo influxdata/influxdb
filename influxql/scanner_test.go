@@ -144,6 +144,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `TAG`, tok: influxql.TAG},
 		{s: `TO`, tok: influxql.TO},
 		{s: `USER`, tok: influxql.USER},
+		{s: `USERS`, tok: influxql.USERS},
 		{s: `VALUES`, tok: influxql.VALUES},
 		{s: `WHERE`, tok: influxql.WHERE},
 		{s: `WITH`, tok: influxql.WITH},

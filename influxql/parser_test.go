@@ -241,6 +241,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// LIST USERS
+		{
+			s:    `LIST USERS`,
+			stmt: &influxql.ListUsersStatement{},
+		},
+
 		// LIST FIELD KEYS
 		{
 			s: `LIST FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,

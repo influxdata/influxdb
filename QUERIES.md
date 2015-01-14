@@ -108,6 +108,9 @@ LIST FIELD KEYS FROM cpu
 -- but you can't do this
 LIST FIELD VALUES
 -- we don't index field values, so this query should be invalid.
+
+-- list all users
+LIST USERS
 ```
 
 Note that `FROM` and `WHERE` are optional clauses in all of the list series queries.
