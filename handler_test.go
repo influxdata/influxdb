@@ -364,13 +364,12 @@ func TestHandler_Users_MultipleUsers(t *testing.T) {
 }
 
 func TestHandler_CreateUser(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name":"jdoe","password":"1337"}`)
+	query := map[string]string{"q": "CREATE USER testuser WITH PASSWORD pwd1337"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != "" {
@@ -379,30 +378,43 @@ func TestHandler_CreateUser(t *testing.T) {
 }
 
 func TestHandler_CreateUser_BadRequest(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name":0xBAD,"password":"1337"}`)
+	query := map[string]string{"q": "CREATE USER 0xBAD WITH PASSWORD pwd1337"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `invalid character 'x' after object key:value pair` {
+	} else if body != "error parsing query: found 0, expected identifier at line 1, char 13" {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
-func TestHandler_CreateUser_InternalServerError(t *testing.T) {
-	t.Skip()
+func TestHandler_CreateUser_BadRequest_NoName(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/users`, nil, nil, `{"name":""}`)
-	if status != http.StatusInternalServerError {
+	query := map[string]string{"q": "CREATE USER WITH PASSWORD pwd1337"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `username required` {
+	} else if body != "error parsing query: found WITH, expected identifier at line 1, char 13" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_CreateUser_BadRequest_NoPassword(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	query := map[string]string{"q": "CREATE USER jdoe"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != "error parsing query: found EOF, expected WITH at line 1, char 18" {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
