@@ -242,7 +242,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			w.WriteHeader(http.StatusNoContent)
 		case *influxql.DropRetentionPolicyStatement:
 			if err := h.server.DeleteRetentionPolicy(c.Database, c.Name); err != nil {
-				h.error(w, "error altering retention policy: "+err.Error(), http.StatusInternalServerError)
+				h.error(w, "error deleting retention policy: "+err.Error(), http.StatusInternalServerError)
 				continue
 			}
 			w.WriteHeader(http.StatusNoContent)
