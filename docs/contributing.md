@@ -19,10 +19,10 @@ second to sign our CLA, which can be found
 Installing go
 -------------
 
-I recommend using gvm which is a go version manager. For instructions
+We recommend using gvm, a Go version manager. For instructions
 on how to install see
-[gvm page on github](https://github.com/moovweb/gvm). InfluxDB
-currently works with go 1.4 and newer version only.
+[the gvm page on github](https://github.com/moovweb/gvm). InfluxDB
+currently works with Go 1.4 and up.
 
 After installing gvm you can install and set the default go version by
 running the following:
