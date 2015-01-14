@@ -1491,29 +1491,16 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 	for _, stmt := range q.Statements {
 		switch c := stmt.(type) {
 		case *influxql.CreateDatabaseStatement:
-			if err := s.CreateDatabase(c.Name); err != nil {
-				return nil, err
-			}
+			return s.executeCreateDatabaseCommand(c, user)
 		case *influxql.DropDatabaseStatement:
-			if err := s.DeleteDatabase(c.Name); err != nil {
-				return nil, err
-			}
+			return s.executeDropDatabaseCommand(c, user)
 		case *influxql.ListDatabasesStatement:
-			databases := s.Databases()
-			return databases, nil
+			return s.executeListDatabasesCommand(c, user)
 
 		case *influxql.CreateUserStatement:
-			isAdmin := false
-			if c.Privilege != nil {
-				isAdmin = *c.Privilege == influxql.AllPrivileges
-			}
-			if err := s.CreateUser(c.Name, c.Password, isAdmin); err != nil {
-				return nil, err
-			}
+			return s.executeCreateUserCommand(c, user)
 		case *influxql.DropUserStatement:
-			if err := s.DeleteUser(c.Name); err != nil {
-				return nil, err
-			}
+			return s.executeDropUserCommand(c, user)
 
 		case *influxql.SelectStatement:
 			continue
@@ -1538,33 +1525,13 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 			continue
 
 		case *influxql.CreateRetentionPolicyStatement:
-			rp := NewRetentionPolicy(c.Name)
-			rp.Duration = c.Duration
-			rp.ReplicaN = uint32(c.Replication)
-			if err := s.CreateRetentionPolicy(c.Database, rp); err != nil {
-				return nil, err
-			}
+			return s.executeCreateRetentionPolicyCommand(c, user)
 		case *influxql.AlterRetentionPolicyStatement:
-			rp := NewRetentionPolicy(c.Name)
-			if c.Duration != nil {
-				rp.Duration = *c.Duration
-			}
-			if c.Replication != nil {
-				rp.ReplicaN = uint32(*c.Replication)
-			}
-			if err := s.UpdateRetentionPolicy(c.Database, c.Name, rp); err != nil {
-				return nil, err
-			}
+			return s.executeAlterRetentionPolicyCommand(c, user)
 		case *influxql.DropRetentionPolicyStatement:
-			if err := s.DeleteRetentionPolicy(c.Database, c.Name); err != nil {
-				return nil, err
-			}
+			return s.executeDropRetentionPolicyCommand(c, user)
 		case *influxql.ListRetentionPoliciesStatement:
-			rps, err := s.RetentionPolicies(c.Database)
-			if err != nil {
-				return nil, err
-			}
-			return rps, nil
+			return s.executeListRetentionPoliciesCommand(c, user)
 
 		case *influxql.CreateContinuousQueryStatement:
 			continue
@@ -1575,6 +1542,65 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 		}
 	}
 	return nil, nil
+}
+
+func (s *Server) executeCreateDatabaseCommand(q *influxql.CreateDatabaseStatement, user *User) (interface{}, error) {
+	return nil, s.CreateDatabase(q.Name)
+}
+
+func (s *Server) executeDropDatabaseCommand(q *influxql.DropDatabaseStatement, user *User) (interface{}, error) {
+	return nil, s.DeleteDatabase(q.Name)
+}
+
+func (s *Server) executeListDatabasesCommand(q *influxql.ListDatabasesStatement, user *User) (interface{}, error) {
+	return s.Databases(), nil
+}
+
+func (s *Server) executeCreateUserCommand(q *influxql.CreateUserStatement, user *User) (interface{}, error) {
+	isAdmin := false
+	if q.Privilege != nil {
+		isAdmin = *q.Privilege == influxql.AllPrivileges
+	}
+	if err := s.CreateUser(q.Name, q.Password, isAdmin); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (s *Server) executeDropUserCommand(q *influxql.DropUserStatement, user *User) (interface{}, error) {
+	return nil, s.DeleteUser(q.Name)
+}
+
+func (s *Server) executeCreateRetentionPolicyCommand(q *influxql.CreateRetentionPolicyStatement, user *User) (interface{}, error) {
+	rp := NewRetentionPolicy(q.Name)
+	rp.Duration = q.Duration
+	rp.ReplicaN = uint32(q.Replication)
+	if err := s.CreateRetentionPolicy(q.Database, rp); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (s *Server) executeAlterRetentionPolicyCommand(q *influxql.AlterRetentionPolicyStatement, user *User) (interface{}, error) {
+	rp := NewRetentionPolicy(q.Name)
+	if q.Duration != nil {
+		rp.Duration = *q.Duration
+	}
+	if q.Replication != nil {
+		rp.ReplicaN = uint32(*q.Replication)
+	}
+	if err := s.UpdateRetentionPolicy(q.Database, q.Name, rp); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (s *Server) executeDropRetentionPolicyCommand(q *influxql.DropRetentionPolicyStatement, user *User) (interface{}, error) {
+	return nil, s.DeleteRetentionPolicy(q.Database, q.Name)
+}
+
+func (s *Server) executeListRetentionPoliciesCommand(q *influxql.ListRetentionPoliciesStatement, user *User) (interface{}, error) {
+	return s.RetentionPolicies(q.Database)
 }
 
 func (s *Server) MeasurementNames(database string) []string {

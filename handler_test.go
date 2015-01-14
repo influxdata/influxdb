@@ -478,7 +478,7 @@ func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `error deleting user: user not found` {
+	} else if body != `user not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -574,6 +574,7 @@ func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 // Perform a subset of endpoint testing, with authentication enabled.
 
 func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
+	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
