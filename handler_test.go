@@ -64,7 +64,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
-	if status != http.StatusConflict {
+	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `database exists` {
 		t.Fatalf("unexpected body: %s", body)

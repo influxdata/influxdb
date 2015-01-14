@@ -160,31 +160,27 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 	for _, s := range query.Statements {
 		switch c := s.(type) {
 		case *influxql.CreateDatabaseStatement:
-			err = h.server.CreateDatabase(c.Name)
-			if err != nil {
-				if err == ErrDatabaseExists {
-					h.error(w, "database exists", http.StatusConflict)
-				} else {
-					h.error(w, "error executing query: "+err.Error(), http.StatusInternalServerError)
-				}
-			} else {
-				w.WriteHeader(http.StatusCreated)
+			if err = h.server.CreateDatabase(c.Name); err == ErrDatabaseExists {
+				h.error(w, "database exists", http.StatusInternalServerError)
+			} else if err != nil {
+				h.error(w, "error creating database: "+err.Error(), http.StatusInternalServerError)
 			}
+			w.WriteHeader(http.StatusCreated)
 		case *influxql.DropDatabaseStatement:
-			err = h.server.DeleteDatabase(c.Name)
-			if err != nil {
-				if err == ErrDatabaseNotFound {
-					h.error(w, "database not found", http.StatusInternalServerError)
-				} else {
-					h.error(w, "error executing query: "+err.Error(), http.StatusInternalServerError)
-				}
-			} else {
-				w.WriteHeader(http.StatusNoContent)
+			if err = h.server.DeleteDatabase(c.Name); err == ErrDatabaseNotFound {
+				h.error(w, "database not found", http.StatusInternalServerError)
+			} else if err != nil {
+				h.error(w, "error deleting database: "+err.Error(), http.StatusInternalServerError)
 			}
+			w.WriteHeader(http.StatusNoContent)
 		case *influxql.ListDatabasesStatement:
 			databases := h.server.Databases()
 			w.Header().Add("content-type", "application/json")
-			_ = json.NewEncoder(w).Encode(&databases)
+			if databases != nil {
+				_ = json.NewEncoder(w).Encode(databases)
+			} else {
+				_ = json.NewEncoder(w).Encode([]string{})
+			}
 
 		case *influxql.CreateUserStatement:
 			continue
@@ -218,16 +214,20 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			rp.Duration = c.Duration
 			rp.ReplicaN = uint32(c.Replication)
 			if err = h.server.CreateRetentionPolicy(c.Database, rp); err != nil {
-				h.error(w, "error executing query: "+err.Error(), http.StatusInternalServerError)
+				h.error(w, "error creating retention policy: "+err.Error(), http.StatusInternalServerError)
 			} else {
 				w.WriteHeader(http.StatusCreated)
 			}
 		case *influxql.AlterRetentionPolicyStatement:
 			rp := NewRetentionPolicy(c.Name)
-			rp.Duration = *c.Duration // Why is this a pointer, and the next?
-			rp.ReplicaN = uint32(*c.Replication)
+			if c.Duration != nil {
+				rp.Duration = *c.Duration
+			}
+			if c.Replication != nil {
+				rp.ReplicaN = uint32(*c.Replication)
+			}
 			if err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp); err != nil {
-				h.error(w, "error executing query: "+err.Error(), http.StatusInternalServerError)
+				h.error(w, "error altering retention policy: "+err.Error(), http.StatusInternalServerError)
 			} else {
 				w.WriteHeader(http.StatusCreated)
 			}
