@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"code.google.com/p/go.crypto/bcrypt"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -1484,6 +1485,96 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 	}
 
 	return values, nil
+}
+
+func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (interface{}, error) {
+	for _, stmt := range q.Statements {
+		switch c := stmt.(type) {
+		case *influxql.CreateDatabaseStatement:
+			if err := s.CreateDatabase(c.Name); err != nil {
+				return nil, err
+			}
+		case *influxql.DropDatabaseStatement:
+			if err := s.DeleteDatabase(c.Name); err != nil {
+				return nil, err
+			}
+		case *influxql.ListDatabasesStatement:
+			databases := s.Databases()
+			return databases, nil
+
+		case *influxql.CreateUserStatement:
+			isAdmin := false
+			if c.Privilege != nil {
+				isAdmin = *c.Privilege == influxql.AllPrivileges
+			}
+			if err := s.CreateUser(c.Name, c.Password, isAdmin); err != nil {
+				return nil, err
+			}
+		case *influxql.DropUserStatement:
+			if err := s.DeleteUser(c.Name); err != nil {
+				return nil, err
+			}
+
+		case *influxql.SelectStatement:
+			continue
+		case *influxql.DropSeriesStatement:
+			continue
+		case *influxql.ListSeriesStatement:
+			continue
+		case *influxql.ListMeasurementsStatement:
+			continue
+		case *influxql.ListTagKeysStatement:
+			continue
+		case *influxql.ListTagValuesStatement:
+			continue
+		case *influxql.ListFieldKeysStatement:
+			continue
+		case *influxql.ListFieldValuesStatement:
+			continue
+
+		case *influxql.GrantStatement:
+			continue
+		case *influxql.RevokeStatement:
+			continue
+
+		case *influxql.CreateRetentionPolicyStatement:
+			rp := NewRetentionPolicy(c.Name)
+			rp.Duration = c.Duration
+			rp.ReplicaN = uint32(c.Replication)
+			if err := s.CreateRetentionPolicy(c.Database, rp); err != nil {
+				return nil, err
+			}
+		case *influxql.AlterRetentionPolicyStatement:
+			rp := NewRetentionPolicy(c.Name)
+			if c.Duration != nil {
+				rp.Duration = *c.Duration
+			}
+			if c.Replication != nil {
+				rp.ReplicaN = uint32(*c.Replication)
+			}
+			if err := s.UpdateRetentionPolicy(c.Database, c.Name, rp); err != nil {
+				return nil, err
+			}
+		case *influxql.DropRetentionPolicyStatement:
+			if err := s.DeleteRetentionPolicy(c.Database, c.Name); err != nil {
+				return nil, err
+			}
+		case *influxql.ListRetentionPoliciesStatement:
+			rps, err := s.RetentionPolicies(c.Database)
+			if err != nil {
+				return nil, err
+			}
+			return rps, nil
+
+		case *influxql.CreateContinuousQueryStatement:
+			continue
+		case *influxql.DropContinuousQueryStatement:
+			continue
+		case *influxql.ListContinuousQueriesStatement:
+			continue
+		}
+	}
+	return nil, nil
 }
 
 func (s *Server) MeasurementNames(database string) []string {

@@ -131,10 +131,11 @@ func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.R
 	}
 }
 
-// serveQuery parses an incoming query and returns the results.
+// serveQuery parses an incoming query and, if valid, executes the query.
 func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 	q := r.URL.Query()
 	p := influxql.NewParser(strings.NewReader(q.Get("q")))
+	db := q.Get("db")
 
 	// Parse query from query string.
 	query, err := p.ParseQuery()
@@ -143,127 +144,13 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		return
 	}
 
-	// Bootstrapping a secured cluster involves a special authentication policy.
-	// Until a user exists on the cluster one, and only one operation is permitted
-	// without authentication -- the creation of the first admin user.
-	if h.AuthenticationEnabled && len(h.server.Users()) == 0 {
-		if len(query.Statements) == 1 {
-			c, ok := query.Statements[0].(*influxql.CreateUserStatement)
-			if !ok || c.Privilege == nil || (c.Privilege != nil && *c.Privilege != influxql.AllPrivileges) {
-				h.error(w, "initial admin user does not exist", http.StatusUnauthorized)
-				return
-			}
-		} else {
-			h.error(w, "initial admin user must be created", http.StatusUnauthorized)
-			return
-		}
+	result, err := h.server.ExecuteQuery(query, db, u)
+	if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	for _, s := range query.Statements {
-		switch c := s.(type) {
-		case *influxql.CreateDatabaseStatement:
-			if err = h.server.CreateDatabase(c.Name); err != nil {
-				h.error(w, "error creating database: "+err.Error(), http.StatusInternalServerError)
-				continue
-			}
-			w.WriteHeader(http.StatusCreated)
-		case *influxql.DropDatabaseStatement:
-			if err = h.server.DeleteDatabase(c.Name); err == ErrDatabaseNotFound {
-				h.error(w, "error deleting database: "+err.Error(), http.StatusInternalServerError)
-				continue
-			}
-			w.WriteHeader(http.StatusNoContent)
-		case *influxql.ListDatabasesStatement:
-			databases := h.server.Databases()
-			if databases != nil {
-				_ = json.NewEncoder(w).Encode(databases)
-			} else {
-				_ = json.NewEncoder(w).Encode([]string{})
-			}
-
-		case *influxql.CreateUserStatement:
-			isAdmin := false
-			if c.Privilege != nil {
-				isAdmin = *c.Privilege == influxql.AllPrivileges
-			}
-			if err := h.server.CreateUser(c.Name, c.Password, isAdmin); err != nil {
-				h.error(w, "error creating user: "+err.Error(), http.StatusInternalServerError)
-				continue
-			}
-			w.WriteHeader(http.StatusCreated)
-		case *influxql.DropUserStatement:
-			if err := h.server.DeleteUser(c.Name); err != nil {
-				h.error(w, "error deleting user: "+err.Error(), http.StatusInternalServerError)
-				continue
-			}
-			w.WriteHeader(http.StatusNoContent)
-
-		case *influxql.SelectStatement:
-			continue
-		case *influxql.DropSeriesStatement:
-			continue
-		case *influxql.ListSeriesStatement:
-			continue
-		case *influxql.ListMeasurementsStatement:
-			continue
-		case *influxql.ListTagKeysStatement:
-			continue
-		case *influxql.ListTagValuesStatement:
-			continue
-		case *influxql.ListFieldKeysStatement:
-			continue
-		case *influxql.ListFieldValuesStatement:
-			continue
-
-		case *influxql.GrantStatement:
-			continue
-		case *influxql.RevokeStatement:
-			continue
-
-		case *influxql.CreateRetentionPolicyStatement:
-			rp := NewRetentionPolicy(c.Name)
-			rp.Duration = c.Duration
-			rp.ReplicaN = uint32(c.Replication)
-			if err = h.server.CreateRetentionPolicy(c.Database, rp); err != nil {
-				h.error(w, "error creating retention policy: "+err.Error(), http.StatusInternalServerError)
-				continue
-			}
-			w.WriteHeader(http.StatusCreated)
-		case *influxql.AlterRetentionPolicyStatement:
-			rp := NewRetentionPolicy(c.Name)
-			if c.Duration != nil {
-				rp.Duration = *c.Duration
-			}
-			if c.Replication != nil {
-				rp.ReplicaN = uint32(*c.Replication)
-			}
-			if err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp); err != nil {
-				h.error(w, "error altering retention policy: "+err.Error(), http.StatusInternalServerError)
-				continue
-			}
-			w.WriteHeader(http.StatusNoContent)
-		case *influxql.DropRetentionPolicyStatement:
-			if err := h.server.DeleteRetentionPolicy(c.Database, c.Name); err != nil {
-				h.error(w, "error deleting retention policy: "+err.Error(), http.StatusInternalServerError)
-				continue
-			}
-			w.WriteHeader(http.StatusNoContent)
-		case *influxql.ListRetentionPoliciesStatement:
-			rps, err := h.server.RetentionPolicies(c.Database)
-			if err != nil {
-				h.error(w, "error listing retention policies: "+err.Error(), http.StatusInternalServerError)
-				continue
-			}
-			_ = json.NewEncoder(w).Encode(rps)
-
-		case *influxql.CreateContinuousQueryStatement:
-			continue
-		case *influxql.DropContinuousQueryStatement:
-			continue
-		case *influxql.ListContinuousQueriesStatement:
-			continue
-		}
-	}
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 // serveWriteSeries receives incoming series data and writes it to the database.

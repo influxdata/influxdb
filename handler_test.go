@@ -367,7 +367,7 @@ func TestHandler_CreateUser(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	query := map[string]string{"q": "CREATE USER testuser WITH PASSWORD pwd1337"}
+	query := map[string]string{"q": `CREATE USER testuser WITH PASSWORD "1337"`}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
