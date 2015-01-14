@@ -1496,12 +1496,10 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 			return s.executeDropDatabaseStatement(c, user)
 		case *influxql.ListDatabasesStatement:
 			return s.executeListDatabasesStatement(c, user)
-
 		case *influxql.CreateUserStatement:
 			return s.executeCreateUserStatement(c, user)
 		case *influxql.DropUserStatement:
 			return s.executeDropUserStatement(c, user)
-
 		case *influxql.SelectStatement:
 			continue
 		case *influxql.DropSeriesStatement:
@@ -1518,12 +1516,10 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 			continue
 		case *influxql.ListFieldValuesStatement:
 			continue
-
 		case *influxql.GrantStatement:
 			continue
 		case *influxql.RevokeStatement:
 			continue
-
 		case *influxql.CreateRetentionPolicyStatement:
 			return s.executeCreateRetentionPolicyStatement(c, user)
 		case *influxql.AlterRetentionPolicyStatement:
@@ -1532,7 +1528,6 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (i
 			return s.executeDropRetentionPolicyStatement(c, user)
 		case *influxql.ListRetentionPoliciesStatement:
 			return s.executeListRetentionPoliciesStatement(c, user)
-
 		case *influxql.CreateContinuousQueryStatement:
 			continue
 		case *influxql.DropContinuousQueryStatement:
