@@ -110,6 +110,7 @@ statement           = alter_retention_policy_stmt |
                       delete_stmt |
                       drop_continuous_query_stmt |
                       drop_database_stmt |
+                      drop_retention_policy_stmt |
                       drop_series_stmt |
                       drop_user_stmt |
                       grant_stmt |
@@ -246,7 +247,22 @@ delete_stmt  = "DELETE" from_clause where_clause .
 #### Example:
 
 ```sql
-DELETE FROM cpu WHERE region = 'uswest'
+-- delete data points from the cpu measurement where the region tag
+-- equals 'uswest'
+DELETE FROM cpu WHERE region = 'uswest';
+```
+
+### DROP RETENTION POLICY
+
+```
+drop_retention_policy_stmt = "DROP RETENTION POLICY" policy_name "ON" db_name .
+```
+
+#### Example:
+
+```sql
+-- drop the retention policy named 1h.cpu from mydb
+DROP RETENTION POLICY "1h.cpu" ON mydb;
 ```
 
 ### GRANT
@@ -268,7 +284,7 @@ GRANT READ ON mydb TO jdoe;
 ### LIST DATABASES
 
 ```
-list_databases_stmt = "LIST DATABASES"
+list_databases_stmt = "LIST DATABASES" .
 ```
 
 #### Example:
@@ -281,7 +297,7 @@ LIST DATABASES;
 ### LIST RETENTION POLICIES
 
 ```
-list_retention_policies = "LIST RETENTION POLICIES" db_name
+list_retention_policies = "LIST RETENTION POLICIES" db_name .
 ```
 
 #### Example:
@@ -310,9 +326,11 @@ expr =
 
 measurements =
 
-user_name        = identifier .
-
 password         = identifier .
+
+policy_name      = identifier .
+
+user_name        = identifier .
 
 privilege        = "ALL" [ "PRIVILEGES" ] | "READ" | "WRITE" .
 ```

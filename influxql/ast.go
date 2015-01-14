@@ -55,6 +55,7 @@ func (_ *CreateUserStatement) node()            {}
 func (_ *DeleteStatement) node()                {}
 func (_ *DropContinuousQueryStatement) node()   {}
 func (_ *DropDatabaseStatement) node()          {}
+func (_ *DropRetentionPolicyStatement) node()   {}
 func (_ *DropSeriesStatement) node()            {}
 func (_ *DropUserStatement) node()              {}
 func (_ *GrantStatement) node()                 {}
@@ -126,6 +127,7 @@ func (_ *CreateUserStatement) stmt()            {}
 func (_ *DeleteStatement) stmt()                {}
 func (_ *DropContinuousQueryStatement) stmt()   {}
 func (_ *DropDatabaseStatement) stmt()          {}
+func (_ *DropRetentionPolicyStatement) stmt()   {}
 func (_ *DropSeriesStatement) stmt()            {}
 func (_ *DropUserStatement) stmt()              {}
 func (_ *GrantStatement) stmt()                 {}
@@ -223,6 +225,25 @@ func (s *DropDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP DATABASE ")
 	_, _ = buf.WriteString(s.Name)
+	return buf.String()
+}
+
+// DropRetentionPolicyStatement represents a command to drop a retention policy from a database.
+type DropRetentionPolicyStatement struct {
+	// Name of the policy to drop.
+	Name string
+
+	// Name of the database to drop the policy from.
+	Database string
+}
+
+// String returns a string representation of the drop retention policy statement.
+func (s *DropRetentionPolicyStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP RETENTION POLICY ")
+	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(" ON ")
+	_, _ = buf.WriteString(s.Database)
 	return buf.String()
 }
 
