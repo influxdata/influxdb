@@ -70,7 +70,7 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Get("/query", h.makeAuthenticationHandler(h.serveQuery))
 
 	// Data-ingest route.
-	h.mux.Post("/series", h.makeAuthenticationHandler(h.serveWriteSeries))
+	h.mux.Post("/write", h.makeAuthenticationHandler(h.serveWriteSeries))
 
 	// Data node routes.
 	h.mux.Get("/data_nodes", h.makeAuthenticationHandler(h.serveDataNodes))
