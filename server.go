@@ -1213,10 +1213,10 @@ type createSeriesIfNotExistsCommand struct {
 
 // Point defines the values that will be written to the database
 type Point struct {
-	Name      string
-	Tags      map[string]string
-	Timestamp time.Time
-	Values    map[string]interface{}
+	Name      string                 `json:"name"`
+	Tags      map[string]string      `json:"tags"`
+	Timestamp time.Time              `json:"timestamp"`
+	Values    map[string]interface{} `json:"values"`
 }
 
 // WriteSeries writes series data to the database.
@@ -1399,6 +1399,9 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	// Try to find series locally first.
 	s.mu.RLock()
 	idx := s.databases[database]
+	if idx == nil {
+		return 0, fmt.Errorf("database not found %q", database)
+	}
 	if _, series := idx.MeasurementAndSeries(name, tags); series != nil {
 		s.mu.RUnlock()
 		return series.ID, nil
