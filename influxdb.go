@@ -71,6 +71,10 @@ var (
 	// ErrRetentionPolicyNameRequired is returned using a blank shard space name.
 	ErrRetentionPolicyNameRequired = errors.New("retention policy name required")
 
+	// ErrDefaultRetentionPolicyNotFound is returned when using the default
+	// policy on a database but the default has not been set.
+	ErrDefaultRetentionPolicyNotFound = errors.New("default retention policy not found")
+
 	// ErrShardNotFound is returned writing to a non-existent shard.
 	ErrShardNotFound = errors.New("shard not found")
 

@@ -26,6 +26,11 @@ func (g *ShardGroup) close() {
 	}
 }
 
+// ShardBySeriesID returns the shard that a series is assigned to in the group.
+func (g *ShardGroup) ShardBySeriesID(seriesID uint32) *Shard {
+	return g.Shards[int(seriesID)%len(g.Shards)]
+}
+
 // Shard represents the logical storage for a given time range.
 // The instance on a local server may contain the raw data in "store" if the
 // shard is assigned to the server's data node id.
@@ -131,7 +136,7 @@ func (s *Shard) deleteSeries(name string) error {
 type Shards []*Shard
 
 // pointHeaderSize represents the size of a point header, in bytes.
-const pointHeaderSize = 4 + 12 // seriesID + timestamp
+const pointHeaderSize = 4 + 8 // seriesID + timestamp
 
 // marshalPointHeader encodes a series id, timestamp, & flagset into a byte slice.
 func marshalPointHeader(seriesID uint32, timestamp int64) []byte {
@@ -167,9 +172,15 @@ func marshalValues(values map[uint8]interface{}) []byte {
 		buf := make([]byte, 9)
 		buf[0] = fieldID
 
+		// Convert integers to floats.
+		v := values[fieldID]
+		if intval, ok := v.(int); ok {
+			v = float64(intval)
+		}
+
 		// Encode value after field id.
 		// TODO: Support non-float types.
-		switch v := values[fieldID].(type) {
+		switch v := v.(type) {
 		case float64:
 			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(v))
 		default:
@@ -212,6 +223,13 @@ func unmarshalValues(b []byte) map[uint8]interface{} {
 	}
 
 	return values
+}
+
+// unmarshalValue extracts a single value by field id from an encoded byte slice.
+func unmarshalValue(b []byte, fieldID uint8) interface{} {
+	// OPTIMIZE: Don't materialize entire map. Just search for value.
+	values := unmarshalValues(b)
+	return values[fieldID]
 }
 
 type uint8Slice []uint8

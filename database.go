@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/influxql"
 )
 
@@ -120,7 +121,7 @@ func NewMeasurement(name string) *Measurement {
 	}
 }
 
-// CreateFieldIfNotExists creates a new field with an autoincrementing ID.
+// createFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement.
 func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType) (*Field, error) {
 	// Ignore if the field already exists.
@@ -129,13 +130,13 @@ func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType)
 	}
 
 	// Only 255 fields are allowed. If we go over that then return an error.
-	if len(m.Fields) > math.MaxUint8 {
+	if len(m.Fields)+1 > math.MaxUint8 {
 		return nil, ErrFieldOverflow
 	}
 
 	// Create and append a new field.
 	f := &Field{
-		ID:   uint8(len(m.Fields)),
+		ID:   uint8(len(m.Fields) + 1),
 		Name: name,
 		Type: typ,
 	}
@@ -787,7 +788,7 @@ func (dbi *dbi) Field(name, field string) (fieldID uint8, typ influxql.DataType)
 	}
 
 	// Find field by name.
-	f := m.FieldByName(name)
+	f := m.FieldByName(field)
 	if f == nil {
 		return 0, influxql.Unknown
 	}
@@ -797,9 +798,145 @@ func (dbi *dbi) Field(name, field string) (fieldID uint8, typ influxql.DataType)
 
 // CreateIterator returns an iterator given a series data id, field id, & field data type.
 func (dbi *dbi) CreateIterator(seriesID uint32, fieldID uint8, typ influxql.DataType, min, max time.Time, interval time.Duration) influxql.Iterator {
-	// TODO: Find shard group.
-	// TODO: Find shard for series.
-	// TODO: Open bolt cursor.
-	// TODO: Return wrapper cursor.
-	panic("TODO")
+	// TODO: Add retention policy to the arguments.
+
+	// Create an iterator to hold the transaction and series ids.
+	itr := &iterator{
+		seriesID: seriesID,
+		fieldID:  fieldID,
+		typ:      typ,
+		imin:     -1,
+		interval: int64(interval),
+	}
+	if !min.IsZero() {
+		itr.min = min.UnixNano()
+	}
+	if !max.IsZero() {
+		itr.max = max.UnixNano()
+	}
+
+	// Retrieve the policy.
+	// Ignore if there are no groups created on the retention policy.
+	rp := dbi.db.policies[dbi.db.defaultRetentionPolicy]
+	if len(rp.groups) == 0 {
+		return itr
+	}
+
+	// Find all shards which match the the time range and series id.
+	// TODO: Support multiple groups.
+	g := rp.groups[0]
+
+	// Ignore shard groups that our time range does not cross.
+	if !timeBetweenInclusive(g.StartTime, min, max) &&
+		!timeBetweenInclusive(g.EndTime, min, max) {
+		return itr
+	}
+
+	// Find appropriate shard by series id.
+	sh := g.ShardBySeriesID(seriesID)
+
+	// Open a transaction on the shard.
+	tx, err := sh.store.Begin(false)
+	assert(err == nil, "read-only tx error: %s", err)
+	itr.tx = tx
+
+	// Open and position cursor.
+	b := tx.Bucket(u32tob(seriesID))
+	if b != nil {
+		cur := b.Cursor()
+		itr.k, itr.v = cur.Seek(u64tob(uint64(itr.min)))
+		itr.cur = cur
+	}
+
+	return itr
 }
+
+// iterator represents a series data iterator for a shard.
+// It can iterate over all data for a given time range for multiple series in a shard.
+type iterator struct {
+	tx       *bolt.Tx
+	cur      *bolt.Cursor
+	seriesID uint32
+	fieldID  uint8
+	typ      influxql.DataType
+
+	k, v []byte // lookahead buffer
+
+	min, max   int64 // time range
+	imin, imax int64 // interval time range
+	interval   int64 // interval duration
+}
+
+// close closes the iterator.
+func (i *iterator) Close() error {
+	if i.tx != nil {
+		return i.tx.Rollback()
+	}
+	return nil
+}
+
+// Next returns the next value from the iterator.
+func (i *iterator) Next() (key int64, value interface{}) {
+	for {
+		// Read raw key/value from lookhead buffer, if available.
+		// Otherwise read from cursor.
+		var k, v []byte
+		if i.k != nil {
+			k, v = i.k, i.v
+			i.k, i.v = nil, nil
+		} else if i.cur != nil {
+			k, v = i.cur.Next()
+		}
+
+		// Exit at the end of the cursor.
+		if k == nil {
+			return 0, nil
+		}
+
+		// Extract timestamp & field value.
+		key = int64(btou64(k))
+		value = unmarshalValue(v, i.fieldID)
+
+		// If timestamp is beyond interval time range then push onto lookahead buffer.
+		if key >= i.imax && i.imax != 0 {
+			i.k, i.v = k, v
+			return 0, nil
+		}
+
+		// Return value if it is non-nil.
+		// Otherwise loop again and try the next point.
+		if value != nil {
+			return
+		}
+	}
+}
+
+// NextIterval moves to the next iterval. Returns true unless EOF.
+func (i *iterator) NextIterval() bool {
+	// Determine the next interval's lower bound.
+	imin := i.imin + i.interval
+
+	// Initialize or move interval forward.
+	if i.imin == -1 { // initialize first interval
+		i.imin = i.min
+	} else if i.interval != 0 && (i.max == 0 || imin < i.max) { // move forward
+		i.imin = imin
+	} else { // no interval or beyond max time.
+		return false
+	}
+
+	// Interval end time should be the start time plus interval duration.
+	// If the end time is beyond the iterator end time then shorten it.
+	i.imax = i.imin + i.interval
+	if max := i.max; i.imax > max {
+		i.imax = max
+	}
+
+	return true
+}
+
+// Time returns start time of the current interval.
+func (i *iterator) Time() int64 { return i.imin }
+
+// Interval returns the group by duration.
+func (i *iterator) Interval() time.Duration { return time.Duration(i.interval) }

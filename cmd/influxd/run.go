@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/messaging"
 )
@@ -71,6 +72,16 @@ func execRun(args []string) {
 		}
 		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
 
+		// Spin up the collectd server
+		if config.Collectd.Enabled {
+			c := config.Collectd
+			cs := collectd.NewServer(s, c.TypesDB)
+			cs.Database = c.Database
+			err := collectd.ListenAndServe(cs, c.ConnectionString(config.BindAddress))
+			if err != nil {
+				log.Printf("failed to start collectd Server: %v\n", err.Error())
+			}
+		}
 		// Spin up any Graphite servers
 		for _, c := range config.Graphites {
 			if !c.Enabled {
@@ -88,14 +99,14 @@ func execRun(args []string) {
 				g.Database = c.Database
 				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
 				if err != nil {
-					log.Println("failed to start TCP Graphite Server", err.Error())
+					log.Printf("failed to start TCP Graphite Server: %v\n", err.Error())
 				}
 			} else if strings.ToLower(c.Protocol) == "udp" {
 				g := graphite.NewUDPServer(parser, s)
 				g.Database = c.Database
 				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
 				if err != nil {
-					log.Println("failed to start UDP Graphite Server", err.Error())
+					log.Printf("failed to start UDP Graphite Server: %v\n", err.Error())
 				}
 			} else {
 				log.Fatalf("unrecognized Graphite Server prototcol %s", c.Protocol)

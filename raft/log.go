@@ -1201,9 +1201,9 @@ func (l *Log) elector(done chan chan struct{}) {
 	}
 }
 
-// WriteTo attaches a writer to the log from a given index.
+// WriteEntriesTo attaches a writer to the log from a given index.
 // The index specified must be a committed index.
-func (l *Log) WriteTo(w io.Writer, id, term, index uint64) error {
+func (l *Log) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 	// Validate and initialize the writer.
 	writer, err := l.initWriter(w, id, term, index)
 	if err != nil {

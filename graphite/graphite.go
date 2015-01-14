@@ -33,7 +33,7 @@ var (
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) error
+	WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error)
 }
 
 // Metric represents a metric as processed by the Graphite parser.

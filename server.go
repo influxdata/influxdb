@@ -173,14 +173,14 @@ func (s *Server) Close() error {
 		return ErrServerClosed
 	}
 
+	// Remove path.
+	s.path = ""
+
 	// Close message processing.
 	s.setClient(nil)
 
 	// Close metastore.
 	_ = s.meta.close()
-
-	// Remove path.
-	s.path = ""
 
 	return nil
 }
@@ -1213,6 +1213,7 @@ type createSeriesIfNotExistsCommand struct {
 }
 
 // WriteSeries writes series data to the database.
+// Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error) {
 	// Find the id for the series and tagset
 	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
@@ -1225,6 +1226,8 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 		rp, err := s.DefaultRetentionPolicy(database)
 		if err != nil {
 			return 0, fmt.Errorf("failed to determine default retention policy: %s", err.Error())
+		} else if rp == nil {
+			return 0, ErrDefaultRetentionPolicyNotFound
 		}
 		retentionPolicy = rp.Name
 	}
@@ -1240,11 +1243,11 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 	// Retrieve shard group.
 	g, err := s.createShardGroupIfNotExists(database, retentionPolicy, timestamp)
 	if err != nil {
-		return 0, fmt.Errorf("create shard(%s/%d): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
+		return 0, fmt.Errorf("create shard(%s/%s): %s", retentionPolicy, timestamp.Format(time.RFC3339Nano), err)
 	}
 
 	// Find appropriate shard within the shard group.
-	sh := g.Shards[int(seriesID)%len(g.Shards)]
+	sh := g.ShardBySeriesID(seriesID)
 
 	// Ignore requests that have no values.
 	if len(values) == 0 {
@@ -1265,12 +1268,11 @@ func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[st
 		})
 
 		// Publish "write series" message on shard's topic to broker.
-		_, err = s.client.Publish(&messaging.Message{
+		return s.client.Publish(&messaging.Message{
 			Type:    writeSeriesMessageType,
 			TopicID: sh.ID,
 			Data:    data,
 		})
-		return 0, err
 	}
 
 	// If we can successfully encode the string keys to raw field ids then
@@ -1359,10 +1361,10 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 	return sh.writeSeries(c.SeriesID, c.Timestamp, data, overwrite)
 }
 
-// applyRawWriteSeries writes raw series data to the database.
+// applyWriteRawSeries writes raw series data to the database.
 // Raw series data has already converted field names to ids so the
 // representation is fast and compact.
-func (s *Server) applyRawWriteSeries(m *messaging.Message) error {
+func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 	// Retrieve the shard.
 	sh := s.Shard(m.TopicID)
 	if sh == nil {
@@ -1458,6 +1460,9 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 
 	// Decode into a raw value map.
 	rawValues := unmarshalValues(data)
+	if rawValues == nil {
+		return nil, nil
+	}
 
 	// Decode into a string-key value map.
 	values := make(map[string]interface{}, len(rawValues))
@@ -1509,7 +1514,7 @@ func (s *Server) measurement(database, name string) (*Measurement, error) {
 // ExecuteQuery executes an InfluxQL query against the server.
 // Returns a resultset for each statement in the query.
 // Stops on first execution error that occurs.
-func (s *Server) Execute(q *influxql.Query, database string) []*Result {
+func (s *Server) ExecuteQuery(q *influxql.Query, database string) []*Result {
 	// Build empty resultsets.
 	results := make([]*Result, len(q.Statements))
 
@@ -1524,7 +1529,7 @@ func (s *Server) Execute(q *influxql.Query, database string) []*Result {
 	// Fill any empty results after error.
 	for i, res := range results {
 		if res == nil {
-			results[i] = &Result{Error: ErrNotExecuted}
+			results[i] = &Result{Err: ErrNotExecuted}
 		}
 	}
 
@@ -1536,13 +1541,13 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 	// Plan statement execution.
 	e, err := s.planSelectStatement(stmt, database)
 	if err != nil {
-		return &Result{Error: err}
+		return &Result{Err: err}
 	}
 
 	// Execute plan.
 	ch, err := e.Execute()
 	if err != nil {
-		return &Result{Error: err}
+		return &Result{Err: err}
 	}
 
 	// Read all rows from channel.
@@ -1575,10 +1580,20 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 	for {
 		// Read incoming message.
 		var m *messaging.Message
+		var ok bool
 		select {
 		case <-done:
 			return
-		case m = <-client.C():
+		case m, ok = <-client.C():
+			if !ok {
+				return
+			}
+		}
+
+		// Exit if closed.
+		// TODO: Wrap this check in a lock with the apply itself.
+		if !s.opened() {
+			continue
 		}
 
 		// Process message.
@@ -1587,7 +1602,7 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 		case writeSeriesMessageType:
 			err = s.applyWriteSeries(m)
 		case writeRawSeriesMessageType:
-			err = s.applyRawWriteSeries(m)
+			err = s.applyWriteRawSeries(m)
 		case createDataNodeMessageType:
 			err = s.applyCreateDataNode(m)
 		case deleteDataNodeMessageType:
@@ -1628,8 +1643,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Rows  []*influxql.Row `json:"rows"`
-	Error error           `json:"error"`
+	Rows []*influxql.Row `json:"rows,omitempty"`
+	Err  error           `json:"error,omitempty"`
 }
 
 // MessagingClient represents the client used to receive messages from brokers.

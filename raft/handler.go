@@ -166,7 +166,7 @@ func (h *HTTPHandler) serveStream(w http.ResponseWriter, r *http.Request) {
 	// TODO(benbjohnson): Redirect to leader.
 
 	// Write to the response.
-	if err := h.log.WriteTo(w, id, term, index); err != nil && err != io.EOF {
+	if err := h.log.WriteEntriesTo(w, id, term, index); err != nil && err != io.EOF {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return

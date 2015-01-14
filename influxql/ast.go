@@ -62,6 +62,7 @@ func (_ *ListContinuousQueriesStatement) node() {}
 func (_ *ListDatabasesStatement) node()         {}
 func (_ *ListFieldKeysStatement) node()         {}
 func (_ *ListFieldValuesStatement) node()       {}
+func (_ *ListRetentionPoliciesStatement) node() {}
 func (_ *ListMeasurementsStatement) node()      {}
 func (_ *ListSeriesStatement) node()            {}
 func (_ *ListTagKeysStatement) node()           {}
@@ -133,6 +134,7 @@ func (_ *ListDatabasesStatement) stmt()         {}
 func (_ *ListFieldKeysStatement) stmt()         {}
 func (_ *ListFieldValuesStatement) stmt()       {}
 func (_ *ListMeasurementsStatement) stmt()      {}
+func (_ *ListRetentionPoliciesStatement) stmt() {}
 func (_ *ListSeriesStatement) stmt()            {}
 func (_ *ListTagKeysStatement) stmt()           {}
 func (_ *ListTagValuesStatement) stmt()         {}
@@ -777,6 +779,20 @@ func (s *ListMeasurementsStatement) String() string {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
+	return buf.String()
+}
+
+// ListRetentionPoliciesStatement represents a command for listing retention policies.
+type ListRetentionPoliciesStatement struct {
+	// Name of the database to list policies for.
+	Database string
+}
+
+// String returns a string representation of a ListRetentionPoliciesStatement.
+func (s *ListRetentionPoliciesStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("LIST RETENTION POLICIES ")
+	_, _ = buf.WriteString(s.Database)
 	return buf.String()
 }
 
