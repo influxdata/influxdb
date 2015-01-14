@@ -173,7 +173,6 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			w.WriteHeader(http.StatusNoContent)
 		case *influxql.ListDatabasesStatement:
 			databases := h.server.Databases()
-			w.Header().Add("content-type", "application/json")
 			if databases != nil {
 				_ = json.NewEncoder(w).Encode(databases)
 			} else {
