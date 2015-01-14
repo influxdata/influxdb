@@ -456,13 +456,13 @@ func TestHandler_UpdateUser_PasswordBadRequest(t *testing.T) {
 }
 
 func TestHandler_DeleteUser(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateUser("jdoe", "1337", false)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/users/jdoe`, nil, nil, "")
+	query := map[string]string{"q": "DROP USER jdoe"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `` {
@@ -471,16 +471,15 @@ func TestHandler_DeleteUser(t *testing.T) {
 }
 
 func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("DELETE", s.URL+`/users/jdoe`, nil, nil, "")
-	if status != http.StatusNotFound {
+	query := map[string]string{"q": "DROP USER jdoe"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `user not found` {
+	} else if body != `error deleting user: user not found` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
