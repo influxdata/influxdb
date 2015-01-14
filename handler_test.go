@@ -315,13 +315,13 @@ func TestHandler_Ping(t *testing.T) {
 }
 
 func TestHandler_Users_NoUsers(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/users`, nil, nil, "")
+	query := map[string]string{"q": "LIST USERS"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -337,7 +337,9 @@ func TestHandler_Users_OneUser(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/users`, nil, nil, "")
+	query := map[string]string{"q": "LIST USERS"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `[{"name":"jdoe","admin":true}]` {
