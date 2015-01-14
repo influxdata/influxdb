@@ -224,9 +224,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			rp.ReplicaN = uint32(c.Replication)
 			if err = h.server.CreateRetentionPolicy(c.Database, rp); err != nil {
 				h.error(w, "error creating retention policy: "+err.Error(), http.StatusInternalServerError)
-			} else {
-				w.WriteHeader(http.StatusCreated)
+				continue
 			}
+			w.WriteHeader(http.StatusCreated)
 		case *influxql.AlterRetentionPolicyStatement:
 			rp := NewRetentionPolicy(c.Name)
 			if c.Duration != nil {
@@ -237,9 +237,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			}
 			if err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp); err != nil {
 				h.error(w, "error altering retention policy: "+err.Error(), http.StatusInternalServerError)
-			} else {
-				w.WriteHeader(http.StatusNoContent)
+				continue
 			}
+			w.WriteHeader(http.StatusNoContent)
 		case *influxql.DropRetentionPolicyStatement:
 			if err := h.server.DeleteRetentionPolicy(c.Database, c.Name); err != nil {
 				h.error(w, "error altering retention policy: "+err.Error(), http.StatusInternalServerError)
