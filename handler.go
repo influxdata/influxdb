@@ -180,9 +180,21 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			}
 
 		case *influxql.CreateUserStatement:
-			continue
+			isAdmin := false
+			if c.Privilege != nil {
+				isAdmin = *c.Privilege == influxql.AllPrivileges
+			}
+			if err := h.server.CreateUser(c.Name, c.Password, isAdmin); err != nil {
+				h.error(w, "error creating user: "+err.Error(), http.StatusInternalServerError)
+				continue
+			}
+			w.WriteHeader(http.StatusCreated)
 		case *influxql.DropUserStatement:
-			continue
+			if err := h.server.DeleteUser(c.Name); err != nil {
+				h.error(w, "error deleting user: "+err.Error(), http.StatusInternalServerError)
+				continue
+			}
+			w.WriteHeader(http.StatusNoContent)
 
 		case *influxql.SelectStatement:
 			continue
