@@ -68,6 +68,7 @@ func (_ *ListMeasurementsStatement) node()      {}
 func (_ *ListSeriesStatement) node()            {}
 func (_ *ListTagKeysStatement) node()           {}
 func (_ *ListTagValuesStatement) node()         {}
+func (_ *ListUsersStatement) node()             {}
 func (_ *RevokeStatement) node()                {}
 func (_ *SelectStatement) node()                {}
 
@@ -140,6 +141,7 @@ func (_ *ListRetentionPoliciesStatement) stmt() {}
 func (_ *ListSeriesStatement) stmt()            {}
 func (_ *ListTagKeysStatement) stmt()           {}
 func (_ *ListTagValuesStatement) stmt()         {}
+func (_ *ListUsersStatement) stmt()             {}
 func (_ *RevokeStatement) stmt()                {}
 func (_ *SelectStatement) stmt()                {}
 
@@ -895,6 +897,14 @@ func (s *ListTagValuesStatement) String() string {
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
 	return buf.String()
+}
+
+// ListUsersStatement represents a command for listing users.
+type ListUsersStatement struct{}
+
+// String retuns a string representation of the ListUsersStatement.
+func (s *ListUsersStatement) String() string {
+	return "LIST USERS"
 }
 
 // ListFieldKeyStatement represents a command for listing field keys.
