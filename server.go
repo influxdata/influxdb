@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"code.google.com/p/go.crypto/bcrypt"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -1487,6 +1488,117 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 	}
 
 	return values, nil
+}
+
+func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) (interface{}, error) {
+	for _, stmt := range q.Statements {
+		switch c := stmt.(type) {
+		case *influxql.CreateDatabaseStatement:
+			return s.executeCreateDatabaseStatement(c, user)
+		case *influxql.DropDatabaseStatement:
+			return s.executeDropDatabaseStatement(c, user)
+		case *influxql.ListDatabasesStatement:
+			return s.executeListDatabasesStatement(c, user)
+		case *influxql.CreateUserStatement:
+			return s.executeCreateUserStatement(c, user)
+		case *influxql.DropUserStatement:
+			return s.executeDropUserStatement(c, user)
+		case *influxql.SelectStatement:
+			continue
+		case *influxql.DropSeriesStatement:
+			continue
+		case *influxql.ListSeriesStatement:
+			continue
+		case *influxql.ListMeasurementsStatement:
+			continue
+		case *influxql.ListTagKeysStatement:
+			continue
+		case *influxql.ListTagValuesStatement:
+			continue
+		case *influxql.ListFieldKeysStatement:
+			continue
+		case *influxql.ListFieldValuesStatement:
+			continue
+		case *influxql.GrantStatement:
+			continue
+		case *influxql.RevokeStatement:
+			continue
+		case *influxql.CreateRetentionPolicyStatement:
+			return s.executeCreateRetentionPolicyStatement(c, user)
+		case *influxql.AlterRetentionPolicyStatement:
+			return s.executeAlterRetentionPolicyStatement(c, user)
+		case *influxql.DropRetentionPolicyStatement:
+			return s.executeDropRetentionPolicyStatement(c, user)
+		case *influxql.ListRetentionPoliciesStatement:
+			return s.executeListRetentionPoliciesStatement(c, user)
+		case *influxql.CreateContinuousQueryStatement:
+			continue
+		case *influxql.DropContinuousQueryStatement:
+			continue
+		case *influxql.ListContinuousQueriesStatement:
+			continue
+		}
+	}
+	return nil, nil
+}
+
+func (s *Server) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement, user *User) (interface{}, error) {
+	return nil, s.CreateDatabase(q.Name)
+}
+
+func (s *Server) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement, user *User) (interface{}, error) {
+	return nil, s.DeleteDatabase(q.Name)
+}
+
+func (s *Server) executeListDatabasesStatement(q *influxql.ListDatabasesStatement, user *User) (interface{}, error) {
+	return s.Databases(), nil
+}
+
+func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, user *User) (interface{}, error) {
+	isAdmin := false
+	if q.Privilege != nil {
+		isAdmin = *q.Privilege == influxql.AllPrivileges
+	}
+	if err := s.CreateUser(q.Name, q.Password, isAdmin); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) (interface{}, error) {
+	return nil, s.DeleteUser(q.Name)
+}
+
+func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) (interface{}, error) {
+	rp := NewRetentionPolicy(q.Name)
+	rp.Duration = q.Duration
+	rp.ReplicaN = uint32(q.Replication)
+	if err := s.CreateRetentionPolicy(q.Database, rp); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (s *Server) executeAlterRetentionPolicyStatement(q *influxql.AlterRetentionPolicyStatement, user *User) (interface{}, error) {
+	rp := NewRetentionPolicy(q.Name)
+	if q.Duration != nil {
+		rp.Duration = *q.Duration
+	}
+	if q.Replication != nil {
+		rp.ReplicaN = uint32(*q.Replication)
+	}
+	if err := s.UpdateRetentionPolicy(q.Database, q.Name, rp); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement, user *User) (interface{}, error) {
+	return nil, s.DeleteRetentionPolicy(q.Database, q.Name)
+}
+
+func (s *Server) executeListRetentionPoliciesStatement(q *influxql.ListRetentionPoliciesStatement, user *User) (interface{}, error) {
+	return s.RetentionPolicies(q.Database)
 }
 
 func (s *Server) MeasurementNames(database string) []string {

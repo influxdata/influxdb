@@ -66,29 +66,11 @@ func NewHandler(s *Server) *Handler {
 		mux:    pat.New(),
 	}
 
-	// Authentication route
-	h.mux.Get("/authenticate", http.HandlerFunc(h.serveAuthenticate))
+	// Query serving route.
+	h.mux.Get("/query", h.makeAuthenticationHandler(h.serveQuery))
 
-	// User routes.
-	h.mux.Get("/users", h.makeAuthenticationHandler(h.serveUsers))
-	h.mux.Post("/users", http.HandlerFunc(h.serveCreateUser)) // Non-standard authentication
-	h.mux.Put("/users/:user", h.makeAuthenticationHandler(h.serveUpdateUser))
-	h.mux.Del("/users/:user", h.makeAuthenticationHandler(h.serveDeleteUser))
-
-	// Database routes
-	h.mux.Get("/db", h.makeAuthenticationHandler(h.serveDatabases))
-	h.mux.Post("/db", h.makeAuthenticationHandler(h.serveCreateDatabase))
-	h.mux.Del("/db/:name", h.makeAuthenticationHandler(h.serveDeleteDatabase))
-
-	// Series routes.
-	h.mux.Get("/db/:db/series", h.makeAuthenticationHandler(h.serveQuery))
+	// Data-ingest route.
 	h.mux.Post("/db/:db/series", h.makeAuthenticationHandler(h.serveWriteSeries))
-
-	// Retention policy routes.
-	h.mux.Get("/db/:db/retention_policies", h.makeAuthenticationHandler(h.serveRetentionPolicies))
-	h.mux.Post("/db/:db/retention_policies", h.makeAuthenticationHandler(h.serveCreateRetentionPolicy))
-	h.mux.Put("/db/:db/retention_policies/:name", h.makeAuthenticationHandler(h.serveUpdateRetentionPolicy))
-	h.mux.Del("/db/:db/retention_policies/:name", h.makeAuthenticationHandler(h.serveDeleteRetentionPolicy))
 
 	// Data node routes.
 	h.mux.Get("/data_nodes", h.makeAuthenticationHandler(h.serveDataNodes))
@@ -121,14 +103,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // makeAuthenticationHandler takes a custom handler and returns a standard handler, ensuring that
-// the system's standard authentication policies have been applied before the custom handler is called.
+// if user credentials are passed in, an attempt is made to authenticate that user. If authentication
+// fails, an error is returned to the user.
 //
-// The standard policy is if authentication is disabled, all operations are allowed and no user credentials
-// are required. If authentication is enabled, valid user credentials must be supplied.
+// There is one exception: if there are no users in the system, authentication is not required. This
+// is to facilitate bootstrapping of a system with authentication enabled.
 func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.Request, *User)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var user *User
-		if h.AuthenticationEnabled {
+		if h.AuthenticationEnabled && len(h.server.Users()) > 0 {
 			username, password, err := getUsernameAndPassword(r)
 			if err != nil {
 				h.error(w, err.Error(), http.StatusUnauthorized)
@@ -149,43 +132,28 @@ func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.R
 	}
 }
 
-// serveQuery parses an incoming query and returns the results.
+// serveQuery parses an incoming query and, if valid, executes the query.
 func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
-	// TODO: Authentication.
+	q := r.URL.Query()
+	p := influxql.NewParser(strings.NewReader(q.Get("q")))
+	db := q.Get("db")
 
 	// Parse query from query string.
-	urlQry := r.URL.Query()
-	_, err := influxql.NewParser(strings.NewReader(urlQry.Get("q"))).ParseQuery()
+	query, err := p.ParseQuery()
 	if err != nil {
-		h.error(w, "parse error: "+err.Error(), http.StatusBadRequest)
+		h.error(w, "error parsing query: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Retrieve database from server.
-	/*
-		db := h.server.Database(urlQry.Get(":db"))
-		if db == nil {
-			h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
-			return
-		}
-	*/
+	result, err := h.server.ExecuteQuery(query, db, u)
+	if err != nil {
+		h.error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	// Parse the time precision from the query params.
-	/*
-		precision, err := parseTimePrecision(urlQry.Get("time_precision"))
-		if err != nil {
-			h.error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	*/
-
-	// Execute query against the database.
-	/*
-		if err := db.ExecuteQuery(q); err != nil {
-			h.error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	*/
+	if result != nil {
+		_ = json.NewEncoder(w).Encode(result)
+	}
 }
 
 type batchWrite struct {
@@ -227,160 +195,12 @@ func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *Us
 	}
 }
 
-// serveDatabases returns a list of all databases on the server.
-func (h *Handler) serveDatabases(w http.ResponseWriter, r *http.Request, u *User) {
-
-	// Retrieve databases from the server.
-	databases := h.server.Databases()
-
-	// JSON encode databases to the response.
-	w.Header().Add("content-type", "application/json")
-	_ = json.NewEncoder(w).Encode(databases)
-}
-
-// serveCreateDatabase creates a new database on the server.
-func (h *Handler) serveCreateDatabase(w http.ResponseWriter, r *http.Request, u *User) {
-	var req struct {
-		Name string `json:"name"`
-	}
-
-	// Decode the request from the body.
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	} else if req.Name == "" {
-		h.error(w, ErrDatabaseNameRequired.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Create the database.
-	if err := h.server.CreateDatabase(req.Name); err == ErrDatabaseExists {
-		h.error(w, err.Error(), http.StatusConflict)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusCreated)
-}
-
-// serveDeleteDatabase deletes an existing database on the server.
-func (h *Handler) serveDeleteDatabase(w http.ResponseWriter, r *http.Request, u *User) {
-	name := r.URL.Query().Get(":name")
-	if err := h.server.DeleteDatabase(name); err == ErrDatabaseNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// serveAuthenticate authenticates a user.
-func (h *Handler) serveAuthenticate(w http.ResponseWriter, r *http.Request) {}
-
-// serveUsers returns data about a single user.
-func (h *Handler) serveUsers(w http.ResponseWriter, r *http.Request, u *User) {
-
-	// Generate a list of objects for encoding to the API.
-	a := make([]*userJSON, 0)
-	for _, u := range h.server.Users() {
-		a = append(a, &userJSON{
-			Name:  u.Name,
-			Admin: u.Admin,
-		})
-	}
-
-	w.Header().Add("content-type", "application/json")
-	_ = json.NewEncoder(w).Encode(a)
-}
-
-type userJSON struct {
-	Name     string `json:"name"`
-	Password string `json:"password,omitempty"`
-	Admin    bool   `json:"admin,omitempty"`
-}
-
-// serveCreateUser creates a new user.
-func (h *Handler) serveCreateUser(w http.ResponseWriter, r *http.Request) {
-	// Read in user from request body.
-	var newUser userJSON
-	if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Creating a User involves a non-standard authentication policy. Iff no Admin
-	// already exists, and the used being created will be an admin, no authorization
-	// is required.
-	if h.AuthenticationEnabled && (h.server.AdminUserExists() || !newUser.Admin) {
-		username, password, err := getUsernameAndPassword(r)
-		if err != nil {
-			h.error(w, err.Error(), http.StatusUnauthorized)
-			return
-		}
-
-		_, err = h.server.Authenticate(username, password)
-		if err != nil {
-			h.error(w, err.Error(), http.StatusUnauthorized)
-			return
-		}
-	}
-
-	// Create the user.
-	if err := h.server.CreateUser(newUser.Name, newUser.Password, newUser.Admin); err == ErrUserExists {
-		h.error(w, err.Error(), http.StatusConflict)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusCreated)
-}
-
-// serveUpdateUser updates an existing user.
-func (h *Handler) serveUpdateUser(w http.ResponseWriter, r *http.Request, u *User) {
-	// Read in user from request body.
-	var user userJSON
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Create the user.
-	if err := h.server.UpdateUser(r.URL.Query().Get(":user"), user.Password); err == ErrUserNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// serveDeleteUser removes an existing user.
-func (h *Handler) serveDeleteUser(w http.ResponseWriter, r *http.Request, u *User) {
-	// Delete the user.
-	if err := h.server.DeleteUser(r.URL.Query().Get(":user")); err == ErrUserNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // serveMetastore returns a copy of the metastore.
 func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, u *User) {
 	// Set headers.
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
 
-	// Write metastore to response body.
 	if err := h.server.CopyMetastore(w); err != nil {
 		h.error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -388,85 +208,6 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, u *User
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request, u *User) {}
-
-// serveRetentionPolicies returns a list of retention policys.
-func (h *Handler) serveRetentionPolicies(w http.ResponseWriter, r *http.Request, u *User) {
-	// Retrieve policies by database.
-	policies, err := h.server.RetentionPolicies(r.URL.Query().Get(":db"))
-	if err == ErrDatabaseNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Write data to response body.
-	w.Header().Add("content-type", "application/json")
-	_ = json.NewEncoder(w).Encode(policies)
-}
-
-// serveCreateRetentionPolicy creates a new retention policy.
-func (h *Handler) serveCreateRetentionPolicy(w http.ResponseWriter, r *http.Request, u *User) {
-	// Decode the policy from the body.
-	var policy RetentionPolicy
-	if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Create the retention policy.
-	if err := h.server.CreateRetentionPolicy(r.URL.Query().Get(":db"), &policy); err == ErrDatabaseNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if err == ErrRetentionPolicyExists {
-		h.error(w, err.Error(), http.StatusConflict)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusCreated)
-}
-
-// serveUpdateRetentionPolicy updates an existing retention policy.
-func (h *Handler) serveUpdateRetentionPolicy(w http.ResponseWriter, r *http.Request, u *User) {
-	q := r.URL.Query()
-	db, name := q.Get(":db"), q.Get(":name")
-
-	// Decode the new policy values from the body.
-	var policy RetentionPolicy
-	if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Update the retention policy.
-	if err := h.server.UpdateRetentionPolicy(db, name, &policy); err == ErrDatabaseNotFound || err == ErrRetentionPolicyNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// serveDeleteRetentionPolicy removes an existing retention policy.
-func (h *Handler) serveDeleteRetentionPolicy(w http.ResponseWriter, r *http.Request, u *User) {
-	q := r.URL.Query()
-	db, name := q.Get(":db"), q.Get(":name")
-
-	// Delete the retention policy.
-	if err := h.server.DeleteRetentionPolicy(db, name); err == ErrDatabaseNotFound || err == ErrRetentionPolicyNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
 
 // serveDataNodes returns a list of all data nodes in the cluster.
 func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request, u *User) {
