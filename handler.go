@@ -160,19 +160,13 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 	for _, s := range query.Statements {
 		switch c := s.(type) {
 		case *influxql.CreateDatabaseStatement:
-			if err = h.server.CreateDatabase(c.Name); err == ErrDatabaseExists {
-				h.error(w, "database exists", http.StatusInternalServerError)
-				continue
-			} else if err != nil {
+			if err = h.server.CreateDatabase(c.Name); err != nil {
 				h.error(w, "error creating database: "+err.Error(), http.StatusInternalServerError)
 				continue
 			}
 			w.WriteHeader(http.StatusCreated)
 		case *influxql.DropDatabaseStatement:
 			if err = h.server.DeleteDatabase(c.Name); err == ErrDatabaseNotFound {
-				h.error(w, "database not found", http.StatusInternalServerError)
-				continue
-			} else if err != nil {
 				h.error(w, "error deleting database: "+err.Error(), http.StatusInternalServerError)
 				continue
 			}
@@ -233,10 +227,15 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			if err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp); err != nil {
 				h.error(w, "error altering retention policy: "+err.Error(), http.StatusInternalServerError)
 			} else {
-				w.WriteHeader(http.StatusCreated)
+				w.WriteHeader(http.StatusNoContent)
 			}
 		case *influxql.DropRetentionPolicyStatement:
-			continue
+			err := h.server.DeleteRetentionPolicy(c.Database, c.Name)
+			if err = h.server.UpdateRetentionPolicy(c.Database, c.Name, rp); err != nil {
+				h.error(w, "error altering retention policy: "+err.Error(), http.StatusInternalServerError)
+			} else {
+				w.WriteHeader(http.StatusNoContent)
+			}
 
 		case *influxql.CreateContinuousQueryStatement:
 			continue
