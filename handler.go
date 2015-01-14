@@ -194,7 +194,7 @@ func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *Us
 
 	//Read from the request body.
 	dec := json.NewDecoder(r.Body)
-	dec.UserNumber()
+	dec.UseNumber()
 	for {
 		var point Point
 		if err := dec.Decode(&point); err != nil {
