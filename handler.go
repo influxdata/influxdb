@@ -70,7 +70,7 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Get("/query", h.makeAuthenticationHandler(h.serveQuery))
 
 	// Data-ingest route.
-	h.mux.Post("/db/:db/series", h.makeAuthenticationHandler(h.serveWriteSeries))
+	h.mux.Post("/series", h.makeAuthenticationHandler(h.serveWriteSeries))
 
 	// Data node routes.
 	h.mux.Get("/data_nodes", h.makeAuthenticationHandler(h.serveDataNodes))
@@ -173,6 +173,10 @@ func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *Us
 
 	for {
 		if err := dec.Decode(&br); err != nil {
+			if err.Error() == "EOF" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
 			h.error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
