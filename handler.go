@@ -162,15 +162,19 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		case *influxql.CreateDatabaseStatement:
 			if err = h.server.CreateDatabase(c.Name); err == ErrDatabaseExists {
 				h.error(w, "database exists", http.StatusInternalServerError)
+				continue
 			} else if err != nil {
 				h.error(w, "error creating database: "+err.Error(), http.StatusInternalServerError)
+				continue
 			}
 			w.WriteHeader(http.StatusCreated)
 		case *influxql.DropDatabaseStatement:
 			if err = h.server.DeleteDatabase(c.Name); err == ErrDatabaseNotFound {
 				h.error(w, "database not found", http.StatusInternalServerError)
+				continue
 			} else if err != nil {
 				h.error(w, "error deleting database: "+err.Error(), http.StatusInternalServerError)
+				continue
 			}
 			w.WriteHeader(http.StatusNoContent)
 		case *influxql.ListDatabasesStatement:
@@ -231,6 +235,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 			} else {
 				w.WriteHeader(http.StatusCreated)
 			}
+		case *influxql.DropRetentionPolicyStatement:
+			continue
 
 		case *influxql.CreateContinuousQueryStatement:
 			continue
