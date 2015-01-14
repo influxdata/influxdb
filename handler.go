@@ -150,7 +150,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		return
 	}
 
-	_ = json.NewEncoder(w).Encode(result)
+	if result != nil {
+		_ = json.NewEncoder(w).Encode(result)
+	}
 }
 
 // serveWriteSeries receives incoming series data and writes it to the database.
