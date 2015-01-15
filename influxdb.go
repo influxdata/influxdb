@@ -71,6 +71,10 @@ var (
 	// ErrRetentionPolicyNameRequired is returned using a blank shard space name.
 	ErrRetentionPolicyNameRequired = errors.New("retention policy name required")
 
+	// ErrDefaultRetentionPolicyNotFound is returned when using the default
+	// policy on a database but the default has not been set.
+	ErrDefaultRetentionPolicyNotFound = errors.New("default retention policy not found")
+
 	// ErrShardNotFound is returned writing to a non-existent shard.
 	ErrShardNotFound = errors.New("shard not found")
 
@@ -95,6 +99,10 @@ var (
 
 	// ErrSeriesExists is returned when attempting to set the id of a series by database, name and tags that already exists
 	ErrSeriesExists = errors.New("series already exists")
+
+	// ErrNotExecuted is returned when a statement is not executed in a query.
+	// This can occur when a previous statement in the same query has errored.
+	ErrNotExecuted = errors.New("not executed")
 )
 
 // mustMarshal encodes a value to JSON.

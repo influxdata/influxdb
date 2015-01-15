@@ -7,11 +7,13 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"code.google.com/p/go.crypto/bcrypt"
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -505,8 +507,7 @@ func TestServer_WriteSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
-	values := map[string]interface{}{"value": 23.2}
-	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: values}})
+	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -514,7 +515,7 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 
 	// Write another point 10 seconds later so it goes through "raw series".
-	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: values}})
+	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(100)}}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -526,11 +527,53 @@ func TestServer_WriteSeries(t *testing.T) {
 		t.Fatal("expected subscription")
 	}
 
-	// Retrieve series data point.
+	// Retrieve first series data point.
 	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:00Z")); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(v, values) {
+	} else if !reflect.DeepEqual(v, map[string]interface{}{"value": float64(23.2)}) {
 		t.Fatalf("values mismatch: %#v", v)
+	}
+
+	// Retrieve second series data point.
+	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:10Z")); err != nil {
+		t.Fatal(err)
+	} else if mustMarshalJSON(v) != mustMarshalJSON(map[string]interface{}{"value": float64(100)}) {
+		t.Fatalf("values mismatch: %#v", v)
+	}
+
+	// Retrieve non-existent series data point.
+	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:01:00Z")); err != nil {
+		t.Fatal(err)
+	} else if v != nil {
+		t.Fatalf("expected nil values: %#v", v)
+	}
+}
+
+// Ensure the server can execute a query and return the data correctly.
+func TestServer_ExecuteQuery(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
+
+	// Select data from the server.
+	results := s.ExecuteQuery(MustParseQuery("SELECT sum(value) FROM cpu"), "foo", nil)
+	if len(results) != 1 {
+		t.Fatalf("unexpected result count: %d", len(results))
+	}
+	if res := results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 1 {
+		t.Fatalf("unexpected row count: %s", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","sum"],"values":[[0,150]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
 	}
 }
 
@@ -674,6 +717,18 @@ func (s *Server) Close() {
 	s.Server.Close()
 }
 
+// MustWriteSeries writes series data and waits for the data to be applied.
+// Returns the messaging index for the write.
+func (s *Server) MustWriteSeries(database, retentionPolicy string, points []influxdb.Point) uint64 {
+	index, err := s.WriteSeries(database, retentionPolicy, points)
+	if err != nil {
+		panic(err.Error())
+	} else if err = s.Sync(index); err != nil {
+		panic("sync error: " + err.Error())
+	}
+	return index
+}
+
 // MessagingClient represents a test client for the messaging broker.
 type MessagingClient struct {
 	index uint64
@@ -751,6 +806,15 @@ func mustParseTime(s string) time.Time {
 		panic(err.Error())
 	}
 	return t
+}
+
+// MustParseQuery parses an InfluxQL query. Panic on error.
+func MustParseQuery(s string) *influxql.Query {
+	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
+	if err != nil {
+		panic(err.Error())
+	}
+	return q
 }
 
 // errstr is an ease-of-use function to convert an error to a string.

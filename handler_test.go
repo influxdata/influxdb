@@ -27,7 +27,7 @@ func TestHandler_Databases(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST DATABASES"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `["bar","foo"]` {
+	} else if body != `[{"rows":[{"columns":["Name"],"values":[["bar"],["foo"]]}]}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -40,7 +40,7 @@ func TestHandler_CreateDatabase(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `` {
+	} else if body != `[{}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -65,7 +65,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database exists` {
+	} else if body != `[{"error":"database exists"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -79,7 +79,7 @@ func TestHandler_DeleteDatabase(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE foo"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "" {
+	} else if body != `[{}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -92,7 +92,7 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE bar"}, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database not found` {
+	} else if body != `[{"error":"database not found"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -108,7 +108,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"name":"bar","replicaN":1}]` {
+	} else if body != `[{"rows":[{"columns":["Name"],"values":[["bar"]]}]}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -122,7 +122,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `database not found` {
+	} else if body != `[{"error":"database not found"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -138,7 +138,7 @@ func TestHandler_CreateRetentionPolicy(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "" {
+	} else if body != `[{}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -266,7 +266,7 @@ func TestHandler_DeleteRetentionPolicy(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "" {
+	} else if body != `[{}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -281,7 +281,7 @@ func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "database not found" {
+	} else if body != `[{"error":"database not found"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -297,7 +297,7 @@ func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "retention policy not found" {
+	} else if body != `[{"error":"retention policy not found"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -371,7 +371,7 @@ func TestHandler_CreateUser(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "" {
+	} else if body != `[{}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -464,7 +464,7 @@ func TestHandler_DeleteUser(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `` {
+	} else if body != `[{}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -478,7 +478,7 @@ func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `user not found` {
+	} else if body != `[{"error":"user not found"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }

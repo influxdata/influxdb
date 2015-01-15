@@ -7,6 +7,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/boltdb/bolt"
+	"github.com/influxdb/influxdb/influxql"
 )
 
 // database is a collection of retention policies and shards. It also has methods
@@ -118,22 +121,22 @@ func NewMeasurement(name string) *Measurement {
 	}
 }
 
-// CreateFieldIfNotExists creates a new field with an autoincrementing ID.
+// createFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement.
-func (m *Measurement) createFieldIfNotExists(name string, typ FieldType) (*Field, error) {
+func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType) (*Field, error) {
 	// Ignore if the field already exists.
 	if f := m.FieldByName(name); f != nil {
 		return f, nil
 	}
 
 	// Only 255 fields are allowed. If we go over that then return an error.
-	if len(m.Fields) > math.MaxUint8 {
+	if len(m.Fields)+1 > math.MaxUint8 {
 		return nil, ErrFieldOverflow
 	}
 
 	// Create and append a new field.
 	f := &Field{
-		ID:   uint8(len(m.Fields)),
+		ID:   uint8(len(m.Fields) + 1),
 		Name: name,
 		Type: typ,
 	}
@@ -280,20 +283,10 @@ type Measurements []*Measurement
 
 // Field represents a series field.
 type Field struct {
-	ID   uint8     `json:"id,omitempty"`
-	Name string    `json:"name,omitempty"`
-	Type FieldType `json:"field"`
+	ID   uint8             `json:"id,omitempty"`
+	Name string            `json:"name,omitempty"`
+	Type influxql.DataType `json:"type,omitempty"`
 }
-
-type FieldType int
-
-const (
-	Int64 FieldType = iota
-	Float64
-	String
-	Boolean
-	Binary
-)
 
 // Fields represents a list of fields.
 type Fields []*Field
@@ -304,6 +297,16 @@ type Series struct {
 	Tags map[string]string
 
 	measurement *Measurement
+}
+
+// match returns true if all tags match the series' tags.
+func (s *Series) match(tags map[string]string) bool {
+	for k, v := range tags {
+		if s.Tags[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
@@ -317,7 +320,7 @@ type RetentionPolicy struct {
 	// The number of copies to make of each shard.
 	ReplicaN uint32
 
-	groups []*ShardGroup
+	shardGroups []*ShardGroup
 }
 
 // NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
@@ -332,7 +335,7 @@ func NewRetentionPolicy(name string) *RetentionPolicy {
 // shardGroupByTimestamp returns the group in the policy that owns a timestamp.
 // Returns nil group does not exist.
 func (rp *RetentionPolicy) shardGroupByTimestamp(timestamp time.Time) *ShardGroup {
-	for _, g := range rp.groups {
+	for _, g := range rp.shardGroups {
 		if timeBetweenInclusive(timestamp, g.StartTime, g.EndTime) {
 			return g
 		}
@@ -346,8 +349,8 @@ func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	o.Name = rp.Name
 	o.Duration = rp.Duration
 	o.ReplicaN = rp.ReplicaN
-	for _, g := range rp.groups {
-		o.Groups = append(o.Groups, g)
+	for _, g := range rp.shardGroups {
+		o.ShardGroups = append(o.ShardGroups, g)
 	}
 	return json.Marshal(&o)
 }
@@ -364,18 +367,18 @@ func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	rp.Name = o.Name
 	rp.ReplicaN = o.ReplicaN
 	rp.Duration = o.Duration
-	rp.groups = o.Groups
+	rp.shardGroups = o.ShardGroups
 
 	return nil
 }
 
 // retentionPolicyJSON represents an intermediate struct for JSON marshaling.
 type retentionPolicyJSON struct {
-	Name     string        `json:"name"`
-	ReplicaN uint32        `json:"replicaN,omitempty"`
-	SplitN   uint32        `json:"splitN,omitempty"`
-	Duration time.Duration `json:"duration,omitempty"`
-	Groups   []*ShardGroup `json:"groups,omitempty"`
+	Name        string        `json:"name"`
+	ReplicaN    uint32        `json:"replicaN,omitempty"`
+	SplitN      uint32        `json:"splitN,omitempty"`
+	Duration    time.Duration `json:"duration,omitempty"`
+	ShardGroups []*ShardGroup `json:"shardGroups,omitempty"`
 }
 
 // TagFilter represents a tag filter when looking up other tags or measurements.
@@ -737,3 +740,203 @@ func marshalTags(tags map[string]string) []byte {
 	}
 	return []byte(strings.Join(s, "|"))
 }
+
+// dbi is an interface the query engine uses to communicate with the database during planning.
+type dbi struct {
+	server *Server
+	db     *database
+}
+
+// MatchSeries returns a list of series data ids matching a name and tags.
+func (dbi *dbi) MatchSeries(name string, tags map[string]string) (a []uint32) {
+	// Find measurement by name.
+	m := dbi.db.measurements[name]
+	if m == nil {
+		return nil
+	}
+
+	// Match each series on the measurement by tagset.
+	// TODO: Use paul's fancy index.
+	for _, s := range m.seriesByID {
+		if s.match(tags) {
+			a = append(a, s.ID)
+		}
+	}
+	return
+}
+
+// SeriesTagValues returns a slice of tag values for a series.
+func (dbi *dbi) SeriesTagValues(seriesID uint32, keys []string) []string {
+	// Find series by id.
+	s := dbi.db.series[seriesID]
+
+	// Lookup value for each key.
+	values := make([]string, len(keys))
+	for i, key := range keys {
+		values[i] = s.Tags[key]
+	}
+	return values
+}
+
+// Field returns the id and data type for a series field.
+// Returns id of zero if not a field.
+func (dbi *dbi) Field(name, field string) (fieldID uint8, typ influxql.DataType) {
+	// Find measurement by name.
+	m := dbi.db.measurements[name]
+	if m == nil {
+		return 0, influxql.Unknown
+	}
+
+	// Find field by name.
+	f := m.FieldByName(field)
+	if f == nil {
+		return 0, influxql.Unknown
+	}
+
+	return f.ID, f.Type
+}
+
+// CreateIterator returns an iterator to iterate over the field values in a series.
+func (dbi *dbi) CreateIterator(seriesID uint32, fieldID uint8, typ influxql.DataType, min, max time.Time, interval time.Duration) influxql.Iterator {
+	// TODO: Add retention policy to the arguments.
+
+	// Create an iterator to hold the transaction and series ids.
+	itr := &iterator{
+		seriesID: seriesID,
+		fieldID:  fieldID,
+		typ:      typ,
+		imin:     -1,
+		interval: int64(interval),
+	}
+	if !min.IsZero() {
+		itr.min = min.UnixNano()
+	}
+	if !max.IsZero() {
+		itr.max = max.UnixNano()
+	}
+
+	// Retrieve the policy.
+	// Ignore if there are no shard groups created on the retention policy.
+	rp := dbi.db.policies[dbi.db.defaultRetentionPolicy]
+	if len(rp.shardGroups) == 0 {
+		return itr
+	}
+
+	// Find all shards which match the the time range and series id.
+	// TODO: Support multiple groups.
+	g := rp.shardGroups[0]
+
+	// Ignore shard groups that our time range does not cross.
+	if !timeBetweenInclusive(g.StartTime, min, max) &&
+		!timeBetweenInclusive(g.EndTime, min, max) {
+		return itr
+	}
+
+	// Find appropriate shard by series id.
+	sh := g.ShardBySeriesID(seriesID)
+
+	// Open a transaction on the shard.
+	tx, err := sh.store.Begin(false)
+	assert(err == nil, "read-only tx error: %s", err)
+	itr.tx = tx
+
+	// Open and position cursor.
+	b := tx.Bucket(u32tob(seriesID))
+	if b != nil {
+		cur := b.Cursor()
+		itr.k, itr.v = cur.Seek(u64tob(uint64(itr.min)))
+		itr.cur = cur
+	}
+
+	return itr
+}
+
+// iterator represents a series data iterator for a shard.
+// It can iterate over all data for a given time range for multiple series in a shard.
+type iterator struct {
+	tx       *bolt.Tx
+	cur      *bolt.Cursor
+	seriesID uint32
+	fieldID  uint8
+	typ      influxql.DataType
+
+	k, v []byte // lookahead buffer
+
+	min, max   int64 // time range
+	imin, imax int64 // interval time range
+	interval   int64 // interval duration
+}
+
+// close closes the iterator.
+func (i *iterator) Close() error {
+	if i.tx != nil {
+		return i.tx.Rollback()
+	}
+	return nil
+}
+
+// Next returns the next value from the iterator.
+func (i *iterator) Next() (key int64, value interface{}) {
+	for {
+		// Read raw key/value from lookhead buffer, if available.
+		// Otherwise read from cursor.
+		var k, v []byte
+		if i.k != nil {
+			k, v = i.k, i.v
+			i.k, i.v = nil, nil
+		} else if i.cur != nil {
+			k, v = i.cur.Next()
+		}
+
+		// Exit at the end of the cursor.
+		if k == nil {
+			return 0, nil
+		}
+
+		// Extract timestamp & field value.
+		key = int64(btou64(k))
+		value = unmarshalValue(v, i.fieldID)
+
+		// If timestamp is beyond interval time range then push onto lookahead buffer.
+		if key >= i.imax && i.imax != 0 {
+			i.k, i.v = k, v
+			return 0, nil
+		}
+
+		// Return value if it is non-nil.
+		// Otherwise loop again and try the next point.
+		if value != nil {
+			return
+		}
+	}
+}
+
+// NextIterval moves to the next iterval. Returns true unless EOF.
+func (i *iterator) NextIterval() bool {
+	// Determine the next interval's lower bound.
+	imin := i.imin + i.interval
+
+	// Initialize or move interval forward.
+	if i.imin == -1 { // initialize first interval
+		i.imin = i.min
+	} else if i.interval != 0 && (i.max == 0 || imin < i.max) { // move forward
+		i.imin = imin
+	} else { // no interval or beyond max time.
+		return false
+	}
+
+	// Interval end time should be the start time plus interval duration.
+	// If the end time is beyond the iterator end time then shorten it.
+	i.imax = i.imin + i.interval
+	if max := i.max; i.imax > max {
+		i.imax = max
+	}
+
+	return true
+}
+
+// Time returns start time of the current interval.
+func (i *iterator) Time() int64 { return i.imin }
+
+// Interval returns the group by duration.
+func (i *iterator) Interval() time.Duration { return time.Duration(i.interval) }
