@@ -320,7 +320,7 @@ type RetentionPolicy struct {
 	// The number of copies to make of each shard.
 	ReplicaN uint32
 
-	groups []*ShardGroup
+	shardGroups []*ShardGroup
 }
 
 // NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
@@ -335,7 +335,7 @@ func NewRetentionPolicy(name string) *RetentionPolicy {
 // shardGroupByTimestamp returns the group in the policy that owns a timestamp.
 // Returns nil group does not exist.
 func (rp *RetentionPolicy) shardGroupByTimestamp(timestamp time.Time) *ShardGroup {
-	for _, g := range rp.groups {
+	for _, g := range rp.shardGroups {
 		if timeBetweenInclusive(timestamp, g.StartTime, g.EndTime) {
 			return g
 		}
@@ -349,8 +349,8 @@ func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	o.Name = rp.Name
 	o.Duration = rp.Duration
 	o.ReplicaN = rp.ReplicaN
-	for _, g := range rp.groups {
-		o.Groups = append(o.Groups, g)
+	for _, g := range rp.shardGroups {
+		o.ShardGroups = append(o.ShardGroups, g)
 	}
 	return json.Marshal(&o)
 }
@@ -367,18 +367,18 @@ func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	rp.Name = o.Name
 	rp.ReplicaN = o.ReplicaN
 	rp.Duration = o.Duration
-	rp.groups = o.Groups
+	rp.shardGroups = o.ShardGroups
 
 	return nil
 }
 
 // retentionPolicyJSON represents an intermediate struct for JSON marshaling.
 type retentionPolicyJSON struct {
-	Name     string        `json:"name"`
-	ReplicaN uint32        `json:"replicaN,omitempty"`
-	SplitN   uint32        `json:"splitN,omitempty"`
-	Duration time.Duration `json:"duration,omitempty"`
-	Groups   []*ShardGroup `json:"groups,omitempty"`
+	Name        string        `json:"name"`
+	ReplicaN    uint32        `json:"replicaN,omitempty"`
+	SplitN      uint32        `json:"splitN,omitempty"`
+	Duration    time.Duration `json:"duration,omitempty"`
+	ShardGroups []*ShardGroup `json:"shardGroups,omitempty"`
 }
 
 // TagFilter represents a tag filter when looking up other tags or measurements.
@@ -741,7 +741,7 @@ func marshalTags(tags map[string]string) []byte {
 	return []byte(strings.Join(s, "|"))
 }
 
-// dbi is an interface the query engine to communicate with the database during planning.
+// dbi is an interface the query engine uses to communicate with the database during planning.
 type dbi struct {
 	server *Server
 	db     *database
@@ -816,15 +816,15 @@ func (dbi *dbi) CreateIterator(seriesID uint32, fieldID uint8, typ influxql.Data
 	}
 
 	// Retrieve the policy.
-	// Ignore if there are no groups created on the retention policy.
+	// Ignore if there are no shard groups created on the retention policy.
 	rp := dbi.db.policies[dbi.db.defaultRetentionPolicy]
-	if len(rp.groups) == 0 {
+	if len(rp.shardGroups) == 0 {
 		return itr
 	}
 
 	// Find all shards which match the the time range and series id.
 	// TODO: Support multiple groups.
-	g := rp.groups[0]
+	g := rp.shardGroups[0]
 
 	// Ignore shard groups that our time range does not cross.
 	if !timeBetweenInclusive(g.StartTime, min, max) &&

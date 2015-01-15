@@ -618,7 +618,7 @@ func (s *Server) ShardGroups(database string) ([]*ShardGroup, error) {
 	// Retrieve groups from database.
 	var a []*ShardGroup
 	for _, rp := range db.policies {
-		for _, g := range rp.groups {
+		for _, g := range rp.shardGroups {
 			a = append(a, g)
 		}
 	}
@@ -751,7 +751,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	for _, sh := range g.Shards {
 		s.shards[sh.ID] = sh
 	}
-	rp.groups = append(rp.groups, g)
+	rp.shardGroups = append(rp.shardGroups, g)
 
 	// Subscribe to shard if it matches the server's index.
 	// TODO: Move subscription outside of command processing.
