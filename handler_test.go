@@ -720,6 +720,23 @@ func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
 	}
 }
 
+func TestHandler_serveWriteSeries_blankDatabase(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{}`)
+
+	if status != http.StatusInternalServerError {
+		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusInternalServerError, status)
+	}
+
+	response := `{"error":"Database is required"}`
+	if body != response {
+		t.Fatalf("unexpected body: expected %s, actual %s", response, body)
+	}
+}
+
 // Utility functions for this test suite.
 
 func MustHTTP(verb, path string, params, headers map[string]string, body string) (int, string) {

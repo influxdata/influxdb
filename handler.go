@@ -70,7 +70,7 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Get("/query", h.makeAuthenticationHandler(h.serveQuery))
 
 	// Data-ingest route.
-	h.mux.Post("/write", h.makeAuthenticationHandler(h.serveWriteSeries))
+	h.mux.Post("/write", h.makeAuthenticationHandler(h.serveWrite))
 
 	// Data node routes.
 	h.mux.Get("/data_nodes", h.makeAuthenticationHandler(h.serveDataNodes))
@@ -165,8 +165,8 @@ type batchWrite struct {
 	Timestamp       time.Time         `json:"timestamp"`
 }
 
-// serveWriteSeries receives incoming series data and writes it to the database.
-func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *User) {
+// serveWrite receives incoming series data and writes it to the database.
+func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *User) {
 	var br batchWrite
 
 	dec := json.NewDecoder(r.Body)
@@ -185,6 +185,26 @@ func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *Us
 			_ = json.NewEncoder(w).Encode(result)
 			return
 		}
+
+		if br.Database == "" {
+			result := &Result{Err: fmt.Errorf("Database is required")}
+
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Header().Add("content-type", "application/json")
+			_ = json.NewEncoder(w).Encode(result)
+			return
+		}
+
+		// TODO corylanou: Check if user can write to specified database
+		//if !user_can_write(br.Database) {
+		//result := &Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", u.Name)}
+
+		//w.WriteHeader(http.StatusUnauthorized)
+		//w.Header().Add("content-type", "application/json")
+		//_ = json.NewEncoder(w).Encode(result)
+		//return
+		//}
+
 		for _, p := range br.Points {
 			if p.Timestamp.IsZero() {
 				p.Timestamp = br.Timestamp
