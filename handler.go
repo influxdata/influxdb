@@ -178,7 +178,11 @@ func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *Us
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			h.error(w, err.Error(), http.StatusInternalServerError)
+			result := &Result{Err: err}
+
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Header().Add("content-type", "application/json")
+			_ = json.NewEncoder(w).Encode(result)
 			return
 		}
 		for _, p := range br.Points {
@@ -193,7 +197,11 @@ func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *Us
 				}
 			}
 			if _, err := h.server.WriteSeries(br.Database, br.RetentionPolicy, []Point{p}); err != nil {
-				h.error(w, err.Error(), http.StatusInternalServerError)
+				result := &Result{Err: err}
+
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Header().Add("content-type", "application/json")
+				_ = json.NewEncoder(w).Encode(result)
 				return
 			}
 		}
