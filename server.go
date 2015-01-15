@@ -3,6 +3,7 @@ package influxdb
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -1212,9 +1213,23 @@ type createSeriesIfNotExistsCommand struct {
 	Tags     map[string]string `json:"tags"`
 }
 
+// Point defines the values that will be written to the database
+type Point struct {
+	Name      string
+	Tags      map[string]string
+	Timestamp time.Time
+	Values    map[string]interface{}
+}
+
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
-func (s *Server) WriteSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time, values map[string]interface{}) (uint64, error) {
+func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
+	// TODO corylanou: implement batch writing
+	if len(points) != 1 {
+		return 0, errors.New("batching WriteSeries has not been implemented yet")
+	}
+	name, tags, timestamp, values := points[0].Name, points[0].Tags, points[0].Timestamp, points[0].Values
+
 	// Find the id for the series and tagset
 	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {
@@ -1477,52 +1492,69 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 	return values, nil
 }
 
-func (s *Server) MeasurementNames(database string) []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	db := s.databases[database]
-	if db == nil {
-		return nil
-	}
-
-	return db.names
-}
-
-func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	db := s.databases[database]
-	if db == nil {
-		return nil
-	}
-
-	return db.SeriesIDs([]string{measurement}, nil)
-}
-
-// measurement returns a measurement by database and name.
-func (s *Server) measurement(database, name string) (*Measurement, error) {
-	db := s.databases[database]
-	if db == nil {
-		return nil, ErrDatabaseNotFound
-	}
-
-	return db.measurements[name], nil
-}
-
 // ExecuteQuery executes an InfluxQL query against the server.
 // Returns a resultset for each statement in the query.
 // Stops on first execution error that occurs.
-func (s *Server) ExecuteQuery(q *influxql.Query, database string) []*Result {
+func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Results {
 	// Build empty resultsets.
-	results := make([]*Result, len(q.Statements))
+	results := make(Results, len(q.Statements))
 
 	// Execute each statement.
-	for i, st := range q.Statements {
-		switch st := st.(type) {
+	for i, stmt := range q.Statements {
+		var res *Result
+		switch stmt := stmt.(type) {
 		case *influxql.SelectStatement:
-			results[i] = s.executeSelectStatement(st, database)
+			res = s.executeSelectStatement(stmt, database, user)
+		case *influxql.CreateDatabaseStatement:
+			res = s.executeCreateDatabaseStatement(stmt, user)
+		case *influxql.DropDatabaseStatement:
+			res = s.executeDropDatabaseStatement(stmt, user)
+		case *influxql.ListDatabasesStatement:
+			res = s.executeListDatabasesStatement(stmt, user)
+		case *influxql.CreateUserStatement:
+			res = s.executeCreateUserStatement(stmt, user)
+		case *influxql.DropUserStatement:
+			res = s.executeDropUserStatement(stmt, user)
+		case *influxql.DropSeriesStatement:
+			continue
+		case *influxql.ListSeriesStatement:
+			continue
+		case *influxql.ListMeasurementsStatement:
+			continue
+		case *influxql.ListTagKeysStatement:
+			continue
+		case *influxql.ListTagValuesStatement:
+			continue
+		case *influxql.ListFieldKeysStatement:
+			continue
+		case *influxql.ListFieldValuesStatement:
+			continue
+		case *influxql.GrantStatement:
+			continue
+		case *influxql.RevokeStatement:
+			continue
+		case *influxql.CreateRetentionPolicyStatement:
+			res = s.executeCreateRetentionPolicyStatement(stmt, user)
+		case *influxql.AlterRetentionPolicyStatement:
+			res = s.executeAlterRetentionPolicyStatement(stmt, user)
+		case *influxql.DropRetentionPolicyStatement:
+			res = s.executeDropRetentionPolicyStatement(stmt, user)
+		case *influxql.ListRetentionPoliciesStatement:
+			res = s.executeListRetentionPoliciesStatement(stmt, user)
+		case *influxql.CreateContinuousQueryStatement:
+			continue
+		case *influxql.DropContinuousQueryStatement:
+			continue
+		case *influxql.ListContinuousQueriesStatement:
+			continue
+		default:
+			panic(fmt.Sprintf("unsupported statement type: %T", stmt))
+		}
+
+		// If an error occurs then stop processing remaining statements.
+		results[i] = res
+		if res.Err != nil {
+			break
 		}
 	}
 
@@ -1536,8 +1568,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string) []*Result {
 	return results
 }
 
-// plans and executes a select statement against a database.
-func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database string) *Result {
+// executeSelectStatement plans and executes a select statement against a database.
+func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database string, user *User) *Result {
 	// Plan statement execution.
 	e, err := s.planSelectStatement(stmt, database)
 	if err != nil {
@@ -1573,6 +1605,103 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database st
 	// Plan query.
 	p := influxql.NewPlanner(&dbi{server: s, db: db})
 	return p.Plan(stmt)
+}
+
+func (s *Server) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement, user *User) *Result {
+	return &Result{Err: s.CreateDatabase(q.Name)}
+}
+
+func (s *Server) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement, user *User) *Result {
+	return &Result{Err: s.DeleteDatabase(q.Name)}
+}
+
+func (s *Server) executeListDatabasesStatement(q *influxql.ListDatabasesStatement, user *User) *Result {
+	row := &influxql.Row{Columns: []string{"Name"}}
+	for _, name := range s.Databases() {
+		row.Values = append(row.Values, []interface{}{name})
+	}
+	return &Result{Rows: []*influxql.Row{row}}
+}
+
+func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, user *User) *Result {
+	isAdmin := false
+	if q.Privilege != nil {
+		isAdmin = *q.Privilege == influxql.AllPrivileges
+	}
+	return &Result{Err: s.CreateUser(q.Name, q.Password, isAdmin)}
+}
+
+func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
+	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) *Result {
+	rp := NewRetentionPolicy(q.Name)
+	rp.Duration = q.Duration
+	rp.ReplicaN = uint32(q.Replication)
+	return &Result{Err: s.CreateRetentionPolicy(q.Database, rp)}
+}
+
+func (s *Server) executeAlterRetentionPolicyStatement(q *influxql.AlterRetentionPolicyStatement, user *User) *Result {
+	rp := NewRetentionPolicy(q.Name)
+	if q.Duration != nil {
+		rp.Duration = *q.Duration
+	}
+	if q.Replication != nil {
+		rp.ReplicaN = uint32(*q.Replication)
+	}
+	return &Result{Err: s.UpdateRetentionPolicy(q.Database, q.Name, rp)}
+}
+
+func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement, user *User) *Result {
+	return &Result{Err: s.DeleteRetentionPolicy(q.Database, q.Name)}
+}
+
+func (s *Server) executeListRetentionPoliciesStatement(q *influxql.ListRetentionPoliciesStatement, user *User) *Result {
+	a, err := s.RetentionPolicies(q.Database)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	row := &influxql.Row{Columns: []string{"Name"}}
+	for _, rp := range a {
+		row.Values = append(row.Values, []interface{}{rp.Name})
+	}
+	return &Result{Rows: []*influxql.Row{row}}
+}
+
+func (s *Server) MeasurementNames(database string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	db := s.databases[database]
+	if db == nil {
+		return nil
+	}
+
+	return db.names
+}
+
+func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	db := s.databases[database]
+	if db == nil {
+		return nil
+	}
+
+	return db.SeriesIDs([]string{measurement}, nil)
+}
+
+// measurement returns a measurement by database and name.
+func (s *Server) measurement(database, name string) (*Measurement, error) {
+	db := s.databases[database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound
+	}
+
+	return db.measurements[name], nil
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
@@ -1643,8 +1772,39 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Rows []*influxql.Row `json:"rows,omitempty"`
-	Err  error           `json:"error,omitempty"`
+	Rows []*influxql.Row
+	Err  error
+}
+
+// MarshalJSON encodes the result into JSON.
+func (r *Result) MarshalJSON() ([]byte, error) {
+	// Define a struct that outputs "error" as a string.
+	var o struct {
+		Rows []*influxql.Row `json:"rows,omitempty"`
+		Err  string          `json:"error,omitempty"`
+	}
+
+	// Copy fields to output struct.
+	o.Rows = r.Rows
+	if r.Err != nil {
+		o.Err = r.Err.Error()
+	}
+
+	return json.Marshal(&o)
+}
+
+// Results represents a list of statement results.
+type Results []*Result
+
+// Error returns the first error from any statement.
+// Returns nil if no errors occurred on any statements.
+func (a Results) Error() error {
+	for _, r := range a {
+		if r.Err != nil {
+			return r.Err
+		}
+	}
+	return nil
 }
 
 // MessagingClient represents the client used to receive messages from brokers.

@@ -241,6 +241,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// LIST USERS
+		{
+			s:    `LIST USERS`,
+			stmt: &influxql.ListUsersStatement{},
+		},
+
 		// LIST FIELD KEYS
 		{
 			s: `LIST FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
@@ -359,6 +365,15 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s:    `DROP DATABASE testdb`,
 			stmt: &influxql.DropDatabaseStatement{Name: "testdb"},
+		},
+
+		// DROP RETENTION POLICY
+		{
+			s: `DROP RETENTION POLICY "1h.cpu" ON mydb`,
+			stmt: &influxql.DropRetentionPolicyStatement{
+				Name:     "1h.cpu",
+				Database: "mydb",
+			},
 		},
 
 		// DROP USER statement
@@ -548,6 +563,10 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier, string at line 1, char 23`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
 		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
+		{s: `DROP RETENTION`, err: `found EOF, expected POLICY at line 1, char 16`},
+		{s: `DROP RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 23`},
+		{s: `DROP RETENTION POLICY "1h.cpu"`, err: `found EOF, expected ON at line 1, char 31`},
+		{s: `DROP RETENTION POLICY "1h.cpu" ON`, err: `found EOF, expected identifier at line 1, char 35`},
 		{s: `DROP USER`, err: `found EOF, expected identifier at line 1, char 11`},
 		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
 		{s: `CREATE USER testuser WITH`, err: `found EOF, expected PASSWORD at line 1, char 27`},

@@ -22,7 +22,7 @@ func Test_DecodeNameAndTags(t *testing.T) {
 		{test: "metric with single series", str: "cpu.hostname.server01", name: "cpu", tags: map[string]string{"hostname": "server01"}},
 		{test: "metric with multiple series", str: "cpu.region.us-west.hostname.server01", name: "cpu", tags: map[string]string{"hostname": "server01", "region": "us-west"}},
 		{test: "no metric", tags: make(map[string]string), err: `no name specified for metric. ""`},
-		{test: "wrong metric format", str: "foo.cpu", tags: make(map[string]string), err: `received "foo.cpu" which doesn't conform to format of key.value.key.value.metric or metric`},
+		{test: "wrong metric format", str: "foo.cpu", tags: make(map[string]string), err: `received "foo.cpu" which doesn't conform to format of key.value.key.value.name or name`},
 	}
 
 	for _, test := range tests {
@@ -182,7 +182,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test: "should fail on invalid key",
 			line: `foo.cpu 50.554 1419972457825`,
-			err:  `received "foo.cpu" which doesn't conform to format of key.value.key.value.metric or metric`,
+			err:  `received "foo.cpu" which doesn't conform to format of key.value.key.value.name or name`,
 		},
 		{
 			test: "should fail parsing invalid float",
@@ -210,7 +210,7 @@ func Test_DecodeMetric(t *testing.T) {
 		}
 		p.LastEnabled = (test.position == "last")
 
-		m, err := p.Parse(test.line)
+		point, err := p.Parse(test.line)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}
@@ -218,25 +218,25 @@ func Test_DecodeMetric(t *testing.T) {
 			// If we erred out,it was intended and the following tests won't work
 			continue
 		}
-		if m.Name != test.name {
-			t.Fatalf("name parse failer.  expected %v, got %v", test.name, m.Name)
+		if point.Name != test.name {
+			t.Fatalf("name parse failer.  expected %v, got %v", test.name, point.Name)
 		}
-		if len(m.Tags) != len(test.tags) {
-			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(m.Tags))
+		if len(point.Tags) != len(test.tags) {
+			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags))
 		}
 		if test.isInt {
-			i := m.Value.(int64)
+			i := point.Values[point.Name].(int64)
 			if i != test.iv {
-				t.Fatalf("integerValue value mismatch.  expected %v, got %v", test.iv, m.Value)
+				t.Fatalf("integerValue value mismatch.  expected %v, got %v", test.iv, point.Values[point.Name])
 			}
 		} else {
-			f := m.Value.(float64)
-			if m.Value != f {
+			f := point.Values[point.Name].(float64)
+			if point.Values[point.Name] != f {
 				t.Fatalf("floatValue value mismatch.  expected %v, got %v", test.fv, f)
 			}
 		}
-		if m.Timestamp.UnixNano()/1000000 != test.timestamp.UnixNano()/1000000 {
-			t.Fatalf("timestamp value mismatch.  expected %v, got %v", test.timestamp.UnixNano(), m.Timestamp.UnixNano())
+		if point.Timestamp.UnixNano()/1000000 != test.timestamp.UnixNano()/1000000 {
+			t.Fatalf("timestamp value mismatch.  expected %v, got %v", test.timestamp.UnixNano(), point.Timestamp.UnixNano())
 		}
 	}
 }

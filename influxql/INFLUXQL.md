@@ -110,6 +110,7 @@ statement           = alter_retention_policy_stmt |
                       delete_stmt |
                       drop_continuous_query_stmt |
                       drop_database_stmt |
+                      drop_retention_policy_stmt |
                       drop_series_stmt |
                       drop_user_stmt |
                       grant_stmt |
@@ -122,6 +123,7 @@ statement           = alter_retention_policy_stmt |
                       list_series_stmt |
                       list_tag_key_stmt |
                       list_tag_value_stmt |
+                      list_users_stmt |
                       revoke_stmt |
                       select_stmt .
 ```
@@ -246,7 +248,22 @@ delete_stmt  = "DELETE" from_clause where_clause .
 #### Example:
 
 ```sql
-DELETE FROM cpu WHERE region = 'uswest'
+-- delete data points from the cpu measurement where the region tag
+-- equals 'uswest'
+DELETE FROM cpu WHERE region = 'uswest';
+```
+
+### DROP RETENTION POLICY
+
+```
+drop_retention_policy_stmt = "DROP RETENTION POLICY" policy_name "ON" db_name .
+```
+
+#### Example:
+
+```sql
+-- drop the retention policy named 1h.cpu from mydb
+DROP RETENTION POLICY "1h.cpu" ON mydb;
 ```
 
 ### GRANT
@@ -268,7 +285,7 @@ GRANT READ ON mydb TO jdoe;
 ### LIST DATABASES
 
 ```
-list_databases_stmt = "LIST DATABASES"
+list_databases_stmt = "LIST DATABASES" .
 ```
 
 #### Example:
@@ -281,7 +298,7 @@ LIST DATABASES;
 ### LIST RETENTION POLICIES
 
 ```
-list_retention_policies = "LIST RETENTION POLICIES" db_name
+list_retention_policies = "LIST RETENTION POLICIES" db_name .
 ```
 
 #### Example:
@@ -289,6 +306,19 @@ list_retention_policies = "LIST RETENTION POLICIES" db_name
 ```sql
 -- list all retention policies on a database
 LIST RETENTION POLICIES mydb;
+```
+
+### LIST USERS
+
+```
+list_users_stmt = "LIST USERES" .
+```
+
+#### Example:
+
+```sql
+-- list all users
+LIST USERS;
 ```
 
 ## Clauses
@@ -310,9 +340,11 @@ expr =
 
 measurements =
 
-user_name        = identifier .
-
 password         = identifier .
+
+policy_name      = identifier .
+
+user_name        = identifier .
 
 privilege        = "ALL" [ "PRIVILEGES" ] | "READ" | "WRITE" .
 ```

@@ -99,6 +99,7 @@ const (
 	TAG
 	TO
 	USER
+	USERS
 	VALUES
 	WHERE
 	WITH
@@ -187,6 +188,7 @@ var tokens = [...]string{
 	TAG:          "TAG",
 	TO:           "TO",
 	USER:         "USER",
+	USERS:        "USERS",
 	VALUES:       "VALUES",
 	WHERE:        "WHERE",
 	WITH:         "WITH",

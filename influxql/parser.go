@@ -89,36 +89,39 @@ func (p *Parser) ParseStatement() (Statement, error) {
 // This function assumes the LIST token has already been consumed.
 func (p *Parser) parseListStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok == SERIES {
-		return p.parseListSeriesStatement()
-	} else if tok == CONTINUOUS {
+	switch tok {
+	case CONTINUOUS:
 		return p.parseListContinuousQueriesStatement()
-	} else if tok == DATABASES {
+	case DATABASES:
 		return p.parseListDatabasesStatement()
-	} else if tok == MEASUREMENTS {
-		return p.parseListMeasurementsStatement()
-	} else if tok == TAG {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
-			return p.parseListTagKeysStatement()
-		} else if tok == VALUES {
-			return p.parseListTagValuesStatement()
-		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
-		}
-	} else if tok == FIELD {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == KEYS {
+	case FIELD:
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		if tok == KEYS {
 			return p.parseListFieldKeysStatement()
 		} else if tok == VALUES {
 			return p.parseListFieldValuesStatement()
-		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
 		}
-	} else if tok == RETENTION {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == POLICIES {
+		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
+	case MEASUREMENTS:
+		return p.parseListMeasurementsStatement()
+	case RETENTION:
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		if tok == POLICIES {
 			return p.parseListRetentionPoliciesStatement()
-		} else {
-			return nil, newParseError(tokstr(tok, lit), []string{"POLICIES"}, pos)
 		}
+		return nil, newParseError(tokstr(tok, lit), []string{"POLICIES"}, pos)
+	case SERIES:
+		return p.parseListSeriesStatement()
+	case TAG:
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		if tok == KEYS {
+			return p.parseListTagKeysStatement()
+		} else if tok == VALUES {
+			return p.parseListTagValuesStatement()
+		}
+		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
+	case USERS:
+		return p.parseListUsersStatement()
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENTS", "TAG", "FIELD", "RETENTION"}, pos)
@@ -155,6 +158,12 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropContinuousQueryStatement()
 	} else if tok == DATABASE {
 		return p.parseDropDatabaseStatement()
+	} else if tok == RETENTION {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == POLICY {
+			return p.parseDropRetentionPolicyStatement()
+		} else {
+			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
+		}
 	} else if tok == USER {
 		return p.parseDropUserStatement()
 	}
@@ -741,6 +750,12 @@ func (p *Parser) parseListTagValuesStatement() (*ListTagValuesStatement, error) 
 	return stmt, nil
 }
 
+// parseListUsersStatement parses a string and returns a ListUsersStatement.
+// This function assumes the "LIST USERS" tokens have been consumed.
+func (p *Parser) parseListUsersStatement() (*ListUsersStatement, error) {
+	return &ListUsersStatement{}, nil
+}
+
 // parseListFieldKeysStatement parses a string and returns a ListSeriesStatement.
 // This function assumes the "LIST FIELD KEYS" tokens have already been consumed.
 func (p *Parser) parseListFieldKeysStatement() (*ListFieldKeysStatement, error) {
@@ -928,6 +943,31 @@ func (p *Parser) parseDropDatabaseStatement() (*DropDatabaseStatement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
 	}
 	stmt.Name = lit
+
+	return stmt, nil
+}
+
+// parseDropRetentionPolicyStatement parses a string and returns a DropRetentionPolicyStatement.
+// This function assumes the DROP RETENTION POLICY tokens have been consumed.
+func (p *Parser) parseDropRetentionPolicyStatement() (*DropRetentionPolicyStatement, error) {
+	stmt := &DropRetentionPolicyStatement{}
+
+	// Parse the policy name.
+	ident, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = ident
+
+	// Consume the required ON token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Parse the database name.
+	if stmt.Database, err = p.parseIdentifier(); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }

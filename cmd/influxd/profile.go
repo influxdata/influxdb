@@ -40,11 +40,11 @@ outer:
 			runtime.SetCPUProfileRate(0)
 			f, err := os.OpenFile(fmt.Sprintf("%s.mem", filename), os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0600)
 			if err != nil {
-				log.Error("Cannot open memory profile: %s", err)
+				log.Errorf("Cannot open memory profile: %s", err)
 				break outer
 			}
 			if err := pprof.WriteHeapProfile(f); err != nil {
-				log.Error("Cannot write memory profile: %s", err)
+				log.Errorf("Cannot write memory profile: %s", err)
 			}
 			f.Close()
 			stopCHeapProfiler()
