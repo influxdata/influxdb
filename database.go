@@ -772,8 +772,8 @@ func (dbi *dbi) SeriesTagValues(seriesID uint32, keys []string) []string {
 
 	// Lookup value for each key.
 	values := make([]string, len(keys))
-	for i, keys := range keys {
-		values[i] = s.Tags[keys]
+	for i, key := range keys {
+		values[i] = s.Tags[key]
 	}
 	return values
 }
@@ -796,7 +796,7 @@ func (dbi *dbi) Field(name, field string) (fieldID uint8, typ influxql.DataType)
 	return f.ID, f.Type
 }
 
-// CreateIterator returns an iterator given a series data id, field id, & field data type.
+// CreateIterator returns an iterator to iterate over the field values in a series.
 func (dbi *dbi) CreateIterator(seriesID uint32, fieldID uint8, typ influxql.DataType, min, max time.Time, interval time.Duration) influxql.Iterator {
 	// TODO: Add retention policy to the arguments.
 

@@ -101,7 +101,7 @@ var (
 	ErrSeriesExists = errors.New("series already exists")
 
 	// ErrNotExecuted is returned when a statement is not executed in a query.
-	// This can occur when a previous statement in the same query has errorred.
+	// This can occur when a previous statement in the same query has errored.
 	ErrNotExecuted = errors.New("not executed")
 )
 
