@@ -133,11 +133,13 @@ func writePIDFile(path string) {
 
 // parses the configuration from a given path. Sets overrides as needed.
 func parseConfig(path, hostname string) *Config {
+	if path == "" {
+		return NewConfig()
+	}
+
 	// Parse configuration.
 	config, err := ParseConfigFile(path)
-	if os.IsNotExist(err) {
-		config = NewConfig()
-	} else if err != nil {
+	if err != nil {
 		log.Fatalf("config: %s", err)
 	}
 

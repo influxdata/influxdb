@@ -345,6 +345,11 @@ func (c *Client) streamFromURL(u *url.URL, done chan chan struct{}) error {
 			}
 
 			// TODO: Write broker set updates, do not passthrough to channel.
+			if m.Type == ConfigMessageType {
+				// TODO: Update URLs.
+				// TODO: Write "messaging" file.
+				continue
+			}
 
 			// Write message to streaming channel.
 			c.c <- m
