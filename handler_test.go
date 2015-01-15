@@ -686,18 +686,19 @@ func TestHandler_serveWriteSeries(t *testing.T) {
 	}
 }
 
-func TestHandler_serveWriteSeries_noDatabase(t *testing.T) {
+func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
 
-	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: %d", status)
+	expectedStatus := http.StatusNotFound
+	if status != expectedStatus {
+		t.Fatalf("unexpected status: expected: %d, actual: %d", expectedStatus, status)
 	}
 
-	response := `{"error":"database not found \"foo\""}`
+	response := `{"error":"database not found: \"foo\""}`
 	if body != response {
 		t.Fatalf("unexpected body: expected %s, actual %s", response, body)
 	}
@@ -720,7 +721,7 @@ func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
 	}
 }
 
-func TestHandler_serveWriteSeries_blankDatabase(t *testing.T) {
+func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -731,7 +732,7 @@ func TestHandler_serveWriteSeries_blankDatabase(t *testing.T) {
 		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusInternalServerError, status)
 	}
 
-	response := `{"error":"Database is required"}`
+	response := `{"error":"database is required"}`
 	if body != response {
 		t.Fatalf("unexpected body: expected %s, actual %s", response, body)
 	}

@@ -172,36 +172,36 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *User) {
 	dec := json.NewDecoder(r.Body)
 	dec.UseNumber()
 
+	var writeError = func(result Result, statusCode int) {
+		w.WriteHeader(statusCode)
+		w.Header().Add("content-type", "application/json")
+		_ = json.NewEncoder(w).Encode(&result)
+		return
+	}
+
 	for {
 		if err := dec.Decode(&br); err != nil {
 			if err.Error() == "EOF" {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			result := &Result{Err: err}
-
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Header().Add("content-type", "application/json")
-			_ = json.NewEncoder(w).Encode(result)
+			writeError(Result{Err: err}, http.StatusInternalServerError)
 			return
 		}
 
 		if br.Database == "" {
-			result := &Result{Err: fmt.Errorf("Database is required")}
+			writeError(Result{Err: fmt.Errorf("database is required")}, http.StatusInternalServerError)
+			return
+		}
 
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Header().Add("content-type", "application/json")
-			_ = json.NewEncoder(w).Encode(result)
+		if h.server.databases[br.Database] == nil {
+			writeError(Result{Err: fmt.Errorf("database not found: %q", br.Database)}, http.StatusNotFound)
 			return
 		}
 
 		// TODO corylanou: Check if user can write to specified database
 		//if !user_can_write(br.Database) {
-		//result := &Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", u.Name)}
-
-		//w.WriteHeader(http.StatusUnauthorized)
-		//w.Header().Add("content-type", "application/json")
-		//_ = json.NewEncoder(w).Encode(result)
+		//writeError(&Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", u.Name)}, http.StatusUnauthorized)
 		//return
 		//}
 
@@ -217,11 +217,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *User) {
 				}
 			}
 			if _, err := h.server.WriteSeries(br.Database, br.RetentionPolicy, []Point{p}); err != nil {
-				result := &Result{Err: err}
-
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Header().Add("content-type", "application/json")
-				_ = json.NewEncoder(w).Encode(result)
+				writeError(Result{Err: err}, http.StatusInternalServerError)
 				return
 			}
 		}
