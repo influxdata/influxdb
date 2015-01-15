@@ -145,15 +145,16 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 		return
 	}
 
-	result, err := h.server.ExecuteQuery(query, db, u)
-	if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
-		return
+	// Execute query. One result will return for each statement.
+	results := h.server.ExecuteQuery(query, db, u)
+
+	// If any statement errored then set the response status code.
+	if results.Error() != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 
-	if result != nil {
-		_ = json.NewEncoder(w).Encode(result)
-	}
+	// Write resultset.
+	_ = json.NewEncoder(w).Encode(results)
 }
 
 type batchWrite struct {
