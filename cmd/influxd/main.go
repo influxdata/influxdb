@@ -27,7 +27,6 @@ var (
 
 // Various constants used by the main package.
 const (
-	configDefaultPath   string = "/etc/influxdb.conf"
 	messagingClientFile string = "messaging"
 )
 

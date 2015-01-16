@@ -22,7 +22,7 @@ func execRun(args []string) {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	var (
-		configPath = fs.String("config", configDefaultPath, "")
+		configPath = fs.String("config", "", "")
 		pidPath    = fs.String("pidfile", "", "")
 		role       = fs.String("role", "", "")
 		hostname   = fs.String("hostname", "", "")
@@ -45,6 +45,7 @@ func execRun(args []string) {
 
 	// Parse the configuration and determine if a broker and/or server exist.
 	config := parseConfig(*configPath, *hostname)
+	configExists := *configPath != ""
 	initializing := !fileExists(config.Broker.Dir) && !fileExists(config.Data.Dir)
 
 	// Open broker, initialize or join as necessary.
@@ -59,7 +60,7 @@ func execRun(args []string) {
 	}
 
 	// Open server, initialize or join as necessary.
-	s := openServer(config.Data.Dir, config.DataURL(), b, initializing, joinURLs)
+	s := openServer(config.Data.Dir, config.DataURL(), b, initializing, configExists, joinURLs)
 
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
@@ -134,6 +135,7 @@ func writePIDFile(path string) {
 // parses the configuration from a given path. Sets overrides as needed.
 func parseConfig(path, hostname string) *Config {
 	if path == "" {
+		log.Println("No config provided, using default settings")
 		return NewConfig()
 	}
 
@@ -200,7 +202,7 @@ func joinBroker(b *messaging.Broker, joinURLs []*url.URL) {
 }
 
 // creates and initializes a server.
-func openServer(path string, u *url.URL, b *messaging.Broker, initializing bool, joinURLs []*url.URL) *influxdb.Server {
+func openServer(path string, u *url.URL, b *messaging.Broker, initializing, configExists bool, joinURLs []*url.URL) *influxdb.Server {
 	// Ignore if there's no existing server and we're not initializing or joining.
 	if !fileExists(path) && !initializing && len(joinURLs) == 0 {
 		return nil
@@ -220,6 +222,10 @@ func openServer(path string, u *url.URL, b *messaging.Broker, initializing bool,
 			joinServer(s, u, joinURLs)
 			openServerClient(s, joinURLs)
 		}
+	} else if !configExists {
+		// We are spining up an server that has no config,
+		// but already has an initialized data directory
+		openDefaultServer(s, b)
 	} else {
 		openServerClient(s, joinURLs)
 	}
@@ -248,6 +254,24 @@ func initializeServer(s *influxdb.Server, b *messaging.Broker) {
 	// Initialize the server.
 	if err := s.Initialize(b.URL()); err != nil {
 		log.Fatalf("server initialization error: %s", err)
+	}
+}
+
+func openDefaultServer(s *influxdb.Server, b *messaging.Broker) {
+	// TODO: Create replica using the messaging client.
+
+	// Create replica on broker.
+	if err := b.CreateReplica(1); err != nil {
+		log.Fatalf("replica creation error: %s", err)
+	}
+
+	// Create messaging client.
+	c := messaging.NewClient(1)
+	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), []*url.URL{b.URL()}); err != nil {
+		log.Fatalf("messaging client error: %s", err)
+	}
+	if err := s.SetClient(c); err != nil {
+		log.Fatalf("set client error: %s", err)
 	}
 }
 
@@ -311,7 +335,6 @@ is used.
 
         -config <path>
                           Set the path to the configuration file.
-                          Defaults to %s.
 
         -role <role>
                           Set the role to 'broker' or 'data'.  'broker' means
@@ -329,5 +352,5 @@ is used.
 
         -pidfile <path>
                           Write process ID to a file.
-`, configDefaultPath)
+`)
 }

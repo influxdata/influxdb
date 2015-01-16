@@ -784,8 +784,6 @@ func (r *Replica) WriteTo(w io.Writer) (int64, error) {
 	done := make(chan struct{})
 	r.done = done
 
-	// TODO: Write broker set URLs. (ConfigMessageType)
-
 	// Create a topic list with the "config" topic first.
 	// Configuration changes need to be propagated to make sure topics exist.
 	ids := make([]uint64, 0, len(r.topics))
@@ -848,7 +846,6 @@ const (
 
 const (
 	InternalMessageType = BrokerMessageType | MessageType(0x00)
-	ConfigMessageType   = BrokerMessageType | MessageType(0x01)
 
 	CreateReplicaMessageType = BrokerMessageType | MessageType(0x10)
 	DeleteReplicaMessageType = BrokerMessageType | MessageType(0x11)
