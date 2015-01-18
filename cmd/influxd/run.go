@@ -258,24 +258,6 @@ func initializeServer(s *influxdb.Server, b *messaging.Broker) {
 	}
 }
 
-func openDefaultServer(s *influxdb.Server, b *messaging.Broker) {
-	// TODO: Create replica using the messaging client.
-
-	// Create replica on broker.
-	if err := b.CreateReplica(1); err != nil {
-		log.Fatalf("replica creation error: %s", err)
-	}
-
-	// Create messaging client.
-	c := messaging.NewClient(1)
-	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), []*url.URL{b.URL()}); err != nil {
-		log.Fatalf("messaging client error: %s", err)
-	}
-	if err := s.SetClient(c); err != nil {
-		log.Fatalf("set client error: %s", err)
-	}
-}
-
 // joins a server to an existing cluster.
 func joinServer(s *influxdb.Server, u *url.URL, joinURLs []*url.URL) {
 	// TODO: Use separate broker and data join urls.
