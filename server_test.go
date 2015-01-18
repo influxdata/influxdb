@@ -640,6 +640,97 @@ func TestServer_Measurements(t *testing.T) {
 	}
 }
 
+// Ensure the server can convert a measurement into its normalized form.
+func TestServer_NormalizeMeasurement(t *testing.T) {
+	var tests = []struct {
+		in  string // input string
+		db  string // current database
+		out string // normalized string
+		err string // error, if any
+	}{
+		{in: `cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
+		{in: `"".cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
+		{in: `"rp0".cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
+		{in: `""."".cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
+		{in: `""..cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
+
+		{in: `"db1"..cpu`, db: `db0`, out: `"db1"."rp1"."cpu"`},
+		{in: `"db1"."rp1".cpu`, db: `db0`, out: `"db1"."rp1"."cpu"`},
+		{in: `"db1"."rp2".cpu`, db: `db0`, out: `"db1"."rp2"."cpu"`},
+
+		{in: ``, err: `invalid measurement: `},
+		{in: `"foo"."bar"."baz"."bat"`, err: `invalid measurement: "foo"."bar"."baz"."bat"`},
+		{in: `"no_db"..cpu`, db: ``, err: `database not found: no_db`},
+		{in: `"db2"..cpu`, db: ``, err: `default retention policy not set for: db2`},
+		{in: `"db2"."no_policy".cpu`, db: ``, err: `retention policy does not exist: db2.no_policy`},
+	}
+
+	// Create server with a variety of databases, retention policies, and measurements
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Default database with one policy.
+	s.CreateDatabase("db0")
+	s.CreateRetentionPolicy("db0", &influxdb.RetentionPolicy{Name: "rp0"})
+	s.SetDefaultRetentionPolicy("db0", "rp0")
+
+	// Another database with two policies.
+	s.CreateDatabase("db1")
+	s.CreateRetentionPolicy("db1", &influxdb.RetentionPolicy{Name: "rp1"})
+	s.CreateRetentionPolicy("db1", &influxdb.RetentionPolicy{Name: "rp2"})
+	s.SetDefaultRetentionPolicy("db1", "rp1")
+
+	// Another database with no policies.
+	s.CreateDatabase("db2")
+
+	// Execute the tests
+	for i, tt := range tests {
+		out, err := s.NormalizeMeasurement(tt.in, tt.db)
+		if tt.err != errstr(err) {
+			t.Errorf("%d. %s/%s: error: exp: %s, got: %s", i, tt.db, tt.in, tt.err, errstr(err))
+		} else if tt.out != out {
+			t.Errorf("%d. %s/%s: out: exp: %s, got: %s", i, tt.db, tt.in, tt.out, out)
+		}
+	}
+}
+
+// Ensure the server can normalize all statements in query.
+func TestServer_NormalizeQuery(t *testing.T) {
+	var tests = []struct {
+		in  string // input query
+		db  string // default database
+		out string // output query
+		err string // error, if any
+	}{
+		{
+			in: `SELECT cpu.value FROM cpu`, db: `db0`,
+			out: `SELECT "db0"."rp0"."cpu"."value" FROM "db0"."rp0"."cpu"`,
+		},
+
+		{
+			in: `SELECT value FROM cpu`, db: `no_db`, err: `database not found: no_db`,
+		},
+	}
+
+	// Start server with database & retention policy.
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("db0")
+	s.CreateRetentionPolicy("db0", &influxdb.RetentionPolicy{Name: "rp0"})
+	s.SetDefaultRetentionPolicy("db0", "rp0")
+
+	// Execute the tests
+	for i, tt := range tests {
+		out := MustParseQuery(tt.in)
+		err := s.NormalizeQuery(out, tt.db)
+		if tt.err != errstr(err) {
+			t.Errorf("%d. %s/%s: error: exp: %s, got: %s", i, tt.db, tt.in, tt.err, errstr(err))
+		} else if err == nil && tt.out != out.String() {
+			t.Errorf("%d. %s/%s:\n\nexp: %s\n\ngot: %s\n\n", i, tt.db, tt.in, tt.out, out.String())
+		}
+	}
+}
+
 func mustMarshalJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {

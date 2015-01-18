@@ -1030,7 +1030,7 @@ func (f *Field) String() string {
 	if f.Alias == "" {
 		return f.Expr.String()
 	}
-	return fmt.Sprintf("%s AS %s", f.Expr.String(), QuoteIdent(f.Alias))
+	return fmt.Sprintf("%s AS %s", f.Expr.String(), f.Alias)
 }
 
 // Dimensions represents a list of dimensions.
@@ -1071,7 +1071,7 @@ type Measurement struct {
 }
 
 // String returns a string representation of the measurement.
-func (m *Measurement) String() string { return QuoteIdent(m.Name) }
+func (m *Measurement) String() string { return m.Name }
 
 // Join represents two datasources joined together.
 type Join struct {
@@ -1099,7 +1099,7 @@ type VarRef struct {
 }
 
 // String returns a string representation of the variable reference.
-func (r *VarRef) String() string { return QuoteIdent(r.Val) }
+func (r *VarRef) String() string { return r.Val }
 
 // Call represents a function call.
 type Call struct {

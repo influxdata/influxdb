@@ -3,6 +3,7 @@ package influxql
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,6 +32,7 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	if isWhitespace(ch0) {
 		return s.scanWhitespace()
 	} else if isLetter(ch0) {
+		s.r.unread()
 		return s.scanIdent()
 	} else if isDigit(ch0) {
 		return s.scanNumber()
@@ -108,64 +110,58 @@ func (s *Scanner) scanWhitespace() (tok Token, pos Pos, lit string) {
 	return WS, pos, buf.String()
 }
 
-// scanIdent consumes the current rune and all contiguous ident runes.
+// scanIdent a fully qualified identifier.
 func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
-	// Create a buffer and read the current character into it.
-	var buf bytes.Buffer
-	ch, pos := s.r.curr()
-	_, _ = buf.WriteRune(ch)
+	_, pos = s.r.read()
+	s.r.unread()
 
-	// Read every subsequent ident character into the buffer.
-	// Non-ident characters and EOF will cause the loop to exit.
+	var buf bytes.Buffer
 	for {
-		ch, _ = s.r.read()
+		ch, _ := s.r.read()
 		if ch == eof {
 			break
-		} else if !isLetter(ch) && !isDigit(ch) && ch != '_' && ch != '.' {
+		} else if ch == '.' {
+			buf.WriteRune(ch)
+		} else if ch == '"' {
+			s.r.unread()
+			if tok0, pos0, lit0 := s.scanString(); tok == BADSTRING || tok == BADESCAPE {
+				return tok0, pos0, lit0
+			} else {
+				buf.WriteString(lit0)
+			}
+		} else if isIdentChar(ch) {
+			s.r.unread()
+			buf.WriteString(ScanBareIdent(s.r))
+		} else {
 			s.r.unread()
 			break
-		} else {
-			_, _ = buf.WriteRune(ch)
 		}
 	}
+	lit = buf.String()
 
-	// If the string matches a keyword then return that keyword.
-	if tok = Lookup(buf.String()); tok != IDENT {
+	// If the literal matches a keyword then return that keyword.
+	if tok = Lookup(lit); tok != IDENT {
 		return tok, pos, ""
 	}
 
-	// Otherwise return as a regular identifier.
-	return IDENT, pos, buf.String()
+	return IDENT, pos, lit
 }
 
 // scanString consumes a contiguous string of non-quote characters.
 // Quote characters can be consumed if they're first escaped with a backslash.
 func (s *Scanner) scanString() (tok Token, pos Pos, lit string) {
-	ending, pos := s.r.curr()
-	var buf bytes.Buffer
-	for {
-		ch0, pos0 := s.r.read()
-		if ch0 == ending {
-			return STRING, pos, buf.String()
-		} else if ch0 == eof || ch0 == '\n' {
-			return BADSTRING, pos, buf.String()
-		} else if ch0 == '\\' {
-			// If the next character is an escape then write the escaped char.
-			// If it's not a valid escape then return a BADESCAPE token.
-			ch1, _ := s.r.read()
-			if ch1 == 'n' {
-				_, _ = buf.WriteRune('\n')
-			} else if ch1 == '\\' {
-				_, _ = buf.WriteRune('\\')
-			} else if ch1 == '"' {
-				_, _ = buf.WriteRune('"')
-			} else {
-				return BADESCAPE, pos0, string(ch0) + string(ch1)
-			}
-		} else {
-			_, _ = buf.WriteRune(ch0)
-		}
+	s.r.unread()
+	_, pos = s.r.curr()
+
+	var err error
+	lit, err = ScanString(s.r)
+	if err == errBadString {
+		return BADSTRING, pos, lit
+	} else if err == errBadEscape {
+		_, pos = s.r.curr()
+		return BADESCAPE, pos, lit
 	}
+	return STRING, pos, lit
 }
 
 // scanNumber consumes anything that looks like the start of a number.
@@ -266,6 +262,9 @@ func isLetter(ch rune) bool { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && c
 // isDigit returns true if the rune is a digit.
 func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
 
+// isIdentChar returns true if the rune that be used in a bare identifier.
+func isIdentChar(ch rune) bool { return isLetter(ch) || isDigit(ch) || ch == '_' }
+
 // bufScanner represents a wrapper for scanner to add a buffer.
 // It provides a fixed-length circular buffer that can be unread.
 type bufScanner struct {
@@ -320,6 +319,25 @@ type reader struct {
 		ch  rune
 		pos Pos
 	}
+	eof bool // true if reader has ever seen eof.
+}
+
+// ReadRune reads the next rune from the reader.
+// This is a wrapper function to implement the io.RuneReader interface.
+// Note that this function does not return size.
+func (r *reader) ReadRune() (ch rune, size int, err error) {
+	ch, _ = r.read()
+	if ch == eof {
+		err = io.EOF
+	}
+	return
+}
+
+// UnreadRune pushes the previously read rune back onto the buffer.
+// This is a wrapper function to implement the io.RuneScanner interface.
+func (r *reader) UnreadRune() error {
+	r.unread()
+	return nil
 }
 
 // read reads the next rune from the reader.
@@ -350,11 +368,18 @@ func (r *reader) read() (ch rune, pos Pos) {
 	buf.ch, buf.pos = ch, r.pos
 
 	// Update position.
+	// Only count EOF once.
 	if ch == '\n' {
 		r.pos.Line++
 		r.pos.Char = 0
-	} else {
+	} else if !r.eof {
 		r.pos.Char++
+	}
+
+	// Mark the reader as EOF.
+	// This is used so we don't double count EOF characters.
+	if ch == eof {
+		r.eof = true
 	}
 
 	return r.curr()
@@ -374,6 +399,126 @@ func (r *reader) curr() (ch rune, pos Pos) {
 
 // eof is a marker code point to signify that the reader can't read any more.
 const eof = rune(0)
+
+// ScanString reads a quoted string from a rune reader.
+func ScanString(r io.RuneScanner) (string, error) {
+	ending, _, err := r.ReadRune()
+	if err != nil {
+		return "", errBadString
+	}
+
+	var buf bytes.Buffer
+	for {
+		ch0, _, err := r.ReadRune()
+		if ch0 == ending {
+			return buf.String(), nil
+		} else if err != nil || ch0 == '\n' {
+			return buf.String(), errBadString
+		} else if ch0 == '\\' {
+			// If the next character is an escape then write the escaped char.
+			// If it's not a valid escape then return an error.
+			ch1, _, _ := r.ReadRune()
+			if ch1 == 'n' {
+				_, _ = buf.WriteRune('\n')
+			} else if ch1 == '\\' {
+				_, _ = buf.WriteRune('\\')
+			} else if ch1 == '"' {
+				_, _ = buf.WriteRune('"')
+			} else {
+				return string(ch0) + string(ch1), errBadEscape
+			}
+		} else {
+			_, _ = buf.WriteRune(ch0)
+		}
+	}
+}
+
+var errBadString = errors.New("bad string")
+var errBadEscape = errors.New("bad escape")
+
+// ScanBareIdent reads bare identifier from a rune reader.
+func ScanBareIdent(r io.RuneScanner) string {
+	// Read every ident character into the buffer.
+	// Non-ident characters and EOF will cause the loop to exit.
+	var buf bytes.Buffer
+	for {
+		ch, _, err := r.ReadRune()
+		if err != nil {
+			break
+		} else if !isIdentChar(ch) {
+			r.UnreadRune()
+			break
+		} else {
+			_, _ = buf.WriteRune(ch)
+		}
+	}
+	return buf.String()
+}
+
+// SplitIdent splits an identifier into quoted & unquoted segments.
+func SplitIdent(s string) (segments []string, err error) {
+	var isBareIdent bool
+
+	// Scan over buffered rune reader.
+	r := strings.NewReader(s)
+	for {
+		// If next character is EOF, return an error.
+		// If next character is a dot then add an empty segment.
+		// If next character is a quote then parse quoted string.
+		// Otherwise parse as a bare ident.
+		if ch, _, err := r.ReadRune(); err == io.EOF {
+			return nil, errInvalidIdentifier
+
+		} else if ch == '.' {
+			// Disallow a starting dot.
+			if len(segments) == 0 {
+				return nil, errInvalidIdentifier
+			}
+			// Otherwise append blank segment and continue.
+			segments = append(segments, "")
+			isBareIdent = false
+			continue
+
+		} else if ch == '"' {
+			_ = r.UnreadRune()
+			segment, err := ScanString(r)
+			if err != nil {
+				return nil, err
+			}
+			segments = append(segments, segment)
+			isBareIdent = false
+
+		} else if isIdentChar(ch) {
+			_ = r.UnreadRune()
+			segment := ScanBareIdent(r)
+
+			// Append to previous segment if it was a bare ident.
+			// Otherwise add new segment.
+			if isBareIdent {
+				segments[len(segments)-1] = segments[len(segments)-1] + "." + segment
+			} else {
+				segments = append(segments, segment)
+			}
+			isBareIdent = true
+
+		} else {
+			return nil, errInvalidIdentifier
+		}
+
+		// If next character is EOF, return.
+		// If next character is a dot, continue.
+		// Otherwise return an error.
+		if ch, _, err := r.ReadRune(); err != nil {
+			return segments, nil
+		} else if ch == '.' {
+			continue
+		} else {
+			return nil, errInvalidIdentifier
+		}
+	}
+}
+
+var errInvalidIdentifier = errors.New("invalid identifier")
 
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
