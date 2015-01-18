@@ -1402,6 +1402,9 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	// Try to find series locally first.
 	s.mu.RLock()
 	idx := s.databases[database]
+	if idx == nil {
+		return 0, fmt.Errorf("database not found %q", database)
+	}
 	if _, series := idx.MeasurementAndSeries(name, tags); series != nil {
 		s.mu.RUnlock()
 		return series.ID, nil

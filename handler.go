@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb/influxql"
@@ -69,7 +70,7 @@ func NewHandler(s *Server) *Handler {
 	h.mux.Get("/query", h.makeAuthenticationHandler(h.serveQuery))
 
 	// Data-ingest route.
-	h.mux.Post("/db/:db/series", h.makeAuthenticationHandler(h.serveWriteSeries))
+	h.mux.Post("/write", h.makeAuthenticationHandler(h.serveWrite))
 
 	// Data node routes.
 	h.mux.Get("/data_nodes", h.makeAuthenticationHandler(h.serveDataNodes))
@@ -156,59 +157,71 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 	_ = json.NewEncoder(w).Encode(results)
 }
 
-// serveWriteSeries receives incoming series data and writes it to the database.
-func (h *Handler) serveWriteSeries(w http.ResponseWriter, r *http.Request, u *User) {
-	// TODO: Authentication.
+type batchWrite struct {
+	Points          []Point           `json:"points"`
+	Database        string            `json:"database"`
+	RetentionPolicy string            `json:"retentionPolicy"`
+	Tags            map[string]string `json:"tags"`
+	Timestamp       time.Time         `json:"timestamp"`
+}
 
-	/* TEMPORARILY REMOVED FOR PROTOBUFS.
-	// Retrieve database from server.
-	db := h.server.Database(r.URL.Query().Get(":db"))
-	if db == nil {
-		h.error(w, ErrDatabaseNotFound.Error(), http.StatusNotFound)
-		return
-	}
+// serveWrite receives incoming series data and writes it to the database.
+func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *User) {
+	var br batchWrite
 
-	// Parse time precision from query parameters.
-	precision, err := parseTimePrecision(r.URL.Query().Get("time_precision"))
-	if err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Setup HTTP request reader. Wrap in a gzip reader if encoding set in header.
-	reader := r.Body
-	if r.Header.Get("Content-Encoding") == "gzip" {
-		if reader, err = gzip.NewReader(r.Body); err != nil {
-			h.error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
-
-	// Decode series from reader.
-	ss := []*serializedSeries{}
-	dec := json.NewDecoder(reader)
+	dec := json.NewDecoder(r.Body)
 	dec.UseNumber()
-	if err := dec.Decode(&ss); err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
+
+	var writeError = func(result Result, statusCode int) {
+		w.WriteHeader(statusCode)
+		w.Header().Add("content-type", "application/json")
+		_ = json.NewEncoder(w).Encode(&result)
 		return
 	}
 
-	// Convert the wire format to the internal representation of the time series.
-	series, err := serializedSeriesSlice(ss).series(precision)
-	if err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Write series data to the database.
-	// TODO: Allow multiple series written to DB at once.
-	for _, s := range series {
-		if err := db.WriteSeries(s); err != nil {
-			h.error(w, err.Error(), http.StatusInternalServerError)
+	for {
+		if err := dec.Decode(&br); err != nil {
+			if err.Error() == "EOF" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			writeError(Result{Err: err}, http.StatusInternalServerError)
 			return
 		}
+
+		if br.Database == "" {
+			writeError(Result{Err: fmt.Errorf("database is required")}, http.StatusInternalServerError)
+			return
+		}
+
+		if h.server.databases[br.Database] == nil {
+			writeError(Result{Err: fmt.Errorf("database not found: %q", br.Database)}, http.StatusNotFound)
+			return
+		}
+
+		// TODO corylanou: Check if user can write to specified database
+		//if !user_can_write(br.Database) {
+		//writeError(&Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", u.Name)}, http.StatusUnauthorized)
+		//return
+		//}
+
+		for _, p := range br.Points {
+			if p.Timestamp.IsZero() {
+				p.Timestamp = br.Timestamp
+			}
+			if len(br.Tags) > 0 {
+				for k, _ := range br.Tags {
+					if p.Tags[k] == "" {
+						p.Tags[k] = br.Tags[k]
+					}
+				}
+			}
+			if _, err := h.server.WriteSeries(br.Database, br.RetentionPolicy, []Point{p}); err != nil {
+				writeError(Result{Err: err}, http.StatusInternalServerError)
+				return
+			}
+		}
 	}
-	*/
 }
 
 // serveMetastore returns a copy of the metastore.
