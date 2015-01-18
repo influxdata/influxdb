@@ -672,6 +672,72 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 	}
 }
 
+func TestHandler_serveWriteSeries(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
+func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+
+	expectedStatus := http.StatusNotFound
+	if status != expectedStatus {
+		t.Fatalf("unexpected status: expected: %d, actual: %d", expectedStatus, status)
+	}
+
+	response := `{"error":"database not found: \"foo\""}`
+	if body != response {
+		t.Fatalf("unexpected body: expected %s, actual %s", response, body)
+	}
+}
+
+func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+
+	if status != http.StatusInternalServerError {
+		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusInternalServerError, status)
+	}
+
+	response := `{"error":"invalid character 'o' in literal false (expecting 'a')"}`
+	if body != response {
+		t.Fatalf("unexpected body: expected %s, actual %s", response, body)
+	}
+}
+
+func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{}`)
+
+	if status != http.StatusInternalServerError {
+		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusInternalServerError, status)
+	}
+
+	response := `{"error":"database is required"}`
+	if body != response {
+		t.Fatalf("unexpected body: expected %s, actual %s", response, body)
+	}
+}
+
 // Utility functions for this test suite.
 
 func MustHTTP(verb, path string, params, headers map[string]string, body string) (int, string) {
