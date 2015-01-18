@@ -225,7 +225,8 @@ func openServer(path string, u *url.URL, b *messaging.Broker, initializing, conf
 	} else if !configExists {
 		// We are spining up an server that has no config,
 		// but already has an initialized data directory
-		openDefaultServer(s, b)
+		joinURLs = []*url.URL{b.URL()}
+		openServerClient(s, joinURLs)
 	} else {
 		openServerClient(s, joinURLs)
 	}
