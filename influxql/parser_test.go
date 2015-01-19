@@ -843,18 +843,16 @@ func TestQuote(t *testing.T) {
 	}
 }
 
-// Ensure an identifier can be quoted when appropriate.
+// Ensure an identifier's segments can be quoted.
 func TestQuoteIdent(t *testing.T) {
 	for i, tt := range []struct {
-		ident string
+		ident []string
 		s     string
 	}{
-		{``, `""`},
-		{`foo`, `foo`},
-		{`foo.bar.baz`, `foo.bar.baz`},
-		{`my var`, `"my var"`},
-		{`my-var`, `"my-var"`},
-		{`my_var`, `my_var`},
+		{[]string{``}, `""`},
+		{[]string{`foo`, `bar`}, `"foo"."bar"`},
+		{[]string{`foo bar`, `baz`}, `"foo bar"."baz"`},
+		{[]string{`foo.bar`, `baz`}, `"foo.bar"."baz"`},
 	} {
 		if s := influxql.QuoteIdent(tt.ident); tt.s != s {
 			t.Errorf("%d. %s: mismatch: %s != %s", i, tt.ident, tt.s, s)

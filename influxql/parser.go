@@ -1,6 +1,7 @@
 package influxql
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -1617,13 +1618,16 @@ func Quote(s string) string {
 	return `"` + strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`).Replace(s) + `"`
 }
 
-// QuoteIdent returns a quoted identifier if the identifier requires quoting.
-// Otherwise returns the original string passed in.
-func QuoteIdent(s string) string {
-	if s == "" || regexp.MustCompile(`[^a-zA-Z_.]`).MatchString(s) {
-		return Quote(s)
+// QuoteIdent returns a quoted identifier from multiple bare identifiers.
+func QuoteIdent(segments []string) string {
+	var buf bytes.Buffer
+	for i, segment := range segments {
+		_, _ = buf.WriteString(Quote(segment))
+		if i < len(segments)-1 {
+			_ = buf.WriteByte('.')
+		}
 	}
-	return s
+	return buf.String()
 }
 
 // split splits a string into a slice of runes.

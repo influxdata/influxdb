@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -1705,6 +1706,112 @@ func (s *Server) measurement(database, name string) (*Measurement, error) {
 	}
 
 	return db.measurements[name], nil
+}
+
+// NormalizeQuery updates all measurements and fields to be fully qualified.
+// Uses db as the default database, where applicable.
+func (s *Server) NormalizeQuery(q *influxql.Query, defaultDatabase string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, stmt := range q.Statements {
+		if err := s.normalizeStatement(stmt, defaultDatabase); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) normalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
+	// Track prefixes for replacing field names.
+	prefixes := make(map[string]string)
+
+	// Qualify all measurements.
+	influxql.WalkFunc(stmt, func(n influxql.Node) {
+		if err != nil {
+			return
+		}
+		switch n := n.(type) {
+		case *influxql.Measurement:
+			name, e := s.normalizeMeasurement(n.Name, defaultDatabase)
+			if e != nil {
+				err = e
+				return
+			}
+			prefixes[n.Name] = name
+			n.Name = name
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	// Replace all variable references that used measurement prefixes.
+	influxql.WalkFunc(stmt, func(n influxql.Node) {
+		switch n := n.(type) {
+		case *influxql.VarRef:
+			for k, v := range prefixes {
+				if strings.HasPrefix(n.Val, k+".") {
+					n.Val = v + "." + influxql.Quote(n.Val[len(k)+1:])
+				}
+			}
+		}
+	})
+
+	return
+}
+
+// NormalizeMeasurement inserts the default database or policy into all measurement names.
+func (s *Server) NormalizeMeasurement(name string, defaultDatabase string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.normalizeMeasurement(name, defaultDatabase)
+}
+
+func (s *Server) normalizeMeasurement(name string, defaultDatabase string) (string, error) {
+	// Split name into segments.
+	segments, err := influxql.SplitIdent(name)
+	if err != nil {
+		return "", fmt.Errorf("invalid measurement: %s", name)
+	}
+
+	// Normalize to 3 segments.
+	switch len(segments) {
+	case 1:
+		segments = append([]string{"", ""}, segments...)
+	case 2:
+		segments = append([]string{""}, segments...)
+	case 3:
+		// nop
+	default:
+		return "", fmt.Errorf("invalid measurement: %s", name)
+	}
+
+	// Set database if unset.
+	if segment := segments[0]; segment == `` {
+		segments[0] = defaultDatabase
+	}
+
+	// Find database.
+	db := s.databases[segments[0]]
+	if db == nil {
+		return "", fmt.Errorf("database not found: %s", segments[0])
+	}
+
+	// Set retention policy if unset.
+	if segment := segments[1]; segment == `` {
+		if db.defaultRetentionPolicy == "" {
+			return "", fmt.Errorf("default retention policy not set for: %s", db.name)
+		}
+		segments[1] = db.defaultRetentionPolicy
+	}
+
+	// Check if retention policy exists.
+	if _, ok := db.policies[segments[1]]; !ok {
+		return "", fmt.Errorf("retention policy does not exist: %s.%s", segments[0], segments[1])
+	}
+
+	return influxql.QuoteIdent(segments), nil
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
