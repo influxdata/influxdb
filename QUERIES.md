@@ -78,7 +78,10 @@ LIST DATABASES
 
 -- list measurement names
 LIST MEASUREMENTS
+LIST MEASUREMENTS LIMIT 15
+LIST MEASUREMENTS LIMIT 10 OFFSET 40
 LIST MEASUREMENTS WHERE service = 'redis'
+-- LIMIT and OFFSET can be applied to any of the LIST type queries
 
 -- list all series across all measurements/tagsets
 LIST SERIES
@@ -87,6 +90,11 @@ LIST SERIES
 LIST SERIES WHERE region = 'uswest'
 
 LIST SERIES FROM cpu_load WHERE region = 'uswest' LIMIT 10
+
+-- returns the 100 - 109 rows in the result. In the case of LIST SERIES, which returns 
+-- series split into measurements. Each series counts as a row. So you could see only a 
+-- single measurement returned, but 10 series within it.
+LIST SERIES FROM cpu_load WHERE region = 'uswest' LIMIT 10 OFFSET 100
 
 -- list all retention policies on a database
 LIST RETENTION POLICIES mydb
