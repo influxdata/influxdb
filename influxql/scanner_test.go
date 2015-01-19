@@ -153,11 +153,6 @@ func TestScanner_Scan(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		// TEMP
-		if tt.s != `Zx12_3U_-` {
-			continue
-		}
-
 		s := influxql.NewScanner(strings.NewReader(tt.s))
 		tok, pos, lit := s.Scan()
 		if tt.tok != tok {
