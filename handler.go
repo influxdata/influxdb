@@ -111,7 +111,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.Request, *User)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var user *User
-		if h.AuthenticationEnabled && len(h.server.Users()) > 0 {
+		if h.AuthenticationEnabled && h.server.UsersLen() > 0 {
 			username, password, err := getUsernameAndPassword(r)
 			if err != nil {
 				h.error(w, err.Error(), http.StatusUnauthorized)
@@ -143,6 +143,16 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 	if err != nil {
 		h.error(w, "error parsing query: "+err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// If authentication is enabled and there are no users yet, make sure
+	// the first statement is creating a new cluster admin.
+	if h.AuthenticationEnabled && h.server.UsersLen() == 0 {
+		stmt, ok := query.Statements[0].(*influxql.CreateUserStatement)
+		if !ok || stmt.Privilege == nil || *stmt.Privilege != influxql.AllPrivileges {
+			h.error(w, "must create cluster admin", http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Execute query. One result will return for each statement.
