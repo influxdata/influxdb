@@ -198,9 +198,9 @@ func TestPlanner_Plan_Join(t *testing.T) {
 
 	// Query must join the series and sum the values.
 	rs := db.MustPlanAndExecute(`
-		SELECT sum(cpu.0.value) + sum(cpu.1.value) AS "sum"
+		SELECT sum(cpu.0.value) + sum(cpu.1.value) AS sum
 		FROM JOIN(cpu.0, cpu.1)
-		WHERE time >= "2000-01-01 00:00:00" AND time < "2000-01-01 00:01:00"
+		WHERE time >= '2000-01-01 00:00:00' AND time < '2000-01-01 00:01:00'
 		GROUP BY time(10s)`)
 
 	// Expected resultset.

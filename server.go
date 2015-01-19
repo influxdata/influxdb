@@ -1752,7 +1752,7 @@ func (s *Server) normalizeStatement(stmt influxql.Statement, defaultDatabase str
 		case *influxql.VarRef:
 			for k, v := range prefixes {
 				if strings.HasPrefix(n.Val, k+".") {
-					n.Val = v + "." + influxql.Quote(n.Val[len(k)+1:])
+					n.Val = v + "." + influxql.QuoteIdent([]string{n.Val[len(k)+1:]})
 				}
 			}
 		}

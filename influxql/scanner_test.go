@@ -59,17 +59,18 @@ func TestScanner_Scan(t *testing.T) {
 		// Identifiers
 		{s: `foo`, tok: influxql.IDENT, lit: `foo`},
 		{s: `Zx12_3U_-`, tok: influxql.IDENT, lit: `Zx12_3U_`},
+		{s: `"foo".bar`, tok: influxql.IDENT, lit: `"foo".bar`},
 
 		{s: `true`, tok: influxql.TRUE},
 		{s: `false`, tok: influxql.FALSE},
 
 		// Strings
-		{s: `"testing 123!"`, tok: influxql.STRING, lit: `testing 123!`},
-		{s: `"foo\nbar"`, tok: influxql.STRING, lit: "foo\nbar"},
-		{s: `"foo\\bar"`, tok: influxql.STRING, lit: "foo\\bar"},
-		{s: `"test`, tok: influxql.BADSTRING, lit: `test`},
-		{s: "\"test\nfoo", tok: influxql.BADSTRING, lit: `test`},
-		{s: `"test\g"`, tok: influxql.BADESCAPE, lit: `\g`, pos: influxql.Pos{Line: 0, Char: 6}},
+		{s: `'testing 123!'`, tok: influxql.STRING, lit: `testing 123!`},
+		{s: `'foo\nbar'`, tok: influxql.STRING, lit: "foo\nbar"},
+		{s: `'foo\\bar'`, tok: influxql.STRING, lit: "foo\\bar"},
+		{s: `'test`, tok: influxql.BADSTRING, lit: `test`},
+		{s: "'test\nfoo", tok: influxql.BADSTRING, lit: `test`},
+		{s: `'test\g'`, tok: influxql.BADESCAPE, lit: `\g`, pos: influxql.Pos{Line: 0, Char: 6}},
 
 		// Numbers
 		{s: `100`, tok: influxql.NUMBER, lit: `100`},
@@ -192,7 +193,7 @@ func TestScanner_Scan_Multi(t *testing.T) {
 	}
 
 	// Create a scanner.
-	v := `SELECT value from myseries WHERE a = "b"`
+	v := `SELECT value from myseries WHERE a = 'b'`
 	s := influxql.NewScanner(strings.NewReader(v))
 
 	// Continually scan until we reach the end.

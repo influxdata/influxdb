@@ -53,23 +53,23 @@ func TestSelectStatement_Substatement(t *testing.T) {
 
 		// 3. Join with condition
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE aa.host = "servera" AND bb.host = "serverb"`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE aa.host = 'servera' AND bb.host = 'serverb'`,
 			expr: &influxql.VarRef{Val: "bb.value"},
-			sub:  `SELECT bb.value FROM bb WHERE bb.host = "serverb"`,
+			sub:  `SELECT bb.value FROM bb WHERE bb.host = 'serverb'`,
 		},
 
 		// 4. Join with complex condition
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE aa.host = "servera" AND (bb.host = "serverb" OR bb.host = "serverc") AND 1 = 2`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE aa.host = 'servera' AND (bb.host = 'serverb' OR bb.host = 'serverc') AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},
-			sub:  `SELECT bb.value FROM bb WHERE (bb.host = "serverb" OR bb.host = "serverc") AND 1.000 = 2.000`,
+			sub:  `SELECT bb.value FROM bb WHERE (bb.host = 'serverb' OR bb.host = 'serverc') AND 1.000 = 2.000`,
 		},
 
 		// 5. 4 with different condition order
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE ((bb.host = "serverb" OR bb.host = "serverc") AND aa.host = "servera") AND 1 = 2`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE ((bb.host = 'serverb' OR bb.host = 'serverc') AND aa.host = 'servera') AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},
-			sub:  `SELECT bb.value FROM bb WHERE ((bb.host = "serverb" OR bb.host = "serverc")) AND 1.000 = 2.000`,
+			sub:  `SELECT bb.value FROM bb WHERE ((bb.host = 'serverb' OR bb.host = 'serverc')) AND 1.000 = 2.000`,
 		},
 	}
 
@@ -146,7 +146,7 @@ func TestFold(t *testing.T) {
 		{`60m + 50`, `1h + 50.000`},
 
 		// String literals.
-		{`"foo" + 'bar'`, `"foobar"`},
+		{`'foo' + 'bar'`, `'foobar'`},
 	} {
 		// Fold expression.
 		now := mustParseTime("2000-01-01T00:00:00Z")
@@ -175,25 +175,25 @@ func TestTimeRange(t *testing.T) {
 		min, max string
 	}{
 		// LHS VarRef
-		{expr: `time > "2000-01-01 00:00:00"`, min: `2000-01-01 00:00:00.000001`, max: `0001-01-01 00:00:00`},
-		{expr: `time >= "2000-01-01 00:00:00"`, min: `2000-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
-		{expr: `time < "2000-01-01 00:00:00"`, min: `0001-01-01 00:00:00`, max: `1999-12-31 23:59:59.999999`},
-		{expr: `time <= "2000-01-01 00:00:00"`, min: `0001-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
+		{expr: `time > '2000-01-01 00:00:00'`, min: `2000-01-01 00:00:00.000001`, max: `0001-01-01 00:00:00`},
+		{expr: `time >= '2000-01-01 00:00:00'`, min: `2000-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `time < '2000-01-01 00:00:00'`, min: `0001-01-01 00:00:00`, max: `1999-12-31 23:59:59.999999`},
+		{expr: `time <= '2000-01-01 00:00:00'`, min: `0001-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
 
 		// RHS VarRef
-		{expr: `"2000-01-01 00:00:00" > time`, min: `0001-01-01 00:00:00`, max: `1999-12-31 23:59:59.999999`},
-		{expr: `"2000-01-01 00:00:00" >= time`, min: `0001-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
-		{expr: `"2000-01-01 00:00:00" < time`, min: `2000-01-01 00:00:00.000001`, max: `0001-01-01 00:00:00`},
-		{expr: `"2000-01-01 00:00:00" <= time`, min: `2000-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `'2000-01-01 00:00:00' > time`, min: `0001-01-01 00:00:00`, max: `1999-12-31 23:59:59.999999`},
+		{expr: `'2000-01-01 00:00:00' >= time`, min: `0001-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
+		{expr: `'2000-01-01 00:00:00' < time`, min: `2000-01-01 00:00:00.000001`, max: `0001-01-01 00:00:00`},
+		{expr: `'2000-01-01 00:00:00' <= time`, min: `2000-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
 
 		// Equality
-		{expr: `time = "2000-01-01 00:00:00"`, min: `2000-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
+		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
 
 		// Multiple time expressions.
-		{expr: `time >= "2000-01-01 00:00:00" AND time < "2000-01-02 00:00:00"`, min: `2000-01-01 00:00:00`, max: `2000-01-01 23:59:59.999999`},
+		{expr: `time >= '2000-01-01 00:00:00' AND time < '2000-01-02 00:00:00'`, min: `2000-01-01 00:00:00`, max: `2000-01-01 23:59:59.999999`},
 
 		// Min/max crossover
-		{expr: `time >= "2000-01-01 00:00:00" AND time <= "1999-01-01 00:00:00"`, min: `2000-01-01 00:00:00`, max: `1999-01-01 00:00:00`},
+		{expr: `time >= '2000-01-01 00:00:00' AND time <= '1999-01-01 00:00:00'`, min: `2000-01-01 00:00:00`, max: `1999-01-01 00:00:00`},
 
 		// Absolute time
 		{expr: `time = 1388534400s`, min: `2014-01-01 00:00:00`, max: `2014-01-01 00:00:00`},
@@ -201,8 +201,8 @@ func TestTimeRange(t *testing.T) {
 		// Non-comparative expressions.
 		{expr: `time`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
 		{expr: `time + 2`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
-		{expr: `time - "2000-01-01 00:00:00"`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
-		{expr: `time AND "2000-01-01 00:00:00"`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `time - '2000-01-01 00:00:00'`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `time AND '2000-01-01 00:00:00'`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
 	} {
 		// Extract time range.
 		expr := MustParseExpr(tt.expr)

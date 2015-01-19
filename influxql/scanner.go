@@ -42,7 +42,10 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	switch ch0 {
 	case eof:
 		return EOF, pos, ""
-	case '"', '\'':
+	case '"':
+		s.r.unread()
+		return s.scanIdent()
+	case '\'':
 		return s.scanString()
 	case '.':
 		ch1, _ := s.r.read()
@@ -123,11 +126,12 @@ func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
 		} else if ch == '.' {
 			buf.WriteRune(ch)
 		} else if ch == '"' {
-			s.r.unread()
 			if tok0, pos0, lit0 := s.scanString(); tok == BADSTRING || tok == BADESCAPE {
 				return tok0, pos0, lit0
 			} else {
-				buf.WriteString(lit0)
+				_ = buf.WriteByte('"')
+				_, _ = buf.WriteString(lit0)
+				_ = buf.WriteByte('"')
 			}
 		} else if isIdentChar(ch) {
 			s.r.unread()
