@@ -83,7 +83,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement with JOIN
 		{
-			s: `SELECT field1 FROM join(aa,"bb", cc) JOIN cc`,
+			s: `SELECT field1 FROM join(aa,'bb', cc) JOIN cc`,
 			stmt: &influxql.SelectStatement{
 				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Join{
@@ -320,8 +320,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Source: &influxql.SelectStatement{
 					Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{
-						RetentionPolicy: "1h.policy1",
-						Measurement:     "cpu.load",
+						Measurement: `"1h.policy1"."cpu.load"`,
 					},
 					Source: &influxql.Measurement{Name: "myseries"},
 				},
@@ -338,7 +337,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE USER statement
 		{
-			s: `CREATE USER testuser WITH PASSWORD pwd1337`,
+			s: `CREATE USER testuser WITH PASSWORD 'pwd1337'`,
 			stmt: &influxql.CreateUserStatement{
 				Name:     "testuser",
 				Password: "pwd1337",
@@ -347,7 +346,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE USER ... WITH ALL PRIVILEGES
 		{
-			s: `CREATE USER testuser WITH PASSWORD pwd1337 WITH ALL PRIVILEGES`,
+			s: `CREATE USER testuser WITH PASSWORD 'pwd1337' WITH ALL PRIVILEGES`,
 			stmt: &influxql.CreateUserStatement{
 				Name:      "testuser",
 				Password:  "pwd1337",
@@ -371,8 +370,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `DROP RETENTION POLICY "1h.cpu" ON mydb`,
 			stmt: &influxql.DropRetentionPolicyStatement{
-				Name:     "1h.cpu",
-				Database: "mydb",
+				Name:     `"1h.cpu"`,
+				Database: `mydb`,
 			},
 		},
 
@@ -538,7 +537,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
 		{s: `blah blah`, err: `found blah, expected SELECT at line 1, char 1`},
 		{s: `SELECT field1 X`, err: `found X, expected FROM at line 1, char 15`},
-		{s: `SELECT field1 FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 38`},
+		{s: `SELECT field1 FROM 'series' WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT`, err: `found EOF, expected number at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT 10.5`, err: `fractional parts not allowed in limit at line 1, char 35`},
@@ -565,14 +564,14 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
 		{s: `DROP RETENTION`, err: `found EOF, expected POLICY at line 1, char 16`},
 		{s: `DROP RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 23`},
-		{s: `DROP RETENTION POLICY "1h.cpu"`, err: `found EOF, expected ON at line 1, char 31`},
+		{s: `DROP RETENTION POLICY "1h.cpu"`, err: `found EOF, expected ON at line 1, char 32`},
 		{s: `DROP RETENTION POLICY "1h.cpu" ON`, err: `found EOF, expected identifier at line 1, char 35`},
 		{s: `DROP USER`, err: `found EOF, expected identifier at line 1, char 11`},
 		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
 		{s: `CREATE USER testuser WITH`, err: `found EOF, expected PASSWORD at line 1, char 27`},
-		{s: `CREATE USER testuser WITH PASSWORD`, err: `found EOF, expected identifier at line 1, char 36`},
-		{s: `CREATE USER testuser WITH PASSWORD "pwd" WITH`, err: `found EOF, expected ALL at line 1, char 47`},
-		{s: `CREATE USER testuser WITH PASSWORD "pwd" WITH ALL`, err: `found EOF, expected PRIVILEGES at line 1, char 51`},
+		{s: `CREATE USER testuser WITH PASSWORD`, err: `found EOF, expected string at line 1, char 36`},
+		{s: `CREATE USER testuser WITH PASSWORD 'pwd' WITH`, err: `found EOF, expected ALL at line 1, char 47`},
+		{s: `CREATE USER testuser WITH PASSWORD 'pwd' WITH ALL`, err: `found EOF, expected PRIVILEGES at line 1, char 51`},
 		{s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT READ`, err: `found EOF, expected ON at line 1, char 12`},
@@ -612,10 +611,6 @@ func TestParser_ParseStatement(t *testing.T) {
 			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.stmt, stmt) {
 			t.Errorf("%d. %q\n\nstmt mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt)
-			exp := tt.stmt.(*influxql.CreateContinuousQueryStatement).Source.Target
-			got := stmt.(*influxql.CreateContinuousQueryStatement).Source.Target
-			t.Errorf("exp.String() = %#v\n", *exp)
-			t.Errorf("got.String() = %#v\n", *got)
 		}
 	}
 }
@@ -629,14 +624,14 @@ func TestParser_ParseExpr(t *testing.T) {
 	}{
 		// Primitives
 		{s: `100`, expr: &influxql.NumberLiteral{Val: 100}},
-		{s: `"foo bar"`, expr: &influxql.StringLiteral{Val: "foo bar"}},
+		{s: `'foo bar'`, expr: &influxql.StringLiteral{Val: "foo bar"}},
 		{s: `true`, expr: &influxql.BooleanLiteral{Val: true}},
 		{s: `false`, expr: &influxql.BooleanLiteral{Val: false}},
 		{s: `my_ident`, expr: &influxql.VarRef{Val: "my_ident"}},
-		{s: `"2000-01-01 00:00:00"`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00Z")}},
-		{s: `"2000-01-32 00:00:00"`, err: `unable to parse datetime at line 1, char 1`},
-		{s: `"2000-01-01"`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00Z")}},
-		{s: `"2000-01-99"`, err: `unable to parse date at line 1, char 1`},
+		{s: `'2000-01-01 00:00:00'`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00Z")}},
+		{s: `'2000-01-32 00:00:00'`, err: `unable to parse datetime at line 1, char 1`},
+		{s: `'2000-01-01'`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00Z")}},
+		{s: `'2000-01-99'`, err: `unable to parse date at line 1, char 1`},
 
 		// Simple binary expression
 		{
@@ -831,13 +826,13 @@ func TestQuote(t *testing.T) {
 		in  string
 		out string
 	}{
-		{``, `""`},
-		{`foo`, `"foo"`},
-		{"foo\nbar", `"foo\nbar"`},
-		{`foo bar\\`, `"foo bar\\\\"`},
-		{`"foo"`, `"\"foo\""`},
+		{``, `''`},
+		{`foo`, `'foo'`},
+		{"foo\nbar", `'foo\nbar'`},
+		{`foo bar\\`, `'foo bar\\\\'`},
+		{`'foo'`, `'\'foo\''`},
 	} {
-		if out := influxql.Quote(tt.in); tt.out != out {
+		if out := influxql.QuoteString(tt.in); tt.out != out {
 			t.Errorf("%d. %s: mismatch: %s != %s", i, tt.in, tt.out, out)
 		}
 	}

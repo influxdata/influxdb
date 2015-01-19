@@ -342,11 +342,20 @@ func (p *Parser) parseDuration() (time.Duration, error) {
 	return d, nil
 }
 
-// parserIdentifier parses a string and returns an identifier.
+// parserIdentifier parses an identifier.
 func (p *Parser) parseIdentifier() (string, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != IDENT && tok != STRING {
+	if tok != IDENT {
 		return "", newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	}
+	return lit, nil
+}
+
+// parserString parses a string.
+func (p *Parser) parseString() (string, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != STRING {
+		return "", newParseError(tokstr(tok, lit), []string{"string"}, pos)
 	}
 	return lit, nil
 }
@@ -544,21 +553,6 @@ func (p *Parser) parseTarget(tr targetRequirement) (*Target, error) {
 	}
 
 	target := &Target{}
-
-	tok, _, _ := p.scanIgnoreWhitespace()
-	if tok == DOT {
-		// Previous identifier was retention policy name.
-		target.RetentionPolicy = ident
-
-		// Parse required measurement.
-		ident, err = p.parseIdentifier()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		p.unscan()
-	}
-
 	target.Measurement = ident
 
 	// Parse optional ON.
@@ -991,7 +985,7 @@ func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
 	}
 
 	// Parse new user's password
-	if ident, err = p.parseIdentifier(); err != nil {
+	if ident, err = p.parseString(); err != nil {
 		return nil, err
 	}
 	stmt.Password = ident
@@ -1614,15 +1608,19 @@ func (p *Parser) parseTokens(toks []Token) error {
 }
 
 // Quote returns a quoted string.
-func Quote(s string) string {
-	return `"` + strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`).Replace(s) + `"`
+func QuoteString(s string) string {
+	return `'` + strings.NewReplacer("\n", `\n`, `\`, `\\`, `'`, `\'`).Replace(s) + `'`
 }
 
 // QuoteIdent returns a quoted identifier from multiple bare identifiers.
 func QuoteIdent(segments []string) string {
+	r := strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
+
 	var buf bytes.Buffer
 	for i, segment := range segments {
-		_, _ = buf.WriteString(Quote(segment))
+		_ = buf.WriteByte('"')
+		_, _ = buf.WriteString(r.Replace(segment))
+		_ = buf.WriteByte('"')
 		if i < len(segments)-1 {
 			_ = buf.WriteByte('.')
 		}

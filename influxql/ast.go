@@ -641,9 +641,6 @@ func MatchSource(src Source, name string) string {
 
 // Target represents a target (destination) policy, measurment, and DB.
 type Target struct {
-	// Retention policy to write into.
-	RetentionPolicy string
-
 	// Measurement to write into.
 	Measurement string
 
@@ -655,12 +652,6 @@ type Target struct {
 func (t *Target) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("INTO ")
-
-	if t.RetentionPolicy != "" {
-		_, _ = buf.WriteString(t.RetentionPolicy)
-		_, _ = buf.WriteString(".")
-	}
-
 	_, _ = buf.WriteString(t.Measurement)
 
 	if t.Database != "" {
@@ -1146,7 +1137,7 @@ type StringLiteral struct {
 }
 
 // String returns a string representation of the literal.
-func (l *StringLiteral) String() string { return Quote(l.Val) }
+func (l *StringLiteral) String() string { return QuoteString(l.Val) }
 
 // TimeLiteral represents a point-in-time literal.
 type TimeLiteral struct {
