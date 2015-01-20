@@ -1,4 +1,4 @@
-package influxdb
+package httpd
 
 import (
 	"encoding/base64"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 )
 
@@ -49,7 +50,7 @@ func getUsernameAndPassword(r *http.Request) (string, string, error) {
 
 // Handler represents an HTTP handler for the InfluxDB server.
 type Handler struct {
-	server *Server
+	server *influxdb.Server
 	mux    *pat.PatternServeMux
 
 	// Whether endpoints require authentication.
@@ -60,7 +61,7 @@ type Handler struct {
 }
 
 // NewHandler returns a new instance of Handler.
-func NewHandler(s *Server) *Handler {
+func NewHandler(s *influxdb.Server) *Handler {
 	h := &Handler{
 		server: s,
 		mux:    pat.New(),
@@ -108,9 +109,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //
 // There is one exception: if there are no users in the system, authentication is not required. This
 // is to facilitate bootstrapping of a system with authentication enabled.
-func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.Request, *User)) http.HandlerFunc {
+func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.Request, *influxdb.User)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var user *User
+		var user *influxdb.User
 		if h.AuthenticationEnabled && len(h.server.Users()) > 0 {
 			username, password, err := getUsernameAndPassword(r)
 			if err != nil {
@@ -133,7 +134,7 @@ func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.R
 }
 
 // serveQuery parses an incoming query and, if valid, executes the query.
-func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
+func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
 	q := r.URL.Query()
 	p := influxql.NewParser(strings.NewReader(q.Get("q")))
 	db := q.Get("db")
@@ -158,7 +159,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *User) {
 }
 
 type batchWrite struct {
-	Points          []Point           `json:"points"`
+	Points          []influxdb.Point  `json:"points"`
 	Database        string            `json:"database"`
 	RetentionPolicy string            `json:"retentionPolicy"`
 	Tags            map[string]string `json:"tags"`
@@ -166,13 +167,13 @@ type batchWrite struct {
 }
 
 // serveWrite receives incoming series data and writes it to the database.
-func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *User) {
+func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
 	var br batchWrite
 
 	dec := json.NewDecoder(r.Body)
 	dec.UseNumber()
 
-	var writeError = func(result Result, statusCode int) {
+	var writeError = func(result influxdb.Result, statusCode int) {
 		w.WriteHeader(statusCode)
 		w.Header().Add("content-type", "application/json")
 		_ = json.NewEncoder(w).Encode(&result)
@@ -185,17 +186,17 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *User) {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			writeError(Result{Err: err}, http.StatusInternalServerError)
+			writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
 			return
 		}
 
 		if br.Database == "" {
-			writeError(Result{Err: fmt.Errorf("database is required")}, http.StatusInternalServerError)
+			writeError(influxdb.Result{Err: fmt.Errorf("database is required")}, http.StatusInternalServerError)
 			return
 		}
 
-		if h.server.databases[br.Database] == nil {
-			writeError(Result{Err: fmt.Errorf("database not found: %q", br.Database)}, http.StatusNotFound)
+		if !h.server.DatabaseExists(br.Database) {
+			writeError(influxdb.Result{Err: fmt.Errorf("database not found: %q", br.Database)}, http.StatusNotFound)
 			return
 		}
 
@@ -216,8 +217,8 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *User) {
 					}
 				}
 			}
-			if _, err := h.server.WriteSeries(br.Database, br.RetentionPolicy, []Point{p}); err != nil {
-				writeError(Result{Err: err}, http.StatusInternalServerError)
+			if _, err := h.server.WriteSeries(br.Database, br.RetentionPolicy, []influxdb.Point{p}); err != nil {
+				writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
 				return
 			}
 		}
@@ -225,7 +226,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *User) {
 }
 
 // serveMetastore returns a copy of the metastore.
-func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, u *User) {
+func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
 	// Set headers.
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
@@ -236,10 +237,10 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, u *User
 }
 
 // servePing returns a simple response to let the client know the server is running.
-func (h *Handler) servePing(w http.ResponseWriter, r *http.Request, u *User) {}
+func (h *Handler) servePing(w http.ResponseWriter, r *http.Request, u *influxdb.User) {}
 
 // serveDataNodes returns a list of all data nodes in the cluster.
-func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request, u *User) {
+func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
 	// Generate a list of objects for encoding to the API.
 	a := make([]*dataNodeJSON, 0)
 	for _, n := range h.server.DataNodes() {
@@ -254,7 +255,7 @@ func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request, u *User
 }
 
 // serveCreateDataNode creates a new data node in the cluster.
-func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request, _ *User) {
+func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request, _ *influxdb.User) {
 	// Read in data node from request body.
 	var n dataNodeJSON
 	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
@@ -270,7 +271,7 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request, _ 
 	}
 
 	// Create the data node.
-	if err := h.server.CreateDataNode(u); err == ErrDataNodeExists {
+	if err := h.server.CreateDataNode(u); err == influxdb.ErrDataNodeExists {
 		h.error(w, err.Error(), http.StatusConflict)
 		return
 	} else if err != nil {
@@ -282,7 +283,7 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request, _ 
 	node := h.server.DataNodeByURL(u)
 
 	// Create a new replica on the broker.
-	if err := h.server.client.CreateReplica(node.ID); err != nil {
+	if err := h.server.Client().CreateReplica(node.ID); err != nil {
 		h.error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
@@ -294,7 +295,7 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request, _ 
 }
 
 // serveDeleteDataNode removes an existing node.
-func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request, u *User) {
+func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
 	// Parse node id.
 	nodeID, err := strconv.ParseUint(r.URL.Query().Get(":id"), 10, 64)
 	if err != nil {
@@ -303,7 +304,7 @@ func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request, u 
 	}
 
 	// Delete the node.
-	if err := h.server.DeleteDataNode(nodeID); err == ErrDataNodeNotFound {
+	if err := h.server.DeleteDataNode(nodeID); err == influxdb.ErrDataNodeNotFound {
 		h.error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
