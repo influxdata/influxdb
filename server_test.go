@@ -571,7 +571,7 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	if res := results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Rows) != 1 {
-		t.Fatalf("unexpected row count: %s", len(res.Rows))
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
 	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","sum"],"values":[[0,150]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
