@@ -74,6 +74,9 @@ const (
 	// Measurement messages
 	createFieldsIfNotExistsMessageType = messaging.MessageType(0x60)
 
+	// Continuous Query messages
+	createContinuousQueryMessageType = messaging.MessageType(0x60)
+
 	// Write series data messages (per-topic)
 	writeRawSeriesMessageType = messaging.MessageType(0x80)
 
@@ -1933,7 +1936,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowRetentionPoliciesStatement:
 			res = s.executeShowRetentionPoliciesStatement(stmt, user)
 		case *influxql.CreateContinuousQueryStatement:
-			continue
+			res = s.executeCreateContinuousQueryStatement(stmt, user)
 		case *influxql.DropContinuousQueryStatement:
 			continue
 		case *influxql.ShowContinuousQueriesStatement:
@@ -2480,6 +2483,28 @@ func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetention
 	return &Result{Rows: []*influxql.Row{row}}
 }
 
+func (s *Server) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement, user *User) *Result {
+	return &Result{Err: s.CreateContinuousQuery(q)}
+}
+
+func (s *Server) CreateContinuousQuery(q *influxql.CreateContinuousQueryStatement) error {
+	c := &createContinuousQueryCommand{Query: q.String()}
+	_, err := s.broadcast(createContinuousQueryMessageType, c)
+	return err
+}
+
+func (s *Server) ContinuousQueries(database string) []*ContinuousQuery {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	db := s.databases[database]
+	if db == nil {
+		return nil
+	}
+
+	return db.continuousQueries
+}
+
 // MeasurementNames returns a list of all measurements for the specified database.
 func (s *Server) MeasurementNames(database string) []string {
 	s.mu.RLock()
@@ -2674,6 +2699,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applyCreateSeriesIfNotExists(m)
 		case setPrivilegeMessageType:
 			err = s.applySetPrivilege(m)
+		case createContinuousQueryMessageType:
+			err = s.applyCreateContinuousQueryCommand(m)
 		}
 
 		// Sync high water mark and errors.
@@ -2926,9 +2953,62 @@ func HashPassword(password string) ([]byte, error) {
 // ContinuousQuery represents a query that exists on the server and processes
 // each incoming event.
 type ContinuousQuery struct {
-	ID    uint32
-	Query string
+	Query string `json:"query"`
+	cq    *influxql.CreateContinuousQueryStatement
 	// TODO: ParsedQuery *parser.SelectQuery
+}
+
+func NewContinuousQuery(q string) (*ContinuousQuery, error) {
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		return nil, err
+	}
+
+	if cq, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok {
+		return &ContinuousQuery{
+			Query: q,
+			cq:    cq,
+		}, nil
+	}
+
+	return nil, errors.New("query isn't a continuous query")
+}
+
+func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
+	fmt.Println("applyCreateContinuousQueryCommand")
+	var c createContinuousQueryCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	cq, err := NewContinuousQuery(c.Query)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Retrieve the database.
+	db := s.databases[cq.cq.Database]
+	// TODO: we need to do a check to make sure the INTO database is present.
+	if db == nil {
+		return ErrDatabaseNotFound
+	} else if db.continuousQueryByName(cq.cq.Name) != nil {
+		return ErrContinuousQueryExists
+	}
+
+	// Add cq to the database.
+	db.continuousQueries = append(db.continuousQueries, cq)
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
+}
+
+type createContinuousQueryCommand struct {
+	Query string `json:"query"`
 }
 
 // copyURL returns a copy of the the URL.

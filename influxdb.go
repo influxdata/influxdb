@@ -122,6 +122,9 @@ var (
 	// ErrInvalidGrantRevoke is returned when a statement requests an invalid
 	// privilege for a user on the cluster or a database.
 	ErrInvalidGrantRevoke = errors.New("invalid privilege requested")
+
+	// ErrContinuousQueryExists is returned when creating a duplicate continuous query.
+	ErrContinuousQueryExists = errors.New("continuous query already exists")
 )
 
 // BatchPoints is used to send batched data in a single write.

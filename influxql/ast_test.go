@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 )
@@ -91,6 +92,24 @@ func TestSelectStatement_Substatement(t *testing.T) {
 			t.Errorf("%d. %q: unexpected substatement:\n\nexp=%s\n\ngot=%s\n\n", i, tt.stmt, tt.sub, substr)
 			continue
 		}
+	}
+}
+
+// Ensure the SELECT statement can extract GROUP BY interval.
+func TestSelectStatement_GroupByInterval(t *testing.T) {
+	q := "SELECT sum(value) from foo GROUP BY time(10m)"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("invalid statement: %q: %s", stmt, err)
+	}
+
+	s := stmt.(*influxql.SelectStatement)
+	d, err := s.GroupByInterval()
+	if d != 10*time.Minute {
+		t.Fatalf("group by interval not equal:\nexp=%s\ngot=%s", 10*time.Minute, d)
+	}
+	if err != nil {
+		t.Fatalf("error parsing group by interval: %s", err.Error())
 	}
 }
 

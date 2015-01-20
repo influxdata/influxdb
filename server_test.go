@@ -1099,6 +1099,72 @@ func TestServer_NormalizeQuery(t *testing.T) {
 	}
 }
 
+// Ensure the server can create a continuous query
+func TestServer_CreateContinuousQuery(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// create and check
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := s.CreateContinuousQuery(cq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+
+	fmt.Println("Parsed Database: ", cq.Database)
+	fmt.Println(cq.String())
+	queries := s.ContinuousQueries("foo")
+	cqObj, _ := influxdb.NewContinuousQuery(q)
+	expected := []*influxdb.ContinuousQuery{cqObj}
+	time.Sleep(time.Second)
+	if !reflect.DeepEqual(queries, expected) {
+		t.Fatalf("query not saved:\n\texp: %s\ngot: %s", mustMarshalJSON(expected), mustMarshalJSON(queries))
+	}
+	s.Restart()
+
+	// check again
+	queries = s.ContinuousQueries("foo")
+	if !reflect.DeepEqual(queries, expected) {
+		t.Fatalf("query not saved:\n\texp: %s\ngot: %s", mustMarshalJSON(expected), mustMarshalJSON(queries))
+	}
+}
+
+// Ensure the server prevents a duplicate named continuous query from being created
+func TestServer_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
+
+}
+
+// Ensure the server returns an error when creating a continuous query on a database that doesn't exist
+func TestServer_CreateCreateContinuousQuery_ErrDatabaseNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+}
+
+// Ensure the server returns an error when creating a continuous query on a retention policy that doesn't exist
+func TestServer_CreateCreateContinuousQuery_ErrRetentionPolicyNotFound(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create on an RP that doesn't exist
+}
+
 func mustMarshalJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {

@@ -10,18 +10,27 @@ import (
 type Broker struct {
 	*messaging.Broker
 
-	done chan struct{}
+	done   chan struct{}
+	server continuousQueryStore
 }
 
-func (b *Broker) Open(path string, addr string) error {
-	if err := b.Broker.Open(path, addr); err != nil {
-		return err
-	}
+type continuousQueryStore interface {
+	DataNodes() []*DataNode
+	Databases() []string
+	ContinuousQueries(string) []*ContinuousQuery
+}
 
+// NewBroker returns a new instance of a Broker with default values.
+func NewBroker() *Broker {
+	b := &Broker{}
+	b.Broker = messaging.NewBroker()
+	return b
+}
+
+func (b *Broker) RunContinuousQueryLoop(c continuousQueryStore) {
+	b.server = c
 	b.done = make(chan struct{})
-	go b.querier(b.done)
-
-	return nil
+	go b.continuousQueryLoop()
 }
 
 func (b *Broker) Close() error {
@@ -32,18 +41,24 @@ func (b *Broker) Close() error {
 	return b.Broker.Close()
 }
 
-func (b *Broker) querier() {
+func (b *Broker) continuousQueryLoop() {
 	for {
 		// Check if broker is currently leader.
 		if b.Broker.IsLeader() {
-			// DO SOME CQ SHIT
+			// do stuff
 		}
 
 		// Wait for a timeout or until done.
 		select {
-		case <-done:
+		case <-b.done:
 			return
 		case <-time.After(1 * time.Second):
 		}
+	}
+}
+
+func (b *Broker) runContinuousQueries() {
+	if b.server == nil {
+		return
 	}
 }

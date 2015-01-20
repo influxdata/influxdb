@@ -24,7 +24,8 @@ const (
 type database struct {
 	name string
 
-	policies map[string]*RetentionPolicy // retention policies by name
+	policies          map[string]*RetentionPolicy // retention policies by name
+	continuousQueries []*ContinuousQuery          // continuous queries by name
 
 	defaultRetentionPolicy string
 
@@ -37,10 +38,11 @@ type database struct {
 // newDatabase returns an instance of database.
 func newDatabase() *database {
 	return &database{
-		policies:     make(map[string]*RetentionPolicy),
-		measurements: make(map[string]*Measurement),
-		series:       make(map[uint32]*Series),
-		names:        make([]string, 0),
+		policies:          make(map[string]*RetentionPolicy),
+		continuousQueries: make([]*ContinuousQuery, 0),
+		measurements:      make(map[string]*Measurement),
+		series:            make(map[uint32]*Series),
+		names:             make([]string, 0),
 	}
 }
 
@@ -76,6 +78,7 @@ func (db *database) MarshalJSON() ([]byte, error) {
 	for _, rp := range db.policies {
 		o.Policies = append(o.Policies, rp)
 	}
+	o.ContinuousQueries = db.continuousQueries
 	return json.Marshal(&o)
 }
 
@@ -97,6 +100,13 @@ func (db *database) UnmarshalJSON(data []byte) error {
 		db.policies[rp.Name] = rp
 	}
 
+	// we need the parsed continuous queries to be in the in memory index
+	db.continuousQueries = make([]*ContinuousQuery, 0, len(o.ContinuousQueries))
+	for _, cq := range o.ContinuousQueries {
+		c, _ := NewContinuousQuery(cq.Query)
+		db.continuousQueries = append(db.continuousQueries, c)
+	}
+
 	return nil
 }
 
@@ -105,6 +115,7 @@ type databaseJSON struct {
 	Name                   string             `json:"name,omitempty"`
 	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
 	Policies               []*RetentionPolicy `json:"policies,omitempty"`
+	ContinuousQueries      []*ContinuousQuery `json:"continuousQueries,omitempty"`
 }
 
 // Measurement represents a collection of time series in a database. It also contains in memory
@@ -1192,6 +1203,44 @@ func (db *database) MeasurementAndSeries(name string, tags map[string]string) (*
 		return nil, nil
 	}
 	return idx, idx.seriesByTags(tags)
+}
+
+// SereiesByID returns the Series that has the given id.
+func (d *database) SeriesByID(id uint32) *Series {
+	return d.series[id]
+}
+
+// Measurements returns all measurements that match the given filters.
+func (d *database) Measurements(filters []*TagFilter) []*Measurement {
+	measurements := make([]*Measurement, 0, len(d.measurements))
+	for _, idx := range d.measurements {
+		measurements = append(measurements, idx.measurement)
+	}
+	return measurements
+}
+
+// Names returns all measurement names in sorted order.
+func (d *database) Names() []string {
+	return d.names
+}
+
+// DropSeries will clear the index of all references to a series.
+func (d *database) DropSeries(id uint32) {
+	panic("not implemented")
+}
+
+// DropMeasurement will clear the index of all references to a measurement and its child series.
+func (d *database) DropMeasurement(name string) {
+	panic("not implemented")
+}
+
+func (d *database) continuousQueryByName(name string) *ContinuousQuery {
+	for _, cq := range d.continuousQueries {
+		if cq.cq.Name == name {
+			return cq
+		}
+	}
+	return nil
 }
 
 // used to convert the tag set to bytes for use as a lookup key

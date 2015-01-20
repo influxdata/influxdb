@@ -935,6 +935,22 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	}
 	stmt.Source = source
 
+	// validate that the statement has a non-zero group by interval if it is aggregated
+	if source.Aggregated() {
+		d, err := source.GroupByInterval()
+		if d == 0 || err != nil {
+			// rewind so we can output an error with some info
+			p.unscan() // unscan the whitespace
+			p.unscan() // unscan the last token
+			tok, pos, lit := p.scanIgnoreWhitespace()
+			expected := []string{"GROUP BY time(...)"}
+			if err != nil {
+				expected = append(expected, err.Error())
+			}
+			return nil, newParseError(tokstr(tok, lit), expected, pos)
+		}
+	}
+
 	// Expect a "END" keyword.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != END {
 		return nil, newParseError(tokstr(tok, lit), []string{"END"}, pos)
