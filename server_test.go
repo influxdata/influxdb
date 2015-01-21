@@ -95,6 +95,153 @@ func TestServer_DeleteDataNode(t *testing.T) {
 	}
 }
 
+// Test user privilege authorization.
+func TestServer_UserPrivilegeAuthorization(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create cluster admin.
+	s.CreateUser("admin", "admin", true)
+	admin := s.User("admin")
+
+	// Create normal database user.
+	s.CreateUser("user1", "user1", false)
+	user1 := s.User("user1")
+	user1.Privileges["foo"] = influxql.ReadPrivilege
+
+	s.Restart()
+
+	// admin user should be authorized for all privileges.
+	if !admin.Authorize(influxql.AllPrivileges, "") {
+		t.Fatalf("cluster admin doesn't have influxql.AllPrivileges")
+	} else if !admin.Authorize(influxql.WritePrivilege, "") {
+		t.Fatalf("cluster admin doesn't have influxql.WritePrivilege")
+	}
+
+	// Normal user with only read privilege on database foo.
+	if !user1.Authorize(influxql.ReadPrivilege, "foo") {
+		t.Fatalf("user1 doesn't have influxql.ReadPrivilege on foo")
+	} else if user1.Authorize(influxql.WritePrivilege, "foo") {
+		t.Fatalf("user1 has influxql.WritePrivilege on foo")
+	} else if user1.Authorize(influxql.ReadPrivilege, "bar") {
+		t.Fatalf("user1 has influxql.ReadPrivilege on bar")
+	} else if user1.Authorize(influxql.AllPrivileges, "") {
+		t.Fatalf("user1 is cluster admin")
+	}
+}
+
+// Test single statement query authorization.
+func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create cluster admin.
+	s.CreateUser("admin", "admin", true)
+	admin := s.User("admin")
+
+	// Create normal database user.
+	s.CreateUser("user", "user", false)
+	user := s.User("user")
+	user.Privileges["foo"] = influxql.ReadPrivilege
+
+	s.Restart()
+
+	// Create a query that only cluster admins can run.
+	adminOnlyQuery := &influxql.Query{
+		Statements: []influxql.Statement{
+			&influxql.DropDatabaseStatement{Name: "foo"},
+		},
+	}
+
+	// Create a query that requires read on one db and write on another.
+	readWriteQuery := &influxql.Query{
+		Statements: []influxql.Statement{
+			&influxql.CreateContinuousQueryStatement{
+				Name:     "myquery",
+				Database: "foo",
+				Source: &influxql.SelectStatement{
+					Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Target: &influxql.Target{Measurement: "measure1", Database: "bar"},
+					Source: &influxql.Measurement{Name: "myseries"},
+				},
+			},
+		},
+	}
+
+	// admin user should be authorized to execute any query.
+	if err := influxdb.Authorize(admin, adminOnlyQuery, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := influxdb.Authorize(admin, readWriteQuery, "foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Normal user should not be authorized to execute admin only query.
+	if err := influxdb.Authorize(user, adminOnlyQuery, ""); err == nil {
+		t.Fatalf("normal user should not be authorized to execute cluster admin level queries")
+	}
+
+	// Normal user should not be authorized to execute query that selects into another
+	// database which (s)he doesn't have privileges on.
+	if err := influxdb.Authorize(user, readWriteQuery, ""); err == nil {
+		t.Fatalf("normal user should not be authorized to write to database bar")
+	}
+
+	// Grant normal user write privileges on database "bar".
+	user.Privileges["bar"] = influxql.WritePrivilege
+
+	//Authorization on the previous query should now succeed.
+	if err := influxdb.Authorize(user, readWriteQuery, ""); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Test multiple statement query authorization.
+func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create cluster admin.
+	s.CreateUser("admin", "admin", true)
+	admin := s.User("admin")
+
+	// Create normal database user.
+	s.CreateUser("user", "user", false)
+	user := s.User("user")
+	user.Privileges["foo"] = influxql.ReadPrivilege
+
+	s.Restart()
+
+	// Create a query that requires read for one statement and write for the second.
+	readWriteQuery := &influxql.Query{
+		Statements: []influxql.Statement{
+			// Statement that requires read.
+			&influxql.SelectStatement{
+				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+				Source: &influxql.Measurement{Name: "cpu"},
+			},
+
+			// Statement that requires write.
+			&influxql.SelectStatement{
+				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+				Source: &influxql.Measurement{Name: "cpu"},
+				Target: &influxql.Target{Measurement: "tmp"},
+			},
+		},
+	}
+
+	// Admin should be authorized to execute both statements in the query.
+	if err := influxdb.Authorize(admin, readWriteQuery, "foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Normal user with only read privileges should not be authorized to execute both statements.
+	if err := influxdb.Authorize(user, readWriteQuery, "foo"); err == nil {
+		t.Fatalf("user should not be authorized to execute both statements")
+	}
+}
+
 // Ensure the server can create a database.
 func TestServer_CreateDatabase(t *testing.T) {
 	s := OpenServer(NewMessagingClient())

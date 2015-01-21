@@ -566,7 +566,6 @@ func (s *SelectStatement) String() string {
 
 // RequiredPrivilege returns the privilege required to execute the SelectStatement.
 func (s *SelectStatement) RequiredPrivileges() ExecutionPrivileges {
-
 	ep := ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege,},}
 
 	if s.Target != nil {
@@ -855,7 +854,22 @@ func (s *CreateContinuousQueryStatement) String() string {
 
 // RequiredPrivilege returns the privilege required to execute a CreateContinuousQueryStatement.
 func (s *CreateContinuousQueryStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege,},}
+	ep := ExecutionPrivileges{{Name: s.Database, Privilege: ReadPrivilege,},}
+
+	// Selecting into a database that's different from the source?
+	if s.Source.Target.Database != "" {
+		// Change source database privilege requirement to read.
+		ep[0].Privilege = ReadPrivilege
+
+		// Add destination database privilege requirement and set it to write.
+		p := ExecutionPrivilege{
+			Name: s.Source.Target.Database,
+			Privilege: WritePrivilege,
+		}
+		ep = append(ep, p)
+	}
+
+	return ep
 }
 
 // DropContinuousQueriesStatement represents a command for removing a continuous query.

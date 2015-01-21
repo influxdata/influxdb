@@ -385,7 +385,7 @@ func TestHandler_CreateUser_BadRequest(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "error parsing query: found 0, expected identifier at line 1, char 13" {
+	} else if body != `[{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -399,7 +399,7 @@ func TestHandler_CreateUser_BadRequest_NoName(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "error parsing query: found WITH, expected identifier at line 1, char 13" {
+	} else if body != `[{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -413,7 +413,7 @@ func TestHandler_CreateUser_BadRequest_NoPassword(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "error parsing query: found EOF, expected WITH at line 1, char 18" {
+	} else if body != `[{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }

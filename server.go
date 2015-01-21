@@ -278,6 +278,7 @@ func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, er
 	if err != nil {
 		return 0, err
 	}
+
 	// Wait for the server to receive the message.
 	err = s.Sync(index)
 
@@ -796,8 +797,8 @@ func (s *Server) Users() (a []*User) {
 	return a
 }
 
-// UsersLen returns the number of users.
-func (s *Server) UsersLen() int {
+// UserCount returns the number of users.
+func (s *Server) UserCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.users)
@@ -858,9 +859,10 @@ func (s *Server) applyCreateUser(m *messaging.Message) (err error) {
 
 	// Create the user.
 	u := &User{
-		Name:  c.Username,
-		Hash:  string(hash),
-		Admin: c.Admin,
+		Name:       c.Username,
+		Hash:       string(hash),
+		Privileges: make(map[string]influxql.Privilege),
+		Admin:      c.Admin,
 	}
 
 	// Persist to metastore.
@@ -1968,6 +1970,7 @@ func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // Authorize user u to execute query q on database.
 // database can be "" for queries that do not require a database.
+// If u is nil, this means authorization is disabled.
 func Authorize(u *User, q *influxql.Query, database string) error {
 	// Cluster admins can do anything.
 	if u == nil || u.Admin {
@@ -1991,14 +1994,16 @@ func Authorize(u *User, q *influxql.Query, database string) error {
 			}
 
 			// Check if user has required privilege.
-			if !u.Authorize(p.Privilege, database) {
+			if !u.Authorize(p.Privilege, dbname) {
 				var msg string
-				if database != "" {
+				if dbname == "" {
 					msg = "requires cluster admin"
 				} else {
-					msg = fmt.Sprintf("requires %s privilege on %s", p.Privilege.String(), database)
+					msg = fmt.Sprintf("requires %s privilege on %s", p.Privilege.String(), dbname)
 				}
-				return fmt.Errorf("%s not authorized to execute %s.  %s", u.Name, stmt.String(), msg)
+				return &ErrAuthorize{
+					text: fmt.Sprintf("%s not authorized to execute '%s'.  %s", u.Name, stmt.String(), msg),
+				}
 			}
 		}
 	}
@@ -2014,7 +2019,7 @@ var BcryptCost = 10
 type User struct {
 	Name       string                        `json:"name"`
 	Hash       string                        `json:"hash"`
-	Privileges map[string]influxql.Privilege // db name to privilege
+	Privileges map[string]influxql.Privilege `json:"privileges"` // db name to privilege
 	Admin      bool                          `json:"admin,omitempty"`
 }
 
