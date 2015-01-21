@@ -1,7 +1,6 @@
 package httpd
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,34 +22,6 @@ import (
 
 // TODO: Check HTTP response codes: 400, 401, 403, 409.
 
-// getUsernameAndPassword returns the username and password encoded in
-// a request. The credentials may be present as URL query params, or as
-// a Basic Authentication header.
-func getUsernameAndPassword(r *http.Request) (string, string, error) {
-	q := r.URL.Query()
-	username, password := q.Get("u"), q.Get("p")
-	if username != "" && password != "" {
-		return username, password, nil
-	}
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		return "", "", nil
-	}
-	fields := strings.Split(auth, " ")
-	if len(fields) != 2 {
-		return "", "", fmt.Errorf("invalid Basic Authentication header")
-	}
-	bs, err := base64.StdEncoding.DecodeString(fields[1])
-	if err != nil {
-		return "", "", fmt.Errorf("invalid Base64 encoding")
-	}
-	fields = strings.Split(string(bs), ":")
-	if len(fields) != 2 {
-		return "", "", fmt.Errorf("invalid Basic Authentication value")
-	}
-	return fields[0], fields[1], nil
-}
-
 type route struct {
 	name        string
 	method      string
@@ -71,7 +42,6 @@ type Handler struct {
 }
 
 // NewHandler returns a new instance of Handler.
-
 func NewHandler(s *influxdb.Server, requireAuthentication bool) *Handler {
 	h := &Handler{
 		server: s,

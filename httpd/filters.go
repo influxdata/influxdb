@@ -1,6 +1,8 @@
 package httpd
 
 import (
+	"encoding/base64"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -8,6 +10,34 @@ import (
 
 	"github.com/influxdb/influxdb"
 )
+
+// getUsernameAndPassword returns the username and password encoded in
+// a request. The credentials may be present as URL query params, or as
+// a Basic Authentication header.
+func basicAuthCredentials(r *http.Request) (string, string, error) {
+	q := r.URL.Query()
+	username, password := q.Get("u"), q.Get("p")
+	if username != "" && password != "" {
+		return username, password, nil
+	}
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		return "", "", nil
+	}
+	fields := strings.Split(auth, " ")
+	if len(fields) != 2 {
+		return "", "", fmt.Errorf("invalid Basic Authentication header")
+	}
+	bs, err := base64.StdEncoding.DecodeString(fields[1])
+	if err != nil {
+		return "", "", fmt.Errorf("invalid Base64 encoding")
+	}
+	fields = strings.Split(string(bs), ":")
+	if len(fields) != 2 {
+		return "", "", fmt.Errorf("invalid Basic Authentication value")
+	}
+	return fields[0], fields[1], nil
+}
 
 // authorize ensures that if user credentials are passed in, an attempt is made to authenticate that user.
 // If authentication fails, an error is returned to the user.
@@ -20,7 +50,7 @@ func authorize(inner http.Handler, h *Handler, requireAuthentication bool) http.
 
 		// TODO corylanou: never allow this in the future without users
 		if requireAuthentication && h.server.UserCount() > 0 {
-			username, password, err := getUsernameAndPassword(r)
+			username, password, err := basicAuthCredentials(r)
 			if err != nil {
 				httpError(w, err.Error(), http.StatusUnauthorized)
 				return
