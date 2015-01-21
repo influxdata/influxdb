@@ -78,7 +78,9 @@ go get -u -f ./...
 go build ./...
 ```
 
-Once compilation completes, the binaries can be found in `$GOPATH/bin`. To set the version and commit flags pass the following to the build command:
+Once compilation completes, the binaries can be found in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
+
+To set the version and commit flags during the build pass the following to the build command:
 
 ```bash
 -ldflags="-X main.version $VERSION -X main.commit $COMMIT"
