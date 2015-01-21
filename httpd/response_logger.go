@@ -50,7 +50,8 @@ func (l *responseLogger) Size() int {
 
 // Common Log Format: http://en.wikipedia.org/wiki/Common_Log_Format
 
-// buildLogLine creates a common log format, plus referrer and user agent at the end
+// buildLogLine creates a common log format
+// in addittion to the common fields, we also append referrer, user agent and request ID
 func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 	username := "-"
 	url := r.URL
@@ -68,7 +69,7 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 
 	uri := url.RequestURI()
 	return fmt.Sprintf(
-		"%s %s %s %s %s %s %s %d %d %s %s",
+		"%s %s %s %s %s %s %s %d %d %s %s %s",
 		host,
 		"-",
 		username,
@@ -80,5 +81,6 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 		l.Size(),
 		r.Referer(),
 		r.UserAgent(),
+		r.Header.Get("Request-Id"),
 	)
 }

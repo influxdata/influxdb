@@ -85,6 +85,7 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool) *Handler {
 		handler = r.handlerFunc
 		handler = authorize(handler, h, requireAuthentication)
 		handler = cors(handler)
+		handler = requestID(handler)
 		handler = logging(handler, r.name, weblog)
 		handler = recovery(handler, r.name, weblog) // make sure recovery is always last
 

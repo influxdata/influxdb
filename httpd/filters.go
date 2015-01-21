@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"code.google.com/p/go-uuid/uuid"
+
 	"github.com/influxdb/influxdb"
 )
 
@@ -106,6 +108,16 @@ func cors(inner http.Handler) http.Handler {
 		if r.Method == "OPTIONS" {
 			return
 		}
+
+		inner.ServeHTTP(w, r)
+	})
+}
+
+func requestID(inner http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uid := uuid.NewUUID()
+		r.Header.Set("Request-Id", uid.String())
+		w.Header().Set("Request-Id", r.Header.Get("Request-Id"))
 
 		inner.ServeHTTP(w, r)
 	})
