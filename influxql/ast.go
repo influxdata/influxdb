@@ -118,7 +118,22 @@ func (a Statements) String() string {
 type Statement interface {
 	Node
 	stmt()
+	RequiredPrivileges() ExecutionPrivileges
 }
+
+// ExecutionPrivilege is a privilege required for a user to execute
+// a statement on a database or resource.
+type ExecutionPrivilege struct {
+	// Name of the database or resource.
+	// If "", then the resource is the cluster.
+	Name string
+
+	// Privilege required.
+	Privilege Privilege
+}
+
+// ExecutionPrivileges is a list of privileges required to execute a statement.
+type ExecutionPrivileges []ExecutionPrivilege
 
 func (_ *AlterRetentionPolicyStatement) stmt()  {}
 func (_ *CreateContinuousQueryStatement) stmt() {}
@@ -172,7 +187,7 @@ func (_ *Join) source()        {}
 func (_ *Measurement) source() {}
 func (_ *Merge) source()       {}
 
-// SortField represens a field to sort results by.
+// SortField represents a field to sort results by.
 type SortField struct {
 	// Name of the field
 	Name string
@@ -216,6 +231,11 @@ func (s *CreateDatabaseStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivilege returns the privilege required to execute a CreateDatabaseStatement.
+func (s *CreateDatabaseStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+}
+
 // DropDatabaseStatement represents a command to drop a database.
 type DropDatabaseStatement struct {
 	// Name of the database to be dropped.
@@ -228,6 +248,11 @@ func (s *DropDatabaseStatement) String() string {
 	_, _ = buf.WriteString("DROP DATABASE ")
 	_, _ = buf.WriteString(s.Name)
 	return buf.String()
+}
+
+// RequiredPrivilege returns the privilege required to execute a DropDatabaseStatement.
+func (s *DropDatabaseStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // DropRetentionPolicyStatement represents a command to drop a retention policy from a database.
@@ -247,6 +272,11 @@ func (s *DropRetentionPolicyStatement) String() string {
 	_, _ = buf.WriteString(" ON ")
 	_, _ = buf.WriteString(s.Database)
 	return buf.String()
+}
+
+// RequiredPrivilege returns the privilege required to execute a DropRetentionPolicyStatement.
+func (s *DropRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: s.Database, Privilege: WritePrivilege}}
 }
 
 // CreateUserStatement represents a command for creating a new user.
@@ -277,6 +307,11 @@ func (s *CreateUserStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivilege returns the privilege(s) required to execute a CreateUserStatement.
+func (s *CreateUserStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+}
+
 // DropUserStatement represents a command for dropping a user.
 type DropUserStatement struct {
 	// Name of the user to drop.
@@ -291,11 +326,17 @@ func (s *DropUserStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivilege returns the privilege(s) required to execute a DropUserStatement.
+func (s *DropUserStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+}
+
 // Privilege is a type of action a user can be granted the right to use.
 type Privilege int
 
 const (
-	ReadPrivilege Privilege = iota
+	NoPrivileges Privilege = iota
+	ReadPrivilege
 	WritePrivilege
 	AllPrivileges
 )
@@ -306,6 +347,8 @@ func NewPrivilege(p Privilege) *Privilege { return &p }
 // String returns a string representation of a Privilege.
 func (p Privilege) String() string {
 	switch p {
+	case NoPrivileges:
+		return "NO PRIVILEGES"
 	case ReadPrivilege:
 		return "READ"
 	case WritePrivilege:
@@ -342,6 +385,11 @@ func (s *GrantStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivilege returns the privilege required to execute a GrantStatement.
+func (s *GrantStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+}
+
 // RevokeStatement represents a command to revoke a privilege from a user.
 type RevokeStatement struct {
 	// Privilege to be revoked.
@@ -366,6 +414,11 @@ func (s *RevokeStatement) String() string {
 	_, _ = buf.WriteString(" FROM ")
 	_, _ = buf.WriteString(s.User)
 	return buf.String()
+}
+
+// RequiredPrivilege returns the privilege required to execute a RevokeStatement.
+func (s *RevokeStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // CreateRetentionPolicyStatement represents a command to create a retention policy.
@@ -401,6 +454,11 @@ func (s *CreateRetentionPolicyStatement) String() string {
 		_, _ = buf.WriteString(" DEFAULT")
 	}
 	return buf.String()
+}
+
+// RequiredPrivilege returns the privilege required to execute a CreateRetentionPolicyStatement.
+func (s *CreateRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // AlterRetentionPolicyStatement represents a command to alter an existing retention policy.
@@ -444,6 +502,11 @@ func (s *AlterRetentionPolicyStatement) String() string {
 	}
 
 	return buf.String()
+}
+
+// RequiredPrivilege returns the privilege required to execute an AlterRetentionPolicyStatement.
+func (s *AlterRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // SelectStatement represents a command for extracting data from the database.
@@ -499,6 +562,17 @@ func (s *SelectStatement) String() string {
 		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
 	}
 	return buf.String()
+}
+
+// RequiredPrivilege returns the privilege required to execute the SelectStatement.
+func (s *SelectStatement) RequiredPrivileges() ExecutionPrivileges {
+	ep := ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+
+	if s.Target != nil {
+		p := ExecutionPrivilege{Name: s.Target.Database, Privilege: WritePrivilege}
+		ep = append(ep, p)
+	}
+	return ep
 }
 
 // Aggregated returns true if the statement uses aggregate functions.
@@ -683,6 +757,11 @@ func (s *DeleteStatement) String() string {
 	return s.String()
 }
 
+// RequiredPrivilege returns the privilege required to execute a DeleteStatement.
+func (s *DeleteStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
+}
+
 // ListSeriesStatement represents a command for listing series in the database.
 type ListSeriesStatement struct {
 	// An expression evaluated on a series name or tag.
@@ -716,6 +795,11 @@ func (s *ListSeriesStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivilege returns the privilege required to execute a ListSeriesStatement.
+func (s *ListSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
 // DropSeriesStatement represents a command for removing a series from the database.
 type DropSeriesStatement struct {
 	Name string
@@ -724,17 +808,32 @@ type DropSeriesStatement struct {
 // String returns a string representation of the drop series statement.
 func (s *DropSeriesStatement) String() string { return fmt.Sprintf("DROP SERIES %s", s.Name) }
 
+// RequiredPrivilege returns the privilige reqired to execute a DropSeriesStatement.
+func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
+}
+
 // ListContinuousQueriesStatement represents a command for listing continuous queries.
 type ListContinuousQueriesStatement struct{}
 
 // String returns a string representation of the list continuous queries statement.
 func (s *ListContinuousQueriesStatement) String() string { return "LIST CONTINUOUS QUERIES" }
 
+// RequiredPrivilege returns the privilege required to execute a ListContinuousQueriesStatement.
+func (s *ListContinuousQueriesStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
 // ListDatabasesStatement represents a command for listing all databases in the cluster.
 type ListDatabasesStatement struct{}
 
 // String returns a string representation of the list databases command.
 func (s *ListDatabasesStatement) String() string { return "LIST DATABASES" }
+
+// RequiredPrivilege returns the privilege required to execute a ListDatabasesStatement
+func (s *ListDatabasesStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+}
 
 // CreateContinuousQueriesStatement represents a command for creating a continuous query.
 type CreateContinuousQueryStatement struct {
@@ -753,6 +852,26 @@ func (s *CreateContinuousQueryStatement) String() string {
 	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", s.Name, s.Database, s.Source.String())
 }
 
+// RequiredPrivilege returns the privilege required to execute a CreateContinuousQueryStatement.
+func (s *CreateContinuousQueryStatement) RequiredPrivileges() ExecutionPrivileges {
+	ep := ExecutionPrivileges{{Name: s.Database, Privilege: ReadPrivilege}}
+
+	// Selecting into a database that's different from the source?
+	if s.Source.Target.Database != "" {
+		// Change source database privilege requirement to read.
+		ep[0].Privilege = ReadPrivilege
+
+		// Add destination database privilege requirement and set it to write.
+		p := ExecutionPrivilege{
+			Name:      s.Source.Target.Database,
+			Privilege: WritePrivilege,
+		}
+		ep = append(ep, p)
+	}
+
+	return ep
+}
+
 // DropContinuousQueriesStatement represents a command for removing a continuous query.
 type DropContinuousQueryStatement struct {
 	Name string
@@ -761,6 +880,11 @@ type DropContinuousQueryStatement struct {
 // String returns a string representation of the statement.
 func (s *DropContinuousQueryStatement) String() string {
 	return fmt.Sprintf("DROP CONTINUOUS QUERY %s", s.Name)
+}
+
+// RequiredPrivileges returns the privilege(s) required to execute a DropContinuousQueryStatement
+func (s *DropContinuousQueryStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
 }
 
 // ListMeasurementsStatement represents a command for listing measurements.
@@ -796,6 +920,11 @@ func (s *ListMeasurementsStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivileges returns the privilege(s) required to execute a ListMeasurementsStatement
+func (s *ListMeasurementsStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
 // ListRetentionPoliciesStatement represents a command for listing retention policies.
 type ListRetentionPoliciesStatement struct {
 	// Name of the database to list policies for.
@@ -808,6 +937,11 @@ func (s *ListRetentionPoliciesStatement) String() string {
 	_, _ = buf.WriteString("LIST RETENTION POLICIES ")
 	_, _ = buf.WriteString(s.Database)
 	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege(s) required to execute a ListRetentionPoliciesStatement
+func (s *ListRetentionPoliciesStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
 // ListTagKeysStatement represents a command for listing tag keys.
@@ -850,6 +984,11 @@ func (s *ListTagKeysStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivileges returns the privilege(s) required to execute a ListTagKeysStatement
+func (s *ListTagKeysStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
 // ListTagValuesStatement represents a command for listing tag values.
 type ListTagValuesStatement struct {
 	// Data source that fields are extracted from.
@@ -890,12 +1029,22 @@ func (s *ListTagValuesStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivileges returns the privilege(s) required to execute a ListTagValuesStatement
+func (s *ListTagValuesStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
 // ListUsersStatement represents a command for listing users.
 type ListUsersStatement struct{}
 
 // String retuns a string representation of the ListUsersStatement.
 func (s *ListUsersStatement) String() string {
 	return "LIST USERS"
+}
+
+// RequiredPrivileges returns the privilege(s) required to execute a ListUsersStatement
+func (s *ListUsersStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // ListFieldKeyStatement represents a command for listing field keys.
@@ -938,6 +1087,11 @@ func (s *ListFieldKeysStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivileges returns the privilege(s) required to execute a ListFieldKeysStatement
+func (s *ListFieldKeysStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
 // ListFieldValuesStatement represents a command for listing field values.
 type ListFieldValuesStatement struct {
 	// Data source that fields are extracted from.
@@ -976,6 +1130,11 @@ func (s *ListFieldValuesStatement) String() string {
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
 	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege(s) required to execute a ListFieldValuesStatement
+func (s *ListFieldValuesStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
 // Fields represents a list of fields.

@@ -3,6 +3,7 @@ package httpd
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -59,11 +60,11 @@ type route struct {
 
 // Handler represents an HTTP handler for the InfluxDB server.
 type Handler struct {
-	server *influxdb.Server
-	addr   string
-	routes []route
-	mux    *pat.PatternServeMux
-	user   *influxdb.User
+	server                *influxdb.Server
+	routes                []route
+	mux                   *pat.PatternServeMux
+	user                  *influxdb.User
+	requireAuthentication bool
 
 	// The InfluxDB verion returned by the HTTP response header.
 	Version string // TODO corylanou: this never gets set, so it reports improperly when we right out headers
@@ -75,6 +76,7 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool) *Handler {
 	h := &Handler{
 		server: s,
 		mux:    pat.New(),
+		requireAuthentication: requireAuthentication,
 	}
 
 	weblog := log.New(os.Stderr, `[http] `, 0)
@@ -131,36 +133,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
-// makeAuthenticationHandler takes a custom handler and returns a standard handler, ensuring that
-// if user credentials are passed in, an attempt is made to authenticate that user. If authentication
-// fails, an error is returned to the user.
-//
-// There is one exception: if there are no users in the system, authentication is not required. This
-// is to facilitate bootstrapping of a system with authentication enabled.
-//func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.Request, *influxdb.User)) http.HandlerFunc {
-//return func(w http.ResponseWriter, r *http.Request) {
-//var user *influxdb.User
-//if h.AuthenticationEnabled && len(h.server.Users()) > 0 {
-//username, password, err := getUsernameAndPassword(r)
-//if err != nil {
-//h.error(w, err.Error(), http.StatusUnauthorized)
-//return
-//}
-//if username == "" {
-//h.error(w, "username required", http.StatusUnauthorized)
-//return
-//}
-
-//user, err = h.server.Authenticate(username, password)
-//if err != nil {
-//h.error(w, err.Error(), http.StatusUnauthorized)
-//return
-//}
-//}
-//fn(w, r, user)
-//}
-//}
-
 // serveQuery parses an incoming query and, if valid, executes the query.
 func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -170,20 +142,25 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 	// Parse query from query string.
 	query, err := p.ParseQuery()
 	if err != nil {
-		h.error(w, "error parsing query: "+err.Error(), http.StatusBadRequest)
+		httpError(w, "error parsing query: "+err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// If authentication is enabled and there are no users yet, make sure
+	// the first statement is creating a new cluster admin.
+	if h.requireAuthentication && h.server.UserCount() == 0 {
+		stmt, ok := query.Statements[0].(*influxql.CreateUserStatement)
+		if !ok || stmt.Privilege == nil || *stmt.Privilege != influxql.AllPrivileges {
+			httpError(w, "must create cluster admin", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	// Execute query. One result will return for each statement.
 	results := h.server.ExecuteQuery(query, db, h.user)
 
-	// If any statement errored then set the response status code.
-	if results.Error() != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-	}
-
-	// Write resultset.
-	_ = json.NewEncoder(w).Encode(results)
+	// Send results to client.
+	httpResults(w, results)
 }
 
 type batchWrite struct {
@@ -260,7 +237,7 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
 
 	if err := h.server.CopyMetastore(w); err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
+		httpError(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -287,23 +264,23 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 	// Read in data node from request body.
 	var n dataNodeJSON
 	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
-		h.error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Parse the URL.
 	u, err := url.Parse(n.URL)
 	if err != nil {
-		h.error(w, "invalid data node url", http.StatusBadRequest)
+		httpError(w, "invalid data node url", http.StatusBadRequest)
 		return
 	}
 
 	// Create the data node.
 	if err := h.server.CreateDataNode(u); err == influxdb.ErrDataNodeExists {
-		h.error(w, err.Error(), http.StatusConflict)
+		httpError(w, err.Error(), http.StatusConflict)
 		return
 	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
+		httpError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -312,7 +289,7 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 
 	// Create a new replica on the broker.
 	if err := h.server.Client().CreateReplica(node.ID); err != nil {
-		h.error(w, err.Error(), http.StatusBadGateway)
+		httpError(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 
@@ -327,16 +304,16 @@ func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
 	// Parse node id.
 	nodeID, err := strconv.ParseUint(r.URL.Query().Get(":id"), 10, 64)
 	if err != nil {
-		h.error(w, "invalid node id", http.StatusBadRequest)
+		httpError(w, "invalid node id", http.StatusBadRequest)
 		return
 	}
 
 	// Delete the node.
 	if err := h.server.DeleteDataNode(nodeID); err == influxdb.ErrDataNodeNotFound {
-		h.error(w, err.Error(), http.StatusNotFound)
+		httpError(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
-		h.error(w, err.Error(), http.StatusInternalServerError)
+		httpError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -348,8 +325,33 @@ type dataNodeJSON struct {
 	URL string `json:"url"`
 }
 
-// error returns an error to the client in a standard format.
-func (h *Handler) error(w http.ResponseWriter, error string, code int) {
-	// TODO: Return error as JSON.
-	http.Error(w, error, code)
+func isAuthorizationError(err error) bool {
+	type authorize interface {
+		authorize()
+	}
+	_, ok := err.(authorize)
+	return ok
+}
+
+// httpResult writes a Results array to the client.
+func httpResults(w http.ResponseWriter, results influxdb.Results) {
+	if results.Error() != nil {
+		if isAuthorizationError(results.Error()) {
+			w.WriteHeader(http.StatusUnauthorized)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}
+	w.Header().Add("content-type", "application/json")
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+// httpError writes an error to the client in a standard format.
+func httpError(w http.ResponseWriter, error string, code int) {
+	var results influxdb.Results
+	results = append(results, &influxdb.Result{Err: errors.New(error)})
+
+	w.Header().Add("content-type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(results)
 }

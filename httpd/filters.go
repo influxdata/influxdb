@@ -9,25 +9,30 @@ import (
 	"github.com/influxdb/influxdb"
 )
 
+// authorize ensures that if user credentials are passed in, an attempt is made to authenticate that user.
+// If authentication fails, an error is returned to the user.
+//
+// There is one exception: if there are no users in the system, authentication is not required. This
+// is to facilitate bootstrapping of a system with authentication enabled.
 func authorize(inner http.Handler, h *Handler, requireAuthentication bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var user *influxdb.User
 
 		// TODO corylanou: never allow this in the future without users
-		if requireAuthentication && len(h.server.Users()) > 0 {
+		if requireAuthentication && h.server.UserCount() > 0 {
 			username, password, err := getUsernameAndPassword(r)
 			if err != nil {
-				h.error(w, err.Error(), http.StatusUnauthorized)
+				httpError(w, err.Error(), http.StatusUnauthorized)
 				return
 			}
 			if username == "" {
-				h.error(w, "username required", http.StatusUnauthorized)
+				httpError(w, "username required", http.StatusUnauthorized)
 				return
 			}
 
 			user, err = h.server.Authenticate(username, password)
 			if err != nil {
-				h.error(w, err.Error(), http.StatusUnauthorized)
+				httpError(w, err.Error(), http.StatusUnauthorized)
 				return
 			}
 		}
