@@ -1,9 +1,11 @@
 package httpd
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -55,9 +57,26 @@ func (l *responseLogger) Size() int {
 func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 	username := "-"
 	url := r.URL
+
+	// get username from the url if passed there
 	if url.User != nil {
 		if name := url.User.Username(); name != "" {
 			username = name
+		}
+	}
+
+	// Try to get it from the authorization header if set there
+	if username == "-" {
+		auth := r.Header.Get("Authorization")
+		fields := strings.Split(auth, " ")
+		if len(fields) == 2 {
+			bs, err := base64.StdEncoding.DecodeString(fields[1])
+			if err == nil {
+				fields = strings.Split(string(bs), ":")
+				if len(fields) >= 1 {
+					username = fields[0]
+				}
+			}
 		}
 	}
 
