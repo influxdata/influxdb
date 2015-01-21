@@ -172,11 +172,10 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// TODO corylanou: Check if user can write to specified database
-		//if !user_can_write(br.Database) {
-		//writeError(&Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", u.Name)}, http.StatusUnauthorized)
-		//return
-		//}
+		if h.requireAuthentication && !h.user.Authorize(influxql.WritePrivilege, br.Database) {
+			writeError(influxdb.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", h.user.Name)}, http.StatusUnauthorized)
+			return
+		}
 
 		for _, p := range br.Points {
 			if p.Timestamp.IsZero() {
