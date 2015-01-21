@@ -172,7 +172,7 @@ func (_ *Join) source()        {}
 func (_ *Measurement) source() {}
 func (_ *Merge) source()       {}
 
-// SortField represens a field to sort results by.
+// SortField represents a field to sort results by.
 type SortField struct {
 	// Name of the field
 	Name string
