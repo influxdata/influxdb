@@ -42,7 +42,6 @@ func cors(inner http.Handler) http.Handler {
 	//w.Header().Add("Access-Control-Max-Age", "2592000")
 	//w.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
 	//w.Header().Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
-	//w.Header().Add("X-Influxdb-Version", h.Version)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" {
@@ -74,13 +73,13 @@ func cors(inner http.Handler) http.Handler {
 	})
 }
 
-func logging(inner http.Handler, name string) http.Handler {
+func logging(inner http.Handler, name string, weblog *log.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
 		inner.ServeHTTP(w, r)
 
-		log.Printf(
+		weblog.Printf(
 			"%s %s %s %s %s",
 			r.RemoteAddr,
 			r.Method,
@@ -91,14 +90,14 @@ func logging(inner http.Handler, name string) http.Handler {
 	})
 }
 
-func recovery(inner http.Handler, name string) http.Handler {
+func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
 		inner.ServeHTTP(w, r)
 
 		if err := recover(); err != nil {
-			log.Printf(
+			weblog.Printf(
 				"%s %s %s %s %s",
 				r.Method,
 				r.RequestURI,

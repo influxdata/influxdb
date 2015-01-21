@@ -65,11 +65,8 @@ type Handler struct {
 	mux    *pat.PatternServeMux
 	user   *influxdb.User
 
-	// we use a custom loggers
-	weblog *log.Logger
-
 	// The InfluxDB verion returned by the HTTP response header.
-	Version string
+	Version string // TODO corylanou: this never gets set, so it reports improperly when we right out headers
 }
 
 // NewHandler returns a new instance of Handler.
@@ -77,9 +74,10 @@ type Handler struct {
 func NewHandler(s *influxdb.Server, requireAuthentication bool) *Handler {
 	h := &Handler{
 		server: s,
-		weblog: log.New(os.Stderr, `[http]`, log.LstdFlags),
 		mux:    pat.New(),
 	}
+
+	weblog := log.New(os.Stderr, `[http] `, 0)
 
 	h.routes = append(h.routes,
 		route{
@@ -118,8 +116,8 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool) *Handler {
 		handler = r.handlerFunc
 		handler = authorize(handler, h, requireAuthentication)
 		handler = cors(handler)
-		handler = logging(handler, r.name)
-		handler = recovery(handler, r.name) // make sure recovery is always last
+		handler = logging(handler, r.name, weblog)
+		handler = recovery(handler, r.name, weblog) // make sure recovery is always last
 
 		h.mux.Add(r.method, r.pattern, handler)
 	}
@@ -129,6 +127,7 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool) *Handler {
 
 //ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("X-Influxdb-Version", h.Version)
 	h.mux.ServeHTTP(w, r)
 }
 
