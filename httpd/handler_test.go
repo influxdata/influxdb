@@ -789,13 +789,12 @@ type HTTPServer struct {
 }
 
 func NewHTTPServer(s *Server) *HTTPServer {
-	h := httpd.NewHandler(s.Server)
+	h := httpd.NewHandler(s.Server, false)
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
 func NewAuthenticatedHTTPServer(s *Server) *HTTPServer {
-	h := httpd.NewHandler(s.Server)
-	h.AuthenticationEnabled = true
+	h := httpd.NewHandler(s.Server, true)
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 

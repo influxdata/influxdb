@@ -4,8 +4,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -48,58 +50,85 @@ func getUsernameAndPassword(r *http.Request) (string, string, error) {
 	return fields[0], fields[1], nil
 }
 
+type route struct {
+	name        string
+	method      string
+	pattern     string
+	handlerFunc http.HandlerFunc
+}
+
 // Handler represents an HTTP handler for the InfluxDB server.
 type Handler struct {
 	server *influxdb.Server
+	addr   string
+	routes []route
 	mux    *pat.PatternServeMux
+	user   *influxdb.User
 
-	// Whether endpoints require authentication.
-	AuthenticationEnabled bool
+	// we use a custom loggers
+	weblog *log.Logger
 
 	// The InfluxDB verion returned by the HTTP response header.
 	Version string
 }
 
 // NewHandler returns a new instance of Handler.
-func NewHandler(s *influxdb.Server) *Handler {
+
+func NewHandler(s *influxdb.Server, requireAuthentication bool) *Handler {
 	h := &Handler{
 		server: s,
+		weblog: log.New(os.Stderr, `[http]`, log.LstdFlags),
 		mux:    pat.New(),
 	}
 
-	// Query serving route.
-	h.mux.Get("/query", h.makeAuthenticationHandler(h.serveQuery))
+	h.routes = append(h.routes,
+		route{
+			"query", // Query serving route.
+			"GET", "/query", h.serveQuery,
+		},
+		route{
+			"write", // Data-ingest route.
+			"POST", "/write", h.serveWrite,
+		},
+		route{ // List data nodes
+			"data_nodes_index",
+			"GET", "/data_nodes", h.serveDataNodes,
+		},
+		route{ // Create data node
+			"data_nodes_create",
+			"POST", "/data_nodes", h.serveCreateDataNode,
+		},
+		route{ // Delete data node
+			"data_nodes_delete",
+			"DELETE", "/data_nodes/:id", h.serveDeleteDataNode,
+		},
+		route{ // Metastore
+			"metastore",
+			"GET", "/metastore", h.serveMetastore,
+		},
+		route{ // Ping
+			"ping",
+			"GET", "/ping", h.servePing,
+		},
+	)
 
-	// Data-ingest route.
-	h.mux.Post("/write", h.makeAuthenticationHandler(h.serveWrite))
+	for _, r := range h.routes {
+		var handler http.Handler
 
-	// Data node routes.
-	h.mux.Get("/data_nodes", h.makeAuthenticationHandler(h.serveDataNodes))
-	h.mux.Post("/data_nodes", h.makeAuthenticationHandler(h.serveCreateDataNode))
-	h.mux.Del("/data_nodes/:id", h.makeAuthenticationHandler(h.serveDeleteDataNode))
+		handler = r.handlerFunc
+		handler = authorize(handler, h, requireAuthentication)
+		handler = cors(handler)
+		handler = logging(handler, r.name)
+		handler = recovery(handler, r.name) // make sure recovery is always last
 
-	// Utilities
-	h.mux.Get("/metastore", h.makeAuthenticationHandler(h.serveMetastore))
-	h.mux.Get("/ping", h.makeAuthenticationHandler(h.servePing))
+		h.mux.Add(r.method, r.pattern, handler)
+	}
 
 	return h
 }
 
-// ServeHTTP responds to HTTP request to the handler.
+//ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Access-Control-Allow-Origin", "*")
-	w.Header().Add("Access-Control-Max-Age", "2592000")
-	w.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
-	w.Header().Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
-	w.Header().Add("X-Influxdb-Version", h.Version)
-
-	// If this is a CORS OPTIONS request then send back okie-dokie.
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	// Otherwise handle it via pat.
 	h.mux.ServeHTTP(w, r)
 }
 
@@ -109,32 +138,32 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //
 // There is one exception: if there are no users in the system, authentication is not required. This
 // is to facilitate bootstrapping of a system with authentication enabled.
-func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.Request, *influxdb.User)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var user *influxdb.User
-		if h.AuthenticationEnabled && len(h.server.Users()) > 0 {
-			username, password, err := getUsernameAndPassword(r)
-			if err != nil {
-				h.error(w, err.Error(), http.StatusUnauthorized)
-				return
-			}
-			if username == "" {
-				h.error(w, "username required", http.StatusUnauthorized)
-				return
-			}
+//func (h *Handler) makeAuthenticationHandler(fn func(http.ResponseWriter, *http.Request, *influxdb.User)) http.HandlerFunc {
+//return func(w http.ResponseWriter, r *http.Request) {
+//var user *influxdb.User
+//if h.AuthenticationEnabled && len(h.server.Users()) > 0 {
+//username, password, err := getUsernameAndPassword(r)
+//if err != nil {
+//h.error(w, err.Error(), http.StatusUnauthorized)
+//return
+//}
+//if username == "" {
+//h.error(w, "username required", http.StatusUnauthorized)
+//return
+//}
 
-			user, err = h.server.Authenticate(username, password)
-			if err != nil {
-				h.error(w, err.Error(), http.StatusUnauthorized)
-				return
-			}
-		}
-		fn(w, r, user)
-	}
-}
+//user, err = h.server.Authenticate(username, password)
+//if err != nil {
+//h.error(w, err.Error(), http.StatusUnauthorized)
+//return
+//}
+//}
+//fn(w, r, user)
+//}
+//}
 
 // serveQuery parses an incoming query and, if valid, executes the query.
-func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
+func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	p := influxql.NewParser(strings.NewReader(q.Get("q")))
 	db := q.Get("db")
@@ -147,7 +176,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, u *influxdb
 	}
 
 	// Execute query. One result will return for each statement.
-	results := h.server.ExecuteQuery(query, db, u)
+	results := h.server.ExecuteQuery(query, db, h.user)
 
 	// If any statement errored then set the response status code.
 	if results.Error() != nil {
@@ -167,7 +196,7 @@ type batchWrite struct {
 }
 
 // serveWrite receives incoming series data and writes it to the database.
-func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
+func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request) {
 	var br batchWrite
 
 	dec := json.NewDecoder(r.Body)
@@ -226,7 +255,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, u *influxdb
 }
 
 // serveMetastore returns a copy of the metastore.
-func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
+func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 	// Set headers.
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
@@ -237,10 +266,10 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, u *infl
 }
 
 // servePing returns a simple response to let the client know the server is running.
-func (h *Handler) servePing(w http.ResponseWriter, r *http.Request, u *influxdb.User) {}
+func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {}
 
 // serveDataNodes returns a list of all data nodes in the cluster.
-func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
+func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request) {
 	// Generate a list of objects for encoding to the API.
 	a := make([]*dataNodeJSON, 0)
 	for _, n := range h.server.DataNodes() {
@@ -255,7 +284,7 @@ func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request, u *infl
 }
 
 // serveCreateDataNode creates a new data node in the cluster.
-func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request, _ *influxdb.User) {
+func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 	// Read in data node from request body.
 	var n dataNodeJSON
 	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
@@ -295,7 +324,7 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request, _ 
 }
 
 // serveDeleteDataNode removes an existing node.
-func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
+func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
 	// Parse node id.
 	nodeID, err := strconv.ParseUint(r.URL.Query().Get(":id"), 10, 64)
 	if err != nil {

@@ -67,8 +67,7 @@ func execRun(args []string) {
 
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
-		sh := httpd.NewHandler(s)
-		sh.AuthenticationEnabled = config.Authentication.Enabled
+		sh := httpd.NewHandler(s, config.Authentication.Enabled)
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
 			h.serverHandler = sh
 		} else {
