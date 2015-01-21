@@ -209,7 +209,9 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 }
 
 // servePing returns a simple response to let the client know the server is running.
-func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {}
+func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
 
 // serveDataNodes returns a list of all data nodes in the cluster.
 func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request) {

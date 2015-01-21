@@ -72,6 +72,9 @@ func authorize(inner http.Handler, h *Handler, requireAuthentication bool) http.
 }
 
 func cors(inner http.Handler) http.Handler {
+	// I think in general we should take the standard path, and if they need custom config
+	// allow to put that in the config.
+
 	// TODO corylanou: incorporate this appropriately
 	//w.Header().Add("Access-Control-Allow-Origin", "*")
 	//w.Header().Add("Access-Control-Max-Age", "2592000")
@@ -112,16 +115,15 @@ func logging(inner http.Handler, name string, weblog *log.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		inner.ServeHTTP(w, r)
+		record := &responseLogger{
+			w: w,
+		}
 
-		weblog.Printf(
-			"%s %s %s %s %s",
-			r.RemoteAddr,
-			r.Method,
-			r.RequestURI,
-			name,
-			time.Since(start),
-		)
+		inner.ServeHTTP(record, r)
+
+		logLine := buildLogLine(record, r, start)
+
+		weblog.Println(logLine)
 	})
 }
 
@@ -129,17 +131,17 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		inner.ServeHTTP(w, r)
+		record := &responseLogger{
+			w: w,
+		}
+
+		inner.ServeHTTP(record, r)
 
 		if err := recover(); err != nil {
-			weblog.Printf(
-				"%s %s %s %s %s",
-				r.Method,
-				r.RequestURI,
-				name,
-				time.Since(start),
-				err,
-			)
+			logLine := buildLogLine(record, r, start)
+			logLine = fmt.Sprintf(`%s [err:%s]`, logLine, err)
+
+			weblog.Println(logLine)
 		}
 	})
 }
