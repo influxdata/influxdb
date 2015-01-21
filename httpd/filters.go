@@ -75,7 +75,7 @@ func cors(inner http.Handler) http.Handler {
 	// I think in general we should take the standard path, and if they need custom config
 	// allow to put that in the config.
 
-	// TODO corylanou: incorporate this appropriately
+	// TODO corylanou: find out more history on this and incorporate this appropriately
 	//w.Header().Add("Access-Control-Allow-Origin", "*")
 	//w.Header().Add("Access-Control-Max-Age", "2592000")
 	//w.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
