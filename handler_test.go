@@ -574,13 +574,12 @@ func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 // Perform a subset of endpoint testing, with authentication enabled.
 
 func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
 	// Attempting to create a non-admin user should fail.
-	query := map[string]string{"q": "CREATE USER maeve WITH PASSWORD pass"}
+	query := map[string]string{"q": "CREATE USER maeve WITH PASSWORD 'pass'"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -588,7 +587,7 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 
 	// Creating the first admin user, without supplying authentication
 	// credentials should be OK.
-	query = map[string]string{"q": "CREATE USER orla WITH PASSWORD pass WITH ALL PRIVILEGES"}
+	query = map[string]string{"q": "CREATE USER orla WITH PASSWORD 'pass' WITH ALL PRIVILEGES"}
 	status, _ = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -596,7 +595,7 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 
 	// Creating a second admin user, without supplying authentication
 	// credentials should fail.
-	query = map[string]string{"q": "CREATE USER louise WITH PASSWORD pass WITH ALL PRIVILEGES"}
+	query = map[string]string{"q": "CREATE USER louise WITH PASSWORD 'pass' WITH ALL PRIVILEGES"}
 	status, _ = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -605,7 +604,6 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 }
 
 func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
