@@ -60,7 +60,8 @@ func internalTest(compression bool) {
 		panic(err)
 	}
 
-	if len(dbs) != 1 && dbs[0]["foobar"] == nil {
+	_, dbFound := dbs["foobar"]
+	if len(dbs) != 1 && dbFound {
 		panic("List of databases don't match")
 	}
 
