@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -55,7 +56,38 @@ func (l *responseLogger) Size() int {
 // buildLogLine creates a common log format
 // in addittion to the common fields, we also append referrer, user agent and request ID
 func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
+	username := parseUsername(r)
+
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+
+	if err != nil {
+		host = r.RemoteAddr
+	}
+
+	uri := r.URL.RequestURI()
+
+	fields := []string{
+		host,
+		"-",
+		username,
+		fmt.Sprintf("[%s]", start.Format("02/Jan/2006:15:04:05 -0700")),
+		r.Method,
+		uri,
+		r.Proto,
+		strconv.Itoa(l.Status()),
+		strconv.Itoa(l.Size()),
+		r.Referer(),
+		r.UserAgent(),
+		r.Header.Get("Request-Id"),
+	}
+
+	return strings.Join(fields, " ")
+}
+
+// parses the uesrname either from the url or auth header
+func parseUsername(r *http.Request) string {
 	username := "-"
+
 	url := r.URL
 
 	// get username from the url if passed there
@@ -79,27 +111,5 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 			}
 		}
 	}
-
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-
-	if err != nil {
-		host = r.RemoteAddr
-	}
-
-	uri := url.RequestURI()
-	return fmt.Sprintf(
-		"%s %s %s %s %s %s %s %d %d %s %s %s",
-		host,
-		"-",
-		username,
-		fmt.Sprintf("[%s]", start.Format("02/Jan/2006:15:04:05 -0700")),
-		r.Method,
-		uri,
-		r.Proto,
-		l.Status(),
-		l.Size(),
-		r.Referer(),
-		r.UserAgent(),
-		r.Header.Get("Request-Id"),
-	)
+	return username
 }
