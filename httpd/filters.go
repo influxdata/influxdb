@@ -114,15 +114,9 @@ func cors(inner http.Handler) http.Handler {
 func logging(inner http.Handler, name string, weblog *log.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-
-		record := &responseLogger{
-			w: w,
-		}
-
-		inner.ServeHTTP(record, r)
-
-		logLine := buildLogLine(record, r, start)
-
+		l := &responseLogger{w: w}
+		inner.ServeHTTP(l, r)
+		logLine := buildLogLine(l, r, start)
 		weblog.Println(logLine)
 	})
 }
@@ -130,17 +124,11 @@ func logging(inner http.Handler, name string, weblog *log.Logger) http.Handler {
 func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-
-		record := &responseLogger{
-			w: w,
-		}
-
-		inner.ServeHTTP(record, r)
-
+		l := &responseLogger{w: w}
+		inner.ServeHTTP(l, r)
 		if err := recover(); err != nil {
-			logLine := buildLogLine(record, r, start)
+			logLine := buildLogLine(l, r, start)
 			logLine = fmt.Sprintf(`%s [err:%s]`, logLine, err)
-
 			weblog.Println(logLine)
 		}
 	})
