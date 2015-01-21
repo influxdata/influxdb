@@ -211,7 +211,7 @@ func openServer(path string, u *url.URL, b *messaging.Broker, initializing, conf
 	}
 
 	// Create and open the server.
-	s := influxdb.NewServer()
+	s := influxdb.NewServer(version)
 	if err := s.Open(path); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
 	}

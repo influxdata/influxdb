@@ -807,7 +807,7 @@ type Server struct {
 
 // NewServer returns a new test server instance.
 func NewServer() *Server {
-	return &Server{influxdb.NewServer()}
+	return &Server{influxdb.NewServer("X.X")}
 }
 
 // OpenServer returns a new, open test server instance.

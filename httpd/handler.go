@@ -36,9 +36,6 @@ type Handler struct {
 	mux                   *pat.PatternServeMux
 	user                  *influxdb.User
 	requireAuthentication bool
-
-	// The InfluxDB verion returned by the HTTP response header.
-	Version string // TODO corylanou: this never gets set, so it reports improperly when we right out headers
 }
 
 // NewHandler returns a new instance of Handler.
@@ -99,7 +96,7 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool) *Handler {
 
 //ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("X-Influxdb-Version", h.Version)
+	w.Header().Add("X-Influxdb-Version", h.server.Version())
 	h.mux.ServeHTTP(w, r)
 }
 

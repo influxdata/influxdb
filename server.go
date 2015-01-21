@@ -92,10 +92,12 @@ type Server struct {
 	databases map[string]*database // databases by name
 	shards    map[uint64]*Shard    // shards by id
 	users     map[string]*User     // user by name
+
+	version string // current version of the server
 }
 
 // NewServer returns a new instance of Server.
-func NewServer() *Server {
+func NewServer(version string) *Server {
 	return &Server{
 		meta:      &metastore{},
 		errors:    make(map[uint64]error),
@@ -103,6 +105,7 @@ func NewServer() *Server {
 		databases: make(map[string]*database),
 		shards:    make(map[uint64]*Shard),
 		users:     make(map[string]*User),
+		version:   version,
 	}
 }
 
@@ -112,6 +115,11 @@ func (s *Server) ID() uint64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.id
+}
+
+// Version returns the current version of the server
+func (s *Server) Version() string {
+	return s.version
 }
 
 // Path returns the path used when opening the server.
