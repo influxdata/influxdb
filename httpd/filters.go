@@ -11,7 +11,7 @@ import (
 	"github.com/influxdb/influxdb"
 )
 
-// getUsernameAndPassword returns the username and password encoded in
+// basicAuthCredentials returns the username and password encoded in
 // a request. The credentials may be present as URL query params, or as
 // a Basic Authentication header.
 func basicAuthCredentials(r *http.Request) (string, string, error) {
